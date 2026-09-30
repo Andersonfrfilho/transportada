@@ -151,6 +151,63 @@ Os 16 avisos são pré-existentes (`react-hooks/exhaustive-deps` em arquivos que
 O `format:check` reprovou dois arquivos na primeira passada — o `check` da app é eslint e não roda
 prettier, então só o gate da raiz pega isso.
 
+### T1.4 / T1.5 — Cascata do painel resolve `cargo`
+
+Suíte nova `apps/frontend-transportada/test/trip/delivery-proof-settings.contract.ts`, 13 testes em
+dois `describe`, ligada ao entrypoint `test/trip.contract.test.ts` — que já está na lista explícita
+do `package.json`.
+
+O primeiro `describe` cobre a cascata: fábrica `off`/1; sem linha nenhuma vale a fábrica; geral vence
+fábrica; contratante vence geral **por inteiro**, modo e mínimo juntos; destinatário vence os dois; o
+mínimo nunca vem de uma linha diferente da do modo; o rascunho de exceção nova parte da geral; a
+guarda recusa modo fora da lista e mínimo fora de 1 a 5.
+
+`resolveDeliveryProofSettings` é novo e é o espelho de `resolveWithOverrides` da API (spec 218
+RF-C3/RF-D1). Não substitui `mergeDeliveryProofSettings`: o merge nunca resolveu cascata nenhuma — ele
+só semeia o rascunho de uma exceção **nova** em `handleAddOverride`/`handleAddContractorOverride`, e a
+exceção gravada vence inteira. O comentário do merge foi reescrito para dizer isso, porque ler os dois
+lado a lado sem essa frase sugere duplicação onde não há. `resolveDeliveryProofSettings` ainda não tem
+consumidor em componente — entra na T1.6.
+
+⚠️ **A guarda de resposta não pode exigir os campos novos, e a primeira entrega exigia.** Painel e API
+são serviços separados no Railway, e o painel é PWA com bundle em cache: na janela de deploy, e de novo
+depois de uma reversão, o bundle novo conversa com a API anterior, que responde sem `cargo` nem
+`cargoMinimumCount`. `isDeliveryProofFieldSettings` é consumida em **seis** pontos de
+`tripClient.service.ts` (`readDeliveryProofSettings`, os dois `PUT`, `readSettingsResolution` e as duas
+listas de exceção), e em todos eles a recusa não degrada um campo — ela lança
+`requestError(TRIP_ERROR.RESPONSE_INVALID)` e derruba a tela de configuração inteira. É o mesmo
+precedente que o próprio arquivo já registrava três linhas acima para `receivedBy` (spec 193 D6):
+ausente é a API anterior, e vale o padrão.
+
+A correção não é só afrouxar a guarda — afrouxar sozinho deixaria `cargo` opcional vazando para quem
+consome. Entraram os tipos `*Wire` (`DeliveryProofFieldSettingsWire` e os três que derivam dele), que é
+o formato que só as guardas produzem, mais `normalizeDeliveryProofFieldSettings`, que completa com
+`off`/1 antes de sair do cliente. O compilador passa a cobrar a normalização: sem ela o `Wire` não é
+atribuível a `DeliveryProofFieldSettings`. Quatro testes do segundo `describe` exercitam isso pelo
+`createTripClient` real com `fetch` falso devolvendo a resposta antiga; um quinto garante que campo
+**presente e inválido** (`cargoMinimumCount: 9`) continua sendo `TRIP_RESPONSE_INVALID` — tolerância
+de ausência não é tolerância de lixo.
+
+```
+$ bun test ./test/trip.contract.test.ts
+ 1898 pass
+ 0 fail
+ 19661 expect() calls
+Ran 1898 tests across 1 file. [1207.00ms]
+```
+
+A asserção desse quinto teste foi conferida trocando o código esperado por uma sentinela: a suíte foi
+para `1 fail`. Um `.rejects.toBeDefined()` teria passado com qualquer erro, inclusive um `TypeError` de
+digitação.
+
+```
+$ bun run typecheck    → EXIT=0 (7 apps)
+$ bun run format:check → All matched files use Prettier code style!
+$ bun run lint         → ✖ 16 problems (0 errors, 16 warnings)
+```
+
+Os 16 avisos são os mesmos pré-existentes da T1.3 (`react-hooks/exhaustive-deps` fora desta fase).
+
 ## Fase 2
 
 ## Fase 3

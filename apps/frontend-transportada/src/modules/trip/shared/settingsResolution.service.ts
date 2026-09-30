@@ -4,6 +4,7 @@ import { hasExactKeys } from '@/modules/shared/objectKeys.service'
 import {
   isDeliveryProofFieldSettings,
   type DeliveryProofFieldSettings,
+  type DeliveryProofFieldSettingsWire,
 } from './deliveryProofSettings.service'
 import { OCCURRENCE_ATTACHMENT_MODES, OCCURRENCE_TYPE_FLOWS } from './occurrence.constant'
 import type { OccurrenceAttachmentMode, OccurrenceTypeFlow } from './occurrence.constant'
@@ -34,6 +35,11 @@ export type SettingsResolutionView = Readonly<{
   occurrenceTypes: readonly SettingsResolutionOccurrenceType[]
 }>
 
+export type SettingsResolutionViewWire = Readonly<{
+  deliveryProof: DeliveryProofFieldSettingsWire
+  occurrenceTypes: readonly SettingsResolutionOccurrenceType[]
+}>
+
 function isSettingsResolutionOccurrenceType(
   value: unknown,
 ): value is SettingsResolutionOccurrenceType {
@@ -47,7 +53,7 @@ function isSettingsResolutionOccurrenceType(
   )
 }
 
-export function isSettingsResolutionView(value: unknown): value is SettingsResolutionView {
+export function isSettingsResolutionView(value: unknown): value is SettingsResolutionViewWire {
   return (
     isRecord(value) &&
     isDeliveryProofFieldSettings(value.deliveryProof) &&

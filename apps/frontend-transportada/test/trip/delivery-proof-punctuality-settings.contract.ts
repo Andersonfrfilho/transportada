@@ -21,6 +21,8 @@ const PANEL = new URL(
 )
 
 const VALID_MODES = {
+  cargo: 'off',
+  cargoMinimumCount: 1,
   photo: 'required',
   receiverDocument: 'off',
   receiverName: 'optional',

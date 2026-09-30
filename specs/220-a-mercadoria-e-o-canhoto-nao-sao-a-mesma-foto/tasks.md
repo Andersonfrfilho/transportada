@@ -14,16 +14,16 @@ evidência em `evidence.md` e commit isolado.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T1.1 Contrato: `deliveryProofSettingsSchema` aceita `cargo` nos três modos, ausente preserva o
+- [x] T1.1 Contrato: `deliveryProofSettingsSchema` aceita `cargo` nos três modos, ausente preserva o
       gravado, inválido é 400 — `apps/api-transportada/test/delivery-proof-settings/*.contract.ts`
-- [ ] T1.2 Migration aditiva: coluna `cargo` (padrão `off`, CHECK) nas três tabelas —
+- [x] T1.2 Migration aditiva: coluna `cargo` (padrão `off`, CHECK) nas três tabelas —
       `apps/api-transportada/src/database/company-delivery-proof-settings.schema.ts` + migration —
       `make migration-test`
-- [ ] T1.3 Schema Zod e caso de uso de leitura/escrita passam a carregar `cargo` —
+- [x] T1.3 Schema Zod e caso de uso de leitura/escrita passam a carregar `cargo` —
       `src/trips/presentation/delivery-proof-settings.schema.ts` — contrato da T1.1 verde
-- [ ] T1.4 [P] Contrato da cascata com `cargo` (geral → contratante → destinatário, por inteiro) —
+- [x] T1.4 [P] Contrato da cascata com `cargo` (geral → contratante → destinatário, por inteiro) —
       `apps/frontend-transportada/test/trip/delivery-proof-settings.contract.ts`
-- [ ] T1.5 Cascata do painel resolve `cargo` — `src/modules/trip/shared/deliveryProofSettings.service.ts`
+- [x] T1.5 Cascata do painel resolve `cargo` — `src/modules/trip/shared/deliveryProofSettings.service.ts`
 - [ ] T1.6 Tela de configuração com dois campos de foto, rótulos e texto de apoio;
       `canhotoOcrEnabled` amarrado ao do canhoto — componente + `trip.locale.json` (pt-BR **acentuado**)
 - [ ] T1.7 [P] Contrato: `proofFormPlan` com `cargo` (`rendersCargo`, faltantes) —

@@ -94,6 +94,7 @@ import {
   DELIVERY_PROOF_SETTINGS_PATH,
   FIELD_DELIVERY_SETTINGS_PATH,
   isCompanyDeliveryProofSettings,
+  normalizeDeliveryProofFieldSettings,
   isDeliveryProofSettingsContractorOverride,
   isDeliveryProofSettingsOverride,
   isFieldDeliverySettings,
@@ -507,7 +508,7 @@ function readDeliveryProofOverrides(input: unknown): readonly DeliveryProofSetti
   if (!input.overrides.every(isDeliveryProofSettingsOverride)) {
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
   }
-  return input.overrides
+  return input.overrides.map(normalizeDeliveryProofFieldSettings)
 }
 
 /** Spec 218 RF-C1/RF-C4: o par irmão da leitura acima, por contratante. */
@@ -520,7 +521,7 @@ function readDeliveryProofContractorOverrides(
   if (!input.overrides.every(isDeliveryProofSettingsContractorOverride)) {
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
   }
-  return input.overrides
+  return input.overrides.map(normalizeDeliveryProofFieldSettings)
 }
 
 function isOccurrenceAttachmentMode(value: unknown): value is OccurrenceAttachmentMode {
@@ -961,7 +962,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       const data = readEnvelopeData(response)
       if (!isSettingsResolutionView(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
-      return data
+      return { ...data, deliveryProof: normalizeDeliveryProofFieldSettings(data.deliveryProof) }
     },
     async readDeliveryProofSettings() {
       const response = await authorizedRequest({
@@ -971,7 +972,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       const data = readEnvelopeData(response)
       if (!isCompanyDeliveryProofSettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
-      return data
+      return normalizeDeliveryProofFieldSettings(data)
     },
     async readFieldDeliverySettings() {
       const response = await authorizedRequest({
@@ -1013,7 +1014,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       const data = readEnvelopeData(response)
       if (!isCompanyDeliveryProofSettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
-      return data
+      return normalizeDeliveryProofFieldSettings(data)
     },
     async saveCanhotoOcrEnabled(input) {
       const response = await authorizedRequest({
@@ -1030,7 +1031,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       const data = readEnvelopeData(response)
       if (!isCompanyDeliveryProofSettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
-      return data
+      return normalizeDeliveryProofFieldSettings(data)
     },
     async listDeliveryProofOverrides() {
       const response = await authorizedRequest({

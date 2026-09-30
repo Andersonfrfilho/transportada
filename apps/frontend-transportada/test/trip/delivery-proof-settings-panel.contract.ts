@@ -82,6 +82,8 @@ describe('painel de configuração do comprovante (spec 082)', () => {
   /** ADR-0057 §4: sem linha vale a fábrica — documento desligado, o resto oferecido. */
   it('exibe a fábrica quando não há linha gravada', () => {
     expect(DEFAULT_DELIVERY_PROOF_SETTINGS).toEqual({
+      cargo: 'off',
+      cargoMinimumCount: 1,
       photo: 'optional',
       receiverDocument: 'off',
       receiverName: 'optional',
