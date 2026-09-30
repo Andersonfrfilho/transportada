@@ -10,6 +10,10 @@
  * deixa passar número de nota, peso, prazo e valor. Guarda que barra motivo legítimo é guarda que
  * se aprende a driblar, e o texto volta pior.
  *
+ * Sequência de dígitos só conta como documento ou telefone se começar e terminar nela mesma:
+ * chave de acesso de 44 posições, protocolo e nota de 9 dígitos passam. Dez dígitos crus
+ * (telefone fixo sem pontuação) são recusados — é a forma indistinguível de um número de 10 casas.
+ *
  * Oito dígitos soltos **não** são tratados como CEP: colidem com número de nota e com valor sem
  * separador. O CEP só é reconhecido na forma pontuada.
  */
@@ -32,7 +36,7 @@ const PERSONAL_DATA_PATTERNS: readonly (readonly [PersonalDataKind, RegExp])[] =
   [PersonalDataKind.CNPJ, /\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}\b/u],
   [PersonalDataKind.CPF, /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/u],
   [PersonalDataKind.POSTAL_CODE, /\b\d{5}-\d{3}\b/u],
-  [PersonalDataKind.PHONE, /(?:\+\d{2}\s?)?\(?\d{2}\)?[\s.-]?9?\d{4}[\s.-]?\d{4}\b/u],
+  [PersonalDataKind.PHONE, /(?<!\d)(?:\+\d{2}\s?)?\(?\d{2}\)?[\s.-]?9?\d{4}[\s.-]?\d{4}\b/u],
 ] as const
 
 /** Devolve a categoria encontrada, nunca o valor: a mensagem de erro não pode vazar o dado. */

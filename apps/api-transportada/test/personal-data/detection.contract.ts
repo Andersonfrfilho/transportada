@@ -43,6 +43,13 @@ describe('o que a guarda recusa (RF28)', () => {
     expect(detectPersonalData('ligar +55 11 98888-7777 para combinar')).toBe(PersonalDataKind.PHONE)
   })
 
+  test('telefone continua detectado em todas as formas de escrita', () => {
+    for (const phone of ['(11) 98765-4321', '11987654321', '+55 11 98765-4321', '11 9876-5432']) {
+      expect(detectPersonalData(`ligar ${phone} hoje`)).not.toBeUndefined()
+      expect(detectPersonalData(phone)).not.toBeUndefined()
+    }
+  })
+
   test('onze dígitos crus são recusados — CPF ou celular, os dois são dado pessoal', () => {
     expect(detectPersonalData('anotar 11988887777')).not.toBeUndefined()
   })
@@ -62,6 +69,13 @@ describe('o que a guarda deixa passar', () => {
     for (const reason of ACCEPTED_REASONS) {
       expect(detectPersonalData(reason)).toBeUndefined()
     }
+  })
+
+  test('sequência longa de dígitos não vira telefone só porque o final dela parece um', () => {
+    const accessKey = '35260912345678000199550010000012341000012345'
+    expect(detectPersonalData(`a chave ${accessKey} não bate com a nota`)).toBeUndefined()
+    expect(detectPersonalData('protocolo 202609301234')).toBeUndefined()
+    expect(detectPersonalData('nota 123456789 ilegível')).toBeUndefined()
   })
 
   test('texto vazio não acusa nada — quem recusa vazio cai na validação do motivo', () => {
