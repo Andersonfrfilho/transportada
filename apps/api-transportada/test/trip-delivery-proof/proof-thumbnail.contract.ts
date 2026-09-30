@@ -59,6 +59,12 @@ describe('o campo thumbnail do multipart do /proof', () => {
     expect(upload.thumbnail).toBeUndefined()
   })
 
+  it('arquivo de zero byte (blob vazio do canvas) conta como ausente, não como miniatura sem tipo', async () => {
+    const upload = await parseDeliveryProofUpload(proofRequest(thumbnailFile(0, '')))
+
+    expect(upload.thumbnail).toBeUndefined()
+  })
+
   it('arquivo presente vira bytes e tipo', async () => {
     const upload = await parseDeliveryProofUpload(proofRequest(thumbnailFile(4 * KIB)))
 

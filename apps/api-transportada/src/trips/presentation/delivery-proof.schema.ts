@@ -173,6 +173,7 @@ async function parseThumbnail(
   const value = readOptionalField(form, THUMBNAIL_FIELD)
   if (value === undefined) return undefined
   if (!(value instanceof File)) throw new ApiError(HTTP_ERROR.invalidRequest)
+  if (value.size === 0) return undefined
 
   return { bytes: new Uint8Array(await value.arrayBuffer()), mimeType: value.type }
 }
