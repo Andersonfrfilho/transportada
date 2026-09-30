@@ -156,8 +156,10 @@ só não virou task. As T4.3a–T4.3c são a correção, abertas em 30/09/2026.
 
 > 🤖 Modelo: `opus` (estado de domínio novo; T6.2 e T6.3 são o núcleo)
 
-- [ ] T6.1 🧠 Contar os canhotos existentes em produção e **decidir com o usuário**: todos viram
-      `pending` ou só a partir de uma data de corte — registrar a contagem em `evidence.md`
+- [x] T6.1 🧠 Contar os canhotos existentes em produção e **decidir com o usuário**: todos viram
+      `pending` ou só a partir de uma data de corte — registrar a contagem em `evidence.md`.
+      Contagem de produção **indisponível** daqui; a base local tem 3 comprovantes, todos semeados
+      hoje. **Decisão: nenhum retroativo** — e isso derruba a segunda metade da RF24
 - [ ] T6.2 🧠 Contrato de integração: canhoto recapturado **zera** a conferência no `ON CONFLICT`
       (não herda "recusado") — `test/integration/` + **`test:integration`**
 - [ ] T6.3 🧠 Migration: estado de conferência + ator, instante, motivo, nota, número lido e origem

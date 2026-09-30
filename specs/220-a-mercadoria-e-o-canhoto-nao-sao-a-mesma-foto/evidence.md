@@ -1273,3 +1273,32 @@ componente, sem a correção): 751 passam, 1 falha. Com a correção de volta: *
 `typecheck` limpo e `eslint` sem aviso.
 
 ## Fase 6
+
+### T6.1 — Quantos canhotos já existem, e o que fazer com eles
+
+**A contagem que a task pede é de produção, e eu não tenho acesso a produção daqui.** O que a base
+local respondeu, para não passar por medição o que não é:
+
+```
+ kind  | total |            oldest             |            newest
+-------+-------+-------------------------------+-------------------------------
+ cargo |     2 | 2026-09-30 12:25:08.082836+00 | 2026-09-30 12:25:10.210026+00
+ photo |     1 | 2026-09-30 12:24:57.112758+00 | 2026-09-30 12:24:57.112758+00
+```
+
+Três comprovantes, **nenhum** deles `signature`, e os três semeados por mim hoje durante a T5.6.
+A base local não sabe nada sobre o volume real: ela não é amostra de produção, é rascunho meu.
+
+**Decisão do usuário: nenhum preenchimento retroativo.** Canhoto anterior ao deploy fica sem
+veredito, e a fila de conferência nasce vazia.
+
+⚠️ **Isto altera a RF24**, que dizia "comprovante existente entra como `not_applicable`; canhoto
+existente entra como `pending`". A segunda metade cai. O que fica: `not_applicable` é o padrão da
+coluna para **toda** linha existente, canhoto incluído — e o valor é honesto para elas, porque
+conferência de fato não se aplicava a um canhoto capturado antes de a conferência existir.
+`pending` passa a significar uma coisa só, sem ambiguidade: alguém precisa olhar isto agora.
+
+O raciocínio por trás da escolha, para quem ler depois: era o único caminho que não dependia de
+saber o volume de produção — que ninguém aqui sabia — e o único que não estreia a funcionalidade
+despejando na tela uma fila do tamanho de todo o histórico de entregas, que ninguém iria conferir.
+Fila que nasce cheia de trabalho morto ensina a equipe a ignorar a fila.
