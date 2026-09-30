@@ -287,7 +287,7 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
       `onReject` pendurado** em `() => undefined` no `TripDeliveryProofLoader`
       (`TripDetail.component.tsx:1441`): o botão de recusar já está no DOM e não faz nada até esta
       task ligá-lo
-- [ ] T7.11 O que a tela faz com 200 e com 409. `unchanged`
+- [x] T7.11 O que a tela faz com 200 e com 409. `unchanged`
       (`canhoto-review-decision.policy.ts:128`) volta 200 com a mesma view: é o clique duplo e a
       repetição, aceita em silêncio, só escreve no cache. `CANHOTO_REVIEW_ALREADY_RESOLVED` volta
       409: a tela **não insiste e não sobrescreve** — diz que outra pessoa já conferiu e refaz

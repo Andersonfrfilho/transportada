@@ -2371,3 +2371,40 @@ $ bun run typecheck (apps/frontend-transportada) → EXIT=0
 $ bun run lint (apps/frontend-transportada)      → EXIT=0
 $ bun run format:check (raiz)                    → EXIT=0
 ```
+
+### T7.11 — 200 escreve no cache, 409 não insiste (33a856936)
+
+O `PATCH .../proof/review` e o `GET .../proof` **não devolvem a mesma view**. `CanhotoReviewView`
+(`canhoto-review.port.ts:38-47`) traz as oito chaves sempre presentes, usa `null` para ausente e pode
+dizer `not_applicable`; o `DeliveryProof` do painel usa _chave ausente_, não aceita `not_applicable` e
+tem o nome de quem conferiu. Levar a resposta do PATCH crua para o cache passaria pelo `isDeliveryProof`
+e o comprovante inteiro sumiria **em silêncio**. Daí o `canhotoReviewCache.service.ts`: apaga as nove
+chaves de veredito do comprovante e reescreve só o que o PATCH devolveu, espelhando o
+`buildCanhotoReviewView` (`read-delivery-proof.use-case.ts:202-216`), que devolve `{}` quando o
+veredito é `undefined` ou `not_applicable`.
+
+`canhotoReviewByName` entra na lista das chaves apagadas de propósito: **o PATCH não o devolve**.
+Mantê-lo carimbaria o meu veredito com o nome de quem conferiu antes. Sem ele, o painel renderiza
+"Aprovado manualmente em <data>" — honesto — e o próximo refetch traz o nome.
+
+O veredito mora no _comprovante_, não no documento: só recebe a escrita quem já carrega `canhotoReview`
+(o canhoto). Assinatura e foto da carga passam intactas.
+
+O 409 não sobrescreve nada: `reviewCanhoto` reconhece `CANHOTO_REVIEW_ALREADY_RESOLVED` pela mensagem
+do erro, invalida `deliveryProofsQuery` e devolve `alreadyResolved`, e a tela diz que outra pessoa já
+conferiu. Repetir o _mesmo_ veredito humano é `unchanged` → 200 com a mesma view → cache reescrito com
+o que já valia, sem aviso (`canhoto-review-decision.policy.ts:113-147`).
+
+⚠️ `hasReviewConflict` vive no `TripDeliveryProofLoader`: trocar de documento recria o loader e o aviso
+some. Fica anotado para a T7.12, que é quem monta o painel de verdade.
+
+```
+VERMELHO medido pelo agente antes da implementação → 2 fail (módulo e export inexistentes), EXIT=1
+
+VERDE (sobre 33a856936, medido por mim linha a linha, não pela cauda da saída)
+$ bun run test (apps/frontend-transportada)      → 5881 pass · 0 fail (era 5878) · EXIT=0
+  (o script termina em `&& bun run test:hooks`)  → 110 pass · 0 fail (era 107)
+$ bun run typecheck (apps/frontend-transportada) → EXIT=0
+$ bun run lint (apps/frontend-transportada)      → EXIT=0
+$ bun run format:check (raiz)                    → EXIT=0
+```
