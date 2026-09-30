@@ -60,6 +60,24 @@ describe('canhotoReviewProof (spec 220 T7.9)', () => {
     expect(result.canhotoReadNumber).toBeUndefined()
   })
 
+  test('accepts not_applicable and refuses a verdict outside the vocabulary', async () => {
+    const respondWith = (canhotoReview: string): ReturnType<typeof createTripClient> =>
+      createTripClient({
+        apiUrl: API_URL,
+        fetch: () => Promise.resolve(Response.json({ data: { ...REVIEW_VIEW, canhotoReview } })),
+        getAccessToken: () => Promise.resolve(SYNTHETIC_ACCESS_TOKEN),
+      })
+    const review = { ...TARGET, review: { action: 'approve' } } as const
+
+    const notApplicable = await respondWith('not_applicable').canhotoReviewProof(review)
+    expect(notApplicable.canhotoReview).toBe('not_applicable')
+
+    const refusal = await respondWith('reviewed')
+      .canhotoReviewProof(review)
+      .catch((e: unknown) => e)
+    expect(refusal).toEqual(new Error('TRIP_RESPONSE_INVALID'))
+  })
+
   test('the controller refuses without trip.manage and delegates with it', async () => {
     const requests: Request[] = []
     const client = createRecordingClient(requests)

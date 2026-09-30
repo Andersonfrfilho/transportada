@@ -204,4 +204,16 @@ describe('o veredito do canhoto aparece no item da nota (spec 220 T7.8)', () => 
 
     expect(calls).toEqual(['approve', 'reject'])
   })
+
+  it('veredito já resolvido não oferece botão, mesmo com trip.manage (T7.9)', async () => {
+    const approved = makeProof({
+      canhotoReview: 'approved',
+      canhotoReviewAt: '2026-09-30T12:00:00Z',
+      canhotoReviewOrigin: 'manual',
+    })
+
+    await renderReview(approved, { canReview: true })
+
+    expect(container?.querySelector('button')).toBeNull()
+  })
 })
