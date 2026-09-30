@@ -1302,3 +1302,59 @@ O raciocínio por trás da escolha, para quem ler depois: era o único caminho q
 saber o volume de produção — que ninguém aqui sabia — e o único que não estreia a funcionalidade
 despejando na tela uma fila do tamanho de todo o histórico de entregas, que ninguém iria conferir.
 Fila que nasce cheia de trabalho morto ensina a equipe a ignorar a fila.
+
+#### A contagem de produção existia, e estava a uma spec de distância
+
+Escrito o parágrafo acima, achei a medição procurando outra coisa (a guarda de texto livre da T6.7).
+A `evidence.md` da spec 162 traz uma consulta de leitura **em produção**, de 2026-09-21 — nove dias
+atrás —, sobre o bucket inteiro: 3.794 objetos, 51 MB, e a frase que responde esta task,
+
+> "Não existe em produção nenhum objeto de `delivery_proof` […]"
+
+com o porquê logo em seguida: `company_occurrence_types` estava vazia desde 03/09, então nunca houve
+ocorrência para anexar foto.
+
+Ou seja: **o conjunto a preencher retroativamente é vazio.** "Nenhum retroativo" deixa de ser uma
+escolha entre dois riscos e passa a ser a única leitura coerente com o fato — e a segunda metade da
+RF24 não muda o comportamento de nenhuma linha, porque não há linha. A decisão do usuário fica de
+pé, agora com medição por trás em vez de argumento.
+
+⚠️ A lição de método, que vale mais que o número: eu declarei "indisponível daqui" depois de olhar
+só a base local. A medição de produção estava versionada, em `specs/162-limpeza-do-armazenamento/evidence.md`,
+e o `CLAUDE.md` deste repositório manda começar spec nova lendo as specs do mesmo assunto
+justamente por isso. Ausência de acesso não é ausência de dado: o dado pode já estar escrito.
+
+### Achado de preparação da T6.7 — a guarda a reusar não existe, e o número 162 é ambíguo
+
+A T6.7 manda **reusar** a guarda de texto livre da spec 162 RF11, "mesma função", e não escrever
+outra. Fui buscá-la antes de começar. Duas coisas apareceram.
+
+**Primeira: há duas specs 162 neste repositório.**
+
+```
+$ ls specs/ | grep -i "^162"
+162-importar-medidas-de-caixa-coletadas/
+162-limpeza-do-armazenamento/
+```
+
+O código só cita uma — os oito `Spec 162` em `src/` são todos do importador de caixas. A que a spec
+220 cita é a outra, `162-limpeza-do-armazenamento`, e é dela a RF11 sobre canhoto ilegível. Procurar
+"spec 162" no código, que foi o meu primeiro reflexo, leva à spec errada com toda a confiança do
+mundo.
+
+**Segunda: a guarda não foi implementada.** A 162 parou no portão de decisão da própria T0 — a
+`evidence.md` dela conclui que o universo apagável eram "6 PDFs de fatura, 450 kB" e que dezenove
+tasks não se pagavam. De `src/storage/` existem dois arquivos, o gateway e o repositório:
+
+```
+$ find src/storage -type f -name "*.ts"
+src/storage/infrastructure/nfe-storage-gateway.ts
+src/storage/infrastructure/drizzle-stored-object.repository.ts
+```
+
+Sem rota de expurgo, sem `purge-illegible`, sem validação de motivo. Não há o que reusar.
+
+Consequência para a T6.7, anotada no `tasks.md`: a guarda **é escrita aqui**, mas em `src/shared/`,
+não dentro do módulo de viagens — para que a 162 a importe quando for implementada, em vez de
+nascer uma segunda. A instrução da task continua valendo no espírito (uma função só para as duas
+specs); o que mudou é quem escreve primeiro.

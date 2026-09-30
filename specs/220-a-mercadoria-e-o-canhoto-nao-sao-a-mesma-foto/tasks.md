@@ -158,8 +158,9 @@ só não virou task. As T4.3a–T4.3c são a correção, abertas em 30/09/2026.
 
 - [x] T6.1 🧠 Contar os canhotos existentes em produção e **decidir com o usuário**: todos viram
       `pending` ou só a partir de uma data de corte — registrar a contagem em `evidence.md`.
-      Contagem de produção **indisponível** daqui; a base local tem 3 comprovantes, todos semeados
-      hoje. **Decisão: nenhum retroativo** — e isso derruba a segunda metade da RF24
+      Contagem de produção achada na `evidence.md` da spec 162 (21/09): **zero** objetos de
+      `delivery_proof` em produção — o conjunto a preencher é vazio. **Decisão: nenhum retroativo**
+      — e isso derruba a segunda metade da RF24, sem mudar linha nenhuma
 - [ ] T6.2 🧠 Contrato de integração: canhoto recapturado **zera** a conferência no `ON CONFLICT`
       (não herda "recusado") — `test/integration/` + **`test:integration`**
 - [ ] T6.3 🧠 Migration: estado de conferência + ator, instante, motivo, nota, número lido e origem
@@ -171,7 +172,11 @@ só não virou task. As T4.3a–T4.3c são a correção, abertas em 30/09/2026.
 - [ ] T6.6 Contrato: aprovação manual exige `trip.manage`, grava ator e instante, gera trilha; o
       resultado automático **nunca** sobrescreve decisão humana
 - [ ] T6.7 Contrato: recusa exige motivo; texto livre com CPF, CNPJ, telefone, e-mail ou CEP é
-      recusado (**reusar** a guarda da spec 162, não escrever outra)
+      recusado (**reusar** a guarda da spec 162, não escrever outra).
+      ⚠️ **A guarda não existe**: a spec 162 (`162-limpeza-do-armazenamento`) parou no portão de
+      decisão da T0 e não foi implementada — de `src/storage/` só existem o gateway e o repositório,
+      sem rota de expurgo e sem validação de motivo. Escrever a guarda aqui, em `src/shared/`, de
+      forma que a 162 a reuse quando for implementada — não dentro do módulo de viagens
 - [ ] T6.8 `PATCH .../proof/review` + caso de uso, com verificação por objeto (tenant) e trilha
 - [ ] T6.9 Canhoto recusado vira pendência de recaptura para o motorista, com o motivo visível
 - [ ] T6.10 Contrato: **nenhum veredito** impede confirmar entrega, despachar viagem, emitir CT-e
