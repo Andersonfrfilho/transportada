@@ -15,6 +15,7 @@ import {
   type PendingProofDocument,
   type ProofFieldRequirement,
 } from './driverTrip.types'
+import { PROOF_CARGO_PHOTO_LIMIT } from './proofCargo.constant'
 import { DEFAULT_PROOF_SETTINGS } from './proofFormPlan.service'
 
 /**
@@ -149,7 +150,7 @@ function readProofField(value: unknown, fallback: ProofFieldRequirement): ProofF
 
 function readCargoMinimumCount(value: unknown): number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1
-    ? value
+    ? Math.min(PROOF_CARGO_PHOTO_LIMIT, value)
     : DEFAULT_PROOF_SETTINGS.cargoMinimumCount
 }
 

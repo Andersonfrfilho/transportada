@@ -232,6 +232,10 @@ function isDepotDescription(value: unknown): value is DepotDescription {
   )
 }
 
+function isNonNegativeFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
 function isStringArray(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every((entry) => isString(entry))
 }
@@ -1238,7 +1242,7 @@ function isDeliveryProof(value: unknown): value is DeliveryProof {
     (value.receivedByDetail === undefined || isNullableString(value.receivedByDetail)) &&
     (value.lateRegistration === undefined || isBoolean(value.lateRegistration)) &&
     (value.capturedAt === undefined || isString(value.capturedAt)) &&
-    (value.distanceMeters === undefined || typeof value.distanceMeters === 'number') &&
+    (value.distanceMeters === undefined || isNonNegativeFiniteNumber(value.distanceMeters)) &&
     (value.punctuality === undefined ||
       isOneOf(value.punctuality, DELIVERY_PROOF_PUNCTUALITY_OPTIONS)) &&
     (value.receiverDocument === undefined || isString(value.receiverDocument)) &&

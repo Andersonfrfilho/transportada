@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'bun:test'
 
 import type { DriverDeliveryProofSettings } from '@/modules/driver-trip/shared/driverTrip.types'
+import { toDriverTripSnapshot } from '@/modules/driver-trip/shared/driverTripResponse.validation'
+import { PROOF_CARGO_PHOTO_LIMIT } from '@/modules/driver-trip/shared/proofCargo.constant'
 import {
   countMissingCargoPhotos,
   DEFAULT_PROOF_SETTINGS,
@@ -154,5 +156,52 @@ describe('o recebedor chega ao servidor com só a mercadoria anexada (spec 220, 
     const body = card.slice(start, card.indexOf('\n  }\n', start))
     expect(body).toContain('cargoKeys.length > 0')
     expect(body).toContain('onProofFieldsUpdate?.(')
+  })
+})
+
+describe('o mínimo de fotos da mercadoria lido da API nunca passa do teto nem do que dá para cumprir', () => {
+  function readCargoMinimumCount(value: unknown): number | undefined {
+    const snapshot = toDriverTripSnapshot({
+      data: {
+        isRegisteredDriver: true,
+        trips: [
+          {
+            id: 'trip-1',
+            manifest: null,
+            status: 'dispatched',
+            stops: [
+              {
+                arrivedAt: null,
+                completedAt: null,
+                deliveryProof: { cargo: 'required', cargoMinimumCount: value },
+                documents: [],
+                id: 'stop-1',
+                label: 'Rua A, 1',
+                sequence: 1,
+              },
+            ],
+            vehiclePlate: 'ABC1D23',
+          },
+        ],
+      },
+    })
+    return snapshot.trips[0]?.stops[0]?.deliveryProof?.cargoMinimumCount
+  }
+
+  it('acima do teto é limitado ao teto', () => {
+    expect(readCargoMinimumCount(PROOF_CARGO_PHOTO_LIMIT + 1)).toBe(PROOF_CARGO_PHOTO_LIMIT)
+    expect(readCargoMinimumCount(999)).toBe(PROOF_CARGO_PHOTO_LIMIT)
+  })
+
+  it('o próprio teto e os valores válidos passam intactos', () => {
+    expect(readCargoMinimumCount(PROOF_CARGO_PHOTO_LIMIT)).toBe(PROOF_CARGO_PHOTO_LIMIT)
+    expect(readCargoMinimumCount(3)).toBe(3)
+  })
+
+  it('zero, negativo e não inteiro caem no padrão', () => {
+    expect(readCargoMinimumCount(0)).toBe(DEFAULT_PROOF_SETTINGS.cargoMinimumCount)
+    expect(readCargoMinimumCount(-2)).toBe(DEFAULT_PROOF_SETTINGS.cargoMinimumCount)
+    expect(readCargoMinimumCount(2.5)).toBe(DEFAULT_PROOF_SETTINGS.cargoMinimumCount)
+    expect(readCargoMinimumCount('3')).toBe(DEFAULT_PROOF_SETTINGS.cargoMinimumCount)
   })
 })

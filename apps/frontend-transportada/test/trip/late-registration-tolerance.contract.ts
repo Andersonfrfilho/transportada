@@ -100,3 +100,19 @@ describe('comprovante tolera lateRegistration (spec 205 RF8)', () => {
     expect(adapters.deliveryProofsFromApi([{ ...PROOF, objectKey: 'a/b.jpg' }])).toEqual([])
   })
 })
+
+describe('comprovante recusa distanceMeters que não é distância', () => {
+  it('aceita distância finita e não negativa', () => {
+    expect(adapters.deliveryProofsFromApi([{ ...PROOF, distanceMeters: 0 }])).toHaveLength(1)
+    expect(adapters.deliveryProofsFromApi([{ ...PROOF, distanceMeters: 184.5 }])).toHaveLength(1)
+  })
+
+  it.each([
+    ['NaN', Number.NaN],
+    ['negativo', -1],
+    ['Infinity', Number.POSITIVE_INFINITY],
+    ['string numérica', '120'],
+  ])('descarta o comprovante com distanceMeters %s', (_label, distanceMeters) => {
+    expect(adapters.deliveryProofsFromApi([{ ...PROOF, distanceMeters }, PROOF])).toEqual([PROOF])
+  })
+})
