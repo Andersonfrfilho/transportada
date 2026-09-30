@@ -25,3 +25,62 @@ export function contrastRatio(first: string, second: string): number {
 
   return (Math.max(one, other) + 0.05) / (Math.min(one, other) + 0.05)
 }
+
+/**
+ * `color-mix(in srgb, X N%, transparent)` não é uma cor: é X com alfa N sobre o que estiver atrás.
+ * Medir a razão contra a receita, em vez de contra o resultado composto, dá um número que ninguém vê.
+ */
+export function compositeOver(
+  input: Readonly<{ color: string; percent: number; surface: string }>,
+): string {
+  const surface = channels(input.surface)
+
+  return `#${channels(input.color)
+    .map((channel, index) => channel * input.percent + (surface[index] ?? 0) * (1 - input.percent))
+    .map((channel) =>
+      Math.round(channel * 255)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}`
+}
+
+const APPLICATION_ROOT = new URL('../..', import.meta.url)
+const DARK_THEME_SELECTOR = ':root {'
+const LIGHT_THEME_SELECTOR = ":root[data-theme='light']"
+
+export function readApplicationFile(filePath: string): Promise<string> {
+  return Bun.file(new URL(filePath, APPLICATION_ROOT)).text()
+}
+
+function extractTokenBlock(source: string, selector: string): string {
+  const start = source.indexOf(selector)
+  if (start < 0) throw new Error(`bloco de tokens ausente: ${selector}`)
+  const open = source.indexOf('{', start)
+
+  return source.slice(open + 1, source.indexOf('}', open))
+}
+
+function extractTokens(block: string): ReadonlyMap<string, string> {
+  const tokens = new Map<string, string>()
+  for (const match of block.matchAll(/(--[\w-]+):\s*(#[0-9a-fA-F]{6});/g)) {
+    tokens.set(match[1] ?? '', (match[2] ?? '').trim())
+  }
+
+  return tokens
+}
+
+/** O tema claro é o escuro com alguns tokens trocados — a cascata do CSS, medida do mesmo jeito. */
+export async function readThemes(): Promise<ReadonlyMap<string, ReadonlyMap<string, string>>> {
+  const styles = await readApplicationFile('src/styles/index.css')
+  const dark = extractTokens(extractTokenBlock(styles, DARK_THEME_SELECTOR))
+  const light = new Map(dark)
+  for (const [token, value] of extractTokens(extractTokenBlock(styles, LIGHT_THEME_SELECTOR))) {
+    light.set(token, value)
+  }
+
+  return new Map([
+    ['escuro', dark],
+    ['claro', light],
+  ])
+}

@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import './design-system/application-footer.contract.js'
+import './design-system/badge-contrast.contract.js'
 import './design-system/barcode-scanner.contract.js'
 import './design-system/box-dimension-scanner.contract.js'
 import './design-system/box-dimension-scanner-csp.contract.js'

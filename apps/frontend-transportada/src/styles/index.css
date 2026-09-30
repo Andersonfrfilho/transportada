@@ -86,6 +86,20 @@
   --color-slate-muted: #9aacb5;
   /* O texto que senta sobre o cobre: no escuro é a tinta escura, no claro é o papel claro. */
   --color-ink-on-accent: #10222c;
+  /**
+   * A tinta do selo semântico — o acento escrito **sobre a sua própria tinta translúcida**.
+   *
+   * ⚠️ **Um acento que serve de preenchimento não serve de texto sobre si mesmo.** O selo pintava
+   * `color: var(--color-ready)` sobre `color-mix(… --color-ready 14%, transparent)`: no tema escuro
+   * passava folgado, no claro reprovava e ninguém via — medido em 2026-09-30, `success` 3,69:1 e
+   * `warning` 3,93:1 sobre a página, contra o piso de 4,5:1 do WCAG AA a 0,6875rem.
+   *
+   * Mesmo defeito de forma do cinza discreto acima, mesma correção: tinta declarada por tema. O
+   * fundo do selo não muda — continua o acento diluído, e é ele que dá a cor que se lê de longe.
+   */
+  --color-ready-ink: #71b292;
+  --color-copper-ink: #d78f4e;
+  --color-slate-ink: #90a4ae;
   --font-body: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
   --font-display: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
   --font-utility: 'SFMono-Regular', Consolas, monospace;
@@ -188,6 +202,9 @@
   --color-bubble-driver: #d6f0e1;
   --color-slate-muted: #55656e;
   --color-ink-on-accent: #faf8f4;
+  --color-ready-ink: #286c48;
+  --color-copper-ink: #93501c;
+  --color-slate-ink: #54646c;
 }
 
 @media (prefers-color-scheme: light) {
@@ -205,6 +222,9 @@
     --color-bubble-driver: #d6f0e1;
     --color-slate-muted: #55656e;
     --color-ink-on-accent: #faf8f4;
+    --color-ready-ink: #286c48;
+    --color-copper-ink: #93501c;
+    --color-slate-ink: #54646c;
   }
 }
 
@@ -1294,19 +1314,19 @@ button:has([data-count-badge]) {
 
 .ui-badge-success {
   border-color: color-mix(in srgb, var(--color-ready) 40%, transparent);
-  color: var(--color-ready);
+  color: var(--color-ready-ink);
   background: color-mix(in srgb, var(--color-ready) 14%, transparent);
 }
 
 .ui-badge-warning {
   border-color: color-mix(in srgb, var(--color-copper) 65%, transparent);
-  color: var(--color-copper);
+  color: var(--color-copper-ink);
   background: color-mix(in srgb, var(--color-copper) 12%, transparent);
 }
 
 .ui-badge-info {
   border-color: color-mix(in srgb, var(--color-slate) 65%, transparent);
-  color: var(--color-slate);
+  color: var(--color-slate-ink);
   background: color-mix(in srgb, var(--color-slate) 12%, transparent);
 }
 

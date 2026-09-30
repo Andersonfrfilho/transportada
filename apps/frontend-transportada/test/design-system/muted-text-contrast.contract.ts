@@ -3,7 +3,7 @@ import { readdir } from 'node:fs/promises'
 
 import { describe, expect, test } from 'bun:test'
 
-import { contrastRatio } from './contrast.helper.js'
+import { contrastRatio, readApplicationFile, readThemes } from './contrast.helper.js'
 
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
 
@@ -55,48 +55,10 @@ export function findSlateTextRecipes(
   return violations
 }
 
-function readApplicationFile(filePath: string): Promise<string> {
-  return Bun.file(new URL(filePath, APPLICATION_ROOT)).text()
-}
-
 async function listStylesheets(): Promise<readonly string[]> {
   const entries = await readdir(new URL('src', APPLICATION_ROOT), { recursive: true })
 
   return entries.filter((entry) => entry.endsWith('.css')).map((entry) => `src/${entry}`)
-}
-
-function extractTokenBlock(source: string, selector: string): string {
-  const start = source.indexOf(selector)
-  expect(start).toBeGreaterThan(-1)
-  const open = source.indexOf('{', start)
-
-  return source.slice(open + 1, source.indexOf('}', open))
-}
-
-function extractTokens(block: string): ReadonlyMap<string, string> {
-  const tokens = new Map<string, string>()
-  for (const match of block.matchAll(/(--[\w-]+):\s*(#[0-9a-fA-F]{6});/g)) {
-    tokens.set(match[1] ?? '', (match[2] ?? '').trim())
-  }
-
-  return tokens
-}
-
-/** O tema claro é o escuro com alguns tokens trocados — a cascata do CSS, medida do mesmo jeito. */
-async function readThemes(): Promise<ReadonlyMap<string, ReadonlyMap<string, string>>> {
-  const styles = await readApplicationFile('src/styles/index.css')
-  const dark = extractTokens(extractTokenBlock(styles, ':root {'))
-  const light = new Map(dark)
-  for (const [token, value] of extractTokens(
-    extractTokenBlock(styles, ":root[data-theme='light']"),
-  )) {
-    light.set(token, value)
-  }
-
-  return new Map([
-    ['escuro', dark],
-    ['claro', light],
-  ])
 }
 
 describe('o texto discreto é legível nos dois temas', () => {
