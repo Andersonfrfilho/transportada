@@ -112,6 +112,8 @@ function buildProofRepository() {
     findProofIdByAttachmentKey: async () => null,
     findProofPunctuality: async () => null,
     resolveProofFieldSettings: async () => ({
+      cargo: 'off',
+      cargoMinimumCount: 1,
       photo: 'optional',
       receivedBy: 'optional',
       receiverDocument: 'off',

@@ -3,15 +3,30 @@
  */
 import { z } from 'zod'
 
+import { TRIP_DELIVERY_PROOF_CARGO_LIMIT } from '../domain/delivery-event.constant.js'
 import { DELIVERY_PROOF_FIELD_MODES } from '../domain/delivery-proof-settings.policy.js'
 import { buildTaxIdSchema } from '../../shared/tax-id.schema.js'
 import { TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 
 const fieldMode = z.enum(DELIVERY_PROOF_FIELD_MODES)
 
-/** Spec 193 D6: `receivedBy` é opcional — ausente preserva o gravado (o painel anterior ao campo). */
+export const DELIVERY_PROOF_MINIMUM_ABOVE_LIMIT_CODE = 'DELIVERY_PROOF_MINIMUM_ABOVE_LIMIT'
+
+/** Spec 220 RF08: o mínimo nunca passa o teto de fotos da mercadoria por entrega (spec 184 D3). */
+const cargoMinimumCount = z
+  .number()
+  .int()
+  .min(1)
+  .max(TRIP_DELIVERY_PROOF_CARGO_LIMIT, { message: DELIVERY_PROOF_MINIMUM_ABOVE_LIMIT_CODE })
+
+/**
+ * Spec 193 D6: `receivedBy` é opcional — ausente preserva o gravado (o painel anterior ao campo).
+ * Spec 220 RF02: `cargo` e `cargoMinimumCount` seguem o mesmo precedente.
+ */
 export const deliveryProofSettingsSchema = z
   .object({
+    cargo: fieldMode.optional(),
+    cargoMinimumCount: cargoMinimumCount.optional(),
     photo: fieldMode,
     receivedBy: fieldMode.optional(),
     receiverDocument: fieldMode,

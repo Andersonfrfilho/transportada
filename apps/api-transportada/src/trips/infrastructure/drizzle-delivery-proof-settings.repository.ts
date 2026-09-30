@@ -54,6 +54,8 @@ export class DrizzleDeliveryProofSettingsRepository {
     const [record] = await this.database
       .select({
         canhotoOcrEnabled: companyDeliveryProofSettings.canhotoOcrEnabled,
+        cargo: companyDeliveryProofSettings.cargo,
+        cargoMinimumCount: companyDeliveryProofSettings.cargoMinimumCount,
         latePenaltyPoints: companyDeliveryProofSettings.latePenaltyPoints,
         missingAfterHours: companyDeliveryProofSettings.missingAfterHours,
         missingPenaltyPoints: companyDeliveryProofSettings.missingPenaltyPoints,
@@ -107,6 +109,8 @@ export class DrizzleDeliveryProofSettingsRepository {
   }): Promise<readonly DeliveryProofSettingsOverride[]> {
     return this.database
       .select({
+        cargo: deliveryProofSettingOverrides.cargo,
+        cargoMinimumCount: deliveryProofSettingOverrides.cargoMinimumCount,
         photo: deliveryProofSettingOverrides.photo,
         receivedBy: deliveryProofSettingOverrides.receivedBy,
         receiverDocument: deliveryProofSettingOverrides.receiverDocument,
@@ -146,6 +150,10 @@ export class DrizzleDeliveryProofSettingsRepository {
           .values({ companyId: input.companyId, ...override })
           .onConflictDoUpdate({
             set: {
+              ...(override.cargo === undefined ? {} : { cargo: override.cargo }),
+              ...(override.cargoMinimumCount === undefined
+                ? {}
+                : { cargoMinimumCount: override.cargoMinimumCount }),
               photo: override.photo,
               ...(override.receivedBy === undefined ? {} : { receivedBy: override.receivedBy }),
               receiverDocument: override.receiverDocument,
@@ -166,6 +174,8 @@ export class DrizzleDeliveryProofSettingsRepository {
     return this.database
       .select({
         contractorId: deliveryProofSettingContractorOverrides.contractorId,
+        cargo: deliveryProofSettingContractorOverrides.cargo,
+        cargoMinimumCount: deliveryProofSettingContractorOverrides.cargoMinimumCount,
         photo: deliveryProofSettingContractorOverrides.photo,
         receivedBy: deliveryProofSettingContractorOverrides.receivedBy,
         receiverDocument: deliveryProofSettingContractorOverrides.receiverDocument,
@@ -225,6 +235,10 @@ export class DrizzleDeliveryProofSettingsRepository {
           .values({ companyId: input.companyId, ...override })
           .onConflictDoUpdate({
             set: {
+              ...(override.cargo === undefined ? {} : { cargo: override.cargo }),
+              ...(override.cargoMinimumCount === undefined
+                ? {}
+                : { cargoMinimumCount: override.cargoMinimumCount }),
               photo: override.photo,
               ...(override.receivedBy === undefined ? {} : { receivedBy: override.receivedBy }),
               receiverDocument: override.receiverDocument,

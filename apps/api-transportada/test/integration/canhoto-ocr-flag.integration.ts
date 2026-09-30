@@ -19,6 +19,8 @@ const testWithPostgres = databaseUrl === undefined ? test.skip : test
 type TestDatabase = ReturnType<typeof createDrizzleProvider>
 
 const FIELDS = {
+  cargo: 'off',
+  cargoMinimumCount: 1,
   photo: 'required',
   receivedBy: 'optional',
   receiverDocument: 'off',

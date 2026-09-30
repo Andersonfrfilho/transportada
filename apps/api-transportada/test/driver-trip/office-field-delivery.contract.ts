@@ -99,6 +99,8 @@ function buildProof(input: {
 }
 
 const OPTIONAL_SETTINGS: DeliveryProofFieldSettings = {
+  cargo: 'off',
+  cargoMinimumCount: 1,
   photo: 'optional',
   receivedBy: 'optional',
   receiverDocument: 'off',

@@ -26,6 +26,8 @@ import {
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 
 const FIELDS = {
+  cargo: 'off',
+  cargoMinimumCount: 1,
   photo: 'required',
   receivedBy: 'optional',
   receiverDocument: 'off',

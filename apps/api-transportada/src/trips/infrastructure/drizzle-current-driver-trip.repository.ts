@@ -647,6 +647,8 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     const [generalRows, overrideRows, contractorOverrideRows] = await Promise.all([
       this.database
         .select({
+          cargo: companyDeliveryProofSettings.cargo,
+          cargoMinimumCount: companyDeliveryProofSettings.cargoMinimumCount,
           photo: companyDeliveryProofSettings.photo,
           receivedBy: companyDeliveryProofSettings.receivedBy,
           receiverDocument: companyDeliveryProofSettings.receiverDocument,
@@ -658,6 +660,8 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         .limit(1),
       this.database
         .select({
+          cargo: deliveryProofSettingOverrides.cargo,
+          cargoMinimumCount: deliveryProofSettingOverrides.cargoMinimumCount,
           photo: deliveryProofSettingOverrides.photo,
           receivedBy: deliveryProofSettingOverrides.receivedBy,
           receiverDocument: deliveryProofSettingOverrides.receiverDocument,
@@ -671,6 +675,8 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       this.database
         .select({
           contractorId: deliveryProofSettingContractorOverrides.contractorId,
+          cargo: deliveryProofSettingContractorOverrides.cargo,
+          cargoMinimumCount: deliveryProofSettingContractorOverrides.cargoMinimumCount,
           photo: deliveryProofSettingContractorOverrides.photo,
           receivedBy: deliveryProofSettingContractorOverrides.receivedBy,
           receiverDocument: deliveryProofSettingContractorOverrides.receiverDocument,
@@ -687,6 +693,8 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         contractorOverrideRows.map((row) => [
           row.contractorId,
           {
+            cargo: row.cargo,
+            cargoMinimumCount: row.cargoMinimumCount,
             photo: row.photo,
             receivedBy: row.receivedBy,
             receiverDocument: row.receiverDocument,
@@ -699,6 +707,8 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         overrideRows.map((row) => [
           row.taxId,
           {
+            cargo: row.cargo,
+            cargoMinimumCount: row.cargoMinimumCount,
             photo: row.photo,
             receivedBy: row.receivedBy,
             receiverDocument: row.receiverDocument,

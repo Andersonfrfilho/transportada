@@ -98,6 +98,8 @@ async function readData(response: Response): Promise<Record<string, unknown>> {
 
 const VALID_BODY: CompanyDeliveryProofSettings = {
   canhotoOcrEnabled: false,
+  cargo: 'off',
+  cargoMinimumCount: 1,
   latePenaltyPoints: 7,
   missingAfterHours: 12,
   missingPenaltyPoints: 15,
@@ -135,6 +137,8 @@ describe('delivery proof punctuality settings (spec 159 T4, ADR-0070 §3-5)', ()
   test('PUT without the punctuality params keeps the stored ones', async () => {
     const dependencies = fakeDependencies(VALID_BODY)
     const modesOnly = {
+      cargo: 'off',
+      cargoMinimumCount: 1,
       photo: 'optional',
       receivedBy: 'optional',
       receiverDocument: 'off',

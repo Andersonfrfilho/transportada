@@ -63,7 +63,12 @@ export type DeliveryProofSettingsDependencies = {
  * Spec 159 T11 (item 6): os modos sempre vêm; os parâmetros da nota, só os que mudam. O interruptor
  * da leitura do canhoto (ADR-0069 §6) é opcional do mesmo jeito.
  */
-type CompanyDeliveryProofSettingsInput = Omit<DeliveryProofFieldSettings, 'receivedBy'> & {
+type CompanyDeliveryProofSettingsInput = Omit<
+  DeliveryProofFieldSettings,
+  'cargo' | 'cargoMinimumCount' | 'receivedBy'
+> & {
+  readonly cargo?: DeliveryProofFieldSettings['cargo'] | undefined
+  readonly cargoMinimumCount?: number | undefined
   readonly receivedBy?: DeliveryProofFieldSettings['receivedBy'] | undefined
 } & {
   readonly [TKey in keyof DeliveryProofPunctualitySettings]?:
@@ -96,20 +101,31 @@ function mergeSettings(
   }
 }
 
-/** Spec 193 D6: o Zod devolve `receivedBy: undefined` quando o campo não veio — ausente é "não mexe". */
+/**
+ * Spec 193 D6, spec 220 RF02: o Zod devolve `undefined` nos campos opcionais que não vieram —
+ * ausente é "não mexe", e o repositório só grava o que chega definido.
+ */
 function toOverrideInput(
   override: DeliveryProofOverridesBody['overrides'][number],
 ): DeliveryProofSettingsOverrideInput {
-  const { receivedBy, ...rest } = override
-  return receivedBy === undefined ? rest : { ...rest, receivedBy }
+  return omitUndefinedFields(override)
 }
 
-/** Spec 218: o mesmo tratamento de `receivedBy`, para o corpo por contratante. */
+/** Spec 218: o mesmo tratamento, para o corpo por contratante. */
 function toContractorOverrideInput(
   override: DeliveryProofContractorOverridesBody['overrides'][number],
 ): DeliveryProofSettingsContractorOverrideInput {
-  const { receivedBy, ...rest } = override
-  return receivedBy === undefined ? rest : { ...rest, receivedBy }
+  return omitUndefinedFields(override)
+}
+
+function omitUndefinedFields<TBody extends object>(body: TBody): OmitUndefined<TBody> {
+  return Object.fromEntries(
+    Object.entries(body).filter(([, value]) => value !== undefined),
+  ) as OmitUndefined<TBody>
+}
+
+type OmitUndefined<TBody extends object> = {
+  readonly [TKey in keyof TBody]: Exclude<TBody[TKey], undefined>
 }
 
 function jsonResponse(body: object): Response {

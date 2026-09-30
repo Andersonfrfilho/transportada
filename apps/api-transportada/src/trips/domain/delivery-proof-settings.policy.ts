@@ -15,6 +15,10 @@ export type { DeliveryProofFieldMode }
  * recebeu, em relação ao destinatário) é o quinto.
  */
 export type DeliveryProofFieldSettings = {
+  /** Spec 220 RF01: a foto da mercadoria, separada do canhoto (`photo`). */
+  readonly cargo: DeliveryProofFieldMode
+  /** Spec 220 RF06: quantas fotos da mercadoria, lido só quando `cargo` é `required`. */
+  readonly cargoMinimumCount: number
   readonly photo: DeliveryProofFieldMode
   readonly receivedBy: DeliveryProofFieldMode
   readonly receiverDocument: DeliveryProofFieldMode
@@ -26,17 +30,31 @@ export type DeliveryProofFieldSettings = {
  * Spec 193 D6: no `PUT`, `receivedBy` ausente é "não mexe" — o painel anterior ao campo manda só
  * os quatro modos. Na geral preserva o gravado; na exceção, o do mesmo `taxId` (senão `optional`).
  */
-export type DeliveryProofFieldSettingsInput = Omit<DeliveryProofFieldSettings, 'receivedBy'> & {
+export type DeliveryProofFieldSettingsInput = Omit<
+  DeliveryProofFieldSettings,
+  'cargo' | 'cargoMinimumCount' | 'receivedBy'
+> & {
+  readonly cargo?: DeliveryProofFieldMode
+  readonly cargoMinimumCount?: number
   readonly receivedBy?: DeliveryProofFieldMode
 }
 
 /** ADR-0057 §4: o padrão de fábrica é a ADR-0045 — documento desligado, o resto oferecido. */
 export const DEFAULT_DELIVERY_PROOF_SETTINGS: DeliveryProofFieldSettings = {
+  cargo: 'off',
+  cargoMinimumCount: 1,
   photo: 'optional',
   receivedBy: 'optional',
   receiverDocument: 'off',
   receiverName: 'optional',
   signature: 'optional',
+}
+
+/** Spec 220 RF06: com `cargo` opcional ou desligado não há mínimo a cobrar. */
+export function readCargoRequiredCount(
+  settings: Pick<DeliveryProofFieldSettings, 'cargo' | 'cargoMinimumCount'>,
+): number {
+  return settings.cargo === 'required' ? settings.cargoMinimumCount : 0
 }
 
 /**

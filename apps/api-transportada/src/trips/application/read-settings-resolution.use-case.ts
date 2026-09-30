@@ -72,6 +72,8 @@ export type ReadSettingsResolutionParams = {
  */
 function toFieldSettings(input: DeliveryProofFieldSettings): DeliveryProofFieldSettings {
   return {
+    cargo: input.cargo,
+    cargoMinimumCount: input.cargoMinimumCount,
     photo: input.photo,
     receivedBy: input.receivedBy,
     receiverDocument: input.receiverDocument,

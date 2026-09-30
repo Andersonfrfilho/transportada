@@ -34,6 +34,8 @@ const OTHER_CONTRACTOR_ID = '00000000-0000-4000-8000-000000000011'
 const CONTRACTOR_OVERRIDES_PATH = '/company-settings/delivery-proof-contractor-overrides'
 
 const GENERAL: DeliveryProofFieldSettings = {
+  cargo: 'off',
+  cargoMinimumCount: 1,
   photo: 'optional',
   receivedBy: 'optional',
   receiverDocument: 'off',
@@ -41,6 +43,8 @@ const GENERAL: DeliveryProofFieldSettings = {
   signature: 'optional',
 }
 const CONTRACTOR_OVERRIDE: DeliveryProofFieldSettings = {
+  cargo: 'off',
+  cargoMinimumCount: 1,
   photo: 'off',
   receivedBy: 'optional',
   receiverDocument: 'off',
@@ -48,6 +52,8 @@ const CONTRACTOR_OVERRIDE: DeliveryProofFieldSettings = {
   signature: 'optional',
 }
 const RECIPIENT_OVERRIDE: DeliveryProofFieldSettings = {
+  cargo: 'off',
+  cargoMinimumCount: 1,
   photo: 'required',
   receivedBy: 'optional',
   receiverDocument: 'off',

@@ -146,6 +146,8 @@ describe('a resolução da configuração (ADR-0057 §1)', () => {
     })
 
     expect(resolved).toEqual({
+      cargo: 'off',
+      cargoMinimumCount: 1,
       photo: 'optional',
       receivedBy: 'optional',
       receiverDocument: 'off',
@@ -156,6 +158,8 @@ describe('a resolução da configuração (ADR-0057 §1)', () => {
 
   it('a exceção por CNPJ do destinatário vence a configuração geral por inteiro', () => {
     const general: DeliveryProofFieldSettings = {
+      cargo: 'off',
+      cargoMinimumCount: 1,
       photo: 'required',
       receivedBy: 'optional',
       receiverDocument: 'off',
@@ -163,6 +167,8 @@ describe('a resolução da configuração (ADR-0057 §1)', () => {
       signature: 'required',
     }
     const recipientOverride: DeliveryProofFieldSettings = {
+      cargo: 'off',
+      cargoMinimumCount: 1,
       photo: 'off',
       receivedBy: 'optional',
       receiverDocument: 'required',
@@ -237,6 +243,8 @@ describe('o documento do recebedor no comprovante (spec 082 T013)', () => {
 
 describe('a resolução por documento (spec 082 — revisão)', () => {
   const GENERAL: DeliveryProofFieldSettings = {
+    cargo: 'off',
+    cargoMinimumCount: 1,
     photo: 'optional',
     receivedBy: 'optional',
     receiverDocument: 'off',
@@ -244,6 +252,8 @@ describe('a resolução por documento (spec 082 — revisão)', () => {
     signature: 'optional',
   }
   const OVERRIDE: DeliveryProofFieldSettings = {
+    cargo: 'off',
+    cargoMinimumCount: 1,
     photo: 'required',
     receivedBy: 'optional',
     receiverDocument: 'required',

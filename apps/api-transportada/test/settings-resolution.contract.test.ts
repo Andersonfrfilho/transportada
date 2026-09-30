@@ -22,6 +22,8 @@ const RECIPIENT_TAX_ID = '00000000000191'
 const SETTINGS_RESOLUTION_PATH = '/company-settings/settings-resolution'
 
 const GENERAL: DeliveryProofFieldSettings = {
+  cargo: 'off',
+  cargoMinimumCount: 1,
   photo: 'optional',
   receivedBy: 'optional',
   receiverDocument: 'off',
@@ -29,6 +31,8 @@ const GENERAL: DeliveryProofFieldSettings = {
   signature: 'optional',
 }
 const CONTRACTOR_OVERRIDE: DeliveryProofFieldSettings = {
+  cargo: 'off',
+  cargoMinimumCount: 1,
   photo: 'off',
   receivedBy: 'optional',
   receiverDocument: 'off',
@@ -36,6 +40,8 @@ const CONTRACTOR_OVERRIDE: DeliveryProofFieldSettings = {
   signature: 'optional',
 }
 const RECIPIENT_OVERRIDE: DeliveryProofFieldSettings = {
+  cargo: 'off',
+  cargoMinimumCount: 1,
   photo: 'required',
   receivedBy: 'optional',
   receiverDocument: 'off',
