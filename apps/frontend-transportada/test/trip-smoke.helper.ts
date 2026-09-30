@@ -43,6 +43,14 @@ export const DISPATCH_LEFT_BEHIND_DOCUMENT_ID = '00000000-0000-4000-8000-0000000
 export const DISPATCHED_STOP_ID = '00000000-0000-4000-8000-000000000622'
 export const DISPATCHED_DOCUMENT_ID = '00000000-0000-4000-8000-000000000623'
 
+/**
+ * Spec 220 T7.19: a nota **entregue**. Nenhum modo anterior tem uma — a carregada cai em
+ * `not-delivered` e a devolvida em `returned` (`resolveDeliveryProofView`), e os dois estados
+ * desenham uma frase no lugar do painel, sem foto, sem leitura e sem conferência.
+ */
+export const PROOF_STOP_ID = '00000000-0000-4000-8000-000000000624'
+export const PROOF_DELIVERED_DOCUMENT_ID = '00000000-0000-4000-8000-000000000625'
+
 const BASE_TRIP = {
   companyId: '00000000-0000-4000-8000-000000000001',
   driverNames: [],
@@ -58,6 +66,7 @@ const BASE_TRIP = {
 
 type DocumentsMode =
   | 'all-authorized'
+  | 'delivered-proof'
   | 'dispatch-flow'
   | 'dispatched'
   | 'has-pending'
@@ -423,6 +432,44 @@ const DISPATCHED_STOP = {
 } as const
 
 /**
+ * Spec 220 T7.19: a nota entregue que abre o painel do comprovante. O destinatário longo veio junto
+ * de propósito — o painel abre **dentro** do card da nota, e é essa largura já espremida que a
+ * revisão de design mede.
+ */
+const PROOF_DELIVERED_DOCUMENT = {
+  ...tripDocument({ cteAuthorized: true, id: PROOF_DELIVERED_DOCUMENT_ID }),
+  contact: {
+    contractorName: 'DISTRIBUIDORA CENTRO OESTE DE MEDICAMENTOS LTDA',
+    name: 'ALMEIDA COMERCIO DE PRODUTOS DE FARMACIA E PERFUMARIA LTDA',
+    phone: '16999990004',
+    taxId: '12345678000190',
+  },
+  deliveredAt: '2026-08-10T16:42:00.000Z',
+  freightAmount: '90.5600',
+  freightSource: 'estimated',
+  loadedAt: '2026-08-10T08:00:00.000Z',
+  nfeIssuedAt: '2026-08-10T07:30:00.000Z',
+  nfeNumber: '904',
+  nfeSeries: '1',
+  nfeTotalValue: '754.6300',
+  separationStatus: 'delivered',
+  stopId: PROOF_STOP_ID,
+} as const
+
+const PROOF_STOP = {
+  addressKey: 'delivered-proof',
+  arrivedAt: '2026-08-10T16:20:00.000Z',
+  completedAt: '2026-08-10T16:42:00.000Z',
+  deliveryWindowEnd: null,
+  deliveryWindowStart: null,
+  documents: [PROOF_DELIVERED_DOCUMENT],
+  hasOpenOccurrence: false,
+  id: PROOF_STOP_ID,
+  label: 'AVENIDA 21, 610, BARRETOS, SP',
+  sequence: 1,
+} as const
+
+/**
  * ⚠️ **Anotado de propósito.** O guard do detalhe usa `hasExactKeys`: campo do corpo ausente aqui
  * reprova a validação inteira em tempo de execução, o detalhe não carrega, e a tela fica sem botão
  * nenhum — o smoke quebra em quatro casos e nenhum contrato de unidade acusa. Sem o tipo, só o
@@ -435,22 +482,24 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
           tripDocument({ cteAuthorized: true, id: AUTHORIZED_DOCUMENT_ID }),
           tripDocument({ cteAuthorized: false, id: PENDING_DOCUMENT_ID }),
         ]
-      : mode === 'stop-card-states'
-        ? [
-            STOP_CARD_LOADED_DOCUMENT,
-            STOP_CARD_RETURNED_DOCUMENT,
-            STOP_CARD_OCCURRENCE_DOCUMENT,
-            STOP_CARD_LONG_RECIPIENT_DOCUMENT,
-          ]
-        : mode === 'dispatch-flow'
+      : mode === 'delivered-proof'
+        ? [PROOF_DELIVERED_DOCUMENT]
+        : mode === 'stop-card-states'
           ? [
-              DISPATCH_LOAD_DISPATCHED_DOCUMENT,
-              DISPATCH_LOAD_BLOCKED_DOCUMENT,
-              DISPATCH_LEFT_BEHIND_DOCUMENT,
+              STOP_CARD_LOADED_DOCUMENT,
+              STOP_CARD_RETURNED_DOCUMENT,
+              STOP_CARD_OCCURRENCE_DOCUMENT,
+              STOP_CARD_LONG_RECIPIENT_DOCUMENT,
             ]
-          : mode === 'dispatched'
-            ? [DISPATCHED_DOCUMENT]
-            : [tripDocument({ cteAuthorized: true, id: AUTHORIZED_DOCUMENT_ID })]
+          : mode === 'dispatch-flow'
+            ? [
+                DISPATCH_LOAD_DISPATCHED_DOCUMENT,
+                DISPATCH_LOAD_BLOCKED_DOCUMENT,
+                DISPATCH_LEFT_BEHIND_DOCUMENT,
+              ]
+            : mode === 'dispatched'
+              ? [DISPATCHED_DOCUMENT]
+              : [tripDocument({ cteAuthorized: true, id: AUTHORIZED_DOCUMENT_ID })]
 
   return {
     ...BASE_TRIP,
@@ -491,13 +540,15 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
     trailer: null,
     // ADR-0043 §3: a viagem tem paradas. Vazia é estado legítimo — nota ainda não reconciliada.
     stops:
-      mode === 'stop-card-states'
-        ? [STOP_CARD_STOP, STOP_CARD_DONE_STOP]
-        : mode === 'dispatch-flow'
-          ? [DISPATCH_FLOW_STOP, DISPATCH_UNSCHEDULED_STOP]
-          : mode === 'dispatched'
-            ? [DISPATCHED_STOP]
-            : [],
+      mode === 'delivered-proof'
+        ? [PROOF_STOP]
+        : mode === 'stop-card-states'
+          ? [STOP_CARD_STOP, STOP_CARD_DONE_STOP]
+          : mode === 'dispatch-flow'
+            ? [DISPATCH_FLOW_STOP, DISPATCH_UNSCHEDULED_STOP]
+            : mode === 'dispatched'
+              ? [DISPATCHED_STOP]
+              : [],
   }
 }
 

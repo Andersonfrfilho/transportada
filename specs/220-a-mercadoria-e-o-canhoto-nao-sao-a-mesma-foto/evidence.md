@@ -2802,3 +2802,70 @@ alguém introduza um.
 
 **Gates:** `EXIT_TSC=0` · `EXIT_LINT=0` · `EXIT_FMT=0` · `EXIT_TEST=0` (5886 pass / 0 fail na suíte
 grande — 5881 + 5 novos —, 145 pass / 0 fail em `test:hooks`).
+
+### T7.19 — revisão de design do comprovante no item da nota
+
+**Como foi medido.** `apps/frontend-transportada/test/spec-220-prints.smoke.spec.ts`, fora da lista
+da CI (roda com `PLAYWRIGHT_TEST_MATCH`), grava os seis PNGs em
+`specs/220-a-mercadoria-e-o-canhoto-nao-sao-a-mesma-foto/prints/t719-comprovante-<largura>-<tema>.png`.
+Seis combinações: 375 px, 768 px e 1280 px × tema escuro e claro.
+
+```
+ENV_FILE=../../.env PLAYWRIGHT_FRONTEND_PORT=53114 \
+PLAYWRIGHT_TEST_MATCH=spec-220-prints.smoke.spec.ts bun run smoke
+→ 6 passed (EXIT=0) · tsc EXIT=0 · eslint EXIT=0
+```
+
+**Contraste medido** (composição real na tela, não estimativa da folha de estilo):
+
+| tela                    | selo pendente | selo recusado |
+| ----------------------- | ------------- | ------------- |
+| 375 / 768 / 1280 escuro | 4,64:1        | 4,66:1        |
+| 375 / 768 / 1280 claro  | 4,96:1        | 4,97:1        |
+
+Passam o AA de texto normal (4,5:1) nas seis combinações. Sem transbordo horizontal em nenhuma
+(`scrollWidth - innerWidth ≤ 0`), e `mock.failures()` vazio nas seis.
+
+**Alvo de toque abaixo de 44 px:** "Aprovar canhoto" 149×38 e "Recusar canhoto" 152×38, em 768 px e
+1280 px. Em 375 px nenhum — os dois quebram em duas linhas e passam de 44. É o `size="sm"` do botão
+do design system, altura que a app inteira usa; fica registrado como achado, não como correção desta
+spec, porque mexer nele muda todo botão pequeno do painel.
+
+**Os dois limites que a T5.6 registrou não sobreviveram à troca de ferramenta**, e por isso não são
+repetidos aqui: o `setViewportSize` do Playwright redimensiona de verdade (o navegador de inspeção
+não redimensionava), e a URL assinada é atendida pela própria rota do teste (o MinIO local devolvia
+503 e agora o navegador não o toca).
+
+**Três defeitos do próprio instrumento, corrigidos antes do verde** — todos capazes de produzir
+verde falso ou vermelho falso:
+
+1. **O medidor de contraste lia `color-mix` errado.** `color-mix` resolve para `color(srgb 0.35 …)`,
+   de canal 0–1; `rgb()` vai a 255. O parser dividia tudo por 255 e o fundo do selo saía quase
+   preto: 3,32:1 no tema claro, reprovando um selo que mede 4,96:1. Vermelho falso — e, no tema
+   escuro, teria sido verde falso pelo mesmo caminho.
+2. **A imagem não passava pela CSP.** A URL assinada apontava para um domínio inventado; `img-src`
+   só admite `'self'`, `blob:` e as origens declaradas no build, e esta instalação não declara
+   bucket. O print saía com o quadro quebrado — o teste passava e a revisão de design media um
+   layout que ninguém vê. A URL sintética passou a sair da origem da API.
+3. **A miniatura não tem tamanho em CSS.** Com o PNG 1×1 a foto virava um ponto, e os quatro botões
+   "Abrir em tamanho real" apareciam como alvo de toque de 211×34 — achado de acessibilidade que só
+   existia porque a imagem era de um pixel. Com um SVG 640×480 os quatro somem da lista.
+
+**Nenhuma foto real entra em fixture:** a imagem é um xadrez sintético gerado no próprio teste.
+
+**Revisão contra a tela:** o painel separa `Foto do comprovante de entrega` de
+`Foto da mercadoria entregue` sob o título "Fotos da carga" — a separação da RF01 é visível sem ler
+o alt. O canhoto recusado carrega motivo e observação; o recapturado carrega a leitura do código de
+barras e os dois botões da conferência. Ordem, hierarquia e espaçamento acompanham o resto do card
+da nota nas três larguras.
+
+**Achado de infraestrutura, fora do escopo da spec.** A porta 53000 é compartilhada entre worktrees
+e o `playwright.config.ts` usa `reuseExistingServer: !process.env.CI`. Medido nesta sessão: a porta
+estava ocupada por um vite de **outro** worktree (`reconcile-spec-145`), e o Playwright a aceitou —
+os smokes locais rodaram contra a app alheia até a troca para `PLAYWRIGHT_FRONTEND_PORT=53114`.
+Qualquer veredito de smoke local tirado sem porta dedicada não vale. É a face de porta do
+"Duas sessões, duas árvores" do `CLAUDE.md`.
+
+**O dublê é compartilhado, então o conjunto da CI rodou junto:** `62 passed` (`responsive`,
+`field-delivery`, `field-delivery-cargo`, `trip-timeline`), na mesma porta dedicada. O modo
+`delivered-proof` é aditivo e não move nenhum modo existente.

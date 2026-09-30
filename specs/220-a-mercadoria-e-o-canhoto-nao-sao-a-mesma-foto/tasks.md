@@ -353,7 +353,7 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
       `lateRegistration:365`). ⚠️ Nada nos textos pode sugerir que o veredito trava entrega, viagem,
       CT-e ou fatura (RF30): "aguardando conferência", nunca "bloqueado"; "recusado", nunca "entrega
       inválida"
-- [ ] T7.19 Revisão de design (`web.md` §15) em 375 px, 768 px e 1280 px, com **print ao usuário**.
+- [x] T7.19 Revisão de design (`web.md` §15) em 375 px, 768 px e 1280 px, com **print ao usuário**.
       ⚠️ A T5.6 registrou dois limites deste ambiente: a janela não redimensiona e o MinIO local
       devolve 503 na imagem do comprovante. Se reaparecerem, registrar como a T5.6 registrou, em vez
       de marcar verde
