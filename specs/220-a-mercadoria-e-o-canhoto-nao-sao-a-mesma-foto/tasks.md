@@ -249,7 +249,7 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
       `DELIVERY_PROOF_OPTIONAL_KEYS` e o guarda de `tripResponse.validation.ts:1221`, mais o tipo
       `DeliveryProof` de `deliveryProof.service.ts:24`. A lista é fechada e descarta em silêncio —
       defeito que a T3.7 pegou uma vez e a T4.3c teve de corrigir depois
-- [ ] T7.6 Contrato **puro**: `canhotoReviewPresentation.service.ts` mapeia veredito → tela.
+- [x] T7.6 Contrato **puro**: `canhotoReviewPresentation.service.ts` mapeia veredito → tela.
       `not_applicable` não mostra nada (é o estado da assinatura, da foto da mercadoria e de todo
       comprovante anterior à spec — selo ali seria ruído na maioria da tela); `approved` por código
       de barras diz "conferido automaticamente"; `approved` por pessoa diz quem e quando; `pending`
@@ -258,8 +258,8 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
       ele aponta; `pending` sem leitura é "aguardando conferência"; `rejected` mostra o motivo e, só
       com `other`, a nota. Função pura porque o teste desta app não tem DOM por padrão — mesma razão
       da T5.1 — `test/trip/canhoto-review-presentation.contract.ts`
-- [ ] T7.7 Contrato **puro**: `canhotoReviewNote.validation.ts` espelha a guarda do servidor
-      (`personal-data.policy.ts:33-39`), **inclusive os dez dígitos crus** (`:38`), mais os limites
+- [x] T7.7 Contrato **puro**: `canhotoReviewNote.validation.ts` espelha a guarda do servidor
+      (`shared/personal-data.policy.ts:33-39`), **inclusive os dez dígitos crus** (`:38`), mais os limites
       de 20 e 500. ⚠️ É cópia, e cópia diverge: não existe `packages/` neste repo (CLAUDE.md) e a
       regra mora na API. O teste carrega os mesmos casos do contrato do servidor, para a divergência
       reprovar um teste em vez de reprovar um usuário
@@ -279,7 +279,10 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
       ao dono com um 400 na cara. A tela **também** traduz o 400 do servidor
       (`CANHOTO_REVIEW_NOTE_PERSONAL_DATA`, `CANHOTO_REVIEW_NOTE_LENGTH`,
       `CANHOTO_REVIEW_NOTE_REQUIRED`) — a guarda do servidor é a autoridade e a do cliente vai
-      envelhecer
+      envelhecer. ⚠️ **A T7.7 não tem o `REQUIRED`**: `validateCanhotoReviewNote('')` devolve
+      `tooShort`, porque o servidor também mede tamanho antes de exigir presença. Campo vazio
+      dizendo "mínimo de 20 caracteres" está correto e é pior de ler que "obrigatório" — se o
+      diálogo quiser a segunda mensagem, ela nasce aqui, não na validação
 - [ ] T7.11 O que a tela faz com 200 e com 409. `unchanged`
       (`canhoto-review-decision.policy.ts:128`) volta 200 com a mesma view: é o clique duplo e a
       repetição, aceita em silêncio, só escreve no cache. `CANHOTO_REVIEW_ALREADY_RESOLVED` volta

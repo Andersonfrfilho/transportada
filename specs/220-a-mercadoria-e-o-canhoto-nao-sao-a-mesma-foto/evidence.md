@@ -2143,3 +2143,68 @@ $ bun run typecheck (apps/frontend-transportada)  → EXIT=0
 $ bun run lint (raiz)  → EXIT=0
 $ bun run format:check (raiz)  → EXIT=0
 ```
+
+### T7.6 — o contrato que traduz o veredito do canhoto em tela
+
+`canhotoReviewPresentation.service.ts` é função pura: recebe o `DeliveryProof` e devolve
+`{ messageKey, isExperimental, … }` ou `undefined`. Sem veredito não há o que mostrar — assinatura,
+foto da mercadoria e todo comprovante anterior à spec caem aí, e é por isso que a ausência é o
+retorno, não um selo "não se aplica" repetido na maioria da tela. Seis `messageKey`:
+`approvedAutomatic` · `approvedManual` (com nome e data) · `pendingBarcode` · `pendingOcr`
+(`isExperimental: true`) · `pendingUnread` · `rejected`. O número lido sai por
+`formatCanhotoOcrNumber` de `fieldDeliveryReview.service.ts`, reaproveitado em vez de recopiado, e a
+data volta **ISO cru**: formatar é da tela, que tem o idioma e o `formatMoment`. A nota só
+acompanha `rejected` com motivo `other` — o texto livre não existe nos outros três motivos.
+Locale nos dois idiomas (`deliveryProof.canhotoReview`).
+
+⚠️ **A T7.6 entrou depois da T7.7 no histórico** (`737939bad` depois de `c0b0fa611`): as duas
+rodaram em paralelo e colidiram no entrypoint `test/trip.contract.test.ts`, que é arquivo
+compartilhado ainda que os fontes sejam disjuntos. O import da T7.6 sobreviveu como alteração não
+commitada e entrou no commit dela. Os gates abaixo são de uma passada única sobre o estado
+combinado das duas, depois da cirurgia no entrypoint.
+
+```
+VERMELHO (teste antes do código)
+$ bun test ./test/trip.contract.test.ts
+ 0 pass · 1 fail · 1 error → EXIT=1
+   └ Cannot find module '@/modules/trip/shared/canhotoReviewPresentation.service'
+VERDE (estado combinado T7.6 + T7.7)
+$ bun test ./test/trip.contract.test.ts      2001 pass · 0 fail → EXIT=0
+$ bun run test (apps/frontend-transportada)  5874 pass · 0 fail, test:hooks 82 pass · 0 fail → EXIT=0
+$ bun run typecheck (apps/frontend-transportada)  → EXIT=0
+$ bun run lint (raiz)          → EXIT=0
+$ bun run format:check (raiz)  → EXIT=0
+```
+
+### T7.7 — a nota da recusa ganha a guarda de dado pessoal no cliente
+
+`canhotoReviewNote.validation.ts` espelha `shared/personal-data.policy.ts`: os **cinco regexes são
+idênticos aos do servidor, na mesma ordem** (e-mail, CNPJ, CPF, CEP, telefone — CNPJ antes de CPF e
+CEP antes de telefone, pelo mesmo motivo que o comentário do servidor explica). A ordem das
+checagens também bate com `canhoto-review-decision.policy.ts:102-107`: tamanho primeiro, dado
+pessoal depois. Devolve código (`tooShort` · `tooLong` · `personalData`), nunca texto — a mensagem é
+da T7.10 — e nunca a categoria do dado encontrado.
+
+O contrato traz, um por um, os casos de `apps/api-transportada/test/personal-data/detection.contract.ts`:
+recusados e-mail, CNPJ pontuado e cru, CPF pontuado e cru, CEP, telefone nas quatro formas e onze
+dígitos crus; aceitos os seis motivos legítimos, a chave de acesso de 44 dígitos, o protocolo de 12
+e a nota de 9. Mais três casos que o servidor não tem: os dez dígitos crus da T7.7, os limites
+(vazio e 19 → `tooShort`; 20 e 500 passam; 501 → `tooLong`) e a ordem (`11987654321` sozinho dá
+`tooShort`, não dado pessoal).
+
+⚠️ **O cliente não tem o `REQUIRED` do servidor** (`:98`): nota vazia com motivo `other` cai em
+`tooShort`, não em "obrigatório". A T7.10 traduz o `CANHOTO_REVIEW_NOTE_REQUIRED` do 400 de
+qualquer forma — quem escrever o diálogo decide se o campo vazio merece a própria mensagem.
+
+```
+VERMELHO (teste antes do código)
+$ bun test test/trip.contract.test.ts
+ 0 pass · 1 fail · 1 error → EXIT=1
+   └ Cannot find module '@/modules/trip/shared/canhotoReviewNote.validation'
+VERDE
+$ bun test test/trip.contract.test.ts        2001 pass · 0 fail → EXIT=0
+$ bun run test (apps/frontend-transportada)  5874 pass · 0 fail, test:hooks 82 pass · 0 fail → EXIT=0
+$ bun run typecheck (apps/frontend-transportada)  → EXIT=0
+$ bun run lint (raiz)        → EXIT=0
+$ bun run format:check (raiz)  → EXIT=0
+```
