@@ -122,8 +122,11 @@ evidência em `evidence.md` e commit isolado.
 ## Prompt de execução
 
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/220-a-mercadoria-e-o-canhoto-nao-sao-a-mesma-foto/
-(leia spec.md, plan.md e tasks.md antes de começar). Uma task por vez, na ordem do tasks.md.
+/oh-my-claudecode:autopilot Trabalhe no worktree
+/Users/anderson.filho/Documents/personal/transportada-wt/comprovante-duas-fotos (branch
+work/comprovante-duas-fotos) — a spec não existe no checkout principal. Execute a spec
+specs/220-a-mercadoria-e-o-canhoto-nao-sao-a-mesma-foto/ (leia spec.md, plan.md e tasks.md antes
+de começar). Uma task por vez, na ordem do tasks.md.
 Modelos: Fases 1, 2, 3, 4 e 5 → executor model=sonnet · Fase 6 → opus ·
 T3.2, T6.1, T6.2 e T6.3 🧠 → validar com architect em opus antes de implementar ·
 revisão final → code-reviewer model=opus.
