@@ -340,7 +340,7 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
       `canhotoReadSource === null`), e inventar um quinto valor contradiria a lista fechada de quatro
       da RF24. Depois do F5 a tela volta a dizer "aguardando conferência". Perda consciente, escrita
       em `evidence.md`
-- [ ] T7.17 A chave de acesso antes da leitura. `reviewCanhoto` casa pela chave inteira, e
+- [x] T7.17 A chave de acesso antes da leitura. `reviewCanhoto` casa pela chave inteira, e
       `GET /trips/:id` não a traz: ela vem de `useFieldDeliveryDocumentsQuery`
       (`useFieldDeliveryDocuments.query.ts`), hoje `enabled` só com o assistente do escritório aberto
       (`TripDetail.component.tsx:1162-1177`). O hook **espera** essa consulta antes de ler, ou a

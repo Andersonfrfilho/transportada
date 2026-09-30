@@ -2721,3 +2721,46 @@ leitura. O que segue vivo:
 A corrida externa garante o **veredito** em 20 s; não garante a CPU de volta. É perda consciente:
 abortar exigiria plumbing de `AbortSignal` do hook até o worker, que a spec não pediu. Nenhum
 número de CPU/tempo foi medido aqui.
+
+### T7.17 — A chave de acesso antes da leitura
+
+`reviewCanhoto` casa pela chave inteira e `GET /trips/:id` não a traz: ela vem da rota estreita da
+spec 156 T14. A T7.14 já ligou o fio (`canhotoTripDocuments` reusa o `map` da baixa, e o `enabled`
+das duas consultas passou a disparar também com o comprovante aberto). O que faltava era a asserção
+de **como a chave é escolhida** — `CanhotoAutomaticReview.component.tsx:38-40` faz `find` pelo
+`documentId`, e nada provava que não bastava a primeira chave da lista.
+
+Contrato novo: `test/trip-hooks/canhoto-review-access-key.contract.ts`, quatro casos, montando
+`CanhotoAutomaticReview` direto. Rede, `createImageBitmap` e canvas são dublês; a busca da imagem é
+o que se observa — `fetchedUrls` vazio significa que a leitura nem começou.
+
+| caso                          | o que prova                                                                                                                                                                                  |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| sem resposta da rota estreita | lista vazia (erro de rota **ou** perfil sem `trip.report-on-behalf`): nenhum `fetch`, nenhum PATCH, e `onUnavailable` **não** é chamado — esperar não é falhar, a frase da T7.16 não aparece |
+| resposta sem a nota aberta    | a lista veio, mas sem esse `documentId`: mesmo comportamento                                                                                                                                 |
+| a chave é a da nota aberta    | a vizinha tem chave, a aberta não: continua esperando                                                                                                                                        |
+| chegada a chave               | dispara **uma vez** e não redispara em re-render                                                                                                                                             |
+
+⚠️ **Sobreposição declarada:** o primeiro caso não é novo — a T7.14 já tinha "sem a chave de acesso
+da nota ele espera, não lê". Ele fica aqui porque é a âncora dos outros três; a novidade real da
+T7.17 são os três seguintes.
+
+**Vermelho medido, duas mutações no fonte (desfeitas em seguida):**
+
+```
+verde antes   → 145 pass / 0 fail   (141 + 4 novos)
+find → [0]    → 143 pass / 2 fail   ("resposta sem a nota aberta", "a chave é a da nota aberta")
+?? undefined → ?? ''  → 140 pass / 5 fail  (os quatro novos + o caso da T7.14)
+verde depois  → 145 pass / 0 fail
+```
+
+A segunda mutação derruba cinco: é a prova de que o portão inteiro está sob asserção, e de que a
+T7.14 já o cobria por um caminho. A primeira derruba só dois: é a prova de que a **escolha por
+nota** — não "qualquer chave da lista" — é o que os casos novos acrescentam.
+
+**Gates:** `EXIT_TSC=0` · `EXIT_LINT=0` · `EXIT_FMT=0` · `EXIT_TEST=0` (5881 pass / 0 fail na suíte
+grande, 145 pass / 0 fail em `test:hooks`).
+
+**O que este contrato não prova:** que a rota estreita responde a chave em produção, e que o perfil
+do operador do escritório a recebe. Isso é comportamento de API e de perfil, e continua onde a spec
+156 o deixou. Aqui prova-se só o lado do painel: sem chave, ele espera, calado, sem travar o passo.
