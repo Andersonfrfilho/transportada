@@ -9,14 +9,23 @@
  *
  * O serviço é puro porque o teste desta app não tem DOM: o comportamento se prova na função.
  */
-import type { DELIVERY_PROOF_RECEIVED_BY_OPTIONS } from './trip.constant'
+import type {
+  DELIVERY_PROOF_PUNCTUALITY_OPTIONS,
+  DELIVERY_PROOF_RECEIVED_BY_OPTIONS,
+} from './trip.constant'
 
 export type DeliveryProofKind = 'photo' | 'signature' | 'cargo'
 
 /** Spec 193 D1: a relação de quem recebeu com o destinatário (`DELIVERY_PROOF_RECEIVED_BY_OPTIONS`). */
 export type DeliveryProofReceivedBy = (typeof DELIVERY_PROOF_RECEIVED_BY_OPTIONS)[number]
 
+export type DeliveryProofPunctuality = (typeof DELIVERY_PROOF_PUNCTUALITY_OPTIONS)[number]
+
 export type DeliveryProof = Readonly<{
+  /** Spec 220 RF14: hora da captura. Ausente em comprovante antigo. */
+  capturedAt?: string
+  /** Spec 220 RF15: distância ao ponto, em metros; ausente sem posição. Nunca a coordenada. */
+  distanceMeters?: number
   createdAt: string
   downloadUrl: string
   expiresAt: string
@@ -24,6 +33,8 @@ export type DeliveryProof = Readonly<{
   kind: DeliveryProofKind
   /** Spec 205 RF8: o comprovante (ou a entrega dele) foi registrado depois. Ausente na API anterior. */
   lateRegistration?: boolean
+  /** Spec 220 RF16: ausente em comprovante antigo. */
+  punctuality?: DeliveryProofPunctuality
   /** ADR-0057 §3: sempre a máscara; esta tela não o mostra. */
   receiverDocument?: string
   /** Spec 193 D3: quem recebeu, da mesma linha do nome. Ausente na API anterior; `null` no antigo. */

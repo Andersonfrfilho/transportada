@@ -263,4 +263,71 @@ describe('read delivery proofs contract', () => {
       expect(JSON.stringify(page)).not.toInclude('thumbnailUrl')
     })
   })
+  /**
+   * Spec 220 T4.3a (RF14/RF15/RF16). ⚠️ A coordenada do motorista é dado pessoal: o registro carrega
+   * só a distância **já derivada** (`distanceMeters`, haversine contra a parada) e o corpo nunca
+   * publica latitude, longitude nem precisão. Sem posição, o campo é omitido — nunca `null`.
+   */
+  describe('leitura da captura (spec 220 T4.3a)', () => {
+    const CAPTURED_AT = '2026-09-02T11:58:00.000Z'
+    const WITH_POSITION = {
+      ...PROOF,
+      accuracyMeters: 12,
+      capturedAt: CAPTURED_AT,
+      distanceMeters: 320,
+      kind: 'cargo' as const,
+      latitude: '-23.5505199',
+      longitude: '-46.6333094',
+      punctuality: 'late_and_away' as const,
+    }
+    const WITHOUT_POSITION = {
+      ...PROOF,
+      capturedAt: CAPTURED_AT,
+      distanceMeters: null,
+      id: '00000000-0000-4000-8000-0000000000a4',
+      kind: 'canhoto' as const,
+      punctuality: 'not_required' as const,
+    }
+
+    function readProofs(proofs: readonly object[]) {
+      return readDeliveryProofs({
+        companyId: COMPANY_ID,
+        documentId: DOCUMENT_ID,
+        downloads,
+        repository: repository(proofs as readonly (typeof PROOF)[]).port,
+        tripId: TRIP_ID,
+      })
+    }
+
+    test('publica capturedAt, punctuality e distanceMeters', async () => {
+      const [view] = await readProofs([WITH_POSITION])
+
+      expect(view).toMatchObject({
+        capturedAt: CAPTURED_AT,
+        distanceMeters: 320,
+        punctuality: 'late_and_away',
+      })
+    })
+
+    test('comprovante sem posição omite a distância, não a devolve nula', async () => {
+      const [view] = await readProofs([WITHOUT_POSITION])
+
+      expect(view).toMatchObject({ capturedAt: CAPTURED_AT, punctuality: 'not_required' })
+      expect(view).not.toHaveProperty('distanceMeters')
+    })
+
+    test('nenhuma coordenada nem precisão no corpo', async () => {
+      const body = JSON.stringify(await readProofs([WITH_POSITION, WITHOUT_POSITION]))
+
+      for (const forbidden of [
+        'latitude',
+        'longitude',
+        'accuracyMeters',
+        '-23.5505199',
+        '-46.6333094',
+      ]) {
+        expect(body).not.toInclude(forbidden)
+      }
+    })
+  })
 })

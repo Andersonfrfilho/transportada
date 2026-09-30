@@ -534,9 +534,24 @@ export const DELIVERY_PROOF_KEYS = [
  * máscara) já saía da API desde a spec 082 e a chave exata recusava a lista inteira por ele.
  */
 export const DELIVERY_PROOF_OPTIONAL_KEYS = [
+  'capturedAt',
+  'distanceMeters',
   'lateRegistration',
+  'punctuality',
   'receiverDocument',
   'thumbnailUrl',
+] as const
+
+/**
+ * Spec 220 RF16: veredito de pontualidade da captura. ⚠️ Só o texto derivado da distância chega
+ * ao painel — a coordenada nunca sai da API.
+ */
+export const DELIVERY_PROOF_PUNCTUALITY_OPTIONS = [
+  'on_time',
+  'late',
+  'away',
+  'late_and_away',
+  'not_required',
 ] as const
 
 export const TRIP_CARGO_WEIGHT_KEYS = [

@@ -16,6 +16,8 @@ import {
 import type { TripDocumentProduct } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
+import { formatMoment, ProofReadings } from './ProofReadings.component'
+
 type TripDeliveryProofProps = Readonly<{
   /** Spec 181 RF7: as duas expansões abaixo precisam de um id estável por nota. */
   documentId: string
@@ -127,23 +129,17 @@ export function TripDeliveryProof({
   )
 }
 
-const momentFormatter = new Intl.DateTimeFormat('pt-BR', {
-  dateStyle: 'short',
-  timeStyle: 'short',
-})
-
-function formatMoment(value: string): string {
-  return momentFormatter.format(new Date(value))
-}
-
 function ProofImage({ alt, proof }: Readonly<{ alt: string; proof: DeliveryProof }>) {
   return (
-    <img
-      alt={alt}
-      className={styles.deliveryProofImage}
-      loading="lazy"
-      src={resolveDeliveryProofImageSource(proof)}
-    />
+    <>
+      <img
+        alt={alt}
+        className={styles.deliveryProofImage}
+        loading="lazy"
+        src={resolveDeliveryProofImageSource(proof)}
+      />
+      <ProofReadings proof={proof} />
+    </>
   )
 }
 

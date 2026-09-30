@@ -60,6 +60,7 @@ import {
   DELIVERY_PROOF_RECEIVED_BY_KEYS,
   DELIVERY_PROOF_RECEIVED_BY_OPTIONS,
   DELIVERY_PROOF_OPTIONAL_KEYS,
+  DELIVERY_PROOF_PUNCTUALITY_OPTIONS,
   TRIP_DOCUMENT_PRODUCT_KEYS,
   TRIP_OCCURRENCE_KEYS,
   TRIP_CARGO_WEIGHT_KEYS,
@@ -1236,6 +1237,10 @@ function isDeliveryProof(value: unknown): value is DeliveryProof {
       isOneOf(value.receivedBy, DELIVERY_PROOF_RECEIVED_BY_OPTIONS)) &&
     (value.receivedByDetail === undefined || isNullableString(value.receivedByDetail)) &&
     (value.lateRegistration === undefined || isBoolean(value.lateRegistration)) &&
+    (value.capturedAt === undefined || isString(value.capturedAt)) &&
+    (value.distanceMeters === undefined || typeof value.distanceMeters === 'number') &&
+    (value.punctuality === undefined ||
+      isOneOf(value.punctuality, DELIVERY_PROOF_PUNCTUALITY_OPTIONS)) &&
     (value.receiverDocument === undefined || isString(value.receiverDocument)) &&
     (value.thumbnailUrl === undefined || isString(value.thumbnailUrl)) &&
     isString(value.receiverName)

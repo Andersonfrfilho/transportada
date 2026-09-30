@@ -7,17 +7,26 @@
  * lado do balcão não havia leitura nenhuma — o canhoto existia no bucket e ninguém no escritório o
  * alcançava.
  */
-import type { ReceivedBy, TripDeliveryProofKind } from '../../database/trip.schema.js'
+import type {
+  ReceivedBy,
+  TripDeliveryProofKind,
+  TripDeliveryProofPunctuality,
+} from '../../database/trip.schema.js'
 
 export type DeliveryProofRecord = {
   readonly bucket: string
+  /** Spec 220 RF14: a hora do aparelho na foto; `null` quando o aparelho não a leu. */
+  readonly capturedAt?: string | null
   readonly createdAt: string
+  /** Spec 220 RF15: metros entre a foto e a entrega registrada, já derivados; `null` sem posição. */
+  readonly distanceMeters?: number | null
   readonly id: string
   readonly kind: TripDeliveryProofKind
   /** Spec 205 RF7: o envio ou a entrega dele veio pelo "Registrar entrega depois". */
   readonly lateRegistration: boolean
   readonly mimeType: string
   readonly objectKey: string
+  readonly punctuality?: TripDeliveryProofPunctuality
   /** ADR-0057 §3: **sempre** a máscara (`***.938.570-**`). O valor em claro não sai da coluna selada. */
   readonly receiverDocumentMasked: string
   /** Nome de quem recebeu — na assinatura e no canhoto (spec 193 D4). */
@@ -53,13 +62,18 @@ export type DeliveryProofDownloadPort = {
 
 /** O que a rota publica. ⚠️ Sem `bucket` e sem `objectKey`: ver o comentário da função. */
 export type DeliveryProofView = {
+  /** Spec 220 RF14: ausente (nunca `null`) quando o aparelho não leu a hora. */
+  readonly capturedAt?: string
   readonly createdAt: string
+  /** Spec 220 RF15: ausente (nunca `null`) sem posição. ⚠️ A coordenada e a precisão nunca saem. */
+  readonly distanceMeters?: number
   readonly downloadUrl: string
   readonly expiresAt: string
   readonly id: string
   readonly kind: TripDeliveryProofKind
   /** Spec 205 RF7: só como dado — a tela não o interpreta. */
   readonly lateRegistration: boolean
+  readonly punctuality?: TripDeliveryProofPunctuality
   /** ADR-0057 §3: mascarado em toda leitura. Vazio quando a empresa não colhe documento. */
   readonly receiverDocument: string
   readonly receiverName: string
@@ -117,12 +131,19 @@ export async function readDeliveryProofs({
       ])
 
       return {
+        ...(record.capturedAt === undefined || record.capturedAt === null
+          ? {}
+          : { capturedAt: record.capturedAt }),
         createdAt: record.createdAt,
+        ...(record.distanceMeters === undefined || record.distanceMeters === null
+          ? {}
+          : { distanceMeters: record.distanceMeters }),
         downloadUrl: download.url,
         expiresAt: download.expiresAt,
         id: record.id,
         kind: record.kind,
         lateRegistration: record.lateRegistration,
+        ...(record.punctuality === undefined ? {} : { punctuality: record.punctuality }),
         receiverDocument: record.receiverDocumentMasked,
         receiverName: record.receiverName,
         receivedBy: record.receivedBy,

@@ -351,9 +351,13 @@
     "title": "Redirect delivery"
   },
   "deliveryProof": {
+    "capturedAt": "Captured on {{moment}}",
     "cargoPhotoAlt": "Photo of the cargo delivered",
     "cargoPhotosTitle": "Cargo photos",
     "deliveredAt": "Delivered on {{moment}}",
+    "distanceKilometers": "{{distance}} km from the stop",
+    "distanceMeters": "{{distance}} m from the stop",
+    "lateRegistration": "Registered afterwards",
     "notDelivered": "This document has not been delivered yet.",
     "occurrencesCollapse": "Collapse occurrences",
     "occurrencesToggle": "View occurrences",
@@ -363,11 +367,31 @@
     "products": "What's in the document",
     "productsToggle": "{{count}} item in the document",
     "productsToggle_other": "{{count}} items in the document",
+    "punctuality": {
+      "on_time": "On time",
+      "late": "Late",
+      "away": "Away from the stop",
+      "late_and_away": "Late and away from the stop"
+    },
+    "receivedBy": "Received by: {{relation}}",
+    "receivedByOptions": {
+      "recipient": "The customer",
+      "spouse": "Spouse",
+      "child": "Child",
+      "parent": "Parent",
+      "sibling": "Sibling",
+      "other_relative": "Other relative",
+      "neighbor": "Neighbor",
+      "doorman": "Doorman",
+      "employee": "Employee",
+      "other": "Other"
+    },
     "receiver": "Received by {{name}}",
     "returned": "Document returned: {{reason}}",
     "returnedWithoutReason": "Document returned.",
     "signatureAlt": "Signature of the person who received the cargo",
     "title": "Delivery proof",
+    "withoutLocation": "no location",
     "withoutProducts": "This document has no items recorded.",
     "withoutProof": "Delivery recorded without attached proof."
   },

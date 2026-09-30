@@ -825,10 +825,141 @@ Lint: 16 avisos, 0 erros — os 16 são `react-hooks/exhaustive-deps` que já ex
 `make migration-test` (T3.2) e `test:integration` (T3.8) já estão registrados acima; o `bun test` do
 `make check` **não** enxerga `test/integration/**`, por isso os dois contam separado.
 
-Commit da fase: `b506ba2d5` — 52 arquivos, 10 novos (a migration com `migration.sql`,
+Commit da fase: `81c135f51` — 52 arquivos, 10 novos (a migration com `migration.sql`,
 `rollback.sql` e `snapshot.json`, mais sete arquivos de teste).
 
+⚠️ Esta linha dizia `b506ba2d5` até a Fase 4. Aquele hash é o commit antes do rebase em
+`origin/staging` e **não está mais na branch** (`git merge-base --is-ancestor b506ba2d5 HEAD` falha);
+o commit equivalente, com a mesma árvore e o mesmo assunto, é `81c135f51`. Hash anotado antes de
+publicar envelhece no primeiro rebase — conferir contra `git log` da branch antes de registrar.
+
 ## Fase 4
+
+### A fase estava mal medida — T4.3a, T4.3b e T4.3c
+
+As T4.2 e T4.3 foram escritas como se a API já servisse hora de captura, distância e veredito. Não
+servia: `DeliveryProofView` publicava só `createdAt`, `downloadUrl`, `kind`, `lateRegistration`,
+`receiverDocument`, `receiverName`, `receivedBy`, `receivedByDetail` e `thumbnailUrl`. As colunas
+existem em `trip_delivery_proofs` desde a spec 159/ADR-0070 — o que faltava era publicá-las. Três
+tasks novas abertas em 30/09/2026 fecham o buraco, e a fatia de API entrou **antes** da tela.
+
+**A referência do raio não é o pino da parada.** A primeira redação da T4.3b mandava medir contra a
+posição da parada. `delivery-proof-punctuality.policy.ts` mede contra a posição do **evento de
+entrega** (`trip_stop_events.latitude/longitude`), campo `deliveryEventPosition`, emenda 2026-09-25
+da ADR-0070 §4: "a foto prova o lugar da entrega registrada". Medir de outro ponto faria o número na
+tela discordar do veredito já gravado na mesma linha. A task foi corrigida antes de implementar.
+
+**A coordenada não sai do servidor.** `DeliveryProofRecord` e `DeliveryProofView` não carregam
+`latitude`, `longitude` nem `accuracyMeters` — só `distanceMeters`, já arredondado em metros
+inteiros pela haversine que já existia (`src/addresses/domain/coordinate-distance.ts`). Sem posição
+dos dois lados, a distância é omitida do corpo; distância `0` é preservada (é medição, não ausência).
+
+`bun --env-file=../../.env.test test ./test/trip-delivery-proof.contract.test.ts`
+→ **239 pass · 0 fail** · EXIT=0.
+Suíte de contrato inteiro da API: **8339 pass · 23 skip · 0 fail · 190 arquivos**.
+`bun run typecheck` na raiz: limpo nos 7 pacotes.
+
+### T4.1, T4.2, T4.3, T4.4, T4.5 — o painel
+
+`bun test ./test/trip.contract.test.ts` em `apps/frontend-transportada`
+→ **1928 pass · 0 fail** · EXIT=0. Referência antes da spec: 1915. Os 13 a mais são os contratos
+das três leituras novas.
+
+A lista de chaves aceitas é fechada: `isDeliveryProof` usa `hasKeys` com
+`DELIVERY_PROOF_OPTIONAL_KEYS`, e `deliveryProofsFromApi` **descarta o item em silêncio** quando a
+validação falha — 200 no fio e nada no console. Por isso a T4.3c entrou antes da T4.4: sem as três
+chaves na lista, todo comprovante que as carregasse sumiria da tela. A T3.7 já tinha sido mordida
+por esse mesmo mecanismo.
+
+As leituras ficaram em `ProofReadings.component.tsx`, componente próprio, e não dentro do
+hospedeiro: `TripDeliveryProof.component.tsx` já tinha 251 linhas antes da spec 220, acima do teto
+de 200 do `code-standart.md` §9. A extração devolveu o arquivo a 247 linhas — abaixo de onde estava,
+ainda acima do teto. Chegar a 200 exige extrair também `TripDeliveryProofDetail` e
+`TripDocumentProducts`, código anterior à spec, fora do escopo desta fase. Fica anotado.
+`METERS_PER_KILOMETER` é constante nomeada (§16): o contrato exige a constante, não o literal.
+
+### T4.6 — revisão de design contra a página real
+
+Não havia comprovante nenhum no banco local, então a revisão não tinha o que revisar. Os três
+comprovantes foram semeados **pelo caminho real do servidor** — `field-delivery` do escritório uma
+vez e `field-proof` duas — com miniatura gerada no cliente, de modo que o código da T3.4 rodou de
+verdade. Viagem `fe7f0dbd`, nota 879795/2, documento `536cc86e`.
+
+O canal do escritório não grava posição nem hora de captura, então três `UPDATE` no Postgres local
+deram metadado distinguível a cada linha, para cobrir os três ramos de render:
+
+| Comprovante | `capturedAt` | `distanceMeters` | `punctuality`   | `lateRegistration` |
+| ----------- | ------------ | ---------------- | --------------- | ------------------ |
+| canhoto     | −3 min       | 320              | `on_time`       | `false`            |
+| mercadoria  | −2 h         | 1199             | `late_and_away` | `true`             |
+| mercadoria  | ausente      | ausente          | `not_required`  | `false`            |
+
+`GET /trips/:id/documents/:documentId/proof` devolveu 200 com exatamente esses três ramos, e
+`latitude`/`longitude` **nulos nos três** — a regra de LGPD vale no fio, não só no componente.
+
+Na tela (`/trips/fe7f0dbd-…`, aba "Comprovante" da nota 879795/2), o bloco rendeu:
+
+```
+Comprovante da entrega
+Entregue em 30/09/2026, 09:24 · Recebido por Marcos Portaria
+Capturada em 30/09/2026, 09:21 · a 320 m do ponto · NO HORÁRIO · Recebido por: Porteiro
+Fotos da carga
+Capturada em 30/09/2026, 07:25 · a 1,2 km do ponto · ATRASADA E LONGE DO PONTO · REGISTRADO DEPOIS
+sem localização
+```
+
+Varredura de LGPD no DOM: nenhum `href`/`src` com coordenada, com `lat`/`lng` ou com URL de mapa, e
+nenhum número de aparência de coordenada no texto do bloco. (O único `\d+\.\d{4,}` da página é
+"32.1405 litros" do cálculo de combustível, fora do comprovante.)
+
+**Três defeitos de design encontrados e corrigidos:**
+
+1. Os três selos saíam com a mesma variante `ui-badge-default`, fundo `rgb(163, 89, 31)`. "No
+   horário" ficava com a cor de "Atrasada e longe do ponto" — a cor não dizia nada, só o texto.
+2. Dois selos na mesma linha se encostavam: "Atrasada e longe do ponto" terminava em x=439 e
+   "Registrado depois" começava em x=439, `margin: 0px`, pai `display: block`. Lia-se um borrão só.
+3. **Trocar para a variante semântica destapou um defeito do design system**, e ele não é da spec
+   220: o selo pintava o texto com o mesmo acento que dilui no fundo. Medido sobre os tokens
+   declarados, com o fundo translúcido composto sobre a superfície:
+
+   | tema   | variante  | sobre a página | sobre o diálogo |
+   | ------ | --------- | -------------- | --------------- |
+   | claro  | `success` | **3,69**       | **4,00**        |
+   | claro  | `warning` | **3,93**       | **4,26**        |
+   | claro  | `info`    | **4,15**       | 4,52            |
+   | escuro | `success` | 4,91           | **4,41**        |
+   | escuro | `warning` | 4,96           | **4,41**        |
+
+   Sete pares abaixo do piso de 4,5:1 do WCAG AA a 0,6875rem (11 px, peso normal). O tema escuro
+   passava quase todo, que é por que ninguém tinha visto: é o tema que se olha no dia a dia.
+   `variant="success"`/`variant="warning"` já estavam em uso em outras cinco telas
+   (`ContractorContactsPanel:318,336`, `AggregateApplicationsTab:163`, `AggregateDocumentsTab:252`,
+   `AddressReportPanel:343`), então o defeito era repo inteiro, não desta tela.
+
+   Corrigido em **commit próprio** (`3a6e036e7`), fora da Fase 4, porque muda o design system: a
+   tinta virou token por tema (`--color-ready-ink`, `--color-copper-ink`, `--color-slate-ink`), o
+   fundo não mudou, e o contrato novo `test/design-system/badge-contrast.contract.ts` varre as
+   variantes direto do CSS, compõe o fundo sobre as duas superfícies nos dois temas e mede. Visto
+   reprovar antes (as sete linhas acima, uma a uma) e passar depois. Medido de novo na própria
+   página, com o composto real: claro 4,97 / 4,97 / 5,04 e escuro 4,68 / 4,66 / 5,89.
+
+   ⚠️ A primeira medição feita no navegador deu 3,68 / 3,92 / 4,83 por sorte: o script lia
+   `color(srgb 0.98 0.97 0.96 / 0.82)` com o mesmo `[\d.]+` que lê `rgb(242, 239, 233)` e tratava
+   `0.98` como se fosse 0–255. O número batia com o do modelo por coincidência de direção. Quem for
+   medir contraste na página de novo: `color()` vem em 0–1, `rgb()` em 0–255, e o pai translúcido
+   tem que ser composto camada por camada até uma superfície opaca.
+
+⚠️ **As fotos não carregam neste navegador, e não é defeito do código.** Os objetos estão íntegros
+no MinIO (originais de 21–25 KB, miniaturas de 3,5–4,2 KB, `image/jpeg`, `status = final`) e
+`curl http://localhost:59000/minio/health/live` da máquina responde 200, mas o Chrome não alcança a
+porta 59000 nem em `no-cors` — falha de rede antes de qualquer HTTP, inclusive no `/health`. Vale
+igual para o `downloadUrl`, que é anterior à spec 220. É ambiente deste navegador, não a miniatura
+da T3.4: o teste de integração da T3.8 já prova a gravação e a leitura contra o Postgres.
+
+**T4.7 — `make check` na raiz do worktree: `EXIT=0`, 16838 testes passando e 0 falhando** (format:check
+
+- lint + typecheck + test + build, monorepo inteiro). A miniatura ainda não é clicável e o
+  `deliveryProof.open` do locale continua sem consumidor — os dois são a Fase 5.
 
 ## Fase 5
 

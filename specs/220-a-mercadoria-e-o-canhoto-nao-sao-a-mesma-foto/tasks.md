@@ -78,16 +78,42 @@ evidência em `evidence.md` e commit isolado.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T4.1 Contrato: renderiza "quem recebeu" com o rótulo pt-BR do enumerado; comprovante antigo
+⚠️ **A fase estava mal medida.** Ela foi escrita como se fosse só de tela, e não é: `captured_at`,
+`latitude`, `longitude` e `punctuality` existem em `trip_delivery_proofs` desde a spec 159/ADR-0070,
+mas `read-delivery-proof.use-case.ts` **não publica nenhuma delas** — a `DeliveryProofView` só carrega
+`createdAt`, `downloadUrl`, `kind`, `lateRegistration`, `receiverDocument`, `receiverName`,
+`receivedBy`, `receivedByDetail` e `thumbnailUrl`. Sem a fatia de API abaixo, as T4.2 e T4.3 não têm
+o que renderizar. O `plan.md` já previa isso na §Segurança ("a distância é calculada no servidor"),
+só não virou task. As T4.3a–T4.3c são a correção, abertas em 30/09/2026.
+
+- [x] T4.1 Contrato: renderiza "quem recebeu" com o rótulo pt-BR do enumerado; comprovante antigo
       com `null` renderiza sem a linha e sem quebrar
-- [ ] T4.2 Contrato: hora da captura e distância legível; sem posição diz "sem localização";
+- [x] T4.2 Contrato: hora da captura e distância legível; sem posição diz "sem localização";
       nenhuma coordenada em texto nem em URL
-- [ ] T4.3 Contrato: selos de pontualidade e de registro tardio por imagem
-- [ ] T4.4 `TripDeliveryProof.component.tsx` — as três leituras acima, no detalhe **e** na expansão
-      por nota (que já existe)
-- [ ] T4.5 Rótulos em `trip.locale.json`, acentuados
-- [ ] T4.6 Revisão de design + **print ao usuário**
-- [ ] T4.7 `make check` + commit
+- [x] T4.3 Contrato: selos de pontualidade e de registro tardio por imagem
+- [x] T4.3a Contrato de API: `GET .../proof` publica `capturedAt`, `punctuality` e `distanceMeters`;
+      comprovante sem posição omite a distância; **nenhuma latitude/longitude no corpo** (a coordenada
+      não sai do servidor — só o número derivado)
+- [x] T4.3b API: `DeliveryProofRecord`, `DeliveryProofView` e `delivery-proof-read.support.ts`
+      passam a carregar os três. Distância pela haversine já existente
+      (`src/addresses/domain/coordinate-distance.ts`) contra a posição do **evento de entrega**
+      (`trip_stop_events.latitude/longitude`), não contra o pino geocodificado da parada — é a
+      referência que `classifyProofPunctuality` usa (`deliveryEventPosition`, emenda 2026-09-25 da
+      ADR-0070 §4: "a foto prova o lugar da entrega registrada"). Qualquer outra referência faria o
+      número na tela discordar do veredito já gravado. As duas posições já estão na mesma query —
+      `listDeliveryProofs` já faz `innerJoin` em `trip_stop_events`, nenhuma junção nova
+- [x] T4.3c Painel **aceita** as chaves novas antes da API servi-las
+      (`DELIVERY_PROOF_OPTIONAL_KEYS`, `DeliveryProof`, `tripResponse.validation.ts`) — a lista é
+      fechada e descarta o item em silêncio, defeito que a T3.7 já pegou uma vez
+- [x] T4.4 `TripDeliveryProof.component.tsx` — as três leituras acima, no detalhe **e** na expansão
+      por nota (que já existe). As leituras saíram para `ProofReadings.component.tsx`: o componente
+      hospedeiro já tinha 251 linhas antes da spec, acima do teto de 200
+- [x] T4.5 Rótulos em `trip.locale.json`, acentuados
+- [x] T4.6 Revisão de design + **print ao usuário** — dois defeitos corrigidos (variante única para os
+      três selos, selos colados na mesma linha) e um terceiro que saiu para commit próprio: o selo
+      semântico reprovava o contraste AA no tema claro (`3a6e036e7`), defeito de design system que já
+      valia para outras cinco telas.
+- [x] T4.7 `make check` + commit — `EXIT=0`, 16838 passando, 0 falhando
 
 ## Fase 5 — O visualizador com próximo e anterior
 

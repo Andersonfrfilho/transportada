@@ -9,6 +9,7 @@
 import { alias } from 'drizzle-orm/pg-core'
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 
+import { distanceInMetres } from '../../addresses/domain/coordinate-distance.js'
 import { fleetDrivers } from '../../database/fleet.schema.js'
 import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
 import { userCompanyMemberships } from '../../database/identity.schema.js'
@@ -81,13 +82,19 @@ export async function listDeliveryProofs(
   const rows = await queryable
     .select({
       bucket: storedObjects.bucket,
+      capturedAt: tripDeliveryProofs.capturedAt,
       createdAt: tripDeliveryProofs.createdAt,
+      eventLatitude: tripStopEvents.latitude,
+      eventLongitude: tripStopEvents.longitude,
       id: tripDeliveryProofs.id,
       kind: tripDeliveryProofs.kind,
       /** Spec 205 RF7: o envio disse, ou a entrega a que ele pertence disse. */
       lateRegistration: sql<boolean>`${tripDeliveryProofs.lateRegistration} or ${tripStopEvents.lateRegistration}`,
       mimeType: storedObjects.mimeType,
       objectKey: storedObjects.objectKey,
+      proofLatitude: tripDeliveryProofs.latitude,
+      proofLongitude: tripDeliveryProofs.longitude,
+      punctuality: tripDeliveryProofs.punctuality,
       receiverDocumentMasked: tripDeliveryProofs.receiverDocumentMasked,
       receiverName: tripDeliveryProofs.receiverName,
       receivedBy: tripDeliveryProofs.receivedBy,
@@ -138,12 +145,15 @@ export async function listDeliveryProofs(
 
   return rows.map((row) => ({
     bucket: row.bucket,
+    capturedAt: row.capturedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
+    distanceMeters: measureProofDistance(row),
     id: row.id,
     kind: row.kind,
     lateRegistration: row.lateRegistration,
     mimeType: row.mimeType,
     objectKey: row.objectKey,
+    punctuality: row.punctuality,
     receiverDocumentMasked: row.receiverDocumentMasked,
     receiverName: row.receiverName,
     receivedBy: row.receivedBy,
@@ -157,6 +167,22 @@ export async function listDeliveryProofs(
             objectKey: row.thumbnailObjectKey,
           },
   }))
+}
+
+/** Referência é a posição do evento de entrega — a mesma de `classifyProofPunctuality`, não o pino da parada. */
+function measureProofDistance(row: {
+  readonly eventLatitude: null | string
+  readonly eventLongitude: null | string
+  readonly proofLatitude: null | string
+  readonly proofLongitude: null | string
+}): null | number {
+  if (row.proofLatitude === null || row.proofLongitude === null) return null
+  if (row.eventLatitude === null || row.eventLongitude === null) return null
+  const distance = distanceInMetres(
+    { latitude: row.proofLatitude, longitude: row.proofLongitude },
+    { latitude: row.eventLatitude, longitude: row.eventLongitude },
+  )
+  return distance === null ? null : Math.round(distance)
 }
 
 /**

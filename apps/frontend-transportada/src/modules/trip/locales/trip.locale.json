@@ -457,9 +457,13 @@
     "title": "Desviar entrega"
   },
   "deliveryProof": {
+    "capturedAt": "Capturada em {{moment}}",
     "cargoPhotoAlt": "Foto da mercadoria entregue",
     "cargoPhotosTitle": "Fotos da carga",
     "deliveredAt": "Entregue em {{moment}}",
+    "distanceKilometers": "a {{distance}} km do ponto",
+    "distanceMeters": "a {{distance}} m do ponto",
+    "lateRegistration": "Registrado depois",
     "notDelivered": "Esta nota ainda não foi entregue.",
     "occurrencesCollapse": "Recolher ocorrências",
     "occurrencesToggle": "Ver ocorrências",
@@ -469,11 +473,31 @@
     "products": "O que vai na nota",
     "productsToggle": "{{count}} produto na nota",
     "productsToggle_other": "{{count}} produtos na nota",
+    "punctuality": {
+      "on_time": "No horário",
+      "late": "Atrasada",
+      "away": "Longe do ponto",
+      "late_and_away": "Atrasada e longe do ponto"
+    },
+    "receivedBy": "Recebido por: {{relation}}",
+    "receivedByOptions": {
+      "recipient": "O próprio cliente",
+      "spouse": "Cônjuge",
+      "child": "Filho(a)",
+      "parent": "Pai ou mãe",
+      "sibling": "Irmão(ã)",
+      "other_relative": "Outro parente",
+      "neighbor": "Vizinho",
+      "doorman": "Porteiro",
+      "employee": "Funcionário",
+      "other": "Outro"
+    },
     "receiver": "Recebido por {{name}}",
     "returned": "Nota devolvida: {{reason}}",
     "returnedWithoutReason": "Nota devolvida.",
     "signatureAlt": "Assinatura de quem recebeu a carga",
     "title": "Comprovante da entrega",
+    "withoutLocation": "sem localização",
     "withoutProducts": "Esta nota não tem itens registrados.",
     "withoutProof": "Entrega registrada sem comprovante anexado."
   },
