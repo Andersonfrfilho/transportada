@@ -381,9 +381,15 @@
       "on": "On",
       "title": "Delivery slip number reading"
     },
+    "cargoHint": "Proves the goods arrived: the delivered cargo, on site. It does not replace the delivery slip, which proves the document signature.",
+    "cargoMinimumCount": {
+      "label": "Minimum cargo photos",
+      "summary": "minimum {{minimum}}"
+    },
     "error": "Could not load or save the delivery proof configuration.",
     "fields": {
-      "photo": "Photo",
+      "cargo": "Cargo photo",
+      "photo": "Delivery slip photo",
       "receiverDocument": "Receiver document",
       "receiverName": "Receiver name",
       "signature": "Signature"
@@ -394,6 +400,7 @@
       "optional": "Optional",
       "required": "Required"
     },
+    "photoHint": "Proves the document was received: the signed or stamped delivery slip. One photo per delivery.",
     "contractorOverrides": {
       "contractor": "Contractor",
       "contractorPlaceholder": "Search by name or tax id",

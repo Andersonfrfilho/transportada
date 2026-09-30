@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'bun:test'
 
 import trip from '../../src/modules/trip/locales/trip.locale.json'
+import tripEn from '../../src/modules/trip/locales/trip.en.locale.json'
 import {
   resolveSettingsDataScope,
   SETTINGS_PANEL_PLACEMENT,
@@ -13,6 +14,7 @@ import {
 } from '../../src/modules/company-settings/shared/companySettingsTabs.service'
 import {
   DEFAULT_DELIVERY_PROOF_SETTINGS,
+  DELIVERY_PROOF_CARGO_MINIMUM_COUNT_RANGE,
   DELIVERY_PROOF_FIELD_MODES,
   DELIVERY_PROOF_FIELDS,
 } from '../../src/modules/trip/shared/deliveryProofSettings.service'
@@ -165,6 +167,53 @@ describe('painel de configuração do comprovante (spec 082)', () => {
     it('desligado por padrão vale texto de estimativa, não silêncio', () => {
       expect(trip.deliveryProofSettings.canhotoOcr.hint).toBeString()
       expect(trip.deliveryProofSettings.canhotoOcr.hint.length).toBeGreaterThan(0)
+    })
+  })
+
+  /**
+   * Spec 220 RF04/RF06/RF07/RF08: dois campos de foto. `cargo` é modo como os outros, então entra
+   * na lista de exibição do painel — mas não em `DELIVERY_PROOF_FIELDS`, que a tela de resolução
+   * (`SettingsResolutionPanel`) também usa e o teste acima fixa em quatro.
+   */
+  describe('a foto do canhoto e a foto da mercadoria (spec 220 T1.6)', () => {
+    const photoHintAt = panel.indexOf('deliveryProofSettings.photoHint')
+    const ocrTitleAt = panel.indexOf('{renderCanhotoOcrSection()}')
+    const cargoHintAt = panel.indexOf('deliveryProofSettings.cargoHint')
+
+    it('rotula os dois campos e explica o que cada foto prova, nos dois idiomas', () => {
+      expect(trip.deliveryProofSettings.fields.photo).toBe('Foto do canhoto')
+      expect(trip.deliveryProofSettings.fields.cargo).toBe('Foto da mercadoria')
+      for (const locale of [trip, tripEn]) {
+        expect(locale.deliveryProofSettings.photoHint.length).toBeGreaterThan(0)
+        expect(locale.deliveryProofSettings.cargoHint.length).toBeGreaterThan(0)
+        expect(locale.deliveryProofSettings.fields.cargo).toBeString()
+        expect(locale.deliveryProofSettings.cargoMinimumCount.label).toBeString()
+      }
+      expect(trip.deliveryProofSettings.photoHint).toMatch(/[áâãçéêíóôõú]/u)
+    })
+
+    it('nenhuma lista de modos sai de DELIVERY_PROOF_FIELDS: todas passam pela do painel', () => {
+      expect(panel).not.toInclude('DELIVERY_PROOF_FIELDS.map')
+      expect(panel).toInclude('PANEL_MODE_FIELDS')
+      expect(panel).toMatch(/'cargo'/u)
+    })
+
+    it('o interruptor do canhoto mora dentro do campo do canhoto, antes do da mercadoria', () => {
+      expect(photoHintAt).toBeGreaterThan(-1)
+      expect(ocrTitleAt).toBeGreaterThan(photoHintAt)
+      expect(cargoHintAt).toBeGreaterThan(ocrTitleAt)
+    })
+
+    it('o mínimo só aparece com cargo obrigatório e só existe para a mercadoria', () => {
+      expect(panel).toInclude("=== 'required'")
+      expect(panel).toInclude('DELIVERY_PROOF_CARGO_MINIMUM_COUNT_RANGE')
+      expect(panel).toInclude('cargoMinimumCount')
+      expect(panel).not.toMatch(/photoMinimum/iu)
+    })
+
+    it('o mínimo é uma escolha de 1 ao teto, sem digitação que possa passar do teto', () => {
+      expect(DELIVERY_PROOF_CARGO_MINIMUM_COUNT_RANGE).toEqual({ max: 5, min: 1 })
+      expect(panel).not.toMatch(/cargoMinimumCount[^\n]*type="number"/u)
     })
   })
 })

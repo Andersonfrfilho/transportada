@@ -18,6 +18,7 @@ import { contractorLabel, type ContractorSummary } from '../shared/contractorSum
 import {
   DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
   DEFAULT_DELIVERY_PROOF_SETTINGS,
+  DELIVERY_PROOF_CARGO_MINIMUM_COUNT_RANGE,
   DELIVERY_PROOF_FIELD_MODES,
   DELIVERY_PROOF_FIELDS,
   DELIVERY_PROOF_PUNCTUALITY_FIELDS,
@@ -34,6 +35,27 @@ import {
   type DeliveryProofSettingsOverride,
 } from '../shared/deliveryProofSettings.service'
 import styles from '../styles/trip.module.css'
+
+type PanelModeField = DeliveryProofField | 'cargo'
+
+/**
+ * Lista de exibição do painel, não `DELIVERY_PROOF_FIELDS`: essa também alimenta a tela de
+ * resolução, que ainda não mostra a foto da mercadoria. `cargo` é modo, e entra nas três tabelas.
+ */
+const PANEL_MODE_FIELDS: readonly PanelModeField[] = [...DELIVERY_PROOF_FIELDS, 'cargo']
+
+const CARGO_MINIMUM_COUNT_OPTIONS = Array.from(
+  {
+    length:
+      DELIVERY_PROOF_CARGO_MINIMUM_COUNT_RANGE.max -
+      DELIVERY_PROOF_CARGO_MINIMUM_COUNT_RANGE.min +
+      1,
+  },
+  (_, index) => {
+    const count = String(DELIVERY_PROOF_CARGO_MINIMUM_COUNT_RANGE.min + index)
+    return { label: count, value: count }
+  },
+)
 
 type TripDeliveryProofSettingsPanelProps = Readonly<{
   canManage: boolean
@@ -99,6 +121,11 @@ export function TripDeliveryProofSettingsPanel({
 
   const general = settings ?? DEFAULT_DELIVERY_PROOF_SETTINGS
   const effective = mergeDeliveryProofSettings({ base: general, override: draft })
+  const overrideEffective = mergeDeliveryProofSettings({ base: general, override: overrideDraft })
+  const contractorOverrideEffective = mergeDeliveryProofSettings({
+    base: general,
+    override: contractorOverrideDraft,
+  })
   const punctualityGeneral = settings ?? DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS
 
   const modeOptions = DELIVERY_PROOF_FIELD_MODES.map((mode) => ({
@@ -138,6 +165,10 @@ export function TripDeliveryProofSettingsPanel({
       proofRadiusMeters: punctualityFieldValue('proofRadiusMeters'),
       proofWindowMinutes: punctualityFieldValue('proofWindowMinutes'),
     })
+  }
+
+  function handleChangeMode(field: PanelModeField, mode: DeliveryProofFieldMode) {
+    setDraft((current) => ({ ...current, [field]: mode }))
   }
 
   function handleAddOverride() {
@@ -183,8 +214,8 @@ export function TripDeliveryProofSettingsPanel({
   }
 
   function renderModeSelect(input: {
-    readonly field: DeliveryProofField
-    readonly onChange: (field: DeliveryProofField, mode: DeliveryProofFieldMode) => void
+    readonly field: PanelModeField
+    readonly onChange: (field: PanelModeField, mode: DeliveryProofFieldMode) => void
     readonly value: DeliveryProofFieldMode
   }) {
     return (
@@ -201,6 +232,90 @@ export function TripDeliveryProofSettingsPanel({
     )
   }
 
+  /**
+   * O mínimo é da mercadoria, que acumula (o canhoto aceita 1 e só 1). Some fora de `required`: com
+   * `optional` ou `off` a API o ignora, e um controle ativo prometeria uma exigência que não existe.
+   * A escolha é de 1 ao teto — não há valor fora da faixa para digitar.
+   */
+  function renderCargoMinimum(input: {
+    readonly mode: DeliveryProofFieldMode
+    readonly onChange: (count: number) => void
+    readonly value: number
+  }) {
+    if (input.mode !== 'required') return null
+    return (
+      <label>
+        <span className={styles.hint}>{t('deliveryProofSettings.cargoMinimumCount.label')}</span>
+        <Select
+          ariaLabel={t('deliveryProofSettings.cargoMinimumCount.label')}
+          disabled={!canManage || isSaving}
+          onChange={(value) => input.onChange(Number(value))}
+          options={CARGO_MINIMUM_COUNT_OPTIONS}
+          value={String(input.value)}
+        />
+      </label>
+    )
+  }
+
+  /**
+   * Spec 156 T14, ADR-0069 §6: painel do interruptor, perto do efeito (`SETTINGS_PANEL_PLACEMENT`
+   * — a leitura do canhoto acontece no assistente desta mesma tela). Molde de
+   * `CameraMeasurementSettingsPanel` (spec 152 D14): selo "Experimental" ao lado do efeito e
+   * estimativa de peso, desligado por padrão em toda instalação.
+   */
+  function renderCanhotoOcrSection() {
+    return (
+      <section className={styles.panel} aria-labelledby="canhoto-ocr-title">
+        <h3 className={styles.hint} id="canhoto-ocr-title">
+          {t('deliveryProofSettings.canhotoOcr.title')}
+        </h3>
+        <p className={styles.hint}>{t('deliveryProofSettings.canhotoOcr.hint')}</p>
+        <p className={styles.hint}>
+          <Icon aria-hidden="true" name="camera" />{' '}
+          {t('deliveryProofSettings.canhotoOcr.experimental')}
+        </p>
+        <p className={canhotoOcrEnabled === true ? styles.settingsStatusOn : styles.hint}>
+          {t(
+            canhotoOcrEnabled === true
+              ? 'deliveryProofSettings.canhotoOcr.on'
+              : 'deliveryProofSettings.canhotoOcr.off',
+          )}
+        </p>
+        {canManage ? (
+          /* T16: solto no grid do painel o botão esticava à largura toda — mesma faixa das ações. */
+          <div className={styles.actionActions}>
+            <Button
+              disabled={isTogglingCanhotoOcr}
+              onClick={() => onToggleCanhotoOcr(effective, canhotoOcrEnabled !== true)}
+              size="sm"
+              type="button"
+              variant={canhotoOcrEnabled === true ? 'secondary' : 'default'}
+            >
+              <Icon name="power" />
+              {t(
+                canhotoOcrEnabled === true
+                  ? 'deliveryProofSettings.canhotoOcr.disable'
+                  : 'deliveryProofSettings.canhotoOcr.enable',
+              )}
+            </Button>
+          </div>
+        ) : null}
+      </section>
+    )
+  }
+
+  function renderModeSummaries(settings: DeliveryProofFieldSettings) {
+    return PANEL_MODE_FIELDS.map((field) => (
+      <span className={styles.hint} key={field}>
+        {t(`deliveryProofSettings.fields.${field}`)}:{' '}
+        {t(`deliveryProofSettings.modes.${settings[field]}`)}
+        {field === 'cargo' && settings.cargo === 'required'
+          ? ` (${t('deliveryProofSettings.cargoMinimumCount.summary', { minimum: settings.cargoMinimumCount })})`
+          : ''}
+      </span>
+    ))
+  }
+
   return (
     <section className={styles.panel}>
       <h3 className={styles.hint}>{t('deliveryProofSettings.title')}</h3>
@@ -213,14 +328,27 @@ export function TripDeliveryProofSettingsPanel({
       ) : null}
 
       <div className={styles.fieldGrid}>
-        {DELIVERY_PROOF_FIELDS.map((field) =>
-          renderModeSelect({
-            field,
-            onChange: (changed, mode) => setDraft((current) => ({ ...current, [changed]: mode })),
-            value: effective[field],
-          }),
+        {PANEL_MODE_FIELDS.filter((field) => field !== 'photo' && field !== 'cargo').map((field) =>
+          renderModeSelect({ field, onChange: handleChangeMode, value: effective[field] }),
         )}
       </div>
+
+      {/* Spec 220 RF04: o interruptor da leitura é do canhoto — mora dentro do campo dele. */}
+      <section className={styles.panel} aria-label={t('deliveryProofSettings.fields.photo')}>
+        {renderModeSelect({ field: 'photo', onChange: handleChangeMode, value: effective.photo })}
+        <p className={styles.hint}>{t('deliveryProofSettings.photoHint')}</p>
+        {renderCanhotoOcrSection()}
+      </section>
+
+      <section className={styles.panel} aria-label={t('deliveryProofSettings.fields.cargo')}>
+        {renderModeSelect({ field: 'cargo', onChange: handleChangeMode, value: effective.cargo })}
+        <p className={styles.hint}>{t('deliveryProofSettings.cargoHint')}</p>
+        {renderCargoMinimum({
+          mode: effective.cargo,
+          onChange: (count) => setDraft((current) => ({ ...current, cargoMinimumCount: count })),
+          value: effective.cargoMinimumCount,
+        })}
+      </section>
 
       <h3 className={styles.hint}>{t('deliveryProofSettings.punctuality.title')}</h3>
       <p className={styles.hint}>{t('deliveryProofSettings.punctuality.hint')}</p>
@@ -271,49 +399,6 @@ export function TripDeliveryProofSettingsPanel({
         </Button>
       ) : null}
 
-      {/*
-       * Spec 156 T14, ADR-0069 §6: painel do interruptor, perto do efeito (`SETTINGS_PANEL_PLACEMENT`
-       * — a leitura do canhoto acontece no assistente desta mesma tela). Molde de
-       * `CameraMeasurementSettingsPanel` (spec 152 D14): selo "Experimental" ao lado do efeito e
-       * estimativa de peso, desligado por padrão em toda instalação.
-       */}
-      <section className={styles.panel} aria-labelledby="canhoto-ocr-title">
-        <h3 className={styles.hint} id="canhoto-ocr-title">
-          {t('deliveryProofSettings.canhotoOcr.title')}
-        </h3>
-        <p className={styles.hint}>{t('deliveryProofSettings.canhotoOcr.hint')}</p>
-        <p className={styles.hint}>
-          <Icon aria-hidden="true" name="camera" />{' '}
-          {t('deliveryProofSettings.canhotoOcr.experimental')}
-        </p>
-        <p className={canhotoOcrEnabled === true ? styles.settingsStatusOn : styles.hint}>
-          {t(
-            canhotoOcrEnabled === true
-              ? 'deliveryProofSettings.canhotoOcr.on'
-              : 'deliveryProofSettings.canhotoOcr.off',
-          )}
-        </p>
-        {canManage ? (
-          /* T16: solto no grid do painel o botão esticava à largura toda — mesma faixa das ações. */
-          <div className={styles.actionActions}>
-            <Button
-              disabled={isTogglingCanhotoOcr}
-              onClick={() => onToggleCanhotoOcr(effective, canhotoOcrEnabled !== true)}
-              size="sm"
-              type="button"
-              variant={canhotoOcrEnabled === true ? 'secondary' : 'default'}
-            >
-              <Icon name="power" />
-              {t(
-                canhotoOcrEnabled === true
-                  ? 'deliveryProofSettings.canhotoOcr.disable'
-                  : 'deliveryProofSettings.canhotoOcr.enable',
-              )}
-            </Button>
-          </div>
-        ) : null}
-      </section>
-
       <h3 className={styles.hint}>{t('deliveryProofSettings.overrides.title')}</h3>
       <p className={styles.hint}>{t('deliveryProofSettings.overrides.hint')}</p>
 
@@ -324,12 +409,7 @@ export function TripDeliveryProofSettingsPanel({
       {overrides.map((override) => (
         <div className={styles.fieldGrid} key={override.taxId}>
           <span>{formatTaxId(override.taxId)}</span>
-          {DELIVERY_PROOF_FIELDS.map((field) => (
-            <span className={styles.hint} key={field}>
-              {t(`deliveryProofSettings.fields.${field}`)}:{' '}
-              {t(`deliveryProofSettings.modes.${override[field]}`)}
-            </span>
-          ))}
+          {renderModeSummaries(override)}
           {canManage ? (
             <Button
               disabled={isSaving}
@@ -358,14 +438,20 @@ export function TripDeliveryProofSettingsPanel({
             type="text"
             value={overrideTaxId}
           />
-          {DELIVERY_PROOF_FIELDS.map((field) =>
+          {PANEL_MODE_FIELDS.map((field) =>
             renderModeSelect({
               field,
               onChange: (changed, mode) =>
                 setOverrideDraft((current) => ({ ...current, [changed]: mode })),
-              value: mergeDeliveryProofSettings({ base: general, override: overrideDraft })[field],
+              value: overrideEffective[field],
             }),
           )}
+          {renderCargoMinimum({
+            mode: overrideEffective.cargo,
+            onChange: (count) =>
+              setOverrideDraft((current) => ({ ...current, cargoMinimumCount: count })),
+            value: overrideEffective.cargoMinimumCount,
+          })}
           <Button
             disabled={isSaving || !isOverrideTaxIdComplete || isOverrideDuplicated}
             onClick={handleAddOverride}
@@ -389,12 +475,7 @@ export function TripDeliveryProofSettingsPanel({
       {contractorOverrides.map((override) => (
         <div className={styles.fieldGrid} key={override.contractorId}>
           <span>{contractorLabelOf(override.contractorId)}</span>
-          {DELIVERY_PROOF_FIELDS.map((field) => (
-            <span className={styles.hint} key={field}>
-              {t(`deliveryProofSettings.fields.${field}`)}:{' '}
-              {t(`deliveryProofSettings.modes.${override[field]}`)}
-            </span>
-          ))}
+          {renderModeSummaries(override)}
           {canManage ? (
             <Button
               disabled={isSaving}
@@ -428,17 +509,23 @@ export function TripDeliveryProofSettingsPanel({
               value={overrideContractorId}
             />
           </label>
-          {DELIVERY_PROOF_FIELDS.map((field) =>
+          {PANEL_MODE_FIELDS.map((field) =>
             renderModeSelect({
               field,
               onChange: (changed, mode) =>
                 setContractorOverrideDraft((current) => ({ ...current, [changed]: mode })),
-              value: mergeDeliveryProofSettings({
-                base: general,
-                override: contractorOverrideDraft,
-              })[field],
+              value: contractorOverrideEffective[field],
             }),
           )}
+          {renderCargoMinimum({
+            mode: contractorOverrideEffective.cargo,
+            onChange: (count) =>
+              setContractorOverrideDraft((current) => ({
+                ...current,
+                cargoMinimumCount: count,
+              })),
+            value: contractorOverrideEffective.cargoMinimumCount,
+          })}
           <Button
             disabled={isSaving || overrideContractorId === '' || isContractorOverrideDuplicated}
             onClick={handleAddContractorOverride}

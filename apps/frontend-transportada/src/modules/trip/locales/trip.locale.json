@@ -487,9 +487,15 @@
       "on": "Ligado",
       "title": "Leitura do canhoto por foto"
     },
+    "cargoHint": "Prova que a mercadoria chegou: a carga entregue, no local. Não substitui o canhoto, que prova a assinatura da nota.",
+    "cargoMinimumCount": {
+      "label": "Mínimo de fotos da mercadoria",
+      "summary": "mínimo {{minimum}}"
+    },
     "error": "Não foi possível carregar ou gravar a configuração do comprovante.",
     "fields": {
-      "photo": "Foto",
+      "cargo": "Foto da mercadoria",
+      "photo": "Foto do canhoto",
       "receiverDocument": "Documento do recebedor",
       "receiverName": "Nome do recebedor",
       "signature": "Assinatura"
@@ -500,6 +506,7 @@
       "optional": "Opcional",
       "required": "Obrigatório"
     },
+    "photoHint": "Prova que a nota foi recebida: o canhoto assinado ou carimbado. Só uma foto por entrega.",
     "contractorOverrides": {
       "contractor": "Contratante",
       "contractorPlaceholder": "Buscar por nome ou CNPJ",
