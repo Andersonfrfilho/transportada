@@ -2,6 +2,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 
+import type {
+  CanhotoReviewProofInput,
+  CanhotoReviewResult,
+} from '../shared/canhotoReviewResult.service'
 import type { DeliveryProof } from '../shared/deliveryProof.service'
 import type { RouteChoice, RouteGeometry } from '../shared/routeGeometry.service'
 import type {
@@ -129,6 +133,7 @@ export type TripController = Readonly<{
   /** Spec 156 T8b, ADR-0067: devolução com autoria, `trip.report-on-behalf`. */
   fieldReturnDocument: (input: FieldReturnDocumentInput) => Promise<FieldSettlementResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
+  canhotoReviewProof: (input: CanhotoReviewProofInput) => Promise<CanhotoReviewResult>
   readTripAllowedActions: (
     input: Readonly<{ documentIds: readonly string[]; stopIds: readonly string[]; tripId: string }>,
   ) => ReturnType<TripClient['readTripAllowedActions']>
@@ -262,6 +267,8 @@ export function createTripController(
       canReportOnBehalf ? input.client.fieldDeliverDocument(body) : forbidden(),
     fieldReturnDocument: (body) =>
       canReportOnBehalf ? input.client.fieldReturnDocument(body) : forbidden(),
+    canhotoReviewProof: (body) =>
+      canManageTrips ? input.client.canhotoReviewProof(body) : forbidden(),
     readDeliveryProofs: (body) =>
       canReadTrips ? input.client.readDeliveryProofs(body) : forbidden(),
     readTripAllowedActions: (body) =>

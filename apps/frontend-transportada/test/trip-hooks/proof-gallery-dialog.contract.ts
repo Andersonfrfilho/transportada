@@ -86,6 +86,11 @@ async function renderCurrentView(): Promise<void> {
           documentId: 'document-1',
           occurrences: null,
           products: [],
+          reviewActions: {
+            canReview: false,
+            onApprove: () => undefined,
+            onReject: () => undefined,
+          },
           view,
         }),
       ),

@@ -20,16 +20,17 @@ import {
 import styles from '../styles/trip.module.css'
 
 import { ProofReadings } from './ProofReadings.component'
-import { ProofReview } from './ProofReview.component'
+import { ProofReview, type CanhotoReviewActions } from './ProofReview.component'
 
 type ProofImageProps = Readonly<{
   alt: string
   onOpen: (proofId: string) => void
   proof: DeliveryProof
+  reviewActions: CanhotoReviewActions
 }>
 
 /** Sem original (`downloadUrl` vazio) a galeria não o contém: fica só a miniatura, sem botão. */
-export function ProofImage({ alt, onOpen, proof }: ProofImageProps) {
+export function ProofImage({ alt, onOpen, proof, reviewActions }: ProofImageProps) {
   const { t } = useTranslation('trip')
   const [hasSettled, setHasSettled] = useState(false)
 
@@ -79,7 +80,7 @@ export function ProofImage({ alt, onOpen, proof }: ProofImageProps) {
         )}
       </div>
       <ProofReadings proof={proof} />
-      <ProofReview proof={proof} />
+      <ProofReview {...reviewActions} proof={proof} />
     </>
   )
 }

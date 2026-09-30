@@ -8,6 +8,8 @@ import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
 import { Badge, type BadgeProps } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 
 import {
   presentCanhotoReview,
@@ -39,7 +41,16 @@ function describeReview(presentation: CanhotoReviewPresentation, t: TFunction<'t
   })
 }
 
-export function ProofReview({ proof }: Readonly<{ proof: DeliveryProof }>) {
+export type CanhotoReviewActions = Readonly<{
+  /** Vem de `workspace.controller.canManageTrips`; sem ele os botões nem entram no DOM. */
+  canReview: boolean
+  onApprove: () => void
+  onReject: () => void
+}>
+
+export type ProofReviewProps = CanhotoReviewActions & Readonly<{ proof: DeliveryProof }>
+
+export function ProofReview({ canReview, onApprove, onReject, proof }: ProofReviewProps) {
   const { t } = useTranslation('trip')
   const presentation = presentCanhotoReview(proof)
   if (presentation === undefined) return null
@@ -56,6 +67,18 @@ export function ProofReview({ proof }: Readonly<{ proof: DeliveryProof }>) {
       </div>
       {reason === undefined ? null : <p>{t(`deliveryProof.canhotoReview.reason.${reason}`)}</p>}
       {note === undefined ? null : <p>{note}</p>}
+      {canReview && proof.canhotoReview === 'pending' ? (
+        <div className={styles.proofBadges}>
+          <Button onClick={onApprove} size="sm" type="button">
+            <Icon name="check" />
+            {t('deliveryProof.canhotoReview.approve')}
+          </Button>
+          <Button onClick={onReject} size="sm" type="button" variant="secondary">
+            <Icon name="close" />
+            {t('deliveryProof.canhotoReview.reject')}
+          </Button>
+        </div>
+      ) : null}
     </div>
   )
 }

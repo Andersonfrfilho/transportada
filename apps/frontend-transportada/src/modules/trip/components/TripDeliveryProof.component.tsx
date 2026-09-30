@@ -16,6 +16,7 @@ import styles from '../styles/trip.module.css'
 import { ProofGalleryDialog } from './ProofGalleryDialog.component'
 import { ProofImage } from './ProofImage.component'
 import { formatMoment } from './ProofReadings.component'
+import type { CanhotoReviewActions } from './ProofReview.component'
 import { TripDeliveryProofDetail } from './TripDeliveryProofDetail.component'
 
 type TripDeliveryProofProps = Readonly<{
@@ -25,6 +26,7 @@ type TripDeliveryProofProps = Readonly<{
   occurrences: React.ReactNode
   /** Spec 079 T019: o que vai dentro da nota, conferido de pé no galpão. */
   products: readonly TripDocumentProduct[]
+  reviewActions: CanhotoReviewActions
   view: DeliveryProofView
 }>
 
@@ -42,6 +44,7 @@ export function TripDeliveryProof({
   documentId,
   occurrences,
   products,
+  reviewActions,
   view,
 }: TripDeliveryProofProps) {
   const { t } = useTranslation('trip')
@@ -119,6 +122,7 @@ export function TripDeliveryProof({
           key={proof.id}
           onOpen={setOpenProofId}
           proof={proof}
+          reviewActions={reviewActions}
         />
       ))}
       {view.photos.map((proof) => (
@@ -127,6 +131,7 @@ export function TripDeliveryProof({
           key={proof.id}
           onOpen={setOpenProofId}
           proof={proof}
+          reviewActions={reviewActions}
         />
       ))}
       {view.cargoPhotos.length > 0 ? (
@@ -138,6 +143,7 @@ export function TripDeliveryProof({
               key={proof.id}
               onOpen={setOpenProofId}
               proof={proof}
+              reviewActions={reviewActions}
             />
           ))}
         </section>

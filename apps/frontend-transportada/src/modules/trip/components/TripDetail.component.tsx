@@ -1441,6 +1441,20 @@ function TripDeliveryProofLoader({
         />
       }
       products={workspace.documentProductsQuery.data ?? []}
+      reviewActions={{
+        canReview: workspace.controller.canManageTrips,
+        onApprove: () => {
+          // A resposta e o 409 ainda não têm tela; sem o catch a rejeição vira erro não tratado.
+          workspace.controller
+            .canhotoReviewProof({
+              documentId,
+              review: { action: 'approve' },
+              tripId: document.tripId,
+            })
+            .catch(() => undefined)
+        },
+        onReject: () => undefined,
+      }}
       view={resolveDeliveryProofView({
         document,
         proofs: workspace.deliveryProofsQuery.data ?? [],

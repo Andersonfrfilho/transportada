@@ -458,6 +458,7 @@
   },
   "deliveryProof": {
     "canhotoReview": {
+      "approve": "Aprovar canhoto",
       "approvedAutomatic": "Conferido automaticamente",
       "approvedManual": "Aprovado por {{name}} em {{moment}}",
       "approvedManualUnknown": "Aprovado manualmente em {{moment}}",
@@ -471,6 +472,7 @@
         "other": "Outro motivo",
         "wrong_document": "Nota errada"
       },
+      "reject": "Recusar canhoto",
       "rejected": "Canhoto recusado"
     },
     "capturedAt": "Capturada em {{moment}}",

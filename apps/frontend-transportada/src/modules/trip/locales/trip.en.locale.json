@@ -352,6 +352,7 @@
   },
   "deliveryProof": {
     "canhotoReview": {
+      "approve": "Approve delivery receipt",
       "approvedAutomatic": "Checked automatically",
       "approvedManual": "Approved by {{name}} on {{moment}}",
       "approvedManualUnknown": "Approved manually on {{moment}}",
@@ -365,6 +366,7 @@
         "other": "Other reason",
         "wrong_document": "Wrong document"
       },
+      "reject": "Reject delivery receipt",
       "rejected": "Delivery receipt rejected"
     },
     "capturedAt": "Captured on {{moment}}",
