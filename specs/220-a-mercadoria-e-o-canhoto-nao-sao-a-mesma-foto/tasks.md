@@ -210,6 +210,151 @@ só não virou task. As T4.3a–T4.3c são a correção, abertas em 30/09/2026.
       `make check` em segundo plano: o `echo` final do subshell é que responde 0 — o veredito está
       na linha `MAKE_CHECK_EXIT=` do log, e a primeira execução tinha reprovado em `format:check`
 
+## Fase 7 — A conferência aparece no item da nota
+
+> 🤖 Modelo: `sonnet` (T7.1 e T7.2 são 🧠 — o contrato da leitura automática é invariante de
+> segurança, desenhado com `architect` em `opus` antes de virar task)
+
+⚠️ **A fase não é só de tela — de novo.** A Fase 6 grava o veredito e não o publica: a
+`DeliveryProofView` de `read-delivery-proof.use-case.ts:61-84` não carrega nenhum campo de
+conferência, e `CanhotoReviewView` (`canhoto-review.port.ts:31-40`) só existe como resposta do
+`PATCH`. Sem as T7.3–T7.5 o veredito some no F5. É a mesma má medida da Fase 4 (T4.3a–T4.3c) e a
+correção tem a mesma forma: contrato de API, API, painel aceitando as chaves.
+
+⚠️ **E a leitura automática não tem porta.** `REVIEW_BODY_SCHEMA` (`canhoto-review.routes.ts:28-39`)
+exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador — o navegador é o
+único chamador possível. `resolveAutomaticCanhotoReview` (`canhoto-review-decision.policy.ts:169`)
+é código morto hoje. As T7.1 e T7.2 abrem a porta sem entregar RF26 ao cliente.
+
+- [ ] T7.1 🧠 Contrato: a rota aceita `action: 'automatic'` e o **cliente não manda o veredito**.
+      O corpo carrega só o que foi lido (`readSource`, `readNumber`, `readSeries`,
+      `readDocumentId`); `review` no corpo é 400. O servidor deriva: `approved` só com
+      `readSource === 'barcode'`, `readDocumentId` igual ao documento da rota e `readNumber` igual
+      ao `nfe_number` daquela nota — todo o resto é `pending`. RF26 vira invariante do servidor,
+      que é o que o comentário de `canhoto-review.routes.ts:24-27` queria e não tinha como ter,
+      porque a leitura roda no navegador — `apps/api-transportada/test/canhoto-review/*.contract.ts`
+- [ ] T7.2 🧠 `REVIEW_BODY_SCHEMA` e `canhoto-review-decision.policy.ts` implementam a T7.1.
+      `assertReadingIsConsistent` (`:148-158`) ganha a conferência que lhe falta: o número lido
+      contra o número da nota. A trilha continua **só** para a decisão humana
+      (`review-canhoto-proof.use-case.ts:74`) — leitura de máquina não é ação sensível
+- [ ] T7.3 Contrato de API: `GET .../proof` publica `canhotoReview`, `canhotoReviewOrigin`,
+      `canhotoReadSource`, `canhotoReadNumber`, `canhotoReadSeries`, `canhotoReviewReason`,
+      `canhotoReviewNote`, `canhotoReviewAt` e o **nome** de quem conferiu. ⚠️ Nunca o
+      `canhotoReviewByUserId` cru nem o `canhotoReadDocumentId` sem necessidade de tela.
+      Comprovante antigo e `not_applicable` omitem o que não têm
+- [ ] T7.4 API: `DeliveryProofRecord` e `DeliveryProofView` (`read-delivery-proof.use-case.ts:16-84`)
+      passam a carregar os campos da T7.3. A junção do nome de quem conferiu entra na query que
+      `listDeliveryProofs` já faz, sem consulta nova — o mesmo cuidado da T4.3b
+- [ ] T7.5 Painel **aceita** as chaves novas antes de a API servi-las:
+      `DELIVERY_PROOF_OPTIONAL_KEYS` e o guarda de `tripResponse.validation.ts:1221`, mais o tipo
+      `DeliveryProof` de `deliveryProof.service.ts:24`. A lista é fechada e descarta em silêncio —
+      defeito que a T3.7 pegou uma vez e a T4.3c teve de corrigir depois
+- [ ] T7.6 Contrato **puro**: `canhotoReviewPresentation.service.ts` mapeia veredito → tela.
+      `not_applicable` não mostra nada (é o estado da assinatura, da foto da mercadoria e de todo
+      comprovante anterior à spec — selo ali seria ruído na maioria da tela); `approved` por código
+      de barras diz "conferido automaticamente"; `approved` por pessoa diz quem e quando; `pending`
+      com `canhotoReadSource === 'ocr'` mostra o número lido e o selo **Experimental**, igual a
+      `fieldDeliveryReview.service.ts:50-57`; `pending` com `barcode` mostra o número e a nota que
+      ele aponta; `pending` sem leitura é "aguardando conferência"; `rejected` mostra o motivo e, só
+      com `other`, a nota. Função pura porque o teste desta app não tem DOM por padrão — mesma razão
+      da T5.1 — `test/trip/canhoto-review-presentation.contract.ts`
+- [ ] T7.7 Contrato **puro**: `canhotoReviewNote.validation.ts` espelha a guarda do servidor
+      (`personal-data.policy.ts:33-39`), **inclusive os dez dígitos crus** (`:38`), mais os limites
+      de 20 e 500. ⚠️ É cópia, e cópia diverge: não existe `packages/` neste repo (CLAUDE.md) e a
+      regra mora na API. O teste carrega os mesmos casos do contrato do servidor, para a divergência
+      reprovar um teste em vez de reprovar um usuário
+- [ ] T7.8 `ProofReview.component.tsx`, chamado por `ProofImage.component.tsx:80` logo depois de
+      `ProofReadings`. Selo por veredito com `Badge` do design system. ⚠️ Conferir o contraste AA no
+      tema claro antes de escolher a variante — a T4.6 achou o selo semântico reprovando, e o
+      conserto (`3a6e036e7`) valia para outras cinco telas
+- [ ] T7.9 Aprovar e recusar. Os botões só aparecem com `trip.manage`, por
+      `workspace.controller.canManageTrips` (`useTripWorkspace.hook.ts:237,251`) descido como prop —
+      o mesmo caminho de `TripDetail.component.tsx:387,1370,1421`. Nunca reler `permissions` no
+      componente. `canhotoReviewProof` novo em `tripClient.service.ts`, no molde de
+      `readDeliveryProofs` (`:1159`)
+- [ ] T7.10 `CanhotoRejectDialog.component.tsx` — molde de `TripReturnReasonDialog.component.tsx`
+      (`useModalDialog` + `createPortal` + `Select` sobre lista fechada + o `useEffect` de `:47-49`
+      que zera a cada abertura). O texto livre aparece **só** com `outro`, com contador de 20 a 500 e
+      o aviso de dado pessoal **antes do envio** (T7.7): quinhentos caracteres digitados não voltam
+      ao dono com um 400 na cara. A tela **também** traduz o 400 do servidor
+      (`CANHOTO_REVIEW_NOTE_PERSONAL_DATA`, `CANHOTO_REVIEW_NOTE_LENGTH`,
+      `CANHOTO_REVIEW_NOTE_REQUIRED`) — a guarda do servidor é a autoridade e a do cliente vai
+      envelhecer
+- [ ] T7.11 O que a tela faz com 200 e com 409. `unchanged`
+      (`canhoto-review-decision.policy.ts:128`) volta 200 com a mesma view: é o clique duplo e a
+      repetição, aceita em silêncio, só escreve no cache. `CANHOTO_REVIEW_ALREADY_RESOLVED` volta
+      409: a tela **não insiste e não sobrescreve** — diz que outra pessoa já conferiu e refaz
+      `deliveryProofsQuery`, para o operador ver o veredito que venceu. O caminho de volta de um
+      veredito errado é a recaptura, por decisão da Fase 6 (`:111`)
+- [ ] T7.12 Contrato DOM: `TripDeliveryProof` montado — selo por veredito nos quatro estados, botões
+      ausentes sem `trip.manage`, o diálogo de recusa (foco preso, Esc, campo livre só com `outro`),
+      409 virando aviso mais refetch — `test/trip-hooks/canhoto-review-panel.contract.ts` +
+      `bun run test:hooks`. ⚠️ Os hooks deste arquivo vivem **dentro** do `describe`: o `afterEach`
+      global de `field-delivery-focus.contract.ts` limpa o `document.body` de todo teste do processo
+      (T5.5)
+- [ ] T7.13 Contrato DOM: `useCanhotoReview.hook.ts` — dispara **uma vez** por comprovante, não
+      redispara em re-render, não redispara em comprovante que já tem leitura
+      (`canhotoReadSource !== null`), espera a chave de acesso, e respeita os 20 s com relógio falso
+      — `test/trip-hooks/canhoto-review-trigger.contract.ts`
+- [ ] T7.14 `useCanhotoReview.hook.ts` montado em `TripDeliveryProofLoader`
+      (`TripDetail.component.tsx:1402`). Dispara **sozinho ao abrir o item**, não por botão: RF30 diz
+      que isto é conferência e não portão, e um botão a transformaria em trabalho; e "o comprovante
+      aparece primeiro, o veredito chega depois" (RNF02) descreve algo que chega, não algo que se
+      pede. Só para `kind === 'photo'`, só com `canhotoReview === 'pending'` e
+      `canhotoReadSource === null`. **Não relê a cada abertura**: os bytes são imutáveis (recaptura
+      cria linha nova e zera a conferência — T6.2), os motores são os mesmos, e o `pending` que já
+      carrega leitura é exatamente o estado que diz "a máquina tentou, agora é com gente"; reler
+      ainda apagaria a sugestão que o operador está olhando. ⚠️ `useEffect` é o certo **aqui**, e a
+      razão é a regra, não a exceção: a leitura é sincronização com sistema externo — busca na rede
+      ao bucket, decodificação zxing, WebWorker do tesseract, temporizador de 20 s e um PATCH. Não é
+      transformação de dado
+- [ ] T7.15 A imagem para a leitura: `fetch(downloadUrl)` → `blob` → `createImageBitmap` → canvas →
+      `getImageData`, no molde de `fieldDeliveryCapture.service.ts:56-74`. ⚠️ **Nunca** reusar o
+      `<img>` de `ProofImage.component.tsx:49-56`: ele não tem `crossOrigin`, e o canvas que o
+      desenhar fica contaminado — `getImageData` lança `SecurityError`, o `catch` genérico de
+      `decodeBarcodeFrame` (`barcodeDecoder.service.ts:27-33`) engole a exceção, e isso vira
+      "ilegível" silencioso em 100% dos canhotos. ⚠️ **Nunca** a miniatura: 320 px / 128 KiB (RNF04)
+      não sustentam um Code-128 de 44 posições; é a mesma decisão que RF22 já tomou para a tela
+      cheia. O `connect-src` já carrega a origem do bucket
+      (`contentSecurityPolicy.service.ts:113-124`, spec 183 T702b) — **medir** que o bucket responde
+      CORS no GET e registrar em `evidence.md`
+- [ ] T7.16 O prazo de 20 s cobre **tudo**. Hoje `CANHOTO_REVIEW_TIMEOUT_MS`
+      (`canhotoReview.service.ts:28`) só envolve a perna do OCR (`:140`) e não conta a busca da
+      imagem nem a decodificação; e `canhotoOcrEngine` ainda tem os seus próprios 15 s
+      (`CANHOTO_OCR_TIMEOUT_MS`, `:53`). RNF02 diz "prazo **total** de 20 s". Estourou: fica
+      `pending` e a tela diz "não foi possível conferir automaticamente". ⚠️ Essa frase é **de
+      sessão**, não persistida: o banco não distingue "estourou" de "nunca leu" (os dois são
+      `canhotoReadSource === null`), e inventar um quinto valor contradiria a lista fechada de quatro
+      da RF24. Depois do F5 a tela volta a dizer "aguardando conferência". Perda consciente, escrita
+      em `evidence.md`
+- [ ] T7.17 A chave de acesso antes da leitura. `reviewCanhoto` casa pela chave inteira, e
+      `GET /trips/:id` não a traz: ela vem de `useFieldDeliveryDocumentsQuery`
+      (`useFieldDeliveryDocuments.query.ts`), hoje `enabled` só com o assistente do escritório aberto
+      (`TripDetail.component.tsx:1162-1177`). O hook **espera** essa consulta antes de ler, ou a
+      perna do código de barras degrada para número/série e `matched` nunca acontece — que é a única
+      porta de aprovação automática da RF26. A montagem do `CanhotoReviewTripDocument` reusa o `map`
+      de `:1162-1177`, não escreve outro
+- [ ] T7.18 Rótulos em `trip.locale.json` **e** `trip.en.locale.json`, acentuados no pt-BR, e a
+      correção do que a revisão achou: `deliveryProof.imageLoading` existe no pt-BR
+      (`trip.locale.json:471`) e **falta** no inglês (entre `galleryPrevious:364` e
+      `lateRegistration:365`). ⚠️ Nada nos textos pode sugerir que o veredito trava entrega, viagem,
+      CT-e ou fatura (RF30): "aguardando conferência", nunca "bloqueado"; "recusado", nunca "entrega
+      inválida"
+- [ ] T7.19 Revisão de design (`web.md` §15) em 375 px, 768 px e 1280 px, com **print ao usuário**.
+      ⚠️ A T5.6 registrou dois limites deste ambiente: a janela não redimensiona e o MinIO local
+      devolve 503 na imagem do comprovante. Se reaparecerem, registrar como a T5.6 registrou, em vez
+      de marcar verde
+- [ ] T7.20 `make check` + commit. Na API os **dois** comandos, porque a T7.4 toca a leitura:
+      `bun --env-file=../../.env.test test --timeout 120000` e
+      `bun --env-file=../../.env.test run test:integration`. ⚠️ O veredito do `make check` em segundo
+      plano está na linha `MAKE_CHECK_EXIT=`, não na notificação do harness (T6.12)
+
+**O que sobe, e só isto (RNF03):** `action: 'automatic'`, `readSource`, `readNumber`, `readSeries`,
+`readDocumentId`. Nunca: a imagem, o blob, o `ImageData`, o vetor `luminance`, as palavras/grade/
+confiança do tesseract, as caixas do OCR, e **nem o texto cru do código de barras** — a chave de
+acesso de 44 posições é dado fiscal, não tem coluna, e não pode viajar de carona. Sob a T7.1,
+`review` também não sobe.
+
 ---
 
 ## Prompt de execução
