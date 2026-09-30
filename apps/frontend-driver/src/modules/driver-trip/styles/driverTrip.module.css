@@ -1222,6 +1222,23 @@
   margin: 0;
 }
 
+/* Spec 220 RF29: a nota voltou por recusa, não por esquecimento — o motivo precisa saltar do cartão. */
+.pendingProofRejection {
+  background: color-mix(in srgb, var(--color-alert) 18%, transparent);
+  border-left: var(--space-1) solid var(--color-alert);
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3);
+}
+
+.pendingProofRejectionTitle {
+  align-items: center;
+  display: flex;
+  font-weight: 700;
+  gap: var(--space-2);
+}
+
 .proofFieldError {
   color: var(--color-alert);
 }

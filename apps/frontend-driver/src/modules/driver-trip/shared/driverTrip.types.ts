@@ -123,11 +123,35 @@ export type DriverTrip = Readonly<{
 }>
 
 /**
+ * Spec 220 RF28: a lista fechada de motivos de recusa do canhoto, a mesma do banco. Motivo que não
+ * está aqui é API mais nova do que este app — a pendência vale, a explicação não se inventa.
+ */
+export const CANHOTO_REJECTION_REASONS = [
+  'illegible',
+  'missing_signature',
+  'other',
+  'wrong_document',
+] as const
+
+export type CanhotoRejectionReason = (typeof CANHOTO_REJECTION_REASONS)[number]
+
+/**
+ * Spec 220 RF29: por que a nota voltou para a fila. `note` só vem em `other`, onde o motivo da lista
+ * não basta — nos demais o texto da tela já diz tudo.
+ */
+export type CanhotoRejection = Readonly<{
+  note: string | null
+  reason: CanhotoRejectionReason
+}>
+
+/**
  * Spec 159 (T11, revisão): a foto pendente **na raiz** do snapshot — sai daqui mesmo sem viagem
  * ativa, porque a nota entregue pode ser de uma viagem já `completed`. É esta lista, não mais o
  * percurso por `trips`, que alimenta a tela "Fotos pendentes" e o contador do workspace.
  */
 export type PendingProofDocument = Readonly<{
+  /** Spec 220 RF29: `null` quando a nota nunca teve canhoto — só a recusa preenche. */
+  canhotoRejection: CanhotoRejection | null
   deliveredAt: string | null
   deliveryProof: DriverDeliveryProofSettings | null
   documentId: string

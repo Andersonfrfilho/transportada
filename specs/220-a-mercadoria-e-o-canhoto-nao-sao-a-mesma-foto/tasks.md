@@ -192,7 +192,11 @@ só não virou task. As T4.3a–T4.3c são a correção, abertas em 30/09/2026.
 - [x] T6.8 `PATCH .../proof/review` + caso de uso, com verificação por objeto (tenant) e trilha
       Fechada junto com a T6.6 e a T6.7, num commit só: contrato antes da implementação em todas as
       três, e árvore comitada vermelha quebraria o portão de quem vem depois
-- [ ] T6.9 Canhoto recusado vira pendência de recaptura para o motorista, com o motivo visível
+- [x] T6.9 Canhoto recusado vira pendência de recaptura para o motorista, com o motivo visível
+      A pendência do motorista é `pendingProofs` de `GET /me/current-trip`, não `GET /pending-items`
+      (fila do escritório). A regra saiu para `canhoto-recapture.policy.ts` — o ponto de uso é um
+      `flatMap` sobre sete junções, e caso de borda provado ali custa um Postgres por caso. O painel
+      não recebeu: o `driver-trip` dele é o caminho de transição da ADR-0075, já atrás desde a 193
 - [x] T6.10 Contrato: **nenhum veredito** impede confirmar entrega, despachar viagem, emitir CT-e
       ou faturar (CA13)
 - [ ] T6.11 Revisão de design + **print ao usuário**

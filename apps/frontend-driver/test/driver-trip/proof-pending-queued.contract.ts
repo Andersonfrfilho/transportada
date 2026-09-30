@@ -77,6 +77,7 @@ describe('o resultado da pontualidade aparece fora da lista de pendentes (T11, i
  */
 describe('o aviso de pontualidade nomeia a nota (T12)', () => {
   const pending = {
+    canhotoRejection: null,
     deliveredAt: null,
     deliveryProof: null,
     documentId: 'document-1',

@@ -96,6 +96,19 @@ export function DriverPendingProofsPage({
                     {t(`pendingProofs.outcome.${outcome}`)}
                   </p>
                 )}
+                {entry.canhotoRejection === null ? null : (
+                  <p className={styles.pendingProofRejection} role="status">
+                    <span className={styles.pendingProofRejectionTitle}>
+                      <Icon name="alert" />
+                      {t('pendingProofs.canhotoRejection.title')}
+                    </span>
+                    <span>
+                      {t(`pendingProofs.canhotoRejection.${entry.canhotoRejection.reason}`, {
+                        note: entry.canhotoRejection.note ?? '',
+                      })}
+                    </span>
+                  </p>
+                )}
                 {isQueued ? (
                   <p className={styles.pendingProofQueued} role="status">
                     <Icon name="clock" />

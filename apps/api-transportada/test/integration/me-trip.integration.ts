@@ -50,6 +50,8 @@ import {
   trips,
 } from '../../src/database/trip.schema.js'
 import { attachDeliveryProof } from '../../src/trips/application/attach-delivery-proof.use-case.js'
+import { reviewCanhotoProof } from '../../src/trips/application/review-canhoto-proof.use-case.js'
+import { DrizzleCanhotoReviewUnitOfWork } from '../../src/trips/infrastructure/drizzle-canhoto-review.repository.js'
 import { dispatchDriverTrip } from '../../src/trips/application/dispatch-driver-trip.use-case.js'
 import { dispatchTrip } from '../../src/trips/application/dispatch-trip.use-case.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
@@ -953,6 +955,26 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         })
         const afterPhoto = await readSnapshot()
         expect(afterPhoto.pendingProofs.map((proof) => proof.documentId)).toEqual([firstDocumentId])
+
+        // Spec 220 RF29: recusado o canhoto, a nota volta para a fila — com o motivo visível.
+        await reviewCanhotoProof({
+          actorUserId: world.userId,
+          command: { action: 'reject', reason: 'illegible' },
+          companyId: world.companyId,
+          correlationId: 'recusa-do-canhoto',
+          documentId: lastDocumentId ?? '',
+          ipAddress: '203.0.113.7',
+          tripId: world.tripId,
+          unitOfWork: new DrizzleCanhotoReviewUnitOfWork(database.db),
+        })
+        const afterRejection = await readSnapshot()
+        expect(afterRejection.pendingProofs.map((proof) => proof.documentId).sort()).toEqual(
+          [firstDocumentId, lastDocumentId].sort(),
+        )
+        expect(
+          afterRejection.pendingProofs.find((proof) => proof.documentId === lastDocumentId)
+            ?.canhotoRejection,
+        ).toEqual({ reason: 'illegible' })
 
         // O motorista de outra empresa não vê a pendência deste (tenant).
         const other = await seedDriverOnly(database)

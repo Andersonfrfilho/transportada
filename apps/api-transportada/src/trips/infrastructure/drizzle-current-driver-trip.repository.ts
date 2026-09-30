@@ -37,6 +37,11 @@ import type {
   DriverTripStop,
 } from '../application/find-current-driver-trip.use-case.js'
 import { resolveFieldOccurrenceTypes } from '../application/list-field-occurrence-types.use-case.js'
+import {
+  type CanhotoRecaptureState,
+  isDeliveryProofSettled,
+  resolveCanhotoRejection,
+} from '../domain/canhoto-recapture.policy.js'
 import type { OccurrenceTypeRecord } from '../application/register-trip-occurrence.use-case.js'
 import {
   resolveProofSettingsForRecipient,
@@ -355,7 +360,17 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         row.channel !== TRIP_FIELD_CHANNELS.office &&
         (row.reportedByDriverId === input.driverId ||
           (row.reportedByDriverId === null && row.actorUserId === accountUserId))
-      if (!isOwnDelivery || row.hasPhoto || row.separationStatus !== DELIVERED_DOCUMENT_STATUS)
+      const recapture: CanhotoRecaptureState = {
+        hasProof: row.hasPhoto,
+        note: row.canhotoReviewNote,
+        reason: row.canhotoReviewReason,
+        review: row.canhotoReview,
+      }
+      if (
+        !isOwnDelivery ||
+        isDeliveryProofSettled(recapture) ||
+        row.separationStatus !== DELIVERED_DOCUMENT_STATUS
+      )
         return []
 
       const deliveryProof = resolveProofSettingsForRecipient({
@@ -365,8 +380,11 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       })
       if (deliveryProof.photo !== REQUIRED_PROOF_FIELD_MODE) return []
 
+      const rejection = resolveCanhotoRejection(recapture)
+
       return [
         {
+          ...(rejection === undefined ? {} : { canhotoRejection: rejection }),
           deliveredAt: deliveredAt.toISOString(),
           deliveryProof,
           documentId: row.tripDocumentId,
@@ -435,6 +453,9 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         capturedAt: tripStopEvents.capturedAt,
         channel: tripStopEvents.channel,
         contractorId: contractors.id,
+        canhotoReview: tripDeliveryProofs.canhotoReview,
+        canhotoReviewNote: tripDeliveryProofs.canhotoReviewNote,
+        canhotoReviewReason: tripDeliveryProofs.canhotoReviewReason,
         documentNumber: nfeDocuments.number,
         documentSeries: nfeDocuments.series,
         hasPhoto: sql<boolean>`${tripDeliveryProofs.id} is not null`,
@@ -752,6 +773,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
 
     const rows = await this.database
       .selectDistinctOn([tripStopEvents.tripDocumentId], {
+        canhotoReview: tripDeliveryProofs.canhotoReview,
         hasPhoto: sql<boolean>`${tripDeliveryProofs.id} is not null`,
         tripDocumentId: tripStopEvents.tripDocumentId,
       })
@@ -781,7 +803,20 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
 
     return new Map(
       rows.flatMap((row) =>
-        row.tripDocumentId === null ? [] : [[row.tripDocumentId, row.hasPhoto] as const],
+        row.tripDocumentId === null
+          ? []
+          : [
+              [
+                row.tripDocumentId,
+                // Spec 220 RF29: canhoto recusado é foto que existe e não serve — o campo reabre.
+                isDeliveryProofSettled({
+                  hasProof: row.hasPhoto,
+                  note: null,
+                  reason: null,
+                  review: row.canhotoReview,
+                }),
+              ] as const,
+            ],
       ),
     )
   }

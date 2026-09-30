@@ -45,6 +45,7 @@ function buildDocument(overrides: Partial<DriverTripDocument> = {}): DriverTripD
 
 function buildPendingProof(overrides: Partial<PendingProofDocument> = {}): PendingProofDocument {
   return {
+    canhotoRejection: null,
     deliveredAt: null,
     deliveryProof: null,
     documentId: 'document-1',
@@ -247,6 +248,7 @@ describe('a resposta do snapshot com pendingProofs na raiz (T11)', () => {
     expect(snapshot.trips).toEqual([])
     expect(snapshot.pendingProofs).toEqual([
       {
+        canhotoRejection: null,
         deliveredAt: '2026-09-18T12:00:00.000Z',
         deliveryProof: {
           cargo: 'off',

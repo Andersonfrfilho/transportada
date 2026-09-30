@@ -1813,3 +1813,94 @@ $ bun run typecheck (apps/api-transportada)           → EXIT=0
 
 A suíte nova entra pelo entrypoint `canhoto-review.contract.test.ts`, já registrado no
 `package.json` na task anterior.
+
+## T6.9 — canhoto recusado volta como trabalho, com o motivo visível
+
+**RF29.** A fila de fotos pendentes do motorista fechava a pendência ao ver _qualquer_ comprovante
+de canhoto na nota. Com a conferência, "tem foto" deixou de significar "está comprovado": um canhoto
+ilegível é exatamente uma foto que existe e não serve. A nota volta para a fila, e volta explicada.
+
+Isto não é portão (RF30): a entrega continua confirmada, a viagem continua andando, o CT-e continua
+saindo. O que volta é o trabalho de refazer a foto.
+
+### Onde a pendência mora
+
+Há duas superfícies de pendência no produto, e a escolha entre elas não é óbvia:
+
+| Superfície                                | Quem vê                                  | Permissão    | Conteúdo hoje             |
+| ----------------------------------------- | ---------------------------------------- | ------------ | ------------------------- |
+| `GET /pending-items`                      | painel, página `/pendencias`             | `fleet.read` | só veículo sem carroceria |
+| `pendingProofs` de `GET /me/current-trip` | app do motorista, tela "Fotos pendentes" | motorista    | nota entregue sem foto    |
+
+A RF29 diz "volta a aparecer como comprovante pendente **para o motorista**" — é a segunda. A
+primeira é fila do escritório, com uniões de um membro só e nenhum consumidor no app do motorista.
+
+### A regra saiu para uma política pura
+
+`src/trips/domain/canhoto-recapture.policy.ts`. O ponto de uso é um `flatMap` sobre uma consulta de
+sete junções: provar ali cada caso de borda custaria um Postgres por caso — e o caso de borda é
+justamente o que ninguém escreve. A política tem duas funções e nenhuma dependência de infra.
+
+`review` é `TripDeliveryProofCanhotoReview | null`: `null` é a junção à esquerda sem linha nenhuma,
+que não é a mesma coisa que `not_applicable`. Inventar um `not_applicable` de mentira para o caso
+"nunca teve canhoto" apagaria a diferença no tipo.
+
+Dois chamadores, uma regra: a fila (`listPendingProofs`) e o cartão da parada ao vivo
+(`listDeliveryPhotoPresence`). Sem o segundo, uma recusa durante a viagem aberta mostraria "foto
+feita" no cartão e "pendente" na fila.
+
+### A varredura do não-portão reclamou, e estava certa
+
+A igualdade de `no-gate.contract.ts` acusou o repositório novo lendo `canhotoReview`. É o teste
+fazendo o que existe para fazer: leitor novo do veredito é decisão de projeto. Entrou na lista com o
+porquê escrito — dar trabalho de volta a quem tirou a foto não é barrar entrega, viagem, CT-e nem
+fatura.
+
+### O app do motorista
+
+`canhotoRejection` atravessa a fronteira em `toCanhotoRejection`, e o critério é o oposto do resto
+do item: o motivo é **acessório**. Recusa malformada, ou motivo que este app não conhece (API mais
+nova), apagam a explicação e mantêm a pendência — a nota precisa voltar mesmo sem legenda. O que
+derruba o item continua sendo só `documentId`/`tripId`.
+
+Na tela, o motivo sai num bloco de alerta acima do formulário, com título e o texto do motivo; em
+`other`, o texto livre da conferência é o próprio texto. Os quatro motivos têm frase nos dois
+idiomas, e o teste exige a lista **exata** — motivo novo sem tradução reprova.
+
+**O painel não recebeu esta mudança.** O módulo `driver-trip` de `apps/frontend-transportada` é o
+caminho de transição da ADR-0075 (Fase 10 da spec 189, sob aprovação humana) e já está atrás desde a
+193 — não tem `recipientDisplayName` nem `recipientIsCompany`. Os três commits anteriores desta
+mesma spec também tocaram só `apps/frontend-driver`. Fazer o gêmeo crescer agora é reanimar módulo
+marcado para remoção.
+
+### O teste não é vazio
+
+```
+mutação: `isRejected` devolvendo `false`               → contrato 6 fail · integração 1 fail
+mutação: `toCanhotoRejection` devolvendo sempre `null` → 2 fail
+mutação: `illegible` fora do `driverTrip.locale.json`  → 1 fail
+```
+
+Restaurados dos backups; tudo verde de novo.
+
+### Portões
+
+```
+$ bun --env-file=../../.env.test test ./test/canhoto-review.contract.test.ts ./test/driver-trip.contract.test.ts
+ 197 pass · 0 fail · 593 expect()                              → EXIT=0
+$ bun --env-file=../../.env.test test ./test/integration/me-trip.integration.ts --timeout 120000
+ 18 pass · 0 fail · 104 expect()  [32.23s]                     → EXIT=0
+$ bun run typecheck (apps/api-transportada)                    → EXIT=0
+$ bun run typecheck (apps/frontend-driver)                     → EXIT=0
+$ bun run test (apps/frontend-driver)
+ 865 pass · 0 fail · 1809 expect()                             → EXIT=0
+$ bun run lint (apps/frontend-driver)                          → EXIT=0
+```
+
+⚠️ `bun test` cru em `apps/frontend-driver` acusa 5 falhas que não são desta task: a descoberta
+padrão do Bun pega os arquivos de smoke do Playwright ("Playwright Test did not expect test() to be
+called here"). É por isso que o `package.json` nomeia os três entrypoints — `bun run test`, não
+`bun test`.
+
+A suíte nova (`test/driver-trip/canhoto-recapture.contract.ts`) entra pelo barril
+`test/driver-trip.contract.test.ts`, já nomeado no `package.json`.

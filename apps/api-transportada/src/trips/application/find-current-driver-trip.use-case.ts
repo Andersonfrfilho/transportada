@@ -20,6 +20,7 @@
  * emitente imprimiu e mandou na caixa; isto é a cópia digital, para conferência e consulta.
  */
 import type { DriverScorePort } from '../../fleet/application/driver-score.port.js'
+import type { CanhotoRejection } from '../domain/canhoto-recapture.policy.js'
 import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
 import type { FieldOccurrenceType } from './list-field-occurrence-types.use-case.js'
 
@@ -125,6 +126,11 @@ export type DriverTrip = {
  * sai de `trips`, mas a foto ainda pode chegar pelo `/proof` (que aceita viagem `completed`).
  */
 export type DriverPendingProof = {
+  /**
+   * Spec 220 RF29: presente só quando a conferência recusou o canhoto anterior — é o que explica ao
+   * motorista por que a nota voltou. Ausente quando a nota nunca teve canhoto nenhum.
+   */
+  readonly canhotoRejection?: CanhotoRejection
   /** `trip_stop_events.captured_at ?? recorded_at` da entrega — a mesma hora que a nota usa. */
   readonly deliveredAt: string
   /** A configuração resolvida da nota, a mesma de `DriverTripDocument.deliveryProof`. */

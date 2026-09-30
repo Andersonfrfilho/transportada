@@ -260,6 +260,13 @@
   "pendingProofs": {
     "attach": "Attach proof",
     "back": "Back",
+    "canhotoRejection": {
+      "illegible": "The previous proof came out illegible.",
+      "missing_signature": "The previous proof had no signature.",
+      "other": "{{note}}",
+      "title": "Proof refused in the review — take a new photo.",
+      "wrong_document": "The previous photo was of another document."
+    },
     "documentLabel": "Document {{number}}/{{series}}",
     "empty": "No pending photos. You are all caught up.",
     "open": "Pending photos",

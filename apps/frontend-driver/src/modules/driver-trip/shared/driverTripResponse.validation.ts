@@ -1,7 +1,9 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/driverTripResponse.validation.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
+  CANHOTO_REJECTION_REASONS,
   isDriverOccurrenceType,
+  type CanhotoRejection,
   type DriverDeliveryProofSettings,
   type DriverOccurrenceType,
   type DriverStopSchedule,
@@ -200,6 +202,19 @@ function toStop(value: unknown): DriverTripStop {
 }
 
 /**
+ * Spec 220 RF29: o motivo é acessório, não essencial — recusa malformada ou motivo que este app não
+ * conhece apagam a explicação, nunca a pendência. A nota precisa voltar mesmo sem legenda.
+ */
+function toCanhotoRejection(value: unknown): CanhotoRejection | null {
+  if (!isRecord(value)) return null
+
+  const reason = CANHOTO_REJECTION_REASONS.find((known) => known === value.reason)
+  if (reason === undefined) return null
+
+  return { note: readNullableString(value.note), reason }
+}
+
+/**
  * Spec 159 (T11): item malformado da lista raiz não derruba a tela inteira — ele só some da lista,
  * o mesmo espírito do resto deste arquivo (campo faltando é recusa explícita do item, não exceção).
  */
@@ -208,6 +223,7 @@ function toPendingProof(value: unknown): PendingProofDocument | null {
   if (typeof value.documentId !== 'string' || typeof value.tripId !== 'string') return null
 
   return {
+    canhotoRejection: toCanhotoRejection(value.canhotoRejection),
     deliveredAt: readNullableString(value.deliveredAt),
     deliveryProof: toDeliveryProof(value.deliveryProof),
     documentId: value.documentId,

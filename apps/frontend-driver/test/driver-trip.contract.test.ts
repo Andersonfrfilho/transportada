@@ -1,5 +1,6 @@
 import './driver-trip/boot-mode.contract'
 import './driver-trip/camera-capture.contract'
+import './driver-trip/canhoto-recapture.contract'
 import './driver-trip/capture-registry.contract'
 import './driver-trip/catalog-parity.contract'
 import './driver-trip/code128.contract'

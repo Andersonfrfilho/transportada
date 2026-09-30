@@ -1522,6 +1522,7 @@ export const TRIP_DELIVERY_PROOF_CANHOTO_REVIEWS = [
   'rejected',
 ] as const
 export type TripDeliveryProofCanhotoReview = (typeof TRIP_DELIVERY_PROOF_CANHOTO_REVIEWS)[number]
+export const TRIP_DELIVERY_PROOF_CANHOTO_REJECTED_REVIEW = 'rejected'
 
 /**
  * Spec 220 RF26/RF27: **quem decidiu**, não como o número foi lido — o outro eixo é

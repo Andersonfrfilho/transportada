@@ -3,5 +3,6 @@
  */
 import './canhoto-review/decision.contract.js'
 import './canhoto-review/no-gate.contract.js'
+import './canhoto-review/recapture.contract.js'
 import './canhoto-review/routes.contract.js'
 import './canhoto-review/use-case.contract.js'
