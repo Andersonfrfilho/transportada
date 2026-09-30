@@ -319,6 +319,7 @@ describe('Drizzle migrations', () => {
       '20260929131715_occurrence_stop_flow',
       '20260929131833_occurrence_type_attachment_overrides',
       '20260929144801_occurrence_type_stop_kind',
+      '20260930021013_delivery_proof_cargo_mode',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

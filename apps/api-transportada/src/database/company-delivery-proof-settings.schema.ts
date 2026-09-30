@@ -51,6 +51,10 @@ export const companyDeliveryProofSettings = pgTable(
       .$type<DeliveryProofFieldMode>(),
     signature: text().notNull().default('optional').$type<DeliveryProofFieldMode>(),
     photo: text().notNull().default('optional').$type<DeliveryProofFieldMode>(),
+    /** Spec 220 RF01: a foto da mercadoria, separada do canhoto — nasce `off`, a migration não muda comportamento. */
+    cargo: text().notNull().default('off').$type<DeliveryProofFieldMode>(),
+    /** Spec 220 RF06: mínimo de fotos da mercadoria, lido só com `cargo = required`; teto 5 (spec 184 D3). */
+    cargoMinimumCount: integer('cargo_minimum_count').notNull().default(1),
     /** Spec 193 D6: quem recebeu (a relação com o destinatário) — `optional` de fábrica. */
     receivedBy: text('received_by').notNull().default('optional').$type<DeliveryProofFieldMode>(),
     /**
@@ -105,6 +109,11 @@ export const companyDeliveryProofSettings = pgTable(
       'company_delivery_proof_settings_received_by_check',
       sql`${table.receivedBy} in (${MODE_LIST()})`,
     ),
+    check('company_delivery_proof_settings_cargo_check', sql`${table.cargo} in (${MODE_LIST()})`),
+    check(
+      'company_delivery_proof_settings_cargo_minimum_count_check',
+      sql`${table.cargoMinimumCount} between 1 and 5`,
+    ),
     check(
       'company_delivery_proof_settings_proof_window_minutes_check',
       sql`${table.proofWindowMinutes} between 5 and 1440`,
@@ -150,6 +159,10 @@ export const deliveryProofSettingOverrides = pgTable(
       .$type<DeliveryProofFieldMode>(),
     signature: text().notNull().default('optional').$type<DeliveryProofFieldMode>(),
     photo: text().notNull().default('optional').$type<DeliveryProofFieldMode>(),
+    /** Spec 220 RF01: a foto da mercadoria, separada do canhoto — nasce `off`, a migration não muda comportamento. */
+    cargo: text().notNull().default('off').$type<DeliveryProofFieldMode>(),
+    /** Spec 220 RF06: mínimo de fotos da mercadoria, lido só com `cargo = required`; teto 5 (spec 184 D3). */
+    cargoMinimumCount: integer('cargo_minimum_count').notNull().default(1),
     /** Spec 193 D6: a exceção vence a geral por inteiro, inclusive neste campo. */
     receivedBy: text('received_by').notNull().default('optional').$type<DeliveryProofFieldMode>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -199,6 +212,11 @@ export const deliveryProofSettingOverrides = pgTable(
       'delivery_proof_setting_overrides_received_by_check',
       sql`${table.receivedBy} in (${MODE_LIST()})`,
     ),
+    check('delivery_proof_setting_overrides_cargo_check', sql`${table.cargo} in (${MODE_LIST()})`),
+    check(
+      'delivery_proof_setting_overrides_cargo_minimum_count_check',
+      sql`${table.cargoMinimumCount} between 1 and 5`,
+    ),
   ],
 )
 
@@ -223,6 +241,10 @@ export const deliveryProofSettingContractorOverrides = pgTable(
       .$type<DeliveryProofFieldMode>(),
     signature: text().notNull().default('optional').$type<DeliveryProofFieldMode>(),
     photo: text().notNull().default('optional').$type<DeliveryProofFieldMode>(),
+    /** Spec 220 RF01: a foto da mercadoria, separada do canhoto — nasce `off`, a migration não muda comportamento. */
+    cargo: text().notNull().default('off').$type<DeliveryProofFieldMode>(),
+    /** Spec 220 RF06: mínimo de fotos da mercadoria, lido só com `cargo = required`; teto 5 (spec 184 D3). */
+    cargoMinimumCount: integer('cargo_minimum_count').notNull().default(1),
     receivedBy: text('received_by').notNull().default('optional').$type<DeliveryProofFieldMode>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -265,6 +287,14 @@ export const deliveryProofSettingContractorOverrides = pgTable(
     check(
       'delivery_proof_setting_contractor_overrides_received_by_check',
       sql`${table.receivedBy} in (${MODE_LIST()})`,
+    ),
+    check(
+      'delivery_proof_setting_contractor_overrides_cargo_check',
+      sql`${table.cargo} in (${MODE_LIST()})`,
+    ),
+    check(
+      'delivery_proof_setting_contractor_overrides_cargo_minimum_count_check',
+      sql`${table.cargoMinimumCount} between 1 and 5`,
     ),
   ],
 )

@@ -29,7 +29,10 @@ export const SIGNATURE_PROOF_KIND = 'signature' satisfies TripDeliveryProofKind
  */
 export const DRIVER_PROOF_KINDS = [PHOTO_PROOF_KIND, SIGNATURE_PROOF_KIND] as const
 export type DriverProofKind = (typeof DRIVER_PROOF_KINDS)[number]
-/** Spec 184 D3: teto de partida, ajustável sem migration — cobre a avaria sem virar álbum. */
+/**
+ * Spec 184 D3: teto de partida — cobre a avaria sem virar álbum. Spec 220: subir daqui pede
+ * migration, o CHECK de `cargo_minimum_count` repete o mesmo 5.
+ */
 export const TRIP_DELIVERY_PROOF_CARGO_LIMIT = 5
 /** A parte da NF-e que recebe a entrega — é o CNPJ dela que resolve a exceção do comprovante. */
 export const RECIPIENT_PARTICIPANT_ROLE = 'recipient'
