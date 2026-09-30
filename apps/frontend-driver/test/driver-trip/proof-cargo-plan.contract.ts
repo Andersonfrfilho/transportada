@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'bun:test'
 
 import type { DriverDeliveryProofSettings } from '@/modules/driver-trip/shared/driverTrip.types'
@@ -135,5 +137,22 @@ describe('o gate antes de "Entreguei" enxerga a mercadoria (spec 218 RF-A1 + spe
       signature: 'optional',
     })
     expect(requiresProofBeforeDelivery(plan)).toBe(false)
+  })
+})
+
+describe('o recebedor chega ao servidor com só a mercadoria anexada (spec 220, configuração só de cargo)', () => {
+  const card = readFileSync(
+    new URL(
+      '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+
+  it('o empurrão tardio dos campos também dispara quando há foto da mercadoria, sem canhoto nem assinatura', () => {
+    const start = card.indexOf('function pushLateFieldUpdate(')
+    const body = card.slice(start, card.indexOf('\n  }\n', start))
+    expect(body).toContain('cargoKeys.length > 0')
+    expect(body).toContain('onProofFieldsUpdate?.(')
   })
 })

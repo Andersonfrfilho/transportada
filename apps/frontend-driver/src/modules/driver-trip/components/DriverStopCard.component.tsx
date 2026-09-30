@@ -1358,7 +1358,7 @@ function ProofCaptureFields({
   function pushLateFieldUpdate(
     overrides: Readonly<{ receivedBy?: string; receiverName?: string }> = {},
   ): void {
-    if (attached.photo || attached.signature) {
+    if (attached.photo || attached.signature || cargoKeys.length > 0) {
       onProofFieldsUpdate?.({ documentId, ...currentFields(overrides) })
     }
   }
