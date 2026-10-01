@@ -364,6 +364,23 @@
   }
 }
 
+/**
+ * Spec 196: o botão do mapa dentro do detalhe. Mesmo par de recuo e margem do `.itemToggle`, e pelo
+ * mesmo motivo — o rótulo alinha com o texto do bloco sem perder a área interna —, mas em regra
+ * própria porque as duas caixas são outras: aquela mora na grade do item, esta dentro do painel.
+ */
+.detailMapToggle {
+  justify-self: start;
+  min-height: var(--touch-target);
+  margin-inline-start: calc(-1 * var(--space-2));
+  padding-inline: var(--space-2);
+}
+
+/* O painel fechado existe só para o `aria-controls` ter destino: vazio, não vira respiro na grade. */
+.mapPanel:empty {
+  display: none;
+}
+
 .itemDetail {
   margin: 0;
   font-size: 0.85rem;

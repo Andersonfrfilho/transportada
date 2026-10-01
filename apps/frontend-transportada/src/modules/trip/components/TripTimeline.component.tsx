@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, type ReactNode, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
@@ -49,6 +49,8 @@ import {
 import { TripTimelineMiniMap } from './TripTimelineMiniMap.component'
 
 const SKELETON_ROWS = 3
+
+const EVENT_MAP_PANEL_ID = 'trip-timeline-event-map'
 
 const ICON_TONE_CLASS: Readonly<Record<TripTimelineIconTone, string | undefined>> = {
   done: styles.iconDone,
@@ -159,6 +161,7 @@ export function TripTimeline({ openDocumentId, query, stops }: TripTimelineProps
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<ReadonlySet<string>>(
     () => new Set(openDocumentId === null ? [] : [openDocumentId]),
   )
+  const [isEventMapExpanded, setIsEventMapExpanded] = useState(false)
 
   const loadedItems = useMemo(() => {
     const pages = query.data?.pages ?? []
@@ -206,8 +209,31 @@ export function TripTimeline({ openDocumentId, query, stops }: TripTimelineProps
         )}
       </div>
 
+      {/**
+       * Spec 196: o mapa dos eventos media 533px aberto por padrão — a lista inteira nascia abaixo
+       * da dobra por causa de algo que ninguém tinha pedido ainda. O painel existe fechado, para o
+       * `aria-controls` ter destino; o mapa só é construído depois do gesto.
+       */}
       {items.length > 0 ? (
-        <TripTimelineMiniMap hasMorePages={query.hasNextPage} items={items} />
+        <Fragment>
+          <Button
+            aria-controls={EVENT_MAP_PANEL_ID}
+            aria-expanded={isEventMapExpanded}
+            className={styles.action}
+            onClick={() => setIsEventMapExpanded((current) => !current)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name={isEventMapExpanded ? 'chevron-up' : 'chevron-down'} />
+            {isEventMapExpanded ? t('eventTimeline.map.hide') : t('eventTimeline.map.show')}
+          </Button>
+          <div className={styles.mapPanel} id={EVENT_MAP_PANEL_ID}>
+            {isEventMapExpanded ? (
+              <TripTimelineMiniMap hasMorePages={query.hasNextPage} items={items} />
+            ) : null}
+          </div>
+        </Fragment>
       ) : null}
 
       {query.isPending ? (
@@ -316,6 +342,15 @@ function TripTimelineEntry({
     locationView?.canViewMap === true &&
     !hasTripTimelineExpandableDetail({ ...item, location: null, locationState: null })
   const detailId = `trip-timeline-detail-${item.id}`
+  const mapPanelId = `trip-timeline-map-${item.id}`
+  const eventMap =
+    locationView?.coordinates == null ? null : (
+      <TripTimelineLocationMap
+        eventLatitude={locationView.coordinates.latitude}
+        eventLongitude={locationView.coordinates.longitude}
+        stop={findStopForMap(item, stops)}
+      />
+    )
   const title = resolveTripTimelineTitle(item, translate)
   const authorship = resolveTripTimelineAuthorshipText(item, translate)
   const { icon, tone } = resolveTripTimelineIcon(item)
@@ -496,12 +531,10 @@ function TripTimelineEntry({
               {t('eventTimeline.occurrenceNote', { note: occurrenceNote })}
             </p>
           )}
-          {locationView?.coordinates == null ? null : (
-            <TripTimelineLocationMap
-              eventLatitude={locationView.coordinates.latitude}
-              eventLongitude={locationView.coordinates.longitude}
-              stop={findStopForMap(item, stops)}
-            />
+          {eventMap === null ? null : isMapOnlyDetail ? (
+            eventMap
+          ) : (
+            <TripTimelineEventMapDisclosure map={eventMap} panelId={mapPanelId} />
           )}
           {attachmentCount === null ? null : (
             <TripTimelineOccurrenceAttachments
@@ -512,6 +545,41 @@ function TripTimelineEntry({
         </div>
       ) : null}
     </li>
+  )
+}
+
+/**
+ * Spec 196: o mapa do evento custava 312px dentro do "Ver mais" para entregar, no evento de
+ * devolução, uma linha de texto — quem só queria ler o motivo pagava o mapa inteiro. Ele passa a
+ * abrir num segundo gesto, mas **só onde há texto junto**: quando a posição é tudo o que o evento
+ * tem, o próprio "Ver mais" já se chama "Ver no mapa", e repetir o rótulo dentro do painel seria um
+ * controle que abre outro controle de mesmo nome. Esse caso fica com um gesto só.
+ */
+function TripTimelineEventMapDisclosure({
+  map,
+  panelId,
+}: Readonly<{ map: ReactNode; panelId: string }>) {
+  const { t } = useTranslation('trip')
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  return (
+    <Fragment>
+      <Button
+        aria-controls={panelId}
+        aria-expanded={isExpanded}
+        className={styles.detailMapToggle}
+        onClick={() => setIsExpanded((current) => !current)}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        <Icon name={isExpanded ? 'chevron-up' : 'chevron-down'} />
+        {isExpanded ? t('eventTimeline.location.hideMap') : t('eventTimeline.location.viewMap')}
+      </Button>
+      <div className={styles.mapPanel} id={panelId}>
+        {isExpanded ? map : null}
+      </div>
+    </Fragment>
   )
 }
 

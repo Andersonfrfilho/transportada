@@ -83,7 +83,25 @@ async function renderTimeline(
     )
     await Promise.resolve()
   })
+  await openEventMap(container)
   return container
+}
+
+/**
+ * Spec 196: o mapa dos eventos passou a nascer recolhido — aberto, media 533px e empurrava a lista
+ * inteira para baixo da dobra antes de alguém pedir por ele. Os casos deste arquivo continuam sendo
+ * sobre o **conteúdo** do mapa, então o gesto que o abre entra aqui, uma vez, e nenhuma asserção
+ * muda. Quem cobre o estado recolhido é `timeline-map-disclosure.contract.ts`.
+ */
+async function openEventMap(host: HTMLElement): Promise<void> {
+  const toggle = [...host.querySelectorAll('button')].find(
+    (candidate) => candidate.textContent?.trim() === 'Ver o mapa dos eventos',
+  )
+  if (toggle === undefined) throw new Error('botão ausente: Ver o mapa dos eventos')
+  await act(async () => {
+    toggle.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    await Promise.resolve()
+  })
 }
 
 afterEach(() => {
