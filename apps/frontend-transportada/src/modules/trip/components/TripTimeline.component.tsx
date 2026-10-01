@@ -1,7 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
@@ -12,7 +13,6 @@ import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelD
 
 import { useTripOccurrenceAttachmentsQuery } from '../queries/tripOccurrenceFeed.query'
 import type { TripTimelineItem, TripTimelinePage } from '../shared/trip.types'
-import { resolveTripTimelineAvatar } from '../shared/tripTimelineAvatar.service'
 import { hasTripTimelineExpandableDetail } from '../shared/tripTimelineDetail.service'
 import {
   collectTripTimelineDocuments,
@@ -22,8 +22,6 @@ import {
   removeDuplicateDispatchEvents,
   resolveTripTimelineAuthorshipText,
   resolveTripTimelineTitle,
-  resolveTripTimelineTone,
-  type TripTimelineTone,
 } from '../shared/tripTimeline.service'
 import {
   resolveTripTimelineDocumentHref,
@@ -31,15 +29,23 @@ import {
   resolveTripTimelineStopHref,
 } from '../shared/tripTimelineLink.service'
 import { navigateToTripOccurrence } from '../shared/tripOccurrenceRoute.service'
+import {
+  formatTripTimelineDuration,
+  resolveTripTimelineChips,
+  resolveTripTimelineIcon,
+  resolveTripTimelineInterval,
+  type TripTimelineIconTone,
+} from '../shared/tripTimelineRow.service'
 import styles from '../styles/tripTimeline.module.css'
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
 
 const SKELETON_ROWS = 3
 
-const TONE_CLASS: Readonly<Record<TripTimelineTone, string | undefined>> = {
-  done: styles.itemDone,
-  problem: styles.itemProblem,
-  progress: undefined,
+const ICON_TONE_CLASS: Readonly<Record<TripTimelineIconTone, string | undefined>> = {
+  done: styles.iconDone,
+  neutral: styles.iconNeutral,
+  problem: styles.iconProblem,
+  progress: styles.iconProgress,
 }
 
 const dateTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
@@ -134,6 +140,11 @@ export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
     () => filterTripTimelineItemsByDocumentIds(loadedItems, selectedDocumentIds),
     [loadedItems, selectedDocumentIds],
   )
+  /** A API ordena do mais recente para o mais antigo: o evento anterior é o próximo da lista. */
+  const olderItemById = useMemo(
+    () => new Map(items.map((item, index) => [item.id, items[index + 1]])),
+    [items],
+  )
 
   function handleDocumentToggle(documentId: string, checked: boolean) {
     setSelectedDocumentIds((current) => {
@@ -201,19 +212,33 @@ export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
                 </span>
               </h4>
               <ol className={styles.list}>
-                {group.items.map((item, index) => (
-                  <TripTimelineEntry
-                    item={item}
-                    key={item.id}
-                    repeatsAuthorship={
-                      index > 0 &&
-                      resolveTripTimelineAuthorshipText(
-                        group.items[index - 1] as TripTimelineItem,
-                        translate,
-                      ) === resolveTripTimelineAuthorshipText(item, translate)
-                    }
-                  />
-                ))}
+                {group.items.map((item, index) => {
+                  const older = olderItemById.get(item.id)
+                  const interval =
+                    older === undefined
+                      ? undefined
+                      : resolveTripTimelineInterval({ newer: item, older })
+                  const hasGapRuler = interval?.kind === 'gap' && index < group.items.length - 1
+                  return (
+                    <Fragment key={item.id}>
+                      <TripTimelineEntry
+                        elapsedMinutes={
+                          interval === undefined || interval.kind === 'none' || hasGapRuler
+                            ? null
+                            : interval.minutes
+                        }
+                        item={item}
+                      />
+                      {hasGapRuler ? (
+                        <li className={styles.gap}>
+                          {t('eventTimeline.gap', {
+                            duration: formatTripTimelineDuration(interval.minutes, translate),
+                          })}
+                        </li>
+                      ) : null}
+                    </Fragment>
+                  )
+                })}
               </ol>
             </section>
           ))}
@@ -238,9 +263,9 @@ export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
 }
 
 function TripTimelineEntry({
+  elapsedMinutes,
   item,
-  repeatsAuthorship,
-}: Readonly<{ item: TripTimelineItem; repeatsAuthorship: boolean }>) {
+}: Readonly<{ elapsedMinutes: null | number; item: TripTimelineItem }>) {
   const { t } = useTranslation('trip')
   const translate = t as Translate
   const [isExpanded, setIsExpanded] = useState(false)
@@ -248,7 +273,8 @@ function TripTimelineEntry({
   const detailId = `trip-timeline-detail-${item.id}`
   const title = resolveTripTimelineTitle(item, translate)
   const authorship = resolveTripTimelineAuthorshipText(item, translate)
-  const avatar = resolveTripTimelineAvatar(item)
+  const { icon, tone } = resolveTripTimelineIcon(item)
+  const chips = resolveTripTimelineChips(item, translate)
   const occurrenceNote =
     (item.kind === 'stop.occurrence' || item.kind === 'document.occurrence') &&
     item.occurrence !== null &&
@@ -304,21 +330,11 @@ function TripTimelineEntry({
       : null
 
   return (
-    <li className={cn(styles.item, styles.itemEnter, TONE_CLASS[resolveTripTimelineTone(item)])}>
+    <li className={cn(styles.item, styles.itemEnter)}>
       <div className={styles.itemHead}>
-        {/**
-         * Spec 180 RF9-RF11 (CA08/CA09): o avatar é o próprio selo visual de autoria — nasce do
-         * `actorName` que o item já publica, nunca de uma foto ou id. `aria-hidden`: o texto de
-         * autoria ao lado já diz o nome por extenso, e repeti-lo para leitor de tela seria ruído.
-         */}
-        {avatar === null ? null : (
-          <span
-            aria-hidden="true"
-            className={cn(styles.avatar, styles[`avatarPalette${avatar.paletteIndex}`])}
-          >
-            {avatar.initials}
-          </span>
-        )}
+        <span aria-hidden="true" className={cn(styles.icon, ICON_TONE_CLASS[tone])}>
+          <Icon name={icon} />
+        </span>
         <div className={styles.itemHeadText}>
           {/*
            * Spec 180 RF15: o **título** leva à coisa citada, em vez de uma linha de "Ver nota · Ver
@@ -326,31 +342,31 @@ function TripTimelineEntry({
            * títulos, que é o que se lê. A nota manda; sem nota, a parada. Evento que não cita nem
            * uma nem outra continua texto puro, sem link morto.
            */}
-          <p className={styles.itemTitle}>
-            {titleHref === null ? (
-              title
-            ) : (
-              <a
-                className={styles.itemTitleLink}
-                href={titleHref}
-                onClick={
-                  isOccurrenceEvent
-                    ? (event) => {
-                        /** Sem router: a troca de página é `pushState`, sem recarregar o app. */
-                        event.preventDefault()
-                        navigateToTripOccurrence({
-                          navigator: createBrowserWorkspaceNavigator(),
-                          occurrenceId: item.id,
-                        })
-                      }
-                    : undefined
-                }
-              >
-                {title}
-              </a>
-            )}
-          </p>
-          <p className={styles.itemMeta}>
+          <div className={styles.itemTitleRow}>
+            <p className={styles.itemTitle}>
+              {titleHref === null ? (
+                title
+              ) : (
+                <a
+                  className={styles.itemTitleLink}
+                  href={titleHref}
+                  onClick={
+                    isOccurrenceEvent
+                      ? (event) => {
+                          /** Sem router: a troca de página é `pushState`, sem recarregar o app. */
+                          event.preventDefault()
+                          navigateToTripOccurrence({
+                            navigator: createBrowserWorkspaceNavigator(),
+                            occurrenceId: item.id,
+                          })
+                        }
+                      : undefined
+                  }
+                >
+                  {title}
+                </a>
+              )}
+            </p>
             <time
               className={styles.itemTime}
               dateTime={item.occurredAt}
@@ -358,20 +374,39 @@ function TripTimelineEntry({
             >
               {formatTime(item.occurredAt)}
             </time>
-            {/*
-             * A autoria se repete evento após evento — numa viagem tocada pelo mesmo operador ela
-             * aparecia oito vezes, quase tão longa quanto o título, competindo com ele. Só aparece
-             * quando **muda** em relação ao evento anterior; igual, o leitor já sabe de quem é.
-             */}
-            {authorship === null || repeatsAuthorship ? null : (
-              <span className={styles.itemAuthorship}>{authorship}</span>
-            )}
-            {item.recordedAt === null ? null : (
-              <span className={styles.itemRecorded}>
-                {t('eventTimeline.recordedAt', { moment: formatMoment(item.recordedAt) })}
-              </span>
-            )}
-          </p>
+          </div>
+          {chips.length === 0 ? null : (
+            <ul className={styles.itemChips}>
+              {chips.map((chip) => (
+                <li key={chip.id}>
+                  <Badge
+                    title={
+                      chip.id === 'late' && item.recordedAt !== null
+                        ? t('eventTimeline.recordedAt', { moment: formatMoment(item.recordedAt) })
+                        : undefined
+                    }
+                    variant={chip.tone === 'copper' ? 'warning' : 'secondary'}
+                  >
+                    {chip.label}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+          {authorship === null && elapsedMinutes === null ? null : (
+            <p className={styles.itemMeta}>
+              {authorship === null ? null : (
+                <span className={styles.itemAuthorship}>{authorship}</span>
+              )}
+              {elapsedMinutes === null ? null : (
+                <span>
+                  {t('eventTimeline.afterPrevious', {
+                    duration: formatTripTimelineDuration(elapsedMinutes, translate),
+                  })}
+                </span>
+              )}
+            </p>
+          )}
         </div>
       </div>
       {/**

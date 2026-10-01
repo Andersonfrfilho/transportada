@@ -733,7 +733,20 @@
     "returnReason": "Motivo da devolução: {{reason}}",
     "title": "Linha do tempo",
     "viewDocument": "Ver nota",
-    "viewStop": "Ver parada"
+    "viewStop": "Ver parada",
+    "chip": {
+      "recordedLater": "registrado {{duration}} depois",
+      "recordedLaterUnknown": "registrado depois",
+      "stop": "Parada {{sequence}}",
+      "transition": "{{from}} → {{to}}"
+    },
+    "duration": {
+      "hours": "{{hours}} h",
+      "hoursMinutes": "{{hours}} h {{minutes}} min",
+      "minutes": "{{count}} min"
+    },
+    "gap": "{{duration}} sem registro",
+    "afterPrevious": "{{duration}} após o evento anterior"
   },
   "feedback": {
     "closeReasonRequired": "Informe o motivo para encerrar a viagem com nota em aberto.",

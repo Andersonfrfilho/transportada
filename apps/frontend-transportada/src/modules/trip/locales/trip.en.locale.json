@@ -733,7 +733,20 @@
     "returnReason": "Return reason: {{reason}}",
     "title": "Timeline",
     "viewDocument": "View invoice",
-    "viewStop": "View stop"
+    "viewStop": "View stop",
+    "chip": {
+      "recordedLater": "recorded {{duration}} later",
+      "recordedLaterUnknown": "recorded later",
+      "stop": "Stop {{sequence}}",
+      "transition": "{{from}} → {{to}}"
+    },
+    "duration": {
+      "hours": "{{hours}} h",
+      "hoursMinutes": "{{hours}} h {{minutes}} min",
+      "minutes": "{{count}} min"
+    },
+    "gap": "{{duration}} with no record",
+    "afterPrevious": "{{duration}} after the previous event"
   },
   "feedback": {
     "closeReasonRequired": "Provide the reason to close a trip with open invoices.",
