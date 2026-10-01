@@ -5,7 +5,11 @@ import {
   OCCURRENCE_TYPE_FLOWS,
   type OccurrenceType,
 } from './occurrence.constant'
-import { TRIP_FIELD_CHANNELS, TRIP_TIMELINE_KINDS } from './trip.types'
+import {
+  TRIP_FIELD_CHANNELS,
+  TRIP_TIMELINE_KINDS,
+  TRIP_TIMELINE_LOCATION_STATES,
+} from './trip.types'
 import type {
   FieldOccurrenceType,
   RegisteredOccurrence,
@@ -23,6 +27,7 @@ import type {
   TripPendingMeasurement,
   TripTimelineDocumentReference,
   TripTimelineItem,
+  TripTimelineLocation,
   TripTimelineOccurrenceReference,
   TripTimelinePage,
   TripTimelineStopReference,
@@ -95,6 +100,7 @@ import {
   REPORT_FIELD_DELIVERY_RESULT_KEYS,
   TRIP_TIMELINE_ITEM_KEYS,
   TRIP_TIMELINE_ITEM_OPTIONAL_KEYS,
+  TRIP_TIMELINE_LOCATION_KEYS,
   TRIP_TIMELINE_STOP_REFERENCE_KEYS,
   TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS,
   TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS,
@@ -234,6 +240,10 @@ function isDepotDescription(value: unknown): value is DepotDescription {
     isNullableString(value.phone) &&
     isString(value.tradeName)
   )
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
 }
 
 function isNonNegativeFiniteNumber(value: unknown): value is number {
@@ -1427,10 +1437,22 @@ function hasUnknownTimelineKind(value: unknown): boolean {
   return isRecord(value) && isString(value.kind) && !isOneOf(value.kind, TRIP_TIMELINE_KINDS)
 }
 
+/** ADR-0081 §6: a coordenada só existe aqui dentro — nunca como chave solta no item. */
+function isTimelineLocation(value: unknown): value is TripTimelineLocation {
+  return (
+    hasExactKeys(value, TRIP_TIMELINE_LOCATION_KEYS) &&
+    (value.accuracyMeters === null || isNonNegativeFiniteNumber(value.accuracyMeters)) &&
+    isString(value.capturedAt) &&
+    (value.distanceMeters === null || isNonNegativeFiniteNumber(value.distanceMeters)) &&
+    isFiniteNumber(value.latitude) &&
+    isFiniteNumber(value.longitude)
+  )
+}
+
 /**
  * Spec 158 D6/aceite 8: chave desconhecida, `channel`/`kind` fora do vocabulário são recusados —
- * `actorUserId`, `receiverName`, `receiverDocumentMasked`, `latitude`, `longitude`, `objectKey`
- * nunca fazem parte de `TRIP_TIMELINE_ITEM_KEYS`, então uma chave a mais já reprova por si.
+ * `actorUserId`, `receiverName`, `receiverDocumentMasked`, `objectKey` nunca fazem parte das chaves
+ * do item, então uma chave a mais já reprova por si. A coordenada só entra em `location` (ADR-0081 §6).
  */
 function isTimelineItem(value: unknown): value is TripTimelineItem {
   if (
@@ -1443,6 +1465,12 @@ function isTimelineItem(value: unknown): value is TripTimelineItem {
   }
   return (
     (value.lateRegistration === undefined || isBoolean(value.lateRegistration)) &&
+    (value.location === undefined ||
+      value.location === null ||
+      isTimelineLocation(value.location)) &&
+    (value.locationState === undefined ||
+      value.locationState === null ||
+      isOneOf(value.locationState, TRIP_TIMELINE_LOCATION_STATES)) &&
     isNullableString(value.actorName) &&
     (value.channel === null || isOneOf(value.channel, TRIP_FIELD_CHANNELS)) &&
     isNullableString(value.closeReason) &&

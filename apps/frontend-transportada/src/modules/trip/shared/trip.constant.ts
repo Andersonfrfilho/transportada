@@ -493,7 +493,20 @@ export const TRIP_TIMELINE_ITEM_KEYS = [
  * Spec 205 RF8: o registro tardio do motorista, só como dado. Opcional porque a API anterior ao campo
  * não o manda — a chave exata recusaria a página inteira na janela entre as duas subidas.
  */
-export const TRIP_TIMELINE_ITEM_OPTIONAL_KEYS = ['lateRegistration'] as const
+export const TRIP_TIMELINE_ITEM_OPTIONAL_KEYS = [
+  'lateRegistration',
+  'location',
+  'locationState',
+] as const
+
+/** Spec 196 RF9: o ponto onde o toque aconteceu; a precisão é nula quando o aparelho não a informou. */
+export const TRIP_TIMELINE_LOCATION_KEYS = [
+  'accuracyMeters',
+  'capturedAt',
+  'distanceMeters',
+  'latitude',
+  'longitude',
+] as const
 
 export const TRIP_TIMELINE_STOP_REFERENCE_KEYS = ['id', 'sequence'] as const
 export const TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS = ['id', 'number', 'series'] as const

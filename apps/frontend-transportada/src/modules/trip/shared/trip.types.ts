@@ -296,6 +296,19 @@ export const TRIP_TIMELINE_KINDS = [
 ] as const
 export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
 
+/** Spec 196 RF10: por que o item tem ou não ponto — o vocabulário fechado de `locationState`. */
+export const TRIP_TIMELINE_LOCATION_STATES = ['captured', 'unavailable', 'expired'] as const
+export type TripTimelineLocationState = (typeof TRIP_TIMELINE_LOCATION_STATES)[number]
+
+/** ADR-0081 §6: a distância até a parada vem derivada do servidor — nunca calculada aqui. */
+export type TripTimelineLocation = Readonly<{
+  accuracyMeters: null | number
+  capturedAt: string
+  distanceMeters: null | number
+  latitude: number
+  longitude: number
+}>
+
 export type TripTimelineStopReference = Readonly<{ id: string; sequence: number }>
 
 /** `number`/`series` anuláveis, no molde de `TripOccurrenceFeedItem.invoiceNumber/invoiceSeries`. */
@@ -312,7 +325,7 @@ export type TripTimelineOccurrenceReference = Readonly<{
   typeName: string
 }>
 
-/** Spec 158 D6: o formato do item da linha do tempo. Nunca id de usuário, imagem ou coordenada. */
+/** Spec 158 D6: o formato do item da linha do tempo. Nunca id de usuário nem imagem; a coordenada entrou pela ADR-0081 §6 e §6.1. */
 export type TripTimelineItem = Readonly<{
   actorName: null | string
   /** `null` = canal não registrado (D3/D6) — nunca um valor inventado. */
@@ -326,6 +339,9 @@ export type TripTimelineItem = Readonly<{
   kind: TripTimelineKind
   /** Spec 205 RF8: baixa registrada depois ("registrar entrega depois"). Ausente na API anterior. */
   lateRegistration?: boolean
+  /** Spec 196 RF9/RF10: ausente na API anterior. */
+  location?: null | TripTimelineLocation
+  locationState?: null | TripTimelineLocationState
   occurrence: null | TripTimelineOccurrenceReference
   occurredAt: string
   onBehalfOfDriverName: null | string
