@@ -209,7 +209,7 @@ export function AggregateApplicationsTab({
                         </Button>
                       </>
                     ) : null}
-                    {application.duplicateDriverId === null ? null : (
+                    {application.status === 'approved' ? (
                       <Button
                         size="sm"
                         type="button"
@@ -219,7 +219,7 @@ export function AggregateApplicationsTab({
                         <Icon name="eye" />
                         {t('applications.viewDriverButton')}
                       </Button>
-                    )}
+                    ) : null}
                   </td>
                 </tr>
                 <tr>
