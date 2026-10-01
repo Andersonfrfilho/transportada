@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import type { DeliveryProof, DeliveryProofKind } from '../shared/deliveryProof.service'
+import { resolveDeliveryProofFullSizeUrl } from '../shared/deliveryProof.service'
 import { resolveDeliveryProofGalleryNavigation } from '../shared/deliveryProofGallery.service'
 import styles from '../styles/trip.module.css'
 
@@ -138,7 +139,7 @@ export function ProofGalleryDialog({ gallery, initialIndex, onClose }: ProofGall
           )}
           onError={handleSettled}
           onLoad={handleSettled}
-          src={proof.downloadUrl}
+          src={resolveDeliveryProofFullSizeUrl(proof)}
         />
         <div className={styles.proofGalleryControls}>
           {navigation.hasNavigation ? (
