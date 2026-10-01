@@ -1022,3 +1022,47 @@ foram criados com segundos de diferença (`15:55:32` e `15:56:17`): dois interva
 decisão registrada acima, intervalo abaixo de um minuto fica na lista e não vai ao mapa. O único
 intervalo ≥ 1 min é o que aparece. Ver os três exigiria espalhar os horários no Postgres local, o que
 não foi feito — o dado de preview é compartilhado entre sessões.
+
+## A autoria repetida voltou, e agora tem contrato
+
+O `gate / integration-smoke` reprovou e levou os seis `deploy-*` junto. A falha é antiga: o run
+anterior de staging (commit `fcee74ba`) já morria na mesma linha, antes destes commits.
+
+```
+Locator: getByRole('region', {name:'Linha do tempo'})
+         .getByText('por Marina Alves (escritório) pelo motorista João Pereira', {exact:true})
+Expected: 1
+Received: 4
+```
+
+A regra da spec 180 — a autoria só aparece quando **muda** — vivia dentro do JSX, numa prop
+`repeatsAuthorship` calculada no `map`. O redesenho do item (`0e1d1d67a`) reescreveu aquele trecho e
+a prop não foi junto. Nada no contrato cobrava a regra: o único a vê-la era o smoke, que roda na CI,
+oito dias depois.
+
+A regra virou função pura, `collectRepeatedAuthorshipItemIds`, com quatro casos em
+`test/trip/timeline-view.contract.ts`: a sequência do mesmo autor guarda só o primeiro, o autor que
+muda reaparece, o mesmo ator por outro canal não é repetição (compara-se a frase, não o nome) e
+lista vazia não quebra. Fora do JSX, um refator que a derrube reprova em segundos, não na CI.
+
+⚠️ **O smoke precisa de porta própria neste worktree.** `reuseExistingServer` é `true` fora da CI, e
+a 53000 é do outro checkout: a primeira execução testou a app errada e reprovou cinco de cinco em
+`getByRole('region')`. Com servidor dedicado, cinco de cinco passam:
+
+```bash
+PLAYWRIGHT_FRONTEND_PORT=53110 PLAYWRIGHT_REUSE_EXISTING_FRONTEND_SERVER=false \
+  PLAYWRIGHT_TEST_MATCH=trip-timeline.smoke.spec.ts bun run smoke
+```
+
+**Os 375 px deixaram de ser lacuna.** Os prints `mobile light` e `mobile dark` do smoke rodam em
+375 × 812 no Playwright — o teto de ~500 px é do Chrome no macOS, não do projeto. Os quatro
+`t10-timeline-*.png` da spec 158 foram regerados já sem a autoria repetida.
+
+| Portão              | Saída |
+| ------------------- | ----- |
+| `format:check`      | 0     |
+| `lint`              | 0     |
+| `typecheck`         | 0     |
+| `test` (17.374)     | 0     |
+| `build`             | 0     |
+| smoke da linha      | 5/5   |

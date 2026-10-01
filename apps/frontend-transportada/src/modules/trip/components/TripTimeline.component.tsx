@@ -18,6 +18,7 @@ import {
   resolveTimelineLocationView,
 } from '../shared/tripTimelineDetail.service'
 import {
+  collectRepeatedAuthorshipItemIds,
   collectTripTimelineDocuments,
   filterTripTimelineItemsByDocumentIds,
   formatTripTimelineDocumentFilterLabel,
@@ -178,6 +179,10 @@ export function TripTimeline({ openDocumentId, query, stops }: TripTimelineProps
     () => new Map(items.map((item, index) => [item.id, items[index + 1]])),
     [items],
   )
+  const repeatedAuthorshipItemIds = useMemo(
+    () => collectRepeatedAuthorshipItemIds(items, translate),
+    [items, translate],
+  )
 
   function handleDocumentToggle(documentId: string, checked: boolean) {
     setSelectedDocumentIds((current) => {
@@ -288,6 +293,7 @@ export function TripTimeline({ openDocumentId, query, stops }: TripTimelineProps
                             : interval.minutes
                         }
                         item={item}
+                        repeatsAuthorship={repeatedAuthorshipItemIds.has(item.id)}
                         stops={stops}
                       />
                       {hasGapRuler ? (
@@ -326,10 +332,12 @@ export function TripTimeline({ openDocumentId, query, stops }: TripTimelineProps
 function TripTimelineEntry({
   elapsedMinutes,
   item,
+  repeatsAuthorship,
   stops,
 }: Readonly<{
   elapsedMinutes: null | number
   item: TripTimelineItem
+  repeatsAuthorship: boolean
   stops: readonly TripStopDetail[] | undefined
 }>) {
   const { t } = useTranslation('trip')
@@ -352,7 +360,8 @@ function TripTimelineEntry({
       />
     )
   const title = resolveTripTimelineTitle(item, translate)
-  const authorship = resolveTripTimelineAuthorshipText(item, translate)
+  /** Autoria igual à do evento anterior cala: o leitor já sabe de quem é (spec 180). */
+  const authorship = repeatsAuthorship ? null : resolveTripTimelineAuthorshipText(item, translate)
   const { icon, tone } = resolveTripTimelineIcon(item)
   const chips = resolveTripTimelineChips(item, translate)
   const occurrenceNote =
