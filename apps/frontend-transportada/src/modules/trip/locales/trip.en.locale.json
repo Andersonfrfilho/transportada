@@ -449,7 +449,7 @@
     "helpersSummary_other": "{{count}} helpers chosen",
     "subtitle": "The change replaces the whole crew and vehicle — it never adds to what is there.",
     "submit": "Confirm change",
-    "title": "Change driver and vehicle",
+    "title": "Change crew and vehicle",
     "vehicle": "Vehicle",
     "vehiclePlaceholder": "Select the vehicle",
     "vehicleSearch": "Search by plate, brand or model"
