@@ -357,7 +357,7 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
       ⚠️ A T5.6 registrou dois limites deste ambiente: a janela não redimensiona e o MinIO local
       devolve 503 na imagem do comprovante. Se reaparecerem, registrar como a T5.6 registrou, em vez
       de marcar verde
-- [ ] T7.20 `make check` + commit. Na API os **dois** comandos, porque a T7.4 toca a leitura:
+- [x] T7.20 `make check` + commit. Na API os **dois** comandos, porque a T7.4 toca a leitura:
       `bun --env-file=../../.env.test test --timeout 120000` e
       `bun --env-file=../../.env.test run test:integration`. ⚠️ O veredito do `make check` em segundo
       plano está na linha `MAKE_CHECK_EXIT=`, não na notificação do harness (T6.12)

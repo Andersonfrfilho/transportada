@@ -2869,3 +2869,129 @@ Qualquer veredito de smoke local tirado sem porta dedicada não vale. É a face 
 **O dublê é compartilhado, então o conjunto da CI rodou junto:** `62 passed` (`responsive`,
 `field-delivery`, `field-delivery-cargo`, `trip-timeline`), na mesma porta dedicada. O modo
 `delivered-proof` é aditivo e não move nenhum modo existente.
+
+### T7.20 — os portões da Fase 7
+
+```
+$ make check                                          → MAKE_CHECK_EXIT=0
+    └ api contrato    8441 pass · 32 skip · 0 fail · 8473 testes · 192 arquivos [18.61s]
+    └ worker, cron, frontend, frontend-client, frontend-driver: 0 fail em todas
+$ bun --env-file=../../.env.test test --timeout 120000          (contrato da API)
+ 8450 pass · 23 skip · 0 fail · 27232 expect() · 192 arquivos [39.76s]   → EXIT=0
+$ bun --env-file=../../.env.test run test:integration --timeout 120000   (3ª passada)
+ 779 pass · 7 skip · 0 fail · 4316 expect() · 143 arquivos [982.57s]     → EXIT=0
+```
+
+Os 9 testes que o `make check` conta como `skip` e o comando com `--env-file` conta como `pass`
+são os `testWithPostgres` dos contratos: sem `DATABASE_URL` o fixture vira `test.skip`. É por isso
+que a task manda rodar os dois — o veredito do `make check` sozinho não prova o que toca banco.
+
+### O portão reprovou duas vezes antes de fechar, e não por regressão
+
+| passada | teto          | resultado                                                                                                                   | duração   |
+| ------- | ------------- | --------------------------------------------------------------------------------------------------------------------------- | --------- |
+| 1ª      | 60 s (padrão) | 1 fail — `canhoto-ocr-flag` › "desligar de novo some da leitura do escritório" [60001,09 ms]                                | 1110,89 s |
+| 2ª      | 120 s         | 1 fail — `trip-occurrence-item-quantity` › "unidade comercial da nota (fora de unit/box) persiste como veio" [120001,93 ms] | 1135,09 s |
+| 3ª      | 120 s         | **779 pass · 0 fail**                                                                                                       | 982,57 s  |
+
+Três coisas dizem que é relógio, não código:
+
+1. **Arquivo diferente a cada passada**, e nenhum dos dois é tocado pela spec 220.
+2. **Cada um estourou exatamente no teto** — 60001 ms contra 60 s, 120001 ms contra 120 s. Não é um
+   teste que ficou 15 % mais lento; é um teste que trava. Sozinhos eles fecham em 11,14 s
+   (`canhoto-ocr-flag`, 7 pass) e 8,59 s (`trip-occurrence-item-quantity`, 5 pass).
+3. **A passada verde foi a mais rápida das três** (982 s contra 1110 s e 1135 s). Se fosse carga
+   nova entrando com a spec, a corrida boa seria a mais lenta, não a mais curta.
+
+Subir o teto de 60 s para 120 s **não resolveu** — só moveu o estouro de arquivo. O teto é remendo;
+a causa está na seção seguinte.
+
+### O custo da suíte de integração, medido
+
+`withDisposableDatabase` (`test/fixtures/trip-field-office-database.fixture.ts:516`) cria um banco,
+roda a migration inteira nele e derruba com `drop database ... with (force)`. Ela é chamada
+**570 vezes em 143 arquivos** — ~0,73 banco por teste. 570 × ~1,55 s = 882 s, e a corrida inteira
+mede 982 s. **A suíte de integração é, em custo, 570 `CREATE DATABASE`.**
+
+A primeira suspeita era a migration, e ela está errada. Medido contra o Postgres do projeto:
+
+```
+criar banco + rodar a migration inteira : 1,547s
+migrar um template uma única vez        : 2,743s
+clonar daquele template                 : 1,404s   → ganho de 1,1x
+```
+
+Clonar de template não resolve porque **a migration não é o caro**: ela responde por ~0,15 s dos
+1,55 s. O resto é o `CREATE DATABASE` do próprio Postgres, que copia o diretório do template e
+sincroniza em disco. O container de teste roda com durabilidade total:
+
+```
+fsync=on · full_page_writes=on · synchronous_commit=on
+```
+
+Medido num container descartável da **mesma imagem**, três `create database` seguidos:
+
+| durabilidade                                            | 1º     | 2º     | 3º     |
+| ------------------------------------------------------- | ------ | ------ | ------ |
+| `fsync=on` (hoje)                                       | 660 ms | 381 ms | 367 ms |
+| `fsync=off full_page_writes=off synchronous_commit=off` | 94 ms  | 111 ms | 96 ms  |
+
+**3,8× no passo que domina a suíte**, com três flags num banco que é descartado ao fim do job. O
+`drop ... with (force)` paga o mesmo pedágio. A redução estrutural de verdade é outra — um banco por
+arquivo com `truncate` entre os testes levaria 570 a 143 — mas essa mexe no fixture de 100 arquivos.
+
+**O que a spec 220 acrescentou:** `delivery-proof-canhoto-review` (8 bancos, **13,8 s**, 11º bloco
+mais caro de 342) e `delivery-proof-thumbnail` (5 bancos). 13 bancos dos 570, **2,3 %** do custo —
+não é a causa do estouro, e os arquivos caros são de outras specs:
+
+```
+ 29,9s  trip-timeline (158)        20,2s  depart/cancel-departure (206)   13,9s  caixa irmãs (155)
+ 26,6s  field-delivery (156)       19,8s  freeze planned route            13,8s  canhoto (220)
+ 26,0s  deixa para trás (185)      14,6s  última nota despacha (185)      13,2s  nota do motorista (159)
+ 24,7s  viagem no bolso (057)      14,1s  troca de motorista/veículo      12,7s  freight region
+```
+
+### A pipeline: quatro shards medidos, e o que cada um custa
+
+O `ci.yml:103` já guarda o precedente desta sessão. Em 2026-09-27, com as quatro frentes num job
+só, **a integração da API sozinha levava 22-23 min com 717 testes em 135 arquivos** e bateu no teto
+de 30 min quatro rodadas seguidas, sem nenhum passo travado — o maior buraco entre linhas de log
+era de 4,5 s. O remédio foi `shard: [1,2,3,4]` com `fail-fast: false` e teto de 15 min.
+
+Três dias depois a suíte é **786 testes em 143 arquivos**: +69 testes, +8 arquivos. A margem do
+shard está sendo consumida de volta.
+
+Rodei os quatro shards localmente, um de cada vez, com `--timeout 120000`. Todos verdes:
+
+| shard | arquivos | testes | parede       |
+| ----- | -------- | ------ | ------------ |
+| 1/4   | 36       | 291    | **258,29 s** |
+| 2/4   | 36       | 195    | **263,47 s** |
+| 3/4   | 36       | 133    | **210,30 s** |
+| 4/4   | 35       | 167    | **275,65 s** |
+
+Soma 1008 s; parede 276 s. **Desequilíbrio real de 1,31×** (275,65 / 210,30) — modesto, e menor do
+que eu havia afirmado antes de medir. Duas coisas que a medição corrigiu:
+
+- **`bun test --shard` reparte por arquivo, não por tempo**, e **não em blocos contíguos**. Os dois
+  arquivos da 220 são vizinhos na lista (113 e 114 de 143) e caíram em shards **diferentes** (4 e 2).
+  Qualquer raciocínio de "este bloco ficou pesado" feito sobre a ordem do `package.json` é inválido.
+- **O relatório junit do bun nomeia cada `<testsuite>` pelo `describe`, não pelo arquivo.** 143
+  arquivos viraram 342 suites. Análise de custo por arquivo construída em cima do `name` do junit
+  não mede o que diz medir — a tabela de blocos acima é por `describe`, e é essa a leitura honesta.
+
+**O que não encolhe com mais shard.** Cada shard paga, antes do primeiro teste, o mesmo preparo:
+checkout, setup-bun, `bun install --frozen-lockfile`, `make up SERVICES="postgres rabbitmq keycloak
+mailpit"` e `make migrate`. Esse custo é **pago quatro vezes** e é constante. Dobrar para 8 shards
+corta ~138 s de teste e acrescenta quatro preparos inteiros; é por isso que a alavanca do `fsync`
+vale mais: ela barateia os 570 `CREATE DATABASE` em **todos** os shards de uma vez, sem job novo.
+
+**Ordem de aplicação, da mais barata para a mais cara:**
+
+1. `fsync=off full_page_writes=off synchronous_commit=off` no Postgres de teste do CI (config, 3,8×
+   no passo dominante, zero risco — o banco é destruído no `make down`).
+2. Repartir por tempo em vez de por arquivo, se e quando 1,31× passar a doer.
+3. Um banco por arquivo com `truncate` entre testes (570 → 143) — refatoração do fixture, 100
+   arquivos tocados, só se 1 e 2 não bastarem.
+
+Nenhuma delas é pré-requisito da 220: a spec entra com 2,3 % do custo e sai com o portão verde.
