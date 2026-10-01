@@ -501,13 +501,14 @@ function ApplicationShell(): ReactNode {
 
   /**
    * Spec 057, RF-6: quem só tem o par do campo não pode cair na tela de NF-e. A troca acontece
-   * depois de `auth/me` responder — antes disso não há permissão para consultar — e **só** quando a
-   * pessoa não escolheu tela nenhuma: navegar para outro lugar continua sendo decisão dela.
+   * depois de `auth/me` responder — antes disso não há permissão para consultar. Spec 221, RF-E1:
+   * vale para qualquer caminho de entrada, não só a raiz; a conta de campo não abre o painel.
    */
   const permissions = authMeQuery.data?.data.permissions
   useEffect(() => {
     if (permissions === undefined || !isFieldOnlyUser(permissions)) return
-    if (window.location.pathname !== '/') return
+    const entryPath = window.location.pathname
+    if (entryPath === DRIVER_TRIP_PATH) return
 
     function enterDriverTrip(): void {
       window.history.replaceState({}, '', DRIVER_TRIP_PATH)
@@ -516,6 +517,7 @@ function ApplicationShell(): ReactNode {
     }
 
     const driverAppUrl = readDriverAppUrl()
+    // Sem o interruptor é o `legacy-home` de `resolveDriverAppRedirect`, sem abrir o IndexedDB.
     if (driverAppUrl === undefined) {
       enterDriverTrip()
       return
@@ -530,7 +532,7 @@ function ApplicationShell(): ReactNode {
     let cancelled = false
 
     /**
-     * ADR-0075 §6: com o interruptor ligado, a raiz de quem é do campo leva à casa nova. A tela de
+     * ADR-0075 §6: com o interruptor ligado, o caminho aberto por quem é do campo leva à casa nova. A tela de
      * pendências e a de instalar nascem no boot de `/minha-viagem`, fora do shell — é para lá que
      * a navegação de página inteira leva.
      *
@@ -543,7 +545,7 @@ function ApplicationShell(): ReactNode {
       import('@/modules/driver-trip/shared/driverAppRedirect.service'),
     ]).then(([{ readDriverAppMode }, { isDriverAppUrlOwnOrigin }]) =>
       readDriverAppMode({ driverAppUrl, isFieldOnlyUser: true }).then((mode) => {
-        if (cancelled || window.location.pathname !== '/') return
+        if (cancelled || window.location.pathname !== entryPath) return
 
         /**
          * Revisão M1: a origem própria em `redirect` viraria um `location.replace` para a página
@@ -554,7 +556,7 @@ function ApplicationShell(): ReactNode {
           !isDriverAppUrlOwnOrigin({ driverAppUrl, origin: window.location.origin })
         ) {
           window.location.replace(driverAppUrl)
-        } else if (mode === 'stay' || mode === 'redirect') {
+        } else if (mode === 'stay' || mode === 'redirect' || mode === 'legacy-home') {
           enterDriverTrip()
         } else {
           window.location.replace(DRIVER_TRIP_PATH)
@@ -930,7 +932,7 @@ async function takeOverDriverEntry(
       import('@/modules/driver-trip/shared/driverAppRedirect.service'),
     ])
 
-  // Ainda sem `auth/me`: em `/minha-viagem` é o caminho que diz de quem é a tela.
+  // Ainda sem `auth/me`: em `/minha-viagem` é o caminho que diz de quem é a tela, então `false` é neutro.
   const mode = await readDriverAppMode({ driverAppUrl, isFieldOnlyUser: false })
   switch (mode) {
     case 'redirect':
@@ -956,6 +958,7 @@ async function takeOverDriverEntry(
         <DriverLegacyPendingPage onGoToDriverApp={() => window.location.reload()} />,
       )
       return true
+    case 'legacy-home':
     case 'stay':
       return false
   }
