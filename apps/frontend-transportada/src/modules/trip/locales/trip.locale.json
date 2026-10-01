@@ -790,7 +790,10 @@
         "unavailable": "Posição indisponível"
       },
       "accuracy": "Precisão ± {{meters}} m",
-      "distance": "a {{meters}} m do ponto",
+      "distance": {
+        "kilometers": "a {{distance}} km do ponto",
+        "meters": "a {{distance}} m do ponto"
+      },
       "coordinates": "Latitude {{latitude}}, longitude {{longitude}}",
       "capturedAt": "Lida em {{moment}}",
       "restricted": "O ponto foi registrado, mas este acesso não mostra a coordenada.",

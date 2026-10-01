@@ -512,6 +512,16 @@ export const TRIP_TIMELINE_LOCATION_KEYS = [
 export const TRIP_TIMELINE_LOCATION_COORDINATE_DIGITS = 5
 export const TRIP_TIMELINE_LOCATION_LINE_SEPARATOR = ' · '
 /**
+ * Spec 196: a distância do toque até o ponto da parada saía em metro cru, e `a 208255 m do ponto`
+ * não é um número que alguém leia. Abaixo de um quilômetro o metro é a unidade da quadra; entre um
+ * e dez, a casa decimal ainda separa 1,2 de 1,9; acima disso ela é ruído sobre uma leitura de GPS.
+ */
+export const TRIP_TIMELINE_METERS_PER_KILOMETER = 1000
+export const TRIP_TIMELINE_DISTANCE_KILOMETER_THRESHOLD_METERS = 1000
+export const TRIP_TIMELINE_DISTANCE_COARSE_KILOMETER_THRESHOLD_METERS = 10000
+export const TRIP_TIMELINE_DISTANCE_PRECISE_FRACTION_DIGITS = 1
+export const TRIP_TIMELINE_DISTANCE_COARSE_FRACTION_DIGITS = 0
+/**
  * Chave de cor do pino do evento, **lida só dentro do `TripTimelineLocationMap`** — o mapa
  * compartilhado não interpreta mais número fora de faixa, ele recebe `isUnnumbered`. A cor em si é
  * `EVENT_PIN_COLOR`, em `stopColor.service.ts`, onde a janela de luminância é medida.

@@ -3,10 +3,38 @@ import type { IconName } from '@/components/ui/icon'
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
 import {
+  TRIP_TIMELINE_DISTANCE_COARSE_FRACTION_DIGITS,
+  TRIP_TIMELINE_DISTANCE_COARSE_KILOMETER_THRESHOLD_METERS,
+  TRIP_TIMELINE_DISTANCE_KILOMETER_THRESHOLD_METERS,
+  TRIP_TIMELINE_DISTANCE_PRECISE_FRACTION_DIGITS,
   TRIP_TIMELINE_LOCATION_COORDINATE_DIGITS,
   TRIP_TIMELINE_LOCATION_LINE_SEPARATOR,
+  TRIP_TIMELINE_METERS_PER_KILOMETER,
 } from './trip.constant'
 import type { TripTimelineItem } from './trip.types'
+
+export type TripTimelineDistanceLabel = Readonly<{
+  unit: 'kilometers' | 'meters'
+  value: string
+}>
+
+/**
+ * Spec 196: escolhe a unidade antes de escolher a frase. A unidade muda a frase inteira — por isso
+ * devolve a chave do locale junto com o número, e não um texto pronto: "a 208 km do ponto" e
+ * "a 850 m do ponto" são duas sentenças, não a mesma com o número trocado.
+ */
+export function formatTripTimelineDistance(meters: number): TripTimelineDistanceLabel {
+  if (meters < TRIP_TIMELINE_DISTANCE_KILOMETER_THRESHOLD_METERS) {
+    return { unit: 'meters', value: String(Math.round(meters)) }
+  }
+
+  const fractionDigits =
+    meters < TRIP_TIMELINE_DISTANCE_COARSE_KILOMETER_THRESHOLD_METERS
+      ? TRIP_TIMELINE_DISTANCE_PRECISE_FRACTION_DIGITS
+      : TRIP_TIMELINE_DISTANCE_COARSE_FRACTION_DIGITS
+  const kilometers = meters / TRIP_TIMELINE_METERS_PER_KILOMETER
+  return { unit: 'kilometers', value: kilometers.toFixed(fractionDigits) }
+}
 
 export type TripTimelineLocationView = Readonly<{
   canViewMap: boolean
@@ -104,8 +132,9 @@ export function resolveTimelineLocationView(
     )
   }
   if (location.distanceMeters !== null) {
+    const distance = formatTripTimelineDistance(location.distanceMeters)
     lines.push(
-      translate('eventTimeline.location.distance', { meters: Math.round(location.distanceMeters) }),
+      translate(`eventTimeline.location.distance.${distance.unit}`, { distance: distance.value }),
     )
   }
   lines.push(
