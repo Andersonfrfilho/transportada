@@ -191,6 +191,7 @@
       "pending_other": "Faltam {{count}} fotos da mercadoria."
     },
     "upload": {
+      "confirmed": "Comprovante já enviado",
       "empty": "Ainda sem foto",
       "loading": {
         "photo": "Carregando a foto do canhoto",

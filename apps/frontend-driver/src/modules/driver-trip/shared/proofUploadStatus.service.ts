@@ -72,3 +72,19 @@ export function resolveProofUploadStatus(input: {
   if (observation.isQueued) return 'uploading'
   return tracker.sentAt === undefined ? 'uploading' : 'sent'
 }
+
+/**
+ * O snapshot só diz "a foto chegou" para a foto obrigatória (`proofPending` desliga ao chegar);
+ * para foto opcional e assinatura ele é mudo, então nada se infere deles.
+ */
+export function isProofConfirmedByServer(input: {
+  readonly hasLocalAttachment: boolean
+  readonly isDelivered: boolean
+  readonly isRequired: boolean
+  readonly kind: 'photo' | 'signature'
+  readonly proofPending: boolean
+}): boolean {
+  if (input.kind !== 'photo') return false
+  if (input.hasLocalAttachment) return false
+  return input.isDelivered && input.isRequired && !input.proofPending
+}

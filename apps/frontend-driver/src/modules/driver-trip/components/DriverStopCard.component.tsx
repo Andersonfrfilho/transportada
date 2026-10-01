@@ -34,7 +34,10 @@ import {
   type TappedStopReport,
 } from '../shared/documentActivity.service'
 import { PROOF_FRAME_SIZE } from '../shared/proofUpload.constant'
-import { resolveProofUploadObservation } from '../shared/proofUploadStatus.service'
+import {
+  isProofConfirmedByServer,
+  resolveProofUploadObservation,
+} from '../shared/proofUploadStatus.service'
 import { formatDocumentAmount, formatDocumentWeight } from '../shared/driverDocumentFormat.service'
 import { formatStopDistance } from '../shared/driverStopDistance.service'
 import {
@@ -773,6 +776,7 @@ function DocumentRow({
             queueView={queueView}
             recipientDisplayName={document.recipientDisplayName}
             recipientIsCompany={document.recipientIsCompany}
+            serverProof={{ isDelivered: true, proofPending: document.proofPending }}
           />
         ) : null}
       </li>
@@ -1081,6 +1085,8 @@ export type DeliveryProofSectionProps = Readonly<{
   recipientDisplayName?: string
   /** Spec 193 D14: PJ seleciona o nome preenchido (foco + seleção); PF só o deixa no campo. */
   recipientIsCompany?: boolean
+  /** O que o snapshot sabe da foto: `proofPending` só fala da obrigatória. Ausente = gate de antes. */
+  serverProof?: Readonly<{ isDelivered: boolean; proofPending: boolean }>
 }>
 
 /**
@@ -1183,6 +1189,7 @@ function ProofCaptureFields({
   recipientDisplayName,
   recipientIsCompany,
   renderFooter,
+  serverProof,
   summary,
 }: ProofCaptureFieldsProps) {
   const { t } = useTranslation('driverTrip')
@@ -1238,6 +1245,13 @@ function ProofCaptureFields({
   const photoUpload = useProofUploadStatus({
     isAttached: attached.photo,
     ...resolveProofUploadObservation({ documentId, kind: 'photo', queueView }),
+  })
+  const isPhotoConfirmedByServer = isProofConfirmedByServer({
+    hasLocalAttachment: attached.photo,
+    isDelivered: serverProof?.isDelivered ?? false,
+    isRequired: plan.fields.photo === 'required',
+    kind: 'photo',
+    proofPending: serverProof?.proofPending ?? true,
   })
   const nameInputRef = useRef<HTMLInputElement>(null)
   /** Spec 193 D14: PJ recebe o nome selecionado, com foco — o motorista digita por cima. */
@@ -1443,7 +1457,19 @@ function ProofCaptureFields({
     )
   }
 
-  /** O anexo existe e a miniatura ainda não: a moldura carrega, e o leitor de tela ouve por quê. */
+  /** O servidor já tem a foto, o aparelho não: sem hora (o snapshot não manda) e sem convite à primeira captura. */
+  function renderConfirmedFrame(): ReactNode {
+    return (
+      <div className={styles.proofCaptureAttached}>
+        <div className={styles.proofConfirmedFrame}>
+          <Icon name="check" />
+          <span>{t('proofCapture.upload.confirmed')}</span>
+        </div>
+      </div>
+    )
+  }
+
+  /** O anexo existe: a moldura carrega, e o leitor de tela ouve por quê. */
   function renderLoadingFrame(kind: 'photo' | 'signature'): ReactNode {
     return (
       <SkeletonGroup
@@ -1461,6 +1487,7 @@ function ProofCaptureFields({
    */
   function renderAttachedThumbnail(kind: 'photo' | 'signature'): ReactNode {
     const preview = previewByKind[kind]
+    if (kind === 'photo' && isPhotoConfirmedByServer) return renderConfirmedFrame()
     if (!attached[kind]) return kind === 'photo' && rendersPhotoCapture ? renderEmptyFrame() : null
     if (preview.previewUrl === undefined) return renderLoadingFrame(kind)
     return (
@@ -1529,8 +1556,12 @@ function ProofCaptureFields({
                       onSelect={setCropFile}
                     >
                       <Icon name="camera" />
-                      {attached.photo ? retakeLabel : t('choosePhoto')}
-                      {plan.fields.photo === 'required' && !attached.photo ? ' *' : ''}
+                      {attached.photo || isPhotoConfirmedByServer ? retakeLabel : t('choosePhoto')}
+                      {plan.fields.photo === 'required' &&
+                      !attached.photo &&
+                      !isPhotoConfirmedByServer
+                        ? ' *'
+                        : ''}
                     </FilePickerButton>
                     <FilePickerButton
                       accept="image/*"

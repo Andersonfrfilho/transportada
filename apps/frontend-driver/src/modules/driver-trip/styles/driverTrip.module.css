@@ -1469,6 +1469,18 @@
   width: var(--space-16);
 }
 
+.proofConfirmedFrame {
+  align-content: center;
+  border: 1px solid var(--color-ready);
+  color: var(--color-ready);
+  display: grid;
+  gap: var(--space-1);
+  height: var(--space-16);
+  justify-items: center;
+  text-align: center;
+  width: var(--space-16);
+}
+
 .proofUploadChip {
   align-items: center;
   border: 1px solid var(--color-ready);
