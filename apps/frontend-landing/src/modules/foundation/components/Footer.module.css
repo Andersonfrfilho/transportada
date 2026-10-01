@@ -116,8 +116,22 @@
 .poweredByMark {
   width: 1rem;
   height: 1rem;
-  border-radius: 0.2rem;
+  /* Marca com fundo transparente e proporção própria: esticar deformaria a pirâmide. */
+  object-fit: contain;
   opacity: 0.85;
+}
+
+/* `a { color: inherit }` deixaria o único link desta linha indistinguível do texto ao lado. */
+.poweredBy a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-slate) 55%, transparent);
+  text-underline-offset: 0.15em;
+}
+
+.poweredBy a:hover {
+  color: var(--color-accent);
+  text-decoration-color: currentcolor;
 }
 
 @media (min-width: 56rem) {

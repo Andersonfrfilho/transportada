@@ -20,6 +20,10 @@ const NAV_LINKS = [
   { href: '#contato', label: 'Contato' },
 ] as const
 
+const ADA_WEBSITE_URL = 'https://adatechnology.com.br'
+/** Mesma marca que assina o painel, para o produto não se apresentar com dois desenhos. */
+const ADA_MARK_SOURCE = '/icons/ada-technology.png'
+
 const LEGAL_LINKS = [
   { label: 'Política de Privacidade', path: LEGAL_DOCUMENT_PATHS.privacyPolicy },
   { label: 'Termos de Serviço', path: LEGAL_DOCUMENT_PATHS.termsOfService },
@@ -164,8 +168,11 @@ export function Footer({
             © {year} {brandName}. Todos os direitos reservados.
           </p>
           <p className={styles.poweredBy}>
-            <img alt="" className={styles.poweredByMark} src="/icons/icon.svg" />
-            Plataforma TransportAdA
+            <img alt="" aria-hidden="true" className={styles.poweredByMark} src={ADA_MARK_SOURCE} />
+            Plataforma TransportAdA — uma solução{' '}
+            <a href={ADA_WEBSITE_URL} target="_blank" rel="noreferrer">
+              Ada Technology
+            </a>
           </p>
         </div>
       </div>
