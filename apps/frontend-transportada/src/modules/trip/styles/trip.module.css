@@ -2129,7 +2129,12 @@ button.occurrenceCaseBadge {
   height: var(--space-6);
   border-radius: 50%;
   border: 2px solid transparent;
-  color: var(--color-ink-on-accent);
+  /*
+   * A tinta vem de `resolvePinInk`, junto com o preenchimento, e não daqui: ela é escolhida pela cor
+   * do pino, não pelo tema. O preenchimento é literal — o MapLibre pinta em WebGL e não resolve
+   * `var()` —, então quem senta em cima também não pode mudar com o tema. `--color-ink-on-accent`
+   * estava aqui e trocava: no escuro o glifo caía para 2,65, abaixo do piso de objeto gráfico.
+   */
   font-size: var(--font-size-xs, 0.75rem);
   font-weight: 600;
   /*

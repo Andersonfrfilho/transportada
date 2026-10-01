@@ -30,6 +30,7 @@ import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment
 import { buildTollBadgeId, resolveMapBadgeRequest } from '@/modules/shared/mapBadge.service'
 import { drawRequestedMapBadge } from '@/modules/shared/mapBadgeImage.service'
 
+import { resolvePinInk } from '../shared/stopColor.service'
 import { resolveAssemblyMapBounds } from '../shared/assemblyMapBounds.service'
 import { resolveMarkerOffsets, type AssemblyMapPoint } from '../shared/assemblyMap.service'
 import type { RouteGeometry } from '../shared/routeGeometry.service'
@@ -700,6 +701,7 @@ function depotElement(input: {
    * cobra e o que sobrevive ao mapa impresso e ao daltonismo.
    */
   element.style.background = input.color
+  element.style.color = resolvePinInk(input.color)
   element.style.borderColor = input.outline
   /** `title` nativo é proibido pelo design system, e o texto dele estava cravado em português. */
   element.setAttribute('role', 'img')
@@ -739,7 +741,12 @@ function stopElement(input: {
   element.className = input.approximate
     ? `${styles.tilePin ?? ''} ${styles.tilePinApproximate ?? ''}`
     : (styles.tilePin ?? '')
+  /**
+   * ⚠️ A tinta sai **da cor do pino**, e por isso vem colada no preenchimento: as duas são uma
+   * decisão só. Separá-las é como o glifo foi parar em 2,65 de contraste no tema escuro.
+   */
   element.style.background = input.color
+  element.style.color = resolvePinInk(input.color)
   element.style.borderColor = input.outline
   if (input.glyph !== undefined) {
     element.append(buildGlyphElement(ICON_PATHS[input.glyph]))
