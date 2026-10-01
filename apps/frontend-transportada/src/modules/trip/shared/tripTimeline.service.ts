@@ -100,9 +100,20 @@ function resolveStopOccurrenceLabel(typeName: string, t: Translate): string {
 }
 
 /**
+ * Situação ausente é "não informada"; situação que o bundle não conhece é o próprio código.
+ *
+ * ⚠️ As duas eram a mesma frase, e a segunda escondia um dado que a API mandou — mesmo defeito do
+ * `ocorrência: dock_closed`. Código feio na tela é melhor que fato invisível.
+ */
+function resolveStatusLabel(status: null | string, t: Translate): string {
+  return status ?? t('eventTimeline.itemTitle.unknownStatus')
+}
+
+/**
  * Spec 158 D6/T8/T10: o título do item pelo `kind` e, nas mudanças de situação, pela transição — no
  * vocabulário do escritório ("Rota iniciada", "Nota 456/1 separada"), não "Situação alterada para
- * <rótulo de status>". Situação que o bundle não conhece cai no título genérico, nunca no código cru.
+ * <rótulo de status>". Situação ausente cai no título genérico; situação que o bundle não conhece
+ * mostra o próprio código (emenda da spec 196), para o fato não sumir da tela.
  */
 export function resolveTripTimelineTitle(item: TripTimelineItem, t: Translate): string {
   switch (item.kind) {
@@ -114,7 +125,7 @@ export function resolveTripTimelineTitle(item: TripTimelineItem, t: Translate): 
       return item.toStatus !== null && KNOWN_TRIP_STATUSES.has(item.toStatus)
         ? t(`eventTimeline.itemTitle.tripStatus.${item.toStatus}`)
         : t('eventTimeline.itemTitle.statusChanged', {
-            status: t('eventTimeline.itemTitle.unknownStatus'),
+            status: resolveStatusLabel(item.toStatus, t),
           })
     case 'stop.arrived':
       return item.stop === null
@@ -158,7 +169,7 @@ export function resolveTripTimelineTitle(item: TripTimelineItem, t: Translate): 
           })
         : t('eventTimeline.itemTitle.documentStatusChanged', {
             document: formatTripTimelineDocumentLabel(item.document, t),
-            status: t('eventTimeline.itemTitle.unknownStatus'),
+            status: resolveStatusLabel(item.toStatus, t),
           })
   }
 }

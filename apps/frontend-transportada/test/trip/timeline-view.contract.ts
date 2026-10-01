@@ -198,10 +198,22 @@ describe('título do item por kind (spec 158 T8)', () => {
     )
   })
 
-  it('trip.status_changed desconhecido cai no título genérico — nunca o código cru', () => {
-    const item: TripTimelineItem = { ...BASE_ITEM, kind: 'trip.status_changed', toStatus: 'x' }
+  /**
+   * Emenda da spec 196 à spec 158: o título genérico continua, mas só quando **não há** situação.
+   * Situação ausente e situação que o bundle não conhece eram a mesma frase, e a segunda escondia
+   * um dado que a API mandou — o mesmo defeito do `ocorrência: dock_closed`, pelo avesso.
+   */
+  it('trip.status_changed sem situação cai no título genérico', () => {
+    const item: TripTimelineItem = { ...BASE_ITEM, kind: 'trip.status_changed', toStatus: null }
     expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe(
       'eventTimeline.itemTitle.statusChanged(status=eventTimeline.itemTitle.unknownStatus)',
+    )
+  })
+
+  it('trip.status_changed desconhecido mostra o próprio código, sem sumir', () => {
+    const item: TripTimelineItem = { ...BASE_ITEM, kind: 'trip.status_changed', toStatus: 'x' }
+    expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe(
+      'eventTimeline.itemTitle.statusChanged(status=x)',
     )
   })
 
@@ -296,10 +308,17 @@ describe('título do item por kind (spec 158 T8)', () => {
     )
   })
 
-  it('document.status_changed desconhecido cai no título genérico', () => {
-    const item: TripTimelineItem = { ...BASE_ITEM, kind: 'document.status_changed', toStatus: 'x' }
+  it('document.status_changed sem situação cai no título genérico', () => {
+    const item: TripTimelineItem = { ...BASE_ITEM, kind: 'document.status_changed', toStatus: null }
     expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe(
       'eventTimeline.itemTitle.documentStatusChanged(document=eventTimeline.itemTitle.documentLabel(invoice=123/1),status=eventTimeline.itemTitle.unknownStatus)',
+    )
+  })
+
+  it('document.status_changed desconhecido mostra o próprio código, sem sumir', () => {
+    const item: TripTimelineItem = { ...BASE_ITEM, kind: 'document.status_changed', toStatus: 'x' }
+    expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe(
+      'eventTimeline.itemTitle.documentStatusChanged(document=eventTimeline.itemTitle.documentLabel(invoice=123/1),status=x)',
     )
   })
 })

@@ -534,3 +534,117 @@ não tem coluna de posição nenhuma. Está nas Fases 2 e 3, não executadas.
 
 ⚠️ **47 px de estouro horizontal em 375 px na página**, vindos do componente da placa do veículo
 (`_plate_`, `_plateBand_`) — não da linha do tempo. Pré-existente e fora desta spec.
+
+---
+
+## Fase extra — o traço do minimapa segue o asfalto, e a legenda para de mentir
+
+### O que mudou
+
+O minimapa desenhava sempre a reta tracejada: `TripTimelineMiniMapCanvas` passava
+`geometry={null}` fixo para o `AssemblyVectorMap`, que já sabe desenhar estrada desde a spec 079.
+Nada de novo foi criado para rotear — o painel passou a **pedir à mesma rota** que o roteiro usa
+(`POST /route-geometry`, `TRIP_READ_POLICY`, teto de 100 pontos), com `vehicleId: null` (sem pedágio
+a calcular). Zero mudança na API.
+
+- `resolveRoadPoints` extraído em `routeGeometry.service.ts`: era a mesma condição
+  (`source === 'road'` + `length >= 2`) copiada dentro de `resolveRouteTrace` e `resolveRouteLegs`.
+  Agora quem desenha o traço e quem escreve a legenda ao lado dele **leem da mesma função** — é o que
+  impede a legenda de prometer asfalto sobre um tracejado reto (ADR-0044 §5).
+- `eventTimeline.map.caption` virou três chaves: `captionRoad`, `captionStraight`, `captionPoint`.
+  A frase é **consequência** do traço, nunca texto fixo. Com um lugar só não há traço, e a legenda
+  não promete linha nenhuma.
+- Rota indisponível (`source: 'unavailable'`, `ROUTING_MATRIX_URL` ausente, ou a consulta falhando)
+  volta à reta tracejada **sem erro na tela e sem mapa vazio**: `routeQuery.data ?? null`.
+
+### Números medidos
+
+| Gate                  | Comando                                          | Resultado                                                                                        |
+| --------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Contrato do painel    | `bun test test/trip.contract.test.ts`            | **2101 passam, 0 falham**, 20713 asserções, 1355 ms                                              |
+| Contrato novo isolado | `-t 'rota do minimapa'`                          | **9 passam, 0 falham**, 24 asserções, 214 ms                                                     |
+| `check` da app        | `bun run --cwd apps/frontend-transportada check` | **5977 + 165 passam, 0 falham**; lint 0 erros, 16 avisos (todos pré-existentes, outros arquivos) |
+| Formatação            | `bun run format:check` (raiz)                    | limpo                                                                                            |
+| Tipos                 | `bun run typecheck` (raiz)                       | limpo, 7 apps                                                                                    |
+
+A API não foi tocada, então os gates dela não se aplicam.
+
+O teste novo não confere a legenda contra si mesma: ele roda `resolveRouteLegs` — a função que o
+mapa de fato usa — e exige que o `kind` dos trechos desenhados case com o traço que a legenda
+anuncia, caso a caso (`null`, `unavailable`, `road`).
+
+### ⚠️ O que **não** foi provado na tela, e por quê
+
+**O print não foi refeito, e a rota não foi vista desenhada no navegador.** Não é "deu certo e não
+tirei foto" — é uma parede de ambiente, e ela merece o nome:
+
+`VITE_APP_URL=http://localhost:53000` no `.env` da raiz (que num worktree é **link simbólico** para
+o `.env` compartilhado). O painel monta o `redirectUri` do Keycloak a partir dessa variável
+(`identityEnvironment.config.ts:40`). Resultado: abrir `localhost:53112` (este worktree, PID 29745,
+`cwd` conferido) autentica e **cai em `localhost:53000`**, que é o dev server de _outro_ worktree
+(`reconcile-spec-145`, PID 38348) — ou seja, outro código. Corrigir exigiria reiniciar o meu dev
+server com a variável trocada, e a instrução desta sessão era explícita: não reiniciar nem matar o
+ambiente.
+
+Tentar provar a metade de dados chamando a API direto também não deu: o token vive em memória, não
+em `localStorage` (como manda o padrão), e capturá-lo da aplicação foi **barrado como materialização
+de credencial** — corretamente. Não foi contornado.
+
+O que **está** provado:
+
+- `ROUTING_MATRIX_URL` **está configurado** nesta máquina (instância OSRM de staging), então o
+  caminho de estrada é alcançável aqui — não é um ambiente só-degradação.
+- O dev server de 53112 serve o código novo **agora**: o módulo transformado traz
+  `geometry` desestruturado e repassado ao `AssemblyVectorMap` (linhas 31 e 58 do módulo servido),
+  não mais `geometry={null}`; `tripTimelineRoute.service.ts` é servido com as duas funções.
+- Os 9 contratos cobrem os dois lados do contrato: estrada vira traço de estrada **e** legenda de
+  estrada; ausência e `unavailable` voltam à reta **e** à legenda de reta.
+
+Os quatro prints `196-timeline-minimapa-*` seguem os antigos. Eles mostram a reta tracejada com a
+frase que hoje é `captionStraight` — continuam fiéis ao caminho de degradação, e **não** foram
+apagados justamente porque não há como substituí-los nesta sessão. Quem reabrir isto com
+`VITE_APP_URL` apontando para a própria porta refaz os quatro.
+
+### Tipos de evento — tratamento visual, um a um
+
+As sete consultas da timeline produzem 11 `kind`. **Só `trip_stop_events` carimba posição**
+(`trip-timeline-stop.query.ts:200`); as outras seis usam `NO_EVENT_LOCATION`. Por isso cinco kinds
+podem aparecer no mapa e seis não — e isso é limite de dado na API, não fallback do painel.
+
+| kind                       | ícone na lista | cor/tom                    | rótulo                                                                                | no mapa?                           |
+| -------------------------- | -------------- | -------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------- |
+| `trip.created`             | `add`          | neutro                     | "Viagem criada"                                                                       | não — sem posição na origem        |
+| `trip.dispatched`          | `send`         | neutro                     | "Viagem despachada"                                                                   | não — sem posição na origem        |
+| `trip.status_changed`      | `clock`        | derivado do `toStatus`     | pt-BR por situação (9 rótulos)                                                        | não — sem posição na origem        |
+| `stop.arrived`             | `map-pin`      | neutro / pino `#0560c7`    | "Chegada na parada {{n}}"                                                             | **sim**                            |
+| `stop.departed`            | `truck`        | neutro / pino `#0a7276`    | "A caminho da parada {{n}}"                                                           | **sim**                            |
+| `stop.departure_cancelled` | `close`        | andamento / pino `#c20554` | "Cancelou a rota da parada {{n}}"                                                     | **sim**                            |
+| `document.delivered`       | `check`        | conclusão / pino `#048b3c` | "{{nota}} entregue"                                                                   | **sim**                            |
+| `document.returned`        | `refresh`      | problema / pino `#76602d`  | "{{nota}} devolvida"                                                                  | **sim**                            |
+| `stop.occurrence`          | `alert`        | problema                   | "Ocorrência: {{tipo}}" — traduzido; desconhecido cai no próprio código                | não — tabela sem coluna de posição |
+| `document.occurrence`      | `alert`        | problema                   | "Ocorrência em {{nota}}: {{tipo}}" — `tipo` é nome livre pt-BR do catálogo, já humano | não — sem posição na origem        |
+| `document.status_changed`  | `document`     | derivado do `toStatus`     | pt-BR por situação (5 rótulos)                                                        | não — sem posição na origem        |
+
+Nenhum kind cai em ícone ou cor genérica: os 11 têm entrada própria em `TIMELINE_MAP_CATEGORY_BY_KIND`
+e em `ICON_BY_KIND`. As 8 categorias do mapa têm rótulo nos **dois** idiomas (conferido chave a
+chave). A legenda do mapa só lista categoria que tem pino desenhado, então pino sem legenda não
+existe.
+
+### O defeito que o levantamento achou, e a emenda
+
+`trip.status_changed` e `document.status_changed` tratavam **duas coisas diferentes como uma só**:
+situação ausente (`toStatus === null`) e situação que o bundle não conhece caíam ambas em
+"não informada". A segunda **escondia um dado que a API mandou** — o mesmo defeito do
+`ocorrência: dock_closed`, pelo avesso. No mesmo arquivo, `stop.occurrence` já fazia o certo desde o
+commit `fcee74ba0` ("sumir esconderia o evento"): as duas regras se contradiziam.
+
+Emenda da 196 à 158, em `tripTimeline.service.ts`: ausente continua "não informada"; desconhecido
+mostra o próprio código. Os dois contratos da 158 foram **emendados, não apagados** — cada um virou
+dois casos (ausente e desconhecido), em `timeline-view.contract.ts`. O comentário do módulo, que
+afirmava a regra antiga, foi corrigido junto.
+
+⚠️ **Um achado que não virou mudança:** `tripResponse.validation.ts:1011` **descarta** item cujo
+`kind` o bundle não conhece. Um kind novo da API some da tela em silêncio — o oposto de "nunca
+some". É decisão deliberada da spec 206 T0.3 (o `nextCursor` sobrevive, a página não quebra) e
+desfazê-la obriga a alargar `TripTimelineItem['kind']` para `string`, derrubando a exaustividade de
+todos os `switch` do módulo. Fica registrado como dívida consciente, não corrigido por conta própria.
