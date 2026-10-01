@@ -87,8 +87,15 @@
   text-transform: none;
 }
 
+/**
+ * Spec 196: a calha do ícone é da **lista**, declarada uma vez. O recuo vivia dentro de `.itemHead`,
+ * então só o texto do cabeçalho o recebia: "Ver mais", o bloco de detalhe e os links nasciam em zero,
+ * debaixo do ícone e por cima do trilho. Quatro cópias do mesmo `calc()` seria a outra saída, e é a
+ * que o projeto proíbe.
+ */
 .list {
   --timeline-icon-size: 1.75rem;
+  --timeline-gutter: calc(var(--timeline-icon-size) + var(--space-3));
 
   position: relative;
   display: grid;
@@ -107,10 +114,13 @@
   content: '';
 }
 
+/* A coluna da esquerda é a calha do ícone: só o cabeçalho a atravessa, o resto mora na do texto. */
 .item {
   position: relative;
   display: grid;
-  gap: var(--space-1);
+  grid-template-columns: var(--timeline-gutter) minmax(0, 1fr);
+  column-gap: 0;
+  row-gap: var(--space-1);
   padding: var(--space-2) 0 var(--space-3);
   overflow-wrap: anywhere;
 }
@@ -139,6 +149,7 @@
 
 .itemHead {
   display: flex;
+  grid-column: 1 / -1;
   align-items: flex-start;
   gap: var(--space-3);
 }
@@ -207,7 +218,7 @@
   display: flex;
   gap: var(--space-2);
   align-items: center;
-  padding: var(--space-1) 0 var(--space-1) calc(var(--timeline-icon-size) + var(--space-3));
+  padding: var(--space-1) 0 var(--space-1) var(--timeline-gutter);
   color: var(--color-slate-muted);
   font-size: 0.75rem;
   font-style: italic;
@@ -284,6 +295,7 @@
  */
 .itemLinks {
   display: flex;
+  grid-column: 2;
   flex-wrap: wrap;
   gap: var(--space-3);
   margin: 0;
@@ -299,14 +311,43 @@
  * Spec 180 RF16/T304: o botão que expande/recolhe o detalhe — nunca menor que a área de toque, e
  * fora do fluxo do texto para não parecer mais um dado da linha.
  */
+/**
+ * O recuo interno e o alinhamento óptico são duas coisas: zerar o `padding-inline` para o rótulo
+ * encostar na calha deixava o texto colado na borda da caixa, visível assim que o fundo ou o anel
+ * de foco aparecem. A caixa anda para a esquerda exatamente o tanto do próprio recuo — rótulo
+ * alinhado com o título, área interna intacta.
+ */
 .itemToggle {
+  grid-column: 2;
   justify-self: start;
   min-height: var(--touch-target);
+  margin-inline-start: calc(-1 * var(--space-2));
   padding-inline: var(--space-2);
 }
 
+@keyframes tripTimelineDetailEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/**
+ * Spec 196: o detalhe que abre com fronteira. Antes era só um traço de 2px a 25% de `--color-slate`
+ * encostado no botão — num evento cuja única informação é a observação, o bloco nascia com 20px de
+ * altura, sem fundo, sem respiro e sem padding vertical: uma linha de texto colada em "Ver mais",
+ * indistinguível de nada ter acontecido. Agora ele tem superfície, respiro acima e o traço no cobre
+ * que este módulo já usa para o que responde a um clique — a mesma moldura serve à linha de 20px e
+ * ao bloco de 335px com mapa, que é a condição para a fronteira não ficar estranha num dos dois.
+ */
 .itemDetailGroup {
   display: grid;
+  grid-column: 2;
   gap: var(--space-1);
   margin-block-start: var(--space-2);
   padding: var(--space-2) var(--space-3);
@@ -336,26 +377,6 @@
 
 .skeletonRow {
   display: grid;
-@keyframes tripTimelineDetailEnter {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/**
- * Spec 196: o detalhe que abre com fronteira. Antes era só um traço de 2px a 25% de `--color-slate`
- * encostado no botão — num evento cuja única informação é a observação, o bloco nascia com 20px de
- * altura, sem fundo, sem respiro e sem padding vertical: uma linha de texto colada em "Ver mais",
- * indistinguível de nada ter acontecido. Agora ele tem superfície, respiro acima e o traço no cobre
- * que este módulo já usa para o que responde a um clique — a mesma moldura serve à linha de 20px e
- * ao bloco de 335px com mapa, que é a condição para a fronteira não ficar estranha num dos dois.
- */
   gap: var(--space-1);
 }
 
@@ -392,6 +413,12 @@
   cursor: help;
 }
 
+/**
+ * Spec 196: o alvo media 14×19px. O `inset` negativo partia de `1rem` — o tamanho que o ícone
+ * *deveria* ter —, e o botão mede o que a fonte e o SVG entregam, 14,4×18,6px: a conta devolvia
+ * 42×47. Fixar o lado do pseudo-elemento no próprio token dá 44×44 independente da métrica, e o
+ * desenho não cresce um pixel.
+ */
 .locationButton::after {
   position: absolute;
   top: 50%;
@@ -416,9 +443,3 @@
   gap: var(--space-1);
   margin: 0;
 }
-/**
- * Spec 196: o alvo media 14×19px. O `inset` negativo partia de `1rem` — o tamanho que o ícone
- * *deveria* ter —, e o botão mede o que a fonte e o SVG entregam, 14,4×18,6px: a conta devolvia
- * 42×47. Fixar o lado do pseudo-elemento no próprio token dá 44×44 independente da métrica, e o
- * desenho não cresce um pixel.
- */
