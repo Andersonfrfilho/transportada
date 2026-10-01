@@ -805,6 +805,8 @@ describe('trip-timeline.query (spec 158 T5) contra o Postgres', () => {
         id: crypto.randomUUID(),
         kind: 'arrived',
         latitude: '-23.5505000',
+        /** Spec 196 D2: coordenada e estado são a mesma afirmação, e o CHECK recusa uma sem a outra. */
+        locationState: 'captured',
         longitude: '-46.6333000',
         stopId,
       })

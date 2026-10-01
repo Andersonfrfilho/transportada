@@ -259,3 +259,144 @@ exigência de HTML válido, porque o tooltip aninha elemento de bloco.
 
 **Status:** T6.1 e T6.2 fechadas no código. ⚠️ **Nada sobe antes do preview local com coordenada
 sintética e do ok do usuário** — regra do `web.md` §15, e é a T6.3 que a cumpre.
+
+## T1.1 / T1.2 / T3.1 — o estado do ponto, no banco e na política
+
+**Data:** 2026-10-01 · **Modelo:** opus · Recorte da T0.1: só as duas tabelas que já têm as quatro
+colunas de ponto (`trip_stop_events` e `trip_delivery_proofs`).
+
+A coluna `location_state` existe para separar duas ausências que hoje são o mesmo `null`: **"o GPS
+falhou"** e **"ninguém perguntou"**. Sem ela a tela teria de adivinhar pela idade e pelo tipo do
+evento — e adivinharia errado em todo evento anterior ao GPS.
+
+| Valor         | O que afirma                                                   |
+| ------------- | -------------------------------------------------------------- |
+| `captured`    | há coordenada na linha; o CHECK de consistência amarra os dois |
+| `unavailable` | o motorista tocou e a posição não veio                         |
+| `expired`     | o expurgo dos 90 dias apagou as quatro colunas                 |
+| `null`        | não se aplica — não houve pergunta                             |
+
+### A migration é aditiva, e o backfill vem antes dos CHECKs
+
+`ADD COLUMN` anulável e sem default não reescreve a tabela. O `UPDATE ... SET 'captured' WHERE
+latitude is not null` roda **antes** dos CHECKs, porque o de consistência reprovaria a tabela com
+coordenada e estado nulo na validação. Todo CHECK entra `NOT VALID` e é validado em statement à
+parte: `ADD CONSTRAINT` validando toma ACCESS EXCLUSIVE com varredura completa, enquanto `VALIDATE
+CONSTRAINT` toma só SHARE UPDATE EXCLUSIVE e não barra leitura nem escrita.
+
+Onde não há coordenada a linha fica `null` **de propósito**. Derivar o estado do canal não serve:
+`trip_stop_events.channel` é `NOT NULL DEFAULT 'driver_app'` e nunca teve backfill, então todo evento
+pré-GPS apareceria vermelho. **O passado não é pintado de vermelho.**
+
+### Dois defeitos achados na revisão à mão, com cinco portões verdes
+
+Os dois têm a mesma forma do achado da T6.2, e é por isso que ficam registrados juntos: **o
+comentário afirma uma invariante que o código não impõe.** Nenhum dos dois apareceu em portão.
+
+**1. O CHECK de consistência não barrava nada.** O texto era:
+
+```sql
+CHECK ("location_state" is null or (("location_state" = 'captured') = ("latitude" is not null)))
+```
+
+com o comentário "`captured` e a coordenada são a mesma afirmação — uma sem a outra é dado que
+mente". A linha com **coordenada e estado nulo** passa por curto-circuito do `or` — exatamente o dado
+que mente. E o reparo ingênuo, tirar o `is null or`, também passa: CHECK que avalia `NULL` é aceito
+em Postgres, e `(NULL = 'captured') = (true)` é `NULL`. A forma null-safe, conferida nos cinco casos:
+
+```sql
+CHECK (("location_state" is not distinct from 'captured') = ("latitude" is not null))
+```
+
+| `location_state` | `latitude` | antes        | agora     |
+| ---------------- | ---------- | ------------ | --------- |
+| `captured`       | preenchida | passa ✅     | passa ✅  |
+| `captured`       | nula       | recusa ✅    | recusa ✅ |
+| `unavailable`    | preenchida | recusa ✅    | recusa ✅ |
+| `unavailable`    | nula       | passa ✅     | passa ✅  |
+| `null`           | preenchida | **passa ❌** | recusa ✅ |
+
+Nenhum teste tentava inserir a linha da última linha da tabela — havia o caso "o banco recusa
+`captured` sem latitude", e não o seu espelho. O caso novo
+(`o banco recusa coordenada com estado nulo`) é o que fecha o achado de verdade; o assert de texto do
+contrato de schema e o do contrato estático de migration passaram a cobrar também a **ausência** de
+`is null or`, para o buraco não voltar por reescrita.
+
+**2. Todo evento de WhatsApp sairia vermelho.** `STATEFUL_CHANNELS` trazia `whatsapp` ao lado de
+`driver_app`, com a justificativa de que nos dois quem toca é o motorista. Mas **nenhum caminho de
+WhatsApp carrega latitude** — conferido em `src/main.ts` 990-1290, as dez montagens do fluxo, sem uma
+ocorrência de `latitude`/`location`. Logo `hasCoordinate` é sempre `false` ali, e o canal inteiro
+carimbaria `unavailable`: 100% das entregas por WhatsApp em vermelho, afirmando uma falha de GPS que
+nunca houve. É a mesma recusa que a migration desta spec escreveu sobre o histórico pré-GPS, cometida
+três arquivos adiante. `STATEFUL_CHANNELS` ficou só com `driver_app`; no dia em que o WhatsApp mandar
+posição, `hasCoordinate` resolve sozinho, sem tocar na lista.
+
+A política recebe `hasCoordinate: boolean`, nunca a coordenada — nenhuma posição consegue
+fisicamente chegar a um log a partir dela (ADR-0081 §6.1).
+
+**3. O expurgo dos noventa dias apagava a coordenada e deixava a linha afirmando `captured`.** Este
+não veio da revisão: apertar o CHECK é que o revelou. `make migration-test` ficou vermelho num
+fixture de SQL cru, e varrer os outros escritores atrás do mesmo defeito chegou em
+`worker-transportada/src/trip-location-purge/infrastructure/drizzle-trip-location.repository.ts`, que
+anula as quatro colunas de posição das duas tabelas **sem tocar em `location_state`**.
+
+A gravidade é maior que a dos outros dois, e vinha dos dois lados:
+
+- **Com o CHECK antigo**, a rotina produzia em silêncio, todo dia, exatamente a linha que o CHECK
+  dizia impedir: `captured` sem coordenada. O estado `expired` existia no `as const` da API, com o
+  comentário "o expurgo dos 90 dias apagou as quatro colunas", e **ninguém o escrevia**.
+- **Com o CHECK novo**, o `UPDATE` do lote inteiro passa a falhar com 23514 e a batida diária quebra
+  em produção — a retenção de LGPD que o `docs/SECURITY.md` promete deixaria de acontecer.
+
+O reparo é o carimbo no mesmo `UPDATE`: `EXPIRED_LOCATION_STATE` em
+`trip-location-purge.constant.ts` (cópia por valor de `EVENT_LOCATION_STATES.expired` — o worker não
+importa código da API), aplicado nos dois `.set()`. O `test/trip-location-purge.integration.test.ts`
+passou a afirmar os três estados depois do ciclo: `expired` nas linhas vencidas, `captured` na
+recente, `unavailable` na entrega que nunca teve GPS — porque **o expurgo não varre quem nunca teve
+posição**: `unavailable` é um fato, não um vencimento.
+
+O cabeçalho de `trip-execution.schema.ts` já apontava, de antes desta spec, para um
+`test/trip-location-purge/schema-parity.contract.ts` **que não existia** — a mesma forma de defeito
+das outras duas: a documentação afirma uma trava que o código não tem. O contrato foi escrito (13
+testes), e é ele que pega a próxima divergência de coluna entre a cópia e a API.
+
+### Portões
+
+| Portão                                                          | Resultado                    |
+| --------------------------------------------------------------- | ---------------------------- |
+| `bun --env-file=../../.env.test test` (API)                     | 8468 pass · 23 skip · 0 fail |
+| `bun test ./test/trip-location-purge.contract.test.ts` (worker) | 13 pass · 0 fail             |
+| `make migration-test`                                           | verde (era 23514 no fixture) |
+| `bun run test:integration` (API)                                | 776 pass · 7 skip · 10 fail  |
+| as mesmas 10, com `--timeout 120000`                            | 70 pass · 0 fail             |
+| contrato do worker (94 arquivos)                                | 1460 pass · 0 fail           |
+| `make worker-integration`                                       | 145 pass · 1 fail (OSRM)     |
+| `trip-location-purge.integration.test.ts` isolado               | 2 pass · 0 fail              |
+| `bun run typecheck` · `lint` · `format:check`                   | verde (0 erro · 16 warning)  |
+
+As dez falhas da integração da API são **todas** estouro de prazo em ~5000 ms, nenhuma violação de
+CHECK (`grep -c location_state_consistency_check` sobre o log: 0). A causa é o próprio script: o
+`test:integration` do `package.json` **não passa `--timeout`**, e roda no padrão de 5 s. Na CI isso
+não aparece porque ela reparte em quatro shards (`ci.yml:167`); aqui os 144 arquivos disputam o mesmo
+Postgres. Re-rodados os cinco arquivos afetados com `--timeout 120000`, os dez testes passam. É
+flake de ambiente, não regressão — mas o script continua sem a flag, e é defeito dele.
+
+A falha restante do worker é `osrm-routing-matrix.integration.test.ts` (ponto encaixado a 1 143 650 m
+em vez de 4 511,2 m): o extrato do OSRM que está de pé localmente não é o da fixture. Esta branch não
+toca um só arquivo de rota — `git diff --name-only origin/staging | grep -ci "osrm\|routing"` devolve
+**0**.
+
+⚠️ **O banco de integração do worker é criado uma vez e reusado**
+(`scripts/provision-integration-database.ts` só faz `create database` se não existir), e o desta
+máquina estava com **224** migrations contra as **263** do repositório, com `trip_occurrence_cases`
+ainda em `redelivery_policy` enquanto a migration `20260922174226_trip_occurrence_cases` do
+repositório já declara `redelivery_application` — a migration foi reescrita no lugar depois que o
+banco foi construído, e é o caso de duplicação 164/179 que o `CLAUDE.md` registra. O `db:migrate` do
+`make worker-integration` morria em 42703 ali, muito antes de chegar nesta spec. Recriado o banco (sob
+aprovação), ele subiu às 263 e o portão passou a correr. O `make migration-test` nunca viu isso
+porque sobe um Postgres descartável e roda a cadeia do zero.
+
+⚠️ Um CHECK apertado é contrato sobre **todo escritor**, e o portão verde de contrato não vê nenhum
+deles: quem escreve com SQL cru (os fixtures de `database-migration` e os do worker) e quem escreve
+em produção (o expurgo) só aparecem quando o banco de verdade recusa a linha. Os três achados desta
+fatia saíram de leitura à mão e de um portão vermelho — nenhum da suíte verde.

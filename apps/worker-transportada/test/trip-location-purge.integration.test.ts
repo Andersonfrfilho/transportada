@@ -62,12 +62,12 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
     await db.execute(sql`
       insert into trip_stop_events
         (id, company_id, stop_id, kind, latitude, longitude, accuracy_meters, captured_at,
-         actor_user_id, created_at)
+         actor_user_id, location_state, created_at)
       values (
         ${input.id}, ${companyId}, ${stopId}, 'delivered',
         ${input.located ? '-23.5505199' : null}, ${input.located ? '-46.6333094' : null},
         ${input.located ? '12.50' : null}, ${input.located ? input.createdAt : null},
-        ${userId}, ${input.createdAt}
+        ${userId}, ${input.located ? 'captured' : 'unavailable'}, ${input.createdAt}
       )
     `)
   }
@@ -92,10 +92,11 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
     await db.execute(sql`
       insert into trip_delivery_proofs
         (id, company_id, stop_event_id, kind, object_id, actor_user_id, latitude, longitude,
-         accuracy_meters, captured_at, punctuality, created_at)
+         accuracy_meters, captured_at, punctuality, location_state, created_at)
       values (
         ${input.id}, ${companyId}, ${input.eventId}, 'photo', ${objectId}, ${userId},
-        '-23.5505199', '-46.6333094', '8.00', ${input.createdAt}, 'on_time', ${input.createdAt}
+        '-23.5505199', '-46.6333094', '8.00', ${input.createdAt}, 'on_time', 'captured',
+        ${input.createdAt}
       )
     `)
   }
@@ -170,38 +171,50 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
     expect(result.counters.redacted).toBe(1)
 
     const rows = await db.execute(sql`
-      select "id", "latitude", "longitude", "accuracy_meters", "captured_at", "kind"
+      select "id", "latitude", "longitude", "accuracy_meters", "captured_at", "kind",
+             "location_state"
       from trip_stop_events where company_id = ${companyId} order by "created_at", "id"
     `)
     const byId = new Map(rows.map((row) => [String(row.id), row]))
 
-    // O evento continua lá: a viagem continua auditável, e o que some é onde a pessoa estava
+    /**
+     * O evento continua lá: a viagem continua auditável, e o que some é onde a pessoa estava. O
+     * estado vira `expired` junto, e não é cosmético — a linha que diz `captured` sem coordenada
+     * mente, e o CHECK da spec 196 recusa o `UPDATE` inteiro quando ele tenta escrevê-la.
+     */
     expect(byId.size).toBe(3)
     expect(byId.get(expiredEventId)).toMatchObject({
       accuracy_meters: null,
       captured_at: null,
       kind: 'delivered',
       latitude: null,
+      location_state: 'expired',
       longitude: null,
     })
     expect(byId.get(freshEventId)?.latitude).not.toBeNull()
+    expect(byId.get(freshEventId)?.location_state).toBe('captured')
     expect(byId.get(withoutLocationEventId)?.latitude).toBeNull()
+    // O expurgo não varre quem nunca teve posição: `unavailable` é um fato, não um vencimento
+    expect(byId.get(withoutLocationEventId)?.location_state).toBe('unavailable')
 
     // Spec 159 T11: a foto vencida perde a posição e guarda o resto; a recente fica inteira
     expect(result.counters.redactedProofs).toBe(1)
     const proofs = await db.execute(sql`
-      select "id", "latitude", "longitude", "accuracy_meters", "captured_at", "punctuality"
+      select "id", "latitude", "longitude", "accuracy_meters", "captured_at", "punctuality",
+             "location_state"
       from trip_delivery_proofs where company_id = ${companyId}
     `)
     const proofById = new Map(proofs.map((row) => [String(row.id), row]))
     expect(proofById.get(expiredProofId)).toMatchObject({
       accuracy_meters: null,
       latitude: null,
+      location_state: 'expired',
       longitude: null,
       punctuality: 'on_time',
     })
     expect(proofById.get(expiredProofId)?.captured_at).not.toBeNull()
     expect(proofById.get(freshProofId)?.latitude).not.toBeNull()
+    expect(proofById.get(freshProofId)?.location_state).toBe('captured')
   })
 
   /** Correr de novo não tem o que apagar — e é assim que a batida diária se comporta todo dia. */

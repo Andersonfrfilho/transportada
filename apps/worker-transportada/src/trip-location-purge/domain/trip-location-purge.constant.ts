@@ -22,6 +22,18 @@ export const TRIP_LOCATION_PURGE_BATCH_SIZE = 500
 /** Teto de lotes por ciclo: o que sobrar espera a próxima batida, e o log diz que sobrou. */
 export const TRIP_LOCATION_PURGE_MAX_BATCHES = 200
 
+/**
+ * Spec 196 D2 / ADR-0081 §2. ⚠️ **Cópia por valor** de `EVENT_LOCATION_STATES.expired`
+ * (`api-transportada/src/database/event-location.schema.ts`): o worker não importa código da API.
+ *
+ * O expurgo é quem carimba este estado, e carimbá-lo não é cosmético: `captured` afirma que há
+ * coordenada na linha, e o CHECK de consistência da API amarra as duas coisas com `is not distinct
+ * from`. Apagar as quatro colunas sem trocar o estado deixa a linha afirmando uma coordenada que não
+ * existe mais — e desde que o CHECK deixou de ter o buraco de `NULL`, faz o `UPDATE` do lote inteiro
+ * falhar com 23514, derrubando a batida diária.
+ */
+export const EXPIRED_LOCATION_STATE = 'expired'
+
 const HOURS_PER_DAY = 24
 const MILLISECONDS_PER_HOUR = 3_600_000
 

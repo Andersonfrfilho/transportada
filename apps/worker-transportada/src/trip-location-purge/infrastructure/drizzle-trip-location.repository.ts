@@ -14,6 +14,7 @@ import type {
   RedactDeliveryProofLocations,
   RedactTripLocations,
 } from '../application/trip-location.port.js'
+import { EXPIRED_LOCATION_STATE } from '../domain/trip-location-purge.constant.js'
 
 export type TripLocationDatabase = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -31,7 +32,13 @@ export function createDrizzleRedactTripLocations(
 
     await database
       .update(tripStopEvents)
-      .set({ accuracyMeters: null, capturedAt: null, latitude: null, longitude: null })
+      .set({
+        accuracyMeters: null,
+        capturedAt: null,
+        latitude: null,
+        locationState: EXPIRED_LOCATION_STATE,
+        longitude: null,
+      })
       .where(
         inArray(
           tripStopEvents.id,
@@ -58,7 +65,12 @@ export function createDrizzleRedactDeliveryProofLocations(
 
     await database
       .update(tripDeliveryProofs)
-      .set({ accuracyMeters: null, latitude: null, longitude: null })
+      .set({
+        accuracyMeters: null,
+        latitude: null,
+        locationState: EXPIRED_LOCATION_STATE,
+        longitude: null,
+      })
       .where(
         inArray(
           tripDeliveryProofs.id,

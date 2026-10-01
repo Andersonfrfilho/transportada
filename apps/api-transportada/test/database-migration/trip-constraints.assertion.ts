@@ -711,20 +711,50 @@ async function assertFieldExecutionConstraints(input: {
   // Precisão de 5 km é gravada com o número, nunca descartada: galpão de laje é o caso normal
   await database`
     insert into trip_stop_events (
-      company_id, stop_id, kind, latitude, longitude, accuracy_meters, captured_at, actor_user_id
+      company_id, stop_id, kind, latitude, longitude, accuracy_meters, captured_at, actor_user_id,
+      location_state
     )
     values (
-      ${companyId}, ${stopId}, 'arrived', '-23.5505199', '-46.6333094', '5000.00', now(), ${userId}
+      ${companyId}, ${stopId}, 'arrived', '-23.5505199', '-46.6333094', '5000.00', now(), ${userId},
+      'captured'
     )
   `
 
+  // `location_state` vai junto para que a recusa seja do CHECK de coordenada, e não do de consistência
   await expectQueryToFail(
     database`
-      insert into trip_stop_events (company_id, stop_id, kind, latitude, actor_user_id)
-      values (${companyId}, ${stopId}, 'arrived', '-23.5505199', ${userId})
+      insert into trip_stop_events (company_id, stop_id, kind, latitude, actor_user_id, location_state)
+      values (${companyId}, ${stopId}, 'arrived', '-23.5505199', ${userId}, 'captured')
     `,
     '23514',
     'trip_stop_events_coordinates_check',
+  )
+
+  /**
+   * A metade que o CHECK original deixava passar: coordenada com estado nulo. `is null or ...`
+   * curto-circuitava, e `(estado = 'captured') = (...)` devolve `NULL` — e CHECK que avalia `NULL`
+   * passa em Postgres. Só `is not distinct from` recusa esta linha.
+   */
+  await expectQueryToFail(
+    database`
+      insert into trip_stop_events (
+        company_id, stop_id, kind, latitude, longitude, captured_at, actor_user_id
+      )
+      values (
+        ${companyId}, ${stopId}, 'arrived', '-23.5505199', '-46.6333094', now(), ${userId}
+      )
+    `,
+    '23514',
+    'trip_stop_events_location_state_consistency_check',
+  )
+
+  await expectQueryToFail(
+    database`
+      insert into trip_stop_events (company_id, stop_id, kind, actor_user_id, location_state)
+      values (${companyId}, ${stopId}, 'arrived', ${userId}, 'captured')
+    `,
+    '23514',
+    'trip_stop_events_location_state_consistency_check',
   )
 
   await expectQueryToFail(

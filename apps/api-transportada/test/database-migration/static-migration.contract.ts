@@ -322,6 +322,7 @@ describe('Drizzle migrations', () => {
       '20260930021013_delivery_proof_cargo_mode',
       '20260930110332_delivery_proof_thumbnail',
       '20260930145144_delivery_proof_canhoto_review',
+      '20261001123700_event_location_stamp',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -1826,5 +1827,103 @@ describe('CHECK trocado em tabela grande entra NOT VALID (spec 183 T903, achado 
     expect(sql).toContain(
       'ALTER TABLE "stored_objects" VALIDATE CONSTRAINT "stored_objects_purpose_check"',
     )
+  })
+})
+
+describe('o estado do ponto entra aditivo e o histórico sem coordenada fica NULL (spec 196 D2)', () => {
+  /**
+   * Três coisas que só o teste estático alcança:
+   *
+   * 1. **O backfill não inventa `unavailable`.** Marcar vermelho o evento antigo seria afirmar que o
+   *    GPS falhou num toque que, na app daquela época, nunca pediu posição. Derivar do canal é pior:
+   *    `trip_stop_events.channel` é NOT NULL DEFAULT 'driver_app' e nunca teve backfill.
+   * 2. **O `UPDATE` vem antes dos CHECKs.** O CHECK de consistência amarra `captured` à coordenada;
+   *    validá-lo antes de preencher reprovaria toda linha que já tem ponto.
+   * 3. **Nenhuma restrição valida no mesmo comando que a cria.** As duas tabelas crescem a cada
+   *    entrega, e o teste de banco não pega isso: ele roda contra base vazia, onde varrer é grátis.
+   */
+  test('versions the event location state without touching the tables that have no point', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_event_location_stamp'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+
+    expect(migrationSql).not.toMatch(DESTRUCTIVE_MIGRATION_PATTERN)
+
+    // O cabeçalho explica o recorte e nomeia as tabelas de fora; as asserções olham só o SQL.
+    const statements = migrationSql
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('--'))
+      .join('\n')
+
+    const locatedTables = ['trip_stop_events', 'trip_delivery_proofs'] as const
+    for (const table of locatedTables) {
+      expect(statements).toContain(
+        `ALTER TABLE "${table}" ADD COLUMN "location_state" varchar(16);`,
+      )
+      expect(statements).toContain(
+        `UPDATE "${table}" SET "location_state" = 'captured' WHERE "latitude" is not null;`,
+      )
+    }
+
+    // A coluna nasce anulável e sem default — o histórico não ganha veredito que ninguém mediu.
+    expect(statements).not.toContain('NOT NULL')
+    expect(statements).not.toContain('DEFAULT')
+
+    // As tabelas sem coluna de ponto são o resto da spec — a migration não as toca.
+    for (const untouched of [
+      'trip_status_events',
+      'trip_stop_occurrences',
+      'trip_document_occurrences',
+      'trip_stop_order_events',
+    ]) {
+      expect(statements).not.toContain(untouched)
+    }
+
+    // O histórico sem coordenada fica NULL: nada aqui escreve 'unavailable' ou 'expired'.
+    expect(statements).not.toContain(`= 'unavailable'`)
+    expect(statements).not.toContain(`= 'expired'`)
+
+    const backfillPosition = statements.lastIndexOf('UPDATE "trip_delivery_proofs"')
+    const firstConstraintPosition = statements.indexOf('ADD CONSTRAINT')
+    expect(backfillPosition).toBeGreaterThan(-1)
+    expect(firstConstraintPosition).toBeGreaterThan(backfillPosition)
+
+    const addedConstraints = [...statements.matchAll(/ADD CONSTRAINT "([^"]+)"[^;]*;/gu)]
+    expect(addedConstraints).toHaveLength(4)
+    const semNotValid = addedConstraints.filter(([statement]) => !statement.includes('NOT VALID'))
+    expect(semNotValid.map(([, name]) => name)).toEqual([])
+    for (const table of locatedTables) {
+      for (const suffix of ['location_state_check', 'location_state_consistency_check']) {
+        expect(statements).toContain(
+          `ALTER TABLE "${table}" VALIDATE CONSTRAINT "${table}_${suffix}";`,
+        )
+      }
+    }
+    expect(statements).toContain(
+      `CHECK ("location_state" is null or "location_state" in ('captured', 'unavailable', 'expired')) NOT VALID`,
+    )
+    expect(statements).toContain(
+      `CHECK (("location_state" is not distinct from 'captured') = ("latitude" is not null)) NOT VALID`,
+    )
+    /** CHECK que avalia `NULL` passa: `is null or` aqui aceitaria a linha que ele existe para barrar. */
+    expect(statements).not.toContain(`CHECK ("location_state" is null or (("location_state"`)
+
+    for (const [, name] of addedConstraints) {
+      expect(rollbackSql).toContain(`DROP CONSTRAINT IF EXISTS "${name ?? ''}"`)
+    }
+    expect(rollbackSql).toContain('DROP COLUMN IF EXISTS "location_state"')
+    const ultimaRestricaoDerrubada = rollbackSql.lastIndexOf('DROP CONSTRAINT IF EXISTS')
+    const primeiraColunaDerrubada = rollbackSql.indexOf('DROP COLUMN IF EXISTS')
+    expect(ultimaRestricaoDerrubada).toBeGreaterThan(-1)
+    expect(primeiraColunaDerrubada).toBeGreaterThan(ultimaRestricaoDerrubada)
+
+    expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
   })
 })

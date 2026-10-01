@@ -39,6 +39,7 @@ import { freightCalculations } from './freight.schema.js'
 import { nfeDocuments } from './nfe.schema.js'
 import { storedObjects } from './storage.schema.js'
 import { inList } from './schema-check.constant.js'
+import { EVENT_LOCATION_STATES, type EventLocationState } from './event-location.schema.js'
 
 /**
  * ADR-0067 §2: quem registrou o evento de campo — motorista pelo PWA, escritório em nome dele, ou
@@ -1109,6 +1110,13 @@ export const tripStopEvents = pgTable(
     /** A hora do aparelho quando a posição foi lida — não a hora em que o evento chegou ao servidor. */
     capturedAt: timestamp('captured_at', { withTimezone: true }),
     /**
+     * ADR-0081 §2 / spec 196 D2: por que a coordenada não veio. `null` é **não se aplica** — e o
+     * histórico sem ponto fica `null` de propósito: o banco não sabe se o GPS falhou ou se o app
+     * daquela época nem pedia posição, e `unavailable` ali diria "falhou" sobre um toque que nunca
+     * tentou ler.
+     */
+    locationState: varchar('location_state', { length: 16 }).$type<EventLocationState>(),
+    /**
      * Spec 206 D3 (ADR-0088 §4): a hora do aparelho **no toque**, que não é a do `captured_at` (leitura
      * do GPS, que pode nem existir) nem a do servidor. É ela que ordena a fila: o item recusado não é
      * descartado, o reenvio manual chega fora de ordem, e sem o `tapped_at` um toque velho marcaria a
@@ -1232,6 +1240,22 @@ export const tripStopEvents = pgTable(
     check(
       'trip_stop_events_accuracy_check',
       sql`${table.accuracyMeters} is null or ${table.latitude} is not null`,
+    ),
+    check(
+      'trip_stop_events_location_state_check',
+      sql`${table.locationState} is null or ${table.locationState} in (${raw(inList(Object.values(EVENT_LOCATION_STATES)))})`,
+    ),
+    /**
+     * ADR-0081 §2: `captured` e a coordenada são a mesma afirmação — uma sem a outra é dado que mente.
+     *
+     * ⚠️ `is not distinct from`, e não `=`. CHECK que avalia `NULL` **passa** em Postgres, então as
+     * duas formas intuitivas deixam entrar justamente a linha que este CHECK existe para barrar:
+     * `location_state is null or (...)` curto-circuita, e `(location_state = 'captured') = (...)`
+     * devolve `NULL` quando o estado é nulo. Só a comparação null-safe amarra os dois lados.
+     */
+    check(
+      'trip_stop_events_location_state_consistency_check',
+      sql`(${table.locationState} is not distinct from 'captured') = (${table.latitude} is not null)`,
     ),
     check(
       'trip_stop_events_channel_check',
@@ -1661,6 +1685,8 @@ export const tripDeliveryProofs = pgTable(
     longitude: numeric({ precision: 10, scale: 7 }),
     accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
     capturedAt: timestamp('captured_at', { withTimezone: true }),
+    /** ADR-0081 §2 / spec 196 D2: por que a coordenada da foto não veio. `null` é não se aplica. */
+    locationState: varchar('location_state', { length: 16 }).$type<EventLocationState>(),
     /**
      * ADR-0070 §2: o veredito da foto (`PROOF_PUNCTUALITY`). `not_required` é o padrão de fábrica —
      * cobre toda linha existente e toda foto de nota sem `photo = 'required'` resolvido.
@@ -1830,6 +1856,15 @@ export const tripDeliveryProofs = pgTable(
     check(
       'trip_delivery_proofs_channel_check',
       sql`${table.channel} in (${raw(inList(Object.values(TRIP_FIELD_CHANNELS)))})`,
+    ),
+    check(
+      'trip_delivery_proofs_location_state_check',
+      sql`${table.locationState} is null or ${table.locationState} in (${raw(inList(Object.values(EVENT_LOCATION_STATES)))})`,
+    ),
+    /** ADR-0081 §2, mesma trava do `trip_stop_events`: null-safe, senão o CHECK não barra nada. */
+    check(
+      'trip_delivery_proofs_location_state_consistency_check',
+      sql`(${table.locationState} is not distinct from 'captured') = (${table.latitude} is not null)`,
     ),
     check(
       'trip_delivery_proofs_office_driver_check',

@@ -53,6 +53,7 @@ import {
   TRIP_DISPATCHED_STATUSES,
   TRIP_ON_ROAD_STATUSES,
 } from '../domain/trip-state.policy.js'
+import { resolveEventLocationState } from '../domain/event-location-state.policy.js'
 import { buildProofInsertValues, buildProofUpsertSet } from './drizzle-delivery-proof.repository.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import { insertTripFieldOfficeAudit } from './trip-field-office-audit.persistence.js'
@@ -786,6 +787,11 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
         kind: input.kind,
         latitude: input.location?.latitude ?? null,
         lateRegistration: input.lateRegistration ?? false,
+        /** ADR-0081 §3: o estado é do toque do motorista; o escritório e o backoffice ficam `null`. */
+        locationState: resolveEventLocationState({
+          channel: input.authorship.channel,
+          hasCoordinate: input.location !== null,
+        }),
         longitude: input.location?.longitude ?? null,
         onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
         ...(input.recordedAt === undefined ? {} : { recordedAt: input.recordedAt }),

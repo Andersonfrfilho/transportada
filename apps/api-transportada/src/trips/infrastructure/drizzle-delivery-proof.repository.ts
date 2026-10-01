@@ -10,6 +10,7 @@ import {
   companyDeliveryProofSettings,
   deliveryProofSettingOverrides,
 } from '../../database/company-delivery-proof-settings.schema.js'
+import type { EventLocationState } from '../../database/event-location.schema.js'
 import { inList } from '../../database/schema-check.constant.js'
 import { nfeParticipants } from '../../database/nfe.schema.js'
 import { storedObjects } from '../../database/storage.schema.js'
@@ -24,6 +25,7 @@ import {
 } from '../../database/trip.schema.js'
 import type { DeliveryProofPort } from '../application/attach-delivery-proof.use-case.js'
 import { buildCanhotoReviewReset } from '../domain/canhoto-review.policy.js'
+import { resolveEventLocationState } from '../domain/event-location-state.policy.js'
 import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
 import type { ProofPunctuality } from '../domain/delivery-proof-punctuality.policy.js'
 import { TripDeliveryProofCargoLimitError } from '../domain/trip-field-office.error.js'
@@ -439,6 +441,14 @@ type SaveProofInput = {
   }
 }
 
+/** ADR-0081 §3, aplicado ao comprovante: um lugar só, para os dois canais que inserem a linha. */
+function resolveProofLocationState(input: SaveProofInput): EventLocationState | null {
+  return resolveEventLocationState({
+    channel: input.authorship.channel,
+    hasCoordinate: input.latitude !== null,
+  })
+}
+
 function toCoordinate(latitude: string | null, longitude: string | null): Coordinate | undefined {
   if (latitude === null || longitude === null) return undefined
 
@@ -462,6 +472,7 @@ export function buildProofInsertValues(input: SaveProofInput) {
     kind: input.kind,
     lateRegistration: input.lateRegistration,
     latitude: input.latitude,
+    locationState: resolveProofLocationState(input),
     longitude: input.longitude,
     objectId: input.objectId,
     onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
@@ -494,6 +505,8 @@ export function buildProofUpsertSet(input: SaveProofInput) {
     /** Spec 205 D5: a substituta não lava o registro tardio da foto anterior. */
     lateRegistration: sql`${tripDeliveryProofs.lateRegistration} or excluded.late_registration`,
     latitude: input.latitude,
+    /** A recaptura traz o ponto dela: estado velho com coordenada nova reprovaria no CHECK. */
+    locationState: resolveProofLocationState(input),
     longitude: input.longitude,
     objectId: input.objectId,
     onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
