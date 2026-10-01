@@ -12,7 +12,10 @@
  */
 import { describe, expect, it } from 'bun:test'
 
-const STYLES_PATH = new URL('../../src/modules/trip/styles/tripTimeline.module.css', import.meta.url)
+const STYLES_PATH = new URL(
+  '../../src/modules/trip/styles/tripTimeline.module.css',
+  import.meta.url,
+)
 
 const styles = await Bun.file(STYLES_PATH).text()
 
