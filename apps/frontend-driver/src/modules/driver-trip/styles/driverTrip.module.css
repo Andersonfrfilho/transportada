@@ -1166,6 +1166,7 @@
   cursor: pointer;
   display: block;
   padding: 0;
+  width: 100%;
 }
 
 .proofCaptureThumbnailButton:focus-visible {
@@ -1387,8 +1388,9 @@
 }
 
 /*
- * O canhoto (pedido do usuário, 25/09): "Tirar foto", "Anexar" e "Colher assinatura" são o mesmo
- * botão, do mesmo tamanho. Duas colunas desde 375 px; a assinatura ocupa a linha inteira.
+ * O canhoto (pedido do usuário, 01/10): "Tirar foto", "Anexar" e "Colher assinatura" são o mesmo
+ * botão, do mesmo tamanho, empilhados ocupando 100% da largura do card — nunca lado a lado, para
+ * não parecer um botãozinho perdido no espaço reservado à foto.
  */
 .proofCapture {
   display: grid;
@@ -1403,7 +1405,7 @@
 .proofCaptureGrid {
   display: grid;
   gap: var(--space-2);
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
 }
 
 .proofCaptureAction {
@@ -1416,18 +1418,22 @@
   grid-column: 1 / -1;
 }
 
-/* Foto anexada: a miniatura e o "anexada" em verde, acima dos botões que continuam para refazer. */
+/*
+ * Foto anexada (pedido do usuário, 01/10): a miniatura ocupa a largura inteira do card, como os
+ * botões ao lado — empilhada acima do "anexada" e dos botões que continuam para refazer, em vez do
+ * quadrado pequeno ao lado do texto.
+ */
 .proofCaptureAttached {
-  align-items: center;
-  display: flex;
+  display: grid;
   gap: var(--space-3);
 }
 
 .proofCaptureThumbnail {
   border: 1px solid var(--color-slate);
-  height: var(--space-16);
-  object-fit: cover;
-  width: var(--space-16);
+  display: block;
+  height: auto;
+  object-fit: contain;
+  width: 100%;
 }
 
 .proofCaptureAttachedText {

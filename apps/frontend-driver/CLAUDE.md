@@ -210,8 +210,9 @@ indicador de posição) e CA15 (44 px em 375 px). `make smoke` da raiz roda o Pl
 O canhoto e a foto da ocorrência usam `FilePickerButton` (`src/components/ui/file-picker-button.tsx`):
 um `Button` do design system que clica num `<input type="file">` fora da vista e da tabulação.
 "Tirar foto" leva `capture="environment"` (câmera na hora), "Anexar" não leva (galeria e arquivos, a
-saída quando a câmera não abre ou foi negada). No canhoto, "Colher assinatura" tem ícone próprio
-(`pen`) e ocupa a linha inteira; as duas portas da foto dividem a linha de cima. Depois de anexar:
+saída quando a câmera não abre ou foi negada). No canhoto, "Tirar foto", "Anexar" e "Colher
+assinatura" (ícone `pen`) são empilhados, cada um ocupando 100% da largura do card (pedido do
+usuário, 01/10) — nunca lado a lado. Depois de anexar:
 miniatura (`usePhotoPreviewUrl`), "anexada" e "Refazer". `test/driver-trip/proof-capture.contract.ts`.
 
 **A foto do "Deu problema" é da ocorrência de parada, nunca canhoto** (spec 209). Antes ela ia por
