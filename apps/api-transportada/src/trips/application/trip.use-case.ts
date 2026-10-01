@@ -90,6 +90,8 @@ export type ReleaseTripDocumentInput = {
 export type UpdateTripCrewInput = {
   readonly context: TripCompanyContext
   readonly driverIds: readonly string[]
+  /** Spec 149: lista completa de ajudantes — a tripulação é regravada inteira. */
+  readonly helperIds?: readonly string[]
   readonly tripId: string
   readonly vehicleId: string | undefined
 }
@@ -275,7 +277,7 @@ export function createTripUseCase(dependencies: {
      * congelado ainda. `checkTripTransition` aqui é a checagem prévia (UX); `repository.updateCrew`
      * reconfere sob lock, porque este status é anterior à transação (mesmo padrão de `close`).
      */
-    async updateCrew({ context, driverIds, tripId, vehicleId }) {
+    async updateCrew({ context, driverIds, helperIds, tripId, vehicleId }) {
       const companyId = context.companyId
       const trip = await findTripOrThrow({ companyId, repository, tripId })
 
@@ -306,7 +308,12 @@ export function createTripUseCase(dependencies: {
       }
 
       const vehicle = await resolveTripVehicleForCreation({ companyId, repository, vehicleId })
-      const crew = await resolveTripCrewForCreation({ companyId, driverIds, repository })
+      const crew = await resolveTripCrewForCreation({
+        companyId,
+        driverIds,
+        ...(helperIds === undefined ? {} : { helperIds }),
+        repository,
+      })
 
       const updated = await repository.updateCrew({
         actorUserId: context.userId,

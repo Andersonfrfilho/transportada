@@ -74,9 +74,20 @@ export type CreateTripBody = z.infer<typeof createTripSchema>
 export const updateTripCrewSchema = z
   .object({
     driverIds: z.array(z.uuid()).max(MAX_TRIP_DRIVERS).default([]),
+    /** Spec 149: a lista inteira de ajudantes — quem não vem nela sai da viagem. */
+    helperIds: z.array(z.uuid()).max(MAX_TRIP_DRIVERS).default([]),
     vehicleId: z.uuid().optional(),
   })
   .strict()
+  .superRefine((body, context) => {
+    if (body.driverIds.length + body.helperIds.length > MAX_TRIP_DRIVERS) {
+      context.addIssue({
+        code: 'custom',
+        message: `The crew cannot have more than ${MAX_TRIP_DRIVERS} people.`,
+        path: ['helperIds'],
+      })
+    }
+  })
 
 export type UpdateTripCrewBody = z.infer<typeof updateTripCrewSchema>
 
