@@ -7,6 +7,8 @@
  * ⚠️ **Rota única não é escolha** (spec 096 D2). O chamador só monta esta lista quando
  * `hasChoice` é `true` — aqui apenas o formato de cada linha é resolvido.
  */
+import { METRES_PER_KILOMETRE } from '@/modules/shared/distance.constant'
+
 import type {
   RouteChoice,
   RouteChoiceCriterion,
@@ -38,7 +40,6 @@ export type RouteOptionSummary = Readonly<{
 }>
 
 const SECONDS_PER_MINUTE = 60
-const METRES_PER_KILOMETRE = 1000
 
 /**
  * Uma linha por opção, na mesma ordem que a rota chegou — a principal primeiro. `isBestOfBoth`

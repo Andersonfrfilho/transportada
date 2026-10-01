@@ -50,11 +50,17 @@ describe('o canhoto são três botões iguais', () => {
     expect(PICKER).toInclude('localInputRef.current?.click()')
   })
 
+  /**
+   * ⚠️ `attached` saiu da lista porque saiu da tela: a foto anexada deixou de dizer "anexada" e
+   * passou a dizer em que pé está o envio. Quem fixa o texto agora é o contrato do
+   * `ProofUploadStatus` — aqui a chave morta só ficaria segurando tradução que ninguém lê.
+   */
   it('os textos existem em pt-BR e en', () => {
     for (const locale of [driverTrip, driverTripEn]) {
-      for (const key of ['title', 'attach', 'retake', 'attached', 'thumbnail'] as const) {
+      for (const key of ['title', 'attach', 'retake', 'thumbnail'] as const) {
         expect(locale.proofCapture[key]).toBeString()
       }
+      expect(locale.proofCapture).not.toHaveProperty('attached')
     }
     expect(driverTrip.proofCapture.attach).toBe('Anexar')
     expect(driverTrip.choosePhoto).toBe('Tirar foto')

@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { findBrazilianHoliday } from '@/components/ui/brazilianHoliday.service'
+import { METRES_PER_KILOMETRE } from '@/modules/shared/distance.constant'
 
 /**
  * Quando o roteiro **termina**, e o que há de errado com esse momento.
@@ -19,7 +20,6 @@ export type RouteFinish = Readonly<{
 
 type ScheduleStop = Readonly<{ estimatedArrivalAt: null | string; sequence: number }>
 
-const METRES_PER_KILOMETRE = 1000
 const SECONDS_PER_MINUTE = 60
 
 /**
