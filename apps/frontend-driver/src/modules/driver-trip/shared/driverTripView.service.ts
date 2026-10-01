@@ -21,11 +21,19 @@ export function isStopPending(stop: DriverTripStop): boolean {
 }
 
 /**
- * A primeira pendente é a que o motorista está fazendo agora — é ela que a tela destaca. Sem isso
- * ele lê a lista inteira em cada parada para achar onde está, com o caminhão parado em fila dupla.
+ * Spec 206 D9: a parada ATUAL é a que está a caminho — senão a primeira pendente, como antes. É ela
+ * que a tela destaca e abre sozinha. Sem isso ele lê a lista inteira em cada parada para achar onde
+ * está, com o caminhão parado em fila dupla.
  */
-export function findCurrentStop(trip: DriverTrip): DriverTripStop | undefined {
-  return trip.stops.find(isStopPending)
+export function findCurrentStop(input: {
+  readonly enRouteStopId: string | undefined
+  readonly trip: DriverTrip
+}): DriverTripStop | undefined {
+  if (input.enRouteStopId !== undefined) {
+    const enRouteStop = input.trip.stops.find((stop) => stop.id === input.enRouteStopId)
+    if (enRouteStop !== undefined) return enRouteStop
+  }
+  return input.trip.stops.find(isStopPending)
 }
 
 /**
@@ -35,20 +43,6 @@ export function findCurrentStop(trip: DriverTrip): DriverTripStop | undefined {
  */
 export function isAwaitingDispatch(trip: DriverTrip): boolean {
   return trip.status === 'route_planned'
-}
-
-/** O "saí" do motorista (ADR-0058/0074): da carga fechada ou carregando para a rota de entrega. */
-export function canStartRoute(trip: DriverTrip): boolean {
-  return trip.status === 'dispatched' || trip.status === 'in_transit'
-}
-
-/**
- * A nota que a prévia do aviso do "Deu problema" cita: a primeira ainda em aberto, senão a primeira
- * da lista. ⚠️ Spec 209: a foto da ocorrência **não** vai mais para o comprovante desta nota — ela
- * virava canhoto e pesava na pontualidade. A foto é da ocorrência de parada.
- */
-export function findOccurrencePhotoDocument(stop: DriverTripStop): DriverTripDocument | undefined {
-  return stop.documents.find((document) => !isDocumentSettled(document)) ?? stop.documents[0]
 }
 
 export function countPendingDocuments(stop: DriverTripStop): number {

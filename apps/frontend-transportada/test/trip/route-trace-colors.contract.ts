@@ -7,7 +7,6 @@ import { resolveRouteLegs } from '../../src/modules/trip/shared/routeGeometry.se
 import type { RouteGeometry } from '../../src/modules/trip/shared/routeGeometry.service'
 import { stopColorOf } from '../../src/modules/trip/shared/stopColor.service'
 
-const VECTOR_MAP = new URL('../../src/components/ui/vector-map.tsx', import.meta.url)
 const ASSEMBLY = new URL(
   '../../src/modules/trip/components/AssemblyVectorMap.component.tsx',
   import.meta.url,
@@ -177,18 +176,6 @@ describe('o traço do roteiro usa a paleta da listagem, um trecho por parada', (
     expect(legs[1]?.points.at(-1)).toEqual({ x: 0, y: 0 })
     /** A cor do trecho de saída é a da única parada — é para ela que ele leva. */
     expect(legs[0]?.toSequence).toBe(1)
-  })
-
-  /**
-   * ⚠️ `.line` declara `stroke` em CSS, e **classe vence atributo de apresentação**: o traço sairia
-   * na cor do tema com o atributo ignorado, e o defeito seria invisível — a linha aparece, só que
-   * na cor errada.
-   */
-  it('a cor do traço entra inline, porque a classe venceria o atributo', () => {
-    const source = readFileSync(VECTOR_MAP, 'utf8')
-
-    expect(source).toContain('{ stroke: shape.color }')
-    expect(source).not.toContain('stroke={shape.color}')
   })
 
   /**

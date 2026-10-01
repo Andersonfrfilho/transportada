@@ -81,6 +81,21 @@ anterior deste aviso caía nele por outro caminho: mandava rodar só o primeiro 
 verde dele de "exercitou o banco". Uma task que mexe em `test/integration/**` só fecha com o
 segundo comando, ou seus testes novos não rodaram.
 
+⚠️ **Em toda app, o comando é o script `test` do `package.json`, nunca `bun test` cru.** O cru usa a
+descoberta padrão do Bun, e no `frontend-transportada` ela varre junto os `.smoke.spec.ts` do
+Playwright: **29 fail e 21 errors** de `Playwright Test did not expect test() to be called here`,
+nenhum deles um defeito. O script lista os arquivos e dá 6048 pass / 0 fail. Vermelho de invocação
+errada se parece com vermelho de código e custa a mesma meia hora — mesma família da porta errada do
+Playwright no `frontend-driver` (abaixo).
+
+⚠️ **`bun test <caminho>` sem o `./` casa zero arquivos**: o Bun trata o caminho como filtro de
+_nome de teste_, não de arquivo, e responde "filters did not match any test files". Para rodar um
+arquivo avulso é `./test/integration/x.integration.ts`.
+
+⚠️ **O `eslint` não roda a partir da raiz do monorepo** quando o alvo cruza duas apps:
+`No tsconfigRootDir was set, and multiple candidate TSConfigRootDirs are present`. Lint é por app,
+com a app como cwd.
+
 Portas (bind em 127.0.0.1): postgres 55432 · rabbitmq 55672/55673 · minio 59000/59001 ·
 mailpit 51025/58025 · keycloak 58080 · frontend 53000 · api 53001 · worker 53002 ·
 frontend-driver 53200 (`FRONTEND_DRIVER_PORT`; `53112` não é uma segunda porta de serviço — é a
@@ -93,6 +108,18 @@ painel estiver desligado (variável ausente), o painel continua servindo `/minha
 — é o caminho de transição, drenado pela fila antiga e medido por um beacon
 (`driver_legacy_served`) até a remoção do módulo `driver-trip` do painel (tasks.md Fase 10 da 189,
 sob aprovação humana).
+
+**O cavalo não carrega sozinho** (spec 147). A viagem com `tractor_unit` (cavalo mecânico) exige uma
+carreta atrelada para despachar (`409 TRIP_TRAILER_REQUIRED`), guardada em `trips.trailer_vehicle_id`.
+A frota oferece uma carreta padrão por cavalo (`fleet_vehicles.default_trailer_vehicle_id`),
+sugestão que a viagem pode trocar; uma mesma carreta não entra em duas viagens abertas
+(`trips_company_trailer_open_unique`). A ocupação e a planta da viagem usam a ficha da carreta quando
+preenchida, senão a referência do catálogo com origem marcada — o cavalo nunca carrega.
+
+Todo veículo que carrega, exceto o cavalo, é obrigado a escolher a carroceria no cadastro
+(`checkVehicleBodyType`, `400 FLEET_VEHICLE_BODY_TYPE_REQUIRED`); cadastro antigo com `00` não é
+reescrito e aparece na página `/pendencias` (`GET /pending-items`, `fleet.read`). Detalhe em
+`docs/ai-context/api-transportada.md` §093.
 
 ## Convenções
 

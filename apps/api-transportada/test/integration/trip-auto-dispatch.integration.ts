@@ -554,13 +554,17 @@ async function seedPlannedTrip(
     status: 'active',
     userId,
   })
+  // `truck`, não `tractor_unit`: este arquivo prova o gatilho automático do despacho (spec 185),
+  // não a exigência de carreta (T18) — um cavalo sem carreta bloquearia o despacho automático
+  // antes do que este teste prova, e o gate recusado vira `autoDispatch.blocked` em vez de
+  // `dispatched`, quebrando as asserções abaixo.
   await database.db.insert(fleetVehicles).values({
     companyId,
     id: vehicleId,
     plate: 'ABC1D24',
     role: 'traction',
     state: 'SP',
-    vehicleType: 'tractor_unit',
+    vehicleType: 'truck',
   })
   await database.db.insert(fleetDrivers).values({
     companyId,
@@ -582,7 +586,16 @@ async function seedPlannedTrip(
     actorUserId: userId,
     channel: TRIP_FIELD_CHANNELS.backoffice,
     companyId,
-    crew: [{ driverId, driverName: 'Motorista 185 T4', driverTaxId: '22222222222', position: 1 }],
+    crew: [
+      {
+        driverId,
+        driverName: 'Motorista 185 T4',
+        driverTaxId: '22222222222',
+        position: 1,
+        role: 'driver',
+      },
+    ],
+    trailerVehicleId: null,
     vehicleId,
   })
 

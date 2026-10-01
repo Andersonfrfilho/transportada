@@ -35,6 +35,14 @@ export const API_COMPANY_SETTINGS_CARGO_CAMERA_MEASUREMENT_PATH =
 export const API_COMPANY_SETTINGS_DELIVERY_PROOF_PATH = '/company-settings/delivery-proof'
 export const API_COMPANY_SETTINGS_DELIVERY_PROOF_OVERRIDES_PATH =
   '/company-settings/delivery-proof/overrides'
+/** Spec 218 RF-C1/RF-C4: a mesma exceção, agora também por contratante (embarcador/emitente). */
+export const API_COMPANY_SETTINGS_DELIVERY_PROOF_CONTRACTOR_OVERRIDES_PATH =
+  '/company-settings/delivery-proof-contractor-overrides'
+/**
+ * Spec 218 RF-E1: a tela de verificação — comprovante e ocorrência efetivos para uma combinação de
+ * contratante/destinatário, sem simular uma nota de verdade. `GET` só, `settings.manage`.
+ */
+export const API_COMPANY_SETTINGS_SETTINGS_RESOLUTION_PATH = '/company-settings/settings-resolution'
 /** Spec 075: o fator de cubagem por espécie, irmão do peso padrão. */
 export const API_COMPANY_SETTINGS_CARGO_VOLUME_PATH = '/company-settings/cargo-volume-factors'
 export const API_COMPANY_SETTINGS_CONTACTS_PATH = '/company-settings/contacts'
@@ -48,6 +56,8 @@ export const API_COMPANY_SETTINGS_FEDERAL_TAXES_PATH = '/company-settings/federa
 export const API_COMPANY_SETTINGS_DRIVER_ALLOWANCE_PATH = '/company-settings/driver-allowance'
 /** Spec 169 RF1: cadastro de espécie de lançamento (gasto/receita), por empresa. */
 export const API_COMPANY_SETTINGS_ENTRY_KINDS_PATH = '/company-settings/entry-kinds'
+/** Spec 149: a diária geral do ajudante — a própria da ficha do motorista vence quando existe. */
+export const API_COMPANY_CREW_SETTINGS_PATH = '/company-crew-settings'
 export const API_DIGITAL_CERTIFICATES_PATH = '/digital-certificates'
 export const API_FREIGHT_RULES_PATH = '/freight-rules'
 export const API_FREIGHT_CALCULATIONS_PATH = '/freight-calculations'
@@ -100,6 +110,8 @@ export const API_FLEET_VEHICLE_CATALOG_MODELS_PATH = '/fleet/vehicle-catalog/mod
  * `/fleet` como o catálogo FIPE ao lado — quem cadastra veículo já tem `fleet.read`.
  */
 export const API_FLEET_VEHICLE_REFERENCES_PATH = '/fleet/vehicle-references'
+/** Spec 147 D2/RF9: o que o cadastro ainda deve. Genérica — hoje só a carroceria de `fleet.read`. */
+export const API_PENDING_ITEMS_PATH = '/pending-items'
 /** Não é rota de frota: os três formulários com campo de CEP — motorista, empresa e MDF-e — a usam. */
 export const API_POSTAL_CODES_PATH = '/postal-codes'
 export const API_ADDRESS_REPORT_PATH = '/address-report'

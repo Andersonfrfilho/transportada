@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { METRES_PER_KILOMETRE } from '@/modules/shared/distance.constant'
 
 import type { RouteSuggestion, RouteSuggestionStop } from '../shared/routeSuggestion.types'
 import {
@@ -299,7 +300,6 @@ function warningText(input: {
   })
 }
 
-const METRES_PER_KILOMETRE = 1000
 const SECONDS_PER_MINUTE = 60
 const MINUTES_PER_HOUR = 60
 

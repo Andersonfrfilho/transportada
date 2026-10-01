@@ -66,7 +66,8 @@ export function resolveTollBoothMarkers(
   if (toll === null) return []
 
   return toll.booths.map((booth) => ({
-    label: formatBoothCharge(booth.chargePerAxle),
+    /** Sem `trip.financials` a chave some (spec 153 D10) — o marcador trata isso como tarifa desconhecida. */
+    label: formatBoothCharge(booth.chargePerAxle ?? null),
     latitude: Number(booth.latitude),
     longitude: Number(booth.longitude),
   }))

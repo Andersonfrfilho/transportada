@@ -207,6 +207,8 @@ export type FleetVehicleBody = FleetVehicleCostFields &
     cargoLengthMeters: string
     cargoWidthMeters: string
     color: string
+    /** Spec 147 D3: a carreta padrão do cavalo — a API a recusa fora de `tractor_unit`. */
+    defaultTrailerVehicleId: null | string
     fleetNumber: string
     fuelType: FuelProduct
     /** Spec 095 D3: com a tag, o pedágio usa a automática da praça quando ela é conhecida. */
@@ -297,6 +299,13 @@ export type FleetDriverBody = Readonly<{
   address: FleetDriverAddress
   /** Mesma categoria da ANTT que o proprietário do veículo declara ao MDF-e. */
   anttCategory: '' | MdfeOwnerTaxRegime
+  /** Spec 149 D1: pode atuar como ajudante — a mesma pessoa dirige numa viagem e ajuda em outra. */
+  canActAsHelper: boolean
+  /**
+   * Spec 149 D2: a diária própria de ajudante; vence a geral (`company_crew_settings`) quando
+   * existe. `null` é "não tem diária própria, usa a geral".
+   */
+  helperDailyRate: null | string
   /**
    * Spec 100: este motorista amarra a carga com cinta.
    *
@@ -480,7 +489,8 @@ export type FleetDriverPage = Readonly<{
 export type FleetVehicleFormState = FleetVehicleCostFields &
   Readonly<{
     axleCount: string
-    bodyType: MdfeBodyType
+    /** Feature 147 D1: vazio até o operador escolher — só o cavalo nasce com '00' já preenchido. */
+    bodyType: '' | MdfeBodyType
     /** Spec 085: por onde a carga entra e sai — campo da ficha, nunca deduzido do tipo. */
     loadingAccess: LoadingAccess
     brand: string
@@ -490,6 +500,10 @@ export type FleetVehicleFormState = FleetVehicleCostFields &
     cargoLengthMeters: string
     cargoWidthMeters: string
     color: '' | VehicleColor
+    /**
+     * Feature 147 D3: `''` é "ainda não escolhido" — fora do cavalo o valor enviado é sempre `null`.
+     */
+    defaultTrailerVehicleId: string
     fleetNumber: string
     fuelType: FuelProduct
     hasAutomaticTollPayment: boolean
@@ -527,6 +541,10 @@ export type FleetDriverFormState = Readonly<{
   addressState: string
   addressStreet: string
   anttCategory: string
+  /** Spec 149 D1: pode atuar como ajudante — sem controle próprio na tela ainda, só round-trip. */
+  canActAsHelper: boolean
+  /** Spec 149 D2: a diária própria de ajudante — `''` é "usa a geral da empresa". */
+  helperDailyRate: string
   /** Spec 100: amarra a carga com cinta — libera a planta a empilhar até o teto do baú. */
   securesCargo: boolean
   birthCity: string

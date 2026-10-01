@@ -42,7 +42,13 @@ describe('os campos do comprovante dirigidos pela configuração (D4/T053)', () 
     expect(
       listMissingProofFields({
         plan,
-        values: { hasPhoto: false, hasSignature: false, receiverDocument: '', receiverName: ' ' },
+        values: {
+          cargoCount: 0,
+          hasPhoto: false,
+          hasSignature: false,
+          receiverDocument: '',
+          receiverName: ' ',
+        },
       }),
     ).toEqual(['receiverName', 'receiverDocument', 'signature'])
   })
@@ -53,6 +59,7 @@ describe('os campos do comprovante dirigidos pela configuração (D4/T053)', () 
       listMissingProofFields({
         plan,
         values: {
+          cargoCount: 0,
           hasPhoto: false,
           hasSignature: false,
           receiverDocument: '',
@@ -105,6 +112,8 @@ describe('os campos do comprovante dirigidos pela configuração (D4/T053)', () 
       },
     })
     expect(snapshot.trips[0]?.stops[0]?.deliveryProof).toEqual({
+      cargo: 'off',
+      cargoMinimumCount: 1,
       photo: 'required',
       receivedBy: 'optional',
       receiverDocument: 'optional',

@@ -3,6 +3,7 @@
   "arrive": "Cheguei",
   "arrived": "Cheguei às {{time}}",
   "deliver": "Entreguei",
+  "deliveredState": "Entregue",
   "documentsPending_one": "{{count}} nota para entregar",
   "documentsPending_other": "{{count}} notas para entregar",
   "attachmentLimitCount": "Limite de anexos aguardando envio atingido. Envie os pendentes antes de anexar outro — nada foi descartado.",
@@ -25,8 +26,13 @@
       "tooLarge": "a foto passou do tamanho aceito pelo servidor"
     },
     "empty": "Nada aguardando envio.",
+    "itemTitle": {
+      "depart": "Iniciar rota — parada {{sequence}}"
+    },
     "kind": {
       "arrive": "Chegada",
+      "cancelDeparture": "Cancelamento de rota",
+      "depart": "Iniciar rota",
       "deliver": "Entrega",
       "documentOccurrence": "Ocorrência com foto",
       "occurrence": "Ocorrência",
@@ -95,6 +101,13 @@
   "pendingProofs": {
     "attach": "Anexar comprovante",
     "back": "Voltar",
+    "canhotoRejection": {
+      "illegible": "O canhoto anterior saiu ilegível.",
+      "missing_signature": "O canhoto anterior estava sem assinatura.",
+      "other": "{{note}}",
+      "title": "Canhoto recusado na conferência — tire uma foto nova.",
+      "wrong_document": "A foto anterior era de outro documento."
+    },
     "documentLabel": "Nota {{number}}/{{series}}",
     "empty": "Nenhuma foto pendente. Está tudo em dia.",
     "open": "Fotos pendentes",
@@ -112,18 +125,7 @@
     "outcomeFor": "{{recipient}} · Nota {{number}}/{{series}}"
   },
   "proofPendingWarning": "Tirar de novo não melhora: vale a pior foto. Foto enviada muito depois conta como atrasada, mesmo que o relógio do aparelho mostre outra hora.",
-  "occurrence": "Deu problema",
   "occurrenceDescription": "O que aconteceu (opcional)",
-  "occurrenceKind": {
-    "address_not_found": "Endereço não localizado",
-    "appointment_required": "Exigiram agendamento",
-    "customer_closed": "Cliente fechado",
-    "damaged_goods": "Mercadoria avariada",
-    "dock_closed": "Doca interditada",
-    "long_wait": "Espera longa",
-    "other": "Outro",
-    "unexpected_charge": "Cobrança inesperada"
-  },
   "occurrencePhoto": "Foto da ocorrência (local ou carga)",
   "choosePhoto": "Tirar foto",
   "occurrencePreview": {
@@ -167,13 +169,38 @@
     "attach": "Anexar",
     "retake": "Refazer",
     "replace": "Substituir",
-    "attached": "Foto do canhoto anexada",
     "thumbnail": "Miniatura da foto do canhoto",
     "view": "Ver",
     "close": "Fechar",
     "remove": "Remover",
     "confirmRemove": "Remover a foto do canhoto?",
-    "replaceHint": "A foto enviada só pode ser substituída."
+    "replaceHint": "A foto enviada só pode ser substituída.",
+    "refused": {
+      "photo": "Fila cheia: não deu para salvar a foto agora. Envie as pendências e tire de novo.",
+      "signature": "Fila cheia: não deu para salvar a assinatura agora. Envie as pendências e colha de novo.",
+      "cargo": "Fila cheia: não deu para salvar a foto da mercadoria agora. Envie as pendências e tire de novo."
+    },
+    "cargo": {
+      "title": "Mercadoria",
+      "count_one": "{{count}} de {{limit}} foto da mercadoria",
+      "count_other": "{{count}} de {{limit}} fotos da mercadoria",
+      "take": "Foto da mercadoria",
+      "limitReached": "Limite de fotos da mercadoria atingido.",
+      "pending_one": "Falta {{count}} foto da mercadoria.",
+      "pending_other": "Faltam {{count}} fotos da mercadoria."
+    },
+    "upload": {
+      "confirmed": "Comprovante já enviado",
+      "empty": "Ainda sem foto",
+      "loading": {
+        "photo": "Carregando a foto do canhoto",
+        "signature": "Carregando a assinatura"
+      },
+      "sending": "Enviando",
+      "savedOnDevice": "A foto está guardada no aparelho e segue mesmo sem sinal.",
+      "sent": "Enviada às {{time}}",
+      "failed": "Não foi possível enviar a foto. Ela continua guardada no aparelho."
+    }
   },
   "proofFailed": "Não foi possível anexar o arquivo. A entrega continua registrada.",
   "proofFields": {
@@ -209,7 +236,9 @@
       "receiverName": "o nome de quem recebeu",
       "receiverDocument": "o documento de quem recebeu",
       "receivedBy": "quem recebeu",
-      "receivedByDetail": "o detalhe de quem recebeu"
+      "receivedByDetail": "o detalhe de quem recebeu",
+      "cargo_one": "{{count}} foto da mercadoria",
+      "cargo_other": "{{count}} fotos da mercadoria"
     }
   },
   "signature": {
@@ -266,7 +295,6 @@
   "title": "Minha viagem",
   "tripCompleted": "Viagem concluída. Bom trabalho.",
   "vehicle": "Veículo {{plate}}",
-  "documentOccurrence": "Registrar ocorrência",
   "documentOccurrenceHint": "Para o que aconteceu sem a carga voltar: a nota não volta com você. Se a carga volta, use Devolver.",
   "documentOccurrenceFailed": "Não deu para registrar a ocorrência. A nota continua como estava — toque de novo.",
   "documentOccurrenceProduct": "Item",
@@ -340,6 +368,13 @@
     "send": "Enviar",
     "warning": "Descartar apaga esses registros do celular para sempre, junto com as fotos e assinaturas das mesmas entregas — nada deles chega ao escritório."
   },
+  "deliveryGate": {
+    "title": "Comprovante da entrega",
+    "lead": "Esta entrega pede comprovante. Preencha o que tem * e confirme.",
+    "confirm": "Confirmar entrega",
+    "cancel": "Cancelar",
+    "missingLead": "Para confirmar, falta: {{fields}}."
+  },
   "notDelivered": {
     "occurrenceTypeLegend": "Qual ocorrência registrar?",
     "photoLabel": "Foto da ocorrência",
@@ -369,10 +404,27 @@
     }
   },
   "startRoute": {
-    "failed": "Não foi possível iniciar a rota. Toque de novo.",
-    "start": "Iniciar rota",
-    "done": "Rota iniciada às {{time}}. Boa viagem!",
     "onRoute": "Em rota de entrega"
+  },
+  "depart": {
+    "start": "Iniciar rota"
+  },
+  "enRoute": {
+    "since": "A caminho desde {{time}}",
+    "queued": "A caminho — na fila"
+  },
+  "departBlocked": {
+    "reason": "Você está a caminho da parada {{sequence}}.",
+    "hint": "Chegue, registre depois ou cancele a rota dela.",
+    "shortcut": "Ir para a parada {{sequence}}",
+    "queueReason": "Outra parada está a caminho — feche a parada {{sequence}}."
+  },
+  "cancelDeparture": {
+    "open": "Cancelar rota",
+    "confirmTitle": "Cancelar a rota da parada {{sequence}}?",
+    "confirmBody": "O cliente será avisado de que você não vem mais.",
+    "confirm": "Cancelar rota",
+    "back": "Voltar"
   },
   "activity": {
     "delivered": "Entregue às {{time}}",
@@ -392,5 +444,18 @@
       "occurrence": "Ocorrência registrada",
       "returned": "Devolução registrada"
     }
+  },
+  "occurrenceRegistration": {
+    "attachment": {
+      "off": "Sem foto",
+      "optional": "Foto opcional",
+      "required": "Foto obrigatória"
+    },
+    "cancel": "Cancelar",
+    "legend": "Qual ocorrência?",
+    "missingLead": "Para registrar, falta: {{fields}}.",
+    "open": "Ocorrência",
+    "openHint": "Registrar um problema desta nota ou da parada",
+    "title": "Registrar ocorrência"
   }
 }

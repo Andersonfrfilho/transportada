@@ -7,11 +7,13 @@
 import type { ClientIpResolver } from '../../http/client-ip.service.js'
 import { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import { defineRoute } from '../../http/router.service.js'
-import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
 import type { FieldTripTargetPort } from '../application/field-trip-target.port.js'
 import type { ResolvedTripFieldTarget } from '../application/field-trip-target.types.js'
 import type { ReportStopArrivalResult } from '../application/report-stop-arrival.use-case.js'
-import type { ReportStopOccurrenceResult } from '../application/report-stop-occurrence.use-case.js'
+import type {
+  ReportStopOccurrenceResult,
+  StopOccurrenceReference,
+} from '../application/report-stop-occurrence.use-case.js'
 import {
   FIELD_TRIP_STEP,
   type FieldTripStep,
@@ -22,6 +24,7 @@ import {
   parseOfficeArrivalRequest,
   parseOfficeDriverSelection,
   parseOfficeStopOccurrenceRequest,
+  type OfficeStopOccurrenceRequest,
 } from './trip-field-office.schema.js'
 import {
   buildOfficeContextInput,
@@ -68,15 +71,15 @@ export type TripFieldOfficeTripDependencies = {
     },
   ) => Promise<ReportStopArrivalResult>
   readonly reportOccurrence: (
-    input: OfficeContextInput & {
-      readonly description: string
-      readonly distanceMeters: number | null
-      readonly documentId: string | null
-      readonly idempotencyKey: string
-      readonly kind: TripStopOccurrenceKind
-      readonly stopId: string
-      readonly target: ResolvedTripFieldTarget
-    },
+    input: OfficeContextInput &
+      StopOccurrenceReference & {
+        readonly description: string
+        readonly distanceMeters: number | null
+        readonly documentId: string | null
+        readonly idempotencyKey: string
+        readonly stopId: string
+        readonly target: ResolvedTripFieldTarget
+      },
   ) => Promise<ReportStopOccurrenceResult>
   readonly startFieldTrip: (
     input: OfficeContextInput & {
@@ -201,14 +204,11 @@ function createStopOccurrenceRoute(
   dependencies: TripFieldOfficeTripDependencies,
 ): ReturnType<typeof defineRoute> {
   return defineRoute<
-    OfficeRequestInput & {
-      readonly description: string
-      readonly distanceMeters: number | null
-      readonly documentId: string | null
-      readonly idempotencyKey: string
-      readonly kind: TripStopOccurrenceKind
-      readonly stopId: string
-    }
+    OfficeRequestInput &
+      OfficeStopOccurrenceRequest & {
+        readonly idempotencyKey: string
+        readonly stopId: string
+      }
   >({
     async handle({ context, input }): Promise<Response> {
       const target = await resolveOfficeTarget({
@@ -229,7 +229,10 @@ function createStopOccurrenceRoute(
         distanceMeters: input.distanceMeters,
         documentId: input.documentId,
         idempotencyKey: input.idempotencyKey,
-        kind: input.kind,
+        /** Spec 218 D2: o mesmo par que a rota do motorista manda — nunca os dois juntos. */
+        ...(input.occurrenceTypeId === undefined
+          ? { kind: input.kind }
+          : { occurrenceTypeId: input.occurrenceTypeId }),
         stopId: input.stopId,
         target,
       })

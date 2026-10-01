@@ -1,7 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useMemo, useState } from 'react'
+import { Fragment, type ReactNode, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
@@ -11,10 +12,13 @@ import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavig
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
 import { useTripOccurrenceAttachmentsQuery } from '../queries/tripOccurrenceFeed.query'
-import type { TripTimelineItem, TripTimelinePage } from '../shared/trip.types'
-import { resolveTripTimelineAvatar } from '../shared/tripTimelineAvatar.service'
-import { hasTripTimelineExpandableDetail } from '../shared/tripTimelineDetail.service'
+import type { TripStopDetail, TripTimelineItem, TripTimelinePage } from '../shared/trip.types'
 import {
+  hasTripTimelineExpandableDetail,
+  resolveTimelineLocationView,
+} from '../shared/tripTimelineDetail.service'
+import {
+  collectRepeatedAuthorshipItemIds,
   collectTripTimelineDocuments,
   filterTripTimelineItemsByDocumentIds,
   formatTripTimelineDocumentFilterLabel,
@@ -22,8 +26,6 @@ import {
   removeDuplicateDispatchEvents,
   resolveTripTimelineAuthorshipText,
   resolveTripTimelineTitle,
-  resolveTripTimelineTone,
-  type TripTimelineTone,
 } from '../shared/tripTimeline.service'
 import {
   resolveTripTimelineDocumentHref,
@@ -31,15 +33,31 @@ import {
   resolveTripTimelineStopHref,
 } from '../shared/tripTimelineLink.service'
 import { navigateToTripOccurrence } from '../shared/tripOccurrenceRoute.service'
+import {
+  formatTripTimelineDuration,
+  resolveTripTimelineChips,
+  resolveTripTimelineIcon,
+  resolveTripTimelineInterval,
+  type TripTimelineIconTone,
+} from '../shared/tripTimelineRow.service'
 import styles from '../styles/tripTimeline.module.css'
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
+import { TripTimelineLocation } from './TripTimelineLocation.component'
+import {
+  TripTimelineLocationMap,
+  type TripTimelineLocationMapStop,
+} from './TripTimelineLocationMap.component'
+import { TripTimelineMiniMap } from './TripTimelineMiniMap.component'
 
 const SKELETON_ROWS = 3
 
-const TONE_CLASS: Readonly<Record<TripTimelineTone, string | undefined>> = {
-  done: styles.itemDone,
-  problem: styles.itemProblem,
-  progress: undefined,
+const EVENT_MAP_PANEL_ID = 'trip-timeline-event-map'
+
+const ICON_TONE_CLASS: Readonly<Record<TripTimelineIconTone, string | undefined>> = {
+  done: styles.iconDone,
+  neutral: styles.iconNeutral,
+  problem: styles.iconProblem,
+  progress: styles.iconProgress,
 }
 
 const dateTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
@@ -105,7 +123,28 @@ type TripTimelineProps = Readonly<{
   /** Nota aberta no detalhe (spec 158 RF6) — `null` quando nenhuma está aberta, e o filtro some. */
   openDocumentId: null | string
   query: TripTimelineQuery
+  /** As paradas da viagem: o mapa do ponto do evento desenha também a parada. Ausente, só o evento. */
+  stops?: readonly TripStopDetail[] | undefined
 }>
+
+function findStopForMap(
+  item: TripTimelineItem,
+  stops: readonly TripStopDetail[] | undefined,
+): null | TripTimelineLocationMapStop {
+  if (item.stop === null || stops === undefined) return null
+  const stop = stops.find((candidate) => candidate.id === item.stop?.id)
+  if (stop === undefined) return null
+  const latitude = Number(stop.latitude ?? Number.NaN)
+  const longitude = Number(stop.longitude ?? Number.NaN)
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
+  return {
+    label: stop.label,
+    latitude,
+    longitude,
+    sequence: stop.sequence,
+    stopKey: stop.addressKey,
+  }
+}
 
 /**
  * Spec 158 T8 (RF6) / T10: a seção "Linha do tempo" do detalhe da viagem — trilho vertical com um
@@ -113,7 +152,7 @@ type TripTimelineProps = Readonly<{
  * horário e autoria. Sem cartão por item: numa viagem de 50 notas a borda cheia de cada um pesava.
  * A ordem é a da API (D4, do mais recente para o mais antigo) — o componente não reordena.
  */
-export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
+export function TripTimeline({ openDocumentId, query, stops }: TripTimelineProps) {
   const { t } = useTranslation('trip')
   const translate = t as Translate
   /**
@@ -123,6 +162,7 @@ export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<ReadonlySet<string>>(
     () => new Set(openDocumentId === null ? [] : [openDocumentId]),
   )
+  const [isEventMapExpanded, setIsEventMapExpanded] = useState(false)
 
   const loadedItems = useMemo(() => {
     const pages = query.data?.pages ?? []
@@ -133,6 +173,15 @@ export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
   const items = useMemo(
     () => filterTripTimelineItemsByDocumentIds(loadedItems, selectedDocumentIds),
     [loadedItems, selectedDocumentIds],
+  )
+  /** A API ordena do mais recente para o mais antigo: o evento anterior é o próximo da lista. */
+  const olderItemById = useMemo(
+    () => new Map(items.map((item, index) => [item.id, items[index + 1]])),
+    [items],
+  )
+  const repeatedAuthorshipItemIds = useMemo(
+    () => collectRepeatedAuthorshipItemIds(items, translate),
+    [items, translate],
   )
 
   function handleDocumentToggle(documentId: string, checked: boolean) {
@@ -164,6 +213,33 @@ export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
           </fieldset>
         )}
       </div>
+
+      {/**
+       * Spec 196: o mapa dos eventos media 533px aberto por padrão — a lista inteira nascia abaixo
+       * da dobra por causa de algo que ninguém tinha pedido ainda. O painel existe fechado, para o
+       * `aria-controls` ter destino; o mapa só é construído depois do gesto.
+       */}
+      {items.length > 0 ? (
+        <Fragment>
+          <Button
+            aria-controls={EVENT_MAP_PANEL_ID}
+            aria-expanded={isEventMapExpanded}
+            className={styles.action}
+            onClick={() => setIsEventMapExpanded((current) => !current)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name={isEventMapExpanded ? 'chevron-up' : 'chevron-down'} />
+            {isEventMapExpanded ? t('eventTimeline.map.hide') : t('eventTimeline.map.show')}
+          </Button>
+          <div className={styles.mapPanel} id={EVENT_MAP_PANEL_ID}>
+            {isEventMapExpanded ? (
+              <TripTimelineMiniMap hasMorePages={query.hasNextPage} items={items} />
+            ) : null}
+          </div>
+        </Fragment>
+      ) : null}
 
       {query.isPending ? (
         <SkeletonGroup className={styles.skeleton} label={t('eventTimeline.loading')}>
@@ -201,19 +277,35 @@ export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
                 </span>
               </h4>
               <ol className={styles.list}>
-                {group.items.map((item, index) => (
-                  <TripTimelineEntry
-                    item={item}
-                    key={item.id}
-                    repeatsAuthorship={
-                      index > 0 &&
-                      resolveTripTimelineAuthorshipText(
-                        group.items[index - 1] as TripTimelineItem,
-                        translate,
-                      ) === resolveTripTimelineAuthorshipText(item, translate)
-                    }
-                  />
-                ))}
+                {group.items.map((item, index) => {
+                  const older = olderItemById.get(item.id)
+                  const interval =
+                    older === undefined
+                      ? undefined
+                      : resolveTripTimelineInterval({ newer: item, older })
+                  const hasGapRuler = interval?.kind === 'gap' && index < group.items.length - 1
+                  return (
+                    <Fragment key={item.id}>
+                      <TripTimelineEntry
+                        elapsedMinutes={
+                          interval === undefined || interval.kind === 'none' || hasGapRuler
+                            ? null
+                            : interval.minutes
+                        }
+                        item={item}
+                        repeatsAuthorship={repeatedAuthorshipItemIds.has(item.id)}
+                        stops={stops}
+                      />
+                      {hasGapRuler ? (
+                        <li className={styles.gap}>
+                          {t('eventTimeline.gap', {
+                            duration: formatTripTimelineDuration(interval.minutes, translate),
+                          })}
+                        </li>
+                      ) : null}
+                    </Fragment>
+                  )
+                })}
               </ol>
             </section>
           ))}
@@ -238,17 +330,40 @@ export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
 }
 
 function TripTimelineEntry({
+  elapsedMinutes,
   item,
   repeatsAuthorship,
-}: Readonly<{ item: TripTimelineItem; repeatsAuthorship: boolean }>) {
+  stops,
+}: Readonly<{
+  elapsedMinutes: null | number
+  item: TripTimelineItem
+  repeatsAuthorship: boolean
+  stops: readonly TripStopDetail[] | undefined
+}>) {
   const { t } = useTranslation('trip')
   const translate = t as Translate
   const [isExpanded, setIsExpanded] = useState(false)
   const hasDetail = hasTripTimelineExpandableDetail(item)
+  const locationView = resolveTimelineLocationView(item, translate)
+  /** Quando o mapa é o único detalhe, o botão diz o que abre em vez de "Ver mais". */
+  const isMapOnlyDetail =
+    locationView?.canViewMap === true &&
+    !hasTripTimelineExpandableDetail({ ...item, location: null, locationState: null })
   const detailId = `trip-timeline-detail-${item.id}`
+  const mapPanelId = `trip-timeline-map-${item.id}`
+  const eventMap =
+    locationView?.coordinates == null ? null : (
+      <TripTimelineLocationMap
+        eventLatitude={locationView.coordinates.latitude}
+        eventLongitude={locationView.coordinates.longitude}
+        stop={findStopForMap(item, stops)}
+      />
+    )
   const title = resolveTripTimelineTitle(item, translate)
-  const authorship = resolveTripTimelineAuthorshipText(item, translate)
-  const avatar = resolveTripTimelineAvatar(item)
+  /** Autoria igual à do evento anterior cala: o leitor já sabe de quem é (spec 180). */
+  const authorship = repeatsAuthorship ? null : resolveTripTimelineAuthorshipText(item, translate)
+  const { icon, tone } = resolveTripTimelineIcon(item)
+  const chips = resolveTripTimelineChips(item, translate)
   const occurrenceNote =
     (item.kind === 'stop.occurrence' || item.kind === 'document.occurrence') &&
     item.occurrence !== null &&
@@ -304,21 +419,11 @@ function TripTimelineEntry({
       : null
 
   return (
-    <li className={cn(styles.item, styles.itemEnter, TONE_CLASS[resolveTripTimelineTone(item)])}>
+    <li className={cn(styles.item, styles.itemEnter)}>
       <div className={styles.itemHead}>
-        {/**
-         * Spec 180 RF9-RF11 (CA08/CA09): o avatar é o próprio selo visual de autoria — nasce do
-         * `actorName` que o item já publica, nunca de uma foto ou id. `aria-hidden`: o texto de
-         * autoria ao lado já diz o nome por extenso, e repeti-lo para leitor de tela seria ruído.
-         */}
-        {avatar === null ? null : (
-          <span
-            aria-hidden="true"
-            className={cn(styles.avatar, styles[`avatarPalette${avatar.paletteIndex}`])}
-          >
-            {avatar.initials}
-          </span>
-        )}
+        <span aria-hidden="true" className={cn(styles.icon, ICON_TONE_CLASS[tone])}>
+          <Icon name={icon} />
+        </span>
         <div className={styles.itemHeadText}>
           {/*
            * Spec 180 RF15: o **título** leva à coisa citada, em vez de uma linha de "Ver nota · Ver
@@ -326,31 +431,31 @@ function TripTimelineEntry({
            * títulos, que é o que se lê. A nota manda; sem nota, a parada. Evento que não cita nem
            * uma nem outra continua texto puro, sem link morto.
            */}
-          <p className={styles.itemTitle}>
-            {titleHref === null ? (
-              title
-            ) : (
-              <a
-                className={styles.itemTitleLink}
-                href={titleHref}
-                onClick={
-                  isOccurrenceEvent
-                    ? (event) => {
-                        /** Sem router: a troca de página é `pushState`, sem recarregar o app. */
-                        event.preventDefault()
-                        navigateToTripOccurrence({
-                          navigator: createBrowserWorkspaceNavigator(),
-                          occurrenceId: item.id,
-                        })
-                      }
-                    : undefined
-                }
-              >
-                {title}
-              </a>
-            )}
-          </p>
-          <p className={styles.itemMeta}>
+          <div className={styles.itemTitleRow}>
+            <p className={styles.itemTitle}>
+              {titleHref === null ? (
+                title
+              ) : (
+                <a
+                  className={styles.itemTitleLink}
+                  href={titleHref}
+                  onClick={
+                    isOccurrenceEvent
+                      ? (event) => {
+                          /** Sem router: a troca de página é `pushState`, sem recarregar o app. */
+                          event.preventDefault()
+                          navigateToTripOccurrence({
+                            navigator: createBrowserWorkspaceNavigator(),
+                            occurrenceId: item.id,
+                          })
+                        }
+                      : undefined
+                  }
+                >
+                  {title}
+                </a>
+              )}
+            </p>
             <time
               className={styles.itemTime}
               dateTime={item.occurredAt}
@@ -358,20 +463,40 @@ function TripTimelineEntry({
             >
               {formatTime(item.occurredAt)}
             </time>
-            {/*
-             * A autoria se repete evento após evento — numa viagem tocada pelo mesmo operador ela
-             * aparecia oito vezes, quase tão longa quanto o título, competindo com ele. Só aparece
-             * quando **muda** em relação ao evento anterior; igual, o leitor já sabe de quem é.
-             */}
-            {authorship === null || repeatsAuthorship ? null : (
-              <span className={styles.itemAuthorship}>{authorship}</span>
-            )}
-            {item.recordedAt === null ? null : (
-              <span className={styles.itemRecorded}>
-                {t('eventTimeline.recordedAt', { moment: formatMoment(item.recordedAt) })}
-              </span>
-            )}
-          </p>
+          </div>
+          {chips.length === 0 ? null : (
+            <ul className={styles.itemChips}>
+              {chips.map((chip) => (
+                <li key={chip.id}>
+                  <Badge
+                    title={
+                      chip.id === 'late' && item.recordedAt !== null
+                        ? t('eventTimeline.recordedAt', { moment: formatMoment(item.recordedAt) })
+                        : undefined
+                    }
+                    variant={chip.tone === 'copper' ? 'warning' : 'secondary'}
+                  >
+                    {chip.label}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+          {authorship === null && elapsedMinutes === null && locationView === null ? null : (
+            <div className={styles.itemMeta}>
+              {authorship === null ? null : (
+                <span className={styles.itemAuthorship}>{authorship}</span>
+              )}
+              {elapsedMinutes === null ? null : (
+                <span>
+                  {t('eventTimeline.afterPrevious', {
+                    duration: formatTripTimelineDuration(elapsedMinutes, translate),
+                  })}
+                </span>
+              )}
+              {locationView === null ? null : <TripTimelineLocation view={locationView} />}
+            </div>
+          )}
         </div>
       </div>
       {/**
@@ -389,7 +514,13 @@ function TripTimelineEntry({
           variant="ghost"
         >
           <Icon name={isExpanded ? 'chevron-up' : 'chevron-down'} />
-          {isExpanded ? t('eventTimeline.collapse') : t('eventTimeline.expand')}
+          {isMapOnlyDetail
+            ? isExpanded
+              ? t('eventTimeline.location.hideMap')
+              : t('eventTimeline.location.viewMap')
+            : isExpanded
+              ? t('eventTimeline.collapse')
+              : t('eventTimeline.expand')}
         </Button>
       ) : null}
       {hasDetail && isExpanded ? (
@@ -409,6 +540,11 @@ function TripTimelineEntry({
               {t('eventTimeline.occurrenceNote', { note: occurrenceNote })}
             </p>
           )}
+          {eventMap === null ? null : isMapOnlyDetail ? (
+            eventMap
+          ) : (
+            <TripTimelineEventMapDisclosure map={eventMap} panelId={mapPanelId} />
+          )}
           {attachmentCount === null ? null : (
             <TripTimelineOccurrenceAttachments
               occurrenceCreatedAt={item.occurredAt}
@@ -418,6 +554,41 @@ function TripTimelineEntry({
         </div>
       ) : null}
     </li>
+  )
+}
+
+/**
+ * Spec 196: o mapa do evento custava 312px dentro do "Ver mais" para entregar, no evento de
+ * devolução, uma linha de texto — quem só queria ler o motivo pagava o mapa inteiro. Ele passa a
+ * abrir num segundo gesto, mas **só onde há texto junto**: quando a posição é tudo o que o evento
+ * tem, o próprio "Ver mais" já se chama "Ver no mapa", e repetir o rótulo dentro do painel seria um
+ * controle que abre outro controle de mesmo nome. Esse caso fica com um gesto só.
+ */
+function TripTimelineEventMapDisclosure({
+  map,
+  panelId,
+}: Readonly<{ map: ReactNode; panelId: string }>) {
+  const { t } = useTranslation('trip')
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  return (
+    <Fragment>
+      <Button
+        aria-controls={panelId}
+        aria-expanded={isExpanded}
+        className={styles.detailMapToggle}
+        onClick={() => setIsExpanded((current) => !current)}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        <Icon name={isExpanded ? 'chevron-up' : 'chevron-down'} />
+        {isExpanded ? t('eventTimeline.location.hideMap') : t('eventTimeline.location.viewMap')}
+      </Button>
+      <div className={styles.mapPanel} id={panelId}>
+        {isExpanded ? map : null}
+      </div>
+    </Fragment>
   )
 }
 

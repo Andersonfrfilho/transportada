@@ -44,6 +44,8 @@ export const TRIP_FINANCIAL_PARCEL_KINDS = [
   'delivery_charges',
   'toll',
   'manual',
+  /** Spec 149 T6: a diária de quem acompanha o motorista, mas não dirige (ADR-0065 §2). */
+  'helper',
   'icms',
   'pis_cofins',
 ] as const

@@ -178,8 +178,10 @@ describe('os tipos de ocorrência do motorista (spec 157)', () => {
         return [
           {
             attachmentMode: 'off',
+            flow: 'document',
             id: '00000000-0000-4000-8000-0000000000e1',
             name: 'Cliente ausente',
+            stopKind: null,
           },
         ]
       },
@@ -220,8 +222,10 @@ describe('os tipos de ocorrência do motorista (spec 157)', () => {
       data: [
         {
           attachmentMode: 'off',
+          flow: 'document',
           id: '00000000-0000-4000-8000-0000000000e1',
           name: 'Cliente ausente',
+          stopKind: null,
         },
       ],
     })

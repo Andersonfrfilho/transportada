@@ -449,6 +449,16 @@ export function PackageBoxMeasurementPanel({
       <header className={styles.header}>
         <h3 id="package-boxes-title">{t('packageBoxes.title')}</h3>
         <p className={styles.hint}>{t('packageBoxes.description')}</p>
+        {queue === null ? null : (
+          <p aria-live="polite" className={styles.counter}>
+            <Badge variant="success">
+              {t('packageBoxes.counter.measured', { count: queue.measuredCount })}
+            </Badge>
+            <Badge variant="warning">
+              {t('packageBoxes.counter.pending', { count: queue.pendingCount })}
+            </Badge>
+          </p>
+        )}
         <Button onClick={() => setIsPrintCardOpen(true)} size="sm" type="button" variant="ghost">
           <Icon name="download" />
           {t('packageBoxes.printCard.open')}

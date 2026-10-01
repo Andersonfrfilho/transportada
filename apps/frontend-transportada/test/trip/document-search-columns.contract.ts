@@ -25,6 +25,17 @@ describe('valor e peso na busca de notas da viagem', () => {
   })
 
   /**
+   * Spec 153 T701/D10: sem `trip.financials` a chave some do corpo — ausente vira `undefined`, e a
+   * célula fica vazia, nunca zero. A busca desta tela reusa a linha da listagem de notas
+   * (`NfeDocumentListItem`) diretamente, então ausência aqui é `undefined`, não `null`.
+   */
+  test('ausência de trip.financials esconde o total, nunca zero', () => {
+    expect(readSource(SEARCH_PATH)).toContain(
+      'document.totalAmount === null || document.totalAmount === undefined',
+    )
+  })
+
+  /**
    * ⚠️ Peso não é dinheiro. As duas grandezas são `numeric(_, 4)` no banco, e reusar `formatAmount`
    * aqui imprimiria `R$ 108,67` numa coluna de massa — o tipo não teria como acusar.
    */
@@ -69,15 +80,28 @@ describe('valor e peso na busca de notas da viagem', () => {
 
     expect(source).toContain('formatAmount(document.freightAmount)')
     expect(source).toContain('document.freightRuleName === null ? null : (')
-    expect(source).toContain('document.freightAmount === null ?')
+    expect(source).toContain(
+      'document.freightAmount === null || document.freightAmount === undefined',
+    )
   })
 
   test('a listagem publica o frete e a regra, os dois anuláveis', () => {
     const source = readSource(CLIENT_PATH)
 
-    expect(source).toContain('freightAmount: null | string')
+    expect(source).toContain('freightAmount?: null | string')
     expect(source).toContain('freightRuleName: null | string')
-    expect(source).toContain('isNullableString(value.freightAmount)')
+    expect(source).toContain('isOptionalNullableString(value.freightAmount)')
+  })
+
+  /**
+   * Spec 153 T701/D10: sem `trip.financials` a API corta a chave inteira do corpo — nunca `null`,
+   * nunca zero. `totalAmount` vira opcional e o guard aceita a ausência sem reprovar a listagem.
+   */
+  test('a listagem aceita totalAmount ausente sem reprovar a resposta', () => {
+    const source = readSource(CLIENT_PATH)
+
+    expect(source).toContain('totalAmount?: string')
+    expect(source).toContain('isOptionalString(value.totalAmount)')
   })
 
   test('as três colunas ganham cabeçalho traduzido, não texto solto', () => {

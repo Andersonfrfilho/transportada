@@ -19,7 +19,7 @@ const ACTOR_USER_ID = '00000000-0000-4000-8000-000000000002'
 const DRIVER_ID = '00000000-0000-4000-8000-000000000003'
 const TRIP_ID = '00000000-0000-4000-8000-000000000004'
 
-function buildWorld(input: { readonly isLinked: boolean }) {
+function buildWorld(input: { readonly role: 'driver' | 'helper' | null }) {
   const dispatched: Array<{ readonly actorUserId: string; readonly tripId: string }> = []
 
   return {
@@ -29,14 +29,14 @@ function buildWorld(input: { readonly isLinked: boolean }) {
     },
     dispatched,
     linkage: {
-      isTripOfDriver: () => Promise.resolve(input.isLinked),
+      findCrewRole: () => Promise.resolve(input.role),
     },
   }
 }
 
 describe('o dispatch pelo motorista (ADR-0058)', () => {
   it('viagem de outro vínculo é 403, e a transição nem é tentada', async () => {
-    const world = buildWorld({ isLinked: false })
+    const world = buildWorld({ role: null })
 
     try {
       await dispatchDriverTrip({
@@ -56,8 +56,27 @@ describe('o dispatch pelo motorista (ADR-0058)', () => {
     expect(world.dispatched).toHaveLength(0)
   })
 
+  // Spec 149 (ADR-0065): o ajudante tem a linha em `trip_drivers`, mas não o papel — 403 também.
+  it('ajudante da mesma tripulação não despacha', async () => {
+    const world = buildWorld({ role: 'helper' })
+
+    const error = await dispatchDriverTrip({
+      actorUserId: ACTOR_USER_ID,
+      companyId: COMPANY_ID,
+      dispatch: world.dispatch,
+      driverId: DRIVER_ID,
+      linkage: world.linkage,
+      tripId: TRIP_ID,
+    }).catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect((error as ApiError).code).toBe('TRIP_CREW_HELPER_CANNOT_DRIVE')
+    expect((error as ApiError).status).toBe(403)
+    expect(world.dispatched).toHaveLength(0)
+  })
+
   it('viagem do próprio vínculo passa pela mesma transição do escritório, sem force', async () => {
-    const world = buildWorld({ isLinked: true })
+    const world = buildWorld({ role: 'driver' })
 
     const result = await dispatchDriverTrip({
       actorUserId: ACTOR_USER_ID,
@@ -91,6 +110,7 @@ describe('o dispatch pelo motorista (ADR-0058)', () => {
           isCargoClosed: true,
           leftBehind: [],
           toLoad: [],
+          requiresTrailer: false,
           tripStatus,
           unloadedDocumentIds: [],
           unscheduledStopIds: [],
@@ -107,7 +127,7 @@ describe('o dispatch pelo motorista (ADR-0058)', () => {
           companyId: COMPANY_ID,
           repository,
         }),
-      linkage: { isTripOfDriver: () => Promise.resolve(true) },
+      linkage: { findCrewRole: () => Promise.resolve('driver' as const) },
       tripId: TRIP_ID,
     }
 

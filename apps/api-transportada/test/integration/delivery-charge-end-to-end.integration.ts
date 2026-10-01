@@ -109,12 +109,14 @@ describe('do cliente com hora ao relatório aprovado (spec 060 T016)', () => {
           actorUserId: world.userId,
           channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
+          trailerVehicleId: null,
           crew: [
             {
               driverId: world.driverId,
               driverName: 'Motorista',
               driverTaxId: '11111111111',
               position: 1,
+              role: 'driver',
             },
           ],
           vehicleId: world.vehicleId,
@@ -145,6 +147,14 @@ describe('do cliente com hora ao relatório aprovado (spec 060 T016)', () => {
             tripId: trip.id,
           })
         }
+
+        // Feature 147 D3/Q1b: o cavalo não sai sem carreta atrelada — atrela antes de testar o
+        // outro portão, para o refuso abaixo continuar sendo o do agendamento, não o da carreta.
+        await tripRepository.setTrailer({
+          companyId,
+          tripId: trip.id,
+          trailerVehicleId: world.trailerId,
+        })
 
         // 3. O portão: a viagem não sai sem o agendamento do cliente que o exige.
         const refused = await dispatchTrip({
@@ -249,6 +259,7 @@ type World = {
   readonly deliveryClientId: string
   readonly driverId: string
   readonly nfeDocumentId: string
+  readonly trailerId: string
   readonly userId: string
   readonly vehicleId: string
 }
@@ -258,6 +269,7 @@ async function seedWorld(database: TestDatabase): Promise<World> {
   const userId = crypto.randomUUID()
   const membershipId = crypto.randomUUID()
   const vehicleId = crypto.randomUUID()
+  const trailerId = crypto.randomUUID()
   const driverId = crypto.randomUUID()
   const importId = crypto.randomUUID()
   const nfeDocumentId = crypto.randomUUID()
@@ -270,14 +282,17 @@ async function seedWorld(database: TestDatabase): Promise<World> {
   await database.db
     .insert(userCompanyMemberships)
     .values({ companyId, id: membershipId, status: 'active', userId })
-  await database.db.insert(fleetVehicles).values({
-    companyId,
-    id: vehicleId,
-    plate: 'GCQ8E47',
-    role: 'traction',
-    state: 'SP',
-    vehicleType: 'tractor_unit',
-  })
+  await database.db.insert(fleetVehicles).values([
+    {
+      companyId,
+      id: vehicleId,
+      plate: 'GCQ8E47',
+      role: 'traction',
+      state: 'SP',
+      vehicleType: 'tractor_unit',
+    },
+    { companyId, id: trailerId, plate: 'RTC4H67', role: 'trailer', state: 'SP', vehicleType: '' },
+  ])
   await database.db
     .insert(fleetDrivers)
     .values({ companyId, id: driverId, name: 'Motorista', taxId: '11111111111' })
@@ -372,6 +387,7 @@ async function seedWorld(database: TestDatabase): Promise<World> {
     deliveryClientId,
     driverId,
     nfeDocumentId,
+    trailerId,
     userId,
     vehicleId,
   }

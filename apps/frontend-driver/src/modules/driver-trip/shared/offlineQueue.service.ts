@@ -20,6 +20,13 @@ import type {
  * O armazenamento entra por parâmetro porque IndexedDB não existe fora do navegador — e uma fila que
  * só se prova clicando não se prova.
  */
+
+/**
+ * Spec 206 D9: `error.details` da API (`shared/api.error.ts`) — lista de `{field, message}`, nunca
+ * um objeto solto. O `409 TRIP_HAS_STOP_EN_ROUTE` manda `enRouteStopId`/`enRouteStopSequence` aqui.
+ */
+export type DriverTripErrorDetail = Readonly<{ field: string; message: string }>
+
 export type QueuedReport = Readonly<{
   /** Quantas vezes a drenagem já tentou e a rede recusou. Falha do servidor não conta aqui. */
   attempts: number
@@ -34,6 +41,12 @@ export type QueuedReport = Readonly<{
    * rejeitado em vez de sumir — e só o envio manual o tenta de novo (limpando a causa antes).
    */
   rejectionCause?: string
+  /**
+   * Spec 206 D9/RF8b: os detalhes do `error.details` da recusa — hoje só usados pelo
+   * `409 TRIP_HAS_STOP_EN_ROUTE`, para o motivo/atalho da fila nomear a parada certa quando a tela
+   * não viu o bloqueio (outro aparelho, item enfileirado antes do snapshot).
+   */
+  rejectionDetails?: readonly DriverTripErrorDetail[]
   report: DriverFieldReport
   /**
    * ADR-0075 §8: `SHA-256(sub)` de quem tocou. A drenagem só envia os do `sub` autenticado — o toque

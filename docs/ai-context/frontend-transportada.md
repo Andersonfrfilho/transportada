@@ -786,3 +786,79 @@ Testes: `test/driver-trip/driver-app-redirect.contract.ts` (as quatro decisões 
   - Ela ganhou o molde de Ocorrências: cabeçalho em painel, `--field-*` e tabela num quadro.
   - A segunda rodada da revisão achou o quadro sem foco (D3). Agora é região nomeada com
     `tabIndex={0}`.
+
+## Seletor de rota no mapa, um mapa só e redação monetária do frontend (spec 153)
+
+### Componentes de mapa (Fase 5: T501–T502)
+
+**MapLibre + chunk lazy**: `TripAssemblyMap.component.tsx` (montagem/proposta) e
+`TripRouteMap.component.tsx` (detalhe) carregam `AssemblyVectorMap` com `lazy(() => import(...))` —
+fora do bundle principal, porque `maplibre-gl` sozinho estoura o teto de 2 MiB do precache do PWA
+(RNF spec.md). O basemap **não** é um arquivo por rota: é um único `.pmtiles` servido do domínio
+próprio (`BASEMAP_URL`, padrão `/map-tiles/area.pmtiles`), lido por faixa de bytes pelo protocolo
+`pmtiles://` que `modules/shared/vectorBasemap.service.ts` registra (`addProtocol`) no escopo do
+módulo — e é esse módulo, não o componente, que também importa o CSS do MapLibre e resolve a URL do
+worker (`setWorkerUrl`), porque sem esse import o canvas não recebe posicionamento. Nenhuma
+dependência de `d3-geo`, `topojson` ou `leaflet` — `maplibre-gl` é o único motor de mapa.
+
+**Componentes de traçado**: `AssemblyVectorMap.component.tsx` (traçado e paradas com cores
+`resolveRouteLegs`/`stopColorOf`, que continuam vivos de antes) renderiza o JSONB de rota sobre o
+mapa; `FreightRegionVectorMap.component.tsx` (zonas de frete como polígonos, clique marca cidade)
+roda sob a mesma janela de mapa, lazy-carregado. A aba Regiões migrou para MapLibre na Fase 5 —
+antes usava o primitivo SVG `VectorMap`, que foi removido junto com `tripRouteMap.service`,
+`tripBasemap.service`, `tileMap.service`, `resolveRouteTraceSegments` (contrato de aceite 4:
+`test/design-system/legacy-map-removed.contract.ts` varre `src/` inteiro por referências dessas
+strings). Contrato de origem do fluxo de zonas: `test/fleet/freight-region-map.contract.ts`. Detalhe
+de remoção (CSS/locale órfãos, testes adaptados vs apagados, bundle): `specs/153-rota-escolhida-e-mapa-unico/evidence.md` § "T502".
+
+### Seletor de rota — mais barata vs mais rápida (Fase 4/5, T402–T405)
+
+**`RouteChoiceOptions.component.tsx`** é o seletor em si — props `canReadFinancials`, `cheapestIndex`,
+`costGap`, `fastestIndex`, `onSelect`, `options`, `selectedIndex` — e é reaproveitado pelos dois
+lugares que oferecem troca de rota, cada um decidindo **quando regravar**:
+
+- **`TripAssemblyMap.component.tsx`** (montagem manual e proposta, T402–T404): mantém
+  `selectedOptionIndex` em estado local, abrindo em `geometryQuery.data?.selectedIndex` (a mais
+  barata que a própria API já resolveu). Clicar numa opção troca o traçado **na hora** — sem nova ida
+  ao OSRM, as opções já vieram na mesma resposta — e chama `onRouteChoiceChange`. Como a viagem ainda
+  não existe nessa tela, **não há regravação aqui**: quem grava é o aceite ("Aceitar" na montagem
+  manual, "Usar esta" na proposta, T404), que envia a escolha por veículo junto com a criação.
+- **`TripRouteChoiceSwitch.component.tsx`** (detalhe de uma viagem já criada, T405): mesma
+  `RouteChoiceOptions`, sobre uma leitura viva própria do roteirizador (chave de consulta que **não**
+  inclui o critério gravado, para trocar nunca refazer a busca). Aqui a troca **regrava na hora**:
+  `handleSelect` chama `onSelect`, que em `TripRouteMap`/`TripDetail` é
+  `(routeChoice) => workspace.planRouteMutation.mutate({ routeChoice, tripId: trip.id })` — direto,
+  sem clique de "aceitar" nem "usar esta" no meio. `canSwitch` exige `trip.manage` e viagem editável
+  (antes do despacho, D6); `isPending` trava nova troca enquanto a anterior ainda regrava.
+
+Quando não há uma mais rápida e uma mais barata **distintas** para trocar (`costGap` presente, ou as
+duas pontas empatando), `RouteChoiceOptions` não desenha switch — aparece o aviso "Não há uma rota
+mais rápida e uma mais barata para trocar — só esta opção foi calculada." (`assemblyMap.routeOptions.singleOption`)
+ou a razão específica de `costGap` (`assemblyMap.routeOptions.gap.*`) — nunca um interruptor inerte.
+Se a rota gravada tiver `choiceReproduced: false` (assinatura não bateu, caiu para o critério),
+`TripRouteCostSummary.component.tsx` mostra o aviso `routeMap.choiceNotReproduced`: "A estrada pode
+ter mudado desde que esta rota foi escolhida: não foi possível encontrar de novo a rota gravada, e a
+viagem está com a rota mais barata calculada hoje." ⚠️ Spec 153 D3, corrigido na T405: a condição é
+`geometry.choiceReproduced !== false`, nunca `!geometry.choiceReproduced` — `undefined` (fora do
+contexto de uma viagem congelada) não pode disparar o mesmo aviso que `false` (assinatura perdida de
+verdade); a T401 tinha deixado essa armadilha, e o contrato
+`test/trip/route-geometry-money-optional.contract.ts` guarda a distinção.
+
+**Redação monetária**: sem `canReadFinancials`, o componente não renderiza praças com preços,
+combustível ou custo da rota — só traçado, duração, km e volta. Linha monetária some por inteiro
+(não aparece traço, zero, nem "-"), para não confundir quem não deveria ver valor.
+
+### Validação de respostas (Fase 4, T401)
+
+Campos novos em `RouteGeometry` (`shared/routeGeometry.service.ts`), lidos por
+`createTripResponseAdapters().routeGeometryFromApi` (`shared/tripResponse.validation.ts`) —
+camelCase, como o resto do cliente, nunca o nome da coluna do banco: `signature`, `isNoToll`,
+`selectedIndex`, `choiceReproduced`, `criterion`, `distanceMeters`, `returnDistanceMeters`,
+`durationSeconds`, `frozen` (opcionais, e `null` quando a rota está ausente — D5, nunca dinheiro).
+Campos monetários (`toll`, `fuelTotal`, `totalCost` de cada opção) passam opcionais na validação,
+porque a chave inteira some quando `trip.financials` está ausente (redação do servidor) — nunca
+`null` no lugar dela.
+
+Contratos: `test/trip/route-geometry-money-optional.contract.ts` (D2/D3/D10, dinheiro
+condicionalmente ausente e `choiceReproduced`) e `test/trip/route-geometry-options-validation.contract.ts`
+(spec 096 T1, opção malformada não derruba a principal).

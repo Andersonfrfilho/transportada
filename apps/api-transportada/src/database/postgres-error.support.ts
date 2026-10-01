@@ -9,6 +9,8 @@ export const POSTGRES_FOREIGN_KEY_VIOLATION = '23503'
 
 export const POSTGRES_UNDEFINED_TABLE = '42P01'
 
+export const POSTGRES_CHECK_VIOLATION = '23514'
+
 export type PostgresErrorDetails = {
   readonly constraint: string | undefined
   readonly sqlState: string | undefined
@@ -55,4 +57,10 @@ export function violatedForeignKeyConstraint(error: unknown): string | undefined
 export function isUndefinedTableError(error: unknown): boolean {
   const details = findPostgresError({ error })
   return details !== null && details.sqlState === POSTGRES_UNDEFINED_TABLE
+}
+
+export function violatedCheckConstraint(error: unknown): string | undefined {
+  const details = findPostgresError({ error })
+  if (details === null || details.sqlState !== POSTGRES_CHECK_VIOLATION) return undefined
+  return details.constraint
 }

@@ -11,7 +11,8 @@ const PAYLOAD = JSON.parse(JSON.stringify(READY_SUGGESTION)) as Record<string, u
 
 describe('route suggestion response validation (security.md §3)', () => {
   test('accepts the payload the API actually sends', () => {
-    expect(toRouteSuggestion(PAYLOAD)).toEqual(READY_SUGGESTION)
+    /** Spec 149 T5: `vehicles` é campo novo, só acrescentado — ausente no payload vira vazio. */
+    expect(toRouteSuggestion(PAYLOAD)).toEqual({ ...READY_SUGGESTION, vehicles: [] })
   })
 
   test('refuses anything that is not an object', () => {

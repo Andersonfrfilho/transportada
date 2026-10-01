@@ -7,7 +7,7 @@ import type {
 } from '@/modules/routing/shared/suggestionLeftover.service'
 
 import type { OccurrenceAttachmentMode } from './occurrence.constant'
-import type { OccurrenceQuantityUnit } from './trip.constant'
+import type { OccurrenceQuantityUnit, TripCrewRole } from './trip.constant'
 /**
  * ADR-0043 §1: `open`/`closed` migraram para os estados da viagem (`open → draft`,
  * `closed → completed`). ADR-0058 acrescentou `on_delivery_route`, a viagem na estrada.
@@ -58,16 +58,26 @@ export type TripDriverLine = Readonly<{
   driverTaxId: string | null
   position: number
   driverPhone?: string | null
+  /**
+   * Spec 149 / ADR-0065: motorista ou ajudante — só `driver` entra no MDF-e. Campo novo, nasce
+   * opcional (spec 078 D2): API antiga não manda; frente nova precisa aceitar a ausência.
+   */
+  role?: TripCrewRole
 }>
 
 /** A origem do número de receita: realizado, previsto pela parametrização, ou sem regra cadastrada. */
 export type TripRevenueSource = 'estimated' | 'measured' | 'missing' | 'period'
 
 export type TripAmounts = Readonly<{
-  /** `null` quando nenhuma nota tem valor conhecido — e **nunca zero**, que diria carga sem valor. */
-  documentsTotal: null | string
+  /**
+   * `null` quando nenhuma nota tem valor conhecido — e **nunca zero**, que diria carga sem valor.
+   * Ausente (spec 153 T710) quando a API redige por falta de `trip.financials`: chave que some do
+   * corpo, distinta de `null` calculado.
+   */
+  documentsTotal?: null | string
   revenueSource: TripRevenueSource
-  revenueTotal: string
+  /** Ausente pelo mesmo motivo de `documentsTotal` (spec 153 T710) — nunca vira zero. */
+  revenueTotal?: string
 }>
 
 export type Trip = Readonly<{
@@ -286,6 +296,19 @@ export const TRIP_TIMELINE_KINDS = [
 ] as const
 export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
 
+/** Spec 196 RF10: por que o item tem ou não ponto — o vocabulário fechado de `locationState`. */
+export const TRIP_TIMELINE_LOCATION_STATES = ['captured', 'unavailable', 'expired'] as const
+export type TripTimelineLocationState = (typeof TRIP_TIMELINE_LOCATION_STATES)[number]
+
+/** ADR-0081 §6: a distância até a parada vem derivada do servidor — nunca calculada aqui. */
+export type TripTimelineLocation = Readonly<{
+  accuracyMeters: null | number
+  capturedAt: string
+  distanceMeters: null | number
+  latitude: number
+  longitude: number
+}>
+
 export type TripTimelineStopReference = Readonly<{ id: string; sequence: number }>
 
 /** `number`/`series` anuláveis, no molde de `TripOccurrenceFeedItem.invoiceNumber/invoiceSeries`. */
@@ -302,7 +325,7 @@ export type TripTimelineOccurrenceReference = Readonly<{
   typeName: string
 }>
 
-/** Spec 158 D6: o formato do item da linha do tempo. Nunca id de usuário, imagem ou coordenada. */
+/** Spec 158 D6: o formato do item da linha do tempo. Nunca id de usuário nem imagem; a coordenada entrou pela ADR-0081 §6 e §6.1. */
 export type TripTimelineItem = Readonly<{
   actorName: null | string
   /** `null` = canal não registrado (D3/D6) — nunca um valor inventado. */
@@ -316,6 +339,9 @@ export type TripTimelineItem = Readonly<{
   kind: TripTimelineKind
   /** Spec 205 RF8: baixa registrada depois ("registrar entrega depois"). Ausente na API anterior. */
   lateRegistration?: boolean
+  /** Spec 196 RF9/RF10: ausente na API anterior. */
+  location?: null | TripTimelineLocation
+  locationState?: null | TripTimelineLocationState
   occurrence: null | TripTimelineOccurrenceReference
   occurredAt: string
   onBehalfOfDriverName: null | string
@@ -427,6 +453,12 @@ export type TripCargoWeight = Readonly<{
   payloadRatio: string | null
   source: 'declared' | 'estimated'
 }>
+
+/**
+ * Spec 147 D2/RF4: por que `occupancy`/`capacityM3` estão nulos — nunca "capacidade desconhecida"
+ * sem dizer o que falta. `null` quando a capacidade é conhecida.
+ */
+export type CapacityUnknownReason = 'bodyTypeMissing' | 'referenceMissing' | 'trailerMissing'
 
 export type TripOccupancy = Readonly<{
   /** As medidas de onde o m³ saiu; `null` no degrau em que alguém digitou o volume. */
@@ -678,6 +710,14 @@ export type TripCargoLayoutState = Readonly<{
  */
 export type TripCargoPreview = Readonly<{
   cargoLayout: TripCargoLayout | null
+  /** Spec 147 D2/RF4: por que `occupancy` está nulo — o painel nomeia o que falta. */
+  capacityUnknownReason: CapacityUnknownReason | null
+  /**
+   * T18 (revisão, item 10): o veículo cuja ficha resolve `capacityUnknownReason` — a carreta em
+   * `bodyTypeMissing`, o veículo da viagem nos demais motivos. Opcional porque a API pode subir
+   * antes do frontend; ausente, o link cai de volta no `vehicleId` da viagem/prévia.
+   */
+  capacityUnknownVehicleId?: string | null
   cargoWeight: TripCargoWeight | null
   layoutId?: string
   occupancy: TripOccupancy | null
@@ -690,6 +730,13 @@ export type TripCargoLayoutPoll = Readonly<{
   cargoLayout: TripCargoLayout | null
   layoutId: string
   state: TripCargoLayoutState
+}>
+
+/** Spec 147 D3/RF5: o mínimo para identificar a carreta atrelada — não é a ficha do veículo. */
+export type TripTrailer = Readonly<{
+  bodyType: string
+  id: string
+  plate: string
 }>
 
 export type TripDetail = Trip &
@@ -709,8 +756,14 @@ export type TripDetail = Trip &
     cargoLayoutState?: TripCargoLayoutState
     /** Spec 148 T7: a planta pronta do hash atual; `null` enquanto ela não está pronta. */
     cargoLayoutId?: null | string
+    /** Spec 147 D2/RF4: por que `occupancy` está nulo — o painel nomeia o que falta. */
+    capacityUnknownReason: CapacityUnknownReason | null
+    /** T18 (revisão, item 10): o veículo cuja ficha resolve `capacityUnknownReason`. Opcional. */
+    capacityUnknownVehicleId?: string | null
     cargoWeight: TripCargoWeight | null
     occupancy: TripOccupancy | null
+    /** Spec 147 D3/RF5: `null` quando o cavalo não tem carreta atrelada. */
+    trailer: TripTrailer | null
     stops: readonly TripStopDetail[]
   }>
 
@@ -860,6 +913,9 @@ export type ChangeTripCrewInput = Readonly<{
   vehicleId?: string
 }>
 
+/** Spec 147 D3/RF5: `null` desatrela — o portão de estado é o mesmo de vincular/desvincular nota. */
+export type SetTripTrailerInput = Readonly<{ trailerVehicleId: null | string; tripId: string }>
+
 export type LinkTripDocumentBody = Readonly<{
   freightCalculationId: null | string
   nfeDocumentId: null | string
@@ -939,6 +995,8 @@ export type ReportFieldDeliveryInput = TripFieldActionTarget &
     receiverName?: string
     /** A4a (spec 156 T15): fechar o assistente durante o envio cancela o lote em andamento. */
     signal?: AbortSignal
+    /** Spec 220 RF17: miniatura do canhoto; ausente é o caso normal (RF19). */
+    thumbnailBlob?: Blob
   }>
 
 /** O envelope de `field-delivery`: `alreadySettled` é 409 tratado como sucesso informativo (D3). */
@@ -966,6 +1024,7 @@ export type AttachFieldProofInput = TripDocumentActionInput &
     imageBlob: Blob
     kind: FieldProofKind
     signal?: AbortSignal
+    thumbnailBlob?: Blob
   }>
 
 export type ReadTripAllowedActionsInput = Readonly<{
@@ -1112,8 +1171,12 @@ export type ScannedNfeDocument = Readonly<{
    */
   cargoGrossWeight: null | string
   cargoWeightSource: 'estimated' | 'xml' | null
-  /** O frete previsto pela parametrização e a regra que o produziu — a listagem os calcula sem veículo. */
-  freightAmount: null | string
+  /**
+   * O frete previsto pela parametrização e a regra que o produziu — a listagem os calcula sem
+   * veículo. Spec 153 D10: sem `trip.financials` a chave some do corpo — `null` continua sendo
+   * "sem regra casada", ausente é "sem permissão para ver".
+   */
+  freightAmount?: null | string
   freightRuleName: null | string
   /** O número **do endereço**, não o da nota: é ele que entra na chave da parada. */
   recipientAddressNumber: null | string
@@ -1136,7 +1199,8 @@ export type ScannedNfeDocument = Readonly<{
   recipientState: null | string
   series: string
   status: ScannedNfeStatus
-  totalAmount: string
+  /** Spec 153 D10: sem `trip.financials` a API não manda a chave — a tela some a linha, nunca zero. */
+  totalAmount?: null | string
   /**
    * A viagem em que a nota já saiu. A rota sempre mandou este campo; era o adaptador que o
    * descartava — e sem ele a criação rápida não teria como recusar uma nota que já está em outra

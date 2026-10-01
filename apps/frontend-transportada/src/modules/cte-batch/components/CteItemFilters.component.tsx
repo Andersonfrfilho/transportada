@@ -121,7 +121,7 @@ export function CteItemFilters({ batchOptions, table }: CteItemFiltersProps) {
           type="button"
           variant="secondary"
         >
-          <Icon name="export" />
+          <Icon name={table.isExporting ? 'spinner' : 'download'} />
           {table.isExporting
             ? t('cteItems.export.pending')
             : t('cteItems.exportFiltered', { count: table.activeFilterCount })}

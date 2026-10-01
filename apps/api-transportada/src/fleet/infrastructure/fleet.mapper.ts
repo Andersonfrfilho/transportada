@@ -68,6 +68,7 @@ export function mapVehicle({ fuelPrices, record }: MapVehicleParams): FleetVehic
     costPerKilometerBreakdown: derived?.breakdown ?? null,
     costsUpdatedAt: record.costsUpdatedAt?.toISOString() ?? null,
     createdAt: record.createdAt.toISOString(),
+    defaultTrailerVehicleId: record.defaultTrailerVehicleId,
     fleetNumber: record.fleetNumber,
     fuelPrice,
     fuelType: record.fuelType,
@@ -137,6 +138,7 @@ export function toVehicleColumns(
     cargoLengthM: vehicle.cargoLengthMeters,
     cargoWidthM: vehicle.cargoWidthMeters,
     color: vehicle.color,
+    defaultTrailerVehicleId: vehicle.defaultTrailerVehicleId,
     fleetNumber: vehicle.fleetNumber,
     fuelType: vehicle.fuelType,
     hasAutomaticTollPayment: vehicle.hasAutomaticTollPayment,
@@ -190,6 +192,8 @@ export function mapDriver(record: DriverRecord): FleetDriver {
     homeLatitude: record.homeLatitude,
     homeLongitude: record.homeLongitude,
     anttCategory: record.anttCategory,
+    canActAsHelper: record.canActAsHelper,
+    helperDailyRate: record.helperDailyRate,
     securesCargo: record.securesCargo,
     licenseCategory: record.licenseCategory,
     birthCity: record.birthCity,
@@ -240,6 +244,7 @@ export function toDriverColumns(
 ): Omit<typeof fleetDrivers.$inferInsert, 'companyId' | 'status' | 'version'> {
   return {
     anttCategory: driver.anttCategory,
+    canActAsHelper: driver.canActAsHelper,
     securesCargo: driver.securesCargo,
     licenseCategory: driver.licenseCategory,
     birthCity: driver.birthCity,
@@ -255,6 +260,7 @@ export function toDriverColumns(
     ...(driver.dailyAllowanceAmount === undefined
       ? {}
       : { dailyAllowanceAmount: driver.dailyAllowanceAmount }),
+    ...(driver.helperDailyRate === undefined ? {} : { helperDailyRate: driver.helperDailyRate }),
     district: driver.address.district,
     email: driver.email,
     fatherName: toStoredPersonName(driver.fatherName),

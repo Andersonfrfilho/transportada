@@ -7,6 +7,7 @@ import { getTableConfig } from 'drizzle-orm/pg-core'
 
 import {
   companyDeliveryProofSettings,
+  deliveryProofSettingContractorOverrides,
   deliveryProofSettingOverrides,
 } from '../../src/database/database.schema.js'
 import { foreignKeys } from '../fiscal-schema/support.js'
@@ -73,5 +74,63 @@ describe('delivery proof settings tenant safety (spec 082)', () => {
     const receiverDocument = columns.find((column) => column.name === 'receiver_document')
 
     expect(receiverDocument?.default).toBe('off')
+  })
+})
+
+/**
+ * Spec 218 RF-C1: a exceção por contratante é a mesma forma da exceção por destinatário, trocando
+ * `tax_id` livre por `contractor_id uuid` com FK composta para `contractors`.
+ */
+describe('delivery proof contractor overrides tenant safety (spec 218)', () => {
+  test('anchors every contractor override to the company', () => {
+    expect(foreignKeys(deliveryProofSettingContractorOverrides)).toContainEqual({
+      columns: ['company_id'],
+      foreignColumns: ['id'],
+      foreignTable: 'companies',
+      name: 'delivery_proof_setting_contractor_overrides_company_id_companies_id_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+  })
+
+  /** A FK é composta com o tenant — nunca só `contractor_id`, senão o contratante de outra empresa colaria. */
+  test('anchors the contractor reference to the company, not only the id', () => {
+    expect(foreignKeys(deliveryProofSettingContractorOverrides)).toContainEqual({
+      columns: ['company_id', 'contractor_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'contractors',
+      name: 'delivery_proof_setting_contractor_overrides_company_id_contractor_id_contractors_company_id_id_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+  })
+
+  /** O contratante é único **dentro** da empresa — nunca global. */
+  test('keeps the override unique per company and contractor, never globally', () => {
+    const { uniqueConstraints } = getTableConfig(deliveryProofSettingContractorOverrides)
+
+    expect(
+      uniqueConstraints.map((constraint) => ({
+        columns: constraint.columns.map((column) => column.name).sort(),
+        name: constraint.name,
+      })),
+    ).toContainEqual({
+      columns: ['company_id', 'contractor_id'],
+      name: 'delivery_proof_setting_contractor_overrides_company_contractor_unique',
+    })
+  })
+})
+
+/** Spec 218 RF-C2: a exceção por destinatário ganha FK de verdade — hoje era só CHECK de formato. */
+describe('delivery proof recipient override gains a real FK (spec 218 RF-C2)', () => {
+  test('anchors the recipient tax id to delivery_clients, composite with the company', () => {
+    expect(foreignKeys(deliveryProofSettingOverrides)).toContainEqual({
+      columns: ['company_id', 'tax_id'],
+      foreignColumns: ['company_id', 'tax_id'],
+      foreignTable: 'delivery_clients',
+      name: 'delivery_proof_setting_overrides_company_id_tax_id_delivery_clients_company_id_tax_id_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
   })
 })

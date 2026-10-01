@@ -317,4 +317,35 @@ describe('a viagem diz quanto rende antes de qualquer emissão', () => {
     expect(byKind.get('toll')).toMatchObject({ amount: '120.0000', source: 'measured' })
     expect(byKind.get('delivery_charges')).toMatchObject({ amount: '45.0000', source: 'measured' })
   })
+
+  /** Spec 149 T6: a parcela `helper` entra pelo mesmo seam, com a jornada congelada do contexto. */
+  it('cobra a diária do ajudante pela jornada congelada, própria vencendo a geral', async () => {
+    const valuation = await run({
+      context: {
+        ...context(),
+        helperCompanyDailyRate: '120.0000',
+        helperCrew: [
+          { driverId: 'h1', ownDailyRate: '150.0000' },
+          { driverId: 'h2', ownDailyRate: null },
+        ],
+        journeyIncludesReturn: true,
+        journeySeconds: 30 * 3600,
+      },
+    }).result
+
+    expect(valuation.costParcels.find((parcel) => parcel.kind === 'helper')).toMatchObject({
+      amount: '540.0000',
+      gap: null,
+      source: 'measured',
+    })
+  })
+
+  it('sem ajudante, a parcela `helper` é zero e não entra em hasGaps', async () => {
+    const valuation = await run({ context: context() }).result
+
+    expect(valuation.costParcels.find((parcel) => parcel.kind === 'helper')).toMatchObject({
+      amount: '0.0000',
+      gap: null,
+    })
+  })
 })

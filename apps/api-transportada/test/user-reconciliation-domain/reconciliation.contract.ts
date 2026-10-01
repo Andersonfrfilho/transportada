@@ -10,6 +10,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  isRealmAccountDisabled,
   RECONCILIATION_MATCH,
   RECONCILIATION_STATUS,
   reconcileIdentities,
@@ -130,5 +131,32 @@ describe('a volta — a ficha inteira, não só a chave', () => {
 
     expect(entry?.status).toBe(RECONCILIATION_STATUS.MISSING_IN_REALM)
     expect(entry?.local?.name).toBe('Ana Fiscal')
+  })
+})
+
+describe('conta desabilitada no provedor — o caso da Andréia', () => {
+  test('vínculo confirmado e conta desabilitada no realm acusa a trava', () => {
+    const local = localOf({ subject: 'subject-1' })
+    const realm = realmOf({ enabled: false, subject: 'subject-1' })
+
+    expect(isRealmAccountDisabled({ local, realm })).toBe(true)
+  })
+
+  test('conta habilitada não acusa nada', () => {
+    const local = localOf({ subject: 'subject-1' })
+    const realm = realmOf({ enabled: true, subject: 'subject-1' })
+
+    expect(isRealmAccountDisabled({ local, realm })).toBe(false)
+  })
+
+  /**
+   * Mesma cautela de `diffRealmOwnedFields`: sem `subject` gravado, o casamento é palpite do
+   * algoritmo (e-mail ou documento) — reativar ali arriscaria destrancar a conta de outra pessoa.
+   */
+  test('sem subject gravado, o casamento é palpite — não reativa', () => {
+    const local = localOf()
+    const realm = realmOf({ enabled: false })
+
+    expect(isRealmAccountDisabled({ local, realm })).toBe(false)
   })
 })

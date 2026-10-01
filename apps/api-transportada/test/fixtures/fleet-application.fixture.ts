@@ -23,6 +23,7 @@ export const FLEET_CONTEXT = { companyId: COMPANY_ID, userId: DRIVER.id } as con
 
 type VehicleRepositoryParams = {
   readonly current?: FleetVehicle | null
+  readonly trailerInUse?: boolean
   readonly updated?: FleetVehicle | null
 }
 
@@ -62,6 +63,9 @@ export function createVehicleRepositoryStub(params: VehicleRepositoryParams = {}
       },
       async findById() {
         return params.current === undefined ? VEHICLE : params.current
+      },
+      async isTrailerInUse() {
+        return params.trailerInUse ?? false
       },
       async list(input) {
         listCalls.push(structuredClone(input))

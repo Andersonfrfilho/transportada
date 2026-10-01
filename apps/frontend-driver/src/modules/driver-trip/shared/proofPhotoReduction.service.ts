@@ -16,16 +16,25 @@ export const PROOF_PHOTO_MAX_BYTES = 960 * 1024
 /** Acima do teto mesmo no piso de qualidade, o lado cai 20% por tentativa, até um canhoto legível. */
 const PROOF_PHOTO_SIDE_STEP = 0.8
 const PROOF_PHOTO_MINIMUM_SIDE = 640
+/** Spec 220 RF17 (spec 161 D12): miniatura JPEG de 320 px, qualidade 0,7, alvo 60 KiB, teto 128 KiB. */
+export const PROOF_THUMBNAIL_MAX_SIDE = 320
+export const PROOF_THUMBNAIL_START_QUALITY = 0.7
+export const PROOF_THUMBNAIL_TARGET_BYTES = 60 * 1024
+export const PROOF_THUMBNAIL_MAX_BYTES = 128 * 1024
+/** O corpo inteiro da API para em 1 MiB: original + miniatura acima disto voltaria 413 e prenderia a foto. */
+const PROOF_REQUEST_FILES_BUDGET_BYTES = 1000 * 1024
 
-export type ReducedProofPhoto = Readonly<{ blob: Blob; fileName: string }>
+export type ProofPhotoWithThumbnail = Readonly<{ original: Blob; thumbnail?: Blob }>
+
+export type ReducedProofPhoto = Readonly<{ blob: Blob; fileName: string; thumbnail?: Blob }>
 
 /**
  * Pedido do usuário (26/09): toda foto sai leve do aparelho. O canhoto subia no tamanho da câmera
  * (3–5 MB) e a API recusa o corpo acima de 1 MiB — a foto ficava presa na fila como recusada. Só a
- * **foto** reduz: assinatura já é PNG pequeno, e PDF anexado não é imagem.
+ * **foto** (canhoto ou mercadoria) reduz: assinatura já é PNG pequeno, e PDF anexado não é imagem.
  */
 export function shouldReduceProofFile(input: { file: Blob; kind: string }): boolean {
-  return input.kind === 'photo' && input.file.type.startsWith('image/')
+  return (input.kind === 'photo' || input.kind === 'cargo') && input.file.type.startsWith('image/')
 }
 
 /** Pura: 2000, 1600, 1280, 1024… até o lado mínimo. */
@@ -59,6 +68,24 @@ export async function fitProofPhotoWithinCap(input: {
   return smallest
 }
 
+/**
+ * A miniatura nunca é condição para o comprovante existir (RF19): falha ao gerar, teto estourado
+ * ou corpo que passaria de 1 MiB descartam a miniatura, e o original segue.
+ */
+export async function buildProofPhotoWithThumbnail(input: {
+  readonly encodeThumbnail: (maxSide: number) => Promise<Blob>
+  readonly original: Blob
+}): Promise<ProofPhotoWithThumbnail> {
+  const thumbnail = await input.encodeThumbnail(PROOF_THUMBNAIL_MAX_SIDE).catch(() => undefined)
+  if (thumbnail === undefined || thumbnail.size > PROOF_THUMBNAIL_MAX_BYTES) {
+    return { original: input.original }
+  }
+  if (input.original.size + thumbnail.size > PROOF_REQUEST_FILES_BUDGET_BYTES) {
+    return { original: input.original }
+  }
+  return { original: input.original, thumbnail }
+}
+
 /** Impura: decodifica uma vez e reencoda pelo canvas, que descarta o EXIF (e o GPS) sozinho. */
 export async function reduceProofPhotoToJpeg(file: File): Promise<ReducedProofPhoto> {
   const image = await loadImageFromFile(file)
@@ -66,8 +93,22 @@ export async function reduceProofPhotoToJpeg(file: File): Promise<ReducedProofPh
     encode: (maxSide) =>
       encodeImageToJpeg({ image, maxSide, targetBytes: PROOF_PHOTO_TARGET_BYTES }),
   })
+  const { original, thumbnail } = await buildProofPhotoWithThumbnail({
+    encodeThumbnail: (maxSide) =>
+      encodeImageToJpeg({
+        image,
+        maxSide,
+        startQuality: PROOF_THUMBNAIL_START_QUALITY,
+        targetBytes: PROOF_THUMBNAIL_TARGET_BYTES,
+      }),
+    original: blob,
+  })
   const baseName = file.name.replace(/\.[^./\\]+$/u, '') || 'canhoto'
-  return { blob, fileName: `${baseName}.jpg` }
+  return {
+    blob: original,
+    fileName: `${baseName}.jpg`,
+    ...(thumbnail === undefined ? {} : { thumbnail }),
+  }
 }
 
 /**
@@ -90,6 +131,8 @@ function withoutReductionMarks(input: {
   delete next.pendingReduction
   /** O arquivo trocado é outro: a recusa era do anterior, e a drenagem automática volta a levá-lo. */
   if (input.isReplaced) delete next.rejectionCause
+  /** A miniatura velha é do arquivo que saiu: a troca traz a nova, ou fica sem. */
+  if (input.isReplaced) delete next.thumbnail
   return next
 }
 
@@ -102,16 +145,18 @@ export function replaceAttachmentBlob(input: {
   blob: Blob
   fileName: string
   items: readonly QueuedAttachment[]
+  thumbnail?: Blob
 }): readonly QueuedAttachment[] {
-  return input.items.map((item) =>
-    item.attachmentKey === input.attachmentKey
-      ? {
-          ...withoutReductionMarks({ isReplaced: true, item }),
-          blob: input.blob,
-          fileName: input.fileName,
-        }
-      : item,
-  )
+  return input.items.map((item) => {
+    if (item.attachmentKey !== input.attachmentKey) return item
+
+    return {
+      ...withoutReductionMarks({ isReplaced: true, item }),
+      blob: input.blob,
+      fileName: input.fileName,
+      ...(input.thumbnail === undefined ? {} : { thumbnail: input.thumbnail }),
+    }
+  })
 }
 
 /** A redução falhou ou não ganhou nada: tira a marca, e o original sobe como está. */

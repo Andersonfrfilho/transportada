@@ -244,6 +244,8 @@ describe('a fila offline reenvia, e o servidor não duplica', () => {
   it('o reenvio da mesma chave recalcula proofPending, não reaproveita a primeira resposta', async () => {
     const world = buildDocumentWorld()
     const resolveProofSettings = async () => ({
+      cargo: 'off' as const,
+      cargoMinimumCount: 1,
       photo: 'required' as const,
       receivedBy: 'optional' as const,
       receiverDocument: 'off' as const,

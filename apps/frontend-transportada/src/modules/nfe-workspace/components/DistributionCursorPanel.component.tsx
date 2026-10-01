@@ -10,6 +10,7 @@ import {
   DISTRIBUTION_CURSOR_NSU_LENGTH,
   isDistributionCursorNsu,
 } from '@/modules/company-settings/shared/distributionCursor.validation'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 import styles from '../styles/distributionSettings.module.css'
 
 type DistributionCursorPanelProps = Readonly<{
@@ -20,15 +21,6 @@ type DistributionCursorPanelProps = Readonly<{
   loading: boolean
   onAdjust: (ultNsu: string) => void
 }>
-
-function useMomentFormatter(): (value: string) => string {
-  const { i18n } = useTranslation('nfeWorkspace')
-  const formatter = new Intl.DateTimeFormat(i18n.resolvedLanguage ?? 'pt-BR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  })
-  return (value) => formatter.format(new Date(value))
-}
 
 function DistributionCursorSkeleton() {
   const { t } = useTranslation('nfeWorkspace')

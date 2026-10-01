@@ -18,11 +18,13 @@ import {
   fleetVehicles,
   trips,
 } from '../../src/database/database.schema.js'
-import type { FuelProduct } from '../../src/shared/fuel.constant.js'
-import { NO_FUEL_BASELINE } from '../../src/toll-booths/domain/route-option.policy.js'
+import { geocodedAddresses } from '../../src/database/geocoding.schema.js'
+import { tripStops } from '../../src/database/trip.schema.js'
 import type { VehicleType } from '../../src/shared/vehicle-type.constant.js'
+import type { FuelProduct } from '../../src/shared/fuel.constant.js'
 import type { WritePlannedRouteInput } from '../../src/trips/application/freeze-trip-planned-route.use-case.js'
 import { DrizzleTripPlannedRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-planned-route.repository.js'
+import { clearPlannedRoute } from '../../src/trips/infrastructure/trip-planned-route-clear.support.js'
 
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
@@ -39,6 +41,7 @@ const FULL_ROUTE: WritePlannedRouteInput['route'] = {
   depot: null,
   distanceMeters: 89_400,
   durationSeconds: 4_200,
+  isNoToll: false,
   legs: [{ distanceMetres: 89_400, durationSeconds: 4_200 }],
   points: [
     { latitude: '-21.17750', longitude: '-47.81030' },
@@ -73,11 +76,47 @@ describe('freeze trip planned route repository integration', () => {
 
         const vehicle = await repository.readVehicleContext({ companyId, tripId })
 
-        expect(vehicle).toEqual({
+        /**
+         * N14 (segunda revisão da 153): `toMatchObject` deixava passar um campo a mais em
+         * `vehicle` sem reprovar — `revision` é o único não-determinístico, tratado à parte, e o
+         * resto vai por `toEqual`, que reprova qualquer chave inesperada.
+         */
+        const { revision, ...rest } = vehicle ?? {}
+        expect(rest).toEqual({
           axles: { count: 3, source: 'declared' },
-          fuelBaseline: NO_FUEL_BASELINE,
           hasAutomaticTollPayment: true,
           multiplier: { denominator: 1, numerator: 3 },
+          /** spec 153 H1: sem `averageConsumption`/`fuelType` cadastrados, não há o que comparar. */
+          fuelBaseline: { kilometersPerLiter: null, pricePerLiter: null },
+        })
+        /** T704 M3: a revisão da viagem viaja junto — é o compare-and-set da escrita final. */
+        expect(typeof revision).toBe('string')
+      })
+    },
+  )
+
+  testWithPostgres(
+    'spec 153 H1: lê o consumo e o preço efetivo do combustível pela mesma conta da consulta de eixos',
+    async () => {
+      await withDisposableDatabase(async ({ database }) => {
+        const { companyId, tripId } = await seedTripWithVehicle(database, {
+          axleCount: 2,
+          /** `average_consumption` é `numeric(6,2)` — a coluna guarda duas casas, não quatro. */
+          averageConsumption: '2.50',
+          fuelType: 'diesel-s10',
+          hasAutomaticTollPayment: false,
+          vehicleType: 'toco',
+        })
+        await database.db
+          .insert(companyFuelPrices)
+          .values({ companyId, product: 'diesel-s10', pricePerUnit: '6.0000' })
+        const repository = new DrizzleTripPlannedRouteRepository(database.db)
+
+        const vehicle = await repository.readVehicleContext({ companyId, tripId })
+
+        expect(vehicle?.fuelBaseline).toEqual({
+          kilometersPerLiter: '2.50',
+          pricePerLiter: '6.0000',
         })
       })
     },
@@ -121,7 +160,13 @@ describe('freeze trip planned route repository integration', () => {
         })
         const repository = new DrizzleTripPlannedRouteRepository(database.db)
 
-        await repository.writePlannedRoute({ companyId, route: null, toll: null, tripId })
+        await repository.writePlannedRoute({
+          companyId,
+          expectedRevision: await readTripRevision(repository, companyId, tripId),
+          route: null,
+          toll: null,
+          tripId,
+        })
 
         const [row] = await database.db.select().from(trips).where(eq(trips.id, tripId))
         expect(row).toMatchObject({
@@ -150,6 +195,7 @@ describe('freeze trip planned route repository integration', () => {
 
         await repository.writePlannedRoute({
           companyId,
+          expectedRevision: await readTripRevision(repository, companyId, tripId),
           route: FULL_ROUTE,
           toll: FULL_TOLL,
           tripId,
@@ -160,6 +206,7 @@ describe('freeze trip planned route repository integration', () => {
           choiceReproduced: true,
           criterion: 'cheapest',
           depot: null,
+          isNoToll: false,
           legs: FULL_ROUTE?.legs,
           points: FULL_ROUTE?.points,
           signature: 'abc123deadbeef',
@@ -199,7 +246,248 @@ describe('freeze trip planned route repository integration', () => {
       })
     },
   )
+
+  testWithPostgres(
+    'T704 M3 / T802: escrita nascida de revisão obsoleta não sobrescreve a rota mais nova, e o outcome diz por quê',
+    async () => {
+      await withDisposableDatabase(async ({ database }) => {
+        const { companyId, tripId } = await seedTripWithVehicle(database, {
+          axleCount: 2,
+          hasAutomaticTollPayment: false,
+          vehicleType: 'toco',
+        })
+        const repository = new DrizzleTripPlannedRouteRepository(database.db)
+        const staleRevision = await readTripRevision(repository, companyId, tripId)
+
+        /** T802: uma parada mudou no meio do caminho — o hash da junção passa a ser outro. */
+        await database.db
+          .insert(tripStops)
+          .values({ addressKey: 'x', companyId, label: 'Parada', sequence: 1n, tripId })
+
+        const outcome = await repository.writePlannedRoute({
+          companyId,
+          expectedRevision: staleRevision,
+          route: FULL_ROUTE,
+          toll: FULL_TOLL,
+          tripId,
+        })
+
+        expect(outcome).toBe('stale_revision')
+        const [row] = await database.db.select().from(trips).where(eq(trips.id, tripId))
+        expect(row?.plannedRoute).toBeNull()
+        expect(row?.plannedRouteFrozenAt).toBeNull()
+      })
+    },
+  )
+
+  testWithPostgres(
+    'T901: geocodificação que preenche a coordenada durante o congelamento descarta a escrita, e não só mudança em trip_stops',
+    async () => {
+      await withDisposableDatabase(async ({ database }) => {
+        const { companyId, tripId } = await seedTripWithVehicle(database, {
+          axleCount: 2,
+          hasAutomaticTollPayment: false,
+          vehicleType: 'toco',
+        })
+        const repository = new DrizzleTripPlannedRouteRepository(database.db)
+        /** A parada existe desde o disparo — só a coordenada dela ainda não tinha chegado. */
+        await database.db.insert(tripStops).values({
+          addressKey: 'endereco-sem-coordenada',
+          companyId,
+          label: 'Parada',
+          sequence: 1n,
+          tripId,
+        })
+        const revisionBeforeGeocoding = await readTripRevision(repository, companyId, tripId)
+
+        /**
+         * O geocodificador preenche `geocoded_addresses` enquanto o congelamento ainda calculava a
+         * rota — nenhuma linha de `trip_stops` mudou, então um contador que só ouvisse `trip_stops`
+         * (a guarda original da T802) deixaria isso passar, e a viagem ficaria com rota nula mesmo
+         * já havendo coordenada para todas as paradas.
+         */
+        await database.db.insert(geocodedAddresses).values({
+          addressKey: 'endereco-sem-coordenada',
+          latitude: '-21.1775000',
+          longitude: '-47.8103000',
+          precision: 'city',
+          source: 'city',
+        })
+
+        const outcome = await repository.writePlannedRoute({
+          companyId,
+          expectedRevision: revisionBeforeGeocoding,
+          route: FULL_ROUTE,
+          toll: FULL_TOLL,
+          tripId,
+        })
+
+        expect(outcome).toBe('stale_revision')
+        const [row] = await database.db.select().from(trips).where(eq(trips.id, tripId))
+        expect(row?.plannedRoute).toBeNull()
+        expect(row?.plannedRouteFrozenAt).toBeNull()
+      })
+    },
+  )
+
+  testWithPostgres(
+    'T802: escrita alheia em trips que não mexe em parada NÃO descarta o congelamento',
+    async () => {
+      await withDisposableDatabase(async ({ database }) => {
+        const { companyId, tripId } = await seedTripWithVehicle(database, {
+          axleCount: 2,
+          hasAutomaticTollPayment: false,
+          vehicleType: 'toco',
+        })
+        const repository = new DrizzleTripPlannedRouteRepository(database.db)
+        const revision = await readTripRevision(repository, companyId, tripId)
+
+        /**
+         * O relato de campo do motorista e o override de MDF-e escrevem direto em `trips` sem
+         * tocar em parada nenhuma nem em `geocoded_addresses` — é exatamente essa escrita que
+         * `updated_at` não distinguia de uma mudança de parada (T802 defeito a). `daily_allowance_
+         * days` é uma coluna qualquer de `trips` fora do grupo da rota, só para simular "algo mais
+         * mexeu na linha".
+         */
+        await database.db
+          .update(trips)
+          .set({ dailyAllowanceDays: 3, updatedAt: new Date() })
+          .where(eq(trips.id, tripId))
+
+        const outcome = await repository.writePlannedRoute({
+          companyId,
+          expectedRevision: revision,
+          route: FULL_ROUTE,
+          toll: FULL_TOLL,
+          tripId,
+        })
+
+        expect(outcome).toBe('written')
+        const [row] = await database.db.select().from(trips).where(eq(trips.id, tripId))
+        expect(row?.plannedRoute).not.toBeNull()
+        expect(row?.dailyAllowanceDays).toBe(3)
+      })
+    },
+  )
+
+  testWithPostgres(
+    'T704 M3 / T802: congelamento atrasado não alcança viagem já despachada, e o outcome diz por quê',
+    async () => {
+      await withDisposableDatabase(async ({ database }) => {
+        const { companyId, tripId } = await seedTripWithVehicle(database, {
+          axleCount: 2,
+          hasAutomaticTollPayment: false,
+          vehicleType: 'toco',
+        })
+        const repository = new DrizzleTripPlannedRouteRepository(database.db)
+        await database.db.update(trips).set({ status: 'dispatched' }).where(eq(trips.id, tripId))
+        const revision = await readTripRevision(repository, companyId, tripId)
+
+        const outcome = await repository.writePlannedRoute({
+          companyId,
+          expectedRevision: revision,
+          route: FULL_ROUTE,
+          toll: FULL_TOLL,
+          tripId,
+        })
+
+        expect(outcome).toBe('status_not_before_dispatch')
+        const [row] = await database.db.select().from(trips).where(eq(trips.id, tripId))
+        expect(row?.plannedRoute).toBeNull()
+      })
+    },
+  )
+
+  testWithPostgres(
+    'T905 (P8): viagem apagada entre o disparo e a escrita tem motivo próprio, não "paradas mudaram"',
+    async () => {
+      await withDisposableDatabase(async ({ database }) => {
+        const { companyId, tripId } = await seedTripWithVehicle(database, {
+          axleCount: 2,
+          hasAutomaticTollPayment: false,
+          vehicleType: 'toco',
+        })
+        const repository = new DrizzleTripPlannedRouteRepository(database.db)
+        const revision = await readTripRevision(repository, companyId, tripId)
+        await database.db.delete(trips).where(eq(trips.id, tripId))
+
+        const outcome = await repository.writePlannedRoute({
+          companyId,
+          expectedRevision: revision,
+          route: FULL_ROUTE,
+          toll: FULL_TOLL,
+          tripId,
+        })
+
+        expect(outcome).toBe('trip_not_found')
+      })
+    },
+  )
+
+  testWithPostgres(
+    'T704 M1: a limpeza zera o grupo inteiro e o CHECK aceita — mas não toca em despachada',
+    async () => {
+      await withDisposableDatabase(async ({ database }) => {
+        const { companyId, tripId } = await seedTripWithVehicle(database, {
+          axleCount: 2,
+          hasAutomaticTollPayment: false,
+          vehicleType: 'toco',
+        })
+        const repository = new DrizzleTripPlannedRouteRepository(database.db)
+        await repository.writePlannedRoute({
+          companyId,
+          expectedRevision: await readTripRevision(repository, companyId, tripId),
+          route: FULL_ROUTE,
+          toll: FULL_TOLL,
+          tripId,
+        })
+
+        await clearPlannedRoute(database.db, { companyId, tripId })
+
+        const [cleared] = await database.db.select().from(trips).where(eq(trips.id, tripId))
+        expect(cleared).toMatchObject({
+          plannedDistanceMeters: null,
+          plannedDurationSeconds: null,
+          plannedReturnDistanceMeters: null,
+          plannedRoute: null,
+          plannedRouteFrozenAt: null,
+          plannedToll: null,
+          plannedTollFrozenAt: null,
+        })
+
+        /** Despachada: o congelado é o roteiro que está na rua, e a limpeza não o alcança. */
+        await repository.writePlannedRoute({
+          companyId,
+          expectedRevision: await readTripRevision(repository, companyId, tripId),
+          route: FULL_ROUTE,
+          toll: FULL_TOLL,
+          tripId,
+        })
+        await database.db.update(trips).set({ status: 'dispatched' }).where(eq(trips.id, tripId))
+
+        await clearPlannedRoute(database.db, { companyId, tripId })
+
+        const [kept] = await database.db.select().from(trips).where(eq(trips.id, tripId))
+        expect(kept?.plannedRoute).not.toBeNull()
+      })
+    },
+  )
 })
+
+/**
+ * T704 M3 / T802 / T901: a revisão é o hash da junção `trip_stops` × `geocoded_addresses` que
+ * `readVehicleContext` já expõe — nenhuma coluna nem trigger por trás, então ler pelo próprio
+ * caminho de produção é o único jeito de não divergir do que `writePlannedRoute` reconfere.
+ */
+async function readTripRevision(
+  repository: DrizzleTripPlannedRouteRepository,
+  companyId: string,
+  tripId: string,
+): Promise<string> {
+  const vehicle = await repository.readVehicleContext({ companyId, tripId })
+  if (vehicle === null) throw new Error('viagem semeada sumiu')
+  return vehicle.revision
+}
 
 async function expectQueryToFail(
   query: PromiseLike<unknown>,
@@ -235,9 +523,9 @@ async function seedTripWithVehicle(
     ...(vehicle.averageConsumption === undefined
       ? {}
       : { averageConsumption: vehicle.averageConsumption }),
-    ...(vehicle.fuelType === undefined ? {} : { fuelType: vehicle.fuelType }),
     axleCount: vehicle.axleCount,
     companyId,
+    ...(vehicle.fuelType === undefined ? {} : { fuelType: vehicle.fuelType }),
     hasAutomaticTollPayment: vehicle.hasAutomaticTollPayment,
     id: vehicleId,
     plate: 'ABC1D23',

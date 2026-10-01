@@ -1,16 +1,21 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/driverTripResponse.validation.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type {
-  DriverDeliveryProofSettings,
-  DriverStopSchedule,
-  DriverTrip,
-  DriverTripDocument,
-  DriverTripManifest,
-  DriverTripSnapshot,
-  DriverTripStop,
-  PendingProofDocument,
-  ProofFieldRequirement,
+import {
+  CANHOTO_REJECTION_REASONS,
+  isDriverOccurrenceType,
+  type CanhotoRejection,
+  type DriverDeliveryProofSettings,
+  type DriverOccurrenceType,
+  type DriverStopSchedule,
+  type DriverTrip,
+  type DriverTripDocument,
+  type DriverTripManifest,
+  type DriverTripSnapshot,
+  type DriverTripStop,
+  type PendingProofDocument,
+  type ProofFieldRequirement,
 } from './driverTrip.types'
+import { PROOF_CARGO_PHOTO_LIMIT } from './proofCargo.constant'
 import { DEFAULT_PROOF_SETTINGS } from './proofFormPlan.service'
 
 /**
@@ -64,6 +69,16 @@ function readRecipientIsCompany(value: unknown): boolean {
   return value === true
 }
 
+/**
+ * Spec 218 RF-B2 (follow-up): `null` quando o campo não é um array — snapshot antigo em cache, ou a
+ * resolução falhou no servidor (`readFieldOccurrenceTypes` isolado do `Promise.all` na API). Item
+ * malformado da lista some, o mesmo espírito de `toPendingProofs` — nunca derruba o documento inteiro.
+ */
+function readDocumentOccurrenceTypes(value: unknown): readonly DriverOccurrenceType[] | null {
+  if (!Array.isArray(value)) return null
+  return value.filter(isDriverOccurrenceType)
+}
+
 function toDocument(value: unknown): DriverTripDocument {
   if (!isRecord(value)) throw new DriverTripResponseError()
 
@@ -80,6 +95,7 @@ function toDocument(value: unknown): DriverTripDocument {
     grossWeight: readOptionalText(value.grossWeight),
     id: readString(value.id),
     number: readOptionalText(value.number),
+    occurrenceTypes: readDocumentOccurrenceTypes(value.occurrenceTypes),
     proofPending: readProofPending(value.proofPending),
     recipientDisplayName: readOptionalText(value.recipientDisplayName),
     recipientIsCompany: readRecipientIsCompany(value.recipientIsCompany),
@@ -132,6 +148,12 @@ function readProofField(value: unknown, fallback: ProofFieldRequirement): ProofF
     : fallback
 }
 
+function readCargoMinimumCount(value: unknown): number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1
+    ? Math.min(PROOF_CARGO_PHOTO_LIMIT, value)
+    : DEFAULT_PROOF_SETTINGS.cargoMinimumCount
+}
+
 /**
  * Spec 082 D4: configuração ausente (o corpo não é objeto) vira `null` — o app aplica o padrão em
  * vez de quebrar a tela. Spec 193 (revisão): com objeto presente, o fallback é **por campo** — um
@@ -140,6 +162,8 @@ function readProofField(value: unknown, fallback: ProofFieldRequirement): ProofF
 function toDeliveryProof(value: unknown): DriverDeliveryProofSettings | null {
   if (!isRecord(value)) return null
   return {
+    cargo: readProofField(value.cargo, DEFAULT_PROOF_SETTINGS.cargo),
+    cargoMinimumCount: readCargoMinimumCount(value.cargoMinimumCount),
     photo: readProofField(value.photo, DEFAULT_PROOF_SETTINGS.photo),
     receivedBy: readProofField(value.receivedBy, DEFAULT_PROOF_SETTINGS.receivedBy),
     receiverDocument: readProofField(
@@ -149,6 +173,11 @@ function toDeliveryProof(value: unknown): DriverDeliveryProofSettings | null {
     receiverName: readProofField(value.receiverName, DEFAULT_PROOF_SETTINGS.receiverName),
     signature: readProofField(value.signature, DEFAULT_PROOF_SETTINGS.signature),
   }
+}
+
+/** Spec 206 D9/D17: a chave PRESENTE no JSON (mesmo `null`) é API nova — ausente por completo é antiga. */
+function isEnRouteFieldPresent(value: Record<string, unknown>): boolean {
+  return 'enRouteSince' in value || 'enRouteTappedAt' in value
 }
 
 function toStop(value: unknown): DriverTripStop {
@@ -162,6 +191,8 @@ function toStop(value: unknown): DriverTripStop {
     deliveryWindowEnd: readNullableString(value.deliveryWindowEnd),
     deliveryWindowStart: readNullableString(value.deliveryWindowStart),
     documents: value.documents.map(toDocument),
+    enRouteSince: readNullableString(value.enRouteSince),
+    enRouteTappedAt: readNullableString(value.enRouteTappedAt),
     id: readString(value.id),
     label: readString(value.label),
     latitude: readNullableString(value.latitude),
@@ -169,6 +200,19 @@ function toStop(value: unknown): DriverTripStop {
     longitude: readNullableString(value.longitude),
     sequence: value.sequence,
   }
+}
+
+/**
+ * Spec 220 RF29: o motivo é acessório, não essencial — recusa malformada ou motivo que este app não
+ * conhece apagam a explicação, nunca a pendência. A nota precisa voltar mesmo sem legenda.
+ */
+function toCanhotoRejection(value: unknown): CanhotoRejection | null {
+  if (!isRecord(value)) return null
+
+  const reason = CANHOTO_REJECTION_REASONS.find((known) => known === value.reason)
+  if (reason === undefined) return null
+
+  return { note: readNullableString(value.note), reason }
 }
 
 /**
@@ -180,6 +224,7 @@ function toPendingProof(value: unknown): PendingProofDocument | null {
   if (typeof value.documentId !== 'string' || typeof value.tripId !== 'string') return null
 
   return {
+    canhotoRejection: toCanhotoRejection(value.canhotoRejection),
     deliveredAt: readNullableString(value.deliveredAt),
     deliveryProof: toDeliveryProof(value.deliveryProof),
     documentId: value.documentId,
@@ -201,8 +246,17 @@ function toPendingProofs(value: unknown): readonly PendingProofDocument[] {
 function toTrip(value: unknown): DriverTrip {
   if (!isRecord(value) || !Array.isArray(value.stops)) throw new DriverTripResponseError()
 
+  /**
+   * Spec 206 D17: nenhuma parada trazendo a chave é o sinal de API antiga — o app cai no
+   * comportamento anterior (Cheguei sem a trava da D6, sem "Iniciar rota" nenhum).
+   */
+  const isLegacyEnRouteTracking = !value.stops.some(
+    (stop) => isRecord(stop) && isEnRouteFieldPresent(stop),
+  )
+
   return {
     id: readString(value.id),
+    isLegacyEnRouteTracking,
     manifest: toManifest(value.manifest),
     status: readString(value.status),
     stops: value.stops.map(toStop),

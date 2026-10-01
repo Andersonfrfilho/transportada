@@ -7,12 +7,14 @@ import {
   DRIVER_ID,
   TRIPS_PATH,
   TRIP_PAGE,
+  TRIP_PAGE_WITH_AMOUNTS,
   VEHICLE_ID,
   jsonRequest,
 } from '../fixtures/trip-http-payload.fixture'
 import {
   COMPANY_CONTEXT,
   FINANCIALS_PERMISSIONS,
+  READ_ONLY_PERMISSIONS,
   createTripHttpFixture,
 } from '../fixtures/trip-http.fixture'
 
@@ -94,5 +96,41 @@ describe('GET /trips', () => {
 
     expect(response.status).toBe(403)
     expect(fixture.listTripsCalls).toEqual([])
+  })
+
+  /**
+   * T707 (H3, achado anterior à 153) tirava só `documentsTotal`/`revenueTotal` de dentro de
+   * `amounts`, mantendo `revenueSource` visível. `2f252a5b2` (staging, um dia depois) apertou a
+   * regra para o mesmo molde da spec 153 D10: o campo **inteiro** some sem `trip.financials`, não só
+   * o valor — `revenueSource` sozinho já entrega que a viagem tem receita calculada. Ver
+   * `list-money-redaction.contract.ts`, que é a prova dedicada desta versão da regra.
+   */
+  test('cuts amounts without trip.financials', async () => {
+    const fixture = await createTripHttpFixture({
+      listTripsResult: TRIP_PAGE_WITH_AMOUNTS,
+      permissions: READ_ONLY_PERMISSIONS,
+    })
+
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: TRIPS_PATH }))
+    const body = (await response.json()) as { data: readonly Record<string, unknown>[] }
+
+    expect(response.status).toBe(200)
+    const [trip] = body.data
+    expect(Object.hasOwn(trip ?? {}, 'amounts')).toBe(false)
+  })
+
+  test('answers with documentsTotal and revenueTotal when the caller has trip.financials', async () => {
+    const fixture = await createTripHttpFixture({
+      listTripsResult: TRIP_PAGE_WITH_AMOUNTS,
+      permissions: FINANCIALS_PERMISSIONS,
+    })
+
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: TRIPS_PATH }))
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      data: [...TRIP_PAGE_WITH_AMOUNTS.items],
+      page: { nextCursor: TRIP_PAGE_WITH_AMOUNTS.nextCursor },
+    })
   })
 })

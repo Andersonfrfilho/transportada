@@ -11,6 +11,7 @@ import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
 
 export const OFFICE_MULTIPART_FILE_FIELD = 'file'
+const OFFICE_MULTIPART_THUMBNAIL_FIELD = 'thumbnail'
 
 /** O `FormData` do `Request` do Bun — o global do DOM tem outro tipo de entrada. */
 export type OfficeForm = Awaited<ReturnType<Request['formData']>>
@@ -48,6 +49,18 @@ export async function readOfficeMultipartFile(
   const file = form.get(OFFICE_MULTIPART_FILE_FIELD)
   if (file === null) return null
   if (!(file instanceof File)) throw new ApiError(HTTP_ERROR.invalidRequest)
+
+  return { bytes: new Uint8Array(await file.arrayBuffer()), mimeType: file.type }
+}
+
+/** Spec 220 RF17: a miniatura é opcional — ausente ou vazia é `null`; texto no lugar do arquivo é 400. */
+export async function readOfficeMultipartThumbnail(
+  form: OfficeForm,
+): Promise<{ readonly bytes: Uint8Array; readonly mimeType: string } | null> {
+  const file = form.get(OFFICE_MULTIPART_THUMBNAIL_FIELD)
+  if (file === null) return null
+  if (!(file instanceof File)) throw new ApiError(HTTP_ERROR.invalidRequest)
+  if (file.size === 0) return null
 
   return { bytes: new Uint8Array(await file.arrayBuffer()), mimeType: file.type }
 }

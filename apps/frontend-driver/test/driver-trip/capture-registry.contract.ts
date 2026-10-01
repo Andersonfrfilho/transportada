@@ -19,13 +19,13 @@ const DRIVER_STOP_CARD = new URL(
   '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
   import.meta.url,
 )
-/** Spec 209: o "Deu problema" saiu do cartão para componente e hook próprios. */
+/** Spec 218 (RF-A5): o "Deu problema" virou o formulário único de ocorrência, com hook próprio. */
 const STOP_OCCURRENCE_FORM = new URL(
-  '../../src/modules/driver-trip/components/DriverStopOccurrenceForm.component.tsx',
+  '../../src/modules/driver-trip/components/DriverOccurrenceRegistrationForm.component.tsx',
   import.meta.url,
 )
 const STOP_OCCURRENCE_FORM_HOOK = new URL(
-  '../../src/modules/driver-trip/hooks/useStopOccurrenceForm.hook.ts',
+  '../../src/modules/driver-trip/hooks/useOccurrenceRegistrationForm.hook.ts',
   import.meta.url,
 )
 const CAMERA_CAPTURE_HOOK = new URL(

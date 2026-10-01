@@ -28,23 +28,30 @@ import {
   medianBoxVolumeM3,
   resolveDocumentCargoEstimate,
 } from '../../nfe-documents/domain/cargo-volume.policy.js'
-import { resolveVehicleCapacity } from '../../fleet/domain/vehicle-capacity.policy.js'
+import {
+  resolveVehicleCapacity,
+  resolveVolumeReferenceKey,
+} from '../../fleet/domain/vehicle-capacity.policy.js'
 import {
   resolveBoxDimensionsForCubage,
   type PackageBoxDimensionsSource,
 } from '../../nfe-documents/domain/package-box-cubage-dimensions.policy.js'
 import type { TripOccupancyView } from '../application/trip.port.js'
+import type { CapacityUnknownReason } from '../domain/capacity-unknown-reason.policy.js'
+import { resolveCapacityUnknownReason } from '../domain/capacity-unknown-reason.policy.js'
 import { resolveTripOccupancy } from '../domain/trip-occupancy.policy.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 /**
  * Spec 075: a ocupação do baú, montada em **três consultas** — o veículo, os fatores da empresa e
- * os volumes das notas. Nunca uma consulta por nota: o detalhe da viagem já é a tela mais pesada do
- * módulo, e o N+1 aqui multiplicaria por vinte (`code-standart.md` §15).
+ * os volumes das notas — mais uma quarta, condicional, só quando a viagem tem carreta. Nunca uma
+ * consulta por nota: o detalhe da viagem já é a tela mais pesada do módulo, e o N+1 aqui
+ * multiplicaria por vinte (`code-standart.md` §15).
  *
- * ⚠️ A capacidade sai do veículo **que carrega**. Hoje a viagem tem um veículo só e ele é o de
- * tração; quando o implemento entrar, a chave da referência passa a ser a dele (D2b), e é
- * `resolveVolumeReferenceKey` que decide — não este arquivo.
+ * ⚠️ **A capacidade sai do veículo que carrega, e é `resolveVolumeReferenceKey` quem decide qual é
+ * (spec 075 D2b).** Com carreta atrelada, a ficha dela (medidas → `capacity_m3`) vence a referência
+ * de catálogo — a ficha do cavalo nunca entra na conta de volume, porque quem carrega é o
+ * implemento.
  */
 export async function loadTripOccupancy(
   queryable: TripQueryable,
@@ -53,9 +60,22 @@ export async function loadTripOccupancy(
     readonly nfeDocumentIds: readonly string[]
     /** Spec 216: `null` é viagem `awaiting_crew` — mesma lacuna que veículo não encontrado. */
     readonly vehicleId: string | null
+    /** Feature 147 D3/T12: `null` quando o cavalo (ou qualquer outro veículo) não tem carreta. */
+    readonly trailerVehicleId: string | null
   },
 ): Promise<{
   readonly occupancy: TripOccupancyView | null
+  /**
+   * Spec 147 D2/RF4: o motivo de `capacityM3`/`occupancy` estarem nulos, para o painel nomear o
+   * que falta em vez de dizer só "capacidade desconhecida". `null` quando a capacidade é conhecida.
+   */
+  readonly capacityUnknownReason: CapacityUnknownReason | null
+  /**
+   * T18 (revisão, item 10): o veículo cuja ficha resolve `capacityUnknownReason` — a carreta em
+   * `bodyTypeMissing` (é a ficha dela que falta), o próprio veículo da viagem nos outros motivos
+   * (`trailerMissing`, `referenceMissing`, sem veículo a apontar). `null` só quando o motivo também é.
+   */
+  readonly capacityUnknownVehicleId: string | null
   /** Spec 076: o volume por nota, para o layout agrupar por parada sem uma consulta nova. */
   readonly volumeByDocument: ReadonlyMap<string, string | null>
   /**
@@ -65,11 +85,11 @@ export async function loadTripOccupancy(
    */
   readonly boxesByDocument: ReadonlyMap<string, readonly CargoPlanBox[]>
   /**
-   * ⚠️ Spec 088 D2: a medida do baú vem da **ficha do veículo**, e por isso viaja fora de
-   * `occupancy`. Derivá-la da ocupação jogava a medida fora quando **nenhuma nota tinha cubagem** —
-   * a planta sumia por falta de um dado que não é dela, e o aviso mandava preencher um campo que já
-   * estava preenchido. Ler as colunas do veículo também descarta a referência de mercado por
-   * construção, que é mais forte que filtrar pela origem do m³.
+   * Spec 088 D2: a medida do baú vem da **ficha do veículo** quando preenchida. Sem ficha, usa a
+   * referência do catálogo com origem marcada (`bedSource: 'reference'` — commit `c02325b6`). Viaja
+   * fora de `occupancy` porque a origem importa (ficha vs. referência), e devolvê-la do campo de
+   * ocupação jogava a medida fora quando **nenhuma nota tinha cubagem** — a planta sumia por falta
+   * de um dado que não é dela, e o aviso mandava preencher um campo que já estava preenchido.
    */
   readonly bedDimensions: CargoBedDimensions | null
   readonly capacityM3: string | null
@@ -104,6 +124,7 @@ export async function loadTripOccupancy(
             cargoHeightM: fleetVehicles.cargoHeightM,
             cargoLengthM: fleetVehicles.cargoLengthM,
             cargoWidthM: fleetVehicles.cargoWidthM,
+            id: fleetVehicles.id,
             vehicleType: fleetVehicles.vehicleType,
           })
           .from(fleetVehicles)
@@ -113,6 +134,9 @@ export async function loadTripOccupancy(
     return {
       bedDimensions: null,
       boxesByDocument: new Map(),
+      /** Sem veículo não há candidato de tração para nomear o motivo — a viagem está órfã. */
+      capacityUnknownReason: null,
+      capacityUnknownVehicleId: null,
       capacityM3: null,
       fallbackBoxVolumeM3: null,
       measuredShapes: [],
@@ -125,6 +149,44 @@ export async function loadTripOccupancy(
     }
   }
 
+  /**
+   * Spec 147 D3/T12: só uma consulta a mais, e só quando a viagem tem carreta — a maioria não tem
+   * (T0). `trailer` aqui é quem carrega de verdade; a ficha do cavalo nunca entra na conta.
+   */
+  const trailer =
+    input.trailerVehicleId === null
+      ? undefined
+      : await queryable
+          .select({
+            bodyType: fleetVehicles.bodyType,
+            capacityKg: fleetVehicles.capacityKg,
+            capacityM3: fleetVehicles.capacityM3,
+            cargoHeightM: fleetVehicles.cargoHeightM,
+            cargoLengthM: fleetVehicles.cargoLengthM,
+            cargoWidthM: fleetVehicles.cargoWidthM,
+            id: fleetVehicles.id,
+            loadingAccess: fleetVehicles.loadingAccess,
+            vehicleType: fleetVehicles.vehicleType,
+          })
+          .from(fleetVehicles)
+          .where(
+            and(
+              eq(fleetVehicles.companyId, input.companyId),
+              eq(fleetVehicles.id, input.trailerVehicleId),
+            ),
+          )
+          .limit(1)
+          .then((rows) => rows[0])
+  /** A ficha de quem carrega: a carreta quando existe, senão o próprio veículo de tração. */
+  const carrier = trailer ?? vehicle
+
+  const referenceKey = resolveVolumeReferenceKey({
+    traction: { bodyType: vehicle.bodyType, role: 'traction', vehicleType: vehicle.vehicleType },
+    trailer:
+      trailer === undefined
+        ? null
+        : { bodyType: trailer.bodyType, role: 'trailer', vehicleType: trailer.vehicleType },
+  })
   const [reference] = await queryable
     .select({
       cargoHeightM: vehicleVolumeReferences.cargoHeightM,
@@ -134,8 +196,8 @@ export async function loadTripOccupancy(
     .from(vehicleVolumeReferences)
     .where(
       and(
-        eq(vehicleVolumeReferences.vehicleType, vehicle.vehicleType),
-        eq(vehicleVolumeReferences.bodyType, vehicle.bodyType),
+        eq(vehicleVolumeReferences.vehicleType, referenceKey.vehicleType),
+        eq(vehicleVolumeReferences.bodyType, referenceKey.bodyType),
       ),
     )
     .limit(1)
@@ -147,22 +209,49 @@ export async function loadTripOccupancy(
           ?.capacityM3 ?? null)
 
   const capacity = resolveVehicleCapacity({
-    capacityM3: vehicle.capacityM3,
-    cargoHeightM: vehicle.cargoHeightM,
-    cargoLengthM: vehicle.cargoLengthM,
-    cargoWidthM: vehicle.cargoWidthM,
+    capacityM3: carrier.capacityM3,
+    cargoHeightM: carrier.cargoHeightM,
+    cargoLengthM: carrier.cargoLengthM,
+    cargoWidthM: carrier.cargoWidthM,
     referenceM3,
   })
+  /**
+   * Spec 147 D2/D3/RF4: recalculado a cada retorno porque `capacityM3` é o mesmo que decide se há
+   * ocupação. Cavalo (`tractor_unit`) sem carreta cai em `trailerMissing`, nunca em
+   * `bodyTypeMissing` — `resolveCapacityUnknownReason` já resolve essa precedência.
+   */
+  const capacityUnknownReason = resolveCapacityUnknownReason({
+    capacityM3: capacity === null ? null : capacity.capacityM3,
+    traction: { bodyType: vehicle.bodyType, vehicleType: vehicle.vehicleType },
+    trailer:
+      trailer === undefined
+        ? null
+        : { bodyType: trailer.bodyType, vehicleType: trailer.vehicleType },
+  })
+  /**
+   * T18 (revisão, item 10): a ficha que falta é a de quem carrega em `bodyTypeMissing` — a carreta
+   * quando existe, senão o cavalo, o mesmo `carrier` que resolveu a capacidade. Nos outros motivos
+   * (`trailerMissing`, `referenceMissing`) não há ficha de carroceria para editar; o link volta para
+   * o veículo da viagem, como sempre foi.
+   */
+  const capacityUnknownVehicleId =
+    capacityUnknownReason === null
+      ? null
+      : capacityUnknownReason === 'bodyTypeMissing'
+        ? carrier.id
+        : input.vehicleId
   if (capacity === null) {
     return {
-      bedDimensions: toBedDimensions(vehicle, reference),
+      bedDimensions: toBedDimensions(carrier, reference),
       boxesByDocument: new Map(),
+      capacityUnknownReason,
+      capacityUnknownVehicleId,
       capacityM3: null,
       fallbackBoxVolumeM3: null,
       measuredShapes: [],
       bodyType: vehicle.bodyType,
-      loadingAccess: vehicle.loadingAccess,
-      maxPayloadKg: vehicle.capacityKg,
+      loadingAccess: carrier.loadingAccess,
+      maxPayloadKg: carrier.capacityKg,
       occupancy: null,
       volumeByDocument: new Map(),
     }
@@ -240,32 +329,40 @@ export async function loadTripOccupancy(
   const occupancy = resolveTripOccupancy({ capacityM3: capacity.capacityM3, documents })
   if (occupancy === null) {
     return {
-      bedDimensions: toBedDimensions(vehicle, reference),
+      bedDimensions: toBedDimensions(carrier, reference),
       boxesByDocument,
+      capacityUnknownReason,
+      capacityUnknownVehicleId,
       capacityM3: capacity.capacityM3,
       fallbackBoxVolumeM3: toNumber(measured.medianM3),
       measuredShapes: measured.measuredShapes,
       bodyType: vehicle.bodyType,
-      loadingAccess: vehicle.loadingAccess,
-      maxPayloadKg: vehicle.capacityKg,
+      loadingAccess: carrier.loadingAccess,
+      maxPayloadKg: carrier.capacityKg,
       occupancy: null,
       volumeByDocument,
     }
   }
 
   return {
-    bedDimensions: toBedDimensions(vehicle, reference),
+    bedDimensions: toBedDimensions(carrier, reference),
     boxesByDocument,
+    capacityUnknownReason,
+    capacityUnknownVehicleId,
     capacityM3: capacity.capacityM3,
     fallbackBoxVolumeM3: toNumber(measured.medianM3),
     measuredShapes: measured.measuredShapes,
     bodyType: vehicle.bodyType,
-    loadingAccess: vehicle.loadingAccess,
-    /** Spec 093: o `capKG` do MDF-e, que a montagem passou a ler como teto de peso da viagem. */
-    maxPayloadKg: vehicle.capacityKg,
+    loadingAccess: carrier.loadingAccess,
+    /**
+     * T18 (revisão, item 9): o teto de peso é de quem carrega — a carreta quando existe, senão o
+     * próprio veículo de tração. Antes desta correção ele sempre lia o cavalo, e uma carreta com
+     * capacidade diferente da dele fazia o teto mentir.
+     */
+    maxPayloadKg: carrier.capacityKg,
     occupancy: {
       ...occupancy,
-      capacityDimensions: resolveDimensions({ reference, vehicle }, capacity.source),
+      capacityDimensions: resolveDimensions({ reference, vehicle: carrier }, capacity.source),
       capacityM3: capacity.capacityM3,
       capacitySource: capacity.source,
     },

@@ -87,6 +87,7 @@
   },
   "axleCount": "Quantidade de eixos",
   "bodyType": "Tipo de carroceria",
+  "bodyTypeNotApplicable": "Cavalo mecânico só aceita a carroceria \"00 — Não aplicável\".",
   "bodyTypeOption": {
     "00": "00 — Não aplicável",
     "01": "01 — Aberta",
@@ -95,6 +96,8 @@
     "04": "04 — Porta container",
     "05": "05 — Sider"
   },
+  "bodyTypeRequired": "Escolha a carroceria antes de salvar.",
+  "bodyTypeUnset": "Selecione a carroceria",
   "brand": "Marca",
   "brandCatalogUnavailableHint": "Catálogo de marcas indisponível agora. Digite a marca como está no CRLV.",
   "brandCatalogVehicleTypeHint": "Escolha o tipo do veículo na identificação para carregar as marcas.",
@@ -151,6 +154,7 @@
   "columnRole": "Função",
   "columnStatus": "Situação",
   "columnTaxId": "CPF",
+  "columnVehicle": "Veículo",
   "columns": {
     "axleCount": "Eixos",
     "brand": "Marca",
@@ -185,6 +189,11 @@
     "previousMonth": "Mês anterior"
   },
   "deactivate": "Desativar",
+  "defaultTrailer": "Carreta padrão",
+  "defaultTrailerHint": "Sugestão para a viagem nova deste cavalo — pode ser trocada depois, na própria viagem.",
+  "defaultTrailerNotATrailer": "O veículo escolhido não é uma carreta ativa desta frota.",
+  "defaultTrailerPlaceholder": "Sem carreta padrão",
+  "defaultTrailerRequiresTractor": "Só o cavalo mecânico tem carreta padrão.",
   "documentPlateTaken": "A placa {{plate}} já está cadastrada nesta frota.",
   "documentPlateTakenAction": "Abrir a ficha existente",
   "documents": {
@@ -653,6 +662,7 @@
     "state": "UF do mapa",
     "title": "Mapa das rotas",
     "unassigned": "Sem rota",
+    "withoutBasemap": "Mapa de rua indisponível — a legenda e a lista de cidades continuam válidas",
     "zone": "Zona {{zone}}"
   },
   "regionSelection": {
@@ -680,6 +690,7 @@
   },
   "renavam": "Renavam",
   "role": "Função no conjunto",
+  "roleChangeBlocked": "Esta carreta é padrão de um cavalo ou está numa viagem aberta — solte o vínculo antes de trocar a função.",
   "roleOption": {
     "traction": "Tração",
     "trailer": "Reboque"

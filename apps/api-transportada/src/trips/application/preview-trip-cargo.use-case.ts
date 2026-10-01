@@ -9,6 +9,7 @@ import type {
 } from '@adatechnology/cargo-placement'
 import { formatScaledDecimal, parseScaledDecimal } from '../../shared/decimal.service.js'
 import { CARGO_DELIVERY_REACH_M } from '../domain/cargo-delivery-reach.constant.js'
+import type { CapacityUnknownReason } from '../domain/capacity-unknown-reason.policy.js'
 import type { TripCargoLayoutState } from '../domain/cargo-layout-state.types.js'
 import type { CargoLayoutLookupPort } from './cargo-layout-lookup.port.js'
 import { resolvePreviewCargoLayout } from './preview-cargo-layout.service.js'
@@ -30,6 +31,10 @@ const WEIGHT_SCALE = 4n
 export type TripCargoPreview = {
   /** Spec 145 T11: `null` enquanto o worker calcula — a prévia não tem viagem com planta anterior. */
   readonly cargoLayout: ResolvedCargoLayout | null
+  /** Spec 147 D2/RF4: por que `occupancy` está nulo — o painel nomeia o que falta. */
+  readonly capacityUnknownReason: CapacityUnknownReason | null
+  /** T18 (revisão, item 10): o veículo cuja ficha resolve `capacityUnknownReason`. */
+  readonly capacityUnknownVehicleId: string | null
   readonly cargoWeight: TripCargoWeightView | null
   /** A linha em `trip_cargo_layouts` que a tela pergunta de novo; ausente em `unavailable`. */
   readonly layoutId?: string
@@ -64,6 +69,10 @@ export type TripCargoPreviewContext = {
   readonly cargoWeight: TripCargoWeightView | null
   readonly documents: readonly CargoPreviewDocument[]
   readonly occupancy: TripOccupancyView | null
+  /** Spec 147 D2/RF4: por que `occupancy` está nulo — o painel nomeia o que falta. */
+  readonly capacityUnknownReason: CapacityUnknownReason | null
+  /** T18 (revisão, item 10): o veículo cuja ficha resolve `capacityUnknownReason`. */
+  readonly capacityUnknownVehicleId: string | null
 }
 
 export type TripCargoPreviewPort = {
@@ -144,6 +153,8 @@ export async function previewTripCargo(input: PreviewTripCargoInput): Promise<Tr
 
   return {
     ...layout,
+    capacityUnknownReason: context.capacityUnknownReason,
+    capacityUnknownVehicleId: context.capacityUnknownVehicleId,
     cargoWeight: context.cargoWeight,
     occupancy: context.occupancy,
     weightConcentration: detectWeightConcentration({ stops: sumWeightByStop(context.documents) }),

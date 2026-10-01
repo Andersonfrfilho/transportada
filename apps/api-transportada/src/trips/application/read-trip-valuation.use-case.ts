@@ -25,6 +25,10 @@ import {
   type TripCrewMember,
   type TripDriverCostDays,
 } from '../domain/trip-driver-cost.policy.js'
+import {
+  buildTripHelperCost,
+  type TripHelperCostMember,
+} from '../domain/trip-helper-cost.policy.js'
 import { buildTripTaxParcels, type CompanyFederalRates } from '../domain/trip-tax.policy.js'
 import {
   resolveDocumentIcms,
@@ -40,6 +44,7 @@ import {
   type RouteGeometryToll,
 } from './read-route-geometry.use-case.js'
 import type { AxleCount, TollRouteCost } from '../../toll-booths/domain/toll-route-cost.policy.js'
+import { resolveVehicleFuelBaseline } from '../../toll-booths/domain/route-option.policy.js'
 import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 import type { RouteGeometryPort } from './route-geometry.port.js'
 
@@ -106,6 +111,17 @@ export type TripValuationContext = {
   /** Metros do roteiro aceito; `null` quando ninguém calculou rota ainda. */
   readonly distanceMeters: null | number
   readonly documents: readonly TripValuationDocument[]
+  /**
+   * Spec 149 T6 (D7): `company_crew_settings.helper_daily_rate` — vence quando o ajudante não tem
+   * valor próprio na ficha. `null` é "ainda não parametrizada".
+   */
+  readonly helperCompanyDailyRate?: null | string
+  /** Spec 149 T6: quem acompanha o motorista sem dirigir (`role = 'helper'`), com a diária própria. */
+  readonly helperCrew?: readonly TripHelperCostMember[]
+  /** Spec 149 T6: se a jornada congelada inclui a volta. `null` acompanha `journeySeconds` nulo. */
+  readonly journeyIncludesReturn?: null | boolean
+  /** Spec 149 T6: a jornada congelada no mesmo momento do ETA. `null` é "roteiro nunca planejado". */
+  readonly journeySeconds?: null | number
   /**
    * Spec 125: os perfis ativos de emissão, uma leitura por conta. É deles que sai a projeção do
    * ICMS enquanto a nota não tem CT-e; ausente é "nenhum perfil", e a parcela diz isso por nota.
@@ -299,6 +315,24 @@ export async function previewTripValuation(
   const road = await resolvePreviewRoad({
     axles: context.vehicle?.axles ?? null,
     multiplier: context.vehicle?.multiplier ?? null,
+    /**
+     * spec 153 H1: o mesmo consumo/preço que `resolveFuelParcel` (abaixo) usa para precificar o
+     * combustível — sem isto `applyCriterion('cheapest')` não acha candidata nenhuma entre as
+     * opções, e a prévia cai sempre na principal, discordando da viagem que o congelador grava.
+     *
+     * N13 (segunda revisão da 153): `resolveVehicleFuelBaseline` é o mesmo colapso que
+     * `route-geometry-vehicle-axles.query.ts` e `drizzle-trip-planned-route.repository.ts` usam —
+     * um par parcial (consumo sem preço, ou vice-versa) vira ausência nos três lugares, pelo mesmo
+     * código, não por três contas que só coincidem hoje.
+     *
+     * Spec 217 Fase 4: `context.vehicle` é anulável (viagem `awaiting_crew` sem caminhão ainda
+     * escolhido) — a prévia continua exigindo o veículo no formulário, mas o tipo compartilhado
+     * com a leitura financeira obriga o mesmo `?.` aqui.
+     */
+    fuelBaseline: resolveVehicleFuelBaseline({
+      kilometersPerLiter: context.vehicle?.kilometersPerLiter ?? null,
+      pricePerLiter: context.fuelPricePerLiter,
+    }),
     hasAutomaticTollPayment: context.vehicle?.hasAutomaticTollPayment ?? false,
     companyId: input.companyId,
     depot: input.depot ?? null,
@@ -338,6 +372,11 @@ async function resolvePreviewRoad(input: {
   readonly multiplier: TollMultiplier | null
   readonly choice?: RouteChoice
   readonly companyId: string
+  /** spec 153 H1: sem isto nenhuma opção recebe `totalCost`, e `cheapest` não acha candidata. */
+  readonly fuelBaseline: Readonly<{
+    kilometersPerLiter: null | string
+    pricePerLiter: null | string
+  }>
   readonly hasAutomaticTollPayment: boolean
   readonly depot: null | ReadRouteGeometryDepotPort
   readonly geometry: RouteGeometryPort
@@ -360,6 +399,7 @@ async function resolvePreviewRoad(input: {
     axles: input.axles,
     multiplier: input.multiplier,
     depot: input.depot,
+    fuelBaseline: input.fuelBaseline,
     hasAutomaticTollPayment: input.hasAutomaticTollPayment,
     geometry: input.geometry,
     stops: points,
@@ -525,6 +565,12 @@ function buildCostParcels(context: TripValuationContext): readonly TripCostParce
 
   return [
     buildDriverParcel(context),
+    buildTripHelperCost({
+      companyDailyRate: context.helperCompanyDailyRate ?? null,
+      helpers: context.helperCrew ?? [],
+      journeyIncludesReturn: context.journeyIncludesReturn ?? null,
+      journeySeconds: context.journeySeconds ?? null,
+    }),
     resolveFuelParcel({ context, distanceMeters: hasDistance ? distance : null }),
     resolveOtherPerKilometer({ context, distanceMeters: hasDistance ? distance : null }),
     resolveTollParcel(context),

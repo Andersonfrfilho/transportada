@@ -18,10 +18,12 @@ import type {
   RouteSuggestionRepository,
 } from '../../src/routing/application/route-suggestion.repository.js'
 import {
+  MultiVehicleSuggestionCrewTooLargeError,
   MultiVehicleSuggestionDocumentUnavailableError,
   MultiVehicleSuggestionDriverRepeatedError,
   MultiVehicleSuggestionDriverUnavailableError,
   MultiVehicleSuggestionEmptyError,
+  MultiVehicleSuggestionHelperNotEligibleError,
   MultiVehicleSuggestionStopClaimedTwiceError,
   MultiVehicleSuggestionVehicleNotInProposalError,
   MultiVehicleSuggestionVehicleUnavailableError,
@@ -97,6 +99,8 @@ function buildFixture(
     /** Spec 107 D2: simula a reivindicação perdida para outro pedido concorrente. */
     readonly claimFails?: boolean
     readonly groups?: readonly MultiVehicleSuggestionGroup[]
+    /** Spec 149 (ADR-0065 D1): ids que existem mas não marcaram `can_act_as_helper` na ficha. */
+    readonly ineligibleHelpers?: readonly string[]
     /** Spec 148 T7: a planta da prévia por id — as notas que ela desenhou e as que deixou de fora. */
     readonly releasePlans?: ReadonlyMap<
       string,
@@ -129,6 +133,7 @@ function buildFixture(
       calls.create?.push(record)
       return suggestion({ status: 'queued' })
     },
+    findIneligibleHelperIds: async () => input.ineligibleHelpers ?? [],
     findUnavailableDocumentIds: async () => input.unavailableDocuments ?? [],
     findUnavailableDriverIds: async () => input.unavailableDrivers ?? [],
     findUnavailableVehicleIds: async () => input.unavailableVehicles ?? [],
@@ -183,6 +188,10 @@ function buildFixture(
     async linkAndRelease(record) {
       calls.release?.push(record)
       return true
+    },
+    /** Spec 153 T708: sem estado prévio, o aceite sempre cria viagem nova — como sempre criou. */
+    async findComposedTrip() {
+      return null
     },
   }
 
@@ -297,6 +306,168 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
 
     expect(refusal).toBeInstanceOf(MultiVehicleSuggestionDriverRepeatedError)
     expect(fixture.calls.create).toEqual([])
+  })
+
+  /**
+   * Spec 149 (ADR-0065 §4): a mesma pessoa em dois lugares da proposta inteira — não só duas vezes
+   * motorista. As três variantes são recusa, para não descobrir a tripulação inconsistente só no
+   * aceite.
+   */
+  describe('spec 149 T5: tripulação sem repetição na proposta inteira', () => {
+    const HELPER = '00000000-0000-4000-8000-000000000031'
+    const OTHER_HELPER = '00000000-0000-4000-8000-000000000032'
+
+    test('recusa a mesma pessoa como motorista de um veículo e ajudante de outro', async () => {
+      const fixture = buildFixture()
+
+      await expect(
+        fixture.useCase.create({
+          context: CONTEXT,
+          correlationId: 'correlation',
+          documentIds: [FIRST_DOCUMENT],
+          vehicles: [
+            { driverId: FIRST_DRIVER, vehicleId: FIRST_VEHICLE },
+            { helperIds: [FIRST_DRIVER], vehicleId: SECOND_VEHICLE },
+          ],
+        }),
+      ).rejects.toBeInstanceOf(MultiVehicleSuggestionDriverRepeatedError)
+      expect(fixture.calls.create).toEqual([])
+    })
+
+    test('recusa a mesma pessoa como ajudante em dois veículos', async () => {
+      const fixture = buildFixture()
+
+      await expect(
+        fixture.useCase.create({
+          context: CONTEXT,
+          correlationId: 'correlation',
+          documentIds: [FIRST_DOCUMENT],
+          vehicles: [
+            { helperIds: [HELPER], vehicleId: FIRST_VEHICLE },
+            { helperIds: [HELPER], vehicleId: SECOND_VEHICLE },
+          ],
+        }),
+      ).rejects.toBeInstanceOf(MultiVehicleSuggestionDriverRepeatedError)
+    })
+
+    test('recusa a mesma pessoa como motorista e ajudante do mesmo veículo', async () => {
+      const fixture = buildFixture()
+
+      await expect(
+        fixture.useCase.create({
+          context: CONTEXT,
+          correlationId: 'correlation',
+          documentIds: [FIRST_DOCUMENT],
+          vehicles: [
+            { driverId: FIRST_DRIVER, helperIds: [FIRST_DRIVER], vehicleId: FIRST_VEHICLE },
+          ],
+        }),
+      ).rejects.toBeInstanceOf(MultiVehicleSuggestionDriverRepeatedError)
+    })
+
+    /** Ajudante sem `can_act_as_helper` na ficha — os ids viajam no detalhe do erro. */
+    test('recusa ajudante sem can_act_as_helper marcado, com o id no detalhe', async () => {
+      const fixture = buildFixture({ ineligibleHelpers: [HELPER] })
+
+      const refusal = await fixture.useCase
+        .create({
+          context: CONTEXT,
+          correlationId: 'correlation',
+          documentIds: [FIRST_DOCUMENT],
+          vehicles: [{ helperIds: [HELPER], vehicleId: FIRST_VEHICLE }],
+        })
+        .then(() => null)
+        .catch((error: unknown) => error)
+
+      expect(refusal).toBeInstanceOf(MultiVehicleSuggestionHelperNotEligibleError)
+      expect((refusal as MultiVehicleSuggestionHelperNotEligibleError).details).toEqual([
+        { field: 'helperIds', message: HELPER },
+      ])
+      expect(fixture.calls.create).toEqual([])
+    })
+
+    /** Ajudante indisponível (inativo/inexistente) responde pela mesma checagem do motorista. */
+    test('recusa ajudante indisponível pela mesma checagem de disponibilidade do motorista', async () => {
+      const fixture = buildFixture({ unavailableDrivers: [HELPER] })
+
+      await expect(
+        fixture.useCase.create({
+          context: CONTEXT,
+          correlationId: 'correlation',
+          documentIds: [FIRST_DOCUMENT],
+          vehicles: [{ helperIds: [HELPER], vehicleId: FIRST_VEHICLE }],
+        }),
+      ).rejects.toBeInstanceOf(MultiVehicleSuggestionDriverUnavailableError)
+    })
+
+    /** Teto de dez (motorista + ajudantes) por veículo, o mesmo de `trip_drivers`. */
+    test('recusa mais de dez pessoas na tripulação de um veículo', async () => {
+      const fixture = buildFixture()
+      const tenHelpers = Array.from({ length: 10 }, () => crypto.randomUUID())
+
+      await expect(
+        fixture.useCase.create({
+          context: CONTEXT,
+          correlationId: 'correlation',
+          documentIds: [FIRST_DOCUMENT],
+          vehicles: [{ driverId: FIRST_DRIVER, helperIds: tenHelpers, vehicleId: FIRST_VEHICLE }],
+        }),
+      ).rejects.toBeInstanceOf(MultiVehicleSuggestionCrewTooLargeError)
+      expect(fixture.calls.create).toEqual([])
+    })
+
+    /** Ajudantes válidos persistem no pool, na mesma criação da frota. */
+    test('grava os ajudantes de cada veículo junto com a frota', async () => {
+      const fixture = buildFixture()
+
+      await fixture.useCase.create({
+        context: CONTEXT,
+        correlationId: 'correlation',
+        documentIds: [FIRST_DOCUMENT],
+        vehicles: [
+          { driverId: FIRST_DRIVER, helperIds: [HELPER, OTHER_HELPER], vehicleId: FIRST_VEHICLE },
+        ],
+      })
+
+      expect(fixture.calls.create?.[0]).toMatchObject({
+        vehicles: [
+          { driverId: FIRST_DRIVER, helperIds: [HELPER, OTHER_HELPER], vehicleId: FIRST_VEHICLE },
+        ],
+      })
+    })
+  })
+
+  /**
+   * Spec 149 (ADR-0065 D12): o aceite leva a tripulação completa — motorista e ajudantes — para o
+   * composer, para a viagem nascer com todo mundo em `trip_drivers`.
+   */
+  test('o aceite leva os ajudantes de cada linha ao criar a viagem', async () => {
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
+          driverId: FIRST_DRIVER,
+          estimatedArrivalByAddressKey: new Map(),
+          helperIds: [
+            '00000000-0000-4000-8000-000000000031',
+            '00000000-0000-4000-8000-000000000032',
+          ],
+          orderedAddressKeys: [],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+    })
+
+    await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
+
+    expect(fixture.calls.trip).toMatchObject([
+      {
+        driverId: FIRST_DRIVER,
+        helperIds: ['00000000-0000-4000-8000-000000000031', '00000000-0000-4000-8000-000000000032'],
+        vehicleId: FIRST_VEHICLE,
+      },
+    ])
   })
 
   /** Par sem motorista continua legítimo: é a distribuição da véspera, antes de a escala existir. */
@@ -530,6 +701,175 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
   })
 
   /**
+   * Spec 153 T708 (H4): antes desta task, uma falha dura num veículo devolvia a sugestão a `ready`
+   * **sem desfazer** a viagem dos veículos anteriores — correto — mas o reaceite não sabia disso: ele
+   * recriava viagem para todo mundo, inclusive quem já tinha uma pronta. A nota já vinculada fazia a
+   * viagem nova nascer sem parada, e `planRoute` bloqueava com `tripHasNoRoute` — de novo, a cada
+   * tentativa, sem nunca alcançar os veículos que de fato faltavam.
+   *
+   * O fixture abaixo modela o vínculo de nota como **estado vivo entre chamadas** (um `Map`, como a
+   * tabela `trip_documents` real): é o que deixa a segunda chamada de `accept` enxergar o que a
+   * primeira já tinha composto.
+   */
+  describe('spec 153 T708 (H4): o aceite multi-veículo é retomável', () => {
+    const THIRD_VEHICLE = '00000000-0000-4000-8000-000000000012'
+    const THIRD_DOCUMENT = '00000000-0000-4000-8000-000000000022'
+
+    /**
+     * Spec 217 D10: grupo sem motorista não é roteirizado — `planRoute` nem é chamado. Este fixture
+     * inteiro prova retomada **de `planRoute`**, então precisa de motorista para exercitar o que se
+     * propõe a provar (mesmo ajuste de `groupFor` global, `546a950f8`, spec 217 T204).
+     */
+    function groupFor(vehicleId: string, documentId: string): MultiVehicleSuggestionGroup {
+      return {
+        documentIds: [documentId],
+        documentIdsByAddressKey: new Map(),
+        driverId: FIRST_DRIVER,
+        estimatedArrivalByAddressKey: new Map(),
+        orderedAddressKeys: [`chave-${documentId}`],
+        vehicleId,
+      }
+    }
+
+    /**
+     * `failTripOnFirstPlan` é o veículo cuja **primeira** chamada de `planRoute` lança — a causa
+     * real (rota impossível, OSRM fora do ar) não importa aqui, só que ela desaparece na segunda
+     * tentativa, como uma falha transitória resolvida.
+     */
+    function buildResumableFixture(input: { readonly failTripOnFirstPlan: string }) {
+      /** Nota → viagem viva, sobrevivendo entre chamadas — como `trip_documents.released_at is null`. */
+      const liveLinkByDocument = new Map<string, string>()
+      const linkedCountByTrip = new Map<string, number>()
+      const planAttemptsByTrip = new Map<string, number>()
+      let tripCounter = 0
+      const createTripCalls: string[] = []
+      const planRouteCalls: string[] = []
+
+      const trips: TripComposer = {
+        async createTrip() {
+          tripCounter += 1
+          const tripId = `trip-${tripCounter}`
+          createTripCalls.push(tripId)
+          linkedCountByTrip.set(tripId, 0)
+          return { tripId }
+        },
+        async findComposedTrip({ nfeDocumentIds }) {
+          const tripIds = new Set(nfeDocumentIds.map((id) => liveLinkByDocument.get(id)))
+          if (tripIds.size !== 1) return null
+          const [tripId] = [...tripIds]
+          return tripId === undefined ? null : { tripId }
+        },
+        async linkDocument({ nfeDocumentId, tripId }) {
+          if (liveLinkByDocument.has(nfeDocumentId)) return false
+          liveLinkByDocument.set(nfeDocumentId, tripId)
+          linkedCountByTrip.set(tripId, (linkedCountByTrip.get(tripId) ?? 0) + 1)
+          return true
+        },
+        async applyEstimatedArrivals() {},
+        async planRoute({ tripId }) {
+          planRouteCalls.push(tripId)
+          /** Sem nota vinculada não há parada — é o `tripHasNoRoute` que a revisão mediu. */
+          if ((linkedCountByTrip.get(tripId) ?? 0) === 0) {
+            throw new Error('TRIP_HAS_NO_ROUTE')
+          }
+          const attempt = (planAttemptsByTrip.get(tripId) ?? 0) + 1
+          planAttemptsByTrip.set(tripId, attempt)
+          if (tripId === input.failTripOnFirstPlan && attempt === 1) {
+            throw new Error('ROUTING_TRANSIENT_FAILURE')
+          }
+        },
+        async reorderStops() {},
+      }
+
+      const releaseCalls: unknown[] = []
+      const suggestions: RouteSuggestionRepository = {
+        create: async () => suggestion(),
+        release: async () => {
+          releaseCalls.push(undefined)
+        },
+        decide: async (record) =>
+          suggestion({ decidedAt: '2026-08-27T11:00:00.000Z', status: record.status }),
+        find: async () => suggestion(),
+        readSettings: async () => SETTINGS,
+      }
+
+      const multiVehicle: MultiVehicleSuggestionRepository = {
+        create: async () => suggestion({ status: 'queued' }),
+        findIneligibleHelperIds: async () => [],
+        findUnavailableDocumentIds: async () => [],
+        findUnavailableDriverIds: async () => [],
+        findUnavailableVehicleIds: async () => [],
+        readGroups: async () => [
+          groupFor(FIRST_VEHICLE, FIRST_DOCUMENT),
+          groupFor(SECOND_VEHICLE, SECOND_DOCUMENT),
+          groupFor(THIRD_VEHICLE, THIRD_DOCUMENT),
+        ],
+        readSuggestionStatus: async () => 'ready',
+        readVehicleRoads: async () => [],
+      }
+
+      const useCase = createMultiVehicleSuggestionUseCase({
+        createSeed: () => 42,
+        multiVehicle,
+        queue: { async publish() {} },
+        suggestions,
+        trips,
+      })
+
+      return {
+        createTripCalls,
+        planRouteCalls,
+        get released() {
+          return releaseCalls.length
+        },
+        useCase,
+      }
+    }
+
+    test('falha no veículo do meio não deixa o primeiro órfão, e o reaceite conclui os dois que faltam', async () => {
+      const fixture = buildResumableFixture({ failTripOnFirstPlan: 'trip-2' })
+
+      // Primeira tentativa: veículo 1 compõe inteiro; veículo 2 lança na primeira `planRoute` e a
+      // sugestão volta para `ready`. Veículo 3 nunca é tentado.
+      await expect(
+        fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID }),
+      ).rejects.toThrow('ROUTING_TRANSIENT_FAILURE')
+      expect(fixture.createTripCalls).toEqual(['trip-1', 'trip-2'])
+      expect(fixture.released).toBe(1)
+
+      // Reaceite: acha a viagem do veículo 1 pronta (reaproveita, não cria outra), a do veículo 2
+      // também já tinha a nota vinculada (reaproveita), e o veículo 3 finalmente nasce.
+      const accepted = await fixture.useCase.accept({
+        context: CONTEXT,
+        suggestionId: SUGGESTION_ID,
+      })
+
+      /**
+       * ⚠️ Contrato (a) + (b): nenhuma viagem nova para os veículos 1 e 2 — só `trip-3`, do veículo
+       * que ainda não tinha nascido. Sem a T708, cada reaceite criava mais uma viagem vazia aqui.
+       */
+      expect(fixture.createTripCalls).toEqual(['trip-1', 'trip-2', 'trip-3'])
+      expect(accepted.trips.map((trip) => trip.tripId)).toEqual(['trip-1', 'trip-2', 'trip-3'])
+      expect(accepted.trips.map((trip) => trip.documentCount)).toEqual([1, 1, 1])
+      expect(fixture.released).toBe(1)
+    })
+
+    /** Contrato (c): sem falha nenhuma, o caminho feliz continua criando uma viagem por veículo. */
+    test('sem falha, cada veículo ganha viagem própria — nada a reaproveitar', async () => {
+      const fixture = buildResumableFixture({ failTripOnFirstPlan: 'nenhuma' })
+
+      const accepted = await fixture.useCase.accept({
+        context: CONTEXT,
+        suggestionId: SUGGESTION_ID,
+      })
+
+      expect(fixture.createTripCalls).toEqual(['trip-1', 'trip-2', 'trip-3'])
+      expect(accepted.trips).toHaveLength(3)
+      expect(fixture.released).toBe(0)
+    })
+  })
+
+  /**
    * ⚠️ Spec 107 D1: o aceite de 345 notas terminou em `TRIP_DOCUMENT_ALREADY_LINKED` com **cinco
    * viagens já criadas e corretas**, e o operador leu um código de suporte no lugar do roteiro
    * pronto. Nota já viva em outra viagem é **pulada e nomeada** — a diferença entre "o roteiro
@@ -622,6 +962,89 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         context: CONTEXT,
         estimatedArrivalByAddressKey: arrivals,
         plannedDepartureAt: PLANNED_DEPARTURE,
+        /** Spec 149 T6: sem `vehicleRoads` nesta fixture, a volta é desconhecida. */
+        returnLegSeconds: null,
+        tripId: 'trip-1',
+      },
+    ])
+  })
+
+  /**
+   * Spec 149 T6 (decisão do usuário, 15/09/2026): a jornada congela junto do ETA, e a volta vem da
+   * proposta — **sem** nova chamada ao roteirizador. `endPolicy` decide se a volta é esperada.
+   */
+  test('leva a perna de volta da proposta para o congelamento da jornada', async () => {
+    const arrivals = new Map([['chave-1', '2026-09-09T17:00:00.000Z']])
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
+          driverId: null,
+          estimatedArrivalByAddressKey: arrivals,
+          orderedAddressKeys: ['chave-1'],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+      stored: suggestion({ plannedDepartureAt: PLANNED_DEPARTURE, status: 'ready' }),
+      vehicleRoads: [
+        {
+          endPolicy: 'depot',
+          returnDistanceMeters: 12_000,
+          returnDurationSeconds: 1_800,
+          stops: [],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+    })
+
+    await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
+
+    expect(fixture.calls.arrivals).toEqual([
+      {
+        context: CONTEXT,
+        estimatedArrivalByAddressKey: arrivals,
+        plannedDepartureAt: PLANNED_DEPARTURE,
+        returnLegSeconds: 1_800,
+        tripId: 'trip-1',
+      },
+    ])
+  })
+
+  /** `last_stop` fecha o dia onde está — a volta não é esperada, e não entra no congelamento. */
+  test('sem política de volta, a jornada congela só de ida', async () => {
+    const arrivals = new Map([['chave-1', '2026-09-09T17:00:00.000Z']])
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
+          driverId: null,
+          estimatedArrivalByAddressKey: arrivals,
+          orderedAddressKeys: ['chave-1'],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+      stored: suggestion({ plannedDepartureAt: PLANNED_DEPARTURE, status: 'ready' }),
+      vehicleRoads: [
+        {
+          endPolicy: 'last_stop',
+          returnDistanceMeters: null,
+          returnDurationSeconds: null,
+          stops: [],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+    })
+
+    await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
+
+    expect(fixture.calls.arrivals).toEqual([
+      {
+        context: CONTEXT,
+        estimatedArrivalByAddressKey: arrivals,
+        plannedDepartureAt: PLANNED_DEPARTURE,
+        returnLegSeconds: null,
         tripId: 'trip-1',
       },
     ])

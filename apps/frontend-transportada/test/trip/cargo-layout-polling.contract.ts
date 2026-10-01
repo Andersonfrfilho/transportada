@@ -58,6 +58,7 @@ function state(status: CargoLayoutStatus, extra: Partial<TripCargoLayoutState> =
 function preview(layoutId: string, status: CargoLayoutStatus): TripCargoPreview {
   return {
     cargoLayout: null,
+    capacityUnknownReason: null,
     cargoWeight: null,
     layoutId,
     occupancy: null,
@@ -310,6 +311,7 @@ describe('a prévia pergunta pelo `layoutId` (spec 145 D3/D10)', () => {
     expect(resolveCargoPreviewPollLayoutId(null)).toBeUndefined()
     const legacy: TripCargoPreview = {
       cargoLayout: null,
+      capacityUnknownReason: null,
       cargoWeight: null,
       occupancy: null,
       weightConcentration: null,

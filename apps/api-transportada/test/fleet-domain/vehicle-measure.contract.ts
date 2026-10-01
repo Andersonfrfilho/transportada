@@ -25,6 +25,7 @@ const VEHICLE_BODY = {
   cargoWidthMeters: '0.00',
   capacityKilograms: '27000.75',
   color: 'branca',
+  defaultTrailerVehicleId: null,
   fleetNumber: '',
   fuelType: 'diesel-s10',
   model: 'FH 540',

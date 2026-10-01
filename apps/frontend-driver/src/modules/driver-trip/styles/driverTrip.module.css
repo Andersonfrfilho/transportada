@@ -374,6 +374,16 @@
   gap: var(--space-2);
 }
 
+/*
+ * Spec 218: sem o quadro de `fieldset` (que nasce com `min-inline-size: min-content` e borda +
+ * recuo: medido, levava a página a 388 px em 375) — a captura fica com a mesma largura da seção de
+ * depois da entrega, por construção.
+ */
+.deliveryGate {
+  display: grid;
+  gap: var(--space-2);
+}
+
 /* Spec 082 D8: motivo por chips — alvo de 44px, canto reto, um selecionado por vez. */
 .occurrenceChips {
   display: flex;
@@ -384,6 +394,21 @@
 .occurrenceChip {
   border-radius: 0;
   min-height: 2.75rem;
+}
+
+/*
+ * Spec 218 (RF-A5): o nome do tipo e, embaixo, o que ele pede de foto. A cor herda do chip — no
+ * selecionado (fundo cheio) a segunda linha continua legível, nunca cinza sobre cobre.
+ */
+.occurrenceChipLabel {
+  display: grid;
+  justify-items: start;
+  text-align: start;
+}
+
+.occurrenceChipMode {
+  font-size: var(--field-font-size-compact);
+  font-weight: 400;
 }
 
 /* A prévia do aviso: painel destacado, com a chave do template pequena e monoespaçada. */
@@ -1028,6 +1053,53 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Spec 206: o selo "A caminho" — mesma cor do chip "atual" (copper), para ler junto do resto. */
+.stopEnRoute {
+  align-items: center;
+  color: var(--color-copper);
+  display: inline-flex;
+  font-weight: 700;
+  gap: var(--space-1);
+}
+
+/*
+ * Spec 206 D6 (Revisão 2): o motivo do "Iniciar rota" bloqueado — visível, nunca escondido, com o
+ * atalho para a parada aberta. Cobre suave (não é erro), borda à esquerda como o resto dos avisos.
+ */
+.departBlocked {
+  align-items: start;
+  background: color-mix(in srgb, var(--color-copper) 12%, transparent);
+  border-left: var(--space-1) solid var(--color-copper);
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+}
+
+.departBlockedShortcut {
+  align-items: center;
+  background: none;
+  border: none;
+  color: var(--color-copper);
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 700;
+  gap: var(--space-1);
+  justify-self: start;
+  min-height: 2.75rem;
+  padding: 0;
+  text-decoration: underline;
+}
+
+/* Spec 206 D18: a confirmação de "Cancelar rota", no próprio cartão — nomeia o efeito no cliente. */
+.cancelDepartureConfirm {
+  border-left: var(--space-1) solid var(--color-alert);
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+}
+
 .proofSection {
   display: grid;
   gap: var(--space-2);
@@ -1150,6 +1222,23 @@
   margin: 0;
 }
 
+/* Spec 220 RF29: a nota voltou por recusa, não por esquecimento — o motivo precisa saltar do cartão. */
+.pendingProofRejection {
+  background: color-mix(in srgb, var(--color-alert) 18%, transparent);
+  border-left: var(--space-1) solid var(--color-alert);
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3);
+}
+
+.pendingProofRejectionTitle {
+  align-items: center;
+  display: flex;
+  font-weight: 700;
+  gap: var(--space-2);
+}
+
 .proofFieldError {
   color: var(--color-alert);
 }
@@ -1200,8 +1289,43 @@
 }
 
 .proofCropStage {
+  --crop-handle-half: calc(var(--touch-target) / 2);
+  max-width: 100%;
+  overflow: hidden;
   position: relative;
   touch-action: none;
+  width: fit-content;
+}
+
+.proofCropFrame {
+  background-image:
+    linear-gradient(
+      to right,
+      transparent calc(33.33% - 0.5px),
+      rgb(240 242 238 / 0.5) 0,
+      rgb(240 242 238 / 0.5) calc(33.33% + 0.5px),
+      transparent 0,
+      transparent calc(66.66% - 0.5px),
+      rgb(240 242 238 / 0.5) 0,
+      rgb(240 242 238 / 0.5) calc(66.66% + 0.5px),
+      transparent 0
+    ),
+    linear-gradient(
+      to bottom,
+      transparent calc(33.33% - 0.5px),
+      rgb(240 242 238 / 0.5) 0,
+      rgb(240 242 238 / 0.5) calc(33.33% + 0.5px),
+      transparent 0,
+      transparent calc(66.66% - 0.5px),
+      rgb(240 242 238 / 0.5) 0,
+      rgb(240 242 238 / 0.5) calc(66.66% + 0.5px),
+      transparent 0
+    );
+  box-shadow: 0 0 0 9999px rgb(16 34 44 / 0.6);
+  outline: 1px solid var(--color-fog);
+  outline-offset: -1px;
+  pointer-events: none;
+  position: absolute;
 }
 
 .proofCropStage canvas {
@@ -1212,10 +1336,10 @@
   background: var(--color-graphite);
   border: 2px solid var(--color-alert);
   border-radius: 0;
-  height: var(--control-height);
+  height: var(--touch-target);
   position: absolute;
   transform: translate(-50%, -50%);
-  width: var(--control-height);
+  width: var(--touch-target);
 }
 
 /* Spec 179: "Não entreguei" — os rótulos das perguntas do formulário, no peso do título da seção. */
@@ -1311,6 +1435,62 @@
   color: var(--color-ready);
   display: flex;
   gap: var(--space-2);
+}
+
+/* Estado do envio ao lado da miniatura: a coluna cresce, e a barra e a frase quebram em vez de vazar. */
+.proofUploadColumn {
+  display: grid;
+  flex: 1;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.proofUploadSending {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.proofUploadSendingLine {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.proofEmptyFrame {
+  align-items: center;
+  border: 1px dashed var(--color-slate);
+  color: var(--color-slate);
+  display: grid;
+  gap: var(--space-1);
+  height: var(--space-16);
+  justify-items: center;
+  align-content: center;
+  text-align: center;
+  width: var(--space-16);
+}
+
+.proofConfirmedFrame {
+  align-content: center;
+  border: 1px solid var(--color-ready);
+  color: var(--color-ready);
+  display: grid;
+  gap: var(--space-1);
+  height: var(--space-16);
+  justify-items: center;
+  text-align: center;
+  width: var(--space-16);
+}
+
+.proofUploadChip {
+  align-items: center;
+  border: 1px solid var(--color-ready);
+  color: var(--color-ready);
+  display: inline-flex;
+  font-weight: 700;
+  gap: var(--space-2);
+  justify-self: start;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
 }
 
 /* A viagem em rota mostra o estado no cabeçalho: sumir o botão sozinho não diz nada. */

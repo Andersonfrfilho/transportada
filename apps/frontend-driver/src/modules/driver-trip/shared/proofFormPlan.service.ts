@@ -17,6 +17,8 @@ import { RECEIVED_BY_OPTIONS_REQUIRING_DETAIL } from './receivedBy.constant'
  * do bloqueio. A regra mora aqui, não no componente (ADR-0045 §1).
  */
 export const DEFAULT_PROOF_SETTINGS: DriverDeliveryProofSettings = {
+  cargo: 'off',
+  cargoMinimumCount: 1,
   photo: 'optional',
   receivedBy: 'optional',
   receiverDocument: 'off',
@@ -26,6 +28,7 @@ export const DEFAULT_PROOF_SETTINGS: DriverDeliveryProofSettings = {
 
 export type ProofFormPlan = Readonly<{
   fields: DriverDeliveryProofSettings
+  rendersCargo: boolean
   rendersPhoto: boolean
   /** Spec 193 R2: `receivedBy` renderiza sempre que não estiver `off` — `required` nunca bloqueia. */
   rendersReceivedBy: boolean
@@ -46,6 +49,7 @@ export function resolveProofFormPlan(settings: DriverDeliveryProofSettings | nul
   const fields = settings ?? DEFAULT_PROOF_SETTINGS
   return {
     fields,
+    rendersCargo: fields.cargo !== 'off',
     rendersPhoto: fields.photo !== 'off',
     rendersReceivedBy: fields.receivedBy !== 'off',
     rendersReceiverDocument: true,
@@ -56,19 +60,33 @@ export function resolveProofFormPlan(settings: DriverDeliveryProofSettings | nul
 }
 
 export type ProofFormValues = Readonly<{
+  cargoCount: number
   hasPhoto: boolean
   hasSignature: boolean
   receiverDocument: string
   receiverName: string
 }>
 
-export type ProofFieldKey = keyof DriverDeliveryProofSettings
+export type ProofFieldKey = Exclude<keyof DriverDeliveryProofSettings, 'cargoMinimumCount'>
 
 function isMissing(input: {
   readonly filled: boolean
   readonly requirement: ProofFieldRequirement
 }): boolean {
   return input.requirement === 'required' && !input.filled
+}
+
+/**
+ * Spec 220 RF09: quantas fotos da mercadoria ainda faltam para o mínimo — só `required` conta;
+ * `optional` e `off` ignoram o mínimo.
+ */
+export function countMissingCargoPhotos(input: {
+  readonly plan: ProofFormPlan
+  readonly values: ProofFormValues
+}): number {
+  const { cargo, cargoMinimumCount } = input.plan.fields
+  if (cargo !== 'required') return 0
+  return Math.max(0, cargoMinimumCount - input.values.cargoCount)
 }
 
 /** Todos os campos recusados de uma vez, nunca só o primeiro (web.md §11). */
@@ -92,7 +110,25 @@ export function listMissingProofFields(input: {
   if (isMissing({ filled: input.values.hasSignature, requirement: fields.signature }))
     missing.push('signature')
   if (isMissing({ filled: input.values.hasPhoto, requirement: fields.photo })) missing.push('photo')
+  if (countMissingCargoPhotos(input) > 0) missing.push('cargo')
   return missing
+}
+
+const EMPTY_PROOF_FORM_VALUES: ProofFormValues = {
+  cargoCount: 0,
+  hasPhoto: false,
+  hasSignature: false,
+  receiverDocument: '',
+  receiverName: '',
+}
+
+/**
+ * Spec 218 (RF-A1): "Entreguei" espera o comprovante só quando o formulário vazio já teria o que
+ * acusar — os mesmos campos de `listMissingProofFields`; `receivedBy` nunca bloqueia (spec 193 R2).
+ * Só o plano entra: o lançamento tardio (RF-A4) não tem exceção.
+ */
+export function requiresProofBeforeDelivery(plan: ProofFormPlan): boolean {
+  return listMissingProofFields({ plan, values: EMPTY_PROOF_FORM_VALUES }).length > 0
 }
 
 /**

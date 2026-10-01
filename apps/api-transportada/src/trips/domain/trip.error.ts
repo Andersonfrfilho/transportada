@@ -25,6 +25,65 @@ export class TripVehicleNotAvailableError extends ApiError {
   }
 }
 
+/** Feature 147 D3: a carreta só existe no cavalo — nos demais veículos o campo não se aplica. */
+export class TripTrailerRequiresTractorError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_TRAILER_REQUIRES_TRACTOR',
+      message: 'Only a trip on a tractor unit can have a trailer.',
+      status: 400,
+    })
+  }
+}
+
+/** Feature 147 D3: o apontado existe na empresa, mas não é uma carreta ativa. */
+export class TripTrailerNotATrailerError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_TRAILER_NOT_A_TRAILER',
+      message: 'The trailer must be an active trailer of this company.',
+      status: 400,
+    })
+  }
+}
+
+/**
+ * T18 (revisão): a carreta não pode ser o próprio veículo tracionado — espelha o CHECK
+ * `trips_trailer_not_vehicle` (`trip.schema.ts`). A apresentação nunca oferece o próprio veículo da
+ * viagem na lista de carretas; este erro é a tradução de quem escrever direto na API.
+ */
+export class TripTrailerNotVehicleItselfError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_TRAILER_NOT_VEHICLE_ITSELF',
+      message: 'The trailer cannot be the trip own traction vehicle',
+      status: 400,
+    })
+  }
+}
+
+/** Feature 147 D3: uma carreta puxa uma viagem por vez — a mesma não entra em duas abertas. */
+export class TripTrailerInUseError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_TRAILER_IN_USE',
+      message: 'This trailer is already linked to another open trip.',
+      status: 409,
+    })
+  }
+}
+
+/** Feature 147 D3/Q1b: "ele não pode carregar apenas com o cavalo" — o despacho barra sem carreta. */
+export class TripTrailerRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_TRAILER_REQUIRED',
+      message: 'A tractor unit does not dispatch without a trailer.',
+      status: 409,
+    })
+  }
+}
+
 export class TripDriverNotFoundError extends ApiError {
   public constructor() {
     super({
@@ -51,6 +110,43 @@ export class TripDriverDuplicatedError extends ApiError {
       code: 'TRIP_DRIVER_DUPLICATED',
       message: 'The same driver cannot take two positions in the crew.',
       status: 422,
+    })
+  }
+}
+
+/** Spec 149 (ADR-0065): ajudante sem nenhum motorista na tripulação — a posição 1 exige condutor. */
+export class TripCrewHelperWithoutDriverError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_CREW_HELPER_WITHOUT_DRIVER',
+      message: 'A crew with helpers must have at least one driver.',
+      status: 409,
+    })
+  }
+}
+
+/** Spec 149 (ADR-0065): a ficha do ajudante não marcou `can_act_as_helper` — os ids vão em `details`. */
+export class TripCrewHelperNotEligibleError extends ApiError {
+  public constructor(driverIds: readonly string[]) {
+    super({
+      code: 'TRIP_CREW_HELPER_NOT_ELIGIBLE',
+      details: driverIds.map((driverId) => ({ field: 'helperIds', message: driverId })),
+      message: 'One or more helpers are not marked as able to help in their driver record.',
+      status: 409,
+    })
+  }
+}
+
+/**
+ * Spec 149 (ADR-0065) / ADR-0058 §4: despachar e os dois toques que começam a viagem no PWA são
+ * gestos do motorista. O ajudante vinculado à mesma viagem tem o vínculo, mas não o papel.
+ */
+export class TripCrewHelperCannotDriveError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_CREW_HELPER_CANNOT_DRIVE',
+      message: 'A helper cannot dispatch or start the trip; only the driver crew can.',
+      status: 403,
     })
   }
 }
@@ -154,6 +250,17 @@ export class TripDocumentNotFoundError extends ApiError {
   }
 }
 
+/** Spec 218 RF-B3: o `:occurrenceTypeId` da rota de exceções não existe nesta empresa. */
+export class OccurrenceTypeNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_NOT_FOUND',
+      message: 'Occurrence type was not found',
+      status: 404,
+    })
+  }
+}
+
 /** Nota/frete já vivo em outra viagem (spec 027 § Dúvidas) — mesmo desenho do plate-taken de fleet. */
 export class TripDocumentAlreadyLinkedError extends ApiError {
   public constructor() {
@@ -189,6 +296,11 @@ const TRIP_TRANSITION_BLOCK_MESSAGES: Readonly<Record<TripTransitionBlock, strin
   TRIP_HAS_NO_ROUTE: 'The trip has no planned route.',
   TRIP_NOT_DISPATCHED: 'Delivering and returning happen on the road, after the trip is dispatched.',
   TRIP_ROUTE_NOT_PLANNED: 'The route must be planned before the warehouse separates the cargo.',
+  /**
+   * Nunca chega ao cliente sob este código: `dispatchTrip` intercepta este motivo específico e
+   * lança `TripTrailerRequiredError` — a mensagem existe só para satisfazer o `Record` exaustivo.
+   */
+  TRIP_TRAILER_REQUIRED: 'A tractor unit does not dispatch without a trailer.',
 }
 
 /**
@@ -447,6 +559,20 @@ export class OccurrenceTypeNotFieldError extends ApiError {
     super({
       code: 'OCCURRENCE_TYPE_NOT_FIELD',
       message: 'The occurrence type is not an active delivery occurrence type.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 218 D2: a ocorrência de parada escolheu um tipo que não é de parada ativo desta empresa —
+ * tipo de nota, aposentado, ou de outra empresa respondem igual.
+ */
+export class OccurrenceTypeNotStopError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_NOT_STOP',
+      message: 'The occurrence type is not an active stop occurrence type.',
       status: 422,
     })
   }
@@ -1039,6 +1165,65 @@ export class TripOccurrenceNoteRequiredError extends ApiError {
       code: 'TRIP_OCCURRENCE_NOTE_REQUIRED',
       message: 'This occurrence type requires a written note.',
       status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 167 (RF4/RF8): a tratativa já abriu — o número já está valendo dinheiro e não muda por trás
+ * da cobrança. 409, o mesmo padrão de `OccurrenceCaseTransitionNotAllowedError`.
+ */
+export class OccurrenceCaseAlreadyOpenError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CASE_ALREADY_OPEN',
+      message:
+        'This occurrence already has an open case; it can no longer be corrected or cancelled.',
+      status: 409,
+    })
+  }
+}
+
+/** Spec 167 (RF6): cancelar uma ocorrência já cancelada é 409, nunca 204 silencioso. */
+export class OccurrenceAlreadyCancelledError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_ALREADY_CANCELLED',
+      message: 'This occurrence was already cancelled.',
+      status: 409,
+    })
+  }
+}
+
+/** Spec 167 (RF6): corrigir uma ocorrência cancelada é 409 — cancelada é fim de linha. */
+export class OccurrenceCancelledError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CANCELLED',
+      message: 'This occurrence was cancelled and can no longer be corrected.',
+      status: 409,
+    })
+  }
+}
+
+/** Spec 167 (RF6/CA07): motivo do cancelamento vazio (ou só espaço). */
+export class OccurrenceCancellationReasonRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CANCELLATION_REASON_REQUIRED',
+      message: 'A cancellation reason is required.',
+      status: 400,
+    })
+  }
+}
+
+/** Spec 167 (RF6): teto de 500 caracteres no motivo do cancelamento. */
+export class OccurrenceCancellationReasonTooLongError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CANCELLATION_REASON_TOO_LONG',
+      message: 'The cancellation reason must be at most 500 characters.',
+      status: 400,
     })
   }
 }

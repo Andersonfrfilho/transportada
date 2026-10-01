@@ -17,9 +17,14 @@ const COMPONENT = new URL(
   '../../src/modules/trip/components/TripDeliveryProof.component.tsx',
   import.meta.url,
 )
+/** A spec 220 tirou as duas expansões daqui para o próprio arquivo; a regra vale sobre os dois. */
+const DETAIL = new URL(
+  '../../src/modules/trip/components/TripDeliveryProofDetail.component.tsx',
+  import.meta.url,
+)
 
 describe('produtos e ocorrências do comprovante abrem sob demanda (spec 181 RF6/RF7)', () => {
-  const source = readFileSync(COMPONENT, 'utf8')
+  const source = [COMPONENT, DETAIL].map((file) => readFileSync(file, 'utf8')).join('\n')
 
   it('nenhum dos três estados despeja a lista de produtos incondicionalmente', () => {
     /**

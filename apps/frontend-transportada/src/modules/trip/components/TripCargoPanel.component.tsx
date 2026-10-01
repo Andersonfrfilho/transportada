@@ -7,12 +7,14 @@ import { useTranslation } from 'react-i18next'
 import { CargoVehicle } from '@/components/ui/cargo-vehicle'
 import { ProgressBar } from '@/components/ui/progress'
 
+import { resolveCapacityUnknownMessage } from '../shared/capacityUnknownMessage.service'
 import { TripCargoLayers } from './TripCargoLayers.component'
 import { TripPendingMeasurements } from './TripPendingMeasurements.component'
 import type { VehicleType } from '@/modules/shared/vehicleType.constant'
 
 import type { CargoLayoutView } from '../shared/cargoLayoutPolling.service'
 import type {
+  CapacityUnknownReason,
   TripCargoLayout,
   TripCargoWeight,
   TripOccupancy,
@@ -22,12 +24,18 @@ import styles from '../styles/trip.module.css'
 
 type TripCargoPanelProps = {
   cargoWeight: TripCargoWeight | null
+  /** Spec 147 D2/RF4: por que a ocupação não sabe a capacidade — `null` quando ela sabe. */
+  capacityUnknownReason?: CapacityUnknownReason | null
+  /** T18 (revisão, item 10): o veículo cuja ficha resolve o motivo — a carreta, ou o `vehicleId`. */
+  capacityUnknownVehicleId?: string | null
   layout: TripCargoLayout | null
   /** Spec 145 T13: o estado da planta calculada pelo worker. Ausente ou `null`, a tela de hoje. */
   layoutView?: CargoLayoutView | null | undefined
   occupancy: TripOccupancy | null
   /** Setas de ordem de carregamento nas fichas. Ausente, o painel é só leitura (viagem criada). */
   onLoadingMove?: ((stopSequence: number, direction: -1 | 1) => void) | undefined
+  /** O veículo da viagem — hoje é sempre o de tração (Fase 4 traz a carreta). */
+  vehicleId: string
   /** O tipo do veículo escolhido, para a cabine ser a dele. Vazio cai no desenho genérico. */
   vehicleType?: VehicleType | ''
   /** A parada que carrega mais que a própria fatia do peso; o desenho é de volume e não a mostra. */
@@ -78,16 +86,25 @@ function formatVolume(value: string): string {
  */
 export function TripCargoPanel({
   cargoWeight,
+  capacityUnknownReason = null,
+  capacityUnknownVehicleId = null,
   layout,
   layoutView,
   occupancy,
   onLoadingMove,
   reviewQueue = null,
+  vehicleId,
   vehicleType = '',
   weightConcentration = null,
 }: TripCargoPanelProps) {
   const { t } = useTranslation('trip')
-  if (occupancy === null) return <TripCargoWeightPanel cargoWeight={cargoWeight} />
+  const weightPanelProps = {
+    capacityUnknownReason,
+    capacityUnknownVehicleId,
+    cargoWeight,
+    vehicleId,
+  }
+  if (occupancy === null) return <TripCargoWeightPanel {...weightPanelProps} />
 
   const percent = Math.round(Number.parseFloat(occupancy.occupancyRatio) * PERCENT_SCALE)
   /**
@@ -263,7 +280,17 @@ function TripCargoWeightNotes({ cargoWeight }: { cargoWeight: TripCargoWeight | 
  * Veículo sem cubagem cadastrada é o caso comum, e o peso continua sendo o que se quer ler — por
  * isso ele tem painel próprio quando a ocupação não desenha nada.
  */
-function TripCargoWeightPanel({ cargoWeight }: { cargoWeight: TripCargoWeight | null }) {
+function TripCargoWeightPanel({
+  capacityUnknownReason,
+  capacityUnknownVehicleId,
+  cargoWeight,
+  vehicleId,
+}: {
+  capacityUnknownReason: CapacityUnknownReason | null
+  capacityUnknownVehicleId: string | null
+  cargoWeight: TripCargoWeight | null
+  vehicleId: string
+}) {
   const { t } = useTranslation('trip')
   if (cargoWeight === null) return null
 
@@ -277,14 +304,55 @@ function TripCargoWeightPanel({ cargoWeight }: { cargoWeight: TripCargoWeight | 
       </div>
       <TripCargoWeightNotes cargoWeight={cargoWeight} />
       {/*
-        ⚠️ Spec 088 D7/critério 7: **tipo sem referência não vira exceção silenciosa.** `three_quarter`
-        e todo `body_type = '00'` não têm linha em `vehicle_volume_references`, e sem ficha nem m³
-        digitado a ocupação inteira desaparecia daqui sem uma palavra. O caso continua nomeado, com
-        o campo a preencher e o caminho até ele.
+        ⚠️ Spec 088 D7/critério 7 e spec 147 D2/RF4: **tipo sem referência não vira exceção
+        silenciosa.** `three_quarter` e todo `body_type = '00'` não têm linha em
+        `vehicle_volume_references`, e sem ficha nem m³ digitado a ocupação inteira desaparecia
+        daqui sem uma palavra. Cada motivo tem o texto e o link certos — nunca "capacidade
+        desconhecida" sozinho.
       */}
-      <p className={styles.hint}>
-        {t('occupancy.capacityUnknown')} <a href="/fleet">{t('cargoLayers.missingBedLink')}</a>
-      </p>
+      <TripCapacityUnknownHint
+        capacityUnknownReason={capacityUnknownReason}
+        capacityUnknownVehicleId={capacityUnknownVehicleId}
+        vehicleId={vehicleId}
+      />
     </section>
+  )
+}
+
+/**
+ * Spec 147 D2/RF4: `resolveCapacityUnknownMessage` decide o texto e o destino — o componente só
+ * imprime. Sem motivo (API antiga, no intervalo entre os dois deploys) cai na mensagem genérica de
+ * sempre, para a janela entre subir a API e o bundle não deixar o painel mudo.
+ */
+function TripCapacityUnknownHint({
+  capacityUnknownReason,
+  capacityUnknownVehicleId,
+  vehicleId,
+}: {
+  capacityUnknownReason: CapacityUnknownReason | null
+  capacityUnknownVehicleId: string | null
+  vehicleId: string
+}) {
+  const { t } = useTranslation('trip')
+  if (capacityUnknownReason === null) {
+    return (
+      <p className={styles.hint}>
+        {t('occupancy.capacityUnknown')} <a href="/fleet">{t('cargoPlan.missingBedLink')}</a>
+      </p>
+    )
+  }
+
+  const message = resolveCapacityUnknownMessage({
+    capacityUnknownVehicleId,
+    reason: capacityUnknownReason,
+    vehicleId,
+  })
+  return (
+    <p className={styles.hint}>
+      {t(message.textKey)}{' '}
+      {message.linkHref === null || message.linkLabelKey === null ? null : (
+        <a href={message.linkHref}>{t(message.linkLabelKey)}</a>
+      )}
+    </p>
   )
 }

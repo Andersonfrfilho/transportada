@@ -25,9 +25,14 @@ import {
   nfeImports,
   storedObjects,
   tripDocuments,
+  trips,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
+import {
+  TripStateTransitionNotAllowedError,
+  TripTrailerInUseError,
+} from '../../src/trips/domain/trip.error.js'
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
 import type { TripDatabase } from '../../src/trips/infrastructure/trip-queryable.type.js'
 
@@ -122,18 +127,21 @@ describe('trip repository integration', () => {
           actorUserId: userId,
           channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
+          trailerVehicleId: null,
           crew: [
             {
               driverId: driverOneId,
               driverName: 'Motorista Um',
               driverTaxId: '11111111111',
               position: 1,
+              role: 'driver',
             },
             {
               driverId: driverTwoId,
               driverName: 'Motorista Dois',
               driverTaxId: '22222222222',
               position: 2,
+              role: 'driver',
             },
           ],
           vehicleId,
@@ -152,6 +160,7 @@ describe('trip repository integration', () => {
             driverPhone: '16999990001',
             driverTaxId: '11111111111',
             position: 1,
+            role: 'driver',
           },
           {
             // Ficha sem contato devolve vazio, nunca some com o motorista da viagem.
@@ -161,6 +170,7 @@ describe('trip repository integration', () => {
             driverPhone: '',
             driverTaxId: '22222222222',
             position: 2,
+            role: 'driver',
           },
         ])
 
@@ -174,6 +184,7 @@ describe('trip repository integration', () => {
           channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
           crew: [],
+          trailerVehicleId: null,
           vehicleId,
         })
         expect(secondTrip.status).toBe('awaiting_crew')
@@ -186,9 +197,11 @@ describe('trip repository integration', () => {
         expect(await repository.findById({ companyId, tripId: crypto.randomUUID() })).toBeNull()
 
         expect(await repository.findVehicle({ companyId, vehicleId })).toEqual({
+          defaultTrailerVehicleId: null,
           id: vehicleId,
           role: 'traction',
           status: 'active',
+          vehicleType: 'tractor_unit',
         })
         expect(await repository.findVehicle({ companyId: otherCompanyId, vehicleId })).toBeNull()
 
@@ -488,6 +501,348 @@ describe('trip repository integration', () => {
       })
     },
     30_000,
+  )
+
+  /**
+   * Spec 149 (ADR-0065) critério de aceite 3: 1 motorista + 2 ajudantes gravam 3 linhas em
+   * `trip_drivers`, com o papel e a posição certos — contra Postgres, para provar o insert e a
+   * leitura de `role`, não só o dublê do domínio.
+   */
+  testWithPostgres('grava e lê a tripulação com motorista e ajudantes', async () => {
+    await withDisposableDatabase(async (database) => {
+      const companyId = crypto.randomUUID()
+      const userId = crypto.randomUUID()
+      const vehicleId = crypto.randomUUID()
+      const driverId = crypto.randomUUID()
+      const helperOneId = crypto.randomUUID()
+      const helperTwoId = crypto.randomUUID()
+
+      await database.db.insert(companies).values({ id: companyId, status: 'active' })
+      await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+      await database.db.insert(userCompanyMemberships).values({
+        companyId,
+        id: crypto.randomUUID(),
+        status: 'active',
+        userId,
+      })
+      await database.db.insert(fleetVehicles).values({
+        companyId,
+        id: vehicleId,
+        plate: 'CRW1A23',
+        role: 'traction',
+        state: 'SP',
+        vehicleType: 'tractor_unit',
+      })
+      await database.db.insert(fleetDrivers).values([
+        { companyId, id: driverId, name: 'Motorista Titular', taxId: '11111111111' },
+        {
+          canActAsHelper: true,
+          companyId,
+          id: helperOneId,
+          name: 'Ajudante Um',
+          taxId: '22222222222',
+        },
+        {
+          canActAsHelper: true,
+          companyId,
+          id: helperTwoId,
+          name: 'Ajudante Dois',
+          taxId: '33333333333',
+        },
+      ])
+
+      const repository = new DrizzleTripRepository(database.db)
+      const created = await repository.create({
+        actorUserId: userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId,
+        crew: [
+          {
+            driverId,
+            driverName: 'Motorista Titular',
+            driverTaxId: '11111111111',
+            position: 1,
+            role: 'driver',
+          },
+          {
+            driverId: helperOneId,
+            driverName: 'Ajudante Um',
+            driverTaxId: '22222222222',
+            position: 2,
+            role: 'helper',
+          },
+          {
+            driverId: helperTwoId,
+            driverName: 'Ajudante Dois',
+            driverTaxId: '33333333333',
+            position: 3,
+            role: 'helper',
+          },
+        ],
+        trailerVehicleId: null,
+        vehicleId,
+      })
+
+      expect(
+        created.drivers.map((driver) => ({ driverId: driver.driverId, role: driver.role })),
+      ).toEqual([
+        { driverId, role: 'driver' },
+        { driverId: helperOneId, role: 'helper' },
+        { driverId: helperTwoId, role: 'helper' },
+      ])
+
+      const read = await repository.findById({ companyId, tripId: created.id })
+      expect(read?.drivers.map((driver) => driver.role)).toEqual(['driver', 'helper', 'helper'])
+    })
+  })
+
+  // Feature 147 T10: a carreta atrelada — tenant, idempotência, uma por viagem aberta, e o portão de estado.
+  testWithPostgres('links, unlinks and isolates the trip trailer', async () => {
+    await withDisposableDatabase(async (database) => {
+      const companyId = crypto.randomUUID()
+      const otherCompanyId = crypto.randomUUID()
+      const userId = crypto.randomUUID()
+      const tractorId = crypto.randomUUID()
+      const trailerId = crypto.randomUUID()
+      const secondTractorId = crypto.randomUUID()
+      const otherCompanyTrailerId = crypto.randomUUID()
+
+      await database.db.insert(companies).values([
+        { id: companyId, status: 'active' },
+        { id: otherCompanyId, status: 'active' },
+      ])
+      await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+      await database.db.insert(fleetVehicles).values([
+        {
+          companyId,
+          id: tractorId,
+          plate: 'RTA2F45',
+          role: 'traction',
+          state: 'SP',
+          vehicleType: 'tractor_unit',
+        },
+        {
+          companyId,
+          id: secondTractorId,
+          plate: 'RTF7L90',
+          role: 'traction',
+          state: 'SP',
+          vehicleType: 'tractor_unit',
+        },
+        {
+          companyId,
+          id: trailerId,
+          plate: 'RTC4H67',
+          role: 'trailer',
+          state: 'SP',
+          vehicleType: '',
+        },
+        {
+          companyId: otherCompanyId,
+          id: otherCompanyTrailerId,
+          plate: 'RTD5J78',
+          role: 'trailer',
+          state: 'SP',
+          vehicleType: '',
+        },
+      ])
+
+      const repository = new DrizzleTripRepository(database.db)
+      const trip = await repository.create({
+        actorUserId: userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId,
+        crew: [],
+        trailerVehicleId: null,
+        vehicleId: tractorId,
+      })
+
+      // Tenant: a carreta de outra empresa não existe para esta consulta.
+      expect(
+        await repository.findVehicle({ companyId, vehicleId: otherCompanyTrailerId }),
+      ).toBeNull()
+
+      const linked = await repository.setTrailer({
+        companyId,
+        tripId: trip.id,
+        trailerVehicleId: trailerId,
+      })
+      expect(linked?.trailer).toEqual({ bodyType: '00', id: trailerId, plate: 'RTC4H67' })
+
+      // Idempotente: repetir o mesmo valor não falha e a leitura continua batendo.
+      const repeated = await repository.setTrailer({
+        companyId,
+        tripId: trip.id,
+        trailerVehicleId: trailerId,
+      })
+      expect(repeated?.trailer?.id).toBe(trailerId)
+
+      // Uma carreta por viagem aberta: a segunda viagem não pode usar a mesma.
+      const secondTrip = await repository.create({
+        actorUserId: userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId,
+        crew: [],
+        trailerVehicleId: null,
+        vehicleId: secondTractorId,
+      })
+      expect(await repository.isTrailerInOpenTrip({ companyId, vehicleId: trailerId })).toBe(true)
+      expect(
+        repository.setTrailer({ companyId, tripId: secondTrip.id, trailerVehicleId: trailerId }),
+      ).rejects.toBeInstanceOf(TripTrailerInUseError)
+
+      // Liberar a primeira viagem libera a carreta para a segunda.
+      await database.db.update(trips).set({ status: 'completed' }).where(eq(trips.id, trip.id))
+      expect(await repository.isTrailerInOpenTrip({ companyId, vehicleId: trailerId })).toBe(false)
+      const movedToSecond = await repository.setTrailer({
+        companyId,
+        tripId: secondTrip.id,
+        trailerVehicleId: trailerId,
+      })
+      expect(movedToSecond?.trailer?.id).toBe(trailerId)
+
+      // O portão de estado é re-conferido dentro da transação de escrita, não só na leitura de fora.
+      await database.db
+        .update(trips)
+        .set({ status: 'dispatched' })
+        .where(eq(trips.id, secondTrip.id))
+      expect(
+        repository.setTrailer({ companyId, tripId: secondTrip.id, trailerVehicleId: null }),
+      ).rejects.toBeInstanceOf(TripStateTransitionNotAllowedError)
+
+      // Desatrelar: `null` some da viagem, sem apagar o veículo.
+      await database.db.update(trips).set({ status: 'draft' }).where(eq(trips.id, secondTrip.id))
+      const unlinked = await repository.setTrailer({
+        companyId,
+        tripId: secondTrip.id,
+        trailerVehicleId: null,
+      })
+      expect(unlinked?.trailer).toBeNull()
+    })
+  })
+
+  /**
+   * T18 (revisão): duas viagens criadas ao mesmo tempo para cavalos com a mesma carreta padrão
+   * disputam `trips_company_trailer_open_unique` — antes desta correção, a segunda `INSERT` subia
+   * como 500 genérico em vez de nascer sem carreta.
+   */
+  testWithPostgres('creating two trips at once with the same trailer never throws', async () => {
+    await withDisposableDatabase(async (database) => {
+      const companyId = crypto.randomUUID()
+      const userId = crypto.randomUUID()
+      const firstTractorId = crypto.randomUUID()
+      const secondTractorId = crypto.randomUUID()
+      const trailerId = crypto.randomUUID()
+
+      await database.db.insert(companies).values({ id: companyId, status: 'active' })
+      await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+      await database.db.insert(fleetVehicles).values([
+        {
+          companyId,
+          id: firstTractorId,
+          plate: 'RTG1A23',
+          role: 'traction',
+          state: 'SP',
+          vehicleType: 'tractor_unit',
+        },
+        {
+          companyId,
+          id: secondTractorId,
+          plate: 'RTH2B34',
+          role: 'traction',
+          state: 'SP',
+          vehicleType: 'tractor_unit',
+        },
+        {
+          companyId,
+          id: trailerId,
+          plate: 'RTI3C45',
+          role: 'trailer',
+          state: 'SP',
+          vehicleType: '',
+        },
+      ])
+
+      const repository = new DrizzleTripRepository(database.db)
+
+      const [firstTrip, secondTrip] = await Promise.all([
+        repository.create({
+          actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId,
+          crew: [],
+          trailerVehicleId: trailerId,
+          vehicleId: firstTractorId,
+        }),
+        repository.create({
+          actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId,
+          crew: [],
+          trailerVehicleId: trailerId,
+          vehicleId: secondTractorId,
+        }),
+      ])
+
+      const trailerIds = [firstTrip.trailer?.id ?? null, secondTrip.trailer?.id ?? null]
+      // Exatamente uma das duas venceu a corrida e ficou com a carreta; a outra nasceu sem ela —
+      // nunca as duas com a carreta (violaria a unicidade) e nunca as duas sem ela (perderia a
+      // sugestão à toa quando não havia disputa real).
+      expect(trailerIds.filter((id) => id === trailerId)).toHaveLength(1)
+      expect(trailerIds.filter((id) => id === null)).toHaveLength(1)
+    })
+  })
+
+  /**
+   * T18 (revisão, MENOR 6): o CHECK `trips_trailer_not_vehicle` traduz para 400 de domínio, nunca
+   * para o 500 genérico. A apresentação nunca oferece o próprio veículo na lista de carretas; isto
+   * é a defesa contra quem escrever direto na API/repositório.
+   */
+  testWithPostgres(
+    'translates the trailer-not-vehicle CHECK violation into a domain error',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const companyId = crypto.randomUUID()
+        const userId = crypto.randomUUID()
+        const tractorId = crypto.randomUUID()
+
+        await database.db.insert(companies).values({ id: companyId, status: 'active' })
+        await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+        await database.db.insert(fleetVehicles).values({
+          companyId,
+          id: tractorId,
+          plate: 'RTL6F78',
+          role: 'traction',
+          state: 'SP',
+          vehicleType: 'tractor_unit',
+        })
+
+        const repository = new DrizzleTripRepository(database.db)
+
+        await expect(
+          repository.create({
+            actorUserId: userId,
+            channel: TRIP_FIELD_CHANNELS.backoffice,
+            companyId,
+            crew: [],
+            trailerVehicleId: tractorId,
+            vehicleId: tractorId,
+          }),
+        ).rejects.toMatchObject({ code: 'TRIP_TRAILER_NOT_VEHICLE_ITSELF', status: 400 })
+
+        const trip = await repository.create({
+          actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId,
+          crew: [],
+          trailerVehicleId: null,
+          vehicleId: tractorId,
+        })
+        await expect(
+          repository.setTrailer({ companyId, tripId: trip.id, trailerVehicleId: tractorId }),
+        ).rejects.toMatchObject({ code: 'TRIP_TRAILER_NOT_VEHICLE_ITSELF', status: 400 })
+      })
+    },
   )
 })
 

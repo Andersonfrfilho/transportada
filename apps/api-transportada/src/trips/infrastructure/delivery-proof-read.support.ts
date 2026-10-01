@@ -9,6 +9,7 @@
 import { alias } from 'drizzle-orm/pg-core'
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 
+import { distanceInMetres } from '../../addresses/domain/coordinate-distance.js'
 import { fleetDrivers } from '../../database/fleet.schema.js'
 import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
 import { userCompanyMemberships } from '../../database/identity.schema.js'
@@ -32,14 +33,20 @@ import {
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
-import type { DeliveryProofRecord } from '../application/read-delivery-proof.use-case.js'
+import type {
+  DeliveryProofLocation,
+  DeliveryProofRecord,
+} from '../application/read-delivery-proof.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
 import type {
   OccurrenceTypeRecord,
   TripOccurrence,
   TripOccurrenceAuthorship,
 } from '../application/register-trip-occurrence.use-case.js'
-import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
+import type {
+  OccurrenceTypeFlow,
+  TripOccurrenceStage,
+} from '../../shared/trip-occurrence.constant.js'
 import { openOccurrenceCase } from './drizzle-occurrence-case.repository.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
 import { TripDocumentNotFoundError } from '../domain/trip.error.js'
@@ -65,6 +72,12 @@ const occurrenceActorMembership = alias(userCompanyMemberships, 'trip_occurrence
 const occurrenceActorProfile = alias(identityUserProfiles, 'trip_occurrence_actor_profile')
 const occurrenceOnBehalfDriver = alias(fleetDrivers, 'trip_occurrence_on_behalf_driver')
 
+/** Spec 220 T7.4: o nome de quem conferiu o canhoto, pela mesma janela — membership ativo da empresa. */
+const canhotoReviewerMembership = alias(userCompanyMemberships, 'trip_canhoto_reviewer_membership')
+const canhotoReviewerProfile = alias(identityUserProfiles, 'trip_canhoto_reviewer_profile')
+
+const deliveryProofThumbnails = alias(storedObjects, 'trip_delivery_proof_thumbnail')
+
 export async function listDeliveryProofs(
   queryable: TripQueryable,
   input: {
@@ -76,17 +89,37 @@ export async function listDeliveryProofs(
   const rows = await queryable
     .select({
       bucket: storedObjects.bucket,
+      canhotoReadNumber: tripDeliveryProofs.canhotoReadNumber,
+      canhotoReadSeries: tripDeliveryProofs.canhotoReadSeries,
+      canhotoReadSource: tripDeliveryProofs.canhotoReadSource,
+      canhotoReview: tripDeliveryProofs.canhotoReview,
+      canhotoReviewAt: tripDeliveryProofs.canhotoReviewAt,
+      canhotoReviewByName: canhotoReviewerProfile.name,
+      canhotoReviewNote: tripDeliveryProofs.canhotoReviewNote,
+      canhotoReviewOrigin: tripDeliveryProofs.canhotoReviewOrigin,
+      canhotoReviewReason: tripDeliveryProofs.canhotoReviewReason,
+      capturedAt: tripDeliveryProofs.capturedAt,
       createdAt: tripDeliveryProofs.createdAt,
+      eventLatitude: tripStopEvents.latitude,
+      eventLongitude: tripStopEvents.longitude,
       id: tripDeliveryProofs.id,
       kind: tripDeliveryProofs.kind,
       /** Spec 205 RF7: o envio disse, ou a entrega a que ele pertence disse. */
       lateRegistration: sql<boolean>`${tripDeliveryProofs.lateRegistration} or ${tripStopEvents.lateRegistration}`,
       mimeType: storedObjects.mimeType,
       objectKey: storedObjects.objectKey,
+      locationState: tripDeliveryProofs.locationState,
+      proofAccuracyMeters: tripDeliveryProofs.accuracyMeters,
+      proofLatitude: tripDeliveryProofs.latitude,
+      proofLongitude: tripDeliveryProofs.longitude,
+      punctuality: tripDeliveryProofs.punctuality,
       receiverDocumentMasked: tripDeliveryProofs.receiverDocumentMasked,
       receiverName: tripDeliveryProofs.receiverName,
       receivedBy: tripDeliveryProofs.receivedBy,
       receivedByDetail: tripDeliveryProofs.receivedByDetail,
+      thumbnailBucket: deliveryProofThumbnails.bucket,
+      thumbnailMimeType: deliveryProofThumbnails.mimeType,
+      thumbnailObjectKey: deliveryProofThumbnails.objectKey,
     })
     .from(tripDeliveryProofs)
     .innerJoin(
@@ -110,6 +143,25 @@ export async function listDeliveryProofs(
         eq(storedObjects.id, tripDeliveryProofs.objectId),
       ),
     )
+    .leftJoin(
+      deliveryProofThumbnails,
+      and(
+        eq(deliveryProofThumbnails.companyId, tripDeliveryProofs.companyId),
+        eq(deliveryProofThumbnails.id, tripDeliveryProofs.thumbnailObjectId),
+      ),
+    )
+    .leftJoin(
+      canhotoReviewerMembership,
+      and(
+        eq(canhotoReviewerMembership.companyId, tripDeliveryProofs.companyId),
+        eq(canhotoReviewerMembership.userId, tripDeliveryProofs.canhotoReviewByUserId),
+        eq(canhotoReviewerMembership.status, ACTIVE_MEMBERSHIP_STATUS),
+      ),
+    )
+    .leftJoin(
+      canhotoReviewerProfile,
+      eq(canhotoReviewerProfile.userId, canhotoReviewerMembership.userId),
+    )
     .where(
       and(
         eq(tripDeliveryProofs.companyId, input.companyId),
@@ -123,17 +175,79 @@ export async function listDeliveryProofs(
 
   return rows.map((row) => ({
     bucket: row.bucket,
+    canhotoReadNumber: row.canhotoReadNumber,
+    canhotoReadSeries: row.canhotoReadSeries,
+    canhotoReadSource: row.canhotoReadSource,
+    canhotoReview: row.canhotoReview,
+    canhotoReviewAt: row.canhotoReviewAt?.toISOString() ?? null,
+    canhotoReviewByName: row.canhotoReviewByName,
+    canhotoReviewNote: row.canhotoReviewNote,
+    canhotoReviewOrigin: row.canhotoReviewOrigin,
+    canhotoReviewReason: row.canhotoReviewReason,
+    capturedAt: row.capturedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
+    distanceMeters: measureProofDistance(row),
     id: row.id,
     kind: row.kind,
     lateRegistration: row.lateRegistration,
+    location: measureProofLocation(row),
+    locationState: row.locationState ?? null,
     mimeType: row.mimeType,
     objectKey: row.objectKey,
+    punctuality: row.punctuality,
     receiverDocumentMasked: row.receiverDocumentMasked,
     receiverName: row.receiverName,
     receivedBy: row.receivedBy,
     receivedByDetail: row.receivedByDetail,
+    thumbnail:
+      row.thumbnailBucket === null || row.thumbnailObjectKey === null
+        ? null
+        : {
+            bucket: row.thumbnailBucket,
+            mimeType: row.thumbnailMimeType ?? '',
+            objectKey: row.thumbnailObjectKey,
+          },
   }))
+}
+
+function measureProofLocation(row: {
+  readonly capturedAt: Date | null
+  readonly createdAt: Date
+  readonly eventLatitude: null | string
+  readonly eventLongitude: null | string
+  readonly proofAccuracyMeters: null | string
+  readonly proofLatitude: null | string
+  readonly proofLongitude: null | string
+}): DeliveryProofLocation | null {
+  if (row.proofLatitude === null || row.proofLongitude === null) return null
+  return {
+    accuracyMeters: row.proofAccuracyMeters === null ? null : Number(row.proofAccuracyMeters),
+    capturedAt: (row.capturedAt ?? row.createdAt).toISOString(),
+    distanceMeters: measureProofDistance({
+      eventLatitude: row.eventLatitude,
+      eventLongitude: row.eventLongitude,
+      proofLatitude: row.proofLatitude,
+      proofLongitude: row.proofLongitude,
+    }),
+    latitude: Number(row.proofLatitude),
+    longitude: Number(row.proofLongitude),
+  }
+}
+
+/** Referência é a posição do evento de entrega — a mesma de `classifyProofPunctuality`, não o pino da parada. */
+function measureProofDistance(row: {
+  readonly eventLatitude: null | string
+  readonly eventLongitude: null | string
+  readonly proofLatitude: null | string
+  readonly proofLongitude: null | string
+}): null | number {
+  if (row.proofLatitude === null || row.proofLongitude === null) return null
+  if (row.eventLatitude === null || row.eventLongitude === null) return null
+  const distance = distanceInMetres(
+    { latitude: row.proofLatitude, longitude: row.proofLongitude },
+    { latitude: row.eventLatitude, longitude: row.eventLongitude },
+  )
+  return distance === null ? null : Math.round(distance)
 }
 
 /**
@@ -635,6 +749,10 @@ export async function findOccurrenceType(
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
+      /** Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta. */
+      flow: companyOccurrenceTypes.flow,
+      /** Spec 218 D2: qual dos 5 valores fixos de parada o tipo representa. */
+      stopKind: companyOccurrenceTypes.stopKind,
       id: companyOccurrenceTypes.id,
       /** Spec 185 (revisão, RF2): só a ocorrência que deixa a nota para trás tenta o despacho. */
       leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
@@ -765,11 +883,13 @@ export async function listOccurrenceTypes(
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
+      flow: companyOccurrenceTypes.flow,
       id: companyOccurrenceTypes.id,
       leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
       name: companyOccurrenceTypes.name,
       notifies: companyOccurrenceTypes.notifies,
       stage: companyOccurrenceTypes.stage,
+      stopKind: companyOccurrenceTypes.stopKind,
     })
     .from(companyOccurrenceTypes)
     .where(eq(companyOccurrenceTypes.companyId, input.companyId))
@@ -792,6 +912,11 @@ export async function saveOccurrenceType(
     readonly emailTemplateKey: null | string
     /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
     readonly emailsContractor?: boolean | undefined
+    /**
+     * Spec 218 (D1, RF-B5): obrigatório na criação (a fronteira já recusa a ausência com
+     * `occurrenceTypeId: null`); ausente na edição é "não mexa", mesmo motivo de `attachmentMode`.
+     */
+    readonly flow?: OccurrenceTypeFlow | undefined
     /**
      * Spec 185 (RF6, ADR-0074 §4): ausente é `false` — o padrão da coluna. Opcional pelo mesmo
      * motivo de `attachmentMode` acima: o UPDATE sobrescreve o registro inteiro e o editor do
@@ -833,6 +958,7 @@ export async function saveOccurrenceType(
   const attachmentModeChange = {
     ...(input.attachmentMode === undefined ? {} : { attachmentMode: input.attachmentMode }),
     ...(input.emailsContractor === undefined ? {} : { emailsContractor: input.emailsContractor }),
+    ...(input.flow === undefined ? {} : { flow: input.flow }),
   }
   /**
    * Tipo que não é de separação grava sempre `false`: mudar o estágio de um tipo marcado, sem mandar
@@ -849,7 +975,12 @@ export async function saveOccurrenceType(
     input.occurrenceTypeId === null
       ? await queryable
           .insert(companyOccurrenceTypes)
-          .values({ ...values, ...attachmentModeChange, ...leavesDocumentBehindChange })
+          .values({
+            ...values,
+            ...attachmentModeChange,
+            ...leavesDocumentBehindChange,
+            ...(input.flow === 'stop' ? { stopKind: 'other' as const } : {}),
+          })
           .returning()
       : await queryable
           .update(companyOccurrenceTypes)
@@ -857,6 +988,10 @@ export async function saveOccurrenceType(
             ...values,
             ...attachmentModeChange,
             ...leavesDocumentBehindChange,
+            /** Spec 218 D2: virou tipo de parada sem valor? vale como `other`; o que já tinha, fica. */
+            ...(input.flow === 'stop'
+              ? { stopKind: sql`coalesce(${companyOccurrenceTypes.stopKind}, 'other')` }
+              : {}),
             updatedAt: sql`now()`,
           })
           .where(
@@ -877,12 +1012,14 @@ export async function saveOccurrenceType(
     emailSubject: saved.emailSubject,
     emailTemplateKey: saved.emailTemplateKey,
     emailsContractor: saved.emailsContractor,
+    flow: saved.flow,
     id: saved.id,
     leavesDocumentBehind: saved.leavesDocumentBehind,
     name: saved.name,
     notifies: saved.notifies,
     redeliveryPolicy: saved.redeliveryPolicy,
     stage: saved.stage,
+    stopKind: saved.stopKind,
   }
 }
 

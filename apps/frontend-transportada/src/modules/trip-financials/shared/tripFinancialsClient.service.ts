@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
+import type { RouteChoice } from '@/modules/trip/shared/routeGeometry.service'
 
 import {
   FINANCIAL_RESULTS_PATH,
@@ -43,6 +44,8 @@ export type TripFinancialsClient = Readonly<{
       dailyAllowanceDays?: number
       driverIds: readonly string[]
       nfeDocumentIds: readonly string[]
+      /** D7/D2: a rota escolhida deste veículo — identificada por critério e assinatura. */
+      routeChoice?: RouteChoice
       stopOrder: readonly string[]
       vehicleId: string
     }>,
@@ -111,6 +114,7 @@ export function createTripFinancialsClient(dependencies: ClientDependencies): Tr
               : { dailyAllowanceDays: input.dailyAllowanceDays }),
             driverIds: input.driverIds,
             nfeDocumentIds: input.nfeDocumentIds,
+            ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
             stopOrder: input.stopOrder,
             vehicleId: input.vehicleId,
           }),

@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { METRES_PER_KILOMETRE } from '@/modules/shared/distance.constant'
+
 import type { AssemblyMapPoint } from './assemblyMap.service'
 import type { RouteGeometry } from './routeGeometry.service'
 
@@ -30,7 +32,6 @@ export type AssemblyLeg = Readonly<{
  */
 const STOP_SERVICE_MINUTES = 20
 
-const METRES_PER_KILOMETRE = 1000
 const SECONDS_PER_MINUTE = 60
 
 /**

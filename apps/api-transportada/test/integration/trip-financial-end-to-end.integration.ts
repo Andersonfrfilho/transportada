@@ -89,6 +89,10 @@ describe('a viagem fecha a conta (spec 061 T010)', () => {
          * Spec 143: a diária paga o motorista — não mais a tabela de região. Dias informados na
          * viagem (D4) vencem a duração estimada, e o valor próprio do condutor (D3) vence o da
          * empresa e o padrão do sistema.
+         *
+         * Spec 149 (ADR-0065 §2, critério de aceite 3): a viagem também tem um ajudante (`role:
+         * 'helper'`) — sem o filtro por papel em `readCrew`, ele entraria nesta mesma conta.
+         * `driverBasis.crew` com um único membro prova que o filtro excluiu o ajudante.
          */
         const driverParcel = byKind.get('driver')
         if (driverParcel === undefined || driverParcel.basis?.of !== 'driver') {
@@ -179,6 +183,15 @@ describe('a viagem fecha a conta (spec 061 T010)', () => {
         expect(summary.groups[0]?.groupLabel).toBe('GCQ8E47')
         /** Frota só de agregado não tem folha: `null` diz isso, e o total se declara aproximado. */
         expect(summary.payrollAmount).toBeNull()
+
+        /**
+         * Spec 149 (ADR-0065 §2): o resumo por motorista agrupa quem dirigiu — o ajudante da mesma
+         * viagem (`role: 'helper'`) não vira uma segunda linha.
+         */
+        const byDriverFilters = { ...filters, groupBy: 'driver' as const }
+        const byDriver = await summaryQuery.listGroups(byDriverFilters)
+        expect(byDriver).toHaveLength(1)
+        expect(byDriver[0]?.groupLabel).toBe('Agregado')
       })
     },
     60_000,
@@ -280,6 +293,7 @@ async function seedTrip(database: TestDatabase): Promise<World> {
   const userId = crypto.randomUUID()
   const vehicleId = crypto.randomUUID()
   const driverId = crypto.randomUUID()
+  const helperId = crypto.randomUUID()
   const regionId = crypto.randomUUID()
   const tripId = crypto.randomUUID()
   const importId = crypto.randomUUID()
@@ -326,6 +340,19 @@ async function seedTrip(database: TestDatabase): Promise<World> {
     name: 'Agregado',
     paymentModel: 'route_table',
     taxId: '11111111111',
+  })
+  /**
+   * Spec 149 (ADR-0065 §2): ajudante na mesma tripulação, **sem** zona/cobertura cadastrada. Antes
+   * do filtro por papel, ele entrava na consulta de custo e no resumo por motorista como se
+   * dirigisse — sem tabela de região, a viagem toda virava lacuna (`missing`) por causa de quem só
+   * ajudou.
+   */
+  await database.db.insert(fleetDrivers).values({
+    companyId,
+    id: helperId,
+    name: 'Ajudante',
+    paymentModel: 'route_table',
+    taxId: '22222222222',
   })
   await database.db
     .insert(freightRegions)
@@ -570,6 +597,15 @@ async function seedTrip(database: TestDatabase): Promise<World> {
     driverName: 'Agregado',
     driverTaxId: '11111111111',
     position: 1n,
+    tripId,
+  })
+  await database.db.insert(tripDrivers).values({
+    companyId,
+    driverId: helperId,
+    driverName: 'Ajudante',
+    driverTaxId: '22222222222',
+    position: 2n,
+    role: 'helper',
     tripId,
   })
   await database.db

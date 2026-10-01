@@ -1,5 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { FleetVehicleDetail, FleetVehicleFormState } from './fleet.types'
+import {
+  resolveVehicleBodyTypeForKindChange,
+  resolveVehicleDefaultTrailerForKindChange,
+} from './fleetVehicleBodyType.service'
 import { resolveSecondaryFuelDefaults } from './fuelArrangement.service'
 import { resolveVehicleBrandDefaults } from './vehicleBrandDefaults.service'
 import {
@@ -11,10 +15,14 @@ import {
 import { resolveVehicleTypeDefaults } from './vehicleTypeAxles.service'
 
 /**
- * Os três campos que **pedem** a sugestão. Fora deles a sugestão não roda, e é isso que permite
- * apagar um campo sugerido: sem gatilho, o campo em branco continua em branco.
+ * Os campos que **pedem** a sugestão. Fora deles a sugestão não roda, e é isso que permite apagar
+ * um campo sugerido: sem gatilho, o campo em branco continua em branco.
+ *
+ * `bodyType` entra na 147 T16b: a referência agora casa por tipo **e** carroceria, e trocar a
+ * carroceria depois de escolher o tipo precisa reavaliar a sugestão — nunca sobrescrever campo já
+ * digitado, que é a regra de `applyVehicleSuggestion` logo abaixo.
  */
-const SUGGESTION_TRIGGERS = ['brand', 'model', 'vehicleType'] as const
+const SUGGESTION_TRIGGERS = ['bodyType', 'brand', 'model', 'vehicleType'] as const
 
 export type ComposedVehicleFormPatch = Readonly<{
   origin: VehicleSuggestionOrigin | null
@@ -55,7 +63,23 @@ export function composeVehicleFormPatch(
   // O tipo vem depois porque o eixo dele é certo, e o da frota é o que ela repetiu até agora
   const typeDefaults =
     next.vehicleType === input.previous.vehicleType ? {} : resolveVehicleTypeDefaults(next)
-  const resolved = { ...next, ...brandDefaults, ...typeDefaults }
+  // Virar ou sair do cavalo decide a carroceria por conta própria — nunca herda o `00` de outro tipo
+  const bodyTypeDefaults =
+    next.role === input.previous.role && next.vehicleType === input.previous.vehicleType
+      ? {}
+      : resolveVehicleBodyTypeForKindChange({ next, previous: input.previous })
+  // Mesmo gatilho da carroceria: sair do cavalo apaga a carreta padrão, nunca a carrega escondida
+  const defaultTrailerDefaults =
+    next.role === input.previous.role && next.vehicleType === input.previous.vehicleType
+      ? {}
+      : resolveVehicleDefaultTrailerForKindChange({ next, previous: input.previous })
+  const resolved = {
+    ...next,
+    ...brandDefaults,
+    ...typeDefaults,
+    ...bodyTypeDefaults,
+    ...defaultTrailerDefaults,
+  }
   // O par de combustíveis é corrigido depois dos outros defaults: trocar o primário para o
   // produto do secundário deixaria os dois tanques com o mesmo combustível
   const corrected = { ...resolved, ...resolveSecondaryFuelDefaults(resolved) }
@@ -72,6 +96,7 @@ export function composeVehicleFormPatch(
   }
 
   const suggestion = resolveVehicleSuggestion({
+    bodyType: corrected.bodyType,
     brand: corrected.brand,
     model: corrected.model,
     references: input.references,

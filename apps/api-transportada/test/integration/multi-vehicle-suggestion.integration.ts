@@ -14,6 +14,7 @@ import { and, eq } from 'drizzle-orm'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
   companies,
+  fleetDrivers,
   fleetVehicles,
   identityUsers,
   nfeAddresses,
@@ -23,12 +24,13 @@ import {
   routeSuggestionDocuments,
   routeSuggestionStopDocuments,
   routeSuggestionStops,
+  routeSuggestionVehicleHelpers,
   routeSuggestionVehicles,
   routeSuggestions,
   storedObjects,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
-import { tripDocuments, trips } from '../../src/database/trip.schema.js'
+import { tripDocuments, tripDrivers, trips } from '../../src/database/trip.schema.js'
 import { createMultiVehicleSuggestionUseCase } from '../../src/routing/application/multi-vehicle-suggestion.use-case.js'
 import type { MultiVehicleScope } from '../../src/routing/application/multi-vehicle-suggestion.port.js'
 import { MultiVehicleSuggestionDocumentUnavailableError } from '../../src/routing/domain/routing.error.js'
@@ -296,6 +298,97 @@ describe('o aceite da multi-veículo contra Postgres (spec 058 P2)', () => {
   })
 })
 
+/**
+ * Spec 153 T801 (N1): o conjunto de notas vivas sozinho não identifica a composição anterior — a
+ * frota pode mudar entre tentativas, e a viagem pode já ter sido despachada. Contra Postgres porque
+ * é o `join`/filtro em `trips` que está sob teste, não o contrato de aplicação.
+ */
+describe('findLiveTripIdForDocuments filtra por veículo e status (spec 153 T801)', () => {
+  testWithPostgres('mesmo conjunto de notas em veículo diferente não reaproveita', async () => {
+    await withSharedDatabase(async (database) => {
+      const world = await seedSuggestion(database)
+      const tripRepository = new DrizzleTripRepository(database.db)
+      const tripUseCase = createTripUseCase({
+        locations: { purgeByTrip: async () => {} },
+        repository: tripRepository,
+      })
+      const firstVehicleId = world.vehicles[0]?.vehicleId ?? ''
+      const secondVehicleId = world.vehicles[1]?.vehicleId ?? ''
+
+      const created = await tripUseCase.create({
+        context: world.context,
+        driverIds: [],
+        vehicleId: firstVehicleId,
+      })
+      for (const nfeDocumentId of world.documentIds) {
+        await tripUseCase.linkDocument({
+          context: world.context,
+          freightCalculationId: null,
+          nfeDocumentId,
+          tripId: created.id,
+        })
+      }
+
+      /** T708 não regride: o mesmo veículo continua reaproveitando a viagem. */
+      const reusedSameVehicle = await tripRepository.findLiveTripIdForDocuments({
+        companyId: world.companyId,
+        driverId: null,
+        nfeDocumentIds: world.documentIds,
+        vehicleId: firstVehicleId,
+      })
+      expect(reusedSameVehicle).toBe(created.id)
+
+      /** A frota mudou entre tentativas: o mesmo conjunto de notas, veículo diferente, não reaproveita. */
+      const reusedOtherVehicle = await tripRepository.findLiveTripIdForDocuments({
+        companyId: world.companyId,
+        driverId: null,
+        nfeDocumentIds: world.documentIds,
+        vehicleId: secondVehicleId,
+      })
+      expect(reusedOtherVehicle).toBeNull()
+    })
+  })
+
+  testWithPostgres('viagem já despachada não é reaproveitada', async () => {
+    await withSharedDatabase(async (database) => {
+      const world = await seedSuggestion(database)
+      const tripRepository = new DrizzleTripRepository(database.db)
+      const tripUseCase = createTripUseCase({
+        locations: { purgeByTrip: async () => {} },
+        repository: tripRepository,
+      })
+      const vehicleId = world.vehicles[0]?.vehicleId ?? ''
+
+      const created = await tripUseCase.create({
+        context: world.context,
+        driverIds: [],
+        vehicleId,
+      })
+      for (const nfeDocumentId of world.documentIds) {
+        await tripUseCase.linkDocument({
+          context: world.context,
+          freightCalculationId: null,
+          nfeDocumentId,
+          tripId: created.id,
+        })
+      }
+
+      await database.db
+        .update(trips)
+        .set({ status: 'dispatched' })
+        .where(and(eq(trips.companyId, world.companyId), eq(trips.id, created.id)))
+
+      const reused = await tripRepository.findLiveTripIdForDocuments({
+        companyId: world.companyId,
+        driverId: null,
+        nfeDocumentIds: world.documentIds,
+        vehicleId,
+      })
+      expect(reused).toBeNull()
+    })
+  })
+})
+
 async function countTrips(database: TestDatabase, companyId: string): Promise<number> {
   const rows = await database.db
     .select({ id: trips.id })
@@ -305,7 +398,7 @@ async function countTrips(database: TestDatabase, companyId: string): Promise<nu
   return rows.length
 }
 
-function buildUseCase(database: TestDatabase) {
+function buildUseCase(database: TestDatabase, options: { readonly freezesEta?: boolean } = {}) {
   const tripRepository = new DrizzleTripRepository(database.db)
   const routeRepository = new DrizzleTripRouteRepository(database.db)
   const stopRepository = new DrizzleTripStopLookupRepository(database.db)
@@ -331,11 +424,27 @@ function buildUseCase(database: TestDatabase) {
     suggestions: createDrizzleRouteSuggestionRepository(database.db),
     trips: createTripComposer({
       create: (input) => tripUseCase.create(input),
+      /** Spec 153 T708 (H4): a integração exercita o mesmo caminho de reaproveitamento da produção. */
+      findLiveTripIdForDocuments: (input) => tripRepository.findLiveTripIdForDocuments(input),
       link: (input) => tripUseCase.linkDocument(input),
       listStops: async (input) =>
         (await listTripStops({ ...input, repository: stopRepository })).stops,
-      /** Spec 107 D3: a integração não confere ETA; o contrato de unidade faz isso. */
-      writeEstimatedArrivals: async () => undefined,
+      /**
+       * Spec 107 D3: a integração não confere ETA por padrão; o contrato de unidade faz isso.
+       * Spec 149 T6: quem prova o congelamento da jornada contra Postgres pede o repositório real
+       * (`freezesEta: true`) — sem ele `trips.planned_journey_seconds` nunca sairia de `null`.
+       */
+      writeEstimatedArrivals:
+        options.freezesEta === true
+          ? (input) =>
+              routeRepository.writeEstimatedArrivals({
+                arrivals: input.arrivals,
+                companyId: input.context.companyId,
+                plannedDepartureAt: input.plannedDepartureAt,
+                returnLegSeconds: input.returnLegSeconds ?? null,
+                tripId: input.tripId,
+              })
+          : async () => undefined,
       planRoute: (input) => lifecycle.planRoute.execute(input),
       reorder: (input) => lifecycle.reorderStops.execute(input),
     }),
@@ -347,7 +456,7 @@ type World = {
   readonly context: MultiVehicleScope
   readonly documentIds: readonly string[]
   readonly suggestionId: string
-  readonly vehicles: readonly { readonly vehicleId: string }[]
+  readonly vehicles: readonly { readonly driverId?: string; readonly vehicleId: string }[]
 }
 
 async function seedSuggestion(database: TestDatabase): Promise<World> {
@@ -609,3 +718,302 @@ describe('mover parada entre caminhões no aceite, contra Postgres (spec 112)', 
     },
   )
 })
+
+/**
+ * Spec 149 T5 (ADR-0065 D12): o aceite leva a tripulação **completa** — motorista e ajudantes — para
+ * `trip_drivers`, não só o motorista. O contrato de aplicação prova o encadeamento com dublês; só o
+ * Postgres prova que `readGroups` traz os ajudantes gravados em `route_suggestion_vehicle_helpers` e
+ * que `resolveTripCrewForCreation` os grava de volta com o papel certo.
+ */
+describe('aceite com motorista e ajudantes contra Postgres (spec 149 T5)', () => {
+  testWithPostgres(
+    'a viagem nasce com 3 linhas em trip_drivers: 1 motorista e 2 ajudantes',
+    async () => {
+      await withSharedDatabase(async (database) => {
+        const world = await seedSuggestionWithCrew(database)
+        const useCase = buildUseCase(database)
+
+        const accepted = await useCase.accept({
+          context: world.context,
+          suggestionId: world.suggestionId,
+        })
+
+        expect(accepted.trips).toHaveLength(1)
+        const tripId = accepted.trips[0]?.tripId ?? ''
+
+        const crew = await database.db
+          .select({ position: tripDrivers.position, role: tripDrivers.role })
+          .from(tripDrivers)
+          .where(and(eq(tripDrivers.companyId, world.companyId), eq(tripDrivers.tripId, tripId)))
+          .orderBy(tripDrivers.position)
+
+        expect(crew).toHaveLength(3)
+        expect(crew.map((row) => row.role)).toEqual(['driver', 'helper', 'helper'])
+        expect(crew.map((row) => Number(row.position))).toEqual([1, 2, 3])
+      })
+    },
+  )
+})
+
+/**
+ * Spec 149 T6 (decisão do usuário, 15/09/2026): a viagem congela a jornada no mesmo instante do
+ * ETA — ida + volta quando a proposta grava a volta, só ida quando não grava.
+ */
+describe('a jornada congela junto do ETA (spec 149 T6)', () => {
+  testWithPostgres('com volta gravada, grava ida + volta e includesReturn = true', async () => {
+    await withSharedDatabase(async (database) => {
+      const world = await seedSuggestionWithCrew(database, { journey: 'with-return' })
+      const useCase = buildUseCase(database, { freezesEta: true })
+
+      const accepted = await useCase.accept({
+        context: world.context,
+        suggestionId: world.suggestionId,
+      })
+      const tripId = accepted.trips[0]?.tripId ?? ''
+
+      const [trip] = await database.db
+        .select({
+          plannedJourneyIncludesReturn: trips.plannedJourneyIncludesReturn,
+          plannedJourneySeconds: trips.plannedJourneySeconds,
+        })
+        .from(trips)
+        .where(and(eq(trips.companyId, world.companyId), eq(trips.id, tripId)))
+
+      /** 09:00 de ida (08h → 17h) + 00:30 de volta gravada = 09:30. */
+      expect(trip?.plannedJourneySeconds).toBe(9 * 3600 + 1_800)
+      expect(trip?.plannedJourneyIncludesReturn).toBe(true)
+    })
+  })
+
+  testWithPostgres('sem volta gravada, grava só a ida e includesReturn = false', async () => {
+    await withSharedDatabase(async (database) => {
+      const world = await seedSuggestionWithCrew(database, { journey: 'without-return' })
+      const useCase = buildUseCase(database, { freezesEta: true })
+
+      const accepted = await useCase.accept({
+        context: world.context,
+        suggestionId: world.suggestionId,
+      })
+      const tripId = accepted.trips[0]?.tripId ?? ''
+
+      const [trip] = await database.db
+        .select({
+          plannedJourneyIncludesReturn: trips.plannedJourneyIncludesReturn,
+          plannedJourneySeconds: trips.plannedJourneySeconds,
+        })
+        .from(trips)
+        .where(and(eq(trips.companyId, world.companyId), eq(trips.id, tripId)))
+
+      expect(trip?.plannedJourneySeconds).toBe(9 * 3600)
+      expect(trip?.plannedJourneyIncludesReturn).toBe(false)
+    })
+  })
+
+  testWithPostgres('sem saída planejada nem ETA, a jornada fica nula nos dois campos', async () => {
+    await withSharedDatabase(async (database) => {
+      const world = await seedSuggestionWithCrew(database, { journey: 'none' })
+      const useCase = buildUseCase(database, { freezesEta: true })
+
+      const accepted = await useCase.accept({
+        context: world.context,
+        suggestionId: world.suggestionId,
+      })
+      const tripId = accepted.trips[0]?.tripId ?? ''
+
+      const [trip] = await database.db
+        .select({
+          plannedJourneyIncludesReturn: trips.plannedJourneyIncludesReturn,
+          plannedJourneySeconds: trips.plannedJourneySeconds,
+        })
+        .from(trips)
+        .where(and(eq(trips.companyId, world.companyId), eq(trips.id, tripId)))
+
+      expect(trip?.plannedJourneySeconds).toBeNull()
+      expect(trip?.plannedJourneyIncludesReturn).toBeNull()
+    })
+  })
+})
+
+/**
+ * Um veículo só, um motorista e dois ajudantes — o mínimo que prova o critério de aceite 3 da spec.
+ *
+ * `journey`: spec 149 T6 — `'none'` (padrão) não grava saída/ETA/volta, `'with-return'` grava as
+ * três (a jornada congela ida + volta), `'without-return'` grava saída/ETA sem a perna de volta (a
+ * jornada congela só de ida).
+ */
+async function seedSuggestionWithCrew(
+  database: TestDatabase,
+  options: { readonly journey?: 'none' | 'with-return' | 'without-return' } = {},
+): Promise<World> {
+  const journey = options.journey ?? 'none'
+  const companyId = crypto.randomUUID()
+  const userId = crypto.randomUUID()
+  const membershipId = crypto.randomUUID()
+  const vehicleId = crypto.randomUUID()
+  const driverId = crypto.randomUUID()
+  const firstHelperId = crypto.randomUUID()
+  const secondHelperId = crypto.randomUUID()
+  const suggestionId = crypto.randomUUID()
+  const importId = crypto.randomUUID()
+  const documentId = crypto.randomUUID()
+  const xmlObjectId = crypto.randomUUID()
+
+  await database.db.insert(companies).values({ id: companyId, status: 'active' })
+  await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+  await database.db
+    .insert(userCompanyMemberships)
+    .values({ companyId, id: membershipId, status: 'active', userId })
+  await database.db.insert(fleetVehicles).values({
+    companyId,
+    id: vehicleId,
+    plate: 'GCQ8E49',
+    role: 'traction',
+    state: 'SP',
+    vehicleType: 'toco',
+  })
+  await database.db.insert(fleetDrivers).values([
+    { companyId, id: driverId, membershipId: null, name: 'Motorista', taxId: '11111111111' },
+    {
+      canActAsHelper: true,
+      companyId,
+      id: firstHelperId,
+      membershipId: null,
+      name: 'Ajudante Um',
+      taxId: '22222222222',
+    },
+    {
+      canActAsHelper: true,
+      companyId,
+      id: secondHelperId,
+      membershipId: null,
+      name: 'Ajudante Dois',
+      taxId: '33333333333',
+    },
+  ])
+  await database.db.insert(nfeImports).values({
+    companyId,
+    correlationId: 'correlation-p2-crew',
+    id: importId,
+    idempotencyKey: 'p2-crew',
+    requestFingerprint: 'fingerprint-p2-crew',
+    requestedByUserId: userId,
+    source: 'upload',
+    status: 'completed',
+  })
+  await database.db.insert(storedObjects).values({
+    bucket: 'integration',
+    companyId,
+    id: xmlObjectId,
+    mimeType: 'application/xml',
+    objectKey: 'nfe/p2-crew-900001.xml',
+    provider: 's3',
+    purpose: 'nfe_document',
+    sha256: '4'.repeat(64),
+    sizeBytes: 100n,
+    status: 'final',
+  })
+  await database.db.insert(nfeDocuments).values({
+    accessKey: `8${'1'.repeat(43)}`,
+    authorizationProtocol: 'protocol-900001-crew',
+    companyId,
+    createdByUserId: userId,
+    freightValue: '0.0000',
+    id: documentId,
+    importId,
+    issuedAt: new Date('2026-08-10T06:00:00.000Z'),
+    model: '55',
+    number: '900001',
+    operationNature: 'Venda',
+    operationType: '1',
+    productsValue: '1000.0000',
+    series: '1',
+    source: 'upload',
+    status: 'authorized',
+    totalValue: '1000.0000',
+    xmlObjectId,
+    xmlSha256: '4'.repeat(64),
+  })
+  const participantId = crypto.randomUUID()
+  await database.db.insert(nfeParticipants).values({
+    companyId,
+    documentId,
+    id: participantId,
+    legalName: 'Destinatário',
+    role: 'recipient',
+    taxId: '98765432000109',
+  })
+  await database.db.insert(nfeAddresses).values({
+    city: 'Ribeirão Preto',
+    cityCode: '3543402',
+    companyId,
+    district: 'Centro',
+    id: crypto.randomUUID(),
+    number: '100',
+    participantId,
+    postalCode: '14020000',
+    state: 'SP',
+    street: 'Rua Um',
+  })
+
+  await database.db.insert(routeSuggestions).values({
+    assumptions: {
+      dutyEnabled: false,
+      endPolicy: 'depot',
+      fallbackWeightKilograms: '0.00',
+      originAddressKey: 'depot',
+      serviceTimeSeconds: 600,
+      serviceTimeSource: 'default',
+      solverTimeBudgetSeconds: 30,
+    },
+    companyId,
+    id: suggestionId,
+    /** Spec 149 T6: a âncora do congelamento — `null` fora de `'none'`. */
+    plannedDepartureAt: journey === 'none' ? null : new Date('2026-08-10T08:00:00.000Z'),
+    seed: 7,
+    status: 'ready',
+    tripId: null,
+  })
+  await database.db
+    .insert(routeSuggestionDocuments)
+    .values({ companyId, nfeDocumentId: documentId, suggestionId })
+  await database.db.insert(routeSuggestionVehicles).values({
+    companyId,
+    driverId,
+    driverSource: 'manual',
+    position: 0n,
+    /** Spec 149 T6: a perna de volta ao barracão, só quando o cenário a grava. */
+    returnDistanceMeters: journey === 'with-return' ? 12_000 : null,
+    returnDurationSeconds: journey === 'with-return' ? 1_800 : null,
+    suggestionId,
+    vehicleId,
+  })
+  await database.db.insert(routeSuggestionVehicleHelpers).values([
+    { companyId, driverId: firstHelperId, suggestionId, vehicleId },
+    { companyId, driverId: secondHelperId, suggestionId, vehicleId },
+  ])
+  const [stop] = await database.db
+    .insert(routeSuggestionStops)
+    .values({
+      addressKey: FIRST_ADDRESS_KEY,
+      companyId,
+      estimatedArrivalAt: journey === 'none' ? null : new Date('2026-08-10T17:00:00.000Z'),
+      excludedFromOptimization: false,
+      label: 'Rua Um',
+      sequence: 1n,
+      suggestionId,
+      vehicleId,
+      weightEstimated: true,
+    })
+    .returning({ id: routeSuggestionStops.id })
+  await database.db
+    .insert(routeSuggestionStopDocuments)
+    .values({ companyId, nfeDocumentId: documentId, suggestionStopId: stop?.id ?? '' })
+
+  return {
+    companyId,
+    context: { companyId, membershipId, userId } as unknown as MultiVehicleScope,
+    documentIds: [documentId],
+    suggestionId,
+    vehicles: [{ driverId, vehicleId }],
+  }
+}

@@ -40,7 +40,13 @@ export function TripCrewDialog({
 }: TripCrewDialogProps) {
   const { t } = useTranslation('trip')
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen, onClose })
-  const dialog = useTripCrewDialog({ isOpen, onSubmit, trip })
+  const dialog = useTripCrewDialog({
+    isOpen,
+    onSubmit,
+    selectableDriverIds: drivers.map((driver) => driver.id),
+    selectableVehicleIds: vehicles.map((vehicle) => vehicle.id),
+    trip,
+  })
   const vehicleOptions = useVehicleSelectOptions(vehicles)
 
   if (!isOpen) return null

@@ -88,7 +88,13 @@ describe('GET /trips/:id/timeline (spec 158 T6)', () => {
     }
     expect(body.data).toEqual({ items: [{ id: 'timeline-item' }], nextCursor: 'opaque-cursor' })
     expect(calls).toEqual([
-      { context: COMPANY_CONTEXT_SCOPE, cursor: null, limit: 100, tripId: TRIP_ID },
+      {
+        canReadEventLocation: false,
+        context: COMPANY_CONTEXT_SCOPE,
+        cursor: null,
+        limit: 100,
+        tripId: TRIP_ID,
+      },
     ])
   })
 
@@ -115,7 +121,16 @@ describe('GET /trips/:id/timeline (spec 158 T6)', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(calls).toEqual([{ context: COMPANY_CONTEXT_SCOPE, cursor, limit: 37, tripId: TRIP_ID }])
+    // Spec 196 T4.1 (emenda): a entrada ganhou `canReadEventLocation`, derivado de `trip.event-location`.
+    expect(calls).toEqual([
+      {
+        canReadEventLocation: false,
+        context: COMPANY_CONTEXT_SCOPE,
+        cursor,
+        limit: 37,
+        tripId: TRIP_ID,
+      },
+    ])
   })
 
   test('400 TRIP_TIMELINE_CURSOR_INVALID para cursor malformado', async () => {

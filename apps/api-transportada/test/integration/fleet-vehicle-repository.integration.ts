@@ -4,9 +4,10 @@
 import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+import { eq } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
-import { companies } from '../../src/database/database.schema.js'
+import { companies, trips } from '../../src/database/database.schema.js'
 import type {
   FleetFuelPricePort,
   FleetVehicleInput,
@@ -38,6 +39,7 @@ const NO_COSTS_VEHICLE: FleetVehicleInput = {
   cargoWidthMeters: '0.00',
   capacityKilograms: '27000.00',
   color: '',
+  defaultTrailerVehicleId: null,
   fleetNumber: '',
   fuelType: 'diesel-s10',
   hasAutomaticTollPayment: false,
@@ -183,6 +185,105 @@ describe('fleet vehicle repository integration', () => {
       expect(changed?.costsUpdatedAt).not.toBe(firstCostsUpdatedAt)
     })
   })
+
+  // Feature 147 T9: as duas fontes de uso — carreta padrão de outro cavalo, e viagem aberta.
+  testWithPostgres('reports a trailer in use by a default pointer or an open trip', async () => {
+    await withDisposableDatabase(async (database) => {
+      const companyId = crypto.randomUUID()
+      await database.db.insert(companies).values({ id: companyId, status: 'active' })
+      const repository = createRepository(database)
+
+      const trailer = await repository.create({
+        companyId,
+        vehicle: { ...NO_COSTS_VEHICLE, plate: 'RTC4H67', role: 'trailer', vehicleType: '' },
+      })
+      const freeTrailer = await repository.create({
+        companyId,
+        vehicle: { ...NO_COSTS_VEHICLE, plate: 'RTD5J78', role: 'trailer', vehicleType: '' },
+      })
+      expect(await repository.isTrailerInUse({ companyId, vehicleId: freeTrailer.id })).toBe(false)
+
+      await repository.create({
+        companyId,
+        vehicle: { ...NO_COSTS_VEHICLE, defaultTrailerVehicleId: trailer.id, plate: 'RTE6K89' },
+      })
+      expect(await repository.isTrailerInUse({ companyId, vehicleId: trailer.id })).toBe(true)
+
+      const tractor = await repository.create({
+        companyId,
+        vehicle: { ...NO_COSTS_VEHICLE, plate: 'RTF7L90' },
+      })
+      const [trip] = await database.db
+        .insert(trips)
+        .values({
+          companyId,
+          status: 'draft',
+          trailerVehicleId: freeTrailer.id,
+          vehicleId: tractor.id,
+        })
+        .returning({ id: trips.id })
+      expect(trip).toBeDefined()
+      expect(await repository.isTrailerInUse({ companyId, vehicleId: freeTrailer.id })).toBe(true)
+
+      await database.db.update(trips).set({ status: 'cancelled' }).where(eq(trips.id, trip!.id))
+      expect(await repository.isTrailerInUse({ companyId, vehicleId: freeTrailer.id })).toBe(false)
+    })
+  })
+
+  /**
+   * T18 (revisão, MENOR 6): os dois CHECKs da carreta padrão (`fleet.schema.ts`) traduzem para 400
+   * de domínio, nunca para o 500 genérico que a violação crua produzia. O caso de uso já barra os
+   * dois antes de chegar ao repositório (`checkVehicleDefaultTrailer`); aqui a escrita é direta,
+   * como defesa contra quem chamar o repositório sem passar por ele.
+   */
+  testWithPostgres(
+    'translates the default trailer CHECK violations into domain errors',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const companyId = crypto.randomUUID()
+        await database.db.insert(companies).values({ id: companyId, status: 'active' })
+        const repository = createRepository(database)
+
+        const tractor = await repository.create({ companyId, vehicle: NO_COSTS_VEHICLE })
+        const trailer = await repository.create({
+          companyId,
+          vehicle: { ...NO_COSTS_VEHICLE, plate: 'RTC4H67', role: 'trailer', vehicleType: '' },
+        })
+
+        // fleet_vehicles_default_trailer_not_self: a carreta padrão não pode ser o próprio veículo.
+        await expect(
+          repository.update({
+            companyId,
+            expectedVersion: tractor.version,
+            status: 'active',
+            vehicle: { ...NO_COSTS_VEHICLE, defaultTrailerVehicleId: tractor.id },
+            vehicleId: tractor.id,
+          }),
+        ).rejects.toMatchObject({
+          code: 'FLEET_VEHICLE_DEFAULT_TRAILER_SELF_REFERENCE',
+          status: 400,
+        })
+
+        // fleet_vehicles_default_trailer_tractor_only: só o cavalo mecânico aponta carreta padrão.
+        await expect(
+          repository.update({
+            companyId,
+            expectedVersion: tractor.version,
+            status: 'active',
+            vehicle: {
+              ...NO_COSTS_VEHICLE,
+              defaultTrailerVehicleId: trailer.id,
+              vehicleType: 'truck',
+            },
+            vehicleId: tractor.id,
+          }),
+        ).rejects.toMatchObject({
+          code: 'FLEET_VEHICLE_DEFAULT_TRAILER_REQUIRES_TRACTOR',
+          status: 400,
+        })
+      })
+    },
+  )
 })
 
 /** Dublê fino sobre o gateway real: conta as resoluções sem trocar o preço que elas devolvem. */

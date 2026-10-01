@@ -31,13 +31,27 @@ const DEFAULT_ROUTE_CHOICE_CRITERION: RouteChoiceCriterion = 'cheapest'
 export type FreezeTripPlannedRouteVehicleContext = {
   readonly axles: AxleCount | null
   /**
-   * Consumo e preço do combustível do veículo da viagem — a mesma fonte da leitura ao vivo. Sem
-   * eles nenhuma opção tem custo, e o critério `cheapest` cai na principal com `reproduced: false`.
+   * spec 153 H1: o consumo e o preço do combustível do veículo — sem isto `readRouteGeometry`
+   * não sabe comparar `totalCost` entre as opções, `applyCriterion('cheapest')` não acha
+   * candidata nenhuma, e a rota congelada cai sempre na principal com `choiceReproduced: false`,
+   * mesmo quando ninguém pediu assinatura nenhuma. Ausência de dado é `{ kilometersPerLiter: null,
+   * pricePerLiter: null }` — nunca um consumo inventado.
    */
   readonly fuelBaseline: RouteOptionVehicle
   /** A categoria do veículo — anda junto de `axles`, e é ela que multiplica a tarifa base. */
   readonly multiplier: TollMultiplier | null
   readonly hasAutomaticTollPayment: boolean
+  /**
+   * Spec 153 T704 (M3) / T802 (N3) / T901: o hash do conjunto de paradas — `(id, sequência,
+   * latitude, longitude)` de cada uma, coordenada incluída — no instante em que o congelamento foi
+   * disparado. A escrita final só acontece se a mesma junção, recalculada ali, ainda produzir esse
+   * hash — de forma que um congelamento nascido de um conjunto já obsoleto (parada mudada, ou só
+   * geocodificada nesse meio-tempo) não escreva nada em vez de sobrescrever a rota que o
+   * recálculo seguinte já traçou ("last write wins"). Não é mais `trips.updated_at`: essa coluna
+   * também muda com escrita alheia à rota (relato de campo, override de MDF-e), e descartava
+   * congelamento legítimo sem motivo.
+   */
+  readonly revision: string
 }
 
 /**
@@ -50,6 +64,12 @@ export type FrozenPlannedRoute = Readonly<{
   depot: RouteGeometryView['depot']
   distanceMeters: number
   durationSeconds: number
+  /**
+   * L5 (revisão final da 153): se a opção congelada veio da chamada `exclude=toll` (RF2) — antes
+   * ficava de fora do que se gravava, e a leitura congelada sempre fixava `false`, mesmo quando a
+   * viagem era mesmo a rota sem pedágio.
+   */
+  isNoToll: boolean
   legs: RouteGeometryView['legs']
   points: RouteGeometryView['points']
   returnDistanceMeters: number
@@ -59,11 +79,32 @@ export type FrozenPlannedRoute = Readonly<{
 
 export type WritePlannedRouteInput = {
   readonly companyId: string
+  /** T704 M3 / T802: a revisão das paradas lida no disparo — compare-and-set, nunca escrita incondicional. */
+  readonly expectedRevision: string
   /** `null` é D5: a estrada não veio, e nada se afirma sobre a rota — nunca zero. */
   readonly route: FrozenPlannedRoute | null
   readonly toll: null | TollRouteCost
   readonly tripId: string
 }
+
+/**
+ * Spec 153 T802 (N3): o que o compare-and-set descobriu. `'written'` é o caminho feliz de sempre;
+ * os outros dois **eram o mesmo silêncio** — o UPDATE afetava zero linhas e ninguém sabia por quê.
+ * `freezeTripPlannedRoute` trata qualquer um deles como `routeFrozen: false` (mesmo sinal de D5),
+ * e quem chama já sabe avisar: o bloqueio de `plan-trip-route.use-case.ts` loga antes de recusar a
+ * transição, e o fallback gracioso de `freezeTripRouteGracefully` (T704 L7) loga e segue.
+ */
+export type PlannedRouteWriteOutcome =
+  | 'written'
+  /** As paradas mudaram entre o disparo e esta escrita — a rota que se calculou já é velha. */
+  | 'stale_revision'
+  /** A viagem saiu para a rua no meio do caminho — o roteiro congelado no despacho é o que vale. */
+  | 'status_not_before_dispatch'
+  /**
+   * T905 (P8): a viagem sumiu entre o disparo e esta escrita — outro motivo que `'stale_revision'`
+   * calava. O log agora diz "viagem inexistente", não "as paradas mudaram".
+   */
+  | 'trip_not_found'
 
 export type FreezeTripPlannedRoutePort = {
   /** `null` quando a viagem sumiu entre o gate do planejamento e aqui — não há o que congelar. */
@@ -71,15 +112,16 @@ export type FreezeTripPlannedRoutePort = {
     readonly companyId: string
     readonly tripId: string
   }): Promise<FreezeTripPlannedRouteVehicleContext | null>
+  /** `null` é T704 M4: alguma parada sem coordenada — sem rota, nunca a rota das outras. */
   readStopCoordinates(input: {
     readonly companyId: string
     readonly tripId: string
-  }): Promise<readonly RouteGeometryPoint[]>
+  }): Promise<readonly RouteGeometryPoint[] | null>
   /**
    * Uma escrita só (D4): rota, métricas e pedágio, com um `frozen_at` compartilhado por grupo —
    * nunca duas chamadas que poderiam deixar a viagem com metade nova e metade velha.
    */
-  writePlannedRoute(input: WritePlannedRouteInput): Promise<void>
+  writePlannedRoute(input: WritePlannedRouteInput): Promise<PlannedRouteWriteOutcome>
 }
 
 export type FreezeTripPlannedRouteInput = {
@@ -106,6 +148,21 @@ export async function freezeTripPlannedRoute(
   if (vehicle === null) return { routeFrozen: false }
 
   const stops = await input.repository.readStopCoordinates(input)
+  /**
+   * T704 M4 (caso extremo da spec): parada sem coordenada é o mesmo desfecho de estrada
+   * indisponível — rota e pedágio nulos juntos (D5). Traçar com o subconjunto geocodificado
+   * gravaria uma distância parcial, e ela alimenta combustível e valoração sem se anunciar.
+   */
+  if (stops === null) {
+    await input.repository.writePlannedRoute({
+      companyId: input.companyId,
+      expectedRevision: vehicle.revision,
+      route: null,
+      toll: null,
+      tripId: input.tripId,
+    })
+    return { routeFrozen: false }
+  }
 
   const road = await readRouteGeometry({
     axles: vehicle.axles,
@@ -124,14 +181,22 @@ export async function freezeTripPlannedRoute(
     road,
   })
 
-  await input.repository.writePlannedRoute({
+  /**
+   * Spec 153 T802 (N3): o compare-and-set pode descartar a escrita — paradas mudaram entre o
+   * disparo e esta chamada (`stale_revision`), ou a viagem já saiu para a rua no meio do caminho
+   * (`status_not_before_dispatch`). Nos dois casos não há rota nova para afirmar: `routeFrozen:
+   * false` é o mesmo sinal de D5, e quem chama já sabe registrar o aviso (T704 L7, ou o bloqueio
+   * de `plan-trip-route.use-case.ts`).
+   */
+  const outcome = await input.repository.writePlannedRoute({
     companyId: input.companyId,
+    expectedRevision: vehicle.revision,
     route,
     toll: toFrozenToll(road.toll),
     tripId: input.tripId,
   })
 
-  return { routeFrozen: route !== null }
+  return { routeFrozen: outcome === 'written' && route !== null }
 }
 
 /**
@@ -163,6 +228,7 @@ function toFrozenRoute(input: {
     depot: road.depot,
     distanceMeters: distance.distanceMeters,
     durationSeconds: distance.durationSeconds,
+    isNoToll: selected.isNoToll,
     legs: road.legs,
     points: road.points,
     returnDistanceMeters: distance.returnDistanceMeters,
@@ -171,8 +237,14 @@ function toFrozenRoute(input: {
 }
 
 /**
- * `RouteGeometryToll` carrega `tariffObservedOn`/`booths`/`catalog` — leitura fresca do catálogo,
- * não parte da decisão congelada — e por isso não entram no que se grava.
+ * `RouteGeometryToll` carrega `tariffObservedOn`/`catalog` — leitura fresca do catálogo, não parte
+ * da decisão congelada — e por isso não entram no que se grava.
+ *
+ * ⚠️ `toll.booths` já é `TollBoothRouteLine[]` (a linha do extrato, com `legIndex` — ver
+ * `read-route-geometry.use-case.ts`), mais rica do que `TollBoothRecord[]` que o tipo de
+ * `TollRouteCost` declara para `booths`. `legIndex` viaja junto de propósito, mesmo fora do tipo: é
+ * o que a leitura congelada (L5 da revisão final da 153) volta a extrair de cada praça —
+ * `parseFrozenBoothLegIndexes`, em `toll-route-cost-snapshot.policy.ts`.
  */
 function toFrozenToll(toll: null | RouteGeometryToll): null | TollRouteCost {
   if (toll === null) return null

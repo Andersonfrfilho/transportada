@@ -22,8 +22,15 @@
   justify-content: space-between;
 }
 
+/**
+ * Spec 196: sem declarar tamanho, este título caía no padrão do agente (1.17em) e virava o maior da
+ * página — 18,72px contra 15,2px dos seis blocos irmãos. O valor é o de `.panel h3` no
+ * `trip.module.css`, e é literal porque não existe família `--font-size-*` declarada no projeto:
+ * os `var(--font-size-xs, …)` espalhados por aí citam um nome que ninguém define.
+ */
 .head h3 {
   margin: 0;
+  font-size: 0.95rem;
 }
 
 /**
@@ -81,17 +88,21 @@
 }
 
 .dayCount {
-  color: color-mix(in srgb, var(--color-slate) 75%, transparent);
+  color: var(--color-slate-muted);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: none;
 }
 
+/**
+ * Spec 196: a calha do ícone é da **lista**, declarada uma vez. O recuo vivia dentro de `.itemHead`,
+ * então só o texto do cabeçalho o recebia: "Ver mais", o bloco de detalhe e os links nasciam em zero,
+ * debaixo do ícone e por cima do trilho. Quatro cópias do mesmo `calc()` seria a outra saída, e é a
+ * que o projeto proíbe.
+ */
 .list {
-  --timeline-marker-size: 0.625rem;
-  --timeline-title-font-size: 0.95rem;
-  --timeline-title-line-height: 1.35;
-  --timeline-rail-inset: calc(var(--timeline-marker-size) / 2);
+  --timeline-icon-size: 1.75rem;
+  --timeline-gutter: calc(var(--timeline-icon-size) + var(--space-3));
 
   position: relative;
   display: grid;
@@ -104,54 +115,23 @@
   position: absolute;
   top: var(--space-2);
   bottom: var(--space-2);
-  left: calc(var(--timeline-rail-inset) - 1px);
+  left: calc(var(--timeline-icon-size) / 2 - 1px);
   width: 2px;
   background: color-mix(in srgb, var(--color-slate) 30%, transparent);
   content: '';
 }
 
+/* A coluna da esquerda é a calha do ícone: só o cabeçalho a atravessa, o resto mora na do texto. */
 .item {
-  --timeline-marker-color: var(--color-copper);
-
   position: relative;
   display: grid;
-  gap: var(--space-1);
-  padding: var(--space-2) 0 var(--space-3) calc(var(--timeline-marker-size) + var(--space-3));
+  grid-template-columns: var(--timeline-gutter) minmax(0, 1fr);
+  column-gap: 0;
+  row-gap: var(--space-1);
+  padding: var(--space-2) 0 var(--space-3);
   overflow-wrap: anywhere;
 }
 
-/**
- * O marcador acompanha a **primeira linha do título** — é o título que nomeia o fato, e o ponto
- * marca o fato. Centralizá-lo no item inteiro (tentativa anterior) jogava o ponto na altura dos
- * links em evento alto, longe do que ele marca.
- *
- * A posição é derivada da tipografia do título, não um valor mágico: meia linha do título, menos
- * meio marcador, menos a borda que o `content-box` acrescenta.
- */
-.item::before {
-  position: absolute;
-  top: calc(
-    var(--space-2) + (var(--timeline-title-font-size) * var(--timeline-title-line-height) / 2) -
-      (var(--timeline-marker-size) / 2) - 2px
-  );
-  left: 0;
-  width: var(--timeline-marker-size);
-  height: var(--timeline-marker-size);
-  border: 2px solid var(--color-graphite);
-  border-radius: 50%;
-  background: var(--timeline-marker-color);
-  box-sizing: content-box;
-  transform: translateX(-2px);
-  content: '';
-}
-
-/**
- * Spec 171 P2/RF5/CA05: entrada curta para quem chega novo na lista — recarga, "tentar de novo" ou
- * paginação. Aplicada em todo `<li>` sem custo de estado: React mantém o nó de quem já estava (a
- * `key` não muda), então só o item que acabou de montar no DOM roda a animação; o resto não
- * remonta, e a keyframe não replay. `prefers-reduced-motion` desliga por completo — quem pediu
- * menos movimento não recebe movimento nenhum, nem a versão curta.
- */
 @keyframes tripTimelineItemEnter {
   from {
     opacity: 0;
@@ -174,81 +154,117 @@
   }
 }
 
-.itemDone {
-  --timeline-marker-color: var(--color-ready);
-}
-
-.itemProblem {
-  --timeline-marker-color: var(--color-alert);
-}
-
-/** Spec 180 RF9/T401: o avatar fica ao lado de título+meta, nunca empurrando o texto para baixo. */
 .itemHead {
   display: flex;
+  grid-column: 1 / -1;
   align-items: flex-start;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 
 .itemHeadText {
   display: grid;
+  flex: 1;
   min-width: 0;
   gap: var(--space-1);
 }
 
-/**
- * Spec 180 RF9/RF10 (CA08): iniciais sobre cor fixa, a mesma em claro e escuro — como
- * `--vehicle-color-*`, é identidade, não tema. Texto claro fixo porque as seis cores da paleta são
- * todas de tom médio/escuro por desenho.
- */
-.avatar {
+.itemTitleRow {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.icon {
+  --timeline-icon-tone: var(--color-copper);
+
+  position: relative;
   display: flex;
   flex: none;
   align-items: center;
   justify-content: center;
-  block-size: 1.75rem;
-  inline-size: 1.75rem;
-  border-radius: 50%;
-  color: #f7f5f1;
-  font-size: 0.7rem;
-  font-weight: 700;
-  line-height: 1;
+  block-size: var(--timeline-icon-size);
+  inline-size: var(--timeline-icon-size);
+  border: 1px solid color-mix(in srgb, var(--timeline-icon-tone) 55%, transparent);
+  border-radius: var(--radius-sm, 0.375rem);
+  background: color-mix(in srgb, var(--timeline-icon-tone) 14%, var(--color-graphite));
+  color: var(--timeline-icon-tone);
 }
 
-.avatarPalette0 {
-  background: #4a86b8;
+.icon svg {
+  block-size: 1rem;
+  inline-size: 1rem;
 }
 
-.avatarPalette1 {
-  background: #4aa8a0;
+.iconDone {
+  --timeline-icon-tone: var(--color-ready);
 }
 
-.avatarPalette2 {
-  background: #7bb85a;
+.iconProblem {
+  --timeline-icon-tone: var(--color-alert);
 }
 
-.avatarPalette3 {
-  background: #a3591f;
+.iconProgress {
+  --timeline-icon-tone: var(--color-copper);
 }
 
-.avatarPalette4 {
-  background: #6f42a5;
+.iconNeutral {
+  --timeline-icon-tone: var(--color-slate);
 }
 
-.avatarPalette5 {
-  background: #cc3333;
+.itemChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gap {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-1) 0 var(--space-1) var(--timeline-gutter);
+  color: var(--color-slate-muted);
+  font-size: 0.75rem;
+  font-style: italic;
+}
+
+.gap::after {
+  flex: 1;
+  border-top: 1px dashed color-mix(in srgb, var(--color-slate) 40%, transparent);
+  content: '';
 }
 
 .itemTitle {
   margin: 0;
-  font-size: var(--timeline-title-font-size);
-  font-weight: 700;
-  line-height: var(--timeline-title-line-height);
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 /** O título leva à nota (RF15). Sublinhado só no toque: oito sublinhados empilhados viram cerca. */
 .itemTitleLink {
+  position: relative;
   color: inherit;
   text-decoration: none;
+}
+
+/**
+ * Spec 196: o link media 21px de altura, abaixo do mínimo de 44px, e são até dez por tela. Crescer
+ * por `padding` levantaria cada linha de evento em 23px — uns 230px de página — logo depois de
+ * recolher os mapas justamente para encurtá-la. Mesma saída do pino de GPS: o alvo mora no
+ * pseudo-elemento, o desenho fica onde está. A folga medida entre dois links é de 71px no pior
+ * caso, contra os ~11,5px que este alvo transborda para cada lado.
+ */
+.itemTitleLink::after {
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  block-size: var(--touch-target);
+  transform: translateY(-50%);
+  content: '';
 }
 
 .itemTitleLink:hover,
@@ -279,9 +295,13 @@
   }
 }
 
-.itemTime,
-.itemRecorded {
+.itemTime {
+  flex: none;
+  color: var(--color-slate-muted);
+  font-family: var(--font-utility);
+  font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 /**
@@ -290,7 +310,7 @@
  * Mesmo tom aqui, para as duas leituras da frase de autoria (spec 158) baterem.
  */
 .itemAuthorship {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
 }
 
 /**
@@ -299,6 +319,7 @@
  */
 .itemLinks {
   display: flex;
+  grid-column: 2;
   flex-wrap: wrap;
   gap: var(--space-3);
   margin: 0;
@@ -314,17 +335,74 @@
  * Spec 180 RF16/T304: o botão que expande/recolhe o detalhe — nunca menor que a área de toque, e
  * fora do fluxo do texto para não parecer mais um dado da linha.
  */
+/**
+ * O recuo interno e o alinhamento óptico são duas coisas: zerar o `padding-inline` para o rótulo
+ * encostar na calha deixava o texto colado na borda da caixa, visível assim que o fundo ou o anel
+ * de foco aparecem. A caixa anda para a esquerda exatamente o tanto do próprio recuo — rótulo
+ * alinhado com o título, área interna intacta.
+ */
 .itemToggle {
+  grid-column: 2;
   justify-self: start;
   min-height: var(--touch-target);
+  margin-inline-start: calc(-1 * var(--space-2));
   padding-inline: var(--space-2);
 }
 
+@keyframes tripTimelineDetailEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/**
+ * Spec 196: o detalhe que abre com fronteira. Antes era só um traço de 2px a 25% de `--color-slate`
+ * encostado no botão — num evento cuja única informação é a observação, o bloco nascia com 20px de
+ * altura, sem fundo, sem respiro e sem padding vertical: uma linha de texto colada em "Ver mais",
+ * indistinguível de nada ter acontecido. Agora ele tem superfície, respiro acima e o traço no cobre
+ * que este módulo já usa para o que responde a um clique — a mesma moldura serve à linha de 20px e
+ * ao bloco de 335px com mapa, que é a condição para a fronteira não ficar estranha num dos dois.
+ */
 .itemDetailGroup {
   display: grid;
+  grid-column: 2;
   gap: var(--space-1);
-  padding-inline-start: var(--space-3);
-  border-left: 2px solid color-mix(in srgb, var(--color-slate) 25%, transparent);
+  margin-block-start: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-inline-start: 2px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  border-radius: 0 var(--radius-sm, 0.25rem) var(--radius-sm, 0.25rem) 0;
+  background: color-mix(in srgb, var(--color-slate) 12%, transparent);
+  animation: tripTimelineDetailEnter 160ms ease-out both;
+}
+
+/* Depois da regra, não antes: a media query não soma especificidade, e perderia para ela. */
+@media (prefers-reduced-motion: reduce) {
+  .itemDetailGroup {
+    animation: none;
+  }
+}
+
+/**
+ * Spec 196: o botão do mapa dentro do detalhe. Mesmo par de recuo e margem do `.itemToggle`, e pelo
+ * mesmo motivo — o rótulo alinha com o texto do bloco sem perder a área interna —, mas em regra
+ * própria porque as duas caixas são outras: aquela mora na grade do item, esta dentro do painel.
+ */
+.detailMapToggle {
+  justify-self: start;
+  min-height: var(--touch-target);
+  margin-inline-start: calc(-1 * var(--space-2));
+  padding-inline: var(--space-2);
+}
+
+/* O painel fechado existe só para o `aria-controls` ter destino: vazio, não vira respiro na grade. */
+.mapPanel:empty {
+  display: none;
 }
 
 .itemDetail {
@@ -361,5 +439,58 @@
 }
 
 .error p {
+  margin: 0;
+}
+
+/* A área de toque cresce além do ícone sem alargar a linha de autoria. */
+.locationButton {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-slate-muted);
+  cursor: help;
+}
+
+/**
+ * Spec 196: o alvo media 14×19px. O `inset` negativo partia de `1rem` — o tamanho que o ícone
+ * *deveria* ter —, e o botão mede o que a fonte e o SVG entregam, 14,4×18,6px: a conta devolvia
+ * 42×47. Fixar o lado do pseudo-elemento no próprio token dá 44×44 independente da métrica, e o
+ * desenho não cresce um pixel.
+ */
+.locationButton::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  block-size: var(--touch-target);
+  inline-size: var(--touch-target);
+  transform: translate(-50%, -50%);
+  content: '';
+}
+
+.locationButton:focus-visible {
+  outline: 2px solid var(--color-copper);
+  outline-offset: 2px;
+}
+
+.locationProblem {
+  gap: var(--space-1);
+  color: var(--color-alert);
+}
+
+/**
+ * Spec 196: com o rótulo ao lado, o botão deixa de ser um quadrado, e o alvo de 44×44 centrado
+ * cobriria o meio da frase — o ícone, na ponta, ficaria com os 19px da linha. Aqui o alvo acompanha
+ * a largura do conteúdo, como no título do evento; a altura segue vindo do mesmo token.
+ */
+.locationProblem::after {
+  inline-size: 100%;
+}
+
+.locationMap {
+  display: grid;
+  gap: var(--space-1);
   margin: 0;
 }

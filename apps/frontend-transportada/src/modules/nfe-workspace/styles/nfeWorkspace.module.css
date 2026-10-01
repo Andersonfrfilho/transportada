@@ -797,7 +797,7 @@ div.cardError {
 }
 
 .tableSearchInput::placeholder {
-  color: color-mix(in srgb, var(--color-slate) 80%, transparent);
+  color: var(--color-slate-muted);
 }
 
 .multiFilterPanel {
@@ -1021,6 +1021,8 @@ div.cardError {
   display: grid;
   gap: var(--space-1);
   min-width: 0;
+  /* Sem isto o campo estica até a altura da linha da grade e o controle cru fica mais alto que o do design system. */
+  align-content: start;
 }
 
 .filterFieldLabel {

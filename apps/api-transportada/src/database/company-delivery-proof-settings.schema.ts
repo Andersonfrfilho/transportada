@@ -15,6 +15,7 @@ import {
 } from 'drizzle-orm/pg-core'
 
 import { companies } from './identity.schema.js'
+import { contractors, deliveryClients } from './delivery-client.schema.js'
 import { inList } from './schema-check.constant.js'
 
 /**
@@ -50,6 +51,10 @@ export const companyDeliveryProofSettings = pgTable(
       .$type<DeliveryProofFieldMode>(),
     signature: text().notNull().default('optional').$type<DeliveryProofFieldMode>(),
     photo: text().notNull().default('optional').$type<DeliveryProofFieldMode>(),
+    /** Spec 220 RF01: a foto da mercadoria, separada do canhoto — nasce `off`, a migration não muda comportamento. */
+    cargo: text().notNull().default('off').$type<DeliveryProofFieldMode>(),
+    /** Spec 220 RF06: mínimo de fotos da mercadoria, lido só com `cargo = required`; teto 5 (spec 184 D3). */
+    cargoMinimumCount: integer('cargo_minimum_count').notNull().default(1),
     /** Spec 193 D6: quem recebeu (a relação com o destinatário) — `optional` de fábrica. */
     receivedBy: text('received_by').notNull().default('optional').$type<DeliveryProofFieldMode>(),
     /**
@@ -104,6 +109,11 @@ export const companyDeliveryProofSettings = pgTable(
       'company_delivery_proof_settings_received_by_check',
       sql`${table.receivedBy} in (${MODE_LIST()})`,
     ),
+    check('company_delivery_proof_settings_cargo_check', sql`${table.cargo} in (${MODE_LIST()})`),
+    check(
+      'company_delivery_proof_settings_cargo_minimum_count_check',
+      sql`${table.cargoMinimumCount} between 1 and 5`,
+    ),
     check(
       'company_delivery_proof_settings_proof_window_minutes_check',
       sql`${table.proofWindowMinutes} between 5 and 1440`,
@@ -149,6 +159,10 @@ export const deliveryProofSettingOverrides = pgTable(
       .$type<DeliveryProofFieldMode>(),
     signature: text().notNull().default('optional').$type<DeliveryProofFieldMode>(),
     photo: text().notNull().default('optional').$type<DeliveryProofFieldMode>(),
+    /** Spec 220 RF01: a foto da mercadoria, separada do canhoto — nasce `off`, a migration não muda comportamento. */
+    cargo: text().notNull().default('off').$type<DeliveryProofFieldMode>(),
+    /** Spec 220 RF06: mínimo de fotos da mercadoria, lido só com `cargo = required`; teto 5 (spec 184 D3). */
+    cargoMinimumCount: integer('cargo_minimum_count').notNull().default(1),
     /** Spec 193 D6: a exceção vence a geral por inteiro, inclusive neste campo. */
     receivedBy: text('received_by').notNull().default('optional').$type<DeliveryProofFieldMode>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -159,6 +173,17 @@ export const deliveryProofSettingOverrides = pgTable(
       columns: [table.companyId],
       foreignColumns: [companies.id],
       name: 'delivery_proof_setting_overrides_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /**
+     * Spec 218 RF-C2: FK de verdade, composta com o tenant — antes era só `CHECK` de formato. A
+     * migration faz backfill de `delivery_clients` para todo override "órfão" antes de criar isto.
+     */
+    foreignKey({
+      columns: [table.companyId, table.taxId],
+      foreignColumns: [deliveryClients.companyId, deliveryClients.taxId],
+      name: 'delivery_proof_setting_overrides_company_id_tax_id_delivery_clients_company_id_tax_id_fk',
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
@@ -186,6 +211,90 @@ export const deliveryProofSettingOverrides = pgTable(
     check(
       'delivery_proof_setting_overrides_received_by_check',
       sql`${table.receivedBy} in (${MODE_LIST()})`,
+    ),
+    check('delivery_proof_setting_overrides_cargo_check', sql`${table.cargo} in (${MODE_LIST()})`),
+    check(
+      'delivery_proof_setting_overrides_cargo_minimum_count_check',
+      sql`${table.cargoMinimumCount} between 1 and 5`,
+    ),
+  ],
+)
+
+/**
+ * Spec 218 RF-C1: a exceção por contratante (embarcador/emitente) — mesma forma da exceção por
+ * destinatário acima, trocando `tax_id` livre por `contractor_id` com FK composta para
+ * `contractors`. Sem backfill: todo contratante já nasce cadastrado pela nota (ADR-0048).
+ */
+export const deliveryProofSettingContractorOverrides = pgTable(
+  'delivery_proof_setting_contractor_overrides',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    contractorId: uuid('contractor_id').notNull(),
+    receiverName: text('receiver_name')
+      .notNull()
+      .default('optional')
+      .$type<DeliveryProofFieldMode>(),
+    receiverDocument: text('receiver_document')
+      .notNull()
+      .default('off')
+      .$type<DeliveryProofFieldMode>(),
+    signature: text().notNull().default('optional').$type<DeliveryProofFieldMode>(),
+    photo: text().notNull().default('optional').$type<DeliveryProofFieldMode>(),
+    /** Spec 220 RF01: a foto da mercadoria, separada do canhoto — nasce `off`, a migration não muda comportamento. */
+    cargo: text().notNull().default('off').$type<DeliveryProofFieldMode>(),
+    /** Spec 220 RF06: mínimo de fotos da mercadoria, lido só com `cargo = required`; teto 5 (spec 184 D3). */
+    cargoMinimumCount: integer('cargo_minimum_count').notNull().default(1),
+    receivedBy: text('received_by').notNull().default('optional').$type<DeliveryProofFieldMode>(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'delivery_proof_setting_contractor_overrides_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.contractorId],
+      foreignColumns: [contractors.companyId, contractors.id],
+      name: 'delivery_proof_setting_contractor_overrides_company_id_contractor_id_contractors_company_id_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('delivery_proof_setting_contractor_overrides_company_contractor_unique').on(
+      table.companyId,
+      table.contractorId,
+    ),
+    check(
+      'delivery_proof_setting_contractor_overrides_receiver_name_check',
+      sql`${table.receiverName} in (${MODE_LIST()})`,
+    ),
+    check(
+      'delivery_proof_setting_contractor_overrides_receiver_document_check',
+      sql`${table.receiverDocument} in (${MODE_LIST()})`,
+    ),
+    check(
+      'delivery_proof_setting_contractor_overrides_signature_check',
+      sql`${table.signature} in (${MODE_LIST()})`,
+    ),
+    check(
+      'delivery_proof_setting_contractor_overrides_photo_check',
+      sql`${table.photo} in (${MODE_LIST()})`,
+    ),
+    check(
+      'delivery_proof_setting_contractor_overrides_received_by_check',
+      sql`${table.receivedBy} in (${MODE_LIST()})`,
+    ),
+    check(
+      'delivery_proof_setting_contractor_overrides_cargo_check',
+      sql`${table.cargo} in (${MODE_LIST()})`,
+    ),
+    check(
+      'delivery_proof_setting_contractor_overrides_cargo_minimum_count_check',
+      sql`${table.cargoMinimumCount} between 1 and 5`,
     ),
   ],
 )

@@ -3,7 +3,7 @@ import { isZeroAmount, toTypedMeasure } from '@/modules/shared/decimalAmount.ser
 
 import { VEHICLE_MEASURE_FIELD_SCALE } from './fleetVehicleMeasure.service'
 import { normalizeVehicleCatalogName } from './vehicleCatalogChoices.service'
-import type { FleetVehicleDetail, FleetVehicleFormState } from './fleet.types'
+import type { FleetVehicleDetail, FleetVehicleFormState, MdfeBodyType } from './fleet.types'
 import type { LoadingAccess } from '@/modules/shared/loadingAccess.constant'
 import type { VehicleType } from '@/modules/shared/vehicleType.constant'
 
@@ -69,6 +69,7 @@ export type VehicleSuggestion = Readonly<{
  */
 export function resolveVehicleSuggestion(
   input: Readonly<{
+    bodyType: '' | MdfeBodyType
     brand: string
     model: string
     references: readonly VehicleReference[]
@@ -127,20 +128,27 @@ function fromMeasuredVehicle(
 
 function fromReference(
   input: Readonly<{
+    bodyType: '' | MdfeBodyType
     references: readonly VehicleReference[]
     vehicleType: VehicleType | ''
   }>,
 ): VehicleSuggestion | null {
   /**
-   * ⚠️ Só o tipo casa, nunca a carroceria: a ficha ainda não tem `bodyType` decidido quando o
-   * operador escolhe o tipo, e o catálogo tem `02` para todos os tipos com dado. O implemento
-   * (`vehicleType` vazio) fica de fora — sugerir 14 m de baú a quem ainda não escolheu tipo nenhum
-   * seria preencher a ficha inteira com o maior número da tabela.
+   * O implemento (`vehicleType` vazio) fica de fora — sugerir 14 m de baú a quem ainda não escolheu
+   * tipo nenhum seria preencher a ficha inteira com o maior número da tabela.
+   *
+   * ⚠️ **A carroceria também casa, e sem ela não há sugestão de referência.** A 147 D1 tornou a
+   * carroceria obrigatória fora do cavalo: sem `bodyType` escolhido (`''`) ou com `'00'` (não
+   * aplicável, só o cavalo) qualquer linha do catálogo seria palpite de carroceria — o mesmo tipo
+   * tem baú fechado, aberto e contêiner em linhas diferentes, e a primeira em ordem de `body_type`
+   * deixaria de ser a certa assim que o catálogo ganhasse mais de uma linha por tipo.
    */
   if (input.vehicleType === '') return null
+  if (input.bodyType === '' || input.bodyType === '00') return null
 
   const reference = input.references.find(
-    (candidate) => candidate.vehicleType === input.vehicleType,
+    (candidate) =>
+      candidate.vehicleType === input.vehicleType && candidate.bodyType === input.bodyType,
   )
   if (reference === undefined) return null
 

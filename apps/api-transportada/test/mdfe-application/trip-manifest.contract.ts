@@ -94,6 +94,7 @@ type FixtureParams = {
   readonly candidates?: readonly MdfeCandidateDocument[]
   readonly dischargeCityCount?: number
   readonly readinessState?: TripFiscalReadinessSnapshot['state']
+  readonly tripCrew?: readonly { readonly driverId: string; readonly role: 'driver' | 'helper' }[]
   readonly tripDriverIds?: readonly string[]
   readonly tripRequiresMdfe?: boolean | null
   readonly tripStatus?: TripStatus
@@ -135,9 +136,12 @@ function createFixture(params: FixtureParams = {}) {
     async get(input) {
       tripCalls.push(input)
       return {
-        drivers: (params.tripDriverIds ?? [FIRST_DRIVER_ID, SECOND_DRIVER_ID]).map((driverId) => ({
-          driverId,
-        })),
+        drivers:
+          params.tripCrew ??
+          (params.tripDriverIds ?? [FIRST_DRIVER_ID, SECOND_DRIVER_ID]).map((driverId) => ({
+            driverId,
+            role: 'driver' as const,
+          })),
         id: TRIP_ID,
         requiresMdfe: params.tripRequiresMdfe ?? null,
         status: params.tripStatus ?? 'dispatched',
@@ -224,6 +228,56 @@ describe('create MDF-e manifest from a trip', () => {
       tripId: TRIP_ID,
       vehicleId: VEHICLE_ID,
     })
+  })
+
+  /**
+   * Spec 149 (ADR-0065 §3, critério de aceite 3): a viagem com 1 motorista e 2 ajudantes leva só o
+   * motorista como condutor fiscal — ajudante é tripulação, não condutor.
+   */
+  test('takes only the driver as fiscal crew, never the helpers riding along', async () => {
+    const fixture = createFixture({
+      tripCrew: [
+        { driverId: FIRST_DRIVER_ID, role: 'driver' },
+        { driverId: SECOND_DRIVER_ID, role: 'helper' },
+        { driverId: '44444444-4444-4444-8444-444444444449', role: 'helper' },
+      ],
+    })
+
+    await fixture.useCase.execute({
+      context: CONTEXT,
+      correlationId: 'correlation-crew-role',
+      manifest: fields({ destinationState: 'SP' }),
+      tripId: TRIP_ID,
+    })
+
+    expect(fixture.createCalls).toHaveLength(1)
+    expect(fixture.createCalls[0]?.drivers).toEqual([
+      {
+        driverId: FIRST_DRIVER_ID,
+        driverName: 'Ana Souza',
+        driverTaxId: '12345678909',
+        position: 1,
+      },
+    ])
+  })
+
+  /** Ajudante sozinho (ficha do motorista ainda não veio na tripulação) nunca vira condutor. */
+  test('refuses a trip whose crew has only helpers, same as an empty crew', async () => {
+    const fixture = createFixture({
+      tripCrew: [{ driverId: FIRST_DRIVER_ID, role: 'helper' }],
+    })
+
+    const error = await refusal(() =>
+      fixture.useCase.execute({
+        context: CONTEXT,
+        correlationId: 'correlation-only-helper',
+        manifest: fields({ destinationState: 'SP' }),
+        tripId: TRIP_ID,
+      }),
+    )
+
+    expect(error.code).toBe('MDFE_MANIFEST_CREW_REQUIRED')
+    expect(fixture.createCalls).toEqual([])
   })
 
   test('refuses a note with no authorized CT-e, by the same validation the direct route uses', async () => {

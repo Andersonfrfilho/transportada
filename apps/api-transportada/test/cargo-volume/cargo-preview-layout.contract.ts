@@ -41,6 +41,8 @@ const MEASURED_CONTEXT: TripCargoPreviewContext = {
   bedDimensions: { heightM: '2.500', lengthM: '8.000', source: 'measured', widthM: '2.400' },
   boxesByDocument: new Map(),
   capacityM3: '48.000',
+  capacityUnknownReason: null,
+  capacityUnknownVehicleId: null,
   cargoWeight: null,
   documents: [
     {

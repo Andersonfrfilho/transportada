@@ -23,4 +23,11 @@ describe('o mock da linha do tempo do smoke satisfaz o guard real', () => {
       expect(parsed.items).toHaveLength(items.length)
     })
   }
+
+  it('todos os itens carregam as duas chaves de posição (spec 196)', () => {
+    for (const item of [...FIRST_PAGE_ITEMS, ...SECOND_PAGE_ITEMS]) {
+      expect(Object.keys(item)).toContain('location')
+      expect(Object.keys(item)).toContain('locationState')
+    }
+  })
 })

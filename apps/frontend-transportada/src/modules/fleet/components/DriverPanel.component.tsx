@@ -13,6 +13,7 @@ import type {
   FleetDriverStatus,
 } from '../shared/fleet.types'
 import { cleanFleetFilters } from '../shared/fleetFilters.service'
+import type { FleetDriverVehicleSummary } from '../shared/driverVehicleSummary.service'
 import type { FleetViewStatus } from '../shared/fleetViewModel.service'
 import styles from '../styles/fleet.module.css'
 import { DriverList } from './DriverList.component'
@@ -20,19 +21,21 @@ import { FleetEmptyState } from './FleetEmptyState.component'
 import { FleetStatusHint } from './FleetStatusHint.component'
 import { FleetTableSkeleton } from './FleetTableSkeleton.component'
 
-const DRIVER_COLUMN_COUNT = 7
+const DRIVER_COLUMN_COUNT = 8
 
 type DriverPanelProps = Readonly<{
   actions: Readonly<{
     onEdit: (driver: FleetDriverDetail) => void
     onNew: () => void
     onToggleStatus: (driver: FleetDriverDetail) => void
+    onViewVehicle: (vehicleId: string) => void
   }>
   canManageFleet: boolean
   filters: Readonly<{
     onChange: (value: FleetDriverFilters) => void
     value: FleetDriverFilters
   }>
+  vehiclesByDriverId: ReadonlyMap<string, readonly FleetDriverVehicleSummary[]>
   view: Readonly<{ drivers?: readonly FleetDriverListItem[]; status: FleetViewStatus }>
 }>
 
@@ -70,7 +73,13 @@ function DriverFilterBar({ filters }: Pick<DriverPanelProps, 'filters'>) {
   )
 }
 
-function DriverPanelBody({ actions, canManageFleet, filters, view }: DriverPanelProps) {
+function DriverPanelBody({
+  actions,
+  canManageFleet,
+  filters,
+  vehiclesByDriverId,
+  view,
+}: DriverPanelProps) {
   const { t } = useTranslation('fleet')
   const status = view.status
 
@@ -90,8 +99,10 @@ function DriverPanelBody({ actions, canManageFleet, filters, view }: DriverPanel
       <DriverList
         canManageFleet={canManageFleet}
         drivers={drivers}
+        vehiclesByDriverId={vehiclesByDriverId}
         onEdit={actions.onEdit}
         onToggleStatus={actions.onToggleStatus}
+        onViewVehicle={actions.onViewVehicle}
       />
     )
   }

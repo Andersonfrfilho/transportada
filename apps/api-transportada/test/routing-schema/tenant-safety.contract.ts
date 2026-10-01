@@ -6,9 +6,11 @@ import { describe, expect, test } from 'bun:test'
 import {
   addressComparisons,
   clientDeliveryAddresses,
+  driverAssignmentFeedback,
   geocodedAddressCorrections,
   geocodedAddresses,
   municipalityCentroids,
+  routeSuggestionVehicleHelpers,
 } from '../../src/database/database.schema.js'
 import { columnNames, foreignKeys, uniqueColumnsByName } from '../fiscal-schema/support.js'
 
@@ -82,6 +84,24 @@ describe('routing tenant safety (spec 084)', () => {
    * a tabela deixa de ser ativo do produto e passa a ser do tenant. E se **outra** tabela de
    * roteirização aparecer aqui sem tenant, o teste acima é que tem de crescer.
    */
+  /** Spec 149: as duas tabelas da tripulação sugerida nascem ancoradas na empresa. */
+  test('ancora ajudantes e feedback da escolha numa empresa', () => {
+    expect(foreignKeys(routeSuggestionVehicleHelpers)).toContainEqual(
+      ANCORA('route_suggestion_vehicle_helpers_company_id_companies_id_fk'),
+    )
+    expect(foreignKeys(driverAssignmentFeedback)).toContainEqual(
+      ANCORA('driver_assignment_feedback_company_id_companies_id_fk'),
+    )
+    expect(foreignKeys(driverAssignmentFeedback)).toContainEqual({
+      columns: ['actor_user_id', 'company_id'],
+      foreignColumns: ['user_id', 'company_id'],
+      foreignTable: 'user_company_memberships',
+      name: 'driver_assignment_feedback_actor_membership_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+  })
+
   test('lista por extenso as tabelas sem tenant, e o motivo', () => {
     expect(columnNames(geocodedAddresses)).not.toContain('company_id')
     expect(columnNames(municipalityCentroids)).not.toContain('company_id')

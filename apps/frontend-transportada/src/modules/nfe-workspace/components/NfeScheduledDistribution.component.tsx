@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 import { resolveIneligibilityLabelKey } from '../shared/scheduledDistribution.constant'
 
 import type { ScheduledDistributionStatus } from '../shared/nfeWorkspaceClient.service'
@@ -13,15 +14,6 @@ type NfeScheduledDistributionProps = Readonly<{
 }>
 
 const FAILED_IMPORT_STATUS = 'failed'
-
-function formatMoment(value: string): string {
-  const parsed = Date.parse(value)
-  if (Number.isNaN(parsed)) return value
-  return new Intl.DateTimeFormat('pt-BR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(new Date(parsed))
-}
 
 function ScheduledSkeleton() {
   const { t } = useTranslation('nfeWorkspace')
@@ -54,6 +46,7 @@ function EligibilityLine({ scheduled }: Readonly<{ scheduled: ScheduledDistribut
 
 function LastRunLine({ scheduled }: Readonly<{ scheduled: ScheduledDistributionStatus }>) {
   const { t } = useTranslation('nfeWorkspace')
+  const formatMoment = useMomentFormatter()
   const run = scheduled.lastAutomationImport
   if (run === null) return <p className={styles.distributionMeta}>{t('scheduled.neverRan')}</p>
   const key = run.status === FAILED_IMPORT_STATUS ? 'scheduled.lastRunFailed' : 'scheduled.lastRun'
@@ -66,6 +59,7 @@ function LastRunLine({ scheduled }: Readonly<{ scheduled: ScheduledDistributionS
 
 export function NfeScheduledDistribution(props: NfeScheduledDistributionProps) {
   const { t } = useTranslation('nfeWorkspace')
+  const formatMoment = useMomentFormatter()
   const { scheduled } = props
   if (props.loading) return <ScheduledSkeleton />
   if (scheduled === undefined) return null

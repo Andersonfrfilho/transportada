@@ -27,11 +27,20 @@ import type {
 } from './read-route-geometry.use-case.js'
 
 export type StoredTripRoute = Readonly<{
+  /**
+   * L5 (revisão final da 153): em que trecho cada praça congelada cai, por `osmNodeId` — a mesma
+   * anotação que a leitura ao vivo computa de `nodeIdsByLeg` (`read-route-geometry.use-case.ts`),
+   * só que recuperada do que o congelamento já tinha gravado (`parseFrozenBoothLegIndexes`). Nó sem
+   * entrada é praça sem trecho conhecido — `enrichFrozenToll` cai em `null`, nunca inventa um.
+   */
+  boothLegIndexByNode: ReadonlyMap<number, null | number>
   choiceReproduced: boolean
   criterion: RouteChoiceCriterion
   depot: RouteGeometryView['depot']
   distanceMeters: number
   durationSeconds: number
+  /** L5 (revisão final da 153): se a rota congelada veio da chamada `exclude=toll` (RF2). */
+  isNoToll: boolean
   legs: RouteGeometryOption['legs']
   points: RouteGeometryOption['points']
   returnDistanceMeters: number
@@ -84,7 +93,12 @@ export async function readTripRouteGeometry(
   if (stored === null) return toLiveView({ live: await input.readLiveRoute() })
 
   const [toll, vehicle] = await Promise.all([
-    enrichFrozenToll({ now, toll: stored.toll, tollBooths: input.tollBooths }),
+    enrichFrozenToll({
+      boothLegIndexByNode: stored.boothLegIndexByNode,
+      now,
+      toll: stored.toll,
+      tollBooths: input.tollBooths,
+    }),
     input.route.readVehicleContext({ companyId: input.companyId, tripId: input.tripId }),
   ])
   return toFrozenView({ fuelBaseline: vehicle?.fuelBaseline ?? NO_FUEL_BASELINE, stored, toll })
@@ -135,7 +149,7 @@ function toFrozenView(input: {
     distanceMeters: input.stored.distanceMeters,
     durationSeconds: input.stored.durationSeconds,
     fuelTotal: ranking.options[0]?.fuelTotal ?? null,
-    isNoToll: false,
+    isNoToll: input.stored.isNoToll,
     legs: input.stored.legs,
     points: input.stored.points,
     signature: input.stored.signature,
@@ -171,6 +185,7 @@ function toFrozenView(input: {
  * vivo): são metadados de hoje sobre um pedágio de ontem, não o preço em si.
  */
 async function enrichFrozenToll(input: {
+  readonly boothLegIndexByNode: ReadonlyMap<number, null | number>
   readonly now: () => Date
   readonly toll: null | TollRouteCost
   readonly tollBooths: null | ReadRouteGeometryTollBoothsPort
@@ -196,7 +211,10 @@ async function enrichFrozenToll(input: {
       booths: toll.booths,
       multiplier: toll.multiplier,
       paymentMode: toll.paymentMode,
-    }).map((booth) => ({ ...booth, legIndex: null })),
+    }).map((booth) => ({
+      ...booth,
+      legIndex: input.boothLegIndexByNode.get(booth.osmNodeId) ?? null,
+    })),
     catalog: resolveTollCatalogStatus({ summary: catalogSummary, today: input.now() }),
     multiplierLabel: formatTollMultiplier(toll.multiplier),
     tariffObservedOn: observedDates[0] ?? null,

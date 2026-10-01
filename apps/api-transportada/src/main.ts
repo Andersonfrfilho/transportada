@@ -221,13 +221,13 @@ import { readDeliveryProofs } from './trips/application/read-delivery-proof.use-
 import { readRouteGeometry } from './trips/application/read-route-geometry.use-case.js'
 import { readTripRouteGeometry as readTripRouteGeometryUseCase } from './trips/application/read-trip-route-geometry.use-case.js'
 import { freezeTripPlannedRoute } from './trips/application/freeze-trip-planned-route.use-case.js'
-import { planTripRoute } from './trips/application/plan-trip-route.use-case.js'
 import { createOsrmRouteGeometryGateway } from './trips/infrastructure/osrm-route-geometry.gateway.js'
 import { createRouteDepotQuery } from './trips/infrastructure/route-depot.query.js'
 import { createRouteGeometryVehicleAxlesQuery } from './trips/infrastructure/route-geometry-vehicle-axles.query.js'
 import { DrizzleTripPlannedRouteRepository } from './trips/infrastructure/drizzle-trip-planned-route.repository.js'
 import { createDrizzleTollBoothRepository } from './toll-booths/infrastructure/drizzle-toll-booth.repository.js'
 import { listTripStopCoordinates } from './trips/infrastructure/trip-stop-coordinates.support.js'
+import type { RouteGeometryPoint } from './trips/domain/route-geometry.policy.js'
 import { createDeliveryProofDownloadGateway } from './trips/infrastructure/delivery-proof-download.gateway.js'
 import { readTripDocumentProducts } from './trips/application/read-trip-document-products.use-case.js'
 import { createRequestCargoLayoutUseCase } from './trips/application/request-cargo-layout.use-case.js'
@@ -271,7 +271,25 @@ import {
   sha256Hex,
 } from './trips/domain/occurrence-attachment.policy.js'
 import { TRIP_FIELD_CHANNELS } from './trips/domain/trip-field-channel.constant.js'
+import { correctOccurrenceItems } from './trips/application/correct-occurrence-items.use-case.js'
+import { reviewCanhotoProof } from './trips/application/review-canhoto-proof.use-case.js'
+import { cancelOccurrence } from './trips/application/cancel-occurrence.use-case.js'
+import {
+  DrizzleOccurrenceCorrectionUnitOfWork,
+  readOccurrenceView as readCorrectedOccurrenceView,
+} from './trips/infrastructure/drizzle-occurrence-correction.repository.js'
+import {
+  buildOccurrenceCancellationFingerprint,
+  buildOccurrenceCorrectionFingerprint,
+  OCCURRENCE_CANCELLATION_OPERATION,
+  OCCURRENCE_CORRECTION_OPERATION,
+} from './trips/domain/occurrence-correction.policy.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
+import {
+  readOccurrenceAttachmentOverrides,
+  replaceOccurrenceAttachmentOverrides,
+} from './trips/application/occurrence-attachment-overrides.use-case.js'
+import { DrizzleOccurrenceAttachmentOverridesRepository } from './trips/infrastructure/drizzle-occurrence-attachment-overrides.repository.js'
 import {
   createListTripOccurrenceFeedUseCase,
   createReadTripOccurrenceAttachmentsUseCase,
@@ -326,6 +344,15 @@ import { createVehicleReferenceRoutes } from './fleet/presentation/vehicle-refer
 import { DrizzleVehicleReferenceRepository } from './fleet/infrastructure/drizzle-vehicle-reference.repository'
 import { createIdentityContactDirectoryGateway } from './fleet/infrastructure/identity-contact-directory.gateway'
 import { createFleetRoutes } from './fleet/presentation/fleet.routes'
+import {
+  createGetCrewSettingsUseCase,
+  createSetCrewSettingsUseCase,
+} from './fleet/application/crew-settings.use-case'
+import { DrizzleCrewSettingsRepository } from './fleet/infrastructure/drizzle-crew-settings.repository'
+import { createCompanyCrewSettingsRoutes } from './fleet/presentation/crew-settings.routes'
+import { createListPendingItemsUseCase } from './pending-items/application/list-pending-items.use-case.js'
+import { createFleetBodyTypePendingItemSource } from './pending-items/infrastructure/drizzle-fleet-body-type-pending-item.source.js'
+import { createPendingItemsRoutes } from './pending-items/presentation/pending-items.routes.js'
 import { createLookupPostalCodeUseCase } from './addresses/application/lookup-postal-code.use-case.js'
 import { createReadAddressReportUseCase } from './addresses/application/read-address-report.use-case.js'
 import { createDrizzleAddressReportRepository } from './addresses/infrastructure/drizzle-address-report.repository.js'
@@ -377,6 +404,7 @@ import {
   resolveCargoLayoutLeaseMs,
 } from './trips/domain/cargo-layout-lease.policy.js'
 import { createFinancialSummaryRoutes } from './trips/presentation/financial-summary.routes.js'
+import { createCanhotoReviewRoutes } from './trips/presentation/canhoto-review.routes.js'
 import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
 import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case.routes.js'
 import { createTripOccurrenceDetailRoutes } from './trips/presentation/trip-occurrence-detail.routes.js'
@@ -466,6 +494,7 @@ import { createReimburseOccurrenceSettlementUseCase } from './trips/application/
 import { createFindOccurrenceSettlementUseCase } from './trips/application/find-occurrence-settlement.use-case.js'
 import { DrizzleOccurrenceSettlementRepository } from './trips/infrastructure/drizzle-occurrence-settlement.repository.js'
 import { DrizzleOccurrenceSettlementChargeRepository } from './trips/infrastructure/drizzle-occurrence-settlement-charge.repository.js'
+import { DrizzleCanhotoReviewUnitOfWork } from './trips/infrastructure/drizzle-canhoto-review.repository.js'
 import { DrizzleTripDocumentReviewRepository } from './trips/infrastructure/drizzle-trip-document-review.repository.js'
 import { DrizzleTripCostRepository } from './trips/infrastructure/drizzle-trip-cost.repository.js'
 import { DrizzleTripRevenueRepository } from './trips/infrastructure/drizzle-trip-revenue.repository.js'
@@ -508,6 +537,8 @@ import { createDeliveryProofStorage } from './trips/infrastructure/delivery-proo
 import { DrizzleDeliveryProofRepository } from './trips/infrastructure/drizzle-delivery-proof.repository'
 import { DrizzleDeliveryProofSettingsRepository } from './trips/infrastructure/drizzle-delivery-proof-settings.repository'
 import { createDeliveryProofSettingsRoutes } from './trips/presentation/delivery-proof-settings.routes'
+import { readSettingsResolution } from './trips/application/read-settings-resolution.use-case.js'
+import { createSettingsResolutionRoutes } from './trips/presentation/settings-resolution.routes.js'
 import { DrizzleCurrentDriverTripRepository } from './trips/infrastructure/drizzle-current-driver-trip.repository'
 import { DrizzleDriverScoreRepository } from './fleet/infrastructure/drizzle-driver-score.repository'
 import type { DriverFieldReportTransactionPort } from './trips/application/driver-field-report.port.js'
@@ -1819,6 +1850,43 @@ type CreateApplicationRoutesParams = {
   readonly vehicleCatalog: ApiEnvironment['vehicleCatalog']
 }
 
+const TRIP_ROUTE_GEOMETRY_STOPS_GAP_MESSAGE = 'trip_route_geometry_stops_gap'
+
+/**
+ * N7 (segunda revisão da 153): `listTripStopCoordinates` devolve `null` para "tem parada sem
+ * coordenada" e `[]` para "não tem parada nenhuma" — o `?? []` na prévia da geometria colapsava os
+ * dois no mesmo `unavailable`, sem deixar rastro de qual dos dois aconteceu. Sem mudar a resposta
+ * (RouteGeometryView continua `unavailable` para as duas), o aviso preserva a distinção para quem
+ * investiga depois.
+ */
+async function readTripRouteGeometryStopsOrWarn(input: {
+  readonly companyId: string
+  readonly database: CompanySettingsDatabase
+  readonly logger: ApiLogger
+  readonly tripId: string
+}): Promise<readonly RouteGeometryPoint[]> {
+  const coordinates = await listTripStopCoordinates(input.database, {
+    companyId: input.companyId,
+    tripId: input.tripId,
+  })
+  if (coordinates === null) {
+    input.logger.warn(TRIP_ROUTE_GEOMETRY_STOPS_GAP_MESSAGE, {
+      companyId: input.companyId,
+      reason: 'missing_coordinate',
+      tripId: input.tripId,
+    })
+    return []
+  }
+  if (coordinates.length === 0) {
+    input.logger.warn(TRIP_ROUTE_GEOMETRY_STOPS_GAP_MESSAGE, {
+      companyId: input.companyId,
+      reason: 'no_stops',
+      tripId: input.tripId,
+    })
+  }
+  return coordinates
+}
+
 function createApplicationRoutes({
   apiPublicUrl,
   automaticOccurrenceMail,
@@ -1976,6 +2044,10 @@ function createApplicationRoutes({
   })
   const fleetDriverRepository = new DrizzleFleetDriverRepository(database)
   const driverScoreRepository = new DrizzleDriverScoreRepository(database)
+  const crewSettingsRepository = new DrizzleCrewSettingsRepository(database)
+  const pendingItems = createListPendingItemsUseCase({
+    sources: [createFleetBodyTypePendingItemSource({ database })],
+  })
   const freightRegionRepository = new DrizzleFreightRegionRepository(database)
   const fleetDriverRegionRepository = new DrizzleFleetDriverRegionRepository(database)
   const fleetDriverVehicleRepository = new DrizzleFleetDriverVehicleRepository({
@@ -2083,6 +2155,8 @@ function createApplicationRoutes({
     resolveStorageBucket(environment),
   )
   const deliveryProofSettingsRepository = new DrizzleDeliveryProofSettingsRepository(database)
+  const occurrenceAttachmentOverridesRepository =
+    new DrizzleOccurrenceAttachmentOverridesRepository(database)
   const tripPlannedRouteRepository = new DrizzleTripPlannedRouteRepository(database)
   /**
    * Spec 153 T201 (substitui a spec 090 T11): congela a rota inteira — traçado, métricas e
@@ -2116,11 +2190,14 @@ function createApplicationRoutes({
         tripId: input.tripId,
       }),
   }
+  /** Spec 220 T6.8: a conferência do canhoto escreve veredito e trilha na mesma transação. */
+  const canhotoReviewUnitOfWork = new DrizzleCanhotoReviewUnitOfWork(database)
   /** RF12/D6: a fila de revisão (`move`/`swap`, spec 148) recalcula com o mesmo congelador (T206). */
   const tripDocumentReviewRepository = new DrizzleTripDocumentReviewRepository(
     database,
     cargoLayoutLeaseOptions,
     tripRouteTollFreezer,
+    logger,
   )
   /** Spec 164 T5/T7: as ações internas da tratativa da ocorrência. */
   const occurrenceCaseRepository = new DrizzleOccurrenceCaseRepository(database)
@@ -2169,6 +2246,7 @@ function createApplicationRoutes({
     documentRepository: tripDocumentRepository,
     locationRepository: tripStopLookupRepository,
     logger,
+    routeFreezeLogger: logger,
     routeRepository: tripRouteRepository,
     stopRepository: tripStopLookupRepository,
     suggestCharges: suggestDeliveryCharges,
@@ -2329,6 +2407,7 @@ function createApplicationRoutes({
         }),
     },
     locations: tripLocationRepository,
+    logger,
     repository: tripRepository,
     routeFreezer: tripRouteTollFreezer,
   })
@@ -2792,23 +2871,16 @@ function createApplicationRoutes({
             queue: routeOptimizationQueue,
             repository: createDrizzleRouteSuggestionRepository(database),
             /**
-             * Spec 153 D7/RF3: o aceite por viagem também congela a rota, pela mesma porta da T201
-             * — nunca um segundo caminho de escrita.
+             * Spec 153 D7/T703: o aceite por viagem congela a rota pelo mesmo congelador tolerante
+             * da T201 (`tripRouteTollFreezer`, ver `freezeRouteGracefully` acima) — nunca
+             * `planTripRoute`, que lança para viagem sem rota possível e promove o status como
+             * efeito colateral que a D7 não pediu.
              */
-            routePlanner: {
-              planRoute: (input) =>
-                planTripRoute({
-                  actorUserId: input.actorUserId,
-                  channel: TRIP_FIELD_CHANNELS.backoffice,
-                  companyId: input.companyId,
-                  repository: tripRouteRepository,
-                  ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
-                  tollFreezer: tripRouteTollFreezer,
-                  tripId: input.tripId,
-                }).then(() => undefined),
-            },
+            routeFreezer: tripRouteTollFreezer,
             stopOrder: createTripStopOrderWriter(tripRouteRepository),
             trips: createDrizzleTripRouteGate(database),
+            /** N10 (segunda revisão da 153): o aceite silenciava a falha do congelamento. */
+            logger,
           }),
         })),
     /**
@@ -2825,6 +2897,12 @@ function createApplicationRoutes({
             suggestions: createDrizzleRouteSuggestionRepository(database),
             trips: createTripComposer({
               create: (input) => trips.create(input),
+              /**
+               * Spec 153 T708 (H4): reaproveita a viagem já composta em vez de criar outra vazia a
+               * cada reaceite — direto no repositório, como a leitura de parada logo abaixo.
+               */
+              findLiveTripIdForDocuments: (input) =>
+                tripRepository.findLiveTripIdForDocuments(input),
               link: (input) => trips.linkDocument(input),
               /**
                * A leitura vai direto ao caso de uso de listar parada, e não ao ciclo de vida com um
@@ -2856,6 +2934,7 @@ function createApplicationRoutes({
                   arrivals: input.arrivals,
                   companyId: input.context.companyId,
                   plannedDepartureAt: input.plannedDepartureAt,
+                  returnLegSeconds: input.returnLegSeconds ?? null,
                   tripId: input.tripId,
                 }),
             }),
@@ -2873,6 +2952,10 @@ function createApplicationRoutes({
                 valuation: {
                   findApplicableRule: (rule) => applicableFreightRuleQuery.findApplicableRule(rule),
                   readContext: (trip) => tripValuationQuery.readContext(trip),
+                  readHelperCompanyDailyRate: (input) =>
+                    tripValuationQuery.readHelperCompanyDailyRate(input),
+                  readHelperOwnDailyRates: (input) =>
+                    tripValuationQuery.readHelperOwnDailyRates(input),
                   readPreviewContext: (preview) => tripValuationQuery.readPreviewContext(preview),
                 },
               }),
@@ -2926,7 +3009,14 @@ function createApplicationRoutes({
       updateVehicle: { execute: (input) => fleetVehicles.update(input) },
       vehicleCatalog: { isAvailable: () => vehicleCatalog !== null },
     }),
+    ...createCompanyCrewSettingsRoutes({
+      get: createGetCrewSettingsUseCase({ crewSettings: crewSettingsRepository }),
+      set: createSetCrewSettingsUseCase({ crewSettings: crewSettingsRepository }),
+    }),
     ...createFleetCatalogRoutes({ vehicleCatalog: fleetVehicleCatalog }),
+    ...createPendingItemsRoutes({
+      listPendingItems: { execute: (input) => pendingItems.execute(input) },
+    }),
     ...createVehicleReferenceRoutes({
       vehicleReferences: new DrizzleVehicleReferenceRepository({ database }),
     }),
@@ -2962,6 +3052,13 @@ function createApplicationRoutes({
     }),
     /** Spec 148 T7: a fila de revisão das notas que não couberam. */
     ...createTripDocumentReviewRoutes({ reviews: tripDocumentReviewRepository }),
+    /** Spec 220 RF27: conferir o canhoto — aprovar ou recusar com motivo, sob `trip.manage`. */
+    ...createCanhotoReviewRoutes({
+      canhotoReview: {
+        review: (input) => reviewCanhotoProof({ ...input, unitOfWork: canhotoReviewUnitOfWork }),
+      },
+      resolveClientIp,
+    }),
     /** Spec 183 RF1: o detalhe que a linha de `/ocorrencias` abre (`fleet.read`, como a listagem). */
     ...createTripOccurrenceDetailRoutes({
       readTripOccurrenceDetail: createReadTripOccurrenceDetailUseCase({
@@ -3268,10 +3365,36 @@ function createApplicationRoutes({
       }),
     }),
     ...createDeliveryProofSettingsRoutes({
+      listContractorOverrides: (input) =>
+        deliveryProofSettingsRepository.listContractorOverrides(input),
       listOverrides: (input) => deliveryProofSettingsRepository.listOverrides(input),
       readSettings: (input) => deliveryProofSettingsRepository.readSettings(input),
+      replaceContractorOverrides: (input) =>
+        deliveryProofSettingsRepository.replaceContractorOverrides(input),
       replaceOverrides: (input) => deliveryProofSettingsRepository.replaceOverrides(input),
       saveSettings: (input) => deliveryProofSettingsRepository.saveSettings(input),
+    }),
+    /** Spec 218 RF-E1: composição pura — os mesmos repositórios das rotas acima, sem escrita. */
+    ...createSettingsResolutionRoutes({
+      readSettingsResolution: (input) =>
+        readSettingsResolution({
+          ...input,
+          port: {
+            deliveryProof: {
+              listContractorOverrides: (query) =>
+                deliveryProofSettingsRepository.listContractorOverrides(query),
+              listOverrides: (query) => deliveryProofSettingsRepository.listOverrides(query),
+              readSettings: (query) => deliveryProofSettingsRepository.readSettings(query),
+            },
+            occurrenceTypeOverrides: {
+              listOverridesForTypes: (query) =>
+                occurrenceAttachmentOverridesRepository.listOverridesForTypes(query),
+            },
+            occurrenceTypes: {
+              listOccurrenceTypes: (query) => listOccurrenceTypes(database, query),
+            },
+          },
+        }),
     }),
     ...createTripFieldDeliverySettingsRoutes({
       readCanhotoOcrEnabled: (input) =>
@@ -3414,6 +3537,12 @@ function createApplicationRoutes({
       listFieldOccurrenceTypes: (input) =>
         listFieldOccurrenceTypes({
           companyId: input.companyId,
+          contractorId: input.contractorId ?? null,
+          overrides: {
+            listOverridesForTypes: (query) =>
+              occurrenceAttachmentOverridesRepository.listOverridesForTypes(query),
+          },
+          recipientTaxId: input.recipientTaxId ?? null,
           repository: { listOccurrenceTypes: (query) => listOccurrenceTypes(database, query) },
         }),
       findCurrentTrip: (input) =>
@@ -3533,6 +3662,12 @@ function createApplicationRoutes({
       listFieldOccurrenceTypes: (input) =>
         listFieldOccurrenceTypes({
           companyId: input.companyId,
+          contractorId: input.contractorId ?? null,
+          overrides: {
+            listOverridesForTypes: (query) =>
+              occurrenceAttachmentOverridesRepository.listOverridesForTypes(query),
+          },
+          recipientTaxId: input.recipientTaxId ?? null,
           repository: { listOccurrenceTypes: (query) => listOccurrenceTypes(database, query) },
         }),
       /** Spec 156 T7b, D9: a mesma foto para as N notas — um `stored_objects` só, no molde do canhoto. */
@@ -3567,9 +3702,48 @@ function createApplicationRoutes({
       closeTrip: { execute: (input) => trips.close(input) },
       createTrip: { execute: (input) => trips.create(input) },
       updateTripCrew: { execute: (input) => trips.updateCrew(input) },
+      setTripTrailer: { execute: (input) => trips.setTrailer(input) },
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
       listOccurrenceTypes: {
         execute: (input) => listOccurrenceTypes(database, { companyId: input.context.companyId }),
+      },
+      readOccurrenceAttachmentOverrides: {
+        execute: (input) =>
+          readOccurrenceAttachmentOverrides({
+            companyId: input.context.companyId,
+            occurrenceTypeId: input.occurrenceTypeId,
+            port: {
+              findOccurrenceType: (query) => findOccurrenceType(database, query),
+              listContractorOverrides: (query) =>
+                occurrenceAttachmentOverridesRepository.listContractorOverrides(query),
+              listRecipientOverrides: (query) =>
+                occurrenceAttachmentOverridesRepository.listRecipientOverrides(query),
+              replaceContractorOverrides: (query) =>
+                occurrenceAttachmentOverridesRepository.replaceContractorOverrides(query),
+              replaceRecipientOverrides: (query) =>
+                occurrenceAttachmentOverridesRepository.replaceRecipientOverrides(query),
+            },
+          }),
+      },
+      replaceOccurrenceAttachmentOverrides: {
+        execute: (input) =>
+          replaceOccurrenceAttachmentOverrides({
+            companyId: input.context.companyId,
+            contractorOverrides: input.contractorOverrides,
+            occurrenceTypeId: input.occurrenceTypeId,
+            port: {
+              findOccurrenceType: (query) => findOccurrenceType(database, query),
+              listContractorOverrides: (query) =>
+                occurrenceAttachmentOverridesRepository.listContractorOverrides(query),
+              listRecipientOverrides: (query) =>
+                occurrenceAttachmentOverridesRepository.listRecipientOverrides(query),
+              replaceContractorOverrides: (query) =>
+                occurrenceAttachmentOverridesRepository.replaceContractorOverrides(query),
+              replaceRecipientOverrides: (query) =>
+                occurrenceAttachmentOverridesRepository.replaceRecipientOverrides(query),
+            },
+            recipientOverrides: input.recipientOverrides,
+          }),
       },
       saveOccurrenceType: {
         execute: (input) =>
@@ -3598,6 +3772,7 @@ function createApplicationRoutes({
               emailSubject: input.emailSubject,
               emailsContractor: input.emailsContractor,
               emailTemplateKey: input.emailTemplateKey,
+              flow: input.flow,
               leavesDocumentBehind: input.leavesDocumentBehind,
               name: input.name,
               notifies: input.notifies,
@@ -3842,6 +4017,76 @@ function createApplicationRoutes({
               }),
           }),
       },
+      /**
+       * Spec 167 T301/T302/T305 (RF2/RF4): idempotência pelo canal `backoffice`
+       * (ADR-0068 §3, "ação do escritório que não é em nome do motorista") — a mesma chave com o
+       * mesmo conjunto de itens converge; com outro conjunto, a chave reaproveitada é 409.
+       */
+      correctOccurrenceItems: {
+        execute: (input) =>
+          withFieldReport({
+            guard: {
+              actorUserId: input.context.userId,
+              authorship: { channel: TRIP_FIELD_CHANNELS.backoffice, onBehalfOfDriverId: null },
+              companyId: input.context.companyId,
+              idempotencyKey: input.idempotencyKey,
+              operation: `${OCCURRENCE_CORRECTION_OPERATION}:${buildOccurrenceCorrectionFingerprint(
+                {
+                  occurrenceId: input.occurrenceId,
+                  productCodes: input.productCodes,
+                  productQuantities: input.productQuantities,
+                  productQuantityUnits: input.productQuantityUnits,
+                },
+              )}`,
+              transaction: fieldReportGuardTransaction,
+            },
+            perform: () =>
+              correctOccurrenceItems({
+                actorUserId: input.context.userId,
+                companyId: input.context.companyId,
+                occurrenceId: input.occurrenceId,
+                productCode: '',
+                productCodes: input.productCodes,
+                productQuantities: input.productQuantities,
+                productQuantityUnits: input.productQuantityUnits,
+                unitOfWork: new DrizzleOccurrenceCorrectionUnitOfWork(database),
+              }),
+            recall: (resultId) =>
+              readCorrectedOccurrenceView(database, {
+                companyId: input.context.companyId,
+                occurrenceId: resultId,
+              }),
+          }),
+      },
+      /** Spec 167 T303/T304/T305 (RF6/RF8): mesmo canal e mesmo desenho de idempotência acima. */
+      cancelOccurrence: {
+        execute: (input) =>
+          withFieldReport({
+            guard: {
+              actorUserId: input.context.userId,
+              authorship: { channel: TRIP_FIELD_CHANNELS.backoffice, onBehalfOfDriverId: null },
+              companyId: input.context.companyId,
+              idempotencyKey: input.idempotencyKey,
+              operation: `${OCCURRENCE_CANCELLATION_OPERATION}:${buildOccurrenceCancellationFingerprint(
+                { occurrenceId: input.occurrenceId, reason: input.reason },
+              )}`,
+              transaction: fieldReportGuardTransaction,
+            },
+            perform: () =>
+              cancelOccurrence({
+                actorUserId: input.context.userId,
+                companyId: input.context.companyId,
+                occurrenceId: input.occurrenceId,
+                reason: input.reason,
+                unitOfWork: new DrizzleOccurrenceCorrectionUnitOfWork(database),
+              }),
+            recall: (resultId) =>
+              readCorrectedOccurrenceView(database, {
+                companyId: input.context.companyId,
+                occurrenceId: resultId,
+              }),
+          }),
+      },
       readTripDocumentProducts: {
         execute: (input) =>
           readTripDocumentProducts({
@@ -3924,8 +4169,22 @@ function createApplicationRoutes({
                     ? { readRouteGeometry: async () => null }
                     : createOsrmRouteGeometryGateway({ baseUrl: routingMatrixUrl }),
                 now: () => new Date(),
-                stops: await listTripStopCoordinates(database, {
+                /**
+                 * T704 M4: parada sem coordenada devolve `null`, e a prévia do mapa segue a mesma
+                 * regra do congelamento — sem rota, nunca a rota das paradas que sobraram. Lista
+                 * vazia é o que `readRouteGeometry` já trata como estrada indisponível (D5).
+                 *
+                 * N7 (segunda revisão da 153): o `?? []` apagava a diferença entre "esta viagem tem
+                 * paradas, mas uma sem coordenada" e "esta viagem não tem parada nenhuma" —
+                 * `readRouteGeometry` recebe as duas como `unavailable` hoje, e distingui-las na
+                 * resposta é mudança de contrato (fora do escopo aqui: reportado, não feito). O que
+                 * dá para preservar sem tocar a resposta é o aviso, para quem investiga uma viagem
+                 * presa em `unavailable` sem abrir o banco.
+                 */
+                stops: await readTripRouteGeometryStopsOrWarn({
                   companyId: input.context.companyId,
+                  database,
+                  logger,
                   tripId: input.tripId,
                 }),
                 tollBooths: createCompanyScopedTollBoothGateway({
@@ -4112,6 +4371,7 @@ function createApplicationRoutes({
       },
       linkTripDocument: { execute: (input) => trips.linkDocument(input) },
       linkTripDocumentsBatch: createLinkTripDocumentsBatchUseCase({
+        logger,
         repository: tripRepository,
         routeFreezer: tripRouteTollFreezer,
       }),

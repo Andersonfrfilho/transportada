@@ -131,6 +131,7 @@ async function createAwaitingCrewTrip(
     channel: TRIP_FIELD_CHANNELS.backoffice,
     companyId: fleet.companyId,
     crew: [],
+    trailerVehicleId: null,
     vehicleId: null,
   })
   await database.update(trips).set({ status: 'awaiting_crew' }).where(eq(trips.id, created.id))
@@ -214,8 +215,10 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
               driverName: 'Primeiro Motorista',
               driverTaxId: '11111111111',
               position: 1,
+              role: 'driver',
             },
           ],
+          trailerVehicleId: null,
           vehicleId: fleet.firstVehicleId,
         })
 
@@ -252,6 +255,7 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
               driverName: 'Segundo Motorista',
               driverTaxId: '22222222222',
               position: 1,
+              role: 'driver',
             },
           ],
           tripId: created.id,
@@ -307,8 +311,10 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
               driverName: 'Primeiro Motorista',
               driverTaxId: '11111111111',
               position: 1,
+              role: 'driver',
             },
           ],
+          trailerVehicleId: null,
           vehicleId: fleet.firstVehicleId,
         })
         await database.db
@@ -327,6 +333,7 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
                 driverName: 'Segundo Motorista',
                 driverTaxId: '22222222222',
                 position: 1,
+                role: 'driver',
               },
             ],
             tripId: created.id,
@@ -366,8 +373,10 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
               driverName: 'Primeiro Motorista',
               driverTaxId: '11111111111',
               position: 1,
+              role: 'driver',
             },
           ],
+          trailerVehicleId: null,
           vehicleId: fleet.firstVehicleId,
         })
         expect(created.status).toBe('draft')
@@ -382,6 +391,7 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
               driverName: 'Segundo Motorista',
               driverTaxId: '22222222222',
               position: 1,
+              role: 'driver',
             },
           ],
           tripId: created.id,
@@ -431,8 +441,10 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
               driverName: 'Primeiro Motorista',
               driverTaxId: '11111111111',
               position: 1,
+              role: 'driver',
             },
           ],
+          trailerVehicleId: null,
           vehicleId: fleet.firstVehicleId,
         })
         /**
@@ -481,6 +493,7 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
               driverName: 'Segundo Motorista',
               driverTaxId: '22222222222',
               position: 1,
+              role: 'driver',
             },
           ],
           tripId: created.id,
@@ -599,6 +612,7 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
               driverName: 'Primeiro Motorista',
               driverTaxId: '11111111111',
               position: 1,
+              role: 'driver',
             },
           ],
           tripId,
@@ -662,6 +676,7 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
               driverName: 'Primeiro Motorista',
               driverTaxId: '11111111111',
               position: 1,
+              role: 'driver',
             },
           ],
           tripId,
@@ -696,8 +711,10 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
               driverName: 'Primeiro Motorista',
               driverTaxId: '11111111111',
               position: 1,
+              role: 'driver',
             },
           ],
+          trailerVehicleId: null,
           vehicleId: fleet.firstVehicleId,
         })
         expect(created.status).toBe('draft')

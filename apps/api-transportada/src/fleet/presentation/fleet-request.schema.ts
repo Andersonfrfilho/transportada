@@ -138,6 +138,8 @@ const vehicleFieldsSchema = z.object({
   cargoLengthMeters: buildCargoDimensionSchema('cargoLengthMeters'),
   cargoWidthMeters: buildCargoDimensionSchema('cargoWidthMeters'),
   color: z.literal('').or(z.enum(VEHICLE_COLORS)),
+  /** Feature 147 D3: só o cavalo escolhe; o apontado existir/ser carreta ativa é do caso de uso. */
+  defaultTrailerVehicleId: z.uuid().nullable(),
   fleetNumber: z.string().trim().max(VEHICLE_FLEET_NUMBER_MAX_LENGTH),
   fuelType: z.enum(FUEL_PRODUCTS_TUPLE),
   /** Spec 095 D3: default `false` — sem marcar, o pedágio segue sempre pela tarifa manual. */
@@ -191,6 +193,17 @@ const homeCoordinateSchema = z
 const driverFieldsSchema = z.object({
   address: driverAddressSchema,
   anttCategory: z.literal('').or(z.enum(MDFE_OWNER_TAX_REGIMES)),
+  /**
+   * Spec 149 D1: ajudante é papel na tripulação, marcado no cadastro — a mesma pessoa pode dirigir
+   * numa viagem e ajudar em outra. `default(false)`: ausência é "não pode", nunca suposição.
+   */
+  canActAsHelper: z.boolean().default(false),
+  /**
+   * Spec 149 D2: a diária própria vence a geral (`company_crew_settings`) quando existe. `null`
+   * apaga e devolve ao valor geral; ausente (`exactOptionalPropertyTypes`) é silêncio — a ficha não
+   * mexe no que já existe. Negativo não casa `MONEY_DECIMAL` e vira 400 na fronteira.
+   */
+  helperDailyRate: z.string().regex(MONEY_DECIMAL).nullable().optional(),
   /**
    * Spec 100: o motorista amarra a carga com cinta. ⚠️ `default(false)` e não opcional na leitura:
    * ausência é **não amarra**, e supor cinta desenharia pilha alta para quem não amarra.

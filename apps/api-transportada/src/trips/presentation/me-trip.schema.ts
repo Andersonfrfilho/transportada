@@ -58,24 +58,30 @@ const returnSchema = z
   })
   .strict()
 
-const occurrenceSchema = z
-  .object({
-    /**
-     * Spec 209 RF2: a foto do "Deu problema", em qualquer motivo — o id do upload confirmado da 179,
-     * nunca o arquivo. Ausente é a ocorrência sem foto, que é o que todo cliente anterior manda.
-     */
-    attachmentObjectId: z.uuid().nullish(),
-    description: z.string().max(OCCURRENCE_DESCRIPTION_MAX_LENGTH).optional(),
-    /**
-     * ADR-0057 §3: metros entre o motorista e a parada, medidos no aparelho. Ausente é **não
-     * aferida** — parada sem coordenada, ou posição que nunca fixou —, e continua sendo aceita:
-     * distância grande é informação para quem decide, nunca porteiro.
-     */
-    distanceMeters: z.int().min(0).nullish(),
-    documentId: z.uuid().nullish(),
-    kind: z.enum(TRIP_STOP_OCCURRENCE_KINDS),
-  })
-  .strict()
+const occurrenceBodySchema = z.object({
+  /**
+   * Spec 209 RF2: a foto do "Deu problema", em qualquer motivo — o id do upload confirmado da 179,
+   * nunca o arquivo. Ausente é a ocorrência sem foto, que é o que todo cliente anterior manda.
+   */
+  attachmentObjectId: z.uuid().nullish(),
+  description: z.string().max(OCCURRENCE_DESCRIPTION_MAX_LENGTH).optional(),
+  /**
+   * ADR-0057 §3: metros entre o motorista e a parada, medidos no aparelho. Ausente é **não
+   * aferida** — parada sem coordenada, ou posição que nunca fixou —, e continua sendo aceita:
+   * distância grande é informação para quem decide, nunca porteiro.
+   */
+  distanceMeters: z.int().min(0).nullish(),
+  documentId: z.uuid().nullish(),
+})
+
+/**
+ * Spec 218 D2: um dos dois, nunca os dois — o tipo do catálogo (`flow: stop`, o kind sai do
+ * `stop_kind` dele), ou o corpo antigo, que a fila gravou antes da troca e só conhecia o valor fixo.
+ */
+const occurrenceSchema = z.union([
+  occurrenceBodySchema.extend({ occurrenceTypeId: z.uuid() }).strict(),
+  occurrenceBodySchema.extend({ kind: z.enum(TRIP_STOP_OCCURRENCE_KINDS) }).strict(),
+])
 
 const dispatchCurrentTripSchema = z.object({ tripId: z.uuid() }).strict()
 
@@ -156,21 +162,30 @@ export async function parseDocumentReturnRequest(request: Request): Promise<{
   }
 }
 
-export async function parseStopOccurrenceRequest(request: Request): Promise<{
+export type StopOccurrenceRequest = {
   readonly attachmentObjectId: string | null
   readonly description: string
   readonly distanceMeters: number | null
   readonly documentId: string | null
-  readonly kind: (typeof TRIP_STOP_OCCURRENCE_KINDS)[number]
-}> {
-  const body = await parseBody(occurrenceSchema, request)
+} & (
+  | {
+      readonly kind: (typeof TRIP_STOP_OCCURRENCE_KINDS)[number]
+      readonly occurrenceTypeId?: undefined
+    }
+  | { readonly kind?: undefined; readonly occurrenceTypeId: string }
+)
 
-  return {
+export async function parseStopOccurrenceRequest(request: Request): Promise<StopOccurrenceRequest> {
+  const body = await parseBody(occurrenceSchema, request)
+  const common = {
     attachmentObjectId: body.attachmentObjectId ?? null,
     description: body.description ?? '',
     /* Ausente e nulo dizem a mesma coisa — não aferida —, e viram o mesmo valor aqui. */
     distanceMeters: body.distanceMeters ?? null,
     documentId: body.documentId ?? null,
-    kind: body.kind,
   }
+
+  return 'occurrenceTypeId' in body
+    ? { ...common, occurrenceTypeId: body.occurrenceTypeId }
+    : { ...common, kind: body.kind }
 }

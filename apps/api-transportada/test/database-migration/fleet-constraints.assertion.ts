@@ -477,5 +477,55 @@ export async function assertFleetConstraints(
     values (${companyId}, ${driverId}, ${vehicleId})
   `
 
+  await assertDefaultTrailerConstraints({ database, otherCompanyId, trailerId, vehicleId })
+
   return { otherCompanyId, vehicleId, trailerId, driverId, secondDriverId }
+}
+
+/**
+ * Spec 147 D3/T8: a carreta que o cavalo puxa por padrão — só sugestão, e só cavalo mecânico tem
+ * uma para apontar.
+ */
+async function assertDefaultTrailerConstraints(input: {
+  readonly database: SQL
+  readonly otherCompanyId: string
+  readonly trailerId: string
+  readonly vehicleId: string
+}): Promise<void> {
+  const { database, otherCompanyId, trailerId, vehicleId } = input
+  const otherCompanyVehicleId = crypto.randomUUID()
+
+  await database`
+    insert into fleet_vehicles (id, company_id, plate, role, vehicle_type, state)
+    values (${otherCompanyVehicleId}, ${otherCompanyId}, 'TRL1A11', 'traction', 'tractor_unit', 'SP')
+  `
+
+  await expectQueryToFail(
+    database`
+      update fleet_vehicles set default_trailer_vehicle_id = ${otherCompanyVehicleId}
+      where id = ${vehicleId}
+    `,
+    '23503',
+    'fleet_vehicles_company_default_trailer_fk',
+  )
+
+  await expectQueryToFail(
+    database`update fleet_vehicles set default_trailer_vehicle_id = ${vehicleId} where id = ${vehicleId}`,
+    '23514',
+    'fleet_vehicles_default_trailer_not_self',
+  )
+
+  // O implemento (role trailer) não é cavalo mecânico: não tem carreta padrão a apontar.
+  await expectQueryToFail(
+    database`
+      update fleet_vehicles set default_trailer_vehicle_id = ${vehicleId} where id = ${trailerId}
+    `,
+    '23514',
+    'fleet_vehicles_default_trailer_tractor_only',
+  )
+
+  await database`
+    update fleet_vehicles set default_trailer_vehicle_id = ${trailerId} where id = ${vehicleId}
+  `
+  await database`update fleet_vehicles set default_trailer_vehicle_id = null where id = ${vehicleId}`
 }

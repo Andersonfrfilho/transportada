@@ -18,6 +18,7 @@ import {
 } from '../../src/database/company-delivery-proof-settings.schema.js'
 import {
   companies,
+  deliveryClients,
   fleetDrivers,
   fleetVehicles,
   identityUsers,
@@ -367,6 +368,10 @@ async function seedCompany(database: TestDatabase): Promise<Company> {
     photo: 'required',
     scoreEffectiveSince: new Date(NOW.getTime() - 200 * DAY),
   })
+  // Spec 218 RF-C2: o override agora tem FK de verdade para `delivery_clients`.
+  await database.db
+    .insert(deliveryClients)
+    .values({ companyId, status: 'active', taxId: OVERRIDE_TAX_ID })
   await database.db
     .insert(deliveryProofSettingOverrides)
     .values({ companyId, photo: 'optional', taxId: OVERRIDE_TAX_ID })

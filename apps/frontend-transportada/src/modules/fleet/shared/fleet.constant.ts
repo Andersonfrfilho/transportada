@@ -104,7 +104,12 @@ export const FLEET_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   FLEET_DRIVER_VERSION_CONFLICT: 'versionConflict',
   FLEET_FORBIDDEN: 'readOnly',
   FLEET_INVALID_DRAFT: 'invalidDraft',
+  FLEET_VEHICLE_BODY_TYPE_NOT_APPLICABLE: 'bodyTypeNotApplicable',
+  FLEET_VEHICLE_BODY_TYPE_REQUIRED: 'bodyTypeRequired',
+  FLEET_VEHICLE_DEFAULT_TRAILER_NOT_A_TRAILER: 'defaultTrailerNotATrailer',
+  FLEET_VEHICLE_DEFAULT_TRAILER_REQUIRES_TRACTOR: 'defaultTrailerRequiresTractor',
   FLEET_VEHICLE_NOT_FOUND: 'vehicleNotFound',
+  FLEET_VEHICLE_ROLE_CHANGE_BLOCKED: 'roleChangeBlocked',
   FLEET_VEHICLE_PLATE_TAKEN: 'plateTaken',
   FLEET_VEHICLE_VERSION_CONFLICT: 'versionConflict',
   FREIGHT_REGION_CODE_INVALID: 'regionForm.codeInvalid',
@@ -203,6 +208,8 @@ export const VEHICLE_BODY_KEYS = [
   'cargoLengthMeters',
   'cargoWidthMeters',
   'color',
+  /** Spec 147 D3: só existe em `tractor_unit` — nos demais tipos o valor enviado e devolvido é `null`. */
+  'defaultTrailerVehicleId',
   'fleetNumber',
   'fuelType',
   'hasAutomaticTollPayment',
@@ -246,6 +253,7 @@ export const VEHICLE_FORM_KEYS = [
   'cargoLengthMeters',
   'cargoWidthMeters',
   'color',
+  'defaultTrailerVehicleId',
   'fleetNumber',
   'fuelType',
   'hasAutomaticTollPayment',
@@ -291,6 +299,14 @@ export const DRIVER_BODY_KEYS = [
   'address',
   'anttCategory',
   /**
+   * Spec 149 D1/D2: pode atuar como ajudante, e a diária própria dele. ⚠️ Mesmo defeito do
+   * `securesCargo` logo abaixo — API subiu com os dois campos e o frontend não sabia: toda linha
+   * reprovava `hasOnlyKeys`/`hasEveryKey`, e a tabela de motoristas virava "Não foi possível
+   * carregar a frota" (28/09/2026, staging).
+   */
+  'canActAsHelper',
+  'helperDailyRate',
+  /**
    * Spec 100: amarra a carga com cinta. ⚠️ Como todo campo desta lista, **a API sobe antes do
    * frontend**: com o corpo antigo `hasEveryKey` recusa toda linha e a tabela de motoristas
    * renderiza vazia — 200 na rede, nada no console, nenhum erro na tela.
@@ -332,6 +348,9 @@ export const DRIVER_BODY_KEYS = [
 export const DRIVER_CREATE_BODY_KEYS = [
   'address',
   'anttCategory',
+  /** Spec 149 D1/D2: a API exige `canActAsHelper` no corpo — sem ele, criar motorista dá 400. */
+  'canActAsHelper',
+  'helperDailyRate',
   /** Spec 100: amarra a carga com cinta — a planta lê isso para decidir a altura da pilha. */
   'securesCargo',
   'birthCity',

@@ -65,6 +65,8 @@ describe('fleet vehicle schema', () => {
       'annual_vehicle_tax_amount',
       'annual_insurance_amount',
       'costs_updated_at',
+      /** Spec 147 D3/T8: a carreta que este cavalo puxa por padrão — sugestão, nunca obrigação. */
+      'default_trailer_vehicle_id',
       'version',
       'created_at',
       'updated_at',
@@ -116,10 +118,13 @@ describe('fleet vehicle schema', () => {
     expect(otherCosts?.default).toBe('0')
   })
 
-  // costs_updated_at fica nulo até o primeiro custo ser informado — não há "vazio" para timestamp
+  // costs_updated_at e default_trailer_vehicle_id ficam nulos até alguém declarar o valor — não há
+  // "vazio" para timestamp nem carreta padrão presumida.
   test('requires every column — optional owner fields carry explicit empty defaults', () => {
     expect(requiredColumnNames(fleetVehicles)).toEqual(
-      columnNames(fleetVehicles).filter((name) => name !== 'costs_updated_at'),
+      columnNames(fleetVehicles).filter(
+        (name) => name !== 'costs_updated_at' && name !== 'default_trailer_vehicle_id',
+      ),
     )
   })
 

@@ -478,22 +478,140 @@ viagem. Hoje o formulário sugere comprimento, largura, altura e `capacity_kg` a
 cai para a marca quando não acha o modelo: dois modelos da mesma marca não têm o mesmo baú, e ali o
 erro vira metro na planta em vez de porcentagem na ocupação. ⚠️ A sugestão entra **só em campo
 vazio**, por baixo da herança e dos padrões do tipo, e **digitar apaga a marca de origem** — a mesma
-regra do campo vindo de documento. ⚠️ Ela **nunca alimenta a planta por baixo**: a 088 D2 recusou a
-referência como escala, e a medição desta spec confirma o motivo — a van vai de **7,0 a 15,5 m³** na
-mesma sigla. O que a torna aceitável é a origem impressa ao lado do campo e o salvamento: a partir
-dele, é o que a ficha afirma.
+regra do campo vindo de documento. ⚠️ **A ficha sem sugestão recorre à referência (commit `c02325b6`)**:
+quem nasce sem medida e sem catálogo depara com planta em branco ou planta à escala do catálogo,
+marcada como tal (`bedSource: 'reference'`) — é palpite, mas com aviso. O que torna a sugestão
+aceitável é a origem impressa junto do campo e o salvamento: a partir dele, é o que a ficha afirma.
 
 `vehicle_volume_references` ganhou `max_payload_kg` (nulo é ausência de fonte, e o CHECK **recusa
 zero** — o oposto do vocabulário da ficha, onde zero é "ninguém mediu") e as linhas de
 `three_quarter` e `motorcycle`, que não existiam; `three_quarter` é o tipo do `RTD-5J78`, e é por
 isso que ele não achava referência nenhuma. ⚠️ As dimensões das sete linhas antigas **não foram
 tocadas**, embora a pesquisa devolva números maiores: a referência é **piso**, e subi-lo mudaria
-calado a ocupação de todo veículo sem ficha. `car` e `tractor_unit` seguem sem linha — o carro de
-passeio não tem compartimento publicado (porta-malas é outra grandeza) e o cavalo não tem baú
-próprio. ⚠️ Ela é a **terceira** tabela sem `company_id`, e era a única das três cuja ausência não
-estava assertada em `tenant-safety`. Serve por `GET /fleet/vehicle-references` sob `fleet.read` —
-não `settings.manage`: quem cadastra veículo é quem precisa da sugestão. Catálogo fora do ar é ficha
-sem sugestão, nunca ficha travada.
+calado a ocupação de todo veículo sem ficha. `tractor_unit` segue sem linha — o cavalo não tem baú
+próprio, é o implemento que carrega. `car` **ganhou** duas linhas depois (`02`/`05`, 1,000 × 0,900 ×
+0,500 m, 80 kg — o porta-malas em serviço de entrega, não o compartimento de um caminhão). ⚠️ Ela é a
+**terceira** tabela sem `company_id`, e era a única das três cuja ausência não estava assertada em
+`tenant-safety`. Serve por `GET /fleet/vehicle-references` sob `fleet.read` — não `settings.manage`:
+quem cadastra veículo é quem precisa da sugestão. Catálogo fora do ar é ficha sem sugestão, nunca
+ficha travada.
+
+**A carroceria `00` deixou de ser valor neutro, e virou obrigação para quem carrega** (spec 147 D1).
+`00` nasceu como default da coluna e servia para duas coisas ao mesmo tempo: "não aplicável" no
+cavalo mecânico e "não informado" em todo o resto — o mesmo valor escondendo cadastro incompleto
+atrás de cadastro correto. Hoje `checkVehicleBodyType` (`fleet/domain/vehicle-body-type.policy.ts`),
+chamada nos dois parsers de fronteira (`parseCreateVehicleRequest`/`parseUpdateVehicleRequest` em
+`fleet/presentation/fleet.schema.ts`, não dentro do caso de uso — o contrato HTTP roda contra stubs
+que nunca o invocam), recusa `00` em qualquer veículo que não seja `tractor_unit`
+(`FLEET_VEHICLE_BODY_TYPE_REQUIRED`, 400) e recusa **qualquer outro valor** no próprio cavalo
+(`FLEET_VEHICLE_BODY_TYPE_NOT_APPLICABLE`) — carreta incluída, porque ela é `role: 'trailer'`, não
+`tractor_unit`, e cai do lado que exige escolha. ⚠️ **Sem CHECK retroativo**: apertar o CHECK do banco
+recusaria as linhas que já existem, e nenhuma migration faz `UPDATE` em `body_type`. Cadastro antigo
+com `00` num tipo que carrega continua existindo — só passa a aparecer nomeado, na página de
+pendências.
+
+**O nome do que falta é `capacityUnknownReason`, e ele decide o link do painel**
+(`trips/domain/capacity-unknown-reason.policy.ts`, `resolveCapacityUnknownReason`). Três motivos, na
+mesma ordem que `resolveVolumeReferenceKey` decide quem carrega — a carreta quando existe, senão o
+próprio veículo de tração: `bodyTypeMissing` (o carregador tem `00` e não é cavalo — carreta velha
+inclusive), `trailerMissing` (`tractor_unit` sem carreta) e `referenceMissing` (tipo sem linha de
+catálogo, como `other`). `capacityM3` não nulo zera o motivo antes de qualquer outra checagem. A
+prévia de carga (`POST /trips/cargo-preview`, antes de a viagem existir) resolve a carreta **padrão**
+do cavalo pela mesma regra da criação (T18, revisão — livre, ativa, `role: 'trailer'`) em vez de
+sempre assumir `trailer: null`; mostrar "sem carreta" na prévia e "carreta X" um clique depois, na
+viagem já criada, confundia mais do que ajudava. `capacityUnknownReason` (detalhe e prévia) vem
+acompanhado de `capacityUnknownVehicleId` — a carreta em `bodyTypeMissing`, o veículo da viagem nos
+outros dois motivos — para o link do painel apontar à ficha de quem realmente falta preencher, e não
+sempre à do cavalo.
+
+**O cavalo tem uma carreta, e a ocupação passa a ler a ficha dela** (spec 147 D3/D4).
+`trips.trailer_vehicle_id` e `fleet_vehicles.default_trailer_vehicle_id` (a segunda é só sugestão)
+nasceram na migration à mão `20260913120000_trip_trailer_vehicle` — à mão porque as últimas 35
+migrations do repositório já não têm `snapshot.json` (o `drizzle/meta/` não existe mais aqui), e
+rodar `db:generate` reintroduziria como "novas" migrations já aplicadas. FK composta `(company_id,
+*) → fleet_vehicles(company_id, id)` nos dois campos (nunca `SET NULL`, que anularia `company_id`,
+que é `NOT NULL`), CHECKs contra autorreferência e contra carreta padrão fora de `tractor_unit`, e o
+índice único parcial `trips_company_trailer_open_unique` — a mesma carreta não entra em duas viagens
+com `status not in ('completed','cancelled')`. `PUT /trips/:id/trailer` (`trip.manage` — o separador
+alcança, pelo mesmo raciocínio já registrado acima para o resto da montagem) escreve o vínculo por
+`checkTripAcceptsTrailer` (`trips/domain/trip-trailer.policy.ts`), que reusa
+`checkTripAcceptsLinkage` para o portão de estado (bloqueia depois de `dispatched`) antes de checar
+que só o cavalo aceita carreta; a corrida entre duas escritas é fechada pelo índice único, traduzido
+em `409 TRIP_TRAILER_IN_USE`. Criar a viagem de um cavalo copia a carreta padrão **só como
+sugestão**: se ela já estiver em viagem aberta, a viagem nasce sem carreta, nunca com erro. ⚠️ **O
+cavalo não carrega sozinho**: `checkDispatch` (`trip-state.policy.ts`) recebe `requiresTrailer` e
+barra o despacho com `409 TRIP_TRAILER_REQUIRED` — código de topo dedicado, não
+`STATE_TRANSITION_NOT_ALLOWED` com motivo em `details` — depois do portão de roteiro e antes de
+aplicar a transição. **A leitura de fora acontece antes da transação de despacho**, e por isso
+`dispatch()` reconfere sozinho, com `SELECT … FOR UPDATE` da viagem (o mesmo padrão de `setTrailer`):
+sem essa segunda checagem, um `setTrailer` concorrente que solte a carreta entre a leitura e a
+escrita despacharia um cavalo sozinho (T18, revisão). O snapshot de despacho congela `trailer:
+{vehicleId, plate} | null`; nenhum leitor de produção decodifica essa chave hoje, então o campo
+nasce tipado sem exigir migração de leitor nenhum. A ocupação (`trip-occupancy.support.ts`) faz uma
+quinta consulta **só quando existe carreta** e usa `carrier = trailer ?? vehicle` como o único ponto
+que decide de quem é a ficha — `loadingAccess` e `maxPayloadKg` também vêm do `carrier` (T18,
+revisão: antes liam sempre o veículo de tração, e uma carreta com capacidade diferente da dele fazia
+o teto de peso e o acesso de carga mentirem). ⚠️ `fleet_vehicles.capacity_kg` é `NOT NULL DEFAULT
+'0'`: uma carreta sem teto conhecido devolve o zero cru da coluna neste nível (nunca `null`, e nunca
+o teto do cavalo) — só na borda de exibição (`resolvePayloadCeiling`, `trip-cargo-weight.policy.ts`)
+zero e ausência viram a mesma coisa.
+
+**T18 (revisão desta spec) corrigiu mais três corridas na criação/edição.** Duas viagens criadas ao
+mesmo tempo para cavalos que compartilham a mesma carreta padrão disputam
+`trips_company_trailer_open_unique` no `INSERT`; a segunda tentativa roda num `SAVEPOINT`
+(`transaction.transaction`), e quem perde a corrida nasce **sem** carreta em vez de 500 genérico —
+`resolveDefaultTrailerForCreation` também passou a exigir que a padrão ainda exista na empresa, seja
+`role: 'trailer'`/`status: 'active'` e não esteja em viagem aberta, antes de copiá-la. Os dois CHECKs
+de autorreferência (`trips_trailer_not_vehicle`, `fleet_vehicles_default_trailer_not_self`) e o de
+tipo (`fleet_vehicles_default_trailer_tractor_only`) agora traduzem para 400 de domínio
+(`TRIP_TRAILER_NOT_VEHICLE_ITSELF`, `FLEET_VEHICLE_DEFAULT_TRAILER_SELF_REFERENCE`,
+`FLEET_VEHICLE_DEFAULT_TRAILER_REQUIRES_TRACTOR`) no ponto de escrita, no mesmo padrão de
+`runTrailerGuarded` para a unicidade — nunca mais um 500 cru por violação de CHECK. `GET
+/pending-items` entrou na lista exaustiva de `test/separator-role.contract.test.ts`: o separador tem
+`fleet.read` e a alcança, decisão registrada ali. ⚠️ **Ordem de deploy: a API sobe antes do
+frontend.** `VEHICLE_DETAIL_KEYS` (frontend) já exigia `defaultTrailerVehicleId` como chave
+**obrigatória** desde a T10 original — não uma correção desta revisão, mas nunca registrado por
+extenso: bundle novo contra API antiga (sem o campo) reproduz o defeito de sempre,
+`hasEveryKey`/`hasOnlyKeys` recusando a linha inteira e a tabela de frota renderizando vazia com 200
+na rede e nada no console (o mesmo caso já descrito acima para os campos de baú).
+
+**O catálogo ganhou `01` e `04`, nunca `00` nem `03`** (spec 147 D5, migration
+`20260913130000_vehicle_reference_open_and_container`). `('toco','01')` — carroceria aberta, 7,000 ×
+2,500 × **2,500** m, 10.685 kg — usa comprimento, largura e carga da SINAPI 89265, e a altura é
+**convenção**, porque não existe norma de altura de carga para caçamba sem teto; o comentário da
+migration documenta os três apoios (anúncio de mercado, folga contra o teto legal do CONTRAN
+882/2021, dois paletes PBR empilhados). `('','04')` e `('truck','04')` são contêiner dry 40' e 20'
+(DSV, conferido na Guia Log) — o cavalo nunca carrega o contêiner, é a carreta (`vehicle_type` vazio)
+quem responde. Granelera (`03`) e carroceria aberta fora do toco ficaram de fora por falta de medida
+de fabricante publicada — decisão do usuário, registrada em `evidence.md`. ⚠️ **O `rollback.sql`
+apaga as três chaves por valor** (`('toco','01')`, `('','04')`, `('truck','04')`), não por origem —
+se uma instalação tiver inserido linha idêntica à mão antes de aplicar esta migration, o rollback a
+leva junto. Risco baixo (o catálogo é de mercado, sem `company_id`), mas confira antes de rodar
+rollback em ambiente com linhas manuais.
+
+⚠️ **A sugestão da ficha (093) passou a casar por `(vehicleType, bodyType)`, nunca só por tipo**
+(spec 147 T16b). Com `('toco','01')` no catálogo, casar só por `vehicleType` faria `fromReference`
+pegar a primeira linha em ordem de `body_type` — todo toco novo teria recebido a carroceria aberta em
+vez do baú. Hoje `resolveVehicleSuggestion`/`fromReference` (`vehicleSuggestion.service.ts`) recebem
+`bodyType`, e sem carroceria escolhida (`''`) ou com `'00'` (só o cavalo) devolvem `null` sem
+consultar o catálogo — a carroceria é obrigatória fora do cavalo (D1), e sem ela qualquer linha seria
+palpite. A precedência de sempre continua intacta: ficha da frota com mesma marca e modelo já medido
+vence a referência, que vence a ausência.
+
+**As pendências ficam num lugar só, e o primeiro tipo é a carroceria que ninguém escolheu** (spec 147
+D2/RF9). `GET /pending-items` (módulo `pending-items/`, sem `domain/` — a consulta já é a regra)
+delega para a primeira fonte (`PendingItemSourcePort`) cuja permissão o chamador tem; sem fonte
+permitida devolve página vazia, nunca `403` — a política de "quem pode ver" mora na fonte, não na
+rota. Hoje só existe `fleet-body-type` (`drizzle-fleet-body-type-pending-item.source.ts`): filtra
+`vehicle_type <> 'tractor_unit'` (alcança a carreta de propósito, sem nomeá-la — o `vehicle_type`
+dela já é vazio), `body_type = '00'` e **`status = 'active'`** — pendência de veículo inativo não é
+trabalho para ninguém corrigir agora, decisão tomada dentro da task, sem linha correspondente na
+spec. ⚠️ A rota exige `fleet.read` na borda, mesma permissão da única fonte de hoje — a infraestrutura
+de rotas não tem o modo "autenticado sem permissão específica" que a spec pedia, e a diferença só vai
+aparecer no dia em que existir uma segunda fonte com outra permissão. `test/separator-role.contract.test.ts`
+não cobre `pending-items` (é módulo novo, fora da lista exaustiva de `trip`/`fleet`/`billing`/…), mas
+o separador tem `fleet.read` e alcança a rota. No frontend, `/pendencias` é aba nova em "Cadastros",
+com esqueleto de carregamento e uma linha por pendência levando à ficha do veículo.
 
 **O peso da carga ganhou teto, e ele sempre esteve no banco** (spec 093). `fleet_vehicles.capacity_kg`
 é o `capKG` que o MDF-e exige e está preenchida em **10 dos 12** veículos; nenhuma tela a lia fora
@@ -1924,3 +2042,71 @@ registro datado: o que se decidiu, o que se mediu e os defeitos achados no camin
   - robustez: diagnóstico do gancho (C10), `new Error` cru (C11), S3 dentro da transação (C12),
     posição duplicada das respostas rápidas (C13), atualização perdida no contato (C14),
     fingerprint sem ator (C15).
+
+## Planejamento de viagem com rota escolhida e redação monetária por permissão (spec 153)
+
+### Rota gravada no planejamento, não descartada após criação (spec 153 Fase 1–2)
+
+**O seam de assinatura e critério** (`trips/domain/route-choice.policy.ts`): quatro critérios
+(`ROUTE_CHOICE_CRITERIA = 'cheapest' | 'fastest' | 'no_toll' | 'alternative'`); assinatura é sha256
+de `nodeIdsByLeg` truncado nos 32 primeiros hex (16 bytes) — assina os nós **por perna**, não a lista
+achatada (`nodeIds`), para evitar colisão entre rotas que diferem só em onde a parada cai;
+`selectRouteOption({ options, choice })` elege a opção cuja assinatura bate o pedido, ou cai para o
+critério quando não encontra ou quando o critério tem de escolher entre várias. `reproduced` (que
+`freezeTripPlannedRoute` grava como `choiceReproduced`) é `true` quando a eleição bate o que foi
+pedido, `false` quando caiu para o critério ou a assinatura não foi encontrada. Pedido sem assinatura
+que o critério atende é `true` — todo congelamento sem seletor manual (recálculo de rota no
+reordenar/vincular) e sem assinatura é uma escolha bem-sucedida do critério padrão, não uma falha.
+
+**Seam de distância e volta** (`trips/domain/planned-road-distance.policy.ts`): `summarizeRoadDistance`
+lê pernas da rota (`legs: RoadLeg[]`, que é traçado com nós) e quantos trechos do fim são a volta ao
+depot (`trailingLegs: number`, como `route-depot.policy.ts` já os conta), devolve
+`{ distanceMeters, durationSeconds, returnDistanceMeters }`. Sem perna nenhuma (`legs.length === 0`)
+o resumo é todo `null` — nunca zero, porque a conta de combustível não pode fingir que a viagem não
+consome. `end_policy: 'last_stop'` = volta `0` (já vem como `trailingLegs: 0`).
+
+**Gateway com `exclude=toll` em paralelo** (`infrastructure/osrm-route-geometry.gateway.ts`,
+`application/route-geometry-toll-free-candidates.service.ts`): `readRouteGeometry` ganha flag
+`options?: { excludeToll?: boolean }` na porta; o chamador (`read-route-geometry.use-case.ts`) dispara
+as duas chamadas em paralelo com `Promise.allSettled` (isola falha de uma), deduplica por assinatura
+(assinatura nula nunca deduplica), marca `isNoToll` em cada candidata. `readRouteGeometryTollFreeCandidates`
+aplica a dedupe pura — o use-case a usa para montar `options[]` no retorno.
+
+**Congelamento numa escrita só, não numa transação com a mudança de parada**
+(`application/freeze-trip-planned-route.use-case.ts`,
+`infrastructure/drizzle-trip-planned-route.repository.ts`): `WritePlannedRouteInput` recebe rota
+(`FrozenPlannedRoute | null`) e pedágio (`TollRouteCost | null`); `writePlannedRoute` faz um `UPDATE`
+só, com `plannedRoute`/`plannedDistanceMeters`/`plannedReturnDistanceMeters`/`plannedDurationSeconds`/
+`plannedRouteFrozenAt` (`null` em bloco quando a rota é nula — D5) e `plannedToll`/
+`plannedTollFrozenAt` (`null` em bloco quando o pedágio é nulo) lado a lado. **As duas datas de
+congelamento são colunas separadas**, cada uma sob seu próprio CHECK (`trips_planned_route_check`
+força as quatro colunas da rota a nascerem e morrerem juntas com `planned_route_frozen_at`;
+`trips_planned_toll_check`, de sempre — spec 090 —, faz o mesmo para `planned_toll` com
+`planned_toll_frozen_at`). ⚠️ **O congelamento não roda dentro da transação que muda a parada.**
+Reordenar (`reorder-trip-stops.use-case.ts`), vincular (`link-trip-documents-batch.use-case.ts`) e
+vincular/desvincular no detalhe (`trip.use-case.ts`, `freezeRouteGracefully`) chamam o freezer
+**depois** da escrita principal ter commitado, com `try/catch` que nunca a desfaz — "o vínculo já
+está gravado; o pedágio congela no próximo replanejamento" é o comentário no próprio código. A fila
+de revisão (`drizzle-trip-document-review.repository.ts`, `freezeRoutesGracefully`) segue o mesmo
+padrão para origem e destino, em paralelo, cada tentativa isolada por `try/catch`.
+
+**Redação monetária por permissão** (`shared/monetary-redaction.service.ts`):
+`redactRouteGeometryMoney({ canReadFinancials, view })` devolve a view sem alteração quando
+`canReadFinancials`, e senão omite os campos monetários — `fuelTotal`/`totalCost` de cada opção,
+`chargePerAxle`/`total` do pedágio (do topo e de cada opção) e as parcelas por praça de cada
+`TollBoothRouteLine` (`chargeCar`, `chargePerAxle`, `chargePerAxleAutomatic`,
+`effectiveChargePerAxle`, `total`) — nunca `null` nem zero no lugar, para o TypeScript recusar quem
+ler o campo sem checar a ausência primeiro.
+`redactNfeDocumentMoney`/`redactTripDocumentMoney`, no mesmo arquivo, fazem o mesmo para NF-e e para
+o total da viagem; a fila de revisão usa a mesma redação.
+
+### Fluxo de atualização de rota (spec 153 Fase 2, T205–T206)
+
+`POST /trips/:id/plan-route` (RF3): `{ routeChoice?: { criterion, signature } }` opcional; tira a
+rota anterior (coloca `null`), recalcula com OSRM (D6), aplica a escolha ou o padrão `cheapest`,
+congela. Toda mudança de parada antes do despacho recalcula: `linkDocument`, `unlinkDocument`
+(`releaseLiveLink`, que chama `reconcileStopOnUnlink` dentro da transação da liberação) e
+`reorderTripStops` (T205) disparam o freezer graciosamente **depois** de gravar a mudança — nunca na
+mesma transação, para uma falha do roteirizador não desfazer o vínculo ou a reordenação. Fila de
+revisão (`move`/`swap`) funciona por vinculação/desvinculação das duas viagens (origem e destino);
+ambas recalculam, em paralelo e cada uma isolada, antes do despacho (T206, RF12).

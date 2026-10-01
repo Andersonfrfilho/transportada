@@ -7,7 +7,14 @@
  * ⚠️ **Rota única não é escolha** (spec 096 D2). O chamador só monta esta lista quando
  * `hasChoice` é `true` — aqui apenas o formato de cada linha é resolvido.
  */
-import type { RouteChoice, RouteGeometryOption } from './routeGeometry.service'
+import { METRES_PER_KILOMETRE } from '@/modules/shared/distance.constant'
+
+import type {
+  RouteChoice,
+  RouteChoiceCriterion,
+  RouteGeometry,
+  RouteGeometryOption,
+} from './routeGeometry.service'
 
 export type RouteOptionSummary = Readonly<{
   /**
@@ -33,7 +40,6 @@ export type RouteOptionSummary = Readonly<{
 }>
 
 const SECONDS_PER_MINUTE = 60
-const METRES_PER_KILOMETRE = 1000
 
 /**
  * Uma linha por opção, na mesma ordem que a rota chegou — a principal primeiro. `isBestOfBoth`
@@ -55,9 +61,10 @@ export function resolveRouteOptionSummaries(input: {
       isBestOfBoth: isFastest && isCheapest,
       isCheapest,
       isFastest,
-      isNoToll: option.isNoToll,
+      isNoToll: option.isNoToll === true,
       minutes: Math.round(option.durationSeconds / SECONDS_PER_MINUTE),
-      totalCost: option.totalCost,
+      /** Sem `trip.financials` a chave some (spec 153 D10) — a lista trata isso como "não calculado". */
+      totalCost: option.totalCost ?? null,
     }
   })
 }
@@ -79,7 +86,10 @@ export function resolveAssemblyRouteChoice(input: {
   const option = input.options[input.selectedIndex]
   if (!input.hasChoice || option === undefined) return undefined
 
-  return { criterion: resolveChoiceCriterion({ ...input, option }), signature: option.signature }
+  return {
+    criterion: resolveChoiceCriterion({ ...input, option }),
+    signature: option.signature ?? null,
+  }
 }
 
 /** Nenhum rótulo é `alternative`: o operador trocou de rota sem regra declarada. */
@@ -91,7 +101,7 @@ function resolveChoiceCriterion(input: {
 }): RouteChoice['criterion'] {
   if (input.selectedIndex === input.cheapestIndex) return 'cheapest'
   if (input.selectedIndex === input.fastestIndex) return 'fastest'
-  if (input.option.isNoToll) return 'no_toll'
+  if (input.option.isNoToll === true) return 'no_toll'
   return 'alternative'
 }
 
@@ -101,7 +111,7 @@ function resolveChoiceCriterion(input: {
  * `undefined` deixa o mapa na principal, como em qualquer rota nova.
  */
 export function resolvePreferredRouteOptionIndex(input: {
-  readonly options: readonly Readonly<{ signature: null | string }>[]
+  readonly options: readonly Readonly<{ signature?: null | string }>[]
   readonly preferred: RouteChoice | undefined
 }): number | undefined {
   const signature = input.preferred?.signature ?? null
@@ -121,4 +131,116 @@ export function isRouteChoiceSettled(input: {
   readonly isFetching: boolean
 }): boolean {
   return input.hasResponse && !input.isDraft && !input.isFetching
+}
+
+/**
+ * O que a troca de opção diz ao sair do componente (spec 153 D2) — nunca o índice, que descreve
+ * posição numa lista que pode ser reordenada entre a proposta e a viagem congelada, e sim a
+ * assinatura da estrada e o critério que a levou a ser escolhida.
+ *
+ * ⚠️ Custo e duração vêm antes de "sem pedágio" na prioridade: uma rota pode ser, ao mesmo tempo,
+ * a mais barata **e** a que evita pedágio — e a razão da escolha é o custo, não a coincidência.
+ */
+export function resolveRouteChoiceFromIndex(input: {
+  readonly cheapestIndex: null | number
+  readonly fastestIndex: null | number
+  readonly index: number
+  readonly options: readonly RouteGeometryOption[]
+}): RouteChoice {
+  const option = input.options[input.index]
+  const signature = option?.signature ?? null
+
+  if (input.cheapestIndex === input.index) return { criterion: 'cheapest', signature }
+  if (input.fastestIndex === input.index) return { criterion: 'fastest', signature }
+  if (option?.isNoToll === true) return { criterion: 'no_toll', signature }
+  return { criterion: 'alternative', signature }
+}
+
+export type RouteGeometryForEmission = Pick<
+  RouteGeometry,
+  'cheapestIndex' | 'fastestIndex' | 'options' | 'selectedIndex'
+>
+
+export type RouteChoiceEmission = Readonly<{
+  routeChoice: RouteChoice
+  selectedIndex: number
+}>
+
+/**
+ * O que a montagem emite assim que a geometria chega (spec 153 H1/M7) — índice de abertura e a
+ * escolha resolvida a partir dele, juntos, porque os dois sempre nascem da mesma resposta.
+ */
+export function resolveRouteChoiceEmission(data: RouteGeometryForEmission): RouteChoiceEmission {
+  const selectedIndex = data.selectedIndex ?? 0
+  return {
+    routeChoice: resolveRouteChoiceFromIndex({
+      cheapestIndex: data.cheapestIndex ?? null,
+      fastestIndex: data.fastestIndex ?? null,
+      index: selectedIndex,
+      options: data.options ?? [],
+    }),
+    selectedIndex,
+  }
+}
+
+/**
+ * Segunda revisão da spec 153, N4 (regressão da T702): a identidade de `geometryQuery.data` muda a
+ * cada resposta do TanStack Query, mesmo quando o conteúdo é o mesmo — um refetch de foco com
+ * `staleTime` vencido bastava para reemitir a escolha e apagar a do operador (RF13 ao contrário).
+ * Esta chave é **conteúdo**, não referência: duas respostas com os mesmos índices e as mesmas
+ * assinaturas de opção produzem a mesma string, e o efeito que depende dela não dispara à toa.
+ *
+ * ⚠️ Terceira revisão, T903 (P4): `signature` é `null` **por construção** quando o roteirizador não
+ * anota os nós OSM — não é um caso raro, é o comportamento sem `exclude=toll` anotado. Usar só a
+ * assinatura fazia toda opção sem ela colapsar no mesmo `''`, e duas respostas com o mesmo número de
+ * opções e os mesmos índices, mas estradas de verdade diferentes, produziam a chave idêntica: o
+ * efeito parava de reemitir, e o defeito vira o espelho do N4 (agora reemite de menos). O tamanho da
+ * lista entra explícito, e cada opção sem assinatura cai no par `distanceMeters:durationSeconds` —
+ * sempre presente, e já é o que distingue duas estradas na spec 096 (T3).
+ */
+export function buildRouteChoiceSignatureKey(
+  data: RouteGeometryForEmission | undefined,
+): null | string {
+  if (data === undefined) return null
+  const options = data.options ?? []
+  return [
+    data.selectedIndex ?? '',
+    data.cheapestIndex ?? '',
+    data.fastestIndex ?? '',
+    options.length,
+    options
+      .map((option) => option.signature ?? `${option.distanceMeters}:${option.durationSeconds}`)
+      .join(','),
+  ].join('|')
+}
+
+/**
+ * Qual opção o switch abre marcada (spec 153 T709a/D2). A viagem congelada pode ter escolhido a
+ * rota por `no_toll`/`alternative` — critérios que não apontam um índice fixo entre `cheapestIndex`
+ * e `fastestIndex` — e nesse caso marcar "a mais barata" mostraria uma rota diferente da gravada.
+ *
+ * ⚠️ A assinatura gravada é a identidade de verdade (D2): quando ela está entre as opções que o
+ * OSRM devolveu agora, é ela que marca a aba — nunca o critério. Só cai no critério quando a
+ * assinatura está ausente ou não bate com nenhuma opção viva (estrada mudou, D3).
+ */
+export function resolveSelectedOptionIndex(input: {
+  readonly cheapestIndex: null | number
+  readonly criterion: null | RouteChoiceCriterion
+  readonly fastestIndex: null | number
+  readonly options: readonly RouteGeometryOption[]
+  readonly selectedSignature: null | string
+}): number {
+  if (input.selectedSignature !== null) {
+    const bySignature = input.options.findIndex(
+      (option) => option.signature === input.selectedSignature,
+    )
+    if (bySignature !== -1) return bySignature
+  }
+
+  return (
+    (input.criterion === 'fastest' ? input.fastestIndex : input.cheapestIndex) ??
+    input.fastestIndex ??
+    input.cheapestIndex ??
+    0
+  )
 }

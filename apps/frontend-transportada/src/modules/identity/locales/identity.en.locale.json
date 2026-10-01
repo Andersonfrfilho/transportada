@@ -212,7 +212,8 @@
         "missing-in-realm": "No access",
         "missing-locally": "No record",
         "profile-missing": "Incomplete record",
-        "out-of-sync": "Outdated: {{fields}}"
+        "out-of-sync": "Outdated: {{fields}}",
+        "disabled": "Disabled at the provider"
       },
       "noProfile": "Incomplete profile",
       "createInRealm": "Create the access",
@@ -246,6 +247,11 @@
       },
       "outOfSyncCount_one": "1 access exists on both sides with different data.",
       "outOfSyncCount_other": "{{count}} accesses exist on both sides with different data.",
+      "disabledCount_one": "1 person is \"Complete\" here and disabled at the provider — everything works except signing in.",
+      "disabledCount_other": "{{count}} people are \"Complete\" here and disabled at the provider — everything works except signing in.",
+      "reactivate": "Reactivate",
+      "reactivateAll_one": "Reactivate 1 account",
+      "reactivateAll_other": "Reactivate {{count}} accounts",
       "field": {
         "email": "email",
         "taxId": "document",
@@ -381,6 +387,10 @@
       "trip.financials": {
         "label": "Ver dinheiro da viagem",
         "where": "Custo, margem e o valor pago ao motorista."
+      },
+      "trip.event-location": {
+        "label": "Ver onde o evento aconteceu",
+        "where": "Na linha do tempo da viagem: a coordenada de cada toque do motorista, a precisão e a distância até o ponto de entrega."
       },
       "mdfe.read": {
         "label": "Ver MDF-e",

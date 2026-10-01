@@ -7,7 +7,7 @@ import { LngLatBounds, Map as MapLibreMap, Marker, type GeoJSONSource } from 'ma
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import { Icon } from '@/components/ui/icon'
+import { Icon, type IconName } from '@/components/ui/icon'
 import { Tooltip } from '@/components/ui/tooltip'
 
 /**
@@ -30,12 +30,20 @@ import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment
 import { buildTollBadgeId, resolveMapBadgeRequest } from '@/modules/shared/mapBadge.service'
 import { drawRequestedMapBadge } from '@/modules/shared/mapBadgeImage.service'
 
+import {
+  resolveLegLabelPlacement,
+  resolveLegLabelVisibility,
+  TIMELINE_MAP_LEG_LABEL_PIN_OFFSET_PIXELS,
+  TIMELINE_MAP_LEG_LABEL_STYLE,
+  TIMELINE_MAP_ORDER_BADGE_STYLE,
+} from '../shared/tripTimelineMap.constant'
+import { resolveTimelineLegLabels } from '../shared/tripTimelineMap.service'
+import { resolvePinInk } from '../shared/stopColor.service'
 import { resolveAssemblyMapBounds } from '../shared/assemblyMapBounds.service'
 import { resolveMarkerOffsets, type AssemblyMapPoint } from '../shared/assemblyMap.service'
 import type { RouteGeometry } from '../shared/routeGeometry.service'
 import styles from '../styles/trip.module.css'
 import { resolveRouteLegs } from '../shared/routeGeometry.service'
-import { resolveStopColor } from '../shared/stopColor.service'
 import { resolveTollBoothMarkers } from '../shared/assemblyToll.service'
 
 type AssemblyVectorMapProps = Readonly<{
@@ -46,6 +54,15 @@ type AssemblyVectorMapProps = Readonly<{
    * ninguém mediu parece um caminho que não existe.
    */
   hideRoute?: boolean | undefined
+  /** Fundo sem placa de radar nem selo de pedágio: o pino é a coisa mais forte da imagem. */
+  isQuietBasemap?: boolean | undefined
+  /**
+   * Spec 196 — o texto a escrever **sobre o trecho** que chega a `toSequence`, e o que o leitor de
+   * tela ouve nele. `undefined` no trecho que não tem o que dizer, e no mapa de montagem inteiro.
+   */
+  legLabel?:
+    | ((toSequence: number) => Readonly<{ aria: string; text: string }> | undefined)
+    | undefined
   nearby: readonly AssemblyMapPoint[]
   onBasemapMissing: () => void
   points: readonly AssemblyMapPoint[]
@@ -64,6 +81,15 @@ type RouteCollection = {
     readonly properties: { readonly color: string; readonly dashed: boolean }
   }[]
 }
+/** O rótulo de tempo e as pontas do trecho que ele descreve, em grau — o pixel muda a cada zoom. */
+type LegLabelMarker = Readonly<{
+  /** O meio do traço desenhado, onde o rótulo se deita quando o traço o comporta. */
+  anchor: Readonly<{ x: number; y: number }>
+  end: Readonly<{ latitude: number; longitude: number }>
+  marker: Marker
+  start: Readonly<{ latitude: number; longitude: number }>
+}>
+
 const NEARBY_SOURCE = 'fora-da-selecao'
 /**
  * Spec 096 T4 — as praças do **trajeto**, alimentadas pela resposta da rota (spec 090 D4), nunca
@@ -116,6 +142,8 @@ function readToken(token: string): string {
 export function AssemblyVectorMap({
   geometry,
   hideRoute,
+  isQuietBasemap,
+  legLabel,
   nearby,
   onBasemapMissing,
   points,
@@ -125,6 +153,8 @@ export function AssemblyVectorMap({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const markersRef = useRef<Marker[]>([])
+  /** Os rótulos de tempo e as pontas de cada trecho, para decidir a cada zoom quem cabe na tela. */
+  const legLabelsRef = useRef<readonly LegLabelMarker[]>([])
   const [isReady, setIsReady] = useState(false)
   /**
    * Os nós vazios que cada pino com tratativa aberta hospeda. A marca é desenhada pelo React
@@ -243,7 +273,13 @@ export function AssemblyVectorMap({
          * enquanto o tile novo entra, e arrastar o mapa vira um piscar contínuo da tela toda.
          */
         fadeDuration: 0,
-        style: buildBasemapStyle(readToken, theme),
+        /**
+         * ⚠️ O MapLibre rotula o próprio canvas pelo dicionário dele, e o padrão é "Map" — inglês
+         * solto num painel em português. O dicionário é parâmetro de construção, e é por aqui que
+         * se troca: um `setAttribute` depois do carregamento não sobreviveria à troca de estilo.
+         */
+        locale: { 'Map.Title': t('assemblyMap.canvasLabel') },
+        style: buildBasemapStyle(readToken, theme, { isQuiet: isQuietBasemap === true }),
         zoom: 8,
       })
     } catch (error) {
@@ -357,7 +393,7 @@ export function AssemblyVectorMap({
     }
 
     setIsReady(false)
-    map.setStyle(buildBasemapStyle(readToken, theme))
+    map.setStyle(buildBasemapStyle(readToken, theme, { isQuiet: isQuietBasemap === true }))
     /**
      * ⚠️ **`setStyle` faz diff, e diff não emite `style.load`.** Quando o estilo novo é alcançável
      * a partir do atual, o MapLibre aplica as diferenças em vez de recarregar — e o evento de
@@ -394,7 +430,7 @@ export function AssemblyVectorMap({
     }
     map.on('styledata', aoTerminar)
     map.once('style.load', aoTerminar)
-  }, [chosenTheme, theme])
+  }, [chosenTheme, isQuietBasemap, theme])
 
   /**
    * Spec 097 D4: onde o barracão está. Sai da mesma resposta que desenhou o traçado — pedir a
@@ -415,9 +451,14 @@ export function AssemblyVectorMap({
     for (const point of points) {
       const element = stopElement({
         approximate: point.isApproximate,
+        ariaLabel: point.ariaLabel,
         color: stopColor(point.sequence ?? 1),
+        count: point.count ?? 1,
+        glyph: point.glyph,
+        orderBadge: point.orderBadge,
         outline: resolveBasemapOutline(readToken, theme),
         sequence: point.sequence ?? 1,
+        unnumbered: point.isUnnumbered === true,
       })
       if (point.hasOpenOccurrence === true) {
         const host = occurrenceBadgeHostElement()
@@ -574,7 +615,7 @@ export function AssemblyVectorMap({
           coordinates: leg.points.map((point) => [point.x, point.y]),
         },
         properties: {
-          color: resolveStopColor(leg.toSequence),
+          color: stopColor(leg.toSequence),
           dashed: leg.dashed,
         },
       })),
@@ -593,7 +634,59 @@ export function AssemblyVectorMap({
 
     routeRef.current = { dashArray, data }
     applyRoute(map)
-  }, [applyRoute, geometry, hideRoute, isReady, points, theme])
+
+    for (const previous of legLabelsRef.current) previous.marker.remove()
+    legLabelsRef.current = []
+    /**
+     * ⚠️ O `hideRoute` precisa sair daqui **explicitamente**. Antes bastava: os rótulos nasciam de
+     * `legs`, que já vinha vazio. Agora nascem da cronologia, que não sabe que o traço foi escondido
+     * — e tempo de percurso sem percurso desenhado não tem sobre o que se deitar.
+     */
+    if (legLabel === undefined || hideRoute === true) return
+
+    const outline = resolveBasemapOutline(readToken, theme)
+    const placements = resolveTimelineLegLabels({
+      content: legLabel,
+      legPoints: new Map(legs.map((leg) => [leg.toSequence, leg.points])),
+      /** `toSequence` é a posição 1-based da parada, a mesma chave com que `stopColor` é consultado. */
+      points: points.map((point, index) => ({
+        latitude: point.latitude,
+        longitude: point.longitude,
+        sequence: index + 1,
+      })),
+    })
+    const built: LegLabelMarker[] = placements.map((placement) => {
+      const element = legLabelElement({
+        ariaLabel: placement.content.aria,
+        outline,
+        text: placement.content.text,
+      })
+
+      return {
+        anchor: placement.anchor,
+        end: { latitude: placement.to.y, longitude: placement.to.x },
+        marker: new Marker({ element })
+          .setLngLat([placement.anchor.x, placement.anchor.y])
+          .addTo(map),
+        start: { latitude: placement.from.y, longitude: placement.from.x },
+      }
+    })
+    legLabelsRef.current = built
+    applyLegLabelFit(map, built)
+
+    /**
+     * ⚠️ O que cabe depende do **zoom**, não do dado: o mesmo trecho que comporta "2 h 15 min"
+     * afastado vira dois pixels aproximado. Reavaliar ao fim de cada movimento é o que mantém a
+     * promessa de não escrever texto ilegível por cima do traço.
+     */
+    const refit = () => applyLegLabelFit(map, legLabelsRef.current)
+    map.on('moveend', refit)
+    return () => {
+      map.off('moveend', refit)
+      for (const label of built) label.marker.remove()
+      legLabelsRef.current = []
+    }
+  }, [applyRoute, geometry, hideRoute, isReady, legLabel, points, stopColor, theme])
 
   return (
     <div className={styles.vectorMap}>
@@ -695,6 +788,7 @@ function depotElement(input: {
    * cobra e o que sobrevive ao mapa impresso e ao daltonismo.
    */
   element.style.background = input.color
+  element.style.color = resolvePinInk(input.color)
   element.style.borderColor = input.outline
   /** `title` nativo é proibido pelo design system, e o texto dele estava cravado em português. */
   element.setAttribute('role', 'img')
@@ -709,28 +803,25 @@ function depotElement(input: {
    * fora da árvore do React. O glifo continua sendo o do design system — o que é imperativo aqui é a
    * montagem do nó, não o desenho.
    */
-  const glyph = document.createElementNS(SVG_NAMESPACE, 'svg')
-  glyph.setAttribute('viewBox', '0 0 24 24')
-  glyph.setAttribute('fill', 'none')
-  glyph.setAttribute('stroke', 'currentColor')
-  glyph.setAttribute('stroke-width', '2')
-  glyph.setAttribute('stroke-linecap', 'round')
-  glyph.setAttribute('stroke-linejoin', 'round')
-  glyph.setAttribute('aria-hidden', 'true')
-  for (const definition of ICON_PATHS.organization) {
-    const path = document.createElementNS(SVG_NAMESPACE, 'path')
-    path.setAttribute('d', definition)
-    glyph.append(path)
-  }
-  element.append(glyph)
+  element.append(buildGlyphElement(ICON_PATHS.organization))
   return element
 }
 
 function stopElement(input: {
+  /** Ordem e tipo juntos, para o leitor de tela. Ausente onde o pino não tem o que narrar. */
+  readonly ariaLabel: string | undefined
   readonly approximate: boolean
   readonly color: string
+  /** Eventos agrupados neste pino; acima de 1 aparece o selo com a contagem. */
+  readonly count: number
+  /** Ícone no lugar do número (minimapa da linha do tempo). */
+  readonly glyph: IconName | undefined
+  /** Spec 196: o número da ordem como selo no canto superior esquerdo, junto ao glifo. */
+  readonly orderBadge: string | undefined
   readonly outline: string
   readonly sequence: number
+  /** Pino que não é parada: sai liso. Flag explícita porque `sequence` fora de faixa some calado. */
+  readonly unnumbered: boolean
 }): HTMLElement {
   const element = document.createElement('span')
   /**
@@ -741,10 +832,146 @@ function stopElement(input: {
   element.className = input.approximate
     ? `${styles.tilePin ?? ''} ${styles.tilePinApproximate ?? ''}`
     : (styles.tilePin ?? '')
+  /**
+   * ⚠️ A tinta sai **da cor do pino**, e por isso vem colada no preenchimento: as duas são uma
+   * decisão só. Separá-las é como o glifo foi parar em 2,65 de contraste no tema escuro.
+   */
   element.style.background = input.color
+  element.style.color = resolvePinInk(input.color)
   element.style.borderColor = input.outline
-  element.textContent = String(input.sequence)
+  if (input.glyph !== undefined) {
+    element.append(buildGlyphElement(ICON_PATHS[input.glyph]))
+  } else {
+    element.textContent = input.unnumbered ? '' : String(input.sequence)
+  }
+  if (input.count > 1) {
+    const badge = document.createElement('span')
+    badge.className = styles.tilePinCount ?? ''
+    badge.textContent = String(input.count)
+    element.append(badge)
+  }
+  if (input.orderBadge !== undefined) {
+    /**
+     * ⚠️ As medidas vão ao **pino**, não ao selo: a de dentro o selo herda, e a de fora é o diâmetro
+     * maior que só o pino com selo usa. O pino da montagem, que não tem selo, segue com `--space-6`.
+     */
+    element.classList.add(styles.tilePinBadged ?? '')
+    applyCustomProperties(element, TIMELINE_MAP_ORDER_BADGE_STYLE)
+    element.append(orderBadgeElement(input.orderBadge, input.outline))
+  }
+  if (input.ariaLabel !== undefined) {
+    /** `title` nativo é proibido pelo design system; o pino inteiro é a imagem que se narra. */
+    element.setAttribute('role', 'img')
+    element.setAttribute('aria-label', input.ariaLabel)
+  }
   return element
+}
+
+/**
+ * Spec 196 — a vez do ponto na cronologia, como um contador de notificação: **menor** que o glifo e
+ * no canto superior esquerdo, enquanto o selo de contagem fica no direito. O glifo manda (ele diz o
+ * tipo); o selo informa.
+ *
+ * ⚠️ **O anel é o mesmo que salva o pino marrom da via laranja** — o selo cai metade sobre o pino e
+ * metade sobre o mapa, e precisa dos dois contrastes: o anel claro o separa do pino, o preenchimento
+ * escuro o separa do papel do mapa. Nenhuma segunda solução foi inventada para isso.
+ */
+function orderBadgeElement(text: string, outline: string): HTMLElement {
+  const badge = document.createElement('span')
+  badge.className = styles.tilePinOrder ?? ''
+  badge.textContent = text
+  badge.style.borderColor = outline
+  return badge
+}
+
+/**
+ * Spec 196 — quanto tempo o caminhão levou de um ponto ao seguinte, escrito **sobre o trecho** que
+ * os liga. O texto vem pronto de `resolveTimelineMapView`, que o escreve com o mesmo
+ * `formatTripTimelineDuration` da lista.
+ */
+function legLabelElement(input: {
+  readonly ariaLabel: string
+  readonly outline: string
+  readonly text: string
+}): HTMLElement {
+  const element = document.createElement('span')
+  element.className = styles.tileLegLabel ?? ''
+  element.textContent = input.text
+  element.style.borderColor = input.outline
+  element.setAttribute('role', 'img')
+  element.setAttribute('aria-label', input.ariaLabel)
+  applyCustomProperties(element, TIMELINE_MAP_LEG_LABEL_STYLE)
+  return element
+}
+
+/**
+ * A medida declarada em `tripTimelineMap.constant.ts` chega à folha por aqui. O nó é montado fora da
+ * árvore do React e a folha não conhece estes valores — é o mesmo caminho pelo qual cor de fundo e
+ * cor do anel já chegam ao pino.
+ */
+function applyCustomProperties(element: HTMLElement, properties: Readonly<Record<string, string>>) {
+  for (const [name, value] of Object.entries(properties)) element.style.setProperty(name, value)
+}
+
+/**
+ * ⚠️ **O traço curto muda o rótulo de lugar; não o apaga.** A regra anterior escondia todo trecho
+ * mais curto que um limiar fixo — e no enquadramento em que a pessoa abre o mapa isso valia para
+ * 100% dos rótulos: medidos 32,0 / 14,2 / 1,4 px de vão contra limiar de 72 px. Uma regra que
+ * esconde sempre não é degradação graciosa, é a funcionalidade não entregue.
+ *
+ * Agora o vão é comparado com a **largura real do texto** (`offsetWidth`), e quando não cabe o
+ * rótulo desce para debaixo do pino de destino — os dois cantos de cima do pino já hospedam o selo
+ * de ordem e o de ocorrência. Só a colisão entre dois rótulos recolhe um deles, e nunca o primeiro.
+ */
+function applyLegLabelFit(map: MapLibreMap, labels: readonly LegLabelMarker[]): void {
+  for (const label of labels) {
+    const element = label.marker.getElement()
+    element.classList.remove(styles.tileLegLabelHidden ?? '')
+    const start = map.project([label.start.longitude, label.start.latitude])
+    const end = map.project([label.end.longitude, label.end.latitude])
+    const placement = resolveLegLabelPlacement({
+      spanPixels: Math.hypot(end.x - start.x, end.y - start.y),
+      textPixels: element.offsetWidth,
+    })
+
+    if (placement === 'trace') {
+      label.marker.setOffset([0, 0]).setLngLat([label.anchor.x, label.anchor.y])
+      continue
+    }
+
+    label.marker
+      .setOffset([0, TIMELINE_MAP_LEG_LABEL_PIN_OFFSET_PIXELS])
+      .setLngLat([label.end.longitude, label.end.latitude])
+  }
+
+  const visibility = resolveLegLabelVisibility(
+    labels.map((label) => {
+      const box = label.marker.getElement().getBoundingClientRect()
+      return { height: box.height, width: box.width, x: box.x, y: box.y }
+    }),
+  )
+  for (const [index, label] of labels.entries()) {
+    label.marker
+      .getElement()
+      .classList.toggle(styles.tileLegLabelHidden ?? '', visibility[index] === false)
+  }
+}
+
+function buildGlyphElement(paths: readonly string[]): SVGElement {
+  const glyph = document.createElementNS(SVG_NAMESPACE, 'svg')
+  glyph.setAttribute('viewBox', '0 0 24 24')
+  glyph.setAttribute('fill', 'none')
+  glyph.setAttribute('stroke', 'currentColor')
+  glyph.setAttribute('stroke-width', '2')
+  glyph.setAttribute('stroke-linecap', 'round')
+  glyph.setAttribute('stroke-linejoin', 'round')
+  glyph.setAttribute('aria-hidden', 'true')
+  for (const definition of paths) {
+    const path = document.createElementNS(SVG_NAMESPACE, 'path')
+    path.setAttribute('d', definition)
+    glyph.append(path)
+  }
+  return glyph
 }
 
 /**

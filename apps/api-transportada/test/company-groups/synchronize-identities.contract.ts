@@ -143,6 +143,8 @@ describe('sincronizar — do produto para o realm', () => {
           userId: 'user-1',
         },
       ],
+      /** O que faz o vínculo valer é o `subject` existir de verdade no realm, não só na coluna. */
+      realm: [{ subject: 'subject-existente' }],
     })
 
     const result = await createUseCase(fakes).execute({
@@ -153,7 +155,90 @@ describe('sincronizar — do produto para o realm', () => {
     })
 
     expect(result.createdInRealm).toEqual([])
+    expect(result.skippedUserIds).toEqual([
+      { reason: SYNC_SKIP_REASON.ALREADY_LINKED, userId: 'user-1' },
+    ])
     expect(fakes.realmUsers).toHaveLength(0)
+  })
+
+  /**
+   * Achado em staging (28/09/2026): `subject` gravado não é prova de vínculo — a conta pode ter
+   * sido apagada no provedor por fora, e a coluna continua com o valor antigo. Sem essa distinção,
+   * os 9 de 10 usuários nessa situação nunca eram tentados, e a resposta vinha 200 sem erro e sem
+   * motivo — parecia que tinha sincronizado.
+   */
+  test('subject gravado que não existe mais no realm ganha conta nova', async () => {
+    const fakes = createFakes({
+      local: [
+        {
+          contactAddress: 'ana@empresa.test',
+          contactChannel: 'email',
+          email: '',
+          membershipId: 'membership-1',
+          name: 'Ana',
+          subject: 'subject-apagado',
+          taxId: '',
+          userId: 'user-1',
+        },
+      ],
+      /** O realm não tem mais essa conta — só outra, sem relação com este usuário. */
+      realm: [{ subject: 'subject-de-outra-pessoa' }],
+    })
+
+    const result = await createUseCase(fakes).execute({
+      context: CONTEXT,
+      correlationId: 'correlation-1',
+      subjects: [],
+      userIds: ['user-1'],
+    })
+
+    expect(result.createdInRealm).toEqual(['user-1'])
+    expect(result.skippedUserIds).toEqual([])
+    expect(fakes.linked).toEqual([{ issuer: ISSUER, subject: 'subject-novo', userId: 'user-1' }])
+  })
+
+  test('falha isolada não trava quem vem depois na mesma lista', async () => {
+    const fakes = createFakes({
+      local: [
+        {
+          contactAddress: 'ana@empresa.test',
+          contactChannel: 'email',
+          email: '',
+          membershipId: 'membership-1',
+          name: 'Ana',
+          subject: undefined,
+          taxId: '',
+          userId: 'user-1',
+        },
+        {
+          contactAddress: 'beto@empresa.test',
+          contactChannel: 'email',
+          email: '',
+          membershipId: 'membership-2',
+          name: 'Beto',
+          subject: undefined,
+          taxId: '',
+          userId: 'user-2',
+        },
+      ],
+    })
+    fakes.gateway.createUser = async (call: Call) => {
+      if (call['username'] === 'user-1') throw new Error('provedor fora do ar')
+      fakes.realmUsers.push(call)
+      return { subject: 'subject-novo' }
+    }
+
+    const result = await createUseCase(fakes).execute({
+      context: CONTEXT,
+      correlationId: 'correlation-1',
+      subjects: [],
+      userIds: ['user-1', 'user-2'],
+    })
+
+    expect(result.createdInRealm).toEqual(['user-2'])
+    expect(result.skippedUserIds).toEqual([
+      { reason: SYNC_SKIP_REASON.CREATE_FAILED, userId: 'user-1' },
+    ])
   })
 })
 

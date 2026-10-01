@@ -6,6 +6,7 @@ import { runDatabaseMigrations } from '../../src/database/database-migration.ser
 import { assertContractorMailBodyHtml } from './contractor-mail-body-html.assertion.js'
 import { assertCteProfileOutputConstraints } from './cte-profile-output-constraints.assertion.js'
 import { assertDeliveryProofCargoSumsAndGuardsRollback } from './delivery-proof-cargo.assertion.js'
+import { assertDeliveryProofContractorOverridesBackfill } from './delivery-proof-contractor-overrides.assertion.js'
 import { assertDeliveryProofReceivedBy } from './delivery-proof-received-by.assertion.js'
 import { assertDriverAllowanceRollbackRefusesRecordedMoney } from './driver-allowance-rollback.assertion.js'
 import { assertFiscalConstraints } from './fiscal-constraints.assertion.js'
@@ -17,6 +18,8 @@ import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
 import { assertNfeDocumentListingOrderIndex } from './nfe-document-listing-order-index.assertion.js'
 import { assertNfeDocumentProtocolPresence } from './nfe-document-protocol-presence.assertion.js'
 import { assertNfeEventHistory } from './nfe-event-history.assertion.js'
+import { assertOccurrenceStopFlowBackfill } from './occurrence-stop-flow.assertion.js'
+import { assertOccurrenceStopKindBackfill } from './occurrence-stop-kind.assertion.js'
 import { assertRntrcRollbackRefusesNinePositions } from './rntrc-rollback.assertion.js'
 import { assertStopDepartureRollback } from './stop-departure-rollback.assertion.js'
 import { assertTollBoothExtractConstraints } from './toll-booth-extract-constraints.assertion.js'
@@ -133,6 +136,31 @@ describe('Drizzle migration integration', () => {
           database,
           directories: migrationDirectories,
           driverId: fleetFixture.driverId,
+          tripId: rollbackProbeTripId,
+          userId: identityFixture.userId,
+        })
+
+        await assertDeliveryProofContractorOverridesBackfill({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+
+        await assertOccurrenceStopFlowBackfill({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          tripId: rollbackProbeTripId,
+          userId: identityFixture.userId,
+        })
+
+        await assertOccurrenceStopKindBackfill({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
           tripId: rollbackProbeTripId,
           userId: identityFixture.userId,
         })

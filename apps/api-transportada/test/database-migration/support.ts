@@ -155,8 +155,13 @@ export const TRIP_TABLES = [
   /** Spec 082 / ADR-0057: a configuração do comprovante, geral e por CNPJ do destinatário. */
   'company_delivery_proof_settings',
   'delivery_proof_setting_overrides',
+  /** Spec 218 RF-C1: a mesma exceção, agora também por contratante. */
+  'delivery_proof_setting_contractor_overrides',
   /** Spec 148 T7: a fila de revisão das notas que não couberam. */
   'trip_document_reviews',
+  /** Spec 218 RF-B1: a exceção do `attachmentMode` de um tipo de ocorrência, por contratante e por destinatário. */
+  'company_occurrence_type_contractor_overrides',
+  'company_occurrence_type_recipient_overrides',
 ] as const
 
 export const INVITATION_TABLES = ['user_invitations', 'user_invitation_roles'] as const

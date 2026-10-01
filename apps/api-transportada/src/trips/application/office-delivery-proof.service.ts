@@ -16,6 +16,7 @@ import {
   buildDeliveryProofObjectKey,
   isDeliveryProofMimeType,
   matchesDeliveryProofSignature,
+  DELIVERY_PROOF_THUMBNAIL_MAX_BYTES,
   OFFICE_PROOF_MAX_BYTES,
 } from '../domain/delivery-proof.policy.js'
 import {
@@ -45,6 +46,8 @@ export type OfficeDeliveryProofUpload = {
   readonly mimeType: string
   readonly receiverDocument: string
   readonly receiverName: string
+  /** Spec 220 RF17/RF19: miniatura gerada no cliente; ausente é o caso normal, nunca condição do comprovante. */
+  readonly thumbnail?: { readonly bytes: Uint8Array; readonly mimeType: string }
   /**
    * Spec 193 D5: quem recebeu, já com a configuração aplicada (`applyReceivedBySettings`) por quem
    * chama. Ausente é o comprovante sem o dado.
@@ -81,15 +84,23 @@ export type OfficeProofPersistResult = {
 export function assertOfficeUploadAccepted(upload: {
   readonly bytes: Uint8Array
   readonly mimeType: string
+  readonly thumbnail?: { readonly bytes: Uint8Array; readonly mimeType: string }
 }): void {
-  if (upload.bytes.byteLength > OFFICE_PROOF_MAX_BYTES) {
-    throw new TripDeliveryProofRejectedError('TOO_LARGE')
-  }
-  const { mimeType } = upload
+  assertImageAccepted({ file: upload, maxBytes: OFFICE_PROOF_MAX_BYTES })
+  if (upload.thumbnail === undefined) return
+  assertImageAccepted({ file: upload.thumbnail, maxBytes: DELIVERY_PROOF_THUMBNAIL_MAX_BYTES })
+}
+
+function assertImageAccepted(input: {
+  readonly file: { readonly bytes: Uint8Array; readonly mimeType: string }
+  readonly maxBytes: number
+}): void {
+  const { bytes, mimeType } = input.file
+  if (bytes.byteLength > input.maxBytes) throw new TripDeliveryProofRejectedError('TOO_LARGE')
   if (!isDeliveryProofMimeType(mimeType)) {
     throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
   }
-  if (!matchesDeliveryProofSignature({ bytes: upload.bytes, mimeType })) {
+  if (!matchesDeliveryProofSignature({ bytes, mimeType })) {
     throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
   }
 }
@@ -157,6 +168,8 @@ export async function persistOfficeProof(
     objectKey,
   })
 
+  const thumbnail = await storeOfficeThumbnail({ companyId, eventId, params })
+
   const proofId = attachment.newProofId()
   /**
    * Spec 156 T15 A2 (ADR-0067 §5): o documento que o escritório digita passa pelo mesmo envelope e
@@ -196,7 +209,41 @@ export async function persistOfficeProof(
     receivedByDetail: isCargo ? null : (upload.receivedBy?.receivedByDetail ?? null),
     sha256: stored.sha256,
     sizeBytes: upload.bytes.byteLength,
+    ...(thumbnail === undefined ? {} : { thumbnail }),
   })
 
   return { id: saved.id, replacedObjectId }
+}
+
+async function storeOfficeThumbnail(input: {
+  readonly companyId: string
+  readonly eventId: string
+  readonly params: PersistOfficeProofParams
+}): Promise<
+  Parameters<DriverFieldReportTransactionPort['saveDeliveryProofWithinTransaction']>[0]['thumbnail']
+> {
+  const { thumbnail } = input.params.upload
+  if (thumbnail === undefined) return undefined
+
+  const objectId = input.params.attachment.newObjectId()
+  const objectKey = buildDeliveryProofObjectKey({
+    companyId: input.companyId,
+    eventId: input.eventId,
+    objectId,
+  })
+  const stored = await input.params.storage.store({
+    bytes: thumbnail.bytes,
+    companyId: input.companyId,
+    mimeType: thumbnail.mimeType,
+    objectId,
+    objectKey,
+  })
+
+  return {
+    mimeType: thumbnail.mimeType,
+    objectId,
+    objectKey,
+    sha256: stored.sha256,
+    sizeBytes: thumbnail.bytes.byteLength,
+  }
 }

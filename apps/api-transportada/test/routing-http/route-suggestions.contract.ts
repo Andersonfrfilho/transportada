@@ -85,7 +85,9 @@ describe('route suggestion routes (ADR-0044 §7)', () => {
 
     const response = await fixture.handle(
       jsonRequest({
-        body: { routeChoice: { criterion: 'fastest', signature: 'abc123' } },
+        body: {
+          routeChoice: { criterion: 'fastest', signature: 'a1b2c3d4e5f60718293a4b5c6d7e8f90' },
+        },
         method: 'POST',
         path: `${SUGGESTION_PATH}/accept`,
       }),
@@ -93,7 +95,7 @@ describe('route suggestion routes (ADR-0044 §7)', () => {
 
     expect(response.status).toBe(200)
     expect(fixture.acceptCalls[0]).toMatchObject({
-      routeChoice: { criterion: 'fastest', signature: 'abc123' },
+      routeChoice: { criterion: 'fastest', signature: 'a1b2c3d4e5f60718293a4b5c6d7e8f90' },
     })
   })
 

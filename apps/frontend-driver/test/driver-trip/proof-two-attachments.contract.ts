@@ -31,7 +31,10 @@ function proofSection(): string {
 describe('a foto do canhoto e a assinatura têm miniatura, chave e lightbox próprios (spec 213)', () => {
   it('duas instâncias de usePhotoPreviewUrl — uma por kind, nunca uma compartilhada', () => {
     const section = proofSection()
-    expect(section.match(/usePhotoPreviewUrl\(\)/gu)).toHaveLength(2)
+    /* Spec 218: cada uma nasce do arquivo do próprio kind que a fila já guarda. */
+    expect(section.match(/usePhotoPreviewUrl\(/gu)).toHaveLength(2)
+    expect(section).toContain('usePhotoPreviewUrl(queuedAtMount.photo?.blob)')
+    expect(section).toContain('usePhotoPreviewUrl(queuedAtMount.signature?.blob)')
     expect(section).toContain(
       'const previewByKind = { photo: photoPreview, signature: signaturePreview }',
     )
@@ -44,7 +47,8 @@ describe('a foto do canhoto e a assinatura têm miniatura, chave e lightbox pró
 
   it('attachedKey é por kind — não existe mais um attachedKind global', () => {
     const card = readComponentSource()
-    expect(proofSection()).toContain('useState<{ photo?: string; signature?: string }>({})')
+    /* Spec 218: começa do que a fila guarda para a nota, ainda por kind. */
+    expect(proofSection()).toContain('useState<{ photo?: string; signature?: string }>({')
     expect(card).not.toContain('attachedKind')
   })
 

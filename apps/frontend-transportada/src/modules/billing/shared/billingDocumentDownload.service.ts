@@ -45,3 +45,13 @@ export function createBillingDocumentDownloadController(
     },
   }
 }
+
+/** `noreferrer` nega o `window.opener`: a aba do PDF não alcança a sessão desta. */
+export function createBillingDocumentWindowDownload() {
+  return createBillingDocumentDownloadController({
+    openUrl: (url) => {
+      if (typeof window === 'undefined') return
+      window.open(url, '_blank', 'noopener,noreferrer')
+    },
+  })
+}

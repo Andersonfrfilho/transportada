@@ -37,7 +37,7 @@
 .intro {
   max-width: 44rem;
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  color: var(--color-slate-muted);
   font-size: 0.95rem;
   line-height: 1.55;
 }
@@ -489,7 +489,7 @@
 .emptyState p {
   max-width: 34rem;
   margin: 0 0 var(--space-2);
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.85rem;
   line-height: 1.5;
 }
@@ -503,7 +503,7 @@
 
 .optionalMark {
   margin-left: var(--space-1);
-  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  color: var(--color-slate-muted);
   font-size: 0.75rem;
   font-style: normal;
 }
@@ -524,14 +524,14 @@
 }
 
 .fieldHint {
-  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  color: var(--color-slate-muted);
   font-size: 0.72rem;
   line-height: 1.35;
 }
 
 .hint {
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.8rem;
 }
 
@@ -572,7 +572,7 @@
 
 .costSummary dt,
 .ownerSummary dt {
-  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  color: var(--color-slate-muted);
   font-size: 0.72rem;
 }
 
@@ -853,7 +853,7 @@
 
 .counter {
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-family: var(--font-utility);
   font-size: 0.78rem;
 }
@@ -861,7 +861,7 @@
 .panelHint {
   margin: 0;
   max-width: 60ch;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.85rem;
 }
 
@@ -960,7 +960,7 @@
   display: flex;
   align-items: center;
   padding-inline: var(--space-2);
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-family: var(--font-utility);
   font-size: var(--field-font-size);
   border-right: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
@@ -1151,9 +1151,14 @@
   text-transform: uppercase;
 }
 
-/* O desenho é largo, e o estado alto (Bahia, Minas) estouraria a dobra sem um teto de altura. */
-.mapDrawing {
-  max-height: 26rem;
+/*
+ * O canvas do MapLibre não tem tamanho intrínseco como o `<svg>` de antes — precisa de altura
+ * declarada, senão o mapa nasce 0×0 e nunca pede telha nenhuma (spec 153 RF11).
+ */
+.regionMapCanvas {
+  width: 100%;
+  height: 26rem;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
 }
 
 .mapLegend {
@@ -1431,7 +1436,7 @@
 
 .identitySpecification {
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.78rem;
   line-height: 1.45;
 }
@@ -1493,7 +1498,7 @@
   grid-column: 1 / -1;
   grid-row: 1;
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-family: var(--font-utility);
   font-size: 0.78rem;
   text-align: center;

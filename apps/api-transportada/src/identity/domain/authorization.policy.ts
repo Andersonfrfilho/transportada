@@ -71,6 +71,11 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
    */
   'trip.financials',
   /**
+   * ADR-0081 §6: a coordenada de cada toque é para quem gere a frota. `finance` e `separator` leem a
+   * linha do tempo (`fleet.read` ou `trip.report-on-behalf`) mas recebem `location: null`.
+   */
+  'trip.event-location',
+  /**
    * ADR-0047 §4: escopo enumerado, e ele é de **uma rota**. O serviço não recebe `mdfe.manage` —
    * que também descarta manifesto —, e sim a permissão criada para o gatilho automático.
    */
@@ -131,6 +136,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'view-preferences.manage',
     'addresses.read',
     'fleet.read',
+    'trip.event-location',
     'fleet.manage',
     'mdfe.read',
     'mdfe.manage',
@@ -172,6 +178,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'view-preferences.manage',
     'addresses.read',
     'fleet.read',
+    'trip.event-location',
     'mdfe.read',
     'mdfe.manage',
     'mdfe.issue',
@@ -194,6 +201,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'view-preferences.manage',
     'addresses.read',
     'fleet.read',
+    'trip.event-location',
     'fleet.manage',
     'mdfe.read',
     'mdfe.manage',
@@ -222,6 +230,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'operations.read',
     'view-preferences.manage',
     'fleet.read',
+    'trip.event-location',
     'mdfe.read',
     'nfse.read',
   ]),

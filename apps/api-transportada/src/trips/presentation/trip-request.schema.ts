@@ -3,7 +3,7 @@
  */
 import { z } from 'zod'
 
-import { ROUTE_CHOICE_CRITERIA } from '../domain/route-choice.policy.js'
+import { ROUTE_CHOICE_CRITERIA, SIGNATURE_HEX_LENGTH } from '../domain/route-choice.policy.js'
 
 /**
  * Espelha o mesmo teto de `MAX_DRIVERS_PER_MANIFEST` em `mdfe-manifest-request.schema.ts` e
@@ -16,16 +16,30 @@ import { ROUTE_CHOICE_CRITERIA } from '../domain/route-choice.policy.js'
 const MAX_TRIP_DRIVERS = 10
 
 /**
+ * L3 (revisão final da 153): a assinatura sempre é o hash truncado que `buildRouteSignature`
+ * (`route-choice.policy.ts`) gera — hex minúsculo, do tamanho exato de `SIGNATURE_HEX_LENGTH`.
+ * Qualquer outro texto nunca reproduziria opção nenhuma; barrar aqui, na fronteira, poupa o
+ * congelamento de gastar um round-trip inteiro no OSRM só para D3 cair no critério por engano.
+ */
+const ROUTE_SIGNATURE_PATTERN = new RegExp(`^[0-9a-f]{${SIGNATURE_HEX_LENGTH}}$`)
+
+/**
  * spec 153 D2/D3: qual rota o operador escolheu, na prévia e no congelamento. Um critério fora de
  * `ROUTE_CHOICE_CRITERIA` é 400 — nunca um fallback silencioso para `cheapest`.
  */
 export const routeChoiceRequestSchema = z
   .object({
     criterion: z.enum(ROUTE_CHOICE_CRITERIA),
-    signature: z.string().nullable(),
+    signature: z.string().regex(ROUTE_SIGNATURE_PATTERN).nullable(),
   })
   .strict()
 
+/**
+ * Spec 149 (ADR-0065 / D5, D11): ajudantes entram na criação ao lado dos motoristas, escolhidos à
+ * mão. O teto de `MAX_TRIP_DRIVERS` vale para a tripulação **inteira** (motoristas + ajudantes,
+ * evidence.md T1) — o `superRefine` fecha isso na fronteira, o mesmo padrão de "erro já existente
+ * de teto" que `driverIds` sozinho já tinha.
+ */
 export const createTripSchema = z
   .object({
     /**
@@ -35,10 +49,20 @@ export const createTripSchema = z
     dailyAllowanceDays: z.number().int().min(1).optional(),
     /** Spec 217 RF2: ausente ou vazio nasce viagem `awaiting_crew` — não é mais 400. */
     driverIds: z.array(z.uuid()).max(MAX_TRIP_DRIVERS).default([]),
+    helperIds: z.array(z.uuid()).max(MAX_TRIP_DRIVERS).default([]),
     /** Spec 217 RF2: ausência é "sem veículo ainda", nunca `TripVehicleNotFoundError`. */
     vehicleId: z.uuid().optional(),
   })
   .strict()
+  .superRefine((body, context) => {
+    if (body.driverIds.length + body.helperIds.length > MAX_TRIP_DRIVERS) {
+      context.addIssue({
+        code: 'custom',
+        message: `The crew cannot have more than ${MAX_TRIP_DRIVERS} people.`,
+        path: ['helperIds'],
+      })
+    }
+  })
 
 export type CreateTripBody = z.infer<typeof createTripSchema>
 
@@ -279,3 +303,8 @@ export const closeTripSchema = z
   .strict()
 
 export type CloseTripBody = z.infer<typeof closeTripSchema>
+
+/** Feature 147 T10: `null` desatrela a carreta — a viagem continua existindo sem uma. */
+export const setTripTrailerSchema = z.object({ trailerVehicleId: z.uuid().nullable() }).strict()
+
+export type SetTripTrailerBody = z.infer<typeof setTripTrailerSchema>

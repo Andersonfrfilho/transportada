@@ -26,6 +26,8 @@ import {
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 
 const FIELDS = {
+  cargo: 'off',
+  cargoMinimumCount: 1,
   photo: 'required',
   receivedBy: 'optional',
   receiverDocument: 'off',
@@ -61,8 +63,10 @@ function buildDependencies(stored: CompanyDeliveryProofSettings): {
   const saved: DeliveryProofSettingsInput[] = []
   return {
     dependencies: {
+      listContractorOverrides: NOT_CALLED,
       listOverrides: NOT_CALLED,
       readSettings: async () => stored,
+      replaceContractorOverrides: NOT_CALLED,
       replaceOverrides: NOT_CALLED,
       saveSettings: async (input) => {
         saved.push(input.settings)

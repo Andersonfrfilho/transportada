@@ -313,6 +313,72 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
     ).toEqual({ outcome: 'unchanged' })
   })
 
+  // Feature 147 D3/T11: o cavalo não carrega sozinho — sem carreta, o despacho barra.
+  describe('dispatch requires a trailer on a tractor unit', () => {
+    test('blocks dispatch when the tractor unit has no trailer', () => {
+      expect(
+        checkTripTransition({
+          action: TRIP_ACTION.dispatch,
+          hasRoute: true,
+          requiresTrailer: true,
+          tripStatus: 'loading',
+        }),
+      ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripTrailerRequired })
+    })
+
+    test('the route gate comes before the trailer gate', () => {
+      expect(
+        checkTripTransition({
+          action: TRIP_ACTION.dispatch,
+          hasRoute: false,
+          requiresTrailer: true,
+          tripStatus: 'draft',
+        }),
+      ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripHasNoRoute })
+    })
+
+    test('dispatches once the trailer is no longer required', () => {
+      for (const tripStatus of WAREHOUSE_STATUSES) {
+        expect(
+          checkTripTransition({
+            action: TRIP_ACTION.dispatch,
+            hasRoute: true,
+            requiresTrailer: false,
+            tripStatus,
+          }),
+        ).toEqual({ outcome: 'applied', nextStatus: 'dispatched' })
+      }
+    })
+
+    test('leaves every other action untouched, requiresTrailer absent or not', () => {
+      for (const action of Object.values(TRIP_ACTION)) {
+        // defineCrew exige crew/vehicleChanged (spec 217 D1) — fora do que requiresTrailer decide.
+        if (action === TRIP_ACTION.dispatch || action === TRIP_ACTION.defineCrew) continue
+        const without = checkTripTransition({ action, hasRoute: true, tripStatus: 'draft' })
+        const withTrue = checkTripTransition({
+          action,
+          hasRoute: true,
+          requiresTrailer: true,
+          tripStatus: 'draft',
+        })
+        expect(withTrue).toEqual(without)
+      }
+    })
+
+    test('re-checks unchanged for a trip already dispatched, trailer or not', () => {
+      for (const tripStatus of DISPATCHED_STATUSES) {
+        expect(
+          checkTripTransition({
+            action: TRIP_ACTION.dispatch,
+            hasRoute: true,
+            requiresTrailer: true,
+            tripStatus,
+          }),
+        ).toEqual({ outcome: 'unchanged' })
+      }
+    })
+  })
+
   test('answers every cell of the action × trip status × hasRoute grid', () => {
     let cells = 0
     for (const action of Object.values(TRIP_ACTION)) {

@@ -47,6 +47,12 @@ export type FleetVehicleInput = {
   /** Spec 085: por onde a carga entra e sai — decide se a ordem de carregamento e obrigatoria. */
   readonly loadingAccess: LoadingAccess
   readonly brand: string
+  /**
+   * Spec 147 D3: a carreta que este cavalo puxa por padrão. Só serve de sugestão — a viagem nova
+   * nasce com ela já escolhida, mas pode ser trocada até o despacho. Só é aceita em `tractor_unit`,
+   * e o apontado precisa ser uma carreta ativa da mesma empresa.
+   */
+  readonly defaultTrailerVehicleId: string | null
   readonly capacityCubicMeters: string
   readonly capacityKilograms: string
   /**
@@ -135,6 +141,13 @@ export type FleetDriverAddress = {
 
 export type FleetDriverInput = {
   readonly address: FleetDriverAddress
+  /** Spec 149 D1: pode atuar como ajudante — a mesma pessoa dirige numa viagem e ajuda em outra. */
+  readonly canActAsHelper: boolean
+  /**
+   * Spec 149 D2: a diária própria; vence a geral (`company_crew_settings`) quando existe. `null`
+   * apaga e devolve ao valor geral; ausente é "não mexeram nela".
+   */
+  readonly helperDailyRate?: string | null | undefined
   /**
    * Spec 100: este motorista amarra a carga com cinta.
    *
@@ -250,6 +263,14 @@ export type FleetVehicleRepositoryPort = {
     readonly companyId: string
     readonly vehicleId: string
   }): Promise<FleetVehicle | null>
+  /**
+   * Spec 147 T9: uma carreta que é padrão de algum cavalo, ou que puxa uma viagem aberta, não pode
+   * virar tração — ela ficaria pendurada num vínculo que deixaria de fazer sentido.
+   */
+  isTrailerInUse(input: {
+    readonly companyId: string
+    readonly vehicleId: string
+  }): Promise<boolean>
   list(input: {
     readonly companyId: string
     readonly cursor: string | null

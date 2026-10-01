@@ -31,6 +31,8 @@ export type SynchronizeIdentitiesResult = {
   readonly createdInRealm: readonly string[]
   /** Quem foi recusado, e por quê — silenciar faria o operador achar que sincronizou. */
   readonly skipped: readonly { readonly reason: string; readonly subject: string }[]
+  /** Mesma ideia do `skipped` acima, do lado de quem tinha vínculo daqui sem conta lá. */
+  readonly skippedUserIds: readonly { readonly reason: string; readonly userId: string }[]
 }
 
 /**
@@ -42,6 +44,7 @@ const SERVICE_ACCOUNT_PREFIX = 'service-account-'
 
 export const SYNC_SKIP_REASON = {
   ALREADY_LINKED: 'already-linked',
+  CREATE_FAILED: 'create-failed',
   NOT_FOUND: 'not-found',
   SERVICE_ACCOUNT: 'service-account',
 } as const
@@ -67,13 +70,14 @@ export function createSynchronizeIdentitiesUseCase({
 }: SynchronizeIdentitiesDependencies): SynchronizeIdentitiesUseCase {
   return {
     async execute({ context, correlationId, subjects, userIds }) {
-      const createdInRealm = await createMissingRealmUsers({
+      const realmSync = await createMissingRealmUsers({
         companyId: context.companyId,
         gateway,
         issuer,
         repository,
         userIds,
       })
+      const createdInRealm = realmSync.created
       const imported = await importRealmAccounts({
         companyId: context.companyId,
         gateway,
@@ -105,6 +109,7 @@ export function createSynchronizeIdentitiesUseCase({
         createdInRealm,
         createdLocally: imported.created,
         skipped: imported.skipped,
+        skippedUserIds: realmSync.skipped,
       }
     },
   }
@@ -114,37 +119,76 @@ export function createSynchronizeIdentitiesUseCase({
  * Vínculo daqui sem conta lá: cria a conta **desabilitada**, como o convite faz. Habilitar sem a
  * pessoa ter escolhido senha abriria acesso que ninguém pediu — o caminho de ativação continua sendo
  * o convite.
+ *
+ * ⚠️ **"Tem `subject` gravado" não é "está linkado".** A conta do provedor pode ter sido apagada por
+ * fora (reset de ambiente, limpeza manual) sem que a linha `external_identities` daqui soubesse — o
+ * vínculo fica apontando para um `subject` morto, e ele continua sendo um `subject`, não `undefined`.
+ * Achado em staging (28/09/2026): `GET /company-users/reconciliation` já faz a checagem de verdade
+ * contra o realm e classifica esses casos como `missing-in-realm`, mas este laço reconferia com um
+ * sinal mais fraco (`subject !== undefined`) e pulava todo mundo nessa situação — a tela de conserto
+ * respondia 200 com `createdInRealm: []`, sem erro e sem motivo, para os 9 de 10 usuários que
+ * precisavam de conta nova. Por isso a checagem aqui é contra o realm de verdade, não contra a
+ * presença de um valor qualquer na coluna.
+ *
+ * Sem constraint única em `userId` sozinho (só em `(issuer, subject)`), gravar o `subject` novo não
+ * esbarra na linha velha — ela fica para trás, órfã, e passa a ser ruído cosmético na reconciliação,
+ * não um bloqueio.
  */
 async function createMissingRealmUsers(input: {
   readonly companyId: string
-  readonly gateway: Pick<IdentityAccessGatewayPort, 'createUser'>
+  readonly gateway: Pick<IdentityAccessGatewayPort, 'createUser' | 'listUsers'>
   readonly issuer: string
   readonly repository: Pick<
     CompanyUserRepositoryPort,
     'findIdentitySubject' | 'linkIdentitySubject' | 'listForReconciliation'
   >
   readonly userIds: readonly string[]
-}): Promise<readonly string[]> {
-  if (input.userIds.length === 0) return []
+}): Promise<{
+  readonly created: readonly string[]
+  readonly skipped: readonly { readonly reason: string; readonly userId: string }[]
+}> {
+  if (input.userIds.length === 0) return { created: [], skipped: [] }
 
-  const local = await input.repository.listForReconciliation({ companyId: input.companyId })
+  const [local, realm] = await Promise.all([
+    input.repository.listForReconciliation({ companyId: input.companyId }),
+    input.gateway.listUsers({ limit: 200 }),
+  ])
+  const liveSubjects = new Set(realm.users.map((user) => user.subject))
   const created: string[] = []
+  const skipped: { reason: string; userId: string }[] = []
 
   for (const userId of input.userIds) {
     const record = local.find((entry) => entry.userId === userId)
-    if (record === undefined || record.subject !== undefined) continue
+    if (record === undefined) {
+      skipped.push({ reason: SYNC_SKIP_REASON.NOT_FOUND, userId })
+      continue
+    }
+    if (record.subject !== undefined && liveSubjects.has(record.subject)) {
+      skipped.push({ reason: SYNC_SKIP_REASON.ALREADY_LINKED, userId })
+      continue
+    }
 
-    const email = record.contactChannel === 'email' ? record.contactAddress : record.email
-    const { subject } = await input.gateway.createUser({
-      email: email === '' ? `${userId}@users.invalid` : email,
-      enabled: false,
-      username: userId,
-    })
-    await input.repository.linkIdentitySubject({ issuer: input.issuer, subject, userId })
-    created.push(userId)
+    /**
+     * Uma falha aqui (provedor fora do ar, nome já em uso) não pode travar quem vem depois na
+     * mesma lista — a tela de conserto processa um lote inteiro, e um problema isolado não é
+     * motivo para os outros nove ficarem sem tentar (mesmo raciocínio do `importRealmAccounts`
+     * logo abaixo, que já tinha essa rede).
+     */
+    try {
+      const email = record.contactChannel === 'email' ? record.contactAddress : record.email
+      const { subject } = await input.gateway.createUser({
+        email: email === '' ? `${userId}@users.invalid` : email,
+        enabled: false,
+        username: userId,
+      })
+      await input.repository.linkIdentitySubject({ issuer: input.issuer, subject, userId })
+      created.push(userId)
+    } catch {
+      skipped.push({ reason: SYNC_SKIP_REASON.CREATE_FAILED, userId })
+    }
   }
 
-  return created
+  return { created, skipped }
 }
 
 async function importRealmAccounts(input: {

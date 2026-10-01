@@ -6,13 +6,18 @@ import { z } from 'zod'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
 import { parseTaxIdValue, TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
-import { DRIVER_PROOF_KINDS, type DriverProofKind } from '../domain/delivery-event.constant.js'
+import {
+  DRIVER_UPLOAD_PROOF_KINDS,
+  type DriverUploadProofKind,
+} from '../domain/delivery-event.constant.js'
 import type { ProofPosition } from '../domain/delivery-proof-punctuality.policy.js'
 import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
 import { normalizeReceivedBy } from './received-by.schema.js'
 
 const FILE_FIELD = 'file'
 const KIND_FIELD = 'kind'
+/** Spec 220 RF17: a miniatura gerada no cliente — opcional; o teto de bytes é conferido pelo caso de uso. */
+const THUMBNAIL_FIELD = 'thumbnail'
 const RECEIVER_FIELD = 'receiverName'
 /** Spec 193 D2: quem recebeu e o detalhe, lidos pela forma tolerante. */
 const RECEIVED_BY_FIELD = 'receivedBy'
@@ -105,8 +110,10 @@ function parseProofLocation(form: Awaited<ReturnType<Request['formData']>>): Pro
   return { capturedAt: capturedAt === undefined ? undefined : new Date(capturedAt), position }
 }
 
-function isProofKind(value: unknown): value is DriverProofKind {
-  return typeof value === 'string' && (DRIVER_PROOF_KINDS as readonly string[]).includes(value)
+function isProofKind(value: unknown): value is DriverUploadProofKind {
+  return (
+    typeof value === 'string' && (DRIVER_UPLOAD_PROOF_KINDS as readonly string[]).includes(value)
+  )
 }
 
 /**
@@ -138,6 +145,7 @@ export async function parseDeliveryProofUpload(request: Request): Promise<Delive
   }
 
   const location = parseProofLocation(form)
+  const thumbnail = await parseThumbnail(form)
 
   return {
     attachmentKey: typeof attachmentKey === 'string' ? attachmentKey : '',
@@ -154,7 +162,20 @@ export async function parseDeliveryProofUpload(request: Request): Promise<Delive
       receivedByDetail: form.get(RECEIVED_BY_DETAIL_FIELD),
     }),
     receiverName: typeof receiverName === 'string' ? receiverName : '',
+    ...(thumbnail === undefined ? {} : { thumbnail }),
   }
+}
+
+/** Ausente ou vazio é o comprovante sem miniatura; texto no lugar do arquivo é `400`. */
+async function parseThumbnail(
+  form: Awaited<ReturnType<Request['formData']>>,
+): Promise<DeliveryProofUpload['thumbnail']> {
+  const value = readOptionalField(form, THUMBNAIL_FIELD)
+  if (value === undefined) return undefined
+  if (!(value instanceof File)) throw new ApiError(HTTP_ERROR.invalidRequest)
+  if (value.size === 0) return undefined
+
+  return { bytes: new Uint8Array(await value.arrayBuffer()), mimeType: value.type }
 }
 
 /** O multipart só carrega texto: fora de `true`/`false` é `400`, nunca um booleano adivinhado. */

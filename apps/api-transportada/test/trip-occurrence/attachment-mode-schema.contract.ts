@@ -15,6 +15,7 @@ function baseBody(): string {
     emailBody: '',
     emailSubject: '',
     emailTemplateKey: null,
+    flow: 'document',
     name: 'Recusa total',
     notifies: false,
     occurrenceTypeId: null,

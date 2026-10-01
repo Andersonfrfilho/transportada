@@ -14,10 +14,11 @@ import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { formatStoredPhone } from '@/modules/shared/phone.service'
 import { useMinWidth } from '@/modules/shared/useMinWidth.hook'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import { OccurrenceCasePanel } from '../components/OccurrenceCasePanel.component'
 import { OccurrenceTimelinePanel } from '../components/OccurrenceTimeline.component'
-import { formatMoment, OccurrenceAttachments } from '../components/TripOccurrenceTable.component'
+import { OccurrenceAttachments } from '../components/TripOccurrenceTable.component'
 import { useTripOccurrenceDetailQuery } from '../queries/tripOccurrenceFeed.query'
 import {
   buildOccurrenceDriverContact,
@@ -78,6 +79,7 @@ function OccurrenceTypeTitle({ occurrence }: Readonly<{ occurrence: TripOccurren
 /** Quem registrou: o ator, e "em nome de" quando foi o escritório pelo motorista (spec 156). */
 function OccurrenceAuthorship({ occurrence }: Readonly<{ occurrence: TripOccurrenceDetail }>) {
   const { t } = useTranslation('trip')
+  const formatMoment = useMomentFormatter()
   const channel = t(`occurrenceDetail.channel.${occurrence.channel}`, {
     defaultValue: occurrence.channel,
   })

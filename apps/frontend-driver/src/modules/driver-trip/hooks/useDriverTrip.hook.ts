@@ -26,6 +26,8 @@ import {
   discardStaleAttachments,
   drainQueueWithAttachments,
   enqueueAttachment,
+  releaseAttachmentsAwaitingDelivery,
+  discardAttachmentsAwaitingDelivery,
   removeQueuedAttachmentByKey,
   type AttachmentSendOutcome,
   type AttachmentStore,
@@ -97,6 +99,7 @@ const CURRENT_TRIP_REFETCH_MS = 30_000
  * nunca deixar a drenagem vencer a corrida contra o primeiro paint.
  */
 const PROOF_AUTO_DRAIN_GRACE_MS = 3_000
+const THUMBNAIL_FILE_NAME = 'thumbnail.jpg'
 
 /** O store não guarda estado — cada operação abre a base —, então um só serve a app inteira. */
 const TRIP_SNAPSHOT_STORE = createIndexedDbTripSnapshotStore()
@@ -104,9 +107,11 @@ const TRIP_SNAPSHOT_STORE = createIndexedDbTripSnapshotStore()
 export type DriverProofInput = Readonly<{
   /** Spec 207: gerada na tela — é o que "Remover" (por item, nunca por nota) precisa depois. */
   attachmentKey?: string
+  /** Spec 218 (RF-A3): colhido antes da entrega — espera o "Confirmar entrega" para drenar. */
+  awaitingDelivery?: true
   documentId: string
   file: File
-  kind: 'photo' | 'signature'
+  kind: 'cargo' | 'photo' | 'signature'
   /** Pedido do usuário (25/09): "Registrar entrega depois" — atrás de `LATE_REGISTRATION_FIELD_ENABLED`. */
   lateRegistration?: boolean
   /** Spec 193 D1: quem recebeu, em relação ao destinatário, e o detalhe curto. */
@@ -153,6 +158,8 @@ export type DriverTripController = Readonly<{
    * "Substituir".
    */
   removeProof: (attachmentKey: string) => Promise<void>
+  /** Spec 218: o gate foi cancelado — o canhoto que esperava a entrega daquela nota sai da fila. */
+  discardProofAwaitingDelivery: (documentId: string) => Promise<void>
   /** "Confirmar em lote": tira a marca do que foi feito sem rede e drena. */
   confirmUnverifiedPending: () => Promise<void>
   /** Descarta o que foi feito sem rede — o item e o dado saem do aparelho. */
@@ -196,6 +203,12 @@ export type DriverTripController = Readonly<{
   report: (report: DriverFieldReport) => Promise<DriverReportOutcome>
   /** Spec 179: os itens do mesmo toque ("Não entreguei"), todos ou nenhum. */
   reportNotDelivered: (reports: readonly DriverFieldReport[]) => Promise<DriverNotDeliveredOutcome>
+  /**
+   * Spec 218: itens de um toque, todos ou nenhum, com a foto contando no teto — o mesmo caminho do
+   * "Não entreguei". A ocorrência com foto obrigatória vai por aqui: fila cheia recusa o toque
+   * inteiro, nunca registra sem a foto que o tipo exige.
+   */
+  reportAllOrNothing: (reports: readonly DriverFieldReport[]) => Promise<DriverNotDeliveredOutcome>
   /** Spec 209: o "Deu problema" — a ocorrência sempre entra; a foto, se couber. */
   reportStopOccurrence: (
     reports: readonly DriverFieldReport[],
@@ -380,6 +393,13 @@ export function useDriverTrip(
                 type: attachment.blob.type,
               }),
               kind: attachment.kind,
+              ...(attachment.thumbnail === undefined
+                ? {}
+                : {
+                    thumbnail: new File([attachment.thumbnail], THUMBNAIL_FILE_NAME, {
+                      type: attachment.thumbnail.type,
+                    }),
+                  }),
               ...(attachment.latitude === undefined ? {} : { latitude: attachment.latitude }),
               ...(attachment.longitude === undefined ? {} : { longitude: attachment.longitude }),
               ...(attachment.accuracyMeters === undefined
@@ -552,6 +572,14 @@ export function useDriverTrip(
         subHash: session.subHash,
       })
       if (!result.accepted) return result.reason
+      /* Spec 218 (RF-A3): o canhoto colhido no gate passa para trás desta entrega — evento primeiro. */
+      if (fieldReport.kind === 'deliver') {
+        await releaseAttachmentsAwaitingDelivery({
+          attachmentStore,
+          documentId: fieldReport.documentId,
+          eventKey: fieldReport.idempotencyKey,
+        })
+      }
       await refreshQueueView()
 
       const location = await readCurrentLocation()
@@ -592,9 +620,16 @@ export function useDriverTrip(
         subHash: session.subHash,
       })
       if (!result.accepted) return result.reason
+      const returned = reports.find((report) => report.kind === 'return')
+      /* Spec 218: a nota voltou — o canhoto colhido no gate para ela não tem mais entrega a esperar. */
+      if (returned !== undefined && returned.kind === 'return') {
+        await discardAttachmentsAwaitingDelivery({
+          attachmentStore,
+          documentId: returned.documentId,
+        })
+      }
       await refreshQueueView()
 
-      const returned = reports.find((report) => report.kind === 'return')
       const location = returned === undefined ? null : await readCurrentLocation()
       if (returned !== undefined && location !== null) {
         await store.update((items) =>
@@ -686,6 +721,7 @@ export function useDriverTrip(
     const result = await enqueueAttachment({
       attachment,
       attachmentStore,
+      awaitingDelivery: input.awaitingDelivery === true,
       isUnverified: !session.canSync,
       store,
     })
@@ -800,6 +836,11 @@ export function useDriverTrip(
     await refreshQueueView()
   }
 
+  async function discardProofAwaitingDelivery(documentId: string): Promise<void> {
+    await discardAttachmentsAwaitingDelivery({ attachmentStore, documentId })
+    await refreshQueueView()
+  }
+
   async function discardForeign(): Promise<void> {
     await discardForeignPending({ attachmentStore, ownerSubHash: session.subHash, store })
     await refreshQueueView()
@@ -833,6 +874,7 @@ export function useDriverTrip(
     attachProof,
     updateProofFields,
     removeProof,
+    discardProofAwaitingDelivery,
     confirmUnverifiedPending: confirmUnverified,
     discardForeignPending: discardForeign,
     discardOwnPending: discardOwn,
@@ -857,6 +899,7 @@ export function useDriverTrip(
     refetchTrip: () => void queryClient.invalidateQueries({ queryKey: CURRENT_TRIP_QUERY_KEY }),
     rejectedCount: loadedView.filter((item) => item.status.state === 'rejected').length,
     report,
+    reportAllOrNothing: reportNotDelivered,
     reportNotDelivered,
     reportStopOccurrence,
     reportWithLocation,

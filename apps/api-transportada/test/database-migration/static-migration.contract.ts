@@ -311,6 +311,18 @@ describe('Drizzle migrations', () => {
       '20260926140647_stop_departure',
       '20260926212434_trip_vehicle_optional',
       '20260926214201_trip_stops_forget_dead_coordinates',
+      '20260928010022_occurrence_correction_and_cancellation',
+      '20260928120432_trip_crew_helpers_and_journey',
+      '20260928130000_trip_trailer_vehicle',
+      '20260928140000_vehicle_reference_open_and_container',
+      '20260929123654_delivery_proof_contractor_overrides',
+      '20260929131715_occurrence_stop_flow',
+      '20260929131833_occurrence_type_attachment_overrides',
+      '20260929144801_occurrence_type_stop_kind',
+      '20260930021013_delivery_proof_cargo_mode',
+      '20260930110332_delivery_proof_thumbnail',
+      '20260930145144_delivery_proof_canhoto_review',
+      '20261001123700_event_location_stamp',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -1704,6 +1716,95 @@ describe('Drizzle migrations', () => {
     expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
     expect(rollbackSql).not.toContain('CASCADE')
   })
+
+  /**
+   * Spec 220 RF24-RF28 (T6.3). Duas coisas que só um teste estático alcança:
+   *
+   * 1. **Nenhuma restrição valida no mesmo comando que a cria.** `trip_delivery_proofs` cresce com
+   *    cada entrega; `ADD CONSTRAINT` validando toma ACCESS EXCLUSIVE e varre a tabela inteira, com
+   *    o deploy segurando entrega e painel enquanto isso. São dezesseis restrições — basta uma
+   *    esquecida para o ganho virar zero, e a esquecida não aparece em nenhum teste de banco: ele
+   *    roda contra uma base vazia, onde varrer é instantâneo.
+   * 2. **A chave de acesso da NF-e não cabe aqui.** `canhoto_read_number` guarda o número impresso
+   *    (`varchar(9)`), nunca os 44 dígitos: as posições 7-20 da chave carregam o CNPJ do emitente, e
+   *    produtor rural pessoa física põe o **CPF** no mesmo campo — seria PII em coluna que o painel
+   *    devolve. O dado já existe em `nfe_documents.access_key`, e a FK composta liga os dois.
+   */
+  test('versions the canhoto conference as an additive migration that never validates inline', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_delivery_proof_canhoto_review'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+
+    expect(migrationSql).not.toMatch(DESTRUCTIVE_MIGRATION_PATTERN)
+
+    const reviewColumns = [
+      'canhoto_review',
+      'canhoto_review_origin',
+      'canhoto_review_by_user_id',
+      'canhoto_review_at',
+      'canhoto_review_reason',
+      'canhoto_review_note',
+      'canhoto_read_number',
+      'canhoto_read_series',
+      'canhoto_read_source',
+      'canhoto_read_document_id',
+    ]
+    for (const column of reviewColumns) expect(migrationSql).toContain(`ADD COLUMN "${column}"`)
+
+    expect(migrationSql).toContain(
+      'ADD COLUMN "canhoto_review" varchar(16) DEFAULT \'not_applicable\' NOT NULL;',
+    )
+    expect(migrationSql).toContain('ADD COLUMN "canhoto_read_number" varchar(9);')
+    expect(migrationSql).toContain('ADD COLUMN "canhoto_read_series" varchar(3);')
+    expect(migrationSql).not.toContain('access_key')
+
+    const addedConstraints = [...migrationSql.matchAll(/ADD CONSTRAINT "([^"]+)"[^;]*;/gu)]
+    expect(addedConstraints).toHaveLength(16)
+    const semNotValid = addedConstraints.filter(([statement]) => !statement.includes('NOT VALID'))
+    const semValidacao = addedConstraints.filter(
+      ([, name]) =>
+        !migrationSql.includes(
+          `ALTER TABLE "trip_delivery_proofs" VALIDATE CONSTRAINT "${name ?? ''}";`,
+        ),
+    )
+    expect(semNotValid.map(([, name]) => name)).toEqual([])
+    expect(semValidacao.map(([, name]) => name)).toEqual([])
+
+    expect(migrationSql).toContain(
+      'FOREIGN KEY ("company_id","canhoto_read_document_id") REFERENCES "trip_documents"("company_id","id")',
+    )
+    // `= 'manual'` daria NULL com origem nula, e CHECK só reprova em FALSE: a linha incoerente passaria.
+    expect(migrationSql).toContain(
+      '("canhoto_review_by_user_id" is not null) = ("canhoto_review_origin" is not distinct from \'manual\')',
+    )
+    expect(migrationSql).toContain(
+      '("canhoto_review_note" is not null) = ("canhoto_review_reason" is not distinct from \'other\')',
+    )
+    // Aprovação automática só existe atrás de código de barras — OCR nunca aprova sozinho (RF26).
+    expect(migrationSql).toContain(
+      '"canhoto_review" <> \'approved\' or "canhoto_review_origin" <> \'automatic\' or "canhoto_read_source" = \'barcode\'',
+    )
+
+    for (const [, name] of addedConstraints) {
+      expect(rollbackSql).toContain(`DROP CONSTRAINT IF EXISTS "${name ?? ''}"`)
+    }
+    for (const column of reviewColumns) {
+      expect(rollbackSql).toContain(`DROP COLUMN IF EXISTS "${column}"`)
+    }
+    const ultimaRestricaoDerrubada = rollbackSql.lastIndexOf('DROP CONSTRAINT IF EXISTS')
+    const primeiraColunaDerrubada = rollbackSql.indexOf('DROP COLUMN IF EXISTS')
+    expect(ultimaRestricaoDerrubada).toBeGreaterThan(-1)
+    expect(primeiraColunaDerrubada).toBeGreaterThan(ultimaRestricaoDerrubada)
+
+    expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
 })
 
 describe('CHECK trocado em tabela grande entra NOT VALID (spec 183 T903, achado C5)', () => {
@@ -1726,5 +1827,103 @@ describe('CHECK trocado em tabela grande entra NOT VALID (spec 183 T903, achado 
     expect(sql).toContain(
       'ALTER TABLE "stored_objects" VALIDATE CONSTRAINT "stored_objects_purpose_check"',
     )
+  })
+})
+
+describe('o estado do ponto entra aditivo e o histórico sem coordenada fica NULL (spec 196 D2)', () => {
+  /**
+   * Três coisas que só o teste estático alcança:
+   *
+   * 1. **O backfill não inventa `unavailable`.** Marcar vermelho o evento antigo seria afirmar que o
+   *    GPS falhou num toque que, na app daquela época, nunca pediu posição. Derivar do canal é pior:
+   *    `trip_stop_events.channel` é NOT NULL DEFAULT 'driver_app' e nunca teve backfill.
+   * 2. **O `UPDATE` vem antes dos CHECKs.** O CHECK de consistência amarra `captured` à coordenada;
+   *    validá-lo antes de preencher reprovaria toda linha que já tem ponto.
+   * 3. **Nenhuma restrição valida no mesmo comando que a cria.** As duas tabelas crescem a cada
+   *    entrega, e o teste de banco não pega isso: ele roda contra base vazia, onde varrer é grátis.
+   */
+  test('versions the event location state without touching the tables that have no point', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_event_location_stamp'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+
+    expect(migrationSql).not.toMatch(DESTRUCTIVE_MIGRATION_PATTERN)
+
+    // O cabeçalho explica o recorte e nomeia as tabelas de fora; as asserções olham só o SQL.
+    const statements = migrationSql
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('--'))
+      .join('\n')
+
+    const locatedTables = ['trip_stop_events', 'trip_delivery_proofs'] as const
+    for (const table of locatedTables) {
+      expect(statements).toContain(
+        `ALTER TABLE "${table}" ADD COLUMN "location_state" varchar(16);`,
+      )
+      expect(statements).toContain(
+        `UPDATE "${table}" SET "location_state" = 'captured' WHERE "latitude" is not null;`,
+      )
+    }
+
+    // A coluna nasce anulável e sem default — o histórico não ganha veredito que ninguém mediu.
+    expect(statements).not.toContain('NOT NULL')
+    expect(statements).not.toContain('DEFAULT')
+
+    // As tabelas sem coluna de ponto são o resto da spec — a migration não as toca.
+    for (const untouched of [
+      'trip_status_events',
+      'trip_stop_occurrences',
+      'trip_document_occurrences',
+      'trip_stop_order_events',
+    ]) {
+      expect(statements).not.toContain(untouched)
+    }
+
+    // O histórico sem coordenada fica NULL: nada aqui escreve 'unavailable' ou 'expired'.
+    expect(statements).not.toContain(`= 'unavailable'`)
+    expect(statements).not.toContain(`= 'expired'`)
+
+    const backfillPosition = statements.lastIndexOf('UPDATE "trip_delivery_proofs"')
+    const firstConstraintPosition = statements.indexOf('ADD CONSTRAINT')
+    expect(backfillPosition).toBeGreaterThan(-1)
+    expect(firstConstraintPosition).toBeGreaterThan(backfillPosition)
+
+    const addedConstraints = [...statements.matchAll(/ADD CONSTRAINT "([^"]+)"[^;]*;/gu)]
+    expect(addedConstraints).toHaveLength(4)
+    const semNotValid = addedConstraints.filter(([statement]) => !statement.includes('NOT VALID'))
+    expect(semNotValid.map(([, name]) => name)).toEqual([])
+    for (const table of locatedTables) {
+      for (const suffix of ['location_state_check', 'location_state_consistency_check']) {
+        expect(statements).toContain(
+          `ALTER TABLE "${table}" VALIDATE CONSTRAINT "${table}_${suffix}";`,
+        )
+      }
+    }
+    expect(statements).toContain(
+      `CHECK ("location_state" is null or "location_state" in ('captured', 'unavailable', 'expired')) NOT VALID`,
+    )
+    expect(statements).toContain(
+      `CHECK (("location_state" is not distinct from 'captured') = ("latitude" is not null)) NOT VALID`,
+    )
+    /** CHECK que avalia `NULL` passa: `is null or` aqui aceitaria a linha que ele existe para barrar. */
+    expect(statements).not.toContain(`CHECK ("location_state" is null or (("location_state"`)
+
+    for (const [, name] of addedConstraints) {
+      expect(rollbackSql).toContain(`DROP CONSTRAINT IF EXISTS "${name ?? ''}"`)
+    }
+    expect(rollbackSql).toContain('DROP COLUMN IF EXISTS "location_state"')
+    const ultimaRestricaoDerrubada = rollbackSql.lastIndexOf('DROP CONSTRAINT IF EXISTS')
+    const primeiraColunaDerrubada = rollbackSql.indexOf('DROP COLUMN IF EXISTS')
+    expect(ultimaRestricaoDerrubada).toBeGreaterThan(-1)
+    expect(primeiraColunaDerrubada).toBeGreaterThan(ultimaRestricaoDerrubada)
+
+    expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
   })
 })

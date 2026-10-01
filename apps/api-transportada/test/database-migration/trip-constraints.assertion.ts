@@ -241,6 +241,37 @@ export async function assertTripConstraints(
     where id = ${tripId}
   `
 
+  // Spec 149 T6 (decisão do usuário, 15/09/2026): a jornada e a marca da volta nascem e morrem juntas.
+  await expectQueryToFail(
+    database`update trips set planned_journey_seconds = 3600 where id = ${tripId}`,
+    '23514',
+    'trips_planned_journey_check',
+  )
+  await expectQueryToFail(
+    database`update trips set planned_journey_includes_return = true where id = ${tripId}`,
+    '23514',
+    'trips_planned_journey_check',
+  )
+  await expectQueryToFail(
+    database`
+      update trips
+      set planned_journey_seconds = -1, planned_journey_includes_return = false
+      where id = ${tripId}
+    `,
+    '23514',
+    'trips_planned_journey_seconds_check',
+  )
+  await database`
+    update trips
+    set planned_journey_seconds = 108000, planned_journey_includes_return = true
+    where id = ${tripId}
+  `
+  await database`
+    update trips
+    set planned_journey_seconds = null, planned_journey_includes_return = null
+    where id = ${tripId}
+  `
+
   await database`
     insert into trip_drivers (company_id, trip_id, driver_id, driver_name, driver_tax_id, position)
     values (${companyId}, ${tripId}, ${driverId}, 'Motorista Titular', '12345678901', 1)
@@ -276,6 +307,28 @@ export async function assertTripConstraints(
     `,
     '23514',
     'trip_drivers_tax_id_check',
+  )
+
+  // Spec 149 / ADR-0065: a linha legada, sem papel, continua sendo o condutor.
+  const [legacyCrew] = await database<{ role: string }[]>`
+    select role from trip_drivers where trip_id = ${tripId} and position = 1
+  `
+  expect(legacyCrew?.role).toBe('driver')
+  await expectQueryToFail(
+    database`
+      insert into trip_drivers (company_id, trip_id, driver_id, driver_name, driver_tax_id, position, role)
+      values (${companyId}, ${otherTripId}, ${secondDriverId}, 'Ajudante', '98765432100', 1, 'helper')
+    `,
+    '23514',
+    'trip_drivers_lead_role_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into trip_drivers (company_id, trip_id, driver_id, driver_name, driver_tax_id, position, role)
+      values (${companyId}, ${tripId}, ${secondDriverId}, 'Ajudante', '98765432100', 2, 'copilot')
+    `,
+    '23514',
+    'trip_drivers_role_check',
   )
 
   const importId = crypto.randomUUID()
@@ -396,6 +449,14 @@ export async function assertTripConstraints(
   })
 
   await assertStopEnRouteConstraints({ companyId, database, tripId, vehicleId })
+
+  await assertTrailerVehicleConstraints({
+    companyId,
+    database,
+    otherCompanyId,
+    trailerId: fleet.trailerId,
+    vehicleId,
+  })
 }
 
 /**
@@ -511,6 +572,69 @@ async function assertStopEnRouteConstraints(input: {
 }
 
 /**
+ * Spec 147 D3/T8: a carreta que o cavalo puxa nesta viagem. `restrict`/`cascade` cruzando empresa,
+ * carreta que não é o próprio veículo tracionado, e uma carreta não entra em duas viagens abertas
+ * ao mesmo tempo — só os dois estados terminais (`completed`, `cancelled`) a liberam.
+ */
+async function assertTrailerVehicleConstraints(input: {
+  readonly companyId: string
+  readonly database: SQL
+  readonly otherCompanyId: string
+  readonly trailerId: string
+  readonly vehicleId: string
+}): Promise<void> {
+  const { companyId, database, otherCompanyId, trailerId, vehicleId } = input
+  const otherCompanyVehicleId = crypto.randomUUID()
+
+  await database`
+    insert into fleet_vehicles (id, company_id, plate, role, vehicle_type, state)
+    values (${otherCompanyVehicleId}, ${otherCompanyId}, 'TRP1A11', 'traction', 'tractor_unit', 'SP')
+  `
+
+  await expectQueryToFail(
+    database`
+      insert into trips (company_id, vehicle_id, trailer_vehicle_id)
+      values (${companyId}, ${vehicleId}, ${otherCompanyVehicleId})
+    `,
+    '23503',
+    'trips_company_trailer_vehicle_fk',
+  )
+
+  await expectQueryToFail(
+    database`
+      insert into trips (company_id, vehicle_id, trailer_vehicle_id)
+      values (${companyId}, ${vehicleId}, ${vehicleId})
+    `,
+    '23514',
+    'trips_trailer_not_vehicle',
+  )
+
+  const trailerTripId = crypto.randomUUID()
+  await database`
+    insert into trips (id, company_id, vehicle_id, trailer_vehicle_id)
+    values (${trailerTripId}, ${companyId}, ${vehicleId}, ${trailerId})
+  `
+  await expectQueryToFail(
+    database`
+      insert into trips (company_id, vehicle_id, trailer_vehicle_id)
+      values (${companyId}, ${vehicleId}, ${trailerId})
+    `,
+    '23505',
+    'trips_company_trailer_open_unique',
+  )
+
+  // Completed é um dos dois terminais que liberam a carreta.
+  await database`update trips set status = 'completed' where id = ${trailerTripId}`
+  const secondTrailerTripId = crypto.randomUUID()
+  await database`
+    insert into trips (id, company_id, vehicle_id, trailer_vehicle_id)
+    values (${secondTrailerTripId}, ${companyId}, ${vehicleId}, ${trailerId})
+  `
+
+  await database`delete from trips where id in (${trailerTripId}, ${secondTrailerTripId})`
+}
+
+/**
  * ADR-0046 §5: **um manifesto vivo por viagem**. Duas autorizações de CT-e chegando no mesmo instante
  * disparariam duas emissões, e duplicar MDF-e é incidente fiscal — quem perde a corrida é o `if` no
  * consumer, então quem decide é o banco.
@@ -587,20 +711,50 @@ async function assertFieldExecutionConstraints(input: {
   // Precisão de 5 km é gravada com o número, nunca descartada: galpão de laje é o caso normal
   await database`
     insert into trip_stop_events (
-      company_id, stop_id, kind, latitude, longitude, accuracy_meters, captured_at, actor_user_id
+      company_id, stop_id, kind, latitude, longitude, accuracy_meters, captured_at, actor_user_id,
+      location_state
     )
     values (
-      ${companyId}, ${stopId}, 'arrived', '-23.5505199', '-46.6333094', '5000.00', now(), ${userId}
+      ${companyId}, ${stopId}, 'arrived', '-23.5505199', '-46.6333094', '5000.00', now(), ${userId},
+      'captured'
     )
   `
 
+  // `location_state` vai junto para que a recusa seja do CHECK de coordenada, e não do de consistência
   await expectQueryToFail(
     database`
-      insert into trip_stop_events (company_id, stop_id, kind, latitude, actor_user_id)
-      values (${companyId}, ${stopId}, 'arrived', '-23.5505199', ${userId})
+      insert into trip_stop_events (company_id, stop_id, kind, latitude, actor_user_id, location_state)
+      values (${companyId}, ${stopId}, 'arrived', '-23.5505199', ${userId}, 'captured')
     `,
     '23514',
     'trip_stop_events_coordinates_check',
+  )
+
+  /**
+   * A metade que o CHECK original deixava passar: coordenada com estado nulo. `is null or ...`
+   * curto-circuitava, e `(estado = 'captured') = (...)` devolve `NULL` — e CHECK que avalia `NULL`
+   * passa em Postgres. Só `is not distinct from` recusa esta linha.
+   */
+  await expectQueryToFail(
+    database`
+      insert into trip_stop_events (
+        company_id, stop_id, kind, latitude, longitude, captured_at, actor_user_id
+      )
+      values (
+        ${companyId}, ${stopId}, 'arrived', '-23.5505199', '-46.6333094', now(), ${userId}
+      )
+    `,
+    '23514',
+    'trip_stop_events_location_state_consistency_check',
+  )
+
+  await expectQueryToFail(
+    database`
+      insert into trip_stop_events (company_id, stop_id, kind, actor_user_id, location_state)
+      values (${companyId}, ${stopId}, 'arrived', ${userId}, 'captured')
+    `,
+    '23514',
+    'trip_stop_events_location_state_consistency_check',
   )
 
   await expectQueryToFail(

@@ -8,7 +8,11 @@ import { describe, expect, it } from 'bun:test'
 
 import {
   resolveAssemblyRouteChoice,
+  buildRouteChoiceSignatureKey,
+  resolveRouteChoiceEmission,
   resolveRouteOptionSummaries,
+  resolveSelectedOptionIndex,
+  type RouteGeometryForEmission,
 } from '../../src/modules/trip/shared/assemblyRouteOptions.service'
 import type { RouteGeometryOption } from '../../src/modules/trip/shared/routeGeometry.service'
 
@@ -387,5 +391,269 @@ describe('escolha de rota enviada ao planejar (spec 153)', () => {
         selectedIndex: 0,
       }),
     ).toEqual({ criterion: 'alternative', signature: 'principal' })
+  })
+})
+
+function opcaoComAssinatura(input: {
+  readonly isNoToll?: boolean
+  readonly signature: null | string
+}): RouteGeometryOption {
+  return {
+    distanceMeters: 100_000,
+    durationSeconds: 3_600,
+    fuelTotal: null,
+    isNoToll: input.isNoToll ?? false,
+    legs: [],
+    points: [],
+    signature: input.signature,
+    toll: null,
+    totalCost: null,
+  }
+}
+
+describe('resolveSelectedOptionIndex (spec 153 T709a/D2/L1): a assinatura gravada vence o critério', () => {
+  const OPTIONS: readonly RouteGeometryOption[] = [
+    opcaoComAssinatura({ signature: 'aaaa' }),
+    opcaoComAssinatura({ isNoToll: true, signature: 'bbbb' }),
+    opcaoComAssinatura({ signature: 'cccc' }),
+  ]
+
+  /**
+   * Caso do achado L1: viagem congelada com critério `no_toll`, cuja assinatura está entre as
+   * opções vivas. Antes, o switch caía direto no `cheapestIndex` (índice 0) e marcava uma rota
+   * diferente da gravada — aqui a assinatura tem que vencer.
+   */
+  it('critério no_toll com assinatura reproduzida marca a opção da assinatura, não a mais barata', () => {
+    const index = resolveSelectedOptionIndex({
+      cheapestIndex: 0,
+      criterion: 'no_toll',
+      fastestIndex: 2,
+      options: OPTIONS,
+      selectedSignature: 'bbbb',
+    })
+
+    expect(index).toBe(1)
+  })
+
+  it('critério alternative com assinatura reproduzida marca a opção da assinatura', () => {
+    const index = resolveSelectedOptionIndex({
+      cheapestIndex: 0,
+      criterion: 'alternative',
+      fastestIndex: 2,
+      options: OPTIONS,
+      selectedSignature: 'cccc',
+    })
+
+    expect(index).toBe(2)
+  })
+
+  it('assinatura ausente das opções vivas cai no critério (D3: a estrada pode ter mudado)', () => {
+    const index = resolveSelectedOptionIndex({
+      cheapestIndex: 0,
+      criterion: 'no_toll',
+      fastestIndex: 2,
+      options: OPTIONS,
+      selectedSignature: 'nao-existe-mais',
+    })
+
+    expect(index).toBe(0)
+  })
+
+  it('sem assinatura gravada (null), cai direto no critério — mesmo comportamento de sempre', () => {
+    const index = resolveSelectedOptionIndex({
+      cheapestIndex: 0,
+      criterion: 'fastest',
+      fastestIndex: 2,
+      options: OPTIONS,
+      selectedSignature: null,
+    })
+
+    expect(index).toBe(2)
+  })
+
+  it('cheapest continua marcando a mais barata quando a assinatura bate com ela mesma', () => {
+    const index = resolveSelectedOptionIndex({
+      cheapestIndex: 0,
+      criterion: 'cheapest',
+      fastestIndex: 2,
+      options: OPTIONS,
+      selectedSignature: 'aaaa',
+    })
+
+    expect(index).toBe(0)
+  })
+})
+
+/**
+ * Segunda revisão da spec 153, N4 (regressão da T702): o efeito de `TripAssemblyMap` que reemite
+ * `onRouteChoiceChange` não pode depender da *identidade* de `geometryQuery.data` — o TanStack
+ * Query devolve um objeto novo a cada resposta, inclusive um refetch de foco sem nada relevante
+ * mudado, e depender da referência resetava o índice e apagava a escolha do operador (RF13 ao
+ * contrário). `buildRouteChoiceSignatureKey` é a chave por **conteúdo** que substitui a referência
+ * no array de dependências do efeito.
+ */
+const EMISSION_OPTIONS: readonly RouteGeometryOption[] = [
+  opcaoComAssinatura({ signature: 'aaaa' }),
+  opcaoComAssinatura({ isNoToll: true, signature: 'bbbb' }),
+  opcaoComAssinatura({ signature: 'cccc' }),
+]
+
+describe('buildRouteChoiceSignatureKey (spec 153, segunda revisão N4): chave por conteúdo, não por referência', () => {
+  function geometria(overrides: Partial<RouteGeometryForEmission> = {}): RouteGeometryForEmission {
+    return {
+      cheapestIndex: 0,
+      fastestIndex: 1,
+      options: EMISSION_OPTIONS,
+      selectedIndex: 0,
+      ...overrides,
+    }
+  }
+
+  it('ausência de resposta (undefined) tem chave null', () => {
+    expect(buildRouteChoiceSignatureKey(undefined)).toBeNull()
+  })
+
+  /**
+   * ⚠️ O experimento vermelho do achado: duas respostas **diferentes objetos**, mesmo conteúdo.
+   * Antes da correção, o efeito dependia diretamente do objeto (`geometryQuery.data`) — e
+   * `first === second` já prova que a referência muda a cada resposta, mesmo sem nada relevante
+   * ter mudado. `buildRouteChoiceSignatureKey` existe para o efeito parar de reagir a isso.
+   */
+  it('duas respostas com o mesmo conteúdo e referências diferentes produzem a mesma chave', () => {
+    const first = geometria()
+    const second = { ...geometria() }
+
+    expect(first).not.toBe(second)
+    expect(buildRouteChoiceSignatureKey(first)).toBe(buildRouteChoiceSignatureKey(second))
+  })
+
+  it('muda quando o índice selecionado muda', () => {
+    const chave1 = buildRouteChoiceSignatureKey(geometria({ selectedIndex: 0 }))
+    const chave2 = buildRouteChoiceSignatureKey(geometria({ selectedIndex: 1 }))
+
+    expect(chave1).not.toBe(chave2)
+  })
+
+  it('muda quando cheapestIndex/fastestIndex mudam', () => {
+    const chave1 = buildRouteChoiceSignatureKey(geometria({ cheapestIndex: 0 }))
+    const chave2 = buildRouteChoiceSignatureKey(geometria({ cheapestIndex: 1 }))
+
+    expect(chave1).not.toBe(chave2)
+  })
+
+  it('muda quando a assinatura de uma opção muda, mesmo com os índices iguais', () => {
+    const chave1 = buildRouteChoiceSignatureKey(geometria({ options: EMISSION_OPTIONS }))
+    const chave2 = buildRouteChoiceSignatureKey(
+      geometria({
+        options: [
+          opcaoComAssinatura({ signature: 'diferente' }),
+          EMISSION_OPTIONS[1] as RouteGeometryOption,
+        ],
+      }),
+    )
+
+    expect(chave1).not.toBe(chave2)
+  })
+
+  /**
+   * Terceira revisão, T903 (P4): sem `exclude=toll` anotado o roteirizador não manda `signature`
+   * nenhuma — `null` em toda opção, o caso comum, não a exceção. O caso do achado: mesma contagem
+   * de opções, mesmos índices, mas `distanceMeters`/`durationSeconds` diferentes (estradas
+   * realmente distintas) — a chave tinha que distinguir isso sem depender da assinatura ausente.
+   */
+  it('sem assinatura em nenhuma opção, duas estradas diferentes produzem chaves diferentes (achado P4)', () => {
+    const semAssinatura = (
+      distanceMeters: number,
+      durationSeconds: number,
+    ): RouteGeometryOption => ({
+      distanceMeters,
+      durationSeconds,
+      fuelTotal: null,
+      legs: [],
+      points: [],
+      signature: null,
+      toll: null,
+      totalCost: null,
+    })
+
+    const chave1 = buildRouteChoiceSignatureKey(
+      geometria({
+        options: [semAssinatura(100_000, 3_600), semAssinatura(120_000, 4_200)],
+      }),
+    )
+    const chave2 = buildRouteChoiceSignatureKey(
+      geometria({
+        options: [semAssinatura(105_500, 3_900), semAssinatura(130_200, 4_500)],
+      }),
+    )
+
+    expect(chave1).not.toBe(chave2)
+  })
+
+  it('sem assinatura em nenhuma opção, o mesmo conteúdo produz a mesma chave', () => {
+    const semAssinatura = (
+      distanceMeters: number,
+      durationSeconds: number,
+    ): RouteGeometryOption => ({
+      distanceMeters,
+      durationSeconds,
+      fuelTotal: null,
+      legs: [],
+      points: [],
+      signature: null,
+      toll: null,
+      totalCost: null,
+    })
+
+    const chave1 = buildRouteChoiceSignatureKey(
+      geometria({ options: [semAssinatura(100_000, 3_600), semAssinatura(120_000, 4_200)] }),
+    )
+    const chave2 = buildRouteChoiceSignatureKey(
+      geometria({ options: [semAssinatura(100_000, 3_600), semAssinatura(120_000, 4_200)] }),
+    )
+
+    expect(chave1).toBe(chave2)
+  })
+
+  it('a quantidade de opções entra na chave, mesmo com as mesmas assinaturas nas primeiras posições', () => {
+    const chave1 = buildRouteChoiceSignatureKey(
+      geometria({ options: [opcaoComAssinatura({ signature: 'aaaa' })] }),
+    )
+    const chave2 = buildRouteChoiceSignatureKey(
+      geometria({
+        options: [
+          opcaoComAssinatura({ signature: 'aaaa' }),
+          opcaoComAssinatura({ signature: 'bbbb' }),
+        ],
+      }),
+    )
+
+    expect(chave1).not.toBe(chave2)
+  })
+})
+
+describe('resolveRouteChoiceEmission (spec 153 H1/M7): índice de abertura e escolha, da mesma resposta', () => {
+  it('abre no selectedIndex que a API resolveu, e a escolha bate com resolveRouteChoiceFromIndex', () => {
+    const emissao = resolveRouteChoiceEmission({
+      cheapestIndex: 0,
+      fastestIndex: 2,
+      options: EMISSION_OPTIONS,
+      selectedIndex: 1,
+    })
+
+    expect(emissao.selectedIndex).toBe(1)
+    expect(emissao.routeChoice).toEqual({ criterion: 'no_toll', signature: 'bbbb' })
+  })
+
+  /** Sem `selectedIndex` na resposta, abre em 0 — nunca fixo nem inventado por conta própria. */
+  it('sem selectedIndex na resposta, abre no índice 0', () => {
+    const emissao = resolveRouteChoiceEmission({
+      cheapestIndex: 0,
+      fastestIndex: 2,
+      options: EMISSION_OPTIONS,
+    })
+
+    expect(emissao.selectedIndex).toBe(0)
+    expect(emissao.routeChoice.criterion).toBe('cheapest')
   })
 })

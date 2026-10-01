@@ -113,8 +113,10 @@ import { companyCargoSettings } from './company-cargo-settings.schema.js'
 import { companyCargoVolumeFactors } from './company-cargo-volume-factor.schema.js'
 import { companyContacts, companySocialLinks } from './company-contact.schema.js'
 import { companyDistributionSettings } from './company-distribution-settings.schema.js'
+import { companyCrewSettings } from './company-crew-settings.schema.js'
 import {
   companyDeliveryProofSettings,
+  deliveryProofSettingContractorOverrides,
   deliveryProofSettingOverrides,
 } from './company-delivery-proof-settings.schema.js'
 import { companyLogos } from './company-logo.schema.js'
@@ -141,9 +143,11 @@ import { addressComparisons } from './address-comparison.schema.js'
 import { addressCorrectionRequests } from './address-correction.schema.js'
 import {
   companyRouteOptimizationSettings,
+  driverAssignmentFeedback,
   routeSuggestionDocuments,
   routeSuggestionStopDocuments,
   routeSuggestionStops,
+  routeSuggestionVehicleHelpers,
   routeSuggestionVehicles,
   routeSuggestions,
 } from './route-suggestion.schema.js'
@@ -217,12 +221,14 @@ export * from './company-cargo-settings.schema.js'
 export * from './company-cargo-volume-factor.schema.js'
 export * from './company-contact.schema.js'
 export * from './company-distribution-settings.schema.js'
+export * from './company-crew-settings.schema.js'
 export * from './company-delivery-proof-settings.schema.js'
 export * from './company-logo.schema.js'
 export * from './cte-emission-profile.schema.js'
 export * from './password-reset.schema.js'
 export * from './user-invitation.schema.js'
 export * from './identity-user-profile.schema.js'
+export * from './event-location.schema.js'
 export * from './trip.schema.js'
 export * from './geocoding.schema.js'
 export * from './municipality-centroid.schema.js'
@@ -258,6 +264,8 @@ export const databaseSchema = {
   companyDeliveryProofSettings,
   companyDistributionSettings,
   companyDriverAllowanceSettings,
+  companyCrewSettings,
+  deliveryProofSettingContractorOverrides,
   deliveryProofSettingOverrides,
   companyEnergySettings,
   companyFiscalProfiles,
@@ -362,8 +370,10 @@ export const databaseSchema = {
   routeSuggestionDocuments,
   routeSuggestionStopDocuments,
   routeSuggestionStops,
+  routeSuggestionVehicleHelpers,
   routeSuggestionVehicles,
   routeSuggestions,
+  driverAssignmentFeedback,
   storedObjects,
   companyTaxSettings,
   contractorContacts,

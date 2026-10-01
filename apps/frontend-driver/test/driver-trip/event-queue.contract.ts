@@ -1,12 +1,57 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, it } from 'bun:test'
 
+import type { DriverTripStop } from '@/modules/driver-trip/shared/driverTrip.types'
 import {
   buildEventQueueView,
   hasSendableEvents,
+  resolveEventQueueDepartBlock,
+  resolveEventQueueStopSequence,
+  type EventQueueItemView,
 } from '@/modules/driver-trip/shared/eventQueueView.service'
 import type { QueuedAttachment } from '@/modules/driver-trip/shared/offlineAttachments.service'
 import type { QueuedReport } from '@/modules/driver-trip/shared/offlineQueue.service'
+
+function stop(input: { readonly id: string; readonly sequence: number }): DriverTripStop {
+  return {
+    arrivedAt: null,
+    completedAt: null,
+    deliveryProof: null,
+    deliveryWindowEnd: null,
+    deliveryWindowStart: null,
+    documents: [],
+    enRouteSince: null,
+    enRouteTappedAt: null,
+    id: input.id,
+    label: 'Parada',
+    latitude: null,
+    longitude: null,
+    schedule: null,
+    sequence: input.sequence,
+  }
+}
+
+function departItem(input: {
+  readonly cause?: string
+  readonly details?: readonly { readonly field: string; readonly message: string }[]
+  readonly stopId: string
+}): EventQueueItemView {
+  return {
+    attachmentCount: 0,
+    idempotencyKey: 'key-depart',
+    kind: 'depart',
+    queuedAt: NOW,
+    stopId: input.stopId,
+    status:
+      input.cause === undefined
+        ? { state: 'queued' }
+        : {
+            cause: input.cause,
+            ...(input.details === undefined ? {} : { details: input.details }),
+            state: 'rejected',
+          },
+  }
+}
 
 const NOW = '2026-09-03T13:00:00.000Z'
 
@@ -61,13 +106,31 @@ describe('a tela de eventos pendentes (D7)', () => {
     expect(views).toEqual([
       {
         attachmentCount: 2,
+        /** Spec 206: `deliver`/`return` também carregam `documentId` — é o que `resolveEnRouteStopId` lê (D9). */
+        documentId: 'document-1',
         idempotencyKey: 'chave-1',
         kind: 'deliver',
+        /* Spec 218: os anexos do grupo — é deles que a captura nasce "anexada" depois do remonte. */
+        proofAttachments: [
+          {
+            attachmentKey: 'anexo-1',
+            blob: expect.any(Blob) as Blob,
+            documentId: 'document-1',
+            kind: 'photo',
+          },
+          {
+            attachmentKey: 'anexo-2',
+            blob: expect.any(Blob) as Blob,
+            documentId: 'document-1',
+            kind: 'photo',
+          },
+        ],
         queuedAt: NOW,
         status: { state: 'queued' },
       },
       {
         attachmentCount: 0,
+        documentId: 'document-1',
         idempotencyKey: 'chave-2',
         kind: 'deliver',
         queuedAt: NOW,
@@ -116,6 +179,15 @@ describe('a tela de eventos pendentes (D7)', () => {
         documentId: 'document-1',
         idempotencyKey: 'chave-1',
         kind: 'proof',
+        /* Spec 218: os anexos do grupo — é deles que a captura nasce "anexada" depois do remonte. */
+        proofAttachments: [
+          {
+            attachmentKey: 'anexo-1',
+            blob: expect.any(Blob) as Blob,
+            documentId: 'document-1',
+            kind: 'photo',
+          },
+        ],
         queuedAt: NOW,
         status: { cause: '413 PROOF_FILE_TOO_LARGE', state: 'rejected' },
       },
@@ -124,6 +196,15 @@ describe('a tela de eventos pendentes (D7)', () => {
         documentId: 'document-1',
         idempotencyKey: 'chave-2',
         kind: 'proof',
+        /* Spec 218: os anexos do grupo — é deles que a captura nasce "anexada" depois do remonte. */
+        proofAttachments: [
+          {
+            attachmentKey: 'anexo-2',
+            blob: expect.any(Blob) as Blob,
+            documentId: 'document-1',
+            kind: 'photo',
+          },
+        ],
         queuedAt: NOW,
         status: { state: 'queued' },
       },
@@ -166,5 +247,170 @@ describe('a tela de eventos pendentes (D7)', () => {
         buildEventQueueView({ attachments: [], queued: [queuedItem({ key: 'chave-2' })] }),
       ),
     ).toBe(true)
+  })
+})
+
+/**
+ * Spec 206 RF8: o rótulo do `depart` carrega o número da parada do snapshot — sem número quando
+ * ela saiu (viagem trocada, cartão sumido).
+ */
+describe('o número da parada no item de fila (RF8)', () => {
+  it('devolve o `sequence` da parada do item', () => {
+    const item = departItem({ stopId: 'stop-2' })
+    const stops = [stop({ id: 'stop-1', sequence: 1 }), stop({ id: 'stop-2', sequence: 2 })]
+
+    expect(resolveEventQueueStopSequence({ item, stops })).toBe(2)
+  })
+
+  it('sem a parada no snapshot, devolve `undefined`', () => {
+    const item = departItem({ stopId: 'stop-9' })
+    const stops = [stop({ id: 'stop-1', sequence: 1 })]
+
+    expect(resolveEventQueueStopSequence({ item, stops })).toBeUndefined()
+  })
+
+  it('item sem `stopId` (não é depart/arrive/cancelDeparture) devolve `undefined`', () => {
+    const view = buildEventQueueView({
+      attachments: [],
+      queued: [queuedItem({ key: 'chave-1' })],
+    })[0]
+    expect(view).toBeDefined()
+    if (view === undefined) return
+
+    expect(resolveEventQueueStopSequence({ item: view, stops: [] })).toBeUndefined()
+  })
+})
+
+/**
+ * Spec 206 RF8b: o `depart` recusado por `409 TRIP_HAS_STOP_EN_ROUTE` não pode sumir calado — a
+ * tela precisa do motivo e do atalho até a parada que está a caminho AGORA.
+ */
+describe('o depart recusado por outra parada a caminho (RF8b)', () => {
+  const stops = [stop({ id: 'stop-1', sequence: 1 }), stop({ id: 'stop-2', sequence: 2 })]
+
+  it('devolve a parada bloqueante quando a recusa é TRIP_HAS_STOP_EN_ROUTE', () => {
+    const item = departItem({ cause: '409 TRIP_HAS_STOP_EN_ROUTE', stopId: 'stop-2' })
+
+    expect(resolveEventQueueDepartBlock({ enRouteStopId: 'stop-1', item, stops })).toEqual({
+      blockingStopId: 'stop-1',
+      blockingStopSequence: 1,
+    })
+  })
+
+  it('outra causa de recusa não vira bloqueio — cai no texto genérico', () => {
+    const item = departItem({ cause: '404 TRIP_STOP_NOT_REACHABLE', stopId: 'stop-2' })
+
+    expect(resolveEventQueueDepartBlock({ enRouteStopId: 'stop-1', item, stops })).toBeUndefined()
+  })
+
+  it('sem parada a caminho agora (já fechou), o bloqueio não aparece mais', () => {
+    const item = departItem({ cause: '409 TRIP_HAS_STOP_EN_ROUTE', stopId: 'stop-2' })
+
+    expect(resolveEventQueueDepartBlock({ enRouteStopId: undefined, item, stops })).toBeUndefined()
+  })
+
+  it('item ainda na fila (não recusado) não é bloqueio', () => {
+    const item = departItem({ stopId: 'stop-2' })
+
+    expect(resolveEventQueueDepartBlock({ enRouteStopId: 'stop-1', item, stops })).toBeUndefined()
+  })
+
+  it('item de outro tipo (não depart) nunca é bloqueio, mesmo com a mesma causa', () => {
+    const item = queuedItem({ key: 'chave-1', rejectionCause: '409 TRIP_HAS_STOP_EN_ROUTE' })
+    const view = buildEventQueueView({ attachments: [], queued: [item] })[0]
+    expect(view).toBeDefined()
+    if (view === undefined) return
+
+    expect(
+      resolveEventQueueDepartBlock({ enRouteStopId: 'stop-1', item: view, stops }),
+    ).toBeUndefined()
+  })
+})
+
+/**
+ * Spec 206 D9: "o 409 existe para o que a tela não viu: outro aparelho e o item de fila antigo."
+ * Nesse caso `resolveEnRouteStopId` local não tem como saber qual parada bloqueou — só o
+ * `error.details` da resposta sabia, no instante da recusa. Casos extremos da spec.md:922/937-939.
+ */
+describe('o bloqueio vindo de error.details, quando a tela não viu (D9)', () => {
+  const stops = [stop({ id: 'stop-1', sequence: 1 }), stop({ id: 'stop-2', sequence: 2 })]
+
+  it('sem enRouteStopId local (outro aparelho), usa o blockingStopId do details', () => {
+    const item = departItem({
+      cause: '409 TRIP_HAS_STOP_EN_ROUTE',
+      details: [
+        { field: 'enRouteStopId', message: 'stop-1' },
+        { field: 'enRouteStopSequence', message: '1' },
+      ],
+      stopId: 'stop-2',
+    })
+
+    expect(resolveEventQueueDepartBlock({ enRouteStopId: undefined, item, stops })).toEqual({
+      blockingStopId: 'stop-1',
+      blockingStopSequence: 1,
+    })
+  })
+
+  it('a sequência vem do snapshot atual, mais fresca que a do details, quando a parada ainda existe', () => {
+    const renumbered = [stop({ id: 'stop-1', sequence: 3 }), stop({ id: 'stop-2', sequence: 2 })]
+    const item = departItem({
+      cause: '409 TRIP_HAS_STOP_EN_ROUTE',
+      details: [
+        { field: 'enRouteStopId', message: 'stop-1' },
+        { field: 'enRouteStopSequence', message: '1' },
+      ],
+      stopId: 'stop-2',
+    })
+
+    expect(
+      resolveEventQueueDepartBlock({ enRouteStopId: undefined, item, stops: renumbered }),
+    ).toEqual({ blockingStopId: 'stop-1', blockingStopSequence: 3 })
+  })
+
+  it('parada bloqueante sumiu do snapshot: cai na sequência que o details mandou', () => {
+    const item = departItem({
+      cause: '409 TRIP_HAS_STOP_EN_ROUTE',
+      details: [
+        { field: 'enRouteStopId', message: 'stop-9' },
+        { field: 'enRouteStopSequence', message: '5' },
+      ],
+      stopId: 'stop-2',
+    })
+
+    expect(resolveEventQueueDepartBlock({ enRouteStopId: undefined, item, stops })).toEqual({
+      blockingStopId: 'stop-9',
+      blockingStopSequence: 5,
+    })
+  })
+
+  it('details tem prioridade sobre o cálculo local quando os dois existem', () => {
+    const item = departItem({
+      cause: '409 TRIP_HAS_STOP_EN_ROUTE',
+      details: [
+        { field: 'enRouteStopId', message: 'stop-1' },
+        { field: 'enRouteStopSequence', message: '1' },
+      ],
+      stopId: 'stop-2',
+    })
+
+    // enRouteStopId local aponta para outra coisa (não deveria acontecer na prática, mas o
+    // details — a verdade do servidor no instante da recusa — vence).
+    expect(resolveEventQueueDepartBlock({ enRouteStopId: 'stop-1', item, stops })).toEqual({
+      blockingStopId: 'stop-1',
+      blockingStopSequence: 1,
+    })
+  })
+
+  it('details sem os dois campos esperados não quebra — cai no cálculo local', () => {
+    const item = departItem({
+      cause: '409 TRIP_HAS_STOP_EN_ROUTE',
+      details: [{ field: 'unrelatedField', message: 'x' }],
+      stopId: 'stop-2',
+    })
+
+    expect(resolveEventQueueDepartBlock({ enRouteStopId: 'stop-1', item, stops })).toEqual({
+      blockingStopId: 'stop-1',
+      blockingStopSequence: 1,
+    })
   })
 })

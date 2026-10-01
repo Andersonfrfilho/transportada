@@ -5,11 +5,17 @@ import { getTripClient } from '../hooks/useTripWorkspace.hook'
 import type {
   CompanyDeliveryProofSettings,
   DeliveryProofFieldSettings,
+  DeliveryProofSettingsContractorOverride,
   DeliveryProofSettingsOverride,
 } from '../shared/deliveryProofSettings.service'
 
 const DELIVERY_PROOF_SETTINGS_QUERY_KEY = ['trip', 'delivery-proof-settings'] as const
 const DELIVERY_PROOF_OVERRIDES_QUERY_KEY = ['trip', 'delivery-proof-overrides'] as const
+/** Spec 218 RF-C1/RF-C4: a chave irmã, por contratante. */
+const DELIVERY_PROOF_CONTRACTOR_OVERRIDES_QUERY_KEY = [
+  'trip',
+  'delivery-proof-contractor-overrides',
+] as const
 
 /**
  * Spec 082: é o `enabled` que faz o painel **vir preenchido** — abrir a aba busca o que já está
@@ -68,6 +74,28 @@ export function useReplaceDeliveryProofOverridesMutation() {
       getTripClient().replaceDeliveryProofOverrides({ overrides }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: DELIVERY_PROOF_OVERRIDES_QUERY_KEY })
+    },
+  })
+}
+
+/** Spec 218 RF-C1/RF-C4: o par irmão das duas consultas acima, por contratante. */
+export function useDeliveryProofContractorOverridesQuery(input: Readonly<{ enabled: boolean }>) {
+  return useQuery<readonly DeliveryProofSettingsContractorOverride[]>({
+    enabled: input.enabled,
+    queryFn: () => getTripClient().listDeliveryProofContractorOverrides(),
+    queryKey: DELIVERY_PROOF_CONTRACTOR_OVERRIDES_QUERY_KEY,
+  })
+}
+
+export function useReplaceDeliveryProofContractorOverridesMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (overrides: readonly DeliveryProofSettingsContractorOverride[]) =>
+      getTripClient().replaceDeliveryProofContractorOverrides({ overrides }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: DELIVERY_PROOF_CONTRACTOR_OVERRIDES_QUERY_KEY,
+      })
     },
   })
 }

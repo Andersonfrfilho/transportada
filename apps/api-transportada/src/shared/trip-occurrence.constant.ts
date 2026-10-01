@@ -23,6 +23,20 @@ export const TRIP_OCCURRENCE_STAGE = {
 export type TripOccurrenceStage = (typeof TRIP_OCCURRENCE_STAGE)[keyof typeof TRIP_OCCURRENCE_STAGE]
 
 /**
+ * Spec 218 (D1, RF-B5): qual dos dois caminhos de registro o tipo alimenta — a ocorrência **de
+ * nota** (`document`, `trip_document_occurrences`, sem fila, abre tratativa) ou a ocorrência **de
+ * parada** (`stop`, `trip_stop_occurrences`, fila offline, nunca abre tratativa). Todo tipo
+ * cadastrado antes desta spec é `document` por definição — nunca foi usado em `trip_stop_occurrences`.
+ * `VARCHAR` com CHECK, nunca ENUM nativo (code-standart §8).
+ */
+export const OCCURRENCE_TYPE_FLOWS = {
+  document: 'document',
+  stop: 'stop',
+} as const
+
+export type OccurrenceTypeFlow = (typeof OCCURRENCE_TYPE_FLOWS)[keyof typeof OCCURRENCE_TYPE_FLOWS]
+
+/**
  * A ordem é a do fluxo — o que acontece no galpão vem antes do que acontece na rua —, e ela faz
  * parte do contrato: a tela lista nesta ordem, e trocá-la muda o que aparece primeiro para quem
  * está com a caixa na mão.

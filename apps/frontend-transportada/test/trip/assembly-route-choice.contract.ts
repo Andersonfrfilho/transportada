@@ -44,8 +44,8 @@ describe('a escolha de rota da montagem chega ao planejamento (spec 153)', () =>
 
   it('a proposta aceita leva a escolha por caminhão', () => {
     expect(proposalDetail).toContain('onRouteChoiceChange={onRouteChoiceChange}')
-    expect(assemblyDialog).toContain('assembly.setVehicleRouteChoice(view.vehicleId, choice)')
-    expect(assemblyHook).toContain('{ routeChoiceByVehicle: acceptedRouteChoices }')
+    expect(assemblyDialog).toContain('assembly.setVehicleRouteChoice(view.vehicleId, routeChoice)')
+    expect(assemblyHook).toContain('routeChoiceByVehicle: routeChoiceByVehicleForAccept')
     expect(client).toContain('{ routeChoiceByVehicle: input.routeChoiceByVehicle }')
   })
 

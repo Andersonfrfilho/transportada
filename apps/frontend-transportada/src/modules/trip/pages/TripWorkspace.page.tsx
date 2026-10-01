@@ -22,12 +22,15 @@ import { TripDeliveryProofSettingsPanel } from '../components/TripDeliveryProofS
 import { TripRouteAssemblyLeftovers } from '../components/TripRouteAssemblyLeftovers.component'
 import { TripRouteAssemblyDialog } from '../components/TripRouteAssemblyDialog.component'
 import {
+  useDeliveryProofContractorOverridesQuery,
   useDeliveryProofOverridesQuery,
   useDeliveryProofSettingsQuery,
+  useReplaceDeliveryProofContractorOverridesMutation,
   useReplaceDeliveryProofOverridesMutation,
   useSaveCanhotoOcrEnabledMutation,
   useSaveDeliveryProofSettingsMutation,
 } from '../queries/useDeliveryProofSettings.query'
+import { useContractorsQuery } from '../queries/useContractors.query'
 import { TripTable } from '../components/TripTable.component'
 import { useTripQuickCreate } from '../hooks/useTripQuickCreate.hook'
 import { TRIP_LIST_QUERY_KEY } from '../shared/trip.constant'
@@ -35,7 +38,7 @@ import { useTripRouteAssembly } from '../hooks/useTripRouteAssembly.hook'
 import { useTripTable } from '../hooks/useTripTable.hook'
 import { useTripWorkspace } from '../hooks/useTripWorkspace.hook'
 import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
-import { navigateToTrip } from '../shared/tripRoute.service'
+import { navigateToTrip, parseTripCreationDocumentIds } from '../shared/tripRoute.service'
 import { type TripColumnKey, visibleTripColumns } from '../shared/tripTable.service'
 import styles from '../styles/trip.module.css'
 
@@ -43,6 +46,9 @@ import styles from '../styles/trip.module.css'
 // da própria tabela para não trocar de forma entre os dois esqueletos. As colunas vêm de fora: sem
 // `trip.financials` a tabela não tem as de dinheiro, e o esqueleto não pode anunciá-las (spec 156 L6).
 type TripsTableSkeletonProps = Readonly<{ columns: readonly TripColumnKey[] }>
+
+/** Sem `trip.manage` o link vindo da seleção não monta nada: a fila nasce vazia, como em qualquer visita. */
+const NO_TRIP_CREATION_DOCUMENT_IDS: readonly string[] = []
 
 function renderSkeletonCell(column: TripColumnKey) {
   if (column === 'vehicleId') return <Skeleton variant="text" width="65%" />
@@ -162,8 +168,17 @@ export function TripWorkspacePage() {
   const deliveryProofOverridesQuery = useDeliveryProofOverridesQuery({
     enabled: canManageSettings && settingsScope.deliveryProofSettings,
   })
+  /** Spec 218 RF-C1/RF-C4: a mesma condição de aba+permissão, para a exceção por contratante. */
+  const deliveryProofContractorOverridesQuery = useDeliveryProofContractorOverridesQuery({
+    enabled: canManageSettings && settingsScope.deliveryProofSettings,
+  })
+  const contractorsQuery = useContractorsQuery({
+    enabled: canManageSettings && settingsScope.deliveryProofSettings,
+  })
   const saveDeliveryProofSettingsMutation = useSaveDeliveryProofSettingsMutation()
   const replaceDeliveryProofOverridesMutation = useReplaceDeliveryProofOverridesMutation()
+  const replaceDeliveryProofContractorOverridesMutation =
+    useReplaceDeliveryProofContractorOverridesMutation()
   const saveCanhotoOcrEnabledMutation = useSaveCanhotoOcrEnabledMutation()
 
   const table = useTripTable({ canReadTrips: workspace.controller.canReadTrips, ...tenant })
@@ -210,6 +225,10 @@ export function TripWorkspacePage() {
   const plateByVehicleId = new Map(
     (fleet.viewModel.vehicles ?? []).map((vehicle) => [vehicle.id, vehicle.plate]),
   )
+  /** A seleção da tela de NF-e chega pela query string, e só na chegada: navegar não a repete. */
+  const [tripCreationDocumentIds] = useState(() =>
+    parseTripCreationDocumentIds(window.location.search),
+  )
   /**
    * A viagem criada abre no detalhe: quem acabou de bipar dez notas quer conferir o roteiro, e
    * deixá-lo na lista o obrigaria a procurar a linha que ele mesmo acabou de criar.
@@ -217,6 +236,9 @@ export function TripWorkspacePage() {
   const quickCreate = useTripQuickCreate({
     ...(companyId === undefined ? {} : { companyId }),
     draftScope,
+    initialDocumentIds: workspace.controller.canManageTrips
+      ? tripCreationDocumentIds
+      : NO_TRIP_CREATION_DOCUMENT_IDS,
     onCreated: (trip) =>
       navigateToTrip({ navigator: createBrowserWorkspaceNavigator(), tripId: trip.id }),
     permissions,
@@ -292,11 +314,17 @@ export function TripWorkspacePage() {
                   <TripDeliveryProofSettingsPanel
                     canManage={canManageSettings}
                     canhotoOcrEnabled={deliveryProofSettingsQuery.data?.canhotoOcrEnabled}
+                    contractorOverrides={deliveryProofContractorOverridesQuery.data ?? []}
+                    contractors={contractorsQuery.data ?? []}
                     isSaving={
                       saveDeliveryProofSettingsMutation.isPending ||
-                      replaceDeliveryProofOverridesMutation.isPending
+                      replaceDeliveryProofOverridesMutation.isPending ||
+                      replaceDeliveryProofContractorOverridesMutation.isPending
                     }
                     isTogglingCanhotoOcr={saveCanhotoOcrEnabledMutation.isPending}
+                    onReplaceContractorOverrides={(overrides) =>
+                      replaceDeliveryProofContractorOverridesMutation.mutate(overrides)
+                    }
                     onReplaceOverrides={(overrides) =>
                       replaceDeliveryProofOverridesMutation.mutate(overrides)
                     }
@@ -314,8 +342,10 @@ export function TripWorkspacePage() {
                     showError={
                       deliveryProofSettingsQuery.isError ||
                       deliveryProofOverridesQuery.isError ||
+                      deliveryProofContractorOverridesQuery.isError ||
                       saveDeliveryProofSettingsMutation.isError ||
                       replaceDeliveryProofOverridesMutation.isError ||
+                      replaceDeliveryProofContractorOverridesMutation.isError ||
                       saveCanhotoOcrEnabledMutation.isError
                     }
                   />

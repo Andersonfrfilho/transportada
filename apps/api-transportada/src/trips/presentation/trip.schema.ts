@@ -31,6 +31,7 @@ import {
   overrideDeliveryAddressSchema,
   reorderTripStopsSchema,
   setTripMdfeRequirementSchema,
+  setTripTrailerSchema,
   transitionTripDocumentSchema,
   updateTripCrewSchema,
   type BatchTransitionTripDocumentsBody,
@@ -47,6 +48,7 @@ import {
   type OverrideDeliveryAddressBody,
   type ReorderTripStopsBody,
   type SetTripMdfeRequirementBody,
+  type SetTripTrailerBody,
   type TransitionTripDocumentBody,
   type UpdateTripCrewBody,
 } from './trip-request.schema.js'
@@ -158,6 +160,10 @@ export async function parseSetTripMdfeRequirementRequest(
 
 export async function parseCloseTripRequest(request: Request): Promise<CloseTripBody> {
   return parseOptionalBody(closeTripSchema, request)
+}
+
+export async function parseSetTripTrailerRequest(request: Request): Promise<SetTripTrailerBody> {
+  return parseBody(setTripTrailerSchema, request)
 }
 
 export function parseTripList(url: URL): TripListing {

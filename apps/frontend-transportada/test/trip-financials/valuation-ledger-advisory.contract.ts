@@ -74,6 +74,7 @@ describe('valuation ledger advisory (spec 124)', () => {
     expect(apiAdvisoryGaps()).toEqual([
       'DRIVER_ZONE_PRICED_FROM_TABLE',
       'DRIVER_ROUTE_TIE_HIGHEST_RATE',
+      'HELPER_JOURNEY_WITHOUT_RETURN',
     ])
     expect([...ADVISORY_GAPS]).toEqual([...apiAdvisoryGaps()])
   })

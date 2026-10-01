@@ -95,6 +95,32 @@ refuse_non_staging_environment() {
   log info staging_refresh_environment_confirmed ",\"environment\":\"${environment}\""
 }
 
+# A terceira guarda de boot, pela mesma razão das duas acima: o que invalida o ciclo inteiro se
+# confere enquanto nada foi tocado. O redeploy do fim é o que devolve o schema novo a staging depois
+# que o restore o puxou para trás (ver `redeploy_staging_api`) — sem ele o ciclo não é um refresh,
+# é um downgrade. No domingo 27/09/2026 a conferência morava só lá no fim: o script dropou cinco
+# schemas, restaurou, religou identidades e tirou a emissão antes de descobrir que não havia token.
+#
+# O Railway tem dois tipos de token, e eles não se autenticam do mesmo jeito: o de conta/equipe vai
+# em `Authorization: Bearer`, o de projeto vai em `Project-Access-Token`. Mandar um no cabeçalho do
+# outro devolve 401 sem dizer por quê — daí aceitar os dois explicitamente, por variável separada.
+REDEPLOY_AUTHORIZATION_HEADER=''
+
+require_redeploy_configuration() {
+  if [ -n "${RAILWAY_PROJECT_TOKEN:-}" ]; then
+    REDEPLOY_AUTHORIZATION_HEADER="Project-Access-Token: ${RAILWAY_PROJECT_TOKEN}"
+  elif [ -n "${RAILWAY_API_TOKEN:-}" ]; then
+    REDEPLOY_AUTHORIZATION_HEADER="Authorization: Bearer ${RAILWAY_API_TOKEN}"
+  else
+    REDEPLOY_AUTHORIZATION_HEADER=''
+  fi
+
+  if [ -z "$REDEPLOY_AUTHORIZATION_HEADER" ] || [ -z "${STAGING_API_SERVICE_ID:-}" ]; then
+    log error staging_refresh_redeploy_not_configured ''
+    exit 1
+  fi
+}
+
 # Mesmo desenho do backup: a credencial entra por stdin, porque em argv ela apareceria em qualquer
 # `ps` do contêiner.
 s3_curl() {
@@ -495,25 +521,11 @@ SQL
 # aqui não há bun nem código de aplicação: o passo é **disparar o redeploy** e deixar a máquina que
 # já existe fazer o resto. Sem isto o refresh derruba staging toda semana.
 redeploy_staging_api() {
-  # O Railway tem dois tipos de token, e eles não se autenticam do mesmo jeito: o de conta/equipe vai
-  # em `Authorization: Bearer`, o de projeto vai em `Project-Access-Token`. Mandar um no cabeçalho do
-  # outro devolve 401 sem dizer por quê — daí aceitar os dois explicitamente, por variável separada.
-  local authorization_header
-  if [ -n "${RAILWAY_PROJECT_TOKEN:-}" ]; then
-    authorization_header="Project-Access-Token: ${RAILWAY_PROJECT_TOKEN}"
-  elif [ -n "${RAILWAY_API_TOKEN:-}" ]; then
-    authorization_header="Authorization: Bearer ${RAILWAY_API_TOKEN}"
-  else
-    authorization_header=''
-  fi
-
-  if [ -z "$authorization_header" ] || [ -z "${STAGING_API_SERVICE_ID:-}" ]; then
-    log error staging_refresh_redeploy_not_configured ''
-    exit 1
-  fi
-  curl --silent --show-error --fail --max-time 60 --output /dev/null \
+  # O cabeçalho carrega o token, então vai por `--config`, como o do Admin API: em `--header` ele
+  # entraria no argv e apareceria em qualquer `ps` do contêiner.
+  curl --config <(printf 'header = "%s"\n' "$REDEPLOY_AUTHORIZATION_HEADER") \
+    --silent --show-error --fail --max-time 60 --output /dev/null \
     --request POST 'https://backboard.railway.com/graphql/v2' \
-    --header "$authorization_header" \
     --header 'Content-Type: application/json' \
     --data @- <<JSON
 {"query":"mutation(\$serviceId:String!,\$environmentId:String!){serviceInstanceRedeploy(serviceId:\$serviceId,environmentId:\$environmentId)}","variables":{"serviceId":"${STAGING_API_SERVICE_ID}","environmentId":"${RAILWAY_ENVIRONMENT_ID}"}}
@@ -526,6 +538,8 @@ main() {
   require_variables
   CURRENT_STEP=refuse_non_staging_environment
   refuse_non_staging_environment
+  CURRENT_STEP=require_redeploy_configuration
+  require_redeploy_configuration
 
   WORK_DIRECTORY="$(mktemp -d)"
 

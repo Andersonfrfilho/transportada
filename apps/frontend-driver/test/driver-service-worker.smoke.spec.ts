@@ -81,9 +81,9 @@ test('CA09: a atualização não recarrega com uma captura aberta, e aplica quan
   await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
   await waitForServiceWorkerControl(page)
 
-  // Abre uma captura (plan D2, `captureRegistry.open('occurrence-dialog')`): o relato "Deu problema".
-  await page.getByRole('button', { exact: true, name: 'Deu problema' }).first().click()
-  await expect(page.getByRole('button', { exact: true, name: 'Registrar' })).toBeVisible()
+  // Abre uma captura (plan D2, `captureRegistry.open('occurrence-dialog')`): o formulário de ocorrência.
+  await page.getByRole('button', { exact: true, name: 'Ocorrência' }).first().click()
+  await expect(page.getByRole('group', { name: 'Registrar ocorrência' })).toBeVisible()
 
   // Muda o SW por bytes, sem novo build: é o suficiente para o navegador achar uma versão nova.
   appendFileSync(SW_FILE_PATH, `\n// smoke-service-worker-update-${Date.now()}\n`)
@@ -97,11 +97,11 @@ test('CA09: a atualização não recarrega com uma captura aberta, e aplica quan
   // Captura ainda aberta: o toque em "Atualizar" não recarrega agora — só quando ela fechar.
   await page.getByRole('button', { name: 'Atualizar' }).click()
   await page.waitForTimeout(500)
-  await expect(page.getByRole('button', { exact: true, name: 'Registrar' })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Registrar ocorrência' })).toBeVisible()
 
   const reloaded = page.waitForEvent('load', { timeout: 20_000 })
-  // Fecha a captura (alterna "Deu problema" de novo): o registro esvazia e a atualização aplica.
-  await page.getByRole('button', { exact: true, name: 'Deu problema' }).first().click()
+  // Fecha a captura (alterna "Ocorrência" de novo): o registro esvazia e a atualização aplica.
+  await page.getByRole('button', { exact: true, name: 'Ocorrência' }).first().click()
   await reloaded
 
   await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible({

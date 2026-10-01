@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import type { TripDocumentDetail, TripStatus } from '../shared/trip.types'
 import { buildTripProcessFlow, type TripProcessStage } from '../shared/tripProcessFlow.service'
@@ -27,11 +28,6 @@ type TripProcessFlowProps = Readonly<{
   tripStatus: TripStatus
 }>
 
-const momentFormatter = new Intl.DateTimeFormat('pt-BR', {
-  dateStyle: 'short',
-  timeStyle: 'short',
-})
-
 /**
  * O andamento como **processo**, não como porcentagem por status: uma fila de fases, cada uma com
  * quantas notas já passaram por ela e a barra da fase avançando. A porcentagem por status dizia
@@ -46,6 +42,7 @@ export function TripProcessFlow({
   tripStatus,
 }: TripProcessFlowProps) {
   const { t } = useTranslation('trip')
+  const formatMoment = useMomentFormatter()
   const flow = buildTripProcessFlow(documents, tripStatus)
 
   if (flow === null) return null
@@ -100,7 +97,7 @@ export function TripProcessFlow({
           {tripProgress.estimatedCompletionAt === null
             ? t('stops.withoutEstimate')
             : t('stops.estimatedCompletion', {
-                moment: momentFormatter.format(new Date(tripProgress.estimatedCompletionAt)),
+                moment: formatMoment(tripProgress.estimatedCompletionAt),
               })}
         </p>
       )}

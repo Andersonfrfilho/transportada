@@ -292,6 +292,14 @@ export type DriverFieldReportTransactionPort = {
     readonly receivedByDetail: string | null
     readonly sha256: string
     readonly sizeBytes: number
+    /** Spec 220 RF17: ausente é o comprovante sem miniatura; `retention_until` nulo, como o original. */
+    readonly thumbnail?: {
+      readonly mimeType: string
+      readonly objectId: string
+      readonly objectKey: string
+      readonly sha256: string
+      readonly sizeBytes: number
+    }
   }): Promise<{ readonly id: string }>
   /**
    * Spec 193 D7 (CA06): quem recebeu escolhido depois do envio — só nas linhas do motorista
@@ -349,6 +357,14 @@ export type DriverFieldReportTransactionPort = {
     readonly eventId: string
     readonly kind: TripDeliveryProofKind
   }): Promise<{ readonly channel: TripFieldChannel; readonly objectId: string } | null>
+  /**
+   * Spec 218 D2: o tipo do catálogo que a ocorrência de parada escolheu — só se for desta empresa,
+   * `flow: stop` e ativo; qualquer outro caso é `null`.
+   */
+  findStopOccurrenceType(input: {
+    readonly companyId: string
+    readonly occurrenceTypeId: string
+  }): Promise<{ readonly stopKind: TripStopOccurrenceKind | null } | null>
   recordOccurrence(input: {
     readonly actorUserId: string
     readonly attachmentObjectId: string | null
@@ -359,6 +375,8 @@ export type DriverFieldReportTransactionPort = {
     readonly distanceMeters: number | null
     readonly documentId: string | null
     readonly kind: TripStopOccurrenceKind
+    /** Spec 218 D2: o tipo do catálogo; `null` no corpo antigo, que só manda `kind`. */
+    readonly occurrenceTypeId: string | null
     readonly stopId: string
   }): Promise<{ readonly id: string }>
   findEventById(input: {

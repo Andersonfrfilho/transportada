@@ -2,20 +2,26 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { describe, expect, test } from 'bun:test'
+import { getTableConfig } from 'drizzle-orm/pg-core'
 
 import {
   ROUTE_SUGGESTION_STATUSES,
   companyRouteOptimizationSettings,
+  driverAssignmentFeedback,
   routeSuggestionStops,
+  routeSuggestionVehicleHelpers,
   routeSuggestionVehicles,
   routeSuggestions,
 } from '../../src/database/database.schema.js'
+import { DRIVER_SOURCES } from '../../src/shared/suggestion-driver-source.constant.js'
 import {
   checkSqlByName,
   unqualifiedCheckSqlByName,
   columnNames,
   foreignKeys,
+  indexColumnsByName,
   requiredColumnNames,
+  uniqueColumnsByName,
 } from '../fiscal-schema/support.js'
 
 describe('route suggestions (ADR-0044 §5)', () => {
@@ -95,6 +101,132 @@ describe('route suggestion vehicles — a perna de volta', () => {
     expect(
       unqualifiedCheckSqlByName(routeSuggestionVehicles).route_suggestion_vehicles_return_leg_check,
     ).toContain('"return_duration_seconds" >= 0')
+  })
+})
+
+/** Spec 149 / ADR-0065: de onde veio o motorista do veículo, e quem vai de ajudante. */
+describe('route suggestion crew (spec 149)', () => {
+  test('records where the driver came from only when there is a driver', () => {
+    expect(columnNames(routeSuggestionVehicles)).toContain('driver_source')
+    expect(requiredColumnNames(routeSuggestionVehicles)).not.toContain('driver_source')
+
+    const check =
+      unqualifiedCheckSqlByName(
+        routeSuggestionVehicles,
+      ).route_suggestion_vehicles_driver_source_check
+    expect(check).toContain('"driver_source" is null')
+    expect(check).toContain('"driver_id" is not null')
+    for (const source of DRIVER_SOURCES) {
+      expect(check).toContain(`'${source}'`)
+    }
+  })
+
+  test('exposes the tenant-scoped vehicle key the helpers hang from', () => {
+    expect(uniqueColumnsByName(routeSuggestionVehicles)).toMatchObject({
+      route_suggestion_vehicles_company_suggestion_vehicle_unique: [
+        'company_id',
+        'suggestion_id',
+        'vehicle_id',
+      ],
+    })
+  })
+
+  test('hangs helpers from the suggested vehicle and removes them with it', () => {
+    expect(getTableConfig(routeSuggestionVehicleHelpers).name).toBe(
+      'route_suggestion_vehicle_helpers',
+    )
+    expect(requiredColumnNames(routeSuggestionVehicleHelpers)).toEqual(
+      columnNames(routeSuggestionVehicleHelpers),
+    )
+    expect(foreignKeys(routeSuggestionVehicleHelpers)).toContainEqual({
+      columns: ['company_id', 'suggestion_id', 'vehicle_id'],
+      foreignColumns: ['company_id', 'suggestion_id', 'vehicle_id'],
+      foreignTable: 'route_suggestion_vehicles',
+      name: 'route_suggestion_vehicle_helpers_vehicle_fk',
+      onDelete: 'cascade',
+      onUpdate: 'cascade',
+    })
+    expect(foreignKeys(routeSuggestionVehicleHelpers)).toContainEqual({
+      columns: ['company_id', 'driver_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'fleet_drivers',
+      name: 'route_suggestion_vehicle_helpers_driver_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+  })
+
+  /** A mesma pessoa em dois veículos seriam duas viagens simultâneas dela (RF-2 da ADR-0055). */
+  test('keeps a person on at most one vehicle of the suggestion as helper', () => {
+    expect(uniqueColumnsByName(routeSuggestionVehicleHelpers)).toMatchObject({
+      route_suggestion_vehicle_helpers_suggestion_driver_unique: [
+        'company_id',
+        'suggestion_id',
+        'driver_id',
+      ],
+    })
+  })
+})
+
+describe('driver assignment feedback (spec 149)', () => {
+  test('keeps the last choice per suggested vehicle', () => {
+    expect(getTableConfig(driverAssignmentFeedback).name).toBe('driver_assignment_feedback')
+    expect(uniqueColumnsByName(driverAssignmentFeedback)).toMatchObject({
+      driver_assignment_feedback_company_suggestion_vehicle_unique: [
+        'company_id',
+        'suggestion_id',
+        'vehicle_id',
+      ],
+    })
+    expect(indexColumnsByName(driverAssignmentFeedback)).toMatchObject({
+      driver_assignment_feedback_company_vehicle_created_idx: [
+        'company_id',
+        'vehicle_id',
+        'created_at',
+      ],
+    })
+  })
+
+  test('needs at least one of the two drivers', () => {
+    expect(requiredColumnNames(driverAssignmentFeedback)).not.toContain('recommended_driver_id')
+    expect(requiredColumnNames(driverAssignmentFeedback)).not.toContain('chosen_driver_id')
+    expect(
+      unqualifiedCheckSqlByName(driverAssignmentFeedback).driver_assignment_feedback_driver_check,
+    ).toContain('"recommended_driver_id" is not null or "chosen_driver_id" is not null')
+  })
+
+  test('reaches suggestion, vehicle and both drivers through the tenant', () => {
+    const keys = foreignKeys(driverAssignmentFeedback)
+
+    expect(keys).toContainEqual({
+      columns: ['company_id', 'suggestion_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'route_suggestions',
+      name: 'driver_assignment_feedback_suggestion_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+    expect(keys).toContainEqual({
+      columns: ['company_id', 'vehicle_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'fleet_vehicles',
+      name: 'driver_assignment_feedback_vehicle_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+    for (const [column, name] of [
+      ['recommended_driver_id', 'driver_assignment_feedback_recommended_driver_fk'],
+      ['chosen_driver_id', 'driver_assignment_feedback_chosen_driver_fk'],
+    ] as const) {
+      expect(keys).toContainEqual({
+        columns: ['company_id', column],
+        foreignColumns: ['company_id', 'id'],
+        foreignTable: 'fleet_drivers',
+        name,
+        onDelete: 'restrict',
+        onUpdate: 'cascade',
+      })
+    }
   })
 })
 

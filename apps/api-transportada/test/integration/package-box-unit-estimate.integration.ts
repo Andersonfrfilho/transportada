@@ -157,6 +157,7 @@ describe('medida da unidade e caixa estimada (spec 163, T006)', () => {
         const withEstimate = await loadTripOccupancy(database.db, {
           companyId: scenario.companyId,
           nfeDocumentIds: [cargo.documentId],
+          trailerVehicleId: null,
           vehicleId: cargo.vehicleId,
         })
         const [estimatedBox] = withEstimate.boxesByDocument.get(cargo.documentId) ?? []
@@ -189,6 +190,7 @@ describe('medida da unidade e caixa estimada (spec 163, T006)', () => {
         const withMeasure = await loadTripOccupancy(database.db, {
           companyId: scenario.companyId,
           nfeDocumentIds: [cargo.documentId],
+          trailerVehicleId: null,
           vehicleId: cargo.vehicleId,
         })
         const [measuredBox] = withMeasure.boxesByDocument.get(cargo.documentId) ?? []

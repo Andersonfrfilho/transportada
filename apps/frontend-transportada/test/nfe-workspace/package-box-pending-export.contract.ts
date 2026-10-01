@@ -317,6 +317,22 @@ describe('exportar a fila de caixas pendentes em CSV/Excel', () => {
     ).toEqual({ kind: 'failed' })
   })
 
+  /**
+   * ⚠️ **Rótulo, não frase**: "Faltam medir: 1" erra o verbo justamente no fim do trabalho, e
+   * `_one`/`_other` não salva — em pt-BR o zero cai no singular do CLDR, e o contador abria
+   * "Medida: 0". "Por medir" é o mesmo substantivo do título do painel e não concorda com nada.
+   */
+  it('o contador do cabeçalho é invariável nos dois idiomas, com o total interpolado', () => {
+    for (const locale of [nfeWorkspace, en]) {
+      for (const key of ['measured', 'pending'] as const) {
+        expect(locale.packageBoxes.counter[key]).toContain('{{count}}')
+        expect(Object.keys(locale.packageBoxes.counter)).not.toContain(`${key}_one`)
+      }
+    }
+    expect(nfeWorkspace.packageBoxes.counter.measured).toBe('Medidas: {{count}}')
+    expect(nfeWorkspace.packageBoxes.counter.pending).toBe('Por medir: {{count}}')
+  })
+
   it('o aviso de corte conta as caixas recebidas sem acionar plural, e os avisos do clique existem', () => {
     for (const locale of [nfeWorkspace, en]) {
       const messages = locale.packageBoxes.pendingExport

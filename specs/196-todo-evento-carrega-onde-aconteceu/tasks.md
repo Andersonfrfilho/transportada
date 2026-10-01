@@ -44,7 +44,19 @@ do usuário. A API não é revertida com a app nova no ar.
 
 > 🤖 Modelo: `opus` 🧠
 
-- [ ] **T0.1** Ler as specs do assunto e conferir contra o código:
+> ⚠️ **Recorte de execução, decidido na T0.1 em 2026-10-01.** A spec entra pela **leitura**, pelas
+> duas tabelas que já carimbam o ponto (`trip_stop_events` e `trip_delivery_proofs`): o
+> `location_state` delas (recorte da D2 — migration aditiva de duas colunas), os dois escritores que
+> o preenchem (recorte da Fase 3), T4.0, T4.1, T4.2 e a Fase 6. Ficam para depois as três tabelas que
+> não têm coluna nenhuma, o expurgo das cinco e a app do motorista.
+>
+> O estado **não** é derivado do canal: `trip_stop_events.channel` é `NOT NULL DEFAULT 'driver_app'`
+> sem backfill, então todo evento anterior ao GPS sairia como `unavailable` e a tela diria "o GPS
+> falhou" sobre um toque que nunca pediu posição. Enquanto o resto da spec não rodar, Despachar,
+> Iniciar rota, conferir carga e as ocorrências aparecem como `null` (sem ícone, sem cor), **nunca em
+> vermelho** — e o histórico sem ponto também não. Razão e medição em `evidence.md`.
+
+- [x] **T0.1** Ler as specs do assunto e conferir contra o código:
   - 057 (a da ADR-0045) e 082 (posição na entrega);
   - 158 e 180 (linha do tempo), 159 (posição da foto), 189 T9.2 (grava primeiro);
   - 156 (escritório) e 144 (WhatsApp, as duas listas de ações em `main.ts`);
@@ -60,6 +72,13 @@ do usuário. A API não é revertida com a app nova no ar.
 ## Fase 1 — O banco guarda o ponto e o estado
 
 > 🤖 Modelo: `opus` 🧠 (modelo de dados, CHECKs e migration; validar com `architect` antes da T1.2)
+
+> ⚠️ **Executada pela metade, e nenhuma task desta fase pode ser tiquada.** A migration
+> `20261001123700_event_location_stamp` acrescentou `location_state` às **duas** tabelas que já
+> tinham as quatro colunas de ponto (`trip_stop_events` e `trip_delivery_proofs`). As três que não
+> têm coluna nenhuma — `trip_status_events`, `trip_stop_occurrences`, `trip_document_occurrences` —
+> ficaram de fora: estado sem ponto não teria o que afirmar. A T1.3 (auditoria de leitura, RF12) não
+> foi feita.
 
 - [ ] **T1.1** Contrato de schema primeiro, em `test/trip-schema/events.contract.ts` (importado por
       `test/trip-schema.contract.test.ts`):
@@ -171,14 +190,19 @@ do usuário. A API não é revertida com a app nova no ar.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T4.0** Painel tolerante, **primeiro push da spec**: `tripResponse.validation.ts` aceita
+- [x] **T4.0** Painel tolerante, **primeiro push da spec**: `tripResponse.validation.ts` aceita
       `location`/`locationState` como **opcionais** no item (continua recusando chave desconhecida).
       Contrato em `apps/frontend-transportada/test/trip/timeline-location.contract.ts` (importado por
       `test/trip.contract.test.ts`): item sem as chaves passa, item com as duas passa, item com chave
       estranha falha. Se a T0.2 da 192 (ignorar `kind` desconhecido) não estiver em `origin/staging`,
       combinar com ela no mesmo push, sem reimplementar. Não muda tela. Aceite: `check` do painel verde,
       a contagem subiu em N, push para staging depois dos gates.
-- [ ] **T4.1** Permissão e leitura, contrato primeiro:
+
+  > Fechada em `52626a4da`. `distanceMeters` entrou no mesmo objeto, por causa do tooltip decidido
+  > em 2026-10-01: como o validador é de **chaves exatas**, acrescentá-la depois faria o painel
+  > publicado recusar a resposta inteira. Evidência em `evidence.md`.
+
+- [x] **T4.1** Permissão e leitura, contrato primeiro:
   - `trip.event-location` em `company-admin`, `operator`, `fiscal` e `viewer`
     (`authorization.policy.ts`), com os contratos que enumeram permissões por papel atualizados;
   - tipos, `trip-timeline-status.query.ts`, `trip-timeline-stop.query.ts`,
@@ -189,12 +213,46 @@ do usuário. A API não é revertida com a app nova no ar.
     `test/trip-http.contract.test.ts`), no molde de `driver-redaction.contract.ts`: `finance` e
     `separator` recebem `200`, `location: null` e o `locationState`; `operator` recebe a coordenada.
 
+  > A forma de `location` já está congelada pela T4.0, e o painel a valida por **chaves exatas**:
+  > `accuracyMeters`, `capturedAt`, `distanceMeters`, `latitude`, `longitude` — nem uma a mais, nem
+  > uma a menos. `distanceMeters` é derivada no servidor (ADR-0081 §6) e nula quando a parada não
+  > tem ponto de referência. O comprovante da entrega já calcula essa distância em
+  > `measureProofDistance`; reaproveitar, não reescrever.
+  >
+  > ⚠️ **A coordenada da parada não está em `trip_stops`.** Aquelas colunas nunca foram escritas e
+  > foram removidas; `test/trip-schema/dead-coordinate-columns.contract.ts` reprova se voltarem, e
+  > elas já causaram três leituras erradas (specs 079, 199 e 159) por responderem `null` sem
+  > reclamar. O ponto vivo da parada mora em `geocoded_addresses`, casado pela `address_key`
+  > (ADR-0044 §5).
+  >
+  > ⚠️ Os contratos que guardam a regra antiga —
+  > `test/trip-delivery-proof/read.contract.ts` ("só a distância derivada") e o da spec 158 que
+  > proíbe `latitude` — são **reescritos por emenda, nunca apagados**. A revogação está registrada
+  > na ADR-0081 §6.1, em `specs/220-.../tasks.md` e em `specs/158-.../spec.md`.
+
   Aceite: verdes; a contagem subiu em N.
 
-- [ ] **T4.2** Integração: viagem com os quatro estados (`captured`, `unavailable`, `expired`, `null`)
-      nas quatro fontes; cursor com 250 eventos continua sem pular nem repetir;
+  > Fechada em `29510bbae`. A permissão entrou nos quatro papéis, a redação por permissão está
+  > coberta em `test/trip-http/event-location-redaction.contract.ts`, e o painel foi sincronizado nos
+  > quatro lugares que a guardam (allowlist, grupo e os dois locales) — a API ganhar permissão sem
+  > isso reprova dois contratos do painel.
+  >
+  > ⚠️ **A ordem da lista de permissões do `GET /auth/me` não é a ordem do literal da
+  > `authorization.policy.ts`.** Medido: a permissão nova sai no **fim** de cada lista, e
+  > `auth-me.integration.ts` compara com `toEqual`, que compara posição. Inferir a posição pelo
+  > catálogo custou uma rodada vermelha.
+
+- [ ] **T4.2 — parcial** Integração: viagem com os quatro estados (`captured`, `unavailable`,
+      `expired`, `null`) nas quatro fontes; cursor com 250 eventos continua sem pular nem repetir;
       `test/trip-schema/trip-timeline-query-tenant-safety.contract.ts` cobre as colunas novas; outra
       empresa → `404`. Aceite: os dois comandos da API verdes; a contagem subiu em N.
+
+  > ⚠️ **Não tique.** Os quatro estados são exercitados **só na fonte dos eventos de parada**. As
+  > fontes de status, de ocorrência e de documento são afirmadas `null`/`null`, porque as três
+  > tabelas delas não ganharam coluna de posição nenhuma — a migration do recorte cobriu duas tabelas
+  > (`trip_stop_events` e `trip_delivery_proofs`), não as cinco que a spec descreve. Fechar esta task
+  > depende das Fases 1 (T1.3), 2 e 3, que não foram executadas.
+
 - [ ] **T4.3** Push 2 e a sonda (`plan.md` § Ordem de deploy): gates da API e do worker, rebase limpo,
       push; conferir a migration aplicada e o ciclo do expurgo sem erro; rodar a sonda de `dispatch` e
       de ocorrência da parada com `tripId`/`stopId` inexistentes e registrar as respostas em
@@ -259,7 +317,7 @@ do usuário. A API não é revertida com a app nova no ar.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T6.1** Contratos primeiro (`apps/frontend-transportada/test/trip/timeline-location.contract.ts`,
+- [x] **T6.1** Contratos primeiro (`apps/frontend-transportada/test/trip/timeline-location.contract.ts`,
       estendido):
   - `resolveTimelineLocationView` em `captured` com e sem coordenada, `unavailable` (e WhatsApp),
     `expired` e `null`;
@@ -269,11 +327,22 @@ do usuário. A API não é revertida com a app nova no ar.
 
   Aceite: falham pelo motivo certo; a contagem subiu em N.
 
-- [ ] **T6.2** `TripTimelineLocation.component.tsx` (ícone `map-pin`, precisão, hora da leitura, "Ver
+- [x] **T6.2** `TripTimelineLocation.component.tsx` (ícone `map-pin`, precisão, hora da leitura, "Ver
       no mapa" ≥ 44 px, sem "Ver no mapa" quando `location` é `null`),
       `TripTimelineLocationMap.component.tsx` (`lazy`, o mapa que o `TripRouteMap` já usa, dois
       pinos), textos em `trip.locale.json` e `trip.en.locale.json`. Componente declarativo; a regra mora
       no serviço da T6.1. Aceite: contratos verdes; `check` do painel verde.
+
+  > Fechadas em `96849c405`. 5945 pass · 0 fail (eram 5939), hooks 158, typecheck, lint e
+  > `format:check` limpos. Duas correções entraram na revisão à mão, com os portões já verdes:
+  > a cor do pino do evento (`#f5f5f5` dava contraste **1,04** contra o papel do tema claro — no
+  > claro o pino não existia) virou `EVENT_PIN_COLOR` escolhida por busca e travada por
+  > `event-pin-color.contract.ts`; e o pino sem número deixou de ser `sequence > 0` dentro do
+  > `AssemblyVectorMap`, que cinco telas consomem, para ser `isUnnumbered` no próprio ponto.
+  >
+  > ⚠️ **O código está pronto e nada subiu.** O preview da T6.3 com coordenada sintética e o ok do
+  > usuário são pré-requisito de push, pela regra do `web.md` §15.
+
 - [ ] **T6.3** Preview no painel local, com a API local desta árvore e uma viagem cujos eventos foram
       gravados **pelas rotas do motorista** (curl com token de motorista, ou a app apontada para a API
       local) — nunca `INSERT` cru —, com **coordenadas sintéticas** (um ponto de teste, não uma

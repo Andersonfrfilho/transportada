@@ -40,7 +40,7 @@
 .intro {
   max-width: 46rem;
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  color: var(--color-slate-muted);
   font-size: 0.95rem;
   line-height: 1.55;
 }
@@ -140,15 +140,21 @@
 
 .counter {
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-family: var(--font-utility);
   font-size: 0.78rem;
 }
 
 .hint {
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.8rem;
+}
+
+.proofBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .alert {
@@ -228,7 +234,7 @@
 }
 
 .measureFieldReason {
-  color: color-mix(in srgb, var(--color-slate) 70%, transparent);
+  color: var(--color-slate-muted);
   font-size: 0.82rem;
 }
 
@@ -265,6 +271,15 @@
   font-family: var(--font-utility);
   font-size: 0.72rem;
   text-transform: uppercase;
+}
+
+/* Na grade o identificador não é selo: a célula já tem o padding dela, e uma borda por linha pesa. */
+.tripIdCell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
 }
 
 .tripIdBadge {
@@ -426,7 +441,7 @@ button.occurrenceCaseBadge {
 
 .summaryLine {
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 92%, white 8%);
+  color: var(--color-slate-muted);
   font-family: var(--font-utility);
   font-size: 0.78rem;
 }
@@ -1116,7 +1131,7 @@ button.occurrenceCaseBadge {
 .stopCounter {
   flex-shrink: 0;
   margin-left: auto;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-family: var(--font-utility);
   font-size: 0.78rem;
 }
@@ -1311,6 +1326,22 @@ button.occurrenceCaseBadge {
   text-transform: uppercase;
 }
 
+/**
+ * Devolvida é a nota que saiu do fluxo e cobra uma decisão; sair com a mesma borda cinza de
+ * "SEPARADA" a escondia na lista da parada. Entregue acende do outro lado, para o olho separar o
+ * que fechou do que travou sem precisar ler as duas palavras.
+ */
+.separationStatusBadgeProblem {
+  border-color: color-mix(in srgb, var(--color-alert) 70%, transparent);
+  background: color-mix(in srgb, var(--color-alert) 12%, transparent);
+  color: var(--color-alert);
+}
+
+.separationStatusBadgeDone {
+  border-color: color-mix(in srgb, var(--color-ready) 60%, transparent);
+  color: var(--color-ready);
+}
+
 /* T015 RF-9: barra de progresso por fase — um segmento por `separationStatus`, largura pela
    proporção de notas naquele estado. */
 /**
@@ -1339,7 +1370,7 @@ button.occurrenceCaseBadge {
   gap: var(--space-1);
   padding: var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-slate) 20%, transparent);
-  color: color-mix(in srgb, var(--color-slate) 80%, transparent);
+  color: var(--color-slate-muted);
 }
 
 .processStage[data-reached='true'] {
@@ -1454,7 +1485,7 @@ button.occurrenceCaseBadge {
   gap: var(--space-3);
   margin: 0;
   padding: 0;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.75rem;
   list-style: none;
 }
@@ -1578,13 +1609,233 @@ button.occurrenceCaseBadge {
   }
 }
 
+/*
+ * O card do comprovante: cabeçalho com o desfecho, peça grande, tira de miniaturas, leituras em
+ * grade e rodapé de ação. O espaço à direita das leituras fica livre para o minimapa (precisa de
+ * coordenada por evento na API, fora deste escopo) — sem marcador falso no lugar.
+ */
+.proofCard {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: color-mix(in srgb, var(--color-graphite) 82%, transparent);
+}
+
+.proofCardHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.proofCardTitle {
+  margin: 0;
+  color: var(--color-fog);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.proofStatus {
+  border-width: 1px;
+  border-style: solid;
+}
+
+.proofStatus.proofStatusPending {
+  border-color: var(--color-copper);
+}
+
+.proofStatus.proofStatusApproved {
+  border-color: var(--color-ready);
+}
+
+.proofStatus.proofStatusRejected {
+  border-color: var(--color-alert);
+}
+
+.proofPieces {
+  --proof-thumbnail-size: 4.125rem;
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.proofMain {
+  min-width: 0;
+  margin: 0;
+}
+
+.proofMain .deliveryProofImage {
+  display: block;
+  inline-size: 100%;
+  margin: 0;
+  object-fit: contain;
+}
+
+.proofPieceOverlay {
+  position: absolute;
+  inset-block-start: var(--space-2);
+  inset-inline-start: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm, 0.25rem);
+  background: color-mix(in srgb, var(--color-graphite) 88%, transparent);
+  color: var(--color-fog);
+  font-size: 0.75rem;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.proofStrip {
+  display: flex;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+}
+
+.proofThumbnail {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.proofThumbnail .deliveryProofImageFrame {
+  --delivery-proof-image-placeholder-height: var(--proof-thumbnail-size);
+}
+
+.proofThumbnailButton {
+  display: block;
+  inline-size: var(--proof-thumbnail-size);
+  block-size: var(--proof-thumbnail-size);
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.proofThumbnailButton:focus-visible {
+  outline: 2px solid var(--color-fog);
+  outline-offset: 2px;
+}
+
+.proofThumbnail .proofThumbnailImage {
+  inline-size: var(--proof-thumbnail-size);
+  block-size: var(--proof-thumbnail-size);
+  margin: 0;
+  object-fit: cover;
+}
+
+.proofPieceCaption {
+  color: var(--color-slate-muted);
+  font-size: 0.7rem;
+}
+
+.proofReadings {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.proofMetadata {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.proofReadingCell {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.proofReadingLabel {
+  color: var(--color-slate-muted);
+  font-size: 0.7rem;
+}
+
+.proofReadingValue {
+  margin: 0;
+  color: var(--color-fog);
+  font-size: 0.85rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.proofReadingValue[data-alert='true'] {
+  color: var(--color-alert);
+}
+
+.proofCardFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block-start: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  color: var(--color-slate-muted);
+  font-size: 0.8rem;
+}
+
+.proofCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 /* O canhoto é foto de celular: cabe na largura e nunca empurra a tela para o lado (web.md §10). */
+.deliveryProofImageButton {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.deliveryProofImageButton:focus-visible {
+  outline: 2px solid var(--color-fog);
+  outline-offset: 2px;
+}
+
 .deliveryProofImage {
   max-width: 100%;
   height: auto;
   border: 1px solid var(--color-slate);
   border-radius: var(--radius-sm, 0.25rem);
   margin-block: var(--space-2);
+}
+
+/*
+ * Imagem que ainda não chegou não tem altura própria: sem a reserva abaixo, o marcador nasceria
+ * com zero pixel e a lista pularia quando a foto entrasse.
+ */
+.deliveryProofImageFrame {
+  --delivery-proof-image-placeholder-height: 12rem;
+
+  position: relative;
+}
+
+.deliveryProofImagePlaceholder {
+  height: var(--delivery-proof-image-placeholder-height);
+  border-radius: var(--radius-sm, 0.25rem);
+  margin-block: var(--space-2);
+}
+
+/*
+ * Fora do fluxo e transparente — nunca `display: none`, que em parte dos navegadores adia o
+ * download da imagem que estamos justamente esperando.
+ */
+.deliveryProofImagePending {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
 }
 
 /*
@@ -1878,7 +2129,12 @@ button.occurrenceCaseBadge {
   height: var(--space-6);
   border-radius: 50%;
   border: 2px solid transparent;
-  color: var(--color-ink-on-accent);
+  /*
+   * A tinta vem de `resolvePinInk`, junto com o preenchimento, e não daqui: ela é escolhida pela cor
+   * do pino, não pelo tema. O preenchimento é literal — o MapLibre pinta em WebGL e não resolve
+   * `var()` —, então quem senta em cima também não pode mudar com o tema. `--color-ink-on-accent`
+   * estava aqui e trocava: no escuro o glifo caía para 2,65, abaixo do piso de objeto gráfico.
+   */
   font-size: var(--font-size-xs, 0.75rem);
   font-weight: 600;
   /*
@@ -1907,6 +2163,116 @@ button.occurrenceCaseBadge {
   color: var(--color-ink-on-accent);
   /* `.tilePin` desliga o ponteiro para o arrasto do mapa; a marca precisa dele para abrir a dica. */
   pointer-events: auto;
+}
+
+/* Minimapa da linha do tempo: o ícone do tipo do evento ocupa o lugar do número da parada. */
+.tilePin > svg {
+  width: 70%;
+  height: 70%;
+}
+
+/* Selo de contagem: vários eventos do mesmo tipo no mesmo lugar viram um pino só. */
+.tilePinCount {
+  position: absolute;
+  top: calc(var(--space-2) * -1);
+  right: calc(var(--space-2) * -1);
+  display: grid;
+  place-items: center;
+  min-width: var(--space-4);
+  height: var(--space-4);
+  padding: 0 var(--space-1);
+  border-radius: var(--space-2);
+  background: var(--color-asphalt);
+  color: var(--color-fog);
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/*
+  Spec 196 — o selo da ordem do ponto na cronologia, como um contador de notificação: canto superior
+  ESQUERDO, menor que o glifo e menor que o selo de contagem, que fica no direito. O glifo manda (ele
+  diz o tipo do evento); este selo informa a vez.
+
+  ⚠️ **Dois contrastes, uma solução.** Ele cai metade sobre o pino e metade sobre o mapa: o anel
+  — o mesmo que já salva o pino marrom da via laranja, e que chega pela cor inline de `orderBadgeElement`
+  — o separa do pino, e o preenchimento escuro o separa do papel do mapa.
+
+  ⚠️ Toda medida vem de `tripTimelineMap.constant.ts` como propriedade custom. Número cravado aqui
+  divergiria do que o TSX calcula no dia em que alguém mexesse num só.
+*/
+.tilePinOrder {
+  position: absolute;
+  top: var(--timeline-order-badge-offset);
+  left: var(--timeline-order-badge-offset);
+  display: grid;
+  place-items: center;
+  /* Dois dígitos crescem a pílula para o lado; a altura e o corpo da fonte ficam onde estão. */
+  min-width: var(--timeline-order-badge-size);
+  height: var(--timeline-order-badge-size);
+  padding: 0 var(--timeline-order-badge-padding-inline);
+  border: var(--timeline-order-badge-ring-width) solid transparent;
+  border-radius: calc(var(--timeline-order-badge-size) / 2);
+  /*
+   * ⚠️ `border-box`, nunca `content-box`: com `content-box` o anel e o preenchimento somavam por fora
+   * da medida declarada e o selo saía com 23 × 18 px sobre um pino de 24 px — cobrindo 74 % do ícone.
+   */
+  box-sizing: border-box;
+  /*
+   * ⚠️ **Par invertido, e é de propósito.** `--color-asphalt` e `--color-fog` TROCAM de significado
+   * entre o tema claro e o escuro (o aviso está no topo de `styles/index.css`): `asphalt` é sempre a
+   * superfície da página e `fog` sempre a tinta. Pintado na ordem natural, o selo saía da cor do
+   * papel — e o papel do basemap é essa mesma cor, então a metade que cai sobre o mapa sumia, com o
+   * anel (que vem do papel) sem nada para separar. Invertido, o selo contrasta com o mapa nos dois
+   * temas, e o anel volta a ter função: separá-lo do corpo colorido do pino.
+   */
+  background: var(--color-fog);
+  color: var(--color-asphalt);
+  font-size: var(--timeline-order-badge-font-size);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/*
+  O pino que carrega o selo de ordem é maior que o pino comum, e isso é a conclusão de uma medida, não
+  gosto: em 1,5 rem o glifo sai com 14 px e não sobra quina para um número legível. `measureOrderBadgeGlyphCoverage`
+  guarda a conta, e o contrato guarda a conta.
+*/
+.tilePinBadged {
+  width: var(--timeline-pin-size);
+  height: var(--timeline-pin-size);
+}
+
+/*
+  Spec 196 — quanto tempo passou de um ponto ao seguinte, escrito sobre o trecho que os liga. Mesma
+  paleta dos selos do pino, pelo mesmo motivo: ele divide o fundo com a via e com o traço colorido.
+*/
+.tileLegLabel {
+  display: inline-grid;
+  place-items: center;
+  padding: var(--timeline-leg-label-padding);
+  border: var(--timeline-leg-label-ring-width) solid transparent;
+  border-radius: var(--timeline-leg-label-radius);
+  /* Mesmo par invertido do selo de ordem, e pelo mesmo motivo: ele vive inteiro sobre o papel do mapa. */
+  background: var(--color-fog);
+  color: var(--color-asphalt);
+  font-size: var(--timeline-leg-label-font-size);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+  /* O rótulo é marca, não controle: arrastar o mapa a partir dele tem de arrastar o mapa. */
+  pointer-events: none;
+}
+
+/*
+  O rótulo que cairia por cima de outro — nunca o trecho curto, que agora desce para debaixo do pino
+  de destino em vez de sumir. `visibility` e não `display: none`: o marcador continua posicionado
+  pelo MapLibre, e o `moveend` seguinte o traz de volta sem remontar nada.
+*/
+.tileLegLabelHidden {
+  visibility: hidden;
 }
 
 /* O gatilho do tooltip entra entre a marca e o glifo — ele veste a marca, não encolhe dentro dela. */
@@ -2422,6 +2788,16 @@ button.occurrenceCaseBadge {
   gap: var(--space-1);
 }
 
+/*
+ * ⚠️ Medidos na tela em 43,59 × 38,40px: o `size="sm"` do botão encolhe os dois sentidos abaixo do
+ * alvo de toque. Ele continua mandando no respiro e na fonte — o que entra aqui é só o piso, por
+ * baixo dele, para o dedo alcançar aproximar, afastar, recentrar e mudar a leitura.
+ */
+.vectorMapControls > button {
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+}
+
 .vectorMap {
   position: relative;
   isolation: isolate;
@@ -2644,7 +3020,7 @@ button.occurrenceCaseBadge {
 }
 
 .cargoMeasureLabel {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -2664,7 +3040,7 @@ button.occurrenceCaseBadge {
 }
 
 .cargoMeasureDetail {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.85rem;
 }
 
@@ -3126,7 +3502,7 @@ button.occurrenceCaseBadge {
 }
 
 .leftoversSecondWave {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   margin: 0;
 }
 
@@ -3137,7 +3513,7 @@ button.occurrenceCaseBadge {
 }
 
 .leftoversDetail dt {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
 }
 
 .leftoversDetail dd {
@@ -3239,7 +3615,7 @@ button.occurrenceCaseBadge {
   display: inline-flex;
   gap: var(--space-1);
   align-items: center;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.8rem;
 }
 
@@ -3319,7 +3695,7 @@ button.occurrenceCaseBadge {
 }
 
 .proposalMetricNote {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.72rem;
 }
 
@@ -4384,4 +4760,52 @@ button.occurrenceCaseBadge {
   .occurrenceDetailPage :global(.ui-button-size-sm) {
     min-height: var(--touch-target);
   }
+}
+
+.proofGalleryBackdrop {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-asphalt) 92%, transparent);
+}
+
+.proofGalleryFrame {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.proofGalleryImage {
+  max-width: 100%;
+  max-height: 80vh;
+  object-fit: contain;
+}
+
+/* O original é maior que a miniatura e costuma demorar mais — é aqui que a espera aparece. */
+.proofGalleryPlaceholder {
+  width: min(32rem, 80vw);
+  height: 60vh;
+  border-radius: var(--radius-sm, 0.25rem);
+}
+
+.proofGalleryImagePending {
+  position: absolute;
+  opacity: 0;
+}
+
+.proofGalleryControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: center;
+  color: var(--color-fog);
 }

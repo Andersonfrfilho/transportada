@@ -128,6 +128,7 @@ export function AdvancedFilterBuilder({
         <Select
           ariaLabel={t('documents.builder.value')}
           clearable={false}
+          compact
           emptyLabel={t('filters.searchEmpty')}
           onChange={(value) => onUpdateCondition(group.id, condition.id, { value })}
           options={selectOptionsFor(condition.field)}
@@ -159,6 +160,7 @@ export function AdvancedFilterBuilder({
           ariaLabel={t('documents.builder.value')}
           chooseYearLabel={t('documents.chooseYear')}
           clearLabel={t('documents.clearAll')}
+          compact
           nextMonthLabel={t('documents.nextMonth')}
           openCalendarLabel={t('documents.openCalendar')}
           placeholder={t('documents.datePlaceholder')}

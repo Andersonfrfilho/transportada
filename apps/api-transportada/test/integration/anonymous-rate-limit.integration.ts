@@ -120,6 +120,7 @@ describeDatabase('limitador anônimo somado entre réplicas (spec 191 T1.3)', ()
     database = createDrizzleProvider({ connection: disposableUrl.toString() })
   }, 60_000)
 
+  // Derrubar o banco descartável passa dos 5 s padrão do Bun sob carga de CI.
   afterAll(async () => {
     try {
       await database?.close()
@@ -131,7 +132,7 @@ describeDatabase('limitador anônimo somado entre réplicas (spec 191 T1.3)', ()
         await admin?.close({ timeout: 0 })
       }
     }
-  })
+  }, 60_000)
 
   test('dois roteadores sobre o mesmo banco somam o teto: o 11º pedido do mesmo IP dá 429', async () => {
     const replicas = [replica(), replica()] as const

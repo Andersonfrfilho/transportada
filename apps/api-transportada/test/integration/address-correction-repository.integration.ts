@@ -109,6 +109,7 @@ describeDatabase('o pedido de correção não atravessa empresa (spec 150 T102)'
     await insertContractor({ companyId: companyB, taxId: ONLY_IN_B_TAX_ID })
   }, 60_000)
 
+  // Derrubar o banco descartável passa dos 5 s padrão do Bun sob carga de CI.
   afterAll(async () => {
     try {
       await database?.close()
@@ -119,7 +120,7 @@ describeDatabase('o pedido de correção não atravessa empresa (spec 150 T102)'
         await admin?.close({ timeout: 0 })
       }
     }
-  })
+  }, 60_000)
 
   test('a contratante sai do CNPJ do emitente dentro da empresa informada', async () => {
     expect(

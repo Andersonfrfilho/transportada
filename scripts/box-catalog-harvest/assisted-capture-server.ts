@@ -4,10 +4,6 @@
  * Servidor local da captura assistida: entrega a próxima página da fila e recebe o que o
  * userscript leu na página que a pessoa abriu. Não navega sozinho e não fala com o Cosmos.
  */
-import { randomBytes } from 'node:crypto'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
-
 import {
   appendCaptureRecord,
   OUTPUT_PATH,
@@ -21,7 +17,8 @@ const DEFAULT_QUEUE_PATH = `${process.env.HOME}/.config/transportada/pending-gti
 
 const PORT = Number(process.env.CAPTURE_PORT ?? 53999)
 const COSMOS_PRODUCT_URL = 'https://cosmos.bluesoft.com.br/produtos'
-const TOKEN_PATH = `${process.env.HOME}/.config/transportada/capture-token`
+/** Header próprio: site qualquer não o envia a 127.0.0.1 sem preflight CORS, que o servidor não libera. */
+const CLIENT_HEADER_VALUE = 'transportada-userscript'
 const MAX_SNIPPET_LENGTH = 4000
 
 const CAPTURE_STATUSES: ReadonlySet<string> = new Set(['found', 'no_dimensions', 'not_found'])
@@ -52,19 +49,15 @@ function parseCapture(value: unknown): CapturePayload | undefined {
   }
 }
 
-async function loadOrCreateToken(): Promise<string> {
-  const existing = await readFile(TOKEN_PATH, 'utf8').catch(() => '')
-  if (existing.trim()) return existing.trim()
-  const token = randomBytes(24).toString('hex')
-  await mkdir(dirname(TOKEN_PATH), { recursive: true })
-  await writeFile(TOKEN_PATH, token, { mode: 0o600 })
-  return token
-}
-
 function describeNext(queue: readonly PendingGtin[]): Record<string, unknown> {
   const next = queue[0]
   if (!next) return { done: true, remaining: 0 }
-  return { ...next, url: `${COSMOS_PRODUCT_URL}/${next.unitGtin}`, remaining: queue.length }
+  return {
+    ...next,
+    url: `${COSMOS_PRODUCT_URL}/${next.unitGtin}`,
+    remaining: queue.length,
+    ...(blocked ? { blocked } : {}),
+  }
 }
 
 async function loadPendingGtins(): Promise<PendingGtin[]> {
@@ -88,6 +81,11 @@ type ManualCapturePayload = {
   readonly pageUrl: string
   readonly extracted: Record<string, unknown>
   readonly snippet: string
+}
+
+type BlockReport = {
+  readonly reason?: string
+  readonly url?: string
 }
 
 function parseManualCapture(value: unknown): ManualCapturePayload | undefined {
@@ -135,19 +133,37 @@ async function handleManualCapture(request: Request): Promise<Response> {
   return Response.json(describeNext(queue))
 }
 
-const token = await loadOrCreateToken()
 const captured = await readCapturedGtins()
 const allPending = await loadPendingGtins()
 const pendingByCartonGtin = new Map(allPending.map((item) => [item.cartonGtin, item]))
 const queue = allPending.filter((item) => !captured.has(item.cartonGtin))
+let blocked: BlockReport | undefined
 
 Bun.serve({
   hostname: '127.0.0.1',
   port: PORT,
   async fetch(request) {
-    if (request.headers.get('x-capture-token') !== token)
+    console.log(
+      JSON.stringify({
+        level: 'debug',
+        method: request.method,
+        path: new URL(request.url).pathname,
+      }),
+    )
+    if (request.headers.get('x-capture-client') !== CLIENT_HEADER_VALUE)
       return Response.json({ error: 'UNAUTHORIZED' }, { status: 401 })
     const { pathname } = new URL(request.url)
+    if (request.method === 'POST' && pathname === '/log') {
+      const entry = await request.json().catch(() => ({}))
+      console.log(JSON.stringify({ level: 'debug', source: 'userscript', ...entry }))
+      return Response.json({ ok: true })
+    }
+    if (request.method === 'POST' && pathname === '/report-block') {
+      const report = (await request.json().catch(() => ({}))) as Partial<BlockReport>
+      blocked = { reason: report.reason, url: report.url }
+      console.log(JSON.stringify({ level: 'warn', event: 'blocked', ...blocked }))
+      return Response.json({ ok: true })
+    }
     if (request.method === 'GET' && pathname === '/next') return Response.json(describeNext(queue))
     if (request.method === 'POST' && pathname === '/capture-manual')
       return handleManualCapture(request)
@@ -182,6 +198,5 @@ Bun.serve({
 console.log(
   JSON.stringify({ level: 'info', port: PORT, pending: queue.length, output: OUTPUT_PATH }),
 )
-console.log(`Token do userscript (cole uma vez no menu do Tampermonkey): ${token}`)
 const first = describeNext(queue)
 if (typeof first.url === 'string') Bun.spawn(['open', first.url])

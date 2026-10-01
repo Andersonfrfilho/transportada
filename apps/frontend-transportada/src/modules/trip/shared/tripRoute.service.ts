@@ -5,6 +5,15 @@ export const TRIPS_ROUTE = '/trips'
 export const TRIP_ROUTE_PREFIX = '/trips/'
 export const TRIP_WORKSPACE = 'trip'
 
+/**
+ * A montagem de viagem só existe dentro da tela de viagens, e a seleção de notas mora na tela de
+ * NF-e: os ids viajam na query string para que o `pathname` continue `/trips` e
+ * `resolveCurrentWorkspace` não mude de comportamento — mesmo molde de `fleetRoute.service.ts`.
+ */
+export const TRIP_CREATION_DOCUMENTS_PARAMETER = 'createFromDocuments'
+
+const DOCUMENT_ID_SEPARATOR = ','
+
 export function buildTripRoute(tripId: string): string {
   return `${TRIP_ROUTE_PREFIX}${encodeURIComponent(tripId)}`
 }
@@ -21,6 +30,28 @@ export function navigateToTrip(
   input: Readonly<{ navigator: WorkspaceNavigator; tripId: string }>,
 ): void {
   input.navigator.pushPath(buildTripRoute(input.tripId))
+  input.navigator.rememberWorkspace(TRIP_WORKSPACE)
+  input.navigator.dispatchPopState()
+}
+
+export function buildTripCreationRoute(documentIds: readonly string[]): string {
+  const value = documentIds.filter((documentId) => documentId !== '').join(DOCUMENT_ID_SEPARATOR)
+  if (value === '') return TRIPS_ROUTE
+  const query = new URLSearchParams({ [TRIP_CREATION_DOCUMENTS_PARAMETER]: value })
+  return `${TRIPS_ROUTE}?${query.toString()}`
+}
+
+/** Notas que a seleção da tela de NF-e mandou para a montagem — lista vazia quando não veio nenhuma. */
+export function parseTripCreationDocumentIds(search: string): readonly string[] {
+  const value = new URLSearchParams(search).get(TRIP_CREATION_DOCUMENTS_PARAMETER)
+  if (value === null) return []
+  return value.split(DOCUMENT_ID_SEPARATOR).filter((documentId) => documentId !== '')
+}
+
+export function navigateToTripCreation(
+  input: Readonly<{ documentIds: readonly string[]; navigator: WorkspaceNavigator }>,
+): void {
+  input.navigator.pushPath(buildTripCreationRoute(input.documentIds))
   input.navigator.rememberWorkspace(TRIP_WORKSPACE)
   input.navigator.dispatchPopState()
 }

@@ -122,7 +122,11 @@ export async function seedRaceTrip(
     plate: 'ABC1D24',
     role: 'traction',
     state: 'SP',
-    vehicleType: 'tractor_unit',
+    /**
+     * Spec 147 T18 (revisão): `tractor_unit` sem carreta não despacha mais (`assertTrailerStillAttached`)
+     * — este teste exercita a corrida do despacho, não o requisito da carreta.
+     */
+    vehicleType: 'truck',
   })
   await database.db
     .insert(fleetDrivers)
@@ -133,7 +137,16 @@ export async function seedRaceTrip(
     actorUserId: userId,
     channel: TRIP_FIELD_CHANNELS.backoffice,
     companyId,
-    crew: [{ driverId, driverName: 'Motorista 185 T4.3', driverTaxId: '22222222222', position: 1 }],
+    crew: [
+      {
+        driverId,
+        driverName: 'Motorista 185 T4.3',
+        driverTaxId: '22222222222',
+        position: 1,
+        role: 'driver',
+      },
+    ],
+    trailerVehicleId: null,
     vehicleId,
   })
 

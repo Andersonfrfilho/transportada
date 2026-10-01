@@ -12,12 +12,14 @@ import { Tooltip } from '@/components/ui/tooltip'
 
 import {
   OCCURRENCE_REDELIVERY_POLICY,
+  OCCURRENCE_TYPE_FLOWS,
   TRIP_OCCURRENCE_STAGE,
 } from '@/modules/trip/shared/occurrence.constant'
 import type {
   OccurrenceAttachmentMode,
   OccurrenceRedeliveryPolicy,
   OccurrenceType,
+  OccurrenceTypeFlow,
   TripOccurrenceStage,
 } from '@/modules/trip/shared/occurrence.constant'
 import {
@@ -25,9 +27,12 @@ import {
   OCCURRENCE_TEMPLATE_NONE,
 } from '@/modules/trip/shared/occurrenceTemplate.service'
 import { useEmailTemplatesQuery } from '@/modules/notification/queries/useEmailTemplates.query'
+import { useContractorsQuery } from '@/modules/trip/queries/useContractors.query'
 import { NOTIFICATION_SETTINGS_HREF } from '@/modules/notification/shared/notificationCatalog.constant'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 import styles from '@/modules/trip/styles/trip.module.css'
+
+import { OccurrenceTypeExceptionsSection } from './OccurrenceTypeExceptionsSection.component'
 
 export type OccurrenceTypeCatalogPanelProps = Readonly<{
   canManage: boolean
@@ -39,6 +44,8 @@ export type OccurrenceTypeCatalogPanelProps = Readonly<{
     /** Spec 179 RF1: só tem efeito em tipo de rua — é o motorista quem tira a foto. */
     readonly attachmentMode: OccurrenceAttachmentMode
     readonly emailTemplateKey: null | string
+    /** Spec 218 (D1, RF-B5): `undefined` é "não mexe" — só a troca explícita do seletor manda o campo. */
+    readonly flow?: OccurrenceTypeFlow | undefined
     /** Spec 185 T6.1 (D2, RF6): só vale para `stage: 'separation'` — o CHECK do banco recusa em `delivery`. */
     readonly leavesDocumentBehind: boolean
     readonly name: string
@@ -88,12 +95,23 @@ export function OccurrenceTypeCatalogPanel({
   const [leavesDocumentBehind, setLeavesDocumentBehind] = useState(false)
   /** Spec 179 RF1: nasce `off` — nenhum tipo novo passa a exigir foto sem decisão explícita. */
   const [attachmentMode, setAttachmentMode] = useState<OccurrenceAttachmentMode>('off')
+  /** Spec 218 (D1, RF-B5): obrigatório na criação — nasce `document`, o comportamento de sempre. */
+  const [flow, setFlow] = useState<OccurrenceTypeFlow>(OCCURRENCE_TYPE_FLOWS[0])
 
   const attachmentModeOptions = [
     { label: t('occurrenceTypeCatalog.attachmentModeOff'), value: 'off' },
     { label: t('occurrenceTypeCatalog.attachmentModeOptional'), value: 'optional' },
     { label: t('occurrenceTypeCatalog.attachmentModeRequired'), value: 'required' },
   ]
+
+  const flowOptions = OCCURRENCE_TYPE_FLOWS.map((value) => ({
+    label: t(`occurrenceTypeCatalog.flow${value === 'document' ? 'Document' : 'Stop'}`),
+    value,
+  }))
+
+  /** Spec 218 T10/T11: mesmo seletor de contratante da exceção de comprovante — busca uma vez só. */
+  const contractorsQuery = useContractorsQuery({ enabled: canManage })
+  const contractors = contractorsQuery.data ?? []
 
   const redeliveryPolicyOptions = [
     {
@@ -132,6 +150,8 @@ export function OccurrenceTypeCatalogPanel({
       allowsMultipleItems,
       attachmentMode: stage === TRIP_OCCURRENCE_STAGE.delivery ? attachmentMode : 'off',
       emailTemplateKey: emailTemplateKey === OCCURRENCE_TEMPLATE_NONE ? null : emailTemplateKey,
+      /** Spec 218 RF-B5: obrigatório na criação — o servidor recusa `occurrenceTypeId: null` sem ele. */
+      flow,
       leavesDocumentBehind: stage === TRIP_OCCURRENCE_STAGE.separation && leavesDocumentBehind,
       name,
       notifies,
@@ -146,6 +166,7 @@ export function OccurrenceTypeCatalogPanel({
     setRedeliveryPolicy(OCCURRENCE_REDELIVERY_POLICY.unset)
     setLeavesDocumentBehind(false)
     setAttachmentMode('off')
+    setFlow(OCCURRENCE_TYPE_FLOWS[0])
   }
 
   function handleEditTemplates() {
@@ -281,6 +302,32 @@ export function OccurrenceTypeCatalogPanel({
                     />
                   </Tooltip>
                 ) : null}
+                {/* Spec 218 (D1, RF-B5): mesmo gate do comprovante — só tipo de rua alimenta o botão único do motorista. */}
+                {type.stage === TRIP_OCCURRENCE_STAGE.delivery ? (
+                  <Tooltip label={t('occurrenceTypeCatalog.flowHint')}>
+                    <Select
+                      ariaLabel={t('occurrenceTypeCatalog.flow')}
+                      disabled={!canManage || isSaving}
+                      onChange={(value) =>
+                        onSave({
+                          active: type.active,
+                          allowsMultipleItems: type.allowsMultipleItems,
+                          attachmentMode: type.attachmentMode,
+                          emailTemplateKey: type.emailTemplateKey,
+                          flow: value as OccurrenceTypeFlow,
+                          leavesDocumentBehind: type.leavesDocumentBehind,
+                          name: type.name,
+                          notifies: type.notifies,
+                          occurrenceTypeId: type.id,
+                          redeliveryPolicy: type.redeliveryPolicy,
+                          stage: type.stage,
+                        })
+                      }
+                      options={flowOptions}
+                      value={type.flow}
+                    />
+                  </Tooltip>
+                ) : null}
                 {/* Spec 185 T6.1 (D2/RF6): só para tipos de separação — o CHECK do banco recusa em `delivery`. */}
                 {type.stage === TRIP_OCCURRENCE_STAGE.separation ? (
                   <Tooltip label={t('occurrenceTypeCatalog.leavesDocumentBehindHint')}>
@@ -304,6 +351,15 @@ export function OccurrenceTypeCatalogPanel({
                       }
                     />
                   </Tooltip>
+                ) : null}
+                {/* Spec 218 RF-B1/RF-B3/RF-B4: exceção do `attachmentMode`, mesmo gate do comprovante. */}
+                {type.stage === TRIP_OCCURRENCE_STAGE.delivery ? (
+                  <OccurrenceTypeExceptionsSection
+                    canManage={canManage}
+                    contractors={contractors}
+                    isDisabled={isSaving}
+                    occurrenceTypeId={type.id}
+                  />
                 ) : null}
               </div>
             ))}
@@ -358,6 +414,17 @@ export function OccurrenceTypeCatalogPanel({
                 onChange={(value) => setAttachmentMode(value as OccurrenceAttachmentMode)}
                 options={attachmentModeOptions}
                 value={attachmentMode}
+              />
+            </Tooltip>
+          ) : null}
+          {/* Spec 218 (D1, RF-B5): mesmo gate do `attachmentMode` — só tipo de rua tem fluxo de registro. */}
+          {stage === TRIP_OCCURRENCE_STAGE.delivery ? (
+            <Tooltip label={t('occurrenceTypeCatalog.flowHint')}>
+              <Select
+                ariaLabel={t('occurrenceTypeCatalog.flow')}
+                onChange={(value) => setFlow(value as OccurrenceTypeFlow)}
+                options={flowOptions}
+                value={flow}
               />
             </Tooltip>
           ) : null}

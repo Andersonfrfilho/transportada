@@ -16,7 +16,7 @@ import { resolveEffectiveFuelPrice } from '../../companies/domain/fuel-price.pol
 import type { CompanySettingsDatabase } from '../../companies/infrastructure/drizzle-company-settings.types.js'
 import { FUEL_PRODUCTS, type FuelProduct } from '../../shared/fuel.constant.js'
 import {
-  NO_FUEL_BASELINE,
+  resolveVehicleFuelBaseline as collapseVehicleFuelBaseline,
   type RouteOptionVehicle,
 } from '../../toll-booths/domain/route-option.policy.js'
 
@@ -50,17 +50,25 @@ export type ResolveVehicleFuelBaselineParams = {
  * Consumo e preço efetivo do combustível do veículo — o que `rankRouteOptions` compara. Um lugar só
  * para a leitura ao vivo da rota e para o congelamento: duas cópias desta conta deixariam o mesmo
  * veículo com "mais barata" diferente em cada tela.
+ *
+ * ⚠️ N13 (segunda revisão da 153): a busca é daqui, mas quem decide se o par colapsa para
+ * `NO_FUEL_BASELINE` é `resolveVehicleFuelBaseline` de `route-option.policy.ts` — o único lugar que
+ * sabe essa regra. Duas cópias da mesma checagem (`=== null ? NO_FUEL_BASELINE : ...`) discordariam
+ * caladas no dia em que uma delas mudasse sozinha.
  */
 export async function resolveVehicleFuelBaseline(
   input: ResolveVehicleFuelBaselineParams,
 ): Promise<RouteOptionVehicle> {
-  if (input.kilometersPerLiter === null) return NO_FUEL_BASELINE
+  const pricePerLiter =
+    input.kilometersPerLiter === null
+      ? null
+      : await readEffectiveFuelPrice(input.database, {
+          companyId: input.companyId,
+          product: toFuelProduct(input.fuelType),
+        })
 
-  const pricePerLiter = await readEffectiveFuelPrice(input.database, {
-    companyId: input.companyId,
-    product: toFuelProduct(input.fuelType),
+  return collapseVehicleFuelBaseline({
+    kilometersPerLiter: input.kilometersPerLiter,
+    pricePerLiter,
   })
-  if (pricePerLiter === null) return NO_FUEL_BASELINE
-
-  return { kilometersPerLiter: input.kilometersPerLiter, pricePerLiter }
 }

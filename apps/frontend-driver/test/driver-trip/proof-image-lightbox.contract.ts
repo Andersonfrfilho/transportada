@@ -99,6 +99,26 @@ describe('miniatura: "Ver" abre em tela cheia; "Remover" só com o anexo ainda n
     expect(card).toContain('isProofQueued')
   })
 
+  /**
+   * Sob `StrictMode` o React monta, limpa e monta de novo, e o `popstate` do `back()` da limpeza
+   * chega depois da remontagem — fechando o diálogo no mesmo toque que o abriu. Medido na página do
+   * painel (spec 220), sobre este mesmo código, copiado por valor.
+   *
+   * ⚠️ Esta app não monta React em teste: a asserção é sobre a **forma** do efeito, não sobre o
+   * comportamento. A prova comportamental vive na suíte montada do painel.
+   */
+  it('o desfazer da entrada de histórico sobrevive à remontagem do StrictMode', () => {
+    const lightbox = readSource(
+      'src/modules/driver-trip/components/ProofImageLightbox.component.tsx',
+    )
+    const afterListener = lightbox.slice(lightbox.indexOf("addEventListener('popstate'"))
+    const historyEffect = afterListener.slice(0, afterListener.indexOf('\n  return ('))
+    expect(historyEffect).toContain('}, [])')
+    expect(lightbox).toContain('onCloseRef.current()')
+    expect(lightbox).toContain('pendingUndoRef')
+    expect(lightbox).toContain('clearTimeout(')
+  })
+
   it('remover pede confirmação — nunca descarta sem o toque explícito', () => {
     const card = readSource('src/modules/driver-trip/components/DriverStopCard.component.tsx')
     expect(card).toContain("t('proofCapture.confirmRemove')")

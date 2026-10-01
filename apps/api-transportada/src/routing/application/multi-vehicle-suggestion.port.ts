@@ -3,6 +3,7 @@
  */
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import type { RouteChoice } from '../../trips/domain/route-choice.policy.js'
+import type { ClientDriverSource } from '../../shared/suggestion-driver-source.constant.js'
 import type { RouteSuggestion } from './route-suggestion.port.js'
 
 /**
@@ -24,6 +25,10 @@ export type CreateMultiVehicleSuggestionInput = Readonly<{
 
 export type MultiVehicleSuggestionPair = Readonly<{
   driverId?: string | undefined
+  /** Spec 149 T5: de onde veio `driverId` nesta linha. Ausente com `driverId` presente é `link`. */
+  driverSource?: ClientDriverSource | undefined
+  /** Spec 149 (ADR-0065 D11): ajudantes escolhidos à mão, além do motorista da linha. */
+  helperIds?: readonly string[] | undefined
   vehicleId: string
 }>
 

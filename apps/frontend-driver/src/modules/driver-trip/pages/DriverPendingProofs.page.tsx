@@ -18,7 +18,7 @@ import styles from '../styles/driverTrip.module.css'
 
 type DriverPendingProofsPageProps = Readonly<{
   onBack: () => void
-  onProof: (input: DriverProofAttachment) => void
+  onProof: (input: DriverProofAttachment) => Promise<boolean>
   /** Spec 193 D7: a edição depois da captura vale aqui também — o mesmo caminho do cartão da parada. */
   onProofFieldsUpdate?: (input: DriverProofFieldsUpdate) => void
   /** Spec 207: "Remover" a foto/assinatura ainda na fila — mesmo caminho do cartão da parada. */
@@ -94,6 +94,19 @@ export function DriverPendingProofsPage({
                 {outcome === undefined ? null : (
                   <p className={styles.profileMeta} role="status">
                     {t(`pendingProofs.outcome.${outcome}`)}
+                  </p>
+                )}
+                {entry.canhotoRejection === null ? null : (
+                  <p className={styles.pendingProofRejection} role="status">
+                    <span className={styles.pendingProofRejectionTitle}>
+                      <Icon name="alert" />
+                      {t('pendingProofs.canhotoRejection.title')}
+                    </span>
+                    <span>
+                      {t(`pendingProofs.canhotoRejection.${entry.canhotoRejection.reason}`, {
+                        note: entry.canhotoRejection.note ?? '',
+                      })}
+                    </span>
                   </p>
                 )}
                 {isQueued ? (

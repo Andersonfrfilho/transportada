@@ -224,6 +224,12 @@ export const fleetVehicles = pgTable(
     annualVehicleTaxAmount: moneyColumn('annual_vehicle_tax_amount').notNull().default('0'),
     annualInsuranceAmount: moneyColumn('annual_insurance_amount').notNull().default('0'),
     costsUpdatedAt: timestamp('costs_updated_at', { withTimezone: true }),
+    /**
+     * Spec 147 D3: a carreta que este cavalo puxa por padrão. Só serve de sugestão — a viagem nova
+     * nasce com ela já escolhida (T10), mas pode ser trocada até o despacho. Uma mesma carreta pode
+     * ser a padrão de vários cavalos.
+     */
+    defaultTrailerVehicleId: uuid('default_trailer_vehicle_id'),
     version: bigint({ mode: 'bigint' }).notNull().default(1n),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -233,6 +239,17 @@ export const fleetVehicles = pgTable(
       columns: [table.companyId],
       foreignColumns: [companies.id],
       name: 'fleet_vehicles_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /**
+     * Spec 147 T8: auto-referente, usa a mesma `fleet_vehicles_company_id_id_unique`. `restrict`/
+     * `cascade`, nunca `SET NULL` — anularia `company_id`, que é NOT NULL.
+     */
+    foreignKey({
+      columns: [table.companyId, table.defaultTrailerVehicleId],
+      foreignColumns: [table.companyId, table.id],
+      name: 'fleet_vehicles_company_default_trailer_fk',
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
@@ -312,6 +329,16 @@ export const fleetVehicles = pgTable(
     check(
       'fleet_vehicles_body_type_check',
       sql`${table.bodyType} in (${sql.raw(inList(MDFE_BODY_TYPES))})`,
+    ),
+    /** Spec 147 T8: só o cavalo mecânico tem carreta padrão a apontar. */
+    check(
+      'fleet_vehicles_default_trailer_tractor_only',
+      sql`${table.defaultTrailerVehicleId} is null or ${table.vehicleType} = 'tractor_unit'`,
+    ),
+    /** A carreta padrão não pode ser o próprio veículo. */
+    check(
+      'fleet_vehicles_default_trailer_not_self',
+      sql`${table.defaultTrailerVehicleId} is null or ${table.defaultTrailerVehicleId} <> ${table.id}`,
     ),
     check(
       'fleet_vehicles_axle_count_check',
@@ -402,6 +429,9 @@ export const fleetDrivers = pgTable(
      * salário (D2), porque ela paga o dia fora, não a hora trabalhada.
      */
     dailyAllowanceAmount: numeric('daily_allowance_amount', { precision: 19, scale: 4 }),
+    /** Spec 149 / ADR-0065: pode ir de ajudante; a diária própria vence a da empresa quando existe. */
+    canActAsHelper: boolean('can_act_as_helper').notNull().default(false),
+    helperDailyRate: numeric('helper_daily_rate', { precision: 19, scale: 4 }),
     licenseNumber: text('license_number').notNull().default(''),
     licenseCategory: text('license_category').$type<LicenseCategory | ''>().notNull().default(''),
     licenseExpiresAt: date('license_expires_at'),
@@ -636,6 +666,10 @@ export const fleetDrivers = pgTable(
     check(
       'fleet_drivers_status_check',
       sql`${table.status} in (${sql.raw(inList(FLEET_DRIVER_STATUSES))})`,
+    ),
+    check(
+      'fleet_drivers_helper_daily_rate_check',
+      sql`${table.helperDailyRate} is null or ${table.helperDailyRate} >= 0`,
     ),
     check('fleet_drivers_version_check', sql`${table.version} > 0`),
   ],

@@ -10,6 +10,10 @@ import {
   TripStateTransitionNotAllowedError,
 } from '../domain/trip.error.js'
 import type { RouteChoice } from '../domain/route-choice.policy.js'
+import {
+  TRIP_ROUTE_FREEZE_FAILED_MESSAGE,
+  type TripRouteFreezeLogger,
+} from './freeze-trip-route-gracefully.js'
 
 export type TripRouteState = {
   /**
@@ -67,6 +71,8 @@ export type PlanTripRouteInput = {
   readonly actorUserId: string
   readonly channel: TripFieldChannel
   readonly companyId: string
+  /** T704 L7: a falha do congelamento gracioso (outros pontos de recongelamento) vira aviso com os ids, nunca silêncio. */
+  readonly logger?: TripRouteFreezeLogger
   readonly onBehalfOfDriverId?: string | null
   readonly repository: PlanTripRoutePort
   /** RF3 (spec 153 T201): qual rota reproduzir. Ausente segue o default do congelador. */
@@ -133,6 +139,10 @@ export async function planTripRoute(input: PlanTripRouteInput): Promise<PlanTrip
       !freezeResult.routeFrozen &&
       (transition.outcome === 'applied' || input.routeChoice !== undefined)
     ) {
+      input.logger?.warn(TRIP_ROUTE_FREEZE_FAILED_MESSAGE, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
       throw new TripRouteUnavailableError()
     }
   }

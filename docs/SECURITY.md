@@ -461,6 +461,17 @@ rotina `trip.occurrence-attachment.purge` agora cobre o objeto órfão (sem linh
 `trip_document_occurrence_attachments`) — mas só depois que `retention_until` vence (cinco anos), não
 logo após a transação desfazer. `delivery-proofs/` continua sem varredura nenhuma.
 
+**Piorado em 30/09/2026 (spec 220, T3.2):** o comprovante ganhou miniatura
+(`trip_delivery_proof_thumbnail`), e cada recaptura passa a deixar **dois** objetos órfãos em vez de
+um. A miniatura nasce com `retention_until` nulo, igual ao original — decisão tomada com o usuário
+para manter a 220 no escopo dela, e não porque exista retenção. Pôr o purpose novo na lista de
+`trip.occurrence-attachment.purge` seria pior que não fazer nada: o gateway daquela rotina está
+amarrado a `trip_document_occurrence_attachments`, então ela não acharia a linha do comprovante,
+trataria a miniatura como órfã e apagaria os bytes dela deixando o original — a inversão exata do
+invariante da 161 RF22. Fechar isto exige rotina própria (`trip.delivery-proof.purge`) e, antes
+dela, uma decisão de prazo: guardar menos que o CT-e que a foto contesta destrói a prova antes do
+fim da discussão.
+
 **Origem:** revisão de código da spec 156 (T15). Registrado em 2026-09-18.
 
 ### 2026-09-18 — `GET /trips/field-delivery-settings` sem rate limit (spec 156 T13)
@@ -1123,11 +1134,32 @@ coordenada é produto que o motorista contorna anotando no papel.
 fica. Dado de localização de pessoa identificada é dado pessoal na LGPD (art. 5º, I), e reter "por
 garantia" transforma comprovante em passivo.
 
-**O que falta:** nada em aberto. O contrato de cabeçalhos guarda os dois sentidos (falha se
-`geolocation` voltar a `()` e falha se `microphone` deixar de ser `()`), e o expurgo tem teste de
-integração com relógio injetado — retenção escrita e não implementada é retenção que não existe.
+**Quem lê a coordenada (ADR-0081 §6, spec 196):** a permissão `trip.event-location`, de
+`company-admin`, `operator`, `fiscal` e `viewer` — a regra do usuário foi "quem gere a frota"
+(`fleet.read`), menos quem só separa. `finance` e `separator` abrem a mesma tela e recebem
+`location: null` com o estado ao lado, não um `403`: eles precisam da linha do tempo, não da posição.
+A coordenada aparece **em texto** no tooltip do ícone de GPS, com a precisão e a distância até a
+parada (emenda §6.1, de 2026-10-01). O que **não** mudou: coordenada nunca em query string, nunca em
+URL, nunca numa requisição a tile de terceiro — o mapa base é o PMTiles do próprio domínio — e nunca
+em log, em nível nenhum, nem em `debug`. O que foi liberado é o que a tela mostra a quem tem a
+permissão, não o que sai da instalação.
 
-**Origem:** spec 057, T001/T005/T012.
+**Qual estado o evento declara:** `location_state` (`VARCHAR(16)` com CHECK, nunca ENUM) distingue
+`captured` (tem ponto), `unavailable` (o motorista tocou e a posição não veio), `expired` (os 90 dias
+apagaram) e `null` (não se aplica — o toque não foi do motorista, ou o carimbo ainda não existe
+naquele caminho). Sem o estado os quatro casos seriam o mesmo `null`, e a tela acusaria falha de GPS
+onde não houve tentativa. O histórico sem coordenada fica `null`, não `unavailable`: o banco não sabe
+se o GPS falhou ou se o app daquela época nem pedia posição, e o palpite sairia em vermelho.
+
+**O que falta:** o `location_state` e o ponto existem hoje em `trip_stop_events` e
+`trip_delivery_proofs`. `trip_status_events`, `trip_stop_occurrences` e `trip_document_occurrences`
+ainda não carimbam — despachar, iniciar rota, conferir carga e as ocorrências aparecem como "não se
+aplica" até as Fases 1–3 e 5 da spec 196 rodarem, e o expurgo passa a varrer as cinco tabelas junto
+com elas. O contrato de cabeçalhos guarda os dois sentidos (falha se `geolocation` voltar a `()` e
+falha se `microphone` deixar de ser `()`), e o expurgo tem teste de integração com relógio injetado —
+retenção escrita e não implementada é retenção que não existe.
+
+**Origem:** spec 057, T001/T005/T012; ADR-0081 e spec 196 para a leitura e o estado.
 
 ### 2026-08-24 — a câmera passa a ser permitida à própria origem no `Permissions-Policy`
 
@@ -1729,6 +1761,37 @@ por este caminho e nunca vinculado a uma ocorrência entra, portanto, no ramo "o
 ocorrência **for** registrada depois, o objeto já legitimamente referenciado seria apagado só ao fim
 dos mesmos cinco anos, que é exatamente a retenção pretendida (RF21) para toda foto de ocorrência,
 não um vazamento paralelo. Não há um segundo vazamento aqui, só o mesmo prazo de sempre.
+
+### 2026-09-17 — `GET /trips` devolvia dinheiro sem `trip.financials` (H3)
+
+**Onde:** `api-transportada`, `trips/presentation/trip.routes.ts` (rota `GET /trips`, achado
+anterior à spec 153, fechado pela T707).
+
+**O que era:** a spec 153 (D10/RF9) tornou todo dinheiro de viagem — pedágio, combustível, custo da
+rota, frete, receita, valor da NF-e — condicionado à permissão `trip.financials`, com redação
+aplicada em route-geometry, valuation-preview, NF-e e no detalhe da viagem (`T301`). A listagem
+ficou de fora: `serializeTrip` sempre devolvia `amounts.documentsTotal` (soma das notas vinculadas)
+e `amounts.revenueTotal` (receita) para qualquer papel com `fleet.read`, sob a mesma política de
+leitura de viagem — a primeira resposta de viagem que qualquer operador enxerga.
+
+**Corrigido:** `redactTripAmountsMoney` (`shared/monetary-redaction.service.ts`), no mesmo formato
+das demais funções de redação — omite `documentsTotal`/`revenueTotal` do objeto quando o chamador
+não tem `trip.financials` (chave ausente, nunca `null` nem zero), mantendo `revenueSource` (é a
+origem do número, não o número). `serializeTrip` passou a receber `canReadFinancials` e aplica a
+redação; o mesmo caminho é usado pela listagem (`GET /trips`) e pelo detalhe (`GET /trips/:id`, que
+já mandava `amounts: null` de qualquer forma). Prova em
+`test/trip-http/list.contract.ts` — sem a permissão, as duas chaves somem e `revenueSource`
+continua; com `trip.financials`, a resposta permanece igual à de hoje.
+
+**Frontend:** `TripTable.component.tsx` e `tripTable.service.ts` já leem `amounts?.documentsTotal`/
+`amounts?.revenueTotal` com encadeamento opcional e toleram a ausência. `TRIP_AMOUNTS_KEYS`
+(`modules/trip/shared/trip.constant.ts`) ficou só com `['revenueSource']` — `documentsTotal` e
+`revenueTotal` migraram para `TRIP_AMOUNTS_OPTIONAL_KEYS`, e `isAbsentOrTripAmounts`
+(`modules/trip/shared/tripResponse.validation.ts`) passou a aceitar `amounts` presente sem as duas
+chaves, sem reprovar a resposta inteira. `TripAmounts` (`trip.types.ts`) tem os dois campos como
+opcionais (`documentsTotal?: null | string`, `revenueTotal?: string`), e `TripTable.component.tsx`
+omite a receita quando `revenueTotal` está ausente, nunca formatando `undefined` como dinheiro
+(D10). Corrigido pela T710 (`63317a9b`, Fase 7 da 153).
 
 ### 2026-09-12 — o ator da liquidação por procuração podia ser conta de serviço (B2)
 

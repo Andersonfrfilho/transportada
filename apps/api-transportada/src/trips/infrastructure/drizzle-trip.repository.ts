@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, asc, desc, eq, inArray, notInArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, ne, notInArray, isNull, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import {
@@ -22,8 +22,15 @@ import {
 } from '../domain/trip-document-freight.policy.js'
 import { normalizeFreightRuleFilters } from '../../freight-rules/domain/freight-rule-filters.policy.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
-import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
 import {
+  TRIP_TERMINAL_STATUSES,
+  tripDocuments,
+  tripDrivers,
+  tripStops,
+  trips,
+} from '../../database/trip.schema.js'
+import {
+  violatedCheckConstraint,
   violatedForeignKeyConstraint,
   violatedUniqueConstraint,
 } from '../../database/postgres-error.support.js'
@@ -36,12 +43,15 @@ import type {
   TripFilters,
   TripPage,
   TripRepositoryPort,
+  TripTrailerView,
 } from '../application/trip.port.js'
 import {
   TripDocumentAlreadyLinkedError,
   TripDocumentNotFoundError,
   TripNotFoundError,
   TripStateTransitionNotAllowedError,
+  TripTrailerInUseError,
+  TripTrailerNotVehicleItselfError,
 } from '../domain/trip.error.js'
 import type {
   TripDriverCandidate,
@@ -51,11 +61,11 @@ import type {
 import {
   TRIP_ACTION,
   TRIP_DISPATCHED_STATUSES,
+  TRIP_STATUSES_BEFORE_DISPATCH,
   checkTripAcceptsLinkage,
   checkTripTransition,
   resolveCrewStatus,
 } from '../domain/trip-state.policy.js'
-import { DrizzleTripPlannedRouteRepository } from './drizzle-trip-planned-route.repository.js'
 import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
 import { TRIP_CLOSE_SETTLED_SEPARATION_STATUSES } from '../domain/trip-close.policy.js'
 import type { LinkTripDocumentsBatchResult } from '../application/link-trip-documents-batch.use-case.js'
@@ -108,6 +118,7 @@ import type { PendingMeasurement } from '@adatechnology/cargo-placement'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { recordTripCreation, recordTripStatusChange } from './trip-status-event.persistence.js'
+import { clearPlannedRoute } from './trip-planned-route-clear.support.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 /** Spec 156 T8c: encerrar não é em nome de ninguém — o alvo da auditoria é a própria viagem. */
@@ -130,6 +141,11 @@ const noPendingMeasurementBoxLookup: PendingMeasurementBoxLookupPort = {
     return new Map()
   },
 }
+
+const TRAILER_OPEN_CONSTRAINT = 'trips_company_trailer_open_unique'
+
+/** T18 (revisão): espelha o CHECK `trips_trailer_not_vehicle` (`trip.schema.ts`). */
+const TRAILER_NOT_VEHICLE_CONSTRAINT = 'trips_trailer_not_vehicle'
 
 export class DrizzleTripRepository implements TripRepositoryPort {
   private readonly requestCargoLayoutForTrip: RequestCargoLayoutForTrip
@@ -376,12 +392,15 @@ export class DrizzleTripRepository implements TripRepositoryPort {
        * antigo, e o operador replaneja pelo caminho da 178. Trocar só o motorista não mexe em nada
        * disso (097 D1/D3/D4), e trocar pelo mesmo veículo é idempotente.
        *
-       * ⚠️ `clearPlannedRoute` recebe **esta** transação, não abre outra: a troca e a limpeza são uma
-       * escrita só, ou existe a janela em que a viagem tem tripulação nova e pedágio velho.
-       * ⚠️ O ETA fica de fora por decisão (D3-bis) — ver o comentário de `clearPlannedRoute`.
+       * ⚠️ `clearPlannedRoute` (spec 153 T704 M1) recebe **esta** transação, não abre outra: a troca e
+       * a limpeza são uma escrita só, ou existe a janela em que a viagem tem tripulação nova e pedágio
+       * velho. Não toca em ETA (`eta_departure_at`, `estimated_arrival_frozen_at`,
+       * `trip_stops.estimated_arrival_at`), por decisão explícita da D3-bis: a hora que vale é a
+       * ancorada na partida real do motorista, e zerar a âncora desligaria o deslocamento do despacho
+       * em silêncio.
        */
       if (vehicleChanged) {
-        await DrizzleTripPlannedRouteRepository.clearPlannedRoute(transaction, {
+        await clearPlannedRoute(transaction, {
           companyId: input.companyId,
           tripId: input.tripId,
         })
@@ -406,18 +425,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         hasDriver: input.crew.length > 0,
         hasVehicle: input.vehicleId !== null,
       })
-      const [created] = await transaction
-        .insert(trips)
-        .values({
-          companyId: input.companyId,
-          ...(input.dailyAllowanceDays === undefined
-            ? {}
-            : { dailyAllowanceDays: input.dailyAllowanceDays }),
-          status,
-          vehicleId: input.vehicleId,
-        })
-        .returning({ id: trips.id })
-      if (created === undefined) throw new Error('TRIP_CREATE_FAILED')
+      const created = await insertTripWithTrailerFallback(transaction, input, status)
 
       /**
        * Spec 171 RF1: mesmo caminho das demais transições — grava na mesma transação do `INSERT
@@ -440,6 +448,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
             driverName: driver.driverName,
             driverTaxId: driver.driverTaxId,
             position: BigInt(driver.position),
+            role: driver.role,
             tripId: created.id,
           })),
         )
@@ -487,18 +496,141 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     return record === undefined ? null : mapTripDocument(record)
   }
 
+  /**
+   * Spec 153 T708 (H4): as notas de um veículo já estão todas vivas numa viagem só é o sinal de
+   * que ela nasceu numa composição anterior do mesmo aceite — o aceite reaproveita em vez de criar
+   * outra vazia. Vínculo parcial (algumas notas em uma viagem, outras em outra ou soltas) devolve
+   * `null`: reaproveitar uma composição incompleta é pior do que recomeçar.
+   *
+   * Spec 153 T801 (N1): o conjunto de notas por si só não identifica a composição — duas viagens
+   * diferentes podem ter passado pelo mesmo conjunto se a frota mudou entre tentativas. O `join` em
+   * `trips` exige o **mesmo veículo** (e o mesmo motorista, quando a composição atual tem um) e uma
+   * viagem que ainda não foi despachada: reaproveitar a viagem do veículo/motorista errado, ou uma
+   * já na rua, pendura frete, eixo e baseline de combustível de quem não vai carregar a nota.
+   */
+  public async findLiveTripIdForDocuments(input: {
+    readonly companyId: string
+    readonly driverId: string | null
+    readonly nfeDocumentIds: readonly string[]
+    readonly vehicleId: string
+  }): Promise<string | null> {
+    if (input.nfeDocumentIds.length === 0) return null
+
+    const live = await this.database
+      .select({ nfeDocumentId: tripDocuments.nfeDocumentId, tripId: tripDocuments.tripId })
+      .from(tripDocuments)
+      .innerJoin(
+        trips,
+        and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
+      )
+      .where(
+        and(
+          eq(tripDocuments.companyId, input.companyId),
+          inArray(tripDocuments.nfeDocumentId, [...input.nfeDocumentIds]),
+          isNull(tripDocuments.releasedAt),
+          eq(trips.vehicleId, input.vehicleId),
+          inArray(trips.status, [...TRIP_STATUSES_BEFORE_DISPATCH]),
+        ),
+      )
+    if (live.length !== input.nfeDocumentIds.length) return null
+
+    const tripIds = new Set(live.map((row) => row.tripId))
+    if (tripIds.size !== 1) return null
+    const tripId = [...tripIds][0]!
+
+    if (input.driverId !== null) {
+      const [driverRow] = await this.database
+        .select({ id: tripDrivers.id })
+        .from(tripDrivers)
+        .where(
+          and(
+            eq(tripDrivers.companyId, input.companyId),
+            eq(tripDrivers.tripId, tripId),
+            eq(tripDrivers.driverId, input.driverId),
+          ),
+        )
+        .limit(1)
+      if (driverRow === undefined) return null
+    }
+
+    return tripId
+  }
+
   public async findVehicle(input: {
     readonly companyId: string
     readonly vehicleId: string
   }): Promise<TripVehicleCandidate | null> {
     const [record] = await this.database
-      .select({ id: fleetVehicles.id, role: fleetVehicles.role, status: fleetVehicles.status })
+      .select({
+        defaultTrailerVehicleId: fleetVehicles.defaultTrailerVehicleId,
+        id: fleetVehicles.id,
+        role: fleetVehicles.role,
+        status: fleetVehicles.status,
+        vehicleType: fleetVehicles.vehicleType,
+      })
       .from(fleetVehicles)
       .where(
         and(eq(fleetVehicles.companyId, input.companyId), eq(fleetVehicles.id, input.vehicleId)),
       )
       .limit(1)
     return record ?? null
+  }
+
+  /** Feature 147 T10: mesmo recorte do índice `trips_company_trailer_open_unique`, sem a viagem em edição. */
+  public async isTrailerInOpenTrip(input: {
+    readonly companyId: string
+    readonly excludingTripId?: string
+    readonly vehicleId: string
+  }): Promise<boolean> {
+    const [record] = await this.database
+      .select({ id: trips.id })
+      .from(trips)
+      .where(
+        and(
+          eq(trips.companyId, input.companyId),
+          eq(trips.trailerVehicleId, input.vehicleId),
+          input.excludingTripId === undefined ? undefined : ne(trips.id, input.excludingTripId),
+          notInArray(trips.status, [...TRIP_TERMINAL_STATUSES]),
+        ),
+      )
+      .limit(1)
+    return record !== undefined
+  }
+
+  /**
+   * Feature 147 T10: re-checa o portão de estado dentro da transação, como `linkDocument` — a
+   * leitura do use-case não tem lock e pode ter ficado velha entre a checagem e esta escrita.
+   */
+  public async setTrailer(input: {
+    readonly companyId: string
+    readonly trailerVehicleId: string | null
+    readonly tripId: string
+  }): Promise<TripDetail | null> {
+    return this.database.transaction(async (transaction) => {
+      const [tripRow] = await transaction
+        .select({ status: trips.status })
+        .from(trips)
+        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+        .for('update')
+        .limit(1)
+      if (tripRow === undefined) return null
+      const blockReason = checkTripAcceptsLinkage(tripRow.status)
+      if (blockReason !== null) throw new TripStateTransitionNotAllowedError(blockReason)
+
+      await runTrailerGuarded(async () => {
+        await transaction
+          .update(trips)
+          .set({ trailerVehicleId: input.trailerVehicleId, updatedAt: sql`now()` })
+          .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+      })
+
+      return readTripDetail(transaction, {
+        cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
+        packageBoxLookup: this.packageBoxLookup,
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
+    })
   }
 
   public async linkDocument(input: {
@@ -554,6 +686,16 @@ export class DrizzleTripRepository implements TripRepositoryPort {
           .returning()
         linked = mapTripDocument(withStop ?? record)
       }
+
+      /**
+       * T704 M1: o conjunto de paradas mudou, então a rota gravada descreve uma viagem que não
+       * existe mais. Ela morre **aqui**, na mesma transação — o recongelamento é best-effort e,
+       * quando falha, o que sobra é rota nula (D5), nunca a rota velha passando por boa.
+       */
+      await clearPlannedRoute(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
 
       /** Spec 148 D12: a nota que estava na fila de revisão entrou numa viagem — a entrada fecha. */
       await closePendingReviewsOnLink(transaction, {
@@ -658,6 +800,15 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         .map((nfeDocumentId) => ({ nfeDocumentId, reason: 'already_linked' as const }))
 
       if (created.length > 0) {
+        /**
+         * T704 M1: o maço entrou e o conjunto de paradas mudou — a rota gravada descreve a viagem
+         * de antes. Morre nesta transação; o recongelamento roda depois do commit, best-effort.
+         * Lote que não vinculou nada não mexeu em parada nenhuma, e a rota boa continua valendo.
+         */
+        await clearPlannedRoute(transaction, {
+          companyId: input.companyId,
+          tripId: input.tripId,
+        })
         await closePendingReviewsOnLink(transaction, {
           companyId: input.companyId,
           tripId: input.tripId,
@@ -678,6 +829,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     if (input.driverIds.length === 0) return []
     return this.database
       .select({
+        canActAsHelper: fleetDrivers.canActAsHelper,
         id: fleetDrivers.id,
         name: fleetDrivers.name,
         status: fleetDrivers.status,
@@ -835,6 +987,15 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         })
       }
 
+      /**
+       * T704 M1: o conjunto de paradas mudou, então a rota gravada descreve uma viagem que não
+       * existe mais. Ela morre **aqui**, na mesma transação — o recongelamento é best-effort e,
+       * quando falha, o que sobra é rota nula (D5), nunca a rota velha passando por boa.
+       */
+      await clearPlannedRoute(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
       await this.requestCargoLayoutForTrip(transaction, {
         companyId: input.companyId,
         tripId: input.tripId,
@@ -1296,12 +1457,17 @@ async function readTripDetail(
   const cargo = await loadTripOccupancy(queryable, {
     companyId: input.companyId,
     nfeDocumentIds,
+    trailerVehicleId: record.trailerVehicleId,
     vehicleId: record.vehicleId,
   })
   const cargoWeight = await loadTripCargoWeight(queryable, {
     companyId: input.companyId,
     nfeDocumentIds,
   }).then((weight) => weight.view)
+  const trailer = await readTripTrailer(queryable, {
+    companyId: input.companyId,
+    trailerVehicleId: record.trailerVehicleId,
+  })
   /** Spec 093: o teto sai do mesmo veículo que a ocupação já leu — sem segunda consulta. */
   const cargoWeightWithCeiling = withPayloadCeiling({
     maxPayloadKg: cargo.maxPayloadKg,
@@ -1407,6 +1573,8 @@ async function readTripDetail(
     cargoLayoutState: cargoLayoutReading.cargoLayoutState,
     cargoLayoutId: layoutId,
     ...(pendingCargoLayoutInput === null ? {} : { pendingCargoLayoutInput }),
+    capacityUnknownReason: cargo.capacityUnknownReason,
+    capacityUnknownVehicleId: cargo.capacityUnknownVehicleId,
     cargoWeight: cargoWeightWithCeiling,
     documents,
     drivers: driverRecords.map((row) =>
@@ -1417,6 +1585,7 @@ async function readTripDetail(
       }),
     ),
     occupancy: cargo.occupancy,
+    trailer,
     stops: stopRecords.map((row) => ({
       ...mapTripStop(row.stop),
       documents: documentsByStopId.get(row.stop.id) ?? [],
@@ -1435,6 +1604,105 @@ async function readTripDetail(
         (document) => document.openOccurrenceCase,
       ),
     })),
+  }
+}
+
+/**
+ * Feature 147 D3/RF5: uma consulta a mais só quando a viagem tem carreta — a maioria não tem, e o
+ * caso comum continua com o mesmo custo de antes desta feature.
+ */
+async function readTripTrailer(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly trailerVehicleId: string | null },
+): Promise<TripTrailerView | null> {
+  if (input.trailerVehicleId === null) return null
+
+  const [record] = await queryable
+    .select({
+      bodyType: fleetVehicles.bodyType,
+      id: fleetVehicles.id,
+      plate: fleetVehicles.plate,
+    })
+    .from(fleetVehicles)
+    .where(
+      and(
+        eq(fleetVehicles.companyId, input.companyId),
+        eq(fleetVehicles.id, input.trailerVehicleId),
+      ),
+    )
+    .limit(1)
+  return record ?? null
+}
+
+/**
+ * T18 (revisão): duas viagens criadas ao mesmo tempo para cavalos que compartilham a mesma carreta
+ * padrão disputam `trips_company_trailer_open_unique` — a segunda `INSERT` violava a unicidade e
+ * subia como 500 genérico, nunca uma viagem de verdade. A criação sempre tem de terminar em viagem;
+ * quem perde a corrida nasce sem carreta (o mesmo `null` que `resolveDefaultTrailerForCreation` já
+ * escolhe quando a carreta está livre só na leitura e ocupada na escrita), e o despacho barra depois
+ * com `TRIP_TRAILER_REQUIRED`. A tentativa com carreta roda num `SAVEPOINT` (`transaction.
+ * transaction`) para a violação desfazer só o `INSERT`, nunca a transação inteira.
+ */
+async function insertTripWithTrailerFallback(
+  transaction: TripTransaction,
+  input: CreateTripRecord,
+  status: 'awaiting_crew' | 'draft',
+): Promise<{ readonly id: string }> {
+  if (input.trailerVehicleId === null) {
+    return insertTripRow(transaction, { ...input, status, trailerVehicleId: null })
+  }
+
+  try {
+    return await transaction.transaction((savepoint) =>
+      insertTripRow(savepoint, { ...input, status, trailerVehicleId: input.trailerVehicleId }),
+    )
+  } catch (error) {
+    if (violatedCheckConstraint(error) === TRAILER_NOT_VEHICLE_CONSTRAINT) {
+      throw new TripTrailerNotVehicleItselfError()
+    }
+    if (violatedUniqueConstraint(error) !== TRAILER_OPEN_CONSTRAINT) throw error
+    return insertTripRow(transaction, { ...input, status, trailerVehicleId: null })
+  }
+}
+
+async function insertTripRow(
+  transaction: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly dailyAllowanceDays?: number
+    readonly status: 'awaiting_crew' | 'draft'
+    readonly trailerVehicleId: string | null
+    readonly vehicleId: string | null
+  },
+): Promise<{ readonly id: string }> {
+  const [created] = await transaction
+    .insert(trips)
+    .values({
+      companyId: input.companyId,
+      ...(input.dailyAllowanceDays === undefined
+        ? {}
+        : { dailyAllowanceDays: input.dailyAllowanceDays }),
+      status: input.status,
+      trailerVehicleId: input.trailerVehicleId,
+      vehicleId: input.vehicleId,
+    })
+    .returning({ id: trips.id })
+  if (created === undefined) throw new Error('TRIP_CREATE_FAILED')
+  return created
+}
+
+/** Feature 147 T10: fecha a corrida entre duas escritas concorrentes com a mesma carreta. */
+async function runTrailerGuarded<TResult>(operation: () => Promise<TResult>): Promise<TResult> {
+  try {
+    return await operation()
+  } catch (error) {
+    if (violatedUniqueConstraint(error) === TRAILER_OPEN_CONSTRAINT) {
+      throw new TripTrailerInUseError()
+    }
+    if (violatedCheckConstraint(error) === TRAILER_NOT_VEHICLE_CONSTRAINT) {
+      throw new TripTrailerNotVehicleItselfError()
+    }
+    throw error
   }
 }
 

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { formatContractorContactPhone } from '@/modules/delivery-clients/shared/contractorContacts.validation'
 import { buildTripOccurrenceRoute } from '@/modules/trip/shared/tripOccurrenceRoute.service'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import {
   useAssignUnassignedMutation,
@@ -13,16 +14,6 @@ import {
 import { OccurrenceConversationRequestError } from '../shared/occurrenceConversationClient.service'
 import type { UnassignedMessage } from '../shared/occurrenceConversation.types'
 import styles from '../styles/occurrenceConversation.module.css'
-
-const dateTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
-  dateStyle: 'short',
-  timeStyle: 'short',
-})
-
-function formatDateTime(iso: string): string {
-  const moment = new Date(iso)
-  return Number.isNaN(moment.getTime()) ? iso : dateTimeFormatter.format(moment)
-}
 
 const KNOWN_ERRORS = new Set([
   'OCCURRENCE_CONVERSATION_ALREADY_ASSIGNED',
@@ -42,6 +33,7 @@ function UnassignedItem({
   message,
 }: Readonly<{ canAssign: boolean; message: UnassignedMessage }>) {
   const { t } = useTranslation('occurrenceConversation')
+  const formatDateTime = useMomentFormatter()
   const assign = useAssignUnassignedMutation()
   const [chosen, setChosen] = useState(message.candidates[0]?.conversationId ?? '')
   const error = assign.error

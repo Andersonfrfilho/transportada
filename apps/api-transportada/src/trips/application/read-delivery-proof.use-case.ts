@@ -7,17 +7,61 @@
  * lado do balcão não havia leitura nenhuma — o canhoto existia no bucket e ninguém no escritório o
  * alcançava.
  */
-import type { ReceivedBy, TripDeliveryProofKind } from '../../database/trip.schema.js'
+import type { EventLocationState } from '../../database/event-location.schema.js'
+import type {
+  ReceivedBy,
+  TripDeliveryProofCanhotoReadSource,
+  TripDeliveryProofCanhotoReview,
+  TripDeliveryProofCanhotoReviewOrigin,
+  TripDeliveryProofCanhotoReviewReason,
+  TripDeliveryProofKind,
+  TripDeliveryProofPunctuality,
+} from '../../database/trip.schema.js'
 
-export type DeliveryProofRecord = {
+/**
+ * Spec 220 RF24 (T7.4): o veredito da conferência do canhoto. Todos ausentes ou `null` no
+ * comprovante antigo e em `not_applicable`. ⚠️ Nem o id de quem conferiu nem o documento de onde a
+ * leitura veio entram aqui — a tela só precisa do nome.
+ */
+export type CanhotoReviewRecord = {
+  readonly canhotoReadNumber?: string | null
+  readonly canhotoReadSeries?: string | null
+  readonly canhotoReadSource?: TripDeliveryProofCanhotoReadSource | null
+  readonly canhotoReview?: TripDeliveryProofCanhotoReview
+  readonly canhotoReviewAt?: string | null
+  /** Nome de quem conferiu; `null` no veredito automático e quando a pessoa já saiu da empresa. */
+  readonly canhotoReviewByName?: string | null
+  readonly canhotoReviewNote?: string | null
+  readonly canhotoReviewOrigin?: TripDeliveryProofCanhotoReviewOrigin | null
+  readonly canhotoReviewReason?: TripDeliveryProofCanhotoReviewReason | null
+}
+
+/** ADR-0081 §6.1: as cinco chaves da coordenada da captura, como o painel as validará; ainda não publicadas na view. */
+export type DeliveryProofLocation = {
+  readonly accuracyMeters: number | null
+  readonly capturedAt: string
+  readonly distanceMeters: number | null
+  readonly latitude: number
+  readonly longitude: number
+}
+
+export type DeliveryProofRecord = CanhotoReviewRecord & {
   readonly bucket: string
+  /** Spec 220 RF14: a hora do aparelho na foto; `null` quando o aparelho não a leu. */
+  readonly capturedAt?: string | null
   readonly createdAt: string
+  /** Spec 220 RF15: metros entre a foto e a entrega registrada, já derivados; `null` sem posição. */
+  readonly distanceMeters?: number | null
   readonly id: string
   readonly kind: TripDeliveryProofKind
   /** Spec 205 RF7: o envio ou a entrega dele veio pelo "Registrar entrega depois". */
   readonly lateRegistration: boolean
+  /** ADR-0081 §6.1: lida da coluna, mas só o consumidor com `trip.event-location` poderá publicá-la. */
+  readonly location?: DeliveryProofLocation | null
+  readonly locationState?: EventLocationState | null
   readonly mimeType: string
   readonly objectKey: string
+  readonly punctuality?: TripDeliveryProofPunctuality
   /** ADR-0057 §3: **sempre** a máscara (`***.938.570-**`). O valor em claro não sai da coluna selada. */
   readonly receiverDocumentMasked: string
   /** Nome de quem recebeu — na assinatura e no canhoto (spec 193 D4). */
@@ -25,6 +69,14 @@ export type DeliveryProofRecord = {
   /** Spec 193 D3: da mesma linha do nome. `null` nos comprovantes antigos (D11). */
   readonly receivedBy: ReceivedBy | null
   readonly receivedByDetail: string | null
+  /** Spec 220 RF17: `null` no comprovante antigo, na assinatura e na foto cuja miniatura falhou. */
+  readonly thumbnail?: DeliveryProofThumbnailLocation | null
+}
+
+export type DeliveryProofThumbnailLocation = {
+  readonly bucket: string
+  readonly mimeType: string
+  readonly objectKey: string
 }
 
 export type ReadDeliveryProofPort = {
@@ -43,21 +95,41 @@ export type DeliveryProofDownloadPort = {
   }): Promise<{ readonly expiresAt: string; readonly url: string }>
 }
 
+/** Spec 220 RF24: cada chave ausente (nunca `null`) quando não há o que dizer. */
+export type CanhotoReviewView = {
+  readonly canhotoReadNumber?: string
+  readonly canhotoReadSeries?: string
+  readonly canhotoReadSource?: TripDeliveryProofCanhotoReadSource
+  readonly canhotoReview?: Exclude<TripDeliveryProofCanhotoReview, 'not_applicable'>
+  readonly canhotoReviewAt?: string
+  readonly canhotoReviewByName?: string
+  readonly canhotoReviewNote?: string
+  readonly canhotoReviewOrigin?: TripDeliveryProofCanhotoReviewOrigin
+  readonly canhotoReviewReason?: TripDeliveryProofCanhotoReviewReason
+}
+
 /** O que a rota publica. ⚠️ Sem `bucket` e sem `objectKey`: ver o comentário da função. */
-export type DeliveryProofView = {
+export type DeliveryProofView = CanhotoReviewView & {
+  /** Spec 220 RF14: ausente (nunca `null`) quando o aparelho não leu a hora. */
+  readonly capturedAt?: string
   readonly createdAt: string
+  /** Spec 220 RF15: ausente (nunca `null`) sem posição. ⚠️ A coordenada e a precisão nunca saem. */
+  readonly distanceMeters?: number
   readonly downloadUrl: string
   readonly expiresAt: string
   readonly id: string
   readonly kind: TripDeliveryProofKind
   /** Spec 205 RF7: só como dado — a tela não o interpreta. */
   readonly lateRegistration: boolean
+  readonly punctuality?: TripDeliveryProofPunctuality
   /** ADR-0057 §3: mascarado em toda leitura. Vazio quando a empresa não colhe documento. */
   readonly receiverDocument: string
   readonly receiverName: string
   /** Spec 193 CA09: quem recebeu, da mesma linha do nome; `null` no comprovante antigo. */
   readonly receivedBy: ReceivedBy | null
   readonly receivedByDetail: string | null
+  /** Spec 220 RF20: ausente (nunca `null`) quando não há miniatura — a tela cai no original. */
+  readonly thumbnailUrl?: string
 }
 
 export type ReadDeliveryProofsInput = {
@@ -86,26 +158,72 @@ export async function readDeliveryProofs({
 }: ReadDeliveryProofsInput): Promise<readonly DeliveryProofView[]> {
   const records = await repository.listDeliveryProofs({ companyId, documentId, tripId })
 
+  // Um único lote: original e miniatura de todos saem em voo juntos (RNF01). Rejeitar no primeiro
+  // erro é o desejado — uma URL faltando quebra a tela, então `allSettled` só esconderia o defeito.
   return Promise.all(
     records.map(async (record) => {
-      const download = await downloads.createDownloadUrl({
-        bucket: record.bucket,
-        fileName: `comprovante-${record.kind}-${record.id}`,
-        objectKey: record.objectKey,
-      })
+      const fileName = `comprovante-${record.kind}-${record.id}`
+      const [download, thumbnailDownload] = await Promise.all([
+        downloads.createDownloadUrl({
+          bucket: record.bucket,
+          fileName,
+          objectKey: record.objectKey,
+        }),
+        record.thumbnail
+          ? downloads.createDownloadUrl({
+              bucket: record.thumbnail.bucket,
+              fileName: `${fileName}-miniatura`,
+              objectKey: record.thumbnail.objectKey,
+            })
+          : undefined,
+      ])
 
       return {
+        ...(record.capturedAt === undefined || record.capturedAt === null
+          ? {}
+          : { capturedAt: record.capturedAt }),
         createdAt: record.createdAt,
+        ...(record.distanceMeters === undefined || record.distanceMeters === null
+          ? {}
+          : { distanceMeters: record.distanceMeters }),
         downloadUrl: download.url,
         expiresAt: download.expiresAt,
         id: record.id,
         kind: record.kind,
         lateRegistration: record.lateRegistration,
+        ...buildCanhotoReviewView(record),
+        ...(record.punctuality === undefined ? {} : { punctuality: record.punctuality }),
         receiverDocument: record.receiverDocumentMasked,
         receiverName: record.receiverName,
         receivedBy: record.receivedBy,
         receivedByDetail: record.receivedByDetail,
+        ...(thumbnailDownload ? { thumbnailUrl: thumbnailDownload.url } : {}),
       }
     }),
   )
+}
+
+/**
+ * `not_applicable` é o estado de fábrica: a tela o lê como "sem veredito", então nada sobe.
+ *
+ * ⚠️ **Publicar `not_applicable` daqui apaga o comprovante inteiro do painel.** A lista fechada de
+ * `isDeliveryProof` (T7.5) descarta o comprovante quando `canhotoReview` sai do vocabulário, e ela
+ * aceita só `pending`, `approved` e `rejected` — justamente porque esta função nunca manda o quarto.
+ * Quem quiser mandá-lo mexe primeiro em `DELIVERY_PROOF_CANHOTO_REVIEW_OPTIONS` no painel, senão a
+ * tela fica em branco sem erro nenhum, que é o sintoma mais caro que este arquivo consegue produzir.
+ */
+function buildCanhotoReviewView(record: CanhotoReviewRecord): CanhotoReviewView {
+  if (record.canhotoReview === undefined || record.canhotoReview === 'not_applicable') return {}
+
+  return {
+    canhotoReview: record.canhotoReview,
+    ...(record.canhotoReadNumber ? { canhotoReadNumber: record.canhotoReadNumber } : {}),
+    ...(record.canhotoReadSeries ? { canhotoReadSeries: record.canhotoReadSeries } : {}),
+    ...(record.canhotoReadSource ? { canhotoReadSource: record.canhotoReadSource } : {}),
+    ...(record.canhotoReviewAt ? { canhotoReviewAt: record.canhotoReviewAt } : {}),
+    ...(record.canhotoReviewByName ? { canhotoReviewByName: record.canhotoReviewByName } : {}),
+    ...(record.canhotoReviewNote ? { canhotoReviewNote: record.canhotoReviewNote } : {}),
+    ...(record.canhotoReviewOrigin ? { canhotoReviewOrigin: record.canhotoReviewOrigin } : {}),
+    ...(record.canhotoReviewReason ? { canhotoReviewReason: record.canhotoReviewReason } : {}),
+  }
 }

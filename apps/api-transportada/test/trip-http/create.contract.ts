@@ -7,6 +7,7 @@ import { TripVehicleNotAvailableError } from '../../src/trips/domain/trip.error.
 import {
   CREATE_TRIP_BODY,
   DRIVER_ID,
+  HELPER_ID,
   jsonRequest,
   responseApiError,
   responseData,
@@ -30,9 +31,51 @@ describe('trip create http contract', () => {
       {
         context: COMPANY_CONTEXT,
         driverIds: [DRIVER_ID, SECOND_DRIVER_ID],
+        helperIds: [],
         vehicleId: VEHICLE_ID,
       },
     ])
+  })
+
+  // Spec 149 (ADR-0065): a criação aceita `helperIds` ao lado de `driverIds`.
+  test('accepts helperIds alongside driverIds', async () => {
+    const fixture = await createTripHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { ...CREATE_TRIP_BODY, helperIds: [HELPER_ID] },
+        method: 'POST',
+        path: TRIPS_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(fixture.createTripCalls).toEqual([
+      {
+        context: COMPANY_CONTEXT,
+        driverIds: [DRIVER_ID, SECOND_DRIVER_ID],
+        helperIds: [HELPER_ID],
+        vehicleId: VEHICLE_ID,
+      },
+    ])
+  })
+
+  // Evidence T1: o teto de 10 vale para a tripulação inteira (motoristas + ajudantes).
+  test('refuses a crew over the maximum of ten people combining drivers and helpers', async () => {
+    const fixture = await createTripHttpFixture()
+    const helperIds = Array.from({ length: 9 }, () => crypto.randomUUID())
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { ...CREATE_TRIP_BODY, helperIds },
+        method: 'POST',
+        path: TRIPS_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    expect((await responseApiError(response)).code).toBe('INVALID_REQUEST')
+    expect(fixture.createTripCalls).toEqual([])
   })
 
   test('rejects an unknown field', async () => {
@@ -65,7 +108,7 @@ describe('trip create http contract', () => {
 
     expect(response.status).toBe(201)
     expect(fixture.createTripCalls).toEqual([
-      { context: COMPANY_CONTEXT, driverIds: [], vehicleId: undefined },
+      { context: COMPANY_CONTEXT, driverIds: [], helperIds: [], vehicleId: undefined },
     ])
   })
 
@@ -78,7 +121,7 @@ describe('trip create http contract', () => {
 
     expect(response.status).toBe(201)
     expect(fixture.createTripCalls).toEqual([
-      { context: COMPANY_CONTEXT, driverIds: [DRIVER_ID], vehicleId: undefined },
+      { context: COMPANY_CONTEXT, driverIds: [DRIVER_ID], helperIds: [], vehicleId: undefined },
     ])
   })
 
@@ -95,7 +138,7 @@ describe('trip create http contract', () => {
 
     expect(response.status).toBe(201)
     expect(fixture.createTripCalls).toEqual([
-      { context: COMPANY_CONTEXT, driverIds: [], vehicleId: VEHICLE_ID },
+      { context: COMPANY_CONTEXT, driverIds: [], helperIds: [], vehicleId: VEHICLE_ID },
     ])
   })
 
@@ -112,6 +155,7 @@ describe('trip create http contract', () => {
       {
         context: COMPANY_CONTEXT,
         driverIds: [DRIVER_ID, SECOND_DRIVER_ID],
+        helperIds: [],
         vehicleId: VEHICLE_ID,
       },
     ])

@@ -9,6 +9,7 @@ import type {
   ScheduledDistributionRun,
   ScheduledDistributionStatus,
 } from '@/modules/company-settings/shared/scheduledDistribution.validation'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 import styles from '../styles/distributionSettings.module.css'
 
 type ScheduledDistributionPanelProps = Readonly<{
@@ -20,15 +21,6 @@ type ScheduledDistributionPanelProps = Readonly<{
 }>
 
 const FAILED_IMPORT_STATUS = 'failed'
-
-function useMomentFormatter(): (value: string) => string {
-  const { i18n } = useTranslation('nfeWorkspace')
-  const formatter = new Intl.DateTimeFormat(i18n.resolvedLanguage ?? 'pt-BR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  })
-  return (value) => formatter.format(new Date(value))
-}
 
 function ScheduledDistributionSkeleton() {
   const { t } = useTranslation('nfeWorkspace')

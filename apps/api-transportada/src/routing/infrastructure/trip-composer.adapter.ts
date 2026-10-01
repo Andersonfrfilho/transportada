@@ -17,8 +17,20 @@ export type TripComposerDependencies = Readonly<{
   create: (input: {
     readonly context: MultiVehicleScope
     readonly driverIds: readonly string[]
+    /** Spec 149 (ADR-0065 D12): a tripulação que não dirige, editada na proposta. */
+    readonly helperIds?: readonly string[]
     readonly vehicleId: string
   }) => Promise<{ readonly id: string }>
+  /**
+   * Spec 153 T708 (H4): o sinal de "esta viagem já existe" para reaproveitar no reaceite.
+   * Spec 153 T801 (N1): filtrado por veículo/motorista e por status antes do despacho.
+   */
+  findLiveTripIdForDocuments: (input: {
+    readonly companyId: string
+    readonly driverId: string | null
+    readonly nfeDocumentIds: readonly string[]
+    readonly vehicleId: string
+  }) => Promise<string | null>
   link: (input: {
     readonly context: MultiVehicleScope
     readonly freightCalculationId: string | null
@@ -38,6 +50,8 @@ export type TripComposerDependencies = Readonly<{
     readonly context: MultiVehicleScope
     /** Spec 109 D2: a âncora do ETA — a saída sob a qual estas horas foram calculadas. */
     readonly plannedDepartureAt: string | null
+    /** Spec 149 T6: a perna de volta da proposta, quando gravada — sem nova chamada ao roteirizador. */
+    readonly returnLegSeconds?: null | number
     readonly tripId: string
   }) => Promise<void>
   planRoute: (input: {
@@ -63,7 +77,7 @@ export function createTripComposer(dependencies: TripComposerDependencies): Trip
     ...(dependencies.linkAndRelease === undefined
       ? {}
       : { linkAndRelease: dependencies.linkAndRelease }),
-    async createTrip({ context, driverId, vehicleId }) {
+    async createTrip({ context, driverId, helperIds, vehicleId }) {
       /**
        * ADR-0055: a viagem nasce **com** o motorista que o humano pareou no diálogo. O solver
        * continua sem saber que motorista existe — quem escolhe é quem monta a escala —, mas o par
@@ -72,14 +86,28 @@ export function createTripComposer(dependencies: TripComposerDependencies): Trip
        *
        * `null` continua sendo legítimo: distribuir a carga na véspera, antes de saber quem pega o
        * caminhão, era o único comportamento possível antes desta ADR e segue sendo válido.
+       *
+       * Spec 149 (ADR-0065 D12): a tripulação que não dirige entra pelo mesmo caminho — a
+       * `resolveTripCrewForCreation` da T3, que já valida elegibilidade e disponibilidade.
        */
       const created = await dependencies.create({
         context,
         driverIds: driverId === null ? [] : [driverId],
+        ...(helperIds === undefined || helperIds.length === 0 ? {} : { helperIds }),
         vehicleId,
       })
 
       return { tripId: created.id }
+    },
+
+    async findComposedTrip({ context, driverId, nfeDocumentIds, vehicleId }) {
+      const tripId = await dependencies.findLiveTripIdForDocuments({
+        companyId: context.companyId,
+        driverId,
+        nfeDocumentIds,
+        vehicleId,
+      })
+      return tripId === null ? null : { tripId }
     },
 
     /**
@@ -126,6 +154,7 @@ export function createTripComposer(dependencies: TripComposerDependencies): Trip
       context,
       estimatedArrivalByAddressKey,
       plannedDepartureAt,
+      returnLegSeconds,
       tripId,
     }) {
       if (estimatedArrivalByAddressKey.size === 0) return
@@ -138,7 +167,13 @@ export function createTripComposer(dependencies: TripComposerDependencies): Trip
       })
       if (arrivals.length === 0) return
 
-      await dependencies.writeEstimatedArrivals({ arrivals, context, plannedDepartureAt, tripId })
+      await dependencies.writeEstimatedArrivals({
+        arrivals,
+        context,
+        plannedDepartureAt,
+        returnLegSeconds: returnLegSeconds ?? null,
+        tripId,
+      })
     },
 
     async reorderStops({ context, orderedAddressKeys, tripId }) {

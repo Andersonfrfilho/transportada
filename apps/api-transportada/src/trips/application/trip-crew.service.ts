@@ -28,15 +28,20 @@ export async function resolveTripVehicleForCreation(input: {
 export async function resolveTripCrewForCreation(input: {
   readonly companyId: string
   readonly driverIds: readonly string[]
+  /** Spec 149 (ADR-0065 / D5, D11): ajudantes, escolhidos à mão, entram depois dos motoristas. */
+  readonly helperIds?: readonly string[]
   readonly repository: TripRepositoryPort
 }): Promise<readonly TripDriverLine[]> {
-  if (new Set(input.driverIds).size !== input.driverIds.length) {
+  const helperIds = input.helperIds ?? []
+  const allIds = [...input.driverIds, ...helperIds]
+  if (new Set(allIds).size !== allIds.length) {
     throw new TripDriverDuplicatedError()
   }
 
+  // Uma consulta para motoristas e ajudantes juntos — nunca uma por papel.
   const drivers = await input.repository.listDrivers({
     companyId: input.companyId,
-    driverIds: input.driverIds,
+    driverIds: Array.from(new Set(allIds)),
   })
-  return resolveTripCrew({ driverIds: input.driverIds, drivers })
+  return resolveTripCrew({ driverIds: input.driverIds, drivers, helperIds })
 }

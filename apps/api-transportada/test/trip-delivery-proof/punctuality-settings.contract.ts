@@ -51,8 +51,10 @@ async function rejection(body: unknown): Promise<ApiError> {
 function fakeDependencies(initial: CompanyDeliveryProofSettings | null) {
   let stored = initial
   const dependencies: DeliveryProofSettingsDependencies = {
+    listContractorOverrides: async () => [],
     listOverrides: async () => [],
     readSettings: async () => stored ?? DEFAULT_COMPANY_DELIVERY_PROOF_SETTINGS,
+    replaceContractorOverrides: async () => {},
     replaceOverrides: async () => {},
     saveSettings: async ({ settings }) => {
       stored = { ...(stored ?? DEFAULT_COMPANY_DELIVERY_PROOF_SETTINGS), ...settings }
@@ -96,6 +98,8 @@ async function readData(response: Response): Promise<Record<string, unknown>> {
 
 const VALID_BODY: CompanyDeliveryProofSettings = {
   canhotoOcrEnabled: false,
+  cargo: 'off',
+  cargoMinimumCount: 1,
   latePenaltyPoints: 7,
   missingAfterHours: 12,
   missingPenaltyPoints: 15,
@@ -133,6 +137,8 @@ describe('delivery proof punctuality settings (spec 159 T4, ADR-0070 §3-5)', ()
   test('PUT without the punctuality params keeps the stored ones', async () => {
     const dependencies = fakeDependencies(VALID_BODY)
     const modesOnly = {
+      cargo: 'off',
+      cargoMinimumCount: 1,
       photo: 'optional',
       receivedBy: 'optional',
       receiverDocument: 'off',

@@ -167,6 +167,26 @@ export const VALUATION_GAPS = {
    * CT-e recusa emitir. A projeção não inventa o que a emissão não faria.
    */
   icmsCstUnsupported: 'ICMS_CST_UNSUPPORTED',
+  /**
+   * Spec 149 D7: o ajudante não tem diária própria (`fleet_drivers.helper_daily_rate`) nem a
+   * empresa declarou a geral (`company_crew_settings.helper_daily_rate`). Nunca zero silencioso —
+   * a ficha do ajudante ou o painel da frota resolvem, e os dois cadastram no mesmo lugar que a
+   * conta lê.
+   */
+  helperDailyRateMissing: 'HELPER_DAILY_RATE_MISSING',
+  /**
+   * Spec 149 T6 (decisão do usuário, 15/09/2026): a jornada congelou só de ida — a proposta que
+   * planejou a viagem não trazia a volta gravada, ou não é a hora de saída suposta. A parcela tem
+   * valor (dias contados pela ida) e é aviso, não lacuna: inventar a volta subestimaria os dias
+   * pela metade errada, e escondê-la faria a diária parecer mais barata do que ela pode sair.
+   */
+  helperJourneyWithoutReturn: 'HELPER_JOURNEY_WITHOUT_RETURN',
+  /**
+   * Spec 149 T6: o roteiro da viagem nunca foi planejado — não há ETA congelado, e sem ele não há
+   * dias para multiplicar. Com ajudante na tripulação isto é lacuna real (o total subestima),
+   * nunca zero.
+   */
+  helperJourneyUnknown: 'HELPER_JOURNEY_UNKNOWN',
 } as const
 
 export type ValuationGap = (typeof VALUATION_GAPS)[keyof typeof VALUATION_GAPS]
@@ -182,6 +202,8 @@ export type ValuationGap = (typeof VALUATION_GAPS)[keyof typeof VALUATION_GAPS]
 export const ADVISORY_GAPS: readonly ValuationGap[] = [
   VALUATION_GAPS.driverZonePricedFromTable,
   VALUATION_GAPS.driverRouteTieHighestRate,
+  /** Spec 149 T6: a parcela tem valor (dias pela ida) — só a volta ficou de fora do congelamento. */
+  VALUATION_GAPS.helperJourneyWithoutReturn,
 ]
 
 /**
@@ -206,6 +228,8 @@ export const TRIP_COST_KINDS = [
   /** Spec 143 D6: o avulso (`kind = 'other'` em `trip_cost_entries`) — nunca soma com o pedágio. */
   'manual',
   'delivery_charges',
+  /** Spec 149 D7: a diária de quem acompanha o motorista, mas não dirige (ADR-0065 §2). */
+  'helper',
   /** ADR-0049 §4: imposto não é custo de operação — ele **desce da receita**, e a tela separa os dois. */
   'icms',
   'pis_cofins',

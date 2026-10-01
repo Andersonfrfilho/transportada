@@ -140,7 +140,7 @@ export function CteBatchSelectionBar({
           type="button"
           variant="secondary"
         >
-          <Icon name="export" />
+          <Icon name={exportControl.isExporting ? 'spinner' : 'download'} />
           {exportControl.isExporting
             ? t('cteItems.export.pending')
             : t('actions.exportSelection', { count: table.selectedBatches.length })}

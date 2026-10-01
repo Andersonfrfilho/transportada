@@ -29,6 +29,7 @@ function buildDocument(overrides: Partial<DriverTripDocument> = {}): DriverTripD
     grossWeight: '',
     id: 'document-1',
     number: '123',
+    occurrenceTypes: null,
     proofPending: false,
     recipientDisplayName: 'Cliente',
     recipientIsCompany: false,
@@ -44,6 +45,7 @@ function buildDocument(overrides: Partial<DriverTripDocument> = {}): DriverTripD
 
 function buildPendingProof(overrides: Partial<PendingProofDocument> = {}): PendingProofDocument {
   return {
+    canhotoRejection: null,
     deliveredAt: null,
     deliveryProof: null,
     documentId: 'document-1',
@@ -132,6 +134,8 @@ describe('o aviso da foto obrigatória antes de entregar (RF12)', () => {
       isProofPendingWarningDue({
         document: buildDocument({ deliveryProof: null, separationStatus: 'pending' }),
         stopProofSettings: {
+          cargo: 'off',
+          cargoMinimumCount: 1,
           photo: 'required',
           receivedBy: 'optional',
           receiverDocument: 'off',
@@ -147,6 +151,8 @@ describe('o aviso da foto obrigatória antes de entregar (RF12)', () => {
       isProofPendingWarningDue({
         document: buildDocument(),
         stopProofSettings: {
+          cargo: 'off',
+          cargoMinimumCount: 1,
           photo: 'optional',
           receivedBy: 'optional',
           receiverDocument: 'off',
@@ -162,6 +168,8 @@ describe('o aviso da foto obrigatória antes de entregar (RF12)', () => {
       isProofPendingWarningDue({
         document: buildDocument({ separationStatus: 'delivered' }),
         stopProofSettings: {
+          cargo: 'off',
+          cargoMinimumCount: 1,
           photo: 'required',
           receivedBy: 'optional',
           receiverDocument: 'off',
@@ -240,8 +248,11 @@ describe('a resposta do snapshot com pendingProofs na raiz (T11)', () => {
     expect(snapshot.trips).toEqual([])
     expect(snapshot.pendingProofs).toEqual([
       {
+        canhotoRejection: null,
         deliveredAt: '2026-09-18T12:00:00.000Z',
         deliveryProof: {
+          cargo: 'off',
+          cargoMinimumCount: 1,
           photo: 'required',
           receivedBy: 'optional',
           receiverDocument: 'off',

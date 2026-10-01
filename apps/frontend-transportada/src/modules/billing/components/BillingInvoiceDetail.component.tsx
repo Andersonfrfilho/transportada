@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Icon } from '@/components/ui/icon'
 import { formatCalendarDate } from '@/modules/shared/calendarDate.service'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import type { useBillingWorkspace } from '../hooks/useBillingWorkspace.hook'
 import { createBillingDocumentDownloadController } from '../shared/billingDocumentDownload.service'
@@ -39,13 +40,9 @@ const documentDownload = createBillingDocumentDownloadController({
   },
 })
 
-function formatMoment(value: string): string {
-  const moment = new Date(value)
-  return Number.isNaN(moment.getTime()) ? value : moment.toLocaleDateString()
-}
-
 export function BillingInvoiceDetail({ onClose, workspace }: BillingInvoiceDetailProps) {
   const { t } = useTranslation('billingWorkspace')
+  const formatMoment = useMomentFormatter()
   const [cancelReason, setCancelReason] = useState('')
   /** O rascunho guarda o id: trocar de fatura volta sozinho para os valores gravados. */
   const [editDraft, setEditDraft] = useState<BillingEditDraft | null>(null)

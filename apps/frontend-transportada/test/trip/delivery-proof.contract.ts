@@ -243,6 +243,8 @@ describe('o painel tolera quem recebeu (spec 193 T3.1)', () => {
 
   it('a configuração sem receivedBy vale como optional; com modo inválido, recusa', () => {
     const semCampo = {
+      cargo: 'off',
+      cargoMinimumCount: 1,
       photo: 'optional',
       receiverDocument: 'off',
       receiverName: 'optional',

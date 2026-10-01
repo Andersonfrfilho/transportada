@@ -15,7 +15,11 @@ import type {
 } from '../application/nfe-document-event.port.js'
 import { parseDocumentEventList } from './nfe-document-events.schema.js'
 import { parseDocumentList } from './nfe-documents.schema.js'
-import { redactNfeDocumentMoney } from '../../shared/monetary-redaction.service.js'
+import {
+  moneyFieldsOf,
+  redactMoneyFields,
+  type FieldPolicy,
+} from '../../shared/monetary-redaction.service.js'
 
 /**
  * Spec 149 D19 diz "permissão `nfe.read`, a mesma do detalhe" — o catálogo de permissões
@@ -299,7 +303,7 @@ function serializeDocument(input: {
   readonly document: NfeDocumentSummary
 }): object {
   const document = input.document
-  const serialized = {
+  const serialized: NfeDocumentSummary = {
     accessKey: document.accessKey,
     cteBlockReason: document.cteBlockReason,
     documentOutput: { ...document.documentOutput },
@@ -339,11 +343,61 @@ function serializeDocument(input: {
     tripStatus: document.tripStatus,
     variant: document.variant,
   }
-  return redactNfeDocumentMoney({
+  return redactMoneyFields({
     canReadFinancials: input.canReadFinancials,
-    document: serialized,
+    fields: NFE_DOCUMENT_MONEY_FIELDS,
+    record: serialized,
   })
 }
+
+/**
+ * N6 (segunda revisão da 153): defeito C1 nascia aqui — `redactNfeDocumentMoney` redigia
+ * `freightAmount`/`totalAmount` por lista de exclusão, cega a campo monetário novo neste tipo. A
+ * política mora no módulo dono do tipo (`NfeDocumentSummary`, acima): se ele ganhar um campo novo
+ * sem classificação, `bun run typecheck` reprova antes de qualquer teste rodar. `freightRuleName`
+ * fica `safe` — é regra aplicada, não valor.
+ */
+const NFE_DOCUMENT_FIELD_POLICY = {
+  accessKey: 'safe',
+  cteBlockReason: 'safe',
+  documentOutput: 'safe',
+  nfseBlockReason: 'safe',
+  emitterAddress: 'safe',
+  emitterCity: 'safe',
+  emitterCityCode: 'safe',
+  emitterName: 'safe',
+  emitterState: 'safe',
+  emitterTaxId: 'safe',
+  id: 'safe',
+  issuedAt: 'safe',
+  updatedAt: 'safe',
+  nfseInvoiceId: 'safe',
+  nfseInvoiceNumber: 'safe',
+  number: 'safe',
+  recipientAddress: 'safe',
+  recipientPostalCode: 'safe',
+  freightAmount: 'money',
+  freightRuleName: 'safe',
+  cargoGrossWeight: 'safe',
+  cargoWeightSource: 'safe',
+  recipientPhone: 'safe',
+  recipientAddressNumber: 'safe',
+  recipientLatitude: 'safe',
+  recipientLongitude: 'safe',
+  recipientLocationPrecision: 'safe',
+  recipientCity: 'safe',
+  recipientCityCode: 'safe',
+  recipientName: 'safe',
+  recipientState: 'safe',
+  recipientTaxId: 'safe',
+  series: 'safe',
+  status: 'safe',
+  totalAmount: 'money',
+  tripId: 'safe',
+  tripStatus: 'safe',
+  variant: 'safe',
+} as const satisfies FieldPolicy<NfeDocumentSummary>
+const NFE_DOCUMENT_MONEY_FIELDS = moneyFieldsOf(NFE_DOCUMENT_FIELD_POLICY)
 
 /** Nunca `xml_object_id`, chave de storage ou XML (D19) — só o que a linha do tempo mostra. */
 function serializeDocumentEvent(entry: NfeDocumentEventEntry): object {

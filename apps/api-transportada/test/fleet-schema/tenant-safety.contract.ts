@@ -210,4 +210,16 @@ describe('fleet tenant safety', () => {
       onUpdate: 'cascade',
     })
   })
+
+  // Feature 147 T9: a carreta padrão não pode apontar para o cavalo de outra empresa.
+  test('makes a default trailer pointer unable to reach another tenant vehicle', () => {
+    expect(foreignKeys(fleetVehicles)).toContainEqual({
+      columns: ['company_id', 'default_trailer_vehicle_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'fleet_vehicles',
+      name: 'fleet_vehicles_company_default_trailer_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+  })
 })

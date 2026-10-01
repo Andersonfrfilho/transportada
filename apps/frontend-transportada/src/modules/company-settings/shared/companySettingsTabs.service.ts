@@ -23,6 +23,7 @@ export const SETTINGS_PANELS = [
   'cameraMeasurement',
   'entryKindCatalog',
   'quickReplies',
+  'settingsResolution',
 ] as const
 
 export type SettingsPanel = (typeof SETTINGS_PANELS)[number]
@@ -57,6 +58,7 @@ export type SettingsDataSource =
   | 'occurrenceTypeCatalog'
   | 'quickReplies'
   | 'scheduledDistribution'
+  | 'settingsResolution'
   | 'tollBoothCharges'
 
 export type SettingsDataScope = Readonly<Record<SettingsDataSource, boolean>>
@@ -84,12 +86,20 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
    */
   cameraMeasurement: { module: 'nfe-workspace', source: 'cameraMeasurementSettings', tab: 'boxes' },
   /**
-   * Spec 077 — o fator de cubagem mora **ao lado do peso padrão**: os dois estimam a mesma coisa a
-   * partir do mesmo `qVol` da nota, e separá-los faria o operador procurar em dois lugares por duas
-   * metades da mesma configuração.
+   * O fator de cubagem mora **ao lado do peso padrão**: os dois estimam a mesma coisa a partir do
+   * mesmo `qVol` da nota, e separá-los faria o operador procurar em dois lugares por duas metades
+   * da mesma configuração.
+   *
+   * ⚠️ Os dois moram na aba **Caixas**, e não mais em Importações. Estimativa não tem nada a ver
+   * com importar XML — estavam ali por gravidade histórica, atrás do seletor de mecanismo, e o
+   * preço disso foi medido: o bloqueio "Sem peso da carga" travou um faturamento inteiro porque
+   * ninguém sabia que existia um campo para destravá-lo.
+   *
+   * Caixas é o endereço certo porque é a mesma escada, do degrau medido para o estimado: medida da
+   * caixa → `qVol` × fator → nada. O degrau medido já morava aqui (`cameraMeasurement`).
    */
-  cargoVolume: { module: 'nfe-workspace', source: 'cargoVolumeFactors', tab: 'imports' },
-  cargoWeight: { module: 'nfe-workspace', source: 'cargoSettings', tab: 'imports' },
+  cargoVolume: { module: 'nfe-workspace', source: 'cargoVolumeFactors', tab: 'boxes' },
+  cargoWeight: { module: 'nfe-workspace', source: 'cargoSettings', tab: 'boxes' },
   certificates: { module: 'company-settings', source: 'companySettings', tab: 'certificates' },
   /**
    * Spec 143 — o painel entra na tela onde as contratantes são cadastradas (`delivery-clients`),
@@ -142,6 +152,16 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
    * Configurações, e o efeito aparece no compositor de cada aba da conversa.
    */
   quickReplies: { module: 'company-settings', source: 'quickReplies', tab: 'quickReplies' },
+  /**
+   * Spec 218 RF-E1/RF-E2: a tela de verificação — mesma família do catálogo e do lançamento
+   * (cadastro/consulta da empresa), aba própria porque a busca é livre (contratante e/ou
+   * destinatário), não uma configuração para editar.
+   */
+  settingsResolution: {
+    module: 'company-settings',
+    source: 'settingsResolution',
+    tab: 'settingsResolution',
+  },
   /**
    * Spec 068 — os contatos e as redes moram na aba Site: é o mesmo cadastro público que a landing
    * publica, e é onde o operador já está quando pensa em "o que aparece para quem me procura". O
@@ -217,6 +237,7 @@ export function resolveSettingsDataScope(
     occurrenceTypeCatalog: sources.has('occurrenceTypeCatalog'),
     quickReplies: sources.has('quickReplies'),
     scheduledDistribution: sources.has('scheduledDistribution'),
+    settingsResolution: sources.has('settingsResolution'),
     tollBoothCharges: sources.has('tollBoothCharges'),
   }
 }
@@ -230,6 +251,7 @@ export const COMPANY_SETTINGS_TAB_IDS = [
   'occurrenceTypes',
   'entryKinds',
   'quickReplies',
+  'settingsResolution',
 ] as const
 
 export type CompanySettingsTabId = (typeof COMPANY_SETTINGS_TAB_IDS)[number]

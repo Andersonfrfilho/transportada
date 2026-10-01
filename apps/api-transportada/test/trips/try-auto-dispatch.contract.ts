@@ -30,6 +30,7 @@ const CLOSED_CARGO: DispatchTripPreconditions = {
   isCargoClosed: true,
   leftBehind: [],
   toLoad: [],
+  requiresTrailer: false,
   tripStatus: 'loading',
   unloadedDocumentIds: [],
   unscheduledStopIds: [],

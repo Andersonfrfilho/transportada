@@ -20,7 +20,9 @@
  * emitente imprimiu e mandou na caixa; isto é a cópia digital, para conferência e consulta.
  */
 import type { DriverScorePort } from '../../fleet/application/driver-score.port.js'
+import type { CanhotoRejection } from '../domain/canhoto-recapture.policy.js'
 import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
+import type { FieldOccurrenceType } from './list-field-occurrence-types.use-case.js'
 
 export type DriverTripDocument = {
   readonly accessKey: string
@@ -35,6 +37,14 @@ export type DriverTripDocument = {
   readonly grossWeight: string
   readonly id: string
   readonly number: string
+  /**
+   * Spec 218 RF-B2 (follow-up): os tipos de ocorrência de nota (`flow: 'document'`), já resolvidos
+   * em 3 camadas para **este** documento — mesma regra de `deliveryProof` acima. Os de parada
+   * (`flow: 'stop'`) não têm contratante/destinatário únicos e continuam vindo pela rota de
+   * catálogo (`GET .../occurrence-types`), sem exceção. `null` quando a resolução falhou nesta
+   * chamada (infra indisponível) — o app cai na lista geral, sem exceção, em vez de travar.
+   */
+  readonly occurrenceTypes: readonly FieldOccurrenceType[] | null
   /**
    * ADR-0070 §1, spec 159 RF1/RF2: entregue, foto obrigatória (`deliveryProof.photo = 'required'`)
    * e nenhuma foto anexada ao evento de entrega. A entrega nunca é recusada por isso — só avisa.
@@ -116,6 +126,11 @@ export type DriverTrip = {
  * sai de `trips`, mas a foto ainda pode chegar pelo `/proof` (que aceita viagem `completed`).
  */
 export type DriverPendingProof = {
+  /**
+   * Spec 220 RF29: presente só quando a conferência recusou o canhoto anterior — é o que explica ao
+   * motorista por que a nota voltou. Ausente quando a nota nunca teve canhoto nenhum.
+   */
+  readonly canhotoRejection?: CanhotoRejection
   /** `trip_stop_events.captured_at ?? recorded_at` da entrega — a mesma hora que a nota usa. */
   readonly deliveredAt: string
   /** A configuração resolvida da nota, a mesma de `DriverTripDocument.deliveryProof`. */

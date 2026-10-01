@@ -28,8 +28,15 @@ const CONTEXT: MultiVehicleScope = {
   userId: USER_ID,
 }
 
-const VEHICLE: TripVehicleCandidate = { id: VEHICLE_ID, role: 'traction', status: 'active' }
+const VEHICLE: TripVehicleCandidate = {
+  defaultTrailerVehicleId: null,
+  id: VEHICLE_ID,
+  role: 'traction',
+  status: 'active',
+  vehicleType: 'tractor_unit',
+}
 const DRIVER: TripDriverCandidate = {
+  canActAsHelper: false,
   id: DRIVER_ID,
   name: 'Ana Souza',
   status: 'active',
@@ -47,6 +54,8 @@ function openTrip(overrides: Partial<TripDetail> = {}): TripDetail {
       status: 'unavailable',
       truncated: false,
     },
+    capacityUnknownReason: null,
+    capacityUnknownVehicleId: null,
     cargoWeight: null,
     closeReason: null,
     closedAt: null,
@@ -58,6 +67,7 @@ function openTrip(overrides: Partial<TripDetail> = {}): TripDetail {
     drivers: [],
     id: TRIP_ID,
     occupancy: null,
+    trailer: null,
     requiresMdfe: null,
     requiresMdfeReason: null,
     status: 'draft',
@@ -104,8 +114,14 @@ describe('trip composer adapter creates the trip from a suggestion pair (spec 21
       async findDocumentById() {
         return null
       },
+      async findLiveTripIdForDocuments() {
+        throw new Error('not used by this contract')
+      },
       async findVehicle() {
         return params.vehicle === undefined ? VEHICLE : params.vehicle
+      },
+      async isTrailerInOpenTrip() {
+        return false
       },
       async linkDocument() {
         throw new Error('not used by this contract')
@@ -117,6 +133,9 @@ describe('trip composer adapter creates the trip from a suggestion pair (spec 21
         return [DRIVER]
       },
       async releaseDocument() {
+        throw new Error('not used by this contract')
+      },
+      async setTrailer() {
         throw new Error('not used by this contract')
       },
       async updateCrew() {
@@ -131,6 +150,9 @@ describe('trip composer adapter creates the trip from a suggestion pair (spec 21
 
     const composer = createTripComposer({
       create: (input) => tripUseCase.create(input),
+      findLiveTripIdForDocuments: async () => {
+        throw new Error('not used by this contract')
+      },
       link: async () => ({}),
       listStops: async () => [],
       planRoute: async () => ({}),
@@ -175,8 +197,14 @@ describe('trip composer adapter creates the trip from a suggestion pair (spec 21
       async findDocumentById() {
         return null
       },
+      async findLiveTripIdForDocuments() {
+        throw new Error('not used')
+      },
       async findVehicle() {
         return VEHICLE
+      },
+      async isTrailerInOpenTrip() {
+        return false
       },
       async linkDocument() {
         throw new Error('not used')
@@ -188,6 +216,9 @@ describe('trip composer adapter creates the trip from a suggestion pair (spec 21
         return []
       },
       async releaseDocument() {
+        throw new Error('not used')
+      },
+      async setTrailer() {
         throw new Error('not used')
       },
       async updateCrew() {
@@ -209,6 +240,7 @@ describe('trip composer adapter creates the trip from a suggestion pair (spec 21
         channel: 'backoffice',
         companyId: COMPANY_ID,
         crew: [],
+        trailerVehicleId: null,
         vehicleId: VEHICLE_ID,
       },
     ])

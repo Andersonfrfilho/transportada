@@ -166,15 +166,46 @@ export class MultiVehicleSuggestionDriverUnavailableError extends ApiError {
 }
 
 /**
- * Spec 081 (RF-2): o mesmo motorista em dois pares do mesmo pedido. Duas viagens simultaneas dele
- * apareceriam juntas no PWA, sem nada dizendo qual e a de hoje.
+ * Spec 081 (RF-2), estendida pela spec 149 (ADR-0065 §4): a mesma pessoa em dois lugares da mesma
+ * proposta — motorista de dois veículos, ajudante de dois veículos, ou motorista e ajudante ao mesmo
+ * tempo. Duas viagens simultâneas dela apareceriam juntas no PWA, sem nada dizendo qual é a de hoje.
  */
 export class MultiVehicleSuggestionDriverRepeatedError extends ApiError {
   public constructor(driverIds: readonly string[]) {
     super({
       code: 'ROUTE_SUGGESTION_DRIVER_REPEATED',
       details: driverIds.map((driverId) => ({ field: 'driverIds', message: driverId })),
-      message: 'The same driver cannot lead two suggested trips',
+      message: 'The same person cannot take two crew positions in this proposal',
+      status: 409,
+    })
+  }
+}
+
+/**
+ * Spec 149 (ADR-0065 D1/D11): ajudante escolhido sem `can_act_as_helper` marcado na ficha — os ids
+ * viajam em `details`, mesmo desenho de `TripCrewHelperNotEligibleError`.
+ */
+export class MultiVehicleSuggestionHelperNotEligibleError extends ApiError {
+  public constructor(driverIds: readonly string[]) {
+    super({
+      code: 'ROUTE_SUGGESTION_HELPER_NOT_ELIGIBLE',
+      details: driverIds.map((driverId) => ({ field: 'helperIds', message: driverId })),
+      message: 'One or more helpers are not marked as able to help in their driver record',
+      status: 409,
+    })
+  }
+}
+
+/**
+ * Spec 149 (ADR-0065): o mesmo teto de `trip_drivers` (motorista + ajudantes, até 10) — aplicado
+ * cedo, na proposta, para não descobrir o estouro só no aceite.
+ */
+export class MultiVehicleSuggestionCrewTooLargeError extends ApiError {
+  public constructor(vehicleIds: readonly string[]) {
+    super({
+      code: 'ROUTE_SUGGESTION_CREW_TOO_LARGE',
+      details: vehicleIds.map((vehicleId) => ({ field: 'vehicleId', message: vehicleId })),
+      message: 'A vehicle crew cannot have more than ten people',
       status: 409,
     })
   }

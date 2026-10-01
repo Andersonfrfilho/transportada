@@ -12,6 +12,7 @@ import {
   readTripValuation,
   type TripValuationContext,
 } from '../../src/trips/application/read-trip-valuation.use-case.js'
+import { previewTripValuationSchema } from '../../src/trips/presentation/trip-request.schema.js'
 import { readRouteGeometry } from '../../src/trips/application/read-route-geometry.use-case.js'
 import { summarizeRoadDistance } from '../../src/trips/domain/planned-road-distance.policy.js'
 import type { RouteGeometryPoint } from '../../src/trips/domain/route-geometry.policy.js'
@@ -85,6 +86,34 @@ function twoRouteGeometry(): RouteGeometryPort {
   }
 }
 
+/**
+ * spec 153 H1: a principal cara — 200 km com uma praça de R$ 50,00/eixo — contra a sem pedágio
+ * mais barata no total, mesmo rodando menos km. Ao contrário de `ROAD_WITH_TOLL`/`ROAD_NO_TOLL`
+ * acima (onde a principal já era a mais barata, e por isso não provava a eleição), aqui só o
+ * `fuelBaseline` chegando à `readRouteGeometry` faz a prévia trocar de rota.
+ */
+const ROAD_EXPENSIVE_PRINCIPAL: RouteGeometryRoad = {
+  legs: [{ distanceMetres: 200_000, durationSeconds: 9_000 }],
+  nodeIds: [30],
+  nodeIdsByLeg: [[30]],
+  points: [],
+}
+const ROAD_CHEAPER_NO_TOLL: RouteGeometryRoad = {
+  legs: [{ distanceMetres: 100_000, durationSeconds: 5_000 }],
+  nodeIds: [40],
+  nodeIdsByLeg: [[40]],
+  points: [],
+}
+
+function expensivePrincipalGeometry(): RouteGeometryPort {
+  return {
+    readRouteGeometry: (_points, options) =>
+      Promise.resolve(
+        options?.excludeToll === true ? ROAD_CHEAPER_NO_TOLL : ROAD_EXPENSIVE_PRINCIPAL,
+      ),
+  }
+}
+
 function runPreview(input: {
   readonly geometry: RouteGeometryPort
   readonly routeChoice?: Parameters<typeof previewTripValuation>[0]['routeChoice']
@@ -119,13 +148,40 @@ describe('a prévia aceita a rota escolhida (spec 153 RF4)', () => {
     expect(toll).toMatchObject({ amount: '21.0000', gap: null })
   })
 
-  it('um critério fora de `ROUTE_CHOICE_CRITERIA` não chega aqui — a fronteira HTTP barra antes (400)', () => {
+  it('um critério fora de `ROUTE_CHOICE_CRITERIA` é 400 na fronteira HTTP — sem fallback silencioso', () => {
     /**
-     * Este contrato prova a aplicação; a rejeição em si é HTTP e mora em
-     * `trip-request.schema.test.ts` — `previewTripValuationSchema` usa `z.enum(ROUTE_CHOICE_CRITERIA)`,
-     * a mesma validação que `planTripRouteSchema` já usa (T201), sem fallback silencioso.
+     * N12 (segunda revisão da 153): não havia `trip-request.schema.test.ts` nenhum provando isto —
+     * o `expect(true).toBe(true)` só documentava uma afirmação nunca verificada.
+     * `previewTripValuationSchema` usa `z.enum(ROUTE_CHOICE_CRITERIA)`, a mesma validação que
+     * `planTripRouteSchema` já usa (T201); a asserção de verdade é aqui.
+     *
+     * T905 (P10): `result.success === false` também passaria se o corpo reprovasse por outro
+     * motivo — asserir o caminho do problema (`['routeChoice', 'criterion']`) prova que é
+     * exatamente o enum inválido que reprova, não outra coisa no payload.
      */
-    expect(true).toBe(true)
+    const result = previewTripValuationSchema.safeParse({
+      nfeDocumentIds: [COMPANY_ID],
+      routeChoice: { criterion: 'invalid', signature: null },
+      vehicleId: VEHICLE_ID,
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({ path: ['routeChoice', 'criterion'] }),
+      )
+    }
+  })
+
+  it('caso de controle: um critério válido no mesmo corpo passa na fronteira HTTP', () => {
+    /** T905 (P10): sem este par, o teste acima não provaria nada — só que "algo" falha. */
+    const result = previewTripValuationSchema.safeParse({
+      nfeDocumentIds: [COMPANY_ID],
+      routeChoice: { criterion: 'cheapest', signature: null },
+      vehicleId: VEHICLE_ID,
+    })
+
+    expect(result.success).toBe(true)
   })
 
   it('com `no_toll`, troca de rota — a distância e o pedágio passam a ser os da estrada sem praça', async () => {
@@ -139,6 +195,46 @@ describe('a prévia aceita a rota escolhida (spec 153 RF4)', () => {
     /** 120 km ÷ 2,5 km/l × 6,00 = 288,00 — a distância da rota sem pedágio, não mais os 106,6 km. */
     expect(fuel).toMatchObject({ amount: '288.0000' })
     /** Nó 20 não é praça conhecida: sem pedágio na conta, e não é lacuna — é rota sem cancela. */
+    expect(toll).toMatchObject({ amount: '0.0000', gap: null })
+  })
+
+  /**
+   * spec 153 H1: sem `fuelBaseline` chegando à `readRouteGeometry` da prévia, nenhuma opção tem
+   * `totalCost`, e `applyCriterion('cheapest')` não acha candidata — a prévia sempre precificava a
+   * principal, mesmo quando ela é a mais cara. Este contrato usa uma principal deliberadamente
+   * mais cara (`ROAD_EXPENSIVE_PRINCIPAL`) para provar que a prévia troca de rota sozinha, sem
+   * `routeChoice` explícito nenhum — o mesmo default `cheapest` de sempre (D1).
+   */
+  it('H1: sem escolha explícita, a prévia elege a mais barata de verdade — não sempre a principal', async () => {
+    const valuation = await previewTripValuation({
+      companyId: COMPANY_ID,
+      driverIds: [],
+      geometry: expensivePrincipalGeometry(),
+      nfeDocumentIds: ['00000000-0000-4000-8000-000000000c01'],
+      repository: {
+        findApplicableRule: () => Promise.resolve(null),
+        readContext: () => Promise.resolve(null),
+        readPreviewContext: () => Promise.resolve(context()),
+        readPreviewStopCoordinates: () => Promise.resolve(POINTS),
+      },
+      stopOrder: [],
+      tollBooths: {
+        readByNodeIds: (nodeIds) =>
+          Promise.resolve(nodeIds.includes(30) ? [praca(30, '50.00')] : []),
+        readCatalogSummary: () =>
+          Promise.resolve({ boothCount: 1, latestObservedOn: '2026-07-01' }),
+      },
+      vehicleId: VEHICLE_ID,
+    })
+
+    const fuel = valuation.costParcels.find((parcel) => parcel.kind === 'fuel')
+    const toll = valuation.costParcels.find((parcel) => parcel.kind === 'toll')
+
+    /**
+     * Principal: 200 km ÷ 2,5 km/l × 6,00 = 480,00 + pedágio (50,00 × 2 eixos) = 100,00 → 580,00.
+     * Sem pedágio: 100 km ÷ 2,5 km/l × 6,00 = 240,00 + 0 = 240,00 — a mais barata de verdade.
+     */
+    expect(fuel).toMatchObject({ amount: '240.0000' })
     expect(toll).toMatchObject({ amount: '0.0000', gap: null })
   })
 })

@@ -350,7 +350,8 @@ describe('PATCH de quem recebeu depois do envio (spec 193 CA06)', () => {
       await withDisposableDatabase(async (database) => {
         const world = await seedDeliveredByDriver(database, 'optional')
         await attachFromDriverForm(world, { kind: 'photo' })
-        // O motorista não manda `cargo` (`DRIVER_PROOF_KINDS`): a foto da carga é do escritório
+        // O motorista manda `cargo`, mas a foto da carga fica fora do patch de quem recebeu
+        // (`DRIVER_RECEIVER_PROOF_KINDS`).
         const [, , , , , , proofRoute] = wireRoutes(database)
         await proofRoute!.execute({
           context: fakeContext(world.company),

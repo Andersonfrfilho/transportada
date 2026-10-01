@@ -16,9 +16,15 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { eq } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
-import { companyDeliveryProofSettings } from '../../src/database/company-delivery-proof-settings.schema.js'
+import {
+  companyDeliveryProofSettings,
+  deliveryProofSettingContractorOverrides,
+  deliveryProofSettingOverrides,
+} from '../../src/database/company-delivery-proof-settings.schema.js'
 import {
   companies,
+  contractors,
+  deliveryClients,
   fleetDrivers,
   fleetVehicles,
   geocodedAddresses,
@@ -31,6 +37,8 @@ import {
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
 import {
+  companyOccurrenceTypeContractorOverrides,
+  companyOccurrenceTypes,
   tripDeliveryProofs,
   tripDispatchSnapshots,
   tripDocuments,
@@ -42,10 +50,16 @@ import {
   trips,
 } from '../../src/database/trip.schema.js'
 import { attachDeliveryProof } from '../../src/trips/application/attach-delivery-proof.use-case.js'
+import { reviewCanhotoProof } from '../../src/trips/application/review-canhoto-proof.use-case.js'
+import { DrizzleCanhotoReviewUnitOfWork } from '../../src/trips/infrastructure/drizzle-canhoto-review.repository.js'
 import { dispatchDriverTrip } from '../../src/trips/application/dispatch-driver-trip.use-case.js'
 import { dispatchTrip } from '../../src/trips/application/dispatch-trip.use-case.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { PROOF_PUNCTUALITY } from '../../src/trips/domain/delivery-proof-punctuality.policy.js'
+import {
+  FIELD_TRIP_STEP,
+  startFieldTrip,
+} from '../../src/trips/application/start-field-trip.use-case.js'
 import { DrizzleTripRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-route.repository.js'
 import { DrizzleDeliveryProofRepository } from '../../src/trips/infrastructure/drizzle-delivery-proof.repository.js'
 import { findCurrentDriverTrip } from '../../src/trips/application/find-current-driver-trip.use-case.js'
@@ -83,6 +97,9 @@ type World = {
   readonly documentIds: readonly string[]
   readonly driverId: string
   readonly membershipId: string
+  /** Spec 218 RF-C3: o id de `nfe_documents`, na mesma ordem de `documentIds` — o override por
+   *  contratante casa pelo emitente da NF-e, não pela linha do romaneio (`tripDocuments.id`). */
+  readonly nfeDocumentIds: readonly string[]
   readonly stopIds: readonly string[]
   readonly tripId: string
   readonly userId: string
@@ -546,6 +563,176 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
   )
 
   /**
+   * Spec 218 RF-C3, P3/P4: o comprovante efetivo resolve em 3 camadas — geral, contratante
+   * (emitente da nota) e destinatário, com o destinatário vencendo quando os dois se aplicam.
+   * Contra Postgres de verdade porque a junção nova (emitente → `contractors`) é SQL próprio.
+   */
+  testWithPostgres(
+    'o override de contratante muda o comprovante efetivo, e o destinatário o vence (spec 218)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDispatchedTrip(database)
+        await database.db
+          .insert(companyDeliveryProofSettings)
+          .values({ companyId: world.companyId, photo: 'optional' })
+
+        const emitterTaxId = '22333444000155'
+        const contractorId = crypto.randomUUID()
+        await database.db.insert(nfeParticipants).values({
+          companyId: world.companyId,
+          documentId: world.nfeDocumentIds[0] ?? '',
+          id: crypto.randomUUID(),
+          legalName: 'Distribuidora Alfa',
+          role: 'emitter',
+          taxId: emitterTaxId,
+        })
+        await database.db
+          .insert(contractors)
+          .values({ companyId: world.companyId, id: contractorId, taxId: emitterTaxId })
+        await database.db
+          .insert(deliveryProofSettingContractorOverrides)
+          .values({ companyId: world.companyId, contractorId, photo: 'required' })
+
+        const reads = new DrizzleCurrentDriverTripRepository(database.db)
+        const readSnapshot = () =>
+          findCurrentDriverTrip({
+            companyId: world.companyId,
+            membershipId: world.membershipId,
+            now: NOW,
+            repository: reads,
+            scores: new DrizzleDriverScoreRepository(database.db),
+          })
+
+        const beforeRecipientOverride = await readSnapshot()
+        const overriddenDocument = beforeRecipientOverride.trips[0]?.stops[0]?.documents.find(
+          (entry) => entry.id === world.documentIds[0],
+        )
+        const plainDocument = beforeRecipientOverride.trips[0]?.stops[0]?.documents.find(
+          (entry) => entry.id === world.documentIds[1],
+        )
+        // A nota do contratante Alfa (P3) resolve `required`; a nota irmã, sem emitente
+        // cadastrado como contratante, segue a geral (`optional`).
+        expect(overriddenDocument?.deliveryProof.photo).toBe('required')
+        expect(plainDocument?.deliveryProof.photo).toBe('optional')
+
+        // P4: exceção de destinatário, quando presente, vence a de contratante na mesma nota.
+        const recipientTaxId = '11222333000181'
+        await database.db.insert(deliveryClients).values({
+          companyId: world.companyId,
+          displayName: 'Mercado Central',
+          status: 'active',
+          taxId: recipientTaxId,
+        })
+        await database.db
+          .insert(deliveryProofSettingOverrides)
+          .values({ companyId: world.companyId, photo: 'off', taxId: recipientTaxId })
+
+        const afterRecipientOverride = await readSnapshot()
+        const withBothOverrides = afterRecipientOverride.trips[0]?.stops[0]?.documents.find(
+          (entry) => entry.id === world.documentIds[0],
+        )
+        expect(withBothOverrides?.deliveryProof.photo).toBe('off')
+      })
+    },
+  )
+
+  /**
+   * Spec 218 RF-B2 (follow-up): o `attachmentMode` do tipo de ocorrência de nota também resolve em
+   * 3 camadas por documento, igual ao comprovante acima — e o tipo de parada (`flow: 'stop'`) não
+   * entra na lista, porque não tem um contratante/destinatário único para resolver contra.
+   */
+  testWithPostgres(
+    'o override de contratante muda o attachmentMode do tipo de ocorrência da nota (spec 218 follow-up)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDispatchedTrip(database)
+
+        const documentOccurrenceTypeId = crypto.randomUUID()
+        await database.db.insert(companyOccurrenceTypes).values({
+          active: true,
+          attachmentMode: 'optional',
+          companyId: world.companyId,
+          flow: 'document',
+          id: documentOccurrenceTypeId,
+          name: 'Avaria parcial',
+          notifies: false,
+          redeliveryPolicy: 'allowed',
+          stage: 'delivery',
+        })
+        const stopOccurrenceTypeId = crypto.randomUUID()
+        await database.db.insert(companyOccurrenceTypes).values({
+          active: true,
+          attachmentMode: 'optional',
+          companyId: world.companyId,
+          flow: 'stop',
+          id: stopOccurrenceTypeId,
+          name: 'Endereço não encontrado',
+          notifies: false,
+          redeliveryPolicy: 'allowed',
+          stage: 'delivery',
+        })
+
+        const emitterTaxId = '22333444000155'
+        const contractorId = crypto.randomUUID()
+        await database.db.insert(nfeParticipants).values({
+          companyId: world.companyId,
+          documentId: world.nfeDocumentIds[0] ?? '',
+          id: crypto.randomUUID(),
+          legalName: 'Distribuidora Alfa',
+          role: 'emitter',
+          taxId: emitterTaxId,
+        })
+        await database.db
+          .insert(contractors)
+          .values({ companyId: world.companyId, id: contractorId, taxId: emitterTaxId })
+        await database.db.insert(companyOccurrenceTypeContractorOverrides).values({
+          attachmentMode: 'required',
+          companyId: world.companyId,
+          contractorId,
+          occurrenceTypeId: documentOccurrenceTypeId,
+        })
+
+        const reads = new DrizzleCurrentDriverTripRepository(database.db)
+        const snapshot = await findCurrentDriverTrip({
+          companyId: world.companyId,
+          membershipId: world.membershipId,
+          now: NOW,
+          repository: reads,
+          scores: new DrizzleDriverScoreRepository(database.db),
+        })
+
+        const overriddenDocument = snapshot.trips[0]?.stops[0]?.documents.find(
+          (entry) => entry.id === world.documentIds[0],
+        )
+        const plainDocument = snapshot.trips[0]?.stops[0]?.documents.find(
+          (entry) => entry.id === world.documentIds[1],
+        )
+
+        // A nota do contratante Alfa resolve `required`; a nota irmã, sem contratante, segue a
+        // geral do tipo (`optional`) — e nenhum dos dois traz o tipo de parada na lista.
+        expect(overriddenDocument?.occurrenceTypes).toEqual([
+          {
+            attachmentMode: 'required',
+            flow: 'document',
+            id: documentOccurrenceTypeId,
+            name: 'Avaria parcial',
+            stopKind: null,
+          },
+        ])
+        expect(plainDocument?.occurrenceTypes).toEqual([
+          {
+            attachmentMode: 'optional',
+            flow: 'document',
+            id: documentOccurrenceTypeId,
+            name: 'Avaria parcial',
+            stopKind: null,
+          },
+        ])
+      })
+    },
+  )
+
+  /**
    * Spec 159 T6, ADR-0070 §1: `/deliver` responde `proofPending`, e o snapshot mostra o mesmo aviso
    * por documento até a foto chegar — nunca recusando a entrega. Contra Postgres de verdade porque
    * a leitura do snapshot é SQL próprio (`listDeliveryPhotoPresence`).
@@ -769,6 +956,26 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         const afterPhoto = await readSnapshot()
         expect(afterPhoto.pendingProofs.map((proof) => proof.documentId)).toEqual([firstDocumentId])
 
+        // Spec 220 RF29: recusado o canhoto, a nota volta para a fila — com o motivo visível.
+        await reviewCanhotoProof({
+          actorUserId: world.userId,
+          command: { action: 'reject', reason: 'illegible' },
+          companyId: world.companyId,
+          correlationId: 'recusa-do-canhoto',
+          documentId: lastDocumentId ?? '',
+          ipAddress: '203.0.113.7',
+          tripId: world.tripId,
+          unitOfWork: new DrizzleCanhotoReviewUnitOfWork(database.db),
+        })
+        const afterRejection = await readSnapshot()
+        expect(afterRejection.pendingProofs.map((proof) => proof.documentId).sort()).toEqual(
+          [firstDocumentId, lastDocumentId].sort(),
+        )
+        expect(
+          afterRejection.pendingProofs.find((proof) => proof.documentId === lastDocumentId)
+            ?.canhotoRejection,
+        ).toEqual({ reason: 'illegible' })
+
         // O motorista de outra empresa não vê a pendência deste (tenant).
         const other = await seedDriverOnly(database)
         const otherSnapshot = await findCurrentDriverTrip({
@@ -953,6 +1160,80 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
     })
   })
 
+  /**
+   * Spec 149 (ADR-0065) / ADR-0058 §4: o ajudante tem a linha em `trip_drivers`, mas não o papel —
+   * ele não despacha e não conta a carga nem inicia o trajeto pelo PWA. Contra Postgres de verdade,
+   * para provar o `where` do papel, não só o dublê.
+   */
+  testWithPostgres('ajudante da mesma tripulação não despacha nem começa a viagem', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedPlannedTrip(database)
+      const helperId = crypto.randomUUID()
+      await database.db.insert(fleetDrivers).values({
+        canActAsHelper: true,
+        companyId: world.companyId,
+        id: helperId,
+        name: 'Ajudante de Campo',
+        taxId: '33333333333',
+      })
+      await database.db.insert(tripDrivers).values({
+        companyId: world.companyId,
+        driverId: helperId,
+        driverName: 'Ajudante de Campo',
+        driverTaxId: '33333333333',
+        position: 2n,
+        role: 'helper',
+        tripId: world.tripId,
+      })
+      const reads = new DrizzleCurrentDriverTripRepository(database.db)
+      const routeRepository = new DrizzleTripRouteRepository(database.db)
+      const dispatch = (input: { readonly actorUserId: string; readonly tripId: string }) =>
+        dispatchTrip({
+          actorUserId: input.actorUserId,
+          channel: TRIP_FIELD_CHANNELS.driverApp,
+          companyId: world.companyId,
+          repository: routeRepository,
+          tripId: input.tripId,
+        })
+
+      const dispatchAttempt = dispatchDriverTrip({
+        actorUserId: world.userId,
+        companyId: world.companyId,
+        dispatch,
+        driverId: helperId,
+        linkage: reads,
+        tripId: world.tripId,
+      })
+      await expect(dispatchAttempt).rejects.toMatchObject({
+        code: 'TRIP_CREW_HELPER_CANNOT_DRIVE',
+        status: 403,
+      })
+
+      const startAttempt = startFieldTrip({
+        actorUserId: world.userId,
+        companyId: world.companyId,
+        driverId: helperId,
+        repository: reads,
+        step: FIELD_TRIP_STEP.confirmLoad,
+      })
+      await expect(startAttempt).rejects.toMatchObject({
+        code: 'TRIP_CREW_HELPER_CANNOT_DRIVE',
+        status: 403,
+      })
+
+      // O motorista da mesma tripulação continua despachando normalmente — regressão.
+      const driverDispatch = await dispatchDriverTrip({
+        actorUserId: world.userId,
+        companyId: world.companyId,
+        dispatch,
+        driverId: world.driverId,
+        linkage: reads,
+        tripId: world.tripId,
+      })
+      expect(driverDispatch).toEqual({ tripStatus: 'dispatched' })
+    })
+  })
+
   /** Conta com papel de motorista e sem cadastro na frota: problema de configuração, não de viagem. */
   testWithPostgres('conta sem cadastro de motorista se anuncia como tal', async () => {
     await withDisposableDatabase(async (database) => {
@@ -1105,8 +1386,10 @@ describe('a troca de tripulação some/aparece na tela do motorista, sem código
               driverName: 'Motorista Um',
               driverTaxId: '33333333333',
               position: 1,
+              role: 'driver',
             },
           ],
+          trailerVehicleId: null,
           vehicleId: fleet.firstVehicleId,
         })
         await freezeRoutePlannedTrip(database.db, created.id)
@@ -1140,6 +1423,7 @@ describe('a troca de tripulação some/aparece na tela do motorista, sem código
               driverName: 'Motorista Dois',
               driverTaxId: '44444444444',
               position: 1,
+              role: 'driver',
             },
           ],
           tripId: created.id,
@@ -1193,8 +1477,10 @@ describe('a troca de tripulação some/aparece na tela do motorista, sem código
               driverName: 'Motorista Um',
               driverTaxId: '33333333333',
               position: 1,
+              role: 'driver',
             },
           ],
+          trailerVehicleId: null,
           vehicleId: fleet.firstVehicleId,
         })
         await freezeRoutePlannedTrip(database.db, created.id)
@@ -1219,6 +1505,7 @@ describe('a troca de tripulação some/aparece na tela do motorista, sem código
               driverName: 'Motorista Um',
               driverTaxId: '33333333333',
               position: 1,
+              role: 'driver',
             },
           ],
           tripId: created.id,
@@ -1570,6 +1857,7 @@ async function seedDispatchedTrip(
   const membershipId = crypto.randomUUID()
   const driverId = crypto.randomUUID()
   const vehicleId = crypto.randomUUID()
+  const trailerId = crypto.randomUUID()
   const tripId = crypto.randomUUID()
   const stopIds = [crypto.randomUUID(), crypto.randomUUID()]
 
@@ -1578,14 +1866,17 @@ async function seedDispatchedTrip(
   await database.db
     .insert(userCompanyMemberships)
     .values({ companyId, id: membershipId, status: 'active', userId })
-  await database.db.insert(fleetVehicles).values({
-    companyId,
-    id: vehicleId,
-    plate: 'GCQ8E47',
-    role: 'traction',
-    state: 'SP',
-    vehicleType: 'tractor_unit',
-  })
+  await database.db.insert(fleetVehicles).values([
+    {
+      companyId,
+      id: vehicleId,
+      plate: 'GCQ8E47',
+      role: 'traction',
+      state: 'SP',
+      vehicleType: 'tractor_unit',
+    },
+    { companyId, id: trailerId, plate: 'RTE6K89', role: 'trailer', state: 'SP', vehicleType: '' },
+  ])
   await database.db.insert(fleetDrivers).values({
     companyId,
     id: driverId,
@@ -1593,9 +1884,14 @@ async function seedDispatchedTrip(
     name: 'Motorista de Campo',
     taxId: '11111111111',
   })
-  await database.db
-    .insert(trips)
-    .values({ companyId, id: tripId, status: options.status ?? 'dispatched', vehicleId })
+  // Feature 147 D3/Q1b: o cavalo não sai sem carreta atrelada.
+  await database.db.insert(trips).values({
+    companyId,
+    id: tripId,
+    status: options.status ?? 'dispatched',
+    trailerVehicleId: trailerId,
+    vehicleId,
+  })
   await database.db.insert(tripDrivers).values({
     companyId,
     driverId,
@@ -1624,6 +1920,7 @@ async function seedDispatchedTrip(
   ])
 
   const documentIds: string[] = []
+  const nfeDocumentIds: string[] = []
   for (const [index, stopId] of [stopIds[0], stopIds[0], stopIds[1]].entries()) {
     const nfeDocumentId = await seedNfeDocument(database, {
       companyId,
@@ -1642,9 +1939,10 @@ async function seedDispatchedTrip(
       tripId,
     })
     documentIds.push(tripDocumentId)
+    nfeDocumentIds.push(nfeDocumentId)
   }
 
-  return { companyId, documentIds, driverId, membershipId, stopIds, tripId, userId }
+  return { companyId, documentIds, driverId, membershipId, nfeDocumentIds, stopIds, tripId, userId }
 }
 
 async function seedNfeDocument(

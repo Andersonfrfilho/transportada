@@ -4,6 +4,7 @@
 import { maskIdentityEmail, maskIdentityTaxId } from '../domain/company-user.policy.js'
 import {
   diffRealmOwnedFields,
+  isRealmAccountDisabled,
   reconcileIdentities,
   RECONCILIATION_STATUS,
   RECONCILIATION_VIEW_STATUS,
@@ -48,6 +49,12 @@ export type ReconciliationEntryView = {
     readonly userId: string
   }
   readonly matchedBy: ReconciliationMatch
+  /**
+   * Casada, com vínculo confirmado, e desabilitada no provedor — a pessoa não consegue entrar
+   * mesmo aparecendo íntegra em todo o resto. Só o operador que abre esta tela enxerga isso: nem a
+   * listagem principal, nem `status`/`differences` acima olham o `enabled` do realm.
+   */
+  readonly realmDisabled: boolean
   readonly realm?: {
     readonly email: string
     readonly enabled: boolean
@@ -85,6 +92,10 @@ export function createReconcileCompanyUsersUseCase({
         items: entries.map((entry) => ({
           differences: resolveDifferences(entry),
           matchedBy: entry.matchedBy,
+          realmDisabled:
+            entry.local === undefined || entry.realm === undefined
+              ? false
+              : isRealmAccountDisabled({ local: entry.local, realm: entry.realm }),
           status: resolveViewStatus(entry),
           ...(entry.local === undefined
             ? {}

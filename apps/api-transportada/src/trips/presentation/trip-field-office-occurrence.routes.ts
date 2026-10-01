@@ -7,7 +7,7 @@
  */
 import type { ClientIpResolver } from '../../http/client-ip.service.js'
 import { defineRoute } from '../../http/router.service.js'
-import { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
+import { parseUuidFilter, parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import { API_TRIPS_PATH } from '../../shared/api.constant.js'
 import type { FieldTripTargetPort } from '../application/field-trip-target.port.js'
 import type { ResolvedTripFieldTarget } from '../application/field-trip-target.types.js'
@@ -41,8 +41,11 @@ const OFFICE_OCCURRENCES_RATE_LIMIT = {
 export type TripFieldOfficeOccurrenceDependencies = {
   /** ADR-0076 §6: o IP da trilha sai do salto conhecido, nunca do começo de `x-forwarded-for`. */
   readonly resolveClientIp: ClientIpResolver
+  /** Spec 218 RF-B2: mesma resolução de 3 camadas da app do motorista (T9), opcional. */
   readonly listFieldOccurrenceTypes: (input: {
     readonly companyId: string
+    readonly contractorId?: string | null
+    readonly recipientTaxId?: string | null
   }) => Promise<readonly FieldOccurrenceType[]>
   readonly registerOccurrences: (input: {
     readonly actorUserId: string
@@ -63,15 +66,23 @@ export function createTripFieldOfficeOccurrenceRoutes(
 ): readonly ReturnType<typeof defineRoute>[] {
   return [
     /** L2: só `id` e `name` dos tipos ativos de rua — o e-mail do tipo é `settings.manage`. */
-    defineRoute<undefined>({
-      async handle({ context }): Promise<Response> {
+    defineRoute<{ readonly contractorId: string | null; readonly recipientTaxId: string | null }>({
+      async handle({ context, input }): Promise<Response> {
         const types = await dependencies.listFieldOccurrenceTypes({
           companyId: context.scope.companyId,
+          contractorId: input.contractorId,
+          recipientTaxId: input.recipientTaxId,
         })
         return officeJsonResponse({ body: { data: types }, status: 200 })
       },
       method: 'GET',
-      parse: () => undefined,
+      parse: ({ request }) => {
+        const url = new URL(request.url)
+        return {
+          contractorId: parseUuidFilter(url.searchParams.get('contractorId')) ?? null,
+          recipientTaxId: url.searchParams.get('recipientTaxId'),
+        }
+      },
       pathname: OFFICE_FIELD_OCCURRENCE_TYPES_PATH,
       policy: OFFICE_REPORT_POLICY,
     }),

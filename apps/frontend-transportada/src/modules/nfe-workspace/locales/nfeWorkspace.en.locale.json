@@ -241,6 +241,9 @@
   "filters": {
     "search": "Search",
     "searchEmpty": "No results",
+    "clearSelection": "Clear selection",
+    "removeSelection": "Remove selection",
+    "selectedSummary": "{{count}} selected",
     "cteIssuedPending": "Without issued CT-e",
     "cteIssuedIssued": "With issued CT-e",
     "fiscalLink": "Fiscal link",
@@ -427,6 +430,10 @@
   "packageBoxes": {
     "title": "Boxes to measure",
     "description": "Measure the product's cardboard box. The queue is ordered by what ships the most.",
+    "counter": {
+      "measured": "Measured: {{count}}",
+      "pending": "To measure: {{count}}"
+    },
     "searchLabel": "Search by product or code",
     "searchPlaceholder": "Search or scan the label",
     "scan": "Scan label",

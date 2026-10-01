@@ -7,18 +7,20 @@ import {
 } from '@/modules/shared/KeycloakAuthProvider.provider'
 
 import {
+  isDriverOccurrenceType,
   PROOF_PUNCTUALITY_VALUES,
   type DriverFieldReport,
-  type DriverOccurrenceType,
+  type DriverOccurrenceKind,
   type DriverOccurrenceTypesResult,
   type DriverTripSnapshot,
   type ProofPunctuality,
+  type StopOccurrenceReportReference,
 } from './driverTrip.types'
 import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripResponse.validation'
 import { LATE_REGISTRATION_FIELD_ENABLED } from './lateRegistration.constant'
 import { shouldSendLateRegistration } from './lateRegistration.service'
 import type { AttachmentSendOutcome } from './offlineAttachments.service'
-import { createIdempotencyKey } from './offlineQueue.service'
+import { createIdempotencyKey, type DriverTripErrorDetail } from './offlineQueue.service'
 
 const CURRENT_TRIP_PATH = '/me/trips/current'
 const LOCATION_CONSENT_PATH = '/me/location-consent'
@@ -48,14 +50,27 @@ export const DRIVER_TRIP_ERROR = {
 
 export class DriverTripRequestError extends Error {
   public readonly code: string
+  /**
+   * Spec 206 D9/RF8b: o `409 TRIP_HAS_STOP_EN_ROUTE` que o drenar de um item ANTIGO devolve — a
+   * tela não viu a parada a caminho (outro aparelho, ou item enfileirado antes do snapshot). Sem
+   * isto, o motivo/atalho da fila (RF8b) não teria como nomear a parada certa nesse caso — o cálculo
+   * local (`resolveEnRouteStopId`) não sabe do que aconteceu em outro aparelho.
+   */
+  public readonly details: readonly DriverTripErrorDetail[] | undefined
   /** `true` só quando a rede falhou — recusa do servidor é resposta, e resposta não se repete. */
   public readonly isOffline: boolean
   /** O status HTTP da recusa — a tela de pendentes imprime `status + código` como causa legível. */
   public readonly status: number | undefined
 
-  public constructor(input: { code: string; isOffline: boolean; status?: number }) {
+  public constructor(input: {
+    code: string
+    details?: readonly DriverTripErrorDetail[]
+    isOffline: boolean
+    status?: number
+  }) {
     super(input.code)
     this.code = input.code
+    this.details = input.details
     this.isOffline = input.isOffline
     this.status = input.status
     this.name = 'DriverTripRequestError'
@@ -76,7 +91,8 @@ export function toAttachmentSendOutcome(error: unknown): AttachmentSendOutcome {
         ? `${error.status} ${error.code}`
         : error.code
       : 'REQUEST_FAILED'
-  return { cause, kind: 'rejected' }
+  const details = error instanceof DriverTripRequestError ? error.details : undefined
+  return { cause, ...(details === undefined ? {} : { details }), kind: 'rejected' }
 }
 
 type ClientDependencies = Readonly<{
@@ -108,7 +124,7 @@ export type DriverTripClient = Readonly<{
     capturedAt?: string
     documentId: string
     file: File
-    kind: 'photo' | 'signature'
+    kind: 'cargo' | 'photo' | 'signature'
     /** Pedido do usuário (25/09): mesma marca do `deliver`/`return`, atrás do mesmo interruptor. */
     lateRegistration?: boolean
     latitude?: number
@@ -118,6 +134,8 @@ export type DriverTripClient = Readonly<{
     receivedByDetail?: string
     receiverDocument?: string
     receiverName?: string
+    /** Spec 220 RF17: a miniatura do comprovante — opcional, nunca condição para o anexo subir. */
+    thumbnail?: File
   }) => Promise<Readonly<{ id: string; punctuality: ProofPunctuality }>>
   /**
    * Spec 082 (revisão): o snapshot inclui viagem `route_planned`, e é o motorista quem inicia o
@@ -125,8 +143,6 @@ export type DriverTripClient = Readonly<{
    * que abre o portão.
    */
   dispatchTrip: (input: { tripId: string }) => Promise<void>
-  /** `POST /me/trips/current/start-route`: o servidor resolve a viagem, e repetir o toque converge. */
-  startRoute: () => Promise<void>
   /**
    * Spec 079: o que aconteceu **sem** a carga voltar. Não passa pela fila de relatos: ao contrário
    * de entregar e devolver, isto não muda o estado da nota — falhar aqui não deixa a viagem num
@@ -134,6 +150,8 @@ export type DriverTripClient = Readonly<{
    */
   registerDocumentOccurrence: (input: {
     documentId: string
+    /** Spec 218: o que o motorista escreveu no formulário único; ausente é vazio. */
+    note?: string
     occurrenceTypeId: string
     productCode: string
   }) => Promise<void>
@@ -142,6 +160,11 @@ export type DriverTripClient = Readonly<{
    *
    * ⚠️ **Nunca lança.** Falha de rede, recusa do servidor ou corpo inválido viram `{ status:
    * 'failed' }` — quem chama decide o aviso, e entregar/devolver não dependem disto (spec 157 RF5).
+   *
+   * Spec 218 RF-B2 (follow-up): a exceção por contratante/destinatário já chega resolvida em
+   * `DriverTripDocument.occurrenceTypes`, embutida no snapshot — esta rota continua servindo só a
+   * lista geral da empresa (os tipos de parada, sem contratante/destinatário único para resolver
+   * contra). Nunca manda CPF/CNPJ como parâmetro: security.md §3 proíbe dado pessoal em URL.
    */
   listOccurrenceTypes: () => Promise<DriverOccurrenceTypesResult>
   /**
@@ -175,10 +198,15 @@ type JsonFieldReport = Exclude<
   DocumentOccurrenceReport | StopOccurrencePhotoReport | ProofReceiverReport
 >
 
-function reportPath(report: JsonFieldReport): string {
+/** Spec 206: exportada — `stop-departure.contract.ts` prova o caminho de `depart`/`cancelDeparture`. */
+export function reportPath(report: JsonFieldReport): string {
   switch (report.kind) {
     case 'arrive':
       return `${CURRENT_TRIP_PATH}/stops/${report.stopId}/arrive`
+    case 'depart':
+      return `${CURRENT_TRIP_PATH}/stops/${report.stopId}/depart`
+    case 'cancelDeparture':
+      return `${CURRENT_TRIP_PATH}/stops/${report.stopId}/cancel-departure`
     case 'deliver':
       return `${CURRENT_TRIP_PATH}/documents/${report.documentId}/deliver`
     case 'return':
@@ -197,6 +225,9 @@ export function reportBody(report: JsonFieldReport): string {
   switch (report.kind) {
     case 'arrive':
       return JSON.stringify({ location: report.location })
+    case 'depart':
+    case 'cancelDeparture':
+      return JSON.stringify({ location: report.location, tappedAt: report.tappedAt })
     case 'deliver':
       return JSON.stringify({
         location: report.location,
@@ -222,9 +253,21 @@ export function reportBody(report: JsonFieldReport): string {
       return JSON.stringify({
         description: report.description,
         documentId: report.documentId,
-        kind: report.occurrenceKind,
+        ...stopOccurrenceReference(report),
       })
   }
+}
+
+/**
+ * Spec 218 D2: o tipo do catálogo quando o item o tem; o item gravado antes da troca sai com o
+ * valor fixo — a API aceita os dois, nunca os dois juntos.
+ */
+function stopOccurrenceReference(
+  report: StopOccurrenceReportReference,
+): Readonly<{ kind: DriverOccurrenceKind } | { occurrenceTypeId: string }> {
+  return report.occurrenceTypeId === undefined
+    ? { kind: report.occurrenceKind }
+    : { occurrenceTypeId: report.occurrenceTypeId }
 }
 
 export function createDriverTripClient(dependencies: ClientDependencies): DriverTripClient {
@@ -233,6 +276,7 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       const form = new FormData()
       form.set('file', input.file)
       form.set('kind', input.kind)
+      if (input.thumbnail !== undefined) form.set('thumbnail', input.thumbnail)
       if (input.attachmentKey !== undefined) form.set('attachmentKey', input.attachmentKey)
       if (input.receivedBy !== undefined) form.set('receivedBy', input.receivedBy)
       if (input.receivedByDetail !== undefined) form.set('receivedByDetail', input.receivedByDetail)
@@ -268,13 +312,10 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         path: `${CURRENT_TRIP_PATH}/dispatch`,
       })
     },
-    async startRoute() {
-      await request({ dependencies, method: 'POST', path: `${CURRENT_TRIP_PATH}/start-route` })
-    },
     async registerDocumentOccurrence(input) {
       await request({
         body: JSON.stringify({
-          note: '',
+          note: input.note ?? '',
           occurrenceTypeId: input.occurrenceTypeId,
           productCode: input.productCode,
         }),
@@ -432,7 +473,7 @@ async function sendStopOccurrencePhoto(input: {
       attachmentObjectId,
       description: report.description,
       documentId: report.documentId,
-      kind: report.occurrenceKind,
+      ...stopOccurrenceReference(report),
     }),
     dependencies,
     idempotencyKey: report.occurrenceKey,
@@ -697,8 +738,10 @@ async function request(
    * saiu da sua viagem", e trocá-lo por um genérico apagaria a única explicação que o motorista tem.
    */
   if (!response.ok) {
+    const details = readErrorDetails(payload)
     throw new DriverTripRequestError({
       code: readErrorCode(payload),
+      ...(details === undefined ? {} : { details }),
       isOffline: false,
       status: response.status,
     })
@@ -713,18 +756,17 @@ function readErrorCode(payload: unknown): string {
   return typeof error?.code === 'string' ? error.code : 'REQUEST_FAILED'
 }
 
-export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenceType {
-  if (typeof value !== 'object' || value === null) return false
-  const candidate = value as {
-    readonly attachmentMode?: unknown
-    readonly id?: unknown
-    readonly name?: unknown
-  }
-  const hasKnownMode =
-    candidate.attachmentMode === undefined ||
-    (PROOF_FIELD_REQUIREMENTS as readonly unknown[]).includes(candidate.attachmentMode)
-  return typeof candidate.id === 'string' && typeof candidate.name === 'string' && hasKnownMode
+/** Spec 206 D9: `error.details` — ausente na maioria das recusas, presente no `TRIP_HAS_STOP_EN_ROUTE`. */
+function readErrorDetails(payload: unknown): readonly DriverTripErrorDetail[] | undefined {
+  if (typeof payload !== 'object' || payload === null) return undefined
+  const error = (payload as { readonly error?: { readonly details?: unknown } }).error
+  if (!Array.isArray(error?.details)) return undefined
+  const details = error.details.filter(
+    (item): item is DriverTripErrorDetail =>
+      typeof item === 'object' &&
+      item !== null &&
+      typeof (item as { field?: unknown }).field === 'string' &&
+      typeof (item as { message?: unknown }).message === 'string',
+  )
+  return details.length > 0 ? details : undefined
 }
-
-/** ⚠️ Cópia por valor de `DELIVERY_PROOF_FIELD_MODES` — o vocabulário de `attachmentMode` (spec 179 RF1). */
-const PROOF_FIELD_REQUIREMENTS = ['off', 'optional', 'required'] as const

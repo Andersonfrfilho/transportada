@@ -34,7 +34,7 @@ export function isStopResolved(stop: DriverTripStop): boolean {
  * nulo. Uma segunda definição aqui fazia a barra destacar um portão e a lista outro.
  */
 export function computeTripProgress(trip: DriverTrip): DriverTripProgress {
-  const currentStopId = findCurrentStop(trip)?.id
+  const currentStopId = findCurrentStop({ enRouteStopId: undefined, trip })?.id
 
   const segments = trip.stops.map((stop): DriverStopProgressSegment => {
     if (stop.id === currentStopId) {

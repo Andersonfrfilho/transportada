@@ -11,10 +11,15 @@ import { toDisplayPersonName } from '@/modules/shared/personName.service'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
+import { CanhotoAutomaticReview, type CanhotoReadContext } from './CanhotoAutomaticReview.component'
+import type { CanhotoTripDocument } from '../shared/canhotoIdentification.service'
+import { hasCanhotoReviewSettled } from '../shared/canhotoReviewSession.service'
+import { createFieldDeliveryThumbnail } from '../shared/fieldDeliveryImage.service'
 import { useFieldDelivery } from '../hooks/useFieldDelivery.hook'
 import { useSlowLoadNotice } from '../hooks/useSlowLoadNotice.hook'
 import { useFieldDeliveryDocumentsQuery } from '../queries/useFieldDeliveryDocuments.query'
 import { useFieldDeliverySettingsQuery } from '../queries/useFieldDeliverySettings.query'
+import { useVehicleSelectOptions } from '@/modules/fleet/hooks/useVehicleSelectOptions.hook'
 import { useTripDocumentSelection } from '../hooks/useTripDocumentSelection.hook'
 import type { TripDocumentLinkFormController } from '../hooks/useTripDocumentLinkForm.hook'
 import type { TripWorkspaceController } from '../hooks/useTripWorkspace.hook'
@@ -26,7 +31,14 @@ import {
   selectPendingCteDocumentIds,
   selectPendingNfseDocumentIds,
 } from '../shared/cteSelection.service'
-import { DATABASE_UNAVAILABLE_ERROR_CODE, SLOW_LOAD_NOTICE_DELAY_MS } from '../shared/trip.constant'
+import {
+  CANHOTO_REVIEW_NOTICE,
+  CANHOTO_REVIEW_OUTCOME,
+  type CanhotoReviewNotice,
+  type CanhotoReviewOutcome,
+  DATABASE_UNAVAILABLE_ERROR_CODE,
+  SLOW_LOAD_NOTICE_DELAY_MS,
+} from '../shared/trip.constant'
 import type { TripStatus } from '../shared/trip.types'
 import { resolveFirstTripFeedbackKey, resolveTripFeedbackKey } from '../shared/tripFeedback.service'
 import {
@@ -66,6 +78,7 @@ import { resolveTripProgress } from '../shared/tripProgress.service'
 import type { TripDocumentDetail } from '../shared/trip.types'
 import { TripProcessFlow } from './TripProcessFlow.component'
 import { TripCloseDialog } from './TripCloseDialog.component'
+import { CanhotoRejectDialog, type CanhotoRejectSubmission } from './CanhotoRejectDialog.component'
 import { TripReasonDialog } from './TripReasonDialog.component'
 import { TripReturnReasonDialog } from './TripReturnReasonDialog.component'
 import { TripScanQueue } from './TripScanQueue.component'
@@ -90,6 +103,8 @@ import styles from '../styles/trip.module.css'
 type TripDetailProps = Readonly<{
   /** RF7 (spec 154): sem `settings.manage` o extrato de pedágio não oferece o ajuste da praça. */
   canAdjustTollBooth: boolean
+  /** Sem `trip.financials` o pedágio da rota some da tela — nunca zero (spec 153 D10). */
+  canReadFinancials: boolean
   /** Spec 217 T310: a frota da empresa, para o diálogo "Trocar motorista/veículo" escolher entre. */
   drivers: readonly FleetDriverListItem[]
   linkForm: TripDocumentLinkFormController
@@ -173,6 +188,11 @@ function resolveVehicleIdentityBandProps(
   }
 }
 
+const TRACTOR_UNIT_VEHICLE_TYPE = 'tractor_unit'
+const TRAILER_ROLE = 'trailer'
+const ACTIVE_STATUS = 'active'
+const EMPTY_TRAILER_SELECTION = ''
+
 function statusClassName(status: TripStatus): string {
   return status === 'completed' || status === 'cancelled'
     ? `${styles.statusBadge} ${styles.statusReady}`
@@ -248,6 +268,7 @@ export function TripDetailSkeleton({ label }: TripDetailSkeletonProps = {}) {
 
 export function TripDetail({
   canAdjustTollBooth,
+  canReadFinancials,
   drivers,
   linkForm,
   vehicles,
@@ -306,9 +327,14 @@ export function TripDetail({
     onAccepted: () => void workspace.invalidateTrip(),
     tripId: workspace.trip?.id ?? '',
   })
+  /** Spec 147 D3/T13: mesma razão do hook acima — chamado antes de qualquer `return` condicional. */
+  const trailerOptions = useVehicleSelectOptions(
+    vehicles.filter((entry) => entry.role === TRAILER_ROLE && entry.status === ACTIVE_STATUS),
+  )
   /** Spec 156 T12: precisa vir antes dos `return` condicionais — hooks não podem ser condicionais. */
   const fieldDelivery = useFieldDelivery({
     attachFieldProof: workspace.controller.attachFieldProof,
+    buildThumbnail: createFieldDeliveryThumbnail,
     invalidate: workspace.invalidateFieldDeliveryEffects,
     reportFieldDelivery: workspace.controller.reportFieldDelivery,
     tripId: workspace.trip?.id ?? '',
@@ -318,13 +344,15 @@ export function TripDetail({
    * abre o assistente do escritório — R8: erro nas duas (rota, permissão) vira `undefined`/lista
    * vazia no consumidor, nunca trava o passo.
    */
+  const needsCanhotoReadData =
+    fieldDeliveryDocumentIds !== null || workspace.openProofDocumentId !== null
   const canhotoOcrSettingsQuery = useFieldDeliverySettingsQuery({
-    enabled: workspace.controller.canReportOnBehalf && fieldDeliveryDocumentIds !== null,
+    enabled: workspace.controller.canReportOnBehalf && needsCanhotoReadData,
   })
   const fieldDeliveryDocumentsQuery = useFieldDeliveryDocumentsQuery({
     enabled:
       workspace.controller.canReportOnBehalf &&
-      fieldDeliveryDocumentIds !== null &&
+      needsCanhotoReadData &&
       workspace.trip !== undefined,
     tripId: workspace.trip?.id ?? '',
   })
@@ -382,6 +410,13 @@ export function TripDetail({
   const canReadFleetDetails = workspace.controller.canReadTripFleetDetails
   const vehicleIdentity = resolveVehicleIdentityBandProps(vehicles, trip.vehicleId, tFleet)
   const isEditable = isTripEditable(trip.status)
+  /**
+   * Spec 147 D3/T13: só o cavalo tem carreta — o tipo vem da frota carregada, porque o corpo do
+   * detalhe traz só `vehicleId`. A viagem editável (mesmo portão de vincular/desvincular nota)
+   * decide se o select ainda aceita troca.
+   */
+  const isTractorUnit =
+    vehicles.find((entry) => entry.id === trip.vehicleId)?.vehicleType === TRACTOR_UNIT_VEHICLE_TYPE
   const canSeparateOrLoad = canSeparateOrLoadDocuments(trip.status)
   const isCompleted = trip.status === 'completed'
   const pendingCteDocuments = selectPendingCteDocuments(trip.documents)
@@ -421,6 +456,24 @@ export function TripDetail({
   const fiscalReadinessByDocumentId = new Map(
     (workspace.fiscalReadiness?.documents ?? []).map((entry) => [entry.tripDocumentId, entry]),
   )
+  /** Spec 220 T7.14: a mesma lista serve ao assistente de baixa e à leitura automática do canhoto. */
+  const canhotoTripDocuments: readonly CanhotoTripDocument[] = trip.documents.map((document) => {
+    /**
+     * Spec 156 T14, ADR-0069 §3: a chave inteira decide o casamento (fix `b1653f25`, T13) —
+     * `GET /trips/:id` não a traz (M1), então ela vem da rota estreita da T14. Sem resposta
+     * ainda (rota, permissão), a nota segue só por número/série, como sempre foi.
+     */
+    const ocrDocument = fieldDeliveryDocumentsQuery.data?.find(
+      (candidate) => candidate.id === document.id,
+    )
+    return {
+      id: document.id,
+      ...(ocrDocument?.accessKey == null ? {} : { accessKey: ocrDocument.accessKey }),
+      ...(document.nfeNumber === undefined ? {} : { nfeNumber: document.nfeNumber }),
+      ...(document.nfeSeries === undefined ? {} : { nfeSeries: document.nfeSeries }),
+      ...(ocrDocument?.releasedAt == null ? {} : { releasedAt: ocrDocument.releasedAt }),
+    }
+  })
   const documentActions = {
     canManage,
     canReportOnBehalf: workspace.controller.canReportOnBehalf,
@@ -457,6 +510,10 @@ export function TripDetail({
     openProofDocumentId: workspace.openProofDocumentId,
     renderProof: (documentId: string) => (
       <TripDeliveryProofLoader
+        canhotoReadContext={{
+          canhotoOcrEnabled: canhotoOcrSettingsQuery.data?.canhotoOcrEnabled ?? false,
+          tripDocuments: canhotoTripDocuments,
+        }}
         documentId={documentId}
         documents={trip.documents}
         workspace={workspace}
@@ -508,6 +565,7 @@ export function TripDetail({
     workspace.reportStopArrivalMutation.error,
     workspace.reportStopOccurrenceMutation.error,
     workspace.registerFieldOccurrencesMutation.error,
+    workspace.setTrailerMutation.error,
   ])
   /**
    * Spec 185 RF8: a recusa do botão "Despachar" ganha frase própria (parada nomeada, ou "sem
@@ -622,6 +680,14 @@ export function TripDetail({
     )
   }
 
+  function handleSetTrailer(trailerVehicleId: string): void {
+    if (trip === undefined) return
+    workspace.setTrailerMutation.mutate({
+      trailerVehicleId: trailerVehicleId === EMPTY_TRAILER_SELECTION ? null : trailerVehicleId,
+      tripId: trip.id,
+    })
+  }
+
   function handleCloseTrip(): void {
     setIsCloseDialogOpen(true)
   }
@@ -704,6 +770,7 @@ export function TripDetail({
           onStartRoute={() =>
             workspace.startFieldTripMutation.mutate({ ...officeDriverIdInput, tripId: trip.id })
           }
+          requiresTrailer={isTractorUnit && (trip.trailer ?? null) === null}
           selectedDriverId={officeDriverId ?? ''}
           trip={trip}
         />
@@ -787,6 +854,25 @@ export function TripDetail({
             vehicleType={vehicleIdentity.vehicleType}
           />
         )
+      ) : null}
+
+      {/* Spec 147 D3/T13: só o cavalo tem carreta, e ela pode ser trocada até o despacho. */}
+      {isTractorUnit ? (
+        <label>
+          <span>{t('detail.trailer')}</span>
+          <Select
+            ariaLabel={t('detail.trailer')}
+            clearable
+            disabled={!canManage || !isEditable}
+            options={trailerOptions}
+            placeholder={t('detail.trailerPlaceholder')}
+            value={trip.trailer?.id ?? EMPTY_TRAILER_SELECTION}
+            onChange={handleSetTrailer}
+          />
+          <small className={styles.hint}>
+            {isEditable ? t('detail.trailerHint') : t('detail.trailerLockedHint')}
+          </small>
+        </label>
       ) : null}
 
       <fieldset className={styles.driverChecklist}>
@@ -919,9 +1005,12 @@ export function TripDetail({
       */}
       <TripCargoPanel
         cargoWeight={trip.cargoWeight ?? null}
+        capacityUnknownReason={trip.capacityUnknownReason ?? null}
+        capacityUnknownVehicleId={trip.capacityUnknownVehicleId ?? null}
         layout={trip.cargoLayout}
         layoutView={workspace.cargoLayoutView}
         occupancy={trip.occupancy}
+        vehicleId={trip.vehicleId ?? ''}
         reviewQueue={
           <TripReviewQueue
             canManage={canManage}
@@ -951,23 +1040,22 @@ export function TripDetail({
           <TripRouteMap
             canAdjustTollBooth={canAdjustTollBooth}
             canCorrect={canManage}
-            canManage={canManage}
+            canReadFinancials={canReadFinancials}
+            canSwitchRoute={canManage && isEditable}
             geometry={workspace.routeGeometryQuery.data ?? null}
             stops={trip.stops}
             isCorrecting={workspace.correctAddressMutation.isPending}
             isGeometryError={workspace.routeGeometryQuery.isError}
             isGeometryPending={workspace.routeGeometryQuery.isPending}
-            isPlanRoutePending={workspace.planRouteMutation.isPending}
+            isRouteChoicePending={workspace.planRouteMutation.isPending}
             onCorrect={(correction) => workspace.correctAddressMutation.mutate(correction)}
-            onPlanRoute={(routeChoice) =>
-              workspace.planRouteMutation.mutate({
-                ...(routeChoice === undefined ? {} : { routeChoice }),
-                tripId: trip.id,
-              })
-            }
             onRetryGeometry={() => void workspace.routeGeometryQuery.refetch()}
-            tripStatus={trip.status}
-            vehicleId={trip.vehicleId}
+            onRouteChoiceSelect={(routeChoice) =>
+              workspace.planRouteMutation.mutate({ routeChoice, tripId: trip.id })
+            }
+            /** Spec 217 (RF1/D1): `trip.vehicleId` é `null` sem veículo — o sentinela `''` que a
+             * cadeia de props do switch usa (T405/T402) é convertido só nesta borda. */
+            vehicleId={trip.vehicleId ?? ''}
           />
         </>
       ) : null}
@@ -1106,23 +1194,7 @@ export function TripDetail({
             : fieldDeliveryDocumentIds.join(',')
         }
         onClose={() => setFieldDeliveryDocumentIds(null)}
-        tripDocuments={trip.documents.map((document) => {
-          /**
-           * Spec 156 T14, ADR-0069 §3: a chave inteira decide o casamento (fix `b1653f25`, T13) —
-           * `GET /trips/:id` não a traz (M1), então ela vem da rota estreita da T14. Sem resposta
-           * ainda (rota, permissão), a nota segue só por número/série, como sempre foi.
-           */
-          const ocrDocument = fieldDeliveryDocumentsQuery.data?.find(
-            (candidate) => candidate.id === document.id,
-          )
-          return {
-            id: document.id,
-            ...(ocrDocument?.accessKey == null ? {} : { accessKey: ocrDocument.accessKey }),
-            ...(document.nfeNumber === undefined ? {} : { nfeNumber: document.nfeNumber }),
-            ...(document.nfeSeries === undefined ? {} : { nfeSeries: document.nfeSeries }),
-            ...(ocrDocument?.releasedAt == null ? {} : { releasedAt: ocrDocument.releasedAt }),
-          }
-        })}
+        tripDocuments={canhotoTripDocuments}
       />
 
       {/*
@@ -1346,52 +1418,154 @@ function SeparationOccurrenceDialogLoader({
  * próprio: o que a consulta trouxe é o que a tela mostra, e reabrir o painel busca de novo — a URL
  * expira em cinco minutos, e uma cópia guardada viraria imagem quebrada sem explicação.
  */
-function TripDeliveryProofLoader({
+function noticeForOutcome(outcome: CanhotoReviewOutcome): CanhotoReviewNotice | undefined {
+  return outcome === CANHOTO_REVIEW_OUTCOME.ALREADY_RESOLVED
+    ? CANHOTO_REVIEW_NOTICE.ALREADY_RESOLVED
+    : undefined
+}
+
+export function TripDeliveryProofLoader({
+  canhotoReadContext,
   documents,
   documentId,
   workspace,
 }: Readonly<{
+  canhotoReadContext?: CanhotoReadContext
   documentId: string
   documents: readonly TripDocumentDetail[]
   workspace: TripWorkspaceController
 }>) {
+  const [isRejectOpen, setIsRejectOpen] = useState(false)
+  const [isRejecting, setIsRejecting] = useState(false)
+  const [rejectErrorCode, setRejectErrorCode] = useState<string | undefined>()
+  const [reviewNotice, setReviewNotice] = useState<CanhotoReviewNotice | undefined>()
+  const { t } = useTranslation('trip')
   const document = documents.find((candidate) => candidate.id === documentId)
   if (document === undefined) return null
 
+  async function handleRejectSubmit(submission: CanhotoRejectSubmission) {
+    if (document === undefined) return
+    setIsRejecting(true)
+    setRejectErrorCode(undefined)
+    setReviewNotice(undefined)
+    try {
+      const outcome = await workspace.reviewCanhoto({
+        documentId,
+        review: { action: 'reject', ...submission },
+        tripId: document.tripId,
+      })
+      setReviewNotice(noticeForOutcome(outcome))
+      setIsRejectOpen(false)
+    } catch (error) {
+      setRejectErrorCode(error instanceof Error ? error.message : undefined)
+    } finally {
+      setIsRejecting(false)
+    }
+  }
+
+  async function handleApprove() {
+    if (document === undefined) return
+    setReviewNotice(undefined)
+    try {
+      setReviewNotice(
+        noticeForOutcome(
+          await workspace.reviewCanhoto({
+            documentId,
+            review: { action: 'approve' },
+            tripId: document.tripId,
+          }),
+        ),
+      )
+    } catch {
+      setReviewNotice(CANHOTO_REVIEW_NOTICE.FAILED)
+    }
+  }
+
+  function handleAutomaticUnavailable() {
+    setReviewNotice(CANHOTO_REVIEW_NOTICE.AUTOMATIC_UNAVAILABLE)
+  }
+
   if (workspace.deliveryProofsQuery.isLoading) return <Skeleton variant="text" width="60%" />
 
+  const canhotoAwaitingReview = workspace.deliveryProofsQuery.data?.find(
+    (proof) =>
+      proof.kind === 'photo' &&
+      proof.canhotoReview === 'pending' &&
+      proof.canhotoReadSource === undefined &&
+      !hasCanhotoReviewSettled(proof.id),
+  )
+
   return (
-    <TripDeliveryProof
-      documentId={documentId}
-      occurrences={
-        <TripOccurrences
-          canRegister={workspace.controller.canManageTrips}
-          email={workspace.lastOccurrenceEmail}
-          isRegistering={workspace.isSendingOccurrencePhotos}
-          occurrences={workspace.occurrencesQuery.data ?? []}
-          onRegister={(occurrence) =>
-            workspace.sendSeparationOccurrencePhotos({
-              documentId,
-              note: occurrence.note,
-              occurrenceTypeId: occurrence.occurrenceTypeId,
-              photos: occurrence.photos,
-              productCodes: occurrence.productCodes,
-              productQuantities: occurrence.productQuantities,
-              productQuantityUnits: occurrence.productQuantityUnits,
-              tripId: document.tripId,
-            })
-          }
-          onReset={workspace.resetSeparationOccurrencePhotoSend}
-          photoSendState={workspace.occurrencePhotoSendState}
-          products={workspace.documentProductsQuery.data ?? []}
-          types={workspace.occurrenceTypesQuery.data ?? []}
+    <>
+      {canhotoReadContext === undefined || canhotoAwaitingReview === undefined ? null : (
+        <CanhotoAutomaticReview
+          context={canhotoReadContext}
+          documentId={documentId}
+          onUnavailable={handleAutomaticUnavailable}
+          proof={canhotoAwaitingReview}
+          reviewCanhoto={workspace.reviewCanhoto}
+          tripId={document.tripId}
         />
-      }
-      products={workspace.documentProductsQuery.data ?? []}
-      view={resolveDeliveryProofView({
-        document,
-        proofs: workspace.deliveryProofsQuery.data ?? [],
-      })}
-    />
+      )}
+      <CanhotoRejectDialog
+        isOpen={isRejectOpen}
+        isSubmitting={isRejecting}
+        onClose={() => setIsRejectOpen(false)}
+        onSubmit={(submission) => {
+          void handleRejectSubmit(submission)
+        }}
+        {...(rejectErrorCode === undefined ? {} : { serverErrorCode: rejectErrorCode })}
+      />
+      {reviewNotice === undefined ? null : (
+        <p
+          className={reviewNotice === CANHOTO_REVIEW_NOTICE.FAILED ? styles.alert : styles.hint}
+          role="alert"
+        >
+          {t(`deliveryProof.canhotoReview.${reviewNotice}`)}
+        </p>
+      )}
+      <TripDeliveryProof
+        documentId={documentId}
+        occurrences={
+          <TripOccurrences
+            canRegister={workspace.controller.canManageTrips}
+            email={workspace.lastOccurrenceEmail}
+            isRegistering={workspace.isSendingOccurrencePhotos}
+            occurrences={workspace.occurrencesQuery.data ?? []}
+            onRegister={(occurrence) =>
+              workspace.sendSeparationOccurrencePhotos({
+                documentId,
+                note: occurrence.note,
+                occurrenceTypeId: occurrence.occurrenceTypeId,
+                photos: occurrence.photos,
+                productCodes: occurrence.productCodes,
+                productQuantities: occurrence.productQuantities,
+                productQuantityUnits: occurrence.productQuantityUnits,
+                tripId: document.tripId,
+              })
+            }
+            onReset={workspace.resetSeparationOccurrencePhotoSend}
+            photoSendState={workspace.occurrencePhotoSendState}
+            products={workspace.documentProductsQuery.data ?? []}
+            types={workspace.occurrenceTypesQuery.data ?? []}
+          />
+        }
+        products={workspace.documentProductsQuery.data ?? []}
+        reviewActions={{
+          canReview: workspace.controller.canManageTrips,
+          onApprove: () => {
+            void handleApprove()
+          },
+          onReject: () => {
+            setRejectErrorCode(undefined)
+            setIsRejectOpen(true)
+          },
+        }}
+        view={resolveDeliveryProofView({
+          document,
+          proofs: workspace.deliveryProofsQuery.data ?? [],
+        })}
+      />
+    </>
   )
 }

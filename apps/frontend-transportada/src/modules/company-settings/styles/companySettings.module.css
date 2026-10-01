@@ -71,7 +71,7 @@
 .heroCopy {
   max-width: 42rem;
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  color: var(--color-slate-muted);
   font-size: 0.95rem;
   line-height: 1.55;
   text-transform: none;

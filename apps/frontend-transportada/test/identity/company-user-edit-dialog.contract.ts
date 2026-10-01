@@ -36,6 +36,7 @@ const ACTIVATED_USER_PAYLOAD = {
 function entryOf(status: ReconciliationEntry['status'], suffix: string): ReconciliationEntry {
   return {
     differences: [],
+    realmDisabled: false,
     local: {
       contact: 'a***@e***.test',
       email: '',
@@ -138,6 +139,7 @@ describe('o resultado do conserto chega à tela', () => {
       createdInRealm: [],
       createdLocally: [],
       skipped: [],
+      skippedUserIds: [],
     })
   })
 })

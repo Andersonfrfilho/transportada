@@ -66,6 +66,22 @@ export const SLOW_LOAD_NOTICE_DELAY_MS = 4000
 
 export const TRIP_PAGE_SIZE = 25
 
+export const CANHOTO_REVIEW_ALREADY_RESOLVED_CODE = 'CANHOTO_REVIEW_ALREADY_RESOLVED'
+export const CANHOTO_REVIEW_OUTCOME = {
+  ALREADY_RESOLVED: 'alreadyResolved',
+  APPLIED: 'applied',
+} as const
+export type CanhotoReviewOutcome =
+  (typeof CANHOTO_REVIEW_OUTCOME)[keyof typeof CANHOTO_REVIEW_OUTCOME]
+
+/** O aviso do painel é o sufixo da chave em `deliveryProof.canhotoReview`. */
+export const CANHOTO_REVIEW_NOTICE = {
+  ALREADY_RESOLVED: CANHOTO_REVIEW_OUTCOME.ALREADY_RESOLVED,
+  AUTOMATIC_UNAVAILABLE: 'automaticUnavailable',
+  FAILED: 'failed',
+} as const
+export type CanhotoReviewNotice = (typeof CANHOTO_REVIEW_NOTICE)[keyof typeof CANHOTO_REVIEW_NOTICE]
+
 /** Detalhe e lista compartilham o prefixo: invalidar a viagem precisa refazer a tabela também. */
 export const TRIP_QUERY_KEY = 'trips'
 export const TRIP_LIST_QUERY_KEY = [TRIP_QUERY_KEY, 'list'] as const
@@ -115,6 +131,11 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   TRIP_STOP_SET_MISMATCH: 'stopSetMismatch',
   /** Spec 158 T6: `GET /trips/:id/timeline` com `cursor` malformado. */
   TRIP_TIMELINE_CURSOR_INVALID: 'timelineCursorInvalid',
+  /** Spec 147 D3/RF8: os quatro códigos novos da carreta — RF5/T10/T11. */
+  TRIP_TRAILER_IN_USE: 'trailerInUse',
+  TRIP_TRAILER_NOT_A_TRAILER: 'trailerNotATrailer',
+  TRIP_TRAILER_REQUIRED: 'trailerRequired',
+  TRIP_TRAILER_REQUIRES_TRACTOR: 'trailerRequiresTractor',
   TRIP_VEHICLE_NOT_AVAILABLE: 'vehicleNotAvailable',
   TRIP_VEHICLE_NOT_FOUND: 'vehicleNotFound',
   /** Spec 156 D3: viagem sem motorista não aceita baixa pelo escritório. */
@@ -175,8 +196,17 @@ export const TRIP_KEYS = [
 
 export const TRIP_DRIVER_KEYS = ['driverId', 'driverName', 'driverTaxId', 'position'] as const
 
-/** Spec 078 D2: o contato nasce opcional — API anterior serve o motorista sem ele. */
-export const TRIP_DRIVER_OPTIONAL_KEYS = ['driverEmail', 'driverPhone'] as const
+/**
+ * Spec 078 D2: o contato nasce opcional — API anterior serve o motorista sem ele.
+ * `role` (spec 149/ADR-0065, papel na tripulação) chegou hoje sem entrar nesta lista, e toda
+ * viagem virava `invalid()` na criação — 201 no servidor, "Não foi possível criar a viagem" na
+ * tela (28/09/2026, staging).
+ */
+export const TRIP_DRIVER_OPTIONAL_KEYS = ['driverEmail', 'driverPhone', 'role'] as const
+
+/** Cópia por valor de `TRIP_CREW_ROLES` — fonte: `api-transportada/src/shared/trip-crew-role.constant.ts`. */
+export const TRIP_CREW_ROLES = ['driver', 'helper'] as const
+export type TripCrewRole = (typeof TRIP_CREW_ROLES)[number]
 
 export const TRIP_DOCUMENT_KEYS = [
   'createdAt',
@@ -266,7 +296,15 @@ export const TRIP_OPTIONAL_KEYS = [
   'estimatedFinishAt',
 ] as const
 
-export const TRIP_AMOUNTS_KEYS = ['documentsTotal', 'revenueSource', 'revenueTotal'] as const
+export const TRIP_AMOUNTS_KEYS = ['revenueSource'] as const
+
+/**
+ * Spec 153 T710: sem `trip.financials` a API redige `documentsTotal`/`revenueTotal` do corpo — a
+ * chave **some**, nunca vira `null`/zero (D10). `hasExactKeys` sobre as três chaves reprovava a
+ * resposta inteira, derrubando a listagem inteira do mesmo jeito que o C1/T701 derrubou a nota
+ * fiscal. `revenueSource` continua obrigatória: ela não é dinheiro, é a origem do número.
+ */
+export const TRIP_AMOUNTS_OPTIONAL_KEYS = ['documentsTotal', 'revenueTotal'] as const
 
 /**
  * ⚠️ **Cópia por valor da API**, como `FUEL_TYPES`: o bundle não carrega código do servidor. Fonte:
@@ -308,8 +346,14 @@ export const TRIP_DETAIL_OPTIONAL_KEYS = [
   'cargoLayoutState',
   /** Spec 148 T7: a planta do hash atual — é por ela que o botão tira as notas que não couberam. */
   'cargoLayoutId',
+  /** Spec 147 D2/RF4: campo novo, nasce opcional como todo campo novo (spec 078 D2). */
+  'capacityUnknownReason',
+  /** T18 (revisão, item 10): campo novo, mesma regra do opcional acima. */
+  'capacityUnknownVehicleId',
   'cargoWeight',
   'occupancy',
+  /** Spec 147 D3/RF5: a carreta atrelada — campo novo, mesma regra do opcional acima. */
+  'trailer',
 ] as const
 
 export const TRIP_CARGO_LAYOUT_STATE_KEYS = [
@@ -328,6 +372,19 @@ export const TRIP_CARGO_LAYOUTS_PATH = `${TRIPS_PATH}/cargo-layouts`
 /** Spec 148 T7: a fila de revisão das notas que não couberam — fora da árvore `/trips/:id`. */
 export const TRIP_DOCUMENT_REVIEWS_PATH = '/trip-document-reviews'
 export const TRIP_REVIEW_QUERY_KEY = 'trip-document-reviews'
+
+/** Spec 147 D3/RF5: cópia por valor de `api-transportada/src/trips/application/trip.port.ts`. */
+export const TRIP_TRAILER_KEYS = ['bodyType', 'id', 'plate'] as const
+
+/**
+ * ⚠️ Cópia por valor da API: fonte
+ * `api-transportada/src/trips/domain/capacity-unknown-reason.policy.ts`.
+ */
+export const CAPACITY_UNKNOWN_REASONS = [
+  'bodyTypeMissing',
+  'referenceMissing',
+  'trailerMissing',
+] as const
 
 /**
  * Spec 079: o peso da carga. **Sem razão de ocupação** — a ficha do veículo não guarda capacidade
@@ -436,7 +493,41 @@ export const TRIP_TIMELINE_ITEM_KEYS = [
  * Spec 205 RF8: o registro tardio do motorista, só como dado. Opcional porque a API anterior ao campo
  * não o manda — a chave exata recusaria a página inteira na janela entre as duas subidas.
  */
-export const TRIP_TIMELINE_ITEM_OPTIONAL_KEYS = ['lateRegistration'] as const
+export const TRIP_TIMELINE_ITEM_OPTIONAL_KEYS = [
+  'lateRegistration',
+  'location',
+  'locationState',
+] as const
+
+/** Spec 196 RF9: o ponto onde o toque aconteceu; a precisão é nula quando o aparelho não a informou. */
+export const TRIP_TIMELINE_LOCATION_KEYS = [
+  'accuracyMeters',
+  'capturedAt',
+  'distanceMeters',
+  'latitude',
+  'longitude',
+] as const
+
+/** Casas decimais da coordenada impressa no tooltip — cinco dão ~1 m, o que a precisão do GPS sustenta. */
+export const TRIP_TIMELINE_LOCATION_COORDINATE_DIGITS = 5
+export const TRIP_TIMELINE_LOCATION_LINE_SEPARATOR = ' · '
+/**
+ * Spec 196: a distância do toque até o ponto da parada saía em metro cru, e `a 208255 m do ponto`
+ * não é um número que alguém leia. Abaixo de um quilômetro o metro é a unidade da quadra; entre um
+ * e dez, a casa decimal ainda separa 1,2 de 1,9; acima disso ela é ruído sobre uma leitura de GPS.
+ */
+export const TRIP_TIMELINE_METERS_PER_KILOMETER = 1000
+export const TRIP_TIMELINE_DISTANCE_KILOMETER_THRESHOLD_METERS = 1000
+export const TRIP_TIMELINE_DISTANCE_COARSE_KILOMETER_THRESHOLD_METERS = 10000
+export const TRIP_TIMELINE_DISTANCE_PRECISE_FRACTION_DIGITS = 1
+export const TRIP_TIMELINE_DISTANCE_COARSE_FRACTION_DIGITS = 0
+/**
+ * Chave de cor do pino do evento, **lida só dentro do `TripTimelineLocationMap`** — o mapa
+ * compartilhado não interpreta mais número fora de faixa, ele recebe `isUnnumbered`. A cor em si é
+ * `EVENT_PIN_COLOR`, em `stopColor.service.ts`, onde a janela de luminância é medida.
+ */
+export const TRIP_TIMELINE_LOCATION_EVENT_PIN_SEQUENCE = 0
+export const TRIP_TIMELINE_LOCATION_EVENT_PIN_KEY = 'timeline-event-location'
 
 export const TRIP_TIMELINE_STOP_REFERENCE_KEYS = ['id', 'sequence'] as const
 export const TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS = ['id', 'number', 'series'] as const
@@ -492,7 +583,50 @@ export const DELIVERY_PROOF_KEYS = [
  * Spec 205 RF8: `lateRegistration` é o registro tardio, só como dado. `receiverDocument` (sempre a
  * máscara) já saía da API desde a spec 082 e a chave exata recusava a lista inteira por ele.
  */
-export const DELIVERY_PROOF_OPTIONAL_KEYS = ['lateRegistration', 'receiverDocument'] as const
+export const DELIVERY_PROOF_OPTIONAL_KEYS = [
+  'canhotoReadNumber',
+  'canhotoReadSeries',
+  'canhotoReadSource',
+  'canhotoReview',
+  'canhotoReviewAt',
+  'canhotoReviewByName',
+  'canhotoReviewNote',
+  'canhotoReviewOrigin',
+  'canhotoReviewReason',
+  'capturedAt',
+  'distanceMeters',
+  'lateRegistration',
+  'punctuality',
+  'receiverDocument',
+  'thumbnailUrl',
+] as const
+
+/**
+ * Spec 220 RF16: veredito de pontualidade da captura. ⚠️ Só o texto derivado da distância chega
+ * ao painel — a coordenada nunca sai da API.
+ */
+export const DELIVERY_PROOF_PUNCTUALITY_OPTIONS = [
+  'on_time',
+  'late',
+  'away',
+  'late_and_away',
+  'not_required',
+] as const
+
+/**
+ * Spec 220 RF24: vocabulário da conferência do canhoto. ⚠️ `canhotoReview` não aceita
+ * `not_applicable`: a API omite o bloco inteiro nesse estado, e aceitá-lo aqui esconderia um
+ * servidor fora do contrato.
+ */
+export const DELIVERY_PROOF_CANHOTO_REVIEW_OPTIONS = ['pending', 'approved', 'rejected'] as const
+export const DELIVERY_PROOF_CANHOTO_REVIEW_ORIGIN_OPTIONS = ['automatic', 'manual'] as const
+export const DELIVERY_PROOF_CANHOTO_READ_SOURCE_OPTIONS = ['barcode', 'ocr'] as const
+export const DELIVERY_PROOF_CANHOTO_REVIEW_REASON_OPTIONS = [
+  'illegible',
+  'wrong_document',
+  'missing_signature',
+  'other',
+] as const
 
 export const TRIP_CARGO_WEIGHT_KEYS = [
   'documentsWithoutWeight',

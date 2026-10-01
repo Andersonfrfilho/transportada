@@ -38,19 +38,25 @@ export type AxleCount = Readonly<{ count: number; source: AxleCountSource }>
  * nó no backend.
  */
 export type RouteGeometryTollBooth = Readonly<{
-  chargeCar: null | string
-  chargePerAxle: null | string
+  /**
+   * ⚠️ Ausente por inteiro — a chave, não um `null` — sem a permissão `trip.financials` (spec 153
+   * D10). `null` continua significando "praça sem tarifa conhecida" para quem tem a permissão.
+   */
+  chargeCar?: null | string
+  chargePerAxle?: null | string
   /**
    * O que **esta** praça custou por eixo neste veículo — a tarifa da tag quando ele a tem e ela
    * existe, a manual no resto. ⚠️ É este valor que o extrato imprime, nunca o `chargePerAxle` cru:
    * com tag o cru é a tarifa que o veículo não pagou, e linhas que não somam o total fazem duvidar
-   * do total. `null` é praça sem tarifa conhecida — nunca zero, que diria cancela franca.
+   * do total. `null` é praça sem tarifa conhecida — nunca zero, que diria cancela franca. Ausente
+   * sem `trip.financials` (spec 153 D10).
    */
-  effectiveChargePerAxle: null | string
+  effectiveChargePerAxle?: null | string
   /** Esta praça não tem tarifa de tag e caiu para a manual (spec 095 D3). */
   fellBackToManual: boolean
-  /** `effectiveChargePerAxle × eixos`, e `null` pela mesma razão. */
-  total: null | string
+  /** `effectiveChargePerAxle × eixos`. Ausente sem `trip.financials` (spec 153 D10), `null` pela
+   *  mesma razão de sempre quando a permissão existe. */
+  total?: null | string
   latitude: string
   longitude: string
   /**
@@ -111,12 +117,14 @@ export type RouteGeometryToll = Readonly<{
   /** Quantas praças caíram para a manual por falta de tarifa automática (spec 095 D3) — só
    *  existe quando `paymentMode` é `automatic`. Nunca se aplica desconto estimado. */
   boothsFallenBackToManual: number
-  chargePerAxle: string
+  /** Ausente por inteiro sem `trip.financials` (spec 153 D10) — nunca `null`, nunca zero. */
+  chargePerAxle?: string
   /** Se o veículo paga com tag — a base que a tela mostra ao lado do total. */
   paymentMode: TollPaymentMode
   /** A mais antiga entre as praças cobradas; `null` quando a rota não passou por praça nenhuma. */
   tariffObservedOn: null | string
-  total: string
+  /** Ausente por inteiro sem `trip.financials` (spec 153 D10) — nunca `null`, nunca zero. */
+  total?: string
 }>
 
 /**
@@ -129,15 +137,24 @@ export type RouteCostGap = (typeof ROUTE_COST_GAPS)[number]
 /**
  * Spec 153 D2/D3: por qual regra reencontrar a rota escolhida quando a assinatura não bate. Cópia
  * por valor de `ROUTE_CHOICE_CRITERIA` (`api-transportada/src/trips/domain/route-choice.policy.ts`).
+ * Nunca um índice: índice descreve posição numa lista que pode ser reordenada entre a proposta e a
+ * viagem congelada, critério descreve a decisão.
  */
 export const ROUTE_CHOICE_CRITERIA = ['cheapest', 'fastest', 'no_toll', 'alternative'] as const
 export type RouteChoiceCriterion = (typeof ROUTE_CHOICE_CRITERIA)[number]
 
-/** A rota que o operador viu: a assinatura a identifica, o critério é o plano B (spec 153 D3). */
+/**
+ * A rota que o operador viu: a assinatura a identifica, o critério é o plano B (spec 153 D3). É
+ * também o que `onRouteChoiceChange` manda ao sair do componente (spec 153 T402) — a mesma forma
+ * que a viagem grava ao regravar a rota escolhida por `plan-route`.
+ */
 export type RouteChoice = Readonly<{
   criterion: RouteChoiceCriterion
   signature: null | string
 }>
+
+/** D1: a mais barata é o default — quem nunca tocou o seletor aceitou esta opção (spec 153 T404). */
+export const DEFAULT_ROUTE_CHOICE: RouteChoice = { criterion: 'cheapest', signature: null }
 
 /**
  * Uma alternativa de rota (spec 096 T1) — a mesma forma que os campos de sempre de `RouteGeometry`
@@ -146,19 +163,23 @@ export type RouteChoice = Readonly<{
 export type RouteGeometryOption = Readonly<{
   distanceMeters: number
   durationSeconds: number
-  /** `null` quando o veículo não declara consumo/preço, ou quando o pedágio é desconhecido. */
-  fuelTotal: null | string
-  /** Se a opção veio da chamada sem pedágio (`exclude=toll`, spec 153) — o critério `no_toll`. */
-  isNoToll: boolean
+  /** Ausente sem `trip.financials` (spec 153 D10); `null` quando o veículo não declara
+   *  consumo/preço, ou quando o pedágio é desconhecido — com a permissão. */
+  fuelTotal?: null | string
+  /** `true` quando o roteirizador escolheu esta opção justamente para não passar por praça nenhuma
+   *  (spec 153 D2) — distinto de `toll === null`, que é ausência de dado, não uma rota sem pedágio. */
+  isNoToll?: boolean
   legs: readonly RouteGeometryLeg[]
   points: readonly Readonly<{ latitude: string; longitude: string }>[]
   /**
-   * A identidade da rota — a sequência de nós percorridos (spec 153 D2). ⚠️ É ela, e não o índice,
-   * que reencontra a rota escolhida quando a API pede as rotas de novo. `null` sem anotação de nó.
+   * sha256 dos nós OSM da opção, 16 bytes em hex (spec 153 D2) — a identidade que a viagem tenta
+   * reproduzir ao congelar, e não o índice, que reencontra a rota escolhida quando a API pede as
+   * rotas de novo. `null` quando o requisitante não trouxe assinatura.
    */
-  signature: null | string
+  signature?: null | string
   toll: null | RouteGeometryToll
-  totalCost: null | string
+  /** Ausente sem `trip.financials` (spec 153 D10); `null` pela razão de sempre com a permissão. */
+  totalCost?: null | string
 }>
 
 /**
@@ -236,16 +257,32 @@ export type RouteGeometry = Readonly<{
   /** `false` quando o roteirizador só ofereceu um caminho — a tela não desenha seletor. */
   hasChoice?: boolean
   /**
-   * Spec 153: índice em `options` da rota que a viagem usa — a congelada, ou a do critério padrão.
-   * `null` quando não aponta para opção nenhuma; a tela cai na principal.
+   * Índice em `options` da rota escolhida (spec 153) — nunca a identidade da escolha, só a posição
+   * na lista publicada nesta resposta. `null` quando a rota está ausente (D5).
    */
   selectedIndex?: null | number
-  /** Se a rota pedida foi a reproduzida, ou se a escolha caiu no critério/na principal (D3). */
+  /**
+   * `false` quando a assinatura gravada não bateu com nenhuma rota que o OSRM devolveu hoje e o
+   * critério foi usado como plano B (spec 153 D3) — a estrada pode ter mudado. Só existe sentido na
+   * rota **congelada** da viagem; na resposta de `/route-geometry` (sem viagem) não se aplica.
+   */
   choiceReproduced?: boolean
-  /** Se a rota é a congelada no planejamento, e não uma leitura ao vivo. */
-  frozen?: boolean
-  /** O critério gravado com a rota congelada; `null` na leitura ao vivo. */
+  /** Por que critério a rota da viagem foi escolhida (spec 153 D2) — `null` fora do contexto de uma
+   *  viagem, ou quando a rota está ausente (D5). Nunca um índice. */
   criterion?: null | RouteChoiceCriterion
+  /**
+   * A distância e a duração da rota **congelada** da viagem (spec 153 D9) — sempre presentes para
+   * todo mundo, nunca dinheiro. `null` só quando a rota inteira está ausente (D5), nunca zero.
+   */
+  distanceMeters?: null | number
+  durationSeconds?: null | number
+  /** `true` quando esta é a rota congelada da viagem, não a leitura ao vivo (spec 153 T203). */
+  frozen?: boolean
+  /** A volta da última parada ao barracão (spec 153 D9) — mesma regra de ausência de `distanceMeters`. */
+  returnDistanceMeters?: null | number
+  /** sha256 dos nós OSM da rota congelada (spec 153 D2/D3), para a viagem tentar reproduzir a mesma
+   *  estrada quando o OSRM responder de novo. `null` quando a rota está ausente (D5). */
+  signature?: null | string
 }>
 
 export type ProjectedPoint = Readonly<{ x: number; y: number }>
@@ -258,12 +295,26 @@ export type RouteTrace = Readonly<{
   path: string
 }>
 
+/**
+ * A polilinha que **vai mesmo ser desenhada** como estrada — vazia quando não há estrada a desenhar.
+ *
+ * ⚠️ É o único lugar que decide "isto é estrada": quem desenha o traço e quem escreve a legenda ao
+ * lado dele leem desta função. Duas cópias da condição deixariam a legenda dizer "segue as vias"
+ * sobre um tracejado reto, que é exatamente a mentira que a ADR-0044 §5 proíbe.
+ */
+export function resolveRoadPoints(
+  geometry: RouteGeometry | null,
+): readonly Readonly<{ latitude: string; longitude: string }>[] {
+  const road = geometry?.source === 'road' ? geometry.points : []
+  return road.length < 2 ? [] : road
+}
+
 export function resolveRouteTrace(input: {
   readonly geometry: RouteGeometry | null
   readonly project: (point: Readonly<{ latitude: number; longitude: number }>) => ProjectedPoint
   readonly stops: readonly ProjectedPoint[]
 }): RouteTrace {
-  const road = input.geometry?.source === 'road' ? input.geometry.points : []
+  const road = resolveRoadPoints(input.geometry)
 
   if (road.length >= 2) {
     const projected = road.map((point) =>
@@ -282,8 +333,6 @@ export function resolveRouteTrace(input: {
  * o roteiro se confundia com o fundo. Pintar cada trecho com a cor da parada a que ele leva casa o
  * mapa com a listagem, e é a listagem que a pessoa está lendo ao lado.
  */
-export type RouteTraceSegment = RouteTrace & Readonly<{ toSequence: number }>
-
 /** O mesmo trecho antes de virar `path`: o MapLibre quer coordenada, não `d` de SVG. */
 export type RouteLeg = Readonly<{
   dashed: boolean
@@ -387,19 +436,6 @@ export function resolveRouteLegs(input: {
       { dashed: false, kind: 'road' as const, points: slice, toSequence: boundary.toSequence },
     ]
   })
-}
-
-export function resolveRouteTraceSegments(input: {
-  readonly geometry: RouteGeometry | null
-  readonly project: (point: Readonly<{ latitude: number; longitude: number }>) => ProjectedPoint
-  readonly stops: readonly ProjectedPoint[]
-}): readonly RouteTraceSegment[] {
-  return resolveRouteLegs(input).map((leg) => ({
-    dashed: leg.dashed,
-    kind: leg.kind,
-    path: toPath(leg.points),
-    toSequence: leg.toSequence,
-  }))
 }
 
 function cutIndexes(input: {

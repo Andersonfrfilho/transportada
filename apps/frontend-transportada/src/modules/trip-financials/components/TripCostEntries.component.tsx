@@ -7,6 +7,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
 import { formatAmount, sumScaledAmounts } from '@/modules/shared/decimalAmount.service'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import type { TripCostEntryFormFields } from '../shared/tripCostEntryForm.service'
 import type { CompanyEntryKind, TripCostEntry } from '../shared/tripFinancials.types'
@@ -25,11 +26,6 @@ type TripCostEntriesProps = Readonly<{
   onRemove: (entryId: string) => Promise<boolean>
   onRetry: () => void
 }>
-
-const momentFormatter = new Intl.DateTimeFormat('pt-BR', {
-  dateStyle: 'short',
-  timeStyle: 'short',
-})
 
 /**
  * Spec 143 D6: o que já foi lançado nesta viagem, com autor e momento, e o campo para lançar mais.
@@ -53,6 +49,7 @@ export function TripCostEntries({
   onRetry,
 }: TripCostEntriesProps) {
   const { t } = useTranslation('tripFinancials')
+  const formatMoment = useMomentFormatter()
 
   return (
     <div className={styles.costEntries}>
@@ -105,7 +102,7 @@ export function TripCostEntries({
                   {t('costEntries.by', {
                     actor:
                       entry.actor.name === '' ? t('costEntries.unknownActor') : entry.actor.name,
-                    moment: momentFormatter.format(new Date(entry.createdAt)),
+                    moment: formatMoment(entry.createdAt),
                   })}
                 </span>
               </div>

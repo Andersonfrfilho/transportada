@@ -1,7 +1,7 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/offlineAttachments.service.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DriverReportedLocation, ProofPunctuality } from './driverTrip.types'
-import type { OfflineQueueStore, QueuedReport } from './offlineQueue.service'
+import type { DriverTripErrorDetail, OfflineQueueStore, QueuedReport } from './offlineQueue.service'
 
 /**
  * Spec 082 D6: o comprovante entra na fila quando a entrega ainda não subiu. O blob mora numa store
@@ -30,7 +30,7 @@ export type QueuedAttachment = Readonly<{
   fileName: string
   /** Spec 189 T9.2 ("Confirmar em lote"): capturado sem sessão — só sobe depois da confirmação. */
   isUnverified?: true
-  kind: 'photo' | 'signature'
+  kind: 'cargo' | 'photo' | 'signature'
   /** Pedido do usuário (25/09): mesma marca do `deliver`/`return` desta parada, atrás do mesmo interruptor. */
   lateRegistration?: boolean
   /** Spec 159 RF3/RF5-RF6: posição lida no momento da captura — dado pessoal, nunca em log. */
@@ -56,6 +56,8 @@ export type QueuedAttachment = Readonly<{
   rejectionCause?: string
   /** ADR-0075 §8: o dono do anexo, como em `QueuedReport.subHash`. */
   subHash?: string
+  /** Spec 220 RF17/RF19: a miniatura gerada com a redução; ausente sobe só o original. */
+  thumbnail?: Blob
 }>
 
 export type AttachmentGroupEntries = readonly (readonly [string, readonly QueuedAttachment[]])[]
@@ -82,6 +84,21 @@ export function documentAttachmentKey(documentId: string): string {
   return `document:${documentId}`
 }
 
+const AWAITING_DELIVERY_KEY_PREFIX = 'awaiting-delivery:'
+
+/**
+ * Spec 218 (RF-A3): o canhoto colhido **antes** da entrega. A API só aceita canhoto de nota com
+ * entrega registrada, então este grupo nunca drena — espera o "Confirmar entrega" soltá-lo para o
+ * grupo do evento (`releaseAttachmentsAwaitingDelivery`).
+ */
+export function awaitingDeliveryAttachmentKey(documentId: string): string {
+  return `${AWAITING_DELIVERY_KEY_PREFIX}${documentId}`
+}
+
+export function isAwaitingDeliveryKey(eventKey: string): boolean {
+  return eventKey.startsWith(AWAITING_DELIVERY_KEY_PREFIX)
+}
+
 /**
  * O anexo procura primeiro o evento de entrega **ainda na fila** daquela nota — "evento primeiro",
  * como antes. Spec 159: quando a entrega já saiu da fila (já foi aceita, ou é anexo em lote de uma
@@ -91,6 +108,8 @@ export function documentAttachmentKey(documentId: string): string {
 export async function enqueueAttachment(input: {
   readonly attachment: QueuedAttachment
   readonly attachmentStore: AttachmentStore
+  /** Spec 218: capturado antes da entrega — sem ela na fila, espera numa chave que não drena. */
+  readonly awaitingDelivery?: boolean
   /** Boot sem rede (`canSync: false`): o anexo espera a confirmação do dono para subir. */
   readonly isUnverified?: boolean
   readonly limits?: AttachmentLimits
@@ -101,8 +120,11 @@ export async function enqueueAttachment(input: {
     (item) =>
       item.report.kind === 'deliver' && item.report.documentId === input.attachment.documentId,
   )
-  const eventKey =
-    target?.report.idempotencyKey ?? documentAttachmentKey(input.attachment.documentId)
+  const standaloneKey =
+    input.awaitingDelivery === true
+      ? awaitingDeliveryAttachmentKey(input.attachment.documentId)
+      : documentAttachmentKey(input.attachment.documentId)
+  const eventKey = target?.report.idempotencyKey ?? standaloneKey
 
   /** A recusa vem **antes** de qualquer escrita: teto atingido não descarta o que já está lá. */
   const limits = input.limits ?? ATTACHMENT_QUEUE_LIMIT
@@ -123,6 +145,50 @@ export async function enqueueAttachment(input: {
   })
 
   return { accepted: true, eventKey }
+}
+
+/**
+ * Spec 218 (RF-A3): a entrega entrou na fila — o canhoto que esperava por ela passa para o grupo do
+ * evento e sobe atrás dele, como qualquer anexo. Grava no evento antes de apagar a espera:
+ * interrompido no meio sobra uma cópia parada (a chave do anexo é idempotente na API), nunca falta.
+ */
+export async function releaseAttachmentsAwaitingDelivery(input: {
+  readonly attachmentStore: AttachmentStore
+  readonly documentId: string
+  readonly eventKey: string
+}): Promise<number> {
+  const awaitingKey = awaitingDeliveryAttachmentKey(input.documentId)
+  const awaiting = await input.attachmentStore.read(awaitingKey)
+  if (awaiting.length === 0) return 0
+
+  await input.attachmentStore.update({
+    eventKey: input.eventKey,
+    mutate: (existing) => [...existing, ...awaiting],
+  })
+  const releasedKeys = new Set(awaiting.map((attachment) => attachment.attachmentKey))
+  await input.attachmentStore.update({
+    eventKey: awaitingKey,
+    mutate: (current) =>
+      current.filter((attachment) => !releasedKeys.has(attachment.attachmentKey)),
+  })
+  return awaiting.length
+}
+
+/**
+ * Spec 218: a entrega que o canhoto esperava não vai acontecer — o gate foi cancelado, ou a nota
+ * voltou ("Não entreguei"). O anexo sai da fila na hora, em vez de esperar o descarte de 7 dias. O
+ * que já foi solto para o grupo de uma entrega não é mais da espera, e fica.
+ */
+export async function discardAttachmentsAwaitingDelivery(input: {
+  readonly attachmentStore: AttachmentStore
+  readonly documentId: string
+}): Promise<number> {
+  const awaitingKey = awaitingDeliveryAttachmentKey(input.documentId)
+  const awaiting = await input.attachmentStore.read(awaitingKey)
+  if (awaiting.length === 0) return 0
+
+  await input.attachmentStore.remove(awaitingKey)
+  return awaiting.length
 }
 
 /**
@@ -296,7 +362,12 @@ export async function discardStaleAttachments(input: {
 
 export type AttachmentSendOutcome =
   | Readonly<{ kind: 'failed-network' }>
-  | Readonly<{ cause: string; kind: 'rejected' }>
+  | Readonly<{
+      cause: string
+      /** Spec 206 D9/RF8b: `error.details` da recusa, quando a API os manda (409 en-route). */
+      details?: readonly DriverTripErrorDetail[]
+      kind: 'rejected'
+    }>
   /** Spec 159 RF4: a pontualidade que a API grava junto da foto — `undefined` para assinatura. */
   | Readonly<{ kind: 'sent'; punctuality?: ProofPunctuality }>
 
@@ -344,6 +415,7 @@ export async function drainQueueWithAttachments(input: {
   const queued = await input.store.read()
   const sentKeys = new Set<string>()
   const rejectionByKey = new Map<string, string>()
+  const rejectionDetailsByKey = new Map<string, readonly DriverTripErrorDetail[]>()
   let failedNetworkKey: string | undefined
   let sent = 0
   let rejected = 0
@@ -372,6 +444,7 @@ export async function drainQueueWithAttachments(input: {
     }
     if (outcome.kind === 'rejected') {
       rejectionByKey.set(key, outcome.cause)
+      if (outcome.details !== undefined) rejectionDetailsByKey.set(key, outcome.details)
       rejected += 1
       continue
     }
@@ -386,12 +459,14 @@ export async function drainQueueWithAttachments(input: {
       if (sentKeys.has(key)) return []
       const cause = rejectionByKey.get(key)
       if (cause !== undefined) {
+        const details = rejectionDetailsByKey.get(key)
         return [
           {
             attempts: item.attempts,
             createdAt: item.createdAt,
             ...(item.isUnverified === true ? { isUnverified: true as const } : {}),
             rejectionCause: cause,
+            ...(details === undefined ? {} : { rejectionDetails: details }),
             report: item.report,
             ...(item.subHash === undefined ? {} : { subHash: item.subHash }),
           },
@@ -417,6 +492,8 @@ export async function drainQueueWithAttachments(input: {
       const isTargeted = input.only === undefined || eventKey === input.only
       /** O evento vai primeiro: grupo cujo evento ainda está na fila espera a vez dele. */
       if (!isTargeted || queuedEventKeys.has(eventKey)) continue
+      /** Spec 218: canhoto de antes da entrega — nem o envio manual o leva sem ela. */
+      if (isAwaitingDeliveryKey(eventKey)) continue
 
       for (const attachment of attachments) {
         const skipRejectedAttachment =

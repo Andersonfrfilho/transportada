@@ -81,6 +81,7 @@ describeDatabase('o barracão da montagem (spec 097 D7)', () => {
     `)
   }, 60_000)
 
+  // Derrubar o banco descartável passa dos 5 s padrão do Bun sob carga de CI.
   afterAll(async () => {
     try {
       await database?.close()
@@ -91,7 +92,7 @@ describeDatabase('o barracão da montagem (spec 097 D7)', () => {
         await admin?.close({ timeout: 0 })
       }
     }
-  })
+  }, 60_000)
 
   test('sem perfil nem configuração, o barracão não está cadastrado', async () => {
     expect(await readDepots().readDepot({ companyId: bareCompanyId })).toEqual({

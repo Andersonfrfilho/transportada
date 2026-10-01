@@ -118,6 +118,24 @@ engano:
   `eventTimeline.*` não é `timeline.*` (este é a linha da rota do dia, spec 110).
 - O roteirizador tem teto de paradas e marca a qualidade da otimização (`optimizationQuality`);
   10 mil paradas numa instância só segue fora de alcance (memória da matriz).
+- **Um mapa só, MapLibre** (spec 153 RF11): viagem, proposta e aba Regiões de frete (polígonos por
+  zona com clique, legenda, cidades fora da malha) usam `maplibre-gl`, com o basemap PMTiles próprio
+  preparado por `modules/shared/vectorBasemap.service.ts` (protocolo `pmtiles://`, worker e CSS do
+  MapLibre registrados ali, nunca no componente). `AssemblyVectorMap` (lazy-carregado por
+  `TripAssemblyMap` e por `TripRouteMap`) renderiza traçado e paradas; `FreightRegionVectorMap`
+  renderiza zonas. O primitivo SVG `VectorMap` e serviços órfãos (`tripRouteMap.service`,
+  `tripBasemap.service`, `tileMap.service`, `resolveRouteTraceSegments`) foram removidos (aceite 4:
+  `test/design-system/legacy-map-removed.contract.ts` varre `src/` inteiro). Contrato de origem:
+  `test/fleet/freight-region-map.contract.ts`.
+- **Seletor de rota** (spec 153 RF13, `RouteChoiceOptions`): switch **mais rápida ↔ mais barata**
+  sobre as opções já em mãos — nenhuma troca chama o OSRM de novo. Na montagem/proposta
+  (`TripAssemblyMap`, T402–T404) trocar só muda a tela e sai por `onRouteChoiceChange`: a viagem
+  ainda não existe, então quem regrava é o aceite ("Aceitar"/"Usar esta"), com a escolha por veículo.
+  No detalhe de uma viagem já criada (`TripRouteChoiceSwitch`, T405) trocar **regrava na hora**, sem
+  clique extra — `onSelect` chama `workspace.planRouteMutation.mutate` direto, sobre uma leitura viva
+  única do roteirizador. Opção única avisa em tela que não há alternativa. Sem `trip.financials`,
+  nenhum valor aparece no mapa (praças e rótulos sim, valores não); linha monetária some sem traço ou
+  zero. Detalhe completo: docs/ai-context § "Seletor de rota, um mapa só e redação monetária".
 
 ## O motorista ganhou app própria (spec 189, ADR-0075)
 

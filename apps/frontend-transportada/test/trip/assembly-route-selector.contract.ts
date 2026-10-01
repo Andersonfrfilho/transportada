@@ -3,6 +3,9 @@
  *
  * Spec 096 T3: o seletor de rota alternativa na montagem, abaixo do bloco de pedágio da T7. No
  * molde de `test/trip/assembly-toll.contract.ts` — contrato de tela, por texto de fonte.
+ *
+ * Spec 153 T402 extraiu o seletor para `RouteChoiceOptions.component.tsx` (RF13) — os testes
+ * abaixo migraram junto para continuar lendo a fonte onde cada regra hoje mora.
  */
 import { readFileSync } from 'node:fs'
 
@@ -12,20 +15,24 @@ const COMPONENT = new URL(
   '../../src/modules/trip/components/TripAssemblyMap.component.tsx',
   import.meta.url,
 )
+const ROUTE_CHOICE_OPTIONS_COMPONENT = new URL(
+  '../../src/modules/trip/components/RouteChoiceOptions.component.tsx',
+  import.meta.url,
+)
 
 describe('seletor de rota alternativa (spec 096 T3)', () => {
   const source = readFileSync(COMPONENT, 'utf8')
+  const routeChoiceOptionsSource = readFileSync(ROUTE_CHOICE_OPTIONS_COMPONENT, 'utf8')
 
-  /** Rota única não é escolha (D2) — o seletor só é montado quando `hasChoice` é `true`. */
+  /** Rota única não é escolha (D2) — a lista só é montada quando há mais de uma opção. */
   it('só monta o seletor quando há mais de uma rota', () => {
-    expect(source).toInclude('hasChoice')
-    const bloco = source.slice(source.indexOf('routeOptions'))
-    expect(bloco).toInclude('hasChoice')
+    expect(routeChoiceOptionsSource).toInclude('if (options.length === 0) return null')
+    expect(routeChoiceOptionsSource).toInclude('options.length <= 1 ? null')
   })
 
   it('está montado abaixo do bloco de pedágio', () => {
     const tollIndex = source.indexOf('<RouteTollSummary')
-    const optionsIndex = source.indexOf("t('assemblyMap.routeOptions.title')")
+    const optionsIndex = source.indexOf('<RouteChoiceOptions')
 
     expect(tollIndex).toBeGreaterThan(-1)
     expect(optionsIndex).toBeGreaterThan(tollIndex)
@@ -34,7 +41,7 @@ describe('seletor de rota alternativa (spec 096 T3)', () => {
   /** Sem `totalCost`, nenhum rótulo de mais barata — a razão (`costGap`) é o que a tela imprime. */
   it('imprime a razão da ausência de rota mais barata, nunca um rótulo inventado', () => {
     expect(source).toInclude('costGap')
-    expect(source).toInclude('routeOptions.gap')
+    expect(routeChoiceOptionsSource).toInclude('routeOptions.gap')
   })
 
   /** A opção escolhida redesenha o traço — nunca a rota principal sozinha. */
@@ -43,7 +50,18 @@ describe('seletor de rota alternativa (spec 096 T3)', () => {
     expect(source).toInclude('activeOption')
   })
 
-  it('reseta a escolha quando a resposta da geometria muda', () => {
-    expect(source).toInclude('setSelectedOptionIndex(0)')
+  /**
+   * Spec 153 D1: abre sempre na mais barata que a API indicou — nunca fixo no índice 0.
+   *
+   * ⚠️ Segunda revisão N4: `selectedIndex` passou a sair de `resolveRouteChoiceEmission` (função
+   * pura testada por comportamento em `assembly-route-options.contract.ts`), não mais lido direto
+   * de `geometryQuery.data?.selectedIndex` no corpo do efeito — a leitura direta da resposta é o
+   * que fazia o efeito depender da *identidade* do objeto e reemitir a escolha a cada refetch.
+   * `setSelectedOptionIndex(0)` continua existindo, mas só no ramo sem resposta nenhuma ainda —
+   * nunca sobrepõe o índice que a API já resolveu.
+   */
+  it('abre a escolha na rota que a API indicou, não sempre a primeira', () => {
+    expect(source).toInclude('resolveRouteChoiceEmission(data)')
+    expect(source).toInclude('setSelectedOptionIndex(emission.selectedIndex)')
   })
 })

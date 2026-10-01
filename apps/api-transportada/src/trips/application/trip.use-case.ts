@@ -1,8 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { TRACTOR_UNIT_VEHICLE_TYPE } from '../../shared/vehicle-type.constant.js'
 import { assertTripDocumentReference } from '../domain/trip.policy.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
+import { checkTripAcceptsTrailer } from '../domain/trip-trailer.policy.js'
 import {
   TRIP_ACTION,
   checkTripAcceptsLinkage,
@@ -15,7 +17,15 @@ import {
   TripDocumentNotFoundError,
   TripNotFoundError,
   TripStateTransitionNotAllowedError,
+  TripTrailerInUseError,
+  TripTrailerNotATrailerError,
+  TripTrailerRequiresTractorError,
+  TripVehicleNotFoundError,
 } from '../domain/trip.error.js'
+import {
+  freezeTripRouteGracefully,
+  type TripRouteFreezeLogger,
+} from './freeze-trip-route-gracefully.js'
 import type { PlanTripRouteTollFreezer } from './plan-trip-route.use-case.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
 import { resolveTripCrewForCreation, resolveTripVehicleForCreation } from './trip-crew.service.js'
@@ -37,6 +47,8 @@ export type CreateTripInput = {
    */
   readonly dailyAllowanceDays?: number | undefined
   readonly driverIds: readonly string[]
+  /** Spec 149 (ADR-0065): ajudantes da tripulação — opcional, entram depois dos motoristas. */
+  readonly helperIds?: readonly string[]
   /** Spec 217 RF2: ausente é "sem veículo ainda" — a viagem nasce `awaiting_crew` (D1). */
   readonly vehicleId?: string | undefined
 }
@@ -82,6 +94,12 @@ export type UpdateTripCrewInput = {
   readonly vehicleId: string | undefined
 }
 
+export type SetTripTrailerInput = {
+  readonly context: TripCompanyContext
+  readonly trailerVehicleId: string | null
+  readonly tripId: string
+}
+
 export type TripUseCase = {
   close(input: CloseTripInput): Promise<TripDetail>
   create(input: CreateTripInput): Promise<TripDetail>
@@ -90,6 +108,7 @@ export type TripUseCase = {
   list(input: ListTripsInput): Promise<TripPage>
   releaseDocument(input: ReleaseTripDocumentInput): Promise<TripDocument>
   updateCrew(input: UpdateTripCrewInput): Promise<TripDetail>
+  setTrailer(input: SetTripTrailerInput): Promise<TripDetail>
 }
 
 export function createTripUseCase(dependencies: {
@@ -108,10 +127,12 @@ export function createTripUseCase(dependencies: {
     }): Promise<ReadonlyMap<string, TripAmounts>>
   }
   readonly repository: TripRepositoryPort
+  /** T704 L7: a falha do congelamento vira aviso com os ids, nunca silêncio. */
+  readonly logger?: TripRouteFreezeLogger
   /** Spec 153 D6: viagem ainda não despachada recalcula com `cheapest`. Ausente, comportamento igual a antes. */
   readonly routeFreezer?: PlanTripRouteTollFreezer
 }): TripUseCase {
-  const { repository, routeFreezer } = dependencies
+  const { logger, repository, routeFreezer } = dependencies
 
   return {
     async close({ context, correlationId, ipAddress, reason, tripId }) {
@@ -157,7 +178,7 @@ export function createTripUseCase(dependencies: {
       return closed
     },
 
-    async create({ context, dailyAllowanceDays, driverIds, vehicleId }) {
+    async create({ context, dailyAllowanceDays, driverIds, helperIds, vehicleId }) {
       const companyId = context.companyId
       /**
        * Spec 217 RF2/RF3 (D1): `vehicleId` ausente é "sem veículo ainda" — `vehicle` sai `null` sem
@@ -166,13 +187,27 @@ export function createTripUseCase(dependencies: {
        * distinção é o que `resolveTripVehicleForCreation` resolve.
        */
       const vehicle = await resolveTripVehicleForCreation({ companyId, repository, vehicleId })
-      const crew = await resolveTripCrewForCreation({ companyId, driverIds, repository })
+      const crew = await resolveTripCrewForCreation({
+        companyId,
+        driverIds,
+        ...(helperIds === undefined ? {} : { helperIds }),
+        repository,
+      })
+      /**
+       * Feature 147 T10: a carreta padrão só se aplica quando a viagem já nasce com veículo — sem
+       * ele não há cavalo para consultar `defaultTrailerVehicleId`.
+       */
+      const trailerVehicleId =
+        vehicle === null
+          ? null
+          : await resolveDefaultTrailerForCreation({ companyId, repository, vehicle })
       return repository.create({
         actorUserId: context.userId,
         channel: TRIP_FIELD_CHANNELS.backoffice,
         companyId,
         crew,
         ...(dailyAllowanceDays === undefined ? {} : { dailyAllowanceDays }),
+        trailerVehicleId,
         vehicleId: vehicle === null ? null : vehicle.id,
       })
     },
@@ -191,7 +226,7 @@ export function createTripUseCase(dependencies: {
         nfeDocumentId,
         tripId,
       })
-      await freezeRouteGracefully({ companyId, routeFreezer, tripId })
+      await freezeRouteGracefully({ companyId, logger, routeFreezer, tripId })
       return linked
     },
 
@@ -230,7 +265,7 @@ export function createTripUseCase(dependencies: {
       const released = await repository.releaseDocument({ companyId, documentId, tripId })
       // Corrida rara: a nota foi entregue/liberada entre a leitura acima e este update.
       if (released === null) throw new TripDocumentAlreadyDeliveredError()
-      await freezeRouteGracefully({ companyId, routeFreezer, tripId })
+      await freezeRouteGracefully({ companyId, logger, routeFreezer, tripId })
       return released
     },
 
@@ -284,25 +319,96 @@ export function createTripUseCase(dependencies: {
       if (updated === null) throw new TripNotFoundError()
       return updated
     },
+
+    async setTrailer({ context, tripId, trailerVehicleId }) {
+      const companyId = context.companyId
+      const trip = await findTripOrThrow({ companyId, repository, tripId })
+
+      const traction =
+        trip.vehicleId === null
+          ? null
+          : await repository.findVehicle({ companyId, vehicleId: trip.vehicleId })
+      const outcome = checkTripAcceptsTrailer({
+        currentTrailerVehicleId: trip.trailer?.id ?? null,
+        nextTrailerVehicleId: trailerVehicleId,
+        tractionVehicleType: traction?.vehicleType ?? '',
+        tripStatus: trip.status,
+      })
+      if (outcome.outcome === 'unchanged') return trip
+      if (outcome.outcome === 'blocked')
+        throw new TripStateTransitionNotAllowedError(outcome.reason)
+      if (outcome.outcome === 'requiresTractor') throw new TripTrailerRequiresTractorError()
+
+      if (trailerVehicleId !== null) {
+        const trailer = await repository.findVehicle({ companyId, vehicleId: trailerVehicleId })
+        if (trailer === null) throw new TripVehicleNotFoundError()
+        if (trailer.role !== 'trailer' || trailer.status !== 'active') {
+          throw new TripTrailerNotATrailerError()
+        }
+        const inUse = await repository.isTrailerInOpenTrip({
+          companyId,
+          excludingTripId: tripId,
+          vehicleId: trailerVehicleId,
+        })
+        if (inUse) throw new TripTrailerInUseError()
+      }
+
+      const updated = await repository.setTrailer({ companyId, tripId, trailerVehicleId })
+      if (updated === null) throw new TripNotFoundError()
+      return updated
+    },
   }
 }
 
 /**
  * D6/D5: vincular ou desvincular muda o conjunto de paradas — a rota gravada descreve uma
- * sequência que não existe mais. O congelamento roda **depois** da escrita principal e nunca a
- * derruba, mesmo `catch` de fallback gracioso do `plan-trip-route`.
+ * sequência que não existe mais, e a transação do vínculo já a apagou (T704 M1). O congelamento
+ * roda **depois** da escrita principal e nunca a derruba.
  */
 async function freezeRouteGracefully(input: {
   readonly companyId: string
+  readonly logger: TripRouteFreezeLogger | undefined
   readonly routeFreezer: PlanTripRouteTollFreezer | undefined
   readonly tripId: string
 }): Promise<void> {
-  if (input.routeFreezer === undefined) return
-  try {
-    await input.routeFreezer.freeze({ companyId: input.companyId, tripId: input.tripId })
-  } catch {
-    /* o vínculo já está gravado; o pedágio congela no próximo replanejamento */
+  await freezeTripRouteGracefully({
+    companyId: input.companyId,
+    freezer: input.routeFreezer,
+    ...(input.logger === undefined ? {} : { logger: input.logger }),
+    tripId: input.tripId,
+  })
+}
+
+/**
+ * Feature 147 D3: a carreta padrão é só sugestão — se ela já estiver em viagem aberta, não existir
+ * mais nesta empresa, tiver deixado de ser carreta ativa, ou o cavalo não a tiver mais como padrão,
+ * a viagem nasce sem carreta (`null`), nunca com erro: o despacho barra depois com
+ * `TRIP_TRAILER_REQUIRED` (T18, revisão — a leitura antiga confiava cegamente no ponteiro).
+ */
+async function resolveDefaultTrailerForCreation(input: {
+  readonly companyId: string
+  readonly repository: TripRepositoryPort
+  readonly vehicle: {
+    readonly defaultTrailerVehicleId: string | null
+    readonly vehicleType: string
   }
+}): Promise<string | null> {
+  const { defaultTrailerVehicleId } = input.vehicle
+  if (defaultTrailerVehicleId === null || input.vehicle.vehicleType !== TRACTOR_UNIT_VEHICLE_TYPE) {
+    return null
+  }
+
+  const trailer = await input.repository.findVehicle({
+    companyId: input.companyId,
+    vehicleId: defaultTrailerVehicleId,
+  })
+  if (trailer === null || trailer.role !== 'trailer' || trailer.status !== 'active') return null
+
+  const inUse = await input.repository.isTrailerInOpenTrip({
+    companyId: input.companyId,
+    vehicleId: defaultTrailerVehicleId,
+  })
+  return inUse ? null : defaultTrailerVehicleId
 }
 
 async function findTripOrThrow(input: {

@@ -7,27 +7,37 @@ import { Button } from '@/components/ui/button'
 import { FilePickerButton } from '@/components/ui/file-picker-button'
 import { Icon, type IconName } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
-import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { Tooltip } from '@/components/ui/tooltip'
 
 import { DriverNotDeliveredForm } from './DriverNotDeliveredForm.component'
 import { DriverNotDeliveredStatus } from './DriverNotDeliveredStatus.component'
-import { DriverStopOccurrenceForm } from './DriverStopOccurrenceForm.component'
+import { DriverOccurrenceRegistrationForm } from './DriverOccurrenceRegistrationForm.component'
+import { ProofCargoField } from './ProofCargoField.component'
 import { ProofCrop } from './ProofCrop.component'
 import { ProofImageLightbox } from './ProofImageLightbox.component'
 import { SignaturePad } from './SignaturePad.component'
 import { useCameraCaptureFieldRef } from '../hooks/useCameraCaptureFieldRef.hook'
 import { useCaptureRegistration } from '../hooks/useCaptureRegistration.hook'
-import type { StopOccurrenceDraft } from '../hooks/useStopOccurrenceForm.hook'
 import { usePhotoPreviewUrl } from '../hooks/usePhotoPreviewUrl.hook'
+import { ProofUploadStatus } from './ProofUploadStatus.component'
+import { useProofUploadStatus } from '../hooks/useProofUploadStatus.hook'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useTransientNotice } from '../hooks/useTransientNotice.hook'
 import { describeDeliveryWindow } from '../shared/deliveryWindow.service'
 import {
+  formatActivityTime,
   isStopArrivalRecorded,
   stopHasOccurrenceMarker,
   type DocumentActivityStatus,
   type DocumentActivityView,
   type DocumentReturnActivityView,
+  type TappedStopReport,
 } from '../shared/documentActivity.service'
+import { PROOF_FRAME_SIZE } from '../shared/proofUpload.constant'
+import {
+  isProofConfirmedByServer,
+  resolveProofUploadObservation,
+} from '../shared/proofUploadStatus.service'
 import { formatDocumentAmount, formatDocumentWeight } from '../shared/driverDocumentFormat.service'
 import { formatStopDistance } from '../shared/driverStopDistance.service'
 import {
@@ -43,27 +53,31 @@ import {
   isDocumentSettled,
   isProofPendingWarningDue,
 } from '../shared/driverTripView.service'
-import type { EventQueueItemView } from '../shared/eventQueueView.service'
+import type { StartRouteBlock } from '../shared/enRouteStop.service'
+import {
+  resolveQueuedProofAttachments,
+  type EventQueueItemView,
+} from '../shared/eventQueueView.service'
 import { canOfferLateRegistration } from '../shared/lateRegistration.service'
 import type { NotDeliveredDraft, NotDeliveredStatus } from '../shared/notDelivered.service'
+import type { OccurrenceRegistrationHandlers } from '../shared/occurrenceRegistration.service'
 import {
   applyRecipientShortcut,
   buildReceiverFields,
+  countMissingCargoPhotos,
   listAllPendingFields,
   listMissingProofFields,
   listPendingReceiverFields,
   maskReceiverDocument,
+  requiresProofBeforeDelivery,
   resolveProofFormPlan,
   type ProofFieldKey,
+  type ProofFormPlan,
+  type ProofFormValues,
 } from '../shared/proofFormPlan.service'
 import { RECEIVED_BY_DETAIL_MAX_LENGTH, RECEIVED_BY_OPTIONS } from '../shared/receivedBy.constant'
 import { isSignatureCaptureSupported } from '../shared/signatureCapture.service'
 import styles from '../styles/driverTrip.module.css'
-
-/** Cheguei, entreguei, devolvi, registrei — sempre HH:MM local, nunca com segundos. */
-function formatActivityTime(at: string): string {
-  return new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
 
 const ACTIVITY_ICON: Readonly<Record<DocumentActivityStatus, IconName>> = {
   queued: 'clock',
@@ -116,9 +130,11 @@ export type DriverProofAttachment = Readonly<{
    * "Remover" alcançar só este item, nunca todo anexo desta nota (spec 211 traz mais de um).
    */
   attachmentKey?: string
+  /** Spec 218 (RF-A3): colhido no gate, antes da entrega — a fila o segura até ela entrar. */
+  awaitingDelivery?: true
   documentId: string
   file: File
-  kind: 'photo' | 'signature'
+  kind: 'cargo' | 'photo' | 'signature'
   /** Pedido do usuário (25/09): "Registrar entrega depois" — atrás de `LATE_REGISTRATION_FIELD_ENABLED`. */
   lateRegistration?: boolean
   /** Spec 193 D1: quem recebeu, em relação ao destinatário, e o detalhe curto. */
@@ -138,9 +154,20 @@ export type DriverProofFieldsUpdate = Readonly<{
 }>
 
 type DriverStopCardProps = Readonly<{
+  /**
+   * Spec 206 D9: o número da parada bloqueante — o cartão só tem a própria parada, nunca a lista
+   * inteira; sem isto o motivo não teria "N" para nomear (D6).
+   */
+  blockingStopSequence?: number
+  /** Spec 206 D6/D9: pode ficar em branco (bloqueado, com o atalho) ou liberado, sem escolher UI. */
+  canStartRoute: StartRouteBlock
   /** Pedido do usuário (25/09): "entrega guardada" — a foto/nota que veio de `onDocumentOccurrence`. */
   deliverActivityByDocumentId: ReadonlyMap<string, DocumentActivityView>
+  /** Spec 206 D6: "Cheguei" só aparece aqui — parada a caminho, ou qualquer uma na API antiga (D17). */
+  canReportArrival: boolean
   isCurrent: boolean
+  /** Spec 206 D9: esta é a parada com o "Iniciar rota" ativo — mostra o selo e "Cancelar rota". */
+  isEnRoute: boolean
   /**
    * Spec 082 (revisão): viagem `route_planned` chega à tela, mas as ações de campo ficam trancadas
    * até o motorista iniciar o trajeto — a API recusa essas escritas, e a fila offline não pode
@@ -152,21 +179,37 @@ type DriverStopCardProps = Readonly<{
   /** Spec 082 D2: a última posição conhecida — sem ela, a distância simplesmente não aparece. */
   lastKnownLocation: DriverReportedLocation | null
   onArrive: (stopId: string) => void
+  /** Spec 206 D18: desfaz o "Iniciar rota" desta parada — só existe enquanto ela está a caminho. */
+  onCancelDeparture: (stopId: string) => void
   onDeliver: (input: { documentId: string; lateRegistration: boolean }) => void
+  /** Spec 206 D6: "Iniciar rota" desta parada — a API recebe a hora do TOQUE, não a do envio. */
+  onDepart: (stopId: string) => void
+  /**
+   * Spec 206 D6: o atalho do motivo de bloqueio — rola até o cartão da parada a caminho e põe o
+   * foco nele (`scrollTo` + `focus()`, `web.md` §11.3). Nunca inicia nada: só leva até lá.
+   */
+  onFocusStop: (stopId: string) => void
+  /** Spec 206: o cabeçalho se registra aqui — é o alvo do `scrollTo`/`focus()` de `onFocusStop`. */
+  onHeaderRef: (stopId: string, element: HTMLButtonElement | null) => void
   /** `Promise<boolean>`: sucesso acende a linha e o aviso transitório no cartão, nunca à cega. */
   onDocumentOccurrence: (input: {
     documentId: string
+    note: string
     occurrenceTypeId: string
     productCode: string
   }) => Promise<boolean>
+  /** Spec 218 D3: ocorrência de nota com foto — o item `documentOccurrence` da fila. */
+  onQueuedDocumentOccurrence: OccurrenceRegistrationHandlers['enqueueDocumentOccurrence']
   occurrenceTypes: DriverOccurrenceTypesState
-  onProof: (input: DriverProofAttachment) => void
+  onProof: (input: DriverProofAttachment) => Promise<boolean>
   /** Spec 203: campo do recebedor preenchido depois do anexo já estar na fila — atualiza o mesmo item. */
   onProofFieldsUpdate?: (input: DriverProofFieldsUpdate) => void
   /** Spec 207: "Remover" a foto/assinatura do canhoto — só cabe com o anexo ainda na fila. */
   onRemoveProof?: (documentId: string) => void
-  /** Spec 209: a foto é da ocorrência, e vai junto dela — nunca pelo comprovante de uma nota. */
-  onOccurrence: (input: StopOccurrenceDraft & { stopId: string }) => void
+  /** Spec 218: "Cancelar" o gate — o canhoto colhido para aquela nota não espera mais a entrega. */
+  onDiscardProofAwaitingDelivery: (documentId: string) => void
+  /** Spec 209 + 218 D2: a ocorrência de parada, com o tipo do catálogo e a foto dela. */
+  onStopOccurrence: OccurrenceRegistrationHandlers['reportStopOccurrence']
   /** Spec 179: "Não entreguei" — ocorrência com foto e devolução, no mesmo toque. */
   onNotDelivered: (input: {
     documentId: string
@@ -182,6 +225,9 @@ type DriverStopCardProps = Readonly<{
    * só para saber se ESTA parada já tem uma chegada, na hora, mesmo sem o servidor ter confirmado.
    */
   queueView: readonly EventQueueItemView[]
+  /** O que o servidor aceitou nesta sessão, e os toques que a tela fez — seguram "Cheguei" depois que a fila esvazia. */
+  sentReportKeys: ReadonlySet<string>
+  tappedReports: readonly TappedStopReport[]
   /** Pedido do usuário (25/09): "devolvida às HH:MM — motivo", com o mesmo retorno de fila. */
   returnActivityByDocumentId: ReadonlyMap<string, DocumentReturnActivityView>
   /** Spec 157 RF5: o toque em "Tentar de novo" no painel de ocorrência da nota. */
@@ -192,30 +238,42 @@ type DriverStopCardProps = Readonly<{
 }>
 
 export function DriverStopCard({
+  blockingStopSequence,
+  canReportArrival,
+  canStartRoute,
   deliverActivityByDocumentId,
   isCurrent,
+  isEnRoute,
   isFieldWorkBlocked,
   isOpen,
   lastKnownLocation,
   notDeliveredStatusByDocumentId,
   onArrive,
+  onCancelDeparture,
   onDeliver,
+  onDepart,
+  onDiscardProofAwaitingDelivery,
+  onFocusStop,
+  onHeaderRef,
   occurrenceTypes,
   onDocumentOccurrence,
   onNotDelivered,
-  onOccurrence,
   onProof,
+  onQueuedDocumentOccurrence,
   onProofFieldsUpdate,
   onRemoveProof,
   onRetryOccurrenceTypes,
+  onStopOccurrence,
   onToggle,
   queueView,
   returnActivityByDocumentId,
+  sentReportKeys,
   stop,
   stopOccurrenceActivity,
+  tappedReports,
 }: DriverStopCardProps) {
   const { t } = useTranslation('driverTrip')
-  const [openOccurrence, setOpenOccurrence] = useState(false)
+  const [isConfirmingCancelDeparture, setIsConfirmingCancelDeparture] = useState(false)
   /** Pedido do usuário (25/09): quem registra vê — um aviso que some sozinho, perto do que ele tocou. */
   const { announce, notice } = useTransientNotice()
   /** Painel "Registrar ocorrência" da nota (`onDocumentOccurrence`): chamada direta, sem fila offline. */
@@ -229,6 +287,8 @@ export function DriverStopCard({
   const [isLateRegistration, setIsLateRegistration] = useState(false)
   const [isConfirmingLateRegistration, setIsConfirmingLateRegistration] = useState(false)
   const isCompleted = stop.completedAt !== null
+  /** Spec 206 D9: `enRouteTappedAt` (hora do toque) é a âncora; `enRouteSince` é a reserva. */
+  const enRouteAnchor = stop.enRouteTappedAt ?? stop.enRouteSince ?? undefined
   const distanceLabel = formatStopDistance({ location: lastKnownLocation, stop })
   const deliveryWindow = describeDeliveryWindow({
     end: stop.deliveryWindowEnd,
@@ -254,7 +314,9 @@ export function DriverStopCard({
   const isArrivalRecorded = isStopArrivalRecorded({
     arrivedAt: stop.arrivedAt,
     queueView,
+    sentReportKeys,
     stopId: stop.id,
+    tappedReports,
   })
   const canActOnDocuments = isArrivalRecorded || isLateRegistration
   const offersLateRegistration = canOfferLateRegistration({ canActOnDocuments, stop })
@@ -264,18 +326,29 @@ export function DriverStopCard({
     setIsConfirmingLateRegistration(false)
   }
 
-  function handleDocumentOccurrence(input: {
-    documentId: string
-    occurrenceTypeId: string
-    productCode: string
-  }): void {
-    void onDocumentOccurrence(input).then((success) => {
-      if (!success) return
-      setDocumentOccurrenceRecordedAtByDocumentId((current) =>
-        new Map(current).set(input.documentId, new Date().toISOString()),
-      )
+  /**
+   * Spec 218 (RF-A5): as três rotas do botão único. Cada uma avisa perto da nota tocada — a de
+   * parada também, porque é dali que o motorista registrou (D4).
+   */
+  const occurrenceHandlers: OccurrenceRegistrationHandlers = {
+    enqueueDocumentOccurrence: (input) => {
+      onQueuedDocumentOccurrence(input)
       announce(input.documentId, t('activity.toast.documentOccurrence'))
-    })
+    },
+    registerDocumentOccurrence: (input) => {
+      /* ⚠️ Vazio é a nota inteira: a nota do motorista ainda não carrega os produtos. */
+      void onDocumentOccurrence({ ...input, productCode: '' }).then((success) => {
+        if (!success) return
+        setDocumentOccurrenceRecordedAtByDocumentId((current) =>
+          new Map(current).set(input.documentId, new Date().toISOString()),
+        )
+        announce(input.documentId, t('activity.toast.documentOccurrence'))
+      })
+    },
+    reportStopOccurrence: (input) => {
+      onStopOccurrence(input)
+      announce(stop.id, t('activity.toast.occurrence'))
+    },
   }
 
   return (
@@ -290,6 +363,7 @@ export function DriverStopCard({
           aria-expanded={isOpen}
           className={styles.stopHeader}
           onClick={onToggle}
+          ref={(element) => onHeaderRef(stop.id, element)}
           type="button"
         >
           {/* Só a seta fica à direita: os selos na mesma linha espremiam o endereço em uma coluna. */}
@@ -349,6 +423,17 @@ export function DriverStopCard({
               ? t('stopCompleted')
               : t('documentsPending', { count: countPendingDocuments(stop) })}
           </span>
+          {/* Spec 206: o selo "A caminho" — na hora, mesmo enquanto o toque ainda está na fila. */}
+          {isEnRoute && stop.arrivedAt === null ? (
+            <span className={styles.stopStatus}>
+              <span className={styles.stopEnRoute}>
+                <Icon aria-hidden="true" name="workspace-driver-trip" size="sm" />
+                {enRouteAnchor === undefined
+                  ? t('enRoute.queued')
+                  : t('enRoute.since', { time: formatActivityTime(enRouteAnchor) })}
+              </span>
+            </span>
+          ) : null}
           {/* Status da parada no cabeçalho, não entre os botões: lá ele ficava solto e desalinhado */}
           {stop.arrivedAt === null && distanceLabel === null ? null : (
             <span className={styles.stopStatus}>
@@ -385,24 +470,87 @@ export function DriverStopCard({
             <Icon name="link" />
             {t('navigate')}
           </Button>
-          {/* Trancado até o despacho: a API recusa `arrive` fora de dispatched/in_transit */}
-          {isFieldWorkBlocked || stop.arrivedAt !== null ? null : (
+          {/* Trancado até o despacho: a API recusa `arrive`/`depart` fora de dispatched/in_transit */}
+          {isFieldWorkBlocked || stop.arrivedAt !== null ? null : canReportArrival ? (
             <Button onClick={() => onArrive(stop.id)} type="button">
               <Icon name="check" />
               {t('arrive')}
             </Button>
-          )}
-          {isFieldWorkBlocked ? null : (
+          ) : (
             <Button
-              onClick={() => setOpenOccurrence((open) => !open)}
+              aria-disabled={!canStartRoute.enabled}
+              disabled={!canStartRoute.enabled}
+              onClick={() => onDepart(stop.id)}
               type="button"
-              variant="ghost"
             >
-              <Icon name="alert" />
-              {t('occurrence')}
+              <Icon aria-hidden="true" name="workspace-driver-trip" />
+              {t('depart.start')}
             </Button>
           )}
         </div>
+
+        {/*
+         * Spec 206 D6 (Revisão 2): o "Iniciar rota" fica desabilitado e VISÍVEL — nunca escondido —
+         * com o motivo em texto (não só `title`) e o atalho que rola até o cartão da parada aberta.
+         * O atalho não inicia nada: ele só leva até lá (D6, D18).
+         */}
+        {!isFieldWorkBlocked && !canStartRoute.enabled ? (
+          <p className={styles.departBlocked} role="status">
+            <Icon aria-hidden="true" name="alert" size="sm" />
+            <span>
+              {t('departBlocked.reason', { sequence: blockingStopSequence })}{' '}
+              {t('departBlocked.hint')}
+            </span>
+            <button
+              className={styles.departBlockedShortcut}
+              onClick={() => onFocusStop(canStartRoute.blockingStopId)}
+              type="button"
+            >
+              <Icon aria-hidden="true" name="link" size="sm" />
+              {t('departBlocked.shortcut', { sequence: blockingStopSequence })}
+            </button>
+          </p>
+        ) : null}
+
+        {/* Spec 206 D18: só existe na parada a caminho, e some assim que o "Cheguei" chega. */}
+        {!isFieldWorkBlocked && isEnRoute && stop.arrivedAt === null ? (
+          isConfirmingCancelDeparture ? (
+            <div className={styles.cancelDepartureConfirm} role="alertdialog">
+              <p>{t('cancelDeparture.confirmTitle', { sequence: stop.sequence })}</p>
+              <p>{t('cancelDeparture.confirmBody')}</p>
+              <div className={styles.actions}>
+                <Button
+                  onClick={() => {
+                    onCancelDeparture(stop.id)
+                    setIsConfirmingCancelDeparture(false)
+                  }}
+                  type="button"
+                >
+                  <Icon name="close" />
+                  {t('cancelDeparture.confirm')}
+                </Button>
+                <Button
+                  onClick={() => setIsConfirmingCancelDeparture(false)}
+                  type="button"
+                  variant="ghost"
+                >
+                  {t('cancelDeparture.back')}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className={styles.actions}>
+              <Button
+                onClick={() => setIsConfirmingCancelDeparture(true)}
+                type="button"
+                variant="ghost"
+              >
+                <Icon name="close" />
+                {t('cancelDeparture.open')}
+              </Button>
+            </div>
+          )
+        ) : null}
 
         {isFieldWorkBlocked ? <p className={styles.stopMeta}>{t('dispatch.waiting')}</p> : null}
 
@@ -420,17 +568,6 @@ export function DriverStopCard({
           />
         )}
 
-        {openOccurrence ? (
-          <DriverStopOccurrenceForm
-            stop={stop}
-            onSubmit={(draft) => {
-              onOccurrence({ ...draft, stopId: stop.id })
-              announce(stop.id, t('activity.toast.occurrence'))
-              setOpenOccurrence(false)
-            }}
-          />
-        ) : null}
-
         <ul className={styles.documentList}>
           {stop.documents.map((document) => (
             <DocumentRow
@@ -446,8 +583,9 @@ export function DriverStopCard({
               notDeliveredStatus={notDeliveredStatusByDocumentId.get(document.id)}
               onAnnounce={(message) => announce(document.id, message)}
               onDeliver={onDeliver}
+              onDiscardProofAwaitingDelivery={onDiscardProofAwaitingDelivery}
+              occurrenceHandlers={occurrenceHandlers}
               occurrenceTypes={occurrenceTypes}
-              onDocumentOccurrence={handleDocumentOccurrence}
               onNotDelivered={onNotDelivered}
               onProof={onProof}
               {...(onProofFieldsUpdate === undefined ? {} : { onProofFieldsUpdate })}
@@ -455,7 +593,7 @@ export function DriverStopCard({
               onRetryOccurrenceTypes={onRetryOccurrenceTypes}
               queueView={queueView}
               returnActivity={returnActivityByDocumentId.get(document.id)}
-              stopProofSettings={stop.deliveryProof}
+              stop={stop}
             />
           ))}
         </ul>
@@ -517,19 +655,17 @@ type DocumentRowProps = Readonly<{
   /** O aviso transitório do cartão inteiro — um por parada, anunciado pela nota que agiu. */
   onAnnounce: (message: string) => void
   onDeliver: (input: { documentId: string; lateRegistration: boolean }) => void
-  /** Spec 079: o que aconteceu **sem** a carga voltar. O tipo vem do cadastro da empresa. */
-  onDocumentOccurrence: (input: {
-    documentId: string
-    occurrenceTypeId: string
-    productCode: string
-  }) => void
+  /** Spec 218: "Cancelar" o gate — o canhoto colhido para esta nota não espera mais a entrega. */
+  onDiscardProofAwaitingDelivery: (documentId: string) => void
+  /** Spec 218 (RF-A5): as três rotas do botão único de ocorrência — o `flow` do tipo escolhe. */
+  occurrenceHandlers: OccurrenceRegistrationHandlers
   occurrenceTypes: DriverOccurrenceTypesState
   onNotDelivered: (input: {
     documentId: string
     draft: NotDeliveredDraft
     lateRegistration: boolean
   }) => void
-  onProof: (input: DriverProofAttachment) => void
+  onProof: (input: DriverProofAttachment) => Promise<boolean>
   onProofFieldsUpdate?: (input: DriverProofFieldsUpdate) => void
   /** Spec 207: "Remover" a foto/assinatura do canhoto — só cabe com o anexo ainda na fila. */
   onRemoveProof?: (documentId: string) => void
@@ -538,7 +674,8 @@ type DocumentRowProps = Readonly<{
   queueView: readonly EventQueueItemView[]
   /** Pedido do usuário (25/09): "devolvida às HH:MM — motivo", mesmo retorno de fila da entrega. */
   returnActivity: DocumentReturnActivityView | undefined
-  stopProofSettings: DriverDeliveryProofSettings | null
+  /** A configuração de comprovante antiga (da parada) e o destino da ocorrência de parada. */
+  stop: DriverTripStop
 }>
 
 function DocumentRow({
@@ -549,10 +686,11 @@ function DocumentRow({
   isFieldWorkBlocked,
   isLateRegistration,
   notDeliveredStatus,
+  occurrenceHandlers,
   occurrenceTypes,
   onAnnounce,
   onDeliver,
-  onDocumentOccurrence,
+  onDiscardProofAwaitingDelivery,
   onNotDelivered,
   onProof,
   onProofFieldsUpdate,
@@ -560,20 +698,21 @@ function DocumentRow({
   onRetryOccurrenceTypes,
   queueView,
   returnActivity,
-  stopProofSettings,
+  stop,
 }: DocumentRowProps) {
   const { t } = useTranslation('driverTrip')
   const [openReturn, setOpenReturn] = useState(false)
-  const [openOccurrence, setOpenDocumentOccurrence] = useState(false)
-  /** O botão "Tentar de novo" some ao ser tocado; o foco fica no painel, não cai no `body`. */
-  const occurrencePanelRef = useRef<HTMLFieldSetElement>(null)
-
-  function handleRetryOccurrenceTypes(): void {
-    onRetryOccurrenceTypes()
-    occurrencePanelRef.current?.focus()
-  }
+  const [openOccurrence, setOpenOccurrence] = useState(false)
+  const stopProofSettings = stop.deliveryProof
   /** Spec 082 (revisão): a configuração é do **documento** — a da parada é só o shape antigo. */
   const proofSettings = document.deliveryProof ?? stopProofSettings
+  /** Spec 218 (RF-A1): o servidor já resolveu as camadas — aqui só se lê o plano pronto. */
+  const requiresProof = requiresProofBeforeDelivery(resolveProofFormPlan(proofSettings))
+
+  function confirmDelivery(): void {
+    onAnnounce(t('activity.toast.delivered'))
+    onDeliver({ documentId: document.id, lateRegistration: isLateRegistration })
+  }
 
   if (isFieldWorkBlocked) {
     return (
@@ -583,13 +722,27 @@ function DocumentRow({
     )
   }
 
+  /** Spec 218 (D4): o formulário do botão único — o mesmo na nota em aberto e na já resolvida. */
+  const occurrenceForm = openOccurrence ? (
+    <DriverOccurrenceRegistrationForm
+      document={document}
+      handlers={occurrenceHandlers}
+      occurrenceTypes={occurrenceTypes}
+      onClose={() => setOpenOccurrence(false)}
+      onRetryOccurrenceTypes={onRetryOccurrenceTypes}
+      stop={stop}
+    />
+  ) : null
+
   if (isDocumentSettled(document)) {
     return (
       <li className={`${styles.document} ${styles.documentSettled}`}>
         <DocumentDetails document={document} />
         <span>
           {document.separationStatus === 'delivered'
-            ? t('deliver')
+            ? document.deliveredAt === null
+              ? t('deliveredState')
+              : t('activity.delivered', { time: formatActivityTime(document.deliveredAt) })
             : t(`returnReason.${document.returnReason ?? 'recipient_absent'}`)}
         </span>
         <DriverNotDeliveredStatus status={notDeliveredStatus} />
@@ -601,6 +754,13 @@ function DocumentRow({
             })}
           />
         )}
+        <div className={styles.actions}>
+          <DocumentOccurrenceButton
+            isOpen={openOccurrence}
+            onToggle={() => setOpenOccurrence((open) => !open)}
+          />
+        </div>
+        {occurrenceForm}
         {/*
          * O canhoto anexa depois: a entrega já está confirmada, e o arquivo não a desfaz — por
          * isso nunca trava atrás de "Cheguei" (nota já entregue, foto pendente de verdade).
@@ -616,6 +776,7 @@ function DocumentRow({
             queueView={queueView}
             recipientDisplayName={document.recipientDisplayName}
             recipientIsCompany={document.recipientIsCompany}
+            serverProof={{ isDelivered: true, proofPending: document.proofPending }}
           />
         ) : null}
       </li>
@@ -685,89 +846,53 @@ function DocumentRow({
       ) : null}
       {/*
        * Pedido do usuário (25/09): "Cheguei" libera a entrega — sem chegada (e sem "Registrar
-       * entrega depois" confirmado), Entreguei/Não entreguei/Registrar ocorrência nem entram no
-       * DOM. Nada de desabilitado e cinza: o aviso ocupa o lugar delas.
+       * entrega depois" confirmado), Entreguei e Não entreguei nem entram no DOM. Nada de
+       * desabilitado e cinza: o aviso ocupa o lugar delas. Spec 218 (D4): "Ocorrência" fica fora
+       * disso — doca fechada se relata antes de chegar.
        */}
-      {canActOnDocuments ? (
-        <>
-          <div className={styles.actions}>
-            <Button
-              onClick={() => {
-                onAnnounce(t('activity.toast.delivered'))
-                onDeliver({ documentId: document.id, lateRegistration: isLateRegistration })
-              }}
-              type="button"
-            >
-              <Icon name="check" />
-              {t('deliver')}
-            </Button>
+      <div className={styles.actions}>
+        {canActOnDocuments ? (
+          <>
+            {/*
+             * Spec 218 (P1/P2): sem obrigatório, o toque entrega na hora. Com obrigatório não há
+             * "Entreguei": a captura abaixo já está na tela e o único primário é o "Confirmar
+             * entrega", desabilitado até completar.
+             */}
+            {!requiresProof ? (
+              <Button onClick={confirmDelivery} type="button">
+                <Icon name="check" />
+                {t('deliver')}
+              </Button>
+            ) : null}
             <Button onClick={() => setOpenReturn((open) => !open)} type="button" variant="ghost">
               <Icon name="close" />
               {t('return')}
             </Button>
-            {/*
-             * ⚠️ Isto **não** é devolver, e o texto do painel diz isso: aqui a carga fica com o
-             * cliente. Os tipos oferecidos são só os que a devolução não sabe dizer — ver
-             * `driverDocumentOccurrenceTypes`.
-             */}
-            <Button
-              onClick={() => setOpenDocumentOccurrence((open) => !open)}
-              type="button"
-              variant="ghost"
-            >
-              <Icon name="alert" />
-              {t('documentOccurrence')}
-            </Button>
-          </div>
-          {openOccurrence ? (
-            <fieldset className={styles.occurrenceForm} ref={occurrencePanelRef} tabIndex={-1}>
-              <legend>{t('documentOccurrence')}</legend>
-              <p>{t('documentOccurrenceHint')}</p>
-              {occurrenceTypes.status === 'failed' ? (
-                <div>
-                  <p className={styles.proofFieldError} role="alert">
-                    {t('documentOccurrenceTypesFailed')}
-                  </p>
-                  <Button onClick={handleRetryOccurrenceTypes} type="button" variant="ghost">
-                    <Icon name="refresh" />
-                    {t('documentOccurrenceTypesRetry')}
-                  </Button>
-                </div>
-              ) : occurrenceTypes.status === 'loading' ? (
-                <SkeletonGroup
-                  className={styles.occurrenceChips}
-                  label={t('documentOccurrenceTypesLoading')}
-                >
-                  <Skeleton height="var(--control-height)" width="40%" />
-                  <Skeleton height="var(--control-height)" width="55%" />
-                </SkeletonGroup>
-              ) : occurrenceTypes.types.length === 0 ? (
-                <p className={styles.stopMeta}>{t('documentOccurrenceTypesEmpty')}</p>
-              ) : (
-                occurrenceTypes.types.map((occurrenceType) => (
-                  <Button
-                    key={occurrenceType.id}
-                    onClick={() => {
-                      onDocumentOccurrence({
-                        documentId: document.id,
-                        occurrenceTypeId: occurrenceType.id,
-                        /* ⚠️ Vazio é a nota inteira. O item entra quando a tela dele souber
-                           listá-lo — a nota do motorista ainda não carrega os produtos. */
-                        productCode: '',
-                      })
-                      setOpenDocumentOccurrence(false)
-                    }}
-                    // O retorno (linha + aviso transitório) chega pelo `.then` de
-                    // `onDocumentOccurrence`, acima — nunca em silêncio, mesmo essa sendo uma
-                    // chamada direta (sem fila offline).
-                    type="button"
-                    variant="ghost"
-                  >
-                    {occurrenceType.name}
-                  </Button>
-                ))
-              )}
-            </fieldset>
+          </>
+        ) : null}
+        <DocumentOccurrenceButton
+          isOpen={openOccurrence}
+          onToggle={() => setOpenOccurrence((open) => !open)}
+        />
+      </div>
+      {canActOnDocuments ? (
+        <>
+          {requiresProof ? (
+            <PreDeliveryProofGate
+              captureProps={{
+                documentId: document.id,
+                ...(isLateRegistration ? { lateRegistration: true } : {}),
+                onProof,
+                ...(onProofFieldsUpdate === undefined ? {} : { onProofFieldsUpdate }),
+                ...(onRemoveProof === undefined ? {} : { onRemoveProof }),
+                proofSettings,
+                queueView,
+                recipientDisplayName: document.recipientDisplayName,
+                recipientIsCompany: document.recipientIsCompany,
+              }}
+              onCancel={() => onDiscardProofAwaitingDelivery(document.id)}
+              onConfirm={confirmDelivery}
+            />
           ) : null}
           {/*
            * Spec 179, ajuste do usuário de 25/09: "Não entreguei" é a ocorrência com foto **e** a
@@ -794,7 +919,101 @@ function DocumentRow({
       ) : (
         <p className={styles.stopMeta}>{t('arrivalRequired')}</p>
       )}
+      {occurrenceForm}
     </li>
+  )
+}
+
+type DocumentOccurrenceButtonProps = Readonly<{
+  isOpen: boolean
+  onToggle: () => void
+}>
+
+/**
+ * Spec 218 (D4): o botão único de ocorrência da nota — rótulo curto, ícone e dica (pedido do
+ * usuário), para não pesar a linha ao lado de Entreguei/Não entreguei.
+ */
+function DocumentOccurrenceButton({ isOpen, onToggle }: DocumentOccurrenceButtonProps) {
+  const { t } = useTranslation('driverTrip')
+
+  return (
+    <Tooltip label={t('occurrenceRegistration.openHint')}>
+      <Button aria-expanded={isOpen} onClick={onToggle} type="button" variant="ghost">
+        <Icon name="alert" />
+        {t('occurrenceRegistration.open')}
+      </Button>
+    </Tooltip>
+  )
+}
+
+type PreDeliveryProofGateProps = Readonly<{
+  captureProps: DeliveryProofSectionProps
+  onCancel: () => void
+  onConfirm: () => void
+}>
+
+/**
+ * Spec 218 (RF-A1/RF-A2, P1): a captura de antes da entrega — o mesmo `ProofCaptureFields` de
+ * depois — e "Confirmar entrega", desabilitado enquanto faltar obrigatório. Cada anexo entra na
+ * fila na hora (spec 203), marcado para esperar a entrega: o gate atrasa só o `deliver`.
+ */
+function PreDeliveryProofGate({ captureProps, onCancel, onConfirm }: PreDeliveryProofGateProps) {
+  const { t } = useTranslation('driverTrip')
+  const titleId = useId()
+  const missingId = useId()
+  const { onProof } = captureProps
+
+  /* Sem quadro de `fieldset`: é a mesma seção de depois da entrega, só que antes — mesma largura. */
+  return (
+    <div aria-labelledby={titleId} className={styles.deliveryGate} role="group">
+      <p className={styles.proofCaptureTitle} id={titleId}>
+        {t('deliveryGate.title')}
+      </p>
+      <p className={styles.stopMeta}>{t('deliveryGate.lead')}</p>
+      <ProofCaptureFields
+        {...captureProps}
+        onProof={(input) => onProof({ ...input, awaitingDelivery: true })}
+        renderFooter={(capture) => {
+          const missingFields = listMissingProofFields({
+            plan: capture.plan,
+            values: capture.values,
+          })
+          const cargoMissingCount = countMissingCargoPhotos({
+            plan: capture.plan,
+            values: capture.values,
+          })
+          const fieldsText = missingFields
+            .map((field) => t(`proofFields.missing.${field}`, { count: cargoMissingCount }))
+            .join(', ')
+          return (
+            <>
+              {missingFields.length > 0 ? (
+                <p className={styles.notDeliveredMissing} id={missingId} role="status">
+                  {t('deliveryGate.missingLead', { fields: fieldsText })}
+                </p>
+              ) : null}
+              <div className={styles.actions}>
+                <Button
+                  aria-describedby={missingFields.length > 0 ? missingId : undefined}
+                  disabled={missingFields.length > 0}
+                  onClick={() => {
+                    capture.pushLateFieldUpdate()
+                    onConfirm()
+                  }}
+                  type="button"
+                >
+                  <Icon name="check" />
+                  {t('deliveryGate.confirm')}
+                </Button>
+                <Button onClick={onCancel} type="button" variant="ghost">
+                  {t('deliveryGate.cancel')}
+                </Button>
+              </div>
+            </>
+          )
+        }}
+      />
+    </div>
   )
 }
 
@@ -854,7 +1073,8 @@ export type DeliveryProofSectionProps = Readonly<{
   documentId: string
   /** Pedido do usuário (25/09): carimba o anexo com a mesma marca do deliver/return da parada. */
   lateRegistration?: boolean
-  onProof: (input: DriverProofAttachment) => void
+  /** Spec 218: `false` quando a fila recusou (teto da spec 203) — a captura não marca "anexada". */
+  onProof: (input: DriverProofAttachment) => Promise<boolean>
   onProofFieldsUpdate?: (input: DriverProofFieldsUpdate) => void
   /** Spec 207: "Remover" a foto/assinatura do canhoto — só cabe com o anexo ainda na fila. */
   onRemoveProof?: (documentId: string) => void
@@ -865,6 +1085,8 @@ export type DeliveryProofSectionProps = Readonly<{
   recipientDisplayName?: string
   /** Spec 193 D14: PJ seleciona o nome preenchido (foco + seleção); PF só o deixa no campo. */
   recipientIsCompany?: boolean
+  /** O que o snapshot sabe da foto: `proofPending` só fala da obrigatória. Ausente = gate de antes. */
+  serverProof?: Readonly<{ isDelivered: boolean; proofPending: boolean }>
 }>
 
 /**
@@ -874,8 +1096,89 @@ export type DeliveryProofSectionProps = Readonly<{
  *
  * Spec 159 (T9): exportado para ser reaproveitado pela tela "Fotos pendentes" — o mesmo formulário,
  * a mesma validação, sem uma segunda implementação divergindo calada.
+ *
+ * Spec 218 (RF-A2): a captura em si mora em `ProofCaptureFields`, a mesma que o gate de antes da
+ * entrega monta — aqui só entra o que é do depois: "Concluir", que nunca trava (spec 203/207).
  */
-export function DeliveryProofSection({
+export function DeliveryProofSection(props: DeliveryProofSectionProps) {
+  const { t } = useTranslation('driverTrip')
+  /** Spec 207: "Concluir" — estado só da tela, por nota; nunca `localStorage` (derivado seria melhor,
+   * mas o momento em que o motorista concluiu não vem de nenhum outro dado). */
+  const [concludedAt, setConcludedAt] = useState<string | undefined>(undefined)
+
+  /**
+   * Pedido do usuário (25/09, spec 207): "Concluir" nunca trava (spec 203) — com pendência
+   * obrigatória, pede confirmação nomeando o que falta; a foto/assinatura já guardada não é
+   * descartada em nenhum dos dois caminhos. Antes de fechar, garante que edições digitadas e ainda
+   * não confirmadas (`onBlur`) cheguem pelo caminho que já existe (fila ou PATCH).
+   */
+  function handleComplete(capture: ProofCaptureState): void {
+    capture.pushLateFieldUpdate()
+    const pending = listAllPendingFields({ plan: capture.plan, values: capture.values })
+    if (pending.length > 0) {
+      const cargoMissingCount = countMissingCargoPhotos({
+        plan: capture.plan,
+        values: capture.values,
+      })
+      const fieldsText = pending
+        .map((field) => t(`proofFields.missing.${field}`, { count: cargoMissingCount }))
+        .join(', ')
+      if (!window.confirm(t('proofFields.completeMissing', { fields: fieldsText }))) return
+    }
+    setConcludedAt(new Date().toISOString())
+  }
+
+  return (
+    <ProofCaptureFields
+      {...props}
+      renderFooter={(capture) => (
+        <div className={styles.actions}>
+          <Button onClick={() => handleComplete(capture)} type="button">
+            <Icon name="check" />
+            {t('proofFields.complete')}
+          </Button>
+        </div>
+      )}
+      summary={
+        concludedAt === undefined ? undefined : (
+          <>
+            <ActivityStatusLine
+              status="sent"
+              text={t('proofFields.completedAt', { time: formatActivityTime(concludedAt) })}
+            />
+            <Button onClick={() => setConcludedAt(undefined)} type="button" variant="ghost">
+              <Icon name="pen" />
+              {t('proofFields.edit')}
+            </Button>
+          </>
+        )
+      }
+    />
+  )
+}
+
+/** O que o rodapé de quem monta a captura precisa ler dela — nada além disso sai do componente. */
+type ProofCaptureState = Readonly<{
+  plan: ProofFormPlan
+  /** Envia o que foi digitado e ainda não saiu pelo `onBlur` (fila ou PATCH). */
+  pushLateFieldUpdate: () => void
+  values: ProofFormValues & Readonly<{ receivedBy: string; receivedByDetail: string }>
+}>
+
+type ProofCaptureFieldsProps = DeliveryProofSectionProps &
+  Readonly<{
+    /** Quem monta decide o fim do formulário: "Concluir" depois da entrega, "Confirmar" antes. */
+    renderFooter: (capture: ProofCaptureState) => ReactNode
+    /** Presente, ocupa o lugar dos campos — o estado da captura continua montado por baixo. */
+    summary?: ReactNode
+  }>
+
+/**
+ * Spec 218 (RF-A2): o miolo do comprovante — botões de captura, miniaturas e campos de quem
+ * recebeu —, sem nenhuma ideia de "concluído" ou de "entregue". O mesmo código antes e depois da
+ * entrega: os dois formulários são iguais por construção, não por disciplina.
+ */
+function ProofCaptureFields({
   documentId,
   lateRegistration,
   onProof,
@@ -885,7 +1188,10 @@ export function DeliveryProofSection({
   queueView = [],
   recipientDisplayName,
   recipientIsCompany,
-}: DeliveryProofSectionProps) {
+  renderFooter,
+  serverProof,
+  summary,
+}: ProofCaptureFieldsProps) {
   const { t } = useTranslation('driverTrip')
   const plan = resolveProofFormPlan(proofSettings)
   const [receiverName, setReceiverName] = useState('')
@@ -896,19 +1202,34 @@ export function DeliveryProofSection({
   const [missing, setMissing] = useState<readonly ProofFieldKey[]>([])
   const [openSignature, setOpenSignature] = useState(false)
   const [cropFile, setCropFile] = useState<File | null>(null)
+  /**
+   * Spec 218: a captura nasce do que a fila já guarda para a nota — o canhoto colhido no gate
+   * continua "anexado" quando a nota passa a entregue e esta seção remonta. Lida uma vez: o anexo que
+   * sobe depois sai da fila, e a tela não volta a "Tirar foto" por isso.
+   */
+  const [queuedAtMount] = useState(() => resolveQueuedProofAttachments({ documentId, queueView }))
   const [attached, setAttached] = useState<{ photo: boolean; signature: boolean }>({
-    photo: false,
-    signature: false,
+    photo: queuedAtMount.photo !== undefined,
+    signature: queuedAtMount.signature !== undefined,
   })
   /**
    * Spec 211 (defeito 26/09): foto do canhoto e assinatura são anexos distintos, com miniatura,
    * chave e "Remover" próprios — os dois cabem juntos, e um nunca pisa no lugar do outro.
    */
-  const [attachedKey, setAttachedKey] = useState<{ photo?: string; signature?: string }>({})
+  const [attachedKey, setAttachedKey] = useState<{ photo?: string; signature?: string }>({
+    ...(queuedAtMount.photo === undefined ? {} : { photo: queuedAtMount.photo.attachmentKey }),
+    ...(queuedAtMount.signature === undefined
+      ? {}
+      : { signature: queuedAtMount.signature.attachmentKey }),
+  })
+  /** Spec 220: a mercadoria acumula — cada foto tem a própria chave, e a contagem é o tamanho da lista. */
+  const [cargoKeys, setCargoKeys] = useState<readonly string[]>(() =>
+    queuedAtMount.cargo.map((attachment) => attachment.attachmentKey),
+  )
   const [openImageKind, setOpenImageKind] = useState<'photo' | 'signature' | undefined>(undefined)
-  /** Spec 207: "Concluir" — estado só da tela, por nota; nunca `localStorage` (derivado seria melhor,
-   * mas o momento em que o motorista concluiu não vem de nenhum outro dado). */
-  const [concludedAt, setConcludedAt] = useState<string | undefined>(undefined)
+  /** Spec 218: o kind que a fila recusou por último (teto cheio) — nunca aparece como anexado. */
+  const [refusedKind, setRefusedKind] = useState<'photo' | 'signature' | undefined>(undefined)
+  const [isCargoRefused, setIsCargoRefused] = useState(false)
   /** Spec 207: enquanto o anexo está aqui, "Remover" é seguro — enviado, só "Substituir". */
   const isProofQueued = queueView.some(
     (item) => item.kind === 'proof' && item.documentId === documentId,
@@ -918,9 +1239,20 @@ export function DeliveryProofSection({
   const cameraFieldRef = useCameraCaptureFieldRef()
   const galleryFieldRef = useCameraCaptureFieldRef()
   /** Spec 211: uma miniatura por kind — cada anexo revoga só a própria URL `blob:` ao trocar. */
-  const photoPreview = usePhotoPreviewUrl()
-  const signaturePreview = usePhotoPreviewUrl()
+  const photoPreview = usePhotoPreviewUrl(queuedAtMount.photo?.blob)
+  const signaturePreview = usePhotoPreviewUrl(queuedAtMount.signature?.blob)
   const previewByKind = { photo: photoPreview, signature: signaturePreview }
+  const photoUpload = useProofUploadStatus({
+    isAttached: attached.photo,
+    ...resolveProofUploadObservation({ documentId, kind: 'photo', queueView }),
+  })
+  const isPhotoConfirmedByServer = isProofConfirmedByServer({
+    hasLocalAttachment: attached.photo,
+    isDelivered: serverProof?.isDelivered ?? false,
+    isRequired: plan.fields.photo === 'required',
+    kind: 'photo',
+    proofPending: serverProof?.proofPending ?? true,
+  })
   const nameInputRef = useRef<HTMLInputElement>(null)
   /** Spec 193 D14: PJ recebe o nome selecionado, com foco — o motorista digita por cima. */
   const [selectNameOnNextRender, setSelectNameOnNextRender] = useState(false)
@@ -965,10 +1297,15 @@ export function DeliveryProofSection({
    * e foto obrigatórias, não só os campos de texto. Spec 203: nunca bloqueia mais o anexo — só
    * alimenta o aviso não-intrusivo (`role="status"`) de que falta completar o comprovante.
    */
-  function blockedByFields(next: { photo: boolean; signature: boolean }): boolean {
+  function blockedByFields(next: {
+    cargoCount: number
+    photo: boolean
+    signature: boolean
+  }): boolean {
     const failures = listMissingProofFields({
       plan,
       values: {
+        cargoCount: next.cargoCount,
         hasPhoto: next.photo,
         hasSignature: next.signature,
         receiverDocument,
@@ -983,31 +1320,64 @@ export function DeliveryProofSection({
    * Spec 203 (o attach nunca descarta a foto): a foto é a prova nº 1 do usuário — entra na fila
    * incondicionalmente, **antes** de qualquer veredito de campo. Campo obrigatório vazio vira aviso
    * visível (`missing`), nunca motivo para jogar fora o que o motorista já fotografou.
+   *
+   * Spec 218: "anexada" só depois do aceite da fila — com o teto cheio (spec 203), a fila recusa, e o
+   * formulário diz isso em vez de mostrar uma foto que não está guardada em lugar nenhum.
    */
   function attach(kind: 'photo' | 'signature', file: File): void {
-    const next = { ...attached, [kind]: true }
-    setAttached(next)
     /* Spec 207: gerada aqui — é a chave que "Remover" vai pedir de volta, por item, nunca por nota. */
     const attachmentKey = crypto.randomUUID()
-    setAttachedKey((current) => ({ ...current, [kind]: attachmentKey }))
-    /* Spec 211: cada kind tem a própria miniatura — anexar um nunca troca a do outro. */
-    previewByKind[kind].showPhoto(file)
-    onProof({
+    setRefusedKind(undefined)
+    void onProof({
       attachmentKey,
       documentId,
       file,
       kind,
       ...(lateRegistration === true ? { lateRegistration: true } : {}),
       ...currentFields(),
+    }).then((isAccepted) => {
+      if (!isAccepted) {
+        setRefusedKind(kind)
+      } else {
+        const next = { ...attached, [kind]: true, cargoCount: cargoKeys.length }
+        setAttached((current) => ({ ...current, [kind]: true }))
+        setAttachedKey((current) => ({ ...current, [kind]: attachmentKey }))
+        /* Spec 211: cada kind tem a própria miniatura — anexar um nunca troca a do outro. */
+        previewByKind[kind].showPhoto(file)
+        blockedByFields(next)
+      }
     })
-    blockedByFields(next)
+  }
+
+  /**
+   * Spec 220 RF09: a foto da mercadoria entra na fila **sempre** — abaixo do mínimo é pendência de
+   * confirmação, nunca recusa do anexo. Sem nome nem documento: a mercadoria não é o comprovante de
+   * quem recebeu.
+   */
+  function attachCargo(file: File): void {
+    const attachmentKey = crypto.randomUUID()
+    setIsCargoRefused(false)
+    void onProof({
+      attachmentKey,
+      documentId,
+      file,
+      kind: 'cargo',
+      ...(lateRegistration === true ? { lateRegistration: true } : {}),
+    }).then((isAccepted) => {
+      if (!isAccepted) {
+        setIsCargoRefused(true)
+        return
+      }
+      setCargoKeys((current) => [...current, attachmentKey])
+      blockedByFields({ ...attached, cargoCount: cargoKeys.length + 1 })
+    })
   }
 
   /** Spec 203/193: o campo chega depois do anexo — alcança o mesmo item na fila, se ele ainda estiver lá. */
   function pushLateFieldUpdate(
     overrides: Readonly<{ receivedBy?: string; receiverName?: string }> = {},
   ): void {
-    if (attached.photo || attached.signature) {
+    if (attached.photo || attached.signature || cargoKeys.length > 0) {
       onProofFieldsUpdate?.({ documentId, ...currentFields(overrides) })
     }
   }
@@ -1028,32 +1398,6 @@ export function DeliveryProofSection({
     setAttached((current) => ({ ...current, [kind]: false }))
     setAttachedKey((current) => ({ ...current, [kind]: undefined }))
     setMissing((current) => current.filter((field) => field !== kind))
-  }
-
-  /**
-   * Pedido do usuário (25/09, spec 207): "Concluir" nunca trava (spec 203) — com pendência
-   * obrigatória, pede confirmação nomeando o que falta; a foto/assinatura já guardada não é
-   * descartada em nenhum dos dois caminhos. Antes de fechar, garante que edições digitadas e ainda
-   * não confirmadas (`onBlur`) cheguem pelo caminho que já existe (fila ou PATCH).
-   */
-  function handleComplete(): void {
-    pushLateFieldUpdate()
-    const pending = listAllPendingFields({
-      plan,
-      values: {
-        hasPhoto: attached.photo,
-        hasSignature: attached.signature,
-        receivedBy,
-        receivedByDetail,
-        receiverDocument,
-        receiverName,
-      },
-    })
-    if (pending.length > 0) {
-      const fieldsText = pending.map((field) => t(`proofFields.missing.${field}`)).join(', ')
-      if (!window.confirm(t('proofFields.completeMissing', { fields: fieldsText }))) return
-    }
-    setConcludedAt(new Date().toISOString())
   }
 
   /**
@@ -1088,8 +1432,54 @@ export function DeliveryProofSection({
     values: { receivedBy, receivedByDetail },
   })
 
+  const currentValues = {
+    cargoCount: cargoKeys.length,
+    hasPhoto: attached.photo,
+    hasSignature: attached.signature,
+    receivedBy,
+    receivedByDetail,
+    receiverDocument,
+    receiverName,
+  }
+
   /** Spec 207: "Refazer" enquanto o anexo pode ser trocado sem custo; enviado, é "Substituir". */
   const retakeLabel = isProofQueued ? t('proofCapture.retake') : t('proofCapture.replace')
+
+  /** A moldura ainda sem foto: estática — nada carrega, o app espera o motorista. */
+  function renderEmptyFrame(): ReactNode {
+    return (
+      <div className={styles.proofCaptureAttached}>
+        <div className={styles.proofEmptyFrame}>
+          <Icon name="camera" />
+          <span>{t('proofCapture.upload.empty')}</span>
+        </div>
+      </div>
+    )
+  }
+
+  /** O servidor já tem a foto, o aparelho não: sem hora (o snapshot não manda) e sem convite à primeira captura. */
+  function renderConfirmedFrame(): ReactNode {
+    return (
+      <div className={styles.proofCaptureAttached}>
+        <div className={styles.proofConfirmedFrame}>
+          <Icon name="check" />
+          <span>{t('proofCapture.upload.confirmed')}</span>
+        </div>
+      </div>
+    )
+  }
+
+  /** O anexo existe: a moldura carrega, e o leitor de tela ouve por quê. */
+  function renderLoadingFrame(kind: 'photo' | 'signature'): ReactNode {
+    return (
+      <SkeletonGroup
+        className={styles.proofCaptureAttached}
+        label={t(`proofCapture.upload.loading.${kind}`)}
+      >
+        <Skeleton height={PROOF_FRAME_SIZE} width={PROOF_FRAME_SIZE} />
+      </SkeletonGroup>
+    )
+  }
 
   /**
    * Spec 211 (defeito 26/09): a miniatura, o texto e os botões de um anexo — chamada uma vez por
@@ -1097,9 +1487,11 @@ export function DeliveryProofSection({
    */
   function renderAttachedThumbnail(kind: 'photo' | 'signature'): ReactNode {
     const preview = previewByKind[kind]
-    if (!attached[kind] || preview.previewUrl === undefined) return null
+    if (kind === 'photo' && isPhotoConfirmedByServer) return renderConfirmedFrame()
+    if (!attached[kind]) return kind === 'photo' && rendersPhotoCapture ? renderEmptyFrame() : null
+    if (preview.previewUrl === undefined) return renderLoadingFrame(kind)
     return (
-      <div className={styles.proofCaptureAttached} role="status">
+      <div className={styles.proofCaptureAttached}>
         <button
           aria-label={t('proofCapture.view')}
           className={styles.proofCaptureThumbnailButton}
@@ -1112,21 +1504,27 @@ export function DeliveryProofSection({
             src={preview.previewUrl}
           />
         </button>
-        <span className={styles.proofCaptureAttachedText}>
-          <Icon name="check" />
-          {kind === 'signature' ? t('signature.attached') : t('proofCapture.attached')}
-        </span>
-        <div className={styles.actions}>
-          <Button onClick={() => setOpenImageKind(kind)} type="button" variant="ghost">
-            <Icon name="eye" />
-            {t('proofCapture.view')}
-          </Button>
-          {isProofQueued ? (
-            <Button onClick={() => handleRemove(kind)} type="button" variant="ghost">
-              <Icon name="trash" />
-              {t('proofCapture.remove')}
+        <div className={styles.proofUploadColumn}>
+          {kind === 'photo' ? (
+            <ProofUploadStatus upload={photoUpload} />
+          ) : (
+            <span className={styles.proofCaptureAttachedText}>
+              <Icon name="check" />
+              {t('signature.attached')}
+            </span>
+          )}
+          <div className={styles.actions}>
+            <Button onClick={() => setOpenImageKind(kind)} type="button" variant="ghost">
+              <Icon name="eye" />
+              {t('proofCapture.view')}
             </Button>
-          ) : null}
+            {isProofQueued ? (
+              <Button onClick={() => handleRemove(kind)} type="button" variant="ghost">
+                <Icon name="trash" />
+                {t('proofCapture.remove')}
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
     )
@@ -1134,7 +1532,7 @@ export function DeliveryProofSection({
 
   return (
     <div className={styles.proofSection}>
-      {concludedAt === undefined ? (
+      {summary === undefined ? (
         <>
           {/*
            * Pedido do usuário (25/09): três botões iguais — "Tirar foto" abre a câmera na hora,
@@ -1158,8 +1556,12 @@ export function DeliveryProofSection({
                       onSelect={setCropFile}
                     >
                       <Icon name="camera" />
-                      {attached.photo ? retakeLabel : t('choosePhoto')}
-                      {plan.fields.photo === 'required' && !attached.photo ? ' *' : ''}
+                      {attached.photo || isPhotoConfirmedByServer ? retakeLabel : t('choosePhoto')}
+                      {plan.fields.photo === 'required' &&
+                      !attached.photo &&
+                      !isPhotoConfirmedByServer
+                        ? ' *'
+                        : ''}
                     </FilePickerButton>
                     <FilePickerButton
                       accept="image/*"
@@ -1194,7 +1596,26 @@ export function DeliveryProofSection({
                   {t('proofFields.pendingField')}
                 </span>
               ) : null}
+              {refusedKind === undefined ? null : (
+                <span className={styles.proofFieldError} role="status">
+                  {t(`proofCapture.refused.${refusedKind}`)}
+                </span>
+              )}
             </div>
+          ) : null}
+
+          {plan.rendersCargo ? (
+            <ProofCargoField
+              attachedCount={cargoKeys.length}
+              isRefused={isCargoRefused}
+              isRequired={plan.fields.cargo === 'required'}
+              missingCount={
+                missing.includes('cargo')
+                  ? countMissingCargoPhotos({ plan, values: currentValues })
+                  : 0
+              }
+              onSelect={attachCargo}
+            />
           ) : null}
 
           {/*
@@ -1314,24 +1735,14 @@ export function DeliveryProofSection({
             ) : null}
           </label>
 
-          <div className={styles.actions}>
-            <Button onClick={handleComplete} type="button">
-              <Icon name="check" />
-              {t('proofFields.complete')}
-            </Button>
-          </div>
+          {renderFooter({
+            plan,
+            pushLateFieldUpdate: () => pushLateFieldUpdate(),
+            values: currentValues,
+          })}
         </>
       ) : (
-        <>
-          <ActivityStatusLine
-            status="sent"
-            text={t('proofFields.completedAt', { time: formatActivityTime(concludedAt) })}
-          />
-          <Button onClick={() => setConcludedAt(undefined)} type="button" variant="ghost">
-            <Icon name="pen" />
-            {t('proofFields.edit')}
-          </Button>
-        </>
+        summary
       )}
 
       {openImageKind !== undefined && previewByKind[openImageKind].previewUrl !== undefined ? (

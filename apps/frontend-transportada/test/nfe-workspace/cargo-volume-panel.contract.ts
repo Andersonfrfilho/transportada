@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'bun:test'
 
 import {
+  resolveSettingsDataScope,
   SETTINGS_PANEL_PLACEMENT,
   settingsPanelsOf,
 } from '../../src/modules/company-settings/shared/companySettingsTabs.service'
@@ -31,11 +32,11 @@ describe('painel do fator de cubagem (spec 077)', () => {
    * que faz a consulta ligar com `enabled: canManageSettings && settingsScope.<source>` — painel
    * fora do registro abre formulário em branco sobre dado que existe.
    */
-  test('mora na aba de importação, ao lado do peso padrão', () => {
+  test('mora na aba de caixas, ao lado do peso padrão', () => {
     expect(SETTINGS_PANEL_PLACEMENT.cargoVolume).toEqual({
       module: 'nfe-workspace',
       source: 'cargoVolumeFactors',
-      tab: 'imports',
+      tab: 'boxes',
     })
   })
 
@@ -44,10 +45,24 @@ describe('painel do fator de cubagem (spec 077)', () => {
    * em dois lugares por duas metades da mesma configuração.
    */
   test('divide a aba com o peso padrão, não outra', () => {
-    const panels = settingsPanelsOf('nfe-workspace', 'imports')
+    const panels = settingsPanelsOf('nfe-workspace', 'boxes')
 
     expect(panels).toContain('cargoVolume')
     expect(panels).toContain('cargoWeight')
+  })
+
+  /**
+   * ⚠️ Os dois moram na aba Caixas, não mais em Importações — a consulta que os alimenta
+   * (`cargoSettings`/`cargoVolumeFactors`) sobe com ela, e some da aba antiga.
+   */
+  test('a aba de caixas liga as duas consultas, e a de importações não', () => {
+    const boxes = resolveSettingsDataScope('nfe-workspace', 'boxes')
+    const imports = resolveSettingsDataScope('nfe-workspace', 'imports')
+
+    expect(boxes.cargoSettings).toBe(true)
+    expect(boxes.cargoVolumeFactors).toBe(true)
+    expect(imports.cargoSettings).toBe(false)
+    expect(imports.cargoVolumeFactors).toBe(false)
   })
 
   /** ⚠️ Desligar é apagar a linha: o CHECK do banco recusa zero, e gravar zero seria dizer que a

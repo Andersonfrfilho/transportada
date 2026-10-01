@@ -2,8 +2,10 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
+import type { MdfeBodyType } from '../../database/fleet.schema.js'
 import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
+import type { CapacityUnknownReason } from '../domain/capacity-unknown-reason.policy.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
 import type { BuildCargoLayoutInputParams } from '../domain/cargo-layout-hash.types.js'
 import type { TripCargoLayoutState } from '../domain/cargo-layout-state.types.js'
@@ -266,6 +268,13 @@ export type TripCargoLayoutView = {
   }[]
 }
 
+/** Feature 147 D3/RF5: a carreta atrelada, com o mínimo que a tela precisa para identificá-la. */
+export type TripTrailerView = {
+  readonly bodyType: MdfeBodyType
+  readonly id: string
+  readonly plate: string
+}
+
 export type TripDetail = Trip & {
   /**
    * Spec 156 T8d: os três nascem juntos e só do encerramento **manual** pelo botão (`close`) — a
@@ -288,11 +297,21 @@ export type TripDetail = Trip & {
    * parada e nome de cliente.
    */
   readonly pendingCargoLayoutInput?: BuildCargoLayoutInputParams
+  /** Spec 147 D2/RF4: por que `occupancy` está nulo, para o painel nomear o que falta. */
+  readonly capacityUnknownReason: CapacityUnknownReason | null
+  /**
+   * T18 (revisão, item 10): o veículo cuja ficha resolve `capacityUnknownReason` — a carreta em
+   * `bodyTypeMissing`, o veículo da viagem nos demais motivos. Campo opcional na leitura do
+   * frontend de propósito: instalação que subir a API antes do frontend não pode esvaziar a tela.
+   */
+  readonly capacityUnknownVehicleId: string | null
   readonly documents: readonly TripDocumentDetail[]
   readonly drivers: readonly TripDriverDetail[]
   readonly cargoWeight: TripCargoWeightView | null
   readonly occupancy: TripOccupancyView | null
   readonly stops: readonly TripStopDetail[]
+  /** Feature 147 D3/RF5: `null` quando o cavalo não tem carreta atrelada. */
+  readonly trailer: TripTrailerView | null
 }
 
 export type CreateTripRecord = {
@@ -302,6 +321,8 @@ export type CreateTripRecord = {
   readonly companyId: string
   readonly crew: readonly TripDriverLine[]
   readonly dailyAllowanceDays?: number
+  /** Feature 147 D3: a carreta padrão do cavalo, copiada na criação — `null` sem cavalo ou sugestão. */
+  readonly trailerVehicleId: string | null
   readonly vehicleId: string | null
 }
 
@@ -351,10 +372,37 @@ export type TripRepositoryPort = {
     readonly documentId: string
     readonly tripId: string
   }): Promise<TripDocument | null>
+  /**
+   * Spec 153 T708 (H4): devolve o id da viagem **só quando todas** as notas já estão vivas nela —
+   * é o sinal de que uma composição anterior deste mesmo aceite (interrompida por uma falha em
+   * outro veículo) já criou esta viagem. `null` em qualquer outro caso, inclusive vínculo parcial:
+   * arriscar reaproveitar uma viagem incompleta é pior do que criar uma nova.
+   *
+   * Spec 153 T801 (N1): o conjunto de notas sozinho não basta — só reaproveita a viagem que a
+   * composição anterior criou para **este** veículo (e este motorista, quando informado), e só
+   * enquanto ela ainda não foi despachada. Sem isso, uma frota que muda entre tentativas pendura a
+   * carga no caminhão errado, ou numa viagem já na rua.
+   */
+  findLiveTripIdForDocuments(input: {
+    readonly companyId: string
+    readonly driverId: string | null
+    readonly nfeDocumentIds: readonly string[]
+    readonly vehicleId: string
+  }): Promise<string | null>
   findVehicle(input: {
     readonly companyId: string
     readonly vehicleId: string
   }): Promise<TripVehicleCandidate | null>
+  /**
+   * Feature 147 T10: conferência prévia, antes de tentar a escrita — a corrida de verdade é fechada
+   * pelo índice `trips_company_trailer_open_unique`, traduzido em `setTrailer`.
+   */
+  isTrailerInOpenTrip(input: {
+    readonly companyId: string
+    /** Ausente na criação, onde a viagem ainda não tem id. */
+    readonly excludingTripId?: string
+    readonly vehicleId: string
+  }): Promise<boolean>
   /** Lança `TripDocumentAlreadyLinkedError` quando a nota/frete já está vivo em outra viagem. */
   linkDocument(input: {
     readonly companyId: string
@@ -391,4 +439,14 @@ export type TripRepositoryPort = {
     readonly documentId: string
     readonly tripId: string
   }): Promise<TripDocument | null>
+  /**
+   * Feature 147 T10: `null` quando a viagem não existe. Re-checa o portão de estado dentro da
+   * transação (como `linkDocument`) e traduz `trips_company_trailer_open_unique` (23505) em
+   * `TripTrailerInUseError` — é isso que fecha a corrida entre duas escritas concorrentes.
+   */
+  setTrailer(input: {
+    readonly companyId: string
+    readonly trailerVehicleId: string | null
+    readonly tripId: string
+  }): Promise<TripDetail | null>
 }

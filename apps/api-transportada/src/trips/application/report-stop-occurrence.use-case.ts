@@ -2,13 +2,18 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
+import { resolveStopOccurrenceKind } from '../domain/stop-occurrence-kind.policy.js'
 import {
+  OccurrenceTypeNotStopError,
   TripDocumentNotReachableError,
   TripOccurrenceUploadNotReachableError,
   TripStopNotReachableError,
 } from '../domain/trip.error.js'
 import type { SuggestDeliveryChargesPort } from '../../delivery-clients/application/suggest-delivery-charges.use-case.js'
-import type { DriverFieldReportUnitOfWork } from './driver-field-report.port.js'
+import type {
+  DriverFieldReportTransactionPort,
+  DriverFieldReportUnitOfWork,
+} from './driver-field-report.port.js'
 import {
   deriveFieldAuthorship,
   toFieldTripTarget,
@@ -61,30 +66,38 @@ export type StopOccurrenceAttachmentPort = OccurrenceUploadAttachmentPort & {
   }): Promise<void>
 }
 
-export type ReportStopOccurrenceInput = FieldTripLocator & {
-  readonly actorUserId: string
-  readonly attachmentObjectId: string | null
-  /** Spec 209: só o canal do motorista a recebe — sem ela, anexo é recusado, nunca ignorado. */
-  readonly attachmentUploads?: StopOccurrenceAttachmentPort
-  readonly companyId: string
-  readonly description: string
-  /** ADR-0057 §3: `null` é não aferida, e ela é aceita — distância nunca é porteiro. */
-  readonly distanceMeters: number | null
-  readonly documentId: string | null
-  readonly idempotencyKey: string
-  readonly kind: TripStopOccurrenceKind
-  /** Spec 156 T15 M11: só o escritório manda — a trilha nasce na transação da ocorrência. */
-  readonly officeAudit?: OfficeAuditRequest
-  readonly stopId: string
-  /**
-   * Spec 060 D4c: a ocorrência de **cobrança** vira sugestão na fila do escritório. Ausente, a
-   * ocorrência segue sendo só relato — que é o comportamento da 057 sozinha.
-   */
-  readonly suggestCharges?: SuggestDeliveryChargesPort
-  /** Ausente quando a instalação não tem trilho de notificação — o registro segue igual. */
-  readonly notifier?: StopOccurrenceNotifierPort
-  readonly unitOfWork: DriverFieldReportUnitOfWork
-}
+/**
+ * Spec 218 D2: o app manda o tipo do catálogo, e o kind sai do `stop_kind` dele — nunca do nome. O
+ * corpo antigo (item da fila de antes da troca, e o escritório) manda só o kind, e grava sem tipo.
+ */
+export type StopOccurrenceReference =
+  | { readonly kind: TripStopOccurrenceKind; readonly occurrenceTypeId?: undefined }
+  | { readonly kind?: undefined; readonly occurrenceTypeId: string }
+
+export type ReportStopOccurrenceInput = FieldTripLocator &
+  StopOccurrenceReference & {
+    readonly actorUserId: string
+    readonly attachmentObjectId: string | null
+    /** Spec 209: só o canal do motorista a recebe — sem ela, anexo é recusado, nunca ignorado. */
+    readonly attachmentUploads?: StopOccurrenceAttachmentPort
+    readonly companyId: string
+    readonly description: string
+    /** ADR-0057 §3: `null` é não aferida, e ela é aceita — distância nunca é porteiro. */
+    readonly distanceMeters: number | null
+    readonly documentId: string | null
+    readonly idempotencyKey: string
+    /** Spec 156 T15 M11: só o escritório manda — a trilha nasce na transação da ocorrência. */
+    readonly officeAudit?: OfficeAuditRequest
+    readonly stopId: string
+    /**
+     * Spec 060 D4c: a ocorrência de **cobrança** vira sugestão na fila do escritório. Ausente, a
+     * ocorrência segue sendo só relato — que é o comportamento da 057 sozinha.
+     */
+    readonly suggestCharges?: SuggestDeliveryChargesPort
+    /** Ausente quando a instalação não tem trilho de notificação — o registro segue igual. */
+    readonly notifier?: StopOccurrenceNotifierPort
+    readonly unitOfWork: DriverFieldReportUnitOfWork
+  }
 
 export type ReportStopOccurrenceResult = { readonly id: string }
 
@@ -118,13 +131,31 @@ async function assertStopAttachmentReachable(
  * - **É independente da entrega.** Ela não muda o estado de nota nenhuma, e não impede a entrega da
  *   mesma nota logo depois — ele esperou duas horas *e* entregou.
  */
+async function resolveStopOccurrenceReference(
+  input: ReportStopOccurrenceInput,
+  transaction: DriverFieldReportTransactionPort,
+): Promise<{ readonly kind: TripStopOccurrenceKind; readonly occurrenceTypeId: string | null }> {
+  if (input.occurrenceTypeId === undefined) return { kind: input.kind, occurrenceTypeId: null }
+
+  const type = await transaction.findStopOccurrenceType({
+    companyId: input.companyId,
+    occurrenceTypeId: input.occurrenceTypeId,
+  })
+  if (type === null) throw new OccurrenceTypeNotStopError()
+  return {
+    kind: resolveStopOccurrenceKind(type.stopKind),
+    occurrenceTypeId: input.occurrenceTypeId,
+  }
+}
+
 export async function reportStopOccurrence(
   input: ReportStopOccurrenceInput,
 ): Promise<ReportStopOccurrenceResult> {
   const authorship = deriveFieldAuthorship(input)
 
-  const recorded = await input.unitOfWork.execute(async (transaction) =>
-    withFieldReport({
+  const recorded = await input.unitOfWork.execute(async (transaction) => {
+    const reference = await resolveStopOccurrenceReference(input, transaction)
+    const occurrence = await withFieldReport({
       guard: {
         actorUserId: input.actorUserId,
         authorship,
@@ -171,7 +202,8 @@ export async function reportStopOccurrence(
           description: input.description,
           distanceMeters: input.distanceMeters,
           documentId: input.documentId,
-          kind: input.kind,
+          kind: reference.kind,
+          occurrenceTypeId: reference.occurrenceTypeId,
           stopId: input.stopId,
         })
       },
@@ -187,8 +219,9 @@ export async function reportStopOccurrence(
         }
         return transaction.findOccurrenceById({ companyId: input.companyId, occurrenceId })
       },
-    }),
-  )
+    })
+    return { id: occurrence.id, kind: reference.kind }
+  })
 
   /**
    * Spec 209 RF3: a foto é um item próprio da fila, atrás da ocorrência, e chega pela mesma chave.
@@ -212,7 +245,7 @@ export async function reportStopOccurrence(
    * Sem nota não há sugestão: a taxa é cobrada por nota, e "alguém cobrou algo nesta parada" não diz
    * de qual carga — isso o escritório resolve lendo a ocorrência.
    */
-  if (input.kind === CHARGE_OCCURRENCE_KIND && input.documentId !== null) {
+  if (recorded.kind === CHARGE_OCCURRENCE_KIND && input.documentId !== null) {
     await input.suggestCharges?.onDelivered({
       chargeType: OCCURRENCE_CHARGE_TYPE,
       companyId: input.companyId,
@@ -230,11 +263,11 @@ export async function reportStopOccurrence(
   await input.notifier?.notify({
     companyId: input.companyId,
     documentId: input.documentId,
-    kind: input.kind,
+    kind: recorded.kind,
     occurredAt: new Date(),
     occurrenceId: recorded.id,
     stopId: input.stopId,
   })
 
-  return recorded
+  return { id: recorded.id }
 }

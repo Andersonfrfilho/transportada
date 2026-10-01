@@ -176,6 +176,24 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
         },
         signature: 'POST /trips/:id/documents/:documentId/occurrences/:occurrenceId/attachments',
       },
+      {
+        rateLimit: {
+          maxRequests: 60,
+          scope: 'trip-occurrence-correction',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'PATCH /trips/:id/documents/:documentId/occurrences/:occurrenceId/items',
+      },
+      {
+        rateLimit: {
+          maxRequests: 60,
+          scope: 'trip-occurrence-correction',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /trips/:id/documents/:documentId/occurrences/:occurrenceId/cancellation',
+      },
     ])
   })
 

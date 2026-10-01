@@ -18,6 +18,7 @@ import type { FleetDriverListItem, FleetVehicleDetail } from '@/modules/fleet/sh
 import type { NfeDocumentListItem } from '@/modules/nfe-workspace/shared/nfeWorkspaceClient.service'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 import { useTripCargoPreview } from '../hooks/useTripCargoPreview.hook'
+import { FINANCIALS_PERMISSION } from '@/modules/trip-financials/shared/tripFinancialsQueryKey.constant'
 import { useTripValuationPreview } from '@/modules/trip-financials/hooks/useTripValuationPreview.hook'
 
 import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityBand.component'
@@ -160,6 +161,14 @@ export function TripQuickCreateDialog({
    * paradas é a que o operador acabou de montar no mapa acima — a prévia não inventa roteiro.
    */
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === quickCreate.vehicleId)
+  /**
+   * Spec 147 D3/T13: a criação **não** aceita escolher a carreta — a API a copia sozinha do cavalo
+   * ao criar a viagem (T10). O diálogo só informa qual será, e a troca acontece depois, no detalhe.
+   */
+  const defaultTrailer =
+    selectedVehicle === undefined
+      ? undefined
+      : vehicles.find((vehicle) => vehicle.id === selectedVehicle.defaultTrailerVehicleId)
   const cargoPreview = useTripCargoPreview({
     /** Spec 100: quem amarra a carga muda a altura da pilha, então o desenho depende dele. */
     driverIds: quickCreate.driverIds,
@@ -389,8 +398,18 @@ export function TripQuickCreateDialog({
           />
         )}
 
+        {/* Spec 147 D3/T13: só informa — a escolha de verdade é feita depois, no detalhe da viagem. */}
+        {selectedVehicle !== undefined && selectedVehicle.vehicleType === 'tractor_unit' ? (
+          <p className={styles.hint}>
+            {defaultTrailer === undefined
+              ? t('creation.trailerDefaultMissing')
+              : t('creation.trailerDefault', { plate: defaultTrailer.plate })}
+          </p>
+        ) : null}
+
         <TripAssemblyMap
           canAdjustTollBooth={permissions.includes(SETTINGS_MANAGE_PERMISSION)}
+          canReadFinancials={permissions.includes(FINANCIALS_PERMISSION)}
           nearby={nearbyNotes}
           onOrderChange={quickCreate.setCityOrder}
           onRouteChoiceChange={quickCreate.setRouteChoice}
@@ -416,10 +435,13 @@ export function TripQuickCreateDialog({
         {cargoPreview.preview === null ? null : (
           <TripCargoPanel
             cargoWeight={cargoPreview.preview.cargoWeight}
+            capacityUnknownReason={cargoPreview.preview.capacityUnknownReason}
+            capacityUnknownVehicleId={cargoPreview.preview.capacityUnknownVehicleId ?? null}
             layout={cargoPreview.preview.cargoLayout}
             layoutView={cargoPreview.cargoLayoutView}
             occupancy={cargoPreview.preview.occupancy}
             weightConcentration={cargoPreview.preview.weightConcentration}
+            vehicleId={quickCreate.vehicleId}
             vehicleType={
               vehicles.find((vehicle) => vehicle.id === quickCreate.vehicleId)?.vehicleType ?? ''
             }

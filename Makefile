@@ -7,6 +7,11 @@ PROJECT_NAME := $(shell sed -n 's/^PROJECT_NAME=//p' $(ENV_FILE) 2>/dev/null)
 APP_ENV := $(shell sed -n 's/^APP_ENV=//p' $(ENV_FILE) 2>/dev/null)
 COMPOSE_PROJECT_NAME := $(PROJECT_NAME)-$(APP_ENV)
 BUN_VERSION := 1.3.14
+# Worktree não herda o link da árvore principal, e é de worktree que o CLAUDE.md manda trabalhar.
+# ⚠️ Os nomes ficam fora do prefixo RAILWAY_: make exporta variável de linha de comando para o
+# ambiente da receita, e `RAILWAY_ENV` faz o próprio CLI trocar para modo token e responder
+# "Unauthorized" — com a flag -e correta na linha, e sem dizer que a culpa é do ambiente.
+PANEL_SCOPE := $(if $(PROJECT_ID),-p $(PROJECT_ID))$(if $(ENVIRONMENT), -e $(ENVIRONMENT))
 FRONTEND_PORT := $(or $(shell sed -n 's/^FRONTEND_PORT=//p' $(ENV_FILE) 2>/dev/null),53000)
 FRONTEND_LANDING_PORT := $(or $(shell sed -n 's/^FRONTEND_LANDING_PORT=//p' $(ENV_FILE) 2>/dev/null),53003)
 FRONTEND_CLIENT_PORT := $(or $(shell sed -n 's/^FRONTEND_CLIENT_PORT=//p' $(ENV_FILE) 2>/dev/null),53100)
@@ -32,7 +37,7 @@ COMPOSE_BASE := docker compose --env-file $(ENV_FILE) -p $(COMPOSE_PROJECT_NAME)
 COMPOSE := KEYCLOAK_PORT=$(KEYCLOAK_PORT) KEYCLOAK_MANAGEMENT_PORT=$(KEYCLOAK_MANAGEMENT_PORT) $(COMPOSE_BASE)
 E2E_ENV_FILE ?= .env.test
 
-.PHONY: help bootstrap e2e-bootstrap test-bootstrap realm-contract config postgres-up identity-bootstrap storage-bootstrap up down ps dev check migration-test smoke e2e-up e2e-down e2e-ps test-up test-down test-ps worker-integration map-refresh test-worker-integration
+.PHONY: help bootstrap e2e-bootstrap test-bootstrap realm-contract config postgres-up identity-bootstrap storage-bootstrap up down ps dev check migration-test smoke e2e-up e2e-down e2e-ps test-up test-down test-ps worker-integration map-mirror map-refresh test-worker-integration
 
 help: ## 📚 Lista os comandos disponíveis
 	@sed -n 's/^\([a-z][a-z-]*\):.*## \(.*\)$$/\1\t\2/p' $(MAKEFILE_LIST)
@@ -256,29 +261,61 @@ smoke: config ## 🩺 Valida a stack local já iniciada
 		PLAYWRIGHT_REUSE_EXISTING_DRIVER_SERVER=false \
 		bun run --cwd apps/frontend-driver smoke
 
-map-refresh: ## 🗺️  Reconstrói mapa e rota juntos, na data fixada em .railway/railway.ts
-	@date="$$(sed -n 's|.*sudeste-\([0-9]\{6\}\)\.osm\.pbf.*|\1|p' .railway/railway.ts | head -1)"; \
-	test -n "$$date" || { echo "não achei a data do extrato em .railway/railway.ts"; exit 2; }; \
-	echo "extrato    sudeste-$$date.osm.pbf"; \
-	echo "serviços   osrm + map-tiles (--from-source: reconstrói, não só reinicia)"; \
-	echo "ambiente   $${RAILWAY_ENVIRONMENT:-o do link atual}"; \
+map-mirror: ## 🗺️  Espelha o extrato no bucket e assina a URL dos builds (90 dias)
+# Com SOURCE=<url do Geofabrik> espelha e assina; sem ele, só re-assina o objeto que já está lá —
+# que é o caso comum, porque o que vence é a assinatura, não o extrato.
+	@test -n "$(DATASET)" || { echo "informe DATASET=<nome>, ex.: DATASET=sudeste"; exit 2; }; \
+	test -n "$(OBSERVED_ON)" || { echo "informe OBSERVED_ON=<AAAA-MM-DD>, o Last-Modified do extrato"; exit 2; }; \
+	echo "⚠️  A credencial do bucket vem do serviço 'api' por 'railway run', sem passar pelo terminal."; \
 	echo; \
-	echo "⚠️  Os dois, sempre. Mapa e rota em datas diferentes é a tela e o roteirizador"; \
-	echo "    discordando de onde a rua está — e isso não dá erro, só produz um traço"; \
-	echo "    que passa por onde o caminhão não vai."; \
-	echo; \
-	echo "⚠️  Trocou a data? o valor novo é ARG de build e vive na variável do serviço."; \
-	echo "    A IaC ainda não gerencia estes serviços — 'railway config plan' reprova enquanto"; \
-	echo "    sete deles apontarem para deploy/*/railway.json (ver docs/spec/railway.md)."; \
-	echo "    Até lá, ajuste MAP_PBF_URL e OSRM_PBF_URL no painel antes de rodar isto."; \
-	if [ "$(CONFIRM)" != "1" ]; then \
+	railway run $(PANEL_SCOPE) --service api -- bun scripts/osm-extract-mirror.ts \
+		--dataset "$(DATASET)" --observed-on "$(OBSERVED_ON)" \
+		$(if $(SOURCE),--source "$(SOURCE)",--presign-only)
+
+map-refresh: ## 🗺️  Reconstrói mapa e rota juntos, conferindo que leem o mesmo extrato
+# A URL saiu do .railway/railway.ts (é assinada, e assinatura não se versiona), então a constante
+# compartilhada deixou de ser o que mantém os dois serviços casados. Quem confere é este alvo.
+	@osrm_url="$$(railway variables $(PANEL_SCOPE) --service osrm --json 2>/dev/null | jq -r '.OSRM_PBF_URL // ""' 2>/dev/null)"; \
+	tiles_url="$$(railway variables $(PANEL_SCOPE) --service map-tiles --json 2>/dev/null | jq -r '.MAP_PBF_URL // ""' 2>/dev/null)"; \
+	if [ -z "$$osrm_url" ] && [ -z "$$tiles_url" ]; then \
+		echo "✗ não li variável nenhuma dos dois serviços. O erro do CLI:"; \
+		railway variables $(PANEL_SCOPE) --service osrm --json >/dev/null 2>&1 || true; \
+		railway variables $(PANEL_SCOPE) --service osrm 2>&1 >/dev/null | sed 's/^/    /' | head -3; \
+		echo "  Causa provável: worktree não herda o link da árvore principal."; \
+		echo "  Ligue com 'railway link', ou repita com PROJECT_ID=<id> ENVIRONMENT=staging."; \
+		exit 2; \
+	fi; \
+	osrm_key="$$(printf '%s' "$$osrm_url" | sed 's/?.*//')"; \
+	tiles_key="$$(printf '%s' "$$tiles_url" | sed 's/?.*//')"; \
+	test -n "$$osrm_key" || { echo "OSRM_PBF_URL não está definida no painel"; exit 2; }; \
+	test -n "$$tiles_key" || { echo "MAP_PBF_URL não está definida no painel"; exit 2; }; \
+	if [ "$$osrm_key" != "$$tiles_key" ]; then \
+		echo "✗ os dois apontam para extratos diferentes:"; \
+		echo "    osrm       $$osrm_key"; \
+		echo "    map-tiles  $$tiles_key"; \
 		echo; \
+		echo "  Isso não dá erro em lugar nenhum: só produz um traço que passa por onde o"; \
+		echo "  caminhão não vai. Realinhe as duas antes de reconstruir."; \
+		exit 2; \
+	fi; \
+	echo "extrato    $$osrm_key"; \
+	echo "serviços   osrm + map-tiles (--from-source: reconstrói, não só reinicia)"; \
+	echo "ambiente   $(if $(ENVIRONMENT),$(ENVIRONMENT),$${RAILWAY_ENVIRONMENT:-o do link atual})"; \
+	echo; \
+	case "$$osrm_url" in \
+		*X-Amz-Signature=*) ;; \
+		*geofabrik.de*) \
+			echo "⚠️  Ainda aponta direto para o Geofabrik, que apaga os datados em 3 a 7 dias."; \
+			echo "    É essa a origem dos builds em 404. Espelhe antes: make map-mirror ..."; \
+			echo ;; \
+		*) echo "⚠️  A URL não é pré-assinada — o build só passa se o objeto for público."; echo ;; \
+	esac; \
+	if [ "$(CONFIRM)" != "1" ]; then \
 		echo "nada foi reconstruído. repita com CONFIRM=1 para executar."; \
 		exit 0; \
 	fi; \
-	echo; \
-	railway redeploy --service osrm --from-source --yes && \
-	railway redeploy --service map-tiles --from-source --yes
+	railway redeploy $(PANEL_SCOPE) --service osrm --from-source --yes && \
+	railway redeploy $(PANEL_SCOPE) --service map-tiles --from-source --yes
 
 e2e-up: e2e-bootstrap ## 🧪 Sobe somente PostgreSQL, RabbitMQ e MinIO do ambiente dedicado de E2E
 	@ENV_FILE=$(E2E_ENV_FILE) SERVICES="postgres rabbitmq minio" $(MAKE) up

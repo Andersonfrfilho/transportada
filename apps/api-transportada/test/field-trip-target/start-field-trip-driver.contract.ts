@@ -25,7 +25,9 @@ function buildRepository(current: { readonly tripStatus: TripStatus } | null) {
     repository: {
       async readCurrent(input: { readonly companyId: string; readonly driverId: string }) {
         readCurrentCalls.push(input)
-        return current === null ? null : { tripId: TRIP_ID, tripStatus: current.tripStatus }
+        return current === null
+          ? null
+          : { role: 'driver' as const, tripId: TRIP_ID, tripStatus: current.tripStatus }
       },
       async readStatus() {
         return current?.tripStatus ?? null

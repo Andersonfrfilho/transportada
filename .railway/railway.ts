@@ -430,23 +430,30 @@ export default defineRailway((ctx) => {
    * rodando. Rota mudando sem mudança de código é a mesma classe de problema que o adendo da
    * ADR-0044 recusou no provedor pago: algo caro acontecendo sem ninguém ter escolhido.
    *
-   * ⚠️ **Os dois serviços leem esta mesma constante, e é isso que os mantém casados.** Mapa e rota
-   * descrevendo datas diferentes é a tela e o roteirizador discordando de onde a rua está — e não dá
-   * erro nenhum, só produz um traço que passa por onde o caminhão não vai.
+   * ⚠️ **Os dois serviços têm de apontar para o mesmo extrato.** Mapa e rota descrevendo datas
+   * diferentes é a tela e o roteirizador discordando de onde a rua está — e não dá erro nenhum, só
+   * produz um traço que passa por onde o caminhão não vai. Até 28/09/2026 quem garantia isso era uma
+   * constante aqui, lida pelos dois; agora que a URL saiu do arquivo, quem confere é o
+   * `make map-refresh`, que lê as duas variáveis do painel e **recusa reconstruir se divergirem**.
    *
-   * Atualizar é editar esta linha e reconstruir **os dois** (`make map-refresh`). O Geofabrik mantém
-   * os arquivos datados por cerca de 90 dias, então uma data muito velha volta a dar 404 no build —
-   * o que é a falha certa: ela aparece no build, não numa rota errada seis meses depois.
+   * ⚠️ **A URL saiu daqui porque a de antes apodrecia.** Era o arquivo datado do Geofabrik, sob a
+   * crença — escrita neste mesmo comentário — de que o Geofabrik guarda os datados por uns 90 dias.
+   * Não guarda. Medido em 28/09/2026: `sudeste-260927`, `260926` e `260925` respondiam 200;
+   * `260921`, `260914` e `260907` já davam 404. A janela é de três a sete dias, e foi ela que
+   * derrubou os dois builds em 25/09 — a data fixada em 14/09 tinha deixado de existir.
+   *
+   * O extrato passou a ser espelhado no bucket do ambiente (`scripts/osm-extract-mirror.ts` →
+   * `osm-extracts/<dataset>/<AAAA-MM-DD>/`), e o que as variáveis carregam é uma URL pré-assinada
+   * desse objeto, válida por 90 dias — o teto do bucket do Railway, que não serve objeto público. O
+   * objeto não vence nunca. **É essa a diferença que importa:** antes, um 404 obrigava a bumpar a
+   * data, e a data arrastava o extrato de pedágio junto (`toll-booths/osm/<dataset>/<data>/`
+   * descreve o mesmo `.pbf`); agora renovar é re-assinar o mesmo objeto, com `--presign-only`, sem
+   * tocar em data nem em pedágio.
+   *
+   * São `preserve()` porque URL assinada é credencial de leitura com prazo: versioná-la aqui seria
+   * commitar assinatura e vê-la vencer dentro do arquivo. O valor vive no painel, e quem diz como
+   * produzi-lo é o runbook `docs/runbooks/osrm-extract.md`.
    */
-  /**
-   * ⚠️ **O índice do Geofabrik não lista os datados, mas eles respondem.** Medido em 15/09/2026: a
-   * data anterior já dava 404, e `sudeste-260914` responde 200 — a mesma data do extrato de pedágio
-   * versionado no bucket (`toll-booths/osm/sudeste/2026-09-14/`). Os quatro serviços no ar ainda
-   * rodam do `-latest` baixado em 14/09 e só passam para esta data no próximo `make map-refresh`;
-   * até lá o `plan` mostra `OSRM_PBF_URL`/`MAP_PBF_URL` mudando, e aplicar reconstrói os dois.
-   */
-  const OSM_EXTRACT_URL =
-    'https://download.geofabrik.de/south-america/brazil/sudeste-260914.osm.pbf'
 
   /**
    * Matriz de distâncias do solver. Existe **nos dois ambientes** desde 04/09/2026 — antes só em
@@ -471,7 +478,7 @@ export default defineRailway((ctx) => {
     replicas: { sfo: 1 },
     env: {
       OSRM_MAX_TABLE_SIZE: preserve(),
-      OSRM_PBF_URL: OSM_EXTRACT_URL,
+      OSRM_PBF_URL: preserve(),
       PORT: preserve(),
       RAILWAY_DOCKERFILE_PATH: preserve(),
     },
@@ -521,7 +528,7 @@ export default defineRailway((ctx) => {
     },
     replicas: { sfo: 1 },
     env: {
-      MAP_PBF_URL: OSM_EXTRACT_URL,
+      MAP_PBF_URL: preserve(),
       PORT: preserve(),
       RAILWAY_DOCKERFILE_PATH: preserve(),
     },
@@ -553,6 +560,13 @@ export default defineRailway((ctx) => {
       KEYCLOAK_ADMIN_CLIENT_SECRET: preserve(),
       KEYCLOAK_ISSUER: preserve(),
       PRODUCTION_DATABASE_HOST: preserve(),
+      /**
+       * O token que dispara o redeploy da API no fim do ciclo, sem o qual o refresh restaura
+       * staging e o deixa no schema de produção (ver `require_redeploy_configuration`). Nunca foi
+       * declarado aqui, e por isso nunca existiu no serviço: o ciclo de 27/09/2026 caiu por isso.
+       * Token de projeto; um de conta/equipe entraria como `RAILWAY_API_TOKEN`.
+       */
+      RAILWAY_PROJECT_TOKEN: preserve(),
       SOURCE_BACKUP_ENVIRONMENT: preserve(),
       STAGING_API_SERVICE_ID: preserve(),
       STAGING_DATABASE_URL: preserve(),

@@ -21,6 +21,7 @@ import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { resolveRecordedAt } from '../application/trip-timeline-merge.service.js'
 import type { TripTimelineRow } from '../application/trip-timeline-merge.service.js'
+import { NO_EVENT_LOCATION } from '../application/trip-timeline.types.js'
 import type { ReadTripTimelineParams } from '../application/trip-timeline.types.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 import {
@@ -147,6 +148,7 @@ export async function listDocumentOccurrenceRows(
     id: row.id,
     kind: 'document.occurrence' as const,
     lateRegistration: false,
+    ...NO_EVENT_LOCATION,
     occurrence: {
       attachmentCount: Number(row.attachmentCount),
       note: row.note,
@@ -251,6 +253,7 @@ export async function listDocumentStatusChangedRows(
       id: row.id,
       kind: 'document.status_changed' as const,
       lateRegistration: false,
+      ...NO_EVENT_LOCATION,
       occurrence: null,
       occurredAt: row.occurredAt,
       occurredAtKey: row.occurredAtKey,

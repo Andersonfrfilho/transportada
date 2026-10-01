@@ -1,0 +1,123 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/* Mobile-first: a 375px tudo empilha em uma coluna e nenhuma linha tem largura fixa. */
+.miniMap {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.miniMap h4 {
+  margin: 0;
+}
+
+.canvas {
+  min-width: 0;
+}
+
+.note {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}
+
+.legendItem {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.swatch {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  border-radius: 50%;
+}
+
+.swatch svg {
+  width: 70%;
+  height: 70%;
+}
+
+/*
+ * ⚠️ Literais: o MapLibre não lê `var()`, e o contrato compara estes hexadecimais com os do TS.
+ * A tinta vem em par com o preenchimento porque é `resolvePinInk` quem a escolhe, pela cor e não
+ * pelo tema — é a mesma tinta que o pino do mapa recebe. Em `status` ela é a escura, e era aí que
+ * o `#fff` cravado no `.swatch` fazia a legenda discordar do mapa que ela explica.
+ */
+.dispatched {
+  background: #6533fa;
+  color: #faf8f4;
+}
+
+.arrived {
+  background: #0560c7;
+  color: #faf8f4;
+}
+
+.departed {
+  background: #0a7276;
+  color: #faf8f4;
+}
+
+.delivered {
+  background: #048b3c;
+  color: #faf8f4;
+}
+
+.returned {
+  background: #76602d;
+  color: #faf8f4;
+}
+
+.occurrence {
+  background: #ef2506;
+  color: #faf8f4;
+}
+
+.cancelled {
+  background: #c20554;
+  color: #faf8f4;
+}
+
+.status {
+  background: #788591;
+  color: #10222c;
+}
+
+.pointList {
+  min-width: 0;
+}
+
+.pointListSummary {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  color: var(--color-copper);
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-decoration: underline;
+}
+
+.pointListItems {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-6);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}

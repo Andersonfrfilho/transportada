@@ -58,6 +58,7 @@ function buildWorld(settings: Partial<DeliveryProofFieldSettings> = {}) {
       }),
     findDeliveryEventId: () => Promise.resolve(EVENT_ID),
     findProofIdByAttachmentKey: () => Promise.resolve(null),
+    countProofsForEvent: async () => 0,
     findProofPunctuality: () => Promise.resolve(null),
     resolveProofFieldSettings: () =>
       Promise.resolve({ ...DEFAULT_DELIVERY_PROOF_SETTINGS, ...settings }),
@@ -139,9 +140,15 @@ describe('a máscara do documento (ADR-0057 §3)', () => {
 
 describe('a resolução da configuração (ADR-0057 §1)', () => {
   it('sem linha nenhuma vale o padrão de fábrica, com documento desligado', () => {
-    const resolved = resolveDeliveryProofSettings({ general: null, override: null })
+    const resolved = resolveDeliveryProofSettings({
+      contractorOverride: null,
+      general: null,
+      recipientOverride: null,
+    })
 
     expect(resolved).toEqual({
+      cargo: 'off',
+      cargoMinimumCount: 1,
       photo: 'optional',
       receivedBy: 'optional',
       receiverDocument: 'off',
@@ -150,15 +157,19 @@ describe('a resolução da configuração (ADR-0057 §1)', () => {
     })
   })
 
-  it('a exceção por CNPJ vence a configuração geral por inteiro', () => {
+  it('a exceção por CNPJ do destinatário vence a configuração geral por inteiro', () => {
     const general: DeliveryProofFieldSettings = {
+      cargo: 'off',
+      cargoMinimumCount: 1,
       photo: 'required',
       receivedBy: 'optional',
       receiverDocument: 'off',
       receiverName: 'required',
       signature: 'required',
     }
-    const override: DeliveryProofFieldSettings = {
+    const recipientOverride: DeliveryProofFieldSettings = {
+      cargo: 'off',
+      cargoMinimumCount: 1,
       photo: 'off',
       receivedBy: 'optional',
       receiverDocument: 'required',
@@ -166,7 +177,9 @@ describe('a resolução da configuração (ADR-0057 §1)', () => {
       signature: 'optional',
     }
 
-    expect(resolveDeliveryProofSettings({ general, override })).toEqual(override)
+    expect(
+      resolveDeliveryProofSettings({ contractorOverride: null, general, recipientOverride }),
+    ).toEqual(recipientOverride)
   })
 })
 
@@ -231,6 +244,8 @@ describe('o documento do recebedor no comprovante (spec 082 T013)', () => {
 
 describe('a resolução por documento (spec 082 — revisão)', () => {
   const GENERAL: DeliveryProofFieldSettings = {
+    cargo: 'off',
+    cargoMinimumCount: 1,
     photo: 'optional',
     receivedBy: 'optional',
     receiverDocument: 'off',
@@ -238,6 +253,8 @@ describe('a resolução por documento (spec 082 — revisão)', () => {
     signature: 'optional',
   }
   const OVERRIDE: DeliveryProofFieldSettings = {
+    cargo: 'off',
+    cargoMinimumCount: 1,
     photo: 'required',
     receivedBy: 'optional',
     receiverDocument: 'required',

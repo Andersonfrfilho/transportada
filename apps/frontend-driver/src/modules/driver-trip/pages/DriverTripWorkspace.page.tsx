@@ -1,6 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -24,8 +24,6 @@ import { useDriverTrip } from '../hooks/useDriverTrip.hook'
 import { useLocationSharing } from '../hooks/useLocationSharing.hook'
 import { useSelectedDriverTrip } from '../hooks/useSelectedDriverTrip.hook'
 import { useStopExpansion } from '../hooks/useStopExpansion.hook'
-import type { StopOccurrenceDraft } from '../hooks/useStopOccurrenceForm.hook'
-import { useTransientNotice } from '../hooks/useTransientNotice.hook'
 import { DriverEventQueuePage } from './DriverEventQueue.page'
 import { DriverPendingProofsPage } from './DriverPendingProofs.page'
 import { DriverProfilePage } from './DriverProfile.page'
@@ -39,10 +37,12 @@ import {
   resolveDocumentActivityStatus,
   type DocumentActivityView,
   type DocumentReturnActivityView,
+  type TappedStopReport,
 } from '../shared/documentActivity.service'
 import { readCurrentLocation } from '../shared/driverLocation.service'
 import { saveDriverFile } from '../shared/driverFileSave.service'
 import type {
+  DriverFieldReport,
   DriverOccurrenceTypesState,
   DriverReportedLocation,
   DriverReturnReason,
@@ -54,6 +54,7 @@ import {
   type NotDeliveredDraft,
   type NotDeliveredStatus,
 } from '../shared/notDelivered.service'
+import type { OccurrenceRegistrationHandlers } from '../shared/occurrenceRegistration.service'
 import {
   readCachedOccurrenceTypes,
   resolveOccurrenceTypesStorage,
@@ -65,11 +66,15 @@ import { buildStopOccurrenceReports } from '../shared/stopOccurrencePhoto.servic
 import {
   findCurrentStop,
   findProofDocumentLabel,
-  canStartRoute,
   isAwaitingDispatch,
   listProofPendingDocuments,
   type ProofDocumentLabel,
 } from '../shared/driverTripView.service'
+import {
+  canReportArrival,
+  canStartRouteAtStop,
+  resolveEnRouteStopId,
+} from '../shared/enRouteStop.service'
 import styles from '../styles/driverTrip.module.css'
 
 /**
@@ -114,10 +119,6 @@ export function DriverTripWorkspacePage() {
   /** Iniciar trajeto: falhar não muda nada no servidor — repetir o toque é o conserto. */
   const [isDispatching, setIsDispatching] = useState(false)
   const [dispatchFailed, setDispatchFailed] = useState(false)
-  const [isStartingRoute, setIsStartingRoute] = useState(false)
-  const [startRouteFailed, setStartRouteFailed] = useState(false)
-  /** Sem isto o toque em "Iniciar rota" só fazia o botão sumir — e o motorista achava que nada aconteceu. */
-  const startRouteNotice = useTransientNotice()
   /**
    * Os tipos cadastrados pela empresa. Spec 157 RF5: falha e lista vazia de verdade são estados
    * diferentes — o painel avisa a falha e oferece tentar de novo; entregar e devolver nunca
@@ -157,6 +158,8 @@ export function DriverTripWorkspacePage() {
   const [stopOccurrenceKeyByStopId, setStopOccurrenceKeyByStopId] = useState<
     ReadonlyMap<string, Readonly<{ at: string; key: string }>>
   >(new Map())
+  /** O toque de parada ou nota que a tela fez — segura o botão no estado novo depois que a fila o apaga. */
+  const [tappedReports, setTappedReports] = useState<readonly TappedStopReport[]>([])
   /** Spec 159 (T12): de qual nota é cada aviso de pontualidade. */
   const [proofLabelByDocumentId, setProofLabelByDocumentId] = useState<
     ReadonlyMap<string, ProofDocumentLabel>
@@ -193,9 +196,47 @@ export function DriverTripWorkspacePage() {
   const { selectTrip, trip } = useSelectedDriverTrip(snapshot?.trips ?? [])
   /** RF15: roda em qualquer seção, porque o que conta é a app estar na tela, não a aba aberta. */
   const locationSharingStatus = useLocationSharing(snapshot?.trips ?? [])
-  /** Pedido do usuário (25/09): a parada atual abre sozinha — o hook só guarda o que o motorista tocou. */
-  const currentStopId = trip === undefined ? undefined : findCurrentStop(trip)?.id
+  /**
+   * Spec 206 D9: a parada a caminho, aplicando por cima os toques ainda na fila — sempre local e
+   * imediato, funciona sem sinal (`enRouteStop.service.ts`).
+   */
+  const enRouteStopId =
+    trip === undefined
+      ? undefined
+      : resolveEnRouteStopId({
+          queueView: driverTrip.queueView,
+          sentReportKeys: driverTrip.sentReportKeys,
+          stops: trip.stops,
+          tappedReports,
+        })
+  /** Pedido do usuário (25/09): a parada atual abre sozinha — agora é a que está a caminho (D9). */
+  const currentStopId =
+    trip === undefined ? undefined : findCurrentStop({ enRouteStopId, trip })?.id
   const stopExpansion = useStopExpansion(currentStopId)
+  /**
+   * Spec 206 D6: o alvo do atalho "Ir para a parada N" — rola até o cabeçalho da parada a caminho e
+   * põe o foco nele (`scrollTo` + `focus()`, `web.md` §11.3). Um `Map` porque o registro é por
+   * `stopId`, e as paradas somem/reaparecem quando o motorista troca de viagem.
+   */
+  const stopHeaderRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
+
+  function registerStopHeaderRef(stopId: string, element: HTMLButtonElement | null): void {
+    if (element === null) stopHeaderRefs.current.delete(stopId)
+    else stopHeaderRefs.current.set(stopId, element)
+  }
+
+  function focusStop(stopId: string): void {
+    const wasClosed = !stopExpansion.isOpen(stopId)
+    if (wasClosed) stopExpansion.toggle(stopId)
+    // A parada fechada abre nesta mesma passada de estado — o scroll/foco espera o React desenhar
+    // o corpo dela antes de medir a posição, senão mira no cartão ainda recolhido.
+    requestAnimationFrame(() => {
+      const element = stopHeaderRefs.current.get(stopId)
+      if (element === null || element === undefined) return
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      element.focus()
+    })
+  }
 
   if (driverTrip.status === 'loading') {
     return (
@@ -236,12 +277,15 @@ export function DriverTripWorkspacePage() {
       <div className={styles.moduleShell}>
         <DriverShellHeader pendingCount={driverTrip.pendingTotal} />
         <DriverEventQueuePage
+          {...(enRouteStopId === undefined ? {} : { enRouteStopId })}
           isLoading={driverTrip.isQueueLoading}
           isSyncing={driverTrip.isSyncing}
           items={driverTrip.queueView}
           onBack={() => window.history.back()}
+          onFocusStop={focusStop}
           onSendAll={() => driverTrip.sendAllNow()}
           onSendOne={(idempotencyKey) => driverTrip.sendNow(idempotencyKey)}
+          stops={trip?.stops ?? []}
         />
         <DriverBottomBar
           section={section}
@@ -251,19 +295,22 @@ export function DriverTripWorkspacePage() {
     )
   }
 
-  function handleProof(input: DriverProofAttachment): void {
+  /** Spec 218: devolve ao formulário se o anexo entrou na fila — recusado, ele não marca "anexada". */
+  async function handleProof(input: DriverProofAttachment): Promise<boolean> {
     setAttachmentLimit(undefined)
     /* Guardado no toque: depois do envio a nota sai de `pendingProofs` e o nome some junto. */
     const label = findProofDocumentLabel({ documentId: input.documentId, snapshot })
     if (label !== undefined) {
       setProofLabelByDocumentId((current) => new Map(current).set(input.documentId, label))
     }
-    void driverTrip
-      .attachProof(input)
-      .then((outcome) => {
-        if (outcome === 'count-limit' || outcome === 'size-limit') setAttachmentLimit(outcome)
-      })
-      .catch(() => setProofFailed(true))
+    try {
+      const outcome = await driverTrip.attachProof(input)
+      if (outcome === 'count-limit' || outcome === 'size-limit') setAttachmentLimit(outcome)
+      return outcome === 'queued'
+    } catch {
+      setProofFailed(true)
+      return false
+    }
   }
 
   /**
@@ -283,6 +330,11 @@ export function DriverTripWorkspacePage() {
   /** Spec 207: "Remover" a foto/assinatura ainda na fila, pelo attachmentKey do item escolhido. */
   function handleRemoveProof(attachmentKey: string): void {
     void driverTrip.removeProof(attachmentKey)
+  }
+
+  /** Spec 218: "Cancelar" o gate — o canhoto daquela nota não espera mais uma entrega que não vem. */
+  function handleDiscardProofAwaitingDelivery(documentId: string): void {
+    void driverTrip.discardProofAwaitingDelivery(documentId)
   }
 
   if (isPendingProofsOpen) {
@@ -366,6 +418,12 @@ export function DriverTripWorkspacePage() {
     }
     const returnReport = reports.find((report) => report.kind === 'return')
     if (returnReport !== undefined && returnReport.kind === 'return') {
+      rememberTappedReport({
+        documentId: input.documentId,
+        idempotencyKey: returnReport.idempotencyKey,
+        kind: 'return',
+        queuedAt: at,
+      })
       setReturnKeyByDocumentId((current) =>
         new Map(current).set(input.documentId, {
           at,
@@ -456,6 +514,12 @@ export function DriverTripWorkspacePage() {
     setDeliverKeyByDocumentId((current) =>
       new Map(current).set(input.documentId, { at: new Date().toISOString(), key: idempotencyKey }),
     )
+    rememberTappedReport({
+      documentId: input.documentId,
+      idempotencyKey,
+      kind: 'deliver',
+      queuedAt: new Date().toISOString(),
+    })
     void report((location) => ({
       documentId: input.documentId,
       idempotencyKey,
@@ -469,23 +533,54 @@ export function DriverTripWorkspacePage() {
    * Spec 209: a ocorrência e, atrás dela, a foto — a foto é da ocorrência e nunca vira canhoto de
    * nota. A linha "ocorrência registrada" do cartão lê a chave da ocorrência, não a da foto.
    */
-  function reportStopOccurrence(input: StopOccurrenceDraft & { stopId: string }): void {
+  async function reportStopOccurrence(
+    input: Parameters<OccurrenceRegistrationHandlers['reportStopOccurrence']>[0],
+  ): Promise<void> {
     const reports = buildStopOccurrenceReports({
       createKey: createIdempotencyKey,
       description: input.description,
-      kind: input.kind,
+      occurrenceTypeId: input.occurrenceTypeId,
       photo: input.photo,
       stopId: input.stopId,
     })
     const occurrenceKey = reports[0]?.idempotencyKey ?? ''
+    setOccurrencePhotoDropped(false)
+    setAttachmentLimit(undefined)
+    /** Spec 218: foto obrigatória nunca é derrubada — sem espaço, o toque inteiro volta, e a tela diz. */
+    const outcome = input.isPhotoRequired
+      ? await driverTrip.reportAllOrNothing(reports)
+      : await driverTrip.reportStopOccurrence(reports)
+    if (outcome === 'count-limit') setEventLimitReached(true)
+    if (outcome === 'size-limit') setAttachmentLimit('size-limit')
+    if (outcome === 'photo-dropped') setOccurrencePhotoDropped(true)
+    if (outcome !== 'queued' && outcome !== 'photo-dropped') return
     setStopOccurrenceKeyByStopId((current) =>
       new Map(current).set(input.stopId, { at: new Date().toISOString(), key: occurrenceKey }),
     )
-    setOccurrencePhotoDropped(false)
-    void driverTrip.reportStopOccurrence(reports).then((outcome) => {
-      if (outcome === 'count-limit') setEventLimitReached(true)
-      if (outcome === 'photo-dropped') setOccurrencePhotoDropped(true)
-    })
+  }
+
+  /** Spec 218 D3: a ocorrência de nota com foto — o item da 179, que sobe a foto antes do registro. */
+  async function reportDocumentOccurrenceWithPhoto(
+    input: Parameters<OccurrenceRegistrationHandlers['enqueueDocumentOccurrence']>[0],
+  ): Promise<void> {
+    setAttachmentLimit(undefined)
+    const report: DriverFieldReport = {
+      documentId: input.documentId,
+      idempotencyKey: createIdempotencyKey(),
+      kind: 'documentOccurrence',
+      note: input.note,
+      occurrenceTypeId: input.occurrenceTypeId,
+      occurrenceTypeName: input.occurrenceTypeName,
+      photo: input.photo,
+      productCode: '',
+    }
+    const outcome = await driverTrip.reportAllOrNothing([report])
+    if (outcome === 'count-limit') setEventLimitReached(true)
+    if (outcome === 'size-limit') setAttachmentLimit('size-limit')
+    if (outcome !== 'queued') return
+    setNotDeliveredKeyByDocumentId((current) =>
+      new Map(current).set(input.documentId, report.idempotencyKey),
+    )
   }
 
   /** Sucesso → refetch: é o snapshot novo que abre as ações de campo. */
@@ -502,24 +597,47 @@ export function DriverTripWorkspacePage() {
     }
   }
 
-  /** O "saí" do motorista: a API grava o evento na linha do tempo; o snapshot novo tira o botão. */
-  async function startRoute(): Promise<void> {
-    setStartRouteFailed(false)
-    setIsStartingRoute(true)
-    try {
-      await getDriverTripClient().startRoute()
-      startRouteNotice.announce(
-        'start-route',
-        t('startRoute.done', {
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        }),
-      )
-      driverTrip.refetchTrip()
-    } catch {
-      setStartRouteFailed(true)
-    } finally {
-      setIsStartingRoute(false)
-    }
+  function rememberTappedReport(tappedReport: TappedStopReport): void {
+    setTappedReports((current) => [...current, tappedReport])
+  }
+
+  function arriveAtStop(stopId: string): void {
+    const idempotencyKey = createIdempotencyKey()
+    rememberTappedReport({
+      idempotencyKey,
+      kind: 'arrive',
+      queuedAt: new Date().toISOString(),
+      stopId,
+    })
+    void report((location) => ({ idempotencyKey, kind: 'arrive', location, stopId }))
+  }
+
+  /** Spec 206 D6/D1: o toque nasce com a hora dele — é ela, não a do envio, que decide quem chegou primeiro (D3). */
+  function departStop(stopId: string): void {
+    const tappedAt = new Date().toISOString()
+    const idempotencyKey = createIdempotencyKey()
+    rememberTappedReport({ idempotencyKey, kind: 'depart', queuedAt: tappedAt, stopId })
+    void report((location) => ({
+      idempotencyKey,
+      kind: 'depart',
+      location,
+      stopId,
+      tappedAt,
+    }))
+  }
+
+  /** Spec 206 D18: desfaz o "Iniciar rota" desta parada — libera as outras na hora, sem sinal. */
+  function cancelStopDeparture(stopId: string): void {
+    const tappedAt = new Date().toISOString()
+    const idempotencyKey = createIdempotencyKey()
+    rememberTappedReport({ idempotencyKey, kind: 'cancelDeparture', queuedAt: tappedAt, stopId })
+    void report((location) => ({
+      idempotencyKey,
+      kind: 'cancelDeparture',
+      location,
+      stopId,
+      tappedAt,
+    }))
   }
 
   const isTripAwaitingDispatch = trip !== undefined && isAwaitingDispatch(trip)
@@ -584,25 +702,6 @@ export function DriverTripWorkspacePage() {
             </Button>
             <p className={styles.stopMeta}>{t('dispatch.waiting')}</p>
           </div>
-        ) : null}
-        {trip !== undefined && canStartRoute(trip) ? (
-          <div className={styles.actions}>
-            <Button disabled={isStartingRoute} onClick={() => void startRoute()} type="button">
-              <Icon aria-hidden="true" name="workspace-driver-trip" />
-              {t('startRoute.start')}
-            </Button>
-          </div>
-        ) : null}
-        {startRouteNotice.notice === undefined ? null : (
-          <p className={styles.activityNotice} role="status">
-            <Icon aria-hidden="true" name="check" size="sm" />
-            {startRouteNotice.notice.message}
-          </p>
-        )}
-        {startRouteFailed ? (
-          <p className={styles.alert} role="alert">
-            {t('startRoute.failed')}
-          </p>
         ) : null}
         {dispatchFailed ? (
           <p className={styles.alert} role="alert">
@@ -727,51 +826,70 @@ export function DriverTripWorkspacePage() {
           )
         ) : (
           <ul className={styles.stopList}>
-            {trip.stops.map((stop) => (
-              <DriverStopCard
-                deliverActivityByDocumentId={deliverActivityByDocumentId}
-                isCurrent={stop.id === currentStopId}
-                isFieldWorkBlocked={isTripAwaitingDispatch}
-                isOpen={stopExpansion.isOpen(stop.id)}
-                key={stop.id}
-                lastKnownLocation={lastKnownLocation}
-                queueView={driverTrip.queueView}
-                returnActivityByDocumentId={returnActivityByDocumentId}
-                stop={stop}
-                stopOccurrenceActivity={stopOccurrenceActivityByStopId.get(stop.id)}
-                onArrive={(stopId) =>
-                  void report((location) => ({
-                    idempotencyKey: createIdempotencyKey(),
-                    kind: 'arrive',
-                    location,
-                    stopId,
-                  }))
-                }
-                onDeliver={deliverDocument}
-                onProof={handleProof}
-                onProofFieldsUpdate={handleProofFieldsUpdate}
-                onRemoveProof={handleRemoveProof}
-                occurrenceTypes={occurrenceTypes}
-                onRetryOccurrenceTypes={handleRetryOccurrenceTypes}
-                onToggle={() => stopExpansion.toggle(stop.id)}
-                onDocumentOccurrence={(input: {
-                  documentId: string
-                  occurrenceTypeId: string
-                  productCode: string
-                }) =>
-                  getDriverTripClient()
-                    .registerDocumentOccurrence(input)
-                    .then(() => true)
-                    .catch(() => {
-                      setOccurrenceFailed(true)
-                      return false
-                    })
-                }
-                onOccurrence={reportStopOccurrence}
-                notDeliveredStatusByDocumentId={notDeliveredStatusByDocumentId}
-                onNotDelivered={(input) => void reportNotDelivered(input)}
-              />
-            ))}
+            {trip.stops.map((stop) => {
+              const startRouteBlock = canStartRouteAtStop({ enRouteStopId, stopId: stop.id })
+              const blockingStopSequence = startRouteBlock.enabled
+                ? undefined
+                : trip.stops.find((candidate) => candidate.id === startRouteBlock.blockingStopId)
+                    ?.sequence
+              return (
+                <DriverStopCard
+                  {...(blockingStopSequence === undefined ? {} : { blockingStopSequence })}
+                  canReportArrival={canReportArrival({
+                    enRouteStopId,
+                    isLegacyEnRouteTracking: trip.isLegacyEnRouteTracking ?? false,
+                    stop,
+                  })}
+                  canStartRoute={startRouteBlock}
+                  deliverActivityByDocumentId={deliverActivityByDocumentId}
+                  isCurrent={stop.id === currentStopId}
+                  isEnRoute={stop.id === enRouteStopId}
+                  isFieldWorkBlocked={isTripAwaitingDispatch}
+                  isOpen={stopExpansion.isOpen(stop.id)}
+                  key={stop.id}
+                  lastKnownLocation={lastKnownLocation}
+                  queueView={driverTrip.queueView}
+                  sentReportKeys={driverTrip.sentReportKeys}
+                  tappedReports={tappedReports}
+                  returnActivityByDocumentId={returnActivityByDocumentId}
+                  stop={stop}
+                  stopOccurrenceActivity={stopOccurrenceActivityByStopId.get(stop.id)}
+                  onArrive={arriveAtStop}
+                  onCancelDeparture={cancelStopDeparture}
+                  onDeliver={deliverDocument}
+                  onDepart={departStop}
+                  onDiscardProofAwaitingDelivery={handleDiscardProofAwaitingDelivery}
+                  onFocusStop={focusStop}
+                  onHeaderRef={registerStopHeaderRef}
+                  onProof={handleProof}
+                  onProofFieldsUpdate={handleProofFieldsUpdate}
+                  onRemoveProof={handleRemoveProof}
+                  occurrenceTypes={occurrenceTypes}
+                  onRetryOccurrenceTypes={handleRetryOccurrenceTypes}
+                  onToggle={() => stopExpansion.toggle(stop.id)}
+                  onDocumentOccurrence={(input: {
+                    documentId: string
+                    note: string
+                    occurrenceTypeId: string
+                    productCode: string
+                  }) =>
+                    getDriverTripClient()
+                      .registerDocumentOccurrence(input)
+                      .then(() => true)
+                      .catch(() => {
+                        setOccurrenceFailed(true)
+                        return false
+                      })
+                  }
+                  onQueuedDocumentOccurrence={(input) =>
+                    void reportDocumentOccurrenceWithPhoto(input)
+                  }
+                  onStopOccurrence={(input) => void reportStopOccurrence(input)}
+                  notDeliveredStatusByDocumentId={notDeliveredStatusByDocumentId}
+                  onNotDelivered={(input) => void reportNotDelivered(input)}
+                />
+              )
+            })}
           </ul>
         )}
       </main>

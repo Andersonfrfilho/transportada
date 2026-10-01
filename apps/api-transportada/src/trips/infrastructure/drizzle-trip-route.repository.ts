@@ -13,6 +13,7 @@ import {
   type TripDocumentSeparationStatus,
   type TripStatus,
 } from '../../database/trip.schema.js'
+import { fleetVehicles } from '../../database/database.schema.js'
 import type {
   DispatchTripPort,
   DispatchTripPreconditions,
@@ -46,6 +47,7 @@ import {
 import {
   TripHasUnloadedDocumentsError,
   TripStateTransitionNotAllowedError,
+  TripTrailerRequiredError,
 } from '../domain/trip.error.js'
 import { readDispatchReadinessDocuments } from './dispatch-readiness.query.js'
 import {
@@ -53,6 +55,8 @@ import {
   timestampPatchFor,
 } from './drizzle-trip-document-batch.repository.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
+import { clearPlannedRoute } from './trip-planned-route-clear.support.js'
+import { TRACTOR_UNIT_VEHICLE_TYPE } from '../../shared/vehicle-type.constant.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 /** Nota que pode virar `SEM ENDEREÇO`/pendência de rota: viva, mas ainda não chegou a `loaded`. */
@@ -172,6 +176,7 @@ export class DrizzleTripRouteRepository
       isCargoClosed: readiness.isCargoClosed,
       leftBehind: readiness.leftBehind,
       toLoad: readiness.toLoad,
+      requiresTrailer: await readRequiresTrailer(this.database, input),
       tripStatus: route.tripStatus,
       unloadedDocumentIds: readiness.toLoad.map((document) => document.tripDocumentId),
       unscheduledStopIds: await listUnscheduledStops(this.database, scope),
@@ -221,6 +226,11 @@ export class DrizzleTripRouteRepository
    * ⚠️ O valor sem o carimbo é uma hora sem idade. O ETA congela no instante do planejamento e
    * envelhece — às 14h ele ainda diz o que achava às 7h —, e é `estimated_arrival_frozen_at` que
    * permite à tela dizer isso em vez de mostrar uma previsão que parece de agora.
+   *
+   * Spec 149 T6 (decisão do usuário, 15/09/2026): **a jornada congela no mesmo instante** —
+   * `última chegada estimada − saída planejada`, mais a perna de volta quando quem chamou a
+   * conhece (da proposta que planejou a viagem, sem nova chamada ao roteirizador). Sem saída
+   * planejada não há como medir a ida, e a jornada fica `null` — nunca inventada.
    */
   public async writeEstimatedArrivals(input: {
     readonly arrivals: readonly { readonly estimatedArrivalAt: string; readonly stopId: string }[]
@@ -230,9 +240,26 @@ export class DrizzleTripRouteRepository
      * esta spec: as horas ficam, e o despacho não as desloca por âncora inventada.
      */
     readonly plannedDepartureAt: string | null
+    /**
+     * Spec 149 T6: a perna de volta ao barracão, em segundos, quando a proposta que planejou a
+     * viagem a conhece — `null`/`undefined` é "sem volta gravada", e a jornada congela só de ida.
+     */
+    readonly returnLegSeconds?: null | number
     readonly tripId: string
   }): Promise<void> {
     if (input.arrivals.length === 0) return
+
+    const lastArrivalMs = Math.max(
+      ...input.arrivals.map((arrival) => new Date(arrival.estimatedArrivalAt).getTime()),
+    )
+    const departureMs =
+      input.plannedDepartureAt === null ? null : new Date(input.plannedDepartureAt).getTime()
+    const outboundSeconds =
+      departureMs === null ? null : Math.max(0, Math.round((lastArrivalMs - departureMs) / 1000))
+    const returnLegSeconds = input.returnLegSeconds ?? null
+    const plannedJourneySeconds =
+      outboundSeconds === null ? null : outboundSeconds + (returnLegSeconds ?? 0)
+    const plannedJourneyIncludesReturn = outboundSeconds === null ? null : returnLegSeconds !== null
 
     await this.database.transaction(async (transaction) => {
       for (const arrival of input.arrivals) {
@@ -254,6 +281,8 @@ export class DrizzleTripRouteRepository
           estimatedArrivalFrozenAt: sql`now()`,
           etaDepartureAt:
             input.plannedDepartureAt === null ? null : new Date(input.plannedDepartureAt),
+          plannedJourneyIncludesReturn,
+          plannedJourneySeconds,
         })
         .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
     })
@@ -353,6 +382,16 @@ export class DrizzleTripRouteRepository
   }): Promise<void> {
     await this.database.transaction(async (transaction) => {
       await writeStopOrder(transaction, input)
+
+      /**
+       * T704 M1: a ordem mudou, então a rota gravada descreve uma sequência que não existe mais.
+       * Ela morre **aqui**, na mesma transação — o recongelamento é best-effort e, quando falha,
+       * o que sobra é rota nula (D5), nunca a rota velha passando por boa.
+       */
+      await clearPlannedRoute(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
       await this.requestCargoLayoutForTrip(transaction, {
         companyId: input.companyId,
         tripId: input.tripId,
@@ -434,6 +473,53 @@ async function readRouteState(
   }
 }
 
+/** Feature 147 D3/T11: só o cavalo (`tractor_unit`) sem carreta atrelada trava o despacho. */
+async function readRequiresTrailer(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly tripId: string },
+): Promise<boolean> {
+  const [record] = await queryable
+    .select({ trailerVehicleId: trips.trailerVehicleId, vehicleType: fleetVehicles.vehicleType })
+    .from(trips)
+    .innerJoin(
+      fleetVehicles,
+      and(eq(fleetVehicles.companyId, trips.companyId), eq(fleetVehicles.id, trips.vehicleId)),
+    )
+    .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+    .limit(1)
+  return record?.vehicleType === TRACTOR_UNIT_VEHICLE_TYPE && record.trailerVehicleId === null
+}
+
+/**
+ * T18 (revisão): a leitura de `readRequiresTrailer` é feita **fora** da transação de despacho, em
+ * `readPreconditions` — entre ela e o commit desta transação cabe um `setTrailer` concorrente que
+ * solte a carreta. Trava a linha da viagem (`FOR UPDATE`, o mesmo padrão de `setTrailer`) e
+ * reconfere aqui dentro: as duas escritas se serializam, e nenhuma corrida escapa mais.
+ */
+async function assertTrailerStillAttached(
+  transaction: TripTransaction,
+  input: { readonly companyId: string; readonly tripId: string },
+): Promise<void> {
+  const [tripRow] = await transaction
+    .select({ trailerVehicleId: trips.trailerVehicleId, vehicleId: trips.vehicleId })
+    .from(trips)
+    .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+    .for('update')
+    .limit(1)
+  if (tripRow === undefined || tripRow.trailerVehicleId !== null || tripRow.vehicleId === null) {
+    return
+  }
+
+  const [vehicleRow] = await transaction
+    .select({ vehicleType: fleetVehicles.vehicleType })
+    .from(fleetVehicles)
+    .where(
+      and(eq(fleetVehicles.companyId, input.companyId), eq(fleetVehicles.id, tripRow.vehicleId)),
+    )
+    .limit(1)
+  if (vehicleRow?.vehicleType === TRACTOR_UNIT_VEHICLE_TYPE) throw new TripTrailerRequiredError()
+}
+
 /**
  * Spec 185 (D3): a reconferência sob o lock da viagem devolveu `unchanged` — outro despacho venceu
  * a corrida. Lançar desfaz a transação inteira, inclusive as notas que esta chamada já tinha
@@ -457,6 +543,8 @@ async function dispatch(
   transaction: TripTransaction,
   input: DispatchTripWriteInput,
 ): Promise<DispatchTripWriteResult> {
+  await assertTrailerStillAttached(transaction, input)
+
   if (input.documentsToLoad.length > 0) {
     await loadRemainingDocuments(transaction, input)
   }
@@ -831,12 +919,31 @@ type RouteSnapshotStop = {
   readonly sequence: number
 }
 
-type RouteSnapshot = { readonly stops: readonly RouteSnapshotStop[] }
+/** Feature 147 D3/T11: `null` na viagem sem carreta — e nos snapshots de antes desta feature. */
+type RouteSnapshotTrailer = { readonly plate: string; readonly vehicleId: string }
+
+type RouteSnapshot = {
+  readonly stops: readonly RouteSnapshotStop[]
+  readonly trailer: RouteSnapshotTrailer | null
+}
 
 async function buildRouteSnapshot(
   transaction: TripTransaction,
   input: { readonly companyId: string; readonly tripId: string },
 ): Promise<RouteSnapshot> {
+  const [tripRow] = await transaction
+    .select({ trailerVehicleId: trips.trailerVehicleId })
+    .from(trips)
+    .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+    .limit(1)
+  const trailer =
+    tripRow?.trailerVehicleId === undefined || tripRow.trailerVehicleId === null
+      ? null
+      : await readTrailerSnapshot(transaction, {
+          companyId: input.companyId,
+          trailerVehicleId: tripRow.trailerVehicleId,
+        })
+
   const stopRows = await transaction
     .select({ id: tripStops.id, label: tripStops.label, sequence: tripStops.sequence })
     .from(tripStops)
@@ -870,5 +977,23 @@ async function buildRouteSnapshot(
       label: stop.label,
       sequence: Number(stop.sequence),
     })),
+    trailer,
   }
+}
+
+async function readTrailerSnapshot(
+  transaction: TripTransaction,
+  input: { readonly companyId: string; readonly trailerVehicleId: string },
+): Promise<RouteSnapshotTrailer | null> {
+  const [record] = await transaction
+    .select({ plate: fleetVehicles.plate })
+    .from(fleetVehicles)
+    .where(
+      and(
+        eq(fleetVehicles.companyId, input.companyId),
+        eq(fleetVehicles.id, input.trailerVehicleId),
+      ),
+    )
+    .limit(1)
+  return record === undefined ? null : { plate: record.plate, vehicleId: input.trailerVehicleId }
 }

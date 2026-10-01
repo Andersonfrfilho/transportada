@@ -14,7 +14,7 @@
 
 .hint {
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.8rem;
 }
 
@@ -103,7 +103,7 @@
 
 .counter {
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-family: var(--font-utility);
   font-size: 0.78rem;
 }
@@ -286,7 +286,7 @@
 
 .emptyState {
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.85rem;
   padding: var(--space-4) 0;
   text-align: center;

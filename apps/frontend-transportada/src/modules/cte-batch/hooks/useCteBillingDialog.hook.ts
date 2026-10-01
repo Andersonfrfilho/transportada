@@ -10,11 +10,16 @@ import {
 } from '@/modules/billing/shared/billingBatchSelection.service'
 import type { BillingPreviewGroup } from '@/modules/billing/shared/billingClient.service'
 import {
+  createBillingDocumentWindowDownload,
+  resolveBillingDocumentActionState,
+} from '@/modules/billing/shared/billingDocumentDownload.service'
+import {
   invalidateMutationEffect,
   MUTATION_EFFECT,
 } from '@/modules/shared/mutationInvalidation.service'
 import {
   BILLING_DUE_DATE_ERROR,
+  BILLING_UNKNOWN_ERROR_CODE,
   resolveBillingProgress,
   submitBillingGroups,
   validateBillingDueDate,
@@ -41,12 +46,16 @@ function readErrorCode(error: unknown): null | string {
   return error instanceof Error && error.message !== '' ? error.message : null
 }
 
+const documentDownload = createBillingDocumentWindowDownload()
+
 export function useCteBillingDialog(input: UseCteBillingDialogInput) {
   const queryClient = useQueryClient()
   const [dueDate, setDueDate] = useState('')
   const [dueDateError, setDueDateError] = useState<BillingDueDateError | null>(null)
   const [outcomes, setOutcomes] = useState<readonly BillingGroupOutcome[]>([])
   const [completed, setCompleted] = useState(0)
+  const [documentErrorCode, setDocumentErrorCode] = useState<null | string>(null)
+  const [pendingInvoiceId, setPendingInvoiceId] = useState<null | string>(null)
 
   const cteIds = (input.request ?? []).map((billable) => billable.fiscalDocumentId)
   const batchIds = input.batchIds ?? []
@@ -102,12 +111,30 @@ export function useCteBillingDialog(input: UseCteBillingDialogInput) {
     },
   })
 
+  /** O PDF é gerado sob demanda: um por vez, para a fila de faturas recém-emitidas não virar rajada. */
+  const documentMutation = useMutation({
+    mutationFn: (invoiceId: string) => client.generateDocument({ invoiceId }),
+    onError: (error: unknown) =>
+      setDocumentErrorCode(readErrorCode(error) ?? BILLING_UNKNOWN_ERROR_CODE),
+    onSettled: () => setPendingInvoiceId(null),
+    onSuccess: (document) => documentDownload.openDocument(document),
+  })
+
   function close(): void {
     setDueDate('')
     setDueDateError(null)
     setOutcomes([])
     setCompleted(0)
+    setDocumentErrorCode(null)
+    setPendingInvoiceId(null)
     input.onClose()
+  }
+
+  function downloadInvoice(invoiceId: string): void {
+    if (pendingInvoiceId !== null) return
+    setDocumentErrorCode(null)
+    setPendingInvoiceId(invoiceId)
+    documentMutation.mutate(invoiceId)
   }
 
   function confirm(): void {
@@ -123,6 +150,8 @@ export function useCteBillingDialog(input: UseCteBillingDialogInput) {
     blocked,
     close,
     confirm,
+    documentErrorCode,
+    downloadInvoice,
     dueDate,
     dueDateError,
     groups,
@@ -137,6 +166,9 @@ export function useCteBillingDialog(input: UseCteBillingDialogInput) {
       total: groups.length,
       totalCteCount: groups.reduce((sum, group) => sum + group.cteCount, 0),
     }),
+    // Quem chegou até aqui acabou de emitir a fatura: a permissão de gerar o documento é a mesma.
+    resolveInvoiceDocumentState: (invoiceId: string) =>
+      resolveBillingDocumentActionState({ canGenerate: true, invoiceId, pendingInvoiceId }),
     setDueDate: (value: string) => {
       setDueDate(value)
       setDueDateError(null)

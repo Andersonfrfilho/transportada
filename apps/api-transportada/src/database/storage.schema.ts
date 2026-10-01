@@ -40,6 +40,8 @@ export const STORAGE_OBJECT_PURPOSES = [
    * ocorrência, e segue a vida dela.
    */
   'occurrence_conversation_attachment',
+  /** Spec 220 RF17: a miniatura do comprovante de entrega, gerada no cliente junto do original. */
+  'trip_delivery_proof_thumbnail',
 ] as const
 export type StorageObjectPurpose = (typeof STORAGE_OBJECT_PURPOSES)[number]
 

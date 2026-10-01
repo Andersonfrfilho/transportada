@@ -1,11 +1,13 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
+  DRIVER_SOURCE,
   GEOCODING_PRECISION,
   ROUTE_SUGGESTION_STATUS,
   ROUTE_VIOLATION_KIND,
   SERVICE_TIME_SOURCE,
   type RouteSuggestion,
   type RouteSuggestionStop,
+  type RouteSuggestionVehicleSummary,
   type RouteViolation,
 } from './routeSuggestion.types'
 
@@ -77,6 +79,38 @@ export function toRouteSuggestion(value: unknown): RouteSuggestion | null {
     truncated: value.truncated as boolean,
     updatedAt: value.updatedAt as string,
     vehicleId: value.vehicleId as null | string,
+    /** Ausente é sugestão anterior à P2 (spec 149 T5, sem tripulação nenhuma para mostrar). */
+    vehicles: toVehicleSummaries(value.vehicles),
+  }
+}
+
+/**
+ * A resposta é entrada não confiável como qualquer outra: um veículo malformado **não** invalida o
+ * roteiro inteiro — ele só some da tripulação, e é ausência (`vazio`), não erro de rede.
+ */
+function toVehicleSummaries(value: unknown): readonly RouteSuggestionVehicleSummary[] {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((entry) => {
+    const summary = toVehicleSummary(entry)
+    return summary === null ? [] : [summary]
+  })
+}
+
+function toVehicleSummary(value: unknown): RouteSuggestionVehicleSummary | null {
+  if (!isRecord(value)) return null
+  const vehicleId = value.vehicleId
+  if (!isString(vehicleId)) return null
+
+  const helperIds = Array.isArray(value.helperIds)
+    ? value.helperIds.filter((id): id is string => isString(id))
+    : []
+
+  return {
+    driverId: isNullableString(value.driverId) ? value.driverId : null,
+    driverSource: isOneOf(value.driverSource, DRIVER_SOURCE) ? value.driverSource : null,
+    helperIds,
+    vehicleId,
   }
 }
 

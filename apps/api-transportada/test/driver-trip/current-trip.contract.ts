@@ -54,6 +54,8 @@ function buildRepository(input: {
 const PENDING_PROOF: DriverPendingProof = {
   deliveredAt: '2026-09-17T15:00:00.000Z',
   deliveryProof: {
+    cargo: 'off',
+    cargoMinimumCount: 1,
     photo: 'required',
     receivedBy: 'optional',
     receiverDocument: 'off',
@@ -206,6 +208,8 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
                   accessKey: '',
                   deliveredAt: '2026-09-18T12:00:00.000Z',
                   deliveryProof: {
+                    cargo: 'off',
+                    cargoMinimumCount: 1,
                     photo: 'required',
                     receivedBy: 'optional',
                     receiverDocument: 'off',
@@ -215,6 +219,7 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
                   grossWeight: '0',
                   id: 'document-1',
                   number: '1',
+                  occurrenceTypes: [],
                   proofPending: true,
                   recipientDisplayName: 'Destinatario 1',
                   recipientIsCompany: false,

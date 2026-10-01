@@ -47,8 +47,9 @@ import {
   resolveAcceptedStopOrders,
   resolveMovedVehicleIds,
 } from '../shared/proposalStopMove.service'
-import { getTripClient } from './useTripWorkspace.hook'
+import { resolveAcceptedRouteChoices } from '../shared/proposalRouteChoice.service'
 import type { RouteChoice } from '../shared/routeGeometry.service'
+import { getTripClient } from './useTripWorkspace.hook'
 import { getRouteSuggestionClient } from '@/modules/routing/hooks/useRouteSuggestion.hook'
 import {
   isSameDocumentSelection,
@@ -149,7 +150,9 @@ export function useTripRouteAssembly(
   )
   /**
    * Spec 153: por caminhão, a rota que o mapa da proposta mostra — a que a viagem congela no aceite.
-   * Caminhão sem entrada segue o critério padrão do servidor.
+   * Caminhão sem entrada segue o critério padrão do servidor. D7: a rota escolhida é **por
+   * veículo**, nunca um valor só para a proposta inteira — dois caminhões podem escolher rotas
+   * diferentes sem que a escolha de um vaze para o outro.
    */
   const [routeChoiceByVehicle, setRouteChoiceByVehicle] = useState<
     ReadonlyMap<string, RouteChoice>
@@ -347,8 +350,8 @@ export function useTripRouteAssembly(
 
   const acceptMutation = useMutation({
     mutationFn: async (vehicleIds?: readonly string[]): Promise<TripRouteAssemblyOutcome> => {
-      const suggestionId = proposal?.suggestion.id
-      if (suggestionId === undefined) throw new Error(TRIP_ERROR.RESPONSE_INVALID)
+      if (proposal === null) throw new Error(TRIP_ERROR.RESPONSE_INVALID)
+      const suggestionId = proposal.suggestion.id
       /**
        * Spec 110 D5a: sem lista, a proposta inteira — o aceite de sempre. Com ela, só os marcados
        * viram viagem, e o que sobra volta ao maço porque nunca saiu dele.
@@ -357,21 +360,24 @@ export function useTripRouteAssembly(
       const releaseUnplacedFromLayoutIds = [...releaseLayoutByVehicle]
         .filter(([vehicleId]) => vehicleIds === undefined || vehicleIds.includes(vehicleId))
         .map(([, layoutId]) => layoutId)
-      const acceptedRouteChoices = [...routeChoiceByVehicle]
-        .filter(([vehicleId]) => vehicleIds === undefined || vehicleIds.includes(vehicleId))
-        .map(([vehicleId, routeChoice]) => ({ routeChoice, vehicleId }))
+      /**
+       * D7/D1: cada veículo aceito manda a própria escolha, sempre explícita — inclusive o que
+       * ninguém tocou, que ainda assim aceitou a mais barata. Nunca omitida como `stopOrderByVehicle`.
+       */
+      const routeChoiceByVehicleForAccept = resolveAcceptedRouteChoices({
+        routeChoiceByVehicle,
+        vehicleIds: vehicleIds ?? vehicleIdsOf(proposal),
+      })
       const accepted = await getTripClient().acceptMultiVehicleSuggestion({
         suggestionId,
         ...(vehicleIds === undefined ? {} : { vehicleIds }),
         ...(releaseUnplacedFromLayoutIds.length === 0 ? {} : { releaseUnplacedFromLayoutIds }),
-        ...(acceptedRouteChoices.length === 0
-          ? {}
-          : { routeChoiceByVehicle: acceptedRouteChoices }),
         /**
          * ⚠️ **Sem isto as setas mentem**: a viagem nasceria com a ordem do roteirizador. Só vai o
          * caminhão que alguém reordenou — os outros seguem a do solver, com o horário previsto.
          */
         ...(acceptedOrders.length === 0 ? {} : { stopOrderByVehicle: acceptedOrders }),
+        routeChoiceByVehicle: routeChoiceByVehicleForAccept,
       })
 
       return {
@@ -531,6 +537,7 @@ export function useTripRouteAssembly(
     isProposalEdited: pendingRemovals.size > 0,
     pendingRemovals,
     orderByVehicle,
+    routeChoiceByVehicle,
     draftOrderByVehicle,
     displayStops,
     /** Caminhões com movimento em rascunho: eles pausam as três medições até alguém salvar. */
@@ -640,7 +647,6 @@ export function useTripRouteAssembly(
     resumeSuggestion: () => {
       if (pendingSuggestionId !== null) proposeMutation.mutate(pendingSuggestionId)
     },
-    routeChoiceByVehicle,
     bindings,
     availableDocuments: documentsQuery.data ?? [],
     documentsQuery,

@@ -63,6 +63,7 @@ describe('GET /auth/me contract', () => {
           'nfse.issue',
           'nfse.cancel',
           'nfse.read',
+          'trip.event-location',
         ],
         roles: ['fiscal', 'viewer'],
       },

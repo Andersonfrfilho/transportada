@@ -37,7 +37,7 @@
 .intro {
   max-width: 44rem;
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  color: var(--color-slate-muted);
   font-size: 0.95rem;
   line-height: 1.55;
 }
@@ -137,7 +137,7 @@
 
 .statusInactive {
   border-color: color-mix(in srgb, var(--color-slate) 30%, transparent);
-  color: color-mix(in srgb, var(--color-slate) 75%, transparent);
+  color: var(--color-slate-muted);
 }
 
 .rowActions {
@@ -232,7 +232,7 @@
 
 .hint {
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.8rem;
 }
 
@@ -240,7 +240,7 @@
   margin: 0;
   padding: var(--space-3);
   border: 1px dashed color-mix(in srgb, var(--color-slate) 24%, transparent);
-  color: color-mix(in srgb, var(--color-slate) 85%, transparent);
+  color: var(--color-slate-muted);
   font-size: 0.8rem;
 }
 

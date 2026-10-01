@@ -19,10 +19,16 @@ const API_CATALOG_PATH = fileURLToPath(
 const CARD_PATH = fileURLToPath(
   new URL('../../src/modules/driver-trip/components/DriverStopCard.component.tsx', import.meta.url),
 )
-/** Spec 209: o formulário do "Deu problema" saiu do cartão para um componente próprio. */
+/** Spec 218 (RF-A5): o "Deu problema" virou o formulário único de ocorrência, com hook próprio. */
 const FORM_PATH = fileURLToPath(
   new URL(
-    '../../src/modules/driver-trip/components/DriverStopOccurrenceForm.component.tsx',
+    '../../src/modules/driver-trip/components/DriverOccurrenceRegistrationForm.component.tsx',
+    import.meta.url,
+  ),
+)
+const FORM_HOOK_PATH = fileURLToPath(
+  new URL(
+    '../../src/modules/driver-trip/hooks/useOccurrenceRegistrationForm.hook.ts',
     import.meta.url,
   ),
 )
@@ -171,13 +177,13 @@ describe('a tela de ocorrência da parada', () => {
   it('o motivo é escolha por chips, um selecionado por vez', () => {
     expect(source).toInclude('occurrenceChips')
     expect(source).toInclude('role="radiogroup"')
-    expect(source).toInclude('aria-checked={option === form.draft.kind}')
+    expect(source).toInclude('aria-checked={type.id === selectedType?.id}')
     expect(source).not.toInclude("from '@/components/ui/select'")
   })
 
   it('a descrição é textarea e a prévia é renderizada pelo serviço puro', () => {
     expect(source).toInclude('<textarea')
-    expect(source).toInclude('renderOccurrenceNoticePreview')
+    expect(readFileSync(FORM_HOOK_PATH, 'utf8')).toInclude('renderOccurrenceNoticePreview')
     expect(source).toInclude('occurrencePreview.title')
   })
 

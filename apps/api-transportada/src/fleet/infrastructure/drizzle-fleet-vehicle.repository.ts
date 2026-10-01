@@ -2,10 +2,14 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, ilike, lt, ne, or, sql } from 'drizzle-orm'
+import { and, desc, eq, ilike, lt, ne, notInArray, or, sql } from 'drizzle-orm'
 
-import { fleetVehicles } from '../../database/database.schema.js'
-import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
+import { fleetVehicles, trips } from '../../database/database.schema.js'
+import { TRIP_TERMINAL_STATUSES } from '../../database/trip.schema.js'
+import {
+  violatedCheckConstraint,
+  violatedUniqueConstraint,
+} from '../../database/postgres-error.support.js'
 import type {
   FleetFuelPricePort,
   FleetVehicle,
@@ -17,7 +21,11 @@ import type {
 import type { FleetVehicleStatus } from '../../database/fleet.schema.js'
 import type { EffectiveFuelPrice } from '../../companies/domain/fuel-price.policy.js'
 import type { FuelProduct } from '../../shared/fuel.constant.js'
-import { FleetVehiclePlateTakenError } from '../domain/fleet.error.js'
+import {
+  FleetVehicleDefaultTrailerRequiresTractorError,
+  FleetVehicleDefaultTrailerSelfReferenceError,
+  FleetVehiclePlateTakenError,
+} from '../domain/fleet.error.js'
 import { hasInformedCosts } from '../domain/vehicle-cost.policy.js'
 import { decodeKeysetCursor, encodeKeysetCursor } from '../../shared/keyset-cursor.support.js'
 import { mapVehicle, toVehicleColumns } from './fleet.mapper.js'
@@ -25,6 +33,10 @@ import { mapVehicle, toVehicleColumns } from './fleet.mapper.js'
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 const PLATE_CONSTRAINT = 'fleet_vehicles_company_id_plate_unique'
+
+/** T18 (revisão): traduz os dois CHECKs da carreta padrão (`fleet.schema.ts`) em 400 de domínio. */
+const DEFAULT_TRAILER_TRACTOR_ONLY_CONSTRAINT = 'fleet_vehicles_default_trailer_tractor_only'
+const DEFAULT_TRAILER_NOT_SELF_CONSTRAINT = 'fleet_vehicles_default_trailer_not_self'
 
 type RepositoryDependencies = {
   readonly database: Database
@@ -73,6 +85,41 @@ export class DrizzleFleetVehicleRepository implements FleetVehicleRepositoryPort
       .limit(1)
     if (record === undefined) return null
     return mapVehicle({ fuelPrices: await this.resolvePrices(input.companyId), record })
+  }
+
+  /**
+   * Spec 147 T9: uma carreta que é padrão de algum cavalo, ou que puxa uma viagem aberta, não pode
+   * virar tração. As duas linhas são de tabelas diferentes — cavalo (`fleet_vehicles`) e viagem
+   * (`trips`) — por isso duas consultas, e não um `leftJoin`.
+   */
+  public async isTrailerInUse(input: {
+    readonly companyId: string
+    readonly vehicleId: string
+  }): Promise<boolean> {
+    const [defaultOfSomeTractor] = await this.database
+      .select({ id: fleetVehicles.id })
+      .from(fleetVehicles)
+      .where(
+        and(
+          eq(fleetVehicles.companyId, input.companyId),
+          eq(fleetVehicles.defaultTrailerVehicleId, input.vehicleId),
+        ),
+      )
+      .limit(1)
+    if (defaultOfSomeTractor !== undefined) return true
+
+    const [openTrip] = await this.database
+      .select({ id: trips.id })
+      .from(trips)
+      .where(
+        and(
+          eq(trips.companyId, input.companyId),
+          eq(trips.trailerVehicleId, input.vehicleId),
+          notInArray(trips.status, [...TRIP_TERMINAL_STATUSES]),
+        ),
+      )
+      .limit(1)
+    return openTrip !== undefined
   }
 
   public async list(input: {
@@ -175,6 +222,13 @@ async function runGuarded<TResult>(operation: () => Promise<TResult>): Promise<T
   } catch (error) {
     if (violatedUniqueConstraint(error) === PLATE_CONSTRAINT)
       throw new FleetVehiclePlateTakenError()
+    const violatedCheck = violatedCheckConstraint(error)
+    if (violatedCheck === DEFAULT_TRAILER_TRACTOR_ONLY_CONSTRAINT) {
+      throw new FleetVehicleDefaultTrailerRequiresTractorError()
+    }
+    if (violatedCheck === DEFAULT_TRAILER_NOT_SELF_CONSTRAINT) {
+      throw new FleetVehicleDefaultTrailerSelfReferenceError()
+    }
     throw error
   }
 }

@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { FreightRegion, FreightRegionCity } from './freightRegion.types'
-import type { StateMesh } from '@/modules/shared/ibgeMesh.service'
+import type { MeshFeature } from '@/modules/shared/ibgeMesh.service'
+import { RADAR_SOURCE } from '@/modules/shared/vectorBasemap.service'
 import type { MunicipalityIdentity } from './municipality.service'
 import { cityKeyOf, foldRegionCityName } from './regionCityName.service'
 
@@ -27,11 +28,14 @@ export type FreightRegionMapClaim = Readonly<{
   zone: number
 }>
 
+/** Anel cru do IBGE — longitude/latitude, sem projeção: o MapLibre projeta na própria tela. */
+export type FreightRegionMapRing = MeshFeature['rings'][number]
+
 export type FreightRegionMapShape = Readonly<{
   city: string
   claims: readonly FreightRegionMapClaim[]
   code: string
-  path: string
+  rings: readonly FreightRegionMapRing[]
   zone: null | number
 }>
 
@@ -44,14 +48,34 @@ export type FreightRegionMapMissingCity = Readonly<{
 export type FreightRegionMapModel = Readonly<{
   outside: readonly FreightRegionMapMissingCity[]
   shapes: readonly FreightRegionMapShape[]
-  viewBox: string
 }>
 
 export type FreightRegionMapInput = Readonly<{
-  mesh: StateMesh
+  features: readonly MeshFeature[]
   municipalities: readonly MunicipalityIdentity[]
   regions: readonly FreightRegion[]
   state: string
+}>
+
+/**
+ * A zona vira propriedade **numérica** da feição GeoJSON — expressão de estilo do MapLibre não lê
+ * `null`. `-1` é o mesmo sentinela de `resolveZoneFill`: fora da paleta de zonas de verdade (0..4).
+ */
+export const FREIGHT_REGION_UNASSIGNED_ZONE = -1
+
+export type FreightRegionZoneFeature = Readonly<{
+  type: 'Feature'
+  geometry: Readonly<{
+    type: 'MultiPolygon'
+    coordinates: readonly (readonly (readonly (readonly [number, number])[])[])[]
+  }>
+  id: string
+  properties: Readonly<{ code: string; zone: number }>
+}>
+
+export type FreightRegionFeatureCollection = Readonly<{
+  type: 'FeatureCollection'
+  features: readonly FreightRegionZoneFeature[]
 }>
 
 export function resolveZoneFill(zone: null | number): string {
@@ -116,13 +140,13 @@ function sortClaims(claims: readonly FreightRegionMapClaim[]): readonly FreightR
  * uma cidade que a malha não tem, e é assim que erro de grafia na planilha passa em branco.
  */
 export function buildFreightRegionMap(input: FreightRegionMapInput): FreightRegionMapModel {
-  if (input.mesh.shapes.length === 0) {
-    return { outside: [], shapes: [], viewBox: input.mesh.viewBox }
+  if (input.features.length === 0) {
+    return { outside: [], shapes: [] }
   }
 
   const state = input.state.trim().toUpperCase()
   const codeByFold = toCodeByFold(input.municipalities)
-  const drawnCodes = new Set(input.mesh.shapes.map((shape) => shape.code))
+  const drawnCodes = new Set(input.features.map((feature) => feature.code))
   const claimsByCode = new Map<string, FreightRegionMapClaim[]>()
   const outside: FreightRegionMapMissingCity[] = []
 
@@ -141,18 +165,101 @@ export function buildFreightRegionMap(input: FreightRegionMapInput): FreightRegi
   }
 
   const nameByCode = toNameByCode(input.municipalities)
-  const shapes = input.mesh.shapes.map((shape) => {
-    const claims = sortClaims(claimsByCode.get(shape.code) ?? [])
+  const shapes = input.features.map((feature) => {
+    const claims = sortClaims(claimsByCode.get(feature.code) ?? [])
     return {
-      city: nameByCode.get(shape.code) ?? '',
+      city: nameByCode.get(feature.code) ?? '',
       claims,
-      code: shape.code,
-      path: shape.path,
+      code: feature.code,
+      rings: feature.rings,
       zone: claims[0]?.zone ?? null,
     }
   })
 
-  return { outside, shapes, viewBox: input.mesh.viewBox }
+  return { outside, shapes }
+}
+
+/**
+ * A malha vira fonte GeoJSON do MapLibre — pura, sem tocar o mapa. Todo anel de um município entra
+ * no mesmo `MultiPolygon` (ilha e enclave são o mesmo município, igual ao `d` do SVG de antes), e a
+ * zona vira propriedade numérica porque expressão de estilo do MapLibre não lê `null`.
+ */
+export function toFreightRegionFeatureCollection(
+  shapes: readonly FreightRegionMapShape[],
+): FreightRegionFeatureCollection {
+  return {
+    features: shapes
+      .filter((shape) => shape.rings.length > 0)
+      .map((shape) => ({
+        geometry: {
+          coordinates: shape.rings.map((ring) => [ring.map(([lng, lat]) => [lng, lat] as const)]),
+          type: 'MultiPolygon' as const,
+        },
+        id: shape.code,
+        properties: { code: shape.code, zone: shape.zone ?? FREIGHT_REGION_UNASSIGNED_ZONE },
+        type: 'Feature' as const,
+      })),
+    type: 'FeatureCollection',
+  }
+}
+
+/**
+ * O quadro que enquadra o estado inteiro (`fitBounds`), pela extensão real das coordenadas — não há
+ * `viewBox` pronto como no SVG: o MapLibre projeta, então quem enquadra é quem chama o mapa.
+ */
+export function resolveFreightRegionBounds(
+  shapes: readonly FreightRegionMapShape[],
+): readonly [number, number, number, number] | null {
+  let minLng = Number.POSITIVE_INFINITY
+  let minLat = Number.POSITIVE_INFINITY
+  let maxLng = Number.NEGATIVE_INFINITY
+  let maxLat = Number.NEGATIVE_INFINITY
+
+  for (const shape of shapes) {
+    for (const ring of shape.rings) {
+      for (const [lng, lat] of ring) {
+        if (lng < minLng) minLng = lng
+        if (lng > maxLng) maxLng = lng
+        if (lat < minLat) minLat = lat
+        if (lat > maxLat) maxLat = lat
+      }
+    }
+  }
+
+  if (!Number.isFinite(minLng) || !Number.isFinite(minLat)) return null
+  return [minLng, minLat, maxLng, maxLat]
+}
+
+/** O id da fonte GeoJSON de zonas no MapLibre — compartilhado entre o motor e a classificação de erro. */
+export const FREIGHT_REGION_ZONE_SOURCE = 'zona-de-frete'
+
+export type FreightRegionBasemapErrorContext = Readonly<{
+  basemapLoaded: boolean
+  sourceId?: string | undefined
+  tile?: unknown
+}>
+
+/**
+ * M5 (revisão final da T501) — nem todo `error` do MapLibre é "sem basemap". Confirmado contra o
+ * código-fonte do `maplibre-gl` (`_loadTile`, em `dist/maplibre-gl-dev.mjs`): erro de **telha
+ * isolada** (uma requisição que falhou, não um 404 esperado) chega com `tile` no próprio evento —
+ * `this._source.fire(new ErrorEvent(err, { tile }))` — e não pode apagar o mapa inteiro por um
+ * retângulo que falhou enquanto o resto carrega. Erro de **glifo** nem chega aqui: o
+ * `GlyphManager._downloadAndCacheRangePromise` captura a falha, desenha local e só avisa no
+ * console (`_warnOnMissingGlyphRange`), sem disparar `error` de mapa nenhum — o SVG antigo nunca
+ * tinha esse risco porque não dependia de fonte nenhuma para desenhar polígono.
+ *
+ * O que sobra antes do `load` — sem `tile`, de uma fonte que não é a própria zona que este
+ * componente desenha (`FREIGHT_REGION_ZONE_SOURCE`) nem o radar opcional (`RADAR_SOURCE`, ausente
+ * por padrão em toda instalação sem o arquivo gerado) — é a ausência real do basemap, e só ela
+ * conta como fatal.
+ */
+export function isFatalBasemapError(context: FreightRegionBasemapErrorContext): boolean {
+  if (context.basemapLoaded) return false
+  if (context.tile !== undefined) return false
+  if (context.sourceId === FREIGHT_REGION_ZONE_SOURCE) return false
+  if (context.sourceId === RADAR_SOURCE) return false
+  return true
 }
 
 /** Clicar no mapa é a entrada de cidade pelo desenho: o mesmo clique acrescenta e devolve. */

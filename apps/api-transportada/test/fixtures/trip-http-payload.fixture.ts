@@ -18,6 +18,7 @@ export const TRIP_ID = '00000000-0000-4000-8000-000000000a11'
 export const VEHICLE_ID = '00000000-0000-4000-8000-000000000a12'
 export const DRIVER_ID = '00000000-0000-4000-8000-000000000a13'
 export const SECOND_DRIVER_ID = '00000000-0000-4000-8000-000000000a14'
+export const HELPER_ID = '00000000-0000-4000-8000-000000000a1a'
 export const NFE_DOCUMENT_ID = '00000000-0000-4000-8000-000000000a15'
 export const FREIGHT_CALCULATION_ID = '00000000-0000-4000-8000-000000000a16'
 export const TRIP_DOCUMENT_ID = '00000000-0000-4000-8000-000000000a17'
@@ -191,9 +192,12 @@ export const TRIP_DETAIL: TripDetail = {
     status: 'unavailable',
     truncated: false,
   },
+  capacityUnknownReason: null,
+  capacityUnknownVehicleId: null,
   cargoWeight: null,
   documents: [TRIP_DOCUMENT_DETAIL],
   occupancy: null,
+  trailer: null,
   drivers: [
     {
       driverEmail: 'motorista.um@empresa.test',
@@ -202,6 +206,7 @@ export const TRIP_DETAIL: TripDetail = {
       driverPhone: '16999990001',
       driverTaxId: '11111111111',
       position: 1,
+      role: 'driver',
     },
     {
       driverEmail: '',
@@ -210,6 +215,7 @@ export const TRIP_DETAIL: TripDetail = {
       driverName: 'Motorista Dois',
       driverTaxId: '22222222222',
       position: 2,
+      role: 'driver',
     },
   ],
   stops: [],
@@ -217,6 +223,17 @@ export const TRIP_DETAIL: TripDetail = {
 
 export const TRIP_PAGE: TripPage = {
   items: [TRIP],
+  nextCursor: null,
+}
+
+/** T707 (H3): viagem com dinheiro na listagem, para provar a redação sem `trip.financials`. */
+export const TRIP_WITH_AMOUNTS: Trip = {
+  ...TRIP,
+  amounts: { documentsTotal: '1000.0000', revenueSource: 'measured', revenueTotal: '900.0000' },
+}
+
+export const TRIP_PAGE_WITH_AMOUNTS: TripPage = {
+  items: [TRIP_WITH_AMOUNTS],
   nextCursor: null,
 }
 

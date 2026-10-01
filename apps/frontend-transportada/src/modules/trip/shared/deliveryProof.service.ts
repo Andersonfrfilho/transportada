@@ -9,14 +9,49 @@
  *
  * O serviço é puro porque o teste desta app não tem DOM: o comportamento se prova na função.
  */
-import type { DELIVERY_PROOF_RECEIVED_BY_OPTIONS } from './trip.constant'
+import type {
+  DELIVERY_PROOF_CANHOTO_READ_SOURCE_OPTIONS,
+  DELIVERY_PROOF_CANHOTO_REVIEW_OPTIONS,
+  DELIVERY_PROOF_CANHOTO_REVIEW_ORIGIN_OPTIONS,
+  DELIVERY_PROOF_CANHOTO_REVIEW_REASON_OPTIONS,
+  DELIVERY_PROOF_PUNCTUALITY_OPTIONS,
+  DELIVERY_PROOF_RECEIVED_BY_OPTIONS,
+} from './trip.constant'
 
 export type DeliveryProofKind = 'photo' | 'signature' | 'cargo'
 
 /** Spec 193 D1: a relação de quem recebeu com o destinatário (`DELIVERY_PROOF_RECEIVED_BY_OPTIONS`). */
 export type DeliveryProofReceivedBy = (typeof DELIVERY_PROOF_RECEIVED_BY_OPTIONS)[number]
 
+export type DeliveryProofPunctuality = (typeof DELIVERY_PROOF_PUNCTUALITY_OPTIONS)[number]
+
+export type DeliveryProofCanhotoReview = (typeof DELIVERY_PROOF_CANHOTO_REVIEW_OPTIONS)[number]
+
+export type DeliveryProofCanhotoReviewOrigin =
+  (typeof DELIVERY_PROOF_CANHOTO_REVIEW_ORIGIN_OPTIONS)[number]
+
+export type DeliveryProofCanhotoReadSource =
+  (typeof DELIVERY_PROOF_CANHOTO_READ_SOURCE_OPTIONS)[number]
+
+export type DeliveryProofCanhotoReviewReason =
+  (typeof DELIVERY_PROOF_CANHOTO_REVIEW_REASON_OPTIONS)[number]
+
 export type DeliveryProof = Readonly<{
+  /** Spec 220 RF24: todas as `canhoto*` ausentes (nunca `null`) quando não há o que dizer. */
+  canhotoReadNumber?: string
+  canhotoReadSeries?: string
+  canhotoReadSource?: DeliveryProofCanhotoReadSource
+  canhotoReview?: DeliveryProofCanhotoReview
+  canhotoReviewAt?: string
+  /** Nome de quem conferiu; nunca o id. Ausente no veredito automático. */
+  canhotoReviewByName?: string
+  canhotoReviewNote?: string
+  canhotoReviewOrigin?: DeliveryProofCanhotoReviewOrigin
+  canhotoReviewReason?: DeliveryProofCanhotoReviewReason
+  /** Spec 220 RF14: hora da captura. Ausente em comprovante antigo. */
+  capturedAt?: string
+  /** Spec 220 RF15: distância ao ponto, em metros; ausente sem posição. Nunca a coordenada. */
+  distanceMeters?: number
   createdAt: string
   downloadUrl: string
   expiresAt: string
@@ -24,6 +59,8 @@ export type DeliveryProof = Readonly<{
   kind: DeliveryProofKind
   /** Spec 205 RF8: o comprovante (ou a entrega dele) foi registrado depois. Ausente na API anterior. */
   lateRegistration?: boolean
+  /** Spec 220 RF16: ausente em comprovante antigo. */
+  punctuality?: DeliveryProofPunctuality
   /** ADR-0057 §3: sempre a máscara; esta tela não o mostra. */
   receiverDocument?: string
   /** Spec 193 D3: quem recebeu, da mesma linha do nome. Ausente na API anterior; `null` no antigo. */
@@ -31,6 +68,8 @@ export type DeliveryProof = Readonly<{
   receivedByDetail?: null | string
   /** Nome de quem recebeu, na assinatura. **Nunca documento** — ADR-0045 §7. */
   receiverName: string
+  /** Spec 220 RF20: omitida (nunca `null`) em comprovante antigo, assinatura e falha de geração. */
+  thumbnailUrl?: string
 }>
 
 export type DeliveryProofDocument = Readonly<{
@@ -115,4 +154,14 @@ export function resolveDeliveryProofView(input: {
     state:
       photos.length + signatures.length === 0 ? 'delivered-without-proof' : 'delivered-with-proof',
   }
+}
+
+/** Spec 220 RF20: a miniatura quando existe; o original quando não — o caminho normal, não um erro. */
+export function resolveDeliveryProofImageSource(proof: DeliveryProof): string {
+  return proof.thumbnailUrl ?? proof.downloadUrl
+}
+
+/** Spec 220 RF22: a tela cheia e o download são sempre o original, nunca a miniatura ampliada. */
+export function resolveDeliveryProofFullSizeUrl(proof: DeliveryProof): string {
+  return proof.downloadUrl
 }

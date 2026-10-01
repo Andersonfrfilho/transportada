@@ -99,6 +99,21 @@ describe('as colunas de dinheiro da listagem de viagens', () => {
   })
 
   /**
+   * ⚠️ Spec 153 T710: sem `trip.financials` a API redige `documentsTotal`/`revenueTotal` — as
+   * chaves **somem** do objeto `amounts`, que continua presente. A ordenação não pode tratar
+   * ausência de chave diferente de `null`: as duas são "não sei o valor".
+   */
+  it('trata a chave ausente por redação como desconhecida, igual ao null', () => {
+    const items = [
+      tripOf('redigida', { revenueSource: 'measured' } as unknown as TripAmounts),
+      tripOf('com', amountsOf({ documentsTotal: '10.0000' })),
+    ]
+
+    expect(sortTrips(items, sortBy('cargoValue', 'asc')).at(-1)?.id).toBe('redigida')
+    expect(sortTrips(items, sortBy('revenue', 'asc')).at(-1)?.id).toBe('redigida')
+  })
+
+  /**
    * ⚠️ **O contrato de tela, e é o que este arquivo existe para travar.** A receita da listagem sai
    * da parametrização de frete, sem CT-e emitido. Um valor previsto lido como realizado é o erro que
    * só aparece na conciliação do mês, e o número sozinho não tem como avisar.
@@ -119,6 +134,17 @@ describe('as colunas de dinheiro da listagem de viagens', () => {
 
     expect(source).toContain("amounts.revenueSource === 'missing'")
     expect(source).toContain('table.revenueMissing')
+  })
+
+  /**
+   * Spec 153 T710: sem `trip.financials` a API redige `revenueTotal` (a chave some, nunca vira
+   * `undefined` sozinho na tela). A célula precisa cair na mesma ausência da coluna de carga, nunca
+   * tentar formatar `undefined` como dinheiro.
+   */
+  it('não imprime valor quando revenueTotal foi redigido', () => {
+    const source = readFileSync(TABLE, 'utf8')
+
+    expect(source).toContain('amounts.revenueTotal === undefined')
   })
 
   it('publica os rótulos das duas colunas e das três ausências', () => {

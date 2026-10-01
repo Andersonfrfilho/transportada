@@ -38,6 +38,8 @@ import occurrenceConversationLocale from '@/modules/occurrence-conversation/loca
 import occurrenceConversationEnglishLocale from '@/modules/occurrence-conversation/locales/occurrenceConversation.en.locale.json'
 import operationsWorkspaceLocale from '@/modules/operations/locales/operationsWorkspace.locale.json'
 import operationsWorkspaceEnglishLocale from '@/modules/operations/locales/operationsWorkspace.en.locale.json'
+import pendingItemsLocale from '@/modules/pending-items/locales/pendingItems.locale.json'
+import pendingItemsEnglishLocale from '@/modules/pending-items/locales/pendingItems.en.locale.json'
 import routingLocale from '@/modules/routing/locales/routing.locale.json'
 import routingEnglishLocale from '@/modules/routing/locales/routing.en.locale.json'
 import tripFinancialsLocale from '@/modules/trip-financials/locales/tripFinancials.locale.json'
@@ -68,6 +70,7 @@ void i18n.use(initReactI18next).init({
       notification: notificationEnglishLocale,
       occurrenceConversation: occurrenceConversationEnglishLocale,
       operationsWorkspace: operationsWorkspaceEnglishLocale,
+      pendingItems: pendingItemsEnglishLocale,
       routing: routingEnglishLocale,
       translation: foundationEnglishLocale,
       trip: tripEnglishLocale,
@@ -91,6 +94,7 @@ void i18n.use(initReactI18next).init({
       notification: notificationLocale,
       occurrenceConversation: occurrenceConversationLocale,
       operationsWorkspace: operationsWorkspaceLocale,
+      pendingItems: pendingItemsLocale,
       routing: routingLocale,
       translation: foundationLocale,
       trip: tripLocale,

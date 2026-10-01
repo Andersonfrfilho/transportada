@@ -159,6 +159,7 @@ function toReconciliationEntry(value: unknown): ReconciliationEntry {
       ? value.differences.map(readText).map(toRealmOwnedField)
       : [],
     matchedBy: toReconciliationMatch(value.matchedBy),
+    realmDisabled: value.realmDisabled === true,
     status: toReconciliationStatus(value.status),
     ...(local === undefined
       ? {}
@@ -261,6 +262,9 @@ export function toIdentitySyncOutcome(value: unknown): IdentitySyncOutcome {
     createdInRealm: Array.isArray(data.createdInRealm) ? data.createdInRealm.map(readText) : [],
     createdLocally: Array.isArray(data.createdLocally) ? data.createdLocally.map(readText) : [],
     skipped: Array.isArray(data.skipped) ? data.skipped.map(toSkippedSubject) : [],
+    skippedUserIds: Array.isArray(data.skippedUserIds)
+      ? data.skippedUserIds.map(toSkippedProfile)
+      : [],
   }
 }
 

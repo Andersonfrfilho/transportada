@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useQuery } from '@tanstack/react-query'
 
+import type { RouteChoice } from '@/modules/trip/shared/routeGeometry.service'
+
 import { getTripFinancialsClient } from '../shared/tripFinancialsClient.service'
 import { FINANCIALS_PERMISSION } from '../shared/tripFinancialsQueryKey.constant'
 import {
@@ -46,6 +48,8 @@ export function useTripValuationPreview(
     isPaused?: boolean
     nfeDocumentIds: readonly string[]
     permissions: readonly string[]
+    /** D7/D2: a rota escolhida deste veículo — a conta muda com ela, então a consulta também muda. */
+    routeChoice?: RouteChoice
     stopOrder: readonly string[]
     vehicleId: string
   }>,
@@ -56,6 +60,10 @@ export function useTripValuationPreview(
   /** ⚠️ **Sem `sort`**: aqui a ordem *é* o dado — ordenar a chave esconderia a reordenação. */
   const orderKey = input.stopOrder.join('>')
   const dailyAllowanceDaysKey = input.dailyAllowanceDays ?? ''
+  const routeChoiceKey =
+    input.routeChoice === undefined
+      ? ''
+      : `${input.routeChoice.criterion}:${input.routeChoice.signature ?? ''}`
 
   const query = useQuery({
     /** Sem nota ou sem veículo a API recusaria: a pergunta só existe com os dois. */
@@ -72,6 +80,7 @@ export function useTripValuationPreview(
           : { dailyAllowanceDays: input.dailyAllowanceDays }),
         driverIds: input.driverIds,
         nfeDocumentIds: input.nfeDocumentIds,
+        ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
         stopOrder: input.stopOrder,
         vehicleId: input.vehicleId,
       }),
@@ -82,6 +91,7 @@ export function useTripValuationPreview(
       documentKey,
       driverKey,
       orderKey,
+      routeChoiceKey,
       input.vehicleId,
     ],
   })

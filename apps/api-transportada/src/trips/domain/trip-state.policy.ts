@@ -1,7 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
+import {
+  TRIP_STATUSES,
+  type TripDocumentSeparationStatus,
+  type TripStatus,
+} from '../../database/trip.schema.js'
 
 /**
  * ADR-0043 §1: dois eixos. A nota anda por conta própria (`pending → separated → loaded →
@@ -67,6 +71,8 @@ export const TRIP_TRANSITION_BLOCK = {
   documentNotSeparated: 'TRIP_DOCUMENT_NOT_SEPARATED',
   documentNotLoaded: 'TRIP_DOCUMENT_NOT_LOADED',
   documentAlreadyClosed: 'TRIP_DOCUMENT_ALREADY_CLOSED',
+  /** Feature 147 D3: o cavalo não carrega sozinho — sem carreta, `dispatch` não sai daqui. */
+  tripTrailerRequired: 'TRIP_TRAILER_REQUIRED',
 } as const
 
 export type TripTransitionBlock = (typeof TRIP_TRANSITION_BLOCK)[keyof typeof TRIP_TRANSITION_BLOCK]
@@ -148,6 +154,15 @@ export function checkTripAcceptsLinkage(tripStatus: TripStatus): TripTransitionB
 
   return null
 }
+
+/**
+ * Spec 153 T704 (M1/M3): os estados em que a rota planejada ainda é rascunho — os mesmos que
+ * `checkTripAcceptsLinkage` libera. A partir do despacho o roteiro congelado é o que vale na rua, e
+ * nem a limpeza da rota velha nem uma escrita atrasada do congelamento podem alcançá-lo.
+ */
+export const TRIP_STATUSES_BEFORE_DISPATCH = TRIP_STATUSES.filter(
+  (status) => checkTripAcceptsLinkage(status) === null,
+)
 
 /** Entregue e devolvida são terminais: a nota saiu do fluxo de separação para sempre. */
 export function isTripDocumentClosed(status: TripDocumentSeparationStatus): boolean {
@@ -275,6 +290,11 @@ export type CheckTripTransitionParams =
   | {
       readonly action: Exclude<TripAction, typeof TRIP_ACTION.defineCrew>
       readonly hasRoute: boolean
+      /**
+       * Feature 147 D3/T11: só `dispatch` lê isto — ausente é "não se aplica", e o comportamento das
+       * demais ações (e do próprio dispatch antes desta feature) não muda.
+       */
+      readonly requiresTrailer?: boolean
       readonly tripStatus: TripStatus
     }
   | {
@@ -318,7 +338,11 @@ export function checkTripTransition(params: CheckTripTransitionParams): TripTran
   if (action === TRIP_ACTION.confirmLoad) return checkFieldStart(tripStatus, 'in_transit')
   if (action === TRIP_ACTION.startRoute) return checkFieldStart(tripStatus, 'on_delivery_route')
 
-  return checkDispatch({ hasRoute, tripStatus })
+  return checkDispatch({
+    hasRoute,
+    tripStatus,
+    ...(params.requiresTrailer === undefined ? {} : { requiresTrailer: params.requiresTrailer }),
+  })
 }
 
 /**
@@ -464,6 +488,7 @@ function checkPlanRoute(input: {
 
 function checkDispatch(input: {
   readonly hasRoute: boolean
+  readonly requiresTrailer?: boolean
   readonly tripStatus: TripStatus
 }): TripTransition<TripStatus> {
   const { hasRoute, tripStatus } = input
@@ -476,6 +501,10 @@ function checkDispatch(input: {
   if (isTripDispatched(tripStatus)) return { outcome: 'unchanged' }
   if (tripStatus === 'draft' || !hasRoute) {
     return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripHasNoRoute }
+  }
+  /** Feature 147 D3: o portão do roteiro vem antes — sem roteiro a carreta nem chegou a importar. */
+  if (input.requiresTrailer === true) {
+    return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripTrailerRequired }
   }
 
   return { outcome: 'applied', nextStatus: 'dispatched' }

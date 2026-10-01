@@ -14,6 +14,7 @@ import {
 import type { SuggestionVehicleValuation } from '@/modules/routing/shared/suggestionValuation.service'
 import { formatWeightKilograms } from '@/modules/shared/decimalAmount.service'
 import { useTripValuationPreview } from '@/modules/trip-financials/hooks/useTripValuationPreview.hook'
+import { FINANCIALS_PERMISSION } from '@/modules/trip-financials/shared/tripFinancialsQueryKey.constant'
 
 import { useTripCargoPreview } from '../hooks/useTripCargoPreview.hook'
 import { toAssemblyMapNote } from '../shared/assemblyMapNote.service'
@@ -26,10 +27,10 @@ import {
 } from '../shared/proposalTripDistance.service'
 import { describeProposalTripTime } from '../shared/proposalTripTime.service'
 import { buildProposalStopOrder, type ProposalVehicleView } from '../shared/proposalView.service'
+import type { RouteChoice } from '../shared/routeGeometry.service'
 import { TRIP_MANAGE_PERMISSION } from '../shared/trip.constant'
 import type { TripCandidateDocument } from '../shared/trip.types'
 import { TripAssemblyMap } from './TripAssemblyMap.component'
-import type { RouteChoice } from '../shared/routeGeometry.service'
 import { TripReviewQueue } from './TripReviewQueue.component'
 import { TripValuationPreview } from './TripValuationPreview.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
@@ -68,6 +69,8 @@ type TripProposalDetailProps = Readonly<{
     isMarked: (layoutId: string) => boolean
     onToggle: (layoutId: string) => void
   }>
+  /** D7: a rota escolhida **deste** veículo — nunca a de outro na mesma proposta. */
+  routeChoice: RouteChoice
   valuation: null | SuggestionVehicleValuation
   vehicle: FleetVehicleDetail | undefined
   view: ProposalVehicleView
@@ -98,6 +101,7 @@ export function TripProposalDetail({
   permissions,
   preferredRouteChoice,
   releaseUnplaced,
+  routeChoice,
   valuation,
   vehicle,
   view,
@@ -184,6 +188,7 @@ export function TripProposalDetail({
     isPaused: isMeasurementPaused,
     nfeDocumentIds: documentIds,
     permissions,
+    routeChoice,
     stopOrder,
     vehicleId: view.vehicleId,
   })
@@ -306,6 +311,7 @@ export function TripProposalDetail({
       {mapNotes.length === 0 ? null : (
         <TripAssemblyMap
           canAdjustTollBooth={permissions.includes(SETTINGS_MANAGE_PERMISSION)}
+          canReadFinancials={permissions.includes(FINANCIALS_PERMISSION)}
           isMeasurementPaused={isMeasurementPaused}
           measuredOrder={stopOrder}
           nearby={[]}
@@ -329,6 +335,8 @@ export function TripProposalDetail({
       {occupancy === null && cargoWeight === null ? null : (
         <TripCargoPanel
           cargoWeight={cargoWeight}
+          capacityUnknownReason={cargo.preview?.capacityUnknownReason ?? null}
+          capacityUnknownVehicleId={cargo.preview?.capacityUnknownVehicleId ?? null}
           layout={cargo.preview?.cargoLayout ?? null}
           layoutView={cargo.cargoLayoutView}
           occupancy={occupancy}
@@ -348,6 +356,7 @@ export function TripProposalDetail({
               unplaced={unplaced}
             />
           }
+          vehicleId={view.vehicleId}
           vehicleType={view.vehicleType}
           weightConcentration={cargo.preview?.weightConcentration ?? null}
         />

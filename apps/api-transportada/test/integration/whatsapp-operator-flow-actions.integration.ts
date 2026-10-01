@@ -359,7 +359,9 @@ describe('batch-status pelo WhatsApp do operador grava channel whatsapp (spec 15
       plate: 'ABC1D25',
       role: 'traction',
       state: 'SP',
-      vehicleType: 'tractor_unit',
+      // `truck`, não `tractor_unit`: este arquivo prova o fluxo do WhatsApp (spec 144), não a
+      // exigência de carreta (T18) — um cavalo sem carreta bloquearia o despacho automático.
+      vehicleType: 'truck',
     })
     await db.insert(trips).values({ companyId, id: tripId, status: 'route_planned', vehicleId })
     await db.insert(tripStops).values({
@@ -451,7 +453,9 @@ async function seedRoutePlannedTripWithOneDocument(db: Database): Promise<Seeded
     plate: 'ABC1D23',
     role: 'traction',
     state: 'SP',
-    vehicleType: 'tractor_unit',
+    // `truck`, não `tractor_unit`: este arquivo prova o fluxo do WhatsApp (spec 144), não a
+    // exigência de carreta (T18) — um cavalo sem carreta bloquearia o despacho automático.
+    vehicleType: 'truck',
   })
   await db.insert(trips).values({ companyId, id: tripId, status: 'route_planned', vehicleId })
   const stopId = crypto.randomUUID()

@@ -119,3 +119,28 @@ describe('o detalhe herda os campos opcionais da viagem', () => {
     expect(TRIP_DETAIL_KEYS).not.toContain('amounts')
   })
 })
+
+/** Spec 147 D3/RF5: a carreta atrelada é campo novo — mesma disciplina de `occupancy` (D2 acima). */
+describe('a carreta nasce opcional, como todo campo novo', () => {
+  it('aceita o detalhe sem `trailer`, como uma API anterior o serviria', () => {
+    const anterior: Record<string, unknown> = { ...TRIP_DETAIL }
+    Reflect.deleteProperty(anterior, 'trailer')
+
+    expect(aceita(anterior)).toBe(true)
+  })
+
+  it('aceita `trailer: null` e a carreta preenchida', () => {
+    expect(aceita({ ...TRIP_DETAIL, trailer: null })).toBe(true)
+    expect(
+      aceita({
+        ...TRIP_DETAIL,
+        trailer: { bodyType: '02', id: '00000000-0000-4000-8000-000000000a99', plate: 'XYZ9A88' },
+      }),
+    ).toBe(true)
+  })
+
+  it('reprova `trailer` com forma errada', () => {
+    expect(aceita({ ...TRIP_DETAIL, trailer: 'RTC4H67' })).toBe(false)
+    expect(aceita({ ...TRIP_DETAIL, trailer: { id: 'x' } })).toBe(false)
+  })
+})

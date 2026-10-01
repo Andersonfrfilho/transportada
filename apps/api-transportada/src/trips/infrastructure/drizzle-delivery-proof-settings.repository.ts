@@ -6,12 +6,15 @@
  * formulário de outra.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, asc, eq, notInArray } from 'drizzle-orm'
+import { and, asc, eq, inArray, notInArray } from 'drizzle-orm'
 
 import {
   companyDeliveryProofSettings,
+  deliveryProofSettingContractorOverrides,
   deliveryProofSettingOverrides,
 } from '../../database/company-delivery-proof-settings.schema.js'
+import { contractors } from '../../database/delivery-client.schema.js'
+import { ContractorNotFoundError } from '../../delivery-clients/domain/delivery-client.error.js'
 import {
   DEFAULT_CANHOTO_OCR_ENABLED,
   DEFAULT_COMPANY_DELIVERY_PROOF_SETTINGS,
@@ -25,6 +28,15 @@ type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 export type DeliveryProofSettingsOverride = DeliveryProofFieldSettings & {
   readonly taxId: string
+}
+
+/** Spec 218 RF-C1: a mesma exceção, chaveada pelo contratante (embarcador/emitente), não pelo CNPJ. */
+export type DeliveryProofSettingsContractorOverride = DeliveryProofFieldSettings & {
+  readonly contractorId: string
+}
+
+export type DeliveryProofSettingsContractorOverrideInput = DeliveryProofFieldSettingsInput & {
+  readonly contractorId: string
 }
 
 /** Spec 193 D6: no `PUT` de exceções, `receivedBy` ausente preserva o valor do mesmo `taxId`. */
@@ -42,6 +54,8 @@ export class DrizzleDeliveryProofSettingsRepository {
     const [record] = await this.database
       .select({
         canhotoOcrEnabled: companyDeliveryProofSettings.canhotoOcrEnabled,
+        cargo: companyDeliveryProofSettings.cargo,
+        cargoMinimumCount: companyDeliveryProofSettings.cargoMinimumCount,
         latePenaltyPoints: companyDeliveryProofSettings.latePenaltyPoints,
         missingAfterHours: companyDeliveryProofSettings.missingAfterHours,
         missingPenaltyPoints: companyDeliveryProofSettings.missingPenaltyPoints,
@@ -95,6 +109,8 @@ export class DrizzleDeliveryProofSettingsRepository {
   }): Promise<readonly DeliveryProofSettingsOverride[]> {
     return this.database
       .select({
+        cargo: deliveryProofSettingOverrides.cargo,
+        cargoMinimumCount: deliveryProofSettingOverrides.cargoMinimumCount,
         photo: deliveryProofSettingOverrides.photo,
         receivedBy: deliveryProofSettingOverrides.receivedBy,
         receiverDocument: deliveryProofSettingOverrides.receiverDocument,
@@ -134,6 +150,10 @@ export class DrizzleDeliveryProofSettingsRepository {
           .values({ companyId: input.companyId, ...override })
           .onConflictDoUpdate({
             set: {
+              ...(override.cargo === undefined ? {} : { cargo: override.cargo }),
+              ...(override.cargoMinimumCount === undefined
+                ? {}
+                : { cargoMinimumCount: override.cargoMinimumCount }),
               photo: override.photo,
               ...(override.receivedBy === undefined ? {} : { receivedBy: override.receivedBy }),
               receiverDocument: override.receiverDocument,
@@ -142,6 +162,94 @@ export class DrizzleDeliveryProofSettingsRepository {
               updatedAt: new Date(),
             },
             target: [deliveryProofSettingOverrides.companyId, deliveryProofSettingOverrides.taxId],
+          })
+      }
+    })
+  }
+
+  /** Spec 218 RF-C1/RF-C4: o par irmão, chaveado por contratante em vez de CNPJ do destinatário. */
+  public async listContractorOverrides(input: {
+    readonly companyId: string
+  }): Promise<readonly DeliveryProofSettingsContractorOverride[]> {
+    return this.database
+      .select({
+        contractorId: deliveryProofSettingContractorOverrides.contractorId,
+        cargo: deliveryProofSettingContractorOverrides.cargo,
+        cargoMinimumCount: deliveryProofSettingContractorOverrides.cargoMinimumCount,
+        photo: deliveryProofSettingContractorOverrides.photo,
+        receivedBy: deliveryProofSettingContractorOverrides.receivedBy,
+        receiverDocument: deliveryProofSettingContractorOverrides.receiverDocument,
+        receiverName: deliveryProofSettingContractorOverrides.receiverName,
+        signature: deliveryProofSettingContractorOverrides.signature,
+      })
+      .from(deliveryProofSettingContractorOverrides)
+      .where(eq(deliveryProofSettingContractorOverrides.companyId, input.companyId))
+      .orderBy(asc(deliveryProofSettingContractorOverrides.contractorId))
+  }
+
+  /**
+   * `PUT` de coleção, mesma forma da irmã de destinatário. `contractorId` referencia um cadastro
+   * automático (ADR-0048) — validado aqui contra o tenant antes de escrever, para responder 404
+   * limpo (`ContractorNotFoundError`) em vez de deixar a FK estourar como erro cru de banco.
+   */
+  public async replaceContractorOverrides(input: {
+    readonly companyId: string
+    readonly overrides: readonly DeliveryProofSettingsContractorOverrideInput[]
+  }): Promise<void> {
+    const requestedContractorIds = [
+      ...new Set(input.overrides.map((override) => override.contractorId)),
+    ]
+    if (requestedContractorIds.length > 0) {
+      const foundContractors = await this.database
+        .select({ id: contractors.id })
+        .from(contractors)
+        .where(
+          and(
+            eq(contractors.companyId, input.companyId),
+            inArray(contractors.id, requestedContractorIds),
+          ),
+        )
+      const foundContractorIds = new Set(foundContractors.map((row) => row.id))
+      const isEveryContractorInTenant = requestedContractorIds.every((id) =>
+        foundContractorIds.has(id),
+      )
+      if (!isEveryContractorInTenant) throw new ContractorNotFoundError()
+    }
+
+    await this.database.transaction(async (transaction) => {
+      const keptContractorIds = input.overrides.map((override) => override.contractorId)
+      await transaction
+        .delete(deliveryProofSettingContractorOverrides)
+        .where(
+          keptContractorIds.length === 0
+            ? eq(deliveryProofSettingContractorOverrides.companyId, input.companyId)
+            : and(
+                eq(deliveryProofSettingContractorOverrides.companyId, input.companyId),
+                notInArray(deliveryProofSettingContractorOverrides.contractorId, keptContractorIds),
+              ),
+        )
+
+      for (const override of input.overrides) {
+        await transaction
+          .insert(deliveryProofSettingContractorOverrides)
+          .values({ companyId: input.companyId, ...override })
+          .onConflictDoUpdate({
+            set: {
+              ...(override.cargo === undefined ? {} : { cargo: override.cargo }),
+              ...(override.cargoMinimumCount === undefined
+                ? {}
+                : { cargoMinimumCount: override.cargoMinimumCount }),
+              photo: override.photo,
+              ...(override.receivedBy === undefined ? {} : { receivedBy: override.receivedBy }),
+              receiverDocument: override.receiverDocument,
+              receiverName: override.receiverName,
+              signature: override.signature,
+              updatedAt: new Date(),
+            },
+            target: [
+              deliveryProofSettingContractorOverrides.companyId,
+              deliveryProofSettingContractorOverrides.contractorId,
+            ],
           })
       }
     })

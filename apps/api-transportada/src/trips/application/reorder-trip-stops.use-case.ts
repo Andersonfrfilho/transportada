@@ -8,6 +8,10 @@ import {
   TripStateTransitionNotAllowedError,
   TripStopSetMismatchError,
 } from '../domain/trip.error.js'
+import {
+  freezeTripRouteGracefully,
+  type TripRouteFreezeLogger,
+} from './freeze-trip-route-gracefully.js'
 import type { PlanTripRouteTollFreezer } from './plan-trip-route.use-case.js'
 
 export type ReorderTripStopsPreconditions = {
@@ -29,6 +33,8 @@ export type ReorderTripStopsPort = {
 
 export type ReorderTripStopsInput = {
   readonly companyId: string
+  /** T704 L7: sem ele a falha do congelamento continua não derrubando nada — e some sem explicação. */
+  readonly logger?: TripRouteFreezeLogger
   readonly orderedStopIds: readonly string[]
   readonly repository: ReorderTripStopsPort
   /** Spec 153 D6: viagem ainda não despachada recalcula com `cheapest`. Ausente, comportamento igual a antes. */
@@ -52,7 +58,7 @@ export type ReorderTripStopsResult = {
 export async function reorderTripStops(
   input: ReorderTripStopsInput,
 ): Promise<ReorderTripStopsResult> {
-  const { companyId, orderedStopIds, repository, routeFreezer, tripId } = input
+  const { companyId, logger, orderedStopIds, repository, routeFreezer, tripId } = input
   const preconditions = await repository.readStopOrderPreconditions({ companyId, tripId })
   if (preconditions === null) throw new TripNotFoundError()
 
@@ -70,16 +76,15 @@ export async function reorderTripStops(
   await repository.reorderStops({ companyId, orderedStopIds, tripId })
 
   /**
-   * D6/D5: a ordem antiga descreve uma rota que não existe mais. O congelamento roda **depois** da
-   * escrita principal e nunca a derruba — mesmo `catch` de fallback gracioso do `plan-trip-route`.
+   * D6/D5: a ordem antiga descreve uma rota que não existe mais — e `reorderStops` já a apagou na
+   * própria transação (T704 M1). O congelamento roda **depois** e nunca derruba a reordenação.
    */
-  if (routeFreezer !== undefined) {
-    try {
-      await routeFreezer.freeze({ companyId, tripId })
-    } catch {
-      /* a ordem já está gravada; o pedágio congela no próximo replanejamento */
-    }
-  }
+  await freezeTripRouteGracefully({
+    companyId,
+    freezer: routeFreezer,
+    ...(logger === undefined ? {} : { logger }),
+    tripId,
+  })
 
   return { tripStatus: preconditions.tripStatus }
 }

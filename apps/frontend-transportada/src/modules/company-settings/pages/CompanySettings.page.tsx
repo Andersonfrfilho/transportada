@@ -29,6 +29,7 @@ import {
   type CompanyEntryKindCatalogPanelProps,
 } from '../components/CompanyEntryKindCatalogPanel.component'
 import { useCompanyEntryKindCatalogPanel } from '../hooks/useCompanyEntryKindCatalogPanel.hook'
+import { SettingsResolutionPanel } from '../components/SettingsResolutionPanel.component'
 import { LandingSettingsPanel } from '../components/LandingSettingsPanel.component'
 import { useCompanyContactsPanel } from '../hooks/useCompanyContactsPanel.hook'
 import { useLandingSettingsPanel } from '../hooks/useLandingSettingsPanel.hook'
@@ -248,6 +249,9 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
   if (tab === 'occurrenceTypes')
     return <OccurrenceTypeCatalogPanel {...props.occurrenceTypeCatalog} />
   if (tab === 'entryKinds') return <CompanyEntryKindCatalogPanel {...props.entryKindCatalog} />
+  /** Spec 218 RF-E1/RF-E2: painel autocontido — busca os próprios dados, como o de ocorrência acima. */
+  if (tab === 'settingsResolution')
+    return <SettingsResolutionPanel canManage={props.canManageSettings} />
   /** Spec 183 T701 (RF12): o painel é do módulo da conversa, autocontido — aqui só se decide onde. */
   if (tab === 'quickReplies') return <QuickRepliesSettingsPanel enabled={props.canManageSettings} />
   if (tab === 'site') {

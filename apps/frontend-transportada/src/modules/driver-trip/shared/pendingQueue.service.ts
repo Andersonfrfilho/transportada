@@ -1,6 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /* Cópia por valor de apps/frontend-driver/src/modules/driver-trip/shared/pendingQueue.service.ts (ADR-0075 §7). */
-import { isAttachmentDiscardable, type AttachmentGroupEntries } from './offlineAttachments.service'
+import {
+  isAttachmentDiscardable,
+  isAwaitingDeliveryKey,
+  type AttachmentGroupEntries,
+} from './offlineAttachments.service'
 import type { QueuedReport } from './offlineQueue.service'
 
 /**
@@ -50,7 +54,8 @@ export function countPending(input: {
   }
 
   for (const [eventKey, items] of input.attachments) {
-    const isBlocked = blockedEventKeys.has(eventKey)
+    /** Spec 218: o canhoto de antes da entrega espera o "Confirmar entrega", não a drenagem. */
+    const isBlocked = blockedEventKeys.has(eventKey) || isAwaitingDeliveryKey(eventKey)
     for (const attachment of items) {
       if (attachment.rejectionCause !== undefined) {
         rejected += 1

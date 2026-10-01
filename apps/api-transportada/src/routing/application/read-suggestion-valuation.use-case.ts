@@ -6,6 +6,7 @@
  * É a tela em que o operador escolhe entre distribuir a carga de um jeito ou de outro — e até esta
  * spec era a única tela do produto que não dizia qual dos jeitos paga.
  */
+import type { TripHelperCostMember } from '../../trips/domain/trip-helper-cost.policy.js'
 import {
   RouteSuggestionNotDecidableError,
   RouteSuggestionNotFoundError,
@@ -51,6 +52,17 @@ export async function readSuggestionValuation(
 
   const roadByVehicle = new Map(roads.map((road) => [road.vehicleId, road]))
 
+  /**
+   * Spec 149 T7 (D7): as duas leituras da diária do ajudante, **uma vez para a sugestão inteira** —
+   * nunca dentro do laço por veículo abaixo, que multiplicaria a consulta pelo número de linhas
+   * propostas (sem N+1, ADR-0065).
+   */
+  const helperIds = [...new Set(groups.flatMap((group) => group.helperIds ?? []))]
+  const [helperCompanyDailyRate, helperOwnDailyRateByDriverId] = await Promise.all([
+    repository.readHelperCompanyDailyRate({ companyId }),
+    repository.readHelperOwnDailyRates({ companyId, driverIds: helperIds }),
+  ])
+
   const vehicles: SuggestionVehicleValuation[] = []
   for (const group of groups) {
     const vehicleRoad = roadByVehicle.get(group.vehicleId)
@@ -81,6 +93,20 @@ export async function readSuggestionValuation(
     /** Veículo apagado entre a sugestão e a leitura: some da conta em vez de derrubar a tela. */
     if (context === null) continue
 
+    /**
+     * Spec 149 T7 (D7): a mesma parcela `helper` da viagem (T6), pelo seam único
+     * (`buildValuationFromContext`, dentro de `resolveValuation`) — sem segunda conta. A jornada é a
+     * mesma duração que o cartão do veículo imprime (`road.durationSeconds`, ida + volta quando
+     * gravada + parado): `returnStatus === 'included'` é a única situação em que a volta entrou nela.
+     */
+    const helperCrew: readonly TripHelperCostMember[] = (group.helperIds ?? []).map((driverId) => ({
+      driverId,
+      ownDailyRate: helperOwnDailyRateByDriverId.get(driverId) ?? null,
+    }))
+    const journeySeconds = road.durationSeconds
+    const journeyIncludesReturn =
+      journeySeconds === null ? null : road.durationParts.returnStatus === 'included'
+
     const valuation = await repository.resolveValuation({
       companyId,
       /**
@@ -97,6 +123,10 @@ export async function readSuggestionValuation(
          * o roteiro que está sendo comparado agora.
          */
         estimatedDurationSeconds: road.durationSeconds,
+        helperCompanyDailyRate,
+        helperCrew,
+        journeyIncludesReturn,
+        journeySeconds,
         toll: null,
         tollUnavailableReason: 'suggestion',
       },

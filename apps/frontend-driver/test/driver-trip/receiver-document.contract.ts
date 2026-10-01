@@ -125,6 +125,7 @@ describe('a lista completa de pendências, para o "Concluir" (spec 207)', () => 
       listAllPendingFields({
         plan,
         values: {
+          cargoCount: 0,
           hasPhoto: true,
           hasSignature: false,
           receivedBy: '',
@@ -142,6 +143,7 @@ describe('a lista completa de pendências, para o "Concluir" (spec 207)', () => 
       listAllPendingFields({
         plan,
         values: {
+          cargoCount: 0,
           hasPhoto: false,
           hasSignature: false,
           receivedBy: '',

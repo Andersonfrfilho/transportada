@@ -304,6 +304,8 @@ function serializeDriver(driver: FleetDriver): object {
   return {
     address: driver.address,
     anttCategory: driver.anttCategory,
+    canActAsHelper: driver.canActAsHelper,
+    helperDailyRate: driver.helperDailyRate,
     securesCargo: driver.securesCargo,
     licenseCategory: driver.licenseCategory,
     birthCity: driver.birthCity,
@@ -396,6 +398,7 @@ function serializeVehicle(vehicle: FleetVehicle): object {
       vehicle.costPerKilometerBreakdown === null ? null : { ...vehicle.costPerKilometerBreakdown },
     costsUpdatedAt: vehicle.costsUpdatedAt,
     createdAt: vehicle.createdAt,
+    defaultTrailerVehicleId: vehicle.defaultTrailerVehicleId,
     fleetNumber: vehicle.fleetNumber,
     fuelPrice: vehicle.fuelPrice === null ? null : { ...vehicle.fuelPrice },
     fuelType: vehicle.fuelType,

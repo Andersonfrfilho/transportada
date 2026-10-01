@@ -722,3 +722,176 @@ em T0.2.
   — `tappedAt` é o `createdAt` do item, como a D3 pede.
 - **Não feito, e a Fase 4 não depende disso:** T2.6 (sonda pós-deploy) e a Fase 3 (T3.1/T3.2,
   `stop-travel-sample.policy.ts`) — esta spec de execução cobriu só a Fase 2, por pedido explícito.
+
+## Fase 4 — App do motorista (integração contra a API real)
+
+Árvore `work/spec-206-ui`, a partir de `dcc590a48` (API publicada em `origin/staging`,
+Fase 2 completa). Cherry-pick de `1f42c3137` (`d5c5c1454` nesta árvore) trouxe a tela preview
+inteira sem conflito — o resto desta seção é o que faltava para casar com a API real e fechar as
+tasks abertas de verdade (a releitura do `tasks.md` contra o cherry-pick está registrada na
+conversa da sessão, não neste arquivo).
+
+**Correção de um relato anterior da mesma sessão:** um `git show --stat` truncado por `head -40`
+tinha feito parecer que `dispatch.contract.ts:168-200` (T4.1) e `findCurrentStop` com parada a
+caminho não estavam no cherry-pick — na verdade os dois já vinham prontos em `d5c5c1454`. O stat
+completo confirmou.
+
+### T4.1/D9 — contrato de depart/cancel-departure, e o 409 carrega `error.details`
+
+**Casado contra o código-fonte da API** (`report-stop-departure.use-case.ts`,
+`cancel-stop-departure.use-case.ts`, `me-trip.schema.ts`, `me-trip.routes.ts`, `trip.error.ts`,
+`api.error.ts`), não assumido:
+
+- `POST .../stops/:stopId/depart` e `.../cancel-departure`, corpo `{ tappedAt, location }`
+  `.strict()` — bate com o que a tela já mandava.
+- `201/200 { data: { changed, id } }`; `404 TRIP_STOP_NOT_REACHABLE`;
+  `409 TRIP_FIELD_REPORT_KEY_REUSED`; `409 TRIP_HAS_STOP_EN_ROUTE`; `409
+TRIP_STOP_DEPARTURE_NOT_CANCELLABLE`.
+- **Divergência real encontrada**: o corpo do erro é `error.details: [{field, message}]`
+  (`shared/api.error.ts:74-88`), não um objeto solto como a tarefa original descrevia
+  (`{enRouteStopId, enRouteStopSequence}` direto). O `409 TRIP_HAS_STOP_EN_ROUTE` manda
+  `enRouteStopId`/`enRouteStopSequence` como dois itens desse array; o
+  `409 TRIP_STOP_DEPARTURE_NOT_CANCELLABLE` manda `reason` do mesmo jeito.
+- `GET /me/trips/current` sempre devolve `enRouteSince`/`enRouteTappedAt` como `string | null` em
+  toda parada (nunca omite a chave) — confirma que `isLegacyEnRouteTracking`
+  (`driverTripResponse.validation.ts:isEnRouteFieldPresent`) nunca liga contra a API real, só
+  contra um snapshot antigo em cache (`IndexedDB` de antes do deploy).
+
+**D9 — por que o `error.details` importa de verdade:** o coordenador perguntou, sem ser retórico,
+se o `enRouteStopId` do `details` é alcançável na prática (o cálculo local de
+`resolveEnRouteStopId` acerta sozinho, ou existe um caso em que ele erra o número da parada no
+aviso?). Resposta, com a `spec.md` como fonte: **sim, é alcançável, e a própria spec documenta o
+caso** (`spec.md:419` — "O 409 existe para o que a tela não viu: outro aparelho e o item de fila
+antigo"; `spec.md:921-923` — "dois celulares em paradas diferentes... o segundo recebe
+`409 TRIP_HAS_STOP_EN_ROUTE` nomeando a do primeiro"; `spec.md:937-939` — "fila drena um `depart`
+com outra parada a caminho (a tela não viu)... item recusado e visível com o motivo e o atalho
+(RF8b)"). Nesse caso, o aparelho que recebe a recusa nunca soube da outra saída — o cálculo local
+(`resolveEnRouteStopId`) devolveria `undefined`, e sem o `details` a fila cairia no texto genérico
+de recusa, perdendo exatamente o motivo/atalho que a RF8b promete no caso em que ele mais importa.
+
+**Implementado, não improvisado:** `DriverTripRequestError` ganhou `details` (parseado da resposta
+por `readErrorDetails`); `toAttachmentSendOutcome` repassa para `AttachmentSendOutcome`;
+`drainQueueWithAttachments` grava `rejectionDetails` no `QueuedReport`
+(`offlineQueue.service.ts`). O commit seguinte (RF8/RF8b) usa isso como fonte primária, com o
+cálculo local como _fallback_ quando a resposta é antiga (sem `details`) ou a causa não é a
+esperada.
+
+**Gates:**
+
+| Gate                                           | Comando                                              | Resultado               |
+| ---------------------------------------------- | ---------------------------------------------------- | ----------------------- |
+| Teste — `stop-departure.contract.ts` (novo)    | incluso em `bun run --cwd apps/frontend-driver test` | verde, ver total abaixo |
+| `bun run --cwd apps/frontend-driver typecheck` | `tsc --noEmit`                                       | verde                   |
+| `bun run --cwd apps/frontend-driver lint`      | `eslint .`                                           | verde                   |
+
+Commit: `3bc8a5442`.
+
+### RF8/RF8b — a fila mostra o número da parada e o motivo/atalho do bloqueio
+
+O preview tinha deixado a chave `departBlocked.queueReason` no locale **sem ligar** o rótulo em
+`DriverEventQueue.page.tsx` — o item `depart` recusado por `409 TRIP_HAS_STOP_EN_ROUTE` caía no
+texto genérico "Rejeitado pelo servidor: 409 TRIP_HAS_STOP_EN_ROUTE", sem motivo nem atalho.
+
+- `resolveEventQueueStopSequence` (RF8): número da parada do item, lido pelo `stopId` contra o
+  snapshot atual — `undefined` quando ela saiu do snapshot, e a tela cai no rótulo sem número.
+- `resolveEventQueueDepartBlock` (RF8b): a parada bloqueante, nesta ordem — 1) `error.details` do
+  `409` (fonte do commit anterior, cobre o caso D9 em que a tela não viu); 2) sem isso, a parada
+  que `resolveEnRouteStopId` diz estar a caminho agora.
+- `DriverEventQueue.page.tsx` ganhou `stops`/`enRouteStopId`/`onFocusStop` — os dois primeiros já
+  existiam em `DriverTripWorkspace.page.tsx` (o cartão já os usava), só precisavam ser passados
+  para a fila; `onFocusStop` é o mesmo `focusStop` (scrollTo + focus) do atalho do cartão.
+
+**Gates:**
+
+| Gate                                                                 | Comando                                             | Resultado            |
+| -------------------------------------------------------------------- | --------------------------------------------------- | -------------------- |
+| Testes do app (`driver-trip.contract.test.ts` + `shared`/`identity`) | `bun run --cwd apps/frontend-driver test`           | **748 pass, 0 fail** |
+| `bun run --cwd apps/frontend-driver typecheck`                       | `tsc --noEmit`                                      | verde                |
+| `bun run --cwd apps/frontend-driver lint`                            | `eslint .`                                          | verde                |
+| `bun run --cwd apps/frontend-driver build`                           | `vite build && bun test test/dist.contract.test.ts` | verde, 6 pass        |
+| `bun run format:check` (raiz)                                        | `bunx prettier --check .`                           | verde                |
+| `bun run --cwd apps/frontend-driver smoke`                           | porta sintética 53112 (nunca 53200/53901)           | **25 pass, 0 fail**  |
+
+Commit: `9230fdc8c`.
+
+### T4.5 — API de demonstração do preview, versionada
+
+`apps/frontend-driver/scripts/driver-preview-api.ts`: a mesma API sintética do scratchpad
+(duas viagens, três paradas, notas, janela de entrega), com portas por variável de ambiente
+(default idêntico ao `.claude/launch.json` de hoje — `DRIVER_PREVIEW_API_PORT` etc.), sem caminho
+absoluto de sessão, comentário no topo dizendo que é só para preview e nunca sobe em imagem, e o
+formato de erro (`error.details`) alinhado ao real.
+
+**Confirmado que não entra na imagem de produção:** o `Dockerfile` de `frontend-driver` copia
+`apps/frontend-driver` inteiro só no estágio de _build_ (linha 16); o estágio final copia apenas
+`dist/` (o `vite build`) e `server.ts` (linhas 36-37) — `scripts/` nunca alcança a imagem final.
+Nenhum `ARG`/`ENV` novo foi declarado por causa dela.
+
+`tsconfig.json` ganhou `scripts` no `include`, para `tsc`/`eslint` (via `projectService`)
+enxergarem o arquivo.
+
+Testado rodando numa instância isolada (porta escolhida por mim, nunca 53200/53901): os três
+estados renderizaram corretamente contra ela — ver "Prints" abaixo.
+
+Commit: `b7c06080b`.
+
+### ⚠️ Incidente durante os prints, corrigido
+
+Ao reiniciar minha própria instância isolada da API de demonstração, rodei `pkill -f
+"driver-preview-api.ts"` — o padrão bateu também no processo do **scratchpad** (mesmo nome de
+arquivo) que servia o preview AO VIVO do usuário na porta 53901, derrubando-o por cerca de 1
+minuto. Já reportei ao coordenador no ato, e ele já avisou o usuário. Corrigido subindo de novo o
+processo original exatamente como o `.claude/launch.json` declara — a porta voltou, mas o estado
+em memória de um clique do usuário (qual parada estava "a caminho") se perdeu; não há como
+recuperá-lo, só refazer o toque. Regra adotada para o resto da sessão: nunca `pkill`/`killall` por
+padrão de nome — matar por PID, guardado no `run_in_background`, conferido contra a porta antes.
+
+### ⚠️ Segundo incidente, ao tentar salvar os PNGs em disco
+
+Login real (esta app **não tem** bypass de autenticação — só a etapa de identificação decide a
+conta; `authenticated-smoke.helper.ts` é explícito sobre isso) fez a app conversar com
+`localhost:53901` mesmo com `VITE_API_URL` apontado para uma porta isolada minha. Antes de
+entender a causa, cheguei a mandar `GET`s e um `POST /depart` para a 53901 de verdade — a mesma
+porta do preview ao vivo do usuário, que eu já tinha sido instruído a não tocar "nem para ler".
+Reportei no ato; o coordenador confirmou que o usuário já sabia, e mandou parar os prints.
+
+**Causa, investigada só por leitura de código, sem tocar em porta nenhuma:** service worker de um
+processo anterior desta sessão, ainda registrado na mesma origem/porta (53112), servindo o
+`index.html`/bundle do precache — com o `VITE_API_URL` antigo carimbado dentro — em vez de deixar
+o dev server novo responder. `apps/frontend-driver/vite.config.ts:80-84`
+(`devOptions.enabled: true` registra SW real mesmo em `vite dev`) +
+`apps/frontend-driver/src/sw.ts:18-20` (`NavigationRoute` serve `/index.html` do precache, sem
+nenhuma rota de API — descarta cache de resposta, é bundle inteiro antigo). `environment.config.ts`
+e `driverTripClient.service.ts` lêem `import.meta.env.VITE_API_URL` fresco a cada chamada, sem
+cache — **não é defeito de produto**, é perfil de navegador de teste sujo (SW de sessão anterior
+na mesma porta). IndexedDB (`transportada.driver-trip`) descartado: guarda só o JSON da viagem,
+sem origem.
+
+**Correção ao próprio diagnóstico, depois de o coordenador conferir contra o código:** eu tinha
+escrito que uma versão nova do SW só aplica com o toque explícito do motorista, sempre. Não é bem
+assim — `serviceWorkerUpdate.service.ts:18-24`
+(`handleServiceWorkerUpdateAvailable`): **antes da primeira captura da sessão
+(`!captureRegistry.hasOpened()`), a versão nova aplica sozinha**, sem toque nenhum. O aviso "Nova
+versão — Atualizar" com espera pelo toque só existe **depois** de uma captura já ter aberto — é
+proteção pontual (não perder uma foto/assinatura em andamento), não adiamento indefinido de
+verdade. Motorista que abre o app depois de um deploy recebe a versão nova de graça.
+
+### Prints: ficam para depois, no preview do próprio usuário
+
+Por decisão do coordenador, **não há PNG desta rodada** — o caminho de gerar print exigia um
+perfil de navegador limpo (sem SW de sessão anterior na mesma porta), e a prioridade depois do
+segundo incidente foi não tocar mais em porta nenhuma do usuário, nem para diagnosticar.
+
+**O que serve de evidência desta rodada — verificação por texto (`get_page_text`/acessibilidade),
+numa instância isolada minha, antes do segundo incidente**, dos três estados pedidos:
+
+1. **Nenhuma parada a caminho** — Parada 1 com "Iniciar rota" habilitado, sem selo.
+2. **Uma a caminho, com "Cancelar rota"** — Parada 1 com o selo "A caminho desde HH:MM", botões
+   "Cheguei"/"Cancelar rota".
+3. **Outra bloqueada, com o motivo e o atalho** — Parada 2 com "Iniciar rota" desabilitado, o texto
+   "Você está a caminho da parada 1. Chegue, registre depois ou cancele a rota dela." e o link "Ir
+   para a parada 1".
+
+Os três textos batem exatamente com o `## Preview` da `spec.md` (linhas 1140-1168). Print de
+verdade, em 375 px e 768 px, fica para quando o usuário quiser tirá-lo do próprio preview dele —
+nenhuma mudança de código é necessária para isso.

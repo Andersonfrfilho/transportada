@@ -63,6 +63,7 @@ export type IconName =
   | 'trash'
   | 'truck'
   | 'map-pin'
+  | 'map-pin-off'
   | 'organization'
   | 'vehicle-motorcycle'
   | 'vehicle-car'
@@ -91,6 +92,7 @@ export type IconName =
   | 'workspace-nfse-invoice'
   | 'workspace-notification'
   | 'workspace-operations'
+  | 'workspace-pendencias'
   | 'workspace-trip'
   | 'workspace-trip-occurrences'
   | 'workspace-access-profiles'
@@ -219,6 +221,12 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   'map-pin': [
     'M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11z',
     'M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
+  ],
+  /** O pino cortado por uma diagonal: o aparelho tocou e a posição não veio. */
+  'map-pin-off': [
+    'M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11z',
+    'M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
+    'M3 3l18 18',
   ],
   /**
    * A organização: o prédio da empresa, com anexo, janelas e portão, assentado na linha do chão.
@@ -376,6 +384,8 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   ],
   'workspace-notification': ['M18 16V11a6 6 0 1 0-12 0v5l-2 3h16z', 'M10 22h4'],
   'workspace-operations': ['M4 18V6', 'M4 18h16', 'M8 15v-3', 'M12 15V8', 'M16 15v-6'],
+  /** O mesmo triângulo de `alert`: pendência é aviso, e reusar a geometria evita um segundo alerta. */
+  'workspace-pendencias': ['M12 3.5 2.7 19.5h18.6L12 3.5z', 'M12 10v4', 'M12 17h.01'],
   'workspace-trip': ['M4 17l4-10h8l4 10', 'M4 17h16v3H4z', 'M8 20v-3', 'M16 20v-3', 'M9 12h6'],
   /** Alerta sobre a prancheta: o relato do que houve na rua e no galpão. */
   'workspace-trip-occurrences': ['M5 4h14v16H5z', 'M12 8v5', 'M12 16v.5'],

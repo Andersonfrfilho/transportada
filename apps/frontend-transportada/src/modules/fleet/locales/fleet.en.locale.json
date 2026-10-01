@@ -84,6 +84,7 @@
   },
   "axleCount": "Axle count",
   "bodyType": "Body type",
+  "bodyTypeNotApplicable": "A tractor unit only accepts body type \"00 — Not applicable\".",
   "bodyTypeOption": {
     "00": "00 — Not applicable",
     "01": "01 — Open",
@@ -92,6 +93,8 @@
     "04": "04 — Container carrier",
     "05": "05 — Sider"
   },
+  "bodyTypeRequired": "Choose the body type before saving.",
+  "bodyTypeUnset": "Select the body type",
   "brand": "Brand",
   "brandCatalogUnavailableHint": "Brand catalog is unavailable right now. Type the brand as printed on the CRLV.",
   "brandCatalogVehicleTypeHint": "Pick the vehicle type in the identification block to load the brands.",
@@ -148,6 +151,7 @@
   "columnRole": "Role",
   "columnStatus": "Status",
   "columnTaxId": "Tax id",
+  "columnVehicle": "Vehicle",
   "columns": {
     "axleCount": "Axles",
     "brand": "Brand",
@@ -182,6 +186,11 @@
     "previousMonth": "Previous month"
   },
   "deactivate": "Deactivate",
+  "defaultTrailer": "Default trailer",
+  "defaultTrailerHint": "Suggestion for this tractor's next trip — it can be changed later, on the trip itself.",
+  "defaultTrailerNotATrailer": "The chosen vehicle is not an active trailer of this fleet.",
+  "defaultTrailerPlaceholder": "No default trailer",
+  "defaultTrailerRequiresTractor": "Only the tractor unit has a default trailer.",
   "documentPlateTaken": "Plate {{plate}} is already registered in this fleet.",
   "documentPlateTakenAction": "Open the existing record",
   "documents": {
@@ -621,6 +630,7 @@
     "state": "Map state",
     "title": "Route map",
     "unassigned": "No route",
+    "withoutBasemap": "Street map unavailable — the legend and the city list are still valid",
     "zone": "Zone {{zone}}"
   },
   "regionSelection": {
@@ -648,6 +658,7 @@
   },
   "renavam": "Renavam",
   "role": "Role in the set",
+  "roleChangeBlocked": "This trailer is a tractor's default or is on an open trip — release the link before changing its role.",
   "roleOption": {
     "traction": "Traction",
     "trailer": "Trailer"

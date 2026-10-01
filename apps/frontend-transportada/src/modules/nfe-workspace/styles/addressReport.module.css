@@ -13,7 +13,7 @@
 
 .summary,
 .notice {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.8rem;
   margin: 0;
 }
@@ -41,7 +41,7 @@
 
 .groupCount {
   background: color-mix(in srgb, var(--color-asphalt) 42%, transparent);
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.8rem;
   padding: var(--space-1) var(--space-3);
 }
@@ -87,7 +87,7 @@
 }
 
 .kind[data-kind='street_incomplete'] {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
 }
 
 .sides {
@@ -113,18 +113,18 @@
 }
 
 .sideLabel {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   display: block;
   font-size: 0.75rem;
   text-transform: uppercase;
 }
 
 .unknown {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
 }
 
 .distance {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.75rem;
   margin: 0;
 }
@@ -143,7 +143,7 @@
 
 .correctionStatusHint,
 .correctionStatusNotice {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.72rem;
 }
 
@@ -200,7 +200,7 @@
 }
 
 .correctionHint {
-  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  color: var(--color-slate-muted);
   font-size: 0.72rem;
   line-height: 1.35;
 }

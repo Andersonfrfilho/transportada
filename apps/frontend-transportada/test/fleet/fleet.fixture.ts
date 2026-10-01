@@ -54,7 +54,11 @@ export type FleetVehicleFuelPriceContract = Readonly<{
 export type FleetVehicleBodyContract = FleetVehicleCostFieldsContract &
   Readonly<{
     axleCount: number
-    bodyType: '00' | '01' | '02' | '03' | '04' | '05'
+    /**
+     * Feature 147 D1: `toVehicleBody` sobre um rascunho incompleto ainda devolve `''` — quem barra
+     * o envio de verdade é `isVehicleBodyTypeMissing`, em `submit()`, não o tipo desta conversão.
+     */
+    bodyType: '' | '00' | '01' | '02' | '03' | '04' | '05'
     /** Spec 085: o contrato restata a lista, como faz com o `bodyType` — cópia por valor. */
     loadingAccess: 'open' | 'rear' | 'rear_and_side'
     brand: string
@@ -65,6 +69,8 @@ export type FleetVehicleBodyContract = FleetVehicleCostFieldsContract &
     cargoLengthMeters: string
     cargoWidthMeters: string
     color: string
+    /** Spec 147 D3: só existe em `tractor_unit` — nos demais tipos é sempre `null`. */
+    defaultTrailerVehicleId: null | string
     fleetNumber: string
     fuelType: FleetVehicleFuelProductContract
     hasAutomaticTollPayment: boolean
@@ -120,6 +126,8 @@ export type FleetDriverAddressContract = Readonly<{
 export type FleetDriverBodyContract = Readonly<{
   address: FleetDriverAddressContract
   anttCategory: '' | '0' | '1' | '2'
+  canActAsHelper: boolean
+  helperDailyRate: null | string
   securesCargo: false
   birthCity: string
   birthDate: null | string
@@ -222,6 +230,7 @@ export const VEHICLE_BODY = {
   cargoLengthMeters: '0.00',
   cargoWidthMeters: '0.00',
   color: 'branca',
+  defaultTrailerVehicleId: null,
   fleetNumber: '101',
   fuelType: 'diesel-s10',
   hasAutomaticTollPayment: false,
@@ -277,6 +286,8 @@ export const DRIVER_ADDRESS = {
 export const DRIVER_BODY = {
   address: DRIVER_ADDRESS,
   anttCategory: '',
+  canActAsHelper: false,
+  helperDailyRate: null,
   securesCargo: false,
   birthCity: 'Ribeirão Preto',
   birthDate: '1985-04-12',
@@ -310,6 +321,8 @@ export const DRIVER_BODY = {
 export const DRIVER_CREATE_BODY = {
   address: DRIVER_ADDRESS,
   anttCategory: '',
+  canActAsHelper: false,
+  helperDailyRate: null,
   securesCargo: false,
   birthCity: 'Ribeirão Preto',
   birthDate: '1985-04-12',
@@ -372,6 +385,7 @@ export const VEHICLE_DETAIL = {
   ...VEHICLE_DERIVED_COSTS,
   costsUpdatedAt: VEHICLE_COSTS_UPDATED_AT,
   createdAt: '2026-07-28T12:00:00.000Z',
+  defaultTrailerVehicleId: null,
   id: VEHICLE_ID,
   monthlyFixedCost: VEHICLE_MONTHLY_FIXED_COST,
   status: 'active',
@@ -442,6 +456,7 @@ export const DRIVER_OWNED_VEHICLE = {
   ...VEHICLE_DERIVED_COSTS,
   costsUpdatedAt: VEHICLE_COSTS_UPDATED_AT,
   createdAt: '2026-07-28T12:00:00.000Z',
+  defaultTrailerVehicleId: null,
   id: DRIVER_OWNED_VEHICLE_ID,
   monthlyFixedCost: VEHICLE_MONTHLY_FIXED_COST,
   status: 'active',
@@ -487,7 +502,8 @@ export const EMPTY_DRIVER_PAGE = {
 export const VEHICLE_DRAFT_BODY = {
   ...VEHICLE_COST_DRAFT,
   axleCount: 0,
-  bodyType: '00',
+  // Feature 147 D1: o rascunho nasce sem carroceria — só o cavalo (vehicleType escolhido) tem '00'
+  bodyType: '',
   loadingAccess: 'rear',
   brand: '',
   capacityCubicMeters: '0.00',
@@ -496,6 +512,7 @@ export const VEHICLE_DRAFT_BODY = {
   cargoLengthMeters: '0.00',
   cargoWidthMeters: '0.00',
   color: '',
+  defaultTrailerVehicleId: null,
   fleetNumber: '',
   fuelType: 'diesel-s10',
   hasAutomaticTollPayment: false,
@@ -525,6 +542,7 @@ export const INCOMPLETE_TRACTION_VEHICLE_DETAIL = {
   ...VEHICLE_DERIVED_COSTS,
   costsUpdatedAt: VEHICLE_COSTS_UPDATED_AT,
   createdAt: '2026-07-28T12:00:00.000Z',
+  defaultTrailerVehicleId: null,
   id: INCOMPLETE_TRACTION_VEHICLE_ID,
   monthlyFixedCost: VEHICLE_MONTHLY_FIXED_COST,
   status: 'active',
@@ -535,6 +553,8 @@ export const INCOMPLETE_TRACTION_VEHICLE_DETAIL = {
 export const DRIVER_DRAFT_BODY = {
   address: DRIVER_ADDRESS_DRAFT,
   anttCategory: '',
+  canActAsHelper: false,
+  helperDailyRate: null,
   birthCity: '',
   birthDate: null,
   birthState: '',

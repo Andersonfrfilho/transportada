@@ -6,21 +6,37 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
-import { hasSendableEvents, type EventQueueItemView } from '../shared/eventQueueView.service'
+import type { DriverTripStop } from '../shared/driverTrip.types'
+import {
+  hasSendableEvents,
+  resolveEventQueueDepartBlock,
+  resolveEventQueueStopSequence,
+  type EventQueueItemView,
+} from '../shared/eventQueueView.service'
 import { resolveRejectionCauseLabelKey } from '../shared/rejectionCauseLabel.service'
 import styles from '../styles/driverTrip.module.css'
 
 type DriverEventQueuePageProps = Readonly<{
+  /** Spec 206 D9: a parada a caminho AGORA — é ela que o motivo/atalho de bloqueio apontam (RF8b). */
+  enRouteStopId?: string
   isLoading: boolean
   isSyncing: boolean
   items: readonly EventQueueItemView[]
   onBack: () => void
+  /** Spec 206 D6: o mesmo atalho do cartão — rola até o cabeçalho da parada e põe o foco (RF8b). */
+  onFocusStop: (stopId: string) => void
   onSendAll: () => void
   onSendOne: (idempotencyKey: string) => void
+  /** Spec 206 RF8: dá o número da parada do item ("Iniciar rota — parada N"). */
+  stops: readonly DriverTripStop[]
 }>
 
 const KIND_LABEL_KEYS: Readonly<Record<EventQueueItemView['kind'], string>> = {
   arrive: 'eventQueue.kind.arrive',
+  /** Spec 206 D1: "Iniciar rota" — o rótulo carrega a sequência da parada, à parte (RF8). */
+  depart: 'eventQueue.kind.depart',
+  /** Spec 206 D18: desfaz o "Iniciar rota" — mesmo molde do `depart` acima. */
+  cancelDeparture: 'eventQueue.kind.cancelDeparture',
   deliver: 'eventQueue.kind.deliver',
   /** Spec 179: a ocorrência da nota com a foto — os dois sobem juntos, no mesmo item. */
   documentOccurrence: 'eventQueue.kind.documentOccurrence',
@@ -40,12 +56,15 @@ const KIND_LABEL_KEYS: Readonly<Record<EventQueueItemView['kind'], string>> = {
  * nunca somem.
  */
 export function DriverEventQueuePage({
+  enRouteStopId,
   isLoading,
   isSyncing,
   items,
   onBack,
+  onFocusStop,
   onSendAll,
   onSendOne,
+  stops,
 }: DriverEventQueuePageProps) {
   const { t } = useTranslation('driverTrip')
 
@@ -53,6 +72,15 @@ export function DriverEventQueuePage({
   function causeLabel(cause: string): string {
     const key = resolveRejectionCauseLabelKey(cause)
     return key === undefined ? cause : t(key)
+  }
+
+  /** Spec 206 RF8: "Iniciar rota — parada N", sem número quando a parada saiu do snapshot. */
+  function itemTitle(item: EventQueueItemView): string {
+    if (item.kind === 'depart') {
+      const sequence = resolveEventQueueStopSequence({ item, stops })
+      if (sequence !== undefined) return t('eventQueue.itemTitle.depart', { sequence })
+    }
+    return t(KIND_LABEL_KEYS[item.kind])
   }
 
   function statusLabel(item: EventQueueItemView): string {
@@ -97,55 +125,82 @@ export function DriverEventQueuePage({
             {t('eventQueue.sendAll')}
           </Button>
           <ul className={styles.eventQueueList}>
-            {items.map((item) => (
-              <li className={styles.eventQueueItem} key={item.idempotencyKey}>
-                <div className={styles.eventQueueItemBody}>
-                  <p className={styles.eventQueueItemTitle}>
-                    {t(KIND_LABEL_KEYS[item.kind])}
-                    <span className={styles.eventQueueItemTime}>
-                      {new Date(item.queuedAt).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                  </p>
-                  {item.attachmentCount > 0 ? (
-                    <p className={styles.profileMeta}>
-                      {t('eventQueue.attachments', { count: item.attachmentCount })}
+            {items.map((item) => {
+              const departBlock = resolveEventQueueDepartBlock({ enRouteStopId, item, stops })
+              return (
+                <li className={styles.eventQueueItem} key={item.idempotencyKey}>
+                  <div className={styles.eventQueueItemBody}>
+                    <p className={styles.eventQueueItemTitle}>
+                      {itemTitle(item)}
+                      <span className={styles.eventQueueItemTime}>
+                        {new Date(item.queuedAt).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
                     </p>
-                  ) : null}
-                  {/* Problema do ANEXO, não do evento: o evento aceito permanece aceito. */}
-                  {item.attachmentRejectionCause === undefined ? null : (
-                    <p className={styles.eventQueueStatusRejected}>
-                      {t('eventQueue.status.attachmentRejected', {
-                        cause: causeLabel(item.attachmentRejectionCause),
-                      })}
-                    </p>
+                    {item.attachmentCount > 0 ? (
+                      <p className={styles.profileMeta}>
+                        {t('eventQueue.attachments', { count: item.attachmentCount })}
+                      </p>
+                    ) : null}
+                    {/* Problema do ANEXO, não do evento: o evento aceito permanece aceito. */}
+                    {item.attachmentRejectionCause === undefined ? null : (
+                      <p className={styles.eventQueueStatusRejected}>
+                        {t('eventQueue.status.attachmentRejected', {
+                          cause: causeLabel(item.attachmentRejectionCause),
+                        })}
+                      </p>
+                    )}
+                    {/*
+                     * Spec 206 RF8b: o `depart` recusado por outra parada a caminho não pode sumir
+                     * calado — o motivo e o atalho substituem o texto genérico de recusa.
+                     */}
+                    {departBlock === undefined ? (
+                      <p
+                        className={
+                          item.status.state === 'rejected'
+                            ? styles.eventQueueStatusRejected
+                            : styles.profileMeta
+                        }
+                      >
+                        {statusLabel(item)}
+                      </p>
+                    ) : (
+                      <p className={styles.departBlocked} role="status">
+                        <span>
+                          {t('departBlocked.queueReason', {
+                            sequence: departBlock.blockingStopSequence,
+                          })}
+                        </span>
+                        <button
+                          className={styles.departBlockedShortcut}
+                          onClick={() => onFocusStop(departBlock.blockingStopId)}
+                          type="button"
+                        >
+                          <Icon aria-hidden="true" name="link" size="sm" />
+                          {t('departBlocked.shortcut', {
+                            sequence: departBlock.blockingStopSequence,
+                          })}
+                        </button>
+                      </p>
+                    )}
+                  </div>
+                  {/* Não verificado sobe pela confirmação da faixa da viagem, não item a item. */}
+                  {item.status.state === 'unverified' ? null : (
+                    <Button
+                      disabled={isSyncing}
+                      type="button"
+                      variant="secondary"
+                      onClick={() => onSendOne(item.idempotencyKey)}
+                    >
+                      <Icon name="upload" />
+                      {t('eventQueue.sendNow')}
+                    </Button>
                   )}
-                  <p
-                    className={
-                      item.status.state === 'rejected'
-                        ? styles.eventQueueStatusRejected
-                        : styles.profileMeta
-                    }
-                  >
-                    {statusLabel(item)}
-                  </p>
-                </div>
-                {/* Não verificado sobe pela confirmação da faixa da viagem, não item a item. */}
-                {item.status.state === 'unverified' ? null : (
-                  <Button
-                    disabled={isSyncing}
-                    type="button"
-                    variant="secondary"
-                    onClick={() => onSendOne(item.idempotencyKey)}
-                  >
-                    <Icon name="upload" />
-                    {t('eventQueue.sendNow')}
-                  </Button>
-                )}
-              </li>
-            ))}
+                </li>
+              )
+            })}
           </ul>
         </>
       )}

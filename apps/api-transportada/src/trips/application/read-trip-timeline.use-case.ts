@@ -27,6 +27,8 @@ export type TripTimelineReaderPort = {
 }
 
 export type ReadTripTimelineInput = {
+  /** ADR-0081 §6: sem `trip.event-location` a coordenada sai `null`; o `locationState` fica. */
+  readonly canReadEventLocation: boolean
   readonly context: { readonly companyId: string }
   readonly cursor: TripTimelineCursor | null
   readonly limit: number
@@ -46,12 +48,18 @@ export function createReadTripTimelineUseCase(dependencies: {
       })
       if (trip === null) throw new TripNotFoundError()
 
-      return dependencies.reader.listTripTimeline({
+      const timeline = await dependencies.reader.listTripTimeline({
         companyId,
         cursor: input.cursor,
         limit: input.limit,
         tripId: input.tripId,
       })
+      if (input.canReadEventLocation) return timeline
+
+      return {
+        items: timeline.items.map((item) => ({ ...item, location: null })),
+        nextCursor: timeline.nextCursor,
+      }
     },
   }
 }

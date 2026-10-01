@@ -97,6 +97,9 @@
     "all": "Todos",
     "search": "Buscar",
     "searchEmpty": "Nenhum resultado",
+    "clearSelection": "Limpar seleção",
+    "removeSelection": "Remover seleção",
+    "selectedSummary": "{{count}} selecionado(s)",
     "cteIssuedPending": "Sem CT-e emitido",
     "cteIssuedIssued": "Com CT-e emitido",
     "fiscalLink": "Vínculo fiscal",
@@ -176,6 +179,7 @@
     "blockedCount_other": "{{count}} bloqueadas fora da seleção",
     "downloadSelected": "Baixar XML das selecionadas",
     "emitCte": "Gerar CT-es ({{count}})",
+    "createTrip": "Criar viagem",
     "clearSelection": "Limpar seleção",
     "actions": "Ações",
     "status": "Status",
@@ -280,6 +284,7 @@
       "emitterCity": "Cidade origem",
       "emitterName": "Emitente",
       "emitterState": "UF origem",
+      "emitterTaxId": "CNPJ emitente",
       "issuedAt": "Emissão",
       "number": "Número",
       "recipientAddress": "Endereço destino",
@@ -601,6 +606,10 @@
   "packageBoxes": {
     "title": "Caixas por medir",
     "description": "Meça a caixa de papelão do produto. A fila vem na ordem do que mais roda: as primeiras cobrem a maior parte do que sai do galpão.",
+    "counter": {
+      "measured": "Medidas: {{count}}",
+      "pending": "Por medir: {{count}}"
+    },
     "searchLabel": "Buscar por produto ou código",
     "searchPlaceholder": "Busque ou bipe a etiqueta",
     "scan": "Ler etiqueta",

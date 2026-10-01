@@ -21,7 +21,8 @@ export function toAssemblyMapNote(document: ScannedNfeDocument): AssemblyMapNote
     cargoWeightSource: document.cargoWeightSource,
     city: document.recipientCity,
     cityCode: document.recipientCityCode,
-    freightAmount: document.freightAmount,
+    /** Spec 153 D10: ausente (sem `trip.financials`) vira `null` — o mapa já trata `null` como "sem valor". */
+    freightAmount: document.freightAmount ?? null,
     freightRuleName: document.freightRuleName,
     id: document.id,
     latitude: document.recipientLatitude,
@@ -32,6 +33,6 @@ export function toAssemblyMapNote(document: ScannedNfeDocument): AssemblyMapNote
     postalCode: document.recipientPostalCode,
     recipient: document.recipientName,
     state: document.recipientState,
-    totalAmount: document.totalAmount,
+    totalAmount: document.totalAmount ?? null,
   }
 }

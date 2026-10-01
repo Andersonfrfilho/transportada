@@ -22,6 +22,8 @@ function timelineItem(input: {
     fromStatus: input.kind === 'trip.status_changed' ? 'in_transit' : null,
     id: input.id,
     kind: input.kind,
+    location: null,
+    locationState: null,
     occurrence:
       input.kind === 'stop.occurrence' || input.kind === 'document.occurrence'
         ? { note: 'Caixa amassada', typeName: 'Avaria' }

@@ -2,6 +2,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 
+import type {
+  CanhotoReviewProofInput,
+  CanhotoReviewResult,
+} from '../shared/canhotoReviewResult.service'
+import { applyCanhotoReviewResult } from '../shared/canhotoReviewCache.service'
 import type { DeliveryProof } from '../shared/deliveryProof.service'
 import type { RouteChoice, RouteGeometry } from '../shared/routeGeometry.service'
 import type {
@@ -9,7 +14,7 @@ import type {
   OccurrenceRedeliveryPolicy,
   OccurrenceType,
 } from '../shared/occurrence.constant'
-import type { OccurrenceQuantityUnit } from '../shared/trip.constant'
+import type { CanhotoReviewOutcome, OccurrenceQuantityUnit } from '../shared/trip.constant'
 import type {
   RegisteredOccurrence,
   TripDocumentProduct,
@@ -43,6 +48,8 @@ import {
 } from '@/modules/shared/mutationInvalidation.service'
 
 import {
+  CANHOTO_REVIEW_ALREADY_RESOLVED_CODE,
+  CANHOTO_REVIEW_OUTCOME,
   canReadTrip,
   CTE_SUBMIT_PERMISSION,
   MDFE_MANAGE_PERMISSION,
@@ -90,6 +97,7 @@ import type {
   TripDetail,
   TripDocument,
   SetTripMdfeRequirementInput,
+  SetTripTrailerInput,
   TripCteBatchResult,
   TripDocumentActionInput,
   TripMdfeRequirement,
@@ -128,6 +136,7 @@ export type TripController = Readonly<{
   /** Spec 156 T8b, ADR-0067: devolução com autoria, `trip.report-on-behalf`. */
   fieldReturnDocument: (input: FieldReturnDocumentInput) => Promise<FieldSettlementResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
+  canhotoReviewProof: (input: CanhotoReviewProofInput) => Promise<CanhotoReviewResult>
   readTripAllowedActions: (
     input: Readonly<{ documentIds: readonly string[]; stopIds: readonly string[]; tripId: string }>,
   ) => ReturnType<TripClient['readTripAllowedActions']>
@@ -204,12 +213,16 @@ export type TripController = Readonly<{
   getTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   readFiscalReadiness: (input: Readonly<{ tripId: string }>) => Promise<TripFiscalReadiness>
   setTripMdfeRequirement: (input: SetTripMdfeRequirementInput) => Promise<TripMdfeRequirement>
+  setTripTrailer: (input: SetTripTrailerInput) => Promise<TripDetail>
   linkTripDocument: (input: LinkTripDocumentInput) => Promise<TripDocument>
   listDeliveryAddressHistory: (
     input: DeliveryAddressHistoryInput,
   ) => Promise<readonly DeliveryAddressOverride[]>
   overrideDeliveryAddress: (input: OverrideDeliveryAddressInput) => Promise<DeliveryAddressOverride>
-  /** Spec 178 RF2: a troca de critério manda `routeChoice` — ausente segue o default do servidor. */
+  /**
+   * Spec 178 RF2: a troca de critério manda `routeChoice` — ausente segue o default do servidor.
+   * Regrava a rota já congelada com a escolha do switch do detalhe (spec 153 T405).
+   */
   planTripRoute: (
     input: Readonly<{ routeChoice?: RouteChoice; tripId: string }>,
   ) => Promise<PlanTripRouteResult>
@@ -257,6 +270,8 @@ export function createTripController(
       canReportOnBehalf ? input.client.fieldDeliverDocument(body) : forbidden(),
     fieldReturnDocument: (body) =>
       canReportOnBehalf ? input.client.fieldReturnDocument(body) : forbidden(),
+    canhotoReviewProof: (body) =>
+      canManageTrips ? input.client.canhotoReviewProof(body) : forbidden(),
     readDeliveryProofs: (body) =>
       canReadTrips ? input.client.readDeliveryProofs(body) : forbidden(),
     readTripAllowedActions: (body) =>
@@ -297,6 +312,7 @@ export function createTripController(
       canReadTripFleetDetails ? input.client.readFiscalReadiness(query) : forbidden(),
     setTripMdfeRequirement: (body) =>
       canManageMdfe ? input.client.setTripMdfeRequirement(body) : forbidden(),
+    setTripTrailer: (body) => (canManageTrips ? input.client.setTripTrailer(body) : forbidden()),
     linkTripDocument: (body) =>
       canManageTrips ? input.client.linkTripDocument(body) : forbidden(),
     listDeliveryAddressHistory: (query) =>
@@ -699,6 +715,28 @@ export function useTripWorkspace(
   }
 
   /**
+   * Spec 220 T7.11: 200 (inclusive o `unchanged` do clique duplo) só escreve no cache. 409 não
+   * sobrescreve nada: refaz a consulta para o operador ver o veredito que venceu. Qualquer outro erro
+   * sobe — o diálogo de recusa traduz os códigos da nota.
+   */
+  async function reviewCanhoto(review: CanhotoReviewProofInput): Promise<CanhotoReviewOutcome> {
+    const proofsKey = [...tripKey, 'delivery-proofs', review.documentId] as const
+    try {
+      const result = await controller.canhotoReviewProof(review)
+      queryClient.setQueryData<DeliveryProof[]>(proofsKey, (proofs) =>
+        proofs === undefined ? proofs : applyCanhotoReviewResult(proofs, result),
+      )
+      return CANHOTO_REVIEW_OUTCOME.APPLIED
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== CANHOTO_REVIEW_ALREADY_RESOLVED_CODE) {
+        throw error
+      }
+      await queryClient.invalidateQueries({ queryKey: proofsKey })
+      return CANHOTO_REVIEW_OUTCOME.ALREADY_RESOLVED
+    }
+  }
+
+  /**
    * ⚠️ Corrigir o ponto muda o **endereço**, não a viagem — mas a viagem lê a coordenada dele para
    * desenhar o mapa, então a chave da viagem é invalidada para o pino andar sem recarregar a página.
    */
@@ -920,6 +958,14 @@ export function useTripWorkspace(
     mutationFn: controller.setTripMdfeRequirement,
     onSuccess: invalidate,
   })
+  /**
+   * Spec 147 D3/T13: só a viagem muda — a lista de veículos da frota não guarda "carreta em uso",
+   * então não há chave da frota para invalidar aqui (avaliado, decisão registrada em evidence.md).
+   */
+  const setTrailerMutation = useMutation({
+    mutationFn: controller.setTripTrailer,
+    onSuccess: invalidate,
+  })
   /** Spec 185 revisão: replanejar o roteiro também torna o aviso de `autoDispatch` anterior obsoleto. */
   const planRouteMutation = useMutation({
     mutationFn: controller.planTripRoute,
@@ -948,6 +994,7 @@ export function useTripWorkspace(
     fieldReturnDocumentMutation,
     registerFieldOccurrencesMutation,
     resetFieldOccurrenceIdempotency,
+    reviewCanhoto,
     invalidateFieldDeliveryEffects,
     invalidateTrip: invalidate,
     reportStopArrivalMutation,
@@ -973,6 +1020,7 @@ export function useTripWorkspace(
     companyId: input.companyId,
     permissions,
     setMdfeRequirementMutation,
+    setTrailerMutation,
     dispatchMutation,
     linkDocumentMutation,
     overrideDeliveryAddressMutation,

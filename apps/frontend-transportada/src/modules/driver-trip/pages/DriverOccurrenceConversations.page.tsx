@@ -24,15 +24,9 @@ import {
   type SendFailureRecovery,
 } from '@/modules/occurrence-conversation/shared/conversationAttachment.service'
 import conversationStyles from '@/modules/occurrence-conversation/styles/occurrenceConversation.module.css'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import styles from '../styles/driverTrip.module.css'
-
-const momentFormatter = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
-
-function formatMoment(iso: string): string {
-  const moment = new Date(iso)
-  return Number.isNaN(moment.getTime()) ? iso : momentFormatter.format(moment)
-}
 
 /**
  * Spec 183 T604 (RF11, RF14): a conversa de uma ocorrência no app do motorista. Abrir marca lida
@@ -43,6 +37,7 @@ function DriverConversation({
   onBack,
 }: Readonly<{ conversation: DriverConversationSummary; onBack: () => void }>) {
   const { t } = useTranslation('occurrenceConversation')
+  const formatMoment = useMomentFormatter()
   const messages = useDriverConversationMessagesQuery(conversation.occurrenceId)
   const [announcement, setAnnouncement] = useState('')
   const previousIds = useRef<null | readonly string[]>(null)
@@ -212,6 +207,7 @@ function DriverConversation({
  */
 export function DriverOccurrenceConversationsPage({ onBack }: Readonly<{ onBack: () => void }>) {
   const { t } = useTranslation('occurrenceConversation')
+  const formatMoment = useMomentFormatter()
   const conversations = useDriverConversationsQuery({ enabled: true })
   const [openId, setOpenId] = useState<null | string>(null)
   const open = conversations.data?.find((conversation) => conversation.occurrenceId === openId)

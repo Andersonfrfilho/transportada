@@ -1,7 +1,15 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DeliveryProof } from './deliveryProof.service'
-import { OCCURRENCE_ATTACHMENT_MODES, type OccurrenceType } from './occurrence.constant'
-import { TRIP_FIELD_CHANNELS, TRIP_TIMELINE_KINDS } from './trip.types'
+import {
+  OCCURRENCE_ATTACHMENT_MODES,
+  OCCURRENCE_TYPE_FLOWS,
+  type OccurrenceType,
+} from './occurrence.constant'
+import {
+  TRIP_FIELD_CHANNELS,
+  TRIP_TIMELINE_KINDS,
+  TRIP_TIMELINE_LOCATION_STATES,
+} from './trip.types'
 import type {
   FieldOccurrenceType,
   RegisteredOccurrence,
@@ -19,6 +27,7 @@ import type {
   TripPendingMeasurement,
   TripTimelineDocumentReference,
   TripTimelineItem,
+  TripTimelineLocation,
   TripTimelineOccurrenceReference,
   TripTimelinePage,
   TripTimelineStopReference,
@@ -45,6 +54,7 @@ import {
 import {
   BATCH_STATUS_RESULT_KEYS,
   BATCH_STATUS_RESULT_OPTIONAL_KEYS,
+  CAPACITY_UNKNOWN_REASONS,
   DELIVERY_ADDRESS_OVERRIDE_KEYS,
   STOP_ADDRESS_COMPONENTS_KEYS,
   TRANSITION_RESULT_KEYS,
@@ -54,7 +64,12 @@ import {
   DELIVERY_PROOF_KEYS,
   DELIVERY_PROOF_RECEIVED_BY_KEYS,
   DELIVERY_PROOF_RECEIVED_BY_OPTIONS,
+  DELIVERY_PROOF_CANHOTO_READ_SOURCE_OPTIONS,
+  DELIVERY_PROOF_CANHOTO_REVIEW_OPTIONS,
+  DELIVERY_PROOF_CANHOTO_REVIEW_ORIGIN_OPTIONS,
+  DELIVERY_PROOF_CANHOTO_REVIEW_REASON_OPTIONS,
   DELIVERY_PROOF_OPTIONAL_KEYS,
+  DELIVERY_PROOF_PUNCTUALITY_OPTIONS,
   TRIP_DOCUMENT_PRODUCT_KEYS,
   TRIP_OCCURRENCE_KEYS,
   TRIP_CARGO_WEIGHT_KEYS,
@@ -63,12 +78,14 @@ import {
   TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS,
   TRIP_DOCUMENT_FREIGHT_SOURCES,
   TRIP_DOCUMENT_KEYS,
+  TRIP_CREW_ROLES,
   TRIP_DRIVER_KEYS,
   TRIP_DRIVER_OPTIONAL_KEYS,
   TRIP_ERROR,
   FIELD_REPORT_ID_RESULT_KEYS,
   FIELD_TRIP_STEP_RESULT_KEYS,
   TRIP_AMOUNTS_KEYS,
+  TRIP_AMOUNTS_OPTIONAL_KEYS,
   TRIP_KEYS,
   TRIP_OPTIONAL_KEYS,
   TRIP_REVENUE_SOURCES,
@@ -83,10 +100,12 @@ import {
   REPORT_FIELD_DELIVERY_RESULT_KEYS,
   TRIP_TIMELINE_ITEM_KEYS,
   TRIP_TIMELINE_ITEM_OPTIONAL_KEYS,
+  TRIP_TIMELINE_LOCATION_KEYS,
   TRIP_TIMELINE_STOP_REFERENCE_KEYS,
   TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS,
   TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS,
   TRIP_TIMELINE_OCCURRENCE_REFERENCE_OPTIONAL_KEYS,
+  TRIP_TRAILER_KEYS,
 } from './trip.constant'
 import {
   SCANNED_NFE_STATUS,
@@ -127,6 +146,7 @@ import type {
   TripPage,
   TripStatus,
   TripStopDetail,
+  TripTrailer,
   TransitionTripDocumentResult,
 } from './trip.types'
 import {
@@ -222,6 +242,14 @@ function isDepotDescription(value: unknown): value is DepotDescription {
   )
 }
 
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function isNonNegativeFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
 function isStringArray(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every((entry) => isString(entry))
 }
@@ -258,17 +286,28 @@ function isTrip(value: unknown): value is Trip {
 
 /**
  * Opcional não é "qualquer coisa" (spec 078 D2): ausente e `null` passam — a API só calcula na
- * listagem —, mas presente com forma errada continua reprovando. `revenueTotal` é obrigatório
- * quando o objeto existe: total de receita ausente seria a coluna imprimindo vazio sem dizer por quê.
+ * listagem —, mas presente com forma errada continua reprovando.
+ *
+ * ⚠️ Spec 153 T710: `documentsTotal`/`revenueTotal` também podem faltar **dentro** do objeto —
+ * sem `trip.financials` a API redige as duas chaves e mantém `revenueSource` (que não é dinheiro,
+ * é a origem do número). `hasExactKeys` reprovava a resposta inteira por causa da redação, o mesmo
+ * defeito do C1/T701 na nota fiscal.
  */
 function isAbsentOrTripAmounts(value: unknown): boolean {
   if (value === undefined || value === null) return true
-  if (!hasExactKeys(value, TRIP_AMOUNTS_KEYS)) return false
+  if (
+    !hasKeys(value, {
+      allowed: [...TRIP_AMOUNTS_KEYS, ...TRIP_AMOUNTS_OPTIONAL_KEYS],
+      required: TRIP_AMOUNTS_KEYS,
+    })
+  ) {
+    return false
+  }
 
   return (
-    isNullableString(value.documentsTotal) &&
+    isOptionalNullableString(value.documentsTotal) &&
     isOneOf(value.revenueSource, TRIP_REVENUE_SOURCES) &&
-    isString(value.revenueTotal)
+    isOptionalString(value.revenueTotal)
   )
 }
 
@@ -293,7 +332,8 @@ function isDriverLine(value: unknown): value is TripDriverLine {
     isString(value.driverName) &&
     /** Spec 156 D11: `null` para quem lê a viagem sem `fleet.read` — o nome continua. */
     isNullableString(value.driverTaxId) &&
-    isUnsignedInteger(value.position)
+    isUnsignedInteger(value.position) &&
+    (value.role === undefined || isOneOf(value.role, TRIP_CREW_ROLES))
   )
 }
 
@@ -415,6 +455,13 @@ function isDetail(value: unknown): value is TripDetail {
       isCargoWeight(value.cargoWeight)) &&
     (value.occupancy === undefined || value.occupancy === null || isOccupancy(value.occupancy)) &&
     (value.cargoLayoutState === undefined || isCargoLayoutState(value.cargoLayoutState)) &&
+    (value.capacityUnknownReason === undefined ||
+      value.capacityUnknownReason === null ||
+      isOneOf(value.capacityUnknownReason, CAPACITY_UNKNOWN_REASONS)) &&
+    (value.capacityUnknownVehicleId === undefined ||
+      value.capacityUnknownVehicleId === null ||
+      isString(value.capacityUnknownVehicleId)) &&
+    (value.trailer === undefined || value.trailer === null || isTrailer(value.trailer)) &&
     isEveryItem(value.stops, isStopDetail)
   )
 }
@@ -429,6 +476,12 @@ function isCargoLayoutState(value: unknown): value is TripCargoLayoutState {
     isOneOf(value.status, CARGO_LAYOUT_STATUSES) &&
     typeof value.truncated === 'boolean'
   )
+}
+
+/** Spec 147 D3/RF5: só o mínimo para identificar a carreta — não a ficha inteira do veículo. */
+function isTrailer(value: unknown): value is TripTrailer {
+  if (!hasExactKeys(value, TRIP_TRAILER_KEYS)) return false
+  return isString(value.bodyType) && isString(value.id) && isString(value.plate)
 }
 
 function isStopAddressComponents(value: unknown): value is StopAddressComponents {
@@ -544,7 +597,8 @@ function isScannedDocument(value: unknown): value is ScannedNfeDocument {
     isString(value.recipientName) &&
     isString(value.series) &&
     isOneOf(value.status, SCANNED_NFE_STATUS) &&
-    isString(value.totalAmount)
+    /** Spec 153 D10: sem `trip.financials` a chave some do corpo — ausente é resposta, não malformação. */
+    isOptionalString(value.totalAmount)
   )
 }
 
@@ -674,7 +728,7 @@ export function createTripResponseAdapters() {
         recipientState: readNullableColumn(row, 'recipientState'),
         series: row.series,
         status: row.status,
-        totalAmount: row.totalAmount,
+        totalAmount: readNullableColumn(row, 'totalAmount'),
         tripId: isString((row as Record<string, unknown>).tripId)
           ? ((row as Record<string, unknown>).tripId as string)
           : null,
@@ -738,7 +792,7 @@ export function createTripResponseAdapters() {
                   recipientState: readNullableColumn(row, 'recipientState'),
                   series: row.series,
                   status: row.status,
-                  totalAmount: row.totalAmount,
+                  totalAmount: readNullableColumn(row, 'totalAmount'),
                   tripId: isString((row as Record<string, unknown>).tripId)
                     ? ((row as Record<string, unknown>).tripId as string)
                     : null,
@@ -816,7 +870,16 @@ export function createTripResponseAdapters() {
      */
     tripCargoPreviewFromApi(input: unknown): TripCargoPreview {
       if (!isRecord(input)) throw invalid()
-      const { cargoLayout, cargoWeight, layoutId, occupancy, state, weightConcentration } = input
+      const {
+        capacityUnknownReason,
+        capacityUnknownVehicleId,
+        cargoLayout,
+        cargoWeight,
+        layoutId,
+        occupancy,
+        state,
+        weightConcentration,
+      } = input
       /** ⚠️ Spec 145 D17: a prévia não confere chaves, então só a forma de `layoutId`/`state` reprova. */
       if (layoutId !== undefined && !isString(layoutId)) throw invalid()
       if (state !== undefined && !isCargoLayoutState(state)) throw invalid()
@@ -825,13 +888,33 @@ export function createTripResponseAdapters() {
       const weightOk =
         cargoWeight === null || cargoWeight === undefined || isCargoWeight(cargoWeight)
       const occupancyOk = occupancy === null || occupancy === undefined || isOccupancy(occupancy)
+      const capacityUnknownReasonOk =
+        capacityUnknownReason === null ||
+        capacityUnknownReason === undefined ||
+        isOneOf(capacityUnknownReason, CAPACITY_UNKNOWN_REASONS)
+      /** T18 (revisão, item 10): opcional, nasce ausente enquanto a API não a servir. */
+      const capacityUnknownVehicleIdOk =
+        capacityUnknownVehicleId === null ||
+        capacityUnknownVehicleId === undefined ||
+        isString(capacityUnknownVehicleId)
       const concentrationOk =
         weightConcentration === null ||
         weightConcentration === undefined ||
         isWeightConcentration(weightConcentration)
-      if (!layoutOk || !weightOk || !occupancyOk || !concentrationOk) throw invalid()
+      if (
+        !layoutOk ||
+        !weightOk ||
+        !occupancyOk ||
+        !capacityUnknownReasonOk ||
+        !capacityUnknownVehicleIdOk ||
+        !concentrationOk
+      ) {
+        throw invalid()
+      }
       return {
         cargoLayout: (cargoLayout ?? null) as TripCargoLayout | null,
+        capacityUnknownReason: capacityUnknownReason ?? null,
+        capacityUnknownVehicleId: capacityUnknownVehicleId ?? null,
         cargoWeight: (cargoWeight ?? null) as TripCargoWeight | null,
         occupancy: (occupancy ?? null) as TripOccupancy | null,
         weightConcentration: weightConcentration ?? null,
@@ -874,9 +957,19 @@ export function createTripResponseAdapters() {
       const options = rawOptions.every(isGeometryOption) ? rawOptions.map(toGeometryOption) : []
       return {
         cheapestIndex: isNullableNumber(input.cheapestIndex) ? input.cheapestIndex : null,
-        choiceReproduced: input.choiceReproduced !== false,
+        /**
+         * ⚠️ Spec 153 D3: chave **ausente** (`/route-geometry` avulso, sem viagem) e `false`
+         * gravado (assinatura não reproduzida) são coisas diferentes — a primeira não se aplica, a
+         * segunda é o aviso "escolha não reproduzida". Colapsar as duas em `=== true` apagava a
+         * distinção que o detalhe (T405) precisa para decidir se mostra o aviso.
+         */
+        ...(typeof input.choiceReproduced === 'boolean'
+          ? { choiceReproduced: input.choiceReproduced }
+          : {}),
         criterion: isOneOf(input.criterion, ROUTE_CHOICE_CRITERIA) ? input.criterion : null,
         depot: isGeometryDepot(input.depot) ? input.depot : null,
+        distanceMeters: isNullableNumber(input.distanceMeters) ? input.distanceMeters : null,
+        durationSeconds: isNullableNumber(input.durationSeconds) ? input.durationSeconds : null,
         costGap: isOneOf(input.costGap, ROUTE_COST_GAPS) ? input.costGap : null,
         fastestIndex: isNullableNumber(input.fastestIndex) ? input.fastestIndex : null,
         frozen: input.frozen === true,
@@ -884,7 +977,11 @@ export function createTripResponseAdapters() {
         legs: legs.every(isGeometryLeg) ? legs : [],
         options,
         points,
+        returnDistanceMeters: isNullableNumber(input.returnDistanceMeters)
+          ? input.returnDistanceMeters
+          : null,
         selectedIndex: readOptionIndex({ index: input.selectedIndex, optionCount: options.length }),
+        signature: isNullableString(input.signature) ? input.signature : null,
         source: input.source,
         toll: isGeometryToll(input.toll) ? input.toll : null,
       }
@@ -1158,7 +1255,25 @@ function isDeliveryProof(value: unknown): value is DeliveryProof {
       isOneOf(value.receivedBy, DELIVERY_PROOF_RECEIVED_BY_OPTIONS)) &&
     (value.receivedByDetail === undefined || isNullableString(value.receivedByDetail)) &&
     (value.lateRegistration === undefined || isBoolean(value.lateRegistration)) &&
+    (value.capturedAt === undefined || isString(value.capturedAt)) &&
+    (value.canhotoReadNumber === undefined || isString(value.canhotoReadNumber)) &&
+    (value.canhotoReadSeries === undefined || isString(value.canhotoReadSeries)) &&
+    (value.canhotoReadSource === undefined ||
+      isOneOf(value.canhotoReadSource, DELIVERY_PROOF_CANHOTO_READ_SOURCE_OPTIONS)) &&
+    (value.canhotoReview === undefined ||
+      isOneOf(value.canhotoReview, DELIVERY_PROOF_CANHOTO_REVIEW_OPTIONS)) &&
+    (value.canhotoReviewAt === undefined || isString(value.canhotoReviewAt)) &&
+    (value.canhotoReviewByName === undefined || isString(value.canhotoReviewByName)) &&
+    (value.canhotoReviewNote === undefined || isString(value.canhotoReviewNote)) &&
+    (value.canhotoReviewOrigin === undefined ||
+      isOneOf(value.canhotoReviewOrigin, DELIVERY_PROOF_CANHOTO_REVIEW_ORIGIN_OPTIONS)) &&
+    (value.canhotoReviewReason === undefined ||
+      isOneOf(value.canhotoReviewReason, DELIVERY_PROOF_CANHOTO_REVIEW_REASON_OPTIONS)) &&
+    (value.distanceMeters === undefined || isNonNegativeFiniteNumber(value.distanceMeters)) &&
+    (value.punctuality === undefined ||
+      isOneOf(value.punctuality, DELIVERY_PROOF_PUNCTUALITY_OPTIONS)) &&
     (value.receiverDocument === undefined || isString(value.receiverDocument)) &&
+    (value.thumbnailUrl === undefined || isString(value.thumbnailUrl)) &&
     isString(value.receiverName)
   )
 }
@@ -1322,10 +1437,22 @@ function hasUnknownTimelineKind(value: unknown): boolean {
   return isRecord(value) && isString(value.kind) && !isOneOf(value.kind, TRIP_TIMELINE_KINDS)
 }
 
+/** ADR-0081 §6: a coordenada só existe aqui dentro — nunca como chave solta no item. */
+function isTimelineLocation(value: unknown): value is TripTimelineLocation {
+  return (
+    hasExactKeys(value, TRIP_TIMELINE_LOCATION_KEYS) &&
+    (value.accuracyMeters === null || isNonNegativeFiniteNumber(value.accuracyMeters)) &&
+    isString(value.capturedAt) &&
+    (value.distanceMeters === null || isNonNegativeFiniteNumber(value.distanceMeters)) &&
+    isFiniteNumber(value.latitude) &&
+    isFiniteNumber(value.longitude)
+  )
+}
+
 /**
  * Spec 158 D6/aceite 8: chave desconhecida, `channel`/`kind` fora do vocabulário são recusados —
- * `actorUserId`, `receiverName`, `receiverDocumentMasked`, `latitude`, `longitude`, `objectKey`
- * nunca fazem parte de `TRIP_TIMELINE_ITEM_KEYS`, então uma chave a mais já reprova por si.
+ * `actorUserId`, `receiverName`, `receiverDocumentMasked`, `objectKey` nunca fazem parte das chaves
+ * do item, então uma chave a mais já reprova por si. A coordenada só entra em `location` (ADR-0081 §6).
  */
 function isTimelineItem(value: unknown): value is TripTimelineItem {
   if (
@@ -1338,6 +1465,12 @@ function isTimelineItem(value: unknown): value is TripTimelineItem {
   }
   return (
     (value.lateRegistration === undefined || isBoolean(value.lateRegistration)) &&
+    (value.location === undefined ||
+      value.location === null ||
+      isTimelineLocation(value.location)) &&
+    (value.locationState === undefined ||
+      value.locationState === null ||
+      isOneOf(value.locationState, TRIP_TIMELINE_LOCATION_STATES)) &&
     isNullableString(value.actorName) &&
     (value.channel === null || isOneOf(value.channel, TRIP_FIELD_CHANNELS)) &&
     isNullableString(value.closeReason) &&
@@ -1378,11 +1511,11 @@ function isGeometryLeg(value: unknown): value is RouteGeometryLeg {
 function isGeometryTollBooth(value: unknown): value is RouteGeometryTollBooth {
   return (
     isRecord(value) &&
-    isNullableString(value.chargeCar) &&
-    isNullableString(value.chargePerAxle) &&
-    isNullableString(value.effectiveChargePerAxle) &&
+    isOptionalNullableString(value.chargeCar) &&
+    isOptionalNullableString(value.chargePerAxle) &&
+    isOptionalNullableString(value.effectiveChargePerAxle) &&
     typeof value.fellBackToManual === 'boolean' &&
-    isNullableString(value.total) &&
+    isOptionalNullableString(value.total) &&
     isString(value.latitude) &&
     isString(value.longitude) &&
     isNullableString(value.name) &&
@@ -1436,10 +1569,10 @@ function isGeometryToll(value: unknown): value is RouteGeometryToll {
     typeof boothsWithoutCharge === 'number' &&
     isGeometryTollCatalog(catalog) &&
     isString(value.multiplierLabel) &&
-    isString(chargePerAxle) &&
+    isOptionalString(chargePerAxle) &&
     isOneOf(paymentMode, TOLL_PAYMENT_MODES) &&
     isNullableString(tariffObservedOn) &&
-    isString(total)
+    isOptionalString(total)
   )
 }
 
@@ -1468,24 +1601,48 @@ function toGeometryOption(option: RawGeometryOption): RouteGeometryOption {
 
 function isGeometryOption(value: unknown): value is RawGeometryOption {
   if (!isRecord(value)) return false
-  const { distanceMeters, durationSeconds, fuelTotal, legs, points, toll, totalCost } = value
+  const {
+    distanceMeters,
+    durationSeconds,
+    fuelTotal,
+    isNoToll,
+    legs,
+    points,
+    signature,
+    toll,
+    totalCost,
+  } = value
   return (
     typeof distanceMeters === 'number' &&
     Number.isFinite(distanceMeters) &&
     typeof durationSeconds === 'number' &&
     Number.isFinite(durationSeconds) &&
-    isNullableString(fuelTotal) &&
+    isOptionalNullableString(fuelTotal) &&
+    (isNoToll === undefined || typeof isNoToll === 'boolean') &&
     Array.isArray(legs) &&
     legs.every(isGeometryLeg) &&
     Array.isArray(points) &&
     points.every(isGeometryPoint) &&
+    (signature === undefined || isNullableString(signature)) &&
     (toll === null || isGeometryToll(toll)) &&
-    isNullableString(totalCost)
+    isOptionalNullableString(totalCost)
   )
 }
 
 function isNullableNumber(value: unknown): value is null | number {
   return value === null || (typeof value === 'number' && Number.isFinite(value))
+}
+
+/**
+ * ⚠️ Distinta de `isNullableString`: aqui a **chave pode estar ausente** (spec 153 D10, dinheiro
+ * sem `trip.financials`) — `undefined` é uma resposta válida, não malformação.
+ */
+function isOptionalNullableString(value: unknown): value is null | string | undefined {
+  return value === undefined || isNullableString(value)
+}
+
+function isOptionalString(value: unknown): value is string | undefined {
+  return value === undefined || isString(value)
 }
 
 const OCCURRENCE_TYPE_REQUIRED_KEYS = [
@@ -1507,11 +1664,12 @@ const OCCURRENCE_TYPE_REQUIRED_KEYS = [
  */
 type RawOccurrenceType = Omit<
   OccurrenceType,
-  'allowsMultipleItems' | 'attachmentMode' | 'leavesDocumentBehind' | 'redeliveryPolicy'
+  'allowsMultipleItems' | 'attachmentMode' | 'flow' | 'leavesDocumentBehind' | 'redeliveryPolicy'
 > &
   Readonly<{
     allowsMultipleItems?: unknown
     attachmentMode?: unknown
+    flow?: unknown
     leavesDocumentBehind?: unknown
     redeliveryPolicy?: unknown
   }>
@@ -1528,6 +1686,8 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         ...OCCURRENCE_TYPE_REQUIRED_KEYS,
         'allowsMultipleItems',
         'attachmentMode',
+        /** Spec 218 (RF-B5): mesma tolerância — ausente é API anterior ao campo, vira `document`. */
+        'flow',
         /** Spec 185 T6.1 (D2): mesma tolerância — ausente é API anterior ao campo. */
         'leavesDocumentBehind',
         'redeliveryPolicy',
@@ -1545,6 +1705,7 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
     isString(value.emailBody) &&
     isString(value.emailSubject) &&
     (value.emailTemplateKey === null || isString(value.emailTemplateKey)) &&
+    (value.flow === undefined || isOneOf(value.flow, OCCURRENCE_TYPE_FLOWS)) &&
     isString(value.id) &&
     (value.leavesDocumentBehind === undefined || isBoolean(value.leavesDocumentBehind)) &&
     isString(value.name) &&
@@ -1561,12 +1722,19 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
  * nasce `unset` (D1/RF1) — os mesmos padrões documentados em `occurrence.constant.ts`.
  * `leavesDocumentBehind` nasce `false` (spec 185 T6.1 D2), o mesmo padrão do banco. */
 function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
-  const { allowsMultipleItems, attachmentMode, leavesDocumentBehind, redeliveryPolicy, ...rest } =
-    raw
+  const {
+    allowsMultipleItems,
+    attachmentMode,
+    flow,
+    leavesDocumentBehind,
+    redeliveryPolicy,
+    ...rest
+  } = raw
   return {
     ...rest,
     allowsMultipleItems: isBoolean(allowsMultipleItems) ? allowsMultipleItems : true,
     attachmentMode: isOneOf(attachmentMode, OCCURRENCE_ATTACHMENT_MODES) ? attachmentMode : 'off',
+    flow: isOneOf(flow, OCCURRENCE_TYPE_FLOWS) ? flow : 'document',
     leavesDocumentBehind: isBoolean(leavesDocumentBehind) ? leavesDocumentBehind : false,
     redeliveryPolicy:
       redeliveryPolicy === 'allowed' ||

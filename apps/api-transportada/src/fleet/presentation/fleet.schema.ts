@@ -18,6 +18,8 @@ import {
 } from '../../database/fleet.schema.js'
 import type { FleetDriverFilters, FleetVehicleFilters } from '../application/fleet.port.js'
 import type { FleetDriverProfile } from '../domain/fleet-driver-profile.constant.js'
+import { checkVehicleBodyType } from '../domain/vehicle-body-type.policy.js'
+import { checkVehicleDefaultTrailer } from '../domain/vehicle-default-trailer.policy.js'
 import {
   createDriverSchema,
   createVehicleSchema,
@@ -53,11 +55,17 @@ export type UpdateDriverBody = FleetDriverFields & {
 }
 
 export async function parseCreateVehicleRequest(request: Request): Promise<FleetVehicleFields> {
-  return parseBody(createVehicleSchema, request)
+  const vehicle = await parseBody(createVehicleSchema, request)
+  checkVehicleBodyType(vehicle)
+  checkVehicleDefaultTrailer(vehicle)
+  return vehicle
 }
 
 export async function parseUpdateVehicleRequest(request: Request): Promise<UpdateVehicleBody> {
-  return parseBody(updateVehicleSchema, request)
+  const vehicle = await parseBody(updateVehicleSchema, request)
+  checkVehicleBodyType(vehicle)
+  checkVehicleDefaultTrailer(vehicle)
+  return vehicle
 }
 
 /** O vínculo não vem do corpo, e o perfil vem: é o papel do usuário que a criação abre. */

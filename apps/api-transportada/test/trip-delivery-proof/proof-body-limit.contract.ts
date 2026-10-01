@@ -50,6 +50,7 @@ function buildHandler() {
     }),
     findDeliveryEventId: async () => EVENT_ID,
     findProofIdByAttachmentKey: async () => null,
+    countProofsForEvent: async () => 0,
     findProofPunctuality: async () => null,
     resolveProofFieldSettings: async () => DEFAULT_DELIVERY_PROOF_SETTINGS,
     resolveProofPunctualitySettings: async () => DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,

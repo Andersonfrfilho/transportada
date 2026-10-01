@@ -51,6 +51,67 @@ const MAP_SURFACE = [
   '#d9603c',
 ] as const
 
+/**
+ * A cor do pino que **não é parada**: o ponto onde o motorista tocou (spec 196 T6.2).
+ *
+ * ⚠️ Ela mora aqui, e não num `*.constant.ts` de módulo, porque está presa às mesmas duas regras
+ * que esta paleta: luminância na janela dos dois temas e distância CIELab de tudo que já se desenha
+ * sobre mapa. O primeiro valor escrito à mão foi `#f5f5f5`, que medido dava contraste **1,04**
+ * contra o papel do tema claro — no claro o pino não existia. Este foi escolhido por busca:
+ * ΔE 30,4 do vizinho mais próximo entre `MAP_SURFACE`, as 96 primeiras cores de parada e
+ * `NOTE_COLORS`, com contraste 2,6 no escuro e 5,9 no claro. `event-pin-color.contract.ts` cobra.
+ */
+export const EVENT_PIN_COLOR = '#7d5187'
+
+/**
+ * Spec 196 (minimapa): a cor do pino por **tipo** de evento. Escolhidas por busca em faixas de
+ * matiz com a semântica de cada tipo (ocorrência vermelha, entrega verde, cancelamento carmim) e
+ * medidas por `timeline-map-colors.contract.ts`: janela de luminância, contraste e ΔE entre si.
+ * O MapLibre pinta em WebGL e não resolve `var()`, por isso o hexadecimal é literal.
+ */
+export const TIMELINE_EVENT_CATEGORY_COLOR = {
+  arrived: '#0560c7',
+  cancelled: '#c20554',
+  delivered: '#048b3c',
+  departed: '#0a7276',
+  dispatched: '#6533fa',
+  occurrence: '#ef2506',
+  returned: '#76602d',
+  status: '#788591',
+} as const
+
+/**
+ * As duas tintas que podem sentar **dentro** de um pino, e a escolha entre elas.
+ *
+ * ⚠️ **O pino pintava a tinta com `--color-ink-on-accent`, que troca de tema — sobre um
+ * preenchimento que não troca.** O preenchimento é literal porque o MapLibre pinta em WebGL e não
+ * resolve `var()`; o token existe para o texto que senta sobre o cobre, esse sim temático. Era um
+ * token certo no lugar errado, e no tema escuro o glifo caía para **2,65**, abaixo até do piso de
+ * objeto gráfico.
+ *
+ * ⚠️ **Uma tinta fixa não resolve: ela conserta um mapa e quebra o outro.** O mesmo `.tilePin`
+ * desenha o mapa do roteiro, cuja paleta gerada vai de luminância 0,15 a 0,30 — a tinta clara mede
+ * 4,95 numa ponta e 2,83 na outra. Por isso a escolha é por **cor de preenchimento**, não por tema:
+ * no pior ponto possível (onde as duas empatam, luminância 0,204) o contraste ainda é **3,94**, e
+ * nenhuma parada perde o que já tinha. `timeline-map-colors.contract.ts` confere parada a parada.
+ */
+export const PIN_INK_LIGHT = '#faf8f4'
+export const PIN_INK_DARK = '#10222c'
+
+export function resolvePinInk(fill: string): string {
+  const light = contrastBetween(fill, PIN_INK_LIGHT)
+  const dark = contrastBetween(fill, PIN_INK_DARK)
+
+  return light >= dark ? PIN_INK_LIGHT : PIN_INK_DARK
+}
+
+function contrastBetween(first: string, second: string): number {
+  const a = relativeLuminance(toChannels(first))
+  const b = relativeLuminance(toChannels(second))
+
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+}
+
 /** Alvos de **luminância relativa**, todos dentro da janela que serve aos dois temas. */
 const LUMINANCE_TARGETS = [0.15, 0.22, 0.3] as const
 const SATURATIONS = [0.72, 0.86, 1] as const

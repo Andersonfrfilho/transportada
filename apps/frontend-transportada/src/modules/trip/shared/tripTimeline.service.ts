@@ -4,6 +4,7 @@ import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelD
 import { resolveFieldAuthorshipText } from './fieldAuthorship.service'
 import { formatOccurrenceInvoice } from './tripOccurrenceFeed.service'
 import {
+  STOP_OCCURRENCE_KINDS,
   TRIP_DOCUMENT_SEPARATION_STATUS,
   TRIP_STATUS,
   type TripTimelineDocumentReference,
@@ -11,6 +12,7 @@ import {
 } from './trip.types'
 
 const KNOWN_TRIP_STATUSES: ReadonlySet<string> = new Set(TRIP_STATUS)
+const KNOWN_STOP_OCCURRENCE_KINDS: ReadonlySet<string> = new Set(STOP_OCCURRENCE_KINDS)
 const KNOWN_DOCUMENT_STATUSES: ReadonlySet<string> = new Set(TRIP_DOCUMENT_SEPARATION_STATUS)
 
 /**
@@ -91,10 +93,27 @@ function formatTripTimelineDocumentLabel(
     : t('eventTimeline.itemTitle.documentLabel', { invoice })
 }
 
+function resolveStopOccurrenceLabel(typeName: string, t: Translate): string {
+  return KNOWN_STOP_OCCURRENCE_KINDS.has(typeName)
+    ? t(`fieldActions.occurrenceKind.${typeName}`)
+    : typeName
+}
+
+/**
+ * Situação ausente é "não informada"; situação que o bundle não conhece é o próprio código.
+ *
+ * ⚠️ As duas eram a mesma frase, e a segunda escondia um dado que a API mandou — mesmo defeito do
+ * `ocorrência: dock_closed`. Código feio na tela é melhor que fato invisível.
+ */
+function resolveStatusLabel(status: null | string, t: Translate): string {
+  return status ?? t('eventTimeline.itemTitle.unknownStatus')
+}
+
 /**
  * Spec 158 D6/T8/T10: o título do item pelo `kind` e, nas mudanças de situação, pela transição — no
  * vocabulário do escritório ("Rota iniciada", "Nota 456/1 separada"), não "Situação alterada para
- * <rótulo de status>". Situação que o bundle não conhece cai no título genérico, nunca no código cru.
+ * <rótulo de status>". Situação ausente cai no título genérico; situação que o bundle não conhece
+ * mostra o próprio código (emenda da spec 196), para o fato não sumir da tela.
  */
 export function resolveTripTimelineTitle(item: TripTimelineItem, t: Translate): string {
   switch (item.kind) {
@@ -106,7 +125,7 @@ export function resolveTripTimelineTitle(item: TripTimelineItem, t: Translate): 
       return item.toStatus !== null && KNOWN_TRIP_STATUSES.has(item.toStatus)
         ? t(`eventTimeline.itemTitle.tripStatus.${item.toStatus}`)
         : t('eventTimeline.itemTitle.statusChanged', {
-            status: t('eventTimeline.itemTitle.unknownStatus'),
+            status: resolveStatusLabel(item.toStatus, t),
           })
     case 'stop.arrived':
       return item.stop === null
@@ -133,7 +152,7 @@ export function resolveTripTimelineTitle(item: TripTimelineItem, t: Translate): 
         type:
           item.occurrence === null
             ? t('eventTimeline.itemTitle.unknownOccurrenceType')
-            : item.occurrence.typeName,
+            : resolveStopOccurrenceLabel(item.occurrence.typeName, t),
       })
     case 'document.occurrence':
       return t('eventTimeline.itemTitle.documentOccurrence', {
@@ -150,7 +169,7 @@ export function resolveTripTimelineTitle(item: TripTimelineItem, t: Translate): 
           })
         : t('eventTimeline.itemTitle.documentStatusChanged', {
             document: formatTripTimelineDocumentLabel(item.document, t),
-            status: t('eventTimeline.itemTitle.unknownStatus'),
+            status: resolveStatusLabel(item.toStatus, t),
           })
   }
 }
@@ -193,6 +212,25 @@ export function resolveTripTimelineAuthorshipText(
   if (item.kind === 'trip.created' && item.actorName === null) return t('authorship.system')
   return resolveFieldAuthorshipText(item, t)
 }
+/**
+ * Spec 180: a autoria só aparece quando **muda**. Numa viagem tocada pelo mesmo operador a frase
+ * vinha em todos os eventos, quase tão longa quanto o título e competindo com ele; aqui ficam os
+ * ids dos eventos que repetem a frase do anterior, para a tela calar neles.
+ */
+export function collectRepeatedAuthorshipItemIds(
+  items: readonly TripTimelineItem[],
+  t: Translate,
+): ReadonlySet<string> {
+  const repeatedIds = new Set<string>()
+  let previousAuthorship: null | string = null
+  for (const item of items) {
+    const authorship = resolveTripTimelineAuthorshipText(item, t)
+    if (authorship !== null && authorship === previousAuthorship) repeatedIds.add(item.id)
+    previousAuthorship = authorship
+  }
+  return repeatedIds
+}
+
 export type TripTimelineDayGroup = Readonly<{
   dayKey: string
   items: readonly TripTimelineItem[]

@@ -76,6 +76,20 @@ export function useCompanyUsersReconciliation(
   })
 
   /**
+   * Reativar relê os dois lados **e** a listagem principal: é a mesma conta que aparece "Ativo" lá
+   * sem conseguir entrar — o caso da Andréia. A rota é a mesma do botão "Ativar" da listagem
+   * (`PATCH .../status`), chamada por vínculo em vez de em lote porque o endpoint é por pessoa.
+   */
+  const reactivateMutation = useMutation({
+    mutationFn: (userIds: readonly string[]) =>
+      Promise.all(userIds.map((userId) => client.changeStatus({ status: 'active', userId }))),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [COMPANY_USERS_RECONCILIATION_QUERY_KEY] })
+      void queryClient.invalidateQueries({ queryKey: [COMPANY_USERS_ADMINISTRATION_QUERY_KEY] })
+    },
+  })
+
+  /**
    * Divergência de campo se concilia **sozinha**, sem ninguém apertar botão: o provedor é a fonte
    * de login, e-mail e documento, e um cadastro que discorda dele em silêncio é o defeito que esta
    * tela veio mostrar — não uma escolha a ser confirmada toda vez.
@@ -143,5 +157,15 @@ export function useCompanyUsersReconciliation(
     if (pending.length > 0) synchronizeMutation.mutate({ subjects: [], userIds: pending })
   }, [withoutAccessKey, synchronizeMutation])
 
-  return Object.assign(query, { adoptMutation, fillProfilesMutation, synchronizeMutation })
+  /**
+   * Reativar fica de fora do laço automático de propósito, ao contrário das outras três correções
+   * acima. Devolver acesso de login é diferente de sincronizar um e-mail: aqui o clique do operador
+   * é a confirmação, não um detalhe — por isso `reactivateMutation` só dispara pelo botão do painel.
+   */
+  return Object.assign(query, {
+    adoptMutation,
+    fillProfilesMutation,
+    reactivateMutation,
+    synchronizeMutation,
+  })
 }

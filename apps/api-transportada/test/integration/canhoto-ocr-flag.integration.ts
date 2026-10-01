@@ -6,7 +6,7 @@ import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service'
-import { companies } from '../../src/database/database.schema'
+import { companies, deliveryClients } from '../../src/database/database.schema'
 import { DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS } from '../../src/trips/domain/delivery-proof-settings.policy'
 import { DrizzleDeliveryProofSettingsRepository } from '../../src/trips/infrastructure/drizzle-delivery-proof-settings.repository'
 
@@ -19,6 +19,8 @@ const testWithPostgres = databaseUrl === undefined ? test.skip : test
 type TestDatabase = ReturnType<typeof createDrizzleProvider>
 
 const FIELDS = {
+  cargo: 'off',
+  cargoMinimumCount: 1,
   photo: 'required',
   receivedBy: 'optional',
   receiverDocument: 'off',
@@ -185,6 +187,11 @@ describe('quem recebeu na configuração do comprovante (spec 193 D6)', () => {
     async () => {
       await withDisposableDatabase(async (database) => {
         const companyId = await seedCompany(database)
+        // Spec 218 RF-C2: o override agora tem FK de verdade para `delivery_clients`.
+        await database.db.insert(deliveryClients).values([
+          { companyId, status: 'active', taxId: TAX_ID },
+          { companyId, status: 'active', taxId: OTHER_TAX_ID },
+        ])
         const repository = new DrizzleDeliveryProofSettingsRepository(database.db)
         await repository.replaceOverrides({
           companyId,

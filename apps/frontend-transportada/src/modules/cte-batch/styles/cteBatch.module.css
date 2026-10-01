@@ -37,7 +37,7 @@
 .intro {
   max-width: 46rem;
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  color: var(--color-slate-muted);
   font-size: 0.95rem;
   line-height: 1.55;
 }
@@ -141,14 +141,14 @@
 
 .counter {
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-family: var(--font-utility);
   font-size: 0.78rem;
 }
 
 .hint {
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.8rem;
 }
 
@@ -335,14 +335,14 @@
   align-items: center;
   justify-content: flex-end;
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  color: var(--color-slate-muted);
   font-family: var(--font-utility);
   font-size: 0.72rem;
 }
 
 .summaryLine {
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 92%, white 8%);
+  color: var(--color-slate-muted);
   font-family: var(--font-utility);
   font-size: 0.78rem;
 }
@@ -481,7 +481,7 @@
 }
 
 .selectionTotals dt {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-family: var(--font-utility);
   font-size: 0.7rem;
   text-transform: uppercase;
@@ -610,6 +610,14 @@
   padding-left: var(--space-4);
   color: var(--color-slate);
   font-size: 0.875rem;
+}
+
+.billingOutcome {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
 }
 
 .billingOutcomeFailed {

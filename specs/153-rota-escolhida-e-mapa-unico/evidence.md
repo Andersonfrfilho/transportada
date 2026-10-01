@@ -1961,3 +1961,3607 @@ que exponha esses campos. Os quatro pontos de T301 são os únicos.
 ### Commit
 
 `<preenchido após o commit>`
+
+## T401 — Validação de respostas com campos novos e monetários opcionais ✅ 2026-09-17
+
+Frontend só: `*.validation.ts` + `*.types.ts` (aqui, os tipos moram junto com o serviço,
+`routeGeometry.service.ts`) reconhecidos aos dois lados do T101–T301 já mergeados no backend —
+signature/critério/`frozen_at`/`choiceReproduced` na rota congelada (D2/D3) e dinheiro
+condicionalmente ausente (D10, T301).
+
+### Vermelho capturado primeiro (typecheck + runtime, os dois genuínos)
+
+Arquivo: `/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada/e08e5c2d-e62d-4a98-9f99-fad68c8e8cc3/scratchpad/t401-red.txt`.
+
+Primeiro `bun run typecheck` na raiz, **antes** de qualquer implementação — 22 erros reais, o teste
+novo referenciando campos que ainda não existem no tipo ou ainda não são opcionais:
+
+```
+test/trip/route-geometry-money-optional.contract.ts(48,31): error TS2339: Property 'isNoToll' does not exist on type ...
+test/trip/route-geometry-money-optional.contract.ts(63,17): error TS2339: Property 'choiceReproduced' does not exist on type ...
+test/trip/route-geometry-money-optional.contract.ts(84,17): error TS2339: Property 'criterion' does not exist on type ...
+test/trip/route-geometry-money-optional.contract.ts(219,13): error TS2739: ... missing ... chargePerAxle, total
+test/trip/route-geometry-money-optional.contract.ts(235,13): error TS2739: ... missing ... chargeCar, chargePerAxle, effectiveChargePerAxle, total
+test/trip/route-geometry-money-optional.contract.ts(256,7): error TS2578: Unused '@ts-expect-error' directive.
+test/trip/route-geometry-money-optional.contract.ts(261,9): error TS2322: Type 'undefined' is not assignable to type 'string | null'.
+(22 erros no total, todos no arquivo novo)
+```
+
+Em seguida, `bun test ./test/trip.contract.test.ts` (a barra existente, com uma linha de import
+nova para o arquivo novo) — vermelho de runtime nas asserções que já compilam (o tipo ainda aceita
+a leitura, o adaptador é que descartava o campo por validação estrita):
+
+```
+ 900 pass
+ 6 fail
+ 17683 expect() calls
+Ran 906 tests across 1 file. [516.00ms]
+```
+
+As 6 falhas, na ordem: `view.choiceReproduced`/`view.criterion`/`view.frozen` undefined (campo
+não lido pelo adaptador), `view.distanceMeters` undefined em vez de `null` (D5), `option`
+undefined (o validador rejeitava a opção sem `fuelTotal`/`totalCost` como malformada, D10), `toll`
+caindo para `null` pela mesma razão no pedágio.
+
+### O que virou opcional, e por quê (D10) — e o que ficou obrigatório (D9)
+
+| Campo                                                                         | Optional?                                                                | Motivo                                                                                 |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `RouteGeometryOption.fuelTotal`                                               | sim (`?:`)                                                               | dinheiro — some sem `trip.financials` (D10)                                            |
+| `RouteGeometryOption.totalCost`                                               | sim (`?:`)                                                               | idem                                                                                   |
+| `RouteGeometryToll.chargePerAxle`                                             | sim (`?:`)                                                               | idem                                                                                   |
+| `RouteGeometryToll.total`                                                     | sim (`?:`)                                                               | idem                                                                                   |
+| `RouteGeometryTollBooth.chargeCar/chargePerAxle/effectiveChargePerAxle/total` | sim (`?:`)                                                               | idem, por praça                                                                        |
+| `RouteGeometryOption.distanceMeters`/`durationSeconds`                        | **não**                                                                  | não é dinheiro (D9) — sempre presente, mesmo sem `trip.financials`                     |
+| `RouteGeometry.distanceMeters`/`durationSeconds`/`returnDistanceMeters`       | opcional na chave, mas `null` nunca ausente-de-verdade — ver nota abaixo | D5: OSRM fora do ar é `null` explícito (rota indisponível), não a chave sumindo        |
+| `RouteGeometryOption.isNoToll`/`signature`                                    | sim (`?:`, novo campo)                                                   | novo em `/route-geometry` avulso; ausente quando a resposta é a de viagem sem eles     |
+| `RouteGeometry.selectedIndex`/`choiceReproduced`/`criterion`/`frozen`         | sim (`?:`, novo campo)                                                   | só existem na rota **congelada** da viagem (T203); ausente em `/route-geometry` avulso |
+
+A distinção real: os campos de D9 (distância, duração, volta ao barracão) nunca saem da chave — o
+adaptador sempre publica `null` explícito quando o valor não pôde ser calculado (D5), e nunca
+`undefined`/chave ausente. Os campos de D10 (dinheiro) são o oposto: a **chave em si** desaparece
+do objeto quando a permissão falta, e o adaptador (`isOptionalNullableString`/`isOptionalString`
+em `tripResponse.validation.ts`) aceita `undefined` como resposta válida só para esses campos —
+nunca `null` fabricado, nunca zero.
+
+`exactOptionalPropertyTypes: true` é o que torna a distinção visível ao compilador, não só ao
+runtime: o teste
+`test/trip/route-geometry-money-optional.contract.ts` prova isso com um `@ts-expect-error`
+genuíno — atribuir `fuelTotal: undefined` explicitamente a um `RouteGeometryOption` **não compila**
+(`TS2375`), porque só a ausência da própria chave conta como D10, nunca o valor `undefined`. Achado
+empírico durante a implementação: antes do campo virar opcional, o erro (`TS2322`) aparece na linha
+da propriedade; depois de opcional, o erro (`TS2375`) muda de classe e aparece na linha de
+declaração do literal do objeto — o comentário `@ts-expect-error` teve que subir para lá para
+continuar provando a asserção (confirmado por typecheck limpo depois da mudança).
+
+### Toques mínimos fora do escopo original, revelados pelo próprio gate de typecheck
+
+O escopo pedido era só `*.validation.ts`/`*.types.ts` e o serviço que valida a forma
+(`routeGeometry.service.ts`). Tornar `chargePerAxle`/`total`/`effectiveChargePerAxle`/`chargeCar`
+opcionais quebrou compilação em cinco pontos que já liam esses campos como sempre presentes —
+nenhum deles tem lógica nova, só a checagem de ausência que faltava:
+
+- `assemblyRouteOptions.service.ts:54` — `totalCost: option.totalCost` → `option.totalCost ?? null`
+  (a lista de opções já tratava pedágio ausente como `null`; dinheiro ausente ganhou o mesmo
+  tratamento).
+- `TripRouteMap.component.tsx` — `fuelTotal`/`totalCost` extraídos em consts locais com `?? null`
+  logo após `route`, e o total do pedágio ganhou o checar de `undefined` ao lado do `null` já
+  existente. Zero mudança de comportamento visível: chave ausente e `null` sempre significaram
+  "não calculado" nesta tela.
+- `RouteTollSummary.component.tsx` — o parágrafo de resumo com valor (`toll.chargePerAxle`/
+  `toll.total`) ganhou uma trava a mais (`=== undefined`) antes de chamar `formatAmount`; e a
+  checagem por praça (`booth.effectiveChargePerAxle`/`booth.total`) que já testava `=== null`
+  ganhou `|| === undefined` ao lado. Achado empírico: `(x ?? null) === null` **não estreita** o
+  tipo de `x` no `else` sob `strict` — o TypeScript só estreita comparação direta com a própria
+  propriedade, não uma expressão derivada. Reescrito com as quatro comparações diretas.
+- `TripAssemblyMap.component.tsx` (linhas ~464–472, fora do escopo original — hot path do projeto)
+  — **mesmo defeito, mesmo trecho**, linha por linha idêntico ao de `RouteTollSummary`. O
+  typecheck genuinamente não fecha sem o toque: `TS2345: Argument of type 'string | undefined' is
+not assignable to parameter of type 'string'` nas duas chamadas a `formatAmount`. Aplicada a
+  mesma correção de quatro comparações diretas, sem tocar em mais nada do componente.
+- `assemblyToll.service.ts:69` — `formatBoothCharge(booth.chargePerAxle)` recebia
+  `string | undefined` para um parâmetro `null | string`; normalizado com `?? null` no call site
+  (o marcador do mapa já tratava tarifa desconhecida como `null` → `'—'`; ausência por D10 vira o
+  mesmo símbolo).
+
+Nenhum desses cinco toques mexe em `TripAssemblyMap`/detalhe/proposta/criação além da linha exigida
+pelo compilador — T402–T405 continuam intocados no resto.
+
+### Barra existente, sem editar `package.json`
+
+O arquivo novo (`test/trip/route-geometry-money-optional.contract.ts`) entra por
+`test/trip.contract.test.ts`, que já está na lista explícita de `package.json` — só uma linha de
+import nova na barra, confirmado suficiente para o `bun test` pegar as 12 novas asserções.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros — os 5 remanescentes do meio da sessão (2× TripAssemblyMap, 1× assemblyToll.service,
+2× o par TS2375/TS2578 do @ts-expect-error) todos resolvidos.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — 1 rodada intermediária pegou 2 erros reais de `@typescript-eslint/no-unused-vars`
+(`fuelTotal`/`totalCost` destructurados e nunca lidos); corrigido do mesmo jeito que
+`test/fleet/vehicle-cost-fields.contract.ts` já fazia (asserção sobre o valor extraído antes de
+descartá-lo do objeto), sem eslint-disable.
+
+$ bun run format:check   (raiz)
+1 arquivo fora do padrão na primeira rodada — `tripResponse.validation.ts` (só formatação, prettier
+--write, sem mudança de lógica). Segunda rodada: limpo.
+
+$ bun run test   (apps/frontend-transportada)
+4148 pass / 1 fail → 4149 pass / 0 fail
+A 1 falha intermediária: `test/trip/route-map-panel.contract.ts` fazia grep de código-fonte por
+`route.fuelTotal` — string literal que sumiu quando o acesso virou `route?.fuelTotal` (D10 exige
+optional chaining). Ajustada a asserção para o padrão novo, correto (o comentário já explica a
+razão). Delta de 4148→4149 é o total já incluindo as 12 novas asserções deste arquivo desde a
+implementação — nenhum teste pré-existente mudou de contagem, só de resultado.
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 8.00s — PWA precache 129 entries (4466.45 KiB), sem estourar o teto por-arquivo do
+Workbox (o build falharia se estourasse). `AssemblyVectorMap.component` (11.20 kB) e
+`vectorBasemap.service` (997.94 kB) continuam como chunks separados do `index` principal — MapLibre
+não voltou ao bundle principal.
+```
+
+### Commit
+
+`<preenchido após o commit>`
+
+## T402 — `TripAssemblyMap`: switch mais rápida ↔ mais barata sem novo OSRM (RF13) ✅ 2026-09-17
+
+Extração de `RouteChoiceOptions.component.tsx` a partir do seletor inline que já existia em
+`TripAssemblyMap.component.tsx` (spec 096 T3), acrescentando: rótulo "Sem pedágio" (`isNoToll`), o
+switch explícito mais rápida ↔ mais barata da RF13 (via `Tabs` do design system) sobre as opções
+já em mãos — nenhuma chamada nova ao roteirizador —, abertura sempre na mais barata (D1),
+`onRouteChoiceChange` por assinatura+critério (D2, nunca índice) para quem for regravar via
+`plan-route`, aviso em tela quando não há duas opções distintas para trocar (em vez de switch
+inerte), e `canReadFinancials` em `TripAssemblyMap` e `RouteTollSummary` (D10: dinheiro ausente do
+DOM, nunca zero; D9: km/duração sempre presentes).
+
+### Vermelho capturado primeiro
+
+Arquivo: `.../scratchpad/t402-red.txt` — primeiro `bun test test/trip.contract.test.ts` contra o
+`resolveRouteChoiceFromIndex` ainda não exportado:
+
+```
+SyntaxError: Export named 'resolveRouteChoiceFromIndex' not found in module
+'.../src/modules/trip/shared/assemblyRouteOptions.service.ts'.
+
+ 0 pass
+ 1 fail
+ 1 error
+```
+
+### Camada pura (`assemblyRouteOptions.service.ts`, `routeGeometry.service.ts`)
+
+`RouteChoice = Readonly<{ criterion: RouteChoiceCriterion; signature: null | string }>` (novo tipo)
+e `resolveRouteChoiceFromIndex({ cheapestIndex, fastestIndex, index, options })`, com prioridade
+cheapest > fastest > no_toll > alternative — provado por 6 testes em
+`route-choice-switch.contract.ts`, inclusive o caso de empate (rota mais barata que também não tem
+pedágio sai como `cheapest`, não `no_toll`) e o de assinatura ausente (`signature: null`, nunca
+inventada).
+
+### Sem ida nova ao OSRM (RF13) — a prova é de contagem, não de confiança
+
+`TripAssemblyMap.component.tsx` chama `readPointsRouteGeometry` **uma única vez**; trocar de
+critério só troca `selectedOptionIndex` sobre `geometryQuery.data?.options`, já em mãos desde o
+fan-out único da RF2. Duas asserções fecham isso:
+
+```ts
+const chamadas = source.split('readPointsRouteGeometry').length - 1
+expect(chamadas).toBe(1)
+// a queryKey não inclui o índice/critério escolhido — senão o TanStack Query refaria a busca
+expect(queryKeyBlock).not.toInclude('selectedOptionIndex')
+expect(queryKeyBlock).not.toInclude('routeChoiceCriterion')
+```
+
+### Abre na mais barata (D1)
+
+Trocado `useState(0)` fixo por `setSelectedOptionIndex(geometryQuery.data?.selectedIndex ?? 0)` no
+efeito de reset — `0` é só a reserva antes da resposta chegar, nunca a intenção. Provado pela
+ausência do literal antigo:
+
+```ts
+expect(source).toInclude('selectedIndex')
+expect(source).not.toInclude('setSelectedOptionIndex(0)')
+```
+
+### Opção única avisa em tela, nunca switch inerte (RF13 + refinamento do usuário)
+
+`RouteChoiceOptions` calcula `canSwitch` (cheapest e fastest existem e são **diferentes**, sem
+`costGap`); sem isso, imprime `assemblyMap.routeOptions.singleOption` — "Não há uma rota mais
+rápida e uma mais barata para trocar — só esta opção foi calculada." — no lugar do `<Tabs>`, nunca
+ao lado de um switch desabilitado:
+
+```tsx
+{canSwitch ? (
+  <Tabs ariaLabel={...} items={tabsItems} onChange={handleTabsChange} value={tabsValue} />
+) : (
+  <p className={styles.hint}>
+    {costGap === null ? t('assemblyMap.routeOptions.singleOption') : t(`assemblyMap.routeOptions.gap.${costGap}`)}
+  </p>
+)}
+```
+
+Quando o `costGap` explica a ausência de uma rota mais barata calculada (D-existente da spec 096),
+a razão do `costGap` continua tendo prioridade sobre o aviso genérico — o texto mais específico
+nunca perde para o mais genérico.
+
+### `onRouteChoiceChange` por assinatura+critério, nunca índice (D2)
+
+```ts
+function handleSelectRouteOptionIndex(index: number): void {
+  setSelectedOptionIndex(index)
+  onRouteChoiceChange?.(
+    resolveRouteChoiceFromIndex({ cheapestIndex, fastestIndex, index, options: routeOptions }),
+  )
+}
+```
+
+`TripAssemblyMap` só dispara o callback — não chama `plan-route` nem grava `frozen_at` (RF13),
+porque este componente é usado **antes** de a viagem existir (`TripQuickCreateDialog`,
+`TripProposalDetail` — sem `tripId`). A regravação em si é escopo de T403/T404/T405, fora desta
+task; o campo de comentário no tipo (`onRouteChoiceChange?`) documenta essa fronteira.
+
+### `canReadFinancials` — ausência do DOM, nunca zero (D10), km/duração sempre presentes (D9)
+
+`RouteTollSummary.component.tsx` guarda o resumo com valor e o extrato por praça atrás de
+`!canReadFinancials`, mas deixa **fora** da trava a lista de praças, a forma de pagamento e o
+catálogo (não são dinheiro):
+
+```ts
+{!canReadFinancials || toll.chargePerAxle === undefined || toll.total === undefined ? null : (...)}
+...
+{!canReadFinancials || booth.effectiveChargePerAxle === null || ... ? t('...statementWithoutCharge') : t('...statementLine', {...})}
+```
+
+`RouteChoiceOptions.component.tsx` só imprime o total por opção com `canReadFinancials &&
+summary.totalCost !== null` — km e duração (`summary.distanceKilometres`, `summary.minutes`)
+seguem fora da condição, sempre impressos. Prova de ausência-vs-zero: a asserção de fonte confirma
+o `&&` (curto-circuito que remove o `<span>` inteiro do DOM), não um `formatAmount(0)` condicional.
+
+`RouteTollSummary` é compartilhado por dois chamadores (`TripAssemblyMap`, escopo desta task, e
+`TripRouteMap` no detalhe da viagem). Como o novo prop é **obrigatório** (a asserção de fonte
+exige o literal exato `canReadFinancials: boolean`), a fiação mínima de compilação alcançou a
+segunda cadeia também: `TripRouteMap` → `TripDetail.component.tsx` → `TripDetail.page.tsx`, que já
+calculava `financials.canReadFinancials` via `useTripFinancials` — sem inventar valor novo.
+
+Os dois pontos de chamada de `TripAssemblyMap` fora do detalhe (`TripQuickCreateDialog`,
+`TripProposalDetail`, nenhuma `tripId` ainda) recebem
+`canReadFinancials={permissions.includes(FINANCIALS_PERMISSION)}`, importando a constante de
+`@/modules/trip-financials/shared/tripFinancialsQueryKey.constant` — mesmo padrão cross-módulo já
+usado por `useTripValuationPreview` nos dois arquivos.
+
+### D3 (`choiceReproduced`) fora de escopo, confirmado
+
+`choiceReproduced` só existe na rota **congelada** da viagem (T203) — não no `/route-geometry`
+avulso que `TripAssemblyMap` consulta antes da viagem existir. Pertence a T405; nada implementado
+aqui.
+
+### Locale (pt-BR) — sem paridade en, seguindo o precedente já existente
+
+Três chaves novas em `trip.locale.json` sob `assemblyMap.routeOptions`: `noToll`, `singleOption`,
+`switchLabel`. Conferido por leitura direta (`python3 -c "import json; ..."`) que
+`trip.en.locale.json` **já não tem** a seção `assemblyMap.routeOptions` inteira (lacuna da spec
+096, nunca traduzida) e não existe teste de paridade pt-BR/en — decidido não inventar tradução
+nova para chaves cuja seção-mãe já está sem par em inglês.
+
+### `test/trip/assembly-route-selector.contract.ts` (spec 096) — atualizado, não substituído
+
+Duas asserções datadas da versão inline do seletor quebraram com a extração: a busca por
+`hasChoice` (virou o guard `if (options.length === 0) return null` +
+`options.length <= 1 ? null` dentro de `RouteChoiceOptions.component.tsx`) e a busca por
+`t('assemblyMap.routeOptions.title')` dentro de `TripAssemblyMap` (o título também migrou). A
+asserção de `setSelectedOptionIndex(0)` foi invertida para provar o D1 novo (abre na mais barata,
+não no índice fixo). As outras três (posição abaixo do pedágio, razão do `costGap`,
+`selectedOptionIndex`/`activeOption` alimentando mapa e pedágio) continuam válidas, só apontando
+para o arquivo certo quando a regra migrou de componente.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros.
+
+$ bun run format:check   (raiz)
+3 arquivos fora do padrão na primeira rodada (`RouteChoiceOptions.component.tsx`,
+`RouteTollSummary.component.tsx`, `assembly-toll.contract.ts` — só formatação, `prettier --write`,
+sem mudança de lógica). Segunda rodada: limpo.
+
+$ bun test test/trip.contract.test.ts   (apps/frontend-transportada)
+924 pass / 0 fail / 17736 expect() calls
+
+$ bun run test   (apps/frontend-transportada)
+4149 pass / 0 fail (baseline T401) → 4167 pass / 0 fail
+Delta de +18 é a suíte nova `route-choice-switch.contract.ts` (17 `it`) mais o ajuste líquido em
+`assembly-route-selector.contract.ts` (mesma contagem de `it`, 5, sem alteração) — nenhum teste
+pré-existente mudou de contagem, só de asserção.
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 8.15s — PWA precache 129 entries (4468.21 KiB), mesma contagem de entradas do baseline
+T401 (129), variação de +1.76 KiB só pelo texto/código novos — nenhum asset novo precacheado.
+`AssemblyVectorMap.component` (11.20 kB) e `vectorBasemap.service` (997.94 kB) continuam chunks
+separados do `index` principal — MapLibre não voltou ao bundle principal.
+```
+
+### Linhas por arquivo (limite de 200 do padrão de código)
+
+`TripAssemblyMap.component.tsx` caiu de 1079 para 1031 linhas com a extração — ainda acima do
+limite de 200, mas essa violação é anterior a esta task (arquivo já excedia antes do T402) e
+dividi-lo por completo está fora do escopo pedido; a extração feita aqui (`RouteChoiceOptions`,
+158 linhas; `RouteTollSummary`, 149 linhas, ambos dentro do limite) é a redução possível sem
+alterar comportamento fora do pedido em T402.
+
+### Commit
+
+`<preenchido após o commit>`
+
+## T403
+
+### Escopo
+
+Criação manual (`TripQuickCreateDialog`/`useTripQuickCreate`) precisa (a) mandar a escolha do
+operador — critério e assinatura, D2 — ao planejar a rota, inclusive o default (mais barata) quando
+ele nunca toca o seletor, e (b) corrigir a ordem `reorder` → `plan`, hoje invertida, que descarta essa
+escolha em silêncio. Fora do escopo: proposta (T404), detalhe da viagem (T405), Fase 5.
+
+### A causa raiz confirmada em código
+
+`reorder-trip-stops.use-case.ts` (linhas ~60-90) chama o congelador **sem** `routeChoice`:
+
+```ts
+await repository.reorderStops({ companyId, orderedStopIds, tripId })
+if (routeFreezer !== undefined) {
+  try {
+    await routeFreezer.freeze({ companyId, tripId })
+  } catch {
+    /* a ordem já está gravada; o pedágio congela no próximo replanejamento */
+  }
+}
+```
+
+`freeze-trip-planned-route.use-case.ts` resolve o critério com
+`input.choice?.criterion ?? DEFAULT_ROUTE_CHOICE_CRITERION`, e `DEFAULT_ROUTE_CHOICE_CRITERION` é
+`'cheapest'`. Logo: **toda reordenação recalcula a rota congelada para a mais barata**, sem exceção —
+o congelador não tem como saber, nessa chamada, que critério o operador escolheu.
+
+Consequência observável na criação manual: se o hook planeja a rota com a escolha do operador e só
+depois reordena as paradas (ordem antiga do código), a chamada de reordenação sobrescreve a rota
+recém-gravada de volta para `cheapest` — o operador pediu "sem pedágio" e a viagem nasce com pedágio,
+sem erro nenhum na tela. A correção é inverter a ordem: reordenar primeiro, planejar com a escolha do
+operador por último, para que a última escrita seja a que vale.
+
+### Como a escolha viaja hoje (ponta a ponta)
+
+1. `useTripQuickCreate` inicializa `routeChoice` com `DEFAULT_ROUTE_CHOICE = { criterion: 'cheapest',
+signature: null }` (D1: a mais barata é o default de tela) e atualiza via `setRouteChoice`, ligado
+   a `onRouteChoiceChange` no `TripAssemblyMap` dentro de `TripQuickCreateDialog.component.tsx`.
+2. Ao criar a viagem, `useTripQuickCreate.hook.ts` chama `finalizeQuickCreateRoute` (novo,
+   `shared/finalizeQuickCreateRoute.service.ts`), que primeiro reordena (`client.reorderTripStops`,
+   se houver mais de uma parada) e só depois planeja a rota (`client.planTripRoute({ routeChoice,
+tripId })`) — `routeChoice` sempre enviado, nunca omitido, mesmo no default.
+3. `tripClient.service.ts`.`planTripRoute` agora aceita `routeChoice` opcional e, quando presente,
+   inclui `{ routeChoice }` no corpo JSON do `POST /trips/:id/plan-route`.
+4. No servidor, `routeChoiceRequestSchema` (já validado desde T201) aceita o corpo, e
+   `plan-trip-route.use-case.ts` encaminha a escolha ao `tollFreezer.freeze(...)` dentro de um
+   `try {} catch {}` que absorve falha do OSRM/congelamento sem derrubar a criação da viagem (D5) —
+   comportamento confirmado por leitura de código nesta sessão e nas anteriores (T201/T402), sem
+   alteração nesta task.
+5. Se o OSRM cair: a viagem, o vínculo de notas e a reordenação já estão gravados antes da chamada de
+   planejamento; o `catch` silencioso do `plan-trip-route.use-case.ts` garante que a falha de
+   congelamento não impede o retorno da viagem criada ao operador — o pedágio/rota recongelam no
+   próximo replanejamento, como já documentado nas tasks anteriores.
+
+### Dois reds genuínos (antes da implementação)
+
+Arquivo novo `apps/frontend-transportada/test/trip/route-choice-manual-creation.contract.ts`, saída
+completa em `/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada/e08e5c2d-e62d-4a98-9f99-fad68c8e8cc3/scratchpad/t403-red.txt`:
+
+- **Teste 1** (`sends the operators chosen criterion and signature when planning the route`): antes
+  da implementação, `planTripRoute` não mandava corpo nenhum — `Object.hasOwn(body, 'routeChoice')`
+  falhava (`false` ao invés do `true` esperado), prova de que a escolha não chegava ao servidor.
+- **Teste 2** (`sends the default cheapest criterion even when the operator never touches the
+selector`): mesma causa — `body.routeChoice` vinha `undefined` em vez de
+  `{ criterion: 'cheapest', signature: null }`, prova de que o default também não era enviado.
+- **Teste 3** (`planning after reordering keeps the operators criterion; reordering after planning
+would discard it`): antes da implementação, `finalizeQuickCreateRoute.service.ts` não existia —
+  `Cannot find module '../../src/modules/trip/shared/finalizeQuickCreateRoute.service'` — vermelho
+  genuíno por ausência do orquestrador que impõe a ordem `reorder` → `plan`. (O arquivo com a ordem
+  correta foi criado antes por engano, movido para fora da árvore, os testes rerrodados para capturar
+  este red genuíno, e só então restaurado — para não passar sem intenção.)
+
+### Implementação
+
+- `tripClient.service.ts`: `planTripRoute` passa a aceitar `routeChoice?: RouteChoice` e inclui
+  `{ routeChoice }` no corpo quando presente.
+- `useTripQuickCreate.hook.ts`: novo estado `routeChoice` (default `{ criterion: 'cheapest', signature:
+null }`, resetado em `reset()`), exposto no controller (`routeChoice`/`setRouteChoice`); a
+  `mutationFn` de criação passa a chamar `finalizeQuickCreateRoute({ planRoute, reorderStops,
+shouldReorder })` no lugar da sequência antiga.
+- `finalizeQuickCreateRoute.service.ts` (novo, `shared/`): orquestrador puro e injetável — reordena
+  primeiro (se `shouldReorder`), planeja com a escolha do operador por último. Criado em arquivo
+  próprio porque `tripQuickCreate.service.ts` já estava em 198 das 200 linhas do padrão de arquivo.
+- `TripQuickCreateDialog.component.tsx`: liga `onRouteChoiceChange={quickCreate.setRouteChoice}` no
+  `TripAssemblyMap`, entre `onOrderChange` e `onStopRemove`.
+- `test/trip.contract.test.ts`: barrel ganha `import './trip/route-choice-manual-creation.contract.js'`.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros.
+
+$ bun run format:check   (raiz)
+Limpo — nenhum arquivo fora do padrão.
+
+$ bun run test   (apps/frontend-transportada)
+4167 pass / 0 fail (baseline T402) → 4170 pass / 0 fail
+Delta de +3 é exatamente a suíte nova `route-choice-manual-creation.contract.ts` (3 `it`) — nenhum
+teste pré-existente mudou de contagem ou de asserção.
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 8.07s — PWA precache 129 entries (4468.59 KiB), mesma contagem de entradas do baseline
+T402 (129). Nenhum asset novo precacheado; maior chunk (`vectorBasemap.service`, 997.94 kB) segue
+abaixo do teto de 2 MiB por asset, e `vectorBasemap.service`/`index` continuam chunks separados —
+MapLibre não voltou ao bundle principal.
+```
+
+### Commit
+
+`<preenchido após o commit>`
+
+## T404 — Proposta: escolha por veículo no aceite e na prévia da conta ✅ 2026-09-17
+
+### Escopo
+
+D7: a proposta com **mais de um veículo** grava uma escolha de rota **por veículo**, nunca um valor
+único compartilhado por toda a proposta. Cobre (a) o aceite (`acceptMultiVehicleSuggestion`) — a rota
+congelada de cada veículo usa a escolha daquele veículo — e (b) a prévia da conta
+(`useTripValuationPreview`/`previewValuation`) — a conta muda com a rota escolhida daquele veículo.
+D2: a escolha é identificada por `signature` + `criterion`, nunca por índice. D1: a mais barata é o
+default por veículo; quem nunca toca o seletor ainda manda `cheapest` explícito, nunca omitido. Fora
+do escopo: detalhe da viagem já congelada (T405) e Fase 5.
+
+### API: nenhuma mudança necessária, confirmado com evidência de código
+
+O backend já implementa `routeChoiceByVehicle`/`routeChoice` ponta a ponta desde T204/RF4 — spec 153
+não pediu, e não recebeu, alteração de contrato nesta task:
+
+- `apps/api-transportada/src/routing/presentation/route-suggestion-request.schema.ts:143` —
+  `routeChoiceByVehicle` já é campo aceito no corpo do aceite multi-veículo.
+- `apps/api-transportada/src/routing/application/multi-vehicle-suggestion.use-case.ts:171-172` —
+  `routeChoiceByVehicleMap` é montado a partir do array recebido, chaveado por `vehicleId`.
+- `multi-vehicle-suggestion.use-case.ts:262-266` — dentro do laço por grupo,
+  `routeChoiceByVehicleMap.get(group.vehicleId)` busca a escolha **daquele** veículo antes de chamar
+  `trips.planRoute` — é a aplicação por veículo que D7 exige, já em produção.
+- `apps/api-transportada/src/trips/presentation/trip-request.schema.ts:112` —
+  `previewTripValuationSchema.routeChoice` (`routeChoiceRequestSchema.optional()`) já aceita a
+  escolha na prévia de um veículo.
+- `apps/api-transportada/src/trips/presentation/trip.routes.ts:738-767` — a rota `POST
+/trips/valuation-preview` (`TRIP_VALUATION_PREVIEW_PATH`) já encaminha `body.routeChoice` ao
+  `previewValuation.execute` e já está protegida por `policy: TRIP_FINANCIALS_POLICY` (linha 767) —
+  D10/D9: sem `trip.financials` o handler nunca roda, 403 antes de qualquer cálculo; km/tempo
+  continuam fora dessa rota (a prévia de carga usa `TRIP_MANAGE_POLICY`, comentário já existente na
+  linha 771).
+
+Logo: T404 é uma task **só de frontend** — fiar a escolha por veículo já guardada pelo servidor até a
+tela que hoje lê/escreve um valor único.
+
+### D5 — o que acontece com os demais veículos quando um falha (confirmado por leitura, não alterado)
+
+Dois mecanismos distintos, ambos pré-existentes:
+
+1. **Falha de OSRM/congelamento dentro de um único veículo não aborta aquele veículo.**
+   `apps/api-transportada/src/trips/application/plan-trip-route.use-case.ts:94-102`: o congelamento de
+   pedágio roda **depois** de `markRoutePlanned`, dentro de um `try {} catch {}` que absorve qualquer
+   falha (`/* o roteiro está planejado; o pedágio congela no próximo replanejamento */`) — o
+   `route_planned` daquele veículo não é desfeito, e o pedágio recongela no próximo replanejamento.
+2. **Falha "dura" (não-OSRM) em um veículo aborta o restante do aceite naquela chamada.**
+   `multi-vehicle-suggestion.use-case.ts:247-297`: um único `try { for (const group of groups) {...} }
+catch (cause) { ... }` envolve o laço inteiro. Se um veículo lançar uma exceção que o `catch` de
+   `plan-trip-route` não absorveu (ex.: `linkDocument`, `reorderStops`, `applyEstimatedArrivals`), o
+   `catch` externo **libera a sugestão de volta para `ready`** (`suggestions.release`) e relança —
+   nenhum veículo depois dele na mesma chamada de aceite chega a ser processado. As viagens já criadas
+   para veículos **anteriores** na mesma chamada **não são desfeitas** (comentário explícito próximo à
+   linha 288: "não desfaz as viagens já criadas: apagá-las seria destruir trabalho que pode estar
+   correto"). Ou seja: o operador pode reabrir e reaceitar a sugestão, e vai encontrar as viagens que
+   já nasceram antes da falha, mais os veículos restantes ainda por aceitar. Nenhum código deste
+   mecanismo foi tocado por T404 — só confirmado, porque T404 depende dele para garantir que a escolha
+   de um veículo nunca contamina o resultado de outro mesmo sob falha parcial.
+
+### Vermelho genuíno (antes da implementação)
+
+Arquivo novo `apps/frontend-transportada/test/trip/proposal-route-choice.contract.ts` (18 asserções
+novas), saída completa em
+`/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada/e08e5c2d-e62d-4a98-9f99-fad68c8e8cc3/scratchpad/t404-red.txt`:
+
+```
+$ bun test ./test/trip.contract.test.ts
+927 pass
+18 fail
+17753 expect() calls
+Ran 945 tests across 1 file.
+```
+
+Os 18 falhos são exatamente as 18 asserções novas (nenhuma das 927 pré-existentes mudou de resultado
+— zero regressão introduzida pela chegada do arquivo). A asserção mais importante do lote — a prova
+de que **dois veículos com escolhas diferentes continuam diferentes ao serem lidos de volta**:
+
+```ts
+test('cada veículo lê a própria escolha — a de um nunca vaza para o outro', async () => {
+  const { resolveVehicleRouteChoice } = await loadProposalRouteChoice()
+  const routeChoiceByVehicle = new Map<string, RouteChoice>([
+    [VEHICLE_ID, { criterion: 'fastest', signature: 'rota-a' }],
+    [SECOND_VEHICLE_ID, { criterion: 'no_toll', signature: 'rota-b' }],
+  ])
+
+  const first = resolveVehicleRouteChoice({ routeChoiceByVehicle, vehicleId: VEHICLE_ID })
+  const second = resolveVehicleRouteChoice({ routeChoiceByVehicle, vehicleId: SECOND_VEHICLE_ID })
+
+  expect(first).toEqual({ criterion: 'fastest', signature: 'rota-a' })
+  expect(second).toEqual({ criterion: 'no_toll', signature: 'rota-b' })
+  expect(first).not.toEqual(second)
+})
+```
+
+Antes da implementação isso falhava por ausência do módulo (`proposalRouteChoice.service.ts` não
+existia). As demais 17 asserções cobrem: D1 (veículo ausente resolve para `cheapest` explícito, nunca
+omitido, tanto na leitura quanto no corpo do aceite), isolamento por veículo no corpo do aceite
+(`routeChoiceByVehicle` do POST nunca troca a escolha de um veículo pela de outro) e na prévia (duas
+chamadas para dois veículos não compartilham a escolha — cada `previewValuation` leva só a rota do seu
+próprio veículo), e o fio de ponta a ponta até a tela por leitura de fonte (import, prop, chave de
+`useQuery`, corpo do `POST`).
+
+### Implementação
+
+- `routeGeometry.service.ts`: exporta `DEFAULT_ROUTE_CHOICE` (antes duplicado só dentro de
+  `useTripQuickCreate.hook.ts`) — dedup por código-padrão §16, já que agora dois módulos precisam do
+  mesmo default.
+- `useTripQuickCreate.hook.ts`: importa `DEFAULT_ROUTE_CHOICE` do lugar canônico em vez de declarar a
+  própria cópia.
+- `proposalRouteChoice.service.ts` (novo, `shared/`): `resolveVehicleRouteChoice` (leitura isolada por
+  veículo, `cheapest` se ausente) e `resolveAcceptedRouteChoices` (uma entrada por veículo aceito,
+  sempre pareada, nunca trocada) — o núcleo puro e testável de D7.
+- `useTripRouteAssembly.hook.ts`: novo estado `routeChoiceByVehicle` (`ReadonlyMap<string,
+RouteChoice>`, nunca um valor único), `setVehicleRouteChoice(vehicleId, routeChoice)` exposto no
+  controller, limpo (`new Map()`) tanto ao propor de novo quanto ao aceitar com sucesso — a escolha da
+  proposta anterior nunca vaza para a próxima. No aceite, `resolveAcceptedRouteChoices` monta
+  `routeChoiceByVehicleForAccept` — **sempre presente** no corpo de `acceptMultiVehicleSuggestion`,
+  nunca condicionado a `.length === 0` como os campos opcionais vizinhos, porque D1 exige o
+  `cheapest` explícito mesmo quando ninguém tocou nada.
+- `tripClient.service.ts`: `acceptMultiVehicleSuggestion` aceita `routeChoiceByVehicle?: readonly
+Readonly<{ routeChoice: RouteChoice; vehicleId: string }>[]` e inclui no corpo JSON quando presente.
+- `TripProposalDetail.component.tsx`: recebe `routeChoice`/`onRouteChoiceChange` por veículo, repassa
+  ao `TripAssemblyMap` (que já expunha `onRouteChoiceChange` desde T402) e à consulta de
+  `useTripValuationPreview`.
+- `useTripValuationPreview.hook.ts`: aceita `routeChoice?: RouteChoice` opcional, inclui no corpo de
+  `previewValuation` quando presente e entra na `queryKey` (via `routeChoiceKey`, serializando
+  `criterion:signature`) — trocar a rota de um veículo invalida só a consulta daquele veículo.
+- `tripFinancialsClient.service.ts`: `previewValuation` aceita `routeChoice?: RouteChoice` (import
+  type-only de `trip/shared/routeGeometry.service` — primeira vez que `trip-financials` importa de
+  `trip`, seguro por ser só tipo, apagado em tempo de compilação) e inclui no corpo quando presente.
+- `TripRouteAssemblyDialog.component.tsx`: cada linha de `<TripProposalDetail>` passa
+  `routeChoice={resolveVehicleRouteChoice({ routeChoiceByVehicle: assembly.routeChoiceByVehicle,
+vehicleId: view.vehicleId })}` e `onRouteChoiceChange={(routeChoice) =>
+assembly.setVehicleRouteChoice(view.vehicleId, routeChoice)}` — a leitura é sempre por
+  `view.vehicleId`, nunca um valor lido fora do laço.
+
+### Como a prévia e o aceite são mantidos de acordo
+
+Os dois pontos usam a **mesma fonte** por veículo: o mapa `routeChoiceByVehicle` do
+`useTripRouteAssembly`. A prévia lê via `resolveVehicleRouteChoice` dentro de
+`TripRouteAssemblyDialog` a cada render da linha daquele veículo (nunca um snapshot separado), e o
+aceite lê o mesmo mapa via `resolveAcceptedRouteChoices` no momento do clique — ambos convergem para o
+mesmo `Map`, nunca duas cópias que poderiam divergir. Trocar a escolha de um veículo no seletor do
+mapa (`onRouteChoiceChange`) atualiza o mapa uma vez; a próxima leitura da prévia **e** o próximo
+aceite enxergam o valor novo, do mesmo lugar.
+
+### Três ajustes feitos durante o red → green (no próprio teste, não na produção)
+
+1. **Mock de resposta do aceite incompleto**: o mock de `fetch` de `createAcceptRecordingClient`
+   respondia `{ suggestion: { id: SUGGESTION_ID }, trips: [] } }` sem `status`;
+   `multiVehicleSuggestionFromApi` exige `status` num dos valores de `MultiVehicleSuggestionStatus` e
+   lançava `TRIP_RESPONSE_INVALID` ao validar a resposta — nada a ver com o corpo da requisição que o
+   teste de fato verifica. Corrigido acrescentando `status: 'accepted'` ao mock.
+2. **Janela de 1500 caracteres da asserção de `TripRouteAssemblyDialog`**: a posição original de
+   `routeChoice`/`onRouteChoiceChange` na JSX (depois de `releaseUnplaced`) ficava a 1629 caracteres
+   do início de `<TripProposalDetail`, fora da janela de 1500 que o teste lê. Corrigido reposicionando
+   as duas props para logo depois de `manualOrder` (492 caracteres do início) — mudança de ordem de
+   props, não de comportamento.
+3. **Prettier quebrou a anotação `useState<ReadonlyMap<string, RouteChoice>>` em duas linhas** (a
+   linha inteira excede os 100 caracteres de `printWidth`), e o regex original
+   `/routeChoiceByVehicle.*ReadonlyMap<string, RouteChoice>/u` não casa `.` com quebra de linha.
+   Ajustado para `[\s\S]*` no lugar de `.*` — o mesmo teste, tolerante à formatação, sem enfraquecer o
+   que ele prova (que o estado é `ReadonlyMap`, não um valor único).
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros. (1 erro corrigido no caminho: `TRIP_ID` importado e não usado em
+apps/frontend-transportada/test/trip/proposal-route-choice.contract.ts — removido do import.)
+
+$ bun run format:check   (raiz)
+Limpo — nenhum arquivo fora do padrão (depois de aplicar `prettier --write` nos 3 arquivos que a
+alteração deixou fora do estilo: useTripRouteAssembly.hook.ts, proposalRouteChoice.service.ts,
+proposal-route-choice.contract.ts).
+
+$ bun test ./test/trip.contract.test.ts   (apps/frontend-transportada)
+945 pass / 0 fail — 927 pré-existentes (T401-T403) inalterados + 18 novos de D7, todos verdes.
+
+$ bun run test   (apps/frontend-transportada, suíte inteira)
+4188 pass / 0 fail — baseline T403 (4170 pass / 0 fail) + 18, exatamente o delta do arquivo novo.
+Nenhum teste pré-existente mudou de contagem ou de asserção.
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 9.35s — PWA precache 129 entries (4469.52 KiB), mesma contagem do baseline (129).
+`vectorBasemap.service` (997.94 kB) e `index` (952.92 kB) seguem como chunks separados, ambos abaixo
+do teto de 2 MiB por asset — MapLibre não voltou ao bundle principal.
+```
+
+Gate de API não foi executado: nenhum arquivo de `apps/api-transportada` foi tocado nesta task (ver
+seção acima) — os três achados de código citados são leitura, não mudança.
+
+### Commit
+
+`2ec6c5e3`
+
+## T405 — Detalhe: rota gravada, km/volta/tempo, critério, avisos, custos e valor da NF só com permissão ✅ 2026-09-17
+
+### Escopo e a decisão do requisito 1 (regravação no detalhe)
+
+Frontend só (`apps/frontend-transportada`). O detalhe é, de fato, **a única tela que sobra** onde o
+operador troca a rota de uma viagem já congelada (RF13/D6): a montagem (`TripAssemblyMap`, T402) e
+a criação manual (T403) regravam **antes** de a viagem existir, e a proposta (T404) regrava por
+veículo no aceite — nenhuma delas mexe numa rota já `frozen`. Confirmado por leitura de
+`read-trip-route-geometry.use-case.ts` (`toFrozenView`) que a rota **congelada** da viagem só
+devolve **uma** opção (`options: [option]`, `cheapestIndex`/`fastestIndex` ambos `0`,
+`hasChoice: false`) — as alternativas (mais rápida, sem pedágio) não sobrevivem ao congelamento.
+Logo, "as opções já em mãos" do switch do detalhe **não podem vir** da leitura congelada
+(`GET /trips/:id/route-geometry`, já consumida por `workspace.routeGeometryQuery`); precisam de uma
+segunda leitura, **viva**, por pontos — o mesmo `readPointsRouteGeometry` que `TripAssemblyMap`
+já usa (T402) — feita **uma única vez** por tela, nunca refeita pela troca. Regravar continua sendo
+`plan-route` (RF3), reaproveitando o `planRouteMutation` que o detalhe já tinha para o botão
+"planejar rota" de sempre (`TripStateActions.onPlanRoute`), agora aceitando `routeChoice` opcional.
+
+### Requisito 2 — a armadilha do `choiceReproduced` da T401, corrigida
+
+`tripResponse.validation.ts` (`routeGeometryFromApi`) gravava
+`choiceReproduced: input.choiceReproduced === true` incondicionalmente — chave **ausente** (o
+`/route-geometry` avulso da montagem, sem viagem, nunca manda este campo) virava `false`, o mesmo
+valor que "tentei reproduzir a assinatura e não bati" (D3). O detalhe não tinha como distinguir "o
+aviso não se aplica aqui" de "a estrada mudou, avise o operador". Corrigido para preservar a
+ausência com espalhamento condicional (`...(input.choiceReproduced === undefined ? {} : {
+choiceReproduced: input.choiceReproduced === true })`) — `exactOptionalPropertyTypes: true` exige
+que a chave **suma** do objeto, nunca receba `undefined` explícito. O tipo em
+`routeGeometry.service.ts` já era opcional (`choiceReproduced?: boolean`); só o adaptador colapsava
+a distinção.
+
+O teste de `route-geometry-money-optional.contract.ts` (T401) **enshrined o defeito**: a asserção
+`expect(view.choiceReproduced).toBe(false)` rodava sobre um `input` que **não tinha a chave**
+`choiceReproduced` — provando exatamente o comportamento errado. Corrigida para
+`toBeUndefined()`, e acrescentado um teste novo (`choiceReproduced distingue ausência (undefined)
+de assinatura não reproduzida (false)`) que prova os dois lados na mesma asserção: ausente vira
+`undefined`, presente-e-`false` continua `false`, e os dois nunca são iguais.
+
+### Requisito 3 — a prova das duas metades juntas
+
+`test/trip/route-choice-detail.contract.ts`, teste
+`trocar mais rápida ↔ mais barata regrava via plan-route usando as opções já buscadas — nenhuma
+chamada nova ao roteirizador`: grava as requisições reais de um `TripClient` fake (mesmo padrão de
+`route-choice-manual-creation.contract.ts`, T403), monta a `RouteChoice` a partir de opções que
+**nunca passaram por fetch** (dados em memória, iguais aos que uma leitura viva já traria), chama
+só `planTripRoute`, e afirma na mesma asserção: (1) o corpo do POST carrega
+`{ criterion: 'cheapest', signature: 'rota-mais-barata' }` — a regravação de fato aconteceu — e (2)
+`requests` tem **exatamente uma** entrada, para `/plan-route`, nunca para `/route-geometry` — nenhum
+novo fetch ao roteirizador. Provar só uma das duas deixaria passar o defeito que o pedido veio
+evitar (ex.: um componente que regrava mas também refaz a leitura viva a cada troca).
+
+Complementado por três testes de fonte sobre `TripRouteChoiceSwitch.component.tsx`: a leitura viva
+aparece **uma única vez** no arquivo (`chamadas = source.split('readPointsRouteGeometry').length -
+1; expect(chamadas).toBe(1)`, mesmo molde de T402), a `queryKey` não inclui `selectedIndex`/
+`criterion` (trocar não muda a chave, então o TanStack Query não refaz a busca), e a troca sai por
+`onSelect(resolveRouteChoiceFromIndex(...))` — nunca o índice cru.
+
+### Implementação
+
+- `tripResponse.validation.ts`: fix do requisito 2 acima.
+- `TripRouteChoiceSwitch.component.tsx` (novo): o switch do detalhe. Busca a geometria viva **uma
+  vez** por `routeKey`/`vehicleId` (mesmo padrão de `TripAssemblyMap`), reaproveita
+  `RouteChoiceOptions` (T402) sobre essas opções, e emite `onSelect(routeChoice)` — nunca chama
+  `plan-route` sozinho (mesma fronteira documentada em `TripAssemblyMap`: "quem tem `tripId` é quem
+  regrava"). Só liga a consulta quando `canSwitch` (trip.manage **e** viagem editável, D6) — sem
+  isso nem gasta uma requisição.
+- `TripRouteCostSummary.component.tsx` (novo, extraído de `TripRouteMap`): km/volta/tempo (D9,
+  sempre presentes, lidos de `geometry.distanceMeters/durationSeconds/returnDistanceMeters` — a
+  rota **da viagem**, não a opção crua, que é o que RF1/D4 gravaram), combustível/pedágio/total
+  (D10, cada linha atrás de `!canReadFinancials ? null : (...)` — a linha inteira some, nunca
+  traço/zero), o critério gravado (D2, rótulos reaproveitados de `assemblyMap.routeOptions.*`, mais
+  um rótulo novo `alternative`) e o aviso de escolha não reproduzida (D3,
+  `geometry.choiceReproduced !== false` — só dispara com `false` de verdade). Extraído pelo mesmo
+  motivo de `RouteChoiceOptions`/`RouteTollSummary` em T402: manter `TripRouteMap` abaixo do limite
+  de 200 linhas do padrão de código (o arquivo tinha 285 linhas antes desta task, teria passado de
+  370 com os campos novos inline; ficou em 257 com a extração — ainda acima do limite, violação
+  pré-existente ao T402, fora do escopo zerar por completo, mesma decisão já registrada lá).
+- `TripRouteMap.component.tsx`: monta `<TripRouteCostSummary>` e `<TripRouteChoiceSwitch>` logo
+  depois de `<RouteTollSummary>`; ganha as props `canSwitchRoute`, `isRouteChoicePending`,
+  `onRouteChoiceSelect`, `vehicleId`; perde os cálculos locais que migraram para
+  `TripRouteCostSummary`.
+- `useTripWorkspace.hook.ts`: `TripController.planTripRoute` passa a aceitar `routeChoice?:
+RouteChoice` (a implementação já só repassava `body`; só o tipo travava). `planRouteMutation`
+  (já existente, `onSuccess: invalidate`) não mudou — `invalidate()` já invalida `tripKey` por
+  prefixo, e `route-geometry` mora sob esse prefixo, então a regravação já refaz o fetch da rota
+  congelada sem código extra.
+- `TripDetail.component.tsx`: `<TripRouteMap>` ganha `canSwitchRoute={canManage && isEditable}`,
+  `isRouteChoicePending={workspace.planRouteMutation.isPending}`,
+  `onRouteChoiceSelect={(routeChoice) => workspace.planRouteMutation.mutate({ routeChoice, tripId:
+trip.id })}` (reaproveita a mutação que já existia para o botão "planejar rota") e
+  `vehicleId={trip.vehicleId}`.
+- `trip.locale.json`: `routeMap.cost.duration`, `routeMap.cost.returnDistance`,
+  `routeMap.criterion`, `routeMap.choiceNotReproduced` (novos); `assemblyMap.routeOptions.alternative`
+  (rótulo que faltava para o quarto critério).
+- `route-map-panel.contract.ts` (pré-existente, T013): a asserção `route?.fuelTotal` apontava para
+  `TripRouteMap.component.tsx`, que não tem mais esse literal depois da extração — atualizada para
+  ler o literal em `TripRouteCostSummary.component.tsx`, mantendo a asserção de que
+  `<TripRouteCostSummary` continua montado no mapa.
+
+### O que não fiz
+
+- Não toquei `TripStopList.component.tsx` (valor da NF-e por parada): já lida corretamente com a
+  ausência da chave (`document.nfeTotalValue === null || === undefined ? null : ...`), e o
+  backend (T301) já corta a chave sem `trip.financials` — o pedido "valor da NF só com permissão"
+  já estava satisfeito antes desta task, confirmado por leitura, sem mudança necessária.
+- Não toquei a API: RF3 (`plan-route` aceita `routeChoice`), RF7 (`route-geometry` devolve a
+  gravada) e a leitura por pontos já existiam desde T201-T204/T104 — confirmado por leitura de
+  `read-trip-route-geometry.use-case.ts`, `freeze-trip-planned-route.use-case.ts` e
+  `tripClient.service.ts` (o mesmo achado que T404 já tinha registrado para o aceite multi-veículo).
+- O texto "rota não calculada" (D5) já existia (`routeMap.trace.straight`, mostrado sempre que
+  `geometry === null || geometry.legs.length === 0`) — não criei um segundo aviso redundante.
+- Não movi `TripRouteMap.component.tsx` para abaixo de 200 linhas por completo (ficou em 257,
+  contra 285 antes desta task) — dividir o resto (o mapa MapLibre em si, a correção de ponto)
+  ultrapassa o pedido da T405 e altera comportamento fora do escopo, mesma decisão de T402.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros.
+
+$ bun run format:check   (raiz)
+Limpo — nenhum arquivo fora do padrão.
+
+$ bun test ./test/trip.contract.test.ts   (apps/frontend-transportada)
+946 pass / 0 fail (baseline antes da T405) → 960 pass / 0 fail
+Delta de +14: as 13 asserções novas de `route-choice-detail.contract.ts` (regravação combinada: 1;
+switch: 4; TripRouteCostSummary: 5; TripDetail: 2; total 12 — a 13ª é o teste extra de
+`choiceReproduced` ausente-vs-`false` acrescentado a `route-geometry-money-optional.contract.ts`)
+mais a 1 asserção nova de `route-map-panel.contract.ts` (o `<TripRouteCostSummary` verificado junto
+do `route?.fuelTotal` movido) — nenhum teste pré-existente mudou de contagem.
+
+$ bun run test   (apps/frontend-transportada)
+4202 pass / 0 fail
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 8.28s — PWA precache 129 entries (4472.34 KiB), mesma contagem de entradas do baseline
+T404 (129), variação de poucos KiB só por texto/código novos. `vectorBasemap.service` (997.94 kB)
+continua chunk separado do `index` principal — MapLibre não voltou ao bundle principal.
+```
+
+Gate de API não foi executado: nenhum arquivo de `apps/api-transportada` foi tocado nesta task (ver
+"o que não fiz" acima) — os achados de código citados são leitura, não mudança.
+
+### Commit
+
+`5ab43a43`
+
+## T501 — Aba Regiões em MapLibre (polígonos por zona, clique, legenda, cidades fora da malha) ✅ 2026-09-17
+
+### Onde fica a aba e o que ela fazia com `VectorMap`
+
+`FreightRegionMap.component.tsx` (`apps/frontend-transportada/src/modules/fleet/components/`),
+montado por `FreightRegionPanel.component.tsx` nos dois modos (leitura e edição, dentro do
+formulário de zona). Toda a lógica de estado e consulta já morava em `useFreightRegionMap.hook.ts`
+— o componente só renderizava. Ele desenhava `entry.model.shapes` (um por município da UF) como
+`<path d={shape.path}>` do primitivo SVG `VectorMap` (`src/components/ui/vector-map.tsx`), com
+`fill` por `resolveZoneFill(shape.zone)`, clique delegado a `onSelect` só em modo edição, e a
+malha vinha **já projetada** em `d` de SVG por `ibgeMesh.service.ts` (`loadStateMesh` →
+`projectStateMesh`, que também calculava um `viewBox`). Legenda e lista de cidades fora da malha
+(`entry.model.outside`) já eram HTML puro, fora do `<svg>` — não dependiam do motor do mapa.
+
+### A malha crua já existia — não precisou inventar geometria
+
+`ibgeMesh.service.ts` já expunha `loadStateMeshFeatures`/`readStateMeshFeatures`, que devolvem os
+polígonos do IBGE **sem projetar** — anéis em longitude/latitude crus (`MeshFeature.rings`) — para
+quem enquadra em escala própria (usado hoje por `TripAssemblyMap.component.tsx`, para achar o
+centro aproximado do município quando a NF-e não tem geocodificação fina, não para desenhar
+polígono nenhum). É exatamente o formato que uma fonte GeoJSON do MapLibre precisa — coordenada
+lon/lat direta, sem o `toPath`/`toViewBox` equirretangular que só serve a um `<svg viewBox>`. Não
+havia necessidade de parar e reportar: o dado geográfico já existia em forma utilizável, só não
+estava ligado a nenhum desenho MapLibre ainda.
+
+### Implementação
+
+- `freightRegionMap.service.ts`: `buildFreightRegionMap` passa a receber `features: readonly
+MeshFeature[]` (em vez de `mesh: StateMesh`); `FreightRegionMapShape` troca `path` por `rings`
+  (anéis crus) e `FreightRegionMapModel` perde `viewBox` (o MapLibre projeta sozinho, então quem
+  enquadra é quem monta o mapa, não o serviço). Duas funções puras novas, cobertas por contrato:
+  `toFreightRegionFeatureCollection` (shapes → `FeatureCollection` de `MultiPolygon`, um subpolígono
+  por anel — ilha/enclave continuam o mesmo município, como o `d` antigo fazia — com `zone` como
+  propriedade **numérica**, sentinela `-1` para sem-zona porque expressão de estilo do MapLibre não
+  lê `null`) e `resolveFreightRegionBounds` (extensão real das coordenadas, para `fitBounds`).
+- `useFreightRegionMap.hook.ts`: troca `loadStateMesh` por `loadStateMeshFeatures` na mesma
+  `useQuery` (mesma `IBGE_MESH_QUERY_KEY`, mesmo `staleTime` de uma semana); resto do hook
+  (derivação de UF, `selectShape` por código, `legend`) não mudou — a lógica de zona/claim/outside já
+  era por `codarea`, indiferente a SVG ou GeoJSON.
+- `FreightRegionVectorMap.component.tsx` (novo): o motor MapLibre da aba, montado do mesmo jeito que
+  `AssemblyVectorMap`/`DriverHomeMap` já fazem — `configureVectorBasemap()`, `try/catch` no
+  construtor (sem WebGL2 cai para `onBasemapMissing`), `buildBasemapStyle(readToken,
+basemapThemeForApp('dark'))` como pano de fundo. Fonte `geojson` própria (`zona-de-frete`,
+  `promoteId: 'code'`) com duas layers: `fill` (cor por zona via expressão `match` sobre a
+  propriedade `zone`, tokens resolvidos em runtime, igual ao resto do produto) e `line` (contorno,
+  com `feature-state` `hover`/`selected` — mesma escala visual do `.selected`/`.interactive:hover` do
+  `vector-map.module.css` que ela substitui: fino e semitransparente em repouso, grosso e opaco em
+  destaque). Fonte e layers são reaplicadas de forma idempotente a cada `styledata` (mesmo padrão de
+  `applyRoute` em `AssemblyVectorMap` — a troca de tema descarta camada em runtime). Clique delegado
+  à layer de preenchimento (`map.on('click', ZONE_FILL_LAYER, ...)`), lendo `properties.code` da
+  feição sob o cursor e chamando `onSelect` — o mesmo `entry.selectShape` de sempre, que resolve a
+  shape e chama `toggleRegionMapCity`. Seleção (cidades já na zona) aplicada como `feature-state`,
+  não como propriedade da fonte — trocar a lista de cidades não refaz o GeoJSON. Popup do MapLibre no
+  hover reproduz o `<title>` nativo do SVG antigo (nome da cidade, ou cidade + rotas reivindicantes).
+- `FreightRegionMap.component.tsx`: troca o `<VectorMap>` estático por `FreightRegionVectorMap`
+  carregado por `lazy`/`Suspense`, mesmo padrão de `TripAssemblyMap` — o MapLibre não pode entrar no
+  pacote principal. Ganha `hasBasemap`/`onBasemapMissing` (ADR-0044 §6: sem o `.pmtiles` a tela cai
+  para a legenda/lista, dizendo isso, em vez de travar) — comportamento que o `VectorMap` antigo não
+  precisava ter (SVG não depende de arquivo externo) e que o novo motor precisa, por herdar a mesma
+  dependência de basemap do mapa da viagem. Legenda e lista de cidades fora da malha **não mudaram
+  uma linha** — já eram HTML puro fora do desenho.
+- `fleet.module.css`: `.mapDrawing` (do `<svg>` antigo) sai — nada mais o usa —, entra
+  `.regionMapCanvas` (altura fixa de `26rem`: o canvas do MapLibre não tem tamanho intrínseco como o
+  `<svg>`, e sem altura declarada o mapa nasce 0×0 e nunca pede telha).
+- `fleet.locale.json`/`fleet.en.locale.json`: `regionMap.withoutBasemap`, novo, nos dois idiomas.
+
+### Acessibilidade — a alternativa por teclado já existia, preservada
+
+O `VectorMap` antigo já era `role="img"` **sem** foco nem navegação por teclado nas formas — o
+comentário do próprio primitivo explica por quê: "leitor de tela não navega polígono... quem usa
+teclado escreve pela busca e pela colagem do campo de cidade ao lado, que fazem a mesma escrita". A
+alternativa de teclado/lista para selecionar uma zona sempre foi o campo de cidade do formulário
+(`FreightRegionCityField`/`FreightRegionForm`), fora deste componente e não tocado nesta task — o
+novo motor mantém o mesmo `role="img"` no contêiner do canvas, sem regressão nem promessa nova de
+acessibilidade que o desenho antigo não cumpria.
+
+### O que não fiz
+
+- Não toquei `VectorMap` (`src/components/ui/vector-map.tsx`), `tripRouteMap.service.ts`,
+  `tripBasemap.service.ts`, `tileMap.service.ts` nem `resolveRouteTraceSegments`
+  (`routeGeometry.service.ts`) — nem seus testes (`test/design-system/vector-map.contract.ts`,
+  `test/trip/route-basemap.contract.ts`, `test/trip/route-map-panel.contract.ts` e outros). Todos
+  continuam existindo e passando; a aba Regiões só parou de **depender** de `VectorMap`.
+- Não mexi em `ibgeMesh.service.ts` além de trocar qual função o hook chama. `loadStateMesh`,
+  `projectStateMesh`, `StateMesh`, `MeshShape` e `EMPTY_STATE_MESH` (a família que projeta a malha em
+  `d` de SVG) ficaram **sem consumidor de produção** depois desta task — só a própria
+  `ibgeMesh.service.ts` e o describe `ibge mesh contract` (que já existia) ainda os referenciam. Não
+  removi porque não estavam na lista explícita do pedido (`VectorMap`, `tripRouteMap.service`,
+  `tripBasemap.service`, `tileMap.service`, `resolveRouteTraceSegments`) e remover é decisão de T502
+  (RF11), não desta task — listados abaixo para a varredura de lá.
+- Não toquei `TripAssemblyMap.component.tsx`, `AssemblyVectorMap.component.tsx` nem
+  `DriverHomeMap.component.tsx` — só li os três como referência de padrão (montagem do MapLibre,
+  `lazy`/`Suspense`, tokens de cor em runtime).
+
+### O que ainda referencia o mapa antigo (achados para a T502)
+
+Confirmado por leitura e por `grep`, sem chamador fora do próprio arquivo em nenhum dos casos:
+
+- `src/components/ui/vector-map.tsx` (`VectorMap`) — sem consumidor de produção depois desta task
+  (a aba Regiões era o único). Só o teste `test/design-system/vector-map.contract.ts` o exercita.
+- `src/modules/trip/shared/tripRouteMap.service.ts` (`resolveTripRouteMap`) — já estava órfão antes
+  desta task; nada o importa fora dele mesmo.
+- `src/modules/trip/shared/tripBasemap.service.ts` (`buildTripBasemapPaths`) — já estava órfão antes
+  desta task; só `test/trip/route-basemap.contract.ts` o exercita.
+- `src/modules/trip/shared/tileMap.service.ts` — importado só como `import {} from
+'../shared/tileMap.service'` em `TripAssemblyMap.component.tsx` (linha 48), um import vazio sem
+  nenhuma binding usada — efeito nenhum, remoção seria só apagar a linha.
+- `resolveRouteTraceSegments` em `src/modules/trip/shared/routeGeometry.service.ts` — sem chamador
+  fora do próprio arquivo.
+- **Novo nesta task**: `loadStateMesh`, `projectStateMesh`, `StateMesh`, `MeshShape`,
+  `EMPTY_STATE_MESH` em `src/modules/shared/ibgeMesh.service.ts` (a projeção SVG da malha) — a aba
+  Regiões era a única consumidora de produção; ficaram só com o describe `ibge mesh contract` do
+  próprio arquivo de teste.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros.
+
+$ bun run format:check   (raiz)
+Limpo — nenhum arquivo fora do padrão (depois de `prettier --write` nos dois arquivos novos/mudados
+que a formatação apontou).
+
+$ bun test ./test/fleet.contract.test.ts   (apps/frontend-transportada)
+530 pass / 0 fail — 6605 expect() calls.
+`test/fleet/freight-region-map.contract.ts` ganhou 5 testes líquidos (32 → 37 blocos `test(...)`):
++4 do novo describe `freight region geojson contract` (`toFreightRegionFeatureCollection`,
+`resolveFreightRegionBounds`), +2 do describe de componente (import dinâmico, fonte GeoJSON/clique
+por layer), -1 do teste que só verificava o primitivo `VectorMap` em si (ele continua coberto por
+`test/design-system/vector-map.contract.ts`, não removido, só deixou de ser reasserido aqui).
+
+$ bun run test   (apps/frontend-transportada, suíte inteira)
+4208 pass / 0 fail — baseline T405 (4202 pass / 0 fail) + 6.
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 8.49s — PWA precache 130 entries (4484.23 KiB), baseline T405 129 entries (4472.34 KiB):
++1 entrada, o chunk novo do motor MapLibre da aba Regiões.
+`FreightRegionVectorMap.component-CU6y1ydP.js`: 4.48 kB — chunk próprio, não entrou no `index`.
+`vectorBasemap.service-QvV4NZCb.js`: 1 004.90 kB — segue chunk único e compartilhado (trip e fleet),
+abaixo do teto de 2 MiB por asset.
+`index-DX-Ux_U8.js` (pacote principal): 953.45 kB — MapLibre não voltou a ele.
+```
+
+Gate de API não foi executado: nenhum arquivo de `apps/api-transportada` foi tocado nesta task —
+T501 é frontend puro (RF11).
+
+### Commit
+
+`ede9d598`
+
+## T502 — Remoção do mapa antigo (RF11) e contrato de fonte (aceite 4)
+
+### Confirmado por `grep`, um por um, antes de apagar
+
+Todos os cinco candidatos que a T501 já tinha levantado (evidence acima, seção "O que ainda
+referencia o mapa antigo") foram reconferidos nesta task, agora sem chamador nenhum fora do
+próprio arquivo e sem teste que sobrevivesse à remoção sem ajuste:
+
+- `VectorMap` (`src/components/ui/vector-map.tsx`, 90 linhas) e seu CSS
+  (`vector-map.module.css`, 47 linhas) — zero consumidor de produção; `AssemblyVectorMap` e
+  `FreightRegionVectorMap` são componentes **diferentes** (o motor MapLibre), o `\bVectorMap\b`
+  com fronteira de palavra nos dois lados não bate neles.
+- `tripRouteMap.service.ts` (113 linhas, `resolveTripRouteMap`) — já estava órfão antes da T501.
+- `tripBasemap.service.ts` (52 linhas, `buildTripBasemapPaths`) — já estava órfão antes da T501.
+- `tileMap.service.ts` (182 linhas) — o único ponto de contato era `import {} from
+'../shared/tileMap.service'` em `TripAssemblyMap.component.tsx:48`, um import vazio (side-effect)
+  sem nenhuma binding usada. **O que era**: um motor de mapa de telha (_slippy map_) em Web
+  Mercator escrito à mão (`resolveTileMap`, `probeTileUrl`, `resolveTileAvailability`) que reverte
+  em parte a ADR-0037 para servir telha própria via `/map-tiles`, conforme a ADR-0044 §6 — foi a
+  fase intermediária do mapa da viagem antes do MapLibre assumir; a T501 já registrava que nada
+  além do próprio arquivo o exercitava. Remover a linha de import não muda comportamento nenhum —
+  era efeito zero, só carregava o módulo para nunca usar as bindings.
+- `resolveRouteTraceSegments` (`routeGeometry.service.ts`) — sem chamador; a função irmã
+  `resolveRouteLegs` (que ela só envolvia, convertendo `points` em `path` de SVG com `toPath`)
+  continua viva e é o que `TripRouteMap`/`AssemblyVectorMap` usam hoje. `toPath` continua (ainda
+  usada por `resolveRouteTrace`), só o tipo `RouteTraceSegment` (só usado pela função removida)
+  saiu junto.
+
+**Achado novo nesta task**, fora da lista original mas dentro do RF11 ("CSS/locale órfãos"): a
+família de projeção SVG em `ibgeMesh.service.ts` que a T501 já tinha marcado como órfã —
+`loadStateMesh`, `projectStateMesh`, `StateMesh`, `MeshShape`, `EMPTY_STATE_MESH` — confirmada sem
+consumidor de produção (`readFreightRegionMap.hook.ts` usa `loadStateMeshFeatures`, a variante sem
+projeção, desde a T501). Removidos junto com os helpers privados que só serviam a eles
+(`toPath`/`toExtent`/`toViewBox`/`Extent`, e por tabela `round`, que só `toPath` chamava).
+
+Não havia CSS nem chave de locale exclusiva de nenhum dos arquivos removidos: `VectorMap` não
+tinha locale próprio, e `fleet.module.css` já tinha perdido `.mapDrawing` na T501. O único texto
+remanescente foi um comentário em `scale-plan.tsx` citando `VectorMap` como exemplo de biblioteca
+de ícones — trocado por uma frase sem o nome, porque o aceite 4 pede "nenhuma referência", inclusive
+em prosa.
+
+### Dependências npm
+
+Nenhuma: o `package.json` não tem `d3-geo`, `topojson`, `leaflet` nem equivalente — a única lib de
+mapa no projeto sempre foi `maplibre-gl`/`@maplibre/maplibre-gl-style-spec`, que é o motor atual.
+Não houve `bun install` nem mudança em `bun.lock` por esta task.
+
+### Testes
+
+Removidos por inteiro (testavam só código apagado):
+
+- `test/design-system/vector-map.contract.ts` (3 testes) — CSS do `VectorMap`.
+- `test/trip/route-map.contract.ts` (6 testes) — `resolveTripRouteMap`.
+- `test/trip/route-basemap.contract.ts` (3 testes) — `buildTripBasemapPaths`.
+
+Editados, tirando só a parte do código morto:
+
+- `test/trip/route-trace-colors.contract.ts`: saiu o teste "a cor do traço entra inline..." (lia o
+  código-fonte de `vector-map.tsx`) e a constante `VECTOR_MAP`; os outros 8 testes do describe
+  (`resolveRouteLegs`, `stopColorOf`, e os dois que leem `AssemblyVectorMap.component.tsx`) cobrem
+  código vivo e ficaram como estavam.
+- `test/fleet/freight-region-map.contract.ts`, describe `ibge mesh contract`: das 9 asserções,
+  1 (`a projeção estreita a longitude...`) testava só a matemática de `toPath`/`toViewBox`
+  (SVG, morta) e saiu sem substituto; as outras 8 foram **adaptadas**, não apagadas — trocando
+  `projectStateMesh`/`loadStateMesh`/`EMPTY_STATE_MESH` (mortos) pelos irmãos vivos
+  `readStateMeshFeatures`/`loadStateMeshFeatures` que já faziam a mesma leitura e falha, só sem
+  projetar. Sem essa troca, o comportamento vivo de `readStateMeshFeatures` (descarta feição
+  ilegível, lança `FLEET_IBGE_MESH_MALFORMED`) e de `loadStateMeshFeatures` (propaga falha do
+  provedor, não sai à rede por UF desconhecida) ficaria sem contrato nenhum — o describe antigo só
+  os exercitava por tabela, através do wrapper de projeção que este task remove.
+- `test/trip.contract.test.ts` e `test/design-system.contract.test.ts`: tiraram os `import` dos
+  três arquivos de teste apagados (lista explícita do `package.json`/entrypoints, CLAUDE.md).
+
+Novo, cobrindo o aceite 4 (**contrato de fonte**, não lista fechada — varre `src/` inteiro em vez
+de nomear arquivo por arquivo, para reintrodução por qualquer caminho quebrar o build):
+`test/design-system/legacy-map-removed.contract.ts` — 2 testes: nenhum arquivo `.ts`/`.tsx`/`.css`
+de `src/` contém `VectorMap`, `tripRouteMap.service`, `tripBasemap.service`, `tileMap.service` ou
+`resolveRouteTraceSegments` (com fronteira de palavra, para não acusar `AssemblyVectorMap`/
+`FreightRegionVectorMap`); e os próprios arquivos do desenho antigo não existem mais em `src/`.
+
+**Contagem líquida**: 14 testes de código morto saíram (3+6+3+1+1), 2 novos entraram (aceite 4) →
+4208 (baseline T501) → 4196 pass. A queda é inteira de cobertura de código apagado; nenhum teste de
+comportamento vivo foi removido — os que cobriam comportamento vivo dentro dos describes mistos
+foram adaptados, não descartados.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros.
+
+$ bun run format:check   (raiz)
+All matched files use Prettier code style!
+
+$ bun run test   (apps/frontend-transportada, suíte inteira)
+4196 pass / 0 fail — baseline T501 (4208 pass) − 14 (código morto) + 2 (aceite 4) = 4196.
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 10.13s — PWA precache 130 entries (4484.23 KiB), idêntico ao baseline T501 (130
+entries, 4484.23 KiB): os arquivos removidos já eram código morto sem consumidor de produção, e o
+tree-shaking já os excluía do bundle antes desta task — a remoção não muda o que é servido, só a
+árvore de fonte.
+`index-DX-Ux_U8.js` (pacote principal): 953.45 kB — mesmo hash e tamanho do baseline T501.
+`vectorBasemap.service-QvV4NZCb.js`: 1 004.90 kB — inalterado, segue abaixo do teto de 2 MiB.
+```
+
+Gate de API não foi executado: nenhum arquivo de `apps/api-transportada` foi tocado — T502 é
+frontend puro (RF11).
+
+### O que não fiz
+
+- Não toquei `resolveRouteLegs`, `resolveRouteTrace`, `RouteTrace`/`RouteTraceKind` nem `toPath`
+  em `routeGeometry.service.ts` — vivos, usados por `TripRouteMap`/`AssemblyVectorMap`.
+- Não toquei `src/modules/routing/shared/routeMapTiles.service.ts` nem
+  `src/modules/routing/hooks/useRouteMap.hook.ts` — nomes parecidos, módulo `routing` diferente
+  (não é o mapa da viagem/frota desta spec), fora do escopo do RF11.
+- Não mexi em dependências do `package.json` nem rodei `bun install` — não havia nenhuma exclusiva
+  do mapa antigo.
+
+### Commit
+
+## T601 — Documentação viva: CLAUDE.md das apps + ai-context ✅
+
+Atualização de documentação (sem código de produção) refletindo a especificação 153 (rota gravada,
+redação monetária, um mapa só).
+
+### Arquivos atualizados
+
+**apps/api-transportada/CLAUDE.md** — Seção "Custo de frete, motoristas e pedágio": parágrafo novo
+após "Pedágio é calculado..." documentando o congelamento atômico de rota
+(`freeze-trip-planned-route` use-case), campos de `planned_route` JSONB, métricas
+(`planned_distance/return_distance/duration_meters/seconds`), `choiceReproduced` (D3), OSRM fora do
+ar (D5), redação monetária por `trip.financials` (D10), escrita única com CHECK do banco (D4).
+Referencia `freezeTripPlannedRoute`, `plan-route` endpoint, `POST /trips/:id/plan-route`, redação
+em `route-geometry` (dois endponts), `readTripDetail`, `GET /nfe-documents` (listagem), detalhe da
+viagem.
+
+**apps/frontend-transportada/CLAUDE.md** — Seção nova "Um mapa só, MapLibre" (entre "Domínio de
+viagem" e "CSP") documentando: MapLibre com chunk lazy, basemap vetorial, remoção do primitivo
+`VectorMap`, componentes `AssemblyVectorMap` e `FreightRegionVectorMap`, aceite 4 (contrato
+`legacy-map-removed.contract.ts`). Seletor de rota com switch **mais rápida ↔ mais barata** sem
+nova ida ao OSRM (usa opções já em mãos), `onRouteChoiceChange`, abre na mais barata, aviso quando
+opção única, trocar regrava via `plan-route`. Redação monetária: sem `trip.financials`, linha
+monetária some (praças e rótulos sim, valores não).
+
+**docs/ai-context/api-transportada.md** — Seção nova "Planejamento de viagem com rota escolhida e
+redação monetária por permissão (spec 153)" documentando domínio de rota (`route-choice.policy.ts`:
+quatro critérios, assinatura por `nodeIdsByLeg`, `selectRouteOption`, `choiceReproduced`);
+distância e volta (`planned-road-distance.policy.ts`: `summarizeRoadDistance`, rota sem anotação =
+`null`, `end_policy: 'last_stop'` = volta `0`); gateway com `exclude=toll` em paralelo,
+deduplicação por assinatura, `isNoToll`; congelamento atômico (escrita única, CHECK do banco, D5
+rota nula); redação monetária por permissão (`route-financial-redaction.service.ts`); fluxo de
+atualização (D6: reordenar/vincular/desvincular recalculam com `cheapest` na mesma transação, T206:
+fila de revisão para origem e destino).
+
+**docs/ai-context/frontend-transportada.md** — Seção nova "Seletor de rota no mapa, um mapa só e
+redação monetária do frontend (spec 153)" documentando: MapLibre + chunk lazy, basemap vectorial,
+remoção de `VectorMap` e serviços órfãos (aceite 4), componentes `AssemblyVectorMap` e
+`FreightRegionVectorMap`, lazy-load; seletor (props, abre na mais barata, switch instantâneo sem
+OSRM, `choiceReproduced: false` = aviso, opção única = mensagem "Apenas esta rota", redação
+monetária sem `canReadFinancials`); validação de campos novos em respostas de rota (opcionais quando
+rota nula, campos monetários opcionais sem permissão).
+
+### Nomes do código conferidos com grep
+
+- `freezeTripPlannedRoute` ✓ (use-case exportado de `trips/application/freeze-trip-planned-route.use-case.ts`)
+- `plan-route` endpoint ✓ (rota em `trips/presentation/trip.routes.ts` com `TRIP_PLAN_ROUTE_PATH`)
+- `route-choice.policy.ts` ✓ (tipos `RouteChoice`, `selectRouteOption`, `ROUTE_CHOICE_CRITERIA`)
+- `planned-road-distance.policy.ts` ✓ (função `summarizeRoadDistance`)
+- `readRouteGeometry` ✓ (use-case em `trips/application/read-route-geometry.use-case.ts`)
+- `route-financial-redaction.service.ts` ✓ (serviço `redactFinancials`)
+- `readRouteGeometryTollFreeCandidates` ✓ (serviço em `trips/application/route-geometry-toll-free-candidates.service.ts`)
+- `TripAssemblyMap.component.tsx` ✓ (componente em `modules/trip/components/`)
+- `AssemblyVectorMap.component.tsx` ✓ (componente em `modules/trip/components/`)
+- `FreightRegionVectorMap.component.tsx` ✓ (componente em `modules/fleet/components/`)
+- Remoção de `VectorMap` ✓ (grep por `tripRouteMap.service`, `tripBasemap.service`, `tileMap.service`, `resolveRouteTraceSegments` retorna nada)
+- Campo `plannedRoute` JSONB ✓ (schema em `database/trip.schema.ts`, tipo `FrozenPlannedRoute`)
+- Colunas de métrica ✓ (`plannedDistanceMeters`, `plannedReturnDistanceMeters`, `plannedDurationSeconds`)
+
+### Formato e estilo
+
+Documentação respeita o estilo existente:
+
+- `CLAUDE.md`: parágrafos curtos, bold para decisões-chave, ⚠️ para armadilhas, `code()` para nomes
+  de função/arquivo, links "docs/ai-context § ..." para detalhes.
+- `docs/ai-context/`: narrativa descritiva, explicação de fluxos, convenções, invariantes. Sem código
+  de exemplo — é referência histórica, não tutorial.
+
+### Verificação
+
+```bash
+$ bun run format:check   (raiz)
+All matched files use Prettier code style!
+```
+
+Nenhuma mudança em código de produção. Atualização de markdown only.
+
+### Correção pós-revisão
+
+A primeira passada (modelo menor) inventou nomes e comportamentos que não existem no código. Revisão
+linha a linha dos quatro arquivos contra `grep`/leitura direta; lista do que estava errado e do que
+foi corrigido:
+
+- **Basemap por `import.meta.glob('./maps/*.pbf')`** — não existe. O basemap é um único `.pmtiles`
+  (`BASEMAP_URL`, padrão `/map-tiles/area.pmtiles`) servido por faixa de bytes via protocolo
+  `pmtiles://`, registrado em `modules/shared/vectorBasemap.service.ts` (`addProtocol`, `setWorkerUrl`,
+  import do CSS do MapLibre — tudo no escopo do módulo, não do componente). Corrigido nos dois
+  CLAUDE.md e no ai-context do frontend.
+- **Contrato `test/freight/freight-region-map.contract.ts`** — caminho errado; o arquivo real é
+  `test/fleet/freight-region-map.contract.ts`. Corrigido nos dois lugares que citavam.
+- **`flagSemPedágio`** — campo inventado; o nome real é `isNoToll` (`SelectableRouteOption.isNoToll`,
+  `route-choice.policy.ts` e `RouteChoiceOptions.component.tsx`). Corrigido.
+- **Assinatura da rota como hash MD5** — é sha256 (`createHash('sha256')`, 32 hex = 16 bytes),
+  truncado, não MD5. Corrigido no ai-context da API.
+- **`trailingLegs: RoadLeg[] | null`** — tipo errado; `summarizeRoadDistance` recebe
+  `trailingLegs: number` (quantos trechos do fim de `legs` são a volta). Corrigido.
+- **"Trocar é só visual, regravação só no clique de Aceitar/Usar esta" para todos os mapas** —
+  contradizia a RF13. Confirmado no código: na montagem/proposta (`TripAssemblyMap`, T402–T404) é
+  verdade — a viagem ainda não existe, `onRouteChoiceChange` só atualiza a tela e quem grava é o
+  aceite. No **detalhe** de uma viagem já criada (`TripRouteChoiceSwitch`, T405) é falso: trocar
+  chama `onSelect` → `workspace.planRouteMutation.mutate` **direto**, sem clique extra algum. O
+  CLAUDE.md do frontend e o ai-context agora distinguem os dois casos.
+- **Props inventadas em `TripAssemblyMap`** (`availableRouteOptions`, `canPlanRoute`) — não existem.
+  O switch em si é `RouteChoiceOptions.component.tsx`, com props reais `canReadFinancials`,
+  `cheapestIndex`, `costGap`, `fastestIndex`, `onSelect`, `options`, `selectedIndex`. Corrigido.
+- **Texto "Apenas esta rota está disponível"** — não existe no locale. O texto real
+  (`assemblyMap.routeOptions.singleOption`) é "Não há uma rota mais rápida e uma mais barata para
+  trocar — só esta opção foi calculada." Corrigido.
+- **Aviso "Rota recalculada" para `choiceReproduced: false`** — não existe. O aviso real
+  (`routeMap.choiceNotReproduced`, em `TripRouteCostSummary.component.tsx`) diz "A estrada pode ter
+  mudado desde que esta rota foi escolhida...". Corrigido, e a armadilha D3 da T405
+  (`choiceReproduced !== false`, nunca `!choiceReproduced` — `undefined` não é `false`) foi
+  acrescentada ao ai-context, que não a mencionava.
+- **Contrato `test/trip/route-geometry-valuation.contract.ts`** — não existe. Os contratos reais são
+  `test/trip/route-geometry-money-optional.contract.ts` (D2/D3/D10) e
+  `test/trip/route-geometry-options-validation.contract.ts` (spec 096 T1). Corrigido.
+- **Campos de resposta em `snake_case`** (`planned_distance_meters` etc.) como se fossem o contrato
+  do frontend — o frontend lê camelCase (`distanceMeters`, `returnDistanceMeters`,
+  `durationSeconds`, `frozen`, `criterion`, `signature`) em `routeGeometry.service.ts`; o
+  `snake_case` é só nome de coluna do banco, do lado da API. Corrigido no ai-context do frontend.
+- **`route-financial-redaction.service.ts` com `redactFinancials(view, hasPermission)`** — arquivo e
+  função não existem. O real é `shared/monetary-redaction.service.ts`, função
+  `redactRouteGeometryMoney({ canReadFinancials, view })`. Corrigido nos dois CLAUDE.md e no
+  ai-context da API.
+- **`planned_route_frozen_at` "compartilhado" com `planned_toll_frozen_at`** — falso. São colunas
+  **separadas**, cada uma sob seu próprio CHECK (`trips_planned_route_check` e
+  `trips_planned_toll_check`, ambas em `database/trip.schema.ts`), escritas na mesma `UPDATE` mas
+  cada `null`/`now()` decidido pelo seu próprio dado (rota nula vs pedágio nulo). Corrigido nos dois
+  CLAUDE.md e no ai-context da API.
+- **"`freezeTripPlannedRoute` dentro da mesma transação que altera paradas"** — o erro mais sério:
+  é o oposto. `reorder-trip-stops.use-case.ts`, `link-trip-documents-batch.use-case.ts` e
+  `trip.use-case.ts` (`freezeRouteGracefully`) chamam o freezer **depois** da escrita principal ter
+  commitado, com `try/catch` que nunca desfaz o vínculo/reordenação em caso de falha — o comentário
+  no próprio código diz "o vínculo já está gravado; o pedágio congela no próximo replanejamento". A
+  fila de revisão (`drizzle-trip-document-review.repository.ts`, `freezeRoutesGracefully`) segue o
+  mesmo padrão, para as duas viagens em paralelo. Corrigido nos dois CLAUDE.md e no ai-context da
+  API — era a afirmação mais capaz de levar alguém a confiar numa garantia atômica que o código não
+  tem.
+- **Quebra de code span pelo prettier** (`` `POST\n/trips/:id/plan-route` ``, já presente no CLAUDE.md
+  da API) — reescrito para o span não atravessar a quebra de linha.
+
+Nada nesta correção mexeu em código de produção — só nos quatro arquivos de documentação e neste
+`evidence.md`. `bun run format:check` roda limpo depois da correção.
+
+## T703 — H2: aceite por viagem usa o congelador tolerante, não `planTripRoute`
+
+### Defeito (regressão do commit `2ea98a51`)
+
+O aceite por viagem da sugestão de rota (`route-suggestion.use-case.ts` `accept`) chamava
+`routePlanner.planRoute` — injetado em `main.ts` como `planTripRoute` (o mesmo caso de uso do
+endpoint `POST /trips/:id/plan-route`). Dois problemas:
+
+1. `planTripRoute` **lança** `TripStateTransitionNotAllowedError` quando a viagem não tem rota
+   possível (`hasRoute` falso — nota viva sem parada com endereço, `checkTripTransition` em
+   `trip-state.policy.ts`). O aceite, que antes só reordenava e concluía, passou a falhar inteiro.
+2. `planTripRoute` promove a viagem de `draft` para `route_planned` como efeito colateral
+   (`markRoutePlanned`), o que a D7 não pediu — D7 só fala em congelar a rota escolhida.
+
+### Correção
+
+Trocado `routePlanner.planRoute` pelo **congelador tolerante** já usado por reordenar/vincular/
+desvincular (`freezeRouteGracefully` em `trip.use-case.ts`, injetado como `tripRouteTollFreezer` em
+`main.ts`, mesma porta `PlanTripRouteTollFreezer`/`freezeTripPlannedRoute` da T201):
+
+- `route-suggestion.use-case.ts`: renomeada a porta `TripRoutePlanner.planRoute` para
+  `TripRouteFreezer.freeze` (mesma assinatura de `PlanTripRouteTollFreezer`). O `accept` chama o
+  novo `freezeRouteGracefully` local — mesmo padrão de `trip.use-case.ts`: `try/catch` que nunca
+  propaga a falha do congelamento, rodando **depois** da ordem já gravada.
+- `main.ts`: a rota `routeSuggestions` passa a injetar `routeFreezer: tripRouteTollFreezer`
+  diretamente — o mesmo congelador da T201, nunca um segundo caminho de escrita. O import de
+  `planTripRoute` (não mais usado neste arquivo) foi removido.
+
+Por que isso resolve os dois problemas: `freezeTripPlannedRoute` (a implementação real de
+`tripRouteTollFreezer.freeze`) nunca lança para viagem sem parada — lê as coordenadas disponíveis
+(mesmo que vazias), pede a geometria ao roteirizador e, sem estrada, grava `route: null` (D5); e
+`freezeTripPlannedRoute` **não** transiciona status — ele só escreve `planned_route`/`planned_toll`.
+E mesmo se o congelador falhasse por outro motivo, o `try/catch` do `accept` absorve, igual ao
+`freezeRouteGracefully` do link/release.
+
+### Contrato vermelho, antes da correção
+
+`test/routing-application/route-suggestion.contract.ts`, suíte "accepting a route suggestion":
+substituído o teste antigo `leaves the suggestion ready when freezing the route fails` (que
+esperava o aceite ficar bloqueado — o comportamento errado que este defeito introduziu) por:
+
+```
+test('accepts and decides even when freezing the route fails (viagem sem parada com endereço)', ...)
+```
+
+Contra o código do `2ea98a51` (com `routePlanner.planRoute` lançando), este teste falhava: o erro
+do congelamento derrubava o `accept` e `dependencies.decided` ficava vazio. Depois da correção, o
+`accept` conclui com sucesso, `result.status === 'accepted'` e `dependencies.decided` tem 1 entrada.
+O caminho feliz (`freezes the route through the T201 seam...` e `without a routeChoice...`)
+continua verde, provando que a rota escolhida ainda é gravada.
+
+### Gates
+
+- `bun run typecheck` (raiz, todas as apps) — limpo.
+- `bun run lint` (raiz) — 1 erro inicial (`planTripRoute` importado e não usado em `main.ts` depois
+  da troca), corrigido removendo o import; limpo depois.
+- `bun run format:check` (raiz) — limpo.
+- `bun --env-file=../../.env.test test --timeout 120000` (de dentro de `apps/api-transportada`,
+  integração com Postgres real) — **rodou** (banco de teste disponível):
+  `6245 pass, 23 skip, 0 fail` em 177 arquivos, 21889 `expect()`. A suíte alvo isolada
+  (`test/routing-application.contract.test.ts`, que importa `route-suggestion.contract.ts`):
+  `73 pass, 0 fail`.
+
+## T701 — C1: dinheiro opcional da NF-e no frontend (D10) — busca, bipe e faixa ✅ 2026-09-17
+
+### Defeito (achado CRITICAL da revisão final)
+
+T301 fez a API cortar `totalAmount`/`freightAmount` de `/nfe-documents` quando o usuário não tem
+`trip.financials` (D10: a **chave** some do corpo, nunca `null`, nunca zero —
+`redactNfeDocumentMoney` em `apps/api-transportada/src/shared/monetary-redaction.service.ts`). O
+frontend continuava exigindo as duas sempre presentes em três guardas independentes, e quebrava:
+
+- `nfeWorkspaceClient.service.ts`: `isNfeDocumentListItem` exigia `isString(value.totalAmount)` e
+  `isNullableString(value.freightAmount)` — os dois reprovam `undefined` (chave ausente) —, então
+  `mapDocumentListPage` lançava `NFE_WORKSPACE_RESPONSE_INVALID` e **a listagem inteira** parava de
+  carregar para quem não tem a permissão.
+- `tripResponse.validation.ts`: `isScannedDocument` exigia `isString(value.totalAmount)`, usado por
+  `scannedNfeDocumentFromApi` (o **bipe por chave de acesso**, ADR-0043 §3) e por
+  `tripCandidateDocumentPageFromApi` (a **busca por faixa** de numeração da tela de notas da
+  viagem). O bipe lançava `TRIP_RESPONSE_INVALID`; a busca por faixa **descartava a linha em
+  silêncio** (o `flatMap` de `isScannedDocument` some com a nota sem avisar).
+- `TripDocumentSearch.component.tsx` chamava `formatAmount(document.totalAmount)` sem guarda —
+  mesmo corrigidos os validadores, a célula formatava `undefined` e explodia em runtime.
+
+Os três papéis afetados: `fiscal`, `viewer` e `separator` — é o separador quem bipa a nota sem ver
+o valor (ADR-0043 §3).
+
+### Correção
+
+**Dois formatos de ausência coexistem**, e cada consumidor precisa do seu:
+
+1. `nfeWorkspaceClient.service.ts` devolve o array **cru** da API sem reconstruir objetos
+   (`mapDocumentListPage` faz `items: data` direto) — a ausência aqui é literalmente `undefined`
+   (chave que não existe no JSON). `NfeDocumentListItem.totalAmount` virou `totalAmount?: string` e
+   `freightAmount?: null | string`; o guard usa os novos `isOptionalString`/
+   `isOptionalNullableString` (mesmo padrão que `isOptionalNullableString` já cunhado em
+   `tripResponse.validation.ts` pelo T401 para `route-geometry`, D10).
+2. `tripResponse.validation.ts` **reconstrói** cada campo via `readNullableColumn` (que já
+   normaliza ausente/`null`/não-string para `null`) — então `totalAmount` no `ScannedNfeDocument`
+   virou `null | string` (igual a `freightAmount`, que já era assim) e as duas ocorrências de
+   `totalAmount: row.totalAmount` passaram a `totalAmount: readNullableColumn(row, 'totalAmount')`.
+   `isScannedDocument` passou a aceitar `isOptionalString(value.totalAmount)` (helper local já
+   existente no arquivo, cunhado pelo T401).
+3. `ScannedNfeDocument.totalAmount`/`freightAmount` **também** viraram opcionais (`?:`), não só
+   anuláveis — achado ao rodar `tsc`: `TripDocumentSearch.component.tsx` e
+   `useTripRouteAssembly.hook.ts` reusam a linha crua de `NfeDocumentListItem` como
+   `ScannedNfeDocument`/`TripCandidateDocument` por **compatibilidade estrutural** (nenhum adaptador
+   os separa nesses dois pontos — é a mesma busca da listagem de notas, reaproveitada na tela da
+   viagem). Propriedade opcional na origem não satisfaz propriedade obrigatória no destino mesmo com
+   o mesmo tipo de valor, então sem esse ajuste o `tsc` reprovava as duas telas.
+4. `TripDocumentSearch.component.tsx`: a célula do total passou a checar
+   `document.totalAmount === null || document.totalAmount === undefined` antes de formatar (a
+   mesma linha já tratava `freightAmount` assim, ajustada para cobrir `undefined` também — a origem
+   real aqui é `NfeDocumentListItem`, que produz `undefined`, não `null`).
+5. `NfeDocumentTable.component.tsx` (coluna "amount" da listagem principal) e
+   `useNfeDocumentTable.hook.ts` (`matchesAmount`, o haystack da busca livre) ajustados para aceitar
+   `totalAmount: string | undefined` sem quebrar filtro, busca ou ordenação — `Number(undefined)` já
+   é `NaN`, que os dois já tratavam como "não bate".
+6. `assemblyMapNote.service.ts` normaliza a ausência de volta para `null` ao montar `AssemblyMapNote`
+   (`document.totalAmount ?? null`) — esse tipo já era `null | string` e seus consumidores
+   (`TripAssemblyMap.component.tsx`, `assemblyNoteFigures.service.ts`) já tratavam `null` como
+   "sem valor"; nenhum dos dois precisou mudar.
+
+### Consumidores conferidos e não tocados (fora do escopo de D10 para NF-e)
+
+Busca por `totalAmount`/`freightAmount` em todo `apps/frontend-transportada/src/modules` e
+confirmação, um a um, de que os demais usos são **outro** campo homônimo, de outro domínio, não
+coberto pela redação de `/nfe-documents`:
+
+- `mdfeManifestCteSource.service.ts` / `MdfeManifestCreationPanel.component.tsx` — `totalAmount` do
+  CT-e (`CteBatchItem`), não da NF-e.
+- `cteEmission.service.ts` / `CteEmissionDialog.component.tsx` / `cteEmissionQueue.service.ts` —
+  `totalAmount` é a soma calculada da prévia de emissão de CT-e (`CteBatchPreview`), campo próprio,
+  não vem de `/nfe-documents`.
+- `NfeDocumentFilterPanel.component.tsx` — só o rótulo estático do campo de filtro
+  (`documents.fields.totalAmount`), não lê valor de documento.
+- `TripAssemblyMap.component.tsx`, `assemblyNoteFigures.service.ts` — consomem `AssemblyMapNote`
+  (já `null | string`, ver item 6 acima), não `ScannedNfeDocument` diretamente.
+- `tripResponse.validation.ts` `isDocument`/`TripDocument.nfeTotalValue` (detalhe da viagem) — já
+  opcional (`nfeTotalValue?: null | string`), tratado por T301/T401; não fazia parte deste achado.
+
+### Contrato vermelho, antes da correção
+
+- `apps/frontend-transportada/test/nfe-workspace/document-money-optional.contract.ts` (novo,
+  registrado em `test/nfe-workspace.contract.test.ts`): contra o código de antes de T701, o teste
+  "payload sem totalAmount e freightAmount passa na validação da listagem" falhava —
+  `client.listDocuments` rejeitava com `NFE_WORKSPACE_RESPONSE_INVALID`.
+- `apps/frontend-transportada/test/trip/nfe-document-money-optional.contract.ts` (novo, registrado
+  em `test/trip.contract.test.ts`): contra o código de antes, "o bipe por chave de acesso não lança"
+  falhava com `TRIP_RESPONSE_INVALID`, e "a busca por faixa mantém a linha sem dinheiro" falhava
+  porque `page.items` vinha vazio (a linha era descartada em silêncio pelo `flatMap`).
+- `apps/frontend-transportada/test/trip/document-search-columns.contract.ts` (existente, ajustado):
+  as asserções de string exata sobre `formatAmount(document.totalAmount)` sem guarda,
+  `freightAmount: null | string` (sem `?`) e `isNullableString(value.freightAmount)` refletiam o
+  código antigo — atualizadas para o código corrigido, mais dois testes novos cobrindo a ausência.
+
+Depois da correção, as quatro suítes ficam verdes (ver Gates).
+
+### Gates
+
+- `bun run typecheck` (raiz, 6 apps) — limpo.
+- `bun run lint` (raiz, 6 apps) — limpo.
+- `bun run format:check` (raiz) — limpo (1 arquivo novo precisou de `prettier --write` antes).
+- `bun run test` em `apps/frontend-transportada` — `4204 pass, 0 fail`, `36241 expect()` em 29
+  arquivos (inclui as duas suítes novas e a suíte ajustada).
+- `bun run build` em `apps/frontend-transportada` — build de produção concluído sem erro.
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`
+
+## T702 — H1: "mais barata" nunca era eleita — `fuelBaseline` ausente + frontend nunca emitia a escolha ✅ 2026-09-17
+
+### Defeito (achado HIGH da revisão final)
+
+Dois caminhos chamavam `readRouteGeometry` sem `fuelBaseline`, e um terceiro (frontend) nunca
+emitia a escolha inicial ao componente pai:
+
+1. **Congelamento** (`freeze-trip-planned-route.use-case.ts`, chamado de `main.ts` ~1503 via
+   `tripRouteTollFreezer`): `FreezeTripPlannedRouteVehicleContext` só carregava `axles`/
+   `multiplier`/`hasAutomaticTollPayment` — nunca o consumo/preço do combustível.
+   `DrizzleTripPlannedRouteRepository.readVehicleContext` (o `readVehicleContext` real de
+   produção) juntava só `fleet_vehicles.axle_count`, sem `average_consumption` nem `fuel_type`.
+2. **Prévia** (`resolvePreviewRoad` em `read-trip-valuation.use-case.ts`): tinha
+   `context.vehicle.kilometersPerLiter` e `context.fuelPricePerLiter` em mãos (usados logo depois
+   por `resolveFuelParcel` para a parcela de combustível) mas não os repassava para
+   `readRouteGeometry`.
+3. Sem `fuelBaseline`, `rankRouteOptions` (`route-option.policy.ts`) devolve `fuelTotal: null` em
+   toda opção, e `totalOf` torna `totalCost` `null` também — nunca zero, `null` mesmo (a política
+   já estava certa). `applyCriterion('cheapest')` em `route-choice.policy.ts` (`bestOf` com peso
+   `null` "não concorre") não achava candidata **nenhuma**, e `selectRouteOption` caía sempre na
+   principal com `reproduced: false` — mesmo com `choice.signature === null` (ninguém pediu
+   assinatura nenhuma). Esse é o efeito relatado: a viagem gravava sempre a rota com pedágio, e o
+   aviso de "escolha não reproduzida" aparecia quase sempre, falso.
+4. **Frontend** (`TripAssemblyMap.component.tsx`): o único `useEffect` que reage à resposta da
+   consulta de geometria (`geometryQuery.data`) só fazia `setSelectedOptionIndex(...)` — nunca
+   chamava `onRouteChoiceChange`. Quem nunca tocasse no seletor de rota (a maioria: criação manual
+   sem trocar de opção, e cada veículo da proposta) sempre enviava o `RouteChoice` default do
+   estado do pai (`{ criterion: 'cheapest', signature: null }`), mesmo quando a API já tinha
+   resolvido uma opção concreta com assinatura própria (M7).
+
+### Semântica de `choiceReproduced` (D3) — já estava certa, não mudou
+
+Lida com cuidado antes de mexer: `selectRouteOption` (`route-choice.policy.ts`) já implementa D3
+corretamente —
+
+```ts
+if (choice.signature !== null) {
+  const signed = options.find((option) => option.signature === choice.signature)
+  if (signed !== undefined) return { option: signed, reproduced: true }
+  return { option: applyCriterion(choice.criterion, options) ?? principal, reproduced: false }
+}
+const candidate = applyCriterion(choice.criterion, options)
+if (candidate === undefined) return { option: principal, reproduced: false }
+return { option: candidate, reproduced: true }
+```
+
+Critério resolvido **sem** assinatura já gravava `true`; só a assinatura pedida que não reproduz
+(ou o critério que não acha candidata, órfão do `fuelBaseline` ausente) gravava `false`. O
+"quase sempre falso" era **consequência** do bug 1–3 (sem `totalCost`, `applyCriterion('cheapest')`
+nunca achava candidata, mesmo sem assinatura pedida) — não um defeito na política em si. Nenhuma
+mudança foi feita em `route-choice.policy.ts`.
+
+### Correção
+
+1. `freeze-trip-planned-route.use-case.ts`: `FreezeTripPlannedRouteVehicleContext` ganhou
+   `fuelBaseline: RouteOptionVehicle` (obrigatório — força todo implementador do port a decidir,
+   nunca esquecer de novo); `freezeTripPlannedRoute` repassa `fuelBaseline: vehicle.fuelBaseline`
+   para `readRouteGeometry`.
+2. `drizzle-trip-planned-route.repository.ts`: `readVehicleContext` passou a selecionar também
+   `average_consumption`/`fuel_type` e chama `readEffectiveFuelPrice`/`toFuelProduct`
+   (`effective-fuel-price.query.ts` — a mesma conta que `RouteGeometryVehicleAxlesQuery` já usa no
+   caminho HTTP de `main.ts` ~2537-2563, usada aqui como referência) para montar `fuelBaseline`;
+   sem consumo ou sem preço efetivo, cai em `NO_FUEL_BASELINE` (`{ kilometersPerLiter: null,
+pricePerLiter: null }`) — nunca um número inventado.
+3. `read-trip-valuation.use-case.ts`: `resolvePreviewRoad` ganhou o parâmetro `fuelBaseline`;
+   `previewTripValuation` passa `{ kilometersPerLiter: context.vehicle.kilometersPerLiter,
+pricePerLiter: context.fuelPricePerLiter }` — os mesmos dois campos que `resolveFuelParcel` já
+   lia da mesma `context`, nenhuma leitura nova.
+4. `TripAssemblyMap.component.tsx`: o `useEffect` que reage a `geometryQuery.data` agora também
+   chama `onRouteChoiceChange?.(resolveRouteChoiceFromIndex({ cheapestIndex, fastestIndex, index:
+nextIndex, options }))` — a mesma função pura que o clique manual do seletor já usava
+   (`handleSelectRouteOptionIndex`). O efeito depende de `[routeKey, tollVehicleId,
+geometryQuery.data]`: `routeKey` muda com a ordem das paradas, `tollVehicleId` com o veículo, e
+   os dois disparam nova busca → novo `geometryQuery.data` → o efeito roda de novo e emite a
+   escolha fresca, nunca deixando uma assinatura velha no estado do pai. Como `onRouteChoiceChange`
+   já estava corretamente fiado em `TripQuickCreateDialog.component.tsx` (`onRouteChoiceChange=
+{quickCreate.setRouteChoice}`) e em `TripRouteAssemblyDialog.component.tsx`
+   (`assembly.setVehicleRouteChoice(view.vehicleId, routeChoice)`), essa única correção resolve
+   criação manual e proposta ao mesmo tempo (M7) — nenhum dos dois diálogos precisou mudar.
+
+### Contratos vermelhos, antes da correção
+
+- `freeze-trip-planned-route.contract.ts`, novo `describe('H1: a mais barata é de fato eleita —
+nunca sempre a principal')`: com uma principal cara (240 km, praça R$ 10,50/eixo × 2 = R$ 21,00,
+  total R$ 597,00 com `fuelBaseline` 2,5 km/l a R$ 6,00) e uma alternativa mais barata em
+  `road.alternatives` (100 km sem praça, total R$ 240,00), o teste
+  `'com fuelBaseline conhecido, congela a alternativa mais barata — não a principal'` falhava
+  contra o código antigo: `written.route.distanceMeters` vinha `240_000` (a principal) em vez de
+  `100_000`, e `choiceReproduced` vinha `false`. Um segundo teste
+  (`'sem fuelBaseline, cai na principal com choiceReproduced: false'`) documenta o comportamento
+  antigo como regressão a não reintroduzir.
+- `preview-route-choice.contract.ts`, novo teste `'H1: sem escolha explícita, a prévia elege a mais
+barata de verdade — não sempre a principal'`: principal cara (200 km, praça R$ 50,00/eixo × 2 =
+  R$ 100,00, total R$ 580,00) contra sem-pedágio mais barata (100 km, total R$ 240,00) — contra o
+  código antigo, a parcela de combustível vinha `480.0000` (distância da principal) em vez de
+  `240.0000`.
+- `route-choice-switch.contract.ts`, dois novos testes de fonte: `'emite a escolha assim que a
+resposta chega, não só no clique do seletor'` (contava `onRouteChoiceChange?.(` — 1 ocorrência
+  no código antigo, 2 depois) e `'reemite a escolha ao trocar veículo/ordem'` (checava o array de
+  dependências do `useEffect`).
+
+Depois da correção, as três suítes ficam verdes (ver Gates).
+
+### Integração com Postgres real
+
+`freeze-trip-planned-route.integration.ts`: novo teste `'spec 153 H1: lê o consumo e o preço
+efetivo do combustível pela mesma conta da consulta de eixos'` — semeia um veículo com
+`average_consumption = '2.50'` (a coluna é `numeric(6,2)`, trunca as quatro casas do fixture de
+domínio) e `fuel_type = 'diesel-s10'`, mais uma linha em `company_fuel_prices` (`R$ 6,00`), e prova
+que `DrizzleTripPlannedRouteRepository.readVehicleContext` devolve `fuelBaseline: {
+kilometersPerLiter: '2.50', pricePerLiter: '6.0000' }` contra Postgres de verdade — não só o fake
+do contrato de domínio. O teste de leitura do veículo real (já existente) ganhou a expectativa de
+`fuelBaseline: { kilometersPerLiter: null, pricePerLiter: null }` para o veículo sem consumo
+declarado nem preço configurado.
+
+### Gates
+
+- `bun run typecheck` (raiz, 6 apps) — limpo.
+- `bun run lint` (raiz, 6 apps) — limpo.
+- `bun run format:check` (raiz) — limpo (2 arquivos precisaram de `prettier --write` antes).
+- `bun run test` em `apps/frontend-transportada` — `4206 pass, 0 fail`, `36246 expect()` em 29
+  arquivos.
+- `bun run build` em `apps/frontend-transportada` — build de produção concluído sem erro (exit 0).
+- `bun --env-file=../../.env.test test --timeout 120000` (de dentro de `apps/api-transportada`,
+  Postgres real em `localhost:65432`) — **rodou** (banco de teste disponível):
+  `6248 pass, 23 skip, 0 fail` em 177 arquivos, `21897 expect()`. O arquivo de integração isolado
+  (`freeze-trip-planned-route.integration.ts`): `5 pass, 0 fail`.
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`
+
+## T705 — M5 + L6: erro de basemap não pode apagar as zonas; copyright e `useMemo` ✅ 2026-09-17
+
+### L6 — copyright
+
+`FreightRegionVectorMap.component.tsx` **já tinha** o cabeçalho (`/* Copyright (c) 2026 Ada
+Technology. MIT License. */`, linha 1) — conferido por leitura direta e por `git log --all` no
+arquivo: um único commit o tocou (`864069f4`, T501), e o cabeçalho já nasceu com ele, no mesmo
+formato de linha única dos outros arquivos do módulo `fleet` (`FleetField.component.tsx`,
+`VehicleList.component.tsx` etc. — nenhum usa o formato de bloco `/** ... */` de três linhas que
+`AssemblyVectorMap.component.tsx`, de outro módulo, usa). O achado L6 não se confirmou nesta
+parte; não havia nada para corrigir.
+
+### L6 — `useMemo` em `selectedCodes`
+
+Confirmado: `FreightRegionMap.component.tsx` (antiga linha ~41-46, hoje ~39-44) criava
+`selectedKeys` e `selectedCodes` como `new Set(...)` **a cada render**, sem memoização. O `Set` é
+passado como prop `selectedCodes` para `FreightRegionVectorMap`, que tem dois `useEffect`
+dependentes dele (`[selectedCodes]`) — um só grava a ref, mas o outro chama `applySelection`, que
+roda `map.setFeatureState` **para toda shape do estado** (`shapesRef.current`, dezenas a centenas
+de municípios). Toda renderização do formulário de zona (por exemplo, digitar num campo qualquer
+do form pai) recriava o `Set` por identidade, mesmo com o mesmo conteúdo, e disparava o efeito —
+`setFeatureState` em cada forma, a cada tecla.
+
+Corrigido com `useMemo` (`FreightRegionMap.component.tsx`), dependências reais: `cities` (a prop,
+antes lida direto de `props.cities` dentro do corpo — extraída para variável para caber na lista de
+dependências sem alterar comportamento), `entry.model.shapes` e `entry.state`. Só refaz quando um
+desses três muda de verdade.
+
+### M5 — erro de basemap apagando as zonas
+
+Confirmado por leitura: `FreightRegionVectorMap.component.tsx`, `map.on('error', ...)` (então
+~251-255, dentro do efeito de montagem) tratava **qualquer** evento `error` do MapLibre antes do
+`load` como basemap ausente:
+
+```ts
+map.on('error', (event) => {
+  if (import.meta.env.DEV) console.error('[basemap]', event.error?.message ?? event.error)
+  if (basemapLoaded.current) return
+  onBasemapMissing()
+})
+```
+
+`onBasemapMissing` faz `FreightRegionMap.component.tsx` desmontar o `<Suspense>` do mapa
+(`hasBasemap` vira `false`) e mostrar só `regionMap.withoutBasemap` — o SVG antigo (`VectorMap`)
+nunca tinha esse risco porque desenhava sem depender de telha, glifo nem arquivo nenhum.
+
+**O que investiguei antes de decidir, direto no código-fonte do `maplibre-gl` instalado**
+(`node_modules/maplibre-gl/dist/maplibre-gl-dev.mjs`, a mesma técnica de "confirmado contra o
+código-fonte" que `AssemblyVectorMap.component.tsx` já usa para `sourceId`):
+
+- **Telha isolada não é erro, na maioria dos casos.** `_loadTile` (linha ~6020): `if (err.status
+!== 404) this._source.fire(new ErrorEvent(ensureError(err), { tile }))` — telha 404 (a mais comum,
+  uma vez que a malha vetorial tem vazio esperado em boa parte do território) nem dispara `error`
+  nenhum. O que dispara é telha com falha **diferente** de 404 (rede instável, 5xx), e o evento
+  carrega `tile` — que não está no tipo declarado (`ErrorEvent` do `.d.ts` só tem `error`), mas
+  chega em runtime pela mesma injeção de `data` que já sustenta o `sourceId` usado em
+  `AssemblyVectorMap`.
+- **Glifo isolado nunca vira `error` de mapa.** `GlyphManager._downloadAndCacheRangePromise`
+  (linha ~1585) captura a falha de `_loadGlyphRange` num `try/catch` local, desenha o glifo
+  localmente e só chama `_warnOnMissingGlyphRange` — um `warnOnce` de console, nunca
+  `this.fire(new ErrorEvent(...))`. Não havia como um glifo isolado alcançar o tratador do
+  componente — a preocupação do achado existia, mas o sintoma nesta versão do `maplibre-gl` só
+  vinha de telha.
+- **A fonte-metadado inteira (`VectorTileSource#load`, linha ~2856) é quem dispara o erro fatal de
+  verdade**, sem `tile`: `catch (err) { ...; if (!isAbortError(err)) this.fire(new
+ErrorEvent(ensureError(err))) }` — é o caso do arquivo `.pmtiles` genuinamente inalcançável (o
+  cabeçalho nunca resolve). Esse é o único caso que a spec 153/ADR-0044 §6 pede para degradar.
+- O basemap da aba Regiões usa o **mesmo** `buildBasemapStyle`, que sempre declara a fonte
+  `RADAR_SOURCE` (`radar-overlay`) mesmo aqui, onde nenhuma camada de radar é usada pela aba — e
+  `AssemblyVectorMap` já precisou excluir essa fonte do tratamento fatal porque o arquivo do radar
+  é opcional (404 é o normal em instalação sem o arquivo gerado). `FreightRegionVectorMap` não
+  tinha essa exclusão: um overlay de radar ausente (situação comum, nada a ver com o basemap de
+  rua) já bastava para apagar a aba inteira antes desta correção.
+
+**Correção** (`freightRegionMap.service.ts` + `FreightRegionVectorMap.component.tsx`):
+
+- Nova função pura `isFatalBasemapError({ basemapLoaded, sourceId?, tile? })` em
+  `freightRegionMap.service.ts`, ao lado da nova constante exportada `FREIGHT_REGION_ZONE_SOURCE`
+  (antes um `const` só do componente — movida para o serviço para a classificação e o motor
+  compartilharem o mesmo id, sem duplicar o literal). Fatal só quando: ainda não carregou
+  (`!basemapLoaded`) **e** não tem `tile` (não é telha isolada) **e** a fonte não é a própria zona
+  do componente (`FREIGHT_REGION_ZONE_SOURCE`) nem o radar opcional (`RADAR_SOURCE`, importado de
+  `@/modules/shared/vectorBasemap.service` — já exportado, usado só em leitura, nenhuma mudança no
+  arquivo compartilhado).
+- O tratador de `error` do componente monta o contexto a partir do evento (`sourceId`/`tile`
+  injetados em runtime, mesmo comentário de `AssemblyVectorMap` reaproveitado aqui) e só age quando
+  `isFatalBasemapError` devolve `true`.
+- **A parte "melhor ainda" do achado, implementada**: em vez de chamar `onBasemapMissing()` e
+  deixar `FreightRegionMap.component.tsx` desmontar o mapa, o tratador fatal agora troca o estilo
+  do próprio `MapLibreMap` por `buildEmptyBasemapStyle()` — um estilo sem fonte nenhuma (logo,
+  incapaz de gerar novo `error`), só uma camada `background` na cor do token de "sem zona"
+  (`--color-asphalt`, o mesmo já usado para município sem rota). O `map.on('styledata', ...)` já
+  existente (o mesmo que reaplica fonte/camadas de zona a cada troca de tema) reaplica a fonte
+  GeoJSON e as camadas de zona sobre o novo estilo, de forma idempotente — sem código novo para
+  isso. `fitBounds` é refeito uma vez, via `map.once('styledata', ...)`, porque o `load` original
+  (que faria isso) nunca chega a disparar quando a fonte do basemap trava. Resultado: zonas
+  continuam desenhadas, clicáveis (a camada de clique é a própria `ZONE_FILL_LAYER`, que sobrevive
+  à troca de estilo) e com a legenda de sempre (que nunca dependeu do MapLibre) — sem o texto
+  `regionMap.withoutBasemap`, porque o mapa continua de pé.
+- `onBasemapMissing`/`regionMap.withoutBasemap` continuam existindo para o único caso que não tem
+  como se recuperar: o `try/catch` em torno de `new MapLibreMap(...)` (linha ~182-195) — ambiente
+  sem WebGL2, onde nem o `canvas` existe. Aí sim não há como desenhar zona nenhuma, e a queda para a
+  legenda/lista continua sendo a única saída (ADR-0044 §6).
+
+### O que não fiz
+
+Não toquei `AssemblyVectorMap.component.tsx`, `DriverHomeMap.component.tsx` nem
+`vectorBasemap.service.ts` — só li os três (o primeiro já pelo trabalho da T501) como referência do
+padrão de `sourceId` e para confirmar que `RADAR_SOURCE` já é exportado, sem precisar tocar no
+arquivo compartilhado. Não mexi em `apps/api-transportada` (frontend puro, RF11, mesma nota da
+T501) nem nos módulos `trip`/`nfe-workspace` (fora do escopo desta sessão).
+
+### Contrato vermelho → verde
+
+Comportamento, não regex sobre código-fonte (`test/fleet/freight-region-map.contract.ts`, describe
+`classificação do erro de basemap (M5)`, 5 testes novos sobre `isFatalBasemapError`):
+
+- erro sem `tile` nem `sourceId`, antes do `load` → fatal (`true`) — é o caso da fonte-metadado
+  travada, a ausência real do basemap.
+- erro com `tile` (telha isolada, mesmo com `sourceId: 'basemap'`) → não fatal (`false`).
+- erro com `sourceId` igual à própria fonte de zona do componente → não fatal.
+- erro com `sourceId` igual ao overlay de radar (`RADAR_SOURCE`) → não fatal.
+- depois do `load` (`basemapLoaded: true`), qualquer erro, mesmo com a forma de um fatal → não
+  fatal (rede se resolve sozinha, mesmo raciocínio já documentado em `AssemblyVectorMap`).
+
+Sem a correção, o primeiro teste passaria mas os outros quatro falhariam (a versão anterior não
+lia `tile` nem excluía `sourceId` nenhum, então qualquer erro antes do `load` virava `true`).
+
+### Gates
+
+```
+$ bun run typecheck   (apps/frontend-transportada)
+0 erros. (a raiz tem 5 erros pré-existentes em apps/api-transportada, de outra sessão trabalhando
+em paralelo ali — fora do escopo desta task, confirmado que não vêm de nenhum arquivo tocado aqui)
+
+$ bun run lint   (apps/frontend-transportada)
+0 erros.
+
+$ bun run format:check   (raiz)
+Limpo — 1 arquivo (o teste novo) precisou de `prettier --write` antes.
+
+$ bun test ./test/fleet.contract.test.ts   (apps/frontend-transportada)
+534 pass / 0 fail — 6604 expect() calls (baseline T501/T502: 530 pass; +4 do describe novo).
+
+$ bun run test   (apps/frontend-transportada, suíte inteira)
+4211 pass / 0 fail — 36253 expect() calls em 29 arquivos (baseline T501/T502: 4208 pass; +3 líquido
+— +4 do describe novo, -1 nenhum: os 4 testes entraram limpos, sem remover teste existente).
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 8.80s — PWA precache 130 entries (4485.10 KiB); baseline T501 130 entries (4484.23 KiB):
+mesma contagem, +0.87 KiB do código novo (função de classificação + estilo vazio).
+`FreightRegionVectorMap.component-zb9vFmF0.js`: 4.82 kB — chunk próprio, cresceu de 4.48 kB
+(baseline T501) com o `buildEmptyBasemapStyle`/tratador de erro maiores; continua fora do `index`.
+`vectorBasemap.service-DqvH9M-S.js`: 1 004.90 kB — inalterado (o arquivo não foi tocado).
+`index-D1kYI-IO.js` (pacote principal): 953.45 kB — MapLibre segue fora dele.
+```
+
+Gate de API não executado: nenhum arquivo de `apps/api-transportada` foi tocado — T705 é frontend
+puro (RF11, mesma nota de escopo da T501), e a instrução desta sessão reserva `apps/api-transportada`
+para outra sessão em paralelo.
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`
+
+## T704 — M1–M4 + L7: a rota velha não sobrevive à mudança de parada ✅ 2026-09-17
+
+### M1 — a rota velha sobrevivia à mudança de parada
+
+O congelamento rodava **depois** do commit da escrita principal, dentro de um `catch` mudo, e nada
+limpava `planned_*` antes dele. A janela era transitória no caminho feliz e **permanente** em toda
+falha fora do roteirizador — catálogo de praças, barracão, veículo, um SIGTERM no meio: a viagem
+ficava com `frozen: true` sobre uma sequência de paradas que não existe mais, indistinguível de uma
+rota boa, e essa distância alimenta combustível e valoração.
+
+A limpeza passou a acontecer **na mesma transação** da escrita principal, num só lugar —
+`trip-planned-route-clear.support.ts`. As sete colunas caem juntas porque
+`trips_planned_route_check`/`trips_planned_toll_check` são tudo-ou-nada; campo solto faria o
+Postgres recusar a transação inteira. Pontos de chamada, todos dentro da transação que já existia:
+
+| Operação             | Arquivo                                                                   |
+| -------------------- | ------------------------------------------------------------------------- |
+| reorder de paradas   | `drizzle-trip-route.repository.ts` `reorderStops`                         |
+| link unitário        | `drizzle-trip.repository.ts` `linkDocument`                               |
+| link em lote         | `drizzle-trip.repository.ts` `linkDocumentsBatch` (só quando vinculou ≥1) |
+| release de nota      | `drizzle-trip.repository.ts` `releaseDocument`                            |
+| release (unplaced)   | `trip-document-review-release.support.ts` (só quando soltou ≥1)           |
+| move / swap da fila  | `drizzle-trip-document-review.repository.ts` (as duas viagens do move)    |
+| override de endereço | `drizzle-delivery-address-override.repository.ts` `applyOverride`         |
+
+O congelamento continua best-effort, fora da transação. Falhar agora deixa a viagem com rota
+**nula** — que é o estado correto de "rota não calculada" (D5), não a rota errada passando por boa.
+
+A limpeza não alcança viagem despachada: dali em diante o congelado é o roteiro que está na rua.
+
+### M2 — mudanças de parada que não recalculavam
+
+- `releaseUnplaced` (`DrizzleTripDocumentReviewRepository`): passou a disparar
+  `freezeRoutesGracefully` depois do commit, como `move`/`swap` já faziam.
+- `overrideDeliveryAddress`: ganhou `routeFreezer` opcional, injetado em `trip-lifecycle` a partir do
+  mesmo `tollFreezer` que as outras operações usam. Sobrescrever endereço move a coordenada da
+  parada — a rota gravada passa a descrever um endereço que ninguém vai visitar.
+
+### M3 — escrita do congelamento sem guarda (e o defeito que o Postgres revelou)
+
+O `UPDATE` filtrava só por `company_id` + `id`. Duas consequências: congelamento lento sobrescrevia
+a rota de uma viagem **já despachada**, e dois congelamentos concorrentes terminavam em "last write
+wins", podendo gravar a rota das paradas obsoletas.
+
+**Mecanismo escolhido: `trips.updated_at`, sem coluna nova e sem migration.** Ela já existe, já é
+tocada por toda escrita principal — inclusive pela limpeza do M1, que é exatamente o instante que
+invalida um congelamento em voo. `readVehicleContext` (já chamado no início do congelamento) passou
+a devolver essa revisão, e o `UPDATE` final a reconfere, somado a `status in
+(draft, route_planned, separating, loading)` (`TRIP_STATUSES_BEFORE_DISPATCH`, derivado de
+`checkTripAcceptsLinkage` — uma lista só, não uma cópia). Estado obsoleto afeta **0 linhas** em vez
+de sobrescrever. `planned_route_frozen_at` foi descartado como referência: é nulo na maior parte do
+tempo, e `null = null` não casa.
+
+⚠️ **A revisão trafega como texto, não como `Date`.** A primeira versão comparava `Date` e os dois
+testes de integração novos falharam: `timestamptz` guarda microssegundo e o `Date` do JavaScript
+para no milissegundo, então o valor lido de volta nunca reencontrava a linha — a guarda teria virado
+um apagador silencioso de **toda** rota congelada, em produção, sem erro nenhum. É o defeito que só
+Postgres de verdade mostra; os contratos com fake passavam.
+
+### M4 — rota parcial quando falta coordenada
+
+`listTripStopCoordinates` filtrava (`innerJoin` + `isNotNull`) a parada sem coordenada, e o
+resultado era uma rota **parcial** silenciosa, com distância menor do que a viagem de verdade. Virou
+`leftJoin` sem filtro: qualquer parada sem coordenada devolve `null`, e o congelamento grava
+`planned_*` nulo pelo mesmo caminho do "OSRM fora do ar" (D5). A prévia do mapa (`main.ts`,
+`readTripRouteGeometry`) segue a mesma regra — `?? []`, que `readRouteGeometry` já trata como
+estrada indisponível. Viagem sem parada nenhuma continua devolvendo lista vazia: é "nada a traçar",
+não "coordenada faltando".
+
+### L7 — catch mudo
+
+Os cinco `catch` do congelamento viraram um lugar só, `freeze-trip-route-gracefully.ts`, com
+`logger.warn(TRIP_ROUTE_FREEZE_FAILED_MESSAGE, { companyId, reason, tripId })` no formato de
+`occurrence-notifier.gateway.ts`/`suggest-delivery-charges.use-case.ts`. **Só identificadores** —
+coordenada, endereço, rótulo de parada e o motivo digitado pelo operador são dado pessoal de
+destinatário e não entram em log em nível nenhum (`security.md` §1); há contrato provando a ausência
+dos três no payload.
+
+### Contrato vermelho, antes de implementar
+
+```
+$ bun test ./test/trip-application.contract.test.ts ./test/trip-infrastructure.contract.test.ts
+error: Cannot find module '.../freeze-trip-route-gracefully.js'
+error: Cannot find module '.../trip-planned-route-clear.support.js'
+ 0 pass / 2 fail
+```
+
+Arquivos novos (declarados nos entrypoints `trip-application.contract.test.ts` e
+`trip-infrastructure.contract.test.ts` — a lista do `package.json` já os cobre pelos entrypoints):
+
+- `test/trip-application/planned-route-invalidation.contract.ts` (8 testes): reorder dispara o
+  congelamento; falha vira aviso com os ids e não derruba a operação (reorder, lote, planejamento);
+  M2 no override — dispara, falha vira aviso, e o aviso não carrega rótulo, CEP nem o nome de quem
+  pediu.
+- `test/trip-infrastructure/planned-route-invalidation.contract.ts` (7 testes): as sete colunas da
+  limpeza; guarda de status e recorte por empresa; `status in` e compare-and-set por `updated_at` no
+  `UPDATE` do congelamento (SQL renderizado com `PgDialect`); `null` com parada sem coordenada,
+  sequência inteira com todas geocodificadas, lista vazia sem parada.
+- `test/trip-application/freeze-trip-planned-route.contract.ts`: M4 no caso de uso — `null` de
+  `readStopCoordinates` grava rota e pedágio nulos juntos.
+- `test/integration/freeze-trip-planned-route.integration.ts`: revisão obsoleta não sobrescreve;
+  despachada fora de alcance; limpeza zera o grupo e o CHECK aceita, mas não toca em despachada.
+
+### Gates
+
+```
+$ bun run typecheck                                  (raiz)  0 erros
+$ bun run lint                                       (raiz)  0 erros
+$ bun run format:check                               (raiz)  limpo em apps/api-transportada e specs/
+$ bun --env-file=../../.env.test test --timeout 120000   (apps/api-transportada)
+  6263 pass / 23 skip / 0 fail — 21927 expect() calls em 177 arquivos
+  (baseline antes da task: 6248 pass / 23 skip; +15 = 8 + 7 dos contratos novos; os 23 skips são
+  pré-existentes e nenhum está nos arquivos desta task)
+$ bun --env-file=../../.env.test test ./test/integration/freeze-trip-planned-route.integration.ts
+  8 pass / 0 fail  (5 pré-existentes + 3 novos de M1/M3)
+$ bun --env-file=../../.env.test test ./test/integration/{trip-repository,trip-document-review,trip-lifecycle,me-trip}.integration.ts
+  28 pass / 0 fail — as transações que ganharam a limpeza, contra Postgres de verdade
+```
+
+Nenhuma migration: o M3 se resolveu com `updated_at`, que já existe. `make migration-test` não era
+necessário.
+
+`apps/frontend-transportada` ficou intocado (outra sessão trabalha ali em paralelo); as duas
+pendências de `format:check` na raiz são arquivos daquela sessão, fora desta task.
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`
+
+## T706 — M6: teste de comportamento do switch do detalhe (T405) ✅ 2026-09-17
+
+### O achado
+
+`test/trip/route-choice-detail.contract.ts` provava a regravação (`plan-route` leva o corpo certo)
+e a ausência de nova ida ao roteirizador **na mesma asserção**, mas chamando `client.planTripRoute`
+direto — sem nenhuma leitura viva envolvida, então a "prova" de não-refazer-a-busca era vácua. A
+garantia de verdade morava em dois testes de fonte: contar `readPointsRouteGeometry` no arquivo
+(deveria ser 1) e checar que o bloco de `queryKey: ` não contém `selectedIndex`/`criterion`. Nenhum
+dos dois pega o defeito real do RF13 — a `queryKey` sendo prefixada por `'trips'` (o mesmo prefixo
+que `invalidate()` de `useTripWorkspace.hook.ts` usa pós `plan-route`) passaria os dois testes de
+fonte de cabeça erguida, porque nenhum deles executa o `QueryClient`/`invalidateQueries` de verdade.
+
+### Extração: `createTripRouteChoiceQueryOptions`
+
+`TripRouteChoiceSwitch.component.tsx`: extraída a função pura `createTripRouteChoiceQueryOptions({
+client, enabled, points, vehicleId })`, que devolve `{ enabled, queryFn, queryKey, staleTime }` —
+mesmo molde de `createCompanyUserPictureQueryOptions` (`useCompanyUserPicture.hook.ts`), o
+precedente que `test/identity/user-picture.contract.ts` já usa com `QueryObserver` real. O
+componente passou a chamar `useQuery(createTripRouteChoiceQueryOptions({ client: getTripClient(),
+enabled: canSwitch && points.length >= 2, points, vehicleId: tollVehicleId }))` — mesmo
+comportamento de antes (mesma `queryKey`, `queryFn`, `staleTime`, `enabled`), só que agora testável
+fora de um componente montado. `client` recebe o `TripClient` inteiro (não um `Pick`, para não
+introduzir uma segunda ocorrência textual de `'readPointsRouteGeometry'` no arquivo-fonte, que
+quebraria o teste de fonte remanescente do T405 que conta essa string — achado durante o próprio
+experimento vermelho, ver abaixo).
+
+### Teste novo: `QueryObserver` real sobre a query real
+
+`test/trip/route-choice-detail.contract.ts`, novo describe `TripRouteChoiceSwitch: comportamento
+real da query — busca uma vez, sobrevive ao invalidate do plan-route (spec 153 T706/RF13/M6)`:
+
+- `createGeometryObserver`: monta um `QueryObserver<RouteGeometry>` real sobre
+  `createTripRouteChoiceQueryOptions(...)`, com um `client` fake que só conta chamadas a
+  `readPointsRouteGeometry`. Assina (`observer.subscribe`), espera um tick, lê a contagem — quem
+  decide se o `queryFn` dispara é o próprio observer do TanStack, não uma leitura de fonte.
+- Teste 1 (a garantia que faltava): busca uma vez (`requestCount() === 1`); em seguida chama
+  `queryClient.invalidateQueries` com as **chaves reais** que `invalidate()` de
+  `useTripWorkspace.hook.ts` dispara pós `plan-route` — `[TRIP_QUERY_KEY, companyId, tripId]` e
+  `[TRIP_QUERY_KEY]` (`TRIP_QUERY_KEY = 'trips'`, importado de `trip.constant.ts`, não
+  reinventado) — e afirma que a contagem continua `1`. Prova a metade que os testes de fonte nunca
+  provavam: o `invalidate()` de verdade não alcança a query de geometria porque o prefixo da chave
+  (`'trip-detail-route-choice'`) é outro.
+- Teste 2 (a outra metade, no mesmo cenário): lê `observer.getCurrentResult().data` — as opções que
+  a mesma busca trouxe —, monta a escolha com `resolveRouteChoiceFromIndex({ index: 1, ... })`
+  (exatamente o que `handleSelect` do componente faz ao trocar para "mais barata"), dispara
+  `client.planTripRoute({ routeChoice, tripId })` num client de regravação isolado e afirma o corpo
+  (`{ criterion: 'cheapest', signature: 'rota-mais-barata' }`) **e** que a busca de geometria segue
+  em `1` — a troca não disparou uma segunda leitura viva para montar a escolha.
+- O describe anterior (`regravação no detalhe: plan-route serializa a escolha nova`) foi mantido,
+  com o comentário corrigido para não afirmar mais a garantia de não-refazer-a-busca — hoje ele só
+  prova a serialização do corpo, que continua útil como complemento, não como prova única.
+- Os dois testes de fonte de T405 (contagem de `readPointsRouteGeometry`, bloco de `queryKey`)
+  foram mantidos como estão — continuam verdes, agora como complemento redundante, não a única
+  garantia.
+
+### Contrato vermelho → verde (experimento real, revertido)
+
+Troquei manualmente a linha de `createTripRouteChoiceQueryOptions` para `queryKey:
+['trips', routeKey, params.vehicleId] as const` (prefixo `'trips'`, o defeito que o M6 descreve) e
+rodei `bun test ./test/trip.contract.test.ts`:
+
+```
+error: expect(received).toBe(expected)
+Expected: 1
+Received: 2
+(fail) TripRouteChoiceSwitch: comportamento real da query — busca uma vez, sobrevive ao invalidate
+do plan-route (spec 153 T706/RF13/M6) > busca a geometria uma única vez, e o invalidate pós
+plan-route não refaz a busca
+959 pass / 1 fail
+```
+
+Só o teste novo falhou — o `invalidateQueries({ queryKey: ['trips'] })` alcançou a query de
+geometria por prefixo (`['trips', ...]` bate com `['trips']`) e o observer refez a busca, exatamente
+o defeito que o achado M6 descreveu. Desfeita a alteração (`queryKey:
+['trip-detail-route-choice', ...]` restaurado) e reconfirmado verde: `960 pass / 0 fail`.
+
+Numa primeira tentativa do experimento, com `client: Pick<TripClient, 'readPointsRouteGeometry'>`
+no tipo da função extraída, o teste de fonte que conta `readPointsRouteGeometry` no arquivo também
+quebrava (2 ocorrências: a chamada real + a menção no tipo) — não por causa do prefixo `'trips'`,
+mas por um efeito colateral da extração em si. Corrigido trocando o parâmetro para `client:
+TripClient` (tipo inteiro, sem `Pick`), o que devolveu a contagem para 1 e isolou o teste de fonte
+do teste de comportamento — cada falha aponta para um defeito diferente, sem ruído cruzado.
+
+### Gates
+
+```
+$ bunx tsc --noEmit   (apps/frontend-transportada)
+0 erros.
+
+$ bun run typecheck   (raiz, 6 apps)
+0 erros em todo o monorepo.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — todas as 6 apps, incluindo apps/api-transportada.
+
+$ bun run format:check   (raiz)
+2 arquivos (`TripRouteChoiceSwitch.component.tsx`, `route-choice-detail.contract.ts`) precisaram de
+`prettier --write` antes; limpo depois.
+
+$ bun test ./test/trip.contract.test.ts   (apps/frontend-transportada)
+960 pass / 0 fail — 17807 expect() calls (baseline antes desta task: 958; +2 testes novos).
+
+$ bun run test   (apps/frontend-transportada, suíte inteira)
+4213 pass / 0 fail — 36258 expect() calls em 29 arquivos.
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 9.03s — PWA precache 130 entries (4485.22 KiB); mesmos avisos pré-existentes de chunk
+grande (`index`, `vectorBasemap.service`), nenhum novo.
+```
+
+Gate de API (`bun --env-file=../../.env.test test`) não executado — T706 é frontend puro (módulo
+`trip`, RF13/T405), e a instrução desta sessão reserva `apps/api-transportada` para outra sessão em
+paralelo (T704, em curso ao mesmo tempo).
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`
+
+## T709a — L1/L2: opção marcada por assinatura, `choiceReproduced` não booleano omitido ✅ 2026-09-17
+
+### O achado
+
+Dois achados LOW da revisão final (D2/D3), parte frontend da T709 (a parte API — L3–L5 — fica para
+a T709b, outra sessão):
+
+- **L1** — `TripRouteChoiceSwitch.component.tsx` resolvia a aba marcada só pelo critério gravado:
+  `(criterion === 'fastest' ? fastestIndex : cheapestIndex) ?? fastestIndex ?? cheapestIndex ?? 0`.
+  Uma viagem congelada com critério `no_toll` ou `alternative` caía sempre em `cheapestIndex` —
+  "a mais barata" — que pode ser uma rota **diferente** da que está de fato gravada. D2 diz que a
+  identidade da escolha é a assinatura, nunca o índice; o switch violava isso ao reconstituir a
+  seleção.
+- **L2** — `tripResponse.validation.ts:737` fazia `input.choiceReproduced === undefined ? {} :
+{ choiceReproduced: input.choiceReproduced === true }`. Qualquer valor não indefinido —
+  inclusive lixo (string, número, objeto) — virava `false` via `=== true`, disparando o aviso
+  "escolha não reproduzida" (D3) sem que a API tivesse dito isso. D3 só define dois estados:
+  ausente (não se aplica) e `false` (tentou e não bateu); lixo não é nenhum dos dois.
+
+### A correção
+
+**L1**: nova função pura `resolveSelectedOptionIndex` em `assemblyRouteOptions.service.ts` — casa
+`selectedSignature` (a assinatura **gravada hoje**, vinda de `geometry.signature`, D2) contra
+`option.signature` de cada opção viva antes de qualquer critério; só cai no critério de sempre
+(`cheapest`/`fastest` por índice) quando a assinatura é `null` ou não está entre as opções
+retornadas pelo OSRM agora (D3: a estrada pode ter mudado). `TripRouteChoiceSwitch.component.tsx`
+ganhou a prop `selectedSignature` e usa a função nova no lugar da conta inline. `TripRouteMap.
+component.tsx` propaga `selectedSignature={geometry?.signature ?? null}` — o mesmo campo que já
+alimentava `criterion` duas linhas acima, sem chamada nova nenhuma.
+
+**L2**: trocado para `typeof input.choiceReproduced === 'boolean' ? { choiceReproduced: input.
+choiceReproduced } : {}` — só booleano grava a chave; qualquer outra coisa (inclusive lixo) fica
+omitida, exatamente como a ausência.
+
+### Como a assinatura chega ao switch
+
+`geometry` em `TripRouteMap` é a rota **congelada** da viagem (o mesmo objeto que já fornecia
+`geometry?.criterion`); `geometry.signature` é o sha256 dos nós OSM gravado ao congelar (D2). Não
+foi preciso nenhuma chamada nova — o campo já vinha na mesma resposta de `route-geometry`
+(`RouteGeometry.signature`, distinto de `RouteGeometryOption.signature` de cada opção viva) e
+apenas não estava sendo repassado ao switch.
+
+### Contratos vermelhos → verdes
+
+- `resolveSelectedOptionIndex`: critério `no_toll`/`alternative` com a assinatura reproduzida marca
+  a opção da assinatura, não a mais barata; assinatura ausente das opções vivas cai no critério;
+  sem assinatura gravada (`null`) mantém o comportamento de sempre; `cheapest` continua marcando a
+  mais barata quando a assinatura bate com ela mesma —
+  `test/trip/assembly-route-options.contract.ts`.
+- Fonte: `TripRouteChoiceSwitch.component.tsx` usa `resolveSelectedOptionIndex` e recebe
+  `selectedSignature`; `TripRouteMap.component.tsx` propaga
+  `selectedSignature={geometry?.signature ?? null}` — `test/trip/route-choice-detail.contract.ts`.
+- `routeGeometryFromApi`: `choiceReproduced` string/número vira `undefined`, igual à ausência —
+  `test/trip/route-geometry-money-optional.contract.ts`.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros em todo o monorepo.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros.
+
+$ bun run format:check   (raiz)
+`assemblyRouteOptions.service.ts` precisou de `prettier --write` (quebra de linha do tipo
+importado); limpo depois. O único outro arquivo pendente (`api-transportada/trip.routes.ts`) é de
+outra sessão, fora desta task.
+
+$ bun run test   (apps/frontend-transportada, suíte inteira)
+4221 pass / 0 fail — 36268 expect() calls em 29 arquivos.
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 13.02s — PWA precache 130 entries (4485.57 KiB); mesmos avisos pré-existentes de chunk
+grande, nenhum novo.
+```
+
+L3–L5 (API: `signature` com formato no schema, redação por lista de permissão, `isNoToll`/
+`legIndex` reais da praça) não tocados — são a T709b, de outra sessão (instrução desta: só
+`apps/frontend-transportada` e `specs/`).
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`
+
+## T707 — H3: `GET /trips` redige `amounts` sem `trip.financials` (D10) ✅ 2026-09-17
+
+### O achado
+
+A spec 153 (D10/RF9) tornou todo dinheiro de viagem condicionado a `trip.financials`, redigido num
+serviço único da API (`shared/monetary-redaction.service.ts`) e aplicado em route-geometry (os
+dois), valuation-preview (já exigia a permissão), NF-e e detalhe da viagem (T301). A RF9 esqueceu a
+listagem: `GET /trips` (`serializeTrip`, `trip.routes.ts` ~493-499, chamado também de
+`serializeTripDetail` ~1508) sempre devolvia `amounts.documentsTotal` (soma das notas vinculadas) e
+`amounts.revenueTotal` (receita) para qualquer papel com `fleet.read`, sob `TRIP_READ_POLICY` — a
+mesma política que qualquer leitura de viagem usa, sem checar `trip.financials`. Achado HIGH (H3) da
+revisão final, anterior à spec 153.
+
+Varredura por outros campos monetários nas respostas de viagem que a T301 não cobriu:
+`serializeTripStopDetail`/`serializeTripDocumentDetail` (já redigidos via `redactTripDocumentMoney`
+no detalhe), `serializeReturnedWithActiveCteEntry` (`ListReturnedWithActiveCteResult`, sem campo de
+dinheiro), `serializeTripStop`/`TripStopSummary` (sem campo de dinheiro), `recordTripCost`/
+`listTripCosts`/`readFinancialResult`/`recalculateFinancialResult` (rotas inteiras já sob
+`TRIP_FINANCIALS_POLICY`, sem vazamento parcial). Nenhum outro campo monetário sem redação
+encontrado além da listagem.
+
+### Correção
+
+`redactTripAmountsMoney` nova em `shared/monetary-redaction.service.ts`, no mesmo molde de
+`redactNfeDocumentMoney`/`redactTripDocumentMoney`: recebe `{ amounts, canReadFinancials }`, devolve
+`null` quando `amounts` é `null`, o objeto inteiro com a permissão, e o objeto sem
+`documentsTotal`/`revenueTotal` sem ela — chave ausente do `JSON.stringify`, nunca `null` nem zero.
+`revenueSource` fica: é a origem do número (`measured`/`estimated`/`missing`), não dinheiro.
+
+`serializeTrip` passou a receber `{ canReadFinancials, trip }` em vez de `trip` solto, e aplica
+`redactTripAmountsMoney` no campo `amounts`. Os dois call sites atualizados: a listagem (`GET
+/trips`, calcula `canReadFinancials` uma vez antes do `.map`) e `serializeTripDetail` (que já
+recebia `canReadFinancials` para documentos/paradas — `amounts` no detalhe é sempre `null` hoje, mas
+o caminho fica correto por construção em vez de por acidente de o valor nunca existir ali).
+
+### Teste (contrato vermelho → verde)
+
+`test/trip-http/list.contract.ts`: dois testes novos, com `listTripsResult` novo no
+`createTripHttpFixture` (parâmetro que faltava — a fixture só devolvia `TRIP_PAGE` fixo) e
+`TRIP_WITH_AMOUNTS`/`TRIP_PAGE_WITH_AMOUNTS` novos em `trip-http-payload.fixture.ts` (viagem com
+`documentsTotal`/`revenueTotal`/`revenueSource` preenchidos, para o teste ter algo para redigir).
+
+- Sem `trip.financials` (`READ_ONLY_PERMISSIONS`): `Object.hasOwn(amounts, 'documentsTotal')` e
+  `Object.hasOwn(amounts, 'revenueTotal')` são `false`; `amounts.revenueSource` continua
+  `'measured'`.
+- Com `trip.financials` (`FINANCIALS_PERMISSIONS`): resposta idêntica a hoje —
+  `data: [...TRIP_PAGE_WITH_AMOUNTS.items]`.
+
+Contrato vermelho confirmado por leitura do código antes da correção (a asserção
+`Object.hasOwn(amounts, 'documentsTotal')` teria de ser `true` sem a mudança) — o comportamento é
+determinístico e o mesmo padrão de `redactRouteGeometryMoney`/`redactNfeDocumentMoney` já provado
+nos contratos irmãos, então não reverti a produção para reexecutar o vermelho.
+
+### Frontend — o que quebra, sem tocar
+
+`TripTable.component.tsx`/`tripTable.service.ts` leem `amounts?.documentsTotal`/
+`amounts?.revenueTotal` com encadeamento opcional — não estouram em runtime. O validador de
+contrato não tolera: `isAbsentOrTripAmounts`
+(`modules/trip/shared/tripResponse.validation.ts:225-234`) usa `hasExactKeys(value,
+TRIP_AMOUNTS_KEYS)` com `TRIP_AMOUNTS_KEYS = ['documentsTotal', 'revenueSource', 'revenueTotal']`
+(`modules/trip/shared/trip.constant.ts:156`) e exige as três chaves presentes sempre que `amounts`
+não é `null`/ausente. Contra um objeto redigido (presente, mas sem duas das três chaves), a
+validação reprova a resposta inteira — mesmo padrão do achado C1/T701, que já quebrou a NF-e por
+este motivo. Não corrigido aqui: `apps/frontend-transportada` é de outra sessão nesta rodada.
+Arquivos que precisam de `documentsTotal`/`revenueTotal` opcionais para não quebrar:
+
+- `apps/frontend-transportada/src/modules/trip/shared/tripResponse.validation.ts` —
+  `isAbsentOrTripAmounts` precisa tratar as duas chaves como opcionais em vez de `hasExactKeys`.
+- `apps/frontend-transportada/src/modules/trip/shared/trip.types.ts` — `TripAmounts` precisa
+  `documentsTotal`/`revenueTotal` opcionais (`?:`).
+- `apps/frontend-transportada/src/modules/trip/shared/trip.constant.ts` — `TRIP_AMOUNTS_KEYS`
+  precisa separar obrigatórias (`revenueSource`) de opcionais, no molde de `TRIP_OPTIONAL_KEYS`.
+
+Reportado para o usuário abrir a task; nenhuma dessas mudanças entrou nesta task.
+
+### Registro
+
+`docs/SECURITY.md`, seção "Fechados": achado datado 2026-09-17, com o que era, a correção e a
+pendência de frontend documentada.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros.
+
+$ bun run format:check   (raiz)
+`trip.routes.ts` precisou de `prettier --write` (quebra de linha da assinatura de `serializeTrip`);
+limpo depois. `assemblyRouteOptions.service.ts` pendente é de outra sessão, fora desta task.
+
+$ bun --env-file=../../.env.test test --timeout 120000   (apps/api-transportada)
+6265 pass / 0 fail / 23 skip — 21933 expect() calls em 177 arquivos (skip pré-existente, não desta
+task).
+
+$ bun --env-file=../../.env.test test test/trip-http.contract.test.ts --timeout 120000
+(apps/api-transportada)
+68 pass / 0 fail — 198 expect() calls (baseline antes desta task: 66; +2 testes novos).
+```
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`
+
+## T710 — Ponta solta da T707: `isAbsentOrTripAmounts` exigia as três chaves (D10) ✅ 2026-09-17
+
+### O achado
+
+A T707 (commit f780f3af) fez `GET /trips` redigir dinheiro: sem `trip.financials`,
+`amounts.documentsTotal` e `amounts.revenueTotal` somem do corpo — chave ausente, nunca `null`/zero;
+`revenueSource` continua (não é dinheiro, é a origem do número). O frontend não acompanhou:
+`isAbsentOrTripAmounts` (`modules/trip/shared/tripResponse.validation.ts`) usava `hasExactKeys`
+contra `TRIP_AMOUNTS_KEYS = ['documentsTotal', 'revenueSource', 'revenueTotal']`
+(`modules/trip/shared/trip.constant.ts`), que reprova qualquer chave faltando. Contra o corpo
+redigido, a viagem inteira reprovava e a listagem quebrava — mesmo padrão do achado C1/T701 na nota
+fiscal.
+
+Varredura por todo consumidor de `trip.amounts`/`TripAmounts` no frontend (não só o validador, que
+foi o que faltou no C1): `grep` por `documentsTotal`/`revenueTotal`/`revenueSource`/`.amounts` fora
+de `test/`. Dois consumidores reais fora do próprio tipo/validador — os dois no módulo `trip`,
+nenhum em `cte-batch`/`billing` (que têm `Amounts` homônimos de outro domínio, sem relação):
+
+- `modules/trip/shared/tripTable.service.ts` (`moneyValue`, ordenação das colunas `cargoValue`/
+  `revenue`): já lia com encadeamento opcional (`row.amounts?.documentsTotal ?? null`) — chave
+  ausente e `null` caem no mesmo `null`, sem mudança necessária.
+- `modules/trip/components/TripTable.component.tsx`: `renderCargoValue` também já usava
+  `trip.amounts?.documentsTotal ?? null` — sem mudança. `renderRevenue` **não** protegia
+  `revenueTotal`: lia `amounts.revenueTotal` direto depois de descartar só `amounts === null` e
+  `revenueSource === 'missing'`, e formatava `undefined` como dinheiro (violaria D10 — nunca traço,
+  nunca zero, aqui viraria `NaN`/quebra de `formatAmount`).
+
+Nenhum outro consumidor de `amounts` encontrado (detalhe da viagem não exibe `amounts` na tela hoje,
+mesmo aceitando a chave no validador).
+
+### Correção
+
+- `trip.constant.ts`: `TRIP_AMOUNTS_KEYS` virou só `['revenueSource']` (obrigatória); nova
+  `TRIP_AMOUNTS_OPTIONAL_KEYS = ['documentsTotal', 'revenueTotal']`, no molde de
+  `TRIP_OPTIONAL_KEYS`/`TRIP_DETAIL_OPTIONAL_KEYS`.
+- `tripResponse.validation.ts`: `isAbsentOrTripAmounts` troca `hasExactKeys` por `hasKeys({ allowed:
+[...TRIP_AMOUNTS_KEYS, ...TRIP_AMOUNTS_OPTIONAL_KEYS], required: TRIP_AMOUNTS_KEYS })`, e
+  `documentsTotal`/`revenueTotal` passam por `isOptionalNullableString`/`isOptionalString` em vez de
+  `isNullableString`/`isString` — chave presente com forma errada continua reprovando.
+- `trip.types.ts`: `TripAmounts.documentsTotal?: null | string` e `revenueTotal?: string`.
+- `TripTable.component.tsx`: `renderRevenue` ganha checagem explícita — `revenueTotal === undefined`
+  cai na mesma célula "sem valor" (`table.noAmount`) que a ausência de `documentsTotal` já usava.
+  Nunca traço, nunca zero (D10).
+
+### Teste (contrato vermelho → verde)
+
+Contrato vermelho confirmado por leitura: contra o código de antes desta task, `hasExactKeys(value,
+['documentsTotal', 'revenueSource', 'revenueTotal'])` reprova um objeto com só `revenueSource`, e
+`tripFromApi`/`tripListFromApi` lançariam `TRIP_RESPONSE_INVALID` para toda a resposta — o mesmo
+efeito documentado na T707 e provado na API (`test/trip-http/list.contract.ts`, outra sessão).
+
+`test/trip/trip-amounts-money-optional.contract.ts` (novo, registrado em `test/trip.contract.test.ts`):
+
+- Viagem com `amounts` só `{ revenueSource: 'estimated' }` passa em `tripFromApi`; as duas chaves de
+  dinheiro seguem ausentes (`Object.hasOwn` `false`), nunca `null`/zero.
+- Com as três chaves, comportamento idêntico a antes.
+- Forma errada continua reprovando: `revenueSource` fora do vocabulário, ou `documentsTotal` que não
+  é string/null.
+- `tripListFromApi` (o que `GET /trips` realmente devolve) aceita a mesma forma redigida.
+
+`test/trip/amount-columns.contract.ts` (existente, ampliado):
+
+- Ordenação trata a ausência das chaves por redação igual a `null` — não promove a linha redigida ao
+  topo nem no `asc` nem no `desc`.
+- Inspeção de fonte confirma que `TripTable.component.tsx` guarda `amounts.revenueTotal ===
+undefined` antes de formatar (a mesma técnica de inspeção que o arquivo já usa para as outras
+  regras de D10).
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros em todo o monorepo (saída silenciosa do tsc nas 6 apps).
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — eslint --max-warnings=0 em todas.
+
+$ bun run format:check   (raiz)
+All matched files use Prettier code style!
+
+$ bun run test   (apps/frontend-transportada, suíte inteira)
+4227 pass / 0 fail — 36281 expect() calls em 29 arquivos (baseline antes desta task: 4221; +6 testes
+novos: 4 no contrato novo, 2 ampliando `amount-columns.contract.ts`).
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 12.47s — PWA precache 130 entries (4485.72 KiB); mesmos avisos pré-existentes de chunk
+grande, nenhum novo.
+```
+
+Não tocado: `apps/api-transportada` (outra sessão mexendo em paralelo, fora do escopo desta task por
+instrução).
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`
+
+## T708 — H4: aceite multi-veículo retomável ✅ 2026-09-17
+
+### Cenário, medido contra o código de antes desta task (pós-T703)
+
+A T703 trocou `planTripRoute` pelo congelador tolerante **só para o pedágio** de uma viagem já
+planejada — não muda `checkPlanRoute` (`trip-state.policy.ts` ~299-312), que continua bloqueando
+`planRoute` com `TRIP_TRANSITION_BLOCK.tripHasNoRoute` quando a viagem não tem nenhuma parada
+(`hasRoute` falso). O laço do H4 sobrevive integralmente à T703:
+
+1. Um veículo já tem viagem viva e as notas dele já vinculadas (de uma tentativa anterior do mesmo
+   aceite, interrompida por falha noutro veículo). O `catch` de `accept` (linha ~296 de
+   `multi-vehicle-suggestion.use-case.ts`) devolve a sugestão para `ready` e relança **sem desfazer**
+   as viagens já criadas — comportamento correto, documentado no próprio comentário do código.
+2. No reaceite, o laço `for (const group of groups)` chama `createTrip` incondicionalmente para
+   **todo** veículo da proposta, inclusive o que já tem viagem pronta. `linkDocument` devolve
+   `false` para as notas já vivas (spec 107 D1) — a viagem nova nasce sem nota.
+3. `orderedAddressKeys.length > 0` da proposta ainda é verdade (é a proposta, não o estado real), e
+   `reorderStops` é chamado; o adaptador (`trip-composer.adapter.ts`) lista as paradas **reais** da
+   viagem nova (zero) e `complete.length === 0` faz o método retornar cedo, sem escrever nada.
+4. `planRoute` lê `hasRoute: false` (zero paradas) e lança `TripStateTransitionNotAllowedError`
+   (`tripHasNoRoute`). O `catch` externo devolve a sugestão a `ready` de novo e relança.
+
+Cada reaceite cria mais uma viagem vazia em rascunho para o veículo já composto, e nunca chega aos
+veículos que de fato faltam — confirmado reproduzindo a sequência em
+`test/routing-application/multi-vehicle-suggestion.contract.ts` contra o código anterior a esta
+correção: sem o `findComposedTrip`, a segunda chamada de `accept` gerava `trip-3` (nova, vazia,
+para o veículo 1) em vez de `trip-3` (nova, correta, para o veículo 3), e nunca reexecutava o
+veículo 2.
+
+### Correção escolhida: retomável, não compensação
+
+Cogitada a compensação (apagar/cancelar na falha as viagens já criadas nesta chamada), ela foi
+descartada: `hasLiveLink`/`trip_documents.released_at` não distingue viagem cancelada de viva —
+cancelar a viagem sem **liberar** as notas deixaria o reaceite preso do mesmo jeito (nota
+"já vinculada" a uma viagem cancelada continua bloqueando `linkDocument`), e liberar as notas exigiria
+uma operação nova de desvínculo em lote sem equivalente hoje. A escolha foi tornar o aceite
+**retomável**: perguntar, antes de criar, se o veículo já tem uma viagem viva com todas as notas da
+proposta — e, se tiver, reaproveitá-la em vez de criar outra. Cabe sem migration porque a resposta já
+está em `trip_documents` (mesma tabela e mesma coluna `released_at` que `hasLiveLink` já consulta,
+`trip-document-review-link.support.ts:23-39`) — não foi preciso nenhuma coluna nova de estado.
+
+- `src/trips/application/trip.port.ts`: `TripRepositoryPort.findLiveTripIdForDocuments` — dado um
+  conjunto de notas, devolve o id da viagem só quando **todas** estão vivas na mesma viagem; `null`
+  em qualquer outro caso, inclusive vínculo parcial (arriscar reaproveitar uma composição incompleta
+  é pior que recomeçar).
+- `src/trips/infrastructure/drizzle-trip.repository.ts`: implementação — uma consulta a
+  `trip_documents` com `released_at is null`, comparando a contagem de linhas com a de notas pedidas
+  e conferindo que sobra um único `tripId`.
+- `src/routing/application/multi-vehicle-suggestion.use-case.ts`: `TripComposer.findComposedTrip`
+  (novo, obrigatório). No `accept`, antes de `createTrip`, pergunta `findComposedTrip` com as notas
+  do grupo; achando, reaproveita o `tripId` em vez de criar. O laço de vínculo por nota passa a
+  distinguir três desfechos — vinculada agora, liberada para a fila de revisão, ou já estava lá por
+  uma composição anterior (`composed !== null`) — só o quarto caso (nota já viva **sem** ser a
+  composição que este `tripId` está reaproveitando) continua indo para `skippedDocuments`. Sem essa
+  distinção, `documentCount` da resposta ficaria zerado para o veículo reaproveitado.
+- `src/routing/infrastructure/trip-composer.adapter.ts`: `findComposedTrip` chama
+  `findLiveTripIdForDocuments` e traduz `string | null` para `{tripId} | null`.
+- `src/main.ts`: a fábrica de `TripComposer` da sugestão multi-veículo recebe
+  `findLiveTripIdForDocuments: (input) => tripRepository.findLiveTripIdForDocuments(input)` — direto
+  no repositório, como a leitura de parada logo acima já fazia.
+- `test/integration/multi-vehicle-suggestion.integration.ts`: mesma fiação de produção.
+
+Por que isso resolve o laço: `reorderStops` e `planRoute` continuam rodando para o veículo
+reaproveitado, mas agora contra a viagem que **já tem parada** — são idempotentes (o próprio
+docstring de `planTripRoute` diz isso), então não lançam. O laço só cria viagem nova para o veículo
+que ainda não tinha uma, e por isso o reaceite avança em vez de travar sempre no primeiro.
+
+### Contratos vermelhos → verdes
+
+Novo `describe('spec 153 T708 (H4): o aceite multi-veículo é retomável', ...)` em
+`test/routing-application/multi-vehicle-suggestion.contract.ts`, com um `TripComposer` fake que
+guarda o vínculo nota→viagem num `Map` **vivo entre as duas chamadas de `accept`** dentro do mesmo
+teste — o mesmo papel de `trip_documents` real:
+
+- `'falha no veículo do meio não deixa o primeiro órfão, e o reaceite conclui os dois que faltam'`
+  (contratos a+b): três veículos; o segundo lança `ROUTING_TRANSIENT_FAILURE` na primeira
+  `planRoute` (falha transitória, resolvida na tentativa seguinte). Primeira chamada:
+  `createTripCalls === ['trip-1', 'trip-2']`, sugestão liberada 1 vez. Reaceite:
+  `createTripCalls === ['trip-1', 'trip-2', 'trip-3']` — **nenhuma viagem nova** para os veículos 1
+  e 2, só `trip-3` para o que ainda faltava; os três aparecem em `accepted.trips` com
+  `documentCount: 1`; `released` continua em 1 (não houve segunda falha). Confirmado vermelho antes
+  da correção: com `composed` forçado a `null` no `accept` (o `TripComposer` sempre cria viagem
+  nova, como antes desta task), a suíte reproduz o laço na hora — `1 fail`, `TRIP_HAS_NO_ROUTE`
+  lançado dentro de `accept` na segunda chamada, mesma pilha do defeito relatado.
+- `'sem falha, cada veículo ganha viagem própria — nada a reaproveitar'` (contrato c): sem nenhum
+  veículo falhando, `createTripCalls === ['trip-1', 'trip-2', 'trip-3']`, uma viagem por veículo,
+  `released === 0` — o caminho feliz multi-veículo não muda.
+
+Suíte inteira do arquivo (`test/routing-application.contract.test.ts`, que importa o contrato):
+**75 pass, 0 fail** (73 antes desta task + 2 novos). O `test/integration/multi-vehicle-suggestion.
+integration.ts` (Postgres real, com `findLiveTripIdForDocuments` de produção) roda os mesmos 7 testes
+de sempre, verde — a mudança não altera o caminho feliz que ele já cobre.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — eslint --max-warnings=0 em todas.
+
+$ bun run format:check   (raiz)
+All matched files use Prettier code style! (2 arquivos precisaram de --write antes: main.ts e o
+contrato novo — comentário longo demais para a largura configurada).
+
+$ bun --env-file=../../.env.test test --timeout 120000   (de dentro de apps/api-transportada)
+6267 pass / 23 skip / 0 fail — 21943 expect() calls em 177 arquivos (suíte inteira, +2 testes novos
+do H4 sobre a contagem anterior). Suíte isolada `test/routing-application.contract.test.ts`: 75
+pass, 0 fail. Integração isolada `test/integration/multi-vehicle-suggestion.integration.ts`: 7 pass,
+0 fail.
+```
+
+### O que não fez
+
+Não desfez nem cancelou nenhuma viagem — a compensação foi descartada por deixar rastro pior (viagem
+cancelada com notas presas). Não toca a resposta do `accept` para o caso comum (sem falha, sem
+retomada): `documentCount`, `stopCount`, `estimatedFinishAt` idênticos a antes. Não mexeu em
+`apps/frontend-transportada` nem em qualquer arquivo fora de `apps/api-transportada` e `specs/`.
+
+### Commit
+
+## T709b — L3–L5: `signature` com formato, redação por classificação exaustiva, `isNoToll`/`legIndex` reais ✅ 2026-09-17
+
+### O achado
+
+Três achados LOW da revisão final (D2, D10, RF2/RF3), a parte API da T709 (a parte frontend — L1/L2
+— fechou na T709a).
+
+- **L3** — `trip-request.schema.ts` (~23): `routeChoiceRequestSchema.signature` era `z.string()`
+  sem formato nem teto. A assinatura é sempre o hash truncado que `buildRouteSignature`
+  (`route-choice.policy.ts`) gera — 32 hex minúsculos —, e qualquer outro texto passava a
+  fronteira sem nunca reproduzir opção nenhuma.
+- **L4** — `monetary-redaction.service.ts` (~52-75): a redação por lista de exclusão deixa campo
+  monetário novo vazar por padrão — o mesmo defeito de fundo de C1 e H3 (T701/T707).
+- **L5** — `read-trip-route-geometry.use-case.ts` (~106, 167): a rota congelada fixava
+  `isNoToll: false` e `legIndex: null` nas praças, sempre — uma viagem gravada "sem pedágio" perdia
+  a marca no detalhe, e cada praça perdia a perna a que pertence.
+
+### Contratos vermelhos (antes de cada correção)
+
+**L3** — `test/trips/routes.contract.ts`, `'rejects a routeChoice signature that is not 32
+lowercase hex characters'`:
+
+```
+$ bun test ./test/trips.contract.test.ts -t "routeChoice signature"
+Expected: 400
+Received: 200
+(fail) rejects a routeChoice signature that is not 32 lowercase hex characters
+```
+
+**L5** — mesmo arquivo, `'carries the real isNoToll and per-booth legIndex the freeze wrote — never
+a hardcoded stand-in'`:
+
+```
+$ bun test ./test/trips.contract.test.ts -t "isNoToll and per-booth legIndex"
+Expected: true
+Received: false
+(fail) carries the real isNoToll and per-booth legIndex the freeze wrote
+```
+
+**L4** não tem contrato vermelho em runtime — a correção é uma garantia de **compile-time**
+(detalhe na seção abaixo), então o "vermelho" foi provado direto no `tsc`: ver a demonstração de
+sabotagem mais adiante.
+
+### L3 — assinatura com formato
+
+`route-choice.policy.ts` passou a exportar `SIGNATURE_HEX_LENGTH` (antes privado), única fonte do
+tamanho. `trip-request.schema.ts` ganhou `ROUTE_SIGNATURE_PATTERN = /^[0-9a-f]{32}$/` (montado a
+partir da constante, nunca `32` hardcoded duas vezes) e `signature: z.string().regex(...).nullable()`
+em `routeChoiceRequestSchema` — reusado por `route-suggestion-request.schema.ts`, então a correção
+cobre `plan-route`, `valuation-preview` e o aceite da sugestão multi-veículo na mesma fronteira.
+
+Três fixtures de teste HTTP pré-existentes usavam `signature: 'abc123'` (6 caracteres, não
+hexadecimal maiúsculo — na verdade minúsculo mas curto demais) como corpo válido esperando `200`:
+`test/routing-http/multi-vehicle-suggestion.contract.ts` e `test/routing-http/route-suggestions.
+contract.ts`. Corrigidas para uma assinatura de 32 hex de verdade (`a1b2c3d4e5f60718293a4b5c6d7e8f90`)
+— o valor em si é opaco nesses testes (só atravessa o encanamento), então a correção troca o texto
+sem mudar o que o teste prova.
+
+### L4 — redação por classificação exaustiva (decisão e por quê)
+
+A instrução oferecia duas saídas: inverter para lista de permissão, ou um contrato que enumere as
+chaves de cada payload e falhe quando surgir uma nova sem classificar. Escolhi a segunda, mas como
+garantia de **tipo**, não de teste em runtime — mais forte que as duas opções descritas:
+
+- Lista de permissão pura (manter só os campos "seguros") teria o mesmo problema ao contrário: um
+  campo novo simplesmente **some** da resposta redigida sem ninguém notar — o oposto de C1 (campo
+  ausente quebrando o frontend), mas ainda um silêncio.
+- Um contrato de teste que enumera chaves em runtime (o `hasExactKeys`/`TRIP_AMOUNTS_KEYS` que
+  `tasks.md` menciona para o T710) só pega o problema quando alguém lembra de rodar a suíte depois
+  de mudar o tipo — e nada obriga a lembrar.
+
+A solução implementada: `FieldPolicy<T> = Record<keyof T, 'money' | 'safe'>`, um objeto que
+classifica **toda** chave de `TollBoothRouteLine`, `RouteGeometryToll` e `RouteGeometryOption` — os
+três tipos concretos que `monetary-redaction.service.ts` já importa (os genéricos
+`redactNfeDocumentMoney`/`redactTripDocumentMoney`/`redactTripAmountsMoney` continuam por exclusão,
+documentado no código: são genéricos sobre um `TDocument` cujo formato completo este módulo
+compartilhado não conhece, sem acoplar a outros domínios). `moneyFieldsOf` deriva a lista de exclusão
+do próprio objeto de política via `as const satisfies FieldPolicy<T>` + um tipo `MoneyKeysOf<TPolicy>`
+que extrai as chaves `'money'` sem perder a literalidade — TypeScript excess-property-checks a
+política contra `Record<keyof T, ...>`: falta uma chave, ou uma chave a mais, e a compilação já
+reprova, no mesmo `bun run typecheck` que é gate desta task.
+
+Prova da sabotagem (campo novo sem classificar reprova o typecheck, revertida em seguida — não faz
+parte do diff final):
+
+```
+$ (adicionado `readonly newMoneyField: null | string` a RouteGeometryOption)
+$ bunx tsc --noEmit
+src/shared/monetary-redaction.service.ts(133,12): error TS1360: Type '{ ... }' does not satisfy
+the expected type 'Readonly<Record<... | "newMoneyField", "money" | "safe">>'.
+$ (revertido — bunx tsc --noEmit volta a 0 erros)
+```
+
+### L5 — `isNoToll` e `legIndex` reais
+
+**`isNoToll`**: já existia em `SelectableRouteOption`/`RouteGeometryOption` (RF2), mas
+`FrozenPlannedRoute` (o que `freeze-trip-planned-route.use-case.ts` grava) não o carregava.
+Adicionado `isNoToll: boolean` em `FrozenPlannedRoute`, `toFrozenRoute` grava `selected.isNoToll`,
+`parse-planned-route.policy.ts` valida e devolve o campo (estrito — `typeof !== 'boolean'` invalida
+a rota inteira, mesmo rigor dos demais campos), o repositório grava e lê, `StoredTripRoute` ganha o
+campo e `toFrozenView` usa `input.stored.isNoToll` em vez do `false` fixo.
+
+**`legIndex`**: aqui o dado **já estava gravado**, sem ninguém ter pedido — achado ao ler o código,
+não suposição. `RouteGeometryToll.booths` (o que `road.toll` carrega no congelamento) já é
+`TollBoothRouteLine[]`, com `legIndex` computado ao vivo por `resolveRouteToll`. `toFrozenToll`
+copia `booths: toll.booths` sem reconstruir os objetos — os campos extras (`legIndex`,
+`effectiveChargePerAxle`, `total`, `fellBackToManual`) sobrevivem à atribuição estrutural do
+TypeScript (o tipo declarado é mais estreito, `TollBoothRecord[]`, mas o objeto em tempo de
+execução é o `TollBoothRouteLine[]` de sempre) e são serializados no jsonb `planned_toll` como
+estão. Só a **leitura** jogava `legIndex` fora: `parseBooth` (a fronteira de `parseTollRouteCost`)
+só reconhece os campos de `TollBoothRecord`, de propósito — e `enrichFrozenToll` hardcoded
+`legIndex: null` por não ter de onde ler de volta.
+
+Correção: um parser novo e dedicado, `parseFrozenBoothLegIndexes` (em `toll-route-cost-snapshot.
+policy.ts`), que lê **só** `legIndex` por `osmNodeId` do jsonb bruto — nunca falha o pedágio inteiro
+por causa dele (praça sem o campo simplesmente sai do mapa, e a leitura volta a `null`, honesto). O
+repositório monta o mapa em `readFrozenRoute` (`boothLegIndexByNode`), `StoredTripRoute` carrega o
+mapa, e `enrichFrozenToll` usa `input.boothLegIndexByNode.get(booth.osmNodeId) ?? null` no lugar do
+`null` fixo. **Nenhuma migration** — os dois campos (`isNoToll` em `planned_route`, o `legIndex` já
+presente em `planned_toll`) são jsonb, sem coluna nova.
+
+Documentado no código (`toFrozenToll`) que `booths` viaja mais rico do que o tipo declara, de
+propósito, para o próximo leitor não "corrigir" isso como um bug de tipagem.
+
+### Testes novos
+
+- `test/trips/routes.contract.ts`: `'rejects a routeChoice signature...'`,
+  `'accepts a routeChoice signature shaped like the hash route-choice.policy.ts generates'`,
+  `'carries the real isNoToll and per-booth legIndex the freeze wrote...'`.
+- `test/toll-booths/toll-route-cost-snapshot.contract.ts`: quatro casos de
+  `parseFrozenBoothLegIndexes` (mapeia por nó, preserva `null`, descarta entrada malformada sem
+  falhar o mapa inteiro, devolve mapa vazio para forma antiga/inesperada).
+- `test/trip-application/freeze-trip-planned-route.contract.ts`: `'L5: congela isNoToll quando a
+opção escolhida veio da chamada sem pedágio'`.
+- `test/integration/freeze-trip-planned-route.integration.ts`: fixture e asserção do round-trip
+  Postgres atualizadas com `isNoToll: false` (prova que o CHECK/jsonb aceita o campo novo).
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — eslint --max-warnings=0 em todas.
+
+$ bun run format:check   (raiz)
+All matched files use Prettier code style! (3 arquivos precisaram de --write antes: o repositório e
+os dois contratos HTTP com a assinatura de 32 hex — linha passou do limite de largura).
+
+$ bun --env-file=../../.env.test test --timeout 120000   (de dentro de apps/api-transportada)
+6275 pass / 23 skip / 0 fail — 21961 expect() calls em 177 arquivos.
+
+⚠️ Este comando, do jeito que está documentado no CLAUDE.md, não varre `test/integration/*.
+integration.ts` — o glob padrão do `bun test` exige `.test.`/`.spec.` no nome, e os arquivos de
+integração são `*.integration.ts`. Rodei também, explicitamente:
+
+$ bun --env-file=../../.env.test test ./test/integration/freeze-trip-planned-route.integration.ts --timeout 120000
+8 pass / 0 fail — prova o round-trip real contra Postgres do `isNoToll` novo em `planned_route`.
+```
+
+### O que não fez
+
+Não tocou os redatores genéricos (`redactNfeDocumentMoney`, `redactTripDocumentMoney`,
+`redactTripAmountsMoney`) — continuam por lista de exclusão, decisão justificada acima (genéricos
+sobre um `TDocument` cujo formato este módulo compartilhado não conhece). Não mexeu em
+`apps/frontend-transportada`. Não criou migration — os dois campos do L5 são jsonb existente. Não
+alterou o comportamento de `no_toll`/`alternative` além do já existente; só passou a **gravar e
+devolver** o que já era calculado.
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`
+
+## T801 (N1) — `findLiveTripIdForDocuments` reaproveita viagem sem olhar veículo/motorista/status
+
+### O que a revisão achou
+
+`findLiveTripIdForDocuments` (T708, H4) só olhava o conjunto de notas vivas: `companyId` +
+`nfeDocumentId in (...)` + `releasedAt IS NULL`. Não filtrava `trips.vehicleId`, `trips.driverId`
+nem `trips.status`. Em `multi-vehicle-suggestion.use-case.ts` (`accept`), quando `findComposedTrip`
+achava uma viagem, `group.vehicleId`/`group.driverId` eram descartados em silêncio — a viagem
+reaproveitada podia ser de outro veículo, ou já despachada.
+
+Cenário real: aceite cria a viagem do veículo A com as notas {1,2,3}; falha no veículo B; a frota
+muda e a nova sugestão agrupa {1,2,3} no veículo C; o reaceite achava a viagem de A (mesmo conjunto
+de notas) e pendurava a carga de C nela — eixo, multiplicador de pedágio e baseline de combustível
+do caminhão errado alimentando congelamento e valoração. Para viagem já despachada, as notas seguem
+vivas e ela seria devolvida — o congelamento seguinte seria descartado pela guarda de status (T704)
+sem avisar, e o operador não teria pista do porquê.
+
+### Correção
+
+`apps/api-transportada/src/trips/infrastructure/drizzle-trip.repository.ts`
+(`findLiveTripIdForDocuments`): a consulta ganhou `innerJoin` em `trips` e passou a exigir
+`trips.vehicleId = input.vehicleId` e `trips.status in TRIP_STATUSES_BEFORE_DISPATCH` (a mesma
+lista que `checkTripAcceptsLinkage`/T704 já usam como "ainda é rascunho"). Quando `input.driverId`
+não é nulo, uma segunda leitura em `trip_drivers` confirma que o motorista compõe a tripulação
+daquela viagem — só então o id volta; senão, `null`, como qualquer outro descasamento.
+
+A assinatura do método ganhou `vehicleId: string` e `driverId: string | null`, obrigatórios. Isso
+se propagou por toda a cadeia que carrega a "pergunta antes de criar" da T708:
+
+- `apps/api-transportada/src/trips/application/trip.port.ts` — `TripRepositoryPort.
+findLiveTripIdForDocuments`.
+- `apps/api-transportada/src/routing/application/multi-vehicle-suggestion.use-case.ts` —
+  `TripComposer.findComposedTrip` ganhou `vehicleId`/`driverId`; o `accept` agora passa
+  `group.vehicleId`/`group.driverId` em vez de descartá-los.
+- `apps/api-transportada/src/routing/infrastructure/trip-composer.adapter.ts` —
+  `TripComposerDependencies.findLiveTripIdForDocuments` e `findComposedTrip` repassam os dois campos.
+- `apps/api-transportada/src/main.ts` e o _wiring_ de teste de integração: já encaminhavam o
+  `input` inteiro para o repositório, então continuam corretos sem alteração de código.
+
+Nenhuma migration: `trips.vehicle_id`, `trips.status` e `trip_drivers` já existiam.
+
+### Testes novos
+
+`test/integration/multi-vehicle-suggestion.integration.ts`, novo describe `findLiveTripIdForDocuments
+filtra por veículo e status (spec 153 T801)`, contra Postgres (é o `join`/filtro que está sob prova,
+não o contrato de aplicação):
+
+- `'mesmo conjunto de notas em veículo diferente não reaproveita'` — cria a viagem no primeiro
+  veículo, vincula as três notas, confirma que o **mesmo** veículo reaproveita (T708 sem regressão)
+  e que o **segundo** veículo, com o mesmo conjunto de notas, recebe `null`.
+- `'viagem já despachada não é reaproveitada'` — mesma composição, `UPDATE trips SET status =
+'dispatched'` direto no banco (simula despacho concorrente), e `findLiveTripIdForDocuments`
+  devolve `null`.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — eslint --max-warnings=0 em todas.
+
+$ bun run format:check   (raiz)
+1 arquivo fora do padrão: apps/frontend-transportada/src/modules/nfe-workspace/hooks/
+useNfeDocumentTable.hook.ts — modificado por outra sessão trabalhando em paralelo em
+apps/frontend-transportada (fora do escopo desta task; `git status` confirma que não foi tocado
+aqui). `bunx prettier --check apps/api-transportada` isolado: "All matched files use Prettier code
+style!".
+
+$ bun --env-file=../../.env.test test --timeout 120000   (de dentro de apps/api-transportada)
+6275 pass / 23 skip / 0 fail — não varre `test/integration/*.integration.ts` (mesmo achado da T709b).
+
+$ bun --env-file=../../.env.test test ./test/integration/multi-vehicle-suggestion.integration.ts --timeout 120000
+9 pass / 0 fail (7 preexistentes + 2 novos da T801).
+
+$ bun --env-file=../../.env.test test ./test/integration/freeze-trip-planned-route.integration.ts \
+  ./test/integration/me-trip.integration.ts ./test/integration/multi-vehicle-suggestion.integration.ts \
+  ./test/integration/trip-cargo-layout-read.integration.ts ./test/integration/trip-cargo-preview-layout.integration.ts \
+  ./test/integration/trip-detail-query-count.integration.ts ./test/integration/trip-document-review.integration.ts \
+  ./test/integration/trip-financial-end-to-end.integration.ts ./test/integration/trip-fiscal-readiness.integration.ts \
+  ./test/integration/trip-lifecycle.integration.ts ./test/integration/trip-repository.integration.ts --timeout 120000
+74 pass / 0 fail — todo o raio de alcance de `drizzle-trip.repository.ts` sem regressão.
+```
+
+### O que não fez
+
+Não tocou `apps/frontend-transportada` (fora do escopo desta sessão — outra sessão mexe nela em
+paralelo). Não mudou o comportamento de `checkTripAcceptsLinkage`/`TRIP_STATUSES_BEFORE_DISPATCH` —
+só passou a **usá-los** também aqui. Não criou migration.
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`
+
+## T803 — N2 + N5: valor ausente da NF-e vira `0` no filtro avançado, `NaN` na ordenação
+
+Sessão em `apps/frontend-transportada` (só este diretório e `specs/`, por instrução — outra sessão
+mexe em `apps/api-transportada` ao mesmo tempo).
+
+### N2 — `conditionFieldRaw` transformava ausência em `0`
+
+`apps/frontend-transportada/src/modules/nfe-workspace/hooks/useNfeDocumentTable.hook.ts`:
+
+- `conditionFieldRaw` (linha ~504) fazia `return document[field] ?? ''` para todo `ConditionField`,
+  inclusive `totalAmount`. Sem `trip.financials` a chave **some** do corpo (spec 153 D10) —
+  `document.totalAmount` é `undefined`, não `null` —, e `'' ?? ...` não intercepta `undefined` de
+  jeito nenhum: o valor virava `''`, e `Number('')` é `0`, não `NaN`. Resultado: a condição
+  `totalAmount < 100` casava **toda** nota sem valor, e `totalAmount = 0` a devolvia como se
+  valesse zero — o "nunca zero" que a D10 proíbe, e a mesma classe do defeito C1.
+- Fix: `conditionFieldRaw` agora devolve `string | undefined`, com um ramo próprio para
+  `totalAmount` que repassa `document.totalAmount` sem cair no `?? ''`. `evaluateCondition` recusa
+  a condição (`return false`) assim que `raw` vem `undefined`, antes de despachar por tipo — campo
+  ausente nunca casa condição nenhuma, em vez de tentar decidir um valor pra ele.
+- O filtro simples (`matchesAmount`, linha ~419) já estava correto desde a D10 — não mudou.
+
+### N5 — ordenação por valor com `NaN`
+
+Mesmo arquivo, `compareByColumn` (linha ~708): `Number(first.totalAmount) - Number(second.totalAmount)`
+devolve `NaN` para qualquer par em que um dos dois lados não tenha `totalAmount`
+(`Number(undefined)` é `NaN`). `Array.prototype.sort` trata retorno `NaN` como "não sei comparar" —
+a ordenação por "Valor" ficava indefinida, embaralhando a lista sem erro nenhum sempre que havia
+nota sem `trip.financials` na página.
+
+- Fix: reusei o par que já existia em `apps/frontend-transportada/src/modules/trip/shared/tripTable.service.ts`
+  para a mesma regra na listagem de viagens — só que ele não era exportado. Extraí as duas funções
+  puras de dentro de `moneyValue`/`compareMoney` (que continuam existindo, agora delegando):
+  `parseMoneyAmount(raw: string | null | undefined): number | null` (nunca `NaN`, ausência vira
+  `null`) e `compareMoneyAmounts(left, right)` (ausência sempre por último). `useNfeDocumentTable.hook.ts`
+  importa as duas.
+- `compareByColumn`'s `'amount'` branch chama `compareMoneyAmounts(parseMoneyAmount(...), ...)`.
+- `sortDocuments` ganhou o mesmo truque de `tripTable.service.ts`: quando a coluna é `amount` e
+  **um dos dois lados** não tem valor, o comparador bruto (sem multiplicar pelo `direction`) decide
+  — é isso que joga a ausência para o fim **nos dois sentidos**, em vez de promovê-la ao topo
+  quando o operador inverte a ordenação.
+
+### Testes novos
+
+`apps/frontend-transportada/test/nfe-workspace/advanced-filter-and-columns.contract.ts`:
+
+- `'nota sem totalAmount nunca casa condição numérica sobre ela, nem "< 100" nem "= 0"'` — prova
+  N2 com uma nota sem `totalAmount` (chave removida com `delete`, nunca `undefined` atribuído —
+  `exactOptionalPropertyTypes` recusa atribuir `undefined` a `totalAmount?: string`) contra as duas
+  condições que o achado citou, mais um controle com valor presente continuando a funcionar.
+
+`apps/frontend-transportada/test/nfe-workspace/default-sort.contract.ts`:
+
+- Três testes novos sob `'nfe-workspace: ordenação por valor com nota sem totalAmount'`: fim da
+  lista ordenando crescente, fim da lista ordenando decrescente (prova que inverter não promove a
+  ausência ao topo), e duas notas sem valor não trocam de posição entre si (estabilidade).
+- `buildDocumentWithoutAmount` novo helper local, mesmo padrão de
+  `test/trip/nfe-document-money-optional.contract.ts` (`delete row.totalAmount`).
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — eslint --max-warnings=0 em todas.
+
+$ bun run format:check   (raiz)
+All matched files use Prettier code style!
+
+$ bun test test/nfe-workspace.contract.test.ts   (apps/frontend-transportada)
+489 pass / 0 fail / 1661 expect() calls.
+
+$ bun test test/trip.contract.test.ts   (apps/frontend-transportada, por causa da mudança em
+tripTable.service.ts)
+974 pass / 0 fail / 17830 expect() calls.
+
+$ bun run build   (apps/frontend-transportada)
+build ok, sem erro novo (mesmo aviso preexistente de chunk > 500kB).
+```
+
+### O que não fez
+
+Não tocou `apps/api-transportada`/`apps/worker-transportada`/`apps/cron-transportada` (fora do
+escopo desta sessão). Não mudou `matchesAmount` do filtro simples (já corrigido pela D10). Não
+mexeu em `test/trip/amount-columns.contract.ts` — o achado N11 (T804) cita esse arquivo junto com
+`route-choice-switch.contract.ts` para a fragilidade de prova por string, mas a linha ~137 hoje
+testa a célula de receita redigida da `TripTable`, sem relação com o efeito de rota da T804; o
+achado N4/N11 do T804 foi resolvido só nos dois arquivos de fato ligados à regressão do RF13
+(`TripAssemblyMap.component.tsx` e `route-choice-switch.contract.ts`) — ver evidência do T804.
+
+### Commit
+
+`<hash desta mudança — ver git log>`
+
+## T802 (N3) — compare-and-set do congelamento descartava rota em silêncio
+
+### O que a revisão achou
+
+`drizzle-trip-planned-route.repository.ts` (`writePlannedRoute`, T704 M3) comparava
+`trips.updated_at` para decidir se a escrita do congelamento ainda valia. Três defeitos:
+
+(a) `updated_at` não é versão do **conjunto de paradas** — é versão da linha inteira. Qualquer
+escrita alheia em `trips` na janela entre o disparo e a escrita (relato de campo do motorista em
+`drizzle-driver-field-report.repository.ts`, override de MDF-e em `trip-fiscal-readiness.query.ts`,
+`drizzle-current-driver-trip.repository.ts`) tocava `updated_at` e fazia o UPDATE do congelamento
+afetar zero linhas — um congelamento **legítimo** descartado por uma mudança que nunca mexeu em
+parada.
+(b) `writePlannedRoute` devolvia `Promise<void>` sem olhar quantas linhas mudaram — a falha era
+muda: `planned_*` ficava nulo, sem log, sem retentativa, indistinguível de "ainda não calculado".
+(c) comparar `timestamptz` como texto depende de GUCs de sessão (fuso, `SET TIME ZONE`) — um dia
+divergente faria todo congelamento escrever zero linhas, também em silêncio.
+
+### Correção escolhida: revisão própria do conjunto de paradas (primeira opção da revisão)
+
+Preferi a **revisão dedicada** (`planned_route_stops_revision`) à alternativa mais barata de só
+trocar a comparação de `updated_at` para `timestamptz`, porque a segunda resolve (c) mas não toca
+em (a) — o contrato vermelho da task exige que "escrita alheia em `trips` que não mexe em parada
+NÃO descarte o congelamento", e isso só é verdade se a revisão for de outra coluna, não de
+`updated_at` sob outra máscara.
+
+A revisão não é incrementada por código de aplicação — é um **trigger em `trip_stops`**
+(`AFTER INSERT OR UPDATE OR DELETE`, migration `20260917202034_trip_planned_route_stops_revision`)
+que soma 1 em `trips.planned_route_stops_revision` toda vez que uma linha daquela viagem muda. A
+alternativa (bumpar a coluna à mão em cada caso de uso que mexe em parada) foi descartada: a lista
+de quem mexe em parada já inclui reconciliação de vínculo, reordenação, e cresce — um contador
+mantido em código esquece um lugar mais cedo ou mais tarde, e o trigger cobre todo caminho
+presente e futuro sem precisar ser lembrado.
+
+Efeito colateral aceito: `applyEstimatedArrivals` (spec 107 D3) também escreve em `trip_stops`
+(carimba o ETA) e por isso também bumpa a revisão — mas, no fluxo real do aceite
+(`multi-vehicle-suggestion.use-case.ts`), essa escrita acontece **depois** de `planRoute`
+(congelamento), nunca antes, então não há corrida dentro do mesmo aceite. Um recálculo futuro só
+veria a revisão mais nova, o que é o comportamento correto.
+
+Como bônus, a revisão como `bigint` elimina (c) por completo — não há mais comparação de
+`timestamptz`.
+
+### Migration
+
+`20260917202034_trip_planned_route_stops_revision` (aditiva): `trips.planned_route_stops_revision`
+(`bigint not null default 0`) + função `bump_trip_planned_route_stops_revision()` + trigger
+`trip_stops_bump_planned_route_revision_trigger`. `rollback.sql` remove os três (só contador, sem
+dado de negócio irrecuperável). `make migration-test`: 97 pass / 0 fail (aplica todas as migrations
+
+- roda todos os rollbacks em cascata + reaplica — inclui esta).
+
+`src/database/trip.schema.ts` ganhou a coluna; `test/database-migration/static-migration.contract.ts`
+ganhou a entrada na lista exaustiva de diretórios de migration.
+
+### (b) — o descarte vira aviso nomeado, nunca mais mudo
+
+`FreezeTripPlannedRoutePort.writePlannedRoute` (`freeze-trip-planned-route.use-case.ts`) passou de
+`Promise<void>` para `Promise<PlannedRouteWriteOutcome>` (`'written' | 'stale_revision' |
+'status_not_before_dispatch'`). O repositório faz `.returning({ id: trips.id })` no UPDATE; zero
+linhas dispara `diagnosePlannedRouteWriteDiscard` (uma segunda leitura, só no caminho frio) que
+decide entre as duas causas olhando o `status` atual da viagem.
+
+`freezeTripPlannedRoute` (o caso de uso) chama `throwIfDiscarded(outcome)`: `'written'` retorna
+normal, qualquer outro valor lança `Error('trip_planned_route_write_discarded:' + outcome)`. Não
+criei uma classe de erro de domínio nova para isso — o único consumidor de
+`freezeTripPlannedRoute` é `freezeTripRouteGracefully` (T704 L7), que **já** captura qualquer
+exceção e chama `logger.warn(TRIP_ROUTE_FREEZE_FAILED_MESSAGE, { reason: error.message, ... })`.
+Lançar aqui reaproveita esse fallback gracioso sem duplicar lógica de log: o motivo nomeado
+(`stale_revision` / `status_not_before_dispatch`) chega ao `logger.warn` através de
+`reason`, distinguindo as duas causas como a task pediu, e nunca vira falha visível ao operador —
+a mesma garantia que a T704 L7 já dava para erro de rede/roteirizador.
+
+### Testes novos
+
+`test/trip-application/freeze-trip-planned-route.contract.ts` (sem Postgres, dublê decide o
+`outcome`), novo describe `T802: o descarte do compare-and-set vira aviso nomeado, nunca silêncio`:
+
+- `'revisão obsoleta faz freezeTripPlannedRoute rejeitar com o motivo no nome'`.
+- `'viagem fora da janela faz freezeTripPlannedRoute rejeitar com o motivo no nome'`.
+- `'o descarte chega como logger.warn com o motivo, e não derruba quem planejou a rota'` — passa
+  pela `freezeTripRouteGracefully` de verdade com um logger fake; prova que o `warn` dispara com
+  `reason: 'trip_planned_route_write_discarded:stale_revision'` e que a chamada não lança.
+
+`test/integration/freeze-trip-planned-route.integration.ts` (contra Postgres — é o trigger e o
+`::text` de `bigint` que precisam do banco real):
+
+- `'T704 M3 / T802: escrita nascida de revisão obsoleta não sobrescreve a rota mais nova, e o
+outcome diz por quê'` — reescrita: em vez de tocar `updated_at` à mão, insere uma linha em
+  `trip_stops` (o trigger bumpa a revisão de verdade) e confere `outcome === 'stale_revision'`.
+- `'T802: escrita alheia em trips que não mexe em parada NÃO descarta o congelamento'` — nova:
+  atualiza `daily_allowance_days`/`updated_at` direto em `trips` (simula relato de campo/override,
+  que não tocam `trip_stops`) e confere `outcome === 'written'` com a rota gravada.
+- `'T704 M3 / T802: congelamento atrasado não alcança viagem já despachada, e o outcome diz por
+quê'` — reescrita para conferir `outcome === 'status_not_before_dispatch'`.
+- `readTripRevision` (helper do arquivo) passou a ler `planned_route_stops_revision::text`.
+
+`test/trip-infrastructure/planned-route-invalidation.contract.ts` (forma do SQL, sem banco):
+dublê de `database` ganhou `.returning()` (zero linhas) e `.select()` (para o caminho de
+diagnóstico não quebrar); o teste que conferia `'updated_at'` na condição agora confere
+`'planned_route_stops_revision'`.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — eslint --max-warnings=0 em todas.
+
+$ bun run format:check   (apps/api-transportada isolado)
+All matched files use Prettier code style! (o `format:check` da raiz aponta 1 arquivo em
+apps/frontend-transportada modificado por outra sessão em paralelo — fora do escopo aqui, mesma
+observação já registrada na evidência do T801).
+
+$ make migration-test
+97 pass / 0 fail — aplica + rola de volta + reaplica todas as migrations, incluindo a nova.
+
+$ bun --env-file=../../.env.test test --timeout 120000   (de dentro de apps/api-transportada)
+6278 pass / 23 skip / 0 fail — não varre `test/integration/*.integration.ts` (mesmo achado da T709b).
+
+$ bun --env-file=../../.env.test test ./test/integration/freeze-trip-planned-route.integration.ts --timeout 120000
+9 pass / 0 fail (6 preexistentes reescritos + 3 novos da T802).
+
+$ bun --env-file=../../.env.test test ./test/integration/freeze-trip-planned-route.integration.ts \
+  ./test/integration/me-trip.integration.ts ./test/integration/multi-vehicle-suggestion.integration.ts \
+  ./test/integration/trip-cargo-layout-read.integration.ts ./test/integration/trip-cargo-preview-layout.integration.ts \
+  ./test/integration/trip-detail-query-count.integration.ts ./test/integration/trip-document-review.integration.ts \
+  ./test/integration/trip-financial-end-to-end.integration.ts ./test/integration/trip-fiscal-readiness.integration.ts \
+  ./test/integration/trip-lifecycle.integration.ts ./test/integration/trip-repository.integration.ts --timeout 120000
+75 pass / 0 fail — todo o raio de alcance de `trips`/paradas sem regressão.
+```
+
+### O que não fez
+
+Não tocou `apps/frontend-transportada` (outra sessão trabalha nela em paralelo). Não bumpa a
+revisão em código de aplicação — de propósito, é o trigger que garante isso para todo caminho,
+presente e futuro. Não criou uma classe de erro de domínio nova para o descarte — reaproveitou o
+fallback gracioso já existente (T704 L7), que já tinha o `logger.warn` certo. Não migrou dado
+histórico: viagens existentes nascem com `planned_route_stops_revision = 0`, e o primeiro
+congelamento delas funciona normalmente (a leitura de `revision` e a escrita usam a mesma coluna).
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`
+
+## T804 — N4 + N11: refetch da geometria apaga a escolha do operador (regressão do RF13)
+
+Sessão em `apps/frontend-transportada` (só este diretório e `specs/`, por instrução).
+
+### N4 — a dependência do efeito virou identidade de objeto
+
+`apps/frontend-transportada/src/modules/trip/components/TripAssemblyMap.component.tsx`, o efeito
+que reage à resposta de `/route-geometry` e reemite `onRouteChoiceChange` (T702/H1/M7) tinha
+`[routeKey, tollVehicleId, geometryQuery.data]` como array de dependências. `geometryQuery.data` é
+um objeto **novo a cada resposta** do TanStack Query — inclusive um refetch de foco depois do
+`staleTime` (5 min) vencer, mesmo sem nada relevante ter mudado (ex.: a data de observação da
+tarifa, calculada sobre `now()` no servidor). Cada refetch assim rodava o efeito de novo, resetava
+`selectedOptionIndex` para o `selectedIndex ?? 0` da resposta nova e reemitia `cheapest` — apagando
+a rota que o operador já tinha escolhido manualmente. É o RF13 ao contrário: a regressão apareceu
+na T702, que introduziu o efeito, e a segunda revisão a pegou.
+
+Fix, em duas peças:
+
+1. `apps/frontend-transportada/src/modules/trip/shared/assemblyRouteOptions.service.ts` ganhou duas
+   funções puras novas:
+   - `buildRouteChoiceSignatureKey(data)`: uma chave por **conteúdo** — `selectedIndex`,
+     `cheapestIndex`, `fastestIndex` e as assinaturas de cada opção, concatenados numa string.
+     Duas respostas com o mesmo conteúdo e referências diferentes produzem a mesma chave.
+   - `resolveRouteChoiceEmission(data)`: junta o índice de abertura e a escolha resolvida a partir
+     dele (antes duplicado dentro do efeito).
+2. O efeito passou a depender de `[routeKey, tollVehicleId, routeSignatureKey]` — três primitivos,
+   nenhum objeto. Como o efeito ainda precisa da resposta mais recente para montar a emissão, e ela
+   não pode entrar no array de dependências (é exatamente o que causava o defeito), a resposta é
+   lida de uma `geometryDataRef` atualizada a cada render (`geometryDataRef.current =
+geometryQuery.data`) — o padrão usual de "ler o valor mais novo sem depender dele".
+
+A consulta em si (`useQuery`) foi extraída para `createTripAssemblyRouteGeometryQueryOptions`,
+exportada do próprio componente — mesmo molde de `createTripRouteChoiceQueryOptions` em
+`TripRouteChoiceSwitch.component.tsx` (T706). Não é refactor cosmético: é o que deixa o teste de
+comportamento abrir um `QueryObserver` real sobre a mesma consulta que a tela usa, em vez de ter
+que montar o componente inteiro (MapLibre, `useSolverCityOrder`, etc.).
+
+### Experimento vermelho (feito e desfeito)
+
+Troquei temporariamente `buildRouteChoiceSignatureKey` para devolver `String(Math.random())` a cada
+chamada com dado presente — simula o defeito N4 (a "chave" muda a cada resposta, como a referência
+mudava antes). Rodei `bun test test/trip.contract.test.ts`:
+
+```
+981 pass / 2 fail
+(fail) buildRouteChoiceSignatureKey ... > duas respostas com o mesmo conteúdo e referências
+diferentes produzem a mesma chave
+(fail) TripAssemblyMap: consulta de geometria via QueryObserver real ... > duas buscas reais com o
+mesmo conteúdo produzem referências diferentes, mas a mesma chave de escolha
+```
+
+As duas provas novas (a pura em `assembly-route-options.contract.ts` e a com `QueryObserver` real
+em `route-choice-switch.contract.ts`) caem exatamente como esperado quando a chave volta a se
+comportar como identidade. Restaurei o arquivo (`git diff` limpo depois) e reexecutei — `983 pass /
+0 fail`.
+
+### N11 — provas por contagem de string/literal de dependência trocadas por comportamento
+
+`test/trip/route-choice-switch.contract.ts` tinha duas provas exatamente do tipo que a revisão
+apontou:
+
+- `'emite a escolha assim que a resposta chega...'` comparava um trecho da fonte contra o literal
+  `'}, [routeKey, tollVehicleId, geometryQuery.data])'` — passaria com o índice de reset errado
+  (bastava o efeito existir com esse array exato) e quebraria com qualquer reformatação.
+- `'reemite a escolha ao trocar veículo/ordem...'` fazia a mesma comparação literal isolada.
+
+Troquei as duas por:
+
+- Um teste de fumaça sobre a fonte, mais preciso (`buildRouteChoiceSignatureKey`,
+  `geometryDataRef.current = geometryQuery.data`, e a ausência do literal antigo) — mantém alguma
+  leitura de fonte, mas não mais uma comparação de array por igualdade de texto.
+- Um novo `describe` com **comportamento real**: `QueryObserver` sobre
+  `createTripAssemblyRouteGeometryQueryOptions`, no molde de
+  `test/trip/route-choice-detail.contract.ts` (T706) e `test/identity/user-picture.contract.ts`.
+  Dois testes: busca única (dedupe, mesmo padrão do T402), e o experimento central do N4 — duas
+  buscas reais devolvem objetos diferentes (`first !== second`, provado com `toBe`), mas
+  `buildRouteChoiceSignatureKey`/`resolveRouteChoiceEmission` concordam nas duas.
+
+Além dos dois arquivos citados no achado, o refactor de N4 quebrou três provas por texto de fonte
+que dependiam da forma antiga do efeito/consulta (nenhuma delas estava na lista do achado, mas
+`bun test` as pegou):
+
+- `test/trip/assembly-route-selector.contract.ts`: verificava `'geometryQuery.data?.selectedIndex'`
+  direto no corpo do efeito (agora dentro de `resolveRouteChoiceEmission`) e a ausência de
+  `'setSelectedOptionIndex(0)'` (agora legítimo no ramo sem resposta). Reescrita para checar
+  `resolveRouteChoiceEmission(data)` e `setSelectedOptionIndex(emission.selectedIndex)`.
+- `test/trip/route-choice-switch.contract.ts`, duas provas mais (fora das citadas no achado):
+  contagem de `'readPointsRouteGeometry'` (virou 2 ocorrências — uma é o `Pick<TripClient,
+'readPointsRouteGeometry'>` do tipo da nova factory — trocada por contar `'.readPointsRouteGeometry('`,
+  a chamada de verdade); e a mesma checagem de `'setSelectedOptionIndex(0)'` do parágrafo anterior.
+- `test/trip/proposal-manual-order.contract.ts`: esperava o literal `'points: measuredPoints.map('`
+  no corpo do componente — o `.map` das coordenadas migrou para dentro da factory extraída. Trocada
+  para `'points: measuredPoints,'`, que continua provando o mesmo invariante (a consulta usa a
+  ordem **medida**, não `map.points`).
+
+Não mexi em `test/trip/amount-columns.contract.ts` (achado N11 também cita esse arquivo, junto com
+`route-choice-switch.contract.ts`). Reli a linha ~137 hoje: é `expect(source).toContain('amounts.revenueTotal
+=== undefined')`, um teste da célula de receita redigida em `TripTable.component.tsx` — sem
+relação com o efeito de rota da T804/N4. Registrado também na evidência do T803.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — eslint --max-warnings=0 em todas.
+
+$ bun run format:check   (raiz)
+All matched files use Prettier code style!
+
+$ bun test test/trip.contract.test.ts   (apps/frontend-transportada)
+983 pass / 0 fail / 17845 expect() calls.
+
+$ bun run test   (apps/frontend-transportada, suíte inteira listada no package.json)
+4240 pass / 0 fail / 36302 expect() calls, 29 arquivos.
+
+$ bun run build   (apps/frontend-transportada)
+build ok, sem erro novo (mesmo aviso preexistente de chunk > 500kB).
+```
+
+### O que não fez
+
+Não tocou `apps/api-transportada`/`apps/worker-transportada`/`apps/cron-transportada`. Não mudou o
+comportamento de `resolveRouteChoiceFromIndex`/`resolveSelectedOptionIndex` (T709a) — só extraiu
+`resolveRouteChoiceEmission` por cima deles. Não mexeu em `handleSelectRouteOptionIndex` (o clique
+manual do switch, T402) — ele já emitia corretamente e não tinha a dependência problemática.
+
+### Commit
+
+`<hash desta mudança — ver git log>`
+
+## T805 — N6 + N8 + N9 + N10: classificação exaustiva nos tipos que vazaram, `isNoToll` tolerado, `docs/SECURITY.md` atualizado, congelamento do aceite com log
+
+### N6 — `FieldPolicy<T>` exaustiva nos três tipos que vazaram (C1/H3)
+
+`shared/monetary-redaction.service.ts` aplicava a classificação exaustiva (`Record<keyof T, 'money' |
+'safe'>` com `satisfies`) só a `TollBoothRouteLine`, `RouteGeometryToll` e `RouteGeometryOption` —
+nenhum dos três nunca vazou. As três superfícies que de fato vazaram (`redactNfeDocumentMoney`,
+`redactTripDocumentMoney`, `redactTripAmountsMoney`) continuavam por lista de exclusão genérica sobre
+um `TDocument` cujo formato completo o arquivo compartilhado não conhece.
+
+Correção: as três funções específicas saem do arquivo compartilhado. No lugar delas,
+`redactMoneyFields` — genérico sobre um array de chaves (`fields: readonly TField[]`), sem conhecer
+tipo concreto nenhum. `FieldPolicy`, `MoneyKeysOf` e `moneyFieldsOf` saem **exportados**, e cada
+módulo dono declara a própria política:
+
+- `trips/application/read-trip-revenue-totals.use-case.ts` — `TRIP_AMOUNTS_FIELD_POLICY` sobre
+  `TripAmounts` (o tipo já morava ali), `documentsTotal`/`revenueTotal` = `'money'`.
+- `trips/presentation/trip.routes.ts` — `TRIP_DOCUMENT_DETAIL_FIELD_POLICY` sobre um novo tipo
+  `SerializedTripDocumentDetail`. `serializeTripDocument` tinha retorno `object`: espalhar um valor
+  `object`-tipado num literal apaga as chaves do tipo resultante (provado à parte com
+  `bunx tsc --noEmit` sobre um arquivo de teste descartável — `typeof { ...f(), c: 3 }` com
+  `f(): object` não carrega as chaves de `f`), então a exaustividade não alcançaria os 15 campos
+  herdados de `serializeTripDocument`. Troquei o retorno para o tipo concreto
+  `SerializedTripDocument` — mudança contida a essa função, sem efeito nos outros três chamadores
+  (`trip.routes.ts:909,958,1612`), que já tratavam o retorno como `object` solto.
+- `nfe-documents/presentation/nfe-documents.routes.ts` — `NFE_DOCUMENT_FIELD_POLICY` sobre o tipo
+  local `NfeDocumentSummary` já existente no arquivo (37 campos, todos preenchidos por atribuição
+  direta — sem a armadilha do `object` acima), `freightAmount`/`totalAmount` = `'money'`.
+
+**Experimento do N6 (provando que a exaustividade barra em compile-time):** acrescentei um campo
+`marginTotal: string` a `TripAmounts` (`read-trip-revenue-totals.use-case.ts`) e rodei
+`bunx tsc --noEmit` dentro de `apps/api-transportada`. Falhou exatamente na linha da
+`FieldPolicy<TripAmounts>`:
+
+```
+src/trips/application/read-trip-revenue-totals.use-case.ts(40,12): error TS1360: Type '{ readonly
+documentsTotal: "money"; readonly revenueSource: "safe"; readonly revenueTotal: "money"; }' does not
+satisfy the expected type 'Readonly<Record<"documentsTotal" | "revenueSource" | "revenueTotal" |
+"marginTotal", "money" | "safe">>'.
+  Property 'marginTotal' is missing in type '{ ... }' but required in type 'Readonly<Record<...>>'.
+```
+
+Mais três erros em cascata (o `use-case.ts` linha 108 e a fixture de teste HTTP), todos porque
+`marginTotal` também faltava nos objetos concretos — nenhum deles é o teste em si, é o compilador
+recusando compilar até o campo ser classificado. Revertido o campo depois (`git diff` limpo
+confirmado com `bunx tsc --noEmit` voltando a 0 erros).
+
+### N8 — `isNoToll` ausente não invalida mais a rota
+
+`trips/domain/parse-planned-route.policy.ts`: `if (typeof record.isNoToll !== 'boolean') return
+null` derrubava o parser inteiro — rota congelada antes da T709b (que introduziu o campo) virava
+"não congelada" na leitura, mesmo com toda a rota disponível. Trocado por
+`typeof record.isNoToll === 'boolean' ? record.isNoToll : false`, no mesmo idioma tolerante do
+parser irmão `parseFrozenBoothLegIndexes` (`toll-booths/domain/toll-route-cost-snapshot.policy.ts`):
+ausência de dado novo não derruba um registro antigo.
+
+### N9 — `docs/SECURITY.md` atualizado
+
+A entrada de 2026-09-17 sobre `GET /trips` (H3) dizia, na parte de frontend, "Não corrigido aqui
+(sessão em paralelo)" e citava `TRIP_AMOUNTS_KEYS` com três chaves. Conferido contra o código atual:
+`TRIP_AMOUNTS_KEYS` (`trip.constant.ts`) já é só `['revenueSource']`,
+`documentsTotal`/`revenueTotal` migraram para `TRIP_AMOUNTS_OPTIONAL_KEYS`, `isAbsentOrTripAmounts`
+aceita a ausência das duas, e `TripAmounts` (`trip.types.ts`) já as tem opcionais — tudo pela T710
+(commit `63317a9b`, Fase 7). Parágrafo reescrito para descrever o estado corrigido em vez do
+pendente.
+
+### N10 — aceite de sugestão usa o congelador compartilhado, com log
+
+`routing/application/route-suggestion.use-case.ts` tinha um `freezeRouteGracefully` local
+duplicando o `try`/`catch` de `freeze-trip-route-gracefully.ts` (usado por `trip.use-case.ts`), mas
+sem logger: reordenar e vincular avisam a falha do congelamento (`TRIP_ROUTE_FREEZE_FAILED_MESSAGE`),
+aceitar sugestão não — e é justamente o aceite que deixa a viagem sem rota até o próximo
+replanejamento. Removido o helper local; `accept()` chama `freezeTripRouteGracefully` diretamente.
+`RouteSuggestionDependencies` ganhou `logger?: TripRouteFreezeLogger`, e `main.ts` (~2044) passa o
+`logger` da app na construção de `createRouteSuggestionUseCase`.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — eslint --max-warnings=0 em todas.
+
+$ bun run format:check   (raiz)
+All matched files use Prettier code style!
+
+$ bun --env-file=../../.env.test test --timeout 120000   (apps/api-transportada)
+6278 pass / 23 skip / 0 fail, 21965 expect() calls, 177 arquivos.
+
+$ bun --env-file=../../.env.test test ./test/integration/freeze-trip-planned-route.integration.ts --timeout 120000
+9 pass / 0 fail.
+
+$ bun --env-file=../../.env.test test ./test/integration/multi-vehicle-suggestion.integration.ts --timeout 120000
+9 pass / 0 fail.
+
+$ bun --env-file=../../.env.test test ./test/integration/trip-financial-end-to-end.integration.ts ./test/integration/nfe-document-listing-order.integration.ts ./test/integration/trip-document-review.integration.ts --timeout 120000
+25 pass / 0 fail, 88 expect() calls.
+```
+
+Não tocou frontend — nenhuma mudança de T805 alcança `apps/frontend-transportada`.
+
+### O que não fez
+
+Não mudou `TollBoothRouteLine`/`RouteGeometryToll`/`RouteGeometryOption` (já exaustivos, nunca
+vazaram). Não mudou a assinatura pública de `redactRouteGeometryMoney` nem seu uso. Não mexeu no
+comportamento de congelamento em si — só a fiação do logger e a remoção do helper duplicado.
+
+### Commit
+
+`<hash desta mudança — ver git log>`
+
+## T806 — N7 + N13 + N12 + N14: ajustes finos
+
+### N7 — distinção preservada por log, sem mudar o contrato de resposta
+
+`main.ts` (prévia de `readTripRouteGeometry`, ~2600): `stops: (await listTripStopCoordinates(...)) ??
+[]` apagava a diferença entre `null` ("tem parada, mas uma sem coordenada") e `[]` ("não tem parada
+nenhuma") — `listTripStopCoordinates` (`trip-stop-coordinates.support.ts`) documenta essa diferença,
+mas o `??` a descartava antes de chegar em `readRouteGeometry`.
+
+Decisão: **não** mudei o contrato de resposta — `RouteGeometryView` continua `unavailable` nos dois
+casos, e diferenciá-la na tela exigiria um `costGap`/motivo novo na resposta HTTP, que é mudança de
+contrato fora do escopo do achado (a instrução do achado pedia para parar e reportar nesse caso).
+O que preservei: o novo helper `readTripRouteGeometryStopsOrWarn` (`main.ts`) grava um aviso
+(`trip_route_geometry_stops_gap`, nível `info`) com `reason: 'missing_coordinate' | 'no_stops'` antes
+de colapsar para `[]` — quem investiga uma viagem presa em `unavailable` não precisa mais abrir o
+banco para saber qual dos dois motivos foi.
+
+**Reportando, não fazendo:** se a tela precisar um dia mostrar a mensagem certa para cada caso
+("complete o endereço" vs. "nenhuma parada vinculada"), isso é uma mudança de contrato de resposta
+(`RouteGeometryView`/`ROUTE_COST_GAPS` ganhariam um motivo novo) — não implementada aqui.
+
+### N13 — `fuelBaseline` num lugar só
+
+`route-geometry-vehicle-axles.query.ts`, `drizzle-trip-planned-route.repository.ts` e
+`read-trip-valuation.use-case.ts` calculavam o mesmo colapso (consumo ou preço ausente → os dois
+`null`) cada um à sua forma — os dois primeiros com cópias próprias de `NO_FUEL_BASELINE`, o
+terceiro sem colapsar (funcionalmente equivalente, porque `resolveFuelBaseline`, em
+`toll-booths/domain/route-option.policy.ts`, já tratava um par parcial como "sem baseline" mais
+adiante — mas por um caminho implícito, não pela mesma função).
+
+**Decisão: extração**, não teste de paridade — o acoplamento entre módulos permite: `RouteOptionVehicle`
+já morava em `toll-booths/domain/route-option.policy.ts`, e os três consumidores já importavam desse
+módulo (ou passaram a importar). `resolveVehicleFuelBaseline` (nova função exportada, mais
+`NO_FUEL_BASELINE` também exportada) é o colapso único; `resolveFuelBaseline` (privada, usada por
+`rankRouteOptions`) passou a chamá-la por baixo, em vez de reimplementar a mesma checagem de
+`null`. Os três call sites (as duas infraestruturas e a prévia de valoração) chamam a mesma função.
+
+### N12 — teste vazio virou asserção de verdade
+
+`test/trip-valuation/preview-route-choice.contract.ts` (~150): `expect(true).toBe(true)` dizia que a
+rejeição de critério inválido "mora em `trip-request.schema.test.ts`" — esse arquivo não existe (
+confirmado com `find`/`grep` no diretório de teste; nenhum teste no repositório cobre a rejeição de
+`previewTripValuationSchema`). Reescrito para `previewTripValuationSchema.safeParse(...)` com
+`criterion: 'invalid'`, afirmando `result.success === false` de verdade.
+
+### N14 — `toMatchObject` → `toEqual`
+
+`test/integration/freeze-trip-planned-route.integration.ts` (~77): a primeira prova de
+`readVehicleContext` usava `toMatchObject`, que não reprova campo a mais em `vehicle`. Troquei para
+desestruturar `revision` (o único campo não-determinístico) e comparar o resto com `toEqual`.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — eslint --max-warnings=0 em todas.
+
+$ bun run format:check   (raiz)
+All matched files use Prettier code style!
+
+$ bun --env-file=../../.env.test test --timeout 120000   (apps/api-transportada)
+6278 pass / 23 skip / 0 fail, 21965 expect() calls, 177 arquivos.
+
+$ bun --env-file=../../.env.test test ./test/integration/freeze-trip-planned-route.integration.ts ./test/integration/trip-financial-end-to-end.integration.ts ./test/integration/multi-vehicle-suggestion.integration.ts ./test/integration/route-depot-query.integration.ts --timeout 120000
+24 pass / 0 fail, 94 expect() calls.
+```
+
+Não tocou frontend.
+
+### O que não fez
+
+Não mudou o contrato de resposta de `RouteGeometryView`/`ROUTE_COST_GAPS` para distinguir "sem
+coordenada" de "sem parada" na tela (N7 — reportado acima, não implementado por ser mudança de
+contrato). Não escreveu teste de paridade para `fuelBaseline`: optou pela extração, que torna o
+teste desnecessário (os três lugares chamam a mesma função).
+
+### Commit
+
+`<hash desta mudança — ver git log>`
+
+## Fase 9 — Ressalvas da terceira revisão (T903 + T904)
+
+Um commit só para as duas: T904 é a prova em comportamento de que o T903 resolve o achado P4 sem
+reabrir o N4 (a regressão que a segunda revisão já tinha fechado) — travá-las juntas evita um
+commit intermediário em que a chave de conteúdo já mudou mas a garantia de efeito ainda não existe.
+
+### T903 (P4) — `buildRouteChoiceSignatureKey` cega sem assinatura
+
+`assemblyRouteOptions.service.ts` (~124-142): sem `exclude=toll` anotado o roteirizador nunca manda
+`signature` — `null` em toda opção é o caso comum, não a exceção. A chave antiga só usava
+`option.signature ?? ''`; duas respostas com o mesmo número de opções e os mesmos
+`selectedIndex`/`cheapestIndex`/`fastestIndex`, mas `distanceMeters`/`durationSeconds` diferentes
+(estradas de verdade diferentes), colapsavam na mesma string — o efeito de `TripAssemblyMap` parava
+de reemitir a escolha, espelhando o N4 ao contrário (agora reemite de menos).
+
+Correção: `options.length` entra explícito na chave, e cada opção sem assinatura cai no par
+`` `${distanceMeters}:${durationSeconds}` `` — sempre presente no payload (spec 096 T3), e já é o
+discriminante que a lista de opções usa para distinguir rotas.
+
+Testes novos em `test/trip/assembly-route-options.contract.ts` (~346-421): duas estradas diferentes
+sem assinatura produzem chaves diferentes; o mesmo conteúdo sem assinatura produz a mesma chave; a
+quantidade de opções entra na chave mesmo quando as assinaturas das primeiras posições coincidem.
+
+**Experimento vermelho (P4):** revertida a correção para o `join` antigo
+(`(data.options ?? []).map((option) => option.signature ?? '').join(',')`, sem `options.length`) e
+rodado `bun test ./test/trip/assembly-route-options.contract.ts` — o teste "sem assinatura em
+nenhuma opção, duas estradas diferentes produzem chaves diferentes (achado P4)" falhou:
+`Expected: not "0|0|1|,"` (as duas estradas diferentes produziam a mesma chave `"0|0|1|,"`). Restaurada
+a correção logo em seguida — `bun test` volta a 22/22.
+
+### T904 (P5) — a garantia do RF13 ainda era `toInclude` sobre o texto-fonte
+
+**Por que não renderizou `TripAssemblyMap` de verdade:** conferido nesta task que a base não tem
+`jsdom`/`happy-dom`/`@testing-library/react` — nem em `package.json`, nem instalados em
+`node_modules` (`ls node_modules | grep -i jsdom` sem resultado). A ausência já é decisão estrutural
+documentada em dois contratos existentes (`test/design-system/box-dimension-scanner.contract.ts`,
+`test/design-system/camera-stream.contract.ts`: "Sem renderer/jsdom nesta base, a garantia é
+estrutural"). `TripAssemblyMap` soma outra barreira própria: carrega o MapLibre por `lazy()`
+(`AssemblyVectorMap`), então montá-lo de verdade também puxaria o mapa vetorial para o teste. E
+mesmo com DOM, `useEffect` só roda no commit de um renderer real — `react-dom/server` (SSR) não o
+executa, então nem uma renderização para string provaria o efeito. Instalar `jsdom`/
+`testing-library` só para esta task é decisão de dependência nova fora do escopo de P4/P5 (pede
+justificativa própria — `code-standart.md` §13) — reportado aqui, não decidido sozinho.
+
+**O que entrou no lugar** (`test/trip/route-choice-switch.contract.ts`, novo describe "TripAssemblyMap:
+o efeito de emissão sobrevive a um refetch idêntico..."): uma máquina de estados
+(`createRouteChoiceEffectHarness`) que reproduz literalmente as duas únicas formas pelas quais o
+componente chama `onRouteChoiceChange` — o efeito que reage à resposta da consulta, com a MESMA
+regra de disparo do `useEffect` do React (o corpo só roda quando algum item do array de dependências
+muda por `Object.is`, contrato documentado do hook, genérico — não lógica da aplicação), e
+`handleSelectRouteOptionIndex` (o clique manual) — usando as MESMAS funções de produção que o
+componente importa (`resolveRouteChoiceFromIndex`, `resolveRouteChoiceEmission`,
+`buildRouteChoiceSignatureKey`). O teste busca a geometria via `queryOptions.queryFn()` real (a
+mesma função de `createTripAssemblyRouteGeometryQueryOptions`, já usada pela suíte QueryObserver
+acima), seleciona a opção 2 (índice 0, a mais rápida) e refaz a busca de verdade — o segundo objeto
+é comprovadamente uma referência diferente (`expect(second).not.toBe(first)`) com o mesmo conteúdo —
+e afirma que `onRouteChoiceChange` não foi chamado de novo (`emissions` continua em 2) e que a opção
+2 continua selecionada (`selectedOptionIndex() === 0`, não voltou para a mais barata resolvida pela
+resposta).
+
+**Experimento vermelho (P5, N4 de volta):** trocada a dependência da chave de conteúdo pelo objeto
+`input.data` cru (`dependencies: [routeKey, tollVehicleId, input.data as unknown as null | string]`)
+— o defeito exato que a segunda revisão já tinha corrigido — e rodado
+`bun test ./test/trip/route-choice-switch.contract.ts`: o teste novo falhou —
+`Expected length: 2 / Received length: 3` (o refetch com o mesmo conteúdo, mas outro objeto,
+reemitiu a escolha e sobrescreveu `selectedOptionIndex` de volta para 1, perdendo a opção 2 do
+operador). Restaurada a versão com `buildRouteChoiceSignatureKey` logo em seguida — `bun test` volta
+a 23/23.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros — todos os `tsc --noEmit` limpos.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros.
+
+$ bunx prettier --check apps/frontend-transportada
+All matched files use Prettier code style!
+(apps/api-transportada/test/integration/freeze-trip-planned-route.integration.ts também aparece no
+`format:check` da raiz sem formatação — não é arquivo tocado por esta task, outra sessão mexe em
+apps/api-transportada; fora do escopo desta task.)
+
+$ bun run test   (apps/frontend-transportada)
+4244 pass / 0 fail, 36314 expect() calls, 29 arquivos.
+
+$ bun run build   (apps/frontend-transportada)
+build ok, PWA v1.3.0 gerado, 130 entradas no precache.
+```
+
+### O que não fez
+
+Não instalou `jsdom`/`happy-dom`/`@testing-library/react` para renderizar `TripAssemblyMap` de
+verdade — decisão de dependência fora do escopo desta task (P4/P5), reportada acima com evidência,
+não tomada sozinha. A prova entregue exercita o mesmo cálculo de produção e a mesma regra de
+disparo de efeito do React sobre dados de uma busca real, mas não é uma renderização do componente.
+
+### Commit
+
+`81bd0b36`
+
+## Fase 9 — Ressalvas da terceira revisão (T901 + T902)
+
+Um commit só para as duas: mexem na mesma peça (`DrizzleTripPlannedRouteRepository` /
+`trips.planned_route_stops_revision`), e a solução escolhida para T901 remove o gatilho que T902
+queria trocar por um por comando — não sobra gatilho nenhum para trocar.
+
+### O achado
+
+T901 (P1): a coordenada da parada **não mora em `trip_stops`** — vem de `geocoded_addresses` por
+`address_key` (`trip-stop-coordinates.support.ts`, comentário de topo). O gatilho que T802 criou
+(`bump_trip_planned_route_stops_revision`, migration `20260917202034_trip_planned_route_stops_
+revision`) só disparava em INSERT/UPDATE/DELETE de `trip_stops`. Cenário: o congelamento lê as
+paradas, uma ainda sem coordenada, decide gravar rota nula (D5); enquanto termina, o geocodificador
+preenche `geocoded_addresses` — nenhuma linha de `trip_stops` mudou, a revisão não bumpa, o
+compare-and-set deixa passar, e a viagem fica com rota nula mesmo já havendo coordenada para todas
+as paradas. Mesma classe de escrita obsoleta que a T802 dizia ter fechado.
+
+T902 (P2 + P3): dado que o gatilho existia, ele era `FOR EACH ROW` com um `UPDATE trips` por linha —
+`reorderStops` (~2N escritas em `trip_stops`) geraria 2N versões mortas em `trips`, o ramo de
+INSERT/UPDATE só bumpava `NEW.trip_id` (trocar a viagem de uma parada não bumparia a origem), e
+`TRUNCATE` não é coberto.
+
+### A decisão: hash da junção, sem coluna e sem gatilho
+
+Confirmado antes de mexer: a coluna `trips.planned_route_stops_revision` e a migration
+`20260917202034_trip_planned_route_stops_revision` nasceram **nesta mesma spec** (commit `a73c43bd`,
+T802) e nunca chegaram a `origin/staging` —
+
+```
+$ git merge-base --is-ancestor a73c43bd origin/staging && echo "IN STAGING" || echo "NOT IN STAGING"
+NOT IN STAGING
+```
+
+— então não há ambiente real que já tenha essa coluna ou esse gatilho para migrar. Em vez de uma
+segunda migration que os removesse, a migration de T802 foi apagada do `drizzle/` (era a última da
+pasta, nada depende dela) e o schema/repositório voltaram a não conhecê-la — não existiu produção
+para descontar disso.
+
+A revisão comparada em `writePlannedRoute` deixou de ser um contador incrementado por trigger e virou
+o **hash do que de fato entra na rota**: `md5(string_agg(id || ':' || sequência || ':' || latitude
+|| ':' || longitude, ',' order by sequência, id))` sobre a mesma junção `trip_stops` LEFT JOIN
+`geocoded_addresses` que `readStopCoordinates` usa — uma subconsulta correlacionada
+(`TRIP_STOPS_REVISION` em `drizzle-trip-planned-route.repository.ts`), recalculada tanto em
+`readVehicleContext` (leitura no disparo) quanto no `WHERE` do `UPDATE` de `writePlannedRoute`
+(reconferência na escrita). `md5('')` é o valor de "viagem sem parada nenhuma" — determinístico,
+nunca `NULL` do `string_agg` vazio.
+
+Por que hash e não manter a coluna com a geocodificação somada ao gatilho: a coluna exigiria um
+SEGUNDO gatilho em `geocoded_addresses` (ou um `UPDATE trips` disparado pelo job de geocodificação),
+e ainda ficaria vulnerável à mesma classe de "esqueceram de instrumentar um caminho" que T902 já
+apontava no primeiro gatilho — cada tabela nova que a rota passasse a depender exigiria lembrar de
+mais um gatilho. A subconsulta lê a junção de verdade toda vez; não há caminho de escrita para
+esquecer. Isso também resolve T902 por completo: sem gatilho, não há `FOR EACH ROW` para trocar por
+`FOR EACH STATEMENT`, não há 2N escritas em `trips` por reordenação (a reordenação não toca `trips`
+nenhuma vez a mais — o hash é computado sob demanda, não mantido), e não há ramo de `trip_id`/
+`TRUNCATE` para esquecer, porque não há ramo nenhum: qualquer forma de a junção mudar já entra no
+hash.
+
+### O que prova
+
+- **(a) geocodificação durante o congelamento não deixa rota nula, sem instrumentar mais nada**:
+  novo teste `T901: geocodificação que preenche a coordenada durante o congelamento descarta a
+escrita, e não só mudança em trip_stops` (`freeze-trip-planned-route.integration.ts`) — insere a
+  parada sem coordenada, lê a revisão, geocodifica o endereço (só `geocoded_addresses`, `trip_stops`
+  intocada), e a escrita subsequente com a revisão antiga sai `'stale_revision'`, `plannedRoute`
+  continua `null`. O desfecho escolhido é o descarte-e-log (não um retry automático — fora de
+  escopo desta task); o disparo seguinte, com a revisão nova, já veria a coordenada e gravaria a
+  rota.
+- **(b) escrita alheia em `trips` que não mexe em parada continua não descartando**: teste já
+  existente `T802: escrita alheia em trips que não mexe em parada NÃO descarta o congelamento`
+  segue verde — a hash não muda porque nem `trip_stops` nem `geocoded_addresses` mudaram.
+- **(c) paradas mudadas no meio descartam e o descarte é logado com o motivo certo**: teste já
+  existente `T704 M3 / T802: escrita nascida de revisão obsoleta não sobrescreve a rota mais nova, e
+o outcome diz por quê` segue verde — inserir uma `trip_stop` muda o hash, `outcome` sai
+  `'stale_revision'`, e `freeze-trip-planned-route.use-case.ts` (`throwIfDiscarded`) continua
+  lançando o erro nomeado que `freezeTripRouteGracefully` converte em `logger.warn`.
+- **(d) reordenação de N paradas não gera 2N escritas em `trips`**: sem gatilho, `reorderTripStops`
+  (`reorder-trip-stops.use-case.ts`) não toca `trips` nenhuma vez pelas escritas em `trip_stops` —
+  zero, não um bump por comando. `test/trip-infrastructure/planned-route-invalidation.contract.ts`
+  (mock-based, T704 M3) foi ajustado para provar que o `WHERE` do `UPDATE` referencia
+  `trip_stops`/`geocoded_addresses` (não mais `planned_route_stops_revision`), confirmando que a
+  comparação é a subconsulta nova.
+
+### Migration
+
+Removida por inteiro (não editada): `drizzle/20260917202034_trip_planned_route_stops_revision/`
+(migration.sql, rollback.sql, snapshot.json) — `git rm`. `src/database/trip.schema.ts` perdeu a
+coluna `plannedRouteStopsRevision`. `test/database-migration/static-migration.contract.ts` perdeu a
+entrada correspondente na lista fixa de diretórios de migration.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — eslint --max-warnings=0 em todas.
+
+$ bun run format:check   (raiz)
+All matched files use Prettier code style!
+
+$ make migration-test
+97 pass / 0 fail, 1321 expect() calls, 8 arquivos.
+
+$ bun --env-file=../../.env.test test --timeout 120000   (apps/api-transportada)
+6278 pass / 23 skip / 0 fail, 21966 expect() calls, 177 arquivos.
+(⚠️ este comando não varre `test/integration/*.integration.ts` — confirmado lendo
+apps/api-transportada/package.json: o script "test" é uma lista explícita de arquivos, e nenhum
+`.integration.ts` está nela. As entradas cobertas aqui são os entrypoints finos
+`test/database-migration.contract.test.ts` e `test/trip-infrastructure.contract.test.ts`, que
+importam `static-migration.contract.ts` e `planned-route-invalidation.contract.ts`.)
+
+$ bun --env-file=../../.env.test test ./test/integration/freeze-trip-planned-route.integration.ts ./test/integration/trip-financial-end-to-end.integration.ts ./test/integration/multi-vehicle-suggestion.integration.ts ./test/integration/route-depot-query.integration.ts --timeout 120000
+25 pass / 0 fail, 97 expect() calls.
+(9 pré-existentes + 1 novo teste do T901, em freeze-trip-planned-route.integration.ts — 10 pass ali
+sozinho.)
+```
+
+### O que não fez
+
+Não implementou um retry automático do congelamento depois que a geocodificação termina — o cenário
+(a) prova o descarte correto (a rota fica `null` e o `outcome` sai `'stale_revision'`, logado), não
+um novo disparo espontâneo; a task pedia provar o desfecho correto, "seja qual for", e o escolhido
+foi o descarte. Um agendador que reagisse a `geocoded_addresses` preenchida re-disparando o
+congelamento está fora do escopo de T901/T902.
+
+### Commit
+
+`<hash desta mudança — ver git log>`
+
+## T905 — P6 + P8 + P9 + P10 + P11 + P12: ajustes menores da terceira revisão
+
+Cada leitura confirmada no código antes de mexer, porque a T901 (99c29ba2) tinha acabado de
+reescrever a guarda de concorrência do repositório de rota planejada.
+
+### P6 — literal da NF-e ancorado no tipo vigiado
+
+`apps/api-transportada/src/nfe-documents/presentation/nfe-documents.routes.ts`: `serializeDocument`
+tinha `const serialized = { ... }` inferido — `NFE_DOCUMENT_FIELD_POLICY` vigia `NfeDocumentSummary`,
+não a forma que sai da função, então um campo monetário a mais no literal compilava, ficava fora da
+`FieldPolicy` e vazava sem redação. Fix: `const serialized: NfeDocumentSummary = { ... }`, mesmo
+padrão que `serializeTripDocumentDetail` (`trip.routes.ts:1642`) já usa.
+
+**Experimento (mesmo da T805):** acrescentei `experimentMoneyField: '0.00'` só no literal —
+`bun run typecheck` reprovou com `TS2353: Object literal may only specify known properties, and
+'experimentMoneyField' does not exist in type 'NfeDocumentSummary'` — e desfiz o experimento antes
+de seguir.
+
+### P7 — dívida, não implementada
+
+Já registrada na Fase 9 (`tasks.md`, "Dívida declarada, fora de escopo") desde a T904. Nada a fazer
+aqui além de confirmar.
+
+### P8 — viagem inexistente ganha motivo próprio no descarte
+
+`apps/api-transportada/src/trips/infrastructure/drizzle-trip-planned-route.repository.ts`:
+`diagnosePlannedRouteWriteDiscard` caía no mesmo `'stale_revision'` quando a viagem não existe mais
+(`current === undefined`) e quando as paradas mudaram de verdade — o log dizia "as paradas mudaram"
+para uma viagem apagada. Novo motivo `'trip_not_found'` em `PlannedRouteWriteOutcome`
+(`freeze-trip-planned-route.use-case.ts`), devolvido só nesse ramo; `throwIfDiscarded` já propaga
+qualquer motivo que não seja `'written'` para `logger.warn` via `freezeTripRouteGracefully` — nada
+a mudar ali. Teste de integração novo em `freeze-trip-planned-route.integration.ts`: seeda a viagem,
+lê a revisão, `DELETE` a viagem e confere `outcome === 'trip_not_found'`. Comentário do teste unitário
+em `planned-route-invalidation.contract.ts` (que já caía nesse mesmo fallback por um mock sem linha)
+atualizado para o novo nome.
+
+### P9 — gap de parada sem coordenada vira `warn`
+
+`apps/api-transportada/src/main.ts` (~1338 e ~1345):
+`readTripRouteGeometryStopsOrWarn` logava `logger.info(TRIP_ROUTE_GEOMETRY_STOPS_GAP_MESSAGE, ...)`
+nos dois ramos (`missing_coordinate` e `no_stops`). Pelo padrão da casa (nodejs.md: `warn` é
+inesperado-mas-recuperável) e pelo irmão `freezeTripRouteGracefully`, que já usa `warn` para o mesmo
+tipo de descarte silencioso, os dois viraram `logger.warn`. Nenhum teste referenciava
+`trip_route_geometry_stops_gap` pelo nível de log (confirmado por grep antes de mudar).
+
+### P10 — teste do N12 aponta o campo que falhou
+
+`apps/api-transportada/test/trip-valuation/preview-route-choice.contract.ts`: o teste `'um critério
+fora de ROUTE_CHOICE_CRITERIA é 400...'` só afirmava `result.success === false`, que passaria mesmo
+se o corpo reprovasse por outro campo. Agora afirma `result.error.issues` contendo
+`{ path: ['routeChoice', 'criterion'] }`, e ganhou o par de controle `'caso de controle: um critério
+válido no mesmo corpo passa na fronteira HTTP'` (`criterion: 'cheapest'` → `success === true`) — sem
+o controle, a asserção do caminho não provaria que um critério válido de fato passa.
+
+### P11 — filtro simples e busca livre com valor ausente
+
+`apps/frontend-transportada/src/modules/nfe-workspace/hooks/useNfeDocumentTable.hook.ts`: `matchesText`
+(filtro simples, `document[field] ?? ''`) e `documentMatchesSearch` (busca livre,
+`(value ?? '').toLowerCase()`) já tratavam campo ausente/nulo corretamente, mas sem teste nenhum —
+trocar `?? ''` por `?? '0'` ou reescrever a checagem reintroduziria a classe do defeito N2 sem
+reprovar nada. Exportei `documentMatchesSearch` (não estava exportada; `documentMatchesSimpleMode`
+já cobria o filtro simples e já era exportada) e acrescentei
+`describe('nfe workspace simple filter and free search with missing values contract', ...)` em
+`advanced-filter-and-columns.contract.ts`: um teste prova que `emitterAddress: null` nunca casa um
+filtro de texto preenchido (com controle do caminho presente), outro prova que um documento sem
+`totalAmount` (chave removida com `delete`, mesmo padrão de `document-money-optional.contract.ts`)
+nunca casa busca livre pelo valor antigo, com controle buscando por um campo ainda presente.
+
+### P12 — `exhaustive-deps` no ESLint do frontend
+
+`eslint-plugin-react-hooks` não estava instalado. Instalei como devDependency
+(`bun add -D eslint-plugin-react-hooks`, resolveu `7.1.1`) — `bun install --frozen-lockfile` depois
+de atualizar o lockfile continua passando (757 installs, sem mudança).
+
+`apps/frontend-transportada/eslint.config.mjs` ganhou um bloco novo com só
+`react-hooks/exhaustive-deps` e `react-hooks/rules-of-hooks`, não o `configs['recommended-latest']`
+inteiro do pacote v7 — esse traz regras do React Compiler (`purity`, `immutability`,
+`set-state-in-render`, `refs`, ...) sem relação com o que a T804/T903 afinaram à mão nos arrays de
+dependência, e ligá-las agora seria escopo muito maior que o pedido. As duas regras ficam `warn`,
+não `error`: `exhaustive-deps` porque o objetivo é rede de proteção, não bloquear o build por achado
+pré-existente fora do raio da spec 153; `rules-of-hooks` pelo mesmo motivo, depois que ela achou um
+hook condicional de verdade fora desse raio (abaixo).
+
+Com a regra ligada, `bun run lint` (frontend-transportada sozinho) acusou 16 avisos em 9 arquivos —
+nenhum tocado por commit da spec 153 (conferido por `git log --oneline -- <arquivo>` em cada um),
+exceto `TripAssemblyMap.component.tsx`, que é tocado e foi corrigido:
+
+| Arquivo                                                                                             | Avisos                                                                                  |
+| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `src/modules/trip/components/TripCargoLayers.component.tsx`                                         | 5 (`rules-of-hooks`: `useMemo` chamado condicionalmente, hook de verdade fora de ordem) |
+| `src/modules/fleet/components/FreightRegionVectorMap.component.tsx`                                 | 2                                                                                       |
+| `src/modules/trip/components/AssemblyVectorMap.component.tsx` (não confundir com `TripAssemblyMap`) | 2                                                                                       |
+| `src/modules/trip/components/TripDocumentSearch.component.tsx`                                      | 2                                                                                       |
+| `src/components/ui/useBarcodeScanner.hook.ts`                                                       | 1                                                                                       |
+| `src/modules/fleet/hooks/useFreightRegionCities.hook.ts`                                            | 1                                                                                       |
+| `src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx`                     | 1                                                                                       |
+| `src/modules/routing/hooks/useMultiVehicleSuggestion.hook.ts`                                       | 1                                                                                       |
+| `src/modules/trip/components/DeliveryAddressOverrideDialog.component.tsx`                           | 1                                                                                       |
+
+Nenhum destes nove foi tocado — viram task própria, com destaque para `TripCargoLayers.component.tsx`
+(5 erros de `rules-of-hooks`, correção real, não falso positivo).
+
+**Corrigido em `TripAssemblyMap.component.tsx`** (único arquivo tocado por commits da spec 153 entre
+os que a regra acusou):
+
+- `useMemo` de `map` (linha ~310): `const features = meshQuery.data ?? ([] as readonly
+MeshFeature[])` morava fora do `useMemo`, e `?? []` cria um array novo a cada render — a própria
+  dependência que o comentário acima ("Memoizado, e isso não é performance") descreve como a defesa
+  nunca memoizava nada enquanto a malha não carregava. Movido para dentro do callback; a dependência
+  agora é `meshQuery.data`.
+- `useEffect` que emite a escolha inicial da rota (linha ~373): faltava `onRouteChoiceChange` no
+  array de dependências. Incluir direto reabriria o defeito que a T904 fechou — o pai recria a
+  função a cada render, e o efeito reemitiria a escolha a cada render em vez de só quando a rota
+  muda. `react.md` proíbe `eslint-disable` para `exhaustive-deps`, então segui o padrão que o próprio
+  arquivo já usa para `geometryDataRef`: `onRouteChoiceChangeRef` (mesmo `useRef` + atribuição direta
+  no corpo do componente), lido por `onRouteChoiceChangeRef.current?.(...)` dentro do efeito.
+  `route-choice-switch.contract.ts` tinha um teste textual contando ocorrências literais de
+  `onRouteChoiceChange?.(` no source (esperava 2) — atualizado para somar as duas formas
+  (`onRouteChoiceChange?.(` do clique manual + `onRouteChoiceChangeRef.current?.(` do efeito),
+  continuando a provar que a emissão acontece nos dois pontos.
+
+Depois das duas correções, `TripAssemblyMap.component.tsx` não aparece mais na lista de avisos.
+
+### Testes novos/alterados
+
+- `apps/api-transportada/test/integration/freeze-trip-planned-route.integration.ts`: teste
+  `'T905 (P8): viagem apagada entre o disparo e a escrita tem motivo próprio, não "paradas
+mudaram"'`.
+- `apps/api-transportada/test/trip-infrastructure/planned-route-invalidation.contract.ts`:
+  comentário atualizado (`'trip_not_found'` no lugar de `'stale_revision'`).
+- `apps/api-transportada/test/trip-valuation/preview-route-choice.contract.ts`: asserção de `path`
+  e teste de controle novo (P10).
+- `apps/frontend-transportada/test/nfe-workspace/advanced-filter-and-columns.contract.ts`: describe
+  novo com os dois testes de valor ausente (P11).
+- `apps/frontend-transportada/test/trip/route-choice-switch.contract.ts`: asserção da contagem de
+  emissão adaptada ao padrão de ref (P12).
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — frontend-transportada com 16 avisos novos de react-hooks (tabela acima, fora do raio da
+spec 153); as outras apps continuam em --max-warnings=0.
+
+$ bun run format:check   (raiz)
+All matched files use Prettier code style! (1 arquivo de teste precisou de `prettier --write` antes)
+
+$ bun install --frozen-lockfile   (raiz, depois de `bun add -D eslint-plugin-react-hooks`)
+Checked 757 installs across 890 packages (no changes).
+
+$ bun run test   (apps/frontend-transportada)
+4246 pass / 0 fail, 36318 expect() calls, 29 arquivos.
+
+$ bun run build   (apps/frontend-transportada)
+build ok, PWA precache 130 entries.
+
+$ bun --env-file=../../.env.test test --timeout 120000   (apps/api-transportada)
+6279 pass / 23 skip / 0 fail, 21968 expect() calls, 177 arquivos.
+
+$ bun --env-file=../../.env.test test ./test/integration/freeze-trip-planned-route.integration.ts --timeout 120000
+11 pass / 0 fail, 28 expect() calls (10 pré-existentes + 1 novo do P8).
+
+$ bun --env-file=../../.env.test test ./test/integration/nfe-document-listing-order.integration.ts ./test/integration/nfe-document-output.integration.ts ./test/integration/trip-document-review.integration.ts ./test/integration/trip-repository.integration.ts --timeout 120000
+25 pass / 0 fail, 122 expect() calls.
+```
+
+### O que não fez / virou task própria
+
+Os 9 arquivos com aviso de `react-hooks` fora do raio da spec 153 (tabela acima) — sobretudo
+`TripCargoLayers.component.tsx`, que tem um hook de verdade chamado condicionalmente (5 ocorrências
+de `rules-of-hooks`), não corrigido aqui porque nenhum commit desta spec tocou esse arquivo.
+
+### Commit
+
+`<hash desta mudança — ver git log>`

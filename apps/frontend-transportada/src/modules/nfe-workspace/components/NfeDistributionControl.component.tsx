@@ -5,6 +5,7 @@ import { Icon } from '@/components/ui/icon'
 
 import type { NfeJobRunSnapshot } from '../shared/nfeWorkspaceClient.service'
 import { useCountdown } from '@/modules/shared/useCountdown.hook'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 import {
   type NfeDistributionPullControl,
   formatCountdown,
@@ -20,21 +21,13 @@ type NfeDistributionControlProps = Readonly<{
   readonly onRequest: () => void
 }>
 
-function formatMoment(value: string): string {
-  const parsed = Date.parse(value)
-  if (Number.isNaN(parsed)) return value
-  return new Intl.DateTimeFormat('pt-BR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(new Date(parsed))
-}
-
 /**
  * A janela e o botão fecham a mesma linha de `job_executions`, e é ela que aparece aqui: sem a
  * última execução, o ciclo agendado seria invisível para quem só olha a tela.
  */
 function LastJobRun({ run }: Readonly<{ run: NfeJobRunSnapshot | null | undefined }>) {
   const { t } = useTranslation('nfeWorkspace')
+  const formatMoment = useMomentFormatter()
   if (run === undefined) return null
   if (run === null) {
     return (
@@ -59,6 +52,7 @@ function LastJobRun({ run }: Readonly<{ run: NfeJobRunSnapshot | null | undefine
 
 export function NfeDistributionControl(props: NfeDistributionControlProps) {
   const { t } = useTranslation('nfeWorkspace')
+  const formatMoment = useMomentFormatter()
   const { pullControl } = props
   const cooldownTargetIso =
     pullControl.tone === 'cooldown' ? (pullControl.nextAllowedAt ?? null) : null

@@ -58,6 +58,8 @@ function buildWorld(
     /** O padrão de fábrica (ADR-0057 §4): o documento fica de fora destes casos, de propósito. */
     resolveProofFieldSettings: () =>
       Promise.resolve({
+        cargo: 'off' as const,
+        cargoMinimumCount: 1,
         photo: 'optional' as const,
         receivedBy: 'optional' as const,
         receiverDocument: 'off' as const,
@@ -67,6 +69,7 @@ function buildWorld(
     resolveProofPunctualitySettings: () =>
       Promise.resolve(DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS),
     /** O dublê guarda a última pontualidade por evento+tipo, como o upsert do banco. */
+    countProofsForEvent: async () => 0,
     findProofPunctuality: (query) =>
       Promise.resolve(
         saved.findLast((proof) => proof.eventId === query.eventId && proof.kind === query.kind)
@@ -309,6 +312,8 @@ describe('o comprovante da entrega', () => {
     ) {
       world.repository.resolveProofFieldSettings = () =>
         Promise.resolve({
+          cargo: 'off',
+          cargoMinimumCount: 1,
           photo: photoMode,
           receivedBy: 'optional',
           receiverDocument: 'off' as const,

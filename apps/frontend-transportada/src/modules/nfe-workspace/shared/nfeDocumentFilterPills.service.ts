@@ -2,6 +2,7 @@
 import {
   AMOUNT_OPERATOR_SYMBOL,
   EMPTY_FILTERS,
+  MULTI_FILTER_FIELDS,
   type DocumentFilters,
   type FilterKey,
   type SelectFilterField,
@@ -22,8 +23,8 @@ type DescribePillsInput = Readonly<{
 }>
 
 const OPEN_RANGE_MARK = '…'
+const MULTI_VALUE_SEPARATOR = ', '
 const TEXT_PILL_FIELDS: readonly TextFilterField[] = [
-  'emitterName',
   'emitterAddress',
   'recipientName',
   'recipientAddress',
@@ -115,6 +116,16 @@ export function describeNfeDocumentFilterPills(
   const pills: NfeDocumentFilterPill[] = []
   const unlinkedOnlyPill = describeUnlinkedOnly(input.filters)
   if (unlinkedOnlyPill !== null) pills.push(unlinkedOnlyPill)
+  for (const field of MULTI_FILTER_FIELDS) {
+    const values = input.filters.multi[field]
+    if (values.length > 0) {
+      pills.push({
+        key: field,
+        labelKey: fieldLabelKey(field),
+        value: values.join(MULTI_VALUE_SEPARATOR),
+      })
+    }
+  }
   for (const field of TEXT_PILL_FIELDS) {
     const value = input.filters.text[field].trim()
     if (value.length > 0) pills.push({ key: field, labelKey: fieldLabelKey(field), value })

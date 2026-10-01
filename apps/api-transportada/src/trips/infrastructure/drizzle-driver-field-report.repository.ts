@@ -39,9 +39,10 @@ import { saveTripOccurrence } from './delivery-proof-read.support.js'
 import {
   DELIVERED_DOCUMENT_STATUS,
   DELIVERED_EVENT_KIND,
-  DRIVER_PROOF_KINDS,
+  DRIVER_RECEIVER_PROOF_KINDS,
   RETURNED_DOCUMENT_STATUS,
 } from '../domain/delivery-event.constant.js'
+import { OCCURRENCE_TYPE_FLOWS } from '../../shared/trip-occurrence.constant.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import {
@@ -52,7 +53,8 @@ import {
   TRIP_DISPATCHED_STATUSES,
   TRIP_ON_ROAD_STATUSES,
 } from '../domain/trip-state.policy.js'
-import { buildProofUpsertSet } from './drizzle-delivery-proof.repository.js'
+import { resolveEventLocationState } from '../domain/event-location-state.policy.js'
+import { buildProofInsertValues, buildProofUpsertSet } from './drizzle-delivery-proof.repository.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import { insertTripFieldOfficeAudit } from './trip-field-office-audit.persistence.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
@@ -785,6 +787,11 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
         kind: input.kind,
         latitude: input.location?.latitude ?? null,
         lateRegistration: input.lateRegistration ?? false,
+        /** ADR-0081 §3: o estado é do toque do motorista; o escritório e o backoffice ficam `null`. */
+        locationState: resolveEventLocationState({
+          channel: input.authorship.channel,
+          hasCoordinate: input.location !== null,
+        }),
         longitude: input.location?.longitude ?? null,
         onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
         ...(input.recordedAt === undefined ? {} : { recordedAt: input.recordedAt }),
@@ -815,7 +822,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       eq(tripDeliveryProofs.companyId, input.companyId),
       eq(tripDeliveryProofs.stopEventId, input.eventId),
       eq(tripDeliveryProofs.channel, TRIP_FIELD_CHANNELS.driverApp),
-      inArray(tripDeliveryProofs.kind, [...DRIVER_PROOF_KINDS]),
+      inArray(tripDeliveryProofs.kind, [...DRIVER_RECEIVER_PROOF_KINDS]),
     )
     const rows = await this.transaction
       .select({
@@ -863,30 +870,24 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       sizeBytes: BigInt(input.sizeBytes),
       status: 'final',
     })
+    if (input.thumbnail !== undefined) {
+      await this.transaction.insert(storedObjects).values({
+        bucket: this.bucket,
+        companyId: input.companyId,
+        id: input.thumbnail.objectId,
+        mimeType: input.thumbnail.mimeType,
+        objectKey: input.thumbnail.objectKey,
+        provider: 's3',
+        purpose: 'trip_delivery_proof_thumbnail',
+        sha256: input.thumbnail.sha256,
+        sizeBytes: BigInt(input.thumbnail.sizeBytes),
+        status: 'final',
+      })
+    }
 
     const [proof] = await this.transaction
       .insert(tripDeliveryProofs)
-      .values({
-        accuracyMeters: input.accuracyMeters,
-        actorUserId: input.actorUserId,
-        attachmentKey: input.attachmentKey,
-        capturedAt: input.capturedAt,
-        channel: input.authorship.channel,
-        companyId: input.companyId,
-        id: input.id,
-        kind: input.kind,
-        latitude: input.latitude,
-        longitude: input.longitude,
-        objectId: input.objectId,
-        onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
-        punctuality: input.punctuality,
-        receiverDocumentEnvelope: input.receiverDocumentEnvelope,
-        receiverDocumentMasked: input.receiverDocumentMasked,
-        receiverName: input.receiverName,
-        receivedBy: input.receivedBy,
-        receivedByDetail: input.receivedByDetail,
-        stopEventId: input.eventId,
-      })
+      .values(buildProofInsertValues({ ...input, lateRegistration: false }))
       .onConflictDoUpdate({
         /** Spec 205 D1: o escritório nunca registra depois — o `or` do upsert preserva o do motorista. */
         set: buildProofUpsertSet({ ...input, lateRegistration: false }),
@@ -1037,6 +1038,25 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     return record ?? null
   }
 
+  public async findStopOccurrenceType(
+    input: Parameters<DriverFieldReportTransactionPort['findStopOccurrenceType']>[0],
+  ) {
+    const [type] = await this.transaction
+      .select({ stopKind: companyOccurrenceTypes.stopKind })
+      .from(companyOccurrenceTypes)
+      .where(
+        and(
+          eq(companyOccurrenceTypes.companyId, input.companyId),
+          eq(companyOccurrenceTypes.id, input.occurrenceTypeId),
+          eq(companyOccurrenceTypes.flow, OCCURRENCE_TYPE_FLOWS.stop),
+          eq(companyOccurrenceTypes.active, true),
+        ),
+      )
+      .limit(1)
+
+    return type ?? null
+  }
+
   public async recordOccurrence(
     input: Parameters<DriverFieldReportTransactionPort['recordOccurrence']>[0],
   ) {
@@ -1049,6 +1069,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
         companyId: input.companyId,
         description: input.description,
         kind: input.kind,
+        occurrenceTypeId: input.occurrenceTypeId,
         onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
         reportedDistanceMeters: input.distanceMeters,
         stopId: input.stopId,

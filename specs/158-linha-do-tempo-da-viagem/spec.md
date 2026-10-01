@@ -32,7 +32,12 @@ parada a que se refere e a frase de autoria do canal: "por <usuária> (escritór
   `report-document-delivery.use-case.ts:313-318`). A linha do tempo mostra o que foi gravado; o defeito
   é registrado à parte (T11).
 - Exportar a linha do tempo (PDF/CSV) e EDI de ocorrência.
-- Coordenadas do evento na tela (latitude/longitude ficam fora da resposta).
+- ~~Coordenadas do evento na tela (latitude/longitude ficam fora da resposta).~~ **Revogado pela
+  ADR-0081 §6 e §6.1 (2026-10-01), executado pela spec 196.** A linha do tempo passa a devolver o
+  ponto em duas chaves (`location`, `locationState`), e só para quem tem a permissão
+  `trip.event-location`; o painel mostra a coordenada no tooltip do ícone de GPS. O CA8 abaixo foi
+  emendado junto. Continua valendo o resto da exclusão: nada de `actorUserId`, nome de recebedor,
+  documento ou `objectKey` no item.
 
 ## Decisões
 
@@ -160,8 +165,14 @@ sem o selo de motorista.
    `finance-read.contract.ts` e `separator-role.contract.test.ts` são atualizadas, não contornadas.
 7. Cursor: 250 eventos lidos em páginas de 100 devolvem os 250, sem repetir nem pular, inclusive com
    `occurredAt` empatado.
-8. A resposta não contém `actorUserId`, `receiverName`, `receiverDocumentMasked`, `latitude`,
-   `longitude`, `objectKey`; o validador do front recusa chave desconhecida.
+8. A resposta não contém `actorUserId`, `receiverName`, `receiverDocumentMasked`, ~~`latitude`,
+   `longitude`~~, `objectKey`; o validador do front recusa chave desconhecida.
+
+   > **Emenda de 2026-10-01 (ADR-0081 §6.1, spec 196).** `latitude` e `longitude` saíram da lista:
+   > posição agora aparece, mas **só** dentro de `location`/`locationState` e **só** para quem tem
+   > `trip.event-location` — nunca como chave solta no item. O teste que guardava este critério foi
+   > reescrito nesse sentido, não apagado.
+
 9. Um `update(trips)` novo com `status` e sem evento reprova o contrato estático.
 10. Nenhuma migration destrutiva; `make migration-test` passa com rollback.
 

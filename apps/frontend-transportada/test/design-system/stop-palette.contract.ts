@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'bun:test'
 
 import { stopColorOf } from '../../src/modules/trip/shared/stopColor.service'
+import { channels, contrastRatio, linear } from './contrast.helper.js'
 
 const STYLES = new URL('../../src/styles/index.css', import.meta.url)
 const source = readFileSync(STYLES, 'utf8')
@@ -76,27 +77,6 @@ function valuesOf(token: string): readonly string[] {
  */
 function stopPalette(total = 24): readonly string[] {
   return Array.from({ length: total }, (_unused, index) => stopColorOf(index + 1))
-}
-
-function channels(hex: string): readonly number[] {
-  return [1, 3, 5].map((start) => Number.parseInt(hex.slice(start, start + 2), 16) / 255)
-}
-
-function linear(channel: number): number {
-  return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
-}
-
-function relativeLuminance(hex: string): number {
-  const [red = 0, green = 0, blue = 0] = channels(hex).map(linear)
-
-  return 0.2126 * red + 0.7152 * green + 0.0722 * blue
-}
-
-function contrastRatio(first: string, second: string): number {
-  const one = relativeLuminance(first)
-  const other = relativeLuminance(second)
-
-  return (Math.max(one, other) + 0.05) / (Math.min(one, other) + 0.05)
 }
 
 /** CIELab, que é onde "parece a mesma cor" vira número — RGB cru mente em torno do verde. */

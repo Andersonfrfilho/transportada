@@ -133,7 +133,10 @@ describe('as rotas da sugestão multi-veículo (spec 058 P2)', () => {
   test('o aceite leva a escolha de rota por veículo', async () => {
     const fixture = await createMultiVehicleHttpFixture()
     const routeChoiceByVehicle = [
-      { routeChoice: { criterion: 'fastest', signature: 'abc123' }, vehicleId: VEHICLE_ID },
+      {
+        routeChoice: { criterion: 'fastest', signature: 'a1b2c3d4e5f60718293a4b5c6d7e8f90' },
+        vehicleId: VEHICLE_ID,
+      },
     ]
 
     const response = await fixture.handle(
@@ -325,6 +328,67 @@ describe('as rotas da sugestão multi-veículo (spec 058 P2)', () => {
       readonly trips: readonly { readonly driverId: string | null }[]
     }>(response)
     expect(data.trips.map((trip) => trip.driverId)).toEqual(['driver-1'])
+  })
+
+  /**
+   * Spec 149 T5: `helperIds` e `driverSource` atravessam a rota até o caso de uso, e `recommended`
+   * — origem que só o servidor preenche (T10) — é recusado antes de qualquer consulta.
+   */
+  describe('spec 149 T5: ajudantes e origem do motorista na proposta', () => {
+    const HELPER_ID = '00000000-0000-4000-8000-000000000031'
+
+    test('aceita helperIds e driverSource e leva os dois ao caso de uso', async () => {
+      const fixture = await createMultiVehicleHttpFixture()
+
+      const response = await fixture.handle(
+        jsonRequest({
+          body: {
+            nfeDocumentIds: [FIRST_DOCUMENT],
+            vehicles: [
+              {
+                driverId: DRIVER_ID,
+                driverSource: 'manual',
+                helperIds: [HELPER_ID],
+                vehicleId: VEHICLE_ID,
+              },
+            ],
+          },
+          method: 'POST',
+          path: MULTI_VEHICLE_PATH,
+        }),
+      )
+
+      expect(response.status).toBe(202)
+      expect(fixture.createCalls[0]).toMatchObject({
+        vehicles: [
+          {
+            driverId: DRIVER_ID,
+            driverSource: 'manual',
+            helperIds: [HELPER_ID],
+            vehicleId: VEHICLE_ID,
+          },
+        ],
+      })
+    })
+
+    /** `recommended` é preenchido só pelo servidor (T10) — mandá-lo do cliente é pedido malformado. */
+    test('recusa driverSource "recommended" vindo do cliente, com 400', async () => {
+      const fixture = await createMultiVehicleHttpFixture()
+
+      const response = await fixture.handle(
+        jsonRequest({
+          body: {
+            nfeDocumentIds: [FIRST_DOCUMENT],
+            vehicles: [{ driverId: DRIVER_ID, driverSource: 'recommended', vehicleId: VEHICLE_ID }],
+          },
+          method: 'POST',
+          path: MULTI_VEHICLE_PATH,
+        }),
+      )
+
+      expect(response.status).toBe(400)
+      expect(fixture.createCalls).toEqual([])
+    })
   })
 
   /** Pedir roteiro é escrever viagem: `fleet.read` lê a sugestão, mas não a cria nem a decide. */

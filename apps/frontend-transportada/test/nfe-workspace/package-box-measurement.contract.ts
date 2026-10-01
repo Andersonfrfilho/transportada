@@ -72,11 +72,34 @@ function buildClient(body: unknown, captured?: { url?: string; init?: RequestIni
 describe('a fila de medição vista pelo conferente (spec 085 G005)', () => {
   it('lê a fila que a API serve', () => {
     const queue = packageBoxQueueFromApi({
-      data: { coveredCount: 1, items: [BOX], totalVolumes: 100 },
+      data: { coveredCount: 1, items: [BOX], measuredCount: 0, pendingCount: 0, totalVolumes: 100 },
     })
 
     expect(queue.coveredCount).toBe(1)
     expect(queue.items[0]?.productCode).toBe('18245')
+  })
+
+  /** Os dois totais são da empresa inteira, não da página: o guard os repassa, não os recalcula. */
+  it('lê quantas caixas já foram medidas e quantas faltam', () => {
+    const queue = packageBoxQueueFromApi({
+      data: {
+        coveredCount: 1,
+        items: [BOX],
+        measuredCount: 12,
+        pendingCount: 38,
+        totalVolumes: 100,
+      },
+    })
+
+    expect(queue.measuredCount).toBe(12)
+    expect(queue.pendingCount).toBe(38)
+  })
+
+  /** Total ausente não vira zero: "0 faltam" falso manda o conferente embora sem trabalho. */
+  it('recusa a fila sem os totais', () => {
+    expect(() =>
+      packageBoxQueueFromApi({ data: { coveredCount: 1, items: [BOX], totalVolumes: 100 } }),
+    ).toThrow()
   })
 
   /**
@@ -92,7 +115,7 @@ describe('a fila de medição vista pelo conferente (spec 085 G005)', () => {
   it('a situação padrão é o que falta medir', async () => {
     const captured: { url?: string } = {}
     await buildClient(
-      { data: { coveredCount: 0, items: [], totalVolumes: 0 } },
+      { data: { coveredCount: 0, items: [], measuredCount: 0, pendingCount: 0, totalVolumes: 0 } },
       captured,
     ).listBoxes({ status: 'pending' })
 
@@ -103,7 +126,7 @@ describe('a fila de medição vista pelo conferente (spec 085 G005)', () => {
   it('pede as medidas quando o operador troca a situação', async () => {
     const captured: { url?: string } = {}
     await buildClient(
-      { data: { coveredCount: 0, items: [], totalVolumes: 0 } },
+      { data: { coveredCount: 0, items: [], measuredCount: 0, pendingCount: 0, totalVolumes: 0 } },
       captured,
     ).listBoxes({ status: 'all' })
 
@@ -114,7 +137,7 @@ describe('a fila de medição vista pelo conferente (spec 085 G005)', () => {
   it('manda a etiqueta lida como scanned, sem reduzi-la aqui', async () => {
     const captured: { url?: string } = {}
     await buildClient(
-      { data: { coveredCount: 0, items: [], totalVolumes: 0 } },
+      { data: { coveredCount: 0, items: [], measuredCount: 0, pendingCount: 0, totalVolumes: 0 } },
       captured,
     ).listBoxes({ scanned: '17896004003405' })
 
@@ -210,6 +233,8 @@ describe('família de variação e réplica de medida (spec 155)', () => {
       data: {
         coveredCount: 1,
         items: [{ ...BOX, measurementMarginMm: null, measurementSource: 'replicated' }],
+        measuredCount: 0,
+        pendingCount: 0,
         totalVolumes: 100,
       },
     })
@@ -233,6 +258,8 @@ describe('família de variação e réplica de medida (spec 155)', () => {
             variantLabel: 'PURO E HIDRATAN',
           },
         ],
+        measuredCount: 0,
+        pendingCount: 0,
         totalVolumes: 100,
       },
     })
@@ -249,7 +276,7 @@ describe('família de variação e réplica de medida (spec 155)', () => {
   /** Item sem família (D2): `familyKey` ausente e `packagingUnitCount` ausente continuam válidos. */
   it('aceita item sem família nem sufixo numérico de unidade', () => {
     const queue = packageBoxQueueFromApi({
-      data: { coveredCount: 0, items: [BOX], totalVolumes: 0 },
+      data: { coveredCount: 0, items: [BOX], measuredCount: 0, pendingCount: 0, totalVolumes: 0 },
     })
 
     expect(queue.items[0]?.familyKey).toBeUndefined()
@@ -356,7 +383,7 @@ describe('os cabeçalhos que cada método manda', () => {
   it('a leitura da fila manda só Authorization', async () => {
     const captured: { init?: RequestInit | undefined; url?: string } = {}
     await buildClient(
-      { data: { coveredCount: 0, items: [], totalVolumes: 0 } },
+      { data: { coveredCount: 0, items: [], measuredCount: 0, pendingCount: 0, totalVolumes: 0 } },
       captured,
     ).listBoxes()
 
@@ -1281,6 +1308,8 @@ describe('origem e margem gravadas para auditoria (R5)', () => {
       data: {
         coveredCount: 1,
         items: [{ ...BOX, measurementMarginMm: 18, measurementSource: 'camera_adjusted' }],
+        measuredCount: 0,
+        pendingCount: 0,
         totalVolumes: 100,
       },
     })
@@ -1353,6 +1382,8 @@ describe('origem e margem gravadas para auditoria (R5)', () => {
         data: {
           coveredCount: 1,
           items: [{ ...BOX, measurementSource: 'invented' }],
+          measuredCount: 0,
+          pendingCount: 0,
           totalVolumes: 100,
         },
       }),

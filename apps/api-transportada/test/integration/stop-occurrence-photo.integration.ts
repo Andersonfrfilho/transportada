@@ -16,6 +16,7 @@ import { eq } from 'drizzle-orm'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
   companies,
+  companyOccurrenceTypes,
   fleetDrivers,
   fleetVehicles,
   identityUsers,
@@ -34,9 +35,11 @@ import { confirmOccurrenceUpload } from '../../src/trips/application/confirm-occ
 import { reportStopOccurrence } from '../../src/trips/application/report-stop-occurrence.use-case.js'
 import { OCCURRENCE_PHOTO_MAX_BYTES } from '../../src/trips/domain/occurrence-attachment.policy.js'
 import {
+  OccurrenceTypeNotStopError,
   TripOccurrenceUploadNotReachableError,
   TripStopNotReachableError,
 } from '../../src/trips/domain/trip.error.js'
+import { saveOccurrenceType } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { DrizzleOccurrenceUploadRepository } from '../../src/trips/infrastructure/drizzle-occurrence-upload.repository.js'
 import {
@@ -177,6 +180,143 @@ describe('a foto do "Deu problema" é anexo da ocorrência de parada (spec 209)'
     })
   })
 })
+
+/**
+ * Spec 218 D2: o tipo do catálogo decide o kind, e a consulta que o confere é o recorte — tipo de
+ * outra empresa, de nota ou aposentado respondem igual, e nada é gravado.
+ */
+describe('a ocorrência de parada pelo tipo do catálogo (spec 218 D2)', () => {
+  testWithPostgres('grava o tipo e o kind que o stop_kind dele diz', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedWorld(database)
+      const typeId = await seedOccurrenceType(database, {
+        companyId: world.companyId,
+        flow: 'stop',
+        name: 'Doca fechada na chegada',
+        stopKind: 'dock_closed',
+      })
+
+      const result = await reportStopOccurrence({
+        ...occurrenceInput(database, world, { attachmentObjectId: null, key: 'chave-1' }),
+        kind: undefined,
+        occurrenceTypeId: typeId,
+      })
+
+      const [row] = await database.db
+        .select({
+          kind: tripStopOccurrences.kind,
+          occurrenceTypeId: tripStopOccurrences.occurrenceTypeId,
+        })
+        .from(tripStopOccurrences)
+        .where(eq(tripStopOccurrences.id, result.id))
+      expect(row).toEqual({ kind: 'dock_closed', occurrenceTypeId: typeId })
+    })
+  })
+
+  testWithPostgres('tipo de outra empresa, de nota ou aposentado é recusado', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedWorld(database)
+      const otherWorld = await seedWorld(database)
+      const candidates = [
+        await seedOccurrenceType(database, {
+          companyId: otherWorld.companyId,
+          flow: 'stop',
+          name: 'Espera longa',
+          stopKind: 'long_wait',
+        }),
+        await seedOccurrenceType(database, {
+          companyId: world.companyId,
+          flow: 'document',
+          name: 'Cliente ausente',
+          stopKind: null,
+        }),
+        await seedOccurrenceType(database, {
+          active: false,
+          companyId: world.companyId,
+          flow: 'stop',
+          name: 'Outro',
+          stopKind: 'other',
+        }),
+      ]
+
+      for (const [index, typeId] of candidates.entries()) {
+        const rejected = await reportStopOccurrence({
+          ...occurrenceInput(database, world, { attachmentObjectId: null, key: `chave-${index}` }),
+          kind: undefined,
+          occurrenceTypeId: typeId,
+        }).catch((error: unknown) => error)
+        expect(rejected).toBeInstanceOf(OccurrenceTypeNotStopError)
+      }
+      expect(await database.db.select().from(tripStopOccurrences)).toHaveLength(0)
+    })
+  })
+
+  testWithPostgres(
+    'tipo que o cadastro cria como de parada nasce com stop_kind "other"',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database)
+
+        const created = await saveOccurrenceType(database.db, {
+          active: true,
+          allowsMultipleItems: true,
+          companyId: world.companyId,
+          emailBody: '',
+          emailSubject: '',
+          emailTemplateKey: null,
+          flow: 'stop',
+          name: 'Portão trancado',
+          notifies: false,
+          occurrenceTypeId: null,
+          stage: 'delivery',
+        })
+        expect(created.stopKind).toBe('other')
+
+        await database.db
+          .update(companyOccurrenceTypes)
+          .set({ stopKind: 'long_wait' })
+          .where(eq(companyOccurrenceTypes.id, created.id))
+        const edited = await saveOccurrenceType(database.db, {
+          active: true,
+          allowsMultipleItems: true,
+          companyId: world.companyId,
+          emailBody: '',
+          emailSubject: '',
+          emailTemplateKey: null,
+          flow: 'stop',
+          name: 'Espera no portão',
+          notifies: false,
+          occurrenceTypeId: created.id,
+          stage: 'delivery',
+        })
+        expect(edited.stopKind).toBe('long_wait')
+      })
+    },
+  )
+})
+
+async function seedOccurrenceType(
+  database: TestDatabase,
+  input: {
+    readonly active?: boolean
+    readonly companyId: string
+    readonly flow: 'document' | 'stop'
+    readonly name: string
+    readonly stopKind: 'dock_closed' | 'long_wait' | 'other' | null
+  },
+): Promise<string> {
+  const id = crypto.randomUUID()
+  await database.db.insert(companyOccurrenceTypes).values({
+    active: input.active ?? true,
+    companyId: input.companyId,
+    flow: input.flow,
+    id,
+    name: input.name,
+    stage: 'delivery',
+    stopKind: input.stopKind,
+  })
+  return id
+}
 
 function occurrenceInput(
   database: TestDatabase,

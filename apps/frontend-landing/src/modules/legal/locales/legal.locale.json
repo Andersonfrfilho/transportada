@@ -1,0 +1,248 @@
+{
+  "privacyPolicy": {
+    "title": "Política de Privacidade",
+    "updatedAt": "1 de outubro de 2026",
+    "summary": "Esta política explica quais dados pessoais a {{brand}} trata para operar o transporte, por que os trata e o que você pode exigir a respeito deles.",
+    "sections": [
+      {
+        "heading": "Quem trata os seus dados",
+        "body": [
+          "A {{brand}} é a controladora dos dados pessoais descritos aqui: é ela quem decide por que e como esses dados são tratados.",
+          "O sistema que ela usa para operar é a plataforma TransportAdA, fornecida pela Ada Technology, que atua como operadora — trata os dados apenas para executar o que a {{brand}} determina, em instalação dedicada a ela."
+        ],
+        "items": []
+      },
+      {
+        "heading": "Dados que coletamos, e de onde eles vêm",
+        "body": [
+          "Coletamos apenas o que a operação de transporte exige. A origem de cada conjunto é esta:"
+        ],
+        "items": [
+          "Candidatura de agregado, enviada por você neste site: nome completo, CPF ou CNPJ, e-mail, telefone, CEP e os documentos que você anexa — CNH, CRLV do veículo, documento da empresa, CCMEI e comprovante de endereço.",
+          "Operação de transporte, vinda da nota fiscal e do contratante do frete: identificação de remetente e destinatário, endereços de coleta e entrega, e o nome e o contato de quem recebe a carga.",
+          "Aplicativo do motorista: a localização do aparelho durante a viagem, coletada somente enquanto o compartilhamento está ligado no próprio aplicativo; fotos do comprovante de entrega; e a assinatura de quem recebeu.",
+          "Atendimento por WhatsApp e por e-mail: as mensagens trocadas nesses canais e o número ou endereço usado para falar com a gente.",
+          "Uso do sistema: identificação da conta, data e hora de acesso e o registro das ações sensíveis, que fica em trilha de auditoria."
+        ]
+      },
+      {
+        "heading": "Para que usamos",
+        "body": ["Cada dado tem uma finalidade declarada:"],
+        "items": [
+          "Executar o transporte contratado — planejar rota, despachar viagem, confirmar coleta e entrega.",
+          "Emitir e guardar os documentos fiscais eletrônicos exigidos por lei, como CT-e e MDF-e.",
+          "Analisar candidaturas de agregado e manter o cadastro da frota em dia.",
+          "Informar o contratante e o destinatário sobre o andamento da entrega.",
+          "Faturar o frete e fazer o repasse ao agregado.",
+          "Proteger a operação: autenticação, prevenção a fraude e apuração de incidentes."
+        ]
+      },
+      {
+        "heading": "Com que base legal",
+        "body": ["Tratamos dados pessoais com apoio no art. 7º da LGPD, conforme a finalidade:"],
+        "items": [
+          "Execução de contrato (inciso V) — tudo que é necessário para prestar o transporte e pagar o frete.",
+          "Cumprimento de obrigação legal ou regulatória (inciso II) — emissão e guarda de documento fiscal.",
+          "Legítimo interesse (inciso IX) — segurança do sistema e registro de auditoria.",
+          "Consentimento (inciso I) — localização do motorista no aplicativo e comunicação por WhatsApp. Pode ser revogado a qualquer momento, sem prejuízo do que já foi tratado antes."
+        ]
+      },
+      {
+        "heading": "Com quem compartilhamos",
+        "body": [
+          "Não vendemos dados pessoais e não os cedemos para publicidade de terceiros. Compartilhamos apenas o necessário, com:"
+        ],
+        "items": [
+          "A Secretaria da Fazenda e demais órgãos fiscais, no que a legislação de documento fiscal eletrônico determina.",
+          "O contratante do frete, quanto ao andamento da entrega da carga dele.",
+          "Fornecedores que sustentam a operação — hospedagem, envio de e-mail, mensageria e provedor de emissão fiscal — contratualmente obrigados a tratar os dados só para esse fim.",
+          "Autoridade pública, quando houver requisição legal."
+        ]
+      },
+      {
+        "heading": "Por quanto tempo guardamos",
+        "body": [
+          "O prazo segue a finalidade, e o prazo legal prevalece sobre o pedido de exclusão:"
+        ],
+        "items": [
+          "Documento fiscal eletrônico e os dados que o compõem: pelo prazo de guarda exigido pela legislação fiscal.",
+          "Cadastro de agregado ativo: enquanto durar o vínculo, mais o prazo de prescrição aplicável.",
+          "Candidatura não aprovada: pelo tempo necessário para registrar a decisão, depois eliminada ou anonimizada.",
+          "Registro de acesso e trilha de auditoria: pelo prazo necessário à segurança e à prestação de contas."
+        ]
+      },
+      {
+        "heading": "Como protegemos",
+        "body": [
+          "O acesso ao sistema é individual e controlado por perfil de permissão; o tráfego é cifrado em trânsito; campos sensíveis são cifrados em repouso; e toda ação sensível fica registrada com autor, data e hora. Incidente de segurança relevante é comunicado a você e à Autoridade Nacional de Proteção de Dados, na forma do art. 48 da LGPD."
+        ],
+        "items": []
+      },
+      {
+        "heading": "Seus direitos",
+        "body": ["O art. 18 da LGPD garante a você, a qualquer momento e sem custo:"],
+        "items": [
+          "Confirmar se tratamos dados seus, e acessá-los.",
+          "Corrigir dado incompleto, inexato ou desatualizado.",
+          "Pedir anonimização, bloqueio ou eliminação de dado desnecessário ou tratado fora da lei.",
+          "Pedir a portabilidade a outro fornecedor.",
+          "Saber com quem compartilhamos os seus dados.",
+          "Revogar o consentimento, nos tratamentos que dependem dele.",
+          "Opor-se a tratamento feito com base em legítimo interesse."
+        ]
+      },
+      {
+        "heading": "Este site",
+        "body": [
+          "O formulário de candidatura usa o verificador anti-robô Cloudflare Turnstile, que recebe dados técnicos da sua conexão para distinguir pessoa de automação. O site não usa cookie de publicidade nem rastreamento de terceiros para perfilar visitantes."
+        ],
+        "items": []
+      },
+      {
+        "heading": "Mudanças nesta política",
+        "body": [
+          "Quando esta política mudar, a data de atualização no topo muda junto. Mudança que altere finalidade ou base legal é comunicada pelos canais de contato antes de passar a valer."
+        ],
+        "items": []
+      }
+    ]
+  },
+  "termsOfService": {
+    "title": "Termos de Serviço",
+    "updatedAt": "1 de outubro de 2026",
+    "summary": "Estas são as condições de uso deste site e dos serviços digitais da {{brand}}. Ao usar o site, você concorda com elas.",
+    "sections": [
+      {
+        "heading": "O que este site oferece",
+        "body": [
+          "Este site apresenta a {{brand}}, recebe candidaturas de motoristas e transportadores agregados, e dá acesso ao portal do contratante para acompanhar entregas. Ele não é, por si só, a contratação do transporte: o frete é regido pelo contrato firmado entre as partes e pela legislação aplicável."
+        ],
+        "items": []
+      },
+      {
+        "heading": "Quem pode usar",
+        "body": [
+          "O site é destinado a maiores de 18 anos, com capacidade civil para contratar. Ao enviar dados, você declara que são verdadeiros, atuais e seus — ou que você tem autorização de quem os fornece."
+        ],
+        "items": []
+      },
+      {
+        "heading": "Candidatura de agregado",
+        "body": [
+          "Enviar uma candidatura não cria vínculo de nenhuma natureza e não garante contratação. A {{brand}} analisa os documentos, pode pedir complementação e decide sobre o cadastro conforme os próprios critérios.",
+          "Documento falso, adulterado ou de terceiro sem autorização reprova a candidatura e pode ser comunicado às autoridades."
+        ],
+        "items": []
+      },
+      {
+        "heading": "Conta e acesso",
+        "body": [
+          "A credencial de acesso ao sistema é pessoal e intransferível. Você responde pelo que for feito com ela e deve avisar a {{brand}} assim que suspeitar de uso indevido.",
+          "O acesso pode ser suspenso em caso de violação destes termos, de risco à segurança ou de determinação legal."
+        ],
+        "items": []
+      },
+      {
+        "heading": "Uso aceitável",
+        "body": ["Ao usar o site e o sistema, você não pode:"],
+        "items": [
+          "Tentar obter acesso a dados ou a contas de terceiros.",
+          "Interferir no funcionamento do serviço, sobrecarregá-lo ou contorná-lo por automação não autorizada.",
+          "Extrair conteúdo em massa, por raspagem ou meio equivalente.",
+          "Usar o serviço para finalidade ilícita ou para transportar o que a lei proíbe."
+        ]
+      },
+      {
+        "heading": "Disponibilidade",
+        "body": [
+          "O serviço é oferecido no estado em que se encontra. Fazemos o possível para mantê-lo no ar, mas não garantimos funcionamento ininterrupto: há janelas de manutenção, e há falha de terceiros fora do nosso alcance — conectividade, provedor de nuvem e sistemas da administração tributária, entre outros."
+        ],
+        "items": []
+      },
+      {
+        "heading": "Conteúdo e propriedade intelectual",
+        "body": [
+          "A marca, o texto, o leiaute e o software deste site pertencem à {{brand}} ou a quem os licencia para ela, e não podem ser copiados ou reaproveitados sem autorização por escrito.",
+          "Os documentos e as fotos que você envia continuam seus; você autoriza a {{brand}} a tratá-los para as finalidades descritas na Política de Privacidade."
+        ],
+        "items": []
+      },
+      {
+        "heading": "Privacidade",
+        "body": [
+          "O tratamento de dados pessoais segue a Política de Privacidade, que é parte integrante destes termos."
+        ],
+        "items": []
+      },
+      {
+        "heading": "Alterações",
+        "body": [
+          "Estes termos podem mudar. A data de atualização no topo indica a versão em vigor, e o uso do site depois da mudança significa concordância com a versão nova."
+        ],
+        "items": []
+      },
+      {
+        "heading": "Lei aplicável",
+        "body": [
+          "Estes termos são regidos pela lei brasileira. Fica eleito o foro do domicílio do consumidor, quando a relação for de consumo, e o da sede da {{brand}} nos demais casos."
+        ],
+        "items": []
+      }
+    ]
+  },
+  "dataDeletion": {
+    "title": "Exclusão de dados",
+    "updatedAt": "1 de outubro de 2026",
+    "summary": "Como pedir à {{brand}} a exclusão dos seus dados pessoais, o que é apagado e o que a lei obriga a guardar.",
+    "sections": [
+      {
+        "heading": "Como pedir",
+        "body": ["Envie o pedido pelo canal do encarregado indicado no fim desta página, com:"],
+        "items": [
+          "Seu nome completo e o CPF ou CNPJ que você usou com a gente.",
+          "O canal pelo qual você nos conhece — candidatura pelo site, aplicativo do motorista, portal do contratante ou conversa por WhatsApp.",
+          "O que você quer excluir: tudo o que for possível, ou um conjunto específico."
+        ]
+      },
+      {
+        "heading": "O que acontece depois",
+        "body": [
+          "Confirmamos o recebimento e a sua identidade — essa conferência existe para que ninguém apague os dados de outra pessoa. Respondemos em até 15 dias, informando o que foi excluído, o que foi anonimizado e o que precisamos manter, com o motivo legal de cada caso.",
+          "A exclusão alcança as cópias de segurança no ciclo seguinte de rotação dos backups, e não as reconstrói."
+        ],
+        "items": []
+      },
+      {
+        "heading": "O que não podemos apagar a pedido",
+        "body": [
+          "A LGPD, no art. 16, preserva o que outra lei obriga a guardar. Na operação de transporte, isso alcança:"
+        ],
+        "items": [
+          "Documentos fiscais eletrônicos já emitidos — CT-e, MDF-e e as notas fiscais transportadas — e os dados que constam deles, pelo prazo de guarda fiscal.",
+          "Registros contábeis e de pagamento de frete, pelo prazo legal.",
+          "Comprovantes de entrega que sustentem a prova da prestação do serviço, enquanto houver prazo para questioná-la.",
+          "Trilha de auditoria de acesso, pelo prazo necessário à segurança."
+        ]
+      },
+      {
+        "heading": "Sair do WhatsApp sem apagar o resto",
+        "body": [
+          "Se o que você quer é só parar de receber mensagem, responda SAIR na própria conversa, ou peça pelo canal do encarregado. O histórico da conversa é excluído mediante pedido, respeitadas as mesmas exceções acima."
+        ],
+        "items": []
+      },
+      {
+        "heading": "Se você for um candidato a agregado",
+        "body": [
+          "Candidatura que não virou cadastro é excluída a pedido, com os documentos anexados. Se você já é agregado ativo, a exclusão total depende do encerramento do vínculo, porque o cadastro sustenta a emissão fiscal e o pagamento do frete."
+        ],
+        "items": []
+      }
+    ]
+  },
+  "contact": {
+    "heading": "Falar com o encarregado",
+    "withEmail": "Pedidos e dúvidas sobre dados pessoais vão para {{email}}, no canal do encarregado pela proteção de dados da {{brand}}.",
+    "withoutEmail": "Pedidos e dúvidas sobre dados pessoais vão para o encarregado pela proteção de dados da {{brand}}, pelos canais de contato publicados na página inicial."
+  }
+}

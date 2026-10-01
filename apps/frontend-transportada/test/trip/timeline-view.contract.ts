@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 
 import {
+  collectRepeatedAuthorshipItemIds,
   collectTripTimelineDocuments,
   filterTripTimelineItemsByDocumentIds,
   removeDuplicateDispatchEvents,
@@ -198,10 +199,22 @@ describe('título do item por kind (spec 158 T8)', () => {
     )
   })
 
-  it('trip.status_changed desconhecido cai no título genérico — nunca o código cru', () => {
-    const item: TripTimelineItem = { ...BASE_ITEM, kind: 'trip.status_changed', toStatus: 'x' }
+  /**
+   * Emenda da spec 196 à spec 158: o título genérico continua, mas só quando **não há** situação.
+   * Situação ausente e situação que o bundle não conhece eram a mesma frase, e a segunda escondia
+   * um dado que a API mandou — o mesmo defeito do `ocorrência: dock_closed`, pelo avesso.
+   */
+  it('trip.status_changed sem situação cai no título genérico', () => {
+    const item: TripTimelineItem = { ...BASE_ITEM, kind: 'trip.status_changed', toStatus: null }
     expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe(
       'eventTimeline.itemTitle.statusChanged(status=eventTimeline.itemTitle.unknownStatus)',
+    )
+  })
+
+  it('trip.status_changed desconhecido mostra o próprio código, sem sumir', () => {
+    const item: TripTimelineItem = { ...BASE_ITEM, kind: 'trip.status_changed', toStatus: 'x' }
+    expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe(
+      'eventTimeline.itemTitle.statusChanged(status=x)',
     )
   })
 
@@ -254,15 +267,27 @@ describe('título do item por kind (spec 158 T8)', () => {
     )
   })
 
-  it('stop.occurrence usa o tipo da ocorrência', () => {
+  it('stop.occurrence traduz o tipo conhecido em vez de imprimir o identificador', () => {
     const item: TripTimelineItem = {
       ...BASE_ITEM,
       document: null,
       kind: 'stop.occurrence',
-      occurrence: { note: '', typeName: 'Avaria' },
+      occurrence: { note: '', typeName: 'dock_closed' },
     }
     expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe(
-      'eventTimeline.itemTitle.stopOccurrence(type=Avaria)',
+      'eventTimeline.itemTitle.stopOccurrence(type=fieldActions.occurrenceKind.dock_closed)',
+    )
+  })
+
+  it('stop.occurrence com tipo desconhecido cai no próprio código, sem sumir', () => {
+    const item: TripTimelineItem = {
+      ...BASE_ITEM,
+      document: null,
+      kind: 'stop.occurrence',
+      occurrence: { note: '', typeName: 'flooded_road' },
+    }
+    expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe(
+      'eventTimeline.itemTitle.stopOccurrence(type=flooded_road)',
     )
   })
 
@@ -284,10 +309,17 @@ describe('título do item por kind (spec 158 T8)', () => {
     )
   })
 
-  it('document.status_changed desconhecido cai no título genérico', () => {
-    const item: TripTimelineItem = { ...BASE_ITEM, kind: 'document.status_changed', toStatus: 'x' }
+  it('document.status_changed sem situação cai no título genérico', () => {
+    const item: TripTimelineItem = { ...BASE_ITEM, kind: 'document.status_changed', toStatus: null }
     expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe(
       'eventTimeline.itemTitle.documentStatusChanged(document=eventTimeline.itemTitle.documentLabel(invoice=123/1),status=eventTimeline.itemTitle.unknownStatus)',
+    )
+  })
+
+  it('document.status_changed desconhecido mostra o próprio código, sem sumir', () => {
+    const item: TripTimelineItem = { ...BASE_ITEM, kind: 'document.status_changed', toStatus: 'x' }
+    expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe(
+      'eventTimeline.itemTitle.documentStatusChanged(document=eventTimeline.itemTitle.documentLabel(invoice=123/1),status=x)',
     )
   })
 })
@@ -364,6 +396,51 @@ describe('autoria de trip.created sem ator (spec 171)', () => {
     expect(resolveTripTimelineAuthorshipText(item, fakeTranslate)).toBe(
       'authorship.backoffice(actor=authorship.unidentifiedActor)',
     )
+  })
+})
+
+/**
+ * A autoria só aparece quando **muda**: quatro eventos seguidos do mesmo autor mostram a frase uma
+ * vez. A regra existia desde a spec 180, viveu dentro do JSX e sumiu sem ninguém notar quando a
+ * spec 196 reescreveu o item — o único a cobrá-la era o smoke, que roda na CI. Aqui ela é função
+ * pura e tem contrato próprio.
+ */
+describe('autoria repetida some do evento seguinte (spec 180)', () => {
+  function buildItem(id: string, overrides: Partial<TripTimelineItem> = {}): TripTimelineItem {
+    return { ...BASE_ITEM, id, ...overrides }
+  }
+
+  it('marca todos os seguintes de uma sequência do mesmo autor, menos o primeiro', () => {
+    const items = [buildItem('a'), buildItem('b'), buildItem('c'), buildItem('d')]
+
+    const repeated = collectRepeatedAuthorshipItemIds(items, fakeTranslate)
+
+    expect(repeated.has('a')).toBe(false)
+    expect([...repeated].sort()).toEqual(['b', 'c', 'd'])
+  })
+
+  it('o autor que muda reaparece, e volta a sumir quando se repete', () => {
+    const items = [
+      buildItem('a'),
+      buildItem('b', { actorName: 'Carlos Lima' }),
+      buildItem('c', { actorName: 'Carlos Lima' }),
+      buildItem('d'),
+    ]
+
+    const repeated = collectRepeatedAuthorshipItemIds(items, fakeTranslate)
+
+    expect([...repeated]).toEqual(['c'])
+  })
+
+  /** O que se compara é a frase, não o nome: o mesmo ator por outro canal escreve outra coisa. */
+  it('mesmo ator em canal diferente não conta como repetição', () => {
+    const items = [buildItem('a'), buildItem('b', { channel: 'backoffice' })]
+
+    expect(collectRepeatedAuthorshipItemIds(items, fakeTranslate).size).toBe(0)
+  })
+
+  it('lista vazia não quebra', () => {
+    expect(collectRepeatedAuthorshipItemIds([], fakeTranslate).size).toBe(0)
   })
 })
 

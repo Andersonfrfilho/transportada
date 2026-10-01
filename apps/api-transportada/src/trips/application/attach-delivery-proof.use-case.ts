@@ -18,6 +18,7 @@ import {
 import {
   buildDeliveryProofObjectKey,
   DELIVERY_PROOF_MAX_BYTES,
+  DELIVERY_PROOF_THUMBNAIL_MAX_BYTES,
   isDeliveryProofMimeType,
 } from '../domain/delivery-proof.policy.js'
 import {
@@ -31,8 +32,13 @@ import {
   TripDeliveryProofRejectedError,
   TripDocumentNotReachableError,
 } from '../domain/trip.error.js'
+import { TripDeliveryProofCargoLimitError } from '../domain/trip-field-office.error.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
-import { PHOTO_PROOF_KIND } from '../domain/delivery-event.constant.js'
+import {
+  CARGO_PROOF_KIND,
+  PHOTO_PROOF_KIND,
+  TRIP_DELIVERY_PROOF_CARGO_LIMIT,
+} from '../domain/delivery-event.constant.js'
 import {
   applyReceivedBySettings,
   EMPTY_RECEIVED_BY,
@@ -77,6 +83,8 @@ export type DeliveryProofUpload = {
   readonly receivedBy?: ReceivedByFields
   /** Nome de quem recebeu — na assinatura e, desde a spec 193 D4, também na foto do canhoto. */
   readonly receiverName: string
+  /** Spec 220 RF17/RF19: miniatura gerada no cliente; ausente é o caso normal, nunca condição do comprovante. */
+  readonly thumbnail?: { readonly bytes: Uint8Array; readonly mimeType: string }
 }
 
 export type DeliveryProofStoragePort = {
@@ -134,11 +142,22 @@ export type DeliveryProofPort = {
     readonly eventId: string
     readonly kind: TripDeliveryProofKind
   }): Promise<ProofPunctuality | null>
+  /**
+   * Spec 184 D3 / spec 220 RF08: quantos comprovantes daquele evento+tipo já existem — o teto de
+   * cinco fotos da mercadoria vale para os dois canais.
+   */
+  countProofsForEvent(input: {
+    readonly companyId: string
+    readonly eventId: string
+    readonly kind: TripDeliveryProofKind
+  }): Promise<number>
   saveProof(input: {
     readonly accuracyMeters: string | null
     readonly actorUserId: string
     readonly attachmentKey: string
     readonly authorship: FieldAuthorship
+    /** Foto da mercadoria: a contagem contra este teto roda na transação que grava, sob trava do evento. */
+    readonly cargoLimit?: number
     readonly capturedAt: Date | null
     readonly companyId: string
     readonly eventId: string
@@ -160,6 +179,14 @@ export type DeliveryProofPort = {
     readonly receivedByDetail: string | null
     readonly sha256: string
     readonly sizeBytes: number
+    /** Spec 220 RF17: o objeto da miniatura, gravado na mesma transação do original. */
+    readonly thumbnail?: {
+      readonly mimeType: string
+      readonly objectId: string
+      readonly objectKey: string
+      readonly sha256: string
+      readonly sizeBytes: number
+    }
   }): Promise<{ readonly id: string }>
 }
 
@@ -195,6 +222,7 @@ export async function attachDeliveryProof(
   if (!isDeliveryProofMimeType(input.upload.mimeType)) {
     throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
   }
+  assertThumbnailAccepted(input.upload.thumbnail)
 
   /**
    * ADR-0057: quem decide se o documento entra é a configuração resolvida, nunca o app. `off` com
@@ -235,15 +263,30 @@ export async function attachDeliveryProof(
   }
 
   const authorship = deriveFieldAuthorship(input)
-  const punctuality = mergeProofPunctuality({
-    next: await classifyUploadPunctuality({ authorship, eventId, input, settings }),
-    previous:
-      (await input.repository.findProofPunctuality({
-        companyId: input.companyId,
-        eventId,
-        kind: input.upload.kind,
-      })) ?? undefined,
-  })
+  const isCargo = input.upload.kind === CARGO_PROOF_KIND
+  // Só evita subir o objeto ao bucket à toa; o teto de verdade é conferido dentro do `saveProof`.
+  if (isCargo) {
+    const cargoCount = await input.repository.countProofsForEvent({
+      companyId: input.companyId,
+      eventId,
+      kind: input.upload.kind,
+    })
+    if (cargoCount >= TRIP_DELIVERY_PROOF_CARGO_LIMIT) throw new TripDeliveryProofCargoLimitError()
+  }
+
+  const nextPunctuality = await classifyUploadPunctuality({ authorship, eventId, input, settings })
+  // Só o que substitui funde com o veredito anterior; `cargo` soma, cada foto guarda o seu.
+  const punctuality = isCargo
+    ? nextPunctuality
+    : mergeProofPunctuality({
+        next: nextPunctuality,
+        previous:
+          (await input.repository.findProofPunctuality({
+            companyId: input.companyId,
+            eventId,
+            kind: input.upload.kind,
+          })) ?? undefined,
+      })
 
   const objectId = input.newObjectId()
   const objectKey = buildDeliveryProofObjectKey({
@@ -258,6 +301,8 @@ export async function attachDeliveryProof(
     objectId,
     objectKey,
   })
+
+  const thumbnail = await storeThumbnail({ input, eventId })
 
   const proofId = input.newProofId()
   const receiverDocumentEnvelope =
@@ -283,6 +328,7 @@ export async function attachDeliveryProof(
     actorUserId: input.actorUserId,
     attachmentKey: input.upload.attachmentKey,
     authorship,
+    ...(isCargo ? { cargoLimit: TRIP_DELIVERY_PROOF_CARGO_LIMIT } : {}),
     capturedAt: input.upload.capturedAt ?? null,
     companyId: input.companyId,
     eventId,
@@ -302,15 +348,57 @@ export async function attachDeliveryProof(
     receivedByDetail: receiver.receivedByDetail,
     sha256: stored.sha256,
     sizeBytes: input.upload.bytes.byteLength,
+    ...(thumbnail === undefined ? {} : { thumbnail }),
   })
 
   return { ...proof, punctuality }
 }
 
+function assertThumbnailAccepted(thumbnail: DeliveryProofUpload['thumbnail']): void {
+  if (thumbnail === undefined) return
+  if (thumbnail.bytes.byteLength > DELIVERY_PROOF_THUMBNAIL_MAX_BYTES) {
+    throw new TripDeliveryProofRejectedError('TOO_LARGE')
+  }
+  if (!isDeliveryProofMimeType(thumbnail.mimeType)) {
+    throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
+  }
+}
+
+async function storeThumbnail(params: {
+  readonly eventId: string
+  readonly input: AttachDeliveryProofInput
+}): Promise<Parameters<DeliveryProofPort['saveProof']>[0]['thumbnail']> {
+  const { input } = params
+  const { thumbnail } = input.upload
+  if (thumbnail === undefined) return undefined
+
+  const objectId = input.newObjectId()
+  const objectKey = buildDeliveryProofObjectKey({
+    companyId: input.companyId,
+    eventId: params.eventId,
+    objectId,
+  })
+  const stored = await input.storage.store({
+    bytes: thumbnail.bytes,
+    companyId: input.companyId,
+    mimeType: thumbnail.mimeType,
+    objectId,
+    objectKey,
+  })
+
+  return {
+    mimeType: thumbnail.mimeType,
+    objectId,
+    objectKey,
+    sha256: stored.sha256,
+    sizeBytes: thumbnail.bytes.byteLength,
+  }
+}
+
 /**
- * ADR-0070 §2-6, spec 159 RF4-RF6: só a foto do motorista entra na nota — a assinatura grava
- * `not_required` de propósito (RF4). Spec 159 T11 (ALTO 2): a foto do escritório (`field-proof`,
- * canal `office`) também — ela não classifica, e a fusão com a anterior
+ * ADR-0070 §2-6, spec 159 RF4-RF6, spec 220 RF10: a foto do canhoto e a da mercadoria do motorista
+ * entram na nota — a assinatura grava `not_required` de propósito (RF4). Spec 159 T11 (ALTO 2): o
+ * envio do escritório (`field-proof`, canal `office`) nunca classifica, e a fusão com a anterior
  * (`mergeProofPunctuality`) preserva o que a foto do motorista já tinha gravado: o canhoto do
  * escritório nem penaliza o motorista nem lava uma foto dele fora da regra.
  */
@@ -320,7 +408,8 @@ async function classifyUploadPunctuality(params: {
   readonly input: AttachDeliveryProofInput
   readonly settings: DeliveryProofFieldSettings
 }): Promise<ProofPunctuality> {
-  if (params.input.upload.kind !== PHOTO_PROOF_KIND) return PROOF_PUNCTUALITY.notRequired
+  const { kind } = params.input.upload
+  if (kind !== PHOTO_PROOF_KIND && kind !== CARGO_PROOF_KIND) return PROOF_PUNCTUALITY.notRequired
   if (params.authorship.channel === TRIP_FIELD_CHANNELS.office) return PROOF_PUNCTUALITY.notRequired
 
   return classifyPhotoPunctuality(params)
@@ -328,7 +417,8 @@ async function classifyUploadPunctuality(params: {
 
 /**
  * RF4-RF6: junta a configuração de pontualidade da empresa com o contexto do evento de entrega
- * (quando e onde aconteceu) e aplica `classifyProofPunctuality`. Só chamada para `kind = 'photo'`.
+ * (quando e onde aconteceu) e aplica `classifyProofPunctuality`. Só chamada para `kind = 'photo'` ou
+ * `'cargo'`; o modo vem da configuração do próprio tipo (`settings.photo` ou `settings.cargo`).
  *
  * Spec 205 D2: registro tardio no envio **ou** na entrega — a app pode esquecer o campo no segundo
  * toque, e a entrega já disse.
@@ -350,7 +440,7 @@ async function classifyPhotoPunctuality(params: {
     deliveryEventPosition: context.deliveryEventPosition,
     lateRegistration: input.upload.lateRegistration === true || context.lateRegistration === true,
     missingAfterHours: punctualitySettings.missingAfterHours,
-    photoMode: settings.photo,
+    photoMode: input.upload.kind === CARGO_PROOF_KIND ? settings.cargo : settings.photo,
     photoPosition: input.upload.position,
     proofRadiusMeters: punctualitySettings.proofRadiusMeters,
     proofWindowMinutes: punctualitySettings.proofWindowMinutes,

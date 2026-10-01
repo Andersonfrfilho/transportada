@@ -15,6 +15,11 @@ import {
   TRIP_FIELD_DELIVERY_DOCUMENTS_PATH,
   type FieldDeliveryOcrDocument,
 } from './fieldDeliveryOcrDocuments.service'
+import {
+  canhotoReviewResultFromApi,
+  type CanhotoReviewProofInput,
+  type CanhotoReviewResult,
+} from './canhotoReviewResult.service'
 import { createTripReviewAdapters } from './tripReview.validation'
 import type {
   TripDocumentReview,
@@ -72,6 +77,7 @@ import type {
   TripCteBatchResult,
   TripDetail,
   SetTripMdfeRequirementInput,
+  SetTripTrailerInput,
   TripFiscalReadiness,
   TripMdfeRequirement,
   TripDocument,
@@ -88,27 +94,44 @@ import type {
 import { parseTripAllowedActions, type TripAllowedActions } from './tripAllowedActions.validation'
 import type { DeliveryProof } from './deliveryProof.service'
 import {
+  DELIVERY_PROOF_CONTRACTOR_OVERRIDES_PATH,
   DELIVERY_PROOF_OVERRIDES_PATH,
   DELIVERY_PROOF_SETTINGS_PATH,
   FIELD_DELIVERY_SETTINGS_PATH,
   isCompanyDeliveryProofSettings,
+  normalizeDeliveryProofFieldSettings,
+  isDeliveryProofSettingsContractorOverride,
   isDeliveryProofSettingsOverride,
   isFieldDeliverySettings,
   type CompanyDeliveryProofSettings,
   type DeliveryProofFieldSettings,
+  type DeliveryProofSettingsContractorOverride,
   type DeliveryProofSettingsOverride,
   type FieldDeliverySettings,
 } from './deliveryProofSettings.service'
+import { contractorSummariesFromApi, type ContractorSummary } from './contractorSummary.service'
 import type { RouteChoice, RouteGeometry } from './routeGeometry.service'
 import type {
   OccurrenceAttachmentMode,
+  OccurrenceAttachmentOverrides,
   OccurrenceRedeliveryPolicy,
   OccurrenceType,
+  OccurrenceTypeFlow,
 } from './occurrence.constant'
+import {
+  isSettingsResolutionView,
+  SETTINGS_RESOLUTION_PATH,
+  type SettingsResolutionView,
+} from './settingsResolution.service'
 import { isRecord, isString } from './tripGuards.validation'
 
 /** Spec 079: a configuração é da empresa, não da viagem — ligar vale para toda viagem. */
 const OCCURRENCE_TYPES_PATH = '/company-settings/occurrence-types'
+/** Spec 218 RF-B3: exceções do `attachmentMode` de um tipo, por contratante e por destinatário. */
+const occurrenceTypeAttachmentOverridesPath = (occurrenceTypeId: string): string =>
+  `${OCCURRENCE_TYPES_PATH}/${occurrenceTypeId}/attachment-overrides`
+/** Spec 218 T10/T11: o mesmo seletor de contratante do painel de contatos, sem importar o módulo. */
+const CONTRACTORS_PATH = '/contractors'
 import { createTripResponseAdapters } from './tripResponse.validation'
 
 type ClientDependencies = Readonly<{
@@ -140,7 +163,10 @@ export type TripClient = Readonly<{
       vehicleIds?: readonly string[]
       /** Spec 148 T7: as plantas da prévia de onde soltar as notas que não couberam. */
       releaseUnplacedFromLayoutIds?: readonly string[]
-      /** Spec 153: a rota vista por caminhão. Ausente é o critério padrão do servidor. */
+      /**
+       * Spec 153 D7/D2: a rota vista por caminhão, identificada por critério e assinatura — ausente
+       * é o critério padrão do servidor.
+       */
       routeChoiceByVehicle?: readonly Readonly<{ routeChoice: RouteChoice; vehicleId: string }>[]
     }>,
   ) => Promise<AcceptedMultiVehicleSuggestion>
@@ -169,6 +195,8 @@ export type TripClient = Readonly<{
   fieldReturnDocument: (input: FieldReturnDocumentInput) => Promise<FieldSettlementResult>
   dispatchTrip: (input: DispatchTripInput) => Promise<DispatchTripResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
+  /** Spec 220 T7.9: `PATCH .../proof/review`, `trip.manage`. Idempotente por desenho: sem chave. */
+  canhotoReviewProof: (input: CanhotoReviewProofInput) => Promise<CanhotoReviewResult>
   readRouteGeometry: (input: Readonly<{ tripId: string }>) => Promise<RouteGeometry>
   /** A carga antes de a viagem existir: notas, veículo e a ordem que o operador montou no mapa. */
   previewCargo: (
@@ -235,6 +263,33 @@ export type TripClient = Readonly<{
   replaceDeliveryProofOverrides: (
     input: Readonly<{ overrides: readonly DeliveryProofSettingsOverride[] }>,
   ) => Promise<readonly DeliveryProofSettingsOverride[]>
+  /** Spec 218 RF-C1/RF-C4: o par irmão, por contratante. */
+  listDeliveryProofContractorOverrides: () => Promise<
+    readonly DeliveryProofSettingsContractorOverride[]
+  >
+  replaceDeliveryProofContractorOverrides: (
+    input: Readonly<{ overrides: readonly DeliveryProofSettingsContractorOverride[] }>,
+  ) => Promise<readonly DeliveryProofSettingsContractorOverride[]>
+  /**
+   * Spec 218 T10/T11/T14: `GET /contractors?limit=100` — mesmo seletor de
+   * `delivery-clients/shared/contractorContactsClient.service.ts`, aqui para não cruzar módulo
+   * (`web.md` §1).
+   */
+  listContractors: () => Promise<readonly ContractorSummary[]>
+  /**
+   * Spec 218 RF-E1/T14: a tela de verificação — pelo menos um dos dois, resolvido no servidor
+   * (RF-D1). Nenhuma precedência é recalculada aqui.
+   */
+  readSettingsResolution: (
+    input: Readonly<{ contractorId: null | string; recipientTaxId: null | string }>,
+  ) => Promise<SettingsResolutionView>
+  /** Spec 218 RF-B3: as duas exceções do `attachmentMode` de um tipo, por contratante/destinatário. */
+  listOccurrenceAttachmentOverrides: (
+    input: Readonly<{ occurrenceTypeId: string }>,
+  ) => Promise<OccurrenceAttachmentOverrides>
+  replaceOccurrenceAttachmentOverrides: (
+    input: OccurrenceAttachmentOverrides & Readonly<{ occurrenceTypeId: string }>,
+  ) => Promise<OccurrenceAttachmentOverrides>
   saveOccurrenceType: (
     input: Readonly<{
       active: boolean
@@ -243,6 +298,8 @@ export type TripClient = Readonly<{
       /** Spec 179 RF1: a exigência de comprovante — sempre enviada, como os outros campos do tipo. */
       attachmentMode: OccurrenceAttachmentMode
       emailTemplateKey: null | string
+      /** Spec 218 (D1, RF-B5): obrigatório na criação, `undefined` na edição é "não mexe". */
+      flow?: OccurrenceTypeFlow | undefined
       /** Spec 185 T6.1 (D2, RF6): só para tipos de separação — CHECK do banco recusa em `delivery`. */
       leavesDocumentBehind: boolean
       name: string
@@ -298,6 +355,8 @@ export type TripClient = Readonly<{
   getTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   readFiscalReadiness: (input: Readonly<{ tripId: string }>) => Promise<TripFiscalReadiness>
   setTripMdfeRequirement: (input: SetTripMdfeRequirementInput) => Promise<TripMdfeRequirement>
+  /** Spec 147 D3/RF5: troca ou solta a carreta — mesmo portão de estado de vincular/desvincular nota. */
+  setTripTrailer: (input: SetTripTrailerInput) => Promise<TripDetail>
   linkTripDocument: (input: LinkTripDocumentInput) => Promise<TripDocument>
   linkTripDocumentsBatch: (
     input: LinkTripDocumentsBatchInput,
@@ -456,7 +515,59 @@ function readDeliveryProofOverrides(input: unknown): readonly DeliveryProofSetti
   if (!input.overrides.every(isDeliveryProofSettingsOverride)) {
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
   }
-  return input.overrides
+  return input.overrides.map(normalizeDeliveryProofFieldSettings)
+}
+
+/** Spec 218 RF-C1/RF-C4: o par irmão da leitura acima, por contratante. */
+function readDeliveryProofContractorOverrides(
+  input: unknown,
+): readonly DeliveryProofSettingsContractorOverride[] {
+  if (!isRecord(input) || !Array.isArray(input.overrides)) {
+    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  if (!input.overrides.every(isDeliveryProofSettingsContractorOverride)) {
+    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  return input.overrides.map(normalizeDeliveryProofFieldSettings)
+}
+
+function isOccurrenceAttachmentMode(value: unknown): value is OccurrenceAttachmentMode {
+  return value === 'off' || value === 'optional' || value === 'required'
+}
+
+function isOccurrenceAttachmentContractorOverride(
+  value: unknown,
+): value is OccurrenceAttachmentOverrides['contractorOverrides'][number] {
+  return (
+    isRecord(value) &&
+    isOccurrenceAttachmentMode(value.attachmentMode) &&
+    isString(value.contractorId)
+  )
+}
+
+function isOccurrenceAttachmentRecipientOverride(
+  value: unknown,
+): value is OccurrenceAttachmentOverrides['recipientOverrides'][number] {
+  return (
+    isRecord(value) && isOccurrenceAttachmentMode(value.attachmentMode) && isString(value.taxId)
+  )
+}
+
+/** Spec 218 RF-B3: `{ contractorOverrides, recipientOverrides }`, mesmo molde do par de comprovante. */
+function readOccurrenceAttachmentOverrides(input: unknown): OccurrenceAttachmentOverrides {
+  if (
+    !isRecord(input) ||
+    !Array.isArray(input.contractorOverrides) ||
+    !Array.isArray(input.recipientOverrides) ||
+    !input.contractorOverrides.every(isOccurrenceAttachmentContractorOverride) ||
+    !input.recipientOverrides.every(isOccurrenceAttachmentRecipientOverride)
+  ) {
+    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  return {
+    contractorOverrides: input.contractorOverrides,
+    recipientOverrides: input.recipientOverrides,
+  }
 }
 
 function readEnvelopeData(input: unknown): unknown {
@@ -610,6 +721,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       const form = new FormData()
       form.set('deliveredAt', input.deliveredAt)
       form.set('file', input.imageBlob)
+      if (input.thumbnailBlob !== undefined) form.set('thumbnail', input.thumbnailBlob)
       if (input.driverId !== undefined) form.set('driverId', input.driverId)
       if (input.receiverDocument !== undefined) form.set('receiverDocument', input.receiverDocument)
       if (input.receiverName !== undefined) form.set('receiverName', input.receiverName)
@@ -628,6 +740,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       const form = new FormData()
       form.set('file', input.imageBlob)
       form.set('kind', input.kind)
+      if (input.thumbnailBlob !== undefined) form.set('thumbnail', input.thumbnailBlob)
       if (input.driverId !== undefined) form.set('driverId', input.driverId)
 
       const response = await authorizedRequest({
@@ -802,6 +915,8 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           allowsMultipleItems: input.allowsMultipleItems,
           attachmentMode: input.attachmentMode,
           emailTemplateKey: input.emailTemplateKey,
+          /** Spec 218 (D1, RF-B5): ausente é "não mexe" — nunca manda `flow: undefined` no corpo. */
+          ...(input.flow === undefined ? {} : { flow: input.flow }),
           leavesDocumentBehind: input.leavesDocumentBehind,
           name: input.name,
           notifies: input.notifies,
@@ -815,6 +930,49 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       return adapters.occurrenceTypeFromApi(readEnvelopeData(response))
     },
+    async listOccurrenceAttachmentOverrides(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: occurrenceTypeAttachmentOverridesPath(input.occurrenceTypeId),
+      })
+      return readOccurrenceAttachmentOverrides(readEnvelopeData(response))
+    },
+    /** O corpo do `PUT` é o conjunto inteiro das duas listas — o que não veio sai. */
+    async replaceOccurrenceAttachmentOverrides(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          contractorOverrides: input.contractorOverrides,
+          recipientOverrides: input.recipientOverrides,
+        }),
+        dependencies,
+        method: 'PUT',
+        path: occurrenceTypeAttachmentOverridesPath(input.occurrenceTypeId),
+      })
+      return readOccurrenceAttachmentOverrides(readEnvelopeData(response))
+    },
+    async listContractors() {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${CONTRACTORS_PATH}?limit=100`,
+      })
+      return contractorSummariesFromApi(response)
+    },
+    async readSettingsResolution(input) {
+      const search = new URLSearchParams()
+      if (input.contractorId !== null) search.set('contractorId', input.contractorId)
+      if (input.recipientTaxId !== null) search.set('recipientTaxId', input.recipientTaxId)
+
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${SETTINGS_RESOLUTION_PATH}?${search.toString()}`,
+      })
+      const data = readEnvelopeData(response)
+      if (!isSettingsResolutionView(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      return { ...data, deliveryProof: normalizeDeliveryProofFieldSettings(data.deliveryProof) }
+    },
     async readDeliveryProofSettings() {
       const response = await authorizedRequest({
         dependencies,
@@ -823,7 +981,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       const data = readEnvelopeData(response)
       if (!isCompanyDeliveryProofSettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
-      return data
+      return normalizeDeliveryProofFieldSettings(data)
     },
     async readFieldDeliverySettings() {
       const response = await authorizedRequest({
@@ -865,7 +1023,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       const data = readEnvelopeData(response)
       if (!isCompanyDeliveryProofSettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
-      return data
+      return normalizeDeliveryProofFieldSettings(data)
     },
     async saveCanhotoOcrEnabled(input) {
       const response = await authorizedRequest({
@@ -882,7 +1040,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       const data = readEnvelopeData(response)
       if (!isCompanyDeliveryProofSettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
-      return data
+      return normalizeDeliveryProofFieldSettings(data)
     },
     async listDeliveryProofOverrides() {
       const response = await authorizedRequest({
@@ -909,6 +1067,32 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: DELIVERY_PROOF_OVERRIDES_PATH,
       })
       return readDeliveryProofOverrides(readEnvelopeData(response))
+    },
+    async listDeliveryProofContractorOverrides() {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: DELIVERY_PROOF_CONTRACTOR_OVERRIDES_PATH,
+      })
+      return readDeliveryProofContractorOverrides(readEnvelopeData(response))
+    },
+    /** O corpo do `PUT` é o conjunto inteiro — o que não veio sai. */
+    async replaceDeliveryProofContractorOverrides(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          overrides: input.overrides.map((override) => ({
+            contractorId: override.contractorId,
+            photo: override.photo,
+            receiverDocument: override.receiverDocument,
+            receiverName: override.receiverName,
+            signature: override.signature,
+          })),
+        }),
+        dependencies,
+        method: 'PUT',
+        path: DELIVERY_PROOF_CONTRACTOR_OVERRIDES_PATH,
+      })
+      return readDeliveryProofContractorOverrides(readEnvelopeData(response))
     },
     async readTripOccurrences(input) {
       const response = await authorizedRequest({
@@ -986,6 +1170,15 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${documentPath(input)}/proof`,
       })
       return adapters.deliveryProofsFromApi(readEnvelopeData(response))
+    },
+    async canhotoReviewProof(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify(input.review),
+        dependencies,
+        method: 'PATCH',
+        path: `${documentPath(input)}/proof/review`,
+      })
+      return canhotoReviewResultFromApi(readEnvelopeData(response))
     },
     /**
      * Consulta **própria**, fora do detalhe: a chamada ao OSRM custou 63 ms medidos, e o detalhe é
@@ -1200,6 +1393,15 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${TRIPS_PATH}/${input.tripId}/mdfe-requirement`,
       })
       return adapters.tripMdfeRequirementFromApi(readEnvelopeData(response))
+    },
+    async setTripTrailer(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({ trailerVehicleId: input.trailerVehicleId }),
+        dependencies,
+        method: 'PUT',
+        path: `${TRIPS_PATH}/${input.tripId}/trailer`,
+      })
+      return adapters.tripDetailFromApi(readEnvelopeData(response))
     },
     async readFiscalReadiness(input) {
       const response = await authorizedRequest({

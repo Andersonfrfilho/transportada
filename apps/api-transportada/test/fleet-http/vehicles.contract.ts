@@ -676,7 +676,7 @@ describe('fleet vehicles http contract', () => {
     const createFixture = await createFleetHttpFixture({ vehicle: vucVehicle })
     const createResponse = await createFixture.handle(
       jsonRequest({
-        body: { ...CREATE_VEHICLE_BODY, vehicleType: 'vuc' },
+        body: { ...CREATE_VEHICLE_BODY, bodyType: '02', vehicleType: 'vuc' },
         method: 'POST',
         path: FLEET_VEHICLES_PATH,
       }),
@@ -691,7 +691,7 @@ describe('fleet vehicles http contract', () => {
     const updateFixture = await createFleetHttpFixture({ vehicle: vucVehicle })
     const updateResponse = await updateFixture.handle(
       jsonRequest({
-        body: { ...UPDATE_VEHICLE_BODY, vehicleType: 'three_quarter' },
+        body: { ...UPDATE_VEHICLE_BODY, bodyType: '02', vehicleType: 'three_quarter' },
         method: 'PATCH',
         path: VEHICLE_PATH,
       }),
@@ -719,7 +719,7 @@ describe('fleet vehicles http contract', () => {
       const fixture = await createFleetHttpFixture({ vehicle: { ...VEHICLE, vehicleType } })
       const response = await fixture.handle(
         jsonRequest({
-          body: { ...CREATE_VEHICLE_BODY, vehicleType },
+          body: { ...CREATE_VEHICLE_BODY, bodyType: '02', vehicleType },
           method: 'POST',
           path: FLEET_VEHICLES_PATH,
         }),

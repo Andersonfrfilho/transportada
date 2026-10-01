@@ -7,6 +7,7 @@
  */
 import { mock } from 'bun:test'
 
+import type { FleetDriverVehicleLink } from '@/modules/fleet/shared/fleet.types'
 import type { TripCandidateDocument } from '@/modules/trip/shared/trip.types'
 
 import {
@@ -15,16 +16,19 @@ import {
 } from '../fixtures/tripAssemblyHooks.fixture'
 
 export const tripHookFakes: {
+  driverVehicleLinksByDriverId: Record<string, readonly FleetDriverVehicleLink[]>
   loadDocuments: () => Promise<readonly TripCandidateDocument[]>
   rejectedSuggestionIds: string[]
   tripClient: FakeTripClient
 } = {
+  driverVehicleLinksByDriverId: {},
   loadDocuments: () => Promise.reject(new Error('UNEXPECTED_DOCUMENTS_LOAD')),
   rejectedSuggestionIds: [],
   tripClient: createUnexpectedTripClient(),
 }
 
 export function resetTripHookFakes(documents: readonly TripCandidateDocument[]): void {
+  tripHookFakes.driverVehicleLinksByDriverId = {}
   tripHookFakes.loadDocuments = () => Promise.resolve(documents)
   tripHookFakes.rejectedSuggestionIds = []
   tripHookFakes.tripClient = createUnexpectedTripClient()
@@ -48,4 +52,12 @@ void mock.module('@/modules/routing/hooks/useRouteSuggestion.hook', () => ({
 }))
 void mock.module('@/modules/trip/shared/availableTripDocuments.service', () => ({
   loadAvailableTripDocuments: () => tripHookFakes.loadDocuments(),
+}))
+const fleetHook = await import('@/modules/fleet/hooks/useFleet.hook')
+void mock.module('@/modules/fleet/hooks/useFleet.hook', () => ({
+  ...fleetHook,
+  getFleetClient: () => ({
+    listDriverVehicles: ({ driverId }: Readonly<{ driverId: string }>) =>
+      Promise.resolve(tripHookFakes.driverVehicleLinksByDriverId[driverId] ?? []),
+  }),
 }))

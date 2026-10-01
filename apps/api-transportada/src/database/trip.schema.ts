@@ -1,11 +1,13 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { TRIP_OCCURRENCE_STAGE } from '../shared/trip-occurrence.constant.js'
+import { OCCURRENCE_TYPE_FLOWS, TRIP_OCCURRENCE_STAGE } from '../shared/trip-occurrence.constant.js'
 import type {
   OccurrenceItemQuantityUnit,
+  OccurrenceTypeFlow,
   TripOccurrenceStage,
 } from '../shared/trip-occurrence.constant.js'
+import { TRIP_CREW_ROLES, type TripCrewRole } from '../shared/trip-crew-role.constant.js'
 import { sql } from 'drizzle-orm'
 import {
   bigint,
@@ -31,11 +33,13 @@ import {
   type DeliveryProofFieldMode,
 } from './company-delivery-proof-settings.schema.js'
 import { companies, userCompanyMemberships } from './identity.schema.js'
+import { contractors, deliveryClients } from './delivery-client.schema.js'
 import { fleetDrivers, fleetVehicles } from './fleet.schema.js'
 import { freightCalculations } from './freight.schema.js'
 import { nfeDocuments } from './nfe.schema.js'
 import { storedObjects } from './storage.schema.js'
 import { inList } from './schema-check.constant.js'
+import { EVENT_LOCATION_STATES, type EventLocationState } from './event-location.schema.js'
 
 /**
  * ADR-0067 §2: quem registrou o evento de campo — motorista pelo PWA, escritório em nome dele, ou
@@ -85,6 +89,14 @@ export const TRIP_STATUSES = [
   'cancelled',
 ] as const
 export type TripStatus = (typeof TRIP_STATUSES)[number]
+
+/**
+ * Feature 147 T18 (revisão): os dois terminais — quem já entregou ou cancelou não regride, e é por
+ * isso que os dois liberam a carreta. Fonte única para o `where` do índice logo abaixo e para as
+ * cópias que existiam em `drizzle-trip.repository.ts` (`TRIP_OPEN_STATUSES_EXCLUSION`) e
+ * `drizzle-fleet-vehicle.repository.ts` (`TRIP_CLOSED_STATUSES`).
+ */
+export const TRIP_TERMINAL_STATUSES: readonly TripStatus[] = ['completed', 'cancelled']
 
 /**
  * ADR-0046 §1: **derivado, e nunca a fonte.** A verdade da prontidão é a consulta ao estado real de
@@ -268,6 +280,21 @@ export const trips = pgTable(
     closedAt: timestamp('closed_at', { withTimezone: true }),
     closedByUserId: uuid('closed_by_user_id'),
     closeReason: text('close_reason'),
+    /**
+     * Spec 149 T6 (decisão do usuário, 15/09/2026): a jornada congelada **no mesmo momento** em
+     * que o ETA congela — ida + volta ao barracão, quando a volta veio conhecida da proposta que
+     * planejou a viagem. `null` é "roteiro nunca planejado", nunca zero; `plannedJourneyIncludesReturn`
+     * diz se a volta entrou na soma (sem volta conhecida, a jornada é só de ida e a parcela do
+     * ajudante avisa a lacuna).
+     */
+    plannedJourneySeconds: bigint('planned_journey_seconds', { mode: 'number' }),
+    plannedJourneyIncludesReturn: boolean('planned_journey_includes_return'),
+    /**
+     * Spec 147 D3: a carreta que o cavalo puxa. `null` é o normal para todo veículo que não é
+     * `tractor_unit` — o cavalo não carrega sozinho, mas viagem sem carreta pode ser montada e
+     * planejada, só não despacha (`TRIP_TRAILER_REQUIRED`, T11).
+     */
+    trailerVehicleId: uuid('trailer_vehicle_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -299,10 +326,36 @@ export const trips = pgTable(
       sql`(${table.closedAt} is null) = (${table.closedByUserId} is null)
         and (${table.closeReason} is null or ${table.closedAt} is not null)`,
     ),
+    /**
+     * Spec 147 T8: `restrict`/`cascade`, nunca `SET NULL` — numa FK composta ele anularia também
+     * `company_id`, que é NOT NULL.
+     */
+    foreignKey({
+      columns: [table.companyId, table.trailerVehicleId],
+      foreignColumns: [fleetVehicles.companyId, fleetVehicles.id],
+      name: 'trips_company_trailer_vehicle_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
     unique('trips_company_id_id_unique').on(table.companyId, table.id),
     index('trips_company_status_created_at_idx').on(table.companyId, table.status, table.createdAt),
     index('trips_company_vehicle_idx').on(table.companyId, table.vehicleId),
     check('trips_status_check', sql`${table.status} in (${raw(inList(TRIP_STATUSES))})`),
+    /** A carreta não pode ser o próprio veículo tracionado. */
+    check(
+      'trips_trailer_not_vehicle',
+      sql`${table.trailerVehicleId} is null or ${table.trailerVehicleId} <> ${table.vehicleId}`,
+    ),
+    /**
+     * Spec 147 T8: uma carreta não entra em duas viagens abertas ao mesmo tempo. São nove estados
+     * (`trip-state.policy.ts`); os dois terminais (`completed`, `cancelled`) não regridem, e são os
+     * únicos de fora — quem já entregou ou cancelou libera a carreta.
+     */
+    uniqueIndex('trips_company_trailer_open_unique')
+      .on(table.companyId, table.trailerVehicleId)
+      .where(
+        sql`${table.trailerVehicleId} is not null and ${table.status} not in (${raw(inList(TRIP_TERMINAL_STATUSES))})`,
+      ),
     check(
       'trips_fiscal_readiness_check',
       sql`${table.fiscalReadinessState} in (${raw(inList(TRIP_FISCAL_READINESS_STATES))})`,
@@ -339,6 +392,15 @@ export const trips = pgTable(
     check(
       'trips_daily_allowance_days_check',
       sql`${table.dailyAllowanceDays} is null or ${table.dailyAllowanceDays} >= 1`,
+    ),
+    /** Meia gravação (jornada sem saber se a volta entrou, ou o contrário) é o que faz o leitor inventar. */
+    check(
+      'trips_planned_journey_check',
+      sql`(${table.plannedJourneySeconds} is null) = (${table.plannedJourneyIncludesReturn} is null)`,
+    ),
+    check(
+      'trips_planned_journey_seconds_check',
+      sql`${table.plannedJourneySeconds} is null or ${table.plannedJourneySeconds} >= 0`,
     ),
     foreignKey({
       columns: [table.requiresMdfeActorUserId, table.companyId],
@@ -507,6 +569,8 @@ export const tripDrivers = pgTable(
     driverName: text('driver_name').notNull(),
     driverTaxId: text('driver_tax_id').notNull(),
     position: bigint({ mode: 'bigint' }).notNull(),
+    /** Spec 149 / ADR-0065: o default mantém toda linha anterior à coluna como condutor. */
+    role: text().$type<TripCrewRole>().notNull().default('driver'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -548,6 +612,8 @@ export const tripDrivers = pgTable(
     ),
     check('trip_drivers_tax_id_check', sql`${table.driverTaxId} ~ ${raw(`'${TAX_ID_PATTERN}'`)}`),
     check('trip_drivers_name_check', sql`length(${table.driverName}) > 0`),
+    check('trip_drivers_role_check', sql`${table.role} in (${raw(inList(TRIP_CREW_ROLES))})`),
+    check('trip_drivers_lead_role_check', sql`${table.position} <> 1 or ${table.role} = 'driver'`),
   ],
 )
 
@@ -1044,6 +1110,13 @@ export const tripStopEvents = pgTable(
     /** A hora do aparelho quando a posição foi lida — não a hora em que o evento chegou ao servidor. */
     capturedAt: timestamp('captured_at', { withTimezone: true }),
     /**
+     * ADR-0081 §2 / spec 196 D2: por que a coordenada não veio. `null` é **não se aplica** — e o
+     * histórico sem ponto fica `null` de propósito: o banco não sabe se o GPS falhou ou se o app
+     * daquela época nem pedia posição, e `unavailable` ali diria "falhou" sobre um toque que nunca
+     * tentou ler.
+     */
+    locationState: varchar('location_state', { length: 16 }).$type<EventLocationState>(),
+    /**
      * Spec 206 D3 (ADR-0088 §4): a hora do aparelho **no toque**, que não é a do `captured_at` (leitura
      * do GPS, que pode nem existir) nem a do servidor. É ela que ordena a fila: o item recusado não é
      * descartado, o reenvio manual chega fora de ordem, e sem o `tapped_at` um toque velho marcaria a
@@ -1169,6 +1242,22 @@ export const tripStopEvents = pgTable(
       sql`${table.accuracyMeters} is null or ${table.latitude} is not null`,
     ),
     check(
+      'trip_stop_events_location_state_check',
+      sql`${table.locationState} is null or ${table.locationState} in (${raw(inList(Object.values(EVENT_LOCATION_STATES)))})`,
+    ),
+    /**
+     * ADR-0081 §2: `captured` e a coordenada são a mesma afirmação — uma sem a outra é dado que mente.
+     *
+     * ⚠️ `is not distinct from`, e não `=`. CHECK que avalia `NULL` **passa** em Postgres, então as
+     * duas formas intuitivas deixam entrar justamente a linha que este CHECK existe para barrar:
+     * `location_state is null or (...)` curto-circuita, e `(location_state = 'captured') = (...)`
+     * devolve `NULL` quando o estado é nulo. Só a comparação null-safe amarra os dois lados.
+     */
+    check(
+      'trip_stop_events_location_state_consistency_check',
+      sql`(${table.locationState} is not distinct from 'captured') = (${table.latitude} is not null)`,
+    ),
+    check(
       'trip_stop_events_channel_check',
       sql`${table.channel} in (${raw(inList(Object.values(TRIP_FIELD_CHANNELS)))})`,
     ),
@@ -1215,7 +1304,18 @@ export const tripStopOccurrences = pgTable(
     companyId: uuid('company_id').notNull(),
     stopId: uuid('stop_id').notNull(),
     tripDocumentId: uuid('trip_document_id'),
+    /**
+     * ⚠️ **Permanece como registro histórico** (spec 218 RF-B5) mesmo depois de `occurrenceTypeId`
+     * existir — é o valor que a migration usou para o backfill, e nada além dele lê `kind` hoje.
+     */
     kind: text().notNull().$type<TripStopOccurrenceKind>(),
+    /**
+     * Spec 218 RF-B5: o tipo do catálogo (`flow: 'stop'`) que corresponde a este `kind` — nulo só
+     * quando o backfill da migration não achou o tipo correspondente na empresa (não deveria
+     * acontecer, a migration semeia os cinco para toda empresa). A leitura histórica cai para
+     * `kind` quando `occurrence_type_id` for nulo, nunca falha.
+     */
+    occurrenceTypeId: uuid('occurrence_type_id'),
     /** Curta de propósito: é relato de campo digitado com uma mão, não formulário. */
     description: text().notNull().default(''),
     /**
@@ -1272,6 +1372,14 @@ export const tripStopOccurrences = pgTable(
       columns: [table.companyId, table.attachmentObjectId],
       foreignColumns: [storedObjects.companyId, storedObjects.id],
       name: 'trip_stop_occurrences_company_object_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /** Spec 218 RF-B5: nulável — dado gravado antes da migration converge pelo backfill. */
+    foreignKey({
+      columns: [table.companyId, table.occurrenceTypeId],
+      foreignColumns: [companyOccurrenceTypes.companyId, companyOccurrenceTypes.id],
+      name: 'trip_stop_occurrences_company_occurrence_type_fk',
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
@@ -1421,7 +1529,55 @@ export const tripFieldReports = pgTable(
  */
 export const TRIP_DELIVERY_PROOF_KINDS = ['photo', 'signature', 'cargo'] as const
 export const TRIP_DELIVERY_PROOF_CARGO_KIND = 'cargo'
+/** Spec 220 RF24: o canhoto é o único tipo que recebe veredito — os CHECKs abaixo o repetem. */
+export const TRIP_DELIVERY_PROOF_CANHOTO_KIND = 'photo'
 export type TripDeliveryProofKind = (typeof TRIP_DELIVERY_PROOF_KINDS)[number]
+
+/**
+ * Spec 220 RF24: o estado da conferência do canhoto. `not_applicable` é o padrão de fábrica e
+ * cobre toda linha existente — decisão do usuário na T6.1, com a medição por trás: em 21/09 a
+ * produção não tinha **nenhum** objeto de `delivery_proof`, então o conjunto a preencher é vazio.
+ * É também o único estado possível em `signature` e `cargo`, que não se conferem.
+ */
+export const TRIP_DELIVERY_PROOF_CANHOTO_REVIEWS = [
+  'not_applicable',
+  'pending',
+  'approved',
+  'rejected',
+] as const
+export type TripDeliveryProofCanhotoReview = (typeof TRIP_DELIVERY_PROOF_CANHOTO_REVIEWS)[number]
+export const TRIP_DELIVERY_PROOF_CANHOTO_REJECTED_REVIEW = 'rejected'
+
+/**
+ * Spec 220 RF26/RF27: **quem decidiu**, não como o número foi lido — o outro eixo é
+ * `TRIP_DELIVERY_PROOF_CANHOTO_READ_SOURCES`. Fundir os dois quebra os CHECKs: aprovação
+ * `manual` tem ator e `automatic` não tem nenhum, e uma recusa (sempre manual) ainda pode
+ * carregar um número que o OCR leu.
+ */
+export const TRIP_DELIVERY_PROOF_CANHOTO_REVIEW_ORIGINS = ['automatic', 'manual'] as const
+export type TripDeliveryProofCanhotoReviewOrigin =
+  (typeof TRIP_DELIVERY_PROOF_CANHOTO_REVIEW_ORIGINS)[number]
+
+/** Spec 220 RF28: lista fechada; só `other` admite (e exige) o texto livre. */
+export const TRIP_DELIVERY_PROOF_CANHOTO_REVIEW_REASONS = [
+  'illegible',
+  'wrong_document',
+  'missing_signature',
+  'other',
+] as const
+export type TripDeliveryProofCanhotoReviewReason =
+  (typeof TRIP_DELIVERY_PROOF_CANHOTO_REVIEW_REASONS)[number]
+export const TRIP_DELIVERY_PROOF_CANHOTO_REVIEW_OTHER_REASON = 'other'
+
+/**
+ * Spec 220 RF25/RF26: **como** o número foi lido. `manual` não entra: nesta spec ninguém digita
+ * número — o operador aprova ou recusa o que a leitura trouxe, e isso é `review_origin`.
+ */
+export const TRIP_DELIVERY_PROOF_CANHOTO_READ_SOURCES = ['barcode', 'ocr'] as const
+export type TripDeliveryProofCanhotoReadSource =
+  (typeof TRIP_DELIVERY_PROOF_CANHOTO_READ_SOURCES)[number]
+export const TRIP_DELIVERY_PROOF_CANHOTO_BARCODE_READ_SOURCE = 'barcode'
+export const TRIP_DELIVERY_PROOF_CANHOTO_MANUAL_REVIEW_ORIGIN = 'manual'
 
 /**
  * ADR-0070 §2: os vereditos que uma foto de entrega pode receber. Duplicado do
@@ -1477,6 +1633,8 @@ export const tripDeliveryProofs = pgTable(
     stopEventId: uuid('stop_event_id').notNull(),
     kind: text().notNull().$type<TripDeliveryProofKind>(),
     objectId: uuid('object_id').notNull(),
+    /** Spec 220 RF17: nulo no comprovante antigo e na foto cuja miniatura falhou no cliente. */
+    thumbnailObjectId: uuid('thumbnail_object_id'),
     /**
      * Nome de quem recebeu, na assinatura e no canhoto (`photo`) dos dois canais — nunca na foto da
      * carga. O escritório o carrega desde a ADR-0067 §5 (emenda 2026-09-18); a foto do motorista
@@ -1527,6 +1685,8 @@ export const tripDeliveryProofs = pgTable(
     longitude: numeric({ precision: 10, scale: 7 }),
     accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
     capturedAt: timestamp('captured_at', { withTimezone: true }),
+    /** ADR-0081 §2 / spec 196 D2: por que a coordenada da foto não veio. `null` é não se aplica. */
+    locationState: varchar('location_state', { length: 16 }).$type<EventLocationState>(),
     /**
      * ADR-0070 §2: o veredito da foto (`PROOF_PUNCTUALITY`). `not_required` é o padrão de fábrica —
      * cobre toda linha existente e toda foto de nota sem `photo = 'required'` resolvido.
@@ -1540,6 +1700,51 @@ export const tripDeliveryProofs = pgTable(
      * nunca o desfaz (`or` no upsert), como a pontualidade nunca melhora (spec 159 T11, D3b).
      */
     lateRegistration: boolean('late_registration').notNull().default(false),
+    /**
+     * Spec 220 RF24: o veredito da conferência do canhoto.
+     *
+     * ⚠️ **O default descreve o passado, não o presente.** Linha existente fica `not_applicable`
+     * (T6.1, sem backfill); canhoto **novo** nasce `pending`, escrito de propósito no INSERT. É a
+     * primeira coluna desta tabela em que o default e o valor de inserção divergem — confiar no
+     * default faria a conferência nascer inerte, sem nunca receber uma linha.
+     */
+    canhotoReview: varchar('canhoto_review', { length: 16 })
+      .notNull()
+      .default('not_applicable')
+      .$type<TripDeliveryProofCanhotoReview>(),
+    canhotoReviewOrigin: varchar('canhoto_review_origin', {
+      length: 16,
+    }).$type<TripDeliveryProofCanhotoReviewOrigin>(),
+    /**
+     * Sem FK, como `actor_user_id` logo acima: identidade mora no Keycloak, e esta tabela não tem
+     * nenhuma FK de usuário. Acrescentar a primeira aqui inventaria convenção.
+     */
+    canhotoReviewByUserId: uuid('canhoto_review_by_user_id'),
+    canhotoReviewAt: timestamp('canhoto_review_at', { withTimezone: true }),
+    canhotoReviewReason: varchar('canhoto_review_reason', {
+      length: 16,
+    }).$type<TripDeliveryProofCanhotoReviewReason>(),
+    canhotoReviewNote: varchar('canhoto_review_note', { length: 500 }),
+    /**
+     * Spec 220 RF26: o número **impresso** no canhoto (`9000`, série `1`) — nunca a chave de acesso
+     * de 44 posições.
+     *
+     * ⚠️ A chave embute o CNPJ do emitente nas posições 7–20, e emitente pessoa física (produtor
+     * rural) põe **CPF** zero-padded no mesmo campo: gravá-la aqui poria PII numa coluna que a tela
+     * renderiza e que alimenta trilha de auditoria. Fora isso ela já vive em `nfe_documents`. Quem
+     * for "consertar" estes 9 caracteres para 44 está desfazendo a decisão, não um descuido.
+     */
+    canhotoReadNumber: varchar('canhoto_read_number', { length: 9 }),
+    canhotoReadSeries: varchar('canhoto_read_series', { length: 3 }),
+    canhotoReadSource: varchar('canhoto_read_source', {
+      length: 16,
+    }).$type<TripDeliveryProofCanhotoReadSource>(),
+    /**
+     * A nota que a leitura apontou. Número e série **não** identificam — dois emitentes numeram
+     * cada um a sua série —, e é este identificador opaco que resolve o caso do canhoto de outra
+     * nota da mesma parada sem gravar a chave.
+     */
+    canhotoReadDocumentId: uuid('canhoto_read_document_id'),
   },
   (table) => [
     foreignKey({
@@ -1563,6 +1768,17 @@ export const tripDeliveryProofs = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.thumbnailObjectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'trip_delivery_proofs_company_thumbnail_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /** FK parcial: só a linha que tem miniatura, no molde do índice de `on_behalf_of_driver_id`. */
+    index('trip_delivery_proofs_company_thumbnail_idx')
+      .on(table.companyId, table.thumbnailObjectId)
+      .where(sql`${table.thumbnailObjectId} is not null`),
     foreignKey({
       columns: [table.companyId, table.onBehalfOfDriverId],
       foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
@@ -1592,6 +1808,14 @@ export const tripDeliveryProofs = pgTable(
      * `ON CONFLICT` sobre estas colunas repete o predicado em `targetWhere`, ou o Postgres não acha
      * o árbitro e recusa a escrita.
      */
+    /** Spec 220: a nota que a leitura apontou nunca é de outra empresa. */
+    foreignKey({
+      columns: [table.companyId, table.canhotoReadDocumentId],
+      foreignColumns: [tripDocuments.companyId, tripDocuments.id],
+      name: 'trip_delivery_proofs_company_canhoto_read_document_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
     uniqueIndex('trip_delivery_proofs_company_event_kind_unique')
       .on(table.companyId, table.stopEventId, table.kind)
       .where(sql`${table.kind} <> ${raw(inList([TRIP_DELIVERY_PROOF_CARGO_KIND]))}`),
@@ -1634,6 +1858,15 @@ export const tripDeliveryProofs = pgTable(
       sql`${table.channel} in (${raw(inList(Object.values(TRIP_FIELD_CHANNELS)))})`,
     ),
     check(
+      'trip_delivery_proofs_location_state_check',
+      sql`${table.locationState} is null or ${table.locationState} in (${raw(inList(Object.values(EVENT_LOCATION_STATES)))})`,
+    ),
+    /** ADR-0081 §2, mesma trava do `trip_stop_events`: null-safe, senão o CHECK não barra nada. */
+    check(
+      'trip_delivery_proofs_location_state_consistency_check',
+      sql`(${table.locationState} is not distinct from 'captured') = (${table.latitude} is not null)`,
+    ),
+    check(
       'trip_delivery_proofs_office_driver_check',
       sql`${table.channel} <> 'office' or ${table.onBehalfOfDriverId} is not null`,
     ),
@@ -1653,6 +1886,81 @@ export const tripDeliveryProofs = pgTable(
     check(
       'trip_delivery_proofs_punctuality_check',
       sql`${table.punctuality} in (${raw(inList(TRIP_DELIVERY_PROOF_PUNCTUALITIES))})`,
+    ),
+    /**
+     * Spec 220 RF24–RF28. Estes CHECKs são a rede do `ON CONFLICT`: o `set` do upsert é
+     * **denotativo** — coluna ausente é coluna preservada —, e a conferência é a primeira cujo
+     * padrão certo na recaptura é apagar, não preservar. Esquecer uma na hora de zerar vira erro de
+     * escrita (23514) em vez de uma tela mostrando o motivo de uma foto que não existe mais.
+     *
+     * `is not distinct from` onde um dos lados é literal: `origem = 'manual'` com origem nula
+     * avalia para `NULL`, e CHECK só reprova em `FALSE` — a linha incoerente passaria.
+     */
+    check(
+      'trip_delivery_proofs_canhoto_review_check',
+      sql`${table.canhotoReview} in (${raw(inList(TRIP_DELIVERY_PROOF_CANHOTO_REVIEWS))})`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_review_kind_check',
+      sql`${table.kind} = ${TRIP_DELIVERY_PROOF_CANHOTO_KIND} or ${table.canhotoReview} = 'not_applicable'`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_review_origin_check',
+      sql`${table.canhotoReviewOrigin} is null or ${table.canhotoReviewOrigin} in (${raw(inList(TRIP_DELIVERY_PROOF_CANHOTO_REVIEW_ORIGINS))})`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_review_resolved_check',
+      sql`(${table.canhotoReviewOrigin} is not null) = (${table.canhotoReview} in ('approved', 'rejected'))`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_review_at_check',
+      sql`(${table.canhotoReviewAt} is null) = (${table.canhotoReviewOrigin} is null)`,
+    ),
+    /** RF27: decisão manual tem ator; a automática não tem nenhum — é da máquina, não de alguém. */
+    check(
+      'trip_delivery_proofs_canhoto_review_actor_check',
+      sql`(${table.canhotoReviewByUserId} is not null) = (${table.canhotoReviewOrigin} is not distinct from ${TRIP_DELIVERY_PROOF_CANHOTO_MANUAL_REVIEW_ORIGIN})`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_review_reason_check',
+      sql`(${table.canhotoReviewReason} is not null) = (${table.canhotoReview} = 'rejected')`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_review_reason_list_check',
+      sql`${table.canhotoReviewReason} is null or ${table.canhotoReviewReason} in (${raw(inList(TRIP_DELIVERY_PROOF_CANHOTO_REVIEW_REASONS))})`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_review_note_check',
+      sql`(${table.canhotoReviewNote} is not null) = (${table.canhotoReviewReason} is not distinct from ${TRIP_DELIVERY_PROOF_CANHOTO_REVIEW_OTHER_REASON})`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_review_note_length_check',
+      sql`${table.canhotoReviewNote} is null or length(${table.canhotoReviewNote}) between 20 and 500`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_read_source_check',
+      sql`${table.canhotoReadSource} is null or ${table.canhotoReadSource} in (${raw(inList(TRIP_DELIVERY_PROOF_CANHOTO_READ_SOURCES))})`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_read_number_check',
+      sql`(${table.canhotoReadNumber} is null) = (${table.canhotoReadSource} is null)`,
+    ),
+    /** A série é opcional: o OCR lê número sem série, e `formatCanhotoOcrNumber` já trata o nulo. */
+    check(
+      'trip_delivery_proofs_canhoto_read_series_check',
+      sql`${table.canhotoReadSeries} is null or ${table.canhotoReadNumber} is not null`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_read_kind_check',
+      sql`${table.kind} = ${TRIP_DELIVERY_PROOF_CANHOTO_KIND} or (${table.canhotoReadSource} is null and ${table.canhotoReadDocumentId} is null)`,
+    ),
+    /**
+     * RF26, a invariante central da fase: **OCR nunca aprova sozinho**. Só o código de barras
+     * aprova sem ninguém olhar; o OCR sugere e alguém decide.
+     */
+    check(
+      'trip_delivery_proofs_canhoto_auto_approval_check',
+      sql`${table.canhotoReview} <> 'approved' or ${table.canhotoReviewOrigin} <> 'automatic' or ${table.canhotoReadSource} = ${TRIP_DELIVERY_PROOF_CANHOTO_BARCODE_READ_SOURCE}`,
     ),
   ],
 )
@@ -1698,6 +2006,15 @@ export const tripDocumentOccurrences = pgTable(
      * que o mesmo lote gravou. No molde de `trip_stop_occurrences.attachment_object_id`.
      */
     attachmentObjectId: uuid('attachment_object_id'),
+    /**
+     * Spec 167 (RF6): cancelamento é três colunas, não tabela nova — no máximo uma linha por
+     * ocorrência, e uma tabela 1-para-0..1 pagaria join em toda leitura para representar isto. O
+     * CHECK abaixo casa a presença dos três: existem juntos ou nenhum existe.
+     */
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledByUserId: uuid('cancelled_by_user_id'),
+    /** Teto de 500 (RF6) é validado na política — o banco só garante presença, não tamanho. */
+    cancellationReason: text('cancellation_reason'),
   },
   (table) => [
     /**
@@ -1755,6 +2072,72 @@ export const tripDocumentOccurrences = pgTable(
     index('trip_document_occurrences_company_document_idx').on(
       table.companyId,
       table.tripDocumentId,
+      table.createdAt,
+    ),
+    foreignKey({
+      columns: [table.companyId, table.cancelledByUserId],
+      foreignColumns: [userCompanyMemberships.companyId, userCompanyMemberships.userId],
+      name: 'trip_document_occurrences_company_cancelled_by_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check(
+      'trip_document_occurrences_cancellation_presence_check',
+      sql`(${table.cancelledAt} is null) = (${table.cancelledByUserId} is null)
+        and (${table.cancelledAt} is null) = (${table.cancellationReason} is null)`,
+    ),
+  ],
+)
+
+/**
+ * Spec 167 (RF1): a correção guarda o **passado**, não duplica o presente — o conjunto atual
+ * continua em `trip_document_occurrence_products`. `previousItems` é o retrato (código, quantidade,
+ * unidade) de como a ocorrência estava imediatamente antes desta correção.
+ *
+ * FK composta `(company_id, occurrence_id)` para `trip_document_occurrences`, `on delete restrict`:
+ * histórico de correção nunca some por efeito de uma exclusão em cascata de outra tabela.
+ */
+export const tripDocumentOccurrenceCorrections = pgTable(
+  'trip_document_occurrence_corrections',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    occurrenceId: uuid('occurrence_id').notNull(),
+    /** `[{ code, quantity, unit }]` — o conjunto anterior, na ordem em que estava marcado. */
+    previousItems: jsonb('previous_items').notNull(),
+    correctedByUserId: uuid('corrected_by_user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('trip_document_occurrence_corrections_company_id_id_unique').on(
+      table.companyId,
+      table.id,
+    ),
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_document_occurrence_corrections_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.occurrenceId],
+      foreignColumns: [tripDocumentOccurrences.companyId, tripDocumentOccurrences.id],
+      name: 'trip_document_occurrence_corrections_company_occurrence_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.correctedByUserId],
+      foreignColumns: [userCompanyMemberships.companyId, userCompanyMemberships.userId],
+      name: 'trip_document_occurrence_corrections_company_corrected_by_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /** A chave de leitura do histórico: por ocorrência, do mais antigo ao mais novo. */
+    index('trip_document_occurrence_corrections_company_occurrence_idx').on(
+      table.companyId,
+      table.occurrenceId,
       table.createdAt,
     ),
   ],
@@ -2068,6 +2451,18 @@ export const companyOccurrenceTypes = pgTable(
      * (`save-occurrence-type.use-case.ts`).
      */
     leavesDocumentBehind: boolean('leaves_document_behind').notNull().default(false),
+    /**
+     * Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta — `document`
+     * (nota, sem fila) ou `stop` (parada, fila offline). Padrão `'document'`: todo tipo cadastrado
+     * antes desta spec é implicitamente "de nota", nunca foi usado em `trip_stop_occurrences`.
+     */
+    flow: text().notNull().$type<OccurrenceTypeFlow>().default(OCCURRENCE_TYPE_FLOWS.document),
+    /**
+     * Spec 218 D2: qual dos 5 valores fixos de parada este tipo representa — a sugestão de cobrança
+     * da 060 e o template do aviso ainda decidem por ele. Nulo em tipo de nota; o cadastro grava
+     * `other` quando um tipo passa a `flow: stop` sem valor. Nunca derivado do nome (renomeável).
+     */
+    stopKind: text('stop_kind').$type<TripStopOccurrenceKind>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2096,7 +2491,121 @@ export const companyOccurrenceTypes = pgTable(
       'company_occurrence_types_leaves_document_behind_check',
       sql`${table.stage} = 'separation' or not ${table.leavesDocumentBehind}`,
     ),
+    check(
+      'company_occurrence_types_flow_check',
+      sql`${table.flow} in (${raw(inList(Object.values(OCCURRENCE_TYPE_FLOWS)))})`,
+    ),
+    check(
+      'company_occurrence_types_stop_kind_check',
+      sql`${table.stopKind} in (${raw(inList(TRIP_STOP_OCCURRENCE_KINDS))})`,
+    ),
     unique('company_occurrence_types_company_id_id_unique').on(table.companyId, table.id),
+  ],
+)
+
+/**
+ * Spec 218 RF-B1: a exceção do `attachmentMode` de um tipo de ocorrência, por contratante
+ * (embarcador/emitente) — mesma forma de `deliveryProofSettingContractorOverrides`. A FK para o
+ * tipo é `cascade`: a exceção não sobrevive ao tipo que ela ajusta.
+ */
+export const companyOccurrenceTypeContractorOverrides = pgTable(
+  'company_occurrence_type_contractor_overrides',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    occurrenceTypeId: uuid('occurrence_type_id').notNull(),
+    contractorId: uuid('contractor_id').notNull(),
+    attachmentMode: varchar('attachment_mode', { length: 16 })
+      .$type<DeliveryProofFieldMode>()
+      .notNull()
+      .default('optional'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'company_occurrence_type_contractor_overrides_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.occurrenceTypeId],
+      foreignColumns: [companyOccurrenceTypes.companyId, companyOccurrenceTypes.id],
+      name: 'company_occurrence_type_contractor_overrides_company_id_occurrence_type_id_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.contractorId],
+      foreignColumns: [contractors.companyId, contractors.id],
+      name: 'company_occurrence_type_contractor_overrides_company_id_contractor_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('company_occurrence_type_contractor_overrides_type_contractor_unique').on(
+      table.companyId,
+      table.occurrenceTypeId,
+      table.contractorId,
+    ),
+    check(
+      'company_occurrence_type_contractor_overrides_attachment_mode_check',
+      sql`${table.attachmentMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+  ],
+)
+
+/**
+ * Spec 218 RF-B1: a mesma exceção, por destinatário — chave canônica `tax_id`, no mesmo corte de
+ * `deliveryProofSettingOverrides`. Sem backfill: granularidade nova, não existe dado anterior.
+ */
+export const companyOccurrenceTypeRecipientOverrides = pgTable(
+  'company_occurrence_type_recipient_overrides',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    occurrenceTypeId: uuid('occurrence_type_id').notNull(),
+    /** Forma canônica, sem máscara e em caixa alta — o mesmo corte de `delivery_clients`. */
+    taxId: text('tax_id').notNull(),
+    attachmentMode: varchar('attachment_mode', { length: 16 })
+      .$type<DeliveryProofFieldMode>()
+      .notNull()
+      .default('optional'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'company_occurrence_type_recipient_overrides_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.occurrenceTypeId],
+      foreignColumns: [companyOccurrenceTypes.companyId, companyOccurrenceTypes.id],
+      name: 'company_occurrence_type_recipient_overrides_company_id_occurrence_type_id_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.taxId],
+      foreignColumns: [deliveryClients.companyId, deliveryClients.taxId],
+      name: 'company_occurrence_type_recipient_overrides_company_id_tax_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('company_occurrence_type_recipient_overrides_type_tax_id_unique').on(
+      table.companyId,
+      table.occurrenceTypeId,
+      table.taxId,
+    ),
+    check(
+      'company_occurrence_type_recipient_overrides_attachment_mode_check',
+      sql`${table.attachmentMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
   ],
 )
 

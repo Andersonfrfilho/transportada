@@ -108,7 +108,8 @@ export class TripDeliveryProofAlreadyCapturedError extends ApiError {
 
 /**
  * Spec 184 (RF4, D3): a sexta foto de carga do mesmo evento. Cinco é o teto de partida — cobre a
- * avaria e o contexto sem transformar a baixa em álbum.
+ * avaria e o contexto sem transformar a baixa em álbum. Spec 220 RF08: o teto é por entrega — os
+ * dois canais, o escritório e o motorista, cobram.
  */
 export class TripDeliveryProofCargoLimitError extends ApiError {
   public constructor() {

@@ -53,6 +53,7 @@
   "assemblyMap": {
     "approximate": "⚠️ Posição aproximada — só o município é conhecido, o ponto é o centro dele.",
     "basemapLabel": "Divisa do município",
+    "canvasLabel": "Mapa interativo",
     "depot": {
       "absence": {
         "not_configured": "⚠️ A saída do barracão não está nesta conta: não há origem na configuração de roteirização, e o cadastro da empresa não tem endereço com CEP completo. A distância, o tempo, o combustível e o pedágio abaixo começam na primeira entrega.",
@@ -92,6 +93,7 @@
     "revenueEstimated": "previsto",
     "revenueRule": "por {{rule}}{{percentage}}",
     "routeOptions": {
+      "alternative": "alternativa",
       "cheapest": "mais barata",
       "fastest": "mais rápida",
       "fastestAndCheapest": "mais rápida e mais barata",
@@ -104,6 +106,8 @@
       "option_one": "{{distance}} km · {{duration}} · {{count}} praça",
       "option_zero": "{{distance}} km · {{duration}} · {{count}} praças",
       "optionWithoutToll": "{{distance}} km · {{duration}} · pedágio não calculado",
+      "singleOption": "Não há uma rota mais rápida e uma mais barata para trocar — só esta opção foi calculada.",
+      "switchLabel": "Trocar entre mais rápida e mais barata",
       "title": "Rotas alternativas",
       "total": "Total estimado: {{amount}}"
     },
@@ -403,6 +407,8 @@
     "pending": "Criando viagem…",
     "readOnly": "Seu acesso atual não permite criar viagens.",
     "title": "Nova viagem",
+    "trailerDefault": "A viagem nasce com a carreta padrão deste cavalo: {{plate}}.",
+    "trailerDefaultMissing": "Este cavalo não tem carreta padrão cadastrada — a viagem nasce sem carreta.",
     "vehicle": "Veículo",
     "vehiclePlaceholder": "Selecione o veículo",
     "vehicleSearch": "Buscar por placa, marca ou modelo"
@@ -452,9 +458,55 @@
     "title": "Desviar entrega"
   },
   "deliveryProof": {
+    "canhotoReview": {
+      "alreadyResolved": "Outra pessoa já conferiu este canhoto. Atualizamos a tela com o veredito que valeu.",
+      "approve": "Aprovar canhoto",
+      "approvedAutomatic": "Conferido automaticamente",
+      "approvedManual": "Aprovado por {{name}} em {{moment}}",
+      "approvedManualUnknown": "Aprovado manualmente em {{moment}}",
+      "automaticUnavailable": "Não foi possível conferir automaticamente. Confira este canhoto.",
+      "experimental": "Experimental",
+      "failed": "Não foi possível registrar a conferência. Tente de novo.",
+      "pendingBarcode": "Aguardando conferência: o código de barras aponta a nota {{number}}",
+      "pendingOcr": "Aguardando conferência: número lido {{number}}",
+      "pendingUnread": "Aguardando conferência",
+      "reason": {
+        "illegible": "Ilegível",
+        "missing_signature": "Sem assinatura",
+        "other": "Outro motivo",
+        "wrong_document": "Nota errada"
+      },
+      "reject": "Recusar canhoto",
+      "rejectDialog": {
+        "cancel": "Cancelar",
+        "counter": "{{length}} / {{maximum}}",
+        "error": {
+          "lengthRange": "A descrição deve ter entre {{minimum}} e {{maximum}} caracteres.",
+          "notAllowed": "Só o motivo \"Outro motivo\" aceita descrição.",
+          "personalData": "A descrição parece conter dado pessoal (e-mail, CPF, CNPJ, telefone ou CEP). Remova-o antes de enviar.",
+          "requestFailed": "Não foi possível recusar o canhoto. Tente novamente.",
+          "required": "A descrição do motivo é obrigatória.",
+          "tooLong": "Use no máximo {{maximum}} caracteres.",
+          "tooShort": "Escreva ao menos {{minimum}} caracteres."
+        },
+        "noteLabel": "Descreva o motivo",
+        "reasonLabel": "Motivo da recusa",
+        "title": "Recusar canhoto"
+      },
+      "rejected": "Canhoto recusado"
+    },
     "cargoPhotoAlt": "Foto da mercadoria entregue",
     "cargoPhotosTitle": "Fotos da carga",
     "deliveredAt": "Entregue em {{moment}}",
+    "distanceKilometers": "a {{distance}} km do ponto",
+    "distanceMeters": "a {{distance}} m do ponto",
+    "galleryClose": "Fechar",
+    "galleryCounter": "{{position}} de {{count}}",
+    "galleryLabel": "Comprovantes da entrega",
+    "galleryNext": "Próximo comprovante",
+    "galleryPrevious": "Comprovante anterior",
+    "imageLoading": "Carregando a imagem do comprovante",
+    "lateRegistration": "Registrado depois",
     "notDelivered": "Esta nota ainda não foi entregue.",
     "occurrencesCollapse": "Recolher ocorrências",
     "occurrencesToggle": "Ver ocorrências",
@@ -464,13 +516,50 @@
     "products": "O que vai na nota",
     "productsToggle": "{{count}} produto na nota",
     "productsToggle_other": "{{count}} produtos na nota",
+    "punctuality": {
+      "on_time": "No horário",
+      "late": "Atrasada",
+      "away": "Longe do ponto",
+      "late_and_away": "Atrasada e longe do ponto"
+    },
+    "receivedBy": "Recebido por: {{relation}}",
+    "receivedByOptions": {
+      "recipient": "O próprio cliente",
+      "spouse": "Cônjuge",
+      "child": "Filho(a)",
+      "parent": "Pai ou mãe",
+      "sibling": "Irmão(ã)",
+      "other_relative": "Outro parente",
+      "neighbor": "Vizinho",
+      "doorman": "Porteiro",
+      "employee": "Funcionário",
+      "other": "Outro"
+    },
     "receiver": "Recebido por {{name}}",
     "returned": "Nota devolvida: {{reason}}",
     "returnedWithoutReason": "Nota devolvida.",
     "signatureAlt": "Assinatura de quem recebeu a carga",
     "title": "Comprovante da entrega",
+    "withoutLocation": "sem localização",
     "withoutProducts": "Esta nota não tem itens registrados.",
-    "withoutProof": "Entrega registrada sem comprovante anexado."
+    "withoutProof": "Entrega registrada sem comprovante anexado.",
+    "pieceLabel": {
+      "photo": "Canhoto assinado",
+      "signature": "Assinatura",
+      "cargo": "Mercadoria"
+    },
+    "piecesLabel": "Outras peças do comprovante",
+    "pendingSince": "Conferência pendente desde {{time}}",
+    "readings": {
+      "capturedAt": "Captura",
+      "distance": "Distância",
+      "requirement": "Exigência"
+    },
+    "reviewStatus": {
+      "pending": "Aguardando conferência",
+      "approved": "Aprovado",
+      "rejected": "Recusado"
+    }
   },
   "deliveryProofSettings": {
     "canhotoOcr": {
@@ -482,9 +571,15 @@
       "on": "Ligado",
       "title": "Leitura do canhoto por foto"
     },
+    "cargoHint": "Prova que a mercadoria chegou: a carga entregue, no local. Não substitui o canhoto, que prova a assinatura da nota.",
+    "cargoMinimumCount": {
+      "label": "Mínimo de fotos da mercadoria",
+      "summary": "mínimo {{minimum}}"
+    },
     "error": "Não foi possível carregar ou gravar a configuração do comprovante.",
     "fields": {
-      "photo": "Foto",
+      "cargo": "Foto da mercadoria",
+      "photo": "Foto do canhoto",
       "receiverDocument": "Documento do recebedor",
       "receiverName": "Nome do recebedor",
       "signature": "Assinatura"
@@ -494,6 +589,14 @@
       "off": "Desligado",
       "optional": "Opcional",
       "required": "Obrigatório"
+    },
+    "photoHint": "Prova que a nota foi recebida: o canhoto assinado ou carimbado. Só uma foto por entrega.",
+    "contractorOverrides": {
+      "contractor": "Contratante",
+      "contractorPlaceholder": "Buscar por nome ou CNPJ",
+      "empty": "Nenhuma exceção por contratante cadastrada.",
+      "hint": "A exceção pelo contratante (embarcador/emitente da nota) vence a configuração geral por inteiro; a exceção por destinatário, quando existir para a mesma nota, vence esta.",
+      "title": "Exceções por contratante"
     },
     "overrides": {
       "add": "Adicionar exceção",
@@ -560,6 +663,10 @@
     "scanTitle": "Leitura da nota",
     "scanUnavailable": "Câmera indisponível neste aparelho — digite a chave da nota.",
     "title": "Detalhe da viagem",
+    "trailer": "Carreta",
+    "trailerHint": "Pode ser trocada até o despacho.",
+    "trailerLockedHint": "A carreta não pode mais ser trocada — a viagem já foi despachada.",
+    "trailerPlaceholder": "Sem carreta atrelada",
     "vehicle": "Veículo: {{vehicle}}"
   },
   "empty": "Nenhuma viagem encontrada",
@@ -627,7 +734,85 @@
     "returnReason": "Motivo da devolução: {{reason}}",
     "title": "Linha do tempo",
     "viewDocument": "Ver nota",
-    "viewStop": "Ver parada"
+    "viewStop": "Ver parada",
+    "chip": {
+      "recordedLater": "registrado {{duration}} depois",
+      "recordedLaterUnknown": "registrado depois",
+      "stop": "Parada {{sequence}}",
+      "transition": "{{from}} → {{to}}"
+    },
+    "duration": {
+      "hours": "{{hours}} h",
+      "hoursMinutes": "{{hours}} h {{minutes}} min",
+      "minutes": "{{count}} min"
+    },
+    "gap": "{{duration}} sem registro",
+    "afterPrevious": "{{duration}} após o evento anterior",
+    "map": {
+      "title": "Mapa dos eventos",
+      "show": "Ver o mapa dos eventos",
+      "hide": "Ocultar o mapa dos eventos",
+      "loading": "Carregando o mapa dos eventos",
+      "mapMissing": "O mapa não está disponível agora. A lista dos pontos continua abaixo.",
+      "empty": "Nenhum evento desta viagem tem posição registrada, então não há o que mostrar no mapa.",
+      "captionPoint": "O pino é um evento, na cor e no ícone do seu tipo. Com um lugar só não há traço a desenhar.",
+      "captionRoad": "Cada pino é um evento, na cor e no ícone do seu tipo. O traço segue as vias de um ponto ao seguinte, na ordem em que aconteceram.",
+      "captionStraight": "Cada pino é um evento, na cor e no ícone do seu tipo. O traço tracejado liga um ponto ao seguinte em linha reta, na ordem em que aconteceram — não é o caminho pela estrada.",
+      "partial": "O mapa mostra só os eventos já carregados. Carregue mais para incluir os anteriores.",
+      "missingUnavailable_one": "{{count}} evento sem posição: o aparelho não a entregou.",
+      "missingUnavailable_other": "{{count}} eventos sem posição: o aparelho não a entregou.",
+      "missingExpired_one": "{{count}} evento com posição apagada após 90 dias.",
+      "missingExpired_other": "{{count}} eventos com posição apagada após 90 dias.",
+      "missingRestricted_one": "{{count}} evento com posição registrada, mas oculta para o seu acesso.",
+      "missingRestricted_other": "{{count}} eventos com posição registrada, mas oculta para o seu acesso.",
+      "legendLabel": "Tipos de evento no mapa",
+      "legendItem": "{{label}}: {{count}}",
+      "listSummary_one": "Ver o ponto em ordem",
+      "listSummary_other": "Ver os {{count}} pontos em ordem",
+      "listItem": "{{order}}. {{label}} · {{moment}}",
+      "listItemGrouped_one": "{{order}}. {{label}} · {{moment}} · {{count}} evento",
+      "listItemGrouped_other": "{{order}}. {{label}} · {{moment}} · {{count}} eventos",
+      "pinLabel_one": "Ponto {{order}}: {{label}}, {{count}} evento",
+      "pinLabel_other": "Ponto {{order}}: {{label}}, {{count}} eventos",
+      "category": {
+        "dispatched": "Despacho",
+        "arrived": "Chegada",
+        "departed": "Saída",
+        "delivered": "Entrega",
+        "returned": "Devolução",
+        "occurrence": "Ocorrência",
+        "cancelled": "Saída cancelada",
+        "status": "Mudança de situação"
+      },
+      "listItemInterval": "· {{duration}} depois do ponto anterior",
+      "legInterval": "{{duration}} entre este ponto e o anterior",
+      "captionInterval": "O número no canto do pino é a vez dele na ordem dos eventos, e o tempo escrito sobre o traço é quanto se passou do ponto anterior até ele. Em trecho curto o tempo desce para debaixo do pino de chegada; abaixo de um minuto ele fica só na lista."
+    },
+    "location": {
+      "label": {
+        "captured": "Posição registrada",
+        "expired": "Posição expirada",
+        "restricted": "Posição registrada",
+        "unavailable": "Posição indisponível"
+      },
+      "accuracy": "Precisão ± {{meters}} m",
+      "distance": {
+        "kilometers": "a {{distance}} km do ponto",
+        "meters": "a {{distance}} m do ponto"
+      },
+      "coordinates": "Latitude {{latitude}}, longitude {{longitude}}",
+      "capturedAt": "Lida em {{moment}}",
+      "restricted": "O ponto foi registrado, mas este acesso não mostra a coordenada.",
+      "unavailable": "O aparelho não entregou a posição neste toque.",
+      "expired": "A coordenada é apagada após 90 dias; o evento permanece.",
+      "viewMap": "Ver no mapa",
+      "hideMap": "Ocultar mapa",
+      "mapLoading": "Carregando o mapa",
+      "mapMissing": "O mapa não está disponível agora.",
+      "eventPin": "Onde o motorista tocou",
+      "legend": "Pino liso: onde o motorista tocou. Pino numerado: parada {{sequence}}.",
+      "legendEventOnly": "Pino liso: onde o motorista tocou. A parada não tem coordenada cadastrada."
+    }
   },
   "feedback": {
     "closeReasonRequired": "Informe o motivo para encerrar a viagem com nota em aberto.",
@@ -657,6 +842,10 @@
     "scannedDocumentNotFound": "Nenhuma nota com esta chave de acesso nesta empresa.",
     "stateTransitionNotAllowed": "Esta ação não é mais permitida no estado atual da viagem.",
     "stopSetMismatch": "A lista de paradas não corresponde às paradas atuais da viagem — recarregue a página.",
+    "trailerInUse": "Esta carreta já está em outra viagem aberta.",
+    "trailerNotATrailer": "O veículo apontado não é uma carreta ativa desta frota.",
+    "trailerRequired": "O cavalo não sai sem carreta.",
+    "trailerRequiresTractor": "A carreta só pode ser atrelada a um cavalo mecânico.",
     "vehicleNotAvailable": "Veículo indisponível para a viagem.",
     "vehicleNotFound": "Veículo não encontrado.",
     "withoutDriver": "Esta viagem não tem motorista — vincule um antes de dar baixa pelo escritório.",
@@ -718,6 +907,9 @@
   "occupancy": {
     "capacityReference": "A capacidade é referência do tipo de veículo, não medida deste baú. Preencha as dimensões na ficha para o número ficar exato.",
     "capacityUnknown": "Este veículo não tem capacidade cadastrada, e o tipo dele não tem referência de mercado — por isso não há ocupação nem planta do baú. Preencha comprimento, largura e altura do baú na ficha do veículo, em Frota.",
+    "capacityUnknownBodyType": "Este veículo está com carroceria não informada, e por isso não há ocupação nem planta do baú.",
+    "capacityUnknownReference": "O tipo deste veículo ainda não tem referência de capacidade no catálogo — não há ocupação nem planta do baú.",
+    "capacityUnknownTrailer": "Este cavalo está sem carreta informada, e por isso não há ocupação nem planta do baú.",
     "dimensions": "Baú de {{length}} × {{width}} × {{height}} m = {{volume}} m³.",
     "estimated": "Valor estimado: a nota fiscal não traz medida da carga, e o cálculo usa o fator de cubagem por volume configurado.",
     "label": "Ocupação do baú",
@@ -1178,23 +1370,20 @@
   "routeMap": {
     "basemapLabel": "Contorno do município",
     "cancel": "Cancelar",
+    "choiceNotReproduced": "A estrada pode ter mudado desde que esta rota foi escolhida: não foi possível encontrar de novo a rota gravada, e a viagem está com a rota mais barata calculada hoje.",
     "correct": "Corrigir ponto no mapa",
     "correctionScope": "A correção é do endereço, não desta viagem: ela vale para todas as viagens que passarem por este portão.",
     "cost": {
       "distance": "Distância",
+      "duration": "Tempo estimado",
       "fuel": "Combustível",
       "kilometers": "{{distance}} km",
       "notCalculated": "Não calculado",
+      "returnDistance": "Volta ao barracão",
       "toll": "Pedágio",
       "total": "Custo da rota"
     },
-    "criterion": {
-      "alternative": "Rota escolhida manualmente pelo operador.",
-      "cheapest": "Critério: mais barata (combustível + pedágio).",
-      "fastest": "Critério: mais rápida.",
-      "noToll": "Critério: sem pedágio — evita praça de propósito.",
-      "title": "Critério da rota"
-    },
+    "criterion": "Rota gravada: {{criterion}}",
     "geometryUnavailable": "Não foi possível traçar a estrada agora. A linha reta entre as paradas continua abaixo.",
     "invalidatedNotice": "O roteiro desta viagem não está montado. Se você trocou o veículo, o roteiro e o pedágio calculados para o caminhão anterior foram descartados. Clique em «$t(stateActions.planRoute)» para montar o roteiro e calcular o pedágio.",
     "latitude": "Latitude",
@@ -1303,6 +1492,7 @@
     "closeSendingMessage": "O envio ainda está em andamento — sair agora não cancela as notas já enviadas.",
     "closeTitle": "Sair do assistente?",
     "confirm": "Confirmar",
+    "cropPhoto": "Recortar foto",
     "deliveredAtError": {
       "DELIVERED_AT_BEFORE_DISPATCH": "\"Entregue em\" não pode ser antes do despacho da viagem.",
       "DELIVERED_AT_IN_FUTURE": "\"Entregue em\" não pode ser no futuro."
@@ -1385,7 +1575,8 @@
     "batchFieldDelivery": "Dar baixa em {{count}} nota",
     "batchFieldDelivery_other": "Dar baixa em {{count}} notas",
     "batchFieldDeliveryExcluded": "{{count}} nota marcada não aceita baixa de entrega.",
-    "batchFieldDeliveryExcluded_other": "{{count}} notas marcadas não aceitam baixa de entrega."
+    "batchFieldDeliveryExcluded_other": "{{count}} notas marcadas não aceitam baixa de entrega.",
+    "trailerRequired": "O cavalo não sai sem carreta."
   },
   "status": {
     "awaiting_crew": "Aguardando tripulação",
@@ -1481,6 +1672,9 @@
       "ICMS_CST_UNSUPPORTED": "o perfil de emissão usa CST 60, que o produto não emite",
       "NO_EMISSION_PROFILE": "nenhum perfil de emissão rege a nota (nenhum casa, ou dois empatam) — confira os perfis de CT-e",
       "FEATURE_ABSENT": "módulo ainda não usado",
+      "HELPER_DAILY_RATE_MISSING": "ajudante sem diária própria e sem diária geral cadastrada",
+      "HELPER_JOURNEY_UNKNOWN": "roteiro ainda não planejado — sem jornada para contar os dias do ajudante",
+      "HELPER_JOURNEY_WITHOUT_RETURN": "jornada congelada só com a ida — a volta ao barracão não foi gravada",
       "NOT_RECORDED": "ninguém lançou",
       "NO_DRIVER_RATE": "rota do agregado sem valor cadastrado",
       "NO_FEDERAL_REGIME": "regime federal não declarado",

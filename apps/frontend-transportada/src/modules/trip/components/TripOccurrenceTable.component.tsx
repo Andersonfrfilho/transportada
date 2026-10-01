@@ -6,6 +6,7 @@ import { Icon } from '@/components/ui/icon'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import { useTripOccurrenceAttachmentsQuery } from '../queries/tripOccurrenceFeed.query'
 import type { TripOccurrenceTableController } from '../hooks/useTripOccurrenceTable.hook'
@@ -24,16 +25,6 @@ import {
   navigateToTripOccurrence,
 } from '../shared/tripOccurrenceRoute.service'
 import styles from '../styles/trip.module.css'
-
-const momentFormatter = new Intl.DateTimeFormat('pt-BR', {
-  dateStyle: 'short',
-  timeStyle: 'short',
-})
-
-export function formatMoment(value: string): string {
-  const moment = new Date(value)
-  return Number.isNaN(moment.getTime()) ? value : momentFormatter.format(moment)
-}
 
 type TripOccurrenceTableProps = Readonly<{
   /** Spec 164 T22: `occurrences.resolve` — quem valida a tratativa, nunca `trip.manage` (D7). */
@@ -105,6 +96,7 @@ function OccurrenceCell({
   item,
 }: Readonly<{ column: TripOccurrenceColumnKey; item: TripOccurrenceFeedItem }>) {
   const { t } = useTranslation('trip')
+  const formatMoment = useMomentFormatter()
 
   if (column === 'createdAt') return <td>{formatMoment(item.createdAt)}</td>
   if (column === 'stage') {
@@ -250,6 +242,7 @@ export function TripOccurrenceTableSkeleton() {
  */
 function OccurrenceCard({ item }: Readonly<{ item: TripOccurrenceFeedItem }>) {
   const { t } = useTranslation('trip')
+  const formatMoment = useMomentFormatter()
   const cells = describeOccurrenceDocumentCells(item.document)
   const conversation = describeOccurrenceConversationCell(item)
   const label = resolveOccurrenceTypeLabel(item)

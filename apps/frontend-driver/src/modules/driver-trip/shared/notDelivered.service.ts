@@ -7,6 +7,7 @@ import type {
   DriverReturnReason,
 } from './driverTrip.types'
 import type { EventQueueItemView } from './eventQueueView.service'
+import { resolveOccurrenceFlow } from './occurrenceRegistration.service'
 
 /**
  * Spec 179 (T301–T303), com o ajuste do usuário de 25/09: "Não entreguei" registra a **ocorrência
@@ -45,8 +46,10 @@ export function isOccurrencePhotoWithinLimit(blob: Blob): boolean {
 export function listAvailableOccurrenceTypes(
   state: DriverOccurrenceTypesState,
 ): readonly DriverOccurrenceType[] | undefined {
-  if (state.status === 'loaded' && state.types.length > 0) return state.types
-  return undefined
+  if (state.status !== 'loaded') return undefined
+  /** Spec 218 D1: "Não entreguei" é ocorrência de nota — tipo de parada não cabe aqui. */
+  const documentTypes = state.types.filter((type) => resolveOccurrenceFlow(type) === 'document')
+  return documentTypes.length > 0 ? documentTypes : undefined
 }
 
 function findSelectedType(input: {

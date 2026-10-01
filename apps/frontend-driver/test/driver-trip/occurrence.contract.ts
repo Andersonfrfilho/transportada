@@ -7,20 +7,15 @@ import { describe, expect, it } from 'bun:test'
 
 import driverTrip from '../../src/modules/driver-trip/locales/driverTrip.locale.json'
 import { createDriverTripClient } from '../../src/modules/driver-trip/shared/driverTripClient.service'
-import {
-  DRIVER_RETURN_REASONS,
-  type DriverTripDocument,
-  type DriverTripStop,
-} from '../../src/modules/driver-trip/shared/driverTrip.types'
-import { findOccurrencePhotoDocument } from '../../src/modules/driver-trip/shared/driverTripView.service'
+import { DRIVER_RETURN_REASONS } from '../../src/modules/driver-trip/shared/driverTrip.types'
 
 const CARD = new URL(
   '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
   import.meta.url,
 )
-/** Spec 209: o formulário do "Deu problema" saiu do cartão. */
-const STOP_OCCURRENCE_FORM = new URL(
-  '../../src/modules/driver-trip/components/DriverStopOccurrenceForm.component.tsx',
+/** Spec 218 (RF-A5): o painel de ocorrência da nota virou o formulário único, fora do cartão. */
+const OCCURRENCE_FORM = new URL(
+  '../../src/modules/driver-trip/components/DriverOccurrenceRegistrationForm.component.tsx',
   import.meta.url,
 )
 const CLIENT = new URL(
@@ -71,7 +66,7 @@ describe('ocorrência de nota na tela do motorista (spec 079)', () => {
 
   it('a nota tem como registrar a ocorrência', () => {
     expect(source).toInclude('onDocumentOccurrence')
-    expect(source).toInclude('occurrenceTypes.types.map(')
+    expect(readFileSync(OCCURRENCE_FORM, 'utf8')).toInclude('form.types.map(')
   })
 
   /**
@@ -97,7 +92,7 @@ describe('ocorrência de nota na tela do motorista (spec 079)', () => {
  * o painel sem opção nenhuma, sem saber se é falha ou se a empresa não cadastrou tipo de rua.
  */
 describe('aviso quando a lista de tipos falha (spec 157 RF5)', () => {
-  const cardSource = readFileSync(CARD, 'utf8')
+  const cardSource = readFileSync(OCCURRENCE_FORM, 'utf8')
   const pageSource = readFileSync(PAGE, 'utf8')
   const clientSource = readFileSync(CLIENT, 'utf8')
 
@@ -158,7 +153,7 @@ describe('aviso quando a lista de tipos falha (spec 157 RF5)', () => {
 
   /** O botão some ao tocar (vira carregando): o foco volta ao painel, não cai no `body`. */
   it('tentar de novo devolve o foco ao painel da ocorrência', () => {
-    expect(cardSource).toInclude('occurrencePanelRef.current?.focus()')
+    expect(cardSource).toInclude('panelRef.current?.focus()')
   })
 
   it('o painel mostra o texto de lista vazia quando não há tipo cadastrado', () => {
@@ -178,68 +173,6 @@ describe('aviso quando a lista de tipos falha (spec 157 RF5)', () => {
 
   it('o botão de tentar de novo tem o rótulo padrão do produto', () => {
     expect(driverTrip.documentOccurrenceTypesRetry).toBe('Tentar de novo')
-  })
-})
-
-function buildDocument(overrides: Partial<DriverTripDocument> = {}): DriverTripDocument {
-  return {
-    accessKey: '0'.repeat(44),
-    deliveredAt: null,
-    deliveryProof: null,
-    grossWeight: '10.000',
-    id: 'document-1',
-    number: '1001',
-    proofPending: false,
-    recipientDisplayName: 'Destinatário',
-    recipientIsCompany: false,
-    recipientName: 'Destinatário',
-    returnReason: null,
-    separationStatus: 'loaded',
-    series: '1',
-    totalAmount: '100.00',
-    volumeCount: '1',
-    ...overrides,
-  }
-}
-
-function buildStop(documents: readonly DriverTripDocument[]): DriverTripStop {
-  return {
-    arrivedAt: null,
-    completedAt: null,
-    deliveryProof: null,
-    deliveryWindowEnd: null,
-    deliveryWindowStart: null,
-    documents,
-    id: 'stop-1',
-    label: 'Rua A, 1',
-    latitude: null,
-    longitude: null,
-    schedule: null,
-    sequence: 1,
-  }
-}
-
-/**
- * Revisão 082 (item 8): a nota da prévia do aviso é UMA escolha, no serviço. Spec 209: a foto deixou
- * de pegar carona no comprovante dessa nota — a escolha ficou só para a prévia.
- */
-describe('a nota que aparece na prévia do aviso da ocorrência', () => {
-  const source = readFileSync(STOP_OCCURRENCE_FORM, 'utf8')
-
-  it('escolhe a primeira nota em aberto; sem aberta, a primeira da lista', () => {
-    const open = buildDocument({ id: 'aberta' })
-    const settled = buildDocument({ id: 'entregue', separationStatus: 'delivered' })
-
-    expect(findOccurrencePhotoDocument(buildStop([settled, open]))?.id).toBe('aberta')
-    expect(findOccurrencePhotoDocument(buildStop([settled]))?.id).toBe('entregue')
-    expect(findOccurrencePhotoDocument(buildStop([]))).toBeUndefined()
-  })
-
-  /** Spec 209: sobrou só a prévia — a foto deixou de pegar carona no comprovante desta nota. */
-  it('a tela usa o serviço só na prévia, sem cópia inline da escolha', () => {
-    const usages = source.match(/findOccurrencePhotoDocument\(stop\)/gu) ?? []
-    expect(usages).toHaveLength(1)
-    expect(source).not.toInclude('stop.documents.find((item) => !isDocumentSettled(item))')
   })
 })
 

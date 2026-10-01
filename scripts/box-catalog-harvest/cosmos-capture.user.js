@@ -1,13 +1,12 @@
 // ==UserScript==
 // @name         TransportAdA — captura assistida de caixa
 // @namespace    transportada
-// @version      1.2.0
+// @version      1.9.0
 // @description  Cosmos: lê a caixa na página que VOCÊ abriu. Outros sites: selecione a medida e aperte Alt+C (caixa) ou Alt+U (unidade).
 // @match        *://*/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
 // @grant        GM_setValue
-// @grant        GM_registerMenuCommand
 // @grant        GM_openInTab
 // @connect      127.0.0.1
 // ==/UserScript==
@@ -20,7 +19,6 @@
 
   const SERVER_URL = 'http://127.0.0.1:53999'
   const COSMOS_PRODUCT_PATH = /^https:\/\/cosmos\.bluesoft\.com\.br\/produtos\//
-  const TOKEN_KEY = 'captureToken'
   const FALLBACK_KEY = 'fallbackTarget'
   const MAX_SNIPPET_LENGTH = 4000
   const EDGE_PATTERN = /(comprimento|largura|altura|profundidade)\s*:?\s*([\d.,]+)\s*(mm|cm|m)\b/gi
@@ -33,15 +31,9 @@
   }
   const QUANTITY_PATTERN = /(?:quantidade|unidades)(?:\s*(?:na|por)\s*caixa)?\s*:?\s*(\d+)/i
   const CARTON_GTIN_PATTERN = /\b([1-8]\d{13})\b/
+  const SEARCH_ENGINE_HOST = /(^|\.)(google|bing|duckduckgo)\./
 
   const isCosmosProductPage = COSMOS_PRODUCT_PATH.test(window.location.href)
-
-  if (isCosmosProductPage) {
-    GM_registerMenuCommand('Configurar token do servidor local', () => {
-      const token = prompt('Token impresso pelo assisted-capture-server:')
-      if (token) GM_setValue(TOKEN_KEY, token.trim())
-    })
-  }
 
   function requestServer(method, path, body) {
     return new Promise((resolve, reject) => {
@@ -50,13 +42,95 @@
         url: `${SERVER_URL}${path}`,
         headers: {
           'Content-Type': 'application/json',
-          'X-Capture-Token': GM_getValue(TOKEN_KEY, ''),
+          'X-Capture-Client': 'transportada-userscript',
         },
         data: body ? JSON.stringify(body) : undefined,
-        onload: (response) => resolve(JSON.parse(response.responseText)),
-        onerror: () => reject(new Error('servidor local fora do ar')),
+        timeout: 10000,
+        onload: (response) => {
+          try {
+            resolve(JSON.parse(response.responseText))
+          } catch {
+            reject(new Error(`resposta inválida do servidor (HTTP ${response.status})`))
+          }
+        },
+        onerror: () => reject(new Error('não alcancei o servidor local (127.0.0.1:53999)')),
+        ontimeout: () => reject(new Error('servidor local não respondeu em 10 s')),
       })
     })
+  }
+
+  /** Etapa no console do navegador e no terminal do servidor, para diagnóstico. */
+  function report(stage, detail = {}) {
+    console.log('[TransportAdA]', stage, detail)
+    GM_xmlhttpRequest({
+      method: 'POST',
+      url: `${SERVER_URL}/log`,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Capture-Client': 'transportada-userscript',
+      },
+      data: JSON.stringify({ stage, url: window.location.href, ...detail }),
+      timeout: 5000,
+      onerror: () => console.log('[TransportAdA] log não chegou ao servidor'),
+    })
+  }
+
+  const COSMOS_MISSING_CELL = /^[-–—]?$/
+
+  function toCellNumber(cell) {
+    if (COSMOS_MISSING_CELL.test(cell)) return undefined
+    const value = Number(
+      cell
+        .replace(/\s*(?:cm|mm|m|kg|g)\s*$/i, '')
+        .replace(/\./g, '')
+        .replace(',', '.'),
+    )
+    return Number.isFinite(value) && value > 0 ? cell : undefined
+  }
+
+  /** Tabela de embalagens do Cosmos: GTIN | Tipo | Qtd | Lastro | Camada | Comprimento | Altura | Largura | Bruto | Líquido. */
+  function extractCosmosTable() {
+    const table = [...document.querySelectorAll('table')].find((candidate) =>
+      /lastro/i.test(candidate.innerText),
+    )
+    if (!table) return undefined
+    const headers = [...table.querySelectorAll('th')].map((header) =>
+      (
+        header.innerText.trim() ||
+        header.getAttribute('title') ||
+        header.querySelector('[title]')?.getAttribute('title') ||
+        ''
+      ).trim(),
+    )
+    const rows = [...table.querySelectorAll('tr')]
+      .map((row) => [...row.cells].map((cell) => cell.innerText.trim()))
+      .filter((cells) => cells.length >= 10 && /^\d{8,14}$/.test(cells[0]))
+    const carton =
+      rows.find((cells) => /^[1-8]\d{13}$/.test(cells[0])) ??
+      rows.find((cells) => Number(cells[2]) > 1)
+    if (!carton) return { headers, rows, edges: {} }
+    const dimensionCells = carton.slice(5, 8).map(toCellNumber)
+    const cellUnit = (cell) =>
+      ((cell || '').match(/(cm|mm|m|kg|g)\s*$/i)?.[1] ?? 'cm').toLowerCase()
+    const edges = dimensionCells.every(Boolean)
+      ? {
+          comprimento: { value: dimensionCells[0], unit: cellUnit(carton[5]) },
+          altura: { value: dimensionCells[1], unit: cellUnit(carton[6]) },
+          largura: { value: dimensionCells[2], unit: cellUnit(carton[7]) },
+        }
+      : {}
+    return {
+      headers,
+      rows,
+      edges,
+      cartonGtin: carton[0],
+      packaging: carton[1],
+      unitsPerCarton: Number(carton[2]) || undefined,
+      palletLayerCount: Number(carton[3]) || undefined,
+      layerCount: Number(carton[4]) || undefined,
+      grossWeight: toCellNumber(carton[8]) ? { value: carton[8], unit: 'kg' } : undefined,
+      netWeight: toCellNumber(carton[9]) ? { value: carton[9], unit: 'kg' } : undefined,
+    }
   }
 
   function findCartonSection(text) {
@@ -161,6 +235,9 @@
         createButton('Buscar ficha logística', () =>
           openSearch(`${nameQuery}ficha logística caixa lastro camada`),
         ),
+        createButton('Buscar PDF', () =>
+          openSearch(`"${captured.unitGtin}" OR "${captured.cartonGtin}" filetype:pdf`),
+        ),
         ...(next.url
           ? [createButton('Pular (Alt+N)', () => (window.location.href = next.url))]
           : []),
@@ -169,14 +246,49 @@
   }
 
   async function runCosmosCapture() {
-    if (document.title.includes('Just a moment')) return
+    report('page_loaded', { title: document.title, textLength: document.body.innerText.length })
+    if (
+      /you are being rate limited|banned you temporarily|error 1015/i.test(document.body.innerText)
+    ) {
+      report('rate_limited_1015')
+      GM_xmlhttpRequest({
+        method: 'POST',
+        url: `${SERVER_URL}/report-block`,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Capture-Client': 'transportada-userscript',
+        },
+        data: JSON.stringify({ reason: '1015', url: window.location.href }),
+        timeout: 5000,
+        onerror: () => console.log('[TransportAdA] aviso de bloqueio não chegou ao servidor'),
+      })
+      return renderPanel([
+        'TransportAdA: Cloudflare bloqueou este IP por excesso de requisições (Error 1015).',
+        'O ensaio parou sozinho — espere alguns minutos antes de continuar.',
+      ])
+    }
+    if (document.title.includes('Just a moment')) {
+      report('cloudflare_challenge')
+      return renderPanel([
+        'TransportAdA: aguardando a verificação do Cloudflare.',
+        'Conclua a verificação; a página recarrega sozinha.',
+      ])
+    }
+    renderPanel(['TransportAdA: script ativo, lendo a página…'])
     const unitGtin = window.location.pathname.split('/').filter(Boolean).pop()
     const text = document.body.innerText
     const isNotFound = /produto n[aã]o encontrado|p[aá]gina n[aã]o encontrada/i.test(text)
     const section = findCartonSection(text)
-    const extracted = extractCarton(section)
+    const extracted = extractCosmosTable() ?? extractCarton(section)
     const edgeCount = Object.keys(extracted.edges).length
     const status = isNotFound ? 'not_found' : edgeCount >= 3 ? 'found' : 'no_dimensions'
+    report('extracted', {
+      status,
+      edgeCount,
+      fromTable: Boolean(extracted.rows),
+      headers: extracted.headers,
+      cartonRow: extracted.rows?.find((cells) => cells[0] === extracted.cartonGtin),
+    })
 
     try {
       const next = await requestServer('POST', '/capture', {
@@ -186,17 +298,24 @@
         extracted,
         snippet: section,
       })
+      report('server_response', {
+        error: next.error,
+        ignored: next.ignored,
+        remaining: next.remaining,
+      })
       if (next.error)
         return renderPanel([
           `Erro do servidor: ${next.error}`,
-          'Token configurado no menu do Tampermonkey?',
+          'Reinicie o servidor e recarregue a página.',
         ])
       bindNextShortcut(next.url)
       if (next.ignored)
-        return renderPanel([
-          'Produto fora da fila — nada gravado.',
-          `Restam ${next.remaining ?? 0}`,
-        ])
+        return renderPanel(
+          ['Produto fora da fila (já capturado) — nada gravado.', `Restam ${next.remaining ?? 0}`],
+          next.url
+            ? [createButton('Próximo da fila (Alt+N)', () => (window.location.href = next.url))]
+            : [],
+        )
       if (status !== 'found')
         return renderFallback(next.captured, next, document.querySelector('h1')?.innerText?.trim())
       renderPanel(
@@ -204,11 +323,44 @@
         next.url ? [createButton('Próximo (Alt+N)', () => (window.location.href = next.url))] : [],
       )
     } catch (error) {
+      report('capture_failed', { message: String(error.message) })
       renderPanel([
         String(error.message),
         'Rode: bun scripts/box-catalog-harvest/assisted-capture-server.ts',
       ])
     }
+  }
+
+  let autoDetected
+
+  /** Página alternativa que cita o GTIN: lê as medidas perto da citação e pede confirmação. */
+  function detectOnAlternativePage() {
+    const target = GM_getValue(FALLBACK_KEY, undefined)
+    if (!target || SEARCH_ENGINE_HOST.test(window.location.hostname)) return
+    const text = document.body.innerText
+    const position = [target.unitGtin, target.cartonGtin]
+      .map((gtin) => text.indexOf(gtin))
+      .filter((index) => index !== -1)
+      .sort((left, right) => left - right)[0]
+    if (position === undefined) return
+    const snippet = text.slice(Math.max(0, position - 1500), position + 2500)
+    const extracted = extractCarton(snippet)
+    if (Object.keys(extracted.edges).length < 3) return
+    autoDetected = { extracted, snippet }
+    renderPanel(
+      [
+        `Achei medidas nesta página para ${target.cartonGtin}:`,
+        ...describeEdges(extracted.edges),
+        'Confira se são da CAIXA (não da unidade).',
+      ],
+      [
+        createButton('Confirmar (Alt+C)', () => captureSelection('carton')),
+        createButton('Não é isso', () => {
+          autoDetected = undefined
+          document.getElementById('transportada-capture-panel')?.remove()
+        }),
+      ],
+    )
   }
 
   async function captureSelection(kind) {
@@ -217,11 +369,14 @@
     if (!target)
       return renderPanel(['Nenhum produto aguardando medida. Comece pela fila do Cosmos.'])
     const selection = String(window.getSelection() ?? '').trim()
-    if (!selection)
+    // O trecho detectado sozinho é sempre da caixa: a unidade só entra por seleção sua.
+    const detected = kind === 'carton' ? autoDetected : undefined
+    if (!selection && !detected)
       return renderPanel([
         `Selecione o texto com as medidas da ${label} e aperte ${shortcut} de novo.`,
       ])
-    const extracted = kind === 'unit' ? extractUnit(selection) : extractCarton(selection)
+    const snippet = selection || detected.snippet
+    const extracted = kind === 'unit' ? extractUnit(snippet) : extractCarton(snippet)
     const capturedEdges = kind === 'unit' ? extracted.unitEdges : extracted.edges
     if (Object.keys(capturedEdges).length < 3) {
       return renderPanel([
@@ -235,7 +390,7 @@
         kind,
         pageUrl: window.location.href,
         extracted,
-        snippet: selection,
+        snippet,
       })
       if (next.error) return renderPanel([`Erro do servidor: ${next.error}`])
       // A unidade não resolve a caixa: o produto segue aguardando a medida dela (Alt+C).
@@ -266,5 +421,7 @@
     if (event.code === CAPTURE_KINDS.unit.key) captureSelection('unit')
   })
 
+  console.log('[TransportAdA] script carregado', window.location.href)
   if (isCosmosProductPage) runCosmosCapture()
+  else detectOnAlternativePage()
 })()

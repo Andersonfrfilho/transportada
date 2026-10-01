@@ -389,6 +389,7 @@ describe('createMeasurePackageBox recusa câmera com a função desligada (spec 
       cameraMeasurementSettings: { readEnabled: () => Promise.resolve(input.enabled) },
       capturedMeasure,
       repository: {
+        countMeasurement: () => Promise.resolve({ measuredCount: 0, pendingCount: 0 }),
         getSiblings: () => Promise.reject(new Error('not stubbed')),
         list: () => Promise.resolve([]),
         measure: () => {

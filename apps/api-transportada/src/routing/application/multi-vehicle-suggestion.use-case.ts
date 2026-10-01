@@ -2,10 +2,12 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import {
+  MultiVehicleSuggestionCrewTooLargeError,
   MultiVehicleSuggestionDocumentUnavailableError,
   MultiVehicleSuggestionDriverRepeatedError,
   MultiVehicleSuggestionDriverUnavailableError,
   MultiVehicleSuggestionEmptyError,
+  MultiVehicleSuggestionHelperNotEligibleError,
   MultiVehicleSuggestionStopClaimedTwiceError,
   MultiVehicleSuggestionVehicleNotInProposalError,
   MultiVehicleSuggestionVehicleUnavailableError,
@@ -32,6 +34,7 @@ import {
   resolveAcceptReleasePlans,
   type AcceptReleaseEntry,
 } from './accept-release-plan.service.js'
+import { isReturnPlanned } from '../domain/suggestion-valuation.policy.js'
 
 /**
  * O que o aceite usa para transformar a proposta em viagem. São os casos de uso da 056 vistos de
@@ -42,8 +45,24 @@ export type TripComposer = Readonly<{
   createTrip: (input: {
     readonly context: MultiVehicleScope
     readonly driverId: string | null
+    /** Spec 149 (ADR-0065 D12): a tripulação editada da linha — não o que foi pedido na criação. */
+    readonly helperIds?: readonly string[]
     readonly vehicleId: string
   }) => Promise<{ readonly tripId: string }>
+  /**
+   * Spec 153 T708 (H4): devolve a viagem já composta para estas notas — o sinal de que uma
+   * composição anterior deste mesmo aceite (interrompida por uma falha noutro veículo) já a criou.
+   * `null` faz o aceite criar viagem nova, como sempre criou; encontrada, o aceite **reaproveita**
+   * em vez de criar outra vazia — sem isso, cada reaceite deixava mais um rascunho órfão e nunca
+   * chegava aos veículos seguintes (laço).
+   */
+  findComposedTrip: (input: {
+    readonly context: MultiVehicleScope
+    /** Spec 153 T801 (N1): só reaproveita a viagem que a composição anterior criou para ESTE par. */
+    readonly driverId: string | null
+    readonly nfeDocumentIds: readonly string[]
+    readonly vehicleId: string
+  }) => Promise<{ readonly tripId: string } | null>
   /**
    * Spec 107 D1: devolve `false` quando a nota **já está viva em outra viagem**, em vez de lançar.
    * Um vínculo recusado não pode derrubar um aceite que já criou cinco viagens corretas — foi o que
@@ -70,6 +89,11 @@ export type TripComposer = Readonly<{
     readonly estimatedArrivalByAddressKey: ReadonlyMap<string, string>
     /** Spec 109 D2: a saída suposta, que vira a âncora do ETA na viagem. */
     readonly plannedDepartureAt: string | null
+    /**
+     * Spec 149 T6 (decisão do usuário, 15/09/2026): a perna de volta desta proposta, quando
+     * `isReturnPlanned(endPolicy)` e o worker a gravou — a jornada congela com ela, sem recalcular.
+     */
+    readonly returnLegSeconds?: null | number
     readonly tripId: string
   }) => Promise<void>
   reorderStops: (input: {
@@ -153,10 +177,21 @@ export function createMultiVehicleSuggestionUseCase(
       vehicleIds,
     }) {
       const found = await readReady({ companyId: context.companyId, suggestionId })
-      const proposed = await dependencies.multiVehicle.readGroups({
-        companyId: context.companyId,
-        suggestionId,
-      })
+      const [proposed, roads] = await Promise.all([
+        dependencies.multiVehicle.readGroups({ companyId: context.companyId, suggestionId }),
+        dependencies.multiVehicle.readVehicleRoads({ companyId: context.companyId, suggestionId }),
+      ])
+      /**
+       * Spec 149 T6 (decisão do usuário, 15/09/2026): a perna de volta por veículo, pronta para
+       * congelar a jornada junto do ETA — sem chamar o roteirizador de novo (D1 da 101 continua
+       * valendo: a distância/duração da proposta não se recalcula aqui).
+       */
+      const returnLegSecondsByVehicle = new Map(
+        roads.map((road) => [
+          road.vehicleId,
+          isReturnPlanned(road.endPolicy) ? (road.returnDurationSeconds ?? null) : null,
+        ]),
+      )
 
       /**
        * Spec 110 D5a: **a recusa vem antes da reivindicação.** Um veículo que esta distribuição
@@ -232,11 +267,28 @@ export function createMultiVehicleSuggestionUseCase(
           const arrivals = group.isManualOrder
             ? new Map<string, string>()
             : group.estimatedArrivalByAddressKey
-          const { tripId } = await dependencies.trips.createTrip({
-            context,
-            driverId: group.driverId,
-            vehicleId: group.vehicleId,
-          })
+          /**
+           * Spec 153 T708 (H4): pergunta antes de criar. Achou, é a viagem de uma composição
+           * anterior deste mesmo aceite — reaproveita em vez de nascer outra vazia.
+           */
+          const composed =
+            group.documentIds.length === 0
+              ? null
+              : await dependencies.trips.findComposedTrip({
+                  context,
+                  driverId: group.driverId,
+                  nfeDocumentIds: group.documentIds,
+                  vehicleId: group.vehicleId,
+                })
+          const { tripId } =
+            composed ??
+            (await dependencies.trips.createTrip({
+              context,
+              driverId: group.driverId,
+              /** Spec 149 (ADR-0065 D12): a tripulação editada da linha, não a do pedido de criação. */
+              helperIds: group.helperIds ?? [],
+              vehicleId: group.vehicleId,
+            }))
 
           let linkedCount = 0
           for (const nfeDocumentId of group.documentIds) {
@@ -246,7 +298,12 @@ export function createMultiVehicleSuggestionUseCase(
               tripId,
             })
             if (outcome.linked) linkedCount += 1
-            else if (!outcome.released) {
+            else if (outcome.released) {
+              // Liberada para a fila de revisão: não é erro, e não conta como vinculada.
+            } else if (composed !== null) {
+              /** Já estava vinculada pela composição anterior que este `tripId` reaproveita. */
+              linkedCount += 1
+            } else {
               skippedDocuments.push({ nfeDocumentId, reason: 'already_linked' })
             }
           }
@@ -290,6 +347,10 @@ export function createMultiVehicleSuggestionUseCase(
             context,
             estimatedArrivalByAddressKey: arrivals,
             plannedDepartureAt: found.plannedDepartureAt,
+            /** Ordem manual não confia nas horas do solver (comentário acima) — a jornada também não. */
+            returnLegSeconds: group.isManualOrder
+              ? null
+              : (returnLegSecondsByVehicle.get(group.vehicleId) ?? null),
             tripId,
           })
 
@@ -324,38 +385,66 @@ export function createMultiVehicleSuggestionUseCase(
       if (documentIds.length === 0) throw new MultiVehicleSuggestionEmptyError('documentIds')
       if (vehicleIds.length === 0) throw new MultiVehicleSuggestionEmptyError('vehicleIds')
 
-      /**
-       * RF-2: o mesmo motorista em dois pares seriam duas viagens simultâneas dele no PWA, sem nada
-       * dizendo qual é a de hoje. Aqui a repetição é do **chamador**, e por isso é recusa, não
-       * deduplicação como a do veículo — descartar em silêncio deixaria um caminhão sem motorista
-       * sem ninguém saber por quê.
-       */
       const driverIds = vehicles
         .map((pair) => pair.driverId)
         .filter((driverId): driverId is string => driverId !== undefined)
-      const repeated = driverIds.filter((driverId, index) => driverIds.indexOf(driverId) !== index)
+
+      /**
+       * Spec 149 (ADR-0065 §4): o teto de `trip_drivers` — motorista + ajudantes, até dez — vale
+       * cedo, na proposta, para o operador não descobrir o estouro só no aceite.
+       */
+      const oversizedVehicleIds = vehicles
+        .filter(
+          (pair) => (pair.driverId === undefined ? 0 : 1) + (pair.helperIds?.length ?? 0) > 10,
+        )
+        .map((pair) => pair.vehicleId)
+      if (oversizedVehicleIds.length > 0) {
+        throw new MultiVehicleSuggestionCrewTooLargeError(oversizedVehicleIds)
+      }
+
+      /**
+       * RF-2, estendida pela spec 149 (ADR-0065 §4): a mesma pessoa em dois lugares da proposta
+       * **inteira** — motorista de dois veículos, ajudante de dois veículos, ou motorista e ajudante
+       * ao mesmo tempo. A repetição é do **chamador**, e por isso é recusa, não deduplicação como a
+       * do veículo — descartar em silêncio deixaria um caminhão sem tripulação sem ninguém saber
+       * por quê.
+       */
+      const helperIds = vehicles.flatMap((pair) => pair.helperIds ?? [])
+      const allCrewIds = [...driverIds, ...helperIds]
+      const repeated = allCrewIds.filter((id, index) => allCrewIds.indexOf(id) !== index)
       if (repeated.length > 0) {
         throw new MultiVehicleSuggestionDriverRepeatedError([...new Set(repeated)])
       }
+
+      const uniqueHelperIds = [...new Set(helperIds)]
 
       /**
        * As conferências correm juntas: elas não dependem uma da outra, e a lentidão de uma seguida
        * da outra apareceria numa tela em que o operador acabou de selecionar oitenta notas.
        */
-      const [unavailableDocuments, unavailableVehicles, unavailableDrivers] = await Promise.all([
-        dependencies.multiVehicle.findUnavailableDocumentIds({
-          companyId: input.context.companyId,
-          documentIds,
-        }),
-        dependencies.multiVehicle.findUnavailableVehicleIds({
-          companyId: input.context.companyId,
-          vehicleIds,
-        }),
-        dependencies.multiVehicle.findUnavailableDriverIds({
-          companyId: input.context.companyId,
-          driverIds,
-        }),
-      ])
+      const [unavailableDocuments, unavailableVehicles, unavailableDrivers, ineligibleHelpers] =
+        await Promise.all([
+          dependencies.multiVehicle.findUnavailableDocumentIds({
+            companyId: input.context.companyId,
+            documentIds,
+          }),
+          dependencies.multiVehicle.findUnavailableVehicleIds({
+            companyId: input.context.companyId,
+            vehicleIds,
+          }),
+          /**
+           * Spec 149: motorista e ajudante conferem disponibilidade pela **mesma** consulta — os
+           * dois são a mesma ficha de `fleet_drivers`, ativa ou não.
+           */
+          dependencies.multiVehicle.findUnavailableDriverIds({
+            companyId: input.context.companyId,
+            driverIds: [...new Set([...driverIds, ...uniqueHelperIds])],
+          }),
+          dependencies.multiVehicle.findIneligibleHelperIds({
+            companyId: input.context.companyId,
+            helperIds: uniqueHelperIds,
+          }),
+        ])
       if (unavailableDocuments.length > 0) {
         throw new MultiVehicleSuggestionDocumentUnavailableError(unavailableDocuments)
       }
@@ -364,6 +453,13 @@ export function createMultiVehicleSuggestionUseCase(
       }
       if (unavailableDrivers.length > 0) {
         throw new MultiVehicleSuggestionDriverUnavailableError(unavailableDrivers)
+      }
+      /** Spec 149 (ADR-0065 D1): ajudante sem `can_act_as_helper` na ficha, mesmo que ativo. */
+      const ineligibleAndAvailable = ineligibleHelpers.filter(
+        (helperId) => !unavailableDrivers.includes(helperId),
+      )
+      if (ineligibleAndAvailable.length > 0) {
+        throw new MultiVehicleSuggestionHelperNotEligibleError(ineligibleAndAvailable)
       }
 
       const settings = await dependencies.suggestions.readSettings(input.context.companyId)

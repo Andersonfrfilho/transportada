@@ -34,6 +34,7 @@ import type {
   FleetVehicleCatalogSource,
   FleetVehicleDetail,
   FleetVehicleFormState,
+  MdfeBodyType,
 } from './fleet.types'
 import { toVehicleCostBody, toVehicleCostFormState } from './fleetVehicleCost.service'
 import { toVehicleMeasureBody, toVehicleMeasureFormState } from './fleetVehicleMeasure.service'
@@ -59,7 +60,8 @@ export const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
   annualVehicleTaxAmount: '',
   averageConsumption: '',
   axleCount: '0',
-  bodyType: '00',
+  /** Feature 147 D1: só o cavalo aceita `00`, e ele nasce com `vehicleType` vazio (não é cavalo ainda). */
+  bodyType: '',
   brand: '',
   capacityCubicMeters: '',
   capacityKilograms: '',
@@ -67,6 +69,8 @@ export const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
   cargoLengthMeters: '',
   cargoWidthMeters: '',
   color: '',
+  /** Feature 147 D3: vazio até o operador escolher — fora do cavalo o valor enviado é sempre `null`. */
+  defaultTrailerVehicleId: '',
   fleetNumber: '',
   fuelType: DEFAULT_FUEL_PRODUCT,
   hasAutomaticTollPayment: false,
@@ -102,6 +106,9 @@ const EMPTY_DRIVER_FORM: FleetDriverFormState = {
   addressState: '',
   addressStreet: '',
   anttCategory: '',
+  /** Spec 149 D1: ninguém ajuda por padrão. */
+  canActAsHelper: false,
+  helperDailyRate: '',
   /** Spec 100: ninguém amarra por padrão — a planta limita a pilha por esbeltez. */
   securesCargo: false,
   birthCity: '',
@@ -185,6 +192,7 @@ export function toVehicleFormState(vehicle: FleetVehicleDetail): FleetVehicleFor
     loadingAccess: vehicle.loadingAccess,
     brand: vehicle.brand,
     color: toVehicleColor(vehicle.color),
+    defaultTrailerVehicleId: vehicle.defaultTrailerVehicleId ?? '',
     fleetNumber: vehicle.fleetNumber,
     fuelType: vehicle.fuelType,
     hasAutomaticTollPayment: vehicle.hasAutomaticTollPayment,
@@ -227,6 +235,8 @@ export function toDriverFormState(driver: FleetDriverDetail): FleetDriverFormSta
     addressState: driver.address.state,
     addressStreet: driver.address.street,
     anttCategory: driver.anttCategory,
+    canActAsHelper: driver.canActAsHelper,
+    helperDailyRate: driver.helperDailyRate ?? '',
     securesCargo: driver.securesCargo,
     birthCity: driver.birthCity,
     birthDate: driver.birthDate ?? '',
@@ -335,10 +345,13 @@ export function toVehicleBody(state: FleetVehicleFormState): FleetVehicleBody {
   const isOwn = state.ownership === OWN_OWNERSHIP
   return {
     axleCount: Number(normalizeUnsignedInteger(state.axleCount)),
-    bodyType: state.bodyType,
+    // `useVehicleForm.submit` já recusou o envio com bodyType vazio (isVehicleBodyTypeMissing)
+    bodyType: state.bodyType as MdfeBodyType,
     loadingAccess: state.loadingAccess,
     brand: state.brand,
     color: state.color,
+    defaultTrailerVehicleId:
+      state.defaultTrailerVehicleId === '' ? null : state.defaultTrailerVehicleId,
     fleetNumber: state.fleetNumber,
     fuelType: state.fuelType,
     hasAutomaticTollPayment: state.hasAutomaticTollPayment,
@@ -415,6 +428,8 @@ export function toDriverBody(state: FleetDriverFormState): Omit<FleetDriverBody,
       street: state.addressStreet,
     },
     anttCategory: toAnttCategory(state.anttCategory),
+    canActAsHelper: state.canActAsHelper,
+    helperDailyRate: state.helperDailyRate.trim() === '' ? null : state.helperDailyRate.trim(),
     securesCargo: state.securesCargo,
     birthCity: state.birthCity,
     birthDate: state.birthDate === '' ? null : state.birthDate,

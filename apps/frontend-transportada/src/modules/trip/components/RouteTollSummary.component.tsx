@@ -17,6 +17,8 @@ import styles from '../styles/trip.module.css'
 type RouteTollSummaryProps = Readonly<{
   /** RF7 (spec 154): só quem tem `settings.manage` vê o caminho até o ajuste da praça. */
   canAdjustTollBooth: boolean
+  /** Sem `trip.financials` as linhas de valor somem — nunca zero, nunca traço (spec 153 D10). */
+  canReadFinancials: boolean
   /**
    * Spec 165 RF4: a rota exibida veio da chamada `exclude=toll` (spec 153). Só muda a frase do
    * trajeto **sem praça** — zero por desvio e zero por acaso são coisas diferentes, e a segunda
@@ -46,6 +48,7 @@ function handleAdjustBooth(booth: RouteGeometryTollBooth): void {
  */
 export function RouteTollSummary({
   canAdjustTollBooth,
+  canReadFinancials,
   isNoTollRoute,
   toll,
 }: RouteTollSummaryProps) {
@@ -55,26 +58,37 @@ export function RouteTollSummary({
     <>
       {toll === null ? null : (
         <div className={styles.assemblyToll}>
-          <p className={`${styles.hint} ${styles.assemblyTotalTime}`}>
-            <Icon name="invoice" />
-            <span>
-              {t('assemblyMap.toll.summary', {
-                chargePerAxle: formatAmount(toll.chargePerAxle),
-                multiplier: toll.multiplierLabel,
-                count: toll.booths.length,
-                total: formatAmount(toll.total),
-              })}
-              {toll.tariffObservedOn === null
-                ? null
-                : t('assemblyMap.toll.tariff', { month: formatTariffMonth(toll.tariffObservedOn) })}
-              {/*
+          {/*
+            ⚠️ Sem `trip.financials` a chave sai da resposta (spec 153 D10) — o resumo com valor
+            some inteiro, nunca um `formatAmount(undefined)`. O restante do bloco (praças, forma de
+            pagamento, catálogo) não é dinheiro e continua de fora desta trava.
+          */}
+          {!canReadFinancials ||
+          toll.chargePerAxle === undefined ||
+          toll.total === undefined ? null : (
+            <p className={`${styles.hint} ${styles.assemblyTotalTime}`}>
+              <Icon name="invoice" />
+              <span>
+                {t('assemblyMap.toll.summary', {
+                  count: toll.booths.length,
+                  chargePerAxle: formatAmount(toll.chargePerAxle),
+                  multiplier: toll.multiplierLabel,
+                  total: formatAmount(toll.total),
+                })}
+                {toll.tariffObservedOn === null
+                  ? null
+                  : t('assemblyMap.toll.tariff', {
+                      month: formatTariffMonth(toll.tariffObservedOn),
+                    })}
+                {/*
               ⚠️ A marca de estimativa não pode ficar atrás de segunda condição — é a mesma
               trava de `test/trip/occupancy.contract.ts`: um `&&` a mais é o caminho pelo qual
               ela some sem ninguém notar.
             */}
-              {toll.axles.source === 'estimated' ? ` ${t('assemblyMap.toll.estimated')}` : null}
-            </span>
-          </p>
+                {toll.axles.source === 'estimated' ? ` ${t('assemblyMap.toll.estimated')}` : null}
+              </span>
+            </p>
+          )}
           {/*
           Spec 095 D3: a base (tag ou manual) e, quando com tag, quantas praças caíram para a
           manual por falta de tarifa automática — um total menor sem esse aviso seria a mentira
@@ -143,7 +157,12 @@ export function RouteTollSummary({
                       })}
                     </span>
                     <span className={styles.tollStatementCharge}>
-                      {booth.effectiveChargePerAxle === null || booth.total === null
+                      {/** Sem `trip.financials` a chave some (spec 153 D10) — mesmo aviso de sempre. */}
+                      {!canReadFinancials ||
+                      booth.effectiveChargePerAxle === null ||
+                      booth.effectiveChargePerAxle === undefined ||
+                      booth.total === null ||
+                      booth.total === undefined
                         ? t('assemblyMap.toll.statementWithoutCharge')
                         : t('assemblyMap.toll.statementLine', {
                             charge: formatAmount(booth.effectiveChargePerAxle),

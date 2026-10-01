@@ -1,0 +1,20 @@
+{
+  "eyebrow": "Cadastro",
+  "title": "Pendências",
+  "intro": "O que o cadastro ainda deve, num lugar só.",
+  "boundary": {
+    "forbidden": "Seu perfil não possui permissão para ver as pendências."
+  },
+  "status": {
+    "loading": "Carregando pendências",
+    "error": "Falha ao carregar as pendências"
+  },
+  "empty": "Nenhuma pendência.",
+  "items": {
+    "vehicleBodyTypeMissing": "Veículo {{plate}} sem carroceria informada"
+  },
+  "actions": {
+    "openVehicle": "Abrir ficha",
+    "loadMore": "Carregar mais"
+  }
+}

@@ -33,6 +33,7 @@ import {
   unplacedOf,
   type StoredLayoutRow,
 } from './trip-document-review.query.js'
+import { clearPlannedRoute } from './trip-planned-route-clear.support.js'
 import type { TripTransaction } from './trip-queryable.type.js'
 
 type ReleaseDependencies = {
@@ -131,6 +132,11 @@ export async function releaseUnplacedFromLayout(
     await releaseDocument(transaction, { ...params, document, layout, tripDocumentId })
   }
   if (links.size > 0) {
+    /**
+     * T704 M1: tirar nota do caminhão pode esvaziar uma parada inteira — a rota gravada deixa de
+     * descrever a viagem. Morre aqui, na mesma transação; o recálculo (M2) roda depois do commit.
+     */
+    await clearPlannedRoute(transaction, { companyId, tripId })
     await params.requestCargoLayoutForTrip(transaction, {
       companyId,
       correlationId: params.correlationId,

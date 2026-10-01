@@ -22,6 +22,7 @@ import {
   TripHasUnloadedDocumentsError,
   TripNotFoundError,
   TripStateTransitionNotAllowedError,
+  TripTrailerRequiredError,
 } from '../../src/trips/domain/trip.error.js'
 
 const COMPANY_ID = '11111111-1111-4111-8111-111111111111'
@@ -67,6 +68,7 @@ function createDispatchFakePort(
     readonly hasLoadedDocument?: boolean
     readonly leftBehind?: DispatchTripPreconditions['leftBehind']
     readonly toLoad?: DispatchTripPreconditions['toLoad']
+    readonly requiresTrailer?: boolean
     readonly tripStatus?: DispatchTripPreconditions['tripStatus']
     readonly unloadedDocumentIds?: readonly string[]
     readonly unscheduledStopIds?: readonly string[]
@@ -74,6 +76,7 @@ function createDispatchFakePort(
 ): DispatchTripPort & { readonly dispatchCalls: DispatchTripWriteInput[] } {
   const exists = overrides.exists ?? true
   const hasRoute = overrides.hasRoute ?? true
+  const requiresTrailer = overrides.requiresTrailer ?? false
   const tripStatus = overrides.tripStatus ?? 'loading'
   const toLoad =
     overrides.toLoad ??
@@ -98,6 +101,7 @@ function createDispatchFakePort(
         isCargoClosed,
         leftBehind,
         toLoad,
+        requiresTrailer,
         tripStatus,
         unloadedDocumentIds,
         unscheduledStopIds,
@@ -229,6 +233,23 @@ describe('dispatch trip (spec 056 T010, ADR-0043 §2)', () => {
     }).catch((caught: unknown) => caught)
 
     expect(error).toBeInstanceOf(TripStateTransitionNotAllowedError)
+    expect(repository.dispatchCalls).toHaveLength(0)
+  })
+
+  // Feature 147 D3/Q1b: "ele não pode carregar apenas com o cavalo".
+  test('refuses to dispatch a tractor unit without a trailer', async () => {
+    const repository = createDispatchFakePort({ requiresTrailer: true, tripStatus: 'loading' })
+
+    const error = await dispatchTrip({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+    }).catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(TripTrailerRequiredError)
+    expect((error as TripTrailerRequiredError).status).toBe(409)
     expect(repository.dispatchCalls).toHaveLength(0)
   })
 

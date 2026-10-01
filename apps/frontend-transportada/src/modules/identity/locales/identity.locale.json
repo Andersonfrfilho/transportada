@@ -212,7 +212,8 @@
         "missing-in-realm": "Sem acesso",
         "missing-locally": "Sem cadastro",
         "profile-missing": "Cadastro incompleto",
-        "out-of-sync": "Desatualizado: {{fields}}"
+        "out-of-sync": "Desatualizado: {{fields}}",
+        "disabled": "Desabilitado no provedor"
       },
       "noProfile": "Cadastro incompleto",
       "createInRealm": "Criar o acesso",
@@ -246,6 +247,11 @@
       },
       "outOfSyncCount_one": "1 cadastro estava desatualizado e foi corrigido.",
       "outOfSyncCount_other": "{{count}} cadastros estavam desatualizados e foram corrigidos.",
+      "disabledCount_one": "1 pessoa está \"Completo\" aqui e desabilitada no provedor — entra tudo, menos ela.",
+      "disabledCount_other": "{{count}} pessoas estão \"Completo\" aqui e desabilitadas no provedor — entra tudo, menos elas.",
+      "reactivate": "Reativar",
+      "reactivateAll_one": "Reativar 1 conta",
+      "reactivateAll_other": "Reativar {{count}} contas",
       "field": {
         "email": "e-mail",
         "taxId": "documento",
@@ -381,6 +387,10 @@
       "trip.financials": {
         "label": "Ver dinheiro da viagem",
         "where": "Custo, margem e o valor pago ao motorista."
+      },
+      "trip.event-location": {
+        "label": "Ver onde o evento aconteceu",
+        "where": "Na linha do tempo da viagem: a coordenada de cada toque do motorista, a precisão e a distância até o ponto de entrega."
       },
       "mdfe.read": {
         "label": "Ver MDF-e",

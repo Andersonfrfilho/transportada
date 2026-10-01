@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { createBillingRoutes } from '../src/billing/presentation/billing.routes'
 import { createCteIssuanceRoutes } from '../src/cte-issuance/presentation/cte-issuance.routes'
+import { createCompanyCrewSettingsRoutes } from '../src/fleet/presentation/crew-settings.routes'
 import { createFleetRoutes } from '../src/fleet/presentation/fleet.routes'
 import { AuthorizationService } from '../src/identity/application/authorization.service'
 import { resolveCompanyPermissions } from '../src/identity/domain/authorization.policy'
@@ -15,6 +16,7 @@ import { createQuickReplyRoutes } from '../src/occurrence-conversation/presentat
 import { createOccurrenceConversationUnassignedRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation-unassigned.routes'
 import { createPackageBoxMeasurementExportRoutes } from '../src/nfe-documents/presentation/package-box-measurement-export.routes'
 import { createPackageBoxRoutes } from '../src/nfe-documents/presentation/package-box.routes'
+import { createPendingItemsRoutes } from '../src/pending-items/presentation/pending-items.routes'
 import { createTripDocumentReviewRoutes } from '../src/trips/presentation/trip-document-review.routes'
 import {
   createTripFieldOfficeRoutes,
@@ -68,11 +70,13 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
   const routes = [
     ...createTripRoutes(dependencies),
     ...createFleetRoutes(dependencies),
+    ...createCompanyCrewSettingsRoutes(dependencies),
     ...createBillingRoutes(dependencies),
     ...createCteIssuanceRoutes(dependencies),
     ...createNfeDocumentRoutes(dependencies),
     ...createPackageBoxRoutes(dependencies),
     ...createPackageBoxMeasurementExportRoutes(dependencies),
+    ...createPendingItemsRoutes(dependencies),
     ...createTripDocumentReviewRoutes(dependencies),
     // Spec 156 T8b (revisão do code-reviewer): as rotas do escritório com autoria precisam entrar
     // aqui para a lista exaustiva **provar** a ausência delas — sem elas no array, o separador
@@ -114,6 +118,12 @@ describe('separator role contract', () => {
       'DELETE /trips/:id/costs/:entryId',
       'DELETE /trips/:id/documents/:documentId',
       'DELETE /trips/:id/revenues/:entryId',
+      /**
+       * Spec 149: a diária geral do ajudante entra na conta que o separador já monta ao escolher a
+       * tripulação da viagem — mesma razão do vínculo motorista↔veículo logo abaixo. Ele lê o
+       * parâmetro, nunca o edita (`PUT` continua `fleet.manage`, fora desta lista).
+       */
+      'GET /company-crew-settings',
       'GET /fleet/capabilities',
       // spec 081: o vínculo motorista↔veículo é leitura de `fleet.read`, e o separador a alcança de
       // propósito — é ele quem escolhe veículo e motorista ao montar a viagem. O par não carrega
@@ -158,6 +168,12 @@ describe('separator role contract', () => {
        * como as conversas; atribuir é `occurrences.resolve`, e ele não alcança.
        */
       'GET /occurrence-conversations/unassigned',
+      /**
+       * T18 (revisão): a página de pendências (spec 147 T14/T15) usa a mesma `fleet.read` de toda
+       * leitura de frota, e o separador a alcança de propósito — placa de veículo sem carroceria é
+       * dado mínimo, e é ele quem monta a viagem em cima do que a frota tem cadastrado.
+       */
+      'GET /pending-items',
       /**
        * Spec 148 T7: a fila das notas que não couberam é lida sob `fleet.read`, como a viagem. O
        * separador a alcança porque é ele quem monta o caminhão e decide para onde a nota vai; ela
@@ -264,6 +280,8 @@ describe('separator role contract', () => {
        * novo. Bloqueada a partir de `route_planned` pela própria máquina de estados.
        */
       'PATCH /trips/:id/crew',
+      /** Spec 167 (RF2/RF10): mesma permissão do registro — corrigir o conjunto de itens. */
+      'PATCH /trips/:id/documents/:documentId/occurrences/:occurrenceId/items',
       'PATCH /trips/:id/stops/order',
       // Spec 155 (G004): a mesma cargo.measure de GET .../:id/siblings, acima.
       'POST /nfe-package-boxes/:id/replicate',
@@ -320,6 +338,8 @@ describe('separator role contract', () => {
       'POST /trips/:id/documents/:documentId/occurrences',
       /** Spec 161 T7 (RF6): mesma permissão do registro — a segunda foto em diante. */
       'POST /trips/:id/documents/:documentId/occurrences/:occurrenceId/attachments',
+      /** Spec 167 (RF6/RF10): mesma permissão do registro — cancelar com motivo. */
+      'POST /trips/:id/documents/:documentId/occurrences/:occurrenceId/cancellation',
       'POST /trips/:id/documents/:documentId/separate',
       /**
        * Decisão escrita (spec 075): **o separador alcança o vínculo em lote.** Ele já alcançava o
@@ -344,6 +364,12 @@ describe('separator role contract', () => {
       'PUT /nfe-package-boxes/:id',
       // Spec 163 (P1): a medida da unidade é a mesma cargo.measure de quem mede a caixa.
       'PUT /nfe-package-boxes/:id/unit',
+      /**
+       * ⚠️ **Decisão escrita (spec 147 D3):** o separador alcança `PUT /trips/:id/trailer`. Montar a
+       * viagem inclui escolher a carreta que o cavalo puxa, a mesma tarefa de vincular nota e
+       * planejar rota — por isso a rota mora sob `trip.manage`, e não sob `fleet.manage`.
+       */
+      'PUT /trips/:id/trailer',
     ])
   })
 
@@ -357,6 +383,7 @@ describe('separator role contract', () => {
       'PATCH /fleet/drivers/:id',
       'PUT /fleet/drivers/:id/vehicles',
       'GET /fleet/drivers/availability',
+      'PUT /company-crew-settings',
       'GET /billing/eligible-ctes',
       'GET /billing/invoices',
       'POST /billing/invoices',

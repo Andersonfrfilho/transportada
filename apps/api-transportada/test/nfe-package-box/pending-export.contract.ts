@@ -92,6 +92,7 @@ function buildRepository(boxes: readonly CompanyBox[]): {
   return {
     calls,
     repository: {
+      countMeasurement: () => Promise.resolve({ measuredCount: 0, pendingCount: 0 }),
       getSiblings: unused,
       async list(input) {
         calls.push(input)

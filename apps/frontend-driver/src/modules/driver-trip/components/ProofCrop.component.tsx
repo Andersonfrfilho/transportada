@@ -16,6 +16,7 @@ import {
   toLuminanceGrid,
   type CropCorners,
 } from '../shared/proofCrop.service'
+import { resolveInitialCropBounds } from '../shared/proofCropFrame.service'
 import styles from '../styles/driverTrip.module.css'
 
 const PREVIEW_MAX_WIDTH = 480
@@ -69,11 +70,16 @@ export function ProofCrop({ file, onCancel, onConfirm }: ProofCropProps) {
       const bounds = detectDocumentBounds(
         toLuminanceGrid(context.getImageData(0, 0, width, height)),
       )
-      setCorners(boundsToCorners(bounds ?? { bottom: height, left: 0, right: width, top: 0 }))
+      setCorners(boundsToCorners(resolveInitialCropBounds({ detected: bounds, height, width })))
     }
     image.src = url
     return () => URL.revokeObjectURL(url)
   }, [file])
+
+  const frame =
+    corners === null || size === null
+      ? null
+      : cornersToBounds({ corners, height: size.height, width: size.width })
 
   function handlePointerMove(event: React.PointerEvent<HTMLDivElement>): void {
     const key = draggingRef.current
@@ -124,6 +130,18 @@ export function ProofCrop({ file, onCancel, onConfirm }: ProofCropProps) {
         }}
       >
         <canvas aria-label={t('crop.previewLabel')} ref={canvasRef} tabIndex={-1} />
+        {frame === null ? null : (
+          <div
+            aria-hidden="true"
+            className={styles.proofCropFrame}
+            style={{
+              height: `${frame.bottom - frame.top}px`,
+              left: `${frame.left}px`,
+              top: `${frame.top}px`,
+              width: `${frame.right - frame.left}px`,
+            }}
+          />
+        )}
         {corners === null
           ? null
           : (Object.keys(corners) as readonly CornerKey[]).map((key) => (
@@ -131,7 +149,10 @@ export function ProofCrop({ file, onCancel, onConfirm }: ProofCropProps) {
                 aria-label={t(`crop.corner.${key}`)}
                 className={styles.proofCropHandle}
                 key={key}
-                style={{ left: `${corners[key].x}px`, top: `${corners[key].y}px` }}
+                style={{
+                  left: `clamp(var(--crop-handle-half), ${corners[key].x}px, calc(100% - var(--crop-handle-half)))`,
+                  top: `clamp(var(--crop-handle-half), ${corners[key].y}px, calc(100% - var(--crop-handle-half)))`,
+                }}
                 type="button"
                 onPointerDown={(event) => {
                   event.currentTarget.setPointerCapture(event.pointerId)

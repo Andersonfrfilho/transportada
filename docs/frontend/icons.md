@@ -59,7 +59,7 @@ Ação: `add`, `alert`, `arrow-down`, `arrow-up`, `calendar`, `check`, `chevron-
 
 Navegação (barra lateral): `workspace-billing`, `workspace-company-settings`, `workspace-cte-batch`,
 `workspace-cte-profiles`, `workspace-fleet`, `workspace-freight`, `workspace-mdfe-manifest`,
-`workspace-nfe`, `workspace-operations`.
+`workspace-nfe`, `workspace-operations`, `workspace-pendencias`.
 
 `spinner` gira sozinho e o `icon.module.css` desliga a animação em
 `@media (prefers-reduced-motion: reduce)`.

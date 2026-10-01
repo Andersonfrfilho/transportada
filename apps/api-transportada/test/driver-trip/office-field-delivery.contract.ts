@@ -99,6 +99,8 @@ function buildProof(input: {
 }
 
 const OPTIONAL_SETTINGS: DeliveryProofFieldSettings = {
+  cargo: 'off',
+  cargoMinimumCount: 1,
   photo: 'optional',
   receivedBy: 'optional',
   receiverDocument: 'off',
@@ -601,6 +603,7 @@ describe('attach-delivery-proof: receiverName em kind photo nos dois canais (spe
           deliveryEventPosition: undefined,
         }),
         findProofIdByAttachmentKey: async () => null,
+        countProofsForEvent: async () => 0,
         findProofPunctuality: async () => null,
         resolveProofFieldSettings: async () => OPTIONAL_SETTINGS,
         resolveProofPunctualitySettings: async () => DEFAULT_PUNCTUALITY_SETTINGS,
@@ -644,6 +647,7 @@ describe('attach-delivery-proof: receiverName em kind photo nos dois canais (spe
           deliveryEventPosition: undefined,
         }),
         findProofIdByAttachmentKey: async () => null,
+        countProofsForEvent: async () => 0,
         findProofPunctuality: async () => null,
         resolveProofFieldSettings: async () => OPTIONAL_SETTINGS,
         resolveProofPunctualitySettings: async () => DEFAULT_PUNCTUALITY_SETTINGS,

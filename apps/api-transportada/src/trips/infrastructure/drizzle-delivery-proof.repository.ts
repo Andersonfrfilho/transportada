@@ -10,6 +10,7 @@ import {
   companyDeliveryProofSettings,
   deliveryProofSettingOverrides,
 } from '../../database/company-delivery-proof-settings.schema.js'
+import type { EventLocationState } from '../../database/event-location.schema.js'
 import { inList } from '../../database/schema-check.constant.js'
 import { nfeParticipants } from '../../database/nfe.schema.js'
 import { storedObjects } from '../../database/storage.schema.js'
@@ -23,8 +24,11 @@ import {
   type TripDeliveryProofKind,
 } from '../../database/trip.schema.js'
 import type { DeliveryProofPort } from '../application/attach-delivery-proof.use-case.js'
+import { buildCanhotoReviewReset } from '../domain/canhoto-review.policy.js'
+import { resolveEventLocationState } from '../domain/event-location-state.policy.js'
 import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
 import type { ProofPunctuality } from '../domain/delivery-proof-punctuality.policy.js'
+import { TripDeliveryProofCargoLimitError } from '../domain/trip-field-office.error.js'
 import { DeliveryProofEventVanishedError } from '../domain/delivery-proof-event.error.js'
 import {
   DELIVERED_EVENT_KIND,
@@ -38,6 +42,7 @@ import {
 } from '../domain/delivery-proof-settings.policy.js'
 import { TRIP_DISPATCHED_STATUSES } from '../domain/trip-state.policy.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
+import type { TripQueryable } from './trip-queryable.type.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -128,6 +133,8 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
 
     const [general] = await this.database
       .select({
+        cargo: companyDeliveryProofSettings.cargo,
+        cargoMinimumCount: companyDeliveryProofSettings.cargoMinimumCount,
         photo: companyDeliveryProofSettings.photo,
         receivedBy: companyDeliveryProofSettings.receivedBy,
         receiverDocument: companyDeliveryProofSettings.receiverDocument,
@@ -144,6 +151,8 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
         ? []
         : await this.database
             .select({
+              cargo: deliveryProofSettingOverrides.cargo,
+              cargoMinimumCount: deliveryProofSettingOverrides.cargoMinimumCount,
               photo: deliveryProofSettingOverrides.photo,
               receivedBy: deliveryProofSettingOverrides.receivedBy,
               receiverDocument: deliveryProofSettingOverrides.receiverDocument,
@@ -278,9 +287,31 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
     return record?.punctuality ?? null
   }
 
+  /** Spec 184 D3 / spec 220 RF08: o teto de cinco fotos da mercadoria por entrega. */
+  public async countProofsForEvent(input: {
+    readonly companyId: string
+    readonly eventId: string
+    readonly kind: TripDeliveryProofKind
+  }): Promise<number> {
+    const [record] = await this.database
+      .select({ total: sql<number>`count(*)::int` })
+      .from(tripDeliveryProofs)
+      .where(
+        and(
+          eq(tripDeliveryProofs.companyId, input.companyId),
+          eq(tripDeliveryProofs.stopEventId, input.eventId),
+          eq(tripDeliveryProofs.kind, input.kind),
+        ),
+      )
+
+    return record?.total ?? 0
+  }
+
   /** O objeto e o vínculo entram na mesma transação: byte no bucket sem dono é lixo que ninguém acha. */
   public async saveProof(input: SaveProofInput): Promise<{ readonly id: string }> {
     return this.database.transaction(async (transaction) => {
+      const { cargoLimit } = input
+      if (cargoLimit !== undefined) await assertCargoRoom(transaction, { ...input, cargoLimit })
       await transaction.insert(storedObjects).values({
         bucket: this.bucket,
         companyId: input.companyId,
@@ -293,31 +324,24 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
         sizeBytes: BigInt(input.sizeBytes),
         status: 'final',
       })
+      if (input.thumbnail !== undefined) {
+        await transaction.insert(storedObjects).values({
+          bucket: this.bucket,
+          companyId: input.companyId,
+          id: input.thumbnail.objectId,
+          mimeType: input.thumbnail.mimeType,
+          objectKey: input.thumbnail.objectKey,
+          provider: 's3',
+          purpose: 'trip_delivery_proof_thumbnail',
+          sha256: input.thumbnail.sha256,
+          sizeBytes: BigInt(input.thumbnail.sizeBytes),
+          status: 'final',
+        })
+      }
 
       const [proof] = await transaction
         .insert(tripDeliveryProofs)
-        .values({
-          accuracyMeters: input.accuracyMeters,
-          actorUserId: input.actorUserId,
-          attachmentKey: input.attachmentKey,
-          capturedAt: input.capturedAt,
-          channel: input.authorship.channel,
-          companyId: input.companyId,
-          id: input.id,
-          kind: input.kind,
-          lateRegistration: input.lateRegistration,
-          latitude: input.latitude,
-          longitude: input.longitude,
-          onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
-          objectId: input.objectId,
-          punctuality: input.punctuality,
-          receiverDocumentEnvelope: input.receiverDocumentEnvelope,
-          receiverDocumentMasked: input.receiverDocumentMasked,
-          receiverName: input.receiverName,
-          receivedBy: input.receivedBy,
-          receivedByDetail: input.receivedByDetail,
-          stopEventId: input.eventId,
-        })
+        .values(buildProofInsertValues(input))
         /**
          * Segundo envio do mesmo tipo é correção: a foto tremida vira a boa, sem duplicar linha.
          * O `id` novo entra junto — o AAD do envelope está amarrado a ele, e manter o id antigo
@@ -349,7 +373,35 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
   }
 }
 
+/**
+ * Contar e inserir em READ COMMITTED deixa dois envios simultâneos lerem a mesma contagem; a trava
+ * na linha do evento (mesma do canal do escritório) faz o segundo esperar e contar a foto do primeiro.
+ */
+async function assertCargoRoom(
+  transaction: TripQueryable,
+  input: Pick<SaveProofInput, 'companyId' | 'eventId' | 'kind'> & { readonly cargoLimit: number },
+): Promise<void> {
+  await transaction
+    .select({ id: tripStopEvents.id })
+    .from(tripStopEvents)
+    .where(and(eq(tripStopEvents.companyId, input.companyId), eq(tripStopEvents.id, input.eventId)))
+    .for('no key update')
+  const [record] = await transaction
+    .select({ total: sql<number>`count(*)::int` })
+    .from(tripDeliveryProofs)
+    .where(
+      and(
+        eq(tripDeliveryProofs.companyId, input.companyId),
+        eq(tripDeliveryProofs.stopEventId, input.eventId),
+        eq(tripDeliveryProofs.kind, input.kind),
+      ),
+    )
+  if ((record?.total ?? 0) >= input.cargoLimit) throw new TripDeliveryProofCargoLimitError()
+}
+
 type SaveProofInput = {
+  /** Foto da mercadoria: o teto conferido dentro da transação, depois da trava do evento. */
+  readonly cargoLimit?: number
   /** ADR-0070 §4: precisão declarada pelo aparelho, já em texto decimal (coluna `numeric`). */
   readonly accuracyMeters: string | null
   readonly actorUserId: string
@@ -379,6 +431,22 @@ type SaveProofInput = {
   readonly receivedByDetail: string | null
   readonly sha256: string
   readonly sizeBytes: number
+  /** Spec 220 RF17: ausente é o comprovante sem miniatura (RF19); `retention_until` nulo, como o original. */
+  readonly thumbnail?: {
+    readonly mimeType: string
+    readonly objectId: string
+    readonly objectKey: string
+    readonly sha256: string
+    readonly sizeBytes: number
+  }
+}
+
+/** ADR-0081 §3, aplicado ao comprovante: um lugar só, para os dois canais que inserem a linha. */
+function resolveProofLocationState(input: SaveProofInput): EventLocationState | null {
+  return resolveEventLocationState({
+    channel: input.authorship.channel,
+    hasCoordinate: input.latitude !== null,
+  })
 }
 
 function toCoordinate(latitude: string | null, longitude: string | null): Coordinate | undefined {
@@ -388,12 +456,47 @@ function toCoordinate(latitude: string | null, longitude: string | null): Coordi
 }
 
 /**
+ * A linha que os dois canais inserem. O escritório nunca registra depois (spec 205 D1) e passa
+ * `lateRegistration: false` — é a única diferença entre eles, e um construtor só a mantém assim.
+ * Duas cópias já bastariam para o canhoto do escritório nascer sem veredito (spec 220 RF24).
+ */
+export function buildProofInsertValues(input: SaveProofInput) {
+  return {
+    accuracyMeters: input.accuracyMeters,
+    actorUserId: input.actorUserId,
+    attachmentKey: input.attachmentKey,
+    capturedAt: input.capturedAt,
+    channel: input.authorship.channel,
+    companyId: input.companyId,
+    id: input.id,
+    kind: input.kind,
+    lateRegistration: input.lateRegistration,
+    latitude: input.latitude,
+    locationState: resolveProofLocationState(input),
+    longitude: input.longitude,
+    objectId: input.objectId,
+    onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
+    punctuality: input.punctuality,
+    receiverDocumentEnvelope: input.receiverDocumentEnvelope,
+    receiverDocumentMasked: input.receiverDocumentMasked,
+    receivedBy: input.receivedBy,
+    receivedByDetail: input.receivedByDetail,
+    receiverName: input.receiverName,
+    stopEventId: input.eventId,
+    thumbnailObjectId: input.thumbnail?.objectId ?? null,
+    ...buildCanhotoReviewReset(input.kind),
+  }
+}
+
+/**
  * Spec 082 (revisão, item 4): recaptura que chega sem `receiverDocument` preserva o envelope e a
  * máscara já gravados — as duas colunas só entram no set quando o novo envelope existe, para o
  * `onConflictDoUpdate` não anular um documento já selado. Exportada para o contrato de teste.
  */
 export function buildProofUpsertSet(input: SaveProofInput) {
   const base = {
+    /** Spec 220 RF24: o canhoto que chega é novo — o veredito guardado era da foto que saiu. */
+    ...buildCanhotoReviewReset(input.kind),
     accuracyMeters: input.accuracyMeters,
     actorUserId: input.actorUserId,
     attachmentKey: input.attachmentKey,
@@ -402,6 +505,8 @@ export function buildProofUpsertSet(input: SaveProofInput) {
     /** Spec 205 D5: a substituta não lava o registro tardio da foto anterior. */
     lateRegistration: sql`${tripDeliveryProofs.lateRegistration} or excluded.late_registration`,
     latitude: input.latitude,
+    /** A recaptura traz o ponto dela: estado velho com coordenada nova reprovaria no CHECK. */
+    locationState: resolveProofLocationState(input),
     longitude: input.longitude,
     objectId: input.objectId,
     onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
@@ -409,6 +514,8 @@ export function buildProofUpsertSet(input: SaveProofInput) {
     receivedBy: input.receivedBy,
     receivedByDetail: input.receivedByDetail,
     receiverName: input.receiverName,
+    /** A miniatura velha é do original que saiu: recaptura sem miniatura a zera, nunca a mantém. */
+    thumbnailObjectId: input.thumbnail?.objectId ?? null,
   }
   /** O AAD do envelope preservado está amarrado ao `id` antigo — o id fica junto com ele. */
   if (input.receiverDocumentEnvelope === null) return base
