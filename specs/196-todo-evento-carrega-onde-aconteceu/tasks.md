@@ -209,6 +209,17 @@ do usuário. A API não é revertida com a app nova no ar.
   > uma a menos. `distanceMeters` é derivada no servidor (ADR-0081 §6) e nula quando a parada não
   > tem ponto de referência. O comprovante da entrega já calcula essa distância em
   > `measureProofDistance`; reaproveitar, não reescrever.
+  >
+  > ⚠️ **A coordenada da parada não está em `trip_stops`.** Aquelas colunas nunca foram escritas e
+  > foram removidas; `test/trip-schema/dead-coordinate-columns.contract.ts` reprova se voltarem, e
+  > elas já causaram três leituras erradas (specs 079, 199 e 159) por responderem `null` sem
+  > reclamar. O ponto vivo da parada mora em `geocoded_addresses`, casado pela `address_key`
+  > (ADR-0044 §5).
+  >
+  > ⚠️ Os contratos que guardam a regra antiga —
+  > `test/trip-delivery-proof/read.contract.ts` ("só a distância derivada") e o da spec 158 que
+  > proíbe `latitude` — são **reescritos por emenda, nunca apagados**. A revogação está registrada
+  > na ADR-0081 §6.1, em `specs/220-.../tasks.md` e em `specs/158-.../spec.md`.
 
   Aceite: verdes; a contagem subiu em N.
 
