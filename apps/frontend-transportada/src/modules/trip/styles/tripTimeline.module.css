@@ -348,3 +348,36 @@
 .error p {
   margin: 0;
 }
+
+/* A área de toque cresce além do ícone sem alargar a linha de autoria. */
+.locationButton {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-slate-muted);
+  cursor: help;
+}
+
+.locationButton::after {
+  position: absolute;
+  inset: calc((var(--touch-target) - 1rem) / -2);
+  content: '';
+}
+
+.locationButton:focus-visible {
+  outline: 2px solid var(--color-copper);
+  outline-offset: 2px;
+}
+
+.locationProblem {
+  color: var(--color-alert);
+}
+
+.locationMap {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}

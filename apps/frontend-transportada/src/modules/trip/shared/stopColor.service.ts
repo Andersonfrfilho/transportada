@@ -51,6 +51,18 @@ const MAP_SURFACE = [
   '#d9603c',
 ] as const
 
+/**
+ * A cor do pino que **não é parada**: o ponto onde o motorista tocou (spec 196 T6.2).
+ *
+ * ⚠️ Ela mora aqui, e não num `*.constant.ts` de módulo, porque está presa às mesmas duas regras
+ * que esta paleta: luminância na janela dos dois temas e distância CIELab de tudo que já se desenha
+ * sobre mapa. O primeiro valor escrito à mão foi `#f5f5f5`, que medido dava contraste **1,04**
+ * contra o papel do tema claro — no claro o pino não existia. Este foi escolhido por busca:
+ * ΔE 30,4 do vizinho mais próximo entre `MAP_SURFACE`, as 96 primeiras cores de parada e
+ * `NOTE_COLORS`, com contraste 2,6 no escuro e 5,9 no claro. `event-pin-color.contract.ts` cobra.
+ */
+export const EVENT_PIN_COLOR = '#7d5187'
+
 /** Alvos de **luminância relativa**, todos dentro da janela que serve aos dois temas. */
 const LUMINANCE_TARGETS = [0.15, 0.22, 0.3] as const
 const SATURATIONS = [0.72, 0.86, 1] as const

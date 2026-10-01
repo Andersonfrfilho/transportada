@@ -746,7 +746,29 @@
       "minutes": "{{count}} min"
     },
     "gap": "{{duration}} with no record",
-    "afterPrevious": "{{duration}} after the previous event"
+    "afterPrevious": "{{duration}} after the previous event",
+    "location": {
+      "label": {
+        "captured": "Position recorded",
+        "expired": "Position expired",
+        "restricted": "Position recorded",
+        "unavailable": "Position unavailable"
+      },
+      "accuracy": "Accuracy ± {{meters}} m",
+      "distance": "{{meters}} m from the stop",
+      "coordinates": "Latitude {{latitude}}, longitude {{longitude}}",
+      "capturedAt": "Read at {{moment}}",
+      "restricted": "The point was recorded, but this access does not show the coordinate.",
+      "unavailable": "The device did not deliver a position on this tap.",
+      "expired": "The coordinate is erased after 90 days; the event remains.",
+      "viewMap": "View on map",
+      "hideMap": "Hide map",
+      "mapLoading": "Loading the map",
+      "mapMissing": "The map is not available right now.",
+      "eventPin": "Where the driver tapped",
+      "legend": "Plain pin: where the driver tapped. Numbered pin: stop {{sequence}}.",
+      "legendEventOnly": "Plain pin: where the driver tapped. The stop has no registered coordinate."
+    }
   },
   "feedback": {
     "closeReasonRequired": "Provide the reason to close a trip with open invoices.",

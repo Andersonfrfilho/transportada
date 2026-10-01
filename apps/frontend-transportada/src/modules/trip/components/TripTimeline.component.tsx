@@ -12,8 +12,11 @@ import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavig
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
 import { useTripOccurrenceAttachmentsQuery } from '../queries/tripOccurrenceFeed.query'
-import type { TripTimelineItem, TripTimelinePage } from '../shared/trip.types'
-import { hasTripTimelineExpandableDetail } from '../shared/tripTimelineDetail.service'
+import type { TripStopDetail, TripTimelineItem, TripTimelinePage } from '../shared/trip.types'
+import {
+  hasTripTimelineExpandableDetail,
+  resolveTimelineLocationView,
+} from '../shared/tripTimelineDetail.service'
 import {
   collectTripTimelineDocuments,
   filterTripTimelineItemsByDocumentIds,
@@ -38,6 +41,11 @@ import {
 } from '../shared/tripTimelineRow.service'
 import styles from '../styles/tripTimeline.module.css'
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
+import { TripTimelineLocation } from './TripTimelineLocation.component'
+import {
+  TripTimelineLocationMap,
+  type TripTimelineLocationMapStop,
+} from './TripTimelineLocationMap.component'
 
 const SKELETON_ROWS = 3
 
@@ -111,7 +119,28 @@ type TripTimelineProps = Readonly<{
   /** Nota aberta no detalhe (spec 158 RF6) — `null` quando nenhuma está aberta, e o filtro some. */
   openDocumentId: null | string
   query: TripTimelineQuery
+  /** As paradas da viagem: o mapa do ponto do evento desenha também a parada. Ausente, só o evento. */
+  stops?: readonly TripStopDetail[] | undefined
 }>
+
+function findStopForMap(
+  item: TripTimelineItem,
+  stops: readonly TripStopDetail[] | undefined,
+): null | TripTimelineLocationMapStop {
+  if (item.stop === null || stops === undefined) return null
+  const stop = stops.find((candidate) => candidate.id === item.stop?.id)
+  if (stop === undefined) return null
+  const latitude = Number(stop.latitude ?? Number.NaN)
+  const longitude = Number(stop.longitude ?? Number.NaN)
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
+  return {
+    label: stop.label,
+    latitude,
+    longitude,
+    sequence: stop.sequence,
+    stopKey: stop.addressKey,
+  }
+}
 
 /**
  * Spec 158 T8 (RF6) / T10: a seção "Linha do tempo" do detalhe da viagem — trilho vertical com um
@@ -119,7 +148,7 @@ type TripTimelineProps = Readonly<{
  * horário e autoria. Sem cartão por item: numa viagem de 50 notas a borda cheia de cada um pesava.
  * A ordem é a da API (D4, do mais recente para o mais antigo) — o componente não reordena.
  */
-export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
+export function TripTimeline({ openDocumentId, query, stops }: TripTimelineProps) {
   const { t } = useTranslation('trip')
   const translate = t as Translate
   /**
@@ -228,6 +257,7 @@ export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
                             : interval.minutes
                         }
                         item={item}
+                        stops={stops}
                       />
                       {hasGapRuler ? (
                         <li className={styles.gap}>
@@ -265,11 +295,21 @@ export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
 function TripTimelineEntry({
   elapsedMinutes,
   item,
-}: Readonly<{ elapsedMinutes: null | number; item: TripTimelineItem }>) {
+  stops,
+}: Readonly<{
+  elapsedMinutes: null | number
+  item: TripTimelineItem
+  stops: readonly TripStopDetail[] | undefined
+}>) {
   const { t } = useTranslation('trip')
   const translate = t as Translate
   const [isExpanded, setIsExpanded] = useState(false)
   const hasDetail = hasTripTimelineExpandableDetail(item)
+  const locationView = resolveTimelineLocationView(item, translate)
+  /** Quando o mapa é o único detalhe, o botão diz o que abre em vez de "Ver mais". */
+  const isMapOnlyDetail =
+    locationView?.canViewMap === true &&
+    !hasTripTimelineExpandableDetail({ ...item, location: null, locationState: null })
   const detailId = `trip-timeline-detail-${item.id}`
   const title = resolveTripTimelineTitle(item, translate)
   const authorship = resolveTripTimelineAuthorshipText(item, translate)
@@ -393,8 +433,8 @@ function TripTimelineEntry({
               ))}
             </ul>
           )}
-          {authorship === null && elapsedMinutes === null ? null : (
-            <p className={styles.itemMeta}>
+          {authorship === null && elapsedMinutes === null && locationView === null ? null : (
+            <div className={styles.itemMeta}>
               {authorship === null ? null : (
                 <span className={styles.itemAuthorship}>{authorship}</span>
               )}
@@ -405,7 +445,8 @@ function TripTimelineEntry({
                   })}
                 </span>
               )}
-            </p>
+              {locationView === null ? null : <TripTimelineLocation view={locationView} />}
+            </div>
           )}
         </div>
       </div>
@@ -424,7 +465,13 @@ function TripTimelineEntry({
           variant="ghost"
         >
           <Icon name={isExpanded ? 'chevron-up' : 'chevron-down'} />
-          {isExpanded ? t('eventTimeline.collapse') : t('eventTimeline.expand')}
+          {isMapOnlyDetail
+            ? isExpanded
+              ? t('eventTimeline.location.hideMap')
+              : t('eventTimeline.location.viewMap')
+            : isExpanded
+              ? t('eventTimeline.collapse')
+              : t('eventTimeline.expand')}
         </Button>
       ) : null}
       {hasDetail && isExpanded ? (
@@ -443,6 +490,13 @@ function TripTimelineEntry({
             <p className={styles.itemDetail}>
               {t('eventTimeline.occurrenceNote', { note: occurrenceNote })}
             </p>
+          )}
+          {locationView?.coordinates == null ? null : (
+            <TripTimelineLocationMap
+              eventLatitude={locationView.coordinates.latitude}
+              eventLongitude={locationView.coordinates.longitude}
+              stop={findStopForMap(item, stops)}
+            />
           )}
           {attachmentCount === null ? null : (
             <TripTimelineOccurrenceAttachments

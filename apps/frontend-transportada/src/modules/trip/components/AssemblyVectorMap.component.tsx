@@ -418,6 +418,7 @@ export function AssemblyVectorMap({
         color: stopColor(point.sequence ?? 1),
         outline: resolveBasemapOutline(readToken, theme),
         sequence: point.sequence ?? 1,
+        unnumbered: point.isUnnumbered === true,
       })
       if (point.hasOpenOccurrence === true) {
         const host = occurrenceBadgeHostElement()
@@ -731,6 +732,8 @@ function stopElement(input: {
   readonly color: string
   readonly outline: string
   readonly sequence: number
+  /** Pino que não é parada: sai liso. Flag explícita porque `sequence` fora de faixa some calado. */
+  readonly unnumbered: boolean
 }): HTMLElement {
   const element = document.createElement('span')
   /**
@@ -743,7 +746,7 @@ function stopElement(input: {
     : (styles.tilePin ?? '')
   element.style.background = input.color
   element.style.borderColor = input.outline
-  element.textContent = String(input.sequence)
+  element.textContent = input.unnumbered ? '' : String(input.sequence)
   return element
 }
 

@@ -746,7 +746,29 @@
       "minutes": "{{count}} min"
     },
     "gap": "{{duration}} sem registro",
-    "afterPrevious": "{{duration}} após o evento anterior"
+    "afterPrevious": "{{duration}} após o evento anterior",
+    "location": {
+      "label": {
+        "captured": "Posição registrada",
+        "expired": "Posição expirada",
+        "restricted": "Posição registrada",
+        "unavailable": "Posição indisponível"
+      },
+      "accuracy": "Precisão ± {{meters}} m",
+      "distance": "a {{meters}} m do ponto",
+      "coordinates": "Latitude {{latitude}}, longitude {{longitude}}",
+      "capturedAt": "Lida em {{moment}}",
+      "restricted": "O ponto foi registrado, mas este acesso não mostra a coordenada.",
+      "unavailable": "O aparelho não entregou a posição neste toque.",
+      "expired": "A coordenada é apagada após 90 dias; o evento permanece.",
+      "viewMap": "Ver no mapa",
+      "hideMap": "Ocultar mapa",
+      "mapLoading": "Carregando o mapa",
+      "mapMissing": "O mapa não está disponível agora.",
+      "eventPin": "Onde o motorista tocou",
+      "legend": "Pino liso: onde o motorista tocou. Pino numerado: parada {{sequence}}.",
+      "legendEventOnly": "Pino liso: onde o motorista tocou. A parada não tem coordenada cadastrada."
+    }
   },
   "feedback": {
     "closeReasonRequired": "Informe o motivo para encerrar a viagem com nota em aberto.",

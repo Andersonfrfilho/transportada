@@ -63,6 +63,7 @@ export type IconName =
   | 'trash'
   | 'truck'
   | 'map-pin'
+  | 'map-pin-off'
   | 'organization'
   | 'vehicle-motorcycle'
   | 'vehicle-car'
@@ -220,6 +221,12 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   'map-pin': [
     'M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11z',
     'M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
+  ],
+  /** O pino cortado por uma diagonal: o aparelho tocou e a posição não veio. */
+  'map-pin-off': [
+    'M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11z',
+    'M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
+    'M3 3l18 18',
   ],
   /**
    * A organização: o prédio da empresa, com anexo, janelas e portão, assentado na linha do chão.

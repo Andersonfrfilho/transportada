@@ -86,6 +86,11 @@ export type AssemblyMapPoint = Readonly<{
    * (`undefined`) fora do contexto da viagem, onde a informação não existe.
    */
   hasOpenOccurrence?: boolean
+  /**
+   * Spec 196 T6.2: `true` no pino que **não é parada** — o ponto onde o motorista tocou. Ele sai
+   * liso, sem número, porque número no mapa significa posição no roteiro e esse ponto não tem uma.
+   */
+  isUnnumbered?: boolean
   /** A ordem que o operador montou. `null` na cidade que ficou de fora da seleção. */
   sequence: number | null
   x: number

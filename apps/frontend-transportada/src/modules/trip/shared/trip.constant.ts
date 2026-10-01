@@ -508,6 +508,17 @@ export const TRIP_TIMELINE_LOCATION_KEYS = [
   'longitude',
 ] as const
 
+/** Casas decimais da coordenada impressa no tooltip — cinco dão ~1 m, o que a precisão do GPS sustenta. */
+export const TRIP_TIMELINE_LOCATION_COORDINATE_DIGITS = 5
+export const TRIP_TIMELINE_LOCATION_LINE_SEPARATOR = ' · '
+/**
+ * Chave de cor do pino do evento, **lida só dentro do `TripTimelineLocationMap`** — o mapa
+ * compartilhado não interpreta mais número fora de faixa, ele recebe `isUnnumbered`. A cor em si é
+ * `EVENT_PIN_COLOR`, em `stopColor.service.ts`, onde a janela de luminância é medida.
+ */
+export const TRIP_TIMELINE_LOCATION_EVENT_PIN_SEQUENCE = 0
+export const TRIP_TIMELINE_LOCATION_EVENT_PIN_KEY = 'timeline-event-location'
+
 export const TRIP_TIMELINE_STOP_REFERENCE_KEYS = ['id', 'sequence'] as const
 export const TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS = ['id', 'number', 'series'] as const
 export const TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS = ['note', 'typeName'] as const

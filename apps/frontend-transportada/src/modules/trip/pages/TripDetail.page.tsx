@@ -151,7 +151,11 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
           />
           {/* Spec 158 T8 (RF6): entre o detalhe (paradas/notas) e o razão financeiro. */}
           {workspace.controller.canReadTrips ? (
-            <TripTimeline openDocumentId={workspace.openProofDocumentId} query={timeline} />
+            <TripTimeline
+              openDocumentId={workspace.openProofDocumentId}
+              query={timeline}
+              stops={workspace.trip?.stops}
+            />
           ) : null}
           {/*
             Spec 061 D4: o painel da conta só existe para quem tem `trip.financials`. Quem monta a

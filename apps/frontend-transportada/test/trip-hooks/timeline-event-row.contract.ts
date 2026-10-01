@@ -117,4 +117,49 @@ describe('linha do tempo redesenhada (DOM)', () => {
 
     expect(dom.textContent).toInclude('7 h 25 min sem registro')
   })
+
+  it('captured com coordenada mostra o ícone com nome acessível e o botão Ver no mapa', () => {
+    const dom = renderTimeline([
+      makeItem('a', {
+        location: {
+          accuracyMeters: 12,
+          capturedAt: '2026-09-18T12:00:00',
+          distanceMeters: 1,
+          latitude: -23.55,
+          longitude: -46.63,
+        },
+        locationState: 'captured',
+      }),
+    ])
+
+    const button = dom.querySelector('button[aria-label^="Posição registrada"]')
+    expect(button?.getAttribute('aria-label')).toInclude('-23.55000')
+    expect(dom.textContent).toInclude('Ver no mapa')
+  })
+
+  it('unavailable é o único estado vermelho e não mostra número nem Ver no mapa', () => {
+    const dom = renderTimeline([makeItem('a', { location: null, locationState: 'unavailable' })])
+
+    const button = dom.querySelector('button[aria-label^="Posição indisponível"]')
+    expect(button).not.toBeNull()
+    expect(button?.getAttribute('data-tone')).toBe('problem')
+    expect(dom.textContent).not.toInclude('Ver no mapa')
+  })
+
+  it('captured sem coordenada e expired são neutros; nulo não desenha ícone', () => {
+    const restricted = renderTimeline([
+      makeItem('a', { location: null, locationState: 'captured' }),
+    ])
+    expect(
+      restricted
+        .querySelector('button[aria-label^="Posição registrada"]')
+        ?.getAttribute('data-tone'),
+    ).toBe('neutral')
+    expect(restricted.textContent).not.toInclude('Ver no mapa')
+    act(() => root?.unmount())
+    container?.remove()
+
+    const silent = renderTimeline([makeItem('b', { location: null, locationState: null })])
+    expect(silent.querySelector('button[aria-label*="Posição"]')).toBeNull()
+  })
 })
