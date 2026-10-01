@@ -1,5 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { WORKSPACE_NAVIGATION_ITEMS, type WorkspaceKey } from './workspaceNavigation.constant'
+import {
+  NAVIGATION_GROUPS,
+  WORKSPACE_NAVIGATION_ITEMS,
+  type NavigationGroup,
+  type WorkspaceKey,
+} from './workspaceNavigation.constant'
 
 /** A notificação abre pelo sino do cabeçalho, nunca pelo menu: ela não tem porta para filtrar. */
 type GatedWorkspaceKey = Exclude<WorkspaceKey, 'notification'>
@@ -68,4 +73,27 @@ export function visibleWorkspaceKeys(permissions: readonly string[]): readonly W
   return WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
     canOpenWorkspace({ permissions, workspace: key }),
   ).map(({ key }) => key)
+}
+
+export function resolveVisibleNavigationGroups(
+  permissions: readonly string[],
+): readonly NavigationGroup[] {
+  return NAVIGATION_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter(({ key }) => canOpenWorkspace({ permissions, workspace: key })),
+  })).filter((group) => group.items.length > 0)
+}
+
+export type NavigationMenuState =
+  | Readonly<{ kind: 'loading' }>
+  | Readonly<{ groups: readonly NavigationGroup[]; kind: 'ready' }>
+
+/** Sem permissões e sem falha o menu espera; com falha mostra menos, nunca mais (spec 221 D6). */
+export function resolveNavigationMenu(
+  input: Readonly<{ hasFailed: boolean; permissions: readonly string[] | undefined }>,
+): NavigationMenuState {
+  if (input.permissions === undefined) {
+    return input.hasFailed ? { groups: [], kind: 'ready' } : { kind: 'loading' }
+  }
+  return { groups: resolveVisibleNavigationGroups(input.permissions), kind: 'ready' }
 }
