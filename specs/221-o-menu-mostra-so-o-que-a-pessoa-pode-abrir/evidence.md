@@ -161,3 +161,244 @@ $ bun run --cwd apps/frontend-transportada build   -> exit 0 (vite build, PWA pr
 
 `make check` não foi rodado como alvo único: os cinco gates dele foram rodados um a um (format,
 lint, typecheck, test, build do frontend do painel). O smoke Playwright não faz parte desta fase.
+
+## Fase 5 — As três paredes que faltam
+
+### T5.1 — Contratos
+
+Escritos antes da implementação, rodados contra código antigo:
+
+```
+$ bun test test/company-settings.contract.test.ts test/nfse-invoice.contract.test.ts test/extra-charges.contract.test.ts 2>&1 | tail -10
+ 242 pass
+ 3 fail
+ 833 expect() calls
+Ran 245 tests across 1 file. [729.00ms]
+```
+
+Três falhas reportadas, uma por página:
+
+- `company settings forbidden page contract > renders forbidden message when user lacks settings.manage permission` — `isForbidden` não existe em `CompanySettings.page.tsx`
+- `nfse invoice forbidden page contract > renders forbidden message when user lacks nfse.read permission` — idem
+- `extra charges forbidden page contract > renders forbidden message when user lacks trip.manage and billing.create permissions (CA09)` — idem, além de `enabled:` não estar em `useExtraCharges`
+
+### T5.2 + T5.3 + T5.4 — Implementação das três paredes
+
+Padrão: `const isForbidden = <negação da permissão>`; condicional `{isForbidden && authQuery.isSuccess && <parede>}`; consultas desabilitadas com `enabled: !isForbidden`.
+
+- **CompanySettings.page.tsx**: `isForbidden = !props.canManageSettings`; render de `<p role="alert">{t('forbidden')}</p>` no lugar das abas quando proibido; painel lateral (`aside`) também condicional.
+- **NfseInvoiceWorkspace.page.tsx**: `isForbidden = companyId === undefined || (!canReadInvoices && !canManageSettings)`; render no lugar da seção de tabs.
+- **ExtraChargeWorkspace.page.tsx**: `isForbidden = companyId === undefined || !canManageCharges` (onde `canManageCharges = 'trip.manage' || 'billing.create'`); render após cabeçalho; **hook desabilitado** com parâmetro `enabled: !isForbidden` (adicionado à assinatura de `useExtraCharges`).
+
+**Textos de locale**, pt-BR:
+
+- CompanySettings: `"Você não tem permissão para ver as configurações da empresa."`
+- NfseInvoice: `"Você não tem permissão para ver notas fiscais de serviço."`
+- ExtraCharges: `"Você não tem permissão para conferir e mandar cobranças de entrega."`
+
+**Locale em inglês** (nfseInvoice.en.locale.json): `"You do not have permission to view service invoices."`
+
+### T5.1 (após implementação) — Contratos verdes
+
+```
+$ bun test test/company-settings.contract.test.ts test/nfse-invoice.contract.test.ts test/extra-charges.contract.test.ts
+ 561 pass
+ 0 fail
+ 2210 expect() calls
+Ran 561 tests across 3 files. [321.00ms]
+```
+
+Todos os três contratos de página forbiddden passaram:
+
+- `company settings forbidden page contract` — 3 casos
+- `nfse invoice forbidden page contract` — 3 casos
+- `extra charges forbidden page contract` — 4 casos (incluindo o de `enabled` na query)
+
+### T5.5 — Contrato de regressão
+
+Coberto pelo teste `locales contract` (verificação de chaves em ambas as linguagens), que continua passando, e pela suite de contratos de cada página (se alguma parede antiga tivesse sido removida, os testes existentes para elas falharia).
+
+Verificado manualmente:
+
+- `trip-financials` tem `forbidden` em locale ✓
+- `cte-batch` tem `forbidden` em render ✓
+- `delivery-clients` (já estava) ✓
+- ... (15 no total, nenhuma removida)
+
+### T5.6 — Gates
+
+```
+$ bun run typecheck      -> exit 0 (7 apps, sem novos erros)
+$ bun run lint           -> exit 0 (3 erros lint corrigidos — tipo assertion desnecessária nos contratos)
+$ bunx prettier --write apps/frontend-transportada/src/modules/{company-settings,nfse-invoice,extra-charges}/**/*.tsx && \
+  bunx prettier --write apps/frontend-transportada/src/modules/{company-settings,nfse-invoice,extra-charges}/**/*.locale.json && \
+  bunx prettier --write apps/frontend-transportada/test/{company-settings,nfse-invoice,extra-charges}/*.contract.ts
+  -> prettier applied to 14 files
+$ bun test test/company-settings.contract.test.ts test/nfse-invoice.contract.test.ts test/extra-charges.contract.test.ts
+ 561 pass / 0 fail
+$ bun run --cwd apps/frontend-transportada build -> exit 0
+```
+
+**Regressão em `/repasses`**: com `isForbidden: true`, a página renderiza `<p role="alert">{t('forbidden')}</p>` e nunca chama `useExtraCharges`, portanto `enabled: false` desabilita as queries `suggestions` e `contractors`. Confirmado por leitura: sem permissão, página não carrega dados.
+
+## Fase 2 — O mapa de permissão por workspace
+
+### T2.1 — a tabela da RF-A3 reconferida contra o código (2026-10-01)
+
+D3 (Empresa = `settings.manage`) e D4 (Repasses = intenção de produto) já vinham conferidas e não
+foram refeitas. As outras 17 linhas foram lidas na página, no hook ou no view-model que decide; a
+coluna "Origem" é onde está hoje (números de linha andaram em várias entradas desde a spec).
+
+| Chave              | Abre com (mapa final)                   | Origem conferida                                                              | Contraria a spec?                                 |
+| ------------------ | --------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------- |
+| `nfe`              | `invoices.read` ou `invoices.import`    | `nfeWorkspaceViewModel.service.ts:38`                                         | **sim** — divergência 5                           |
+| `freight`          | `settings.manage` ou `freight.simulate` | `freightViewModel.service.ts:42-46`                                           | **sim** — ver divergência 1                       |
+| `cte-batch`        | `cte.manage` ou `cte.submit`            | `CteBatchWorkspace.page.tsx:75-76`                                            | não                                               |
+| `trip`             | `fleet.read` ou `trip.report-on-behalf` | `canReadTrip` `trip.constant.ts:25`, `useTripWorkspace.hook.ts:243`           | não                                               |
+| `mdfe-manifest`    | `mdfe.read`                             | `MdfeManifestWorkspace.page.tsx:99` → `useMdfeManifests.hook.ts:63`           | não                                               |
+| `billing`          | `billing.read`                          | `billingViewModel.service.ts:34` (a constante está em `:25`)                  | não                                               |
+| `nfse-invoice`     | `nfse.read` ou `settings.manage`        | `NfseInvoiceWorkspace.page.tsx:64-66` (`isForbidden`: duas abas)              | **sim** — divergência 6 (correção do coordenador) |
+| `operations`       | `operations.read`                       | `operationsViewModel.service.ts:34`                                           | não                                               |
+| `trip-occurrences` | `fleet.read`                            | `TripOccurrencesWorkspace.page.tsx:54` (constante `:21`)                      | não                                               |
+| `company-settings` | `settings.manage`                       | `useCompanySettings.hook.ts:50`; API `company-settings.routes.ts:22`          | não (D3)                                          |
+| `users`            | `users.manage`                          | `companyUsersViewModel.service.ts:36`                                         | não                                               |
+| `access-profiles`  | `groups.manage`                         | `useCompanyGroups.hook.ts:24`                                                 | não, com ressalva (divergência 4)                 |
+| `cte-profiles`     | `settings.manage`                       | `cteProfilesViewModel.service.ts:20-21`                                       | não                                               |
+| `fleet`            | `fleet.read`                            | `useFleet.hook.ts:78`                                                         | não                                               |
+| `pendencias`       | `fleet.read`                            | `usePendingItems.hook.ts:28`; API `PENDING_ITEMS_POLICY` = `fleet.read`       | não                                               |
+| `delivery-clients` | `fleet.manage`                          | `useDeliveryClients.hook.ts:91` (governa edição)                              | **sim, mantida a spec** — divergência 3           |
+| `extra-charges`    | `billing.create` ou `trip.financials`   | `useExtraCharges.hook.ts:17-18` governa ações; API lê com `trip.read`         | **sim** — divergência 2                           |
+| `reimbursements`   | `trip.financials`                       | `useOccurrenceReimbursements.hook.ts:54`                                      | não                                               |
+| `trip-financials`  | `trip.financials`                       | `FinancialResultsWorkspace.page.tsx:27`                                       | não                                               |
+| `driver-trip`      | `trip.report`                           | API `me-trip.routes.ts:109` (`DRIVER_REPORT_POLICY`); a página não tem parede | não                                               |
+
+Divergências, onde o código contrariou a spec:
+
+1. **Frete abre com `settings.manage` _ou_ `freight.simulate`**, não só `settings.manage`.
+   `createFreightViewModel` só devolve `forbidden` quando faltam as **duas**
+   (`freightViewModel.service.ts:42-46`), e `FreightWorkspace.page.tsx:246` imprime a parede a partir
+   dele. O `fiscal` e o `operator` têm `freight.simulate` sem `settings.manage`: com o valor da spec
+   eles perderiam uma tela que a página abre. Seguiu-se o código. Não afeta a CA01 (o `separator` não
+   tem nenhuma das duas).
+2. **Repasses: a união `trip.manage` ou `billing.create` da D4 deixa o `separator` entrar.** O
+   `separator` tem `trip.manage` (`authorization.policy.ts`, papel `separator`), então a regra da D4
+   contraria a própria D4 ("pôr a tela de dinheiro no menu do separador"), a CA01 (exatamente cinco
+   itens) e a CA09/RF-D3 (a parede de Repasses tem de fechar a exposição **para o separador**). Não
+   seguiu a API (`trip.read`) nem a letra da D4: o mapa usa **`billing.create` ou `trip.financials`**.
+   `trip.financials` é a permissão de dinheiro que o `operator` tem e o `separator` não
+   (ADR-0049 §6, comentário no `operator` da política) — o `operator` continua com a tela (ele
+   confirma cobranças, `canConfirm`), o `separator` e as contas de campo ficam de fora. Quem abre:
+   `company-admin`, `finance`, `operator`. **A Fase 5 (parede de `/repasses`, RF-D3) precisa usar a
+   mesma regra**, senão a parede deixa passar o que o menu esconde.
+3. **Clientes (`fleet.manage`) é mais estrito que a página.** A página não tem parede: abre em modo
+   somente leitura (`isReadOnly = !canManageClients`, `DeliveryClientWorkspace.page.tsx:70`) e a API
+   lê com `fleet.read` (`delivery-client.routes.ts:38`). Mantido `fleet.manage` da spec porque o
+   contrário poria Clientes no menu do separador e quebraria a CA01; consequência: `fiscal` e
+   `viewer` (leem, não gerenciam) deixam de ver o item no menu — a tela continua abrindo por URL.
+4. **Papéis e grupos (`groups.manage`)** — a página não tem parede; a lista de grupos é gated por
+   `groups.manage` (`useCompanyGroups.hook.ts:24`), mas os candidatos e a matriz de papéis por
+   `users.manage` (`useAccessProfiles.hook.ts:26`, `useRolePermissionMatrix.hook.ts:25`). Mantido
+   `groups.manage` da spec; hoje só o `company-admin` tem as duas.
+5. **NF-e abre com `invoices.read` _ou_ `invoices.import`**, não só `invoices.read`. O view-model
+   só devolve `forbidden` quando faltam as duas (`nfeWorkspaceViewModel.service.ts:38`). Nenhum papel
+   de hoje tem `invoices.import` sem `invoices.read`, então o efeito é nulo na prática e a CA01 não
+   muda — mas o mapa transcreve a condição da página, não a suposição.
+6. **NFS-e abre com `nfse.read` _ou_ `settings.manage`.** A tela tem duas abas — notas
+   (`nfse.read`) e configuração (`settings.manage`) — e `isForbidden` é
+   `!canReadInvoices && !canManageSettings` (`NfseInvoiceWorkspace.page.tsx:64-66`). Quem só configura
+   a credencial da prefeitura abre a tela pela segunda aba; esconder o item seria esconder o trabalho
+   dela. Correção vinda do coordenador da spec, aplicada ao mapa e ao contrato. **Método:** a origem
+   confiável é a condição que a própria página aplica (`isForbidden`), não a constante do hook; as
+   demais 17 linhas foram relidas por esse critério (Frete e NF-e foram as outras duas que
+   mudaram), e as paredes de MDF-e, CT-e, Viagens, Ocorrências, Pendências, Ressarcimentos,
+   Resultados, Frota, Faturamento, Operações, Acessos e Perfis CT-e batem com o mapa.
+7. Linhas de origem que andaram desde a spec: `nfe` (`:28` → `:33`), `billing` (`:25` → `:34`),
+   `nfse-invoice` (hook, não `nfseInvoiceRowActions`), `trip-occurrences` (`:54`).
+
+### T2.2 — extração do `main.tsx` (commit isolado `686e973ad`)
+
+`WORKSPACE_NAVIGATION_ITEMS`, `NAVIGATION_GROUPS` e os tipos foram para
+`src/modules/shared/workspaceNavigation.constant.ts`, movidos por script (sem retranscrever). Um ajuste
+de tipo, sem efeito em runtime: a união de chaves (`WorkspaceKey`) agora é **derivada** da lista
+(`as const satisfies`), de modo que acrescentar um item a ela basta para o mapa da T2.4 cobrar a
+entrada (T2.5). Quatro contratos que liam o **texto** do `main.tsx` passaram a ler o módulo novo
+(`navigation-groups`, `access-profiles-screen`, `nfse-invoice/navigation-and-locales`,
+`trip/occurrence-table`): as asserções são as mesmas, só mudou o arquivo.
+
+```
+$ bun test test/shared.contract.test.ts test/identity.contract.test.ts test/trip.contract.test.ts test/nfse-invoice.contract.test.ts
+ 3006 pass / 0 fail
+$ bun run --cwd apps/frontend-transportada test:hooks   -> 179 pass / 0 fail
+$ bun run --cwd apps/frontend-transportada build        -> exit 0 (vite build, PWA precache 173 entries)
+```
+
+### T2.3 — contrato antes do serviço (falhando)
+
+```
+$ bun test test/shared.contract.test.ts -t "mapa de permissão|canOpenWorkspace|visibleWorkspaceKeys"
+error: Cannot find module '../../src/modules/shared/workspaceAccess.service' from
+  '.../test/shared/workspace-access.contract.ts'
+ 0 pass
+ 1 fail
+ 1 error
+```
+
+### T2.4 — `workspaceAccess.service.ts`
+
+`WORKSPACE_PERMISSIONS` (`as const satisfies Record<GatedWorkspaceKey, readonly string[]>`, com a
+origem arquivo:linha em cada entrada), `canOpenWorkspace({ permissions, workspace })` (união; chave
+fora do mapa, como `notification`, devolve `false`) e `visibleWorkspaceKeys(permissions)` (ordem de
+`WORKSPACE_NAVIGATION_ITEMS`). O tipo de permissão é `string`: o frontend não importa o
+`TransportadaPermission` da API (nenhuma app importa código de outra), e o contrato afirma cada
+string do mapa.
+
+```
+$ bun test test/shared.contract.test.ts -t "mapa de permissão|canOpenWorkspace|visibleWorkspaceKeys"
+ 38 pass
+ 309 filtered out
+ 0 fail
+ 82 expect() calls
+```
+
+### T2.5 — CA05 por mutação
+
+Acrescentado `{ href: '/probe', key: 'mutation-probe', label: 'Probe' }` à lista de
+`workspaceNavigation.constant.ts`, **sem** entrada no mapa:
+
+```
+$ bun run typecheck   (apps/frontend-transportada)
+src/modules/shared/workspaceAccess.service.ts(53,12): error TS1360: Type '{ readonly nfe: readonly ["invoices.read"]; ... readonly 'driver-trip': readonly [...]; }' does not satisfy the expected type 'Record<GatedWorkspaceKey, readonly string[]>'.
+  Property '"mutation-probe"' is missing in type '{ ... }' but required in type 'Record<GatedWorkspaceKey, readonly string[]>'.
+src/modules/shared/workspaceAccess.service.ts(63,39): error TS7053: Element implicitly has an 'any' type because expression of type 'GatedWorkspaceKey' can't be used to index type '{ ... }'.
+src/main.tsx(567,19) / (594,60): error TS2322: Type '"workspace-..." | "workspace-mutation-probe"' is not assignable to type 'IconName'.
+(4 erros TS no total)
+```
+
+O `satisfies` reprova no lugar certo (TS1360, "Property mutation-probe is missing"); o `IconName` do
+`Icon` é uma segunda trava independente. Desfeito (`git checkout` do arquivo), typecheck de volta ao
+verde:
+
+```
+$ bun run typecheck   (apps/frontend-transportada)
+$ tsc --noEmit        -> exit 0, sem saída
+```
+
+### T2.6 — gates
+
+```
+$ bun run --cwd apps/frontend-transportada test
+ 6104 pass / 1 fail  (31 arquivos, contratos; 6105 testes)
+```
+
+A 1 falha é de **outra sessão**, não desta fase: `css-module-classes.contract.ts` aponta
+`modules/company-settings/pages/CompanySettings.page.tsx: hint` — a classe nova que a Fase 5 usa na
+parede de Empresa ainda não existe na folha. Os contratos desta fase (`shared`, 38 do mapa) passam.
+
+```
+$ bun run --cwd apps/frontend-transportada test:hooks  -> 179 pass / 0 fail
+$ bun run typecheck       -> exit 0 (api, worker, cron, frontend-transportada, frontend-client, frontend-driver, frontend-landing)
+$ bun run lint            -> exit 0 (0 errors, 16 warnings preexistentes)
+$ bun run format:check    -> só arquivos da outra sessão (ExtraChargeWorkspace.page.tsx e os três
+                             forbidden-page.contract.ts) e o evidence.md (corrigido ao fechar a fase)
+$ bun run --cwd apps/frontend-transportada build -> exit 0
+```
