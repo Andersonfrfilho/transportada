@@ -23,6 +23,7 @@ import type { TripAssemblyDraftScope } from '../shared/tripAssemblyDraftStorage.
 import { useQuickCreateDraft } from './useQuickCreateDraft.hook'
 import type { RouteChoice } from '../shared/routeGeometry.service'
 import { resolveBoundVehicleIds } from '../shared/driverBoundVehicles.service'
+import { withoutSelectedDrivers } from '../shared/tripCrewHelpers.service'
 import { useDriverVehicleBindings } from './useDriverVehicleBindings.hook'
 import type { ScannedNfeDocument, TripDetail } from '../shared/trip.types'
 import {
@@ -53,6 +54,8 @@ export function useTripQuickCreate(
     onCreated: (trip: TripDetail) => void
     permissions: readonly string[]
     selectableDriverIds: readonly string[]
+    /** Spec 149 D1: os motoristas ativos com "pode atuar como ajudante" na ficha. */
+    selectableHelperIds: readonly string[]
     selectableVehicleIds: readonly string[]
   }>,
 ) {
@@ -63,6 +66,7 @@ export function useTripQuickCreate(
   const [isScannerOpen, setIsScannerOpen] = useState(false)
   const [queue, setQueue] = useState<TripQuickCreateQueue>(EMPTY_QUICK_CREATE_QUEUE)
   const [driverIds, setDriverIds] = useState<readonly string[]>([])
+  const [helperIds, setHelperIds] = useState<readonly string[]>([])
   const [vehicleId, setVehicleId] = useState('')
   /** `undefined` é "ninguém digitou ainda", e é o que deixa a sugestão da prévia aparecer no campo. */
   const [dailyAllowanceDaysInput, setDailyAllowanceDaysInput] = useState<string | undefined>(
@@ -156,6 +160,7 @@ export function useTripQuickCreate(
     setRouteChoice(undefined)
     updateQueue(EMPTY_QUICK_CREATE_QUEUE)
     setDriverIds([])
+    setHelperIds([])
     setVehicleId('')
     setDailyAllowanceDaysInput(undefined)
   }
@@ -206,7 +211,16 @@ export function useTripQuickCreate(
   }, [staged])
 
   const draftStore = useQuickCreateDraft({
-    form: { cityOrder, dailyAllowanceDaysInput, driverIds, isOpen, queue, routeChoice, vehicleId },
+    form: {
+      cityOrder,
+      dailyAllowanceDaysInput,
+      driverIds,
+      helperIds,
+      isOpen,
+      queue,
+      routeChoice,
+      vehicleId,
+    },
     onApply: (restored) => {
       updateQueue(
         stageQuickCreateDocuments({
@@ -216,6 +230,7 @@ export function useTripQuickCreate(
       )
       setCityOrder(restored.cityOrder)
       setDriverIds(restored.driverIds)
+      setHelperIds(restored.helperIds)
       setVehicleId(restored.vehicleId)
       setDailyAllowanceDaysInput(restored.dailyAllowanceDaysInput)
       setRouteChoice(restored.routeChoice)
@@ -227,6 +242,7 @@ export function useTripQuickCreate(
     },
     scope: input.draftScope,
     selectableDriverIds: input.selectableDriverIds,
+    selectableHelperIds: input.selectableHelperIds,
     selectableVehicleIds: input.selectableVehicleIds,
   })
 
@@ -239,6 +255,7 @@ export function useTripQuickCreate(
   const issues = validateQuickCreate({
     dailyAllowanceDays: dailyAllowanceDaysReading,
     driverIds,
+    helperIds,
     path: 'singleClick',
     queue,
     vehicleId,
@@ -247,6 +264,7 @@ export function useTripQuickCreate(
   const draftIssues = validateQuickCreate({
     dailyAllowanceDays: dailyAllowanceDaysReading,
     driverIds,
+    helperIds,
     path: 'draft',
     queue,
     vehicleId,
@@ -270,6 +288,8 @@ export function useTripQuickCreate(
           /** Spec 143 D4: ausente sugere pela duração — nunca `dailyAllowanceDays: undefined`. */
           ...(dailyAllowanceDays === undefined ? {} : { dailyAllowanceDays }),
           driverIds,
+          /** Spec 149: vazio fica fora do corpo — a viagem sem ajudante continua a de antes. */
+          ...(helperIds.length === 0 ? {} : { helperIds }),
           /** Spec 217 (RF1/RF2): vazio é o rascunho sem veículo — nunca uma string vazia no corpo. */
           ...(vehicleId === '' ? {} : { vehicleId }),
         },
@@ -323,6 +343,7 @@ export function useTripQuickCreate(
     dailyAllowanceDaysInput,
     draftIssues,
     driverIds,
+    helperIds,
     isOpen,
     isScannerOpen,
     issues,
@@ -346,6 +367,12 @@ export function useTripQuickCreate(
     setDriverIds: (ids: readonly string[]) => {
       draftStore.markTouched()
       setDriverIds(ids)
+      /** Quem passa a dirigir deixa de ser ajudante: a mesma pessoa não ocupa dois lugares. */
+      setHelperIds((current) => withoutSelectedDrivers({ driverIds: ids, helperIds: current }))
+    },
+    setHelperIds: (ids: readonly string[]) => {
+      draftStore.markTouched()
+      setHelperIds(ids)
     },
     setVehicleId: (id: string) => {
       draftStore.markTouched()

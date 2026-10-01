@@ -13,6 +13,7 @@
 import type { RouteChoice } from './routeGeometry.service'
 import type { AutomaticAssemblyDraft, ManualAssemblyDraft } from './tripAssemblyDraft.validation'
 import { decodeStopOrder, type StopOrderDocument } from './tripAssemblyStopOrder.service'
+import { withoutSelectedDrivers } from './tripCrewHelpers.service'
 import {
   keepSelectable,
   restoreSuggestion,
@@ -49,6 +50,7 @@ export type ManualAssemblyRestoration<TDocument> = DocumentRestoration<TDocument
     cityOrder: readonly string[]
     dailyAllowanceDaysInput: string | undefined
     driverIds: readonly string[]
+    helperIds: readonly string[]
     isOpen: boolean
     routeChoice: RouteChoice | undefined
     vehicleId: string
@@ -90,7 +92,12 @@ async function restoreDocuments<TDocument extends RestorableDocument>(
 
 export async function restoreManualAssemblyDraft<TDocument extends RestorableDocument>(
   input: SelectableInput &
-    Readonly<{ draft: ManualAssemblyDraft; loadDocuments: () => Promise<readonly TDocument[]> }>,
+    Readonly<{
+      draft: ManualAssemblyDraft
+      loadDocuments: () => Promise<readonly TDocument[]>
+      /** Spec 149 D1: quem ainda pode atuar como ajudante — a ficha pode ter mudado desde o rascunho. */
+      selectableHelperIds: readonly string[]
+    }>,
 ): Promise<ManualAssemblyRestoration<TDocument> | typeof DRAFT_DOCUMENTS_UNREACHABLE> {
   const { draft } = input
   const restored = await restoreDocuments({
@@ -98,6 +105,7 @@ export async function restoreManualAssemblyDraft<TDocument extends RestorableDoc
     loadDocuments: input.loadDocuments,
   })
   if (restored === undefined) return DRAFT_DOCUMENTS_UNREACHABLE
+  const driverIds = keepSelectable(draft.driverIds, input.selectableDriverIds)
   return {
     ...restored,
     cityOrder: decodeStopOrder({
@@ -105,7 +113,12 @@ export async function restoreManualAssemblyDraft<TDocument extends RestorableDoc
       documents: restored.documents,
     }),
     dailyAllowanceDaysInput: draft.dailyAllowanceDaysInput ?? undefined,
-    driverIds: keepSelectable(draft.driverIds, input.selectableDriverIds),
+    driverIds,
+    /** Rascunho antigo não tem a lista; e a mesma pessoa não ocupa dois lugares (ADR-0065 §4). */
+    helperIds: withoutSelectedDrivers({
+      driverIds,
+      helperIds: keepSelectable(draft.helperIds ?? [], input.selectableHelperIds),
+    }),
     isOpen: draft.isOpen,
     routeChoice: draft.routeChoice ?? undefined,
     vehicleId: input.selectableVehicleIds.includes(draft.vehicleId) ? draft.vehicleId : '',

@@ -38,6 +38,7 @@ import {
   describeBoundVehicle,
 } from '../shared/driverBoundVehicles.service'
 import type { ScannedNfeDocument } from '../shared/trip.types'
+import { listHelperCandidates } from '../shared/tripCrewHelpers.service'
 import type { TripQuickCreateEntry } from '../shared/tripQuickCreate.service'
 import {
   isQuickCreateEntryPending,
@@ -122,6 +123,12 @@ export function TripQuickCreateDialog({
   })
   /** Spec 159 RF11, ADR-0070 §7: ordenado por nota — o seletor recomenda quem entregou em dia. */
   const activeDrivers = sortDriversByScore(drivers.filter((driver) => driver.status === 'active'))
+  /** Spec 149 D1/D11: ajudante só entre quem pode ajudar, e nunca quem já está escolhido como motorista. */
+  const helperCandidates = listHelperCandidates({
+    currentHelperIds: quickCreate.helperIds,
+    driverIds: quickCreate.driverIds,
+    drivers: activeDrivers,
+  })
   const tractionVehicles = vehicles.filter(
     (vehicle) => vehicle.status === 'active' && vehicle.role === 'traction',
   )
@@ -344,6 +351,29 @@ export function TripQuickCreateDialog({
                 searchPlaceholder={t('creation.driversSearch')}
                 summaryLabel={(count) => t('creation.driversSummary', { count })}
                 values={quickCreate.driverIds}
+              />
+            )}
+          </label>
+
+          <label>
+            {t('creation.helpers')}
+            {helperCandidates.length === 0 && quickCreate.helperIds.length === 0 ? (
+              <p className={styles.hint}>{t('creation.helpersEmpty')}</p>
+            ) : (
+              <MultiSelect
+                ariaLabel={t('creation.helpers')}
+                clearAllLabel={t('creation.helpersClearAll')}
+                emptyLabel={t('creation.helpersNoMatch')}
+                onChange={quickCreate.setHelperIds}
+                options={helperCandidates.map((driver) => ({
+                  label: driver.name,
+                  value: driver.id,
+                }))}
+                placeholder={t('creation.helpersPlaceholder')}
+                removeLabel={t('creation.helpersRemove')}
+                searchPlaceholder={t('creation.helpersSearch')}
+                summaryLabel={(count) => t('creation.helpersSummary', { count })}
+                values={quickCreate.helperIds}
               />
             )}
           </label>

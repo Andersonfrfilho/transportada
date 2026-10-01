@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import type { TripDetail } from '../shared/trip.types'
 import { resolveBoundVehicleIds } from '../shared/driverBoundVehicles.service'
+import { readTripHelperIds, withoutSelectedDrivers } from '../shared/tripCrewHelpers.service'
 import {
   resolveCrewDialogErrorKey,
   type CrewDialogErrorKey,
@@ -12,7 +13,11 @@ import { useDriverVehicleBindings } from './useDriverVehicleBindings.hook'
 export type TripCrewDialogInput = Readonly<{
   isOpen: boolean
   onSubmit: (
-    input: Readonly<{ driverIds: readonly string[]; vehicleId: string }>,
+    input: Readonly<{
+      driverIds: readonly string[]
+      helperIds: readonly string[]
+      vehicleId: string
+    }>,
   ) => Promise<unknown>
   selectableDriverIds: readonly string[]
   selectableVehicleIds: readonly string[]
@@ -28,6 +33,7 @@ export type TripCrewDialogController = ReturnType<typeof useTripCrewDialog>
  */
 export function useTripCrewDialog(input: TripCrewDialogInput) {
   const [driverIds, setDriverIds] = useState<readonly string[]>([])
+  const [helperIds, setHelperIds] = useState<readonly string[]>([])
   const [vehicleId, setVehicleId] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorKey, setErrorKey] = useState<CrewDialogErrorKey | undefined>(undefined)
@@ -50,8 +56,12 @@ export function useTripCrewDialog(input: TripCrewDialogInput) {
 
   useEffect(() => {
     if (!input.isOpen) return
-    const openDriverIds = tripRef.current.drivers.map((driver) => driver.driverId)
+    /** Spec 149: o diálogo reabre com a tripulação como está — `role` separa quem dirige de quem ajuda. */
+    const openDriverIds = tripRef.current.drivers
+      .filter((member) => member.role !== 'helper')
+      .map((member) => member.driverId)
     setDriverIds(openDriverIds)
+    setHelperIds(readTripHelperIds(tripRef.current))
     /** Spec 217 (RF1): viagem `awaiting_crew` ainda sem veículo — reabre sem escolha, não com `null`. */
     setVehicleId(tripRef.current.vehicleId ?? '')
     setErrorKey(undefined)
@@ -89,7 +99,7 @@ export function useTripCrewDialog(input: TripCrewDialogInput) {
     setErrorKey(undefined)
     setIsSubmitting(true)
     try {
-      await input.onSubmit({ driverIds, vehicleId })
+      await input.onSubmit({ driverIds, helperIds, vehicleId })
       return true
     } catch (error) {
       setErrorKey(resolveCrewDialogErrorKey(error))
@@ -99,5 +109,23 @@ export function useTripCrewDialog(input: TripCrewDialogInput) {
     }
   }
 
-  return { driverIds, errorKey, isSubmitting, setDriverIds, setVehicleId, submit, vehicleId }
+  /** Quem passa a dirigir deixa de ser ajudante: a mesma pessoa não ocupa dois lugares. */
+  function handleDriverIdsChange(nextDriverIds: readonly string[]): void {
+    setDriverIds(nextDriverIds)
+    setHelperIds((current) =>
+      withoutSelectedDrivers({ driverIds: nextDriverIds, helperIds: current }),
+    )
+  }
+
+  return {
+    driverIds,
+    errorKey,
+    helperIds,
+    isSubmitting,
+    setDriverIds: handleDriverIdsChange,
+    setHelperIds,
+    setVehicleId,
+    submit,
+    vehicleId,
+  }
 }

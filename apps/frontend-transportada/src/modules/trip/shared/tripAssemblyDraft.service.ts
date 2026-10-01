@@ -60,6 +60,7 @@ export function buildManualAssemblyDraft(
     cityOrder: readonly string[]
     dailyAllowanceDaysInput: string | undefined
     driverIds: readonly string[]
+    helperIds: readonly string[]
     isOpen: boolean
     queue: TripQuickCreateQueue
     routeChoice: RouteChoice | undefined
@@ -71,6 +72,7 @@ export function buildManualAssemblyDraft(
     dailyAllowanceDaysInput: input.dailyAllowanceDaysInput ?? null,
     documentIds: documents.map((document) => document.id),
     driverIds: [...input.driverIds],
+    helperIds: [...input.helperIds],
     isOpen: input.isOpen,
     routeChoice: input.routeChoice === undefined ? null : copyRouteChoice(input.routeChoice),
     stopOrderDocumentIds: encodeStopOrder({ documents, order: input.cityOrder }),
@@ -136,6 +138,7 @@ export function isManualAssemblyDraftEmpty(draft: ManualAssemblyDraft): boolean 
   return (
     draft.documentIds.length === 0 &&
     draft.driverIds.length === 0 &&
+    (draft.helperIds ?? []).length === 0 &&
     draft.vehicleId === '' &&
     (draft.dailyAllowanceDaysInput ?? '') === ''
   )

@@ -772,6 +772,10 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
             ? {}
             : { dailyAllowanceDays: input.dailyAllowanceDays }),
           driverIds: input.driverIds,
+          /** Spec 149: só quando há ajudante — o corpo sem ele continua o de antes. */
+          ...(input.helperIds === undefined || input.helperIds.length === 0
+            ? {}
+            : { helperIds: input.helperIds }),
           vehicleId: input.vehicleId,
         }),
         dependencies,
@@ -784,6 +788,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       const response = await authorizedRequest({
         body: JSON.stringify({
           ...(input.driverIds === undefined ? {} : { driverIds: input.driverIds }),
+          ...(input.helperIds === undefined ? {} : { helperIds: input.helperIds }),
           ...(input.vehicleId === undefined ? {} : { vehicleId: input.vehicleId }),
         }),
         dependencies,

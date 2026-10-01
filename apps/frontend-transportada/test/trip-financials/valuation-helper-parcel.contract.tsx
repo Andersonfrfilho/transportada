@@ -57,10 +57,10 @@ function valuationWithHelper(
 
 describe('parcela do ajudante na conta da viagem (spec 149 T14)', () => {
   it('a lista de parcelas do resultado congelado é cópia por valor da API', () => {
-    expect([...FINANCIAL_PARCEL_KINDS]).toEqual([
+    expect([...FINANCIAL_PARCEL_KINDS] as string[]).toEqual([
       ...apiKindList(API_FINANCIAL_SCHEMA, 'TRIP_FINANCIAL_PARCEL_KINDS'),
     ])
-    expect(FINANCIAL_PARCEL_KINDS).toContain('helper')
+    expect([...FINANCIAL_PARCEL_KINDS].includes('helper')).toBe(true)
   })
 
   it('todo custo que a valoração da API calcula tem rótulo nos dois idiomas', () => {

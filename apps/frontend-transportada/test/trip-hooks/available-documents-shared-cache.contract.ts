@@ -43,6 +43,7 @@ function renderWorkspace(): Promise<RenderedHook<Workspace>> {
         onCreated: () => undefined,
         permissions: [],
         selectableDriverIds: [],
+        selectableHelperIds: [],
         selectableVehicleIds: [VEHICLE_ID],
       }),
     }

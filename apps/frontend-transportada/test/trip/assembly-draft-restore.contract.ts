@@ -66,6 +66,7 @@ const MANUAL: ManualAssemblyDraft = {
   dailyAllowanceDaysInput: '3',
   documentIds: ['nfe-1', 'nfe-2', 'nfe-3'],
   driverIds: ['driver-1', 'driver-gone'],
+  helperIds: ['helper-1', 'helper-gone', 'driver-1'],
   isOpen: true,
   routeChoice: { criterion: 'alternative', signature: 'sig' },
   stopOrderDocumentIds: ['nfe-3', 'nfe-2', 'nfe-1'],
@@ -95,6 +96,7 @@ const AUTOMATIC: AutomaticAssemblyDraft = {
 }
 
 const SELECTABLE = { selectableDriverIds: ['driver-1'], selectableVehicleIds: ['vehicle-1'] }
+const SELECTABLE_MANUAL = { ...SELECTABLE, selectableHelperIds: ['helper-1', 'driver-1'] }
 
 function restoredOf<TRestoration>(
   restoration: TRestoration | typeof DRAFT_DOCUMENTS_UNREACHABLE,
@@ -128,7 +130,7 @@ async function automatic(
 describe('restauração do rascunho da montagem', () => {
   test('manual: nota que virou viagem sai e é contada; a ordem volta pelas notas relidas', async () => {
     const restored = await restoreManualAssemblyDraft({
-      ...SELECTABLE,
+      ...SELECTABLE_MANUAL,
       draft: MANUAL,
       loadDocuments: () => Promise.resolve(AVAILABLE),
     })
@@ -137,10 +139,24 @@ describe('restauração do rascunho da montagem', () => {
     expect(restored.droppedDocumentCount).toBe(1)
     expect(restored.cityOrder).toEqual([keyOf(NFE_3), keyOf(NFE_1)])
     expect(restored.driverIds).toEqual(['driver-1'])
+    /** Ajudante que saiu da lista e quem agora dirige não voltam como ajudante. */
+    expect(restored.helperIds).toEqual(['helper-1'])
     expect(restored.vehicleId).toBe('vehicle-1')
     expect(restored.dailyAllowanceDaysInput).toBe('3')
     expect(restored.routeChoice).toEqual({ criterion: 'alternative', signature: 'sig' })
     expect(restored.isOpen).toBe(true)
+  })
+
+  test('manual: rascunho antigo, sem helperIds, volta sem ajudantes', async () => {
+    const { helperIds: _helperIds, ...legacy } = MANUAL
+    void _helperIds
+    const restored = await restoreManualAssemblyDraft({
+      ...SELECTABLE_MANUAL,
+      draft: legacy,
+      loadDocuments: () => Promise.resolve(AVAILABLE),
+    })
+
+    expect(restored.helperIds).toEqual([])
   })
 
   test('manual: veículo que deixou de ser selecionável volta vazio', async () => {
@@ -148,10 +164,12 @@ describe('restauração do rascunho da montagem', () => {
       draft: MANUAL,
       loadDocuments: () => Promise.resolve(AVAILABLE),
       selectableDriverIds: [],
+      selectableHelperIds: [],
       selectableVehicleIds: [],
     })
 
     expect(restored.driverIds).toEqual([])
+    expect(restored.helperIds).toEqual([])
     expect(restored.vehicleId).toBe('')
   })
 
@@ -161,7 +179,7 @@ describe('restauração do rascunho da montagem', () => {
    */
   test('manual: busca de notas que falha não aplica nada e fica pendente', async () => {
     const restored = await restoreManualRaw({
-      ...SELECTABLE,
+      ...SELECTABLE_MANUAL,
       draft: MANUAL,
       loadDocuments: () => Promise.reject(new Error('network')),
     })

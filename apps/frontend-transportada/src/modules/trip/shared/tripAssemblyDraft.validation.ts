@@ -19,6 +19,8 @@ export type ManualAssemblyDraft = Readonly<{
   dailyAllowanceDaysInput: null | string
   documentIds: readonly string[]
   driverIds: readonly string[]
+  /** Spec 149: ausente no rascunho gravado antes dos ajudantes — a leitura aceita as duas formas. */
+  helperIds?: readonly string[]
   isOpen: boolean
   routeChoice: null | RouteChoice
   stopOrderDocumentIds: readonly string[]
@@ -91,6 +93,7 @@ export function isManualAssemblyDraft(value: unknown): value is ManualAssemblyDr
     isNullableString(value.dailyAllowanceDaysInput) &&
     isStringList(value.documentIds) &&
     isStringList(value.driverIds) &&
+    (value.helperIds === undefined || isStringList(value.helperIds)) &&
     typeof value.isOpen === 'boolean' &&
     (value.routeChoice === null || isRouteChoice(value.routeChoice)) &&
     isStringList(value.stopOrderDocumentIds) &&

@@ -46,7 +46,11 @@ export type TripHeaderActionsProps = Readonly<{
   onCancel: () => void
   /** Spec 217 T310: `PATCH /trips/:id/crew` — a viagem inteira volta atualizada (mesmo invalidate). */
   onChangeCrew: (
-    input: Readonly<{ driverIds: readonly string[]; vehicleId: string }>,
+    input: Readonly<{
+      driverIds: readonly string[]
+      helperIds: readonly string[]
+      vehicleId: string
+    }>,
   ) => Promise<unknown>
   /** Spec 185 RF4/RF9: `loadRemaining` separa e carrega o que falta e despacha numa transação. */
   onDispatch: (input: { readonly loadRemaining: boolean }) => void
