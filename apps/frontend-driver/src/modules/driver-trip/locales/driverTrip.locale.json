@@ -191,6 +191,7 @@
       "pending_other": "Faltam {{count}} fotos da mercadoria."
     },
     "upload": {
+      "empty": "Ainda sem foto",
       "loading": {
         "photo": "Carregando a foto do canhoto",
         "signature": "Carregando a assinatura"

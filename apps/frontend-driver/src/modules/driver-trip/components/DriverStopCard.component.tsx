@@ -1431,11 +1431,14 @@ function ProofCaptureFields({
   /** Spec 207: "Refazer" enquanto o anexo pode ser trocado sem custo; enviado, é "Substituir". */
   const retakeLabel = isProofQueued ? t('proofCapture.retake') : t('proofCapture.replace')
 
-  /** A moldura ainda sem foto: o contorno do que vai entrar, no tamanho exato da miniatura. */
+  /** A moldura ainda sem foto: estática — nada carrega, o app espera o motorista. */
   function renderEmptyFrame(): ReactNode {
     return (
       <div className={styles.proofCaptureAttached}>
-        <Skeleton height={PROOF_FRAME_SIZE} width={PROOF_FRAME_SIZE} />
+        <div className={styles.proofEmptyFrame}>
+          <Icon name="camera" />
+          <span>{t('proofCapture.upload.empty')}</span>
+        </div>
       </div>
     )
   }

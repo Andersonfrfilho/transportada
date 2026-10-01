@@ -176,6 +176,7 @@
       "pending_other": "{{count}} cargo photos missing."
     },
     "upload": {
+      "empty": "No photo yet",
       "loading": {
         "photo": "Loading the receipt photo",
         "signature": "Loading the signature"

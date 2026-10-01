@@ -1456,6 +1456,19 @@
   gap: var(--space-2);
 }
 
+.proofEmptyFrame {
+  align-items: center;
+  border: 1px dashed var(--color-slate);
+  color: var(--color-slate);
+  display: grid;
+  gap: var(--space-1);
+  height: var(--space-16);
+  justify-items: center;
+  align-content: center;
+  text-align: center;
+  width: var(--space-16);
+}
+
 .proofUploadChip {
   align-items: center;
   border: 1px solid var(--color-ready);
