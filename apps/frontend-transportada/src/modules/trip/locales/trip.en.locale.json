@@ -786,7 +786,7 @@
       },
       "listItemInterval": "· {{duration}} after the previous point",
       "legInterval": "{{duration}} between this point and the previous one",
-      "captionInterval": "The number in the corner of the pin is its place in the order of events, and the time written over the trace is how long it took from the previous point to this one. On a short leg the time leaves the map and stays only in the list below."
+      "captionInterval": "The number in the corner of the pin is its place in the order of events, and the time written over the trace is how long it took from the previous point to this one. On a short leg the time drops below the arrival pin; under a minute it stays only in the list."
     },
     "location": {
       "label": {

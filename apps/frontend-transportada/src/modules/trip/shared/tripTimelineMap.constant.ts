@@ -153,11 +153,70 @@ export const TIMELINE_MAP_LEG_LABEL_STYLE: Readonly<Record<string, string>> = {
 }
 
 /**
- * ⚠️ Abaixo disto o trecho **na tela** não comporta o texto, e tempo ilegível por cima do traço é
- * pior que tempo ausente: o rótulo recolhe e o intervalo continua na lista acessível e no resumo.
- * A conta é em pixel porque a mesma viagem muda de comprimento a cada zoom e a cada largura de tela.
+ * O respiro que sobra de cada lado do texto quando ele se deita sobre o traço.
+ *
+ * ⚠️ **Ele substitui um limiar fixo de 72px que, medido na tela, escondia tudo.** O número solto não
+ * tinha relação nenhuma com a largura do texto que julgava: "1 min" e "2 h 15 min" recebiam a mesma
+ * régua. O que se compara agora é o traço contra o texto **medido**, mais este respiro.
  */
-export const TIMELINE_MAP_LEG_LABEL_MIN_PIXELS = 72
+export const TIMELINE_MAP_LEG_LABEL_GAP_PIXELS = 8
+
+/**
+ * Quanto o rótulo desce abaixo do pino de destino quando o traço não o comporta.
+ *
+ * ⚠️ Metade do pino (13,5px) mais metade do rótulo (7,8px) mais um fio de folga. **Para baixo** por
+ * eliminação: a quina superior esquerda é do selo de ordem e a direita é da contagem e do selo de
+ * ocorrência — os cantos de cima acabaram.
+ */
+export const TIMELINE_MAP_LEG_LABEL_PIN_OFFSET_PIXELS = 26
+
+/**
+ * ⚠️ **"0 min" sobre um traço não informa nada.** Menos de um minuto entre dois eventos não é
+ * espaçamento, é a ausência dele — e ocupava, em pílulas de 42px, o espaço que o próprio rótulo diz
+ * não ter. A lista ao lado continua escrevendo o zero, onde a frase não disputa pixel com o desenho.
+ */
+export const TIMELINE_MAP_LEG_LABEL_MIN_MINUTES = 1
+
+/**
+ * Onde o rótulo deste trecho cabe — e **nunca** "em lugar nenhum".
+ *
+ * ⚠️ A versão anterior respondia esconder/mostrar, e no enquadramento de abertura respondia esconder
+ * para 100% dos rótulos: o usuário abria o mapa e não via tempo algum. Traço que não comporta o
+ * texto não cancela a informação; muda a âncora dela para o pino de destino.
+ */
+export function resolveLegLabelPlacement(
+  input: Readonly<{ spanPixels: number; textPixels: number }>,
+): 'pin' | 'trace' {
+  return input.spanPixels >= input.textPixels + TIMELINE_MAP_LEG_LABEL_GAP_PIXELS ? 'trace' : 'pin'
+}
+
+type LegLabelBox = Readonly<{ height: number; width: number; x: number; y: number }>
+
+/**
+ * Quais rótulos sobrevivem quando dois caem um sobre o outro, na ordem cronológica.
+ *
+ * ⚠️ **O primeiro nunca some.** É o piso que impede o conserto do limiar de reabrir o mesmo defeito
+ * por outro caminho: o que a sobreposição recolhe é o rótulo de cima, nunca a informação inteira.
+ */
+export function resolveLegLabelVisibility(boxes: readonly LegLabelBox[]): readonly boolean[] {
+  const kept: LegLabelBox[] = []
+
+  return boxes.map((box) => {
+    if (kept.some((other) => overlaps(other, box))) return false
+    kept.push(box)
+    return true
+  })
+}
+
+/** Encostar não é cobrir: a caixa que começa onde a outra termina continua legível. */
+function overlaps(first: LegLabelBox, second: LegLabelBox): boolean {
+  return (
+    first.x < second.x + second.width &&
+    second.x < first.x + first.width &&
+    first.y < second.y + second.height &&
+    second.y < first.y + first.height
+  )
+}
 
 /** O que o mapa desenhou entre um ponto e o seguinte. */
 export type TimelineRouteTrace = 'none' | 'road' | 'straight'

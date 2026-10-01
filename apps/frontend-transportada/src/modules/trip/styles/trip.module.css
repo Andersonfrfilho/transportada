@@ -2267,8 +2267,9 @@ button.occurrenceCaseBadge {
 }
 
 /*
-  O trecho curto demais para o texto. `visibility` e não `display: none`: o marcador continua
-  posicionado pelo MapLibre, e o `moveend` seguinte o traz de volta sem remontar nada.
+  O rótulo que cairia por cima de outro — nunca o trecho curto, que agora desce para debaixo do pino
+  de destino em vez de sumir. `visibility` e não `display: none`: o marcador continua posicionado
+  pelo MapLibre, e o `moveend` seguinte o traz de volta sem remontar nada.
 */
 .tileLegLabelHidden {
   visibility: hidden;

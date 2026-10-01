@@ -17,14 +17,20 @@ import trip from '../../src/modules/trip/locales/trip.locale.json'
 import type { TripTimelineItem, TripTimelineKind } from '../../src/modules/trip/shared/trip.types'
 import {
   measureOrderBadgeGlyphCoverage,
+  resolveLegLabelPlacement,
+  resolveLegLabelVisibility,
   TIMELINE_MAP_BADGED_PIN_SIZE_REM,
-  TIMELINE_MAP_LEG_LABEL_MIN_PIXELS,
+  TIMELINE_MAP_LEG_LABEL_GAP_PIXELS,
+  TIMELINE_MAP_LEG_LABEL_MIN_MINUTES,
+  TIMELINE_MAP_LEG_LABEL_PIN_OFFSET_PIXELS,
   TIMELINE_MAP_ORDER_BADGE_CORNER,
   TIMELINE_MAP_ORDER_BADGE_MAX_GLYPH_COVERAGE,
   TIMELINE_MAP_ORDER_BADGE_STYLE,
 } from '../../src/modules/trip/shared/tripTimelineMap.constant'
 import {
   buildTimelineMapPin,
+  resolveTimelineLegLabels,
+  resolveTimelineLegLabelText,
   resolveTimelineMapView,
 } from '../../src/modules/trip/shared/tripTimelineMap.service'
 
@@ -241,10 +247,22 @@ describe('tempo entre um evento e o seguinte, no traço (spec 196 — tarefa B)'
     expect(view.points[1]?.intervalLabel).toBe('eventTimeline.duration.minutes(count=0)')
   })
 
-  /** Traço curto demais não ganha texto ilegível por cima: o limiar é declarado, não improvisado. */
-  it('o limiar do traço curto é constante nomeada e em pixel', () => {
-    expect(TIMELINE_MAP_LEG_LABEL_MIN_PIXELS).toBeGreaterThan(0)
-    expect(Number.isInteger(TIMELINE_MAP_LEG_LABEL_MIN_PIXELS)).toBe(true)
+  /**
+   * ⚠️ **Emendado.** Este caso cobrava um limiar fixo — `TIMELINE_MAP_LEG_LABEL_MIN_PIXELS`, 72px —
+   * que, medido na tela, escondia **todos** os rótulos no enquadramento de abertura. O limiar em si
+   * não era o defeito; cobrar só que ele existisse, sim: um número solto, sem relação com a largura
+   * do texto que ele julga, passava no contrato e apagava a funcionalidade. O que o traço precisa
+   * comportar é o texto **medido**, mais um respiro declarado.
+   */
+  it('as medidas do rótulo são constantes nomeadas e em pixel', () => {
+    for (const pixels of [
+      TIMELINE_MAP_LEG_LABEL_GAP_PIXELS,
+      TIMELINE_MAP_LEG_LABEL_PIN_OFFSET_PIXELS,
+    ]) {
+      expect(pixels).toBeGreaterThan(0)
+      expect(Number.isInteger(pixels)).toBe(true)
+    }
+    expect(TIMELINE_MAP_LEG_LABEL_MIN_MINUTES).toBeGreaterThanOrEqual(1)
   })
 
   it('o intervalo entra na linha da lista acessível, nos dois idiomas', () => {
@@ -254,7 +272,15 @@ describe('tempo entre um evento e o seguinte, no traço (spec 196 — tarefa B)'
       expect(map.pinLabel_other).toContain('{{order}}')
       expect(map.listItemInterval).toContain('{{duration}}')
       expect(map.legInterval).toContain('{{duration}}')
-      expect(map.captionInterval).toBeTruthy()
+      /**
+       * ⚠️ **Emendado.** A legenda prometia que em trecho curto "o tempo sai do mapa" — era a
+       * descrição fiel de uma regra que, no enquadramento de abertura, apagava 100% dos rótulos.
+       * Agora o trecho curto **muda o rótulo de lugar**, e a legenda não pode voltar a prometer
+       * ausência: ela fala do pino, que é para onde o tempo desce.
+       */
+      const caption = String(map.captionInterval)
+      expect(caption).toContain('pin')
+      expect(caption).not.toMatch(/sai do mapa|leaves the map/u)
     }
   })
 })
@@ -343,5 +369,154 @@ describe('o selo de ordem morde a quina do pino, não o miolo (spec 196 — tare
       expect(declarations).toContain('background: var(--color-fog)')
       expect(declarations).toContain('color: var(--color-asphalt)')
     }
+  })
+})
+
+/**
+ * ⚠️ **O defeito medido na tela: quatro pinos, três trechos, zero tempo visível.** Os spans reais no
+ * enquadramento de abertura eram 32,0 / 14,2 / 1,4px — os quatro eventos aconteceram no mesmo lugar,
+ * e os pinos só se separam porque o leque os afasta. Dois defeitos distintos moravam aí: o limiar de
+ * 72px escondia os rótulos que existiam, e um terceiro **nunca chegou a ser criado**, porque o par
+ * 2→3 caiu no mesmo índice da polilinha e `resolveRouteLegs` descartou o trecho degenerado.
+ *
+ * O conserto separa as duas coisas: **quem tem rótulo é o par consecutivo da cronologia**, não o
+ * traço desenhado — o traço só escolhe onde ancorar. E não existe mais estado "sem lugar": o rótulo
+ * que não cabe sobre o traço encosta no pino de destino.
+ */
+describe('o tempo entre eventos aparece no enquadramento de abertura (spec 196 — tarefa B)', () => {
+  const PIN = { x: -46.6, y: -23.5 } as const
+
+  function point(sequence: number, longitude: number) {
+    return { latitude: PIN.y, longitude, sequence }
+  }
+
+  const CONTENT = { aria: 'uma hora depois', text: '1 h' } as const
+
+  it('o rótulo nunca fica sem lugar: traço curto o encosta no pino, não o apaga', () => {
+    expect(resolveLegLabelPlacement({ spanPixels: 0, textPixels: 42 })).toBe('pin')
+    expect(resolveLegLabelPlacement({ spanPixels: 1.4, textPixels: 42 })).toBe('pin')
+    expect(resolveLegLabelPlacement({ spanPixels: 400, textPixels: 42 })).toBe('trace')
+  })
+
+  /** O limiar sai da largura **medida** do texto, não de um número solto: "2 h 15 min" pede mais que "1 h". */
+  it('o que o traço precisa comportar é o texto que ele vai carregar', () => {
+    const narrow = 30
+    const wide = 90
+    expect(
+      resolveLegLabelPlacement({
+        spanPixels: narrow + TIMELINE_MAP_LEG_LABEL_GAP_PIXELS,
+        textPixels: narrow,
+      }),
+    ).toBe('trace')
+    expect(
+      resolveLegLabelPlacement({
+        spanPixels: narrow + TIMELINE_MAP_LEG_LABEL_GAP_PIXELS,
+        textPixels: wide,
+      }),
+    ).toBe('pin')
+  })
+
+  /** Três pares consecutivos dão três rótulos — mesmo que o desenho só tenha conseguido cortar dois trechos. */
+  it('o trecho sem geometria não apaga o rótulo: ele ancora no meio entre os dois pontos', () => {
+    const points = [point(1, -46.6), point(2, -46.5), point(3, -46.4), point(4, -46.3)]
+    const labels = resolveTimelineLegLabels({
+      content: () => CONTENT,
+      legPoints: new Map([
+        [
+          2,
+          [
+            { x: -46.6, y: -23.5 },
+            { x: -46.55, y: -23.52 },
+            { x: -46.5, y: -23.5 },
+          ],
+        ],
+        [
+          4,
+          [
+            { x: -46.4, y: -23.5 },
+            { x: -46.3, y: -23.5 },
+          ],
+        ],
+      ]),
+      points,
+    })
+
+    expect(labels.map((label) => label.toSequence)).toEqual([2, 3, 4])
+    /** O trecho 2→3 não foi cortado pelo roteirizador; a âncora cai no meio da reta entre os pinos. */
+    expect(labels[1]?.anchor).toEqual({ x: -46.45, y: -23.5 })
+    /** O que foi cortado usa o meio do traço desenhado, que não é o meio da reta. */
+    expect(labels[0]?.anchor).toEqual({ x: -46.55, y: -23.52 })
+  })
+
+  it('as pontas de cada rótulo são os dois pinos que ele separa, e não as pontas do traço', () => {
+    const labels = resolveTimelineLegLabels({
+      content: () => CONTENT,
+      legPoints: new Map(),
+      points: [point(1, -46.6), point(2, -46.5)],
+    })
+
+    expect(labels).toHaveLength(1)
+    expect(labels[0]?.from).toEqual({ x: -46.6, y: -23.5 })
+    expect(labels[0]?.to).toEqual({ x: -46.5, y: -23.5 })
+  })
+
+  /**
+   * ⚠️ **"0 min" sobre um traço não informa nada** e ocupa o espaço que o próprio rótulo diz não ter
+   * — eram dois dos três desta viagem. Menos de um minuto não é espaçamento: é a ausência dele. A
+   * lista ao lado continua dizendo "0 min depois do ponto anterior", onde a frase não disputa pixel
+   * com o desenho.
+   */
+  it('o mapa não escreve intervalo abaixo de um minuto; a lista continua escrevendo', () => {
+    const view = resolveTimelineMapView(
+      [
+        located('a', '2026-09-18T08:00:00.000Z', 'stop.arrived', -23.7, -46.8),
+        located('b', '2026-09-18T08:00:20.000Z', 'document.delivered', -23.5, -46.6),
+        located('c', '2026-09-18T08:30:00.000Z', 'stop.departed', -23.4, -46.5),
+      ],
+      translate,
+    )
+
+    expect(view.points[1]?.intervalLabel).toBe('eventTimeline.duration.minutes(count=0)')
+    expect(resolveTimelineLegLabelText(view.points[1], translate)).toBeUndefined()
+    expect(resolveTimelineLegLabelText(view.points[2], translate)?.text).toBe(
+      'eventTimeline.duration.minutes(count=30)',
+    )
+  })
+
+  /** O primeiro ponto não tem anterior: ele nunca carrega rótulo, e isso não é um rótulo perdido. */
+  it('o primeiro ponto não ganha rótulo, porque não há trecho antes dele', () => {
+    const view = resolveTimelineMapView(
+      [located('a', '2026-09-18T08:00:00.000Z', 'stop.arrived', -23.7, -46.8)],
+      translate,
+    )
+
+    expect(resolveTimelineLegLabelText(view.points[0], translate)).toBeUndefined()
+  })
+})
+
+/**
+ * ⚠️ **Uma regra que esconde sempre não é degradação graciosa — é a funcionalidade não entregue.** O
+ * primeiro rótulo nunca some: o que a sobreposição recolhe é o segundo que cairia por cima de um já
+ * colocado, e nessa ordem, a cronológica. Sem este piso, a correção do limiar reabriria o mesmo
+ * defeito por outro caminho.
+ */
+describe('a sobreposição recolhe o rótulo de cima, nunca a informação inteira', () => {
+  const BOX = { height: 16, width: 42, x: 0, y: 0 } as const
+
+  it('o primeiro rótulo é sempre visível, aconteça o que acontecer com os seguintes', () => {
+    const stacked = [BOX, BOX, BOX]
+
+    expect(resolveLegLabelVisibility(stacked)).toEqual([true, false, false])
+  })
+
+  it('rótulos que não se tocam ficam todos', () => {
+    const spread = [BOX, { ...BOX, x: 60 }, { ...BOX, x: 120 }]
+
+    expect(resolveLegLabelVisibility(spread)).toEqual([true, true, true])
+  })
+
+  /** Encostar não é cobrir: a caixa seguinte começa onde a anterior termina e as duas continuam legíveis. */
+  it('quem só encosta na quina continua visível', () => {
+    expect(resolveLegLabelVisibility([BOX, { ...BOX, x: BOX.width }])).toEqual([true, true])
   })
 })

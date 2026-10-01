@@ -31,10 +31,13 @@ import { buildTollBadgeId, resolveMapBadgeRequest } from '@/modules/shared/mapBa
 import { drawRequestedMapBadge } from '@/modules/shared/mapBadgeImage.service'
 
 import {
-  TIMELINE_MAP_LEG_LABEL_MIN_PIXELS,
+  resolveLegLabelPlacement,
+  resolveLegLabelVisibility,
+  TIMELINE_MAP_LEG_LABEL_PIN_OFFSET_PIXELS,
   TIMELINE_MAP_LEG_LABEL_STYLE,
   TIMELINE_MAP_ORDER_BADGE_STYLE,
 } from '../shared/tripTimelineMap.constant'
+import { resolveTimelineLegLabels } from '../shared/tripTimelineMap.service'
 import { resolvePinInk } from '../shared/stopColor.service'
 import { resolveAssemblyMapBounds } from '../shared/assemblyMapBounds.service'
 import { resolveMarkerOffsets, type AssemblyMapPoint } from '../shared/assemblyMap.service'
@@ -80,6 +83,8 @@ type RouteCollection = {
 }
 /** O rótulo de tempo e as pontas do trecho que ele descreve, em grau — o pixel muda a cada zoom. */
 type LegLabelMarker = Readonly<{
+  /** O meio do traço desenhado, onde o rótulo se deita quando o traço o comporta. */
+  anchor: Readonly<{ x: number; y: number }>
   end: Readonly<{ latitude: number; longitude: number }>
   marker: Marker
   start: Readonly<{ latitude: number; longitude: number }>
@@ -632,25 +637,40 @@ export function AssemblyVectorMap({
 
     for (const previous of legLabelsRef.current) previous.marker.remove()
     legLabelsRef.current = []
-    if (legLabel === undefined) return
+    /**
+     * ⚠️ O `hideRoute` precisa sair daqui **explicitamente**. Antes bastava: os rótulos nasciam de
+     * `legs`, que já vinha vazio. Agora nascem da cronologia, que não sabe que o traço foi escondido
+     * — e tempo de percurso sem percurso desenhado não tem sobre o que se deitar.
+     */
+    if (legLabel === undefined || hideRoute === true) return
 
     const outline = resolveBasemapOutline(readToken, theme)
-    const built: LegLabelMarker[] = []
-    for (const leg of legs) {
-      const content = legLabel(leg.toSequence)
-      const anchor = midpointOfLeg(leg.points)
-      const start = leg.points[0]
-      const end = leg.points[leg.points.length - 1]
-      if (content === undefined || anchor === null || start === undefined || end === undefined) {
-        continue
-      }
-      const element = legLabelElement({ ariaLabel: content.aria, outline, text: content.text })
-      built.push({
-        end: { latitude: end.y, longitude: end.x },
-        marker: new Marker({ element }).setLngLat([anchor.x, anchor.y]).addTo(map),
-        start: { latitude: start.y, longitude: start.x },
+    const placements = resolveTimelineLegLabels({
+      content: legLabel,
+      legPoints: new Map(legs.map((leg) => [leg.toSequence, leg.points])),
+      /** `toSequence` é a posição 1-based da parada, a mesma chave com que `stopColor` é consultado. */
+      points: points.map((point, index) => ({
+        latitude: point.latitude,
+        longitude: point.longitude,
+        sequence: index + 1,
+      })),
+    })
+    const built: LegLabelMarker[] = placements.map((placement) => {
+      const element = legLabelElement({
+        ariaLabel: placement.content.aria,
+        outline,
+        text: placement.content.text,
       })
-    }
+
+      return {
+        anchor: placement.anchor,
+        end: { latitude: placement.to.y, longitude: placement.to.x },
+        marker: new Marker({ element })
+          .setLngLat([placement.anchor.x, placement.anchor.y])
+          .addTo(map),
+        start: { latitude: placement.from.y, longitude: placement.from.x },
+      }
+    })
     legLabelsRef.current = built
     applyLegLabelFit(map, built)
 
@@ -894,24 +914,47 @@ function applyCustomProperties(element: HTMLElement, properties: Readonly<Record
 }
 
 /**
- * ⚠️ **Texto ilegível por cima do traço é pior que texto ausente.** O trecho que, na tela, não chega
- * a `TIMELINE_MAP_LEG_LABEL_MIN_PIXELS` recolhe o rótulo — e só ele: o intervalo continua inteiro na
- * lista acessível ao lado do mapa, que é por onde ele nunca se perde.
+ * ⚠️ **O traço curto muda o rótulo de lugar; não o apaga.** A regra anterior escondia todo trecho
+ * mais curto que um limiar fixo — e no enquadramento em que a pessoa abre o mapa isso valia para
+ * 100% dos rótulos: medidos 32,0 / 14,2 / 1,4 px de vão contra limiar de 72 px. Uma regra que
+ * esconde sempre não é degradação graciosa, é a funcionalidade não entregue.
+ *
+ * Agora o vão é comparado com a **largura real do texto** (`offsetWidth`), e quando não cabe o
+ * rótulo desce para debaixo do pino de destino — os dois cantos de cima do pino já hospedam o selo
+ * de ordem e o de ocorrência. Só a colisão entre dois rótulos recolhe um deles, e nunca o primeiro.
  */
 function applyLegLabelFit(map: MapLibreMap, labels: readonly LegLabelMarker[]): void {
   for (const label of labels) {
+    const element = label.marker.getElement()
+    element.classList.remove(styles.tileLegLabelHidden ?? '')
     const start = map.project([label.start.longitude, label.start.latitude])
     const end = map.project([label.end.longitude, label.end.latitude])
-    const span = Math.hypot(end.x - start.x, end.y - start.y)
+    const placement = resolveLegLabelPlacement({
+      spanPixels: Math.hypot(end.x - start.x, end.y - start.y),
+      textPixels: element.offsetWidth,
+    })
+
+    if (placement === 'trace') {
+      label.marker.setOffset([0, 0]).setLngLat([label.anchor.x, label.anchor.y])
+      continue
+    }
+
+    label.marker
+      .setOffset([0, TIMELINE_MAP_LEG_LABEL_PIN_OFFSET_PIXELS])
+      .setLngLat([label.end.longitude, label.end.latitude])
+  }
+
+  const visibility = resolveLegLabelVisibility(
+    labels.map((label) => {
+      const box = label.marker.getElement().getBoundingClientRect()
+      return { height: box.height, width: box.width, x: box.x, y: box.y }
+    }),
+  )
+  for (const [index, label] of labels.entries()) {
     label.marker
       .getElement()
-      .classList.toggle(styles.tileLegLabelHidden ?? '', span < TIMELINE_MAP_LEG_LABEL_MIN_PIXELS)
+      .classList.toggle(styles.tileLegLabelHidden ?? '', visibility[index] === false)
   }
-}
-
-/** O meio do trecho desenhado — não o meio da reta entre as pontas, que sairia de cima do traço. */
-function midpointOfLeg(points: readonly { readonly x: number; readonly y: number }[]) {
-  return points[Math.floor(points.length / 2)] ?? points[0] ?? null
 }
 
 function buildGlyphElement(paths: readonly string[]): SVGElement {

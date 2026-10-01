@@ -786,7 +786,7 @@
       },
       "listItemInterval": "· {{duration}} depois do ponto anterior",
       "legInterval": "{{duration}} entre este ponto e o anterior",
-      "captionInterval": "O número no canto do pino é a vez dele na ordem dos eventos, e o tempo escrito sobre o traço é quanto se passou do ponto anterior até ele. Em trecho curto o tempo sai do mapa e fica só na lista abaixo."
+      "captionInterval": "O número no canto do pino é a vez dele na ordem dos eventos, e o tempo escrito sobre o traço é quanto se passou do ponto anterior até ele. Em trecho curto o tempo desce para debaixo do pino de chegada; abaixo de um minuto ele fica só na lista."
     },
     "location": {
       "label": {

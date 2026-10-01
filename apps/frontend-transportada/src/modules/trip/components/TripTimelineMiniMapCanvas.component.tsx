@@ -9,7 +9,11 @@ import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelD
 import type { AssemblyMapPoint } from '../shared/assemblyMap.service'
 import type { RouteGeometry } from '../shared/routeGeometry.service'
 import { TIMELINE_EVENT_CATEGORY_COLOR } from '../shared/stopColor.service'
-import { buildTimelineMapPin, type TimelineMapPoint } from '../shared/tripTimelineMap.service'
+import {
+  buildTimelineMapPin,
+  resolveTimelineLegLabelText,
+  type TimelineMapPoint,
+} from '../shared/tripTimelineMap.service'
 import styles from '../styles/tripTimelineMiniMap.module.css'
 
 /** O mesmo mapa do `TripRouteMap`, e pelo mesmo motivo `lazy`: fora dele o precache do PWA estoura. */
@@ -45,18 +49,12 @@ export function TripTimelineMiniMapCanvas({
   }, [points])
   /**
    * O trecho que chega ao ponto `toSequence` leva o tempo que se passou desde o ponto anterior —
-   * texto já escrito pelo formatador da lista, nunca remontado aqui.
+   * texto já escrito pelo formatador da lista, nunca remontado aqui, e calado abaixo de um minuto.
    */
   const legLabel = useMemo(() => {
     const byOrder = new Map(points.map((point) => [point.order, point]))
-    return (toSequence: number) => {
-      const interval = byOrder.get(toSequence)?.intervalLabel ?? null
-      if (interval === null) return undefined
-      return {
-        aria: t('eventTimeline.map.legInterval', { duration: interval }),
-        text: interval,
-      }
-    }
+    return (toSequence: number) =>
+      resolveTimelineLegLabelText(byOrder.get(toSequence), t as Translate)
   }, [points, t])
 
   return (

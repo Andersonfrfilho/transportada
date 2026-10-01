@@ -912,3 +912,75 @@ Contrato: `test/trip-hooks/timeline-location-missing-label.contract.ts`, novo, i
 entrypoint `test/trip-hooks.contract.test.ts`. Escrito **vermelho** contra o código de então — 1 fail
 / 2 pass, `Expected: "Posição indisponível" · Received: ""` — e 4 pass / 0 fail depois. Suítes
 inteiras: 2156 pass / 0 fail (contrato) e 179 pass / 0 fail (DOM).
+
+### Defeito 4 — o tempo entre eventos não aparecia na tela (tarefa B, correção)
+
+**O fato medido antes da correção**, na 53112, 1440 px, enquadramento inicial, mapa geral aberto:
+quatro pinos numerados (1, 2, 3, 4) → três trechos; **dois** nós `.tileLegLabel` no DOM, ambos com
+`visibility: hidden`, textos `"0 min"` e `"1 min"`. Nenhum tempo visível. Três defeitos distintos.
+
+**(a) Os que existiam nasciam escondidos.** `applyLegLabelFit` recolhia todo rótulo cujo vão
+projetado fosse menor que `TIMELINE_MAP_LEG_LABEL_MIN_PIXELS = 72`. Os três vãos reais no
+enquadramento de abertura, medidos por `map.project` na própria tela: **32,0 / 14,2 / 1,4 px**. O
+limiar valia para 100% dos rótulos, e ainda era arbitrário — 72 px não tinha relação nenhuma com a
+largura do texto que julgava (o rótulo mede **41,7 × 15,6 px**).
+
+**(b) Faltava um rótulo.** Quatro pinos são três trechos, e só dois nós existiam — a regra de (a)
+alternava classe, não removia nó, então o terceiro **nunca foi criado**. Causa encontrada em
+`routeGeometry.service.ts:433`: `resolveRouteLegs` devolve `[]` quando `slice.length < 2`. Dois
+eventos consecutivos no mesmo lugar caem no mesmo índice de corte da polilinha, o trecho degenerado
+é descartado, e o rótulo — que era derivado de `legs` — perdia aquele par para sempre.
+
+**(c) Um dos rótulos dizia "0 min".** Zero minuto sobre um traço não informa nada e ocupa espaço.
+
+#### As quatro decisões, e por quê
+
+1. **O conjunto de rótulos pertence à cronologia, não ao traço desenhado.** `resolveTimelineLegLabels`
+   percorre pares consecutivos de pontos; o traço decide só **onde** ancorar (meio do trecho
+   desenhado quando ele existe, meio da reta entre os pinos quando não). Corrige (b) na causa, um
+   nível acima de `resolveRouteLegs`, sem mexer em arquivo fora do território.
+2. **Abaixo de um minuto o mapa não escreve nada** (`TIMELINE_MAP_LEG_LABEL_MIN_MINUTES = 1`); o
+   intervalo continua inteiro na lista acessível ao lado. Corrige (c).
+3. **Traço curto muda o rótulo de lugar, não o apaga.** `resolveLegLabelPlacement` compara o vão com
+   a **largura real do texto** (`offsetWidth`) mais `TIMELINE_MAP_LEG_LABEL_GAP_PIXELS = 8`; não
+   cabendo, o rótulo desce `TIMELINE_MAP_LEG_LABEL_PIN_OFFSET_PIXELS = 26` px abaixo do pino de
+   chegada. Para baixo por eliminação: os dois cantos de cima do pino já hospedam o selo de ordem e
+   o de ocorrência. Corrige (a).
+4. **A antiga semântica de esconder vira guarda de colisão.** `resolveLegLabelVisibility` recolhe o
+   rótulo que cairia por cima de outro já posicionado, e **nunca o primeiro** — nenhuma regra pode
+   voltar a apagar tudo.
+
+#### Depois, medido na mesma tela (53112, tab visível, 1280 px)
+
+- `.tileLegLabel` no DOM: **1**, `visibility: visible`, texto `"1 min"`, caixa 41,7 × 15,6 px.
+- Os outros dois intervalos são de 0 min e, por decisão 2, não vão ao mapa — vão à lista.
+- Centro do rótulo em **(757, 4667,4)**; centro do pino 4 em **(757, 4641,4)** → exatamente **26 px**
+  abaixo, que é a constante: a colocação `'pin'` disparou e ancorou no destino, não no traço.
+- Topo do rótulo em y 4659,6 contra base do pino 4 em y 4654,9 → **4,7 px de folga**, sem sobrepor
+  pino, selo de ordem ou selo de ocorrência.
+- Largura de telas: com o canvas do minimapa em **341 px** (largura de telefone), o rótulo continua
+  `visible`, 41,7 px, inteiro dentro do mapa; pinos seguem 27 px. ⚠️ O Chrome do macOS não deixa a
+  janela abaixo de ~500 px de largura — os 375 px foram verificados estreitando o contêiner do mapa
+  e deixando o `ResizeObserver` do MapLibre reprojetar, não a janela.
+
+⚠️ **Armadilha de verificação, registrada para a próxima pessoa:** com a aba de Chrome **oculta**
+(janela minimizada ou atrás), o `requestAnimationFrame` não roda, o MapLibre nunca renderiza e
+**nenhum** marcador é criado — nem os da rota, que ninguém tocou. O sintoma é idêntico ao de um mapa
+quebrado: canvas no lugar, zero pinos, zero requisições de telha, zero eventos `styledata`. Medido:
+`document.visibilityState === 'hidden'` e `requestAnimationFrame` sem disparar em 3 s. Trazer a
+janela à frente resolveu e os 10 marcadores apareceram. Não é defeito do produto.
+
+#### Contrato
+
+`test/trip/timeline-map-order-and-interval.contract.ts`, **emendado, não apagado**. O caso que cobrava
+só a existência do limiar passava com tudo oculto — era exatamente o estado da tela. Ele virou
+`'as medidas do rótulo são constantes nomeadas e em pixel'`, e entraram dois blocos novos: o
+enquadramento de abertura (colocação nunca esconde; limiar derivado da largura medida; três pares
+consecutivos dão três rótulos mesmo com dois trechos cortados; sub-minuto ausente do mapa e presente
+na lista; o primeiro ponto nunca ganha rótulo) e a colisão (três caixas empilhadas → `[true, false,
+false]`; espalhadas → todas visíveis; encostadas na quina → ambas visíveis). A legenda também foi
+emendada: ela prometia que "o tempo sai do mapa" em trecho curto, descrição fiel da regra que apagava
+tudo; agora o contrato proíbe essa frase e cobra que ela fale do pino, nos dois idiomas.
+
+Portões: `format:check` 0 · `typecheck` 0 · `check` da app 0 · a suíte do contrato 28 casos, 101
+asserções, 0 falhas.

@@ -8,6 +8,7 @@ import {
   TIMELINE_MAP_CATEGORY_BY_KIND,
   TIMELINE_MAP_CELL_DECIMALS,
   TIMELINE_MAP_ICON_BY_CATEGORY,
+  TIMELINE_MAP_LEG_LABEL_MIN_MINUTES,
   type TimelineMapCategory,
 } from './tripTimelineMap.constant'
 import { resolveTimelineLocationView } from './tripTimelineDetail.service'
@@ -236,4 +237,93 @@ export function resolveTimelineMapView(
     missingCount: missing.expired + missing.restricted + missing.unavailable,
     points,
   }
+}
+
+/** Um rótulo de tempo pronto para o mapa: o texto curto no desenho, a frase inteira na leitura. */
+export type TimelineLegLabelContent = Readonly<{ aria: string; text: string }>
+
+export type TimelineLegLabelPlacement = Readonly<{
+  /** Onde o rótulo se deita quando o traço o comporta — o meio do que foi desenhado. */
+  anchor: Readonly<{ x: number; y: number }>
+  content: TimelineLegLabelContent
+  /** Os dois pinos que o rótulo separa; é a distância entre eles que decide a âncora. */
+  from: Readonly<{ x: number; y: number }>
+  to: Readonly<{ x: number; y: number }>
+  toSequence: number
+}>
+
+/**
+ * Spec 196 — o que o mapa escreve sobre o trecho que chega a este ponto.
+ *
+ * ⚠️ O texto é o da lista, pelo mesmo `formatTripTimelineDuration`; o que muda é **o que o mapa cala**:
+ * abaixo de `TIMELINE_MAP_LEG_LABEL_MIN_MINUTES` não há espaçamento a mostrar, e a pílula só ocuparia
+ * o traço que ela mesma diz ser curto. O primeiro ponto não tem anterior e nunca carrega rótulo.
+ */
+export function resolveTimelineLegLabelText(
+  point: TimelineMapPoint | undefined,
+  translate: Translate,
+): TimelineLegLabelContent | undefined {
+  const minutes = point?.minutesFromPrevious ?? null
+  if (point === undefined || minutes === null || point.intervalLabel === null) return undefined
+  if (minutes < TIMELINE_MAP_LEG_LABEL_MIN_MINUTES) return undefined
+
+  return {
+    aria: translate('eventTimeline.map.legInterval', { duration: point.intervalLabel }),
+    text: point.intervalLabel,
+  }
+}
+
+/**
+ * Um rótulo por **par consecutivo da cronologia** — e não um por trecho desenhado.
+ *
+ * ⚠️ **Era essa a troca que perdia rótulo na tela.** Quando dois eventos caem no mesmo lugar, o corte
+ * da polilinha devolve um trecho de um ponto só e `resolveRouteLegs` o descarta; quem contava trechos
+ * para contar rótulos perdia o tempo daquele par para sempre. Medido: quatro pinos, três pares, dois
+ * rótulos. O traço continua mandando **onde** o rótulo ancora, nunca **se** ele existe — sem traço
+ * cortado, a âncora é o meio da reta entre os dois pinos.
+ */
+export function resolveTimelineLegLabels(
+  input: Readonly<{
+    content: (sequence: number) => TimelineLegLabelContent | undefined
+    legPoints: ReadonlyMap<number, readonly Readonly<{ x: number; y: number }>[]>
+    points: readonly Readonly<{ latitude: number; longitude: number; sequence: number }>[]
+  }>,
+): readonly TimelineLegLabelPlacement[] {
+  const placements: TimelineLegLabelPlacement[] = []
+
+  for (const [index, point] of input.points.entries()) {
+    const previous = input.points[index - 1]
+    if (previous === undefined) continue
+
+    const content = input.content(point.sequence)
+    if (content === undefined) continue
+
+    const from = { x: previous.longitude, y: previous.latitude }
+    const to = { x: point.longitude, y: point.latitude }
+    placements.push({
+      anchor: midpointOfDrawnLeg(input.legPoints.get(point.sequence)) ?? midpointBetween(from, to),
+      content,
+      from,
+      to,
+      toSequence: point.sequence,
+    })
+  }
+
+  return placements
+}
+
+/** O meio do traço desenhado — não o meio da reta entre as pontas, que sairia de cima dele. */
+function midpointOfDrawnLeg(
+  points: readonly Readonly<{ x: number; y: number }>[] | undefined,
+): Readonly<{ x: number; y: number }> | null {
+  if (points === undefined || points.length < 2) return null
+
+  return points[Math.floor(points.length / 2)] ?? null
+}
+
+function midpointBetween(
+  first: Readonly<{ x: number; y: number }>,
+  second: Readonly<{ x: number; y: number }>,
+): Readonly<{ x: number; y: number }> {
+  return { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 }
 }
