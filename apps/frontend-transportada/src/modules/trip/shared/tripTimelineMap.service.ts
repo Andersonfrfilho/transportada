@@ -2,6 +2,7 @@
 import type { IconName } from '@/components/ui/icon'
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
+import type { AssemblyMapPoint } from './assemblyMap.service'
 import type { TripTimelineItem } from './trip.types'
 import {
   TIMELINE_MAP_CATEGORY_BY_KIND,
@@ -10,16 +11,29 @@ import {
   type TimelineMapCategory,
 } from './tripTimelineMap.constant'
 import { resolveTimelineLocationView } from './tripTimelineDetail.service'
+import { formatTripTimelineDuration } from './tripTimelineRow.service'
 
 export type TimelineMapPoint = Readonly<{
   category: TimelineMapCategory
   /** Quantos eventos da mesma categoria caíram neste lugar. */
   count: number
   icon: IconName
+  /**
+   * Spec 196 — o tempo até aqui, já escrito: **o mesmo** `formatTripTimelineDuration` da lista, para
+   * esta base não ganhar um segundo jeito de dizer "2 h 15 min". `null` no primeiro ponto.
+   */
+  intervalLabel: null | string
   key: string
   label: string
+  /** O último instante do grupo — de onde se mede o tempo até o ponto seguinte. */
+  lastOccurredAt: string
   latitude: number
   longitude: number
+  /**
+   * Minutos do **último** evento do ponto anterior até o **primeiro** deste. `null` no primeiro
+   * ponto, onde não há de onde medir.
+   */
+  minutesFromPrevious: null | number
   /** O primeiro instante do grupo — a ordem cronológica do traço. */
   occurredAt: string
   /** 1-based, na ordem do traço. */
@@ -44,10 +58,13 @@ export type TimelineMapView = Readonly<{
 type Cluster = {
   category: TimelineMapCategory
   count: number
+  lastOccurredAt: string
   latitude: number
   longitude: number
   occurredAt: string
 }
+
+const MILLISECONDS_PER_MINUTE = 60_000
 
 type LocatedEntry = Readonly<{
   category: TimelineMapCategory
@@ -96,11 +113,14 @@ function clusterPoints(located: readonly LocatedEntry[]): readonly Cluster[] {
     const existing = clusterByCellAndCategory.get(clusterKey)
     if (existing !== undefined) {
       existing.count += 1
+      /** A entrada vem em ordem cronológica, então o último visto é o último do grupo. */
+      existing.lastOccurredAt = entry.item.occurredAt
       continue
     }
     const cluster: Cluster = {
       category: entry.category,
       count: 1,
+      lastOccurredAt: entry.item.occurredAt,
       latitude: anchor.latitude,
       longitude: anchor.longitude,
       occurredAt: entry.item.occurredAt,
@@ -109,6 +129,55 @@ function clusterPoints(located: readonly LocatedEntry[]): readonly Cluster[] {
     clusters.push(cluster)
   }
   return clusters
+}
+
+/**
+ * ⚠️ **Do último evento do grupo anterior até o primeiro deste.** Medir do primeiro ao primeiro
+ * somaria o tempo parado dentro do grupo ao tempo de deslocamento, e o rótulo sobre o traço passaria
+ * a anunciar um intervalo que o traço não percorreu.
+ */
+function minutesBetweenClusters(previous: Cluster | undefined, current: Cluster): null | number {
+  if (previous === undefined) return null
+  const difference = Date.parse(current.occurredAt) - Date.parse(previous.lastOccurredAt)
+  if (Number.isNaN(difference) || difference < 0) return null
+  return Math.round(difference / MILLISECONDS_PER_MINUTE)
+}
+
+/**
+ * Spec 196 — o pino da linha do tempo como o mapa o recebe.
+ *
+ * ⚠️ **O ícone do evento continua sendo o do evento**: o número da ordem é marca *adicional*, no
+ * canto, nunca substituta do glifo — é o glifo que diz o tipo, e o selo que diz a vez.
+ *
+ * ⚠️ **O selo traz um número só, nunca uma faixa.** A numeração conta *pinos*, e `1–3` falaria de
+ * uma numeração de eventos que não existe em lugar nenhum da tela. Quantos eventos estão ali embaixo
+ * continua sendo trabalho do selo de contagem, do outro canto — o selo de ordem não o repete nem o
+ * contradiz.
+ */
+export function buildTimelineMapPin(
+  point: TimelineMapPoint,
+  translate: Translate,
+): AssemblyMapPoint {
+  return {
+    ariaLabel: translate('eventTimeline.map.pinLabel', {
+      count: point.count,
+      label: point.label,
+      order: point.order,
+    }),
+    cityCode: '',
+    count: point.count,
+    glyph: point.icon,
+    isApproximate: false,
+    label: point.label,
+    latitude: point.latitude,
+    longitude: point.longitude,
+    notes: [],
+    orderBadge: String(point.order),
+    sequence: point.order,
+    stopKey: point.key,
+    x: point.longitude,
+    y: point.latitude,
+  }
 }
 
 export function resolveTimelineMapView(
@@ -133,19 +202,27 @@ export function resolveTimelineMapView(
     })
   }
 
-  const points = clusterPoints(located).map(
-    (cluster, index): TimelineMapPoint => ({
+  const clusters = clusterPoints(located)
+  const points = clusters.map((cluster, index): TimelineMapPoint => {
+    const minutesFromPrevious = minutesBetweenClusters(clusters[index - 1], cluster)
+    return {
       category: cluster.category,
       count: cluster.count,
       icon: TIMELINE_MAP_ICON_BY_CATEGORY[cluster.category],
+      intervalLabel:
+        minutesFromPrevious === null
+          ? null
+          : formatTripTimelineDuration(minutesFromPrevious, translate),
       key: `timeline-map-${index + 1}`,
       label: translate(`eventTimeline.map.category.${cluster.category}`),
+      lastOccurredAt: cluster.lastOccurredAt,
       latitude: cluster.latitude,
       longitude: cluster.longitude,
+      minutesFromPrevious,
       occurredAt: cluster.occurredAt,
       order: index + 1,
-    }),
-  )
+    }
+  })
 
   const countByCategory = new Map<TimelineMapCategory, number>()
   for (const entry of located) {

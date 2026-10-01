@@ -749,6 +749,8 @@
     "afterPrevious": "{{duration}} após o evento anterior",
     "map": {
       "title": "Mapa dos eventos",
+      "show": "Ver o mapa dos eventos",
+      "hide": "Ocultar o mapa dos eventos",
       "loading": "Carregando o mapa dos eventos",
       "mapMissing": "O mapa não está disponível agora. A lista dos pontos continua abaixo.",
       "empty": "Nenhum evento desta viagem tem posição registrada, então não há o que mostrar no mapa.",
@@ -766,11 +768,11 @@
       "legendItem": "{{label}}: {{count}}",
       "listSummary_one": "Ver o ponto em ordem",
       "listSummary_other": "Ver os {{count}} pontos em ordem",
-      "listItem": "{{label}} · {{moment}}",
-      "listItemGrouped_one": "{{label}} · {{moment}} · {{count}} evento",
-      "listItemGrouped_other": "{{label}} · {{moment}} · {{count}} eventos",
-      "pinLabel_one": "{{label}}, {{count}} evento",
-      "pinLabel_other": "{{label}}, {{count}} eventos",
+      "listItem": "{{order}}. {{label}} · {{moment}}",
+      "listItemGrouped_one": "{{order}}. {{label}} · {{moment}} · {{count}} evento",
+      "listItemGrouped_other": "{{order}}. {{label}} · {{moment}} · {{count}} eventos",
+      "pinLabel_one": "Ponto {{order}}: {{label}}, {{count}} evento",
+      "pinLabel_other": "Ponto {{order}}: {{label}}, {{count}} eventos",
       "category": {
         "dispatched": "Despacho",
         "arrived": "Chegada",
@@ -780,7 +782,10 @@
         "occurrence": "Ocorrência",
         "cancelled": "Saída cancelada",
         "status": "Mudança de situação"
-      }
+      },
+      "listItemInterval": "· {{duration}} depois do ponto anterior",
+      "legInterval": "{{duration}} entre este ponto e o anterior",
+      "captionInterval": "O número no canto do pino é a vez dele na ordem dos eventos, e o tempo escrito sobre o traço é quanto se passou do ponto anterior até ele. Em trecho curto o tempo sai do mapa e fica só na lista abaixo."
     },
     "location": {
       "label": {

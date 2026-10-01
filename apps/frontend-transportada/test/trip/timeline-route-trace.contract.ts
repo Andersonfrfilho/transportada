@@ -19,10 +19,13 @@ function point(order: number, latitude: number, longitude: number): TimelineMapP
     category: 'arrived',
     count: 1,
     icon: 'map-pin',
+    intervalLabel: null,
     key: `timeline-map-${order}`,
     label: 'Chegada',
+    lastOccurredAt: `2026-09-18T12:0${order}:00.000Z`,
     latitude,
     longitude,
+    minutesFromPrevious: null,
     occurredAt: `2026-09-18T12:0${order}:00.000Z`,
     order,
   }

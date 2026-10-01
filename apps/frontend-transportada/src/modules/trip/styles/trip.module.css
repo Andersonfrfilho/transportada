@@ -2189,6 +2189,91 @@ button.occurrenceCaseBadge {
   line-height: 1;
 }
 
+/*
+  Spec 196 — o selo da ordem do ponto na cronologia, como um contador de notificação: canto superior
+  ESQUERDO, menor que o glifo e menor que o selo de contagem, que fica no direito. O glifo manda (ele
+  diz o tipo do evento); este selo informa a vez.
+
+  ⚠️ **Dois contrastes, uma solução.** Ele cai metade sobre o pino e metade sobre o mapa: o anel
+  — o mesmo que já salva o pino marrom da via laranja, e que chega pela cor inline de `orderBadgeElement`
+  — o separa do pino, e o preenchimento escuro o separa do papel do mapa.
+
+  ⚠️ Toda medida vem de `tripTimelineMap.constant.ts` como propriedade custom. Número cravado aqui
+  divergiria do que o TSX calcula no dia em que alguém mexesse num só.
+*/
+.tilePinOrder {
+  position: absolute;
+  top: var(--timeline-order-badge-offset);
+  left: var(--timeline-order-badge-offset);
+  display: grid;
+  place-items: center;
+  /* Dois dígitos crescem a pílula para o lado; a altura e o corpo da fonte ficam onde estão. */
+  min-width: var(--timeline-order-badge-size);
+  height: var(--timeline-order-badge-size);
+  padding: 0 var(--timeline-order-badge-padding-inline);
+  border: var(--timeline-order-badge-ring-width) solid transparent;
+  border-radius: calc(var(--timeline-order-badge-size) / 2);
+  /*
+   * ⚠️ `border-box`, nunca `content-box`: com `content-box` o anel e o preenchimento somavam por fora
+   * da medida declarada e o selo saía com 23 × 18 px sobre um pino de 24 px — cobrindo 74 % do ícone.
+   */
+  box-sizing: border-box;
+  /*
+   * ⚠️ **Par invertido, e é de propósito.** `--color-asphalt` e `--color-fog` TROCAM de significado
+   * entre o tema claro e o escuro (o aviso está no topo de `styles/index.css`): `asphalt` é sempre a
+   * superfície da página e `fog` sempre a tinta. Pintado na ordem natural, o selo saía da cor do
+   * papel — e o papel do basemap é essa mesma cor, então a metade que cai sobre o mapa sumia, com o
+   * anel (que vem do papel) sem nada para separar. Invertido, o selo contrasta com o mapa nos dois
+   * temas, e o anel volta a ter função: separá-lo do corpo colorido do pino.
+   */
+  background: var(--color-fog);
+  color: var(--color-asphalt);
+  font-size: var(--timeline-order-badge-font-size);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/*
+  O pino que carrega o selo de ordem é maior que o pino comum, e isso é a conclusão de uma medida, não
+  gosto: em 1,5 rem o glifo sai com 14 px e não sobra quina para um número legível. `measureOrderBadgeGlyphCoverage`
+  guarda a conta, e o contrato guarda a conta.
+*/
+.tilePinBadged {
+  width: var(--timeline-pin-size);
+  height: var(--timeline-pin-size);
+}
+
+/*
+  Spec 196 — quanto tempo passou de um ponto ao seguinte, escrito sobre o trecho que os liga. Mesma
+  paleta dos selos do pino, pelo mesmo motivo: ele divide o fundo com a via e com o traço colorido.
+*/
+.tileLegLabel {
+  display: inline-grid;
+  place-items: center;
+  padding: var(--timeline-leg-label-padding);
+  border: var(--timeline-leg-label-ring-width) solid transparent;
+  border-radius: var(--timeline-leg-label-radius);
+  /* Mesmo par invertido do selo de ordem, e pelo mesmo motivo: ele vive inteiro sobre o papel do mapa. */
+  background: var(--color-fog);
+  color: var(--color-asphalt);
+  font-size: var(--timeline-leg-label-font-size);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+  /* O rótulo é marca, não controle: arrastar o mapa a partir dele tem de arrastar o mapa. */
+  pointer-events: none;
+}
+
+/*
+  O trecho curto demais para o texto. `visibility` e não `display: none`: o marcador continua
+  posicionado pelo MapLibre, e o `moveend` seguinte o traz de volta sem remontar nada.
+*/
+.tileLegLabelHidden {
+  visibility: hidden;
+}
+
 /* O gatilho do tooltip entra entre a marca e o glifo — ele veste a marca, não encolhe dentro dela. */
 .tilePinOccurrenceBadge > * {
   display: grid;

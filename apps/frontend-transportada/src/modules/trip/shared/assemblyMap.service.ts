@@ -96,6 +96,13 @@ export type AssemblyMapPoint = Readonly<{
   glyph?: IconName
   /** Minimapa da linha do tempo: quantos eventos o pino agrupa. */
   count?: number
+  /**
+   * Spec 196 — o número da ordem como **selo no canto**, ao lado do glifo e nunca no lugar dele.
+   * Ausente no mapa de montagem, onde o número já ocupa o centro do pino.
+   */
+  orderBadge?: string
+  /** O que o leitor de tela ouve no pino: ordem e tipo juntos, não um no lugar do outro. */
+  ariaLabel?: string
   /** A ordem que o operador montou. `null` na cidade que ficou de fora da seleção. */
   sequence: number | null
   x: number

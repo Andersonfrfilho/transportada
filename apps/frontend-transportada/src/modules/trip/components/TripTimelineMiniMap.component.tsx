@@ -59,11 +59,23 @@ export function TripTimelineMiniMap({ hasMorePages, items }: TripTimelineMiniMap
   const geometry = routeQuery.data ?? null
   const trace = resolveTimelineRouteTrace({ geometry, points: view.points })
 
+  /**
+   * ⚠️ É aqui que a ordem e o tempo entre pontos **nunca** se perdem: o selo no pino pode ficar
+   * pequeno e o rótulo de tempo recolhe no trecho curto, mas a linha da lista sai inteira sempre.
+   */
   function renderPointLine(point: TimelineMapPoint): string {
     const moment = formatPointMoment(point.occurredAt, i18n.language)
-    return point.count > 1
-      ? t('eventTimeline.map.listItemGrouped', { count: point.count, label: point.label, moment })
-      : t('eventTimeline.map.listItem', { label: point.label, moment })
+    const line =
+      point.count > 1
+        ? t('eventTimeline.map.listItemGrouped', {
+            count: point.count,
+            label: point.label,
+            moment,
+            order: point.order,
+          })
+        : t('eventTimeline.map.listItem', { label: point.label, moment, order: point.order })
+    if (point.intervalLabel === null) return line
+    return `${line} ${t('eventTimeline.map.listItemInterval', { duration: point.intervalLabel })}`
   }
 
   return (
@@ -96,6 +108,8 @@ export function TripTimelineMiniMap({ hasMorePages, items }: TripTimelineMiniMap
             ))}
           </ul>
           <p className={styles.note}>{t(TIMELINE_MAP_CAPTION_KEY_BY_TRACE[trace])}</p>
+          {/* O que o selo e o rótulo de tempo significam — a imagem não explica a si mesma. */}
+          <p className={styles.note}>{t('eventTimeline.map.captionInterval')}</p>
           <details className={styles.pointList}>
             <summary className={styles.pointListSummary}>
               {t('eventTimeline.map.listSummary', { count: view.points.length })}

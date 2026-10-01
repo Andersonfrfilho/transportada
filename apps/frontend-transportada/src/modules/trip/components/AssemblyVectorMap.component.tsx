@@ -30,6 +30,11 @@ import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment
 import { buildTollBadgeId, resolveMapBadgeRequest } from '@/modules/shared/mapBadge.service'
 import { drawRequestedMapBadge } from '@/modules/shared/mapBadgeImage.service'
 
+import {
+  TIMELINE_MAP_LEG_LABEL_MIN_PIXELS,
+  TIMELINE_MAP_LEG_LABEL_STYLE,
+  TIMELINE_MAP_ORDER_BADGE_STYLE,
+} from '../shared/tripTimelineMap.constant'
 import { resolvePinInk } from '../shared/stopColor.service'
 import { resolveAssemblyMapBounds } from '../shared/assemblyMapBounds.service'
 import { resolveMarkerOffsets, type AssemblyMapPoint } from '../shared/assemblyMap.service'
@@ -48,6 +53,13 @@ type AssemblyVectorMapProps = Readonly<{
   hideRoute?: boolean | undefined
   /** Fundo sem placa de radar nem selo de pedágio: o pino é a coisa mais forte da imagem. */
   isQuietBasemap?: boolean | undefined
+  /**
+   * Spec 196 — o texto a escrever **sobre o trecho** que chega a `toSequence`, e o que o leitor de
+   * tela ouve nele. `undefined` no trecho que não tem o que dizer, e no mapa de montagem inteiro.
+   */
+  legLabel?:
+    | ((toSequence: number) => Readonly<{ aria: string; text: string }> | undefined)
+    | undefined
   nearby: readonly AssemblyMapPoint[]
   onBasemapMissing: () => void
   points: readonly AssemblyMapPoint[]
@@ -66,6 +78,13 @@ type RouteCollection = {
     readonly properties: { readonly color: string; readonly dashed: boolean }
   }[]
 }
+/** O rótulo de tempo e as pontas do trecho que ele descreve, em grau — o pixel muda a cada zoom. */
+type LegLabelMarker = Readonly<{
+  end: Readonly<{ latitude: number; longitude: number }>
+  marker: Marker
+  start: Readonly<{ latitude: number; longitude: number }>
+}>
+
 const NEARBY_SOURCE = 'fora-da-selecao'
 /**
  * Spec 096 T4 — as praças do **trajeto**, alimentadas pela resposta da rota (spec 090 D4), nunca
@@ -119,6 +138,7 @@ export function AssemblyVectorMap({
   geometry,
   hideRoute,
   isQuietBasemap,
+  legLabel,
   nearby,
   onBasemapMissing,
   points,
@@ -128,6 +148,8 @@ export function AssemblyVectorMap({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const markersRef = useRef<Marker[]>([])
+  /** Os rótulos de tempo e as pontas de cada trecho, para decidir a cada zoom quem cabe na tela. */
+  const legLabelsRef = useRef<readonly LegLabelMarker[]>([])
   const [isReady, setIsReady] = useState(false)
   /**
    * Os nós vazios que cada pino com tratativa aberta hospeda. A marca é desenhada pelo React
@@ -418,9 +440,11 @@ export function AssemblyVectorMap({
     for (const point of points) {
       const element = stopElement({
         approximate: point.isApproximate,
+        ariaLabel: point.ariaLabel,
         color: stopColor(point.sequence ?? 1),
         count: point.count ?? 1,
         glyph: point.glyph,
+        orderBadge: point.orderBadge,
         outline: resolveBasemapOutline(readToken, theme),
         sequence: point.sequence ?? 1,
         unnumbered: point.isUnnumbered === true,
@@ -599,7 +623,44 @@ export function AssemblyVectorMap({
 
     routeRef.current = { dashArray, data }
     applyRoute(map)
-  }, [applyRoute, geometry, hideRoute, isReady, points, stopColor, theme])
+
+    for (const previous of legLabelsRef.current) previous.marker.remove()
+    legLabelsRef.current = []
+    if (legLabel === undefined) return
+
+    const outline = resolveBasemapOutline(readToken, theme)
+    const built: LegLabelMarker[] = []
+    for (const leg of legs) {
+      const content = legLabel(leg.toSequence)
+      const anchor = midpointOfLeg(leg.points)
+      const start = leg.points[0]
+      const end = leg.points[leg.points.length - 1]
+      if (content === undefined || anchor === null || start === undefined || end === undefined) {
+        continue
+      }
+      const element = legLabelElement({ ariaLabel: content.aria, outline, text: content.text })
+      built.push({
+        end: { latitude: end.y, longitude: end.x },
+        marker: new Marker({ element }).setLngLat([anchor.x, anchor.y]).addTo(map),
+        start: { latitude: start.y, longitude: start.x },
+      })
+    }
+    legLabelsRef.current = built
+    applyLegLabelFit(map, built)
+
+    /**
+     * ⚠️ O que cabe depende do **zoom**, não do dado: o mesmo trecho que comporta "2 h 15 min"
+     * afastado vira dois pixels aproximado. Reavaliar ao fim de cada movimento é o que mantém a
+     * promessa de não escrever texto ilegível por cima do traço.
+     */
+    const refit = () => applyLegLabelFit(map, legLabelsRef.current)
+    map.on('moveend', refit)
+    return () => {
+      map.off('moveend', refit)
+      for (const label of built) label.marker.remove()
+      legLabelsRef.current = []
+    }
+  }, [applyRoute, geometry, hideRoute, isReady, legLabel, points, stopColor, theme])
 
   return (
     <div className={styles.vectorMap}>
@@ -721,12 +782,16 @@ function depotElement(input: {
 }
 
 function stopElement(input: {
+  /** Ordem e tipo juntos, para o leitor de tela. Ausente onde o pino não tem o que narrar. */
+  readonly ariaLabel: string | undefined
   readonly approximate: boolean
   readonly color: string
   /** Eventos agrupados neste pino; acima de 1 aparece o selo com a contagem. */
   readonly count: number
   /** Ícone no lugar do número (minimapa da linha do tempo). */
   readonly glyph: IconName | undefined
+  /** Spec 196: o número da ordem como selo no canto superior esquerdo, junto ao glifo. */
+  readonly orderBadge: string | undefined
   readonly outline: string
   readonly sequence: number
   /** Pino que não é parada: sai liso. Flag explícita porque `sequence` fora de faixa some calado. */
@@ -759,7 +824,88 @@ function stopElement(input: {
     badge.textContent = String(input.count)
     element.append(badge)
   }
+  if (input.orderBadge !== undefined) {
+    /**
+     * ⚠️ As medidas vão ao **pino**, não ao selo: a de dentro o selo herda, e a de fora é o diâmetro
+     * maior que só o pino com selo usa. O pino da montagem, que não tem selo, segue com `--space-6`.
+     */
+    element.classList.add(styles.tilePinBadged ?? '')
+    applyCustomProperties(element, TIMELINE_MAP_ORDER_BADGE_STYLE)
+    element.append(orderBadgeElement(input.orderBadge, input.outline))
+  }
+  if (input.ariaLabel !== undefined) {
+    /** `title` nativo é proibido pelo design system; o pino inteiro é a imagem que se narra. */
+    element.setAttribute('role', 'img')
+    element.setAttribute('aria-label', input.ariaLabel)
+  }
   return element
+}
+
+/**
+ * Spec 196 — a vez do ponto na cronologia, como um contador de notificação: **menor** que o glifo e
+ * no canto superior esquerdo, enquanto o selo de contagem fica no direito. O glifo manda (ele diz o
+ * tipo); o selo informa.
+ *
+ * ⚠️ **O anel é o mesmo que salva o pino marrom da via laranja** — o selo cai metade sobre o pino e
+ * metade sobre o mapa, e precisa dos dois contrastes: o anel claro o separa do pino, o preenchimento
+ * escuro o separa do papel do mapa. Nenhuma segunda solução foi inventada para isso.
+ */
+function orderBadgeElement(text: string, outline: string): HTMLElement {
+  const badge = document.createElement('span')
+  badge.className = styles.tilePinOrder ?? ''
+  badge.textContent = text
+  badge.style.borderColor = outline
+  return badge
+}
+
+/**
+ * Spec 196 — quanto tempo o caminhão levou de um ponto ao seguinte, escrito **sobre o trecho** que
+ * os liga. O texto vem pronto de `resolveTimelineMapView`, que o escreve com o mesmo
+ * `formatTripTimelineDuration` da lista.
+ */
+function legLabelElement(input: {
+  readonly ariaLabel: string
+  readonly outline: string
+  readonly text: string
+}): HTMLElement {
+  const element = document.createElement('span')
+  element.className = styles.tileLegLabel ?? ''
+  element.textContent = input.text
+  element.style.borderColor = input.outline
+  element.setAttribute('role', 'img')
+  element.setAttribute('aria-label', input.ariaLabel)
+  applyCustomProperties(element, TIMELINE_MAP_LEG_LABEL_STYLE)
+  return element
+}
+
+/**
+ * A medida declarada em `tripTimelineMap.constant.ts` chega à folha por aqui. O nó é montado fora da
+ * árvore do React e a folha não conhece estes valores — é o mesmo caminho pelo qual cor de fundo e
+ * cor do anel já chegam ao pino.
+ */
+function applyCustomProperties(element: HTMLElement, properties: Readonly<Record<string, string>>) {
+  for (const [name, value] of Object.entries(properties)) element.style.setProperty(name, value)
+}
+
+/**
+ * ⚠️ **Texto ilegível por cima do traço é pior que texto ausente.** O trecho que, na tela, não chega
+ * a `TIMELINE_MAP_LEG_LABEL_MIN_PIXELS` recolhe o rótulo — e só ele: o intervalo continua inteiro na
+ * lista acessível ao lado do mapa, que é por onde ele nunca se perde.
+ */
+function applyLegLabelFit(map: MapLibreMap, labels: readonly LegLabelMarker[]): void {
+  for (const label of labels) {
+    const start = map.project([label.start.longitude, label.start.latitude])
+    const end = map.project([label.end.longitude, label.end.latitude])
+    const span = Math.hypot(end.x - start.x, end.y - start.y)
+    label.marker
+      .getElement()
+      .classList.toggle(styles.tileLegLabelHidden ?? '', span < TIMELINE_MAP_LEG_LABEL_MIN_PIXELS)
+  }
+}
+
+/** O meio do trecho desenhado — não o meio da reta entre as pontas, que sairia de cima do traço. */
+function midpointOfLeg(points: readonly { readonly x: number; readonly y: number }[]) {
+  return points[Math.floor(points.length / 2)] ?? points[0] ?? null
 }
 
 function buildGlyphElement(paths: readonly string[]): SVGElement {

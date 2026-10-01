@@ -4,10 +4,12 @@ import { useTranslation } from 'react-i18next'
 
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
+import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
+
 import type { AssemblyMapPoint } from '../shared/assemblyMap.service'
 import type { RouteGeometry } from '../shared/routeGeometry.service'
 import { TIMELINE_EVENT_CATEGORY_COLOR } from '../shared/stopColor.service'
-import type { TimelineMapPoint } from '../shared/tripTimelineMap.service'
+import { buildTimelineMapPin, type TimelineMapPoint } from '../shared/tripTimelineMap.service'
 import styles from '../styles/tripTimelineMiniMap.module.css'
 
 /** O mesmo mapa do `TripRouteMap`, e pelo mesmo motivo `lazy`: fora dele o precache do PWA estoura. */
@@ -25,23 +27,6 @@ type TripTimelineMiniMapCanvasProps = Readonly<{
   points: readonly TimelineMapPoint[]
 }>
 
-function buildMapPoint(point: TimelineMapPoint): AssemblyMapPoint {
-  return {
-    cityCode: '',
-    count: point.count,
-    glyph: point.icon,
-    isApproximate: false,
-    label: point.label,
-    latitude: point.latitude,
-    longitude: point.longitude,
-    notes: [],
-    sequence: point.order,
-    stopKey: point.key,
-    x: point.longitude,
-    y: point.latitude,
-  }
-}
-
 /** As coordenadas só vão ao mapa em memória — nenhuma URL, nenhum tile de terceiro (ADR-0044 §6). */
 export function TripTimelineMiniMapCanvas({
   geometry,
@@ -49,12 +34,30 @@ export function TripTimelineMiniMapCanvas({
   points,
 }: TripTimelineMiniMapCanvasProps) {
   const { t } = useTranslation('trip')
-  const mapPoints = useMemo(() => points.map(buildMapPoint), [points])
+  const mapPoints: readonly AssemblyMapPoint[] = useMemo(
+    () => points.map((point) => buildTimelineMapPin(point, t as Translate)),
+    [points, t],
+  )
   const pinColor = useMemo(() => {
     const colors = points.map((point) => TIMELINE_EVENT_CATEGORY_COLOR[point.category])
     return (sequence: number): string =>
       colors[sequence - 1] ?? TIMELINE_EVENT_CATEGORY_COLOR.status
   }, [points])
+  /**
+   * O trecho que chega ao ponto `toSequence` leva o tempo que se passou desde o ponto anterior —
+   * texto já escrito pelo formatador da lista, nunca remontado aqui.
+   */
+  const legLabel = useMemo(() => {
+    const byOrder = new Map(points.map((point) => [point.order, point]))
+    return (toSequence: number) => {
+      const interval = byOrder.get(toSequence)?.intervalLabel ?? null
+      if (interval === null) return undefined
+      return {
+        aria: t('eventTimeline.map.legInterval', { duration: interval }),
+        text: interval,
+      }
+    }
+  }, [points, t])
 
   return (
     <Suspense
@@ -68,6 +71,7 @@ export function TripTimelineMiniMapCanvas({
         <AssemblyVectorMap
           isQuietBasemap
           geometry={geometry}
+          legLabel={legLabel}
           nearby={NO_NEARBY}
           onBasemapMissing={onBasemapMissing}
           points={mapPoints}

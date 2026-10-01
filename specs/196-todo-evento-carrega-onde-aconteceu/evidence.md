@@ -648,3 +648,150 @@ afirmava a regra antiga, foi corrigido junto.
 some". É decisão deliberada da spec 206 T0.3 (o `nextCursor` sobrevive, a página não quebra) e
 desfazê-la obriga a alargar `TripTimelineItem['kind']` para `string`, derrubando a exaustividade de
 todos os `switch` do módulo. Fica registrado como dívida consciente, não corrigido por conta própria.
+
+---
+
+## Tarefa A — o selo de ordem no pino do minimapa
+
+O pedido foi literal e corrigiu a si mesmo: _"no mapa não era troca o ícone por número, era add o
+símbolo de número junto ao ponto, menor e superior à esquerda"_. O glifo é quem diz o **tipo** do
+evento e fica; o número é selo adicional, como contador de notificação. O glifo manda, o selo informa.
+
+### O defeito, medido — não estimado
+
+O primeiro corte cobriu o ícone, e o relato foi esse: _"ícone de número cobriu todo o ícone do
+evento"_. A tela deu o número:
+
+|                              | antes           | depois             |
+| ---------------------------- | --------------- | ------------------ |
+| diâmetro do pino             | 24 px           | **27 px**          |
+| glifo                        | 14 px           | 16,09 px           |
+| selo                         | 22,99 × 18,2 px | **15 × 15 px**     |
+| âncora do selo               | (−2,8, −2,8)    | (−7, −7)           |
+| **glifo visível**            | **25,7 %**      | **97,5 %**         |
+| área do selo ÷ área do glifo | 2,13×           | 0,87×              |
+| corpo da fonte               | 10 px           | 10 px (inalterado) |
+
+A causa não era a âncora, que já estava certa: era `box-sizing: content-box`, que inflava um selo
+declarado com 15,2 px somando preenchimento (4,8) e borda (3). O selo passou a `border-box`.
+
+⚠️ **Encolher o selo não era opção.** 10 px em bold é o menor corpo que ainda lê dois dígitos; abaixo
+disso ilegível é tão inútil quanto coberto. Quem cresceu foi o pino.
+
+### A janela tem um pixel de largura, e esse é o achado
+
+Dos três caminhos possíveis — o pino cresce, o número sai do pino, os selos se reorganizam — foi
+escolhido **o pino cresce**, e o tamanho saiu de duas restrições medidas, não de gosto:
+
+- **piso 27 px**: abaixo disso o selo de dois dígitos estoura o teto de cobertura do glifo (10 %);
+- **teto 27,71 px**: é a distância centro a centro de três pinos no mesmo ponto, pelo leque de
+  `resolveMarkerOffsets` (raio de 16 px). Acima disso o agrupamento urbano piora.
+
+**1,6875 rem (27 px) é o único diâmetro redondo que cabe nos dois.** Não é um número bonito, e é por
+isso que ele está comentado na constante.
+
+### Os cantos já tinham dono — e nenhum passou a ser disputado
+
+O pino já hospedava `.tilePinCount` (contagem) e `.tilePinOccurrenceBadge` (spec 164 RF37), **ambos
+no canto superior direito**. O selo de ordem ficou com o **superior esquerdo**, sozinho. Não houve
+terceiro selo no mesmo canto. Registrado em `TIMELINE_MAP_ORDER_BADGE_CORNER`. O selo de ocorrência,
+aliás, nem chega ao minimapa: `buildTimelineMapPin` não carrega nota nenhuma.
+
+### A conta que o contrato cobra
+
+`measureOrderBadgeGlyphCoverage(digits)` prevê a cobertura pela geometria declarada. A primeira
+versão errou por um termo: `position: absolute` conta a partir da **caixa de preenchimento**, por
+dentro da borda de 2 px do pino. O modelo previa 3,19 % onde a tela media 10,24 %. Com o termo
+`PIN_BORDER_REM` no lugar, modelo e tela passaram a concordar: **2,51 % de cobertura, 97,49 % livre**.
+
+- um dígito e dois dígitos ficam sob o teto de 10 %;
+- **três dígitos chegam a ~11,9 %** — o glifo segue 88 % livre, mas a conta sai do teto. Fica como
+  **exceção conhecida e documentada**, não como surpresa: exige viagem com cem pontos localizados.
+- **ponto agrupado continua um pino, um ícone, um selo.** O selo diz a **vez na cronologia**, não a
+  quantidade — quem diz quantos é `.tilePinCount`, no canto oposto. Dois números com significados
+  diferentes nunca compartilham o mesmo canto.
+
+O contrato foi provado **vermelho** antes de verde: restaurados os valores defeituosos, 4 dos 6 casos
+novos falharam (cobertura 0,36/0,39 contra o teto de 0,1; pino não crescido; `box-sizing` errado).
+
+### 375 px
+
+A janela do Chrome não desce de ~500 px de viewport, então a prova foi feita encolhendo o **quadro do
+mapa** para 375 px. O selo **não some e não encolhe**: 15 × 15 px, fonte 10 px, `visible`, contraste
+12,66:1 — idêntico a 1280 px. A geometria é em `rem` e não depende da largura.
+
+## Tarefa B — o tempo entre um ponto e o seguinte, sobre o traço
+
+O intervalo já existia na **lista** (`eventTimeline.afterPrevious`); faltava no **mapa**. Ele reusa
+`formatTripTimelineDuration` — esta base não ganha um segundo jeito de escrever "2 h 15 min" — e
+mede entre pontos consecutivos da cronologia. Em ponto agrupado, mede do **último** evento do grupo
+anterior ao **primeiro** do seguinte: é o tempo em que o caminhão esteve de fato a caminho, e não o
+tempo parado dentro de cada grupo.
+
+### Trecho curto: o rótulo recolhe, e isso foi decidido, não improvisado
+
+`TIMELINE_MAP_LEG_LABEL_MIN_PIXELS = 72`. Abaixo disso o texto não cabe sobre o traço, e **tempo
+ilegível sobreposto é pior que tempo ausente**. O rótulo recolhe por `visibility`, e o intervalo
+continua na lista acessível e no resumo — nenhuma informação se perde, só muda de lugar. A legenda
+avisa: _"Em trecho curto o tempo sai do mapa e fica só na lista abaixo."_
+
+Medido na viagem de pré-visualização: os dois rótulos ficam **ocultos em todos os cenários**
+(1280 px, 375 px, e após quatro passos de aproximação), porque os eventos localizados desta viagem
+estão praticamente no mesmo lugar e a 0–1 min um do outro — nenhum trecho alcança 72 px. Forçada a
+exibição para medir a caixa que **sairia**: 42,75 × 16,59 px, fonte 10,4 px, contraste 12,66:1.
+
+⚠️ **Um trecho a menos que isso não é defeito:** `resolveRouteLegs` descarta trecho com
+`slice.length < 2`, o que acontece quando dois pontos consecutivos caem no mesmo pixel. Sem traço não
+há onde escrever, e o intervalo segue na lista.
+
+## O contraste do pino — o mesmo elemento, na mesma passada
+
+A revisão independente reprovou o numeral do próprio pino. Reproduzido e confirmado, com a causa raiz:
+
+⚠️ **`.tilePin` pintava a tinta com `--color-ink-on-accent`, que troca de tema, sobre um
+preenchimento que não troca.** O preenchimento é literal porque o MapLibre pinta em WebGL e não
+resolve `var()`. O token existe — o comentário dele em `index.css:87` diz — para _"o texto que senta
+sobre o cobre"_, superfície essa temática. Era **um token certo no lugar errado**.
+
+| categoria  | antes (escuro) | antes (claro) | depois (os dois temas) |
+| ---------- | -------------- | ------------- | ---------------------- |
+| dispatched | **2,65**       | 5,81          | **5,81**               |
+| cancelled  | 2,68           | 5,75          | 5,75                   |
+| returned   | 2,70           | 5,69          | 5,69                   |
+| arrived    | 2,72           | 5,65          | 5,65                   |
+| departed   | 2,86           | 5,38          | 5,38                   |
+| delivered  | 3,70           | **4,16**      | 4,16                   |
+| occurrence | 3,84           | 4,01          | 4,01                   |
+| status     | 4,32           | 3,56          | **4,32**               |
+
+**Pior caso: 2,65 → 4,16.** Medido na tela depois: 4,16 no tema claro e **4,16 no escuro** — o mesmo
+número, que é o ponto: a dependência do tema desapareceu.
+
+### Por que a tinta não é fixa
+
+Uma tinta fixa consertaria o minimapa e **quebraria o irmão**. O mapa do roteiro usa o mesmo
+`.tilePin` com a paleta gerada, que vai de luminância 0,15 a 0,30: a tinta clara mede 4,95 numa ponta
+e **2,83 na outra**, pior que os 5,43 que a tinta escura dá hoje. Por isso `resolvePinInk(fill)`
+escolhe **pela cor do preenchimento**, não pelo tema. No pior ponto possível — onde as duas tintas
+empatam, luminância 0,204 — o contraste ainda é **3,94**, e é um piso válido para qualquer cor futura.
+
+O contrato `nenhuma parada do mapa do roteiro perde contraste em qualquer tema` percorre as 96
+paradas e confere, uma a uma, que a tinta escolhida é ao menos tão boa quanto qualquer das duas em
+qualquer tema. **O irmão melhorou junto**: os numerais dele mediam 2,84 no laudo e medem **4,18** na
+tela agora.
+
+### O limiar que se aplica, dito com precisão
+
+O glifo do minimapa é **desenho**, não texto: o mínimo de WCAG 1.4.11 para objeto gráfico é **3:1**, e
+todas as oito categorias passam. O numeral do mapa do roteiro é **texto**, e o mínimo seria 4,5 — ele
+está em 4,18, ou seja, **melhor que antes mas ainda abaixo**. Levá-lo a 4,5 exige baixar o teto de
+luminância do gerador de 0,30 para ~0,166, o que regenera as 96 cores e mexe nas travas de ΔE da
+spec 164. **Não foi feito por conta própria; fica relatado com o número.**
+
+### Um buraco que a própria tela revelou
+
+Com a declaração fora do CSS, um pino que esquecesse a tinta **não quebraria: herdaria** a do corpo da
+página. Foi exatamente o que apareceu num recarregamento parcial, medindo 2,41. Por isso o par virou
+invariante cobrada no código-fonte: `todo pino que pinta o fundo pinta a tinta na linha seguinte`
+confere que todo `element.style.background` do mapa vem seguido do `element.style.color =
+resolvePinInk(...)`. Um terceiro construtor não consegue esquecer em silêncio.
