@@ -11,6 +11,9 @@ const profilesPage = await Bun.file(
   new URL('../../src/modules/identity/pages/AccessProfiles.page.tsx', import.meta.url),
 ).text()
 const entrypoint = await Bun.file(new URL('../../src/main.tsx', import.meta.url)).text()
+const navigation = await Bun.file(
+  new URL('../../src/modules/shared/workspaceNavigation.constant.ts', import.meta.url),
+).text()
 
 /**
  * A tela de acessos tinha quatro painéis empilhados, cada um com botão de mostrar/esconder: o que
@@ -42,9 +45,9 @@ describe('a divisão entre acessos e papéis', () => {
 
 describe('a categoria do menu', () => {
   test('as duas telas moram na categoria de usuários', () => {
-    expect(entrypoint).toContain("key: 'identity'")
-    expect(entrypoint).toContain("label: 'Usuários'")
-    expect(entrypoint).toContain("['users', 'access-profiles'].includes(key)")
+    expect(navigation).toContain("key: 'identity'")
+    expect(navigation).toContain("label: 'Usuários'")
+    expect(navigation).toContain("['users', 'access-profiles'].includes(key)")
   })
 
   /**
@@ -53,7 +56,7 @@ describe('a categoria do menu', () => {
    */
   test('o caminho da tela nova é reconhecido', () => {
     expect(entrypoint).toContain("window.location.pathname === '/papeis'")
-    expect(entrypoint).toContain("href: '/papeis'")
+    expect(navigation).toContain("href: '/papeis'")
     expect(entrypoint).toContain('<AccessProfilesPage />')
   })
 
