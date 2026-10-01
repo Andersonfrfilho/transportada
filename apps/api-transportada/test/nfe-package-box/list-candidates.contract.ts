@@ -56,6 +56,7 @@ describe('a busca por código devolve todas as candidatas da empresa (spec em an
 
     let capturedCompanyId: string | undefined
     const repository: PackageBoxRepositoryPort = {
+      countMeasurement: () => Promise.resolve({ measuredCount: 0, pendingCount: 0 }),
       getSiblings: () => Promise.reject(new Error('not stubbed')),
       list: (input) => {
         capturedCompanyId = input.companyId
@@ -79,6 +80,7 @@ describe('a busca por código devolve todas as candidatas da empresa (spec em an
 
   test('uma caixa só continua respondendo uma candidata', async () => {
     const repository: PackageBoxRepositoryPort = {
+      countMeasurement: () => Promise.resolve({ measuredCount: 0, pendingCount: 0 }),
       getSiblings: () => Promise.reject(new Error('not stubbed')),
       list: () => Promise.resolve([buildBox({ id: 'unica' })]),
       measure: () => Promise.resolve(true),
@@ -96,6 +98,7 @@ describe('a busca por código devolve todas as candidatas da empresa (spec em an
 
   test('nenhuma caixa devolve lista vazia, não erro', async () => {
     const repository: PackageBoxRepositoryPort = {
+      countMeasurement: () => Promise.resolve({ measuredCount: 0, pendingCount: 0 }),
       getSiblings: () => Promise.reject(new Error('not stubbed')),
       list: () => Promise.resolve([]),
       measure: () => Promise.resolve(true),
@@ -115,6 +118,7 @@ describe('a busca por código devolve todas as candidatas da empresa (spec em an
   test('o filtro chega ao repositório sem sobrar em nenhum outro lugar', async () => {
     let capturedFilters: PackageBoxFilters | undefined
     const repository: PackageBoxRepositoryPort = {
+      countMeasurement: () => Promise.resolve({ measuredCount: 0, pendingCount: 0 }),
       getSiblings: () => Promise.reject(new Error('not stubbed')),
       list: (input) => {
         capturedFilters = input.filters
@@ -134,5 +138,60 @@ describe('a busca por código devolve todas as candidatas da empresa (spec em an
     expect(
       (capturedFilters as PackageBoxFilters & { scanCodes?: readonly string[] })?.scanCodes,
     ).toEqual(['7896004003405'])
+  })
+})
+
+/**
+ * O contador do cabeçalho não depende da página nem da situação escolhida: se respeitasse
+ * `status`, em "Faltam medir" as medidas seriam sempre zero e o número não diria nada.
+ */
+describe('a fila devolve quantas caixas já foram medidas e quantas faltam', () => {
+  test('conta com a busca e a etiqueta bipada, mas sem a situação, e devolve os dois totais', async () => {
+    let capturedCount: Parameters<PackageBoxRepositoryPort['countMeasurement']>[0] | undefined
+    const repository: PackageBoxRepositoryPort = {
+      countMeasurement: (input) => {
+        capturedCount = input
+        return Promise.resolve({ measuredCount: 12, pendingCount: 38 })
+      },
+      getSiblings: () => Promise.reject(new Error('not stubbed')),
+      list: () => Promise.resolve([buildBox({ id: 'unica' })]),
+      measure: () => Promise.resolve(true),
+      replicate: () => Promise.reject(new Error('not stubbed')),
+    }
+
+    const result = await createListPackageBoxes({ repository }).execute({
+      context: { companyId: 'company-1' },
+      filters: { scanned: '7896004003405', search: 'refri', status: 'measured' },
+      limit: 1,
+    })
+
+    expect(result.measuredCount).toBe(12)
+    expect(result.pendingCount).toBe(38)
+    expect(capturedCount).toEqual({
+      companyId: 'company-1',
+      filters: { scanCodes: ['7896004003405'], search: 'refri' },
+    })
+  })
+
+  test('sem busca nem bipe, conta a empresa inteira', async () => {
+    let capturedCount: Parameters<PackageBoxRepositoryPort['countMeasurement']>[0] | undefined
+    const repository: PackageBoxRepositoryPort = {
+      countMeasurement: (input) => {
+        capturedCount = input
+        return Promise.resolve({ measuredCount: 0, pendingCount: 0 })
+      },
+      getSiblings: () => Promise.reject(new Error('not stubbed')),
+      list: () => Promise.resolve([]),
+      measure: () => Promise.resolve(true),
+      replicate: () => Promise.reject(new Error('not stubbed')),
+    }
+
+    await createListPackageBoxes({ repository }).execute({
+      context: { companyId: 'company-1' },
+      filters: { status: 'pending' },
+      limit: 50,
+    })
+
+    expect(capturedCount).toEqual({ companyId: 'company-1', filters: {} })
   })
 })

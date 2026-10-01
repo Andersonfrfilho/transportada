@@ -165,7 +165,21 @@ export type PendingMeasurementBoxMatch = {
   readonly unitsPerBox: number
 }
 
+export type PackageBoxMeasurementCount = {
+  readonly measuredCount: number
+  readonly pendingCount: number
+}
+
 export type PackageBoxRepositoryPort = {
+  /**
+   * Quantas caixas já foram medidas e quantas faltam, na empresa inteira — não na página. Respeita
+   * `search` e `scanCodes`; **ignora `status`**, senão em "Faltam medir" o total de medidas seria
+   * sempre zero. "Medida" é `measuredAt` preenchido, o mesmo critério da fila.
+   */
+  countMeasurement(input: {
+    readonly companyId: string
+    readonly filters: Omit<PackageBoxFilters, 'status'>
+  }): Promise<PackageBoxMeasurementCount>
   /**
    * Spec 155 (G003, D1): as irmãs de família (replicáveis) e de embalagem (só mostradas, nunca
    * replicadas — D3) da caixa `boxId`, sempre dentro de `companyId`. `null` quando a origem não

@@ -104,7 +104,13 @@ describe('caixa estimada pela unidade na fila (spec 163, RF09/P5)', () => {
 describe('a fila aceita unit, estimate e isEstimated da API (RF08)', () => {
   it('com os campos novos, a caixa passa pelo guard', () => {
     const queue = packageBoxQueueFromApi({
-      data: { coveredCount: 1, items: [ESTIMATED_BOX], totalVolumes: 48 },
+      data: {
+        coveredCount: 1,
+        items: [ESTIMATED_BOX],
+        measuredCount: 0,
+        pendingCount: 0,
+        totalVolumes: 48,
+      },
     })
     expect(queue.items[0]?.isEstimated).toBe(true)
     expect(queue.items[0]?.estimate?.arrangement).toBe('2x2x6')
@@ -112,7 +118,13 @@ describe('a fila aceita unit, estimate e isEstimated da API (RF08)', () => {
 
   it('sem os campos novos (API anterior), a caixa continua passando', () => {
     const queue = packageBoxQueueFromApi({
-      data: { coveredCount: 0, items: [BASE_BOX], totalVolumes: 48 },
+      data: {
+        coveredCount: 0,
+        items: [BASE_BOX],
+        measuredCount: 0,
+        pendingCount: 0,
+        totalVolumes: 48,
+      },
     })
     expect(queue.items).toHaveLength(1)
   })
@@ -123,6 +135,8 @@ describe('a fila aceita unit, estimate e isEstimated da API (RF08)', () => {
         data: {
           coveredCount: 0,
           items: [{ ...ESTIMATED_BOX, estimate: { lengthMm: '188' } }],
+          measuredCount: 0,
+          pendingCount: 0,
           totalVolumes: 0,
         },
       }),
@@ -143,6 +157,8 @@ describe('a fila aceita unit, estimate e isEstimated da API (RF08)', () => {
             measuredAt: '2026-09-22T12:00:00.000Z',
           },
         ],
+        measuredCount: 0,
+        pendingCount: 0,
         totalVolumes: 48,
       },
     })

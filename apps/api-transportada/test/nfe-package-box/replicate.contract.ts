@@ -15,6 +15,7 @@ import type { PackageBoxRepositoryPort } from '../../src/nfe-documents/applicati
 
 function unusedRepository(): PackageBoxRepositoryPort {
   return {
+    countMeasurement: () => Promise.resolve({ measuredCount: 0, pendingCount: 0 }),
     getSiblings: () => Promise.reject(new Error('not stubbed')),
     list: () => Promise.reject(new Error('not stubbed')),
     measure: () => Promise.reject(new Error('not stubbed')),
@@ -42,6 +43,7 @@ describe('GET /nfe-package-boxes/:id/siblings (spec 155 G003)', () => {
   test('devolve a família e o grupo de embalagem em listas separadas', async () => {
     const repository: PackageBoxRepositoryPort = {
       ...unusedRepository(),
+      countMeasurement: () => Promise.resolve({ measuredCount: 0, pendingCount: 0 }),
       getSiblings: (input) => {
         expect(input).toEqual({ boxId: 'box-1', companyId: 'company-1' })
         return Promise.resolve({
@@ -72,6 +74,7 @@ describe('GET /nfe-package-boxes/:id/siblings (spec 155 G003)', () => {
   test('família de formato assimétrico chega marcada, contando o rótulo da origem', async () => {
     const repository: PackageBoxRepositoryPort = {
       ...unusedRepository(),
+      countMeasurement: () => Promise.resolve({ measuredCount: 0, pendingCount: 0 }),
       getSiblings: () =>
         Promise.resolve({
           family: [{ ...SIBLING_ITEM, variantLabel: 'EXTRA FORTE TRA' }],
@@ -92,6 +95,7 @@ describe('GET /nfe-package-boxes/:id/siblings (spec 155 G003)', () => {
   test('caixa de outra empresa devolve PackageBoxNotFoundError', async () => {
     const repository: PackageBoxRepositoryPort = {
       ...unusedRepository(),
+      countMeasurement: () => Promise.resolve({ measuredCount: 0, pendingCount: 0 }),
       getSiblings: () => Promise.resolve(null),
     }
 

@@ -15,6 +15,7 @@ import {
 import type {
   PackageBoxFilters,
   PackageBoxMeasurement,
+  PackageBoxMeasurementCount,
   PackageBoxRepositoryPort,
   PackageBoxSiblings,
   PackageBoxSiblingView,
@@ -175,6 +176,24 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
     }
   }
 
+  async countMeasurement(input: {
+    readonly companyId: string
+    readonly filters: Omit<PackageBoxFilters, 'status'>
+  }): Promise<PackageBoxMeasurementCount> {
+    const [row] = await this.#database
+      .select({
+        measuredCount: sql<string>`count(*) filter (where ${nfePackageBoxes.measuredAt} is not null)`,
+        pendingCount: sql<string>`count(*) filter (where ${nfePackageBoxes.measuredAt} is null)`,
+      })
+      .from(nfePackageBoxes)
+      .where(buildBoxScopeFilter(input))
+
+    return {
+      measuredCount: Number(row?.measuredCount ?? 0),
+      pendingCount: Number(row?.pendingCount ?? 0),
+    }
+  }
+
   /**
    * ⚠️ O volume transportado é `sum(nfe_products.quantity)` do par `(emitente, cProd, uCom)`, e não
    * uma consulta a `nfe_volumes`: medido em 345 NF-e, `qVol` = Σ `qCom` em **100%** delas — cada
@@ -212,7 +231,6 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
       .groupBy(nfeParticipants.taxId, nfeProducts.code, nfeProducts.commercialUnit)
       .as('transported')
 
-    const search = input.filters.search
     const rows = await this.#database
       .select({
         cartonGtin: nfePackageBoxes.cartonGtin,
@@ -243,15 +261,8 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
       )
       .where(
         and(
-          eq(nfePackageBoxes.companyId, input.companyId),
+          buildBoxScopeFilter({ companyId: input.companyId, filters: input.filters }),
           buildStatusFilter(input.filters.status),
-          buildScanFilter(input.filters.scanCodes),
-          search === undefined
-            ? undefined
-            : or(
-                ilike(nfePackageBoxes.description, `%${search}%`),
-                ilike(nfePackageBoxes.productCode, `%${search}%`),
-              ),
         ),
       )
       /**
@@ -584,6 +595,24 @@ function toSiblingView(row: SiblingRow): PackageBoxSiblingView {
     variantLabel: resolveBoxFamily(row).variantLabel,
     widthMm: row.widthMm,
   }
+}
+
+/** Empresa, busca e bipe — tudo menos a situação, que a listagem soma e o contador ignora. */
+function buildBoxScopeFilter(input: {
+  readonly companyId: string
+  readonly filters: Omit<PackageBoxFilters, 'status'>
+}) {
+  const search = input.filters.search
+  return and(
+    eq(nfePackageBoxes.companyId, input.companyId),
+    buildScanFilter(input.filters.scanCodes),
+    search === undefined
+      ? undefined
+      : or(
+          ilike(nfePackageBoxes.description, `%${search}%`),
+          ilike(nfePackageBoxes.productCode, `%${search}%`),
+        ),
+  )
 }
 
 function buildStatusFilter(status: PackageBoxFilters['status']) {

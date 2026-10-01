@@ -19,6 +19,8 @@ export type ListPackageBoxesResult = {
     readonly share: number
     readonly withinCoverage: boolean
   })[]
+  readonly measuredCount: number
+  readonly pendingCount: number
   readonly totalVolumes: number
 }
 
@@ -42,15 +44,22 @@ export function createListPackageBoxes(dependencies: {
 }): ListPackageBoxes {
   return {
     async execute(input): Promise<ListPackageBoxesResult> {
-      const { scanned, ...filters } = input.filters
-      const items = await dependencies.repository.list({
-        companyId: input.context.companyId,
-        filters: {
-          ...filters,
-          ...(scanned === undefined ? {} : { scanCodes: buildScanCodes(scanned) }),
-        },
-        limit: input.limit,
-      })
+      const { scanned, status, ...searchFilters } = input.filters
+      const countFilters = {
+        ...searchFilters,
+        ...(scanned === undefined ? {} : { scanCodes: buildScanCodes(scanned) }),
+      }
+      const [items, counts] = await Promise.all([
+        dependencies.repository.list({
+          companyId: input.context.companyId,
+          filters: { ...countFilters, ...(status === undefined ? {} : { status }) },
+          limit: input.limit,
+        }),
+        dependencies.repository.countMeasurement({
+          companyId: input.context.companyId,
+          filters: countFilters,
+        }),
+      ])
 
       const queue: MeasurementQueue = buildMeasurementQueue({
         items: items.map((item) => ({
@@ -76,6 +85,8 @@ export function createListPackageBoxes(dependencies: {
                 },
               ]
         }),
+        measuredCount: counts.measuredCount,
+        pendingCount: counts.pendingCount,
         totalVolumes: queue.totalVolumes,
       }
     },

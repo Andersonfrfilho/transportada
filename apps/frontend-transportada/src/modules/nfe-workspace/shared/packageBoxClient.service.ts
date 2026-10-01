@@ -126,6 +126,9 @@ export type PackageBoxStatusFilter = (typeof PACKAGE_BOX_STATUS_FILTERS)[number]
 export type PackageBoxQueue = Readonly<{
   coveredCount: number
   items: readonly PackageBox[]
+  /** Da empresa inteira (busca respeitada, situação não): independe da página carregada. */
+  measuredCount: number
+  pendingCount: number
   totalVolumes: number
 }>
 
@@ -318,12 +321,16 @@ export function createPackageBoxClient(dependencies: ClientDependencies): Packag
 export function packageBoxQueueFromApi(body: unknown): PackageBoxQueue {
   if (!isRecord(body) || !isRecord(body.data))
     throw new PackageBoxRequestError({ code: 'PACKAGE_BOX_MALFORMED' })
-  const { coveredCount, items, totalVolumes } = body.data
+  const { coveredCount, items, measuredCount, pendingCount, totalVolumes } = body.data
   if (!Array.isArray(items) || !items.every(isPackageBox))
+    throw new PackageBoxRequestError({ code: 'PACKAGE_BOX_MALFORMED' })
+  if (!isNumber(measuredCount) || !isNumber(pendingCount))
     throw new PackageBoxRequestError({ code: 'PACKAGE_BOX_MALFORMED' })
   return {
     coveredCount: isNumber(coveredCount) ? coveredCount : 0,
     items,
+    measuredCount,
+    pendingCount,
     totalVolumes: isNumber(totalVolumes) ? totalVolumes : 0,
   }
 }

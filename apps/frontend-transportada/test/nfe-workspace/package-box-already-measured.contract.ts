@@ -97,7 +97,12 @@ describe('leitura de caixa já medida (avisa e pede conferência)', () => {
     const captured: { url?: string } = {}
     const client = createPackageBoxClient({
       apiUrl: 'https://api.test',
-      fetch: buildFetch({ data: { coveredCount: 0, items: [], totalVolumes: 0 } }, captured),
+      fetch: buildFetch(
+        {
+          data: { coveredCount: 0, items: [], measuredCount: 0, pendingCount: 0, totalVolumes: 0 },
+        },
+        captured,
+      ),
       getAccessToken: () => Promise.resolve('token'),
     })
 

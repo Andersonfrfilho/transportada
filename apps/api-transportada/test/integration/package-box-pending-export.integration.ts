@@ -101,6 +101,42 @@ describe('exportar as caixas pendentes (Postgres)', () => {
   })
 
   testWithPostgres(
+    'conta medidas e pendentes da empresa inteira: a página, a situação e a outra empresa não mexem',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const scenario = await seedScenario(database)
+        const listPackageBoxes = createListPackageBoxes({
+          repository: new DrizzlePackageBoxRepository(database.db),
+        })
+
+        const firstPage = await listPackageBoxes.execute({
+          context: { companyId: scenario.companyId },
+          filters: { status: 'pending' },
+          limit: 1,
+        })
+        const measuredView = await listPackageBoxes.execute({
+          context: { companyId: scenario.companyId },
+          filters: { status: 'measured' },
+          limit: 1,
+        })
+        const searched = await listPackageBoxes.execute({
+          context: { companyId: scenario.companyId },
+          filters: { search: 'CAIXA MEDIDA', status: 'all' },
+          limit: 50,
+        })
+
+        expect(firstPage.items).toHaveLength(1)
+        expect(firstPage.measuredCount).toBe(1)
+        expect(firstPage.pendingCount).toBe(PENDING_COUNT)
+        expect(measuredView.measuredCount).toBe(1)
+        expect(measuredView.pendingCount).toBe(PENDING_COUNT)
+        expect(searched.measuredCount).toBe(1)
+        expect(searched.pendingCount).toBe(0)
+      })
+    },
+  )
+
+  testWithPostgres(
     'ordena pelo volume transportado da própria empresa — o da outra não entra na conta',
     async () => {
       await withDisposableDatabase(async (database) => {
