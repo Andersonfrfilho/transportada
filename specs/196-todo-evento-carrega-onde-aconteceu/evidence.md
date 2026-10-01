@@ -454,15 +454,21 @@ fundos, distância CIELab entre si e contra a superfície do mapa base, e os hex
 legenda conferidos contra os do TypeScript. É a correção da mesma classe de defeito que o pino
 `#f5f5f5` com contraste 1,04 produziu na T6.1.
 
-⚠️ **A rota pelo asfalto não existe e não vai existir assim.** Traçá-la exigiria mandar as
-coordenadas a um serviço de roteamento, e ADR-0044 §6 proíbe coordenada sair para terceiro. O traço é
-reto entre pontos consecutivos, e a legenda **diz isso** em vez de deixar a linha mentir sobre o
-caminho percorrido.
+⚠️ **Correção: este parágrafo estava errado, e a rota pelo asfalto passou a existir.** A redação
+anterior dizia que traçá-la exigiria mandar coordenada a terceiro e que a ADR-0044 §6 proibia. A
+proibição é real, mas não se aplica: o serviço de roteamento é **nosso** (`ROUTING_MATRIX_URL`,
+OSRM auto-hospedado), a chamada é servidor-a-servidor, e o painel nunca fala com ele — pede à API.
+Nenhuma coordenada sai para terceiro, nem em URL, nem em query string, nem em log. O traço hoje
+segue as vias; quando a geometria não vem, cai para reto e **a legenda diz qual dos dois está
+desenhado**, em vez de deixar a linha mentir sobre o caminho percorrido.
 
-⚠️ **O desenho do mapa não foi verificado por ninguém.** O WebGL do MapLibre não sobe no ambiente de
-teste, então o contrato roda com o mapa dublado: ele prova o DOM, a ordem e as cores, e não prova
-pino, tracejado, leque nem os 375 px. Isso é exatamente o que o preview da T6.3 existe para provar, e
-nada sobe antes dele.
+⚠️ **O contrato nunca prova o desenho.** O WebGL do MapLibre não sobe no ambiente de teste, então o
+contrato roda com o mapa dublado: prova DOM, ordem e cores, e não prova pino, tracejado nem leque.
+O desenho foi verificado **na tela**, no preview local, e está medido abaixo — pino de 27 px com 72 %
+do selo de ordem fora dele, rótulo de tempo sobre o trecho, traço seguindo as vias. **Os 375 px
+continuam sem prova:** o Chrome no macOS trava `innerWidth` em 500, e o que existe é 500 px de janela
+real mais o contêiner do mapa estreitado a 341 px por `ResizeObserver`. Quem tiver um aparelho na mão
+fecha essa lacuna em um minuto; eu não fechei.
 
 ## Integração da API — a corrida limpa
 
@@ -984,3 +990,35 @@ tudo; agora o contrato proíbe essa frase e cobra que ela fale do pino, nos dois
 
 Portões: `format:check` 0 · `typecheck` 0 · `check` da app 0 · a suíte do contrato 28 casos, 101
 asserções, 0 falhas.
+
+## Fechamento — o portão inteiro e a prova de tela
+
+Rodado comando a comando na árvore final (o hook de pre-commit reescreve arquivos no worktree, então
+`make check` não é confiável aqui):
+
+| gate                   | saída                                       |
+| ---------------------- | ------------------------------------------- |
+| `bun run format:check` | 0 — todos os arquivos no estilo do Prettier |
+| `bun run lint`         | 0 — 16 avisos, 0 erros                      |
+| `bun run typecheck`    | 0 — sete apps                               |
+| `bun run test`         | 0 — **17.370 casos, 0 falhas**              |
+| `bun run build`        | 0                                           |
+
+Medido na tela do preview (`localhost:53112`, viagem `5f5820bd`), com a janela à frente:
+
+- **Botões no vão do ícone, com respiro.** `Ver mais` e `Ver no mapa`: `padding-inline` 8 px, altura
+  44 px, caixa em `x = 48` contra o título em `x = 56` — os 8 px de diferença são exatamente a
+  `margin-inline-start` negativa que alinha o texto sem comer o alvo. Quatro botões, mesma medida.
+- **Selo de ordem.** Pino 27 × 27, glifo 16,1 px, selo 15 × 15 com **72 % da área fora do pino** e
+  **2,5 % do glifo coberto**. Idêntico nos quatro pinos numerados.
+- **Rótulo de tempo.** `1 min` visível sobre o trecho, 26 px abaixo do centro do pino de chegada.
+- **Traço pelo asfalto.** A linha sai de Ribeirão Preto e desce pelas vias até a região de Sorocaba.
+
+Prints em `prints/`: `196-mapa-eventos-1280.jpg`, `196-mapa-eventos-500.jpg`,
+`196-linha-do-tempo-500.jpg`.
+
+⚠️ **Um rótulo de três, e não é defeito.** Os quatro eventos localizados desta viagem de preview
+foram criados com segundos de diferença (`15:55:32` e `15:56:17`): dois intervalos são 0 min e, por
+decisão registrada acima, intervalo abaixo de um minuto fica na lista e não vai ao mapa. O único
+intervalo ≥ 1 min é o que aparece. Ver os três exigiria espalhar os horários no Postgres local, o que
+não foi feito — o dado de preview é compartilhado entre sessões.
