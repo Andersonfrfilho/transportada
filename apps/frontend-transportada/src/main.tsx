@@ -51,7 +51,12 @@ import { getNotificationClient } from '@/modules/notification/shared/notificatio
 import { NOTIFICATION_THEME_CLASS } from '@/modules/notification/shared/notificationTheme.constant'
 import notificationStyles from '@/modules/notification/styles/notification.module.css'
 import { QUERY_CLIENT_DEFAULT_OPTIONS } from '@/modules/shared/queryClientDefaults.constant'
-import { resolveNavigationMenu } from '@/modules/shared/workspaceAccess.service'
+import { NoWorkspaceAccess } from '@/modules/identity/components/NoWorkspaceAccess.component'
+import {
+  resolveLandingWorkspace,
+  resolveNavigationMenu,
+  type WorkspaceSource,
+} from '@/modules/shared/workspaceAccess.service'
 import {
   WORKSPACE_NAVIGATION_ITEMS,
   type NavigationGroup,
@@ -118,7 +123,11 @@ function persistWorkspacePreference(workspace: WorkspaceNavigationItem['key']): 
   sessionStorage.setItem(WORKSPACE_STORAGE_KEY, workspace)
 }
 
-function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
+/**
+ * Spec 221 RF-C1b: a origem muda a decisão da aterrissagem — endereço pedido pela pessoa nunca é
+ * trocado, a última tela da sessão é respeitada se ela puder abri-la, e só a falta de endereço cede.
+ */
+function resolveWorkspaceFromPath(): WorkspaceNavigationItem['key'] | undefined {
   /** O detalhe da fatura é uma tela do faturamento: o menu continua marcando a mesma entrada. */
   if (parseBillingInvoiceRoute(window.location.pathname) !== null) return 'billing'
   if (window.location.pathname === '/billing') return 'billing'
@@ -145,6 +154,16 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
   if (window.location.pathname === '/usuarios') return 'users'
   if (window.location.pathname === '/papeis') return 'access-profiles'
 
+  return undefined
+}
+
+function resolveCurrentWorkspaceWithSource(): Readonly<{
+  source: WorkspaceSource
+  workspace: WorkspaceNavigationItem['key']
+}> {
+  const fromPath = resolveWorkspaceFromPath()
+  if (fromPath !== undefined) return { source: 'path', workspace: fromPath }
+
   const storedWorkspace = sessionStorage.getItem(WORKSPACE_STORAGE_KEY)
   if (
     storedWorkspace === 'billing' ||
@@ -168,10 +187,14 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
     storedWorkspace === 'users' ||
     storedWorkspace === 'access-profiles'
   ) {
-    return storedWorkspace
+    return { source: 'stored', workspace: storedWorkspace }
   }
 
-  return 'nfe'
+  return { source: 'default', workspace: 'nfe' }
+}
+
+function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
+  return resolveCurrentWorkspaceWithSource().workspace
 }
 
 /**
@@ -465,6 +488,32 @@ function ApplicationShell(): ReactNode {
     }
   }, [permissions])
 
+  /**
+   * Spec 221 RF-C2/C6: quem entrou sem endereço escolhido aterrissa numa tela que pode abrir — o
+   * `nfe` fixo exigia `invoices.read`, que quatro papéis não têm. Roda **depois** do efeito da conta
+   * de campo e só para quem não é dela: o motorista sai do painel, e não aterrissa em workspace nenhum.
+   */
+  const roles = authMeQuery.data?.data.roles
+  const entry = resolveCurrentWorkspaceWithSource()
+  const landing =
+    permissions === undefined || roles === undefined || isFieldOnlyUser(permissions)
+      ? undefined
+      : resolveLandingWorkspace({
+          current: entry.workspace,
+          permissions,
+          roles,
+          source: entry.source,
+        })
+  const landingTarget = landing?.kind === 'replace' ? landing.workspace : undefined
+  useEffect(() => {
+    if (landingTarget === undefined) return
+    const target = WORKSPACE_NAVIGATION_ITEMS.find((item) => item.key === landingTarget)
+    if (target === undefined) return
+    window.history.replaceState({}, '', target.href)
+    setCurrentWorkspace(target.key)
+    setCurrentPath(target.href)
+  }, [landingTarget])
+
   useEffect(() => {
     function syncLocation(): void {
       setCurrentWorkspace(resolveCurrentWorkspace())
@@ -517,6 +566,14 @@ function ApplicationShell(): ReactNode {
   })
   const fiscalEnvironment = authMeQuery.data?.data.company.fiscalEnvironment ?? null
   const colorTheme = useColorTheme()
+
+  /**
+   * Spec 221 RF-C5: conta sem nenhuma área abre a tela de beco, não o shell com a barra vazia. A
+   * conta de campo nunca chega aqui — o efeito dela decidiu antes, e `landing` é `undefined` para ela.
+   */
+  if (landing?.kind === 'no-access') {
+    return <NoWorkspaceAccess onSignOut={() => void getKeycloakAuthProvider().logout()} />
+  }
 
   return (
     <div

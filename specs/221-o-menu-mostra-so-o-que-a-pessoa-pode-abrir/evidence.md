@@ -535,3 +535,59 @@ bun run lint        → 0 erros, 16 avisos pré-existentes
 bun run format:check → limpo
 bun run --cwd apps/frontend-transportada build → exit 0
 ```
+
+## Fase 4 — A aterrissagem respeita a permissão (sessão coordenadora, 2026-10-01)
+
+### T4.1 🧠 — a ordem, e o que ela revelou
+
+A decisão da conta de campo (Fase 1) roda **antes** e exclui a aterrissagem: `landing` só é calculado
+quando `!isFieldOnlyUser(permissions)`. Assim o motorista sai do painel e nunca aterrissa em workspace
+nenhum, e a RF-E5 (conta de campo não vê a tela de "sem acesso") sai de graça, sem condição extra.
+
+O ponto difícil não era a ordem, era **distinguir "URL digitada" de "aterrissagem sem endereço"**. A
+RF-C4 proíbe redirecionar a primeira, e `resolveCurrentWorkspace` devolvia só a chave — as duas eram
+indistinguíveis. Daí a RF-C1b: a função passou a reportar a origem (`path | stored | default`),
+extraindo as 25 comparações de caminho para `resolveWorkspaceFromPath`.
+
+Isso também achou uma **contradição na própria spec**: a CA06 dizia que um separador com `billing` no
+`sessionStorage` aterrissa em NF-e, mas a CA14 (preferência do separador) manda para Viagens. A CA06
+foi corrigida — preferência vence "primeiro item visível".
+
+### Prova por mutação (duas pontas da regra)
+
+```
+# ignorando a origem 'path' (redirecionaria URL digitada)
+bun test test/shared.contract.test.ts → 389 pass / 1 fail
+  (fail) endereço pedido pela pessoa nunca é trocado — a parede da página responde (CA07)
+
+# ignorando a preferência do separador
+bun test test/shared.contract.test.ts → 386 pass / 4 fail
+  (fail) a última tela que a conta não abre cede lugar, e com replace (CA06)
+  (fail) destino igual ao atual não navega — é o que impede o laço com o próprio efeito
+  (fail) o separador começa em Viagens, não no primeiro item do menu (CA14)
+  (fail) o motorista que também é separador começa em Viagens (CA16)
+
+# código correto
+bun test test/shared.contract.test.ts → 390 pass / 0 fail
+```
+
+### Gates
+
+```
+bun run --cwd apps/frontend-transportada test → 6142 pass / 0 fail + 179 pass / 0 fail (hooks)
+bun run typecheck    → 0 erros, 7 apps
+bun run lint         → 0 erros, 16 avisos (os mesmos pré-existentes)
+bun run format:check → limpo
+bun run --cwd apps/frontend-transportada build → exit 0
+```
+
+⚠️ O lint acusou dois avisos novos na primeira tentativa (`exhaustive-deps`: expressão complexa no
+array de dependências). Corrigido extraindo `landingTarget` para variável, **não** com
+`eslint-disable` — `react.md` proíbe a supressão dessa regra. Voltou aos 16 pré-existentes.
+
+### Pendência registrada
+
+A RF-E4 (conta de campo não vê a barra em instante nenhum) está satisfeita pelo caminho do
+redirecionamento, mas com o interruptor `VITE_DRIVER_APP_URL` desligado a conta de campo **fica** no
+painel em `/minha-viagem` e vê uma barra com um item ("Minha viagem"). É o comportamento desenhado
+para a transição da ADR-0075 §6 — não é regressão —, e desaparece quando o interruptor liga.

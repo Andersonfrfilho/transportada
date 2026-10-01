@@ -640,5 +640,11 @@
   "activationDone": "Acesso ativado. Entre com o seu e-mail e a senha que acabou de escolher.",
   "activationGoToLogin": "Ir para o login",
   "activationRejected": "Não foi possível ativar. Confira o código — ele é de uso único e expira — e tente de novo, ou peça um novo convite.",
-  "activationPasswordMismatch": "As duas senhas não são iguais."
+  "activationPasswordMismatch": "As duas senhas não são iguais.",
+  "noWorkspaceAccess": {
+    "title": "Sua conta não tem acesso a nenhuma área do painel",
+    "body": "O seu usuário está ativo, mas nenhuma permissão foi atribuída a ele — por isso não há nada para abrir aqui.",
+    "askAdmin": "Peça ao administrador da sua transportadora para revisar os papéis da sua conta.",
+    "signOut": "Sair"
+  }
 }

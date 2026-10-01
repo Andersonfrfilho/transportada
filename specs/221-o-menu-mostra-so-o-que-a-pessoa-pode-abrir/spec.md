@@ -187,10 +187,15 @@ Como **separador**, quero abrir o painel já na listagem de viagens, porque é d
 
 ### C. A aterrissagem respeita a permissão
 
-- **RF-C1.** `resolveCurrentWorkspace()` (`main.tsx:225`) continua decidindo por URL e por
-  `sessionStorage` **sem** consultar permissão: ela é síncrona e roda antes de `authMeQuery`
-  responder. O filtro de aterrissagem é um segundo passo, depois das permissões, no molde do
-  redirecionamento do motorista (`main.tsx:507`).
+- **RF-C1.** `resolveCurrentWorkspace()` continua decidindo por URL e por `sessionStorage` **sem**
+  consultar permissão: ela é síncrona e roda antes de `authMeQuery` responder. O filtro de aterrissagem
+  é um segundo passo, depois das permissões, no molde do redirecionamento do motorista.
+- **RF-C1b.** A decisão de aterrissagem precisa saber **de onde** veio o workspace, e são três origens
+  com tratamentos diferentes: `path` (a pessoa pediu aquele endereço — nunca se redireciona, RF-C4),
+  `stored` (a última tela da sessão — respeitada se a conta puder abri-la) e `default` (não havia
+  endereço nenhum, e hoje isso cai no `nfe` fixo). Por isso `resolveCurrentWorkspace` passa a devolver
+  a origem junto da chave; sem ela, "URL digitada" e "aterrissagem sem endereço" são indistinguíveis, e
+  qualquer regra acerta uma às custas da outra.
 - **RF-C2.** Resolvido o workspace e conhecidas as permissões, se o escolhido não é aberto por
   nenhuma delas, o painel navega para a **aterrissagem preferida** da conta (RF-C6) e, na falta de
   preferência, para o **primeiro item visível do menu** na ordem de `WORKSPACE_NAVIGATION_ITEMS`. O
@@ -306,7 +311,9 @@ Como **separador**, quero abrir o painel já na listagem de viagens, porque é d
 5. **CA05.** Acrescentar uma chave em `WORKSPACE_NAVIGATION_ITEMS` sem entrada no mapa reprova
    `bun run typecheck` — provado por mutação na evidência, não por leitura.
 6. **CA06.** `sessionStorage` apontando para `billing` com permissões de `separator` aterrissa em
-   NF-e, com `history.replaceState`, e o botão "voltar" não devolve o faturamento.
+   **Viagens** — a preferência da CA14 vence o "primeiro item visível", que daria NF-e —, com
+   `history.replaceState`, e o botão "voltar" não devolve o faturamento. `sessionStorage` apontando
+   para uma tela que a conta **pode** abrir é respeitado, sem troca (RF-C1).
 7. **CA07.** URL `/billing` digitada com permissões de `separator` **permanece** em `/billing` e
    mostra a parede do faturamento.
 8. **CA08.** Conjunto de permissões vazio mostra a tela de conta sem acesso, com o botão de sair.

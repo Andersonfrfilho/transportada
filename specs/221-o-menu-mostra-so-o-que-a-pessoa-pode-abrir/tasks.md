@@ -78,28 +78,28 @@ painel do escritório da mão de quem está na rua.
 
 > 🤖 Modelo: `sonnet` (T4.1 é 🧠 — validar com `architect` em `opus` antes de implementar)
 
-- [ ] T4.1 🧠 Desenhar a ordem entre a decisão da conta de campo (Fase 1), o redirecionamento do
+- [x] T4.1 🧠 Desenhar a ordem entre a decisão da conta de campo (Fase 1), o redirecionamento do
       motorista e a aterrissagem: quem decide primeiro, o que acontece quando a conta de campo já foi
       tratada, e como o efeito não entra em laço com a própria navegação nem com `popstate`.
       Registrar a ordem escolhida em `evidence.md` antes de escrever código.
-- [ ] T4.2 [P] Contrato de `resolveLandingWorkspace`: permitido fica (`stay`), proibido troca pelo
+- [x] T4.2 [P] Contrato de `resolveLandingWorkspace`: permitido fica (`stay`), proibido troca pelo
       primeiro visível (`replace`), nenhum visível é `no-access`, destino igual ao atual não navega
       (CA06, CA08)
-- [ ] T4.3 [P] Contrato da **preferência por papel**: `separator` puro aterrissa em `trip` (CA14),
+- [x] T4.3 [P] Contrato da **preferência por papel**: `separator` puro aterrissa em `trip` (CA14),
       `separator` + `operator` cai na regra geral (CA15), motorista-separador aterrissa em `trip`
       (CA16, segunda metade), preferência que a conta não pode abrir é ignorada (CA18). Mais o
       contrato da D9: o módulo do mapa não importa `CompanyRole`.
-- [ ] T4.4 `resolveLandingWorkspace` e `LANDING_PREFERENCE` em `workspaceAccess.service.ts` (puras,
+- [x] T4.4 `resolveLandingWorkspace` e `LANDING_PREFERENCE` em `workspaceAccess.service.ts` (puras,
       sem `window`); `roles` entra só aqui
-- [ ] T4.5 Efeito no `main.tsx` com `history.replaceState` (nunca `push`, RF-C3), só na aterrissagem
+- [x] T4.5 Efeito no `main.tsx` com `history.replaceState` (nunca `push`, RF-C3), só na aterrissagem
       sem endereço escolhido — URL digitada permanece e cai na parede (RF-C4, CA07)
-- [ ] T4.6 Tela de conta sem acesso (`NoWorkspaceAccess.component.tsx`) com frase, a quem pedir e
+- [x] T4.6 Tela de conta sem acesso (`NoWorkspaceAccess.component.tsx`) com frase, a quem pedir e
       botão de sair; textos em `*.locale.json` pt-BR **acentuado**. Conta de campo nunca chega aqui
       (RF-E5) — afirmar isso no contrato.
 - [ ] T4.7 Se a corrida (efeito × mutation × `popstate`) não se provar pura, contrato de hook em
       `test/trip-hooks/` rodado por `bun run test:hooks` — nunca registrar DOM no processo dos
       contratos
-- [ ] T4.8 `make check` + commit
+- [x] T4.8 `make check` + commit
 
 ## Fase 5 — As três paredes que faltam
 
