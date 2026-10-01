@@ -1289,8 +1289,43 @@
 }
 
 .proofCropStage {
+  --crop-handle-half: calc(var(--touch-target) / 2);
+  max-width: 100%;
+  overflow: hidden;
   position: relative;
   touch-action: none;
+  width: fit-content;
+}
+
+.proofCropFrame {
+  background-image:
+    linear-gradient(
+      to right,
+      transparent calc(33.33% - 0.5px),
+      rgb(240 242 238 / 0.5) 0,
+      rgb(240 242 238 / 0.5) calc(33.33% + 0.5px),
+      transparent 0,
+      transparent calc(66.66% - 0.5px),
+      rgb(240 242 238 / 0.5) 0,
+      rgb(240 242 238 / 0.5) calc(66.66% + 0.5px),
+      transparent 0
+    ),
+    linear-gradient(
+      to bottom,
+      transparent calc(33.33% - 0.5px),
+      rgb(240 242 238 / 0.5) 0,
+      rgb(240 242 238 / 0.5) calc(33.33% + 0.5px),
+      transparent 0,
+      transparent calc(66.66% - 0.5px),
+      rgb(240 242 238 / 0.5) 0,
+      rgb(240 242 238 / 0.5) calc(66.66% + 0.5px),
+      transparent 0
+    );
+  box-shadow: 0 0 0 9999px rgb(16 34 44 / 0.6);
+  outline: 1px solid var(--color-fog);
+  outline-offset: -1px;
+  pointer-events: none;
+  position: absolute;
 }
 
 .proofCropStage canvas {
@@ -1301,10 +1336,10 @@
   background: var(--color-graphite);
   border: 2px solid var(--color-alert);
   border-radius: 0;
-  height: var(--control-height);
+  height: var(--touch-target);
   position: absolute;
   transform: translate(-50%, -50%);
-  width: var(--control-height);
+  width: var(--touch-target);
 }
 
 /* Spec 179: "Não entreguei" — os rótulos das perguntas do formulário, no peso do título da seção. */
