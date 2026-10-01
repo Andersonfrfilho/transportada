@@ -120,12 +120,12 @@ painel do escritório da mão de quem está na rua.
 
 > 🤖 Modelo: `sonnet` (revisão final com `code-reviewer` em `opus`)
 
-- [ ] T6.1 Revisão de design (`web.md` §15, CA14): barra antes e depois, recolhida e expandida, em
+- [x] T6.1 Revisão de design (`web.md` §15, CA14): barra antes e depois, recolhida e expandida, em
       375 px e 1280 px; conferir que grupo escondido saiu do DOM e que o foco por teclado não alcança
       item invisível; **print ao usuário**
-- [ ] T6.2 Conferir a tela de sem acesso contra as telas vizinhas (tipografia, espaçamento, botão do
+- [x] T6.2 Conferir a tela de sem acesso contra as telas vizinhas (tipografia, espaçamento, botão do
       design system) — primitivo cru ao lado de um do design system é defeito desta task
-- [ ] T6.3 Atualizar o `CLAUDE.md` da app: o menu filtra por permissão, o mapa mora em
+- [x] T6.3 Atualizar o `CLAUDE.md` da app: o menu filtra por permissão, o mapa mora em
       `workspaceAccess.service.ts`, e conta de campo não abre o painel por caminho nenhum
       (`code-standart.md` §14, documentação viva). Se a Fase 1 mudou o contrato da ADR-0075 §6,
       registrar a emenda na ADR.

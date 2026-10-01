@@ -591,3 +591,41 @@ A RF-E4 (conta de campo não vê a barra em instante nenhum) está satisfeita pe
 redirecionamento, mas com o interruptor `VITE_DRIVER_APP_URL` desligado a conta de campo **fica** no
 painel em `/minha-viagem` e vê uma barra com um item ("Minha viagem"). É o comportamento desenhado
 para a transição da ADR-0075 §6 — não é regressão —, e desaparece quando o interruptor liga.
+
+## Fase 6 — Revisão de design contra a página (2026-10-01)
+
+Painel subido em `localhost:53011` (porta própria: a 53000 estava ocupada por outra sessão), com
+`VITE_SMOKE_AUTH_BYPASS=true` e o payload de `auth/me` injetado em `sessionStorage` para encarnar cada
+papel. Viewport 1280×900.
+
+### Medido na tela, não no CSS
+
+| Conta                  | URL ao entrar  | Itens do menu                                            |
+| ---------------------- | -------------- | -------------------------------------------------------- |
+| `separator`            | `/` → `/trips` | NF-e, Viagens, Ocorrências, Frota, Pendências (5)        |
+| `driver` + `separator` | `/` → `/trips` | os 5 acima **+ Minha viagem** (6)                        |
+| sem permissão nenhuma  | `/`            | nenhum — tela de conta sem acesso, sem shell e sem barra |
+
+Grupos **Usuários** e **Administração** não são renderizados para o separador (CA04 na tela, não só
+no contrato). CA01, CA14, CA16, CA17 e CA08 confirmados por execução.
+
+### O print pegou o que a leitura de CSS não pegaria
+
+A primeira versão de `NoWorkspaceAccess` saiu com o título em **corpo de display**: o `h1` global de
+`styles/index.css:1389` é `clamp(3.5rem, 15vw, 9rem)`, caixa alta, `max-width: 12ch` — a frase
+ocupava o painel inteiro e estourava. Contraste e tokens estavam **todos certos**, e nenhum teste
+reclamaria.
+
+Corrigido comparando com a tela vizinha (`.firstAccessTitle`, a outra tela de beco do painel):
+`.noAccessTitle` com `font-family: var(--font-body)`, `1.5rem`, sem `text-transform`, e
+`.noAccessBody`/`.noAccessHint` na escala dela.
+
+### Contraste, medido no estado final
+
+| Texto              | Cor sobre `#1C2B33` | Razão       |
+| ------------------ | ------------------- | ----------- |
+| Título             | `#F0F2EE`           | **12,92:1** |
+| Corpo              | `#F0F2EE`           | **12,92:1** |
+| Apoio ("peça ao…") | `#8FA3AD`           | **5,55:1**  |
+
+Os três passam AA (4,5:1). Botão "Sair" com 48 px de altura — acima do alvo de toque de 44 px.
