@@ -37,6 +37,8 @@ function row(input: {
     id: input.id,
     kind: input.kind,
     lateRegistration: false,
+    location: null,
+    locationState: null,
     occurrence: null,
     occurredAt: new Date(input.occurredAt),
     occurredAtKey: input.occurredAtKey ?? microsecondKey(input.occurredAt),

@@ -17,6 +17,7 @@ import {
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { resolveRecordedAt } from '../application/trip-timeline-merge.service.js'
 import type { TripTimelineRow } from '../application/trip-timeline-merge.service.js'
+import { NO_EVENT_LOCATION } from '../application/trip-timeline.types.js'
 import type { ReadTripTimelineParams } from '../application/trip-timeline.types.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 import {
@@ -87,6 +88,7 @@ export async function listDispatchedRows(
     id: row.id,
     kind: 'trip.dispatched' as const,
     lateRegistration: false,
+    ...NO_EVENT_LOCATION,
     occurrence: null,
     occurredAt: row.occurredAt,
     occurredAtKey: row.occurredAtKey,
@@ -175,6 +177,7 @@ export async function listStatusChangedRows(
     id: row.id,
     kind: 'trip.status_changed' as const,
     lateRegistration: false,
+    ...NO_EVENT_LOCATION,
     occurrence: null,
     occurredAt: row.occurredAt,
     occurredAtKey: row.occurredAtKey,
@@ -249,6 +252,7 @@ export async function listCreatedRows(
     id: row.id,
     kind: 'trip.created' as const,
     lateRegistration: false,
+    ...NO_EVENT_LOCATION,
     occurrence: null,
     occurredAt: row.occurredAt,
     occurredAtKey: row.occurredAtKey,

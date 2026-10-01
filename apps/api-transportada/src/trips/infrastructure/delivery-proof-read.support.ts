@@ -33,7 +33,10 @@ import {
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
-import type { DeliveryProofRecord } from '../application/read-delivery-proof.use-case.js'
+import type {
+  DeliveryProofLocation,
+  DeliveryProofRecord,
+} from '../application/read-delivery-proof.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
 import type {
   OccurrenceTypeRecord,
@@ -105,6 +108,8 @@ export async function listDeliveryProofs(
       lateRegistration: sql<boolean>`${tripDeliveryProofs.lateRegistration} or ${tripStopEvents.lateRegistration}`,
       mimeType: storedObjects.mimeType,
       objectKey: storedObjects.objectKey,
+      locationState: tripDeliveryProofs.locationState,
+      proofAccuracyMeters: tripDeliveryProofs.accuracyMeters,
       proofLatitude: tripDeliveryProofs.latitude,
       proofLongitude: tripDeliveryProofs.longitude,
       punctuality: tripDeliveryProofs.punctuality,
@@ -185,6 +190,8 @@ export async function listDeliveryProofs(
     id: row.id,
     kind: row.kind,
     lateRegistration: row.lateRegistration,
+    location: measureProofLocation(row),
+    locationState: row.locationState ?? null,
     mimeType: row.mimeType,
     objectKey: row.objectKey,
     punctuality: row.punctuality,
@@ -201,6 +208,30 @@ export async function listDeliveryProofs(
             objectKey: row.thumbnailObjectKey,
           },
   }))
+}
+
+function measureProofLocation(row: {
+  readonly capturedAt: Date | null
+  readonly createdAt: Date
+  readonly eventLatitude: null | string
+  readonly eventLongitude: null | string
+  readonly proofAccuracyMeters: null | string
+  readonly proofLatitude: null | string
+  readonly proofLongitude: null | string
+}): DeliveryProofLocation | null {
+  if (row.proofLatitude === null || row.proofLongitude === null) return null
+  return {
+    accuracyMeters: row.proofAccuracyMeters === null ? null : Number(row.proofAccuracyMeters),
+    capturedAt: (row.capturedAt ?? row.createdAt).toISOString(),
+    distanceMeters: measureProofDistance({
+      eventLatitude: row.eventLatitude,
+      eventLongitude: row.eventLongitude,
+      proofLatitude: row.proofLatitude,
+      proofLongitude: row.proofLongitude,
+    }),
+    latitude: Number(row.proofLatitude),
+    longitude: Number(row.proofLongitude),
+  }
 }
 
 /** Referência é a posição do evento de entrega — a mesma de `classifyProofPunctuality`, não o pino da parada. */

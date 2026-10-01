@@ -400,6 +400,8 @@ const TRIP_READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
  * sem ganhar `fleet.read`, que é a ficha de todos os motoristas (CPF, CNH, PIX, endereço). Só nestas
  * leituras; feed, geometria, produtos, agendamento e prontidão fiscal continuam `fleet.read`.
  */
+/** ADR-0081 §6: quem pode ver *onde* o motorista tocou. */
+const TRIP_EVENT_LOCATION_PERMISSION = 'trip.event-location'
 const TRIP_FIELD_READ_POLICY = {
   anyPermission: [TRIP_READ_POLICY.permission, TRIP_REPORT_ON_BEHALF_PERMISSION],
   scope: 'company',
@@ -716,6 +718,7 @@ type Dependencies = {
   /** Spec 158 T6: a linha do tempo unificada — o caso de uso resolve o 404 antes de ler qualquer fonte. */
   readonly readTripTimeline: {
     execute(input: {
+      readonly canReadEventLocation: boolean
       readonly context: CompanyContext
       readonly cursor: TripTimelineCursor | null
       readonly limit: number
@@ -987,6 +990,7 @@ export function createTripRoutes(
     }>({
       async handle({ context, input }): Promise<Response> {
         const timeline = await dependencies.readTripTimeline.execute({
+          canReadEventLocation: context.scope.permissions.has(TRIP_EVENT_LOCATION_PERMISSION),
           context: context.scope,
           cursor: input.cursor,
           limit: input.limit,

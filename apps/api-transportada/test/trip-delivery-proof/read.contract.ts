@@ -316,6 +316,9 @@ describe('read delivery proofs contract', () => {
       expect(view).not.toHaveProperty('distanceMeters')
     })
 
+    // Emenda spec 196 T4.1: o ADR-0081 §6.1 revogou o veto à coordenada **na linha do tempo**, atrás de
+    // `trip.event-location`. A view do comprovante segue sem publicá-la — o validador do painel é de
+    // chave exata e recusaria a lista —, então a expectativa continua valendo até a spec que a abra.
     test('nenhuma coordenada nem precisão no corpo', async () => {
       const body = JSON.stringify(await readProofs([WITH_POSITION, WITHOUT_POSITION]))
 

@@ -31,6 +31,7 @@ describe('createReadTripTimelineUseCase (spec 158 T6)', () => {
 
     await expect(
       useCase.execute({
+        canReadEventLocation: true,
         context: { companyId: OTHER_COMPANY_ID },
         cursor: null,
         limit: 100,
@@ -63,6 +64,7 @@ describe('createReadTripTimelineUseCase (spec 158 T6)', () => {
       occurredAt: '2026-09-18T00:00:00.000000Z',
     }
     const result = await useCase.execute({
+      canReadEventLocation: true,
       context: { companyId: COMPANY_ID },
       cursor,
       limit: 37,

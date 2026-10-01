@@ -26,6 +26,7 @@ export const PERMISSION_GROUPS = [
       'trip.report',
       'trip.report-on-behalf',
       'trip.financials',
+      'trip.event-location',
       'cargo.measure',
     ],
   },

@@ -388,6 +388,10 @@
         "label": "Ver dinheiro da viagem",
         "where": "Custo, margem e o valor pago ao motorista."
       },
+      "trip.event-location": {
+        "label": "Ver onde o evento aconteceu",
+        "where": "Na linha do tempo da viagem: a coordenada de cada toque do motorista, a precisão e a distância até o ponto de entrega."
+      },
       "mdfe.read": {
         "label": "Ver MDF-e",
         "where": "Tela Manifestos: a listagem e o DAMDFE."

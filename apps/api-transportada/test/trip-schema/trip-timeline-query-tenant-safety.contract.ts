@@ -44,8 +44,23 @@ describe('tenant safety da linha do tempo da viagem (spec 158 T5)', () => {
     // Mesma exceção do feed (D3/T9 da spec 156): `identity_user_profiles` não tem `company_id` — é
     // global, por `user_id` — e só entra depois da junção com `userCompanyMemberships`, já escopada.
     const actorProfileJoins = QUERY_SOURCE.match(/\.leftJoin\(timelineActorProfile, eq\(/gu) ?? []
+    // Emenda spec 196 T4.1: `geocoded_addresses` também não tem `company_id` (ADR-0044 §5 — a
+    // coordenada de um endereço não é de ninguém). Só entra casada pela `address_key` de `trip_stops`,
+    // que já está escopada pela empresa, e o teste abaixo trava essa âncora.
+    const geocodedAddressJoins =
+      QUERY_SOURCE.match(
+        /\.leftJoin\(geocodedAddresses, eq\(geocodedAddresses\.addressKey, tripStops\.addressKey\)\)/gu,
+      ) ?? []
     expect(joins.length).toBeGreaterThan(0)
-    expect(scopedJoins.length + actorProfileJoins.length).toBe(joins.length)
+    expect(scopedJoins.length + actorProfileJoins.length + geocodedAddressJoins.length).toBe(
+      joins.length,
+    )
+  })
+
+  test('a coordenada de referência só é lida pela address_key da parada da própria viagem', () => {
+    expect(QUERY_SOURCE).toContain('eq(geocodedAddresses.addressKey, tripStops.addressKey)')
+    expect(QUERY_SOURCE).toContain('tripStopEvents.latitude')
+    expect(QUERY_SOURCE).toContain('tripStopEvents.locationState')
   })
 
   test('D3/ADR-0068 §4: trip_document_events com driver_app sai como channel null, sem reescrita', () => {

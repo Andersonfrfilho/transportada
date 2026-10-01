@@ -34,9 +34,11 @@ import {
   trips,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
+import { geocodedAddresses } from '../../src/database/geocoding.schema.js'
 import {
   findTripCompanyScope,
   listTripTimeline,
+  parseTripTimelineCursor,
 } from '../../src/trips/infrastructure/trip-timeline.query.js'
 import type { ReadTripTimelineParams } from '../../src/trips/application/trip-timeline.types.js'
 import { createReadTripTimelineUseCase } from '../../src/trips/application/read-trip-timeline.use-case.js'
@@ -832,12 +834,25 @@ describe('trip-timeline.query (spec 158 T5) contra o Postgres', () => {
         'actorUserId',
         'receiverName',
         'receiverDocumentMasked',
-        'latitude',
-        'longitude',
         'objectKey',
       ]) {
         expect(serialized).not.toContain(forbiddenKey)
       }
+      // Emenda spec 196 T4.1: o ADR-0081 §6.1 revogou o veto à coordenada. Ela segue proibida como
+      // chave solta no item — só existe dentro de `location`, com as cinco chaves do contrato do painel.
+      for (const item of result.items) {
+        expect(Object.keys(item)).not.toContain('latitude')
+        expect(Object.keys(item)).not.toContain('longitude')
+        expect(Object.keys(item)).not.toContain('accuracyMeters')
+      }
+      const located = result.items.find((item) => item.location !== null)
+      expect(Object.keys(located?.location ?? {}).sort()).toEqual([
+        'accuracyMeters',
+        'capturedAt',
+        'distanceMeters',
+        'latitude',
+        'longitude',
+      ])
     })
   })
 
@@ -1098,6 +1113,262 @@ describe('GET /trips/:id/timeline contra o Postgres (spec 158 T6)', () => {
         route.execute({
           context: fakeContext(companyA),
           correlationId: 'integration-timeline',
+          pathParameters: { id: tripOfCompanyB },
+          request: new Request(`http://localhost/trips/${tripOfCompanyB}/timeline`),
+        }),
+      ).rejects.toMatchObject({ code: 'TRIP_NOT_FOUND', status: 404 })
+    })
+  })
+})
+
+/**
+ * Spec 196 T4.2 (ADR-0081 §6): a coordenada e o estado do carimbo chegam à linha do tempo, contra o
+ * Postgres de verdade. Só `trip_stop_events` carimba nesta fatia — as outras fontes respondem
+ * `location: null` e `locationState: null` ("não se aplica"), e o teste prova exatamente isso.
+ */
+type LocatedTimelineItem = {
+  readonly id: string
+  readonly kind: string
+  readonly location: {
+    readonly accuracyMeters: number | null
+    readonly capturedAt: string
+    readonly distanceMeters: number | null
+    readonly latitude: number
+    readonly longitude: number
+  } | null
+  readonly locationState: string | null
+}
+
+function contextWithPermissions(
+  company: Company,
+  permissions: readonly string[],
+): AuthenticatedContext<CompanyContext> {
+  const context = fakeContext(company)
+  return {
+    ...context,
+    scope: { ...context.scope, permissions: new Set(permissions) as never },
+  }
+}
+
+async function requestLocatedTimeline(input: {
+  readonly company: Company
+  readonly database: TestDatabase
+  readonly permissions: readonly string[]
+  readonly tripId: string
+}): Promise<readonly LocatedTimelineItem[]> {
+  const response = await findTimelineRoute(input.database).execute({
+    context: contextWithPermissions(input.company, input.permissions),
+    correlationId: 'integration-event-location',
+    pathParameters: { id: input.tripId },
+    request: new Request(`http://localhost/trips/${input.tripId}/timeline`),
+  })
+  expect(response.status).toBe(200)
+  const body = (await response.json()) as { data: { items: readonly LocatedTimelineItem[] } }
+  return body.data.items
+}
+
+describe('GET /trips/:id/timeline carrega onde o motorista tocou (spec 196 T4.2)', () => {
+  testWithPostgres(
+    'os quatro estados saem com o ponto, a distância derivada e o recorte por permissão',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const referencedStopId = await seedStop(database, company, tripId, 1)
+        const unreferencedStopId = await seedStop(database, company, tripId, 2)
+        await database.db.insert(geocodedAddresses).values({
+          addressKey: `3550308|01001000|${referencedStopId}`,
+          latitude: '-23.5505000',
+          longitude: '-46.6333000',
+          precision: 'rooftop',
+          source: 'manual',
+        })
+        const eventBase = {
+          actorUserId: company.userId,
+          channel: 'driver_app' as const,
+          companyId: company.companyId,
+        }
+        const capturedId = crypto.randomUUID()
+        const capturedWithoutReferenceId = crypto.randomUUID()
+        const unavailableId = crypto.randomUUID()
+        const expiredId = crypto.randomUUID()
+        const notApplicableId = crypto.randomUUID()
+        await database.db.insert(tripStopEvents).values([
+          {
+            ...eventBase,
+            accuracyMeters: '12.50',
+            capturedAt: new Date('2026-10-01T10:00:00.000Z'),
+            createdAt: new Date('2026-10-01T10:00:01.000Z'),
+            id: capturedId,
+            kind: 'arrived',
+            latitude: '-23.5505000',
+            locationState: 'captured',
+            longitude: '-46.6334000',
+            stopId: referencedStopId,
+          },
+          {
+            ...eventBase,
+            capturedAt: new Date('2026-10-01T11:00:00.000Z'),
+            createdAt: new Date('2026-10-01T11:00:01.000Z'),
+            id: capturedWithoutReferenceId,
+            kind: 'arrived',
+            latitude: '-23.5600000',
+            locationState: 'captured',
+            longitude: '-46.6400000',
+            stopId: unreferencedStopId,
+          },
+          {
+            ...eventBase,
+            createdAt: new Date('2026-10-01T12:00:00.000Z'),
+            id: unavailableId,
+            kind: 'departed',
+            locationState: 'unavailable',
+            stopId: referencedStopId,
+          },
+          {
+            ...eventBase,
+            createdAt: new Date('2026-10-01T13:00:00.000Z'),
+            id: expiredId,
+            kind: 'departed',
+            locationState: 'expired',
+            stopId: unreferencedStopId,
+          },
+          {
+            ...eventBase,
+            channel: 'backoffice' as const,
+            createdAt: new Date('2026-10-01T14:00:00.000Z'),
+            id: notApplicableId,
+            kind: 'arrived',
+            stopId: referencedStopId,
+          },
+        ])
+        await database.db.insert(tripStopOccurrences).values({
+          actorUserId: company.userId,
+          channel: 'driver_app',
+          companyId: company.companyId,
+          createdAt: new Date('2026-10-01T15:00:00.000Z'),
+          description: 'sem carimbo',
+          id: crypto.randomUUID(),
+          kind: 'long_wait',
+          stopId: referencedStopId,
+        })
+        await database.db.insert(tripStatusEvents).values({
+          actorUserId: company.userId,
+          channel: 'backoffice',
+          companyId: company.companyId,
+          fromStatus: 'route_planned',
+          id: crypto.randomUUID(),
+          occurredAt: new Date('2026-10-01T16:00:00.000Z'),
+          toStatus: 'separating',
+          tripId,
+        })
+
+        const operatorItems = await requestLocatedTimeline({
+          company,
+          database,
+          permissions: ['fleet.read', 'trip.event-location'],
+          tripId,
+        })
+        const byId = new Map(operatorItems.map((item) => [item.id, item]))
+
+        expect(byId.get(capturedId)?.locationState).toBe('captured')
+        expect(byId.get(capturedId)?.location).toMatchObject({
+          accuracyMeters: 12.5,
+          capturedAt: '2026-10-01T10:00:00.000Z',
+          latitude: -23.5505,
+          longitude: -46.6334,
+        })
+        expect(byId.get(capturedId)?.location?.distanceMeters).toBeGreaterThan(0)
+        expect(byId.get(capturedId)?.location?.distanceMeters).toBeLessThan(200)
+        expect(byId.get(capturedWithoutReferenceId)?.location?.distanceMeters).toBeNull()
+        expect(byId.get(capturedWithoutReferenceId)?.location?.accuracyMeters).toBeNull()
+        expect(byId.get(unavailableId)).toMatchObject({
+          location: null,
+          locationState: 'unavailable',
+        })
+        expect(byId.get(expiredId)).toMatchObject({ location: null, locationState: 'expired' })
+        expect(byId.get(notApplicableId)).toMatchObject({ location: null, locationState: null })
+        for (const item of operatorItems.filter((entry) =>
+          ['stop.occurrence', 'trip.status_changed'].includes(entry.kind),
+        )) {
+          expect(item).toMatchObject({ location: null, locationState: null })
+        }
+
+        const officeItems = await requestLocatedTimeline({
+          company,
+          database,
+          permissions: ['fleet.read'],
+          tripId,
+        })
+        expect(officeItems.map((item) => item.location)).toEqual(officeItems.map(() => null))
+        expect(officeItems.find((item) => item.id === capturedId)?.locationState).toBe('captured')
+        expect(JSON.stringify(officeItems)).not.toContain('-23.5505')
+      })
+    },
+  )
+
+  testWithPostgres(
+    '250 eventos com os quatro estados paginam em 100 sem pular nem repetir, estado preservado',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const stopId = await seedStop(database, company, tripId, 1)
+        const states = ['captured', 'unavailable', 'expired', null] as const
+
+        const rows = Array.from({ length: 250 }, (_unused, index) => {
+          const state = states[index % states.length] ?? null
+          return {
+            actorUserId: company.userId,
+            channel: 'driver_app' as const,
+            companyId: company.companyId,
+            createdAt: new Date(Date.UTC(2026, 9, 1 + Math.floor(index / 50), 8, 0, 0)),
+            id: crypto.randomUUID(),
+            kind: 'arrived' as const,
+            stopId,
+            ...(state === 'captured' ? { latitude: '-23.5505000', longitude: '-46.6333000' } : {}),
+            locationState: state,
+          }
+        })
+        await database.db.insert(tripStopEvents).values(rows)
+        const stateById = new Map<string, string | null>(
+          rows.map((row) => [row.id, row.locationState]),
+        )
+
+        const seen: string[] = []
+        let cursor: ReadTripTimelineParams['cursor'] = null
+        for (let page = 0; page < 4; page += 1) {
+          const result = await listTripTimeline(database.db, {
+            companyId: company.companyId,
+            cursor,
+            limit: 100,
+            tripId,
+          })
+          for (const item of result.items) {
+            expect(item.locationState as string | null).toBe(stateById.get(item.id) ?? null)
+            expect(item.location === null).toBe(item.locationState !== 'captured')
+          }
+          seen.push(...result.items.map((item) => item.id))
+          if (result.nextCursor === null) break
+          cursor = parseTripTimelineCursor(result.nextCursor)
+        }
+
+        expect(seen).toHaveLength(250)
+        expect(new Set(seen)).toEqual(new Set(rows.map((row) => row.id)))
+      })
+    },
+  )
+
+  testWithPostgres('404 para viagem de outra empresa, mesmo com trip.event-location', async () => {
+    await withDisposableDatabase(async (database) => {
+      const companyA = await seedCompany(database)
+      const companyB = await seedCompany(database)
+      const tripOfCompanyB = await seedTrip(database, companyB)
+
+      await expect(
+        findTimelineRoute(database).execute({
+          context: contextWithPermissions(companyA, ['fleet.read', 'trip.event-location']),
+          correlationId: 'integration-event-location',
           pathParameters: { id: tripOfCompanyB },
           request: new Request(`http://localhost/trips/${tripOfCompanyB}/timeline`),
         }),

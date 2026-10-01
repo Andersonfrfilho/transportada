@@ -68,6 +68,7 @@ describe('tenant context contract', () => {
       'nfse.issue',
       'nfse.cancel',
       'nfse.read',
+      'trip.event-location',
     ])
     expect(Object.isFrozen(context.scope.permissions)).toBe(true)
   })

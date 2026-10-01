@@ -8,6 +8,8 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
+import { distanceInMetres } from '../../addresses/domain/coordinate-distance.js'
+import { geocodedAddresses } from '../../database/geocoding.schema.js'
 import { nfeDocuments } from '../../database/nfe.schema.js'
 import {
   tripDocuments,
@@ -16,12 +18,16 @@ import {
   tripStops,
 } from '../../database/trip.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
-import { TRIP_TIMELINE_KIND_PRIORITY } from '../application/trip-timeline.types.js'
+import {
+  NO_EVENT_LOCATION,
+  TRIP_TIMELINE_KIND_PRIORITY,
+} from '../application/trip-timeline.types.js'
 import { resolveRecordedAt } from '../application/trip-timeline-merge.service.js'
 import type { TripTimelineRow } from '../application/trip-timeline-merge.service.js'
 import type {
   ReadTripTimelineParams,
   TripTimelineKind,
+  TripTimelineLocation,
 } from '../application/trip-timeline.types.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 import {
@@ -43,6 +49,35 @@ const STOP_EVENT_KIND_TO_TIMELINE_KIND = {
   departure_cancelled: 'stop.departure_cancelled',
   returned: 'document.returned',
 } as const satisfies Record<string, TripTimelineKind>
+
+type StopEventLocationColumns = {
+  readonly accuracyMeters: string | null
+  readonly capturedAt: Date | null
+  readonly latitude: string | null
+  readonly longitude: string | null
+  readonly recordedAt: Date
+  readonly referenceLatitude: string | null
+  readonly referenceLongitude: string | null
+}
+
+/** `captured_at` é anulável no histórico preenchido pela migration; `recorded_at` é a data do próprio carimbo. */
+function toTimelineLocation(row: StopEventLocationColumns): TripTimelineLocation | null {
+  if (row.latitude === null || row.longitude === null) return null
+  const distance =
+    row.referenceLatitude === null || row.referenceLongitude === null
+      ? null
+      : distanceInMetres(
+          { latitude: row.latitude, longitude: row.longitude },
+          { latitude: row.referenceLatitude, longitude: row.referenceLongitude },
+        )
+  return {
+    accuracyMeters: row.accuracyMeters === null ? null : Number(row.accuracyMeters),
+    capturedAt: (row.capturedAt ?? row.recordedAt).toISOString(),
+    distanceMeters: distance === null ? null : Math.round(distance),
+    latitude: Number(row.latitude),
+    longitude: Number(row.longitude),
+  }
+}
 
 export async function listStopEventRows(
   queryable: TripQueryable,
@@ -80,7 +115,9 @@ export async function listStopEventRows(
 
   const rows = await queryable
     .select({
+      accuracyMeters: tripStopEvents.accuracyMeters,
       actorName: timelineActorProfile.name,
+      capturedAt: tripStopEvents.capturedAt,
       channel: tripStopEvents.channel,
       documentId: tripDocuments.id,
       id: tripStopEvents.id,
@@ -88,10 +125,15 @@ export async function listStopEventRows(
       invoiceSeries: nfeDocuments.series,
       kind: tripStopEvents.kind,
       lateRegistration: tripStopEvents.lateRegistration,
+      latitude: tripStopEvents.latitude,
+      locationState: tripStopEvents.locationState,
+      longitude: tripStopEvents.longitude,
       occurredAt: tripStopEvents.createdAt,
       occurredAtKey: formatTimelineTimestampKey(tripStopEvents.createdAt),
       onBehalfOfDriverName: timelineOnBehalfDriver.name,
       recordedAt: tripStopEvents.recordedAt,
+      referenceLatitude: geocodedAddresses.latitude,
+      referenceLongitude: geocodedAddresses.longitude,
       returnReason: tripDocuments.returnReason,
       stopId: tripStops.id,
       stopSequence: tripStops.sequence,
@@ -104,6 +146,9 @@ export async function listStopEventRows(
         eq(tripStops.id, tripStopEvents.stopId),
       ),
     )
+    // `geocoded_addresses` é global por `address_key` (ADR-0044 §5) e não tem `company_id`; o escopo
+    // da empresa já vem de `trip_stops`, que dá a chave.
+    .leftJoin(geocodedAddresses, eq(geocodedAddresses.addressKey, tripStops.addressKey))
     .leftJoin(
       tripDocuments,
       and(
@@ -152,6 +197,8 @@ export async function listStopEventRows(
       row.kind as keyof typeof STOP_EVENT_KIND_TO_TIMELINE_KIND
     ],
     lateRegistration: row.lateRegistration,
+    location: toTimelineLocation(row),
+    locationState: row.locationState ?? null,
     occurrence: null,
     occurredAt: row.occurredAt,
     occurredAtKey: row.occurredAtKey,
@@ -242,6 +289,7 @@ export async function listStopOccurrenceRows(
     id: row.id,
     kind: 'stop.occurrence' as const,
     lateRegistration: false,
+    ...NO_EVENT_LOCATION,
     occurrence: {
       attachmentCount: row.attachmentObjectId === null ? 0 : 1,
       note: row.description,

@@ -7,6 +7,7 @@
  * podem compartilhar o mesmo `occurredAt` (D8: a chegada e a troca de status que ela causa usam o
  * mesmo `now` do caso de uso).
  */
+import type { EventLocationState } from '../../database/event-location.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 
 /**
@@ -93,6 +94,21 @@ export type TripTimelineOccurrenceReference = {
   readonly typeName: string
 }
 
+/**
+ * ADR-0081 §6: as cinco chaves exatas que o painel valida. `distanceMeters` é derivada no servidor
+ * (haversine contra o ponto vivo da parada em `geocoded_addresses`) e é `null` sem ponto de referência.
+ */
+export type TripTimelineLocation = {
+  readonly accuracyMeters: number | null
+  readonly capturedAt: string
+  readonly distanceMeters: number | null
+  readonly latitude: number
+  readonly longitude: number
+}
+
+/** As fontes que não carimbam posição (status, ocorrências, documentos) — "não se aplica". */
+export const NO_EVENT_LOCATION = { location: null, locationState: null } as const
+
 export type TripTimelineItem = {
   readonly actorName: string | null
   /** `null` = canal não registrado (D3/D6) — nunca um valor inventado. */
@@ -113,6 +129,10 @@ export type TripTimelineItem = {
    * `true` em `document.delivered`/`document.returned`. Dado, não rótulo: a tela não o interpreta.
    */
   readonly lateRegistration: boolean
+  /** ADR-0081 §6: `null` sem `trip.event-location` (a rota recorta) ou sem ponto capturado. */
+  readonly location: TripTimelineLocation | null
+  /** Por que há ou não ponto; `null` = não se aplica. Nunca recortado: não revela onde. */
+  readonly locationState: EventLocationState | null
   readonly occurrence: TripTimelineOccurrenceReference | null
   readonly occurredAt: string
   readonly onBehalfOfDriverName: string | null

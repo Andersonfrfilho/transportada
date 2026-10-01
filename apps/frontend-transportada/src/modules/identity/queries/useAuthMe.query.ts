@@ -63,6 +63,8 @@ const COMPANY_PERMISSIONS = [
   'trip.report-on-behalf',
   /** Spec 061 D4: dinheiro tem permissão própria — margem e custo não são `trip.manage`. */
   'trip.financials',
+  /** ADR-0081 §6: a coordenada de cada toque é para quem gere a frota, não para quem fecha o mês. */
+  'trip.event-location',
   /**
    * ADR-0047: permissão de **máquina**, e nenhuma tela a lê. Ela está aqui porque este é o
    * vocabulário do que a API pode devolver — deixá-la de fora faria a lista mentir sobre isso.

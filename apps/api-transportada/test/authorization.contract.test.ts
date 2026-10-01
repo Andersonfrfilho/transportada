@@ -66,6 +66,8 @@ describe('authorization contract', () => {
       // ADR-0067: o escritório dá baixa pelo motorista, sem abrir as rotas `/me` do campo
       'trip.report-on-behalf',
       'trip.financials',
+      // ADR-0081 §6: ler a coordenada do evento é de quem gere a frota — nunca finance nem separator
+      'trip.event-location',
       // ADR-0047 §4: a permissão do serviço, com escopo de uma rota só
       'mdfe.auto-issue',
       // Spec 144 T014: a liquidação do WhatsApp, pela mesma régua — uma rota só, do serviço
@@ -101,6 +103,7 @@ describe('authorization contract', () => {
         'view-preferences.manage',
         'addresses.read',
         'fleet.read',
+        'trip.event-location',
         'fleet.manage',
         'mdfe.read',
         'mdfe.manage',
@@ -141,6 +144,7 @@ describe('authorization contract', () => {
         'view-preferences.manage',
         'addresses.read',
         'fleet.read',
+        'trip.event-location',
         'mdfe.read',
         'mdfe.manage',
         'mdfe.issue',
@@ -163,6 +167,7 @@ describe('authorization contract', () => {
         'view-preferences.manage',
         'addresses.read',
         'fleet.read',
+        'trip.event-location',
         'fleet.manage',
         'mdfe.read',
         'mdfe.manage',
@@ -181,6 +186,7 @@ describe('authorization contract', () => {
         'operations.read',
         'view-preferences.manage',
         'fleet.read',
+        'trip.event-location',
         'mdfe.read',
         'nfse.read',
       ],
@@ -439,6 +445,7 @@ describe('authorization contract', () => {
       'nfse.issue',
       'nfse.cancel',
       'nfse.read',
+      'trip.event-location',
     ])
     expect([...permissions]).not.toContain('companies.manage')
     expect(Object.isFrozen(permissions)).toBe(true)

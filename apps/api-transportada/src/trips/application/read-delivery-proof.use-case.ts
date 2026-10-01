@@ -7,6 +7,7 @@
  * lado do balcão não havia leitura nenhuma — o canhoto existia no bucket e ninguém no escritório o
  * alcançava.
  */
+import type { EventLocationState } from '../../database/event-location.schema.js'
 import type {
   ReceivedBy,
   TripDeliveryProofCanhotoReadSource,
@@ -35,6 +36,15 @@ export type CanhotoReviewRecord = {
   readonly canhotoReviewReason?: TripDeliveryProofCanhotoReviewReason | null
 }
 
+/** ADR-0081 §6.1: as cinco chaves da coordenada da captura, como o painel as validará; ainda não publicadas na view. */
+export type DeliveryProofLocation = {
+  readonly accuracyMeters: number | null
+  readonly capturedAt: string
+  readonly distanceMeters: number | null
+  readonly latitude: number
+  readonly longitude: number
+}
+
 export type DeliveryProofRecord = CanhotoReviewRecord & {
   readonly bucket: string
   /** Spec 220 RF14: a hora do aparelho na foto; `null` quando o aparelho não a leu. */
@@ -46,6 +56,9 @@ export type DeliveryProofRecord = CanhotoReviewRecord & {
   readonly kind: TripDeliveryProofKind
   /** Spec 205 RF7: o envio ou a entrega dele veio pelo "Registrar entrega depois". */
   readonly lateRegistration: boolean
+  /** ADR-0081 §6.1: lida da coluna, mas só o consumidor com `trip.event-location` poderá publicá-la. */
+  readonly location?: DeliveryProofLocation | null
+  readonly locationState?: EventLocationState | null
   readonly mimeType: string
   readonly objectKey: string
   readonly punctuality?: TripDeliveryProofPunctuality
