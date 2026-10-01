@@ -81,6 +81,21 @@ anterior deste aviso caía nele por outro caminho: mandava rodar só o primeiro 
 verde dele de "exercitou o banco". Uma task que mexe em `test/integration/**` só fecha com o
 segundo comando, ou seus testes novos não rodaram.
 
+⚠️ **Em toda app, o comando é o script `test` do `package.json`, nunca `bun test` cru.** O cru usa a
+descoberta padrão do Bun, e no `frontend-transportada` ela varre junto os `.smoke.spec.ts` do
+Playwright: **29 fail e 21 errors** de `Playwright Test did not expect test() to be called here`,
+nenhum deles um defeito. O script lista os arquivos e dá 6048 pass / 0 fail. Vermelho de invocação
+errada se parece com vermelho de código e custa a mesma meia hora — mesma família da porta errada do
+Playwright no `frontend-driver` (abaixo).
+
+⚠️ **`bun test <caminho>` sem o `./` casa zero arquivos**: o Bun trata o caminho como filtro de
+_nome de teste_, não de arquivo, e responde "filters did not match any test files". Para rodar um
+arquivo avulso é `./test/integration/x.integration.ts`.
+
+⚠️ **O `eslint` não roda a partir da raiz do monorepo** quando o alvo cruza duas apps:
+`No tsconfigRootDir was set, and multiple candidate TSConfigRootDirs are present`. Lint é por app,
+com a app como cwd.
+
 Portas (bind em 127.0.0.1): postgres 55432 · rabbitmq 55672/55673 · minio 59000/59001 ·
 mailpit 51025/58025 · keycloak 58080 · frontend 53000 · api 53001 · worker 53002 ·
 frontend-driver 53200 (`FRONTEND_DRIVER_PORT`; `53112` não é uma segunda porta de serviço — é a
