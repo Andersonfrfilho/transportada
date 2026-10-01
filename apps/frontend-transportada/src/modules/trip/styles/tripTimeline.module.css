@@ -246,8 +246,25 @@
 
 /** O título leva à nota (RF15). Sublinhado só no toque: oito sublinhados empilhados viram cerca. */
 .itemTitleLink {
+  position: relative;
   color: inherit;
   text-decoration: none;
+}
+
+/**
+ * Spec 196: o link media 21px de altura, abaixo do mínimo de 44px, e são até dez por tela. Crescer
+ * por `padding` levantaria cada linha de evento em 23px — uns 230px de página — logo depois de
+ * recolher os mapas justamente para encurtá-la. Mesma saída do pino de GPS: o alvo mora no
+ * pseudo-elemento, o desenho fica onde está. A folga medida entre dois links é de 71px no pior
+ * caso, contra os ~11,5px que este alvo transborda para cada lado.
+ */
+.itemTitleLink::after {
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  block-size: var(--touch-target);
+  transform: translateY(-50%);
+  content: '';
 }
 
 .itemTitleLink:hover,
