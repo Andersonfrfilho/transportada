@@ -353,7 +353,10 @@ describe('listagem de ocorrências — ordenação, tipo e contagem', () => {
 describe('listagem de ocorrências — fiação da tela', () => {
   test('a página entra pela navegação e a rota é /ocorrencias', async () => {
     const main = await Bun.file(new URL('../../src/main.tsx', import.meta.url)).text()
-    expect(main).toContain(
+    const navigation = await Bun.file(
+      new URL('../../src/modules/shared/workspaceNavigation.constant.ts', import.meta.url),
+    ).text()
+    expect(navigation).toContain(
       "{ href: '/ocorrencias', key: 'trip-occurrences', label: 'Ocorrências' }",
     )
     expect(main).toContain('TripOccurrencesWorkspacePage')

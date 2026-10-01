@@ -51,6 +51,12 @@ import { getNotificationClient } from '@/modules/notification/shared/notificatio
 import { NOTIFICATION_THEME_CLASS } from '@/modules/notification/shared/notificationTheme.constant'
 import notificationStyles from '@/modules/notification/styles/notification.module.css'
 import { QUERY_CLIENT_DEFAULT_OPTIONS } from '@/modules/shared/queryClientDefaults.constant'
+import {
+  NAVIGATION_GROUPS,
+  WORKSPACE_NAVIGATION_ITEMS,
+  type NavigationGroup,
+  type WorkspaceNavigationItem,
+} from '@/modules/shared/workspaceNavigation.constant'
 import { parseTripOccurrenceRoute } from '@/modules/trip/shared/tripOccurrenceRoute.service'
 import { parseTripRoute } from '@/modules/trip/shared/tripRoute.service'
 import '@/styles/index.css'
@@ -77,118 +83,6 @@ if (rootElement === null) {
 
 const applicationRootElement = rootElement
 const WORKSPACE_STORAGE_KEY = 'transportada.workspace'
-
-type WorkspaceNavigationItem = Readonly<{
-  href: string
-  key:
-    | 'billing'
-    | 'company-settings'
-    | 'cte-batch'
-    | 'cte-profiles'
-    | 'delivery-clients'
-    | 'driver-trip'
-    | 'extra-charges'
-    | 'reimbursements'
-    | 'trip-financials'
-    | 'fleet'
-    | 'freight'
-    | 'mdfe-manifest'
-    | 'nfe'
-    | 'nfse-invoice'
-    | 'notification'
-    | 'operations'
-    | 'pendencias'
-    | 'trip'
-    | 'trip-occurrences'
-    | 'access-profiles'
-    | 'users'
-  label: string
-}>
-
-type NavigationGroup = Readonly<{
-  key: 'administration' | 'fiscal' | 'identity' | 'operations' | 'registries'
-  label: string
-  items: readonly WorkspaceNavigationItem[]
-}>
-
-const WORKSPACE_NAVIGATION_ITEMS: readonly WorkspaceNavigationItem[] = [
-  { href: '/', key: 'nfe', label: 'NF-e' },
-  { href: '/freight', key: 'freight', label: 'Frete' },
-  { href: '/cte-batches', key: 'cte-batch', label: 'CT-e' },
-  { href: '/trips', key: 'trip', label: 'Viagens' },
-  { href: '/mdfe-manifests', key: 'mdfe-manifest', label: 'MDF-e' },
-  { href: '/billing', key: 'billing', label: 'Faturamento' },
-  { href: '/nfse-invoices', key: 'nfse-invoice', label: 'NFS-e' },
-  { href: '/operations', key: 'operations', label: 'Operações' },
-  { href: '/ocorrencias', key: 'trip-occurrences', label: 'Ocorrências' },
-  { href: '/company-settings', key: 'company-settings', label: 'Empresa' },
-  { href: '/usuarios', key: 'users', label: 'Acessos' },
-  { href: '/papeis', key: 'access-profiles', label: 'Papéis e grupos' },
-  { href: '/cte-profiles', key: 'cte-profiles', label: 'Perfis CT-e' },
-  { href: '/fleet', key: 'fleet', label: 'Frota' },
-  { href: '/pendencias', key: 'pendencias', label: 'Pendências' },
-  { href: '/clientes', key: 'delivery-clients', label: 'Clientes' },
-  { href: '/repasses', key: 'extra-charges', label: 'Repasses' },
-  { href: '/ressarcimentos', key: 'reimbursements', label: 'Ressarcimentos' },
-  { href: '/resultados', key: 'trip-financials', label: 'Resultados' },
-  // Fora dos grupos: quem é do campo não navega por menu — ele abre o produto e já está na viagem.
-  { href: DRIVER_TRIP_PATH, key: 'driver-trip', label: 'Minha viagem' },
-  // Fora dos grupos do menu de propósito: a porta de entrada é o sino do cabeçalho, e a entrada
-  // existe aqui só para o título da tela sair certo quando a rota abre.
-  { href: '/notificacoes', key: 'notification', label: 'Notificações' },
-]
-
-const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
-  {
-    key: 'fiscal',
-    label: 'Fiscal',
-    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
-      [
-        'nfe',
-        'freight',
-        'cte-batch',
-        'trip',
-        'mdfe-manifest',
-        'billing',
-        'extra-charges',
-        'reimbursements',
-        'trip-financials',
-        'nfse-invoice',
-      ].includes(key),
-    ),
-  },
-  {
-    key: 'operations',
-    label: 'Operações',
-    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
-      ['operations', 'trip-occurrences'].includes(key),
-    ),
-  },
-  {
-    key: 'registries',
-    label: 'Cadastros',
-    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
-      ['fleet', 'pendencias', 'delivery-clients', 'cte-profiles'].includes(key),
-    ),
-  },
-  /**
-   * Identidade é categoria própria, e não um item dentro de "Administração": são duas telas com o
-   * mesmo assunto e a mesma permissão, e empilhá-las numa só fazia o que se usa todo dia — a
-   * listagem — ficar embaixo do que se consulta uma vez por mês.
-   */
-  {
-    key: 'identity',
-    label: 'Usuários',
-    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
-      ['users', 'access-profiles'].includes(key),
-    ),
-  },
-  {
-    key: 'administration',
-    label: 'Administração',
-    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) => key === 'company-settings'),
-  },
-]
 
 /**
  * Abrir o menu expandindo todos os grupos punha 22 linhas numa barra que cabe ~14: ele nascia com
