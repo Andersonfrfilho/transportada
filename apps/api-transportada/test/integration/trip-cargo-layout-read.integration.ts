@@ -81,6 +81,7 @@ describeWithPostgres('trip detail reads the stored cargo layout (spec 145 T10)',
     database = createDrizzleProvider({ connection: disposableUrl.toString() })
   }, 60_000)
 
+  // Derrubar o banco descartável passa dos 5 s padrão do Bun sob carga de CI.
   afterAll(async () => {
     try {
       await database?.close()
@@ -91,7 +92,7 @@ describeWithPostgres('trip detail reads the stored cargo layout (spec 145 T10)',
         await admin.close({ timeout: 0 })
       }
     }
-  })
+  }, 60_000)
 
   test('the detail hashes the same input as the eager trigger, label included', async () => {
     const seeded = await seedTrip(database, { measured: true })

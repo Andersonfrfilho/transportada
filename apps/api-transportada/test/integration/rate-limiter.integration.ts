@@ -62,6 +62,7 @@ describeDatabase('limitador com estado no Postgres (spec 150 T406)', () => {
     database = createDrizzleProvider({ connection: disposableUrl.toString() })
   }, 60_000)
 
+  // Derrubar o banco descartável passa dos 5 s padrão do Bun sob carga de CI.
   afterAll(async () => {
     try {
       await database?.close()
@@ -72,7 +73,7 @@ describeDatabase('limitador com estado no Postgres (spec 150 T406)', () => {
         await admin?.close({ timeout: 0 })
       }
     }
-  })
+  }, 60_000)
 
   test('30 pedidos simultâneos: exatamente o teto passa, o resto espera a janela virar', async () => {
     const subject = subjectKey()

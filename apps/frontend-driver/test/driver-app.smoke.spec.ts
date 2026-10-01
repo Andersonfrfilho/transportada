@@ -739,8 +739,8 @@ const SMOKE_PHOTO = {
 /**
  * Pedido do usuário (25/09): o canhoto são três botões do mesmo tamanho — "Tirar foto" abre a
  * câmera (`capture`), "Anexar" abre galeria e arquivos (sem `capture`), "Colher assinatura" tem
- * ícone próprio. Sem o rótulo solto "Anexar canhoto"; depois de anexar, a miniatura, o
- * "anexada" e o "Refazer". No cartão da parada, depois do "Entreguei" — em "Fotos pendentes" a nota
+ * ícone próprio. Sem o rótulo solto "Anexar canhoto"; depois de anexar, a miniatura, o estado do
+ * envio e o "Refazer". No cartão da parada, logo abaixo da chegada — em "Fotos pendentes" a nota
  * troca o formulário pelo aviso da fila assim que a foto entra nela (spec 159).
  */
 test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a foto anexada', async ({
@@ -761,9 +761,10 @@ test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a fot
     },
   })
   await loginAsLocalUser(page)
-  // Pedido do usuário (25/09): "Entreguei" só existe depois de "Cheguei" — a chegada libera a nota.
+  // Pedido do usuário (25/09): a chegada libera a nota. Com foto obrigatória a captura monta junto
+  // e "Entreguei" não existe (spec 218 P1/P2) — este smoke clicava nele e morria esperando.
   await page.getByRole('button', { name: 'Cheguei' }).click()
-  await page.getByRole('button', { exact: true, name: 'Entreguei' }).click()
+  await expect(page.getByRole('button', { exact: true, name: 'Entreguei' })).toHaveCount(0)
   const item = page.locator('li', { hasText: 'Mercearia do Centro' }).last()
 
   const takePhoto = item.getByRole('button', { name: /^Tirar foto/u })
@@ -803,7 +804,12 @@ test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a fot
   await cameraChooser.setFiles(SMOKE_PHOTO)
   await page.getByRole('button', { name: 'Usar sem recorte' }).click()
 
-  await expect(item.getByText('Foto do canhoto anexada')).toBeVisible()
+  // A foto anexada deixou de dizer "anexada" e passou a dizer em que pé está o envio: "Enviando"
+  // enquanto a fila não drenou, com a tranquilidade de que ela já está guardada no aparelho.
+  await expect(item.getByText('Enviando', { exact: true })).toBeVisible()
+  await expect(
+    item.getByText('A foto está guardada no aparelho e segue mesmo sem sinal.'),
+  ).toBeVisible()
   await expect(item.getByRole('img', { name: 'Miniatura da foto do canhoto' })).toBeVisible()
   // O rótulo "Refazer" só chega depois do refreshQueueView() assíncrono (leitura do IndexedDB) —
   // instantâneo local, mas medido estourando 5s no runner de CI sob carga da suíte inteira de smoke.
@@ -815,7 +821,7 @@ test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a fot
 })
 
 /**
- * Spec 218 (P1, RF-A3): com a foto obrigatória, "Entreguei" abre a captura ali mesmo; "Confirmar
+ * Spec 218 (P1, RF-A3): com a foto obrigatória a captura já está na tela ao chegar; "Confirmar
  * entrega" só habilita com a foto, e o canhoto sobe **depois** da entrega — a API recusa canhoto de
  * nota sem entrega registrada, então ele nunca pode sair antes dela.
  */
@@ -838,7 +844,7 @@ test('comprovante obrigatório: Confirmar entrega só com a foto, e o canhoto so
   })
   await loginAsLocalUser(page)
   await page.getByRole('button', { name: 'Cheguei' }).click()
-  await page.getByRole('button', { exact: true, name: 'Entreguei' }).click()
+  await expect(page.getByRole('button', { exact: true, name: 'Entreguei' })).toHaveCount(0)
 
   const confirm = page.getByRole('button', { exact: true, name: 'Confirmar entrega' })
   await expect(confirm).toBeDisabled()

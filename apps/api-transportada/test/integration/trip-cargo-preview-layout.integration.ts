@@ -96,6 +96,7 @@ describeWithPostgres('cargo preview asks for the layout by hash (spec 145 T11)',
     database = createDrizzleProvider({ connection: disposableUrl.toString() })
   }, 60_000)
 
+  // Derrubar o banco descartável passa dos 5 s padrão do Bun sob carga de CI.
   afterAll(async () => {
     try {
       await database?.close()
@@ -106,7 +107,7 @@ describeWithPostgres('cargo preview asks for the layout by hash (spec 145 T11)',
         await admin.close({ timeout: 0 })
       }
     }
-  })
+  }, 60_000)
 
   function preview(seeded: SeededTrip, context: TripCargoPreviewContext) {
     return previewTripCargo({

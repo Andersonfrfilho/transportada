@@ -95,6 +95,7 @@ describeDatabase('modelos de e-mail por empresa (spec 150 T402)', () => {
     }
   }, 60_000)
 
+  // Derrubar o banco descartável passa dos 5 s padrão do Bun sob carga de CI.
   afterAll(async () => {
     try {
       await database?.close()
@@ -105,7 +106,7 @@ describeDatabase('modelos de e-mail por empresa (spec 150 T402)', () => {
         await admin?.close({ timeout: 0 })
       }
     }
-  })
+  }, 60_000)
 
   test('modelo de outra empresa não é listado, lido, editado nem marcado padrão', async () => {
     const foreign = await create({ companyId: OTHER_COMPANY_ID, name: 'Da outra empresa' })
