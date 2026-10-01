@@ -40,23 +40,23 @@ painel do escritório da mão de quem está na rua.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T2.1 Reconferir **cada uma das 19 linhas** da tabela da RF-A3 contra o código (a página, o
+- [x] T2.1 Reconferir **cada uma das 19 linhas** da tabela da RF-A3 contra o código (a página, o
       hook ou o view-model que decide), anotando arquivo:linha. ⚠️ **D3 e D4 já foram conferidas em
       2026-10-01** e o resultado está nas decisões da spec — D3 confirmou `settings.manage`, D4
       descobriu que as duas permissões governam ações e que a API lê com `trip.read`, e a entrada do
       mapa ficou sendo intenção de produto. Reconfira as outras 17 e registre a tabela final em
       `evidence.md`, inclusive onde ela contrariar a spec.
-- [ ] T2.2 Extrair `WORKSPACE_NAVIGATION_ITEMS`, `NAVIGATION_GROUPS` e a união de chaves do
+- [x] T2.2 Extrair `WORKSPACE_NAVIGATION_ITEMS`, `NAVIGATION_GROUPS` e a união de chaves do
       `main.tsx` para `src/modules/shared/workspaceNavigation.constant.ts`, sem mudar comportamento.
       Commit isolado, app subindo antes e depois.
-- [ ] T2.3 [P] Contrato: `WORKSPACE_PERMISSIONS` tem entrada para toda chave de grupo, a tabela da
+- [x] T2.3 [P] Contrato: `WORKSPACE_PERMISSIONS` tem entrada para toda chave de grupo, a tabela da
       T2.1 é afirmada entrada por entrada, e `canOpenWorkspace` resolve união ("qualquer uma de") —
       `test/shared/workspace-access.contract.ts` + registro no `package.json`
-- [ ] T2.4 `workspaceAccess.service.ts` com `WORKSPACE_PERMISSIONS` (`satisfies`, comentário de
+- [x] T2.4 `workspaceAccess.service.ts` com `WORKSPACE_PERMISSIONS` (`satisfies`, comentário de
       origem por linha), `canOpenWorkspace` e `visibleWorkspaceKeys`
-- [ ] T2.5 Provar o CA05 por **mutação**: acrescentar chave sem entrada no mapa, rodar
+- [x] T2.5 Provar o CA05 por **mutação**: acrescentar chave sem entrada no mapa, rodar
       `bun run typecheck`, colar a reprovação em `evidence.md`, desfazer
-- [ ] T2.6 `make check` + commit
+- [x] T2.6 `make check` + commit
 
 ## Fase 3 — O menu filtra
 
@@ -105,16 +105,16 @@ painel do escritório da mão de quem está na rua.
 
 > 🤖 Modelo: `haiku` (mecânico: mesmo molde, três vezes)
 
-- [ ] T5.1 [P] Contrato: `/company-settings` sem `settings.manage`, `/nfse-invoices` sem `nfse.read` e
+- [x] T5.1 [P] Contrato: `/company-settings` sem `settings.manage`, `/nfse-invoices` sem `nfse.read` e
       `/repasses` sem `trip.manage`/`billing.create` resolvem para "sem acesso", e nenhuma consulta dos
       três módulos é habilitada (CA09)
-- [ ] T5.2 Parede em `CompanySettings.page.tsx` no molde de `CteBatchWorkspace.page.tsx:75`/`:220`
-- [ ] T5.3 Parede em `NfseInvoiceWorkspace.page.tsx`, mesmo molde
-- [ ] T5.4 Parede em `ExtraChargeWorkspace.page.tsx` (RF-D3) — **esta fecha exposição real**: hoje a
+- [x] T5.2 Parede em `CompanySettings.page.tsx` no molde de `CteBatchWorkspace.page.tsx:75`/`:220`
+- [x] T5.3 Parede em `NfseInvoiceWorkspace.page.tsx`, mesmo molde
+- [x] T5.4 Parede em `ExtraChargeWorkspace.page.tsx` (RF-D3) — **esta fecha exposição real**: hoje a
       tela não tem checagem e a consulta da lista não tem `enabled`, então o separador lê as cobranças
       da empresa. Gate também a consulta, não só o render.
-- [ ] T5.5 Contrato de regressão: nenhuma das 15 paredes existentes foi removida (RF-D1)
-- [ ] T5.6 `make check` + commit
+- [x] T5.5 Contrato de regressão: nenhuma das 15 paredes existentes foi removida (RF-D1)
+- [x] T5.6 `make check` + commit
 
 ## Fase 6 — Revisão de design e fechamento
 
