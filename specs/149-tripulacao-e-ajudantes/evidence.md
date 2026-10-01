@@ -647,3 +647,129 @@ Decisões:
   em `read-suggestion-valuation.use-case.ts` (mesmo padrão de `distanceMeters`/`toll` da spec 101
   D2), não dentro da consulta que já roda uma vez por veículo — colocá-los lá dentro do laço
   reintroduziria o N+1 que esta task evita.
+
+## T16 — ajudante pela tela de viagem (recorte de T13/T14)
+
+Fora de escopo, de propósito: score de motorista, recomendação e o `PATCH /route-suggestions/.../crew`
+(Fases 4 e 5 seguem abertas — T13 continua aberta no que depende delas).
+
+### Medido antes de mexer
+
+- `updateCrewSchema` só tinha `driverIds` e `vehicleId`; o `updateCrew` do caso de uso chamava
+  `resolveTripCrewForCreation({ companyId, driverIds, repository })` sem `helperIds`.
+- **Defeito achado na leitura do repositório:** o `INSERT` em `trip_drivers` de
+  `DrizzleTripRepository.updateCrew` não gravava `role` (o de `create` grava). O ajudante voltaria
+  `driver` pelo default da coluna e entraria no MDF-e como condutor (ADR-0065 §3). Provado vermelho
+  abaixo.
+- A parcela `helper` já chegava ao razão da viagem: `TRIP_COST_KINDS` da API tem `helper`,
+  `trip-valuation.query.ts` lê `role = 'helper'`, `tripValuationResponse.validation.ts` lê `kind` como
+  texto, `parcel.helper` ("Ajudantes") existe nos dois locales. O que faltava no frontend:
+  `helper` em `FINANCIAL_PARCEL_KINDS` (resultado congelado) e a frase de `detail: "1/2"`, que subia
+  crua para a tela.
+
+### Mudanças
+
+API:
+
+- `trips/presentation/trip-request.schema.ts`: `updateTripCrewSchema` ganha `helperIds` (default `[]`,
+  `max(10)`) e o `superRefine` do mesmo teto da criação (motoristas + ajudantes, issue em `helperIds`).
+- `trips/application/trip.use-case.ts`: `UpdateTripCrewInput.helperIds?`; `updateCrew` repassa a
+  `resolveTripCrewForCreation`. `checkTripTransition` e a janela de estados intactos.
+- `trips/presentation/trip.routes.ts`: a rota `PATCH` repassa `body.helperIds`.
+- `trips/infrastructure/drizzle-trip.repository.ts`: `updateCrew` grava `role` (a tripulação inteira
+  continua sendo apagada e regravada, então o ajudante removido some).
+
+Frontend:
+
+- `trip/shared/tripCrewHelpers.service.ts` (novo): `listHelperCandidates` (ativo + `canActAsHelper`, fora
+  de quem já dirige; o ajudante atual fica para poder ser retirado), `readTripHelperIds` (por `role` e
+  `position`), `withoutSelectedDrivers`.
+- `TripQuickCreateDialog` + `useTripQuickCreate` + `useQuickCreateDraft` + `tripAssemblyDraft*`: campo
+  "Ajudantes"; `helperIds` vai ao corpo só quando não vazio; o rascunho guarda e restaura (rascunho
+  gravado antes desta task, sem `helperIds`, continua válido); `validateQuickCreate` ganhou
+  `helperWithoutDriver`.
+- `TripCrewDialog` + `useTripCrewDialog` + `TripHeaderActions` + `tripClient.service.ts` +
+  `tripCrewDialog.service.ts`: `MultiSelect` de ajudantes pré-preenchido pelo papel `helper`;
+  `onSubmit` leva `{ driverIds, helperIds, vehicleId }` e o `PATCH` sempre manda `helperIds` (a lista
+  vazia remove todos); duas recusas da API ganharam frase própria (`TRIP_CREW_HELPER_WITHOUT_DRIVER`,
+  `TRIP_CREW_HELPER_NOT_ELIGIBLE`).
+- `trip-financials`: `helper` em `FINANCIAL_PARCEL_KINDS`; `composeCostParcelDetail` ganhou `kind` e
+  compõe "1 de 2 ajudantes sem diária" (`ledger.helperMissingRate`), chamado também por
+  `buildSuggestionCostParcelLines`.
+- Locales pt-BR (acentuado) e en: `creation.helpers*`, `crewDialog.helpers*`, `crewDialog.error.*`,
+  `quickCreate.issue.helperWithoutDriver`, `ledger.helperMissingRate`.
+
+### Vermelho antes da implementação
+
+- API, contrato (`bun --env-file=../../.env.test test test/trip-http.contract.test.ts test/trip-application`)
+  antes do código: `376 pass / 6 fail` (400 em vez de 200 para `helperIds`; chamada sem `helperIds: []`).
+- API, integração (`test/integration/trip-crew-update.integration.ts`), com a linha `role` do
+  repositório revertida: `8 pass / 1 fail` — `a troca grava o papel do ajudante e remover o ajudante o
+tira da viagem` (`Expected - 1 / Received + 1`); com a linha de volta: `9 pass / 0 fail`.
+- Frontend (`valuation-helper-parcel.contract.tsx`) antes de `helper` em `FINANCIAL_PARCEL_KINDS` e da
+  frase: `102 pass / 2 fail` (lista fora da cópia por valor da API; `— 1/2` na tela).
+- Frontend (`crew-helpers.contract.ts`): módulo `tripCrewHelpers.service` inexistente — `0 pass / 1 fail
+/ 1 error`.
+
+### Testes novos/alterados
+
+- `test/trip-http/crew.contract.ts`: `helperIds` chega ao caso de uso; teto de dez pessoas somando
+  motoristas e ajudantes (400 `INVALID_REQUEST`); os dois testes existentes passam a esperar
+  `helperIds: []`.
+- `test/trip-application/trip-use-case.contract.ts`: troca com ajudante grava `role: 'helper'` na
+  posição seguinte; ajudante sem `canActAsHelper` → `TRIP_CREW_HELPER_NOT_ELIGIBLE` sem tocar o
+  repositório; ajudante sem motorista → 409.
+- `test/integration/trip-crew-update.integration.ts` (já na lista do `test:integration`): papel gravado
+  e ajudante removido some.
+- `test/trip/crew-helpers.contract.ts` (novo, importado por `test/trip.contract.test.ts`, que já está
+  no `package.json`): candidatos, leitura do papel, corpo da troca, recusas, validação da criação
+  rápida, corpo HTTP de `createTrip` (só com ajudante) e de `changeTripCrew` (lista vazia vai).
+- `test/trip-financials/valuation-helper-parcel.contract.tsx` (novo, importado por
+  `test/trip-financials.contract.test.ts`): `FINANCIAL_PARCEL_KINDS` = cópia por valor de
+  `TRIP_FINANCIAL_PARCEL_KINDS` da API; todo `TRIP_COST_KINDS` tem rótulo nos dois idiomas; a linha
+  "Ajudantes" entra na operação e a soma das linhas bate com o total; o razão renderizado imprime o
+  rótulo e o valor; a diária faltando vira frase.
+- `test/trip/assembly-draft*.contract.ts`, `test/trip-hooks/quick-create-draft.contract.ts`,
+  `.../available-documents-shared-cache.contract.ts`, `test/trip/crew-dialog.contract.ts`: ajustados à
+  entrada nova; rascunho antigo sem `helperIds` lido/restaurado; hook restaura ajudantes e quem passa a
+  dirigir deixa de ajudar.
+
+### Gates (todos em primeiro plano)
+
+- `bun run typecheck` (raiz, 7 apps) → exit 0.
+- `cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000` → `8284 pass / 23
+skip / 0 fail`, 190 arquivos.
+- Integração da API contra Postgres 18 nativo descartável (`DRIZZLE_TEST_DATABASE_URL`, porta 56543;
+  o Postgres do Docker local está quebrado, ver memória do projeto), com `--env-file=../../.env.test`,
+  a lista do `test:integration` em três partes para caber no teto do primeiro plano:
+  `282 pass / 0 fail` (47 arquivos) · `266 pass / 1 fail` (47 arquivos) · `223 pass / 0 fail` (47
+  arquivos). A única falha é `database-migration.integration.ts` →
+  `assertDeliveryProofContractorOverridesBackfill` (`Received: ["23503"]`), um SQLSTATE sensível à
+  versão do Postgres numa migration que esta task não toca (mesma família do aviso "Postgres da CI ≠
+  Postgres 18 local"); não é regressão. Os 6 arquivos de trip/valuation tocados em volta
+  (`trip-crew-update`, `trip-repository`, `trip-lifecycle`, `trip-financial-end-to-end`, `me-trip`,
+  `suggestion-helper-cost`) rodados à parte → `42 pass / 0 fail`.
+- `bun run --cwd apps/frontend-transportada test` → `5752 pass / 0 fail` (31 arquivos) e, no mesmo
+  comando, `test:hooks` → `58 pass / 0 fail`.
+- `bun run lint` (raiz) → exit 0 (16 warnings de `react-hooks/exhaustive-deps` que já existiam, 0
+  erros).
+- `bun run format:check` (raiz) → exit 0.
+- Não rodados nesta task: `make check` e `make migration-test` (nenhuma migration; fica para o fecho
+  da Fase 6).
+
+### Decisões e o que ficou de fora
+
+- **A troca regrava a lista inteira de ajudantes, e o frontend sempre a manda.** Omitir `helperIds`
+  no `PATCH` apagaria os ajudantes (default `[]` do schema, mesmo contrato do `driverIds`); por isso
+  `buildChangeTripCrewInput` exige o campo.
+- **Rascunho gravado antes desta task continua válido**: `helperIds` é opcional no tipo do rascunho
+  e o guard aceita a ausência — sem isso o deploy descartaria a montagem de quem saiu para medir caixas.
+- **Elegibilidade na restauração do rascunho**: `restoreManualAssemblyDraft` recebe
+  `selectableHelperIds` (ativos com `canActAsHelper`) e descarta quem deixou de ser ajudante ou passou a
+  dirigir.
+- **A proposta continua listando só parcela com lacuna ou derivação** (spec 143): a diária do ajudante
+  sem lacuna conta no total, mas não ganha linha própria ali. Mudar isso é T14 (proposta) e fica aberto
+  junto da T13.
+- Fora: score (`driver-performance`), recomendação (`driver-recommendation`), o `PATCH
+/route-suggestions/.../crew`, a montagem pelos pares do estado (D12) e o resumo "N viagens sem
+  motorista".
