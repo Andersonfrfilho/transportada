@@ -809,8 +809,10 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
               driverName: 'Primeiro Motorista',
               driverTaxId: '11111111111',
               position: 1,
+              role: 'driver',
             },
           ],
+          trailerVehicleId: null,
           vehicleId: fleet.firstVehicleId,
         })
 
@@ -880,6 +882,7 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
               driverName: 'Primeiro Motorista',
               driverTaxId: '11111111111',
               position: 1,
+              role: 'driver',
             },
           ],
           tripId: created.id,
