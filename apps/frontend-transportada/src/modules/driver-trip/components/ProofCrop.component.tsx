@@ -62,12 +62,22 @@ export function ProofCrop({ file, onCancel, onConfirm }: ProofCropProps) {
     return () => URL.revokeObjectURL(url)
   }, [file])
 
+  /**
+   * `.proofCropStage canvas` leva `max-width: 100%`: em tela de motorista mais estreita que
+   * `PREVIEW_MAX_WIDTH`, o canvas renderiza menor do que a resolução interna (`size`). Sem esta
+   * razão, `clientX/Y` chegam em pixel CSS (da caixa encolhida) enquanto `corners` — e o recorte
+   * final em `confirmCrop` — são em pixel do canvas, e o canto arrastado nunca cai onde o dedo
+   * tocou.
+   */
   function handlePointerMove(event: React.PointerEvent<HTMLDivElement>): void {
     const key = draggingRef.current
     if (key === null || corners === null || size === null) return
     const rect = event.currentTarget.getBoundingClientRect()
-    const x = Math.min(Math.max(event.clientX - rect.left, 0), size.width)
-    const y = Math.min(Math.max(event.clientY - rect.top, 0), size.height)
+    if (rect.width === 0 || rect.height === 0) return
+    const scaleX = size.width / rect.width
+    const scaleY = size.height / rect.height
+    const x = Math.min(Math.max((event.clientX - rect.left) * scaleX, 0), size.width)
+    const y = Math.min(Math.max((event.clientY - rect.top) * scaleY, 0), size.height)
     setCorners({ ...corners, [key]: { x, y } })
   }
 
@@ -111,14 +121,21 @@ export function ProofCrop({ file, onCancel, onConfirm }: ProofCropProps) {
         }}
       >
         <canvas aria-label={t('crop.previewLabel')} ref={canvasRef} />
-        {corners === null
+        {corners === null || size === null
           ? null
           : (Object.keys(corners) as readonly CornerKey[]).map((key) => (
               <button
                 aria-label={t(`crop.corner.${key}`)}
                 className={styles.proofCropHandle}
                 key={key}
-                style={{ left: `${corners[key].x}px`, top: `${corners[key].y}px` }}
+                /**
+                 * Percentual, não pixel: o canvas pode renderizar menor que `size` (mesmo
+                 * `max-width: 100%`), e o percentual acompanha a escala sem recalcular nada.
+                 */
+                style={{
+                  left: `${(corners[key].x / size.width) * 100}%`,
+                  top: `${(corners[key].y / size.height) * 100}%`,
+                }}
                 type="button"
                 onPointerDown={(event) => {
                   event.currentTarget.setPointerCapture(event.pointerId)
