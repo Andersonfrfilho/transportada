@@ -53,6 +53,7 @@
   "assemblyMap": {
     "approximate": "⚠️ Approximate position — only the municipality is known; the point is its centre.",
     "basemapLabel": "City boundary",
+    "canvasLabel": "Interactive map",
     "depot": {
       "absence": {
         "not_configured": "The depot leg is out of this estimate: the route settings have no origin, and the company record has no address with a complete postal code. Distance, time, fuel and tolls below start at the first delivery.",

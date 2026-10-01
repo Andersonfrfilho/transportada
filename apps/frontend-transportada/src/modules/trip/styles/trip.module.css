@@ -2787,6 +2787,16 @@ button.occurrenceCaseBadge {
   gap: var(--space-1);
 }
 
+/*
+ * ⚠️ Medidos na tela em 43,59 × 38,40px: o `size="sm"` do botão encolhe os dois sentidos abaixo do
+ * alvo de toque. Ele continua mandando no respiro e na fonte — o que entra aqui é só o piso, por
+ * baixo dele, para o dedo alcançar aproximar, afastar, recentrar e mudar a leitura.
+ */
+.vectorMapControls > button {
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+}
+
 .vectorMap {
   position: relative;
   isolation: isolate;

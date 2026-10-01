@@ -53,6 +53,7 @@
   "assemblyMap": {
     "approximate": "⚠️ Posição aproximada — só o município é conhecido, o ponto é o centro dele.",
     "basemapLabel": "Divisa do município",
+    "canvasLabel": "Mapa interativo",
     "depot": {
       "absence": {
         "not_configured": "⚠️ A saída do barracão não está nesta conta: não há origem na configuração de roteirização, e o cadastro da empresa não tem endereço com CEP completo. A distância, o tempo, o combustível e o pedágio abaixo começam na primeira entrega.",

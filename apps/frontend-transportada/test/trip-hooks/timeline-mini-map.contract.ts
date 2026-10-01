@@ -145,7 +145,10 @@ describe('minimapa da linha do tempo (DOM)', () => {
       new URL('../../src/modules/trip/styles/tripTimelineMiniMap.module.css', import.meta.url),
       'utf8',
     )
-    expect(css).toMatch(/\.pointListSummary \{[^}]*min-height: 2\.75rem;/u)
+    expect(css).toMatch(/\.pointListSummary \{[^}]*min-height: var\(--touch-target\);/u)
+
+    const tokens = readFileSync(new URL('../../src/styles/index.css', import.meta.url), 'utf8')
+    expect(tokens).toMatch(/--touch-target: 2\.75rem;/u)
   })
 
   it('dezenas de eventos no mesmo lugar viram um ponto só, com a contagem', async () => {

@@ -795,3 +795,82 @@ página. Foi exatamente o que apareceu num recarregamento parcial, medindo 2,41.
 invariante cobrada no código-fonte: `todo pino que pinta o fundo pinta a tinta na linha seguinte`
 confere que todo `element.style.background` do mapa vem seguido do `element.style.color =
 resolvePinInk(...)`. Um terceiro construtor não consegue esquecer em silêncio.
+
+---
+
+## Polimento do mapa: o dedo, a língua e a tinta da legenda
+
+Quatro apontamentos da revisão independente, feitos **depois** da cobertura do glifo estar resolvida
+e provada, em commit separado. Um quinto apareceu no caminho e entrou junto, porque era o mesmo
+elemento.
+
+### 1. O literal que repetia um token
+
+`tripTimelineMiniMap.module.css` escrevia `min-height: 2.75rem` no `.pointListSummary`.
+`--touch-target` vale exatamente isso. Dois lugares com o mesmo número não são a mesma medida — numa
+revisão do alvo de toque, um dos dois fica para trás e nada falha. Agora sai do token.
+
+O contrato antigo que fixava o literal (`test/trip-hooks/timeline-mini-map.contract.ts:148`) foi
+**emendado, não apagado**: ele continua provando os 44px que o nome dele promete, só que em dois
+passos — a regra usa `var(--touch-target)`, e `src/styles/index.css:130` declara o token como
+`2.75rem`. Antes ele provava o valor e perdia a origem; agora prova os dois.
+
+### 2. Os controles do mapa não cabiam no dedo
+
+**Medido na tela antes de mexer, pelos quatro botões sobre o mapa (aproximar, afastar, recentrar,
+mudar a leitura): `43,59 × 38,40px`.** A auditoria tinha anotado 44×38 — na verdade os **dois**
+sentidos estavam curtos, não só a altura. É o `size="sm"` do botão do design system, que encolhe
+respiro e fonte juntos.
+
+A correção não desfaz o `size="sm"`: ele continua mandando no respiro e na tipografia. O que entra é
+só um piso por baixo dele, em `.vectorMapControls > button`, dos dois lados.
+
+|                 | antes         | depois      |
+| --------------- | ------------- | ----------- |
+| aproximar       | 43,59 × 38,40 | **44 × 44** |
+| afastar         | 43,59 × 38,40 | **44 × 44** |
+| recentrar       | 43,59 × 38,40 | **44 × 44** |
+| mudar a leitura | 43,59 × 38,40 | **44 × 44** |
+
+A 375px os quatro continuam 44 × 44, e os selos de ordem continuam 15 × 15 a 10px, visíveis.
+
+### 3. "Map" num painel em português
+
+Os dois canvas se anunciavam `aria-label="Map"`. O nome não é nosso: o MapLibre rotula o próprio
+canvas pelo dicionário interno dele (`Map.Title`), e o padrão vem em inglês — web.md §6.
+
+O dicionário é **parâmetro de construção** (`locale`), e é por lá que se troca. Um `setAttribute`
+depois do carregamento pareceria resolver e não resolveria: a troca de estilo (claro/escuro)
+reconstrói o canvas e o rótulo voltaria ao inglês.
+
+Medido na tela: `{"canvases":["Map","Map"]}` → `{"canvases":["Mapa interativo","Mapa interativo"]}`.
+Chave nova em **duas** línguas: `assemblyMap.canvasLabel` = "Mapa interativo" / "Interactive map".
+
+### 4. A legenda discordava do mapa que ela explica — achado novo
+
+Não estava na auditoria; apareceu ao mexer no item 2 abaixo. O `.swatch` cravava `color: #fff` sem
+justificativa nenhuma — e era por isso que ele estava errado, não só indocumentado.
+
+Desde `c8c0d4242` a tinta do pino sai de `resolvePinInk(fill)`, pela cor e não pelo tema. Para
+`status` (`#788591`) ela escolhe a **escura**:
+
+| tinta sobre `#788591`          | contraste |
+| ------------------------------ | --------- |
+| `#10222c` (escura)             | **4,32**  |
+| `#faf8f4` (clara)              | 3,56      |
+| `#fff` (o que a legenda usava) | 3,78      |
+
+Ou seja: a legenda pintava branco onde o mapa pinta escuro, e ainda reprovava nos 4,5 de texto.
+Confirmado na tela antes da correção — selo `arrived` em `rgb(255,255,255)` contra pino `arrived` em
+`rgb(250,248,244)`: cores diferentes para a mesma coisa, lado a lado.
+
+Agora cada uma das oito categorias declara a tinta **em par** com o preenchimento, e o contrato de
+cores compara cada par com o que `resolvePinInk` devolveria. Depois da correção, medido na tela:
+`arrived` 5,65 · `delivered` 4,16 · `returned` 5,69, todos em `rgb(250,248,244)`, iguais aos pinos.
+
+### Contratos
+
+`test/trip/timeline-map-touch-and-language.contract.ts` (novo, importado pelo entrypoint
+`test/trip.contract.test.ts`) e um caso novo em `timeline-map-colors.contract.ts`. Os quatro casos
+foram escritos **vermelhos** contra o código de então — 4 fail / 11 pass — e passaram a 15 pass / 0
+fail / 574 expects depois da implementação.

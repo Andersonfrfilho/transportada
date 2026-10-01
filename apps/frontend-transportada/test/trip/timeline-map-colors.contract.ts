@@ -177,6 +177,25 @@ describe('as cores do minimapa por tipo de evento (spec 196)', () => {
     }
   })
 
+  /**
+   * ⚠️ **A legenda tem de concordar com o mapa sobre a tinta.** O selo da legenda pintava `#fff`
+   * cravado, sem explicação ao lado; o pino passou a escolher a tinta pela cor do preenchimento. Em
+   * `status` as duas discordam — o pino escolhe a escura (4,32) e a legenda mostrava a clara
+   * (3,78) —, e aí a legenda deixa de ser a legenda daquele mapa. Ela sai da mesma função.
+   */
+  it('o selo da legenda pinta a tinta que o pino pinta', () => {
+    const css = readFileSync(
+      new URL('../../src/modules/trip/styles/tripTimelineMiniMap.module.css', import.meta.url),
+      'utf8',
+    )
+    const swatch = css.slice(css.indexOf('.swatch {'), css.indexOf('}', css.indexOf('.swatch {')))
+    expect(swatch).not.toContain('color:')
+    for (const [category, color] of entries) {
+      const rule = css.match(new RegExp(`\\.${category} \\{([^}]*)\\}`, 'u'))?.[1] ?? ''
+      expect([category, rule.includes(`color: ${resolvePinInk(color)};`)]).toEqual([category, true])
+    }
+  })
+
   it('o CSS do selo da legenda usa exatamente os hexadecimais do TS', () => {
     const css = readFileSync(
       new URL('../../src/modules/trip/styles/tripTimelineMiniMap.module.css', import.meta.url),

@@ -268,6 +268,12 @@ export function AssemblyVectorMap({
          * enquanto o tile novo entra, e arrastar o mapa vira um piscar contínuo da tela toda.
          */
         fadeDuration: 0,
+        /**
+         * ⚠️ O MapLibre rotula o próprio canvas pelo dicionário dele, e o padrão é "Map" — inglês
+         * solto num painel em português. O dicionário é parâmetro de construção, e é por aqui que
+         * se troca: um `setAttribute` depois do carregamento não sobreviveria à troca de estilo.
+         */
+        locale: { 'Map.Title': t('assemblyMap.canvasLabel') },
         style: buildBasemapStyle(readToken, theme, { isQuiet: isQuietBasemap === true }),
         zoom: 8,
       })
