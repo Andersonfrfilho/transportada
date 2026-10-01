@@ -37,6 +37,7 @@ import {
   resolveDocumentActivityStatus,
   type DocumentActivityView,
   type DocumentReturnActivityView,
+  type TappedStopReport,
 } from '../shared/documentActivity.service'
 import { readCurrentLocation } from '../shared/driverLocation.service'
 import { saveDriverFile } from '../shared/driverFileSave.service'
@@ -157,6 +158,8 @@ export function DriverTripWorkspacePage() {
   const [stopOccurrenceKeyByStopId, setStopOccurrenceKeyByStopId] = useState<
     ReadonlyMap<string, Readonly<{ at: string; key: string }>>
   >(new Map())
+  /** O toque de parada ou nota que a tela fez — segura o botão no estado novo depois que a fila o apaga. */
+  const [tappedReports, setTappedReports] = useState<readonly TappedStopReport[]>([])
   /** Spec 159 (T12): de qual nota é cada aviso de pontualidade. */
   const [proofLabelByDocumentId, setProofLabelByDocumentId] = useState<
     ReadonlyMap<string, ProofDocumentLabel>
@@ -200,7 +203,12 @@ export function DriverTripWorkspacePage() {
   const enRouteStopId =
     trip === undefined
       ? undefined
-      : resolveEnRouteStopId({ queueView: driverTrip.queueView, stops: trip.stops })
+      : resolveEnRouteStopId({
+          queueView: driverTrip.queueView,
+          sentReportKeys: driverTrip.sentReportKeys,
+          stops: trip.stops,
+          tappedReports,
+        })
   /** Pedido do usuário (25/09): a parada atual abre sozinha — agora é a que está a caminho (D9). */
   const currentStopId =
     trip === undefined ? undefined : findCurrentStop({ enRouteStopId, trip })?.id
@@ -410,6 +418,12 @@ export function DriverTripWorkspacePage() {
     }
     const returnReport = reports.find((report) => report.kind === 'return')
     if (returnReport !== undefined && returnReport.kind === 'return') {
+      rememberTappedReport({
+        documentId: input.documentId,
+        idempotencyKey: returnReport.idempotencyKey,
+        kind: 'return',
+        queuedAt: at,
+      })
       setReturnKeyByDocumentId((current) =>
         new Map(current).set(input.documentId, {
           at,
@@ -500,6 +514,12 @@ export function DriverTripWorkspacePage() {
     setDeliverKeyByDocumentId((current) =>
       new Map(current).set(input.documentId, { at: new Date().toISOString(), key: idempotencyKey }),
     )
+    rememberTappedReport({
+      documentId: input.documentId,
+      idempotencyKey,
+      kind: 'deliver',
+      queuedAt: new Date().toISOString(),
+    })
     void report((location) => ({
       documentId: input.documentId,
       idempotencyKey,
@@ -577,11 +597,28 @@ export function DriverTripWorkspacePage() {
     }
   }
 
+  function rememberTappedReport(tappedReport: TappedStopReport): void {
+    setTappedReports((current) => [...current, tappedReport])
+  }
+
+  function arriveAtStop(stopId: string): void {
+    const idempotencyKey = createIdempotencyKey()
+    rememberTappedReport({
+      idempotencyKey,
+      kind: 'arrive',
+      queuedAt: new Date().toISOString(),
+      stopId,
+    })
+    void report((location) => ({ idempotencyKey, kind: 'arrive', location, stopId }))
+  }
+
   /** Spec 206 D6/D1: o toque nasce com a hora dele — é ela, não a do envio, que decide quem chegou primeiro (D3). */
   function departStop(stopId: string): void {
     const tappedAt = new Date().toISOString()
+    const idempotencyKey = createIdempotencyKey()
+    rememberTappedReport({ idempotencyKey, kind: 'depart', queuedAt: tappedAt, stopId })
     void report((location) => ({
-      idempotencyKey: createIdempotencyKey(),
+      idempotencyKey,
       kind: 'depart',
       location,
       stopId,
@@ -592,8 +629,10 @@ export function DriverTripWorkspacePage() {
   /** Spec 206 D18: desfaz o "Iniciar rota" desta parada — libera as outras na hora, sem sinal. */
   function cancelStopDeparture(stopId: string): void {
     const tappedAt = new Date().toISOString()
+    const idempotencyKey = createIdempotencyKey()
+    rememberTappedReport({ idempotencyKey, kind: 'cancelDeparture', queuedAt: tappedAt, stopId })
     void report((location) => ({
-      idempotencyKey: createIdempotencyKey(),
+      idempotencyKey,
       kind: 'cancelDeparture',
       location,
       stopId,
@@ -810,17 +849,12 @@ export function DriverTripWorkspacePage() {
                   key={stop.id}
                   lastKnownLocation={lastKnownLocation}
                   queueView={driverTrip.queueView}
+                  sentReportKeys={driverTrip.sentReportKeys}
+                  tappedReports={tappedReports}
                   returnActivityByDocumentId={returnActivityByDocumentId}
                   stop={stop}
                   stopOccurrenceActivity={stopOccurrenceActivityByStopId.get(stop.id)}
-                  onArrive={(stopId) =>
-                    void report((location) => ({
-                      idempotencyKey: createIdempotencyKey(),
-                      kind: 'arrive',
-                      location,
-                      stopId,
-                    }))
-                  }
+                  onArrive={arriveAtStop}
                   onCancelDeparture={cancelStopDeparture}
                   onDeliver={deliverDocument}
                   onDepart={departStop}

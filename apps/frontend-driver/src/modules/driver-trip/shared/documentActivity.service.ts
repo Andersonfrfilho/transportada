@@ -70,8 +70,44 @@ export function stopHasOccurrenceMarker(input: {
 export function isStopArrivalRecorded(input: {
   readonly arrivedAt: string | null
   readonly queueView: readonly EventQueueItemView[]
+  readonly sentReportKeys?: ReadonlySet<string>
   readonly stopId: string
+  readonly tappedReports?: readonly TappedStopReport[]
 }): boolean {
   if (input.arrivedAt !== null) return true
-  return input.queueView.some((item) => item.kind === 'arrive' && item.stopId === input.stopId)
+  return withSentTappedReports(input).some(
+    (item) => item.kind === 'arrive' && item.stopId === input.stopId,
+  )
+}
+
+/** O que a tela guarda no toque de parada ou nota: o suficiente para recriar o item que a fila apagou. */
+export type TappedStopReport = Pick<
+  EventQueueItemView,
+  'documentId' | 'idempotencyKey' | 'kind' | 'queuedAt' | 'stopId'
+>
+
+/**
+ * A drenagem apaga o item da fila antes de o GET trazer o snapshot novo — sem isto o botão regride
+ * ao estado velho e pisca. A chave em `sentReportKeys` segura o toque até o snapshot alcançá-lo, a
+ * mesma rede de `resolveDocumentActivityStatus`.
+ */
+export function withSentTappedReports(input: {
+  readonly queueView: readonly EventQueueItemView[]
+  readonly sentReportKeys?: ReadonlySet<string> | undefined
+  readonly tappedReports?: readonly TappedStopReport[] | undefined
+}): readonly EventQueueItemView[] {
+  const { queueView, sentReportKeys, tappedReports } = input
+  if (sentReportKeys === undefined || tappedReports === undefined) return queueView
+  const queuedKeys = new Set(queueView.map((item) => item.idempotencyKey))
+  const sentButGone = tappedReports
+    .filter((report) => sentReportKeys.has(report.idempotencyKey))
+    .filter((report) => !queuedKeys.has(report.idempotencyKey))
+    .map(
+      (report): EventQueueItemView => ({
+        ...report,
+        attachmentCount: 0,
+        status: { state: 'queued' },
+      }),
+    )
+  return [...queueView, ...sentButGone]
 }

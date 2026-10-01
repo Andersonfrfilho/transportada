@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DriverTrip, DriverTripStop } from './driverTrip.types'
+import { withSentTappedReports, type TappedStopReport } from './documentActivity.service'
 import type { EventQueueItemView } from './eventQueueView.service'
 
 /**
@@ -19,12 +20,16 @@ import type { EventQueueItemView } from './eventQueueView.service'
 export function resolveEnRouteStopId(input: {
   readonly stops: readonly DriverTripStop[]
   readonly queueView: readonly EventQueueItemView[]
+  readonly sentReportKeys?: ReadonlySet<string>
+  readonly tappedReports?: readonly TappedStopReport[]
 }): string | undefined {
   let enRouteStopId = input.stops.find(
     (stop) => stop.enRouteSince !== null && stop.enRouteSince !== undefined,
   )?.id
 
-  const orderedQueue = [...input.queueView].sort((a, b) => a.queuedAt.localeCompare(b.queuedAt))
+  const orderedQueue = [...withSentTappedReports(input)].sort((a, b) =>
+    a.queuedAt.localeCompare(b.queuedAt),
+  )
 
   for (const item of orderedQueue) {
     if (item.status.state === 'rejected') continue

@@ -27,6 +27,7 @@ import {
   type DocumentActivityStatus,
   type DocumentActivityView,
   type DocumentReturnActivityView,
+  type TappedStopReport,
 } from '../shared/documentActivity.service'
 import { formatDocumentAmount, formatDocumentWeight } from '../shared/driverDocumentFormat.service'
 import { formatStopDistance } from '../shared/driverStopDistance.service'
@@ -220,6 +221,9 @@ type DriverStopCardProps = Readonly<{
    * só para saber se ESTA parada já tem uma chegada, na hora, mesmo sem o servidor ter confirmado.
    */
   queueView: readonly EventQueueItemView[]
+  /** O que o servidor aceitou nesta sessão, e os toques que a tela fez — seguram "Cheguei" depois que a fila esvazia. */
+  sentReportKeys: ReadonlySet<string>
+  tappedReports: readonly TappedStopReport[]
   /** Pedido do usuário (25/09): "devolvida às HH:MM — motivo", com o mesmo retorno de fila. */
   returnActivityByDocumentId: ReadonlyMap<string, DocumentReturnActivityView>
   /** Spec 157 RF5: o toque em "Tentar de novo" no painel de ocorrência da nota. */
@@ -259,8 +263,10 @@ export function DriverStopCard({
   onToggle,
   queueView,
   returnActivityByDocumentId,
+  sentReportKeys,
   stop,
   stopOccurrenceActivity,
+  tappedReports,
 }: DriverStopCardProps) {
   const { t } = useTranslation('driverTrip')
   const [isConfirmingCancelDeparture, setIsConfirmingCancelDeparture] = useState(false)
@@ -304,7 +310,9 @@ export function DriverStopCard({
   const isArrivalRecorded = isStopArrivalRecorded({
     arrivedAt: stop.arrivedAt,
     queueView,
+    sentReportKeys,
     stopId: stop.id,
+    tappedReports,
   })
   const canActOnDocuments = isArrivalRecorded || isLateRegistration
   const offersLateRegistration = canOfferLateRegistration({ canActOnDocuments, stop })
