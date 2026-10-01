@@ -293,7 +293,7 @@ do usuário. A API não é revertida com a app nova no ar.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T6.1** Contratos primeiro (`apps/frontend-transportada/test/trip/timeline-location.contract.ts`,
+- [x] **T6.1** Contratos primeiro (`apps/frontend-transportada/test/trip/timeline-location.contract.ts`,
       estendido):
   - `resolveTimelineLocationView` em `captured` com e sem coordenada, `unavailable` (e WhatsApp),
     `expired` e `null`;
@@ -303,11 +303,22 @@ do usuário. A API não é revertida com a app nova no ar.
 
   Aceite: falham pelo motivo certo; a contagem subiu em N.
 
-- [ ] **T6.2** `TripTimelineLocation.component.tsx` (ícone `map-pin`, precisão, hora da leitura, "Ver
+- [x] **T6.2** `TripTimelineLocation.component.tsx` (ícone `map-pin`, precisão, hora da leitura, "Ver
       no mapa" ≥ 44 px, sem "Ver no mapa" quando `location` é `null`),
       `TripTimelineLocationMap.component.tsx` (`lazy`, o mapa que o `TripRouteMap` já usa, dois
       pinos), textos em `trip.locale.json` e `trip.en.locale.json`. Componente declarativo; a regra mora
       no serviço da T6.1. Aceite: contratos verdes; `check` do painel verde.
+
+  > Fechadas em `96849c405`. 5945 pass · 0 fail (eram 5939), hooks 158, typecheck, lint e
+  > `format:check` limpos. Duas correções entraram na revisão à mão, com os portões já verdes:
+  > a cor do pino do evento (`#f5f5f5` dava contraste **1,04** contra o papel do tema claro — no
+  > claro o pino não existia) virou `EVENT_PIN_COLOR` escolhida por busca e travada por
+  > `event-pin-color.contract.ts`; e o pino sem número deixou de ser `sequence > 0` dentro do
+  > `AssemblyVectorMap`, que cinco telas consomem, para ser `isUnnumbered` no próprio ponto.
+  >
+  > ⚠️ **O código está pronto e nada subiu.** O preview da T6.3 com coordenada sintética e o ok do
+  > usuário são pré-requisito de push, pela regra do `web.md` §15.
+
 - [ ] **T6.3** Preview no painel local, com a API local desta árvore e uma viagem cujos eventos foram
       gravados **pelas rotas do motorista** (curl com token de motorista, ou a app apontada para a API
       local) — nunca `INSERT` cru —, com **coordenadas sintéticas** (um ponto de teste, não uma

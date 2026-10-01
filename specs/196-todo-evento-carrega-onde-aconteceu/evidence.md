@@ -179,3 +179,83 @@ portões são `bun run test` e `bun run test:hooks`, separados. E `format:check`
 é script da raiz.
 
 **Status:** T4.0 fechada.
+
+## T6.1 / T6.2 — o ícone, o tooltip e o mapa do ponto
+
+O item da linha do tempo ganhou o ícone de GPS que o usuário pediu, com **precisão, distância,
+coordenada e hora** no tooltip, nessa ordem. Os cinco estados que `resolveTimelineLocationView`
+decide, e que o componente só desenha:
+
+| `locationState`           | Tom      | Ícone         | Tooltip                             | Ver no mapa |
+| ------------------------- | -------- | ------------- | ----------------------------------- | ----------- |
+| `captured` + coordenada   | neutro   | `map-pin`     | precisão · distância · lat/long · h | sim         |
+| `captured` sem coordenada | neutro   | `map-pin`     | frase de leitor sem permissão       | não         |
+| `unavailable`             | problema | `map-pin-off` | frase de posição não obtida         | não         |
+| `expired`                 | neutro   | `map-pin`     | frase dos 90 dias                   | não         |
+| nulo / ausente            | —        | —             | nada é desenhado                    | —           |
+
+**Vermelho é só `unavailable`.** `expired` não é falha de ninguém e `captured` sem coordenada é
+permissão, não ausência — pintar os três de vermelho transformaria o indicador num alarme constante.
+O contrato cobra `tone` em cada um, e cobra que o tooltip do estado restrito **não contenha dígito**:
+é a trava de que a coordenada não vaza para quem não tem `trip.event-location`.
+
+### A cor do pino foi escolhida a olho, e a olho ela não existia
+
+O primeiro valor era `#f5f5f5`, com a justificativa "neutro, para não se confundir com a parada".
+Medido contra o papel do tema claro (`#fbf9f5`), o contraste era **1,04** — o mesmo tom. No tema
+claro o pino do evento simplesmente não aparecia, e nada no diff dizia isso: os quatro portões
+estavam verdes.
+
+É o modo de falha que o cabeçalho de `stopColor.service.ts` descreve há duas specs — "contraste ≥ 2,4
+contra os dois fundos só existe numa janela estreita de luminância relativa, entre ~0,11 e ~0,33" — e
+foi também o que o commit `a10f5b81c` consertou dias atrás por outro caminho. Uma constante de cor
+crua num `*.constant.ts` de módulo passa ao largo dessa regra sem disparar nada.
+
+A cor nova saiu de busca, não de escolha: varredura de matiz × saturação × alvo de luminância,
+maximizando a ΔE CIELab mínima contra `MAP_SURFACE`, as 96 primeiras cores de parada e `NOTE_COLORS`.
+
+| Medida                                   | `#f5f5f5` (antes) | `#7d5187` (agora) |
+| ---------------------------------------- | ----------------- | ----------------- |
+| Luminância relativa (janela 0,11 … 0,33) | 0,913 ❌          | 0,120 ✅          |
+| Contraste vs. `#10222c` (escuro)         | 14,96             | 2,64 ✅           |
+| Contraste vs. `#fbf9f5` (claro)          | **1,04** ❌       | 5,88 ✅           |
+| Contraste vs. `#f0f2ee` (mapa claro)     | —                 | 5,48 ✅           |
+| ΔE ao vizinho mais próximo já desenhado  | —                 | 30,4 (limiar 6,2) |
+
+A constante mudou de lugar junto com o valor: ela mora em `stopColor.service.ts`, que é onde a
+doutrina da luminância está escrita, e `event-pin-color.contract.ts` cobra as cinco linhas da tabela.
+**"Neutro" não media nada.**
+
+### O pino sem número era um número mágico em componente compartilhado
+
+O desenho do pino liso tinha virado `input.sequence > 0 ? String(input.sequence) : ''` dentro do
+`AssemblyVectorMap`, que **cinco telas** consomem (`TripRouteMap`, `TripAssemblyMap`,
+`FreightRegionVectorMap`, o mapa novo e o selo do `mapBadge.constant.ts`). Hoje ninguém mais passa
+`sequence: 0`; no dia em que alguém passar índice base-zero, todos os pinos perdem o número **em
+silêncio** — sem erro, sem teste vermelho, só o mapa deixando de dizer a ordem do roteiro.
+
+O ponto agora diz `isUnnumbered`, e o componente compartilhado não interpreta mais número fora de
+faixa. O sentinela numérico sobrou só como chave de cor **dentro** do `TripTimelineLocationMap`, onde
+é local e está documentado como tal.
+
+### Quatro achados que a revisão descartou
+
+Nem tudo que a revisão levantou era defeito, e os descartes ficam registrados para não voltarem à
+mesa: `TripTimeline` com 3 props está dentro do teto de 5; `TripStopDetail.latitude` vem de
+`geocoded_addresses` (spec 079 T012), **não** da coluna morta de `trip_stops` — a armadilha anotada
+na T4.1 não se aplica aqui; o `Intl.DateTimeFormat('pt-BR')` fixo é a convenção do próprio
+`TripTimeline.component.tsx` duas dezenas de linhas acima; e o `<p>` → `<div>` em `itemMeta` é
+exigência de HTML válido, porque o tooltip aninha elemento de bloco.
+
+### Portões
+
+| Portão                        | Resultado                          |
+| ----------------------------- | ---------------------------------- |
+| `bun run test` (painel)       | **5945 pass · 0 fail** (eram 5939) |
+| `bun run test:hooks`          | 158 pass · 0 fail                  |
+| `bun run typecheck`           | `EXIT=0`                           |
+| `bun run lint`                | `EXIT=0` — 0 erros, 16 avisos      |
+| `bun run format:check` (raiz) | `EXIT=0` — limpo                   |
+
+**Status:** T6.1 e T6.2 fechadas no código. ⚠️ **Nada sobe antes do preview local com coordenada
+sintética e do ok do usuário** — regra do `web.md` §15, e é a T6.3 que a cumpre.
