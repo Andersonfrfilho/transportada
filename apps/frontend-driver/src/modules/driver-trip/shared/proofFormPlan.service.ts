@@ -33,12 +33,11 @@ export type ProofFormPlan = Readonly<{
   /** Spec 193 R2: `receivedBy` renderiza sempre que não estiver `off` — `required` nunca bloqueia. */
   rendersReceivedBy: boolean
   /**
-   * Spec 207 (pedido do usuário, 25/09): o documento de quem recebeu aparece SEMPRE — `off` deixou
-   * de esconder o campo, e passou a valer como "opcional" (mesmo `pendingField`/`missing` de
-   * sempre). Só `fields.receiverDocument === 'required'` muda o rótulo e a pendência; a
-   * configuração nunca mais controla se o campo renderiza.
+   * Pedido do usuário (01/10): quem manda se o campo aparece é a configuração, geral ou por CNPJ —
+   * `off` esconde o campo, igual aos outros quatro. Revoga a regra da spec 207 ("aparece sempre"),
+   * que travava o documento visível mesmo com a exceção do destinatário desligando-o.
    */
-  rendersReceiverDocument: true
+  rendersReceiverDocument: boolean
   rendersReceiverName: boolean
   /** Spec 193 D14: "O próprio cliente recebeu" só existe quando o nome renderiza. */
   rendersRecipientShortcut: boolean
@@ -52,7 +51,7 @@ export function resolveProofFormPlan(settings: DriverDeliveryProofSettings | nul
     rendersCargo: fields.cargo !== 'off',
     rendersPhoto: fields.photo !== 'off',
     rendersReceivedBy: fields.receivedBy !== 'off',
-    rendersReceiverDocument: true,
+    rendersReceiverDocument: fields.receiverDocument !== 'off',
     rendersReceiverName: fields.receiverName !== 'off',
     rendersRecipientShortcut: fields.receiverName !== 'off',
     rendersSignature: fields.signature !== 'off',

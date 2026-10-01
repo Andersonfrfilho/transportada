@@ -43,7 +43,7 @@ type TripDeliveryProofSettingsPanelProps = Readonly<{
   onReplaceOverrides: (overrides: readonly DeliveryProofSettingsOverride[]) => void
   onSaveSettings: (settings: CompanyDeliveryProofSettings) => void
   /**
-   * Spec 156 T14, ADR-0069 §6: o `PUT` exige os quatro modos sempre — o painel manda os correntes
+   * Spec 156 T14, ADR-0069 §6: o `PUT` exige os cinco modos sempre — o painel manda os correntes
    * (`fieldSettings`) junto do interruptor novo, sem tocar nos cinco parâmetros de pontualidade.
    */
   onToggleCanhotoOcr: (fieldSettings: DeliveryProofFieldSettings, nextEnabled: boolean) => void

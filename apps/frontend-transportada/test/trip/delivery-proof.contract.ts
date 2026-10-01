@@ -241,20 +241,42 @@ describe('o painel tolera quem recebeu (spec 193 T3.1)', () => {
     expect(() => adapters.deliveryProofsFromApi({ data: [FOTO] })).toThrow()
   })
 
-  it('a configuração sem receivedBy vale como optional; com modo inválido, recusa', () => {
-    const semCampo = {
+  /**
+   * Pedido do usuário (01/10): `receivedBy` virou o quinto campo do painel, igual aos outros
+   * quatro — a configuração sem ele é recusada, não vira "optional" silencioso. `cargo`/
+   * `cargoMinimumCount` seguem opcionais (spec 220): bundle em cache pode rodar contra a API
+   * anterior na janela de deploy. `resolveReceivedByMode` continua existindo para uma resposta
+   * malformada que escape da tipagem (cast/JSON externo), nunca para o caminho comum.
+   */
+  it('a configuração exige os cinco campos; sem receivedBy, ou com modo inválido, recusa', () => {
+    const completo = {
       cargo: 'off',
       cargoMinimumCount: 1,
       photo: 'optional',
+      receivedBy: 'optional',
       receiverDocument: 'off',
       receiverName: 'optional',
       signature: 'optional',
     } as const
 
-    expect(isDeliveryProofFieldSettings(semCampo)).toBe(true)
+    expect(isDeliveryProofFieldSettings(completo)).toBe(true)
+    expect(isDeliveryProofFieldSettings({ ...completo, receivedBy: 'required' })).toBe(true)
+    expect(isDeliveryProofFieldSettings({ ...completo, receivedBy: 'always' })).toBe(false)
+    expect(
+      isDeliveryProofFieldSettings({
+        cargo: 'off',
+        cargoMinimumCount: 1,
+        photo: 'optional',
+        receiverDocument: 'off',
+        receiverName: 'optional',
+        signature: 'optional',
+      }),
+    ).toBe(false)
+
+    const semCampo = { ...completo, receivedBy: undefined } as unknown as Parameters<
+      typeof resolveReceivedByMode
+    >[0]
     expect(resolveReceivedByMode(semCampo)).toBe('optional')
-    expect(resolveReceivedByMode({ ...semCampo, receivedBy: 'required' })).toBe('required')
-    expect(isDeliveryProofFieldSettings({ ...semCampo, receivedBy: 'required' })).toBe(true)
-    expect(isDeliveryProofFieldSettings({ ...semCampo, receivedBy: 'always' })).toBe(false)
+    expect(resolveReceivedByMode({ ...completo, receivedBy: 'required' })).toBe('required')
   })
 })

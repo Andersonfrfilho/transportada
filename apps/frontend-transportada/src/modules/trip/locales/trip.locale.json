@@ -580,6 +580,7 @@
     "fields": {
       "cargo": "Foto da mercadoria",
       "photo": "Foto do canhoto",
+      "receivedBy": "Quem recebeu",
       "receiverDocument": "Documento do recebedor",
       "receiverName": "Nome do recebedor",
       "signature": "Assinatura"

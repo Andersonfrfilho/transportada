@@ -1706,34 +1706,36 @@ function ProofCaptureFields({
             </label>
           ) : null}
           {/*
-           * Pedido do usuário (25/09, spec 207): o documento aparece SEMPRE, como opcional por
-           * padrão — "off"/"optional" nunca escondem o campo, só "required" muda o rótulo/pendência
-           * (`resolveProofFormPlan`: `rendersReceiverDocument` é sempre `true`). Sem inputMode numeric:
-           * CNPJ e RG podem ter letra, e o teclado numérico do celular a esconde.
+           * Pedido do usuário (01/10): quem decide se o campo aparece é a configuração — geral ou a
+           * exceção por CNPJ (`plan.rendersReceiverDocument`), igual aos outros campos. Revoga a
+           * regra da spec 207 ("aparece sempre"). Sem inputMode numeric: CNPJ e RG podem ter letra,
+           * e o teclado numérico do celular a esconde.
            */}
-          <label className={styles.proofField}>
-            <span>
-              {t('proofFields.receiverDocument')}
-              {plan.fields.receiverDocument === 'required' ? ' *' : ''}
-            </span>
-            <input
-              aria-invalid={missing.includes('receiverDocument')}
-              autoCapitalize="characters"
-              maxLength={18}
-              type="text"
-              value={receiverDocument}
-              onBlur={() => pushLateFieldUpdate()}
-              onChange={(event) => {
-                setReceiverDocument(maskReceiverDocument(event.target.value))
-                setMissing((current) => current.filter((field) => field !== 'receiverDocument'))
-              }}
-            />
-            {missing.includes('receiverDocument') ? (
-              <span className={styles.proofFieldError} role="status">
-                {t('proofFields.pendingField')}
+          {plan.rendersReceiverDocument ? (
+            <label className={styles.proofField}>
+              <span>
+                {t('proofFields.receiverDocument')}
+                {plan.fields.receiverDocument === 'required' ? ' *' : ''}
               </span>
-            ) : null}
-          </label>
+              <input
+                aria-invalid={missing.includes('receiverDocument')}
+                autoCapitalize="characters"
+                maxLength={18}
+                type="text"
+                value={receiverDocument}
+                onBlur={() => pushLateFieldUpdate()}
+                onChange={(event) => {
+                  setReceiverDocument(maskReceiverDocument(event.target.value))
+                  setMissing((current) => current.filter((field) => field !== 'receiverDocument'))
+                }}
+              />
+              {missing.includes('receiverDocument') ? (
+                <span className={styles.proofFieldError} role="status">
+                  {t('proofFields.pendingField')}
+                </span>
+              ) : null}
+            </label>
+          ) : null}
 
           {renderFooter({
             plan,

@@ -580,6 +580,7 @@
     "fields": {
       "cargo": "Cargo photo",
       "photo": "Delivery slip photo",
+      "receivedBy": "Who received",
       "receiverDocument": "Receiver document",
       "receiverName": "Receiver name",
       "signature": "Signature"

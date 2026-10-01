@@ -252,9 +252,9 @@ export type TripClient = Readonly<{
     input: CompanyDeliveryProofSettings,
   ) => Promise<CompanyDeliveryProofSettings>
   /**
-   * Spec 156 T14, ADR-0069 §6: liga/desliga o interruptor. O `PUT` exige os quatro modos sempre —
+   * Spec 156 T14, ADR-0069 §6: liga/desliga o interruptor. O `PUT` exige os cinco modos sempre —
    * só os cinco parâmetros de pontualidade e o interruptor são opcionais (ausente não mexe) — por
-   * isso o corpo carrega os quatro modos correntes junto do `canhotoOcrEnabled` novo.
+   * isso o corpo carrega os cinco modos correntes junto do `canhotoOcrEnabled` novo.
    */
   saveCanhotoOcrEnabled: (
     input: DeliveryProofFieldSettings & Readonly<{ canhotoOcrEnabled: boolean }>,
@@ -1013,6 +1013,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           photo: input.photo,
           proofRadiusMeters: input.proofRadiusMeters,
           proofWindowMinutes: input.proofWindowMinutes,
+          receivedBy: input.receivedBy,
           receiverDocument: input.receiverDocument,
           receiverName: input.receiverName,
           signature: input.signature,
@@ -1030,6 +1031,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         body: JSON.stringify({
           canhotoOcrEnabled: input.canhotoOcrEnabled,
           photo: input.photo,
+          receivedBy: input.receivedBy,
           receiverDocument: input.receiverDocument,
           receiverName: input.receiverName,
           signature: input.signature,
@@ -1056,6 +1058,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         body: JSON.stringify({
           overrides: input.overrides.map((override) => ({
             photo: override.photo,
+            receivedBy: override.receivedBy,
             receiverDocument: override.receiverDocument,
             receiverName: override.receiverName,
             signature: override.signature,
@@ -1083,6 +1086,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           overrides: input.overrides.map((override) => ({
             contractorId: override.contractorId,
             photo: override.photo,
+            receivedBy: override.receivedBy,
             receiverDocument: override.receiverDocument,
             receiverName: override.receiverName,
             signature: override.signature,

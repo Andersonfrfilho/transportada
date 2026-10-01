@@ -29,23 +29,27 @@ function readComponentSource(): string {
 }
 
 /**
- * Pedido do usuário (25/09, spec 207): o documento de quem recebeu aparece SEMPRE, como opcional
- * por padrão — "off"/"optional" nunca escondem o campo, só "required" muda o rótulo e a pendência.
+ * Pedido do usuário (01/10): revoga a spec 207 — o documento de quem recebeu volta a seguir a
+ * configuração, geral ou por CNPJ, igual aos outros campos: "off" esconde o campo, "optional" e
+ * "required" mostram (só "required" muda o rótulo e a pendência).
  */
-describe('o documento de quem recebeu aparece sempre (spec 207)', () => {
-  it('rendersReceiverDocument é true mesmo com a configuração off — o campo nunca some', () => {
-    expect(resolveProofFormPlan(null).rendersReceiverDocument).toBe(true)
+describe('o documento de quem recebeu segue a configuração', () => {
+  it('rendersReceiverDocument segue "off"/"optional"/"required" como os outros campos', () => {
+    expect(resolveProofFormPlan(null).rendersReceiverDocument).toBe(false)
     expect(
       resolveProofFormPlan(settings({ receiverDocument: 'off' })).rendersReceiverDocument,
+    ).toBe(false)
+    expect(
+      resolveProofFormPlan(settings({ receiverDocument: 'optional' })).rendersReceiverDocument,
     ).toBe(true)
     expect(
       resolveProofFormPlan(settings({ receiverDocument: 'required' })).rendersReceiverDocument,
     ).toBe(true)
   })
 
-  it('DriverStopCard nunca condiciona o campo a plan.rendersReceiverDocument', () => {
+  it('DriverStopCard condiciona o campo a plan.rendersReceiverDocument', () => {
     const card = readComponentSource()
-    expect(card).not.toContain('plan.rendersReceiverDocument ?')
+    expect(card).toContain('plan.rendersReceiverDocument ?')
   })
 })
 
