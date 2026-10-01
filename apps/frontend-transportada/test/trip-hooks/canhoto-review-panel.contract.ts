@@ -11,18 +11,12 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'bun:test'
 
 import '../../src/modules/shared/i18n/i18n.service'
-import {
-  ProofReview,
-  type ProofReviewProps,
-} from '../../src/modules/trip/components/ProofReview.component'
+import { ProofReview } from '../../src/modules/trip/components/ProofReview.component'
 import type { DeliveryProof } from '../../src/modules/trip/shared/deliveryProof.service'
 
 const EXPERIMENTAL_LABEL = 'Experimental'
 const SYNTHETIC_NOTE = 'Canhoto molhado e rasgado na dobra'
 const REVIEWER_NAME = 'Revisora Sintética'
-
-const onApprove = (): void => undefined
-const onReject = (): void => undefined
 
 let root: Root | undefined
 let container: HTMLDivElement | undefined
@@ -39,17 +33,12 @@ function makeProof(overrides: Partial<DeliveryProof>): DeliveryProof {
   }
 }
 
-async function renderReview(
-  proof: DeliveryProof,
-  review: Partial<ProofReviewProps> = {},
-): Promise<string> {
+async function renderReview(proof: DeliveryProof): Promise<string> {
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
   await act(async () => {
-    root?.render(
-      createElement(ProofReview, { canReview: false, onApprove, onReject, proof, ...review }),
-    )
+    root?.render(createElement(ProofReview, { proof }))
     await Promise.resolve()
   })
   return container.textContent ?? ''
@@ -173,47 +162,5 @@ describe('o veredito do canhoto aparece no item da nota (spec 220 T7.8)', () => 
 
     expect(text).toBe('')
     expect(container?.children[0]).toBeUndefined()
-  })
-
-  it('com trip.manage os dois botões existem; sem ele, nenhum está no DOM (T7.9)', async () => {
-    const pending = makeProof({ canhotoReview: 'pending' })
-
-    await renderReview(pending, { canReview: true })
-    const labels = Array.from(container?.querySelectorAll('button') ?? []).map(
-      (button) => button.textContent,
-    )
-    expect(labels).toEqual(['Aprovar canhoto', 'Recusar canhoto'])
-
-    act(() => root?.unmount())
-    container?.remove()
-    await renderReview(pending, { canReview: false })
-    expect(container?.querySelector('button')).toBeNull()
-  })
-
-  it('os botões chamam os callbacks recebidos por prop (T7.9)', async () => {
-    const calls: string[] = []
-    await renderReview(makeProof({ canhotoReview: 'pending' }), {
-      canReview: true,
-      onApprove: () => calls.push('approve'),
-      onReject: () => calls.push('reject'),
-    })
-
-    for (const button of Array.from(container?.querySelectorAll('button') ?? [])) {
-      act(() => button.click())
-    }
-
-    expect(calls).toEqual(['approve', 'reject'])
-  })
-
-  it('veredito já resolvido não oferece botão, mesmo com trip.manage (T7.9)', async () => {
-    const approved = makeProof({
-      canhotoReview: 'approved',
-      canhotoReviewAt: '2026-09-30T12:00:00Z',
-      canhotoReviewOrigin: 'manual',
-    })
-
-    await renderReview(approved, { canReview: true })
-
-    expect(container?.querySelector('button')).toBeNull()
   })
 })

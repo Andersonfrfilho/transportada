@@ -44,7 +44,7 @@ function makeView(proofs: readonly DeliveryProof[]): ReturnType<typeof resolveDe
 }
 
 describe('galeria do comprovante (spec 220 RF21)', () => {
-  it('ordena assinatura, depois canhoto, depois mercadoria, mantendo a ordem da tela em cada grupo', () => {
+  it('ordena canhoto, depois assinatura, depois mercadoria, mantendo a ordem da tela em cada grupo', () => {
     const view = makeView([
       makeProof('signature-1', 'signature'),
       makeProof('cargo-1', 'cargo'),
@@ -54,9 +54,9 @@ describe('galeria do comprovante (spec 220 RF21)', () => {
     ])
 
     expect(buildDeliveryProofGallery(view).map((proof) => proof.id)).toEqual([
-      'signature-1',
       'receipt-1',
       'receipt-2',
+      'signature-1',
       'cargo-1',
       'cargo-2',
     ])
@@ -77,7 +77,7 @@ describe('galeria do comprovante (spec 220 RF21)', () => {
       ]),
     )
 
-    expect(resolveDeliveryProofGalleryStartIndex({ gallery, proofId: 'signature-1' })).toBe(0)
+    expect(resolveDeliveryProofGalleryStartIndex({ gallery, proofId: 'signature-1' })).toBe(1)
     expect(resolveDeliveryProofGalleryStartIndex({ gallery, proofId: 'cargo-1' })).toBe(2)
   })
 

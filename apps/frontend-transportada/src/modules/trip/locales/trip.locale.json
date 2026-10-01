@@ -494,7 +494,6 @@
       },
       "rejected": "Canhoto recusado"
     },
-    "capturedAt": "Capturada em {{moment}}",
     "cargoPhotoAlt": "Foto da mercadoria entregue",
     "cargoPhotosTitle": "Fotos da carga",
     "deliveredAt": "Entregue em {{moment}}",
@@ -542,7 +541,24 @@
     "title": "Comprovante da entrega",
     "withoutLocation": "sem localização",
     "withoutProducts": "Esta nota não tem itens registrados.",
-    "withoutProof": "Entrega registrada sem comprovante anexado."
+    "withoutProof": "Entrega registrada sem comprovante anexado.",
+    "pieceLabel": {
+      "photo": "Canhoto assinado",
+      "signature": "Assinatura",
+      "cargo": "Mercadoria"
+    },
+    "piecesLabel": "Outras peças do comprovante",
+    "pendingSince": "Conferência pendente desde {{time}}",
+    "readings": {
+      "capturedAt": "Captura",
+      "distance": "Distância",
+      "requirement": "Exigência"
+    },
+    "reviewStatus": {
+      "pending": "Aguardando conferência",
+      "approved": "Aprovado",
+      "rejected": "Recusado"
+    }
   },
   "deliveryProofSettings": {
     "canhotoOcr": {

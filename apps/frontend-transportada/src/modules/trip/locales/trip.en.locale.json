@@ -494,7 +494,6 @@
       },
       "rejected": "Delivery receipt rejected"
     },
-    "capturedAt": "Captured on {{moment}}",
     "cargoPhotoAlt": "Photo of the cargo delivered",
     "cargoPhotosTitle": "Cargo photos",
     "deliveredAt": "Delivered on {{moment}}",
@@ -542,7 +541,24 @@
     "title": "Delivery proof",
     "withoutLocation": "no location",
     "withoutProducts": "This document has no items recorded.",
-    "withoutProof": "Delivery recorded without attached proof."
+    "withoutProof": "Delivery recorded without attached proof.",
+    "pieceLabel": {
+      "photo": "Signed receipt",
+      "signature": "Signature",
+      "cargo": "Goods"
+    },
+    "piecesLabel": "Other proof pieces",
+    "pendingSince": "Review pending since {{time}}",
+    "readings": {
+      "capturedAt": "Captured",
+      "distance": "Distance",
+      "requirement": "Requirement"
+    },
+    "reviewStatus": {
+      "pending": "Awaiting review",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    }
   },
   "deliveryProofSettings": {
     "canhotoOcr": {

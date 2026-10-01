@@ -19,18 +19,16 @@ import {
 } from '../shared/deliveryProof.service'
 import styles from '../styles/trip.module.css'
 
-import { ProofReadings } from './ProofReadings.component'
-import { ProofReview, type CanhotoReviewActions } from './ProofReview.component'
-
 type ProofImageProps = Readonly<{
   alt: string
+  label: string
   onOpen: (proofId: string) => void
   proof: DeliveryProof
-  reviewActions: CanhotoReviewActions
+  variant: 'main' | 'thumbnail'
 }>
 
 /** Sem original (`downloadUrl` vazio) a galeria não o contém: fica só a miniatura, sem botão. */
-export function ProofImage({ alt, onOpen, proof, reviewActions }: ProofImageProps) {
+export function ProofImage({ alt, label, onOpen, proof, variant }: ProofImageProps) {
   const { t } = useTranslation('trip')
   const [hasSettled, setHasSettled] = useState(false)
 
@@ -47,10 +45,15 @@ export function ProofImage({ alt, onOpen, proof, reviewActions }: ProofImageProp
     onOpen(proof.id)
   }
 
+  const isMain = variant === 'main'
   const thumbnail = (
     <img
       alt={alt}
-      className={cn(styles.deliveryProofImage, isWaiting && styles.deliveryProofImagePending)}
+      className={cn(
+        styles.deliveryProofImage,
+        !isMain && styles.proofThumbnailImage,
+        isWaiting && styles.deliveryProofImagePending,
+      )}
       loading="lazy"
       onError={handleSettled}
       onLoad={handleSettled}
@@ -59,7 +62,7 @@ export function ProofImage({ alt, onOpen, proof, reviewActions }: ProofImageProp
   )
 
   return (
-    <>
+    <figure className={isMain ? styles.proofMain : styles.proofThumbnail}>
       <div className={styles.deliveryProofImageFrame}>
         {isWaiting ? (
           <SkeletonGroup label={t('deliveryProof.imageLoading')}>
@@ -69,7 +72,7 @@ export function ProofImage({ alt, onOpen, proof, reviewActions }: ProofImageProp
         {canOpen ? (
           <button
             aria-label={t('deliveryProof.open')}
-            className={styles.deliveryProofImageButton}
+            className={isMain ? styles.deliveryProofImageButton : styles.proofThumbnailButton}
             onClick={handleOpen}
             type="button"
           >
@@ -78,9 +81,9 @@ export function ProofImage({ alt, onOpen, proof, reviewActions }: ProofImageProp
         ) : (
           thumbnail
         )}
+        {isMain ? <span className={styles.proofPieceOverlay}>{label}</span> : null}
       </div>
-      <ProofReadings proof={proof} />
-      <ProofReview {...reviewActions} proof={proof} />
-    </>
+      {isMain ? null : <figcaption className={styles.proofPieceCaption}>{label}</figcaption>}
+    </figure>
   )
 }

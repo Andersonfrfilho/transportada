@@ -9,6 +9,10 @@ import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import type { DeliveryProofView } from '../shared/deliveryProof.service'
 import {
+  resolveDeliveryProofOutcome,
+  resolveDeliveryProofPieces,
+} from '../shared/deliveryProofCard.service'
+import {
   buildDeliveryProofGallery,
   resolveDeliveryProofGalleryStartIndex,
 } from '../shared/deliveryProofGallery.service'
@@ -16,8 +20,11 @@ import type { TripDocumentProduct } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
 import { ProofGalleryDialog } from './ProofGalleryDialog.component'
-import { ProofImage } from './ProofImage.component'
-import type { CanhotoReviewActions } from './ProofReview.component'
+import { ProofPieces } from './ProofPieces.component'
+import { ProofReadings } from './ProofReadings.component'
+import { ProofReview, type CanhotoReviewActions } from './ProofReview.component'
+import { ProofReviewActions, ProofReviewDeadline } from './ProofReviewActions.component'
+import { ProofReviewChip } from './ProofReviewChip.component'
 import { TripDeliveryProofDetail } from './TripDeliveryProofDetail.component'
 
 type TripDeliveryProofProps = Readonly<{
@@ -99,56 +106,44 @@ export function TripDeliveryProof({
   }
 
   const gallery = buildDeliveryProofGallery(view)
+  const pieces = resolveDeliveryProofPieces(view)
+  const reviewed = pieces.main?.proof
+  const outcome = reviewed === undefined ? undefined : resolveDeliveryProofOutcome(reviewed)
+  const isPending = reviewed !== undefined && outcome === 'pending'
 
   function handleProofClose(): void {
     setOpenProofId(null)
   }
 
   return (
-    <section aria-labelledby="trip-delivery-proof-title" className={styles.panel}>
-      <h4 className={styles.hint} id="trip-delivery-proof-title">
-        {t('deliveryProof.title')}
-      </h4>
+    <section aria-labelledby="trip-delivery-proof-title" className={styles.proofCard}>
+      <header className={styles.proofCardHeader}>
+        <h4 className={styles.proofCardTitle} id="trip-delivery-proof-title">
+          {t('deliveryProof.title')}
+        </h4>
+        {outcome === undefined ? null : <ProofReviewChip outcome={outcome} />}
+      </header>
       {view.deliveredAt === null ? null : (
-        <p>{t('deliveryProof.deliveredAt', { moment: formatMoment(view.deliveredAt) })}</p>
+        <p className={styles.hint}>
+          {t('deliveryProof.deliveredAt', { moment: formatMoment(view.deliveredAt) })}
+        </p>
       )}
       {view.receiverName === null ? null : (
-        <p>{t('deliveryProof.receiver', { name: view.receiverName })}</p>
+        <p className={styles.hint}>{t('deliveryProof.receiver', { name: view.receiverName })}</p>
       )}
       {view.state === 'delivered-without-proof' ? (
         <p className={styles.hint}>{t('deliveryProof.withoutProof')}</p>
       ) : null}
-      {view.signatures.map((proof) => (
-        <ProofImage
-          alt={t('deliveryProof.signatureAlt')}
-          key={proof.id}
-          onOpen={setOpenProofId}
-          proof={proof}
-          reviewActions={reviewActions}
-        />
-      ))}
-      {view.photos.map((proof) => (
-        <ProofImage
-          alt={t('deliveryProof.photoAlt')}
-          key={proof.id}
-          onOpen={setOpenProofId}
-          proof={proof}
-          reviewActions={reviewActions}
-        />
-      ))}
-      {view.cargoPhotos.length > 0 ? (
-        <section className={styles.cargoPhotosSection}>
-          <h5 className={styles.hint}>{t('deliveryProof.cargoPhotosTitle')}</h5>
-          {view.cargoPhotos.map((proof) => (
-            <ProofImage
-              alt={t('deliveryProof.cargoPhotoAlt')}
-              key={proof.id}
-              onOpen={setOpenProofId}
-              proof={proof}
-              reviewActions={reviewActions}
-            />
-          ))}
-        </section>
+      <ProofPieces onOpen={setOpenProofId} pieces={pieces} />
+      {reviewed === undefined ? null : <ProofReadings proof={reviewed} />}
+      {reviewed === undefined ? null : <ProofReview proof={reviewed} />}
+      {isPending ? (
+        <footer className={styles.proofCardFooter}>
+          <ProofReviewDeadline proof={reviewed} />
+          <div className={styles.proofCardActions}>
+            <ProofReviewActions {...reviewActions} proof={reviewed} />
+          </div>
+        </footer>
       ) : null}
       <TripDeliveryProofDetail
         documentId={documentId}

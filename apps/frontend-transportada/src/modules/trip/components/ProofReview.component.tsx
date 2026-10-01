@@ -1,15 +1,14 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 220 T7.8: o veredito do canhoto no item da nota. A tradução veredito -> tela é da
+ * Spec 220 T7.8: o veredito do canhoto no item da nota. O estado curto vive no cabeçalho do card
+ * (`ProofReviewChip`) e os botões no rodapé (`ProofReviewActions`); aqui fica a frase por extenso. A tradução veredito -> tela é da
  * `presentCanhotoReview`; aqui só se escolhe o texto e o selo. Sem veredito, nada é renderizado.
  */
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
 import { Badge, type BadgeProps } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Icon } from '@/components/ui/icon'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import {
@@ -51,9 +50,9 @@ export type CanhotoReviewActions = Readonly<{
   onReject: () => void
 }>
 
-export type ProofReviewProps = CanhotoReviewActions & Readonly<{ proof: DeliveryProof }>
+export type ProofReviewProps = Readonly<{ proof: DeliveryProof }>
 
-export function ProofReview({ canReview, onApprove, onReject, proof }: ProofReviewProps) {
+export function ProofReview({ proof }: ProofReviewProps) {
   const { t } = useTranslation('trip')
   const formatMoment = useMomentFormatter()
   const presentation = presentCanhotoReview(proof)
@@ -73,18 +72,6 @@ export function ProofReview({ canReview, onApprove, onReject, proof }: ProofRevi
       </div>
       {reason === undefined ? null : <p>{t(`deliveryProof.canhotoReview.reason.${reason}`)}</p>}
       {note === undefined ? null : <p>{note}</p>}
-      {canReview && proof.canhotoReview === 'pending' ? (
-        <div className={styles.proofBadges}>
-          <Button onClick={onApprove} size="sm" type="button">
-            <Icon name="check" />
-            {t('deliveryProof.canhotoReview.approve')}
-          </Button>
-          <Button onClick={onReject} size="sm" type="button" variant="secondary">
-            <Icon name="close" />
-            {t('deliveryProof.canhotoReview.reject')}
-          </Button>
-        </div>
-      ) : null}
     </div>
   )
 }

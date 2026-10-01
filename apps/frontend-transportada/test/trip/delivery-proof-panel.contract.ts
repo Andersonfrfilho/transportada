@@ -104,7 +104,7 @@ describe('comprovante da entrega na tela (spec 079 T006/T025)', () => {
 
   /** Imagem sem alternativa textual é inacessível — e aqui ela descreve o que a foto é. */
   it('descreve a imagem para quem não a vê', () => {
-    expect(source).toInclude('alt=')
+    expect(readFileSync(PROOF_IMAGE, 'utf8')).toInclude('alt={alt}')
     expect(trip.deliveryProof.photoAlt).toBeString()
   })
 
@@ -206,7 +206,7 @@ describe('quem recebeu no comprovante (spec 220 T4.1)', () => {
 })
 
 type ProofReadingLabels = {
-  readonly capturedAt?: string
+  readonly readings?: { readonly capturedAt?: string }
   readonly distanceKilometers?: string
   readonly distanceMeters?: string
   readonly lateRegistration?: string
@@ -226,8 +226,9 @@ describe('hora e distância da captura no comprovante (spec 220 T4.2)', () => {
 
   it('mostra a hora da captura a partir de capturedAt', () => {
     expect(source).toInclude('capturedAt')
-    expect(PROOF_LABELS.capturedAt).toBeString()
-    expect(PROOF_LABELS.capturedAt).toInclude('{{moment}}')
+    expect(PROOF_LABELS.readings?.capturedAt).toBe('Captura')
+    expect(source).toInclude('deliveryProof.readings.capturedAt')
+    expect(source).toInclude('formatMoment(capturedAt)')
   })
 
   it('escreve a distância em metros abaixo de 1 km e em quilômetros, com vírgula, acima', () => {
