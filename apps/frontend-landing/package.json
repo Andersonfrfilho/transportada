@@ -12,7 +12,7 @@
     "serve": "bun ./server.ts",
     "smoke": "ENV_FILE=${ENV_FILE:-../../.env}; set -a; . \"$ENV_FILE\"; set +a; playwright test",
     "start": "vite preview --host 0.0.0.0 --port ${PORT:-5174}",
-    "test": "bun test test/shared.contract.test.ts test/landing.contract.test.ts test/application.contract.test.ts test/portal.contract.test.ts",
+    "test": "bun test test/shared.contract.test.ts test/landing.contract.test.ts test/legal.contract.test.ts test/application.contract.test.ts test/portal.contract.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

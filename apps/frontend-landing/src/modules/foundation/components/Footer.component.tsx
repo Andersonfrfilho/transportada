@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { ReactNode } from 'react'
 
+import { LEGAL_DOCUMENT_PATHS } from '@/modules/legal/shared/legalDocuments.service'
 import { BrandMark } from '@/modules/shared/components/BrandMark.component'
 import { Icon } from '@/modules/shared/components/Icon.component'
 import {
@@ -19,8 +20,15 @@ const NAV_LINKS = [
   { href: '#contato', label: 'Contato' },
 ] as const
 
+const LEGAL_LINKS = [
+  { label: 'Política de Privacidade', path: LEGAL_DOCUMENT_PATHS.privacyPolicy },
+  { label: 'Termos de Serviço', path: LEGAL_DOCUMENT_PATHS.termsOfService },
+  { label: 'Exclusão de dados', path: LEGAL_DOCUMENT_PATHS.dataDeletion },
+] as const
+
 type FooterProps = Readonly<{
   brandName: string
+  onNavigateTo: (path: string) => void
   onNavigateToApplication: () => void
   settings: LandingSettings
 }>
@@ -75,7 +83,12 @@ function renderContacts(settings: LandingSettings): ReactNode {
   ))
 }
 
-export function Footer({ brandName, onNavigateToApplication, settings }: FooterProps): ReactNode {
+export function Footer({
+  brandName,
+  onNavigateTo,
+  onNavigateToApplication,
+  settings,
+}: FooterProps): ReactNode {
   const year = new Date().getUTCFullYear()
 
   return (
@@ -125,6 +138,24 @@ export function Footer({ brandName, onNavigateToApplication, settings }: FooterP
               ))}
             </ul>
           )}
+        </div>
+        <div>
+          <p className={styles.columnTitle}>Legal</p>
+          <ul className={styles.linkList}>
+            {LEGAL_LINKS.map((link) => (
+              <li key={link.path}>
+                <a
+                  href={link.path}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    onNavigateTo(link.path)
+                  }}
+                >
+                  {link.label}
+                </a>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
       <div className={styles.bottomBar}>

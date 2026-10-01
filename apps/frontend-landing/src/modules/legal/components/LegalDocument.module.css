@@ -1,0 +1,68 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+.document {
+  margin: 0 auto;
+  /* Medida de leitura: texto legal corrido em 78rem vira parede e ninguém chega ao fim. */
+  max-width: 48rem;
+  padding: var(--space-12) var(--layout-gutter) var(--space-16);
+}
+
+.title {
+  font-size: 2rem;
+  line-height: 1.2;
+  margin: 0 0 var(--space-3);
+}
+
+.updatedAt {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  margin: 0 0 var(--space-6);
+  text-transform: uppercase;
+}
+
+.summary {
+  border-left: 2px solid var(--color-accent);
+  color: var(--color-fog);
+  font-size: 1.05rem;
+  line-height: 1.6;
+  margin: 0 0 var(--space-10);
+  padding-left: var(--space-4);
+}
+
+.section {
+  margin: 0 0 var(--space-8);
+}
+
+.heading {
+  font-size: 1.2rem;
+  line-height: 1.3;
+  margin: 0 0 var(--space-3);
+}
+
+.paragraph {
+  line-height: 1.7;
+  margin: 0 0 var(--space-3);
+}
+
+.list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+.list li {
+  line-height: 1.6;
+}
+
+.contact {
+  border-top: 1px solid var(--color-graphite);
+  margin-top: var(--space-10);
+  padding-top: var(--space-6);
+}
+
+.backLink {
+  display: inline-block;
+  margin-top: var(--space-8);
+}
