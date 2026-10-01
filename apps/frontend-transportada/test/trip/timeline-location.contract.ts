@@ -156,7 +156,7 @@ describe('resolveTimelineLocationView (spec 196 T6.1)', () => {
     expect(view?.coordinates).toEqual({ latitude: -23.55, longitude: -46.63 })
     expect(view?.lines).toHaveLength(4)
     expect(view?.lines[0]).toBe('eventTimeline.location.accuracy(meters=12)')
-    expect(view?.lines[1]).toBe('eventTimeline.location.distance(meters=1)')
+    expect(view?.lines[1]).toBe('eventTimeline.location.distance.meters(distance=1)')
     expect(view?.lines[2]).toBe(
       'eventTimeline.location.coordinates(latitude=-23.55000,longitude=-46.63000)',
     )
