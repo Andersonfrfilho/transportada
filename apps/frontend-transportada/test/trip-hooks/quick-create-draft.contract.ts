@@ -31,25 +31,38 @@ const DRAFT_KEY = buildTripAssemblyDraftKey({ mode: TRIP_ASSEMBLY_DRAFT_MODE.man
 
 const { useTripQuickCreate } = await import('@/modules/trip/hooks/useTripQuickCreate.hook')
 
-function renderQuickCreate() {
+function renderQuickCreate(
+  selectable: Readonly<{ driverIds: readonly string[]; helperIds: readonly string[] }> = {
+    driverIds: [],
+    helperIds: [],
+  },
+) {
   return renderHook(() =>
     useTripQuickCreate({
       draftScope: SCOPE,
       onCreated: () => undefined,
       permissions: [],
-      selectableDriverIds: [],
+      selectableDriverIds: selectable.driverIds,
+      selectableHelperIds: selectable.helperIds,
       selectableVehicleIds: [VEHICLE_ID],
     }),
   )
 }
 
 /** A montagem que o operador deixou ao sair para medir — gravada antes de a tela montar. */
-function seedStoredDraft(storage: RecordingStorage): null | string {
+function seedStoredDraft(
+  storage: RecordingStorage,
+  crew: Readonly<{ driverIds: readonly string[]; helperIds: readonly string[] }> = {
+    driverIds: [],
+    helperIds: [],
+  },
+): null | string {
   writeTripAssemblyDraft({
     draft: {
       dailyAllowanceDaysInput: null,
       documentIds: [DOCUMENT.id],
-      driverIds: [],
+      driverIds: crew.driverIds,
+      helperIds: crew.helperIds,
       isOpen: true,
       routeChoice: null,
       stopOrderDocumentIds: [DOCUMENT.id],
@@ -120,5 +133,24 @@ describe('rascunho da montagem manual no hook', () => {
     expect(storage.writes).toEqual([])
     expect(storage.removals).toEqual([])
     expect(storage.getItem(DRAFT_KEY)).toBe(storedRaw)
+  })
+
+  /** Spec 149: os ajudantes escolhidos voltam com o resto, e quem passa a dirigir deixa de ajudar. */
+  test('na volta, restaura os ajudantes junto do motorista e do veículo', async () => {
+    seedStoredDraft(storage, { driverIds: ['driver-1'], helperIds: ['helper-1', 'helper-gone'] })
+
+    hook = await renderQuickCreate({
+      driverIds: ['driver-1', 'helper-1'],
+      helperIds: ['helper-1'],
+    })
+    const rendered = hook
+    await waitFor(() => expect(rendered.result().stagedCount).toBe(1))
+
+    expect(rendered.result().driverIds).toEqual(['driver-1'])
+    expect(rendered.result().helperIds).toEqual(['helper-1'])
+
+    act(() => rendered.result().setDriverIds(['driver-1', 'helper-1']))
+
+    expect(rendered.result().helperIds).toEqual([])
   })
 })

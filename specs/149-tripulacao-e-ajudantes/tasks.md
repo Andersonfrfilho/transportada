@@ -1,14 +1,14 @@
 # Spec 149 — Tarefas
 
-| fase | tasks     | modelo recomendado | fallback se der 429 |
-| ---- | --------- | ------------------ | ------------------- |
-| 1    | T1 🧠, T2 | `opus`, `sonnet`   | `fable`, `opus`     |
-| 2    | T3–T5     | `sonnet`           | `opus`              |
-| 3    | T6–T7     | `sonnet`           | `opus`              |
-| 4    | T8 🧠, T9 | `opus`, `sonnet`   | `fable`, `opus`     |
-| 5    | T10–T11   | `sonnet`           | `opus`              |
-| 6    | T12–T14   | `sonnet`           | `opus`              |
-| 7    | T15       | `haiku`            | `sonnet`            |
+| fase | tasks        | modelo recomendado | fallback se der 429 |
+| ---- | ------------ | ------------------ | ------------------- |
+| 1    | T1 🧠, T2    | `opus`, `sonnet`   | `fable`, `opus`     |
+| 2    | T3–T5        | `sonnet`           | `opus`              |
+| 3    | T6–T7        | `sonnet`           | `opus`              |
+| 4    | T8 🧠, T9    | `opus`, `sonnet`   | `fable`, `opus`     |
+| 5    | T10–T11      | `sonnet`           | `opus`              |
+| 6    | T12–T14, T16 | `sonnet`           | `opus`              |
+| 7    | T15          | `haiku`            | `sonnet`            |
 
 Toda task fecha com: contrato vermelho antes, `bun run typecheck`, testes da app (integração com
 `--env-file=../../.env.test`), `make check` na fase, commit isolado e evidência em `evidence.md`.
@@ -63,7 +63,15 @@ Toda task fecha com: contrato vermelho antes, `bun run typecheck`, testes da app
 - [ ] T12 — Ficha do motorista e painel "Diária do ajudante" perto do efeito.
 - [ ] T13 — Montagem manda os pares do estado (D12); revisão com select de motorista (score + motivo) e
       ajudantes por veículo, gravando pelo PATCH; resumo das linhas sem motorista.
-- [ ] T14 — Linha "Ajudantes" na conta da proposta e da viagem.
+      **Aberta** no que depende da Fase 5 (score/recomendação e o `PATCH /route-suggestions/.../crew`);
+      o ajudante pela tela de viagem foi fechado na T16.
+- [ ] T14 — Linha "Ajudantes" na conta da proposta e da viagem. **Viagem fechada na T16**; a lista
+      "só parcela com lacuna ou derivação" da proposta (`buildSuggestionCostParcelLines`) segue como está.
+- [x] T16 — Recorte de T13/T14 sem Fase 4/5: o operador adiciona, troca e remove ajudantes pela tela da
+      viagem (criação rápida + troca de tripulação) e a diária entra na conta. `PATCH /trips/:id/crew`
+      aceita `helperIds` (mesmo teto da criação) e o `INSERT` de `updateCrew` passa a gravar `role`;
+      campo "Ajudantes" (`MultiSelect`) com rascunho; `helper` em `FINANCIAL_PARCEL_KINDS` e a frase de
+      "faltam/total" composta no frontend. Evidência em `evidence.md` § T16.
 
 ## Fase 7 — Documentação viva
 

@@ -30,6 +30,7 @@ export const EMPTY_QUICK_CREATE_QUEUE: TripQuickCreateQueue = []
 export type TripQuickCreateIssue =
   | 'dailyAllowanceDaysInvalid'
   | 'driverRequired'
+  | 'helperWithoutDriver'
   | 'noDocument'
   | 'vehicleRequired'
 
@@ -165,12 +166,17 @@ export function isQuickCreateEntryPending(entry: TripQuickCreateEntry): boolean 
 export function validateQuickCreate(input: {
   readonly dailyAllowanceDays: DailyAllowanceDaysReading
   readonly driverIds: readonly string[]
+  /** Spec 149 D5: ajudante sem motorista é recusado pela API (409) — a tela avisa antes. */
+  readonly helperIds?: readonly string[]
   readonly path: TripQuickCreatePath
   readonly queue: TripQuickCreateQueue
   readonly vehicleId: string
 }): readonly TripQuickCreateIssue[] {
   const issues: TripQuickCreateIssue[] = []
   if (stagedDocumentIds(input.queue).length === 0) issues.push('noDocument')
+  if ((input.helperIds ?? []).length > 0 && input.driverIds.length === 0) {
+    issues.push('helperWithoutDriver')
+  }
   /** Spec 217 (RF1/D5): só o clique único amarra a tripulação — o rascunho nasce sem ela. */
   if (input.path === 'singleClick') {
     if (input.driverIds.length === 0) issues.push('driverRequired')

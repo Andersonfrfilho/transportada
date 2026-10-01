@@ -332,7 +332,11 @@
   "tripSelector": {
     "label": "Suas viagens",
     "option_one": "{{path}} · {{count}} parada",
-    "option_other": "{{path}} · {{count}} paradas"
+    "option_other": "{{path}} · {{count}} paradas",
+    "autoSwitched": {
+      "dismiss": "Entendi",
+      "notice": "Você está vendo outra viagem agora: {{path}}"
+    }
   },
   "deliveryWindow": {
     "between": "Janela {{start}}–{{end}}",

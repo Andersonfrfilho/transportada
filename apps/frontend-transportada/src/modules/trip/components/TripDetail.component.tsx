@@ -47,7 +47,11 @@ import {
 } from '../shared/tripDispatchFeedback.service'
 import { countOpenTripDocumentsForClose } from '../shared/tripClose.service'
 import { buildLinkTripDocumentBody } from '../shared/tripForm.service'
-import { canIssueMdfe, selectPendingCteDocuments } from '../shared/tripMdfeGate.service'
+import {
+  canIssueMdfe,
+  resolveMdfeIssueButtonVisibility,
+  selectPendingCteDocuments,
+} from '../shared/tripMdfeGate.service'
 import {
   createBrowserWorkspaceNavigator,
   navigateToMdfeManifests,
@@ -1276,7 +1280,11 @@ export function TripDetail({
       ) : null}
 
       <div className={styles.actionActions}>
-        {canManage && !isCompleted && trip.documents.length > 0 ? (
+        {resolveMdfeIssueButtonVisibility({
+          canManageMdfe: workspace.controller.canManageMdfe,
+          documentCount: trip.documents.length,
+          isCompleted,
+        }) ? (
           <Button onClick={handleIssueMdfe} size="sm" type="button">
             <Icon name="link" />
             {t('actions.issueMdfe')}

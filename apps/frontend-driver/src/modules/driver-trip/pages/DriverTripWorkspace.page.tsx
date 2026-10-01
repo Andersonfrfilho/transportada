@@ -15,6 +15,7 @@ import { DriverManifestCard } from '../components/DriverManifestCard.component'
 import { DriverProofOutcomeNotice } from '../components/DriverProofOutcomeNotice.component'
 import { DriverShellHeader } from '../components/DriverShellHeader.component'
 import { DriverStopCard, type DriverProofAttachment } from '../components/DriverStopCard.component'
+import { DriverTripAutoSwitchNotice } from '../components/DriverTripAutoSwitchNotice.component'
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
 import { DriverTripReassignedNotice } from '../components/DriverTripReassignedNotice.component'
 import { DriverTripSelector } from '../components/DriverTripSelector.component'
@@ -33,6 +34,7 @@ import {
   subscribeDriverRoute,
 } from '@/modules/shared/driverRoute.service'
 import { getDriverTripClient } from '../shared/driverTripClient.service'
+import { describeTripSelectorPath } from '../shared/driverTripSelection.service'
 import {
   resolveDocumentActivityStatus,
   type DocumentActivityView,
@@ -193,7 +195,7 @@ export function DriverTripWorkspacePage() {
 
   const snapshot = driverTrip.snapshot
   /** RF12: com duas viagens ativas, a da tela é a escolhida — nunca mais `trips[0]` às cegas. */
-  const { selectTrip, trip } = useSelectedDriverTrip(snapshot?.trips ?? [])
+  const { autoSwitchedTripId, selectTrip, trip } = useSelectedDriverTrip(snapshot?.trips ?? [])
   /** RF15: roda em qualquer seção, porque o que conta é a app estar na tela, não a aba aberta. */
   const locationSharingStatus = useLocationSharing(snapshot?.trips ?? [])
   /**
@@ -669,6 +671,13 @@ export function DriverTripWorkspacePage() {
           selectedTripId={trip?.id}
           trips={snapshot?.trips ?? []}
         />
+
+        {trip !== undefined && autoSwitchedTripId === trip.id ? (
+          <DriverTripAutoSwitchNotice
+            onDismiss={() => selectTrip(trip.id)}
+            path={describeTripSelectorPath(trip).path}
+          />
+        ) : null}
 
         <DriverLocationSharingIndicator status={locationSharingStatus} />
 

@@ -65,15 +65,26 @@ describe('buildChangeTripCrewInput (spec 217 RF4/RF6)', () => {
     expect(
       buildChangeTripCrewInput({
         driverIds: ['driver-2', 'driver-1'],
+        helperIds: [],
         tripId: 'trip-1',
         vehicleId: 'vehicle-1',
       }),
-    ).toEqual({ driverIds: ['driver-2', 'driver-1'], tripId: 'trip-1', vehicleId: 'vehicle-1' })
+    ).toEqual({
+      driverIds: ['driver-2', 'driver-1'],
+      helperIds: [],
+      tripId: 'trip-1',
+      vehicleId: 'vehicle-1',
+    })
   })
 
   it('vehicleId vazio (nenhum escolhido) sai do corpo, nunca como string vazia', () => {
-    const input = buildChangeTripCrewInput({ driverIds: [], tripId: 'trip-1', vehicleId: '' })
-    expect(input).toEqual({ driverIds: [], tripId: 'trip-1' })
+    const input = buildChangeTripCrewInput({
+      driverIds: [],
+      helperIds: [],
+      tripId: 'trip-1',
+      vehicleId: '',
+    })
+    expect(input).toEqual({ driverIds: [], helperIds: [], tripId: 'trip-1' })
     expect('vehicleId' in input).toBe(false)
   })
 })

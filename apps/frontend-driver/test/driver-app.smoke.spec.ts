@@ -785,11 +785,12 @@ test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a fot
     [takePhoto, attach, sign].map((button) => button.boundingBox()),
   )
   for (const box of [takeBox, attachBox, signBox]) expect(box?.height).toBeGreaterThanOrEqual(44)
-  // As duas portas da foto dividem a linha em partes iguais; a assinatura ocupa a linha inteira.
+  // Pedido do usuário (01/10): os três empilham em largura total — mesma largura, cada um na sua
+  // própria linha (nunca lado a lado, para não parecer um botãozinho perdido no card).
   expect(Math.abs((takeBox?.width ?? 0) - (attachBox?.width ?? 0))).toBeLessThanOrEqual(1)
-  // Mesma linha — a folga de 1 px é o `translateY(-1px)` do hover do botão.
-  expect(Math.abs((takeBox?.y ?? 0) - (attachBox?.y ?? 0))).toBeLessThanOrEqual(1)
-  expect(signBox?.width ?? 0).toBeGreaterThan((takeBox?.width ?? 0) * 1.9)
+  expect(Math.abs((takeBox?.width ?? 0) - (signBox?.width ?? 0))).toBeLessThanOrEqual(1)
+  expect(attachBox?.y ?? 0).toBeGreaterThan(takeBox?.y ?? 0)
+  expect(signBox?.y ?? 0).toBeGreaterThan(attachBox?.y ?? 0)
 
   // "Anexar" abre galeria e arquivos: o seletor que ele abre não pede a câmera.
   const galleryChooser = page.waitForEvent('filechooser')

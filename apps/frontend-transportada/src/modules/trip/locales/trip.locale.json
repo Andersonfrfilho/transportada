@@ -404,6 +404,15 @@
     "driversSearch": "Buscar por nome",
     "driversSummary": "{{count}} motorista escolhido",
     "driversSummary_other": "{{count}} motoristas escolhidos",
+    "helpers": "Ajudantes",
+    "helpersClearAll": "Retirar todos",
+    "helpersEmpty": "Nenhum motorista ativo está marcado como ajudante na ficha.",
+    "helpersNoMatch": "Nenhum ajudante encontrado",
+    "helpersPlaceholder": "Escolher ajudantes",
+    "helpersRemove": "Retirar este ajudante",
+    "helpersSearch": "Buscar por nome",
+    "helpersSummary": "{{count}} ajudante escolhido",
+    "helpersSummary_other": "{{count}} ajudantes escolhidos",
     "pending": "Criando viagem…",
     "readOnly": "Seu acesso atual não permite criar viagens.",
     "title": "Nova viagem",
@@ -425,11 +434,22 @@
     "driversSummary_other": "{{count}} motoristas escolhidos",
     "error": {
       "generic": "Não foi possível trocar a tripulação agora. Tente de novo.",
+      "helperNotEligible": "Algum ajudante escolhido não está marcado como ajudante na ficha do motorista.",
+      "helperWithoutDriver": "Escolha ao menos um motorista antes de acrescentar ajudantes.",
       "separationStarted": "A separação da carga já começou: esta viagem não aceita mais troca de motorista ou veículo."
     },
+    "helpers": "Ajudantes",
+    "helpersClearAll": "Retirar todos",
+    "helpersEmpty": "Nenhum motorista ativo está marcado como ajudante na ficha.",
+    "helpersNoMatch": "Nenhum ajudante encontrado",
+    "helpersPlaceholder": "Escolher ajudantes",
+    "helpersRemove": "Retirar este ajudante",
+    "helpersSearch": "Buscar por nome",
+    "helpersSummary": "{{count}} ajudante escolhido",
+    "helpersSummary_other": "{{count}} ajudantes escolhidos",
     "subtitle": "A troca substitui a tripulação e o veículo inteiros — não é possível somar.",
     "submit": "Confirmar troca",
-    "title": "Trocar motorista e veículo",
+    "title": "Trocar tripulação e veículo",
     "vehicle": "Veículo",
     "vehiclePlaceholder": "Selecione o veículo",
     "vehicleSearch": "Buscar por placa, marca ou modelo"
@@ -580,6 +600,7 @@
     "fields": {
       "cargo": "Foto da mercadoria",
       "photo": "Foto do canhoto",
+      "receivedBy": "Quem recebeu",
       "receiverDocument": "Documento do recebedor",
       "receiverName": "Nome do recebedor",
       "signature": "Assinatura"
@@ -1225,6 +1246,7 @@
     "issue": {
       "dailyAllowanceDaysInvalid": "Diárias: informe um número inteiro de dias, a partir de 1.",
       "driverRequired": "Selecione ao menos um motorista.",
+      "helperWithoutDriver": "Escolha ao menos um motorista antes de acrescentar ajudantes.",
       "noDocument": "Leia ao menos uma nota disponível.",
       "vehicleRequired": "Selecione o veículo da viagem."
     },

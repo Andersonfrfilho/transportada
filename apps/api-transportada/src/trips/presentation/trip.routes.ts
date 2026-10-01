@@ -1327,6 +1327,7 @@ export function createTripRoutes(
         const body = await parseUpdateTripCrewRequest(request)
         return {
           driverIds: body.driverIds,
+          helperIds: body.helperIds,
           tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
           vehicleId: body.vehicleId,
         }

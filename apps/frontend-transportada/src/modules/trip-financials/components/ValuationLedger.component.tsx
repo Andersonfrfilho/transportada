@@ -107,7 +107,12 @@ function LedgerLine({
    * Spec 143: a diária do motorista (`basis.of === 'driver'`) é dado cru — a frase é composta
    * aqui, no mesmo serviço que a proposta usa, para as duas telas nunca discordarem.
    */
-  const detail = composeCostParcelDetail({ basis, detail: line.detail, t: t as Translate })
+  const detail = composeCostParcelDetail({
+    basis,
+    detail: line.detail,
+    kind: line.kind,
+    t: t as Translate,
+  })
   const action = line.remedy === null ? undefined : gapActions?.[line.remedy]
   const gapText = `${t(`gap.${line.gap}`, { defaultValue: line.gap })}${detail === null ? '' : ` — ${detail}`}`
 

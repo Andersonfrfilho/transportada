@@ -24,6 +24,7 @@ export const DELIVERY_PROOF_FIELDS = [
   'receiverDocument',
   'signature',
   'photo',
+  'receivedBy',
 ] as const
 export type DeliveryProofField = (typeof DELIVERY_PROOF_FIELDS)[number]
 
@@ -65,6 +66,7 @@ export const DEFAULT_DELIVERY_PROOF_SETTINGS: DeliveryProofFieldSettings = {
   cargo: 'off',
   cargoMinimumCount: 1,
   photo: 'optional',
+  receivedBy: 'optional',
   receiverDocument: 'off',
   receiverName: 'optional',
   signature: 'optional',
@@ -83,6 +85,7 @@ export function mergeDeliveryProofSettings(input: {
     cargo: input.override.cargo ?? input.base.cargo,
     cargoMinimumCount: input.override.cargoMinimumCount ?? input.base.cargoMinimumCount,
     photo: input.override.photo ?? input.base.photo,
+    receivedBy: input.override.receivedBy ?? input.base.receivedBy,
     receiverDocument: input.override.receiverDocument ?? input.base.receiverDocument,
     receiverName: input.override.receiverName ?? input.base.receiverName,
     signature: input.override.signature ?? input.base.signature,
@@ -136,8 +139,10 @@ function isCargoMinimumCount(value: unknown): value is number {
 }
 
 /**
- * Spec 193 T3.1 (R1): `receivedBy` é o quinto campo e chega depois dos outros quatro — ausente é a
- * API anterior e vale `optional`; presente, tem de ser um modo.
+ * Pedido do usuário (01/10): `receivedBy` passou a ser o quinto campo do painel, igual aos outros
+ * quatro — a API sempre o devolve (coluna `NOT NULL` com padrão `optional`), então a validação
+ * exige o modo como os demais, sem exceção de ausência. `cargo`/`cargoMinimumCount` continuam
+ * opcionais (spec 220): bundle em cache pode rodar contra a API anterior na janela de deploy.
  */
 export function isDeliveryProofFieldSettings(
   value: unknown,
@@ -146,8 +151,7 @@ export function isDeliveryProofFieldSettings(
     isRecord(value) &&
     DELIVERY_PROOF_FIELDS.every((field) => isFieldMode(value[field])) &&
     (value['cargo'] === undefined || isFieldMode(value['cargo'])) &&
-    (value['cargoMinimumCount'] === undefined || isCargoMinimumCount(value['cargoMinimumCount'])) &&
-    (value['receivedBy'] === undefined || isFieldMode(value['receivedBy']))
+    (value['cargoMinimumCount'] === undefined || isCargoMinimumCount(value['cargoMinimumCount']))
   )
 }
 
@@ -209,7 +213,7 @@ export const DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS: DeliveryProofPunctuali
 }
 
 /**
- * O corpo do `PUT/GET` geral: os quatro modos + os cinco parâmetros + o interruptor da leitura do
+ * O corpo do `PUT/GET` geral: os cinco modos + os cinco parâmetros + o interruptor da leitura do
  * canhoto (spec 156 T14, ADR-0069 §6) — a exceção por CNPJ não carrega nenhum dos dois.
  */
 export type CompanyDeliveryProofSettings = DeliveryProofFieldSettings &
@@ -258,7 +262,7 @@ export function isDeliveryProofPunctualitySettings(
 
 /**
  * Spec 156 T14, ADR-0069 §6: o interruptor da leitura do canhoto entra na mesma verificação — a
- * API sempre o devolve junto dos quatro modos e dos cinco parâmetros de pontualidade.
+ * API sempre o devolve junto dos cinco modos e dos cinco parâmetros de pontualidade.
  */
 export function isCompanyDeliveryProofSettings(
   value: unknown,

@@ -7,18 +7,33 @@ import type { ChangeTripCrewInput } from './trip.types'
  */
 export function buildChangeTripCrewInput(input: {
   readonly driverIds: readonly string[]
+  /** Spec 149: a lista inteira — o que não vem nela sai da viagem, então a vazia também é enviada. */
+  readonly helperIds: readonly string[]
   readonly tripId: string
   readonly vehicleId: string
 }): ChangeTripCrewInput {
   return {
     driverIds: input.driverIds,
+    helperIds: input.helperIds,
     tripId: input.tripId,
     ...(input.vehicleId === '' ? {} : { vehicleId: input.vehicleId }),
   }
 }
 
-export const CREW_DIALOG_ERROR_KEYS = ['separationStarted', 'generic'] as const
+export const CREW_DIALOG_ERROR_KEYS = [
+  'separationStarted',
+  'helperWithoutDriver',
+  'helperNotEligible',
+  'generic',
+] as const
 export type CrewDialogErrorKey = (typeof CREW_DIALOG_ERROR_KEYS)[number]
+
+const CREW_DIALOG_ERROR_KEY_BY_CODE: Readonly<Record<string, CrewDialogErrorKey>> = {
+  STATE_TRANSITION_NOT_ALLOWED: 'separationStarted',
+  /** Spec 149 D5/D11: a posição 1 é sempre motorista, e só a ficha marcada pode ajudar. */
+  TRIP_CREW_HELPER_NOT_ELIGIBLE: 'helperNotEligible',
+  TRIP_CREW_HELPER_WITHOUT_DRIVER: 'helperWithoutDriver',
+}
 
 /**
  * Spec 217 RF4/D2: a única recusa de transição que esta ação pode ver é a separação já iniciada
@@ -27,8 +42,6 @@ export type CrewDialogErrorKey = (typeof CREW_DIALOG_ERROR_KEYS)[number]
  * inglês de `details[].message`.
  */
 export function resolveCrewDialogErrorKey(error: unknown): CrewDialogErrorKey {
-  if (error instanceof Error && error.message === 'STATE_TRANSITION_NOT_ALLOWED') {
-    return 'separationStarted'
-  }
-  return 'generic'
+  if (!(error instanceof Error)) return 'generic'
+  return CREW_DIALOG_ERROR_KEY_BY_CODE[error.message] ?? 'generic'
 }

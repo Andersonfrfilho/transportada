@@ -112,13 +112,18 @@ describe('painel de configuração do comprovante (spec 082)', () => {
     expect(page).toMatch(/<TripDeliveryProofSettingsPanel[\s/>]/u)
   })
 
-  /** ADR-0057 §1: os quatro campos, cada um com os três valores. */
-  it('governa os quatro campos com os três valores', () => {
+  /**
+   * ADR-0057 §1 + pedido do usuário (01/10): `receivedBy` virou o quinto campo — o painel era o
+   * único lugar sem controle para ele, deixando "Quem recebeu" sempre `optional` por falta de
+   * jeito de desligar, mesmo a API e o banco já suportando.
+   */
+  it('governa os cinco campos com os três valores', () => {
     expect(DELIVERY_PROOF_FIELDS).toEqual([
       'receiverName',
       'receiverDocument',
       'signature',
       'photo',
+      'receivedBy',
     ])
     expect(DELIVERY_PROOF_FIELD_MODES).toEqual(['required', 'optional', 'off'])
     for (const field of DELIVERY_PROOF_FIELDS) {
@@ -135,6 +140,7 @@ describe('painel de configuração do comprovante (spec 082)', () => {
       cargo: 'off',
       cargoMinimumCount: 1,
       photo: 'optional',
+      receivedBy: 'optional',
       receiverDocument: 'off',
       receiverName: 'optional',
       signature: 'optional',

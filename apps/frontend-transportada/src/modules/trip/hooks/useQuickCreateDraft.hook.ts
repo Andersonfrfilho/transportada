@@ -34,6 +34,7 @@ type QuickCreateDraftInput = Readonly<{
     cityOrder: readonly string[]
     dailyAllowanceDaysInput: string | undefined
     driverIds: readonly string[]
+    helperIds: readonly string[]
     isOpen: boolean
     queue: TripQuickCreateQueue
     routeChoice: RouteChoice | undefined
@@ -43,6 +44,7 @@ type QuickCreateDraftInput = Readonly<{
   onReset: () => void
   scope: TripAssemblyDraftScope | undefined
   selectableDriverIds: readonly string[]
+  selectableHelperIds: readonly string[]
   selectableVehicleIds: readonly string[]
 }>
 
@@ -75,6 +77,7 @@ export function useQuickCreateDraft(input: QuickCreateDraftInput) {
             queryKey: AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY,
           }),
         selectableDriverIds: input.selectableDriverIds,
+        selectableHelperIds: input.selectableHelperIds,
         selectableVehicleIds: input.selectableVehicleIds,
       })
       if (restored === DRAFT_DOCUMENTS_UNREACHABLE) return DRAFT_DOCUMENTS_UNREACHABLE

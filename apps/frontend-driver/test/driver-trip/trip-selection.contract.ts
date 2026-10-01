@@ -5,6 +5,7 @@ import type { DriverTrip, DriverTripStop } from '@/modules/driver-trip/shared/dr
 import {
   describeTripSelectorPath,
   resolveSelectedTrip,
+  resolveTripSwitch,
 } from '@/modules/driver-trip/shared/driverTripSelection.service'
 
 function buildTrip(id: string, status: string, stops: readonly DriverTripStop[] = []): DriverTrip {
@@ -126,5 +127,82 @@ describe('o caminho que o seletor de viagens mostra', () => {
       path: '',
       stopCount: 0,
     })
+  })
+})
+
+/**
+ * Bug relatado pelo usuário (2026-10-01): entregar a última parada conclui a viagem, ela some de
+ * `trips`, e `resolveSelectedTrip` cai no fallback — outra viagem ainda `dispatched` aparece na
+ * tela, com "Iniciar rota" de volta. Com uma captura aberta (assinatura, recorte), a troca desmonta
+ * o componente por baixo dela, e "Cancelar" chama `setState` de algo que já não existe mais.
+ */
+describe('a viagem exibida só troca com a captura ociosa (bug do "Iniciar rota" reaparecendo)', () => {
+  it('mesma viagem sempre atualiza, com captura aberta ou não', () => {
+    const current = buildTrip('a', 'in_transit')
+    const updated = buildTrip('a', 'on_delivery_route')
+
+    expect(
+      resolveTripSwitch({
+        currentTrip: current,
+        isCaptureIdle: false,
+        resolvedTrip: updated,
+        selectedTripId: 'a',
+      }),
+    ).toEqual({ autoSwitchedTripId: undefined, trip: updated })
+  })
+
+  it('viagem diferente, captura aberta: segura a atual na tela', () => {
+    const current = buildTrip('a', 'completed')
+    const other = buildTrip('b', 'dispatched')
+
+    expect(
+      resolveTripSwitch({
+        currentTrip: current,
+        isCaptureIdle: false,
+        resolvedTrip: other,
+        selectedTripId: undefined,
+      }),
+    ).toEqual({ autoSwitchedTripId: undefined, trip: current })
+  })
+
+  it('viagem diferente, captura ociosa, ninguém escolheu: troca e avisa', () => {
+    const current = buildTrip('a', 'completed')
+    const other = buildTrip('b', 'dispatched')
+
+    expect(
+      resolveTripSwitch({
+        currentTrip: current,
+        isCaptureIdle: true,
+        resolvedTrip: other,
+        selectedTripId: undefined,
+      }),
+    ).toEqual({ autoSwitchedTripId: 'b', trip: other })
+  })
+
+  it('viagem diferente, captura ociosa, o motorista escolheu essa viagem: troca sem avisar', () => {
+    const current = buildTrip('a', 'completed')
+    const chosen = buildTrip('b', 'dispatched')
+
+    expect(
+      resolveTripSwitch({
+        currentTrip: current,
+        isCaptureIdle: true,
+        resolvedTrip: chosen,
+        selectedTripId: 'b',
+      }),
+    ).toEqual({ autoSwitchedTripId: undefined, trip: chosen })
+  })
+
+  it('sem viagem atual (abertura), a primeira não é tratada como troca automática', () => {
+    const first = buildTrip('a', 'route_planned')
+
+    expect(
+      resolveTripSwitch({
+        currentTrip: undefined,
+        isCaptureIdle: true,
+        resolvedTrip: first,
+        selectedTripId: undefined,
+      }),
+    ).toEqual({ autoSwitchedTripId: undefined, trip: first })
   })
 })

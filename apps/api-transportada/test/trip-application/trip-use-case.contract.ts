@@ -962,6 +962,93 @@ describe('trip use case contract', () => {
   })
 
   /**
+   * Spec 149 (ADR-0065): a troca de tripulação leva ajudantes — a lista inteira é regravada, então
+   * quem some do pedido some da viagem, e o papel `helper` chega ao repositório.
+   */
+  test('updates the crew with helpers after the drivers', async () => {
+    const helperId = '55555555-5555-4555-8555-555555555551'
+    const fixture = createFixture({
+      drivers: [
+        ...DRIVERS,
+        {
+          canActAsHelper: true,
+          id: helperId,
+          name: 'Carlos Ajudante',
+          status: 'active',
+          taxId: '11111111111',
+        },
+      ],
+      stored: openTrip({ status: 'draft' }),
+    })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    await useCase.updateCrew({
+      context: CONTEXT,
+      driverIds: [FIRST_DRIVER_ID],
+      helperIds: [helperId],
+      tripId: TRIP_ID,
+      vehicleId: VEHICLE_ID,
+    })
+
+    expect(fixture.updateCrewCalls).toEqual([
+      expect.objectContaining({
+        crew: [
+          expect.objectContaining({ driverId: FIRST_DRIVER_ID, position: 1, role: 'driver' }),
+          expect.objectContaining({ driverId: helperId, position: 2, role: 'helper' }),
+        ],
+      }),
+    ])
+  })
+
+  test('refuses a helper who is not eligible, without touching the repository', async () => {
+    const fixture = createFixture({ stored: openTrip({ status: 'draft' }) })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    const error = await useCase
+      .updateCrew({
+        context: CONTEXT,
+        driverIds: [FIRST_DRIVER_ID],
+        helperIds: [SECOND_DRIVER_ID],
+        tripId: TRIP_ID,
+        vehicleId: VEHICLE_ID,
+      })
+      .catch((caught: unknown) => caught)
+
+    expect((error as ApiError).code).toBe('TRIP_CREW_HELPER_NOT_ELIGIBLE')
+    expect(fixture.updateCrewCalls).toEqual([])
+  })
+
+  test('refuses helpers without any driver', async () => {
+    const helperId = '55555555-5555-4555-8555-555555555551'
+    const fixture = createFixture({
+      drivers: [
+        {
+          canActAsHelper: true,
+          id: helperId,
+          name: 'Carlos Ajudante',
+          status: 'active',
+          taxId: '11111111111',
+        },
+      ],
+      stored: openTrip({ status: 'draft' }),
+    })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    const error = await useCase
+      .updateCrew({
+        context: CONTEXT,
+        driverIds: [],
+        helperIds: [helperId],
+        tripId: TRIP_ID,
+        vehicleId: undefined,
+      })
+      .catch((caught: unknown) => caught)
+
+    expect((error as ApiError).status).toBe(409)
+    expect(fixture.updateCrewCalls).toEqual([])
+  })
+
+  /**
    * Spec 217 D2, substituindo a recusa que a 216 colocava aqui: a troca **passou a ser permitida**
    * em `route_planned`. É a necessidade operacional que abriu esta spec — trocar o motorista de uma
    * viagem já roteirizada. Quem decide o destino do roteiro é o repositório, sob lock, pela

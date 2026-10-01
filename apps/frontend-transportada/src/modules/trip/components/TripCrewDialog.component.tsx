@@ -12,6 +12,7 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import { useTripCrewDialog } from '../hooks/useTripCrewDialog.hook'
 import type { TripDetail } from '../shared/trip.types'
+import { listHelperCandidates, readTripHelperIds } from '../shared/tripCrewHelpers.service'
 import styles from '../styles/trip.module.css'
 
 type TripCrewDialogProps = Readonly<{
@@ -19,7 +20,11 @@ type TripCrewDialogProps = Readonly<{
   isOpen: boolean
   onClose: () => void
   onSubmit: (
-    input: Readonly<{ driverIds: readonly string[]; vehicleId: string }>,
+    input: Readonly<{
+      driverIds: readonly string[]
+      helperIds: readonly string[]
+      vehicleId: string
+    }>,
   ) => Promise<unknown>
   trip: TripDetail
   vehicles: readonly FleetVehicleDetail[]
@@ -48,6 +53,12 @@ export function TripCrewDialog({
     trip,
   })
   const vehicleOptions = useVehicleSelectOptions(vehicles)
+  /** Spec 149 D1/D11: só quem pode ajudar; o ajudante atual fica para poder ser retirado. */
+  const helperCandidates = listHelperCandidates({
+    currentHelperIds: readTripHelperIds(trip),
+    driverIds: dialog.driverIds,
+    drivers,
+  })
 
   if (!isOpen) return null
 
@@ -98,6 +109,29 @@ export function TripCrewDialog({
                 searchPlaceholder={t('crewDialog.driversSearch')}
                 summaryLabel={(count) => t('crewDialog.driversSummary', { count })}
                 values={dialog.driverIds}
+              />
+            )}
+          </label>
+
+          <label>
+            {t('crewDialog.helpers')}
+            {helperCandidates.length === 0 ? (
+              <p className={styles.hint}>{t('crewDialog.helpersEmpty')}</p>
+            ) : (
+              <MultiSelect
+                ariaLabel={t('crewDialog.helpers')}
+                clearAllLabel={t('crewDialog.helpersClearAll')}
+                emptyLabel={t('crewDialog.helpersNoMatch')}
+                onChange={dialog.setHelperIds}
+                options={helperCandidates.map((driver) => ({
+                  label: driver.name,
+                  value: driver.id,
+                }))}
+                placeholder={t('crewDialog.helpersPlaceholder')}
+                removeLabel={t('crewDialog.helpersRemove')}
+                searchPlaceholder={t('crewDialog.helpersSearch')}
+                summaryLabel={(count) => t('crewDialog.helpersSummary', { count })}
+                values={dialog.helperIds}
               />
             )}
           </label>

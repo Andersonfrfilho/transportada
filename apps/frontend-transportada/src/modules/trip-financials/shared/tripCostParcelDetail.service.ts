@@ -30,9 +30,12 @@ export type Translate = (key: string, options?: Record<string, unknown>) => stri
 export function composeCostParcelDetail(input: {
   readonly basis: null | TripValuationCostParcelBasis
   readonly detail: null | string
+  /** Parcela do ajudante manda `detail` como `faltam/total` — a frase mora aqui, não na API. */
+  readonly kind?: string | undefined
   readonly t: Translate
 }): null | string {
-  const { basis, detail, t } = input
+  const { basis, detail, kind, t } = input
+  if (kind === HELPER_KIND) return composeHelperMissingRateDetail({ detail, t })
   if (basis === null || basis.of !== 'driver') return detail
 
   return basis.crew
@@ -45,6 +48,23 @@ export function composeCostParcelDetail(input: {
       }),
     )
     .join(DRIVER_ALLOWANCE_SEPARATOR)
+}
+
+const HELPER_KIND = 'helper'
+const HELPER_MISSING_RATE_DETAIL = /^(\d+)\/(\d+)$/
+
+function composeHelperMissingRateDetail(input: {
+  readonly detail: null | string
+  readonly t: Translate
+}): null | string {
+  const parts = input.detail === null ? null : HELPER_MISSING_RATE_DETAIL.exec(input.detail)
+  if (parts === null) return input.detail
+
+  return input.t('ledger.helperMissingRate', {
+    count: Number(parts[2]),
+    missing: Number(parts[1]),
+    total: Number(parts[2]),
+  })
 }
 
 type ComposeDriverAllowanceLineInput = Readonly<{

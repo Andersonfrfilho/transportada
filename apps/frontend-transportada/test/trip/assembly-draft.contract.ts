@@ -12,6 +12,7 @@ import { resolveStopKey } from '@/modules/trip/shared/assemblyOrder.service'
 import {
   buildAutomaticAssemblyDraft,
   buildManualAssemblyDraft,
+  isManualAssemblyDraftEmpty,
   readAutomaticAssemblyDraft,
   readManualAssemblyDraft,
   writeAutomaticAssemblyDraft,
@@ -103,6 +104,7 @@ function manualDraft() {
     cityOrder: [stopKeyOf(SECOND), stopKeyOf(FIRST)],
     dailyAllowanceDaysInput: '2',
     driverIds: ['driver-1'],
+    helperIds: ['helper-1'],
     isOpen: true,
     queue: QUEUE,
     routeChoice: { criterion: 'cheapest', signature: '3f2a9c01d4e5b6a7' },
@@ -149,11 +151,38 @@ describe('rascunho da montagem de viagem', () => {
       dailyAllowanceDaysInput: '2',
       documentIds: ['nfe-1', 'nfe-2', 'nfe-3'],
       driverIds: ['driver-1'],
+      helperIds: ['helper-1'],
       isOpen: true,
       routeChoice: { criterion: 'cheapest', signature: '3f2a9c01d4e5b6a7' },
       stopOrderDocumentIds: ['nfe-2', 'nfe-1'],
       vehicleId: 'vehicle-1',
     })
+  })
+
+  /** Spec 149: o rascunho gravado antes dos ajudantes continua válido — a deploy não apaga montagem. */
+  test('manual: rascunho antigo, sem helperIds, ainda é lido', () => {
+    const storage = createMemoryStorage()
+    const { helperIds: _helperIds, ...legacy } = manualDraft()
+    void _helperIds
+    writeManualAssemblyDraft({ draft: legacy, now: NOW, scope: SCOPE, storage })
+
+    const read = readManualAssemblyDraft({ now: NOW + 1000, scope: SCOPE, storage })
+
+    expect(read?.driverIds).toEqual(['driver-1'])
+    expect(read?.helperIds).toBeUndefined()
+  })
+
+  test('manual: só ajudante escolhido já é rascunho a guardar', () => {
+    expect(
+      isManualAssemblyDraftEmpty({
+        ...manualDraft(),
+        dailyAllowanceDaysInput: null,
+        documentIds: [],
+        driverIds: [],
+        helperIds: ['helper-1'],
+        vehicleId: '',
+      }),
+    ).toBe(false)
   })
 
   test('automático: proposta com Maps e Sets como listas, ordens por id de nota', () => {
@@ -344,6 +373,7 @@ describe('rascunho da montagem de viagem', () => {
         cityOrder: [],
         dailyAllowanceDaysInput: undefined,
         driverIds: [],
+        helperIds: [],
         isOpen: false,
         queue: [],
         routeChoice: undefined,

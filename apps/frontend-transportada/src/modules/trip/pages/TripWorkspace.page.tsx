@@ -215,6 +215,14 @@ export function TripWorkspacePage() {
         .map((driver) => driver.id),
     [fleetDrivers],
   )
+  /** Spec 149 D1: ajudante só entre as fichas ativas marcadas "pode atuar como ajudante". */
+  const selectableHelperIds = useMemo(
+    () =>
+      (fleetDrivers ?? [])
+        .filter((driver) => driver.status === 'active' && driver.canActAsHelper)
+        .map((driver) => driver.id),
+    [fleetDrivers],
+  )
   const selectableVehicleIds = useMemo(
     () =>
       (fleetVehicles ?? [])
@@ -243,6 +251,7 @@ export function TripWorkspacePage() {
       navigateToTrip({ navigator: createBrowserWorkspaceNavigator(), tripId: trip.id }),
     permissions,
     selectableDriverIds,
+    selectableHelperIds,
     selectableVehicleIds,
   })
   /**

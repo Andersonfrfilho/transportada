@@ -28,6 +28,49 @@ export function resolveSelectedTrip({
   return trips.find((trip) => ON_ROUTE_TRIP_STATUSES.has(trip.status)) ?? trips[0]
 }
 
+export type ResolveTripSwitchParams = Readonly<{
+  currentTrip: DriverTrip | undefined
+  isCaptureIdle: boolean
+  resolvedTrip: DriverTrip | undefined
+  selectedTripId: string | undefined
+}>
+
+export type TripSwitchDecision = Readonly<{
+  /** Só vem preenchido quando a troca aconteceu sem o motorista escolher essa viagem. */
+  autoSwitchedTripId: string | undefined
+  trip: DriverTrip | undefined
+}>
+
+/**
+ * Câmera, assinatura e recorte navegam fora do React (Fullscreen API nativa) — trocar a viagem
+ * exibida por baixo deles enquanto estão abertos deixa a captura órfã: o "Cancelar" dela chama
+ * `setState` de um componente já desmontado, e não faz mais nada. Com captura aberta, a viagem
+ * atual continua na tela até a captura fechar; a mesma viagem (`resolvedTrip.id === currentTrip.id`)
+ * sempre atualiza, capturas ou não — é só o `trip.status`/documentos mudando, não uma troca.
+ */
+export function resolveTripSwitch({
+  currentTrip,
+  isCaptureIdle,
+  resolvedTrip,
+  selectedTripId,
+}: ResolveTripSwitchParams): TripSwitchDecision {
+  const isSameTrip = resolvedTrip?.id === currentTrip?.id
+  if (!isSameTrip && !isCaptureIdle) {
+    return { autoSwitchedTripId: undefined, trip: currentTrip }
+  }
+
+  const isAutomaticSwitch =
+    !isSameTrip &&
+    currentTrip !== undefined &&
+    resolvedTrip !== undefined &&
+    selectedTripId !== resolvedTrip.id
+
+  return {
+    autoSwitchedTripId: isAutomaticSwitch ? resolvedTrip.id : undefined,
+    trip: resolvedTrip,
+  }
+}
+
 const STOP_LABEL_QUALIFIER_SEPARATOR = ' — '
 
 /** O rótulo completo da parada carrega um qualificador depois de " — "; o caminho fica só a rua. */

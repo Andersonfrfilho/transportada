@@ -404,6 +404,15 @@
     "driversSearch": "Search by name",
     "driversSummary": "{{count}} driver picked",
     "driversSummary_other": "{{count}} drivers picked",
+    "helpers": "Helpers",
+    "helpersClearAll": "Remove all",
+    "helpersEmpty": "No active driver is marked as a helper on their record.",
+    "helpersNoMatch": "No helper found",
+    "helpersPlaceholder": "Choose helpers",
+    "helpersRemove": "Remove this helper",
+    "helpersSearch": "Search by name",
+    "helpersSummary": "{{count}} helper chosen",
+    "helpersSummary_other": "{{count}} helpers chosen",
     "pending": "Creating trip…",
     "readOnly": "Your current access does not allow you to create trips.",
     "title": "New trip",
@@ -425,11 +434,22 @@
     "driversSummary_other": "{{count}} drivers picked",
     "error": {
       "generic": "Could not change the crew right now. Try again.",
+      "helperNotEligible": "A chosen helper is not marked as a helper on the driver record.",
+      "helperWithoutDriver": "Choose at least one driver before adding helpers.",
       "separationStarted": "The cargo separation already started: this trip no longer accepts a driver or vehicle change."
     },
+    "helpers": "Helpers",
+    "helpersClearAll": "Remove all",
+    "helpersEmpty": "No active driver is marked as a helper on their record.",
+    "helpersNoMatch": "No helper found",
+    "helpersPlaceholder": "Choose helpers",
+    "helpersRemove": "Remove this helper",
+    "helpersSearch": "Search by name",
+    "helpersSummary": "{{count}} helper chosen",
+    "helpersSummary_other": "{{count}} helpers chosen",
     "subtitle": "The change replaces the whole crew and vehicle — it never adds to what is there.",
     "submit": "Confirm change",
-    "title": "Change driver and vehicle",
+    "title": "Change crew and vehicle",
     "vehicle": "Vehicle",
     "vehiclePlaceholder": "Select the vehicle",
     "vehicleSearch": "Search by plate, brand or model"
@@ -580,6 +600,7 @@
     "fields": {
       "cargo": "Cargo photo",
       "photo": "Delivery slip photo",
+      "receivedBy": "Who received",
       "receiverDocument": "Receiver document",
       "receiverName": "Receiver name",
       "signature": "Signature"
@@ -1225,6 +1246,7 @@
     "issue": {
       "dailyAllowanceDaysInvalid": "Daily allowance: enter a whole number of days, starting at 1.",
       "driverRequired": "Select at least one driver.",
+      "helperWithoutDriver": "Choose at least one driver before adding helpers.",
       "noDocument": "Scan at least one available invoice.",
       "vehicleRequired": "Select the trip vehicle."
     },

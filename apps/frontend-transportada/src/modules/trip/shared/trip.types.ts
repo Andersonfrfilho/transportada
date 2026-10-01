@@ -899,6 +899,8 @@ export type CreateTripBody = Readonly<{
   /** Spec 143 D4: ausente é "sugere pela duração estimada" — nunca `0`, nunca `null`. */
   dailyAllowanceDays?: number
   driverIds: readonly string[]
+  /** Spec 149: ajudantes, depois dos motoristas — ausente ou vazio é viagem sem ajudante. */
+  helperIds?: readonly string[]
   /** Spec 217 (RF1/RF2): ausente é o rascunho sem veículo — a viagem nasce `awaiting_crew`. */
   vehicleId?: string
 }>
@@ -909,6 +911,8 @@ export type CreateTripBody = Readonly<{
  */
 export type ChangeTripCrewInput = Readonly<{
   driverIds?: readonly string[]
+  /** Spec 149: a lista inteira de ajudantes; ausente é "não mexe nisto" no cliente, mas a API apaga. */
+  helperIds?: readonly string[]
   tripId: string
   vehicleId?: string
 }>

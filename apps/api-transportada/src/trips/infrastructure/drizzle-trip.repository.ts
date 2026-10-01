@@ -360,6 +360,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
             driverName: driver.driverName,
             driverTaxId: driver.driverTaxId,
             position: BigInt(driver.position),
+            role: driver.role,
             tripId: input.tripId,
           })),
         )

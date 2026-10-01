@@ -32,6 +32,7 @@ export function buildSuggestionCostParcelLines(input: {
     const detail = composeCostParcelDetail({
       basis: parcel.basis,
       detail: parcel.detail,
+      kind: parcel.kind,
       t: input.t,
     })
     if (parcel.gap === null && detail === null) continue
