@@ -121,12 +121,12 @@ isso o painel tolera as chaves primeiro, e só depois a API as manda.
 
 ### O que entrou
 
-| Arquivo | O quê |
-|---|---|
-| `trip.types.ts` | `TripTimelineLocation`, `TRIP_TIMELINE_LOCATION_STATES`, as duas chaves opcionais no item |
-| `trip.constant.ts` | `TRIP_TIMELINE_LOCATION_KEYS`; `location`/`locationState` nas opcionais do item |
-| `tripResponse.validation.ts` | `isTimelineLocation` + `isFiniteNumber` |
-| `test/trip/timeline-location.contract.ts` | 10 casos, novo arquivo, já na lista explícita do `package.json` |
+| Arquivo                                   | O quê                                                                                     |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `trip.types.ts`                           | `TripTimelineLocation`, `TRIP_TIMELINE_LOCATION_STATES`, as duas chaves opcionais no item |
+| `trip.constant.ts`                        | `TRIP_TIMELINE_LOCATION_KEYS`; `location`/`locationState` nas opcionais do item           |
+| `tripResponse.validation.ts`              | `isTimelineLocation` + `isFiniteNumber`                                                   |
+| `test/trip/timeline-location.contract.ts` | 10 casos, novo arquivo, já na lista explícita do `package.json`                           |
 
 O item aceita as chaves **ausentes, nulas ou preenchidas** — as três, porque durante a transição as
 três acontecem: a API antiga não manda nada, a nova manda `null` para quem não tem a permissão, e
@@ -161,11 +161,11 @@ ter fechado a task com os dois dentro.
 
 ### Portões
 
-| Portão | Resultado |
-|---|---|
-| `bun run test` (painel) | 5927 pass · 1 fail |
-| `bun run test:hooks` | 155 pass · 0 fail |
-| `bun run typecheck` | `TC_EXIT=0` |
+| Portão                        | Resultado                    |
+| ----------------------------- | ---------------------------- |
+| `bun run test` (painel)       | 5927 pass · 1 fail           |
+| `bun run test:hooks`          | 155 pass · 0 fail            |
+| `bun run typecheck`           | `TC_EXIT=0`                  |
 | `bun run format:check` (raiz) | limpo nos arquivos do painel |
 
 ⚠️ A falha única foi `o beacon não inunda o log sob rajada` (`test/driver-trip/legacy-beacon.contract.ts`),

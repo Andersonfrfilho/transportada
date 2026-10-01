@@ -118,6 +118,7 @@ só não virou task. As T4.3a–T4.3c são a correção, abertas em 30/09/2026.
 > "só a distância derivada") **é reescrito, não apagado**: passa a exigir que a posição apareça
 > exclusivamente dentro de `location` e exclusivamente para os quatro papéis. Executado na T4.1 da
 > spec 196.
+
 - [x] T4.3b API: `DeliveryProofRecord`, `DeliveryProofView` e `delivery-proof-read.support.ts`
       passam a carregar os três. Distância pela haversine já existente
       (`src/addresses/domain/coordinate-distance.ts`) contra a posição do **evento de entrega**

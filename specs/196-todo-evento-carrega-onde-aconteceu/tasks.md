@@ -190,9 +190,11 @@ do usuário. A API não é revertida com a app nova no ar.
       estranha falha. Se a T0.2 da 192 (ignorar `kind` desconhecido) não estiver em `origin/staging`,
       combinar com ela no mesmo push, sem reimplementar. Não muda tela. Aceite: `check` do painel verde,
       a contagem subiu em N, push para staging depois dos gates.
-      > Fechada em `52626a4da`. `distanceMeters` entrou no mesmo objeto, por causa do tooltip
-      > decidido em 2026-10-01: como o validador é de **chaves exatas**, acrescentá-la depois faria
-      > o painel publicado recusar a resposta inteira. Evidência em `evidence.md`.
+
+  > Fechada em `52626a4da`. `distanceMeters` entrou no mesmo objeto, por causa do tooltip decidido
+  > em 2026-10-01: como o validador é de **chaves exatas**, acrescentá-la depois faria o painel
+  > publicado recusar a resposta inteira. Evidência em `evidence.md`.
+
 - [ ] **T4.1** Permissão e leitura, contrato primeiro:
   - `trip.event-location` em `company-admin`, `operator`, `fiscal` e `viewer`
     (`authorization.policy.ts`), com os contratos que enumeram permissões por papel atualizados;
