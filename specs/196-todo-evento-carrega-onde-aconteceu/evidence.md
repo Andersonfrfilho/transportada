@@ -1058,11 +1058,11 @@ PLAYWRIGHT_FRONTEND_PORT=53110 PLAYWRIGHT_REUSE_EXISTING_FRONTEND_SERVER=false \
 375 × 812 no Playwright — o teto de ~500 px é do Chrome no macOS, não do projeto. Os quatro
 `t10-timeline-*.png` da spec 158 foram regerados já sem a autoria repetida.
 
-| Portão              | Saída |
-| ------------------- | ----- |
-| `format:check`      | 0     |
-| `lint`              | 0     |
-| `typecheck`         | 0     |
-| `test` (17.374)     | 0     |
-| `build`             | 0     |
-| smoke da linha      | 5/5   |
+| Portão          | Saída |
+| --------------- | ----- |
+| `format:check`  | 0     |
+| `lint`          | 0     |
+| `typecheck`     | 0     |
+| `test` (17.374) | 0     |
+| `build`         | 0     |
+| smoke da linha  | 5/5   |
