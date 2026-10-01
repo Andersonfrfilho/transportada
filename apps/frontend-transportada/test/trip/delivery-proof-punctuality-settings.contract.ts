@@ -20,6 +20,14 @@ const PANEL = new URL(
   import.meta.url,
 )
 
+const PANEL_EXTRACTED_SOURCES = [
+  new URL(
+    '../../src/modules/trip/components/DeliveryProofPunctualityFields.component.tsx',
+    import.meta.url,
+  ),
+  new URL('../../src/modules/trip/hooks/useDeliveryProofPunctualityDraft.hook.ts', import.meta.url),
+]
+
 const VALID_MODES = {
   cargo: 'off',
   cargoMinimumCount: 1,
@@ -107,7 +115,9 @@ describe('os cinco parâmetros da nota do motorista no painel de comprovante (RF
   })
 
   it('o painel tem um campo por parâmetro, com rótulo no locale', () => {
-    const panel = readFileSync(PANEL, 'utf8')
+    const panel = [PANEL, ...PANEL_EXTRACTED_SOURCES]
+      .map((source) => readFileSync(source, 'utf8'))
+      .join('\n')
     expect(panel).toInclude('resolvePunctualityFieldValue')
     expect(panel).toInclude('DELIVERY_PROOF_PUNCTUALITY_FIELDS')
     for (const field of DELIVERY_PROOF_PUNCTUALITY_FIELDS) {

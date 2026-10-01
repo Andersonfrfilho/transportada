@@ -23,6 +23,43 @@ const PANEL = new URL(
   '../../src/modules/trip/components/TripDeliveryProofSettingsPanel.component.tsx',
   import.meta.url,
 )
+/** O painel foi partido em componentes irmãos: o contrato lê o painel e tudo que saiu dele. */
+const PANEL_EXTRACTED_SOURCES = [
+  new URL(
+    '../../src/modules/trip/components/DeliveryProofCargoMinimum.component.tsx',
+    import.meta.url,
+  ),
+  new URL(
+    '../../src/modules/trip/components/DeliveryProofCargoSection.component.tsx',
+    import.meta.url,
+  ),
+  new URL(
+    '../../src/modules/trip/components/DeliveryProofContractorOverrides.component.tsx',
+    import.meta.url,
+  ),
+  new URL(
+    '../../src/modules/trip/components/DeliveryProofModeSelect.component.tsx',
+    import.meta.url,
+  ),
+  new URL(
+    '../../src/modules/trip/components/DeliveryProofModeSummaries.component.tsx',
+    import.meta.url,
+  ),
+  new URL(
+    '../../src/modules/trip/components/DeliveryProofOverrideModeFields.component.tsx',
+    import.meta.url,
+  ),
+  new URL(
+    '../../src/modules/trip/components/DeliveryProofPunctualityFields.component.tsx',
+    import.meta.url,
+  ),
+  new URL(
+    '../../src/modules/trip/components/DeliveryProofTaxIdOverrides.component.tsx',
+    import.meta.url,
+  ),
+  new URL('../../src/modules/trip/components/CanhotoOcrSection.component.tsx', import.meta.url),
+  new URL('../../src/modules/trip/shared/deliveryProofPanelFields.constant.ts', import.meta.url),
+]
 const PAGE = new URL('../../src/modules/trip/pages/TripWorkspace.page.tsx', import.meta.url)
 const QUERY = new URL(
   '../../src/modules/trip/queries/useDeliveryProofSettings.query.ts',
@@ -34,7 +71,18 @@ const QUERY = new URL(
  * na tela de viagens, onde a entrega aparece — não numa tela de configurações que cresce sem fim.
  */
 describe('painel de configuração do comprovante (spec 082)', () => {
-  const panel = readFileSync(PANEL, 'utf8')
+  const panel = [PANEL, ...PANEL_EXTRACTED_SOURCES]
+    .map((source) => readFileSync(source, 'utf8'))
+    .join('\n')
+  /** Ordem de tela só se mede num arquivo: no texto concatenado quem vem antes é quem foi lido antes. */
+  const panelOnly = readFileSync(PANEL, 'utf8')
+  const cargoSection = readFileSync(
+    new URL(
+      '../../src/modules/trip/components/DeliveryProofCargoSection.component.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  )
   const page = readFileSync(PAGE, 'utf8')
   const query = readFileSync(QUERY, 'utf8')
 
@@ -176,9 +224,9 @@ describe('painel de configuração do comprovante (spec 082)', () => {
    * (`SettingsResolutionPanel`) também usa e o teste acima fixa em quatro.
    */
   describe('a foto do canhoto e a foto da mercadoria (spec 220 T1.6)', () => {
-    const photoHintAt = panel.indexOf('deliveryProofSettings.photoHint')
-    const ocrTitleAt = panel.indexOf('{renderCanhotoOcrSection()}')
-    const cargoHintAt = panel.indexOf('deliveryProofSettings.cargoHint')
+    const photoHintAt = panelOnly.indexOf('deliveryProofSettings.photoHint')
+    const ocrTitleAt = panelOnly.indexOf('<CanhotoOcrSection')
+    const cargoSectionAt = panelOnly.indexOf('<DeliveryProofCargoSection')
 
     it('rotula os dois campos e explica o que cada foto prova, nos dois idiomas', () => {
       expect(trip.deliveryProofSettings.fields.photo).toBe('Foto do canhoto')
@@ -201,7 +249,8 @@ describe('painel de configuração do comprovante (spec 082)', () => {
     it('o interruptor do canhoto mora dentro do campo do canhoto, antes do da mercadoria', () => {
       expect(photoHintAt).toBeGreaterThan(-1)
       expect(ocrTitleAt).toBeGreaterThan(photoHintAt)
-      expect(cargoHintAt).toBeGreaterThan(ocrTitleAt)
+      expect(cargoSectionAt).toBeGreaterThan(ocrTitleAt)
+      expect(cargoSection).toInclude('deliveryProofSettings.cargoHint')
     })
 
     it('o mínimo só aparece com cargo obrigatório e só existe para a mercadoria', () => {
