@@ -1,17 +1,26 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
+import { getTripClient } from '../hooks/useTripWorkspace.hook'
 import type { TripTimelineItem } from '../shared/trip.types'
-import { TIMELINE_MAP_ICON_BY_CATEGORY } from '../shared/tripTimelineMap.constant'
+import {
+  TIMELINE_MAP_CAPTION_KEY_BY_TRACE,
+  TIMELINE_MAP_ICON_BY_CATEGORY,
+} from '../shared/tripTimelineMap.constant'
 import {
   resolveTimelineMapView,
   type TimelineMapMissing,
   type TimelineMapPoint,
 } from '../shared/tripTimelineMap.service'
+import {
+  createTimelineRouteGeometryQueryOptions,
+  resolveTimelineRouteTrace,
+} from '../shared/tripTimelineRoute.service'
 import styles from '../styles/tripTimelineMiniMap.module.css'
 
 import { TripTimelineMiniMapCanvas } from './TripTimelineMiniMapCanvas.component'
@@ -43,6 +52,12 @@ export function TripTimelineMiniMap({ hasMorePages, items }: TripTimelineMiniMap
   const { i18n, t } = useTranslation('trip')
   const [hasBasemap, setHasBasemap] = useState(true)
   const view = useMemo(() => resolveTimelineMapView(items, t as Translate), [items, t])
+  // Rota indisponível não vira erro na tela: o traço volta a ser a reta tracejada, e a legenda diz isso.
+  const routeQuery = useQuery(
+    createTimelineRouteGeometryQueryOptions({ client: getTripClient(), points: view.points }),
+  )
+  const geometry = routeQuery.data ?? null
+  const trace = resolveTimelineRouteTrace({ geometry, points: view.points })
 
   function renderPointLine(point: TimelineMapPoint): string {
     const moment = formatPointMoment(point.occurredAt, i18n.language)
@@ -60,6 +75,7 @@ export function TripTimelineMiniMap({ hasMorePages, items }: TripTimelineMiniMap
         <>
           {hasBasemap ? (
             <TripTimelineMiniMapCanvas
+              geometry={geometry}
               onBasemapMissing={() => setHasBasemap(false)}
               points={view.points}
             />
@@ -79,7 +95,7 @@ export function TripTimelineMiniMap({ hasMorePages, items }: TripTimelineMiniMap
               </li>
             ))}
           </ul>
-          <p className={styles.note}>{t('eventTimeline.map.caption')}</p>
+          <p className={styles.note}>{t(TIMELINE_MAP_CAPTION_KEY_BY_TRACE[trace])}</p>
           <details className={styles.pointList}>
             <summary className={styles.pointListSummary}>
               {t('eventTimeline.map.listSummary', { count: view.points.length })}

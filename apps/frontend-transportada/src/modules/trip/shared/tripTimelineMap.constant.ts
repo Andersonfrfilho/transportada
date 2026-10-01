@@ -48,3 +48,22 @@ export const TIMELINE_MAP_CELL_DECIMALS = 4
 
 /** Acima disto a lista acessível recolhe: dezenas de linhas empurrariam a linha do tempo para fora da tela. */
 export const TIMELINE_MAP_LIST_COLLAPSE_THRESHOLD = 8
+
+/** Abaixo de dois lugares não há trecho para pedir — a API responderia 400. */
+export const TIMELINE_ROUTE_MIN_POINTS = 2
+
+/** Espelho de `MAX_ROUTE_GEOMETRY_POINTS` da API: pedir acima disto só renderia 400. */
+export const TIMELINE_ROUTE_MAX_POINTS = 100
+
+/** O que o mapa desenhou entre um ponto e o seguinte. */
+export type TimelineRouteTrace = 'none' | 'road' | 'straight'
+
+/**
+ * ⚠️ A legenda é **consequência** do traço, nunca texto fixo: um tracejado reto não pode ser
+ * anunciado como caminho pela estrada (ADR-0044 §5).
+ */
+export const TIMELINE_MAP_CAPTION_KEY_BY_TRACE: Readonly<Record<TimelineRouteTrace, string>> = {
+  none: 'eventTimeline.map.captionPoint',
+  road: 'eventTimeline.map.captionRoad',
+  straight: 'eventTimeline.map.captionStraight',
+}

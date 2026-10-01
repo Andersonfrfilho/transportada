@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import type { AssemblyMapPoint } from '../shared/assemblyMap.service'
+import type { RouteGeometry } from '../shared/routeGeometry.service'
 import { TIMELINE_EVENT_CATEGORY_COLOR } from '../shared/stopColor.service'
 import type { TimelineMapPoint } from '../shared/tripTimelineMap.service'
 import styles from '../styles/tripTimelineMiniMap.module.css'
@@ -18,6 +19,8 @@ const MAP_HEIGHT = '18rem'
 const NO_NEARBY: readonly AssemblyMapPoint[] = []
 
 type TripTimelineMiniMapCanvasProps = Readonly<{
+  /** A estrada entre os eventos; `null` enquanto a resposta não vem, ou quando não há rota. */
+  geometry: null | RouteGeometry
   onBasemapMissing: () => void
   points: readonly TimelineMapPoint[]
 }>
@@ -41,6 +44,7 @@ function buildMapPoint(point: TimelineMapPoint): AssemblyMapPoint {
 
 /** As coordenadas só vão ao mapa em memória — nenhuma URL, nenhum tile de terceiro (ADR-0044 §6). */
 export function TripTimelineMiniMapCanvas({
+  geometry,
   onBasemapMissing,
   points,
 }: TripTimelineMiniMapCanvasProps) {
@@ -63,7 +67,7 @@ export function TripTimelineMiniMapCanvas({
       <div className={styles.canvas}>
         <AssemblyVectorMap
           isQuietBasemap
-          geometry={null}
+          geometry={geometry}
           nearby={NO_NEARBY}
           onBasemapMissing={onBasemapMissing}
           points={mapPoints}

@@ -295,12 +295,26 @@ export type RouteTrace = Readonly<{
   path: string
 }>
 
+/**
+ * A polilinha que **vai mesmo ser desenhada** como estrada — vazia quando não há estrada a desenhar.
+ *
+ * ⚠️ É o único lugar que decide "isto é estrada": quem desenha o traço e quem escreve a legenda ao
+ * lado dele leem desta função. Duas cópias da condição deixariam a legenda dizer "segue as vias"
+ * sobre um tracejado reto, que é exatamente a mentira que a ADR-0044 §5 proíbe.
+ */
+export function resolveRoadPoints(
+  geometry: RouteGeometry | null,
+): readonly Readonly<{ latitude: string; longitude: string }>[] {
+  const road = geometry?.source === 'road' ? geometry.points : []
+  return road.length < 2 ? [] : road
+}
+
 export function resolveRouteTrace(input: {
   readonly geometry: RouteGeometry | null
   readonly project: (point: Readonly<{ latitude: number; longitude: number }>) => ProjectedPoint
   readonly stops: readonly ProjectedPoint[]
 }): RouteTrace {
-  const road = input.geometry?.source === 'road' ? input.geometry.points : []
+  const road = resolveRoadPoints(input.geometry)
 
   if (road.length >= 2) {
     const projected = road.map((point) =>
