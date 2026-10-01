@@ -2995,3 +2995,65 @@ vale mais: ela barateia os 570 `CREATE DATABASE` em **todos** os shards de uma v
    arquivos tocados, só se 1 e 2 não bastarem.
 
 Nenhuma delas é pré-requisito da 220: a spec entra com 2,3 % do custo e sai com o portão verde.
+
+---
+
+## O gate vermelho não era da 220 — era contrato novo com smoke velho
+
+A run `36915535292` reprovou em quatro frentes: `gate / quality`, `gate / integration-smoke`,
+`gate / integration-api (2)` e `gate / integration`. A última não é defeito: é só o agregador
+dizendo que uma frente de integração terminou em `failure`. Sobram três.
+
+**Antes de culpar o código, conferi o ambiente.** A primeira rodada local do smoke do motorista deu
+**23/23 vermelhos, todos em 30 s**, o que não se parecia nada com os 2 de CI. Causa: eu havia subido
+o Playwright em `PLAYWRIGHT_DRIVER_PORT=53210`, e a porta do app do motorista **está assada no
+build** — `apps/frontend-driver/playwright.config.ts` avisa que `53112` é a origem do `redirect_uri`
+gravado no bundle. Em qualquer outra porta o `loginAsLocalUser` nunca volta do Keycloak e **todo**
+teste morre no timeout. Um vermelho desses não quer dizer nada. Liberada a 53112, a rodada local
+reproduziu o CI exatamente: **2 failed, 23 passed**.
+
+As duas falhas do canhoto têm a mesma origem institucional — **duas vezes um commit acrescentou o
+contrato certo para o comportamento novo e deixou o smoke afirmando a tela antiga**:
+
+| commit      | o que mudou na tela                                             | contrato que entrou junto            | smoke |
+| ----------- | --------------------------------------------------------------- | ------------------------------------ | ----- |
+| `7eb0868d7` | com foto obrigatória não existe "Entreguei": a captura já monta | `delivery-single-button.contract.ts` | ❌    |
+| `3afcccf1e` | "Foto do canhoto anexada" virou o estado do envio               | contrato de `ProofUploadStatus`      | ❌    |
+
+Achei o primeiro com `git log -S"!requiresProof ? ("`. O segundo só apareceu **depois** de corrigir
+o primeiro — o smoke morria antes de chegar nele. Confirmei pela árvore de acessibilidade do
+`error-context.md` do Playwright (texto, sem screenshot) que a foto **tinha** anexado: miniatura,
+"Refazer" e "Remover" estavam na tela; o que não estava era a palavra "anexada".
+
+O remédio não foi reescrever a asserção para o texto novo e seguir. O smoke agora **afirma a
+ausência** do "Entreguei" (`toHaveCount(0)`), então ele passa a guardar a regra da 218 em vez de
+poder deslizar de volta para a antiga.
+
+**Efeito colateral a limpar:** `proofCapture.attached` ficou sendo chave morta em
+`driverTrip.locale.json` e `driverTrip.en.locale.json` — nenhum componente a referencia.
+
+### `integration-api (2)`: `(unnamed) [5000.10ms]` não era intermitência
+
+Tratei como flaky na primeira leitura e estava errado. O `afterAll` de
+`address-correction-repository.integration.ts` derruba o banco descartável com
+`drop database ... with (force)` e **não tinha prazo**, enquanto o `beforeAll` irmão tinha `60_000`.
+O padrão do Bun é 5 s e vale para o `afterAll` também; sob carga de CI o drop passa disso. Sete
+arquivos tinham o mesmo defeito de forma. `database-availability.integration.ts` também tem
+`afterAll` sem prazo, mas não derruba banco — ficou como está.
+
+### Medido
+
+| gate                                | comando                                                                     | resultado                      |
+| ----------------------------------- | --------------------------------------------------------------------------- | ------------------------------ |
+| smoke do motorista (app)            | `PLAYWRIGHT_DRIVER_PORT=53112 … bunx playwright test`                       | **25 passed** (43,1 s)         |
+| smoke do motorista (service worker) | `bun run smoke`                                                             | **2 passed** (9,4 s)           |
+| integração dos sete arquivos        | `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/…` | **44 pass / 0 fail** (17,44 s) |
+| prettier nos oito arquivos          | `bunx prettier --check`                                                     | **limpo**                      |
+| eslint                              | por app (`frontend-driver`, `api-transportada`)                             | **0 problemas**                |
+| typecheck do `frontend-driver`      | `bun run typecheck`                                                         | **limpo**                      |
+
+⚠️ `bunx eslint` a partir da raiz do monorepo **não roda**: `No tsconfigRootDir was set, and multiple
+candidate TSConfigRootDirs are present`. É a invocação, não o código — lint é por app.
+
+⚠️ `bun test test/integration/x.integration.ts` casa **zero** arquivos: sem o `./` o Bun trata o
+caminho como filtro de nome do teste. O prefixo é obrigatório.
