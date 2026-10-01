@@ -137,6 +137,41 @@ engano:
   nenhum valor aparece no mapa (praças e rótulos sim, valores não); linha monetária some sem traço ou
   zero. Detalhe completo: docs/ai-context § "Seletor de rota, um mapa só e redação monetária".
 
+## O menu mostra só o que a pessoa pode abrir (spec 221)
+
+A barra lateral renderizava as 19 entradas para todo usuário autenticado: o separador abria 5 e batia
+em parede nas outras 14. **A permissão de cada workspace agora mora num lugar só**,
+`modules/shared/workspaceAccess.service.ts` (`WORKSPACE_PERMISSIONS`, lista "qualquer uma de" por
+chave, com a origem anotada linha a linha). O `satisfies` faz **chave nova sem entrada reprovar o
+typecheck** — é essa a trava, não um teste. A lista de itens e os grupos saíram do `main.tsx` para
+`modules/shared/workspaceNavigation.constant.ts`, senão o contrato teria de importar o `main` e
+disparar o boot.
+
+- **Acesso é por permissão; só a aterrissagem lê papel.** `canOpenWorkspace` nunca recebe `roles`; a
+  preferência de onde começar (`LANDING_PREFERENCE`) recebe, porque a pergunta ali é outra. Um
+  contrato afirma que o módulo do mapa não importa `CompanyRole`.
+- **O separador começa em `/trips`**, não no primeiro item do menu (que é NF-e). Preferência vence
+  "primeiro visível"; preferência que a conta não pode abrir é ignorada.
+- **Endereço pedido pela pessoa nunca é trocado.** `resolveCurrentWorkspace` reporta a origem
+  (`path | stored | default`) — sem ela, "URL digitada" e "aterrissagem sem endereço" são
+  indistinguíveis. URL direta cai na parede da página; só `stored` sem permissão e `default` cedem.
+- **Conta sem nenhuma área** abre `NoWorkspaceAccess`, com o botão de sair no corpo.
+- **Conta de campo não abre o painel por caminho nenhum** (RF-E1): `isDriverEntry` passou a valer para
+  qualquer caminho de `isFieldOnlyUser`, e sem o interruptor o modo `legacy-home` leva a
+  `/minha-viagem` por `replaceState`. ⚠️ Motorista que **também** é separador tem `trip.manage`, logo
+  não é conta de campo: ele fica no painel, aterrissa em Viagens e ganha "Minha viagem" no menu — o
+  item é visível só com `trip.report`.
+- **Três telas ganharam a parede que não tinham** (Empresa, NFS-e e Repasses) e decidem **pelo mesmo
+  mapa**, nunca por condição própria. Repasses fechou exposição real: não tinha checagem alguma e a
+  consulta não tinha `enabled`. A entrada dela no mapa é a única que é **intenção de produto**
+  (`billing.create` ou `trip.financials`), não transcrição — a API lê com `trip.read`, achado
+  registrado em `docs/SECURITY.md:383`.
+
+⚠️ **Contrato de parede não se escreve procurando texto na fonte.** A primeira versão dos três
+contratos afirmava que o arquivo continha `isForbidden` e `t('forbidden')`, e passava verde com as
+três paredes desligadas (medido por mutação). O que vale é exercitar **conjunto de permissão** em
+`test/shared/workspace-walls.contract.ts` e `workspace-landing.contract.ts`.
+
 ## O motorista ganhou app própria (spec 189, ADR-0075)
 
 O módulo `driver-trip` (a tela `/minha-viagem`) continua aqui, mas deixou de ser o destino final: a

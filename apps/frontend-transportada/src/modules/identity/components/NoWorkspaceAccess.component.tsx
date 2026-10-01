@@ -23,8 +23,8 @@ export function NoWorkspaceAccess({ onSignOut }: NoWorkspaceAccessProps) {
     <main className={styles.noAccessShell}>
       <section className={styles.noAccessPanel} role="alert">
         <Icon aria-hidden="true" name="alert" />
-        <h1>{t('noWorkspaceAccess.title')}</h1>
-        <p>{t('noWorkspaceAccess.body')}</p>
+        <h1 className={styles.noAccessTitle}>{t('noWorkspaceAccess.title')}</h1>
+        <p className={styles.noAccessBody}>{t('noWorkspaceAccess.body')}</p>
         <p className={styles.noAccessHint}>{t('noWorkspaceAccess.askAdmin')}</p>
         <Button onClick={onSignOut} type="button" variant="secondary">
           <Icon name="power" />
