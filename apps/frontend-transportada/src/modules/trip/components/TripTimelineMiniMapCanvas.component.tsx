@@ -62,6 +62,7 @@ export function TripTimelineMiniMapCanvas({
     >
       <div className={styles.canvas}>
         <AssemblyVectorMap
+          isQuietBasemap
           geometry={null}
           nearby={NO_NEARBY}
           onBasemapMissing={onBasemapMissing}

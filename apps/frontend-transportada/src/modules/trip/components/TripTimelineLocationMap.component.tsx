@@ -102,6 +102,7 @@ export function TripTimelineLocationMap({
         <AssemblyVectorMap
           geometry={null}
           hideRoute
+          isQuietBasemap
           nearby={NO_NEARBY}
           onBasemapMissing={() => setHasBasemap(false)}
           points={points}

@@ -254,15 +254,27 @@ describe('título do item por kind (spec 158 T8)', () => {
     )
   })
 
-  it('stop.occurrence usa o tipo da ocorrência', () => {
+  it('stop.occurrence traduz o tipo conhecido em vez de imprimir o identificador', () => {
     const item: TripTimelineItem = {
       ...BASE_ITEM,
       document: null,
       kind: 'stop.occurrence',
-      occurrence: { note: '', typeName: 'Avaria' },
+      occurrence: { note: '', typeName: 'dock_closed' },
     }
     expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe(
-      'eventTimeline.itemTitle.stopOccurrence(type=Avaria)',
+      'eventTimeline.itemTitle.stopOccurrence(type=fieldActions.occurrenceKind.dock_closed)',
+    )
+  })
+
+  it('stop.occurrence com tipo desconhecido cai no próprio código, sem sumir', () => {
+    const item: TripTimelineItem = {
+      ...BASE_ITEM,
+      document: null,
+      kind: 'stop.occurrence',
+      occurrence: { note: '', typeName: 'flooded_road' },
+    }
+    expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe(
+      'eventTimeline.itemTitle.stopOccurrence(type=flooded_road)',
     )
   })
 

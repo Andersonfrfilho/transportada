@@ -45,6 +45,8 @@ type AssemblyVectorMapProps = Readonly<{
    * ninguém mediu parece um caminho que não existe.
    */
   hideRoute?: boolean | undefined
+  /** Fundo sem placa de radar nem selo de pedágio: o pino é a coisa mais forte da imagem. */
+  isQuietBasemap?: boolean | undefined
   nearby: readonly AssemblyMapPoint[]
   onBasemapMissing: () => void
   points: readonly AssemblyMapPoint[]
@@ -115,6 +117,7 @@ function readToken(token: string): string {
 export function AssemblyVectorMap({
   geometry,
   hideRoute,
+  isQuietBasemap,
   nearby,
   onBasemapMissing,
   points,
@@ -242,7 +245,7 @@ export function AssemblyVectorMap({
          * enquanto o tile novo entra, e arrastar o mapa vira um piscar contínuo da tela toda.
          */
         fadeDuration: 0,
-        style: buildBasemapStyle(readToken, theme),
+        style: buildBasemapStyle(readToken, theme, { isQuiet: isQuietBasemap === true }),
         zoom: 8,
       })
     } catch (error) {
@@ -356,7 +359,7 @@ export function AssemblyVectorMap({
     }
 
     setIsReady(false)
-    map.setStyle(buildBasemapStyle(readToken, theme))
+    map.setStyle(buildBasemapStyle(readToken, theme, { isQuiet: isQuietBasemap === true }))
     /**
      * ⚠️ **`setStyle` faz diff, e diff não emite `style.load`.** Quando o estilo novo é alcançável
      * a partir do atual, o MapLibre aplica as diferenças em vez de recarregar — e o evento de
@@ -393,7 +396,7 @@ export function AssemblyVectorMap({
     }
     map.on('styledata', aoTerminar)
     map.once('style.load', aoTerminar)
-  }, [chosenTheme, theme])
+  }, [chosenTheme, isQuietBasemap, theme])
 
   /**
    * Spec 097 D4: onde o barracão está. Sai da mesma resposta que desenhou o traçado — pedir a

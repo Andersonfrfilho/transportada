@@ -90,6 +90,29 @@ describe('o estilo do mapa vetorial', () => {
     for (const rampa of rampas) expect(lastStop(rampa)).toBeGreaterThanOrEqual(18)
   })
 
+  /**
+   * O mapa da linha do tempo existe para situar o evento: placa de limite de velocidade e selo de
+   * pedágio disputam com o pino, que tem de ser a coisa mais forte da imagem. O estilo quieto tira
+   * os dois símbolos e preserva traçado, nome de rua, cidade, água e vegetação.
+   */
+  it.each([...BASEMAP_THEMES])('o estilo quieto some com radar e pedágio — tema %s', (theme) => {
+    const quiet = buildBasemapStyle(resolveToken, theme, { isQuiet: true })
+    const quietIds = quiet.layers.map((layer) => layer.id)
+
+    expect(quietIds).not.toContain('radar')
+    expect(quietIds).not.toContain('cabine-de-pedagio')
+    for (const kept of ['via-principal', 'nome-da-via', 'cidade', 'agua', 'vegetacao'])
+      expect(quietIds).toContain(kept)
+    expect(validateStyleMin(quiet)).toEqual([])
+  })
+
+  it('o estilo padrão continua com radar e pedágio — o roteiro depende deles', () => {
+    const ids = buildBasemapStyle(resolveToken, 'claro').layers.map((layer) => layer.id)
+
+    expect(ids).toContain('radar')
+    expect(ids).toContain('cabine-de-pedagio')
+  })
+
   /** Rótulo que não cabe onde queria tenta outro lado antes de ser descartado — é o que adensa. */
   it('deixa o rótulo procurar lugar antes de desistir', () => {
     expect(cityLayer('claro').layout?.['text-variable-anchor']).toBeDefined()

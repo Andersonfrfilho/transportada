@@ -4,6 +4,7 @@ import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelD
 import { resolveFieldAuthorshipText } from './fieldAuthorship.service'
 import { formatOccurrenceInvoice } from './tripOccurrenceFeed.service'
 import {
+  STOP_OCCURRENCE_KINDS,
   TRIP_DOCUMENT_SEPARATION_STATUS,
   TRIP_STATUS,
   type TripTimelineDocumentReference,
@@ -11,6 +12,7 @@ import {
 } from './trip.types'
 
 const KNOWN_TRIP_STATUSES: ReadonlySet<string> = new Set(TRIP_STATUS)
+const KNOWN_STOP_OCCURRENCE_KINDS: ReadonlySet<string> = new Set(STOP_OCCURRENCE_KINDS)
 const KNOWN_DOCUMENT_STATUSES: ReadonlySet<string> = new Set(TRIP_DOCUMENT_SEPARATION_STATUS)
 
 /**
@@ -91,6 +93,12 @@ function formatTripTimelineDocumentLabel(
     : t('eventTimeline.itemTitle.documentLabel', { invoice })
 }
 
+function resolveStopOccurrenceLabel(typeName: string, t: Translate): string {
+  return KNOWN_STOP_OCCURRENCE_KINDS.has(typeName)
+    ? t(`fieldActions.occurrenceKind.${typeName}`)
+    : typeName
+}
+
 /**
  * Spec 158 D6/T8/T10: o título do item pelo `kind` e, nas mudanças de situação, pela transição — no
  * vocabulário do escritório ("Rota iniciada", "Nota 456/1 separada"), não "Situação alterada para
@@ -133,7 +141,7 @@ export function resolveTripTimelineTitle(item: TripTimelineItem, t: Translate): 
         type:
           item.occurrence === null
             ? t('eventTimeline.itemTitle.unknownOccurrenceType')
-            : item.occurrence.typeName,
+            : resolveStopOccurrenceLabel(item.occurrence.typeName, t),
       })
     case 'document.occurrence':
       return t('eventTimeline.itemTitle.documentOccurrence', {

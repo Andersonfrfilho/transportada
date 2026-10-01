@@ -223,9 +223,24 @@ export function resolveBasemapBackground(
   return resolveToken(PALETTE[theme]?.terra ?? '--color-basemap-paper')
 }
 
+/** Camadas de símbolo que não situam o evento: placa de radar e selo de pedágio. */
+const QUIET_HIDDEN_LAYER_IDS: ReadonlySet<string> = new Set(['radar', 'cabine-de-pedagio'])
+
+export type BasemapStyleOptions = Readonly<{ isQuiet?: boolean }>
+
 export function buildBasemapStyle(
   resolveToken: (token: string) => string,
   theme: BasemapTheme = 'claro',
+  options: BasemapStyleOptions = {},
+): StyleSpecification {
+  const style = buildFullBasemapStyle(resolveToken, theme)
+  if (options.isQuiet !== true) return style
+  return { ...style, layers: style.layers.filter((layer) => !QUIET_HIDDEN_LAYER_IDS.has(layer.id)) }
+}
+
+function buildFullBasemapStyle(
+  resolveToken: (token: string) => string,
+  theme: BasemapTheme,
 ): StyleSpecification {
   const tom = (nome: string): string =>
     resolveToken(PALETTE[theme][nome] ?? '--color-basemap-paper')

@@ -56,8 +56,20 @@ type LocatedEntry = Readonly<{
   longitude: number
 }>
 
-function buildCellKey(latitude: number, longitude: number): string {
-  return `${latitude.toFixed(TIMELINE_MAP_CELL_DECIMALS)}:${longitude.toFixed(TIMELINE_MAP_CELL_DECIMALS)}`
+const CELL_SIZE_DEGREES = 10 ** -TIMELINE_MAP_CELL_DECIMALS
+
+// Arredondar para uma grade separa pontos a 5 m quando caem em lados opostos da fronteira da célula.
+function findAnchorKey(
+  anchors: ReadonlyMap<string, Readonly<{ latitude: number; longitude: number }>>,
+  entry: Readonly<{ latitude: number; longitude: number }>,
+): string | undefined {
+  for (const [key, anchor] of anchors) {
+    const isSamePlace =
+      Math.abs(anchor.latitude - entry.latitude) < CELL_SIZE_DEGREES &&
+      Math.abs(anchor.longitude - entry.longitude) < CELL_SIZE_DEGREES
+    if (isSamePlace) return key
+  }
+  return undefined
 }
 
 function sortChronologically(items: readonly TripTimelineItem[]): readonly TripTimelineItem[] {
@@ -74,7 +86,7 @@ function clusterPoints(located: readonly LocatedEntry[]): readonly Cluster[] {
   const clusterByCellAndCategory = new Map<string, Cluster>()
 
   for (const entry of located) {
-    const cell = buildCellKey(entry.latitude, entry.longitude)
+    const cell = findAnchorKey(anchorByCell, entry) ?? `${entry.latitude}:${entry.longitude}`
     const anchor = anchorByCell.get(cell) ?? {
       latitude: entry.latitude,
       longitude: entry.longitude,

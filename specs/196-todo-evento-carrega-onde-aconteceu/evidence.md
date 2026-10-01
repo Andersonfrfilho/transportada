@@ -463,3 +463,74 @@ caminho percorrido.
 teste, então o contrato roda com o mapa dublado: ele prova o DOM, a ordem e as cores, e não prova
 pino, tracejado, leque nem os 375 px. Isso é exatamente o que o preview da T6.3 existe para provar, e
 nada sobe antes dele.
+
+## Integração da API — a corrida limpa
+
+Rodada com nada mais disputando o Postgres, de dentro de `apps/api-transportada`:
+
+```
+bun --env-file=../../.env.test run test:integration --timeout 120000
+789 pass · 7 skip · 0 fail · exit 0
+```
+
+⚠️ **A corrida anterior reprovou e não era regressão.** Ela fechou 788 pass · 7 skip · 1 fail, com a
+falha em `auth-me.integration.ts:153` — a lista exata de permissões do `GET /auth/me`. Rodado
+isolado, o arquivo passa; rodado limpo, a suíte inteira passa. Duas suítes de integração no mesmo
+Postgres produzem vermelho que não é defeito do código, e ler o primeiro vermelho como regressão
+custou uma rodada inteira.
+
+⚠️ **O script `test:integration` não declara `--timeout`**, então cai nos 5000 ms padrão do Bun. Na
+CI isso não aparece porque `ci.yml:167` reparte a suíte em quatro; na máquina de quem desenvolve, os
+144 arquivos disputam e estouram. Toda invocação local precisa de `--timeout 120000` na mão. É
+defeito do script, está registrado aqui e **não foi corrigido** — corrigi-lo mexe no portão da CI e
+não é o assunto desta spec.
+
+## A migration no banco local compartilhado
+
+A `20261001123700_event_location_stamp` foi aplicada no Postgres de desenvolvimento
+(`transportada-local-postgres-1`, banco `transportada`) para que o preview da T6.3 pudesse existir:
+sem a coluna `location_state`, a rota da linha do tempo responde 500, e a API deste worktree já a
+seleciona. Aditiva, com `rollback.sql`, conferida depois: a coluna existe em `trip_stop_events` e em
+`trip_delivery_proofs`.
+
+⚠️ **O banco é compartilhado entre as sessões desta máquina.** O CHECK
+`trip_stop_events_location_state_consistency_check` exige `location_state = 'captured'` se e somente
+se houver latitude. Sessão rodando código anterior que grave evento **com** coordenada e **sem**
+estado passa a ser rejeitada. Não houve ocorrência observada, mas quem esbarrar nisso tem aqui a
+causa.
+
+## T6.3 — o preview, e os três defeitos que só a tela mostrou
+
+Preview local com a API deste worktree na 53001 e um painel **deste** worktree na 53112 (a 53112 já
+está na allowlist de CORS da API; a 53000 é de outro worktree e não tem a tela nova). Viagem de
+preview com coordenada **sintética**, eventos gravados pelas **rotas do motorista** — chegada nas
+três paradas, entrega, devolução e as ocorrências — e SQL só para o que a rota não produz: o evento
+`expired`, que só o expurgo gera, e o de estado nulo.
+
+Prints em `prints/`: `196-timeline-minimapa-1280.png`, `196-timeline-minimapa-375.png` e os dois
+`-so-mapa`. Portões no estado dos prints: `format:check` ok, `check` do painel **5966 pass · 0 fail**
+(+ 165 dos hooks), `typecheck` limpo, integração da API **789 pass · 7 skip · 0 fail**.
+
+Três defeitos que os contratos não pegaram, porque o WebGL do MapLibre não sobe no ambiente de teste
+e o mapa roda dublado — exatamente o buraco que esta task existe para cobrir:
+
+1. **A ocorrência saía com o código cru do enum** ("Ocorrência: dock_closed"). A tradução já existia
+   em `trip.locale.json` e o título montado em `tripTimeline.service.ts` não a usava. Código
+   desconhecido agora vira o próprio código como rótulo — sumir seria esconder o evento.
+2. **Os pinos competiam com o fundo.** A camada `radar` do estilo cobre o mapa de placas vermelhas de
+   limite de velocidade. `buildBasemapStyle` ganhou o modo quieto, que tira `radar` e
+   `cabine-de-pedagio` **só** nos mapas da linha do tempo; roteiro e montagem seguem com elas.
+   Provedor de tiles e coordenadas intactos (ADR-0044 §6, ADR-0047).
+3. **Dois eventos a ~5 m um do outro ficavam empilhados**, um escondendo o outro: eles caíam em lados
+   opostos da fronteira da grade de arredondamento, e o mapa os tratava como lugares diferentes, então
+   o leque nunca abria. O agrupamento passou a ser por proximidade, não pela grade.
+
+⚠️ **O pino de devolução continua o mais fraco.** `#76602d` contra a via troncal laranja `#d58a47` dá
+~2,3:1; o que o separa é o anel branco, ~6:1. Em 375 px, sobre um cruzamento, é o ponto frágil da
+tela. O token **não** foi mexido — escurecê-lo é decisão de design que ninguém tomou ainda.
+
+⚠️ **Ocorrência não aparece no mapa, e isso não é defeito desta entrega:** `trip_stop_occurrences`
+não tem coluna de posição nenhuma. Está nas Fases 2 e 3, não executadas.
+
+⚠️ **47 px de estouro horizontal em 375 px na página**, vindos do componente da placa do veículo
+(`_plate_`, `_plateBand_`) — não da linha do tempo. Pré-existente e fora desta spec.

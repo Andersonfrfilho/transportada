@@ -73,6 +73,13 @@ do usuário. A API não é revertida com a app nova no ar.
 
 > 🤖 Modelo: `opus` 🧠 (modelo de dados, CHECKs e migration; validar com `architect` antes da T1.2)
 
+> ⚠️ **Executada pela metade, e nenhuma task desta fase pode ser tiquada.** A migration
+> `20261001123700_event_location_stamp` acrescentou `location_state` às **duas** tabelas que já
+> tinham as quatro colunas de ponto (`trip_stop_events` e `trip_delivery_proofs`). As três que não
+> têm coluna nenhuma — `trip_status_events`, `trip_stop_occurrences`, `trip_document_occurrences` —
+> ficaram de fora: estado sem ponto não teria o que afirmar. A T1.3 (auditoria de leitura, RF12) não
+> foi feita.
+
 - [ ] **T1.1** Contrato de schema primeiro, em `test/trip-schema/events.contract.ts` (importado por
       `test/trip-schema.contract.test.ts`):
   - nas três tabelas novas: as cinco colunas, os oito CHECKs do `plan.md` § Dados, com os nomes de lá,
@@ -195,7 +202,7 @@ do usuário. A API não é revertida com a app nova no ar.
   > em 2026-10-01: como o validador é de **chaves exatas**, acrescentá-la depois faria o painel
   > publicado recusar a resposta inteira. Evidência em `evidence.md`.
 
-- [ ] **T4.1** Permissão e leitura, contrato primeiro:
+- [x] **T4.1** Permissão e leitura, contrato primeiro:
   - `trip.event-location` em `company-admin`, `operator`, `fiscal` e `viewer`
     (`authorization.policy.ts`), com os contratos que enumeram permissões por papel atualizados;
   - tipos, `trip-timeline-status.query.ts`, `trip-timeline-stop.query.ts`,
@@ -225,10 +232,27 @@ do usuário. A API não é revertida com a app nova no ar.
 
   Aceite: verdes; a contagem subiu em N.
 
-- [ ] **T4.2** Integração: viagem com os quatro estados (`captured`, `unavailable`, `expired`, `null`)
-      nas quatro fontes; cursor com 250 eventos continua sem pular nem repetir;
+  > Fechada em `29510bbae`. A permissão entrou nos quatro papéis, a redação por permissão está
+  > coberta em `test/trip-http/event-location-redaction.contract.ts`, e o painel foi sincronizado nos
+  > quatro lugares que a guardam (allowlist, grupo e os dois locales) — a API ganhar permissão sem
+  > isso reprova dois contratos do painel.
+  >
+  > ⚠️ **A ordem da lista de permissões do `GET /auth/me` não é a ordem do literal da
+  > `authorization.policy.ts`.** Medido: a permissão nova sai no **fim** de cada lista, e
+  > `auth-me.integration.ts` compara com `toEqual`, que compara posição. Inferir a posição pelo
+  > catálogo custou uma rodada vermelha.
+
+- [ ] **T4.2 — parcial** Integração: viagem com os quatro estados (`captured`, `unavailable`,
+      `expired`, `null`) nas quatro fontes; cursor com 250 eventos continua sem pular nem repetir;
       `test/trip-schema/trip-timeline-query-tenant-safety.contract.ts` cobre as colunas novas; outra
       empresa → `404`. Aceite: os dois comandos da API verdes; a contagem subiu em N.
+
+  > ⚠️ **Não tique.** Os quatro estados são exercitados **só na fonte dos eventos de parada**. As
+  > fontes de status, de ocorrência e de documento são afirmadas `null`/`null`, porque as três
+  > tabelas delas não ganharam coluna de posição nenhuma — a migration do recorte cobriu duas tabelas
+  > (`trip_stop_events` e `trip_delivery_proofs`), não as cinco que a spec descreve. Fechar esta task
+  > depende das Fases 1 (T1.3), 2 e 3, que não foram executadas.
+
 - [ ] **T4.3** Push 2 e a sonda (`plan.md` § Ordem de deploy): gates da API e do worker, rebase limpo,
       push; conferir a migration aplicada e o ciclo do expurgo sem erro; rodar a sonda de `dispatch` e
       de ocorrência da parada com `tripId`/`stopId` inexistentes e registrar as respostas em
