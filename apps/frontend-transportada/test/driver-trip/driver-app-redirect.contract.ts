@@ -6,6 +6,7 @@ import {
   resolveDriverAppRedirect,
   type DriverAppRedirectInput,
 } from '@/modules/driver-trip/shared/driverAppRedirect.service'
+import { isFieldOnlyUser } from '@/modules/driver-trip/shared/driverWorkspace.service'
 import {
   assertDriverAppUrlBuildsClean,
   readDriverAppUrl,
@@ -76,7 +77,6 @@ describe('para onde o painel manda o motorista', () => {
       { pendingTotal: 3 },
       { isStandalone: true },
       { isFieldOnlyUser: false, pathname: '/' },
-      { pathname: '/' },
     ] satisfies readonly Partial<DriverAppRedirectInput>[]) {
       expect(
         resolveDriverAppRedirect({ ...FIELD_OPENING, ...overrides, driverAppUrl: undefined }),
@@ -117,11 +117,149 @@ describe('para onde o painel manda o motorista', () => {
     ).toBe('stay')
   })
 
-  /** Só `/` e `/minha-viagem` são a entrada do motorista; qualquer outra tela é escolha dele. */
-  it('fora da entrada do motorista, fica', () => {
+  /** Quem não é conta de campo escolhe a tela que quiser; a conta de campo não tem escolha (RF-E1). */
+  it('fora da entrada do motorista, o escritório fica', () => {
     for (const pathname of ['/trips', '/notificacoes', '/minha-viagem/outra']) {
-      expect(resolveDriverAppRedirect({ ...FIELD_OPENING, pathname })).toBe('stay')
+      expect(resolveDriverAppRedirect({ ...FIELD_OPENING, isFieldOnlyUser: false, pathname })).toBe(
+        'stay',
+      )
     }
+  })
+})
+
+/** `authorization.policy.ts`: `driver` e `aggregate` têm só este par — é a conta de campo. */
+const DRIVER_PERMISSIONS = ['trip.read', 'trip.report'] as const
+
+/** `authorization.policy.ts`, papel `separator`: tem `trip.manage`, logo não é conta de campo. */
+const SEPARATOR_PERMISSIONS = [
+  'invoices.read',
+  'fleet.read',
+  'trip.read',
+  'trip.manage',
+  'cargo.measure',
+] as const
+
+/** Papéis `driver` + `separator` somados: o motorista que também monta viagem no painel. */
+const DRIVER_AND_SEPARATOR_PERMISSIONS = [
+  'trip.read',
+  'trip.report',
+  'invoices.read',
+  'fleet.read',
+  'trip.manage',
+  'cargo.measure',
+] as const
+
+const PANEL_PATHS = ['/trips', '/cte-batches', '/billing', '/'] as const
+
+function openingAs(
+  permissions: readonly string[],
+  overrides: Partial<DriverAppRedirectInput>,
+): DriverAppRedirectInput {
+  return {
+    ...FIELD_OPENING,
+    isFieldOnlyUser: isFieldOnlyUser(permissions),
+    ...overrides,
+  }
+}
+
+/** Spec 221 T1.2: o que já vale hoje e não pode se mexer quando a RF-E1 alargar a entrada. */
+describe('regressão — a precedência e o painel do escritório continuam como estão', () => {
+  it('pending-screen vem antes de tudo, inclusive do ícone instalado', () => {
+    for (const overrides of [
+      {},
+      { isStandalone: true },
+      { pathname: '/' },
+    ] satisfies readonly Partial<DriverAppRedirectInput>[]) {
+      expect(resolveDriverAppRedirect({ ...FIELD_OPENING, ...overrides, pendingTotal: 4 })).toBe(
+        'pending-screen',
+      )
+    }
+  })
+
+  it('install-screen vem logo depois: sem pendência, aberto pelo ícone instalado', () => {
+    expect(resolveDriverAppRedirect({ ...FIELD_OPENING, isStandalone: true })).toBe(
+      'install-screen',
+    )
+  })
+
+  it('/minha-viagem sem o interruptor é stay, mesmo com pendência e instalado', () => {
+    expect(
+      resolveDriverAppRedirect({
+        ...FIELD_OPENING,
+        driverAppUrl: undefined,
+        isStandalone: true,
+        pendingTotal: 5,
+      }),
+    ).toBe('stay')
+  })
+
+  /** É a chamada de `takeOverDriverEntry` (`main.tsx`): ainda não há `auth/me`, então `false`. */
+  it('em /minha-viagem o caminho decide, com ou sem o dado de conta de campo', () => {
+    expect(resolveDriverAppRedirect({ ...FIELD_OPENING, isFieldOnlyUser: false })).toBe('redirect')
+    expect(
+      resolveDriverAppRedirect({ ...FIELD_OPENING, isFieldOnlyUser: false, pendingTotal: 1 }),
+    ).toBe('pending-screen')
+  })
+
+  it('o separador fica no painel em /trips, com e sem o interruptor', () => {
+    expect(isFieldOnlyUser(SEPARATOR_PERMISSIONS)).toBe(false)
+    expect(resolveDriverAppRedirect(openingAs(SEPARATOR_PERMISSIONS, { pathname: '/trips' }))).toBe(
+      'stay',
+    )
+    expect(
+      resolveDriverAppRedirect(
+        openingAs(SEPARATOR_PERMISSIONS, { driverAppUrl: undefined, pathname: '/trips' }),
+      ),
+    ).toBe('stay')
+  })
+})
+
+/** Spec 221 RF-E1..E3 (CA10, CA11, CA12): a conta de campo não abre o painel por caminho nenhum. */
+describe('a conta de campo não abre o painel', () => {
+  it('com o interruptor, qualquer caminho redireciona', () => {
+    expect(isFieldOnlyUser(DRIVER_PERMISSIONS)).toBe(true)
+    for (const pathname of PANEL_PATHS) {
+      expect(resolveDriverAppRedirect(openingAs(DRIVER_PERMISSIONS, { pathname }))).toBe('redirect')
+    }
+  })
+
+  it('sem o interruptor, qualquer caminho fora de /minha-viagem volta para a casa antiga', () => {
+    for (const pathname of PANEL_PATHS) {
+      expect(
+        resolveDriverAppRedirect(
+          openingAs(DRIVER_PERMISSIONS, { driverAppUrl: undefined, pathname }),
+        ),
+      ).toBe('legacy-home')
+    }
+  })
+
+  it('a fila antiga pendente vence em qualquer caminho, e o ícone instalado vem depois', () => {
+    for (const pathname of PANEL_PATHS) {
+      expect(
+        resolveDriverAppRedirect(openingAs(DRIVER_PERMISSIONS, { pathname, pendingTotal: 2 })),
+      ).toBe('pending-screen')
+      expect(
+        resolveDriverAppRedirect(openingAs(DRIVER_PERMISSIONS, { isStandalone: true, pathname })),
+      ).toBe('install-screen')
+    }
+  })
+})
+
+/** Spec 221 RF-E6 (CA16, primeira metade): quem monta viagem no painel não vai para o app do motorista. */
+describe('o motorista que também é separador', () => {
+  it('não é conta de campo e fica no painel em /trips', () => {
+    expect(isFieldOnlyUser(DRIVER_AND_SEPARATOR_PERMISSIONS)).toBe(false)
+    expect(
+      resolveDriverAppRedirect(openingAs(DRIVER_AND_SEPARATOR_PERMISSIONS, { pathname: '/trips' })),
+    ).toBe('stay')
+    expect(
+      resolveDriverAppRedirect(
+        openingAs(DRIVER_AND_SEPARATOR_PERMISSIONS, {
+          driverAppUrl: undefined,
+          pathname: '/trips',
+        }),
+      ),
+    ).toBe('stay')
   })
 })
 

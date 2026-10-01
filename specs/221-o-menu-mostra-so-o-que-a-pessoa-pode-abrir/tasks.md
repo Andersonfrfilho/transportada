@@ -17,34 +17,35 @@ painel do escritório da mão de quem está na rua.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T1.1 Ler `resolveDriverAppRedirect` e os dois chamadores (`main.tsx:545` e `:934`) e registrar
+- [x] T1.1 Ler `resolveDriverAppRedirect` e os dois chamadores (`main.tsx:545` e `:934`) e registrar
       em `evidence.md` o que cada um passa hoje — em especial se o `isFieldOnlyUser: false` cravado
       em `:934` deixa de ser neutro com a RF-E1 (plan.md § "A conta de campo")
-- [ ] T1.2 [P] Contrato **de regressão, antes de mudar nada**: `pending-screen` tem precedência,
+- [x] T1.2 [P] Contrato **de regressão, antes de mudar nada**: `pending-screen` tem precedência,
       `install-screen` vem depois, `/minha-viagem` sem interruptor é `stay`, e `separator` é `stay`
       em `/trips` (CA12, CA13) — estender `test/driver-trip/driver-app-redirect.contract.ts`
-- [ ] T1.3 [P] Contrato dos casos novos: conta de campo em `/trips`, `/cte-batches`, `/billing` e na
+- [x] T1.3 [P] Contrato dos casos novos: conta de campo em `/trips`, `/cte-batches`, `/billing` e na
       raiz devolve `redirect` com interruptor (CA10) e `legacy-home` sem ele (CA11)
-- [ ] T1.4 `isDriverEntry` passa a aceitar qualquer caminho de conta de campo; modo `legacy-home`
+- [x] T1.4 `isDriverEntry` passa a aceitar qualquer caminho de conta de campo; modo `legacy-home`
       entra em `DriverAppRedirectMode` — só a função pura, nenhum componente ainda
-- [ ] T1.5 `main.tsx` trata `legacy-home` com `history.replaceState` para `/minha-viagem` (mesma
+- [x] T1.5 `main.tsx` trata `legacy-home` com `history.replaceState` para `/minha-viagem` (mesma
       origem, nunca `location.replace`) e ajusta o chamador de `:934` conforme a T1.1
-- [ ] T1.6 [P] Contrato do **motorista que é separador** (`driver` + `separator`): `isFieldOnlyUser`
+- [x] T1.6 [P] Contrato do **motorista que é separador** (`driver` + `separator`): `isFieldOnlyUser`
       é `false`, e `resolveDriverAppRedirect` devolve `stay` em `/trips` — a conta não pode ser levada
       para o app do motorista (CA16, primeira metade). Afirmar antes de a T1.4 mexer na função.
-- [ ] T1.7 Conferir que `test/driver-trip/legacy-beacon.contract.ts` continua verde — o beacon
+- [x] T1.7 Conferir que `test/driver-trip/legacy-beacon.contract.ts` continua verde — o beacon
       dispara só em `pending-screen`, e esta fase não pode ter mexido nisso
-- [ ] T1.8 `make check` + commit
+- [x] T1.8 `make check` + commit
 
 ## Fase 2 — O mapa de permissão por workspace
 
 > 🤖 Modelo: `sonnet`
 
 - [ ] T2.1 Reconferir **cada uma das 19 linhas** da tabela da RF-A3 contra o código (a página, o
-      hook ou o view-model que decide), anotando arquivo:linha. Resolver as duas decisões abertas:
-      D3 (Empresa — algum painel da aba abre com permissão diferente de `settings.manage`?) e D4
-      (Repasses — `trip.manage` ou `billing.create` governa a **leitura da lista**?). Registrar a
-      tabela final em `evidence.md`, inclusive onde ela contrariar a spec.
+      hook ou o view-model que decide), anotando arquivo:linha. ⚠️ **D3 e D4 já foram conferidas em
+      2026-10-01** e o resultado está nas decisões da spec — D3 confirmou `settings.manage`, D4
+      descobriu que as duas permissões governam ações e que a API lê com `trip.read`, e a entrada do
+      mapa ficou sendo intenção de produto. Reconfira as outras 17 e registre a tabela final em
+      `evidence.md`, inclusive onde ela contrariar a spec.
 - [ ] T2.2 Extrair `WORKSPACE_NAVIGATION_ITEMS`, `NAVIGATION_GROUPS` e a união de chaves do
       `main.tsx` para `src/modules/shared/workspaceNavigation.constant.ts`, sem mudar comportamento.
       Commit isolado, app subindo antes e depois.
@@ -100,16 +101,20 @@ painel do escritório da mão de quem está na rua.
       contratos
 - [ ] T4.8 `make check` + commit
 
-## Fase 5 — As duas paredes que faltam
+## Fase 5 — As três paredes que faltam
 
-> 🤖 Modelo: `haiku` (mecânico: mesmo molde, duas vezes)
+> 🤖 Modelo: `haiku` (mecânico: mesmo molde, três vezes)
 
-- [ ] T5.1 [P] Contrato: `/company-settings` sem `settings.manage` e `/nfse-invoices` sem
-      `nfse.read` resolvem para "sem acesso", e nenhuma consulta dos dois módulos é habilitada (CA09)
+- [ ] T5.1 [P] Contrato: `/company-settings` sem `settings.manage`, `/nfse-invoices` sem `nfse.read` e
+      `/repasses` sem `trip.manage`/`billing.create` resolvem para "sem acesso", e nenhuma consulta dos
+      três módulos é habilitada (CA09)
 - [ ] T5.2 Parede em `CompanySettings.page.tsx` no molde de `CteBatchWorkspace.page.tsx:75`/`:220`
 - [ ] T5.3 Parede em `NfseInvoiceWorkspace.page.tsx`, mesmo molde
-- [ ] T5.4 Contrato de regressão: nenhuma das 15 paredes existentes foi removida (RF-D1)
-- [ ] T5.5 `make check` + commit
+- [ ] T5.4 Parede em `ExtraChargeWorkspace.page.tsx` (RF-D3) — **esta fecha exposição real**: hoje a
+      tela não tem checagem e a consulta da lista não tem `enabled`, então o separador lê as cobranças
+      da empresa. Gate também a consulta, não só o render.
+- [ ] T5.5 Contrato de regressão: nenhuma das 15 paredes existentes foi removida (RF-D1)
+- [ ] T5.6 `make check` + commit
 
 ## Fase 6 — Revisão de design e fechamento
 
