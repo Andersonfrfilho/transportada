@@ -13,8 +13,9 @@ criar na zona.
     ./scripts/railway-domains.py production
 
 Idempotente: dominio que ja existe e apenas consultado. Nada aqui mexe em DNS — a zona
-`fernandes-transportadora.com.br` responde pela KingHost (`dns1`/`dns2.kinghost.com.br`) e so muda
-por la. O apex nao entra: ele serve o site institucional, e CNAME na raiz e proibido pelo RFC 1034.
+`fernandes-transportadora.com.br` responde pela Cloudflare (`cartman`/`kinsley.ns.cloudflare.com`)
+e so muda por la. O apex nao sai daqui: a Cloudflare achata o CNAME da raiz, porque CNAME na raiz
+e proibido pelo RFC 1034.
 
 Por que nao e `railway domain <dominio>`: a CLI responde `Unauthorized` em dominio customizado,
 enquanto a mesma operacao passa pela API GraphQL. E a CLI tambem nao mostra o estado do registro,
@@ -195,8 +196,8 @@ def main() -> None:
     print_table(("host", "tipo", "valor", "dns", "certificado"), routing_rows)
     print_table(("host", "tipo", "valor"), verification_rows)
 
-    print(f"\ncrie estes registros na zona {ZONE} (KingHost).")
-    print("nada acima altera apex, MX ou SPF — o e-mail do dominio continua na KingHost.")
+    print(f"\ncrie estes registros na zona {ZONE} (Cloudflare), todos DNS only.")
+    print("nada acima altera apex, MX ou SPF — o e-mail do dominio esta na Zoho.")
 
 
 if __name__ == "__main__":
