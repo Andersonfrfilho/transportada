@@ -173,6 +173,16 @@
       "limitReached": "Cargo photo limit reached.",
       "pending_one": "{{count}} cargo photo missing.",
       "pending_other": "{{count}} cargo photos missing."
+    },
+    "upload": {
+      "loading": {
+        "photo": "Loading the receipt photo",
+        "signature": "Loading the signature"
+      },
+      "sending": "Sending",
+      "savedOnDevice": "The photo is saved on the device and keeps going even without signal.",
+      "sent": "Sent at {{time}}",
+      "failed": "The photo could not be sent. It is still saved on the device."
     }
   },
   "proofFailed": "The file could not be attached. The delivery is still recorded.",

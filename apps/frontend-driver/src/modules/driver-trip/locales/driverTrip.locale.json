@@ -188,6 +188,16 @@
       "limitReached": "Limite de fotos da mercadoria atingido.",
       "pending_one": "Falta {{count}} foto da mercadoria.",
       "pending_other": "Faltam {{count}} fotos da mercadoria."
+    },
+    "upload": {
+      "loading": {
+        "photo": "Carregando a foto do canhoto",
+        "signature": "Carregando a assinatura"
+      },
+      "sending": "Enviando",
+      "savedOnDevice": "A foto está guardada no aparelho e segue mesmo sem sinal.",
+      "sent": "Enviada às {{time}}",
+      "failed": "Não foi possível enviar a foto. Ela continua guardada no aparelho."
     }
   },
   "proofFailed": "Não foi possível anexar o arquivo. A entrega continua registrada.",

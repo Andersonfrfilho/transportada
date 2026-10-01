@@ -19,9 +19,13 @@ import { SignaturePad } from './SignaturePad.component'
 import { useCameraCaptureFieldRef } from '../hooks/useCameraCaptureFieldRef.hook'
 import { useCaptureRegistration } from '../hooks/useCaptureRegistration.hook'
 import { usePhotoPreviewUrl } from '../hooks/usePhotoPreviewUrl.hook'
+import { ProofUploadStatus } from './ProofUploadStatus.component'
+import { useProofUploadStatus } from '../hooks/useProofUploadStatus.hook'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useTransientNotice } from '../hooks/useTransientNotice.hook'
 import { describeDeliveryWindow } from '../shared/deliveryWindow.service'
 import {
+  formatActivityTime,
   isStopArrivalRecorded,
   stopHasOccurrenceMarker,
   type DocumentActivityStatus,
@@ -29,6 +33,8 @@ import {
   type DocumentReturnActivityView,
   type TappedStopReport,
 } from '../shared/documentActivity.service'
+import { PROOF_FRAME_SIZE } from '../shared/proofUpload.constant'
+import { resolveProofUploadObservation } from '../shared/proofUploadStatus.service'
 import { formatDocumentAmount, formatDocumentWeight } from '../shared/driverDocumentFormat.service'
 import { formatStopDistance } from '../shared/driverStopDistance.service'
 import {
@@ -69,11 +75,6 @@ import {
 import { RECEIVED_BY_DETAIL_MAX_LENGTH, RECEIVED_BY_OPTIONS } from '../shared/receivedBy.constant'
 import { isSignatureCaptureSupported } from '../shared/signatureCapture.service'
 import styles from '../styles/driverTrip.module.css'
-
-/** Cheguei, entreguei, devolvi, registrei — sempre HH:MM local, nunca com segundos. */
-function formatActivityTime(at: string): string {
-  return new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
 
 const ACTIVITY_ICON: Readonly<Record<DocumentActivityStatus, IconName>> = {
   queued: 'clock',
@@ -1242,6 +1243,10 @@ function ProofCaptureFields({
   const photoPreview = usePhotoPreviewUrl(queuedAtMount.photo?.blob)
   const signaturePreview = usePhotoPreviewUrl(queuedAtMount.signature?.blob)
   const previewByKind = { photo: photoPreview, signature: signaturePreview }
+  const photoUpload = useProofUploadStatus({
+    isAttached: attached.photo,
+    ...resolveProofUploadObservation({ documentId, kind: 'photo', queueView }),
+  })
   const nameInputRef = useRef<HTMLInputElement>(null)
   /** Spec 193 D14: PJ recebe o nome selecionado, com foco — o motorista digita por cima. */
   const [selectNameOnNextRender, setSelectNameOnNextRender] = useState(false)
@@ -1434,15 +1439,37 @@ function ProofCaptureFields({
   /** Spec 207: "Refazer" enquanto o anexo pode ser trocado sem custo; enviado, é "Substituir". */
   const retakeLabel = isProofQueued ? t('proofCapture.retake') : t('proofCapture.replace')
 
+  /** A moldura ainda sem foto: o contorno do que vai entrar, no tamanho exato da miniatura. */
+  function renderEmptyFrame(): ReactNode {
+    return (
+      <div className={styles.proofCaptureAttached}>
+        <Skeleton height={PROOF_FRAME_SIZE} width={PROOF_FRAME_SIZE} />
+      </div>
+    )
+  }
+
+  /** O anexo existe e a miniatura ainda não: a moldura carrega, e o leitor de tela ouve por quê. */
+  function renderLoadingFrame(kind: 'photo' | 'signature'): ReactNode {
+    return (
+      <SkeletonGroup
+        className={styles.proofCaptureAttached}
+        label={t(`proofCapture.upload.loading.${kind}`)}
+      >
+        <Skeleton height={PROOF_FRAME_SIZE} width={PROOF_FRAME_SIZE} />
+      </SkeletonGroup>
+    )
+  }
+
   /**
    * Spec 211 (defeito 26/09): a miniatura, o texto e os botões de um anexo — chamada uma vez por
    * foto e uma vez por assinatura, nunca compartilhada entre os dois.
    */
   function renderAttachedThumbnail(kind: 'photo' | 'signature'): ReactNode {
     const preview = previewByKind[kind]
-    if (!attached[kind] || preview.previewUrl === undefined) return null
+    if (!attached[kind]) return kind === 'photo' && rendersPhotoCapture ? renderEmptyFrame() : null
+    if (preview.previewUrl === undefined) return renderLoadingFrame(kind)
     return (
-      <div className={styles.proofCaptureAttached} role="status">
+      <div className={styles.proofCaptureAttached}>
         <button
           aria-label={t('proofCapture.view')}
           className={styles.proofCaptureThumbnailButton}
@@ -1455,21 +1482,27 @@ function ProofCaptureFields({
             src={preview.previewUrl}
           />
         </button>
-        <span className={styles.proofCaptureAttachedText}>
-          <Icon name="check" />
-          {kind === 'signature' ? t('signature.attached') : t('proofCapture.attached')}
-        </span>
-        <div className={styles.actions}>
-          <Button onClick={() => setOpenImageKind(kind)} type="button" variant="ghost">
-            <Icon name="eye" />
-            {t('proofCapture.view')}
-          </Button>
-          {isProofQueued ? (
-            <Button onClick={() => handleRemove(kind)} type="button" variant="ghost">
-              <Icon name="trash" />
-              {t('proofCapture.remove')}
+        <div className={styles.proofUploadColumn}>
+          {kind === 'photo' ? (
+            <ProofUploadStatus upload={photoUpload} />
+          ) : (
+            <span className={styles.proofCaptureAttachedText}>
+              <Icon name="check" />
+              {t('signature.attached')}
+            </span>
+          )}
+          <div className={styles.actions}>
+            <Button onClick={() => setOpenImageKind(kind)} type="button" variant="ghost">
+              <Icon name="eye" />
+              {t('proofCapture.view')}
             </Button>
-          ) : null}
+            {isProofQueued ? (
+              <Button onClick={() => handleRemove(kind)} type="button" variant="ghost">
+                <Icon name="trash" />
+                {t('proofCapture.remove')}
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
     )

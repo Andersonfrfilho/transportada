@@ -1402,6 +1402,37 @@
   gap: var(--space-2);
 }
 
+/* Estado do envio ao lado da miniatura: a coluna cresce, e a barra e a frase quebram em vez de vazar. */
+.proofUploadColumn {
+  display: grid;
+  flex: 1;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.proofUploadSending {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.proofUploadSendingLine {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.proofUploadChip {
+  align-items: center;
+  border: 1px solid var(--color-ready);
+  color: var(--color-ready);
+  display: inline-flex;
+  font-weight: 700;
+  gap: var(--space-2);
+  justify-self: start;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
+}
+
 /* A viagem em rota mostra o estado no cabeçalho: sumir o botão sozinho não diz nada. */
 .tripOnRoute {
   align-items: center;
