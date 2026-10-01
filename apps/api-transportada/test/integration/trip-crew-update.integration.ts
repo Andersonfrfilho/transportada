@@ -959,6 +959,87 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
     },
     DISPOSABLE_DATABASE_TIMEOUT_MS,
   )
+
+  /**
+   * Spec 149 (ADR-0065): a troca regrava a tripulação inteira **com o papel**. Sem `role` no
+   * `INSERT`, o ajudante voltava `driver` pelo default da coluna e entrava no MDF-e como condutor.
+   */
+  testWithPostgres(
+    'a troca grava o papel do ajudante e remover o ajudante o tira da viagem',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const fleet = await seedCompanyFleet(db)
+        const repository = new DrizzleTripRepository(db)
+        const created = await repository.create({
+          actorUserId: fleet.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: fleet.companyId,
+          crew: [
+            {
+              driverId: fleet.firstDriverId,
+              driverName: 'Primeiro Motorista',
+              driverTaxId: '11111111111',
+              position: 1,
+              role: 'driver',
+            },
+          ],
+          trailerVehicleId: null,
+          vehicleId: fleet.firstVehicleId,
+        })
+
+        const withHelper = await repository.updateCrew({
+          actorUserId: fleet.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: fleet.companyId,
+          crew: [
+            {
+              driverId: fleet.firstDriverId,
+              driverName: 'Primeiro Motorista',
+              driverTaxId: '11111111111',
+              position: 1,
+              role: 'driver',
+            },
+            {
+              driverId: fleet.secondDriverId,
+              driverName: 'Segundo Motorista',
+              driverTaxId: '22222222222',
+              position: 2,
+              role: 'helper',
+            },
+          ],
+          tripId: created.id,
+          vehicleId: fleet.firstVehicleId,
+        })
+        expect(
+          withHelper?.drivers.map((member) => [member.driverId, member.position, member.role]),
+        ).toEqual([
+          [fleet.firstDriverId, 1, 'driver'],
+          [fleet.secondDriverId, 2, 'helper'],
+        ])
+
+        const withoutHelper = await repository.updateCrew({
+          actorUserId: fleet.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: fleet.companyId,
+          crew: [
+            {
+              driverId: fleet.firstDriverId,
+              driverName: 'Primeiro Motorista',
+              driverTaxId: '11111111111',
+              position: 1,
+              role: 'driver',
+            },
+          ],
+          tripId: created.id,
+          vehicleId: fleet.firstVehicleId,
+        })
+        expect(withoutHelper?.drivers.map((member) => member.driverId)).toEqual([
+          fleet.firstDriverId,
+        ])
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
 })
 
 /** Molde igual ao das demais integrações de viagem/revisão — nota autorizada só com o mínimo. */
