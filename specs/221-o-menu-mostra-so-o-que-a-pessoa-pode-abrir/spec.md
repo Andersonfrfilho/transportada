@@ -35,8 +35,10 @@ mas está dentro de uma ferramenta que não é dele, num aparelho de rua, muitas
 A parede não é desenho, é sedimento. Quinze páginas a implementaram uma por uma — `CteBatchWorkspace`
 calcula `isForbidden` e imprime `t('forbidden')`, `FreightWorkspace` imprime "Sem acesso",
 `UserAdministration` tem `users.forbidden` — e ninguém voltou ao menu que levou a pessoa até lá.
-Duas delas nem parede têm: **Empresa** e **NFS-e** renderizam a tela e deixam as consultas
-responderem 403, que vira o estado de erro genérico. O repositório já tem a preferência oposta
+**Três** entradas do menu nem parede têm: **Empresa** mostra abas vazias com um aviso de "somente
+leitura" que não lê nada (as consultas são desabilitadas), **NFS-e** renderiza e deixa a consulta
+responder 403, e **Repasses** não tem checagem alguma — nem no render, nem na consulta —, então quem
+abre a tela lê as cobranças da empresa. Essa última é exposição, não só porta sem saída. O repositório já tem a preferência oposta
 escrita, da spec 156 D11, em dois comentários do próprio detalhe da viagem: _"sem ela, oculta em vez
 de bater 403"_.
 
@@ -58,7 +60,10 @@ porque esconder o caminho não é autorizar — a autorização continua sendo d
   de oferecer o que já era proibido.
 - **Tirar as paredes das páginas.** Elas são defesa em profundidade e ficam: URL direta, link
   colado, favorito antigo e permissão revogada no meio da sessão continuam caindo nelas. Esta spec
-  acrescenta parede às duas que não têm (Empresa e NFS-e), nunca remove.
+  acrescenta parede às três que não têm (Empresa, NFS-e e Repasses), nunca remove.
+- **Apertar a leitura de `GET /delivery-charges` na API.** Ela é `trip.read` e não recorta pelo vínculo
+  — achado registrado em `docs/SECURITY.md:383` desde 2026-09-18. Esta spec fecha a porta da **tela**
+  (RF-D3); apertar a rota mexe no que motorista e agregado alcançam por API e é spec própria.
 - **Unificar as constantes de permissão espalhadas pelas páginas.** O mapa novo serve ao menu e à
   aterrissagem. Fazer as quinze páginas lerem dele é refatoração de alcance próprio, com risco
   próprio, e vira spec só se der problema — o contrato da RF-A3 segura a divergência enquanto isso.
@@ -132,24 +137,34 @@ Como **separador**, quero abrir o painel já na listagem de viagens, porque é d
   | Viagens         | `trip`             | `fleet.read` ou `trip.report-on-behalf` | `canReadTrip` (`trip.constant.ts`)                     |
   | MDF-e           | `mdfe-manifest`    | `mdfe.read`                             | `useMdfeManifests.hook.ts:63`                          |
   | Faturamento     | `billing`          | `billing.read`                          | `billingViewModel.service.ts:25`                       |
-  | NFS-e           | `nfse-invoice`     | `nfse.read`                             | `nfseInvoiceRowActions.service.ts:48`                  |
+  | NFS-e           | `nfse-invoice`     | `nfse.read` ou `settings.manage`        | ✔ `NfseInvoiceWorkspace.page.tsx:64-66` — duas abas   |
   | Operações       | `operations`       | `operations.read`                       | `operationsViewModel.service.ts:10`                    |
   | Ocorrências     | `trip-occurrences` | `fleet.read`                            | CLAUDE.md § "a tela de `/ocorrencias` … em fleet.read" |
-  | Empresa         | `company-settings` | `settings.manage`                       | painéis da aba (sem parede de página hoje)             |
+  | Empresa         | `company-settings` | `settings.manage`                       | ✔ `company-settings.routes.ts:22` — o GET exige       |
   | Acessos         | `users`            | `users.manage`                          | `companyUsers.constant.ts:4`                           |
   | Papéis e grupos | `access-profiles`  | `groups.manage`                         | `companyUsers.constant.ts:8`                           |
   | Perfis CT-e     | `cte-profiles`     | `settings.manage`                       | `cteProfiles.constant.ts:3`                            |
   | Frota           | `fleet`            | `fleet.read`                            | `useFleet.hook.ts`                                     |
   | Pendências      | `pendencias`       | `fleet.read`                            | `usePendingItems.hook.ts:17`                           |
   | Clientes        | `delivery-clients` | `fleet.manage`                          | `useDeliveryClients.hook.ts:16`                        |
-  | Repasses        | `extra-charges`    | `trip.manage` ou `billing.create`       | `useExtraCharges.hook.ts:13-14`                        |
+  | Repasses        | `extra-charges`    | `billing.create` ou `trip.financials`   | ⚠️ intenção — a API lê com `trip.read` (nota abaixo)   |
   | Ressarcimentos  | `reimbursements`   | `trip.financials`                       | `useOccurrenceReimbursements.hook.ts:20`               |
   | Resultados      | `trip-financials`  | `trip.financials`                       | `FinancialResultsWorkspace.page.tsx:27`                |
   | Minha viagem    | `driver-trip`      | `trip.report`                           | entrada nova no menu (RF-E6)                           |
 
   ⚠️ **A primeira task reconfere cada linha contra o código antes de escrever o mapa.** A tabela é
-  ponto de partida medido, não verdade transcrita de memória — e duas entradas (Empresa e Repasses)
-  precisam de decisão explícita, registradas em D3 e D4.
+  ponto de partida medido, não verdade transcrita de memória. As duas entradas que estavam em aberto
+  foram conferidas em 2026-10-01, e o resultado está em D3 e D4 — uma confirmou a suposição, a outra
+  **não**.
+
+  ⚠️ **Repasses é o caso em que o mapa escolhe a intenção contra o que a API permite.** A leitura de
+  `GET /delivery-charges` é `trip.read` (`delivery-charge.routes.ts:40`, `CHARGE_READ_POLICY`), a
+  página `ExtraChargeWorkspace.page.tsx` **não tem parede nenhuma**, e a consulta da lista não tem
+  `enabled` — então hoje o separador abre `/repasses` e lê as cobranças da empresa. A permissividade
+  dessa rota é achado **já registrado** em `docs/SECURITY.md:383` (2026-09-18, "não recorta pelo
+  vínculo do motorista", pré-existente). O mapa usa `trip.manage`/`billing.create` porque é a intenção
+  do produto para uma tela de dinheiro; apertar a rota da API é correção própria, fora desta spec, e a
+  RF-D3 fecha a porta da tela enquanto isso.
 
 - **RF-A4.** `notification` fica fora do mapa de menu: ela não aparece em grupo (`main.tsx:137`), a
   porta dela é o sino do cabeçalho, e a entrada existe só para o título da tela sair certo.
@@ -205,8 +220,17 @@ Como **separador**, quero abrir o painel já na listagem de viagens, porque é d
 
 - **RF-D1.** Nenhuma parede de página é removida.
 - **RF-D2.** **Empresa** (`company-settings`) e **NFS-e** (`nfse-invoice`) ganham a parede que não
-  têm, no molde das outras quinze: sem a permissão, a frase de "sem acesso" em vez da tela com
-  consultas respondendo 403.
+  têm, no molde das outras quinze: sem a permissão, a frase de "sem acesso". ⚠️ Em Empresa as consultas
+  **já** são desabilitadas sem `settings.manage` (`useCompanySettings.hook.ts:144`, `:175`) — a tela
+  hoje não bate 403, ela mostra abas vazias com um aviso de "somente leitura" que não lê nada. A parede
+  troca uma casca vazia por uma frase honesta.
+- **RF-D3.** **Repasses** (`extra-charges`) ganha parede, e esta é a que fecha exposição de verdade:
+  `ExtraChargeWorkspace.page.tsx` não tem checagem nenhuma e a consulta da lista não tem `enabled`,
+  então quem abre a tela vê as cobranças da empresa — o separador inclusive. A parede usa a mesma regra
+  do mapa (`billing.create` ou `trip.financials`, D4) — **a mesma função**, não uma cópia da condição:
+  parede que decide por conta própria é a 16ª constante espalhada, e foi uma delas que produziu o erro
+  da D4. O achado da rota continua registrado em
+  `docs/SECURITY.md:383` para a correção da API, que é outra spec.
 
 ### E. A conta de campo não abre o painel
 
@@ -286,8 +310,9 @@ Como **separador**, quero abrir o painel já na listagem de viagens, porque é d
 7. **CA07.** URL `/billing` digitada com permissões de `separator` **permanece** em `/billing` e
    mostra a parede do faturamento.
 8. **CA08.** Conjunto de permissões vazio mostra a tela de conta sem acesso, com o botão de sair.
-9. **CA09.** `/company-settings` e `/nfse-invoices` sem a permissão mostram a frase de sem acesso,
-   e nenhuma consulta dos dois módulos é disparada.
+9. **CA09.** `/company-settings`, `/nfse-invoices` e `/repasses` sem a permissão mostram a frase de sem
+   acesso, e nenhuma consulta dos três módulos é disparada. Em `/repasses` com permissões de
+   `separator` isso é regressão de exposição: hoje a lista de cobranças carrega.
 10. **CA10.** Com as permissões de `driver` (`trip.read`, `trip.report`) e o app configurado,
     `resolveDriverAppRedirect` devolve `redirect` para `/trips`, `/cte-batches`, `/billing` e a raiz —
     hoje devolve `stay` para os três primeiros.
@@ -320,14 +345,30 @@ Como **separador**, quero abrir o painel já na listagem de viagens, porque é d
   (fora do escopo). O risco de divergência é real e fica coberto pelo contrato da RF-A3, que
   transcreve origem e linha; é o mesmo arranjo que `state-gates.contract.ts` mantém com a máquina de
   estados do backend desde a spec 079.
-- **D3 — Empresa abre com `settings.manage`.** A aba Empresa é configuração da empresa, e todo
-  painel dentro dela já exige `settings.manage`; sem a permissão a tela abre para não mostrar nada.
-  A primeira task confere se algum painel da aba hoje abre com outra permissão — se abrir, a entrada
-  vira "qualquer uma de" com as duas.
-- **D4 — Repasses abre com `trip.manage` ou `billing.create`.** `useExtraCharges` lê as duas
-  constantes, e a task T1.1 confere qual delas governa a leitura da lista (a outra pode governar só
-  uma ação dentro da tela). Decidido pela união porque errar escondendo uma tela de dinheiro de
-  quem fatura é pior que mostrá-la a quem já a vê hoje.
+- **D3 — Empresa abre com `settings.manage`. ✔ Conferido em 2026-10-01.** O `GET /company-settings` da
+  API exige `settings.manage` (`company-settings.routes.ts:22`), e o painel já desabilita as consultas
+  sem ela. Nenhum painel da aba abre com permissão diferente. A suposição estava certa.
+- **D4 — Repasses abre com `billing.create` ou `trip.financials`. ✔ Conferido em 2026-10-01,
+  **corrigido duas vezes**.** Três camadas de erro, e vale registrar todas porque cada uma ensina algo
+  diferente:
+  1. A suposição inicial (`trip.manage` ou `billing.create`) tratava como permissão de leitura o que é
+     permissão de **ação**: em `useExtraCharges.hook.ts:97-98` as duas governam `canCloseBatch` e
+     `canConfirm`. A leitura da lista não é governada por nada no cliente.
+  2. A permissão que a API exige para ler é `trip.read` (`delivery-charge.routes.ts:40`) — mais larga
+     do que o produto quer para uma tela de dinheiro, e já registrada como achado em
+     `docs/SECURITY.md:383`. Transcrevê-la poria a tela no menu do separador e do motorista,
+     **ampliando** o achado. Por isso esta entrada é a única do mapa que é intenção, não transcrição.
+  3. A intenção, como escrita primeiro, **não cumpria a própria intenção**: o separador tem
+     `trip.manage`, então `trip.manage` ou `billing.create` o deixava entrar — contradizendo a CA01 e a
+     RF-D3, que existem para barrá-lo. A regra correta é a permissão de **dinheiro**:
+     `billing.create` ou `trip.financials`. Quem abre: `company-admin` e `finance` (têm as duas) e
+     `operator` (tem `trip.financials`); ficam fora `separator`, `fiscal`, `viewer`, `driver` e
+     `aggregate`.
+
+  A lição que fica: "escolher a intenção" é mais arriscado que transcrever, porque não há código
+  conferindo — a intenção tem de ser verificada contra `COMPANY_ROLE_PERMISSIONS` papel por papel, e
+  foi assim que o erro apareceu.
+
 - **D5 — A aterrissagem tem uma preferência por papel, não uma configuração por usuário.** A ordem de
   `WORKSPACE_NAVIGATION_ITEMS` resolve a maioria dos casos, mas não o separador: a fila de NF-e é o
   primeiro item do menu e não é onde o barracão começa o dia (RF-C6). A preferência é uma lista curta

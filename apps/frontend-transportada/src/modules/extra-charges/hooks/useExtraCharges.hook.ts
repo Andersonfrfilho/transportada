@@ -34,17 +34,19 @@ export type ExtraChargesController = Readonly<{
  * mesmo trabalho, em dois tempos: confirmar o que aconteceu e mandar a conta para quem paga.
  */
 export function useExtraCharges(
-  input: Readonly<{ permissions: readonly string[] }>,
+  input: Readonly<{ enabled?: boolean; permissions: readonly string[] }>,
 ): ExtraChargesController {
   const queryClient = useQueryClient()
   const [openBatchId, setOpenBatchId] = useState<string | null>(null)
   const [lastError, setLastError] = useState<string | null>(null)
 
   const suggestions = useQuery({
+    enabled: input.enabled ?? true,
     queryFn: () => getExtraChargesClient().listCharges('suggested'),
     queryKey: [EXTRA_CHARGES_QUERY_KEY, 'suggested'],
   })
   const contractors = useQuery({
+    enabled: input.enabled ?? true,
     queryFn: () => getExtraChargesClient().listContractors(),
     queryKey: [EXTRA_CHARGES_QUERY_KEY, 'contractors'],
   })
