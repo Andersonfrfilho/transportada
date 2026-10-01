@@ -476,7 +476,17 @@
 }
 
 .locationProblem {
+  gap: var(--space-1);
   color: var(--color-alert);
+}
+
+/**
+ * Spec 196: com o rótulo ao lado, o botão deixa de ser um quadrado, e o alvo de 44×44 centrado
+ * cobriria o meio da frase — o ícone, na ponta, ficaria com os 19px da linha. Aqui o alvo acompanha
+ * a largura do conteúdo, como no título do evento; a altura segue vindo do mesmo token.
+ */
+.locationProblem::after {
+  inline-size: 100%;
 }
 
 .locationMap {

@@ -874,3 +874,41 @@ cores compara cada par com o que `resolvePinInk` devolveria. Depois da correçã
 `test/trip.contract.test.ts`) e um caso novo em `timeline-map-colors.contract.ts`. Os quatro casos
 foram escritos **vermelhos** contra o código de então — 4 fail / 11 pass — e passaram a 15 pass / 0
 fail / 574 expects depois da implementação.
+
+## Revisão de design — o evento sem posição era mudo no toque
+
+O quinto caso de `resolveTimelineLocationView`, `unavailable`, desenhava um pino vermelho com **zero
+caractere visível**. A frase que explica o vermelho morava inteira no `Tooltip` e no `aria-label` — e
+tooltip não abre no dedo. No celular, o único estado de alarme da linha do tempo era um glifo
+colorido que o leitor tinha de adivinhar.
+
+**Forma escolhida: o rótulo curto ao lado do ícone, e só no tom `problem`.** As alternativas eram
+pior negócio: uma camada que abrisse no toque transforma informação em gesto (e um gesto que o leitor
+não sabe que existe); um texto em todos os cinco casos encheria dez eventos de "posição registrada"
+para contar que o normal aconteceu. O rótulo já existia traduzido
+(`eventTimeline.location.label.unavailable`) porque o `aria-label` o usava — nenhuma chave nova, logo
+nenhum encontro com a outra sessão nos arquivos de locale. A frase longa segue na camada, para quem
+aponta ou foca.
+
+O alvo de toque precisou acompanhar: o `::after` do pino é um quadrado de 44×44 **centrado**, forma
+certa para um ícone e errada para um botão de 140px — centrado no meio da frase, deixaria o próprio
+ícone com os 18,5px da linha. `.locationProblem::after` passa a `inline-size: 100%`, a altura
+seguindo do mesmo `--touch-target`.
+
+Medido na tela (viagem de pré-visualização, 1366px, tema claro), depois:
+
+|                                         | antes  | depois                      |
+| --------------------------------------- | ------ | --------------------------- |
+| caracteres visíveis no pino de alarme   | 0      | 20 (`Posição indisponível`) |
+| altura do alvo nas duas pontas do botão | 18,5px | 44px (ícone e fim do texto) |
+| pinos neutros com texto                 | 0 de 5 | 0 de 5 (seguem mudos)       |
+
+Contraste do texto, agora que é texto e vale o mínimo de 4,5: **4,69** no claro
+(`rgb(194,56,47)` sobre `rgb(242,239,233)`) e **5,46** no escuro (`rgb(255,95,87)` sobre
+`rgb(16,34,44)`). Em 375px simulados o botão não quebra a linha nem estoura a largura
+(`scrollWidth === clientWidth`). O nome acessível continua começando pelo texto visível (WCAG 2.5.3).
+
+Contrato: `test/trip-hooks/timeline-location-missing-label.contract.ts`, novo, importado pelo
+entrypoint `test/trip-hooks.contract.test.ts`. Escrito **vermelho** contra o código de então — 1 fail
+/ 2 pass, `Expected: "Posição indisponível" · Received: ""` — e 4 pass / 0 fail depois. Suítes
+inteiras: 2156 pass / 0 fail (contrato) e 179 pass / 0 fail (DOM).
