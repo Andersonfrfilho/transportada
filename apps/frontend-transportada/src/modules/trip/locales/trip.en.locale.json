@@ -13,11 +13,12 @@
     "separate": "Separate",
     "title": "Actions",
     "view": "View",
+    "viewProof": "Delivery receipt",
     "viewTrip": "Open the trip for {{vehicle}}",
     "fieldOccurrence": "Occurrence",
-    "generateCte": "Issue CT-e",
     "fieldDelivery": "Deliver",
-    "separationOccurrence": "Separation occurrence"
+    "separationOccurrence": "Separation occurrence",
+    "generateCte": "Issue CT-e"
   },
   "authorship": {
     "backoffice": "by {{actor}}",
@@ -27,6 +28,7 @@
     "office": "by {{actor}} (office) on behalf of driver {{driver}}",
     "officeWithoutActor": "by the office on behalf of driver {{driver}}",
     "removedActor": "removed user",
+    "system": "by the system",
     "unidentifiedActor": "unidentified author",
     "unknownDriver": "unidentified",
     "whatsapp": "(WhatsApp)",
@@ -59,6 +61,10 @@
       }
     },
     "depotLeg": {
+      "description": "{{name}} · {{address}}",
+      "descriptionNote": "The company's registered address.",
+      "descriptionNoteCompanyOrigin": "The company's registered address — the route starts from it, because the routing settings have no origin of their own.",
+      "descriptionPhone": "Phone: {{phone}}",
       "outbound": "Depot to first delivery: {{distance}} km · {{duration}}",
       "return": "Last delivery back to depot: {{distance}} km · {{duration}}"
     },
@@ -82,8 +88,28 @@
     "propose": "Propose order",
     "proposeHint": "The proposal links cities by straight-line proximity. Road distance comes from the router once the trip exists.",
     "recenter": "Recentre the map",
+    "removeStop": "Remove {{label}} from the trip",
     "revenueEstimated": "forecast",
     "revenueRule": "by {{rule}}{{percentage}}",
+    "routeOptions": {
+      "alternative": "alternative",
+      "cheapest": "cheapest",
+      "fastest": "fastest",
+      "fastestAndCheapest": "fastest and cheapest",
+      "noToll": "toll-free",
+      "gap": {
+        "NO_FUEL_BASELINE": "No fuel consumption or price is declared for the vehicle, so there is no way to tell which route is cheapest.",
+        "TOLL_UNKNOWN": "The toll of at least one route could not be calculated — the total cost cannot be compared between them."
+      },
+      "option": "{{distance}} km · {{duration}} · {{count}} booths",
+      "option_one": "{{distance}} km · {{duration}} · {{count}} booth",
+      "option_zero": "{{distance}} km · {{duration}} · {{count}} booths",
+      "optionWithoutToll": "{{distance}} km · {{duration}} · toll not calculated",
+      "singleOption": "There is no separate fastest and cheapest route to switch between — only this option was calculated.",
+      "switchLabel": "Switch between fastest and cheapest",
+      "title": "Alternative routes",
+      "total": "Estimated total: {{amount}}"
+    },
     "solve": "Best route",
     "solveFailed": "The router did not answer. The current order still stands.",
     "solveNeedsVehicle": "The best route uses the router — pick the vehicle, since its capacity changes the path.",
@@ -99,6 +125,10 @@
     "toll": {
       "adjustBooth": "Adjust this booth's tariff",
       "avoided": "This route avoids the toll booths.",
+      "axleSource": {
+        "declared": "declared on the vehicle record",
+        "estimated": "estimated from the vehicle type"
+      },
       "booth": "{{name}} ({{operator}})",
       "boothUnnamed": "unnamed booth",
       "catalogEmpty": "Toll not calculated: the toll booth catalog has not been loaded in this environment.",
@@ -111,8 +141,13 @@
         "automatic": "Base: tag (automatic charge)",
         "manual": "Base: manual tariff"
       },
+      "statementFellBack": "no tag rate, charged at the manual rate",
+      "statementLine": "{{charge}} × {{multiplier}} = {{total}}",
+      "statementTitle": "Statement per booth — {{axleCount}} axles ({{axleSource}}), pays {{multiplier}}× the base rate",
+      "statementWithoutCharge": "rate unknown — left out of the sum",
       "summary": "Toll: {{total}} — {{count}} booths, {{chargePerAxle}} base rate × {{multiplier}}",
       "summary_one": "Toll: {{total}} — {{count}} booth, {{chargePerAxle}} base rate × {{multiplier}}",
+      "summary_zero": "Toll: {{total}} — {{count}} booths, {{chargePerAxle}} base rate × {{multiplier}}",
       "tariff": " · tariff from {{month}}",
       "withoutCharge": "{{count}} booths without a known tariff",
       "withoutCharge_one": "{{count}} booth without a known tariff",
@@ -120,6 +155,22 @@
     },
     "totalAmount": "Invoice value: {{amount}}",
     "totalFreight": "Forecast freight: {{amount}}",
+    "proposalDistance": {
+      "total": "Route distance: {{distance}}.",
+      "withoutReturn": "Route distance: {{distance}} — outbound only, without the return to the depot.",
+      "withReturn": "Route distance: {{distance}} — outbound {{outbound}} + return {{return}}."
+    },
+    "proposalTime": {
+      "deliveries_one": "{{count}} delivery",
+      "deliveries_other": "{{count}} deliveries",
+      "deliveriesEach": "{{deliveries}} × {{each}}",
+      "noReturn": "Route time: {{duration}} — driving {{driving}} + {{service}} at stops ({{deliveries}}).",
+      "reordered": "Order changed: the route time is the one for the router's order, and is only measured again once the trip is created.",
+      "total": "Route time: {{duration}}.",
+      "unmeasured": "Route time: not measured in this proposal — recalculate to measure it.",
+      "withoutReturn": "Route time: {{duration}} — driving {{driving}} + {{service}} at stops ({{deliveries}}), without the return to the depot.",
+      "withReturn": "Route time: {{duration}} — driving {{driving}} + return {{return}} + {{service}} at stops ({{deliveries}})."
+    },
     "totalTime": "Route time: {{duration}} — road measured by the router, plus 20 min stopped per delivery.",
     "totalWeight": "Total weight: {{weight}} kg",
     "trace": {
@@ -154,7 +205,16 @@
     "reasonLabelOptional": "Reason for closing (optional)",
     "title": "Close this trip?"
   },
+  "cargo": {
+    "title": "Trip cargo"
+  },
   "cargoLayers": {
+    "arrangement": {
+      "depth": "The stops sit one behind the other, the first delivery at the door: to reach the next one, the one in front has to be taken out.",
+      "grid": "The stops sit in side-by-side lanes, each lane holding a queue in delivery order: the first deliveries — one per lane — are all at the door, and none sits behind another that has not left yet.",
+      "lanes": "Each stop has its own lane across the width, and all of them reach the door — any one can be reached without moving the others.",
+      "weightWon": "⚠️ Lanes would fit this cargo, but the weight went past half of the vehicle's ceiling: with the load concentrated on one side of the door, the front axle lightens. Stability won over access."
+    },
     "bedFromReference": "The scale comes from the vehicle type catalogue, not from the fiche: this truck has no bed measurements, and the same type varies by up to double.",
     "box": {
       "toggle": "Box from stop {{stop}}, invoice {{note}}",
@@ -199,6 +259,14 @@
     "missingBed": "No cargo drawing: this vehicle has no bed length, width and height on its record.",
     "missingBedLink": "Open the vehicle record",
     "mostlyPresumed": "Almost no box on this trip has been measured: the drawing shows volume, not the arrangement of boxes that exist.",
+    "notes": {
+      "doorIsNotAWall": "The door face does not count as support: with it open, the stack leaning on it falls — onto whoever opened it.",
+      "heightBeforeDepth": "Inside each lane the cargo rises to the ceiling before moving toward the back, so nobody has to climb into the bed to reach the last box.",
+      "stackConfined": "In the middle of the block the stack rose higher: surrounded by cargo and wall, it has nowhere to tip over.",
+      "stackSecured": "The driver straps the cargo down, so the stack rises to the bed ceiling — the strap holds what the shape alone would not.",
+      "stackStability": "At the loose edge of the cargo the stack stops at three times the smallest base measure: above that it tips over on a sharp turn.",
+      "title": "Why the drawing came out this way"
+    },
     "overEarlier": {
       "row": "{{count}} {{label}} box of {{note}}, delivery {{stop}}: on top of delivery {{covers}} — move it out of the way at stop {{clearAt}}.",
       "row_other": "{{count}} {{label}} boxes of {{note}}, delivery {{stop}}: on top of delivery {{covers}} — move them out of the way at stop {{clearAt}}.",
@@ -217,11 +285,19 @@
     "print": {
       "action": "Print map",
       "boxes": "Boxes",
-      "caption": "Loading order — from the front wall to the door",
+      "caption": {
+        "depth": "Loading order — from the front wall to the door",
+        "grid": "Loading order — lane by lane, from the front wall to the door",
+        "lanes": "Loading order — lane by lane, all at the door"
+      },
       "delivery": "Delivery",
       "order": "#",
       "presumed": "Presumed",
-      "span": "Bed span",
+      "span": {
+        "depth": "Bed span",
+        "grid": "Bed span (in the queue)",
+        "lanes": "Lane (width)"
+      },
       "spanValue": "{{from}} m to {{to}} m",
       "split": "Split",
       "complement": "Complement",
@@ -276,6 +352,30 @@
       "skeletonLabel": "Truck body outline while the plan is calculated"
     }
   },
+  "cargoLayout": {
+    "bottom": "back (last stop)",
+    "door": "door (first stop)",
+    "estimated": "The slices come from the estimated volume, not from a measurement of the cargo.",
+    "loadOrderHint": "The loading order is the reverse of the delivery order: the last stop on the route travels at the back, and the first one sits at the door.",
+    "loadOrderOptional": "The order suggested below helps, but this vehicle opens from the side — the marked cargo can be reached without unloading what is in front.",
+    "overflow": "{{volume}} m³ over the vehicle's capacity.",
+    "slice": "Load order {{order}} — {{label}} · {{volume}} m³",
+    "stop": "Load order {{order}} — {{label}}",
+    "title": "Bed cargo map",
+    "withoutVolume": "No volume, and therefore left out of the map: {{stops}}."
+  },
+  "cargoWeight": {
+    "estimated": "Estimated weight: the issuer declared no weight for any package in this cargo, and the calculation uses the configured weight per package.",
+    "label": "Cargo weight",
+    "loaded": "{{weight}} kg of {{capacity}} kg",
+    "payload": "{{percent}}% of the vehicle's maximum payload ({{capacity}} kg).",
+    "ratio": "{{percent}}% of the weight",
+    "title": "Cargo weight",
+    "total": "{{weight}} kg",
+    "withoutCeiling": "Maximum payload not registered on the vehicle record — without it there is no weight percentage.",
+    "withoutWeight": "{{count}} invoice without weight was left out of the calculation.",
+    "withoutWeight_other": "{{count}} invoices without weight were left out of the calculation."
+  },
   "columns": {
     "cargoValue": "Cargo value",
     "createdAt": "Created at",
@@ -284,6 +384,12 @@
     "status": "Status",
     "updatedAt": "Updated at",
     "vehicleId": "Vehicle"
+  },
+  "contact": {
+    "contractor": "Contractor: {{name}}",
+    "phone": "Phone: {{phone}}",
+    "recipient": "Receives: {{name}}",
+    "withoutPhone": "No phone on the invoice"
   },
   "creation": {
     "dailyAllowanceDays": "Daily allowance days",
@@ -508,6 +614,8 @@
     "documentColumn": "Document",
     "documentsEmpty": "No document linked to this trip",
     "drivers": "Drivers",
+    "error": "This trip could not be loaded.",
+    "errorUnavailable": "The server took longer than the limit. Try again in a moment.",
     "fiscalStatusColumn": "Fiscal status",
     "fiscalWarning": "Invalid fiscal document — check its status before proceeding",
     "id": "Trip identifier",
@@ -518,7 +626,11 @@
     "linkModeNfe": "Fiscal note (NF-e)",
     "linkValue": "Identifier or key",
     "linkValueHint": "Type the note identifier or the 44-character key printed under the barcode.",
+    "loading": "Loading the trip…",
+    "loadingSlow": "Still loading: large trips take a few seconds to build the cargo map.",
     "pending": "Pending",
+    "refreshNow": "Refresh now",
+    "retry": "Try again",
     "scan": "Scan with the camera",
     "scanClose": "Close the reader",
     "scanDenied": "Camera permission denied — type the note key.",
@@ -538,7 +650,7 @@
     "trailerHint": "Can be changed until dispatch.",
     "trailerLockedHint": "The trailer can no longer be changed — the trip has already dispatched.",
     "trailerPlaceholder": "No trailer attached",
-    "vehicle": "Vehicle: {{vehicleId}}"
+    "vehicle": "Vehicle: {{vehicle}}"
   },
   "empty": "No trip found",
   "error": "Could not load trips",
@@ -580,6 +692,7 @@
       "stopDepartureCancelled": "Cancelled the route to stop {{sequence}}",
       "stopDepartureCancelledUnknown": "Cancelled the route to a stop",
       "stopOccurrence": "Occurrence: {{type}}",
+      "tripCreated": "Trip created",
       "tripStatus": {
         "cancelled": "Trip cancelled",
         "completed": "Trip completed",
@@ -656,7 +769,10 @@
     "statusWriteConflict": "The trip changed while you were acting. Reload and try again.",
     "deliveryProofTooLarge": "The file is larger than the office accepts.",
     "deliveryProofUnsupportedType": "The file must be an image.",
-    "timelineCursorInvalid": "The timeline cursor is invalid."
+    "timelineCursorInvalid": "The timeline cursor is invalid.",
+    "occurrenceCaseDecisionConflict": "A different decision has already been recorded for this case. Reload the page to see what was saved.",
+    "occurrenceCaseRedeliveryNotAllowed": "This occurrence does not allow redelivery — choose another decision.",
+    "occurrenceCaseNoteRequired": "State the reason for the decision."
   },
   "filters": {
     "active": "{{count}} active filter(s)",
@@ -693,38 +809,92 @@
     "subtitle": "These documents do not have an authorized CT-e yet — issue each one before issuing the trip's MDF-e.",
     "title": "Pending CT-e"
   },
+  "occupancy": {
+    "capacityReference": "The capacity is a reference for the vehicle type, not a measurement of this bed. Fill in the dimensions on the vehicle record to make the number exact.",
+    "capacityUnknown": "This vehicle has no registered capacity, and its type has no market reference — so there is no occupancy or bed plan. Fill in the bed length, width and height on the vehicle record, under Fleet.",
+    "capacityUnknownBodyType": "This vehicle has no body type informed, and therefore there is no occupancy or bed plan.",
+    "capacityUnknownReference": "This vehicle's type does not yet have a capacity reference in the catalogue — there is no occupancy or bed plan.",
+    "capacityUnknownTrailer": "This tractor unit has no trailer informed, and therefore there is no occupancy or bed plan.",
+    "dimensions": "Bed of {{length}} × {{width}} × {{height}} m = {{volume}} m³.",
+    "estimated": "Estimated value: the invoice carries no cargo measurement, and the calculation uses the configured cubic factor per package.",
+    "label": "Bed occupancy",
+    "loaded": "{{loaded}} m³ of {{capacity}} m³",
+    "partial": "Partial: some of the boxes used the company's median measurement.",
+    "ratio": "{{percent}}% of the bed",
+    "title": "Vehicle occupancy",
+    "weightConcentration": "Warning: {{percent}}% of the weight is at stop {{stop}} — the drawing above shows volume, not weight.",
+    "withoutVolume": "{{count}} invoice without volume was left out of the calculation.",
+    "withoutVolume_other": "{{count}} invoices without volume were left out of the calculation."
+  },
   "occurrence": {
     "openCase": "Occurrence under case",
     "openCaseHint": "This document has an open destination occurrence case. It stays released — the badge only signals.",
     "stopOpenCase": "Stop with a document under case",
+    "cancel": "Cancel",
     "cancelConfirmBody": "Cancelling discards the photo and the note you filled in.",
     "cancelConfirmContinue": "Keep filling in",
     "cancelConfirmDiscard": "Discard",
     "closeConfirmBody": "Closing now discards the photo and the note you filled in. Continue anyway?",
     "closeConfirmContinue": "Keep filling in",
     "closeConfirmDiscard": "Discard and close",
+    "copyEmail": "Copy email",
     "dialogTitle": "Separation occurrence — {{document}}",
     "dialogTitleFixed": "Separation occurrence",
+    "emailBody": "Email text",
+    "emailReady": "Email ready to send to the shipper — check it before sending.",
+    "emailSubject": "Email subject",
+    "line": "{{type}} — {{moment}}",
+    "none": "No occurrence registered.",
+    "noteCounter": "{{used}} of {{limit}} characters",
+    "noteLabel": "Note",
+    "notePresets": {
+      "damagedProduct": "Damaged product",
+      "violatedPackaging": "Tampered packaging",
+      "missingQuantity": "Product missing",
+      "divergentQuantity": "Quantity differs from the invoice",
+      "wrongProduct": "Wrong product",
+      "expiredProduct": "Expired product",
+      "wetVolume": "Wet package"
+    },
+    "notePresetsHint": "Ready-made phrases — click to add to the note.",
     "notePresetsToggle": "Ready-made phrases ({{count}})",
     "photoPicker": {
-      "captureFailed": "Could not process the photo — try again.",
       "cameraDenied": "Camera denied — send the photo through the file field below.",
       "cameraLabel": "Camera for the occurrence photo",
       "cameraUnavailable": "Camera unavailable on this device — send the photo through the file field below.",
       "capture": "Take photo",
+      "captureFailed": "Could not process the photo — try again.",
       "empty": "No photo added yet.",
       "limitReached": "Limit of {{limit}} photos reached.",
       "noPhoto": "Add at least one photo to register the occurrence.",
       "remove": "Remove photo",
       "removeConfirm": "Confirm photo removal",
       "sectionLabel": "Occurrence photo",
+      "switchToBack": "Use rear camera",
+      "switchToFront": "Use front camera",
       "thumbAlt": "Occurrence photo",
+      "torchOff": "Torch on — turn off",
+      "torchOn": "Turn torch on",
       "uploadChoose": "Choose file",
       "uploadEmpty": "No file chosen",
       "uploadLabel": "Upload photo or PDF",
       "documentAlt": "Attached PDF document"
     },
+    "placeholders": "Available placeholders: {{list}}. A placeholder outside the list is rejected on save.",
+    "product": "Invoice item",
+    "register": "Register occurrence",
+    "sendStatus": {
+      "failed": "failed",
+      "pending": "waiting",
+      "photoLabel": "Photo {{position}}",
+      "retry": "Resend failures",
+      "sending": "sending",
+      "sent": "sent"
+    },
+    "submit": "Register",
+    "title": "Occurrences",
     "typeLabel": "Occurrence type",
+    "wholeDocument": "The whole invoice",
     "productClear": "Clear chosen items",
     "productEmpty": "No item found",
     "productRemove": "Remove this item",
@@ -888,6 +1058,9 @@
     "discardOne": "Discard this trip — its {{count}} notes go back to the pool",
     "discardOrder": "Discard changes",
     "documentCount_one": "{{count}} note",
+    "openOccurrence": "{{count}} invoice with an occurrence",
+    "openOccurrence_other": "{{count}} invoices with an occurrence",
+    "openOccurrenceDocument": "Open occurrence",
     "documentCount_other": "{{count}} notes",
     "edited": "route changed",
     "editedBanner": "Proposal changed. The struck-through stops have not left yet: the acceptance starts from what the server distributed, and it does not know about the removal until the recalculation.",
@@ -919,6 +1092,7 @@
     "stopCount_other": "{{count}} stops",
     "stopsAndNotes": "Stops and notes",
     "time": "Time",
+    "distanceWithoutReturn": "{{distance}} · without the return to the depot",
     "totalDistance": "Distance",
     "totalDuration": "Total working time",
     "totalExpenses": "Expenses",
@@ -1099,13 +1273,34 @@
     "vehiclesSummary_other": "{{count}} vehicles chosen"
   },
   "routeMap": {
+    "basemapLabel": "Municipality outline",
+    "cancel": "Cancel",
+    "choiceNotReproduced": "The road may have changed since this route was chosen: the saved route could not be found again, and the trip has the cheapest route calculated today.",
+    "correct": "Correct point on the map",
+    "correctionScope": "The correction belongs to the address, not to this trip: it applies to every trip that passes through this gate.",
+    "cost": {
+      "distance": "Distance",
+      "duration": "Estimated time",
+      "fuel": "Fuel",
+      "kilometers": "{{distance}} km",
+      "notCalculated": "Not calculated",
+      "returnDistance": "Return to the depot",
+      "toll": "Toll",
+      "total": "Route cost"
+    },
+    "criterion": "Saved route: {{criterion}}",
+    "geometryUnavailable": "The road could not be traced right now. The straight line between the stops remains below.",
     "invalidatedNotice": "This trip's route is not assembled. If you changed the vehicle, the route and toll calculated for the previous truck were discarded. Click «$t(stateActions.planRoute)» to assemble the route and calculate the toll.",
-    "criterion": {
-      "alternative": "Route chosen manually by the operator.",
-      "cheapest": "Criterion: cheapest (fuel + toll).",
-      "fastest": "Criterion: fastest.",
-      "noToll": "Criterion: toll-free — avoids a booth on purpose.",
-      "title": "Route criterion"
+    "latitude": "Latitude",
+    "loadingGeometry": "Tracing the road between the stops…",
+    "longitude": "Longitude",
+    "retry": "Try again",
+    "save": "Save point",
+    "stopLabel": "Stop {{sequence}}: {{label}}",
+    "title": "Route map",
+    "trace": {
+      "road": "The line follows the road, in stop order.",
+      "straight": "Straight line between the stops — the road trace is not available right now."
     },
     "trade": {
       "cancel": "Cancel change",
@@ -1116,7 +1311,8 @@
       "singleOption": "There is only this route for the current stops — nothing to compare.",
       "title": "Choose another route",
       "unavailable": "Could not fetch the alternatives right now."
-    }
+    },
+    "withoutLocation": "No location on the map: {{stops}}"
   },
   "selection": {
     "barLabel": "Bulk actions",
@@ -1308,6 +1504,7 @@
     "documentCount": "{{count}} document",
     "documentCount_other": "{{count}} documents",
     "empty": "No stop on this trip yet",
+    "estimatedCompletion": "Estimated finish: {{moment}} (estimated from the pace of the stops already completed)",
     "freight": {
       "amount": "Freight: {{amount}}",
       "estimated": "estimated",
@@ -1333,7 +1530,8 @@
     "selectionCount_other": "{{count}} documents selected",
     "separationStatusWithReason": "{{status}} · {{reason}}",
     "title": "Trip cargo",
-    "unassigned": "No stop"
+    "unassigned": "No stop",
+    "withoutEstimate": "No estimated finish: there are not enough completed stops yet to measure the pace."
   },
   "table": {
     "copyPlate": "Copy plate {{plate}}",
@@ -1344,6 +1542,10 @@
     "revenueMissing": "no rule",
     "tripIdCopied": "Identifier copied",
     "withoutDriver": "No driver"
+  },
+  "tabs": {
+    "proof": "Delivery receipt",
+    "trips": "Trips"
   },
   "timeline": {
     "approximate": "approximate",
@@ -1486,6 +1688,15 @@
       "other": "The contractor recorded another solution"
     },
     "awaitingContractor": "Waiting for the contractor decision on the portal.",
+    "decisionOption": {
+      "redelivery_authorized": "Authorize redelivery",
+      "goods_paid": "Record goods as paid",
+      "other": "Another solution"
+    },
+    "decisionKindLabel": "Decision",
+    "decisionNoteLabel": "Reason for the decision (required)",
+    "decisionWarning": "This decision is recorded as the carrier's decision, not the contractor's.",
+    "decisionRedeliveryBlocked": "Redelivery unavailable for this occurrence.",
     "noteLabel": {
       "cancel": "Cancellation reason (required)",
       "warehouse-return": "Warehouse return reason (required)"
@@ -1493,6 +1704,7 @@
     "confirm": "Confirm",
     "dismiss": "Dismiss",
     "action": {
+      "decide": "Decide on behalf of the contractor",
       "review": "Start internal review",
       "warehouseReturn": "Return to warehouse",
       "submitToContractor": "Send to contractor",
