@@ -6,6 +6,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tabs, type TabsItem } from '@/components/ui/tabs'
 import { resolveSettingsDataScope } from '@/modules/company-settings/shared/companySettingsTabs.service'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
+import { canOpenWorkspace } from '@/modules/shared/workspaceAccess.service'
 
 import { NfseCredentialPanel } from '../components/NfseCredentialPanel.component'
 import { NfseEmissionProfilePanel } from '../components/NfseEmissionProfilePanel.component'
@@ -61,13 +62,15 @@ export function NfseInvoiceWorkspacePage({
   const permissions = authQuery.data?.data.permissions ?? []
   const companyId = authQuery.data?.data.company.id
   const [activeTab, setActiveTab] = useState<NfseInvoiceTabId>('invoices')
+  const canReadInvoices = permissions.includes(NFSE_READ_PERMISSION)
+  const canManageSettings = permissions.includes(NFSE_SETTINGS_MANAGE_PERMISSION)
+  const isForbidden =
+    companyId === undefined || !canOpenWorkspace({ permissions, workspace: 'nfse-invoice' })
   const table = useNfseInvoiceTable({
     ...(companyId === undefined ? {} : { companyId }),
     openInvoiceId,
     permissions,
   })
-  const canReadInvoices = permissions.includes(NFSE_READ_PERMISSION)
-  const canManageSettings = permissions.includes(NFSE_SETTINGS_MANAGE_PERMISSION)
   const settingsScope = resolveSettingsDataScope('nfse-invoice', activeTab)
   const settings = useNfseSettings({
     ...(companyId === undefined ? {} : { companyId }),
@@ -143,6 +146,12 @@ export function NfseInvoiceWorkspacePage({
       {authQuery.isPending ? (
         <section className={styles.panel}>
           <InvoiceListSkeleton label={t('list.loading')} />
+        </section>
+      ) : isForbidden && authQuery.isSuccess ? (
+        <section className={styles.panel}>
+          <p className={styles.placeholder} role="alert">
+            {t('forbidden')}
+          </p>
         </section>
       ) : selectedTab !== undefined ? (
         <Tabs

@@ -9,6 +9,7 @@ import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
+import { canOpenWorkspace } from '@/modules/shared/workspaceAccess.service'
 
 import { useExtraCharges } from '../hooks/useExtraCharges.hook'
 import {
@@ -40,7 +41,11 @@ function datePickerLabels(translate: (key: string) => string) {
 export function ExtraChargeWorkspacePage() {
   const { t } = useTranslation('extraCharges')
   const authQuery = useAuthMeQuery()
-  const controller = useExtraCharges({ permissions: authQuery.data?.data.permissions ?? [] })
+  const permissions = authQuery.data?.data.permissions ?? []
+  const isForbidden =
+    authQuery.data?.data.company.id === undefined ||
+    !canOpenWorkspace({ permissions, workspace: 'extra-charges' })
+  const controller = useExtraCharges({ enabled: !isForbidden, permissions })
   const [draft, setDraft] = useState<ChargeQueueDraft>({})
   const [contractorId, setContractorId] = useState('')
   const [periodStart, setPeriodStart] = useState('')
@@ -51,6 +56,20 @@ export function ExtraChargeWorkspacePage() {
   const currentDraft = Object.keys(draft).length === 0 ? buildQueueDraft(queue) : draft
   const missingAmount = findMissingAmount(queue, currentDraft)
   const selected = selectedConfirmations(queue, currentDraft)
+
+  if (authQuery.isSuccess && isForbidden) {
+    return (
+      <main className={styles.shell}>
+        <header className={styles.header}>
+          <h1>{t('title')}</h1>
+          <p className={styles.hint}>{t('subtitle')}</p>
+        </header>
+        <p className={styles.error} role="alert">
+          {t('forbidden')}
+        </p>
+      </main>
+    )
+  }
 
   return (
     <main className={styles.shell}>

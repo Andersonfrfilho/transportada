@@ -470,3 +470,68 @@ $ bun run --cwd apps/frontend-transportada build         -> exit 0
 `/minha-viagem` no painel (interruptor desligado) passa a ver uma barra com o grupo Operações e o
 item "Minha viagem". Antes via a barra inteira; agora vê um item. Esconder a barra para ela é decisão
 da aterrissagem, não do filtro.
+
+## Revisão da Fase 5 pela sessão coordenadora (2026-10-01)
+
+A Fase 5 foi entregue sem commit, e a revisão reprovou os **testes** dela. A implementação das três
+paredes estava correta; o que não existia era algo que a sustentasse.
+
+### Os três contratos passavam com as paredes desligadas
+
+Medido por mutação, antes de qualquer correção:
+
+```
+# isForbidden = false em CompanySettings, sem a checagem em NFS-e e em Repasses
+bun test test/company-settings.contract.test.ts test/nfse-invoice.contract.test.ts
+→ 522 pass / 0 fail
+
+bun test test/extra-charges.contract.test.ts
+→ 39 pass / 0 fail
+```
+
+Causa: os contratos afirmavam que o **texto da fonte** continha `isForbidden`, `t('forbidden')` e
+`!isForbidden`. A mutação tirou a permissão de dentro da expressão; as palavras continuaram lá. Era o
+defeito que `test.each esconde os casos` descreve em outra forma: asserção sobre encanamento, não
+sobre regra.
+
+### O que foi feito
+
+1. As três páginas passaram a decidir por `canOpenWorkspace` (o mapa da Fase 2), em vez de recalcular
+   a condição. Isso também corrigiu Repasses de graça: o mapa já carregava a regra certa da D4
+   (`billing.create` ou `trip.financials`), enquanto a parede entregue usava `trip.manage` ou
+   `billing.create` — que **deixava o separador entrar**, contradizendo a própria RF-D3.
+2. Os três `forbidden-page.contract.ts` foram substituídos por
+   `test/shared/workspace-walls.contract.ts`, que exercita **conjuntos de permissão** por papel
+   (separador, motorista, operador, finance) e só usa leitura de fonte para afirmar que a página
+   pergunta ao mapa.
+3. Defeito corrigido: `styles.hint` não existe no CSS Module de `company-settings` — era o que
+   derrubava `css-module-classes.contract.ts`. A classe certa é `permissionBoundary`, que já existia
+   para exatamente este uso e cujo consumo a Fase 5 havia removido.
+4. Defeito corrigido: a chave `forbidden` existia só no pt-BR de `company-settings`; o `.en` ficou sem
+   ela. Acrescentada.
+5. Removida a redundância `!isForbidden && editable` (`editable` já exige a permissão) e dez
+   comentários de encanamento dos testes.
+
+### Prova do contrato novo, nas duas pontas
+
+```
+# regra errada no mapa (a que deixava o separador entrar)
+bun test test/shared.contract.test.ts → 372 pass / 9 fail
+
+# parede removida da página, mapa correto
+bun test test/shared.contract.test.ts → 380 pass / 1 fail
+  (fail) as três paredes novas decidem pelo mapa do menu > extra-charges pergunta ao mapa
+
+# código correto
+bun test test/shared.contract.test.ts → 381 pass / 0 fail
+```
+
+### Gates depois da correção
+
+```
+bun run --cwd apps/frontend-transportada test → 6133 pass / 0 fail (31 arquivos) + 179 pass / 0 fail (hooks)
+bun run typecheck   → 0 erros, 7 apps
+bun run lint        → 0 erros, 16 avisos pré-existentes
+bun run format:check → limpo
+bun run --cwd apps/frontend-transportada build → exit 0
+```

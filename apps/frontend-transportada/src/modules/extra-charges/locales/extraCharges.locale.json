@@ -1,6 +1,7 @@
 {
   "title": "Taxas e repasse",
   "subtitle": "O que o cliente cobrou para receber a carga, conferido aqui e cobrado do contratante que pediu o frete.",
+  "forbidden": "Você não tem permissão para conferir e mandar cobranças de entrega.",
   "batch": {
     "amount": "Valor",
     "calendar": {

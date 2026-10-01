@@ -2,6 +2,7 @@
   "kicker": "Fiscal",
   "title": "Service invoices",
   "intro": "Municipal service invoices issued from the selected notes, grouped by taker.",
+  "forbidden": "You do not have permission to view service invoices.",
   "list": {
     "loading": "Loading the service invoices"
   },
