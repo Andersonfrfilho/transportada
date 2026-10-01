@@ -700,7 +700,6 @@ function DocumentRow({
   const { t } = useTranslation('driverTrip')
   const [openReturn, setOpenReturn] = useState(false)
   const [openOccurrence, setOpenOccurrence] = useState(false)
-  const [openDeliveryGate, setOpenDeliveryGate] = useState(false)
   const stopProofSettings = stop.deliveryProof
   /** Spec 082 (revisão): a configuração é do **documento** — a da parada é só o shape antigo. */
   const proofSettings = document.deliveryProof ?? stopProofSettings
@@ -738,7 +737,9 @@ function DocumentRow({
         <DocumentDetails document={document} />
         <span>
           {document.separationStatus === 'delivered'
-            ? t('deliver')
+            ? document.deliveredAt === null
+              ? t('deliveredState')
+              : t('activity.delivered', { time: formatActivityTime(document.deliveredAt) })
             : t(`returnReason.${document.returnReason ?? 'recipient_absent'}`)}
         </span>
         <DriverNotDeliveredStatus status={notDeliveredStatus} />
@@ -849,17 +850,16 @@ function DocumentRow({
         {canActOnDocuments ? (
           <>
             {/*
-             * Spec 218 (P1/P2): sem obrigatório, o toque entrega na hora, como sempre. Com
-             * obrigatório, ele abre a captura aqui mesmo — quem entrega é o "Confirmar entrega".
+             * Spec 218 (P1/P2): sem obrigatório, o toque entrega na hora. Com obrigatório não há
+             * "Entreguei": a captura abaixo já está na tela e o único primário é o "Confirmar
+             * entrega", desabilitado até completar.
              */}
-            <Button
-              aria-expanded={requiresProof ? openDeliveryGate : undefined}
-              onClick={requiresProof ? () => setOpenDeliveryGate((open) => !open) : confirmDelivery}
-              type="button"
-            >
-              <Icon name="check" />
-              {t('deliver')}
-            </Button>
+            {!requiresProof ? (
+              <Button onClick={confirmDelivery} type="button">
+                <Icon name="check" />
+                {t('deliver')}
+              </Button>
+            ) : null}
             <Button onClick={() => setOpenReturn((open) => !open)} type="button" variant="ghost">
               <Icon name="close" />
               {t('return')}
@@ -873,7 +873,7 @@ function DocumentRow({
       </div>
       {canActOnDocuments ? (
         <>
-          {requiresProof && openDeliveryGate ? (
+          {requiresProof ? (
             <PreDeliveryProofGate
               captureProps={{
                 documentId: document.id,
@@ -886,14 +886,8 @@ function DocumentRow({
                 recipientDisplayName: document.recipientDisplayName,
                 recipientIsCompany: document.recipientIsCompany,
               }}
-              onCancel={() => {
-                onDiscardProofAwaitingDelivery(document.id)
-                setOpenDeliveryGate(false)
-              }}
-              onConfirm={() => {
-                confirmDelivery()
-                setOpenDeliveryGate(false)
-              }}
+              onCancel={() => onDiscardProofAwaitingDelivery(document.id)}
+              onConfirm={confirmDelivery}
             />
           ) : null}
           {/*
@@ -913,8 +907,6 @@ function DocumentRow({
                 })
                 onAnnounce(t('activity.toast.returned'))
                 setOpenReturn(false)
-                /* Spec 218: a nota volta — o gate aberto dela fecha, e a fila descarta a foto dele. */
-                setOpenDeliveryGate(false)
               }}
               onRetryOccurrenceTypes={onRetryOccurrenceTypes}
             />

@@ -18,6 +18,7 @@
     "useOriginal": "Use without cropping"
   },
   "deliver": "Delivered",
+  "deliveredState": "Delivered",
   "dispatch": {
     "failed": "The route could not be started. Tap again.",
     "start": "Dispatch trip",

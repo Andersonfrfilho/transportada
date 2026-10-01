@@ -126,19 +126,6 @@ describe('os dois caminhos que desistem da entrega descartam a espera (spec 218)
     const gateCall = row.slice(row.indexOf('<PreDeliveryProofGate'))
     const onCancel = gateCall.slice(gateCall.indexOf('onCancel={'), gateCall.indexOf('onConfirm={'))
     expect(onCancel).toInclude('onDiscardProofAwaitingDelivery(document.id)')
-    expect(onCancel).toInclude('setOpenDeliveryGate(false)')
-  })
-
-  it('"Não entreguei" confirmado fecha o gate aberto da mesma nota', () => {
-    const row = slice({
-      from: 'function DocumentRow(',
-      source: CARD,
-      to: 'type PreDeliveryProofGateProps',
-    })
-    const notDelivered = row.slice(row.indexOf('<DriverNotDeliveredForm'))
-    expect(notDelivered.slice(0, notDelivered.indexOf('onRetryOccurrenceTypes='))).toInclude(
-      'setOpenDeliveryGate(false)',
-    )
   })
 
   it('a devolução aceita na fila descarta a espera da nota devolvida', () => {
