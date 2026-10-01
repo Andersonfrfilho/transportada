@@ -22,8 +22,15 @@
   justify-content: space-between;
 }
 
+/**
+ * Spec 196: sem declarar tamanho, este título caía no padrão do agente (1.17em) e virava o maior da
+ * página — 18,72px contra 15,2px dos seis blocos irmãos. O valor é o de `.panel h3` no
+ * `trip.module.css`, e é literal porque não existe família `--font-size-*` declarada no projeto:
+ * os `var(--font-size-xs, …)` espalhados por aí citam um nome que ninguém define.
+ */
 .head h3 {
   margin: 0;
+  font-size: 0.95rem;
 }
 
 /**
