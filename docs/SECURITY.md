@@ -1134,11 +1134,32 @@ coordenada é produto que o motorista contorna anotando no papel.
 fica. Dado de localização de pessoa identificada é dado pessoal na LGPD (art. 5º, I), e reter "por
 garantia" transforma comprovante em passivo.
 
-**O que falta:** nada em aberto. O contrato de cabeçalhos guarda os dois sentidos (falha se
-`geolocation` voltar a `()` e falha se `microphone` deixar de ser `()`), e o expurgo tem teste de
-integração com relógio injetado — retenção escrita e não implementada é retenção que não existe.
+**Quem lê a coordenada (ADR-0081 §6, spec 196):** a permissão `trip.event-location`, de
+`company-admin`, `operator`, `fiscal` e `viewer` — a regra do usuário foi "quem gere a frota"
+(`fleet.read`), menos quem só separa. `finance` e `separator` abrem a mesma tela e recebem
+`location: null` com o estado ao lado, não um `403`: eles precisam da linha do tempo, não da posição.
+A coordenada aparece **em texto** no tooltip do ícone de GPS, com a precisão e a distância até a
+parada (emenda §6.1, de 2026-10-01). O que **não** mudou: coordenada nunca em query string, nunca em
+URL, nunca numa requisição a tile de terceiro — o mapa base é o PMTiles do próprio domínio — e nunca
+em log, em nível nenhum, nem em `debug`. O que foi liberado é o que a tela mostra a quem tem a
+permissão, não o que sai da instalação.
 
-**Origem:** spec 057, T001/T005/T012.
+**Qual estado o evento declara:** `location_state` (`VARCHAR(16)` com CHECK, nunca ENUM) distingue
+`captured` (tem ponto), `unavailable` (o motorista tocou e a posição não veio), `expired` (os 90 dias
+apagaram) e `null` (não se aplica — o toque não foi do motorista, ou o carimbo ainda não existe
+naquele caminho). Sem o estado os quatro casos seriam o mesmo `null`, e a tela acusaria falha de GPS
+onde não houve tentativa. O histórico sem coordenada fica `null`, não `unavailable`: o banco não sabe
+se o GPS falhou ou se o app daquela época nem pedia posição, e o palpite sairia em vermelho.
+
+**O que falta:** o `location_state` e o ponto existem hoje em `trip_stop_events` e
+`trip_delivery_proofs`. `trip_status_events`, `trip_stop_occurrences` e `trip_document_occurrences`
+ainda não carimbam — despachar, iniciar rota, conferir carga e as ocorrências aparecem como "não se
+aplica" até as Fases 1–3 e 5 da spec 196 rodarem, e o expurgo passa a varrer as cinco tabelas junto
+com elas. O contrato de cabeçalhos guarda os dois sentidos (falha se `geolocation` voltar a `()` e
+falha se `microphone` deixar de ser `()`), e o expurgo tem teste de integração com relógio injetado —
+retenção escrita e não implementada é retenção que não existe.
+
+**Origem:** spec 057, T001/T005/T012; ADR-0081 e spec 196 para a leitura e o estado.
 
 ### 2026-08-24 — a câmera passa a ser permitida à própria origem no `Permissions-Policy`
 

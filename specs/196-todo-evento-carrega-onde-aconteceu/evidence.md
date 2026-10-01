@@ -22,23 +22,45 @@ carimbam. Medido antes de decidir:
 
 A linha do tempo já lê `trip_stop_events` (`listStopEventRows`) e a leitura do comprovante já
 **seleciona** as quatro colunas de `trip_delivery_proofs` — e as descarta depois de calcular
-`distanceMeters`. Expor o ponto desses dois não pede `join` novo nem migration.
+`distanceMeters`. Expor o ponto desses dois não pede `join` novo.
 
-**Executa-se agora:** T4.0, T4.1, T4.2 e a Fase 6, restritas a essas duas tabelas.
-**Fica para depois:** Fases 1, 2, 3 e 5 — as colunas novas, o `location_state` em banco, o expurgo
-das cinco tabelas e a app do motorista.
+**Executa-se agora:** o `location_state` das **duas** tabelas acima (recorte da D2), os dois
+escritores que o preenchem (recorte da Fase 3), T4.0, T4.1, T4.2 e a Fase 6.
+**Fica para depois:** as três tabelas sem coluna nenhuma (`trip_status_events`,
+`trip_stop_occurrences`, `trip_document_occurrences`), o expurgo das cinco tabelas e a app do
+motorista — Fases 1 (resto), 2, 3 (resto) e 5.
+
+#### Por que a coluna entrou no recorte, em vez de derivar o estado do canal
+
+A primeira versão deste recorte dizia "sem migration": o estado sairia da própria linha —
+`channel = 'driver_app'` com `latitude` nula seria `unavailable`. **Está errado, e erra em vermelho.**
+`trip_stop_events.channel` é `NOT NULL DEFAULT 'driver_app'` e a coluna nasceu sem backfill (o
+comentário no schema diz isso: "o default descreve o histórico"). Logo todo evento anterior ao GPS —
+quando o app nem pedia posição — cairia na regra e apareceria em vermelho, dizendo "o GPS falhou"
+sobre um toque que nunca tentou ler posição. Era exatamente a mentira que este recorte diz não
+cometer, cometida no outro sentido.
+
+A D2 já tinha resolvido isso, e o conserto é pequeno: `location_state` (`VARCHAR(16)`, anulável,
+CHECK — nunca ENUM) nas duas tabelas, com o CHECK `(location_state = 'captured') = (latitude is not
+null)` e o backfill que a própria D2 manda — `captured` onde há coordenada, e **nada** onde não há,
+porque sobre o histórico sem ponto o banco não sabe o que aconteceu. Migration aditiva, duas colunas,
+sem `DROP` e sem `NOT NULL` retroativo; fecha com `make migration-test`.
+
+Os dois escritores passam a gravar o estado: o relatório de campo do motorista
+(`drizzle-driver-field-report.repository.ts`) e o comprovante. `captured` com ponto, `unavailable`
+sem ponto quando o canal é `driver_app` ou `whatsapp`, `null` nos demais — a regra do §3 da ADR-0081,
+aplicada só a estas duas tabelas.
 
 ### A consequência que não se maquia
 
-Sem a Fase 3, Despachar, Iniciar rota, conferir carga e as ocorrências **não têm ponto**. Eles
-aparecem como `null` — "não se aplica" —, sem ícone e sem cor. **Não** entram em vermelho.
+Despachar, Iniciar rota, conferir carga e as ocorrências **não têm ponto** enquanto o resto da spec
+não rodar. Eles aparecem como `null` — "não se aplica" —, sem ícone e sem cor. **Não** entram em
+vermelho.
 
 Vermelho é `unavailable`: o motorista tocou e a posição não veio. Pintar de vermelho um toque que
 nunca foi construído para carimbar diria que o GPS falhou quando o que falta é a Fase 3 — e é
-exatamente a confusão que o `location_state` da D2 existe para desfazer. A distinção se sustenta sem
-a coluna porque, nas duas tabelas acima, ela é derivável da linha: `channel = 'driver_app'` com
-`latitude` nula é `unavailable`; qualquer outro canal é `null`. É o mesmo valor que o `UPDATE` da
-migration da D2 gravaria.
+exatamente a confusão que o `location_state` existe para desfazer. O histórico sem ponto também não
+fica vermelho, pela mesma razão e pelo mesmo mecanismo: `null`.
 
 ### ADR-0081 passou a `aceita`, com uma emenda
 

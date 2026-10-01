@@ -44,12 +44,17 @@ do usuário. A API não é revertida com a app nova no ar.
 
 > 🤖 Modelo: `opus` 🧠
 
-> ⚠️ **Recorte de execução, decidido na T0.1 em 2026-10-01.** A spec entra pela **leitura**: T4.0,
-> T4.1, T4.2 e a Fase 6, restritas a `trip_stop_events` e `trip_delivery_proofs`, que já carimbam o
-> ponto hoje. As Fases 1, 2, 3 e 5 — colunas novas, `location_state` em banco, expurgo das cinco
-> tabelas e a app do motorista — ficam para depois, na ordem original. Enquanto elas não rodarem,
-> Despachar, Iniciar rota, conferir carga e as ocorrências não têm ponto e aparecem como `null`
-> (sem ícone, sem cor), **nunca em vermelho**. Razão e medição em `evidence.md`.
+> ⚠️ **Recorte de execução, decidido na T0.1 em 2026-10-01.** A spec entra pela **leitura**, pelas
+> duas tabelas que já carimbam o ponto (`trip_stop_events` e `trip_delivery_proofs`): o
+> `location_state` delas (recorte da D2 — migration aditiva de duas colunas), os dois escritores que
+> o preenchem (recorte da Fase 3), T4.0, T4.1, T4.2 e a Fase 6. Ficam para depois as três tabelas que
+> não têm coluna nenhuma, o expurgo das cinco e a app do motorista.
+>
+> O estado **não** é derivado do canal: `trip_stop_events.channel` é `NOT NULL DEFAULT 'driver_app'`
+> sem backfill, então todo evento anterior ao GPS sairia como `unavailable` e a tela diria "o GPS
+> falhou" sobre um toque que nunca pediu posição. Enquanto o resto da spec não rodar, Despachar,
+> Iniciar rota, conferir carga e as ocorrências aparecem como `null` (sem ícone, sem cor), **nunca em
+> vermelho** — e o histórico sem ponto também não. Razão e medição em `evidence.md`.
 
 - [x] **T0.1** Ler as specs do assunto e conferir contra o código:
   - 057 (a da ADR-0045) e 082 (posição na entrega);
