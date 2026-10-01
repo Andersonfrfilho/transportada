@@ -12,7 +12,7 @@ import { parseBillingInvoiceRoute } from '@/modules/billing/shared/billingInvoic
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Icon } from '@/components/ui/icon'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tooltip } from '@/components/ui/tooltip'
 import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
 import { applyColorTheme, readStoredColorTheme } from '@/modules/shared/colorTheme.service'
@@ -51,8 +51,8 @@ import { getNotificationClient } from '@/modules/notification/shared/notificatio
 import { NOTIFICATION_THEME_CLASS } from '@/modules/notification/shared/notificationTheme.constant'
 import notificationStyles from '@/modules/notification/styles/notification.module.css'
 import { QUERY_CLIENT_DEFAULT_OPTIONS } from '@/modules/shared/queryClientDefaults.constant'
+import { resolveNavigationMenu } from '@/modules/shared/workspaceAccess.service'
 import {
-  NAVIGATION_GROUPS,
   WORKSPACE_NAVIGATION_ITEMS,
   type NavigationGroup,
   type WorkspaceNavigationItem,
@@ -83,6 +83,7 @@ if (rootElement === null) {
 
 const applicationRootElement = rootElement
 const WORKSPACE_STORAGE_KEY = 'transportada.workspace'
+const NAVIGATION_SKELETON_ROW_COUNT = 5
 
 /**
  * Abrir o menu expandindo todos os grupos punha 22 linhas numa barra que cabe ~14: ele nascia com
@@ -103,7 +104,7 @@ function resolveOpenGroups(
       'billing',
       'nfse-invoice',
     ].includes(workspace),
-    operations: ['operations', 'trip-occurrences'].includes(workspace),
+    operations: ['operations', 'trip-occurrences', 'driver-trip'].includes(workspace),
     registries: ['cte-profiles', 'fleet'].includes(workspace),
   }
 }
@@ -399,6 +400,7 @@ function ApplicationShell(): ReactNode {
    * vale para qualquer caminho de entrada, não só a raiz; a conta de campo não abre o painel.
    */
   const permissions = authMeQuery.data?.data.permissions
+  const navigationMenu = resolveNavigationMenu({ hasFailed: authMeQuery.isError, permissions })
   useEffect(() => {
     if (permissions === undefined || !isFieldOnlyUser(permissions)) return
     const entryPath = window.location.pathname
@@ -547,58 +549,66 @@ function ApplicationShell(): ReactNode {
           </span>
         </div>
         <nav className="sidebar-navigation" aria-label="Módulos">
-          {NAVIGATION_GROUPS.map((group) => (
-            <section className="sidebar-group" key={group.key}>
-              <button
-                aria-expanded={sidebarOpen ? openGroups[group.key] : collapsedGroup === group.key}
-                aria-label={group.label}
-                className="sidebar-group-toggle"
-                type="button"
-                onClick={() => {
-                  if (!sidebarOpen) {
-                    setCollapsedGroup((current) => (current === group.key ? null : group.key))
-                    return
-                  }
-                  toggleGroup(group.key)
-                }}
-              >
-                <Icon
-                  className="workspace-nav-icon"
-                  name={`workspace-${group.items[0]?.key ?? 'nfe'}`}
-                />
-                <span>{group.label}</span>
-                <span aria-hidden="true">{openGroups[group.key] ? '−' : '+'}</span>
-              </button>
-              {(sidebarOpen ? openGroups[group.key] : collapsedGroup === group.key) && (
-                <div
-                  className={`sidebar-group-items${sidebarOpen ? '' : ' sidebar-group-items-flyout'}`}
+          {navigationMenu.kind === 'loading' ? (
+            <SkeletonGroup className="sidebar-group" label="Carregando menu">
+              {Array.from({ length: NAVIGATION_SKELETON_ROW_COUNT }, (_, rowIndex) => (
+                <Skeleton height="var(--touch-target)" key={rowIndex} width="100%" />
+              ))}
+            </SkeletonGroup>
+          ) : (
+            navigationMenu.groups.map((group) => (
+              <section className="sidebar-group" key={group.key}>
+                <button
+                  aria-expanded={sidebarOpen ? openGroups[group.key] : collapsedGroup === group.key}
+                  aria-label={group.label}
+                  className="sidebar-group-toggle"
+                  type="button"
+                  onClick={() => {
+                    if (!sidebarOpen) {
+                      setCollapsedGroup((current) => (current === group.key ? null : group.key))
+                      return
+                    }
+                    toggleGroup(group.key)
+                  }}
                 >
-                  {group.items.map((item) => (
-                    <a
-                      aria-label={item.label}
-                      className={
-                        item.key === currentWorkspace
-                          ? 'sidebar-link sidebar-link-active'
-                          : 'sidebar-link'
-                      }
-                      data-tooltip={item.label}
-                      href={item.href}
-                      key={item.key}
-                      title={item.label}
-                      onClick={(event) => {
-                        event.preventDefault()
-                        setCollapsedGroup(null)
-                        navigateTo(item)
-                      }}
-                    >
-                      <Icon className="workspace-nav-icon" name={`workspace-${item.key}`} />
-                      <span>{item.label}</span>
-                    </a>
-                  ))}
-                </div>
-              )}
-            </section>
-          ))}
+                  <Icon
+                    className="workspace-nav-icon"
+                    name={`workspace-${group.items[0]?.key ?? 'nfe'}`}
+                  />
+                  <span>{group.label}</span>
+                  <span aria-hidden="true">{openGroups[group.key] ? '−' : '+'}</span>
+                </button>
+                {(sidebarOpen ? openGroups[group.key] : collapsedGroup === group.key) && (
+                  <div
+                    className={`sidebar-group-items${sidebarOpen ? '' : ' sidebar-group-items-flyout'}`}
+                  >
+                    {group.items.map((item) => (
+                      <a
+                        aria-label={item.label}
+                        className={
+                          item.key === currentWorkspace
+                            ? 'sidebar-link sidebar-link-active'
+                            : 'sidebar-link'
+                        }
+                        data-tooltip={item.label}
+                        href={item.href}
+                        key={item.key}
+                        title={item.label}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          setCollapsedGroup(null)
+                          navigateTo(item)
+                        }}
+                      >
+                        <Icon className="workspace-nav-icon" name={`workspace-${item.key}`} />
+                        <span>{item.label}</span>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </section>
+            ))
+          )}
         </nav>
       </aside>
       <div className="application-main">

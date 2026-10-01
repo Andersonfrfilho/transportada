@@ -402,3 +402,71 @@ $ bun run format:check    -> só arquivos da outra sessão (ExtraChargeWorkspace
                              forbidden-page.contract.ts) e o evidence.md (corrigido ao fechar a fase)
 $ bun run --cwd apps/frontend-transportada build -> exit 0
 ```
+
+## Fase 3 — O menu filtra
+
+### T3.1 + T3.4 — contrato antes da mudança (falhando)
+
+`test/shared/workspace-menu.contract.ts` (registrado em `test/shared.contract.test.ts`). As
+permissões de `company-admin`, `separator`, `driver`, `fiscal` e `operator` foram transcritas de
+`COMPANY_ROLE_PERMISSIONS` (`authorization.policy.ts`), com a origem anotada no comentário do arquivo;
+o motorista-separador é a soma `driver` + `separator`.
+
+```
+$ bun test test/shared.contract.test.ts -t "o menu filtra|estado do menu|usa o filtro"
+SyntaxError: Export named 'resolveNavigationMenu' not found in module
+  '.../src/modules/shared/workspaceAccess.service.ts'.
+ 0 pass
+ 1 fail
+ 1 error
+```
+
+Cobre: CA01 (os cinco itens do `separator` e os três grupos), CA02 (`company-admin` com os 19 itens de
+antes e os cinco grupos na ordem), CA03 (`fiscal` sem Usuários, com CT-e/MDF-e/NFS-e), CA04 (grupo
+vazio devolvido fora), CA16/CA17 (Minha viagem para o motorista-separador e a conta de campo; fora
+para `separator`, `operator`, `company-admin` e `fiscal`), RF-B3/RF-B4 (carregando, falha, vazio,
+refetch com falha), e o texto do `main.tsx` (sem `NAVIGATION_GROUPS.map`, esqueleto dentro da barra).
+
+### T3.2 + T3.3 + T3.5 — filtro, esqueleto e Minha viagem no menu
+
+- `workspaceAccess.service.ts`: `resolveVisibleNavigationGroups(permissions)` (filtra os itens por
+  `canOpenWorkspace` e descarta o grupo vazio) e `resolveNavigationMenu({ hasFailed, permissions })`
+  → `{ kind: 'loading' }` sem permissões e sem falha, `{ kind: 'ready', groups }` nos demais casos
+  (falha de leitura sem permissões = `groups: []`, o "menu mínimo": nenhum item do mapa abre sem
+  permissão).
+- `main.tsx`: a barra deriva os grupos de `resolveNavigationMenu`; em `loading` renderiza
+  `SkeletonGroup` com cinco `Skeleton` de altura `--touch-target` (a do botão do grupo), nunca texto
+  solto nem `null`. O espaço de aterrissagem (Fase 4) não foi tocado.
+- `driver-trip` entrou no grupo **Operações** (`workspaceNavigation.constant.ts`) e em
+  `resolveOpenGroups`, para o grupo abrir quando a tela é a dela. O título do cabeçalho continua vindo
+  de `WORKSPACE_NAVIGATION_ITEMS` (contrato próprio). `notification` segue fora dos grupos.
+
+```
+$ bun test test/shared.contract.test.ts -t "o menu filtra|estado do menu|usa o filtro|mapa de permissão|canOpen|visibleWorkspace"
+ 62 pass
+ 0 fail
+ 116 expect() calls
+```
+
+### T3.6 — gates
+
+```
+$ bun run --cwd apps/frontend-transportada test
+ 6130 pass / 1 fail  (31 arquivos, contratos; 6131 testes)      [+1 teste depois: Minha viagem]
+```
+
+A única falha continua sendo a da outra sessão (`css-module-classes.contract.ts`:
+`CompanySettings.page.tsx: hint`, Fase 5). Nenhuma falha em arquivo desta fase.
+
+```
+$ bun run --cwd apps/frontend-transportada test:hooks   -> 179 pass / 0 fail
+$ bun run typecheck                                      -> exit 0 (7 apps)
+$ bun run lint                                           -> exit 0 (0 errors, 16 warnings preexistentes)
+$ bunx prettier --check <arquivos desta fase>            -> All matched files use Prettier code style!
+$ bun run --cwd apps/frontend-transportada build         -> exit 0
+```
+
+⚠️ Não coberto por esta fase, por pertencer à Fase 4 (RF-E4): a conta de campo que abre
+`/minha-viagem` no painel (interruptor desligado) passa a ver uma barra com o grupo Operações e o
+item "Minha viagem". Antes via a barra inteira; agora vê um item. Esconder a barra para ela é decisão
+da aterrissagem, não do filtro.

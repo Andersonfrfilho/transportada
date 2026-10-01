@@ -62,17 +62,17 @@ painel do escritório da mão de quem está na rua.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T3.1 [P] Contrato: os cinco itens do `separator` (CA01), `company-admin` sem perda (CA02),
+- [x] T3.1 [P] Contrato: os cinco itens do `separator` (CA01), `company-admin` sem perda (CA02),
       `fiscal` sem o grupo Usuários (CA03), grupo vazio descartado (CA04) — permissões transcritas
       de `authorization.policy.ts`, com a origem anotada
-- [ ] T3.2 Filtrar `group.items` e descartar grupo vazio no render da barra (`main.tsx:654`)
-- [ ] T3.3 Esqueleto da barra enquanto `authMeQuery` carrega, e menu mínimo no erro (RF-B3/RF-B4) —
+- [x] T3.2 Filtrar `group.items` e descartar grupo vazio no render da barra (`main.tsx:654`)
+- [x] T3.3 Esqueleto da barra enquanto `authMeQuery` carrega, e menu mínimo no erro (RF-B3/RF-B4) —
       `@/components/ui/skeleton`, na forma da barra, nunca texto solto nem `null`
-- [ ] T3.4 [P] Contrato de "Minha viagem" no menu (RF-E6): aparece com `trip.report`
+- [x] T3.4 [P] Contrato de "Minha viagem" no menu (RF-E6): aparece com `trip.report`
       (motorista-separador, CA16), **não** aparece para `separator` puro (CA17) nem para `operator`
-- [ ] T3.5 "Minha viagem" entra no grupo Operações com entrada `['trip.report']` no mapa; conferir
+- [x] T3.5 "Minha viagem" entra no grupo Operações com entrada `['trip.report']` no mapa; conferir
       que o item some do lugar fora-dos-grupos e que o título da tela continua saindo certo
-- [ ] T3.6 `make check` + commit
+- [x] T3.6 `make check` + commit
 
 ## Fase 4 — A aterrissagem respeita a permissão
 
