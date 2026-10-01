@@ -89,11 +89,35 @@ só não virou task. As T4.3a–T4.3c são a correção, abertas em 30/09/2026.
 - [x] T4.1 Contrato: renderiza "quem recebeu" com o rótulo pt-BR do enumerado; comprovante antigo
       com `null` renderiza sem a linha e sem quebrar
 - [x] T4.2 Contrato: hora da captura e distância legível; sem posição diz "sem localização";
-      nenhuma coordenada em texto nem em URL
+      ~~nenhuma coordenada em texto nem em URL~~ — **em texto, revogado em 2026-10-01**; em URL,
+      continua valendo (veja a emenda abaixo)
 - [x] T4.3 Contrato: selos de pontualidade e de registro tardio por imagem
 - [x] T4.3a Contrato de API: `GET .../proof` publica `capturedAt`, `punctuality` e `distanceMeters`;
-      comprovante sem posição omite a distância; **nenhuma latitude/longitude no corpo** (a coordenada
-      não sai do servidor — só o número derivado)
+      comprovante sem posição omite a distância; ~~**nenhuma latitude/longitude no corpo** (a
+      coordenada não sai do servidor — só o número derivado)~~ — **revogado em 2026-10-01**
+
+> ⚠️ **Emenda de 2026-10-01 — a coordenada passa a sair, para quem tem a permissão.**
+>
+> As T4.2 e T4.3a foram fechadas afirmando que a posição nunca sai do servidor e nunca aparece em
+> texto. Era a decisão vigente quando foram escritas, e **a metade sobre URL continua de pé**. A
+> outra metade caiu: perguntado em 2026-10-01 sobre o que o tooltip do ícone de GPS deve mostrar, o
+> usuário respondeu **"precisao e distancia com lat/long"**, e sobre o evento sem ponto, **"se não
+> conseguir puxar ali deixe em vermelho e sem coordenadas"**. Está registrado na ADR-0081 §6.1.
+>
+> O que muda para o comprovante: o corpo de `GET .../proof` passa a trazer a posição dentro de
+> `location`, **só para quem tem `trip.event-location`** (`company-admin`, `operator`, `fiscal`,
+> `viewer`). `finance` e `separator` recebem `200` com `location: null` — não `403`. O card ganha o
+> mesmo ícone `map-pin` da linha do tempo. `distanceMeters` continua derivada no servidor e continua
+> saindo para todo mundo: ela não é posição.
+>
+> O que **não** muda: nenhuma coordenada em query string, em URL ou em requisição a tile de
+> terceiro (ADR-0044 §6, ADR-0047) — o basemap segue sendo o PMTiles do próprio domínio —, e
+> nenhuma coordenada em log, em nível nenhum.
+>
+> O contrato que guardava a regra antiga (`apps/api-transportada/test/trip-delivery-proof/read.contract.ts`,
+> "só a distância derivada") **é reescrito, não apagado**: passa a exigir que a posição apareça
+> exclusivamente dentro de `location` e exclusivamente para os quatro papéis. Executado na T4.1 da
+> spec 196.
 - [x] T4.3b API: `DeliveryProofRecord`, `DeliveryProofView` e `delivery-proof-read.support.ts`
       passam a carregar os três. Distância pela haversine já existente
       (`src/addresses/domain/coordinate-distance.ts`) contra a posição do **evento de entrega**
