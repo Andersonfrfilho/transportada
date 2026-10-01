@@ -11,6 +11,7 @@ export const FINANCIAL_PARCEL_KINDS = [
   'delivery_charges',
   'toll',
   'manual',
+  'helper',
   'icms',
   'pis_cofins',
 ] as const

@@ -82,6 +82,8 @@
       "driver": "driver's rate"
     },
     "expenses": "Expenses",
+    "helperMissingRate_one": "{{missing}} of {{total}} helper without a daily rate",
+    "helperMissingRate_other": "{{missing}} of {{total}} helpers without a daily rate",
     "icmsBasis": "Projected from the emission profile: CST {{cst}} · rate {{rate}} · base reduction {{reduction}} — the authorized CT-e replaces this figure",
     "fuelBasis": "{{consumption}} km/l × {{price}} per litre · {{litres}} litres on the route",
     "incomplete": "Incomplete account: the total is lower than the trip costs, and the parcels without a value stay in the list with the reason in place of the number.",

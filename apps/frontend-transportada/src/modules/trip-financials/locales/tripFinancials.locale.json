@@ -83,6 +83,8 @@
     },
     "expenses": "Despesas",
     "fuelBasis": "{{consumption}} km/l × {{price}} por litro · {{litres}} litros no trajeto",
+    "helperMissingRate_one": "{{missing}} de {{total}} ajudante sem diária",
+    "helperMissingRate_other": "{{missing}} de {{total}} ajudantes sem diária",
     "icmsBasis": "Projeção pelo perfil de emissão: CST {{cst}} · alíquota {{rate}} · redução da base {{reduction}} — o CT-e autorizado substitui este número",
     "incomplete": "Conta incompleta: o total sai menor do que a viagem custa, e as parcelas sem valor continuam na lista com o motivo no lugar do número.",
     "margin": "Lucro",
