@@ -183,13 +183,16 @@ do usuário. A API não é revertida com a app nova no ar.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T4.0** Painel tolerante, **primeiro push da spec**: `tripResponse.validation.ts` aceita
+- [x] **T4.0** Painel tolerante, **primeiro push da spec**: `tripResponse.validation.ts` aceita
       `location`/`locationState` como **opcionais** no item (continua recusando chave desconhecida).
       Contrato em `apps/frontend-transportada/test/trip/timeline-location.contract.ts` (importado por
       `test/trip.contract.test.ts`): item sem as chaves passa, item com as duas passa, item com chave
       estranha falha. Se a T0.2 da 192 (ignorar `kind` desconhecido) não estiver em `origin/staging`,
       combinar com ela no mesmo push, sem reimplementar. Não muda tela. Aceite: `check` do painel verde,
       a contagem subiu em N, push para staging depois dos gates.
+      > Fechada em `52626a4da`. `distanceMeters` entrou no mesmo objeto, por causa do tooltip
+      > decidido em 2026-10-01: como o validador é de **chaves exatas**, acrescentá-la depois faria
+      > o painel publicado recusar a resposta inteira. Evidência em `evidence.md`.
 - [ ] **T4.1** Permissão e leitura, contrato primeiro:
   - `trip.event-location` em `company-admin`, `operator`, `fiscal` e `viewer`
     (`authorization.policy.ts`), com os contratos que enumeram permissões por papel atualizados;
@@ -200,6 +203,12 @@ do usuário. A API não é revertida com a app nova no ar.
   - `test/trip-http/event-location-redaction.contract.ts` (importado por
     `test/trip-http.contract.test.ts`), no molde de `driver-redaction.contract.ts`: `finance` e
     `separator` recebem `200`, `location: null` e o `locationState`; `operator` recebe a coordenada.
+
+  > A forma de `location` já está congelada pela T4.0, e o painel a valida por **chaves exatas**:
+  > `accuracyMeters`, `capturedAt`, `distanceMeters`, `latitude`, `longitude` — nem uma a mais, nem
+  > uma a menos. `distanceMeters` é derivada no servidor (ADR-0081 §6) e nula quando a parada não
+  > tem ponto de referência. O comprovante da entrega já calcula essa distância em
+  > `measureProofDistance`; reaproveitar, não reescrever.
 
   Aceite: verdes; a contagem subiu em N.
 
