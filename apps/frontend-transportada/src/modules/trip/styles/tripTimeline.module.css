@@ -308,8 +308,19 @@
 .itemDetailGroup {
   display: grid;
   gap: var(--space-1);
-  padding-inline-start: var(--space-3);
-  border-left: 2px solid color-mix(in srgb, var(--color-slate) 25%, transparent);
+  margin-block-start: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-inline-start: 2px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  border-radius: 0 var(--radius-sm, 0.25rem) var(--radius-sm, 0.25rem) 0;
+  background: color-mix(in srgb, var(--color-slate) 12%, transparent);
+  animation: tripTimelineDetailEnter 160ms ease-out both;
+}
+
+/* Depois da regra, não antes: a media query não soma especificidade, e perderia para ela. */
+@media (prefers-reduced-motion: reduce) {
+  .itemDetailGroup {
+    animation: none;
+  }
 }
 
 .itemDetail {
@@ -325,6 +336,26 @@
 
 .skeletonRow {
   display: grid;
+@keyframes tripTimelineDetailEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/**
+ * Spec 196: o detalhe que abre com fronteira. Antes era só um traço de 2px a 25% de `--color-slate`
+ * encostado no botão — num evento cuja única informação é a observação, o bloco nascia com 20px de
+ * altura, sem fundo, sem respiro e sem padding vertical: uma linha de texto colada em "Ver mais",
+ * indistinguível de nada ter acontecido. Agora ele tem superfície, respiro acima e o traço no cobre
+ * que este módulo já usa para o que responde a um clique — a mesma moldura serve à linha de 20px e
+ * ao bloco de 335px com mapa, que é a condição para a fronteira não ficar estranha num dos dois.
+ */
   gap: var(--space-1);
 }
 
@@ -363,7 +394,11 @@
 
 .locationButton::after {
   position: absolute;
-  inset: calc((var(--touch-target) - 1rem) / -2);
+  top: 50%;
+  left: 50%;
+  block-size: var(--touch-target);
+  inline-size: var(--touch-target);
+  transform: translate(-50%, -50%);
   content: '';
 }
 
@@ -381,3 +416,9 @@
   gap: var(--space-1);
   margin: 0;
 }
+/**
+ * Spec 196: o alvo media 14×19px. O `inset` negativo partia de `1rem` — o tamanho que o ícone
+ * *deveria* ter —, e o botão mede o que a fonte e o SVG entregam, 14,4×18,6px: a conta devolvia
+ * 42×47. Fixar o lado do pseudo-elemento no próprio token dá 44×44 independente da métrica, e o
+ * desenho não cresce um pixel.
+ */
