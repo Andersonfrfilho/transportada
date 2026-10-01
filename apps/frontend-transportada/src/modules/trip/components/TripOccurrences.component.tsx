@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Select } from '@/components/ui/select'
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import { loadTripOccurrenceAttachments } from '../queries/tripOccurrenceFeed.query'
 import { resolveFieldAuthorshipText } from '../shared/fieldAuthorship.service'
@@ -94,11 +95,6 @@ type TripOccurrencesProps = Readonly<{
   types: readonly OccurrenceType[]
 }>
 
-const momentFormatter = new Intl.DateTimeFormat('pt-BR', {
-  dateStyle: 'short',
-  timeStyle: 'short',
-})
-
 /** Spec 172 RF2: só o par unit/box tem nome traduzido — a unidade comercial da nota é rótulo cru. */
 function isFallbackQuantityUnit(
   unit: OccurrenceQuantityUnit,
@@ -133,6 +129,7 @@ export function TripOccurrences({
   types,
 }: TripOccurrencesProps) {
   const { t } = useTranslation('trip')
+  const formatMoment = useMomentFormatter()
 
   /** O nome do item da nota, para o rótulo do campo e a leitura. `null` é item que a nota não tem. */
   function describeProduct(code: string): null | string {
@@ -262,9 +259,7 @@ export function TripOccurrences({
               <li key={occurrence.id}>
                 <p className={styles.occurrenceEntryHeader}>
                   <span className={styles.occurrenceEntryType}>{occurrence.typeName}</span>
-                  <span className={styles.hint}>
-                    {momentFormatter.format(new Date(occurrence.createdAt))}
-                  </span>
+                  <span className={styles.hint}>{formatMoment(occurrence.createdAt)}</span>
                 </p>
                 {/*
                  * Revisão de leitura (22/09): o código sozinho ("183") não diz o que foi avariado,

@@ -14,6 +14,7 @@ import type { FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { toDisplayPersonName } from '@/modules/shared/personName.service'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import { describeBoundVehicle } from '../shared/driverBoundVehicles.service'
 import type { TripTableController } from '../hooks/useTripTable.hook'
@@ -52,11 +53,6 @@ function statusClassName(status: TripStatus): string {
   return `${styles.statusBadge}`
 }
 
-function formatMoment(value: string): string {
-  const moment = new Date(value)
-  return Number.isNaN(moment.getTime()) ? value : moment.toLocaleString()
-}
-
 export function TripTable({
   canCancel,
   isCancelling,
@@ -65,6 +61,7 @@ export function TripTable({
   vehicles,
 }: TripTableProps) {
   const { t } = useTranslation('trip')
+  const formatMoment = useMomentFormatter()
   const [confirming, setConfirming] = useState(false)
   const { t: tFleet } = useTranslation('fleet')
   const vehicleById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]))

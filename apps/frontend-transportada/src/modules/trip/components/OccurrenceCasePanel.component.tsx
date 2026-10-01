@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { Tooltip } from '@/components/ui/tooltip'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import { useOccurrenceCaseActions } from '../hooks/useOccurrenceCaseActions.hook'
 import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
@@ -24,13 +25,6 @@ export type OccurrenceCasePanelProps = Readonly<{
 }>
 
 type NoteAction = 'cancel' | 'warehouse-return'
-
-const momentFormatter = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
-
-function formatMoment(value: string): string {
-  const moment = new Date(value)
-  return Number.isNaN(moment.getTime()) ? value : momentFormatter.format(moment)
-}
 
 /**
  * Spec 164 T22 (RF33): passo atual, histórico curto (decisão, se houver) e **só os botões que o
@@ -53,6 +47,7 @@ export function OccurrenceCasePanel({
   occurrenceId,
 }: OccurrenceCasePanelProps) {
   const { t } = useTranslation('trip')
+  const formatMoment = useMomentFormatter()
   const actions = useOccurrenceCaseActions()
   const [pendingNoteAction, setPendingNoteAction] = useState<NoteAction | null>(null)
   const [note, setNote] = useState('')

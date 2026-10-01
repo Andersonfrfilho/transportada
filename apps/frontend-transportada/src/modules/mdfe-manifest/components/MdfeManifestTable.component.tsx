@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import type { MdfeManifestTableController } from '../hooks/useMdfeManifestTable.hook'
 import type { MdfeManifestStatus, MdfeManifestSummary } from '../shared/mdfeManifest.types'
@@ -44,17 +45,13 @@ function statusClassName(status: MdfeManifestStatus): string {
   return `${styles.statusBadge}`
 }
 
-function formatMoment(value: string): string {
-  const moment = new Date(value)
-  return Number.isNaN(moment.getTime()) ? value : moment.toLocaleString()
-}
-
 function describeManifest(manifest: MdfeManifestSummary): string {
   return manifest.fiscalNumber ?? manifest.id
 }
 
 export function MdfeManifestTable({ actions, permissions, table }: MdfeManifestTableProps) {
   const { t } = useTranslation('mdfeManifest')
+  const formatMoment = useMomentFormatter()
 
   function canIssue(manifest: MdfeManifestSummary): boolean {
     return permissions.canIssue && resolveManifestActions(manifest.status).canIssue

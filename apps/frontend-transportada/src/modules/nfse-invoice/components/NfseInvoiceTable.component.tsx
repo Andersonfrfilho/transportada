@@ -10,6 +10,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { formatCalendarDate } from '@/modules/shared/calendarDate.service'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { SELECTION_SEPARATOR } from '@/modules/shared/filterPill.service'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import type { NfseInvoiceTableController } from '../hooks/useNfseInvoiceTable.hook'
 import type { NfseInvoice } from '../shared/nfseInvoice.types'
@@ -42,23 +43,24 @@ function statusClassName(status: string): string {
   return `${styles.statusBadge}`
 }
 
-function formatMoment(value: null | string): string {
-  if (value === null) return EMPTY_CELL
-  const moment = new Date(value)
-  return Number.isNaN(moment.getTime()) ? value : moment.toLocaleString()
-}
-
-function textCell(invoice: NfseInvoice, column: NfseInvoiceColumnKey): string {
+function textCell(
+  invoice: NfseInvoice,
+  column: NfseInvoiceColumnKey,
+  formatMoment: (value: string) => string,
+): string {
   if (column === 'takerLegalName') return invoice.takerLegalName
   if (column === 'documentCount') return String(invoice.documentCount)
   if (column === 'providerNumber') return invoice.providerNumber ?? EMPTY_CELL
   if (column === 'verificationCode') return invoice.verificationCode ?? EMPTY_CELL
-  if (column === 'authorizedAt') return formatMoment(invoice.authorizedAt)
+  if (column === 'authorizedAt') {
+    return invoice.authorizedAt === null ? EMPTY_CELL : formatMoment(invoice.authorizedAt)
+  }
   return formatMoment(invoice.createdAt)
 }
 
 export function NfseInvoiceTable({ table }: NfseInvoiceTableProps): JSX.Element {
   const { t } = useTranslation('nfseInvoice')
+  const formatMoment = useMomentFormatter()
   const [isFilterOpen, setIsFilterOpen] = useState(false)
 
   const descriptors = describeNfseInvoiceFilterPills({
@@ -94,7 +96,7 @@ export function NfseInvoiceTable({ table }: NfseInvoiceTableProps): JSX.Element 
     }
     if (column === 'serviceAmount') return formatAmount(invoice.serviceAmount)
     if (column === 'issAmount') return formatAmount(invoice.issAmount)
-    return textCell(invoice, column)
+    return textCell(invoice, column, formatMoment)
   }
 
   function sortState(column: NfseInvoiceColumnKey): 'ascending' | 'descending' | 'none' {

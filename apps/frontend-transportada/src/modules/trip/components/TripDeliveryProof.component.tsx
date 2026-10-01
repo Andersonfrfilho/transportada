@@ -5,6 +5,8 @@ import type React from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
+
 import type { DeliveryProofView } from '../shared/deliveryProof.service'
 import {
   buildDeliveryProofGallery,
@@ -15,7 +17,6 @@ import styles from '../styles/trip.module.css'
 
 import { ProofGalleryDialog } from './ProofGalleryDialog.component'
 import { ProofImage } from './ProofImage.component'
-import { formatMoment } from './ProofReadings.component'
 import type { CanhotoReviewActions } from './ProofReview.component'
 import { TripDeliveryProofDetail } from './TripDeliveryProofDetail.component'
 
@@ -48,6 +49,7 @@ export function TripDeliveryProof({
   view,
 }: TripDeliveryProofProps) {
   const { t } = useTranslation('trip')
+  const formatMoment = useMomentFormatter()
   const [openProofId, setOpenProofId] = useState<string | null>(null)
 
   /**

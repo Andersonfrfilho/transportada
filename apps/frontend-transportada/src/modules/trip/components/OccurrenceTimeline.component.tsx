@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tabs } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import { useTripOccurrenceTimelineQuery } from '../queries/tripOccurrenceFeed.query'
 import {
@@ -21,7 +22,6 @@ import {
   type OccurrenceTimelineTone,
 } from '../shared/tripOccurrenceTimeline.service'
 import styles from '../styles/trip.module.css'
-import { formatMoment } from './TripOccurrenceTable.component'
 
 /** Os tempos do topo contam em minutos: um tique por minuto basta, e não acorda a tela à toa. */
 const CLOCK_TICK_MS = 60_000
@@ -67,6 +67,7 @@ function TimingValue({
 
 function TimelineItem({ event }: Readonly<{ event: OccurrenceTimelineEvent }>) {
   const { t } = useTranslation('trip')
+  const formatMoment = useMomentFormatter()
   const sentence = describeOccurrenceTimelineEvent(event)
   /** O status da tratativa chega como chave de locale (a da coluna da listagem): traduz aqui. */
   const values =

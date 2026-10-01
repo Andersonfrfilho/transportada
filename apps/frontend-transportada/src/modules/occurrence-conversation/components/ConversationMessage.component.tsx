@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { formatContractorContactPhone } from '@/modules/delivery-clients/shared/contractorContacts.validation'
 
 import { Icon } from '@/components/ui/icon'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import { describeMessageStatus } from '../shared/messageStatus.service'
 import { describeConversationMessage } from '../shared/occurrenceConversation.service'
@@ -20,19 +21,10 @@ import styles from '../styles/occurrenceConversation.module.css'
 import { ConversationAttachments } from './ConversationAttachments.component'
 
 const timeFormatter = new Intl.DateTimeFormat('pt-BR', { timeStyle: 'short' })
-const dateTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
-  dateStyle: 'short',
-  timeStyle: 'short',
-})
 
 function formatTime(iso: string): string {
   const moment = new Date(iso)
   return Number.isNaN(moment.getTime()) ? iso : timeFormatter.format(moment)
-}
-
-function formatDateTime(iso: string): string {
-  const moment = new Date(iso)
-  return Number.isNaN(moment.getTime()) ? iso : dateTimeFormatter.format(moment)
 }
 
 /** O `MessageText` do pacote só lê o texto; o resto do `MessagePayload` é o mínimo que ele pede. */
@@ -95,6 +87,7 @@ export function ConversationMessage({
   resend,
 }: ConversationMessageProps) {
   const { t } = useTranslation('occurrenceConversation')
+  const formatDateTime = useMomentFormatter()
   const [isCardOpen, setCardOpen] = useState(false)
   const [isTimesOpen, setTimesOpen] = useState(false)
   const view = describeConversationMessage(message)

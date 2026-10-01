@@ -11,6 +11,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { formatCalendarDate } from '@/modules/shared/calendarDate.service'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { SELECTION_SEPARATOR } from '@/modules/shared/filterPill.service'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import { useCteBillingDialog } from '../hooks/useCteBillingDialog.hook'
 import type { CteItemTableController } from '../hooks/useCteItemTable.hook'
@@ -45,23 +46,23 @@ function statusClassName(status: string): string {
   return `${styles.statusBadge}`
 }
 
-function formatMoment(value: null | string): string {
-  if (value === null) return EMPTY_CELL
-  const moment = new Date(value)
-  return Number.isNaN(moment.getTime()) ? value : moment.toLocaleString()
-}
-
 function amountCell(item: CompanyCteItem, column: CteItemColumnKey): string {
   if (column === 'baseAmount') return formatAmount(item.baseAmount)
   if (column === 'fiscalAmount') return formatAmount(item.fiscalAmount)
   return formatAmount(item.totalAmount)
 }
 
-function textCell(item: CompanyCteItem, column: CteItemColumnKey): string {
+function textCell(
+  item: CompanyCteItem,
+  column: CteItemColumnKey,
+  formatMoment: (value: string) => string,
+): string {
   if (column === 'cteNumber') return item.fiscalNumber ?? EMPTY_CELL
   if (column === 'batchName') return item.batchName
   if (column === 'invoiceNumbers') return toInvoiceNumbers(item) ?? EMPTY_CELL
-  if (column === 'issuedAt') return formatMoment(item.authorizedAt)
+  if (column === 'issuedAt') {
+    return item.authorizedAt === null ? EMPTY_CELL : formatMoment(item.authorizedAt)
+  }
   if (column === 'createdAt') return formatMoment(item.createdAt)
   if (column === 'lastErrorCode') return item.lastErrorCode ?? EMPTY_CELL
   return item.accessKey ?? EMPTY_CELL
@@ -69,6 +70,7 @@ function textCell(item: CompanyCteItem, column: CteItemColumnKey): string {
 
 export function CteItemTable({ batchOptions, table }: CteItemTableProps) {
   const { t } = useTranslation('cteBatch')
+  const formatMoment = useMomentFormatter()
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false)
   const billingDialog = useCteBillingDialog({
@@ -151,7 +153,9 @@ export function CteItemTable({ batchOptions, table }: CteItemTableProps) {
       return <span className={statusClassName(item.status)}>{t(`itemStatus.${item.status}`)}</span>
     }
     if (column === 'billingStatus') return renderBillingStatus(item)
-    return AMOUNT_COLUMNS.includes(column) ? amountCell(item, column) : textCell(item, column)
+    return AMOUNT_COLUMNS.includes(column)
+      ? amountCell(item, column)
+      : textCell(item, column, formatMoment)
   }
 
   function sortState(column: CteItemColumnKey): 'ascending' | 'descending' | 'none' {

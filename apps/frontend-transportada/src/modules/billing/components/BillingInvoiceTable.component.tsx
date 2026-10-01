@@ -11,6 +11,7 @@ import { Select, type SelectOption } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { formatCalendarDate } from '@/modules/shared/calendarDate.service'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import type { BillingInvoiceTableController } from '../hooks/useBillingInvoiceTable.hook'
 import { BillingBulkCancelDialog } from './BillingBulkCancelDialog.component'
@@ -64,12 +65,11 @@ function statusClassName(status: string): string {
   return `${styles.statusBadge}`
 }
 
-function formatMoment(value: string): string {
-  const moment = new Date(value)
-  return Number.isNaN(moment.getTime()) ? value : moment.toLocaleString()
-}
-
-function cellValue(item: BillingInvoiceSummary, column: BillingInvoiceColumnKey): string {
+function cellValue(
+  item: BillingInvoiceSummary,
+  column: BillingInvoiceColumnKey,
+  formatMoment: (value: string) => string,
+): string {
   if (column === 'invoiceNumber') return String(item.invoiceNumber)
   if (column === 'customerName') return item.customer.name
   if (column === 'customerDocument') return item.customer.document
@@ -87,6 +87,7 @@ function stopRowPropagation(event: MouseEvent<HTMLTableCellElement>): void {
 
 export function BillingInvoiceTable({ table }: BillingInvoiceTableProps) {
   const { t } = useTranslation('billingWorkspace')
+  const formatMoment = useMomentFormatter()
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false)
 
@@ -400,12 +401,12 @@ export function BillingInvoiceTable({ table }: BillingInvoiceTableProps) {
                             title={t('invoices.openDetail')}
                             type="button"
                           >
-                            {cellValue(item, column)}
+                            {cellValue(item, column, formatMoment)}
                           </button>
                         </td>
                       )
                     }
-                    return <td key={column}>{cellValue(item, column)}</td>
+                    return <td key={column}>{cellValue(item, column, formatMoment)}</td>
                   })}
                   <td onClick={stopRowPropagation}>{renderDocumentAction(item.id)}</td>
                 </tr>

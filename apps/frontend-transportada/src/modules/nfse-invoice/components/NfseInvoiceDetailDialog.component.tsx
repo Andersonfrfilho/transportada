@@ -6,6 +6,7 @@ import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { formatAmount, sumScaledAmounts } from '@/modules/shared/decimalAmount.service'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import type { NfseInvoiceRowActionsController } from '../hooks/useNfseInvoiceRowActions.hook'
 import {
@@ -22,14 +23,9 @@ type NfseInvoiceDetailDialogProps = Readonly<{
 const SKELETON_ROWS = 3
 const EMPTY_VALUE = '—'
 
-function formatMoment(value: null | string): string {
-  if (value === null) return EMPTY_VALUE
-  const moment = new Date(value)
-  return Number.isNaN(moment.getTime()) ? value : moment.toLocaleString()
-}
-
 export function NfseInvoiceDetailDialog({ actions }: NfseInvoiceDetailDialogProps) {
   const { t } = useTranslation('nfseInvoice')
+  const formatMoment = useMomentFormatter()
   const isOpen = actions.detailTarget !== null
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen, onClose: actions.closeDetail })
 
@@ -141,7 +137,7 @@ export function NfseInvoiceDetailDialog({ actions }: NfseInvoiceDetailDialogProp
                   <div>
                     <dt>{t('delivery.next')}</dt>
                     <dd>
-                      {hasPendingNfseDelivery(delivery)
+                      {hasPendingNfseDelivery(delivery) && delivery.nextAttemptAt !== null
                         ? formatMoment(delivery.nextAttemptAt)
                         : EMPTY_VALUE}
                     </dd>

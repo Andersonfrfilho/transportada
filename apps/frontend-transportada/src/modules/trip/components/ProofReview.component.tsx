@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge, type BadgeProps } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import {
   presentCanhotoReview,
@@ -18,8 +19,6 @@ import {
 } from '../shared/canhotoReviewPresentation.service'
 import type { DeliveryProof } from '../shared/deliveryProof.service'
 import styles from '../styles/trip.module.css'
-
-import { formatMoment } from './ProofReadings.component'
 
 /** O design system não tem variante de perigo: a recusa fica em `warning`, já medida em AA. */
 const REVIEW_BADGE_VARIANT = {
@@ -32,7 +31,11 @@ const REVIEW_BADGE_VARIANT = {
   rejected: 'warning',
 } as const satisfies Record<CanhotoReviewMessageKey, BadgeProps['variant']>
 
-function describeReview(presentation: CanhotoReviewPresentation, t: TFunction<'trip'>): string {
+function describeReview(
+  presentation: CanhotoReviewPresentation,
+  t: TFunction<'trip'>,
+  formatMoment: (value: string) => string,
+): string {
   const { messageKey, readNumber, reviewedAt, reviewerName } = presentation
   return t(`deliveryProof.canhotoReview.${messageKey}`, {
     moment: reviewedAt === undefined ? '' : formatMoment(reviewedAt),
@@ -52,6 +55,7 @@ export type ProofReviewProps = CanhotoReviewActions & Readonly<{ proof: Delivery
 
 export function ProofReview({ canReview, onApprove, onReject, proof }: ProofReviewProps) {
   const { t } = useTranslation('trip')
+  const formatMoment = useMomentFormatter()
   const presentation = presentCanhotoReview(proof)
   if (presentation === undefined) return null
 
@@ -60,7 +64,9 @@ export function ProofReview({ canReview, onApprove, onReject, proof }: ProofRevi
   return (
     <div className={styles.hint}>
       <div className={styles.proofBadges}>
-        <Badge variant={REVIEW_BADGE_VARIANT[messageKey]}>{describeReview(presentation, t)}</Badge>
+        <Badge variant={REVIEW_BADGE_VARIANT[messageKey]}>
+          {describeReview(presentation, t, formatMoment)}
+        </Badge>
         {isExperimental ? (
           <Badge variant="secondary">{t('deliveryProof.canhotoReview.experimental')}</Badge>
         ) : null}

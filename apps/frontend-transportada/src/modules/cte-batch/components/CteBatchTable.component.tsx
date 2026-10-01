@@ -8,6 +8,7 @@ import { FilterPills, type FilterPill } from '@/components/ui/filter-pills'
 import { Icon } from '@/components/ui/icon'
 import { formatCalendarDate } from '@/modules/shared/calendarDate.service'
 import { SELECTION_SEPARATOR } from '@/modules/shared/filterPill.service'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import type { CteBatchSubmissionController } from '../hooks/useCteBatchSubmission.hook'
 import type { CteBatchTableController } from '../hooks/useCteBatchTable.hook'
@@ -46,11 +47,6 @@ function statusClassName(status: CteBatchStatus): string {
   return `${styles.statusBadge}`
 }
 
-function formatMoment(value: string): string {
-  const moment = new Date(value)
-  return Number.isNaN(moment.getTime()) ? value : moment.toLocaleString()
-}
-
 export function CteBatchTable({
   actions,
   openBatchId,
@@ -59,6 +55,7 @@ export function CteBatchTable({
   table,
 }: CteBatchTableProps) {
   const { t } = useTranslation('cteBatch')
+  const formatMoment = useMomentFormatter()
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false)
 

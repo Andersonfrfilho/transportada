@@ -5,18 +5,10 @@ import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import type { DeliveryProof } from '../shared/deliveryProof.service'
 import styles from '../styles/trip.module.css'
-
-const momentFormatter = new Intl.DateTimeFormat('pt-BR', {
-  dateStyle: 'short',
-  timeStyle: 'short',
-})
-
-export function formatMoment(value: string): string {
-  return momentFormatter.format(new Date(value))
-}
 
 const PUNCTUALITY_BADGE_VARIANT = {
   on_time: 'success',
@@ -31,6 +23,7 @@ const distanceFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits
 /** Spec 220 RF13-RF16: comprovante antigo não traz nenhuma destas leituras, então cada uma é opcional. */
 export function ProofReadings({ proof }: Readonly<{ proof: DeliveryProof }>) {
   const { t } = useTranslation('trip')
+  const formatMoment = useMomentFormatter()
   const { capturedAt, distanceMeters, lateRegistration, punctuality, receivedBy } = proof
   const hasPunctualityBadge = punctuality !== undefined && punctuality !== 'not_required'
 

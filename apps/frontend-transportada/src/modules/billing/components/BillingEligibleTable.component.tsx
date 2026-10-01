@@ -9,6 +9,7 @@ import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { formatCalendarDate } from '@/modules/shared/calendarDate.service'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
+import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import type { BillingEligibleTableController } from '../hooks/useBillingEligibleTable.hook'
 import type { BillingEligibleCte } from '../shared/billingClient.service'
@@ -40,12 +41,11 @@ const ELIGIBLE_COLUMN_SKELETON_WIDTH: Record<BillingEligibleColumnKey, string> =
   totalAmount: '5rem',
 }
 
-function formatMoment(value: string): string {
-  const moment = new Date(value)
-  return Number.isNaN(moment.getTime()) ? value : moment.toLocaleString()
-}
-
-function cellValue(item: BillingEligibleCte, column: BillingEligibleColumnKey): string {
+function cellValue(
+  item: BillingEligibleCte,
+  column: BillingEligibleColumnKey,
+  formatMoment: (value: string) => string,
+): string {
   if (column === 'cteNumber') return item.cteNumber
   // CT-e sem nota vinculada mantém a linha: a célula é que fica vazia.
   if (column === 'nfeNumber') return item.nfeNumber ?? ''
@@ -58,6 +58,7 @@ function cellValue(item: BillingEligibleCte, column: BillingEligibleColumnKey): 
 
 export function BillingEligibleTable({ table }: BillingEligibleTableProps): JSX.Element {
   const { t } = useTranslation('billingWorkspace')
+  const formatMoment = useMomentFormatter()
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false)
 
@@ -290,7 +291,7 @@ export function BillingEligibleTable({ table }: BillingEligibleTableProps): JSX.
                       className={MONEY_COLUMNS.includes(column) ? styles.amountCell : undefined}
                       key={column}
                     >
-                      {cellValue(item, column)}
+                      {cellValue(item, column, formatMoment)}
                     </td>
                   ))}
                 </tr>
