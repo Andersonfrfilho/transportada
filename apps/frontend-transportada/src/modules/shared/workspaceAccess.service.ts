@@ -97,3 +97,72 @@ export function resolveNavigationMenu(
   }
   return { groups: resolveVisibleNavigationGroups(input.permissions), kind: 'ready' }
 }
+
+/**
+ * Spec 221 RF-C6: o separador começa o dia na listagem de viagens, não na fila de NF-e — que é o
+ * primeiro item do menu e seria o destino pela regra geral. Lista ordenada, não mapa: a ordem é o
+ * desempate de quem acumula papéis.
+ *
+ * ⚠️ Esta é a **única** leitura de papel do módulo (D9). Acesso é por permissão, e `canOpenWorkspace`
+ * nunca recebe papel; aqui a pergunta é outra — onde esta pessoa começa —, e `separator` é exatamente
+ * essa informação.
+ */
+const OFFICE_ROLES = ['company-admin', 'operator', 'finance', 'fiscal'] as const
+
+const LANDING_PREFERENCE = [
+  { roles: ['separator'], without: OFFICE_ROLES, workspace: 'trip' },
+] as const satisfies readonly Readonly<{
+  roles: readonly string[]
+  without: readonly string[]
+  workspace: WorkspaceKey
+}>[]
+
+/** De onde saiu o workspace atual — a RF-C1b explica por que a origem muda a decisão. */
+export type WorkspaceSource = 'default' | 'path' | 'stored'
+
+export type LandingDecision =
+  | Readonly<{ kind: 'no-access' }>
+  | Readonly<{ kind: 'replace'; workspace: WorkspaceKey }>
+  | Readonly<{ kind: 'stay' }>
+
+function resolveLandingPreference(input: {
+  readonly permissions: readonly string[]
+  readonly roles: readonly string[]
+}): WorkspaceKey | undefined {
+  const match = LANDING_PREFERENCE.find(
+    (entry) =>
+      entry.roles.some((role) => input.roles.includes(role)) &&
+      !entry.without.some((role) => input.roles.includes(role)),
+  )
+  if (match === undefined) return undefined
+  const permissions = input.permissions
+  return canOpenWorkspace({ permissions, workspace: match.workspace }) ? match.workspace : undefined
+}
+
+/**
+ * Spec 221 RF-C2/C4/C5/C6. Endereço que a pessoa pediu nunca é trocado: a parede da página responde,
+ * e uma navegação silenciosa no lugar dela pareceria defeito.
+ */
+export function resolveLandingWorkspace(
+  input: Readonly<{
+    current: WorkspaceKey
+    permissions: readonly string[]
+    roles: readonly string[]
+    source: WorkspaceSource
+  }>,
+): LandingDecision {
+  if (input.source === 'path') return { kind: 'stay' }
+
+  const canOpenCurrent = canOpenWorkspace({
+    permissions: input.permissions,
+    workspace: input.current,
+  })
+  if (input.source === 'stored' && canOpenCurrent) return { kind: 'stay' }
+
+  const visible = visibleWorkspaceKeys(input.permissions)
+  const first = visible[0]
+  if (first === undefined) return { kind: 'no-access' }
+
+  const target = resolveLandingPreference(input) ?? first
+  return target === input.current ? { kind: 'stay' } : { kind: 'replace', workspace: target }
+}
