@@ -44,7 +44,14 @@ do usuário. A API não é revertida com a app nova no ar.
 
 > 🤖 Modelo: `opus` 🧠
 
-- [ ] **T0.1** Ler as specs do assunto e conferir contra o código:
+> ⚠️ **Recorte de execução, decidido na T0.1 em 2026-10-01.** A spec entra pela **leitura**: T4.0,
+> T4.1, T4.2 e a Fase 6, restritas a `trip_stop_events` e `trip_delivery_proofs`, que já carimbam o
+> ponto hoje. As Fases 1, 2, 3 e 5 — colunas novas, `location_state` em banco, expurgo das cinco
+> tabelas e a app do motorista — ficam para depois, na ordem original. Enquanto elas não rodarem,
+> Despachar, Iniciar rota, conferir carga e as ocorrências não têm ponto e aparecem como `null`
+> (sem ícone, sem cor), **nunca em vermelho**. Razão e medição em `evidence.md`.
+
+- [x] **T0.1** Ler as specs do assunto e conferir contra o código:
   - 057 (a da ADR-0045) e 082 (posição na entrega);
   - 158 e 180 (linha do tempo), 159 (posição da foto), 189 T9.2 (grava primeiro);
   - 156 (escritório) e 144 (WhatsApp, as duas listas de ações em `main.ts`);

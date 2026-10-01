@@ -1,8 +1,8 @@
 # ADR-0081 — Todo toque do motorista carimba onde aconteceu
 
-- **Status:** proposta (2026-09-25), revisada depois da crítica do mesmo dia. Passa a `aceita` na T0.1
-  da spec 196, conferida contra o código.
-- **Data:** 2026-09-25
+- **Status:** aceita (2026-10-01, T0.1 da spec 196, conferida contra o código). Proposta em 2026-09-25,
+  revisada depois da crítica do mesmo dia.
+- **Data:** 2026-09-25, com a emenda do §6.1 em 2026-10-01
 - **Decisores:** usuário, em 2026-09-25: "cada evento deve pegar localização"; e, sobre quem vê: "só
   quem gere a frota — `fleet.read` e sem ser apenas `separator`"; e, no mesmo dia, a confirmação de
   que a permissão `trip.event-location` vale para `company-admin`, `operator`, `fiscal` e `viewer`, e
@@ -119,6 +119,31 @@ colunas. Um contrato mantém a lista.
 
 Na linha do tempo, o painel mostra a precisão, a hora da leitura e "Ver no mapa", que expande no
 próprio item o pino do evento e o da parada.
+
+### 6.1 Emenda de 2026-10-01 — a coordenada aparece em texto, e o card também a mostra
+
+O §6 acima dizia precisão, hora e "Ver no mapa"; o número em si ficava só no mapa. O usuário decidiu
+o contrário, em 2026-10-01, perguntado sobre o que o tooltip do ícone de GPS mostra: **"precisao e
+distancia com lat/long"**. E, sobre o evento sem ponto: **"se não conseguir puxar ali deixe em
+vermelho e sem coordenadas"**.
+
+Então:
+
+- **A coordenada aparece em texto de tela**, no tooltip de um ícone `map-pin`, junto da precisão e da
+  distância até a parada. Não é mais preciso abrir o mapa para ler o número. A permissão
+  `trip.event-location` continua sendo o portão: quem não a tem não recebe o par e não vê o ícone.
+- **`unavailable` é vermelho**, com o ícone de GPS cortado e sem número — o motorista tocou e a
+  posição não veio. É o único estado vermelho: `null` ("não se aplica") **não** pinta nada e não
+  mostra ícone, porque dizer "falhou" de um toque que nunca carimbou seria mentira do produto, não
+  do GPS. `expired` fica neutro, com a frase dos 90 dias.
+- **O card do comprovante da entrega mostra o mesmo ícone**, com a mesma regra. O §6 só falava da
+  linha do tempo porque a tela do comprovante ainda não existia quando esta ADR foi escrita.
+
+Uma regra **não** mudou, e a emenda não a toca: a coordenada continua proibida em query string, em
+URL e em qualquer requisição a tile de terceiro (ADR-0044 §6, ADR-0047). O basemap segue sendo o
+PMTiles do próprio domínio. O que foi liberado é a coordenada **renderizada para quem tem a
+permissão**, não a coordenada **trafegando para fora**. Ela também continua proibida em log, em
+qualquer nível (§7 da spec 196).
 
 ### 7. O prazo é um só
 
