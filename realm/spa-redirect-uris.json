@@ -15,11 +15,13 @@
     "transportada-spa": {
       "redirectUris": [
         "https://app.fernandes-transportadora.com.br/auth/callback",
-        "https://cliente.fernandes-transportadora.com.br/auth/callback"
+        "https://cliente.fernandes-transportadora.com.br/auth/callback",
+        "https://motorista.fernandes-transportadora.com.br/auth/callback"
       ],
       "webOrigins": [
         "https://app.fernandes-transportadora.com.br",
-        "https://cliente.fernandes-transportadora.com.br"
+        "https://cliente.fernandes-transportadora.com.br",
+        "https://motorista.fernandes-transportadora.com.br"
       ]
     }
   },
