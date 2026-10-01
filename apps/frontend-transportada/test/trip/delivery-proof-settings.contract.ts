@@ -20,6 +20,7 @@ const GENERAL: DeliveryProofFieldSettings = {
   cargo: 'optional',
   cargoMinimumCount: 2,
   photo: 'required',
+  receivedBy: 'optional',
   receiverDocument: 'off',
   receiverName: 'optional',
   signature: 'optional',
@@ -28,6 +29,7 @@ const CONTRACTOR: DeliveryProofFieldSettings = {
   cargo: 'required',
   cargoMinimumCount: 3,
   photo: 'off',
+  receivedBy: 'off',
   receiverDocument: 'required',
   receiverName: 'off',
   signature: 'off',
@@ -36,6 +38,7 @@ const RECIPIENT: DeliveryProofFieldSettings = {
   cargo: 'off',
   cargoMinimumCount: 1,
   photo: 'optional',
+  receivedBy: 'required',
   receiverDocument: 'optional',
   receiverName: 'required',
   signature: 'required',
@@ -128,8 +131,10 @@ describe('cascata do comprovante com a foto da mercadoria (spec 220)', () => {
   })
 })
 
+/** `receivedBy` entra aqui só para satisfazer o tipo — o que este bloco testa é a ausência de `cargo`. */
 const LEGACY = {
   photo: 'optional',
+  receivedBy: 'optional',
   receiverDocument: 'off',
   receiverName: 'optional',
   signature: 'optional',
