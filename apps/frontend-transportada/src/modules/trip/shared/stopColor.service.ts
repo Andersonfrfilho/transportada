@@ -63,6 +63,23 @@ const MAP_SURFACE = [
  */
 export const EVENT_PIN_COLOR = '#7d5187'
 
+/**
+ * Spec 196 (minimapa): a cor do pino por **tipo** de evento. Escolhidas por busca em faixas de
+ * matiz com a semântica de cada tipo (ocorrência vermelha, entrega verde, cancelamento carmim) e
+ * medidas por `timeline-map-colors.contract.ts`: janela de luminância, contraste e ΔE entre si.
+ * O MapLibre pinta em WebGL e não resolve `var()`, por isso o hexadecimal é literal.
+ */
+export const TIMELINE_EVENT_CATEGORY_COLOR = {
+  arrived: '#0560c7',
+  cancelled: '#c20554',
+  delivered: '#048b3c',
+  departed: '#0a7276',
+  dispatched: '#6533fa',
+  occurrence: '#ef2506',
+  returned: '#76602d',
+  status: '#788591',
+} as const
+
 /** Alvos de **luminância relativa**, todos dentro da janela que serve aos dois temas. */
 const LUMINANCE_TARGETS = [0.15, 0.22, 0.3] as const
 const SATURATIONS = [0.72, 0.86, 1] as const

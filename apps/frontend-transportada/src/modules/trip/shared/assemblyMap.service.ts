@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { IconName } from '@/components/ui/icon'
 import type { MeshFeature } from '@/modules/shared/ibgeMesh.service'
 
 import { resolveStopKey } from './assemblyOrder.service'
@@ -91,6 +92,10 @@ export type AssemblyMapPoint = Readonly<{
    * liso, sem número, porque número no mapa significa posição no roteiro e esse ponto não tem uma.
    */
   isUnnumbered?: boolean
+  /** Minimapa da linha do tempo: ícone do tipo de evento no lugar do número. */
+  glyph?: IconName
+  /** Minimapa da linha do tempo: quantos eventos o pino agrupa. */
+  count?: number
   /** A ordem que o operador montou. `null` na cidade que ficou de fora da seleção. */
   sequence: number | null
   x: number

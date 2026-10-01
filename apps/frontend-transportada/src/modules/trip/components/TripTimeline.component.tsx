@@ -46,6 +46,7 @@ import {
   TripTimelineLocationMap,
   type TripTimelineLocationMapStop,
 } from './TripTimelineLocationMap.component'
+import { TripTimelineMiniMap } from './TripTimelineMiniMap.component'
 
 const SKELETON_ROWS = 3
 
@@ -204,6 +205,10 @@ export function TripTimeline({ openDocumentId, query, stops }: TripTimelineProps
           </fieldset>
         )}
       </div>
+
+      {items.length > 0 ? (
+        <TripTimelineMiniMap hasMorePages={query.hasNextPage} items={items} />
+      ) : null}
 
       {query.isPending ? (
         <SkeletonGroup className={styles.skeleton} label={t('eventTimeline.loading')}>

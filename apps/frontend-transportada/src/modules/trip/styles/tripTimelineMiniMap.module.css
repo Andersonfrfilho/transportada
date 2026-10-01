@@ -1,0 +1,111 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/* Mobile-first: a 375px tudo empilha em uma coluna e nenhuma linha tem largura fixa. */
+.miniMap {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.miniMap h4 {
+  margin: 0;
+}
+
+.canvas {
+  min-width: 0;
+}
+
+.note {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}
+
+.legendItem {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.swatch {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  border-radius: 50%;
+  color: #fff;
+}
+
+.swatch svg {
+  width: 70%;
+  height: 70%;
+}
+
+/* ⚠️ Literais: o MapLibre não lê `var()`, e o contrato compara estes hexadecimais com os do TS. */
+.dispatched {
+  background: #6533fa;
+}
+
+.arrived {
+  background: #0560c7;
+}
+
+.departed {
+  background: #0a7276;
+}
+
+.delivered {
+  background: #048b3c;
+}
+
+.returned {
+  background: #76602d;
+}
+
+.occurrence {
+  background: #ef2506;
+}
+
+.cancelled {
+  background: #c20554;
+}
+
+.status {
+  background: #788591;
+}
+
+.pointList {
+  min-width: 0;
+}
+
+.pointListSummary {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--color-copper);
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-decoration: underline;
+}
+
+.pointListItems {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-6);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}

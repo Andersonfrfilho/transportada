@@ -400,3 +400,66 @@ porque sobe um Postgres descartável e roda a cadeia do zero.
 deles: quem escreve com SQL cru (os fixtures de `database-migration` e os do worker) e quem escreve
 em produção (o expurgo) só aparecem quando o banco de verdade recusa a linha. Os três achados desta
 fatia saíram de leitura à mão e de um portão vermelho — nenhum da suíte verde.
+
+## T4.1 e T4.2 — a linha do tempo passa a devolver o ponto
+
+A linha do tempo ganhou duas chaves: `location`, com as cinco exatas que a T4.0 congelou
+(`accuracyMeters`, `capturedAt`, `distanceMeters`, `latitude`, `longitude`), e `locationState`.
+O recorte de permissão vive no use case e é assimétrico de propósito: sem `trip.event-location` a
+coordenada sai `null` e **o estado fica**. Estado não revela onde — revela por que não há ponto, que
+é justamente o que `finance` e `separator` precisam saber para não confundir "o motorista não mandou"
+com "o sistema perdeu".
+
+`distanceMeters` sai do ponto vivo da parada em `geocoded_addresses`, alcançado pelo `address_key`
+(ADR-0044 §5) — as colunas de coordenada de `trip_stops` estão mortas e o contrato
+`dead-coordinate-columns` recusa o retorno delas.
+
+| Portão                                                       | Resultado                     |
+| ------------------------------------------------------------ | ----------------------------- |
+| `bun --env-file=../../.env.test test --timeout 120000` (API) | 8474 pass · 23 skip · 0 fail  |
+| `auth-me.integration.ts` isolado, após correção              | 1 pass · 0 fail               |
+| `check` completo do painel                                   | 5961 pass · 0 fail · build ok |
+| `test:hooks` do painel                                       | 165 pass · 0 fail             |
+
+⚠️ **A permissão nova quebrou um teste que nenhum dos dois agentes previu, e quebrou por ordem.**
+`auth-me.integration.ts` afirma a lista **exata** de permissões de `viewer` e `fiscal` com `toEqual`,
+e array em `toEqual` compara posição. Eu inseri a permissão na posição em que ela aparece no literal
+de `authorization.policy.ts` e o teste continuou vermelho: a API não devolve na ordem do literal.
+Medido, ela sai no **fim** da lista. A lição é estreita e vale repetir: a ordem de uma lista de
+permissões é comportamento observável, não detalhe de escrita, e só o teste sabe qual é.
+
+### O que ficou declaradamente parcial
+
+- **A T4.2 cobre os quatro estados numa fonte só.** Apenas a consulta de eventos de parada tem coluna
+  de posição nesta fatia; status, ocorrência e documento são afirmados `null`/`null`. Está correto
+  para o que existe, mas é menos do que a task descreve — não marcar como completa.
+- **O comprovante não publica `location` na view.** O validador estrito do painel recusaria chave
+  desconhecida, então o ponto do comprovante vive só no registro da aplicação. Destravar isso é a
+  T6.4, e até lá a tela não mostra o ponto do comprovante.
+- **`capturedAt` tem recuo para `recorded_at` / `created_at`** quando a coluna é nula (linha antiga
+  carimbada `captured` no preenchimento retroativo). É decisão do agente, seguindo o
+  `coalesce(captured_at, recorded_at)` que o schema já usava — não é decisão de spec, e merece o olho
+  de quem revisar.
+
+## Minimapa agregado dos eventos — pedido em conversa, fora da spec
+
+Um mapa só, acima da lista da linha do tempo, com um pino por evento localizado, ícone e cor por
+tipo, e traço na ordem em que os eventos aconteceram. Cobertos por contrato os estados que a tela
+precisa aguentar: `captured` com e sem coordenada, `unavailable`, `expired`, `null`, zero eventos
+localizados (estado vazio com texto, sem mapa) e dezenas de pinos no mesmo lugar — mesma categoria
+agrupa com selo de contagem, categorias diferentes abrem em leque.
+
+As oito cores foram **medidas**, não escolhidas no olho: luminância, contraste mínimo de 2,4 nos três
+fundos, distância CIELab entre si e contra a superfície do mapa base, e os hexadecimais do CSS da
+legenda conferidos contra os do TypeScript. É a correção da mesma classe de defeito que o pino
+`#f5f5f5` com contraste 1,04 produziu na T6.1.
+
+⚠️ **A rota pelo asfalto não existe e não vai existir assim.** Traçá-la exigiria mandar as
+coordenadas a um serviço de roteamento, e ADR-0044 §6 proíbe coordenada sair para terceiro. O traço é
+reto entre pontos consecutivos, e a legenda **diz isso** em vez de deixar a linha mentir sobre o
+caminho percorrido.
+
+⚠️ **O desenho do mapa não foi verificado por ninguém.** O WebGL do MapLibre não sobe no ambiente de
+teste, então o contrato roda com o mapa dublado: ele prova o DOM, a ordem e as cores, e não prova
+pino, tracejado, leque nem os 375 px. Isso é exatamente o que o preview da T6.3 existe para provar, e
+nada sobe antes dele.

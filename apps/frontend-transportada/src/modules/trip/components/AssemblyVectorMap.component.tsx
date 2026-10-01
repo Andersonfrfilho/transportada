@@ -7,7 +7,7 @@ import { LngLatBounds, Map as MapLibreMap, Marker, type GeoJSONSource } from 'ma
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import { Icon } from '@/components/ui/icon'
+import { Icon, type IconName } from '@/components/ui/icon'
 import { Tooltip } from '@/components/ui/tooltip'
 
 /**
@@ -35,7 +35,6 @@ import { resolveMarkerOffsets, type AssemblyMapPoint } from '../shared/assemblyM
 import type { RouteGeometry } from '../shared/routeGeometry.service'
 import styles from '../styles/trip.module.css'
 import { resolveRouteLegs } from '../shared/routeGeometry.service'
-import { resolveStopColor } from '../shared/stopColor.service'
 import { resolveTollBoothMarkers } from '../shared/assemblyToll.service'
 
 type AssemblyVectorMapProps = Readonly<{
@@ -416,6 +415,8 @@ export function AssemblyVectorMap({
       const element = stopElement({
         approximate: point.isApproximate,
         color: stopColor(point.sequence ?? 1),
+        count: point.count ?? 1,
+        glyph: point.glyph,
         outline: resolveBasemapOutline(readToken, theme),
         sequence: point.sequence ?? 1,
         unnumbered: point.isUnnumbered === true,
@@ -575,7 +576,7 @@ export function AssemblyVectorMap({
           coordinates: leg.points.map((point) => [point.x, point.y]),
         },
         properties: {
-          color: resolveStopColor(leg.toSequence),
+          color: stopColor(leg.toSequence),
           dashed: leg.dashed,
         },
       })),
@@ -594,7 +595,7 @@ export function AssemblyVectorMap({
 
     routeRef.current = { dashArray, data }
     applyRoute(map)
-  }, [applyRoute, geometry, hideRoute, isReady, points, theme])
+  }, [applyRoute, geometry, hideRoute, isReady, points, stopColor, theme])
 
   return (
     <div className={styles.vectorMap}>
@@ -710,26 +711,17 @@ function depotElement(input: {
    * fora da árvore do React. O glifo continua sendo o do design system — o que é imperativo aqui é a
    * montagem do nó, não o desenho.
    */
-  const glyph = document.createElementNS(SVG_NAMESPACE, 'svg')
-  glyph.setAttribute('viewBox', '0 0 24 24')
-  glyph.setAttribute('fill', 'none')
-  glyph.setAttribute('stroke', 'currentColor')
-  glyph.setAttribute('stroke-width', '2')
-  glyph.setAttribute('stroke-linecap', 'round')
-  glyph.setAttribute('stroke-linejoin', 'round')
-  glyph.setAttribute('aria-hidden', 'true')
-  for (const definition of ICON_PATHS.organization) {
-    const path = document.createElementNS(SVG_NAMESPACE, 'path')
-    path.setAttribute('d', definition)
-    glyph.append(path)
-  }
-  element.append(glyph)
+  element.append(buildGlyphElement(ICON_PATHS.organization))
   return element
 }
 
 function stopElement(input: {
   readonly approximate: boolean
   readonly color: string
+  /** Eventos agrupados neste pino; acima de 1 aparece o selo com a contagem. */
+  readonly count: number
+  /** Ícone no lugar do número (minimapa da linha do tempo). */
+  readonly glyph: IconName | undefined
   readonly outline: string
   readonly sequence: number
   /** Pino que não é parada: sai liso. Flag explícita porque `sequence` fora de faixa some calado. */
@@ -746,8 +738,35 @@ function stopElement(input: {
     : (styles.tilePin ?? '')
   element.style.background = input.color
   element.style.borderColor = input.outline
-  element.textContent = input.unnumbered ? '' : String(input.sequence)
+  if (input.glyph !== undefined) {
+    element.append(buildGlyphElement(ICON_PATHS[input.glyph]))
+  } else {
+    element.textContent = input.unnumbered ? '' : String(input.sequence)
+  }
+  if (input.count > 1) {
+    const badge = document.createElement('span')
+    badge.className = styles.tilePinCount ?? ''
+    badge.textContent = String(input.count)
+    element.append(badge)
+  }
   return element
+}
+
+function buildGlyphElement(paths: readonly string[]): SVGElement {
+  const glyph = document.createElementNS(SVG_NAMESPACE, 'svg')
+  glyph.setAttribute('viewBox', '0 0 24 24')
+  glyph.setAttribute('fill', 'none')
+  glyph.setAttribute('stroke', 'currentColor')
+  glyph.setAttribute('stroke-width', '2')
+  glyph.setAttribute('stroke-linecap', 'round')
+  glyph.setAttribute('stroke-linejoin', 'round')
+  glyph.setAttribute('aria-hidden', 'true')
+  for (const definition of paths) {
+    const path = document.createElementNS(SVG_NAMESPACE, 'path')
+    path.setAttribute('d', definition)
+    glyph.append(path)
+  }
+  return glyph
 }
 
 /**
