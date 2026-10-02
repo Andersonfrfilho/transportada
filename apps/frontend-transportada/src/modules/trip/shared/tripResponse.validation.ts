@@ -1465,12 +1465,8 @@ function isTimelineItem(value: unknown): value is TripTimelineItem {
   }
   return (
     (value.lateRegistration === undefined || isBoolean(value.lateRegistration)) &&
-    (value.location === undefined ||
-      value.location === null ||
-      isTimelineLocation(value.location)) &&
-    (value.locationState === undefined ||
-      value.locationState === null ||
-      isOneOf(value.locationState, TRIP_TIMELINE_LOCATION_STATES)) &&
+    (value.location === null || isTimelineLocation(value.location)) &&
+    (value.locationState === null || isOneOf(value.locationState, TRIP_TIMELINE_LOCATION_STATES)) &&
     isNullableString(value.actorName) &&
     (value.channel === null || isOneOf(value.channel, TRIP_FIELD_CHANNELS)) &&
     isNullableString(value.closeReason) &&

@@ -42,12 +42,15 @@ function readPage(item: Record<string, unknown>): unknown {
 }
 
 /**
- * Spec 196 RF9/RF10 (T4.0): o painel tolera `location`/`locationState` antes de a API mandá-los, e
- * segue recusando qualquer outra chave — o validador é estrito.
+ * Spec 196 RF9/RF10 (T6.4): as duas chaves são **exigidas** — a API as manda em todo item desde o
+ * push 2, pelas três consultas (`NO_EVENT_LOCATION` cobre quem não tem ponto). A janela de
+ * tolerância da T4.0 fechou; item sem elas é resposta de uma API que não existe mais.
  */
-describe('localização no item da linha do tempo (spec 196 T4.0)', () => {
-  it('aceita o item sem as duas chaves', () => {
-    expect(() => readPage(BASE_ITEM)).not.toThrow()
+describe('localização no item da linha do tempo (spec 196 T6.4)', () => {
+  it('recusa o item sem as duas chaves', () => {
+    expect(() => readPage(BASE_ITEM)).toThrow()
+    expect(() => readPage({ ...BASE_ITEM, location: null })).toThrow()
+    expect(() => readPage({ ...BASE_ITEM, locationState: null })).toThrow()
   })
 
   it('aceita o item com as duas chaves preenchidas', () => {
@@ -105,19 +108,29 @@ describe('localização no item da linha do tempo (spec 196 T4.0)', () => {
   })
 
   it('continua recusando chave desconhecida', () => {
-    expect(() => readPage({ ...BASE_ITEM, actorUserId: 'user-1' })).toThrow()
+    expect(() =>
+      readPage({ ...BASE_ITEM, actorUserId: 'user-1', location: null, locationState: null }),
+    ).toThrow()
   })
 
   it('recusa locationState fora do conjunto', () => {
-    expect(() => readPage({ ...BASE_ITEM, locationState: 'denied' })).toThrow()
+    expect(() => readPage({ ...BASE_ITEM, location: null, locationState: 'denied' })).toThrow()
   })
 
   it('recusa location com chave a mais ou coordenada em texto', () => {
     expect(() =>
-      readPage({ ...BASE_ITEM, location: { ...CAPTURED_LOCATION, altitude: 1 } }),
+      readPage({
+        ...BASE_ITEM,
+        location: { ...CAPTURED_LOCATION, altitude: 1 },
+        locationState: 'captured',
+      }),
     ).toThrow()
     expect(() =>
-      readPage({ ...BASE_ITEM, location: { ...CAPTURED_LOCATION, latitude: '-23.55' } }),
+      readPage({
+        ...BASE_ITEM,
+        location: { ...CAPTURED_LOCATION, latitude: '-23.55' },
+        locationState: 'captured',
+      }),
     ).toThrow()
   })
 })
@@ -132,6 +145,8 @@ function fakeTranslate(key: string, options?: Record<string, unknown>): string {
 
 const TIMELINE_ITEM: TripTimelineItem = {
   ...BASE_ITEM,
+  location: null,
+  locationState: null,
   stop: { id: 'stop-1', sequence: 1 },
 }
 
