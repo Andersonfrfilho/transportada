@@ -12,7 +12,7 @@ D11. **Esta spec não tem migration** — se alguma task concluir que precisa de
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T0.1** Reler, contra o `HEAD` do dia, cada linha da tabela "O que já existe" da spec (arquivo:linha) e
+- [x] **T0.1** Reler, contra o `HEAD` do dia, cada linha da tabela "O que já existe" da spec (arquivo:linha) e
       o estado das specs 195, 196 e 206. Se a 195 tiver começado a gravar correção, conferir que ela grava em
       `geocoded_address_corrections` e não numa tabela própria. Aceite: divergências listadas no
       `evidence.md`, ou "nenhuma".
