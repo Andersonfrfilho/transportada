@@ -194,7 +194,7 @@ describe('congelamento da rota inteira (spec 153 T201)', () => {
     expect(repository.writeCalls).toHaveLength(1)
     const [written] = repository.writeCalls
     expect(written?.route).not.toBeNull()
-    expect(written?.route?.criterion).toBe('cheapest')
+    expect(written?.route?.criterion).toBe('fastest')
     expect(written?.route?.distanceMeters).toBe(89_400)
     expect(written?.route?.durationSeconds).toBe(4_200)
     expect(written?.route?.legs).toEqual(TRECHOS)
@@ -393,10 +393,11 @@ describe('congelamento da rota inteira (spec 153 T201)', () => {
     expect(written?.route?.signature).not.toBe(unmatchedSignature)
   })
 
-  test('com consumo e preço, o critério padrão congela a mais barata — pedágio + combustível', async () => {
+  test('com consumo e preço, o critério cheapest congela a mais barata — pedágio + combustível', async () => {
     const repository = createFakeRepository({ vehicle: VEHICLE_WITH_FUEL })
 
     await freezeTripPlannedRoute({
+      choice: { criterion: 'cheapest', signature: null },
       companyId: COMPANY_ID,
       geometry: createGeometryPortWithAlternative(),
       repository,
@@ -436,6 +437,7 @@ describe('congelamento da rota inteira (spec 153 T201)', () => {
     const repository = createFakeRepository({ vehicle: VEHICLE })
 
     await freezeTripPlannedRoute({
+      choice: { criterion: 'cheapest', signature: null },
       companyId: COMPANY_ID,
       geometry: createGeometryPortWithAlternative(),
       repository,
@@ -521,6 +523,7 @@ describe('congelamento da rota inteira (spec 153 T201)', () => {
       const repository = createFakeRepository({ vehicle: VEHICLE })
 
       await freezeTripPlannedRoute({
+        choice: { criterion: 'cheapest', signature: null },
         companyId: COMPANY_ID,
         geometry: createGeometryPortWithAlternative(),
         repository,
