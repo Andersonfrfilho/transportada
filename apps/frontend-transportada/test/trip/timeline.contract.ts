@@ -381,7 +381,8 @@ describe('vocabulário da spec 228 na linha do tempo', () => {
   })
 
   it('recusa o endereço corrigido sem addressChange', () => {
-    const { addressChange: _omitted, ...withoutAddressChange } = ADDRESS_ITEM
+    const withoutAddressChange: Record<string, unknown> = { ...ADDRESS_ITEM }
+    delete withoutAddressChange.addressChange
     expect(() =>
       adapters.tripTimelineFromApi({ items: [withoutAddressChange], nextCursor: null }),
     ).toThrow()

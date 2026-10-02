@@ -758,6 +758,9 @@
     "expand": "Ver mais",
     "filterByDocument": "Filtrar por nota",
     "itemTitle": {
+      "addressCorrected": "Endereço da parada corrigido",
+      "canhotoPhoto": "Foto do canhoto — NF-e {{invoice}}",
+      "canhotoPhotoUnknownDocument": "Foto do canhoto",
       "dispatched": "Viagem despachada",
       "documentDelivered": "{{document}} entregue",
       "documentLabel": "Nota {{invoice}}",

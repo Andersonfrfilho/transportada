@@ -70,3 +70,54 @@ Estado vermelho medido antes de qualquer código de produção:
 Duas asserções passam no vermelho **por construção** e só provam algo depois da T1.2 — a prova por mutação
 delas está na T1.2: "recusa addressChange em qualquer kind que não seja o do endereço" (hoje a chave é
 desconhecida para todos) e "o tom dos dois é progress".
+
+## T1.2 — Vocabulário implementado (nenhuma fonte emite ainda)
+
+Código: API `trip-timeline.types.ts` (`TRIP_TIMELINE_KINDS` +2 no fim, `TRIP_TIMELINE_KIND_PRIORITY`
+`document.canhoto_photo = 4` e `stop.address_corrected = 2`, `TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS`,
+`TripTimelineAddressChange`, `TripTimelineItem.addressChange?`). Painel: `trip.types.ts` (cópia por valor +
+origens + tipo), `trip.constant.ts` (`addressChange` nas chaves opcionais, `TRIP_TIMELINE_ADDRESS_CHANGE_KEYS`),
+`tripResponse.validation.ts` (`addressChange` obrigatório e exato em `stop.address_corrected`, **recusado** em
+qualquer outro kind), `tripTimelineRow.service.ts` (`camera`/`edit`, tom neutro), `tripTimeline.service.ts`
+(títulos), `tripTimelineMap.constant.ts` (categoria `status`, **provisória**: pino próprio exige cor nova em
+`TIMELINE_EVENT_CATEGORY_COLOR`, decisão visual da T4.1), locales pt-BR e en.
+
+Decisões a registrar:
+
+- Título da foto segue a spec RF6 ("Foto do canhoto — NF-e {número}/{série}"), com chave própria
+  `canhotoPhoto` (`{{invoice}}`) em vez do `documentLabel` ("Nota ..."), e `canhotoPhotoUnknownDocument` quando
+  a nota não tem número legível.
+- `addressChange` é **obrigatório** no kind do endereço no painel (a API nova sempre o manda; sem ele o item
+  não tem o que mostrar) e **recusado** nos outros — a recusa é a mesma de "chave a mais", e CA07 não é afetado
+  porque o kind desconhecido é descartado antes (`hasUnknownTimelineKind`).
+- O repasse ao HTTP não foi tocado: nenhuma fonte emite; a rota e `mergeTripTimeline` (que carrega a linha
+  inteira) serão conferidos na T3.2.
+
+Gates (saídas literais abaixo no relatório da sessão):
+
+- Painel (`apps/frontend-transportada`): `bun run typecheck` limpo; `bun run lint` 0 errors / 16 warnings
+  (todos pré-existentes, em arquivos não tocados); `bun run test` → **6366 pass / 0 fail** (32 arquivos) +
+  **307 pass / 0 fail** (hooks).
+- API (`apps/api-transportada`): `bun run typecheck` limpo; `bun run lint` (`--max-warnings=0`) limpo;
+  `bun --env-file=../../.env.test test --timeout 120000` → **8665 pass / 23 skip / 0 fail** (192 arquivos).
+  Integração **não rodada**: a task não toca `test/integration/**`.
+
+Mutação (cada edição aplicada, a suíte do lado rodada, arquivo restaurado por regravação; 21/21 mortas):
+
+| Mutação                                                                | Resultado |
+| ---------------------------------------------------------------------- | --------- |
+| validador aceita `addressChange` em outro kind                         | morta     |
+| validador dispensa `addressChange` no kind do endereço                 | morta     |
+| origem sem checagem de vocabulário                                     | morta     |
+| deslocamento negativo/`NaN` aceito                                     | morta     |
+| deslocamento não numérico aceito                                       | morta     |
+| chaves exatas do `addressChange` afrouxadas                            | morta     |
+| ícone da foto trocado (`camera` → `check`)                             | morta     |
+| ícone do endereço trocado (`edit` → `clock`)                           | morta     |
+| foto / endereço fora dos neutros (2 mutações)                          | mortas    |
+| tom da foto vira `done`; tom do endereço vira `problem`                | mortas    |
+| título sem nota deixa de cair no fallback                              | morta     |
+| locale pt da foto / do endereço alterado                               | mortas    |
+| ordem dos kinds invertida (painel e API)                               | mortas    |
+| API: prioridade da foto 4→5, do endereço 2→3, `document.returned` 3→33 | mortas    |
+| API: origem inventada acrescentada ao vocabulário                      | morta     |

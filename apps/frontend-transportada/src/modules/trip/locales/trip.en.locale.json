@@ -758,6 +758,9 @@
     "expand": "View more",
     "filterByDocument": "Filter by invoice",
     "itemTitle": {
+      "addressCorrected": "Stop address corrected",
+      "canhotoPhoto": "Receipt photo — invoice {{invoice}}",
+      "canhotoPhotoUnknownDocument": "Receipt photo",
       "dispatched": "Trip dispatched",
       "documentDelivered": "{{document}} delivered",
       "documentLabel": "Invoice {{invoice}}",

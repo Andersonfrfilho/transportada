@@ -18,10 +18,13 @@ export type TimelineMapCategory = (typeof TIMELINE_MAP_CATEGORIES)[number]
 export const TIMELINE_MAP_CATEGORY_BY_KIND: Readonly<
   Record<TripTimelineKind, TimelineMapCategory>
 > = {
+  /** Spec 228 T1.2: categoria provisória — o pino próprio (câmera, lápis) é decisão visual da T4.1. */
+  'document.canhoto_photo': 'status',
   'document.delivered': 'delivered',
   'document.occurrence': 'occurrence',
   'document.returned': 'returned',
   'document.status_changed': 'status',
+  'stop.address_corrected': 'status',
   'stop.arrived': 'arrived',
   'stop.departed': 'departed',
   'stop.departure_cancelled': 'cancelled',

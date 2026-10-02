@@ -112,6 +112,16 @@ function formatTripTimelineDocumentLabel(
     : t('eventTimeline.itemTitle.documentLabel', { invoice })
 }
 
+function resolveCanhotoPhotoTitle(
+  document: null | TripTimelineDocumentReference,
+  t: Translate,
+): string {
+  const invoice = document === null ? '' : formatOccurrenceInvoice(document.number, document.series)
+  return invoice === ''
+    ? t('eventTimeline.itemTitle.canhotoPhotoUnknownDocument')
+    : t('eventTimeline.itemTitle.canhotoPhoto', { invoice })
+}
+
 function resolveStopOccurrenceLabel(typeName: string, t: Translate): string {
   return KNOWN_STOP_OCCURRENCE_KINDS.has(typeName)
     ? t(`fieldActions.occurrenceKind.${typeName}`)
@@ -181,6 +191,10 @@ export function resolveTripTimelineTitle(item: TripTimelineItem, t: Translate): 
             ? t('eventTimeline.itemTitle.unknownOccurrenceType')
             : item.occurrence.typeName,
       })
+    case 'document.canhoto_photo':
+      return resolveCanhotoPhotoTitle(item.document, t)
+    case 'stop.address_corrected':
+      return t('eventTimeline.itemTitle.addressCorrected')
     case 'document.status_changed':
       return item.toStatus !== null && KNOWN_DOCUMENT_STATUSES.has(item.toStatus)
         ? t(`eventTimeline.itemTitle.documentStatus.${item.toStatus}`, {

@@ -8,6 +8,7 @@ import {
 } from './occurrence.constant'
 import {
   TRIP_FIELD_CHANNELS,
+  TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS,
   TRIP_TIMELINE_KINDS,
   TRIP_TIMELINE_LOCATION_STATES,
 } from './trip.types'
@@ -26,6 +27,7 @@ import type {
   TripCargoWeight,
   TripOccupancy,
   TripPendingMeasurement,
+  TripTimelineAddressChange,
   TripTimelineDocumentReference,
   TripTimelineItem,
   TripTimelineLocation,
@@ -99,6 +101,7 @@ import {
   FIELD_OCCURRENCE_TYPE_KEYS,
   FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS,
   REPORT_FIELD_DELIVERY_RESULT_KEYS,
+  TRIP_TIMELINE_ADDRESS_CHANGE_KEYS,
   TRIP_TIMELINE_ITEM_KEYS,
   TRIP_TIMELINE_ITEM_OPTIONAL_KEYS,
   TRIP_TIMELINE_LOCATION_KEYS,
@@ -1475,6 +1478,20 @@ function isTimelineLocation(value: unknown): value is TripTimelineLocation {
   )
 }
 
+function isTimelineAddressChange(value: unknown): value is TripTimelineAddressChange {
+  return (
+    hasExactKeys(value, TRIP_TIMELINE_ADDRESS_CHANGE_KEYS) &&
+    isOneOf(value.origin, TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS) &&
+    (value.displacementMeters === null || isNonNegativeFiniteNumber(value.displacementMeters))
+  )
+}
+
+/** Spec 228 D8: o `addressChange` é do item do endereço e de mais nenhum; nele, é obrigatório. */
+function hasAddressChangeForKind(value: Readonly<Record<string, unknown>>): boolean {
+  if (value.kind !== 'stop.address_corrected') return value.addressChange === undefined
+  return isTimelineAddressChange(value.addressChange)
+}
+
 /**
  * Spec 158 D6/aceite 8: chave desconhecida, `channel`/`kind` fora do vocabulário são recusados —
  * `actorUserId`, `receiverName`, `receiverDocumentMasked`, `objectKey` nunca fazem parte das chaves
@@ -1491,6 +1508,7 @@ function isTimelineItem(value: unknown): value is TripTimelineItem {
   }
   return (
     (value.lateRegistration === undefined || isBoolean(value.lateRegistration)) &&
+    hasAddressChangeForKind(value) &&
     (value.location === null || isTimelineLocation(value.location)) &&
     (value.locationState === null || isOneOf(value.locationState, TRIP_TIMELINE_LOCATION_STATES)) &&
     isNullableString(value.actorName) &&

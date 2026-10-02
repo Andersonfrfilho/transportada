@@ -35,6 +35,13 @@ export const TRIP_TIMELINE_KINDS = [
   'document.occurrence',
   'document.status_changed',
   'trip.created',
+  /**
+   * Spec 228 D6: a foto do canhoto (lida de trip_delivery_proofs) e a correção do endereço da parada
+   * (lida das trilhas de correção humana). Entram no fim da lista e, como os demais, antes de a fonte
+   * emitir, porque o painel é cópia por valor e publica primeiro (ADR-0081 §9).
+   */
+  'document.canhoto_photo',
+  'stop.address_corrected',
 ] as const
 export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
 
@@ -66,6 +73,10 @@ export const TRIP_TIMELINE_KIND_PRIORITY: Readonly<Record<TripTimelineKind, numb
   'document.status_changed': 5,
   'trip.dispatched': 6,
   'trip.status_changed': 7,
+  /** Spec 228 D6: a mesma de `document.delivered`; o `id` desempata um empate exato. */
+  'document.canhoto_photo': 4,
+  /** Spec 228 D6: acima de `stop.occurrence` (1) — a correção é efeito do relato de endereço errado. */
+  'stop.address_corrected': 2,
 }
 
 export type TripTimelineStopReference = {
@@ -109,7 +120,24 @@ export type TripTimelineLocation = {
 /** As fontes que não carimbam posição (status, ocorrências, documentos) — "não se aplica". */
 export const NO_EVENT_LOCATION = { location: null, locationState: null } as const
 
+/** Spec 228 D8: quem mudou a coordenada do endereço; `refinement` é o refino de precisão pedido por pessoa. */
+export const TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS = [
+  'contractor',
+  'driver',
+  'operator',
+  'refinement',
+] as const
+export type TripTimelineAddressChangeOrigin = (typeof TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS)[number]
+
+/** `displacementMeters` é `null` sem ponto anterior e no refino (que não guarda o anterior); metros não revelam onde. */
+export type TripTimelineAddressChange = {
+  readonly displacementMeters: number | null
+  readonly origin: TripTimelineAddressChangeOrigin
+}
+
 export type TripTimelineItem = {
+  /** Spec 228 D8: a chave só existe em `stop.address_corrected` — em outro kind nem `null` aparece. */
+  readonly addressChange?: TripTimelineAddressChange
   readonly actorName: string | null
   /** `null` = canal não registrado (D3/D6) — nunca um valor inventado. */
   readonly channel: TripFieldChannel | null

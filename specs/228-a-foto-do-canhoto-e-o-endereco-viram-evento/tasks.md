@@ -25,7 +25,7 @@ D11. **Esta spec não tem migration** — se alguma task concluir que precisa de
       `kind`s; prioridades da D6 sem renumerar nenhuma existente; `addressChange` aceito **só** no `kind` do
       endereço e recusado em qualquer outro; o validador **atual** descarta os `kind`s novos sem recusar a página
       (CA07).
-- [ ] **T1.2** Implementar `TRIP_TIMELINE_KINDS`/`TRIP_TIMELINE_KIND_PRIORITY`/`TripTimelineItem` na API e a
+- [x] **T1.2** Implementar `TRIP_TIMELINE_KINDS`/`TRIP_TIMELINE_KIND_PRIORITY`/`TripTimelineItem` na API e a
       cópia, ícone (`camera`, `edit`), tom neutro, títulos e locales (pt-BR e en) no painel. Aceite: typecheck,
       lint e testes **das duas** apps verdes; nenhuma fonte emite ainda.
 
