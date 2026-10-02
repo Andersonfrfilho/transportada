@@ -22,17 +22,18 @@ viagem precisa. Papel e colunas são reconciliados no servidor (D4), nunca pelo 
 | Convite e reconciliar | `invite-company-user.use-case.ts`, `replace-company-user-roles.use-case.ts`, `assign-company-user-roles.use-case.ts` |
 | Política de viagem    | `src/trips/domain/trip.policy.ts`, `trip.error.ts`, `drizzle-trip.repository.ts`                                     |
 | Proposta              | `src/routing/infrastructure/drizzle-multi-vehicle-suggestion.repository.ts`                                          |
+| MDF-e avulso          | `src/mdfe-manifests/application/mdfe-manifest-crew.service.ts`, `drizzle-mdfe-manifest.repository.ts`                |
 | Semente               | `src/database/local-fleet-seed.constant.ts`                                                                          |
 
 ### Painel (`apps/frontend-transportada`)
 
-| Assunto            | Arquivo                                                                                                                         |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| Tipos e constantes | `modules/fleet/shared/fleet.types.ts`, `fleet.constant.ts`, `fleetForm.service.ts`, `fleetResponse.validation.ts`               |
-| Ficha              | `modules/fleet/components/DriverForm.component.tsx`, `DriverPersonalFields.component.tsx`                                       |
-| Criação rápida     | `modules/fleet/components/DriverQuickCreateDialog.component.tsx`                                                                |
-| Acesso             | `modules/identity/shared/companyUsers.constant.ts`, `components/CompanyUserTable.component.tsx`, `locales/identity.locale.json` |
-| Viagem             | `modules/trip/pages/TripWorkspace.page.tsx`, `modules/trip/shared/tripCrewHelpers.service.ts`, `locales/trip.locale.json`       |
+| Assunto            | Arquivo                                                                                                                                                                                                                             |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tipos e constantes | `modules/fleet/shared/fleet.types.ts`, `fleet.constant.ts`, `fleetForm.service.ts`, `fleetResponse.validation.ts`                                                                                                                   |
+| Ficha              | `modules/fleet/components/DriverForm.component.tsx`, `DriverPersonalFields.component.tsx`                                                                                                                                           |
+| Criação rápida     | `modules/fleet/components/DriverQuickCreateDialog.component.tsx`                                                                                                                                                                    |
+| Acesso             | `modules/identity/shared/companyUsers.constant.ts`, `queries/useAuthMe.query.ts` (lista fechada de papéis, :162 — o painel sobe antes ou junto da API), `components/CompanyUserTable.component.tsx`, `locales/identity.locale.json` |
+| Viagem             | `modules/trip/pages/TripWorkspace.page.tsx`, `modules/trip/shared/tripCrewHelpers.service.ts`, `locales/trip.locale.json`                                                                                                           |
 
 O `realm/` não cita nomes de papel de empresa (verificado por busca), então não entra no escopo.
 

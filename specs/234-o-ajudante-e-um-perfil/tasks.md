@@ -13,9 +13,12 @@ da app. Cada task fecha com typecheck, testes da app, commit isolado e evidênci
 - [x] **T2** 🧠 `resolveTripCrew` recusa `can_drive = false` (D5): `TripDriverCannotDriveError`
       (`409 TRIP_DRIVER_CANNOT_DRIVE`), `TripDriverCandidate.canDrive`, leitura no repositório da viagem.
       Aceite: contrato vermelho → verde, incluindo ajudante-puro como condutor.
-- [ ] **T3** 🧠 Reconciliação papel → colunas (D4) nos dois use cases de papéis, com a recusa
-      `FLEET_DRIVER_PROFILE_EMPTY` e sem alteração parcial. Aceite: integração com troca de papéis,
-      ficha de outra empresa intocada, prova por mutação.
+- [ ] **T3** 🧠 Reconciliação papel → colunas (D4 revisada) em `replaceRoles` — política pura nova em
+      `identity/domain`, só quando a diferença toca `driver`/`aggregate`/`helper`, papéis antigos lidos
+      dentro da transação, ficha travada com `FOR UPDATE`, `version + 1`, recusa
+      `409 FLEET_DRIVER_PROFILE_EMPTY` (em `fleet.error.ts`) sem alteração parcial. `assign` e papéis
+      de grupo ficam fora (limite registrado). Aceite: integração com troca de papéis, ficha de outra
+      empresa intocada, troca sem relação com frota não mexe na ficha, prova por mutação.
 
 ## Fase 2 — API
 
@@ -23,11 +26,16 @@ da app. Cada task fecha com typecheck, testes da app, commit isolado e evidênci
 
 - [ ] **T4** `FLEET_DRIVER_PROFILES` com `helper`; corpo de `POST/PATCH /fleet/drivers` dispensa CNH
       para ele; o use case traduz perfil em colunas (D2); `canDrive` na leitura (port, mapper, rota,
-      schema de resposta).
+      schema de resposta). A ficha nasce com as colunas do perfil no `create` (criar ficha e convite não
+      compartilham transação hoje); desligar `can_act_as_helper` num ajudante puro recebe
+      `409 FLEET_DRIVER_PROFILE_EMPTY`, nunca 500.
 - [ ] **T5** `helper` em `ROLE_PERMISSIONS` (`trip.read`, D7) e em `FLEET_LINKED_ROLES` (D8); contrato
       de que não alcança `trip.report` nem frota.
 - [ ] **T6** Proposta de viagem e consulta de motoristas filtram `can_drive`; ajudantes seguem por
-      `can_act_as_helper` (`drizzle-multi-vehicle-suggestion.repository.ts`).
+      `can_act_as_helper` (`drizzle-multi-vehicle-suggestion.repository.ts`); gêmeo de
+      `findIneligibleHelperIds` para `can_drive` (409, ids em `details`).
+- [ ] **T6b** MDF-e avulso (`POST /mdfe-manifests`) recusa `can_drive = false` como condutor, com o
+      mesmo erro da viagem (`mdfe-manifest-crew.service.ts`, `drizzle-mdfe-manifest.repository.ts`).
 - [ ] **T7** Semente local: um ajudante-puro e um motorista que também ajuda, pelo use case real.
 
 ## Fase 3 — Painel
@@ -37,7 +45,8 @@ da app. Cada task fecha com typecheck, testes da app, commit isolado e evidênci
 - [ ] **T8** Tipos, constantes, validação de resposta e `fleetForm.service` com `helper` e `canDrive`.
 - [ ] **T9** Ficha e criação rápida: opção "Ajudante", CNH oculta, switch "Pode atuar como ajudante" e
       "Diária própria" (fecha a T12 da 149), textos em `fleet.locale.json`.
-- [ ] **T10** Acesso: papel "Ajudante" no convite, na tabela e em `companyUsers.constant.ts`.
+- [ ] **T10** Acesso: papel "Ajudante" no convite, na tabela, em `companyUsers.constant.ts` e na lista
+      fechada de `useAuthMe.query.ts` (:162) e `workspaceAccess.service.ts`; sobe antes ou junto da API.
 - [ ] **T11** Viagem: o seletor de motoristas exclui quem não dirige; o de ajudantes inclui quem pode
       ajudar; o texto de lista vazia aponta onde marcar (`trip.locale.json`).
 

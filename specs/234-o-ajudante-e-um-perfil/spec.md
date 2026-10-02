@@ -46,15 +46,22 @@ default true`) e `can_act_as_helper` (já existe). CHECK `can_drive or can_act_a
 - **D3 — Perfil não é coluna.** Como hoje, o perfil é o **papel** em `membership_roles`; as colunas
   acima são o que a política de viagem lê (ela não consulta papel). Criar a ficha pelo convite grava o
   papel e as colunas na mesma transação.
-- **D4 — Papel e colunas ficam em sintonia.** Mudar papéis de uma pessoa com ficha vinculada
-  (`replace-company-user-roles` / `assign-company-user-roles`) reconcilia: `helper` presente ⇒
-  `can_act_as_helper = true`; `driver` ou `aggregate` presente ⇒ `can_drive = true`; sem `driver` nem
-  `aggregate` ⇒ `can_drive = false`. Tirar `helper` de quem **não** tem `driver`/`aggregate` bloqueia a
-  troca (CHECK da D2); de quem dirige, só desmarca `can_act_as_helper`. O switch da ficha altera só
-  `can_act_as_helper`, e a próxima troca de papéis reconcilia de novo — registrado, não escondido.
+- **D4 — Papel e colunas ficam em sintonia, só quando a troca toca a frota** (decidido pelo usuário em
+  02/10/2026 depois da revisão do architect). A reconciliação roda **somente** se a diferença entre os
+  papéis diretos antes e depois toca `driver`, `aggregate` ou `helper`; dar `fiscal` a alguém não mexe na
+  ficha. Quando roda, em `replaceRoles` (transacional, lendo os papéis antigos **dentro** da transação e
+  travando a ficha com `FOR UPDATE`): `helper` entrou ⇒ `can_act_as_helper = true`; `helper` saiu ⇒
+  `false`; `driver`/`aggregate` entrou ⇒ `can_drive = true`; os dois saíram ⇒ `can_drive = false`. Se o
+  resultado deixar `can_drive = false` e `can_act_as_helper = false`, a troca inteira é recusada
+  (`409 FLEET_DRIVER_PROFILE_EMPTY`) sem alteração parcial. O `UPDATE` incrementa `version` da ficha. O
+  switch da ficha altera só `can_act_as_helper`, e desligá-lo num ajudante puro recebe o mesmo `409`.
+  Papéis herdados por **grupo** e a atribuição em lote (`assign`, que só acrescenta) ficam **fora** desta
+  spec — limite conhecido, registrado em `evidence.md`. Pessoa sem ficha vinculada: nada a reconciliar.
 - **D5 — Ajudante não é condutor.** `resolveTripCrew` rejeita `can_drive = false` na lista de motoristas
   (`409 TRIP_DRIVER_CANNOT_DRIVE`), do mesmo jeito que rejeita ajudante sem a marca. Os seletores e a
-  proposta de viagem filtram `can_drive` para motorista e `can_act_as_helper` para ajudante.
+  proposta de viagem filtram `can_drive` para motorista e `can_act_as_helper` para ajudante. O MDF-e
+  avulso (`POST /mdfe-manifests`) recusa o mesmo (decidido em 02/10/2026): ele monta a lista de
+  condutores por conta própria e hoje aceitaria um ajudante puro.
 - **D6 — CNH só do que dirige.** Para o perfil `helper` o cadastro não pede número, categoria nem
   validade da CNH, e nenhum gate de vencimento o alcança. Os campos aparecem ocultos, não desabilitados.
 - **D7 — Permissão do papel `helper`: `trip.read`.** Menos que `driver`/`aggregate` (que também têm
@@ -71,6 +78,7 @@ default true`) e `can_act_as_helper` (já existe). CHECK `can_drive or can_act_a
 - **RF-3** `POST/PATCH /fleet/drivers` aceita `profile: helper`, dispensa CNH para ele e devolve
   `canDrive`.
 - **RF-4** Reconciliação papel → colunas (D4), coberta por teste de integração.
+- **RF-4b** O MDF-e avulso e a proposta multi-veículo recusam `can_drive = false` como condutor.
 - **RF-5** `resolveTripCrew` e a consulta de motoristas da proposta respeitam `can_drive` (D5).
 - **RF-6** Painel: opção "Ajudante" no seletor de perfil (ficha e criação rápida), CNH oculta para ele,
   switch "Pode atuar como ajudante" e campo "Diária própria" para quem pode ajudar, papel "Ajudante" no
@@ -91,7 +99,7 @@ default true`) e `can_act_as_helper` (já existe). CHECK `can_drive or can_act_a
 - Motorista com viagem aberta que perde `driver` e passa a só ajudar: a viagem existente **não** é
   alterada; só as futuras são bloqueadas. Registrar em `evidence.md` o que a tela mostra nesse caso.
 - Troca de papéis que deixaria `can_drive = false` e `can_act_as_helper = false`: recusa
-  `400 FLEET_DRIVER_PROFILE_EMPTY`, sem alteração parcial.
+  `409 FLEET_DRIVER_PROFILE_EMPTY`, sem alteração parcial.
 - Convite `helper` com CPF sem ficha: o convite sai e a resposta traz `fleetLink: 'no-driver-record'`.
 - Ficha com `helper` e diária própria vazia: vale a geral da empresa (149 D2), sem lacuna nova.
 
