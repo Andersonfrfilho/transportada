@@ -103,6 +103,25 @@ describe('comprovante tolera lateRegistration (spec 205 RF8)', () => {
   })
 })
 
+describe('comprovante aceita o raio de pontualidade (spec 227 D6)', () => {
+  it('aceita raio positivo e finito, sem descartar o comprovante', () => {
+    expect(adapters.deliveryProofsFromApi([{ ...PROOF, proofRadiusMeters: 300 }])).toEqual([
+      { ...PROOF, proofRadiusMeters: 300 },
+    ])
+  })
+
+  it.each([
+    ['zero', 0],
+    ['negativo', -1],
+    ['NaN', Number.NaN],
+    ['string numérica', '300'],
+  ])('descarta o comprovante com proofRadiusMeters %s', (_label, proofRadiusMeters) => {
+    expect(adapters.deliveryProofsFromApi([{ ...PROOF, proofRadiusMeters }, PROOF])).toEqual([
+      PROOF,
+    ])
+  })
+})
+
 describe('comprovante recusa distanceMeters que não é distância', () => {
   it('aceita distância finita e não negativa', () => {
     expect(adapters.deliveryProofsFromApi([{ ...PROOF, distanceMeters: 0 }])).toHaveLength(1)

@@ -251,6 +251,10 @@ function isNonNegativeFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
 }
 
+function isPositiveFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+}
+
 function isStringArray(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every((entry) => isString(entry))
 }
@@ -1289,6 +1293,7 @@ function isDeliveryProof(value: unknown): value is DeliveryProof {
     (value.canhotoReviewReason === undefined ||
       isOneOf(value.canhotoReviewReason, DELIVERY_PROOF_CANHOTO_REVIEW_REASON_OPTIONS)) &&
     (value.distanceMeters === undefined || isNonNegativeFiniteNumber(value.distanceMeters)) &&
+    (value.proofRadiusMeters === undefined || isPositiveFiniteNumber(value.proofRadiusMeters)) &&
     (value.punctuality === undefined ||
       isOneOf(value.punctuality, DELIVERY_PROOF_PUNCTUALITY_OPTIONS)) &&
     (value.receiverDocument === undefined || isString(value.receiverDocument)) &&

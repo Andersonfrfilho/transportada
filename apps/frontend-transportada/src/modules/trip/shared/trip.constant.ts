@@ -601,6 +601,7 @@ export const DELIVERY_PROOF_OPTIONAL_KEYS = [
   'capturedAt',
   'distanceMeters',
   'lateRegistration',
+  'proofRadiusMeters',
   'punctuality',
   'receiverDocument',
   'thumbnailUrl',
