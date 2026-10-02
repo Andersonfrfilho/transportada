@@ -27,7 +27,7 @@
 - [x] **R1–R5** Ajustes da revisão da Fase 1: foto corrigida só com evento corrigido e auditoria só do
       desvio usado (R1/R2), `tappedAt` de ano impossível descartado (R3), documentação velha e limites
       aceitos (R4/R5).
-- [ ] **T1.7** Publicar a API em staging e **confirmar o deploy** antes da Fase 2.
+- [x] **T1.7** Publicar a API em staging e **confirmar o deploy** antes da Fase 2.
 
 ## Fase 2 — App: medir e mandar
 

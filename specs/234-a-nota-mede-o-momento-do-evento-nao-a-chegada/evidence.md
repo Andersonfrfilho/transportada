@@ -822,3 +822,11 @@ apps/api-transportada$ bun --env-file=../../.env.test test ./test/database-migra
 apps/api-transportada$ bun run typecheck → exit 0 · bun run lint → exit 0
 raiz$ bun run format:check → exit 0
 ```
+
+## T1.7 — deploy da API em staging confirmado (2026-10-02)
+
+Run `37078098052`, commit `2f70e2460`: `conclusion=success`. Job `deploy-api` verde, com os passos
+`Deploy API` e `Conferir migrations aplicadas` em `success` (a migration `delivered_moment_clock`
+subiu pelo `preDeployCommand`); `deploy-client`, `deploy-frontend`, `deploy-driver` e
+`mark-deployed` também verdes. Gates `integration-api (1..4)`, `integration-migration` e
+`quality-app (api-transportada)` verdes na CI.
