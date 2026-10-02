@@ -207,3 +207,29 @@ da sequência real.
 
 De `apps/frontend-driver`: `bun run test` → **952 pass, 0 fail** (950 + 4 casos novos − 2 removidos);
 eslint do arquivo com `--max-warnings=0` → exit 0.
+
+## T1.11 — A cópia legada do painel não exibe a concluída
+
+`DriverTripWorkspace.page.tsx:140` e `DriverProfile.page.tsx:43` pegavam `snapshot?.trips[0]`. O
+painel **não tinha** equivalente de `isConcludedTripStatus` (o módulo `driver-trip` dele é cópia por
+valor do app do motorista, ADR-0075 §7), então nasceu
+`apps/frontend-transportada/src/modules/driver-trip/shared/driverTripCurrent.service.ts`, com o
+cabeçalho de cópia por valor no formato dos vizinhos: `isConcludedTripStatus` (`completed`,
+`cancelled`) e `findCurrentDriverTrip(snapshot)`, a primeira viagem da lista que não terminou. As duas
+páginas passam a chamá-la. Outros usos de `.trips` no módulo (`driverTripView.service.ts:94`, a
+etiqueta de prova pendente) varrem as viagens atrás de um documento e **não** elegem viagem para a
+tela, então ficam como estão.
+
+Contrato: `apps/frontend-transportada/test/driver-trip/current-trip.contract.ts` (concluída/cancelada
+sozinha → `undefined`; à frente de uma aberta → a aberta; sem snapshot → `undefined`; aberta → ela).
+Entrou na lista pelo caminho que esta app tem: o `import` em `test/driver-trip.contract.test.ts`, que
+já está no script `test` do `package.json` (a lista do `package.json` não muda).
+
+De `apps/frontend-transportada`:
+
+| comando                                                                                             | resultado                                                  |
+| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `bun run test` (script do `package.json`)                                                           | **6172 pass, 0 fail** (31 arquivos) + 180 pass, 0 fail (1) |
+| `bunx tsc --noEmit`                                                                                 | exit 0                                                     |
+| `bunx eslint <5 arquivos tocados> --max-warnings=0` (app como cwd)                                  | exit 0                                                     |
+| mutação: `find(...)` trocado por `at(0)` no serviço, `bun test ./test/driver-trip.contract.test.ts` | **4 fail** (as concluídas), restaurado em seguida          |
