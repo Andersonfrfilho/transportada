@@ -43,7 +43,14 @@
   border-radius: var(--space-2);
   display: grid;
   gap: var(--space-3);
+  min-width: 0;
   padding: var(--space-4);
+}
+
+/* A tabela de quatro colunas não cabe em 375 px: rola dentro do painel em vez de alargá-lo. */
+.tableScroll {
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .totals {

@@ -73,7 +73,6 @@ export function TripDocumentCost({ documentId }: TripDocumentCostProps) {
         {view.margin === null ? null : <CostGroup figure={view.margin} isLoss={view.isLoss} />}
         {view.tax === null ? null : <CostGroup figure={view.tax} />}
       </dl>
-      <p className={styles.documentCostNotice}>{t('documentCost.splitCriterion')}</p>
       {view.timeNotice === null ? null : (
         <p className={styles.documentCostNotice}>{view.timeNotice}</p>
       )}

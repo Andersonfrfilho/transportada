@@ -70,6 +70,11 @@ function toMarginFigure(input: {
   return amount === null ? null : { amount, label: input.t('documentCost.margin') }
 }
 
+/** A linha só traz figura de custo quando veio com os campos — prévia e sugestão não os têm. */
+export function hasRevenueLineCost(line: TripValuationRevenueLine): boolean {
+  return line.costBasis !== undefined && line.timeBasis !== undefined
+}
+
 /**
  * Spec 225 RF4/RF9: a linha da nota diz o que rendeu e o que gastou, com o gasto em duas partes —
  * "do trecho" (o que a nota causou andando e esperando) e "rateio da viagem" (retorno e avulso,

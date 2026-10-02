@@ -12,6 +12,7 @@ import { describe, expect, it } from 'bun:test'
 
 import '@/modules/shared/i18n/i18n.service'
 import { DocumentCostProvider } from '@/modules/trip-financials/components/DocumentCostProvider.component'
+import { TripDocumentCostCriterion } from '@/modules/trip-financials/components/TripDocumentCostCriterion.component'
 import { TripDocumentCost } from '@/modules/trip-financials/components/TripDocumentCost.component'
 import financialsEn from '@/modules/trip-financials/locales/tripFinancials.en.locale.json'
 import financialsPt from '@/modules/trip-financials/locales/tripFinancials.locale.json'
@@ -32,6 +33,10 @@ const COST_COMPONENT = new URL(
 )
 const STYLESHEET = new URL(
   '../../src/modules/trip-financials/styles/tripFinancials.module.css',
+  import.meta.url,
+)
+const DETAIL = new URL(
+  '../../src/modules/trip/components/TripDetail.component.tsx',
   import.meta.url,
 )
 const DETAIL_PAGE = new URL('../../src/modules/trip/pages/TripDetail.page.tsx', import.meta.url)
@@ -95,7 +100,40 @@ describe('a linha da nota com gasto, lucro e margem (spec 225 T3.2)', () => {
     expect(html).toContain('R$ 540,00')
     expect(html).toContain('Margem')
     expect(html).toContain('54,00%')
-    expect(html).toContain(financialsPt.documentCost.splitCriterion)
+    expect(html).not.toContain(financialsPt.documentCost.splitCriterion)
+  })
+
+  it('o critério do rateio sai uma vez por nota, junto do rateio, e nunca na linha de gasto', () => {
+    const valuation = buildValuation([buildLine(), buildLine({ tripDocumentId: 'outra-nota' })])
+    const criterion = renderToStaticMarkup(
+      <DocumentCostProvider valuation={valuation}>
+        <TripDocumentCostCriterion documentId={DOCUMENT_ID} />
+      </DocumentCostProvider>,
+    )
+
+    expect(criterion).toContain(financialsPt.documentCost.splitCriterion)
+    expect(criterion.split(financialsPt.documentCost.splitCriterion)).toHaveLength(2)
+    expect(renderToStaticMarkup(<TripDocumentCostCriterion documentId={DOCUMENT_ID} />)).toBe('')
+    expect(renderCost(valuation)).not.toContain(financialsPt.documentCost.splitCriterion)
+  })
+
+  it('o critério não aparece para a nota sem rateio (roteiro não calculado)', () => {
+    const unavailable = buildLine({
+      costAmount: null,
+      costBasis: 'unavailable',
+      legCostAmount: null,
+      marginAmount: null,
+      marginPercentage: null,
+      tripShareCostAmount: null,
+    })
+
+    expect(
+      renderToStaticMarkup(
+        <DocumentCostProvider valuation={buildValuation([unavailable])}>
+          <TripDocumentCostCriterion documentId={DOCUMENT_ID} />
+        </DocumentCostProvider>,
+      ),
+    ).toBe('')
   })
 
   it('sem permissão (avaliação ausente) a nota não imprime nada', () => {
@@ -176,12 +214,27 @@ describe('a linha da nota com gasto, lucro e margem (spec 225 T3.2)', () => {
 })
 
 describe('a fiação é por contexto, sem sexta prop no TripStopList (spec 225 T3.2)', () => {
-  it('a linha da nota consome o gasto pelo id da nota e a página provê a avaliação', () => {
+  it('o gasto vive dentro do detalhe expandido da nota, nunca na linha sempre visível', () => {
     const stopList = readFileSync(STOP_LIST, 'utf8')
     const page = readFileSync(DETAIL_PAGE, 'utf8')
+    const detailStart = stopList.indexOf('{hasNoteDetail && isDetailExpanded ? (')
+    const detailEnd = stopList.indexOf('</li>', detailStart)
+    const cost = '<TripDocumentCost documentId={document.id} />'
 
-    expect(stopList).toContain('<TripDocumentCost documentId={document.id} />')
+    expect(detailStart).toBeGreaterThan(-1)
+    expect(stopList.split(cost)).toHaveLength(2)
+    expect(stopList.indexOf(cost)).toBeGreaterThan(detailStart)
+    expect(stopList.indexOf(cost)).toBeLessThan(detailEnd)
+    expect(stopList).toContain('<TripDocumentCostCriterion documentId={document.id} />')
+    expect(readFileSync(DETAIL, 'utf8')).not.toContain('TripDocumentCostCriterion')
     expect(page).toContain('<DocumentCostProvider valuation={financials.valuation}>')
+  })
+
+  it('a nota que só tem figura de custo ainda oferece o botão de abrir o detalhe', () => {
+    const stopList = readFileSync(STOP_LIST, 'utf8')
+
+    expect(stopList).toContain('const hasDocumentCost = useHasDocumentCost(document.id)')
+    expect(stopList).toMatch(/\|\|\s*hasDocumentCost\b/u)
   })
 
   it('as chaves novas existem nos dois locales', () => {

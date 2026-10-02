@@ -25,29 +25,31 @@ export function ExpectedVersusClosedTable({ rows }: ExpectedVersusClosedTablePro
   const { t } = useTranslation('tripFinancials')
 
   return (
-    <table className={styles.table}>
-      <caption className={styles.hint}>{t('comparison.caption')}</caption>
-      <thead>
-        <tr>
-          <th scope="col">{t('comparison.line')}</th>
-          <th scope="col">{t('comparison.expected')}</th>
-          <th scope="col">{t('comparison.closed')}</th>
-          <th scope="col">{t('comparison.difference')}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.line}>
-            <th scope="row">{t(`comparison.lines.${row.line}`)}</th>
-            <td>{formatAmount(row.expected)}</td>
-            <td>{formatAmount(row.closed)}</td>
-            <td>
-              {formatDifference(row)}
-              {row.isDifferenceZero ? ` · ${t('comparison.noDifference')}` : ''}
-            </td>
+    <div className={styles.tableScroll}>
+      <table className={styles.table}>
+        <caption className={styles.hint}>{t('comparison.caption')}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{t('comparison.line')}</th>
+            <th scope="col">{t('comparison.expected')}</th>
+            <th scope="col">{t('comparison.closed')}</th>
+            <th scope="col">{t('comparison.difference')}</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.line}>
+              <th scope="row">{t(`comparison.lines.${row.line}`)}</th>
+              <td>{formatAmount(row.expected)}</td>
+              <td>{formatAmount(row.closed)}</td>
+              <td>
+                {formatDifference(row)}
+                {row.isDifferenceZero ? ` · ${t('comparison.noDifference')}` : ''}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }

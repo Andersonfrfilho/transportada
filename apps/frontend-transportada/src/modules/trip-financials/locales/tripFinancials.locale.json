@@ -89,7 +89,7 @@
     "TOLL_PARTIAL": "praça sem tarifa conhecida no trajeto — o total soma só as demais"
   },
   "comparison": {
-    "caption": "Previsto e fechado, com a diferença (fechado menos previsto).",
+    "caption": "Previsto e fechado, com a diferença (fechado menos previsto). Despesas incluem o imposto.",
     "line": "Linha",
     "expected": "Previsto",
     "closed": "Fechado",
@@ -97,7 +97,7 @@
     "noDifference": "sem diferença",
     "lines": {
       "revenue": "Receita",
-      "cost": "Custo (com imposto)",
+      "cost": "Despesas",
       "result": "Resultado"
     }
   },

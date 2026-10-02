@@ -89,7 +89,7 @@
     "TOLL_PARTIAL": "a toll plaza on the route has no known tariff — the total only sums the others"
   },
   "comparison": {
-    "caption": "Expected and closed, with the difference (closed minus expected).",
+    "caption": "Expected and closed, with the difference (closed minus expected). Expenses include tax.",
     "line": "Line",
     "expected": "Expected",
     "closed": "Closed",
@@ -97,7 +97,7 @@
     "noDifference": "no difference",
     "lines": {
       "revenue": "Revenue",
-      "cost": "Cost (with tax)",
+      "cost": "Expenses",
       "result": "Result"
     }
   },

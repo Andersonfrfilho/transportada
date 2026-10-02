@@ -67,6 +67,8 @@ const BASE_TRIP = {
 type DocumentsMode =
   | 'all-authorized'
   | 'delivered-proof'
+  | 'document-cost'
+  | 'document-cost-open'
   | 'dispatch-flow'
   | 'dispatched'
   | 'has-pending'
@@ -470,6 +472,265 @@ const PROOF_STOP = {
 } as const
 
 /**
+ * Spec 225 (T4.3): três paradas e cinco notas, com a conta **fechando** — Σ (gasto + imposto) =
+ * `totalCost`, Σ frete = `totalRevenue` e Σ lucro = `totalMargin` da avaliação. Print com conta que
+ * não fecha é pior que print nenhum. Uma nota em prejuízo com tempo completo (D3), outra em prejuízo
+ * com tempo incompleto (D5) e uma parcial (D4) cobrem os estados que a linha da nota sabe dizer.
+ *
+ * Retorno e avulso somam 400,00 e se repartem igualmente (80,00 por nota); o trecho 1 (500,00) leva
+ * as cinco notas, o 2 (360,00) leva D3·D4·D5, o 3 (300,00) leva D4·D5.
+ */
+export const DOCUMENT_COST_STOP_IDS = [
+  '00000000-0000-4000-8000-000000000631',
+  '00000000-0000-4000-8000-000000000632',
+  '00000000-0000-4000-8000-000000000633',
+] as const
+export const DOCUMENT_COST_DOCUMENT_IDS = [
+  '00000000-0000-4000-8000-000000000641',
+  '00000000-0000-4000-8000-000000000642',
+  '00000000-0000-4000-8000-000000000643',
+  '00000000-0000-4000-8000-000000000644',
+  '00000000-0000-4000-8000-000000000645',
+] as const
+
+type DocumentCostFixture = Readonly<{
+  cost: string
+  freight: string
+  leg: string
+  margin: string
+  marginPercentage: string
+  number: string
+  recipient: string
+  share: string
+  stopIndex: 0 | 1 | 2
+  tax: string
+  timeBasis: 'complete' | 'incomplete' | 'partial'
+}>
+
+const DOCUMENT_COST_FIXTURES: readonly DocumentCostFixture[] = [
+  {
+    cost: '180.0000',
+    freight: '850.0000',
+    leg: '100.0000',
+    margin: '568.0000',
+    marginPercentage: '66.8235',
+    number: '1101',
+    recipient: 'Mercado Alfa Ltda',
+    share: '80.0000',
+    stopIndex: 0,
+    tax: '102.0000',
+    timeBasis: 'complete',
+  },
+  {
+    cost: '180.0000',
+    freight: '620.0000',
+    leg: '100.0000',
+    margin: '365.6000',
+    marginPercentage: '58.9677',
+    number: '1102',
+    recipient: 'Mercado Alfa Ltda',
+    share: '80.0000',
+    stopIndex: 0,
+    tax: '74.4000',
+    timeBasis: 'complete',
+  },
+  {
+    cost: '300.0000',
+    freight: '300.0000',
+    leg: '220.0000',
+    margin: '-36.0000',
+    marginPercentage: '-12.0000',
+    number: '1103',
+    recipient: 'Distribuidora Beta Ltda',
+    share: '80.0000',
+    stopIndex: 1,
+    tax: '36.0000',
+    timeBasis: 'complete',
+  },
+  {
+    cost: '450.0000',
+    freight: '540.0000',
+    leg: '370.0000',
+    margin: '25.2000',
+    marginPercentage: '4.6667',
+    number: '1104',
+    recipient: 'Atacado Gama Ltda',
+    share: '80.0000',
+    stopIndex: 2,
+    tax: '64.8000',
+    timeBasis: 'partial',
+  },
+  {
+    cost: '450.0000',
+    freight: '190.0000',
+    leg: '370.0000',
+    margin: '-282.8000',
+    marginPercentage: '-148.8421',
+    number: '1105',
+    recipient: 'Atacado Gama Ltda',
+    share: '80.0000',
+    stopIndex: 2,
+    tax: '22.8000',
+    timeBasis: 'incomplete',
+  },
+]
+
+const DOCUMENT_COST_STOP_LABELS = [
+  'Campinas — Centro de Distribuição',
+  'Ribeirão Preto — Loja Beta',
+  'Barretos — Atacado Gama',
+] as const
+
+function documentCostDocument(index: number) {
+  const fixture = DOCUMENT_COST_FIXTURES[index]
+  if (fixture === undefined) throw new Error('DOCUMENT_COST_FIXTURE_OUT_OF_RANGE')
+
+  return {
+    ...tripDocument({ cteAuthorized: true, id: DOCUMENT_COST_DOCUMENT_IDS[index] ?? '' }),
+    contact: {
+      contractorName: 'Contratante Sintético LTDA',
+      name: fixture.recipient,
+      phone: '16999990005',
+      taxId: '12345678000199',
+    },
+    freightAmount: fixture.freight,
+    freightSource: 'estimated',
+    nfeIssuedAt: '2026-08-10T09:00:00.000Z',
+    nfeNumber: fixture.number,
+    nfeSeries: '1',
+    nfeTotalValue: '4200.0000',
+    separationStatus: 'loaded',
+    stopId: DOCUMENT_COST_STOP_IDS[fixture.stopIndex],
+  } as const
+}
+
+const DOCUMENT_COST_DOCUMENTS = DOCUMENT_COST_FIXTURES.map((_, index) =>
+  documentCostDocument(index),
+)
+
+const DOCUMENT_COST_STOPS = DOCUMENT_COST_STOP_IDS.map((id, index) => ({
+  addressKey: `document-cost-${index + 1}`,
+  arrivedAt: null,
+  completedAt: null,
+  deliveryWindowEnd: null,
+  deliveryWindowStart: null,
+  documents: DOCUMENT_COST_DOCUMENTS.filter((document) => document.stopId === id),
+  hasOpenOccurrence: false,
+  id,
+  label: DOCUMENT_COST_STOP_LABELS[index] ?? '',
+  sequence: index + 1,
+}))
+
+function isDocumentCostMode(mode: DocumentsMode): boolean {
+  return mode === 'document-cost' || mode === 'document-cost-open'
+}
+
+function documentCostRevenueLine(index: number, isUnavailable: boolean) {
+  const fixture = DOCUMENT_COST_FIXTURES[index]
+  if (fixture === undefined) throw new Error('DOCUMENT_COST_FIXTURE_OUT_OF_RANGE')
+  const costFigures = isUnavailable
+    ? {
+        costAmount: null,
+        costBasis: 'unavailable',
+        legCostAmount: null,
+        marginAmount: null,
+        marginPercentage: null,
+        taxAmount: fixture.tax,
+        timeBasis: 'incomplete',
+        tripShareCostAmount: null,
+      }
+    : {
+        costAmount: fixture.cost,
+        costBasis: 'leg',
+        legCostAmount: fixture.leg,
+        marginAmount: fixture.margin,
+        marginPercentage: fixture.marginPercentage,
+        taxAmount: fixture.tax,
+        timeBasis: fixture.timeBasis,
+        tripShareCostAmount: fixture.share,
+      }
+
+  return {
+    amount: fixture.freight,
+    freightRuleId: null,
+    freightRuleName: null,
+    gap: isUnavailable ? 'NO_PLANNED_DISTANCE' : null,
+    nfeDocumentId: NFE_DOCUMENT_ID,
+    percentage: null,
+    source: 'estimated',
+    tripDocumentId: DOCUMENT_COST_DOCUMENT_IDS[index],
+    ...costFigures,
+  }
+}
+
+function documentCostParcel(kind: string, amount: string, isUnavailable: boolean) {
+  const isTax = kind === 'icms' || kind === 'pis_cofins'
+  const isMissing = isUnavailable && !isTax
+
+  return {
+    amount: isMissing ? '0.0000' : amount,
+    basis: null,
+    detail: null,
+    gap: isMissing ? 'NO_PLANNED_DISTANCE' : null,
+    kind,
+    source: isMissing ? 'missing' : 'estimated',
+  }
+}
+
+/**
+ * Σ das parcelas = 1860,00 = 1560,00 de gasto + 300,00 de imposto (o `totalCost` já o inclui). Sem
+ * roteiro calculado só o imposto — exato por nota — existe, e as parcelas por quilômetro saem
+ * `missing` com a lacuna ao lado, como a API responde.
+ */
+function documentCostValuation(isUnavailable: boolean) {
+  return {
+    costParcels: [
+      documentCostParcel('icms', '240.0000', isUnavailable),
+      documentCostParcel('pis_cofins', '60.0000', isUnavailable),
+      documentCostParcel('fuel', '640.0000', isUnavailable),
+      documentCostParcel('toll', '160.0000', isUnavailable),
+      documentCostParcel('driver', '560.0000', isUnavailable),
+      documentCostParcel('other_per_kilometer', '200.0000', isUnavailable),
+    ],
+    hasGaps: isUnavailable,
+    marginPercentage: isUnavailable ? '88.0000' : '25.6000',
+    revenueLines: DOCUMENT_COST_FIXTURES.map((_, index) =>
+      documentCostRevenueLine(index, isUnavailable),
+    ),
+    revenueSource: 'estimated',
+    totalCost: isUnavailable ? '300.0000' : '1860.0000',
+    totalMargin: isUnavailable ? '2200.0000' : '640.0000',
+    totalRevenue: '2500.0000',
+  }
+}
+
+/**
+ * O congelado difere do previsto nos dois sentidos: receita +140,00 (mais frete medido no CT-e),
+ * custo +156,80 (combustível e diária acima do previsto) e resultado −16,80.
+ */
+const DOCUMENT_COST_FROZEN_RESULT = {
+  costTotal: '1700.0000',
+  frozenAt: '2026-08-12T18:00:00.000Z',
+  isComplete: true,
+  marginRate: '23.6061',
+  netAmount: '623.2000',
+  parcels: [
+    { amount: '253.4400', kind: 'icms', nature: 'tax', note: '', source: 'measured' },
+    { amount: '63.3600', kind: 'pis_cofins', nature: 'tax', note: '', source: 'measured' },
+    { amount: '702.0000', kind: 'fuel', nature: 'cost', note: '', source: 'measured' },
+    { amount: '160.0000', kind: 'toll', nature: 'cost', note: '', source: 'measured' },
+    { amount: '640.0000', kind: 'driver', nature: 'cost', note: '', source: 'estimated' },
+    { amount: '198.0000', kind: 'other_per_kilometer', nature: 'cost', note: '', source: 'estimated' },
+  ],
+  recalculationReason: '',
+  revenueAmount: '2640.0000',
+  revenueDocumentCount: 5,
+  revenueExpectedCount: 5,
+  taxTotal: '316.8000',
+  version: 1,
+} as const
+
+/**
  * ⚠️ **Anotado de propósito.** O guard do detalhe usa `hasExactKeys`: campo do corpo ausente aqui
  * reprova a validação inteira em tempo de execução, o detalhe não carrega, e a tela fica sem botão
  * nenhum — o smoke quebra em quatro casos e nenhum contrato de unidade acusa. Sem o tipo, só o
@@ -482,7 +743,9 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
           tripDocument({ cteAuthorized: true, id: AUTHORIZED_DOCUMENT_ID }),
           tripDocument({ cteAuthorized: false, id: PENDING_DOCUMENT_ID }),
         ]
-      : mode === 'delivered-proof'
+      : isDocumentCostMode(mode)
+        ? DOCUMENT_COST_DOCUMENTS
+        : mode === 'delivered-proof'
         ? [PROOF_DELIVERED_DOCUMENT]
         : mode === 'stop-card-states'
           ? [
@@ -513,7 +776,9 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
         ? 'loading'
         : mode === 'dispatched'
           ? 'dispatched'
-          : BASE_TRIP.status,
+          : mode === 'document-cost'
+            ? 'completed'
+            : BASE_TRIP.status,
     amounts: null,
     /** Spec 156 T8d: `null` nos três — a viagem do smoke nunca foi encerrada à mão. */
     closeReason: null,
@@ -540,7 +805,9 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
     trailer: null,
     // ADR-0043 §3: a viagem tem paradas. Vazia é estado legítimo — nota ainda não reconciliada.
     stops:
-      mode === 'delivered-proof'
+      isDocumentCostMode(mode)
+        ? DOCUMENT_COST_STOPS
+        : mode === 'delivered-proof'
         ? [PROOF_STOP]
         : mode === 'stop-card-states'
           ? [STOP_CARD_STOP, STOP_CARD_DONE_STOP]
@@ -919,6 +1186,36 @@ async function registerTripMocks(
         tripStatus: 'loading',
       },
     })
+  })
+  /**
+   * Spec 225: a conta da viagem. Nenhum outro modo a dubla — sem `trip.financials` o painel nem
+   * pergunta —, e é ela que alimenta a linha da nota e o previsto/fechado lado a lado.
+   * `document-cost-open` é a viagem aberta: roteiro sem cálculo e nada congelado (`data: null`).
+   */
+  await input.page.route(/\/trips\/[^/]+\/valuation$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, {
+      data: documentCostValuation(input.mode === 'document-cost-open'),
+    })
+  })
+  await input.page.route(/\/trips\/[^/]+\/financial-result$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, {
+      data: input.mode === 'document-cost' ? DOCUMENT_COST_FROZEN_RESULT : null,
+    })
+  })
+  await input.page.route(/\/trips\/[^/]+\/(?:costs|revenues)$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: [] })
   })
   await input.page.route(/\/trips\/[^/]+$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {

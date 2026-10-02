@@ -13,6 +13,8 @@ import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { NfseEmissionAction } from '@/modules/nfse-invoice/components/NfseEmissionAction.component'
 import { TripDocumentCost } from '@/modules/trip-financials/components/TripDocumentCost.component'
+import { TripDocumentCostCriterion } from '@/modules/trip-financials/components/TripDocumentCostCriterion.component'
+import { useHasDocumentCost } from '@/modules/trip-financials/hooks/useDocumentCostLine.hook'
 
 import type { TripDocumentSelectionController } from '../hooks/useTripDocumentSelection.hook'
 import { useTripStopOrder } from '../hooks/useTripStopOrder.hook'
@@ -492,9 +494,11 @@ function TripStopDocumentRow({
    * triagem — vão para a expansão da nota. `hasNoteDetail` decide **se** existe o quê: sem contato
    * e sem regra de frete, a nota não oferece o disclosure vazio (mesma regra da CA07/CA16).
    */
+  const hasDocumentCost = useHasDocumentCost(document.id)
   const hasNoteDetail =
     (document.contact !== null && document.contact !== undefined) ||
-    (document.freightRuleName !== null && document.freightRuleName !== undefined)
+    (document.freightRuleName !== null && document.freightRuleName !== undefined) ||
+    hasDocumentCost
   const [isDetailExpanded, setIsDetailExpanded] = useState(false)
   const detailId = `trip-stop-document-detail-${document.id}`
   const proofId = `trip-stop-document-proof-${document.id}`
@@ -651,8 +655,6 @@ function TripStopDocumentRow({
             </span>
           </div>
         )}
-        {/* Spec 225 RF4/RF6: o gasto vem do contexto da avaliação — sem `trip.financials` não imprime nada. */}
-        <TripDocumentCost documentId={document.id} />
       </div>
       <div className={styles.rowActions}>
         {/*
@@ -854,6 +856,10 @@ function TripStopDocumentRow({
               {t('stops.freight.rule', { name: document.freightRuleName })}
             </span>
           )}
+          {/* Spec 225 RF4/RF6: o gasto vem do contexto da avaliação — sem `trip.financials` não imprime nada. */}
+
+          <TripDocumentCost documentId={document.id} />
+          <TripDocumentCostCriterion documentId={document.id} />
         </div>
       ) : null}
     </li>
