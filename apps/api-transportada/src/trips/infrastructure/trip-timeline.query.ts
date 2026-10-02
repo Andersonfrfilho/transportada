@@ -29,6 +29,7 @@ import {
   listDispatchedRows,
   listStatusChangedRows,
 } from './trip-timeline-status.query.js'
+import { listCanhotoPhotoRows } from './trip-timeline-proof.query.js'
 import { listStopEventRows, listStopOccurrenceRows } from './trip-timeline-stop.query.js'
 
 export {
@@ -93,7 +94,7 @@ export async function findTripDocumentScope(
 }
 
 /**
- * A linha do tempo de uma viagem: sete consultas (D5 — `trip_stop_events` cobre três `kind`s; spec
+ * A linha do tempo de uma viagem: oito consultas (D5 — `trip_stop_events` cobre três `kind`s; spec
  * 171 acrescenta `trip.created`), escopadas por `companyId` e `tripId`, unidas em memória por
  * `mergeTripTimeline`. RNF: uma consulta por fonte, `Promise.all`, sem N+1.
  */
@@ -109,6 +110,7 @@ export async function listTripTimeline(
     stopOccurrences,
     documentOccurrences,
     documentStatusChanged,
+    canhotoPhotos,
   ] = await Promise.all([
     listCreatedRows(queryable, params),
     listDispatchedRows(queryable, params),
@@ -117,6 +119,7 @@ export async function listTripTimeline(
     listStopOccurrenceRows(queryable, params),
     listDocumentOccurrenceRows(queryable, params),
     listDocumentStatusChangedRows(queryable, params),
+    listCanhotoPhotoRows(queryable, params),
   ])
 
   const merged = mergeTripTimeline({
@@ -129,6 +132,7 @@ export async function listTripTimeline(
       stopOccurrences,
       documentOccurrences,
       documentStatusChanged,
+      canhotoPhotos,
     ],
   })
   const last = merged.items[merged.items.length - 1]

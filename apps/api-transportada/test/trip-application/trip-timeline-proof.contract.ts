@@ -116,8 +116,14 @@ describe('toCanhotoPhotoTimelineRow (spec 228 T2.1)', () => {
   })
 
   test('canal do escritório com foto registrada tarde traz recordedAt', () => {
-    const row = toCanhotoPhotoTimelineRow(makeRow({ channel: 'office' }))
-    expect(row.recordedAt).toEqual(CREATED_AT)
+    const lateCreatedAt = new Date('2026-10-01T10:05:00.000Z')
+    const row = toCanhotoPhotoTimelineRow(makeRow({ channel: 'office', createdAt: lateCreatedAt }))
+    expect(row.recordedAt).toEqual(lateCreatedAt)
+    expect(toCanhotoPhotoTimelineRow(makeRow({ channel: 'office' })).recordedAt).toBeNull()
+    expect(
+      toCanhotoPhotoTimelineRow(makeRow({ channel: 'driver_app', createdAt: lateCreatedAt }))
+        .recordedAt,
+    ).toBeNull()
   })
 })
 
@@ -125,13 +131,7 @@ describe('recorte de posição do kind document.canhoto_photo (spec 228 T2.1, RF
   test('sem trip.event-location: location null e locationState mantido; com ela, o ponto', async () => {
     const photo = toCanhotoPhotoTimelineRow(makeRow())
     const result: ReadTripTimelineResult = {
-      items: [
-        {
-          ...photo,
-          occurredAt: photo.occurredAt.toISOString(),
-          recordedAt: null,
-        },
-      ].map(({ occurredAtKey: _ignored, ...item }) => item),
+      items: [{ ...photo, occurredAt: photo.occurredAt.toISOString(), recordedAt: null }],
       nextCursor: null,
     }
     const useCase = createReadTripTimelineUseCase({

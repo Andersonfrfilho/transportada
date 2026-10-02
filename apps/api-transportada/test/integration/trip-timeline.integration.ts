@@ -1836,6 +1836,14 @@ describe('trip-timeline.query com a foto do canhoto (spec 228 T2.1) contra o Pos
           stopId,
         })
 
+        await seedDeliveryWithProof(database, {
+          company,
+          documentId: documentA,
+          eventCreatedAt: new Date('2026-10-01T12:00:00.000Z'),
+          proof: { capturedAt: new Date('2026-10-01T11:59:00.000Z'), kind: 'signature' },
+          stopId,
+        })
+
         const filtered = await listTripTimeline(database.db, {
           companyId: company.companyId,
           cursor: null,
@@ -2002,7 +2010,40 @@ describe('trip-timeline.query com a foto do canhoto (spec 228 T2.1) contra o Pos
         const paged = await readAllPages(database, { companyId: company.companyId, tripId }, 1)
         const photos = paged.filter((item) => item.kind === 'document.canhoto_photo')
 
-        expect(photos.map((item) => item.id)).toEqual([proofIds[1], proofIds[0]])
+        expect(photos.map((item) => item.id)).toEqual(proofIds.toReversed())
+      })
+    },
+  )
+
+  testWithPostgres(
+    'a ordem e o cursor seguem o captured_at do aparelho, não o created_at da chegada',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const stopId = await seedStop(database, company, tripId, 1)
+        const proofIds: string[] = []
+        const captures = [
+          { capturedAt: '2026-10-01T10:00:00.000Z', createdAt: '2026-10-01T12:00:00.000Z' },
+          { capturedAt: '2026-10-01T11:00:00.000Z', createdAt: '2026-10-01T11:30:00.000Z' },
+        ]
+        for (const capture of captures) {
+          const documentId = await seedTripDocument(database, company, tripId, stopId)
+          const seeded = await seedDeliveryWithProof(database, {
+            company,
+            documentId,
+            eventCreatedAt: new Date('2026-10-01T09:00:00.000Z'),
+            proof: { capturedAt: new Date(capture.capturedAt) },
+            stopId,
+          })
+          await forceProofCreatedAt(database, seeded.proofId, capture.createdAt)
+          proofIds.push(seeded.proofId)
+        }
+
+        const paged = await readAllPages(database, { companyId: company.companyId, tripId }, 1)
+        const photos = paged.filter((item) => item.kind === 'document.canhoto_photo')
+
+        expect(photos.map((item) => item.id)).toEqual(proofIds.toReversed())
       })
     },
   )
@@ -2064,6 +2105,7 @@ describe('trip-timeline.query com a foto do canhoto (spec 228 T2.1) contra o Pos
           eventCreatedAt: new Date('2026-10-01T10:00:00.000Z'),
           proof: {
             canhotoReadNumber: '777777777',
+            canhotoReadSource: 'barcode',
             canhotoReadSeries: '99',
             latitude: '-23.5505000',
             locationState: 'captured',

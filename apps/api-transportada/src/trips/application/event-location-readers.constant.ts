@@ -59,6 +59,12 @@ export const EVENT_LOCATION_READERS: readonly EventLocationReader[] = [
   },
   {
     columns: ['accuracyMeters', 'capturedAt', 'latitude', 'locationState', 'longitude'],
+    path: 'trips/infrastructure/trip-timeline-proof.query.ts',
+    reason:
+      'foto do canhoto como evento da linha do tempo (228) — o ponto da foto, sem texto de pessoa',
+  },
+  {
+    columns: ['accuracyMeters', 'capturedAt', 'latitude', 'locationState', 'longitude'],
     path: 'trips/infrastructure/delivery-proof-read.support.ts',
     reason: 'comprovante de entrega — o ponto do comprovante e o da parada, lado a lado',
   },

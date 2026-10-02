@@ -34,12 +34,12 @@ D11. **Esta spec não tem migration** — se alguma task concluir que precisa de
 > 🤖 Modelo: `sonnet` · T2.2 🧠 (keyset com instante calculado e lista fechada de leitores — validar com
 > `architect` em `opus` antes)
 
-- [ ] **T2.1** Contratos (antes): unitário do mapeamento (D2: `captured_at` ou `created_at`; posição; estado);
+- [x] **T2.1** Contratos (antes): unitário do mapeamento (D2: `captured_at` ou `created_at`; posição; estado);
       estático do SQL (`company_id` em todas as tabelas, `'photo'` literal, `trip_document_id = documentId` sem ramo `is null` + `documentStopScope`, mesma expressão `coalesce` no filtro/ordem/chave, colunas proibidas ausentes); leitores
       (`event-location-readers.contract.ts` reprova sem a entrada); rota (sem `trip.event-location` →
       `location = null`); corpo sem `receiverName`/`receivedBy`/URL (CA06); integração Postgres: CA01, CA02,
       cursor em páginas de 1 com foto e entrega com `created_at` forçado igual e `captured_at` nulo, e instantes que diferem só no µs (RF4), empresa/viagem estranha → nada. A foto tem prioridade **3** (D6).
-- [ ] **T2.2** 🧠 `trip-timeline-proof.query.ts` + `Promise.all` + entrada em `EVENT_LOCATION_READERS`.
+- [x] **T2.2** 🧠 `trip-timeline-proof.query.ts` + `Promise.all` + entrada em `EVENT_LOCATION_READERS`.
       Aceite: os **dois** comandos da API verdes; `EXPLAIN` (com `SET LOCAL enable_seqscan = off` em transação) registrado no `evidence.md`. Erro de fonte propaga (sem catch).
 
 ## Fase 3 — Endereço corrigido (API)

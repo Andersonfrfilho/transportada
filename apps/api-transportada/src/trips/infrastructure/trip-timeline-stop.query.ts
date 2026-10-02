@@ -61,7 +61,7 @@ type StopEventLocationColumns = {
 }
 
 /** `captured_at` é anulável no histórico preenchido pela migration; `recorded_at` é a data do próprio carimbo. */
-function toTimelineLocation(row: StopEventLocationColumns): TripTimelineLocation | null {
+export function toTimelineLocation(row: StopEventLocationColumns): TripTimelineLocation | null {
   if (row.latitude === null || row.longitude === null) return null
   const distance =
     row.referenceLatitude === null || row.referenceLongitude === null
@@ -80,7 +80,7 @@ function toTimelineLocation(row: StopEventLocationColumns): TripTimelineLocation
 }
 
 /** Spec 227 (revisão A1): evento e ocorrência de parada, com o filtro por nota, são só os da parada dela. */
-function documentStopScope(params: ReadTripTimelineParams): SQL {
+export function documentStopScope(params: ReadTripTimelineParams): SQL {
   if (params.documentStopId === undefined || params.documentStopId === null) return sql`false`
   return eq(tripStops.id, params.documentStopId)
 }

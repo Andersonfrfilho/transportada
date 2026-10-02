@@ -52,7 +52,7 @@ describe('SQL da foto do canhoto na linha do tempo (spec 228 T2.1)', () => {
   })
 
   test("o tipo é o literal 'photo' em SQL cru, não um parâmetro (casa o índice parcial)", () => {
-    expect(PROOF_SOURCE).toContain("= 'photo'")
+    expect(PROOF_SOURCE).toContain("sql`${tripDeliveryProofs.kind} = 'photo'`")
     expect(PROOF_SOURCE).not.toContain('eq(tripDeliveryProofs.kind')
   })
 
@@ -66,7 +66,7 @@ describe('SQL da foto do canhoto na linha do tempo (spec 228 T2.1)', () => {
     const definitions = PROOF_SOURCE.match(/coalesce\(/gu) ?? []
     expect(definitions).toHaveLength(1)
     expect(PROOF_SOURCE).toContain('timelineKeysetCondition(\n        PHOTO_INSTANT,')
-    expect(PROOF_SOURCE).toContain('timelineOrderExpression(PHOTO_INSTANT')
+    expect(PROOF_SOURCE).toMatch(/timelineOrderExpression\(\s*PHOTO_INSTANT/u)
     expect(PROOF_SOURCE).toContain('formatTimelineTimestampKey(PHOTO_INSTANT)')
   })
 

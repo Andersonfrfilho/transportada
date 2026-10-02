@@ -128,3 +128,80 @@ Parecer do architect (opus) sobre T2.2/T3.2 aplicado à spec: D6 (foto com prior
 foto×entrega não é raro — mesma transação, `created_at` ambos `now()`), D2 e fora do escopo (o upsert não regrava
 `created_at`), D4 (limite de correção de outra empresa; parada recriada), D5 (`documentStopScope`), D7 (refino
 com `location = null`), CA06 (colunas proibidas), Risco 2 (`enable_seqscan = off` e pressão no pool), plan F2/F3.
+
+## T1.2 (revisão) — foto com prioridade 3
+
+`TRIP_TIMELINE_KIND_PRIORITY['document.canhoto_photo']` passou de 4 para 3 (parecer do architect: foto e baixa
+saem da mesma transação e empatam em instante). O painel não guarda cópia de prioridade (conferido: nenhuma
+ocorrência de `priority` nos módulos/testes de linha do tempo do painel), então só a API mudou. Contrato
+`trip-timeline-vocabulary.contract.ts` refeito (tabela inteira com 3 e asserção de que a foto é menor que a baixa).
+Mutação 3→4: 2 testes vermelhos; restaurado, 6 verdes.
+
+## T2.1 — Contratos (vermelhos antes da implementação)
+
+Commit `d55cd3c72`. Arquivos: `test/trip-application/trip-timeline-proof.contract.ts` (unitário do mapeamento e
+recorte de posição pelo caso de uso), `test/trip-schema/trip-timeline-proof-query.contract.ts` (estático do SQL,
+leitores, Promise.all), bloco novo em `test/integration/trip-timeline.integration.ts` (CA01, CA02, RF4 com
+`created_at` forçado igual e `captured_at` nulo, RF4 por microssegundo, ordem por `captured_at`, outra
+empresa/viagem, CA06 por `JSON.stringify`). Vermelho confirmado: o módulo `trip-timeline-proof.query.js` não existia.
+
+## T2.2 — `trip-timeline-proof.query.ts`
+
+- `trip-timeline-proof.query.ts` novo: `listCanhotoPhotoRows` (uma consulta), `toCanhotoPhotoTimelineRow` (puro).
+  `PHOTO_INSTANT = coalesce(captured_at, created_at)` é **uma** constante usada no filtro do keyset, na ordem e na
+  chave em texto; `occurredAt` monta-se em JS (`capturedAt ?? createdAt`). `kind = 'photo'` literal; filtro por nota
+  `trip_document_id = :doc AND documentStopScope(params)`. Sem `catch` (erro de fonte propaga).
+- `trip-timeline-stop.query.ts`: `toTimelineLocation` e `documentStopScope` passaram a `export` (nenhuma outra mudança).
+- `trip-timeline-condition.helper.ts`: `formatTimelineTimestampKey` aceita `SQLWrapper` (`to_char((expr) at time zone ...`).
+- `trip-timeline.query.ts`: oitava fonte no `Promise.all` (foto 8 consultas simultâneas; pool máx. 10).
+- `event-location-readers.constant.ts`: entrada da foto com as cinco colunas e motivo.
+- Divergência do parecer: nenhuma. O `recordedAt` do canal `office` sai de `created_at` do comprovante (o comprovante
+  não tem `recorded_at`), pelo mesmo limiar de 60 s das fontes vizinhas.
+
+### EXPLAIN (`SET LOCAL enable_seqscan = off` em transação, banco descartável)
+
+Massa: 15 viagens da mesma empresa, 450 paradas/notas/eventos de baixa/fotos (30 por viagem); consulta da viagem 1.
+Página 1 e página com cursor produzem o mesmo caminho, 0,55 ms de execução:
+
+```text
+Index Scan using trip_stop_events_company_stop_created_at_idx on trip_stop_events (rows=450)
+  Bitmap Index Scan on trip_stops_company_trip_idx -> Bitmap Heap Scan on trip_stops (rows=30)
+  Index Scan using trip_delivery_proofs_company_event_kind_unique on trip_delivery_proofs (loops=30, rows=1)
+  Index Scan using trip_documents_pkey / nfe_documents_pkey / user_company_memberships_user_id_idx
+  Index Scan using geocoded_addresses_pkey (referência, depois do escopo)
+Execution Time: 0.549 ms
+```
+
+Com 30 linhas numa empresa só, o planejador começa pela prova (`Index Cond: company_id AND kind = 'photo'`, o
+índice parcial casa por causa do literal) e junta por hash com as paradas da viagem. Nenhum Seq Scan; nenhuma
+migration necessária.
+
+### Mutações (cada edição aplicada, suíte rodada, arquivo restaurado por regravação; 17/17 mortas)
+
+| Mutação                                                      | Suíte que matou                                      |
+| ------------------------------------------------------------ | ---------------------------------------------------- |
+| `kind = 'photo'` vira `true`                                 | integração (assinatura) + estático                   |
+| prioridade da foto na consulta vira a da baixa (4)           | integração (RF4)                                     |
+| filtro de nota sem `trip_document_id = :doc`                 | integração + estático                                |
+| filtro de nota sem `documentStopScope`                       | integração + estático                                |
+| keyset por `created_at` em vez de `PHOTO_INSTANT`            | integração + estático                                |
+| `order by created_at`                                        | integração                                           |
+| chave em texto por `created_at`                              | integração + estático                                |
+| `occurredAt = createdAt`                                     | unitário                                             |
+| `locationState: null`                                        | unitário                                             |
+| `location: null`                                             | unitário + integração                                |
+| sem `eq(proofs.companyId, ...)` / `eq(stops.companyId, ...)` | estático (equivalência comportamental pelas junções) |
+| sem `eq(stops.tripId, ...)`                                  | integração + estático                                |
+| fonte fora do `Promise.all`                                  | integração + estático                                |
+| `formatTimelineTimestampKey` sem parênteses                  | estático                                             |
+| recorte do caso de uso zera também `locationState`           | unitário                                             |
+| entrada de `EVENT_LOCATION_READERS` com caminho errado       | leitores + estático                                  |
+
+### Portões da T2.2 (apps/api-transportada)
+
+- `bun run typecheck`: limpo. `bun run lint` (`--max-warnings=0`): limpo.
+- `bun --env-file=../../.env.test test --timeout 120000`: **8689 pass / 23 skip / 0 fail** (192 arquivos).
+- `bun --env-file=../../.env.test run test:integration` (completo, Postgres 65432 do `.env.test`):
+  **847 pass / 8 skip / 0 fail**, 855 testes em 151 arquivos, 1050 s. Os 8 skips são pré-existentes
+  (variantes que dependem de infra ausente), não do bloco novo (34 → 41 testes em `trip-timeline.integration.ts`, todos verdes).
+- Painel não tocado nesta task (nenhuma prioridade copiada no painel).
