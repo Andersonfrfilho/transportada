@@ -61,6 +61,9 @@ export function TripDocumentEvents({
     [items, translate],
   )
 
+  /** A seção é de uma entrega: se todo evento é da mesma parada, o chip dela é ruído em cada linha. */
+  const sharesStop = items.every((item) => item.stop?.id === items[0]?.stop?.id)
+
   if (!canReadTrip(permissions)) return null
 
   return (
@@ -101,6 +104,7 @@ export function TripDocumentEvents({
                 item={item}
                 key={item.id}
                 repeatsAuthorship={repeatedAuthorshipItemIds.has(item.id)}
+                shouldOmitStopChip={sharesStop}
                 stops={stops}
               />
             )

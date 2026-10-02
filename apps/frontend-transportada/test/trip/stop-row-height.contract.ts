@@ -9,10 +9,18 @@ const TRIP_STYLESHEET_PATH = 'src/modules/trip/styles/trip.module.css'
  * encolhem — são alvo de toque —, então quem alinha é o resto: sem isso a linha tinha quatro
  * alturas (20, 23, 25,6 e 38,4px) e nenhuma delas parecia escolhida.
  */
-const ROW_ALIGNED_CLASSES = [
-  'stopSequence',
+const ROW_ALIGNED_CLASSES = ['stopSequence'] as const
+
+/**
+ * Selo e etiqueta da nota (revisão de design da 227): `--control-height-dense`, o degrau abaixo do
+ * compacto — quem rotula não precisa da altura de quem recebe clique. O print mostrava "ENTREGUE" com
+ * 38px ao lado de selos de 24px; a altura agora é uma só, e é medida no navegador pelo smoke.
+ */
+const CHIP_CLASSES = [
   'separationStatusBadge',
   'destinationOriginBadge',
+  'fiscalStatusBadge',
+  'proofPendingBadge',
 ] as const
 
 function readApplicationFile(filePath: string): Promise<string> {
@@ -40,5 +48,15 @@ describe('altura da fileira da parada', () => {
     const stylesheet = await readApplicationFile(TRIP_STYLESHEET_PATH)
 
     expect(ruleBodyOf(stylesheet, 'stopSequence')).not.toContain('aspect-ratio')
+  })
+
+  test('selo e etiqueta da nota saem do token denso, o mesmo do Badge do design system', async () => {
+    const stylesheet = await readApplicationFile(TRIP_STYLESHEET_PATH)
+
+    for (const className of CHIP_CLASSES) {
+      const body = ruleBodyOf(stylesheet, className)
+      expect(body).toContain('height: var(--control-height-dense)')
+      expect(body).toContain('align-items: center')
+    }
   })
 })

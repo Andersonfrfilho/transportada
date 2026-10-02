@@ -350,9 +350,15 @@
 .itemToggle {
   grid-column: 2;
   justify-self: start;
-  min-height: var(--touch-target);
+  min-height: var(--control-height-compact);
   margin-inline-start: calc(-1 * var(--space-2));
   padding-inline: var(--space-2);
+}
+
+@media (pointer: coarse) {
+  .itemToggle {
+    min-height: var(--touch-target);
+  }
 }
 
 @keyframes tripTimelineDetailEnter {

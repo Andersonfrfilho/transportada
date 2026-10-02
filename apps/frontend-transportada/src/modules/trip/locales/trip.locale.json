@@ -560,7 +560,6 @@
       "away": "Longe do ponto",
       "late_and_away": "Atrasada e longe do ponto"
     },
-    "receivedBy": "Recebido por: {{relation}}",
     "receivedByOptions": {
       "recipient": "O próprio cliente",
       "spouse": "Cônjuge",
@@ -591,6 +590,7 @@
     "readings": {
       "capturedAt": "Captura",
       "distance": "Distância",
+      "receiverRelation": "Quem recebeu",
       "requirement": "Exigência"
     },
     "reviewStatus": {
@@ -667,10 +667,14 @@
   },
   "documentData": {
     "cargoValue": "Valor da carga",
+    "issuedAt": "Emissão",
+    "freight": "Frete",
     "client": "Cliente",
     "copied": "Copiado",
     "copy": {
       "cargoValue": "Copiar valor da carga",
+      "issuedAt": "Copiar data de emissão",
+      "freight": "Copiar frete",
       "client": "Copiar cliente",
       "nfeNumber": "Copiar número da NF-e",
       "series": "Copiar série",

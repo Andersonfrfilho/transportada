@@ -627,3 +627,68 @@ precisa repetir antes do push, porque a API mudou depois da última rodada compl
 
 Reprovada na primeira rodada (A1, A2, A3 altos; M1–M5; B1–B3). Corrigidos A1, A2, M1, M3, M4, M5; A3 registrada como
 pré-condição do push; M2 reescrita (RF8). Pendências: B1, B2, B3, ordem dos trechos × paradas no rateio, CPF na tela (LGPD).
+
+## T4.4 — revisão de design: alturas, comprovante compacto, repetição (2026-10-02)
+
+Reprovação do usuário sobre os prints: alturas fora do padrão, recibo grande demais, copiar grande, informação
+repetida, "bem diferente do preview". Contratos novos **no navegador** (`spec-227-prints.smoke.spec.ts`, 1280 e 375)
+e no DOM; os textos de contrato antigos que afirmavam o comportamento reprovado foram **atualizados com intenção**
+(cada um com o motivo no próprio arquivo).
+
+**Decisões.** (1) Comprovante: linha-resumo (miniatura do tamanho do alvo de toque, rótulo, "Entregue em … ·
+Recebido por …") que expande por botão nativo `aria-expanded`/`aria-controls` — o mesmo padrão dos itens; a foto
+aberta tem teto `--proof-image-max-height` e largura pela proporção. Rodapé de conferência (prazo + Aprovar/Recusar)
+continua visível fechado. `useRevealedPanel` **não** foi usado: ele rola até um painel que nasce longe do botão; aqui
+a expansão é no lugar. (2) Alturas: novo token `--control-height-dense` (1,5rem, o `min-height` do Badge e do canvas)
+para selo/etiqueta; botões e links de texto no compacto (`--control-height-compact`, que no `.tripShell` já vira o alvo
+de toque no celular) e `--touch-target` sob `pointer: coarse`. **Desvio do pedido**: o usuário citou só
+`--control-height(-compact)`; usar o compacto (38px) nos selos tornaria o Badge de toda a app maior que o canvas (24px).
+(3) Copiar: caixa quadrada pelo token compacto, sem borda, ícone `--icon-size-sm` (14,4px), margem negativa para não
+engordar a linha.
+
+**Medido (smoke, 25 testes verdes).** Todo selo = `--control-height-dense`; todo "Copiar …" = quadrado de
+`--control-height-compact`, borda 0, ícone ≤ 16px; "Ver cliente", "Ver no mapa" e "N produtos na nota" = compacto;
+linha-resumo fechada ≤ 2,5 × alvo de toque; miniatura ≤ alvo de toque; aberto, foto ≤ `--proof-image-max-height`
+(e < 60% da coluna a 1280); Espaço/Enter alternam.
+
+**Mutações (cada asserção nova reprovou).** Selo `separationStatusBadge` no compacto → "todo selo tem a mesma
+altura"; `inline-size` do copiar → "copiar é quadrado"; `.documentDataLink` no alvo de toque → "ação de texto tem a
+altura compacta"; tirar o teto da foto → "a foto tem teto de altura" (**só a 1280**: a 375 a largura da coluna já
+limita a foto); iniciar aberto → `aria-expanded` falso reprovado; resumo de volta com a nota aberta → "Mercadoria"
+visível; selos de volta no comprovante → "No horário" duplicado; captura sempre impressa → "Captura" duplicada; chip
+"Parada N" de volta → 5 ocorrências. (O "sem itens" é bilateral — 000124 com itens, 000125 sem — e não tem mutação
+própria.)
+
+### Informação → onde ficou → onde saiu
+
+| Informação                                            | Onde ficou                                                                         | Onde saiu                                                   |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Valor da carga                                        | "Dados da nota" (copiável)                                                         | resumo da linha **quando aberta** (fechada, segue na linha) |
+| Cliente/destinatário                                  | "Dados da nota"                                                                    | resumo "Recebe: …" quando aberta                            |
+| Emissão, frete (+ "previsto")                         | "Dados da nota" (campos novos, copiáveis)                                          | resumo da linha quando aberta                               |
+| Selo de conferência e de pontualidade                 | cabeçalho da nota (único)                                                          | topo do comprovante                                         |
+| "Aprovado por X em Y"                                 | texto no detalhe do comprovante                                                    | era selo (`Badge`)                                          |
+| "Aguardando conferência" / "Canhoto recusado" (frase) | selo do cabeçalho; a recusa mantém o motivo                                        | frase repetida no detalhe                                   |
+| Hora da baixa                                         | resumo do comprovante + evento "Nota … entregue"                                   | — (o evento é a linha do tempo)                             |
+| Captura                                               | leitura "Captura" **só se** difere da baixa                                        | leitura repetida no mesmo minuto                            |
+| Recebido por (nome)                                   | resumo do comprovante                                                              | —                                                           |
+| Vínculo de quem recebeu                               | leitura "Quem recebeu" (era "Recebido por: …")                                     | segunda linha "Recebido por"                                |
+| "Parada N"                                            | seção "Eventos desta entrega": omitido quando todos os eventos são da mesma parada | chip em cada evento                                         |
+| "Esta nota não tem itens registrados"                 | só quando não há itens (fixture agora tem itens na 000123/000124)                  | mock sem itens                                              |
+| Título "Ocorrências"                                  | rótulo de seção igual aos vizinhos                                                 | negrito solto                                               |
+
+### Divergências restantes contra o canvas
+
+1. Canvas: grade de Dados com 6 campos; a real tem até 8 (Emissão e Frete vieram do resumo) e **1 coluna a 375px**
+   (regra de largura do projeto: 3 colunas só do tablet).
+2. Canvas: eventos em uma linha (círculo, rótulo, hora, distância) e **mapa SVG** com raio acima da lista; a real usa a
+   `TripTimelineEntry` (2–3 linhas, "Ver no mapa" por evento) — herança da 196/228, fora desta revisão.
+3. Canvas: comprovante com miniaturas de todas as peças em linha; a real mostra a principal e, aberto, a tira das outras.
+4. Canvas: bloco "Abrir em outras páginas" (links rápidos) inexistente na real; só há "Ver cliente".
+5. Canvas repete os selos no comprovante; removido de propósito (pedido do usuário).
+6. Cabeçalho da nota: chevron ao centro da linha (herdado), no canvas à esquerda.
+7. Cor/tipografia seguem os tokens do repositório, não os do canvas.
+
+**Não verificado**: preview do canvas renderizado (comparação feita pelo código dele); toque real
+(`pointer: coarse` só por regra de CSS, não emulado); gate da raiz (`format:check` nos `.md`, build) e a
+integração da API; o selo `occurrenceCaseBadge` não sobe ao alvo de toque sob `coarse` (como antes).

@@ -8,6 +8,7 @@ import {
   NOTE_ACCORDION_OCCURRENCES,
   NOTE_ACCORDION_STOPS,
   NOTE_ACCORDION_PROOF_RADIUS_METERS,
+  noteAccordionProducts,
   noteAccordionProofs,
   noteAccordionTimelineItems,
   noteAccordionValuation,
@@ -1320,7 +1321,9 @@ async function registerNoteAccordionMocks(page: Page): Promise<void> {
       await fulfillOptions(route)
       return
     }
-    await fulfillJson(route, { data: [] })
+    await fulfillJson(route, {
+      data: noteAccordionProducts(documentIndexFromUrl(route.request().url())),
+    })
   })
 }
 

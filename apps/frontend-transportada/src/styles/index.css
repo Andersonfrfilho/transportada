@@ -126,10 +126,14 @@
   /* Botão e botão de ícone saem da medida do campo: numa fileira de controles tudo tem uma altura */
   --control-height: var(--field-height);
   --control-height-compact: var(--field-height-compact);
+  /* Selo e etiqueta: um degrau abaixo do compacto, a altura de quem rotula e não recebe clique */
+  --control-height-dense: 1.5rem;
   /* Alvo de toque de 44px do `web.md` §10: o compacto do design system fica um degrau abaixo */
   --touch-target: 2.75rem;
   --icon-size-sm: 0.9rem;
   --icon-size-md: 1.1rem;
+  /* A foto do comprovante aberta tem teto de altura; a largura segue a proporção, nunca a coluna toda */
+  --proof-image-max-height: 16rem;
   /* Cores e proporção da placa Mercosul são do documento oficial: não seguem o tema da aplicação */
   --color-plate-band: #062f9e;
   --color-plate-flag-blue: #17298a;
@@ -1291,7 +1295,7 @@ button:has([data-count-badge]) {
   width: fit-content;
   align-items: center;
   gap: var(--space-1);
-  min-height: 1.5rem;
+  min-height: var(--control-height-dense);
   padding: 0 var(--space-3);
   border: 1px solid transparent;
   font-family: var(--font-utility);

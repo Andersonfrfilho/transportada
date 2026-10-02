@@ -356,12 +356,15 @@ export function TripTimelineEntry({
   isOwnDelivery = false,
   item,
   repeatsAuthorship,
+  shouldOmitStopChip = false,
   stops,
 }: Readonly<{
   elapsedMinutes: null | number
   isOwnDelivery?: boolean
   item: TripTimelineItem
   repeatsAuthorship: boolean
+  /** Todos os eventos da lista são da mesma parada: o chip "Parada N" só repetiria. */
+  shouldOmitStopChip?: boolean
   stops: readonly TripStopDetail[] | undefined
 }>) {
   const { t } = useTranslation('trip')
@@ -388,7 +391,7 @@ export function TripTimelineEntry({
   /** Autoria igual à do evento anterior cala: o leitor já sabe de quem é (spec 180). */
   const authorship = repeatsAuthorship ? null : resolveTripTimelineAuthorshipText(item, translate)
   const { icon, tone } = resolveTripTimelineIcon(item)
-  const chips = resolveTripTimelineChips(item, translate)
+  const chips = resolveTripTimelineChips(item, translate, { shouldOmitStop: shouldOmitStopChip })
   const addressChange = resolveTripTimelineAddressChange(item, translate)
   const occurrenceNote =
     (item.kind === 'stop.occurrence' || item.kind === 'document.occurrence') &&

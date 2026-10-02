@@ -560,7 +560,6 @@
       "away": "Away from the stop",
       "late_and_away": "Late and away from the stop"
     },
-    "receivedBy": "Received by: {{relation}}",
     "receivedByOptions": {
       "recipient": "The customer",
       "spouse": "Spouse",
@@ -591,6 +590,7 @@
     "readings": {
       "capturedAt": "Captured",
       "distance": "Distance",
+      "receiverRelation": "Who received",
       "requirement": "Requirement"
     },
     "reviewStatus": {
@@ -667,10 +667,14 @@
   },
   "documentData": {
     "cargoValue": "Cargo value",
+    "issuedAt": "Issued",
+    "freight": "Freight",
     "client": "Client",
     "copied": "Copied",
     "copy": {
       "cargoValue": "Copy cargo value",
+      "issuedAt": "Copy issue date",
+      "freight": "Copy freight",
       "client": "Copy client",
       "nfeNumber": "Copy invoice number",
       "series": "Copy series",

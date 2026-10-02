@@ -22,17 +22,23 @@ type DataField = Readonly<{
   copyLabelKey: string
   key: string
   labelKey: string
+  /** Complemento que se lê junto do valor e não se copia, como o "(previsto)" do frete. */
+  note?: string
   value: string
 }>
 
 const NON_BREAKING_SPACE = /\u00a0/gu
+const dayFormatter = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' })
 
 function hasText(value: null | string | undefined): value is string {
   return value !== null && value !== undefined && value.trim() !== ''
 }
 
 /** Só o que existe vira campo: sem permissão, sem volume ou sem CNPJ não sobra rótulo vazio. */
-function buildDataFields(document: TripDocumentDetail): readonly DataField[] {
+function buildDataFields(
+  document: TripDocumentDetail,
+  translate: (key: string) => string,
+): readonly DataField[] {
   const fields: DataField[] = []
   const { contact, nfeNumber, nfeSeries, nfeTotalValue, volumeCount } = document
 
@@ -86,14 +92,45 @@ function buildDataFields(document: TripDocumentDetail): readonly DataField[] {
       value: String(volumeCount),
     })
   }
+  /**
+   * Emissão e frete **da nota** moravam no resumo da linha, que cede quando a nota abre: eles
+   * entram aqui para a nota aberta não perder o dado nem repeti-lo (revisão de design da 227).
+   */
+  if (hasText(document.nfeIssuedAt)) {
+    const issuedAt = dayFormatter.format(new Date(document.nfeIssuedAt))
+    fields.push({
+      copyLabelKey: 'documentData.copy.issuedAt',
+      key: 'issuedAt',
+      labelKey: 'documentData.issuedAt',
+      value: issuedAt,
+    })
+  }
+  const freightField = buildFreightField(document, translate)
+  if (freightField !== null) fields.push(freightField)
   return fields
+}
+
+/** Sem valor não há campo: nunca `R$ 0,00` (spec 176). */
+function buildFreightField(
+  document: TripDocumentDetail,
+  translate: (key: string) => string,
+): DataField | null {
+  const { freightAmount, freightSource } = document
+  if (!hasText(freightAmount)) return null
+  return {
+    copyLabelKey: 'documentData.copy.freight',
+    key: 'freight',
+    labelKey: 'documentData.freight',
+    ...(freightSource === 'estimated' ? { note: translate('stops.freight.estimated') } : {}),
+    value: formatAmount(freightAmount).replace(NON_BREAKING_SPACE, ' '),
+  }
 }
 
 /** Spec 227 RF3/RF4: a identidade da nota, copiável campo a campo, e o custo e lucro (226) abaixo dela. */
 export function TripDocumentData({ canOpenClients = false, document }: TripDocumentDataProps) {
   const { t } = useTranslation('trip')
   const hasDocumentCost = useHasDocumentCost(document.id)
-  const fields = buildDataFields(document)
+  const fields = buildDataFields(document, t)
   const { contact, freightRuleName } = document
   const hasContractor = hasText(contact?.contractorName)
   const hasRule = hasText(freightRuleName)
@@ -114,7 +151,12 @@ export function TripDocumentData({ canOpenClients = false, document }: TripDocum
             <div className={styles.documentDataField} key={field.key}>
               <dt className={styles.documentDataLabel}>{t(field.labelKey)}</dt>
               <dd className={styles.documentDataValue}>
-                <span className={styles.documentDataText}>{field.value}</span>
+                <span className={styles.documentDataText}>
+                  {field.value}
+                  {field.note === undefined ? null : (
+                    <span className={styles.documentDataNote}> ({field.note})</span>
+                  )}
+                </span>
                 <CopyButton
                   copiedLabel={t('documentData.copied')}
                   label={t(field.copyLabelKey)}

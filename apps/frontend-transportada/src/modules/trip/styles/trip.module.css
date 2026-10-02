@@ -351,7 +351,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  height: var(--control-height-compact);
+  height: var(--control-height-dense);
   padding: 0 var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
   color: var(--color-copper);
@@ -384,7 +384,8 @@ button.occurrenceCaseBadge {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  height: var(--control-height-compact);
+  height: var(--control-height-dense);
+  min-height: var(--control-height-dense);
   padding: 0 var(--space-2);
   background: transparent;
   /*
@@ -404,7 +405,7 @@ button.occurrenceCaseBadge {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  height: var(--control-height-compact);
+  height: var(--control-height-dense);
   padding: 0 var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
   color: var(--color-copper);
@@ -1288,8 +1289,16 @@ button.occurrenceCaseBadge {
 /* Spec 181 T502: entrou para dentro de `.rowActions` (flex) — `justify-self` era resquício de quando
    era item de grid, sem efeito nenhum ali. */
 .stopDocumentToggle {
-  min-height: var(--touch-target);
+  justify-self: start;
+  min-height: var(--control-height-compact);
   padding-inline: var(--space-2);
+}
+
+/* Sob toque (não é breakpoint: `responsive.md`) o alvo sobe para os 44px do `web.md` §10. */
+@media (pointer: coarse) {
+  .stopDocumentToggle {
+    min-height: var(--touch-target);
+  }
 }
 
 /**
@@ -1329,7 +1338,7 @@ button.occurrenceCaseBadge {
 .destinationOriginBadge {
   display: inline-flex;
   align-items: center;
-  height: var(--control-height-compact);
+  height: var(--control-height-dense);
   padding: 0 var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
   color: var(--color-copper);
@@ -1358,7 +1367,7 @@ button.occurrenceCaseBadge {
 .separationStatusBadge {
   display: inline-flex;
   align-items: center;
-  height: var(--control-height-compact);
+  height: var(--control-height-dense);
   padding: 0 var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
   font-family: var(--font-utility);
@@ -1658,25 +1667,92 @@ button.occurrenceCaseBadge {
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-4);
-  padding: var(--space-5);
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
   background: color-mix(in srgb, var(--color-graphite) 82%, transparent);
 }
 
-.proofCardHeader {
+/* Linha-resumo: miniatura (irmã do botão) e o título que abre o comprovante. */
+.proofSummary {
+  min-width: 0;
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.proofSummaryHeading {
+  min-width: 0;
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+.proofSummaryToggle {
+  min-width: 0;
+  min-height: var(--touch-target);
+  width: 100%;
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-2);
+  gap: var(--space-3);
+  padding: 0;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  background: transparent;
+  cursor: pointer;
+}
+
+.proofSummaryText {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.proofSummaryMeta {
+  color: var(--color-slate-muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.proofSummaryFigure {
+  --proof-thumbnail-size: var(--touch-target);
+
+  flex: 0 0 auto;
+}
+
+.proofSummaryFigure .deliveryProofImageFrame {
+  --delivery-proof-image-placeholder-height: var(--touch-target);
+}
+
+.proofSummaryFigure .proofSummaryImage {
+  inline-size: var(--touch-target);
+  block-size: var(--touch-target);
+  margin: 0;
+  object-fit: cover;
+}
+
+.proofDetails {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-3);
+  padding-block: var(--space-2) var(--space-1);
+}
+
+.proofReviewText {
+  display: grid;
+  gap: var(--space-1);
 }
 
 .proofCardTitle {
-  margin: 0;
-  color: var(--color-fog);
-  font-size: 0.95rem;
-  font-weight: 600;
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .proofStatus {
@@ -1711,7 +1787,9 @@ button.occurrenceCaseBadge {
 
 .proofMain .deliveryProofImage {
   display: block;
-  inline-size: 100%;
+  inline-size: auto;
+  max-inline-size: 100%;
+  max-block-size: var(--proof-image-max-height);
   margin: 0;
   object-fit: contain;
 }
@@ -4984,6 +5062,11 @@ button.occurrenceCaseBadge {
 }
 
 .documentDataLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-height-compact);
+  /* A caixa tem a altura do botão vizinho; a margem negativa devolve o respiro, a linha não cresce. */
+  margin-block: calc((var(--control-height-dense) - var(--control-height-compact)) / 2);
   color: inherit;
   font-size: 0.75rem;
   text-decoration: underline dotted;
@@ -5000,9 +5083,8 @@ button.occurrenceCaseBadge {
 /* Sob toque (não é breakpoint: `responsive.md`), o link rápido chega ao alvo como os botões vizinhos. */
 @media (pointer: coarse) {
   .documentDataLink {
-    display: inline-flex;
-    align-items: center;
     min-height: var(--touch-target);
+    margin-block: calc((var(--control-height-dense) - var(--touch-target)) / 2);
   }
 }
 
@@ -5011,6 +5093,22 @@ button.occurrenceCaseBadge {
   overflow-wrap: anywhere;
   font-size: 0.85rem;
   font-weight: 600;
+}
+
+/* O título de "Ocorrências" vem de `TripOccurrences` (um `h4` de dica); na nota aberta ele é rótulo de seção como os vizinhos. */
+.documentOccurrences h4 {
+  margin: 0;
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.documentDataNote {
+  color: var(--color-slate-muted);
+  font-weight: 400;
 }
 
 .documentDataCost {

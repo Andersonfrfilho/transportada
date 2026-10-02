@@ -60,8 +60,10 @@ describe('os itens do comprovante abrem sob demanda; as ocorrências são seçã
     const ariaControles = (source.match(/aria-controls=/gu) ?? []).length
     const ariaExpandidos = (source.match(/aria-expanded=/gu) ?? []).length
 
-    expect(ariaControles).toBe(1)
-    expect(ariaExpandidos).toBe(1)
+    /** Dois: os itens e, desde a revisão de design da 227, o resumo que abre o comprovante. */
+    expect(ariaControles).toBe(2)
+    expect(ariaExpandidos).toBe(2)
+    expect(source.match(/chevron-up/gu)).toHaveLength(2)
     expect(source).toContain('styles.stopDocumentToggle')
   })
 

@@ -108,13 +108,18 @@ function resolveLateChip(item: TripTimelineItem, t: Translate): TripTimelineChip
   return { id: 'late', label: t('eventTimeline.chip.recordedLaterUnknown'), tone: 'copper' }
 }
 
-/** Só o que o item já publica: chip sem dado correspondente não é desenhado. */
+/**
+ * Só o que o item já publica: chip sem dado correspondente não é desenhado. `shouldOmitStop` é da
+ * seção cujos eventos são todos da mesma parada ("Eventos desta entrega"): o chip dizia a mesma coisa
+ * em cada linha.
+ */
 export function resolveTripTimelineChips(
   item: TripTimelineItem,
   t: Translate,
+  options: Readonly<{ shouldOmitStop?: boolean }> = {},
 ): readonly TripTimelineChip[] {
   const stopChip: TripTimelineChip | null =
-    item.stop === null
+    item.stop === null || options.shouldOmitStop === true
       ? null
       : {
           id: 'stop',

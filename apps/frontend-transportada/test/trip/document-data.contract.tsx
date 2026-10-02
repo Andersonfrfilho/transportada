@@ -228,6 +228,35 @@ describe('Dados da nota: ver cliente (spec 227, link rápido)', () => {
   })
 })
 
+describe('Dados da nota: emissão e frete cedidos pelo resumo da linha (revisão de design da 227)', () => {
+  it('a nota aberta traz a emissão e o frete previsto, cada um com o seu botão de copiar', () => {
+    const html = render(
+      buildDocument({
+        freightAmount: '620.0000',
+        freightSource: 'estimated',
+        nfeIssuedAt: '2026-08-10T06:30:00.000Z',
+      }),
+    )
+
+    expect(html).toContain('>Emissão<')
+    expect(html).toContain('>Frete<')
+    expect(html).toContain('R$ 620,00')
+    expect(html).toContain('(previsto)')
+    expect(html).toContain('aria-label="Copiar data de emissão"')
+    expect(html).toContain('aria-label="Copiar frete"')
+  })
+
+  it('frete medido não ganha "(previsto)", e sem frete ou emissão não sobra rótulo vazio', () => {
+    const measured = render(buildDocument({ freightAmount: '620.0000', freightSource: 'measured' }))
+    const bare = render(buildDocument({ freightSource: 'missing' }))
+
+    expect(measured).toContain('R$ 620,00')
+    expect(measured).not.toContain('(previsto)')
+    expect(bare).not.toContain('>Frete<')
+    expect(bare).not.toContain('>Emissão<')
+  })
+})
+
 describe('Dados da nota: copiar (spec 227 D9)', () => {
   it('um botão por campo, com rótulo que diz o que copia', () => {
     const html = render(buildDocument())
@@ -263,6 +292,8 @@ describe('Dados da nota: copiar (spec 227 D9)', () => {
         'cargoValue',
         'client',
         'cpf',
+        'freight',
+        'issuedAt',
         'nfeNumber',
         'series',
         'taxId',

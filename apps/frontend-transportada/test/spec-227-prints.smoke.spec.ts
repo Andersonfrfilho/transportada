@@ -27,6 +27,8 @@ const TRIP_PERMISSIONS = ['trip.read', 'trip.manage', 'trip.financials', 'fleet.
 const DELIVERED_WITH_OCCURRENCE = /^000124\/1/u
 const DELIVERED_AWAY = /^000125\/1/u
 const NOT_DELIVERED = /^000126\/1/u
+const DELIVERED_WITHOUT_ITEMS = DELIVERED_AWAY
+const PROOF_TOGGLE = /^Comprovante da entrega/u
 
 function printPath(name: string, width: string, theme: Theme): string {
   return resolve(PRINTS_DIRECTORY, `spec-227-${name}-${width}-${theme}.png`)
@@ -128,6 +130,21 @@ for (const theme of THEMES) {
       await row.screenshot({ path: printPath('nota-aberta-entregue', viewport.label, theme) })
     })
 
+    test(`print da nota entregue com o comprovante aberto — ${suffix}`, async ({ page }) => {
+      const stops = await openTripDetail({ page, theme, viewport })
+
+      const row = await openNote(stops, DELIVERED_WITH_OCCURRENCE)
+      const toggle = row.getByRole('button', { name: PROOF_TOGGLE })
+      await toggle.click()
+      await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+      await expect(row.getByLabel('Carregando a imagem do comprovante')).toHaveCount(0)
+      await expectNothingEscapes(row)
+      await expectNoHorizontalOverflow(page)
+      await row.screenshot({
+        path: printPath('nota-aberta-comprovante-aberto', viewport.label, theme),
+      })
+    })
+
     test(`print da nota pendente aberta — ${suffix}`, async ({ page }) => {
       const stops = await openTripDetail({ page, theme, viewport })
 
@@ -152,3 +169,172 @@ test('abrir uma nota fecha a anterior — só uma fica aberta', async ({ page })
   await expect(first).toHaveAttribute('aria-expanded', 'false')
   await expect(stops.locator('button[aria-expanded="true"]')).toHaveCount(1)
 })
+
+/**
+ * Revisão de design da 227 (T4.4): o que o usuário reprovou, medido no navegador — `getBoundingClientRect`
+ * e estilo computado, nunca o texto do `.css`. Cada asserção abaixo foi provada por mutação (evidence.md).
+ */
+async function tokenPixels(row: Locator, token: string): Promise<number> {
+  return row.evaluate((element, name) => {
+    const probe = document.createElement('div')
+    probe.style.cssText = `position:absolute;visibility:hidden;height:var(${name});width:0`
+    element.append(probe)
+    const { height } = probe.getBoundingClientRect()
+    probe.remove()
+    return Math.round(height * 100) / 100
+  }, token)
+}
+
+async function heightsOf(locator: Locator): Promise<number[]> {
+  return locator.evaluateAll((elements) =>
+    elements.map((element) => Math.round(element.getBoundingClientRect().height * 100) / 100),
+  )
+}
+
+const CHIPS =
+  '.ui-badge, [class*=separationStatusBadge], [class*=proofPendingBadge], [class*=fiscalStatusBadge], [class*=destinationOriginBadge], button[class*=occurrenceCaseBadge]'
+
+for (const viewport of VIEWPORTS) {
+  test.describe(`alturas e repetição da nota aberta — ${viewport.label}`, () => {
+    test('selos, copiar e ações de texto usam as alturas do design system', async ({ page }) => {
+      const stops = await openTripDetail({ page, theme: 'dark', viewport })
+      const row = await openNote(stops, DELIVERED_WITH_OCCURRENCE)
+      const dense = await tokenPixels(row, '--control-height-dense')
+      const compact = await tokenPixels(row, '--control-height-compact')
+
+      const chipHeights = await heightsOf(row.locator(CHIPS))
+      expect(chipHeights.length, 'a nota entregue tem selos').toBeGreaterThanOrEqual(3)
+      expect(new Set(chipHeights), 'todo selo tem a mesma altura').toEqual(new Set([dense]))
+
+      const copyButtons = row.getByRole('button', { name: /^Copiar / })
+      expect(await copyButtons.count()).toBeGreaterThanOrEqual(6)
+      const copyBoxes = await copyButtons.evaluateAll((elements) =>
+        elements.map((element) => {
+          const box = element.getBoundingClientRect()
+          const icon = element.querySelector('svg')?.getBoundingClientRect()
+          return {
+            borderWidth: Number.parseFloat(getComputedStyle(element).borderTopWidth),
+            height: Math.round(box.height * 100) / 100,
+            iconWidth: Math.round((icon?.width ?? 0) * 100) / 100,
+            width: Math.round(box.width * 100) / 100,
+          }
+        }),
+      )
+      for (const box of copyBoxes) {
+        expect(box.width, 'copiar é quadrado').toBe(box.height)
+        expect(box.height, 'copiar tem a medida compacta').toBe(compact)
+        expect(box.borderWidth, 'copiar não tem borda').toBe(0)
+        expect(box.iconWidth, 'o ícone de copiar é pequeno').toBeLessThanOrEqual(16)
+      }
+
+      const textActions = row
+        .locator('a', { hasText: 'Ver cliente' })
+        .or(row.getByRole('button', { name: /^Ver no mapa|produtos? na nota/u }))
+      expect(await textActions.count()).toBeGreaterThanOrEqual(3)
+      expect(new Set(await heightsOf(textActions)), 'ação de texto tem a altura compacta').toEqual(
+        new Set([compact]),
+      )
+    })
+
+    test('o comprovante nasce compacto e abre sob demanda', async ({ page }) => {
+      const stops = await openTripDetail({ page, theme: 'dark', viewport })
+      const row = await openNote(stops, DELIVERED_WITH_OCCURRENCE)
+      const toggle = row.getByRole('button', { name: PROOF_TOGGLE })
+      const card = row
+        .locator('section')
+        .filter({ has: page.getByRole('button', { name: PROOF_TOGGLE }) })
+      const touch = await tokenPixels(row, '--touch-target')
+
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      await expect(row.getByText('Distância', { exact: true })).toHaveCount(0)
+      const summaryRow = toggle.locator('xpath=ancestor::div[1]')
+      const closedHeight = (await summaryRow.boundingBox())?.height ?? Number.POSITIVE_INFINITY
+      expect(closedHeight, 'fechado, o comprovante é uma linha-resumo').toBeLessThanOrEqual(
+        touch * 2.5,
+      )
+      for (const size of await card
+        .locator('img')
+        .evaluateAll((images) =>
+          images.map((image) =>
+            Math.max(image.getBoundingClientRect().width, image.getBoundingClientRect().height),
+          ),
+        )) {
+        expect(size, 'a miniatura é do tamanho do alvo de toque').toBeLessThanOrEqual(touch + 1)
+      }
+
+      await toggle.click()
+      await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+      const detailsId = await toggle.getAttribute('aria-controls')
+      await expect(page.locator(`[id="${detailsId}"]`)).toBeVisible()
+      await expect(row.getByText('Distância', { exact: true })).toBeVisible()
+      await expect(row.getByLabel('Carregando a imagem do comprovante')).toHaveCount(0)
+
+      const maxHeight = await tokenPixels(row, '--proof-image-max-height')
+      const photo = page.locator(`[id="${detailsId}"] img`).first()
+      const photoBox = await photo.boundingBox()
+      const cardBox = await card.boundingBox()
+      expect(
+        photoBox?.height ?? Number.POSITIVE_INFINITY,
+        'a foto tem teto de altura',
+      ).toBeLessThanOrEqual(maxHeight + 1)
+      if (viewport.width >= 1280) {
+        expect(
+          photoBox?.width ?? Number.POSITIVE_INFINITY,
+          'a foto não toma a coluna',
+        ).toBeLessThan((cardBox?.width ?? 0) * 0.6)
+      }
+
+      await toggle.focus()
+      await page.keyboard.press('Space')
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      await page.keyboard.press('Enter')
+      await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    test('nada se repete na nota aberta', async ({ page }) => {
+      const stops = await openTripDetail({ page, theme: 'dark', viewport })
+      const closedRow = noteRow(stops, DELIVERED_WITH_OCCURRENCE)
+      await expect(closedRow.getByText('Mercadoria: R$ 4.200,00')).toBeVisible()
+
+      const row = await openNote(stops, DELIVERED_WITH_OCCURRENCE)
+      await expect(row.getByText('Mercadoria: R$ 4.200,00')).toHaveCount(0)
+      await expect(row.getByText('Recebe: Distribuidora Sul')).toHaveCount(0)
+      await expect(row.getByText('R$ 4.200,00', { exact: true })).toHaveCount(1)
+      await expect(row.getByText('Distribuidora Sul', { exact: true })).toHaveCount(1)
+      await expect(row.getByText('10/08/2026', { exact: true })).toHaveCount(1)
+
+      const proof = row
+        .locator('section')
+        .filter({ has: page.getByRole('button', { name: PROOF_TOGGLE }) })
+      await expect(proof.getByText('No horário')).toHaveCount(0)
+      await expect(proof.getByText('Aprovado', { exact: true })).toHaveCount(0)
+      await expect(
+        row.locator('[class*=stopDocumentBadgeRow]').getByText('No horário'),
+      ).toHaveCount(1)
+
+      await row.getByRole('button', { name: PROOF_TOGGLE }).click()
+      const approvedBy = row.getByText(/Aprovado por Helena Prado em/u)
+      await expect(approvedBy).toHaveCount(1)
+      expect(await approvedBy.evaluate((element) => element.closest('.ui-badge') === null)).toBe(
+        true,
+      )
+      await expect(proof.getByText('Captura', { exact: true })).toHaveCount(0)
+
+      const events = row.locator('section').filter({
+        has: page.getByRole('heading', { name: 'Eventos desta entrega' }),
+      })
+      await expect(events.getByText('Saída para esta parada')).toBeVisible()
+      await expect(events.getByText(/^Parada \d/u)).toHaveCount(0)
+      await expect(row.getByText('Esta nota não tem itens registrados')).toHaveCount(0)
+    })
+
+    test('só a nota sem itens diz que não tem itens', async ({ page }) => {
+      const stops = await openTripDetail({ page, theme: 'dark', viewport })
+      const row = await openNote(stops, DELIVERED_WITHOUT_ITEMS)
+
+      await expect(row.getByText('Esta nota não tem itens registrados')).toHaveCount(1)
+      await row.getByRole('button', { name: PROOF_TOGGLE }).click()
+      await expect(row.getByText('Captura', { exact: true })).toBeVisible()
+    })
+  })
+}

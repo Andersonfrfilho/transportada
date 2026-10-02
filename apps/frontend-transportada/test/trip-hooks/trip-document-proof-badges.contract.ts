@@ -204,8 +204,8 @@ describe('os selos do comprovante no cabeçalho da nota (spec 227 D4)', () => {
   })
 })
 
-describe('os selos no topo da seção do comprovante (spec 227 D4)', () => {
-  function renderSection(proof: DeliveryProof): HTMLElement {
+describe('os selos não se repetem na seção do comprovante (spec 227 D4, revisão de design)', () => {
+  function renderSection(proof: DeliveryProof, isExpanded = false): HTMLElement {
     const view = resolveDeliveryProofView({
       document: {
         deliveredAt: '2026-09-30T10:00:00Z',
@@ -232,20 +232,21 @@ describe('os selos no topo da seção do comprovante (spec 227 D4)', () => {
         }),
       ),
     )
+    if (isExpanded)
+      act(() => container?.querySelector<HTMLButtonElement>('button[aria-expanded]')?.click())
     return container
   }
 
-  it('recusado e longe do ponto: os dois selos no cabeçalho da seção, e a pontualidade só ali', () => {
-    const dom = renderSection({ ...makeProof('rejected', 'away'), distanceMeters: 1500 })
-    const header = dom.querySelector('header')
+  it('recusado e longe do ponto: a seção não diz nenhum dos dois eixos; o cabeçalho da nota (teste acima) é o único lugar', () => {
+    const proof = { ...makeProof('rejected', 'away'), distanceMeters: 1500 }
+    const text = renderSection(proof, true).textContent ?? ''
 
-    expect(header?.textContent).toContain('Recusado')
-    expect(header?.textContent).toContain('Longe do ponto')
-    expect(dom.textContent?.split('Longe do ponto').length).toBe(2)
+    expect(text).not.toContain('Recusado')
+    expect(text).not.toContain('Longe do ponto')
   })
 
-  it('a distância e o alerta de longe do ponto continuam na leitura', () => {
-    const dom = renderSection({ ...makeProof('approved', 'away'), distanceMeters: 1500 })
+  it('a distância e o alerta de longe do ponto continuam na leitura, dentro da seção aberta', () => {
+    const dom = renderSection({ ...makeProof('approved', 'away'), distanceMeters: 1500 }, true)
     const alert = dom.querySelector('[data-alert="true"]')
 
     expect(alert?.textContent).toContain('1,5')

@@ -218,7 +218,10 @@ export function noteAccordionProofs(imageOrigin: string, documentIndex: number) 
       canhotoReviewAt: '2026-08-10T15:00:00.000Z',
       canhotoReviewByName: 'Helena Prado',
       canhotoReviewOrigin: 'manual',
-      capturedAt: noteAt(documentIndex).deliveredAt ?? '',
+      capturedAt: shiftMinutes(
+        noteAt(documentIndex).deliveredAt ?? '',
+        documentIndex === 2 ? 4 : 0,
+      ),
       createdAt: '2026-08-10T14:00:00.000Z',
       distanceMeters: axes.punctuality === 'away' ? 1480 : 42,
       downloadUrl: `${imageOrigin}/canhoto-${documentIndex}.png`,
@@ -269,13 +272,49 @@ export const NOTE_ACCORDION_OCCURRENCES: readonly (readonly Record<string, unkno
   ],
 ]
 
-/** Spec 227 T5.3: os eventos de uma nota (`GET /trips/:id/timeline?documentId=`), do mais recente ao mais antigo. */
+function shiftMinutes(isoMoment: string, minutes: number): string {
+  return new Date(Date.parse(isoMoment) + minutes * 60_000).toISOString()
+}
+
+/** Duas notas trazem itens; a 000125 e a 000126 não, para o aviso de "sem itens" aparecer onde é verdade. */
+export function noteAccordionProducts(documentIndex: number) {
+  if (documentIndex > 1) return []
+  return [
+    {
+      code: 'CX-001',
+      commercialUnit: 'CX',
+      description: 'Biscoito recheado 140 g',
+      ordinal: 1,
+      quantity: '40.0000',
+      totalValue: '2400.0000',
+      unitValue: '60.0000',
+    },
+    {
+      code: 'CX-002',
+      commercialUnit: 'CX',
+      description: 'Suco de uva integral 1 L',
+      ordinal: 2,
+      quantity: '24.0000',
+      totalValue: '1800.0000',
+      unitValue: '75.0000',
+    },
+  ]
+}
+
+/**
+ * Spec 227 T5.3: os eventos de uma nota (`GET /trips/:id/timeline?documentId=`), do mais recente ao mais
+ * antigo. Os horários saem da baixa da própria nota — a lista e o comprovante contam o mesmo minuto —, e
+ * a nota ainda não entregue só tem a saída, a chegada e a correção do endereço.
+ */
 export function noteAccordionTimelineItems(documentId: string) {
+  const index = NOTE_ACCORDION_DOCUMENT_IDS.findIndex((id) => id === documentId)
+  const note = noteAt(Math.max(index, 0))
+  const deliveredAt = note.deliveredAt ?? '2026-08-10T15:00:00.000Z'
   const base = {
     actorName: 'Marina Alves',
     channel: 'driver_app',
     closeReason: null,
-    document: { id: documentId, number: '000124', series: '1' },
+    document: { id: documentId, number: note.number, series: '1' },
     fromStatus: null,
     location: null,
     locationState: null,
@@ -283,31 +322,11 @@ export function noteAccordionTimelineItems(documentId: string) {
     onBehalfOfDriverName: null,
     recordedAt: null,
     returnReason: null,
-    stop: { id: NOTE_ACCORDION_STOP_IDS[0], sequence: 1 },
+    stop: { id: NOTE_ACCORDION_STOP_IDS[note.stopIndex], sequence: note.stopIndex + 1 },
     toStatus: null,
   } as const
 
-  return [
-    {
-      ...base,
-      id: `${documentId}-canhoto-photo`,
-      kind: 'document.canhoto_photo',
-      location: {
-        accuracyMeters: 8,
-        capturedAt: '2026-10-01T13:10:00.000Z',
-        distanceMeters: 120,
-        latitude: -23.5505,
-        longitude: -46.6333,
-      },
-      locationState: 'captured',
-      occurredAt: '2026-10-01T13:10:00.000Z',
-    },
-    {
-      ...base,
-      id: `${documentId}-delivered`,
-      kind: 'document.delivered',
-      occurredAt: '2026-10-01T13:05:00.000Z',
-    },
+  const beforeDelivery = [
     {
       ...base,
       actorName: 'Contratante Exemplo',
@@ -318,24 +337,49 @@ export function noteAccordionTimelineItems(documentId: string) {
       kind: 'stop.address_corrected',
       location: {
         accuracyMeters: null,
-        capturedAt: '2026-10-01T12:50:00.000Z',
+        capturedAt: shiftMinutes(deliveredAt, -50),
         distanceMeters: null,
         latitude: -23.5507,
         longitude: -46.6335,
       },
-      occurredAt: '2026-10-01T12:50:00.000Z',
+      occurredAt: shiftMinutes(deliveredAt, -50),
     },
     {
       ...base,
       id: `${documentId}-arrived`,
       kind: 'stop.arrived',
-      occurredAt: '2026-10-01T12:40:00.000Z',
+      occurredAt: shiftMinutes(deliveredAt, -60),
     },
     {
       ...base,
       id: `${documentId}-departed`,
       kind: 'stop.departed',
-      occurredAt: '2026-10-01T12:00:00.000Z',
+      occurredAt: shiftMinutes(deliveredAt, -100),
     },
+  ]
+  if (note.deliveredAt === null) return beforeDelivery
+
+  return [
+    {
+      ...base,
+      id: `${documentId}-canhoto-photo`,
+      kind: 'document.canhoto_photo',
+      location: {
+        accuracyMeters: 8,
+        capturedAt: shiftMinutes(deliveredAt, 2),
+        distanceMeters: 120,
+        latitude: -23.5505,
+        longitude: -46.6333,
+      },
+      locationState: 'captured',
+      occurredAt: shiftMinutes(deliveredAt, 2),
+    },
+    {
+      ...base,
+      id: `${documentId}-delivered`,
+      kind: 'document.delivered',
+      occurredAt: deliveredAt,
+    },
+    ...beforeDelivery,
   ]
 }

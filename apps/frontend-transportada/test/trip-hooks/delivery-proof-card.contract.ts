@@ -34,7 +34,7 @@ function makeProof(id: string, kind: DeliveryProofKind, overrides: Partial<Deliv
 
 async function renderCard(
   proofs: readonly DeliveryProof[],
-  options: { canReview?: boolean; calls?: string[] } = {},
+  options: { calls?: string[]; canReview?: boolean; isExpanded?: boolean } = {},
 ): Promise<string> {
   const view = resolveDeliveryProofView({
     document: {
@@ -63,6 +63,13 @@ async function renderCard(
     )
     await Promise.resolve()
   })
+  /** O comprovante nasce compacto (revisão de design da 227): quase todo caso abaixo olha o aberto. */
+  if (options.isExpanded !== false) {
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('button[aria-expanded]')?.click()
+      await Promise.resolve()
+    })
+  }
   return container.textContent ?? ''
 }
 
@@ -75,7 +82,7 @@ describe('o card do comprovante no DOM', () => {
     container = undefined
   })
 
-  it('entrega completa aprovada: chip no cabeçalho, canhoto grande e tira com as outras peças', async () => {
+  it('entrega completa aprovada: sem selo no comprovante, canhoto e tira com as outras peças', async () => {
     const text = await renderCard([
       makeProof('photo-1', 'photo', {
         canhotoReview: 'approved',
@@ -88,9 +95,9 @@ describe('o card do comprovante no DOM', () => {
       makeProof('cargo-1', 'cargo'),
     ])
 
-    const header = container?.querySelector('header')
-    expect(header?.textContent).toContain('Comprovante da entrega')
-    expect(header?.textContent).toContain('Aprovado')
+    const toggle = container?.querySelector('button[aria-expanded]')
+    expect(toggle?.textContent).toContain('Comprovante da entrega')
+    expect(container?.querySelector('.ui-badge')).toBeNull()
     expect(text).toContain('Canhoto assinado')
     expect(container?.querySelectorAll('ul img').length).toBe(2)
     expect(text).toContain('a 12 m do ponto')
@@ -101,7 +108,7 @@ describe('o card do comprovante no DOM', () => {
     await renderCard([makeProof('signature-1', 'signature')])
 
     expect(container?.querySelector('ul')).toBeNull()
-    expect(container?.querySelector('header')?.textContent).not.toContain('Aguardando')
+    expect(container?.textContent).not.toContain('Aguardando')
     expect(container?.querySelector('img')).not.toBeNull()
   })
 
@@ -138,7 +145,7 @@ describe('o card do comprovante no DOM', () => {
       }),
     ])
 
-    expect(container?.querySelector('header')?.textContent).toContain('Recusado')
+    expect(text).not.toContain('Recusado')
     expect(text).toContain('Ilegível')
     expect(container?.querySelector('footer')).toBeNull()
   })
@@ -158,6 +165,81 @@ describe('o card do comprovante no DOM', () => {
 
     expect(text).not.toContain('do ponto')
     expect(text).toContain('sem localização')
+  })
+
+  it('nasce compacto: só o resumo e a miniatura, sem leituras nem foto grande', async () => {
+    const text = await renderCard(
+      [
+        makeProof('photo-1', 'photo', {
+          capturedAt: '2026-09-30T09:58:00',
+          distanceMeters: 12,
+          receiverName: 'Marcos Tavares',
+        }),
+      ],
+      { isExpanded: false },
+    )
+
+    const toggle = container?.querySelector('button[aria-expanded]')
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false')
+    expect(toggle?.textContent).toContain('Recebido por Marcos Tavares')
+    expect(text).not.toContain('Distância')
+    expect(text).not.toContain('Captura')
+    expect(container?.querySelectorAll('img').length).toBe(1)
+    expect(container?.querySelector('figure')?.nextElementSibling?.tagName).toBe('H4')
+    expect(container?.querySelector(`[id="${toggle?.getAttribute('aria-controls')}"]`)).toBeNull()
+  })
+
+  it('abrir mostra as leituras e troca a miniatura pela foto; fechar volta ao resumo', async () => {
+    await renderCard([makeProof('photo-1', 'photo', { distanceMeters: 12 })], { isExpanded: false })
+    const toggle = container?.querySelector<HTMLButtonElement>('button[aria-expanded]')
+
+    await act(async () => {
+      toggle?.click()
+      await Promise.resolve()
+    })
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true')
+    const details = container?.querySelector(`[id="${toggle?.getAttribute('aria-controls')}"]`)
+    expect(details?.textContent).toContain('a 12 m do ponto')
+    expect(details?.querySelector('figure')).not.toBeNull()
+    expect(container?.querySelectorAll('figure').length).toBe(1)
+
+    await act(async () => {
+      toggle?.click()
+      await Promise.resolve()
+    })
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false')
+    expect(container?.querySelector('figure')?.nextElementSibling?.tagName).toBe('H4')
+  })
+
+  it('a captura no mesmo minuto da baixa não vira uma segunda leitura', async () => {
+    const same = await renderCard([
+      makeProof('photo-1', 'photo', { capturedAt: '2026-09-30T10:00:00Z' }),
+    ])
+    expect(same).not.toContain('Captura')
+    act(() => root?.unmount())
+    container?.remove()
+
+    const other = await renderCard([
+      makeProof('photo-1', 'photo', { capturedAt: '2026-09-30T09:40:00Z' }),
+    ])
+    expect(other).toContain('Captura')
+  })
+
+  it('o conferente aparece uma vez, como texto, nunca como selo', async () => {
+    await renderCard([
+      makeProof('photo-1', 'photo', {
+        canhotoReview: 'approved',
+        canhotoReviewAt: '2026-09-30T12:00:00Z',
+        canhotoReviewByName: 'Helena Prado',
+        canhotoReviewOrigin: 'manual',
+      }),
+    ])
+
+    const matches = Array.from(container?.querySelectorAll('p') ?? []).filter((paragraph) =>
+      paragraph.textContent?.includes('Aprovado por Helena Prado'),
+    )
+    expect(matches).toHaveLength(1)
+    expect(container?.querySelector('.ui-badge')).toBeNull()
   })
 
   it('sem comprovante: texto de estado vazio, sem imagem e sem rodapé', async () => {

@@ -5,6 +5,7 @@ import type React from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Icon } from '@/components/ui/icon'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import type { DeliveryProofView } from '../shared/deliveryProof.service'
@@ -17,15 +18,14 @@ import {
   resolveDeliveryProofGalleryStartIndex,
 } from '../shared/deliveryProofGallery.service'
 import type { TripDocumentProduct } from '../shared/trip.types'
-import { resolveTripDocumentProofBadges } from '../shared/tripDocumentProofBadges.service'
 import styles from '../styles/trip.module.css'
 
 import { ProofGalleryDialog } from './ProofGalleryDialog.component'
+import { ProofImage } from './ProofImage.component'
 import { ProofPieces } from './ProofPieces.component'
 import { ProofReadings } from './ProofReadings.component'
 import { ProofReview, type CanhotoReviewActions } from './ProofReview.component'
 import { ProofReviewActions, ProofReviewDeadline } from './ProofReviewActions.component'
-import { TripDocumentProofBadges } from './TripDocumentProofBadges.component'
 import { TripDeliveryProofDetail } from './TripDeliveryProofDetail.component'
 
 type TripDeliveryProofProps = Readonly<{
@@ -56,6 +56,7 @@ export function TripDeliveryProof({
   const { t } = useTranslation('trip')
   const formatMoment = useMomentFormatter()
   const [openProofId, setOpenProofId] = useState<string | null>(null)
+  const [isExpanded, setIsExpanded] = useState(false)
 
   /**
    * ⚠️ **A lista de itens continua alcançável em todos os estados**, inclusive antes de a nota ser
@@ -100,33 +101,71 @@ export function TripDeliveryProof({
   const reviewed = pieces.main?.proof
   const outcome = reviewed === undefined ? undefined : resolveDeliveryProofOutcome(reviewed)
   const isPending = reviewed !== undefined && outcome === 'pending'
+  const titleId = `trip-delivery-proof-title-${documentId}`
+  const detailsId = `trip-delivery-proof-details-${documentId}`
+  const summary = [
+    view.deliveredAt === null
+      ? null
+      : t('deliveryProof.deliveredAt', { moment: formatMoment(view.deliveredAt) }),
+    view.receiverName === null ? null : t('deliveryProof.receiver', { name: view.receiverName }),
+    view.state === 'delivered-without-proof' ? t('deliveryProof.withoutProof') : null,
+  ].filter((part): part is string => part !== null)
 
   function handleProofClose(): void {
     setOpenProofId(null)
   }
 
+  function handleToggle(): void {
+    setIsExpanded((current) => !current)
+  }
+
   return (
-    <section aria-labelledby="trip-delivery-proof-title" className={styles.proofCard}>
-      <header className={styles.proofCardHeader}>
-        <h4 className={styles.proofCardTitle} id="trip-delivery-proof-title">
-          {t('deliveryProof.title')}
+    <section aria-labelledby={titleId} className={styles.proofCard}>
+      {/*
+       * Spec 227 (revisão de design): o comprovante nasce **compacto** — miniatura, rótulo e o resumo
+       * da baixa numa linha —, e o botão do título o expande (mesmo padrão `aria-expanded`/
+       * `aria-controls` dos itens, abaixo). Os selos de conferência e pontualidade não se repetem
+       * aqui: moram no cabeçalho da nota, um lugar só. A miniatura é irmã do botão, nunca filha.
+       */}
+      <div className={styles.proofSummary}>
+        {pieces.main === undefined || isExpanded ? null : (
+          <ProofImage
+            alt={t(pieces.main.altKey)}
+            label={t(pieces.main.labelKey)}
+            onOpen={setOpenProofId}
+            proof={pieces.main.proof}
+            variant="summary"
+          />
+        )}
+        <h4 className={styles.proofSummaryHeading}>
+          <button
+            aria-controls={detailsId}
+            aria-expanded={isExpanded}
+            className={styles.proofSummaryToggle}
+            onClick={handleToggle}
+            type="button"
+          >
+            <span className={styles.proofSummaryText}>
+              <span className={styles.proofCardTitle} id={titleId}>
+                {t('deliveryProof.title')}
+              </span>
+              {summary.length === 0 ? null : (
+                <span className={styles.proofSummaryMeta}>{summary.join(' · ')}</span>
+              )}
+            </span>
+            <Icon name={isExpanded ? 'chevron-up' : 'chevron-down'} />
+          </button>
         </h4>
-        <TripDocumentProofBadges badges={resolveTripDocumentProofBadges(reviewed)} />
-      </header>
-      {view.deliveredAt === null ? null : (
-        <p className={styles.hint}>
-          {t('deliveryProof.deliveredAt', { moment: formatMoment(view.deliveredAt) })}
-        </p>
-      )}
-      {view.receiverName === null ? null : (
-        <p className={styles.hint}>{t('deliveryProof.receiver', { name: view.receiverName })}</p>
-      )}
-      {view.state === 'delivered-without-proof' ? (
-        <p className={styles.hint}>{t('deliveryProof.withoutProof')}</p>
+      </div>
+      {isExpanded ? (
+        <div className={styles.proofDetails} id={detailsId}>
+          <ProofPieces onOpen={setOpenProofId} pieces={pieces} />
+          {reviewed === undefined ? null : (
+            <ProofReadings deliveredAt={view.deliveredAt} proof={reviewed} />
+          )}
+          {reviewed === undefined ? null : <ProofReview proof={reviewed} />}
+        </div>
       ) : null}
-      <ProofPieces onOpen={setOpenProofId} pieces={pieces} />
-      {reviewed === undefined ? null : <ProofReadings proof={reviewed} />}
-      {reviewed === undefined ? null : <ProofReview proof={reviewed} />}
       {isPending ? (
         <footer className={styles.proofCardFooter}>
           <ProofReviewDeadline proof={reviewed} />

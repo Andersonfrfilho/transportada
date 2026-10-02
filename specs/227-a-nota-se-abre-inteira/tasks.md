@@ -63,6 +63,10 @@ em `evidence.md`. Contrato antes da implementação, **toda asserção nova prov
       recusado **e** longe do ponto diz as duas coisas.
 - [x] **T4.2** Comprovante visível ao abrir a nota, via `GET /trips/:id/delivery-proofs` (spec 222).
 
+- [x] **T4.4** Revisão de design reprovada pelo usuário: alturas, comprovante compacto, repetição. Contrato no
+      navegador (`spec-227-prints.smoke.spec.ts`: altura medida por `getBoundingClientRect`) e no DOM
+      (`trip-hooks/delivery-proof-card.contract.ts`). Evidência em `evidence.md` § "T4.4".
+
 ## Fase 5 — Eventos da nota e raio
 
 > 🤖 Modelo: `opus` 🧠 na API e na spec 228; `sonnet` no painel

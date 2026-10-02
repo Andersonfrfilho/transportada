@@ -617,57 +617,65 @@ function TripStopDocumentRow({
        * fixo. Só o nome de quem recebe fica à frente; telefone/contratante/regra vão para a
        * expansão (T304) — são dado de confirmação, não de triagem.
        */}
-      <div className={styles.stopDocumentGrid}>
-        {/*
-         * ⚠️ Mercadoria, frete e data são condições **irmãs**, nunca aninhadas: existe nota sem
-         * `nfeTotalValue` (vínculo que é só cálculo de frete), e é justamente nela que o frete — ou
-         * o aviso de que ele falta — é a única informação útil. Aninhar fazia o grupo inteiro sumir
-         * com a mercadoria.
-         */}
-        {document.nfeTotalValue === null || document.nfeTotalValue === undefined ? null : (
-          <div className={styles.stopDocumentGroup}>
-            <span className={styles.stopDocumentGroupLabel}>{t('stops.moneyGroupLabel')}</span>
-            <span className={styles.stopDocumentMeta}>
-              {t('stops.cargoValue', { amount: formatAmount(document.nfeTotalValue) })}
-            </span>
-          </div>
-        )}
-        {/*
-         * Spec 176: o frete **da nota**, nunca a mercadoria. `estimated` marca a previsão;
-         * `measured` não precisa de selo. Sem valor e sem regra, a ausência é dita em texto —
-         * nunca `R$ 0,00`.
-         */}
-        {document.freightAmount === null || document.freightAmount === undefined ? (
-          document.freightSource === 'missing' ? (
+      {/*
+       * Revisão de design da 227: aberta, a nota **cede** o resumo — carga, cliente, emissão e frete
+       * já estão em "Dados da nota", e dizê-los duas vezes na mesma tela era o ruído que o canvas não tem.
+       */}
+      {isOpen ? null : (
+        <div className={styles.stopDocumentGrid}>
+          {/*
+           * ⚠️ Mercadoria, frete e data são condições **irmãs**, nunca aninhadas: existe nota sem
+           * `nfeTotalValue` (vínculo que é só cálculo de frete), e é justamente nela que o frete — ou
+           * o aviso de que ele falta — é a única informação útil. Aninhar fazia o grupo inteiro sumir
+           * com a mercadoria.
+           */}
+          {document.nfeTotalValue === null || document.nfeTotalValue === undefined ? null : (
+            <div className={styles.stopDocumentGroup}>
+              <span className={styles.stopDocumentGroupLabel}>{t('stops.moneyGroupLabel')}</span>
+              <span className={styles.stopDocumentMeta}>
+                {t('stops.cargoValue', { amount: formatAmount(document.nfeTotalValue) })}
+              </span>
+            </div>
+          )}
+          {/*
+           * Spec 176: o frete **da nota**, nunca a mercadoria. `estimated` marca a previsão;
+           * `measured` não precisa de selo. Sem valor e sem regra, a ausência é dita em texto —
+           * nunca `R$ 0,00`.
+           */}
+          {document.freightAmount === null || document.freightAmount === undefined ? (
+            document.freightSource === 'missing' ? (
+              <div className={styles.stopDocumentGroup}>
+                <span className={styles.stopDocumentGroupLabel}>
+                  {t('stops.freightGroupLabel')}
+                </span>
+                <span className={styles.stopDocumentMeta}>{t('stops.freight.missing')}</span>
+              </div>
+            ) : null
+          ) : (
             <div className={styles.stopDocumentGroup}>
               <span className={styles.stopDocumentGroupLabel}>{t('stops.freightGroupLabel')}</span>
-              <span className={styles.stopDocumentMeta}>{t('stops.freight.missing')}</span>
+              <span className={styles.stopDocumentMeta}>
+                {t('stops.freight.amount', { amount: formatAmount(document.freightAmount) })}
+                {document.freightSource === 'estimated' ? ` (${t('stops.freight.estimated')})` : ''}
+              </span>
             </div>
-          ) : null
-        ) : (
-          <div className={styles.stopDocumentGroup}>
-            <span className={styles.stopDocumentGroupLabel}>{t('stops.freightGroupLabel')}</span>
-            <span className={styles.stopDocumentMeta}>
-              {t('stops.freight.amount', { amount: formatAmount(document.freightAmount) })}
-              {document.freightSource === 'estimated' ? ` (${t('stops.freight.estimated')})` : ''}
-            </span>
-          </div>
-        )}
-        {document.nfeIssuedAt === null || document.nfeIssuedAt === undefined ? null : (
-          <div className={styles.stopDocumentGroup}>
-            <span className={styles.stopDocumentGroupLabel}>{t('stops.issuedGroupLabel')}</span>
-            <span className={styles.stopDocumentMeta}>{formatDay(document.nfeIssuedAt)}</span>
-          </div>
-        )}
-        {document.contact === null || document.contact === undefined ? null : (
-          <div className={styles.stopDocumentGroup}>
-            <span className={styles.stopDocumentGroupLabel}>{t('stops.peopleGroupLabel')}</span>
-            <span className={styles.stopDocumentMeta}>
-              {t('contact.recipient', { name: document.contact.name })}
-            </span>
-          </div>
-        )}
-      </div>
+          )}
+          {document.nfeIssuedAt === null || document.nfeIssuedAt === undefined ? null : (
+            <div className={styles.stopDocumentGroup}>
+              <span className={styles.stopDocumentGroupLabel}>{t('stops.issuedGroupLabel')}</span>
+              <span className={styles.stopDocumentMeta}>{formatDay(document.nfeIssuedAt)}</span>
+            </div>
+          )}
+          {document.contact === null || document.contact === undefined ? null : (
+            <div className={styles.stopDocumentGroup}>
+              <span className={styles.stopDocumentGroupLabel}>{t('stops.peopleGroupLabel')}</span>
+              <span className={styles.stopDocumentMeta}>
+                {t('contact.recipient', { name: document.contact.name })}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
       <div className={styles.rowActions}>
         {/*
          * Spec 175 RF1/RF2/RF4/RF7: uma ação só, e o rótulo sai do documento que a nota espera —

@@ -32,7 +32,8 @@ type ProofImageProps = Readonly<{
   proof: DeliveryProof
   /** Fora da sequência de Tab (`-1`) quando a foto abre por tecla da nota em foco (spec 222 T8.1). */
   tabIndex?: number
-  variant: 'main' | 'thumbnail'
+  /** `summary` é a miniatura da linha-resumo do comprovante fechado: sem legenda, do tamanho do alvo de toque. */
+  variant: 'main' | 'summary' | 'thumbnail'
 }>
 
 /** Sem original (`downloadUrl` vazio) a galeria não o contém: fica só a miniatura, sem botão. */
@@ -69,12 +70,14 @@ export function ProofImage({
   }
 
   const isMain = variant === 'main'
+  const isSummary = variant === 'summary'
   const thumbnail = (
     <img
       alt={alt}
       className={cn(
         styles.deliveryProofImage,
         !isMain && styles.proofThumbnailImage,
+        isSummary && styles.proofSummaryImage,
         isWaiting && styles.deliveryProofImagePending,
       )}
       loading={isEager ? 'eager' : 'lazy'}
@@ -85,7 +88,12 @@ export function ProofImage({
   )
 
   return (
-    <figure className={isMain ? styles.proofMain : styles.proofThumbnail}>
+    <figure
+      className={cn(
+        isMain ? styles.proofMain : styles.proofThumbnail,
+        isSummary && styles.proofSummaryFigure,
+      )}
+    >
       <div className={styles.deliveryProofImageFrame}>
         {isWaiting ? (
           <SkeletonGroup label={t('deliveryProof.imageLoading')}>
@@ -107,7 +115,9 @@ export function ProofImage({
         )}
         {isMain ? <span className={styles.proofPieceOverlay}>{label}</span> : null}
       </div>
-      {isMain ? null : <figcaption className={styles.proofPieceCaption}>{label}</figcaption>}
+      {isMain || isSummary ? null : (
+        <figcaption className={styles.proofPieceCaption}>{label}</figcaption>
+      )}
     </figure>
   )
 }

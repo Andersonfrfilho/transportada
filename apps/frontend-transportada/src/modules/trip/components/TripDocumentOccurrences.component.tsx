@@ -26,7 +26,10 @@ export function TripDocumentOccurrences({ document, workspace }: TripDocumentOcc
   const { t } = useTranslation('trip')
 
   return (
-    <section aria-label={t('occurrence.title')} className={styles.documentData}>
+    <section
+      aria-label={t('occurrence.title')}
+      className={`${styles.documentData} ${styles.documentOccurrences}`}
+    >
       <TripOccurrences
         canOpenOccurrence={workspace.controller.canReadTripFleetDetails}
         canRegister={workspace.controller.canManageTrips && hasTripDocumentProof(document)}
