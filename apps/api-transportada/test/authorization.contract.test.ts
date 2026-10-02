@@ -73,7 +73,7 @@ describe('authorization contract', () => {
       'mdfe.auto-issue',
       // Spec 144 T014: a liquidação do WhatsApp, pela mesma régua — uma rota só, do serviço
       'whatsapp.settle',
-      // Spec 222 / ADR-0091 §2: a leitura automática do canhoto, do serviço e de uma rota só
+      // Spec 222 / ADR-0092 §2: a leitura automática do canhoto, do serviço e de uma rota só
       'trip.canhoto-auto-review',
       // Spec 085 G005: medir a caixa é galpão, e não sai de carona com `settings.manage`
       'cargo.measure',
@@ -741,7 +741,7 @@ describe('permissão de serviço (spec 144 T014b)', () => {
   })
 
   /**
-   * Spec 222 T3.3 (ADR-0091 §2): a porta do robô de canhoto é de máquina. Sem a entrada em
+   * Spec 222 T3.3 (ADR-0092 §2): a porta do robô de canhoto é de máquina. Sem a entrada em
    * `SERVICE_ONLY_PERMISSIONS`, quem tem `groups.manage` concederia a si mesmo um `approved` sem
    * `trip.manage` e sem trilha de pessoa. A primeira asserção prende que ela **existe** no catálogo
    * — sem ela `isGrantablePermission` devolveria `false` por motivo nenhum.

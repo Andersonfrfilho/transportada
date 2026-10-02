@@ -74,7 +74,7 @@ const REVIEW_BODY_SCHEMA = z
   .readonly()
 
 /**
- * Spec 222 / ADR-0091: o corpo do robô é só o que ele **leu**. Sem `action` (a rota já diz qual é) e
+ * Spec 222 / ADR-0092: o corpo do robô é só o que ele **leu**. Sem `action` (a rota já diz qual é) e
  * sem veredito — a máquina nunca recusa, e o servidor deriva o veredito. Os quatro campos são
  * obrigatórios e `nullable()`: `null` é "li e não achei", ausente é corpo malformado; com
  * `exactOptionalPropertyTypes` um `optional()` chegaria `undefined` e passaria batido pela

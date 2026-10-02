@@ -111,7 +111,7 @@ function createCounters(): Counters {
 }
 
 /**
- * ADR-0091: o worker lê a fila por SQL, decodifica o código de barras e **reporta** o que leu — o
+ * ADR-0092: o worker lê a fila por SQL, decodifica o código de barras e **reporta** o que leu — o
  * veredito é do servidor, e máquina nunca recusa. Falha de um comprovante é resultado contado: o
  * ciclo sempre termina `succeeded` e os outros comprovantes do lote seguem.
  */

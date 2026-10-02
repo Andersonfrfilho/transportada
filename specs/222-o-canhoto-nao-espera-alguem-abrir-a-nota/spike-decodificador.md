@@ -52,7 +52,7 @@ Consequências para a T6.4:
 - Foto que o leitor não decodifica **não é defeito**: fica `pending` (RF-B7). A régua do que é
   aceitável já existe e é o navegador — ele lê o mesmo JPEG hoje.
 
-## Decisão (entra na T4.2 / ADR-0091)
+## Decisão (entra na T4.2 / ADR-0092)
 
 **`@jsquash/{jpeg,png,webp}` (wasm)**, não `sharp`. O `sharp` é ~2x mais rápido e isso não decide
 nada aqui: 101 ms numa foto de 12 MP dá ~4 s de CPU para um ciclo de quarenta canhotos, contra uma

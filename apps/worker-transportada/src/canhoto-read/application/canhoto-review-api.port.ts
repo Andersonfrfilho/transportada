@@ -3,7 +3,7 @@
  */
 
 /**
- * Só o que a máquina **leu** (ADR-0091 §2): o veredito é do servidor. `null` nos quatro campos é "li e
+ * Só o que a máquina **leu** (ADR-0092 §2): o veredito é do servidor. `null` nos quatro campos é "li e
  * não achei" — e é por isso que nenhum deles é opcional.
  */
 export type CanhotoReadingReport = Readonly<{

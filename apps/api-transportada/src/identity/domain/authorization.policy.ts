@@ -87,7 +87,7 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
    */
   'whatsapp.settle',
   /**
-   * Spec 222 / ADR-0091 §2: a leitura automática do canhoto, também do **serviço** e de uma rota só.
+   * Spec 222 / ADR-0092 §2: a leitura automática do canhoto, também do **serviço** e de uma rota só.
    * O robô reporta o que leu e o servidor decide; ele não recebe `trip.manage`, que lhe daria
    * separar, carregar e cancelar viagem. Sufixo `-review` porque `.read` significa ver no catálogo.
    */

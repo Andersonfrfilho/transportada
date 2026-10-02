@@ -298,7 +298,7 @@ describe('o mapa dos erros do domínio', () => {
 })
 
 /**
- * Spec 222 T3.3 (ADR-0091 §2): o robô tem rota e permissão próprias. O token dele **não** é
+ * Spec 222 T3.3 (ADR-0092 §2): o robô tem rota e permissão próprias. O token dele **não** é
  * `trip.manage`, e o de gente não é `trip.canhoto-auto-review` — as duas portas não se confundem.
  */
 describe('a rota do robô é de uma permissão só (CA13)', () => {

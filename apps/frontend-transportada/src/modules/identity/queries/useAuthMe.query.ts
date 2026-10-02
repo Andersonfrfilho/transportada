@@ -72,7 +72,7 @@ export const COMPANY_PERMISSIONS = [
   'mdfe.auto-issue',
   /** Spec 144 T014: também de máquina — a liquidação do pedido de WhatsApp, sem tela. */
   'whatsapp.settle',
-  /** Spec 222 / ADR-0091: também de máquina — a leitura automática do canhoto, sem tela. */
+  /** Spec 222 / ADR-0092: também de máquina — a leitura automática do canhoto, sem tela. */
   'trip.canhoto-auto-review',
   /** Spec 085 G005: medir a caixa é galpão, e não sai de carona com `settings.manage`. */
   'cargo.measure',

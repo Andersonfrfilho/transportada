@@ -86,10 +86,10 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
 ## Fase 3 — O robô tem porta própria
 
 > 🤖 Modelo: `sonnet`. **T3.1 e T3.2 já foram feitas e validadas pelo `architect`** em 2026-10-01 —
-> o ADR-0091 está escrito e o nome da permissão está decidido. Quem executa a fase lê o ADR e
+> o ADR-0092 está escrito e o nome da permissão está decidido. Quem executa a fase lê o ADR e
 > implementa; não reabra as duas decisões.
 
-- [x] T3.1 🧠 ADR-0091 — "o canhoto é lido sem ninguém abrir a viagem". Escrito e corrigido depois
+- [x] T3.1 🧠 ADR-0092 — "o canhoto é lido sem ninguém abrir a viagem". Escrito e corrigido depois
       da revisão: §1 diz a garantia **real** (não aprova leitura divergente, nunca `rejected`, mas
       aprova o que não leu se souber o número certo), §7 decide a trilha por comprovante e §8 a
       regra de parada
@@ -123,7 +123,7 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
       12,2 MP em 101 ms (JPEG), 179 ms (PNG) e 312 ms (WebP), casando a chave exata, inclusive sob
       `bun build --target=bun --packages=external`. `sharp` saiu ~1,8x mais rápido em 4,3 MP no
       processo principal e não foi medido no worker
-- [x] T4.2 Decisão no ADR-0091 §4: **`@jsquash`**, porque o critério é não pendurar binário nativo
+- [x] T4.2 Decisão no ADR-0092 §4: **`@jsquash`**, porque o critério é não pendurar binário nativo
       por plataforma no caminho do `--frozen-lockfile`, não velocidade. Teto de 8 MB conferido
       **antes do download**, pelo tamanho gravado em `stored_objects`
 - [x] T4.3 `bun add` da escolhida no `apps/worker-transportada` + `bun install --frozen-lockfile` na

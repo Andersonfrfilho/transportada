@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 
-/** O código de barras é o único leitor: o único `readSource` que a máquina pode reportar (ADR-0091 §1). */
+/** O código de barras é o único leitor: o único `readSource` que a máquina pode reportar (ADR-0092 §1). */
 export const CANHOTO_BARCODE_READ_SOURCE = 'barcode'
 
 /**
@@ -18,7 +18,7 @@ export const CANHOTO_READ_BATCH_SIZE = 10
 export const CANHOTO_READ_MAX_PROOFS_PER_CYCLE = 40
 
 /**
- * RNF3 / ADR-0091 §4: conferido **antes** do download, contra o tamanho gravado em `stored_objects`.
+ * RNF3 / ADR-0092 §4: conferido **antes** do download, contra o tamanho gravado em `stored_objects`.
  * O PNG de 12 MP do spike deu 10,7 MB e levou o worker a ~300 MB de RSS.
  */
 export const CANHOTO_READ_MAX_OBJECT_BYTES = 8 * 1024 * 1024

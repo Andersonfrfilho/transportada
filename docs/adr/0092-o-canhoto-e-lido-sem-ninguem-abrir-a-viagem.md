@@ -1,4 +1,4 @@
-# ADR 0091 — O canhoto é lido sem ninguém abrir a viagem
+# ADR 0092 — O canhoto é lido sem ninguém abrir a viagem
 
 - Status: aceito
 - Data: 2026-10-01

@@ -247,7 +247,7 @@ mudaram o escopo:
    `-review` e não `-read` porque em todo o catálogo `.read` significa ver, e uma permissão de
    escrita terminada em `-read` engana quem audita a matriz de concessão.
 
-A revisão do `architect` sobre o ADR-0091 acrescentou RF-B9 (a máquina registra que tentou), RF-B10
+A revisão do `architect` sobre o ADR-0092 acrescentou RF-B9 (a máquina registra que tentou), RF-B10
 (trilha por comprovante), o corte de viagem cancelada na RF-B2, os dois resultados de falha novos da
 RF-B8, a segunda lista de permissão na RF-B5 e o teto antes do download na RNF3. Nenhuma delas é
 refinamento: cada uma tapa um caminho em que a rotina estaria errada em produção e verde no teste.

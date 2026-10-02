@@ -1201,3 +1201,33 @@ spec.
 A linha `Not a JPEG file: starts with 0x07 0x07` no log é o teste de bytes indecodificáveis da
 thread real, que segue respondendo `null` — ela é a prova de que o caminho `parentPort !== null`
 continua carregando o decodificador e postando mensagem.
+
+## O ADR virou 0092 no rebase
+
+A spec 223 publicou `docs/adr/0091-o-painel-conclui-sem-canhoto-e-o-canhoto-vira-divida.md` em
+staging enquanto esta branch estava fora, e o nosso ADR também era 0091. Nomes de arquivo
+diferentes, então o git não conflita — dois ADRs com o mesmo número passariam direto.
+
+O nosso renumerou, porque o outro já está publicado: `0092-o-canhoto-e-lido-sem-ninguem-abrir-a-viagem.md`,
+com as dez referências `ADR-0091` desta spec reescritas (worker, rota do robô, política de
+autorização, `useAuthMe`, e os documentos da spec). As treze referências restantes no repositório
+são da 223 e ficaram intactas — a separação foi medida por
+`git diff origin/staging...HEAD`, não a olho.
+
+A migration não colidiu: `20261002120000_trip_canhoto_read_job` é mais nova que a última de staging
+(`20261001123700_event_location_stamp`), e a 223 não trouxe migration.
+
+## O rebase pediu seis resoluções, e cinco eram listas
+
+| Arquivo                                        | Conflito                              | Resolução                        |
+| ---------------------------------------------- | ------------------------------------- | -------------------------------- |
+| `api .../trip-delivery-proof.contract.test.ts` | dois imports novos de suíte           | união                            |
+| `api/package.json` (`test:integration`)        | duas listas de arquivos de integração | união calculada                  |
+| `painel .../trip-hooks.contract.test.ts`       | dois imports novos de suíte           | união                            |
+| `painel .../trip.locale.json` (×2 idiomas)     | duas levas de chaves novas            | união                            |
+| `painel .../useTripWorkspace.hook.ts`          | duas mutações novas no mesmo ponto    | as duas                          |
+| `painel .../TripStateActions.component.tsx`    | duas props e dois botões novos        | os dois, condição de 3 cláusulas |
+
+⚠️ Os dois primeiros são a armadilha conhecida: escolher um lado **remove testes da lista explícita**
+e eles simplesmente deixam de rodar, com o verde continuando verde. A união do `package.json` foi
+calculada por script (`+1 nosso`, `5 de staging preservados`), não escolhida no editor.
