@@ -22,11 +22,17 @@ export type TripCanhotoBatchItemActions = Readonly<{
 
 type TripCanhotoBatchItemProps = Readonly<{
   actions: TripCanhotoBatchItemActions
+  hasImageFailed: boolean
   isChecked: boolean
   item: CanhotoBatchItem
 }>
 
-export function TripCanhotoBatchItem({ actions, isChecked, item }: TripCanhotoBatchItemProps) {
+export function TripCanhotoBatchItem({
+  actions,
+  hasImageFailed,
+  isChecked,
+  item,
+}: TripCanhotoBatchItemProps) {
   const { t } = useTranslation('trip')
   const { documentId, label, proof } = item
 
@@ -42,9 +48,15 @@ export function TripCanhotoBatchItem({ actions, isChecked, item }: TripCanhotoBa
         variant="main"
       />
       <ProofReview proof={proof} />
+      {hasImageFailed ? (
+        <p className={styles.alert} role="alert">
+          {t('deliveryProof.canhotoBatch.imageFailed')}
+        </p>
+      ) : null}
       <Checkbox
         ariaLabel={t('deliveryProof.canhotoBatch.selectItem', { label })}
         checked={isChecked}
+        disabled={hasImageFailed}
         label={t('deliveryProof.canhotoBatch.noteLabel', { label })}
         onChange={(checked) => actions.onCheckedChange(documentId, checked)}
       />

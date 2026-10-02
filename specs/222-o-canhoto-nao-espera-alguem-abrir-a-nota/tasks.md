@@ -61,7 +61,7 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
       Molde de diálogo: `TripReturnReasonDialog.component.tsx` — `createPortal` + `useModalDialog`,
       classes `styles.mdfeGateOverlay` / `styles.mdfeGateDialog`, `aria-modal` e `aria-labelledby`.
       Nenhuma biblioteca de modal nova
-- [ ] T2.7 Item cuja imagem não carregou nasce **desmarcado**, com aviso — a tela não aprova o que
+- [x] T2.7 Item cuja imagem não carregou nasce **desmarcado**, com aviso — a tela não aprova o que
       não mostrou (RF-A8, CA09). O gancho é o `onError` que o `ProofImage` já tem
 - [ ] T2.8 Botão no maço em `TripStateActions.component.tsx`, no molde de `batchFieldDelivery`, com
       o aviso de exclusão reaproveitando a contagem da T2.2 (CA02–CA04)

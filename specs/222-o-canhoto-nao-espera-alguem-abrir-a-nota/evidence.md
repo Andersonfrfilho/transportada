@@ -307,3 +307,19 @@ dobra nunca carregaria e a pessoa aprovaria o que não viu. Nota desmarcada não
 O `action-icons.contract` (já existente) reprovou o "Cancelar" sem ícone — corrigido.
 
 Gates: typecheck sem erro; prettier conforme; eslint 0 erros (os 16 avisos preexistentes).
+
+### T2.7 — foto que não abriu nasce desmarcada, com aviso (RF-A8, CA09)
+
+Vermelho antes: `canhoto-batch-dialog-image-failure.contract.ts` → **2 pass / 4 fail** (os 2 verdes
+são vácuos: "a foto que carrega normal não ganha aviso" e "a nota que falhou não volta por clique",
+que passa porque desmarcar já era possível). Verde depois: **6 pass / 0 fail**. Suítes completas:
+`bun run test` → **6191 pass / 0 fail**; hooks → **208 pass / 0 fail**.
+
+Mutações: `onError` que não registra a falha → **3 pass / 3 fail**; tirar o "sem fonte" (`downloadUrl`
+e miniatura vazias) → **5 / 1**; deixar a nota falha marcada → **1 / 5**. Restauradas.
+
+O gancho é o `onSettled('failed')` que a T2.6 já pôs no `ProofImage` (o `onError` dele). Foto que
+falhou, ou canhoto sem imagem nenhuma (sem `onError` para esperar), fica desmarcado, com a caixa
+travada (`disabled`) e o aviso `role="alert"`; não segura as outras notas.
+
+Gates: typecheck sem erro; prettier conforme; eslint 0 erros (16 avisos preexistentes).

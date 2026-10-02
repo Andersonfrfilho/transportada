@@ -15,6 +15,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import type { CanhotoBatchItem } from '../shared/canhotoBatchSelection.service'
+import { resolveDeliveryProofImageSource } from '../shared/deliveryProof.service'
 import styles from '../styles/trip.module.css'
 import type { ProofImageOutcome } from './ProofImage.component'
 import { ProofGalleryDialog } from './ProofGalleryDialog.component'
@@ -52,9 +53,15 @@ export function TripCanhotoBatchDialog({
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen: true, onClose })
   const [uncheckedIds, setUncheckedIds] = useState<ReadonlySet<string>>(new Set())
   const [loadedIds, setLoadedIds] = useState<ReadonlySet<string>>(new Set())
+  const [failedIds, setFailedIds] = useState<ReadonlySet<string>>(new Set())
   const [openedItem, setOpenedItem] = useState<CanhotoBatchItem | undefined>(undefined)
 
-  const checkedItems = items.filter((item) => !uncheckedIds.has(item.documentId))
+  /** Foto que não abriu — ou que nem existe — nunca entra no maço: a tela não aprova o que não mostrou. */
+  const hasImageFailed = (item: CanhotoBatchItem): boolean =>
+    failedIds.has(item.documentId) || resolveDeliveryProofImageSource(item.proof) === ''
+  const isChecked = (item: CanhotoBatchItem): boolean =>
+    !uncheckedIds.has(item.documentId) && !hasImageFailed(item)
+  const checkedItems = items.filter(isChecked)
   const isWaitingImages = checkedItems.some((item) => !loadedIds.has(item.documentId))
   const isSubmitting = status === 'submitting'
   const canConfirm = status === 'ready' && checkedItems.length > 0 && !isWaitingImages
@@ -67,6 +74,7 @@ export function TripCanhotoBatchDialog({
 
   function handleImageSettled(documentId: string, outcome: ProofImageOutcome): void {
     if (outcome === 'loaded') setLoadedIds((current) => addTo(current, documentId))
+    else setFailedIds((current) => addTo(current, documentId))
   }
 
   function handleOpenImage(proofId: string): void {
@@ -126,7 +134,8 @@ export function TripCanhotoBatchDialog({
                     onImageSettled: handleImageSettled,
                     onOpenImage: handleOpenImage,
                   }}
-                  isChecked={!uncheckedIds.has(item.documentId)}
+                  hasImageFailed={hasImageFailed(item)}
+                  isChecked={isChecked(item)}
                   item={item}
                   key={item.documentId}
                 />
