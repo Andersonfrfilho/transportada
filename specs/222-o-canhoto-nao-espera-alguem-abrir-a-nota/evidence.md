@@ -1041,3 +1041,41 @@ painel.
 - Contrato do worker: **1523 pass / 0 fail / 4034 expect() em 95 arquivos**.
 - Integração do canhoto (três arquivos, fila + ciclo + convergência): **15 pass / 0 fail / 86 expect()**.
 - Sem `DATABASE_URL`: **21 skip / 0 pass** (pular não é passar).
+
+### T7.4 — o que foi medido nesta sessão, e não só afirmado
+
+**O índice parcial é prova por EXPLAIN, com `enable_seqscan=off` nos dois casos.** O ponto não é a
+preferência do planejador, é a capacidade:
+
+- predicado em **literal** → `Index Scan using trip_delivery_proofs_canhoto_pending_idx`,
+  `Filter: (kind = 'photo'::text)`.
+- os mesmos valores como **parâmetro**, em plano genérico forçado → `Seq Scan on trip_delivery_proofs p`,
+  `Disabled: true`, `Filter: (... kind = $1 AND (canhoto_review)::text = $2)`.
+
+`Disabled: true` é o detalhe que decide: o seq scan estava **desligado**, logo o planejador não tinha
+alternativa utilizável. É incapacidade de provar a implicação, não escolha de custo — e é exatamente o
+que `eq()` com valor JS produziria.
+
+**A ida e volta da migration, contra Postgres 18.4 nativo descartável** (Docker indisponível; é a
+substância do `make migration-test`, não o alvo literal):
+
+| Passo          | journal | índice | rotina em `job_schedules` | coluna `canhoto_read_attempted_at` |
+| -------------- | ------- | ------ | ------------------------- | ---------------------------------- |
+| 264 migrations | 264     | 1      | 1                         | 1                                  |
+| `rollback.sql` | 263     | 0      | 0                         | 0                                  |
+| reaplicação    | 264     | 1      | 1                         | 1                                  |
+
+Depois do rollback, `job_schedules_job_check` volta com **zero** menções a canhoto, e `db:generate`
+responde `"no_changes"` — o schema do código e o do banco batem.
+
+As outras quatro colunas `canhoto_read_*` **sobrevivem** ao rollback de propósito: são da migration
+`20260930145144_delivery_proof_canhoto_review` (spec 220). A desta spec acrescenta uma coluna só.
+
+**Suíte com dentes, provada por mutação e revertida** (árvore limpa depois das duas):
+
+- tirar `and p."canhoto_read_attempted_at" is null` de `QUEUE_PREDICATE` → **10 pass / 5 fail**.
+- carimbar sempre, não só quando a leitura termina sem código → 8 contratos nomeados vermelhos e
+  **1 pass / 5 fail** na integração.
+
+**Gates em primeiro plano:** `typecheck` e `lint` verdes em `worker-transportada`, `api-transportada` e
+`frontend-transportada`.
