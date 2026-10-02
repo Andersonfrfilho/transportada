@@ -248,7 +248,14 @@
   "returnTitle": "Why was it not delivered?",
   "search": {
     "noResults": "No stops found for this search.",
-    "placeholder": "Search note, customer or address"
+    "placeholder": "Search note, customer or address",
+    "scanClose": "Close the camera",
+    "scanDenied": "Allow camera access to read the code.",
+    "scanReading": "Point the camera at the note's barcode.",
+    "scanStarting": "Opening the camera…",
+    "scanTitle": "Read the note code",
+    "scanTrigger": "Read the note code with the camera",
+    "scanUnavailable": "This device has no camera available."
   },
   "schedule": {
     "at": "Scheduled for {{time}}",
