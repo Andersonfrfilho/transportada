@@ -246,6 +246,10 @@
     "recipient_refused": "Refused"
   },
   "returnTitle": "Why was it not delivered?",
+  "search": {
+    "noResults": "No stops found for this search.",
+    "placeholder": "Search note, customer or address"
+  },
   "schedule": {
     "at": "Scheduled for {{time}}",
     "protocol": "Protocol {{protocol}}"

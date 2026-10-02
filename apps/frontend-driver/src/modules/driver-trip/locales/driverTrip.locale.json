@@ -284,6 +284,10 @@
     "recipient_refused": "Recusa"
   },
   "returnTitle": "Por que não entregou?",
+  "search": {
+    "noResults": "Nenhuma parada encontrada para esta busca.",
+    "placeholder": "Buscar nota, cliente ou endereço"
+  },
   "schedule": {
     "at": "Hora marcada: {{time}}",
     "protocol": "Protocolo {{protocol}}"
