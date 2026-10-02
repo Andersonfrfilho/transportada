@@ -1117,3 +1117,194 @@ cobre nada.
 **O vermelho veio antes do verde.** Com o contrato ajustado e o código ainda intacto, a suíte deu
 `1 fail` em `recusa o item sem as duas chaves`; depois das três camadas (lista de chaves, validador,
 tipo), `0 fail`.
+
+## T7.3 — a auditoria de log, metade feita: painel e API de demonstração
+
+Primeiro item do T7.3 ("coordenada em nenhum log"), nas duas superfícies que não dependem da
+reconciliação em curso. **Parcial de propósito** — API e worker ficam para depois, e a task não fecha
+com isto.
+
+⚠️ **O `grep` cru desta máquina passa por um filtro que omite linhas sem avisar.** Toda varredura
+abaixo foi feita com `rtk proxy grep`. A memória do projeto já registrou o estrago da versão
+filtrada: um `git log` que contou 50 de 73 commits.
+
+**Painel (`frontend-transportada`), módulos `trip/` e `shared/`:** três chamadas, todas em
+`AssemblyVectorMap.component.tsx`, e **nenhuma recebe coordenada**:
+
+| linha | chamada                             | o que carrega                          | em produção                         |
+| ----- | ----------------------------------- | -------------------------------------- | ----------------------------------- |
+| 233   | `console.warn('[route-layer]', …)`  | mensagem de erro do `setPaintProperty` | não executa — `!== 'production'`    |
+| 286   | `console.error('[basemap]', error)` | falha de construção do mapa            | não executa — `import.meta.env.DEV` |
+| 332   | `console.error('[basemap]', …)`     | `event.error?.message` do MapLibre     | não executa — `import.meta.env.DEV` |
+
+Os dois primeiros são erro de estilo e de basemap; o terceiro existe porque engoli-lo custou um dia
+inteiro de diagnóstico às cegas, e o comentário no arquivo registra isso. O pior caso fora de
+produção é a mensagem do MapLibre trazer a URL de um tile — índice `z/x/y`, quadrado do mapa derivado
+do enquadramento, não posição carimbada de evento. Não é dado pessoal e não é achado.
+
+**API de demonstração (`apps/frontend-driver/scripts/driver-preview-api.ts`, 487 linhas):** uma única
+chamada, linha 485 — faixa de inicialização com a porta e o endereço da API real. Sem coordenada.
+
+Faltam do T7.3: logs da API e do worker, respostas fora da tabela do D7, N+1 nas consultas da linha
+do tempo, `EXPLAIN` do expurgo nas cinco tabelas e o destino do `VITE_MAP_TILES_URL`.
+
+## Reconciliação — o que o worker e o app do motorista têm de verdade
+
+As caixas do `tasks.md` não são confiáveis: outra sessão fez parte do trabalho sem marcar, e há nomes
+no código que **parecem** entrega da 196 e são de outras specs. Mandei um agente conferir
+`apps/worker-transportada` e `apps/frontend-driver` contra o código, task por task. Resultado: **T2.1,
+T2.2 e T5.0–T5.4 continuam abertas**, e as caixas abertas delas estão certas.
+
+### Três nomes que não são da 196 — não tique por homonímia
+
+| Nome no código                  | Parece ser | É de fato                                                |
+| ------------------------------- | ---------- | -------------------------------------------------------- |
+| `applyReportLocation`           | T5.2       | spec 189 — e **com a exceção da ocorrência ainda lá**    |
+| `scripts/driver-preview-api.ts` | T5.0       | spec 206 T4.5 (o cabeçalho do arquivo diz isso, linha 3) |
+| `location` no `depart`          | T5.3       | spec 206 — o "Despachar" continua sem ponto              |
+
+Tiquar qualquer uma das três por achar o nome no `grep` fecharia task que não existe. É a mesma
+família do defeito que a 179 cometeu contra a 164 e a 161.
+
+### O que de 196 realmente entrou no worker
+
+Só o `location_state`/`expired` nas **duas** tabelas que já tinham ponto (`trip_stop_events`,
+`trip_delivery_proofs`), no commit `3cdbf9711`, escopo da Fase 1. E a rotina de expurgo **roda**:
+`trip-location-purge.routine.ts:44`, registrada em `main.ts:1208` como `TRIP_LOCATION_PURGE_JOB`, no
+catálogo com intervalo mínimo de um dia. Sobre três tabelas, não cinco.
+
+**A regra do `package.json` está cumprida**, ao contrário do que eu temia: os três contratos de
+`test/trip-location-purge/` rodam, porque o entrypoint `trip-location-purge.contract.test.ts` está na
+linha `"test"` da app. O problema da T2.1 não é encanamento — é conteúdo que não existe:
+`TRIP_LOCATION_STAMPED_TABLES` e `TRIP_LOCATION_UNSTAMPED_TABLES` não existem em lugar nenhum (0 hits
+na API e no worker), as três tabelas novas não são declaradas no schema do worker, e não há `exhausted`
+por tabela.
+
+### Por que T2.x não poderia estar feita
+
+**Não há coluna para redigir.** A migration `20261001123700_event_location_stamp` deixou as três
+tabelas sem ponto de fora — o próprio `tasks.md` da Fase 1 avisa isso. O expurgo das cinco tabelas
+depende da Fase 1 terminar, e ela não terminou.
+
+### O que falta, em uma linha cada
+
+- **T2.1/T2.2:** as três tabelas novas no schema do worker, os dois conjuntos de tabelas, paridade do
+  D8, teto de lotes e `exhausted` por tabela, redatores das três tabelas, `try/catch` por tabela
+  (hoje uma coluna ausente derruba o ciclo inteiro) e `redactedByTable`/`exhaustedTables` no log.
+- **T5.1:** os dois contratos não existem. O vizinho mais próximo, `offline-queue.contract.ts:221`,
+  afirma o **oposto** do que a 196 pede: `it('ocorrência não tem posição: fica como está')` — é da 189
+  e vai precisar mudar junto.
+- **T5.2:** a exceção da ocorrência está viva em `offlineQueue.service.ts:224-235`, e os tipos de
+  `occurrence`/`documentOccurrence` não têm `location`. `registerDocumentOccurrence` ainda faz `POST`
+  direto em dois lugares, em vez de virar item de fila.
+- **T5.3:** `readDirectTapLocation` não existe (0 hits). O que existe é `readCurrentLocation`, com
+  `enableHighAccuracy: true`, `maximumAge: 0` e `timeout: 8_000` — o contrário do que a task pede.
+- **T5.4:** não existe `prints/` na pasta da spec, e o `.claude/launch.json` não tem
+  `motorista-local` nem `motorista-api-demo`.
+
+## T1.1 (parte que faltava) — o contrato das três tabelas sem coluna de ponto
+
+A seção "T1.1 / T1.2 / T3.1" acima cobriu as **duas** tabelas que já tinham as quatro colunas de
+posição. As três que não tinham coluna nenhuma — `trip_status_events`, `trip_stop_occurrences`,
+`trip_document_occurrences` — ficaram de fora da migration `20261001123700_event_location_stamp`, e
+é esse buraco que a T1.1 fecha agora.
+
+### O contrato novo, e por que ele é vermelho
+
+`apps/api-transportada/test/trip-schema/event-location.contract.ts` ganhou um segundo bloco
+(`as três tabelas que ganham posição agora`) com cinco asserções por tabela: as cinco colunas
+anuláveis e sem default, os quatro CHECKs de coordenada, os dois de estado, os dois de canal, e o
+índice parcial pela coluna de tempo **da própria tabela**.
+
+```
+bun --env-file=../../.env.test test ./test/trip-schema.contract.test.ts --timeout 120000
+147 pass · 15 fail · 586 expect() calls · Ran 162 tests across 1 file. [559.00ms]
+```
+
+As 15 falhas são 5 asserções × 3 tabelas, todas dentro do bloco novo — o bloco antigo segue inteiro
+no verde. O aceite da task ("o contrato falha pelo motivo certo; a contagem subiu em N") fecha com
+**N = 15**. O motivo é estrutural, não de texto: `indexColumnsByName(table)[indexName]` devolve
+`undefined` contra `["recorded_at"]` / `["created_at"]`, e os CHECKs e colunas idem — nada existe
+ainda no schema.
+
+As cinco asserções, por nome:
+
+| Asserção                                                                            | O que ela prende                                                |
+| ----------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `ganha as cinco colunas de posição, todas anuláveis e sem default`                  | tipos SQL exatos, `notNull: false`, `hasDefault: false`         |
+| `amarra a coordenada: par completo, faixa do globo e precisão só com ponto`         | `_coordinates_check`, os dois `_range_check`, `_accuracy_check` |
+| `restringe o estado ao conjunto e amarra captured à coordenada, sem buraco de NULL` | `_location_state_check` e `_location_state_consistency_check`   |
+| `só aceita coordenada do app do motorista, e estado só de canal que pede posição`   | `_coordinates_channel_check` e `_location_state_channel_check`  |
+| `indexa só o que tem ponto, pela coluna de tempo da própria tabela`                 | o índice parcial, com `where` conferido                         |
+
+Cada tabela indexa pela **sua** coluna de tempo: `trip_status_events` não tem `created_at` (índice em
+`recorded_at`), e as duas de ocorrência não têm `recorded_at` (índice em `created_at`, append-only por
+desenho). Um índice copiado da tabela vizinha nem compila.
+
+### Um helper que faltava no arnês de schema
+
+`indexWhereSqlByName` (`test/fiscal-schema/support.ts`) devolve o `where` de **todo** índice. O irmão
+que já existia, `uniqueIndexWhereSqlByName`, filtra `config.unique` — e o índice de posição não é
+único. Pedir o `where` dele por aquele mapa devolveria `undefined`, e a asserção passaria **sem ter
+olhado nada**. É a mesma família de falso-verde do `test.each` que esconde a tabela de casos.
+
+### Os dois CHECKs de canal entram só nas três tabelas novas
+
+Isto não é preferência de escopo: é o que a composição dos CHECKs permite hoje.
+
+Em `trip_stop_events`, `_location_state_consistency_check` já está aplicado e força
+`coordenada ⇒ captured`. Somado a `_location_state_channel_check` (`estado ⇒ canal ∈ {driver_app,
+whatsapp}`), o par **proíbe qualquer coordenada fora desses dois canais**. Então adicionar o CHECK de
+estado àquela tabela reprova se existir uma linha histórica com coordenada em outro canal.
+
+Tentei a variante "migration que se defende" (`UPDATE … SET location_state = 'captured' WHERE
+latitude IS NOT NULL AND channel = 'driver_app'`) e ela não resolve: a linha com coordenada em outro
+canal ficaria com `location_state = null`, que é exatamente o que o CHECK de consistência rejeita. A
+contagem histórica é inevitável.
+
+As três tabelas novas não têm esse problema — elas nascem sem nenhuma linha com coordenada, então
+nada antigo pode reprovar, e os dois CHECKs entram juntos com as colunas.
+
+### A contagem em staging (nenhum segredo na sessão)
+
+O banco certo foi identificado por sondagem, não por adivinhação de nome: `to_regclass
+('trip_stop_events')` devolveu `t` no serviço `Postgres` e `f` no `Postgres-q0RQ`. As contagens
+rodaram **dentro do contêiner** por `railway ssh`, onde `PGHOST`/`PGUSER`/`PGPASSWORD`/`PGDATABASE`
+já existem — nenhuma string de conexão foi extraída para a sessão, e só agregados saíram.
+
+| Medida                              | Valor              |
+| ----------------------------------- | ------------------ |
+| Linhas em `trip_stop_events`        | 39                 |
+| Com coordenada                      | 37                 |
+| Com coordenada fora de `driver_app` | **0**              |
+| Quebra por canal                    | `driver_app \| 37` |
+
+Muito abaixo do teto de 100 mil que o `plan.md` usa para decidir lote — se produção acompanhar, a
+migration é uma transação só.
+
+### O que está bloqueado, e por quem
+
+**Produção não foi medida.** `railway ssh --environment production --service Postgres-Hqfu -- psql
+-c "select count(*)…"` foi **recusado** pelo classificador de modo automático, motivo
+`[Production Reads]`. A recusa diz valer para o resultado, não só para aquele comando, então não
+tentei contorno nenhum — nem túnel, nem variável, nem MCP.
+
+Consequência prática, e é pequena: `_location_state_channel_check` **em `trip_stop_events`** fica
+fora da T1.2 até alguém com acesso rodar
+
+```sql
+select count(*) from trip_stop_events where latitude is not null and channel <> 'driver_app';
+```
+
+Zero → o CHECK entra junto. Diferente de zero → ou ele não entra naquela tabela, ou a migration
+precisa de uma decisão de produto sobre as linhas antigas. **Nada mais da Fase 1 depende disso**: as
+três tabelas novas e todo o resto da T1.2 seguem.
+
+### Gates desta task
+
+| Gate                                       | Resultado                                    |
+| ------------------------------------------ | -------------------------------------------- |
+| `bun run typecheck` (api)                  | exit 0                                       |
+| `bun run lint` (api)                       | exit 0                                       |
+| `prettier --check` nos dois arquivos       | "All matched files use Prettier code style!" |
+| `test ./test/trip-schema.contract.test.ts` | 147 pass / 15 fail — vermelho pretendido     |

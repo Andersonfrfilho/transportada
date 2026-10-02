@@ -65,6 +65,19 @@ export const indexColumnsByName = (
     ]),
   )
 
+/**
+ * O `where` de **todo** índice, único ou não. O irmão abaixo filtra os únicos, e um índice parcial
+ * comum (o de posição do evento, por exemplo) não aparece lá — pedir o `where` dele por aquele mapa
+ * devolve `undefined` e a asserção passa sem ter olhado nada.
+ */
+export const indexWhereSqlByName = (table: SchemaTable): Readonly<Record<string, string>> =>
+  Object.fromEntries(
+    getTableConfig(table).indexes.map((tableIndex) => [
+      tableIndex.config.name ?? '',
+      tableIndex.config.where === undefined ? '' : dialect.sqlToQuery(tableIndex.config.where).sql,
+    ]),
+  )
+
 export const uniqueIndexWhereSqlByName = (table: SchemaTable): Readonly<Record<string, string>> =>
   Object.fromEntries(
     getTableConfig(table)
