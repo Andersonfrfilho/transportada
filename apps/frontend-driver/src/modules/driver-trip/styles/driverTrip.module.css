@@ -981,6 +981,21 @@
  * drenagem só roda com a app aberta (sem Background Sync — `security.md` §8), então esta linha é
  * onde o motorista descobre que algo ficou para trás.
  */
+/*
+ * O identificador curto da viagem, ao lado da placa: monoespaçado porque é código para ditar ao
+ * telefone — proporcional embaralha 0/O e 1/l justamente em quem está dirigindo.
+ */
+.tripCodeLabel {
+  margin-left: var(--space-3);
+}
+
+.tripCode {
+  background: color-mix(in srgb, var(--color-slate) 22%, transparent);
+  font-family: ui-monospace, monospace;
+  margin-left: var(--space-1);
+  padding: 0 var(--space-1);
+}
+
 .syncStatus {
   align-items: center;
   color: var(--color-fog);

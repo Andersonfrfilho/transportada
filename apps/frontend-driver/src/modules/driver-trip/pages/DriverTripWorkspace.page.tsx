@@ -65,6 +65,7 @@ import {
 } from '../shared/occurrenceTypesCache.service'
 import { createIdempotencyKey } from '../shared/offlineQueue.service'
 import { buildStopOccurrenceReports } from '../shared/stopOccurrencePhoto.service'
+import { formatShortTripId } from '../shared/tripIdentifier.service'
 import {
   findCurrentStop,
   findProofDocumentLabel,
@@ -657,7 +658,17 @@ export function DriverTripWorkspacePage() {
         <header className={styles.header}>
           <h1>{t('title')}</h1>
           {trip === undefined ? null : (
-            <p className={styles.vehicle}>{t('vehicle', { plate: trip.vehiclePlate })}</p>
+            <p className={styles.vehicle}>
+              {t('vehicle', { plate: trip.vehiclePlate })}
+              {/*
+               * Pedido do usuário (01/10): o identificador curto da viagem, o MESMO que a listagem
+               * do escritório mostra — é por ele que motorista e escritório falam da mesma viagem
+               * ao telefone (`tripIdentifier.service.ts`). Rotulado: sem a palavra "Viagem" o
+               * código cola na placa e se lê como parte dela (visto no print da revisão).
+               */}
+              <span className={styles.tripCodeLabel}>{t('tripCodeLabel')}</span>
+              <code className={styles.tripCode}>{formatShortTripId(trip.id)}</code>
+            </p>
           )}
           {trip?.status === 'on_delivery_route' ? (
             <p className={styles.tripOnRoute}>

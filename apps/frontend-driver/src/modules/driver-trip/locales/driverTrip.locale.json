@@ -305,6 +305,7 @@
     "syncing_other": "Enviando {{count}} pendências…"
   },
   "title": "Minha viagem",
+  "tripCodeLabel": "Viagem",
   "tripCompleted": "Viagem concluída. Bom trabalho.",
   "vehicle": "Veículo {{plate}}",
   "documentOccurrenceHint": "Para o que aconteceu sem a carga voltar: a nota não volta com você. Se a carga volta, use Devolver.",
