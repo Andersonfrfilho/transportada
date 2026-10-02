@@ -33,4 +33,4 @@ no navegador de teste (en-US), "30/09" num celular em pt-BR.
 
 ## Pendente
 
-- **T1.5** — publicar depois da aprovação do usuário.
+- Nada. **T1.5** feita: publicada depois da aprovação do usuário nos prints.
