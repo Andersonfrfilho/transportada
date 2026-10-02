@@ -12,13 +12,6 @@ import type { DeliveryProof } from '../shared/deliveryProof.service'
 import { isDeliveryProofAwayFromDeliveryEvent } from '../shared/deliveryProofCard.service'
 import styles from '../styles/trip.module.css'
 
-const PUNCTUALITY_BADGE_VARIANT = {
-  on_time: 'success',
-  late: 'warning',
-  away: 'warning',
-  late_and_away: 'warning',
-} as const
-
 const METERS_PER_KILOMETER = 1000
 const distanceFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
 
@@ -41,9 +34,7 @@ function ReadingCell({
 export function ProofReadings({ proof }: Readonly<{ proof: DeliveryProof }>) {
   const { t } = useTranslation('trip')
   const formatMoment = useMomentFormatter()
-  const { capturedAt, distanceMeters, lateRegistration, punctuality, receivedBy } = proof
-  const hasPunctualityBadge = punctuality !== undefined && punctuality !== 'not_required'
-  const hasRequirement = hasPunctualityBadge || lateRegistration === true
+  const { capturedAt, distanceMeters, lateRegistration, receivedBy } = proof
 
   return (
     <div className={styles.proofReadings}>
@@ -61,17 +52,10 @@ export function ProofReadings({ proof }: Readonly<{ proof: DeliveryProof }>) {
             {describeDistance(distanceMeters, t)}
           </ReadingCell>
         )}
-        {hasRequirement ? (
+        {lateRegistration === true ? (
           <ReadingCell label={t('deliveryProof.readings.requirement')}>
             <span className={styles.proofBadges}>
-              {hasPunctualityBadge ? (
-                <Badge variant={PUNCTUALITY_BADGE_VARIANT[punctuality]}>
-                  {t(`deliveryProof.punctuality.${punctuality}`)}
-                </Badge>
-              ) : null}
-              {lateRegistration === true ? (
-                <Badge variant="secondary">{t('deliveryProof.lateRegistration')}</Badge>
-              ) : null}
+              <Badge variant="secondary">{t('deliveryProof.lateRegistration')}</Badge>
             </span>
           </ReadingCell>
         ) : null}

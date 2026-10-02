@@ -298,3 +298,72 @@ hooks que passara a mentir sobre ocorrências no título, sem tocar a asserção
   44 px**: é a revisão da T6.1.
 - Os itens na descrição do formulário de uma nota não entregue seguem sem descrição — a busca de itens continua
   só em nota entregue, por decisão da Fase 1.
+
+## Fase 4 — os dois selos do comprovante (T4.1 e T4.2)
+
+Executada por subagente `executor` em `sonnet`, com um **passo 0** no briefing: descobrir, lendo o código,
+se o endpoint em lote da spec 222 traz o que o cabeçalho da nota fechada precisa, **antes** de mexer — e parar
+se não trouxesse, porque aí seria trabalho de API e a decisão é minha.
+
+### O passo 0 liberou: o lote já traz tudo
+
+`GET /trips/:id/delivery-proofs` (`fleet.read`) devolve, por nota, o `DeliveryProof` completo, com
+`canhotoReview` **e** `punctuality`. Nenhuma mudança de API. `proofPending` (spec 223) **não** vem do lote:
+já está no detalhe da nota e continua com o seu selo "Canhoto pendente" no cabeçalho, **ao lado** dos dois
+novos. O painel não chamava o endpoint para o cabeçalho — só o lote de conferência, com `trip.manage` e ao
+menos uma nota marcada.
+
+### Dois selos, nunca um só (D4)
+
+`TripDocumentProofBadges` mostra a **conferência** (`Aguardando` / `Aprovado` / **`Recusado`**) e a
+**pontualidade** (`on_time` / `late` / `away` / `late_and_away`) lado a lado, **no cabeçalho da nota fechada**
+(fora do botão de abrir, porque um selo vizinho é `<Button>`) **e** no topo da seção do comprovante. Os rótulos
+reaproveitam as chaves que já existiam — nenhum texto novo para o mesmo estado. O badge "Longe do ponto" saiu
+de **dentro** de `ProofReadings`; a célula Distância, o alerta vermelho de `away` e o selo de registro tardio
+ficaram. Recusado **e** longe do ponto diz as duas coisas.
+
+A peça principal para ler os selos segue a ordem do cartão: canhoto, depois assinatura, depois mercadoria.
+Nota sem comprovante ou `not_required` não tem selo — sem rótulo vazio, sem "—".
+
+### Uma mutação sobreviveu na primeira rodada, e o executor disse
+
+Fazer o serviço devolver `{ review: 'pending' }` para uma nota **sem comprovante** não reprovava nada: o teste
+de cabeçalho passa por `Map.groupBy`, que nunca chama o serviço com `undefined`. Ele acrescentou o teste que
+faltava ("sem comprovante o serviço não devolve selo algum") e repetiu a mutação — agora reprova. Mutação que
+sobrevive é o aviso de que a asserção não prende o que parecia prender; relatar isso em vez de omitir é o que
+torna o resto da lista confiável.
+
+### Um custo que o relatório não mediu, e eu condicionei
+
+A consulta do cabeçalho rodava em **toda** visita ao detalhe da viagem com `fleet.read` — inclusive viagem
+que **ainda não entregou nada**, onde a rota devolveria lista vazia: chamada à toa. Acrescentei `hasAnyProof`
+(alguma nota entregue ou devolvida) ao `enabled`, com o teste "viagem sem nota entregue ou devolvida não faz
+chamada, mesmo com a permissão"; sem o `hasAnyProof` ele reprova. A rota devolve o comprovante **completo** de
+cada nota (com as URLs assinadas) para a consulta ler dois selos — é o desenho do lote da 222, que não toquei.
+
+⚠️ Com o diálogo de conferência em lote aberto, são **duas** buscas do mesmo endpoint, com chaves diferentes
+(`delivery-proofs-badges` e a da 222). O executor preferiu não mexer na consulta e no contrato da 222; fica
+registrado como oportunidade: unificar as chaves.
+
+### Mutações
+
+| mutação                                 | o que reprovou                                                                             |
+| --------------------------------------- | ------------------------------------------------------------------------------------------ |
+| esconder a pontualidade quando recusado | 8 testes (4 da matriz, "recusado e longe do ponto", coexistência com a 223, `en`, a seção) |
+| nota sem comprovante devolve selo       | primeira rodada **sobreviveu**; com o teste acrescentado, reprova                          |
+| chamar sem permissão                    | "sem a permissão que a rota exige, não faz chamada"                                        |
+| remover `hasAnyProof` do `enabled`      | "viagem sem nota entregue ou devolvida não faz chamada…"                                   |
+
+### Portões
+
+| Portão                        | Resultado                                               |
+| ----------------------------- | ------------------------------------------------------- |
+| `typecheck` · `lint` (painel) | exit 0 · 0 erros, 16 avisos pré-existentes, nenhum novo |
+| `bun run test` (painel)       | **6325 pass · 0 fail**                                  |
+| `test:hooks`                  | **294 pass · 0 fail** (era 267)                         |
+
+### Declaradamente fora
+
+- Nenhum print: a revisão de design da T6.1 ainda falta, e o cabeçalho com **três** selos possíveis
+  (conferência, pontualidade e "Canhoto pendente") pode apertar em 375 px — é o que a revisão tem de olhar.
+- Não criei CSS: os selos reaproveitam `.proofBadges` e as classes do `ProofReviewChip`.

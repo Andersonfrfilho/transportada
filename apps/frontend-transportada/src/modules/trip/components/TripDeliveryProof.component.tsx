@@ -17,6 +17,7 @@ import {
   resolveDeliveryProofGalleryStartIndex,
 } from '../shared/deliveryProofGallery.service'
 import type { TripDocumentProduct } from '../shared/trip.types'
+import { resolveTripDocumentProofBadges } from '../shared/tripDocumentProofBadges.service'
 import styles from '../styles/trip.module.css'
 
 import { ProofGalleryDialog } from './ProofGalleryDialog.component'
@@ -24,7 +25,7 @@ import { ProofPieces } from './ProofPieces.component'
 import { ProofReadings } from './ProofReadings.component'
 import { ProofReview, type CanhotoReviewActions } from './ProofReview.component'
 import { ProofReviewActions, ProofReviewDeadline } from './ProofReviewActions.component'
-import { ProofReviewChip } from './ProofReviewChip.component'
+import { TripDocumentProofBadges } from './TripDocumentProofBadges.component'
 import { TripDeliveryProofDetail } from './TripDeliveryProofDetail.component'
 
 type TripDeliveryProofProps = Readonly<{
@@ -110,7 +111,7 @@ export function TripDeliveryProof({
         <h4 className={styles.proofCardTitle} id="trip-delivery-proof-title">
           {t('deliveryProof.title')}
         </h4>
-        {outcome === undefined ? null : <ProofReviewChip outcome={outcome} />}
+        <TripDocumentProofBadges badges={resolveTripDocumentProofBadges(reviewed)} />
       </header>
       {view.deliveredAt === null ? null : (
         <p className={styles.hint}>

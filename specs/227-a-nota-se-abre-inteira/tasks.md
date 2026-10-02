@@ -54,10 +54,10 @@ em `evidence.md`. Contrato antes da implementação, **toda asserção nova prov
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T4.1** Contrato dos **dois** selos (D4), cobrindo **cada combinação** de conferência (inclusive
+- [x] **T4.1** Contrato dos **dois** selos (D4), cobrindo **cada combinação** de conferência (inclusive
       **Recusado**) × pontualidade × `proofPending`. Aceite: nenhuma combinação **esconde** um eixo — um
       recusado **e** longe do ponto diz as duas coisas.
-- [ ] **T4.2** Comprovante visível ao abrir a nota, via `GET /trips/:id/delivery-proofs` (spec 222).
+- [x] **T4.2** Comprovante visível ao abrir a nota, via `GET /trips/:id/delivery-proofs` (spec 222).
 
 ## Fase 5 — Eventos da nota e raio
 

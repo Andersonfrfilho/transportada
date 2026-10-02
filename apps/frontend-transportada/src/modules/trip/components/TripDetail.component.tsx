@@ -20,6 +20,7 @@ import { useSlowLoadNotice } from '../hooks/useSlowLoadNotice.hook'
 import { useFieldDeliveryDocumentsQuery } from '../queries/useFieldDeliveryDocuments.query'
 import { useFieldDeliverySettingsQuery } from '../queries/useFieldDeliverySettings.query'
 import { useVehicleSelectOptions } from '@/modules/fleet/hooks/useVehicleSelectOptions.hook'
+import { useTripProofBadgesQuery } from '../queries/useTripProofBadges.query'
 import { useCanhotoBatchReview } from '../hooks/useCanhotoBatchReview.hook'
 import { useTripDocumentSelection } from '../hooks/useTripDocumentSelection.hook'
 import type { TripDocumentLinkFormController } from '../hooks/useTripDocumentLinkForm.hook'
@@ -58,7 +59,7 @@ import {
   navigateToMdfeManifests,
   navigateToNfeWorkspace,
 } from '../shared/tripNavigation.service'
-import { tripDocumentLabel } from '../shared/tripDocument.service'
+import { hasTripDocumentProof, tripDocumentLabel } from '../shared/tripDocument.service'
 import { canSeparateOrLoadDocuments, isTripEditable } from '../shared/tripStatus.service'
 import { resolveSeparationOccurrenceButtonVisibility } from '../shared/separationOccurrenceButton.service'
 import { shouldShowRouteInvalidatedNotice } from '../shared/routeInvalidatedNotice.service'
@@ -99,6 +100,7 @@ import { FieldOccurrenceDialog } from './FieldOccurrenceDialog.component'
 import { TripHeaderActions } from './TripHeaderActions.component'
 import { TripSelectAllDocuments } from './TripSelectAllDocuments.component'
 import { TripStateActions } from './TripStateActions.component'
+import type { TripDocumentProofBadges } from '../shared/tripDocumentProofBadges.service'
 import { TripStopDocumentGroup, TripStopList } from './TripStopList.component'
 import type { TripStopOccurrenceSubmission } from './TripStopOccurrenceDialog.component'
 import { RouteSuggestionSection } from '@/modules/routing/components/RouteSuggestionSection.component'
@@ -198,6 +200,7 @@ const TRACTOR_UNIT_VEHICLE_TYPE = 'tractor_unit'
 const TRAILER_ROLE = 'trailer'
 const ACTIVE_STATUS = 'active'
 const EMPTY_TRAILER_SELECTION = ''
+const NO_PROOF_BADGES: ReadonlyMap<string, TripDocumentProofBadges> = new Map()
 
 function statusClassName(status: TripStatus): string {
   return status === 'completed' || status === 'cancelled'
@@ -324,6 +327,13 @@ export function TripDetail({
     selection,
     tripId: workspace.trip?.id ?? '',
     tripStatus: workspace.trip?.status ?? 'draft',
+  })
+  /** Spec 227 D4: os selos do comprovante no cabeçalho de cada nota; `fleet.read`, como a rota. */
+  const proofBadgesQuery = useTripProofBadgesQuery({
+    canRead: workspace.controller.canReadTripFleetDetails,
+    companyId: workspace.companyId ?? '',
+    hasAnyProof: (workspace.trip?.documents ?? []).some(hasTripDocumentProof),
+    tripId: workspace.trip?.id ?? '',
   })
   /**
    * Spec 156 T9: uma nota (ação da linha) ou o maço da seleção (ação em massa) — `null` fecha o
@@ -523,6 +533,7 @@ export function TripDetail({
       workspace.setOpenSeparationOccurrenceDocumentId(documentId),
     onToggleDocument: workspace.toggleDocument,
     openDocumentId: workspace.openDocumentId,
+    proofBadgesByDocumentId: proofBadgesQuery.data ?? NO_PROOF_BADGES,
     renderProof: (documentId: string) => (
       <TripDeliveryProofLoader
         canhotoReadContext={{

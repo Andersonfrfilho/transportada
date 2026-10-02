@@ -32,6 +32,7 @@ import type {
   TripStopDetail,
 } from '../shared/trip.types'
 import { hasProofPendingMarker } from '../shared/proofPendingMarker.service'
+import type { TripDocumentProofBadges as TripDocumentProofBadgesValue } from '../shared/tripDocumentProofBadges.service'
 import {
   countDocumentsWithOpenOccurrence,
   hasOpenOccurrenceMarker,
@@ -42,6 +43,7 @@ import {
 } from '../shared/tripTimelineLink.service'
 import { TripArrivalDialog } from './TripArrivalDialog.component'
 import { TripDocumentData } from './TripDocumentData.component'
+import { TripDocumentProofBadges } from './TripDocumentProofBadges.component'
 import {
   TripStopOccurrenceDialog,
   type TripStopOccurrenceSubmission,
@@ -131,6 +133,8 @@ export type TripStopDocumentActions = Readonly<{
   /** Spec 227 D1: abre e fecha a nota — abrir uma fecha a que estava aberta. */
   onToggleDocument: (documentId: string) => void
   openDocumentId: null | string
+  /** Spec 227 D4: conferência e pontualidade de cada nota, para o cabeçalho fechado. */
+  proofBadgesByDocumentId: ReadonlyMap<string, TripDocumentProofBadgesValue>
   renderProof: (documentId: string) => ReactNode
   /** Spec 227 D2: a seção Ocorrências da nota aberta, depois do comprovante. */
   renderOccurrences: (documentId: string) => ReactNode
@@ -554,6 +558,8 @@ function TripStopDocumentRow({
               </Button>
             </Tooltip>
           ) : null}
+          {/* Spec 227 D4: os dois selos do comprovante ficam fora do botão de abrir, com a nota fechada. */}
+          <TripDocumentProofBadges badges={actions.proofBadgesByDocumentId.get(document.id)} />
           {/* Spec 223 RF4/RF9: baixada sem canhoto — sinaliza, não bloqueia nem substitui ação. */}
           {hasProofPendingMarker(document) ? (
             <Tooltip label={t('proofPending.hint')}>

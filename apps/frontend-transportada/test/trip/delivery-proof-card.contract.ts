@@ -172,7 +172,7 @@ describe('o card por texto de fonte', () => {
     const header = /<header[^>]*>([\s\S]*?)<\/header>/u.exec(card)?.[1] ?? ''
 
     expect(header).toInclude('deliveryProof.title')
-    expect(header).toInclude('<ProofReviewChip')
+    expect(header).toInclude('<TripDocumentProofBadges')
   })
 
   it('o rodapé de ação é separado por régua e carrega o prazo e os botões', () => {
