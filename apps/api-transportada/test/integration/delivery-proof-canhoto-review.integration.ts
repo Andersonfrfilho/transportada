@@ -11,6 +11,7 @@
 import { describe, expect } from 'bun:test'
 import { and, eq } from 'drizzle-orm'
 
+import { auditLogs } from '../../src/database/fiscal-operation.schema.js'
 import { identityUserProfiles } from '../../src/database/identity-user-profile.schema.js'
 import { identityUsers, userCompanyMemberships } from '../../src/database/identity.schema.js'
 import { companyDeliveryProofSettings } from '../../src/database/company-delivery-proof-settings.schema.js'
@@ -18,6 +19,12 @@ import { storedObjects } from '../../src/database/storage.schema.js'
 import { tripDeliveryProofs, tripStopEvents } from '../../src/database/trip.schema.js'
 import { attachDeliveryProof } from '../../src/trips/application/attach-delivery-proof.use-case.js'
 import { reportDocumentDelivery } from '../../src/trips/application/report-document-delivery.use-case.js'
+import type {
+  CanhotoReviewChannel,
+  CanhotoReviewCommand,
+} from '../../src/trips/application/canhoto-review.port.js'
+import { reviewCanhotoProof } from '../../src/trips/application/review-canhoto-proof.use-case.js'
+import { CanhotoReviewProofNotFoundError } from '../../src/trips/domain/canhoto-review.error.js'
 import { listDeliveryProofs } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { DrizzleCanhotoReviewUnitOfWork } from '../../src/trips/infrastructure/drizzle-canhoto-review.repository.js'
 import { DrizzleDeliveryProofRepository } from '../../src/trips/infrastructure/drizzle-delivery-proof.repository.js'
@@ -427,6 +434,198 @@ describe('a conferência do canhoto contra o Postgres (spec 220 RF24)', () => {
         expect((rejected as PromiseRejectedResult).reason).toMatchObject({
           code: 'TRIP_DELIVERY_PROOF_CARGO_LIMIT',
         })
+      })
+    },
+    120_000,
+  )
+})
+
+const SERVICE_PERMISSION = 'trip.canhoto-auto-review'
+const AUTOMATIC_AUDIT_ACTION = 'trip.canhoto-review.automatic'
+
+async function readDocumentNumber(database: TestDatabase, world: DriverWorld): Promise<string> {
+  const locked = await new DrizzleCanhotoReviewUnitOfWork(database.db).execute((transaction) =>
+    transaction.lockCanhotoProof({
+      companyId: world.company.companyId,
+      documentId: world.trip.documentId,
+      tripId: world.trip.tripId,
+    }),
+  )
+  if (locked?.documentNumber === null || locked === null) throw new Error('nota sem número')
+  return locked.documentNumber
+}
+
+function reviewAs(params: {
+  readonly channel: CanhotoReviewChannel
+  readonly command: CanhotoReviewCommand
+  readonly companyId?: string
+  readonly database: TestDatabase
+  readonly world: DriverWorld
+}) {
+  return reviewCanhotoProof({
+    actorUserId: params.world.driver.actorUserId,
+    channel: params.channel,
+    command: params.command,
+    companyId: params.companyId ?? params.world.company.companyId,
+    correlationId: `robo-${crypto.randomUUID()}`,
+    documentId: params.world.trip.documentId,
+    ipAddress: '203.0.113.9',
+    tripId: params.world.trip.tripId,
+    unitOfWork: new DrizzleCanhotoReviewUnitOfWork(params.database.db),
+  })
+}
+
+function robotReading(world: DriverWorld, readNumber: string): CanhotoReviewCommand {
+  return {
+    action: 'automatic',
+    readDocumentId: world.trip.documentId,
+    readNumber,
+    readSeries: '1',
+    readSource: 'barcode',
+  }
+}
+
+async function readCanhotoAudits(database: TestDatabase, companyId: string) {
+  const rows = await database.db.select().from(auditLogs).where(eq(auditLogs.companyId, companyId))
+  return rows.filter((row) => row.action.startsWith('trip.canhoto-review.'))
+}
+
+describe('o robô de canhoto contra o Postgres (spec 222 CA10, CA12, CA19)', () => {
+  testWithPostgres(
+    'a leitura que casa aprova, grava a leitura, e a trilha é a única que mostra o serviço',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDeliveredWorld(database)
+        const proof = await attachProof(database, world, CANHOTO_KIND)
+        const documentNumber = await readDocumentNumber(database, world)
+
+        const view = await reviewAs({
+          channel: 'service',
+          command: robotReading(world, documentNumber),
+          database,
+          world,
+        })
+
+        expect(view).toMatchObject({ canhotoReview: 'approved', canhotoReviewOrigin: 'automatic' })
+        expect(await readReview(database, proof.id)).toMatchObject({
+          canhotoReadDocumentId: world.trip.documentId,
+          canhotoReadNumber: documentNumber,
+          canhotoReadSeries: '1',
+          canhotoReadSource: 'barcode',
+          canhotoReview: 'approved',
+          canhotoReviewByUserId: null,
+          canhotoReviewOrigin: 'automatic',
+        })
+        const audits = await readCanhotoAudits(database, world.company.companyId)
+        expect(audits).toHaveLength(1)
+        expect(audits[0]).toMatchObject({
+          action: AUTOMATIC_AUDIT_ACTION,
+          actorUserId: world.driver.actorUserId,
+          companyId: world.company.companyId,
+          entityId: proof.id,
+          permission: SERVICE_PERMISSION,
+          targetId: world.trip.tripId,
+        })
+        expect(audits[0]?.metadata).toEqual({ ipAddress: '203.0.113.9' })
+        expect(JSON.stringify(audits[0])).not.toContain(documentNumber)
+      })
+    },
+    120_000,
+  )
+
+  testWithPostgres(
+    'a leitura que não casa deixa pendente, e o robô ainda deixa a trilha do que fez',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDeliveredWorld(database)
+        const proof = await attachProof(database, world, CANHOTO_KIND)
+
+        await reviewAs({
+          channel: 'service',
+          command: robotReading(world, '999999999'),
+          database,
+          world,
+        })
+
+        expect(await readReview(database, proof.id)).toMatchObject({
+          canhotoReview: 'pending',
+          canhotoReviewByUserId: null,
+        })
+        expect(await readCanhotoAudits(database, world.company.companyId)).toHaveLength(1)
+      })
+    },
+    120_000,
+  )
+
+  testWithPostgres(
+    'sobre veredito humano o robô devolve `unchanged`: nada é escrito, nem leitura, nem trilha',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDeliveredWorld(database)
+        const proof = await attachProof(database, world, CANHOTO_KIND)
+        await rejectByHand(database, proof.id)
+        const before = await readReview(database, proof.id)
+        const documentNumber = await readDocumentNumber(database, world)
+
+        const view = await reviewAs({
+          channel: 'service',
+          command: robotReading(world, documentNumber),
+          database,
+          world,
+        })
+
+        expect(view).toMatchObject({ canhotoReview: 'rejected', canhotoReviewOrigin: 'manual' })
+        expect(await readReview(database, proof.id)).toEqual(before)
+        expect(await readCanhotoAudits(database, world.company.companyId)).toEqual([])
+      })
+    },
+    120_000,
+  )
+
+  testWithPostgres(
+    'pelo canal de pessoa o ramo automático segue sem trilha (a rota de gente não muda)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDeliveredWorld(database)
+        const proof = await attachProof(database, world, CANHOTO_KIND)
+        const documentNumber = await readDocumentNumber(database, world)
+
+        await reviewAs({
+          channel: 'person',
+          command: robotReading(world, documentNumber),
+          database,
+          world,
+        })
+
+        expect((await readReview(database, proof.id))?.canhotoReview).toBe('approved')
+        expect(await readCanhotoAudits(database, world.company.companyId)).toEqual([])
+      })
+    },
+    120_000,
+  )
+
+  testWithPostgres(
+    'a empresa é a do contexto: o robô de outra empresa não alcança o canhoto, e nada é escrito',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDeliveredWorld(database)
+        const proof = await attachProof(database, world, CANHOTO_KIND)
+        const otherCompany = await seedCompany(database)
+        const documentNumber = await readDocumentNumber(database, world)
+
+        await expect(
+          reviewAs({
+            channel: 'service',
+            command: robotReading(world, documentNumber),
+            companyId: otherCompany.companyId,
+            database,
+            world,
+          }),
+        ).rejects.toThrow(CanhotoReviewProofNotFoundError)
+
+        expect((await readReview(database, proof.id))?.canhotoReview).toBe('pending')
+        const rows = await database.db.select().from(auditLogs)
+        expect(rows.filter((row) => row.action === AUTOMATIC_AUDIT_ACTION)).toEqual([])
       })
     },
     120_000,

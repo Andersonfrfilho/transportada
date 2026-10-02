@@ -510,3 +510,37 @@ Mutações (suíte do canhoto, 102 asserções):
 - rota do robô com `channel: 'person'` → **2 fail**;
 - trilha nunca gravada → **4 fail**;
 - restaurado: 102 / 0.
+
+### T3.7 — a integração do robô contra o Postgres
+
+O Postgres do Docker (65432) estava fora do ar; a integração rodou contra um **Postgres 18.4
+nativo descartável** (cluster `initdb` temporário, porta 55999, `DRIZZLE_TEST_DATABASE_URL`, que a
+fixture lê antes de `DATABASE_URL`), derrubado depois. Não é o banco de CI, mas é a mesma versão
+do Postgres local do projeto e roda as migrations de verdade.
+
+Cinco testes novos em `test/integration/delivery-proof-canhoto-review.integration.ts` (já na lista
+do `test:integration`), chamando `reviewCanhotoProof` com `DrizzleCanhotoReviewUnitOfWork`:
+
+1. a leitura que casa aprova, grava `canhoto_read_*`, deixa `canhoto_review_by_user_id` nulo e grava
+   **uma** linha em `audit_logs` (ação `trip.canhoto-review.automatic`, ator = usuário do serviço,
+   permissão `trip.canhoto-auto-review`, alvo = viagem, `metadata` só com o IP, sem o número da
+   nota) — CA19;
+2. a leitura que não casa fica `pending` e ainda deixa a trilha;
+3. sobre veredito humano o robô devolve `unchanged`: o comprovante inteiro fica idêntico e não há
+   trilha — CA10, CA12;
+4. pelo canal de pessoa o ramo automático segue sem trilha;
+5. a empresa vem do contexto: com a `companyId` de outra empresa o resultado é
+   `CanhotoReviewProofNotFoundError`, sem escrita nem trilha.
+
+Vermelho de antes: com o caso de uso e o repositório do commit da T3.5 (T3.6 desfeita) →
+**11 pass / 2 fail** (os testes 1 e 2, sem trilha); o contrato é anterior à implementação nos
+testes de unidade (T3.6) e a integração fecha o que eles não enxergam — o INSERT real em
+`audit_logs` com a FK composta de membership. Verde de depois: **13 pass / 0 fail** no arquivo.
+
+Mutações (arquivo, 13 testes): sem o filtro `channel !== 'service'` → **1 fail** (o de pessoa);
+permissão fixa `trip.manage` no repositório → **1 fail**; sem filtro de empresa na trava (nos dois
+`SELECT`s) → **1 fail** (o da outra empresa; só um deles não basta, o segundo já cobre); restaurado
+13 / 0. Os outros arquivos de integração que tocam canhoto/comprovante
+(`me-trip`, `trip-delivery-proof-canhoto`, `canhoto-ocr-flag`, `delivery-proof-received-by`,
+`delivery-proofs-by-trip`, `driver-delivery-proof-read`, `trip-field-office*`): **90 pass / 0
+fail**. A suíte de integração inteira (~17 min) não foi rodada.

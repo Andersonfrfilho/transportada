@@ -96,7 +96,7 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
       `trip.canhoto-review.automatic`, ator = usuário do serviço, sem PII) — hoje
       `reviewCanhotoProof` **pula** `insertAudit` quando a ação é automática, e é essa linha que
       muda, só para o canal do robô (RF-B10, CA19)
-- [ ] T3.7 Integração: veredito, leitura e trilha gravados; sobre veredito humano devolve
+- [x] T3.7 Integração: veredito, leitura e trilha gravados; sobre veredito humano devolve
       `unchanged` (CA10, CA12, CA19)
 
 ## Fase 4 — Portão: dá para decodificar imagem no servidor?
