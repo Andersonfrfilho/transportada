@@ -233,3 +233,21 @@ De `apps/frontend-transportada`:
 | `bunx tsc --noEmit`                                                                                 | exit 0                                                     |
 | `bunx eslint <5 arquivos tocados> --max-warnings=0` (app como cwd)                                  | exit 0                                                     |
 | mutação: `find(...)` trocado por `at(0)` no serviço, `bun test ./test/driver-trip.contract.test.ts` | **4 fail** (as concluídas), restaurado em seguida          |
+
+## T1.8 — Prova por mutação (CA5)
+
+Cada metade desfeita isoladamente, o teste rodado, e a árvore restaurada em seguida
+(`git status --short` vazio ao fim de cada uma). Verde na íntegra: 952 pass no motorista, 6172 + 180
+no painel, 8490 contratos da API e 24 pass nos três arquivos de integração tocados.
+
+| mutação                                            | como                                                                   | resultado                                              |
+| -------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------ |
+| T1.6 desfeita (filtro do seletor)                  | `git checkout 44aa800b7^ -- driverTripSelection.service.ts`            | 944 pass, **8 fail** — os oito casos da T1.5           |
+| T1.4 desfeita (janela na consulta)                 | `git checkout 60677afe0^ -- drizzle-current-driver-trip.repository.ts` | 2 pass, **2 fail** — os dois casos de dentro da janela |
+| guard de concluída removido de `hasReassignedTrip` | `perl -0pi` tirando `&& !isConcludedTripStatus(trip.status)`           | 950 pass, **2 fail**                                   |
+
+A terceira mutação é a que reproduz o defeito relatado: sem o guard, caem os dois casos da
+sequência "a viagem já estava terminal e saiu da lista". Os outros dois casos novos (a viagem
+**aparece** com status terminal) continuam passando, e isso é correto — eles são protegidos pela
+presença na lista (`currentTripIds.has`), não pelo guard. As duas metades do teste cobrem coisas
+diferentes, e a mutação mostrou qual é qual.
