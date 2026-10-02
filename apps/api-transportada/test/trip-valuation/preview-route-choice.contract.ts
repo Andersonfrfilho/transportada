@@ -294,3 +294,61 @@ describe('aceite 2 (spec 153): a prévia e a viagem gravada mostram a mesma rota
     }
   })
 })
+
+describe('rascunho sem rota congelada estima combustível e pedágio na hora', () => {
+  const liveVehicle = {
+    axles: { count: 2, source: 'declared' as const },
+    fuelBaseline: { kilometersPerLiter: '2.5000', pricePerLiter: '6.0000' },
+    hasAutomaticTollPayment: false,
+    multiplier: { denominator: 1, numerator: 2 },
+    revision: 'r1',
+  }
+
+  function runDraft(input: { readonly frozenDistanceMeters: null | number }) {
+    let stopReads = 0
+    const valuation = readTripValuation({
+      companyId: COMPANY_ID,
+      liveRoute: {
+        geometry: twoRouteGeometry(),
+        repository: {
+          readStopCoordinates: () => {
+            stopReads += 1
+            return Promise.resolve(POINTS)
+          },
+          readVehicleContext: () => Promise.resolve(liveVehicle),
+        },
+        tollBooths: {
+          readByNodeIds: () => Promise.resolve([praca(10, '10.50')]),
+          readCatalogSummary: () =>
+            Promise.resolve({ boothCount: 1, latestObservedOn: '2026-07-01' }),
+        },
+      },
+      repository: {
+        findApplicableRule: () => Promise.resolve(null),
+        readContext: () => Promise.resolve(context({ distanceMeters: input.frozenDistanceMeters })),
+      },
+      tripId: '00000000-0000-4000-8000-000000000a01',
+    })
+
+    return { stopReads: () => stopReads, valuation }
+  }
+
+  it('sem rota congelada, a conta usa a rota padrão (mais rápida) com o pedágio dela', async () => {
+    const { valuation } = runDraft({ frozenDistanceMeters: null })
+    const parcels = (await valuation).costParcels
+    const fuel = parcels.find((parcel) => parcel.kind === 'fuel')
+    const toll = parcels.find((parcel) => parcel.kind === 'toll')
+
+    /** 106,6 km ÷ 2,5 km/l × 6,00 = 255,84; praça do nó 10: 10,50 × 2 eixos = 21,00. */
+    expect(fuel).toMatchObject({ amount: '255.8400' })
+    expect(toll).toMatchObject({ amount: '21.0000', gap: null })
+  })
+
+  it('com rota congelada, nada é recalculado — o congelado vence', async () => {
+    const { stopReads, valuation } = runDraft({ frozenDistanceMeters: 50_000 })
+    const fuel = (await valuation).costParcels.find((parcel) => parcel.kind === 'fuel')
+
+    expect(stopReads()).toBe(0)
+    expect(fuel).toMatchObject({ amount: '120.0000' })
+  })
+})

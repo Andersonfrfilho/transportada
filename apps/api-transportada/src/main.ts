@@ -4391,6 +4391,23 @@ function createApplicationRoutes({
         execute: (input) =>
           readTripValuation({
             ...input,
+            liveRoute: {
+              depot: {
+                readDepot: () => routeDepotQuery.readDepot({ companyId: input.companyId }),
+                readDescription: () =>
+                  routeDepotQuery.readDescription({ companyId: input.companyId }),
+              },
+              geometry:
+                routingMatrixUrl === undefined
+                  ? { readRouteGeometry: async () => null }
+                  : createOsrmRouteGeometryGateway({ baseUrl: routingMatrixUrl }),
+              repository: tripPlannedRouteRepository,
+              tollBooths: createCompanyScopedTollBoothGateway({
+                catalog: tollBoothRepository,
+                charges: tollBoothChargeRepository,
+                companyId: input.companyId,
+              }),
+            },
             repository: {
               findApplicableRule: (query) => applicableFreightRuleQuery.findApplicableRule(query),
               readContext: (query) => tripValuationQuery.readContext(query),

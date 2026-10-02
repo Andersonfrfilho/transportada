@@ -43,6 +43,10 @@ import {
 } from '../domain/trip-icms-projection.policy.js'
 import { TripNotFoundError } from '../domain/trip.error.js'
 import { summarizeRoadDistance } from '../domain/planned-road-distance.policy.js'
+import {
+  applyDraftTripLiveRoute,
+  type DraftTripLiveRoute,
+} from './draft-trip-live-route.service.js'
 import type { RouteChoice } from '../domain/route-choice.policy.js'
 import {
   readRouteGeometry,
@@ -219,6 +223,8 @@ export type TripValuationPort = {
 
 export type ReadTripValuationInput = {
   readonly companyId: string
+  /** Só para exibir: rascunho sem rota congelada ganha combustível e pedágio estimados na hora. */
+  readonly liveRoute?: DraftTripLiveRoute
   readonly repository: TripValuationPort
   readonly tripId: string
 }
@@ -239,7 +245,15 @@ export async function readTripValuation(input: ReadTripValuationInput): Promise<
 
   return buildValuationFromContext({
     companyId: input.companyId,
-    context,
+    context:
+      input.liveRoute === undefined
+        ? context
+        : await applyDraftTripLiveRoute({
+            companyId: input.companyId,
+            context,
+            liveRoute: input.liveRoute,
+            tripId: input.tripId,
+          }),
     repository: input.repository,
   })
 }
