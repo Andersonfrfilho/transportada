@@ -73,8 +73,8 @@ export const TRIP_TIMELINE_KIND_PRIORITY: Readonly<Record<TripTimelineKind, numb
   'document.status_changed': 5,
   'trip.dispatched': 6,
   'trip.status_changed': 7,
-  /** Spec 228 D6: a mesma de `document.delivered`; o `id` desempata um empate exato. */
-  'document.canhoto_photo': 4,
+  /** Spec 228 D6: logo abaixo de `document.delivered` (4) — foto e baixa saem da mesma transação e empatam. */
+  'document.canhoto_photo': 3,
   /** Spec 228 D6: acima de `stop.occurrence` (1) — a correção é efeito do relato de endereço errado. */
   'stop.address_corrected': 2,
 }

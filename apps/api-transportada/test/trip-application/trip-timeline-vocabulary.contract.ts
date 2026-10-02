@@ -24,9 +24,9 @@ describe('vocabulário da linha do tempo (spec 228 T1.1)', () => {
     ])
   })
 
-  test('a tabela de prioridades inteira: nada existente renumerado, 4 e 2 para os novos', () => {
+  test('a tabela de prioridades inteira: nada existente renumerado, 3 e 2 para os novos', () => {
     expect(TRIP_TIMELINE_KIND_PRIORITY).toEqual({
-      'document.canhoto_photo': 4,
+      'document.canhoto_photo': 3,
       'document.delivered': 4,
       'document.occurrence': 2,
       'document.returned': 3,
@@ -40,6 +40,12 @@ describe('vocabulário da linha do tempo (spec 228 T1.1)', () => {
       'trip.dispatched': 6,
       'trip.status_changed': 7,
     })
+  })
+
+  test('a foto do canhoto sai logo abaixo da baixa: foto e baixa empatam em instante, e a prioridade decide', () => {
+    expect(TRIP_TIMELINE_KIND_PRIORITY['document.canhoto_photo']).toBeLessThan(
+      TRIP_TIMELINE_KIND_PRIORITY['document.delivered'],
+    )
   })
 
   test('toda prioridade é inteira (a consulta compara ::int)', () => {
