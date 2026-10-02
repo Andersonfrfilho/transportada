@@ -17,6 +17,7 @@ import {
   DELIVERY_PROOF_CARGO_MINIMUM_COUNT_RANGE,
   DELIVERY_PROOF_FIELD_MODES,
   DELIVERY_PROOF_FIELDS,
+  upsertDeliveryProofOverride,
 } from '../../src/modules/trip/shared/deliveryProofSettings.service'
 
 const PANEL = new URL(
@@ -169,12 +170,124 @@ describe('painel de configuração do comprovante (spec 082)', () => {
 
   /** As exceções existem na tela: lista, adicionar e remover, tudo pelo `PUT` do conjunto inteiro. */
   it('lista, adiciona e remove exceções por destinatário', () => {
-    expect(panel).toInclude('handleAddOverride')
+    expect(panel).toInclude('handleSubmitOverride')
     expect(panel).toInclude('handleRemoveOverride')
     expect(panel).toInclude('onReplaceOverrides')
     expect(trip.deliveryProofSettings.overrides.add).toBeString()
     expect(trip.deliveryProofSettings.overrides.remove).toBeString()
     expect(trip.deliveryProofSettings.overrides.empty).toBeString()
+  })
+
+  /**
+   * Alterar uma exceção existente: o mesmo formulário de adicionar carrega o item e, ao confirmar,
+   * o substitui no conjunto (o `PUT` leva a lista inteira) em vez de empilhar outro.
+   */
+  describe('edição de exceção existente', () => {
+    const taxIdOverrides = readFileSync(
+      new URL(
+        '../../src/modules/trip/components/DeliveryProofTaxIdOverrides.component.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    const contractorOverrides = readFileSync(
+      new URL(
+        '../../src/modules/trip/components/DeliveryProofContractorOverrides.component.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+
+    /**
+     * A regra central roda, não é conferida por texto: `toInclude` na fonte prova que a linha
+     * existe, nunca que ela faz a coisa certa. Os dois componentes chamam esta função.
+     */
+    it('substitui o item editado no conjunto em vez de empilhar outro', () => {
+      const existente = { ...DEFAULT_DELIVERY_PROOF_SETTINGS, taxId: '11222333000181' }
+      const outro = { ...DEFAULT_DELIVERY_PROOF_SETTINGS, taxId: '99888777000166' }
+      const editado = { ...existente, receiverName: 'off' } as const
+
+      expect(
+        upsertDeliveryProofOverride({
+          editingKey: existente.taxId,
+          keyOf: (override) => override.taxId,
+          override: editado,
+          overrides: [existente, outro],
+        }),
+      ).toEqual([editado, outro])
+    })
+
+    it('sem item em edição, empilha no fim — o formulário volta a ser o de adicionar', () => {
+      const existente = { ...DEFAULT_DELIVERY_PROOF_SETTINGS, taxId: '11222333000181' }
+      const novo = { ...DEFAULT_DELIVERY_PROOF_SETTINGS, taxId: '99888777000166' }
+
+      expect(
+        upsertDeliveryProofOverride({
+          keyOf: (override) => override.taxId,
+          override: novo,
+          overrides: [existente],
+        }),
+      ).toEqual([existente, novo])
+    })
+
+    /** Chave que não está mais no conjunto (removida em outra aba) não inventa linha nova. */
+    it('chave em edição que já saiu do conjunto não ressuscita o item', () => {
+      const existente = { ...DEFAULT_DELIVERY_PROOF_SETTINGS, taxId: '11222333000181' }
+      const fantasma = { ...DEFAULT_DELIVERY_PROOF_SETTINGS, taxId: '99888777000166' }
+
+      expect(
+        upsertDeliveryProofOverride({
+          editingKey: fantasma.taxId,
+          keyOf: (override) => override.taxId,
+          override: fantasma,
+          overrides: [existente],
+        }),
+      ).toEqual([existente])
+    })
+
+    it('o par por contratante passa pela mesma função, chaveado por id', () => {
+      for (const source of [taxIdOverrides, contractorOverrides]) {
+        expect(source).toInclude('upsertDeliveryProofOverride({')
+      }
+      expect(taxIdOverrides).toInclude('keyOf: (current) => current.taxId')
+      expect(contractorOverrides).toInclude('keyOf: (current) => current.contractorId')
+    })
+
+    it('a duplicidade ignora o próprio item em edição', () => {
+      expect(taxIdOverrides).toInclude(
+        'override.taxId === overrideTaxId && override.taxId !== editingTaxId',
+      )
+      expect(contractorOverrides).toMatch(
+        /override\.contractorId === overrideContractorId &&\s+override\.contractorId !== editingContractorId/u,
+      )
+    })
+
+    it('carrega os valores salvos no formulário e permite cancelar', () => {
+      expect(taxIdOverrides).toInclude('handleStartEditOverride')
+      expect(taxIdOverrides).toInclude('setOverrideDraft(override)')
+      expect(contractorOverrides).toInclude('handleStartEditContractorOverride')
+      expect(contractorOverrides).toInclude('setContractorOverrideDraft(override)')
+      for (const source of [taxIdOverrides, contractorOverrides]) {
+        expect(source).toInclude('deliveryProofSettings.overrides.edit')
+        expect(source).toInclude('deliveryProofSettings.overrides.saveChanges')
+        expect(source).toInclude('deliveryProofSettings.overrides.cancelEdit')
+        expect(source).toInclude('onClick={resetForm}')
+      }
+    })
+
+    it('remover o item em edição devolve o formulário ao modo adicionar', () => {
+      expect(taxIdOverrides).toInclude('if (taxId === editingTaxId) resetForm()')
+      expect(contractorOverrides).toInclude('if (contractorId === editingContractorId) resetForm()')
+    })
+
+    it('rotula editar, salvar e cancelar nos dois idiomas', () => {
+      for (const locale of [trip, tripEn]) {
+        expect(locale.deliveryProofSettings.overrides.edit).toBeString()
+        expect(locale.deliveryProofSettings.overrides.saveChanges).toBeString()
+        expect(locale.deliveryProofSettings.overrides.cancelEdit).toBeString()
+      }
+      expect(trip.deliveryProofSettings.overrides.saveChanges).toBe('Salvar alterações')
+    })
   })
 
   /** Sem `settings.manage` o painel não oferece escrita. */

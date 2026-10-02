@@ -621,9 +621,12 @@
     },
     "overrides": {
       "add": "Adicionar exceção",
+      "cancelEdit": "Cancelar edição",
+      "edit": "Editar",
       "empty": "Nenhuma exceção cadastrada.",
       "hint": "A exceção pelo CNPJ do destinatário vence a configuração geral por inteiro.",
       "remove": "Remover",
+      "saveChanges": "Salvar alterações",
       "taxId": "CNPJ ou CPF do destinatário",
       "title": "Exceções por destinatário"
     },
