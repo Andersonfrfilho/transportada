@@ -185,6 +185,23 @@ export type DrainScheduler = Readonly<{
 }>
 
 /**
+ * ⚠️ **Cão de guarda da trava.** O teto é maior que qualquer teto de requisição do cliente (90 s do
+ * multipart), de propósito: chegar aqui significa que a drenagem não assentou nem com os tetos de
+ * lá — defeito nosso, não rede. Reabrir a trava pode repetir um envio ainda em voo, e é para isso
+ * que todo relatório carrega `idempotencyKey` e todo anexo carrega `attachmentKey`; fila trancada
+ * até o motorista recarregar o aplicativo é o pior dos dois, e foi o que aconteceu em produção em
+ * 02/10 com uma entrega já registrada e o comprovante preso no aparelho.
+ */
+const DRAIN_WATCHDOG_MILLISECONDS = 180_000
+
+function scheduleWatchdogWithTimer(release: () => void): () => void {
+  const timer = setTimeout(release, DRAIN_WATCHDOG_MILLISECONDS)
+  /** No navegador não existe; no runner de teste é o que impede um timer de 3 min segurar a saída. */
+  ;(timer as unknown as { readonly unref?: () => void }).unref?.()
+  return () => clearTimeout(timer)
+}
+
+/**
  * Uma drenagem por vez (spec 082): duas em paralelo mandariam o mesmo evento duas vezes. O pedido
  * que chega ocupado não é descartado — o geral vira uma repetição, e cada "Enviar agora" (`only`)
  * fica guardado num `Set` e roda na sua vez. Spec 189 T9.2 (M3): a repetição sem `only` engolia o
@@ -192,14 +209,45 @@ export type DrainScheduler = Readonly<{
  */
 export function createDrainScheduler(input: {
   readonly run: (only: string | undefined) => void
+  /** Injetável só para o teste disparar o cão de guarda sem esperar três minutos. */
+  readonly scheduleWatchdog?: (release: () => void) => () => void
 }): DrainScheduler {
+  const scheduleWatchdog = input.scheduleWatchdog ?? scheduleWatchdogWithTimer
   let isRunning = false
   let hasPendingFullDrain = false
+  let cancelWatchdog: (() => void) | undefined
+  /**
+   * ⚠️ O cão de guarda cria uma corrida que antes não existia: ele abre a trava e a drenagem
+   * seguinte começa, e então a abandonada **termina** e chama `settled()`. Esse `settled()` é de
+   * uma drenagem que já não manda em nada — atendê-lo abriria a trava da atual no meio do caminho,
+   * que é justamente o reenvio em paralelo que a trava existe para impedir. Cada disparo do cão de
+   * guarda abandona exatamente uma drenagem, e o `settled()` dela é engolido.
+   */
+  let abandonedDrains = 0
   const pendingKeys = new Set<string>()
 
   function start(only: string | undefined): void {
     isRunning = true
+    cancelWatchdog = scheduleWatchdog(() => {
+      abandonedDrains += 1
+      settle()
+    })
     input.run(only)
+  }
+
+  function settle(): void {
+    cancelWatchdog?.()
+    cancelWatchdog = undefined
+    isRunning = false
+    if (hasPendingFullDrain) {
+      hasPendingFullDrain = false
+      start(undefined)
+      return
+    }
+    const [nextKey] = pendingKeys
+    if (nextKey === undefined) return
+    pendingKeys.delete(nextKey)
+    start(nextKey)
   }
 
   return {
@@ -212,16 +260,11 @@ export function createDrainScheduler(input: {
       else pendingKeys.add(only)
     },
     settled() {
-      isRunning = false
-      if (hasPendingFullDrain) {
-        hasPendingFullDrain = false
-        start(undefined)
+      if (abandonedDrains > 0) {
+        abandonedDrains -= 1
         return
       }
-      const [nextKey] = pendingKeys
-      if (nextKey === undefined) return
-      pendingKeys.delete(nextKey)
-      start(nextKey)
+      settle()
     },
   }
 }
