@@ -487,6 +487,7 @@
       "close": "Close the receipt review",
       "empty": "None of the selected receipts is awaiting review.",
       "imageFailed": "The photo did not open. This receipt cannot be approved without being seen.",
+      "keyboardHint": "Arrow keys move between invoices · Space checks or unchecks · Enter opens the photo",
       "loadFailed": "Could not load the receipts. Try again.",
       "loading": "Loading the receipts",
       "noteLabel": "Invoice {{label}}",

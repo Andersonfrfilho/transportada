@@ -25,6 +25,8 @@ type TripCanhotoBatchItemProps = Readonly<{
   actions: TripCanhotoBatchItemActions
   hasImageFailed: boolean
   isChecked: boolean
+  /** A nota que é dona da única parada de Tab da grade (spec 222 T8.1). */
+  isFocusTarget: boolean
   item: CanhotoBatchItem
 }>
 
@@ -32,13 +34,17 @@ export function TripCanhotoBatchItem({
   actions,
   hasImageFailed,
   isChecked,
+  isFocusTarget,
   item,
 }: TripCanhotoBatchItemProps) {
   const { t } = useTranslation('trip')
   const { documentId, label, proof } = item
 
   return (
-    <li className={cn(styles.canhotoBatchItem, hasImageFailed && styles.canhotoBatchItemFailed)}>
+    <li
+      className={cn(styles.canhotoBatchItem, hasImageFailed && styles.canhotoBatchItemFailed)}
+      data-document-id={documentId}
+    >
       <ProofImage
         alt={t('deliveryProof.photoAlt')}
         isEager
@@ -46,6 +52,7 @@ export function TripCanhotoBatchItem({
         onOpen={actions.onOpenImage}
         onSettled={(outcome) => actions.onImageSettled(documentId, outcome)}
         proof={proof}
+        tabIndex={-1}
         variant="main"
       />
       <ProofReview proof={proof} />
@@ -60,6 +67,7 @@ export function TripCanhotoBatchItem({
         disabled={hasImageFailed}
         label={t('deliveryProof.canhotoBatch.noteLabel', { label })}
         onChange={(checked) => actions.onCheckedChange(documentId, checked)}
+        tabIndex={isFocusTarget ? 0 : -1}
       />
     </li>
   )

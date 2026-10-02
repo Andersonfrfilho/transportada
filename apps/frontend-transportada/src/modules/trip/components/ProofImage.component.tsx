@@ -30,6 +30,8 @@ type ProofImageProps = Readonly<{
   /** Diz **como** a imagem resolveu — `hasSettled` só sabe que resolveu. */
   onSettled?: (outcome: ProofImageOutcome) => void
   proof: DeliveryProof
+  /** Fora da sequência de Tab (`-1`) quando a foto abre por tecla da nota em foco (spec 222 T8.1). */
+  tabIndex?: number
   variant: 'main' | 'thumbnail'
 }>
 
@@ -41,6 +43,7 @@ export function ProofImage({
   onOpen,
   onSettled,
   proof,
+  tabIndex,
   variant,
 }: ProofImageProps) {
   const { t } = useTranslation('trip')
@@ -94,6 +97,7 @@ export function ProofImage({
             aria-label={t('deliveryProof.open')}
             className={isMain ? styles.deliveryProofImageButton : styles.proofThumbnailButton}
             onClick={handleOpen}
+            tabIndex={tabIndex}
             type="button"
           >
             {thumbnail}
