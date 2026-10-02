@@ -128,7 +128,7 @@ sem ninguém o ter olhado.
   - O banco garante, nas três tabelas novas:
     `latitude is null or channel in ('driver_app', 'whatsapp')` e
     `location_state is null or channel in ('driver_app', 'whatsapp')`. ⚠️ O primeiro CHECK **nasceu
-    restrito a `driver_app`** e está assim na migration `20261002033125_occurrence_location_stamp`, que
+    restrito a `driver_app`** e está assim na migration `20261002153258_occurrence_location_stamp`, que
     **ainda não foi publicada** — corrigir ali é de graça, e é o que a T1.4 faz. Publicar antes disso
     custaria uma migration corretiva.
 

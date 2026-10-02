@@ -91,7 +91,7 @@ do usuário. A API não é revertida com a app nova no ar.
   Aceite: o contrato falha pelo motivo certo; a contagem subiu em N.
 
 - [x] **T1.2** `database/event-location.schema.ts` (fábricas e `EVENT_LOCATION_STATES`),
-      `trip.schema.ts` e a migration `drizzle/20261002033125_occurrence_location_stamp/`:
+      `trip.schema.ts` e a migration `drizzle/20261002153258_occurrence_location_stamp/`:
   - `migration.sql` com as cinco colunas, os oito CHECKs e o índice parcial das **três** tabelas
     novas. ⚠️ **Sem `UPDATE` nenhum**: o `UPDATE ... SET location_state = 'captured'` de
     `trip_stop_events` já saiu na migration irmã (`20261001123700_event_location_stamp`), e as três
@@ -132,7 +132,7 @@ do usuário. A API não é revertida com a app nova no ar.
   - `event-location.schema.ts`: `buildEventLocationChecks` passa a receber **lista** de canais que podem
     gravar coordenada (`coordinateChannels`), não um canal só, e `trip.schema.ts` passa
     `[driverApp, whatsapp]` nas três tabelas;
-  - a `migration.sql` e o `rollback.sql` da pasta `20261002033125_occurrence_location_stamp` passam a
+  - a `migration.sql` e o `rollback.sql` da pasta `20261002153258_occurrence_location_stamp` passam a
     dizer `"channel" in ('driver_app', 'whatsapp')` no CHECK de coordenada;
   - `test/trip-schema/event-location.contract.ts` prende o texto novo do CHECK;
   - `event-location-state.policy.ts`: `STATEFUL_CHANNELS` ganha `whatsapp` como canal que também grava

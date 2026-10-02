@@ -1881,3 +1881,19 @@ dizer é como a regra se perde.
 Documentação feita: D3, RF5, CA03 e CA04 revistos, e duas tasks abertas — **T1.4** (banco e domínio,
 antes de qualquer publicação) e **T3.6** (o webhook aceitando a mensagem de localização). Nenhum código
 alterado ainda.
+
+## A migration das três tabelas foi renomeada no rebase
+
+`20261002033125_occurrence_location_stamp` virou **`20261002153258_occurrence_location_stamp`**. As
+entradas **acima** deste ponto citam o nome antigo e são história: ficam como estão.
+
+Motivo: a migration `20261002120000_trip_canhoto_read_job` entrou em `origin/staging` com timestamp
+**posterior** ao da minha, e o `drizzle-kit` diffa contra o **último** snapshot — o de staging, sem as
+minhas colunas. O resultado era uma **bifurcação** (dois filhos do mesmo pai), e cinco contratos de cadeia
+de snapshots reprovaram, que é o trabalho deles.
+
+O conteúdo é o mesmo: o `migration.sql` e o `rollback.sql` escritos à mão (com `NOT VALID` +
+`VALIDATE CONSTRAINT`, que o gerador não sabe fazer) foram **copiados**, e só o `snapshot.json` é novo —
+gerado pelo `drizzle-kit` a partir do snapshot de staging, com `prevIds` = id dela. O `rollback.sql`
+ganhou o nome novo no `DELETE` do journal. `db:generate` = `no_changes`; `make migration-test` **115 pass ·
+0 fail**.

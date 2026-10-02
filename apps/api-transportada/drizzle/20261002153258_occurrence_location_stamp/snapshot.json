@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "0a0b1712-708a-4e59-b1b4-a0d00b9d97ba",
+  "id": "0447297e-9983-4740-a207-84c3be7aa42a",
   "prevIds": [
-    "95a87a1b-b343-4ea4-822e-debbf277eda3"
+    "2a035334-4d11-4179-b824-a434eed91608"
   ],
   "ddl": [
     {
@@ -29061,6 +29061,19 @@
       "table": "trip_delivery_proofs"
     },
     {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "canhoto_read_attempted_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_delivery_proofs"
+    },
+    {
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -38950,6 +38963,27 @@
       "method": "btree",
       "concurrently": false,
       "name": "trip_delivery_proofs_company_event_kind_unique",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "trip_delivery_proofs"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"canhoto_review\" = 'pending' and \"canhoto_read_source\" is null and \"canhoto_read_attempted_at\" is null",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "trip_delivery_proofs_canhoto_pending_idx",
       "entityType": "indexes",
       "schema": "public",
       "table": "trip_delivery_proofs"
@@ -55007,7 +55041,7 @@
       "table": "password_reset_requests"
     },
     {
-      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge', 'trip.occurrence-attachment.purge', 'trip.occurrence-upload.expire', 'occurrence-conversation.upload.expire')",
+      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge', 'trip.occurrence-attachment.purge', 'trip.occurrence-upload.expire', 'occurrence-conversation.upload.expire', 'trip.canhoto.read')",
       "name": "job_executions_job_check",
       "entityType": "checks",
       "schema": "public",
@@ -55049,7 +55083,7 @@
       "table": "job_executions"
     },
     {
-      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge', 'trip.occurrence-attachment.purge', 'trip.occurrence-upload.expire', 'occurrence-conversation.upload.expire')",
+      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge', 'trip.occurrence-attachment.purge', 'trip.occurrence-upload.expire', 'occurrence-conversation.upload.expire', 'trip.canhoto.read')",
       "name": "job_schedules_job_check",
       "entityType": "checks",
       "schema": "public",

@@ -13,10 +13,10 @@ foram resolvidas em 2026-10-02) — bloqueia **apenas a Fase 5**.
 - [x] **T0.1** Renumerar `225-cada-nota-diz-quanto-rendeu-e-quanto-gastou` → `226-…` (`git mv`) e **todas** as
       referências a "spec 225" em código, testes, docs e locales. `grep` antes e depois; contagem no
       `evidence.md`. Aceite: nenhuma referência a 225 como _esta_ spec; typecheck e testes verdes.
-- [ ] **T0.2** Rebase das 28 commits em `origin/staging`. Resolver os 12 arquivos medidos. ⚠️ **Nunca**
+- [x] **T0.2** Rebase das 28 commits em `origin/staging`. Resolver os 12 arquivos medidos. ⚠️ **Nunca**
       `git stash` cru. Aceite: `bun install --frozen-lockfile`, typecheck e testes das **sete** apps verdes
       **depois** do rebase (rebase limpo não é typecheck verde).
-- [ ] **T0.3** Reencadear a migration da 196 (procedimento no `plan.md`). Aceite: `db:generate` =
+- [x] **T0.3** Reencadear a migration da 196 (procedimento no `plan.md`). Aceite: `db:generate` =
       `no_changes`, `schema-snapshot.contract.ts` verde e **`make migration-test`** verde.
 - [ ] **T0.4** Integração **inteira** da API (~19 min, em primeiro plano) sobre a base rebaseada. É o gate de
       push das specs 196 e 226.
