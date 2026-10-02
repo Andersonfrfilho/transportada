@@ -164,3 +164,136 @@ apps/api-transportada$ bun run typecheck   → exit 0
 apps/api-transportada$ bun run lint        → exit 0 (--max-warnings=0)
 raiz$ bun run format:check                 → exit 0
 ```
+
+## T1.2b
+
+Contratos ajustados pelas decisões do usuário (P1, P2/D4b, CA6) e pela validação do architect.
+Nenhuma linha de `src/` mudou — a T1.3 implementa.
+
+Arquivos:
+
+- `test/trip-delivery-proof/punctuality-clock-corrected.contract.ts` — P1 (foto atrasada pela rede),
+  novo `describe` da D4b, renomes e limpeza.
+- `test/driver-trip/delivery-proof-clock-corrected.contract.ts` (novo, 12 testes), registrado em
+  `test/driver-trip.contract.test.ts` — contrato no nível do caso de uso `attachDeliveryProof`.
+- `test/fixtures/delivery-proof-world.fixture.ts` (novo) — `buildWorld`, `buildInput` e as constantes
+  saíram de `test/driver-trip/delivery-proof.contract.ts` sem mudança de corpo; o contrato antigo só
+  passou a importá-los.
+- `test/fleet-domain/driver-score-missing-grace.contract.ts` — `describe` novo da janela da nota.
+- `plan.md` § "Como a flag nasce": a flag é **só** `resolveOccurredAt(...).kind === 'corrected'`; a
+  posição da entrega é decidida pela política (D4b).
+
+O upload ganha `clockOffsetMs?: number` na T1.3; até lá o contrato do caso de uso monta o upload com
+a interseção local `Partial<DeliveryProofUpload> & { clockOffsetMs?: number }` (sai na T1.3, junto com
+as outras duas).
+
+### Antes
+
+```text
+$ bun --env-file=../../.env.test test ./test/trip-delivery-proof.contract.test.ts   → 308 pass, 4 fail (312)
+$ bun --env-file=../../.env.test test ./test/fleet-domain.contract.test.ts          → 147 pass, 2 fail (149)
+$ bun --env-file=../../.env.test test ./test/driver-trip.contract.test.ts           → 137 pass, 0 fail (137)
+```
+
+Os 4 + 2 vermelhos são os da T1.2.
+
+### Depois (vermelho esperado)
+
+```text
+$ bun --env-file=../../.env.test test ./test/trip-delivery-proof.contract.test.ts
+(fail) ... (spec 232 D4) > CA1: foto na hora da entrega recebida 30 h depois, com relógio corrigido, é on_time   Expected "on_time"  Received "late"
+(fail) ... (spec 232 D4) > no limite exato da janela (entrega + 60 min) é on_time                              Expected "on_time"  Received "late"
+(fail) ... (spec 232 D4) > a distância continua pesando: foto na hora, mas fora do raio, é away                 Expected "away"     Received "late_and_away"
+(fail) ... (spec 232 D4) > o piso de 24 h saiu: capturedAt 3 h antes da entrega, recebida 30 h depois, é on_time Expected "on_time" Received "late"
+(fail) ... (spec 232 D4) > foto atrasada pela rede: tirada na entrega e recebida 10 dias depois, com a flag, é on_time  Expected "on_time" Received "late"
+(fail) ... (spec 232 D4b) > flag ligada, recebida 30 min depois da entrega: away                              Expected "away"           Received "on_time"
+(fail) ... (spec 232 D4b) > flag ligada, recebida 61 min depois da entrega: late_and_away                     Expected "late_and_away"  Received "on_time"
+(fail) ... (spec 232 D4b) > flag ligada, recebida 30 h depois da entrega: late_and_away                       Expected "late_and_away"  Received "late"
+(fail) ... (spec 232 D4b) > flag ligada e posição na entrega: vale a D4, recebida 30 h depois é on_time       Expected "on_time"        Received "late"
+ 312 pass
+ 9 fail
+Ran 321 tests across 1 file.
+
+$ bun --env-file=../../.env.test test ./test/fleet-domain.contract.test.ts
+(fail) ... (spec 232 D5) > CA4: entrega de 30 h atrás recebida há 1 h, sem foto, ainda não penaliza
+(fail) ... (spec 232 D5) > fronteira: exatamente 24 h desde o recebimento ainda não penaliza
+ 150 pass
+ 2 fail
+Ran 152 tests across 1 file.
+
+$ bun --env-file=../../.env.test test ./test/driver-trip.contract.test.ts
+(fail) caso de uso ... > desvio válido, entrega com posição, foto recebida 30 h depois: on_time gravado      Expected "on_time"        Received "late"
+(fail) caso de uso ... > foto da mercadoria com desvio válido, recebida 30 h depois, é on_time              Expected "on_time"        Received "late"
+(fail) caso de uso ... > entrega sem posição (D4b) ... > desvio válido, recebida 30 min depois da entrega: away           Expected "away"           Received "on_time"
+(fail) caso de uso ... > entrega sem posição (D4b) ... > desvio válido, recebida 61 min depois da entrega: late_and_away  Expected "late_and_away"  Received "late"
+ 145 pass
+ 4 fail
+Ran 149 tests across 1 file.
+```
+
+Vermelho pelo motivo certo: as 15 falhas são assertivas de veredito/nota; nenhuma é import, sintaxe ou
+tipo. Na foto, é o piso `recebimento − 24 h` ainda aplicado (D4) ou a distância que ainda não pesa
+sem posição na entrega (D4b); no caso de uso, é a flag que ainda não nasce nem chega à política; no
+ausente, o prazo ainda contado de `deliveredAt` (D5, herdado da T1.2).
+
+Os que já existiam seguem verdes: **295** (trip-delivery-proof), **139** (fleet-domain) e **137**
+(driver-trip, incluindo o `delivery-proof.contract.ts` que passou a importar a fixture). Contas:
+312 = 295 + 12 da T1.2 + 1 (P1 sem a flag) + 4 (espelhos da D4b); 150 = 139 + 8 da T1.2 + 3 novos;
+145 = 137 + 8 novos do caso de uso.
+
+Filtrando só os novos:
+
+```text
+trip-delivery-proof -t "foto atrasada pela rede"                          →  1 pass, 1 fail
+trip-delivery-proof -t "o relógio não vale"                               →  4 pass, 4 fail
+trip-delivery-proof -t "relógio corrigido"                                → 13 pass, 5 fail (era 13/4; −1 de parede, +2 da P1)
+driver-trip         -t "caso de uso: foto julgada pelo relógio corrigido" →  8 pass, 4 fail
+fleet-domain        -t "não mexe na janela da nota"                       →  3 pass, 0 fail
+fleet-domain        -t "contado do recebimento"                           →  8 pass, 2 fail
+```
+
+### O que já passa hoje, e o que trava
+
+- **Política, P1 sem a flag** (`late`): CA2 com a hora de 10 dias — o piso continua para cliente antigo.
+- **Política, espelhos da D4b** (flag ausente e `false`, sem posição na entrega → `on_time` 30 min,
+  `late` 30 h): travam que a D4b só vale com a flag; a T1.3 não pode fazer a distância pesar para
+  cliente antigo.
+- **Caso de uso (b) futuro e (c) mais de 30 dias** (`late`): hoje passam por não haver flag. Depois da
+  T1.3 discriminam a derivação errada "flag = o campo veio": com ela, o `capturedAt` cru (entrega +
+  10 min) sem o piso daria `on_time`.
+- **(d) sem desvio** (`late`): CA2 de ponta a ponta.
+- **(e) canal `office`** (`not_required`): a D4 não chega ao escritório.
+- **(g) fusão** (`late`, `late`): hoje a substituta já é `late` sozinha; depois da T1.3 ela seria
+  `on_time` sozinha (caso a), e é a `mergeProofPunctuality` que tem de segurar o `late`. Substitui o
+  teste de parede "mergeProofPunctuality não muda", removido.
+- **(h) reenvio** com a mesma `attachmentKey`: devolve o veredito gravado, sem bucket nem `saveProof`.
+- **(i) `saveProof.capturedAt`**: recebe a hora crua do aparelho (entrega + 2 h 10 min), não a
+  corrigida — até a T1.5 decidir onde guardar o desvio.
+- **Espelho do caso de uso** (sem desvio, sem posição na entrega, 30 min → `on_time`).
+- **Nota (janela)**: entrega de 91 dias recebida há 1 h fica fora (`score: null`); entrega anterior ao
+  `effectiveSince` e recebida depois dele fica fora; duas entregas sem foto ficam ordenadas por
+  `deliveredAt` (a mais antiga recebida depois continua em segundo) e com `expiresAt = deliveredAt + 90
+dias`. Conferido em `computeDriverScore`: o filtro (`isWithinWindow`, `effectiveSince`) e o `sort`
+  usam `deliveredAt`; travam que a D5 só adia o prazo de "ausente".
+
+### Limpeza
+
+- "o teto de recebimento + 2 min também reprova…" → "a folga do teto é de 2 min, não mais…" (trava o
+  tamanho da folga).
+- "capturedAt 3 h antes… elevado a entrega − 2 min" → "o piso de 24 h saiu: capturedAt 3 h antes da
+  entrega, recebida 30 h depois, é on_time" (o clamp inferior não é observável pelo veredito).
+- Teste de parede "mergeProofPunctuality não muda" removido; trocado pelo caso real (g).
+- "sem capturedAt" com a flag ganhou o comentário de que o caso de uso nunca o produz (sem `tappedAt`
+  o resultado é `missing`).
+- As interseções locais de tipo continuam; saem na T1.3.
+
+### Gates
+
+```text
+apps/api-transportada$ bun run typecheck   → exit 0 (tsc inclui test/**)
+apps/api-transportada$ bun run lint        → exit 0 (--max-warnings=0)
+raiz$ bun run format:check                 → exit 0
+```
+
+Não feito aqui: prova por mutação — não há código novo para mutar; fica para a T1.3, que deve provar
+em especial que (b)/(c) pegam a derivação "o campo veio" e que (g) pega a fusão desligada.

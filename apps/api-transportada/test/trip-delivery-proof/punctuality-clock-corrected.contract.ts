@@ -4,17 +4,21 @@
  * Spec 232 D4 (CA1, CA2): quando o app manda o desvio do relógio, `capturedAt` já chega corrigido e
  * a foto é julgada pela hora em que foi tirada — o piso `recebimento − missingAfterHours` (spec 159
  * T11 D3a) deixa de valer. A janela, o raio, a folga de 2 min e o "registrar depois" continuam.
+ * D4b (CA6): sem posição na entrega, a flag é ignorada — vale o recebimento e a entrega conta como longe.
  */
 import { describe, expect, test } from 'bun:test'
 
 import {
   classifyProofPunctuality,
-  mergeProofPunctuality,
   type ClassifyProofPunctualityParams,
   type ProofPosition,
 } from '../../src/trips/domain/delivery-proof-punctuality.policy.js'
 import { DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS } from '../../src/trips/domain/delivery-proof-settings.policy.js'
-import { MILLISECONDS_PER_HOUR, MILLISECONDS_PER_MINUTE } from '../../src/shared/time.constant.js'
+import {
+  MILLISECONDS_PER_DAY,
+  MILLISECONDS_PER_HOUR,
+  MILLISECONDS_PER_MINUTE,
+} from '../../src/shared/time.constant.js'
 
 const DELIVERED_AT = new Date('2026-10-03T10:00:00.000Z')
 const DELIVERY_EVENT_POSITION = { latitude: '-23.550520', longitude: '-46.633308' }
@@ -116,8 +120,12 @@ describe('foto julgada pelo relógio corrigido (spec 232 D4)', () => {
     expect(result).toBe('late_and_away')
   })
 
-  /** RF5: antes da entrega, a hora é elevada a entrega − 2 min — nem o piso de 24 h a empurra. */
-  test('capturedAt 3 h antes da entrega é elevado a entrega − 2 min e fica on_time', () => {
+  /**
+   * Prova que o piso de 24 h saiu (recebida 30 h depois, ele empurraria a referência para entrega +
+   * 6 h). O piso `entrega − 2 min` não é observável pelo veredito: qualquer hora antes da entrega
+   * fica dentro da janela.
+   */
+  test('o piso de 24 h saiu: capturedAt 3 h antes da entrega, recebida 30 h depois, é on_time', () => {
     const result = classify({
       capturedAt: new Date(DELIVERED_AT.getTime() - 3 * MILLISECONDS_PER_HOUR),
       hasCorrectedClock: true,
@@ -140,7 +148,8 @@ describe('foto julgada pelo relógio corrigido (spec 232 D4)', () => {
     expect(result).toBe('on_time')
   })
 
-  test('o teto de recebimento + 2 min também reprova: recebida 59 min depois, foto 3 h no futuro é late', () => {
+  /** Trava o TAMANHO da folga do teto: recebida 59 min depois, a referência vira entrega + 61 min. */
+  test('a folga do teto é de 2 min, não mais: recebida 59 min depois, foto 3 h no futuro é late', () => {
     const result = classify({
       capturedAt: afterDelivery(3 * MILLISECONDS_PER_HOUR),
       hasCorrectedClock: true,
@@ -155,6 +164,7 @@ describe('foto julgada pelo relógio corrigido (spec 232 D4)', () => {
     expect(classify({ hasCorrectedClock: true, lateRegistration: true })).toBe('late')
   })
 
+  // O caso de uso nunca produz isto: sem `tappedAt` o `resolveOccurredAt` dá `missing` e a flag é false.
   test('sem capturedAt a referência é o recebimento: recebida 30 h depois é late', () => {
     expect(classify({ capturedAt: undefined, hasCorrectedClock: true })).toBe('late')
   })
@@ -173,10 +183,86 @@ describe('foto julgada pelo relógio corrigido (spec 232 D4)', () => {
     expect(classify({ hasCorrectedClock: true, photoMode: 'optional' })).toBe('not_required')
   })
 
-  /** Spec 159 T11 D3b: a foto corrigida e pontual não lava a tardia que já estava gravada. */
-  test('mergeProofPunctuality não muda: late anterior + on_time corrigido continua late', () => {
-    const next = classify({ hasCorrectedClock: true })
+  /**
+   * Decisão do usuário (P1): a foto que o 3G fraco segurou vale pela hora em que foi tirada. Entrega
+   * às 10:00, recebida às 10:05 com posição; foto das 10:00 no raio, recebida 10 dias depois.
+   */
+  test('foto atrasada pela rede: tirada na entrega e recebida 10 dias depois, com a flag, é on_time', () => {
+    const result = classify({
+      hasCorrectedClock: true,
+      receivedAt: afterDelivery(10 * MILLISECONDS_PER_DAY),
+    })
 
-    expect(mergeProofPunctuality({ next, previous: 'late' })).toBe('late')
+    expect(result).toBe('on_time')
+  })
+
+  test('foto atrasada pela rede: a mesma, sem a flag, é late', () => {
+    expect(classify({ receivedAt: afterDelivery(10 * MILLISECONDS_PER_DAY) })).toBe('late')
+  })
+})
+
+/**
+ * Spec 232 D4b (CA6, decisão do usuário P2): entrega sem posição com o app alegando relógio corrigido
+ * — a correção é ignorada, a referência é o recebimento (não o `capturedAt`) e a entrega conta como
+ * longe. Regra da política, não do caso de uso. Fecha o furo de forjar `clockOffsetMs: 0`.
+ */
+describe('sem posição na entrega o relógio não vale (spec 232 D4b)', () => {
+  test('flag ligada, recebida 30 min depois da entrega: away', () => {
+    const result = classify({
+      deliveryEventPosition: undefined,
+      hasCorrectedClock: true,
+      receivedAt: afterDelivery(30 * MILLISECONDS_PER_MINUTE),
+    })
+
+    expect(result).toBe('away')
+  })
+
+  /** A foto diz 10:00, mas é o envio (61 min depois) que conta: o `capturedAt` não é usado. */
+  test('flag ligada, recebida 61 min depois da entrega: late_and_away', () => {
+    const result = classify({
+      deliveryEventPosition: undefined,
+      hasCorrectedClock: true,
+      receivedAt: afterDelivery(61 * MILLISECONDS_PER_MINUTE),
+    })
+
+    expect(result).toBe('late_and_away')
+  })
+
+  test('flag ligada, recebida 30 h depois da entrega: late_and_away', () => {
+    const result = classify({ deliveryEventPosition: undefined, hasCorrectedClock: true })
+
+    expect(result).toBe('late_and_away')
+  })
+
+  test('flag ligada e posição na entrega: vale a D4, recebida 30 h depois é on_time', () => {
+    expect(classify({ hasCorrectedClock: true })).toBe('on_time')
+  })
+
+  /** Espelho — comportamento de hoje: sem a flag, a entrega sem posição não faz a distância pesar. */
+  test('sem a flag e sem posição na entrega, recebida 30 min depois: on_time', () => {
+    const result = classify({
+      deliveryEventPosition: undefined,
+      receivedAt: afterDelivery(30 * MILLISECONDS_PER_MINUTE),
+    })
+
+    expect(result).toBe('on_time')
+  })
+
+  test('sem a flag e sem posição na entrega, recebida 30 h depois: late', () => {
+    expect(classify({ deliveryEventPosition: undefined })).toBe('late')
+  })
+
+  test('flag false e sem posição na entrega, recebida 30 min depois: on_time', () => {
+    const result = classify({
+      deliveryEventPosition: undefined,
+      hasCorrectedClock: false,
+      receivedAt: afterDelivery(30 * MILLISECONDS_PER_MINUTE),
+    })
+
+    expect(result).toBe('on_time')
+  })
+
+  test('flag false e sem posição na entrega, recebida 30 h depois: late', () => {
+    expect(classify({ deliveryEventPosition: undefined, hasCorrectedClock: false })).toBe('late')
   })
 })

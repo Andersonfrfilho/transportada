@@ -25,9 +25,11 @@ migration-test`). Nada destrutivo.
 
 ## Como a flag nasce (caso de uso)
 
-`hasCorrectedClock = (entrega tem posição) && resolveOccurredAt({ tappedAt: upload.capturedAt, clockOffsetMs,
-receivedAt: now }).kind === 'corrected'`, e o `capturedAt` passado à classificação é o corrigido. Nunca
-"`clockOffsetMs` presente". Canal `office` não participa. `deliveryReceivedAt` do prazo de "ausente" é
+`hasCorrectedClock = resolveOccurredAt({ tappedAt: upload.capturedAt, clockOffsetMs,
+receivedAt: now }).kind === 'corrected'`, e o `capturedAt` passado à classificação é o corrigido. Nunca "`clockOffsetMs` presente".
+Ter ou não posição na entrega **não** entra na flag: quem decide é a política (`classifyProofPunctuality`,
+D4b — sem posição na entrega, a flag é ignorada, vale o recebimento e a entrega conta como longe). Canal
+`office` não participa. `deliveryReceivedAt` do prazo de "ausente" é
 `trip_stop_events.recorded_at`, que o repositório da nota já seleciona — ligação sem migration (T1.3).
 
 ## Riscos da T1.5 (migration e leitura do momento da entrega) — do architect

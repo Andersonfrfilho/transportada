@@ -29,6 +29,7 @@ function buildDelivery(input: {
   readonly deliveredAt: Date
   readonly deliveryReceivedAt?: Date
   readonly photoPunctuality?: ProofPunctuality
+  readonly tripDocumentId?: string
 }): GraceDelivery {
   return {
     deliveredAt: input.deliveredAt,
@@ -36,7 +37,7 @@ function buildDelivery(input: {
     documentNumber: '2320',
     photoMode: 'required',
     photoPunctuality: input.photoPunctuality,
-    tripDocumentId: 'doc-232',
+    tripDocumentId: input.tripDocumentId ?? 'doc-232',
   }
 }
 
@@ -140,5 +141,70 @@ describe('prazo de "foto ausente" contado do recebimento da entrega (spec 232 D5
     expect(result.penalties[0]?.expiresAt).toEqual(
       new Date(deliveredAt.getTime() + DRIVER_SCORE_WINDOW_DAYS * MILLISECONDS_PER_DAY),
     )
+  })
+})
+
+/**
+ * Spec 232 D5, validação do architect: o recebimento da entrega só adia o prazo de "ausente". A janela
+ * de 90 dias e o corte `effectiveSince` (spec 159 T11 D1) seguem filtrando por `deliveredAt`, e a
+ * ordenação e a validade das penalidades também.
+ */
+describe('o recebimento da entrega não mexe na janela da nota (spec 232 D5)', () => {
+  test('entrega de 91 dias atrás recebida há 1 h não entra na nota', () => {
+    const result = score(
+      buildDelivery({
+        deliveredAt: new Date(NOW.getTime() - 91 * MILLISECONDS_PER_DAY),
+        deliveryReceivedAt: hoursAgo(1),
+        photoPunctuality: 'late',
+      }),
+    )
+
+    expect(result).toEqual({ penalties: [], score: null })
+  })
+
+  test('entrega anterior ao effectiveSince e recebida depois dele não entra na nota', () => {
+    const effectiveSince = hoursAgo(48)
+    const deliveries: readonly GraceDelivery[] = [
+      buildDelivery({
+        deliveredAt: hoursAgo(50),
+        deliveryReceivedAt: hoursAgo(1),
+        photoPunctuality: 'late',
+      }),
+    ]
+
+    const result = computeDriverScore({ deliveries, effectiveSince, now: NOW, settings: SETTINGS })
+
+    expect(result).toEqual({ penalties: [], score: null })
+  })
+
+  /** Recebida mais recentemente, a entrega mais antiga continua depois na lista: ordena por `deliveredAt`. */
+  test('o recebimento não altera a ordenação nem a validade das penalidades', () => {
+    const olderDeliveredAt = hoursAgo(40)
+    const newerDeliveredAt = hoursAgo(30)
+    const deliveries: readonly GraceDelivery[] = [
+      buildDelivery({
+        deliveredAt: olderDeliveredAt,
+        deliveryReceivedAt: hoursAgo(26),
+        tripDocumentId: 'doc-older',
+      }),
+      buildDelivery({
+        deliveredAt: newerDeliveredAt,
+        deliveryReceivedAt: hoursAgo(30),
+        tripDocumentId: 'doc-newer',
+      }),
+    ]
+
+    const result = computeDriverScore({ deliveries, now: NOW, settings: SETTINGS })
+    const windowMilliseconds = DRIVER_SCORE_WINDOW_DAYS * MILLISECONDS_PER_DAY
+
+    expect(result.penalties.map((penalty) => penalty.tripDocumentId)).toEqual([
+      'doc-newer',
+      'doc-older',
+    ])
+    expect(result.penalties.map((penalty) => penalty.expiresAt)).toEqual([
+      new Date(newerDeliveredAt.getTime() + windowMilliseconds),
+      new Date(olderDeliveredAt.getTime() + windowMilliseconds),
+    ])
+    expect(result.score).toBe(80)
   })
 })
