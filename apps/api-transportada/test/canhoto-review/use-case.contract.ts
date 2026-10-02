@@ -10,6 +10,7 @@ import { describe, expect, test } from 'bun:test'
 import { reviewCanhotoProof } from '../../src/trips/application/review-canhoto-proof.use-case.js'
 import type {
   CanhotoReviewAuditEntry,
+  CanhotoReviewChannel,
   CanhotoReviewCommand,
   CanhotoReviewUnitOfWork,
   LockedCanhotoProof,
@@ -65,9 +66,14 @@ function createFixture(proof: LockedCanhotoProof | null = PENDING_PROOF) {
   return { applied, audits, locked, unitOfWork }
 }
 
-function run(fixture: ReturnType<typeof createFixture>, command: CanhotoReviewCommand) {
+function run(
+  fixture: ReturnType<typeof createFixture>,
+  command: CanhotoReviewCommand,
+  channel: CanhotoReviewChannel = 'person',
+) {
   return reviewCanhotoProof({
     actorUserId: ACTOR_USER_ID,
+    channel,
     command,
     companyId: COMPANY_ID,
     correlationId: CORRELATION_ID,
@@ -108,6 +114,7 @@ describe('a trilha de auditoria da decisão humana (RF31)', () => {
         companyId: COMPANY_ID,
         correlationId: CORRELATION_ID,
         ipAddress: CLIENT_IP,
+        permission: 'trip.manage',
         proofId: PROOF_ID,
         reason: null,
         tripId: TRIP_ID,
@@ -140,7 +147,7 @@ describe('a trilha de auditoria da decisão humana (RF31)', () => {
     expect(fixture.audits).toEqual([])
   })
 
-  test('o veredito automático não gera trilha: não há ator a registrar', async () => {
+  test('o veredito automático pelo canal de pessoa não gera trilha: há gente logada olhando', async () => {
     const fixture = createFixture()
     await run(fixture, {
       action: 'automatic',
@@ -197,5 +204,75 @@ describe('o servidor deriva o veredito da leitura automática (T7.1)', () => {
       expect(fixture.applied).toEqual([])
       expect(fixture.audits).toEqual([])
     }
+  })
+})
+
+/**
+ * Spec 222 RF-B10 / CA19: o robô é cross-tenant e desacompanhado, então a identidade do serviço só
+ * existe em `audit_logs` — `canhoto_review_by_user_id` fica nulo por CHECK no caminho automático.
+ */
+describe('a trilha por comprovante do canal do robô (spec 222 CA19)', () => {
+  const READING: CanhotoReviewCommand = {
+    action: 'automatic',
+    readDocumentId: DOCUMENT_ID,
+    readNumber: DOCUMENT_NUMBER,
+    readSeries: '1',
+    readSource: 'barcode',
+  }
+
+  test('aprovar pelo robô grava uma linha: ator é o serviço, a permissão é a do robô', async () => {
+    const fixture = createFixture()
+    await run(fixture, READING, 'service')
+    expect(fixture.applied).toHaveLength(1)
+    expect(fixture.audits).toEqual([
+      {
+        action: 'trip.canhoto-review.automatic',
+        actorUserId: ACTOR_USER_ID,
+        companyId: COMPANY_ID,
+        correlationId: CORRELATION_ID,
+        ipAddress: CLIENT_IP,
+        permission: 'trip.canhoto-auto-review',
+        proofId: PROOF_ID,
+        reason: null,
+        tripId: TRIP_ID,
+      },
+    ])
+  })
+
+  test('a leitura que não casa também grava: o robô agiu, mesmo deixando pendente', async () => {
+    const fixture = createFixture()
+    await run(fixture, { ...READING, readNumber: '67890' } as CanhotoReviewCommand, 'service')
+    expect(fixture.applied[0]).toMatchObject({ update: { canhotoReview: 'pending' } })
+    expect(fixture.audits).toHaveLength(1)
+    expect(fixture.audits[0]?.action).toBe('trip.canhoto-review.automatic')
+  })
+
+  test('a trilha não carrega nota, série nem leitura (RNF1: sem número de documento)', async () => {
+    const fixture = createFixture()
+    await run(fixture, READING, 'service')
+    const serialized = JSON.stringify(fixture.audits)
+    expect(serialized).not.toContain(DOCUMENT_NUMBER)
+    expect(serialized).not.toContain('barcode')
+  })
+
+  test('sobre veredito humano o robô não escreve, e não deixa trilha de uma escrita que não houve', async () => {
+    for (const review of ['approved', 'rejected'] as const) {
+      const fixture = createFixture({
+        documentNumber: DOCUMENT_NUMBER,
+        id: PROOF_ID,
+        review,
+        reviewOrigin: 'manual',
+      })
+      await run(fixture, READING, 'service')
+      expect(fixture.applied).toEqual([])
+      expect(fixture.audits).toEqual([])
+    }
+  })
+
+  test('canhoto de outra empresa é 404 também para o robô, sem escrita nem trilha', async () => {
+    const fixture = createFixture(null)
+    await expect(run(fixture, READING, 'service')).rejects.toThrow(CanhotoReviewProofNotFoundError)
+    expect(fixture.applied).toEqual([])
+    expect(fixture.audits).toEqual([])
   })
 })

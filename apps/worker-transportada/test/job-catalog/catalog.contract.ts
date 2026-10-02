@@ -118,6 +118,18 @@ const CATALOG = [
     job: 'occurrence-conversation.upload.expire',
     minimumIntervalSeconds: 300,
   },
+  {
+    /** Spec 222 RF-B: a leitura do canhoto por máquina. O worker só reporta; o veredito é da API. */
+    failureOutcomes: [
+      'object_unavailable',
+      'unsupported_media',
+      'too_large',
+      'decode_timeout',
+      'api_unreachable',
+    ],
+    job: 'trip.canhoto.read',
+    minimumIntervalSeconds: 300,
+  },
 ] as const
 
 describe('worker job catalog', () => {

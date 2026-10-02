@@ -245,6 +245,29 @@ export const JOB_CATALOG = [
     /** A batida, pela mesma razão da rotina irmã: a janela é de minutos, não de dias. */
     minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
   },
+  {
+    /**
+     * Spec 222 RF-B: o canhoto lido por máquina. A rotina só **reporta** o que leu — o veredito é da
+     * API (`resolveAutomaticCanhotoReview`) e máquina nunca recusa —, e por isso o vocabulário de
+     * falha é o do que impede a leitura, não o do que a leitura concluiu. Falha de infraestrutura
+     * volta à fila no ciclo seguinte; só "tentou e não havia código" grava a tentativa.
+     *
+     * ⚠️ Nenhum destes cinco chega hoje a `job_runs.outcome`: `runCycle` fecha `succeeded` mesmo com
+     * falha de comprovante (é resultado contado, e o resto do lote segue). A lista continua aqui como
+     * vocabulário permitido, não como previsão — esvaziá-la é mudança nas duas cópias do catálogo
+     * (API e worker, com contrato de paridade) por uma declaração sem efeito em runtime.
+     */
+    failureOutcomes: [
+      'object_unavailable',
+      'unsupported_media',
+      'too_large',
+      'decode_timeout',
+      'api_unreachable',
+    ],
+    job: 'trip.canhoto.read',
+    /** A batida: o canhoto chega durante o dia e a fila precisa estar curta quando o escritório abre. */
+    minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]

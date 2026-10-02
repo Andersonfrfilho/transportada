@@ -375,6 +375,8 @@ export type TripDocumentDetail = TripDocument &
     fiscalStatus: string
     /** Spec 164 T15 (RF21): esta nota tem tratativa de ocorrência aberta. Ausente é API anterior. */
     openOccurrenceCase?: boolean
+    /** Spec 223 RF4: baixada sem canhoto que a configuração exige. Ausente é API anterior. */
+    proofPending?: boolean
     /**
      * Spec 185 T6.1 (D1, ADR-0074 §4): esta nota sairia da viagem se despachasse agora — ocorrência
      * de separação, de tipo "segue sem a nota", sobre a nota inteira, e ainda não carregada. Ausente
@@ -880,6 +882,8 @@ export type TripFilters = Readonly<{
   createdFrom?: string
   createdUntil?: string
   driverIdIn?: readonly string[]
+  /** Spec 223 RF9: `true` lista só viagens com ao menos uma nota com canhoto pendente. */
+  proofPendingEq?: boolean
   statusIn?: readonly TripStatus[]
   vehicleIdIn?: readonly string[]
 }>

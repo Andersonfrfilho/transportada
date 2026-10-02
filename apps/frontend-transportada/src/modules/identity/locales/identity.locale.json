@@ -420,6 +420,10 @@
         "label": "Liquidação do pedido de WhatsApp",
         "where": "Só do serviço: fatura em nome de quem confirmou, sem tela. Nenhuma pessoa recebe."
       },
+      "trip.canhoto-auto-review": {
+        "label": "Leitura automática de canhoto",
+        "where": "Só do serviço: o robô que lê o canhoto, sem tela. Nenhuma pessoa recebe."
+      },
       "nfse.read": {
         "label": "Ver NFS-e",
         "where": "Tela Nota de serviço: a listagem e o documento."

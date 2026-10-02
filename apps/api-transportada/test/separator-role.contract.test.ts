@@ -211,6 +211,8 @@ describe('separator role contract', () => {
        * despacho) e **nenhuma** de rua (`deliver`, `return`, `field*`), pela ressalva A1.
        */
       'GET /trips/:id/allowed-actions',
+      /** Spec 222 RF-A1: os comprovantes da viagem em lote — `fleet.read`, como o de uma nota logo abaixo. */
+      'GET /trips/:id/delivery-proofs',
       'GET /trips/:id/documents/:documentId/delivery-address-history',
       /**
        * Spec 079 T020: o que houve com a carga, e o separador **lê e escreve** — decisão registrada

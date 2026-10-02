@@ -16,6 +16,9 @@ const MIGRATION_SUFFIX = '_delivery_proof_contractor_overrides'
 /** CNPJ alfanumérico válido pelo `TAX_ID_CHECK_PATTERN` (12 alfanuméricos + 2 dígitos). */
 const ORPHAN_TAX_ID = 'ZZ999888000155'
 const FOREIGN_KEY_VIOLATION = '23503'
+// ON DELETE RESTRICT: o Postgres 18 responde 23001 (restrict_violation); versões anteriores, 23503.
+const RESTRICT_VIOLATION = '23001'
+const RESTRICT_VIOLATION_SQL_STATES = [RESTRICT_VIOLATION, FOREIGN_KEY_VIOLATION] as const
 
 export type DeliveryProofContractorOverridesBackfillProbe = Readonly<{
   companyId: string
@@ -75,7 +78,7 @@ export async function assertDeliveryProofContractorOverridesBackfill(
   // A FK passou a valer: apagar o `delivery_clients` recém-criado, com a exceção ainda viva, recusa.
   await expectQueryToFail(
     database`delete from delivery_clients where company_id = ${companyId} and tax_id = ${ORPHAN_TAX_ID}`,
-    FOREIGN_KEY_VIOLATION,
+    RESTRICT_VIOLATION_SQL_STATES,
   )
 
   await database`

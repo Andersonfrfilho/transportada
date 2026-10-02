@@ -6,6 +6,7 @@ import type {
   CanhotoReviewProofInput,
   CanhotoReviewResult,
 } from '../shared/canhotoReviewResult.service'
+import { approveCanhotoBatch } from '../shared/canhotoBatchApproval.service'
 import { applyCanhotoReviewResult } from '../shared/canhotoReviewCache.service'
 import type { DeliveryProof } from '../shared/deliveryProof.service'
 import type { RouteChoice, RouteGeometry } from '../shared/routeGeometry.service'
@@ -754,6 +755,13 @@ export function useTripWorkspace(
    * usuário clicando de novo, não o TanStack tentando sozinho.
    */
   const fieldReportKeysRef = useRef<Record<string, string>>({})
+  /**
+   * Spec 223: o escopo da chave da baixa de campo, numa função só — a baixa individual, a em massa
+   * e o descarte da chave precisam escrever **o mesmo** escopo, e três literais iguais divergem.
+   */
+  function fieldDeliverReportKey(documentId: string): string {
+    return `fieldDeliver:${documentId}`
+  }
   function resolveFieldReportKey(scope: string): string {
     const existing = fieldReportKeysRef.current[scope]
     if (existing !== undefined) return existing
@@ -835,10 +843,10 @@ export function useTripWorkspace(
     mutationFn: (body: Omit<FieldDeliverDocumentInput, 'idempotencyKey'>) =>
       controller.fieldDeliverDocument({
         ...body,
-        idempotencyKey: resolveFieldReportKey(`fieldDeliver:${body.documentId}`),
+        idempotencyKey: resolveFieldReportKey(fieldDeliverReportKey(body.documentId)),
       }),
     onSuccess: (_result, variables) => {
-      clearFieldReportKey(`fieldDeliver:${variables.documentId}`)
+      clearFieldReportKey(fieldDeliverReportKey(variables.documentId))
       return invalidate()
     },
   })
@@ -882,6 +890,47 @@ export function useTripWorkspace(
               return result
             }),
       }),
+    onSuccess: invalidate,
+  })
+  /**
+   * Spec 223 RF7 (ADR-0091): "Marcar entregue" em massa, sem canhoto — uma `field-delivery` por
+   * nota, do mesmo jeito que a devolução em lote, porque a rota do escritório com autoria é
+   * individual e `batch-status` continua só `load`/`separate` (RF5).
+   */
+  const batchFieldDeliverMutation = useMutation({
+    mutationFn: async (body: {
+      readonly deliveredAt: string
+      readonly documentIds: readonly string[]
+      readonly driverId?: string
+      readonly tripId: string
+    }) =>
+      runFieldActionQueue({
+        concurrency: 3,
+        items: body.documentIds,
+        run: (documentId) =>
+          controller
+            .fieldDeliverDocument({
+              deliveredAt: body.deliveredAt,
+              documentId,
+              ...(body.driverId === undefined ? {} : { driverId: body.driverId }),
+              idempotencyKey: resolveFieldReportKey(fieldDeliverReportKey(documentId)),
+              tripId: body.tripId,
+            })
+            .then((result) => {
+              clearFieldReportKey(fieldDeliverReportKey(documentId))
+              return result
+            }),
+      }),
+    onSuccess: invalidate,
+  })
+  /**
+   * Spec 222 T2.5: o maço aprova pela conferência de uma nota, repetida — não há rota de lote. O
+   * resultado separa aprovado, conflito (409) e falha; a consulta da viagem cai ao fim, para o que
+   * saiu da fila sair da tela e o veredito que valeu num conflito aparecer.
+   */
+  const approveCanhotoBatchMutation = useMutation({
+    mutationFn: (body: { readonly documentIds: readonly string[]; readonly tripId: string }) =>
+      approveCanhotoBatch({ ...body, review: controller.canhotoReviewProof }),
     onSuccess: invalidate,
   })
   const releaseDocumentMutation = useMutation({
@@ -976,7 +1025,9 @@ export function useTripWorkspace(
   })
 
   return {
+    approveCanhotoBatchMutation,
     autoDispatchOutcome,
+    batchFieldDeliverMutation,
     batchFieldReturnMutation,
     batchStatusMutation,
     cancelMutation,

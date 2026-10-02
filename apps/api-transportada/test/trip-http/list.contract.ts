@@ -105,6 +105,23 @@ describe('GET /trips', () => {
     ])
   })
 
+  /** Spec 223 RF4: o filtro "com canhoto pendente" é booleano e aceita os dois lados. */
+  test('forwards proofPendingEq as a boolean, true and false', async () => {
+    const fixture = await createTripHttpFixture()
+
+    for (const value of ['true', 'false']) {
+      const response = await fixture.handle(
+        jsonRequest({ method: 'GET', path: `${TRIPS_PATH}?proofPendingEq=${value}` }),
+      )
+      expect(response.status).toBe(200)
+    }
+
+    expect(fixture.listTripsCalls.map((call) => call.filters)).toEqual([
+      { proofPendingEq: true },
+      { proofPendingEq: false },
+    ])
+  })
+
   test('refuses a query it does not know how to honour', async () => {
     const fixture = await createTripHttpFixture()
 
@@ -129,6 +146,8 @@ describe('GET /trips', () => {
       // Repetido quase sempre é a tela montando a query errada; deduplicar esconderia o defeito.
       '?statusIn=draft,draft',
       `?vehicleIdIn=${TOO_MANY_VEHICLE_IDS}`,
+      '?proofPendingEq=maybe',
+      '?proofPendingEq=',
     ]) {
       const response = await fixture.handle(
         jsonRequest({ method: 'GET', path: `${TRIPS_PATH}${query}` }),

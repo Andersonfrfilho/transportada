@@ -21,6 +21,8 @@ const CANHOTO_REVIEW_MENTION = /canhotoReview|canhoto_review/u
  * liga a rota, e a fila de fotos pendentes do motorista, que a RF29 manda reabrir na recusa — dar
  * trabalho de volta a quem tirou a foto não é barrar entrega, viagem, CT-e nem fatura. E a leitura
  * do comprovante (T7.3/T7.4), que só **publica** o veredito para a tela e não decide nada com ele.
+ * E a pendência de canhoto do escritório (spec 223 RF4), que lê a recusa para **cobrar** a foto de
+ * novo — mesma leitura da fila do motorista: dívida aberta, não entrega barrada.
  *
  * Arquivo novo nesta lista é decisão de projeto, não descuido — por isso ela é exata.
  */
@@ -34,6 +36,7 @@ const CONFERENCE_MODULE = [
   'trips/infrastructure/drizzle-canhoto-review.repository.ts',
   'trips/infrastructure/delivery-proof-read.support.ts',
   'trips/infrastructure/drizzle-current-driver-trip.repository.ts',
+  'trips/infrastructure/proof-pending.query.ts',
   'trips/presentation/canhoto-review.routes.ts',
 ] as const
 

@@ -188,3 +188,56 @@ Detalhe completo: `specs/150-pedido-de-correcao-de-endereco/evidence.md` § T406
   - A revisão (F1) achou que o `list()` filtrava as linhas apagadas: o anexo expurgado entre o
     aceite e o envio sumia da lista, e o e-mail saía **sem o arquivo**, com status `sent`.
   - Agora o registro traz `available`, e anexo indisponível é falha permanente.
+
+## A rotina lê o canhoto sem ninguém abrir a viagem (spec 222 Fase 6)
+
+`trip.canhoto.read` é a quarta rotina agendada registrada no `JobRoutineRegistry` de `main.ts`. Ela
+varredura comprovantes de canhoto pendentes, decodifica o código de barras de cada imagem em
+`worker_thread` e reporta o que leu à API para aprovação automática. A decisão (se casou, se
+recusou) fica na API, nunca no worker — a rotina é mais um leitor, como o navegador é hoje.
+
+**A fila de pendentes** (`drizzle-canhoto-read-queue.repository.ts`) filtra `trip_delivery_proofs`
+por: `kind = 'photo'`, `canhoto_review = 'pending'`, `canhoto_read_source IS NULL`,
+`canhoto_read_attempted_at IS NULL`, empresa ativa, viagem **não** cancelada, nota **não** liberada.
+Ordena por `created_at` (fila por antiguidade), respeita teto de lote. ⚠️ **Os três predicados saem
+como literais SQL** (`sql\`canhoto_read_source IS NULL\``, não `eq(column, value)`) — o Postgres testa
+implicação de predicado apenas sobre os `quals`da consulta em forma literal, e não prova que`canhoto_review = $1`implica`canhoto_review = 'pending'`. Com `eq()`a consulta fica paramétrica, o
+plano vira genérico, e o índice parcial`trip_delivery_proofs_canhoto_pending_idx`é ignorado em
+silêncio. EXPLAIN prova que o índice serve: a T6.3 fecha com a consulta real e a saída mostrando`Index Scan`sobre o índice, não`Seq Scan`. Sem isso a rotina varre sequencialmente a tabela que o
+campo escreve o dia inteiro.
+
+**A decodificação corre em `worker_thread`** com a imagem do bucket (até 8 MB, conferido **antes de
+baixar** pelo tamanho gravado em `stored_objects`). Bytes de imagem nunca entram em log. Suporta JPEG,
+PNG e WebP via `@jsquash`, com prazo por comprovante e por ciclo (`budgetMilliseconds`, respectivamente
+2000 ms e 40000 ms). Falha de decode (`timeout`, `unsupported_media`, `too_large`) é resultado
+contado, não exceção — um comprovante ruim não derruba o ciclo. Objeto ausente (`object_unavailable`)
+idem. Bytes que não são imagem, ou imagem sem código de barras, devolvem `null`: não é falha, é o caso
+comum do escritório, onde a foto foi tirada mas o código se despregou.
+
+**A leitura que terminou sem código utilizável carimba a tentativa** (`canhoto_read_attempted_at`).
+Sem esse carimbo, canhoto sem barra voltaria à fila de cinco em cinco minutos para sempre, sendo
+decodificado sobre nada de novo. Falha de infraestrutura (objeto ausente, teto, timeout, API fora)
+**não** grava a tentativa — merece o próximo ciclo, chance de o bucket voltar ou a foto ser
+recuperada. Só `report_rejected` (400/404/409 da API) e `api_unauthorized` (401/403) também não
+gravam, mas vão para o Sentry — é defeito nosso (corpo malformado) ou crachá rotacionado, e repetir
+em silêncio esconderia os dois.
+
+**O laço** (`canhoto-read.routine.ts`): lotes de 10 comprovantes, teto de 40 por ciclo (4 lotes);
+`excludeProofIds` cresce a cada lote, de modo que falha de infraestrutura não volta no mesmo ciclo.
+Lote curto encerra o laço (a fila secou). `isStopRequested()` é consultado antes de cada lote **e**
+antes de cada comprovante. Um comprovante ruim não derruba os outros: o ciclo fecha `succeeded` com
+contadores (`approved`, `pending`, e um por `failureOutcome`). Todos saem sempre, com zero quando não
+houve.
+
+**O gateway autenticado** (`canhoto-review-api.gateway.ts`) chama a rota do robô `PATCH
+/trips/:tripId/documents/:documentId/proof/review/automatic` (Fase 3) com `client_credentials` do
+worker + `x-company-id`. Token em cache com margem de 30 s, nunca chamado a cada comprovante. O
+rotina reporta exatamente os quatro campos de leitura (`readDocumentId`, `readNumber`, `readSeries`,
+`readSource`); `approved` e `pending` são contados a partir do `review` que o servidor devolveu,
+nunca recalculado no worker. 401/403 descartam o token em cache. 400/404/409 contam como
+`report_rejected` (defeito nosso ou canhoto já resolvido); 429/5xx/conexão recusada como
+`api_unreachable` (fila segue intacta).
+
+⚠️ O gateway não tem timeout de `fetch` — API pendurada poderia segurar um ciclo. Registrado,
+não corrigido aqui. `canhoto_review_by_user_id` fica nulo no caminho automático (CHECK o exige),
+e é no `audit_logs` que a identidade do serviço aparece como ator (ADR-0047 §6).

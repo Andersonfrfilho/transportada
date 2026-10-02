@@ -224,6 +224,8 @@ describe('o finance lê a viagem sem ler a frota (aceite 14)', () => {
       'GET /trips/:id',
       'GET /trips/:id/allowed-actions',
       'GET /trips/:id/costs',
+      /** Spec 222 RF-A1: o canhoto da viagem inteira, pela mesma `TRIP_FIELD_READ_POLICY` da rota de uma nota. */
+      'GET /trips/:id/delivery-proofs',
       'GET /trips/:id/documents/:documentId/occurrences',
       'GET /trips/:id/documents/:documentId/proof',
       'GET /trips/:id/financial-result',

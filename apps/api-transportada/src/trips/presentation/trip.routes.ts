@@ -5,7 +5,10 @@ import type { ClientIpResolver } from '../../http/client-ip.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import type { OccurrenceTypeFlow } from '../../shared/trip-occurrence.constant.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
-import type { DeliveryProofView } from '../application/read-delivery-proof.use-case.js'
+import type {
+  DeliveryProofView,
+  TripDeliveryProofView,
+} from '../application/read-delivery-proof.use-case.js'
 import type { RouteGeometryView } from '../application/read-route-geometry.use-case.js'
 import type { TripRouteGeometryView } from '../application/read-trip-route-geometry.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
@@ -80,6 +83,7 @@ import {
   parseTripFinancialReason,
   parseTripRevenueRequest,
 } from './trip-financial.schema.js'
+import { parseTripDeliveryProofsQuery } from './trip-delivery-proofs.schema.js'
 import { parseTripTimelineQuery } from './trip-timeline.schema.js'
 import type {
   ReadTripTimelineResult,
@@ -168,6 +172,8 @@ const TRIP_ROUTE_GEOMETRY_PATH = `${API_TRIPS_PATH}/:id/route-geometry`
 const ROUTE_GEOMETRY_PATH = '/route-geometry'
 const TRIP_DOCUMENT_PATH = `${TRIP_DOCUMENTS_PATH}/:documentId`
 const TRIP_DOCUMENT_PROOF_PATH = `${TRIP_DOCUMENT_PATH}/proof`
+/** Spec 222: os comprovantes de todas as notas da viagem; irmã de `TRIP_DOCUMENT_PROOF_PATH`. */
+const TRIP_DELIVERY_PROOFS_PATH = `${TRIP_DETAIL_PATH}/delivery-proofs`
 const TRIP_DOCUMENT_PRODUCTS_PATH = `${TRIP_DOCUMENT_PATH}/products`
 const TRIP_DOCUMENT_OCCURRENCES_PATH = `${TRIP_DOCUMENT_PATH}/occurrences`
 /**
@@ -305,6 +311,12 @@ type SaveOccurrenceTypeInput = {
 type ReadDeliveryProofsRouteInput = {
   readonly context: CompanyContext
   readonly documentId: string
+  readonly tripId: string
+}
+
+type ReadTripDeliveryProofsRouteInput = {
+  readonly context: CompanyContext
+  readonly documentIds?: readonly string[] | undefined
   readonly tripId: string
 }
 /**
@@ -508,6 +520,11 @@ type Dependencies = {
   }
   readonly readDeliveryProofs: {
     execute(input: TenantInput<ReadDeliveryProofsRouteInput>): Promise<readonly DeliveryProofView[]>
+  }
+  readonly readTripDeliveryProofs: {
+    execute(
+      input: TenantInput<ReadTripDeliveryProofsRouteInput>,
+    ): Promise<readonly TripDeliveryProofView[]>
   }
   readonly listOccurrenceTypes: {
     execute(input: { readonly context: CompanyContext }): Promise<readonly OccurrenceTypeRecord[]>
@@ -1475,6 +1492,28 @@ export function createTripRoutes(
       policy: TRIP_FIELD_READ_POLICY,
     }),
     /**
+     * Spec 222 RF-A1: o canhoto de todas as notas da viagem numa chamada, para o maço conferir sem
+     * abrir nota por nota. Mesma régua da rota de uma nota (`fleet.read`): exigir `trip.manage`
+     * esconderia o comprovante de quem só olha. A rota de uma nota fica como está, ao lado.
+     */
+    defineRoute<Omit<ReadTripDeliveryProofsRouteInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const proofs = await dependencies.readTripDeliveryProofs.execute({
+          context: context.scope,
+          ...(input.documentIds === undefined ? {} : { documentIds: input.documentIds }),
+          tripId: input.tripId,
+        })
+        return jsonResponse({ body: { data: proofs }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters, request }) => ({
+        ...parseTripDeliveryProofsQuery(new URL(request.url)),
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_DELIVERY_PROOFS_PATH,
+      policy: TRIP_FIELD_READ_POLICY,
+    }),
+    /**
      * Spec 079: a linha da estrada, para o mapa deixar de ligar as paradas em reta.
      *
      * ⚠️ **Rota própria, e não um campo do detalhe.** A chamada ao OSRM custou 63 ms medidos, e o
@@ -2232,6 +2271,7 @@ type SerializedTripDocumentDetail = SerializedTripDocument &
     nfeSeries: TripDocumentDetail['nfeSeries']
     nfeTotalValue: TripDocumentDetail['nfeTotalValue']
     openOccurrenceCase: TripDocumentDetail['openOccurrenceCase']
+    proofPending: TripDocumentDetail['proofPending']
   }>
 
 /**
@@ -2260,6 +2300,7 @@ const TRIP_DOCUMENT_DETAIL_FIELD_POLICY = {
   nfeSeries: 'safe',
   nfeTotalValue: 'money',
   openOccurrenceCase: 'safe',
+  proofPending: 'safe',
   releasedAt: 'safe',
   returnedAt: 'safe',
   returnReason: 'safe',
@@ -2290,6 +2331,7 @@ function serializeTripDocumentDetail(input: {
     nfeSeries: document.nfeSeries,
     nfeTotalValue: document.nfeTotalValue,
     openOccurrenceCase: document.openOccurrenceCase,
+    proofPending: document.proofPending,
   }
   return redactMoneyFields({
     canReadFinancials: input.canReadFinancials,

@@ -20,6 +20,7 @@ import { useSlowLoadNotice } from '../hooks/useSlowLoadNotice.hook'
 import { useFieldDeliveryDocumentsQuery } from '../queries/useFieldDeliveryDocuments.query'
 import { useFieldDeliverySettingsQuery } from '../queries/useFieldDeliverySettings.query'
 import { useVehicleSelectOptions } from '@/modules/fleet/hooks/useVehicleSelectOptions.hook'
+import { useCanhotoBatchReview } from '../hooks/useCanhotoBatchReview.hook'
 import { useTripDocumentSelection } from '../hooks/useTripDocumentSelection.hook'
 import type { TripDocumentLinkFormController } from '../hooks/useTripDocumentLinkForm.hook'
 import type { TripWorkspaceController } from '../hooks/useTripWorkspace.hook'
@@ -84,6 +85,7 @@ import { TripProcessFlow } from './TripProcessFlow.component'
 import { TripCloseDialog } from './TripCloseDialog.component'
 import { CanhotoRejectDialog, type CanhotoRejectSubmission } from './CanhotoRejectDialog.component'
 import { TripReasonDialog } from './TripReasonDialog.component'
+import { TripCanhotoBatchDialog } from './TripCanhotoBatchDialog.component'
 import { TripReturnReasonDialog } from './TripReturnReasonDialog.component'
 import { TripScanQueue } from './TripScanQueue.component'
 import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityBand.component'
@@ -294,7 +296,9 @@ export function TripDetail({
    * Spec 156 T8b (revisão): a falha parcial do "Devolver" em massa não é um erro de mutation só —
    * é um resumo por nota. `null` quando não há lote em aberto ou o último terminou sem falha.
    */
+  /** Spec 223 RF7: o mesmo resumo serve à baixa em massa — `action` escolhe a frase. */
   const [batchReturnFailure, setBatchReturnFailure] = useState<{
+    readonly action: 'deliver' | 'return'
     readonly failedCount: number
     readonly tripId: string
     readonly feedbackKey: string
@@ -311,6 +315,16 @@ export function TripDetail({
    */
   const [isCloseDialogOpen, setIsCloseDialogOpen] = useState(false)
   const selection = useTripDocumentSelection()
+  /** Spec 222 T2.8: antes dos `return` condicionais — a viagem pode não ter carregado, `''` não resolve. */
+  const canhotoBatchReview = useCanhotoBatchReview({
+    approveBatch: workspace.approveCanhotoBatchMutation.mutateAsync,
+    canManage: workspace.controller.canManageTrips,
+    companyId: workspace.companyId ?? '',
+    documents: workspace.trip?.documents ?? [],
+    selection,
+    tripId: workspace.trip?.id ?? '',
+    tripStatus: workspace.trip?.status ?? 'draft',
+  })
   /**
    * Spec 156 T9: uma nota (ação da linha) ou o maço da seleção (ação em massa) — `null` fecha o
    * diálogo. As duas entradas passam pelo mesmo estado porque é o mesmo formulário.
@@ -526,10 +540,18 @@ export function TripDetail({
     isEditable,
     isReleasePending: workspace.releaseDocumentMutation.isPending,
     isReturnPending: workspace.fieldReturnDocumentMutation.isPending,
+    isDeliverPending: workspace.fieldDeliverDocumentMutation.isPending,
     isTransitionPending: workspace.transitionDocumentMutation.isPending,
     onArrive: (input: { arrivedAt: string; stopId: string }) =>
       workspace.reportStopArrivalMutation.mutate({
         ...input,
+        ...officeDriverIdInput,
+        tripId: trip.id,
+      }),
+    onFieldDeliver: (documentId: string) =>
+      workspace.fieldDeliverDocumentMutation.mutate({
+        deliveredAt: new Date().toISOString(),
+        documentId,
         ...officeDriverIdInput,
         tripId: trip.id,
       }),
@@ -563,6 +585,7 @@ export function TripDetail({
     workspace.reorderStopsMutation.error,
     workspace.transitionDocumentMutation.error,
     workspace.batchStatusMutation.error,
+    workspace.batchFieldDeliverMutation.error,
     workspace.cancelMutation.error,
     workspace.planRouteMutation.error,
     workspace.startFieldTripMutation.error,
@@ -659,6 +682,45 @@ export function TripDetail({
           }
           const firstErrorCode = failed[0]?.errorCode ?? null
           setBatchReturnFailure({
+            action: 'return',
+            failedCount: failed.length,
+            tripId: trip.id,
+            feedbackKey:
+              resolveTripFeedbackKey(firstErrorCode === null ? null : new Error(firstErrorCode)) ??
+              'requestFailed',
+            totalCount: results.length,
+          })
+          selection.replace(failed.map((result) => result.item))
+        },
+      },
+    )
+  }
+
+  /**
+   * Spec 223 RF7 (ADR-0091): a baixa em massa sem canhoto. Mesmo tratamento de falha parcial da
+   * devolução em lote: a nota que falhou continua marcada, e o aviso diz quantas ficaram de fora.
+   */
+  function handleBatchDeliver(documentIds: readonly string[]): void {
+    if (trip === undefined || documentIds.length === 0) return
+    setBatchReturnFailure(null)
+    workspace.batchFieldDeliverMutation.mutate(
+      {
+        deliveredAt: new Date().toISOString(),
+        documentIds,
+        ...officeDriverIdInput,
+        tripId: trip.id,
+      },
+      {
+        onSuccess: (results) => {
+          const failed = results.filter((result) => result.errorCode !== null)
+          if (failed.length === 0) {
+            setBatchReturnFailure(null)
+            selection.clear()
+            return
+          }
+          const firstErrorCode = failed[0]?.errorCode ?? null
+          setBatchReturnFailure({
+            action: 'deliver',
             failedCount: failed.length,
             tripId: trip.id,
             feedbackKey:
@@ -830,10 +892,24 @@ export function TripDetail({
       batchReturnFailure.tripId !== trip.id ||
       selection.selectedIds.size === 0 ? null : (
         <p className={styles.alert} role="alert">
-          {t('stateActions.batchReturnPartialFailure', {
-            failed: batchReturnFailure.failedCount,
-            reason: t(`feedback.${batchReturnFailure.feedbackKey}`),
-            total: batchReturnFailure.totalCount,
+          {t(
+            batchReturnFailure.action === 'deliver'
+              ? 'stateActions.batchDeliverPartialFailure'
+              : 'stateActions.batchReturnPartialFailure',
+            {
+              failed: batchReturnFailure.failedCount,
+              reason: t(`feedback.${batchReturnFailure.feedbackKey}`),
+              total: batchReturnFailure.totalCount,
+            },
+          )}
+        </p>
+      )}
+
+      {canhotoBatchReview.failure === null || selection.selectedIds.size === 0 ? null : (
+        <p className={styles.alert} role="alert">
+          {t('stateActions.batchCanhotoPartialFailure', {
+            failed: canhotoBatchReview.failure.failedCount,
+            total: canhotoBatchReview.failure.totalCount,
           })}
         </p>
       )}
@@ -1085,11 +1161,15 @@ export function TripDetail({
         canFieldDeliveryBatch={canFieldDeliveryBatch}
         canFieldOccurrenceBatch={canFieldOccurrenceBatch}
         canSeparateOrLoad={canSeparateOrLoad}
+        canhotoBatch={canhotoBatchReview.batch}
         capabilities={workspace.fieldActionCapabilities}
         isBatchPending={workspace.batchStatusMutation.isPending}
         isBatchReturnPending={workspace.batchFieldReturnMutation.isPending}
+        isBatchDeliverPending={workspace.batchFieldDeliverMutation.isPending}
         onBatch={handleBatch}
+        onBatchDeliver={handleBatchDeliver}
         onBatchReturn={handleBatchReturn}
+        onOpenCanhotoBatch={() => void canhotoBatchReview.open()}
         onOpenFieldDeliveryBatch={(documentIds) => setFieldDeliveryDocumentIds([...documentIds])}
         onOpenFieldOccurrenceBatch={(documentIds) =>
           setFieldOccurrenceDocumentIds([...documentIds])
@@ -1353,6 +1433,16 @@ export function TripDetail({
         submitLabel={t('requirement.dispense')}
         title={t('requirement.dispenseTitle')}
       />
+
+      {canhotoBatchReview.dialog.isOpen ? (
+        <TripCanhotoBatchDialog
+          items={canhotoBatchReview.dialog.items}
+          onClose={canhotoBatchReview.close}
+          onConfirm={(documentIds) => void canhotoBatchReview.confirm(documentIds)}
+          overflowCount={canhotoBatchReview.dialog.overflowCount}
+          status={canhotoBatchReview.dialog.status}
+        />
+      ) : null}
 
       <TripReturnReasonDialog
         isOpen={returnDocumentId !== null}

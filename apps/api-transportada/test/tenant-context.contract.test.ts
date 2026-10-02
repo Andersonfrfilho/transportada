@@ -175,7 +175,11 @@ describe('tenant context contract', () => {
 
       expect(lookups).toEqual([{ companyId: COMPANY_ID, userId: USER_ID }])
       expect(context.scope.companyId).toBe(COMPANY_ID)
-      expect([...context.scope.permissions]).toEqual(['mdfe.auto-issue', 'whatsapp.settle'])
+      expect([...context.scope.permissions]).toEqual([
+        'mdfe.auto-issue',
+        'whatsapp.settle',
+        'trip.canhoto-auto-review',
+      ])
     })
 
     test('is refused when the requested company has no membership', async () => {

@@ -7,6 +7,7 @@ import { LOCAL_IDENTITY_ROLES } from '../src/database/local-identity-seed.consta
 import { AuthorizationService } from '../src/identity/application/authorization.service'
 import {
   COMPANY_ROLE_PERMISSIONS,
+  isCompanyPermission,
   isGrantablePermission,
   resolveCompanyPermissions,
   SERVICE_ONLY_PERMISSIONS,
@@ -72,6 +73,8 @@ describe('authorization contract', () => {
       'mdfe.auto-issue',
       // Spec 144 T014: a liquidação do WhatsApp, pela mesma régua — uma rota só, do serviço
       'whatsapp.settle',
+      // Spec 222 / ADR-0092 §2: a leitura automática do canhoto, do serviço e de uma rota só
+      'trip.canhoto-auto-review',
       // Spec 085 G005: medir a caixa é galpão, e não sai de carona com `settings.manage`
       'cargo.measure',
       // ADR-0050: a permissão do contratante — acompanhar a entrega das notas dos documentos dele
@@ -194,7 +197,7 @@ describe('authorization contract', () => {
       aggregate: ['trip.read', 'trip.report'],
       separator: ['invoices.read', 'fleet.read', 'trip.read', 'trip.manage', 'cargo.measure'],
       contractor: ['deliveries.track', 'charges.decide', 'occurrences.decide'],
-      automation: ['mdfe.auto-issue', 'whatsapp.settle'],
+      automation: ['mdfe.auto-issue', 'whatsapp.settle', 'trip.canhoto-auto-review'],
     })
   })
 
@@ -408,6 +411,7 @@ describe('authorization contract', () => {
         permission !== 'companies.manage' &&
         permission !== 'mdfe.auto-issue' &&
         permission !== 'whatsapp.settle' &&
+        permission !== 'trip.canhoto-auto-review' &&
         permission !== 'deliveries.track' &&
         permission !== 'charges.decide' &&
         permission !== 'occurrences.decide',
@@ -708,8 +712,12 @@ describe('permissão efetiva — a soma das três origens', () => {
  * `mdfe.auto-issue` dispararia MDF-e pela rota do serviço.
  */
 describe('permissão de serviço (spec 144 T014b)', () => {
-  test('as duas permissões de máquina estão declaradas como de serviço', () => {
-    expect([...SERVICE_ONLY_PERMISSIONS]).toEqual(['mdfe.auto-issue', 'whatsapp.settle'])
+  test('as permissões de máquina estão declaradas como de serviço', () => {
+    expect([...SERVICE_ONLY_PERMISSIONS]).toEqual([
+      'mdfe.auto-issue',
+      'whatsapp.settle',
+      'trip.canhoto-auto-review',
+    ])
   })
 
   test('permissão de serviço não é concedível, e a de pessoa continua sendo', () => {
@@ -732,10 +740,36 @@ describe('permissão de serviço (spec 144 T014b)', () => {
     expect(permissions.has('billing.read')).toBe(true)
   })
 
-  test('o papel automation continua recebendo as duas', () => {
+  /**
+   * Spec 222 T3.3 (ADR-0092 §2): a porta do robô de canhoto é de máquina. Sem a entrada em
+   * `SERVICE_ONLY_PERMISSIONS`, quem tem `groups.manage` concederia a si mesmo um `approved` sem
+   * `trip.manage` e sem trilha de pessoa. A primeira asserção prende que ela **existe** no catálogo
+   * — sem ela `isGrantablePermission` devolveria `false` por motivo nenhum.
+   */
+  test('`trip.canhoto-auto-review` é permissão de máquina: existe, e grupo nem avulsa a concedem', () => {
+    expect(isCompanyPermission('trip.canhoto-auto-review')).toBe(true)
+    expect(isGrantablePermission('trip.canhoto-auto-review')).toBe(false)
+    expect(SERVICE_ONLY_PERMISSIONS).toContain('trip.canhoto-auto-review')
+
+    const person = resolveCompanyPermissions({
+      granted: ['trip.canhoto-auto-review', 'billing.read'],
+      roles: ['viewer'],
+    })
+    expect(person.has('trip.canhoto-auto-review')).toBe(false)
+    expect(person.has('billing.read')).toBe(true)
+
+    expect(
+      resolveCompanyPermissions({ granted: [], roles: ['automation'] }).has(
+        'trip.canhoto-auto-review',
+      ),
+    ).toBe(true)
+  })
+
+  test('o papel automation recebe todas as de máquina', () => {
     expect([...resolveCompanyPermissions({ granted: [], roles: ['automation'] })]).toEqual([
       'mdfe.auto-issue',
       'whatsapp.settle',
+      'trip.canhoto-auto-review',
     ])
   })
 

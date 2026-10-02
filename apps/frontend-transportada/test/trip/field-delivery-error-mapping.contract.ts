@@ -6,16 +6,17 @@ import trip from '../../src/modules/trip/locales/trip.locale.json'
 import tripEn from '../../src/modules/trip/locales/trip.en.locale.json'
 
 /**
- * Spec 156 T12 (aceites 8, 9, 12): os códigos que `POST .../field-delivery` devolve para a baixa
- * do escritório — cada um com texto nos dois idiomas, o mesmo catálogo que o resto da viagem usa
- * (não uma segunda tabela de mensagens só para esta tela).
+ * Spec 156 T12 (aceites 8, 12): os códigos que `POST .../field-delivery` devolve para a baixa do
+ * escritório — cada um com texto nos dois idiomas, o mesmo catálogo que o resto da viagem usa (não
+ * uma segunda tabela de mensagens só para esta tela). O aceite 9
+ * (`TRIP_DELIVERY_PROOF_PHOTO_REQUIRED`) saiu da lista: a spec 223 tirou a recusa por falta de
+ * canhoto, e o código não existe mais no backend.
  */
 describe('mapeamento de erro do envio da baixa em massa (spec 156 T12)', () => {
   const cases = [
     ['DOCUMENT_ALREADY_SETTLED', 'documentAlreadySettled'],
     ['DELIVERED_AT_IN_FUTURE', 'deliveredAtInFuture'],
     ['DELIVERED_AT_BEFORE_DISPATCH', 'deliveredAtBeforeDispatch'],
-    ['TRIP_DELIVERY_PROOF_PHOTO_REQUIRED', 'deliveryProofPhotoRequired'],
   ] as const
 
   for (const [code, expectedKey] of cases) {

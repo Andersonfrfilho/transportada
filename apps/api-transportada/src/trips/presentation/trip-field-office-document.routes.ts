@@ -171,8 +171,15 @@ function createDeliveryRoute(
         proof: input.proof,
       })
 
+      /** Spec 223 RF1: a baixa sem canhoto é aceita, e a resposta diz que ele ficou pendente. */
       return officeJsonResponse({
-        body: { data: { ...serializeOutcome(result), proofId: result.proofId } },
+        body: {
+          data: {
+            ...serializeOutcome(result),
+            proofId: result.proofId,
+            proofPending: result.proofPending,
+          },
+        },
         status: 201,
       })
     },

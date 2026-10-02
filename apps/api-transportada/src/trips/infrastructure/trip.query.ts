@@ -9,6 +9,7 @@ import { freightCalculations } from '../../database/freight.schema.js'
 import { tripDocuments, tripDrivers, trips } from '../../database/trip.schema.js'
 import type { KeysetCursor } from '../../shared/keyset-cursor.support.js'
 import type { TripFilters } from '../application/trip.port.js'
+import { tripHasProofPendingDocumentCondition } from './proof-pending.query.js'
 
 /** `cte_fiscal_documents.status` — só este valor autoriza a emissão de MDF-e (ADR-0023 §3). */
 const AUTHORIZED_CTE_DOCUMENT_STATUS = 'authorized'
@@ -42,6 +43,10 @@ export function buildTripListFilters({
   }
   if (filters?.createdUntil !== undefined) {
     conditions.push(lte(trips.createdAt, new Date(filters.createdUntil)))
+  }
+  if (filters?.proofPendingEq !== undefined) {
+    const hasPending = tripHasProofPendingDocumentCondition()
+    conditions.push(filters.proofPendingEq ? hasPending : sql`not ${hasPending}`)
   }
   return conditions
 }

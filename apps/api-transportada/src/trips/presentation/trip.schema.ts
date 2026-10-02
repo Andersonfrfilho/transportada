@@ -8,6 +8,7 @@ import {
   invalidRequest,
   optionalFilter,
   parseBody,
+  parseBooleanFilter,
   parseOption,
   parseOptionList,
   parseOptionalBody,
@@ -66,6 +67,7 @@ const TRIP_QUERY_KEYS = new Set([
   'driverIdIn',
   'createdFrom',
   'createdUntil',
+  'proofPendingEq',
 ])
 
 /**
@@ -195,6 +197,7 @@ export function parseTripList(url: URL): TripListing {
     ...optionalFilter('driverIdIn', parseUuidListFilter(parameters.get('driverIdIn'))),
     ...optionalFilter('createdFrom', parseIsoDateTime(parameters.get('createdFrom'))),
     ...optionalFilter('createdUntil', parseIsoDateTime(parameters.get('createdUntil'))),
+    ...optionalFilter('proofPendingEq', parseBooleanFilter(parameters.get('proofPendingEq'))),
   }
 
   return { ...readPaging(parameters), ...(hasFilter(filters) ? { filters } : {}) }

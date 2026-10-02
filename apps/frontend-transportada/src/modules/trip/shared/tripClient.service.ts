@@ -92,6 +92,7 @@ import type {
   TripTimelinePage,
 } from './trip.types'
 import { parseTripAllowedActions, type TripAllowedActions } from './tripAllowedActions.validation'
+import type { TripDeliveryProof } from './canhotoBatchSelection.service'
 import type { DeliveryProof } from './deliveryProof.service'
 import {
   DELIVERY_PROOF_CONTRACTOR_OVERRIDES_PATH,
@@ -195,6 +196,10 @@ export type TripClient = Readonly<{
   fieldReturnDocument: (input: FieldReturnDocumentInput) => Promise<FieldSettlementResult>
   dispatchTrip: (input: DispatchTripInput) => Promise<DispatchTripResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
+  /** Spec 222 RF-A1: os comprovantes da viagem inteira, cada um com o `documentId` da nota. */
+  readTripDeliveryProofs: (
+    input: Readonly<{ tripId: string }>,
+  ) => Promise<readonly TripDeliveryProof[]>
   /** Spec 220 T7.9: `PATCH .../proof/review`, `trip.manage`. Idempotente por desenho: sem chave. */
   canhotoReviewProof: (input: CanhotoReviewProofInput) => Promise<CanhotoReviewResult>
   readRouteGeometry: (input: Readonly<{ tripId: string }>) => Promise<RouteGeometry>
@@ -1180,6 +1185,14 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       return adapters.deliveryProofsFromApi(readEnvelopeData(response))
     },
+    async readTripDeliveryProofs(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${TRIPS_PATH}/${input.tripId}/delivery-proofs`,
+      })
+      return adapters.tripDeliveryProofsFromApi(readEnvelopeData(response))
+    },
     async canhotoReviewProof(input) {
       const response = await authorizedRequest({
         body: JSON.stringify(input.review),
@@ -1437,6 +1450,10 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         createdFrom: input.filters?.createdFrom,
         createdUntil: input.filters?.createdUntil,
         driverIdIn: input.filters?.driverIdIn?.join(','),
+        proofPendingEq:
+          input.filters?.proofPendingEq === undefined
+            ? undefined
+            : String(input.filters.proofPendingEq),
         statusIn: input.filters?.statusIn?.join(','),
         vehicleIdIn: input.filters?.vehicleIdIn?.join(','),
       })

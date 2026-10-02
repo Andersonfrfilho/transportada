@@ -101,6 +101,13 @@ export function parseOptionList<TOption extends string>(
   })
 }
 
+export function parseBooleanFilter(value: string | null): boolean | undefined {
+  if (value === null) return undefined
+  if (value === 'true') return true
+  if (value === 'false') return false
+  throw invalidRequest()
+}
+
 export function parseUuidFilter(value: string | null): string | undefined {
   if (value === null) return undefined
   return parseUuidPathIdentifier(value)

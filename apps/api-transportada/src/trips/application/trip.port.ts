@@ -115,6 +115,11 @@ export type TripDocumentDetail = TripDocument & {
    */
   readonly leavesBehindOnDispatch: boolean
   /**
+   * Spec 223 RF4: derivado na leitura, nunca gravado — a nota foi baixada, o evento de entrega não
+   * tem foto e a configuração resolvida do destinatário exige canhoto (foto ou assinatura).
+   */
+  readonly proofPending: boolean
+  /**
    * Spec 079 T017: como a nota se chama na tela. `null` quando o vínculo é só cálculo de frete, ou
    * quando a nota sumiu da junção — a queda para o identificador continua existindo, mas deixou de
    * ser o caminho normal.
@@ -342,6 +347,8 @@ export type TripFilters = {
   readonly createdUntil?: string
   readonly driverIdEq?: string
   readonly driverIdIn?: readonly string[]
+  /** Spec 223 RF9: `true` = viagens com ao menos uma nota com canhoto pendente; `false` = nenhuma. */
+  readonly proofPendingEq?: boolean
   readonly statusEq?: TripStatus
   readonly statusIn?: readonly TripStatus[]
   readonly vehicleIdEq?: string

@@ -792,21 +792,6 @@ export class DeliveredAtBeforeDispatchError extends ApiError {
 }
 
 /**
- * ADR-0067 §5 (emenda 2026-09-18): a configuração da empresa exige foto e o escritório não a
- * mandou. Aplicado só ao canal `office` nesta T6 — o motorista ainda não tem esta verificação no
- * backend (pendência registrada fora da spec 156).
- */
-export class TripDeliveryProofPhotoRequiredError extends ApiError {
-  public constructor() {
-    super({
-      code: 'TRIP_DELIVERY_PROOF_PHOTO_REQUIRED',
-      message: 'This company requires a photo of the delivery receipt.',
-      status: 422,
-    })
-  }
-}
-
-/**
  * Spec 161 D1/RF4: a ocorrência de galpão passou a exigir foto — a recusa é do **caso de uso**
  * (`register-trip-occurrence.use-case.ts`), antes de gravar, do storage e da auditoria, nunca da
  * rota. O motivo mora ali: a fase 4 desta spec faz o WhatsApp mandar foto pelo mesmo caso de uso, e

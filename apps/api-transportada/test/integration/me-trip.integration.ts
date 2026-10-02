@@ -959,6 +959,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         // Spec 220 RF29: recusado o canhoto, a nota volta para a fila — com o motivo visível.
         await reviewCanhotoProof({
           actorUserId: world.userId,
+          channel: 'person',
           command: { action: 'reject', reason: 'illegible' },
           companyId: world.companyId,
           correlationId: 'recusa-do-canhoto',

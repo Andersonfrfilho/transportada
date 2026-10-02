@@ -3,7 +3,7 @@
     "backToList": "Voltar às viagens",
     "close": "Encerrar viagem",
     "create": "Criar viagem",
-    "deliver": "Marcar entregue",
+    "deliver": "Baixar sem canhoto",
     "issueMdfe": "Emitir MDF-e",
     "linkDocument": "Vincular",
     "load": "Carregar",
@@ -16,7 +16,7 @@
     "viewProof": "Comprovante",
     "viewTrip": "Abrir a viagem de {{vehicle}}",
     "fieldOccurrence": "Ocorrência",
-    "fieldDelivery": "Dar baixa",
+    "fieldDelivery": "Dar baixa com canhoto",
     "separationOccurrence": "Ocorrência de separação",
     "generateCte": "Gerar CT-e"
   },
@@ -478,6 +478,25 @@
     "title": "Desviar entrega"
   },
   "deliveryProof": {
+    "canhotoBatch": {
+      "approve": "Aprovar {{count}} canhoto",
+      "approve_other": "Aprovar {{count}} canhotos",
+      "approving": "Aprovando…",
+      "cancel": "Cancelar",
+      "checkedCount": "{{checked}} de {{total}} marcados",
+      "close": "Fechar a conferência de canhotos",
+      "empty": "Nenhum canhoto desta seleção está aguardando conferência.",
+      "imageFailed": "A foto não abriu. Este canhoto não pode ser aprovado sem ser visto.",
+      "loadFailed": "Não foi possível carregar os canhotos. Tente de novo.",
+      "loading": "Carregando os canhotos",
+      "noteLabel": "Nota {{label}}",
+      "overflow": "{{count}} canhoto ficou para a próxima rodada.",
+      "overflow_other": "{{count}} canhotos ficaram para a próxima rodada.",
+      "selectItem": "Aprovar o canhoto da nota {{label}}",
+      "subtitle": "Confira a foto de cada canhoto. Só o que estiver marcado é aprovado.",
+      "title": "Conferir canhotos",
+      "waitingImages": "Aguarde as fotos carregarem para aprovar."
+    },
     "canhotoReview": {
       "alreadyResolved": "Outra pessoa já conferiu este canhoto. Atualizamos a tela com o veredito que valeu.",
       "approve": "Aprovar canhoto",
@@ -878,7 +897,6 @@
     "documentAlreadySettled": "Esta nota já estava entregue ou devolvida.",
     "deliveredAtInFuture": "\"Entregue em\" não pode ser no futuro.",
     "deliveredAtBeforeDispatch": "\"Entregue em\" não pode ser antes do despacho da viagem.",
-    "deliveryProofPhotoRequired": "Esta empresa exige foto do canhoto — anexe uma antes de enviar.",
     "arrivedAtInFuture": "\"Chegou em\" não pode ser no futuro.",
     "arrivedAtBeforeDispatch": "\"Chegou em\" não pode ser antes do despacho da viagem.",
     "returnedAtInFuture": "\"Devolvido em\" não pode ser no futuro.",
@@ -905,6 +923,9 @@
     "driverSearch": "Buscar por nome",
     "driverSummary": "{{count}} motorista",
     "driverSummary_other": "{{count}} motoristas",
+    "proofPendingEq": "Canhoto",
+    "proofPendingOnly": "Só com canhoto pendente",
+    "proofPendingPillValue": "Pendente",
     "removeDriver": "Retirar este motorista",
     "removeFilter": "Remover o filtro {{field}}",
     "removeStatus": "Retirar esta situação",
@@ -963,6 +984,10 @@
     "weightConcentration": "Atenção: {{percent}}% do peso está na parada {{stop}} — o desenho acima é de volume, não de peso.",
     "withoutVolume": "{{count}} nota sem cubagem não entrou na conta.",
     "withoutVolume_other": "{{count}} notas sem cubagem não entraram na conta."
+  },
+  "proofPending": {
+    "badge": "Canhoto pendente",
+    "hint": "Nota baixada sem canhoto, e a configuração da empresa exige o canhoto. A cobrança segue pendente até o canhoto chegar."
   },
   "occurrence": {
     "openCase": "Ocorrência em tratativa",
@@ -1457,9 +1482,11 @@
     "barLabel": "Ações em massa",
     "cancelTrips": "Cancelar selecionadas",
     "clear": "Limpar seleção",
+    "closeTrips": "Encerrar {{count}} viagem",
+    "closeTrips_other": "Encerrar {{count}} viagens",
     "count_one": "{{count}} viagem selecionada",
     "count_other": "{{count}} viagens selecionadas",
-    "selectAll": "Selecionar todas as viagens canceláveis da página",
+    "selectAll": "Selecionar as viagens da página que aceitam ação em lote",
     "selectTrip": "Selecionar a viagem do veículo {{vehicle}}"
   },
   "separationStatus": {
@@ -1587,6 +1614,7 @@
     "batchReturn": "Devolver {{count}} nota",
     "batchReturn_other": "Devolver {{count}} notas",
     "batchReturnPartialFailure": "{{failed}} de {{total}} nota(s) não foram devolvidas: {{reason}}",
+    "batchDeliverPartialFailure": "{{failed}} de {{total}} nota(s) não foram baixadas: {{reason}}",
     "batchSeparate": "Separar {{count}} nota",
     "batchSeparate_other": "Separar {{count}} notas",
     "cancel": "Cancelar viagem",
@@ -1620,6 +1648,13 @@
     "batchFieldDelivery_other": "Dar baixa em {{count}} notas",
     "batchFieldDeliveryExcluded": "{{count}} nota marcada não aceita baixa de entrega.",
     "batchFieldDeliveryExcluded_other": "{{count}} notas marcadas não aceitam baixa de entrega.",
+    "batchCanhoto": "Conferir {{count}} canhoto",
+    "batchCanhoto_other": "Conferir {{count}} canhotos",
+    "batchCanhotoExcluded": "{{count}} nota marcada não tem canhoto aguardando conferência.",
+    "batchCanhotoExcluded_other": "{{count}} notas marcadas não têm canhoto aguardando conferência.",
+    "batchCanhotoPartialFailure": "{{failed}} de {{total}} canhoto(s) não foram aprovados. Abra a conferência para tentar de novo.",
+    "batchDeliverWithoutProof": "Baixar {{count}} nota sem canhoto",
+    "batchDeliverWithoutProof_other": "Baixar {{count}} notas sem canhoto",
     "trailerRequired": "O cavalo não sai sem carreta."
   },
   "status": {
@@ -1987,5 +2022,14 @@
       "mailSentAutomatic": "Aviso automático enviado à contratante",
       "mailReceived": "A contratante respondeu por e-mail"
     }
+  },
+  "closeBulkDialog": {
+    "closing": "Encerrando…",
+    "confirm": "Encerrar",
+    "partialFailure": "{{failed}} de {{total}} viagem(ns) não encerraram: {{reason}}",
+    "reasonLabel": "Motivo do encerramento",
+    "subtitle": "As notas sem baixa ficam como pendência de canhoto — o encerramento não espera por elas.",
+    "title": "Encerrar {{count}} viagem",
+    "title_other": "Encerrar {{count}} viagens"
   }
 }

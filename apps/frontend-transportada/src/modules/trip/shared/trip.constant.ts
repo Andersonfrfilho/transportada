@@ -146,7 +146,6 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   DELIVERED_AT_IN_FUTURE: 'deliveredAtInFuture',
   DELIVERED_AT_BEFORE_DISPATCH: 'deliveredAtBeforeDispatch',
   /** Spec 156 T6/T12 (aceite 9): a empresa exige foto e o escritório não anexou nenhuma. */
-  TRIP_DELIVERY_PROOF_PHOTO_REQUIRED: 'deliveryProofPhotoRequired',
   /** Spec 156 T15 A1: "Chegou em"/"Devolvido em" fora da janela aceita pelo servidor — mesma régua
    * de `DELIVERED_AT_*`. */
   ARRIVED_AT_IN_FUTURE: 'arrivedAtInFuture',
@@ -249,6 +248,8 @@ export const TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS = [
    * ausência como "não deixa a nota para trás", nunca como bloqueio de resposta.
    */
   'leavesBehindOnDispatch',
+  /** Spec 223 RF4: ausente é API anterior ao campo — o selo só aparece com `true`. */
+  'proofPending',
   'contact',
   'nfeIssuedAt',
   'nfeNumber',

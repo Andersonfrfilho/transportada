@@ -229,7 +229,11 @@
         "@adatechnology/object-storage-provider": "0.2.0-rc.0",
         "@adatechnology/rabbitmq-provider": "0.1.1",
         "@adatechnology/secret-envelope": "0.1.0",
+        "@jsquash/jpeg": "^1.6.0",
+        "@jsquash/png": "^3.1.1",
+        "@jsquash/webp": "^1.5.0",
         "@sentry/bun": "10.69.0",
+        "@zxing/library": "0.23.0",
         "drizzle-orm": "1.0.0-rc.4",
         "fflate": "^0.8.3",
         "mailauth": "5.0.3",
@@ -710,6 +714,12 @@
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "3.1.2", "@jridgewell/sourcemap-codec": "1.5.5" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
     "@js-temporal/polyfill": ["@js-temporal/polyfill@0.5.1", "", { "dependencies": { "jsbi": "^4.3.0" } }, "sha512-hloP58zRVCRSpgDxmqCWJNlizAlUgJFqG2ypq79DCvyv9tHjRYMDOcPFjzfl/A1/YxDvRCZz8wvZvmapQnKwFQ=="],
+
+    "@jsquash/jpeg": ["@jsquash/jpeg@1.6.0", "", {}, "sha512-zwN46Awh1VM6gXlIcALwb5WzqK5H2e6+Awcs1QP8AvS8ohsK/sbE4esvmH4jhlhW7+CgiUUww66vg0aTnlSIMA=="],
+
+    "@jsquash/png": ["@jsquash/png@3.1.1", "", {}, "sha512-C10pc+0H6j0h8fENOfnGOvkXCmvpSQTDGlfGd0sHphZhPSGTyLjIrHba0FaZZdsKqA/wlmhYicUHb92vfZphaw=="],
+
+    "@jsquash/webp": ["@jsquash/webp@1.5.0", "", { "dependencies": { "wasm-feature-detect": "^1.2.11" } }, "sha512-KggLoj2MnRSfIqTeKe1EmbljTX2vuV7mh79k89PCL1pyqiDULcPM1L47twxXt0hkb68F70bXiL31MxsuoZtKFw=="],
 
     "@mapbox/jsonlint-lines-primitives": ["@mapbox/jsonlint-lines-primitives@2.0.3", "", {}, "sha512-0SElaV0uMxEnxzBhhX9WTuPyUeMsAN/SS0i16tjuba4/mio63MG9khjC1a0JAiPGXAwvwm4UfHJURCN7nyudQg=="],
 
@@ -1911,11 +1921,11 @@
 
     "zod": ["zod@4.4.3", "", {}, "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="],
 
+    "zod-validation-error": ["zod-validation-error@4.0.2", "", { "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" } }, "sha512-Q6/nZLe6jxuU80qb/4uJ4t5v2VEZ44lzQjPDhYJNztRQ4wyWc6VF3D3Kb/fAuPetZQnhS3hnajCf9CsWesghLQ=="],
+
     "@adatechnology/conversations-ui/@adatechnology/meta-whatsapp-contracts": ["@adatechnology/meta-whatsapp-contracts@0.4.0", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-chEqJfMi4fsPn/MfN+qWQxKFAmZxUDZBIThnc7rA8QSA0bXbnxn2VgS/RNOQjgHej/lGxfkyQIlg1FyYWekNdQ=="],
 
     "@adatechnology/conversations-ui/tailwind-merge": ["tailwind-merge@3.7.0", "", {}, "sha512-XPPUyAc+cvspz3lHTcR/QgPfW2A0lv/xQNIjX3HGhLR+Nq2lHaLq5MtTesHn8GUr3W3DguT2KT5x3NVgRtYwmA=="],
-
-    "zod-validation-error": ["zod-validation-error@4.0.2", "", { "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" } }, "sha512-Q6/nZLe6jxuU80qb/4uJ4t5v2VEZ44lzQjPDhYJNztRQ4wyWc6VF3D3Kb/fAuPetZQnhS3hnajCf9CsWesghLQ=="],
 
     "@adatechnology/fiscal-provider/fast-xml-parser": ["fast-xml-parser@4.5.7", "", { "dependencies": { "strnum": "^1.0.5" }, "bin": { "fxparser": "src/cli/cli.js" } }, "sha512-a6Qh1RMCNbSrU1+sAyAAZH3rTe+OaWJbNZIq0S+ifZciUUOQtlVxBJwoTUE2bYhysmG/RYyI5WJFIKdBahJdrQ=="],
 

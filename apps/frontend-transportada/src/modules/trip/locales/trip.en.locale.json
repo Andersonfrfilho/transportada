@@ -3,7 +3,7 @@
     "backToList": "Back to trips",
     "close": "Close trip",
     "create": "Create trip",
-    "deliver": "Mark delivered",
+    "deliver": "Deliver without receipt",
     "issueMdfe": "Issue MDF-e",
     "linkDocument": "Link",
     "load": "Load",
@@ -16,7 +16,7 @@
     "viewProof": "Delivery receipt",
     "viewTrip": "Open the trip for {{vehicle}}",
     "fieldOccurrence": "Occurrence",
-    "fieldDelivery": "Deliver",
+    "fieldDelivery": "Deliver with proof",
     "separationOccurrence": "Separation occurrence",
     "generateCte": "Issue CT-e"
   },
@@ -478,6 +478,25 @@
     "title": "Redirect delivery"
   },
   "deliveryProof": {
+    "canhotoBatch": {
+      "approve": "Approve {{count}} receipt",
+      "approve_other": "Approve {{count}} receipts",
+      "approving": "Approving…",
+      "cancel": "Cancel",
+      "checkedCount": "{{checked}} of {{total}} checked",
+      "close": "Close the receipt review",
+      "empty": "None of the selected receipts is awaiting review.",
+      "imageFailed": "The photo did not open. This receipt cannot be approved without being seen.",
+      "loadFailed": "Could not load the receipts. Try again.",
+      "loading": "Loading the receipts",
+      "noteLabel": "Invoice {{label}}",
+      "overflow": "{{count}} receipt was left for the next round.",
+      "overflow_other": "{{count}} receipts were left for the next round.",
+      "selectItem": "Approve the receipt of invoice {{label}}",
+      "subtitle": "Check the photo of each receipt. Only what is checked gets approved.",
+      "title": "Review receipts",
+      "waitingImages": "Wait for the photos to load before approving."
+    },
     "canhotoReview": {
       "alreadyResolved": "Someone else has already reviewed this receipt. The screen now shows the verdict that stood.",
       "approve": "Approve delivery receipt",
@@ -878,7 +897,6 @@
     "documentAlreadySettled": "This document was already delivered or returned.",
     "deliveredAtInFuture": "\"Delivered at\" cannot be in the future.",
     "deliveredAtBeforeDispatch": "\"Delivered at\" cannot be before the trip's dispatch.",
-    "deliveryProofPhotoRequired": "This company requires a proof photo — attach one before sending.",
     "arrivedAtInFuture": "\"Arrived at\" cannot be in the future.",
     "arrivedAtBeforeDispatch": "\"Arrived at\" cannot be before the trip's dispatch.",
     "returnedAtInFuture": "\"Returned at\" cannot be in the future.",
@@ -905,6 +923,9 @@
     "driverSearch": "Search by name",
     "driverSummary": "{{count}} driver",
     "driverSummary_other": "{{count}} drivers",
+    "proofPendingEq": "Receipt",
+    "proofPendingOnly": "Only with pending receipt",
+    "proofPendingPillValue": "Pending",
     "removeDriver": "Remove this driver",
     "removeFilter": "Remove the {{field}} filter",
     "removeStatus": "Remove this status",
@@ -963,6 +984,10 @@
     "weightConcentration": "Warning: {{percent}}% of the weight is at stop {{stop}} — the drawing above shows volume, not weight.",
     "withoutVolume": "{{count}} invoice without volume was left out of the calculation.",
     "withoutVolume_other": "{{count}} invoices without volume were left out of the calculation."
+  },
+  "proofPending": {
+    "badge": "Receipt pending",
+    "hint": "Document delivered without its receipt, and the company settings require it. It stays pending until the receipt arrives."
   },
   "occurrence": {
     "openCase": "Occurrence under case",
@@ -1457,9 +1482,11 @@
     "barLabel": "Bulk actions",
     "cancelTrips": "Cancel selected",
     "clear": "Clear selection",
+    "closeTrips": "Close {{count}} trip",
+    "closeTrips_other": "Close {{count}} trips",
     "count_one": "{{count}} trip selected",
     "count_other": "{{count}} trips selected",
-    "selectAll": "Select every cancellable trip on this page",
+    "selectAll": "Select every trip on this page that accepts a bulk action",
     "selectTrip": "Select the trip for vehicle {{vehicle}}"
   },
   "separationStatus": {
@@ -1587,6 +1614,7 @@
     "batchReturn": "Return {{count}} document",
     "batchReturn_other": "Return {{count}} documents",
     "batchReturnPartialFailure": "{{failed}} of {{total}} document(s) were not returned: {{reason}}",
+    "batchDeliverPartialFailure": "{{failed}} of {{total}} document(s) were not delivered: {{reason}}",
     "batchSeparate": "Separate {{count}} document",
     "batchSeparate_other": "Separate {{count}} documents",
     "cancel": "Cancel trip",
@@ -1620,6 +1648,13 @@
     "batchFieldDelivery_other": "Deliver {{count}} documents",
     "batchFieldDeliveryExcluded": "{{count}} selected invoice does not accept delivery confirmation.",
     "batchFieldDeliveryExcluded_other": "{{count}} selected invoices do not accept delivery confirmation.",
+    "batchCanhoto": "Review {{count}} receipt",
+    "batchCanhoto_other": "Review {{count}} receipts",
+    "batchCanhotoExcluded": "{{count}} selected invoice has no receipt awaiting review.",
+    "batchCanhotoExcluded_other": "{{count}} selected invoices have no receipt awaiting review.",
+    "batchCanhotoPartialFailure": "{{failed}} of {{total}} receipt(s) were not approved. Open the review to try again.",
+    "batchDeliverWithoutProof": "Deliver {{count}} document without receipt",
+    "batchDeliverWithoutProof_other": "Deliver {{count}} documents without receipt",
     "trailerRequired": "The tractor unit does not leave without a trailer."
   },
   "status": {
@@ -1987,5 +2022,14 @@
       "mailSentAutomatic": "Automatic notice sent to the contracting party",
       "mailReceived": "The contracting party replied by e-mail"
     }
+  },
+  "closeBulkDialog": {
+    "closing": "Closing…",
+    "confirm": "Close",
+    "partialFailure": "{{failed}} of {{total}} trip(s) were not closed: {{reason}}",
+    "reasonLabel": "Reason for closing",
+    "subtitle": "Documents without delivery stay as a pending receipt — closing does not wait for them.",
+    "title": "Close {{count}} trip",
+    "title_other": "Close {{count}} trips"
   }
 }

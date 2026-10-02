@@ -4,6 +4,7 @@ import { describe, expect } from 'bun:test'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import { assertContractorMailBodyHtml } from './contractor-mail-body-html.assertion.js'
+import { assertCanhotoReadQueue } from './canhoto-read-queue.assertion.js'
 import { assertCteProfileOutputConstraints } from './cte-profile-output-constraints.assertion.js'
 import { assertDeliveryProofCargoSumsAndGuardsRollback } from './delivery-proof-cargo.assertion.js'
 import { assertDeliveryProofContractorOverridesBackfill } from './delivery-proof-contractor-overrides.assertion.js'
@@ -185,6 +186,11 @@ describe('Drizzle migration integration', () => {
           fixture: identityFixture,
         })
         await assertNfeDocumentListingOrderIndex({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        await assertCanhotoReadQueue({
           connectionString,
           database,
           directories: migrationDirectories,

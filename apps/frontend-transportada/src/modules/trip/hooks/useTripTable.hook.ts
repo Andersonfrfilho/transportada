@@ -11,6 +11,7 @@ import { clearTripFilterField, type TripPillField } from '../shared/tripFilterPi
 import { navigateToTrip } from '../shared/tripRoute.service'
 import {
   cancellableSelection,
+  closeableSelection,
   pruneSelection,
   selectAllOnPage,
   selectAllState,
@@ -72,7 +73,10 @@ export function useTripTable(input: UseTripTableInput) {
     activeFilterCount: countActiveTripFilters(filters),
     /** As marcadas que **ainda podem** ser canceladas — nunca a marcação crua (spec 102). */
     cancellableSelection: cancellableSelection({ selectedIds, trips: visibleItems }),
+    closeableSelection: closeableSelection({ selectedIds, trips: visibleItems }),
     clearSelection: () => setRawSelection([]),
+    /** Spec 223 RF8: o lote devolve as que falharam, e só elas continuam marcadas. */
+    replaceSelection: (tripIds: readonly string[]) => setRawSelection(tripIds),
     columns: visibleTripColumns({
       canReadFinancials: input.permissions.includes(FINANCIALS_PERMISSION),
     }),
@@ -112,6 +116,14 @@ export function useTripTable(input: UseTripTableInput) {
         else next.createdUntil = to
         return next
       })
+      restartPagination()
+    },
+    setProofPendingFilter: (isOnlyPending: boolean) => {
+      setFilters((current) =>
+        isOnlyPending
+          ? { ...current, proofPendingEq: true }
+          : clearTripFilterField({ field: 'proofPendingEq', filters: current }),
+      )
       restartPagination()
     },
     /** Seleção vazia é "sem filtro": a chave sai do objeto, e não vira `statusIn=` na query. */

@@ -127,6 +127,18 @@ const CATALOG = [
     job: 'occurrence-conversation.upload.expire',
     minimumIntervalSeconds: 300,
   },
+  {
+    /** Spec 222 RF-B: a leitura do canhoto por máquina. O worker só reporta; o veredito é da API. */
+    failureOutcomes: [
+      'object_unavailable',
+      'unsupported_media',
+      'too_large',
+      'decode_timeout',
+      'api_unreachable',
+    ],
+    job: 'trip.canhoto.read',
+    minimumIntervalSeconds: 300,
+  },
 ] as const
 
 /**
@@ -147,6 +159,7 @@ const SEED_MIGRATIONS = [
   '20260922112706_trip_occurrence_attachment_purge_job',
   '20260924033423_lumpy_scalphunter',
   '20260925152805_occurrence_conversation_upload_expire_job',
+  '20261002120000_trip_canhoto_read_job',
 ] as const
 
 describe('job catalog', () => {

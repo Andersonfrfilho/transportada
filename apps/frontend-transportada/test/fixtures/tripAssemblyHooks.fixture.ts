@@ -60,8 +60,10 @@ export type FakeTripClient = Pick<
   | 'attachOccurrencePhoto'
   | 'canhotoReviewProof'
   | 'createMultiVehicleSuggestion'
+  | 'fieldDeliverDocument'
   | 'readMultiVehicleProposal'
   | 'readMultiVehicleSuggestion'
+  | 'readTripDeliveryProofs'
   | 'registerTripOccurrence'
 >
 
@@ -71,8 +73,10 @@ export function createUnexpectedTripClient(): FakeTripClient {
     attachOccurrencePhoto: () => Promise.reject(new Error('UNEXPECTED_ATTACH_OCCURRENCE_PHOTO')),
     canhotoReviewProof: () => Promise.reject(new Error('UNEXPECTED_CANHOTO_REVIEW_PROOF')),
     createMultiVehicleSuggestion: () => Promise.reject(new Error('UNEXPECTED_CREATE')),
+    fieldDeliverDocument: () => Promise.reject(new Error('UNEXPECTED_FIELD_DELIVER_DOCUMENT')),
     readMultiVehicleProposal: () => Promise.reject(new Error('UNEXPECTED_PROPOSAL_READ')),
     readMultiVehicleSuggestion: () => Promise.reject(new Error('UNEXPECTED_SUGGESTION_READ')),
+    readTripDeliveryProofs: () => Promise.reject(new Error('UNEXPECTED_READ_TRIP_DELIVERY_PROOFS')),
     registerTripOccurrence: () => Promise.reject(new Error('UNEXPECTED_REGISTER_TRIP_OCCURRENCE')),
   }
 }

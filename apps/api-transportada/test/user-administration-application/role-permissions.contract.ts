@@ -56,7 +56,7 @@ describe('matriz de papel e permissão', () => {
     }
   })
 
-  test('não oferece permissão de serviço, e o papel automation segue mostrando as duas', () => {
+  test('não oferece permissão de serviço, e o papel automation segue mostrando todas', () => {
     for (const permission of SERVICE_ONLY_PERMISSIONS) {
       expect(matrix.permissions).not.toContain(permission)
     }
@@ -89,18 +89,27 @@ describe('concessão de permissão de serviço', () => {
     throw new Error('esperava recusa')
   }
 
-  test('o grupo recusa as duas, todas de uma vez', async () => {
+  test('o grupo recusa todas as de serviço, de uma vez', async () => {
     const error = await parseRejection(parseSaveCompanyGroupRequest, {
       name: 'Faturamento',
-      permissions: ['billing.read', 'whatsapp.settle', 'mdfe.auto-issue'],
+      permissions: [
+        'billing.read',
+        'whatsapp.settle',
+        'mdfe.auto-issue',
+        'trip.canhoto-auto-review',
+      ],
       roles: [],
     })
 
     expect([error.status, error.code]).toEqual([400, 'INVALID_REQUEST'])
-    expect(error.details?.map((detail) => detail.field)).toEqual(['permissions.1', 'permissions.2'])
+    expect(error.details?.map((detail) => detail.field)).toEqual([
+      'permissions.1',
+      'permissions.2',
+      'permissions.3',
+    ])
   })
 
-  test('a concessão avulsa recusa as duas', async () => {
+  test('a concessão avulsa recusa todas as de serviço', async () => {
     for (const permission of SERVICE_ONLY_PERMISSIONS) {
       const error = await parseRejection(parseGrantDirectPermissionsRequest, {
         permissions: [permission],

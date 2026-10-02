@@ -346,7 +346,7 @@ describe('nota já fechada no canal office (T15 M6)', () => {
 
 describe('assinatura exigida no canal office (T15 A2, ADR-0067 §5 D8)', () => {
   testWithPostgres(
-    'A2: com assinatura required, canhoto sem nome do recebedor responde 422 e não baixa a nota',
+    'A2: assinatura required — canhoto sem nome responde 422; sem canhoto baixa com pendência',
     async () => {
       await withDisposableDatabase(async (database) => {
         const company = await seedCompany(database)
@@ -369,17 +369,26 @@ describe('assinatura exigida no canal office (T15 A2, ADR-0067 §5 D8)', () => {
           }),
         ).rejects.toMatchObject({ code: 'TRIP_DELIVERY_PROOF_RECEIVER_NAME_REQUIRED', status: 422 })
 
-        await expect(
-          deliverRoute!.execute({
-            context: fakeContext(company),
-            correlationId: 'review-a2-photo',
-            pathParameters: { documentId: trip.documentId, id: trip.tripId },
-            request: multipartRequest({
-              fields: { deliveredAt: '2026-09-18T09:00:00.000Z', receiverName: 'Ana' },
-              idempotencyKey: 'review-a2-photo',
-            }),
+        /**
+         * Spec 223 RF1/RF3: com assinatura exigida e **nada** anexado, a baixa passa e o canhoto
+         * fica pendente — era 422 `PHOTO_REQUIRED`. O nome sozinho, sem foto, não é comprovante.
+         */
+        const response = await deliverRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'review-a2-photo',
+          pathParameters: { documentId: trip.documentId, id: trip.tripId },
+          request: multipartRequest({
+            fields: { deliveredAt: '2026-09-18T09:00:00.000Z' },
+            idempotencyKey: 'review-a2-photo',
           }),
-        ).rejects.toMatchObject({ code: 'TRIP_DELIVERY_PROOF_PHOTO_REQUIRED', status: 422 })
+        })
+
+        expect(response.status).toBe(201)
+        const body = (await response.json()) as {
+          data: { proofId: string | null; proofPending: boolean }
+        }
+        expect(body.data.proofId).toBeNull()
+        expect(body.data.proofPending).toBe(true)
       })
     },
   )

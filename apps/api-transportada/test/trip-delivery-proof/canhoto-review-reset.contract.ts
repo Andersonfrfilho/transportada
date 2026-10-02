@@ -39,6 +39,7 @@ const ENVELOPE: SecretEnvelopeV1 = {
 
 const CANHOTO_COLUMN_PREFIX = 'canhoto'
 const RESET_TO_NULL = [
+  'canhotoReadAttemptedAt',
   'canhotoReadDocumentId',
   'canhotoReadNumber',
   'canhotoReadSeries',

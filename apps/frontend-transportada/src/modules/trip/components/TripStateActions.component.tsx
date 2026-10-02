@@ -7,6 +7,7 @@ import { Icon } from '@/components/ui/icon'
 import { NfseEmissionAction } from '@/modules/nfse-invoice/components/NfseEmissionAction.component'
 
 import type { TripDocumentSelectionController } from '../hooks/useTripDocumentSelection.hook'
+import type { CanhotoBatchSelection } from '../shared/canhotoBatchSelection.service'
 import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
 import type { DriverReturnReason } from '../shared/tripReturnReason.types'
 import {
@@ -23,16 +24,24 @@ export type TripStateActionsProps = Readonly<{
   /** Spec 156 T11: pelo menos uma nota da seleção tem a capacidade `fieldDelivery`. */
   canFieldDeliveryBatch: boolean
   canSeparateOrLoad: boolean
+  /** Spec 222 T2.8: o que do maço tem canhoto aguardando conferência — vazio some com o botão. */
+  canhotoBatch: CanhotoBatchSelection
   /** Spec 156 T8b: "Devolver" em massa mostra quando ao menos uma nota selecionada aceita `fieldReturn`. */
   capabilities: FieldActionCapabilities
   isBatchPending: boolean
   /** O que da seleção ainda aceita carregar — resolvido em `batchTransitionSelection.service.ts`. */
   loadableSelection: readonly string[]
   isBatchReturnPending: boolean
+  /** Spec 223 RF7: a baixa em massa sem canhoto está em voo. */
+  isBatchDeliverPending: boolean
   onBatch: (input: { readonly action: 'load' | 'separate' }) => void
   onBatchReturn: (reason: DriverReturnReason) => void
+  /** Spec 223 RF7 (ADR-0091): baixa as notas marcadas sem canhoto, uma requisição por nota. */
+  onBatchDeliver: (documentIds: readonly string[]) => void
   /** Spec 156 T9/T15: abre `FieldOccurrenceDialog` só com as notas do maço que têm `fieldOccurrence`. */
   onOpenFieldOccurrenceBatch: (documentIds: readonly string[]) => void
+  /** Spec 222 T2.8: abre o diálogo de conferência em maço dos canhotos de `canhotoBatch.eligible`. */
+  onOpenCanhotoBatch: () => void
   /** Spec 156 T11/T15: abre `FieldDeliveryWizard` só com as notas do maço que têm `fieldDelivery`. */
   onOpenFieldDeliveryBatch: (documentIds: readonly string[]) => void
   selection: TripDocumentSelectionController
@@ -60,12 +69,16 @@ export function TripStateActions({
   canFieldDeliveryBatch,
   canFieldOccurrenceBatch,
   canSeparateOrLoad,
+  canhotoBatch,
   capabilities,
   isBatchPending,
   isBatchReturnPending,
+  isBatchDeliverPending,
   loadableSelection,
   onBatch,
   onBatchReturn,
+  onBatchDeliver,
+  onOpenCanhotoBatch,
   onOpenFieldDeliveryBatch,
   onOpenFieldOccurrenceBatch,
   selection,
@@ -115,6 +128,8 @@ export function TripStateActions({
   const excludedFromDeliveryBatch = canFieldDeliveryBatch
     ? selection.selectedIds.size - deliverySelection.length
     : 0
+  /** Spec 222: já vem como `0` quando nada é oferecido, então o aviso não fala de botão ausente. */
+  const canReviewCanhotos = canhotoBatch.eligible.length > 0
 
   function handleBatchReturn(reason: DriverReturnReason): void {
     setIsReturnDialogOpen(false)
@@ -130,6 +145,7 @@ export function TripStateActions({
         canReturnSelection ||
         canFieldOccurrenceBatch ||
         canFieldDeliveryBatch ||
+        canReviewCanhotos ||
         pendingCteSelection.length > 0 ||
         pendingNfseSelection.length > 0) ? (
         <div className={styles.actionActions}>
@@ -213,7 +229,31 @@ export function TripStateActions({
               {t('stateActions.batchFieldDelivery', { count: deliverySelection.length })}
             </Button>
           ) : null}
-          {excludedFromOccurrenceBatch > 0 || excludedFromDeliveryBatch > 0 ? (
+          {/*
+           * Spec 223 RF7 (ADR-0091): o mesmo maço, sem o canhoto. O botão da câmera acima abre o
+           * assistente de foto; este baixa direto e deixa o canhoto como dívida.
+           */}
+          {canFieldDeliveryBatch ? (
+            <Button
+              disabled={isBatchDeliverPending}
+              onClick={() => onBatchDeliver(deliverySelection)}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Icon name="check" />
+              {t('stateActions.batchDeliverWithoutProof', { count: deliverySelection.length })}
+            </Button>
+          ) : null}
+          {canReviewCanhotos ? (
+            <Button onClick={onOpenCanhotoBatch} size="sm" type="button" variant="ghost">
+              <Icon name="camera" />
+              {t('stateActions.batchCanhoto', { count: canhotoBatch.eligible.length })}
+            </Button>
+          ) : null}
+          {excludedFromOccurrenceBatch > 0 ||
+          excludedFromDeliveryBatch > 0 ||
+          canhotoBatch.excludedCount > 0 ? (
             <p className={styles.hint} role="status">
               {excludedFromOccurrenceBatch > 0
                 ? t('stateActions.batchFieldOccurrenceExcluded', {
@@ -222,6 +262,9 @@ export function TripStateActions({
                 : null}
               {excludedFromDeliveryBatch > 0
                 ? t('stateActions.batchFieldDeliveryExcluded', { count: excludedFromDeliveryBatch })
+                : null}
+              {canhotoBatch.excludedCount > 0
+                ? t('stateActions.batchCanhotoExcluded', { count: canhotoBatch.excludedCount })
                 : null}
             </p>
           ) : null}

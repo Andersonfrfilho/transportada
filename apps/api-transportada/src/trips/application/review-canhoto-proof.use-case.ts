@@ -13,7 +13,6 @@ import {
 import { CanhotoReviewProofNotFoundError } from '../domain/canhoto-review.error.js'
 import type {
   CanhotoReviewAuditEntry,
-  CanhotoReviewCommand,
   CanhotoReviewView,
   ReviewCanhotoProofInput,
 } from './canhoto-review.port.js'
@@ -22,21 +21,41 @@ const AUDIT_ACTION_BY_MANUAL_ACTION = {
   approve: 'trip.canhoto-review.approve',
   reject: 'trip.canhoto-review.reject',
 } as const
+const AUTOMATIC_AUDIT_ACTION = 'trip.canhoto-review.automatic'
+const MANUAL_REVIEW_PERMISSION = 'trip.manage'
+const AUTOMATIC_REVIEW_PERMISSION = 'trip.canhoto-auto-review'
 
+/**
+ * O ramo automático só deixa trilha pelo canal do robô: pelo navegador há gente logada olhando
+ * (herança da 220). Sem nota, série ou leitura — só ator, alvo, IP e a ação (RNF1).
+ */
 function buildAuditEntry(
   input: ReviewCanhotoProofInput,
-  command: Exclude<CanhotoReviewCommand, { action: 'automatic' }>,
   proofId: string,
-): CanhotoReviewAuditEntry {
-  return {
-    action: AUDIT_ACTION_BY_MANUAL_ACTION[command.action],
+): CanhotoReviewAuditEntry | undefined {
+  const { command } = input
+  const base = {
     actorUserId: input.actorUserId,
     companyId: input.companyId,
     correlationId: input.correlationId,
     ipAddress: input.ipAddress,
     proofId,
-    reason: command.action === 'approve' ? null : command.reason,
     tripId: input.tripId,
+  }
+  if (command.action === 'automatic') {
+    if (input.channel !== 'service') return undefined
+    return {
+      ...base,
+      action: AUTOMATIC_AUDIT_ACTION,
+      permission: AUTOMATIC_REVIEW_PERMISSION,
+      reason: null,
+    }
+  }
+  return {
+    ...base,
+    action: AUDIT_ACTION_BY_MANUAL_ACTION[command.action],
+    permission: MANUAL_REVIEW_PERMISSION,
+    reason: command.action === 'approve' ? null : command.reason,
   }
 }
 
@@ -77,9 +96,8 @@ export async function reviewCanhotoProof(
         proofId: proof.id,
         update: decision.update,
       })
-      if (command.action !== 'automatic') {
-        await transaction.insertAudit(buildAuditEntry(input, command, proof.id))
-      }
+      const auditEntry = buildAuditEntry(input, proof.id)
+      if (auditEntry !== undefined) await transaction.insertAudit(auditEntry)
     }
 
     return transaction.readReviewView({ companyId: input.companyId, proofId: proof.id })
