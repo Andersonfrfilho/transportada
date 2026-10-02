@@ -149,6 +149,28 @@ for (const { baseBody, name, parse } of EVENT_PARSERS) {
       ).toEqual({ kind: 'corrected', occurredAt: new Date('2026-09-26T15:00:00.000Z') })
     })
 
+    /** R3: o Postgres recusa o ano 0 (22008); o relógio nunca derruba o evento, então o `tappedAt` cai. */
+    it('tappedAt em ano impossível é descartado, nunca 400, e o resto do relato passa', async () => {
+      for (const tappedAt of ['0000-01-01T00:00:00.000Z', '1899-12-31T23:59:59.000Z']) {
+        const parsed = await parse(
+          jsonRequest({ ...baseBody, clockOffsetMs: CLOCK_OFFSET_MS, tappedAt }),
+        )
+
+        expect('tappedAt' in parsed).toBe(false)
+        expect((parsed as { readonly clockOffsetMs?: unknown }).clockOffsetMs).toBe(CLOCK_OFFSET_MS)
+      }
+    })
+
+    it('tappedAt em 1900 e em 1970 continuam aceitos: aparelho zerado é o caso que a correção atende', async () => {
+      for (const tappedAt of ['1900-01-01T00:00:00.000Z', '1970-01-01T00:00:00.000Z']) {
+        const parsed = (await parse(jsonRequest({ ...baseBody, tappedAt }))) as {
+          readonly tappedAt?: Date
+        }
+
+        expect(parsed.tappedAt?.toISOString()).toBe(tappedAt)
+      }
+    })
+
     it('desvio absurdo é aceito, nunca 400, e resolveOccurredAt o descarta como futuro', async () => {
       const parsed = (await parse(
         jsonRequest({

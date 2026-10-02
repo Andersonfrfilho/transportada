@@ -756,3 +756,35 @@ Mutações (restauradas; o verde acima é da árvore restaurada):
 | 2   | sempre gravar o desvio da foto (`occurred.kind === 'corrected'`) | pegou: 2 fail + 2 fail (integr.) |
 | 3   | inverter `isEventClockCorrected` (`is null`)                     | pegou: 4 fail (integração)       |
 | 4   | ignorar a posição ao gravar a auditoria (só `hasCorrectedClock`) | pegou: 1 fail (contrato)         |
+
+## Revisão R3
+
+**Defeito.** `z.iso.datetime()` aceita `0000-01-01T00:00:00Z`; o `tapped_at` cru era gravado e o Postgres
+recusa o ano 0 (`22008`) → 500, e o app reenvia para sempre. Princípio: o relógio nunca recusa nem derruba o
+evento. `toEventClock` (`me-trip.schema.ts`) agora omite o `tappedAt` de ano UTC menor que 1900
+(`MINIMUM_TAPPED_AT_YEAR`); o desvio, se veio, segue (sem `tappedAt`, `resolveOccurredAt` trata como
+`missing`). 1900 e 1970 continuam passando (aparelho com relógio zerado é o caso que a correção atende). O
+`tappedAt` de `depart`/`cancel-departure` (spec 206) é obrigatório e tem esquema próprio: não foi tocado.
+
+Testes primeiro (`test/driver-trip/clock-fields-schema.contract.ts`, por evento: arrive, deliver, return,
+ocorrência nas duas formas):
+
+```text
+VERMELHO: bun --env-file=../../.env.test test ./test/driver-trip.contract.test.ts → 230 pass, 5 fail
+  (tappedAt `0000-01-01` e `1899-12-31` chegavam ao resultado)
+VERDE:    → 235 pass, 0 fail
+apps/api-transportada$ .../integration/me-trip-departure.integration.ts → 12 pass, 0 fail, 0 skip
+apps/api-transportada$ .../integration/delivered-moment.integration.ts  → 18 pass, 0 fail, 0 skip
+apps/api-transportada$ bun run typecheck → exit 0 · bun run lint → exit 0
+raiz$ bun run format:check → exit 0
+```
+
+| #   | Mutação                                     | Resultado      |
+| --- | ------------------------------------------- | -------------- |
+| 1   | nunca descartar (`true ? { tappedAt }`)     | pegou: 19 fail |
+| 2   | piso em 1971 (derruba 1970)                 | pegou: 10 fail |
+| 3   | `> 1900` em vez de `>= 1900` (derruba 1900) | pegou: 5 fail  |
+
+Fora do pedido, registrado: `locationSchema.capturedAt` (`z.iso.datetime()`, a leitura do GPS que vai para
+`trip_stop_events.captured_at`) tem a mesma forma do defeito — `0000-01-01` passaria o esquema. Não foi
+alterado aqui; fica como achado.

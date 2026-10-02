@@ -17,6 +17,8 @@ import type { ReportedLocation } from '../application/driver-field-report.port.j
 const IDEMPOTENCY_KEY_HEADER = 'idempotency-key'
 const IDEMPOTENCY_KEY_MAX_LENGTH = 200
 const OCCURRENCE_DESCRIPTION_MAX_LENGTH = 500
+/** Abaixo disto o `tappedAt` é lixo de relógio zerado; 1970 e 1900 ficam. */
+const MINIMUM_TAPPED_AT_YEAR = 1900
 
 /**
  * Coordenada anulável **inteira**, nunca meia: latitude sem longitude é dado que mente. O aparelho
@@ -116,14 +118,22 @@ export function parseIdempotencyKey(request: Request): string {
   return key
 }
 
-/** Chave ausente fica ausente: o projeto usa `exactOptionalPropertyTypes`, `undefined` explícito não vale. */
+/**
+ * Chave ausente fica ausente: o projeto usa `exactOptionalPropertyTypes`, `undefined` explícito não
+ * vale. Spec 232 R3: `tappedAt` em ano impossível (`0000-01-01` passa no ISO) é descartado — o
+ * Postgres recusaria o ano 0 (`22008`) e o app reenviaria para sempre; o relógio nunca derruba o evento.
+ */
 function toEventClock(body: {
   readonly clockOffsetMs?: number | undefined
   readonly tappedAt?: string | undefined
 }): EventClockFields {
+  const tappedAt = body.tappedAt === undefined ? undefined : new Date(body.tappedAt)
+  const isTappedAtPlausible =
+    tappedAt !== undefined && tappedAt.getUTCFullYear() >= MINIMUM_TAPPED_AT_YEAR
+
   return {
     ...(body.clockOffsetMs === undefined ? {} : { clockOffsetMs: body.clockOffsetMs }),
-    ...(body.tappedAt === undefined ? {} : { tappedAt: new Date(body.tappedAt) }),
+    ...(isTappedAtPlausible ? { tappedAt } : {}),
   }
 }
 
