@@ -36,9 +36,17 @@ Medido no código de `origin/staging`:
   (coluna nova `trip_stop_events.clock_offset_ms`; `tapped_at` segue sendo a hora crua do aparelho, spec
   206). O momento da entrega passa a ser `occurredAt ?? captured_at ?? recorded_at` — **só nas
   consultas da nota e da pontualidade** (as outras seis seguem como estão; ver "Fora de escopo").
-- **D4 — A foto é julgada pela hora corrigida.** Havendo `clockOffsetMs`, o piso de `recebimento − 24 h`
-  não se aplica: a foto vale pela hora em que foi tirada. Sem o campo (cliente antigo), o piso continua —
-  nada muda para quem não manda.
+- **D4 — A foto é julgada pela hora corrigida, quando há prova de lugar.** Havendo `clockOffsetMs`
+  **e** posição na entrega, o piso de `recebimento − 24 h` não se aplica: a foto vale pela hora em que
+  foi tirada, mesmo chegando dias depois (decisão do usuário: o 3G fraco que deixa passar o JSON e
+  trava a foto de 1 MB não é culpa do motorista). A flag é `kind === 'corrected'` do `resolveOccurredAt`
+  — **nunca** "veio o campo": uma correção descartada (futuro, velha demais) mantém o piso. Sem o campo
+  (cliente antigo), nada muda.
+- **D4b — Sem posição na entrega, o relógio não vale.** Entrega registrada sem posição (GPS desligado)
+  com o app alegando relógio corrigido: a correção é ignorada, a foto é julgada pelo **horário de envio**
+  (recebimento) e a entrega conta como "longe" (uma penalidade por entrega, a mesma de sempre). Decisão
+  do usuário: "tira ponto pelo GPS desligado e considera o horário que enviou". Fecha o furo de forjar
+  `clockOffsetMs: 0` numa entrega sem prova de lugar.
 - **D5 — O prazo de "ausente" conta da chegada da entrega.** `horas desde a entrega` passa a ser contada a
   partir de `max(momento da entrega, quando o servidor recebeu a entrega)`: se a própria entrega chegou
   tarde, o motorista estava sem sinal, e a foto vem logo atrás dela na mesma drenagem.
@@ -48,11 +56,15 @@ Medido no código de `origin/staging`:
 
 ## O que esta decisão NÃO protege (limite honesto)
 
-Medir o desvio corrige o relógio **errado** (aparelho com hora trocada antes do último contato com o
-servidor) e é uma prova melhor que "confiar sempre". Não impede adulterar o relógio **depois** do último
-contato, offline: aí a hora corrigida é só a hora adulterada. O que continua valendo contra isso: a foto
-precisa estar no local da entrega (`away`), a hora corrigida nunca pode ser futura nem anterior à
-entrega, e o piso antigo segue para o cliente que não manda o desvio. Fica registrado em `SECURITY.md`.
+Medir o desvio corrige o relógio **errado**; não impede adulterar o relógio **depois** do último contato,
+e o campo `clockOffsetMs` também pode ser **forjado** no corpo (o PWA se forja pelo devtools: basta mandar
+`0`). O que sobra contra isso: a hora corrigida nunca pode ser futura (+2 min) nem ter mais de 30 dias; a
+foto precisa estar no raio da entrega **e** a entrega precisa ter posição (D4b); e o cliente que não manda
+o desvio segue com o piso antigo. Duas consequências aceitas pelo usuário: a penalidade de "foto ausente"
+passa a ser temporária e reversível (a foto que chega fora do prazo, com prova de lugar, vira pontual), e
+sai o incentivo de mandar a foto no prazo. Achado fora do escopo, a registrar em `SECURITY.md`: o
+`location.capturedAt` da entrega não tem limite — uma posição com 100 dias tira a entrega da janela de 90
+dias da nota. Fica registrado em `SECURITY.md`.
 
 ## Fora de escopo
 
@@ -70,5 +82,7 @@ entrega, e o piso antigo segue para o cliente que não manda o desvio. Fica regi
 - **CA3** Entrega tocada às 10:00 sem posição e recebida às 14:00, com `tappedAt`/`clockOffsetMs`, é
   gravada como entregue às 10:00 (corrigida).
 - **CA4** A penalidade de "ausente" só começa 24 h depois de o servidor receber a entrega.
+- **CA6** Entrega sem posição, com o app alegando relógio corrigido: a foto é julgada pelo horário de
+  envio e a entrega conta como "longe".
 - **CA5** Hora corrigida no futuro (ou velha demais) tem a correção descartada, sem recusar o evento; app
   e servidor antigos seguem funcionando juntos.

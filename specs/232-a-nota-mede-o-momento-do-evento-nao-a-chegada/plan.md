@@ -23,6 +23,26 @@ migration-test`). Nada destrutivo.
 - `reportBody` e o multipart do anexo mandam `tappedAt` e `clockOffsetMs`.
 - O legado `/minha-viagem` fica de fora: está em extinção.
 
+## Como a flag nasce (caso de uso)
+
+`hasCorrectedClock = (entrega tem posição) && resolveOccurredAt({ tappedAt: upload.capturedAt, clockOffsetMs,
+receivedAt: now }).kind === 'corrected'`, e o `capturedAt` passado à classificação é o corrigido. Nunca
+"`clockOffsetMs` presente". Canal `office` não participa. `deliveryReceivedAt` do prazo de "ausente" é
+`trip_stop_events.recorded_at`, que o repositório da nota já seleciona — ligação sem migration (T1.3).
+
+## Riscos da T1.5 (migration e leitura do momento da entrega) — do architect
+
+1. `occurredAt` da porta `recordEvent` já significa "sobrescrever `created_at`" (escritório): usar campo novo.
+2. Gravar a **decisão**, não só o desvio: correção descartada pelo `resolveOccurredAt` não pode voltar a valer
+   na leitura em SQL — gravar `clock_offset_ms` só quando `corrected`, ou uma coluna `occurred_at`.
+3. Índice: o filtro da janela usa `coalesce(captured_at, recorded_at)` com índice de expressão; trocar a
+   expressão perde o índice — índice novo, aditivo, conferido com `EXPLAIN`.
+4. Uma só expressão para o momento da entrega nos quatro lugares da nota e da pontualidade, mais
+   `listPendingProofs`, para a nota e a lista não discordarem na fronteira.
+5. Auditoria: gravar o desvio também em `trip_delivery_proofs` para reproduzir o veredito.
+6. Sem retroatividade: vereditos já gravados não são recalculados.
+7. Migration: coluna nula, sem backfill, `snapshot.json`, `rollback.sql`, `make migration-test`.
+
 ## Riscos
 
 - **Esquema `.strict()` + deploy fora de ordem:** app novo contra API velha dá `400` em todo relato. Por
