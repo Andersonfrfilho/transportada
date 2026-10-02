@@ -457,3 +457,55 @@ Nenhuma intenção foi perdida. O contrato **novo** usa `renderToStaticMarkup`, 
    é suspeita, e a T4.1 olha isso primeiro.
 3. **Buraco pré-existente de locale**: `tripFinancials.en.locale.json` não tem `panel.error` nem
    `panel.retry`, que existem em pt-BR. Já era assim; o bloco `comparison` criado aqui está nos dois.
+
+## T4.1 — revisão de design (web.md §15), **aguardando o ok do usuário**
+
+Os 16 prints estão em `specs/225-cada-nota-diz-quanto-rendeu-e-quanto-gastou/prints/`, nas larguras
+**1280 e 375**, nos temas **dark e light**, em quatro situações: notas por parada com o detalhe aberto,
+painel da conta, e as duas variações de ausência ("roteiro ainda não calculado" + fechado inexistente).
+Para gerar de novo:
+
+```bash
+cd apps/frontend-transportada && PLAYWRIGHT_FRONTEND_PORT=53225 PLAYWRIGHT_TEST_MATCH=spec-225-prints.smoke.spec.ts bun run smoke
+```
+
+A API é dublada na rede (`mockTripWorkspaceApi`, dois modos novos: `document-cost` e
+`document-cost-open`), e a conta do cenário **fecha**: Σ(gasto + imposto) = 1.860,00 = `totalCost`,
+Σ frete = 2.500,00 = `totalRevenue`, Σ lucro = 640,00 = `totalMargin`. Print com conta que não fecha é
+pior que print nenhum.
+
+### O que a revisão achou, e o que foi feito
+
+| #   | achado                                                                                                                                                                                                                                                              | decisão                                                                                                                                                                                                                    |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Lugar errado.** Os números estavam na linha sempre visível da nota; o usuário falava do **detalhe de cada item**. Com cinco notas a seção virou parede de números (1549 px).                                                                                      | Movidos para dentro de "Detalhes da nota" (**1173 px**). `hasNoteDetail` passou a considerar a figura de custo, senão nota sem contato e sem regra de frete ficaria sem botão e o número inalcançável.                     |
+| 2   | **O painel transbordava 59 px em 375** e cortava a primeira letra dos rótulos do previsto. Suspeita minha (a grade de duas colunas) estava **errada**; medido, a causa era a tabela de comparação com min-content de 400 px dentro de um painel sem `min-width: 0`. | `.panel { min-width: 0 }` e a tabela rola **dentro** do painel. `scrollWidth <= innerWidth` virou asserção do smoke.                                                                                                       |
+| 3   | **A frase do critério** se repetia nas cinco notas.                                                                                                                                                                                                                 | Saiu da linha e do cabeçalho; aparece **uma vez por nota, dentro do detalhe**, só quando a nota mostra o rateio.                                                                                                           |
+| 4   | **"Custo" com dois valores e um valor com dois nomes.** O mesmo R$ 1.860,00 era "Custo (com imposto)" na tabela e "Despesas" no Previsto; "Custo" no Fechado era R$ 1.700,00.                                                                                       | **Decisão do usuário:** a tabela adota "Despesas", com a legenda dizendo uma vez que inclui imposto.                                                                                                                       |
+| 5   | **Gasto e lucro tinham a mesma cor** no detalhe da nota (só o prejuízo se destacava). Pedido do usuário: cores diferentes.                                                                                                                                          | Reaproveitada a convenção que o razão já escreve — `.amountIn` (verde, `--color-ready`) para o que rende e `.amountOut` (vermelho, `--color-alert`) para o que sai. **Nenhuma cor nova, nenhum contraste novo a validar.** |
+
+### A cor do gasto: o que ficou perto e por quê
+
+Gasto e imposto em vermelho; lucro e margem em verde; as linhas "do trecho" e "rateio da viagem" ficam
+**cinza**, subordinadas. Prejuízo continua `.negative` (vermelho **e negrito**), com o rótulo trocado
+para "Prejuízo" e o valor negativo — então **o sinal não depende só de cor**. ⚠️ Numa nota em prejuízo,
+GASTO e PREJUÍZO ficam os dois vermelhos na mesma linha; é a mesma coincidência que o painel já tem
+(Despesas e Prejuízo), e o que os separa é rótulo, negrito e sinal.
+
+Provado por mutação: pintar o gasto com a cor do lucro reprova "gasto e lucro têm cores diferentes"
+(**14 pass · 1 fail**, e **15 · 0** depois de desfeita). O CSS module não gera nome de classe no teste,
+então a asserção lê a regra do módulo e a forma da fonte.
+
+### Contraste, nos dois temas
+
+Conferido no print de 375 em **light** e no de 1280 em **dark**: vermelho e verde legíveis sobre os dois
+fundos. São os tokens que o painel já usava, então não há combinação nova.
+
+### Dívida conhecida que a revisão **não** resolve
+
+- **RF7** — a nota sem parada ainda não diz que entra só no rateio (T3.4): exige a API mandar o indicador.
+- **"Previsto" × "estimado"** convivem na coluna Previsto: o título da coluna é o estado da viagem, o selo
+  "estimado" é a origem de cada parcela. Não vi confusão no print, só repetição; nada foi renomeado.
+- **A tabela de comparação rola na horizontal em 375 px.** Escolha consciente: ela precisa de ~400 px.
+  Alternativas apresentadas ao usuário (empilhar em três blocos; esconder em tela estreita), **ainda sem
+  resposta**.

@@ -192,8 +192,26 @@ describe('a linha da nota com gasto, lucro e margem (spec 225 T3.2)', () => {
     expect(html).toContain(financialsPt.documentCost.loss)
     expect(html).not.toContain('>Lucro<')
     expect(html).toContain('-R$ 25,50')
-    expect(readFileSync(COST_COMPONENT, 'utf8')).toContain('isLoss && styles.negative')
+    expect(readFileSync(COST_COMPONENT, 'utf8')).toContain('isLoss ? styles.negative')
     expect(ruleBodyOf(readFileSync(STYLESHEET, 'utf8'), 'negative')).toContain('color:')
+  })
+
+  it('gasto e lucro têm cores diferentes: o que sai é vermelho, o que rende é verde', () => {
+    const component = readFileSync(COST_COMPONENT, 'utf8')
+    const stylesheet = readFileSync(STYLESHEET, 'utf8')
+    const amountIn = ruleBodyOf(stylesheet, 'amountIn')
+    const amountOut = ruleBodyOf(stylesheet, 'amountOut')
+
+    // O CSS module não gera nome de classe no teste, então a cor é lida da fonte — e pela regra do
+    // módulo, que é a mesma do razão: verde entra, vermelho sai.
+    expect(amountIn).toContain('--color-ready')
+    expect(amountOut).toContain('--color-alert')
+    expect(amountIn).not.toBe(amountOut)
+    expect(component).toContain("flow === 'in' ? styles.amountIn : styles.amountOut")
+    expect(component).toContain('cn(styles.documentCostValue, styles.amountOut)')
+    expect(component).toContain('<CostGroup figure={profitFigure} flow="in"')
+    expect(component).toContain('<CostGroup figure={view.margin} flow="in"')
+    expect(component).toMatch(/<CostGroup figure=\{view\.tax\} flow="out"/gu)
   })
 
   it('lucro positivo não leva o destaque de prejuízo', () => {

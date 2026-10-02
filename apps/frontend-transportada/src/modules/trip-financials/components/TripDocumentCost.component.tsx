@@ -16,13 +16,17 @@ type TripDocumentCostProps = Readonly<{ documentId: string }>
 type CostGroupProps = Readonly<{
   figure: RevenueLineCostFigure
   isLoss?: boolean
+  /** Para onde o dinheiro vai: `in` rende, `out` sai. Verde entra, vermelho sai — a leitura do razão. */
+  flow: 'in' | 'out'
 }>
 
-function CostGroup({ figure, isLoss = false }: CostGroupProps) {
+function CostGroup({ figure, flow, isLoss = false }: CostGroupProps) {
+  const toneClass = isLoss ? styles.negative : flow === 'in' ? styles.amountIn : styles.amountOut
+
   return (
     <div className={styles.documentCostGroup}>
       <dt className={styles.documentCostLabel}>{figure.label}</dt>
-      <dd className={cn(styles.documentCostValue, isLoss && styles.negative)}>{figure.amount}</dd>
+      <dd className={cn(styles.documentCostValue, toneClass)}>{figure.amount}</dd>
     </div>
   )
 }
@@ -44,7 +48,7 @@ export function TripDocumentCost({ documentId }: TripDocumentCostProps) {
         <p className={styles.documentCostNotice}>{view.reason}</p>
         {view.tax === null ? null : (
           <dl className={styles.documentCostGrid}>
-            <CostGroup figure={view.tax} />
+            <CostGroup figure={view.tax} flow="out" />
           </dl>
         )}
       </div>
@@ -58,7 +62,7 @@ export function TripDocumentCost({ documentId }: TripDocumentCostProps) {
       <dl className={styles.documentCostGrid}>
         <div className={styles.documentCostGroup}>
           <dt className={styles.documentCostLabel}>{view.cost.label}</dt>
-          <dd className={styles.documentCostValue}>
+          <dd className={cn(styles.documentCostValue, styles.amountOut)}>
             {view.cost.amount}
             <ul className={styles.documentCostParts}>
               {view.parts.map((part) => (
@@ -69,9 +73,11 @@ export function TripDocumentCost({ documentId }: TripDocumentCostProps) {
             </ul>
           </dd>
         </div>
-        <CostGroup figure={profitFigure} isLoss={view.isLoss} />
-        {view.margin === null ? null : <CostGroup figure={view.margin} isLoss={view.isLoss} />}
-        {view.tax === null ? null : <CostGroup figure={view.tax} />}
+        <CostGroup figure={profitFigure} flow="in" isLoss={view.isLoss} />
+        {view.margin === null ? null : (
+          <CostGroup figure={view.margin} flow="in" isLoss={view.isLoss} />
+        )}
+        {view.tax === null ? null : <CostGroup figure={view.tax} flow="out" />}
       </dl>
       {view.timeNotice === null ? null : (
         <p className={styles.documentCostNotice}>{view.timeNotice}</p>

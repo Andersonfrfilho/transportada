@@ -720,7 +720,13 @@ const DOCUMENT_COST_FROZEN_RESULT = {
     { amount: '702.0000', kind: 'fuel', nature: 'cost', note: '', source: 'measured' },
     { amount: '160.0000', kind: 'toll', nature: 'cost', note: '', source: 'measured' },
     { amount: '640.0000', kind: 'driver', nature: 'cost', note: '', source: 'estimated' },
-    { amount: '198.0000', kind: 'other_per_kilometer', nature: 'cost', note: '', source: 'estimated' },
+    {
+      amount: '198.0000',
+      kind: 'other_per_kilometer',
+      nature: 'cost',
+      note: '',
+      source: 'estimated',
+    },
   ],
   recalculationReason: '',
   revenueAmount: '2640.0000',
@@ -746,23 +752,23 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
       : isDocumentCostMode(mode)
         ? DOCUMENT_COST_DOCUMENTS
         : mode === 'delivered-proof'
-        ? [PROOF_DELIVERED_DOCUMENT]
-        : mode === 'stop-card-states'
-          ? [
-              STOP_CARD_LOADED_DOCUMENT,
-              STOP_CARD_RETURNED_DOCUMENT,
-              STOP_CARD_OCCURRENCE_DOCUMENT,
-              STOP_CARD_LONG_RECIPIENT_DOCUMENT,
-            ]
-          : mode === 'dispatch-flow'
+          ? [PROOF_DELIVERED_DOCUMENT]
+          : mode === 'stop-card-states'
             ? [
-                DISPATCH_LOAD_DISPATCHED_DOCUMENT,
-                DISPATCH_LOAD_BLOCKED_DOCUMENT,
-                DISPATCH_LEFT_BEHIND_DOCUMENT,
+                STOP_CARD_LOADED_DOCUMENT,
+                STOP_CARD_RETURNED_DOCUMENT,
+                STOP_CARD_OCCURRENCE_DOCUMENT,
+                STOP_CARD_LONG_RECIPIENT_DOCUMENT,
               ]
-            : mode === 'dispatched'
-              ? [DISPATCHED_DOCUMENT]
-              : [tripDocument({ cteAuthorized: true, id: AUTHORIZED_DOCUMENT_ID })]
+            : mode === 'dispatch-flow'
+              ? [
+                  DISPATCH_LOAD_DISPATCHED_DOCUMENT,
+                  DISPATCH_LOAD_BLOCKED_DOCUMENT,
+                  DISPATCH_LEFT_BEHIND_DOCUMENT,
+                ]
+              : mode === 'dispatched'
+                ? [DISPATCHED_DOCUMENT]
+                : [tripDocument({ cteAuthorized: true, id: AUTHORIZED_DOCUMENT_ID })]
 
   return {
     ...BASE_TRIP,
@@ -804,10 +810,9 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
     cargoWeight: null,
     trailer: null,
     // ADR-0043 §3: a viagem tem paradas. Vazia é estado legítimo — nota ainda não reconciliada.
-    stops:
-      isDocumentCostMode(mode)
-        ? DOCUMENT_COST_STOPS
-        : mode === 'delivered-proof'
+    stops: isDocumentCostMode(mode)
+      ? DOCUMENT_COST_STOPS
+      : mode === 'delivered-proof'
         ? [PROOF_STOP]
         : mode === 'stop-card-states'
           ? [STOP_CARD_STOP, STOP_CARD_DONE_STOP]
