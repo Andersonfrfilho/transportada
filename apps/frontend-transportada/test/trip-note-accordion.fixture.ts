@@ -206,6 +206,9 @@ const PROOF_AXES = [
   { canhotoReview: 'pending', punctuality: 'away' },
 ] as const
 
+/** O raio mora só na resposta por viagem (`/delivery-proofs`); a rota por nota não o traz. */
+export const NOTE_ACCORDION_PROOF_RADIUS_METERS = 300
+
 export function noteAccordionProofs(imageOrigin: string, documentIndex: number) {
   const axes = PROOF_AXES[documentIndex]
   if (axes === undefined) return []
@@ -218,7 +221,6 @@ export function noteAccordionProofs(imageOrigin: string, documentIndex: number) 
       capturedAt: noteAt(documentIndex).deliveredAt ?? '',
       createdAt: '2026-08-10T14:00:00.000Z',
       distanceMeters: axes.punctuality === 'away' ? 1480 : 42,
-      proofRadiusMeters: 300,
       downloadUrl: `${imageOrigin}/canhoto-${documentIndex}.png`,
       expiresAt: '2026-08-10T18:42:00.000Z',
       id: `00000000-0000-4000-8000-00000000067${documentIndex}`,

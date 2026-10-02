@@ -5,6 +5,8 @@
  * Prova pelo **markup renderizado**: nenhum estado esconde o outro (recusado e longe do ponto diz as
  * duas coisas), nota sem comprovante não ganha selo, e sem `fleet.read` a consulta nem é feita.
  */
+import { readFileSync } from 'node:fs'
+
 import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'bun:test'
@@ -30,7 +32,9 @@ import {
 import { resetTripHookFakes, tripHookFakes as fakes } from './tripClientMocks.helper'
 import { renderHook, waitFor } from './renderHook.helper'
 
-const { useTripProofBadgesQuery } = await import('@/modules/trip/queries/useTripProofBadges.query')
+const { useTripProofBadgesQuery, useTripProofRadiusQuery } = await import(
+  '@/modules/trip/queries/useTripProofBadges.query'
+)
 
 const REVIEW_LABEL = {
   approved: 'Aprovado',
@@ -327,5 +331,86 @@ describe('a consulta dos selos (spec 227 D4)', () => {
     })
     expect(rendered.result().data?.get('doc-2')).toEqual({ review: 'approved' })
     rendered.unmount()
+  })
+
+  /**
+   * Revisão A2: a API real só enriquece `GET /trips/:id/delivery-proofs` com o raio; a rota por nota
+   * (`.../documents/:id/proof`) não o traz. O raio dos eventos vem, portanto, da consulta por viagem —
+   * a mesma dos selos, sem uma segunda chamada.
+   */
+  it('o raio vem da consulta por viagem, com a mesma chamada dos selos', async () => {
+    resetTripHookFakes([])
+    let tripCalls = 0
+    fakes.tripClient = {
+      ...fakes.tripClient,
+      readTripDeliveryProofs: () => {
+        tripCalls += 1
+        return Promise.resolve([
+          { ...makeProof('approved', undefined), documentId: 'doc-1', proofRadiusMeters: 300 },
+        ])
+      },
+    }
+    const input = { canRead: true, companyId: 'company-1', hasAnyProof: true, tripId: 'trip-1' }
+
+    const rendered = await renderHook(() => ({
+      badges: useTripProofBadgesQuery(input),
+      radius: useTripProofRadiusQuery(input),
+    }))
+    await waitFor(() => expect(rendered.result().radius.data).toBe(300))
+
+    expect(rendered.result().badges.data?.size).toBe(1)
+    expect(tripCalls).toBe(1)
+    rendered.unmount()
+  })
+
+  it('consulta por viagem sem raio: nenhum raio, nunca um suposto', async () => {
+    resetTripHookFakes([])
+    fakes.tripClient = {
+      ...fakes.tripClient,
+      readTripDeliveryProofs: () =>
+        Promise.resolve([{ ...makeProof('approved', undefined), documentId: 'doc-1' }]),
+    }
+
+    const rendered = await renderHook(() =>
+      useTripProofRadiusQuery({
+        canRead: true,
+        companyId: 'company-1',
+        hasAnyProof: true,
+        tripId: 'trip-1',
+      }),
+    )
+    await waitFor(() => expect(rendered.result().isSuccess).toBe(true))
+
+    expect(rendered.result().data).toBeUndefined()
+    rendered.unmount()
+  })
+
+  it('sem fleet.read, o raio não faz chamada', async () => {
+    resetTripHookFakes([])
+    const client = installClient()
+
+    const rendered = await renderHook(() =>
+      useTripProofRadiusQuery({
+        canRead: false,
+        companyId: 'company-1',
+        hasAnyProof: true,
+        tripId: 'trip-1',
+      }),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(client.calls()).toBe(0)
+    rendered.unmount()
+  })
+
+  it('o detalhe da viagem lê o raio da consulta por viagem, não da rota por nota', () => {
+    const source = readFileSync(
+      new URL('../../src/modules/trip/components/TripDetail.component.tsx', import.meta.url),
+      'utf8',
+    )
+
+    expect(source).toContain('useTripProofRadiusQuery(')
+    expect(source).toContain('proofRadiusMeters={proofRadiusQuery.data}')
+    expect(source).not.toContain('resolveProofRadiusMeters(')
   })
 })

@@ -7,6 +7,7 @@ import {
   NOTE_ACCORDION_DOCUMENTS,
   NOTE_ACCORDION_OCCURRENCES,
   NOTE_ACCORDION_STOPS,
+  NOTE_ACCORDION_PROOF_RADIUS_METERS,
   noteAccordionProofs,
   noteAccordionTimelineItems,
   noteAccordionValuation,
@@ -1288,7 +1289,11 @@ async function registerNoteAccordionMocks(page: Page): Promise<void> {
     }
     await fulfillJson(route, {
       data: NOTE_ACCORDION_DOCUMENT_IDS.flatMap((documentId, index) =>
-        noteAccordionProofs(imageOrigin, index).map((proof) => ({ ...proof, documentId })),
+        noteAccordionProofs(imageOrigin, index).map((proof) => ({
+          ...proof,
+          documentId,
+          proofRadiusMeters: NOTE_ACCORDION_PROOF_RADIUS_METERS,
+        })),
       ),
     })
   })

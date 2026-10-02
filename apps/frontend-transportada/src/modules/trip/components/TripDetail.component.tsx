@@ -20,7 +20,10 @@ import { useSlowLoadNotice } from '../hooks/useSlowLoadNotice.hook'
 import { useFieldDeliveryDocumentsQuery } from '../queries/useFieldDeliveryDocuments.query'
 import { useFieldDeliverySettingsQuery } from '../queries/useFieldDeliverySettings.query'
 import { useVehicleSelectOptions } from '@/modules/fleet/hooks/useVehicleSelectOptions.hook'
-import { useTripProofBadgesQuery } from '../queries/useTripProofBadges.query'
+import {
+  useTripProofBadgesQuery,
+  useTripProofRadiusQuery,
+} from '../queries/useTripProofBadges.query'
 import { useCanhotoBatchReview } from '../hooks/useCanhotoBatchReview.hook'
 import { useTripDocumentSelection } from '../hooks/useTripDocumentSelection.hook'
 import type { TripDocumentLinkFormController } from '../hooks/useTripDocumentLinkForm.hook'
@@ -80,7 +83,7 @@ import { TripDocumentEvents } from './TripDocumentEvents.component'
 import { TripDocumentOccurrences } from './TripDocumentOccurrences.component'
 import { SeparationOccurrenceDialog } from './SeparationOccurrenceDialog.component'
 import { TripRouteMap } from './TripRouteMap.component'
-import { resolveDeliveryProofView, resolveProofRadiusMeters } from '../shared/deliveryProof.service'
+import { resolveDeliveryProofView } from '../shared/deliveryProof.service'
 import { resolveTripProgress } from '../shared/tripProgress.service'
 import type { TripDocumentDetail } from '../shared/trip.types'
 import { TripProcessFlow } from './TripProcessFlow.component'
@@ -330,12 +333,15 @@ export function TripDetail({
     tripStatus: workspace.trip?.status ?? 'draft',
   })
   /** Spec 227 D4: os selos do comprovante no cabeçalho de cada nota; `fleet.read`, como a rota. */
-  const proofBadgesQuery = useTripProofBadgesQuery({
+  const proofQueryInput = {
     canRead: workspace.controller.canReadTripFleetDetails,
     companyId: workspace.companyId ?? '',
     hasAnyProof: (workspace.trip?.documents ?? []).some(hasTripDocumentProof),
     tripId: workspace.trip?.id ?? '',
-  })
+  }
+  const proofBadgesQuery = useTripProofBadgesQuery(proofQueryInput)
+  /** Revisão da 227 (A2): o raio vem da mesma consulta por viagem dos selos, não da rota por nota. */
+  const proofRadiusQuery = useTripProofRadiusQuery(proofQueryInput)
   /**
    * Spec 156 T9: uma nota (ação da linha) ou o maço da seleção (ação em massa) — `null` fecha o
    * diálogo. As duas entradas passam pelo mesmo estado porque é o mesmo formulário.
@@ -556,7 +562,7 @@ export function TripDetail({
       <TripDocumentEvents
         documentId={documentId}
         permissions={workspace.permissions}
-        proofRadiusMeters={resolveProofRadiusMeters(workspace.deliveryProofsQuery.data ?? [])}
+        proofRadiusMeters={proofRadiusQuery.data}
         stops={trip.stops}
         tripId={trip.id}
       />
