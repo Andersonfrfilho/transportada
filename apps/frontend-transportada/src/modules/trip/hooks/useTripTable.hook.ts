@@ -11,6 +11,7 @@ import { clearTripFilterField, type TripPillField } from '../shared/tripFilterPi
 import { navigateToTrip } from '../shared/tripRoute.service'
 import {
   cancellableSelection,
+  closeableSelection,
   pruneSelection,
   selectAllOnPage,
   selectAllState,
@@ -72,6 +73,7 @@ export function useTripTable(input: UseTripTableInput) {
     activeFilterCount: countActiveTripFilters(filters),
     /** As marcadas que **ainda podem** ser canceladas — nunca a marcação crua (spec 102). */
     cancellableSelection: cancellableSelection({ selectedIds, trips: visibleItems }),
+    closeableSelection: closeableSelection({ selectedIds, trips: visibleItems }),
     clearSelection: () => setRawSelection([]),
     columns: visibleTripColumns({
       canReadFinancials: input.permissions.includes(FINANCIALS_PERMISSION),

@@ -271,6 +271,23 @@ export function TripWorkspacePage() {
     },
   })
 
+  /**
+   * Spec 223 RF8 (ADR-0091): encerrar as marcadas, **uma por uma e em sequência**, pela mesma razão
+   * do cancelamento em lote — `Promise.all` esconderia quais das outras chegaram a acontecer. O
+   * motivo é o mesmo para todas: foi digitado uma vez, no diálogo da lista.
+   */
+  const closeSelectedMutation = useMutation({
+    mutationFn: async (reason: string) => {
+      for (const trip of table.closeableSelection) {
+        await workspace.controller.closeTrip({ reason, tripId: trip.id })
+      }
+    },
+    onSuccess: () => {
+      table.clearSelection()
+      void queryClient.invalidateQueries({ queryKey: TRIP_LIST_QUERY_KEY })
+    },
+  })
+
   const assembly = useTripRouteAssembly({
     canManageTrips: workspace.controller.canManageTrips,
     draftScope,
@@ -462,6 +479,10 @@ export function TripWorkspacePage() {
                   canCancel={workspace.controller.canManageTrips}
                   isCancelling={cancelSelectedMutation.isPending}
                   onCancelSelected={() => cancelSelectedMutation.mutate()}
+                  canClose={workspace.controller.canReportOnBehalf}
+                  closeFeedbackKey={resolveTripFeedbackKey(closeSelectedMutation.error) ?? null}
+                  isClosing={closeSelectedMutation.isPending}
+                  onCloseSelected={(reason) => closeSelectedMutation.mutate(reason)}
                   table={table}
                   vehicles={fleet.viewModel.vehicles ?? []}
                 />

@@ -24,8 +24,8 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T3.1** Contrato da seleção de viagens na lista.
-- [ ] **T3.2** Seleção de linhas + "Encerrar viagens" em massa sobre `POST /trips/:id/close` (RF8).
+- [x] **T3.1** Contrato da seleção de viagens na lista.
+- [x] **T3.2** Seleção de linhas + "Encerrar viagens" em massa sobre `POST /trips/:id/close` (RF8).
 
 ## Fase 4 — A dívida fica visível
 
@@ -49,7 +49,7 @@
 ```text
 /oh-my-claudecode:autopilot Execute a spec specs/223-o-painel-conclui-sem-canhoto-e-cobra-depois/
 (leia spec.md, plan.md e tasks.md antes de começar). Uma task por vez, na ordem do tasks.md.
-As Fases 1 (commit e9074b6b4) e 2 (commit 0dcef8512) já estão concluídas — comece na T3.1.
+As Fases 1, 2 e 3 já estão concluídas — comece na T4.1.
 Modelos: Fases 2, 3 e 4 → executor model=sonnet · Fase 5 → code-reviewer model=opus.
 Cada task fecha com typecheck + contratos do que foi tocado + commit isolado, evidência em
 evidence.md. Task que mexe em test/integration/** roda

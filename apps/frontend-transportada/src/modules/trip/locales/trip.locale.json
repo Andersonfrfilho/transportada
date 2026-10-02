@@ -1456,6 +1456,8 @@
     "barLabel": "Ações em massa",
     "cancelTrips": "Cancelar selecionadas",
     "clear": "Limpar seleção",
+    "closeTrips": "Encerrar {{count}} viagem",
+    "closeTrips_other": "Encerrar {{count}} viagens",
     "count_one": "{{count}} viagem selecionada",
     "count_other": "{{count}} viagens selecionadas",
     "selectAll": "Selecionar todas as viagens canceláveis da página",
@@ -1989,5 +1991,13 @@
       "mailSentAutomatic": "Aviso automático enviado à contratante",
       "mailReceived": "A contratante respondeu por e-mail"
     }
+  },
+  "closeBulkDialog": {
+    "closing": "Encerrando…",
+    "confirm": "Encerrar",
+    "reasonLabel": "Motivo do encerramento",
+    "subtitle": "As notas sem baixa ficam como pendência de canhoto — o encerramento não espera por elas.",
+    "title": "Encerrar {{count}} viagem",
+    "title_other": "Encerrar {{count}} viagens"
   }
 }

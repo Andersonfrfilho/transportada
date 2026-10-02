@@ -29,6 +29,26 @@ export function cancellableSelection(input: {
   return input.trips.filter((trip) => selected.has(trip.id) && isCancellable(trip))
 }
 
+/**
+ * Spec 223 RF8 (ADR-0091): encerrar segue as mesmas duas recusas do detalhe — concluída já está
+ * encerrada, e cancelada não encerra (spec 158 T12). Todo o resto do vocabulário encerra.
+ */
+const NOT_CLOSEABLE: readonly TripStatus[] = ['cancelled', 'completed']
+
+export function isCloseable(trip: Trip): boolean {
+  return !NOT_CLOSEABLE.includes(trip.status)
+}
+
+/** Só o que está marcado **e** ainda pode encerrar — a interseção, nunca a marcação crua. */
+export function closeableSelection(input: {
+  readonly selectedIds: readonly string[]
+  readonly trips: readonly Trip[]
+}): readonly Trip[] {
+  const selected = new Set(input.selectedIds)
+
+  return input.trips.filter((trip) => selected.has(trip.id) && isCloseable(trip))
+}
+
 export function toggleSelection(input: {
   readonly selectedIds: readonly string[]
   readonly tripId: string

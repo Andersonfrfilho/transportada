@@ -1456,6 +1456,8 @@
     "barLabel": "Bulk actions",
     "cancelTrips": "Cancel selected",
     "clear": "Clear selection",
+    "closeTrips": "Close {{count}} trip",
+    "closeTrips_other": "Close {{count}} trips",
     "count_one": "{{count}} trip selected",
     "count_other": "{{count}} trips selected",
     "selectAll": "Select every cancellable trip on this page",
@@ -1989,5 +1991,13 @@
       "mailSentAutomatic": "Automatic notice sent to the contracting party",
       "mailReceived": "The contracting party replied by e-mail"
     }
+  },
+  "closeBulkDialog": {
+    "closing": "Closing…",
+    "confirm": "Close",
+    "reasonLabel": "Reason for closing",
+    "subtitle": "Documents without delivery stay as a pending receipt — closing does not wait for them.",
+    "title": "Close {{count}} trip",
+    "title_other": "Close {{count}} trips"
   }
 }

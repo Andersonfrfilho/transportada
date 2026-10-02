@@ -21,6 +21,7 @@ import type { TripTableController } from '../hooks/useTripTable.hook'
 import type { Trip, TripStatus } from '../shared/trip.types'
 import { isCancellable } from '../shared/tripSelection.service'
 import { TripCancelDialog } from './TripCancelDialog.component'
+import { TripCloseBulkDialog } from './TripCloseBulkDialog.component'
 import type { TripColumnKey } from '../shared/tripTable.service'
 import styles from '../styles/trip.module.css'
 
@@ -38,6 +39,12 @@ type TripTableProps = Readonly<{
   canCancel: boolean
   isCancelling: boolean
   onCancelSelected: () => void
+  /** Spec 223 RF8: sem `trip.reportOnBehalf` o encerramento em massa não aparece. */
+  canClose: boolean
+  isClosing: boolean
+  onCloseSelected: (reason: string) => void
+  /** A recusa do encerramento em massa, já em chave de feedback. */
+  closeFeedbackKey: null | string
 }>
 
 /**
@@ -55,14 +62,19 @@ function statusClassName(status: TripStatus): string {
 
 export function TripTable({
   canCancel,
+  canClose,
+  closeFeedbackKey,
   isCancelling,
+  isClosing,
   onCancelSelected,
+  onCloseSelected,
   table,
   vehicles,
 }: TripTableProps) {
   const { t } = useTranslation('trip')
   const formatMoment = useMomentFormatter()
   const [confirming, setConfirming] = useState(false)
+  const [closing, setClosing] = useState(false)
   const { t: tFleet } = useTranslation('fleet')
   const vehicleById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]))
 
@@ -227,15 +239,43 @@ export function TripTable({
         */}
         <p className={styles.counter}>{t('resultCounter', { shown: table.visibleItems.length })}</p>
         {/* Spec 102: a barra só existe com seleção — barra vazia permanente é ruído. */}
-        {canCancel && table.cancellableSelection.length > 0 ? (
+        {(canCancel && table.cancellableSelection.length > 0) ||
+        (canClose && table.closeableSelection.length > 0) ? (
           <div className={styles.bulkBar} role="group" aria-label={t('selection.barLabel')}>
             <p className={styles.bulkCount}>
-              {t('selection.count', { count: table.cancellableSelection.length })}
+              {t('selection.count', {
+                count: canCancel
+                  ? table.cancellableSelection.length
+                  : table.closeableSelection.length,
+              })}
             </p>
-            <Button onClick={() => setConfirming(true)} size="sm" type="button" variant="secondary">
-              <Icon name="remove" />
-              {t('selection.cancelTrips')}
-            </Button>
+            {canCancel && table.cancellableSelection.length > 0 ? (
+              <Button
+                onClick={() => setConfirming(true)}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                <Icon name="remove" />
+                {t('selection.cancelTrips')}
+              </Button>
+            ) : null}
+            {/*
+             * Spec 223 RF8 (ADR-0091): encerrar as marcadas sem passar por cada viagem. O canhoto
+             * que faltar fica como pendência, e não impede o encerramento.
+             */}
+            {canClose && table.closeableSelection.length > 0 ? (
+              <Button
+                disabled={isClosing}
+                onClick={() => setClosing(true)}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                <Icon name="power" />
+                {t('selection.closeTrips', { count: table.closeableSelection.length })}
+              </Button>
+            ) : null}
             <Button onClick={table.clearSelection} size="sm" type="button" variant="ghost">
               <Icon name="close" />
               {t('selection.clear')}
@@ -248,7 +288,7 @@ export function TripTable({
         <table className={styles.dataTable}>
           <thead>
             <tr>
-              {canCancel ? (
+              {canCancel || canClose ? (
                 <th scope="col">
                   <Checkbox
                     ariaLabel={t('selection.selectAll')}
@@ -280,7 +320,7 @@ export function TripTable({
           <tbody>
             {table.visibleItems.map((trip) => (
               <tr key={trip.id}>
-                {canCancel ? (
+                {canCancel || canClose ? (
                   <td>
                     {/* Concluída e cancelada não têm caixa: oferecer o que dá 409 é atrito puro. */}
                     {isCancellable(trip) ? (
@@ -328,6 +368,16 @@ export function TripTable({
           onCancelSelected()
         }}
         trips={table.cancellableSelection}
+        vehicleLabelOf={vehicleLabel}
+      />
+
+      <TripCloseBulkDialog
+        feedbackKey={closeFeedbackKey}
+        isOpen={closing}
+        isSubmitting={isClosing}
+        onClose={() => setClosing(false)}
+        onSubmit={(reason) => onCloseSelected(reason)}
+        trips={table.closeableSelection}
         vehicleLabelOf={vehicleLabel}
       />
 

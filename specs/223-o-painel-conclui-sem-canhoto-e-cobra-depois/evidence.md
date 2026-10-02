@@ -66,3 +66,34 @@ bun run test:hooks  → 184 pass / 0 fail    (eram 180 antes desta fase)
 ```
 
 Nenhum arquivo em `test/integration/**` foi tocado — a fase é só painel.
+
+## Fase 3 — a lista encerra em massa (T3.1 e T3.2)
+
+**Vermelho primeiro.** `test/office-close-in-bulk/selection.contract.ts` (quatro casos sobre o serviço
+puro) falhou na importação antes da implementação: `Export named 'closeableSelection' not found`. Os
+casos: `completed` e `cancelled` não oferecem encerramento; todo o resto do vocabulário de
+`TRIP_STATUS` oferece (varrido pela constante, não por lista copiada); a seleção é a **interseção** da
+marcação com o que pode encerrar; id marcado fora da página é ignorado.
+
+Depois: `isCloseable` / `closeableSelection` em `tripSelection.service.ts` (mesmas duas recusas do
+botão do detalhe), `closeableSelection` exposta por `useTripTable`, botão "Encerrar N viagens" na
+barra de seleção da tabela, `TripCloseBulkDialog` e `closeSelectedMutation` sequencial na página —
+sequencial pela mesma razão registrada no cancelamento em lote: `Promise.all` esconderia quais das
+outras chegaram a acontecer.
+
+**O motivo é obrigatório no diálogo da lista**, ao contrário do diálogo do detalhe. Lá a tela sabe
+quantas notas estão em aberto e dispensa a justificativa quando não há nenhuma; a listagem não traz
+essa contagem (o mesmo limite que o `TripCancelDialog` já registra), e buscá-la seriam N requisições
+ao abrir o diálogo. Sem saber, pedir o motivo é o lado seguro.
+
+A coluna de caixa de seleção passou a existir para **qualquer** das duas ações (`canCancel || canClose`):
+antes ela só aparecia com `trip.manage`, e quem tem só `trip.reportOnBehalf` não teria o que marcar.
+
+```
+bun run typecheck   → limpo
+bun run lint        → 0 errors (16 warnings pré-existentes)
+bun run test        → 6180 pass / 0 fail   (eram 6176; +4 da suíte nova)
+bun run test:hooks  → 184 pass / 0 fail
+```
+
+A suíte nova foi acrescentada à lista explícita do `package.json` do painel — sem isso ela não roda.
