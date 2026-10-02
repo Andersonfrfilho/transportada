@@ -74,7 +74,7 @@ function buildDataFields(document: TripDocumentDetail): readonly DataField[] {
       value: formatAmount(nfeTotalValue).replace(NON_BREAKING_SPACE, ' '),
     })
   }
-  if (typeof volumeCount === 'number') {
+  if (typeof volumeCount === 'number' && Number.isInteger(volumeCount)) {
     fields.push({
       copyLabelKey: 'documentData.copy.volumes',
       key: 'volumes',

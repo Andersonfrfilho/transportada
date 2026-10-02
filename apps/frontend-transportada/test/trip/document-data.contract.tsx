@@ -151,6 +151,8 @@ describe('Dados da nota: os campos (spec 227 RF3)', () => {
     expect(render(buildDocument())).toContain('>Volumes<')
     expect(render(buildDocument({ volumeCount: 0 }))).toContain('>Volumes<')
     expect(render(buildDocument({ volumeCount: null }))).not.toContain('Volumes')
+    // Revisão M5: a API já manda null no fracionário, mas a guarda deixa passar — a tela não imprime "2,5 volumes".
+    expect(render(buildDocument({ volumeCount: 2.5 }))).not.toContain('Volumes')
     const withoutVolumeCount: TripDocumentDetail = buildDocument()
     delete (withoutVolumeCount as { volumeCount?: null | number }).volumeCount
     expect(render(withoutVolumeCount)).not.toContain('Volumes')

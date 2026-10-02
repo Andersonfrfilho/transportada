@@ -390,7 +390,9 @@ function isDocumentDetail(value: unknown): value is TripDocumentDetail {
     /** Spec 176: ausente é API anterior à feature; presente segue a mesma regra de dinheiro/rótulo. */
     (value.volumeCount === undefined ||
       value.volumeCount === null ||
-      (typeof value.volumeCount === 'number' && Number.isInteger(value.volumeCount))) &&
+      (typeof value.volumeCount === 'number' &&
+        Number.isFinite(value.volumeCount) &&
+        value.volumeCount >= 0)) &&
     isAbsentOrNullableString(value.freightAmount) &&
     isAbsentOrNullableString(value.freightRuleName) &&
     (value.freightSource === undefined ||

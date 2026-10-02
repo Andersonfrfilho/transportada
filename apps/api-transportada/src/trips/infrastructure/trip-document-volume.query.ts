@@ -3,7 +3,8 @@
  *
  * Spec 227 D5/T2.3: quantos volumes cada nota tem, em **uma consulta** para a viagem inteira.
  * `quantity` é o `qVol` de cada `<vol>` da NF-e, então a soma por nota é o número de volumes dela.
- * Nota sem linha de volume não entra no mapa: o chamador lê "desconhecido", nunca zero.
+ * Nota sem linha de volume, ou com soma que não é inteira, não entra no mapa: o chamador lê
+ * "desconhecido", nunca zero.
  */
 import { and, eq, inArray, sql } from 'drizzle-orm'
 
@@ -35,7 +36,10 @@ export async function loadTripDocumentVolumeCounts(
 
   const counts = new Map<string, number>()
   for (const row of rows) {
-    if (row.quantity !== null) counts.set(row.documentId, Number(row.quantity))
+    if (row.quantity === null) continue
+    const volumeCount = Number(row.quantity)
+    // qVol fracionário (granel) não é contagem de volumes: fica desconhecido, nunca arredondado.
+    if (Number.isInteger(volumeCount) && volumeCount >= 0) counts.set(row.documentId, volumeCount)
   }
   return counts
 }

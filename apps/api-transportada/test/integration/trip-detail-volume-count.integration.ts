@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 227 D5/T2.3, contra Postgres real: `documents[].volumeCount` no detalhe da viagem é a soma de
- * `nfe_volumes.quantity` da nota; `null` sem linha de volume; `0` com linhas somando zero. Uma
+ * `nfe_volumes.quantity` da nota; `null` sem linha de volume ou com soma fracionária; `0` com linhas somando zero. Uma
  * consulta agregada para a viagem inteira (não cresce com as notas) e recortada por empresa.
  */
 import { describe, expect } from 'bun:test'
@@ -73,6 +73,10 @@ describe('volumeCount no detalhe da viagem (spec 227 T2.3)', () => {
           separationStatus: 'pending',
           stopId: trip.stopId,
         })
+        const withFractionalSum = await seedExtraDocument(database, company, trip, {
+          separationStatus: 'pending',
+          stopId: trip.stopId,
+        })
         const nfeIdOf = async (tripDocumentId: string): Promise<string> => {
           const detail = await new DrizzleTripRepository(database.db).findById({
             companyId: company.companyId,
@@ -100,6 +104,12 @@ describe('volumeCount no detalhe da viagem (spec 227 T2.3)', () => {
           quantities: ['0.0000', '0.0000'],
         })
 
+        await seedVolumes(database, {
+          company,
+          nfeDocumentId: await nfeIdOf(withFractionalSum),
+          quantities: ['1.5000', '2.0000'],
+        })
+
         const detail = await new DrizzleTripRepository(database.db).findById({
           companyId: company.companyId,
           tripId: trip.tripId,
@@ -112,6 +122,8 @@ describe('volumeCount no detalhe da viagem (spec 227 T2.3)', () => {
         expect(byDocument.get(withOneRow)).toBe(5)
         expect(byDocument.get(withoutRows)).toBeNull()
         expect(byDocument.get(withZeroSum)).toBe(0)
+        // Revisão M5: qVol fracionário não é "número de volumes" — sai null, nunca arredondado.
+        expect(byDocument.get(withFractionalSum)).toBeNull()
       })
     },
     60_000,
