@@ -281,12 +281,19 @@ function bucketOf(params: ApportionDocumentCostsParams, basis: ApportionmentBasi
   )
 }
 
-/** D9: `unknown` vence `proxy`, que vence `measured` — o pior pedaço define o que a tela promete. */
+/**
+ * D9: `unknown` vence `proxy`, que vence `measured` — o pior pedaço define o que a tela promete.
+ * ⚠️ O `proxy` da **última** parada não conta: depois dela não existe `departed` que sirva de saída, então
+ * ela é sempre `proxy` pelo último `delivered`. Se rebaixasse a viagem inteira, o aviso de tempo parcial
+ * apareceria em toda viagem e deixaria de informar.
+ */
 function resolveTimeBasis(params: ApportionDocumentCostsParams): TimeBasis {
   if (params.stops.some((stop) => stop.dwellBasis === DWELL_BASES.unknown)) {
     return TIME_BASES.incomplete
   }
-  if (params.stops.some((stop) => stop.dwellBasis === DWELL_BASES.proxy)) return TIME_BASES.partial
+  if (params.stops.slice(0, -1).some((stop) => stop.dwellBasis === DWELL_BASES.proxy)) {
+    return TIME_BASES.partial
+  }
 
   return TIME_BASES.complete
 }

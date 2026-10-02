@@ -544,3 +544,95 @@ anteriores (com o env) e este (sem) não se comparam direto.
 `trip-valuation-document-figures.integration.ts` (5 · 0), e a suíte inteira **não** foi repetida depois
 que o frontend mudou — o que é coerente, porque as mudanças da T3.x e da T4.1 são todas no painel. Mas
 fica dito: o portão da raiz **não** cobre a integração, e ela é gate de **push** (T4.4 em diante).
+
+## T4.4 — revisão independente por `code-reviewer` em `opus`
+
+Revisor somente leitura, sem ter escrito o código. Veredito: **REQUEST CHANGES, leve** — nenhum
+bloqueante, **um achado alto**, que ele provou **rodando** com uma entrada exata, e quatro médios.
+
+### O alto, e por que é o gêmeo de um defeito que eu já tinha corrigido
+
+**A1 — `spreadDistance` perdia o balde de distância inteiro quando todos os trechos e o retorno medem
+zero.** `distribute` devolve zeros sem peso, o retorno também vira zero, e nada vai para o rateio. Com
+`fuel 50` e `delivery_charges 30`, **R$ 80 desapareciam**: `totalCost 299` contra `Σ 219`.
+
+É a mesma família do defeito que a T1.2 corrigiu no D3 (peso zero fazendo dinheiro sumir em silêncio).
+O `spreadTime` já tinha a guarda e eu só a espelhei num dos dois. Não é raro o bastante para ignorar:
+`delivery_charges` e o pedágio lançado à mão não dependem de quilometragem, e basta uma viagem sem
+barracão com duas paradas na mesma coordenada.
+
+Corrigido com duas coisas, não uma: a guarda no `spreadDistance` (o balde inteiro desce como rateio da
+viagem, como o tempo já fazia) **e uma soma de conferência no fim** — o que desceu para as notas tem de
+ser exatamente o que as parcelas somam, senão a resposta é `unavailable`. A segunda pega também o balde
+de imposto com frete total zero (B5), e qualquer `kind` futuro que escape da tabela. Provado por
+mutação: sem a guarda reprovam 2 testes; sem a soma, o terceiro.
+
+### Os médios
+
+| #   | achado                                                                                                                                                                                                                                        | decisão                                                                                                                                                                 |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1  | Sem `departed` para a parada seguinte, a espera engolia o trajeto **e** a espera da seguinte, e saía `measured`: o mesmo minuto contado duas vezes.                                                                                           | **Corrigido.** Para na chegada/entrega em outra parada e sai `proxy`.                                                                                                   |
+| M2  | `timeBasis: 'complete'` **nunca** acontecia numa viagem real: a última parada é sempre `proxy`, e isso rebaixava a viagem. O teste de integração afirmava `partial` para uma viagem **completa e semeada** — estava **cimentando o defeito**. | **Corrigido.** O `proxy` da última parada não conta; o do meio continua parcial. A asserção da integração passou a `complete`.                                          |
+| M3  | A espera misturava relógios e canais (aparelho × servidor × escritório), contra o ADR-0088 §6.                                                                                                                                                | **Corrigido sem migration**: `trip_stop_events` já tem `channel` e `tapped_at`. Só mede com os dois extremos do `driver_app` no mesmo relógio.                          |
+| M4  | `readStopDwells` no `Promise.all` derrubava a avaliação **e** o recálculo do congelado.                                                                                                                                                       | **Corrigido.** Falha vira lista vazia → `unavailable` (D5); o log leva o nome do erro e os ids, nunca a mensagem. Provado por **comportamento** no teste de integração. |
+| M5  | A comparação "previsto × fechado" compara a **mesma conta** duas vezes.                                                                                                                                                                       | **Pergunta de produto** — ver abaixo.                                                                                                                                   |
+
+### M4 provado por comportamento, e a mutação mostrou o vazamento que o teste previne
+
+O teste faz a leitura falhar com uma mensagem que contém uma coordenada e afirma: totais iguais ao caso
+saudável, toda linha `unavailable`, **um** aviso, e a coordenada ausente do log. Sem o isolamento ele
+reprova, e **o erro cru que aparece na saída do teste é a própria coordenada** — a demonstração de por que
+só o nome do erro vai para o log.
+
+### Quatro mutações nas regras novas do dwell
+
+| sonda                                          | reprovou                                                                  |
+| ---------------------------------------------- | ------------------------------------------------------------------------- |
+| ignorar a chegada/entrega em outra parada (M1) | os 2 testes de M1                                                         |
+| ignorar o canal (M3)                           | "chegada do escritório e saída do aplicativo não se subtraem como medida" |
+| ignorar o relógio (M3)                         | "relógio do servidor contra relógio do aparelho também rebaixa"           |
+| a última parada volta a rebaixar (M2)          | "o proxy da última parada não rebaixa a viagem"                           |
+
+### Baixos corrigidos
+
+- **B6** — a margem percentual por nota agora usa `divideHalfUp`, como a da viagem (2/3 saía 66,6666%
+  contra 66,6667%).
+- **B8** — o provedor criava um `Map` novo a cada render e re-renderizava todas as notas: `useMemo`.
+- **B9** — o `TripDocumentCostCriterion` não tinha o cabeçalho de copyright que os vizinhos têm.
+- **B10** — o RF8 ainda dizia `departed − arrived`; o comentário da guarda dizia que a prévia sai sem os
+  oito campos, quando sai com eles como `unavailable`.
+
+### O que ficou aberto, nomeado
+
+- **M5** — pergunta de produto, sem resposta.
+- **B1** — as asserções de cor em `document-cost.contract.tsx` leem o **texto da fonte**
+  (`toContain("flow === 'in' ? ...")`), o antipadrão que esta base já registrou: refatorar mantendo o
+  comportamento quebra o teste, e uma regressão de classe aplicada pode passar. O CSS module não gera
+  nome de classe no teste, o que limita; resolver exige renderizar com um mapa de classes.
+- **B2** — o teste de integração diz "tem imposto, avulso e retorno" mas só afirma `pis_cofins > 0` e
+  `tripShare > 0`, que sai do avulso **ou** do retorno.
+- **B3** — não há teste **negativo de tenant** para `readStopDwells`; o `CLAUDE.md` da API o exige em
+  mudança de query. Pela leitura é seguro (filtra `companyId` e um `tripId` alheio já dá 404 antes).
+- **B4** — o alinhamento trecho↔parada é só por contagem; rota antiga sem `depot` **e** parada sem
+  coordenada podem casar a contagem e desalinhar. Confiança baixa.
+- **B7** — `NaN`/`Infinity` em `legs` lançam `RangeError`; inalcançável hoje.
+
+### O que o revisor tentou quebrar e **não** conseguiu — o que ficou provado
+
+A invariante do D4 fechou ao centavo em: caso base, `stopId` inexistente, espera negativa, três centavos
+ímpares em três notas com frete `0,0001`, parcela `null`, nota duplicada e duração zero em todos os
+trechos. A classificação das nove parcelas está exaustiva e correta. Os defeitos (c) e (d) não voltaram.
+A permissão do D7 cobre as **três** rotas que chamam a avaliação (`valuation`, `valuation-preview` e
+`route-suggestions/:id/valuation`) e o portal não a chama. Tenant, N+1, dinheiro (nenhum `Number()`) e PII
+estão limpos. Acessibilidade da tabela e do bloco de custo está correta.
+
+### Portões
+
+| Portão                                           | Resultado                                                        |
+| ------------------------------------------------ | ---------------------------------------------------------------- |
+| `bun run typecheck` / `lint` (api)               | exit 0                                                           |
+| contrato inteiro da API                          | **8580 pass · 23 skip · 0 fail · 27618 expect() · 192 arquivos** |
+| `trip-valuation-document-figures.integration.ts` | **6 pass · 0 fail**                                              |
+| `bun run test` (painel) · `test:hooks`           | **6220 pass · 0 fail** · **180 pass · 0 fail**                   |
+
+⚠️ A integração da API **inteira** (~19 min) não foi repetida depois destas correções — só o arquivo da 225. Ela é gate de **push**, e a T4.3 já registrava que o portão da raiz não a cobre.

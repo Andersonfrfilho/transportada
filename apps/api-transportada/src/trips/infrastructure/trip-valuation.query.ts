@@ -43,6 +43,7 @@ import {
 } from '../../database/trip.schema.js'
 import { readApportionmentLegs } from '../domain/apportionment-route-legs.policy.js'
 import {
+  EVENT_CLOCKS,
   resolveStopDwells,
   STOP_DWELL_EVENT_KINDS,
   type StopDwellEvent,
@@ -351,6 +352,7 @@ export class DrizzleTripValuationQuery {
   }): Promise<readonly ApportionmentStop[]> {
     const rows = await this.database
       .select({
+        channel: tripStopEvents.channel,
         createdAt: tripStopEvents.createdAt,
         kind: tripStopEvents.kind,
         stopId: tripStops.id,
@@ -374,6 +376,8 @@ export class DrizzleTripValuationQuery {
         ? []
         : [
             {
+              channel: row.channel,
+              clock: row.tappedAt === null ? EVENT_CLOCKS.server : EVENT_CLOCKS.device,
               kind: row.kind as StopDwellEventKind,
               /** A hora do toque vence a do servidor: a fila offline chega depois do fato. */
               occurredAt: row.tappedAt ?? row.createdAt,

@@ -2179,9 +2179,12 @@ que não se adivinham lendo o código rápido:
    piso e o resto inteiro para o de maior peso, desempate determinístico. Dinheiro é `bigint` escalado.
 4. **A espera na parada não é `departed − arrived`.** O `departed` da ADR-0088 é a saída **em direção**
    à parada, com o `stopId` do destino: na mesma parada ele vem **antes** do `arrived`, e essa conta
-   sairia negativa. A espera vai da chegada até o **primeiro `departed` de outra parada** com instante
-   maior ou igual (`trips/domain/stop-dwell.policy.ts`), e `departure_cancelled` desfaz o `departed`
-   anterior da mesma parada.
+   sairia negativa. A espera vai da chegada até o que vier **primeiro** entre o `departed` de outra
+   parada e a chegada/entrega em outra parada (`trips/domain/stop-dwell.policy.ts`), e
+   `departure_cancelled` desfaz o `departed` anterior da mesma parada. Só é `measured` com os dois
+   extremos do `driver_app` no **mesmo relógio** (aparelho ou servidor) — senão `proxy`. O `proxy` da
+   **última** parada não rebaixa a viagem para `partial` (depois dela não existe saída); o de uma parada do
+   meio rebaixa.
 
 `trips/domain/apportionment-route-legs.policy.ts` normaliza `planned_route.legs`: tira o retorno (ele já
 vem em `planned_return_distance_meters` e entraria duas vezes) e, **sem barracão**, põe um trecho vazio

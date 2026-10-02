@@ -123,11 +123,25 @@ rateio do frete nem por peso.
     anterior sairia **negativa** — e `arrived − departed` é o tempo de **viagem até** a parada, não a
     espera nela.
 
-    A espera na parada X é: da chegada em X até o **primeiro `departed` de outra parada** com instante
-    ≥ essa chegada. Lido assim, aguenta o motorista reordenar o destino. `departure_cancelled` desfaz o
-    `departed` anterior da mesma parada, e no empate de carimbo o `departed` vem primeiro, porque o
-    cancelamento carrega o mesmo `tapped_at` (ADR-0088 §2b). O instante do evento é
-    `coalesce(tapped_at, created_at)`.
+    A espera na parada X é: da chegada em X até o que vier **primeiro** entre o `departed` de outra
+    parada (instante ≥ a chegada) e a chegada ou entrega em outra parada (instante > a chegada). Lido
+    assim, aguenta o motorista reordenar o destino.
+
+    ⚠️ Três regras que a revisão independente da T4.4 acrescentou, cada uma achada **rodando**:
+    - **Sem `departed` para a parada seguinte**, a espera para na chegada ou entrega nela e sai `proxy`.
+      A API aceita chegada sem saída (ADR-0088 §5: escritório, WhatsApp, app antigo, "Registrar entrega
+      depois"); sem esse limite o primeiro `departed` fica lá na frente e a espera engole o trajeto **e**
+      a espera da parada seguinte — o mesmo minuto contado duas vezes, que é o erro que o D9 condena.
+    - **Só mede com os dois extremos do `driver_app` no mesmo relógio** (ADR-0088 §6). Subtrair o
+      `departed` do aparelho do `arrived` que o escritório digitou, ou que o servidor carimbou, inflaria
+      ou zeraria a espera, e a negativa ainda sairia como medida. Fora disso: `proxy`.
+    - **O `proxy` da última parada não rebaixa a viagem para `partial`.** Depois dela não existe `departed`
+      que sirva de saída, então ela é sempre `proxy` pelo último `delivered`; se contasse, o aviso de tempo
+      parcial apareceria em toda viagem e deixaria de informar. O `proxy` de uma parada do **meio** continua
+      parcial, e `unknown` continua incompleto em qualquer parada. `departure_cancelled` desfaz o
+      `departed` anterior da mesma parada, e no empate de carimbo o `departed` vem primeiro, porque o
+      cancelamento carrega o mesmo `tapped_at` (ADR-0088 §2b). O instante do evento é
+      `coalesce(tapped_at, created_at)`.
 
   ⚠️ Somar `delivered − arrived` **por nota** seria errado e é tentador: as entregas de uma parada
   acontecem dentro da mesma permanência, então isso contaria o mesmo minuto várias vezes e faria o

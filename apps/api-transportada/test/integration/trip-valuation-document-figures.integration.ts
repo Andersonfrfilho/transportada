@@ -144,8 +144,11 @@ describe('a soma das notas fecha com a viagem (spec 225 D4, CA01)', () => {
         const tripId = await seedTrip(database, { documentsPerStop: [2, 2, 1], world })
 
         const withEvents = await valuate(database, world.companyId, tripId)
+        // Viagem completa e semeada: tem `departed` para toda parada que tem uma seguinte. A última não
+        // tem saída possível depois dela e não rebaixa o tempo (revisão da 225, M2) — esta asserção
+        // dizia `partial` e só passava por causa dela.
         expect(new Set(withEvents.revenueLines.map((line) => line.timeBasis))).toEqual(
-          new Set([TIME_BASES.partial]),
+          new Set([TIME_BASES.complete]),
         )
 
         await database.db

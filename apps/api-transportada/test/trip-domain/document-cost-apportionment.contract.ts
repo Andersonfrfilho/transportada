@@ -231,6 +231,29 @@ describe('espera no cliente (spec 225 D9, CA03b)', () => {
     expect(figures.every((entry) => entry.timeBasis === 'partial')).toBeTrue()
   })
 
+  /**
+   * Revisão da 225, M2. A última parada nunca tem um `departed` depois dela, então a saída dela só pode
+   * ser o último `delivered` — sempre `proxy`. Se isso rebaixasse a viagem inteira para `partial`, o aviso
+   * de tempo parcial apareceria em toda viagem e deixaria de informar.
+   */
+  test('o proxy da última parada não rebaixa a viagem: depois dela não existe saída', () => {
+    const figures = apportionDocumentCosts({
+      ...waitingScenario,
+      stops: [stop('stop-1'), stop('stop-2'), stop('stop-3', ONE_HOUR, DWELL_BASES.proxy)],
+    }).documents
+
+    expect(figures.every((entry) => entry.timeBasis === 'complete')).toBeTrue()
+  })
+
+  test('o proxy de uma parada do meio continua parcial', () => {
+    const figures = apportionDocumentCosts({
+      ...waitingScenario,
+      stops: [stop('stop-1'), stop('stop-2', ONE_HOUR, DWELL_BASES.proxy), stop('stop-3')],
+    }).documents
+
+    expect(figures.every((entry) => entry.timeBasis === 'partial')).toBeTrue()
+  })
+
   test('sem `arrived`, a espera é zero e o tempo sai incompleto — nunca um palpite', () => {
     const figures = apportionDocumentCosts({
       ...waitingScenario,

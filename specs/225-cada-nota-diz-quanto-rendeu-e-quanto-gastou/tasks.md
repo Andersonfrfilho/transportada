@@ -96,7 +96,7 @@ em `evidence.md`.
 - [x] **T4.3** Portão completo na raiz, um comando por vez em primeiro plano (`make check` estoura o
       teto de 600 s): `format:check`, `lint`, `typecheck`, `test`, `build`. ⚠️ `format:check` é portão
       **só na raiz**, e a spec em markdown entra nele — rodar prettier nos `.md` antes.
-- [ ] **T4.4** Revisão por `code-reviewer` em `opus`, com a invariante do D4 e a classificação das
+- [x] **T4.4** Revisão por `code-reviewer` em `opus`, com a invariante do D4 e a classificação das
       parcelas como foco.
 
 - [ ] **T4.5** 🔁 **Comparar a tela implementada com o canvas aprovado**, lado a lado — pedido do usuário
