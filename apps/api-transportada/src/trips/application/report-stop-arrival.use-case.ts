@@ -127,6 +127,7 @@ export async function reportStopArrival(
             ? { occurredAt: input.now, recordedAt: input.recordedAt ?? new Date() }
             : resolveRecordedEventClock({
                 clockOffsetMs: input.clockOffsetMs,
+                hasLocation: input.location !== null,
                 receivedAt: input.now,
                 tappedAt: input.tappedAt,
               })),

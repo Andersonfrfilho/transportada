@@ -36,6 +36,8 @@ Medido no código de `origin/staging`:
   (coluna nova `trip_stop_events.clock_offset_ms`; `tapped_at` segue sendo a hora crua do aparelho, spec
   206). O momento da entrega passa a ser `occurredAt ?? captured_at ?? recorded_at` — **só nas
   consultas da nota e da pontualidade** (as outras seis seguem como estão; ver "Fora de escopo").
+  **A hora corrigida do evento também só vale com posição no relato** (D4b): relato sem posição não grava
+  `occurred_at` nem `clock_offset_ms`, e a leitura cai em `captured_at ?? recorded_at`, como hoje.
 - **D4 — A foto é julgada pela hora corrigida, quando há prova de lugar.** Havendo `clockOffsetMs`
   **e** posição na entrega, o piso de `recebimento − 24 h` não se aplica: a foto vale pela hora em que
   foi tirada, mesmo chegando dias depois (decisão do usuário: o 3G fraco que deixa passar o JSON e
@@ -79,8 +81,8 @@ dias da nota. Fica registrado em `SECURITY.md`.
 
 - **CA1** Foto tirada na hora da entrega e recebida 30 h depois, com `clockOffsetMs`, é `on_time`.
 - **CA2** A mesma foto sem `clockOffsetMs` (cliente antigo) continua `late`.
-- **CA3** Entrega tocada às 10:00 sem posição e recebida às 14:00, com `tappedAt`/`clockOffsetMs`, é
-  gravada como entregue às 10:00 (corrigida).
+- **CA3** Entrega tocada às 10:00 **com posição** e recebida às 14:00, com `tappedAt`/`clockOffsetMs`, é
+  gravada e lida como entregue às 10:00; **sem posição** (GPS desligado) vale o horário de envio (D4b).
 - **CA4** A penalidade de "ausente" só começa 24 h depois de o servidor receber a entrega.
 - **CA6** Entrega sem posição, com o app alegando relógio corrigido: a foto é julgada pelo horário de
   envio e a entrega conta como "longe".

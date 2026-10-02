@@ -6,6 +6,8 @@
  * lista de pendências leem é `occurred_at ?? captured_at ?? recorded_at` — a mesma expressão nos
  * três, para eles não discordarem na fronteira da janela nem na do `effectiveSince`.
  *
+ * A hora corrigida só vale com posição no relato (D4b, T1.5b): sem GPS, vale o horário de envio.
+ *
  * A hora de recebimento é a do relógio real: o `recorded_at` do motorista nasce do `now()` do banco,
  * então o teste não pode congelar o relógio como os outros da nota.
  */
@@ -17,7 +19,10 @@ import { tripDeliveryProofs, tripStopEvents } from '../../src/database/trip.sche
 import { DrizzleDriverScoreRepository } from '../../src/fleet/infrastructure/drizzle-driver-score.repository.js'
 import { attachDeliveryProof } from '../../src/trips/application/attach-delivery-proof.use-case.js'
 import type { ReportedLocation } from '../../src/trips/application/driver-field-report.port.js'
-import { reportDocumentDelivery } from '../../src/trips/application/report-document-delivery.use-case.js'
+import {
+  reportDocumentDelivery,
+  reportDocumentReturn,
+} from '../../src/trips/application/report-document-delivery.use-case.js'
 import { reportStopArrival } from '../../src/trips/application/report-stop-arrival.use-case.js'
 import type { EventClockFields } from '../../src/trips/domain/occurred-at.policy.js'
 import { DrizzleCurrentDriverTripRepository } from '../../src/trips/infrastructure/drizzle-current-driver-trip.repository.js'
@@ -103,7 +108,10 @@ function deliver(
   })
 }
 
-async function readEvents(world: World, kind: 'arrived' | 'delivered'): Promise<EventRow[]> {
+async function readEvents(
+  world: World,
+  kind: 'arrived' | 'delivered' | 'returned',
+): Promise<EventRow[]> {
   return world.database.db
     .select({
       capturedAt: tripStopEvents.capturedAt,
@@ -124,7 +132,10 @@ async function readEvents(world: World, kind: 'arrived' | 'delivered'): Promise<
     )
 }
 
-async function readSingleEvent(world: World, kind: 'arrived' | 'delivered'): Promise<EventRow> {
+async function readSingleEvent(
+  world: World,
+  kind: 'arrived' | 'delivered' | 'returned',
+): Promise<EventRow> {
   const rows = await readEvents(world, kind)
   expect(rows).toHaveLength(1)
   const [row] = rows
@@ -163,6 +174,28 @@ async function readDeliveredMoments(world: World, input: { readonly now: Date })
   }
 }
 
+function arrive(
+  world: World,
+  input: {
+    readonly clock: EventClockFields
+    readonly key: string
+    readonly location?: ReportedLocation
+    readonly receivedAt: Date
+  },
+) {
+  return reportStopArrival({
+    actorUserId: world.driverUserId,
+    companyId: world.company.companyId,
+    driverId: world.company.firstDriverId,
+    idempotencyKey: input.key,
+    location: input.location ?? null,
+    now: input.receivedAt,
+    ...input.clock,
+    stopId: world.trip.stopId,
+    unitOfWork: new DrizzleDriverFieldReportUnitOfWork(world.database.db, 'test-bucket'),
+  })
+}
+
 function readScore(world: World, now: Date) {
   return new DrizzleDriverScoreRepository(world.database.db).readPenalties({
     companyId: world.company.companyId,
@@ -195,13 +228,23 @@ function correctedClock(receivedAt: Date): {
   }
 }
 
+/** O GPS leu no mesmo toque, com a hora do aparelho — a prova de lugar que faz a correção valer. */
+function positionAt(tappedAt: Date): ReportedLocation {
+  return {
+    accuracyMeters: '12.00',
+    capturedAt: tappedAt.toISOString(),
+    latitude: '-23.5505199',
+    longitude: '-46.6333094',
+  }
+}
+
 function longAgo(receivedAt: Date): Date {
   return new Date(receivedAt.getTime() - 200 * DAY)
 }
 
 describe('o momento da entrega é a hora corrigida do toque (spec 232 D3, CA3)', () => {
   testWithPostgres(
-    'CA3: tocada às 10:00 sem posição e recebida às 14:00, com os campos, é entregue às 10:00',
+    'CA3: tocada às 10:00 com posição e recebida às 14:00, com os campos, é entregue às 10:00',
     async () => {
       await withDisposableDatabase(async (database) => {
         const receivedAt = new Date()
@@ -211,13 +254,19 @@ describe('o momento da entrega é a hora corrigida do toque (spec 232 D3, CA3)',
         })
         const { clock, occurredAt } = correctedClock(receivedAt)
 
-        await deliver(world, { clock, key: 'ca3', receivedAt })
+        await deliver(world, {
+          clock,
+          key: 'ca3',
+          location: positionAt(clock.tappedAt),
+          receivedAt,
+        })
 
         const event = await readSingleEvent(world, 'delivered')
         expect(event.occurredAt?.toISOString()).toBe(occurredAt.toISOString())
         expect(event.clockOffsetMs).toBe(CLOCK_OFFSET_MS)
         expect(event.tappedAt?.toISOString()).toBe(clock.tappedAt.toISOString())
-        expect(event.capturedAt).toBeNull()
+        // O GPS leu no mesmo toque, com a hora crua do aparelho: o `captured_at` não é a corrigida.
+        expect(event.capturedAt?.toISOString()).toBe(clock.tappedAt.toISOString())
         // O campo novo não é o `occurredAt` do escritório: `created_at` continua a hora da gravação.
         expect(event.createdAt.toISOString()).toBe(event.recordedAt.toISOString())
         expect(event.recordedAt.getTime()).toBeGreaterThan(occurredAt.getTime() + 3 * HOUR)
@@ -235,6 +284,38 @@ describe('o momento da entrega é a hora corrigida do toque (spec 232 D3, CA3)',
   )
 
   testWithPostgres(
+    'CA3/D4b: a mesma entrega sem posição (GPS desligado) vale o horário de envio, não grava a corrigida',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const receivedAt = new Date()
+        const world = await seedWorld(database, {
+          effectiveSince: longAgo(receivedAt),
+          receivedAt,
+        })
+        const { clock } = correctedClock(receivedAt)
+
+        await deliver(world, { clock, key: 'ca3-sem-posicao', receivedAt })
+
+        const event = await readSingleEvent(world, 'delivered')
+        expect(event.occurredAt).toBeNull()
+        expect(event.clockOffsetMs).toBeNull()
+        // A hora crua do aparelho fica registrada (spec 206), mas não vale como momento.
+        expect(event.tappedAt?.toISOString()).toBe(clock.tappedAt.toISOString())
+        expect(event.capturedAt).toBeNull()
+        const recordedAt = event.recordedAt.toISOString()
+        const moments = await readDeliveredMoments(world, {
+          now: new Date(receivedAt.getTime() + SCORE_READ_DELAY),
+        })
+        expect(moments).toEqual({
+          context: recordedAt,
+          pending: [recordedAt],
+          score: [{ deliveredAt: recordedAt, reason: 'missing_proof' }],
+        })
+      })
+    },
+  )
+
+  testWithPostgres(
     'com posição, a hora corrigida vence a leitura do GPS no relógio cru do aparelho',
     async () => {
       await withDisposableDatabase(async (database) => {
@@ -244,18 +325,13 @@ describe('o momento da entrega é a hora corrigida do toque (spec 232 D3, CA3)',
           receivedAt,
         })
         const { clock, occurredAt } = correctedClock(receivedAt)
-        // O GPS leu no mesmo toque, com a hora do aparelho — 90 s atrás da do servidor.
-        const location: ReportedLocation = {
-          accuracyMeters: '12.00',
-          capturedAt: clock.tappedAt.toISOString(),
-          latitude: '-23.5505199',
-          longitude: '-46.6333094',
-        }
+        const location = positionAt(clock.tappedAt)
 
         await deliver(world, { clock, key: 'com-posicao', location, receivedAt })
 
         const event = await readSingleEvent(world, 'delivered')
         expect(event.capturedAt?.toISOString()).toBe(clock.tappedAt.toISOString())
+        expect(event.occurredAt?.toISOString()).toBe(occurredAt.toISOString())
         const moments = await readDeliveredMoments(world, {
           now: new Date(receivedAt.getTime() + SCORE_READ_DELAY),
         })
@@ -278,7 +354,12 @@ describe('o momento da entrega é a hora corrigida do toque (spec 232 D3, CA3)',
           receivedAt,
         })
         const { clock, occurredAt } = correctedClock(receivedAt)
-        await deliver(world, { clock, key: 'janela', receivedAt })
+        await deliver(world, {
+          clock,
+          key: 'janela',
+          location: positionAt(clock.tappedAt),
+          receivedAt,
+        })
 
         // 90 dias + 1 h depois da hora corrigida: ela saiu da janela; o recebimento (4 h depois) não.
         const now = new Date(occurredAt.getTime() + SCORE_WINDOW + HOUR)
@@ -371,7 +452,12 @@ describe('o momento da entrega é a hora corrigida do toque (spec 232 D3, CA3)',
           receivedAt,
         })
         const { clock, occurredAt } = correctedClock(receivedAt)
-        const first = await deliver(world, { clock, key: 'reenvio', receivedAt })
+        const first = await deliver(world, {
+          clock,
+          key: 'reenvio',
+          location: positionAt(clock.tappedAt),
+          receivedAt,
+        })
         const other = {
           clockOffsetMs: 0,
           tappedAt: new Date(receivedAt.getTime() - HOUR),
@@ -401,7 +487,12 @@ describe('o momento da entrega é a hora corrigida do toque (spec 232 D3, CA3)',
           receivedAt,
         })
         const { clock } = correctedClock(receivedAt)
-        await deliver(world, { clock, key: 'fronteira', receivedAt })
+        await deliver(world, {
+          clock,
+          key: 'fronteira',
+          location: positionAt(clock.tappedAt),
+          receivedAt,
+        })
         const now = new Date(receivedAt.getTime() + SCORE_READ_DELAY)
 
         expect(await readScore(world, now)).toEqual({ penalties: [], score: null })
@@ -428,33 +519,88 @@ describe('o momento da entrega é a hora corrigida do toque (spec 232 D3, CA3)',
     },
   )
 
-  testWithPostgres('a chegada também grava a hora corrigida, sem tocar em created_at', async () => {
-    await withDisposableDatabase(async (database) => {
-      const receivedAt = new Date()
-      const world = await seedWorld(database, {
-        effectiveSince: longAgo(receivedAt),
-        receivedAt,
-      })
-      const { clock, occurredAt } = correctedClock(receivedAt)
+  testWithPostgres(
+    'a chegada com posição também grava a hora corrigida, sem tocar em created_at',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const receivedAt = new Date()
+        const world = await seedWorld(database, {
+          effectiveSince: longAgo(receivedAt),
+          receivedAt,
+        })
+        const { clock, occurredAt } = correctedClock(receivedAt)
 
-      await reportStopArrival({
-        actorUserId: world.driverUserId,
-        companyId: world.company.companyId,
-        driverId: world.company.firstDriverId,
-        idempotencyKey: 'chegada',
-        location: null,
-        now: receivedAt,
-        ...clock,
-        stopId: world.trip.stopId,
-        unitOfWork: new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket'),
-      })
+        await arrive(world, {
+          clock,
+          key: 'chegada',
+          location: positionAt(clock.tappedAt),
+          receivedAt,
+        })
 
-      const event = await readSingleEvent(world, 'arrived')
-      expect(event.occurredAt?.toISOString()).toBe(occurredAt.toISOString())
-      expect(event.clockOffsetMs).toBe(CLOCK_OFFSET_MS)
-      expect(event.createdAt.toISOString()).toBe(event.recordedAt.toISOString())
-    })
-  })
+        const event = await readSingleEvent(world, 'arrived')
+        expect(event.occurredAt?.toISOString()).toBe(occurredAt.toISOString())
+        expect(event.clockOffsetMs).toBe(CLOCK_OFFSET_MS)
+        expect(event.createdAt.toISOString()).toBe(event.recordedAt.toISOString())
+      })
+    },
+  )
+
+  testWithPostgres(
+    'D4b: a chegada sem posição não grava a hora corrigida nem o desvio',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const receivedAt = new Date()
+        const world = await seedWorld(database, {
+          effectiveSince: longAgo(receivedAt),
+          receivedAt,
+        })
+        const { clock } = correctedClock(receivedAt)
+
+        await arrive(world, { clock, key: 'chegada-sem-posicao', receivedAt })
+
+        const event = await readSingleEvent(world, 'arrived')
+        expect(event.occurredAt).toBeNull()
+        expect(event.clockOffsetMs).toBeNull()
+        expect(event.tappedAt?.toISOString()).toBe(clock.tappedAt.toISOString())
+      })
+    },
+  )
+
+  for (const withLocation of [true, false]) {
+    testWithPostgres(
+      `a devolução ${withLocation ? 'com' : 'sem'} posição ${withLocation ? 'grava' : 'não grava'} a hora corrigida e o desvio`,
+      async () => {
+        await withDisposableDatabase(async (database) => {
+          const receivedAt = new Date()
+          const world = await seedWorld(database, {
+            effectiveSince: longAgo(receivedAt),
+            receivedAt,
+          })
+          const { clock, occurredAt } = correctedClock(receivedAt)
+
+          await reportDocumentReturn({
+            actorUserId: world.driverUserId,
+            companyId: world.company.companyId,
+            documentId: world.trip.documentId,
+            driverId: world.company.firstDriverId,
+            idempotencyKey: 'devolucao',
+            location: withLocation ? positionAt(clock.tappedAt) : null,
+            now: receivedAt,
+            ...clock,
+            reason: 'recipient_absent',
+            unitOfWork: new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket'),
+          })
+
+          const event = await readSingleEvent(world, 'returned')
+          expect(event.tappedAt?.toISOString()).toBe(clock.tappedAt.toISOString())
+          expect(event.occurredAt?.toISOString()).toBe(
+            withLocation ? occurredAt.toISOString() : undefined,
+          )
+          expect(event.clockOffsetMs).toBe(withLocation ? CLOCK_OFFSET_MS : null)
+        })
+      },
+    )
+  }
 })
 
 describe('a foto guarda o desvio que a julgou (spec 232 D4, risco 5 da T1.5)', () => {

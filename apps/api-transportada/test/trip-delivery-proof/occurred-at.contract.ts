@@ -212,12 +212,17 @@ describe('resolveOccurredAt — a hora do evento é a do toque corrigida (spec 2
   })
 })
 
-describe('resolveRecordedEventClock — o evento grava a decisão, não o desvio cru (spec 232 T1.5)', () => {
+describe('resolveRecordedEventClock — o evento grava a decisão, não o desvio cru (spec 232 T1.5, T1.5b)', () => {
   const tappedAt = new Date('2026-10-03T09:58:30.000Z')
 
   test('correção aceita: hora crua do toque e a corrigida com o desvio aplicado', () => {
     expect(
-      resolveRecordedEventClock({ clockOffsetMs: 90_000, receivedAt: RECEIVED_AT, tappedAt }),
+      resolveRecordedEventClock({
+        clockOffsetMs: 90_000,
+        hasLocation: true,
+        receivedAt: RECEIVED_AT,
+        tappedAt,
+      }),
     ).toEqual({
       correctedClock: { clockOffsetMs: 90_000, occurredAt: new Date('2026-10-03T10:00:00.000Z') },
       tappedAt,
@@ -228,6 +233,7 @@ describe('resolveRecordedEventClock — o evento grava a decisão, não o desvio
     const future = new Date(RECEIVED_AT.getTime() + MILLISECONDS_PER_HOUR)
     const recorded = resolveRecordedEventClock({
       clockOffsetMs: 0,
+      hasLocation: true,
       receivedAt: RECEIVED_AT,
       tappedAt: future,
     })
@@ -240,20 +246,54 @@ describe('resolveRecordedEventClock — o evento grava a decisão, não o desvio
     const old = new Date(RECEIVED_AT.getTime() - MAX_AGE_MILLISECONDS - 1)
 
     expect(
-      resolveRecordedEventClock({ clockOffsetMs: 0, receivedAt: RECEIVED_AT, tappedAt: old }),
+      resolveRecordedEventClock({
+        clockOffsetMs: 0,
+        hasLocation: true,
+        receivedAt: RECEIVED_AT,
+        tappedAt: old,
+      }),
     ).toEqual({ tappedAt: old })
   })
 
   test('sem desvio: só a hora crua; sem toque: nada — cliente antigo grava como hoje', () => {
     expect(
-      resolveRecordedEventClock({ clockOffsetMs: undefined, receivedAt: RECEIVED_AT, tappedAt }),
+      resolveRecordedEventClock({
+        clockOffsetMs: undefined,
+        hasLocation: true,
+        receivedAt: RECEIVED_AT,
+        tappedAt,
+      }),
     ).toEqual({ tappedAt })
     const nothing = resolveRecordedEventClock({
       clockOffsetMs: 90_000,
+      hasLocation: true,
       receivedAt: RECEIVED_AT,
       tappedAt: undefined,
     })
     expect(nothing).toEqual({})
     expect(Object.keys(nothing)).toEqual([])
+  })
+
+  test('sem posição no relato (D4b): só a hora crua, mesmo com o desvio plausível', () => {
+    const recorded = resolveRecordedEventClock({
+      clockOffsetMs: 90_000,
+      hasLocation: false,
+      receivedAt: RECEIVED_AT,
+      tappedAt,
+    })
+
+    expect(recorded).toEqual({ tappedAt })
+    expect('correctedClock' in recorded).toBe(false)
+  })
+
+  test('sem posição e sem toque: nada — a ausência de posição não inventa a hora crua', () => {
+    expect(
+      resolveRecordedEventClock({
+        clockOffsetMs: 90_000,
+        hasLocation: false,
+        receivedAt: RECEIVED_AT,
+        tappedAt: undefined,
+      }),
+    ).toEqual({})
   })
 })

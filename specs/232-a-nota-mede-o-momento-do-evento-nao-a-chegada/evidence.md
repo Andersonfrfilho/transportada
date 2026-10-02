@@ -637,3 +637,53 @@ apps/api-transportada$ bun run lint      → exit 0 (--max-warnings=0)
 | 5   | regex do multipart de volta a 11 dígitos  | pegou: 2 fail  |
 
 Todas restauradas; o verde acima é da árvore restaurada.
+
+## T1.5b — sem posição no relato, a hora corrigida do evento não vale
+
+A T1.5 gravava `occurred_at` e `clock_offset_ms` mesmo sem posição, porque o CA3 original dizia isso. A
+decisão do usuário (03/10/2026), mais específica e posterior — "sem GPS, considera o horário que enviou"
+(D4b) — vale também para o evento: relato sem posição não grava a hora corrigida nem o desvio, e a leitura
+cai em `captured_at ?? recorded_at`. O `tapped_at` cru segue gravado (spec 206). `spec.md`: D3 ganhou a
+frase, o CA3 foi reescrito (com posição → 10:00; sem posição → horário de envio).
+
+Testes primeiro: `test/integration/delivered-moment.integration.ts` (CA3 vira o caso COM posição e ganha o
+espelho SEM posição; janela de 90 dias, reenvio e fronteira do `effectiveSince` passam a mandar posição,
+porque dependem da hora corrigida; chegada e devolução, com e sem posição) e
+`test/trip-delivery-proof/occurred-at.contract.ts` (`resolveRecordedEventClock` com `hasLocation`: sem
+posição devolve só a hora crua, mesmo com desvio plausível).
+
+```text
+VERMELHO (testes novos, código da T1.5)
+apps/api-transportada$ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/delivered-moment.integration.ts
+  → 13 pass, 3 fail — entrega, chegada e devolução SEM posição: `expect(received).toBeNull()`
+    (occurred_at gravado sem prova de lugar)
+
+Implementação: `resolveRecordedEventClock` recebe `hasLocation`; sem posição devolve só `tappedAt`.
+`document-outcome-steps.service.ts` (entrega e devolução) passa `report.location !== null`;
+`report-stop-arrival.use-case.ts` (chegada) passa `input.location !== null`. Política da foto, esquema e
+migration intocados.
+
+VERDE
+apps/api-transportada$ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/delivered-moment.integration.ts
+  → 16 pass, 0 fail, 0 skip (três execuções seguidas)
+apps/api-transportada$ .../driver-score.integration.ts      → 10 pass, 0 fail
+apps/api-transportada$ .../me-trip-departure.integration.ts → 12 pass, 0 fail
+apps/api-transportada$ bun --env-file=../../.env.test test ./test/trip-delivery-proof.contract.test.ts ./test/driver-trip.contract.test.ts
+  → 545 pass, 0 fail
+apps/api-transportada$ bun run typecheck → exit 0
+apps/api-transportada$ bun run lint      → exit 0 (--max-warnings=0)
+apps/api-transportada$ bun --env-file=../../.env.test run test → 8689 pass, 23 skip, 0 fail (8712 testes, 192 arquivos); antes 8676/23
+raiz$ bun run format:check → exit 0
+```
+
+Mutações (contrato puro `trip-delivery-proof` + integração `delivered-moment`):
+
+| #   | Mutação                                                              | Resultado                  |
+| --- | -------------------------------------------------------------------- | -------------------------- |
+| 1   | ignorar a ausência de posição (volta ao comportamento da T1.5)       | pegou: 1 + 3 fail          |
+| 2   | inverter a condição (`if (hasLocation) return tapped`)               | pegou: 2 + 8 fail          |
+| 3   | chegada ignora a posição (`hasLocation: true` na chegada)            | pegou: 1 fail (integração) |
+| 4   | entrega e devolução ignoram a posição (`hasLocation: true` no passo) | pegou: 2 fail (integração) |
+| 5   | gravar o desvio mas não a hora (sem posição)                         | pegou: 2 + 5 fail          |
+
+Todas restauradas; o verde acima é da árvore restaurada.

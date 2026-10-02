@@ -136,6 +136,7 @@ function recordOutcomeEvent(input: {
       ? { occurredAt: report.now, recordedAt: report.recordedAt ?? new Date() }
       : resolveRecordedEventClock({
           clockOffsetMs: report.clockOffsetMs,
+          hasLocation: report.location !== null,
           receivedAt: report.now,
           tappedAt: report.tappedAt,
         })),

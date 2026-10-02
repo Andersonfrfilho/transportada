@@ -64,14 +64,24 @@ export type RecordedEventClock = {
   readonly tappedAt?: Date
 }
 
+export type ResolveRecordedEventClockParams = ResolveOccurredAtParams & {
+  /** O relato trouxe posição: sem ela não há prova de lugar e a hora do aparelho não vale (D4b). */
+  readonly hasLocation: boolean
+}
+
 /**
  * Spec 232 D3 (risco 2 da T1.5): grava a **decisão** de `resolveOccurredAt`, não o desvio cru — a
  * correção descartada não deixa `occurred_at` nem `clock_offset_ms`, e nenhuma leitura a ressuscita.
- * O `tapped_at` cru fica mesmo assim, como a spec 206 já o guarda.
+ * D4b (T1.5b): sem posição no relato a correção também não vale. O `tapped_at` cru fica mesmo assim,
+ * como a spec 206 já o guarda.
  */
-export function resolveRecordedEventClock(params: ResolveOccurredAtParams): RecordedEventClock {
-  const { clockOffsetMs, receivedAt, tappedAt } = params
+export function resolveRecordedEventClock(
+  params: ResolveRecordedEventClockParams,
+): RecordedEventClock {
+  const { clockOffsetMs, hasLocation, receivedAt, tappedAt } = params
   const tapped = tappedAt === undefined ? {} : { tappedAt }
+  if (!hasLocation) return tapped
+
   const resolution = resolveOccurredAt({ clockOffsetMs, receivedAt, tappedAt })
   if (resolution.kind !== 'corrected' || clockOffsetMs === undefined) return tapped
 
