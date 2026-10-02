@@ -187,6 +187,22 @@ describe('Dados da nota: os campos (spec 227 RF3)', () => {
   })
 })
 
+describe('Dados da nota: ver cliente (spec 227, link rápido)', () => {
+  it('o cliente leva à lista de clientes já filtrada pelo nome, pelo href', () => {
+    const html = render(buildDocument())
+
+    expect(html).toContain('href="/clientes?name=Mercado+Central"')
+    expect(html).toContain('>Ver cliente<')
+    expect(html.split('>Ver cliente<')).toHaveLength(2)
+  })
+
+  it('sem cliente não há link', () => {
+    const html = render(buildDocument({ contact: null }))
+
+    expect(html).not.toContain('Ver cliente')
+  })
+})
+
 describe('Dados da nota: copiar (spec 227 D9)', () => {
   it('um botão por campo, com rótulo que diz o que copia', () => {
     const html = render(buildDocument())

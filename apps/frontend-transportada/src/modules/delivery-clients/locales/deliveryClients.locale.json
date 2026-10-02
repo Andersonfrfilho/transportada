@@ -1,4 +1,5 @@
 {
+  "clientLink": { "label": "Ver cliente" },
   "title": "Clientes de entrega",
   "subtitle": "Todo destinatário vira cadastro sozinho quando a nota é importada. Aqui você preenche a regra de quem tem hora marcada ou cobra para receber — que é a minoria.",
   "tabs": {

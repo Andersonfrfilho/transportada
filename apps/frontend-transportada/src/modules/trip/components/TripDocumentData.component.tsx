@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { CopyButton } from '@/components/ui/copy-button'
+import { DeliveryClientLink } from '@/modules/delivery-clients/components/DeliveryClientLink.component'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { formatTaxId, isIndividualTaxId } from '@/modules/shared/taxId.service'
 import { TripDocumentCost } from '@/modules/trip-financials/components/TripDocumentCost.component'
@@ -115,6 +116,12 @@ export function TripDocumentData({ document }: TripDocumentDataProps) {
                   label={t(field.copyLabelKey)}
                   value={field.value}
                 />
+                {field.key === 'client' ? (
+                  <DeliveryClientLink
+                    className={styles.documentDataLink}
+                    clientName={field.value}
+                  />
+                ) : null}
               </dd>
             </div>
           ))}

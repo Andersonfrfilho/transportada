@@ -1,4 +1,5 @@
 {
+  "clientLink": { "label": "View client" },
   "title": "Delivery clients",
   "subtitle": "Every recipient becomes a record on its own when the invoice is imported. Here you fill in the rules for the ones with a delivery window or a fee — the minority.",
   "tabs": {
