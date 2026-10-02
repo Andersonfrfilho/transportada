@@ -3,6 +3,7 @@ import type { AttachmentStore, QueuedAttachment } from './offlineAttachments.ser
 import {
   clearPendingReduction,
   needsProofPhotoReduction,
+  PROOF_PHOTO_REDUCTION_TIMEOUT_MS,
   replaceAttachmentBlob,
   type ReducedProofPhoto,
 } from './proofPhotoReduction.service'
@@ -17,13 +18,41 @@ type ReduceQueuedProofPhotoInput = Readonly<{
   attachmentStore: AttachmentStore
   eventKey: string
   reduce: ProofPhotoReducer
+  /** Só o teste aperta o teto; em produção vale `PROOF_PHOTO_REDUCTION_TIMEOUT_MS`. */
+  reductionTimeoutMs?: number
   reductions: ProofPhotoReductions
 }>
+
+/**
+ * `undefined` tanto na falha quanto no estouro do teto: quem chama trata os dois igual — a marca sai
+ * e o original sobe como está. Um `413` com causa visível é melhor que uma foto presa em silêncio.
+ */
+export async function settleReductionWithinTimeout(input: {
+  readonly reduction: Promise<ReducedProofPhoto>
+  readonly timeoutMs?: number
+}): Promise<ReducedProofPhoto | undefined> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const expiry = new Promise<undefined>((resolve) => {
+    timer = setTimeout(
+      () => resolve(undefined),
+      input.timeoutMs ?? PROOF_PHOTO_REDUCTION_TIMEOUT_MS,
+    )
+  })
+
+  try {
+    return await Promise.race([input.reduction.catch(() => undefined), expiry])
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
+  }
+}
 
 async function runReduction(input: ReduceQueuedProofPhotoInput): Promise<void> {
   const { attachment } = input
   const source = new File([attachment.blob], attachment.fileName, { type: attachment.blob.type })
-  const reduced = await input.reduce(source).catch(() => undefined)
+  const reduced = await settleReductionWithinTimeout({
+    reduction: input.reduce(source),
+    ...(input.reductionTimeoutMs === undefined ? {} : { timeoutMs: input.reductionTimeoutMs }),
+  })
   const replacement =
     reduced !== undefined && reduced.blob.size < attachment.blob.size ? reduced : undefined
   await input.attachmentStore.update({
@@ -64,6 +93,8 @@ export function reduceQueuedProofPhoto(input: ReduceQueuedProofPhotoInput): Prom
 export async function recoverQueuedProofPhotos(input: {
   readonly attachmentStore: AttachmentStore
   readonly reduce: ProofPhotoReducer
+  /** Só o teste aperta o teto; em produção vale `PROOF_PHOTO_REDUCTION_TIMEOUT_MS`. */
+  readonly reductionTimeoutMs?: number
   readonly reductions: ProofPhotoReductions
 }): Promise<number> {
   await Promise.all(input.reductions.values())

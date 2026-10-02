@@ -4,9 +4,11 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'bun:test'
 
 import type { QueuedAttachment } from '@/modules/driver-trip/shared/offlineAttachments.service'
+import { settleReductionWithinTimeout } from '@/modules/driver-trip/shared/proofPhotoRecovery.service'
 import {
   replaceAttachmentBlob,
   shouldReduceProofFile,
+  type ReducedProofPhoto,
 } from '@/modules/driver-trip/shared/proofPhotoReduction.service'
 
 const HOOK = 'src/modules/driver-trip/hooks/useDriverTrip.hook.ts'
@@ -63,7 +65,29 @@ describe('a foto do comprovante sai leve do aparelho (pedido de 26/09)', () => {
     expect(hook).toInclude(
       'window.setTimeout(() => requestDrain(undefined), PROOF_AUTO_DRAIN_GRACE_MS)',
     )
-    expect(recovery).toInclude('await input.reduce(source).catch(() => undefined)')
+    expect(recovery).toInclude('settleReductionWithinTimeout({')
+    expect(recovery).toInclude('input.reduction.catch(() => undefined)')
     expect(recovery).toInclude('clearPendingReduction(')
+  })
+
+  /**
+   * Defeito medido em produção (01/10): `Image.onload`/`canvas.toBlob` não prometem assentar, e a
+   * drenagem pula o anexo enquanto `pendingReduction` for `true` — a foto ficava em "enviando" para
+   * sempre, sem erro e sem retentativa. O teto transforma o silêncio em falha tratada.
+   */
+  it('redução que nunca assenta estoura o teto e libera o anexo em vez de prender a foto', async () => {
+    const nunca = new Promise<ReducedProofPhoto>(() => undefined)
+
+    const settled = await settleReductionWithinTimeout({ reduction: nunca, timeoutMs: 5 })
+
+    expect(settled).toBeUndefined()
+  })
+
+  it('redução que falha também devolve undefined — quem chama trata igual ao estouro', async () => {
+    const falha = Promise.reject(new Error('PROOF_PHOTO_ENCODE_FAILED'))
+
+    const settled = await settleReductionWithinTimeout({ reduction: falha, timeoutMs: 5_000 })
+
+    expect(settled).toBeUndefined()
   })
 })
