@@ -37,7 +37,10 @@ function buildRoutine(input: {
     now: () => NOW,
     purgeStalePings: input.purgeStalePings,
     redact: async () => 0,
+    redactDocumentOccurrenceLocations: async () => 0,
     redactProofLocations: async () => 0,
+    redactStatusEventLocations: async () => 0,
+    redactStopOccurrenceLocations: async () => 0,
   })
 }
 

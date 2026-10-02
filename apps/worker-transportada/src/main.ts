@@ -229,6 +229,9 @@ import { TRIP_LOCATION_PURGE_JOB } from './trip-location-purge/domain/trip-locat
 import {
   createDrizzlePurgeStalePings,
   createDrizzleRedactDeliveryProofLocations,
+  createDrizzleRedactDocumentOccurrenceLocations,
+  createDrizzleRedactStatusEventLocations,
+  createDrizzleRedactStopOccurrenceLocations,
   createDrizzleRedactTripLocations,
 } from './trip-location-purge/infrastructure/drizzle-trip-location.repository.js'
 import { createTripCargoLayoutPurgeRoutine } from './trip-cargo-layout-purge/application/trip-cargo-layout-purge.routine.js'
@@ -1219,7 +1222,16 @@ export async function startWorkerRuntime(
             redact: createDrizzleRedactTripLocations(
               database.db as ReturnType<typeof createDrizzleProvider>['db'],
             ),
+            redactDocumentOccurrenceLocations: createDrizzleRedactDocumentOccurrenceLocations(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
             redactProofLocations: createDrizzleRedactDeliveryProofLocations(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
+            redactStatusEventLocations: createDrizzleRedactStatusEventLocations(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
+            redactStopOccurrenceLocations: createDrizzleRedactStopOccurrenceLocations(
               database.db as ReturnType<typeof createDrizzleProvider>['db'],
             ),
           }),

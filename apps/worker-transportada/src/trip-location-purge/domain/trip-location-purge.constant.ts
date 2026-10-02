@@ -34,6 +34,44 @@ export const TRIP_LOCATION_PURGE_MAX_BATCHES = 200
  */
 export const EXPIRED_LOCATION_STATE = 'expired'
 
+/** Spec 196 D8: nomes de tabela citados em mais de um ponto do expurgo (listas, log e redatores). */
+export const TRIP_STOP_EVENTS_TABLE = 'trip_stop_events'
+export const TRIP_DELIVERY_PROOFS_TABLE = 'trip_delivery_proofs'
+export const TRIP_STATUS_EVENTS_TABLE = 'trip_status_events'
+export const TRIP_STOP_OCCURRENCES_TABLE = 'trip_stop_occurrences'
+export const TRIP_DOCUMENT_OCCURRENCES_TABLE = 'trip_document_occurrences'
+
+/**
+ * Spec 196 D8: as cinco tabelas de evento que carregam o ponto do toque, cada uma com a coluna de
+ * tempo que o corte de noventa dias compara. ⚠️ Cópia por valor do que o worker enxerga — o
+ * contrato de paridade lê o schema da API e reprova tabela com `latitude` fora desta lista e da
+ * `TRIP_LOCATION_UNSTAMPED_TABLES`.
+ */
+export const TRIP_LOCATION_STAMPED_TABLES = [
+  { table: TRIP_STOP_EVENTS_TABLE, timeColumn: 'created_at' },
+  { table: TRIP_DELIVERY_PROOFS_TABLE, timeColumn: 'created_at' },
+  { table: TRIP_STATUS_EVENTS_TABLE, timeColumn: 'recorded_at' },
+  { table: TRIP_STOP_OCCURRENCES_TABLE, timeColumn: 'created_at' },
+  { table: TRIP_DOCUMENT_OCCURRENCES_TABLE, timeColumn: 'created_at' },
+] as const
+
+const ADDRESS_NOT_PERSON_POSITION_REASON =
+  'endereço ou cadastro de lugar, não a posição de uma pessoa em um instante'
+
+/** Spec 196 D8: tabelas com coordenada que o expurgo de noventa dias **não** varre, e por quê. */
+export const TRIP_LOCATION_UNSTAMPED_TABLES = [
+  { table: 'trip_stops', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
+  { table: 'client_delivery_addresses', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
+  { table: 'geocoded_addresses', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
+  { table: 'geocoded_address_corrections', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
+  { table: 'municipality_centroids', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
+  { table: 'toll_booths', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
+  {
+    table: 'trip_location_pings',
+    reason: 'rastro ao vivo, com expurgo próprio de horas (ADR-0056 §2) que apaga a linha inteira',
+  },
+] as const
+
 const HOURS_PER_DAY = 24
 const MILLISECONDS_PER_HOUR = 3_600_000
 

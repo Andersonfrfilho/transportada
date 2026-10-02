@@ -3,20 +3,109 @@
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, inArray, isNotNull, lt } from 'drizzle-orm'
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 
 import {
   tripDeliveryProofs,
+  tripDocumentOccurrences,
   tripLocationPings,
+  tripStatusEvents,
   tripStopEvents,
+  tripStopOccurrences,
 } from '../../database/trip-execution.schema.js'
 import type {
   PurgeStalePings,
   RedactDeliveryProofLocations,
+  RedactDocumentOccurrenceLocations,
+  RedactStatusEventLocations,
+  RedactStopOccurrenceLocations,
   RedactTripLocations,
 } from '../application/trip-location.port.js'
 import { EXPIRED_LOCATION_STATE } from '../domain/trip-location-purge.constant.js'
 
 export type TripLocationDatabase = ReturnType<typeof createDrizzleProvider>['db']
+
+type LocatedEventTable =
+  | typeof tripStatusEvents
+  | typeof tripStopOccurrences
+  | typeof tripDocumentOccurrences
+
+type RedactLocatedEventRowsParams = {
+  readonly before: Date
+  readonly database: TripLocationDatabase
+  readonly limit: number
+  readonly table: LocatedEventTable
+  readonly timeColumn: AnyPgColumn
+}
+
+/** Spec 196 D8: as três tabelas novas têm o mesmo formato de posição; só a coluna de tempo muda. */
+async function redactLocatedEventRows(params: RedactLocatedEventRowsParams): Promise<number> {
+  const { before, database, limit, table, timeColumn } = params
+  const expired = await database
+    .select({ id: table.id })
+    .from(table)
+    .where(and(isNotNull(table.latitude), lt(timeColumn, before)))
+    .limit(limit)
+
+  if (expired.length === 0) return 0
+
+  await database
+    .update(table)
+    .set({
+      accuracyMeters: null,
+      capturedAt: null,
+      latitude: null,
+      locationState: EXPIRED_LOCATION_STATE,
+      longitude: null,
+    })
+    .where(
+      inArray(
+        table.id,
+        expired.map((row) => row.id),
+      ),
+    )
+
+  return expired.length
+}
+
+export function createDrizzleRedactStatusEventLocations(
+  database: TripLocationDatabase,
+): RedactStatusEventLocations {
+  return ({ before, limit }) =>
+    redactLocatedEventRows({
+      before,
+      database,
+      limit,
+      table: tripStatusEvents,
+      timeColumn: tripStatusEvents.recordedAt,
+    })
+}
+
+export function createDrizzleRedactStopOccurrenceLocations(
+  database: TripLocationDatabase,
+): RedactStopOccurrenceLocations {
+  return ({ before, limit }) =>
+    redactLocatedEventRows({
+      before,
+      database,
+      limit,
+      table: tripStopOccurrences,
+      timeColumn: tripStopOccurrences.createdAt,
+    })
+}
+
+export function createDrizzleRedactDocumentOccurrenceLocations(
+  database: TripLocationDatabase,
+): RedactDocumentOccurrenceLocations {
+  return ({ before, limit }) =>
+    redactLocatedEventRows({
+      before,
+      database,
+      limit,
+      table: tripDocumentOccurrences,
+      timeColumn: tripDocumentOccurrences.createdAt,
+    })
+}
 
 export function createDrizzleRedactTripLocations(
   database: TripLocationDatabase,

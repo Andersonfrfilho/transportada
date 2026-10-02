@@ -1665,3 +1665,77 @@ As 13 falhas, uma a uma: três de schema (as tabelas novas não existem na cópi
 listas (as duas constantes não existem), quatro de teto/log (a rotina não chama os redatores novos e
 o log não tem `exhaustedTables`/`redactedByTable`). Nenhuma é de import, de tipo ou de arquivo não
 registrado — o typecheck em exit 0 é a prova disso.
+
+## T2.2 — o expurgo passa a varrer as cinco tabelas
+
+Executada por subagente `executor` em `sonnet`; gates conferidos por mim depois.
+
+### O que entrou
+
+- `src/database/trip-execution.schema.ts`: as três tabelas novas, cópia por valor dos tipos da
+  migration da API. `location_state` em `tripStopEvents` já existia.
+- `trip-location-purge.constant.ts`: as duas listas do D8 e as constantes dos nomes das cinco tabelas
+  (a regra de string repetida 2+ vezes).
+- `trip-location.port.ts`: `RedactStatusEventLocations`, `RedactStopOccurrenceLocations`,
+  `RedactDocumentOccurrenceLocations`, no molde de `RedactDeliveryProofLocations`.
+- `drizzle-trip-location.repository.ts`: três redatores sobre um helper privado
+  `redactLocatedEventRows` — `id` em lote pelo índice parcial, zera as quatro colunas, marca
+  `expired`. O de `trip_stop_events` já marcava.
+- `trip-location-purge.routine.ts`: `redactTable` roda cada tabela com o próprio teto, em `try/catch`
+  por tabela. O log do ciclo traz `redactedByTable`, `exhaustedTables` e `failedTables`; tabela que
+  falha sai em `trip_location_purge_table_failed`, nível error, **só com `table` e `sqlState`**.
+- `main.ts`: fiação dos três redatores (não estava no plano, virou obrigatório).
+- `schema-parity.contract.ts`: o número esperado de colunas de **9 para 24** (5 + 4 + 3×5),
+  igualdade exata — não virou `toBeGreaterThan`.
+- `table-isolation.contract.ts` (novo) e `trip-location-purge.integration.test.ts` estendido.
+
+### A mensagem do banco não entra no log, e isso é a regra, não zelo
+
+O erro de CHECK do Postgres **cita a linha que violou** — inclusive a coordenada. Por isso o log de
+falha leva `table` e `sqlState` (lido de `error.code` ou `error.cause.code`) e nunca a mensagem.
+Coordenada é dado pessoal e não entra em log em nenhum nível, `debug` incluído.
+
+### O isolamento foi provado, não afirmado
+
+`table-isolation.contract.ts` faz `redactStatusEventLocations` **lançar** um erro com
+`cause: { code: '42703' }` cuja mensagem contém uma coordenada, e afirma: o ciclo termina
+`succeeded`; as outras quatro tabelas rodam (duas chamadas cada); `failedTables` é
+`['trip_status_events']`; `redactedByTable` mostra as demais; e a coordenada não aparece em log
+nenhum.
+
+### Portões, conferidos por mim
+
+| Portão                       | Resultado                                                      |
+| ---------------------------- | -------------------------------------------------------------- |
+| `bun run typecheck` (worker) | exit 0                                                         |
+| `bun run lint` (worker)      | exit 0                                                         |
+| `bun run test` (app inteira) | **1480 pass · 0 fail · 3958 expect() · 94 arquivos · [6.79s]** |
+| `make worker-integration`    | **146 pass · 1 fail · 682 expect() · 33 arquivos · [11.84s]**  |
+
+As 13 vermelhas da T2.1 ficaram verdes e os 1464 que já passavam continuam passando (1464 + 13 + 3
+novos de isolamento = 1480). Nenhum dos três contratos da T2.1 foi editado — `git status` confirma.
+
+**O 1 fail é do OSRM e não é da T2.2**, provado por grafo de imports, não por opinião:
+`osrm-routing-matrix.integration.test.ts` importa exatamente dois módulos de produção —
+`routing/infrastructure/osrm-routing-matrix.gateway.ts` e `routing/domain/routing-matrix.error.ts` — e
+`grep -c 'trip-location-purge\|trip-execution'` nos dois dá **0**. A asserção espera 4511,2 m (a grade
+sintética) e recebeu **1 143 650 m**: é um OSRM com extrato do mundo real respondendo na porta, não a
+grade — ambiente, de outra sessão. O Makefile diz que esses testes **pulam** sem
+`routing-fixture` + `routing-up`; aqui não pularam porque alguém subiu um.
+
+### Uma pegadinha de invocação, para quem repetir a medição
+
+`bun --env-file=../../.env test ./test/trip-location-purge.integration.test.ts` **falha**, com
+`column "latitude" of relation "trip_status_events" does not exist` (`42703`). Não é defeito: o
+`make worker-integration` provisiona um banco descartável e roda `db:migrate` da API nele antes de
+testar (`Makefile:341-348`); o comando solto usa o banco de dev, que não tem a migration. O aceite da
+T2.2 é o `make`, não o comando solto — e de passagem o erro é exatamente o `42703` que o isolamento
+por tabela tolera.
+
+### Decisões tomadas e deixadas abertas
+
+- `counters` **não** ganhou chave nova: `purge.contract.ts` e `stale-pings.contract.ts` fazem
+  `toEqual` exato em `{batches, purgedPings, redacted, redactedProofs}`, e os números das tabelas novas
+  vivem no log (`redactedByTable`), como o `plan.md` manda.
+- Falha de tabela **não muda o `outcome`** do job: o catálogo tem `failureOutcomes: []`, então a falha
+  aparece em `failedTables` e no log de erro. Fica anotado como item de observabilidade, não resolvido.

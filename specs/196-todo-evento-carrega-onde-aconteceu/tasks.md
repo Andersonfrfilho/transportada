@@ -141,7 +141,7 @@ do usuário. A API não é revertida com a app nova no ar.
 
   Aceite: falham pelo motivo certo; a contagem subiu em N.
 
-- [ ] **T2.2** Redatores das três tabelas novas e `expired` no de `trip_stop_events`; a rotina roda
+- [x] **T2.2** Redatores das três tabelas novas e `expired` no de `trip_stop_events`; a rotina roda
       cada tabela com seu teto, captura o erro **por tabela** (a coluna ausente, `42703`, não derruba o
       processo nem as outras tabelas) e loga `redactedByTable`, `exhaustedTables` e a tabela que
       falhou — só contagens. Aceite: contratos verdes; `test/trip-location-purge.integration.test.ts`

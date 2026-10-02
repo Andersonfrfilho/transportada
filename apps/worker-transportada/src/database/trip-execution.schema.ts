@@ -33,6 +33,40 @@ export const tripDeliveryProofs = pgTable('trip_delivery_proofs', {
 })
 
 /**
+ * Spec 196 D2/D8: as três tabelas de evento que ganharam as quatro colunas de ponto (mais o estado).
+ * Só o que o expurgo lê e apaga — a API é quem migra, e o contrato de paridade confere a cópia.
+ */
+export const tripStatusEvents = pgTable('trip_status_events', {
+  id: uuid().primaryKey(),
+  latitude: numeric({ precision: 10, scale: 7 }),
+  longitude: numeric({ precision: 10, scale: 7 }),
+  accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
+  capturedAt: timestamp('captured_at', { withTimezone: true }),
+  locationState: varchar('location_state', { length: 16 }),
+  recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+})
+
+export const tripStopOccurrences = pgTable('trip_stop_occurrences', {
+  id: uuid().primaryKey(),
+  latitude: numeric({ precision: 10, scale: 7 }),
+  longitude: numeric({ precision: 10, scale: 7 }),
+  accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
+  capturedAt: timestamp('captured_at', { withTimezone: true }),
+  locationState: varchar('location_state', { length: 16 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+})
+
+export const tripDocumentOccurrences = pgTable('trip_document_occurrences', {
+  id: uuid().primaryKey(),
+  latitude: numeric({ precision: 10, scale: 7 }),
+  longitude: numeric({ precision: 10, scale: 7 }),
+  accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
+  capturedAt: timestamp('captured_at', { withTimezone: true }),
+  locationState: varchar('location_state', { length: 16 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+})
+
+/**
  * ADR-0056 §2: o rastro ao vivo do portal do contratante. Ele já morria com a viagem
  * (`purgeByTrip`, no fechamento e no cancelamento), e isso bastava enquanto o rastro só existia com
  * a tela na mão. Com o segundo plano do aplicativo, a viagem que ninguém fechou na sexta acompanha

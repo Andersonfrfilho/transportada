@@ -27,3 +27,11 @@ export type PurgeStalePings = (input: RedactTripLocationsInput) => Promise<numbe
  * — latitude, longitude e precisão. O comprovante e o veredito de pontualidade ficam.
  */
 export type RedactDeliveryProofLocations = (input: RedactTripLocationsInput) => Promise<number>
+
+/**
+ * Spec 196 D8: os três redatores das tabelas que ganharam o ponto do toque. Mesmo contrato do
+ * redator de `trip_stop_events` — zera as quatro colunas, marca `expired`, nunca apaga o evento.
+ */
+export type RedactStatusEventLocations = (input: RedactTripLocationsInput) => Promise<number>
+export type RedactStopOccurrenceLocations = (input: RedactTripLocationsInput) => Promise<number>
+export type RedactDocumentOccurrenceLocations = (input: RedactTripLocationsInput) => Promise<number>

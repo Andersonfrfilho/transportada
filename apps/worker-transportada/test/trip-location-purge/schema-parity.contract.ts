@@ -62,8 +62,11 @@ describe('trip location mirror parity (spec 196 D2)', () => {
     const workerColumns = extractPurgedColumnLines(worker)
     const apiColumns = new Set(extractColumnLines(api))
 
-    /** Cinco do evento, quatro do comprovante — o ping não tem coluna de posição: a linha inteira cai. */
-    expect(workerColumns.length).toBe(9)
+    /**
+     * Cinco do evento de parada, quatro do comprovante e cinco em cada uma das três tabelas da 196 —
+     * o ping não tem coluna de posição: a linha inteira cai.
+     */
+    expect(workerColumns.length).toBe(24)
     for (const line of workerColumns) {
       expect(apiColumns.has(line)).toBeTrue()
     }

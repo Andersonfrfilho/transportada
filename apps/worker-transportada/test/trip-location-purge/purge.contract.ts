@@ -44,7 +44,10 @@ function buildRoutine(
     purgeStalePings: async () => 0,
     now: () => NOW,
     redact,
+    redactDocumentOccurrenceLocations: async () => 0,
     redactProofLocations,
+    redactStatusEventLocations: async () => 0,
+    redactStopOccurrenceLocations: async () => 0,
   })
 }
 
