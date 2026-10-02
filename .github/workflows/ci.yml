@@ -136,7 +136,9 @@ jobs:
   # `test:integration` da API usa o banco compartilhado (`DATABASE_URL` do `.env`), então cada shard
   # sobe o próprio Postgres e só aplica as migrations pendentes (`make migrate`) — não a validação de
   # rollback inteira do `migration-test`, que já roda uma vez no job acima e não precisa se repetir
-  # 4 vezes. `--shard=N/4` é suporte nativo do `bun test`, que reparte por arquivo.
+  # 4 vezes. A repartição é por duração (`scripts/integration-shard.ts` + `shard-weights.json`), não
+  # o `--shard` do `bun test`: ele reparte por quantidade de arquivo e deixou o shard 1 com 545s
+  # contra 415s do mais rápido (2026-10-02). Arquivo novo sem peso entra com um peso padrão.
   integration-api:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -167,7 +169,8 @@ jobs:
           set -a
           . ./.env
           set +a
-          bun run --cwd apps/api-transportada test:integration --shard=${{ matrix.shard }}/4
+          cd apps/api-transportada
+          bun test --timeout 120000 $(bun scripts/integration-shard.ts ${{ matrix.shard }}/4)
       - if: always()
         run: make down
 
