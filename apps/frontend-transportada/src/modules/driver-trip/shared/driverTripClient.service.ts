@@ -18,6 +18,28 @@ const CURRENT_TRIP_PATH = '/me/trips/current'
 const OCCURRENCE_TYPES_TIMEOUT_MILLISECONDS = 10_000
 
 /**
+ * ⚠️ **Toda espera de rede tem teto, e a falta de um prendeu um comprovante em produção.** Numa
+ * conexão presa — sinal fraco que abre o socket e não anda, portal cativo — o `fetch` do celular
+ * nunca se resolve. A drenagem é uma por vez, com trava (`isDrainingRef`): enquanto a requisição
+ * não assenta, o `onSettled` não roda, a trava não abre, e **todo** envio seguinte é engolido,
+ * inclusive o "Enviar agora" do motorista. A tela segue dizendo "aguardando envio" com a rede já
+ * perfeita, e só recarregar o aplicativo destrava. Medido em 02/10: entrega registrada
+ * (`POST .../deliver` 201 às 12:33:42) e nenhuma requisição ao `/proof` jamais saiu do aparelho.
+ *
+ * Estourar o teto é **rede que não respondeu** (`OFFLINE`), não recusa: o item fica na fila e vai
+ * de novo na próxima drenagem, que é o que já acontece no subsolo.
+ */
+const REQUEST_TIMEOUT_MILLISECONDS = 20_000
+/**
+ * O multipart leva a foto do canhoto, com teto de 960 KiB (`PROOF_PHOTO_MAX_BYTES`): perto de um
+ * minuto num 2G de beira de estrada. O teto é generoso de propósito — ele existe contra a conexão
+ * parada, não contra a conexão lenta.
+ */
+const UPLOAD_TIMEOUT_MILLISECONDS = 90_000
+/** O refresh do token precede a requisição: sem teto aqui, o teto de baixo nunca é alcançado. */
+const ACCESS_TOKEN_TIMEOUT_MILLISECONDS = 15_000
+
+/**
  * Spec 159 (T11): a API recusa `accuracyMeters` acima de 10 km com `400` (item 4 da revisão). O
  * cliente nunca manda um valor que a API já sabe que vai recusar — precisão fora disso vira
  * ausência, exatamente como GPS desligado (ADR-0045 §3). Vale para a captura nova **e** para o que
@@ -58,6 +80,12 @@ type ClientDependencies = Readonly<{
   apiUrl: string
   fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
   getAccessToken: () => Promise<string>
+  /** Só o teste passa, para provar o teto sem esperar por ele; em produção vale o deste arquivo. */
+  timeouts?: Readonly<{
+    accessTokenMilliseconds?: number
+    requestMilliseconds?: number
+    uploadMilliseconds?: number
+  }>
 }>
 
 export type DriverTripDocumentFile = Readonly<{ blob: Blob; fileName: string }>
@@ -213,7 +241,7 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
           dependencies,
           method: 'GET',
           path: `${CURRENT_TRIP_PATH}/occurrence-types`,
-          signal: AbortSignal.timeout(OCCURRENCE_TYPES_TIMEOUT_MILLISECONDS),
+          timeoutMilliseconds: OCCURRENCE_TYPES_TIMEOUT_MILLISECONDS,
         })
         const data = (body as { readonly data?: unknown }).data
         if (!Array.isArray(data) || !data.every(isDriverOccurrenceType)) return { status: 'failed' }
@@ -287,10 +315,11 @@ async function sendStopOccurrencePhoto(input: {
         cache: 'no-store',
         headers: { 'content-type': report.photo.blob.type },
         method: 'PUT',
+        signal: abortSignalWithDeadline({ milliseconds: UPLOAD_TIMEOUT_MILLISECONDS }),
       }),
     )
   } catch {
-    throw new DriverTripRequestError({ code: DRIVER_TRIP_ERROR.OFFLINE, isOffline: true })
+    throw offline()
   }
   if (!response.ok) {
     throw new DriverTripRequestError({
@@ -362,6 +391,56 @@ function invalidResponse(): DriverTripRequestError {
   return new DriverTripRequestError({ code: DRIVER_TRIP_ERROR.RESPONSE_INVALID, isOffline: false })
 }
 
+/** Rede que não respondeu: o item fica na fila e tenta de novo. */
+function offline(): DriverTripRequestError {
+  return new DriverTripRequestError({ code: DRIVER_TRIP_ERROR.OFFLINE, isOffline: true })
+}
+
+/**
+ * `keycloak.updateToken()` não aceita `AbortSignal`: na conexão presa ele fica pendente para
+ * sempre, e quem o espera trava **antes** de qualquer requisição sair — por isso o aparelho fica
+ * silencioso em vez de dar erro. O teto é nosso, por fora. Recusa de verdade (sessão expirada)
+ * continua subindo como veio: é a tela que decide reautenticar.
+ */
+async function getAccessTokenWithinDeadline(dependencies: ClientDependencies): Promise<string> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      dependencies.getAccessToken(),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(
+          () => reject(offline()),
+          dependencies.timeouts?.accessTokenMilliseconds ?? ACCESS_TOKEN_TIMEOUT_MILLISECONDS,
+        )
+      }),
+    ])
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
+  }
+}
+
+/**
+ * `AbortSignal.any` só existe do Chrome 116 em diante, e o aparelho do campo roda o 115
+ * (SamsungBrowser 23) — a união do sinal de quem chamou com o do teto é feita à mão.
+ */
+function abortSignalWithDeadline(
+  input: Readonly<{ milliseconds: number; signal?: AbortSignal }>,
+): AbortSignal {
+  const deadline = AbortSignal.timeout(input.milliseconds)
+  const caller = input.signal
+  if (caller === undefined) return deadline
+
+  const controller = new AbortController()
+  for (const source of [caller, deadline]) {
+    if (source.aborted) {
+      controller.abort()
+      return controller.signal
+    }
+    source.addEventListener('abort', () => controller.abort(), { once: true })
+  }
+  return controller.signal
+}
+
 export function getDriverTripClient(): DriverTripClient {
   return createDriverTripClient({
     apiUrl: getIdentityEnvironment().apiBaseUrl,
@@ -378,7 +457,7 @@ async function requestFile(
     path: string
   }>,
 ): Promise<DriverTripDocumentFile> {
-  const accessToken = await input.dependencies.getAccessToken()
+  const accessToken = await getAccessTokenWithinDeadline(input.dependencies)
 
   let response: Response
   try {
@@ -387,10 +466,11 @@ async function requestFile(
         cache: 'no-store',
         headers: { authorization: `Bearer ${accessToken}` },
         method: 'GET',
+        signal: abortSignalWithDeadline({ milliseconds: REQUEST_TIMEOUT_MILLISECONDS }),
       }),
     )
   } catch {
-    throw new DriverTripRequestError({ code: DRIVER_TRIP_ERROR.OFFLINE, isOffline: true })
+    throw offline()
   }
 
   if (!response.ok) {
@@ -467,9 +547,10 @@ async function request(
     method: 'GET' | 'POST'
     path: string
     signal?: AbortSignal
+    timeoutMilliseconds?: number
   }>,
 ): Promise<unknown> {
-  const accessToken = await input.dependencies.getAccessToken()
+  const accessToken = await getAccessTokenWithinDeadline(input.dependencies)
   const headers: Record<string, string> = { authorization: `Bearer ${accessToken}` }
   if (input.body !== undefined) headers['content-type'] = 'application/json'
   if (input.idempotencyKey !== undefined) headers['idempotency-key'] = input.idempotencyKey
@@ -478,7 +559,15 @@ async function request(
   if (input.body !== undefined) requestInit.body = input.body
   // O `content-type` do multipart carrega a fronteira, e só o próprio `fetch` sabe qual ela é.
   if (input.form !== undefined) requestInit.body = input.form
-  if (input.signal !== undefined) requestInit.signal = input.signal
+  const { timeouts } = input.dependencies
+  requestInit.signal = abortSignalWithDeadline({
+    milliseconds:
+      input.timeoutMilliseconds ??
+      (input.form === undefined
+        ? (timeouts?.requestMilliseconds ?? REQUEST_TIMEOUT_MILLISECONDS)
+        : (timeouts?.uploadMilliseconds ?? UPLOAD_TIMEOUT_MILLISECONDS)),
+    ...(input.signal === undefined ? {} : { signal: input.signal }),
+  })
 
   let response: Response
   try {
@@ -487,10 +576,16 @@ async function request(
     )
   } catch {
     // Rede caída: quem chamou devolve o item para a fila em vez de dizer ao motorista que falhou.
-    throw new DriverTripRequestError({ code: DRIVER_TRIP_ERROR.OFFLINE, isOffline: true })
+    throw offline()
   }
 
-  const rawBody = await response.text()
+  let rawBody: string
+  try {
+    rawBody = await response.text()
+  } catch {
+    /** O corpo que para no meio do caminho é rede, não recusa — e abortar aqui cai neste mesmo ramo. */
+    throw offline()
+  }
   let payload: unknown
   try {
     payload = rawBody.length === 0 ? {} : (JSON.parse(rawBody) as unknown)
