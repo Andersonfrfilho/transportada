@@ -660,3 +660,28 @@ refotografado herdaria o "a máquina já tentou" e **nunca** entraria de novo na
 anterior, de que recaptura cria comprovante novo e não é afetada, estava errada para esse caminho.)
 `canhotoReadAttemptedAt: null` entrou no tipo e no objeto do zeramento, e na lista `RESET_TO_NULL` do
 contrato: `trip-delivery-proof.contract.test.ts` → **273 pass / 0 fail**.
+
+## Fase 6 — a rotina do worker
+
+### T6.1 / T6.2 — a régua da chave de acesso no worker
+
+Contrato **antes** da cópia: `bun test ./test/canhoto-read.contract.test.ts` →
+`Cannot find module '../../src/canhoto-read/domain/canhoto-barcode.policy.js'` (0 pass / 1 fail / 1 error).
+
+Depois de `domain/canhoto-barcode.policy.ts` (cópia por valor, motivo no cabeçalho) e
+`domain/canhoto-read.constant.ts` (lote, teto do ciclo, teto de 8 MB, orçamento de ms, formatos e
+resultados de falha): **15 pass / 0 fail**, 0 skip. O contrato usa as mesmas chaves do contrato do
+frontend (`canhoto-identification.contract.ts`): a do pedido, a de outra nota, a fora da viagem, o
+modelo 65, o dígito errado, o CNPJ alfanumérico e as duas chaves de ambiguidade.
+
+A saída do worker é só o que ele viu (`readDocumentId`, `readNumber`, `readSeries`,
+`readSource: 'barcode'`) ou `{ kind: 'unusable' }`; **nenhum veredito** existe no tipo (RF-B4).
+
+Mutações (cada uma restaurada em seguida):
+
+- sem a conferência do modelo 55 → **13 pass / 2 fail** (modelo 65; "sem código, DV errado, modelo 65 e lixo");
+- nota liberada passando a contar na ambiguidade → **14 pass / 1 fail**;
+- ambiguidade devolvendo a primeira candidata → **14 pass / 1 fail**.
+
+Restaurado: **15 / 0**. `bunx tsc --noEmit` limpo; `eslint src/canhoto-read test/canhoto-read*` sem
+avisos. `./test/canhoto-read.contract.test.ts` entrou na lista `test` do `package.json`.
