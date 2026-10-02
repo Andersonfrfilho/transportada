@@ -274,3 +274,68 @@ tem **zero** linhas `-` e zero `+` com `expect(` — só o ponto de montagem do 
   `costBasis: 'unavailable'` com campos nulos e o `taxAmount` calculado. Nenhum contrato existente
   quebrou. Se a prévia tiver de mostrar gasto por nota, é task nova.
 - A suíte de integração inteira não foi rodada aqui — ela entra no portão da T4.3.
+
+## T3.1 — a guarda de tipo e a formatação, sem componente
+
+Executada por subagente `executor` em `sonnet`; gates conferidos por mim. `apps/api-transportada`
+intacta.
+
+### O que entrou
+
+- `trip-financials/shared/tripValuation.constant.ts` — `COST_BASIS`, `TIME_BASIS`, os tipos e
+  `UNAVAILABLE_COST_GAP = 'NO_PLANNED_DISTANCE'`.
+- `revenueLineCostFigures.validation.ts` — a guarda escrita à mão (**esta app não usa `zod`**),
+  devolvendo `absent` | `present` | `malformed`.
+- `revenueLineCost.service.ts` — `describeRevenueLineCost`, que entrega rótulo e valor já formatados,
+  para o componente da T3.2 só imprimir.
+- Os oito campos opcionais em `tripValuation.service.ts`, lidos por `readRevenueLines` em
+  `tripValuationResponse.validation.ts`.
+- `documentCost` nos **dois** locales, pt-BR e `en`.
+- `test/trip-financials/revenue-line-cost.contract.ts` (26 testes).
+
+### A ausência reaproveita o texto que a tela já tem
+
+`costBasis: 'unavailable'` usa `gap.NO_PLANNED_DISTANCE` — "roteiro ainda não calculado" / "route not
+planned yet" —, a mesma chave que o razão já usa. Um contrato afirma que **nenhum** rótulo novo de
+`documentCost` repete essa frase: duas frases para a mesma ausência é como a tela passa a dizer coisas
+diferentes sobre o mesmo estado.
+
+### Linha fora de forma derruba a avaliação, de propósito
+
+`toTripValuation` devolve `null` quando uma linha é malformada — o mesmo caminho que ele já usava para
+`revenueSource` inválido. É falha em voz alta em vez de painel mostrando parte do dinheiro. Conta como
+malformada: campo de tipo errado, dinheiro fora de `^-?\d+(\.\d{1,4})?$`, base desconhecida, **só parte
+dos oito campos**, e combinação incoerente (`unavailable` com gasto, ou `leg` com gasto/trecho/rateio
+nulos). Linha **sem nenhum** dos oito é válida — é a prévia e a sugestão multi-veículo.
+
+### Provado por mutação
+
+Fazendo `isDecimalOrNull` aceitar `number` e pular o padrão decimal: **9 pass · 5 fail** (contra 14 ·
+0), reprovando "rejeita: gasto como número", "rejeita: gasto que não é decimal", "rejeita: mais de
+quatro casas decimais", "rejeita: margem percentual como número" e "uma linha malformada derruba a
+avaliação, mesmo entre linhas boas". Desfeito, 14 · 0 de novo.
+
+### Um buraco pré-existente achado de passagem, e deixado fora
+
+`amount` — o frete da linha — é lido por `readText`, que devolve `''` quando o dado não é texto
+(`tripValuationResponse.validation.ts:106`, e `:71` nas parcelas). `formatAmount` **lança** nesse caso:
+a resposta fora de forma não é recusada na fronteira, atravessa como `''` e estoura na renderização.
+
+Conferi o `git diff`: **é pré-existente**, não foi introduzido aqui — e improvável, porque a API tipa o
+campo. Não ampliei o escopo da task para consertá-lo; está aberto como tarefa à parte, com o padrão
+correto já existindo no mesmo módulo (a guarda desta T3.1).
+
+### Portões
+
+| Portão                             | Resultado                                                                                            |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `bun run typecheck` (painel)       | exit 0                                                                                               |
+| `bun run lint` (painel)            | exit 0 — 16 avisos de `exhaustive-deps` **pré-existentes** em `modules/trip`, nenhum em arquivo novo |
+| `bun run test` (script, nunca cru) | **6192 pass · 0 fail · 31 arquivos** e `test:hooks` **180 pass · 0 fail**                            |
+| contrato isolado da T3.1           | **26 pass · 0 fail**                                                                                 |
+
+### Desvio do `tasks.md`, registrado
+
+O `tasks.md` apontava `tripResponse.validation.ts` e `trip.types.ts` do módulo `trip`. A validação de
+`revenueLines` mora em `trip-financials/shared/`, e é lá que o trabalho foi feito; o contrato foi para
+`test/trip-financials/`. O `tasks.md` fica corrigido.

@@ -39,6 +39,19 @@
     "total": "Total lançado",
     "unknownActor": "usuário removido"
   },
+  "documentCost": {
+    "cost": "Gasto",
+    "legCost": "do trecho",
+    "margin": "Margem",
+    "profit": "Lucro",
+    "tax": "Imposto",
+    "timeBasis": {
+      "complete": "Tempo completo.",
+      "incomplete": "Tempo incompleto: faltou a chegada em alguma parada.",
+      "partial": "Tempo parcial: faltou a saída de alguma parada."
+    },
+    "tripShareCost": "rateio da viagem"
+  },
   "gapAction": {
     "emissionProfile": "abrir perfis de emissão",
     "federalRegime": "declarar regime",

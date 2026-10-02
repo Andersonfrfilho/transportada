@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { CostBasis, TimeBasis } from './tripValuation.constant'
 
 /**
  * A conta **prevista** da viagem aberta — `GET /trips/:id/valuation`, que a API serve desde a 061 e
@@ -70,6 +71,26 @@ export type TripValuationCostParcel = Readonly<{
   source: ValuationSource
 }>
 
+/**
+ * Spec 225: quanto a nota rendeu e quanto gastou. ⚠️ **Os oito saem juntos ou nenhum sai** — a
+ * prévia e a sugestão multi-veículo passam pelo mesmo caminho sem trechos nem paradas, e as linhas
+ * delas saem sem eles. O frete da linha continua sendo `amount`; não há `freightAmount`.
+ *
+ * `costAmount` é `legCostAmount` (o que a nota causou andando e esperando) mais
+ * `tripShareCostAmount` (retorno e avulso, repartidos igualmente). `unavailable` é roteiro ainda não
+ * calculado, e aí gasto, lucro e margem vêm `null` — nunca zero.
+ */
+export type TripValuationRevenueLineCostFigures = Readonly<{
+  costAmount: null | string
+  costBasis: CostBasis
+  legCostAmount: null | string
+  marginAmount: null | string
+  marginPercentage: null | string
+  taxAmount: null | string
+  timeBasis: TimeBasis
+  tripShareCostAmount: null | string
+}>
+
 export type TripValuationRevenueLine = Readonly<{
   amount: string
   /**
@@ -83,7 +104,8 @@ export type TripValuationRevenueLine = Readonly<{
   nfeDocumentId: null | string
   source: ValuationSource
   tripDocumentId: string
-}>
+}> &
+  Partial<TripValuationRevenueLineCostFigures>
 
 export type TripValuation = Readonly<{
   costParcels: readonly TripValuationCostParcel[]

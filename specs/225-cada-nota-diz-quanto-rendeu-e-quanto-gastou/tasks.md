@@ -56,9 +56,12 @@ em `evidence.md`.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T3.1** Guarda de tipo e formatação: `tripResponse.validation.ts` e `trip.types.ts` com os
-      campos novos (**sem zod** — esta app usa guarda escrita à mão), mais o contrato do serviço que
-      formata "do trecho" e "rateio da viagem".
+- [x] **T3.1** Guarda de tipo e formatação em `modules/trip-financials/shared/` — é lá que
+      `revenueLines` é validada, não em `modules/trip` como esta linha dizia antes:
+      `tripValuation.service.ts`, `tripValuationResponse.validation.ts`,
+      `revenueLineCostFigures.validation.ts` e `tripValuation.constant.ts` (**sem zod** — esta app usa
+      guarda escrita à mão), mais `revenueLineCost.service.ts`, que formata "do trecho" e "rateio da
+      viagem", e o contrato em `test/trip-financials/`.
 - [ ] **T3.2** `TripStopList.component.tsx`: a linha da nota mostra frete, gasto e lucro, com as duas
       partes do gasto separadas e o critério nomeado; locales pt-BR e en; CSS por módulo.
 - [ ] **T3.3** `TripFinancialPanel.component.tsx`: previsto e fechado **lado a lado** (D6), com a
