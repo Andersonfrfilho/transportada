@@ -16,6 +16,25 @@ const KNOWN_STOP_OCCURRENCE_KINDS: ReadonlySet<string> = new Set(STOP_OCCURRENCE
 const KNOWN_DOCUMENT_STATUSES: ReadonlySet<string> = new Set(TRIP_DOCUMENT_SEPARATION_STATUS)
 
 /**
+ * Spec 057 P2: o mesmo evento pode aparecer em duas páginas depois que a repetição automática
+ * recarrega a primeira. O cursor é posicional (`(occurredAt, prioridade, id) < cursor`), e um evento
+ * novo entrando no topo empurra os últimos itens da página 1 para dentro da página 2, que segue
+ * ancorada no cursor antigo. Sem isto o trilho renderizava dois irmãos com a mesma `key`.
+ *
+ * Mantém a primeira aparição: a ordem da API (do mais recente para o mais antigo) é a que vale.
+ */
+export function removeDuplicateTimelineItems(
+  items: readonly TripTimelineItem[],
+): readonly TripTimelineItem[] {
+  const seen = new Set<string>()
+  return items.filter((item) => {
+    if (seen.has(item.id)) return false
+    seen.add(item.id)
+    return true
+  })
+}
+
+/**
  * Spec 158 D5/T8: `trip.dispatched` (fonte `trip_dispatch_snapshots`) e `trip.status_changed` com
  * `toStatus = 'dispatched'` (D1) no **mesmo instante** descrevem o mesmo fato — o despacho. Mostra
  * só o `trip.status_changed`, que tem canal; `trip.dispatched` sobrevive quando não há o par —

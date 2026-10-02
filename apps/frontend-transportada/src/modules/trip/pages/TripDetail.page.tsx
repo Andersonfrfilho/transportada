@@ -72,7 +72,12 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
    * cada painel exige é assimétrica (D4 aqui, `trip.financials` lá), e cada um decide sozinho se
    * aparece.
    */
-  const timeline = useTripTimeline({ permissions, tripId })
+  const timeline = useTripTimeline({
+    permissions,
+    tripDocuments: workspace.trip?.documents,
+    tripId,
+    tripStatus: workspace.trip?.status,
+  })
 
   /**
    * O motivo da lacuna vira ação **só onde ela existe**. `planRoute` exige a viagem em `draft` — a
