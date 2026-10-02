@@ -190,7 +190,7 @@ do usuário. A API não é revertida com a app nova no ar.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T3.1** `event-location-stamp.policy.ts` e tipos, com o contrato primeiro
+- [x] **T3.1** `event-location-stamp.policy.ts` e tipos, com o contrato primeiro
       (`test/trip-domain/event-location-stamp.contract.ts`, importado por
       `test/trip-domain.contract.test.ts`): `driver_app`, `whatsapp` do motorista, `whatsapp` do
       operador, `office`, `backoffice` × com/sem ponto × toque/derivado. Aceite: verde; a contagem subiu

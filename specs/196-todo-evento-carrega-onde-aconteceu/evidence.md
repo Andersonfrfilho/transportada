@@ -1897,3 +1897,54 @@ O conteúdo é o mesmo: o `migration.sql` e o `rollback.sql` escritos à mão (c
 gerado pelo `drizzle-kit` a partir do snapshot de staging, com `prevIds` = id dela. O `rollback.sql`
 ganhou o nome novo no `DELETE` do journal. `db:generate` = `no_changes`; `make migration-test` **115 pass ·
 0 fail**.
+
+## T3.1 — o carimbo inteiro sai de uma função só
+
+`trips/domain/event-location-stamp.policy.ts` (`resolveEventLocationStamp`, `NO_EVENT_LOCATION_STAMP`) e
+`event-location-stamp.types.ts`. A função recebe `{ channel, isDriverTap, location }` e devolve as cinco
+colunas prontas para o `INSERT`: `driver_app` e `whatsapp` **do motorista** com ponto → `captured` e as
+quatro colunas; sem ponto → `unavailable`; tudo o mais (derivado, operador pelo WhatsApp, `office`,
+`backoffice`, mesmo marcado como toque e com ponto na mão) → `null` nas cinco.
+
+⚠️ Divergência do plano, registrada: o `plan.md` dizia "`whatsapp` + toque do motorista → `unavailable`".
+Com o D3 revisto (2026-10-02) o WhatsApp também **carrega ponto**, então o ramo `whatsapp` com ponto
+devolve `captured`. O banco só passa a aceitar essa linha com a T1.4 (o CHECK de coordenada ainda é
+`channel = 'driver_app'`); nenhum chamador desta rodada manda ponto pelo WhatsApp (T3.6), e a política
+não depende da T1.4 para estar certa. `event-location-state.policy.ts` **não foi tocada** (é da T1.4).
+
+Vermelho registrado: com o contrato importado e a política ausente,
+`Cannot find module '../../src/trips/domain/event-location-stamp.policy.js'` — `0 pass · 1 fail · 1 error`.
+
+### A contagem subiu
+
+| Suíte                               | Antes | Depois | Subiu em |
+| ----------------------------------- | ----- | ------ | -------- |
+| `test/trip-domain.contract.test.ts` | 363   | 395    | **32**   |
+| `bun test` da API (193 arquivos)    | 8728  | 8760   | **32**   |
+
+### Provado por mutação (dez sondas, todas reprovadas)
+
+| Mutação na política                                 | Falhas | Primeira asserção que cai                                     |
+| --------------------------------------------------- | ------ | ------------------------------------------------------------- |
+| M1 tirar a guarda de toque                          | 3      | `driver_app derivado ... grava tudo null`                     |
+| M2 tirar a guarda de canal                          | 3      | `office nunca grava ponto nem estado`                         |
+| M3 sem ponto devolve `null` em vez de `unavailable` | 2      | `driver_app sem ponto grava unavailable`                      |
+| M4 `captured` vira `unavailable`                    | 5      | `driver_app com ponto grava captured e as quatro colunas`     |
+| M5 precisão ausente vira `'0.00'`                   | 1      | `a precisão ausente continua ausente — nunca zero`            |
+| M6 tirar `whatsapp` dos canais de toque             | 3      | `whatsapp com ponto grava captured`                           |
+| M7 truncar o milissegundo de `capturedAt`           | 1      | `a hora da leitura vira instante, preservando o milissegundo` |
+| M8 trocar latitude por longitude                    | 2      | `driver_app com ponto grava captured e as quatro colunas`     |
+| M9 carimbo vazio com estado                         | 2      | `o carimbo vazio tem as cinco colunas, todas null`            |
+| M10 `office` entra nos canais de toque              | 2      | `office nunca grava ponto nem estado`                         |
+
+As invariantes (`captured` ⇔ coordenada, lat ⇔ long, precisão só com coordenada, `expired` nunca na
+escrita) passam por construção e são cobradas contra as 20 combinações canal × toque × ponto; elas
+ficam como guarda do banco, e as sondas acima já reprovam o que as violaria.
+
+### Portões
+
+| Portão                                    | Resultado                                                        |
+| ----------------------------------------- | ---------------------------------------------------------------- |
+| `bun run typecheck`                       | exit 0                                                           |
+| `bun run lint`                            | exit 0                                                           |
+| `bun --env-file=../../.env.test test ...` | **8760 pass · 23 skip · 0 fail · 28186 expect() · 193 arquivos** |
