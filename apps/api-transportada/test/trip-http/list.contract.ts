@@ -18,6 +18,15 @@ import {
   createTripHttpFixture,
 } from '../fixtures/trip-http.fixture'
 
+const SECOND_VEHICLE_ID = '00000000-0000-4000-8000-000000000b12'
+const SECOND_DRIVER_ID = '00000000-0000-4000-8000-000000000b13'
+
+/** 101 ids distintos: o teto da lista é 100, e passar dele é tentativa de varrer a base. */
+const TOO_MANY_VEHICLE_IDS = Array.from(
+  { length: 101 },
+  (_unused, index) => `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+).join(',')
+
 describe('GET /trips', () => {
   test('lists the trips of the company with the page cursor', async () => {
     /** Com `trip.financials` a linha sai inteira; o recorte sem ela é `list-money-redaction`. */
@@ -67,6 +76,35 @@ describe('GET /trips', () => {
     ])
   })
 
+  /**
+   * Spec 221: os três filtros da tela viraram multi-escolha. A lista vai separada por vírgula num
+   * parâmetro só, no mesmo molde de `billing` — não repetindo a chave, que `readListQuery` recusa.
+   */
+  test('forwards the multi-choice lists the operator picked', async () => {
+    const fixture = await createTripHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        method: 'GET',
+        path: `${TRIPS_PATH}?statusIn=draft,loading&vehicleIdIn=${VEHICLE_ID},${SECOND_VEHICLE_ID}&driverIdIn=${DRIVER_ID},${SECOND_DRIVER_ID}`,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(fixture.listTripsCalls).toEqual([
+      {
+        context: COMPANY_CONTEXT,
+        cursor: null,
+        filters: {
+          driverIdIn: [DRIVER_ID, SECOND_DRIVER_ID],
+          statusIn: ['draft', 'loading'],
+          vehicleIdIn: [VEHICLE_ID, SECOND_VEHICLE_ID],
+        },
+        limit: 25,
+      },
+    ])
+  })
+
   test('refuses a query it does not know how to honour', async () => {
     const fixture = await createTripHttpFixture()
 
@@ -79,6 +117,18 @@ describe('GET /trips', () => {
       '?vehicleIdEq=not-a-uuid',
       '?driverIdEq=not-a-uuid',
       '?createdFrom=yesterday',
+      // Filtro exato e lista do mesmo campo não têm resposta certa: recusar, nunca eleger um deles
+      // em silêncio.
+      '?statusEq=draft&statusIn=loading',
+      `?vehicleIdEq=${VEHICLE_ID}&vehicleIdIn=${SECOND_VEHICLE_ID}`,
+      `?driverIdEq=${DRIVER_ID}&driverIdIn=${SECOND_DRIVER_ID}`,
+      // Um item podre invalida a lista inteira — devolver o resto daria menos viagens sem dizer por quê.
+      '?statusIn=draft,flying',
+      `?vehicleIdIn=${VEHICLE_ID},not-a-uuid`,
+      '?statusIn=',
+      // Repetido quase sempre é a tela montando a query errada; deduplicar esconderia o defeito.
+      '?statusIn=draft,draft',
+      `?vehicleIdIn=${TOO_MANY_VEHICLE_IDS}`,
     ]) {
       const response = await fixture.handle(
         jsonRequest({ method: 'GET', path: `${TRIPS_PATH}${query}` }),

@@ -9,8 +9,10 @@ import {
   optionalFilter,
   parseBody,
   parseOption,
+  parseOptionList,
   parseOptionalBody,
   parseUuidFilter,
+  parseUuidListFilter,
   readListQuery,
   readPaging,
 } from '../../http/request-parsing.service.js'
@@ -57,11 +59,24 @@ const TRIP_QUERY_KEYS = new Set([
   'cursor',
   'limit',
   'statusEq',
+  'statusIn',
   'vehicleIdEq',
+  'vehicleIdIn',
   'driverIdEq',
+  'driverIdIn',
   'createdFrom',
   'createdUntil',
 ])
+
+/**
+ * Filtro exato e filtro de lista do mesmo campo se anulariam (`statusEq=draft&statusIn=closed` não
+ * tem resposta certa) — recusar, em vez de eleger um deles em silêncio. Mesmo desenho de `billing`.
+ */
+const TRIP_QUERY_CONFLICTS: readonly (readonly [string, string])[] = [
+  ['statusEq', 'statusIn'],
+  ['vehicleIdEq', 'vehicleIdIn'],
+  ['driverIdEq', 'driverIdIn'],
+]
 
 type TripListing = {
   readonly cursor: string | null
@@ -168,10 +183,16 @@ export async function parseSetTripTrailerRequest(request: Request): Promise<SetT
 
 export function parseTripList(url: URL): TripListing {
   const parameters = readListQuery(url, TRIP_QUERY_KEYS)
+  for (const [exactKey, listKey] of TRIP_QUERY_CONFLICTS) {
+    if (parameters.has(exactKey) && parameters.has(listKey)) throw invalidRequest()
+  }
   const filters: TripFilters = {
     ...optionalFilter('statusEq', parseOption(parameters.get('statusEq'), TRIP_STATUSES)),
+    ...optionalFilter('statusIn', parseOptionList(parameters.get('statusIn'), TRIP_STATUSES)),
     ...optionalFilter('vehicleIdEq', parseUuidFilter(parameters.get('vehicleIdEq'))),
+    ...optionalFilter('vehicleIdIn', parseUuidListFilter(parameters.get('vehicleIdIn'))),
     ...optionalFilter('driverIdEq', parseUuidFilter(parameters.get('driverIdEq'))),
+    ...optionalFilter('driverIdIn', parseUuidListFilter(parameters.get('driverIdIn'))),
     ...optionalFilter('createdFrom', parseIsoDateTime(parameters.get('createdFrom'))),
     ...optionalFilter('createdUntil', parseIsoDateTime(parameters.get('createdUntil'))),
   }

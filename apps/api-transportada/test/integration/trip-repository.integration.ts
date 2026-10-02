@@ -453,7 +453,7 @@ describe('trip repository integration', () => {
         ).toBeNull()
 
         // `created` está completed; `secondTrip` segue `awaiting_crew` (spec 217 D1) — cobre
-        // statusEq, vehicleIdEq, driverIdEq.
+        // statusEq/vehicleIdEq/driverIdEq e os pares de lista statusIn/vehicleIdIn/driverIdIn.
         const openPage = await repository.list({
           companyId,
           cursor: null,
@@ -481,6 +481,48 @@ describe('trip repository integration', () => {
         })
         // Só `created` tem tripulação — `secondTrip` nasceu com crew vazia.
         expect(driverPage.items.map((trip) => trip.id)).toEqual([created.id])
+
+        // Spec 221: as listas multi-escolha. `statusIn` com os dois status traz as duas viagens, e
+        // com um status que ninguém tem traz só quem casa — prova que não degenerou em "sem filtro".
+        const statusListPage = await repository.list({
+          companyId,
+          cursor: null,
+          filters: { statusIn: ['awaiting_crew', 'completed'] },
+          limit: 10,
+        })
+        expect(new Set(statusListPage.items.map((trip) => trip.id))).toEqual(
+          new Set([created.id, secondTrip.id]),
+        )
+        expect(
+          (
+            await repository.list({
+              companyId,
+              cursor: null,
+              filters: { statusIn: ['awaiting_crew', 'draft'] },
+              limit: 10,
+            })
+          ).items.map((trip) => trip.id),
+        ).toEqual([secondTrip.id])
+
+        // `created` tem os dois motoristas: a lista de motoristas é `exists`, não `join`, senão a
+        // viagem apareceria duas vezes e a página de 10 contaria 2 onde há 1.
+        const driverListPage = await repository.list({
+          companyId,
+          cursor: null,
+          filters: { driverIdIn: [driverOneId, driverTwoId] },
+          limit: 10,
+        })
+        expect(driverListPage.items.map((trip) => trip.id)).toEqual([created.id])
+
+        const vehicleListPage = await repository.list({
+          companyId,
+          cursor: null,
+          filters: { vehicleIdIn: [vehicleId, crypto.randomUUID()] },
+          limit: 10,
+        })
+        expect(new Set(vehicleListPage.items.map((trip) => trip.id))).toEqual(
+          new Set([created.id, secondTrip.id]),
+        )
 
         // Paginação keyset: página de 1 devolve `nextCursor`, e reaplicar o cursor traz o resto.
         const firstPage = await repository.list({ companyId, cursor: null, limit: 1 })

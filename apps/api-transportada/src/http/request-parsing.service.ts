@@ -9,6 +9,7 @@ import type { ApiErrorDetail } from '../shared/api.types.js'
 
 const CONTAINS_MAX_LENGTH = 60
 const DEFAULT_PAGE_LIMIT = 25
+const LIST_FILTER_MAX_VALUES = 100
 const PAGE_LIMIT = /^(?:[1-9]|[1-9][0-9]|100)$/
 const UUID = z.uuid()
 
@@ -87,9 +88,40 @@ export function parseOption<TOption extends string>(
   return option
 }
 
+export function parseOptionList<TOption extends string>(
+  value: string | null,
+  options: readonly TOption[],
+): readonly TOption[] | undefined {
+  const values = parseListFilter(value)
+  if (values === undefined) return undefined
+  return values.map((item) => {
+    const option = options.find((candidate) => candidate === item)
+    if (option === undefined) throw invalidRequest()
+    return option
+  })
+}
+
 export function parseUuidFilter(value: string | null): string | undefined {
   if (value === null) return undefined
   return parseUuidPathIdentifier(value)
+}
+
+export function parseUuidListFilter(value: string | null): readonly string[] | undefined {
+  const values = parseListFilter(value)
+  if (values === undefined) return undefined
+  return values.map(parseUuidPathIdentifier)
+}
+
+/**
+ * Lista separada por vírgula. Valor repetido é recusado, não deduplicado: `statusIn=draft,draft`
+ * quase sempre é a tela montando a query errada, e aceitar esconderia o defeito.
+ */
+function parseListFilter(value: string | null): readonly string[] | undefined {
+  if (value === null) return undefined
+  const values = value.split(',')
+  if (values.length > LIST_FILTER_MAX_VALUES) throw invalidRequest()
+  if (new Set(values).size !== values.length) throw invalidRequest()
+  return values
 }
 
 export function parseUuidPathIdentifier(value: string): string {

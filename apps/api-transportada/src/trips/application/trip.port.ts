@@ -333,12 +333,19 @@ export type CreateTripRecord = {
  * próximo desta feature: paginação cursor keyset, chaves de filtro planas com allowlist, ordenação
  * fixa no servidor (`desc(createdAt), desc(id)`). Documentado como decisão local em evidence.md.
  */
+/**
+ * Os pares `*Eq`/`*In` são exclusivos entre si — a fronteira HTTP recusa os dois juntos, como em
+ * `billing`. O painel manda só os `*In`; o `*Eq` continua para quem já chamava a rota com um valor.
+ */
 export type TripFilters = {
   readonly createdFrom?: string
   readonly createdUntil?: string
   readonly driverIdEq?: string
+  readonly driverIdIn?: readonly string[]
   readonly statusEq?: TripStatus
+  readonly statusIn?: readonly TripStatus[]
   readonly vehicleIdEq?: string
+  readonly vehicleIdIn?: readonly string[]
 }
 
 export type TripPage = {
