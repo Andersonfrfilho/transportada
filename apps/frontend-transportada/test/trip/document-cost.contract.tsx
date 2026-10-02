@@ -27,6 +27,10 @@ const STOP_LIST = new URL(
   '../../src/modules/trip/components/TripStopList.component.tsx',
   import.meta.url,
 )
+const DATA_COMPONENT = new URL(
+  '../../src/modules/trip/components/TripDocumentData.component.tsx',
+  import.meta.url,
+)
 const COST_COMPONENT = new URL(
   '../../src/modules/trip-financials/components/TripDocumentCost.component.tsx',
   import.meta.url,
@@ -232,27 +236,29 @@ describe('a linha da nota com gasto, lucro e margem (spec 226 T3.2)', () => {
 })
 
 describe('a fiação é por contexto, sem sexta prop no TripStopList (spec 226 T3.2)', () => {
-  it('o gasto vive dentro do corpo da nota aberta, nunca na linha sempre visível', () => {
+  it('o gasto vive dentro de "Dados da nota", no corpo da nota aberta, nunca na linha sempre visível', () => {
     const stopList = readFileSync(STOP_LIST, 'utf8')
+    const dataComponent = readFileSync(DATA_COMPONENT, 'utf8')
     const page = readFileSync(DETAIL_PAGE, 'utf8')
     const detailStart = stopList.indexOf('{isOpen ? (')
     const detailEnd = stopList.indexOf('</li>', detailStart)
-    const cost = '<TripDocumentCost documentId={document.id} />'
+    const data = '<TripDocumentData document={document} />'
 
     expect(detailStart).toBeGreaterThan(-1)
-    expect(stopList.split(cost)).toHaveLength(2)
-    expect(stopList.indexOf(cost)).toBeGreaterThan(detailStart)
-    expect(stopList.indexOf(cost)).toBeLessThan(detailEnd)
-    expect(stopList).toContain('<TripDocumentCostCriterion documentId={document.id} />')
+    expect(stopList.split(data)).toHaveLength(2)
+    expect(stopList.indexOf(data)).toBeGreaterThan(detailStart)
+    expect(stopList.indexOf(data)).toBeLessThan(detailEnd)
+    expect(dataComponent).toContain('<TripDocumentCost documentId={document.id} />')
+    expect(dataComponent).toContain('<TripDocumentCostCriterion documentId={document.id} />')
     expect(readFileSync(DETAIL, 'utf8')).not.toContain('TripDocumentCostCriterion')
     expect(page).toContain('<DocumentCostProvider valuation={financials.valuation}>')
   })
 
-  it('a nota que só tem figura de custo ainda oferece o botão de abrir o detalhe', () => {
-    const stopList = readFileSync(STOP_LIST, 'utf8')
+  it('a nota que só tem figura de custo ainda abre a seção', () => {
+    const dataComponent = readFileSync(DATA_COMPONENT, 'utf8')
 
-    expect(stopList).toContain('const hasDocumentCost = useHasDocumentCost(document.id)')
-    expect(stopList).toMatch(/\|\|\s*hasDocumentCost\b/u)
+    expect(dataComponent).toContain('const hasDocumentCost = useHasDocumentCost(document.id)')
+    expect(dataComponent).toMatch(/&&\s*!hasDocumentCost\b/u)
   })
 
   it('as chaves novas existem nos dois locales', () => {

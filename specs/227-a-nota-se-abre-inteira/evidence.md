@@ -146,3 +146,84 @@ os de sempre da suíte.
 
 ⚠️ Os testes do painel que rodaram **durante** esta integração (a Fase 1) não a atrapalharam: nenhum
 `company-user-listing` estourou o teto, ao contrário da primeira rodada da spec 196.
+
+## Fase 2 — Dados da nota (T2.1, T2.2 e T2.3)
+
+Painel e API por dois executores `sonnet` em paralelo, em apps diferentes, com o contrato do campo combinado
+**antes**: `volumeCount`, inteiro ou `null`, opcional no painel até a API existir. Gates e mutações conferidos
+por mim.
+
+### O que a Fase 2 entrega
+
+A nota aberta passou a ter a seção **Dados da nota** (`TripDocumentData.component.tsx`, 153 linhas — o
+`TripStopList` **diminuiu**): NF-e, **Série** própria, Cliente, **CNPJ**, Valor da carga e **Volumes**, cada
+um com um `CopyButton` do primitivo da casa; o contato, a regra de frete e o bloco de custo e lucro (spec 226) entraram **nela**, e `hasNoteDetail` deixou de existir. Seção sem nenhum dado devolve `null`.
+
+O CNPJ vinha da API e **nenhum componente o imprimia**. **Volumes** é campo novo: `volumeCount` em
+`documents[]` do `GET /trips/:id`.
+
+### O que cada botão copia, e a decisão
+
+Copia-se **exatamente o que está na tela** — quem cola num formulário espera o que viu: CNPJ formatado,
+valor com `R$`, número da NF-e **sem** a série. O espaço inseparável que o `Intl` põe depois do `R$` vira
+espaço comum, porque cola mal em campo de formulário; visualmente idêntico. Todos usam a variante `boxed`,
+sempre visível: a `inline` só aparece com hover e não serve no celular.
+
+### O rótulo que mentia, achado na conferência
+
+O executor percebeu e **deixou como estava**: o campo usava `formatTaxId`, que formata CPF **e** CNPJ pelo
+tamanho, mas o rótulo era fixo "CNPJ" — um contato pessoa física sairia com máscara de CPF e título de CNPJ.
+Corrigido: `isIndividualTaxId` no serviço expõe **a mesma regra** do formatador (até 11 dígitos), e o rótulo
+e o texto do botão de copiar seguem por ela. Provado por mutação (rótulo sempre CNPJ reprova o contrato do
+CPF). A mutação de **"série ausente"**, que o executor não fez, também foi feita: reprovou 2 testes.
+
+### Volumes na API
+
+`nfe_volumes.quantity` é o `qVol` de cada `<vol>` da NF-e (uma linha por `<vol>`); a soma por nota é o
+número de volumes dela. **`null` quando não há linha de volume — nunca `0`**: zero diria "a nota não tem
+volumes", um número que parece resposta. Linhas somando zero dão `0`; nota sem vínculo com NF-e dá `null`.
+
+**Uma** consulta agregada para a viagem inteira (`companyId`, `inArray`, `group by`), nenhuma com lista
+vazia. O teste existente `trip-detail-query-count.integration.ts` compara por **igualdade** e não precisou
+mudar. A prova de que não é N+1 é por contagem de `select`: 1 nota e 12 notas fazem o mesmo número;
+trocando por leitura por nota o teste vê **15 contra 26**.
+
+Classificado como `'safe'` na `FieldPolicy` **exaustiva** — não é dinheiro nem dado pessoal, então aparece
+**sem** `trip.financials`. Sem migration (`db:generate` = `no_changes`).
+
+### Mutações
+
+| mutação                                             | o que reprovou                                                        |
+| --------------------------------------------------- | --------------------------------------------------------------------- |
+| tirar o `CopyButton` do CNPJ                        | "um botão por campo, com rótulo que diz o que copia"                  |
+| Volumes com `null` impresso                         | 3 testes (só com número; seção vazia; dois botões a menos)            |
+| campo de dinheiro sem permissão                     | 2 testes                                                              |
+| `TripDocumentCost` solto de volta no `TripStopList` | "o TripStopList não monta mais o custo solto"                         |
+| rótulo ignora CPF                                   | o contrato do CPF                                                     |
+| série ausente imprime rótulo                        | 2 testes                                                              |
+| API sem filtro de `companyId`                       | `never reads the volumes of another company` (esperado 0, recebido 1) |
+| API sem `group by`                                  | o Postgres recusa a consulta; o teste de valores reprova              |
+| API com leitura por nota                            | "mesmo número de selects para 1 e 12 notas" (15 × 26)                 |
+
+### Portões
+
+| Portão                                    | Resultado                                                             |
+| ----------------------------------------- | --------------------------------------------------------------------- |
+| painel: typecheck · lint                  | exit 0 · 0 erros, 16 avisos pré-existentes                            |
+| painel: `bun run test` · `test:hooks`     | **6318 pass · 0 fail** (era 6305) · **261 pass · 0 fail**             |
+| API: typecheck · lint · `db:generate`     | exit 0 · exit 0 · `no_changes`                                        |
+| API: contrato inteiro                     | **8659 testes · 0 fail** (+3, todos do `volumeCount`)                 |
+| API: integração dos dois arquivos tocados | **3 de 3 verde em 3 rodadas** (`volume-count` 3·0, `query-count` 4·0) |
+
+O executor da API viu **1 falha em 63 s** num rerun logo depois de uma mutação e atribuiu a contenção sem
+investigar; eu rodei os dois arquivos **três vezes seguidas** e passaram todas — foi o descarte do banco
+depois da mutação, não defeito.
+
+### O que ficou declaradamente fora
+
+- **"Cliente" é `contact.name`, o destinatário**, o mesmo contato cujo documento aparece como CNPJ; o
+  contratante continua em "Contratante: X" abaixo da grade. O vocabulário do painel já usa "cliente" para o
+  destinatário (`/clientes`), mas se o canvas queria o contratante, é trocar uma linha.
+- O "não aparece no portal da contratante" é **só de tipo** (`volumeCount` não está em `ContractorDelivery`):
+  o `serializeTripDocumentDetail` não alimenta o portal.
+- Revisão visual e `scrollWidth <= innerWidth` em 375 px: T6.1.

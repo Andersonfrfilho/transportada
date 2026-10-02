@@ -4920,3 +4920,70 @@ button.occurrenceCaseBadge {
     grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
   }
 }
+
+/* Spec 227 RF3: a identidade da nota em grade rotulada; uma coluna no celular, três a partir do tablet. */
+.documentData {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.documentDataTitle {
+  margin: 0;
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.documentDataGrid {
+  margin: 0;
+  min-width: 0;
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.documentDataField {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+}
+
+.documentDataLabel {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.documentDataValue {
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.documentDataText {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.documentDataCost {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+@media (min-width: 40rem) {
+  .documentDataGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

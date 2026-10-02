@@ -12,9 +12,6 @@ import { Icon } from '@/components/ui/icon'
 import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { NfseEmissionAction } from '@/modules/nfse-invoice/components/NfseEmissionAction.component'
-import { TripDocumentCost } from '@/modules/trip-financials/components/TripDocumentCost.component'
-import { TripDocumentCostCriterion } from '@/modules/trip-financials/components/TripDocumentCostCriterion.component'
-import { useHasDocumentCost } from '@/modules/trip-financials/hooks/useDocumentCostLine.hook'
 
 import type { TripDocumentSelectionController } from '../hooks/useTripDocumentSelection.hook'
 import { useTripStopOrder } from '../hooks/useTripStopOrder.hook'
@@ -44,6 +41,7 @@ import {
   buildTripTimelineStopAnchorId,
 } from '../shared/tripTimelineLink.service'
 import { TripArrivalDialog } from './TripArrivalDialog.component'
+import { TripDocumentData } from './TripDocumentData.component'
 import {
   TripStopOccurrenceDialog,
   type TripStopOccurrenceSubmission,
@@ -490,16 +488,6 @@ function TripStopDocumentRow({
           }),
           status: t(`separationStatus.${document.separationStatus}`),
         })
-  /**
-   * Spec 181 RF4/T304: contratante, regra fiscal e telefone são dado de confirmação, não de
-   * triagem — vão para a expansão da nota. `hasNoteDetail` decide **se** existe o quê: sem contato
-   * e sem regra de frete, a nota não oferece o disclosure vazio (mesma regra da CA07/CA16).
-   */
-  const hasDocumentCost = useHasDocumentCost(document.id)
-  const hasNoteDetail =
-    (document.contact !== null && document.contact !== undefined) ||
-    (document.freightRuleName !== null && document.freightRuleName !== undefined) ||
-    hasDocumentCost
   const hasProof = hasTripDocumentProof(document)
   const bodyId = `trip-stop-document-body-${document.id}`
   const isOpen = actions.openDocumentId === document.id
@@ -811,33 +799,7 @@ function TripStopDocumentRow({
       </div>
       {isOpen ? (
         <div className={styles.stopDocumentBody} id={bodyId}>
-          {hasNoteDetail ? (
-            <div className={styles.stopDocumentDetailGroup}>
-              {document.contact === null || document.contact === undefined ? null : (
-                <>
-                  <span className={styles.stopDocumentMeta}>
-                    {document.contact.phone === null
-                      ? t('contact.withoutPhone')
-                      : t('contact.phone', { phone: document.contact.phone })}
-                  </span>
-                  {document.contact.contractorName === null ? null : (
-                    <span className={styles.stopDocumentMeta}>
-                      {t('contact.contractor', { name: document.contact.contractorName })}
-                    </span>
-                  )}
-                </>
-              )}
-              {document.freightRuleName === null ||
-              document.freightRuleName === undefined ? null : (
-                <span className={styles.stopDocumentMeta}>
-                  {t('stops.freight.rule', { name: document.freightRuleName })}
-                </span>
-              )}
-              {/* Spec 226 RF4/RF6: o gasto vem do contexto da avaliação — sem `trip.financials` não imprime nada. */}
-              <TripDocumentCost documentId={document.id} />
-              <TripDocumentCostCriterion documentId={document.id} />
-            </div>
-          ) : null}
+          <TripDocumentData document={document} />
           {hasProof ? actions.renderProof(document.id) : null}
         </div>
       ) : null}

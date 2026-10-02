@@ -667,6 +667,27 @@
     "delivery": "Entrega",
     "deliveryHint": "O endereço veio do campo de entrega da nota, não do cadastro do destinatário"
   },
+  "documentData": {
+    "cargoValue": "Valor da carga",
+    "client": "Cliente",
+    "copied": "Copiado",
+    "copy": {
+      "cargoValue": "Copiar valor da carga",
+      "client": "Copiar cliente",
+      "nfeNumber": "Copiar número da NF-e",
+      "series": "Copiar série",
+      "taxId": "Copiar CNPJ",
+      "cpf": "Copiar CPF",
+      "volumes": "Copiar volumes"
+    },
+    "costTitle": "Custo e lucro desta nota",
+    "nfeNumber": "NF-e",
+    "series": "Série",
+    "taxId": "CNPJ",
+    "cpf": "CPF",
+    "title": "Dados da nota",
+    "volumes": "Volumes"
+  },
   "detail": {
     "closedManually": "Encerrada manualmente em {{moment}}",
     "closedManuallyBy": "Encerrada manualmente por {{name}} em {{moment}}",

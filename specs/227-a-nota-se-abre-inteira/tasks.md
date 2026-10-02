@@ -35,11 +35,11 @@ foram resolvidas em 2026-10-02) — bloqueia **apenas a Fase 5**.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T2.1** Contrato: Série própria, CNPJ impresso, `CopyButton` por campo com rótulo que diz **o que**
+- [x] **T2.1** Contrato: Série própria, CNPJ impresso, `CopyButton` por campo com rótulo que diz **o que**
       copia, sem permissão nada de dinheiro.
-- [ ] **T2.2** Série, CNPJ (formatador do painel), `CopyButton`, e o custo e lucro (spec 226) para dentro de
+- [x] **T2.2** Série, CNPJ (formatador do painel), `CopyButton`, e o custo e lucro (spec 226) para dentro de
       _Dados da nota_.
-- [ ] **T2.3** **API** (N4 = sim). `volumeCount` em `serializeTripDocumentDetail` classificado na
+- [x] **T2.3** **API** (N4 = sim). `volumeCount` em `serializeTripDocumentDetail` classificado na
       `FieldPolicy`, sem N+1 (teste por contagem de `select`, como na 226), com contrato de tenant. Aceite: os
       **dois** comandos da API verdes.
 

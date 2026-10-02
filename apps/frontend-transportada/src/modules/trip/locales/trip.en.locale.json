@@ -667,6 +667,27 @@
     "delivery": "Delivery",
     "deliveryHint": "The address came from the note’s delivery field, not from the recipient’s registration"
   },
+  "documentData": {
+    "cargoValue": "Cargo value",
+    "client": "Client",
+    "copied": "Copied",
+    "copy": {
+      "cargoValue": "Copy cargo value",
+      "client": "Copy client",
+      "nfeNumber": "Copy invoice number",
+      "series": "Copy series",
+      "taxId": "Copy tax ID",
+      "cpf": "Copy CPF",
+      "volumes": "Copy volumes"
+    },
+    "costTitle": "Cost and profit of this invoice",
+    "nfeNumber": "Invoice",
+    "series": "Series",
+    "taxId": "Tax ID",
+    "cpf": "CPF",
+    "title": "Invoice data",
+    "volumes": "Volumes"
+  },
   "detail": {
     "closedManually": "Closed manually on {{moment}}",
     "closedManuallyBy": "Closed manually by {{name}} on {{moment}}",
