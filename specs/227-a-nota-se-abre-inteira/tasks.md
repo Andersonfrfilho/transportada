@@ -18,7 +18,7 @@ foram resolvidas em 2026-10-02) — bloqueia **apenas a Fase 5**.
       **depois** do rebase (rebase limpo não é typecheck verde).
 - [x] **T0.3** Reencadear a migration da 196 (procedimento no `plan.md`). Aceite: `db:generate` =
       `no_changes`, `schema-snapshot.contract.ts` verde e **`make migration-test`** verde.
-- [ ] **T0.4** Integração **inteira** da API (~19 min, em primeiro plano) sobre a base rebaseada. É o gate de
+- [x] **T0.4** Integração **inteira** da API (~19 min, em primeiro plano) sobre a base rebaseada. É o gate de
       push das specs 196 e 226.
 
 ## Fase 1 — O acordeão

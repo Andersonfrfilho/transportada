@@ -130,3 +130,19 @@ ambiente e se parece com defeito.
 - Os dois `useState` de dentro do comprovante (`isProductsExpanded`, `isOccurrencesExpanded`) continuam —
   são das Fases 3 e 4.
 - A ordem do canvas dentro do corpo é só a aproximação de detalhes → comprovante.
+
+## T0.4 — a integração inteira da API, sobre a base rebaseada
+
+Gate de push das specs 196 e 226, rodado **depois** do rebase, da renumeração e do reencadeamento da
+migration — ou seja, sobre o código que de fato seria publicado:
+
+```
+829 pass · 8 skip · 0 fail · 5063 expect() · 837 testes · 150 arquivos · [1014.00s]
+```
+
+São **29 testes a mais** que a rodada anterior à rebase (802): as specs 222, 223 e 224 de staging, todas
+verdes junto com o meu código. Infra de E2E (postgres 65432), `--env-file=../../.env.test`. Os 8 skips são
+os de sempre da suíte.
+
+⚠️ Os testes do painel que rodaram **durante** esta integração (a Fase 1) não a atrapalharam: nenhum
+`company-user-listing` estourou o teto, ao contrário da primeira rodada da spec 196.
