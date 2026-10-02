@@ -11,10 +11,6 @@ import { DELIVERED_AT_FUTURE_TOLERANCE_MILLISECONDS } from './field-delivery-tim
 
 export const OCCURRED_AT_MAX_AGE_DAYS = 30
 
-const CLOCK_OFFSET_LIMIT_DAYS = 365
-/** Desvio além de ±365 dias não é relógio errado, é lixo no campo — o esquema recusa com `400`. */
-export const CLOCK_OFFSET_LIMIT_MILLISECONDS = CLOCK_OFFSET_LIMIT_DAYS * MILLISECONDS_PER_DAY
-
 /** Spec 232 D2: o que o app manda junto do evento; ausente é o cliente antigo, nunca `undefined` explícito. */
 export type EventClockFields = {
   readonly clockOffsetMs?: number

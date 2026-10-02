@@ -9,6 +9,7 @@
 import { describe, expect, it } from 'bun:test'
 
 import { MILLISECONDS_PER_DAY } from '../../src/shared/time.constant.js'
+import { resolveOccurredAt } from '../../src/trips/domain/occurred-at.policy.js'
 import { ApiError } from '../../src/shared/api.error.js'
 import { createMeTripRoutes } from '../../src/trips/presentation/me-trip.routes.js'
 import { parseDeliveryProofUpload } from '../../src/trips/presentation/delivery-proof.schema.js'
@@ -27,8 +28,13 @@ const STOP_ID = '00000000-0000-4000-8000-000000000005'
 const OCCURRENCE_TYPE_ID = '00000000-0000-4000-8000-0000000000e1'
 const TAPPED_AT = '2026-09-26T12:00:00.000Z'
 const CLOCK_OFFSET_MS = -3_600_000
-/** ±365 dias: relógio mais errado que isso é lixo no campo, não relógio errado. */
-const CLOCK_OFFSET_LIMIT_MS = 365 * MILLISECONDS_PER_DAY
+/** Um ano de desvio: o esquema não tem teto nele; quem descarta o absurdo é `resolveOccurredAt`. */
+const ONE_YEAR_OFFSET_MS = 365 * MILLISECONDS_PER_DAY
+/** Aparelho zerado em 1970: `tappedAt` de 1970 + este desvio dá a hora certa de 2026-09-26. */
+const EPOCH_DEVICE_TAPPED_AT = '1970-01-01T03:00:00.000Z'
+const EPOCH_DEVICE_OFFSET_MS =
+  Date.parse('2026-09-26T15:00:00.000Z') - Date.parse(EPOCH_DEVICE_TAPPED_AT)
+const RECEIVED_AT = new Date('2026-09-26T15:00:05.000Z')
 const NEW_CLIENT_CLOCK = { clockOffsetMs: CLOCK_OFFSET_MS, tappedAt: TAPPED_AT }
 
 type EventParser = {
@@ -106,24 +112,64 @@ for (const { baseBody, name, parse } of EVENT_PARSERS) {
       expect('clockOffsetMs' in parsed).toBe(false)
     })
 
-    it('desvio zero e os dois extremos de ±365 dias são aceitos', async () => {
-      for (const clockOffsetMs of [0, CLOCK_OFFSET_LIMIT_MS, -CLOCK_OFFSET_LIMIT_MS]) {
+    it('desvio zero, um ano e o inteiro seguro nos dois sinais são aceitos: o esquema não tem teto', async () => {
+      const accepted = [
+        0,
+        ONE_YEAR_OFFSET_MS,
+        -ONE_YEAR_OFFSET_MS,
+        ONE_YEAR_OFFSET_MS + 1,
+        -ONE_YEAR_OFFSET_MS - 1,
+        Number.MAX_SAFE_INTEGER,
+        Number.MIN_SAFE_INTEGER,
+      ]
+
+      for (const clockOffsetMs of accepted) {
         const parsed = await parse(jsonRequest({ ...baseBody, clockOffsetMs, tappedAt: TAPPED_AT }))
 
         expect((parsed as { readonly clockOffsetMs?: unknown }).clockOffsetMs).toBe(clockOffsetMs)
       }
     })
 
-    it('clockOffsetMs fracionário, texto, nulo ou fora de ±365 dias é 400', async () => {
-      const invalidOffsets: readonly unknown[] = [
-        1.5,
-        '60000',
-        null,
-        CLOCK_OFFSET_LIMIT_MS + 1,
-        -CLOCK_OFFSET_LIMIT_MS - 1,
-        1e99,
-        -1e99,
-      ]
+    it('aparelho com o relógio em 1970 é aceito e a hora corrigida sai certa', async () => {
+      const parsed = (await parse(
+        jsonRequest({
+          ...baseBody,
+          clockOffsetMs: EPOCH_DEVICE_OFFSET_MS,
+          tappedAt: EPOCH_DEVICE_TAPPED_AT,
+        }),
+      )) as { readonly clockOffsetMs?: number; readonly tappedAt?: Date }
+
+      expect(parsed.clockOffsetMs).toBe(EPOCH_DEVICE_OFFSET_MS)
+      expect(
+        resolveOccurredAt({
+          clockOffsetMs: parsed.clockOffsetMs,
+          receivedAt: RECEIVED_AT,
+          tappedAt: parsed.tappedAt,
+        }),
+      ).toEqual({ kind: 'corrected', occurredAt: new Date('2026-09-26T15:00:00.000Z') })
+    })
+
+    it('desvio absurdo é aceito, nunca 400, e resolveOccurredAt o descarta como futuro', async () => {
+      const parsed = (await parse(
+        jsonRequest({
+          ...baseBody,
+          clockOffsetMs: Number.MAX_SAFE_INTEGER,
+          tappedAt: TAPPED_AT,
+        }),
+      )) as { readonly clockOffsetMs?: number; readonly tappedAt?: Date }
+
+      expect(parsed.clockOffsetMs).toBe(Number.MAX_SAFE_INTEGER)
+      expect(
+        resolveOccurredAt({
+          clockOffsetMs: parsed.clockOffsetMs,
+          receivedAt: RECEIVED_AT,
+          tappedAt: parsed.tappedAt,
+        }),
+      ).toEqual({ kind: 'ignored', reason: 'future' })
+    })
+
+    it('clockOffsetMs fracionário, texto, nulo, expoente ou além do inteiro seguro é 400', async () => {
+      const invalidOffsets: readonly unknown[] = [1.5, '60000', null, 1e99, -1e99]
 
       for (const clockOffsetMs of invalidOffsets) {
         await expectBadRequest(
@@ -198,14 +244,49 @@ describe('o multipart do comprovante aceita clockOffsetMs (spec 232 T1.4, e)', (
     expect(upload.clockOffsetMs).toBe(CLOCK_OFFSET_MS)
   })
 
-  it('os dois extremos de ±365 dias e o zero são aceitos', async () => {
-    for (const clockOffsetMs of [0, CLOCK_OFFSET_LIMIT_MS, -CLOCK_OFFSET_LIMIT_MS]) {
+  it('zero, um ano, o inteiro seguro e o relógio de 1970 são aceitos: o esquema não tem teto', async () => {
+    const accepted = [
+      0,
+      ONE_YEAR_OFFSET_MS,
+      -ONE_YEAR_OFFSET_MS,
+      ONE_YEAR_OFFSET_MS + 1,
+      -ONE_YEAR_OFFSET_MS - 1,
+      EPOCH_DEVICE_OFFSET_MS,
+      Number.MAX_SAFE_INTEGER,
+      Number.MIN_SAFE_INTEGER,
+    ]
+
+    for (const clockOffsetMs of accepted) {
       const upload = await parseDeliveryProofUpload(
         proofRequest({ clockOffsetMs: String(clockOffsetMs) }),
       )
 
       expect(upload.clockOffsetMs).toBe(clockOffsetMs)
     }
+  })
+
+  it('relógio em 1970: aceito e resolveOccurredAt devolve a hora certa; absurdo é descartado, não recusado', async () => {
+    const epoch = await parseDeliveryProofUpload(
+      proofRequest({ clockOffsetMs: String(EPOCH_DEVICE_OFFSET_MS) }),
+    )
+    const absurd = await parseDeliveryProofUpload(
+      proofRequest({ clockOffsetMs: String(Number.MAX_SAFE_INTEGER) }),
+    )
+
+    expect(
+      resolveOccurredAt({
+        clockOffsetMs: epoch.clockOffsetMs,
+        receivedAt: RECEIVED_AT,
+        tappedAt: new Date(EPOCH_DEVICE_TAPPED_AT),
+      }),
+    ).toEqual({ kind: 'corrected', occurredAt: new Date('2026-09-26T15:00:00.000Z') })
+    expect(
+      resolveOccurredAt({
+        clockOffsetMs: absurd.clockOffsetMs,
+        receivedAt: RECEIVED_AT,
+        tappedAt: new Date(TAPPED_AT),
+      }),
+    ).toEqual({ kind: 'ignored', reason: 'future' })
   })
 
   it('ausente ou vazio: o upload não ganha a chave (cliente antigo)', async () => {
@@ -216,7 +297,7 @@ describe('o multipart do comprovante aceita clockOffsetMs (spec 232 T1.4, e)', (
     }
   })
 
-  it('texto que não é inteiro, ou fora de ±365 dias, é 400', async () => {
+  it('texto que não é inteiro, ou além do inteiro seguro, é 400', async () => {
     const invalidTexts = [
       'abc',
       '1.5',
@@ -226,8 +307,8 @@ describe('o multipart do comprovante aceita clockOffsetMs (spec 232 T1.4, e)', (
       ' 5',
       'NaN',
       'Infinity',
-      String(CLOCK_OFFSET_LIMIT_MS + 1),
-      String(-CLOCK_OFFSET_LIMIT_MS - 1),
+      '9'.repeat(16),
+      '-' + '9'.repeat(16),
       '9'.repeat(40),
     ]
 

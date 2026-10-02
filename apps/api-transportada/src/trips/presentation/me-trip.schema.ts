@@ -6,10 +6,7 @@ import { z } from 'zod'
 import { invalidRequest, parseBody, parseOptionalBody } from '../../http/request-parsing.service.js'
 import { TRIP_STOP_OCCURRENCE_KINDS } from '../../database/trip.schema.js'
 import { DRIVER_RETURN_REASONS } from '../domain/driver-return-reason.policy.js'
-import {
-  CLOCK_OFFSET_LIMIT_MILLISECONDS,
-  type EventClockFields,
-} from '../domain/occurred-at.policy.js'
+import { type EventClockFields } from '../domain/occurred-at.policy.js'
 import type { ReportedLocation } from '../application/driver-field-report.port.js'
 
 /**
@@ -46,11 +43,7 @@ const lateRegistrationSchema = z.boolean().optional()
  * o outro vale: quem decide o que fazer é `resolveOccurredAt`, que trata como `missing`.
  */
 const eventClockFields = {
-  clockOffsetMs: z
-    .int()
-    .min(-CLOCK_OFFSET_LIMIT_MILLISECONDS)
-    .max(CLOCK_OFFSET_LIMIT_MILLISECONDS)
-    .optional(),
+  clockOffsetMs: z.int().optional(),
   tappedAt: z.iso.datetime().optional(),
 }
 

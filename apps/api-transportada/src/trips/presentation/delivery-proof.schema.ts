@@ -10,7 +10,6 @@ import {
   DRIVER_UPLOAD_PROOF_KINDS,
   type DriverUploadProofKind,
 } from '../domain/delivery-event.constant.js'
-import { CLOCK_OFFSET_LIMIT_MILLISECONDS } from '../domain/occurred-at.policy.js'
 import type { ProofPosition } from '../domain/delivery-proof-punctuality.policy.js'
 import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
 import { normalizeReceivedBy } from './received-by.schema.js'
@@ -55,15 +54,15 @@ function decimalText(input: { readonly maxLength: number; readonly pattern: RegE
   return z.string().max(input.maxLength).regex(input.pattern).transform(Number)
 }
 
-/** 365 dias em ms têm 11 dígitos; o teto de texto barra `1e99` e string de mil dígitos antes do `Number()`. */
-const CLOCK_OFFSET_TEXT_MAX_LENGTH = 12
-const CLOCK_OFFSET_PATTERN = /^-?\d{1,11}$/u
+/** Sem teto de desvio: relógio errado por anos é o que a correção conserta. 16 dígitos cobrem o inteiro seguro; o texto barra `1e99` antes do `Number()`. */
+const CLOCK_OFFSET_TEXT_MAX_LENGTH = 17
+const CLOCK_OFFSET_PATTERN = /^-?\d{1,16}$/u
 
 const clockOffsetSchema = decimalText({
   maxLength: CLOCK_OFFSET_TEXT_MAX_LENGTH,
   pattern: CLOCK_OFFSET_PATTERN,
 })
-  .pipe(z.int().min(-CLOCK_OFFSET_LIMIT_MILLISECONDS).max(CLOCK_OFFSET_LIMIT_MILLISECONDS))
+  .pipe(z.int())
   .optional()
 
 const proofLocationSchema = z

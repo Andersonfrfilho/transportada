@@ -597,3 +597,43 @@ trip-auto-dispatch 8 · trip-occurrence-attachment 6 · me-location-consent 5   
 - **T1.4 recusa desvio acima de ±365 dias com `400`.** Aparelho que zerou o relógio (1970) mandaria um
   desvio de décadas e teria todo relato recusado. A Fase 2 (app) precisa omitir o campo nesse caso, ou o
   esquema precisa descartar em vez de recusar.
+
+## T1.4b — o esquema do motorista nunca recusa o desvio de relógio por ser grande
+
+Princípio (decisão do usuário, 03/10/2026): a rede e o relógio não são culpa do motorista; nenhum evento
+é recusado por causa de relógio. Aparelho com o relógio errado por mais de um ano (zerado em 1970,
+desvio ≈ +1,76e12 ms) é exatamente o que a medição corrige: `tappedAt (1970) + desvio` dá a hora certa.
+O absurdo de verdade, `resolveOccurredAt` já descarta (`future` / `too_old`) sem recusar.
+
+Contrato primeiro (`test/driver-trip/clock-fields-schema.contract.ts`): os casos "limite + 1" (JSON e
+multipart) passam a afirmar **aceito e carregado**; novos: relógio em 1970 aceito no JSON (nos cinco
+eventos) e no multipart, e `resolveOccurredAt` devolve `corrected` com a hora certa; `Number.MAX_SAFE_INTEGER`
+aceito e `resolveOccurredAt` devolve `ignored`/`future`. Continuam 400: fracionário, texto, `null`, `1e99`,
+`NaN` no corpo cru, `tappedAt` não ISO, campo desconhecido, `+5`/espaço/expoente/`Infinity` e 16 nines
+(além do inteiro seguro) no multipart.
+
+```text
+VERMELHO (contrato novo, código da T1.4)
+apps/api-transportada$ bun --env-file=../../.env.test test ./test/driver-trip.contract.test.ts ./test/trip-delivery-proof.contract.test.ts
+  → 526 pass, 17 fail — os 15 do JSON (3 casos novos × 5 eventos) e os 2 do multipart, todos por ApiError 400
+    INVALID_REQUEST em desvio aceito
+
+Implementação: JSON `clockOffsetMs: z.int().optional()` (sem .min/.max); multipart regex `^-?\d{1,16}$`, teto
+de texto 17, `.pipe(z.int())`; `CLOCK_OFFSET_LIMIT_MILLISECONDS` removida (sem outro uso).
+
+VERDE
+apps/api-transportada$ bun --env-file=../../.env.test test ./test/driver-trip.contract.test.ts ./test/trip-delivery-proof.contract.test.ts
+  → 543 pass, 0 fail
+apps/api-transportada$ bun run typecheck → exit 0
+apps/api-transportada$ bun run lint      → exit 0 (--max-warnings=0)
+```
+
+| #   | Mutação                                   | Resultado      |
+| --- | ----------------------------------------- | -------------- |
+| 1   | limite de ±365 dias de volta no JSON      | pegou: 15 fail |
+| 2   | limite de ±365 dias de volta no multipart | pegou: 2 fail  |
+| 3   | JSON `z.int()` → `z.number()`             | pegou: 5 fail  |
+| 4   | multipart `z.int()` → `z.number()`        | pegou: 1 fail  |
+| 5   | regex do multipart de volta a 11 dígitos  | pegou: 2 fail  |
+
+Todas restauradas; o verde acima é da árvore restaurada.
