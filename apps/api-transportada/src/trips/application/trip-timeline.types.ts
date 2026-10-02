@@ -165,6 +165,11 @@ export type TripTimelineCursor = {
 export type ReadTripTimelineParams = {
   readonly companyId: string
   readonly cursor: TripTimelineCursor | null
+  /**
+   * Spec 227 D7: só a nota pedida. O que não pertence a nota nenhuma (viagem, parada) passa; o de
+   * outra nota não. Ausente = a viagem inteira.
+   */
+  readonly documentId?: string
   readonly limit: number
   readonly tripId: string
 }

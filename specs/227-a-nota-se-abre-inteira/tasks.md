@@ -70,7 +70,7 @@ Nenhum `[NEEDS CLARIFICATION]` aberto nesta spec.
       (D12). Lê antes `specs/196-…`, `specs/206-…`, o ADR-0088 e a spec 218. Responde, **antes de qualquer
       migration**: de quem é o evento do endereço e quando nasce. Número 228 conferido contra `origin/staging`.
       **Pare e pergunte antes de qualquer migration.**
-- [ ] **T5.1** API: filtro por nota em `GET /trips/:id/timeline`, no servidor, com contrato de tenant e de
+- [x] **T5.1** API: filtro por nota em `GET /trips/:id/timeline`, no servidor, com contrato de tenant e de
       permissão (`trip.event-location`). Não depende da 228.
 - [ ] **T5.2** API: o raio na resposta do comprovante (D6), resolvido por contratante, sem
       `settings.manage` do leitor. Não depende da 228.

@@ -37,6 +37,7 @@ import {
 import { geocodedAddresses } from '../../src/database/geocoding.schema.js'
 import {
   findTripCompanyScope,
+  findTripDocumentScope,
   listTripTimeline,
   parseTripTimelineCursor,
 } from '../../src/trips/infrastructure/trip-timeline.query.js'
@@ -1049,7 +1050,10 @@ function fakeContext(company: Company): AuthenticatedContext<CompanyContext> {
 
 function findTimelineRoute(database: TestDatabase) {
   const readTripTimeline = createReadTripTimelineUseCase({
-    existence: { findTripCompanyScope: (input) => findTripCompanyScope(database.db, input) },
+    existence: {
+      findTripCompanyScope: (input) => findTripCompanyScope(database.db, input),
+      findTripDocumentScope: (input) => findTripDocumentScope(database.db, input),
+    },
     reader: { listTripTimeline: (input) => listTripTimeline(database.db, input) },
   })
   const dependencies = new Proxy(
@@ -1375,6 +1379,278 @@ describe('GET /trips/:id/timeline carrega onde o motorista tocou (spec 196 T4.2)
       ).rejects.toMatchObject({ code: 'TRIP_NOT_FOUND', status: 404 })
     })
   })
+})
+
+describe('trip-timeline.query com documentId (spec 227 T5.1) contra o Postgres', () => {
+  type DocumentFilterSeed = {
+    readonly company: Company
+    readonly documentA: string
+    readonly documentB: string
+    readonly idsOfA: ReadonlySet<string>
+    readonly idsOfB: ReadonlySet<string>
+    readonly idsWithoutDocument: ReadonlySet<string>
+    readonly tripId: string
+  }
+
+  async function seedDocumentFilterTrip(database: TestDatabase): Promise<DocumentFilterSeed> {
+    const company = await seedCompany(database)
+    const tripId = await seedTrip(database, company)
+    const stopId = await seedStop(database, company, tripId, 1)
+    const documentA = await seedTripDocument(database, company, tripId, stopId)
+    const documentB = await seedTripDocument(database, company, tripId, stopId)
+    const base = {
+      actorUserId: company.userId,
+      channel: 'driver_app' as const,
+      companyId: company.companyId,
+      stopId,
+    }
+    const arrivedId = crypto.randomUUID()
+    const deliveredAId = crypto.randomUUID()
+    const deliveredBId = crypto.randomUUID()
+    await database.db.insert(tripStopEvents).values([
+      {
+        ...base,
+        capturedAt: new Date('2026-10-01T10:00:00.000Z'),
+        createdAt: new Date('2026-10-01T10:00:00.000Z'),
+        id: arrivedId,
+        kind: 'arrived',
+        latitude: '-23.5505000',
+        locationState: 'captured',
+        longitude: '-46.6334000',
+      },
+      {
+        ...base,
+        capturedAt: new Date('2026-10-01T11:00:00.000Z'),
+        createdAt: new Date('2026-10-01T11:00:00.000Z'),
+        id: deliveredAId,
+        kind: 'delivered',
+        latitude: '-23.5505000',
+        locationState: 'captured',
+        longitude: '-46.6334000',
+        tripDocumentId: documentA,
+      },
+      {
+        ...base,
+        capturedAt: new Date('2026-10-01T12:00:00.000Z'),
+        createdAt: new Date('2026-10-01T12:00:00.000Z'),
+        id: deliveredBId,
+        kind: 'delivered',
+        latitude: '-23.5505000',
+        locationState: 'captured',
+        longitude: '-46.6334000',
+        tripDocumentId: documentB,
+      },
+    ])
+    const statusAId = crypto.randomUUID()
+    const statusBId = crypto.randomUUID()
+    await database.db.insert(tripDocumentEvents).values([
+      {
+        actorUserId: company.userId,
+        channel: 'backoffice',
+        companyId: company.companyId,
+        fromStatus: 'pending',
+        id: statusAId,
+        occurredAt: new Date('2026-10-01T09:00:00.000Z'),
+        toStatus: 'separated',
+        tripDocumentId: documentA,
+      },
+      {
+        actorUserId: company.userId,
+        channel: 'backoffice',
+        companyId: company.companyId,
+        fromStatus: 'pending',
+        id: statusBId,
+        occurredAt: new Date('2026-10-01T09:30:00.000Z'),
+        toStatus: 'separated',
+        tripDocumentId: documentB,
+      },
+    ])
+    const occurrenceTypeId = crypto.randomUUID()
+    await database.db.insert(companyOccurrenceTypes).values({
+      companyId: company.companyId,
+      id: occurrenceTypeId,
+      name: 'Item faltante',
+      stage: 'separation',
+    })
+    const occurrenceAId = crypto.randomUUID()
+    const occurrenceBId = crypto.randomUUID()
+    await database.db.insert(tripDocumentOccurrences).values(
+      [
+        { documentId: documentA, id: occurrenceAId },
+        { documentId: documentB, id: occurrenceBId },
+      ].map((row) => ({
+        actorUserId: company.userId,
+        channel: 'driver_app' as const,
+        companyId: company.companyId,
+        id: row.id,
+        note: 'ocorrência da nota',
+        occurrenceTypeId,
+        stage: 'separation' as const,
+        tripDocumentId: row.documentId,
+      })),
+    )
+    const stopOccurrenceId = crypto.randomUUID()
+    await database.db.insert(tripStopOccurrences).values({
+      actorUserId: company.userId,
+      channel: 'driver_app',
+      companyId: company.companyId,
+      createdAt: new Date('2026-10-01T13:00:00.000Z'),
+      description: 'sem nota',
+      id: stopOccurrenceId,
+      kind: 'long_wait',
+      stopId,
+    })
+    const tripStatusId = crypto.randomUUID()
+    await database.db.insert(tripStatusEvents).values({
+      actorUserId: company.userId,
+      channel: 'backoffice',
+      companyId: company.companyId,
+      fromStatus: 'route_planned',
+      id: tripStatusId,
+      toStatus: 'separating',
+      tripId,
+    })
+
+    return {
+      company,
+      documentA,
+      documentB,
+      idsOfA: new Set([deliveredAId, statusAId, occurrenceAId]),
+      idsOfB: new Set([deliveredBId, statusBId, occurrenceBId]),
+      idsWithoutDocument: new Set([arrivedId, stopOccurrenceId, tripStatusId]),
+      tripId,
+    }
+  }
+
+  testWithPostgres('a nota A traz os eventos dela e os sem nota; nada da nota B', async () => {
+    await withDisposableDatabase(async (database) => {
+      const seed = await seedDocumentFilterTrip(database)
+
+      const result = await listTripTimeline(database.db, {
+        companyId: seed.company.companyId,
+        cursor: null,
+        documentId: seed.documentA,
+        limit: 100,
+        tripId: seed.tripId,
+      })
+
+      expect(new Set(result.items.map((item) => item.id))).toEqual(
+        new Set([...seed.idsOfA, ...seed.idsWithoutDocument]),
+      )
+      for (const item of result.items) {
+        expect(item.document === null || item.document.id === seed.documentA).toBe(true)
+      }
+    })
+  })
+
+  testWithPostgres('sem o filtro a linha do tempo segue completa', async () => {
+    await withDisposableDatabase(async (database) => {
+      const seed = await seedDocumentFilterTrip(database)
+
+      const result = await listTripTimeline(database.db, {
+        companyId: seed.company.companyId,
+        cursor: null,
+        limit: 100,
+        tripId: seed.tripId,
+      })
+
+      expect(new Set(result.items.map((item) => item.id))).toEqual(
+        new Set([...seed.idsOfA, ...seed.idsOfB, ...seed.idsWithoutDocument]),
+      )
+    })
+  })
+
+  testWithPostgres('o cursor com o filtro não repete nem pula, em páginas de 2', async () => {
+    await withDisposableDatabase(async (database) => {
+      const seed = await seedDocumentFilterTrip(database)
+      const expected = new Set([...seed.idsOfB, ...seed.idsWithoutDocument])
+
+      const seen: string[] = []
+      let cursor: ReadTripTimelineParams['cursor'] = null
+      for (let page = 0; page < 10; page += 1) {
+        const result = await listTripTimeline(database.db, {
+          companyId: seed.company.companyId,
+          cursor,
+          documentId: seed.documentB,
+          limit: 2,
+          tripId: seed.tripId,
+        })
+        seen.push(...result.items.map((item) => item.id))
+        if (result.nextCursor === null) break
+        cursor = parseTripTimelineCursor(result.nextCursor)
+      }
+
+      expect(seen).toHaveLength(expected.size)
+      expect(new Set(seen)).toEqual(expected)
+    })
+  })
+
+  testWithPostgres(
+    'nota de outra empresa ou de outra viagem: 404 TRIP_DOCUMENT_NOT_FOUND pela rota',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const seed = await seedDocumentFilterTrip(database)
+        const otherCompany = await seedCompany(database)
+        const otherTrip = await seedTrip(database, otherCompany)
+        const otherStop = await seedStop(database, otherCompany, otherTrip, 1)
+        const foreignDocument = await seedTripDocument(database, otherCompany, otherTrip, otherStop)
+        const sameCompanyOtherTrip = await seedTrip(database, seed.company)
+        const sameCompanyOtherStop = await seedStop(database, seed.company, sameCompanyOtherTrip, 1)
+        const documentOfOtherTrip = await seedTripDocument(
+          database,
+          seed.company,
+          sameCompanyOtherTrip,
+          sameCompanyOtherStop,
+        )
+
+        for (const documentId of [foreignDocument, documentOfOtherTrip, crypto.randomUUID()]) {
+          await expect(
+            findTimelineRoute(database).execute({
+              context: contextWithPermissions(seed.company, ['fleet.read']),
+              correlationId: 'integration-document-filter',
+              pathParameters: { id: seed.tripId },
+              request: new Request(
+                `http://localhost/trips/${seed.tripId}/timeline?documentId=${documentId}`,
+              ),
+            }),
+          ).rejects.toMatchObject({ code: 'TRIP_DOCUMENT_NOT_FOUND', status: 404 })
+        }
+      })
+    },
+  )
+
+  testWithPostgres(
+    'a posição do filtro obedece trip.event-location: sem a permissão sai nula, com ela sai',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const seed = await seedDocumentFilterTrip(database)
+        const query = `?documentId=${seed.documentA}`
+
+        async function readLocations(permissions: readonly string[]): Promise<(object | null)[]> {
+          const response = await findTimelineRoute(database).execute({
+            context: contextWithPermissions(seed.company, permissions),
+            correlationId: 'integration-document-filter-location',
+            pathParameters: { id: seed.tripId },
+            request: new Request(`http://localhost/trips/${seed.tripId}/timeline${query}`),
+          })
+          const body = (await response.json()) as {
+            data: { items: Array<{ location: object | null; locationState: string | null }> }
+          }
+          return body.data.items
+            .filter((item) => item.locationState === 'captured')
+            .map((item) => item.location)
+        }
+
+        const withoutPermission = await readLocations(['fleet.read'])
+        const withPermission = await readLocations(['fleet.read', 'trip.event-location'])
+
+        expect(withoutPermission).toHaveLength(2)
+        expect(withoutPermission.every((location) => location === null)).toBe(true)
+        expect(withPermission).toHaveLength(2)
+        expect(withPermission.every((location) => location !== null)).toBe(true)
+      })
+    },
+  )
 })
 
 async function withDisposableDatabase(

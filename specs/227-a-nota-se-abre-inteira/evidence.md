@@ -367,3 +367,64 @@ registrado como oportunidade: unificar as chaves.
 - Nenhum print: a revisão de design da T6.1 ainda falta, e o cabeçalho com **três** selos possíveis
   (conferência, pontualidade e "Canhoto pendente") pode apertar em 375 px — é o que a revisão tem de olhar.
 - Não criei CSS: os selos reaproveitam `.proofBadges` e as classes do `ProofReviewChip`.
+
+## T5.1 — `GET /trips/:id/timeline?documentId=` filtra por nota no servidor
+
+**Desenho (D7).** Query param `documentId` (UUID, opcional). Aplicado no SQL das fontes que carregam nota:
+`trip_stop_events` (`trip_document_id is null or = :documentId`), `trip_document_occurrences` e
+`trip_document_events` (`trip_documents.id = :documentId`). As fontes sem nota (criação, despacho e troca de
+status da viagem, ocorrência de parada) não ganham o filtro: o que não pertence a nota nenhuma passa, como a D7
+pede. Ausente = a viagem inteira, e a chave nem chega ao caso de uso (nenhum contrato existente mudou).
+
+**Tenant e 404.** `findTripDocumentScope` confere a nota por `companyId` (do contexto), `tripId` (do caminho) e
+`id`; o caso de uso a chama **depois** do 404 da viagem e **antes** do leitor. Nota de outra empresa, de outra
+viagem da mesma empresa ou inexistente responde o mesmo `404 TRIP_DOCUMENT_NOT_FOUND` (erro que já existia) —
+nunca lista vazia que confirme ou negue a existência. Valor que não é UUID, vazio, repetido ou injeção → `400`.
+O cursor segue o mesmo keyset; o filtro só soma uma condição.
+
+**Permissão.** Inalterada: `TRIP_FIELD_READ_POLICY`; sem `trip.event-location` a coordenada sai `null` com o
+filtro também (recorte no caso de uso, depois da leitura).
+
+**Contratos (escritos antes da implementação).**
+
+- `test/trip-http/timeline-document-filter.contract.ts` — chave ausente; UUID + cursor + limit chegam; 400 para
+  `not-a-uuid`, vazio, repetido e `'; drop table trips; --`, e o caso de uso não roda.
+- `test/trip-application/read-trip-timeline-document-filter.contract.ts` — 404 sem chamar o leitor; o escopo da
+  nota recebe `companyId` do contexto; o leitor recebe o `documentId`; sem filtro a nota nem é consultada; sem
+  `trip.event-location` a posição é `null` e o `locationState` fica.
+- `test/trip-schema/trip-timeline-document-filter.contract.ts` — estático: o filtro nas três fontes, ausência
+  nas outras, e as três chaves do `findTripDocumentScope`.
+- `test/integration/trip-timeline.integration.ts` (bloco novo, Postgres real): a nota A traz os eventos dela e os
+  sem nota, nada da B; sem filtro a viagem fica completa; cursor em páginas de 2 não repete nem pula; nota
+  de outra empresa / de outra viagem / inexistente → 404 pela rota; posição nula sem a permissão e presente com ela.
+
+As suítes novas entram pelos três entrypoints já listados no `package.json` (`trip-http`, `trip-application`,
+`trip-schema`); o `package.json` não mudou.
+
+### Mutações
+
+| mutação                                          | o que reprovou                                                                                              |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| tirar o filtro de `trip_stop_events`             | 3 da integração (filtro, cursor, posição)                                                                   |
+| tirar o filtro da ocorrência de nota             | estático + 2 da integração (a 1ª rodada sobreviveu na integração; acrescentei a ocorrência de nota ao seed) |
+| tirar o filtro da troca de status da nota        | 2 da integração                                                                                             |
+| `findTripDocumentScope` sem `tripId`             | estático + "nota de outra viagem → 404" na integração                                                       |
+| `findTripDocumentScope` sem `companyId`          | **só o estático** reprova — ver abaixo                                                                      |
+| caso de uso não confere a nota                   | "404 sem chamar o leitor"                                                                                   |
+| schema sem validar UUID                          | o 400 de `not-a-uuid`/vazio/repetido/injeção                                                                |
+| rota não repassa o `documentId`                  | "o UUID chega ao caso de uso"                                                                               |
+| caso de uso não repassa o `documentId` ao leitor | contrato do caso de uso + integração de posição                                                             |
+| desligar o recorte de posição                    | 5 contratos (196 T4.1 e o novo) + 2 da integração                                                           |
+
+⚠️ O `companyId` no `findTripDocumentScope` é defesa em profundidade: como o `tripId` já passou por
+`findTripCompanyScope` (mesma empresa), a nota de outra empresa já é excluída pelo `tripId`. Nenhum teste
+comportamental consegue distingui-lo; a prova é o contrato estático.
+
+### Portões (de dentro de `apps/api-transportada`)
+
+| Portão                                                                                                 | Resultado                        |
+| ------------------------------------------------------------------------------------------------------ | -------------------------------- |
+| `bun run typecheck`                                                                                    | exit 0                           |
+| `bun run lint`                                                                                         | exit 0, `--max-warnings=0`       |
+| `bun --env-file=../../.env.test test --timeout 120000`                                                 | **8647 pass · 23 skip · 0 fail** |
+| `bun --env-file=../../.env.test test ./test/integration/trip-timeline.integration.ts` (Postgres 65432) | **27 pass · 0 fail**             |

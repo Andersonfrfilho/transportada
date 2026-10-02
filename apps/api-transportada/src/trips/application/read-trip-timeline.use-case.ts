@@ -6,7 +6,7 @@
  * `listTripCosts`/`readTripActionSnapshot` (porta devolve `null`, o caso de uso lança). Só depois
  * repassa ao leitor (`listTripTimeline`, T5).
  */
-import { TripNotFoundError } from '../domain/trip.error.js'
+import { TripDocumentNotFoundError, TripNotFoundError } from '../domain/trip.error.js'
 import type { ReadTripTimelineResult, TripTimelineCursor } from './trip-timeline.types.js'
 
 export type TripTimelineExistencePort = {
@@ -15,12 +15,19 @@ export type TripTimelineExistencePort = {
     readonly companyId: string
     readonly tripId: string
   }): Promise<{ readonly id: string } | null>
+  /** `null` quando a nota não é desta viagem **nesta** empresa (Spec 227 D7). */
+  findTripDocumentScope(input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly tripId: string
+  }): Promise<{ readonly id: string } | null>
 }
 
 export type TripTimelineReaderPort = {
   listTripTimeline(input: {
     readonly companyId: string
     readonly cursor: TripTimelineCursor | null
+    readonly documentId?: string
     readonly limit: number
     readonly tripId: string
   }): Promise<ReadTripTimelineResult>
@@ -31,6 +38,7 @@ export type ReadTripTimelineInput = {
   readonly canReadEventLocation: boolean
   readonly context: { readonly companyId: string }
   readonly cursor: TripTimelineCursor | null
+  readonly documentId?: string
   readonly limit: number
   readonly tripId: string
 }
@@ -48,9 +56,19 @@ export function createReadTripTimelineUseCase(dependencies: {
       })
       if (trip === null) throw new TripNotFoundError()
 
+      if (input.documentId !== undefined) {
+        const document = await dependencies.existence.findTripDocumentScope({
+          companyId,
+          documentId: input.documentId,
+          tripId: input.tripId,
+        })
+        if (document === null) throw new TripDocumentNotFoundError()
+      }
+
       const timeline = await dependencies.reader.listTripTimeline({
         companyId,
         cursor: input.cursor,
+        ...(input.documentId === undefined ? {} : { documentId: input.documentId }),
         limit: input.limit,
         tripId: input.tripId,
       })

@@ -20,7 +20,10 @@ describe('createReadTripTimelineUseCase (spec 158 T6)', () => {
   test('viagem de outra empresa: 404 TRIP_NOT_FOUND sem chamar o leitor', async () => {
     const readerCalls: unknown[] = []
     const useCase = createReadTripTimelineUseCase({
-      existence: { findTripCompanyScope: async () => null },
+      existence: {
+        findTripCompanyScope: async () => null,
+        findTripDocumentScope: async () => null,
+      },
       reader: {
         listTripTimeline: async (input) => {
           readerCalls.push(input)
@@ -49,6 +52,7 @@ describe('createReadTripTimelineUseCase (spec 158 T6)', () => {
           expect(input).toEqual({ companyId: COMPANY_ID, tripId: TRIP_ID })
           return { id: TRIP_ID }
         },
+        findTripDocumentScope: async () => null,
       },
       reader: {
         listTripTimeline: async (input) => {

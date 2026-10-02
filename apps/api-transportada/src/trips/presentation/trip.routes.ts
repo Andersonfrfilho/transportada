@@ -738,6 +738,7 @@ type Dependencies = {
       readonly canReadEventLocation: boolean
       readonly context: CompanyContext
       readonly cursor: TripTimelineCursor | null
+      readonly documentId?: string
       readonly limit: number
       readonly tripId: string
     }): Promise<ReadTripTimelineResult>
@@ -1002,6 +1003,7 @@ export function createTripRoutes(
      */
     defineRoute<{
       readonly cursor: TripTimelineCursor | null
+      readonly documentId?: string
       readonly limit: number
       readonly tripId: string
     }>({
@@ -1010,6 +1012,7 @@ export function createTripRoutes(
           canReadEventLocation: context.scope.permissions.has(TRIP_EVENT_LOCATION_PERMISSION),
           context: context.scope,
           cursor: input.cursor,
+          ...(input.documentId === undefined ? {} : { documentId: input.documentId }),
           limit: input.limit,
           tripId: input.tripId,
         })

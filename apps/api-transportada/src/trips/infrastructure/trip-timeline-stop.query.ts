@@ -5,7 +5,7 @@
  * `kind`s `arrived`/`delivered`/`returned`) e `trip_stop_occurrences`. Escopadas por `company_id` em
  * cada junção.
  */
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
 import { distanceInMetres } from '../../addresses/domain/coordinate-distance.js'
@@ -101,6 +101,11 @@ export async function listStopEventRows(
       'departure_cancelled',
     ]),
   ]
+  if (params.documentId !== undefined) {
+    conditions.push(
+      sql`(${isNull(tripStopEvents.tripDocumentId)} or ${eq(tripStopEvents.tripDocumentId, params.documentId)})`,
+    )
+  }
   if (params.cursor !== null) {
     conditions.push(
       timelineKeysetCondition(

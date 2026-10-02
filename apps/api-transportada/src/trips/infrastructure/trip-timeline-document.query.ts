@@ -44,6 +44,7 @@ export async function listDocumentOccurrenceRows(
     eq(tripDocumentOccurrences.companyId, params.companyId),
     eq(tripDocuments.tripId, params.tripId),
   ]
+  if (params.documentId !== undefined) conditions.push(eq(tripDocuments.id, params.documentId))
   if (params.cursor !== null) {
     conditions.push(
       timelineKeysetCondition(
@@ -173,6 +174,7 @@ export async function listDocumentStatusChangedRows(
     eq(tripDocumentEvents.companyId, params.companyId),
     eq(tripDocuments.tripId, params.tripId),
   ]
+  if (params.documentId !== undefined) conditions.push(eq(tripDocuments.id, params.documentId))
   if (params.cursor !== null) {
     conditions.push(
       timelineKeysetCondition(

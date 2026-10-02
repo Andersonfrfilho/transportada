@@ -11,7 +11,7 @@
  */
 import { and, eq } from 'drizzle-orm'
 
-import { trips } from '../../database/trip.schema.js'
+import { tripDocuments, trips } from '../../database/trip.schema.js'
 import { encodeTripTimelineCursor } from '../application/trip-timeline-cursor.service.js'
 import { mergeTripTimeline } from '../application/trip-timeline-merge.service.js'
 import { TRIP_TIMELINE_KIND_PRIORITY } from '../application/trip-timeline.types.js'
@@ -63,6 +63,33 @@ export async function findTripCompanyScope(
     .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
     .limit(1)
   return trip ?? null
+}
+
+/**
+ * Spec 227 D7: a nota pedida tem de ser **desta viagem e desta empresa**. Sem as duas chaves, o filtro
+ * viraria sonda de existência de nota alheia (lista vazia para "não existe" e para "existe em outra
+ * empresa" seria o mesmo sinal, e 404 para uma e 200 para outra vazaria qual é qual).
+ */
+export async function findTripDocumentScope(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly tripId: string
+  },
+): Promise<{ readonly id: string } | null> {
+  const [document] = await queryable
+    .select({ id: tripDocuments.id })
+    .from(tripDocuments)
+    .where(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        eq(tripDocuments.tripId, input.tripId),
+        eq(tripDocuments.id, input.documentId),
+      ),
+    )
+    .limit(1)
+  return document ?? null
 }
 
 /**

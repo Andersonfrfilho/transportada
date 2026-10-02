@@ -100,7 +100,10 @@ function unusedDependencies(): unknown {
 
 async function requestTimeline(permissions: CompanyContext['permissions']): Promise<Response> {
   const readTripTimeline = createReadTripTimelineUseCase({
-    existence: { findTripCompanyScope: async () => ({ id: TRIP_ID }) },
+    existence: {
+      findTripCompanyScope: async () => ({ id: TRIP_ID }),
+      findTripDocumentScope: async () => null,
+    },
     reader: {
       listTripTimeline: async (): Promise<ReadTripTimelineResult> => ({
         items: [CAPTURED_ITEM, UNAVAILABLE_ITEM, NOT_APPLICABLE_ITEM],
