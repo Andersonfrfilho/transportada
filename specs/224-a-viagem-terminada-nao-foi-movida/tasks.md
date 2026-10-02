@@ -33,6 +33,10 @@ Uma fase só. O conserto é pequeno; o que o torna uma spec é mexer numa decis�
       falhar — evidência: as duas saídas de falha em `evidence.md`.
 - [ ] **T1.9** Revisão de design e usabilidade (CA6, web.md §15): print da tela ao concluir a última
       viagem — estado de sem viagem, **sem** o aviso — em 375, 768 e 1280, entregue ao usuário.
+- [ ] **T1.11** (achado da T1.2) A cópia legada do painel também ignora viagem concluída ao pegar
+      `trips[0]` — `apps/frontend-transportada/src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx:140`
+      e `.../DriverProfile.page.tsx:43` — evidência: contrato no painel afirmando que viagem
+      concluída não é exibida. Não é a remoção do módulo (Fase 10 da 189, sob aprovação).
 - [ ] **T1.10** Atualizar o contexto da I.A.: `apps/frontend-driver/CLAUDE.md` (o aviso e por que o
       status concluído agora chega), `apps/api-transportada/CLAUDE.md` (a janela na consulta) e a
       emenda à 217 em `specs/217-.../spec.md` apontando para esta spec.
