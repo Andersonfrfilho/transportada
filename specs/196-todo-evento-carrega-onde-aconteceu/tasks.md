@@ -126,6 +126,24 @@ do usuário. A API não é revertida com a app nova no ar.
 
   Aceite: contratos verdes, os dois comandos da API verdes, a contagem subiu em N.
 
+- [ ] **T1.4** 🔁 O canal `whatsapp` passa a carregar **ponto**, não só estado (D3 revisto em
+      2026-10-02). ⚠️ **Antes de qualquer publicação** — a migration `20261002033125` não está em
+      `origin/staging`, então corrigir ali é de graça; depois custa migration corretiva.
+  - `event-location.schema.ts`: `buildEventLocationChecks` passa a receber **lista** de canais que podem
+    gravar coordenada (`coordinateChannels`), não um canal só, e `trip.schema.ts` passa
+    `[driverApp, whatsapp]` nas três tabelas;
+  - a `migration.sql` e o `rollback.sql` da pasta `20261002033125_occurrence_location_stamp` passam a
+    dizer `"channel" in ('driver_app', 'whatsapp')` no CHECK de coordenada;
+  - `test/trip-schema/event-location.contract.ts` prende o texto novo do CHECK;
+  - `event-location-state.policy.ts`: `STATEFUL_CHANNELS` ganha `whatsapp` como canal que também grava
+    **ponto**, e `test/trip-domain/event-location-state.contract.ts` — que hoje **proíbe** isso — passa
+    a exigi-lo. ⚠️ Esse contrato está verde hoje: ele vai ficar vermelho pela razão certa, e afrouxá-lo
+    em vez de invertê-lo seria perder a asserção.
+
+  Aceite: `db:generate` = `no_changes`, `test/trip-schema.contract.test.ts` e
+  `test/trip-domain.contract.test.ts` verdes, `make migration-test` verde, e a migration **ainda não
+  publicada** conferida contra `origin/staging` antes de fechar.
+
 ## Fase 2 — O prazo de 90 dias vale para as cinco tabelas
 
 > 🤖 Modelo: `sonnet`
@@ -216,6 +234,20 @@ do usuário. A API não é revertida com a app nova no ar.
   - isolamento por empresa.
 
   Aceite: **os dois comandos da API** verdes; a contagem da integração subiu em N.
+
+- [ ] **T3.6** 🔁 O webhook aceita a **mensagem de localização** do WhatsApp (D3 revisto). Hoje
+      `register-driver-flow-actions.ts` crava `location: null` nos quatro caminhos (`:98`, `:106`,
+      `:301`, `:347`). A Cloud API entrega `messages[].location` com `latitude`/`longitude`; o fluxo do
+      motorista passa a lê-la e a gravar `captured` com a coordenada, mantendo `unavailable` quando ela
+      não vier.
+  - ⚠️ O fluxo do **operador** compartilha o canal e **não** grava coordenada, mesmo que a mensagem de
+    localização tenha chegado na conversa — contrato por rota prende isso (CA03);
+  - a coordenada entra pelo mesmo caminho de validação das outras rotas, com o teto de precisão da
+    T3.2;
+  - ⚠️ **nunca logar a coordenada** nem o corpo da mensagem do cliente, em nenhum nível.
+
+  Aceite: contrato por ação (as três do motorista e as do operador), os dois comandos da API verdes, e
+  a contagem subiu em N.
 
 ## Fase 4 — A linha do tempo devolve o ponto, para quem pode ver
 

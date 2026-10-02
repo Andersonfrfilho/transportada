@@ -100,20 +100,38 @@ sem ninguém o ter olhado.
   antigo sem coordenada. A coluna entra também em `trip_stop_events` (chegada, entrega, devolução), e a
   migration marca `captured` nas linhas antigas que já têm coordenada — sem isso, "Ver no mapa"
   sumiria do histórico que existe hoje.
-- **D3 — Quem grava ponto é o canal `driver_app`; quem grava estado é `driver_app` ou `whatsapp`.**
+- **D3 — Quem grava ponto é o motorista, pelo app **ou pelo WhatsApp**; o escritório e o operador gravam só estado.**
   - **Escritório em nome do motorista (spec 156, ADR-0067):** não se aplica. O escritório não está
     na parada, e a posição dele não é a do fato. `location_state = null`, e as rotas do escritório
     continuam recusando `location` no corpo (schemas `.strict()`).
-  - **WhatsApp do motorista (spec 144):** as três ações de `driverWhatsAppFlowActions`
-    (`main.ts:833-873`: `registerOccurrence`, `reportDelivery`, `reportReturn`) gravam
-    `location_state = 'unavailable'`, e a linha do tempo diz "Sem localização — o WhatsApp não envia a
-    posição". Pedir a mensagem de localização do WhatsApp no fluxo é spec futura.
+  - **WhatsApp do motorista (spec 144):** 🔁 **revisto em 2026-10-02, por decisão do usuário.** O
+    motorista **manda a localização pelo WhatsApp** — a Cloud API da Meta entrega mensagem do tipo
+    `location` com latitude e longitude —, então o canal `whatsapp` passa a carregar **ponto**, não só
+    estado. As três ações de `driverWhatsAppFlowActions` (`main.ts:833-873`: `registerOccurrence`,
+    `reportDelivery`, `reportReturn`) gravam `captured` **com a coordenada** quando a mensagem de
+    localização veio, e `unavailable` quando não veio.
+
+    A redação anterior dizia `unavailable` sempre, e justificava com "o WhatsApp não envia a posição" —
+    o que é falso sobre o protocolo e era falso sobre a intenção do produto. ⚠️ Hoje o código **crava**
+    `location: null` nos quatro caminhos de `register-driver-flow-actions.ts` (`:98`, `:106`, `:301`,
+    `:347`): aceitar a mensagem de localização é trabalho a fazer, não defeito a corrigir.
+
+    O painel já está pronto para os dois casos: com ponto, mapa; sem ponto, "sem localização" em
+    vermelho (`timeline-location.contract.ts:225`).
+
   - **WhatsApp do operador:** `operatorWhatsAppFlowActions` (`main.ts:886,951,990` — despachar e
     ocorrência de separação) grava `null`. O operador não é o motorista na rua, e o canal não o torna
-    um.
+    um. ⚠️ Como motorista e operador **compartilham o canal `whatsapp`**, essa distinção vive no
+    código, não no CHECK: o CHECK passa a permitir coordenada em `whatsapp`, e é a ação do operador que
+    não grava nenhuma. Um contrato por rota prende isso.
   - **Backoffice e o despacho automático da spec 185:** `null`.
-  - O banco garante, nas três tabelas novas: `latitude is null or channel = 'driver_app'` e
-    `location_state is null or channel in ('driver_app', 'whatsapp')`.
+  - O banco garante, nas três tabelas novas:
+    `latitude is null or channel in ('driver_app', 'whatsapp')` e
+    `location_state is null or channel in ('driver_app', 'whatsapp')`. ⚠️ O primeiro CHECK **nasceu
+    restrito a `driver_app`** e está assim na migration `20261002033125_occurrence_location_stamp`, que
+    **ainda não foi publicada** — corrigir ali é de graça, e é o que a T1.4 faz. Publicar antes disso
+    custaria uma migration corretiva.
+
 - **D4 — Só o toque carimba; a consequência não.** A entrega que deriva `on_delivery_route` ou
   `completed` grava um `trip_status_events` que **não** leva ponto (`null`): o ponto está no evento
   da entrega. Levam ponto só as trocas de status que **são** o toque — "Despachar", "Iniciar rota" e
@@ -241,8 +259,9 @@ coordenadas somem, o evento fica, e `location_state` vira `expired`.
 - **RF4** As trocas de status que são toque (D4) gravam o ponto em `trip_status_events`; as derivadas
   gravam `location_state = null`.
 - **RF5** Escritório (`office`), backoffice, despacho automático e **WhatsApp do operador** gravam
-  `location_state = null`; as três ações do **WhatsApp do motorista** gravam `unavailable` (D3). As
-  rotas do escritório continuam recusando `location`.
+  `location_state = null`; as três ações do **WhatsApp do motorista** gravam `captured` com a
+  coordenada quando a mensagem de localização veio, e `unavailable` quando não veio (D3). As rotas do
+  escritório continuam recusando `location`.
 - **RF6** Na app, ocorrência da parada e ocorrência da nota (as duas portas) levam `location` no item
   da fila; entram com `null` e são completadas pela chave; "Não entreguei" completa os dois itens (D5).
 - **RF7** Item da fila gravado por versão anterior da app, sem o campo `location`, sai com
@@ -303,10 +322,11 @@ coordenadas somem, o evento fica, e `location_state` vira `expired`.
   ocorrência da nota, despacho, iniciar rota, conferir carga) grava as quatro colunas e `captured`
   quando recebe `location`, e `unavailable` quando não recebe — provado contra Postgres.
 - **CA02** Troca de status derivada da entrega grava `location_state = null`.
-- **CA03** Baixa do escritório grava `null`; as três ações do WhatsApp do motorista gravam
-  `unavailable`; o despacho e a ocorrência de separação pelo WhatsApp do **operador** gravam `null`;
-  rota do escritório com `location` no corpo → `400`.
-- **CA04** O CHECK recusa ponto com canal diferente de `driver_app`, estado com canal fora de
+- **CA03** Baixa do escritório grava `null`; as três ações do WhatsApp do **motorista** gravam
+  `captured` com a coordenada quando a mensagem de localização veio e `unavailable` quando não veio; o
+  despacho e a ocorrência de separação pelo WhatsApp do **operador** gravam `null` mesmo que uma
+  mensagem de localização tenha chegado na conversa; rota do escritório com `location` no corpo → `400`.
+- **CA04** O CHECK recusa ponto com canal fora de `driver_app`/`whatsapp`, estado com canal fora de
   `driver_app`/`whatsapp`, `captured` sem latitude e latitude sem `captured`.
 - **CA05** A app manda `location` em ocorrência da parada, ocorrência da nota (as duas portas),
   despacho e iniciar rota; o item da fila entra com `null` e é completado pela chave; "Não entreguei"

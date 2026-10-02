@@ -1838,3 +1838,46 @@ exata de lista, não `toContain`.
 | `bun run typecheck`  | exit 0                                                         |
 | `bun run lint`       | exit 0                                                         |
 | `bun run test` (app) | **1486 pass · 0 fail · 3972 expect() · 94 arquivos · [7.46s]** |
+
+## D3 revisto — o WhatsApp carrega ponto, não só estado
+
+Decisão do usuário em 2026-10-02, no meio da execução, respondendo à pergunta sobre o que o painel
+mostra quando o motorista avisa pelo WhatsApp: **"envia a localização pelo o whatsapp"**. Isso recusa a
+premissa da pergunta, não a escolhe — e desfaz a contradição que estava registrada como pendência.
+
+### O que a premissa antiga dizia, e por que estava errada
+
+O D3 afirmava que as três ações do WhatsApp do motorista gravam `unavailable` **sempre**, justificando
+com "o WhatsApp não envia a posição". Isso é falso sobre o protocolo — a Cloud API da Meta entrega
+mensagem do tipo `location` com latitude e longitude — e era falso sobre a intenção do produto.
+
+E **não** é defeito no código: hoje `register-driver-flow-actions.ts` crava `location: null` nos quatro
+caminhos (`:98`, `:106`, `:301`, `:347`). Aceitar a mensagem de localização é trabalho a fazer.
+
+### A contradição que isso resolve
+
+Estava registrada como pendência aberta: `event-location-state.policy.ts` recusava estado em
+`whatsapp`, `test/trip-domain/event-location-state.contract.ts:25-55` **proibia**, e
+`timeline-location.contract.ts:225` (painel) testava WhatsApp + `unavailable` em vermelho. Com o canal
+carregando ponto, o painel está certo nos dois casos — mapa quando a coordenada veio, vermelho quando
+não veio — e o contrato do domínio é que precisa inverter.
+
+### O custo, e por que ele é zero se for feito antes de publicar
+
+O CHECK de coordenada nasceu `"latitude" is null or "channel" = 'driver_app'` na migration
+`20261002033125_occurrence_location_stamp`. Conferido: ela **não está em `origin/staging`**. Corrigir o
+texto da migration não publicada é de graça; publicar antes custaria uma migration corretiva sobre um
+CHECK recém-criado.
+
+### Uma distinção que o banco não pode guardar
+
+Motorista e operador **compartilham o canal `whatsapp`**. Se o CHECK passa a permitir coordenada em
+`whatsapp`, ele deixa de ser o guarda de "o operador não grava ponto" — essa regra passa a viver no
+código, e precisa de contrato por rota (CA03). Trocar um guarda de banco por um guarda de código sem
+dizer é como a regra se perde.
+
+### Estado
+
+Documentação feita: D3, RF5, CA03 e CA04 revistos, e duas tasks abertas — **T1.4** (banco e domínio,
+antes de qualquer publicação) e **T3.6** (o webhook aceitando a mensagem de localização). Nenhum código
+alterado ainda.
