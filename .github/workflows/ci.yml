@@ -246,7 +246,7 @@ jobs:
       matrix:
         include:
           - suite: panel
-            targets: smoke-health smoke-panel
+            targets: SMOKE_WITHOUT_STORAGE=true smoke-health smoke-panel
           - suite: apps
             targets: smoke-landing smoke-driver
     name: integration-smoke (${{ matrix.suite }})

@@ -212,6 +212,10 @@ migration-test: postgres-up ## 🗃️ Valida migration e rollback em PostgreSQL
 # `make smoke` continua rodando tudo, na mesma ordem de sempre.
 smoke: smoke-health smoke-panel smoke-landing smoke-driver ## 🩺 Valida a stack local já iniciada
 
+# A CI não sobe o MinIO (imagem privada) e o `/health/ready` do worker exige storage: sem isto o
+# smoke gasta ~2 min em dois checks que nunca passam. `SMOKE_WITHOUT_STORAGE=true` pula os dois.
+SKIP_STORAGE_CHECKS = $(if $(SMOKE_WITHOUT_STORAGE),true ||,)
+
 smoke-health: config
 	@check_url() { \
 		url="$$1"; \
@@ -236,8 +240,8 @@ smoke-health: config
 	check_url "http://localhost:$(API_PORT)/health/live"; \
 	check_url "http://localhost:$(API_PORT)/health/ready"; \
 	check_url "http://localhost:$(WORKER_PORT)/health/live"; \
-	check_url "http://localhost:$(WORKER_PORT)/health/ready"; \
-	check_url "http://localhost:59000/minio/health/live"; \
+	$(SKIP_STORAGE_CHECKS) check_url "http://localhost:$(WORKER_PORT)/health/ready"; \
+	$(SKIP_STORAGE_CHECKS) check_url "http://localhost:59000/minio/health/live"; \
 	check_url "http://localhost:58025/livez"; \
 	check_url "http://localhost:$(KEYCLOAK_MANAGEMENT_PORT)/health/ready"; \
 	check_url "http://localhost:$(KEYCLOAK_PORT)/realms/$(KEYCLOAK_REALM)/.well-known/openid-configuration"
