@@ -303,6 +303,11 @@
     "syncing_one": "Sending {{count}} pending item…",
     "syncing_other": "Sending {{count}} pending items…"
   },
+  "theme": {
+    "title": "Appearance",
+    "useDark": "Use dark theme",
+    "useLight": "Use light theme"
+  },
   "title": "My trip",
   "tripCodeCopied": "Code copied",
   "tripCodeCopy": "Copy the trip code",

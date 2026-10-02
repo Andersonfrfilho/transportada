@@ -48,6 +48,41 @@
   --icon-size-md: 1.1rem;
 }
 
+/**
+ * Tema claro (spec 231): os mesmos nomes de token do painel com os papéis invertidos — asfalto vira
+ * papel, névoa vira tinta — para o resto do CSS herdar o tema sem tocar em arquivo algum. O cobre
+ * escurece porque sobre fundo claro o tom original não tem contraste de texto.
+ *
+ * Duas portas para o mesmo bloco: `data-theme="light"` é a escolha do botão (persistida), e a media
+ * query cobre quem nunca escolheu e tem o sistema em claro. Mudou um valor num bloco? Mude no outro —
+ * `test/shared/color-theme.contract.ts` compara os dois.
+ */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --color-alert: #c2382f;
+  --color-asphalt: #f2efe9;
+  --color-copper: #a3591f;
+  --color-fog: #1d2b33;
+  --color-graphite: #fbf9f5;
+  --color-ready: #2e7d54;
+  --color-slate: #5a6b74;
+  --color-ink-on-accent: #faf8f4;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    color-scheme: light;
+    --color-alert: #c2382f;
+    --color-asphalt: #f2efe9;
+    --color-copper: #a3591f;
+    --color-fog: #1d2b33;
+    --color-graphite: #fbf9f5;
+    --color-ready: #2e7d54;
+    --color-slate: #5a6b74;
+    --color-ink-on-accent: #faf8f4;
+  }
+}
+
 * {
   box-sizing: border-box;
 }

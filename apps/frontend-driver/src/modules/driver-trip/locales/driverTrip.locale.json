@@ -330,6 +330,11 @@
     "syncing_one": "Enviando {{count}} pendência…",
     "syncing_other": "Enviando {{count}} pendências…"
   },
+  "theme": {
+    "title": "Aparência",
+    "useDark": "Usar tema escuro",
+    "useLight": "Usar tema claro"
+  },
   "title": "Minha viagem",
   "tripCodeCopied": "Código copiado",
   "tripCodeCopy": "Copiar o código da viagem",

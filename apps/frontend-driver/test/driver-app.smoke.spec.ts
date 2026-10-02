@@ -1202,3 +1202,76 @@ test('despacho recusado pelo servidor avisa e devolve o botão', async ({ page }
   await expect(page.getByRole('button', { name: 'Despachar viagem' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Cheguei' })).toHaveCount(0)
 })
+
+/**
+ * Spec 231: o app do motorista tem tema claro. Sem escolha guardada ele segue o sistema; o botão do
+ * Perfil troca e guarda; e a escolha viaja na URL de login (ADR-0060), porque o Keycloak é outra
+ * origem e não alcança o `localStorage`.
+ */
+const PAPER_BACKGROUND = 'rgb(242, 239, 233)'
+const ASPHALT_BACKGROUND = 'rgb(16, 34, 44)'
+
+async function readBodyBackground(page: Page): Promise<string> {
+  return page.evaluate(() => getComputedStyle(document.body).backgroundColor)
+}
+
+test('com o sistema em claro o app pinta em papel, sem ninguém clicar', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await page.emulateMedia({ colorScheme: 'light' })
+  await mockDriverTripApi({ page })
+  await loginAsLocalUser(page)
+  await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
+
+  expect(await readBodyBackground(page)).toBe(PAPER_BACKGROUND)
+  expect(await page.evaluate(() => getComputedStyle(document.body).color)).toBe('rgb(29, 43, 51)')
+  expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBeUndefined()
+})
+
+test('o botão do Perfil troca o tema, guarda a escolha e ela sobrevive ao recarregar', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await mockDriverTripApi({ page })
+  await loginAsLocalUser(page)
+  await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
+  expect(await readBodyBackground(page)).toBe(ASPHALT_BACKGROUND)
+
+  await page.getByRole('button', { name: 'Perfil' }).click()
+  await page.getByRole('button', { name: 'Usar tema claro' }).click()
+
+  expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe('light')
+  expect(await readBodyBackground(page)).toBe(PAPER_BACKGROUND)
+  expect(
+    await page.evaluate(() =>
+      document.querySelector('meta[name="theme-color"]')?.getAttribute('content'),
+    ),
+  ).toBe('#F2EFE9')
+  expect(await page.evaluate(() => window.localStorage.getItem('transportada:color-theme'))).toBe(
+    'light',
+  )
+
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Usar tema escuro' })).toBeVisible()
+  expect(await readBodyBackground(page)).toBe(PAPER_BACKGROUND)
+
+  await page.getByRole('button', { name: 'Usar tema escuro' }).click()
+  expect(await readBodyBackground(page)).toBe(ASPHALT_BACKGROUND)
+})
+
+test('o tema escolhido vai na URL de login, mesmo com o sistema em outro', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await page.addInitScript(() => window.localStorage.setItem('transportada:color-theme', 'light'))
+  await mockDriverTripApi({ page })
+  await page.goto('/')
+  await page.locator('#login-identifier').fill('local-user')
+  const authRequest = page.waitForRequest(
+    (request) =>
+      request.isNavigationRequest() && request.url().includes('/protocol/openid-connect/auth'),
+  )
+
+  await page.getByRole('button', { name: 'Continuar' }).click()
+
+  expect(new URL((await authRequest).url()).searchParams.get('transportada_theme')).toBe('light')
+})
