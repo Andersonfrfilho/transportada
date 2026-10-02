@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
 
-import { resolveSyncAge } from '../shared/syncStatus.service'
+import { resolveSyncAge, resolveSyncPhase } from '../shared/syncStatus.service'
 import styles from '../styles/driverTrip.module.css'
 
 /** O relógio da tela anda sozinho: sem isto "há 2 min" congela em 2 até algum outro estado mudar. */
@@ -38,23 +38,37 @@ export function DriverSyncStatus({
   }, [])
 
   const age = resolveSyncAge({ nowMs, syncedAtMs: lastSyncedAtMs })
+  const phase = resolveSyncPhase({ isSyncing, pendingCount })
+  const ageText =
+    age === undefined
+      ? t('sync.never')
+      : age.unit === 'now'
+        ? t('sync.now')
+        : t(age.unit === 'minutes' ? 'sync.minutes' : 'sync.hours', { count: age.value })
 
   /** `aria-live` no contêiner, não no texto: o leitor de tela anuncia a troca sem relê-la a cada tick. */
   return (
-    <p aria-live="polite" className={styles.syncStatus} role="status">
-      {isSyncing ? (
+    <p
+      aria-live="polite"
+      className={
+        phase === 'pending' ? `${styles.syncStatus} ${styles.syncStatusPending}` : styles.syncStatus
+      }
+      role="status"
+    >
+      {phase === 'syncing' ? (
         <>
           <span aria-hidden="true" className={styles.syncStatusSpinner} />
           {t('sync.syncing', { count: pendingCount })}
         </>
+      ) : phase === 'pending' ? (
+        <>
+          <Icon aria-hidden="true" name="clock" size="sm" />
+          {`${t('sync.pending', { count: pendingCount })} · ${ageText}`}
+        </>
       ) : (
         <>
           <Icon aria-hidden="true" name="check" size="sm" />
-          {age === undefined
-            ? t('sync.never')
-            : age.unit === 'now'
-              ? t('sync.now')
-              : t(age.unit === 'minutes' ? 'sync.minutes' : 'sync.hours', { count: age.value })}
+          {ageText}
         </>
       )}
     </p>

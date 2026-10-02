@@ -313,6 +313,8 @@
     "minutes_other": "Sincronizado há {{count}} minutos",
     "never": "Ainda não sincronizou",
     "now": "Sincronizado agora mesmo",
+    "pending_one": "{{count}} aguardando envio",
+    "pending_other": "{{count}} aguardando envio",
     "syncing_one": "Enviando {{count}} pendência…",
     "syncing_other": "Enviando {{count}} pendências…"
   },

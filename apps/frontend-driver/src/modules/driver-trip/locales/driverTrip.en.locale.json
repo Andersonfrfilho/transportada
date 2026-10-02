@@ -286,6 +286,8 @@
     "minutes_other": "Synced {{count}} minutes ago",
     "never": "Not synced yet",
     "now": "Synced just now",
+    "pending_one": "{{count}} waiting to send",
+    "pending_other": "{{count}} waiting to send",
     "syncing_one": "Sending {{count}} pending item…",
     "syncing_other": "Sending {{count}} pending items…"
   },

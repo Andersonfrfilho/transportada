@@ -42,3 +42,6 @@ Restaurado: 892 pass / 0 fail (app novo, contrato do driver-trip) e 284 / 0 (leg
 - Smoke de ocorrência/fila depois da troca de cópia: 8 passed.
 - No print "enviada" aparecem "Entreguei"/"Não entreguei" porque o dublê da API do smoke marca
   qualquer `POST` de parada/nota como chegada — artefato do mock, não do produto.
+- Segundo achado do preview (D8): a linha de sincronização com 2 eventos parados. Corrigida;
+  `resolveSyncPhase` coberto em `sync-status.contract.ts`, print refeito
+  (`prints/fila-de-pendencias-375-{light,dark}.png`).

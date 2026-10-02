@@ -45,6 +45,11 @@ falha que não é dele.**
   "Ocorrência enviada.", "O servidor recusou a ocorrência. Veja em eventos pendentes." e, na tela de
   eventos pendentes, "Ocorrência da nota". As asserções do smoke e da 179 acompanham.
 
+- **D8 — A linha de sincronização não diz "tudo enviado" com evento parado.** Achado no preview: a
+  tela de pendências mostrava "Sincronizado agora mesmo" com dois eventos na fila — a hora é a da
+  última _leitura_ da viagem, não a de a fila estar vazia. Com pendência e sem envio em curso a linha
+  vira "N aguardando envio · Sincronizado …", em cobre e com o relógio; a idade continua à mostra.
+
 ## Fora de escopo (e por quê)
 
 - **Despachar a viagem continua online-only.** Muda o estado da viagem (`route_planned` →

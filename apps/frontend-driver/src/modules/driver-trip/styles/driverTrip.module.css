@@ -1085,6 +1085,11 @@
   margin: 0;
 }
 
+/* Com evento parado a linha deixa de ser neutra: o cobre é o mesmo do "na fila" do cartão. */
+.syncStatusPending {
+  color: var(--color-copper);
+}
+
 /*
  * `em`, não `rem`: é um glifo na linha do texto, acompanha a tipografia de quem o hospeda (a linha
  * de status e o botão têm escalas diferentes). Não é alvo de toque — o `aria-hidden` no JSX diz isso.
