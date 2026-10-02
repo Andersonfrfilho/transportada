@@ -22,6 +22,11 @@ migration-test`). Nada destrutivo.
 - Fila: `QueuedReport.clockOffsetMs` e `QueuedAttachment.clockOffsetMs`, gravados na criação (D2).
 - `reportBody` e o multipart do anexo mandam `tappedAt` e `clockOffsetMs`.
 - O legado `/minha-viagem` fica de fora: está em extinção.
+- **Só nas rotas que aceitam (T1.4):** o app manda `tappedAt`/`clockOffsetMs` em `arrive`, `deliver`,
+  `return`, na ocorrência **de parada** e no multipart do comprovante (`clockOffsetMs`). **Não** manda em
+  `dispatch`, `depart`/`cancel-departure` (já têm `tappedAt`, sem desvio), na ocorrência de **nota**
+  (`/documents/:id/occurrences`), nos uploads de ocorrência nem em `proof/receiver`: os esquemas são
+  `.strict()` e dariam `400`.
 
 ## Como a flag nasce (caso de uso)
 
