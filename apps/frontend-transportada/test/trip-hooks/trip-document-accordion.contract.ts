@@ -50,6 +50,7 @@ function makeActions(overrides: Partial<TripStopDocumentActions>): TripStopDocum
     canSeparationOccurrence: false,
     capabilities: { canDocument: () => false, canStop: () => false, canTrip: () => false },
     fiscalReadinessByDocumentId: new Map(),
+    permissions: [],
     proofBadgesByDocumentId: new Map(),
     renderProof: (documentId: string) =>
       createElement('section', { 'data-part': 'proof' }, `comprovante ${documentId}`),

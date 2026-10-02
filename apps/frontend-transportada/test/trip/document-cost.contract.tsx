@@ -242,7 +242,7 @@ describe('a fiação é por contexto, sem sexta prop no TripStopList (spec 226 T
     const page = readFileSync(DETAIL_PAGE, 'utf8')
     const detailStart = stopList.indexOf('{isOpen ? (')
     const detailEnd = stopList.indexOf('</li>', detailStart)
-    const data = '<TripDocumentData document={document} />'
+    const data = '<TripDocumentData'
 
     expect(detailStart).toBeGreaterThan(-1)
     expect(stopList.split(data)).toHaveLength(2)

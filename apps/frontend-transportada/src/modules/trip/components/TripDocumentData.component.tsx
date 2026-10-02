@@ -12,7 +12,11 @@ import { useHasDocumentCost } from '@/modules/trip-financials/hooks/useDocumentC
 import type { TripDocumentDetail } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
-type TripDocumentDataProps = Readonly<{ document: TripDocumentDetail }>
+type TripDocumentDataProps = Readonly<{
+  /** Quem não abre `/clientes` não ganha o atalho para uma parede. */
+  canOpenClients?: boolean
+  document: TripDocumentDetail
+}>
 
 type DataField = Readonly<{
   copyLabelKey: string
@@ -86,7 +90,7 @@ function buildDataFields(document: TripDocumentDetail): readonly DataField[] {
 }
 
 /** Spec 227 RF3/RF4: a identidade da nota, copiável campo a campo, e o custo e lucro (226) abaixo dela. */
-export function TripDocumentData({ document }: TripDocumentDataProps) {
+export function TripDocumentData({ canOpenClients = false, document }: TripDocumentDataProps) {
   const { t } = useTranslation('trip')
   const hasDocumentCost = useHasDocumentCost(document.id)
   const fields = buildDataFields(document)
@@ -116,7 +120,7 @@ export function TripDocumentData({ document }: TripDocumentDataProps) {
                   label={t(field.copyLabelKey)}
                   value={field.value}
                 />
-                {field.key === 'client' ? (
+                {field.key === 'client' && canOpenClients ? (
                   <DeliveryClientLink
                     className={styles.documentDataLink}
                     clientName={field.value}

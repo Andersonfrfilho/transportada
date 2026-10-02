@@ -4997,6 +4997,15 @@ button.occurrenceCaseBadge {
   text-decoration: underline;
 }
 
+/* Sob toque (não é breakpoint: `responsive.md`), o link rápido chega ao alvo como os botões vizinhos. */
+@media (pointer: coarse) {
+  .documentDataLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-target);
+  }
+}
+
 .documentDataText {
   min-width: 0;
   overflow-wrap: anywhere;

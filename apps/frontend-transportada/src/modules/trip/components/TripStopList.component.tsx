@@ -12,6 +12,7 @@ import { Icon } from '@/components/ui/icon'
 import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { NfseEmissionAction } from '@/modules/nfse-invoice/components/NfseEmissionAction.component'
+import { canOpenWorkspace } from '@/modules/shared/workspaceAccess.service'
 
 import type { TripDocumentSelectionController } from '../hooks/useTripDocumentSelection.hook'
 import { useTripStopOrder } from '../hooks/useTripStopOrder.hook'
@@ -809,7 +810,13 @@ function TripStopDocumentRow({
       </div>
       {isOpen ? (
         <div className={styles.stopDocumentBody} id={bodyId}>
-          <TripDocumentData document={document} />
+          <TripDocumentData
+            canOpenClients={canOpenWorkspace({
+              permissions: actions.permissions,
+              workspace: 'delivery-clients',
+            })}
+            document={document}
+          />
           {hasProof ? actions.renderProof(document.id) : null}
           {actions.renderOccurrences(document.id)}
           {actions.renderEvents(document.id)}

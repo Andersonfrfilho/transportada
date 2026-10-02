@@ -16,7 +16,7 @@ export function DeliveryClientLink({ className, clientName }: DeliveryClientLink
   return (
     <a
       className={className}
-      href={buildDeliveryClientSearchRoute(clientName)}
+      href={buildDeliveryClientSearchRoute()}
       onClick={(event) => {
         event.preventDefault()
         navigateToDeliveryClientSearch({ clientName, navigator: createBrowserWorkspaceNavigator() })

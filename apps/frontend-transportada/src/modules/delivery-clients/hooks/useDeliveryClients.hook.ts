@@ -2,7 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { readDeliveryClientSearchFromLocation } from '../shared/deliveryClientLink.service'
+import { consumeDeliveryClientSearch } from '../shared/deliveryClientLink.service'
 import { getDeliveryClientsClient } from '../shared/deliveryClientsClient.service'
 import type {
   DeliveryClientDetail,
@@ -54,7 +54,7 @@ export function useDeliveryClients(
   const queryClient = useQueryClient()
   const [filters, setFilters] = useState<DeliveryClientFilters>(() => ({
     ...EMPTY_DELIVERY_CLIENT_FILTERS,
-    nameContains: readDeliveryClientSearchFromLocation(),
+    nameContains: consumeDeliveryClientSearch(),
   }))
   const [cursor, setCursor] = useState<string | null>(null)
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)

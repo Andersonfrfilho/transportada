@@ -91,10 +91,14 @@ function buildValuation(): TripValuation {
   }
 }
 
-function render(document: TripDocumentDetail, valuation: null | TripValuation = null): string {
+function render(
+  document: TripDocumentDetail,
+  valuation: null | TripValuation = null,
+  canOpenClients = false,
+): string {
   return renderToStaticMarkup(
     <DocumentCostProvider valuation={valuation}>
-      <TripDocumentData document={document} />
+      <TripDocumentData canOpenClients={canOpenClients} document={document} />
     </DocumentCostProvider>,
   ).replace(NON_BREAKING_SPACE, ' ')
 }
@@ -190,18 +194,37 @@ describe('Dados da nota: os campos (spec 227 RF3)', () => {
 })
 
 describe('Dados da nota: ver cliente (spec 227, link rápido)', () => {
-  it('o cliente leva à lista de clientes já filtrada pelo nome, pelo href', () => {
-    const html = render(buildDocument())
+  it('o cliente leva à lista de clientes, pelo href, sem o nome na URL (revisão M4)', () => {
+    const html = render(buildDocument(), null, true)
 
-    expect(html).toContain('href="/clientes?name=Mercado+Central"')
+    expect(html).toContain('href="/clientes"')
+    expect(html).not.toContain('Mercado+Central')
+    expect(html).not.toContain('?name=')
     expect(html).toContain('>Ver cliente<')
     expect(html.split('>Ver cliente<')).toHaveLength(2)
   })
 
   it('sem cliente não há link', () => {
-    const html = render(buildDocument({ contact: null }))
+    const html = render(buildDocument({ contact: null }), null, true)
 
     expect(html).not.toContain('Ver cliente')
+  })
+
+  it('quem não pode abrir /clientes não vê o link (revisão M4)', () => {
+    const html = render(buildDocument(), null, false)
+
+    expect(html).not.toContain('Ver cliente')
+    expect(html).toContain('Mercado Central')
+  })
+
+  it('o link rápido chega ao alvo de toque sob pointer: coarse', () => {
+    const css = readFileSync(
+      new URL('../../src/modules/trip/styles/trip.module.css', import.meta.url),
+      'utf8',
+    )
+    const coarse = css.match(/@media \(pointer: coarse\) \{[^@]*?\.documentDataLink \{[^}]*\}/u)
+
+    expect(coarse?.[0]).toContain('min-height: var(--touch-target)')
   })
 })
 
@@ -266,7 +289,7 @@ describe('Dados da nota: custo e lucro dentro da seção (spec 227 RF4, D3)', ()
 
   it('o TripStopList não monta mais o custo solto: só a seção, antes do comprovante', () => {
     const source = readFileSync(STOP_LIST, 'utf8')
-    const dataAt = source.indexOf('<TripDocumentData document={document} />')
+    const dataAt = source.indexOf('<TripDocumentData')
 
     expect(source).not.toContain('<TripDocumentCost ')
     expect(source).not.toContain('<TripDocumentCostCriterion')
