@@ -255,7 +255,12 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     readonly driverId: string
   }): Promise<readonly DriverTrip[]> {
     const tripRows = await this.database
-      .select({ id: trips.id, plate: fleetVehicles.plate, status: trips.status })
+      .select({
+        createdAt: trips.createdAt,
+        id: trips.id,
+        plate: fleetVehicles.plate,
+        status: trips.status,
+      })
       .from(tripDrivers)
       .innerJoin(
         trips,
@@ -337,6 +342,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     const stopsByTrip = groupBy(stopRows, (row) => row.tripId)
 
     return tripRows.map((trip) => ({
+      createdAt: trip.createdAt.toISOString(),
       id: trip.id,
       manifest: manifestsByTrip.get(trip.id) ?? null,
       status: trip.status,

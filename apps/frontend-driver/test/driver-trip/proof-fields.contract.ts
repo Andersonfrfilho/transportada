@@ -105,6 +105,7 @@ describe('os campos do comprovante dirigidos pela configuração (D4/T053)', () 
         isRegisteredDriver: true,
         trips: [
           {
+            createdAt: '2026-09-18T09:00:00.000Z',
             id: 'trip-1',
             manifest: null,
             status: 'dispatched',
@@ -129,6 +130,7 @@ describe('os campos do comprovante dirigidos pela configuração (D4/T053)', () 
         isRegisteredDriver: true,
         trips: [
           {
+            createdAt: '2026-09-18T09:00:00.000Z',
             id: 'trip-1',
             manifest: null,
             status: 'dispatched',
@@ -148,6 +150,7 @@ describe('os campos do comprovante dirigidos pela configuração (D4/T053)', () 
         isRegisteredDriver: true,
         trips: [
           {
+            createdAt: '2026-09-18T09:00:00.000Z',
             id: 'trip-1',
             manifest: null,
             status: 'dispatched',

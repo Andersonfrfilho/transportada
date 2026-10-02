@@ -67,7 +67,7 @@ import {
 } from '../shared/occurrenceTypesCache.service'
 import { createIdempotencyKey } from '../shared/offlineQueue.service'
 import { buildStopOccurrenceReports } from '../shared/stopOccurrencePhoto.service'
-import { formatShortTripId } from '../shared/tripIdentifier.service'
+import { formatShortTripId, formatTripCreatedAt } from '../shared/tripIdentifier.service'
 import {
   filterStopsBySearchTerm,
   findCurrentStop,
@@ -684,6 +684,12 @@ export function DriverTripWorkspacePage() {
                 label={t('tripCodeCopy')}
                 value={trip.id}
               />
+            </p>
+          )}
+          {/* Pedido do usuário (02/10): de quando é esta viagem — o código curto não diz a data. */}
+          {trip === undefined || formatTripCreatedAt(trip.createdAt) === '' ? null : (
+            <p className={styles.tripCreatedAt}>
+              {t('tripCreatedAt', { date: formatTripCreatedAt(trip.createdAt) })}
             </p>
           )}
           {trip?.status === 'on_delivery_route' ? (

@@ -71,6 +71,7 @@ function buildSnapshot(input: {
       score: input.scenario?.score ?? null,
       trips: [
         {
+          createdAt: '2026-08-26T12:00:00.000Z',
           id: '00000000-0000-4000-8000-000000000100',
           status: input.arrived ? 'in_transit' : 'dispatched',
           stops: [

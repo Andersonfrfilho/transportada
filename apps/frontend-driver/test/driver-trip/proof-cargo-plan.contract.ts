@@ -166,6 +166,7 @@ describe('o mínimo de fotos da mercadoria lido da API nunca passa do teto nem d
         isRegisteredDriver: true,
         trips: [
           {
+            createdAt: '2026-09-18T09:00:00.000Z',
             id: 'trip-1',
             manifest: null,
             status: 'dispatched',

@@ -128,6 +128,8 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       expect(opened.isRegisteredDriver).toBe(true)
       expect(opened.trips).toHaveLength(1)
       expect(opened.trips[0]?.vehiclePlate).toBe('GCQ8E47')
+      /** A data vem do banco, não de literal do teste: é o `created_at` da linha da viagem. */
+      expect(opened.trips[0]?.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/u)
       expect(opened.trips[0]?.stops.map((stop) => stop.sequence)).toEqual([1, 2])
       expect(opened.trips[0]?.stops[0]?.documents).toHaveLength(2)
       /**

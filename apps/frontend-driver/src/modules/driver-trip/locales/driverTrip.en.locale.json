@@ -293,6 +293,7 @@
   "tripCodeCopied": "Code copied",
   "tripCodeCopy": "Copy the trip code",
   "tripCodeLabel": "Trip",
+  "tripCreatedAt": "Created on {{date}}",
   "tripCompleted": "Trip completed. Good work.",
   "vehicle": "Vehicle {{plate}}",
   "proofPendingWarning": "Retaking it never helps: the worst photo counts. A photo sent much later counts as late, even if the device clock shows another time.",

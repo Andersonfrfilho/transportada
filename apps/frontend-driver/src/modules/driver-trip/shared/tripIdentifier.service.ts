@@ -14,3 +14,14 @@ export const SHORT_TRIP_ID_LENGTH = 8
 export function formatShortTripId(tripId: string): string {
   return tripId.slice(0, SHORT_TRIP_ID_LENGTH)
 }
+
+const TRIP_CREATED_AT_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
+  dateStyle: 'short',
+  timeStyle: 'short',
+})
+
+/** Data inválida não vira "Invalid Date" na tela: sem data legível, a linha some. */
+export function formatTripCreatedAt(createdAt: string): string {
+  const moment = new Date(createdAt)
+  return Number.isNaN(moment.getTime()) ? '' : TRIP_CREATED_AT_FORMATTER.format(moment)
+}

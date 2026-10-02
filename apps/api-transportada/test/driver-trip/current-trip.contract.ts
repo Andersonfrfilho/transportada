@@ -19,7 +19,14 @@ const NOW = new Date('2026-09-18T12:00:00.000Z')
 const NO_SCORES = { readScores: async () => new Map<string, number | null>() }
 
 function buildTrip(id: string): DriverTrip {
-  return { id, manifest: null, status: 'dispatched', stops: [], vehiclePlate: 'GCQ8E47' }
+  return {
+    createdAt: '2026-09-18T09:00:00.000Z',
+    id,
+    manifest: null,
+    status: 'dispatched',
+    stops: [],
+    vehiclePlate: 'GCQ8E47',
+  }
 }
 
 function buildRepository(input: {
@@ -192,6 +199,7 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
     const repository = buildRepository({
       trips: [
         {
+          createdAt: '2026-09-18T09:00:00.000Z',
           id: 'trip-1',
           manifest: null,
           status: 'dispatched',
@@ -296,5 +304,25 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
 
     expect(result.score).toBeNull()
     expect(asked).toHaveLength(0)
+  })
+})
+
+describe('a viagem diz quando foi criada', () => {
+  /**
+   * Pedido do usuário (02/10): o motorista precisa saber de quando é a viagem aberta no celular —
+   * duas viagens do mesmo veículo só se distinguem pela data.
+   */
+  it('a data de criação atravessa o caso de uso até o snapshot', async () => {
+    const repository = buildRepository({ trips: [buildTrip('trip-1')] })
+
+    const result = await findCurrentDriverTrip({
+      companyId: COMPANY_ID,
+      membershipId: MEMBERSHIP_ID,
+      now: NOW,
+      repository,
+      scores: NO_SCORES,
+    })
+
+    expect(result.trips[0]?.createdAt).toBe('2026-09-18T09:00:00.000Z')
   })
 })

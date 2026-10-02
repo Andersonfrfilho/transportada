@@ -117,6 +117,11 @@
 }
 
 /* A busca segue os tokens de campo da app — canto reto, como todo campo daqui. */
+.tripCreatedAt {
+  color: var(--color-slate);
+  margin: 0;
+}
+
 .stopSearch {
   align-items: center;
   background: color-mix(in srgb, var(--color-asphalt) 82%, transparent);

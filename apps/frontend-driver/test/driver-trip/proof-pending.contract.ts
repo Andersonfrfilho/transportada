@@ -68,6 +68,7 @@ describe('a resposta do snapshot com proofPending e score (RF1/RF2)', () => {
         score: 85,
         trips: [
           {
+            createdAt: '2026-09-18T09:00:00.000Z',
             id: 'trip-1',
             manifest: null,
             status: 'in_transit',
@@ -98,6 +99,7 @@ describe('a resposta do snapshot com proofPending e score (RF1/RF2)', () => {
         score: 250,
         trips: [
           {
+            createdAt: '2026-09-18T09:00:00.000Z',
             id: 'trip-1',
             manifest: null,
             status: 'in_transit',
