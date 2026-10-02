@@ -924,3 +924,24 @@ aceita `proofRadiusMeters` (`DELIVERY_PROOF_OPTIONAL_KEYS`, `trip.constant.ts`) 
 mandá-lo; campo novo no comprovante entra na lista **antes ou junto**.
 
 A seção da spec 226 (gasto e lucro por nota) está acima.
+
+## Foto do canhoto e endereço corrigido na linha do tempo (spec 228)
+
+A cópia do vocabulário da API entrou na mesma lista (`tripTimelineMap.constant.ts`, `tripTimelineRow.service.ts`,
+`trip.types.ts`, `tripResponse.validation.ts`). A mesma linha (`TripTimelineEntry`) serve à linha do tempo da
+viagem e a _Eventos desta entrega_.
+
+| `kind`                   | Ícone    | Título (locale `eventTimeline`)      | Categoria do pino |
+| ------------------------ | -------- | ------------------------------------ | ----------------- |
+| `document.canhoto_photo` | `camera` | "Foto do canhoto — NF-e {{invoice}}" | `delivered`       |
+| `stop.address_corrected` | `edit`   | "Endereço da parada corrigido"       | `status`          |
+
+- Nenhuma cor nova: a foto é parte da entrega (verde, check); o endereço é neutro (cinza, relógio).
+- **Origem e deslocamento** (`resolveTripTimelineAddressChange`, `tripTimelineAddressChange.service.ts`):
+  "Corrigido pelo contratante/motorista/escritório" ou "Refino de precisão", mais "deslocado N m" (ou km, a
+  mesma unidade de `formatTripTimelineDistance`). Sem ponto anterior, ou no refino, só a origem fala.
+- **"Ver no mapa" e o pino só aparecem com `location`**. O endereço chega com ponto e sem `locationState`;
+  com o ponto na mão ele é lido como `captured` (exceção só deste `kind`). O refino não tem ponto e não
+  aparece no mapa; sem `trip.event-location` a API devolve `location = null`.
+- ⚠️ Pendência de design (T4.2): o rótulo da legenda da categoria `status` é "Mudança de situação", impreciso
+  para o endereço corrigido. Não foi renomeado porque muda o texto de outro evento.

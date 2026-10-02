@@ -2221,3 +2221,48 @@ Três leituras ganharam campo ou filtro, todas aditivas:
 ⚠️ Campo novo no comprovante só pode ir para staging **depois** de o painel aceitá-lo: o validador do
 painel descarta o item inteiro que traga chave desconhecida (ver `frontend-transportada.md`, § "A nota
 se abre inteira"). O rateio de custo da 226 está acima, em "Spec 226".
+
+## Spec 228 — a foto do canhoto e o endereço corrigido viram evento da linha do tempo
+
+Dois `kind`s novos em `GET /trips/:id/timeline`, ambos **derivados na leitura** — sem tabela, coluna nem
+migration. Estão em `TRIP_TIMELINE_KINDS`; o painel recebe a cópia na mesma lista (ver `frontend-transportada.md`).
+
+| `kind`                   | Fonte                                                   | Prioridade |
+| ------------------------ | ------------------------------------------------------- | ---------- |
+| `document.canhoto_photo` | `trip-timeline-proof.query.ts` (`trip_delivery_proofs`) | 3          |
+| `stop.address_corrected` | `trip-timeline-address.query.ts` (duas trilhas, abaixo) | 2          |
+
+Nenhuma prioridade existente foi renumerada: o cursor compara a prioridade como `::int`.
+
+**Foto (`trip-timeline-proof.query.ts`).**
+
+- Só `kind = 'photo'` (literal na consulta), ligada à nota pela baixa (`stop_event_id`) e filtrada com
+  `documentStopScope`.
+- O instante é `coalesce(captured_at, created_at)`, **uma só expressão** (`PHOTO_INSTANT`) no filtro, na
+  ordem e na chave em texto: se divergirem, a página seguinte pula ou repete.
+- Prioridade 3, logo abaixo da baixa (4): foto e baixa saem da mesma transação e empatam no instante.
+- Lê posição do comprovante, então está na lista fechada `EVENT_LOCATION_READERS`
+  (`event-location-readers.constant.ts`); sem `trip.event-location` a rota devolve `location = null`.
+- O corpo não leva nome de quem recebeu nem referência de objeto.
+
+**Endereço (`trip-timeline-address.query.ts`).**
+
+- **Uma consulta só** (`union all`) sobre as duas trilhas de correção humana:
+  `geocoded_address_corrections` (origens `contractor`, `driver`, `operator`) e
+  `geocoding_refinement_requests` com `outcome = 'refined'` (origem `refinement`). O `Promise.all` da linha do
+  tempo já abre nove consultas e o pool é de 10 (`DATABASE_POOL_MAX`); uma consulta por trilha o esgotaria.
+- O evento é da **parada**: pertence a ela a correção da mesma empresa e da mesma `address_key`, com
+  `created_at >= trip_stops.created_at`. Um `distinct on (changes.id)` num subselect, com a menor `sequence`,
+  evita repetir a mesma correção em duas paradas de mesmo endereço.
+- O refino **não tem ponto guardado**: `location = null` e sem deslocamento. Não há `join` com
+  `geocoded_addresses` (tabela global, o ponto vivo pode ser de outra empresa).
+- Nunca saem `reason`, `requestedBy` nem `address_key`. Só origem, deslocamento (`addressChange`, só neste
+  `kind`) e o ponto novo.
+- Com `documentId`, entra só a parada da nota; nota sem parada não gera evento de endereço.
+
+**Falha de fonte.** Erro de qualquer das duas **propaga** (sem `catch`, sem `allSettled`): o `nextCursor` sai
+do último item da página mesclada, e omitir uma fonte faria o cursor pular itens sem aviso.
+
+⚠️ **Limite conhecido.** A distância de cada evento é medida contra o ponto **vivo** do endereço. Uma correção
+de **outra empresa** muda essa distância sem gerar evento aqui, porque a geocodificação automática não deixa
+rastro por empresa. Incluí-la exigiria migration e foi recusada (spec 228, N1: "Só correção humana").

@@ -336,3 +336,14 @@ M8 foto com pino `status` · M9 componente sem a origem · M10 componente sem o 
 - `bun run typecheck`: limpo. `bun run lint`: 0 erros, 16 avisos (os pré-existentes). Prettier nos arquivos tocados: limpo.
 - `bun run test`: 6378 pass / 0 fail (contratos) e 318 pass / 0 fail (hooks com DOM).
 - Não verificado: 375 px sem rolagem horizontal e print (T4.2); o fixture de prints não foi atualizado com os dois eventos.
+
+## T5.1 — documentação viva
+
+- `docs/ai-context/api-transportada.md`: nova seção "Spec 228" (as duas fontes, prioridades 3 e 2, `PHOTO_INSTANT`,
+  `EVENT_LOCATION_READERS`, uma consulta `union all` para o pool de 10, `distinct on` em subselect, refino sem ponto,
+  colunas proibidas, erro de fonte propaga, limite da correção de outra empresa).
+- `docs/ai-context/frontend-transportada.md`: nova seção (ícones, títulos, pinos, origem e deslocamento, "Ver no mapa"
+  só com `location`, pendência da legenda "Mudança de situação").
+- Ponteiros de 3 a 4 linhas nos `CLAUDE.md` das duas apps, dentro das seções da 227.
+- 227: `tasks.md` e `evidence.md` registram que a Fase 5 recebeu os eventos; a ressalva D12 segue na T6.1 da 227.
+- Nomes conferidos contra o código com `ls`/`grep`. Só documentação; nada executado além do `prettier`.

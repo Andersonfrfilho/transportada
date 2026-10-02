@@ -685,3 +685,7 @@ Detalhe completo: docs/ai-context § "O WhatsApp vira canal de comando".
 `GET /trips/:id/timeline?documentId=`, `volumeCount` no detalhe da nota e `proofRadiusMeters` em
 `/trips/:id/delivery-proofs` — este é o raio **da empresa**, não por contratante (raio por contratante
 pede migration). Detalhe: docs/ai-context § "Spec 227 — a nota se abre inteira".
+
+A 228 acrescenta à mesma linha do tempo `document.canhoto_photo` (prioridade 3, `trip-timeline-proof.query.ts`)
+e `stop.address_corrected` (prioridade 2, `trip-timeline-address.query.ts`, uma consulta só para o pool de 10),
+ambos derivados, sem migration; erro de fonte propaga. Detalhe: docs/ai-context § "Spec 228".

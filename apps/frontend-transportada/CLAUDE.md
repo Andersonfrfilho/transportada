@@ -313,3 +313,7 @@ Ocorrências, Comprovante (dois selos) e Eventos desta entrega. ⚠️ `isDelive
 e descarta o comprovante inteiro: o painel aceita o campo novo **antes** de a API mandá-lo.
 
 Detalhe completo: docs/ai-context/frontend-transportada.md § "A nota se abre inteira".
+
+A 228 põe nesses eventos a "Foto do canhoto" (`camera`, pino `delivered`) e o "Endereço da parada corrigido"
+(`edit`, pino `status`), com origem e deslocamento; "Ver no mapa" só com `location`. Detalhe:
+docs/ai-context/frontend-transportada.md § "Foto do canhoto e endereço corrigido na linha do tempo".

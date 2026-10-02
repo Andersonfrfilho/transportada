@@ -8,7 +8,7 @@ em `evidence.md`. Contrato antes da implementação, **toda asserção nova prov
 > cria os outros dois.
 
 ⚠️ Nada daqui começa antes da **Fase 0**. **Nenhum `[NEEDS CLARIFICATION]` aberto**: N1 a N5 foram respondidas em
-2026-10-02. A **Fase 5** espera a **spec 228** (D12).
+2026-10-02. A **Fase 5** recebeu os eventos da **spec 228** (D12; docs da 228 T5.1). A ressalva da D12 (foto derivada, sem tabela) segue na T6.1.
 
 ## Fase 0 — O chão
 

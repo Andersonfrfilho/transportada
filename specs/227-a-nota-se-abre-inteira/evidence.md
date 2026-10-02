@@ -1,6 +1,6 @@
 # Evidências — 227 A nota se abre inteira
 
-Spec escrita em 2026-10-02 a partir do mapa da exploração. Todas as perguntas respondidas em 2026-10-02; a Fase 5 espera a spec 228.
+Spec escrita em 2026-10-02 a partir do mapa da exploração. Todas as perguntas respondidas em 2026-10-02; a Fase 5 recebeu os eventos da spec 228 (docs 228 T5.1); a ressalva da D12 (foto derivada, sem tabela) segue na T6.1.
 
 ## T0.1 — renumeração 225 → 226
 

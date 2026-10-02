@@ -67,7 +67,7 @@ D11. **Esta spec não tem migration** — se alguma task concluir que precisa de
 
 > 🤖 Modelo: `sonnet` · T5.3 `code-reviewer` em `opus`
 
-- [ ] **T5.1** Documentação viva: `docs/ai-context/api-transportada.md` (as duas fontes novas, D1/D4) e
+- [x] **T5.1** Documentação viva: `docs/ai-context/api-transportada.md` (as duas fontes novas, D1/D4) e
       `frontend-transportada.md`; marcar na 227 que a Fase 5 dela recebeu os eventos, e levar à T6.1 da 227 a ressalva da
       D12 (foto derivada, sem tabela) para o usuário confirmar junto dos prints.
 - [ ] **T5.2** Portão completo na raiz, um comando por vez em primeiro plano (`make check`; `format:check` é
