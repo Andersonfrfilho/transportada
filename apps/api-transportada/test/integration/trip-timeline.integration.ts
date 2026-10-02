@@ -10,7 +10,7 @@
  */
 import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
@@ -24,6 +24,7 @@ import {
   nfeDocuments,
   nfeImports,
   storedObjects,
+  tripDeliveryProofs,
   tripDocumentEvents,
   tripDocumentOccurrences,
   tripDocuments,
@@ -1723,6 +1724,380 @@ describe('trip-timeline.query com documentId (spec 227 T5.1) contra o Postgres',
         expect(withoutPermission.every((location) => location === null)).toBe(true)
         expect(withPermission).toHaveLength(2)
         expect(withPermission.every((location) => location !== null)).toBe(true)
+      })
+    },
+  )
+})
+
+describe('trip-timeline.query com a foto do canhoto (spec 228 T2.1) contra o Postgres', () => {
+  type ProofOverrides = Partial<typeof tripDeliveryProofs.$inferInsert>
+
+  type SeededDelivery = {
+    readonly documentId: string
+    readonly eventId: string
+    readonly objectId: string
+    readonly proofId: string
+  }
+
+  async function seedDeliveryWithProof(
+    database: TestDatabase,
+    input: {
+      readonly company: Company
+      readonly documentId: string
+      readonly eventCreatedAt: Date
+      readonly proof: ProofOverrides
+      readonly stopId: string
+    },
+  ): Promise<SeededDelivery> {
+    const eventId = crypto.randomUUID()
+    const objectId = crypto.randomUUID()
+    const proofId = crypto.randomUUID()
+    await database.db.insert(tripStopEvents).values({
+      actorUserId: input.company.userId,
+      channel: 'driver_app',
+      companyId: input.company.companyId,
+      createdAt: input.eventCreatedAt,
+      id: eventId,
+      kind: 'delivered',
+      stopId: input.stopId,
+      tripDocumentId: input.documentId,
+    })
+    await database.db.insert(storedObjects).values({
+      bucket: 'integration',
+      companyId: input.company.companyId,
+      id: objectId,
+      mimeType: 'image/jpeg',
+      objectKey: `proof/${objectId}`,
+      provider: 's3',
+      purpose: 'delivery_proof',
+      sha256: 'a'.repeat(64),
+      sizeBytes: 10n,
+      status: 'final',
+    })
+    await database.db.insert(tripDeliveryProofs).values({
+      actorUserId: input.company.userId,
+      companyId: input.company.companyId,
+      id: proofId,
+      kind: 'photo',
+      objectId,
+      stopEventId: eventId,
+      ...input.proof,
+    })
+    return { documentId: input.documentId, eventId, objectId, proofId }
+  }
+
+  async function forceProofCreatedAt(
+    database: TestDatabase,
+    proofId: string,
+    instant: string,
+  ): Promise<void> {
+    await database.db.execute(
+      sql`update trip_delivery_proofs set created_at = ${instant}::timestamptz where id = ${proofId}`,
+    )
+  }
+
+  async function readAllPages(
+    database: TestDatabase,
+    base: { readonly companyId: string; readonly tripId: string },
+    limit: number,
+  ): Promise<readonly { readonly id: string; readonly kind: string }[]> {
+    const collected: { readonly id: string; readonly kind: string }[] = []
+    let cursor: ReadTripTimelineParams['cursor'] = null
+    for (let page = 0; page < 20; page += 1) {
+      const result = await listTripTimeline(database.db, { ...base, cursor, limit })
+      collected.push(...result.items.map((item) => ({ id: item.id, kind: item.kind })))
+      if (result.nextCursor === null) break
+      cursor = parseTripTimelineCursor(result.nextCursor)
+    }
+    return collected
+  }
+
+  testWithPostgres(
+    'CA01: duas notas na mesma parada — ?documentId=A traz só a foto de A; nota sem parada não traz foto',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const stopId = await seedStop(database, company, tripId, 1)
+        const documentA = await seedTripDocument(database, company, tripId, stopId)
+        const documentB = await seedTripDocument(database, company, tripId, stopId)
+        const proofA = await seedDeliveryWithProof(database, {
+          company,
+          documentId: documentA,
+          eventCreatedAt: new Date('2026-10-01T10:00:00.000Z'),
+          proof: { capturedAt: new Date('2026-10-01T09:59:00.000Z') },
+          stopId,
+        })
+        await seedDeliveryWithProof(database, {
+          company,
+          documentId: documentB,
+          eventCreatedAt: new Date('2026-10-01T11:00:00.000Z'),
+          proof: { capturedAt: new Date('2026-10-01T10:59:00.000Z') },
+          stopId,
+        })
+
+        const filtered = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          documentId: documentA,
+          documentStopId: stopId,
+          limit: 100,
+          tripId,
+        })
+        const photos = filtered.items.filter((item) => item.kind === 'document.canhoto_photo')
+        expect(photos.map((item) => item.id)).toEqual([proofA.proofId])
+        expect(photos[0]?.document?.id).toBe(documentA)
+        expect(photos[0]?.document?.number).not.toBeNull()
+        expect(photos[0]?.stop?.sequence).toBe(1)
+
+        const whole = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 100,
+          tripId,
+        })
+        expect(whole.items.filter((item) => item.kind === 'document.canhoto_photo')).toHaveLength(2)
+
+        const withoutStop = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          documentId: documentA,
+          documentStopId: null,
+          limit: 100,
+          tripId,
+        })
+        expect(withoutStop.items.filter((item) => item.kind === 'document.canhoto_photo')).toEqual(
+          [],
+        )
+      })
+    },
+  )
+
+  testWithPostgres(
+    'CA02: foto unavailable, sem estado (antiga) e expired aparecem sem ponto; a captada leva o ponto e a distância',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const stopId = await seedStop(database, company, tripId, 1)
+        await database.db.insert(geocodedAddresses).values({
+          addressKey: `3550308|01001000|${stopId}`,
+          latitude: '-23.5505000',
+          longitude: '-46.6333000',
+          precision: 'rooftop',
+          source: 'manual',
+        })
+        const variants: readonly ProofOverrides[] = [
+          { locationState: 'unavailable' },
+          {},
+          {
+            capturedAt: new Date('2026-10-01T10:00:00.000Z'),
+            locationState: 'expired',
+          },
+          {
+            accuracyMeters: '12.50',
+            capturedAt: new Date('2026-10-01T10:00:00.000Z'),
+            latitude: '-23.5505000',
+            locationState: 'captured',
+            longitude: '-46.6334000',
+          },
+        ]
+        const proofIds: string[] = []
+        for (const [index, proof] of variants.entries()) {
+          const documentId = await seedTripDocument(database, company, tripId, stopId)
+          const seeded = await seedDeliveryWithProof(database, {
+            company,
+            documentId,
+            eventCreatedAt: new Date(`2026-10-01T1${index}:00:00.000Z`),
+            proof,
+            stopId,
+          })
+          proofIds.push(seeded.proofId)
+        }
+
+        const result = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 100,
+          tripId,
+        })
+        const byId = new Map(result.items.map((item) => [item.id, item]))
+        const [unavailable, legacy, expired, captured] = proofIds.map((id) => byId.get(id))
+
+        expect(unavailable?.location).toBeNull()
+        expect(unavailable?.locationState).toBe('unavailable')
+        expect(legacy?.location).toBeNull()
+        expect(legacy?.locationState).toBeNull()
+        expect(expired?.location).toBeNull()
+        expect(expired?.locationState).toBe('expired')
+        expect(expired?.occurredAt).toBe('2026-10-01T10:00:00.000Z')
+        expect(captured?.locationState).toBe('captured')
+        expect(captured?.location?.latitude).toBe(-23.5505)
+        expect(captured?.location?.accuracyMeters).toBe(12.5)
+        expect(captured?.location?.distanceMeters).toBe(10)
+      })
+    },
+  )
+
+  testWithPostgres(
+    'RF4: foto e baixa com created_at idêntico e captured_at nulo, em páginas de 1, saem uma vez e a baixa vem antes',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const stopId = await seedStop(database, company, tripId, 1)
+        const instant = '2026-10-01T10:00:00.123456Z'
+        const expectedIds: string[] = []
+        for (let index = 0; index < 3; index += 1) {
+          const documentId = await seedTripDocument(database, company, tripId, stopId)
+          const seeded = await seedDeliveryWithProof(database, {
+            company,
+            documentId,
+            eventCreatedAt: new Date('2026-10-01T10:00:00.123Z'),
+            proof: {},
+            stopId,
+          })
+          await database.db.execute(
+            sql`update trip_stop_events set created_at = ${instant}::timestamptz where id = ${seeded.eventId}`,
+          )
+          await forceProofCreatedAt(database, seeded.proofId, instant)
+          expectedIds.push(seeded.eventId, seeded.proofId)
+        }
+
+        const paged = await readAllPages(database, { companyId: company.companyId, tripId }, 1)
+
+        expect(paged).toHaveLength(6)
+        expect(new Set(paged.map((item) => item.id))).toEqual(new Set(expectedIds))
+        const kinds = paged.map((item) => item.kind)
+        const lastDelivered = kinds.lastIndexOf('document.delivered')
+        const firstPhoto = kinds.indexOf('document.canhoto_photo')
+        expect(lastDelivered).toBeLessThan(firstPhoto)
+        const single = await readAllPages(database, { companyId: company.companyId, tripId }, 100)
+        expect(paged.map((item) => item.id)).toEqual(single.map((item) => item.id))
+      })
+    },
+  )
+
+  testWithPostgres(
+    'RF4: fotos que diferem só no microssegundo (.123456 x .123457) saem uma vez e em ordem estável',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const stopId = await seedStop(database, company, tripId, 1)
+        const proofIds: string[] = []
+        for (const microsecond of ['123456', '123457']) {
+          const documentId = await seedTripDocument(database, company, tripId, stopId)
+          const seeded = await seedDeliveryWithProof(database, {
+            company,
+            documentId,
+            eventCreatedAt: new Date('2026-10-01T09:00:00.000Z'),
+            proof: {},
+            stopId,
+          })
+          await forceProofCreatedAt(database, seeded.proofId, `2026-10-01T10:00:00.${microsecond}Z`)
+          proofIds.push(seeded.proofId)
+        }
+
+        const paged = await readAllPages(database, { companyId: company.companyId, tripId }, 1)
+        const photos = paged.filter((item) => item.kind === 'document.canhoto_photo')
+
+        expect(photos.map((item) => item.id)).toEqual([proofIds[1], proofIds[0]])
+      })
+    },
+  )
+
+  testWithPostgres(
+    'foto de outra empresa, ou de outra viagem da mesma empresa, não entra na linha do tempo',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const otherCompany = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const otherTripId = await seedTrip(database, company)
+        const foreignTripId = await seedTrip(database, otherCompany)
+        for (const [owner, ownerTripId] of [
+          [company, otherTripId],
+          [otherCompany, foreignTripId],
+        ] as const) {
+          const stopId = await seedStop(database, owner, ownerTripId, 1)
+          const documentId = await seedTripDocument(database, owner, ownerTripId, stopId)
+          await seedDeliveryWithProof(database, {
+            company: owner,
+            documentId,
+            eventCreatedAt: new Date('2026-10-01T10:00:00.000Z'),
+            proof: {},
+            stopId,
+          })
+        }
+
+        const own = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 100,
+          tripId,
+        })
+        const crossCompany = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 100,
+          tripId: foreignTripId,
+        })
+
+        expect(own.items.filter((item) => item.kind === 'document.canhoto_photo')).toEqual([])
+        expect(crossCompany.items).toEqual([])
+      })
+    },
+  )
+
+  testWithPostgres(
+    'CA06: o corpo da foto não carrega nome de quem recebeu, parentesco, objeto nem leitura do canhoto',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const stopId = await seedStop(database, company, tripId, 1)
+        const documentId = await seedTripDocument(database, company, tripId, stopId)
+        const seeded = await seedDeliveryWithProof(database, {
+          company,
+          documentId,
+          eventCreatedAt: new Date('2026-10-01T10:00:00.000Z'),
+          proof: {
+            canhotoReadNumber: '777777777',
+            canhotoReadSeries: '99',
+            latitude: '-23.5505000',
+            locationState: 'captured',
+            longitude: '-46.6334000',
+            receivedBy: 'neighbor',
+            receivedByDetail: 'casa doze do beco',
+            receiverName: 'Fulano Recebedor Sigiloso',
+          },
+          stopId,
+        })
+
+        const result = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 100,
+          tripId,
+        })
+        const body = JSON.stringify(result)
+
+        expect(body).toContain(seeded.proofId)
+        for (const forbidden of [
+          'Fulano Recebedor Sigiloso',
+          'casa doze do beco',
+          'neighbor',
+          'receiverName',
+          'receivedBy',
+          seeded.objectId,
+          'objectId',
+          'thumbnailObjectId',
+          'canhotoRead',
+          '777777777',
+        ]) {
+          expect(body).not.toContain(forbidden)
+        }
       })
     },
   )
