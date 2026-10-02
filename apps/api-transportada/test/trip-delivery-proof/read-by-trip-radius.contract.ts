@@ -102,4 +102,31 @@ describe('readDeliveryProofsByTrip devolve o raio (spec 227 T5.2)', () => {
     expect(body).not.toContain('latePenaltyPoints')
     expect(body).not.toContain('proofWindowMinutes')
   })
+
+  test('configuração que lança: 200 com os comprovantes, sem raio, e o aviso leva só ids (revisão M1)', async () => {
+    const warnings: Array<{ message: string; metadata: unknown }> = []
+
+    const views = await readDeliveryProofsByTrip({
+      companyId: COMPANY_ID,
+      downloads,
+      logger: { warn: (message, metadata) => warnings.push({ message, metadata }) },
+      repository: { findByTrip: async () => [RECORD] },
+      settings: {
+        resolveProofPunctualitySettings: async () => {
+          throw new Error('conexão caiu na linha 42 do cliente 11122233344')
+        },
+      },
+      tripId: TRIP_ID,
+    })
+
+    expect(views).toHaveLength(1)
+    expect(views[0]).not.toHaveProperty('proofRadiusMeters')
+    expect(views[0]?.documentId).toBe(RECORD.documentId)
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]?.metadata).toEqual({
+      companyId: COMPANY_ID,
+      errorName: 'Error',
+      tripId: TRIP_ID,
+    })
+  })
 })

@@ -4240,6 +4240,7 @@ function createApplicationRoutes({
             companyId: input.context.companyId,
             ...(input.documentIds === undefined ? {} : { documentIds: input.documentIds }),
             downloads: createDeliveryProofDownloadGateway({ storage: storageGateway }),
+            logger,
             repository: {
               findByTrip: (query) => findDeliveryProofsByTrip(database, query),
             },

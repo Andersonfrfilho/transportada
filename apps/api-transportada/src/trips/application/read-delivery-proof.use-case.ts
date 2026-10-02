@@ -18,6 +18,8 @@ import type {
   TripDeliveryProofPunctuality,
 } from '../../database/trip.schema.js'
 
+import type { TripRouteFreezeLogger } from './freeze-trip-route-gracefully.js'
+
 /**
  * Spec 220 RF24 (T7.4): o veredito da conferência do canhoto. Todos ausentes ou `null` no
  * comprovante antigo e em `not_applicable`. ⚠️ Nem o id de quem conferiu nem o documento de onde a
@@ -200,6 +202,7 @@ export type ReadDeliveryProofsByTripInput = {
   /** Ausente é "todas as notas da viagem"; o teto é da fronteira, não deste caso de uso. */
   readonly documentIds?: readonly string[] | undefined
   readonly downloads: DeliveryProofDownloadPort
+  readonly logger?: TripRouteFreezeLogger | undefined
   readonly repository: ReadTripDeliveryProofsPort
   readonly settings: ProofRadiusPort
   readonly tripId: string
@@ -216,6 +219,7 @@ export async function readDeliveryProofsByTrip({
   companyId,
   documentIds,
   downloads,
+  logger,
   repository,
   settings,
   tripId,
@@ -227,9 +231,7 @@ export async function readDeliveryProofsByTrip({
   })
   if (records.length === 0) return []
 
-  const { proofRadiusMeters } = await settings.resolveProofPunctualitySettings({ companyId })
-  const radius =
-    Number.isFinite(proofRadiusMeters) && proofRadiusMeters > 0 ? { proofRadiusMeters } : {}
+  const radius = await readProofRadiusOrNone({ companyId, logger, settings, tripId })
 
   return Promise.all(
     records.map(async (record) => ({
@@ -238,6 +240,34 @@ export async function readDeliveryProofsByTrip({
       ...radius,
     })),
   )
+}
+
+/**
+ * O raio é refinamento da tela: a configuração falhar não pode derrubar a lista de comprovantes, que
+ * já funciona sem ele. Ausente, nunca zero. ⚠️ Só o nome do erro vai para o log.
+ */
+async function readProofRadiusOrNone({
+  companyId,
+  logger,
+  settings,
+  tripId,
+}: {
+  readonly companyId: string
+  readonly logger: TripRouteFreezeLogger | undefined
+  readonly settings: ProofRadiusPort
+  readonly tripId: string
+}): Promise<{ readonly proofRadiusMeters?: number }> {
+  try {
+    const { proofRadiusMeters } = await settings.resolveProofPunctualitySettings({ companyId })
+    return Number.isFinite(proofRadiusMeters) && proofRadiusMeters > 0 ? { proofRadiusMeters } : {}
+  } catch (error: unknown) {
+    logger?.warn('trip.delivery_proofs.proof_radius_unavailable', {
+      companyId,
+      errorName: error instanceof Error ? error.name : 'unknown',
+      tripId,
+    })
+    return {}
+  }
 }
 
 async function buildDeliveryProofView({
