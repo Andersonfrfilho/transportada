@@ -1745,6 +1745,13 @@ export const tripDeliveryProofs = pgTable(
      * nota da mesma parada sem gravar a chave.
      */
     canhotoReadDocumentId: uuid('canhoto_read_document_id'),
+    /**
+     * Spec 222 RF-B9: quando a máquina terminou de ler e **não** achou código utilizável. Nulo é "a
+     * máquina ainda não tentou" — sem backfill de propósito —, e é o que tira da fila o canhoto sem
+     * código de barras, que sem esta coluna seria baixado e decodificado a cada ciclo para sempre.
+     * Falha de infraestrutura não grava: ela merece o próximo ciclo.
+     */
+    canhotoReadAttemptedAt: timestamp('canhoto_read_attempted_at', { withTimezone: true }),
   },
   (table) => [
     foreignKey({
@@ -1962,6 +1969,20 @@ export const tripDeliveryProofs = pgTable(
       'trip_delivery_proofs_canhoto_auto_approval_check',
       sql`${table.canhotoReview} <> 'approved' or ${table.canhotoReviewOrigin} <> 'automatic' or ${table.canhotoReadSource} = ${TRIP_DELIVERY_PROOF_CANHOTO_BARCODE_READ_SOURCE}`,
     ),
+    /**
+     * Spec 222: a fila da rotina de leitura do canhoto — pendente, nunca lido e nunca tentado.
+     *
+     * ⚠️ Três decisões, e cada uma é um jeito de o índice ser ignorado em silêncio. (1) `kind` fica
+     * **fora** do predicado: o Postgres prova a implicação a partir dos quals da consulta, não do
+     * CHECK `..._canhoto_review_kind_check`. (2) A chave é `(created_at)`, sem `company_id`: a fila
+     * é por antiguidade e a instalação é dedicada (ADR-0021). (3) Os conjuntos são **literais** SQL
+     * aqui e na consulta — `canhoto_review = $1` não implica `canhoto_review = 'pending'`.
+     */
+    index('trip_delivery_proofs_canhoto_pending_idx')
+      .on(table.createdAt)
+      .where(
+        sql`${table.canhotoReview} = 'pending' and ${table.canhotoReadSource} is null and ${table.canhotoReadAttemptedAt} is null`,
+      ),
   ],
 )
 

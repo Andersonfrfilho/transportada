@@ -323,6 +323,7 @@ describe('Drizzle migrations', () => {
       '20260930110332_delivery_proof_thumbnail',
       '20260930145144_delivery_proof_canhoto_review',
       '20261001123700_event_location_stamp',
+      '20261002120000_trip_canhoto_read_job',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -1919,6 +1920,80 @@ describe('o estado do ponto entra aditivo e o histórico sem coordenada fica NUL
     const primeiraColunaDerrubada = rollbackSql.indexOf('DROP COLUMN IF EXISTS')
     expect(ultimaRestricaoDerrubada).toBeGreaterThan(-1)
     expect(primeiraColunaDerrubada).toBeGreaterThan(ultimaRestricaoDerrubada)
+
+    expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+  /**
+   * Três decisões da spec 222 que o teste de banco não protege, porque o plano de consulta só muda
+   * com volume: o predicado do índice é literal, não carrega `kind` e a chave é só `created_at`.
+   */
+  test('creates the canhoto read queue index with a literal predicate and a nullable stamp', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_trip_canhoto_read_job'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+
+    const statements = migrationSql
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('--'))
+      .join('\n')
+
+    expect(statements).toContain(
+      'ALTER TABLE "trip_delivery_proofs" ADD COLUMN "canhoto_read_attempted_at" timestamp with time zone;',
+    )
+    expect(statements).not.toContain('NOT NULL')
+    expect(statements).not.toContain('DEFAULT')
+    expect(statements).not.toContain('UPDATE ')
+
+    const indexStatement = statements.match(
+      /CREATE INDEX "trip_delivery_proofs_canhoto_pending_idx"[^;]*;/u,
+    )
+    expect(indexStatement).not.toBeNull()
+    expect(indexStatement?.[0]).toContain('("created_at")')
+    expect(indexStatement?.[0]).toContain(
+      `WHERE "canhoto_review" = 'pending' and "canhoto_read_source" is null and "canhoto_read_attempted_at" is null`,
+    )
+    expect(indexStatement?.[0]).not.toContain('"kind"')
+
+    expect(statements).toContain(
+      `INSERT INTO "job_schedules" ("job", "interval_seconds", "next_run_at") VALUES\n\t('trip.canhoto.read', 300, now());`,
+    )
+
+    const addedConstraints = [...statements.matchAll(/ADD CONSTRAINT "([^"]+)"[^;]*;/gu)]
+    expect(addedConstraints.map(([, name]) => name)).toEqual([
+      'job_executions_job_check',
+      'job_schedules_job_check',
+    ])
+    expect(addedConstraints.filter(([statement]) => !statement.includes('NOT VALID'))).toEqual([])
+    for (const table of ['job_executions', 'job_schedules']) {
+      expect(statements).toContain(
+        `ALTER TABLE "${table}" VALIDATE CONSTRAINT "${table}_job_check";`,
+      )
+      expect(statements).toContain(`'trip.canhoto.read'`)
+    }
+
+    expect(
+      rollbackSql.indexOf('DROP INDEX "trip_delivery_proofs_canhoto_pending_idx"'),
+    ).toBeGreaterThan(-1)
+    expect(rollbackSql.indexOf('DROP COLUMN "canhoto_read_attempted_at"')).toBeGreaterThan(
+      rollbackSql.indexOf('DROP INDEX "trip_delivery_proofs_canhoto_pending_idx"'),
+    )
+    expect(
+      rollbackSql.indexOf(`DELETE FROM "job_schedules" WHERE "job" = 'trip.canhoto.read'`),
+    ).toBeGreaterThan(rollbackSql.indexOf('DROP COLUMN "canhoto_read_attempted_at"'))
+    const restoredChecks = rollbackSql.slice(
+      rollbackSql.indexOf('ALTER TABLE "job_schedules" DROP CONSTRAINT'),
+    )
+    expect(restoredChecks).toContain('"job_schedules_job_check"')
+    expect(restoredChecks).toContain('"job_executions_job_check"')
+    expect(restoredChecks.split('DO $$')[0]).not.toContain(`'trip.canhoto.read'`)
 
     expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
     expect(rollbackSql).toContain('deleted_migrations <> 1')

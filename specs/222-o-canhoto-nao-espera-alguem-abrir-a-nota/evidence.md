@@ -569,3 +569,83 @@ não abrir duas versões do mesmo leitor no monorepo. 6 pacotes instalados, 42 r
 descartável fora da árvore): um round-trip `encode`/`decode` de 64x64 com meia imagem escura, rodado
 com `apps/worker-transportada` como cwd, devolveu `decodedWidth: 64`, `firstPixelDark: true`,
 `lastPixelLight: true` — a barra sobreviveu ao JPEG e o módulo carregou sem passo de build.
+
+## Fase 5 — A rotina entra no relógio
+
+### T5.2 e T5.1 — `trip.canhoto.read` nas quatro cópias do catálogo
+
+Contrato antes (`d83889a5e`): cron **2 fail**, worker **2 fail**, API **5 fail** — catálogo sem a
+rotina e a migration ausente de `SEED_MIGRATIONS`. Depois da T5.1 (`b5e980d1f`): cron **6 / 0**,
+worker **5 / 0**, frontend **394 / 0** (segue a API); a API ficou com 1 vermelho até a migration.
+Com a T5.3: `bun test ./test/job-catalog.contract.test.ts` na API → **13 pass / 0 fail**.
+Entrada igual nas quatro: `failureOutcomes: ['object_unavailable', 'unsupported_media',
+'too_large', 'decode_timeout', 'api_unreachable']`, `minimumIntervalSeconds:
+JOB_TICK_INTERVAL_SECONDS`.
+
+### T5.3 e T5.3b — uma migration, cinco partes
+
+`drizzle/20261002120000_trip_canhoto_read_job/` (posterior a `20261001123700_event_location_stamp`;
+sem colisão local nem em `origin/staging`): recria `job_executions_job_check` e
+`job_schedules_job_check` (DROP → ADD `NOT VALID` → VALIDATE) com 15 jobs; `INSERT` da linha de
+`job_schedules` (300 s); coluna `canhoto_read_attempted_at timestamptz` anulável, sem backfill;
+índice parcial `trip_delivery_proofs_canhoto_pending_idx ON (created_at) WHERE canhoto_review =
+'pending' and canhoto_read_source is null and canhoto_read_attempted_at is null`. Coluna e índice
+também em `trip.schema.ts`. As três decisões ficaram como mandado: `kind` fora do predicado, chave só
+`(created_at)`, conjuntos como literais SQL.
+
+Testes novos: um estático em `static-migration.contract.ts` (e a pasta na lista explícita) e a
+asserção `canhoto-read-queue.assertion.ts`, ligada em `database-migration.integration.ts`, que no
+Postgres confere coluna anulável `timestamp with time zone`, a definição exata do índice, a linha
+de `job_schedules` (`[300]`), as duas CHECK aceitando o job, e um `EXPLAIN` com `enable_seqscan =
+off` da consulta com os literais repetidos → `Index Scan using trip_delivery_proofs_canhoto_pending_idx`.
+
+Vermelho antes: com a pasta fora da lista, `db:test` deu **88 pass / 25 skip / 1 fail**.
+
+### T5.4 — `rollback.sql` e a migration aplicada de verdade
+
+⚠️ **O Docker estava fora** (`Cannot connect to the Docker daemon`; `open -a Docker` não subiu em 90 s),
+então `make migration-test` não pôde rodar como está. Foi rodado o **mesmo comando que ele executa**
+(`bun run --cwd apps/api-transportada db:test` com `DRIZZLE_TEST_DATABASE_URL`) contra um Postgres 18.4
+nativo descartável (Homebrew, porta 55999, banco temporário no scratchpad):
+
+```text
+$ DRIZZLE_TEST_DATABASE_URL=postgres://postgres@127.0.0.1:55999/postgres bun run db:test
+ 115 pass
+ 0 fail
+ 1712 expect() calls
+Ran 115 tests across 8 files. [24.69s]
+```
+
+**0 skip** — o integration aplicou todas as migrations, rodou o `rollback.sql` da nova (índice,
+coluna, linha do relógio e job nas CHECK somem; entrada do `__drizzle_migrations` some) e reaplicou.
+Sem Postgres o mesmo comando dá 90 pass / **25 skip** — pular não é passar, e este número não vale.
+
+⚠️ O Postgres nativo expôs um vermelho **pré-existente** e alheio: o `DELETE` barrado por
+`ON DELETE RESTRICT` em `delivery-proof-contractor-overrides.assertion.ts` responde `23001` no 18.4 e
+`23503` na CI (mesmo caso de `cte-profile-output-constraints`). Corrigido em commit à parte
+(`1486f072c`) aceitando os dois códigos. A CI usa o Postgres do `compose.yaml`; **acompanhar o
+`migration-test` dela no push** — passar no nativo não prova a imagem fixada por digest.
+
+Mutações (cada uma com a migration/rollback restaurados depois; 113 pass / 2 fail cada):
+
+- predicado do índice sem `canhoto_read_attempted_at is null` → estático **e** integration vermelhos;
+- `rollback.sql` sem o `DROP COLUMN` → estático **e** integration vermelhos;
+- `"kind" = 'canhoto'` no predicado do índice → estático **e** integration vermelhos.
+
+Restaurado: **115 / 0**.
+
+### T5.5 — `db:generate`
+
+```text
+$ bun run db:generate
+$ drizzle-kit generate --output json --config drizzle.config.ts
+{"status":"no_changes","dialect":"postgresql"}
+```
+
+Nenhuma pasta nova em `drizzle/`. O `snapshot.json` veio da receita do repositório (gerar tmp, mover o
+snapshot, apagar o tmp); a linha do `CREATE INDEX` é idêntica, caractere a caractere, à que o Drizzle
+gerou.
+
+⚠️ **Para a Fase 6**: a consulta da rotina tem de repetir os literais (`canhoto_review = 'pending'`,
+`canhoto_read_source is null`, `canhoto_read_attempted_at is null`), nunca `eq()` com valor JS — senão
+o índice é ignorado em silêncio. O `EXPLAIN` acima é o modelo do CA20 / T6.3.
