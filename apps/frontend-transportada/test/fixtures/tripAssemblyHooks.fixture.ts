@@ -64,6 +64,7 @@ export type FakeTripClient = Pick<
   | 'readMultiVehicleProposal'
   | 'readMultiVehicleSuggestion'
   | 'readTripDeliveryProofs'
+  | 'readTripTimeline'
   | 'registerTripOccurrence'
 >
 
@@ -77,6 +78,7 @@ export function createUnexpectedTripClient(): FakeTripClient {
     readMultiVehicleProposal: () => Promise.reject(new Error('UNEXPECTED_PROPOSAL_READ')),
     readMultiVehicleSuggestion: () => Promise.reject(new Error('UNEXPECTED_SUGGESTION_READ')),
     readTripDeliveryProofs: () => Promise.reject(new Error('UNEXPECTED_READ_TRIP_DELIVERY_PROOFS')),
+    readTripTimeline: () => Promise.reject(new Error('UNEXPECTED_READ_TRIP_TIMELINE')),
     registerTripOccurrence: () => Promise.reject(new Error('UNEXPECTED_REGISTER_TRIP_OCCURRENCE')),
   }
 }

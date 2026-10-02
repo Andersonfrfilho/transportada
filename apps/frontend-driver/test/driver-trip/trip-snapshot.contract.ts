@@ -33,6 +33,7 @@ function snapshotWith(statuses: readonly string[]): DriverTripSnapshot {
     pendingProofs: [],
     score: null,
     trips: statuses.map((status, index) => ({
+      createdAt: '2026-09-18T09:00:00.000Z',
       id: `trip-${index}`,
       manifest: null,
       status,

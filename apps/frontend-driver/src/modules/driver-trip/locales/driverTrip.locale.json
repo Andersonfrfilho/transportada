@@ -284,6 +284,17 @@
     "recipient_refused": "Recusa"
   },
   "returnTitle": "Por que não entregou?",
+  "search": {
+    "noResults": "Nenhuma parada encontrada para esta busca.",
+    "placeholder": "Buscar nota, cliente ou endereço",
+    "scanClose": "Fechar a câmera",
+    "scanDenied": "Libere o acesso à câmera para ler o código.",
+    "scanReading": "Aponte a câmera para o código de barras da nota.",
+    "scanStarting": "Abrindo a câmera…",
+    "scanTitle": "Ler o código da nota",
+    "scanTrigger": "Ler o código da nota com a câmera",
+    "scanUnavailable": "Este aparelho não tem câmera disponível."
+  },
   "schedule": {
     "at": "Hora marcada: {{time}}",
     "protocol": "Protocolo {{protocol}}"
@@ -309,6 +320,7 @@
   "tripCodeCopied": "Código copiado",
   "tripCodeCopy": "Copiar o código da viagem",
   "tripCodeLabel": "Viagem",
+  "tripCreatedAt": "Criada em {{date}}",
   "tripCompleted": "Viagem concluída. Bom trabalho.",
   "vehicle": "Veículo {{plate}}",
   "documentOccurrenceHint": "Para o que aconteceu sem a carga voltar: a nota não volta com você. Se a carga volta, use Devolver.",

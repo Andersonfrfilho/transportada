@@ -3,3 +3,12 @@
   height: 3rem;
   width: 100%;
 }
+
+/* O leitor exige tinta escura sobre papel claro — o tema da tela não entra nesta decisão. */
+.paper {
+  fill: var(--color-fog);
+}
+
+.bar {
+  fill: var(--color-asphalt);
+}

@@ -206,6 +206,27 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
 
 ---
 
+## Fase 8 — O teclado do maço
+
+> 🤖 Modelo: `sonnet`
+
+Pendência levantada pela própria revisão de design da Fase 7 e autorizada depois dela: a grade
+custava **duas paradas de Tab por nota** (abrir em tamanho real e a caixa), 80 com o teto de 40
+antes de o foco chegar ao botão de aprovar.
+
+- [x] T8.1 `tabindex` rotativo na grade do maço: a grade inteira é **uma** parada, as setas andam
+      entre as notas (sem dar a volta), Home/End vão às pontas, Espaço marca e Enter abre a foto da
+      nota em foco. Nota com foto quebrada é pulada — não há o que conferir nela. A conta pura mora
+      em `canhotoBatchRovingFocus.service.ts`; `Checkbox` e `ProofImage` ganharam `tabIndex`
+      opcional (aditivo, sem mudar quem não passa). Dica de teclado só sob `pointer: fine`.
+      Contrato: `test/trip-hooks/canhoto-batch-roving-focus.contract.ts` (18 casos), fechado com
+      quatro mutações e revisão de design com print (`web.md` §15).
+
+- [x] T8.2 Conferência da T8.1 na tela real de staging (viagem `a6e7662d`, 4 canhotos pendentes):
+      mediu as 4 paradas de Tab, as setas, o Enter e a regra de toque viva no CSSOM. Achou e
+      corrigiu a dica de teclado posicionada **depois** da grade — 176 px fora da área visível com
+      quatro notas. Contrato de ordem no DOM, provado por mutação. Nada foi aprovado em staging.
+
 ## Prompt de execução
 
 ```text

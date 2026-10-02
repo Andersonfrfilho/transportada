@@ -306,18 +306,20 @@ test('o motorista leva o romaneio, só com ícones no cabeçalho', async ({ page
  * valor sem toque nenhum — só a chave de acesso fica recolhida atrás de "Ver chave", porque ela não
  * cabe numa linha sem empurrar o resto do cartão.
  *
- * O romaneio (`DriverLoadSheet`) fica recolhido o teste inteiro, então "NF-e 900123/1" e a chave só
- * existem uma vez na tela — a do cartão da parada, que é o que este teste mede.
+ * O romaneio (`DriverLoadSheet`) fica recolhido o teste inteiro. Já o botão da parada fechada repete
+ * o número e o valor da nota (`stopNoteTitle`, `stopNoteAmount`), então o que este teste mede é
+ * lido dentro do detalhe da nota, não na página inteira.
  */
 test('cada nota da parada mostra NF-e, volumes/peso e valor — a chave fica atrás de "Ver chave"', async ({
   page,
 }) => {
   await openTrip(page)
 
-  // `exact`: o romaneio (recolhido) tem "NF-e 900123/1 — Mercearia do Centro" na mesma página.
-  await expect(page.getByText('NF-e 900123/1', { exact: true })).toBeVisible()
-  await expect(page.getByText('3 volumes · 12,5 kg')).toBeVisible()
-  await expect(page.getByText(/R\$\s*1\.500,00/u)).toBeVisible()
+  // O sufixo "_" separa `documentDetails` de `documentDetailsMeta`, `documentDetailsKey` e os outros.
+  const noteDetails = page.locator('[class*="documentDetails_"]')
+  await expect(noteDetails.getByText('NF-e 900123/1', { exact: true })).toBeVisible()
+  await expect(noteDetails.getByText('3 volumes · 12,5 kg')).toBeVisible()
+  await expect(noteDetails.getByText(/R\$\s*1\.500,00/u)).toBeVisible()
 
   // `[class*=]`: o romaneio (recolhido) guarda a mesma chave num `<p>` próprio, mesmo texto exato.
   // O sufixo "_" separa do botão "Ver chave" — a classe dele começa com o mesmo prefixo.

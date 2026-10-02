@@ -5,15 +5,20 @@
  * mostrou**: as fotos carregam já, e o botão só vale quando todas as marcadas chegaram. Montado só
  * enquanto aberto, então cada abertura começa do zero — tudo marcado, nada carregado.
  */
-import { useState } from 'react'
+import { useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
+import {
+  moveRovingDocumentId,
+  resolveRovingDocumentId,
+} from '../shared/canhotoBatchRovingFocus.service'
 import type { CanhotoBatchItem } from '../shared/canhotoBatchSelection.service'
 import { resolveDeliveryProofImageSource } from '../shared/deliveryProof.service'
 import styles from '../styles/trip.module.css'
@@ -55,12 +60,17 @@ export function TripCanhotoBatchDialog({
   const [loadedIds, setLoadedIds] = useState<ReadonlySet<string>>(new Set())
   const [failedIds, setFailedIds] = useState<ReadonlySet<string>>(new Set())
   const [openedItem, setOpenedItem] = useState<CanhotoBatchItem | undefined>(undefined)
+  const [requestedFocusId, setRequestedFocusId] = useState<string | undefined>(undefined)
+  const gridRef = useRef<HTMLUListElement>(null)
 
   /** Foto que não abriu — ou que nem existe — nunca entra no maço: a tela não aprova o que não mostrou. */
   const hasImageFailed = (item: CanhotoBatchItem): boolean =>
     failedIds.has(item.documentId) || resolveDeliveryProofImageSource(item.proof) === ''
   const isChecked = (item: CanhotoBatchItem): boolean =>
     !uncheckedIds.has(item.documentId) && !hasImageFailed(item)
+  /** Foto quebrada não entra na navegação: não há o que conferir, e a caixa dela é desabilitada. */
+  const eligibleIds = items.filter((item) => !hasImageFailed(item)).map((item) => item.documentId)
+  const rovingId = resolveRovingDocumentId({ eligibleIds, requestedId: requestedFocusId })
   const checkedItems = items.filter(isChecked)
   const isWaitingImages = checkedItems.some((item) => !loadedIds.has(item.documentId))
   const isSubmitting = status === 'submitting'
@@ -79,6 +89,32 @@ export function TripCanhotoBatchDialog({
 
   function handleOpenImage(proofId: string): void {
     setOpenedItem(items.find((item) => item.proof.id === proofId))
+  }
+
+  /**
+   * O foco vai no ato, não num efeito: montar a grade não pode roubar o foco do diálogo, e a caixa
+   * de destino aceita foco por código mesmo com `tabindex="-1"` do render anterior.
+   */
+  function focusNote(documentId: string): void {
+    gridRef.current
+      ?.querySelector<HTMLInputElement>(`[data-document-id="${documentId}"] input`)
+      ?.focus()
+  }
+
+  function handleGridKeyDown(event: KeyboardEvent<HTMLUListElement>): void {
+    if (rovingId === undefined) return
+
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      setOpenedItem(items.find((item) => item.documentId === rovingId))
+      return
+    }
+
+    const next = moveRovingDocumentId({ eligibleIds, fromId: rovingId, key: event.key })
+    if (next === undefined) return
+    event.preventDefault()
+    setRequestedFocusId(next)
+    focusNote(next)
   }
 
   function handleConfirm(): void {
@@ -111,6 +147,17 @@ export function TripCanhotoBatchDialog({
             </button>
           </header>
 
+          {/*
+           * Antes da grade, não depois: a dica ensina a andar pelas notas, e atrás delas ela só
+           * aparece depois de rolar a grade inteira — medido em staging, 176 px fora da área
+           * visível com apenas quatro canhotos.
+           */}
+          {items.length === 0 ? null : (
+            <p className={cn(styles.hint, styles.canhotoBatchKeyboardHint)}>
+              {t('deliveryProof.canhotoBatch.keyboardHint')}
+            </p>
+          )}
+
           {status === 'loading' ? (
             <SkeletonGroup label={t('deliveryProof.canhotoBatch.loading')}>
               <Skeleton className={styles.canhotoBatchPlaceholder} />
@@ -126,7 +173,7 @@ export function TripCanhotoBatchDialog({
           ) : null}
 
           {items.length === 0 ? null : (
-            <ul className={styles.canhotoBatchGrid}>
+            <ul className={styles.canhotoBatchGrid} onKeyDown={handleGridKeyDown} ref={gridRef}>
               {items.map((item) => (
                 <TripCanhotoBatchItem
                   actions={{
@@ -136,6 +183,7 @@ export function TripCanhotoBatchDialog({
                   }}
                   hasImageFailed={hasImageFailed(item)}
                   isChecked={isChecked(item)}
+                  isFocusTarget={item.documentId === rovingId}
                   item={item}
                   key={item.documentId}
                 />

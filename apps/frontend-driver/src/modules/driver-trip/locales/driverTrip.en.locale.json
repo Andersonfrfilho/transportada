@@ -246,6 +246,17 @@
     "recipient_refused": "Refused"
   },
   "returnTitle": "Why was it not delivered?",
+  "search": {
+    "noResults": "No stops found for this search.",
+    "placeholder": "Search note, customer or address",
+    "scanClose": "Close the camera",
+    "scanDenied": "Allow camera access to read the code.",
+    "scanReading": "Point the camera at the note's barcode.",
+    "scanStarting": "Opening the camera…",
+    "scanTitle": "Read the note code",
+    "scanTrigger": "Read the note code with the camera",
+    "scanUnavailable": "This device has no camera available."
+  },
   "schedule": {
     "at": "Scheduled for {{time}}",
     "protocol": "Protocol {{protocol}}"
@@ -282,6 +293,7 @@
   "tripCodeCopied": "Code copied",
   "tripCodeCopy": "Copy the trip code",
   "tripCodeLabel": "Trip",
+  "tripCreatedAt": "Created on {{date}}",
   "tripCompleted": "Trip completed. Good work.",
   "vehicle": "Vehicle {{plate}}",
   "proofPendingWarning": "Retaking it never helps: the worst photo counts. A photo sent much later counts as late, even if the device clock shows another time.",

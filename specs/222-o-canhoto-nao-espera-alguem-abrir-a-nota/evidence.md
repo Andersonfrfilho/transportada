@@ -1244,3 +1244,96 @@ gate fechou:
 | Testes do `make check`    | 0 fail nos dez pacotes; 8531 (api) · 6214 (painel) · 1532 · 945 · 223 … |
 | Lint                      | 0 erros, 16 avisos `react-hooks/exhaustive-deps` todos pré-existentes   |
 | `make migration-test`     | verde em T7.4; o rebase não tocou `apps/api-transportada/drizzle/`      |
+
+## T8.1 — o maço virou uma parada de Tab
+
+A revisão de design da Fase 7 registrou 82 paradas de Tab com 40 notas e deixou o `roving tabindex`
+como decisão pendente. Autorizada, foi feita assim: a grade é **uma** parada (a caixa da nota em
+foco), as setas andam entre as notas nos quatro sentidos — a grade tem coluna variável (uma no
+celular, `auto-fill` a partir de 15rem), então não há linha nem coluna para mapear e `role="grid"`
+mentiria —, Home/End vão às pontas, Espaço marca e Enter abre a foto da nota em foco.
+
+Nota com foto quebrada sai da navegação: a caixa dela já é desabilitada, e abrir uma foto que não
+carregou não confere nada. Como a foto resolve **depois** do render, o alvo é derivado a cada
+render (`resolveRovingDocumentId`), não guardado — senão a nota em foco poderia virar inconferível
+e o foco ficar preso nela.
+
+O foco é movido no ato, dentro do handler, e não num efeito: montar a grade não pode roubar o foco
+do diálogo, que é de quem abre (`useModalDialog`).
+
+**Medido no navegador, com o CSS real do repo** (seis notas sintéticas, viewport 1024×768):
+
+| O que                                           | Resultado                                                 |
+| ----------------------------------------------- | --------------------------------------------------------- |
+| Paradas de Tab no diálogo, com 6 notas          | 4 — fechar, a primeira caixa, cancelar, aprovar           |
+| `tabIndex` das caixas                           | `[0, -1, -1, -1, -1, -1]`                                 |
+| `tabIndex` dos botões de foto                   | `[-1, -1, -1, -1, -1, -1]`                                |
+| Duas setas para baixo                           | foco em 1042/1, parada acompanhou, 6 de 6 seguem marcadas |
+| Enter na nota em foco                           | abriu `canhoto-2.svg` — a foto daquela nota               |
+| Dica de teclado sob `pointer: coarse` (375 px)  | `display: none`; aviso de transbordo segue visível        |
+| Contraste da dica (`#55656E` sobre `#FBF9F5`)   | 5,35:1 — acima do mínimo AA                               |
+| Classe/corpo/cor da dica contra o aviso vizinho | idênticos (`.hint`), sem rolagem horizontal em 375 px     |
+
+**Mutações (todas pegas):**
+
+| Mutação                                        | Resultado |
+| ---------------------------------------------- | --------- |
+| Toda caixa vira parada de Tab (`tabIndex={0}`) | 3 fail    |
+| Botão da foto volta para a sequência de Tab    | 2 fail    |
+| Setas passam a dar a volta                     | 2 fail    |
+| Nota com foto quebrada entra na navegação      | 1 fail    |
+
+**Pendência registrada, não consertada (`web.md` §15):** sob toque, o rótulo da caixa de marcação
+tem 24 px de altura, contra os 44 px (`--touch-target`) que o §10 exige. **Não é do maço**: vem de
+`.root.root` do primitivo `Checkbox`, que dobra a classe de propósito para blindar contra override
+de módulo. A tentativa de corrigir de `trip.module.css` foi revertida — é briga com o design system,
+e mexer no primitivo cresce toda caixa de marcação do produto (inclusive as de linha de tabela).
+Decisão de produto, fora desta spec.
+
+⚠️ Dois enganos de invocação que custaram tempo e ficam registrados:
+
+- `bun test ./test/trip-hooks.contract.test.ts` dá **1 fail / 1 error** (`globalThis.HTMLInputElement`
+  indefinido) e não é defeito: a suíte de hooks precisa do `--preload ./test/trip-hooks/dom.preload.ts`.
+  O comando é `bun run test:hooks`, que o script `test` chama no fim, em processo próprio.
+- `test/trip-hooks.contract.test.ts` **não** está na lista de arquivos do script `test`, e isso também
+  não é defeito: o script termina com `&& bun run test:hooks`. Procurar o entrypoint na lista e não
+  achar parece exatamente com a armadilha da lista explícita — não é.
+
+O contrato novo esbarrou no contrato do design system: `test/design-system/checkbox.contract.ts`
+varre `src/` atrás da string `type="checkbox"`, e o `querySelector` do foco a continha. Trocado por
+`input` — o item tem um só.
+
+## T8.2 — a conferência na tela real de staging, e o que ela corrigiu
+
+A T8.1 foi medida num arnês local (componente e CSS reais, dados sintéticos). Conferida em staging,
+na viagem `a6e7662d` (CONCLUÍDA, 5 notas entregues, 4 canhotos aguardando conferência), com a conta
+do usuário:
+
+| O que                                     | Na tela real                                                        |
+| ----------------------------------------- | ------------------------------------------------------------------- |
+| Botão do maço                             | **"Conferir 4 canhotos"** — 5 notas marcadas, 4 elegíveis           |
+| Paradas de Tab no diálogo, com 4 canhotos | **4** — fechar, a primeira caixa, cancelar, aprovar                 |
+| `tabIndex` das caixas                     | `[0, -1, -1, -1]`                                                   |
+| `tabIndex` dos botões de foto             | `[-1, -1, -1, -1]`                                                  |
+| Fotos carregadas do storage               | 4 de 4                                                              |
+| Duas setas para baixo                     | foco 899872/2 → 899867/2, parada acompanhou, 4 de 4 seguem marcados |
+| Enter na nota em foco                     | abriu a galeria com a foto real daquela nota                        |
+| Caixa de marcação no desktop              | 20×24, inalterada                                                   |
+| Regra de toque no CSSOM da página viva    | as três, com a classe dobrada                                       |
+
+Nada foi aprovado: o botão "Aprovar 4 canhotos" não foi tocado, a seleção foi desfeita e o diálogo
+fechado por "Cancelar".
+
+**O defeito que só a tela real mostrou.** A dica de teclado estava **depois** da grade. Com apenas
+quatro canhotos ela ficava **176 px abaixo da área visível** do diálogo — para ler a instrução de
+como andar pelas notas era preciso rolar por todas elas primeiro. Com o teto de 40 seriam milhares
+de pixels. O arnês local não pegou porque a janela era mais alta e as imagens sintéticas, menores.
+
+Corrigido: a dica subiu para logo abaixo do subtítulo, antes da grade. O contrato novo afirma a
+**ordem no DOM** (`compareDocumentPosition`), e devolver a dica para depois da grade reprova
+(1 fail).
+
+**Observação não corrigida:** os cartões do maço têm alturas desiguais (346/346/346/233 px medidos),
+porque cada foto tem proporção própria e a grade usa `align-content: start`. É anterior a esta spec
+e não atrapalha a conferência — a foto aparece inteira, que é o que importa. Registrado para quem
+mexer no enquadramento depois.

@@ -371,6 +371,27 @@ export function DriverStopCard({
           <span className={styles.stopHeaderTop}>
             <span className={styles.stopHeaderTitle}>
               <span className={styles.stopMeta}>{t('stopTitle', { sequence: stop.sequence })}</span>
+              {/*
+              Pedido do usuário (02/10): a parada se identifica pela nota, e ela estava só dentro da
+              expansão — para saber de qual entrega era o cartão, era preciso abrir cada um.
+            */}
+              <span className={styles.stopNotes}>
+                {stop.documents.map((document) => (
+                  <span className={styles.stopNote} key={document.id}>
+                    <span className={styles.stopNoteTitle}>
+                      <Icon aria-hidden="true" name="invoice" size="sm" />
+                      {t('loadSheet.note', { number: document.number, series: document.series })}
+                    </span>
+                    <span className={styles.stopNoteAmount}>
+                      {formatDocumentAmount(document.totalAmount)}
+                    </span>
+                    <span className={styles.stopNoteRecipient}>
+                      <Icon aria-hidden="true" name="organization" size="sm" />
+                      {document.recipientName}
+                    </span>
+                  </span>
+                ))}
+              </span>
               <span className={styles.stopHeaderLabelText}>{stop.label}</span>
             </span>
             <Icon

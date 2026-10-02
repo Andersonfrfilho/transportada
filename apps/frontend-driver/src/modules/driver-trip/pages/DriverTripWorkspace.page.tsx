@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
+import { BarcodeScanner } from '@/components/ui/barcode-scanner'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
@@ -66,8 +67,9 @@ import {
 } from '../shared/occurrenceTypesCache.service'
 import { createIdempotencyKey } from '../shared/offlineQueue.service'
 import { buildStopOccurrenceReports } from '../shared/stopOccurrencePhoto.service'
-import { formatShortTripId } from '../shared/tripIdentifier.service'
+import { formatShortTripId, formatTripCreatedAt } from '../shared/tripIdentifier.service'
 import {
+  filterStopsBySearchTerm,
   findCurrentStop,
   findProofDocumentLabel,
   isAwaitingDispatch,
@@ -106,6 +108,8 @@ export function DriverTripWorkspacePage() {
   /** Spec 159 T9: a tela de fotos pendentes, mesmo padrão da fila de eventos. */
   const isPendingProofsOpen = routeSection === 'pending-proofs'
   /** O anexo que falha **não** desfaz a entrega: o aviso é do arquivo, e diz isso por extenso. */
+  const [searchTerm, setSearchTerm] = useState('')
+  const [isScannerOpen, setIsScannerOpen] = useState(false)
   const [proofFailed, setProofFailed] = useState(false)
   /** Spec 082 D6: teto da fila de anexos atingido — anunciado antes de qualquer descarte. */
   const [attachmentLimit, setAttachmentLimit] = useState<'count-limit' | 'size-limit' | undefined>(
@@ -217,6 +221,7 @@ export function DriverTripWorkspacePage() {
   const currentStopId =
     trip === undefined ? undefined : findCurrentStop({ enRouteStopId, trip })?.id
   const stopExpansion = useStopExpansion(currentStopId)
+  const visibleStops = trip === undefined ? [] : filterStopsBySearchTerm(trip.stops, searchTerm)
   /**
    * Spec 206 D6: o alvo do atalho "Ir para a parada N" — rola até o cabeçalho da parada a caminho e
    * põe o foco nele (`scrollTo` + `focus()`, `web.md` §11.3). Um `Map` porque o registro é por
@@ -681,6 +686,12 @@ export function DriverTripWorkspacePage() {
               />
             </p>
           )}
+          {/* Pedido do usuário (02/10): de quando é esta viagem — o código curto não diz a data. */}
+          {trip === undefined || formatTripCreatedAt(trip.createdAt) === '' ? null : (
+            <p className={styles.tripCreatedAt}>
+              {t('tripCreatedAt', { date: formatTripCreatedAt(trip.createdAt) })}
+            </p>
+          )}
           {trip?.status === 'on_delivery_route' ? (
             <p className={styles.tripOnRoute}>
               <Icon aria-hidden="true" name="workspace-driver-trip" size="sm" />
@@ -852,13 +863,57 @@ export function DriverTripWorkspacePage() {
         {/* Spec 065 D1: o que ele leva na mão desde o despacho, e antes de existir MDF-e */}
         {trip === undefined ? null : <DriverLoadSheet trip={trip} />}
 
+        {trip === undefined || trip.stops.length === 0 ? null : (
+          <div className={styles.stopSearch} role="search">
+            <Icon aria-hidden="true" name="search" />
+            <input
+              aria-label={t('search.placeholder')}
+              placeholder={t('search.placeholder')}
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
+            {/*
+              A etiqueta da nota traz a chave de 44 dígitos em Code128 (e a NFC-e em QR): ler com a
+              câmera é digitar a chave inteira sem errar um dígito no caminhão.
+            */}
+            <Button
+              aria-label={t('search.scanTrigger')}
+              onClick={() => setIsScannerOpen(true)}
+              type="button"
+              variant="ghost"
+            >
+              <Icon name="camera" />
+            </Button>
+          </div>
+        )}
+
+        <BarcodeScanner
+          closeLabel={t('search.scanClose')}
+          deniedMessage={t('search.scanDenied')}
+          isOpen={isScannerOpen}
+          onClose={() => setIsScannerOpen(false)}
+          onRead={(text) => {
+            setSearchTerm(text)
+            setIsScannerOpen(false)
+          }}
+          readingMessage={t('search.scanReading')}
+          startingMessage={t('search.scanStarting')}
+          title={t('search.scanTitle')}
+          unavailableMessage={t('search.scanUnavailable')}
+        />
+
         {trip === undefined ? (
           snapshot?.isRegisteredDriver === false ? null : (
             <p>{t('noTrip')}</p>
           )
+        ) : visibleStops.length === 0 ? (
+          <p className={styles.stopSearchEmpty} role="status">
+            {t('search.noResults')}
+          </p>
         ) : (
           <ul className={styles.stopList}>
-            {trip.stops.map((stop) => {
+            {visibleStops.map((stop) => {
               const startRouteBlock = canStartRouteAtStop({ enRouteStopId, stopId: stop.id })
               const blockingStopSequence = startRouteBlock.enabled
                 ? undefined

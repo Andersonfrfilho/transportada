@@ -116,6 +116,51 @@
   gap: var(--space-2);
 }
 
+/* A busca segue os tokens de campo da app — canto reto, como todo campo daqui. */
+.tripCreatedAt {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.stopSearch {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-asphalt) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 28%, transparent);
+  display: flex;
+  gap: var(--space-2);
+  padding: 0 var(--field-padding);
+}
+
+.stopSearch svg {
+  color: var(--color-slate);
+  flex-shrink: 0;
+}
+
+.stopSearch input {
+  background: transparent;
+  border: none;
+  color: var(--color-fog);
+  flex: 1;
+  font: inherit;
+  font-size: var(--field-font-size);
+  /* O alvo de toque é o campo inteiro, não a linha de texto: cru ele media 22px (web.md §10). */
+  min-height: var(--field-height);
+  min-width: 0;
+}
+
+/* O foco é da caixa inteira — o anel do navegador por dentro dela desenhava duas bordas. */
+.stopSearch input:focus {
+  outline: none;
+}
+
+.stopSearch:focus-within {
+  border-color: var(--color-copper);
+}
+
+.stopSearchEmpty {
+  color: var(--color-slate);
+}
+
 .stopList {
   display: grid;
   gap: var(--space-4);
@@ -186,6 +231,41 @@
 
 .stopExpandIconOpen {
   transform: rotate(180deg);
+}
+
+/* Identificação da nota no cabeçalho recolhido: é por ela que o motorista reconhece a parada. */
+.stopNotes {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.stopNote {
+  align-items: baseline;
+  column-gap: var(--space-3);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: var(--space-1);
+}
+
+.stopNoteTitle {
+  align-items: center;
+  display: flex;
+  font-weight: 600;
+  gap: var(--space-1);
+}
+
+.stopNoteAmount {
+  color: var(--color-copper);
+  font-weight: 600;
+}
+
+/* O cliente ocupa a linha inteira: nome comprido não espreme o valor para fora do cartão. */
+.stopNoteRecipient {
+  align-items: center;
+  color: var(--color-slate);
+  display: flex;
+  gap: var(--space-1);
+  grid-column: 1 / -1;
 }
 
 .stopChips {

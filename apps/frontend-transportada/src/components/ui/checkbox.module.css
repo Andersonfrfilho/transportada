@@ -97,9 +97,33 @@
 }
 
 /* Dedo não acerta 20px: no toque a área clicável cresce sem mudar o desenho da caixa. */
+/*
+ * A classe dobra porque a regra base dobra: `@media` não soma especificidade, e `.root` sozinho
+ * perde para `.root.root`. Escrita com uma classe só, esta regra é letra morta — era, até aqui.
+ */
 @media (pointer: coarse) {
-  .root {
-    min-height: calc(var(--space-10) + var(--space-1));
+  .root.root {
+    min-height: var(--touch-target);
+  }
+
+  /*
+   * Sem rótulo o alvo tem a largura da caixa (20 px) — é a variante de linha de tabela, e altura
+   * sozinha não faz alvo. `span` é exatamente essa variante: com rótulo o primitivo renderiza
+   * `label`, e lá a largura do texto já passa do mínimo.
+   */
+  span.root.root {
+    min-width: var(--touch-target);
+    justify-content: center;
+  }
+
+  /*
+   * Quando o chamador envolve tudo no `label` dele (chip de status, linha de candidato do MDF-e), o
+   * alvo é esse `label` — que a altura acima já leva a 44 px. Alargar a caixa ali só empurraria o
+   * texto para a direita.
+   */
+  label span.root.root {
+    min-width: 0;
+    justify-content: flex-start;
   }
 }
 

@@ -183,3 +183,16 @@ Nacional sai de biblioteca. **Municipal é onde dói** — a cidade fecha e o ro
 32. _(2026-09-13)_ **Medição de baú e caixas pela câmera.** Pedido do usuário em 2026-09-12. A
     precisão (quantos centímetros importa?), o suporte a WebXR/ARCore no PWA e o Safari do iPhone
     precisam de estudo. **Vira spec própria com especificação de viabilidade; fora do escopo de 147.**
+
+### 224 — o comprovante junta fotos da mercadoria
+
+33. ~~**Reduzir também o canhoto no aparelho?**~~ **Resolvida pela spec 212** (`0bf0b57e4`,
+    `ae6ea9977`, `fb063406d`): o canhoto é reduzido no aparelho a 2000 px e ~900 KiB, com teto de
+    960 KiB, `pendingReduction` e recuperação. O `DELIVERY_PROOF_MAX_BYTES` passou a 960 KiB. A 224
+    usa a mesma esteira, com a régua de 512 KiB para a foto de produto.
+
+34. _(2026-10-02)_ **Qual teto vale para a foto da mercadoria?** A 224 (D3) decidiu 4 por canal no
+    motorista e 5 no escritório — **9 por entrega**, deliberado, porque são dois autores. A **220
+    RF08**, publicada depois, diz que o teto **continua 5 por entrega** (spec 184 D3) e valida o
+    `cargo_minimum_count` contra ele. As duas não coexistem. Bloqueia a Fase 1 da 224, que é quem
+    escreve o trigger.

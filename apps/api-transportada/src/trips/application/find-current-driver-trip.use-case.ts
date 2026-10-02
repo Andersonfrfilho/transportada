@@ -113,6 +113,8 @@ export type DriverTripManifest = {
 }
 
 export type DriverTrip = {
+  /** Quando a viagem foi aberta — duas viagens do mesmo veículo só se distinguem por isto. */
+  readonly createdAt: string
   readonly id: string
   readonly manifest: DriverTripManifest | null
   readonly status: string

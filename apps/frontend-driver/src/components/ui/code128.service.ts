@@ -165,3 +165,34 @@ export function encodeCode128C(digits: string): readonly number[] {
 export function totalCode128Width(widths: readonly number[]): number {
   return widths.reduce((total, width) => total + width, 0)
 }
+
+export type Code128Layout = Readonly<{
+  /** Barras em módulos, já deslocadas pela margem clara — desenhar é só mapear para pixels. */
+  bars: readonly Readonly<{ width: number; x: number }>[]
+  quietZoneModules: number
+  totalWidth: number
+}>
+
+/**
+ * Margem clara exigida pelo Code 128 dos dois lados. Sem ela o leitor não acha onde a etiqueta
+ * começa, por mais nítido que o desenho esteja.
+ */
+export const QUIET_ZONE_MODULES = 10
+
+/** A geometria do desenho, separada do SVG: assim o teste rasteriza e manda decodificar. */
+export function buildCode128Layout(digits: string): Code128Layout {
+  const widths = encodeCode128C(digits)
+  const bars: { width: number; x: number }[] = []
+  let offset = QUIET_ZONE_MODULES
+  widths.forEach((width, index) => {
+    // Índice par é barra, ímpar é espaço: é a alternância que o Code 128 define.
+    if (index % 2 === 0) bars.push({ width, x: offset })
+    offset += width
+  })
+
+  return {
+    bars,
+    quietZoneModules: QUIET_ZONE_MODULES,
+    totalWidth: totalCode128Width(widths) + QUIET_ZONE_MODULES * 2,
+  }
+}

@@ -110,3 +110,40 @@ export function buildNavigationHref(stop: DriverTripStop): string {
 
   return `https://maps.google.com/?q=${encodeURIComponent(stop.label)}`
 }
+
+/** Sem acento e sem caixa: o motorista digita "sao jose" e a nota diz "São José". */
+function normalizeSearchText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .trim()
+    .toLowerCase()
+}
+
+/**
+ * A parada bate quando o termo aparece no endereço dela ou em qualquer nota — número, destinatário
+ * ou chave de acesso. A chave inteira é o que o leitor de QR code entrega.
+ */
+export function matchesStopSearchTerm(stop: DriverTripStop, searchTerm: string): boolean {
+  const term = normalizeSearchText(searchTerm)
+  if (term === '') return true
+
+  const haystack = [
+    stop.label,
+    ...stop.documents.flatMap((document) => [
+      document.number,
+      document.recipientName,
+      document.recipientDisplayName,
+      document.accessKey,
+    ]),
+  ]
+
+  return haystack.some((candidate) => normalizeSearchText(candidate).includes(term))
+}
+
+export function filterStopsBySearchTerm(
+  stops: readonly DriverTripStop[],
+  searchTerm: string,
+): readonly DriverTripStop[] {
+  return stops.filter((stop) => matchesStopSearchTerm(stop, searchTerm))
+}
