@@ -879,9 +879,9 @@ export type DeliveryAddressHistoryInput = Readonly<{ documentId: string; tripId:
 export type TripFilters = Readonly<{
   createdFrom?: string
   createdUntil?: string
-  driverIdEq?: string
-  statusEq?: TripStatus
-  vehicleIdEq?: string
+  driverIdIn?: readonly string[]
+  statusIn?: readonly TripStatus[]
+  vehicleIdIn?: readonly string[]
 }>
 
 export type TripPage = Readonly<{

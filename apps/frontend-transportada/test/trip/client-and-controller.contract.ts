@@ -35,7 +35,7 @@ describe('trip client contract', () => {
     expect(
       await client.listTrips({
         cursor: SYNTHETIC_CURSOR,
-        filters: { statusEq: 'draft', vehicleIdEq: TRIP.vehicleId },
+        filters: { statusIn: ['draft', 'loading'], vehicleIdIn: [TRIP.vehicleId] },
         limit: 25,
       }),
     ).toEqual(TRIP_PAGE)
@@ -99,7 +99,9 @@ describe('trip client contract', () => {
     }
 
     expect(listRequest.url).toBe(
-      `${TRIPS_PATH}?cursor=${encodeURIComponent(SYNTHETIC_CURSOR)}&limit=25&statusEq=draft&vehicleIdEq=${TRIP.vehicleId}`,
+      // A lista vai separada por vírgula num parâmetro só (`statusIn=draft,loading`), e a vírgula
+      // sai percent-encoded — é o que a fronteira da API quebra de volta em `parseListFilter`.
+      `${TRIPS_PATH}?cursor=${encodeURIComponent(SYNTHETIC_CURSOR)}&limit=25&statusIn=draft%2Cloading&vehicleIdIn=${TRIP.vehicleId}`,
     )
     expect(listRequest.method).toBe('GET')
     expect(listRequest.headers.get('authorization')).toBe(`Bearer ${SYNTHETIC_ACCESS_TOKEN}`)
@@ -745,7 +747,7 @@ function createMutationRecordingClient(): TripClient & { readonly mutationCount:
 
 type ListInput = Readonly<{
   cursor: null | string
-  filters?: Readonly<Record<string, string | undefined>>
+  filters?: Readonly<Record<string, readonly string[] | string | undefined>>
   limit: number
 }>
 type TripIdInput = Readonly<{ tripId: string }>
