@@ -124,6 +124,11 @@ import { CargoLayoutOutboxRelayService } from './cargo-layout/application/cargo-
 import { DrizzleCargoLayoutOutboxRepository } from './cargo-layout/infrastructure/drizzle-cargo-layout-outbox.repository.js'
 import { createDrizzleAggregateAttachmentWriteBackRepository } from './aggregate-attachment/infrastructure/drizzle-aggregate-attachment-write-back.repository.js'
 import { createStorageAttachmentReaderGateway } from './aggregate-attachment/infrastructure/storage-attachment-reader.gateway.js'
+import { createCanhotoImageReader } from './canhoto-read/application/canhoto-image-reader.service.js'
+import { createCanhotoReadRoutine } from './canhoto-read/application/canhoto-read.routine.js'
+import { createCanhotoReviewApiGateway } from './canhoto-read/infrastructure/canhoto-review-api.gateway.js'
+import { createDrizzleCanhotoReadQueue } from './canhoto-read/infrastructure/drizzle-canhoto-read-queue.repository.js'
+import { createThreadedCanhotoBarcodeDecoder } from './canhoto-read/infrastructure/threaded-canhoto-barcode.decoder.js'
 import { createTesseractOcrClient } from '@adatechnology/document-intake'
 
 import { createDocumentExtractionGateway } from './aggregate-attachment/infrastructure/document-extraction.gateway.js'
@@ -1329,6 +1334,28 @@ export async function startWorkerRuntime(
                       timeoutInMilliseconds: config.fuelPricePull.anpTimeoutMilliseconds,
                     }),
                   }),
+                }),
+              }),
+          /**
+           * Spec 222 T6.7: registrada só com o crachá do worker declarado — o worker lê a fila por SQL
+           * mas reporta pela rota do robô, e sem credencial a janela pousa em `job_run_routine_missing`
+           * em vez de ler foto que ninguém poderia reportar.
+           */
+          ...(config.mdfeAutoIssue === undefined
+            ? {}
+            : {
+                ['trip.canhoto.read' as const]: createCanhotoReadRoutine({
+                  errorTracker,
+                  imageReader: createCanhotoImageReader({
+                    decoder: createThreadedCanhotoBarcodeDecoder(),
+                    objectReader: createStorageAttachmentReaderGateway({ storage: storageGateway }),
+                  }),
+                  logger,
+                  now: () => new Date(),
+                  queue: createDrizzleCanhotoReadQueue(
+                    database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                  ),
+                  reviewApi: createCanhotoReviewApiGateway({ configuration: config.mdfeAutoIssue }),
                 }),
               }),
           // Sem aviso de rejeição: a porta é opcional e ainda não tem adaptador, porque o catálogo

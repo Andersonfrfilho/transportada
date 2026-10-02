@@ -869,3 +869,19 @@ trocando 40 por 1000, que é a mutação que vale.
 
 Não rodou: a ligação em `main.ts` (próximo commit), o contrato de log (T6.8) e as integrações
 (T6.9/T6.10).
+
+## T6.7 (ligação) — a rotina entra em `main.ts`
+
+`main.ts` registra `trip.canhoto.read` em `routines:` com `createStorageAttachmentReaderGateway` (o
+mesmo da extração de anexos, nenhum segundo gateway), `createThreadedCanhotoBarcodeDecoder`,
+`createDrizzleCanhotoReadQueue`, o gateway da rota do robô e o `errorTracker`. Como
+`whatsapp.command.settle`, só entra com `config.mdfeAutoIssue` declarado: sem o crachá do worker a
+janela pousa em `job_run_routine_missing`, em vez de ler foto que ninguém poderia reportar.
+
+`tsc --noEmit` e `eslint src/main.ts` limpos; `bun run test` do worker inteiro: **1519 pass / 0 fail**
+em 95 arquivos (0 skip declarado pela saída). Não há teste que exercite o registro de rotinas de
+`main.ts` (nenhuma rotina tem); a prova de que o registro existe é o tipo (`JobRoutineRegistry`) e a
+integração T6.9/T6.10, que usam a rotina com o mesmo `createDrizzleCanhotoReadQueue`.
+
+⚠️ O `createCanhotoReviewApiGateway` não tem timeout de `fetch` (igual ao do MDF-e): API pendurada
+poderia segurar um ciclo. Fica registrado, não corrigido aqui.
