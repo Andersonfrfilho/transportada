@@ -114,9 +114,20 @@ rateio do frete nem por peso.
   - **o trecho**, `legs[i].durationSeconds` da rota congelada, repartido entre as notas a bordo (D1/D2);
   - **a espera na parada**, atribuída **direto** às notas entregues ali, dividida igualmente entre
     elas — ninguém mais causou aquela espera. O caminhão ficou parado **uma vez** na parada, e é esse
-    tempo que custa: `departed − arrived` dos eventos daquela parada. `TRIP_STOP_EVENT_KINDS` tem
-    `arrived`, `delivered` e `departed`, e o schema é explícito em `trip.schema.ts:1129` — "chegada é
-    da parada; entrega e retorno são de uma nota".
+    tempo que custa.
+
+    ⚠️ **Corrigido em 2026-10-02, na implementação: não é `departed − arrived` da mesma parada.** O
+    `departed` da ADR-0088 é a saída **em direção** à parada, gravada com o `stopId` do **destino**
+    (`report-stop-departure.use-case.ts:128`), e a ADR-0088 §2 só permite "a caminho" em parada aberta
+    **e sem chegada**. Na mesma parada ele vem **antes** do `arrived`, então a conta da redação
+    anterior sairia **negativa** — e `arrived − departed` é o tempo de **viagem até** a parada, não a
+    espera nela.
+
+    A espera na parada X é: da chegada em X até o **primeiro `departed` de outra parada** com instante
+    ≥ essa chegada. Lido assim, aguenta o motorista reordenar o destino. `departure_cancelled` desfaz o
+    `departed` anterior da mesma parada, e no empate de carimbo o `departed` vem primeiro, porque o
+    cancelamento carrega o mesmo `tapped_at` (ADR-0088 §2b). O instante do evento é
+    `coalesce(tapped_at, created_at)`.
 
   ⚠️ Somar `delivered − arrived` **por nota** seria errado e é tentador: as entregas de uma parada
   acontecem dentro da mesma permanência, então isso contaria o mesmo minuto várias vezes e faria o
@@ -131,6 +142,17 @@ rateio do frete nem por peso.
     previsto nasce **sem** espera, e o número cresce conforme a viagem acontece. Isso não é defeito — é
     a razão de D6 mostrar previsto e fechado lado a lado, e a tela precisa dizer qual dos dois o leitor
     está vendo.
+
+- **D10 — Os trechos da rota precisam de normalização, e sem barracão o primeiro trecho é vazio.**
+  `planned_route.legs` é a lista crua do roteirizador: a saída do barracão, os trechos entre paradas e
+  o retorno, com as contagens em `planned_route.depot.leadingLegs` / `trailingLegs`
+  (`read-route-geometry.use-case.ts:145-149`). A política exige `legs[i]` chegando a `stops[i]`, então:
+  o retorno sai de `legs` (ele já vem em `planned_return_distance_meters`, e entraria duas vezes), e
+  **sem barracão** — `leadingLegs === 0` — o primeiro ponto **é** a primeira parada, nenhum trecho a
+  alcança, e entra um trecho vazio `{0, 0}` na frente. Sem isso toda rota sem barracão cairia em "a
+  contagem não casa, logo ausência" (D5), e o número desapareceria da tela por um detalhe de forma.
+  Descompasso de verdade — parada sem coordenada, rota velha, `leadingLegs` inesperado — continua
+  virando `unavailable`, que é o D5 fazendo o seu trabalho.
 
 ## Requisitos funcionais
 

@@ -22,11 +22,9 @@ import { COMPANY_ROLE_PERMISSIONS } from '../../src/identity/domain/authorizatio
 import type { CompanyContext } from '../../src/identity/domain/tenant-context.js'
 import {
   COST_BASES,
+  DWELL_BASES,
   TIME_BASES,
-  type ApportionmentLeg,
-  type ApportionmentStop,
 } from '../../src/trips/domain/document-cost-apportionment.types.js'
-import { DWELL_BASES } from '../../src/trips/domain/document-cost-apportionment.types.js'
 import {
   jsonRequest,
   responseData,
@@ -80,19 +78,6 @@ const TEN_PERCENT_RULE: ApplicableFreightRule = {
   version: '1',
 }
 
-/**
- * O que a T2.2 precisa que o contexto da avaliação carregue para repartir o custo. O tipo
- * `TripValuationContext` ainda não o tem, então o contrato o declara aqui — e só aqui, em
- * `buildContext`, para a T2.2 ajustar os nomes num lugar só.
- */
-type ApportionmentFacts = {
-  readonly legs: readonly ApportionmentLeg[]
-  readonly returnDistanceMetres: number | null
-  readonly stops: readonly ApportionmentStop[]
-}
-
-type DocumentFacts = { readonly stopId: null | string }
-
 type ResponseLine = Readonly<Record<string, unknown>>
 
 type ValuationBody = {
@@ -105,7 +90,7 @@ type ValuationBody = {
 
 function buildDocument(index: number, stopId: null | string) {
   const suffix = String(index).padStart(2, '0')
-  const document: TripValuationDocument & DocumentFacts = {
+  const document: TripValuationDocument = {
     destinationCityCode: '3550308',
     destinationState: 'SP',
     icmsAmount: '20.0000',
@@ -122,7 +107,7 @@ function buildDocument(index: number, stopId: null | string) {
 
 /** Três paradas, cinco notas (2, 2 e 1), 150 km de ida e 50 km de volta; a segunda parada espera. */
 function buildContext() {
-  const context: TripValuationContext & ApportionmentFacts = {
+  const context: TripValuationContext = {
     distanceMeters: 200_000,
     documents: [
       buildDocument(1, 'stop-1'),

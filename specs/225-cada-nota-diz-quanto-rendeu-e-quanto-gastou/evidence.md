@@ -200,3 +200,77 @@ Vale porque o `serialize` do portal é projeção explícita campo a campo.
 | `bun run lint` (api)                          | exit 0                                                       |
 | `test ./test/trip-valuation.contract.test.ts` | **181 pass · 9 fail · 798 expect()** — vermelho pretendido   |
 | contrato inteiro da API                       | **8550 pass · 23 skip · 9 fail** (referência: 8536 · 0 fail) |
+
+## T2.2 — a resposta passa a dizer por nota
+
+Executada por subagente `executor` em `sonnet`; gates conferidos por mim. `document-cost-apportionment.*`
+**não** aparece no `git status`: a política da Fase 1 está intacta.
+
+### O D9 estava errado contra os dados reais, e a implementação achou
+
+A spec mandava `departed − arrived` da mesma parada. **Conferi na fonte, não no relatório:** o
+`departed` da ADR-0088 é a saída **em direção** à parada, gravada com o `stopId` do **destino**
+(`report-stop-departure.use-case.ts:128`), e a ADR-0088 §2 só permite "a caminho" em parada aberta **e
+sem chegada**. Na mesma parada o `departed` vem **antes** do `arrived` — a conta da spec sairia
+**negativa**, e `arrived − departed` é o tempo de viagem _até_ a parada, não a espera nela.
+
+A leitura correta, implementada em `stop-dwell.policy.ts`: a espera na parada X vai da chegada em X até
+o **primeiro `departed` de outra parada** com instante ≥ essa chegada — forma que aguenta o motorista
+reordenar o destino. `departure_cancelled` desfaz o `departed` anterior da mesma parada, e no empate de
+carimbo o `departed` vence, porque o cancelamento carrega o mesmo `tapped_at` (ADR-0088 §2b). Instante
+é `coalesce(tapped_at, created_at)`.
+
+Spec corrigida no D9, com o porquê — senão alguém "conserta" de volta para a conta negativa.
+
+### E os trechos precisavam de normalização que a spec não previa
+
+`planned_route.legs` é a lista crua do roteirizador: saída do barracão + trechos entre paradas +
+retorno, com as contagens em `depot.leadingLegs` / `trailingLegs`
+(`read-route-geometry.use-case.ts:145-149`, conferido). A política exige `legs[i]` chegando a
+`stops[i]`, então o retorno sai de `legs` — ele já vem em `planned_return_distance_meters` e entraria
+duas vezes — e **sem barracão** entra um trecho vazio na frente, porque o caminhão **começa** na
+primeira parada e nenhum trecho a alcança. Sem isso, toda rota sem barracão cairia em "contagem não
+casa, logo ausência" e o número desapareceria da tela por detalhe de forma. Virou **D10**.
+
+### Uma consulta nova, e o N+1 provado por contagem
+
+`readStopDwells` entra no `Promise.all` que já existia: um `trip_stops LEFT JOIN trip_stop_events`
+filtrado por `kind`, trazendo as paradas e os eventos da viagem **inteira** de uma vez. Trechos,
+retorno e `stop_id` das notas não custam consulta — entraram no select de `trips` e na junção de
+documentos que já existiam.
+
+A prova de que não há N+1 é por **contagem, não por leitura**: um `Proxy` conta os `select` de
+`readContext`, e o teste exige **igualdade** entre viagem de 1 parada/1 nota e viagem de 3 paradas/5
+notas — **17 e 17**.
+
+### Mutação
+
+| sonda                                                       | contrato                                                             | integração                                       |
+| ----------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------ |
+| rateio de viagem fora do `costAmount`                       | 2 falhas (soma do D4: esperado 640, recebido 505; e trecho + rateio) | 2 falhas (`14395000n` vs `12145000n`)            |
+| `icms` fora das parcelas passadas à política                | 3 falhas (soma do custo, imposto por nota, soma da margem)           | **não reprovou** — o cenário tem só `pis_cofins` |
+| espera lida com o `departed` da própria parada (D9 literal) | 2 falhas no contrato do dwell                                        | 1 falha, "a espera vem dos eventos do banco"     |
+
+A segunda linha é honestidade do agente e fica registrada: a prova do ICMS-dentro-do-total vive **só**
+no contrato, porque o cenário de integração não emite CT-e. A integração garante `pis_cofins > 0` e a
+soma fechando.
+
+### Portões, conferidos por mim
+
+| Portão                                                            | Resultado                                                        |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `bun run typecheck` (api)                                         | exit 0                                                           |
+| `bun run lint` (api)                                              | exit 0                                                           |
+| contrato inteiro da API                                           | **8570 pass · 23 skip · 0 fail · 27605 expect() · 192 arquivos** |
+| `test/integration/trip-valuation-document-figures.integration.ts` | **5 pass · 0 fail · 39 expect() · [9.13s]**                      |
+
+As 9 vermelhas da T2.1 fecharam, e **nenhuma asserção dela foi tocada**: `git diff` no arquivo da T2.1
+tem **zero** linhas `-` e zero `+` com `expect(` — só o ponto de montagem do contexto mudou.
+
+### Declaradamente fora
+
+- A prévia (`POST /trips/valuation-preview`) e a sugestão multi-veículo passam pelo mesmo
+  `buildValuationFromContext` e **não** têm trechos nem paradas no contexto: as linhas delas saem
+  `costBasis: 'unavailable'` com campos nulos e o `taxAmount` calculado. Nenhum contrato existente
+  quebrou. Se a prévia tiver de mostrar gasto por nota, é task nova.
+- A suíte de integração inteira não foi rodada aqui — ela entra no portão da T4.3.

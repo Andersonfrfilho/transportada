@@ -45,7 +45,7 @@ em `evidence.md`.
       do RF1 presentes com `trip.financials`; **ausentes** sem a permissão; ausentes na resposta do
       portal da contratante. Aceite: vermelho pelo motivo certo.
 
-- [ ] **T2.2** `read-trip-valuation.use-case.ts` chama a política e anexa os campos a `revenueLines`;
+- [x] **T2.2** `read-trip-valuation.use-case.ts` chama a política e anexa os campos a `revenueLines`;
       o mapper e a porta declaram os campos. **Nenhum endpoint novo.**
 
   Aceite: T2.1 e T2.2 verdes, os **dois** comandos da API verdes (contrato e integração), e a

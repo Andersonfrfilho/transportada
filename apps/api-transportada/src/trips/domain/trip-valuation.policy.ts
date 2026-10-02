@@ -11,6 +11,7 @@ import type {
   DailyAllowanceDaysOrigin,
   DailyAllowanceRateOrigin,
 } from './daily-allowance.policy.js'
+import type { DocumentCostFigures } from './document-cost-apportionment.types.js'
 
 const ERROR_CODE_PREFIX = 'TRIP_VALUATION'
 const PERCENT_FACTOR = 100n
@@ -236,7 +237,16 @@ export const TRIP_COST_KINDS = [
 ] as const
 export type TripCostKind = (typeof TRIP_COST_KINDS)[number]
 
-export type TripRevenueLine = {
+/**
+ * Spec 225 RF1: o que a nota gastou e deixou de margem. Opcional porque quem resolve a receita
+ * (`resolveRevenueLine`) ainda não conhece o custo — `buildValuationFromContext` anexa depois, e é o
+ * frete da própria linha (`amount`) que fecha a conta, por isso `freightAmount` não se repete aqui.
+ */
+export type TripRevenueLineFigures = Partial<
+  Omit<DocumentCostFigures, 'freightAmount' | 'tripDocumentId'>
+>
+
+export type TripRevenueLine = TripRevenueLineFigures & {
   readonly amount: string
   /**
    * Qual parametrização produziu o número, e a que percentual.
