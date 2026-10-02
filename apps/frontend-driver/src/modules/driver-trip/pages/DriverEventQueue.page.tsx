@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
+import { DriverSyncStatus } from '../components/DriverSyncStatus.component'
 import type { DriverTripStop } from '../shared/driverTrip.types'
 import {
   hasSendableEvents,
@@ -22,6 +23,8 @@ type DriverEventQueuePageProps = Readonly<{
   isLoading: boolean
   isSyncing: boolean
   items: readonly EventQueueItemView[]
+  /** Pedido do usuário (01/10): de quando é a última leitura do servidor — `0` é "nunca nesta sessão". */
+  lastSyncedAtMs: number
   onBack: () => void
   /** Spec 206 D6: o mesmo atalho do cartão — rola até o cabeçalho da parada e põe o foco (RF8b). */
   onFocusStop: (stopId: string) => void
@@ -60,6 +63,7 @@ export function DriverEventQueuePage({
   isLoading,
   isSyncing,
   items,
+  lastSyncedAtMs,
   onBack,
   onFocusStop,
   onSendAll,
@@ -67,6 +71,8 @@ export function DriverEventQueuePage({
   stops,
 }: DriverEventQueuePageProps) {
   const { t } = useTranslation('driverTrip')
+  /** O que a drenagem ainda pode levar: recusado não conta, porque só sai de lá por decisão humana. */
+  const pendingCount = items.filter((item) => item.status.state !== 'rejected').length
 
   /** Spec 212: a causa conhecida sai em texto humano; a desconhecida, crua como veio. */
   function causeLabel(cause: string): string {
@@ -115,20 +121,38 @@ export function DriverEventQueuePage({
         </p>
       ) : (
         <>
+          {/*
+           * Pedido do usuário (01/10): o envio em massa é o botão de emergência, e precisa MOSTRAR
+           * que está acontecendo — antes ele só ficava desabilitado, indistinguível de travado.
+           */}
+          <DriverSyncStatus
+            isSyncing={isSyncing}
+            lastSyncedAtMs={lastSyncedAtMs}
+            pendingCount={pendingCount}
+          />
           <Button
             className={styles.eventQueueSendAll}
             disabled={isSyncing || !hasSendableEvents(items)}
             type="button"
             onClick={onSendAll}
           >
-            <Icon name="upload" />
-            {t('eventQueue.sendAll')}
+            {isSyncing ? (
+              <span aria-hidden="true" className={styles.syncStatusSpinner} />
+            ) : (
+              <Icon name="upload" />
+            )}
+            {t(isSyncing ? 'eventQueue.sending' : 'eventQueue.sendAll')}
           </Button>
           <ul className={styles.eventQueueList}>
             {items.map((item) => {
               const departBlock = resolveEventQueueDepartBlock({ enRouteStopId, item, stops })
               return (
-                <li className={styles.eventQueueItem} key={item.idempotencyKey}>
+                <li
+                  className={styles.eventQueueItem}
+                  /* Pulsa só o que está realmente subindo: o recusado espera decisão, não a rede. */
+                  data-syncing={isSyncing && item.status.state !== 'rejected' ? 'true' : undefined}
+                  key={item.idempotencyKey}
+                >
                   <div className={styles.eventQueueItemBody}>
                     <p className={styles.eventQueueItemTitle}>
                       {itemTitle(item)}

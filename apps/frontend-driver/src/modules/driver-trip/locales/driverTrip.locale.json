@@ -45,6 +45,7 @@
     "open": "Ver eventos pendentes",
     "sendAll": "Enviar todos agora",
     "sendNow": "Enviar agora",
+    "sending": "Enviando…",
     "status": {
       "attachmentRejected": "Anexo rejeitado pelo servidor: {{cause}}. O evento já foi aceito.",
       "failed_one": "Falhou {{count}} vez — sem rede na última tentativa",
@@ -293,6 +294,16 @@
     "pending": "Pendente"
   },
   "stopTitle": "Parada {{sequence}}",
+  "sync": {
+    "hours_one": "Sincronizado há {{count}} hora",
+    "hours_other": "Sincronizado há {{count}} horas",
+    "minutes_one": "Sincronizado há {{count}} minuto",
+    "minutes_other": "Sincronizado há {{count}} minutos",
+    "never": "Ainda não sincronizou",
+    "now": "Sincronizado agora mesmo",
+    "syncing_one": "Enviando {{count}} pendência…",
+    "syncing_other": "Enviando {{count}} pendências…"
+  },
   "title": "Minha viagem",
   "tripCompleted": "Viagem concluída. Bom trabalho.",
   "vehicle": "Veículo {{plate}}",

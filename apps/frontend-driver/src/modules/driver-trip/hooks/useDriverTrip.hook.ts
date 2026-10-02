@@ -178,6 +178,12 @@ export type DriverTripController = Readonly<{
   isQueueLoading: boolean
   isSyncing: boolean
   /**
+   * Pedido do usuário (01/10): de quando é a última leitura do servidor, para a tela de
+   * pendências dizer a idade da sincronização. `0` é "nunca nesta sessão" (`dataUpdatedAt`
+   * do TanStack Query nasce assim) — cru de propósito: a idade se calcula na hora de mostrar.
+   */
+  lastSyncedAtMs: number
+  /**
    * A hora do dado na tela ("dados de HH:MM"): a do snapshot no boot sem rede, ou a da última
    * leitura boa quando a releitura falhou com sessão viva. `undefined` com a leitura em dia.
    */
@@ -884,6 +890,7 @@ export function useDriverTrip(
     hasReassignedTripNotice: isTripReassignedNoticeVisible,
     isQueueLoading: queueView === undefined,
     isSyncing: drain.isPending,
+    lastSyncedAtMs: currentTrip.dataUpdatedAt,
     dataSavedAt: resolveTripDataSavedAt({
       canSync: session.canSync,
       dataUpdatedAt: currentTrip.dataUpdatedAt,

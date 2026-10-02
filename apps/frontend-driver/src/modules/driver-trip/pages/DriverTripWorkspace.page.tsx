@@ -283,6 +283,7 @@ export function DriverTripWorkspacePage() {
           isLoading={driverTrip.isQueueLoading}
           isSyncing={driverTrip.isSyncing}
           items={driverTrip.queueView}
+          lastSyncedAtMs={driverTrip.lastSyncedAtMs}
           onBack={() => window.history.back()}
           onFocusStop={focusStop}
           onSendAll={() => driverTrip.sendAllNow()}

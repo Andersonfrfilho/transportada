@@ -57,6 +57,7 @@
     "open": "See pending events",
     "sendAll": "Send all now",
     "sendNow": "Send now",
+    "sending": "Sending…",
     "status": {
       "attachmentRejected": "Attachment rejected by the server: {{cause}}. The event was already accepted.",
       "failed_one": "Failed {{count}} time — no network on the last attempt",
@@ -266,6 +267,16 @@
     "pending": "Pending"
   },
   "stopTitle": "Stop {{sequence}}",
+  "sync": {
+    "hours_one": "Synced {{count}} hour ago",
+    "hours_other": "Synced {{count}} hours ago",
+    "minutes_one": "Synced {{count}} minute ago",
+    "minutes_other": "Synced {{count}} minutes ago",
+    "never": "Not synced yet",
+    "now": "Synced just now",
+    "syncing_one": "Sending {{count}} pending item…",
+    "syncing_other": "Sending {{count}} pending items…"
+  },
   "title": "My trip",
   "tripCompleted": "Trip completed. Good work.",
   "vehicle": "Vehicle {{plate}}",
