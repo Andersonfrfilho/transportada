@@ -13,6 +13,7 @@ import type { OfflineQueueStore } from '@/modules/driver-trip/shared/offlineQueu
 import {
   recoverQueuedProofPhotos,
   reduceQueuedProofPhoto,
+  settleReductionWithinTimeout,
   type ProofPhotoReductions,
 } from '@/modules/driver-trip/shared/proofPhotoRecovery.service'
 import {
@@ -22,6 +23,7 @@ import {
   PROOF_PHOTO_MAX_SIDE,
   PROOF_PHOTO_TARGET_BYTES,
   shouldReduceProofFile,
+  type ReducedProofPhoto,
 } from '@/modules/driver-trip/shared/proofPhotoReduction.service'
 
 const KIB = 1024
@@ -179,6 +181,45 @@ describe('/minha-viagem: a drenagem espera a redução (spec 212)', () => {
       reductions: new Map(),
     })
 
+    expect((await drain(attachmentStore))[0]?.blob.size).toBe(500 * KIB)
+  })
+
+  /**
+   * Defeito medido em produção (01/10): `Image.onload`/`canvas.toBlob` não prometem assentar, e a
+   * drenagem pula o anexo enquanto `pendingReduction` for `true` — a foto ficava em "enviando" para
+   * sempre, sem erro e sem retentativa. O teto transforma o silêncio em falha tratada.
+   */
+  it('redução que nunca assenta estoura o teto e libera o anexo em vez de prender a foto', async () => {
+    const nunca = new Promise<ReducedProofPhoto>(() => undefined)
+
+    const settled = await settleReductionWithinTimeout({ reduction: nunca, timeoutMs: 5 })
+
+    expect(settled).toBeUndefined()
+  })
+
+  it('redução que falha também devolve undefined — quem chama trata igual ao estouro', async () => {
+    const falha = Promise.reject(new Error('PROOF_PHOTO_ENCODE_FAILED'))
+
+    const settled = await settleReductionWithinTimeout({ reduction: falha, timeoutMs: 5_000 })
+
+    expect(settled).toBeUndefined()
+  })
+
+  it('redução pendurada: a marca sai e a drenagem leva o original', async () => {
+    const attachmentStore = createMemoryAttachments([
+      photo({ bytes: 500 * KIB, pendingReduction: true }),
+    ])
+
+    await reduceQueuedProofPhoto({
+      attachment: firstItem(attachmentStore),
+      attachmentStore,
+      eventKey: EVENT_KEY,
+      reduce: () => new Promise<ReducedProofPhoto>(() => undefined),
+      reductionTimeoutMs: 5,
+      reductions: new Map(),
+    })
+
+    expect(firstItem(attachmentStore).pendingReduction).toBeUndefined()
     expect((await drain(attachmentStore))[0]?.blob.size).toBe(500 * KIB)
   })
 })
