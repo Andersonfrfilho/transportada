@@ -130,7 +130,7 @@ do usuário. A API não é revertida com a app nova no ar.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T2.1** Contratos primeiro, no worker (em `test/trip-location-purge/`, importados por
+- [x] **T2.1** Contratos primeiro, no worker (em `test/trip-location-purge/`, importados por
       `test/trip-location-purge.contract.test.ts`):
   - `trip-execution.schema.ts` **declara** as três tabelas novas (`id`, tempo, as quatro de posição,
     `location_state`) e `location_state` em `tripStopEvents` — cópia por valor;

@@ -1570,3 +1570,98 @@ frota não encostam em nenhuma das cinco tabelas de evento nem na lista de leito
 A T1.3 não altera caminho de execução nenhum: o `constant.ts` é importado só pelo contrato. A
 integração entra aqui como prova de que nada regrediu, não como prova do que a task faz — essa é a
 mutação.
+
+## T2.1 — os contratos do expurgo nas cinco tabelas
+
+Executada por subagente `executor` em `sonnet`, como a Fase 2 pede, com os gates rodados por mim
+depois — relatório de agente não é evidência.
+
+### O que entrou
+
+Três arquivos em `apps/worker-transportada/test/trip-location-purge/`, importados pelo entrypoint
+`test/trip-location-purge.contract.test.ts` (o `package.json` já lista o entrypoint, então nada a
+registrar lá):
+
+- `stamped-schema.contract.ts` — as cinco tabelas na cópia por valor do worker, com os tipos SQL da
+  API (`numeric(10, 7)`, `numeric(10, 2)`, `timestamptz`, `varchar(16)`).
+- `stamped-tables.contract.ts` — `TRIP_LOCATION_STAMPED_TABLES` (as cinco, cada uma com sua coluna de
+  tempo) e `TRIP_LOCATION_UNSTAMPED_TABLES` (as sete exclusões do D8, cada uma com motivo), mais a
+  paridade.
+- `batch-ceiling.contract.ts` — teto por tabela e `exhaustedTables`/`redactedByTable` no log.
+
+O `batch-ceiling` **dirige a rotina real** (`createTripLocationPurgeRoutine`) com redatores
+roteirizados que contam chamadas, e lê o log `trip_location_purge_cycle_finished`. É contrato de
+comportamento, não de parede.
+
+A paridade lê o **texto** de `apps/api-transportada/src/database/*.schema.ts`, nunca importa a API —
+é o molde que `schema-parity.contract.ts:16` já usava para `TRIP_TRACKING_MAX_AGE_HOURS`.
+
+### O detector de posição é o que dá peso à paridade
+
+Paridade com detector cego passa vazia e não avisa nada. O detector casa
+`latitude: numeric(` **ou** `...buildEventLocationColumns()` — o spread que a T1.2 criou, sem o qual
+as três tabelas novas ficariam invisíveis. Dois testes o prendem: um sobre schema sintético (afirma
+que ele vê a coluna própria e o spread **e só eles**) e um sobre as tabelas reais.
+
+### Conferi a satisfatibilidade por mim, não pelo relatório
+
+Rodei o mesmo recorte do detector sobre `src/database/*.schema.ts` da API e cruzei com as doze
+tabelas das duas listas:
+
+```
+ok      estrito  client_delivery_addresses     ok      estrito  trip_delivery_proofs
+FORA    SÓ-LARGO fleet_drivers                 ok      estrito  trip_document_occurrences
+ok      SÓ-LARGO geocoded_address_corrections  ok      estrito  trip_location_pings
+ok      estrito  geocoded_addresses            ok      estrito  trip_status_events
+ok      estrito  municipality_centroids        ok      estrito  trip_stop_events
+ok      estrito  toll_booths                   ok      estrito  trip_stop_occurrences
+```
+
+Toda tabela que o detector estrito enxerga está coberta — a asserção de paridade é **satisfazível**,
+não vermelha para sempre.
+
+### Uma lacuna do D8, achada pela varredura e deixada aberta de propósito
+
+Com um detector **largo** (qualquer coluna cujo nome contenha `latitude`), aparece
+`fleet_drivers.home_latitude` — a coordenada da casa do motorista, PII, comentada como tal no schema
+— **fora das duas listas**. `geocoded_address_corrections` também só aparece no largo
+(`previous_latitude`, `new_latitude`), mas essa já está nas exclusões.
+
+Não mexi: o D8 diz "tabela com `latitude`", a casa do motorista é cadastro (como
+`client_delivery_addresses`, que está nas exclusões) e não tem prazo de noventa dias. Mas o guarda
+que o D8 quer ser — "coordenada nova que ninguém listou não passa em silêncio" — **não cobre** uma
+coluna futura chamada `pickup_latitude` ou `home_latitude`. Fechar isso é emenda ao D8: detector
+largo + `fleet_drivers` nas exclusões com motivo. Fica como pergunta ao usuário, não como decisão
+minha.
+
+### O que a T2.2 vai ter de mexer, e ninguém tinha anotado
+
+1. `schema-parity.contract.ts` afirma `workerColumns.length` **igual a 9** — número que muda com as
+   três tabelas novas. Teste verde hoje que fica vermelho pela razão certa amanhã.
+2. `purge.contract.ts` e `stale-pings.contract.ts` montam a rotina só com `redact`,
+   `redactProofLocations` e `purgeStalePings`; vão precisar dos três redatores novos quando a rotina
+   os exigir.
+3. O teto **já não era global**, ao contrário do que o `plan.md` diz: os três laços de
+   `trip-location-purge.routine.ts` já têm contador próprio. O que é global é o `exhausted` do log —
+   um booleano que olha só o laço de `trip_stop_events`.
+4. Os nomes das dependências novas ficaram pinados em `batch-ceiling.contract.ts`:
+   `redactStatusEventLocations`, `redactStopOccurrenceLocations`,
+   `redactDocumentOccurrenceLocations`, todos `RedactTripLocations`.
+5. `exhausted` por tabela ficou no **log** (`redactedByTable`, `exhaustedTables`), não em `counters`:
+   `JobRoutineResult.counters` só aceita número, e o `plan.md` fala do log.
+6. `location_state` em `tripStopEvents` **já existia** na cópia do worker
+   (`trip-execution.schema.ts:17`); o contrato cobre e está verde.
+
+### Portões
+
+| Portão                                             | Resultado                                                       |
+| -------------------------------------------------- | --------------------------------------------------------------- |
+| `bun run typecheck` (worker)                       | exit 0                                                          |
+| `bun run lint` (worker)                            | exit 0                                                          |
+| `test ./test/trip-location-purge.contract.test.ts` | **17 pass · 13 fail · 82 expect()** — vermelho pretendido       |
+| app inteira (`bun run test`)                       | **1464 pass · 13 fail · 3853 expect() · 94 arquivos · [6.45s]** |
+
+As 13 falhas, uma a uma: três de schema (as tabelas novas não existem na cópia do worker), seis das
+listas (as duas constantes não existem), quatro de teto/log (a rotina não chama os redatores novos e
+o log não tem `exhaustedTables`/`redactedByTable`). Nenhuma é de import, de tipo ou de arquivo não
+registrado — o typecheck em exit 0 é a prova disso.
