@@ -1619,6 +1619,16 @@ registro carrega o `subHash`, e a leitura recusa e remove o que não é do motor
 posse, a imagem reduzida do canhoto das notas das últimas 24 h — assinatura e nome de quem recebeu
 podem aparecer nela. É menos do que a fila já guardava durante o envio, e por menos tempo.
 
+**Emenda do mesmo dia — o canhoto também passa a ser legível pelo servidor.** `GET
+/me/trips/current/documents/:documentId/proof` (`trip.read`) devolve URL assinada de 5 min do
+original e da miniatura, para a foto que não está neste aparelho. Três limites, todos no código e em
+teste: a nota é resolvida por `findReachableDocument`, que só acha dentro das viagens **daquele**
+motorista (`trip.read` sozinha alcançaria a empresa inteira — OWASP API1); a resposta não carrega
+quem recebeu, documento mascarado, veredito nem distância; e nenhuma chave de objeto ou bucket sai no
+corpo. Um motorista passa a poder rever o canhoto de qualquer nota que já esteve numa viagem dele,
+sem prazo — antes isso exigia `fleet.read`, do escritório. A origem do storage entrou no `img-src`
+da CSP do app por causa disso (ADR-0075 §4).
+
 ## CPF do destinatário no aparelho do motorista, para a busca dentro da viagem
 
 **Data:** 2026-09-26 · **Decidido conscientemente** · **Spec 214** · **ADR-0090 §3**

@@ -218,6 +218,7 @@ import { createReadMdfeDocumentUseCase } from './mdfe-manifests/application/read
 import { createDamdfePdfGateway } from './mdfe-manifests/infrastructure/damdfe-pdf.gateway.js'
 import { createMdfeDocumentDownloadGateway } from './mdfe-manifests/infrastructure/mdfe-document-download.gateway.js'
 import { readDeliveryProofs } from './trips/application/read-delivery-proof.use-case.js'
+import { readDriverDeliveryProofs } from './trips/application/read-driver-delivery-proof.use-case.js'
 import { readRouteGeometry } from './trips/application/read-route-geometry.use-case.js'
 import { readTripRouteGeometry as readTripRouteGeometryUseCase } from './trips/application/read-trip-route-geometry.use-case.js'
 import { freezeTripPlannedRoute } from './trips/application/freeze-trip-planned-route.use-case.js'
@@ -3551,6 +3552,16 @@ function createApplicationRoutes({
           now: new Date(),
           repository: currentDriverTripRepository,
           scores: driverScoreRepository,
+        }),
+      /** A nota alcançável é resolvida dentro do caso de uso — nenhum id de viagem vem do cliente. */
+      readDeliveryProofs: (input) =>
+        readDriverDeliveryProofs({
+          ...input,
+          downloads: createDeliveryProofDownloadGateway({ storage: storageGateway }),
+          repository: {
+            findReachableDocument: (query) => findDriverReachableDocument(database, query),
+            listDeliveryProofs: (query) => listDeliveryProofs(database, query),
+          },
         }),
       readManifestXml: (input) => readMdfeDocument.readXmlDownload(input),
       renderManifestDamdfe: (input) => readMdfeDocument.renderDamdfe(input),

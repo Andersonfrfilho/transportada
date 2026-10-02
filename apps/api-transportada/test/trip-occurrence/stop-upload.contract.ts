@@ -406,6 +406,7 @@ describe('as rotas de upload por parada (spec 209 RF1)', () => {
       dispatchCurrentTrip: NOT_CALLED,
       findCurrentTrip: NOT_CALLED,
       listFieldOccurrenceTypes: NOT_CALLED,
+      readDeliveryProofs: NOT_CALLED,
       readManifestXml: NOT_CALLED,
       registerDriverOccurrence: NOT_CALLED,
       renderManifestDamdfe: NOT_CALLED,

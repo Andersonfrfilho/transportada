@@ -61,6 +61,18 @@ deste — aparece como "pendências de outra conta", com "Descartar"
 `test/driver-trip/trip-snapshot.contract.ts`, `test/driver-trip/queue-owner.contract.ts`,
 `test/driver-trip/pending-queue.contract.ts`.
 
+## A foto do canhoto já enviado
+
+Duas fontes, nesta ordem, em `useStoredProofThumbnail`: **o aparelho** (a miniatura guardada no
+envio, abaixo) e, só quando ele não tem, **o servidor** —
+`GET /me/trips/current/documents/:documentId/proof` (`readDeliveryProofs` do cliente), `trip.read`,
+URL assinada de 5 min, lida uma vez por nota (`staleTime` de 4 min). A rede nunca corre na frente do
+IndexedDB: a consulta só liga depois de a leitura local responder vazia (`isDeviceEmpty`), e fica
+desligada no boot sem rede (`canSync`). É o que cobre a foto anexada pelo escritório, o celular
+trocado e a nota de ontem. ⚠️ A origem do storage entrou no **`img-src`** da CSP por causa disso
+(ADR-0075 §4, emenda de 01/10) — sem ela a foto volta em branco, sem erro visível.
+`test/driver-trip/proof-server-read.contract.ts`, `test/shared/content-security-policy.contract.ts`.
+
 ## A miniatura do canhoto já enviado
 
 Pedido do usuário (01/10): no estado "Comprovante já enviado" a tela mostrava só uma frase, dentro de

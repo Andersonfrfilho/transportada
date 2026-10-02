@@ -4,6 +4,10 @@
  * usuário fotografou em 01/10, com a frase vazando de um quadrado de 4rem. Fora do smoke da CI —
  * roda com `PLAYWRIGHT_TEST_MATCH=proof-confirmed-prints.smoke.spec.ts` e o bypass de fumaça, e
  * grava os PNGs em `PRINTS_DIR` (por padrão `prints/` dentro da app).
+ *
+ * ⚠️ O caso da foto vinda do servidor exige **`VITE_OBJECT_STORAGE_URL` no ambiente** — ela é que põe
+ * a origem do bucket no `img-src` do build (ADR-0075 §4). Sem ela o navegador recusa a imagem e o
+ * print sai com o quadro quebrado, que foi como esta suíte falhou da primeira vez.
  */
 import { resolve } from 'node:path'
 
@@ -85,3 +89,90 @@ for (const theme of THEMES) {
       .toBe(true)
   })
 }
+
+/**
+ * O outro caminho: o aparelho **não** tem a miniatura (foto do escritório, celular trocado, 24 h
+ * vencidas) e a foto vem do servidor pela URL assinada. O IndexedDB é esvaziado antes da recarga —
+ * é o que torna o cenário honesto, em vez de fotografar a cópia local de novo.
+ */
+test('print: a foto vem do servidor quando o aparelho não a tem (375 dark)', async ({ page }) => {
+  /**
+   * ⚠️ A URL tem de ser do **storage**: `img-src` não aceita `data:`, e uma URL `data:` aqui
+   * fotografaria um quadro quebrado passando por teste verde. Foi o que aconteceu na primeira
+   * tentativa — e é exatamente o defeito que a emenda do ADR-0075 §4 evita em produção.
+   */
+  const storageOrigin = new URL(process.env.VITE_OBJECT_STORAGE_URL ?? 'https://bucket.invalid')
+    .origin
+  const signedUrl = `${storageOrigin}/canhoto-assinado.png`
+
+  await openTrip(page, 'dark')
+  await page.route(signedUrl, async (route) => {
+    await route.fulfill({ body: PHOTO.buffer, contentType: 'image/png' })
+  })
+  await page.route(/\/documents\/[0-9a-f-]+\/proof$/u, async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback()
+      return
+    }
+    await route.fulfill({
+      body: JSON.stringify({
+        data: [
+          {
+            createdAt: '2026-10-01T12:00:00.000Z',
+            downloadUrl: signedUrl,
+            expiresAt: '2026-10-01T12:05:00.000Z',
+            id: '00000000-0000-4000-8000-000000000050',
+            kind: 'photo',
+            thumbnailUrl: signedUrl,
+          },
+        ],
+      }),
+      contentType: 'application/json',
+      headers: { 'access-control-allow-origin': '*' },
+    })
+  })
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+
+  const chooser = page.waitForEvent('filechooser')
+  await page.getByRole('button', { name: /^Tirar foto/u }).click()
+  await (await chooser).setFiles(PHOTO)
+  await page.getByRole('button', { name: 'Usar sem recorte' }).click()
+  await page.getByRole('button', { exact: true, name: 'Confirmar entrega' }).click()
+  await expect(page.getByText('Entregue às')).toBeVisible({ timeout: 20_000 })
+  await page.waitForTimeout(5_000)
+
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open('transportada.driver-trip', 4)
+        request.onsuccess = () => {
+          const transaction = request.result.transaction('proof-thumbnails', 'readwrite')
+          transaction.objectStore('proof-thumbnails').clear()
+          transaction.oncomplete = () => {
+            request.result.close()
+            resolve()
+          }
+          transaction.onerror = () => reject(new Error('PROOF_THUMBNAIL_CLEAR_FAILED'))
+        }
+        request.onerror = () => reject(new Error('DRIVER_DATABASE_OPEN_FAILED'))
+      }),
+  )
+  await page.reload()
+
+  const item = page.locator('li', { hasText: 'Mercearia do Centro' }).last()
+  await expect(item.getByText('Comprovante já enviado')).toBeVisible({ timeout: 20_000 })
+  const image = item.getByRole('img', { name: 'Miniatura da foto do canhoto' })
+  await expect(image).toBeVisible({ timeout: 20_000 })
+  /** Visível não é carregada: `naturalWidth` zero é o quadro quebrado que a CSP produz. */
+  await expect
+    .poll(() => image.evaluate((element) => (element as HTMLImageElement).naturalWidth), {
+      timeout: 20_000,
+    })
+    .toBeGreaterThan(0)
+  await item.evaluate((element) => element.scrollIntoView({ block: 'center' }))
+  await page.mouse.move(0, 0)
+  await item.screenshot({
+    animations: 'disabled',
+    path: resolve(PRINTS_DIRECTORY, 'comprovante-do-servidor-375-dark.png'),
+  })
+})

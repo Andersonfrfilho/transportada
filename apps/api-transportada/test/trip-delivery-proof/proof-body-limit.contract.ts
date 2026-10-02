@@ -77,6 +77,7 @@ function buildHandler() {
     dispatchCurrentTrip: NOT_CALLED,
     findCurrentTrip: NOT_CALLED,
     listFieldOccurrenceTypes: NOT_CALLED,
+    readDeliveryProofs: NOT_CALLED,
     readManifestXml: NOT_CALLED,
     registerDriverOccurrence: NOT_CALLED,
     renderManifestDamdfe: NOT_CALLED,
