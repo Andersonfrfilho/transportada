@@ -654,3 +654,20 @@ Os testes **passaram sem mudança** porque leem o rótulo pela chave — ou seja
 Acrescentei a asserção que a prende (`Conta atual` / `Current account`, e nenhuma legenda com "previst" ou
 "expected"); revertendo o rótulo para "Previsto" ela reprova (**13 pass · 1 fail**, e **14 · 0** depois).
 Prints regenerados (8 passed).
+
+## A integração inteira da API, depois das correções da revisão
+
+A lacuna que a T4.3 deixou dita — "o portão da raiz **não** cobre a integração" — fechou, rodando o
+`test:integration` **inteiro** sobre o código **depois** das correções da T4.4 (A1, M1–M4) e do rótulo
+"Conta atual":
+
+```
+802 pass · 8 skip · 0 fail · 4962 expect() · 810 testes · 146 arquivos · [888.70s]
+```
+
+Os 8 skips são os de sempre da suíte. Desta vez o `company-user-listing.integration.ts` **não** estourou o
+teto de 120 s que estourou na primeira rodada da T1.3 — o que confirma o diagnóstico de carga de ambiente,
+não de defeito. A infra foi a de E2E (postgres 65432), que o `.env.test` aponta.
+
+⚠️ Isto vale para a base **atual**, 93 commits atrás de `origin/staging`. A spec 227, Fase 0, refaz o rebase e
+**repete** esta integração (T0.4) — é o gate de push, e este resultado não o substitui.
