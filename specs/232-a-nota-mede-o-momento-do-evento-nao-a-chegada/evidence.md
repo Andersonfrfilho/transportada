@@ -80,3 +80,87 @@ apps/api-transportada$ bun run typecheck                                        
 apps/api-transportada$ bun run lint                                                                     → exit 0 (--max-warnings=0)
 raiz$ bun run format:check                                                                              → exit 0
 ```
+
+## T1.2
+
+Contratos escritos **antes** do código (a T1.3 implementa). Nenhuma linha de `src/` mudou.
+
+- `apps/api-transportada/test/trip-delivery-proof/punctuality-clock-corrected.contract.ts` (17
+  testes), registrado em `test/trip-delivery-proof.contract.test.ts`. Fixa o parâmetro opcional
+  `hasCorrectedClock?: boolean` de `ClassifyProofPunctualityParams` (D4, CA1, CA2).
+- `apps/api-transportada/test/fleet-domain/driver-score-missing-grace.contract.ts` (10 testes),
+  registrado em `test/fleet-domain.contract.test.ts`. Fixa o campo opcional
+  `deliveryReceivedAt?: Date | undefined` de `DriverScoreDelivery` (D5, CA4).
+
+Os dois campos ainda não existem nos tipos. Para o `typecheck` seguir verde durante o vermelho, cada
+contrato monta o parâmetro com uma interseção local (`ClassifyProofPunctualityParams & {
+hasCorrectedClock?: boolean }`, `DriverScoreDelivery & { deliveryReceivedAt?: Date | undefined }`),
+atribuível ao tipo de hoje sem cast. A interseção sai na T1.3, quando o campo entrar no tipo.
+
+Defaults conferidos em `delivery-proof-settings.policy.ts` e afirmados no contrato: janela 60 min,
+raio 300 m, `missingAfterHours` 24.
+
+### Antes (sem os contratos novos)
+
+```text
+$ bun --env-file=../../.env.test test ./test/trip-delivery-proof.contract.test.ts
+ 295 pass
+ 0 fail
+$ bun --env-file=../../.env.test test ./test/fleet-domain.contract.test.ts
+ 139 pass
+ 0 fail
+```
+
+### Vermelho (com os contratos novos)
+
+```text
+$ bun --env-file=../../.env.test test ./test/trip-delivery-proof.contract.test.ts
+(fail) foto julgada pelo relógio corrigido (spec 232 D4) > CA1: foto na hora da entrega recebida 30 h depois, com relógio corrigido, é on_time
+       Expected: "on_time"  Received: "late"
+(fail) ... > no limite exato da janela (entrega + 60 min) é on_time
+       Expected: "on_time"  Received: "late"
+(fail) ... > a distância continua pesando: foto na hora, mas fora do raio, é away
+       Expected: "away"  Received: "late_and_away"
+(fail) ... > capturedAt 3 h antes da entrega é elevado a entrega − 2 min e fica on_time
+       Expected: "on_time"  Received: "late"
+ 308 pass
+ 4 fail
+
+$ bun --env-file=../../.env.test test ./test/fleet-domain.contract.test.ts
+(fail) prazo de "foto ausente" contado do recebimento da entrega (spec 232 D5) > CA4: entrega de 30 h atrás recebida há 1 h, sem foto, ainda não penaliza
+       toEqual: esperado { penalties: [], score: 100 }, recebido a penalidade missing_proof (score 90)
+(fail) ... > fronteira: exatamente 24 h desde o recebimento ainda não penaliza
+       idem
+ 147 pass
+ 2 fail
+```
+
+Vermelho pelo motivo certo: as seis falhas são assertivas sobre a regra nova; nenhuma é import,
+sintaxe ou tipo. As quatro da foto são o piso `recebimento − 24 h` ainda aplicado (referência vira
+entrega + 6 h); as duas do ausente são o prazo ainda contado de `deliveredAt`.
+
+Os existentes seguem verdes: **295** e **139**, os mesmos de antes. Filtrando só os novos:
+
+```text
+-t "relógio corrigido"       → 13 pass, 4 fail, 295 filtered out
+-t "contado do recebimento"  →  8 pass, 2 fail, 139 filtered out
+```
+
+Os testes novos que já passam hoje são travas de regressão, não regra nova: CA2 (sem a flag e com
+`false`, a foto de 30 h continua `late`), foto 2 h depois continua `late`, +60 min +1 ms é `late`,
+`late_and_away`, teto de recebimento + 2 min nos dois sentidos, `lateRegistration`, sem
+`capturedAt`, `not_required`, `mergeProofPunctuality`; no ausente, sem `deliveryReceivedAt`,
+recebida há 25 h, 24 h + 1 ms, recebimento anterior à entrega (o `max`) nos dois sentidos, foto
+`late`/`on_time` e `expiresAt = deliveredAt + 90 dias`.
+
+Limite conhecido: o piso `entrega − 2 min` não é observável pelo veredito (qualquer referência antes
+da entrega não é tardia), então o caso "3 h antes" só prova que o piso de 24 h não empurra a foto,
+não que o clamp inferior existe.
+
+### Gates
+
+```text
+apps/api-transportada$ bun run typecheck   → exit 0
+apps/api-transportada$ bun run lint        → exit 0 (--max-warnings=0)
+raiz$ bun run format:check                 → exit 0
+```
