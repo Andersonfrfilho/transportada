@@ -711,3 +711,48 @@ Só documentação; nenhum código nem teste mudou.
 - `tasks.md`: T1.6 marcada.
 
 Caminhos citados conferidos com `ls` (todos existem).
+
+## Revisão R1/R2
+
+Ajustes da revisão da Fase 1 (code-reviewer), commit A.
+
+**R1 — a foto corrigida só vale com o evento também corrigido.** `hasCorrectedClock` olhava só a foto; o
+`deliveredAt` do contexto pode ser o `captured_at` CRU (relógio do aparelho) quando o evento de entrega não
+teve a correção aceita, e comparar foto corrigida com entrega crua inventa atraso (aparelho 2 h atrasado:
+entrega em verdade − 2 h, foto em verdade + 5 min, diferença de 2 h 5 min, `late` sem atraso real).
+`findDeliveryContext` devolve `isEventClockCorrected` (`occurred_at is not null` do evento de entrega) e o
+caso de uso passa a exigir `occurred.kind === 'corrected' && (sem posição na entrega || evento corrigido)`.
+Com posição e evento cru a foto segue a regra antiga (hora crua + piso). Sem posição, a D4b fica como estava.
+
+**R2 — o desvio da linha da foto.** `clock_offset_ms` era gravado sempre que a flag era `corrected`, mas em
+D4b o desvio julgou o recebimento, não a foto, e em recaptura o veredito gravado é a fusão com o anterior.
+Agora só é gravado quando a correção foi USADA (flag efetiva e posição na entrega); nos demais casos, `null`.
+O comentário de `trip.schema.ts` passou a dizer "o desvio que julgou esta foto, antes da fusão com a
+anterior".
+
+Testes primeiro (vermelho pelo motivo certo, `driver-trip`): 4 fail — evento cru com posição e foto
+corrigida dava `late` (aparelho 2 h atrasado) e `on_time` recebida 30 h depois; D4b e evento cru gravavam o
+desvio. Ajuste de MONTAGEM de cenário (nenhuma assertiva afrouxada): `buildRequiredWorld` do contrato
+`delivery-proof-clock-corrected` passa a montar o evento corrigido por padrão (`isEventClockCorrected: true`),
+e na integração `foto com relógio corrigido grava clock_offset_ms` a entrega passou a ser feita com posição e
+hora corrigida (antes era sem posição, o que a D4b já desfaz). A fixture `delivery-proof-world` ganhou
+`isEventClockCorrected` (padrão `false`).
+
+```text
+VERDE
+apps/api-transportada$ bun --env-file=../../.env.test test ./test/driver-trip.contract.test.ts → 225 pass, 0 fail
+apps/api-transportada$ .../trip-delivery-proof.contract.test.ts → 327 pass · fleet-domain → 152 pass · trip-schema → 150 pass, 0 fail
+apps/api-transportada$ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/delivered-moment.integration.ts
+  → 18 pass, 0 fail, 0 skip (três execuções seguidas)
+apps/api-transportada$ .../driver-score.integration.ts → 10 pass, 0 fail
+apps/api-transportada$ bun run typecheck → exit 0 · bun run lint → exit 0
+```
+
+Mutações (restauradas; o verde acima é da árvore restaurada):
+
+| #   | Mutação                                                          | Resultado                        |
+| --- | ---------------------------------------------------------------- | -------------------------------- |
+| 1   | remover a exigência do evento corrigido (`true`)                 | pegou: 3 fail (contrato)         |
+| 2   | sempre gravar o desvio da foto (`occurred.kind === 'corrected'`) | pegou: 2 fail + 2 fail (integr.) |
+| 3   | inverter `isEventClockCorrected` (`is null`)                     | pegou: 4 fail (integração)       |
+| 4   | ignorar a posição ao gravar a auditoria (só `hasCorrectedClock`) | pegou: 1 fail (contrato)         |

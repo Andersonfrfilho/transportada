@@ -144,6 +144,17 @@ async function readSingleEvent(
   return row
 }
 
+/** Spec 232 R1: o que `findDeliveryContext` diz sobre o evento de entrega ter a hora corrigida. */
+async function readIsEventClockCorrected(world: World): Promise<boolean> {
+  const event = await readSingleEvent(world, 'delivered')
+  const context = await new DrizzleDeliveryProofRepository(
+    world.database.db,
+    'test-bucket',
+  ).findDeliveryContext({ companyId: world.company.companyId, eventId: event.id })
+
+  return context.isEventClockCorrected
+}
+
 /** O momento da entrega pelos três leitores: a nota, o comprovante e a lista de pendências. */
 async function readDeliveredMoments(world: World, input: { readonly now: Date }) {
   const event = await readSingleEvent(world, 'delivered')
@@ -270,6 +281,7 @@ describe('o momento da entrega é a hora corrigida do toque (spec 232 D3, CA3)',
         // O campo novo não é o `occurredAt` do escritório: `created_at` continua a hora da gravação.
         expect(event.createdAt.toISOString()).toBe(event.recordedAt.toISOString())
         expect(event.recordedAt.getTime()).toBeGreaterThan(occurredAt.getTime() + 3 * HOUR)
+        expect(await readIsEventClockCorrected(world)).toBe(true)
 
         const moments = await readDeliveredMoments(world, {
           now: new Date(receivedAt.getTime() + SCORE_READ_DELAY),
@@ -302,6 +314,7 @@ describe('o momento da entrega é a hora corrigida do toque (spec 232 D3, CA3)',
         // A hora crua do aparelho fica registrada (spec 206), mas não vale como momento.
         expect(event.tappedAt?.toISOString()).toBe(clock.tappedAt.toISOString())
         expect(event.capturedAt).toBeNull()
+        expect(await readIsEventClockCorrected(world)).toBe(false)
         const recordedAt = event.recordedAt.toISOString()
         const moments = await readDeliveredMoments(world, {
           now: new Date(receivedAt.getTime() + SCORE_READ_DELAY),
@@ -613,7 +626,14 @@ describe('a foto guarda o desvio que a julgou (spec 232 D4, risco 5 da T1.5)', (
           effectiveSince: longAgo(receivedAt),
           receivedAt,
         })
-        await deliver(world, { key: 'entrega-da-foto', receivedAt })
+        const { clock } = correctedClock(receivedAt)
+        // R1/R2: o desvio da foto só é gravado quando a entrega tem posição e a hora corrigida.
+        await deliver(world, {
+          clock,
+          key: 'entrega-da-foto',
+          location: positionAt(clock.tappedAt),
+          receivedAt,
+        })
         const capturedAt = new Date(receivedAt.getTime() - 10 * 60 * SECOND)
 
         await attachProof(world, receivedAt, {
@@ -641,6 +661,48 @@ describe('a foto guarda o desvio que a julgou (spec 232 D4, risco 5 da T1.5)', (
       })
     },
   )
+
+  for (const scenario of [
+    {
+      description: 'D4b: entrega sem posição, a foto não grava o desvio que não julgou',
+      withClock: true,
+      withLocation: false,
+    },
+    {
+      description: 'R1: entrega com posição e evento cru, a foto não grava o desvio',
+      withClock: false,
+      withLocation: true,
+    },
+  ]) {
+    testWithPostgres(scenario.description, async () => {
+      await withDisposableDatabase(async (database) => {
+        const receivedAt = new Date()
+        const world = await seedWorld(database, {
+          effectiveSince: longAgo(receivedAt),
+          receivedAt,
+        })
+        const { clock } = correctedClock(receivedAt)
+        await deliver(world, {
+          clock: scenario.withClock ? clock : { tappedAt: clock.tappedAt },
+          key: 'entrega-sem-correcao-usada',
+          ...(scenario.withLocation ? { location: positionAt(clock.tappedAt) } : {}),
+          receivedAt,
+        })
+
+        await attachProof(world, receivedAt, {
+          capturedAt: new Date(receivedAt.getTime() - 10 * 60 * SECOND).toISOString(),
+          clockOffsetMs: String(CLOCK_OFFSET_MS),
+          kind: 'photo',
+        })
+
+        const [row] = await database.db
+          .select({ clockOffsetMs: tripDeliveryProofs.clockOffsetMs })
+          .from(tripDeliveryProofs)
+          .where(eq(tripDeliveryProofs.companyId, world.company.companyId))
+        expect(row).toEqual({ clockOffsetMs: null })
+      })
+    })
+  }
 
   testWithPostgres('foto com correção descartada (futuro) não grava o desvio', async () => {
     await withDisposableDatabase(async (database) => {

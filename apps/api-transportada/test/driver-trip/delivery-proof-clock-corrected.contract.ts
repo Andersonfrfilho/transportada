@@ -44,12 +44,22 @@ function afterDelivery(milliseconds: number): Date {
   return new Date(DELIVERED_AT.getTime() + milliseconds)
 }
 
-/** `buildRequiredWorld(undefined)` é a entrega SEM posição; um parâmetro com valor padrão a esconderia. */
-function buildRequiredWorld(...args: readonly [] | readonly [Coordinate | undefined]) {
+/**
+ * `buildRequiredWorld(undefined)` é a entrega SEM posição; um parâmetro com valor padrão a esconderia.
+ * Por padrão o evento de entrega também teve o relógio corrigido (R1); `isEventClockCorrected: false`
+ * monta o evento cru, que o aparelho com relógio errado grava quando a correção não foi aceita.
+ */
+function buildRequiredWorld(
+  ...args:
+    | readonly []
+    | readonly [Coordinate | undefined, { deliveredAt?: Date; isEventClockCorrected?: boolean }?]
+) {
   const deliveryEventPosition = args.length === 0 ? DELIVERY_POSITION : args[0]
+  const isEventClockCorrected = args[1]?.isEventClockCorrected ?? true
   const world = buildWorld({
-    deliveredAt: DELIVERED_AT,
+    deliveredAt: args[1]?.deliveredAt ?? DELIVERED_AT,
     ...(deliveryEventPosition === undefined ? {} : { deliveryEventPosition }),
+    isEventClockCorrected,
   })
   const resolve = world.repository.resolveProofFieldSettings
   world.repository.resolveProofFieldSettings = async (query) => ({
@@ -230,8 +240,8 @@ describe('caso de uso: foto julgada pelo relógio corrigido (spec 232 D4/D4b)', 
   })
 
   /**
-   * (i) A persistência recebe a hora crua do aparelho e, ao lado, o desvio que a julgou (T1.5,
-   * risco 5): os dois juntos reproduzem o veredito.
+   * (i) A persistência recebe a hora crua do aparelho e, ao lado, o desvio que julgou esta foto
+   * (T1.5, risco 5; R2): os dois juntos reproduzem o veredito da foto antes da fusão com a anterior.
    */
   it('saveProof recebe o capturedAt cru do aparelho e o desvio aplicado', async () => {
     const world = buildRequiredWorld()
@@ -264,6 +274,97 @@ describe('caso de uso: foto julgada pelo relógio corrigido (spec 232 D4/D4b)', 
     expect(world.saved.map((proof) => proof.clockOffsetMs)).toEqual([null, null])
   })
 
+  describe('evento de entrega cru com posição (R1): a foto só vale corrigida com o evento corrigido', () => {
+    /** O aparelho está 2 h ATRASADO: o desvio (servidor − aparelho) é +2 h. */
+    const DEVICE_BEHIND_OFFSET_MS = 2 * MILLISECONDS_PER_HOUR
+    const FIVE_MINUTES_LATER = afterDelivery(5 * MILLISECONDS_PER_MINUTE)
+    /** O que o aparelho atrasado carimba na entrega e na foto: verdade − 2 h. */
+    const RAW_DELIVERED_AT = new Date(DELIVERED_AT.getTime() - DEVICE_BEHIND_OFFSET_MS)
+    const RAW_PHOTO_AT_BEHIND = new Date(FIVE_MINUTES_LATER.getTime() - DEVICE_BEHIND_OFFSET_MS)
+
+    function behindPhoto(): Partial<DeliveryProofUpload> {
+      return correctedPhoto({
+        capturedAt: RAW_PHOTO_AT_BEHIND,
+        clockOffsetMs: DEVICE_BEHIND_OFFSET_MS,
+      })
+    }
+
+    /** (a) A entrega ficou crua (verdade − 2 h); a foto corrigida (verdade + 5 min) não é `late` por isso. */
+    it('evento cru e foto corrigida 5 min depois, aparelho 2 h atrasado: on_time, sem comparar crua com corrigida', async () => {
+      const world = buildRequiredWorld(DELIVERY_POSITION, {
+        deliveredAt: RAW_DELIVERED_AT,
+        isEventClockCorrected: false,
+      })
+
+      const result = await attach(world, behindPhoto(), FIVE_MINUTES_LATER)
+
+      expect(result.punctuality).toBe(PROOF_PUNCTUALITY.onTime)
+    })
+
+    /** (b) Com o evento também corrigido a mesma foto é julgada pelo relógio corrigido, como antes. */
+    it('evento corrigido e foto corrigida, recebida 30 h depois: on_time', async () => {
+      const world = buildRequiredWorld(DELIVERY_POSITION, { isEventClockCorrected: true })
+
+      const result = await attach(
+        world,
+        correctedPhoto(),
+        afterDelivery(30 * MILLISECONDS_PER_HOUR),
+      )
+
+      expect(result.punctuality).toBe(PROOF_PUNCTUALITY.onTime)
+    })
+
+    /** Evento cru: a foto segue a regra antiga, com o piso — recebida 30 h depois é late. */
+    it('evento cru e foto corrigida recebida 30 h depois: regra antiga, late', async () => {
+      const world = buildRequiredWorld(DELIVERY_POSITION, { isEventClockCorrected: false })
+
+      const result = await attach(
+        world,
+        correctedPhoto(),
+        afterDelivery(30 * MILLISECONDS_PER_HOUR),
+      )
+
+      expect(result.punctuality).toBe(PROOF_PUNCTUALITY.late)
+    })
+
+    /** R2: a correção não foi usada, então a linha da foto não carrega desvio. */
+    it('evento cru: a foto não grava o desvio que não usou', async () => {
+      const world = buildRequiredWorld(DELIVERY_POSITION, {
+        deliveredAt: RAW_DELIVERED_AT,
+        isEventClockCorrected: false,
+      })
+
+      await attach(world, behindPhoto(), FIVE_MINUTES_LATER)
+
+      expect(world.saved[0]?.clockOffsetMs).toBeNull()
+      expect(world.saved[0]?.capturedAt).toEqual(RAW_PHOTO_AT_BEHIND)
+    })
+  })
+
+  describe('desvio da linha da foto (R2): o que julgou ESTA foto, antes da fusão com a anterior', () => {
+    it('recaptura: cada linha guarda o desvio do próprio veredito, não o da fusão', async () => {
+      const world = buildRequiredWorld()
+      const lateAt = afterDelivery(2 * MILLISECONDS_PER_HOUR)
+
+      await attach(
+        world,
+        { attachmentKey: 'first', capturedAt: lateAt, position: PHOTO_AT_DELIVERY_PLACE },
+        lateAt,
+      )
+      const second = await attach(
+        world,
+        correctedPhoto({ attachmentKey: 'second' }),
+        afterDelivery(30 * MILLISECONDS_PER_HOUR),
+      )
+
+      expect(second.punctuality).toBe(PROOF_PUNCTUALITY.late)
+      expect(world.saved.map((proof) => proof.clockOffsetMs)).toEqual([
+        null,
+        DEVICE_AHEAD_OFFSET_MS,
+      ])
+    })
+  })
+
   describe('entrega sem posição (D4b): o caso de uso passa a flag, a política decide', () => {
     /** (j) Recebida 30 min depois: a referência é o recebimento (no prazo), e a entrega conta como longe. */
     it('desvio válido, recebida 30 min depois da entrega: away', async () => {
@@ -288,6 +389,28 @@ describe('caso de uso: foto julgada pelo relógio corrigido (spec 232 D4/D4b)', 
       )
 
       expect(result.punctuality).toBe(PROOF_PUNCTUALITY.lateAndAway)
+    })
+
+    /** R2: em D4b o desvio julgou o recebimento, não a foto — a linha não grava desvio. */
+    it('sem posição na entrega o desvio não é gravado na foto', async () => {
+      const world = buildRequiredWorld(undefined)
+
+      await attach(world, correctedPhoto(), afterDelivery(30 * MILLISECONDS_PER_MINUTE))
+
+      expect(world.saved[0]?.clockOffsetMs).toBeNull()
+    })
+
+    /** (c) R1 não toca D4b: sem posição, mesmo com o evento cru, o recebimento e "longe" valem. */
+    it('sem posição e evento cru, desvio válido, recebida 30 min depois: away (D4b intacta)', async () => {
+      const world = buildRequiredWorld(undefined, { isEventClockCorrected: false })
+
+      const result = await attach(
+        world,
+        correctedPhoto(),
+        afterDelivery(30 * MILLISECONDS_PER_MINUTE),
+      )
+
+      expect(result.punctuality).toBe(PROOF_PUNCTUALITY.away)
     })
 
     /** Espelho: sem o desvio (cliente antigo), a distância segue sem pesar — comportamento de hoje. */

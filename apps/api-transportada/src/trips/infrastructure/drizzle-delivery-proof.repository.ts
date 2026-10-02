@@ -217,6 +217,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
   }): Promise<{
     readonly deliveredAt: Date
     readonly deliveryEventPosition: Coordinate | undefined
+    readonly isEventClockCorrected: boolean
     readonly lateRegistration: boolean
   }> {
     const [record] = await this.database
@@ -224,6 +225,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
         deliveredAt: deliveredMomentSql(tripStopEvents),
         eventLatitude: tripStopEvents.latitude,
         eventLongitude: tripStopEvents.longitude,
+        isEventClockCorrected: sql<boolean>`${tripStopEvents.occurredAt} is not null`,
         lateRegistration: tripStopEvents.lateRegistration,
       })
       .from(tripStopEvents)
@@ -237,6 +239,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
     return {
       deliveredAt: record.deliveredAt,
       deliveryEventPosition: toCoordinate(record.eventLatitude, record.eventLongitude),
+      isEventClockCorrected: record.isEventClockCorrected,
       lateRegistration: record.lateRegistration,
     }
   }

@@ -128,6 +128,12 @@ export type DeliveryProofPort = {
     readonly deliveryEventPosition: Coordinate | undefined
     /** Spec 205 D2: a entrega foi registrada depois (`trip_stop_events.late_registration`). */
     readonly lateRegistration?: boolean
+    /**
+     * Spec 232 R1: o evento de entrega gravou a hora corrigida (`occurred_at`). Ausente = não. Sem
+     * isso `deliveredAt` pode ser a hora crua do aparelho, e compará-la com a foto corrigida inventa
+     * atraso.
+     */
+    readonly isEventClockCorrected?: boolean
   }>
   /** `null` quando nenhum comprovante daquele evento+tipo foi gravado com esta chave. */
   findProofIdByAttachmentKey(input: {
@@ -441,7 +447,10 @@ type ClassifiedUpload = {
  * toque, e a entrega já disse.
  *
  * Spec 232 D4: a foto é julgada pela hora do toque corrigida pelo desvio do relógio; correção
- * descartada por `resolveOccurredAt` mantém a hora crua e o piso de `missingAfterHours`.
+ * descartada por `resolveOccurredAt` mantém a hora crua e o piso de `missingAfterHours`. R1: com
+ * posição na entrega, a correção da foto só vale se o evento de entrega também foi corrigido — senão
+ * `deliveredAt` é hora crua e a comparação seria entre relógios diferentes. Sem posição (D4b) a flag
+ * segue só o desvio. R2: o desvio só vai para a linha da foto quando de fato julgou o veredito.
  */
 async function classifyPhotoPunctuality(params: {
   readonly eventId: string
@@ -460,9 +469,15 @@ async function classifyPhotoPunctuality(params: {
     tappedAt: input.upload.capturedAt,
   })
 
-  const hasCorrectedClock = occurred.kind === 'corrected'
+  const hasDeliveryPosition = context.deliveryEventPosition !== undefined
+  const hasCorrectedClock =
+    occurred.kind === 'corrected' &&
+    (!hasDeliveryPosition || context.isEventClockCorrected === true)
   const punctuality = classifyProofPunctuality({
-    capturedAt: occurred.kind === 'corrected' ? occurred.occurredAt : input.upload.capturedAt,
+    capturedAt:
+      occurred.kind === 'corrected' && hasCorrectedClock
+        ? occurred.occurredAt
+        : input.upload.capturedAt,
     deliveredAt: context.deliveredAt,
     deliveryEventPosition: context.deliveryEventPosition,
     hasCorrectedClock,
@@ -476,7 +491,8 @@ async function classifyPhotoPunctuality(params: {
   })
 
   return {
-    clockOffsetMs: hasCorrectedClock ? (input.upload.clockOffsetMs ?? null) : null,
+    clockOffsetMs:
+      hasCorrectedClock && hasDeliveryPosition ? (input.upload.clockOffsetMs ?? null) : null,
     punctuality,
   }
 }

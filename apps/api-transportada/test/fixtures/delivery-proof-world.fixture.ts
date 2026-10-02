@@ -30,6 +30,8 @@ export function buildWorld(
     readonly deliveryEventPosition?: Coordinate
     readonly eventId?: string | null
     readonly existingProofByKey?: Readonly<Record<string, ProofPunctuality>>
+    /** Spec 232 R1: o evento de entrega gravou `occurred_at` (a correção do relógio foi aceita). */
+    readonly isEventClockCorrected?: boolean
   } = {},
 ) {
   const saved: SavedProof[] = []
@@ -40,6 +42,7 @@ export function buildWorld(
       Promise.resolve({
         deliveredAt: input.deliveredAt ?? DELIVERED_AT,
         deliveryEventPosition: input.deliveryEventPosition,
+        isEventClockCorrected: input.isEventClockCorrected ?? false,
       }),
     findDeliveryEventId: () =>
       Promise.resolve(input.eventId === undefined ? EVENT_ID : input.eventId),

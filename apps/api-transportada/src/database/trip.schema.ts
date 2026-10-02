@@ -1752,10 +1752,11 @@ export const tripDeliveryProofs = pgTable(
     accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
     capturedAt: timestamp('captured_at', { withTimezone: true }),
     /**
-     * Spec 232 D4 (risco 5 da T1.5): o desvio do relógio com que a foto foi julgada — só quando
-     * `resolveOccurredAt` aceitou a correção. `captured_at` segue a hora crua do aparelho; os dois
-     * juntos reproduzem o veredito. Sem backfill: o veredito antigo não é recalculado. `bigint` pelo
-     * mesmo motivo de `trip_stop_events.clock_offset_ms`.
+     * Spec 232 D4 (risco 5 da T1.5; R2): o desvio do relógio que julgou esta foto, antes da fusão
+     * com a anterior — só quando a correção foi aceita por `resolveOccurredAt` e usada (entrega com
+     * posição e evento corrigido); em D4b e na foto sem correção usada fica nulo. `captured_at` segue
+     * a hora crua do aparelho. Sem backfill. `bigint` pelo mesmo motivo de
+     * `trip_stop_events.clock_offset_ms`.
      */
     clockOffsetMs: bigint('clock_offset_ms', { mode: 'number' }),
     /** ADR-0081 §2 / spec 196 D2: por que a coordenada da foto não veio. `null` é não se aplica. */
