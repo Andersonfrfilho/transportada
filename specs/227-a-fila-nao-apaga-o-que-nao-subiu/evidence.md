@@ -26,3 +26,9 @@ Restaurado: 910 pass (app novo) e 281 pass (legado, contrato do driver-trip).
 `prints/recusado-com-descartar-375-*.png` e `prints/recusado-confirmacao-375-*.png`. Achado: na
 confirmação, "Enviar agora / Descartar" ficava abaixo de "Descartar mesmo assim" — dois "Descartar"
 próximos. A linha agora some enquanto a confirmação está aberta.
+
+## Gates de publicação (T1.7)
+
+Sobre `origin/staging` em `8b057713f` (sem avanço): `format:check` limpo; typecheck e lint em exit 0 nas
+duas apps; app do motorista 1020 pass / 0 fail; painel 6261 pass / 0 fail e `test:hooks` 248 / 0;
+smoke completo do app do motorista 25 passed.

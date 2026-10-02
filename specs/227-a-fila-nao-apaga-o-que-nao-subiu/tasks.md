@@ -15,4 +15,4 @@
 - [x] **T1.5** Prova por mutação (6) — evidência em `evidence.md`.
 - [x] **T1.6** 🧠 Revisão de design: prints da tela de pendências com o recusado, o "Descartar" e a
       confirmação, 375 px, claro e escuro — achou os dois "Descartar" lado a lado; corrigido.
-- [ ] **T1.7** Publicar em staging depois da aprovação do usuário nos prints.
+- [x] **T1.7** Publicado em staging depois da aprovação do usuário nos prints (02/10/2026).
