@@ -21,6 +21,10 @@ import { API_TRIPS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import type { CanhotoReviewCommand, CanhotoReviewPort } from '../application/canhoto-review.port.js'
 
 const TRIP_MANAGE_POLICY = { permission: 'trip.manage', scope: 'company' } as const
+const CANHOTO_AUTO_REVIEW_POLICY = {
+  permission: 'trip.canhoto-auto-review',
+  scope: 'company',
+} as const
 
 /**
  * RNF03 na fronteira: o espelho de `canhoto_read_number varchar(9)` / `canhoto_read_series
@@ -31,6 +35,7 @@ const CANHOTO_READ_NUMBER_MAX_LENGTH = 9
 const CANHOTO_READ_SERIES_MAX_LENGTH = 3
 
 export const TRIP_DOCUMENT_PROOF_REVIEW_PATH = `${API_TRIPS_PATH}/:id/documents/:documentId/proof/review`
+export const TRIP_DOCUMENT_PROOF_AUTOMATIC_REVIEW_PATH = `${TRIP_DOCUMENT_PROOF_REVIEW_PATH}/automatic`
 
 /**
  * `automatic` entra pela rota porque RF25 põe a leitura no navegador: não existe outro chamador. O
@@ -61,6 +66,23 @@ const REVIEW_BODY_SCHEMA = z
       })
       .strict(),
   ])
+  .readonly()
+
+/**
+ * Spec 222 / ADR-0091: o corpo do robô é só o que ele **leu**. Sem `action` (a rota já diz qual é) e
+ * sem veredito — a máquina nunca recusa, e o servidor deriva o veredito. Os quatro campos são
+ * obrigatórios e `nullable()`: `null` é "li e não achei", ausente é corpo malformado; com
+ * `exactOptionalPropertyTypes` um `optional()` chegaria `undefined` e passaria batido pela
+ * comparação contra `null` da política.
+ */
+const AUTOMATIC_REVIEW_BODY_SCHEMA = z
+  .object({
+    readDocumentId: z.string().uuid().nullable(),
+    readNumber: z.string().min(1).max(CANHOTO_READ_NUMBER_MAX_LENGTH).nullable(),
+    readSeries: z.string().min(1).max(CANHOTO_READ_SERIES_MAX_LENGTH).nullable(),
+    readSource: z.enum(TRIP_DELIVERY_PROOF_CANHOTO_READ_SOURCES).nullable(),
+  })
+  .strict()
   .readonly()
 
 export type CanhotoReviewRoutesDependencies = {
@@ -107,33 +129,60 @@ export function createCanhotoReviewRoutes(
 ): readonly ReturnType<typeof defineRoute>[] {
   const { canhotoReview, resolveClientIp } = dependencies
 
+  async function handleReview({
+    context,
+    input,
+  }: {
+    readonly context: { readonly scope: { readonly companyId: string; readonly userId: string } }
+    readonly input: ReviewRouteInput
+  }): Promise<Response> {
+    const view = await canhotoReview.review({
+      actorUserId: context.scope.userId,
+      command: input.command,
+      companyId: context.scope.companyId,
+      correlationId: input.correlationId,
+      documentId: input.documentId,
+      ipAddress: input.ipAddress,
+      tripId: input.tripId,
+    })
+    return jsonResponse({ body: { data: view }, status: 200 })
+  }
+
+  function parseReview(
+    toRouteCommand: (request: Request) => Promise<CanhotoReviewCommand>,
+  ): (parameters: {
+    readonly correlationId: string
+    readonly pathParameters: Readonly<Record<string, string | undefined>>
+    readonly request: Request
+  }) => Promise<ReviewRouteInput> {
+    return async ({ correlationId, pathParameters, request }) => ({
+      command: await toRouteCommand(request),
+      correlationId,
+      documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+      ipAddress: resolveClientIp(request),
+      tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+    })
+  }
+
   return [
     defineRoute<ReviewRouteInput>({
-      async handle({ context, input }): Promise<Response> {
-        const view = await canhotoReview.review({
-          actorUserId: context.scope.userId,
-          command: input.command,
-          companyId: context.scope.companyId,
-          correlationId: input.correlationId,
-          documentId: input.documentId,
-          ipAddress: input.ipAddress,
-          tripId: input.tripId,
-        })
-        return jsonResponse({ body: { data: view }, status: 200 })
-      },
+      handle: handleReview,
       method: 'PATCH',
-      async parse({ correlationId, pathParameters, request }) {
-        const body = await parseOptionalBody(REVIEW_BODY_SCHEMA, request)
-        return {
-          command: toCommand(body),
-          correlationId,
-          documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
-          ipAddress: resolveClientIp(request),
-          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
-        }
-      },
+      parse: parseReview(async (request) =>
+        toCommand(await parseOptionalBody(REVIEW_BODY_SCHEMA, request)),
+      ),
       pathname: TRIP_DOCUMENT_PROOF_REVIEW_PATH,
       policy: TRIP_MANAGE_POLICY,
+    }),
+    defineRoute<ReviewRouteInput>({
+      handle: handleReview,
+      method: 'PATCH',
+      parse: parseReview(async (request) => ({
+        action: 'automatic',
+        ...(await parseOptionalBody(AUTOMATIC_REVIEW_BODY_SCHEMA, request)),
+      })),
+      pathname: TRIP_DOCUMENT_PROOF_AUTOMATIC_REVIEW_PATH,
+      policy: CANHOTO_AUTO_REVIEW_POLICY,
     }),
   ]
 }

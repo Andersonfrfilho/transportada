@@ -465,3 +465,22 @@ continua 6202 / 0.
 
 Lint: `routes.contract.ts` da T3.3 tinha um `_omitted` não usado (eslint); trocado por filtro de
 `Object.entries`, comportamento igual.
+
+### T3.5 — a rota `PATCH .../proof/review/automatic`
+
+`canhoto-review.routes.ts`: segunda rota no mesmo arquivo e no mesmo caso de uso
+(`canhotoReview.review`), com `policy` `trip.canhoto-auto-review` e schema próprio
+(`AUTOMATIC_REVIEW_BODY_SCHEMA`: `.strict()`, sem `action`, quatro campos de leitura `nullable()`
+e obrigatórios). O handler e o parse de caminho/IP são compartilhados com a rota de gente, que não
+mudou. O comando que chega ao caso de uso é `{ action: 'automatic', ... }` montado no servidor.
+
+Vermelho de antes: `canhoto-review.contract.test.ts` **80 pass / 16 fail** (os 16 com 404, da T3.3).
+Verde de depois: **96 pass / 0 fail**; contrato inteiro da API **8515 pass / 9 fail** (só os 9 do
+toll booth, Postgres fora do ar); `tsc` limpo, eslint e prettier limpos.
+
+Mutações (suíte do canhoto):
+
+- `readNumber` com `.optional()` → **1 fail** (o teste do campo ausente);
+- sem `.strict()` no schema do robô → **7 fail** (`action`, veredito, origem, empresa, chave de acesso);
+- policy da rota do robô trocada para `trip.manage` → **16 fail**;
+- restaurado: 96 / 0.

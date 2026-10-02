@@ -88,7 +88,7 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
       (`authorization.policy.ts:366`). ⚠️ São oito arquivos no total, e três comparam listas por
       igualdade exata — a lista está no plan.md § "Grupo B". Sem a entrada em
       `SERVICE_ONLY_PERMISSIONS`, quem tem `groups.manage` concede a porta do robô a uma pessoa
-- [ ] T3.5 A rota `PATCH .../proof/review/automatic` em `canhoto-review.routes.ts`, no **mesmo**
+- [x] T3.5 A rota `PATCH .../proof/review/automatic` em `canhoto-review.routes.ts`, no **mesmo**
       caso de uso, com **schema próprio**: os quatro campos de leitura `nullable()` e
       **obrigatórios**, nunca `optional()` (com `exactOptionalPropertyTypes` o ausente chega
       `undefined` e `assertReadingIsConsistent` compara contra `null`). A rota de gente não muda
