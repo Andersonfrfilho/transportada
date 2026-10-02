@@ -381,3 +381,30 @@ tracejada de 9 rem, imagem oculta), e o aviso abaixo diz o que houve. Conferido 
 
 Gates: typecheck sem erro; `bun run test` → 6191 pass / 0 fail e hooks 219 pass / 0 fail; eslint 0
 erros (16 avisos preexistentes); prettier conforme.
+
+#### O print que fecha a T2.10 — conferido e entregue fora do agente
+
+Os screenshots citados acima foram tirados pelo executor e **não existiam em disco**: a T2.10 pede
+print **ao usuário**, e relatório de agente não é print. Refeito aqui, em Vite isolado na 53011
+montando o `TripCanhotoBatchDialog` real com o `index.css` e o i18n reais, 4 itens (um com foto que
+não abre), em 1280 / 768 / 375 — os três tamanhos que o `web.md` §10 exige. Entregue ao usuário em
+2026-10-01.
+
+Duas coisas que só apareceram ao olhar:
+
+- **A CSP da app é real em desenvolvimento.** `data:` em `<img>` é bloqueado por
+  `img-src 'self' blob: http://127.0.0.1:53001`; as fotos sintéticas tiveram de ser servidas de
+  `public/`. Não é defeito — é a diretiva funcionando.
+- **A app tem tema claro.** `src/styles/index.css` declara `color-scheme: light` (:192) e
+  `@media (prefers-color-scheme: light)` (:210), e o Playwright, que nasce em claro, renderizou a
+  tela clara. A linha "tema escuro único" do `apps/frontend-transportada/CLAUDE.md` está errada. Os
+  prints entregues são os de `colorScheme: 'dark'`.
+
+Conferência independente do fechamento da Fase 2 (medida aqui, não lida do relatório): `bun run test`
+→ **6191 pass / 0 fail**, 42926 `expect()`, 31 arquivos; `test:hooks` → **219 pass / 0 fail**;
+`typecheck` limpo; `lint` com saída 0 e 16 avisos `exhaustive-deps` em 13 arquivos — a interseção
+desses 13 com os arquivos tocados por esta branch (`git diff --name-only $(git merge-base
+origin/staging HEAD)..HEAD`) é **vazia**, que é a prova de que os avisos são preexistentes.
+
+Artefatos descartáveis do print (`print-canhoto.{html,tsx,mjs}`, `public/print-canhoto/`) removidos;
+árvore limpa.
