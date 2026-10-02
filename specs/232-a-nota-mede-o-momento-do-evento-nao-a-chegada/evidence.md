@@ -357,3 +357,70 @@ Ran 10 tests across 1 file.
 | ix   | repositório sem `deliveryReceivedAt` (só a integração enxerga)          | pegou: driver-score.integration 1 fail — "tocada há 30 h e recebida há 1 h: ainda não penaliza"                                  |
 
 Só a ordem de verificação da integração exige o Postgres; as oito primeiras rodam sem banco.
+
+## T1.4 — os esquemas do motorista aceitam `tappedAt` e `clockOffsetMs`
+
+Contrato novo: `test/driver-trip/clock-fields-schema.contract.ts` (registrado em
+`test/driver-trip.contract.test.ts`, que já está no `package.json`). Cobre, para `arrive`, `deliver`,
+`return` e as duas formas da ocorrência (`kind` e `occurrenceTypeId`): cliente antigo (o resultado não
+ganha as chaves, nem `undefined` explícito), cliente novo (`tappedAt: Date`, `clockOffsetMs: number`),
+um campo sem o outro, os extremos ±365 dias e zero, e 400 para fracionário, texto, `null`, `NaN` no
+corpo cru, ±365 dias + 1 ms, `1e99`, `tappedAt` não ISO e campo desconhecido (`.strict()` vivo).
+`depart`/`cancel-departure` seguem como eram (`clockOffsetMs` neles continua chave extra). No multipart
+do comprovante: inteiro com sinal vira `number`, ausente/vazio não ganha a chave, e `abc`, `1.5`, `1e99`,
+`1e3`, `+5`, ` 5`, `NaN`, `Infinity`, ±365 dias + 1 ms e 40 dígitos são 400 (`INVALID_REQUEST`, o mesmo
+erro dos outros campos do multipart). Casos de rota (`route.execute` com `Request` real): os quatro
+eventos JSON entregam `tappedAt`/`clockOffsetMs` à dependência, o cliente antigo não os leva, e o
+`/proof` entrega o `clockOffsetMs` do multipart dentro do `upload` ao `attachProof`.
+
+Implementação (só aceitar e carregar; nada é gravado, a T1.5 é quem grava): `eventClockFields` em
+`me-trip.schema.ts` mesclado em `reportSchema`, `returnSchema` e `occurrenceBodySchema` (o `deliverySchema`
+herda do `reportSchema`), sem tirar nenhum `.strict()`; `toEventClock` não devolve chave ausente
+(`exactOptionalPropertyTypes`); `clockOffsetMs` do multipart lido em `delivery-proof.schema.ts` no molde
+do `capturedAt` (`decimalText`, regex de até 11 dígitos, `z.int()` com o limite) e repassado a
+`DeliveryProofUpload.clockOffsetMs`. Tipo e limite ficam em `occurred-at.policy.ts`
+(`EventClockFields`, `CLOCK_OFFSET_LIMIT_MILLISECONDS = 365 dias`). As rotas `arrive`/`deliver`/`return`
+passam a repassar o corpo inteiro à dependência (`...input`), e `ReportStopArrivalInput`,
+`ReportDocumentOutcomeInput` e `ReportStopOccurrenceInput` ganharam `EventClockFields` (opcional, sem
+uso nos casos de uso).
+
+### Vermelho (antes do código)
+
+```text
+apps/api-transportada$ bun --env-file=../../.env.test test --timeout 120000 ./test/driver-trip.contract.test.ts
+ 178 pass
+ 28 fail
+```
+
+Os 28 são todos "aceitar": quatro por parser de evento (cliente novo, um sem o outro duas vezes, extremos),
+três do multipart (inteiro vira número, extremos, texto inválido ainda aceito/ignorado) e cinco de rota. Os
+casos de cliente antigo, de `.strict()` e de `depart` já nasciam verdes — são as travas que a mudança não
+pode quebrar, e a mutação 1/2/6/9 abaixo prova que pegam.
+
+### Verde
+
+```text
+apps/api-transportada$ bun --env-file=../../.env.test test --timeout 120000 ./test/driver-trip.contract.test.ts → 206 pass, 0 fail (149 + 57)
+apps/api-transportada$ bun run typecheck                      → exit 0
+apps/api-transportada$ bun run lint                           → exit 0 (--max-warnings=0)
+apps/api-transportada$ bun --env-file=../../.env.test run test → 8667 pass, 23 skip, 0 fail (8690 testes, 192 arquivos)
+raiz$ bun run format:check                                    → exit 0
+```
+
+Antes: 8610 pass / 23 skip; a diferença é exatamente os 57 casos novos. Nenhum snapshot do OpenAPI mudou
+(o gerador deriva das rotas e a suíte inteira passou sem atualizar nenhum).
+
+### Prova por mutação (restaurada e conferida byte a byte a cada uma)
+
+| #   | Mutação                                                               | Resultado (driver-trip)                                                      |
+| --- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| 1   | `.strict()` removido do `reportSchema`                                | pegou: 1 fail (arrive aceitava `foo`)                                        |
+| 2   | `clockOffsetMs` obrigatório                                           | pegou: 14 fail (cliente antigo e um-sem-o-outro, nos quatro eventos e rotas) |
+| 3   | sem o limite de ±365 dias no corpo JSON                               | pegou: 5 fail (um por parser de evento)                                      |
+| 4   | `clockOffsetMs` fracionário aceito no corpo JSON (`z.int()`→`number`) | pegou: 5 fail                                                                |
+| 5   | multipart ignora o `clockOffsetMs`                                    | pegou: 3 fail (parser: valor e extremos; rota `/proof` fim a fim)            |
+| 6   | `tappedAt` obrigatório                                                | pegou: 14 fail                                                               |
+| 7   | multipart sem o limite de ±365 dias                                   | pegou: 1 fail                                                                |
+| 8   | multipart aceita fracionário/expoente (regex frouxa)                  | pegou: 1 fail                                                                |
+| 9   | `toEventClock` devolve `clockOffsetMs: undefined` explícito           | pegou: 14 fail (cliente antigo ganha a chave)                                |
+| 10  | rota `/arrive` descarta os campos do relógio                          | pegou: 1 fail (caso de rota `/arrive`)                                       |

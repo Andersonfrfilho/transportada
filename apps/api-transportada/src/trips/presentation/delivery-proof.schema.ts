@@ -10,6 +10,7 @@ import {
   DRIVER_UPLOAD_PROOF_KINDS,
   type DriverUploadProofKind,
 } from '../domain/delivery-event.constant.js'
+import { CLOCK_OFFSET_LIMIT_MILLISECONDS } from '../domain/occurred-at.policy.js'
 import type { ProofPosition } from '../domain/delivery-proof-punctuality.policy.js'
 import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
 import { normalizeReceivedBy } from './received-by.schema.js'
@@ -35,6 +36,8 @@ const ACCURACY_METERS_FIELD = 'accuracyMeters'
 const CAPTURED_AT_FIELD = 'capturedAt'
 /** Spec 205 RF3: o "Registrar entrega depois" — texto `true`/`false`, ausente ou vazio é `false`. */
 const LATE_REGISTRATION_FIELD = 'lateRegistration'
+/** Spec 232 D2: servidor − aparelho em ms, texto inteiro com sinal opcional. */
+const CLOCK_OFFSET_FIELD = 'clockOffsetMs'
 
 /**
  * Spec 159 T11 (itens 4 e 10): texto com teto e forma decimal **antes** de virar número — `Number()`
@@ -51,6 +54,17 @@ const UNSIGNED_DECIMAL_PATTERN = /^\d{1,5}(\.\d{1,17})?$/u
 function decimalText(input: { readonly maxLength: number; readonly pattern: RegExp }) {
   return z.string().max(input.maxLength).regex(input.pattern).transform(Number)
 }
+
+/** 365 dias em ms têm 11 dígitos; o teto de texto barra `1e99` e string de mil dígitos antes do `Number()`. */
+const CLOCK_OFFSET_TEXT_MAX_LENGTH = 12
+const CLOCK_OFFSET_PATTERN = /^-?\d{1,11}$/u
+
+const clockOffsetSchema = decimalText({
+  maxLength: CLOCK_OFFSET_TEXT_MAX_LENGTH,
+  pattern: CLOCK_OFFSET_PATTERN,
+})
+  .pipe(z.int().min(-CLOCK_OFFSET_LIMIT_MILLISECONDS).max(CLOCK_OFFSET_LIMIT_MILLISECONDS))
+  .optional()
 
 const proofLocationSchema = z
   .object({
@@ -110,6 +124,14 @@ function parseProofLocation(form: Awaited<ReturnType<Request['formData']>>): Pro
   return { capturedAt: capturedAt === undefined ? undefined : new Date(capturedAt), position }
 }
 
+/** Ausente ou vazio é o cliente antigo; presente e inválido é `400`, nunca um desvio adivinhado. */
+function parseClockOffset(form: Awaited<ReturnType<Request['formData']>>): number | undefined {
+  const parsed = clockOffsetSchema.safeParse(readOptionalField(form, CLOCK_OFFSET_FIELD))
+  if (!parsed.success) throw new ApiError(HTTP_ERROR.invalidRequest)
+
+  return parsed.data
+}
+
 function isProofKind(value: unknown): value is DriverUploadProofKind {
   return (
     typeof value === 'string' && (DRIVER_UPLOAD_PROOF_KINDS as readonly string[]).includes(value)
@@ -146,11 +168,13 @@ export async function parseDeliveryProofUpload(request: Request): Promise<Delive
 
   const location = parseProofLocation(form)
   const thumbnail = await parseThumbnail(form)
+  const clockOffsetMs = parseClockOffset(form)
 
   return {
     attachmentKey: typeof attachmentKey === 'string' ? attachmentKey : '',
     bytes: new Uint8Array(await file.arrayBuffer()),
     capturedAt: location.capturedAt,
+    ...(clockOffsetMs === undefined ? {} : { clockOffsetMs }),
     kind,
     lateRegistration: parseLateRegistration(readOptionalField(form, LATE_REGISTRATION_FIELD)),
     mimeType: file.type,

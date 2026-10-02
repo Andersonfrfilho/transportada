@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
+import type { EventClockFields } from '../domain/occurred-at.policy.js'
 import { resolveStopOccurrenceKind } from '../domain/stop-occurrence-kind.policy.js'
 import {
   OccurrenceTypeNotStopError,
@@ -75,6 +76,7 @@ export type StopOccurrenceReference =
   | { readonly kind?: undefined; readonly occurrenceTypeId: string }
 
 export type ReportStopOccurrenceInput = FieldTripLocator &
+  EventClockFields &
   StopOccurrenceReference & {
     readonly actorUserId: string
     readonly attachmentObjectId: string | null

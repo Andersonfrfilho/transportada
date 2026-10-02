@@ -33,6 +33,7 @@ import type {
   ReportStopOccurrenceResult,
   StopOccurrenceReference,
 } from '../application/report-stop-occurrence.use-case.js'
+import type { EventClockFields } from '../domain/occurred-at.policy.js'
 import { DriverNotRegisteredError } from '../domain/trip.error.js'
 import { parseDeliveryProofUpload } from './delivery-proof.schema.js'
 import {
@@ -121,10 +122,11 @@ type DriverActionInput = DriverContextInput & {
 }
 
 /** Spec 205 RF1/RF2: a baixa da nota diz se veio pelo "Registrar entrega depois". */
-type DriverDocumentOutcomeInput = DriverActionInput & {
-  readonly documentId: string
-  readonly lateRegistration: boolean
-}
+type DriverDocumentOutcomeInput = DriverActionInput &
+  EventClockFields & {
+    readonly documentId: string
+    readonly lateRegistration: boolean
+  }
 
 /**
  * O que resolve a viagem do upload: a nota da ocorrência de nota (179) ou a parada do "Deu
@@ -148,7 +150,7 @@ export type MeTripDependencies = {
     readonly recipientTaxId?: string | null
   }) => Promise<readonly FieldOccurrenceType[]>
   readonly reportArrival: (
-    input: DriverActionInput & { readonly stopId: string },
+    input: DriverActionInput & EventClockFields & { readonly stopId: string },
   ) => Promise<ReportStopArrivalResult>
   /** Spec 206 D2: o primeiro toque em "Iniciar rota". */
   readonly reportDeparture: (
@@ -167,6 +169,7 @@ export type MeTripDependencies = {
   ) => Promise<ReportDocumentOutcomeResult>
   readonly reportOccurrence: (
     input: DriverContextInput &
+      EventClockFields &
       StopOccurrenceReference & {
         /** Spec 209 RF2: o upload confirmado da foto — `null` é a ocorrência sem foto. */
         readonly attachmentObjectId: string | null
@@ -372,20 +375,20 @@ export function createMeTripRoutes(
         policy: DRIVER_REPORT_POLICY,
       }),
     ),
-    defineRoute<{
-      readonly idempotencyKey: string
-      readonly location: ReportedLocation | null
-      readonly stopId: string
-    }>({
+    defineRoute<
+      EventClockFields & {
+        readonly idempotencyKey: string
+        readonly location: ReportedLocation | null
+        readonly stopId: string
+      }
+    >({
       async handle({ context, input }): Promise<Response> {
         const driverId = await resolveDriver(context.scope)
         const result = await dependencies.reportArrival({
+          ...input,
           actorUserId: context.scope.userId,
           companyId: context.scope.companyId,
           driverId,
-          idempotencyKey: input.idempotencyKey,
-          location: input.location,
-          stopId: input.stopId,
         })
 
         return jsonResponse({ body: { data: { id: result.id } }, status: 201 })
@@ -394,8 +397,8 @@ export function createMeTripRoutes(
       async parse({ pathParameters, request }) {
         const body = await parseFieldReportRequest(request)
         return {
+          ...body,
           idempotencyKey: parseIdempotencyKey(request),
-          location: body.location,
           stopId: parseUuidPathIdentifier(pathParameters.stopId ?? ''),
         }
       },
@@ -474,22 +477,21 @@ export function createMeTripRoutes(
       pathname: STOP_CANCEL_DEPARTURE_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
-    defineRoute<{
-      readonly documentId: string
-      readonly idempotencyKey: string
-      readonly lateRegistration: boolean
-      readonly location: ReportedLocation | null
-    }>({
+    defineRoute<
+      EventClockFields & {
+        readonly documentId: string
+        readonly idempotencyKey: string
+        readonly lateRegistration: boolean
+        readonly location: ReportedLocation | null
+      }
+    >({
       async handle({ context, input }): Promise<Response> {
         const driverId = await resolveDriver(context.scope)
         const result = await dependencies.reportDelivery({
+          ...input,
           actorUserId: context.scope.userId,
           companyId: context.scope.companyId,
-          documentId: input.documentId,
           driverId,
-          idempotencyKey: input.idempotencyKey,
-          lateRegistration: input.lateRegistration,
-          location: input.location,
         })
 
         return jsonResponse({ body: { data: result }, status: 201 })
@@ -498,33 +500,30 @@ export function createMeTripRoutes(
       async parse({ pathParameters, request }) {
         const body = await parseDocumentDeliveryRequest(request)
         return {
+          ...body,
           documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
           idempotencyKey: parseIdempotencyKey(request),
-          lateRegistration: body.lateRegistration,
-          location: body.location,
         }
       },
       pathname: DOCUMENT_DELIVER_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
-    defineRoute<{
-      readonly documentId: string
-      readonly idempotencyKey: string
-      readonly lateRegistration: boolean
-      readonly location: ReportedLocation | null
-      readonly reason: DriverReturnReason
-    }>({
+    defineRoute<
+      EventClockFields & {
+        readonly documentId: string
+        readonly idempotencyKey: string
+        readonly lateRegistration: boolean
+        readonly location: ReportedLocation | null
+        readonly reason: DriverReturnReason
+      }
+    >({
       async handle({ context, input }): Promise<Response> {
         const driverId = await resolveDriver(context.scope)
         const result = await dependencies.reportReturn({
+          ...input,
           actorUserId: context.scope.userId,
           companyId: context.scope.companyId,
-          documentId: input.documentId,
           driverId,
-          idempotencyKey: input.idempotencyKey,
-          lateRegistration: input.lateRegistration,
-          location: input.location,
-          reason: input.reason,
         })
 
         return jsonResponse({ body: { data: result }, status: 201 })
@@ -533,11 +532,9 @@ export function createMeTripRoutes(
       async parse({ pathParameters, request }) {
         const body = await parseDocumentReturnRequest(request)
         return {
+          ...body,
           documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
           idempotencyKey: parseIdempotencyKey(request),
-          lateRegistration: body.lateRegistration,
-          location: body.location,
-          reason: body.reason,
         }
       },
       pathname: DOCUMENT_RETURN_PATH,

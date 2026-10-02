@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import './driver-trip/clock-fields-schema.contract.js'
 import './driver-trip/current-trip.contract.js'
 import './driver-trip/delivery-proof-clock-corrected.contract.js'
 import './driver-trip/delivery-proof.contract.js'

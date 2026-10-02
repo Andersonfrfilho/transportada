@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { resolveEtaShiftMilliseconds } from '../domain/eta-anchor.policy.js'
+import type { EventClockFields } from '../domain/occurred-at.policy.js'
 import {
   assertInformedTimeWithinWindow,
   FIELD_INFORMED_TIME,
@@ -24,20 +25,21 @@ import { resolveFieldReportOperation, withFieldReport } from './trip-field-repor
 const ARRIVE_OPERATION = 'stop.arrive'
 const DISPATCHED_STATUS = 'dispatched'
 
-export type ReportStopArrivalInput = FieldTripLocator & {
-  readonly actorUserId: string
-  readonly companyId: string
-  readonly idempotencyKey: string
-  readonly location: ReportedLocation | null
-  /** Quando a chegada aconteceu. O motorista manda agora; o escritório, a hora informada (A1). */
-  readonly now: Date
-  /** Spec 156 T15 M11: só o escritório manda — a trilha nasce na transação da chegada. */
-  readonly officeAudit?: OfficeAuditRequest
-  /** ADR-0067 §3: quando o registro foi gravado. Ausente cai em `now` — é o caso do motorista. */
-  readonly recordedAt?: Date
-  readonly stopId: string
-  readonly unitOfWork: DriverFieldReportUnitOfWork
-}
+export type ReportStopArrivalInput = FieldTripLocator &
+  EventClockFields & {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly idempotencyKey: string
+    readonly location: ReportedLocation | null
+    /** Quando a chegada aconteceu. O motorista manda agora; o escritório, a hora informada (A1). */
+    readonly now: Date
+    /** Spec 156 T15 M11: só o escritório manda — a trilha nasce na transação da chegada. */
+    readonly officeAudit?: OfficeAuditRequest
+    /** ADR-0067 §3: quando o registro foi gravado. Ausente cai em `now` — é o caso do motorista. */
+    readonly recordedAt?: Date
+    readonly stopId: string
+    readonly unitOfWork: DriverFieldReportUnitOfWork
+  }
 
 export type ReportStopArrivalResult = { readonly id: string }
 
