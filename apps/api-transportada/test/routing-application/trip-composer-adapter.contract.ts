@@ -37,6 +37,7 @@ const VEHICLE: TripVehicleCandidate = {
 }
 const DRIVER: TripDriverCandidate = {
   canActAsHelper: false,
+  canDrive: true,
   id: DRIVER_ID,
   name: 'Ana Souza',
   status: 'active',

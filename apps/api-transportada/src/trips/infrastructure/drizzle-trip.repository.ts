@@ -833,6 +833,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     return this.database
       .select({
         canActAsHelper: fleetDrivers.canActAsHelper,
+        canDrive: fleetDrivers.canDrive,
         id: fleetDrivers.id,
         name: fleetDrivers.name,
         status: fleetDrivers.status,

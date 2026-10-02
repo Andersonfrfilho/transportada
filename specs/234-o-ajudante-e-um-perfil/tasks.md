@@ -10,7 +10,7 @@ da app. Cada task fecha com typecheck, testes da app, commit isolado e evidênci
 - [x] **T1** 🧠 Papel `helper` e `fleet_drivers.can_drive`: `COMPANY_ROLES`, CHECKs de
       `membership_roles` e `user_invitation_roles`, coluna e CHECK da D2, `rollback.sql`.
       Aceite: `make migration-test` verde e `db:generate` = `no_changes`.
-- [ ] **T2** 🧠 `resolveTripCrew` recusa `can_drive = false` (D5): `TripDriverCannotDriveError`
+- [x] **T2** 🧠 `resolveTripCrew` recusa `can_drive = false` (D5): `TripDriverCannotDriveError`
       (`409 TRIP_DRIVER_CANNOT_DRIVE`), `TripDriverCandidate.canDrive`, leitura no repositório da viagem.
       Aceite: contrato vermelho → verde, incluindo ajudante-puro como condutor.
 - [ ] **T3** 🧠 Reconciliação papel → colunas (D4) nos dois use cases de papéis, com a recusa

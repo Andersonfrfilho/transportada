@@ -585,7 +585,9 @@ describe('trip repository integration', () => {
           taxId: '22222222222',
         },
         {
+          // Spec 234 D2: o ajudante-puro — não dirige, só ajuda
           canActAsHelper: true,
+          canDrive: false,
           companyId,
           id: helperTwoId,
           name: 'Ajudante Dois',
@@ -594,6 +596,24 @@ describe('trip repository integration', () => {
       ])
 
       const repository = new DrizzleTripRepository(database.db)
+      // Spec 234 D5: a política da viagem lê `can_drive` da ficha, não o papel
+      const candidates = await repository.listDrivers({
+        companyId,
+        driverIds: [driverId, helperOneId, helperTwoId],
+      })
+      expect(
+        Object.fromEntries(
+          candidates.map((candidate) => [
+            candidate.id,
+            { canActAsHelper: candidate.canActAsHelper, canDrive: candidate.canDrive },
+          ]),
+        ),
+      ).toEqual({
+        [driverId]: { canActAsHelper: false, canDrive: true },
+        [helperOneId]: { canActAsHelper: true, canDrive: true },
+        [helperTwoId]: { canActAsHelper: true, canDrive: false },
+      })
+
       const created = await repository.create({
         actorUserId: userId,
         channel: TRIP_FIELD_CHANNELS.backoffice,

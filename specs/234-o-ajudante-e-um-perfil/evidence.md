@@ -76,3 +76,64 @@ Listas de papéis duplicadas no painel, que ainda não conhecem `helper`:
 - `apps/frontend-transportada/src/modules/identity/shared/companyUsers.constant.ts`
 - `apps/frontend-transportada/src/modules/identity/queries/useAuthMe.query.ts` (lista fechada, :162)
 - `apps/frontend-transportada/src/modules/shared/workspaceAccess.service.ts`
+
+## T2 — `resolveTripCrew` recusa quem não dirige
+
+Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+
+### O que mudou
+
+- `TripDriverCandidate` ganha `readonly canDrive: boolean`
+  (`apps/api-transportada/src/trips/domain/trip.policy.ts`). `resolveTripCrew` junta os `driverIds`
+  com `canDrive === false` e lança `TripDriverCannotDriveError` (`409 TRIP_DRIVER_CANNOT_DRIVE`, ids
+  em `details` com `field: 'driverIds'`) **depois** de duplicado, ajudante sem motorista e não
+  encontrado/inativo, e antes de `TRIP_CREW_HELPER_NOT_ELIGIBLE`.
+- `TripDriverCannotDriveError` em `apps/api-transportada/src/trips/domain/trip.error.ts`, com
+  comentário distinguindo-o de `TRIP_CREW_HELPER_CANNOT_DRIVE` (403, o ajudante já na viagem tentando
+  despachar).
+- Leitura: `canDrive: fleetDrivers.canDrive` no `listDrivers` de
+  `apps/api-transportada/src/trips/infrastructure/drizzle-trip.repository.ts`. Criação, troca de
+  tripulação e aceite passam pelo mesmo funil (`trip-crew.service.ts`), sem mudança neles.
+- Fakes que montam candidato ganham `canDrive: true`: `test/trip-application/trip-use-case.contract.ts`,
+  `test/routing-application/trip-composer-adapter.contract.ts`.
+
+### Contrato vermelho antes do código
+
+`test/trip-domain/trip-policy.contract.ts`, quatro testes novos: ajudante-puro na lista de motoristas
+(erro, código, 409, `details` com os dois ids na ordem pedida); ajudante-puro na lista de ajudantes
+(aceito); motorista que também ajuda válido nos dois papéis; ordem das recusas (duplicado → ajudante
+sem motorista → não encontrado → inativo, todos com um ajudante-puro na lista).
+
+- Antes da classe de erro: `SyntaxError: Export named 'TripDriverCannotDriveError' not found` (`0 pass · 1 fail`).
+- Com a classe e sem a checagem: `bun --env-file=../../.env.test test --timeout 120000 ./test/trip-domain.contract.test.ts`
+  → `366 pass · 1 fail` (`rejects a helper-only record in the driver list, naming every one in details`).
+- Com a checagem: `367 pass · 0 fail`.
+
+`test/integration/trip-repository.integration.ts` ("grava e lê a tripulação com motorista e
+ajudantes"): o segundo ajudante passa a ser ajudante-puro (`canDrive: false`) e o `listDrivers`
+confere `canDrive`/`canActAsHelper` dos três.
+
+### Prova por mutação
+
+- Checagem trocada por `nonDrivingIds.length < 0` → `366 pass · 1 fail` no mesmo teste. Restaurado.
+- `canDrive: fleetDrivers.canDrive` arrancado do select → `trip-repository.integration.ts`
+  `4 pass · 1 fail` ("grava e lê a tripulação com motorista e ajudantes"). Restaurado.
+
+### Gates
+
+Mesmo Postgres 18.4 nativo descartável da T1 (porta 65435; o `.env.test` aponta para 65434, vazio).
+
+- Contrato da API: `bun --env-file=../../.env.test test --timeout 120000` →
+  `8754 pass · 0 fail · Ran 8754 tests across 193 files` (0 skip).
+- Integração tocada: `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-repository.integration.ts`
+  → `5 pass · 0 fail` (0 skip). De quebra, `./test/integration/trip-crew-update.integration.ts` →
+  `10 pass · 0 fail` (0 skip).
+- `bun run typecheck` (raiz) → exit 0.
+- `bun run lint` (cwd `apps/api-transportada`) → exit 0.
+- `bunx prettier --write` nos arquivos tocados.
+
+### Lacunas levadas ao usuário (fora da T2)
+
+- MDF-e avulso (`src/mdfe-manifests/application/mdfe-manifest-crew.service.ts`) monta condutores sem
+  passar por `resolveTripCrew` e não lê `can_drive`.
+- A proposta de viagem / consulta de motoristas ainda não filtra `can_drive` — é a T6.

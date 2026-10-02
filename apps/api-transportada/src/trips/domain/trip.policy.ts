@@ -12,6 +12,7 @@ import {
   TripCrewHelperNotEligibleError,
   TripCrewHelperWithoutDriverError,
   TripDocumentReferenceInvalidError,
+  TripDriverCannotDriveError,
   TripDriverDuplicatedError,
   TripDriverNotAvailableError,
   TripDriverNotFoundError,
@@ -32,6 +33,8 @@ export type TripVehicleCandidate = {
 export type TripDriverCandidate = {
   /** Spec 149 (ADR-0065 D1): a ficha marca quem pode entrar na tripulação como ajudante. */
   readonly canActAsHelper: boolean
+  /** Spec 234 D5: o ajudante-puro não dirige — nunca entra na lista de condutores. */
+  readonly canDrive: boolean
   readonly id: string
   readonly name: string
   readonly status: FleetDriverStatus
@@ -105,6 +108,11 @@ export function resolveTripCrew(input: {
     }
     return line
   })
+
+  const nonDrivingIds = driverIds.filter((driverId) => driverById.get(driverId)?.canDrive === false)
+  if (nonDrivingIds.length > 0) {
+    throw new TripDriverCannotDriveError(nonDrivingIds)
+  }
 
   if (ineligibleHelperIds.length > 0) {
     throw new TripCrewHelperNotEligibleError(ineligibleHelperIds)
