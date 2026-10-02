@@ -21,17 +21,18 @@ começam.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T1.1 Ler `read-delivery-proof.use-case.ts` inteiro e registrar em `evidence.md` como a URL
+- [x] T1.1 Ler `read-delivery-proof.use-case.ts` inteiro e registrar em `evidence.md` como a URL
       assinada é produzida (HMAC local ou chamada ao storage) — é o que decide se a rota em lote
       assina original + miniatura ou só a miniatura (plan.md § "Grupo A — maço (API)")
-- [ ] T1.2 Contrato da rota em lote **antes da implementação**: `GET /trips/:id/delivery-proofs`
+- [x] T1.2 Contrato da rota em lote **antes da implementação**: `GET /trips/:id/delivery-proofs`
       responde 200 com `documentId` em cada item, `fleet.read` basta, `trip.manage` não é exigido,
       e `?documentIds=` filtra com teto (CA01) — `apps/api-transportada/test/`
-- [ ] T1.3 Porta + consulta: `findByTrip` em `ReadDeliveryProofPort` e o Drizzle filtrando por
+- [x] T1.3 Porta própria `ReadTripDeliveryProofsPort` (não `findByTrip` no port de uma nota, que
+      quebraria o typecheck dos dublês existentes) e o Drizzle filtrando por
       `companyId` + `tripId` (nunca por payload)
-- [ ] T1.4 `readDeliveryProofsByTrip` ao lado do que existe, sem tocar no caminho de uma nota
-- [ ] T1.5 Rota em `trip.routes.ts` com `TRIP_FIELD_READ_POLICY`, serialização com `documentId`
-- [ ] T1.6 Integração sobre viagem semeada: três comprovantes de três notas numa chamada
+- [x] T1.4 `readDeliveryProofsByTrip` ao lado do que existe, sem tocar no caminho de uma nota
+- [x] T1.5 Rota em `trip.routes.ts` com `TRIP_FIELD_READ_POLICY`, serialização com `documentId`
+- [x] T1.6 Integração sobre viagem semeada: três comprovantes de três notas numa chamada
       (`test/integration/*.integration.ts` + comando do aviso acima)
 
 ## Fase 2 — O maço confere o canhoto
@@ -47,7 +48,7 @@ começam.
       (não falha), falha de rede remarca só o que falhou e relata "1 de 5" (CA07, CA08).
       ⚠️ **Reaproveitar, não reinventar**: `runFieldActionQueue`
       (`shared/tripFieldActionQueue.service.ts`, `concurrency: 3`) já devolve `{errorCode, item,
-    value}` por item e isola a falha; `batchFieldReturnMutation`
+  value}` por item e isola a falha; `batchFieldReturnMutation`
       (`useTripWorkspace.hook.ts:861`) é o molde da mutation. E o código do 409 já existe:
       `CANHOTO_REVIEW_ALREADY_RESOLVED_CODE` em `shared/trip.constant.ts:69` — importar, nunca
       redeclarar (§16)
