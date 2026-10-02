@@ -77,6 +77,18 @@ const downloads = {
   },
 }
 
+async function readSingle(record: TripDeliveryProofRecord, documentId: string) {
+  const [view] = await readDeliveryProofs({
+    companyId: COMPANY_ID,
+    documentId,
+    downloads,
+    repository: { listDeliveryProofs: async () => [record] },
+    tripId: TRIP_ID,
+  })
+  if (view === undefined) throw new Error('a leitura de uma nota não devolveu o comprovante')
+  return view
+}
+
 describe('readDeliveryProofsByTrip (spec 222 T1.4)', () => {
   test('a consulta é escopada pela empresa e pela viagem recebidas, e leva o filtro de notas', async () => {
     const { calls, port } = repository([])
@@ -125,20 +137,8 @@ describe('readDeliveryProofsByTrip (spec 222 T1.4)', () => {
 
   test('a serialização é a da leitura de uma nota, mais o documentId', async () => {
     const { port } = repository([FIRST, SECOND])
-    const [singleFirst] = await readDeliveryProofs({
-      companyId: COMPANY_ID,
-      documentId: FIRST_DOCUMENT_ID,
-      downloads,
-      repository: { listDeliveryProofs: async () => [FIRST] },
-      tripId: TRIP_ID,
-    })
-    const [singleSecond] = await readDeliveryProofs({
-      companyId: COMPANY_ID,
-      documentId: SECOND_DOCUMENT_ID,
-      downloads,
-      repository: { listDeliveryProofs: async () => [SECOND] },
-      tripId: TRIP_ID,
-    })
+    const singleFirst = await readSingle(FIRST, FIRST_DOCUMENT_ID)
+    const singleSecond = await readSingle(SECOND, SECOND_DOCUMENT_ID)
 
     const views = await readDeliveryProofsByTrip({
       companyId: COMPANY_ID,

@@ -217,7 +217,10 @@ import { createRenderDacteUseCase } from './cte-issuance/application/render-dact
 import { createReadMdfeDocumentUseCase } from './mdfe-manifests/application/read-mdfe-document.use-case.js'
 import { createDamdfePdfGateway } from './mdfe-manifests/infrastructure/damdfe-pdf.gateway.js'
 import { createMdfeDocumentDownloadGateway } from './mdfe-manifests/infrastructure/mdfe-document-download.gateway.js'
-import { readDeliveryProofs } from './trips/application/read-delivery-proof.use-case.js'
+import {
+  readDeliveryProofs,
+  readDeliveryProofsByTrip,
+} from './trips/application/read-delivery-proof.use-case.js'
 import { readDriverDeliveryProofs } from './trips/application/read-driver-delivery-proof.use-case.js'
 import { readRouteGeometry } from './trips/application/read-route-geometry.use-case.js'
 import { readTripRouteGeometry as readTripRouteGeometryUseCase } from './trips/application/read-trip-route-geometry.use-case.js'
@@ -302,6 +305,7 @@ import {
 import { createOccurrenceNotifier } from './trips/infrastructure/occurrence-notifier.gateway.js'
 import { createStopOccurrenceNotifier } from './trips/infrastructure/stop-occurrence-notifier.gateway.js'
 import {
+  findDeliveryProofsByTrip,
   findDriverReachableDocument,
   findOccurrenceForAttachment,
   findTripOccurrenceById,
@@ -4222,6 +4226,18 @@ function createApplicationRoutes({
             downloads: createDeliveryProofDownloadGateway({ storage: storageGateway }),
             repository: {
               listDeliveryProofs: (query) => listDeliveryProofs(database, query),
+            },
+            tripId: input.tripId,
+          }),
+      },
+      readTripDeliveryProofs: {
+        execute: (input) =>
+          readDeliveryProofsByTrip({
+            companyId: input.context.companyId,
+            ...(input.documentIds === undefined ? {} : { documentIds: input.documentIds }),
+            downloads: createDeliveryProofDownloadGateway({ storage: storageGateway }),
+            repository: {
+              findByTrip: (query) => findDeliveryProofsByTrip(database, query),
             },
             tripId: input.tripId,
           }),
