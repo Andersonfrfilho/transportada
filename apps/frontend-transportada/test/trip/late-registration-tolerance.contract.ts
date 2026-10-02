@@ -19,6 +19,8 @@ const TIMELINE_ITEM = {
   fromStatus: null,
   id: 'item-1',
   kind: 'document.delivered' as const,
+  location: null,
+  locationState: null,
   occurrence: null,
   occurredAt: '2026-09-25T12:00:00.000Z',
   onBehalfOfDriverName: null,

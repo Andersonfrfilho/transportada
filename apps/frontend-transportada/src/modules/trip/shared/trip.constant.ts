@@ -471,7 +471,11 @@ export const FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS = ['attachmentMode'] as const
 
 export const TRIP_FIELD_OCCURRENCE_TYPES_PATH = `${TRIPS_PATH}/occurrence-types/field`
 
-/** Spec 158 D6: `GET /trips/:id/timeline` — todo campo nasce sempre presente (nulo, quando falta). */
+/**
+ * Spec 158 D6: `GET /trips/:id/timeline` — todo campo nasce sempre presente (nulo, quando falta).
+ * `location`/`locationState` entraram aqui na spec 196 T6.4: as três consultas da API as mandam em
+ * todo item, e o toque que nunca carimbou sai com `NO_EVENT_LOCATION`, não com a chave ausente.
+ */
 export const TRIP_TIMELINE_ITEM_KEYS = [
   'actorName',
   'channel',
@@ -480,6 +484,8 @@ export const TRIP_TIMELINE_ITEM_KEYS = [
   'fromStatus',
   'id',
   'kind',
+  'location',
+  'locationState',
   'occurrence',
   'occurredAt',
   'onBehalfOfDriverName',
@@ -493,11 +499,7 @@ export const TRIP_TIMELINE_ITEM_KEYS = [
  * Spec 205 RF8: o registro tardio do motorista, só como dado. Opcional porque a API anterior ao campo
  * não o manda — a chave exata recusaria a página inteira na janela entre as duas subidas.
  */
-export const TRIP_TIMELINE_ITEM_OPTIONAL_KEYS = [
-  'lateRegistration',
-  'location',
-  'locationState',
-] as const
+export const TRIP_TIMELINE_ITEM_OPTIONAL_KEYS = ['lateRegistration'] as const
 
 /** Spec 196 RF9: o ponto onde o toque aconteceu; a precisão é nula quando o aparelho não a informou. */
 export const TRIP_TIMELINE_LOCATION_KEYS = [
