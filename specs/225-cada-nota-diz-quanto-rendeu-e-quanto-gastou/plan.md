@@ -10,6 +10,7 @@ O que já está de pé e é premissa:
 | peça                                    | onde                                                                                                    | uso aqui                                                         |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | trechos da rota com distância e duração | `trips.planned_route` (jsonb), lido por `parse-planned-route.policy.ts:10-70`                           | a base de distância e tempo por nota                             |
+| chegada, entrega e saída da parada      | `trip_stop_events` (`TRIP_STOP_EVENT_KINDS`: `arrived`, `delivered`, `departed`, …)                     | a espera no cliente, `departed − arrived` (D9)                   |
 | retorno                                 | `trips.planned_return_distance_meters` (`trip.schema.ts:270`)                                           | o trecho sem nota a bordo (D3)                                   |
 | pedágio por trecho                      | `parseFrozenBoothLegIndexes`, `toll-route-cost-snapshot.policy.ts`                                      | pedágio já é por índice de trecho                                |
 | nota → parada                           | `trip_documents.stop_id` (`trip.schema.ts:773`), índice `trip_documents_company_stop_idx`               | quem está a bordo em cada trecho                                 |
@@ -25,13 +26,17 @@ O que já está de pé e é premissa:
 
 ### Domínio (API)
 
-- `trips/domain/document-cost-apportionment.policy.ts` **(novo)** — o coração. Recebe os trechos, a
-  ordem das paradas, as notas com sua parada, e as parcelas de custo; devolve, por nota,
-  `legCostAmount`, `tripShareCostAmount`, `taxAmount`, `marginAmount` e `costBasis`. Função pura, sem
-  I/O, sem Drizzle.
-  - Classifica cada parcela em **distância**, **tempo**, **imposto** ou **viagem** — tabela explícita,
-    nunca `default: distância`, porque parcela nova entrando em silêncio no rateio errado é o defeito
-    mais provável desta spec.
+- `trips/domain/document-cost-apportionment.policy.ts` **(novo, entregue na T1.2)** — o coração. Recebe
+  os trechos, as paradas **na ordem da rota e com a espera de cada uma**, as notas com sua parada, o
+  retorno e as parcelas de custo; devolve, por nota, `legCostAmount`, `tripShareCostAmount`,
+  `taxAmount`, `marginAmount`, `marginPercentage`, `costBasis` e `timeBasis`. Função pura, sem I/O, sem
+  Drizzle.
+  - Classifica cada parcela em **distância**, **tempo**, **imposto** ou **viagem** — tabela explícita
+    (`COST_KIND_APPORTIONMENT`, tipada `Record<TripCostKind, …>`), nunca `default: distância`, porque
+    parcela nova entrando em silêncio no rateio errado é o defeito mais provável desta spec.
+  - Toda divisão acontece em **dois níveis**: o balde se reparte entre os trechos — e, no tempo, também
+    entre as paradas —, e o valor de cada trecho se reparte entre as notas a bordo. É isso que faz a
+    soma fechar sem ajuste final.
   - `Decimal`/`numeric` em tudo. O resto de arredondamento vai para a nota de maior gasto,
     deterministicamente (D4).
 - `trips/domain/document-cost-apportionment.types.ts` **(novo)** — `Params`/`Result` da política.

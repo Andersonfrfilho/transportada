@@ -59,29 +59,6 @@ rateio do frete nem por peso.
   explicada como "a taxa desta nota". Isto está aqui para que a troca, se vier, seja uma decisão e não
   a descoberta de um defeito.
 
-- **D9 — Tempo é trecho rodado mais espera no cliente, e a espera é de quem desce ali.** Pedido do
-  usuário em 2026-10-02. A base de tempo de `driver` e `helper` soma dois pedaços:
-  - **o trecho**, `legs[i].durationSeconds` da rota congelada, repartido entre as notas a bordo (D1/D2);
-  - **a espera na parada**, atribuída **direto** às notas entregues ali, dividida igualmente entre
-    elas — ninguém mais causou aquela espera. O caminhão ficou parado **uma vez** na parada, e é esse
-    tempo que custa: `departed − arrived` dos eventos daquela parada. `TRIP_STOP_EVENT_KINDS` tem
-    `arrived`, `delivered` e `departed`, e o schema é explícito em `trip.schema.ts:1129` — "chegada é
-    da parada; entrega e retorno são de uma nota".
-
-  ⚠️ Somar `delivered − arrived` **por nota** seria errado e é tentador: as entregas de uma parada
-  acontecem dentro da mesma permanência, então isso contaria o mesmo minuto várias vezes e faria o
-  tempo total da viagem crescer sozinho.
-
-  Ausência tratada, nunca adivinhada:
-  - sem `departed`, mas com `delivered`: usa o **último** `delivered` da parada como saída, e o tempo
-    sai marcado como parcial;
-  - sem `arrived`: a espera daquela parada é **zero**, e o tempo sai marcado como incompleto — não um
-    palpite;
-  - **não existe espera planejada** no produto: a rota congelada só tem trecho de viagem. Logo o
-    previsto nasce **sem** espera, e o número cresce conforme a viagem acontece. Isso não é defeito — é
-    a razão de D6 mostrar previsto e fechado lado a lado, e a tela precisa dizer qual dos dois o leitor
-    está vendo.
-
 - **D2 — Dentro de um trecho, a divisão é igual por nota, e isso é escolha, não descuido.** Dividir
   por peso seria mais fiel ao combustível, mas peso não é confiável em toda nota — e divisor que às
   vezes falta faz o número mentir em silêncio, que é pior do que um critério simples e declarado. A
@@ -102,7 +79,7 @@ rateio do frete nem por peso.
   apareceu ao implementar, não ao revisar.
 
 - **D4 — A soma das notas fecha com a viagem, e um contrato prova isso.** Invariante, para toda
-  viagem: `Σ (costAmount + taxAmount) == totalCost`, `Σ freightAmount == totalRevenue` e
+  viagem: `Σ (costAmount + taxAmount) == totalCost`, `Σ amount == totalRevenue` e
   `Σ marginAmount == totalMargin`. ⚠️ O imposto entra na soma do custo porque o `totalCost` da viagem
   **já o inclui**: o `buildTripValuation` final recebe `[...buildCostParcels(context), ...taxParcels]`
   (`read-trip-valuation.use-case.ts:481`), ainda que a tela separe as duas naturezas e o comentário do
@@ -131,6 +108,29 @@ rateio do frete nem por peso.
   pelo mesmo caso de uso que já monta a avaliação (`read-trip-valuation.use-case.ts`), e a resposta
   ganha campos por nota dentro de `revenueLines` — não um endpoint paralelo. Dois lugares calculando a
   mesma conta divergem; já aconteceu nesta base (spec 177).
+
+- **D9 — Tempo é trecho rodado mais espera no cliente, e a espera é de quem desce ali.** Pedido do
+  usuário em 2026-10-02. A base de tempo de `driver` e `helper` soma dois pedaços:
+  - **o trecho**, `legs[i].durationSeconds` da rota congelada, repartido entre as notas a bordo (D1/D2);
+  - **a espera na parada**, atribuída **direto** às notas entregues ali, dividida igualmente entre
+    elas — ninguém mais causou aquela espera. O caminhão ficou parado **uma vez** na parada, e é esse
+    tempo que custa: `departed − arrived` dos eventos daquela parada. `TRIP_STOP_EVENT_KINDS` tem
+    `arrived`, `delivered` e `departed`, e o schema é explícito em `trip.schema.ts:1129` — "chegada é
+    da parada; entrega e retorno são de uma nota".
+
+  ⚠️ Somar `delivered − arrived` **por nota** seria errado e é tentador: as entregas de uma parada
+  acontecem dentro da mesma permanência, então isso contaria o mesmo minuto várias vezes e faria o
+  tempo total da viagem crescer sozinho.
+
+  Ausência tratada, nunca adivinhada:
+  - sem `departed`, mas com `delivered`: usa o **último** `delivered` da parada como saída, e o tempo
+    sai marcado como parcial;
+  - sem `arrived`: a espera daquela parada é **zero**, e o tempo sai marcado como incompleto — não um
+    palpite;
+  - **não existe espera planejada** no produto: a rota congelada só tem trecho de viagem. Logo o
+    previsto nasce **sem** espera, e o número cresce conforme a viagem acontece. Isso não é defeito — é
+    a razão de D6 mostrar previsto e fechado lado a lado, e a tela precisa dizer qual dos dois o leitor
+    está vendo.
 
 ## Requisitos funcionais
 
