@@ -17,10 +17,15 @@ em `evidence.md`.
   - CA04/CA05: sem `planned_route`, sem `legs`, ou contagem de trechos ≠ contagem de paradas → toda
     nota `costBasis: 'unavailable'`, **sem** valor;
   - CA06: nota com `stop_id` nulo — sem gasto de trecho, com rateio de viagem;
+  - CA03b (D9): espera no cliente — a parada que esperou mais encarece a nota dela; duas notas na mesma
+    parada dividem a espera em duas partes iguais e **o tempo total da viagem não cresce**; sem
+    `departed` o último `delivered` serve de saída (`timeBasis: 'partial'`); sem `arrived` a espera é
+    zero (`timeBasis: 'incomplete'`);
   - extremos: uma nota só, trecho de duração zero (sem divisão por zero), duas notas na mesma parada;
-  - ⚠️ **a classificação das parcelas é exaustiva**: um teste percorre os tipos que
-    `trip-valuation.policy.ts` conhece (`driver`, `fuel`, `helper`, `icms`, `manual`, `pis_cofins`,
-    `toll`) e reprova qualquer um sem classificação declarada — sem `default`.
+  - ⚠️ **a classificação das parcelas é exaustiva**: um teste percorre os **nove** tipos de
+    `TRIP_COST_KINDS` (`driver`, `fuel`, `other_per_kilometer`, `toll`, `manual`, `delivery_charges`,
+    `helper`, `icms`, `pis_cofins`) e reprova qualquer um sem classificação declarada — sem `default`.
+    A tabela da classificação está no D1 da spec.
 
   Aceite: falham pelo motivo certo (a política não existe), e a contagem de testes subiu em N.
 
@@ -87,8 +92,11 @@ Pare e pergunte antes de: empurrar para staging, deploy, migration (esta spec **
 nenhuma — se precisar, o desenho mudou e o usuário tem de saber), qualquer `[NEEDS CLARIFICATION]`, e
 na **T4.1**, que exige o ok explícito do usuário sobre os prints.
 
-Se a classificação de uma parcela de custo for ambígua (hoje a dúvida razoável é `manual`), **pergunte**
-em vez de escolher — é dinheiro na tela de quem decide o que carregar.
+As duas dúvidas de classificação já foram resolvidas com o usuário em 2026-10-02:
+`delivery_charges` vai **pela distância** (escolha dele, contra a recomendação — ver o ⚠️ do D1), e
+`manual` vai para rateio de viagem **por fato**, não por escolha: `trip_cost_entries` não tem vínculo
+com parada nem com nota. Parcela **nova** que apareça depois disso: **pergunte** em vez de escolher —
+é dinheiro na tela de quem decide o que carregar.
 
 ## Prompt de execução
 

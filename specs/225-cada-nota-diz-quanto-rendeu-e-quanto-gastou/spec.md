@@ -36,13 +36,51 @@ rateio do frete nem por peso.
   (`parse-planned-route.policy.ts:10`), e `trip_documents.stop_id` diz em qual parada cada nota é
   entregue. Uma nota está **a bordo** desde a origem até a parada que a entrega. O custo de cada
   trecho vai para as notas a bordo **daquele** trecho:
-  - o que varia com a estrada — `fuel`, outros por km, `toll` — é repartido pela **distância** do
-    trecho (o pedágio já é por índice de trecho, `parseFrozenBoothLegIndexes`);
-  - o que varia com o relógio — `driver`, `helper` — é repartido pela **duração** do trecho;
-  - imposto (`icms`, `pis_cofins`) **não é repartido**: é percentual do frete, então por nota ele é
-    exato, calculado sobre o frete daquela nota;
-  - `manual` (avulso) segue a mesma regra de trecho quando está amarrado a uma parada, e entra no
-    rateio de viagem (D3) quando não está.
+  A classificação das nove parcelas que `TRIP_COST_KINDS` conhece é **exaustiva e declarada** — sem
+  `default`, porque parcela nova caindo no rateio errado em silêncio é o defeito mais provável desta
+  spec:
+
+  | parcela               | critério               | por quê                                                                                                               |
+  | --------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
+  | `fuel`                | distância do trecho    | queima com o quilômetro                                                                                               |
+  | `other_per_kilometer` | distância do trecho    | definida por quilômetro (spec 038)                                                                                    |
+  | `toll`                | distância do trecho    | já é por índice de trecho (`parseFrozenBoothLegIndexes`)                                                              |
+  | `delivery_charges`    | distância do trecho    | **decisão do usuário** em 2026-10-02 — ver abaixo                                                                     |
+  | `driver`              | tempo: trecho + espera | diária, custa tempo — ver D9                                                                                          |
+  | `helper`              | tempo: trecho + espera | diária de quem acompanha (ADR-0065 §2) — ver D9                                                                       |
+  | `manual` (avulso)     | rateio de viagem (D3)  | `trip_cost_entries` tem só `trip_id`: **não existe** vínculo com parada nem nota, então não há trecho a que amarrá-lo |
+  | `icms`                | frete da própria nota  | percentual da receita, exato por nota (ADR-0049 §4)                                                                   |
+  | `pis_cofins`          | frete da própria nota  | idem                                                                                                                  |
+
+  ⚠️ **`delivery_charges` pela distância é escolha do usuário contra a recomendação registrada.** A
+  tabela `delivery_charges` tem `trip_document_id`: a taxa **já sabe de qual nota ela é**, e daria para
+  atribuí-la inteira e exata, sem rateio. Repartindo pela distância, a taxa causada pela nota da
+  primeira parada cai parcialmente sobre notas que descem depois — e a linha da tela **não** pode ser
+  explicada como "a taxa desta nota". Isto está aqui para que a troca, se vier, seja uma decisão e não
+  a descoberta de um defeito.
+
+- **D9 — Tempo é trecho rodado mais espera no cliente, e a espera é de quem desce ali.** Pedido do
+  usuário em 2026-10-02. A base de tempo de `driver` e `helper` soma dois pedaços:
+  - **o trecho**, `legs[i].durationSeconds` da rota congelada, repartido entre as notas a bordo (D1/D2);
+  - **a espera na parada**, atribuída **direto** às notas entregues ali, dividida igualmente entre
+    elas — ninguém mais causou aquela espera. O caminhão ficou parado **uma vez** na parada, e é esse
+    tempo que custa: `departed − arrived` dos eventos daquela parada. `TRIP_STOP_EVENT_KINDS` tem
+    `arrived`, `delivered` e `departed`, e o schema é explícito em `trip.schema.ts:1129` — "chegada é
+    da parada; entrega e retorno são de uma nota".
+
+  ⚠️ Somar `delivered − arrived` **por nota** seria errado e é tentador: as entregas de uma parada
+  acontecem dentro da mesma permanência, então isso contaria o mesmo minuto várias vezes e faria o
+  tempo total da viagem crescer sozinho.
+
+  Ausência tratada, nunca adivinhada:
+  - sem `departed`, mas com `delivered`: usa o **último** `delivered` da parada como saída, e o tempo
+    sai marcado como parcial;
+  - sem `arrived`: a espera daquela parada é **zero**, e o tempo sai marcado como incompleto — não um
+    palpite;
+  - **não existe espera planejada** no produto: a rota congelada só tem trecho de viagem. Logo o
+    previsto nasce **sem** espera, e o número cresce conforme a viagem acontece. Isso não é defeito — é
+    a razão de D6 mostrar previsto e fechado lado a lado, e a tela precisa dizer qual dos dois o leitor
+    está vendo.
 
 - **D2 — Dentro de um trecho, a divisão é igual por nota, e isso é escolha, não descuido.** Dividir
   por peso seria mais fiel ao combustível, mas peso não é confiável em toda nota — e divisor que às
@@ -100,6 +138,12 @@ rateio do frete nem por peso.
 - **RF6** Sem `trip.financials`, nada disso aparece na resposta nem na tela.
 - **RF7** A nota sem parada (`stop_id` nulo) não recebe gasto de trecho: entra só no rateio de viagem,
   e a tela diz por quê.
+- **RF8** A base de tempo soma trecho rodado e espera na parada (`departed − arrived`); a espera vai
+  direto às notas entregues naquela parada, dividida igualmente. Sem `departed`, o último `delivered`
+  da parada serve de saída e o tempo sai parcial; sem `arrived`, a espera é zero e o tempo sai
+  incompleto.
+- **RF9** A resposta diz, por nota, `timeBasis` (`'complete'`, `'partial'`, `'incomplete'`), para a
+  tela não ter de inferir se o tempo está fechado.
 
 ## Critérios de aceite
 
@@ -109,6 +153,9 @@ rateio do frete nem por peso.
   com o mesmo frete — é a prova de que distância e tempo entraram na conta.
 - **CA03** Viagem com retorno: o rateio de viagem é maior que zero em toda nota, e a soma continua
   fechando.
+- **CA03b** Duas paradas com o mesmo trecho e esperas diferentes: a nota da parada que **esperou mais**
+  tem gasto de tempo maior, e a soma continua fechando. Uma parada com duas notas divide a espera em
+  duas partes iguais, e o total de tempo da viagem **não** cresce por isso.
 - **CA04** Viagem sem `planned_route`: toda nota sai `unavailable`, e a tela mostra "roteiro ainda não
   calculado" em vez de zero.
 - **CA05** Contagem de trechos diferente da de paradas: tratado como ausência (CA04), não como
