@@ -966,3 +966,78 @@ Restaurado: **3 pass / 0 fail**. Junto com `canhoto-read-queue.integration.ts` e
 
 Ambas registradas em `test:integration` do `package.json` do worker. Não rodou: RabbitMQ/MinIO
 (nenhum teste novo precisa), `make check`, `make migration-test` (sem migration), deploy.
+
+## Fase 7 — Documentação viva e fechamento
+
+### T7.1 — documentação viva em três arquivos
+
+`docs/ai-context/worker-transportada.md`: rotina `trip.canhoto.read`, o laço com tetos (lote 10, 40 por
+ciclo, 8 MB), `worker_thread` de decodificação (ADR-0053), índice parcial da fila e **por que os três
+predicados saem como literal SQL** (Postgres só prova implicação de predicado sobre `quals` em forma
+literal; com `eq()` o índice é ignorado em silêncio), e a regra de parada (tentativa gravada só quando
+leitura terminou sem código; falha de infraestrutura merece próximo ciclo; apenas `report_rejected` e
+`api_unauthorized` vão ao Sentry).
+
+`docs/ai-context/api-transportada.md`: rota do robô `PATCH /trips/:tripId/documents/:documentId/proof/review/automatic`,
+permissão `trip.canhoto-auto-review` (só no papel `automation`, serviço-apenas, não-cedível),
+quatro campos de leitura (`readDocumentId`, `readNumber`, `readSeries`, `readSource`) com schema
+`.strict()` e `nullable()` obrigatório, e o fato de que **veredito não sai do servidor** —
+`resolveAutomaticCanhotoReview` na API, trabalhador reporta só o que leu.
+
+`CLAUDE.md` da raiz: parágrafo operacional sobre canhoto lido sem abrir viagem e maço de aprovação no
+painel.
+
+### T7.2 — `evidence.md` fechado com contagens e pendências
+
+**Fechamento das Fases 1–6:** todas as tarefas entregues, comprometidas com:
+
+- Fase 1: rota em lote, permissão `fleet.read`, 8498 pass / 23 skip / 0 fail (contrato), 705 pass /
+  3 skip / 0 fail (integração).
+- Fase 2: maço com seleção, diálogo com fotos e caixas, fórmula de aprovação com `runFieldActionQueue`,
+  falha parcial remarca só o que falhou, 6191 pass / 0 fail.
+- Fase 3: rota do robô com `.strict()`, permissão em três listas, trilha por comprovante só no robô
+  (`channel: 'service'`), 8521 pass (contrato, sem Postgres), 102 pass (integração canhoto-review).
+- Fase 4: spike de decodificador (`@jsquash` em `worker_thread`), decisão `@jsquash` + `@zxing/library`
+  pinado na versão do painel, 6 pacotes instalados.
+- Fase 5: `trip.canhoto.read` nas quatro cópias do catálogo, migration com coluna e índice, paridade no
+  contrato (`13 pass`), `make migration-test` contra Postgres nativo (115 pass, rollback validado).
+- Fase 6: régua de chave (15 pass contrato), decodificador real com foto de 12 MP (27 pass), gateway
+  autenticado (35 pass), laço com tetos e parada (59 pass), log sem PII (63 pass), ciclo contra
+  Postgres (3 pass), convergência com carimbo de tentativa (3 pass).
+
+**Pendências explícitas, não corrigidas nem documentadas:**
+
+- T6.9: testa contra emulador SQL (`serverEmulator`), não HTTP; regra de decisão só provada em testes
+  da API, não aqui.
+- Carimbo da tentativa: escrito pelo worker em SQL guardado, não pela API. Decisão pendente do usuário
+  sobre o arquivo adequado.
+- `make migration-test`: Docker indisponível na rodada (não é defeito da branch). Rodado contra Postgres
+  nativo 18.4 descartável; CI usa versão do `compose.yaml`.
+- EXPLAIN do índice: com `enable_seqscan=off` em tabelas quase vazias, Postgres 18 nativo, não CI. Prova
+  que o índice **serve** o predicado, não que o planejador o prefere sob volume. Sem Postgres, o teste
+  pula (25 skip).
+- `createCanhotoReviewApiGateway`: sem timeout de `fetch`. API pendurada poderia segurar um ciclo.
+  Registrado (comentário no código), não corrigido aqui. Igual ao de MDF-e (precedente).
+- Nada exercita o registro da rotina em `main.ts` — nenhuma rotina tem teste que exercita o registro.
+  Prova: tipo (`JobRoutineRegistry`) + integração T6.9/T6.10, que usam a rotina pela mesma porta.
+- `config.mdfeAutoIssue`: nome velho (config é genérica: `API_BASE_URL`, `KEYCLOAK_TOKEN_URL`,
+  `WORKER_CLIENT_ID`, `WORKER_CLIENT_SECRET`). Reutilizar está correto em substância; é só o nome do
+  campo que mente. Não corrigido para não mexer em MDF-e.
+- Propriedades `too_large` e `unsupported_media`: permanentes do objeto, **não** carimbadas;
+  em teoria podem ocupar teto do ciclo para sempre. Severidade baixa: app do motorista corta foto em
+  960 KB / 2000 px, então >8 MB fora do caminho. Decisão em `plan.md:197`.
+- Tela do maço: 82 paradas de Tab com 40 notas (duas por item + rodapé); `roving tabindex` ficou de
+  fora, decisão pendente do usuário.
+- `?documentIds=` existe na API mas nenhum chamador de produção usa — painel anda na leitura
+  compartilhada por `tripId`. Mantido de propósito como a superfície que RF-A1 definiu.
+
+**Provas de mutação fechadas (Fase 6):**
+
+- Fila sem `and p."canhoto_read_attempted_at" is null` → **5 fail / 10 pass** integração.
+- Carimbar sempre, em vez de só quando sem código → **8+ fail** contrato, **5 fail / 1 pass** integração.
+
+**Contagens reais de tests (já registradas acima, resumo para fechamento de Fase 7):**
+
+- Contrato do worker: **1523 pass / 0 fail / 4034 expect() em 95 arquivos**.
+- Integração do canhoto (três arquivos, fila + ciclo + convergência): **15 pass / 0 fail / 86 expect()**.
+- Sem `DATABASE_URL`: **21 skip / 0 pass** (pular não é passar).

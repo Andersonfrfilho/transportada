@@ -35,6 +35,13 @@ começam.
 - [x] T1.6 Integração sobre viagem semeada: três comprovantes de três notas numa chamada
       (`test/integration/*.integration.ts` + comando do aviso acima)
 
+## Fase 1 — fechamento
+
+- [x] `bun run typecheck` → sem erro.
+- [x] `bunx eslint src test drizzle.config.ts eslint.config.js --max-warnings=0` → exit 0.
+- [x] Contrato (`bun --env-file=../../.env.test test --timeout 120000`): 8498 pass, 23 skip, 0 fail.
+- [x] Integração: 705 pass, 3 skip, 0 fail.
+
 ## Fase 2 — O maço confere o canhoto
 
 > 🤖 Modelo: `sonnet`
@@ -68,6 +75,13 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
 - [x] T2.9 Textos em `trip.locale.json` (`stateActions.batchCanhoto*`, `deliveryProof.canhotoBatch.*`)
 - [x] T2.10 Revisão de design e usabilidade do diálogo (`web.md` §15): teto de itens, foco no
       diálogo, leitura por teclado, e **print ao usuário** antes de fechar a fase
+
+## Fase 2 — fechamento
+
+- [x] Contrato: `bun run test` → **6191 pass / 0 fail**, 42926 `expect()`, 31 arquivos.
+- [x] Hooks: `test:hooks` → **219 pass / 0 fail**.
+- [x] `typecheck` limpo.
+- [x] `lint` com saída 0 e 16 avisos `exhaustive-deps` em 13 arquivos preexistentes.
 
 ## Fase 3 — O robô tem porta própria
 
@@ -144,12 +158,12 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T6.1 [P] Contrato da régua da chave de acesso no worker **antes da cópia**: formato, DV mód.
+- [x] T6.1 [P] Contrato da régua da chave de acesso no worker **antes da cópia**: formato, DV mód.
       11, modelo 55, e casamento contra as notas da viagem — sobre as **mesmas** chaves de
       `apps/frontend-transportada/test/fixtures/canhotoBarcodeFrame.fixture.ts`
-- [ ] T6.2 `domain/canhoto-barcode.policy.ts` (cópia por valor, com a razão no cabeçalho) e
+- [x] T6.2 `domain/canhoto-barcode.policy.ts` (cópia por valor, com a razão no cabeçalho) e
       `domain/canhoto-read.constant.ts` (teto de lote, de ciclo, de bytes, orçamento de ms)
-- [ ] T6.3 [P] Consulta dos pendentes: `kind='photo'`, `canhoto_review='pending'`,
+- [x] T6.3 [P] Consulta dos pendentes: `kind='photo'`, `canhoto_review='pending'`,
       `canhoto_read_source IS NULL`, `canhoto_read_attempted_at IS NULL`, empresa ativa, **viagem
       não cancelada e nota não liberada**, `ORDER BY created_at LIMIT <teto>`, com os conjuntos do
       predicado como **literais SQL** (não `eq()` com valor de JS, ou o índice parcial é ignorado).
@@ -157,23 +171,23 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
       de dois joins (`stop_event_id` → `trip_stop_events.trip_document_id` → `trip_documents`), e
       são eles, não a varredura, que dominam o custo. Fecha com `EXPLAIN` mostrando `Index Scan`
       sobre `trip_delivery_proofs_canhoto_pending_idx` — colado no `evidence.md` (CA20)
-- [ ] T6.4 Decodificador + `worker_thread` (ADR-0053), com o teto de 8 MB conferido **antes de
+- [x] T6.4 Decodificador + `worker_thread` (ADR-0053), com o teto de 8 MB conferido **antes de
       baixar** (pelo tamanho gravado em `stored_objects`, não depois do download) e contrato sobre um
       **JPEG realista** commitado — barra sólida, fundo levemente granulado, gerado no teste.
       ⚠️ Fixture chapado esconde o caso ruim e fixture com ruído dentro da barra inventa um defeito
       que não existe: foi o que aconteceu no spike (`spike-decodificador.md` § "Um achado")
-- [ ] T6.5 Gateway autenticado, decalque de `automatic-manifest-api.gateway.ts` (token em cache com
+- [x] T6.5 Gateway autenticado, decalque de `automatic-manifest-api.gateway.ts` (token em cache com
       margem, `x-company-id`), chamando a rota da Fase 3
-- [ ] T6.6 Contrato do laço **antes da rotina**: teto de lote, teto de ciclo, `isStopRequested()`,
+- [x] T6.6 Contrato do laço **antes da rotina**: teto de lote, teto de ciclo, `isStopRequested()`,
       falha de um comprovante contada sem derrubar o resto (CA14), e a **regra de parada** — leitura
       que terminou sem código grava `canhoto_read_attempted_at`; falha de infraestrutura e 4xx
       **não** gravam, e 4xx/401/403 vão para o Sentry (RF-B8, RF-B9)
-- [ ] T6.7 `application/canhoto-read.routine.ts` e a ligação em `main.ts` do worker
-- [ ] T6.8 Contrato de log: o ciclo emite id e contagem, nunca nome, documento ou bytes (CA15)
-- [ ] T6.9 Integração do ciclo: doze pendentes, os que casam ficam `approved` com origem
+- [x] T6.7 `application/canhoto-read.routine.ts` e a ligação em `main.ts` do worker
+- [x] T6.8 Contrato de log: o ciclo emite id e contagem, nunca nome, documento ou bytes (CA15)
+- [x] T6.9 Integração do ciclo: doze pendentes, os que casam ficam `approved` com origem
       `automatic`, os que não casam ficam `pending` **com o número lido**, nenhum `rejected`; e o
       segundo ciclo não toca em nada (CA10, CA11)
-- [ ] T6.10 Integração da convergência: canhoto **sem** código de barras é lido uma vez, grava
+- [x] T6.10 Integração da convergência: canhoto **sem** código de barras é lido uma vez, grava
       `canhoto_read_attempted_at`, e no segundo ciclo **não é baixado** (CA17). Sem esta prova, o
       caso comum do escritório seria redecodificado a cada cinco minutos para sempre
 
@@ -181,9 +195,9 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
 
 > 🤖 Modelo: `haiku` (T7.3 é `opus`)
 
-- [ ] T7.1 [P] `docs/ai-context/api-transportada.md`, `.../worker-transportada.md` e o `CLAUDE.md`
+- [x] T7.1 [P] `docs/ai-context/api-transportada.md`, `.../worker-transportada.md` e o `CLAUDE.md`
       da raiz: a rotina nova, a rota do robô e a permissão da automação (`code-standart.md` §14)
-- [ ] T7.2 [P] `evidence.md` fechado: comandos, contagens e o print do diálogo
+- [x] T7.2 [P] `evidence.md` fechado: comandos, contagens e o print do diálogo
 - [ ] T7.3 Revisão final com `code-reviewer` em `opus` sobre o diff inteiro, com olho em: nenhum
       `Promise.all` capaz de derrubar lote (§15), nenhuma string repetida sem constante (§16),
       cabeçalho de copyright em todo arquivo novo (§17), e nenhum PII em log
