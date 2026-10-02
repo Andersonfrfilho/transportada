@@ -621,9 +621,12 @@
     },
     "overrides": {
       "add": "Add exception",
+      "cancelEdit": "Cancel editing",
+      "edit": "Edit",
       "empty": "No exceptions registered.",
       "hint": "An exception keyed by the recipient tax id replaces the general configuration entirely.",
       "remove": "Remove",
+      "saveChanges": "Save changes",
       "taxId": "Recipient CNPJ or CPF",
       "title": "Exceptions by recipient"
     },

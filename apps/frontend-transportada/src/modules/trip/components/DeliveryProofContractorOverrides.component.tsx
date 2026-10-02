@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/select'
 import { contractorLabel, type ContractorSummary } from '../shared/contractorSummary.service'
 import {
   mergeDeliveryProofSettings,
+  upsertDeliveryProofOverride,
   type DeliveryProofFieldSettings,
   type DeliveryProofSettingsContractorOverride,
 } from '../shared/deliveryProofSettings.service'
@@ -43,29 +44,56 @@ export function DeliveryProofContractorOverrides({
   const [contractorOverrideDraft, setContractorOverrideDraft] = useState<
     Partial<DeliveryProofFieldSettings>
   >({})
+  /** O contratante gravado da exceção em edição; `undefined` é o formulário em modo adicionar. */
+  const [editingContractorId, setEditingContractorId] = useState<string | undefined>(undefined)
 
   const contractorOverrideEffective = mergeDeliveryProofSettings({
     base: general,
     override: contractorOverrideDraft,
   })
 
-  /** Spec 218 T10: mesmo formato de add/remove da exceção por destinatário, chaveado por id. */
+  const isEditing = editingContractorId !== undefined
+  /**
+   * Spec 218 T10: mesmo formato de add/remove da exceção por destinatário, chaveado por id. Em
+   * edição o próprio item não conta: salvar sem trocar o contratante não é duplicar.
+   */
   const isContractorOverrideDuplicated = contractorOverrides.some(
-    (override) => override.contractorId === overrideContractorId,
+    (override) =>
+      override.contractorId === overrideContractorId &&
+      override.contractorId !== editingContractorId,
   )
 
-  function handleAddContractorOverride() {
+  function resetForm() {
+    setEditingContractorId(undefined)
+    setOverrideContractorId('')
+    setContractorOverrideDraft({})
+  }
+
+  function handleSubmitContractorOverride() {
     if (overrideContractorId === '' || isContractorOverrideDuplicated) return
     const override: DeliveryProofSettingsContractorOverride = {
       ...mergeDeliveryProofSettings({ base: general, override: contractorOverrideDraft }),
       contractorId: overrideContractorId,
     }
-    onReplaceContractorOverrides([...contractorOverrides, override])
-    setOverrideContractorId('')
-    setContractorOverrideDraft({})
+    onReplaceContractorOverrides([
+      ...upsertDeliveryProofOverride({
+        ...(editingContractorId === undefined ? {} : { editingKey: editingContractorId }),
+        keyOf: (current) => current.contractorId,
+        override,
+        overrides: contractorOverrides,
+      }),
+    ])
+    resetForm()
+  }
+
+  function handleStartEditContractorOverride(override: DeliveryProofSettingsContractorOverride) {
+    setEditingContractorId(override.contractorId)
+    setOverrideContractorId(override.contractorId)
+    setContractorOverrideDraft(override)
   }
 
   function handleRemoveContractorOverride(contractorId: string) {
+    if (contractorId === editingContractorId) resetForm()
     onReplaceContractorOverrides(
       contractorOverrides.filter((override) => override.contractorId !== contractorId),
     )
@@ -91,16 +119,28 @@ export function DeliveryProofContractorOverrides({
           <span>{contractorLabelOf(override.contractorId)}</span>
           <DeliveryProofModeSummaries settings={override} />
           {access.canManage ? (
-            <Button
-              disabled={access.isSaving}
-              onClick={() => handleRemoveContractorOverride(override.contractorId)}
-              size="sm"
-              type="button"
-              variant="ghost"
-            >
-              <Icon name="trash" />
-              {t('deliveryProofSettings.overrides.remove')}
-            </Button>
+            <>
+              <Button
+                disabled={access.isSaving || override.contractorId === editingContractorId}
+                onClick={() => handleStartEditContractorOverride(override)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <Icon name="edit" />
+                {t('deliveryProofSettings.overrides.edit')}
+              </Button>
+              <Button
+                disabled={access.isSaving}
+                onClick={() => handleRemoveContractorOverride(override.contractorId)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <Icon name="trash" />
+                {t('deliveryProofSettings.overrides.remove')}
+              </Button>
+            </>
           ) : null}
         </div>
       ))}
@@ -137,13 +177,29 @@ export function DeliveryProofContractorOverrides({
             disabled={
               access.isSaving || overrideContractorId === '' || isContractorOverrideDuplicated
             }
-            onClick={handleAddContractorOverride}
+            onClick={handleSubmitContractorOverride}
             size="sm"
             type="button"
           >
-            <Icon name="add" />
-            {t('deliveryProofSettings.overrides.add')}
+            <Icon name={isEditing ? 'check' : 'add'} />
+            {t(
+              isEditing
+                ? 'deliveryProofSettings.overrides.saveChanges'
+                : 'deliveryProofSettings.overrides.add',
+            )}
           </Button>
+          {isEditing ? (
+            <Button
+              disabled={access.isSaving}
+              onClick={resetForm}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <Icon name="close" />
+              {t('deliveryProofSettings.overrides.cancelEdit')}
+            </Button>
+          ) : null}
         </div>
       ) : null}
     </>

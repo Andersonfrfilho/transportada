@@ -13,6 +13,7 @@ import {
 
 import {
   mergeDeliveryProofSettings,
+  upsertDeliveryProofOverride,
   type DeliveryProofFieldSettings,
   type DeliveryProofSettingsOverride,
 } from '../shared/deliveryProofSettings.service'
@@ -40,26 +41,51 @@ export function DeliveryProofTaxIdOverrides({
   const { t } = useTranslation('trip')
   const [overrideTaxId, setOverrideTaxId] = useState('')
   const [overrideDraft, setOverrideDraft] = useState<Partial<DeliveryProofFieldSettings>>({})
+  /** O CNPJ/CPF gravado da exceção em edição; `undefined` é o formulário em modo adicionar. */
+  const [editingTaxId, setEditingTaxId] = useState<string | undefined>(undefined)
 
   const overrideEffective = mergeDeliveryProofSettings({ base: general, override: overrideDraft })
 
   /** Pelo conjunto, não pelo comprimento: o CNPJ tem letra na base, e onze dígitos podem ser CPF. */
   const isOverrideTaxIdComplete =
     CPF_PATTERN.test(overrideTaxId) || CNPJ_PATTERN.test(overrideTaxId)
-  const isOverrideDuplicated = overrides.some((override) => override.taxId === overrideTaxId)
+  const isEditing = editingTaxId !== undefined
+  /** Em edição o próprio item não conta: salvar sem trocar o CNPJ não é duplicar. */
+  const isOverrideDuplicated = overrides.some(
+    (override) => override.taxId === overrideTaxId && override.taxId !== editingTaxId,
+  )
 
-  function handleAddOverride() {
+  function resetForm() {
+    setEditingTaxId(undefined)
+    setOverrideTaxId('')
+    setOverrideDraft({})
+  }
+
+  function handleSubmitOverride() {
     if (!isOverrideTaxIdComplete || isOverrideDuplicated) return
     const override: DeliveryProofSettingsOverride = {
       ...mergeDeliveryProofSettings({ base: general, override: overrideDraft }),
       taxId: overrideTaxId,
     }
-    onReplaceOverrides([...overrides, override])
-    setOverrideTaxId('')
-    setOverrideDraft({})
+    onReplaceOverrides([
+      ...upsertDeliveryProofOverride({
+        ...(editingTaxId === undefined ? {} : { editingKey: editingTaxId }),
+        keyOf: (current) => current.taxId,
+        override,
+        overrides,
+      }),
+    ])
+    resetForm()
+  }
+
+  function handleStartEditOverride(override: DeliveryProofSettingsOverride) {
+    setEditingTaxId(override.taxId)
+    setOverrideTaxId(override.taxId)
+    setOverrideDraft(override)
   }
 
   function handleRemoveOverride(taxId: string) {
+    if (taxId === editingTaxId) resetForm()
     onReplaceOverrides(overrides.filter((override) => override.taxId !== taxId))
   }
 
@@ -77,16 +103,28 @@ export function DeliveryProofTaxIdOverrides({
           <span>{formatTaxId(override.taxId)}</span>
           <DeliveryProofModeSummaries settings={override} />
           {access.canManage ? (
-            <Button
-              disabled={access.isSaving}
-              onClick={() => handleRemoveOverride(override.taxId)}
-              size="sm"
-              type="button"
-              variant="ghost"
-            >
-              <Icon name="trash" />
-              {t('deliveryProofSettings.overrides.remove')}
-            </Button>
+            <>
+              <Button
+                disabled={access.isSaving || override.taxId === editingTaxId}
+                onClick={() => handleStartEditOverride(override)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <Icon name="edit" />
+                {t('deliveryProofSettings.overrides.edit')}
+              </Button>
+              <Button
+                disabled={access.isSaving}
+                onClick={() => handleRemoveOverride(override.taxId)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <Icon name="trash" />
+                {t('deliveryProofSettings.overrides.remove')}
+              </Button>
+            </>
           ) : null}
         </div>
       ))}
@@ -116,13 +154,29 @@ export function DeliveryProofTaxIdOverrides({
           />
           <Button
             disabled={access.isSaving || !isOverrideTaxIdComplete || isOverrideDuplicated}
-            onClick={handleAddOverride}
+            onClick={handleSubmitOverride}
             size="sm"
             type="button"
           >
-            <Icon name="add" />
-            {t('deliveryProofSettings.overrides.add')}
+            <Icon name={isEditing ? 'check' : 'add'} />
+            {t(
+              isEditing
+                ? 'deliveryProofSettings.overrides.saveChanges'
+                : 'deliveryProofSettings.overrides.add',
+            )}
           </Button>
+          {isEditing ? (
+            <Button
+              disabled={access.isSaving}
+              onClick={resetForm}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <Icon name="close" />
+              {t('deliveryProofSettings.overrides.cancelEdit')}
+            </Button>
+          ) : null}
         </div>
       ) : null}
     </>
