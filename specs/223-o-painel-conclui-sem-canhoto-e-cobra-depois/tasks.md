@@ -13,12 +13,12 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T2.1** Contrato do painel: "Marcar entregue" por nota chama `fieldDeliverDocument` e mostra
+- [x] **T2.1** Contrato do painel: "Marcar entregue" por nota chama `fieldDeliverDocument` e mostra
       o resultado (incluindo o aviso de canhoto pendente).
-- [ ] **T2.2** Ligar o botão por nota no detalhe da viagem (RF6).
-- [ ] **T2.3** Contrato do lote: leque com concorrência 3, chave de idempotência por nota, falha
+- [x] **T2.2** Ligar o botão por nota no detalhe da viagem (RF6).
+- [x] **T2.3** Contrato do lote: leque com concorrência 3, chave de idempotência por nota, falha
       isolada e nota que falha de volta na seleção.
-- [ ] **T2.4** "Marcar entregue" em massa na barra de ações da seleção (RF7).
+- [x] **T2.4** "Marcar entregue" em massa na barra de ações da seleção (RF7).
 
 ## Fase 3 — A lista de viagens encerra em massa
 
@@ -49,7 +49,7 @@
 ```text
 /oh-my-claudecode:autopilot Execute a spec specs/223-o-painel-conclui-sem-canhoto-e-cobra-depois/
 (leia spec.md, plan.md e tasks.md antes de começar). Uma task por vez, na ordem do tasks.md.
-A Fase 1 já está concluída (commit e9074b6b4) — comece na T2.1.
+As Fases 1 (commit e9074b6b4) e 2 (commit 0dcef8512) já estão concluídas — comece na T3.1.
 Modelos: Fases 2, 3 e 4 → executor model=sonnet · Fase 5 → code-reviewer model=opus.
 Cada task fecha com typecheck + contratos do que foi tocado + commit isolado, evidência em
 evidence.md. Task que mexe em test/integration/** roda
