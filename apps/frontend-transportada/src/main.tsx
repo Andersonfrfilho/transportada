@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { NotificationBell, NotificationProvider } from '@adatechnology/notification-ui'
 import '@adatechnology/notification-ui/styles.css'
-import { lazy, StrictMode, Suspense, useEffect, useState } from 'react'
+import { lazy, StrictMode, Suspense, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -12,7 +12,7 @@ import { parseBillingInvoiceRoute } from '@/modules/billing/shared/billingInvoic
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Icon } from '@/components/ui/icon'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tooltip } from '@/components/ui/tooltip'
 import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
 import { applyColorTheme, readStoredColorTheme } from '@/modules/shared/colorTheme.service'
@@ -51,6 +51,18 @@ import { getNotificationClient } from '@/modules/notification/shared/notificatio
 import { NOTIFICATION_THEME_CLASS } from '@/modules/notification/shared/notificationTheme.constant'
 import notificationStyles from '@/modules/notification/styles/notification.module.css'
 import { QUERY_CLIENT_DEFAULT_OPTIONS } from '@/modules/shared/queryClientDefaults.constant'
+import { NoWorkspaceAccess } from '@/modules/identity/components/NoWorkspaceAccess.component'
+import {
+  resolveLandingWorkspace,
+  resolveNavigationMenu,
+  type LandingDecision,
+  type WorkspaceSource,
+} from '@/modules/shared/workspaceAccess.service'
+import {
+  WORKSPACE_NAVIGATION_ITEMS,
+  type NavigationGroup,
+  type WorkspaceNavigationItem,
+} from '@/modules/shared/workspaceNavigation.constant'
 import { parseTripOccurrenceRoute } from '@/modules/trip/shared/tripOccurrenceRoute.service'
 import { parseTripRoute } from '@/modules/trip/shared/tripRoute.service'
 import '@/styles/index.css'
@@ -77,118 +89,7 @@ if (rootElement === null) {
 
 const applicationRootElement = rootElement
 const WORKSPACE_STORAGE_KEY = 'transportada.workspace'
-
-type WorkspaceNavigationItem = Readonly<{
-  href: string
-  key:
-    | 'billing'
-    | 'company-settings'
-    | 'cte-batch'
-    | 'cte-profiles'
-    | 'delivery-clients'
-    | 'driver-trip'
-    | 'extra-charges'
-    | 'reimbursements'
-    | 'trip-financials'
-    | 'fleet'
-    | 'freight'
-    | 'mdfe-manifest'
-    | 'nfe'
-    | 'nfse-invoice'
-    | 'notification'
-    | 'operations'
-    | 'pendencias'
-    | 'trip'
-    | 'trip-occurrences'
-    | 'access-profiles'
-    | 'users'
-  label: string
-}>
-
-type NavigationGroup = Readonly<{
-  key: 'administration' | 'fiscal' | 'identity' | 'operations' | 'registries'
-  label: string
-  items: readonly WorkspaceNavigationItem[]
-}>
-
-const WORKSPACE_NAVIGATION_ITEMS: readonly WorkspaceNavigationItem[] = [
-  { href: '/', key: 'nfe', label: 'NF-e' },
-  { href: '/freight', key: 'freight', label: 'Frete' },
-  { href: '/cte-batches', key: 'cte-batch', label: 'CT-e' },
-  { href: '/trips', key: 'trip', label: 'Viagens' },
-  { href: '/mdfe-manifests', key: 'mdfe-manifest', label: 'MDF-e' },
-  { href: '/billing', key: 'billing', label: 'Faturamento' },
-  { href: '/nfse-invoices', key: 'nfse-invoice', label: 'NFS-e' },
-  { href: '/operations', key: 'operations', label: 'Operações' },
-  { href: '/ocorrencias', key: 'trip-occurrences', label: 'Ocorrências' },
-  { href: '/company-settings', key: 'company-settings', label: 'Empresa' },
-  { href: '/usuarios', key: 'users', label: 'Acessos' },
-  { href: '/papeis', key: 'access-profiles', label: 'Papéis e grupos' },
-  { href: '/cte-profiles', key: 'cte-profiles', label: 'Perfis CT-e' },
-  { href: '/fleet', key: 'fleet', label: 'Frota' },
-  { href: '/pendencias', key: 'pendencias', label: 'Pendências' },
-  { href: '/clientes', key: 'delivery-clients', label: 'Clientes' },
-  { href: '/repasses', key: 'extra-charges', label: 'Repasses' },
-  { href: '/ressarcimentos', key: 'reimbursements', label: 'Ressarcimentos' },
-  { href: '/resultados', key: 'trip-financials', label: 'Resultados' },
-  // Fora dos grupos: quem é do campo não navega por menu — ele abre o produto e já está na viagem.
-  { href: DRIVER_TRIP_PATH, key: 'driver-trip', label: 'Minha viagem' },
-  // Fora dos grupos do menu de propósito: a porta de entrada é o sino do cabeçalho, e a entrada
-  // existe aqui só para o título da tela sair certo quando a rota abre.
-  { href: '/notificacoes', key: 'notification', label: 'Notificações' },
-]
-
-const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
-  {
-    key: 'fiscal',
-    label: 'Fiscal',
-    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
-      [
-        'nfe',
-        'freight',
-        'cte-batch',
-        'trip',
-        'mdfe-manifest',
-        'billing',
-        'extra-charges',
-        'reimbursements',
-        'trip-financials',
-        'nfse-invoice',
-      ].includes(key),
-    ),
-  },
-  {
-    key: 'operations',
-    label: 'Operações',
-    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
-      ['operations', 'trip-occurrences'].includes(key),
-    ),
-  },
-  {
-    key: 'registries',
-    label: 'Cadastros',
-    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
-      ['fleet', 'pendencias', 'delivery-clients', 'cte-profiles'].includes(key),
-    ),
-  },
-  /**
-   * Identidade é categoria própria, e não um item dentro de "Administração": são duas telas com o
-   * mesmo assunto e a mesma permissão, e empilhá-las numa só fazia o que se usa todo dia — a
-   * listagem — ficar embaixo do que se consulta uma vez por mês.
-   */
-  {
-    key: 'identity',
-    label: 'Usuários',
-    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
-      ['users', 'access-profiles'].includes(key),
-    ),
-  },
-  {
-    key: 'administration',
-    label: 'Administração',
-    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) => key === 'company-settings'),
-  },
-]
+const NAVIGATION_SKELETON_ROW_COUNT = 5
 
 /**
  * Abrir o menu expandindo todos os grupos punha 22 linhas numa barra que cabe ~14: ele nascia com
@@ -209,7 +110,7 @@ function resolveOpenGroups(
       'billing',
       'nfse-invoice',
     ].includes(workspace),
-    operations: ['operations', 'trip-occurrences'].includes(workspace),
+    operations: ['operations', 'trip-occurrences', 'driver-trip'].includes(workspace),
     registries: ['cte-profiles', 'fleet'].includes(workspace),
   }
 }
@@ -223,7 +124,11 @@ function persistWorkspacePreference(workspace: WorkspaceNavigationItem['key']): 
   sessionStorage.setItem(WORKSPACE_STORAGE_KEY, workspace)
 }
 
-function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
+/**
+ * Spec 221 RF-C1b: a origem muda a decisão da aterrissagem — endereço pedido pela pessoa nunca é
+ * trocado, a última tela da sessão é respeitada se ela puder abri-la, e só a falta de endereço cede.
+ */
+function resolveWorkspaceFromPath(): WorkspaceNavigationItem['key'] | undefined {
   /** O detalhe da fatura é uma tela do faturamento: o menu continua marcando a mesma entrada. */
   if (parseBillingInvoiceRoute(window.location.pathname) !== null) return 'billing'
   if (window.location.pathname === '/billing') return 'billing'
@@ -250,6 +155,16 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
   if (window.location.pathname === '/usuarios') return 'users'
   if (window.location.pathname === '/papeis') return 'access-profiles'
 
+  return undefined
+}
+
+function resolveCurrentWorkspaceWithSource(): Readonly<{
+  source: WorkspaceSource
+  workspace: WorkspaceNavigationItem['key']
+}> {
+  const fromPath = resolveWorkspaceFromPath()
+  if (fromPath !== undefined) return { source: 'path', workspace: fromPath }
+
   const storedWorkspace = sessionStorage.getItem(WORKSPACE_STORAGE_KEY)
   if (
     storedWorkspace === 'billing' ||
@@ -273,10 +188,14 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
     storedWorkspace === 'users' ||
     storedWorkspace === 'access-profiles'
   ) {
-    return storedWorkspace
+    return { source: 'stored', workspace: storedWorkspace }
   }
 
-  return 'nfe'
+  return { source: 'default', workspace: 'nfe' }
+}
+
+function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
+  return resolveCurrentWorkspaceWithSource().workspace
 }
 
 /**
@@ -501,13 +420,15 @@ function ApplicationShell(): ReactNode {
 
   /**
    * Spec 057, RF-6: quem só tem o par do campo não pode cair na tela de NF-e. A troca acontece
-   * depois de `auth/me` responder — antes disso não há permissão para consultar — e **só** quando a
-   * pessoa não escolheu tela nenhuma: navegar para outro lugar continua sendo decisão dela.
+   * depois de `auth/me` responder — antes disso não há permissão para consultar. Spec 221, RF-E1:
+   * vale para qualquer caminho de entrada, não só a raiz; a conta de campo não abre o painel.
    */
   const permissions = authMeQuery.data?.data.permissions
+  const navigationMenu = resolveNavigationMenu({ hasFailed: authMeQuery.isError, permissions })
   useEffect(() => {
     if (permissions === undefined || !isFieldOnlyUser(permissions)) return
-    if (window.location.pathname !== '/') return
+    const entryPath = window.location.pathname
+    if (entryPath === DRIVER_TRIP_PATH) return
 
     function enterDriverTrip(): void {
       window.history.replaceState({}, '', DRIVER_TRIP_PATH)
@@ -516,6 +437,7 @@ function ApplicationShell(): ReactNode {
     }
 
     const driverAppUrl = readDriverAppUrl()
+    // Sem o interruptor é o `legacy-home` de `resolveDriverAppRedirect`, sem abrir o IndexedDB.
     if (driverAppUrl === undefined) {
       enterDriverTrip()
       return
@@ -530,7 +452,7 @@ function ApplicationShell(): ReactNode {
     let cancelled = false
 
     /**
-     * ADR-0075 §6: com o interruptor ligado, a raiz de quem é do campo leva à casa nova. A tela de
+     * ADR-0075 §6: com o interruptor ligado, o caminho aberto por quem é do campo leva à casa nova. A tela de
      * pendências e a de instalar nascem no boot de `/minha-viagem`, fora do shell — é para lá que
      * a navegação de página inteira leva.
      *
@@ -543,7 +465,7 @@ function ApplicationShell(): ReactNode {
       import('@/modules/driver-trip/shared/driverAppRedirect.service'),
     ]).then(([{ readDriverAppMode }, { isDriverAppUrlOwnOrigin }]) =>
       readDriverAppMode({ driverAppUrl, isFieldOnlyUser: true }).then((mode) => {
-        if (cancelled || window.location.pathname !== '/') return
+        if (cancelled || window.location.pathname !== entryPath) return
 
         /**
          * Revisão M1: a origem própria em `redirect` viraria um `location.replace` para a página
@@ -554,7 +476,7 @@ function ApplicationShell(): ReactNode {
           !isDriverAppUrlOwnOrigin({ driverAppUrl, origin: window.location.origin })
         ) {
           window.location.replace(driverAppUrl)
-        } else if (mode === 'stay' || mode === 'redirect') {
+        } else if (mode === 'stay' || mode === 'redirect' || mode === 'legacy-home') {
           enterDriverTrip()
         } else {
           window.location.replace(DRIVER_TRIP_PATH)
@@ -566,6 +488,46 @@ function ApplicationShell(): ReactNode {
       cancelled = true
     }
   }, [permissions])
+
+  /**
+   * Spec 221 RF-C2/C6: quem entrou sem endereço escolhido aterrissa numa tela que pode abrir — o
+   * `nfe` fixo exigia `invoices.read`, que quatro papéis não têm. Roda **depois** do efeito da conta
+   * de campo e só para quem não é dela: o motorista sai do painel, e não aterrissa em workspace nenhum.
+   */
+  const roles = authMeQuery.data?.data.roles
+  const [landing, setLanding] = useState<LandingDecision | undefined>(undefined)
+  /**
+   * ⚠️ Aterrissar é decisão de **entrada**, uma vez por montagem — não um derivado do render. A
+   * primeira versão recalculava a cada render e tornava NF-e inalcançável para o separador: clicar
+   * nela leva a `/`, que não tem mapeamento de caminho e cujo `sessionStorage` é apagado de
+   * propósito (`persistWorkspacePreference`), então o render seguinte lia "entrou sem endereço" e a
+   * preferência da RF-C6 devolvia a pessoa para `/trips`. O item aparecia no menu e não abria.
+   */
+  const hasLanded = useRef(false)
+  useEffect(() => {
+    if (permissions === undefined || roles === undefined) return
+    if (isFieldOnlyUser(permissions)) return
+
+    const entry = resolveCurrentWorkspaceWithSource()
+    const decision = resolveLandingWorkspace({
+      current: entry.workspace,
+      hasLanded: hasLanded.current,
+      permissions,
+      roles,
+      source: entry.source,
+    })
+    hasLanded.current = true
+    setLanding(decision)
+    if (decision.kind !== 'replace') return
+
+    const target = WORKSPACE_NAVIGATION_ITEMS.find((item) => item.key === decision.workspace)
+    if (target === undefined) return
+    window.history.replaceState({}, '', target.href)
+    /** Sem isto o `popstate` relê o `sessionStorage` e ressuscita a tela que a conta não abre. */
+    persistWorkspacePreference(target.key)
+    setCurrentWorkspace(target.key)
+    setCurrentPath(target.href)
+  }, [permissions, roles])
 
   useEffect(() => {
     function syncLocation(): void {
@@ -620,6 +582,21 @@ function ApplicationShell(): ReactNode {
   const fiscalEnvironment = authMeQuery.data?.data.company.fiscalEnvironment ?? null
   const colorTheme = useColorTheme()
 
+  /**
+   * Spec 221 RF-C5: conta sem nenhuma área abre a tela de beco, não o shell com a barra vazia. A
+   * conta de campo nunca chega aqui — o efeito dela decidiu antes, e `landing` é `undefined` para ela.
+   */
+  if (landing?.kind === 'no-access') {
+    return <NoWorkspaceAccess onSignOut={() => void getKeycloakAuthProvider().logout()} />
+  }
+
+  /**
+   * Spec 221 RF-E4: a conta de campo não vê a barra do painel **em instante nenhum**. Sem esta
+   * guarda ela pintava o escritório enquanto o efeito acima esperava dois `import()` dinâmicos e uma
+   * leitura de IndexedDB — centenas de milissegundos num aparelho de rua, em rede móvel.
+   */
+  if (permissions !== undefined && isFieldOnlyUser(permissions)) return null
+
   return (
     <div
       className={`application-shell${sidebarOpen ? ' application-shell-sidebar-open' : ' application-shell-sidebar-collapsed'}`}
@@ -651,58 +628,66 @@ function ApplicationShell(): ReactNode {
           </span>
         </div>
         <nav className="sidebar-navigation" aria-label="Módulos">
-          {NAVIGATION_GROUPS.map((group) => (
-            <section className="sidebar-group" key={group.key}>
-              <button
-                aria-expanded={sidebarOpen ? openGroups[group.key] : collapsedGroup === group.key}
-                aria-label={group.label}
-                className="sidebar-group-toggle"
-                type="button"
-                onClick={() => {
-                  if (!sidebarOpen) {
-                    setCollapsedGroup((current) => (current === group.key ? null : group.key))
-                    return
-                  }
-                  toggleGroup(group.key)
-                }}
-              >
-                <Icon
-                  className="workspace-nav-icon"
-                  name={`workspace-${group.items[0]?.key ?? 'nfe'}`}
-                />
-                <span>{group.label}</span>
-                <span aria-hidden="true">{openGroups[group.key] ? '−' : '+'}</span>
-              </button>
-              {(sidebarOpen ? openGroups[group.key] : collapsedGroup === group.key) && (
-                <div
-                  className={`sidebar-group-items${sidebarOpen ? '' : ' sidebar-group-items-flyout'}`}
+          {navigationMenu.kind === 'loading' ? (
+            <SkeletonGroup className="sidebar-group" label="Carregando menu">
+              {Array.from({ length: NAVIGATION_SKELETON_ROW_COUNT }, (_, rowIndex) => (
+                <Skeleton height="var(--touch-target)" key={rowIndex} width="100%" />
+              ))}
+            </SkeletonGroup>
+          ) : (
+            navigationMenu.groups.map((group) => (
+              <section className="sidebar-group" key={group.key}>
+                <button
+                  aria-expanded={sidebarOpen ? openGroups[group.key] : collapsedGroup === group.key}
+                  aria-label={group.label}
+                  className="sidebar-group-toggle"
+                  type="button"
+                  onClick={() => {
+                    if (!sidebarOpen) {
+                      setCollapsedGroup((current) => (current === group.key ? null : group.key))
+                      return
+                    }
+                    toggleGroup(group.key)
+                  }}
                 >
-                  {group.items.map((item) => (
-                    <a
-                      aria-label={item.label}
-                      className={
-                        item.key === currentWorkspace
-                          ? 'sidebar-link sidebar-link-active'
-                          : 'sidebar-link'
-                      }
-                      data-tooltip={item.label}
-                      href={item.href}
-                      key={item.key}
-                      title={item.label}
-                      onClick={(event) => {
-                        event.preventDefault()
-                        setCollapsedGroup(null)
-                        navigateTo(item)
-                      }}
-                    >
-                      <Icon className="workspace-nav-icon" name={`workspace-${item.key}`} />
-                      <span>{item.label}</span>
-                    </a>
-                  ))}
-                </div>
-              )}
-            </section>
-          ))}
+                  <Icon
+                    className="workspace-nav-icon"
+                    name={`workspace-${group.items[0]?.key ?? 'nfe'}`}
+                  />
+                  <span>{group.label}</span>
+                  <span aria-hidden="true">{openGroups[group.key] ? '−' : '+'}</span>
+                </button>
+                {(sidebarOpen ? openGroups[group.key] : collapsedGroup === group.key) && (
+                  <div
+                    className={`sidebar-group-items${sidebarOpen ? '' : ' sidebar-group-items-flyout'}`}
+                  >
+                    {group.items.map((item) => (
+                      <a
+                        aria-label={item.label}
+                        className={
+                          item.key === currentWorkspace
+                            ? 'sidebar-link sidebar-link-active'
+                            : 'sidebar-link'
+                        }
+                        data-tooltip={item.label}
+                        href={item.href}
+                        key={item.key}
+                        title={item.label}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          setCollapsedGroup(null)
+                          navigateTo(item)
+                        }}
+                      >
+                        <Icon className="workspace-nav-icon" name={`workspace-${item.key}`} />
+                        <span>{item.label}</span>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </section>
+            ))
+          )}
         </nav>
       </aside>
       <div className="application-main">
@@ -930,7 +915,7 @@ async function takeOverDriverEntry(
       import('@/modules/driver-trip/shared/driverAppRedirect.service'),
     ])
 
-  // Ainda sem `auth/me`: em `/minha-viagem` é o caminho que diz de quem é a tela.
+  // Ainda sem `auth/me`: em `/minha-viagem` é o caminho que diz de quem é a tela, então `false` é neutro.
   const mode = await readDriverAppMode({ driverAppUrl, isFieldOnlyUser: false })
   switch (mode) {
     case 'redirect':
@@ -956,6 +941,7 @@ async function takeOverDriverEntry(
         <DriverLegacyPendingPage onGoToDriverApp={() => window.location.reload()} />,
       )
       return true
+    case 'legacy-home':
     case 'stay':
       return false
   }

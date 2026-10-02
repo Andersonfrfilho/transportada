@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Tabs, type TabsItem } from '@/components/ui/tabs'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
+import { isWorkspaceForbidden } from '@/modules/shared/workspaceWall.service'
 
 import { CertificateUploadForm } from '../components/CertificateUploadForm.component'
 import { CompanyLogoUpload } from '../components/CompanyLogoUpload.component'
@@ -119,6 +120,8 @@ type SettingsBodyProps = Readonly<{
   activeTab: CompanySettingsTabId
   onTabChange: (tab: CompanySettingsTabId) => void
   canManageSettings: boolean
+  /** Spec 221 RF-D2: a permissão vem do mapa de `workspaceAccess`, nunca de uma cópia local. */
+  isForbidden: boolean
   certificates: ActiveCertificatesByPurpose
   certificatePending: boolean
   contacts: ContactsSection
@@ -290,6 +293,7 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
 
 function SettingsBody(props: SettingsBodyProps) {
   const { t } = useTranslation('companySettings')
+  const isForbidden = props.isForbidden
   if (props.viewModel.status === 'loading') return <CompanySettingsSkeleton />
   const editable = props.canManageSettings && ['empty', 'success'].includes(props.viewModel.status)
   const tabs: readonly TabsItem[] = COMPANY_SETTINGS_TAB_IDS.map((id) => ({
@@ -301,6 +305,11 @@ function SettingsBody(props: SettingsBodyProps) {
     <section className={styles.workspaceDeck}>
       <div className={styles.primaryColumn}>
         <SettingsStatus status={props.viewModel.status} />
+        {isForbidden && (
+          <p className={styles.permissionBoundary} role="alert">
+            {t('forbidden')}
+          </p>
+        )}
         {editable && (
           <Tabs
             ariaLabel={t('title')}
@@ -309,19 +318,18 @@ function SettingsBody(props: SettingsBodyProps) {
             value={props.activeTab}
           />
         )}
-        {!props.canManageSettings && props.viewModel.status !== 'error' && (
-          <p className={styles.permissionBoundary}>{t('readOnly')}</p>
-        )}
       </div>
-      <aside className={styles.secondaryColumn}>
-        <section className={styles.signalPanel}>
-          <p className={styles.sectionKicker}>{t('environmentStep')}</p>
-          <h2>{t('title')}</h2>
-          <p className={styles.productionBoundary}>{t('productionBoundary')}</p>
-          <CertificateSignals certificates={props.viewModel.activeCertificates} />
-          <SaveStatus code={props.settingsErrorCode} state={props.settingsState} />
-        </section>
-      </aside>
+      {!isForbidden && (
+        <aside className={styles.secondaryColumn}>
+          <section className={styles.signalPanel}>
+            <p className={styles.sectionKicker}>{t('environmentStep')}</p>
+            <h2>{t('title')}</h2>
+            <p className={styles.productionBoundary}>{t('productionBoundary')}</p>
+            <CertificateSignals certificates={props.viewModel.activeCertificates} />
+            <SaveStatus code={props.settingsErrorCode} state={props.settingsState} />
+          </section>
+        </aside>
+      )}
     </section>
   )
 }
@@ -395,6 +403,11 @@ export function CompanySettingsPage() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         canManageSettings={canManageSettings}
+        isForbidden={isWorkspaceForbidden({
+          companyId,
+          permissions,
+          workspace: 'company-settings',
+        })}
         certificates={viewModel.activeCertificates}
         certificatePending={certificateMutation.isPending}
         initialValue={toUpdate(canManageSettings ? query.data : undefined)}

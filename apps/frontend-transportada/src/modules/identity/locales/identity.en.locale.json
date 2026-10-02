@@ -640,5 +640,11 @@
   "activationDone": "Access activated. Sign in with your e-mail and the password you just chose.",
   "activationGoToLogin": "Go to sign in",
   "activationRejected": "Could not activate. Check the code — it is single-use and expires — and try again, or ask for a new invitation.",
-  "activationPasswordMismatch": "The two passwords do not match."
+  "activationPasswordMismatch": "The two passwords do not match.",
+  "noWorkspaceAccess": {
+    "title": "Your account has no access to any panel area",
+    "body": "Your user is active, but no permission was assigned to it — so there is nothing to open here.",
+    "askAdmin": "Ask your carrier's administrator to review the roles on your account.",
+    "signOut": "Sign out"
+  }
 }

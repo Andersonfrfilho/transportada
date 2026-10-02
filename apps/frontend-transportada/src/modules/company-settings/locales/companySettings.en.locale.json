@@ -1,6 +1,7 @@
 {
   "eyebrow": "Issuer readiness",
   "title": "Fiscal settings",
+  "forbidden": "You do not have permission to view the company settings.",
   "tabs": {
     "company": "Company",
     "site": "Site",

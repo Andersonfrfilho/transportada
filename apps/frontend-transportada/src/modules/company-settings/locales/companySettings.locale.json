@@ -1,6 +1,7 @@
 {
   "eyebrow": "Preparação do emitente",
   "title": "Configurações fiscais",
+  "forbidden": "Você não tem permissão para ver as configurações da empresa.",
   "tabs": {
     "company": "Empresa",
     "site": "Site",

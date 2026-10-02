@@ -6,6 +6,7 @@ const APPLICATION_ROOT = new URL('../..', import.meta.url)
 
 const CONSTANT_MODULE = '../../src/modules/nfse-invoice/shared/nfseInvoice.constant'
 const SHELL_PATH = 'src/main.tsx'
+const NAVIGATION_PATH = 'src/modules/shared/workspaceNavigation.constant.ts'
 const ICON_PATH = 'src/components/ui/icon.tsx'
 const I18N_PATH = 'src/modules/shared/i18n/i18n.service.ts'
 const WORKSPACE_PAGE_PATH = 'src/modules/nfse-invoice/pages/NfseInvoiceWorkspace.page.tsx'
@@ -90,15 +91,16 @@ describe('nfse invoice constants contract', () => {
 describe('nfse invoice navigation contract', () => {
   test('adds the workspace to the shell without dropping it from the fiscal group', async () => {
     const shell = await readApplicationFile(SHELL_PATH)
+    const navigation = await readApplicationFile(NAVIGATION_PATH)
 
     expect(shell).toContain('NfseInvoiceWorkspacePage')
-    expect(shell).toContain("{ href: '/nfse-invoices', key: 'nfse-invoice', label: 'NFS-e' }")
+    expect(navigation).toContain("{ href: '/nfse-invoices', key: 'nfse-invoice', label: 'NFS-e' }")
     expect(shell).toContain("case 'nfse-invoice':")
     expect(shell).toContain("window.location.pathname === '/nfse-invoices'")
     expect(shell).toContain("storedWorkspace === 'nfse-invoice'")
 
     /** A lista do grupo fiscal aparece duas vezes: no menu e no estado inicial do acordeão. */
-    const fiscalGroups = shell.match(/\[\s*'nfe',\s*'freight'[^\]]*\]/g) ?? []
+    const fiscalGroups = `${navigation}\n${shell}`.match(/\[\s*'nfe',\s*'freight'[^\]]*\]/g) ?? []
     expect(fiscalGroups).toHaveLength(2)
     for (const group of fiscalGroups) {
       expect(group).toContain("'nfse-invoice'")

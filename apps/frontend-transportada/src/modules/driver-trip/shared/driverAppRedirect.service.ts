@@ -7,18 +7,25 @@ import { DRIVER_TRIP_PATH } from './driverWorkspace.service'
  * exibição.
  *
  * - `stay`: o painel serve `/minha-viagem` como sempre. É o resultado **sem o interruptor**.
+ * - `legacy-home`: sem o interruptor, a conta de campo abriu outro caminho do painel; a casa dela é
+ *   `/minha-viagem`, e a troca é interna (`history.replaceState`), nunca `location.replace`.
  * - `redirect`: fila antiga vazia; o motorista vai para a casa nova.
  * - `install-screen`: fila vazia, mas aberto pelo ícone antigo (`standalone`) — um
  *   `location.replace` para outra origem sairia do `scope` e cairia numa aba solta.
  * - `pending-screen`: há o que enviar da fila antiga, que mora no IndexedDB **desta** origem e só
  *   sai daqui. Vem antes de tudo.
  */
-export type DriverAppRedirectMode = 'install-screen' | 'pending-screen' | 'redirect' | 'stay'
+export type DriverAppRedirectMode =
+  | 'install-screen'
+  | 'legacy-home'
+  | 'pending-screen'
+  | 'redirect'
+  | 'stay'
 
 export type DriverAppRedirectInput = Readonly<{
   /** `readDriverAppUrl()`: `undefined` é o interruptor desligado. */
   driverAppUrl: string | undefined
-  /** Só vale na raiz: em `/minha-viagem` o caminho já diz de quem é a tela. */
+  /** Vale em qualquer caminho; em `/minha-viagem` o caminho já diz de quem é a tela. */
   isFieldOnlyUser: boolean
   isStandalone: boolean
   pathname: string
@@ -27,10 +34,13 @@ export type DriverAppRedirectInput = Readonly<{
 }>
 
 export function resolveDriverAppRedirect(input: DriverAppRedirectInput): DriverAppRedirectMode {
-  if (input.driverAppUrl === undefined) return 'stay'
+  const isDriverTripPath = input.pathname === DRIVER_TRIP_PATH
 
-  const isDriverEntry =
-    input.pathname === DRIVER_TRIP_PATH || (input.pathname === '/' && input.isFieldOnlyUser)
+  if (input.driverAppUrl === undefined) {
+    return input.isFieldOnlyUser && !isDriverTripPath ? 'legacy-home' : 'stay'
+  }
+
+  const isDriverEntry = isDriverTripPath || input.isFieldOnlyUser
   if (!isDriverEntry) return 'stay'
 
   if (input.pendingTotal > 0) return 'pending-screen'
