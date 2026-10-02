@@ -1155,6 +1155,28 @@
   padding: var(--space-3);
 }
 
+/* Com "Descartar" e a confirmação, o item quebra em linhas: lado a lado passava de 375 px. */
+.eventQueueItemWithDiscard {
+  flex-wrap: wrap;
+}
+
+.eventQueueItemWithDiscard .eventQueueItemBody {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.eventQueueDiscardConfirm {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.eventQueueItemActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
 .eventQueueItemBody {
   display: grid;
   gap: var(--space-1);

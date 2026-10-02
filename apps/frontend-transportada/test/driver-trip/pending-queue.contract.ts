@@ -101,7 +101,8 @@ describe('a pendência da fila antiga', () => {
     ).toEqual({ drainable: 1, rejected: 2, total: 3 })
   })
 
-  it('anexo vencido não segura o motorista no painel', () => {
+  /** Spec 227: não há mais prazo — o anexo parado há oito dias é pendência como qualquer outra. */
+  it('anexo de mais de 7 dias continua contado como pendência a enviar', () => {
     const stale = new Date(NOW.getTime() - EIGHT_DAYS_MS).toISOString()
 
     expect(
@@ -110,7 +111,7 @@ describe('a pendência da fila antiga', () => {
         now: NOW,
         reports: [],
       }),
-    ).toEqual({ drainable: 0, rejected: 0, total: 0 })
+    ).toEqual({ drainable: 1, rejected: 0, total: 1 })
   })
 
   it('fila vazia é zero', () => {

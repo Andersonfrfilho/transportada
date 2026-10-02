@@ -189,6 +189,33 @@ export function hasSendableEvents(items: readonly EventQueueItemView[]): boolean
   )
 }
 
+/** Status HTTP que não são recusa de negócio: infraestrutura passageira, a próxima tentativa serve. */
+const NON_BUSINESS_REJECTION_STATUSES = new Set([401, 403, 408, 429])
+
+/**
+ * ADR-0075 §6, revisão M2 (spec 227): "Descartar" é para recusa de **negócio** — o servidor examinou
+ * o evento e decidiu que ele não vale. Sessão expirada, autenticação, tempo esgotado, limite de taxa
+ * e erro do servidor (`401`/`403`/`408`/`429`/5xx) são infraestrutura passageira, como
+ * `REQUEST_FAILED`: descartar apagaria uma entrega que a próxima tentativa enviaria.
+ */
+function isBusinessRejectionCause(cause: string): boolean {
+  if (cause === 'REQUEST_FAILED') return false
+  const status = Number.parseInt(cause, 10)
+  if (Number.isNaN(status)) return true
+  if (NON_BUSINESS_REJECTION_STATUSES.has(status)) return false
+  return status < 500 || status > 599
+}
+
+/** Recusado pelo servidor por motivo de negócio — o evento ou um anexo dele. */
+export function isEventQueueItemDiscardable(item: EventQueueItemView): boolean {
+  const isEventDiscardable =
+    item.status.state === 'rejected' && isBusinessRejectionCause(item.status.cause)
+  const isAttachmentDiscardable =
+    item.attachmentRejectionCause !== undefined &&
+    isBusinessRejectionCause(item.attachmentRejectionCause)
+  return isEventDiscardable || isAttachmentDiscardable
+}
+
 /**
  * Spec 206 RF8: o número da parada do item ("Iniciar rota — parada N") — `undefined` quando a
  * parada saiu do snapshot (viagem trocada, cartão sumido); a tela cai no rótulo sem número.

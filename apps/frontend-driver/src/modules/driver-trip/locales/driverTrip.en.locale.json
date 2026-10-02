@@ -39,6 +39,12 @@
       "stopNotReachable": "this stop is no longer part of your trip",
       "tooLarge": "the photo is larger than the server accepts"
     },
+    "discard": {
+      "confirm": "Discard anyway",
+      "keep": "Keep",
+      "open": "Discard",
+      "warning": "The delivery was not recorded; talk to the office. Discarding removes this item from the device."
+    },
     "empty": "Nothing waiting to be sent.",
     "itemTitle": {
       "depart": "Start route — stop {{sequence}}"

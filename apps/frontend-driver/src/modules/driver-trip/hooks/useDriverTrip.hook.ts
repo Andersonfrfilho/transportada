@@ -24,7 +24,6 @@ import {
   ATTACHMENT_QUEUE_LIMIT,
   applyAttachmentLocation,
   applyAttachmentReceiverFields,
-  discardStaleAttachments,
   drainQueueWithAttachments,
   enqueueAttachment,
   releaseAttachmentsAwaitingDelivery,
@@ -64,6 +63,7 @@ import {
   discardOwnPending,
   partitionPendingByOwner,
 } from '../shared/queueOwner.service'
+import { discardRejectedQueueItem } from '../shared/queueDiscard.service'
 import { fitStopOccurrenceReports, withoutPhotos } from '../shared/stopOccurrencePhoto.service'
 import { resolveTripDataSavedAt, resolveTripViewStatus } from '../shared/tripQueryStatus.service'
 import { hasReassignedTrip } from '../shared/tripReassignment.service'
@@ -191,6 +191,8 @@ export type DriverTripController = Readonly<{
    * leitura boa quando a releitura falhou com sessão viva. `undefined` com a leitura em dia.
    */
   dataSavedAt: string | undefined
+  /** Spec 227: o recusado de negócio sai da fila só pela mão do motorista, com confirmação na tela. */
+  discardRejected: (idempotencyKey: string) => Promise<void>
   /** `true` no boot sem rede — a faixa diz "sem conexão"; com sessão viva, "sem atualização". */
   isOfflineBoot: boolean
   /** Tudo o que é do dono e ainda está no aparelho — o "Sair" avisa antes de deixar para trás. */
@@ -535,11 +537,10 @@ export function useDriverTrip(
 
   useEffect(() => {
     /**
-     * Spec 159 (T11, item 4): o descarte roda uma vez por abertura do app, antes da drenagem — o
-     * que passou dos 7 dias sai da fila com o dado (blob, posição) junto, nunca só a entrada.
+     * Spec 227: nada sai da fila por idade — o que não subiu é a única cópia do trabalho do
+     * motorista, e só sincronizar (ou o descarte explícito do recusado) o tira de lá.
      */
-    void discardStaleAttachments({ attachmentStore, now: new Date(), store })
-      .then(() => refreshQueueView())
+    void refreshQueueView()
       /** Spec 212: também sem rede — a foto já sai reduzida quando a drenagem puder levá-la. */
       .then(() => recoverProofPhotos())
     /** "Abertura" (plan D5): o gatilho de fora, antes dos que `scheduleQueueDrainTriggers` liga. */
@@ -870,6 +871,12 @@ export function useDriverTrip(
     await refreshQueueView()
   }
 
+  /** Spec 227: o recusado de negócio e o dado dele (blob, posição) saem do aparelho. */
+  async function discardRejected(idempotencyKey: string): Promise<void> {
+    await discardRejectedQueueItem({ attachmentStore, idempotencyKey, store })
+    await refreshQueueView()
+  }
+
   /** "Sair" com pendência própria (segurança M2): o item e o dado saem do aparelho. */
   async function discardOwn(): Promise<void> {
     await discardOwnPending({ attachmentStore, ownerSubHash: session.subHash, store })
@@ -902,6 +909,7 @@ export function useDriverTrip(
     confirmUnverifiedPending: confirmUnverified,
     discardForeignPending: discardForeign,
     discardOwnPending: discardOwn,
+    discardRejected,
     discardUnverifiedPending: discardUnverified,
     dismissReassignedTripNotice,
     foreignPendingCount,

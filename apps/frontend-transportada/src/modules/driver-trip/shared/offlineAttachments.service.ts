@@ -147,47 +147,6 @@ export function applyAttachmentLocation(input: {
   )
 }
 
-/**
- * Spec 159 (T11, item 4): anexo recusado ou simplesmente parado — nunca enviado — expira aos 7
- * dias. Risco aceito registrado em `docs/SECURITY.md`: a fila offline guarda posição, e ela não
- * pode ficar indefinidamente no aparelho.
- */
-export const ATTACHMENT_DISCARD_AFTER_MS = 7 * 24 * 60 * 60 * 1000
-
-export function isAttachmentDiscardable(input: {
-  readonly attachment: QueuedAttachment
-  readonly now: Date
-}): boolean {
-  const capturedAt = new Date(input.attachment.capturedAt).getTime()
-  if (!Number.isFinite(capturedAt)) return false
-  return input.now.getTime() - capturedAt > ATTACHMENT_DISCARD_AFTER_MS
-}
-
-/** Descarta o anexo **e o dado**: o blob e a posição somem da store, não só o item da lista. */
-export async function discardStaleAttachments(input: {
-  readonly attachmentStore: AttachmentStore
-  readonly now: Date
-}): Promise<number> {
-  const groups = await input.attachmentStore.readAll()
-  let discardedCount = 0
-
-  for (const [eventKey, attachments] of groups) {
-    const hasStale = attachments.some((attachment) =>
-      isAttachmentDiscardable({ attachment, now: input.now }),
-    )
-    if (!hasStale) continue
-
-    const remaining = await input.attachmentStore.update({
-      eventKey,
-      mutate: (current) =>
-        current.filter((attachment) => !isAttachmentDiscardable({ attachment, now: input.now })),
-    })
-    discardedCount += attachments.length - remaining.length
-  }
-
-  return discardedCount
-}
-
 export type AttachmentSendOutcome =
   | Readonly<{ kind: 'failed-network' }>
   | Readonly<{ cause: string; kind: 'rejected' }>

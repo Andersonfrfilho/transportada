@@ -26,6 +26,12 @@
       "stopNotReachable": "esta parada não está mais na sua viagem",
       "tooLarge": "a foto passou do tamanho aceito pelo servidor"
     },
+    "discard": {
+      "confirm": "Descartar mesmo assim",
+      "keep": "Manter",
+      "open": "Descartar",
+      "warning": "A entrega não foi registrada; fale com o escritório. Descartar apaga este item do aparelho."
+    },
     "empty": "Nada aguardando envio.",
     "itemTitle": {
       "depart": "Iniciar rota — parada {{sequence}}"

@@ -1,10 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /* Cópia por valor de apps/frontend-driver/src/modules/driver-trip/shared/pendingQueue.service.ts (ADR-0075 §7). */
-import {
-  isAttachmentDiscardable,
-  isAwaitingDeliveryKey,
-  type AttachmentGroupEntries,
-} from './offlineAttachments.service'
+import { isAwaitingDeliveryKey, type AttachmentGroupEntries } from './offlineAttachments.service'
 import type { QueuedReport } from './offlineQueue.service'
 
 /**
@@ -65,7 +61,6 @@ export function countPending(input: {
         unverified += 1
         continue
       }
-      if (isAttachmentDiscardable({ attachment, now: input.now })) continue
       if (isBlocked) blocked += 1
       else drainable += 1
     }

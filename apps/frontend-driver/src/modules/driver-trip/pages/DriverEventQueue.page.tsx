@@ -1,5 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/pages/DriverEventQueue.page.tsx (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -10,6 +11,7 @@ import { DriverSyncStatus } from '../components/DriverSyncStatus.component'
 import type { DriverTripStop } from '../shared/driverTrip.types'
 import {
   hasSendableEvents,
+  isEventQueueItemDiscardable,
   resolveEventQueueDepartBlock,
   resolveEventQueueStopSequence,
   type EventQueueItemView,
@@ -26,6 +28,8 @@ type DriverEventQueuePageProps = Readonly<{
   /** Pedido do usuário (01/10): de quando é a última leitura do servidor — `0` é "nunca nesta sessão". */
   lastSyncedAtMs: number
   onBack: () => void
+  /** Spec 227: só o recusado de negócio, e só depois da confirmação na tela. */
+  onDiscard: (idempotencyKey: string) => void
   /** Spec 206 D6: o mesmo atalho do cartão — rola até o cabeçalho da parada e põe o foco (RF8b). */
   onFocusStop: (stopId: string) => void
   onSendAll: () => void
@@ -65,12 +69,15 @@ export function DriverEventQueuePage({
   items,
   lastSyncedAtMs,
   onBack,
+  onDiscard,
   onFocusStop,
   onSendAll,
   onSendOne,
   stops,
 }: DriverEventQueuePageProps) {
   const { t } = useTranslation('driverTrip')
+  /** O descarte não se desfaz: o primeiro toque só abre o aviso, e o segundo é que apaga. */
+  const [confirmingDiscardKey, setConfirmingDiscardKey] = useState<string | undefined>(undefined)
   /** O que a drenagem ainda pode levar: recusado não conta, porque só sai de lá por decisão humana. */
   const pendingCount = items.filter((item) => item.status.state !== 'rejected').length
 
@@ -158,7 +165,7 @@ export function DriverEventQueuePage({
               const departBlock = resolveEventQueueDepartBlock({ enRouteStopId, item, stops })
               return (
                 <li
-                  className={styles.eventQueueItem}
+                  className={`${styles.eventQueueItem} ${styles.eventQueueItemWithDiscard}`}
                   /* Pulsa só o que está realmente subindo: o recusado espera decisão, não a rede. */
                   data-syncing={isSyncing && item.status.state !== 'rejected' ? 'true' : undefined}
                   key={item.idempotencyKey}
@@ -219,18 +226,58 @@ export function DriverEventQueuePage({
                         </button>
                       </p>
                     )}
+                    {confirmingDiscardKey === item.idempotencyKey ? (
+                      <div className={styles.eventQueueDiscardConfirm}>
+                        <p className={styles.eventQueueStatusRejected} role="alert">
+                          {t('eventQueue.discard.warning')}
+                        </p>
+                        <div className={styles.eventQueueItemActions}>
+                          <Button
+                            disabled={isSyncing}
+                            type="button"
+                            onClick={() => {
+                              setConfirmingDiscardKey(undefined)
+                              onDiscard(item.idempotencyKey)
+                            }}
+                          >
+                            <Icon name="trash" />
+                            {t('eventQueue.discard.confirm')}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => setConfirmingDiscardKey(undefined)}
+                          >
+                            {t('eventQueue.discard.keep')}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                   {/* Não verificado sobe pela confirmação da faixa da viagem, não item a item. */}
-                  {item.status.state === 'unverified' ? null : (
-                    <Button
-                      disabled={isSyncing}
-                      type="button"
-                      variant="secondary"
-                      onClick={() => onSendOne(item.idempotencyKey)}
-                    >
-                      <Icon name="upload" />
-                      {t('eventQueue.sendNow')}
-                    </Button>
+                  {item.status.state === 'unverified' ||
+                  confirmingDiscardKey === item.idempotencyKey ? null : (
+                    <div className={styles.eventQueueItemActions}>
+                      <Button
+                        disabled={isSyncing}
+                        type="button"
+                        variant="secondary"
+                        onClick={() => onSendOne(item.idempotencyKey)}
+                      >
+                        <Icon name="upload" />
+                        {t('eventQueue.sendNow')}
+                      </Button>
+                      {isEventQueueItemDiscardable(item) ? (
+                        <Button
+                          disabled={isSyncing}
+                          type="button"
+                          variant="secondary"
+                          onClick={() => setConfirmingDiscardKey(item.idempotencyKey)}
+                        >
+                          {t('eventQueue.discard.open')}
+                        </Button>
+                      ) : null}
+                    </div>
                   )}
                 </li>
               )

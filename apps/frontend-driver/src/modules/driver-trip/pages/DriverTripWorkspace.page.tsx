@@ -291,6 +291,7 @@ export function DriverTripWorkspacePage() {
           items={driverTrip.queueView}
           lastSyncedAtMs={driverTrip.lastSyncedAtMs}
           onBack={() => window.history.back()}
+          onDiscard={(idempotencyKey) => void driverTrip.discardRejected(idempotencyKey)}
           onFocusStop={focusStop}
           onSendAll={() => driverTrip.sendAllNow()}
           onSendOne={(idempotencyKey) => driverTrip.sendNow(idempotencyKey)}

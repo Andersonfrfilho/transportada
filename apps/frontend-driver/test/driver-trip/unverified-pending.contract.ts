@@ -306,6 +306,9 @@ describe('registros feitos sem rede esperam a confirmação do dono', () => {
 
   /** "Enviar agora" num item não verificado não faria nada: a confirmação é na faixa da viagem. */
   it('a tela da fila não oferece "Enviar agora" em item não verificado', () => {
-    expect(readFileSync(QUEUE_PAGE, 'utf8')).toContain("item.status.state === 'unverified' ? null")
+    /** Spec 227: a condição ganhou a confirmação de descarte aberta; o item não verificado segue sem o botão. */
+    expect(readFileSync(QUEUE_PAGE, 'utf8')).toMatch(
+      /item\.status\.state === 'unverified'[^?]*\? null/u,
+    )
   })
 })

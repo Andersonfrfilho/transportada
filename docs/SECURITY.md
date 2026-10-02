@@ -248,9 +248,14 @@ não passa pelo Keycloak, só pela posse do aparelho.
   conta aparece como "pendências de outra conta", com "Descartar" e aviso. Nunca sai com o token de
   quem não tocou.
 - **Sem token no aparelho.** O snapshot não guarda token nem refresh token; a drenagem fica
-  suspensa até haver sessão. Os anexos seguem com o descarte de 7 dias da spec 159, e desde a spec
-  189 T9.2 os eventos parados também (`discardStaleAttachments` com a fila de eventos, pelo
-  `createdAt`), levando junto os anexos pendurados neles.
+  suspensa até haver sessão. ⚠️ **Sem prazo de descarte (spec 227, decisão do usuário em
+  02/10/2026: "não apaga até sincronizar").** O descarte de 7 dias da spec 159 e o dos eventos
+  parados da spec 189 T9.2 (`discardStaleAttachments`) foram removidos: o que o motorista fez e o
+  aparelho ainda não enviou é a única cópia do trabalho dele. **Risco aceito:** a posição e a foto
+  ficam no IndexedDB do aparelho por tempo indeterminado, legíveis por quem o desbloquear. O que
+  continua tirando dado de lá: o envio, o "Descartar" do recusado de negócio com confirmação
+  (`queueDiscard.service.ts`, só 4xx — nunca 5xx, 401/403/408/429 nem erro de rede), o "Descartar e
+  sair" e o descarte de pendência de outra conta.
 - **"Sair" com pendência própria.** Antes de sair, a app avisa "N registros seus ainda não
   subiram" e oferece "Enviar agora" (com sessão) ou "Descartar e sair" — o descarte
   (`queueOwner.service.ts:discardOwnPending`) apaga evento, blob, documento e nome do recebedor e
@@ -301,10 +306,12 @@ em resposta (a ficha mostra só motivo, pontos e datas) e cai aos 90 dias pelo e
 `trip.location.purge` do worker (latitude, longitude e precisão; `captured_at` fica). O `params:` do
 `DrizzleQueryError` é apagado antes de sair para o Sentry. **Resta:** a fila offline do PWA guarda a
 foto **com a posição** no IndexedDB do aparelho até conseguir subir — sem prazo de descarte no
-aparelho e legível por quem tiver o celular desbloqueado.
+aparelho e legível por quem tiver o celular desbloqueado. Desde a spec 227 isso é decisão, não
+pendência: o prazo de 7 dias foi removido de propósito.
 
-**O que falta:** prazo de descarte da fila offline no PWA (apagar anexo parado há mais de
-`missingAfterHours`, ou ao sair da conta); avaliar atestado do aparelho se a nota passar a pesar em
+**O que falta:** ~~prazo de descarte da fila offline no PWA~~ (removido pela spec 227 — a fila só
+esvazia sincronizando, descartando o recusado de negócio com confirmação, ou ao sair da conta);
+avaliar atestado do aparelho se a nota passar a pesar em
 dinheiro. Limitação conhecida da atribuição: o evento de entrega anterior à T11, sem
 `reported_by_driver_id`, ainda acha o motorista pelo vínculo atual da conta — se o acesso ao app for
 desligado, essa parte do histórico some da ficha (as entregas novas não dependem mais do vínculo).
