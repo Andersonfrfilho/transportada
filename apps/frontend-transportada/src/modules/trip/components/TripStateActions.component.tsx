@@ -29,8 +29,12 @@ export type TripStateActionsProps = Readonly<{
   /** O que da seleção ainda aceita carregar — resolvido em `batchTransitionSelection.service.ts`. */
   loadableSelection: readonly string[]
   isBatchReturnPending: boolean
+  /** Spec 223 RF7: a baixa em massa sem canhoto está em voo. */
+  isBatchDeliverPending: boolean
   onBatch: (input: { readonly action: 'load' | 'separate' }) => void
   onBatchReturn: (reason: DriverReturnReason) => void
+  /** Spec 223 RF7 (ADR-0091): baixa as notas marcadas sem canhoto, uma requisição por nota. */
+  onBatchDeliver: (documentIds: readonly string[]) => void
   /** Spec 156 T9/T15: abre `FieldOccurrenceDialog` só com as notas do maço que têm `fieldOccurrence`. */
   onOpenFieldOccurrenceBatch: (documentIds: readonly string[]) => void
   /** Spec 156 T11/T15: abre `FieldDeliveryWizard` só com as notas do maço que têm `fieldDelivery`. */
@@ -63,9 +67,11 @@ export function TripStateActions({
   capabilities,
   isBatchPending,
   isBatchReturnPending,
+  isBatchDeliverPending,
   loadableSelection,
   onBatch,
   onBatchReturn,
+  onBatchDeliver,
   onOpenFieldDeliveryBatch,
   onOpenFieldOccurrenceBatch,
   selection,
@@ -211,6 +217,22 @@ export function TripStateActions({
             >
               <Icon name="camera" />
               {t('stateActions.batchFieldDelivery', { count: deliverySelection.length })}
+            </Button>
+          ) : null}
+          {/*
+           * Spec 223 RF7 (ADR-0091): o mesmo maço, sem o canhoto. O botão da câmera acima abre o
+           * assistente de foto; este baixa direto e deixa o canhoto como dívida.
+           */}
+          {canFieldDeliveryBatch ? (
+            <Button
+              disabled={isBatchDeliverPending}
+              onClick={() => onBatchDeliver(deliverySelection)}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Icon name="check" />
+              {t('stateActions.batchDeliverWithoutProof', { count: deliverySelection.length })}
             </Button>
           ) : null}
           {excludedFromOccurrenceBatch > 0 || excludedFromDeliveryBatch > 0 ? (

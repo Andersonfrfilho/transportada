@@ -3,7 +3,7 @@
     "backToList": "Back to trips",
     "close": "Close trip",
     "create": "Create trip",
-    "deliver": "Mark delivered",
+    "deliver": "Deliver without receipt",
     "issueMdfe": "Issue MDF-e",
     "linkDocument": "Link",
     "load": "Load",
@@ -1586,6 +1586,7 @@
     "batchReturn": "Return {{count}} document",
     "batchReturn_other": "Return {{count}} documents",
     "batchReturnPartialFailure": "{{failed}} of {{total}} document(s) were not returned: {{reason}}",
+    "batchDeliverPartialFailure": "{{failed}} of {{total}} document(s) were not delivered: {{reason}}",
     "batchSeparate": "Separate {{count}} document",
     "batchSeparate_other": "Separate {{count}} documents",
     "cancel": "Cancel trip",
@@ -1619,6 +1620,8 @@
     "batchFieldDelivery_other": "Deliver {{count}} documents",
     "batchFieldDeliveryExcluded": "{{count}} selected invoice does not accept delivery confirmation.",
     "batchFieldDeliveryExcluded_other": "{{count}} selected invoices do not accept delivery confirmation.",
+    "batchDeliverWithoutProof": "Deliver {{count}} document without receipt",
+    "batchDeliverWithoutProof_other": "Deliver {{count}} documents without receipt",
     "trailerRequired": "The tractor unit does not leave without a trailer."
   },
   "status": {

@@ -884,6 +884,37 @@ export function useTripWorkspace(
       }),
     onSuccess: invalidate,
   })
+  /**
+   * Spec 223 RF7 (ADR-0091): "Marcar entregue" em massa, sem canhoto — uma `field-delivery` por
+   * nota, do mesmo jeito que a devolução em lote, porque a rota do escritório com autoria é
+   * individual e `batch-status` continua só `load`/`separate` (RF5).
+   */
+  const batchFieldDeliverMutation = useMutation({
+    mutationFn: async (body: {
+      readonly deliveredAt: string
+      readonly documentIds: readonly string[]
+      readonly driverId?: string
+      readonly tripId: string
+    }) =>
+      runFieldActionQueue({
+        concurrency: 3,
+        items: body.documentIds,
+        run: (documentId) =>
+          controller
+            .fieldDeliverDocument({
+              deliveredAt: body.deliveredAt,
+              documentId,
+              ...(body.driverId === undefined ? {} : { driverId: body.driverId }),
+              idempotencyKey: resolveFieldReportKey(`fieldDeliver:${documentId}`),
+              tripId: body.tripId,
+            })
+            .then((result) => {
+              clearFieldReportKey(`fieldDeliver:${documentId}`)
+              return result
+            }),
+      }),
+    onSuccess: invalidate,
+  })
   const releaseDocumentMutation = useMutation({
     mutationFn: controller.releaseTripDocument,
     onSuccess: invalidateDocumentLink,
@@ -977,6 +1008,7 @@ export function useTripWorkspace(
 
   return {
     autoDispatchOutcome,
+    batchFieldDeliverMutation,
     batchFieldReturnMutation,
     batchStatusMutation,
     cancelMutation,

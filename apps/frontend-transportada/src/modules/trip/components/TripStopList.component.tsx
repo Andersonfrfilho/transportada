@@ -103,10 +103,14 @@ export type TripStopDocumentActions = Readonly<{
   isGeneratingCte: boolean
   isOccurrencePending: boolean
   isReleasePending: boolean
+  /** Spec 223 RF6: a baixa sem canhoto está em voo — o botão da linha fica desabilitado. */
+  isDeliverPending: boolean
   isReturnPending: boolean
   isTransitionPending: boolean
   /** Spec 180: registra a chegada nesta parada — o diálogo (`TripArrivalDialog`) mora nesta lista. */
   onArrive: (input: { arrivedAt: string; stopId: string }) => void
+  /** Spec 223 RF6 (ADR-0091): baixa esta nota sem canhoto — a dívida fica registrada. */
+  onFieldDeliver: (documentId: string) => void
   onFieldReturn: (documentId: string) => void
   /** Spec 174 RF3: gera o CT-e só desta nota, sem passar pela seleção. */
   onGenerateCte: (documentId: string) => void
@@ -758,6 +762,22 @@ function TripStopDocumentRow({
           <Button onClick={() => actions.onOpenFieldDelivery(document.id)} size="sm" type="button">
             <Icon name="camera" />
             {t('actions.fieldDelivery')}
+          </Button>
+        ) : null}
+        {/*
+         * Spec 223 RF6 (ADR-0091): a mesma capacidade oferece os dois caminhos — com canhoto (acima)
+         * e sem ele. Sem este botão, nota com foto obrigatória não tinha como baixar pelo painel.
+         */}
+        {actions.canFieldDelivery(document.id) ? (
+          <Button
+            disabled={actions.isDeliverPending}
+            onClick={() => actions.onFieldDeliver(document.id)}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            <Icon name="check" />
+            {t('actions.deliver')}
           </Button>
         ) : null}
         {/*
