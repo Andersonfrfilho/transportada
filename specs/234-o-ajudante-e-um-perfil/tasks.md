@@ -34,7 +34,7 @@ da app. Cada task fecha com typecheck, testes da app, commit isolado e evidênci
 - [x] **T6** Proposta de viagem e consulta de motoristas filtram `can_drive`; ajudantes seguem por
       `can_act_as_helper` (`drizzle-multi-vehicle-suggestion.repository.ts`); gêmeo de
       `findIneligibleHelperIds` para `can_drive` (409, ids em `details`).
-- [ ] **T6b** MDF-e avulso (`POST /mdfe-manifests`) recusa `can_drive = false` como condutor, com o
+- [x] **T6b** MDF-e avulso (`POST /mdfe-manifests`) recusa `can_drive = false` como condutor, com o
       mesmo erro da viagem (`mdfe-manifest-crew.service.ts`, `drizzle-mdfe-manifest.repository.ts`).
 - [ ] **T7** Semente local: um ajudante-puro e um motorista que também ajuda, pelo use case real.
 

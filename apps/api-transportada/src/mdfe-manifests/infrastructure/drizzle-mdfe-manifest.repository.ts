@@ -158,6 +158,7 @@ export class DrizzleMdfeManifestRepository implements MdfeManifestRepositoryPort
     if (input.driverIds.length === 0) return []
     return this.database
       .select({
+        canDrive: fleetDrivers.canDrive,
         id: fleetDrivers.id,
         name: fleetDrivers.name,
         status: fleetDrivers.status,

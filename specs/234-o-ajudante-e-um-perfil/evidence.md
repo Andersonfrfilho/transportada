@@ -437,3 +437,53 @@ Postgres 18.4 nativo descartável (65435), variáveis no shell.
   suggestion-helper-cost 2/0.
 - `bun run typecheck` (raiz) exit 0 · `bun run lint` (cwd `apps/api-transportada`) exit 0 ·
   `prettier --check` limpo.
+
+## T6b — O MDF-e avulso recusa quem não dirige como condutor
+
+Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+
+### O que mudou
+
+- `MdfeManifestDriver.canDrive` (porta) e `canDrive: fleetDrivers.canDrive` no `listDrivers` de
+  `drizzle-mdfe-manifest.repository.ts`.
+- `resolveManifestCrew` (`mdfe-manifest-crew.service.ts`): depois de validar cada condutor (duplicado →
+  não encontrado → inativo, na ordem que já existia), junta os ids com `canDrive === false` e lança
+  **`TripDriverCannotDriveError`** (`409 TRIP_DRIVER_CANNOT_DRIVE`, ids em `details`, `field: 'driverIds'`).
+- **Decisão: reuso do erro da viagem.** O módulo `mdfe-manifests` já importa de `trips`
+  (`trips/domain/trip-manifest.policy`, `trips/application/read-trip-fiscal-readiness.use-case`), e a classe é
+  um erro de domínio puro, sem I/O; um gêmeo no módulo mdfe seria a mesma classe com outro nome. O nome
+  "Trip…" num contexto de MDF-e é o preço, e o código estável fica igual ao da viagem para o painel.
+- A função é a mesma que o `POST /trips/:id/mdfe-manifests` usa (condutores = `trip.drivers` com
+  `role = 'driver'`), então o MDF-e **da viagem** passa a recusar a mesma ficha. Consequência para o caso
+  extremo da spec ("motorista com viagem aberta que perde `driver`"): a viagem segue como está, mas gerar o
+  MDF-e dela devolve `409 TRIP_DRIVER_CANNOT_DRIVE` até a tripulação ser corrigida (`PATCH /trips/:id/crew`
+  enquanto o estado permitir). Isso é D5 aplicada, e não foi coberto por teste da viagem (o fixture dela
+  tem os condutores fixos).
+- `package.json`: `test:integration` ganha `./test/integration/mdfe-manifest-driver-capability.integration.ts`.
+
+### Contrato vermelho antes do código
+
+`mdfe-application.contract.test.ts` → `57 pass · 1 fail` (recusa de quem não dirige; o teste "inativo
+responde antes" já passava e guarda a ordem). Integração nova → `0 pass · 1 fail` (`canDrive` ausente do
+`listDrivers`).
+
+Casos: recusa com dois condutores onde só o segundo não dirige (ids em `details` = só ele, nada criado);
+condutor inativo que também não dirige responde `MDFE_MANIFEST_DRIVER_NOT_AVAILABLE` (422); integração —
+`listDrivers` devolve `canDrive` de cada ficha da empresa e **não** devolve a de outra empresa.
+
+### Prova por mutação
+
+- Recusa desligada (`if (false)`) → `57 pass · 1 fail`.
+- `canDrive` avaliado errado (`=== undefined`) → `57 pass · 1 fail`.
+- `canDrive` arrancado do `select` → integração `0 pass · 1 fail`.
+
+### Gates
+
+Postgres 18.4 nativo descartável (65435), variáveis no shell.
+
+- Contrato da API: `bun --env-file=../../.env.test test --timeout 120000` →
+  `8790 pass · 0 fail · Ran 8790 tests across 194 files` (0 skip; T6: 8788).
+- Integração, 0 skip: mdfe-manifest-driver-capability 1/0 · mdfe-document 5/0 ·
+  mixed-cargo-end-to-end (usa o repositório de MDF-e) 1/0.
+- `bun run typecheck` (raiz) exit 0 · `bun run lint` (cwd `apps/api-transportada`) exit 0 ·
+  `prettier --check` limpo.

@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { toDisplayPersonName } from '../../shared/person-name.service.js'
+import { TripDriverCannotDriveError } from '../../trips/domain/trip.error.js'
 import {
   MdfeManifestDriverDuplicatedError,
   MdfeManifestDriverNotAvailableError,
@@ -47,7 +48,7 @@ export async function resolveManifestCrew(input: {
   })
   const driverById = new Map(drivers.map((driver) => [driver.id, driver]))
 
-  return input.driverIds.map((driverId, index) => {
+  const lines = input.driverIds.map((driverId, index) => {
     const driver = driverById.get(driverId)
     if (driver === undefined) throw new MdfeManifestDriverNotFoundError()
     if (driver.status !== 'active') throw new MdfeManifestDriverNotAvailableError()
@@ -59,4 +60,10 @@ export async function resolveManifestCrew(input: {
       position: index + 1,
     }
   })
+
+  // Spec 234 D5: o mesmo erro de `resolveTripCrew` — ajudante-puro não é condutor, nem aqui
+  const nonDrivingIds = input.driverIds.filter((driverId) => !driverById.get(driverId)?.canDrive)
+  if (nonDrivingIds.length > 0) throw new TripDriverCannotDriveError(nonDrivingIds)
+
+  return lines
 }
