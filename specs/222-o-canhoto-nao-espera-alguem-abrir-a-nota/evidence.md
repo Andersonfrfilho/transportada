@@ -544,3 +544,28 @@ permissão fixa `trip.manage` no repositório → **1 fail**; sem filtro de empr
 (`me-trip`, `trip-delivery-proof-canhoto`, `canhoto-ocr-flag`, `delivery-proof-received-by`,
 `delivery-proofs-by-trip`, `driver-delivery-proof-read`, `trip-field-office*`): **90 pass / 0
 fail**. A suíte de integração inteira (~17 min) não foi rodada.
+
+### T4.3 — as dependências do leitor entram no worker
+
+Conferência independente da Fase 3 antes de abrir a Fase 4, por execução e não pelo relatório do
+executor: contratos da API **8521 pass / 9 fail** e frontend **6202 pass / 0 fail** + **219 / 0** de
+hooks — números do relatório confirmados. Os 9 vermelhos são todos
+`toll booth catalog repository (spec 154, T201)`, em `ERR_POSTGRES_CONNECTION_CLOSED`, e **não são
+desta branch**: sob `make check` o mesmo arquivo dá **8521 / 0**. O vermelho aparece só quando a
+suíte recebe `--env-file=../../.env.test`, que entrega uma URL de Postgres que está fora do ar —
+com a variável ausente esses testes pulam. É defeito de invocação, não de código.
+
+`@jsquash` (T4.2) decodifica, mas não lê código de barras — o spike exercitou
+`bytes → luminância → zxing Code128Reader → chave`. Então a T4.3 instalou as duas pontas:
+`@jsquash/jpeg@1.6.0`, `@jsquash/png@3.1.1`, `@jsquash/webp@1.5.0` e `@zxing/library@0.23.0`, este
+último **pinado na versão que o painel já usa** (`apps/frontend-transportada/package.json:37`) para
+não abrir duas versões do mesmo leitor no monorepo. 6 pacotes instalados, 42 resolvidos.
+
+- `bun install --frozen-lockfile` na raiz: `Checked 788 installs across 921 packages (no changes)`.
+- `make check`: **EXIT=0** — `format:check`, lint (16 warnings pré-existentes, 0 errors), typecheck,
+  testes de todas as apps e build.
+
+**O `.wasm` resolve dentro deste repositório**, o que o spike não provou (ele rodou num diretório
+descartável fora da árvore): um round-trip `encode`/`decode` de 64x64 com meia imagem escura, rodado
+com `apps/worker-transportada` como cwd, devolveu `decodedWidth: 64`, `firstPixelDark: true`,
+`lastPixelLight: true` — a barra sobreviveu ao JPEG e o módulo carregou sem passo de build.

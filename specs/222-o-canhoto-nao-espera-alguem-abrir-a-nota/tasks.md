@@ -102,8 +102,8 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
 ## Fase 4 — Portão: dá para decodificar imagem no servidor?
 
 > 🤖 Modelo: `opus` 🧠 — é decisão de dependência e de arquitetura (`code-standart.md` §13).
-> **O portão já foi aberto em 2026-10-01: T4.1 e T4.2 estão feitas e o veredito é verde.** Resta a
-> T4.3, que é a instalação.
+> **Portão aberto e fechado: veredito verde, dependências instaladas.** `@jsquash` para decodificar
+> e `@zxing/library` para ler a barra — o plano B (leitura fica no navegador) não foi acionado.
 
 - [x] T4.1 🧠 Spike medido, em `spike-decodificador.md`: `@jsquash` em `worker_thread` lê uma foto de
       12,2 MP em 101 ms (JPEG), 179 ms (PNG) e 312 ms (WebP), casando a chave exata, inclusive sob
@@ -112,7 +112,7 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
 - [x] T4.2 Decisão no ADR-0091 §4: **`@jsquash`**, porque o critério é não pendurar binário nativo
       por plataforma no caminho do `--frozen-lockfile`, não velocidade. Teto de 8 MB conferido
       **antes do download**, pelo tamanho gravado em `stored_objects`
-- [ ] T4.3 `bun add` da escolhida no `apps/worker-transportada` + `bun install --frozen-lockfile` na
+- [x] T4.3 `bun add` da escolhida no `apps/worker-transportada` + `bun install --frozen-lockfile` na
       raiz, com `make check` limpo
 
 ## Fase 5 — A rotina entra no relógio
