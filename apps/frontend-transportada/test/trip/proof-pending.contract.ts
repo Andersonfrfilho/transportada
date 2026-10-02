@@ -129,9 +129,7 @@ describe('filtro "com canhoto pendente" na lista de viagens (spec 223 T4.4)', ()
         filters,
         formatDay,
       }).map((pill) => pill.field),
-    ).toEqual([
-      'proofPendingEq',
-    ])
+    ).toEqual(['proofPendingEq'])
     expect(countActiveTripFilters(filters)).toBe(1)
     expect(clearTripFilterField({ field: 'proofPendingEq', filters })).not.toHaveProperty(
       'proofPendingEq',
