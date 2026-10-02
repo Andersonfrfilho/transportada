@@ -50,3 +50,40 @@ pode ser desligado e o código continua lá.
 
 Entra como **T1.11**, duas linhas, mesmo filtro. Não é a remoção do módulo — essa segue pendente de
 aprovação.
+
+## T1.3 — Teste de integração antes da implementação (vermelho)
+
+`apps/api-transportada/test/integration/current-driver-trip-concluded-window.integration.ts`, na
+lista de `test:integration` do `package.json` (logo depois de `me-trip-departure`). Molde de
+montagem: `me-trip-departure.integration.ts` (banco descartável, empresa, conta, motorista, veículo,
+viagem e tripulação reais). Chama `findCurrentDriverTrip` com os repositórios Drizzle — o caso de
+uso que `GET /me/trips/current` executa — e o `updatedAt` é posto com `now() - make_interval(...)`,
+o relógio do banco, o mesmo que a janela vai usar.
+
+Quatro casos: concluída dentro da janela (5 min) aparece com `completed`; cancelada dentro da janela
+aparece com `cancelled`; concluída fora da janela (120 min) não aparece; ativa antiga (`on_delivery_route`,
+120 min) continua aparecendo.
+
+⚠️ O worktree do Claude não tem `.env.test` (o link de `make worktree` não existe aqui), então o
+`--env-file` apontou para o `.env.test` do checkout principal (Postgres de teste em 65432, de pé):
+
+```bash
+cd apps/api-transportada
+bun --env-file=/Users/anderson.filho/Documents/personal/transportada/.env.test test --timeout 120000 \
+  ./test/integration/current-driver-trip-concluded-window.integration.ts
+```
+
+Resultado: **2 pass, 2 fail**, 4 expect() — os dois que falham são exatamente os que dependem da
+implementação, e pelo motivo certo (a consulta filtra a viagem concluída para fora, devolve `[]`):
+
+```text
+(fail) ... > concluída dentro da janela aparece com o status real
+  - [ { "id": "36458233-...", "status": "completed" } ]
+  + []
+(fail) ... > cancelada dentro da janela aparece com o status real
+  - [ { "id": "6c839b2d-...", "status": "cancelled" } ]
+  + []
+```
+
+Os dois que passam (fora da janela não aparece; ativa continua) são o contrato que a implementação
+**não pode** quebrar.
