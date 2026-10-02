@@ -39,7 +39,13 @@ import { freightCalculations } from './freight.schema.js'
 import { nfeDocuments } from './nfe.schema.js'
 import { storedObjects } from './storage.schema.js'
 import { inList } from './schema-check.constant.js'
-import { EVENT_LOCATION_STATES, type EventLocationState } from './event-location.schema.js'
+import {
+  buildEventLocationChecks,
+  buildEventLocationColumns,
+  buildEventLocationIndex,
+  EVENT_LOCATION_STATES,
+  type EventLocationState,
+} from './event-location.schema.js'
 
 /**
  * ADR-0067 §2: quem registrou o evento de campo — motorista pelo PWA, escritório em nome dele, ou
@@ -61,6 +67,16 @@ export const TRIP_FIELD_CHANNELS = {
   backoffice: 'backoffice',
 } as const
 export type TripFieldChannel = (typeof TRIP_FIELD_CHANNELS)[keyof typeof TRIP_FIELD_CHANNELS]
+
+/**
+ * Spec 196 D3: os canais em que o estado do ponto quer dizer alguma coisa — o app pede posição, e o
+ * WhatsApp é toque do motorista por outro meio. Escritório e backoffice nunca têm ponto, então ali
+ * o estado é `null` (não se aplica), e não `unavailable`.
+ */
+const EVENT_LOCATION_STATEFUL_CHANNELS = [
+  TRIP_FIELD_CHANNELS.driverApp,
+  TRIP_FIELD_CHANNELS.whatsapp,
+] as const
 
 /**
  * ADR-0043 §1: a viagem não fala com a SEFAZ, mas tem fases de barracão que `open|closed` não
@@ -487,6 +503,8 @@ export const tripStatusEvents = pgTable(
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
     /** ADR-0067 §3 / ADR-0068 "Consequências": igual a `trip_stop_events.recorded_at`. */
     recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Spec 196 D2 / `plan.md` §Dados: as cinco colunas de posição do evento. */
+    ...buildEventLocationColumns(),
   },
   (table) => [
     foreignKey({
@@ -555,6 +573,17 @@ export const tripStatusEvents = pgTable(
       'trip_status_events_to_status_check',
       sql`${table.toStatus} in (${raw(inList(TRIP_STATUSES))})`,
     ),
+    ...buildEventLocationChecks({
+      columns: table,
+      coordinateChannel: TRIP_FIELD_CHANNELS.driverApp,
+      statefulChannels: EVENT_LOCATION_STATEFUL_CHANNELS,
+      tableName: 'trip_status_events',
+    }),
+    buildEventLocationIndex({
+      latitude: table.latitude,
+      tableName: 'trip_status_events',
+      timeColumn: table.recordedAt,
+    }),
   ],
 )
 
@@ -1345,6 +1374,8 @@ export const tripStopOccurrences = pgTable(
       .default(TRIP_FIELD_CHANNELS.driverApp),
     /** ADR-0067 §2: só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
     onBehalfOfDriverId: uuid('on_behalf_of_driver_id'),
+    /** Spec 196 D2 / `plan.md` §Dados: as cinco colunas de posição do evento. */
+    ...buildEventLocationColumns(),
   },
   (table) => [
     foreignKey({
@@ -1427,6 +1458,17 @@ export const tripStopOccurrences = pgTable(
       'trip_stop_occurrences_office_driver_check',
       sql`${table.channel} <> 'office' or ${table.onBehalfOfDriverId} is not null`,
     ),
+    ...buildEventLocationChecks({
+      columns: table,
+      coordinateChannel: TRIP_FIELD_CHANNELS.driverApp,
+      statefulChannels: EVENT_LOCATION_STATEFUL_CHANNELS,
+      tableName: 'trip_stop_occurrences',
+    }),
+    buildEventLocationIndex({
+      latitude: table.latitude,
+      tableName: 'trip_stop_occurrences',
+      timeColumn: table.createdAt,
+    }),
   ],
 )
 
@@ -2036,6 +2078,8 @@ export const tripDocumentOccurrences = pgTable(
     cancelledByUserId: uuid('cancelled_by_user_id'),
     /** Teto de 500 (RF6) é validado na política — o banco só garante presença, não tamanho. */
     cancellationReason: text('cancellation_reason'),
+    /** Spec 196 D2 / `plan.md` §Dados: as cinco colunas de posição do evento. */
+    ...buildEventLocationColumns(),
   },
   (table) => [
     /**
@@ -2107,6 +2151,17 @@ export const tripDocumentOccurrences = pgTable(
       sql`(${table.cancelledAt} is null) = (${table.cancelledByUserId} is null)
         and (${table.cancelledAt} is null) = (${table.cancellationReason} is null)`,
     ),
+    ...buildEventLocationChecks({
+      columns: table,
+      coordinateChannel: TRIP_FIELD_CHANNELS.driverApp,
+      statefulChannels: EVENT_LOCATION_STATEFUL_CHANNELS,
+      tableName: 'trip_document_occurrences',
+    }),
+    buildEventLocationIndex({
+      latitude: table.latitude,
+      tableName: 'trip_document_occurrences',
+      timeColumn: table.createdAt,
+    }),
   ],
 )
 

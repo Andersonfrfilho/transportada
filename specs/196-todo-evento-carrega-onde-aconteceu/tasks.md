@@ -80,18 +80,25 @@ do usuário. A API não é revertida com a app nova no ar.
 > ficaram de fora: estado sem ponto não teria o que afirmar. A T1.3 (auditoria de leitura, RF12) não
 > foi feita.
 
-- [ ] **T1.1** Contrato de schema primeiro, em `test/trip-schema/events.contract.ts` (importado por
-      `test/trip-schema.contract.test.ts`):
+- [x] **T1.1** Contrato de schema primeiro, em `test/trip-schema/event-location.contract.ts`
+      (importado por `test/trip-schema.contract.test.ts` — o arquivo já existia pelo bloco de
+      `trip_stop_events`/`trip_delivery_proofs`, e as três tabelas novas entraram nele em vez de um
+      `events.contract.ts` separado):
   - nas três tabelas novas: as cinco colunas, os oito CHECKs do `plan.md` § Dados, com os nomes de lá,
     e o índice parcial;
   - em `trip_stop_events`: `location_state` e os três CHECKs de estado.
 
   Aceite: o contrato falha pelo motivo certo; a contagem subiu em N.
 
-- [ ] **T1.2** `database/event-location.schema.ts` (helpers e `EVENT_LOCATION_STATES`),
-      `trip.schema.ts` e a migration `drizzle/<timestamp>_event_location_stamp/`:
-  - `migration.sql` com o `UPDATE ... SET location_state = 'captured' WHERE latitude IS NOT NULL` de
-    `trip_stop_events`;
+- [x] **T1.2** `database/event-location.schema.ts` (fábricas e `EVENT_LOCATION_STATES`),
+      `trip.schema.ts` e a migration `drizzle/20261002033125_occurrence_location_stamp/`:
+  - `migration.sql` com as cinco colunas, os oito CHECKs e o índice parcial das **três** tabelas
+    novas. ⚠️ **Sem `UPDATE` nenhum**: o `UPDATE ... SET location_state = 'captured'` de
+    `trip_stop_events` já saiu na migration irmã (`20261001123700_event_location_stamp`), e as três
+    tabelas desta task nascem sem uma linha com coordenada. ⚠️ A pasta **não** pode terminar em
+    `_event_location_stamp`: é por esse sufixo que
+    `test/database-migration/static-migration.contract.ts` recorta o bloco da migration irmã, e duas
+    pastas com ele fariam cada asserção valer para a pasta errada;
   - `rollback.sql`, com o aviso de perda de dado e de ordem (API revertida antes) no topo;
   - `snapshot.json` do `db:generate`.
 

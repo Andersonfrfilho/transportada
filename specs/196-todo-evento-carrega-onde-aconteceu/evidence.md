@@ -1308,3 +1308,140 @@ três tabelas novas e todo o resto da T1.2 seguem.
 | `bun run lint` (api)                       | exit 0                                       |
 | `prettier --check` nos dois arquivos       | "All matched files use Prettier code style!" |
 | `test ./test/trip-schema.contract.test.ts` | 147 pass / 15 fail — vermelho pretendido     |
+
+## T1.2 — as três tabelas de ocorrência e status passam a carimbar onde o evento aconteceu
+
+As cinco colunas, os oito CHECKs e o índice parcial entraram em `trip_status_events`,
+`trip_stop_occurrences` e `trip_document_occurrences`. A estrutura partilhada mora em
+`src/database/event-location.schema.ts` como **três fábricas**, não como constante de módulo:
+`buildEventLocationColumns()`, `buildEventLocationChecks({ columns, coordinateChannel,
+statefulChannels, tableName })` e `buildEventLocationIndex({ latitude, tableName, timeColumn })`.
+
+### Por que fábrica, e não uma constante espalhada com spread
+
+A primeira forma óbvia — um `const EVENT_LOCATION_COLUMNS = { latitude: numeric(...), ... }`
+espalhado nas três `pgTable` com `...` — é defeito silencioso. O builder do Drizzle é **mutável**:
+ele recebe o nome e o `build()` da tabela que o consumiu. Compartilhar a mesma instância entre três
+tabelas faz a terceira sobrescrever o que as duas primeiras configuraram, e nada falha em voz alta.
+A estrutura partilhada precisa ser função chamada uma vez por tabela.
+
+Dois detalhes do mesmo arquivo, pelo mesmo motivo de ciclo e de ordem de avaliação:
+
+- `tableName` entra como **texto**, não via `getTableName`: dentro do segundo argumento da
+  `pgTable` a tabela ainda não existe, e o nome volta vazio.
+- os canais entram por **parâmetro** (`coordinateChannel`, `statefulChannels`) em vez de um import
+  de `TRIP_FIELD_CHANNELS` — o import fecharia ciclo com `trip.schema.ts`.
+- `raw` é helper local, não import do Drizzle: `trip.schema.ts:213` já declara o seu, e importar de
+  lá fecharia o mesmo ciclo.
+
+### A migration não tem `UPDATE`, e o nome da pasta é deliberado
+
+`drizzle/20261002033125_occurrence_location_stamp/` — 98 linhas, 66 statements separados por
+`--> statement-breakpoint`, nessa ordem: 15 `ADD COLUMN` agrupados por tabela, 24 CHECKs cada um
+`ADD CONSTRAINT ... NOT VALID` seguido do seu `VALIDATE CONSTRAINT` em comando separado, e os 3
+`CREATE INDEX ... WHERE "latitude" is not null` por último.
+
+Duas coisas que o `plan.md` e o `tasks.md` diziam errado e foram corrigidas na mesma passada:
+
+1. **Nenhum `UPDATE`.** O `UPDATE ... SET location_state = 'captured'` de `trip_stop_events` já
+   saiu na migration irmã (`20261001123700_event_location_stamp`), e as três tabelas desta task
+   nascem sem uma linha com coordenada — não há o que carimbar.
+2. **A pasta não pode terminar em `_event_location_stamp`.** É por esse sufixo que
+   `test/database-migration/static-migration.contract.ts:1845-1928` recorta o bloco da migration
+   irmã; duas pastas com ele fariam cada asserção daquele bloco valer para a pasta errada. O
+   sufixo escolhido (`_occurrence_location_stamp`) mantém os dois recortes disjuntos.
+
+O CHECK de consistência ficou na forma **nula-segura**, e isso não é estilo:
+
+```sql
+CHECK (("location_state" is not distinct from 'captured') = ("latitude" is not null))
+```
+
+A redação anterior do `plan.md` abria com `location_state is null or (...)`. CHECK que avalia `NULL`
+**passa** em Postgres, então a forma antiga aceitava exatamente a linha que ela diz barrar —
+coordenada gravada com estado nulo. `test/trip-schema/event-location.contract.ts:78,150` prende isso
+com `expect(checkSql).not.toContain('is null or')` no CHECK de consistência.
+
+`NOT VALID` + `VALIDATE CONSTRAINT` separado também é escolha de lock: `ADD CONSTRAINT` que valida
+toma ACCESS EXCLUSIVE com varredura cheia, enquanto `VALIDATE CONSTRAINT` toma só SHARE UPDATE
+EXCLUSIVE e não bloqueia leitura nem escrita. `CREATE INDEX CONCURRENTLY` fica fora de alcance: não
+roda dentro de bloco de transação, e o migrador aplica cada pasta numa transação.
+
+O `rollback.sql` (85 linhas) desce na ordem inversa — índice, constraint, coluna — sem `CASCADE`,
+com o aviso de perda de dado e o de ordem (**reverter a API antes**, senão a escrita falha 42703) no
+topo, e fecha com o bloco `DO $$ ... GET DIAGNOSTICS ... IF deleted_migrations <> 1 THEN RAISE
+EXCEPTION` que o contrato estático exige para a remoção do registro de migration.
+
+### O Docker estava fora, e a substituição está declarada
+
+`make migration-test` é `postgres-up` + `db:test` (`Makefile:206-209`), e o `postgres-up` não subiu:
+`Cannot connect to the Docker daemon at unix:///Users/anderson.filho/.docker/run/docker.sock`. Rodei
+o `db:test` — os oito arquivos listados em `apps/api-transportada/package.json:24` — contra um
+cluster **nativo descartável** do Homebrew (`/opt/homebrew/opt/postgresql@18/bin`,
+`PostgreSQL 18.4 (Homebrew) on aarch64-apple-darwin25.4.0`) em `/private/tmp/claude-502/pg-mig-196`,
+porta `65490`, `--auth=trust`, banco `transportada_migration`. O cluster foi parado e apagado depois.
+
+Isso **não é** o caminho que o Makefile prescreve, e está escrito aqui para quem revisar não
+confundir: a suíte é a mesma e o Postgres é a mesma major, mas o contêiner do `compose.yaml` não
+participou desta medição.
+
+### Um defeito achado pela execução, de outra spec, commitado à parte
+
+A primeira execução do `db:test` deu **1 fail de 114**, e não era da 196:
+`test/database-migration/delivery-proof-contractor-overrides.assertion.ts:76` (spec 218) afirmava
+SQLSTATE `23503` para uma sonda de `ON DELETE RESTRICT`. O Postgres 18 responde `23001`
+(`restrict_violation`); versões anteriores, `23503`. O irmão
+`cte-profile-output-constraints.assertion.ts` já aceitava os dois — era o modelo, não o perigo.
+Corrigido para aceitar o par, commitado **sozinho** em `0659a481b`, fora do lote da T1.2.
+
+A falha disparou **depois** de `runDatabaseMigrations` passar, o que já dizia o principal: a migration
+da 196 aplicou, restringiu, reverteu e reaplicou corretamente desde a primeira execução.
+
+### Portões
+
+| Portão                                                      | Resultado                                                                               |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `bun run typecheck` (api)                                   | exit 0                                                                                  |
+| `test ./test/trip-schema.contract.test.ts`                  | **162 pass · 0 fail · 649 expect()** — eram 147 pass / 15 fail na T1.1 vermelha         |
+| `DESTRUCTIVE_MIGRATION_PATTERN` sobre a `migration.sql`     | nenhuma correspondência, em 66 statements                                               |
+| `bun run db:generate`                                       | `{"status":"no_changes","dialect":"postgresql"}`                                        |
+| `test ./test/database-migration.contract.test.ts`           | **74 pass · 4 skip · 0 fail · 869 expect()** (os 4 skips são os dois `.integration.js`) |
+| `db:test` (equivalente do `make migration-test`, ver acima) | **114 pass · 0 fail · 1673 expect() · 8 arquivos · [26.19s]**                           |
+
+`schema-snapshot.contract.ts` está dentro da terceira linha — conferido no entrypoint, não presumido.
+O `no_changes` do `db:generate` apesar da ordem de statements escrita à mão tem explicação: o
+drizzle-kit compara o schema TS contra o `snapshot.json`, nunca contra o texto do SQL.
+
+### O que continua bloqueado, e por quem
+
+Inalterado desde a T1.1: `_location_state_channel_check` **em `trip_stop_events`** segue fora, à
+espera de alguém com acesso rodar em produção
+
+```sql
+select count(*) from trip_stop_events where latitude is not null and channel <> 'driver_app';
+```
+
+Staging deu zero (39 linhas, 37 com coordenada, 0 fora do `driver_app`). Produção foi recusada pelo
+classificador, motivo `[Production Reads]`. **Nada das três tabelas desta task depende disso.**
+
+### A pasta foi conferida contra `origin/staging`, e a ordem não importa aqui
+
+`git ls-tree origin/staging apps/api-transportada/drizzle/` não tem `20261002033125` nem qualquer
+pasta com o sufixo `_occurrence_location_stamp` — sem colisão de nome. Mas staging **já tem**
+`20261002120000_trip_canhoto_read_job`, de outra sessão, com timestamp **posterior** ao meu: depois do
+rebase a minha migration fica fora de ordem no meio da lista.
+
+Isso seria defeito no migrador antigo, que comparava `folderMillis` contra o `created_at` da última
+migration aplicada e **pularia em silêncio** a pasta com timestamp menor. Não é o caso aqui. No
+`drizzle-orm@1.0.0-rc.4`, `getMigrationsToRun` (`migrator.utils.js:11-15`) filtra por **conjunto de
+nomes**:
+
+```js
+const dbNamesSet = new Set(dbMigrations.map((m) => m.name).filter((n) => n !== null))
+return localMigrations.filter((lm) => !lm.name || !dbNamesSet.has(lm.name))
+```
+
+Pasta cujo nome não está no journal roda, qualquer que seja o timestamp. E `assertMigrationsAreComplete`
+(`migration-completeness.service.ts`) confere o mesmo conjunto depois do `migrate()`, então um pulo
+reprovaria o pre-deploy em voz alta em vez de passar com o banco pela metade. **Nenhum rename é
+necessário.**

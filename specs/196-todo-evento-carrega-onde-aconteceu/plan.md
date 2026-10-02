@@ -244,7 +244,11 @@ reprova — a lista de rotas vem de `createMeTripRoutes`, não de texto.
 
 ## Dados, migration e rollback
 
-Uma migration, `drizzle/<timestamp>_event_location_stamp/`, aditiva:
+Duas migrations aditivas, uma por bloco de tabelas — `drizzle/<timestamp>_event_location_stamp/`
+para as duas que já tinham coordenada, e `drizzle/<timestamp>_occurrence_location_stamp/` para as
+três que não tinham nenhuma. Separadas de propósito: o sufixo `_event_location_stamp` é o recorte
+de `test/database-migration/static-migration.contract.ts`, e duas pastas com ele fariam cada
+asserção daquele bloco valer para a pasta errada.
 
 ```sql
 -- para cada <t> em trip_status_events, trip_stop_occurrences, trip_document_occurrences
@@ -263,20 +267,26 @@ ALTER TABLE <t> ADD CONSTRAINT <t>_location_state_check
 ALTER TABLE <t> ADD CONSTRAINT <t>_location_state_channel_check
   CHECK (location_state IS NULL OR channel IN ('driver_app','whatsapp'));
 ALTER TABLE <t> ADD CONSTRAINT <t>_location_state_consistency_check
-  CHECK (location_state IS NULL OR ((location_state = 'captured') = (latitude IS NOT NULL)));
+  CHECK ((location_state IS NOT DISTINCT FROM 'captured') = (latitude IS NOT NULL));
 CREATE INDEX <t>_located_<tempo>_idx ON <t> (<created_at|recorded_at>) WHERE latitude IS NOT NULL;
 
--- trip_stop_events: só o estado (as coordenadas já existem)
-ALTER TABLE trip_stop_events ADD COLUMN location_state varchar(16);
-UPDATE trip_stop_events SET location_state = 'captured' WHERE latitude IS NOT NULL;
--- + _location_state_check, _location_state_channel_check e _location_state_consistency_check
+-- trip_stop_events e trip_delivery_proofs: só o estado (as coordenadas já existem) —
+-- já aplicado em drizzle/20261001123700_event_location_stamp/, com o UPDATE que carimba
+-- 'captured' na linha que tem coordenada.
 ```
 
+⚠️ `IS NOT DISTINCT FROM` não é enfeite de estilo: a primeira redação deste CHECK abria com
+`location_state IS NULL OR`, e CHECK que avalia `NULL` **passa** em Postgres — a forma antiga aceitava
+exatamente a linha que ela diz barrar (coordenada gravada com estado nulo). A asserção que prende o
+texto inteiro é `test/trip-schema/event-location.contract.ts`.
+
 - `ADD COLUMN` anulável sem default é só catálogo. Os CHECKs validam as linhas existentes, que têm
-  tudo `null` nas colunas novas — passam. O `UPDATE` de `trip_stop_events` toca só as linhas com
-  coordenada dos últimos 90 dias (o expurgo apagou o resto) — medir a contagem em staging e produção
-  antes (T1.2) e registrar; acima de 100 mil linhas, sai em lotes num script à parte, fora da
-  transação da migration.
+  tudo `null` nas colunas novas — passam. O `UPDATE` de `trip_stop_events` já saiu na migration irmã;
+  a de ocorrência/status **não tem `UPDATE` nenhum**, porque as três tabelas nascem sem linha com
+  coordenada. Cada CHECK entra `NOT VALID` e é validado em comando separado: `ADD CONSTRAINT` que
+  valida toma ACCESS EXCLUSIVE com varredura cheia, enquanto `VALIDATE CONSTRAINT` toma só SHARE
+  UPDATE EXCLUSIVE e não bloqueia leitura nem escrita. `CREATE INDEX CONCURRENTLY` fica fora de
+  alcance: não roda dentro de bloco de transação, e o migrador aplica cada pasta numa transação.
 - As linhas antigas de `trip_stop_events` com coordenada e canal `whatsapp`/`office` não existem
   (conferir na T1.2 com uma consulta; se existirem, o CHECK de canal do estado não entra nessa tabela
   e o achado vai para `evidence.md`).
