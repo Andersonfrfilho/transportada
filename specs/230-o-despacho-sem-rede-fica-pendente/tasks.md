@@ -14,4 +14,4 @@
       recusa).
 - [x] **T1.5** 🧠 Revisão de design: prints do botão, do estado pendente e da tela de pendências, 375 px,
       claro e escuro.
-- [ ] **T1.6** Publicar em staging depois da aprovação do usuário nos prints.
+- [x] **T1.6** Publicado em staging depois da aprovação do usuário nos prints (03/10/2026).

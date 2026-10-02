@@ -24,7 +24,7 @@ falhavam (o tipo `dispatch` não existia).
 
 ## Gates
 
-Sobre `origin/staging` em `012f6c8a4`: `format:check` limpo; typecheck e lint em exit 0 nas duas apps;
+Sobre `origin/staging` em `318ade129` (reaplicado depois da correção de UI do copiar/câmera): `format:check` limpo; typecheck e lint em exit 0 nas duas apps;
 app do motorista 1038 pass / 0 fail; painel 6261 pass / 0 fail e `test:hooks` 248 / 0; smoke completo do
 app do motorista 29 passed.
 
