@@ -34,6 +34,7 @@
 - [x] **T3.1** Prova por mutação (6 mutações) — evidência em `evidence.md`.
 - [x] **T3.2** `typecheck`, `lint`, `bun run test` das duas apps e `prettier --check` —
       evidência em `evidence.md`.
-- [ ] **T3.3** 🧠 Revisão de design e usabilidade com o print do cartão da parada: a ocorrência de
+- [x] **T3.3** 🧠 Revisão de design e usabilidade com o print do cartão da parada: a ocorrência de
       nota agora mostra o selo "na fila"/"enviada" em vez de "registrada às HH:MM"; conferir no
       preview local (`motorista-local` + `motorista-api-demo`) antes de subir a staging.
+      — Feita em 02/10: o preview achou a cópia "com foto" (D7), corrigida; prints em `prints/`.

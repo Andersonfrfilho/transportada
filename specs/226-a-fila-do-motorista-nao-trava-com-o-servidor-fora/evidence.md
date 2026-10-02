@@ -33,7 +33,12 @@ Restaurado: 892 pass / 0 fail (app novo, contrato do driver-trip) e 284 / 0 (leg
 - `prettier --check` nos arquivos tocados: limpo.
 - `grep registerDocumentOccurrence apps/frontend-driver/src`: vazio.
 
-## Pendente
+## Revisão de design (T3.3)
 
-- **T3.3** — revisão de design e print do cartão da parada no preview local. Não foi feita: a tela só
-  sobe a staging depois de o usuário ver. Por isso esta spec **não foi publicada**.
+- Keycloak local subido com `make up SERVICES=keycloak`; prints gerados com
+  `test/spec-226-prints.smoke.spec.ts` (login real, API de smoke), 375 px, claro e escuro, em
+  `prints/nota-sem-foto-{na-fila,enviada}-375-{light,dark}.png`.
+- Achado: o selo dizia "Ocorrência **com foto** na fila" para a ocorrência sem foto. Corrigido (D7).
+- Smoke de ocorrência/fila depois da troca de cópia: 8 passed.
+- No print "enviada" aparecem "Entreguei"/"Não entreguei" porque o dublê da API do smoke marca
+  qualquer `POST` de parada/nota como chegada — artefato do mock, não do produto.

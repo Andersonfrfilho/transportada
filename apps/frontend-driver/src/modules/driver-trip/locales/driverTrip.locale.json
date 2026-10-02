@@ -35,7 +35,7 @@
       "cancelDeparture": "Cancelamento de rota",
       "depart": "Iniciar rota",
       "deliver": "Entrega",
-      "documentOccurrence": "Ocorrência com foto",
+      "documentOccurrence": "Ocorrência da nota",
       "occurrence": "Ocorrência",
       "proof": "Comprovante",
       "proofReceiver": "Quem recebeu",
@@ -429,9 +429,9 @@
     },
     "withoutOccurrence": "Sem os tipos de ocorrência, a devolução segue só com o motivo — agora não há onde registrar a foto.",
     "status": {
-      "queued": "Ocorrência com foto na fila — sobe quando o sinal voltar.",
-      "sent": "Ocorrência com foto enviada.",
-      "rejected": "O servidor recusou a ocorrência com foto. Veja em eventos pendentes."
+      "queued": "Ocorrência na fila — sobe quando o sinal voltar.",
+      "sent": "Ocorrência enviada.",
+      "rejected": "O servidor recusou a ocorrência. Veja em eventos pendentes."
     }
   },
   "startRoute": {

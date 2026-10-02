@@ -39,6 +39,12 @@ falha que não é dele.**
   HH:MM" só após o `POST`. Agora: o selo `DriverNotDeliveredStatus` ("na fila" / "enviada" /
   "recusada"), o mesmo da ocorrência com foto, mais o aviso transitório de sempre.
 
+- **D7 — A cópia do selo deixa de dizer "com foto".** Achado no preview (T3.3): o selo e o rótulo
+  da tela de pendentes diziam "Ocorrência com foto na fila/enviada" e passariam a aparecer também
+  para a ocorrência **sem** foto. Ficam neutros: "Ocorrência na fila — sobe quando o sinal voltar.",
+  "Ocorrência enviada.", "O servidor recusou a ocorrência. Veja em eventos pendentes." e, na tela de
+  eventos pendentes, "Ocorrência da nota". As asserções do smoke e da 179 acompanham.
+
 ## Fora de escopo (e por quê)
 
 - **Despachar a viagem continua online-only.** Muda o estado da viagem (`route_planned` →

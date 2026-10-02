@@ -916,7 +916,7 @@ test('Não entreguei: ocorrência com foto sobe direto ao storage, depois a devo
 
   await fillNotDelivered(page)
 
-  await expect(page.getByText('Ocorrência com foto enviada.')).toBeVisible()
+  await expect(page.getByText('Ocorrência enviada.')).toBeVisible()
   const paths = api.reports().map((report) => report.path.replace(/[0-9a-f-]{36}/gu, ':id'))
   expect(paths).toEqual([
     '/me/trips/current/stops/:id/arrive',
@@ -1010,7 +1010,7 @@ test('ocorrência de nota com foto: a foto sobe antes, e o registro leva o anexo
   await expect(form.getByText('Foto da ocorrência anexada')).toBeVisible()
   await form.getByRole('button', { exact: true, name: 'Registrar' }).click()
 
-  await expect(page.getByText('Ocorrência com foto enviada.')).toBeVisible()
+  await expect(page.getByText('Ocorrência enviada.')).toBeVisible()
   const paths = api.reports().map((report) => report.path.replace(/[0-9a-f-]{36}/gu, ':id'))
   expect(paths).toEqual([
     '/me/trips/current/documents/:id/occurrence-uploads',
@@ -1032,24 +1032,22 @@ test('Não entreguei sem sinal: foto e ocorrência na fila, e "enviado" só depo
 
   await fillNotDelivered(page)
 
-  await expect(
-    page.getByText('Ocorrência com foto na fila — sobe quando o sinal voltar.'),
-  ).toBeVisible()
+  await expect(page.getByText('Ocorrência na fila — sobe quando o sinal voltar.')).toBeVisible()
   // Pedido do usuário (25/09): "Cheguei" entrou na mesma fila — chegada + ocorrência + devolução.
   await expect(page.getByText('3 confirmações aguardando envio')).toBeVisible()
-  await expect(page.getByText('Ocorrência com foto enviada.')).toHaveCount(0)
+  await expect(page.getByText('Ocorrência enviada.')).toHaveCount(0)
   expect(api.storageUploads()).toEqual([])
   expect(api.reports().filter((report) => report.path.endsWith('/occurrences'))).toEqual([])
 
   await page.getByRole('button', { name: /confirmações aguardando envio/u }).click()
-  await expect(page.getByText('Ocorrência com foto')).toBeVisible()
+  await expect(page.getByText('Ocorrência da nota')).toBeVisible()
   await expect(page.getByText('1 anexo')).toBeVisible()
   await page.getByRole('button', { name: 'Voltar' }).click()
 
   api.setOffline(false)
   await page.evaluate(() => window.dispatchEvent(new Event('online')))
 
-  await expect(page.getByText('Ocorrência com foto enviada.')).toBeVisible()
+  await expect(page.getByText('Ocorrência enviada.')).toBeVisible()
   expect(api.storageUploads()).toHaveLength(1)
   expect(api.reports().map((report) => report.path.split('/').at(-1))).toEqual([
     'arrive',
