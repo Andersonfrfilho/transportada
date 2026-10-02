@@ -524,3 +524,11 @@ Gates (apps/frontend-transportada): `typecheck` exit 0 · `lint` 0 erros, 16 avi
 ⚠️ O círculo do raio **não é desenhado no mapa** (o `AssemblyVectorMap` não tem camada de círculo e não há teste
 renderizável de WebGL); o raio aparece como linha de texto. Mapa agregado do canvas também não foi trazido: cada
 evento mantém o "Ver no mapa" próprio. Pendência para a T6.1.
+
+## T6.2 — Documentação viva
+
+Seção "A nota se abre inteira (spec 227)" em `docs/ai-context/frontend-transportada.md` e "Spec 227 — a nota
+se abre inteira" em `docs/ai-context/api-transportada.md`; ponteiros de poucas linhas nos `CLAUDE.md` das duas
+apps. As seções da 226 já existiam nos dois documentos e não foram repetidas. Nomes de arquivo e símbolos
+conferidos por `ls`/`grep` antes de citar. Registrado o desvio da D6 (raio da empresa, não do contratante) e
+a armadilha de ordem de publicação do validador do comprovante. Só documentação: nenhum código tocado.

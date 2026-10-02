@@ -889,3 +889,38 @@ A fiação é **contexto, não prop drilling**, e por regra: o caminho
 - ⚠️ Pendência conhecida: a nota **sem parada** ainda não diz que entra só no rateio (RF7). A API não
   manda esse indicador, e **inferir por "gasto de trecho zero"** seria errado — uma nota com parada pode
   ter trecho de distância zero legitimamente.
+
+## A nota se abre inteira (spec 227)
+
+Em `/trips/:id`, a linha da nota é um **acordeão de abertura exclusiva**: `useOpenTripDocument`
+guarda o id da nota aberta **na lista**, não em cada linha — é isso que fecha a anterior ao abrir outra
+e que deixa a âncora da linha do tempo (`#…`, `parseTripTimelineDocumentHref`) abrir a nota que ela
+aponta. O checkbox de seleção **não** abre nem fecha, e o cabeçalho não aninha checkbox em botão
+(`document-row-structure.contract.ts`, da 181, segue sem afrouxar).
+
+A nota aberta tem quatro seções, nesta ordem:
+
+- **Dados da nota** (`TripDocumentData`): série, CNPJ formatado, volumes e, com `trip.financials`, o
+  custo e o lucro da 226. Cada campo tem `CopyButton` com rótulo que diz **o que** copia. Sem
+  permissão, volume ou CNPJ não sobra rótulo vazio. **Ver cliente** é o `DeliveryClientLink`: `<a href>`
+  para `/clientes?name=<nome>` (`buildDeliveryClientSearchRoute`), e a lista de clientes lê o `name` da
+  URL como busca inicial (`readDeliveryClientSearchFromLocation`).
+- **Ocorrências** (`TripDocumentOccurrences`): seção própria, um link por ocorrência
+  (`navigateToTripOccurrence`), vazio dito.
+- **Comprovante**: dois selos independentes (`TripDocumentProofBadges`), o da **conferência** do
+  canhoto e o da **pontualidade** da baixa. Nenhum esconde o outro — recusado **e** longe do ponto diz as
+  duas coisas. Sem comprovante, ou sem nada a dizer, não há selo (nunca rótulo vazio). Os dados vêm de
+  `GET /trips/:id/delivery-proofs`.
+- **Eventos desta entrega** (`TripDocumentEvents`): lê `GET /trips/:id/timeline?documentId=` por
+  `useTripDocumentTimelineQuery`, na ordem cronológica. O `stop.departed` diz **"Saída para esta
+  parada"**. O raio ("Raio tolerado da parada: N m") só é escrito quando o comprovante o trouxe — nunca
+  um número suposto. O círculo **não** é desenhado no mapa (`AssemblyVectorMap` não tem camada de
+  círculo). "Foto do canhoto" e "Endereço geocodificado" como eventos são da spec 228.
+
+⚠️ **Armadilha de ordem de publicação.** `isDeliveryProof` (`tripResponse.validation.ts`) recusa chave
+desconhecida, e `tripDeliveryProofsFromApi` descarta o **item inteiro**: uma API que mande um campo
+novo para um painel que não o conhece faz **todo comprovante sumir da tela**, sem erro. O painel
+aceita `proofRadiusMeters` (`DELIVERY_PROOF_OPTIONAL_KEYS`, `trip.constant.ts`) **antes** de a API
+mandá-lo; campo novo no comprovante entra na lista **antes ou junto**.
+
+A seção da spec 226 (gasto e lucro por nota) está acima.

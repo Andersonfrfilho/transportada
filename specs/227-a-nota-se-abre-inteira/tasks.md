@@ -87,7 +87,7 @@ Nenhum `[NEEDS CLARIFICATION]` aberto nesta spec.
       defeito corrigido ou pendência declarada. Olha estrutura, ordem, vocabulário, cor e estados — **não** os
       números (D10). **Exige o ok explícito do usuário** (web.md §15). Levar junto a ressalva da 228 D12: a
       "Foto do canhoto" é evento derivado de `trip_delivery_proofs`, sem tabela nova — confirmar com o usuário.
-- [ ] **T6.2** Documentação viva: `docs/ai-context/frontend-transportada.md` (e `api-transportada.md`).
+- [x] **T6.2** Documentação viva: `docs/ai-context/frontend-transportada.md` (e `api-transportada.md`).
 - [ ] **T6.3** Portão completo na raiz, um comando por vez em primeiro plano; `format:check` é gate **só da
       raiz** e a spec em markdown entra nele.
 - [ ] **T6.4** Revisão por `code-reviewer` em `opus`, com **cinco políticas de permissão na mesma tela** e a

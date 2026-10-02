@@ -679,3 +679,9 @@ fica na `0.1.0` dos pacotes por dívida de formato de migration do pacote, não 
   `POST /whatsapp-command-requests/:id/settlement` (máquina, `whatsapp.settle`).
 
 Detalhe completo: docs/ai-context § "O WhatsApp vira canal de comando".
+
+## A nota se abre inteira (spec 227)
+
+`GET /trips/:id/timeline?documentId=`, `volumeCount` no detalhe da nota e `proofRadiusMeters` em
+`/trips/:id/delivery-proofs` — este é o raio **da empresa**, não por contratante (raio por contratante
+pede migration). Detalhe: docs/ai-context § "Spec 227 — a nota se abre inteira".

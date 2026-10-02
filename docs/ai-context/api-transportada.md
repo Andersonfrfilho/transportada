@@ -2199,3 +2199,25 @@ existia): paradas e eventos da viagem inteira de uma vez. O teste de integraçã
 ⚠️ A prévia (`POST /trips/valuation-preview`) e a sugestão multi-veículo passam pelo mesmo
 `buildValuationFromContext` **sem** trechos e paradas: as linhas delas saem `unavailable`, com
 `taxAmount` calculado. É por isso que os oito campos são **opcionais** na resposta.
+
+## Spec 227 — a nota se abre inteira (o que a API devolveu ao painel)
+
+Três leituras ganharam campo ou filtro, todas aditivas:
+
+- **`GET /trips/:id/timeline?documentId=<uuid>`** filtra a linha do tempo **no servidor** pela nota
+  (`trip-timeline.schema.ts`; `documentId` que não é UUID dá 400, e a chave entra em `ALLOWED_KEYS`).
+  Mantém a permissão de leitura de localização do evento (`trip.event-location`) e o isolamento por
+  empresa. O teto de `limit` é o da rota (1..200, padrão 100), não o de `readPaging`.
+- **`volumeCount`** em cada nota do detalhe da viagem (`serializeTripDocumentDetail`), por uma consulta
+  só para a viagem inteira (`trip-document-volume.query.ts`) — sem N+1, com contrato de tenant.
+- **`proofRadiusMeters`** (metros, opcional) em cada item de `GET /trips/:id/delivery-proofs`. É o raio
+  **da empresa** (`company_delivery_proof_settings`, ou 300 m de fábrica), a mesma fonte que o juiz da
+  captura usa — **não** por contratante. A premissa da D6 ("resolvido por contratante, como a 218") não
+  se sustentou: a 218 só resolve por contratante os modos dos campos, e a tabela de exceção não tem a
+  coluna do raio (ADR-0070: a regra é da empresa). Raio por contratante exigiria migration. A rota segue
+  em `fleet.read`; o leitor **não** precisa de `settings.manage`. Sem número finito e positivo o campo
+  **não vai** (nunca zero), e viagem sem comprovante devolve `[]` sem consultar a configuração.
+
+⚠️ Campo novo no comprovante só pode ir para staging **depois** de o painel aceitá-lo: o validador do
+painel descarta o item inteiro que traga chave desconhecida (ver `frontend-transportada.md`, § "A nota
+se abre inteira"). O rateio de custo da 226 está acima, em "Spec 226".
