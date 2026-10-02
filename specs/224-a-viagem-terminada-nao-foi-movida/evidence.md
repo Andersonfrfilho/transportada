@@ -251,3 +251,25 @@ sequência "a viagem já estava terminal e saiu da lista". Os outros dois casos 
 **aparece** com status terminal) continuam passando, e isso é correto — eles são protegidos pela
 presença na lista (`currentTripIds.has`), não pelo guard. As duas metades do teste cobrem coisas
 diferentes, e a mutação mostrou qual é qual.
+
+## T1.9 — Revisão de design (CA6, `web.md` §15)
+
+`apps/frontend-driver/test/spec-224-prints.smoke.spec.ts`, fora do smoke da CI. Rodado com o
+Keycloak local (realm `transportada-local` respondendo 200) e a resposta da API servindo **uma
+viagem `completed`**, que é o que a janela da T1.4 passou a devolver.
+
+```
+PLAYWRIGHT_TEST_MATCH=spec-224-prints.smoke.spec.ts ... bunx playwright test
+4 passed (7.9s) — 375 dark, 768 dark, 1280 dark, 375 light
+```
+
+Cada print afirma, antes de fotografar: "Nada para hoje" visível, o texto do aviso de reatribuição
+com **contagem zero**, e o botão "Entendi" do aviso com contagem zero. Print que passasse sem essas
+três asserções não provaria nada — a ausência é justamente o que esta spec entrega.
+
+Conferido a olho nos quatro: cabeçalho, título "Minha viagem" e a frase de estado vazio, sem cartão
+de viagem e sem faixa de aviso. Sem corte de texto nem scroll horizontal nas três larguras.
+
+**Pendência registrada, não consertada** (§15.4): o estado vazio é um `<p>` solto, enquanto o resto
+da tela usa cartões do design system. É anterior a esta spec (o texto `noTrip` já existia) e
+consertá-lo aqui misturaria assunto — fica anotado para quem mexer na tela vazia.
