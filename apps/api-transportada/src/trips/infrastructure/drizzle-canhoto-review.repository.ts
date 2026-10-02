@@ -29,7 +29,6 @@ import type { TripQueryable } from './trip-queryable.type.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
-const CANHOTO_REVIEW_PERMISSION = 'trip.manage'
 const CANHOTO_REVIEW_ENTITY_TYPE = 'trip_delivery_proof'
 const CANHOTO_REVIEW_TARGET_TYPE = 'trip'
 
@@ -168,7 +167,7 @@ async function insertCanhotoReviewAudit(
       ipAddress: entry.ipAddress,
       ...(entry.reason === null ? {} : { reason: entry.reason }),
     },
-    permission: CANHOTO_REVIEW_PERMISSION,
+    permission: entry.permission,
     targetId: entry.tripId,
     targetType: CANHOTO_REVIEW_TARGET_TYPE,
   })

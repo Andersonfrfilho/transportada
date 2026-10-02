@@ -484,3 +484,29 @@ Mutações (suíte do canhoto):
 - sem `.strict()` no schema do robô → **7 fail** (`action`, veredito, origem, empresa, chave de acesso);
 - policy da rota do robô trocada para `trip.manage` → **16 fail**;
 - restaurado: 96 / 0.
+
+### T3.6 — a trilha por comprovante só no canal do robô
+
+Desenho: a **rota** escolhe o canal (`CanhotoReviewChannel`: `person` na rota de gente, `service` na
+rota do robô) e o entrega ao caso de uso em `ReviewCanhotoProofInput.channel` — o corpo não tem
+como mandá-lo (a rota de gente com `channel` no corpo é 400). `reviewCanhotoProof` monta a trilha
+em `buildAuditEntry`: ramo automático só grava com `channel === 'service'` (ação
+`trip.canhoto-review.automatic`, ator = usuário do serviço, `reason: null`, sem nota nem leitura);
+approve/reject seguem como antes. `CanhotoReviewAuditEntry` ganhou `permission` (a trilha do robô
+registra `trip.canhoto-auto-review`; a de gente segue `trip.manage`) e o repositório deixou de
+fixar `trip.manage`. Só grava quando a decisão é `apply`: sobre veredito humano (`unchanged`) não
+há escrita nem trilha.
+
+Vermelho de antes (`canhoto-review.contract.test.ts`): **97 pass / 5 fail** — trilha do robô (2),
+`permission` na trilha de gente (1), canal na rota do robô (1) e canal por rota (1).
+Verde de depois: **102 pass / 0 fail**; contrato da API inteiro **8521 pass / 9 fail** (os 9 do toll
+booth); `tsc` limpo (pegou `me-trip.integration.ts`, que chamava o caso de uso sem canal: ganhou
+`channel: 'person'`), eslint e prettier limpos.
+
+Mutações (suíte do canhoto, 102 asserções):
+
+- tirar o filtro `channel !== 'service'` → **1 fail** (canal de pessoa passa a deixar trilha);
+- permissão da trilha do robô trocada por `trip.manage` → **1 fail**;
+- rota do robô com `channel: 'person'` → **2 fail**;
+- trilha nunca gravada → **4 fail**;
+- restaurado: 102 / 0.

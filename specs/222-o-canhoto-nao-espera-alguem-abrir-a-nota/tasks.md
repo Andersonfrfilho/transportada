@@ -92,7 +92,7 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
       caso de uso, com **schema próprio**: os quatro campos de leitura `nullable()` e
       **obrigatórios**, nunca `optional()` (com `exactOptionalPropertyTypes` o ausente chega
       `undefined` e `assertReadingIsConsistent` compara contra `null`). A rota de gente não muda
-- [ ] T3.6 O caminho do robô grava `audit_logs` por comprovante (ação
+- [x] T3.6 O caminho do robô grava `audit_logs` por comprovante (ação
       `trip.canhoto-review.automatic`, ator = usuário do serviço, sem PII) — hoje
       `reviewCanhotoProof` **pula** `insertAudit` quando a ação é automática, e é essa linha que
       muda, só para o canal do robô (RF-B10, CA19)

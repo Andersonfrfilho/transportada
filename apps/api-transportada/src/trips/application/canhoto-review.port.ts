@@ -47,6 +47,13 @@ export type CanhotoReviewView = Readonly<{
 }>
 
 /**
+ * Por onde o veredito chegou, decidido pela **rota** e nunca pelo corpo. `person` é o navegador, com
+ * gente logada olhando; `service` é o robô de canhoto (spec 222), cross-tenant e desacompanhado —
+ * só ele deixa trilha no ramo automático.
+ */
+export type CanhotoReviewChannel = 'person' | 'service'
+
+/**
  * `security.md` §10: ator, alvo, IP e instante. O IP viaja em `metadata` na persistência — a tabela
  * não tem coluna própria — e o **texto livre nunca entra**: só o motivo da lista fechada (RF31).
  */
@@ -56,6 +63,7 @@ export type CanhotoReviewAuditEntry = Readonly<{
   companyId: string
   correlationId: string
   ipAddress: string
+  permission: string
   proofId: string
   reason: TripDeliveryProofCanhotoReviewReason | null
   tripId: string
@@ -92,6 +100,7 @@ export type CanhotoReviewUnitOfWork = {
 /** O que a rota entrega ao caso de uso. `companyId` e `actorUserId` vêm do contexto autenticado. */
 export type ReviewCanhotoProofInput = {
   readonly actorUserId: string
+  readonly channel: CanhotoReviewChannel
   readonly command: CanhotoReviewCommand
   readonly companyId: string
   readonly correlationId: string

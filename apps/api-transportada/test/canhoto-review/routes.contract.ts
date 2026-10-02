@@ -309,6 +309,7 @@ describe('a rota do robô é de uma permissão só (CA13)', () => {
     expect(await response.json()).toEqual({ data: VIEW })
     expect(fixture.calls[0]).toMatchObject({
       actorUserId: COMPANY_CONTEXT.userId,
+      channel: 'service',
       command: { action: 'automatic', ...ROBOT_READING },
       companyId: COMPANY_CONTEXT.companyId,
       documentId: DOCUMENT_ID,
@@ -385,5 +386,18 @@ describe('o corpo do robô não aceita ação nem veredito (CA16)', () => {
   test('a rota de gente continua aceitando `automatic` (o navegador não muda)', async () => {
     const fixture = createFixture({})
     expect((await patch(fixture, AUTOMATIC_READING)).status).toBe(200)
+  })
+
+  test('o canal sai da rota, nunca do corpo: gente é `person`, o robô é `service`', async () => {
+    const fixture = createFixture({ permissions: new Set(['trip.manage', ...SERVICE_PERMISSIONS]) })
+    await patch(fixture, AUTOMATIC_READING)
+    await patch(fixture, { action: 'approve' })
+    await patchAutomatic(fixture, ROBOT_READING)
+    expect(fixture.calls.map((call) => (call as { channel: string }).channel)).toEqual([
+      'person',
+      'person',
+      'service',
+    ])
+    expect((await patch(fixture, { ...AUTOMATIC_READING, channel: 'service' })).status).toBe(400)
   })
 })

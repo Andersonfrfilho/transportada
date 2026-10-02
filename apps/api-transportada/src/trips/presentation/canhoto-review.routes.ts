@@ -18,7 +18,11 @@ import type { ClientIpResolver } from '../../http/client-ip.service.js'
 import { parseOptionalBody, parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import { API_TRIPS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
-import type { CanhotoReviewCommand, CanhotoReviewPort } from '../application/canhoto-review.port.js'
+import type {
+  CanhotoReviewChannel,
+  CanhotoReviewCommand,
+  CanhotoReviewPort,
+} from '../application/canhoto-review.port.js'
 
 const TRIP_MANAGE_POLICY = { permission: 'trip.manage', scope: 'company' } as const
 const CANHOTO_AUTO_REVIEW_POLICY = {
@@ -91,6 +95,7 @@ export type CanhotoReviewRoutesDependencies = {
 }
 
 type ReviewRouteInput = {
+  readonly channel: CanhotoReviewChannel
   readonly command: CanhotoReviewCommand
   readonly correlationId: string
   readonly documentId: string
@@ -138,6 +143,7 @@ export function createCanhotoReviewRoutes(
   }): Promise<Response> {
     const view = await canhotoReview.review({
       actorUserId: context.scope.userId,
+      channel: input.channel,
       command: input.command,
       companyId: context.scope.companyId,
       correlationId: input.correlationId,
@@ -148,15 +154,17 @@ export function createCanhotoReviewRoutes(
     return jsonResponse({ body: { data: view }, status: 200 })
   }
 
-  function parseReview(
-    toRouteCommand: (request: Request) => Promise<CanhotoReviewCommand>,
-  ): (parameters: {
+  function parseReview(route: {
+    readonly channel: CanhotoReviewChannel
+    readonly toRouteCommand: (request: Request) => Promise<CanhotoReviewCommand>
+  }): (parameters: {
     readonly correlationId: string
     readonly pathParameters: Readonly<Record<string, string | undefined>>
     readonly request: Request
   }) => Promise<ReviewRouteInput> {
     return async ({ correlationId, pathParameters, request }) => ({
-      command: await toRouteCommand(request),
+      channel: route.channel,
+      command: await route.toRouteCommand(request),
       correlationId,
       documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
       ipAddress: resolveClientIp(request),
@@ -168,19 +176,24 @@ export function createCanhotoReviewRoutes(
     defineRoute<ReviewRouteInput>({
       handle: handleReview,
       method: 'PATCH',
-      parse: parseReview(async (request) =>
-        toCommand(await parseOptionalBody(REVIEW_BODY_SCHEMA, request)),
-      ),
+      parse: parseReview({
+        channel: 'person',
+        toRouteCommand: async (request) =>
+          toCommand(await parseOptionalBody(REVIEW_BODY_SCHEMA, request)),
+      }),
       pathname: TRIP_DOCUMENT_PROOF_REVIEW_PATH,
       policy: TRIP_MANAGE_POLICY,
     }),
     defineRoute<ReviewRouteInput>({
       handle: handleReview,
       method: 'PATCH',
-      parse: parseReview(async (request) => ({
-        action: 'automatic',
-        ...(await parseOptionalBody(AUTOMATIC_REVIEW_BODY_SCHEMA, request)),
-      })),
+      parse: parseReview({
+        channel: 'service',
+        toRouteCommand: async (request) => ({
+          action: 'automatic',
+          ...(await parseOptionalBody(AUTOMATIC_REVIEW_BODY_SCHEMA, request)),
+        }),
+      }),
       pathname: TRIP_DOCUMENT_PROOF_AUTOMATIC_REVIEW_PATH,
       policy: CANHOTO_AUTO_REVIEW_POLICY,
     }),
