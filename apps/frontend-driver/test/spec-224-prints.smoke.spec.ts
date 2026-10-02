@@ -66,7 +66,7 @@ const CONCLUDED_SNAPSHOT = {
 
 async function openConcludedTrip(page: Page, theme: 'dark' | 'light'): Promise<void> {
   await page.emulateMedia({ colorScheme: theme })
-  await mockDriverTripApi({ page, scenario: undefined })
+  await mockDriverTripApi({ page })
 
   // Registrada depois do mock, então tem precedência sobre a rota da viagem dele.
   await page.route('**/me/trips/current', async (route) => {
