@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { NotificationBell, NotificationProvider } from '@adatechnology/notification-ui'
 import '@adatechnology/notification-ui/styles.css'
-import { lazy, StrictMode, Suspense, useEffect, useState } from 'react'
+import { lazy, StrictMode, Suspense, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -55,6 +55,7 @@ import { NoWorkspaceAccess } from '@/modules/identity/components/NoWorkspaceAcce
 import {
   resolveLandingWorkspace,
   resolveNavigationMenu,
+  type LandingDecision,
   type WorkspaceSource,
 } from '@/modules/shared/workspaceAccess.service'
 import {
@@ -494,25 +495,39 @@ function ApplicationShell(): ReactNode {
    * de campo e só para quem não é dela: o motorista sai do painel, e não aterrissa em workspace nenhum.
    */
   const roles = authMeQuery.data?.data.roles
-  const entry = resolveCurrentWorkspaceWithSource()
-  const landing =
-    permissions === undefined || roles === undefined || isFieldOnlyUser(permissions)
-      ? undefined
-      : resolveLandingWorkspace({
-          current: entry.workspace,
-          permissions,
-          roles,
-          source: entry.source,
-        })
-  const landingTarget = landing?.kind === 'replace' ? landing.workspace : undefined
+  const [landing, setLanding] = useState<LandingDecision | undefined>(undefined)
+  /**
+   * ⚠️ Aterrissar é decisão de **entrada**, uma vez por montagem — não um derivado do render. A
+   * primeira versão recalculava a cada render e tornava NF-e inalcançável para o separador: clicar
+   * nela leva a `/`, que não tem mapeamento de caminho e cujo `sessionStorage` é apagado de
+   * propósito (`persistWorkspacePreference`), então o render seguinte lia "entrou sem endereço" e a
+   * preferência da RF-C6 devolvia a pessoa para `/trips`. O item aparecia no menu e não abria.
+   */
+  const hasLanded = useRef(false)
   useEffect(() => {
-    if (landingTarget === undefined) return
-    const target = WORKSPACE_NAVIGATION_ITEMS.find((item) => item.key === landingTarget)
+    if (permissions === undefined || roles === undefined) return
+    if (isFieldOnlyUser(permissions)) return
+
+    const entry = resolveCurrentWorkspaceWithSource()
+    const decision = resolveLandingWorkspace({
+      current: entry.workspace,
+      hasLanded: hasLanded.current,
+      permissions,
+      roles,
+      source: entry.source,
+    })
+    hasLanded.current = true
+    setLanding(decision)
+    if (decision.kind !== 'replace') return
+
+    const target = WORKSPACE_NAVIGATION_ITEMS.find((item) => item.key === decision.workspace)
     if (target === undefined) return
     window.history.replaceState({}, '', target.href)
+    /** Sem isto o `popstate` relê o `sessionStorage` e ressuscita a tela que a conta não abre. */
+    persistWorkspacePreference(target.key)
     setCurrentWorkspace(target.key)
     setCurrentPath(target.href)
-  }, [landingTarget])
+  }, [permissions, roles])
 
   useEffect(() => {
     function syncLocation(): void {
@@ -574,6 +589,13 @@ function ApplicationShell(): ReactNode {
   if (landing?.kind === 'no-access') {
     return <NoWorkspaceAccess onSignOut={() => void getKeycloakAuthProvider().logout()} />
   }
+
+  /**
+   * Spec 221 RF-E4: a conta de campo não vê a barra do painel **em instante nenhum**. Sem esta
+   * guarda ela pintava o escritório enquanto o efeito acima esperava dois `import()` dinâmicos e uma
+   * leitura de IndexedDB — centenas de milissegundos num aparelho de rua, em rede móvel.
+   */
+  if (permissions !== undefined && isFieldOnlyUser(permissions)) return null
 
   return (
     <div

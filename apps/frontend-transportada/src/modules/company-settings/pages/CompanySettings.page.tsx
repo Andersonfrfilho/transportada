@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Tabs, type TabsItem } from '@/components/ui/tabs'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
-import { canOpenWorkspace } from '@/modules/shared/workspaceAccess.service'
+import { isWorkspaceForbidden } from '@/modules/shared/workspaceWall.service'
 
 import { CertificateUploadForm } from '../components/CertificateUploadForm.component'
 import { CompanyLogoUpload } from '../components/CompanyLogoUpload.component'
@@ -121,7 +121,7 @@ type SettingsBodyProps = Readonly<{
   onTabChange: (tab: CompanySettingsTabId) => void
   canManageSettings: boolean
   /** Spec 221 RF-D2: a permissão vem do mapa de `workspaceAccess`, nunca de uma cópia local. */
-  canOpen: boolean
+  isForbidden: boolean
   certificates: ActiveCertificatesByPurpose
   certificatePending: boolean
   contacts: ContactsSection
@@ -293,7 +293,7 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
 
 function SettingsBody(props: SettingsBodyProps) {
   const { t } = useTranslation('companySettings')
-  const isForbidden = !props.canOpen
+  const isForbidden = props.isForbidden
   if (props.viewModel.status === 'loading') return <CompanySettingsSkeleton />
   const editable = props.canManageSettings && ['empty', 'success'].includes(props.viewModel.status)
   const tabs: readonly TabsItem[] = COMPANY_SETTINGS_TAB_IDS.map((id) => ({
@@ -403,7 +403,11 @@ export function CompanySettingsPage() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         canManageSettings={canManageSettings}
-        canOpen={canOpenWorkspace({ permissions, workspace: 'company-settings' })}
+        isForbidden={isWorkspaceForbidden({
+          companyId,
+          permissions,
+          workspace: 'company-settings',
+        })}
         certificates={viewModel.activeCertificates}
         certificatePending={certificateMutation.isPending}
         initialValue={toUpdate(canManageSettings ? query.data : undefined)}

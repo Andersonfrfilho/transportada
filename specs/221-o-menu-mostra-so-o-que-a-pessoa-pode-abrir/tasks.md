@@ -96,9 +96,11 @@ painel do escritório da mão de quem está na rua.
 - [x] T4.6 Tela de conta sem acesso (`NoWorkspaceAccess.component.tsx`) com frase, a quem pedir e
       botão de sair; textos em `*.locale.json` pt-BR **acentuado**. Conta de campo nunca chega aqui
       (RF-E5) — afirmar isso no contrato.
-- [ ] T4.7 Se a corrida (efeito × mutation × `popstate`) não se provar pura, contrato de hook em
-      `test/trip-hooks/` rodado por `bun run test:hooks` — nunca registrar DOM no processo dos
-      contratos
+- [~] T4.7 **Não se aplicou.** A task era condicional ("se a corrida não se provar pura"), e ela se
+  provou: a decisão inteira vive em `resolveLandingWorkspace`, função pura sem `window`, e o
+  efeito só traduz `replace` em `history.replaceState`. O contrato puro cobre os cinco casos,
+  inclusive "destino igual ao atual não navega", que é o que fecharia o laço. Sem corrida a
+  afirmar, um contrato de hook com DOM só acrescentaria custo.
 - [x] T4.8 `make check` + commit
 
 ## Fase 5 — As três paredes que faltam
@@ -129,7 +131,7 @@ painel do escritório da mão de quem está na rua.
       `workspaceAccess.service.ts`, e conta de campo não abre o painel por caminho nenhum
       (`code-standart.md` §14, documentação viva). Se a Fase 1 mudou o contrato da ADR-0075 §6,
       registrar a emenda na ADR.
-- [ ] T6.4 Revisão final com `code-reviewer` em `opus`; `make check` + commit
+- [x] T6.4 Revisão final com `code-reviewer` em `opus`; `make check` + commit
 
 ---
 

@@ -15,37 +15,58 @@ const DRIVER_SEPARATOR = {
   permissions: [...SEPARATOR.permissions, 'trip.report'],
   roles: ['driver', 'separator'],
 }
+/** `authorization.policy.ts:192` — o operador não tem `settings.manage` nem `billing.create`. */
 const SEPARATOR_OPERATOR = {
-  permissions: [...SEPARATOR.permissions, 'settings.manage', 'trip.financials', 'billing.create'],
+  permissions: [...SEPARATOR.permissions, 'trip.financials', 'mdfe.read', 'nfse.read'],
   roles: ['separator', 'operator'],
 }
 
 describe('a aterrissagem respeita a permissão (spec 221 RF-C2/C5)', () => {
   it('endereço pedido pela pessoa nunca é trocado — a parede da página responde (CA07)', () => {
-    expect(resolveLandingWorkspace({ ...SEPARATOR, current: 'billing', source: 'path' })).toEqual({
+    expect(
+      resolveLandingWorkspace({
+        hasLanded: false,
+        ...SEPARATOR,
+        current: 'billing',
+        source: 'path',
+      }),
+    ).toEqual({
       kind: 'stay',
     })
   })
 
   it('a última tela da sessão é respeitada quando a conta pode abri-la (RF-C1)', () => {
-    expect(resolveLandingWorkspace({ ...SEPARATOR, current: 'fleet', source: 'stored' })).toEqual({
+    expect(
+      resolveLandingWorkspace({
+        hasLanded: false,
+        ...SEPARATOR,
+        current: 'fleet',
+        source: 'stored',
+      }),
+    ).toEqual({
       kind: 'stay',
     })
   })
 
   it('a última tela que a conta não abre cede lugar, e com replace (CA06)', () => {
-    expect(resolveLandingWorkspace({ ...SEPARATOR, current: 'billing', source: 'stored' })).toEqual(
-      {
-        kind: 'replace',
-        workspace: 'trip',
-      },
-    )
+    expect(
+      resolveLandingWorkspace({
+        hasLanded: false,
+        ...SEPARATOR,
+        current: 'billing',
+        source: 'stored',
+      }),
+    ).toEqual({
+      kind: 'replace',
+      workspace: 'trip',
+    })
   })
 
   it('conta sem nenhum workspace visível é tela de sem acesso, nunca parede (CA08)', () => {
     expect(
       resolveLandingWorkspace({
         current: 'nfe',
+        hasLanded: false,
         permissions: [],
         roles: ['viewer'],
         source: 'default',
@@ -54,7 +75,14 @@ describe('a aterrissagem respeita a permissão (spec 221 RF-C2/C5)', () => {
   })
 
   it('destino igual ao atual não navega — é o que impede o laço com o próprio efeito', () => {
-    expect(resolveLandingWorkspace({ ...SEPARATOR, current: 'trip', source: 'default' })).toEqual({
+    expect(
+      resolveLandingWorkspace({
+        hasLanded: false,
+        ...SEPARATOR,
+        current: 'trip',
+        source: 'default',
+      }),
+    ).toEqual({
       kind: 'stay',
     })
   })
@@ -62,7 +90,14 @@ describe('a aterrissagem respeita a permissão (spec 221 RF-C2/C5)', () => {
 
 describe('a preferência do separador (spec 221 RF-C6/C7)', () => {
   it('o separador começa em Viagens, não no primeiro item do menu (CA14)', () => {
-    expect(resolveLandingWorkspace({ ...SEPARATOR, current: 'nfe', source: 'default' })).toEqual({
+    expect(
+      resolveLandingWorkspace({
+        hasLanded: false,
+        ...SEPARATOR,
+        current: 'nfe',
+        source: 'default',
+      }),
+    ).toEqual({
       kind: 'replace',
       workspace: 'trip',
     })
@@ -70,13 +105,23 @@ describe('a preferência do separador (spec 221 RF-C6/C7)', () => {
 
   it('o motorista que também é separador começa em Viagens (CA16)', () => {
     expect(
-      resolveLandingWorkspace({ ...DRIVER_SEPARATOR, current: 'nfe', source: 'default' }),
+      resolveLandingWorkspace({
+        hasLanded: false,
+        ...DRIVER_SEPARATOR,
+        current: 'nfe',
+        source: 'default',
+      }),
     ).toEqual({ kind: 'replace', workspace: 'trip' })
   })
 
   it('separador que também é do escritório cai na regra geral (CA15)', () => {
     expect(
-      resolveLandingWorkspace({ ...SEPARATOR_OPERATOR, current: 'nfe', source: 'default' }),
+      resolveLandingWorkspace({
+        hasLanded: false,
+        ...SEPARATOR_OPERATOR,
+        current: 'nfe',
+        source: 'default',
+      }),
     ).toEqual({ kind: 'stay' })
   })
 
@@ -89,10 +134,43 @@ describe('a preferência do separador (spec 221 RF-C6/C7)', () => {
     expect(
       resolveLandingWorkspace({
         current: 'billing',
+        hasLanded: false,
         permissions: ['invoices.read'],
         roles: ['separator'],
         source: 'default',
       }),
     ).toEqual({ kind: 'replace', workspace: 'nfe' })
+  })
+})
+
+/**
+ * O bloqueante que a revisão da T6.4 achou, virado teste. Aterrissar é decisão de entrada; sem a
+ * trava, o separador clicava em NF-e e voltava para Viagens — o item aparecia no menu e não abria.
+ */
+describe('aterrissa uma vez por montagem (spec 221 RF-C2)', () => {
+  it('depois de aterrissar, NF-e abre para o separador em vez de devolvê-lo', () => {
+    const entrada = resolveLandingWorkspace({
+      ...SEPARATOR,
+      current: 'nfe',
+      hasLanded: false,
+      source: 'default',
+    })
+    expect(entrada).toEqual({ kind: 'replace', workspace: 'trip' })
+
+    /** O clique em NF-e recria exatamente a condição de entrada: `/` sem mapeamento, storage limpo. */
+    expect(
+      resolveLandingWorkspace({ ...SEPARATOR, current: 'nfe', hasLanded: true, source: 'default' }),
+    ).toEqual({ kind: 'stay' })
+  })
+
+  it('a trava vale para toda origem, inclusive a sessão guardada', () => {
+    expect(
+      resolveLandingWorkspace({
+        ...SEPARATOR,
+        current: 'billing',
+        hasLanded: true,
+        source: 'stored',
+      }),
+    ).toEqual({ kind: 'stay' })
   })
 })
