@@ -28,8 +28,11 @@ Medido no código de `origin/staging`:
 - **D2 — Todo evento e toda foto nascem com a hora do toque e o desvio daquele instante.** O item da
   fila já guarda `createdAt` (e o anexo, `capturedAt`); passam a guardar também `clockOffsetMs`. No envio
   o corpo leva `tappedAt` (a hora do aparelho no toque) e `clockOffsetMs`.
-- **D3 — O servidor corrige e usa a hora do evento.** `occurredAt = tappedAt + clockOffsetMs`, recusada
-  se estiver no futuro (além de 2 min) ou anterior a um piso sensato. Gravada ao lado do que já existe
+- **D3 — O servidor corrige e usa a hora do evento.** `occurredAt = tappedAt + clockOffsetMs`.
+  **Nenhum evento é recusado por causa do relógio**: hora corrigida no futuro (além de 2 min do
+  recebimento) ou mais velha que 30 dias antes do recebimento tem a **correção descartada**, e o evento
+  segue com a regra de hoje (`captured_at ?? recorded_at`). Recusar viraria um `422` que o app trata como
+  "recusado de negócio" — o motorista poderia descartar a entrega por um problema de relógio. Gravada ao lado do que já existe
   (coluna nova `trip_stop_events.clock_offset_ms`; `tapped_at` segue sendo a hora crua do aparelho, spec
   206). O momento da entrega passa a ser `occurredAt ?? captured_at ?? recorded_at` — **só nas
   consultas da nota e da pontualidade** (as outras seis seguem como estão; ver "Fora de escopo").
@@ -67,4 +70,5 @@ entrega, e o piso antigo segue para o cliente que não manda o desvio. Fica regi
 - **CA3** Entrega tocada às 10:00 sem posição e recebida às 14:00, com `tappedAt`/`clockOffsetMs`, é
   gravada como entregue às 10:00 (corrigida).
 - **CA4** A penalidade de "ausente" só começa 24 h depois de o servidor receber a entrega.
-- **CA5** Hora corrigida no futuro é recusada; app e servidor antigos seguem funcionando juntos.
+- **CA5** Hora corrigida no futuro (ou velha demais) tem a correção descartada, sem recusar o evento; app
+  e servidor antigos seguem funcionando juntos.

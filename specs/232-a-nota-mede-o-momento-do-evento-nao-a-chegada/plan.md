@@ -7,8 +7,8 @@ Duas apps e uma migration aditiva. **Ordem de publicação: API primeiro, app de
 - Migration aditiva `trip_stop_events.clock_offset_ms integer null` (+ `rollback.sql`; `make
 migration-test`). Nada destrutivo.
 - `me-trip.schema.ts`: `tappedAt` e `clockOffsetMs` opcionais em `arrive`/`deliver`/`return`/ocorrência;
-  `clockOffsetMs` opcional no multipart do comprovante. Validação: `occurredAt` não pode ser futura (+2
-  min).
+  `clockOffsetMs` opcional no multipart do comprovante. Hora no futuro (+2 min) ou com mais de 30 dias descarta a
+  correção; nunca recusa o evento.
 - Função pura `resolveOccurredAt({ tappedAt, clockOffsetMs, receivedAt })` na camada de domínio.
 - `delivery-proof-punctuality.policy.ts`: `resolveTimeReference` usa a hora corrigida sem o piso de 24 h
   quando há `clockOffsetMs`; o piso fica para quem não manda (D4).

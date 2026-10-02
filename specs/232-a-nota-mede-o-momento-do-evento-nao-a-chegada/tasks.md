@@ -7,8 +7,8 @@
 
 > 🤖 Modelo: `opus` (T1.1 e T1.2 são 🧠), `sonnet` (T1.3 em diante)
 
-- [ ] **T1.1** 🧠 Contrato **antes**: `resolveOccurredAt` (corrige, recusa futuro, ausente cai no
-      comportamento de hoje) — `apps/api-transportada/test/trips/occurred-at.contract.ts`.
+- [ ] **T1.1** 🧠 Contrato **antes**: `resolveOccurredAt` (corrige; futuro e velho demais descartam a
+      correção; ausente cai no comportamento de hoje) — `apps/api-transportada/test/trips/occurred-at.contract.ts`.
 - [ ] **T1.2** 🧠 Contrato **antes** da pontualidade e do "ausente": CA1, CA2 e CA4 como casos de
       `classifyProofPunctuality` e do cálculo de `driver-score.policy.ts` — vermelho pelo motivo certo.
 - [ ] **T1.3** Implementar `resolveOccurredAt`, a pontualidade (D4) e o "ausente" (D5) — T1.1 e T1.2 verdes.
