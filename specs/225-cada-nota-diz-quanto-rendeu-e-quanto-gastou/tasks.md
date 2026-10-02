@@ -8,7 +8,7 @@ em `evidence.md`.
 > 🤖 Modelo: `opus` 🧠 — é a decisão estrutural da spec: classificar parcela, fechar a soma ao centavo
 > e tratar ausência de roteiro sem inventar zero.
 
-- [ ] **T1.1** Contrato primeiro, em `test/trip-domain/document-cost-apportionment.contract.ts`
+- [x] **T1.1** Contrato primeiro, em `test/trip-domain/document-cost-apportionment.contract.ts`
       (importado por `test/trip-domain.contract.test.ts`), com trechos sintéticos:
   - CA01: três paradas, cinco notas — `Σ gasto por nota == totalCost` e `Σ frete == totalRevenue`, ao
     centavo;

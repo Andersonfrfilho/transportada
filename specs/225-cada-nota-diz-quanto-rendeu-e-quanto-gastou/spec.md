@@ -95,9 +95,13 @@ rateio do frete nem por peso.
   viagem"**. Esconder a segunda faria a soma das notas não fechar com a viagem; somar as duas sem
   dizer faria a nota parecer mais cara do que ela causou.
 
-- **D4 — A soma das notas fecha com a viagem, e um contrato prova isso.** Invariante: para toda
-  viagem, `Σ gasto por nota == totalCost` e `Σ frete por nota == totalRevenue`, com tolerância de
-  arredondamento de um centavo por nota. Dinheiro é `Decimal`/`numeric`, nunca float binário; o resto
+- **D4 — A soma das notas fecha com a viagem, e um contrato prova isso.** Invariante, para toda
+  viagem: `Σ (costAmount + taxAmount) == totalCost`, `Σ freightAmount == totalRevenue` e
+  `Σ marginAmount == totalMargin`. ⚠️ O imposto entra na soma do custo porque o `totalCost` da viagem
+  **já o inclui**: o `buildTripValuation` final recebe `[...buildCostParcels(context), ...taxParcels]`
+  (`read-trip-valuation.use-case.ts:481`), ainda que a tela separe as duas naturezas e o comentário do
+  domínio diga que imposto "desce da receita". Afirmar `Σ costAmount == totalCost` deixaria a conta
+  fora por todo o imposto, sem nada falhar. Dinheiro é `Decimal`/`numeric`, nunca float binário; o resto
   da divisão vai para a nota de maior gasto, de forma determinística, para que a conta feche sem
   centavo órfão.
 
@@ -127,8 +131,10 @@ rateio do frete nem por peso.
 - **RF1** `GET /trips/:id/valuation` devolve, por nota: `freightAmount` (já existe), `legCostAmount`,
   `tripShareCostAmount`, `costAmount` (soma das duas), `taxAmount`, `marginAmount`,
   `marginPercentage` e `costBasis` (`'leg'` quando houve roteiro, `'unavailable'` quando não).
-- **RF2** A soma dos `costAmount` das notas é igual ao `totalCost` da viagem, e a soma dos
-  `freightAmount` é igual ao `totalRevenue`, com o resto de arredondamento na nota de maior gasto.
+- **RF2** `Σ (costAmount + taxAmount) == totalCost`, `Σ freightAmount == totalRevenue` e
+  `Σ marginAmount == totalMargin`, com o resto de arredondamento na nota de maior gasto. `costAmount` é
+  só operação (trecho + rateio); imposto vive em `taxAmount`, para a tela separar as naturezas como já
+  separa hoje.
 - **RF3** Sem roteiro congelado, toda nota sai com `costBasis: 'unavailable'` e sem valor de gasto,
   lucro ou margem — nunca zero.
 - **RF4** No detalhe da viagem, a linha de cada nota mostra frete, gasto e lucro, com o gasto
@@ -147,8 +153,8 @@ rateio do frete nem por peso.
 
 ## Critérios de aceite
 
-- **CA01** Viagem com três paradas e cinco notas: a soma dos gastos por nota é igual ao `totalCost`,
-  ao centavo, e a soma dos fretes é igual ao `totalRevenue`.
+- **CA01** Viagem com três paradas e cinco notas: `Σ (costAmount + taxAmount)` é igual ao `totalCost`
+  ao centavo, `Σ freightAmount` ao `totalRevenue` e `Σ marginAmount` ao `totalMargin`.
 - **CA02** Nota entregue na primeira parada tem gasto de trecho **menor** que nota entregue na última,
   com o mesmo frete — é a prova de que distância e tempo entraram na conta.
 - **CA03** Viagem com retorno: o rateio de viagem é maior que zero em toda nota, e a soma continua
