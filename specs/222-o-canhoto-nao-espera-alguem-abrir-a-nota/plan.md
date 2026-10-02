@@ -72,7 +72,11 @@ pessoa **ver** o canhoto; o lote é o atalho do clique, não da conferência. Da
   - `infrastructure/canhoto-image-decoder.ts` — bytes → `{ width, height, luminance }`.
   - `infrastructure/canhoto-barcode.worker.ts` — `worker_thread` (ADR-0053).
   - `infrastructure/drizzle-pending-canhoto.query.ts` — comprovantes pendentes com `tripId`,
-    `documentId`, `companyId`, `objectId` e as notas da viagem com chave de acesso.
+    `documentId`, `companyId`, `objectId` e as notas da viagem com chave de acesso. O caminho de
+    junção, conferido no schema: `trip_delivery_proofs.stop_event_id` →
+    `trip_stop_events.trip_document_id` → `trip_documents.{trip_id, nfe_document_id}` →
+    `nfe_documents.{access_key, number, series}`. ⚠️ `trip_documents.nfe_document_id` é anulável —
+    é a nota sem NF-e, que nunca aprova automático porque não há número para comparar.
   - `infrastructure/canhoto-review-api.gateway.ts` — `client_credentials` + `x-company-id`, decalque
     de `automatic-manifest-api.gateway.ts`.
   - `application/canhoto-read.routine.ts` — o laço com teto e `isStopRequested()`.

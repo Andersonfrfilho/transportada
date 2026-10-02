@@ -99,7 +99,11 @@ começam.
 
 - [ ] T5.1 [P] `trip.canhoto.read` nas **quatro** cópias do catálogo (cron, worker, API, frontend)
       com os `failureOutcomes` do plan.md e `minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS`
-- [ ] T5.2 [P] Paridade nos quatro `job-catalog` contracts
+- [ ] T5.2 [P] Paridade nos quatro `job-catalog` contracts. ⚠️ O contrato da API lê o SQL das
+      migrations de uma lista fixa (`SEED_MIGRATIONS` em
+      `apps/api-transportada/test/job-catalog/catalog.contract.ts:137`) e exige
+      `Object.keys(seeded) === SCHEDULED_JOBS`: a migration da T5.3 **tem** de entrar nessa lista,
+      ou o contrato reprova sem dizer por quê
 - [ ] T5.3 Migration no molde de `drizzle/20260915233000_rate_limit_windows/migration.sql`:
       recria `job_executions_job_check` e `job_schedules_job_check` com o nome novo
       (DROP → ADD NOT VALID → VALIDATE) e insere a linha em `job_schedules`
