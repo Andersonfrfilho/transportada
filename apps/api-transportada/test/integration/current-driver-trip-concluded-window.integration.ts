@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 224 T1.3 (CA1) — `GET /me/trips/current` devolve a viagem recém-concluída por uma janela
+ * Spec 225 T1.3 (CA1) — `GET /me/trips/current` devolve a viagem recém-concluída por uma janela
  * curta. O que está em jogo é o predicado da consulta, e dublê passa com qualquer predicado: só
  * Postgres de verdade prova a janela contra o relógio do banco.
  */
@@ -101,7 +101,7 @@ async function readCurrentTrips(database: TestDatabase, world: World) {
   return result.trips.map((trip) => ({ id: trip.id, status: trip.status }))
 }
 
-describe('a viagem recém-concluída na lista do motorista (spec 224 CA1)', () => {
+describe('a viagem recém-concluída na lista do motorista (spec 225 CA1)', () => {
   testWithPostgres('concluída dentro da janela aparece com o status real', async () => {
     await withDisposableDatabase(async (database) => {
       const world = await seedDriverWithTrip(database, {

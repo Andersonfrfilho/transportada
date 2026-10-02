@@ -13,10 +13,10 @@ function buildSnapshot(trips: readonly DriverTrip[]): DriverTripSnapshot {
 }
 
 /**
- * Spec 224 T1.11: a API devolve a viagem concluída/cancelada por 15 min. A cópia legada do painel
+ * Spec 225 T1.11: a API devolve a viagem concluída/cancelada por 15 min. A cópia legada do painel
  * pegava `trips[0]` cru e a exibiria como ativa.
  */
-describe('a viagem que a cópia legada do painel exibe (spec 224 T1.11)', () => {
+describe('a viagem que a cópia legada do painel exibe (spec 225 T1.11)', () => {
   it('sem snapshot, nenhuma viagem', () => {
     expect(findCurrentDriverTrip(undefined)).toBeUndefined()
   })

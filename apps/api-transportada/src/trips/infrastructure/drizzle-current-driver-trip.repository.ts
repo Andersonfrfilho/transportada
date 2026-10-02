@@ -95,7 +95,7 @@ import type { TripCrewRole } from '../../shared/trip-crew-role.constant.js'
 const CURRENT_DRIVER_TRIP_STATUSES = ['route_planned', ...TRIP_ON_ROAD_STATUSES] as const
 
 /**
- * Spec 224: por quanto tempo a viagem concluída ainda chega a `GET /me/trips/current`, contada de
+ * Spec 225: por quanto tempo a viagem concluída ainda chega a `GET /me/trips/current`, contada de
  * `trips.updatedAt` (o motorista conclui sem `closedAt`). Sem ela o app nunca lê `completed` e não
  * distingue "terminei" de "me tiraram da viagem". Só a lista usa a janela — `readCurrent` não.
  */

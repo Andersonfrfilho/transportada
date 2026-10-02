@@ -915,7 +915,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         expect(last.tripCompleted).toBe(true)
 
         const afterCompletion = await readSnapshot()
-        // Spec 224: a concluída fica na lista pela janela, com o status real — é o que o app lê.
+        // Spec 225: a concluída fica na lista pela janela, com o status real — é o que o app lê.
         expect(afterCompletion.trips.map((trip) => trip.status)).toEqual(['completed'])
         expect(afterCompletion.pendingProofs.map((proof) => proof.documentId).sort()).toEqual(
           [firstDocumentId, lastDocumentId].sort(),

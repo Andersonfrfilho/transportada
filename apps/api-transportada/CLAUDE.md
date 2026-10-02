@@ -263,7 +263,7 @@ sendo o gesto do barracão. A ocorrência na linha da nota (`fieldOccurrence`) e
   `allowed-actions`; o roteador derruba o boot se ela aparecer fora de `GET`. Sem `fleet.read`,
   `driverTaxId`/`driverEmail`/`driverPhone` saem nulos.
 
-**A lista do motorista carrega a viagem recém-concluída por 15 minutos** (spec 224, relato do
+**A lista do motorista carrega a viagem recém-concluída por 15 minutos** (spec 225, relato do
 usuário em 02/10). `listActiveTrips` (`drizzle-current-driver-trip.repository.ts`) passou de "status
 ativo" para "ativo **ou** terminal com `updatedAt` dentro de
 `RECENTLY_CONCLUDED_TRIP_WINDOW_MINUTES`". Sem isso o app nunca lia `completed`: o status sumia da

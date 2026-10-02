@@ -17,7 +17,7 @@ export type ResolveSelectedTripParams = Readonly<{
 /**
  * RF12: a escolha do motorista vale enquanto a viagem continuar na lista. Sem escolha, ou com a
  * escolhida fora da lista (fechou, saiu dele), vale a padrão: a mais antiga em rota, senão a mais
- * antiga de todas. Viagem concluída ou cancelada (spec 224: a API a devolve por 15 min, só para o
+ * antiga de todas. Viagem concluída ou cancelada (spec 225: a API a devolve por 15 min, só para o
  * aviso de reatribuição não confundir conclusão com troca de tripulação) nunca é eleita.
  */
 export function resolveSelectedTrip({

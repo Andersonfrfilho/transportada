@@ -47,7 +47,7 @@ Cada task fecha com typecheck + os testes da app tocada + commit isolado, e a ev
 ## Prompt de execução
 
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/224-a-viagem-terminada-nao-foi-movida/ por
+/oh-my-claudecode:autopilot Execute a spec specs/225-a-viagem-terminada-nao-foi-movida/ por
 inteiro. Leia spec.md, plan.md e tasks.md antes de tocar em código, e trate a seção "Decisão" da
 spec como fechada — a janela no servidor é a escolha, não reabrir a comparação com a memória no app.
 Uma task por vez, na ordem do tasks.md, T1.1 a T1.10.

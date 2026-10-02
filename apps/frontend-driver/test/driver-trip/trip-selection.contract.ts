@@ -86,11 +86,11 @@ describe('qual viagem a tela mostra (spec 189 T7.1)', () => {
 })
 
 /**
- * Spec 224 RF2: a API passa a devolver a viagem concluída/cancelada por 15 min (para o aviso de
+ * Spec 225 RF2: a API passa a devolver a viagem concluída/cancelada por 15 min (para o aviso de
  * reatribuição não confundir conclusão com troca de tripulação). Ela só serve a esse aviso: nunca é
  * eleita para a tela, em nenhum dos três caminhos de `resolveSelectedTrip`.
  */
-describe('viagem concluída nunca é a eleita (spec 224 RF2)', () => {
+describe('viagem concluída nunca é a eleita (spec 225 RF2)', () => {
   it.each(['completed', 'cancelled'])(
     'a escolhida pelo motorista, se já está %s, não vale',
     (status) => {

@@ -384,7 +384,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     expect(result).toEqual({ next: 'menu' })
   })
 
-  test('viagem concluída na lista do app não é viagem em andamento (spec 224)', async () => {
+  test('viagem concluída na lista do app não é viagem em andamento (spec 225)', async () => {
     const { channel, sent } = buildChannel()
     const result = await callAction({
       channel,
