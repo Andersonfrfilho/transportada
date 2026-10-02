@@ -20,7 +20,7 @@
 - [ ] **T1.5** 🧠 Migration `clock_offset_ms` + `rollback.sql`; gravar o evento com a hora corrigida;
       ler o momento da entrega da nota e da pontualidade (D3) — `make migration-test` e a integração da
       nota (CA3) verdes.
-- [ ] **T1.6** Registrar o limite antifraude em `docs/SECURITY.md`.
+- [x] **T1.6** Registrar o limite antifraude em `docs/SECURITY.md`.
 - [ ] **T1.7** Publicar a API em staging e **confirmar o deploy** antes da Fase 2.
 
 ## Fase 2 — App: medir e mandar

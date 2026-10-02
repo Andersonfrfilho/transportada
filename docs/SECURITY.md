@@ -287,6 +287,57 @@ desbloqueado). Se o produto passar a guardar mais do que a viagem corrente, revi
 
 **Origem:** spec 189 T3.3a (boot sem rede, snapshot e fila com dono). Registrado em 2026-09-25.
 
+### 2026-10-03 — spec 232 — o relógio do aparelho vale mais para a nota
+
+**Onde:** `api-transportada`, `src/trips/domain/occurred-at.policy.ts` (`resolveOccurredAt`,
+`resolveRecordedEventClock`), `src/trips/domain/delivery-proof-punctuality.policy.ts` (D3a da spec 159
+T11, `resolveTimeReference`), `src/trips/presentation/me-trip.schema.ts` e `delivery-proof.schema.ts`
+(`tappedAt`, `clockOffsetMs`), `src/fleet/domain/driver-score.policy.ts` (prazo de "foto ausente").
+
+**A decisão (do usuário, 03/10/2026):** a rede e o relógio do aparelho não são culpa do motorista; o que
+vale para a nota é o momento em que o evento foi criado, não o momento em que ele chegou ao servidor.
+
+**O que mudou na regra da spec 159 T11 D3a:** o piso `recebimento − missingAfterHours` (24 h por padrão)
+sobre o `capturedAt` da foto **deixa de valer** para quem manda o desvio do relógio (`clockOffsetMs`) **e**
+tem posição na entrega. A foto vale pela hora corrigida (`tappedAt + clockOffsetMs`) mesmo chegando dias
+depois. O prazo de "foto ausente" passa a contar de `max(momento da entrega, recebimento da entrega)`, e o
+momento da entrega da nota e da pontualidade é a hora corrigida, quando há (`deliveredMomentSql`).
+
+**O limite, sem rodeio:** medir o desvio corrige o relógio **errado**; não impede adulterar o relógio
+**depois** do último contato com a API, e `clockOffsetMs` pode ser **forjado no corpo** — o PWA se forja
+pelo devtools, basta mandar `0` ou o valor que faz o `tappedAt` cair onde se quer. A nota continua sendo
+sinal de gestão, não prova (mesma premissa da spec 159).
+
+**O que sobra de defesa:**
+
+- A hora corrigida nunca é futura (tolerância de +2 min do recebimento) nem tem mais de 30 dias. Fora
+  disso a **correção é descartada** e o evento segue com a regra antiga; **o evento nunca é recusado** por
+  causa de relógio (um `422` aqui faria o app tratar como "recusado de negócio" e o motorista poderia
+  descartar a entrega).
+- A foto precisa estar no raio da entrega (a precisão soma no máximo um raio; acima de 10 km é recusada).
+- **Sem posição na entrega o relógio não vale** (D4b): vale o horário de envio e a entrega conta como
+  "longe". O mesmo para o evento: relato sem posição não grava `occurred_at` nem `clock_offset_ms`. Fecha
+  o furo de forjar `clockOffsetMs: 0` numa entrega sem prova de lugar.
+- Cliente que **não** manda o desvio segue com o piso antigo.
+- A decisão é gravada (`trip_stop_events.occurred_at`/`clock_offset_ms`, `trip_delivery_proofs.clock_offset_ms`),
+  então o veredito se reproduz e uma correção descartada não volta a valer na leitura.
+
+**Consequências aceitas pelo usuário:** a penalidade de "foto ausente" passa a ser **temporária e
+reversível** (a foto que chega fora do prazo, com prova de lugar, vira pontual e a nota se recalcula), e
+**some o incentivo** de mandar a foto no prazo — quem tem 3G fraco não é punido, e quem forja também não é
+barrado por isso.
+
+**O que falta (achado fora do escopo, apontado pelo arquiteto em 2026-10-03):** o `location.capturedAt` da
+entrega **não tem limite** — `me-trip.schema.ts` (~linhas 24-27, `locationSchema`) só valida o formato ISO
+e o valor é gravado cru em `trip_stop_events.captured_at`. Como a leitura do momento da entrega é
+`coalesce(occurred_at, captured_at, recorded_at)`, uma posição com 100 dias de idade tira a entrega da
+janela de 90 dias da nota. Pré-existente à spec 232 (a leitura anterior, `captured_at ?? recorded_at`,
+tinha o mesmo furo), mas a 232 dá mais motivo para fechar: aplicar a `resolveOccurredAt` (ou o mesmo
+teto de +2 min / 30 dias) ao `captured_at` da posição. Também não há atestado do aparelho.
+
+**Origem:** spec 232 (decisões D1–D6 e D4b; limite em "O que esta decisão NÃO protege"). Registrado em
+2026-10-03.
+
 ### 2026-09-18 — posição e horário da foto do comprovante são declarados pelo aparelho (spec 159)
 
 **Onde:** `api-transportada`, `POST /me/trips/current/documents/:documentId/proof` (multipart

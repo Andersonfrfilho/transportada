@@ -510,6 +510,15 @@ notas dos motoristas pedidos, e `computeDriverScore` decide os pontos. O motoris
 substituta fica com a pior pontualidade; a do escritório não classifica (spec 159 T11). ⚠️ Posição da
 foto nunca sai nessas respostas — só motivo, pontos e datas — e cai aos 90 dias pelo expurgo do worker.
 
+⚠️ **O momento do evento do motorista é `tappedAt + clockOffsetMs`, só com posição e só quando
+`resolveOccurredAt` devolve `corrected`** (spec 232). Relógio ruim (futuro, mais de 30 dias, campo
+faltando) **descarta a correção e NUNCA recusa o evento** — recusar vira `422` e o app deixa o motorista
+descartar a entrega. A nota e a pontualidade leem o momento por `deliveredMomentSql`
+(`database/delivered-moment.support.ts`), nunca por `captured_at ?? recorded_at` solto, e a flag de
+pontualidade nasce de `kind === 'corrected'`, nunca de "o campo veio". Os esquemas `.strict()` exigem
+**API antes do app**: campo novo no app antes de a API aceitar dá `400` em todo relato. Limite antifraude
+em `docs/SECURITY.md`; detalhe em `docs/ai-context/api-transportada.md` § "O momento do evento do motorista".
+
 **O endereço se mede uma vez** (ADR-0061, spec 084) — geocodificação em lote, por decisão explícita,
 nunca recalculada a cada leitura. Separação grafia × lugar (`street-comparison.policy.ts`) é o que
 torna o relatório de endereços legível. **O CEP corre em paralelo** (spec 186): banco da instalação,

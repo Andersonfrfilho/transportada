@@ -687,3 +687,27 @@ Mutações (contrato puro `trip-delivery-proof` + integração `delivered-moment
 | 5   | gravar o desvio mas não a hora (sem posição)                         | pegou: 2 + 5 fail          |
 
 Todas restauradas; o verde acima é da árvore restaurada.
+
+## T1.6 — o limite antifraude e a regra inquebrável registrados
+
+Só documentação; nenhum código nem teste mudou.
+
+- `docs/SECURITY.md`: entrada de 2026-10-03 "spec 232 — o relógio do aparelho vale mais para a nota",
+  antes da entrada da spec 159. Registra a decisão do usuário, o que mudou na D3a da 159 T11 (o piso de
+  `recebimento − missingAfterHours` deixa de valer para quem manda o desvio e tem posição na entrega), o
+  limite honesto (relógio adulterado offline e `clockOffsetMs` forjável no corpo), a defesa que sobra
+  (nunca futura +2 min, nunca com mais de 30 dias e a correção é descartada sem recusar o evento, foto no
+  raio, sem posição o relógio não vale, cliente sem o desvio mantém o piso), as duas consequências aceitas
+  (penalidade de "ausente" temporária; some o incentivo do prazo) e o achado fora do escopo: o
+  `location.capturedAt` da entrega não tem limite e uma posição com 100 dias tira a entrega da janela de
+  90 dias da nota.
+- `docs/ai-context/api-transportada.md`: seção "O momento do evento do motorista (spec 232)" —
+  `resolveOccurredAt`/`resolveRecordedEventClock`, os campos nos esquemas `.strict()`, a migration
+  `20261002213734_delivered_moment_clock` (colunas e índice), `deliveredMomentSql` e os três pontos que a
+  usam, `hasCorrectedClock` (D4/D4b) e `deliveryReceivedAt` (D5).
+- `apps/api-transportada/CLAUDE.md`: um parágrafo `⚠️` depois do da nota do motorista, com a regra que
+  não se negocia (momento só com posição e `corrected`; nunca recusa; leitura por `deliveredMomentSql`;
+  API antes do app).
+- `tasks.md`: T1.6 marcada.
+
+Caminhos citados conferidos com `ls` (todos existem).

@@ -2085,6 +2085,35 @@ só envia os marcados.
 Detalhe completo (rota, permissão, diálogo, testes/integração): spec 222 (seções de requisitos,
 decisões, strategy de teste, evidence.md).
 
+## O momento do evento do motorista (spec 232)
+
+**`resolveOccurredAt` corrige a hora do evento e nunca o recusa.** `src/trips/domain/occurred-at.policy.ts`
+devolve `corrected` (`tappedAt + clockOffsetMs`) ou `ignored` (`missing` quando falta um dos dois campos
+ou algum não é finito; `future` acima de +2 min do recebimento; `too_old` com mais de 30 dias): relógio
+ruim **descarta a correção** e o evento segue com `captured_at ?? recorded_at`. `resolveRecordedEventClock`
+(mesmo arquivo) é quem decide o que gravar, e só grava a hora corrigida **com posição no relato** (D4b).
+Os esquemas `.strict()` de `arrive`/`deliver`/`return`/ocorrência de parada (`me-trip.schema.ts`) e o
+multipart do comprovante (`delivery-proof.schema.ts`) aceitam `tappedAt` e `clockOffsetMs` **opcionais** —
+cliente antigo segue valendo, e `clockOffsetMs` é inteiro sem teto (o absurdo vira `ignored`, não `400`).
+Migration `20261002213734_delivered_moment_clock`: `trip_stop_events.occurred_at` e
+`trip_stop_events.clock_offset_ms` (`bigint`), `trip_delivery_proofs.clock_offset_ms` e o índice
+`trip_stop_events_company_delivered_moment_idx`; todas nulas, sem backfill, gravadas **só** quando a
+correção vale (`recordEvent` recebe `correctedClock`, campo à parte do `occurredAt` do escritório;
+`saveProof` grava o desvio quando `hasCorrectedClock`). **O momento da entrega tem uma expressão só,
+`deliveredMomentSql` (`src/database/delivered-moment.support.ts`, `coalesce(occurred_at, captured_at,
+recorded_at)`), usada SÓ na nota (`fleet/infrastructure/drizzle-driver-score.repository.ts`), em
+`findDeliveryContext` (`drizzle-delivery-proof.repository.ts`) e em `listPendingProofs`
+(`drizzle-current-driver-trip.repository.ts`) — e pelo índice, que precisa da mesma expressão. As outras
+seis consultas continuam em `captured_at ?? recorded_at` (fora de escopo).** A política de pontualidade
+(`trips/domain/delivery-proof-punctuality.policy.ts`) recebe `hasCorrectedClock`, que nasce de
+`resolveOccurredAt(...).kind === 'corrected'` em `attach-delivery-proof.use-case.ts` (nunca de "o campo
+veio"): com a flag e posição na entrega, a foto é julgada pela hora corrigida sem o piso de
+`recebimento − missingAfterHours` (D4); sem posição na entrega a flag é ignorada, vale o recebimento e a
+entrega conta como longe (D4b). O prazo de "foto ausente" (`fleet/domain/driver-score.policy.ts`) conta
+de `max(momento da entrega, deliveryReceivedAt)`, e `deliveryReceivedAt` é `trip_stop_events.recorded_at`
+(D5). Limite antifraude e achado do `location.capturedAt` sem teto: `docs/SECURITY.md`, entrada de
+2026-10-03. Spec: `specs/232-a-nota-mede-o-momento-do-evento-nao-a-chegada/`.
+
 ## Planejamento de viagem com rota escolhida e redação monetária por permissão (spec 153)
 
 ### Rota gravada no planejamento, não descartada após criação (spec 153 Fase 1–2)
