@@ -3,8 +3,8 @@
 Uma task por vez, na ordem. Cada uma fecha com typecheck + lint + testes da app + commit isolado e evidência
 em `evidence.md`. Contrato antes da implementação, **toda asserção nova provada por mutação**.
 
-⚠️ Nada daqui começa antes da **Fase 0**. ⚠️ **`[NEEDS CLARIFICATION]` aberto** (N1–N5, na `spec.md`) bloqueia
-só as fases que dependem dele.
+⚠️ Nada daqui começa antes da **Fase 0**. ⚠️ **`[NEEDS CLARIFICATION]` aberto** — só **N2** e **N5** (N1, N3 e N4
+foram resolvidas em 2026-10-02) — bloqueia **apenas a Fase 5**.
 
 ## Fase 0 — O chão
 
@@ -39,7 +39,7 @@ só as fases que dependem dele.
       copia, sem permissão nada de dinheiro.
 - [ ] **T2.2** Série, CNPJ (formatador do painel), `CopyButton`, e o custo e lucro (spec 226) para dentro de
       _Dados da nota_.
-- [ ] **T2.3** **API, só com N4 = sim.** `volumeCount` em `serializeTripDocumentDetail` classificado na
+- [ ] **T2.3** **API** (N4 = sim). `volumeCount` em `serializeTripDocumentDetail` classificado na
       `FieldPolicy`, sem N+1 (teste por contagem de `select`, como na 226), com contrato de tenant. Aceite: os
       **dois** comandos da API verdes.
 
@@ -52,24 +52,23 @@ só as fases que dependem dele.
 
 ## Fase 4 — Comprovante unificado
 
-> 🤖 Modelo: `sonnet` (a decisão de produto é a **N1**, antes dela)
+> 🤖 Modelo: `sonnet`
 
-⚠️ **Bloqueada por N1.**
-
-- [ ] **T4.1** Contrato do(s) selo(s) conforme N1, cobrindo **cada combinação** de conferência × pontualidade ×
-      `proofPending`. Aceite: nenhuma combinação **esconde** um eixo.
+- [ ] **T4.1** Contrato dos **dois** selos (D4), cobrindo **cada combinação** de conferência (inclusive
+      **Recusado**) × pontualidade × `proofPending`. Aceite: nenhuma combinação **esconde** um eixo — um
+      recusado **e** longe do ponto diz as duas coisas.
 - [ ] **T4.2** Comprovante visível ao abrir a nota, via `GET /trips/:id/delivery-proofs` (spec 222).
 
 ## Fase 5 — Eventos da nota e raio
 
 > 🤖 Modelo: `opus` 🧠 na API; `sonnet` no painel
 
-⚠️ **Bloqueada por N2, N3, N5 e pela spec 206.**
+⚠️ **Bloqueada por N2, N5 e pela spec 206.**
 
 - [ ] **T5.1** API: filtro por nota em `GET /trips/:id/timeline`, no servidor, com contrato de tenant e de
       permissão (`trip.event-location`).
 - [ ] **T5.2** API: o raio na resposta do comprovante (N2), sem `settings.manage` do leitor.
-- [ ] **T5.3** Painel: _Eventos desta entrega_ por nota; rótulo do `departed` conforme N3; círculo do raio **só**
+- [ ] **T5.3** Painel: _Eventos desta entrega_ por nota; rótulo do `departed` = **"Saída para esta parada"** (D11); círculo do raio **só**
       com o dado.
 
 ## Fase 6 — Comparação, revisão e portões
@@ -96,11 +95,10 @@ CLARIFICATION]`, e na **T6.1**, que exige o ok do usuário sobre os prints.
 ```text
 /oh-my-claudecode:autopilot Execute a spec specs/227-a-nota-se-abre-inteira/ (leia spec.md, plan.md e
 tasks.md antes de tocar em código). Uma task por vez, na ordem do tasks.md, começando pela Fase 0.
-Modelos: Fase 0 → opus 🧠 · Fases 1, 2, 3 → executor model=sonnet · Fase 4 → executor model=sonnet depois
-de N1 respondida · Fase 5 → opus 🧠 na API e sonnet no painel, depois de N2, N3 e N5 · Fase 6 → opus 🧠 na
+Modelos: Fase 0 → opus 🧠 · Fases 1, 2, 3 → executor model=sonnet · Fase 4 → executor model=sonnet · Fase 5 → opus 🧠 na API e sonnet no painel, depois de N2 e N5 · Fase 6 → opus 🧠 na
 revisão e code-reviewer model=opus na T6.4.
 Cada task fecha com typecheck + lint + testes da app + commit isolado e evidência em evidence.md.
 Contrato antes da implementação, e toda asserção nova provada por mutação.
 PARE E PERGUNTE antes de: empurrar para staging, deploy, qualquer migration, qualquer [NEEDS CLARIFICATION]
-(N1–N5), e na T6.1 — ela compara com o canvas aprovado e exige o ok explícito do usuário (web.md §15).
+(N2 e N5), e na T6.1 — ela compara com o canvas aprovado e exige o ok explícito do usuário (web.md §15).
 ```

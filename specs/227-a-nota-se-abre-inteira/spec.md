@@ -79,11 +79,14 @@ specs **222** (fechada), **223** e **224**, que mexem exatamente neste fluxo —
   _Dados da nota_, como no canvas, com as mesmas regras: sem `trip.financials` **nada** aparece, nem o
   "Valor da carga" nem o "Frete" (a API os redige — `nfeTotalValue` e `freightAmount` são `'money'`).
 
-- **D4 — Um selo de situação por comprovante.** O canvas junta tudo em **Aprovado / Longe do ponto /
-  Pendente**. O app tem hoje **três** eixos independentes: a conferência (`Aguardando conferência` /
-  `Aprovado` / `Recusado`), a pontualidade (`on_time` / `late` / `away` / `late_and_away`) e, em staging, o
-  `proofPending` da spec 223. Juntar sem perder informação é decisão de produto — ver N1.
-
+- **D4 — Dois selos de situação, lado a lado, nunca um só.** Decisão do usuário em 2026-10-02. O app tem
+  **três** eixos independentes: a conferência do canhoto (`Aguardando conferência` / `Aprovado` /
+  `Recusado`), a pontualidade (`on_time` / `late` / `away` / `late_and_away`) e, em staging, o
+  `proofPending` da spec 223. O canvas junta tudo em **Aprovado / Longe do ponto / Pendente** e **não tem
+  "Recusado"** — um selo único esconderia um dos eixos: um comprovante recusado **e** longe do ponto diria só
+  uma das duas coisas. Ficam **dois**: o da **conferência** (com Recusado) e o da **pontualidade**. O
+  `proofPending` da 223 entra como estado do selo de conferência (canhoto ainda não conferido). O **canvas é
+  corrigido** para mostrar os dois.
 - **D5 — Dado que a API não devolve entra por tarefa de API, nunca por inferência na tela.** _Volumes_ existe
   só em `nfe_volumes.quantity`; o serializador do detalhe usa `FieldPolicy` **exaustiva**, então o campo novo
   precisa ser **classificado** ou o typecheck reprova. ⚠️ "Volumes" do canvas é **quantidade de volumes da
@@ -114,26 +117,23 @@ specs **222** (fechada), **223** e **224**, que mexem exatamente neste fluxo —
   `localhost:53000`, os nomes e valores. A comparação final olha **estrutura, ordem, vocabulário, cor e
   estados** — não os números.
 
-- **D11 — Correção do canvas: o rótulo "Saí da parada".** O `departed` do produto é a saída **em direção** à
-  parada (ADR-0088 §1–§2: o app do motorista diz _"Iniciar rota — parada N"_ e _"Você está a caminho da
-  parada N"_), gravado com o `stopId` do **destino**; a linha do tempo real o rotula **"Saída"**. "Saí da
-  parada" no canvas, no evento da **própria** parada, descreve o evento errado. É correção do **canvas**, a
-  ser decidida — ver N3.
+- **D11 — Correção do canvas: o rótulo é "Saída para esta parada".** Decisão do usuário em 2026-10-02. O
+  `departed` do produto é a saída **em direção** à parada (ADR-0088 §1–§2: o app do motorista diz _"Iniciar
+  rota — parada N"_ e _"Você está a caminho da parada N"_), gravado com o `stopId` do **destino**; a linha do
+  tempo real o rotula **"Saída"**, que é ambíguo (saída de onde?). "Saí da parada" no canvas, no evento da
+  **própria** parada, descrevia o evento errado. O canvas passa a dizer **"Saída para esta parada"**, e a tela
+  real usa o **mesmo texto**.
 
-## Perguntas em aberto — `[NEEDS CLARIFICATION]`
+## Decisões tomadas e perguntas em aberto
 
-Bloqueiam **só** as fatias que dependem delas (ver `tasks.md`). Nenhuma impede a Fase 0, 1, 2 ou 3.
+**Resolvidas pelo usuário em 2026-10-02**: **N1** — dois selos lado a lado (D4); **N3** — "Saída para esta
+parada" (D11); **N4** — Volumes entra como campo novo na API (D5, T2.3).
 
-- **N1 — O selo único e o "Recusado".** O canvas tem Aprovado / Longe do ponto / Pendente, e **não** tem
-  "Recusado" nem "Aguardando conferência". O que acontece com um comprovante recusado, e como convivem
-  conferência, pontualidade e `proofPending`? **Recomendação**: dois selos curtos lado a lado (_conferência_ e
-  _pontualidade_), nunca um só que esconda um dos eixos.
+**Em aberto — `[NEEDS CLARIFICATION]`.** Bloqueiam **só** a Fase 5, a última; nenhuma impede as Fases 0 a 4.
+
 - **N2 — De onde vem o raio.** Campo novo na resposta do comprovante, calculado no servidor com a mesma
   resolução da spec 218 (e **sem** exigir `settings.manage` do leitor)? **Recomendação**: sim; e **não**
   desenhar o círculo enquanto o dado não existir.
-- **N3 — Rótulo do evento `departed`.** "Saída" (como a linha do tempo real), "Saí para esta parada", ou
-  mostrar a saída **da** parada como o `departed` da **seguinte**? **Recomendação**: "Saída para esta parada".
-- **N4 — Volumes.** Autorizar o campo novo na API (D5)?
 - **N5 — "Foto do canhoto" e "endereço geocodificado" como eventos da nota.** Criar o evento, derivar da
   leitura do comprovante, ou **tirar do canvas**? **Recomendação**: tirar "endereço geocodificado" (é dado
   da parada, não evento) e derivar "Foto do canhoto" da leitura do comprovante, sem evento novo.
@@ -144,8 +144,7 @@ Bloqueiam **só** as fatias que dependem delas (ver `tasks.md`). Nenhuma impede 
   checkbox de seleção **fora** do botão de abrir.
 - **RF2** A nota aberta mostra, nesta ordem, _Dados da nota_, _Comprovante da entrega_, _Ocorrências_ e
   _Eventos desta entrega_ (D2).
-- **RF3** _Dados da nota_ mostra NF-e, **Série**, Cliente, **CNPJ**, Valor da carga e — quando a API o devolver
-  (D5) — Volumes; mais o bloco de custo e lucro da spec 226 (D3).
+- **RF3** _Dados da nota_ mostra NF-e, **Série**, Cliente, **CNPJ**, Valor da carga e **Volumes** (campo novo na API, D5); mais o bloco de custo e lucro da spec 226 (D3).
 - **RF4** Cada campo de _Dados da nota_ e cada valor de custo tem **botão de copiar** (`CopyButton`), com
   rótulo acessível que diz **o que** copia ("Copiar CNPJ", não "Copiar").
 - **RF5** _Comprovante da entrega_ aparece **sem segundo clique**, com um selo de situação (D4/N1), data, "recebido
