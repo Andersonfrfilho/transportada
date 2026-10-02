@@ -1084,3 +1084,39 @@ test('o que está parado há mais de um dia ganha a faixa de aviso; o recente, n
   await notice.click()
   await expect(page.getByRole('button', { name: 'Enviar todos agora' })).toBeVisible()
 })
+
+/**
+ * Cabeçalho da viagem e busca: o "copiar" do código era um quadrado com borda que saltava acima da
+ * linha de texto, e o botão da câmera trazia uma segunda borda dentro da caixa do campo, com um vão à
+ * direita. Medido no navegador: nada de borda própria, centro alinhado e rente à borda do campo.
+ */
+test('o copiar do código e a câmera da busca ficam alinhados e sem borda própria', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await mockDriverTripApi({ page })
+  await loginAsLocalUser(page)
+  await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
+
+  const code = page.locator('code').first()
+  const copy = page.getByRole('button', { name: 'Copiar o código da viagem' })
+  const [codeBox, copyBox] = await Promise.all([code.boundingBox(), copy.boundingBox()])
+  const codeCenter = (codeBox?.y ?? 0) + (codeBox?.height ?? 0) / 2
+  const copyCenter = (copyBox?.y ?? 0) + (copyBox?.height ?? 0) / 2
+  expect(Math.abs(codeCenter - copyCenter)).toBeLessThanOrEqual(2)
+  expect(copyBox?.width).toBeGreaterThanOrEqual(44)
+  expect(copyBox?.height).toBeGreaterThanOrEqual(44)
+  expect(await copy.evaluate((element) => getComputedStyle(element).borderTopColor)).toBe(
+    'rgba(0, 0, 0, 0)',
+  )
+
+  const search = page.getByRole('search')
+  const camera = search.getByRole('button')
+  const [searchBox, cameraBox] = await Promise.all([search.boundingBox(), camera.boundingBox()])
+  const gapToBorder =
+    (searchBox?.x ?? 0) + (searchBox?.width ?? 0) - ((cameraBox?.x ?? 0) + (cameraBox?.width ?? 0))
+  expect(gapToBorder).toBeLessThanOrEqual(1.5)
+  expect(await camera.evaluate((element) => getComputedStyle(element).borderTopWidth)).toBe('0px')
+  expect(await camera.evaluate((element) => getComputedStyle(element).borderRightWidth)).toBe('0px')
+  await expect(page.getByPlaceholder('Buscar nota, cliente ou endereço')).toBeVisible()
+})

@@ -886,6 +886,7 @@ export function DriverTripWorkspacePage() {
             */}
             <Button
               aria-label={t('search.scanTrigger')}
+              className={styles.stopSearchScan}
               onClick={() => setIsScannerOpen(true)}
               type="button"
               variant="ghost"

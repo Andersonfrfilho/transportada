@@ -18,8 +18,20 @@
 }
 
 .vehicle {
+  align-items: center;
   color: var(--color-slate);
+  display: flex;
+  flex-wrap: wrap;
   margin: 0;
+}
+
+/*
+ * O copiar do código da viagem: o quadrado de 44 px com borda saltava acima da linha de texto e
+ * parecia colado ao lado do código. O alvo de toque fica (44 px), a borda sai e a linha se alinha
+ * pelo centro; o "copiado" continua dito pela cor e pelo ícone.
+ */
+.vehicle button {
+  border-color: transparent;
 }
 
 /* RF12: uma viagem por botão, um embaixo do outro e na largura toda — o caminho precisa caber. */
@@ -128,7 +140,20 @@
   border: 1px solid color-mix(in srgb, var(--color-slate) 28%, transparent);
   display: flex;
   gap: var(--space-2);
-  padding: 0 var(--field-padding);
+  /* Sem recuo à direita: o botão da câmera encosta na borda do campo. */
+  padding: 0 0 0 var(--field-padding);
+}
+
+/*
+ * O botão da câmera mora dentro da caixa do campo: sem borda e sem fundo próprios (era uma segunda
+ * caixa dentro da primeira, com vão à direita), separado do texto por um filete e na altura toda.
+ */
+.stopSearch .stopSearchScan {
+  align-self: stretch;
+  background: transparent;
+  border: none;
+  border-left: 1px solid color-mix(in srgb, var(--color-slate) 28%, transparent);
+  padding: 0 var(--space-4);
 }
 
 .stopSearch svg {
