@@ -737,3 +737,51 @@ Mutações (restaurada a cada uma):
 
 Restaurado: **9 / 0**. `tsc --noEmit`, `eslint` e `prettier --check` limpos nos arquivos novos.
 `./test/integration/canhoto-read-queue.integration.ts` entrou na lista `test:integration`.
+
+## Fase 6 — T6.4: o decodificador em `worker_thread` e o leitor de imagem
+
+Teste antes da implementação: `canhoto-image-reader.contract.ts` nasceu vermelho (`Cannot find module
+.../canhoto-image-reader.service.js`, 0 pass / 1 error). Depois: `canhoto-read.contract.test.ts`
+**27 pass / 0 fail / 0 skip** (15 da régua + 5 do decodificador real em thread + 7 do leitor).
+
+O que cada parte prova:
+
+- **Foto realista**: JPEG 3024x4032 (12 MP), barra sólida, papel `228 + random*12`, q85, gerado no
+  teste por `@jsquash/jpeg` com `encodeCode128C` copiado **por valor** (`test/fixtures/canhoto-photo.fixture.ts`).
+  `decode()` devolve **exatamente** os 44 caracteres (`toBe`, não "achou algum código"). PNG e WebP
+  (2400x1800) idem.
+- **Sem código / bytes que não são imagem** → `null`, não exceção (a rotina grava a tentativa).
+- **Prazo**: `budgetMilliseconds: 1` → rejeita `CanhotoDecodeTimeoutError` e a thread é encerrada.
+- **Teto de 8 MB antes de baixar**: `sizeBytes = teto + 1` → `too_large` com **0 downloads e 0 decodes**;
+  `sizeBytes = teto` passa (fronteira). `application/pdf` → `unsupported_media`, também sem download.
+  Objeto ausente → `object_unavailable` (1 download, 0 decodes).
+- Erro inesperado do decodificador **propaga** (a rotina conta a falha daquele comprovante, CA14).
+
+Mutações (restaurada a cada uma; suíte inteira de 27):
+
+| Mutação                                            | Resultado                                                                                                                          |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| teto conferido depois do download                  | 26 pass / **1 fail** (`refuses ... before downloading it`)                                                                         |
+| `>` vira `>=` no teto                              | 26 / **1** (`accepts an object of exactly the cap`)                                                                                |
+| timeout vira `read/null`                           | 26 / **1** (`reports decode_timeout`)                                                                                              |
+| leitor engole erro inesperado                      | 26 / **1** (`lets an unexpected decoder error propagate`)                                                                          |
+| estouro de prazo resolve `null` em vez de rejeitar | 26 / **1** (`terminates the thread and rejects ...`)                                                                               |
+| WebP roteado ao decodificador de PNG               | 26 / **1** (`reads the same key from PNG and WebP`)                                                                                |
+| worker devolve metade da chave                     | 25 / **2** (JPEG 12 MP e PNG/WebP)                                                                                                 |
+| peso do verde zerado na luminância                 | **27 / 0 — sobreviveu**: a foto fabricada é cinza (R=G=B), logo o peso não é observável; a mutação não prova nada e não é contada. |
+
+Restaurado: **27 / 0**.
+
+Build: `canhoto-barcode.worker.ts` entrou no `build` do `package.json`;
+`test/build-entrypoints.contract.test.ts` **2 pass / 0 fail**. `bun run build` gera
+`dist/canhoto-read/infrastructure/canhoto-barcode.worker.js` (1,55 KB, `--packages=external`) e o
+arquivo **empacotado**, executado como `Worker` com a foto de 12 MP, devolveu a chave de 44
+caracteres em 170 ms.
+
+⚠️ Os imports de `@zxing/library` são pelo nome na raiz do pacote. Os caminhos fundos
+(`esm/core/...`) usados no spike não tipam sob `NodeNext` (o pacote não declara `type: module`, o
+`.d.ts` é lido como CJS e o `default` vira o namespace): `TS2351` em quatro construtores. Pela raiz,
+`tsc` limpo e a mesma chave lida.
+
+`tsc --noEmit`, `eslint` (cwd da app) e `prettier` limpos. Não rodou: RabbitMQ, MinIO — nenhum
+teste desta task os exige (o leitor recebe `AttachmentObjectReaderPort` por injeção).
