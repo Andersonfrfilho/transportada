@@ -80,6 +80,15 @@ export type MultiVehicleSuggestionRepository = Readonly<{
     readonly driverIds: readonly string[]
   }) => Promise<readonly string[]>
   /**
+   * Spec 234 D5: dos ids dados, quais **não** têm `can_drive` na ficha — o gêmeo de
+   * `findIneligibleHelperIds` para a posição de motorista. Ausente/inativo responde por
+   * `findUnavailableDriverIds`.
+   */
+  findIneligibleDriverIds: (input: {
+    readonly companyId: string
+    readonly driverIds: readonly string[]
+  }) => Promise<readonly string[]>
+  /**
    * Spec 149 (ADR-0065 D1): dos ids dados, quais **não** têm `can_act_as_helper` marcado na ficha.
    * Ausente/inativo já responde por `findUnavailableDriverIds` — esta consulta é só a elegibilidade.
    */

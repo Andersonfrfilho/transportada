@@ -182,6 +182,22 @@ export class MultiVehicleSuggestionDriverRepeatedError extends ApiError {
 }
 
 /**
+ * Spec 234 D5: motorista de veículo escolhido com `can_drive = false` na ficha (ajudante-puro) — os
+ * ids viajam em `details`, gêmeo de `MultiVehicleSuggestionHelperNotEligibleError` e do
+ * `TripDriverCannotDriveError` da viagem.
+ */
+export class MultiVehicleSuggestionDriverCannotDriveError extends ApiError {
+  public constructor(driverIds: readonly string[]) {
+    super({
+      code: 'ROUTE_SUGGESTION_DRIVER_CANNOT_DRIVE',
+      details: driverIds.map((driverId) => ({ field: 'driverIds', message: driverId })),
+      message: 'One or more drivers are not marked as able to drive in their driver record',
+      status: 409,
+    })
+  }
+}
+
+/**
  * Spec 149 (ADR-0065 D1/D11): ajudante escolhido sem `can_act_as_helper` marcado na ficha — os ids
  * viajam em `details`, mesmo desenho de `TripCrewHelperNotEligibleError`.
  */

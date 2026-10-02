@@ -7,6 +7,7 @@ import {
   MultiVehicleSuggestionDriverRepeatedError,
   MultiVehicleSuggestionDriverUnavailableError,
   MultiVehicleSuggestionEmptyError,
+  MultiVehicleSuggestionDriverCannotDriveError,
   MultiVehicleSuggestionHelperNotEligibleError,
   MultiVehicleSuggestionStopClaimedTwiceError,
   MultiVehicleSuggestionVehicleNotInProposalError,
@@ -422,29 +423,39 @@ export function createMultiVehicleSuggestionUseCase(
        * As conferências correm juntas: elas não dependem uma da outra, e a lentidão de uma seguida
        * da outra apareceria numa tela em que o operador acabou de selecionar oitenta notas.
        */
-      const [unavailableDocuments, unavailableVehicles, unavailableDrivers, ineligibleHelpers] =
-        await Promise.all([
-          dependencies.multiVehicle.findUnavailableDocumentIds({
-            companyId: input.context.companyId,
-            documentIds,
-          }),
-          dependencies.multiVehicle.findUnavailableVehicleIds({
-            companyId: input.context.companyId,
-            vehicleIds,
-          }),
-          /**
-           * Spec 149: motorista e ajudante conferem disponibilidade pela **mesma** consulta — os
-           * dois são a mesma ficha de `fleet_drivers`, ativa ou não.
-           */
-          dependencies.multiVehicle.findUnavailableDriverIds({
-            companyId: input.context.companyId,
-            driverIds: [...new Set([...driverIds, ...uniqueHelperIds])],
-          }),
-          dependencies.multiVehicle.findIneligibleHelperIds({
-            companyId: input.context.companyId,
-            helperIds: uniqueHelperIds,
-          }),
-        ])
+      const [
+        unavailableDocuments,
+        unavailableVehicles,
+        unavailableDrivers,
+        ineligibleDrivers,
+        ineligibleHelpers,
+      ] = await Promise.all([
+        dependencies.multiVehicle.findUnavailableDocumentIds({
+          companyId: input.context.companyId,
+          documentIds,
+        }),
+        dependencies.multiVehicle.findUnavailableVehicleIds({
+          companyId: input.context.companyId,
+          vehicleIds,
+        }),
+        /**
+         * Spec 149: motorista e ajudante conferem disponibilidade pela **mesma** consulta — os
+         * dois são a mesma ficha de `fleet_drivers`, ativa ou não.
+         */
+        dependencies.multiVehicle.findUnavailableDriverIds({
+          companyId: input.context.companyId,
+          driverIds: [...new Set([...driverIds, ...uniqueHelperIds])],
+        }),
+        /** Spec 234 D5: só a posição de motorista exige `can_drive`; o ajudante segue por `can_act_as_helper`. */
+        dependencies.multiVehicle.findIneligibleDriverIds({
+          companyId: input.context.companyId,
+          driverIds,
+        }),
+        dependencies.multiVehicle.findIneligibleHelperIds({
+          companyId: input.context.companyId,
+          helperIds: uniqueHelperIds,
+        }),
+      ])
       if (unavailableDocuments.length > 0) {
         throw new MultiVehicleSuggestionDocumentUnavailableError(unavailableDocuments)
       }
@@ -453,6 +464,10 @@ export function createMultiVehicleSuggestionUseCase(
       }
       if (unavailableDrivers.length > 0) {
         throw new MultiVehicleSuggestionDriverUnavailableError(unavailableDrivers)
+      }
+      /** Spec 234 D5: motorista de veículo sem `can_drive` na ficha, mesmo que ativo. */
+      if (ineligibleDrivers.length > 0) {
+        throw new MultiVehicleSuggestionDriverCannotDriveError(ineligibleDrivers)
       }
       /** Spec 149 (ADR-0065 D1): ajudante sem `can_act_as_helper` na ficha, mesmo que ativo. */
       const ineligibleAndAvailable = ineligibleHelpers.filter(

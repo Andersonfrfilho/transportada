@@ -23,6 +23,7 @@ import {
   MultiVehicleSuggestionDriverRepeatedError,
   MultiVehicleSuggestionDriverUnavailableError,
   MultiVehicleSuggestionEmptyError,
+  MultiVehicleSuggestionDriverCannotDriveError,
   MultiVehicleSuggestionHelperNotEligibleError,
   MultiVehicleSuggestionStopClaimedTwiceError,
   MultiVehicleSuggestionVehicleNotInProposalError,
@@ -101,6 +102,8 @@ function buildFixture(
     readonly groups?: readonly MultiVehicleSuggestionGroup[]
     /** Spec 149 (ADR-0065 D1): ids que existem mas não marcaram `can_act_as_helper` na ficha. */
     readonly ineligibleHelpers?: readonly string[]
+    /** Spec 234 D5: ids que existem mas têm `can_drive = false` na ficha (ajudante-puro). */
+    readonly ineligibleDrivers?: readonly string[]
     /** Spec 148 T7: a planta da prévia por id — as notas que ela desenhou e as que deixou de fora. */
     readonly releasePlans?: ReadonlyMap<
       string,
@@ -133,6 +136,8 @@ function buildFixture(
       calls.create?.push(record)
       return suggestion({ status: 'queued' })
     },
+    findIneligibleDriverIds: async ({ driverIds }) =>
+      driverIds.filter((driverId) => input.ineligibleDrivers?.includes(driverId) === true),
     findIneligibleHelperIds: async () => input.ineligibleHelpers ?? [],
     findUnavailableDocumentIds: async () => input.unavailableDocuments ?? [],
     findUnavailableDriverIds: async () => input.unavailableDrivers ?? [],
@@ -384,6 +389,59 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         { field: 'helperIds', message: HELPER },
       ])
       expect(fixture.calls.create).toEqual([])
+    })
+
+    /** Spec 234 D5: quem não dirige (ajudante-puro) não é motorista de veículo da proposta. */
+    test('recusa como motorista quem não dirige, com os ids no detalhe', async () => {
+      const fixture = buildFixture({ ineligibleDrivers: [FIRST_DRIVER] })
+
+      const refusal = await fixture.useCase
+        .create({
+          context: CONTEXT,
+          correlationId: 'correlation',
+          documentIds: [FIRST_DOCUMENT],
+          vehicles: [{ driverId: FIRST_DRIVER, vehicleId: FIRST_VEHICLE }],
+        })
+        .then(() => null)
+        .catch((error: unknown) => error)
+
+      expect(refusal).toBeInstanceOf(MultiVehicleSuggestionDriverCannotDriveError)
+      const error = refusal as MultiVehicleSuggestionDriverCannotDriveError
+      expect(error.status).toBe(409)
+      expect(error.code).toBe('ROUTE_SUGGESTION_DRIVER_CANNOT_DRIVE')
+      expect(error.details).toEqual([{ field: 'driverIds', message: FIRST_DRIVER }])
+      expect(fixture.calls.create).toEqual([])
+    })
+
+    /** Quem some (inativo/inexistente) responde só pela indisponibilidade, não pelas duas. */
+    test('o motorista indisponível responde antes de o que não dirige', async () => {
+      const fixture = buildFixture({
+        ineligibleDrivers: [FIRST_DRIVER],
+        unavailableDrivers: [FIRST_DRIVER],
+      })
+
+      await expect(
+        fixture.useCase.create({
+          context: CONTEXT,
+          correlationId: 'correlation',
+          documentIds: [FIRST_DOCUMENT],
+          vehicles: [{ driverId: FIRST_DRIVER, vehicleId: FIRST_VEHICLE }],
+        }),
+      ).rejects.toBeInstanceOf(MultiVehicleSuggestionDriverUnavailableError)
+    })
+
+    /** O ajudante-puro pode ajudar: só o lugar de motorista lhe é fechado. */
+    test('não confere can_drive dos ajudantes', async () => {
+      const fixture = buildFixture({ ineligibleDrivers: [HELPER] })
+
+      await fixture.useCase.create({
+        context: CONTEXT,
+        correlationId: 'correlation',
+        documentIds: [FIRST_DOCUMENT],
+        vehicles: [{ driverId: FIRST_DRIVER, helperIds: [HELPER], vehicleId: FIRST_VEHICLE }],
+      })
+
+      expect(fixture.calls.create).toHaveLength(1)
     })
 
     /** Ajudante indisponível (inativo/inexistente) responde pela mesma checagem do motorista. */
@@ -795,6 +853,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
 
       const multiVehicle: MultiVehicleSuggestionRepository = {
         create: async () => suggestion({ status: 'queued' }),
+        findIneligibleDriverIds: async () => [],
         findIneligibleHelperIds: async () => [],
         findUnavailableDocumentIds: async () => [],
         findUnavailableDriverIds: async () => [],

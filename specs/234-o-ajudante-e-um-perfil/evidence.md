@@ -377,3 +377,63 @@ Postgres 18.4 nativo descartável (porta 65435), `DATABASE_URL`/`DRIZZLE_TEST_DA
   local-identity-seed 5/0 · fleet-driver-repository 3/0.
 - `bun run typecheck` (raiz) exit 0 · `bun run lint` (cwd `apps/api-transportada`) exit 0 ·
   `prettier --check` limpo.
+
+## T6 — A proposta multi-veículo recusa quem não dirige como motorista
+
+Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+
+### O que mudou
+
+- Porta `MultiVehicleSuggestionRepository.findIneligibleDriverIds` (gêmeo de `findIneligibleHelperIds`):
+  dos ids dados, quais **não** têm `can_drive = true` na ficha **desta empresa**. Implementação
+  Drizzle pergunta quem é elegível e subtrai, como a do ajudante. Ausente/inativo/outra empresa continua
+  respondendo por `findUnavailableDriverIds`.
+- `MultiVehicleSuggestionDriverCannotDriveError` (`routing.error.ts`, `409
+ROUTE_SUGGESTION_DRIVER_CANNOT_DRIVE`, ids em `details` com `field: 'driverIds'`), no padrão do
+  `MultiVehicleSuggestionHelperNotEligibleError`.
+- `createMultiVehicleSuggestionUseCase.create` confere `driverIds` (só os `driverId` dos veículos, nunca os
+  ajudantes) na mesma `Promise.all` das outras conferências — todas são validação do caminho crítico, e
+  qualquer uma falhar deve mesmo recusar a proposta. A recusa vem **depois** de indisponível e **antes** de
+  ajudante não elegível (mesma ordem da T2 na viagem). Sem filtro "só os disponíveis": quem some
+  (`unavailable`) já lançou antes.
+- **Não existe consulta separada de "candidatos a motorista da proposta"** neste backend: a proposta recebe
+  `driverIds` do chamador e só os valida; o seletor é o `GET /fleet/drivers` do painel (Fase 3, T11). Logo
+  a consulta de candidatos de que a tarefa fala é esta validação.
+- `package.json`: `test:integration` ganha
+  `./test/integration/multi-vehicle-suggestion-driver-eligibility.integration.ts` (arquivo novo).
+
+### Contrato vermelho antes do código
+
+`routing-application.contract.test.ts` → `0 pass · 1 fail` (`Export named
+'MultiVehicleSuggestionDriverCannotDriveError' not found`); integração nova → `TypeError:
+repository.findIneligibleDriverIds is not a function`, `0 pass · 1 fail`.
+
+Casos: use case — recusa com ids em `details`, 409 e código estável, sem `create`; o motorista
+indisponível responde antes do que não dirige; o ajudante-puro como **ajudante** passa (o stub filtra pelo
+que o use case pergunta, então só prova se os ajudantes não entram na consulta de `can_drive`);
+integração — motorista, ajudante-puro, motorista que ajuda e ficha de **outra empresa** (dirige e ajuda):
+`findIneligibleDriverIds` devolve ajudante-puro e a de fora; `findIneligibleHelperIds` devolve o motorista
+puro e a de fora; lista vazia → `[]`.
+
+### Prova por mutação
+
+- Recusa desligada (`if (false)`) → `93 pass · 1 fail`.
+- Ajudantes somados à consulta de `can_drive` → `93 pass · 1 fail` ("não confere can_drive dos ajudantes").
+- Código do erro trocado → `93 pass · 1 fail`.
+- `eq(canDrive, true)` arrancado da consulta → integração `0 pass · 1 fail`.
+- Filtro de empresa arrancado **da consulta nova** → integração `0 pass · 1 fail` (a primeira tentativa
+  mutou a consulta vizinha por engano — `findUnavailableDriverIds`, primeira ocorrência do texto — e
+  sobreviveu; refeita com âncora que inclui `canDrive`).
+- Sobreviveu e foi removido: um filtro `ineligible && !unavailable` que escrevi no use case era código
+  morto (a indisponibilidade lança antes), então saiu em vez de ganhar teste.
+
+### Gates
+
+Postgres 18.4 nativo descartável (65435), variáveis no shell.
+
+- Contrato da API: `bun --env-file=../../.env.test test --timeout 120000` →
+  `8788 pass · 0 fail · Ran 8788 tests across 194 files` (0 skip; T5: 8785).
+- Integração, 0 skip: multi-vehicle-suggestion-driver-eligibility 1/0 · multi-vehicle-suggestion 13/0 ·
+  suggestion-helper-cost 2/0.
+- `bun run typecheck` (raiz) exit 0 · `bun run lint` (cwd `apps/api-transportada`) exit 0 ·
+  `prettier --check` limpo.

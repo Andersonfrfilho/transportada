@@ -31,7 +31,7 @@ da app. Cada task fecha com typecheck, testes da app, commit isolado e evidênci
       `409 FLEET_DRIVER_PROFILE_EMPTY`, nunca 500.
 - [x] **T5** `helper` em `ROLE_PERMISSIONS` (`trip.read`, D7) e em `FLEET_LINKED_ROLES` (D8); contrato
       de que não alcança `trip.report` nem frota.
-- [ ] **T6** Proposta de viagem e consulta de motoristas filtram `can_drive`; ajudantes seguem por
+- [x] **T6** Proposta de viagem e consulta de motoristas filtram `can_drive`; ajudantes seguem por
       `can_act_as_helper` (`drizzle-multi-vehicle-suggestion.repository.ts`); gêmeo de
       `findIneligibleHelperIds` para `can_drive` (409, ids em `details`).
 - [ ] **T6b** MDF-e avulso (`POST /mdfe-manifests`) recusa `can_drive = false` como condutor, com o
