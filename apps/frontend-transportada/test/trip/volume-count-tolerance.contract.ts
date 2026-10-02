@@ -76,7 +76,12 @@ describe('volumeCount na viagem não derruba a resposta (revisão 233 M5)', () =
     expect(adapters.tripDetailFromApi(detail).documents).toHaveLength(1)
   })
 
-  it.each([-1, Number.NaN, Number.POSITIVE_INFINITY, '12', true])('recusa %p', (volumeCount) => {
-    expect(() => adapters.tripDetailFromApi(buildDetail(volumeCount))).toThrow()
-  })
+  it.each([-1, Number.NaN, Number.POSITIVE_INFINITY, '12', true])(
+    'descarta %p e abre a viagem',
+    (volumeCount) => {
+      const detail = adapters.tripDetailFromApi(buildDetail(volumeCount))
+      expect(detail.documents).toHaveLength(1)
+      expect(detail.documents[0]?.volumeCount).toBeUndefined()
+    },
+  )
 })

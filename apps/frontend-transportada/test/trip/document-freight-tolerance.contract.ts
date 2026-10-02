@@ -107,12 +107,14 @@ describe('frete da nota na viagem (spec 176)', () => {
     expect(detail.documents[0]?.freightSource).toBe('missing')
   })
 
-  /** Tolerar a chave não é aceitar qualquer valor. */
-  it('recusa freightSource fora do vocabulário', () => {
-    expect(() => adapters.tripDetailFromApi(buildDetail({ freightSource: 'realized' }))).toThrow()
+  /** Tolerar a chave não é aceitar qualquer valor: o valor fora da forma cai, a viagem abre. */
+  it('descarta freightSource fora do vocabulário e abre a viagem', () => {
+    const detail = adapters.tripDetailFromApi(buildDetail({ freightSource: 'realized' }))
+    expect(detail.documents[0]?.freightSource).toBeUndefined()
   })
 
-  it('recusa freightAmount que não é string nem nulo', () => {
-    expect(() => adapters.tripDetailFromApi(buildDetail({ freightAmount: 680.548 }))).toThrow()
+  it('descarta freightAmount que não é string nem nulo e abre a viagem', () => {
+    const detail = adapters.tripDetailFromApi(buildDetail({ freightAmount: 680.548 }))
+    expect(detail.documents[0]?.freightAmount).toBeUndefined()
   })
 })

@@ -165,6 +165,7 @@ import {
   isString,
   isUnsignedInteger,
 } from './tripGuards.validation'
+import { readTolerantList, readTolerantRecord } from './tripTolerance.service'
 
 /**
  * Coluna que a listagem de notas pode não ter mandado: ausente é ausência, não resposta inválida —
@@ -481,6 +482,57 @@ function isDetail(value: unknown): value is TripDetail {
   )
 }
 
+function readTolerantDocumentDetail(value: unknown): TripDocumentDetail | undefined {
+  return readTolerantRecord(value, {
+    allowed: [...TRIP_DOCUMENT_DETAIL_KEYS, ...TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS],
+    guard: isDocumentDetail,
+    required: TRIP_DOCUMENT_DETAIL_KEYS,
+  })
+}
+
+function readTolerantStopDetail(value: unknown): TripStopDetail | undefined {
+  if (!isRecord(value)) return undefined
+  const documents = readTolerantList(value.documents, readTolerantDocumentDetail)
+  if (documents === undefined) return undefined
+  return readTolerantRecord(
+    { ...value, documents },
+    {
+      allowed: [...TRIP_STOP_KEYS, ...TRIP_STOP_OPTIONAL_KEYS],
+      guard: isStopDetail,
+      required: TRIP_STOP_KEYS,
+    },
+  )
+}
+
+function readTolerantDriverLine(value: unknown): TripDriverLine | undefined {
+  return readTolerantRecord(value, {
+    allowed: [...TRIP_DRIVER_KEYS, ...TRIP_DRIVER_OPTIONAL_KEYS],
+    guard: isDriverLine,
+    required: TRIP_DRIVER_KEYS,
+  })
+}
+
+/**
+ * O detalhe da viagem não cai por causa de um refinamento: chave nova da API e campo opcional com
+ * forma errada (planta, ocupação, carreta, rótulos de nota) são descartados, e a viagem abre sem eles.
+ * Os campos da própria viagem e as listas de notas, motoristas e paradas seguem obrigatórios.
+ */
+function readTolerantDetail(value: unknown): TripDetail | undefined {
+  if (!isRecord(value)) return undefined
+  const documents = readTolerantList(value.documents, readTolerantDocumentDetail)
+  const drivers = readTolerantList(value.drivers, readTolerantDriverLine)
+  const stops = readTolerantList(value.stops, readTolerantStopDetail)
+  if (documents === undefined || drivers === undefined || stops === undefined) return undefined
+  return readTolerantRecord(
+    { ...value, documents, drivers, stops },
+    {
+      allowed: [...TRIP_DETAIL_KEYS, ...TRIP_DETAIL_OPTIONAL_KEYS],
+      guard: isDetail,
+      required: TRIP_DETAIL_KEYS,
+    },
+  )
+}
+
 /** Spec 145 D10: chave exata e status fechado — estado estranho reprova, não vira "pendente". */
 function isCargoLayoutState(value: unknown): value is TripCargoLayoutState {
   if (!hasExactKeys(value, TRIP_CARGO_LAYOUT_STATE_KEYS)) return false
@@ -706,8 +758,9 @@ export function createTripResponseAdapters() {
       return { batchId: input.batchId, documentCount: input.documentCount }
     },
     tripDetailFromApi(input: unknown): TripDetail {
-      if (!isDetail(input)) throw invalid()
-      return input
+      const detail = readTolerantDetail(input)
+      if (detail === undefined) throw invalid()
+      return detail
     },
     tripDocumentFromApi(input: unknown): TripDocument {
       if (!isDocument(input)) throw invalid()

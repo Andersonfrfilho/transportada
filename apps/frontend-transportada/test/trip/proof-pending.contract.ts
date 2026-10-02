@@ -98,8 +98,9 @@ describe('selo de canhoto pendente na nota (spec 223 T4.5)', () => {
     ).toBe(false)
   })
 
-  it('recusa proofPending que não é booleano', () => {
-    expect(() => adapters.tripDetailFromApi(buildDetail({ proofPending: 'sim' }))).toThrow()
+  it('descarta proofPending que não é booleano e abre a viagem', () => {
+    const detail = adapters.tripDetailFromApi(buildDetail({ proofPending: 'sim' }))
+    expect(detail.documents[0]?.proofPending).toBeUndefined()
   })
 
   it('só marca com true; ausente não marca', () => {
