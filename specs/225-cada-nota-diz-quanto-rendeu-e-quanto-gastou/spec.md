@@ -90,10 +90,16 @@ rateio do frete nem por peso.
 
 - **D3 — Trecho sem nota a bordo não desaparece: ele vira rateio de viagem, declarado.** O retorno
   (`planned_return_distance_meters`) e qualquer trecho vazio custam dinheiro e não pertencem a nota
-  nenhuma. Esse custo é repartido entre todas as notas da viagem **proporcionalmente ao gasto que cada
-  uma já acumulou**, e a tela mostra as duas partes separadas: **"do trecho"** e **"rateio da
+  nenhuma. Esse custo é repartido **igualmente entre todas as notas da
+  viagem**, e a tela mostra as duas partes separadas: **"do trecho"** e **"rateio da
   viagem"**. Esconder a segunda faria a soma das notas não fechar com a viagem; somar as duas sem
   dizer faria a nota parecer mais cara do que ela causou.
+
+  ⚠️ **Igualmente, não proporcionalmente ao gasto já acumulado.** A primeira redação dizia
+  proporcional, e isso contradizia o CA06: a nota sem parada acumula gasto zero, logo receberia peso
+  zero e ficaria **sem rateio nenhum** — justamente a nota que só tem rateio. Proporcional também faria
+  a nota de percurso curto quase não pagar o retorno, que acontece pela viagem inteira. A contradição
+  apareceu ao implementar, não ao revisar.
 
 - **D4 — A soma das notas fecha com a viagem, e um contrato prova isso.** Invariante, para toda
   viagem: `Σ (costAmount + taxAmount) == totalCost`, `Σ freightAmount == totalRevenue` e

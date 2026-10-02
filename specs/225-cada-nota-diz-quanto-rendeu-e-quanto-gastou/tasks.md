@@ -29,7 +29,7 @@ em `evidence.md`.
 
   Aceite: falham pelo motivo certo (a política não existe), e a contagem de testes subiu em N.
 
-- [ ] **T1.2** `trips/domain/document-cost-apportionment.policy.ts` e os tipos
+- [x] **T1.2** `trips/domain/document-cost-apportionment.policy.ts` e os tipos
       `Params`/`Result`. Função pura, `Decimal` em tudo, resto de arredondamento determinístico na nota
       de maior gasto. ⚠️ `legs[i]` é o trecho que chega à parada `i+1` — a suposição é prendida por
       asserção, não por comentário.
