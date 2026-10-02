@@ -10,6 +10,8 @@ type CheckboxProps = Readonly<{
   disabled?: boolean
   indeterminate?: boolean
   label?: ReactNode
+  /** Fora da sequência de Tab (`-1`) quando um composto com foco rotativo é dono da parada. */
+  tabIndex?: number
 }>
 
 export function Checkbox({
@@ -19,6 +21,7 @@ export function Checkbox({
   indeterminate = false,
   label,
   onChange,
+  tabIndex,
 }: CheckboxProps): JSX.Element {
   const inputReference = useRef<HTMLInputElement>(null)
 
@@ -37,6 +40,7 @@ export function Checkbox({
         disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
         ref={inputReference}
+        tabIndex={tabIndex}
         type="checkbox"
       />
       <span aria-hidden="true" className={styles.box}>

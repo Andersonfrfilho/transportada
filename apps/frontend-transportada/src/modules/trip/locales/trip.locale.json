@@ -487,6 +487,7 @@
       "close": "Fechar a conferência de canhotos",
       "empty": "Nenhum canhoto desta seleção está aguardando conferência.",
       "imageFailed": "A foto não abriu. Este canhoto não pode ser aprovado sem ser visto.",
+      "keyboardHint": "Setas andam entre as notas · Espaço marca ou desmarca · Enter abre a foto",
       "loadFailed": "Não foi possível carregar os canhotos. Tente de novo.",
       "loading": "Carregando os canhotos",
       "noteLabel": "Nota {{label}}",

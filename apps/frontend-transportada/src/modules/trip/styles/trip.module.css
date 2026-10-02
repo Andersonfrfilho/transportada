@@ -4852,6 +4852,17 @@ button.occurrenceCaseBadge {
   max-block-size: 16rem;
 }
 
+/* Dica de teclado só onde há teclado: num celular ela é instrução para um dispositivo ausente. */
+.canhotoBatchKeyboardHint {
+  display: none;
+}
+
+@media (pointer: fine) {
+  .canhotoBatchKeyboardHint {
+    display: block;
+  }
+}
+
 .canhotoBatchPlaceholder {
   height: 12rem;
 }
