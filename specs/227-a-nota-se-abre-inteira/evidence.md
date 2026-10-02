@@ -692,3 +692,13 @@ própria.)
 **Não verificado**: preview do canvas renderizado (comparação feita pelo código dele); toque real
 (`pointer: coarse` só por regra de CSS, não emulado); gate da raiz (`format:check` nos `.md`, build) e a
 integração da API; o selo `occurrenceCaseBadge` não sobe ao alvo de toque sob `coarse` (como antes).
+
+## T6.1 — comparação com o canvas e ok do usuário (2026-10-02)
+
+Prints finais em `prints/` (1280 e 375, escuro e claro, comprovante fechado e aberto). O usuário aprovou o visual após a
+revisão de design T4.4 e autorizou o fechamento e o preparo do push para staging.
+Divergências contra o canvas (pendências declaradas): Dados da nota com até 8 campos (canvas 6); lista de eventos com 2–3
+linhas e “Ver no mapa” por evento (canvas: uma linha e mapa agregado com raio); só a miniatura principal do comprovante
+(canvas: todas as peças); chevron ao centro (canvas: à esquerda); cores e tipografia pelos tokens do repositório; círculo do
+raio no mapa não desenhado; foto isolada sem entrada na legenda. Ressalva D12: a foto do canhoto é derivada na leitura
+(228 D1), sem tabela nova — aceita pelo usuário. Token novo `--control-height-dense` (selos de 24 px) aceito.

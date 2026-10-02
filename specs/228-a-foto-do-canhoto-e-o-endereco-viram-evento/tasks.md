@@ -60,7 +60,7 @@ D11. **Esta spec não tem migration** — se alguma task concluir que precisa de
 - [x] **T4.1** Contrato + implementação: _Eventos desta entrega_ e a linha do tempo da viagem mostram "Foto do
       canhoto" e "Endereço da parada corrigido", com origem e deslocamento; "Ver no mapa" só com
       `location`. Aceite: suíte do painel verde pelo script `test` (nunca `bun test` cru).
-- [ ] **T4.2** Prints (CA08) em 1280 e 375, dark e light, sem transbordo, comparados com a prancha do canvas
+- [x] **T4.2** Prints (CA08) em 1280 e 375, dark e light, sem transbordo, comparados com a prancha do canvas
       da 227. **Exige o ok explícito do usuário** (web.md §15).
 
 ## Fase 5 — Documentação, portões e revisão
@@ -70,9 +70,9 @@ D11. **Esta spec não tem migration** — se alguma task concluir que precisa de
 - [x] **T5.1** Documentação viva: `docs/ai-context/api-transportada.md` (as duas fontes novas, D1/D4) e
       `frontend-transportada.md`; marcar na 227 que a Fase 5 dela recebeu os eventos, e levar à T6.1 da 227 a ressalva da
       D12 (foto derivada, sem tabela) para o usuário confirmar junto dos prints.
-- [ ] **T5.2** Portão completo na raiz, um comando por vez em primeiro plano (`make check`; `format:check` é
+- [x] **T5.2** Portão completo na raiz, um comando por vez em primeiro plano (`make check`; `format:check` é
       gate só da raiz e cobre `specs/`).
-- [ ] **T5.3** Revisão por `code-reviewer` em `opus`: tenant nas fontes novas, recorte de posição, PII no
+- [x] **T5.3** Revisão por `code-reviewer` em `opus`: tenant nas fontes novas, recorte de posição, PII no
       corpo e no log, keyset.
 
 ## O que não se decide sozinho

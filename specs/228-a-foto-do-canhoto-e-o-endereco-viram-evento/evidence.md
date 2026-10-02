@@ -431,3 +431,9 @@ saída, sem outra edição); os prints finais da T4.2 dependem do ok do usuário
 - A legenda do minimapa não mostra entrada para a foto isolada (só o pino com câmera e a lista de pontos): decisão
   mínima do M4, a revisar no design.
 - Prints finais (T4.2), integração completa (só o arquivo tocado) e a CI.
+
+## T4.2 / T5.2 / T5.3 — fechamento (2026-10-02)
+
+T4.2: prints aprovados pelo usuário junto da T6.1 da 227. T5.2: portão da raiz verde (format:check, lint, typecheck, build,
+test); integração completa da API 853 pass / 1 fail por timeout de 30 s sob carga em `trip-occurrence-item-quantity`
+(5/5 isolado). T5.3: revisão opus “aprovada com pendências”, achados tratados em `fixes-228`.

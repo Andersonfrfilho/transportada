@@ -90,7 +90,7 @@ Nenhum `[NEEDS CLARIFICATION]` aberto nesta spec.
 
 > 🤖 Modelo: `opus` 🧠 na revisão; `sonnet` no resto
 
-- [ ] **T6.1** **Comparar com o canvas**, lado a lado (spec, "A referência é um canvas"). Prints da tela real e
+- [x] **T6.1** **Comparar com o canvas**, lado a lado (spec, "A referência é um canvas"). Prints da tela real e
       da prancha, em 1280 e 375 px, dark e light, **cada divergência listada** no `evidence.md` como
       defeito corrigido ou pendência declarada. Olha estrutura, ordem, vocabulário, cor e estados — **não** os
       números (D10). **Exige o ok explícito do usuário** (web.md §15). Levar junto a ressalva da 228 D12: a
