@@ -1731,6 +1731,22 @@ describe('trip-timeline.query com documentId (spec 227 T5.1) contra o Postgres',
   )
 })
 
+async function readAllPages(
+  database: TestDatabase,
+  base: { readonly companyId: string; readonly tripId: string },
+  limit: number,
+): Promise<readonly { readonly id: string; readonly kind: string }[]> {
+  const collected: { readonly id: string; readonly kind: string }[] = []
+  let cursor: ReadTripTimelineParams['cursor'] = null
+  for (let page = 0; page < 20; page += 1) {
+    const result = await listTripTimeline(database.db, { ...base, cursor, limit })
+    collected.push(...result.items.map((item) => ({ id: item.id, kind: item.kind })))
+    if (result.nextCursor === null) break
+    cursor = parseTripTimelineCursor(result.nextCursor)
+  }
+  return collected
+}
+
 describe('trip-timeline.query com a foto do canhoto (spec 228 T2.1) contra o Postgres', () => {
   type ProofOverrides = Partial<typeof tripDeliveryProofs.$inferInsert>
 
@@ -1796,22 +1812,6 @@ describe('trip-timeline.query com a foto do canhoto (spec 228 T2.1) contra o Pos
     await database.db.execute(
       sql`update trip_delivery_proofs set created_at = ${instant}::timestamptz where id = ${proofId}`,
     )
-  }
-
-  async function readAllPages(
-    database: TestDatabase,
-    base: { readonly companyId: string; readonly tripId: string },
-    limit: number,
-  ): Promise<readonly { readonly id: string; readonly kind: string }[]> {
-    const collected: { readonly id: string; readonly kind: string }[] = []
-    let cursor: ReadTripTimelineParams['cursor'] = null
-    for (let page = 0; page < 20; page += 1) {
-      const result = await listTripTimeline(database.db, { ...base, cursor, limit })
-      collected.push(...result.items.map((item) => ({ id: item.id, kind: item.kind })))
-      if (result.nextCursor === null) break
-      cursor = parseTripTimelineCursor(result.nextCursor)
-    }
-    return collected
   }
 
   testWithPostgres(
@@ -2191,7 +2191,7 @@ describe('trip-timeline.query com o endereço corrigido (spec 228 T3.1) contra o
       actorUserId: input.company.userId,
       addressKey: input.addressKey,
       companyId: input.company.companyId,
-      createdAt: new Date(input.createdAt),
+      createdAt: sql`${input.createdAt}::timestamptz`,
       id,
       newLatitude: '-23.5505000',
       newLongitude: '-46.6334000',

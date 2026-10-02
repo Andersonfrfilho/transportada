@@ -45,6 +45,12 @@ describe('SQL do endereço corrigido na linha do tempo (spec 228 T3.1)', () => {
     expect(ADDRESS_SOURCE).toContain('changes.created_at >= trip_stops.created_at')
   })
 
+  test('a trilha da correção só lê as chaves das paradas da viagem (usa o índice por address_key)', () => {
+    expect(ADDRESS_SOURCE).toMatch(
+      /from geocoded_address_corrections\s+where company_id = \$\{params\.companyId\}\s+and address_key in \(\s+select address_key from trip_stops\s+where company_id = \$\{params\.companyId\} and trip_id = \$\{params\.tripId\}\s+\)/u,
+    )
+  })
+
   test('as duas trilhas viram uma só consulta (union all), com os tipos fixados', () => {
     expect(ADDRESS_SOURCE.match(/union all/gu) ?? []).toHaveLength(1)
     expect(ADDRESS_SOURCE).toContain("'refinement'::text")
@@ -61,7 +67,7 @@ describe('SQL do endereço corrigido na linha do tempo (spec 228 T3.1)', () => {
     expect(ADDRESS_SOURCE).toContain('limit ${params.limit + 1}')
     const subselect = ADDRESS_SOURCE.slice(
       ADDRESS_SOURCE.indexOf('select distinct on'),
-      ADDRESS_SOURCE.indexOf(' matched'),
+      ADDRESS_SOURCE.indexOf(') matched'),
     )
     expect(subselect).not.toContain('limit')
     expect(subselect).not.toContain('timelineKeysetCondition')
@@ -96,7 +102,7 @@ describe('SQL do endereço corrigido na linha do tempo (spec 228 T3.1)', () => {
     expect(ADDRESS_SOURCE).toContain('documentStopScope(params)')
     expect(ADDRESS_SOURCE).not.toContain('trip_documents')
     expect(ADDRESS_SOURCE).not.toContain('tripDocuments')
-    expect(ADDRESS_SOURCE).toMatch(/params\.documentId !== undefined/u)
+    expect(ADDRESS_SOURCE).toMatch(/params\.documentId === undefined\) return sql``/u)
     expect(STOP_SOURCE).toContain('export function documentStopScope(')
   })
 

@@ -205,3 +205,92 @@ migration necessária.
   **847 pass / 8 skip / 0 fail**, 855 testes em 151 arquivos, 1050 s. Os 8 skips são pré-existentes
   (variantes que dependem de infra ausente), não do bloco novo (6 testes novos em `trip-timeline.integration.ts`, todos verdes).
 - Painel não tocado nesta task (nenhuma prioridade copiada no painel).
+
+## T3.1 + T3.2 — endereço corrigido na linha do tempo (API)
+
+Contratos antes (commit `ce7ce2f4a`, vermelhos: o arquivo da fonte não existia e os 7 testes de integração novos
+falhavam contra o Postgres) e implementação depois. Sem migration, sem índice novo.
+
+### O que foi entregue
+
+- `trip-timeline-address.query.ts`: **uma** consulta (`union all` de `geocoded_address_corrections` e do refino
+  `refined`, ambas por `company_id`), `distinct on (changes.id)` num subselect (parada de menor `sequence`),
+  `created_at >= trip_stops.created_at`, membro/perfil do ator por `company_id`, keyset `(created_at, 2, id)`, ordem
+  e `limit` na consulta externa. **Nenhum** join com `geocoded_addresses`. O ponto novo vem de
+  `new_latitude/new_longitude` da correção; o refino sai com `location = null`.
+  `addressChange { origin, displacementMeters }` só no `kind` `stop.address_corrected` (haversine entre o ponto
+  anterior e o novo, arredondado; `null` sem ponto anterior e no refino). Sem `catch`: erro de fonte propaga.
+- Nunca selecionados: `reason`, `requested_by`, `address_key`, `previous_source/precision`, `new_source/precision`.
+- `documentStopScope` já estava exportado de `trip-timeline-stop.query.ts` (T2.2); a fonte o usa no filtro por nota.
+- Ligada ao `Promise.all` de `listTripTimeline`: **agora 9 consultas contra `DATABASE_POOL_MAX = 10`** (sete
+  anteriores + foto + endereço). Uma décima esgotaria o pool — por isso o endereço é uma consulta só; comentário do
+  orquestrador atualizado.
+- Rota e `mergeTripTimeline` já repassavam `addressChange` (a rota devolve `timeline.items` como saiu do caso de uso;
+  o recorte só zera `location`). Faltava só o contrato de rota, agora em
+  `test/trip-http/event-location-redaction.contract.ts` (com `trip.event-location`: `addressChange` + ponto; sem ela:
+  `location null`, `displacementMeters` mantido, latitude/longitude fora do JSON inteiro; outro `kind` não ganha a chave).
+- Retoques de teste feitos na T3.2, achados ao rodar a T3.1 contra o código: `readAllPages` virou helper de módulo
+  (era local do bloco da foto); `geocoded_address_corrections` é append-only (trigger), então o `created_at` com µs é
+  inserido já no `insert` (`${iso}::timestamptz`), não por `update`; o contrato estático usa `') matched'` como
+  delimitador do subselect (`' matched'` casava antes, e a fatia vazia passava sem provar nada).
+
+### Divergências do parecer do architect
+
+1. **Semi-join por `address_key` na trilha da correção** (acrescentado, não estava no parecer): o `EXPLAIN` mostrou que
+   o planejador, com o `join` contra o `union all`, lia **toda** a trilha da empresa (30 000 linhas) e juntava por hash;
+   com `and address_key in (select address_key from trip_stops where company_id = … and trip_id = …)` no ramo da
+   correção ele passa a usar `geocoded_address_corrections_address_key_idx` (180 linhas). Semanticamente redundante com
+   o join externo; preso por contrato estático e mutação (M17).
+2. A fatia de `distinct on`: o parecer pedia `order by (id, sequence asc)`; mantido. Nada mais divergiu.
+
+### EXPLAIN (Postgres 18 nativo, `explain (analyze, buffers, costs off)`)
+
+Massa: 2 empresas × (30 000 correções + 30 000 refinos, 1/3 `refined`) em 5 000 `address_key`, viagem com 30 paradas
+(`k1..k30`), `analyze` feito. Mesma consulta, página 1 (`limit 101`), 240 linhas intermediárias, 101 devolvidas.
+
+| Planejador                                  | Trilha da correção                                                   | Trilha do refino                                                                                               | Tempo   |
+| ------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------- |
+| padrão (antes do semi-join)                 | Seq Scan, 30 000 linhas lidas, `Rows Removed by Filter: 30000`       | Seq Scan, 10 000 `refined` lidas, 50 000 descartadas                                                           | 13,1 ms |
+| padrão (com semi-join, o código entregue)   | `Index Scan using geocoded_address_corrections_address_key_idx`, 180 | Seq Scan, 10 000 `refined` lidas, 50 000 descartadas                                                           | 8,4 ms  |
+| `SET LOCAL enable_seqscan = off` (entregue) | `Index Scan using geocoded_address_corrections_address_key_idx`, 180 | Bitmap Index Scan em `geocoding_refinement_requests_company_created_idx` (30 000 da empresa, filtra `outcome`) | 7,8 ms  |
+
+Paradas por `trip_stops_company_trip_idx`; membro por `user_company_memberships_user_company_unique`; perfil por
+`identity_user_profiles_pkey`. **Leitura**: a trilha da correção custa o que a viagem tem (índice por chave); a do
+**refino** custa o que a empresa já refinou/tentou (não há índice por `address_key` em
+`geocoding_refinement_requests`, só `(company_id, created_at)`) — ~3 ms por 30 000 linhas da empresa. Não pesa no
+volume real (refino é compra paga e tem teto por janela, spec 069), então **nenhuma migration foi criada**. Se o
+volume do refino crescer ordens de grandeza, a saída é um índice `(company_id, address_key)` em
+`geocoding_refinement_requests` — **migration, a perguntar ao usuário**, não feita aqui.
+
+### Mutações (edição aplicada, suíte rodada, arquivo restaurado por regravação; 17/17 mortas)
+
+| Mutação                                                   | Quem matou                                           |
+| --------------------------------------------------------- | ---------------------------------------------------- |
+| M1 trilha da correção sem `company_id`                    | estático + integração (CA03)                         |
+| M2 sem `created_at >= trip_stops.created_at`              | estático + integração (CA03)                         |
+| M3 refino sem `outcome = 'refined'`                       | estático + integração (CA03)                         |
+| M4 `trip_stops.sequence desc`                             | estático + integração (CA04 e filtro por nota)       |
+| M5 sem `distinct on`                                      | estático + integração (CA04)                         |
+| M6 sem `documentStopScope`                                | estático + integração (filtro por nota)              |
+| M7 sem keyset                                             | integração (CA04 e empate)                           |
+| M8 origem fixa em `operator`                              | unitário + integração                                |
+| M9 deslocamento sem `Math.round`                          | unitário + integração (inclui CA05)                  |
+| M10 prioridade errada no keyset (`stop.occurrence`)       | integração (CA04 e empate com `document.occurrence`) |
+| M11 `location` sem checar `null` (refino com ponto)       | unitário                                             |
+| M12 rota descarta `addressChange`                         | contrato de rota                                     |
+| M13 recorte do caso de uso zera `addressChange`           | unitário + contrato de rota                          |
+| M14 membro do ator sem `company_id`                       | estático                                             |
+| M15 seleciona `address_key`                               | estático                                             |
+| M16 parada sem `company_id`                               | estático                                             |
+| M17 trilha da correção sem restringir às chaves da viagem | estático                                             |
+
+### Portões da T3.2 (apps/api-transportada)
+
+- `bun run typecheck`: limpo. `bun run lint` (`--max-warnings=0`): limpo. Prettier nos arquivos tocados: limpo.
+- `bun --env-file=../../.env.test test --timeout 120000`: **8714 pass / 23 skip / 0 fail** (192 arquivos).
+- `DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65434/postgres bun --env-file=../../.env.test run
+test:integration` (completo): **861 pass / 1 skip / 0 fail**, 862 testes em 151 arquivos, 609 s. O Postgres do
+  `.env.test` (65432, Docker) não respondia (`pg_isready`: nenhuma resposta); rodou-se num Postgres 18 nativo
+  descartável em 65434 (`initdb` no scratchpad), e as migrations rodam em banco descartável por teste. 7 testes novos
+  em `trip-timeline.integration.ts`. Não verificado contra o Postgres 65432/17 da CI.
+- Painel não tocado nesta task.

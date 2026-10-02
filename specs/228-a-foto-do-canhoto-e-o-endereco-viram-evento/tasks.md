@@ -46,11 +46,11 @@ D11. **Esta spec não tem migration** — se alguma task concluir que precisa de
 
 > 🤖 Modelo: `sonnet` · T3.2 🧠 (`distinct on` + keyset — validar com `architect` em `opus`)
 
-- [ ] **T3.1** Contratos (antes): unitário de `addressChange` (origem, deslocamento, `null` sem ponto
+- [x] **T3.1** Contratos (antes): unitário de `addressChange` (origem, deslocamento, `null` sem ponto
       anterior e no refino); estático (empresa nas duas trilhas e na parada, `created_at >= parada`, só
       `refined`, `distinct on` em subselect, nenhum `geocodedAddresses`, nenhum `reason`/`requestedBy`, `documentStopScope`); refino com `location = null`; empate forçado com `document.occurrence`; integração: CA03, CA04 (duas paradas, mesma chave, páginas de 1), CA05, filtro por nota (só a
       parada da nota; nota sem parada → nenhum evento de endereço).
-- [ ] **T3.2** 🧠 `trip-timeline-address.query.ts` + `Promise.all`. Aceite: os **dois** comandos da API
+- [x] **T3.2** 🧠 `trip-timeline-address.query.ts` + `Promise.all`. Aceite: os **dois** comandos da API
       verdes; `EXPLAIN` registrado.
 
 ## Fase 4 — Painel

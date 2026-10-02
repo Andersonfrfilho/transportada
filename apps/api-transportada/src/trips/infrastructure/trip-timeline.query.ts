@@ -29,6 +29,7 @@ import {
   listDispatchedRows,
   listStatusChangedRows,
 } from './trip-timeline-status.query.js'
+import { listAddressCorrectedRows } from './trip-timeline-address.query.js'
 import { listCanhotoPhotoRows } from './trip-timeline-proof.query.js'
 import { listStopEventRows, listStopOccurrenceRows } from './trip-timeline-stop.query.js'
 
@@ -94,9 +95,10 @@ export async function findTripDocumentScope(
 }
 
 /**
- * A linha do tempo de uma viagem: oito consultas (D5 — `trip_stop_events` cobre três `kind`s; spec
- * 171 acrescenta `trip.created`), escopadas por `companyId` e `tripId`, unidas em memória por
- * `mergeTripTimeline`. RNF: uma consulta por fonte, `Promise.all`, sem N+1.
+ * A linha do tempo de uma viagem: nove consultas (D5 — `trip_stop_events` cobre três `kind`s; spec
+ * 171 acrescenta `trip.created`; spec 228 a foto do canhoto e o endereço corrigido), contra o pool de
+ * `DATABASE_POOL_MAX = 10` (uma décima esgotaria o pool, por isso o endereço é uma consulta só, `union
+ * all`), escopadas por `companyId` e `tripId`, unidas em memória por `mergeTripTimeline`. RNF: uma consulta por fonte, `Promise.all`, sem N+1.
  */
 export async function listTripTimeline(
   queryable: TripQueryable,
@@ -111,6 +113,7 @@ export async function listTripTimeline(
     documentOccurrences,
     documentStatusChanged,
     canhotoPhotos,
+    addressCorrections,
   ] = await Promise.all([
     listCreatedRows(queryable, params),
     listDispatchedRows(queryable, params),
@@ -120,6 +123,7 @@ export async function listTripTimeline(
     listDocumentOccurrenceRows(queryable, params),
     listDocumentStatusChangedRows(queryable, params),
     listCanhotoPhotoRows(queryable, params),
+    listAddressCorrectedRows(queryable, params),
   ])
 
   const merged = mergeTripTimeline({
@@ -133,6 +137,7 @@ export async function listTripTimeline(
       documentOccurrences,
       documentStatusChanged,
       canhotoPhotos,
+      addressCorrections,
     ],
   })
   const last = merged.items[merged.items.length - 1]
