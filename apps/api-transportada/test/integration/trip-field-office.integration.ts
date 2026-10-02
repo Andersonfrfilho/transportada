@@ -251,8 +251,13 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
     },
   )
 
+  /**
+   * Spec 223 RF1/RF4, ADR-0091: era o aceite 9 (422 `PHOTO_REQUIRED`). Agora a nota **baixa** com
+   * `photo = 'required'` e sem foto, e o canhoto fica pendente na resposta — contra o Postgres, com
+   * a configuração lida da tabela da empresa.
+   */
   testWithPostgres(
-    'aceite 9: empresa exige foto e ela não veio — 422 TRIP_DELIVERY_PROOF_PHOTO_REQUIRED',
+    'spec 223: empresa exige foto e ela não veio — a nota baixa com canhoto pendente',
     async () => {
       await withDisposableDatabase(async (database) => {
         const company = await seedCompany(database)
@@ -263,23 +268,28 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
         })
         const [, , , , deliverRoute] = wireRoutes(database)
 
-        await expect(
-          deliverRoute!.execute({
-            context: fakeContext(company),
-            correlationId: 'integration-correlation-delivery-photo-required',
-            pathParameters: { id: trip.tripId, documentId: trip.documentId },
-            request: multipartRequest({
-              fields: { deliveredAt: '2026-09-18T09:00:00.000Z' },
-              idempotencyKey: 'office-field-delivery-photo-required',
-            }),
+        const response = await deliverRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'integration-correlation-delivery-photo-required',
+          pathParameters: { id: trip.tripId, documentId: trip.documentId },
+          request: multipartRequest({
+            fields: { deliveredAt: '2026-09-18T09:00:00.000Z' },
+            idempotencyKey: 'office-field-delivery-photo-required',
           }),
-        ).rejects.toMatchObject({ code: 'TRIP_DELIVERY_PROOF_PHOTO_REQUIRED', status: 422 })
+        })
+
+        expect(response.status).toBe(201)
+        const body = (await response.json()) as {
+          data: { proofId: string | null; proofPending: boolean }
+        }
+        expect(body.data.proofId).toBeNull()
+        expect(body.data.proofPending).toBe(true)
 
         const [documentRow] = await database.db
           .select({ status: tripDocuments.separationStatus })
           .from(tripDocuments)
           .where(eq(tripDocuments.id, trip.documentId))
-        expect(documentRow?.status).toBe('loaded')
+        expect(documentRow?.status).toBe('delivered')
       })
     },
   )

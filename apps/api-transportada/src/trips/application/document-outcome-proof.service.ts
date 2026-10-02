@@ -35,11 +35,15 @@ export async function resolveOutcomeProofSettings(
   const { input, kind, proof, resolveProofSettings } = params
   const query = { companyId: input.companyId, documentId: input.documentId }
   const officeSettings = proof === undefined ? undefined : await proof.resolveSettings(query)
-  if (kind !== DELIVERED_EVENT_KIND || resolveProofSettings === undefined) {
-    return { officeSettings, pendingSettings: undefined }
-  }
+  if (kind !== DELIVERED_EVENT_KIND) return { officeSettings, pendingSettings: undefined }
+  /**
+   * Spec 223 RF3: quem resolveu a configuração do escritório já tem de onde derivar a pendência —
+   * exigir também `resolveProofSettings` era armadilha: a baixa passava sem canhoto e sem dívida.
+   */
+  if (officeSettings !== undefined) return { officeSettings, pendingSettings: officeSettings }
+  if (resolveProofSettings === undefined) return { officeSettings, pendingSettings: undefined }
 
-  return { officeSettings, pendingSettings: officeSettings ?? (await resolveProofSettings(query)) }
+  return { officeSettings, pendingSettings: await resolveProofSettings(query) }
 }
 
 /**
@@ -80,9 +84,13 @@ export async function persistDeliveryProof(input: {
 }
 
 /**
- * ADR-0070 §1, spec 159 RF1/RF2: pendente = entrega (nunca `return`), foto obrigatória resolvida, e
- * nenhuma foto anexada ao evento. Sem `resolveProofSettings` o campo é `false` — nunca bloqueia
- * por falta dele.
+ * ADR-0070 §1, spec 159 RF1/RF2: pendente = entrega (nunca `return`), canhoto exigido pela
+ * configuração resolvida, e nenhuma foto anexada ao evento. Sem `resolveProofSettings` o campo é
+ * `false` — nunca bloqueia por falta dele.
+ *
+ * Spec 223 RF3: `signature = 'required'` conta como canhoto exigido. A policy recusava por foto
+ * **ou** assinatura; agora que ela não recusa mais, olhar só a foto deixaria a empresa que exige
+ * assinatura baixar sem pendência — o canhoto sumiria sem rastro.
  */
 export async function resolveProofPendingFlag(params: {
   readonly companyId: string
@@ -91,7 +99,11 @@ export async function resolveProofPendingFlag(params: {
   readonly pendingSettings: DeliveryProofFieldSettings | undefined
   readonly transaction: DriverFieldReportTransactionPort
 }): Promise<boolean> {
-  if (params.pendingSettings?.photo !== REQUIRED_PROOF_FIELD_MODE) return false
+  const settings = params.pendingSettings
+  const isProofRequired =
+    settings?.photo === REQUIRED_PROOF_FIELD_MODE ||
+    settings?.signature === REQUIRED_PROOF_FIELD_MODE
+  if (!isProofRequired) return false
 
   const hasPhoto = await params.transaction.findProofExistsForEvent({
     companyId: params.companyId,

@@ -878,7 +878,6 @@
     "documentAlreadySettled": "Esta nota já estava entregue ou devolvida.",
     "deliveredAtInFuture": "\"Entregue em\" não pode ser no futuro.",
     "deliveredAtBeforeDispatch": "\"Entregue em\" não pode ser antes do despacho da viagem.",
-    "deliveryProofPhotoRequired": "Esta empresa exige foto do canhoto — anexe uma antes de enviar.",
     "arrivedAtInFuture": "\"Chegou em\" não pode ser no futuro.",
     "arrivedAtBeforeDispatch": "\"Chegou em\" não pode ser antes do despacho da viagem.",
     "returnedAtInFuture": "\"Devolvido em\" não pode ser no futuro.",

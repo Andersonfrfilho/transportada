@@ -878,7 +878,6 @@
     "documentAlreadySettled": "This document was already delivered or returned.",
     "deliveredAtInFuture": "\"Delivered at\" cannot be in the future.",
     "deliveredAtBeforeDispatch": "\"Delivered at\" cannot be before the trip's dispatch.",
-    "deliveryProofPhotoRequired": "This company requires a proof photo — attach one before sending.",
     "arrivedAtInFuture": "\"Arrived at\" cannot be in the future.",
     "arrivedAtBeforeDispatch": "\"Arrived at\" cannot be before the trip's dispatch.",
     "returnedAtInFuture": "\"Returned at\" cannot be in the future.",

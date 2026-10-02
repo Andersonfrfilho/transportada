@@ -111,6 +111,11 @@ const REQUIRED_PHOTO_SETTINGS: DeliveryProofFieldSettings = {
   ...OPTIONAL_SETTINGS,
   photo: 'required',
 }
+/** Spec 223 RF3: assinatura obrigatória **sem** foto obrigatória — o caso que ninguém cobria. */
+const REQUIRED_SIGNATURE_SETTINGS: DeliveryProofFieldSettings = {
+  ...OPTIONAL_SETTINGS,
+  signature: 'required',
+}
 
 async function expectApiError(
   operation: Promise<unknown>,
@@ -157,25 +162,56 @@ describe('field-delivery: entrega + comprovante na mesma transação (spec 156 T
     expect(world.state.calls).toContain(`saveDeliveryProofWithinTransaction:${result.id}:photo`)
   })
 
-  it('aceite 9: configuração exige foto e ela não veio — 422 TRIP_DELIVERY_PROOF_PHOTO_REQUIRED', async () => {
+  /**
+   * Spec 223 RF1, ADR-0091: o que era o aceite 9 (422 `PHOTO_REQUIRED`) virou o contrário — a baixa
+   * do escritório sem arquivo é **aceita** com `photo = 'required'`, e o canhoto nasce como
+   * pendência (`proofPending: true`), igual ao caminho do motorista (ADR-0070 §1).
+   */
+  it('spec 223 RF1: exige foto e ela não veio — a baixa é aceita com proofPending', async () => {
     const world = buildWorld()
 
-    await expectApiError(
-      reportDocumentDelivery({
-        actorUserId: ACTOR_USER_ID,
-        companyId: COMPANY_ID,
-        documentId: DOCUMENT_ID,
-        idempotencyKey: 'office-field-delivery-photo-required',
-        location: null,
-        now: new Date('2026-09-18T12:00:00.000Z'),
-        proof: buildProof({ settings: REQUIRED_PHOTO_SETTINGS, upload: null }),
-        recordedAt: NOW,
-        target: await resolveTarget(),
-        unitOfWork: world.unitOfWork,
-      }),
-      'TRIP_DELIVERY_PROOF_PHOTO_REQUIRED',
-      422,
-    )
+    const result = await reportDocumentDelivery({
+      actorUserId: ACTOR_USER_ID,
+      companyId: COMPANY_ID,
+      documentId: DOCUMENT_ID,
+      idempotencyKey: 'office-field-delivery-photo-required',
+      location: null,
+      now: new Date('2026-09-18T12:00:00.000Z'),
+      proof: buildProof({ settings: REQUIRED_PHOTO_SETTINGS, upload: null }),
+      recordedAt: NOW,
+      target: await resolveTarget(),
+      unitOfWork: world.unitOfWork,
+    })
+
+    expect(result.alreadySettled).toBe(false)
+    expect(result.proofId).toBeNull()
+    expect(result.proofPending).toBe(true)
+  })
+
+  /**
+   * Spec 223 RF3: `signature = 'required'` sem foto também passa — e **precisa** nascer pendente. A
+   * policy recusava por foto **ou** assinatura, e `resolveProofPendingFlag` só olhava a foto: sem
+   * esta asserção a baixa passaria sem dívida nenhuma e o canhoto sumiria em silêncio.
+   */
+  it('spec 223 RF3: exige assinatura e nada veio — aceita e proofPending é true', async () => {
+    const world = buildWorld()
+
+    const result = await reportDocumentDelivery({
+      actorUserId: ACTOR_USER_ID,
+      companyId: COMPANY_ID,
+      documentId: DOCUMENT_ID,
+      idempotencyKey: 'office-field-delivery-signature-required',
+      location: null,
+      now: new Date('2026-09-18T12:00:00.000Z'),
+      proof: buildProof({ settings: REQUIRED_SIGNATURE_SETTINGS, upload: null }),
+      recordedAt: NOW,
+      target: await resolveTarget(),
+      unitOfWork: world.unitOfWork,
+    })
+
+    expect(result.alreadySettled).toBe(false)
+    expect(result.proofId).toBeNull()
+    expect(result.proofPending).toBe(true)
   })
 
   it('foto opcional ausente conclui a entrega sem comprovante', async () => {
