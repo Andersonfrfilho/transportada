@@ -81,11 +81,25 @@ pessoa **ver** o canhoto; o lote é o atalho do clique, não da conferência. Da
     de `automatic-manifest-api.gateway.ts`.
   - `application/canhoto-read.routine.ts` — o laço com teto e `isStopRequested()`.
 - `apps/api-transportada/src/trips/presentation/canhoto-review.routes.ts`: rota
-  `PATCH .../proof/review/automatic`, política `{ permission: '<automação>', scope: 'company' }`,
-  mesmo corpo do ramo `automatic` de hoje e **mesmo** caso de uso. A rota de gente continua
-  aceitando `automatic` (o navegador não muda).
-- `apps/api-transportada/src/identity/domain/authorization.policy.ts`: a permissão nova entra no
-  vocabulário e **só** no papel `automation`.
+  `PATCH .../proof/review/automatic`, política
+  `{ permission: 'trip.canhoto-auto-review', scope: 'company' }` e **mesmo** caso de uso. O roteador
+  casa por igualdade de número de segmentos, então não há colisão com `/proof/review`. O corpo é
+  schema **próprio**, com os quatro campos de leitura `nullable()` e **obrigatórios** — reaproveitar
+  o objeto do ramo `automatic` traria `action` junto, e campo `optional()` chegaria `undefined` onde
+  `assertReadingIsConsistent` compara contra `null`. A rota de gente continua aceitando `automatic`
+  (o navegador não muda).
+- `apps/api-transportada/src/identity/domain/authorization.policy.ts`: `trip.canhoto-auto-review`
+  entra no catálogo, no papel `automation` **e em `SERVICE_ONLY_PERMISSIONS`** — a terceira é
+  separada das outras duas e é a que `isGrantablePermission` consulta; sem ela, `groups.manage`
+  concede a porta do robô a uma pessoa.
+- ⚠️ **A permissão nova é mudança de oito arquivos**, e três deles comparam listas por igualdade
+  exata — vão reprovar sem dizer por quê:
+  `apps/frontend-transportada/src/modules/identity/queries/useAuthMe.query.ts` (cópia por valor do
+  catálogo), `apps/frontend-transportada/test/identity/permission-matrix.contract.ts:127`,
+  `apps/api-transportada/test/tenant-context.contract.test.ts:178`,
+  `apps/api-transportada/test/authorization.contract.test.ts` (`:72`, `:197`, `:409`, `:712`,
+  `:726-737`), `apps/api-transportada/test/user-administration-application/role-permissions.contract.ts:95`
+  e os dois `identity.locale.json` / `identity.en.locale.json`.
 - `realm/transportada-local-realm.json`: nada a mudar — a conta de serviço já tem
   `transportada-service` e o escopo vem da membership sintética.
 
@@ -115,25 +129,48 @@ Evento: `trip.canhoto.read` no envelope de job run que já existe. Nenhum evento
 
 ## Dados, migration e rollback
 
-Nenhuma coluna nova. **Uma** migration, e ela é obrigatória: `job_executions_job_check` e
+**Uma** migration, e ela é obrigatória: `job_executions_job_check` e
 `job_schedules_job_check` listam os nomes de rotina, então `trip.canhoto.read` só existe depois de
 recriar as duas CHECK — o molde exato está em
 `drizzle/20260915233000_rate_limit_windows/migration.sql` (DROP → ADD ... NOT VALID → VALIDATE),
 seguido do `INSERT INTO "job_schedules"` da linha nova. `rollback.sql` desfaz na ordem inversa:
 apaga a linha e volta as CHECK sem o nome novo. `make migration-test` fecha a task.
 
-A mesma migration leva o **índice parcial da varredura**. `trip_delivery_proofs` tem três índices e
-nenhum deles cobre `canhoto_review` (conferido no schema): sem o índice, a rotina faz varredura
-sequencial na tabela que a execução de campo escreve o dia inteiro, de cinco em cinco minutos.
+A mesma migration leva **a coluna `canhoto_read_attempted_at`** (RF-B9, `timestamptz` anulável, sem
+backfill: nulo é "a máquina ainda não tentou") e o **índice parcial da varredura**.
+`trip_delivery_proofs` tem cinco índices e a PK, e nenhum deles cobre `canhoto_review` (conferido no
+schema): sem o índice, a rotina varre sequencialmente a tabela que a execução de campo escreve o dia
+inteiro, de cinco em cinco minutos.
 
 ```sql
 CREATE INDEX "trip_delivery_proofs_canhoto_pending_idx"
-  ON "trip_delivery_proofs" ("company_id", "created_at")
-  WHERE "kind" = 'photo' AND "canhoto_review" = 'pending' AND "canhoto_read_source" IS NULL;
+  ON "trip_delivery_proofs" ("created_at")
+  WHERE "canhoto_review" = 'pending'
+    AND "canhoto_read_source" IS NULL
+    AND "canhoto_read_attempted_at" IS NULL;
 ```
 
-Parcial de propósito: ele é do tamanho da fila, e **encolhe sozinho** conforme a rotina drena — o
-índice desaparece quando não há o que ler, que é o estado normal.
+Três decisões dentro desse SQL, e cada uma veio de um jeito de ele não funcionar:
+
+1. **`kind` fora do predicado.** A CHECK `..._canhoto_review_kind_check` já garante que
+   `canhoto_review <> 'not_applicable'` implica `kind = 'photo'`, mas o Postgres **não usa CHECK**
+   para provar implicação de predicado parcial — ele prova a partir dos quals da consulta. Manter
+   `kind` ali obrigaria a consulta a repetir os quatro conjuntos literalmente, ou o índice seria
+   ignorado. `kind` continua no `WHERE` da consulta, onde é inofensivo.
+2. **Chave `(created_at)`, não `(company_id, created_at)`.** A fila é por antiguidade
+   (`ORDER BY created_at LIMIT <teto>`, RF-B2) e a instalação é dedicada (ADR-0021): `company_id`
+   como chave líder não compra nada e forçaria ordenar a fila inteira. O `companyId` que o robô
+   manda no `x-company-id` sai da **linha**, não do filtro.
+3. **Os conjuntos vão como literais SQL** (`sql\`canhoto_review = 'pending'\``), nunca `eq()`com
+valor de JS.`predicate_implied_by`roda sobre os quals, e`canhoto_review = $1`**não** implica`canhoto_review = 'pending'`. É o modo de falha mais provável do índice, e ele falha em
+silêncio. Por isso a T6.3 fecha com `EXPLAIN`mostrando`Index Scan`(CA20) —`make
+   migration-test` prova que o DDL aplica e reverte, e não prova nada sobre plano de execução.
+
+E o índice **não é grátis**, ao contrário do que esta seção dizia antes: o predicado é avaliado em
+toda escrita da tabela, e porque `canhoto_review` e `canhoto_read_source` são colunas dele, o
+`UPDATE` que aprova um canhoto deixa de poder ser HOT. A relação também não "encolhe sozinha" —
+entrada liberada é reaproveitada pelo `VACUUM`, mas o pico de páginas só volta com `REINDEX`. É
+preço pequeno e vale pagar; o que não valia era vendê-lo como zero.
 
 ## Segurança e tenant
 
@@ -143,20 +180,34 @@ Parcial de propósito: ele é do tamanho da fila, e **encolhe sozinho** conforme
   carrega, não cancela, não aprova nem recusa à mão.
 - `security.md` §1: nenhum byte de imagem, nome de recebedor, documento do recebedor ou número de
   nota em log. O ciclo loga `proofId`, `documentId`, `tripId`, `companyId` e contagens.
-- Trilha: o ramo automático não grava `canhoto_review_by_user_id` (a política já crava `null`); a
-  trilha da rotina é a do job execution, não auditoria de pessoa.
+- Trilha: a rota do robô grava `audit_logs` por comprovante (RF-B10). `canhoto_review_by_user_id`
+  continua `null` — a CHECK `..._canhoto_review_actor_check` o exige no caminho automático —, e é
+  justamente isso que faz do `audit_logs` o **único** lugar onde a identidade do serviço aparece.
+  ⚠️ Esta linha dizia o contrário ("a trilha da rotina é a do job execution") e contradizia a T3.6 e
+  o ADR-0047 §6. A execução do job responde "um ciclo rodou às 14h05"; ela não responde "este
+  comprovante, com esta leitura, por este serviço", que é a pergunta que esta feature vai receber.
 - Diálogo do maço: as URLs assinadas são de vida curta e não são guardadas em `localStorage`.
 
 ## Idempotência e concorrência
 
-- **Rotina**: o filtro `canhoto_read_source IS NULL` é a idempotência — o que foi lido sai da
-  varredura. Reenvio da mesma leitura cai em `unchanged` (220 RF27) e não gera trilha nova.
-- **Veredito humano vence**: `resolveAutomaticCanhotoReview` devolve `unchanged` sobre origem
-  `manual`. A rotina pode rodar durante a conferência sem risco de sobrescrever.
+- **Rotina**: a idempotência são **duas** colunas, não uma — `canhoto_read_source IS NULL AND
+canhoto_read_attempted_at IS NULL`. A primeira tira o que foi lido; a segunda tira o que foi
+  **tentado e não tinha código** (RF-B9), que sem ela voltaria à fila para sempre. Reenvio da mesma
+  leitura cai em `unchanged` (220 RF27) e não gera trilha nova.
+- **Regra de parada**: falha de infraestrutura (`object_unavailable`, `too_large`, `decode_timeout`,
+  `api_unreachable`) **não** grava a tentativa — merece o próximo ciclo. `report_rejected` (4xx da
+  API) e `api_unauthorized` também não gravam, mas vão para o Sentry: são defeito nosso ou crachá
+  perdido, e repetir em silêncio esconderia os dois.
+- **Veredito humano vence; o inverso é permitido**: `resolveAutomaticCanhotoReview` devolve
+  `unchanged` sobre origem `manual`, então a rotina nunca sobrescreve gente. Mas a política **não**
+  trata origem `automatic` como veredito humano: a pessoa aprovando por cima de um `approved`
+  automático **aplica** e devolve 200, não 409. É o certo — quem olhou a foto manda mais que quem
+  leu a barra — e a tela não chama isso de conflito.
 - **Maço**: aprovar é `PATCH` idempotente; repetir o mesmo veredito humano é `unchanged`, e trocar
-  um veredito humano é 409 — que a tela trata como "já resolvido", não como falha (RF-A7).
-- **Concorrência de lote**: as chamadas do lote vão em sequência, não em `Promise.all` — uma falha
-  não pode descartar o resultado das outras (`code-standart.md` §15).
+  um veredito **humano** é 409 — que a tela trata como "já resolvido", não como falha (RF-A7).
+- **Concorrência de lote**: `runFieldActionQueue` (que já existe, `concurrency: 3`) devolve resultado
+  por item e isola a falha — uma falha não pode descartar o resultado das outras
+  (`code-standart.md` §15).
 - A travessia do banco continua por `lockCanhotoProof` (`SELECT ... FOR UPDATE` por empresa + ids).
 
 ## Observabilidade

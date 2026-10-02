@@ -92,7 +92,10 @@ marcadas não tinham canhoto para conferir.
   que já existe, com `{ action: 'approve' }` — nenhuma rota de escrita nova. Falha parcial mantém
   marcadas só as que falharam e relata quantas de quantas (padrão 156 T8b).
 - **RF-A7** `409` de canhoto já resolvido não é falha do lote: aquele item sai da lista com o
-  veredito que valeu, e o lote segue.
+  veredito que valeu, e o lote segue. ⚠️ Aprovar por cima de um `approved` **automático** devolve
+  **200**, não 409 — a política não trata origem `automatic` como veredito humano, e isso é o
+  comportamento certo: quem olhou a foto manda mais que quem leu a barra. A tela não chama esse caso
+  de conflito.
 - **RF-A8** **A tela não aprova o que não mostrou.** Item cuja imagem não carregou (erro de rede,
   URL assinada vencida, comprovante sem miniatura e sem original) nasce **desmarcado**, com o aviso
   de que a foto não abriu. É o que sustenta a conferência humana da 220 num diálogo coletivo.
@@ -104,9 +107,13 @@ marcadas não tinham canhoto para conferir.
 - **RF-B1** Rotina `trip.canhoto.read` no catálogo de jobs, nas quatro cópias por valor (API,
   worker, cron, frontend) e com a paridade guardada pelos `test/job-catalog/catalog.contract.ts` de
   cada lado. O cron publica, o worker consome — o padrão de toda rotina da casa.
-- **RF-B2** A varredura só considera comprovante com `kind = 'photo'`, `canhoto_review = 'pending'`
-  e `canhoto_read_source IS NULL`, de empresa ativa, em lotes com teto por ciclo e respeitando
-  `context.isStopRequested()` (padrão `trip-location-purge`).
+- **RF-B2** A varredura só considera comprovante com `kind = 'photo'`, `canhoto_review = 'pending'`,
+  `canhoto_read_source IS NULL` e `canhoto_read_attempted_at IS NULL` (RF-B9), de empresa ativa,
+  **de viagem não cancelada e nota não liberada**, em lotes com teto por ciclo, ordenados por
+  `created_at` (a fila é por antiguidade) e respeitando `context.isStopRequested()` (padrão
+  `trip-location-purge`). O corte de viagem cancelada é o que faz máquina e tela concordarem:
+  `lockCanhotoProof` não filtra nenhuma das duas, e sem o corte a tela recusaria oferecer o canhoto
+  que a máquina aprovaria calada.
 - **RF-B3** Para cada comprovante o worker baixa o objeto, decodifica o código de barras e
   identifica a nota pela chave de acesso, com a **mesma régua do navegador**: Code-128, dígito
   verificador módulo 11, modelo `55`, e a chave comparada com as notas daquela viagem
@@ -115,17 +122,40 @@ marcadas não tinham canhoto para conferir.
   `readSeries`, `readSource`) e o veredito continua saindo de `resolveAutomaticCanhotoReview` no
   servidor. A 220 RF26 fica invariante: código de barras que casa aprova; o resto é `pending`.
 - **RF-B5** O canal automático ganha **rota própria** —
-  `PATCH /trips/:id/documents/:documentId/proof/review/automatic` — com permissão própria no papel
-  `automation`, do mesmo jeito que o MDF-e automático tem a sua (ADR-0047 §4: "uma permissão, e só
-  ela"). O robô não herda `trip.manage`, logo não separa, não carrega, não cancela e não aprova à
+  `PATCH /trips/:id/documents/:documentId/proof/review/automatic` — com a permissão
+  `trip.canhoto-auto-review` concedida só ao papel `automation` (ADR-0047 §4: "uma permissão, e só
+  ela"). A permissão entra em **duas** listas: o catálogo de `CompanyPermission` e
+  `SERVICE_ONLY_PERMISSIONS` — é a segunda que `isGrantablePermission` consulta para recusar
+  concessão por grupo ou avulsa, e sem ela quem tem `groups.manage` concede a si mesmo a porta do
+  robô. O robô não herda `trip.manage`, logo não separa, não carrega, não cancela e não aprova à
   mão. A rota de gente continua aceitando `action: 'automatic'` para a leitura do navegador.
-- **RF-B6** Idempotência por desenho: o `canhoto_read_source` gravado tira o comprovante da
-  varredura seguinte, e repetir a mesma leitura devolve `unchanged` sem trilha nova (220 RF27).
+  ⚠️ O corpo da rota do robô é schema **próprio**: os quatro campos de leitura são `nullable()` e
+  **obrigatórios**, não opcionais — com `exactOptionalPropertyTypes` um campo ausente chega
+  `undefined`, e `assertReadingIsConsistent` compara contra `null`.
+- **RF-B6** Idempotência por desenho: `canhoto_read_source` **ou** `canhoto_read_attempted_at`
+  gravado tira o comprovante da varredura seguinte, e repetir a mesma leitura devolve `unchanged`
+  sem trilha nova (220 RF27).
 - **RF-B7** A rotina **nunca recusa**. Foto ilegível, sem código de barras, ou com código de outra
   nota, fica `pending` — trabalho de gente, como manda a 220 RF29.
 - **RF-B8** Falha de um comprovante é resultado contado, não exceção que derruba o ciclo:
-  `object_unavailable`, `unsupported_media`, `too_large`, `decode_timeout`, `api_unreachable`. Um
-  comprovante ruim não impede os outros do mesmo ciclo.
+  `object_unavailable`, `unsupported_media`, `too_large`, `decode_timeout`, `api_unreachable`,
+  `report_rejected` (400/404/409 da API) e `api_unauthorized` (401/403). Um comprovante ruim não
+  impede os outros do mesmo ciclo. ⚠️ `report_rejected` e `api_unauthorized` vão para o Sentry: o
+  primeiro é corpo malformado, que é defeito nosso; o segundo é segredo rotacionado ou permissão
+  perdida. Nenhum dos dois é "imprevisto" que se possa engolir em silêncio.
+- **RF-B9** **A máquina registra que tentou.** `trip_delivery_proofs` ganha
+  `canhoto_read_attempted_at`, gravado quando a leitura terminou e **não** produziu código
+  utilizável. Sem isso a rotina tem um defeito que nenhum teste pegaria: canhoto sem código de
+  barras — o caso comum do escritório — não produz leitura, continua com `canhoto_read_source` nulo
+  e volta à varredura, sendo baixado e decodificado a cada cinco minutos para sempre. Falha de
+  infraestrutura (objeto ausente, teto, timeout, API fora) **não** grava a tentativa: ela merece o
+  próximo ciclo. A recaptura (220 RF30) não é afetada — ela cria comprovante novo.
+- **RF-B10** **A rota do robô grava trilha por comprovante** (`audit_logs`, ação
+  `trip.canhoto-review.automatic`, ator = usuário do serviço, sem nota e sem PII). O caminho
+  `automatic` de hoje não grava, e para o navegador isso passava: há gente logada olhando. Para um
+  chamador cross-tenant, desacompanhado e de cinco em cinco minutos, não passa — e como
+  `canhoto_review_by_user_id` fica nulo por CHECK no caminho automático, `audit_logs` é o único
+  lugar onde a identidade do serviço aparece (ADR-0047 §6). A rota de gente fica como está.
 
 ## Requisitos não funcionais
 
@@ -133,7 +163,10 @@ marcadas não tinham canhoto para conferir.
   (`proofId`, `documentId`, `tripId`, `companyId`) e contagens (`security.md` §1).
 - **RNF2** Decodificação **fora do event loop**, em `worker_thread`, com orçamento de tempo por
   comprovante e por ciclo (ADR-0053: "o anexo anônimo não é lido na requisição" — mesma razão).
-- **RNF3** Teto de bytes lido do storage por comprovante, conferido **antes** de decodificar.
+- **RNF3** Teto de **8 MB** por comprovante, conferido **antes de baixar**, pelo tamanho já gravado
+  em `stored_objects` — não depois do download. Conferir só antes de decodificar permitiria baixar
+  cem megabytes para então recusar. O PNG de 12 MP do spike deu 10,7 MB e levou o RSS do worker a
+  ~300 MB; 8 MB cobre JPEG e WebP de câmera com folga e corta justamente esse caso.
 - **RNF4** A biblioteca de decodificação de imagem precisa rodar em Bun e no runtime do Railway sem
   passo de build próprio; a escolha é medida, não suposta (`code-standart.md` §13).
 - **RNF5** O diálogo do maço com quarenta itens não trava a tela: miniaturas com `loading="lazy"`
@@ -157,7 +190,11 @@ marcadas não tinham canhoto para conferir.
   (`useTripDocumentSelection`), e o diálogo relê ao abrir (RF-A9).
 - **Duas pessoas conferindo**: a primeira grava, a segunda recebe 409 e a tela mostra o veredito que
   valeu (RF-A7).
-- **Viagem cancelada**: canhoto de viagem cancelada não é oferecido no maço.
+- **Viagem cancelada / nota liberada**: não é oferecido no maço **e** não entra na varredura
+  (RF-B2). `lockCanhotoProof` não filtra nenhuma das duas, então o corte tem de estar na consulta da
+  fila — senão a tela recusa e a máquina aprova calada.
+- **Canhoto sem código de barras**: é o caso comum do escritório. Decodifica, não acha, grava
+  `canhoto_read_attempted_at` e sai da fila (RF-B9). Sem isso, seria relido para sempre.
 
 ## Critérios de aceite
 
@@ -185,13 +222,32 @@ marcadas não tinham canhoto para conferir.
 - **CA14** Objeto ausente no storage: o ciclo termina `succeeded` com a falha contada, e os outros
   comprovantes do lote foram lidos.
 - **CA15** Nenhuma linha de log do ciclo contém nome, documento ou bytes — só ids e contagens.
+- **CA16** `trip.canhoto-auto-review` é recusada a grupo e a concessão avulsa
+  (`isGrantablePermission` devolve `false`), e nenhum papel além de `automation` a tem.
+- **CA17** Canhoto sem código de barras: primeiro ciclo decodifica e grava
+  `canhoto_read_attempted_at`; o segundo ciclo **não o baixa** — é a prova de que a fila converge.
+- **CA18** Objeto acima de 8 MB é recusado **sem download**, pelo tamanho gravado em
+  `stored_objects`, e conta `too_large`.
+- **CA19** O caminho do robô grava uma linha em `audit_logs` por comprovante, com o usuário do
+  serviço como ator e sem nota nem PII; a rota de gente continua não gravando no ramo automático.
+- **CA20** A consulta da fila usa o índice parcial: `EXPLAIN` mostra `Index Scan` sobre
+  `trip_delivery_proofs_canhoto_pending_idx`, não `Seq Scan`.
 
 ## Dúvidas
 
-Nenhuma bloqueante. Duas decisões ficam **dentro** da execução, como task medida e registrada em
-`evidence.md`:
+Nenhuma. As duas decisões que estavam abertas foram fechadas antes da implementação, e as duas
+mudaram o escopo:
 
-1. A biblioteca de decodificação de imagem no servidor (RNF4) — spike com medição em Bun e no
-   runtime do Railway antes de entrar no `package.json`.
-2. O nome da permissão da automação (RF-B5), validado contra o vocabulário de
-   `authorization.policy.ts`.
+1. **Decodificador** (RNF4): `@jsquash/{jpeg,png,webp}` em wasm, medido em
+   `spike-decodificador.md` — 101 ms numa foto de 12,2 MP dentro de `worker_thread`, sob os flags de
+   empacotamento do worker. Não `sharp`, para não pendurar binário nativo por plataforma no caminho
+   do `--frozen-lockfile`.
+2. **Permissão** (RF-B5): `trip.canhoto-auto-review`. Prefixo `trip` porque `canhoto` não é domínio
+   (não existe módulo `canhoto/`, a tabela é `trip_delivery_proofs`, a rota é `/trips/...`); sufixo
+   `-review` e não `-read` porque em todo o catálogo `.read` significa ver, e uma permissão de
+   escrita terminada em `-read` engana quem audita a matriz de concessão.
+
+A revisão do `architect` sobre o ADR-0091 acrescentou RF-B9 (a máquina registra que tentou), RF-B10
+(trilha por comprovante), o corte de viagem cancelada na RF-B2, os dois resultados de falha novos da
+RF-B8, a segunda lista de permissão na RF-B5 e o teto antes do download na RNF3. Nenhuma delas é
+refinamento: cada uma tapa um caminho em que a rotina estaria errada em produção e verde no teste.

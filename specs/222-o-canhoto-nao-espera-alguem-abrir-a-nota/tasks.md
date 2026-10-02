@@ -43,17 +43,25 @@ começam.
       nota sem comprovante, comprovante que não é canhoto e canhoto já conferido ficam de fora
       (CA02, CA03)
 - [ ] T2.2 A função pura `shared/canhotoBatchSelection.service.ts`
-- [ ] T2.3 [P] Contrato do lote no cliente: sequência de `canhotoReviewProof`, 409 vira
-      `conflicted` (não falha), falha de rede remarca só o que falhou e relata "1 de 5"
-      (CA07, CA08)
+- [ ] T2.3 [P] Contrato do lote no cliente: `canhotoReviewProof` por item, 409 vira `conflicted`
+      (não falha), falha de rede remarca só o que falhou e relata "1 de 5" (CA07, CA08).
+      ⚠️ **Reaproveitar, não reinventar**: `runFieldActionQueue`
+      (`shared/tripFieldActionQueue.service.ts`, `concurrency: 3`) já devolve `{errorCode, item,
+    value}` por item e isola a falha; `batchFieldReturnMutation`
+      (`useTripWorkspace.hook.ts:861`) é o molde da mutation. E o código do 409 já existe:
+      `CANHOTO_REVIEW_ALREADY_RESOLVED_CODE` em `shared/trip.constant.ts:69` — importar, nunca
+      redeclarar (§16)
 - [ ] T2.4 `useTripDeliveryProofs.query.ts`, `enabled` só com `trip.manage` **e** seleção não vazia
       — o detalhe da viagem não passa a buscar comprovante de graça (plan.md § frontend)
 - [ ] T2.5 `approveCanhotoBatch` em `useTripWorkspace.hook.ts`, devolvendo
       `{ approved, conflicted, failed }` e invalidando a consulta da viagem
 - [ ] T2.6 `TripCanhotoBatchDialog.component.tsx`: grid com `ProofImage`, número e série da nota, a
-      leitura automática quando houver, caixa marcada por item, rótulo com a contagem (CA05, CA06)
+      leitura automática quando houver, caixa marcada por item, rótulo com a contagem (CA05, CA06).
+      Molde de diálogo: `TripReturnReasonDialog.component.tsx` — `createPortal` + `useModalDialog`,
+      classes `styles.mdfeGateOverlay` / `styles.mdfeGateDialog`, `aria-modal` e `aria-labelledby`.
+      Nenhuma biblioteca de modal nova
 - [ ] T2.7 Item cuja imagem não carregou nasce **desmarcado**, com aviso — a tela não aprova o que
-      não mostrou (RF-A8, CA09)
+      não mostrou (RF-A8, CA09). O gancho é o `onError` que o `ProofImage` já tem
 - [ ] T2.8 Botão no maço em `TripStateActions.component.tsx`, no molde de `batchFieldDelivery`, com
       o aviso de exclusão reaproveitando a contagem da T2.2 (CA02–CA04)
 - [ ] T2.9 Textos em `trip.locale.json` (`stateActions.batchCanhoto*`, `deliveryProof.canhotoBatch.*`)
@@ -62,34 +70,47 @@ começam.
 
 ## Fase 3 — O robô tem porta própria
 
-> 🤖 Modelo: `sonnet` (T3.1 e T3.2 são 🧠 — validar com `architect` em `opus` ANTES de implementar)
+> 🤖 Modelo: `sonnet`. **T3.1 e T3.2 já foram feitas e validadas pelo `architect`** em 2026-10-01 —
+> o ADR-0091 está escrito e o nome da permissão está decidido. Quem executa a fase lê o ADR e
+> implementa; não reabra as duas decisões.
 
-- [ ] T3.1 🧠 ADR-0091 — "o canhoto é lido sem ninguém abrir a viagem": a 220 cravou a leitura no
-      navegador ("não existe outro chamador"); este ADR registra o canal novo, por que o veredito
-      continua no servidor e por que o robô não herda `trip.manage`
-- [ ] T3.2 🧠 Nome da permissão da automação, validado contra o vocabulário de
-      `authorization.policy.ts`, e a decisão de que ela entra **só** no papel `automation`
-      (ADR-0047 §4)
+- [x] T3.1 🧠 ADR-0091 — "o canhoto é lido sem ninguém abrir a viagem". Escrito e corrigido depois
+      da revisão: §1 diz a garantia **real** (não aprova leitura divergente, nunca `rejected`, mas
+      aprova o que não leu se souber o número certo), §7 decide a trilha por comprovante e §8 a
+      regra de parada
+- [x] T3.2 🧠 Permissão: **`trip.canhoto-auto-review`**. Prefixo `trip` porque `canhoto` não é
+      domínio; sufixo `-review` porque `.read` significa ver em todo o catálogo
 - [ ] T3.3 Contrato **antes da rota**: a rota do robô aceita o token da automação, recusa token de
-      gente com `trip.manage`, e o `.strict()` recusa `action` no corpo (CA13)
-- [ ] T3.4 Permissão no vocabulário e no papel `automation`; contrato de que nenhum outro papel a
-      recebeu
+      gente com `trip.manage`, o schema recusa `action` no corpo, e `isGrantablePermission` recusa a
+      permissão a grupo e a concessão avulsa (CA13, CA16)
+- [ ] T3.4 A permissão em **três** lugares: catálogo, papel `automation` e `SERVICE_ONLY_PERMISSIONS`
+      (`authorization.policy.ts:366`). ⚠️ São oito arquivos no total, e três comparam listas por
+      igualdade exata — a lista está no plan.md § "Grupo B". Sem a entrada em
+      `SERVICE_ONLY_PERMISSIONS`, quem tem `groups.manage` concede a porta do robô a uma pessoa
 - [ ] T3.5 A rota `PATCH .../proof/review/automatic` em `canhoto-review.routes.ts`, no **mesmo**
-      caso de uso — a rota de gente não muda, e o navegador continua pelo `action: 'automatic'`
-- [ ] T3.6 Integração: o caminho do robô grava veredito, leitura e trilha; sobre veredito humano
-      devolve `unchanged` (CA10, CA12)
+      caso de uso, com **schema próprio**: os quatro campos de leitura `nullable()` e
+      **obrigatórios**, nunca `optional()` (com `exactOptionalPropertyTypes` o ausente chega
+      `undefined` e `assertReadingIsConsistent` compara contra `null`). A rota de gente não muda
+- [ ] T3.6 O caminho do robô grava `audit_logs` por comprovante (ação
+      `trip.canhoto-review.automatic`, ator = usuário do serviço, sem PII) — hoje
+      `reviewCanhotoProof` **pula** `insertAudit` quando a ação é automática, e é essa linha que
+      muda, só para o canal do robô (RF-B10, CA19)
+- [ ] T3.7 Integração: veredito, leitura e trilha gravados; sobre veredito humano devolve
+      `unchanged` (CA10, CA12, CA19)
 
 ## Fase 4 — Portão: dá para decodificar imagem no servidor?
 
-> 🤖 Modelo: `opus` 🧠 — é decisão de dependência e de arquitetura (`code-standart.md` §13)
+> 🤖 Modelo: `opus` 🧠 — é decisão de dependência e de arquitetura (`code-standart.md` §13).
+> **O portão já foi aberto em 2026-10-01: T4.1 e T4.2 estão feitas e o veredito é verde.** Resta a
+> T4.3, que é a instalação.
 
-- [ ] T4.1 🧠 Spike medido: JPEG, PNG e WebP → luminância em Bun, no runtime do Railway, sem passo
-      de build próprio. Medir tempo e memória numa foto de canhoto real de teste e registrar a
-      tabela em `evidence.md`. Candidatos a comparar, não a presumir: wasm (`@jsquash/*`) e nativo
-      (`sharp`)
-- [ ] T4.2 Decisão escrita no ADR-0091 com o número medido. **Se nenhuma opção fechar**, PARE e
-      pergunte ao usuário: o plano B é a leitura no navegador disparada pelo diálogo do maço, e isso
-      muda o escopo das Fases 5 e 6
+- [x] T4.1 🧠 Spike medido, em `spike-decodificador.md`: `@jsquash` em `worker_thread` lê uma foto de
+      12,2 MP em 101 ms (JPEG), 179 ms (PNG) e 312 ms (WebP), casando a chave exata, inclusive sob
+      `bun build --target=bun --packages=external`. `sharp` saiu ~1,8x mais rápido em 4,3 MP no
+      processo principal e não foi medido no worker
+- [x] T4.2 Decisão no ADR-0091 §4: **`@jsquash`**, porque o critério é não pendurar binário nativo
+      por plataforma no caminho do `--frozen-lockfile`, não velocidade. Teto de 8 MB conferido
+      **antes do download**, pelo tamanho gravado em `stored_objects`
 - [ ] T4.3 `bun add` da escolhida no `apps/worker-transportada` + `bun install --frozen-lockfile` na
       raiz, com `make check` limpo
 
@@ -107,10 +128,13 @@ começam.
 - [ ] T5.3 Migration no molde de `drizzle/20260915233000_rate_limit_windows/migration.sql`:
       recria `job_executions_job_check` e `job_schedules_job_check` com o nome novo
       (DROP → ADD NOT VALID → VALIDATE) e insere a linha em `job_schedules`
-- [ ] T5.3b Na **mesma** migration, o índice parcial da varredura
-      (`trip_delivery_proofs_canhoto_pending_idx`, SQL no plan.md § "Dados, migration e rollback") e
-      a declaração dele no `trip.schema.ts` — `trip_delivery_proofs` não tem índice que cubra
-      `canhoto_review`, e sem ele a rotina varre a tabela inteira de cinco em cinco minutos
+- [ ] T5.3b Na **mesma** migration, a coluna `canhoto_read_attempted_at` (`timestamptz` anulável,
+      sem backfill — nulo é "a máquina ainda não tentou", RF-B9) e o índice parcial da varredura
+      (`trip_delivery_proofs_canhoto_pending_idx`), os dois declarados também no `trip.schema.ts`.
+      ⚠️ O SQL está no plan.md § "Dados, migration e rollback" e **não** é o que estava aqui antes:
+      chave `(created_at)` sozinha, `kind` **fora** do predicado, e os conjuntos como literais. As
+      três decisões vêm de três jeitos de o índice ser ignorado em silêncio — leia o porquê antes de
+      escrever a DDL
 - [ ] T5.4 `rollback.sql` na ordem inversa + `make migration-test` verde
 - [ ] T5.5 `db:generate` precisa dizer `no_changes` depois da migration à mão — se divergir, o
       schema e a migration não casam
@@ -125,19 +149,32 @@ começam.
 - [ ] T6.2 `domain/canhoto-barcode.policy.ts` (cópia por valor, com a razão no cabeçalho) e
       `domain/canhoto-read.constant.ts` (teto de lote, de ciclo, de bytes, orçamento de ms)
 - [ ] T6.3 [P] Consulta dos pendentes: `kind='photo'`, `canhoto_review='pending'`,
-      `canhoto_read_source IS NULL`, empresa ativa, com `tripId`/`documentId`/`companyId`/`objectId`
-      e as notas da viagem com chave de acesso
-- [ ] T6.4 Decodificador + `worker_thread` (ADR-0053), com teto de bytes conferido **antes** de
-      decodificar e contrato sobre um PNG sintético commitado (barra gerada no teste, sem foto real)
+      `canhoto_read_source IS NULL`, `canhoto_read_attempted_at IS NULL`, empresa ativa, **viagem
+      não cancelada e nota não liberada**, `ORDER BY created_at LIMIT <teto>`, com os conjuntos do
+      predicado como **literais SQL** (não `eq()` com valor de JS, ou o índice parcial é ignorado).
+      ⚠️ `trip_delivery_proofs` **não tem** `trip_id` nem `document_id`: `tripId` e `documentId` vêm
+      de dois joins (`stop_event_id` → `trip_stop_events.trip_document_id` → `trip_documents`), e
+      são eles, não a varredura, que dominam o custo. Fecha com `EXPLAIN` mostrando `Index Scan`
+      sobre `trip_delivery_proofs_canhoto_pending_idx` — colado no `evidence.md` (CA20)
+- [ ] T6.4 Decodificador + `worker_thread` (ADR-0053), com o teto de 8 MB conferido **antes de
+      baixar** (pelo tamanho gravado em `stored_objects`, não depois do download) e contrato sobre um
+      **JPEG realista** commitado — barra sólida, fundo levemente granulado, gerado no teste.
+      ⚠️ Fixture chapado esconde o caso ruim e fixture com ruído dentro da barra inventa um defeito
+      que não existe: foi o que aconteceu no spike (`spike-decodificador.md` § "Um achado")
 - [ ] T6.5 Gateway autenticado, decalque de `automatic-manifest-api.gateway.ts` (token em cache com
       margem, `x-company-id`), chamando a rota da Fase 3
 - [ ] T6.6 Contrato do laço **antes da rotina**: teto de lote, teto de ciclo, `isStopRequested()`,
-      falha de um comprovante contada sem derrubar o resto (CA14)
+      falha de um comprovante contada sem derrubar o resto (CA14), e a **regra de parada** — leitura
+      que terminou sem código grava `canhoto_read_attempted_at`; falha de infraestrutura e 4xx
+      **não** gravam, e 4xx/401/403 vão para o Sentry (RF-B8, RF-B9)
 - [ ] T6.7 `application/canhoto-read.routine.ts` e a ligação em `main.ts` do worker
 - [ ] T6.8 Contrato de log: o ciclo emite id e contagem, nunca nome, documento ou bytes (CA15)
 - [ ] T6.9 Integração do ciclo: doze pendentes, os que casam ficam `approved` com origem
       `automatic`, os que não casam ficam `pending` **com o número lido**, nenhum `rejected`; e o
       segundo ciclo não toca em nada (CA10, CA11)
+- [ ] T6.10 Integração da convergência: canhoto **sem** código de barras é lido uma vez, grava
+      `canhoto_read_attempted_at`, e no segundo ciclo **não é baixado** (CA17). Sem esta prova, o
+      caso comum do escritório seria redecodificado a cada cinco minutos para sempre
 
 ## Fase 7 — Fechamento
 
