@@ -77,9 +77,9 @@ export async function findTripDocumentScope(
     readonly documentId: string
     readonly tripId: string
   },
-): Promise<{ readonly id: string } | null> {
+): Promise<{ readonly id: string; readonly stopId: string | null } | null> {
   const [document] = await queryable
-    .select({ id: tripDocuments.id })
+    .select({ id: tripDocuments.id, stopId: tripDocuments.stopId })
     .from(tripDocuments)
     .where(
       and(

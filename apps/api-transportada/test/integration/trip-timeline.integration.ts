@@ -1389,6 +1389,7 @@ describe('trip-timeline.query com documentId (spec 227 T5.1) contra o Postgres',
     readonly idsOfA: ReadonlySet<string>
     readonly idsOfB: ReadonlySet<string>
     readonly idsWithoutDocument: ReadonlySet<string>
+    readonly stopId: string
     readonly tripId: string
   }
 
@@ -1518,6 +1519,7 @@ describe('trip-timeline.query com documentId (spec 227 T5.1) contra o Postgres',
       idsOfA: new Set([deliveredAId, statusAId, occurrenceAId]),
       idsOfB: new Set([deliveredBId, statusBId, occurrenceBId]),
       idsWithoutDocument: new Set([arrivedId, stopOccurrenceId, tripStatusId]),
+      stopId,
       tripId,
     }
   }
@@ -1530,6 +1532,7 @@ describe('trip-timeline.query com documentId (spec 227 T5.1) contra o Postgres',
         companyId: seed.company.companyId,
         cursor: null,
         documentId: seed.documentA,
+        documentStopId: seed.stopId,
         limit: 100,
         tripId: seed.tripId,
       })
@@ -1542,6 +1545,77 @@ describe('trip-timeline.query com documentId (spec 227 T5.1) contra o Postgres',
       }
     })
   })
+
+  testWithPostgres(
+    'revisão A1: eventos e ocorrências de OUTRA parada não entram na nota; nota sem parada não traz nenhum',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const seed = await seedDocumentFilterTrip(database)
+        const otherStopId = await seedStop(database, seed.company, seed.tripId, 2)
+        const otherStopDocument = await seedTripDocument(
+          database,
+          seed.company,
+          seed.tripId,
+          otherStopId,
+        )
+        const departedAtThisStopId = crypto.randomUUID()
+        const departedOtherStopId = crypto.randomUUID()
+        const occurrenceOtherStopId = crypto.randomUUID()
+        const base = {
+          actorUserId: seed.company.userId,
+          channel: 'driver_app' as const,
+          companyId: seed.company.companyId,
+        }
+        await database.db.insert(tripStopEvents).values([
+          {
+            ...base,
+            createdAt: new Date('2026-10-01T14:00:00.000Z'),
+            id: departedAtThisStopId,
+            kind: 'departed',
+            stopId: seed.stopId,
+          },
+          {
+            ...base,
+            createdAt: new Date('2026-10-01T15:00:00.000Z'),
+            id: departedOtherStopId,
+            kind: 'departed',
+            stopId: otherStopId,
+          },
+        ])
+        await database.db.insert(tripStopOccurrences).values({
+          ...base,
+          createdAt: new Date('2026-10-01T15:30:00.000Z'),
+          description: 'de outra parada',
+          id: occurrenceOtherStopId,
+          kind: 'long_wait',
+          stopId: otherStopId,
+        })
+
+        const result = await listTripTimeline(database.db, {
+          companyId: seed.company.companyId,
+          cursor: null,
+          documentId: seed.documentA,
+          documentStopId: seed.stopId,
+          limit: 100,
+          tripId: seed.tripId,
+        })
+        const ids = new Set(result.items.map((item) => item.id))
+        expect(ids.has(departedAtThisStopId)).toBe(true)
+        expect(ids.has(departedOtherStopId)).toBe(false)
+        expect(ids.has(occurrenceOtherStopId)).toBe(false)
+
+        const withoutStop = await listTripTimeline(database.db, {
+          companyId: seed.company.companyId,
+          cursor: null,
+          documentId: otherStopDocument,
+          documentStopId: null,
+          limit: 100,
+          tripId: seed.tripId,
+        })
+        expect(withoutStop.items.filter((item) => item.stop !== null)).toEqual([])
+      })
+    },
+  )
 
   testWithPostgres('sem o filtro a linha do tempo segue completa', async () => {
     await withDisposableDatabase(async (database) => {
@@ -1572,6 +1646,7 @@ describe('trip-timeline.query com documentId (spec 227 T5.1) contra o Postgres',
           companyId: seed.company.companyId,
           cursor,
           documentId: seed.documentB,
+          documentStopId: seed.stopId,
           limit: 2,
           tripId: seed.tripId,
         })

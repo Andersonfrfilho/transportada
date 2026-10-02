@@ -14,6 +14,7 @@ import { TripDocumentNotFoundError } from '../../src/trips/domain/trip.error.js'
 const COMPANY_ID = '00000000-0000-4000-8000-000000000002'
 const TRIP_ID = '00000000-0000-4000-8000-000000000101'
 const DOCUMENT_ID = '00000000-0000-4000-8000-0000000000d1'
+const DOCUMENT_STOP_ID = '00000000-0000-4000-8000-0000000000a1'
 
 const EMPTY_RESULT: ReadTripTimelineResult = { items: [], nextCursor: null }
 
@@ -25,7 +26,7 @@ function createDoubles(options: { readonly documentExists: boolean }) {
       findTripCompanyScope: async () => ({ id: TRIP_ID }),
       findTripDocumentScope: async (input) => {
         documentScopeCalls.push(input)
-        return options.documentExists ? { id: DOCUMENT_ID } : null
+        return options.documentExists ? { id: DOCUMENT_ID, stopId: DOCUMENT_STOP_ID } : null
       },
     },
     reader: {
@@ -72,7 +73,14 @@ describe('createReadTripTimelineUseCase com documentId (spec 227 T5.1)', () => {
     })
 
     expect(readerCalls).toEqual([
-      { companyId: COMPANY_ID, cursor, documentId: DOCUMENT_ID, limit: 37, tripId: TRIP_ID },
+      {
+        companyId: COMPANY_ID,
+        cursor,
+        documentId: DOCUMENT_ID,
+        documentStopId: DOCUMENT_STOP_ID,
+        limit: 37,
+        tripId: TRIP_ID,
+      },
     ])
   })
 
@@ -89,6 +97,7 @@ describe('createReadTripTimelineUseCase com documentId (spec 227 T5.1)', () => {
 
     expect(documentScopeCalls).toEqual([])
     expect(readerCalls.map((call) => 'documentId' in (call as object))).toEqual([false])
+    expect(readerCalls.map((call) => 'documentStopId' in (call as object))).toEqual([false])
   })
 
   test('sem trip.event-location, a posição sai nula mesmo com o filtro', async () => {
@@ -120,7 +129,7 @@ describe('createReadTripTimelineUseCase com documentId (spec 227 T5.1)', () => {
     const useCase = createReadTripTimelineUseCase({
       existence: {
         findTripCompanyScope: async () => ({ id: TRIP_ID }),
-        findTripDocumentScope: async () => ({ id: DOCUMENT_ID }),
+        findTripDocumentScope: async () => ({ id: DOCUMENT_ID, stopId: DOCUMENT_STOP_ID }),
       },
       reader: { listTripTimeline: async () => ({ items: [item], nextCursor: null }) },
     })
@@ -136,5 +145,34 @@ describe('createReadTripTimelineUseCase com documentId (spec 227 T5.1)', () => {
 
     expect(result.items.map((entry) => entry.location)).toEqual([null])
     expect(result.items.map((entry) => entry.locationState)).toEqual(['captured'])
+  })
+
+  test('nota sem parada: o leitor recebe documentStopId nulo (nenhum evento de parada)', async () => {
+    const readerCalls: unknown[] = []
+    const useCase = createReadTripTimelineUseCase({
+      existence: {
+        findTripCompanyScope: async () => ({ id: TRIP_ID }),
+        findTripDocumentScope: async () => ({ id: DOCUMENT_ID, stopId: null }),
+      },
+      reader: {
+        listTripTimeline: async (input) => {
+          readerCalls.push(input)
+          return EMPTY_RESULT
+        },
+      },
+    })
+
+    await useCase.execute({
+      canReadEventLocation: true,
+      context: { companyId: COMPANY_ID },
+      cursor: null,
+      documentId: DOCUMENT_ID,
+      limit: 10,
+      tripId: TRIP_ID,
+    })
+
+    expect(readerCalls.map((call) => (call as { documentStopId: unknown }).documentStopId)).toEqual(
+      [null],
+    )
   })
 })

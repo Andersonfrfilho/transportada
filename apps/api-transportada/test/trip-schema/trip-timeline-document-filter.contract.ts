@@ -25,18 +25,31 @@ describe('filtro por nota da linha do tempo (spec 227 T5.1)', () => {
     expect(STOP_SOURCE).toContain('eq(tripStopEvents.tripDocumentId, params.documentId)')
   })
 
+  test('eventos e ocorrências de parada ficam restritos à parada da nota (revisão A1)', () => {
+    const eventsSource = STOP_SOURCE.split('export async function listStopOccurrenceRows')[0]
+    const occurrencesSource = STOP_SOURCE.split('export async function listStopOccurrenceRows')[1]
+    expect(eventsSource).toContain('documentStopScope(params)')
+    expect(occurrencesSource).toContain('documentStopScope(params)')
+    expect(STOP_SOURCE).toContain('eq(tripStops.id, params.documentStopId)')
+    expect(STOP_SOURCE).toContain('params.documentStopId === null')
+  })
+
+  test('a conferência da nota devolve também a parada dela', () => {
+    expect(ORCHESTRATOR_SOURCE).toContain('stopId: tripDocuments.stopId')
+  })
+
   test('ocorrência e troca de status da nota filtram pela própria nota', () => {
     expect(DOCUMENT_SOURCE).toContain('eq(tripDocuments.id, params.documentId)')
     expect(DOCUMENT_SOURCE.match(/eq\(tripDocuments\.id, params\.documentId\)/gu)).toHaveLength(2)
   })
 
-  test('as fontes sem nota (viagem e ocorrência de parada) não ganham o filtro', () => {
+  test('a troca de status da viagem e a ocorrência de parada não filtram por nota', () => {
     expect(STATUS_SOURCE).not.toContain('documentId')
     const stopOccurrenceSource = STOP_SOURCE.split(
       'export async function listStopOccurrenceRows',
     )[1]
     expect(stopOccurrenceSource).toBeDefined()
-    expect(stopOccurrenceSource).not.toContain('documentId')
+    expect(stopOccurrenceSource).not.toContain('tripDocuments')
   })
 
   test('a nota é conferida pela empresa e pela viagem, não só pelo id', () => {

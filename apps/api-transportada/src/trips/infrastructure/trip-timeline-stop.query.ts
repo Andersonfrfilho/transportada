@@ -79,6 +79,12 @@ function toTimelineLocation(row: StopEventLocationColumns): TripTimelineLocation
   }
 }
 
+/** Spec 227 (revisão A1): evento e ocorrência de parada, com o filtro por nota, são só os da parada dela. */
+function documentStopScope(params: ReadTripTimelineParams): SQL {
+  if (params.documentStopId === undefined || params.documentStopId === null) return sql`false`
+  return eq(tripStops.id, params.documentStopId)
+}
+
 export async function listStopEventRows(
   queryable: TripQueryable,
   params: ReadTripTimelineParams,
@@ -103,6 +109,7 @@ export async function listStopEventRows(
   ]
   if (params.documentId !== undefined) {
     conditions.push(
+      documentStopScope(params),
       sql`(${isNull(tripStopEvents.tripDocumentId)} or ${eq(tripStopEvents.tripDocumentId, params.documentId)})`,
     )
   }
@@ -224,6 +231,7 @@ export async function listStopOccurrenceRows(
     eq(tripStopOccurrences.companyId, params.companyId),
     eq(tripStops.tripId, params.tripId),
   ]
+  if (params.documentId !== undefined) conditions.push(documentStopScope(params))
   if (params.cursor !== null) {
     conditions.push(
       timelineKeysetCondition(

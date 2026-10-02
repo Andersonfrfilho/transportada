@@ -20,7 +20,7 @@ export type TripTimelineExistencePort = {
     readonly companyId: string
     readonly documentId: string
     readonly tripId: string
-  }): Promise<{ readonly id: string } | null>
+  }): Promise<{ readonly id: string; readonly stopId: string | null } | null>
 }
 
 export type TripTimelineReaderPort = {
@@ -28,6 +28,7 @@ export type TripTimelineReaderPort = {
     readonly companyId: string
     readonly cursor: TripTimelineCursor | null
     readonly documentId?: string
+    readonly documentStopId?: string | null
     readonly limit: number
     readonly tripId: string
   }): Promise<ReadTripTimelineResult>
@@ -56,6 +57,7 @@ export function createReadTripTimelineUseCase(dependencies: {
       })
       if (trip === null) throw new TripNotFoundError()
 
+      let documentStopId: string | null | undefined
       if (input.documentId !== undefined) {
         const document = await dependencies.existence.findTripDocumentScope({
           companyId,
@@ -63,12 +65,15 @@ export function createReadTripTimelineUseCase(dependencies: {
           tripId: input.tripId,
         })
         if (document === null) throw new TripDocumentNotFoundError()
+        documentStopId = document.stopId
       }
 
       const timeline = await dependencies.reader.listTripTimeline({
         companyId,
         cursor: input.cursor,
-        ...(input.documentId === undefined ? {} : { documentId: input.documentId }),
+        ...(input.documentId === undefined
+          ? {}
+          : { documentId: input.documentId, documentStopId: documentStopId ?? null }),
         limit: input.limit,
         tripId: input.tripId,
       })

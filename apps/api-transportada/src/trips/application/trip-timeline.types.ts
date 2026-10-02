@@ -170,6 +170,8 @@ export type ReadTripTimelineParams = {
    * outra nota não. Ausente = a viagem inteira.
    */
   readonly documentId?: string
+  /** Parada da nota pedida; `null` = nota sem parada, logo nenhum evento de parada. Com `documentId`. */
+  readonly documentStopId?: string | null
   readonly limit: number
   readonly tripId: string
 }
