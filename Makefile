@@ -37,7 +37,7 @@ COMPOSE_BASE := docker compose --env-file $(ENV_FILE) -p $(COMPOSE_PROJECT_NAME)
 COMPOSE := KEYCLOAK_PORT=$(KEYCLOAK_PORT) KEYCLOAK_MANAGEMENT_PORT=$(KEYCLOAK_MANAGEMENT_PORT) $(COMPOSE_BASE)
 E2E_ENV_FILE ?= .env.test
 
-.PHONY: help bootstrap e2e-bootstrap test-bootstrap realm-contract config postgres-up identity-bootstrap storage-bootstrap up down ps dev check migration-test smoke e2e-up e2e-down e2e-ps test-up test-down test-ps worker-integration map-mirror map-refresh test-worker-integration
+.PHONY: help bootstrap e2e-bootstrap test-bootstrap realm-contract config postgres-up identity-bootstrap storage-bootstrap up down ps dev check migration-test smoke smoke-health smoke-panel smoke-landing smoke-driver e2e-up e2e-down e2e-ps test-up test-down test-ps worker-integration map-mirror map-refresh test-worker-integration
 
 help: ## 📚 Lista os comandos disponíveis
 	@sed -n 's/^\([a-z][a-z-]*\):.*## \(.*\)$$/\1\t\2/p' $(MAKEFILE_LIST)
@@ -208,7 +208,15 @@ migration-test: postgres-up ## 🗃️ Valida migration e rollback em PostgreSQL
 		DRIZZLE_TEST_DATABASE_URL="$$DATABASE_URL" \
 		bun run --cwd apps/api-transportada db:test
 
-smoke: config ## 🩺 Valida a stack local já iniciada
+# A CI divide o smoke em duas frentes (`smoke-health smoke-panel` e `smoke-landing smoke-driver`);
+# `make smoke` continua rodando tudo, na mesma ordem de sempre.
+smoke: smoke-health smoke-panel smoke-landing smoke-driver ## 🩺 Valida a stack local já iniciada
+
+# A CI não sobe o MinIO (imagem privada) e o `/health/ready` do worker exige storage: sem isto o
+# smoke gasta ~2 min em dois checks que nunca passam. `SMOKE_WITHOUT_STORAGE=true` pula os dois.
+SKIP_STORAGE_CHECKS = $(if $(SMOKE_WITHOUT_STORAGE),true ||,)
+
+smoke-health: config
 	@check_url() { \
 		url="$$1"; \
 		for attempt in $$(seq 1 60); do \
@@ -232,11 +240,13 @@ smoke: config ## 🩺 Valida a stack local já iniciada
 	check_url "http://localhost:$(API_PORT)/health/live"; \
 	check_url "http://localhost:$(API_PORT)/health/ready"; \
 	check_url "http://localhost:$(WORKER_PORT)/health/live"; \
-	check_url "http://localhost:$(WORKER_PORT)/health/ready"; \
-	check_url "http://localhost:59000/minio/health/live"; \
+	$(SKIP_STORAGE_CHECKS) check_url "http://localhost:$(WORKER_PORT)/health/ready"; \
+	$(SKIP_STORAGE_CHECKS) check_url "http://localhost:59000/minio/health/live"; \
 	check_url "http://localhost:58025/livez"; \
 	check_url "http://localhost:$(KEYCLOAK_MANAGEMENT_PORT)/health/ready"; \
 	check_url "http://localhost:$(KEYCLOAK_PORT)/realms/$(KEYCLOAK_REALM)/.well-known/openid-configuration"
+
+smoke-panel: config
 # ⚠️ A faixa 53110+ é **exclusiva** do preview que o Playwright sobe, e não pode
 # encostar nas portas das apps: o smoke roda com a stack do `make dev` no ar, então porta de app
 # ocupada faz o preview morrer com "already used". Foi o que aconteceu quando o `frontend-client`
@@ -246,10 +256,14 @@ smoke: config ## 🩺 Valida a stack local já iniciada
 		PLAYWRIGHT_REUSE_EXISTING_FRONTEND_SERVER=false \
 		PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true \
 		bun run --cwd apps/frontend-transportada smoke
+
+smoke-landing: config
 	@set -a; . "./$(ENV_FILE)"; set +a; \
 		PLAYWRIGHT_LANDING_PORT="$${PLAYWRIGHT_LANDING_PORT:-53111}" \
 		PLAYWRIGHT_REUSE_EXISTING_LANDING_SERVER=false \
 		bun run --cwd apps/frontend-landing smoke
+
+smoke-driver: config
 # ⚠️ A app do motorista faz login de verdade no Keycloak (T4.1: ela não tem o atalho de
 # autenticação do painel, ADR-0075 §7) — o preview do Playwright não pode ficar na faixa 53110+
 # sem mais, porque o `redirect_uri` é `VITE_DRIVER_APP_URL`, gravado no build. O script `smoke` da
