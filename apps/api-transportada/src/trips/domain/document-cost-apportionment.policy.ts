@@ -55,9 +55,13 @@ export function apportionDocumentCosts(
 
   const timeBasis = resolveTimeBasis(params)
   const freights = params.documents.map((document) => parseMoney(document.freightAmount))
-  const taxes = distribute(bucketOf(params, APPORTIONMENT_BASES.revenue), freights)
+  const taxBucket = bucketOf(params, APPORTIONMENT_BASES.revenue)
+  const taxes = distribute(taxBucket, freights)
+  const isTaxDistributable = taxBucket === 0n || sumOf(freights) > 0n
 
-  if (!hasUsableRoute(params)) return buildUnavailableResult({ params, taxes, timeBasis })
+  if (!hasUsableRoute(params)) {
+    return buildUnavailableResult({ isTaxDistributable, params, taxes, timeBasis })
+  }
 
   const legCosts = new Array<bigint>(params.documents.length).fill(0n)
   let orphanCost = spreadDistance({ legCosts, params })
@@ -74,7 +78,7 @@ export function apportionDocumentCosts(
   // que as parcelas somam. Se não fechar por qualquer razão (hoje, frete total zero com imposto
   // positivo), "indisponível" é a resposta honesta; um número que parece conta e não fecha, não é.
   if (sumOf([...legCosts, ...shares, ...taxes]) !== sumOf(listParcelAmounts(params))) {
-    return buildUnavailableResult({ params, taxes, timeBasis })
+    return buildUnavailableResult({ isTaxDistributable, params, taxes, timeBasis })
   }
 
   return {
@@ -108,14 +112,18 @@ export function apportionDocumentCosts(
 }
 
 type UnavailableResultParams = {
+  readonly isTaxDistributable: boolean
   readonly params: ApportionDocumentCostsParams
   readonly taxes: readonly bigint[]
   readonly timeBasis: TimeBasis
 }
 
-/** O imposto por nota é exato com ou sem roteiro; gasto, lucro e margem ficam ausentes — nunca zero. */
+/**
+ * O imposto por nota é exato com ou sem roteiro, salvo quando há imposto e o frete total é zero: aí
+ * não há como dividir e ele sai ausente. Gasto, lucro e margem ficam ausentes — nunca zero.
+ */
 function buildUnavailableResult(input: UnavailableResultParams): ApportionDocumentCostsResult {
-  const { params, taxes, timeBasis } = input
+  const { isTaxDistributable, params, taxes, timeBasis } = input
 
   return {
     documents: params.documents.map((document, index) => ({
@@ -125,7 +133,7 @@ function buildUnavailableResult(input: UnavailableResultParams): ApportionDocume
       legCostAmount: null,
       marginAmount: null,
       marginPercentage: null,
-      taxAmount: formatScaledDecimal(taxes[index] ?? 0n, MONEY_SCALE),
+      taxAmount: isTaxDistributable ? formatScaledDecimal(taxes[index] ?? 0n, MONEY_SCALE) : null,
       timeBasis,
       tripDocumentId: document.tripDocumentId,
       tripShareCostAmount: null,

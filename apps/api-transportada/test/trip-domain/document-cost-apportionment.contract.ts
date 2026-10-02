@@ -345,6 +345,50 @@ describe('balde sem peso nenhum não desaparece (revisão da 226, A1)', () => {
     expect(figures.every((entry) => entry.costBasis === 'unavailable')).toBeTrue()
     expect(figures.every((entry) => entry.costAmount === null)).toBeTrue()
   })
+
+  /**
+   * Revisão M3: ICMS positivo sobre frete total zero não tem como ser distribuído. O imposto sai
+   * ausente — um "0.0000" pareceria que a nota não paga imposto.
+   */
+  test('imposto que não pôde ser distribuído sai nulo, nunca zero', () => {
+    const figures = apportionDocumentCosts(
+      buildScenario({
+        costParcels: [parcel('fuel', '50.0000'), parcel('icms', '12.0000')],
+        documents: [note('doc-1', 'stop-1', '0.0000'), note('doc-2', 'stop-2', '0.0000')],
+        stops: [stop('stop-1'), stop('stop-2')],
+        legs: [
+          { distanceMetres: TEN_KILOMETRES, durationSeconds: ONE_HOUR },
+          { distanceMetres: TEN_KILOMETRES, durationSeconds: ONE_HOUR },
+        ],
+      }),
+    ).documents
+
+    expect(figures.map((entry) => entry.taxAmount)).toEqual([null, null])
+  })
+
+  test('sem imposto na viagem o zero é verdadeiro e continua "0.0000"', () => {
+    const figures = apportionDocumentCosts(
+      buildScenario({
+        costParcels: [parcel('fuel', '50.0000')],
+        documents: [note('doc-1', 'stop-1', '0.0000'), note('doc-2', 'stop-2', '0.0000')],
+        legs: [],
+      }),
+    ).documents
+
+    expect(figures.map((entry) => entry.taxAmount)).toEqual(['0.0000', '0.0000'])
+  })
+
+  test('sem roteiro, mas com frete: o imposto distribuível segue exato', () => {
+    const figures = apportionDocumentCosts(
+      buildScenario({
+        costParcels: [parcel('icms', '12.0000')],
+        documents: [note('doc-1', 'stop-1', '100.0000'), note('doc-2', 'stop-2', '100.0000')],
+        legs: [],
+      }),
+    ).documents
+
+    expect(figures.map((entry) => entry.taxAmount)).toEqual(['6.0000', '6.0000'])
+  })
 })
 
 describe('sem roteiro não há número inventado (spec 226 D5, CA04 e CA05)', () => {

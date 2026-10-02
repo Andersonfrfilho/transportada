@@ -194,6 +194,24 @@ describe('a linha da nota com gasto e lucro (spec 226 T3.1)', () => {
     expect('cost' in view || 'profit' in view || 'margin' in view).toBe(false)
   })
 
+  it('imposto que a API não pôde distribuir (nulo) é aceito e a tela não imprime imposto (revisão M3)', () => {
+    const figures = {
+      costAmount: null,
+      costBasis: 'unavailable',
+      legCostAmount: null,
+      marginAmount: null,
+      marginPercentage: null,
+      taxAmount: null,
+      tripShareCostAmount: null,
+    }
+    const line = parsedLine(completeFigures(figures))
+    const view = describeRevenueLineCost({ line, t: translatePt })
+
+    expect(line.taxAmount).toBeNull()
+    expect(view?.status).toBe('unavailable')
+    expect(view?.tax).toBeNull()
+  })
+
   it('roteiro não calculado em inglês reaproveita a chave gap.NO_PLANNED_DISTANCE', () => {
     const view = viewOf(
       completeFigures({
