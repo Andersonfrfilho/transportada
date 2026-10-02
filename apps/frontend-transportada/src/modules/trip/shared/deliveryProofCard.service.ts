@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * O que o card "Comprovante da entrega" decide antes de desenhar: qual peça é a principal, qual o
- * desfecho da conferência e se a captura foi longe do ponto. Puro, para provar sem DOM.
+ * desfecho da conferência e se a captura foi longe da baixa. Puro, para provar sem DOM.
  */
 import type {
   DeliveryProof,
@@ -48,8 +48,11 @@ export function resolveDeliveryProofOutcome(
   return proof.canhotoReview
 }
 
-/** O limite de "longe" é da API (`punctuality`); o front não inventa um segundo. */
-export function isDeliveryProofFarFromStop(proof: DeliveryProof): boolean {
+/**
+ * O limite de "longe" é da API (`punctuality`); o front não inventa um segundo. A referência é onde
+ * o motorista deu a baixa, nunca o endereço cadastrado da parada (ADR-0070 §4, emenda 2026-09-25).
+ */
+export function isDeliveryProofAwayFromDeliveryEvent(proof: DeliveryProof): boolean {
   return proof.punctuality === 'away' || proof.punctuality === 'late_and_away'
 }
 

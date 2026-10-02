@@ -14,7 +14,7 @@ import tripEn from '../../src/modules/trip/locales/trip.en.locale.json'
 import trip from '../../src/modules/trip/locales/trip.locale.json'
 import {
   formatDeliveryProofTime,
-  isDeliveryProofFarFromStop,
+  isDeliveryProofAwayFromDeliveryEvent,
   resolveDeliveryProofOutcome,
   resolveDeliveryProofPieces,
 } from '../../src/modules/trip/shared/deliveryProofCard.service'
@@ -111,18 +111,24 @@ describe('o desfecho da conferência (cabeçalho do card)', () => {
 })
 
 describe('distância que alerta', () => {
-  it('só a pontualidade "longe do ponto" acende o alerta — o front não inventa limite', () => {
-    expect(isDeliveryProofFarFromStop(makeProof('p', 'photo', { punctuality: 'away' }))).toBe(true)
+  it('só a pontualidade "longe da baixa" acende o alerta — o front não inventa limite', () => {
     expect(
-      isDeliveryProofFarFromStop(makeProof('p', 'photo', { punctuality: 'late_and_away' })),
+      isDeliveryProofAwayFromDeliveryEvent(makeProof('p', 'photo', { punctuality: 'away' })),
     ).toBe(true)
-    expect(isDeliveryProofFarFromStop(makeProof('p', 'photo', { punctuality: 'late' }))).toBe(false)
-    expect(isDeliveryProofFarFromStop(makeProof('p', 'photo', { punctuality: 'on_time' }))).toBe(
-      false,
-    )
-    expect(isDeliveryProofFarFromStop(makeProof('p', 'photo', { distanceMeters: 90000 }))).toBe(
-      false,
-    )
+    expect(
+      isDeliveryProofAwayFromDeliveryEvent(
+        makeProof('p', 'photo', { punctuality: 'late_and_away' }),
+      ),
+    ).toBe(true)
+    expect(
+      isDeliveryProofAwayFromDeliveryEvent(makeProof('p', 'photo', { punctuality: 'late' })),
+    ).toBe(false)
+    expect(
+      isDeliveryProofAwayFromDeliveryEvent(makeProof('p', 'photo', { punctuality: 'on_time' })),
+    ).toBe(false)
+    expect(
+      isDeliveryProofAwayFromDeliveryEvent(makeProof('p', 'photo', { distanceMeters: 90000 })),
+    ).toBe(false)
   })
 })
 
