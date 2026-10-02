@@ -29,6 +29,7 @@ function createRecordingReview(failures: Readonly<Record<string, unknown>> = {})
     calls,
     review: (input) => {
       calls.push(input)
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- um caso rejeita um valor que não é Error
       if (input.documentId in failures) return Promise.reject(failures[input.documentId])
       return Promise.resolve(APPROVED)
     },

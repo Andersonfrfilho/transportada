@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { TripDeliveryProof } from './canhotoBatchSelection.service'
 import type { DeliveryProof } from './deliveryProof.service'
 import {
   OCCURRENCE_ATTACHMENT_MODES,
@@ -861,6 +862,19 @@ export function createTripResponseAdapters() {
       if (!Array.isArray(input)) throw invalid()
       /** Spec 193 T3.1: o item estranho sai sozinho — derrubar a lista apagava o comprovante todo. */
       return input.filter(isDeliveryProof)
+    },
+    /**
+     * Spec 222 RF-A1: o item da rota da viagem é o comprovante de uma nota **mais** o `documentId`.
+     * `isDeliveryProof` recusa chave desconhecida, então o id sai antes da conferência e volta
+     * depois; item sem ele, ou estranho, sai sozinho como na lista de uma nota.
+     */
+    tripDeliveryProofsFromApi(input: unknown): readonly TripDeliveryProof[] {
+      if (!Array.isArray(input)) throw invalid()
+      return input.flatMap((item: unknown): readonly TripDeliveryProof[] => {
+        if (!isRecord(item) || !isString(item.documentId) || item.documentId === '') return []
+        const { documentId, ...proof } = item
+        return isDeliveryProof(proof) ? [{ ...proof, documentId }] : []
+      })
     },
     /**
      * ⚠️ Corpo estranho vira **`unavailable`**, nunca exceção: o mapa é enfeite operacional, e uma

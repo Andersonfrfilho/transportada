@@ -217,3 +217,30 @@ dupliquei. Conferência de conteúdo de arquivo nesta base é por `rtk proxy cat
 
 Gates: `bunx prettier --check` nos três arquivos → estilo em conformidade. `bun run typecheck` →
 sem erro.
+
+### T2.4 — a consulta do maço (cliente + `useTripDeliveryProofsQuery`)
+
+Vermelho antes: `bun test ./test/trip/trip-delivery-proofs-client.contract.ts` → **1 pass / 2 fail**
+(`readTripDeliveryProofs is not a function`; o que passou é o caso "corpo que não é lista", que
+passa por acidente porque o método inexistente também lança — ele só vale depois do verde). Hook:
+`test:hooks` no arquivo novo → **0 pass / 1 error** (`Cannot find module .../useTripDeliveryProofs.query`).
+
+Verde depois: cliente **3 pass / 0 fail, 9 asserções**; hook **3 pass / 0 fail, 6 asserções**.
+Suítes completas: `bun run test` → **6186 pass / 0 fail**; `bun run test:hooks` → **183 pass / 0 fail**.
+
+Provado por mutação em `useTripDeliveryProofs.query.ts`: sem `hasSelection` no `enabled` → **2 pass /
+1 fail**; sem `canManage` → **2 pass / 1 fail**. Restaurado, 3 pass.
+
+Contrato: `GET /trips/:id/delivery-proofs` sem query (a viagem inteira); o item mantém `documentId`;
+item sem `documentId` ou com chave desconhecida sai da lista em vez de derrubá-la (molde da spec 193
+T3.1). A chave é `[trips, companyId, tripId, 'delivery-proofs-batch']`, sob a da viagem, então
+`invalidateTrip` a derruba junto.
+
+⚠️ Desvio do plano: o ceiling de 100 ids da rota (acima disso, 400) fez a consulta pedir a viagem
+**toda**, sem `?documentIds=`; o recorte pela seleção é de `resolveCanhotoBatchSelection` no cliente.
+Pedir só os marcados quebraria numa viagem com mais de 100 notas marcadas.
+
+Gates: typecheck sem erro; `eslint src test --max-warnings=0` → **0 erros**, 16 avisos
+`react-hooks/exhaustive-deps` **preexistentes** em arquivos que não toquei (o `--max-warnings=0` já
+estava vermelho antes). Dois erros de lint saíram: um num teste meu da T2.3 (`prefer-promise-reject-errors`,
+de propósito rejeita um não-Error) e um `_omitted` não usado na T2.4.

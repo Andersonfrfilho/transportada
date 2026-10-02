@@ -52,7 +52,7 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
       (`useTripWorkspace.hook.ts:861`) é o molde da mutation. E o código do 409 já existe:
       `CANHOTO_REVIEW_ALREADY_RESOLVED_CODE` em `shared/trip.constant.ts:69` — importar, nunca
       redeclarar (§16)
-- [ ] T2.4 `useTripDeliveryProofs.query.ts`, `enabled` só com `trip.manage` **e** seleção não vazia
+- [x] T2.4 `useTripDeliveryProofs.query.ts`, `enabled` só com `trip.manage` **e** seleção não vazia
       — o detalhe da viagem não passa a buscar comprovante de graça (plan.md § frontend)
 - [ ] T2.5 `approveCanhotoBatch` em `useTripWorkspace.hook.ts`, devolvendo
       `{ approved, conflicted, failed }` e invalidando a consulta da viagem
