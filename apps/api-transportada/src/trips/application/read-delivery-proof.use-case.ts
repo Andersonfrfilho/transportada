@@ -171,49 +171,95 @@ export async function readDeliveryProofs({
 }: ReadDeliveryProofsInput): Promise<readonly DeliveryProofView[]> {
   const records = await repository.listDeliveryProofs({ companyId, documentId, tripId })
 
-  // Um único lote: original e miniatura de todos saem em voo juntos (RNF01). Rejeitar no primeiro
-  // erro é o desejado — uma URL faltando quebra a tela, então `allSettled` só esconderia o defeito.
-  return Promise.all(
-    records.map(async (record) => {
-      const fileName = `comprovante-${record.kind}-${record.id}`
-      const [download, thumbnailDownload] = await Promise.all([
-        downloads.createDownloadUrl({
-          bucket: record.bucket,
-          fileName,
-          objectKey: record.objectKey,
-        }),
-        record.thumbnail
-          ? downloads.createDownloadUrl({
-              bucket: record.thumbnail.bucket,
-              fileName: `${fileName}-miniatura`,
-              objectKey: record.thumbnail.objectKey,
-            })
-          : undefined,
-      ])
+  return Promise.all(records.map((record) => buildDeliveryProofView({ downloads, record })))
+}
 
-      return {
-        ...(record.capturedAt === undefined || record.capturedAt === null
-          ? {}
-          : { capturedAt: record.capturedAt }),
-        createdAt: record.createdAt,
-        ...(record.distanceMeters === undefined || record.distanceMeters === null
-          ? {}
-          : { distanceMeters: record.distanceMeters }),
-        downloadUrl: download.url,
-        expiresAt: download.expiresAt,
-        id: record.id,
-        kind: record.kind,
-        lateRegistration: record.lateRegistration,
-        ...buildCanhotoReviewView(record),
-        ...(record.punctuality === undefined ? {} : { punctuality: record.punctuality }),
-        receiverDocument: record.receiverDocumentMasked,
-        receiverName: record.receiverName,
-        receivedBy: record.receivedBy,
-        receivedByDetail: record.receivedByDetail,
-        ...(thumbnailDownload ? { thumbnailUrl: thumbnailDownload.url } : {}),
-      }
-    }),
+/** Spec 222 T1.4: o item da leitura por viagem é o da leitura de uma nota, mais a nota dele. */
+export type TripDeliveryProofView = DeliveryProofView & {
+  readonly documentId: string
+}
+
+export type ReadDeliveryProofsByTripInput = {
+  readonly companyId: string
+  /** Ausente é "todas as notas da viagem"; o teto é da fronteira, não deste caso de uso. */
+  readonly documentIds?: readonly string[] | undefined
+  readonly downloads: DeliveryProofDownloadPort
+  readonly repository: ReadTripDeliveryProofsPort
+  readonly tripId: string
+}
+
+/**
+ * Os comprovantes de todas as notas da viagem numa chamada — a tela do maço precisaria de uma
+ * requisição por nota só para saber o que está pendente. As URLs saem assinadas por comprovante,
+ * como em `readDeliveryProofs` (HMAC local, sem rede: medido na T1.4 da spec 222).
+ *
+ * ⚠️ Cada URL tem a vida curta de sempre e continua sem `bucket` nem `objectKey` no corpo.
+ */
+export async function readDeliveryProofsByTrip({
+  companyId,
+  documentIds,
+  downloads,
+  repository,
+  tripId,
+}: ReadDeliveryProofsByTripInput): Promise<readonly TripDeliveryProofView[]> {
+  const records = await repository.findByTrip({
+    companyId,
+    ...(documentIds === undefined ? {} : { documentIds }),
+    tripId,
+  })
+
+  return Promise.all(
+    records.map(async (record) => ({
+      ...(await buildDeliveryProofView({ downloads, record })),
+      documentId: record.documentId,
+    })),
   )
+}
+
+async function buildDeliveryProofView({
+  downloads,
+  record,
+}: {
+  readonly downloads: DeliveryProofDownloadPort
+  readonly record: DeliveryProofRecord
+}): Promise<DeliveryProofView> {
+  const fileName = `comprovante-${record.kind}-${record.id}`
+  const [download, thumbnailDownload] = await Promise.all([
+    downloads.createDownloadUrl({
+      bucket: record.bucket,
+      fileName,
+      objectKey: record.objectKey,
+    }),
+    record.thumbnail
+      ? downloads.createDownloadUrl({
+          bucket: record.thumbnail.bucket,
+          fileName: `${fileName}-miniatura`,
+          objectKey: record.thumbnail.objectKey,
+        })
+      : undefined,
+  ])
+
+  return {
+    ...(record.capturedAt === undefined || record.capturedAt === null
+      ? {}
+      : { capturedAt: record.capturedAt }),
+    createdAt: record.createdAt,
+    ...(record.distanceMeters === undefined || record.distanceMeters === null
+      ? {}
+      : { distanceMeters: record.distanceMeters }),
+    downloadUrl: download.url,
+    expiresAt: download.expiresAt,
+    id: record.id,
+    kind: record.kind,
+    lateRegistration: record.lateRegistration,
+    ...buildCanhotoReviewView(record),
+    ...(record.punctuality === undefined ? {} : { punctuality: record.punctuality }),
+    receiverDocument: record.receiverDocumentMasked,
+    receiverName: record.receiverName,
+    receivedBy: record.receivedBy,
+    receivedByDetail: record.receivedByDetail,
+    ...(thumbnailDownload ? { thumbnailUrl: thumbnailDownload.url } : {}),
+  }
 }
 
 /**
