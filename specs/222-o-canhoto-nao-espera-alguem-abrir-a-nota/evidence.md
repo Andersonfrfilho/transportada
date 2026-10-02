@@ -1231,3 +1231,16 @@ A migration não colidiu: `20261002120000_trip_canhoto_read_job` é mais nova qu
 ⚠️ Os dois primeiros são a armadilha conhecida: escolher um lado **remove testes da lista explícita**
 e eles simplesmente deixam de rodar, com o verde continuando verde. A união do `package.json` foi
 calculada por script (`+1 nosso`, `5 de staging preservados`), não escolhida no editor.
+
+A sétima resolução não apareceu como conflito, e foi a única que reprovou o gate: a 223 passou
+`isBatchDeliverPending` e `onBatchDeliver` a **obrigatórios** em `TripStateActionsProps`, e o
+`makeProps` de `test/trip-hooks/canhoto-batch-action.contract.ts` é anterior a eles. Git fundiu sem
+queixa — arquivos diferentes — e o `tsc` reprovou com `TS2739`. Os dois props entraram no arnês e o
+gate fechou:
+
+| Gate                      | Resultado                                                               |
+| ------------------------- | ----------------------------------------------------------------------- |
+| `make check` (pós-rebase) | **exit 0** — format:check + lint + typecheck + test + build             |
+| Testes do `make check`    | 0 fail nos dez pacotes; 8531 (api) · 6214 (painel) · 1532 · 945 · 223 … |
+| Lint                      | 0 erros, 16 avisos `react-hooks/exhaustive-deps` todos pré-existentes   |
+| `make migration-test`     | verde em T7.4; o rebase não tocou `apps/api-transportada/drizzle/`      |
