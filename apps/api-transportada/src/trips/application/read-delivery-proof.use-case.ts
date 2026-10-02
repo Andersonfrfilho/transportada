@@ -87,6 +87,19 @@ export type ReadDeliveryProofPort = {
   }): Promise<readonly DeliveryProofRecord[]>
 }
 
+/** Spec 222 T1.3: o comprovante com a nota a que pertence — a leitura por viagem mistura várias. */
+export type TripDeliveryProofRecord = DeliveryProofRecord & {
+  readonly documentId: string
+}
+
+export type ReadTripDeliveryProofsPort = {
+  findByTrip(input: {
+    readonly companyId: string
+    readonly documentIds?: readonly string[]
+    readonly tripId: string
+  }): Promise<readonly TripDeliveryProofRecord[]>
+}
+
 export type DeliveryProofDownloadPort = {
   createDownloadUrl(input: {
     readonly bucket: string

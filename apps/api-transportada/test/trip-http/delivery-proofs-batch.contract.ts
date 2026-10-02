@@ -131,7 +131,9 @@ describe('GET /trips/:id/delivery-proofs (spec 222 T1.2)', () => {
     const fixture = await createTripHttpFixture({ permissions: READ_ONLY_PERMISSIONS })
 
     const atCeiling = await fixture.handle(
-      get(`${PATH}?documentIds=${buildDocumentIds(DELIVERY_PROOF_BATCH_MAX_DOCUMENT_IDS).join(',')}`),
+      get(
+        `${PATH}?documentIds=${buildDocumentIds(DELIVERY_PROOF_BATCH_MAX_DOCUMENT_IDS).join(',')}`,
+      ),
     )
     const overCeiling = await fixture.handle(
       get(

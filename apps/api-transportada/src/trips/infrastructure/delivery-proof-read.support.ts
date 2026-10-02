@@ -36,6 +36,7 @@ import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.p
 import type {
   DeliveryProofLocation,
   DeliveryProofRecord,
+  TripDeliveryProofRecord,
 } from '../application/read-delivery-proof.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
 import type {
@@ -86,6 +87,40 @@ export async function listDeliveryProofs(
     readonly tripId: string
   },
 ): Promise<readonly DeliveryProofRecord[]> {
+  const proofs = await selectDeliveryProofs(queryable, {
+    companyId: input.companyId,
+    documentIds: [input.documentId],
+    tripId: input.tripId,
+  })
+
+  return proofs.map((proof) => proof.record)
+}
+
+/**
+ * Spec 222 T1.3: os comprovantes de **todas** as notas da viagem (ou de um recorte delas) numa
+ * consulta só — a mesma de `listDeliveryProofs`, que é quem a serve, com o `documentId` ao lado.
+ */
+export async function findDeliveryProofsByTrip(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly documentIds?: readonly string[]
+    readonly tripId: string
+  },
+): Promise<readonly TripDeliveryProofRecord[]> {
+  const proofs = await selectDeliveryProofs(queryable, input)
+
+  return proofs.map((proof) => ({ ...proof.record, documentId: proof.documentId }))
+}
+
+async function selectDeliveryProofs(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly documentIds?: readonly string[] | undefined
+    readonly tripId: string
+  },
+): Promise<readonly { readonly documentId: string; readonly record: DeliveryProofRecord }[]> {
   const rows = await queryable
     .select({
       bucket: storedObjects.bucket,
@@ -100,6 +135,7 @@ export async function listDeliveryProofs(
       canhotoReviewReason: tripDeliveryProofs.canhotoReviewReason,
       capturedAt: tripDeliveryProofs.capturedAt,
       createdAt: tripDeliveryProofs.createdAt,
+      documentId: tripDocuments.id,
       eventLatitude: tripStopEvents.latitude,
       eventLongitude: tripStopEvents.longitude,
       id: tripDeliveryProofs.id,
@@ -165,7 +201,9 @@ export async function listDeliveryProofs(
     .where(
       and(
         eq(tripDeliveryProofs.companyId, input.companyId),
-        eq(tripStopEvents.tripDocumentId, input.documentId),
+        input.documentIds === undefined
+          ? undefined
+          : inArray(tripStopEvents.tripDocumentId, [...input.documentIds]),
         // ⚠️ A viagem entra no `where`, não só na assinatura: sem ela, uma nota de outra viagem da
         // mesma empresa devolveria o comprovante dela por um id que o chamador já tinha em mãos.
         eq(tripDocuments.tripId, input.tripId),
@@ -174,39 +212,42 @@ export async function listDeliveryProofs(
     .orderBy(asc(tripDeliveryProofs.createdAt))
 
   return rows.map((row) => ({
-    bucket: row.bucket,
-    canhotoReadNumber: row.canhotoReadNumber,
-    canhotoReadSeries: row.canhotoReadSeries,
-    canhotoReadSource: row.canhotoReadSource,
-    canhotoReview: row.canhotoReview,
-    canhotoReviewAt: row.canhotoReviewAt?.toISOString() ?? null,
-    canhotoReviewByName: row.canhotoReviewByName,
-    canhotoReviewNote: row.canhotoReviewNote,
-    canhotoReviewOrigin: row.canhotoReviewOrigin,
-    canhotoReviewReason: row.canhotoReviewReason,
-    capturedAt: row.capturedAt?.toISOString() ?? null,
-    createdAt: row.createdAt.toISOString(),
-    distanceMeters: measureProofDistance(row),
-    id: row.id,
-    kind: row.kind,
-    lateRegistration: row.lateRegistration,
-    location: measureProofLocation(row),
-    locationState: row.locationState ?? null,
-    mimeType: row.mimeType,
-    objectKey: row.objectKey,
-    punctuality: row.punctuality,
-    receiverDocumentMasked: row.receiverDocumentMasked,
-    receiverName: row.receiverName,
-    receivedBy: row.receivedBy,
-    receivedByDetail: row.receivedByDetail,
-    thumbnail:
-      row.thumbnailBucket === null || row.thumbnailObjectKey === null
-        ? null
-        : {
-            bucket: row.thumbnailBucket,
-            mimeType: row.thumbnailMimeType ?? '',
-            objectKey: row.thumbnailObjectKey,
-          },
+    documentId: row.documentId,
+    record: {
+      bucket: row.bucket,
+      canhotoReadNumber: row.canhotoReadNumber,
+      canhotoReadSeries: row.canhotoReadSeries,
+      canhotoReadSource: row.canhotoReadSource,
+      canhotoReview: row.canhotoReview,
+      canhotoReviewAt: row.canhotoReviewAt?.toISOString() ?? null,
+      canhotoReviewByName: row.canhotoReviewByName,
+      canhotoReviewNote: row.canhotoReviewNote,
+      canhotoReviewOrigin: row.canhotoReviewOrigin,
+      canhotoReviewReason: row.canhotoReviewReason,
+      capturedAt: row.capturedAt?.toISOString() ?? null,
+      createdAt: row.createdAt.toISOString(),
+      distanceMeters: measureProofDistance(row),
+      id: row.id,
+      kind: row.kind,
+      lateRegistration: row.lateRegistration,
+      location: measureProofLocation(row),
+      locationState: row.locationState ?? null,
+      mimeType: row.mimeType,
+      objectKey: row.objectKey,
+      punctuality: row.punctuality,
+      receiverDocumentMasked: row.receiverDocumentMasked,
+      receiverName: row.receiverName,
+      receivedBy: row.receivedBy,
+      receivedByDetail: row.receivedByDetail,
+      thumbnail:
+        row.thumbnailBucket === null || row.thumbnailObjectKey === null
+          ? null
+          : {
+              bucket: row.thumbnailBucket,
+              mimeType: row.thumbnailMimeType ?? '',
+              objectKey: row.thumbnailObjectKey,
+            },
+    },
   }))
 }
 
