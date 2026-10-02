@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, asc, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
@@ -21,6 +21,7 @@ import {
   tripStopEvents,
   tripStops,
   trips,
+  TRIP_TERMINAL_STATUSES,
 } from '../../database/trip.schema.js'
 import { contractors, tripStopSchedules } from '../../database/delivery-client.schema.js'
 import { mdfeFiscalDocuments, mdfeManifests } from '../../database/mdfe.schema.js'
@@ -92,6 +93,13 @@ import type { TripCrewRole } from '../../shared/trip-crew-role.constant.js'
  * O resto vem importado, nunca redigitado: é a lição das cinco cópias que divergiram.
  */
 const CURRENT_DRIVER_TRIP_STATUSES = ['route_planned', ...TRIP_ON_ROAD_STATUSES] as const
+
+/**
+ * Spec 225: por quanto tempo a viagem concluída ainda chega a `GET /me/trips/current`, contada de
+ * `trips.updatedAt` (o motorista conclui sem `closedAt`). Sem ela o app nunca lê `completed` e não
+ * distingue "terminei" de "me tiraram da viagem". Só a lista usa a janela — `readCurrent` não.
+ */
+const RECENTLY_CONCLUDED_TRIP_WINDOW_MINUTES = 15
 
 /** A nota do destinatário é o que o motorista entrega; a do emitente não lhe diz nada. */
 const RECIPIENT_ROLE = RECIPIENT_PARTICIPANT_ROLE
@@ -261,7 +269,16 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         and(
           eq(tripDrivers.companyId, input.companyId),
           eq(tripDrivers.driverId, input.driverId),
-          inArray(trips.status, [...CURRENT_DRIVER_TRIP_STATUSES]),
+          or(
+            inArray(trips.status, [...CURRENT_DRIVER_TRIP_STATUSES]),
+            and(
+              inArray(trips.status, [...TRIP_TERMINAL_STATUSES]),
+              gte(
+                trips.updatedAt,
+                sql`now() - make_interval(mins => ${RECENTLY_CONCLUDED_TRIP_WINDOW_MINUTES})`,
+              ),
+            ),
+          ),
         ),
       )
       .orderBy(asc(trips.createdAt))

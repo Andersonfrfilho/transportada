@@ -155,6 +155,21 @@ validados (`driverTripResponse.validation.ts`) e `DriverStopCard.component.tsx` 
 entrega da parada. `test/driver-trip/trip-selection.contract.ts`,
 `test/driver-trip/delivery-window.contract.ts`.
 
+⚠️ **Viagem concluída agora chega na lista, e não pode ser eleita** (spec 225). A API devolve a
+viagem `completed`/`cancelled` dos últimos 15 min junto das ativas, então `resolveSelectedTrip`
+descarta concluída nos três caminhos (`isConcludedTripStatus`) e `DriverTripSelector.component.tsx`
+a tira da contagem e dos botões — sem isso o motorista veria a viagem terminada como ativa. A
+cópia legada do painel (`frontend-transportada/src/modules/driver-trip/`) pegava `trips[0]` cru e
+ganhou o mesmo filtro em `driverTripCurrent.service.ts`.
+
+**Por que a API passou a mandá-la**: o aviso de reatribuição (`hasReassignedTrip`, 217 RF8/D6) é
+deduzido da ausência, com a ressalva "não estava concluída" lida do snapshot local. Como o endpoint
+filtrava `completed` para fora **antes** de o app poder vê-lo, a ressalva era inalcançável e o aviso
+"a viagem foi movida para outro motorista" disparava em **toda** conclusão — relatado pelo usuário
+em 02/10. O conserto não mudou `hasReassignedTrip`: fez o status chegar. A conclusão passa a ser
+duas leituras (a mesma viagem já terminal, depois ausente), e nenhuma avisa.
+`test/driver-trip/trip-reassignment.contract.ts`, `test/spec-225-prints.smoke.spec.ts`.
+
 ## Consentimento e rastreamento de posição
 
 `driverTripClient.service.ts` fala com `GET`/`PUT /me/location-consent` (`{ accepted: boolean }` →

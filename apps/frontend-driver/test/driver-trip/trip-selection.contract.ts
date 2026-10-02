@@ -86,6 +86,59 @@ describe('qual viagem a tela mostra (spec 189 T7.1)', () => {
 })
 
 /**
+ * Spec 225 RF2: a API passa a devolver a viagem concluída/cancelada por 15 min (para o aviso de
+ * reatribuição não confundir conclusão com troca de tripulação). Ela só serve a esse aviso: nunca é
+ * eleita para a tela, em nenhum dos três caminhos de `resolveSelectedTrip`.
+ */
+describe('viagem concluída nunca é a eleita (spec 225 RF2)', () => {
+  it.each(['completed', 'cancelled'])(
+    'a escolhida pelo motorista, se já está %s, não vale',
+    (status) => {
+      const concluded = buildTrip('a', status)
+
+      expect(resolveSelectedTrip({ selectedTripId: 'a', trips: [concluded] })).toBeUndefined()
+    },
+  )
+
+  it.each(['completed', 'cancelled'])(
+    'o fallback trips[0] pula uma %s que está à frente da lista',
+    (status) => {
+      const concluded = buildTrip('a', status)
+      const planned = buildTrip('b', 'route_planned')
+
+      expect(resolveSelectedTrip({ selectedTripId: undefined, trips: [concluded, planned] })).toBe(
+        planned,
+      )
+    },
+  )
+
+  it.each(['completed', 'cancelled'])(
+    'o fallback trips[0] não devolve uma %s, nem sozinha na lista',
+    (status) => {
+      const concluded = buildTrip('a', status)
+
+      expect(resolveSelectedTrip({ selectedTripId: undefined, trips: [concluded] })).toBeUndefined()
+    },
+  )
+
+  it('uma concluída e uma em rota na lista: vale a em rota, mesmo com a concluída escolhida', () => {
+    const concluded = buildTrip('a', 'completed')
+    const onRoute = buildTrip('b', 'in_transit')
+
+    expect(resolveSelectedTrip({ selectedTripId: 'a', trips: [concluded, onRoute] })).toBe(onRoute)
+    expect(resolveSelectedTrip({ selectedTripId: undefined, trips: [concluded, onRoute] })).toBe(
+      onRoute,
+    )
+  })
+
+  it('lista só com a concluída: nenhuma viagem', () => {
+    expect(
+      resolveSelectedTrip({ selectedTripId: undefined, trips: [buildTrip('a', 'completed')] }),
+    ).toBeUndefined()
+  })
+})
+
+/**
  * Spec 189 T7.2 (revisão): o botão do seletor diz para onde a viagem vai, não a posição dela na
  * lista — "Viagem 1"/"Viagem 2" não dizia nada sobre o trajeto, e duas viagens podem ter a mesma
  * placa.

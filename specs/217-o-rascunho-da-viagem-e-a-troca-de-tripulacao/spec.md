@@ -221,6 +221,13 @@ veículo devolve a viagem para `draft`, que não está em `CURRENT_DRIVER_TRIP_S
 do celular **de todos** até a rota ser replanejada. Ninguém deve estar dirigindo para um roteiro que
 foi invalidado.
 
+> ⚠️ **Emenda (spec 225, 02/10).** A ressalva "sem distinguir 'reatribuída' de 'concluída'" acima
+> nomeou a distinção certa, mas o dado para fazê-la não chegava: `GET /me/trips/current` filtrava
+> `completed` para fora no mesmo instante em que o status passava a valer, então o snapshot local
+> nunca o registrava e o aviso disparava em **toda** viagem concluída. A 224 não mudou esta decisão —
+> manteve a ausência como sinal, sem campo novo — e fez o status chegar, devolvendo a viagem terminal
+> por 15 minutos. Ver `specs/225-a-viagem-terminada-nao-foi-movida/`.
+
 ### D7 — A fila offline já recusa certo; falta a fila falar português
 
 A fila offline classifica recusa do servidor como `rejected` e **não retenta** — "reenviar o que ele
