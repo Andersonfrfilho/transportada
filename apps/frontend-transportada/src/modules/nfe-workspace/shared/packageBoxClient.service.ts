@@ -70,6 +70,8 @@ export type PackageBox = Readonly<{
   id: string
   lengthMm: null | number
   measuredAt: null | string
+  /** Quem fez o último registro; ausente em API anterior a esta mudança, `null` sem medida, ator de sistema (catálogo) ou conferente removido. */
+  measuredByName?: null | string
   /** Spec 152 (D8, experimental): `null` em toda caixa medida antes desta spec. */
   measurementMarginMm: null | number
   measurementSource: null | PackageBoxMeasurementSource
@@ -397,6 +399,7 @@ function isPackageBox(value: unknown): value is PackageBox {
     typeof value.emitterTaxId === 'string' &&
     isNullableString(value.cartonGtin) &&
     isNullableString(value.measuredAt) &&
+    (value.measuredByName === undefined || isNullableString(value.measuredByName)) &&
     isNullableNumber(value.lengthMm) &&
     isNullableNumber(value.widthMm) &&
     isNullableNumber(value.heightMm) &&

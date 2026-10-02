@@ -689,6 +689,8 @@
       "all": "Todas"
     },
     "measured": "{{length}} × {{width}} × {{height}} cm · {{units}} un/cx",
+    "lastRecord": "Último registro em {{date}}",
+    "lastRecordBy": "Último registro em {{date}} por {{name}}",
     "experimentalBadge": "Experimental",
     "experimentalHint": "A medida pela câmera é uma estimativa. Confira com a fita antes de gravar; na dúvida, digite.",
     "margin": "±{{margin}} cm",

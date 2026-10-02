@@ -582,6 +582,8 @@
       "all": "All"
     },
     "measured": "{{length}} × {{width}} × {{height}} cm · {{units}} per box",
+    "lastRecord": "Last recorded on {{date}}",
+    "lastRecordBy": "Last recorded on {{date}} by {{name}}",
     "guide": {
       "open": "How to measure",
       "title": "How to measure the box with the camera",

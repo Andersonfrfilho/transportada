@@ -69,10 +69,19 @@ export function createListPackageBoxes(dependencies: {
         })),
       })
       const byId = new Map(items.map((item) => [item.id, item]))
+      const repositoryOrder = new Map(items.map((item, index) => [item.id, index]))
+      /** Quem confere o que já mediu quer o último registro primeiro; a fila de volume é só do que falta medir. */
+      const entries =
+        status === 'measured'
+          ? [...queue.entries].sort(
+              (first, second) =>
+                (repositoryOrder.get(first.id) ?? 0) - (repositoryOrder.get(second.id) ?? 0),
+            )
+          : queue.entries
 
       return {
         coveredCount: queue.coveredCount,
-        items: queue.entries.flatMap((entry) => {
+        items: entries.flatMap((entry) => {
           const item = byId.get(entry.id)
           return item === undefined
             ? []

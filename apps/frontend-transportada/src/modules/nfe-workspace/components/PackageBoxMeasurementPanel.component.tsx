@@ -988,6 +988,14 @@ function PackageBoxRow({
           })}
           {' · '}
           {measurementSourceLabel(t as Translate, box)}
+          {' · '}
+          {t(
+            box.measuredByName === null ? 'packageBoxes.lastRecord' : 'packageBoxes.lastRecordBy',
+            {
+              date: formatMeasuredAtDate(box.measuredAt),
+              name: box.measuredByName,
+            },
+          )}
         </p>
       )}
 

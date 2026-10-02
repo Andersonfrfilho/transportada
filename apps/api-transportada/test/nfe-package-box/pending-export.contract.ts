@@ -62,6 +62,7 @@ function buildBox(
       isEstimated: false,
       lengthMm: input.measured === true ? 300 : null,
       measuredAt: input.measured === true ? '2026-09-16T12:00:00.000Z' : null,
+      measuredByName: null,
       measurementMarginMm: null,
       measurementSource: input.measured === true ? 'typed' : null,
       packagingSiblingCount: 0,
