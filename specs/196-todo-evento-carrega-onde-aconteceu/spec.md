@@ -173,7 +173,13 @@ sem ninguém o ter olhado.
   tabela com `latitude` no schema da API que não esteja nem na lista do worker nem na lista de
   exclusões com motivo (`trip_stops`, `client_delivery_addresses`, `geocoded_addresses`,
   `geocoded_address_corrections`, `municipality_centroids`, `toll_booths`: endereço ou cadastro, não
-  posição de pessoa; `trip_location_pings`: rastro ao vivo, com expurgo próprio de horas).
+  posição de pessoa; `trip_location_pings`: rastro ao vivo, com expurgo próprio de horas; `fleet_drivers`: a coordenada
+  da casa do motorista é cadastro que vale enquanto ele está na frota, não o lugar onde ele esteve num
+  instante). ⚠️ O detector reconhece **qualquer coluna cujo nome contenha `latitude`** — `latitude`,
+  `home_latitude`, `previous_latitude`, um `pickup_latitude` que alguém crie amanhã. A primeira
+  redação dizia "tabela com `latitude`" ao pé da letra, e isso deixava passar a casa do motorista:
+  coordenada é coordenada independentemente do nome da coluna, e guarda que reconhece um nome só não é
+  guarda.
 - **D11 — O expurgo nasce desligado, e o interruptor é de ambiente até virar tela.** Decisão do
   usuário em 2026-10-02: `trip.location.purge` **não roda** enquanto ninguém o ligar, e isso vale para
   as cinco tabelas **e** para o rastro ao vivo da spec 158. O controle é

@@ -16,8 +16,14 @@ type ApiTable = {
 }
 
 const TABLE_DECLARATION = /pgTable\(\s*'([a-z0-9_]+)'/g
-/** Coluna `latitude` própria ou o conjunto das cinco colunas de posição do evento (spread). */
-const POSITION_COLUMN = /\blatitude: numeric\(|\.\.\.buildEventLocationColumns\(\)/
+/**
+ * Qualquer coluna cujo nome contenha `latitude` — `latitude`, `home_latitude`, `previous_latitude`,
+ * um `pickup_latitude` que alguém crie amanhã — ou o conjunto das cinco colunas de posição do evento
+ * (spread). O recorte literal de `latitude` era o que o D8 dizia, e deixava passar a coordenada da
+ * casa do motorista: coordenada é coordenada independentemente do nome que a coluna recebeu, e um
+ * guarda que só reconhece um nome não é guarda.
+ */
+const POSITION_COLUMN = /\b[a-zA-Z]*[Ll]atitude\s*:\s*numeric\(|\.\.\.buildEventLocationColumns\(\)/
 
 const EXPECTED_STAMPED_TABLES = [
   { table: 'trip_delivery_proofs', timeColumn: 'created_at' },
@@ -29,6 +35,7 @@ const EXPECTED_STAMPED_TABLES = [
 
 const EXPECTED_UNSTAMPED_TABLES = [
   'client_delivery_addresses',
+  'fleet_drivers',
   'geocoded_address_corrections',
   'geocoded_addresses',
   'municipality_centroids',
@@ -89,12 +96,12 @@ describe('detector de tabela com posição no schema da API', () => {
     export const withoutPosition = pgTable('without_position', { id: uuid().primaryKey() })
   `
 
-  test('enxerga coluna própria e o spread das colunas de posição, e só eles', () => {
+  test('enxerga coluna própria, o spread e a coordenada de nome composto', () => {
     const positioned = parseApiTables(SYNTHETIC_SCHEMA)
       .filter((table) => table.hasPosition)
       .map((table) => table.name)
 
-    expect(positioned).toEqual(['with_own_column', 'with_spread'])
+    expect(positioned).toEqual(['with_own_column', 'with_spread', 'with_home_coordinate'])
   })
 
   test('enxerga as tabelas reais: as cinco de evento, o ping e os cadastros com coordenada', async () => {
@@ -109,6 +116,8 @@ describe('detector de tabela com posição no schema da API', () => {
       'geocoded_addresses',
       'municipality_centroids',
       'toll_booths',
+      // Nome composto: é por esta que o recorte literal de `latitude` não servia.
+      'fleet_drivers',
     ]) {
       expect(positioned).toContain(table)
     }

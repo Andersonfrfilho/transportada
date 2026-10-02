@@ -70,6 +70,11 @@ export const TRIP_LOCATION_UNSTAMPED_TABLES = [
     table: 'trip_location_pings',
     reason: 'rastro ao vivo, com expurgo próprio de horas (ADR-0056 §2) que apaga a linha inteira',
   },
+  {
+    table: 'fleet_drivers',
+    reason:
+      'coordenada da casa do motorista: cadastro que vale enquanto ele está na frota, e não o lugar onde ele esteve num instante — vive e morre com a ficha, não com prazo',
+  },
 ] as const
 
 const HOURS_PER_DAY = 24

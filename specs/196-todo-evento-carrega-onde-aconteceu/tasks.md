@@ -159,6 +159,15 @@ do usuário. A API não é revertida com a app nova no ar.
   têm de reprovar); o `toEqual` exato de `test/environment.contract.test.ts` atualizado; app inteira e
   `make worker-integration` sem regressão.
 
+- [x] **T2.4** O detector do D8 reconhece coordenada de nome composto: a varredura passa de
+      `latitude` literal para qualquer coluna `*latitude*`, e `fleet_drivers` entra em
+      `TRIP_LOCATION_UNSTAMPED_TABLES` com o motivo (casa do motorista é cadastro, não posição num
+      instante).
+
+  Aceite: contrato verde e **provado por mutação** — tirar `fleet_drivers` da lista tem de reprovar
+  "toda tabela com `latitude` no schema da API está numa das duas listas", que antes do alargamento
+  passava sem ela.
+
 ## Fase 3 — A API grava o ponto de todo toque
 
 > 🤖 Modelo: `sonnet`

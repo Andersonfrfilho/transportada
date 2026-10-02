@@ -1805,3 +1805,36 @@ chave nova reprova — é exatamente o que um contrato de ambiente deve fazer. A
 A **página de configuração do expurgo** (por empresa) é spec própria, a escrever **depois** da 196 —
 decisão do usuário na mesma conversa. Enquanto ela não existe, ligar o expurgo é mexer em variável de
 ambiente, e produção fica desligada.
+
+## T2.4 — o detector do D8 passa a enxergar coordenada de nome composto
+
+Aprovado pelo usuário em 2026-10-02, a partir da lacuna que a T2.1 registrou.
+
+O recorte era `latitude: numeric(` ao pé da letra, que é o que o D8 dizia. Ele via as doze tabelas das
+listas e **não via** `fleet_drivers.home_latitude` — a coordenada da casa do motorista, PII comentada
+como tal no schema. Agora o recorte é `[a-zA-Z]*[Ll]atitude\s*:\s*numeric\(` (mais o spread
+`...buildEventLocationColumns()`), e cobre `home_latitude`, `previous_latitude`, `new_latitude` e o
+`pickup_latitude` que alguém criar amanhã.
+
+`fleet_drivers` entrou em `TRIP_LOCATION_UNSTAMPED_TABLES` com motivo escrito: cadastro que vale
+enquanto o motorista está na frota, não o lugar onde ele esteve num instante — vive e morre com a
+ficha, não com prazo. Não entra no expurgo de noventa dias; entra na lista para que o guarda possa
+afirmar cobertura total.
+
+### Provado por mutação
+
+Tirando `fleet_drivers` da lista: **37 pass · 2 fail**, e a falha que importa é
+"toda tabela com `latitude` no schema da API está numa das duas listas", apontando `fleet_drivers`.
+Antes do alargamento essa mesma asserção **passava** sem ela — é exatamente o buraco fechado.
+
+O teste do detector sobre schema sintético também mudou de lado: antes afirmava que
+`withHomeCoordinate` **não** era enxergada; agora afirma que é. A asserção continua sendo igualdade
+exata de lista, não `toContain`.
+
+### Portões
+
+| Portão               | Resultado                                                      |
+| -------------------- | -------------------------------------------------------------- |
+| `bun run typecheck`  | exit 0                                                         |
+| `bun run lint`       | exit 0                                                         |
+| `bun run test` (app) | **1486 pass · 0 fail · 3972 expect() · 94 arquivos · [7.46s]** |
