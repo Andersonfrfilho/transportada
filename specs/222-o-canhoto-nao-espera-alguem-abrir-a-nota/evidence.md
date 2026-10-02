@@ -685,3 +685,55 @@ Mutações (cada uma restaurada em seguida):
 
 Restaurado: **15 / 0**. `bunx tsc --noEmit` limpo; `eslint src/canhoto-read test/canhoto-read*` sem
 avisos. `./test/canhoto-read.contract.test.ts` entrou na lista `test` do `package.json`.
+
+### T6.3 — a consulta dos pendentes (CA20)
+
+Postgres 18.4 nativo descartável (porta 55997), migrado com o `db:migrate` da API (264 migrations).
+Teste **antes**: `test/integration/canhoto-read-queue.integration.ts` →
+`Cannot find module '.../drizzle-canhoto-read-queue.repository.js'` (0 pass / 1 fail / 1 error).
+
+Depois de `infrastructure/drizzle-canhoto-read-queue.repository.ts` (SQL cru, três predicados como
+**literal**) e do fixture `test/fixtures/canhoto-graph.fixture.ts` (o grafo: empresa → viagem → nota
+→ parada → evento → objeto → comprovante): **9 pass / 0 fail**, 0 skip (`DATABASE_URL` definida).
+Cobre: ids dos joins (`tripId`, `documentId`) e tamanho gravado; `ORDER BY created_at` e teto;
+`excludeProofIds`; fora da fila — lido, tentado, não-canhoto, `not_applicable`, empresa
+`disabled`, viagem `cancelled`, nota liberada, objeto `deleted`; `listTripDocuments`;
+`markAttempted` (só a coluna do carimbo, uma vez, só na fila, só na empresa certa).
+
+EXPLAIN da consulta real (`enable_seqscan = off`, tabelas quase vazias — prova que o índice **serve**
+o predicado, não que o planejador o escolha com volume):
+
+```text
+Limit  (cost=0.87..17.93 rows=1 width=176)
+  ->  Nested Loop  (cost=0.87..17.93 rows=1 width=176)
+        Join Filter: (o.id = p.object_id)
+        ->  Nested Loop  (cost=0.73..17.54 rows=1 width=152)
+              ...
+              ->  Nested Loop  (cost=0.58..17.10 rows=1 width=136)
+                    ->  Nested Loop  (cost=0.43..16.72 rows=1 width=120)
+                          ->  Nested Loop  (cost=0.29..16.33 rows=1 width=88)
+                                ->  Index Scan using trip_delivery_proofs_canhoto_pending_idx on trip_delivery_proofs p  (cost=0.14..8.16 rows=1 width=72)
+                                      Filter: (kind = 'photo'::text)
+                                ->  Index Scan using trip_stop_events_company_stop_created_at_idx on trip_stop_events e
+                          ->  Index Scan using trip_documents_live_freight_calculation_unique on trip_documents d
+                    ->  Index Scan using trips_company_fiscal_readiness_idx on trips t
+              ->  Index Scan using companies_pkey on companies c
+        ->  Index Scan using stored_objects_company_status_lease_expires_idx on stored_objects o
+```
+
+⚠️ **Decisão registrada**: `stored_objects.status = 'final'` entra no predicado. Falha de
+infraestrutura (objeto ausente) **não** carimba a tentativa; sem esse filtro, objeto apagado ficaria
+para sempre na cabeça da fila e, com `ORDER BY created_at LIMIT`, empurraria os demais.
+
+⚠️ O EXPLAIN com parâmetro vinculado **não** detecta o defeito do `eq()` (plano personalizado das
+primeiras execuções ainda usa o índice). Por isso há um teste à parte que prende o texto que sai do
+construtor: os três literais presentes e `params` só com o `limit`.
+
+Mutações (restaurada a cada uma):
+
+- `canhoto_review = ${'pending'}` (parâmetro) → **8 pass / 1 fail** (o teste do texto; o EXPLAIN seguiu verde, como dito);
+- sem `d.released_at is null` → 8 / 1; sem `t.status <> 'cancelled'` → 8 / 1;
+- sem `canhoto_read_attempted_at is null` → **5 pass / 4 fail** (fila, `markAttempted`, plano e texto).
+
+Restaurado: **9 / 0**. `tsc --noEmit`, `eslint` e `prettier --check` limpos nos arquivos novos.
+`./test/integration/canhoto-read-queue.integration.ts` entrou na lista `test:integration`.

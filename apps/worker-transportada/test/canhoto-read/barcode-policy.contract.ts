@@ -170,7 +170,9 @@ describe('worker access-key rule mirrors the browser (spec 222 T6.1)', () => {
     })
 
     test('the text is trimmed before it is judged', () => {
-      expect(identify(`  ${REQUESTED_KEY}\n`)).toMatchObject({ readDocumentId: REQUESTED_DOCUMENT.id })
+      expect(identify(`  ${REQUESTED_KEY}\n`)).toMatchObject({
+        readDocumentId: REQUESTED_DOCUMENT.id,
+      })
     })
   })
 })
