@@ -1,6 +1,15 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { TripDetailContract } from './trip/trip.fixture'
 import { VEHICLE_DETAIL } from './fleet/fleet.fixture'
+import { getApiBaseUrl } from './smoke-api-url.helper'
+import {
+  NOTE_ACCORDION_DOCUMENT_IDS,
+  NOTE_ACCORDION_DOCUMENTS,
+  NOTE_ACCORDION_OCCURRENCES,
+  NOTE_ACCORDION_STOPS,
+  noteAccordionProofs,
+  noteAccordionValuation,
+} from './trip-note-accordion.fixture'
 import { type Page, type Route } from '@playwright/test'
 
 const CORS_HEADERS = {
@@ -73,6 +82,7 @@ type DocumentsMode =
   | 'dispatched'
   | 'has-pending'
   | 'measured-bed'
+  | 'note-accordion'
   | 'stop-card-states'
 
 function measuredBox(
@@ -751,24 +761,26 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
         ]
       : isDocumentCostMode(mode)
         ? DOCUMENT_COST_DOCUMENTS
-        : mode === 'delivered-proof'
-          ? [PROOF_DELIVERED_DOCUMENT]
-          : mode === 'stop-card-states'
-            ? [
-                STOP_CARD_LOADED_DOCUMENT,
-                STOP_CARD_RETURNED_DOCUMENT,
-                STOP_CARD_OCCURRENCE_DOCUMENT,
-                STOP_CARD_LONG_RECIPIENT_DOCUMENT,
-              ]
-            : mode === 'dispatch-flow'
+        : mode === 'note-accordion'
+          ? NOTE_ACCORDION_DOCUMENTS
+          : mode === 'delivered-proof'
+            ? [PROOF_DELIVERED_DOCUMENT]
+            : mode === 'stop-card-states'
               ? [
-                  DISPATCH_LOAD_DISPATCHED_DOCUMENT,
-                  DISPATCH_LOAD_BLOCKED_DOCUMENT,
-                  DISPATCH_LEFT_BEHIND_DOCUMENT,
+                  STOP_CARD_LOADED_DOCUMENT,
+                  STOP_CARD_RETURNED_DOCUMENT,
+                  STOP_CARD_OCCURRENCE_DOCUMENT,
+                  STOP_CARD_LONG_RECIPIENT_DOCUMENT,
                 ]
-              : mode === 'dispatched'
-                ? [DISPATCHED_DOCUMENT]
-                : [tripDocument({ cteAuthorized: true, id: AUTHORIZED_DOCUMENT_ID })]
+              : mode === 'dispatch-flow'
+                ? [
+                    DISPATCH_LOAD_DISPATCHED_DOCUMENT,
+                    DISPATCH_LOAD_BLOCKED_DOCUMENT,
+                    DISPATCH_LEFT_BEHIND_DOCUMENT,
+                  ]
+                : mode === 'dispatched'
+                  ? [DISPATCHED_DOCUMENT]
+                  : [tripDocument({ cteAuthorized: true, id: AUTHORIZED_DOCUMENT_ID })]
 
   return {
     ...BASE_TRIP,
@@ -784,7 +796,9 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
           ? 'dispatched'
           : mode === 'document-cost'
             ? 'completed'
-            : BASE_TRIP.status,
+            : mode === 'note-accordion'
+              ? 'in_transit'
+              : BASE_TRIP.status,
     amounts: null,
     /** Spec 156 T8d: `null` nos três — a viagem do smoke nunca foi encerrada à mão. */
     closeReason: null,
@@ -812,15 +826,17 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
     // ADR-0043 §3: a viagem tem paradas. Vazia é estado legítimo — nota ainda não reconciliada.
     stops: isDocumentCostMode(mode)
       ? DOCUMENT_COST_STOPS
-      : mode === 'delivered-proof'
-        ? [PROOF_STOP]
-        : mode === 'stop-card-states'
-          ? [STOP_CARD_STOP, STOP_CARD_DONE_STOP]
-          : mode === 'dispatch-flow'
-            ? [DISPATCH_FLOW_STOP, DISPATCH_UNSCHEDULED_STOP]
-            : mode === 'dispatched'
-              ? [DISPATCHED_STOP]
-              : [],
+      : mode === 'note-accordion'
+        ? NOTE_ACCORDION_STOPS
+        : mode === 'delivered-proof'
+          ? [PROOF_STOP]
+          : mode === 'stop-card-states'
+            ? [STOP_CARD_STOP, STOP_CARD_DONE_STOP]
+            : mode === 'dispatch-flow'
+              ? [DISPATCH_FLOW_STOP, DISPATCH_UNSCHEDULED_STOP]
+              : mode === 'dispatched'
+                ? [DISPATCHED_STOP]
+                : [],
   }
 }
 
@@ -1203,7 +1219,10 @@ async function registerTripMocks(
       return
     }
     await fulfillJson(route, {
-      data: documentCostValuation(input.mode === 'document-cost-open'),
+      data:
+        input.mode === 'note-accordion'
+          ? noteAccordionValuation()
+          : documentCostValuation(input.mode === 'document-cost-open'),
     })
   })
   await input.page.route(/\/trips\/[^/]+\/financial-result$/, async (route) => {
@@ -1228,6 +1247,64 @@ async function registerTripMocks(
       return
     }
     await fulfillJson(route, { data: tripDetail(input.mode) })
+  })
+  if (input.mode === 'note-accordion') await registerNoteAccordionMocks(input.page)
+}
+
+function documentIndexFromUrl(url: string): number {
+  const documentId = new URL(url).pathname.split('/').at(-2) ?? ''
+  return NOTE_ACCORDION_DOCUMENT_IDS.findIndex((id) => id === documentId)
+}
+
+/**
+ * Spec 227: o lote dos selos, o comprovante e as ocorrências de cada nota. Registrado **depois** das
+ * rotas genéricas — no Playwright a mais recente vence. A foto sai da origem da API (a CSP só admite
+ * as origens declaradas) e a própria rota do teste a atende com um SVG sintético.
+ */
+async function registerNoteAccordionMocks(page: Page): Promise<void> {
+  const imageOrigin = `${getApiBaseUrl()}/spec-227-prints`
+  await page.route(`${imageOrigin}/**`, async (route) => {
+    await route.fulfill({
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect width="640" height="480" fill="#8b8379"/></svg>',
+      contentType: 'image/svg+xml',
+      status: 200,
+    })
+  })
+  await page.route(/\/trips\/[^/]+\/delivery-proofs$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, {
+      data: NOTE_ACCORDION_DOCUMENT_IDS.flatMap((documentId, index) =>
+        noteAccordionProofs(imageOrigin, index).map((proof) => ({ ...proof, documentId })),
+      ),
+    })
+  })
+  await page.route(/\/trips\/[^/]+\/documents\/[^/]+\/proof$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, {
+      data: noteAccordionProofs(imageOrigin, documentIndexFromUrl(route.request().url())),
+    })
+  })
+  await page.route(/\/trips\/[^/]+\/documents\/[^/]+\/occurrences$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, {
+      data: NOTE_ACCORDION_OCCURRENCES[documentIndexFromUrl(route.request().url())] ?? [],
+    })
+  })
+  await page.route(/\/trips\/[^/]+\/documents\/[^/]+\/products$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: [] })
   })
 }
 
