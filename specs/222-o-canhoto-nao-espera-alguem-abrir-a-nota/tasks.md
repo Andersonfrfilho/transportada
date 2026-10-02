@@ -198,7 +198,7 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
 - [x] T7.1 [P] `docs/ai-context/api-transportada.md`, `.../worker-transportada.md` e o `CLAUDE.md`
       da raiz: a rotina nova, a rota do robô e a permissão da automação (`code-standart.md` §14)
 - [x] T7.2 [P] `evidence.md` fechado: comandos, contagens e o print do diálogo
-- [ ] T7.3 Revisão final com `code-reviewer` em `opus` sobre o diff inteiro, com olho em: nenhum
+- [x] T7.3 Revisão final com `code-reviewer` em `opus` sobre o diff inteiro, com olho em: nenhum
       `Promise.all` capaz de derrubar lote (§15), nenhuma string repetida sem constante (§16),
       cabeçalho de copyright em todo arquivo novo (§17), e nenhum PII em log
 - [x] T7.4 `make check` + `make migration-test` + integração da API, todos em primeiro plano, antes

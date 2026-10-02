@@ -251,6 +251,11 @@ export const JOB_CATALOG = [
      * API (`resolveAutomaticCanhotoReview`) e máquina nunca recusa —, e por isso o vocabulário de
      * falha é o do que impede a leitura, não o do que a leitura concluiu. Falha de infraestrutura
      * volta à fila no ciclo seguinte; só "tentou e não havia código" grava a tentativa.
+     *
+     * ⚠️ Nenhum destes cinco chega hoje a `job_runs.outcome`: `runCycle` fecha `succeeded` mesmo com
+     * falha de comprovante (é resultado contado, e o resto do lote segue). A lista continua aqui como
+     * vocabulário permitido, não como previsão — esvaziá-la é mudança nas duas cópias do catálogo
+     * (API e worker, com contrato de paridade) por uma declaração sem efeito em runtime.
      */
     failureOutcomes: [
       'object_unavailable',

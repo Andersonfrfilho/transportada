@@ -1106,3 +1106,98 @@ indisponível) — nenhum deles de canhoto.
 de saída coletados, não em primeiro plano literal. A exigência do `tasks.md` existe contra gate que
 morre calado (`nohup` perdido); aqui o resultado inteiro está no log, e é ele que está transcrito
 acima.
+
+## T7.3 — a revisão final, e o que ela mudou
+
+Cinco achados. Dois viraram código, três estão abaixo com a medida que justifica não mexer. Nenhum
+`Promise.all` capaz de derrubar lote (§15), nenhuma string repetida sem constante (§16), cabeçalho
+de copyright em todo arquivo novo (§17), nenhum PII em log.
+
+⚠️ **Relatório de revisão não é evidência.** Os dois consertos foram provados por mutação: desfazer
+o conserto tem de pintar o teste de vermelho, senão o teste não prende nada.
+
+### 1 — a thread do canhoto confundia "não achei código" com "o decodificador não carregou"
+
+`readBarcodeText` tinha **um** `try` em volta do `await decodeImage(...)`, e dentro dele os três
+`await import('@jsquash/...')`. Módulo ausente ou binário wasm quebrado caía no mesmo `catch { return
+null }` de uma foto sem código de barras. A consequência foi conferida até o fim, não suposta:
+`null` → `identification.kind === 'unusable'` → `markAttempted` → `canhoto_read_attempted_at`
+gravado → o comprovante **sai da fila para sempre**, com o ciclo fechando `succeeded` e sem nada no
+Sentry. Em toda foto, não numa.
+
+O conserto é a fronteira, não um `catch` a mais: a carga do decodificador saiu de dentro do `try`
+(módulo que não resolve propaga), e `WebAssembly.CompileError`/`LinkError` são relançados.
+`RuntimeError` ficou **de fora de propósito** — ele é plausivelmente dependente da entrada, e
+relançá-lo faria uma foto corrompida voltar à fila para sempre.
+
+`await init()` foi considerado e descartado por leitura da fonte dos pacotes: em `@jsquash/jpeg` e
+`@jsquash/webp` o `init()` não dá `await` no módulo emscripten, então a falha de instanciação só
+aparece depois, dentro do `decode` — pareceria garantia de carga antecipada entregando-a só no png.
+
+Para o contrato poder exercitar comportamento em vez de afirmar texto da fonte, o carregador virou
+dependência injetada (`ImageDecoderLoader`), e a execução no thread ficou atrás de `parentPort !==
+null`. Seis testes em `test/canhoto-read/canhoto-barcode-worker.contract.ts`.
+
+### 2 — vinte entregas da mesma viagem eram vinte consultas iguais (§15, N+1)
+
+`listTripDocuments` era chamado por comprovante. `listPending` ordena por `created_at` e o motorista
+sobe os canhotos de uma viagem em sequência — então o caso comum era o pior: 40 comprovantes num
+ciclo, até 40 consultas da mesma lista de notas.
+
+Memoizado **por lote**, não por ciclo, e a diferença é segurança, não estilo: o lote é fixado por um
+`SELECT` antes de qualquer consulta de notas, então nenhum comprovante dele pode ser mais novo que o
+cache. Guardado por ciclo, uma nota criada entre dois lotes deixaria o comprovante dela sem
+candidato — e "sem código" carimba a tentativa e tira o comprovante da fila para sempre, o mesmo
+defeito do achado 1 por outra porta.
+
+### As quatro mutações
+
+| Mutação                                           | Esperado                     | Medido          |
+| ------------------------------------------------- | ---------------------------- | --------------- |
+| cache nunca consultado (N+1 volta)                | os dois testes de N+1 falham | 2 fail, 70 pass |
+| `isBrokenWasmModule` devolve `false`              | compile + link falham        | 2 fail          |
+| carga do decodificador volta para dentro do `try` | módulo ausente falha         | 1 fail          |
+| cache promovido do lote para o ciclo              | "não cruza lotes" falha      | 1 fail          |
+
+### 3 — `decode_timeout` fora do Sentry: achado real, deixado como está
+
+A revisão pediu `decode_timeout` em `SENTRY_OUTCOMES`. **O conserto proposto é inócuo**, conferido na
+fonte: `recordFailure` só captura com `input.error !== undefined`, e o caminho do timeout não passa
+erro algum, porque `canhoto-image-reader.service.ts` descarta o `CanhotoDecodeTimeoutError` ao
+converter em `{kind:'failed', outcome:'decode_timeout'}`. A versão que funcionaria mexe no tipo de
+resultado do leitor e em duas asserções existentes.
+
+Não foi feito, por três medidas: (a) o comportamento é **afirmado de propósito** por um teste da T6.6,
+que agrupa o timeout com `object_unavailable`/`unsupported_media`/`too_large` e exige
+`captured` vazio; (b) o timeout **não é silencioso** — `canhoto_read_cycle_finished` publica
+`decodeTimeout: N` em todo ciclo; (c) a volta eterna à fila é a regra da T6.6 (falha de
+infraestrutura não carimba), não um defeito. Trocar uma decisão afirmada em teste é escolha do
+usuário, não de quem revisa.
+
+### 4 — o catálogo declara cinco desfechos que o ciclo nunca reporta
+
+`failureOutcomes` de `trip.canhoto.read` lista cinco falhas, e `runCycle` devolve `succeeded`
+incondicionalmente — nenhuma delas chega a `job_runs.outcome`. Esvaziar a lista é a declaração
+honesta de hoje, mas o catálogo é **cópia por valor do da API, com contrato de paridade**: medido,
+esvaziar só a cópia do worker reprova dois contratos (`matches the API catalog` e
+`offers each routine the lifecycle codes plus its own failures`). Mudança nas duas apps por uma
+declaração sem efeito em runtime, e a lista também se lê como vocabulário permitido, não como
+previsão. Ficou o aviso no próprio catálogo, dizendo que os cinco não chegam lá hoje.
+
+### 5 — `^` nos três `@jsquash` ao lado de `@zxing/library` pregado em `0.23.0`
+
+Não mexido: o `bun.lock` é commitado e a CI usa `--frozen-lockfile`, então a resolução é a mesma em
+toda máquina. Pregar as versões é decisão de política de dependência da instalação inteira, não desta
+spec.
+
+### Gates
+
+| Comando                                       | Resultado                                                   |
+| --------------------------------------------- | ----------------------------------------------------------- |
+| `bun run --cwd apps/worker-transportada test` | **1532 pass / 0 fail**, 4045 `expect()`, 95 arquivos, 9,9 s |
+| `bun run typecheck` (worker)                  | verde                                                       |
+| `bun run lint` (worker)                       | verde                                                       |
+
+A linha `Not a JPEG file: starts with 0x07 0x07` no log é o teste de bytes indecodificáveis da
+thread real, que segue respondendo `null` — ela é a prova de que o caminho `parentPort !== null`
+continua carregando o decodificador e postando mensagem.

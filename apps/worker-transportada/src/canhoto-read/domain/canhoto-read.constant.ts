@@ -30,7 +30,10 @@ export const CANHOTO_DECODE_BUDGET_MILLISECONDS = 15_000
 export const CANHOTO_SUPPORTED_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
 export type CanhotoSupportedMediaType = (typeof CANHOTO_SUPPORTED_MEDIA_TYPES)[number]
 
-/** Resultados contados por falha (catálogo `trip.canhoto.read` + RF-B8). */
+/**
+ * Resultados contados por falha **de um comprovante** (RF-B8) — não desfecho de execução: o ciclo
+ * fecha `succeeded` mesmo com falha aqui, e por isso o catálogo de `trip.canhoto.read` não os lista.
+ */
 export const CANHOTO_READ_FAILURE_OUTCOMES = [
   'object_unavailable',
   'unsupported_media',

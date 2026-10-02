@@ -9,7 +9,10 @@ import type {
 import { safeLogInfo, safeLogWarn } from '../../logging/safe-logger.service.js'
 import type { ErrorTracker } from '../../observability/sentry.service.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'
-import { identifyCanhotoBarcode } from '../domain/canhoto-barcode.policy.js'
+import {
+  type CanhotoTripDocument,
+  identifyCanhotoBarcode,
+} from '../domain/canhoto-barcode.policy.js'
 import {
   CANHOTO_READ_BATCH_SIZE,
   CANHOTO_READ_MAX_PROOFS_PER_CYCLE,
@@ -60,6 +63,32 @@ type ProofInput = {
   readonly counters: Counters
   readonly dependencies: CanhotoReadRoutineDependencies
   readonly proof: PendingCanhotoProof
+  readonly tripDocuments: TripDocumentCache
+}
+
+/**
+ * As notas da viagem são as mesmas para todo comprovante dela, e o motorista sobe os canhotos de uma
+ * entrega em sequência — sem isto, vinte entregas da mesma viagem são vinte consultas iguais.
+ *
+ * O cache vive **dentro do lote**, nunca no ciclo: o lote é fixado por um `SELECT` antes de qualquer
+ * consulta de notas, então nenhum comprovante dele pode ser mais novo que o cache. Guardado por
+ * ciclo, uma nota criada entre dois lotes deixaria o comprovante dela sem candidato — e "sem código"
+ * carimba a tentativa e tira o comprovante da fila para sempre.
+ */
+type TripDocumentCache = Map<string, readonly CanhotoTripDocument[]>
+
+async function loadTripDocuments(input: ProofInput): Promise<readonly CanhotoTripDocument[]> {
+  const { proof, tripDocuments } = input
+  const key = `${proof.companyId}:${proof.tripId}`
+  const cached = tripDocuments.get(key)
+  if (cached !== undefined) return cached
+
+  const loaded = await input.dependencies.queue.listTripDocuments({
+    companyId: proof.companyId,
+    tripId: proof.tripId,
+  })
+  tripDocuments.set(key, loaded)
+  return loaded
 }
 
 function createCounters(): Counters {
@@ -105,12 +134,13 @@ async function runCycle(input: {
       CANHOTO_READ_MAX_PROOFS_PER_CYCLE - seenProofIds.length,
     )
     const batch = await dependencies.queue.listPending({ excludeProofIds: seenProofIds, limit })
+    const tripDocuments: TripDocumentCache = new Map()
 
     for (const proof of batch) {
       if (context.isStopRequested()) break
       seenProofIds.push(proof.proofId)
       counters.proofsSeen += 1
-      await processProof({ counters, dependencies, proof })
+      await processProof({ counters, dependencies, proof, tripDocuments })
     }
 
     if (batch.length < limit) break
@@ -152,11 +182,10 @@ async function readAndReport(input: ProofInput): Promise<void> {
     return
   }
 
-  const tripDocuments = await dependencies.queue.listTripDocuments({
-    companyId: proof.companyId,
-    tripId: proof.tripId,
+  const identification = identifyCanhotoBarcode({
+    text: result.text,
+    tripDocuments: await loadTripDocuments(input),
   })
-  const identification = identifyCanhotoBarcode({ text: result.text, tripDocuments })
 
   if (identification.kind === 'unusable') {
     const stamped = await dependencies.queue.markAttempted({

@@ -14,6 +14,7 @@ import { createCanhotoReadRoutine } from '../../src/canhoto-read/application/can
 import type {
   CanhotoReadQueuePort,
   ListPendingCanhotoProofsParams,
+  ListTripDocumentsParams,
   MarkCanhotoReadAttemptedParams,
   PendingCanhotoProof,
 } from '../../src/canhoto-read/application/canhoto-read-queue.port.js'
@@ -61,6 +62,7 @@ type Harness = {
   readonly marked: MarkCanhotoReadAttemptedParams[]
   readonly reads: string[]
   readonly reports: ReportCanhotoReadingParams[]
+  readonly tripDocumentCalls: ListTripDocumentsParams[]
   run: (
     isStopRequested?: () => boolean,
   ) => ReturnType<ReturnType<typeof createCanhotoReadRoutine>['run']>
@@ -83,6 +85,7 @@ function buildHarness(
   const reads: string[] = []
   const reports: ReportCanhotoReadingParams[] = []
   const captured: unknown[] = []
+  const tripDocumentCalls: ListTripDocumentsParams[] = []
 
   const queue: CanhotoReadQueuePort = {
     listPending: async (params) => {
@@ -92,7 +95,10 @@ function buildHarness(
         .filter((proof) => !params.excludeProofIds.includes(proof.proofId))
         .slice(0, params.limit)
     },
-    listTripDocuments: async () => TRIP_DOCUMENTS,
+    listTripDocuments: async (params) => {
+      tripDocumentCalls.push(params)
+      return TRIP_DOCUMENTS
+    },
     markAttempted: async (params) => {
       marked.push(params)
       handled.add(params.proofId)
@@ -132,6 +138,7 @@ function buildHarness(
     marked,
     reads,
     reports,
+    tripDocumentCalls,
     run: (isStopRequested = () => false) =>
       routine.run({
         correlationId: 'correlation-1',
@@ -408,5 +415,34 @@ describe('canhoto read routine loop (spec 222 T6.6)', () => {
         expect(harness.marked).toHaveLength(0)
       })
     }
+  })
+
+  describe('as notas da viagem (T7.3, N+1)', () => {
+    test('comprovantes da mesma viagem no mesmo lote consultam as notas uma vez', async () => {
+      const harness = buildHarness(proofs(5))
+
+      const result = await harness.run()
+
+      expect(result.counters['reported']).toBe(5)
+      expect(harness.tripDocumentCalls).toEqual([{ companyId: COMPANY_ID, tripId: 'trip-1' }])
+    })
+
+    test('cada viagem do lote tem a consulta dela', async () => {
+      const [first, second] = proofs(2)
+      const harness = buildHarness([first!, { ...second!, tripId: 'trip-2' }])
+
+      await harness.run()
+
+      expect(harness.tripDocumentCalls.map((call) => call.tripId)).toEqual(['trip-1', 'trip-2'])
+    })
+
+    test('o cache nao cruza lotes: nota criada entre dois lotes ainda e vista', async () => {
+      const harness = buildHarness(proofs(CANHOTO_READ_BATCH_SIZE + 1))
+
+      await harness.run()
+
+      expect(harness.listCalls).toHaveLength(2)
+      expect(harness.tripDocumentCalls).toHaveLength(2)
+    })
   })
 })
