@@ -160,7 +160,7 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
           {/* Spec 158 T8 (RF6): entre o detalhe (paradas/notas) e o razão financeiro. */}
           {workspace.controller.canReadTrips ? (
             <TripTimeline
-              openDocumentId={workspace.openProofDocumentId}
+              openDocumentId={workspace.openDocumentId}
               query={timeline}
               stops={workspace.trip?.stops}
             />

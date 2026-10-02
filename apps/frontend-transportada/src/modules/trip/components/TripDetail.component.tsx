@@ -521,11 +521,8 @@ export function TripDetail({
     onOpenFieldOccurrence: (documentId: string) => setFieldOccurrenceDocumentIds([documentId]),
     onOpenSeparationOccurrence: (documentId: string) =>
       workspace.setOpenSeparationOccurrenceDocumentId(documentId),
-    onToggleProof: (documentId: string) =>
-      workspace.setOpenProofDocumentId(
-        workspace.openProofDocumentId === documentId ? null : documentId,
-      ),
-    openProofDocumentId: workspace.openProofDocumentId,
+    onToggleDocument: workspace.toggleDocument,
+    openDocumentId: workspace.openDocumentId,
     renderProof: (documentId: string) => (
       <TripDeliveryProofLoader
         canhotoReadContext={{

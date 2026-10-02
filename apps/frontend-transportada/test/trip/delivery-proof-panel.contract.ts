@@ -118,13 +118,13 @@ describe('comprovante da entrega na tela (spec 079 T006/T025)', () => {
     // o componente para `<TripDeliveryProofDESLIGADO` mantém a substring e a afirmação passa. Foi o
     // que aconteceu na primeira escrita, e a mutação revelou.
     expect(readFileSync(DETAIL, 'utf8')).toMatch(/<TripDeliveryProof[\s/>]/u)
-    expect(readFileSync(ROW, 'utf8')).toInclude('actions.onToggleProof(document.id)')
+    expect(readFileSync(ROW, 'utf8')).toInclude('actions.onToggleDocument(document.id)')
   })
 
   /** Ler o canhoto não é administrar a viagem: quem acompanha a operação o abre sem `trip.manage`. */
   it('não esconde o comprovante atrás de permissão de escrita', () => {
     const source = readFileSync(ROW, 'utf8')
-    const inicio = source.indexOf('actions.onToggleProof')
+    const inicio = source.indexOf('actions.onToggleDocument')
     const trecho = source.slice(source.lastIndexOf('{', inicio - 200), inicio)
 
     expect(trecho).not.toInclude('canManage')

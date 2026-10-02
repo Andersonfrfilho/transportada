@@ -24,6 +24,7 @@ import { canOfferStopFieldAction } from '../shared/tripFieldActions.service'
 import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
 import {
   hasTripDocumentFiscalWarning,
+  hasTripDocumentProof,
   tripDocumentLabel,
   tripDocumentReturnReasonCode,
 } from '../shared/tripDocument.service'
@@ -129,9 +130,9 @@ export type TripStopDocumentActions = Readonly<{
   onOpenFieldDelivery: (documentId: string) => void
   /** Abre `SeparationOccurrenceDialog` para esta nota (ação da linha, no galpão). */
   onOpenSeparationOccurrence: (documentId: string) => void
-  /** Spec 079 T006/T025: abre e fecha o comprovante da nota. */
-  onToggleProof: (documentId: string) => void
-  openProofDocumentId: null | string
+  /** Spec 227 D1: abre e fecha a nota — abrir uma fecha a que estava aberta. */
+  onToggleDocument: (documentId: string) => void
+  openDocumentId: null | string
   renderProof: (documentId: string) => ReactNode
   onLoad: (documentId: string) => void
   onOverrideAddress: (documentId: string) => void
@@ -499,10 +500,9 @@ function TripStopDocumentRow({
     (document.contact !== null && document.contact !== undefined) ||
     (document.freightRuleName !== null && document.freightRuleName !== undefined) ||
     hasDocumentCost
-  const [isDetailExpanded, setIsDetailExpanded] = useState(false)
-  const detailId = `trip-stop-document-detail-${document.id}`
-  const proofId = `trip-stop-document-proof-${document.id}`
-  const isProofOpen = actions.openProofDocumentId === document.id
+  const hasProof = hasTripDocumentProof(document)
+  const bodyId = `trip-stop-document-body-${document.id}`
+  const isOpen = actions.openDocumentId === document.id
 
   return (
     <li
@@ -522,7 +522,20 @@ function TripStopDocumentRow({
             onChange={() => selection.toggle(document.id)}
           />
         </span>
-        <span className={styles.stopDocumentLabel}>{tripDocumentLabel(document)}</span>
+        {/*
+         * Spec 227 RF1: a caixa e o botão de abrir são **irmãos**. Botão dentro de botão é HTML
+         * inválido e engole o clique; a caixa marcada para o lote nunca abre nem fecha a nota.
+         */}
+        <button
+          aria-controls={bodyId}
+          aria-expanded={isOpen}
+          className={styles.stopDocumentHeadToggle}
+          onClick={() => actions.onToggleDocument(document.id)}
+          type="button"
+        >
+          <span className={styles.stopDocumentLabel}>{tripDocumentLabel(document)}</span>
+          <Icon name={isOpen ? 'chevron-up' : 'chevron-down'} />
+        </button>
         <div className={styles.stopDocumentBadgeRow}>
           <span
             className={cn(
@@ -795,71 +808,37 @@ function TripStopDocumentRow({
             {t('actions.deliver')}
           </Button>
         ) : null}
-        {/*
-         * Spec 181 RF1/T302: as duas expansões da nota reusam o padrão da spec 180 (`aria-expanded`/
-         * `aria-controls`, chevron, teclado, 44px) — nunca um segundo jeito de expandir. Spec 181 T502
-         * (revisão de layout): entram na mesma faixa de `.rowActions` das demais ações da nota — cada
-         * uma na própria linha do grid desperdiçava a largura inteira do card.
-         */}
-        {document.deliveredAt === null && document.returnedAt === null ? null : (
-          <Button
-            aria-controls={proofId}
-            aria-expanded={isProofOpen}
-            className={styles.stopDocumentToggle}
-            onClick={() => actions.onToggleProof(document.id)}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <Icon name={isProofOpen ? 'chevron-up' : 'chevron-down'} />
-            {t('actions.viewProof')}
-          </Button>
-        )}
-        {/*
-         * Spec 181 T304: contratante, regra fiscal e telefone são dado de confirmação — ficam na
-         * expansão, e a ausência de telefone não ocupa espaço na frente do card.
-         */}
-        {hasNoteDetail ? (
-          <Button
-            aria-controls={detailId}
-            aria-expanded={isDetailExpanded}
-            className={styles.stopDocumentToggle}
-            onClick={() => setIsDetailExpanded((current) => !current)}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <Icon name={isDetailExpanded ? 'chevron-up' : 'chevron-down'} />
-            {isDetailExpanded ? t('stops.detailCollapse') : t('stops.detailExpand')}
-          </Button>
-        ) : null}
       </div>
-      {isProofOpen ? <div id={proofId}>{actions.renderProof(document.id)}</div> : null}
-      {hasNoteDetail && isDetailExpanded ? (
-        <div className={styles.stopDocumentDetailGroup} id={detailId}>
-          {document.contact === null || document.contact === undefined ? null : (
-            <>
-              <span className={styles.stopDocumentMeta}>
-                {document.contact.phone === null
-                  ? t('contact.withoutPhone')
-                  : t('contact.phone', { phone: document.contact.phone })}
-              </span>
-              {document.contact.contractorName === null ? null : (
+      {isOpen ? (
+        <div className={styles.stopDocumentBody} id={bodyId}>
+          {hasNoteDetail ? (
+            <div className={styles.stopDocumentDetailGroup}>
+              {document.contact === null || document.contact === undefined ? null : (
+                <>
+                  <span className={styles.stopDocumentMeta}>
+                    {document.contact.phone === null
+                      ? t('contact.withoutPhone')
+                      : t('contact.phone', { phone: document.contact.phone })}
+                  </span>
+                  {document.contact.contractorName === null ? null : (
+                    <span className={styles.stopDocumentMeta}>
+                      {t('contact.contractor', { name: document.contact.contractorName })}
+                    </span>
+                  )}
+                </>
+              )}
+              {document.freightRuleName === null ||
+              document.freightRuleName === undefined ? null : (
                 <span className={styles.stopDocumentMeta}>
-                  {t('contact.contractor', { name: document.contact.contractorName })}
+                  {t('stops.freight.rule', { name: document.freightRuleName })}
                 </span>
               )}
-            </>
-          )}
-          {document.freightRuleName === null || document.freightRuleName === undefined ? null : (
-            <span className={styles.stopDocumentMeta}>
-              {t('stops.freight.rule', { name: document.freightRuleName })}
-            </span>
-          )}
-          {/* Spec 226 RF4/RF6: o gasto vem do contexto da avaliação — sem `trip.financials` não imprime nada. */}
-
-          <TripDocumentCost documentId={document.id} />
-          <TripDocumentCostCriterion documentId={document.id} />
+              {/* Spec 226 RF4/RF6: o gasto vem do contexto da avaliação — sem `trip.financials` não imprime nada. */}
+              <TripDocumentCost documentId={document.id} />
+              <TripDocumentCostCriterion documentId={document.id} />
+            </div>
+          ) : null}
+          {hasProof ? actions.renderProof(document.id) : null}
         </div>
       ) : null}
     </li>

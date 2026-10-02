@@ -232,10 +232,10 @@ describe('a linha da nota com gasto, lucro e margem (spec 226 T3.2)', () => {
 })
 
 describe('a fiação é por contexto, sem sexta prop no TripStopList (spec 226 T3.2)', () => {
-  it('o gasto vive dentro do detalhe expandido da nota, nunca na linha sempre visível', () => {
+  it('o gasto vive dentro do corpo da nota aberta, nunca na linha sempre visível', () => {
     const stopList = readFileSync(STOP_LIST, 'utf8')
     const page = readFileSync(DETAIL_PAGE, 'utf8')
-    const detailStart = stopList.indexOf('{hasNoteDetail && isDetailExpanded ? (')
+    const detailStart = stopList.indexOf('{isOpen ? (')
     const detailEnd = stopList.indexOf('</li>', detailStart)
     const cost = '<TripDocumentCost documentId={document.id} />'
 

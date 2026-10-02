@@ -25,10 +25,10 @@ foram resolvidas em 2026-10-02) — bloqueia **apenas a Fase 5**.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T1.1** Contrato: só uma nota aberta; abrir outra fecha a anterior; o checkbox **não** abre nem fecha;
+- [x] **T1.1** Contrato: só uma nota aberta; abrir outra fecha a anterior; o checkbox **não** abre nem fecha;
       âncora da linha do tempo abre a nota; o cabeçalho **não** aninha checkbox em botão. Atualizar
       `document-row-structure.contract.ts` (spec 181 T202) **sem afrouxar**.
-- [ ] **T1.2** Estado compartilhado de "nota aberta" e o cabeçalho checkbox + botão. Aceite: contrato verde,
+- [x] **T1.2** Estado compartilhado de "nota aberta" e o cabeçalho checkbox + botão. Aceite: contrato verde,
       suíte do painel verde, `scrollWidth <= innerWidth` em 375.
 
 ## Fase 2 — Dados da nota

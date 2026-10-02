@@ -1292,6 +1292,32 @@ button.occurrenceCaseBadge {
   padding-inline: var(--space-2);
 }
 
+/**
+ * Spec 227 RF1: o botão que abre a nota — irmão da caixa de seleção, nunca pai dela. O rótulo e o
+ * chevron dividem a faixa; `min-width: 0` deixa o rótulo quebrar em vez de empurrar a janela em 375px.
+ */
+.stopDocumentHeadToggle {
+  min-width: 0;
+  min-height: var(--touch-target);
+  flex: 1 1 10rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-inline: var(--space-2);
+  border: 0;
+  color: inherit;
+  text-align: start;
+  background: transparent;
+  cursor: pointer;
+}
+
+.stopDocumentBody {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
 .stopDocumentDetailGroup {
   display: grid;
   gap: var(--space-1);

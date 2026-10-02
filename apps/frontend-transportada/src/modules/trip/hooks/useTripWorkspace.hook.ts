@@ -103,7 +103,9 @@ import type {
   TripDocumentActionInput,
   TripMdfeRequirement,
 } from '../shared/trip.types'
+import { useOpenTripDocument } from './useOpenTripDocument.hook'
 import { useTripAllowedActions } from './useTripAllowedActions.hook'
+import { hasTripDocumentProof } from '../shared/tripDocument.service'
 import { createTripClient, type TripClient } from '../shared/tripClient.service'
 import { runFieldActionQueue } from '../shared/tripFieldActionQueue.service'
 
@@ -364,8 +366,8 @@ export function useTripWorkspace(
   /** Prefixo compartilhado: invalidar `['trips']` alcança o detalhe e a tabela paginada. */
   const listKey = [TRIP_QUERY_KEY] as const
 
-  /** Qual nota está com o comprovante aberto — `null` fecha a consulta e não busca nada. */
-  const [openProofDocumentId, setOpenProofDocumentId] = useState<null | string>(null)
+  /** Spec 227 D1: a nota aberta no acordeão — uma só, e é ela que a âncora da linha do tempo abre. */
+  const { openDocumentId, toggleDocument } = useOpenTripDocument()
   /**
    * Qual nota está com o diálogo de ocorrência de separação aberto (botão da linha, sem passar
    * pelo comprovante). Mesmo padrão de `openProofDocumentId` — as consultas de ocorrência abaixo
@@ -374,7 +376,6 @@ export function useTripWorkspace(
   const [openSeparationOccurrenceDocumentId, setOpenSeparationOccurrenceDocumentId] = useState<
     null | string
   >(null)
-  const activeOccurrenceDocumentId = openProofDocumentId ?? openSeparationOccurrenceDocumentId
 
   /** Spec 145 D16: quando começou o `pending` atual da planta — o teto de 10 min conta daqui. */
   const [cargoLayoutEpisode, setCargoLayoutEpisode] = useState<
@@ -412,6 +413,17 @@ export function useTripWorkspace(
       })
     },
   })
+
+  /**
+   * Spec 227 D1: abrir a nota **não** é pedir o comprovante. Nota que não foi entregue nem devolvida
+   * não tem comprovante — buscá-lo daria 404 e um estado de erro na tela. As três consultas abaixo
+   * (comprovante, itens, ocorrências) seguem `openProofDocumentId`, que só existe quando há o que
+   * buscar.
+   */
+  const openDocument = tripQuery.data?.documents.find((document) => document.id === openDocumentId)
+  const openProofDocumentId =
+    openDocument !== undefined && hasTripDocumentProof(openDocument) ? openDocument.id : null
+  const activeOccurrenceDocumentId = openProofDocumentId ?? openSeparationOccurrenceDocumentId
 
   const nextCargoLayoutEpisode = trackCargoLayoutPendingEpisode({
     key: cargoLayoutKey,
@@ -1061,8 +1073,9 @@ export function useTripWorkspace(
     occurrencePhotoSendState,
     resetSeparationOccurrencePhotoSend,
     sendSeparationOccurrencePhotos,
+    openDocumentId,
     openProofDocumentId,
-    setOpenProofDocumentId,
+    toggleDocument,
     openSeparationOccurrenceDocumentId,
     setOpenSeparationOccurrenceDocumentId,
     fiscalReadiness: fiscalReadinessQuery.data,

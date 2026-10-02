@@ -86,3 +86,39 @@ describe('dinheiro e pessoas em blocos com rótulo próprio (spec 181 RF4/CA04)'
     expect(tripLocale.stops.peopleGroupLabel).toBeString()
   })
 })
+
+describe('a nota é um acordeão de abertura exclusiva (spec 227 RF1, sobre a spec 181 RF1/T302)', () => {
+  const source = readFileSync(ROW, 'utf8')
+  const stylesheet = readFileSync(STYLESHEET, 'utf8')
+  const rowSource = source.slice(source.indexOf('function TripStopDocumentRow'))
+
+  /** Antes eram duas expansões, cada uma com o `useState` da própria linha; agora é uma, da lista. */
+  it('a linha não guarda estado de expansão: ela lê o que a lista decide', () => {
+    expect(rowSource).not.toContain('useState')
+    expect(rowSource).toContain('actions.openDocumentId === document.id')
+    expect(rowSource).toContain('actions.onToggleDocument(document.id)')
+  })
+
+  it('um único botão de abrir por nota, com aria-expanded e aria-controls', () => {
+    expect((rowSource.match(/aria-expanded=/gu) ?? []).length).toBe(1)
+    expect((rowSource.match(/aria-controls=/gu) ?? []).length).toBe(1)
+  })
+
+  /** A caixa fecha antes de o botão abrir — irmãos no cabeçalho, nunca um dentro do outro. */
+  it('a caixa de seleção termina antes do botão de abrir começar', () => {
+    const checkboxStart = rowSource.indexOf('<Checkbox')
+    const checkboxEnd = rowSource.indexOf('</span>', checkboxStart)
+    const toggleStart = rowSource.indexOf('<button')
+
+    expect(checkboxStart).toBeGreaterThan(-1)
+    expect(toggleStart).toBeGreaterThan(checkboxEnd)
+  })
+
+  it('o corpo da nota aberta tem estilo próprio e o botão de abrir cobre a área de toque', () => {
+    expect(source).toContain('styles.stopDocumentBody')
+    expect(ruleBodyOf(stylesheet, 'stopDocumentHeadToggle')).toContain(
+      'min-height: var(--touch-target)',
+    )
+    expect(ruleBodyOf(stylesheet, 'stopDocumentHeadToggle')).toContain('min-width: 0')
+  })
+})
