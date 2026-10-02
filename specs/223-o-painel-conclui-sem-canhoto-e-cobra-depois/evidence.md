@@ -159,3 +159,36 @@ bun run test:hooks                      → 184 pass / 0 fail
 bun run typecheck                       → limpo
 bun run lint                            → 0 erros (16 avisos preexistentes)
 ```
+
+### Conferência independente da Fase 4 (eu, não o executor)
+
+Relatório de agente não é evidência: os gates da Fase 4 foram rodados de novo, por mim, e as duas
+suítes de integração que nasceram sem vermelho foram provadas por mutação.
+
+```
+painel  bun run typecheck                 → limpo
+painel  bun run test                      → 6187 pass / 0 fail
+painel  bun run test:hooks                → 184 pass / 0 fail
+api     bun run typecheck                 → limpo
+api     bun --env-file=../../.env.test test --timeout 120000
+                                          → 8488 pass / 23 skip / 9 fail
+api     integração das duas suítes novas  → 10 pass / 0 fail
+```
+
+As 9 falhas da API são todas do mesmo arquivo (`toll booth catalog repository`, spec 154) e todas
+com `PostgresError: Connection closed` — banco de teste local, não regressão: `git log --name-only
+0dcef8512..HEAD` não tem nenhum arquivo de pedágio. A integração rodou contra o Postgres
+descartável (`DRIZZLE_TEST_DATABASE_URL`), porque o `DATABASE_URL` do `.env.test` continua com I/O
+error.
+
+**Mutação** (o que prende a regra duplicada em TypeScript e em SQL):
+
+| Mutação | Resultado |
+|---|---|
+| `isProofRequiredBySettings` → `return false` | 4 pass / **6 fail** |
+| `requiredByColumns`: `or` → `and` no SQL | 7 pass / **3 fail** |
+
+A segunda é a que importa: a paridade TS↔SQL está realmente presa — com `and`, a viagem cuja
+configuração exige só a assinatura deixa de aparecer no filtro e três casos caem. A duplicação
+fica como dívida consciente: a leitura por nota não pode virar SQL sem perder a função única da
+escrita, e o filtro da lista não pode virar TypeScript sem trazer a lista inteira para a memória.
