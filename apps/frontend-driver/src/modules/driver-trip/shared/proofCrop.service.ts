@@ -17,6 +17,30 @@ export type CropBounds = Readonly<{
   top: number
 }>
 
+/**
+ * Pedido do usuário (01/10): girar a foto antes de recortar. Foto de canhoto sai deitada com
+ * frequência — o celular grava a orientação em EXIF, mas o `canvas` a descarta ao reencodar (é o
+ * mesmo descarte que tira o GPS, `occurrencePhotoImage.service.ts`), então quem endireita é a pessoa.
+ */
+export const CROP_ROTATIONS = [0, 90, 180, 270] as const
+export type CropRotation = (typeof CROP_ROTATIONS)[number]
+
+/** Um toque, um quarto de volta: quatro toques voltam ao começo, sem botão de desfazer. */
+export function nextCropRotation(current: CropRotation): CropRotation {
+  return CROP_ROTATIONS[(CROP_ROTATIONS.indexOf(current) + 1) % CROP_ROTATIONS.length] ?? 0
+}
+
+/** Pura: um quarto de volta troca largura por altura; meia volta preserva as duas. */
+export function rotatedCropSize(input: {
+  readonly height: number
+  readonly rotation: CropRotation
+  readonly width: number
+}): Readonly<{ height: number; width: number }> {
+  return input.rotation === 90 || input.rotation === 270
+    ? { height: input.width, width: input.height }
+    : { height: input.height, width: input.width }
+}
+
 export type LuminanceGrid = Readonly<{
   /** Luminância 0–255 por pixel, linha a linha — `data[y * width + x]`. */
   data: readonly number[] | Uint8ClampedArray

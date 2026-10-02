@@ -274,3 +274,21 @@ export function isCompanyDeliveryProofSettings(
     isDeliveryProofPunctualitySettings(value)
   )
 }
+
+/**
+ * Pedido do usuário (01/10): "precisamos de poder alterar um registro existente". O `PUT` leva o
+ * conjunto inteiro, então editar é substituir **no lugar**: empilhar criaria uma segunda exceção
+ * para a mesma chave, e quem resolve pega a primeira que casa — a antiga venceria para sempre, sem
+ * nada na tela explicando por quê. `editingKey` ausente é o modo adicionar.
+ */
+export function upsertDeliveryProofOverride<TOverride>(input: {
+  readonly editingKey?: string
+  readonly keyOf: (override: TOverride) => string
+  readonly override: TOverride
+  readonly overrides: readonly TOverride[]
+}): readonly TOverride[] {
+  if (input.editingKey === undefined) return [...input.overrides, input.override]
+  return input.overrides.map((current) =>
+    input.keyOf(current) === input.editingKey ? input.override : current,
+  )
+}

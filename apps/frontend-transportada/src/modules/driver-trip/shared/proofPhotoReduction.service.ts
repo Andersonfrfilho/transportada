@@ -23,6 +23,14 @@ export const PROOF_PHOTO_MAX_BYTES = 960 * 1024
 /** Acima do teto mesmo no piso de qualidade, o lado cai 20% por tentativa, até um canhoto legível. */
 const PROOF_PHOTO_SIDE_STEP = 0.8
 const PROOF_PHOTO_MINIMUM_SIDE = 640
+/**
+ * Defeito medido em produção (01/10): a redução depende de `Image.onload` e `canvas.toBlob`, e
+ * nenhuma das duas promete assentar — blob que o navegador não decodifica deixa a promise pendente
+ * para sempre. Sem teto, `pendingReduction` nunca sai e a drenagem pula o anexo em toda volta
+ * (`offlineAttachments.service.ts`): a foto fica em "enviando" para sempre, sem erro nem
+ * retentativa. Estourar o teto é tratado como falha — a marca sai e o original sobe como está.
+ */
+export const PROOF_PHOTO_REDUCTION_TIMEOUT_MS = 20_000
 
 export type ReducedProofPhoto = Readonly<{ blob: Blob; fileName: string }>
 
