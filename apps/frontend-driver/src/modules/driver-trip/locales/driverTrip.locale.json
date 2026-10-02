@@ -2,6 +2,7 @@
   "arrivalRequired": "Toque em Cheguei para liberar a entrega",
   "arrive": "Cheguei",
   "arrived": "Cheguei às {{time}}",
+  "arrivedQueued": "Cheguei — na fila",
   "deliver": "Entreguei",
   "deliveredState": "Entregue",
   "documentsPending_one": "{{count}} nota para entregar",

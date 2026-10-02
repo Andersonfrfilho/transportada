@@ -424,7 +424,7 @@ export function DriverStopCard({
               : t('documentsPending', { count: countPendingDocuments(stop) })}
           </span>
           {/* Spec 206: o selo "A caminho" — na hora, mesmo enquanto o toque ainda está na fila. */}
-          {isEnRoute && stop.arrivedAt === null ? (
+          {isEnRoute && !isArrivalRecorded ? (
             <span className={styles.stopStatus}>
               <span className={styles.stopEnRoute}>
                 <Icon aria-hidden="true" name="workspace-driver-trip" size="sm" />
@@ -435,12 +435,15 @@ export function DriverStopCard({
             </span>
           ) : null}
           {/* Status da parada no cabeçalho, não entre os botões: lá ele ficava solto e desalinhado */}
-          {stop.arrivedAt === null && distanceLabel === null ? null : (
+          {!isArrivalRecorded && distanceLabel === null ? null : (
             <span className={styles.stopStatus}>
-              {stop.arrivedAt === null ? null : (
+              {!isArrivalRecorded ? null : (
                 <span className={styles.stopArrived}>
                   <Icon aria-hidden="true" name="check" size="sm" />
-                  {t('arrived', { time: formatActivityTime(stop.arrivedAt) })}
+                  {/* Sem hora do servidor a chegada ainda está na fila — o selo diz isso, não "às --:--". */}
+                  {stop.arrivedAt === null
+                    ? t('arrivedQueued')
+                    : t('arrived', { time: formatActivityTime(stop.arrivedAt) })}
                 </span>
               )}
               {/* Spec 082 D2: sem posição ou sem coordenada da parada, nada — nunca "0 km" */}
@@ -470,8 +473,14 @@ export function DriverStopCard({
             <Icon name="link" />
             {t('navigate')}
           </Button>
-          {/* Trancado até o despacho: a API recusa `arrive`/`depart` fora de dispatched/in_transit */}
-          {isFieldWorkBlocked || stop.arrivedAt !== null ? null : canReportArrival ? (
+          {/*
+           * Trancado até o despacho: a API recusa `arrive`/`depart` fora de dispatched/in_transit.
+           * Defeito medido (01/10): aqui se lia `stop.arrivedAt` cru, do servidor — o botão voltava
+           * depois do toque e só sumia no refetch (até 30 s, ou mais sem sinal), e o motorista
+           * tocava de novo. `isArrivalRecorded` é a mesma chegada que já libera as ações da parada:
+           * conta o "Cheguei" ainda na fila.
+           */}
+          {isFieldWorkBlocked || isArrivalRecorded ? null : canReportArrival ? (
             <Button onClick={() => onArrive(stop.id)} type="button">
               <Icon name="check" />
               {t('arrive')}
