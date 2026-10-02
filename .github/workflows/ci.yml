@@ -90,6 +90,9 @@ jobs:
       # Prettier varre o repositório inteiro, incluindo `docs/`, `specs/` e os próprios workflows:
       # não é de app nenhuma, e recortá-lo por app deixaria markdown e YAML sem formatação conferida.
       - run: bun run format:check
+      # Contrato do watchdog que destranca o deploy (`deploy-watchdog.yml`): sem ele, a única
+      # prova de que as travas de segurança valem seria o próprio incidente de produção.
+      - run: bun test test/deploy-watchdog.contract.test.ts
       - name: Conferir a matriz
         run: |
           result='${{ needs.quality-app.result }}'
