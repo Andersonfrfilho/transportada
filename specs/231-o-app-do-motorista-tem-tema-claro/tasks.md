@@ -14,4 +14,4 @@
 - [x] **T1.5** 🧠 Revisão de design: prints da viagem, da parada, do aviso, da fila, do perfil, das
       notificações e dos dois logins, em claro e escuro, 375 px.
 - [x] **T1.6** Emenda à ADR-0060.
-- [ ] **T1.7** Publicar em staging depois da aprovação do usuário nos prints.
+- [x] **T1.7** Publicado em staging depois da aprovação do usuário nos prints (03/10/2026).
