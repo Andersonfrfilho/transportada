@@ -347,3 +347,87 @@ M8 foto com pino `status` · M9 componente sem a origem · M10 componente sem o 
 - Ponteiros de 3 a 4 linhas nos `CLAUDE.md` das duas apps, dentro das seções da 227.
 - 227: `tasks.md` e `evidence.md` registram que a Fase 5 recebeu os eventos; a ressalva D12 segue na T6.1 da 227.
 - Nomes conferidos contra o código com `ls`/`grep`. Só documentação; nada executado além do `prettier`.
+
+## Revisão opus da spec 228 — achados tratados
+
+Cada achado foi conferido no código antes de mexer. Contratos escritos antes do código; mutação = edição aplicada,
+suíte rodada, arquivo restaurado por regravação (cópia), nunca `git checkout`.
+
+| Achado | Conferido em                                                                                                                                    | Veredito                                                                                                                                                                                                                                                                                                                                   | Commit    |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
+| M1     | `TripTimelineLocationMap.component.tsx` (rótulo `eventPin`, legenda `legend`), `tripTimelineDetail.service.ts` (`capturedAt` = "Lida em")       | **Confirmado.** O ponto do endereço dizia "onde o motorista tocou". Agora `TripTimelineLocationView.pin` (`address`/`device`) escolhe `addressPin` ("Novo ponto do endereço"), `legendAddress`/`legendAddressEventOnly` e `addressCorrectedAt` ("Corrigido em {{moment}}"); a foto mantém o texto antigo. pt/en em paridade, pt acentuado. | e5b05c601 |
+| M2     | `tripTimelineMap.constant.ts` (`address_corrected: 'status'`), `resolveTimelineMapView`                                                         | **Confirmado.** A tabela por kind agora é `Record<TripTimelineKind, null \| TimelineMapCategory>`; `stop.address_corrected: null` explícito (kind novo sem decisão não compila). O endereço sai de pino, trajeto, "X min do anterior", contagem e "sem posição"; o "Ver no mapa" do item segue.                                            | e5b05c601 |
+| M3     | `TripTimeline.component.tsx` (spans sem classe, `== null`)                                                                                      | **Confirmado.** `summary` ("{{origin}} · {{displacement}}", chave `addressChange.summary`) num único `<span className={styles.itemAddressChange}>` (`overflow-wrap: anywhere`, sem estilo inline); `== null` do trecho trocado. O texto mantém "deslocado 45 m" (não "45 m" seco) por clareza.                                             | e5b05c601 |
+| M4     | `countByCategory` e `clusterPoints`                                                                                                             | **Confirmado.** A foto não conta mais em `delivered`; cluster só com fotos usa glifo `camera` e o rótulo "Foto do canhoto" (chave existente), com a cor de `delivered` (sem token novo). Foto fundida na entrega continua fundida (`hasOnlyPhotos`).                                                                                       | e5b05c601 |
+| B1     | `tripTimeline.service.ts:115-123`                                                                                                               | **Confirmado.** Em `isOwnDelivery` o título da foto é "Foto do canhoto" (`canhotoPhotoUnknownDocument`); a linha do tempo da viagem mantém "— NF-e n/série".                                                                                                                                                                               | e5b05c601 |
+| B2     | `trip.types.ts` x `TRIP_TIMELINE_KIND_PRIORITY` da API (foto 3, endereço 2)                                                                     | **Confirmado.** Comentário agora "3 e 2".                                                                                                                                                                                                                                                                                                  | e5b05c601 |
+| B3     | `trip-timeline.query.ts`, `spec.md` (Riscos 2); `DATABASE_POOL_DEFAULTS` (`max: 10`, `queryTimeoutMs: 8000`, prazo inclui a espera por conexão) | **Confirmado**, com um número corrigido: o `Promise.all` tem **9** consultas (não 10); 9 (e 10) cabem em `max=10`. O risco real é a soma entre requisições (linha do tempo da viagem + "Eventos desta entrega" = 18) com o prazo de 8 s contando desde a fila (503). Só texto.                                                             | 84363e7cc |
+| B4     | `trip-timeline-address-query.contract.ts` (fatias `selectList`/`subselect`)                                                                     | **Confirmado.** `indexOf !== -1`, fim > início e `length > 20` antes de qualquer `not.toContain`.                                                                                                                                                                                                                                          | e62770b5e |
+| B5     | `timeline.contract.ts`, laço "recusa addressChange em qualquer kind"                                                                            | **Confirmado.** Controle negativo: o mesmo kind sem `addressChange` não lança.                                                                                                                                                                                                                                                             | 7e0537b40 |
+| B6     | —                                                                                                                                               | **Aceito como está**, por instrução. Registrado como decisão de produto pendente; nada alterado.                                                                                                                                                                                                                                           | —         |
+| Refino | `trip-timeline-address.query.ts` (ramo `geocoding_refinement_requests` sem `address_key in (...)`)                                              | **Aplicado** o mesmo semi-join, sem migration. Contrato estático novo prende o ramo e a contagem (2 semi-joins).                                                                                                                                                                                                                           | e62770b5e |
+
+### EXPLAIN do refino (Postgres 18 nativo descartável em 65437, `explain (analyze, buffers, costs off)`)
+
+Massa: 2 empresas × (30 000 correções + 30 000 refinos, 1/3 `refined`) em 5 000 `address_key`; viagem com 30 paradas
+(`k1..k30`) e outra de 300 paradas; `analyze`; página 1 (`limit 101`).
+
+| Planejador                                      | Refino antes do semi-join                                                                                   | Refino com o semi-join (entregue)                   | Tempo antes → depois |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | -------------------- |
+| padrão                                          | Seq Scan, 10 000 `refined`, `Rows Removed by Filter: 50000`, 10 000 linhas na junção                        | Seq Scan idêntico (3,8 ms), **60 linhas** na junção | 8,10 → 6,64 ms       |
+| `SET LOCAL enable_seqscan = off` (em transação) | Bitmap Index Scan em `geocoding_refinement_requests_company_created_idx` (30 000 da empresa), 10 000 linhas | Mesmo Bitmap Index Scan, **60 linhas** na junção    | 7,55 → 7,37 ms       |
+
+**Leitura honesta:** o semi-join **não muda o caminho de acesso** do refino. Sem índice por `address_key` em
+`geocoding_refinement_requests` (só `(company_id, created_at)`), o Postgres ainda lê tudo o que a empresa refinou e só
+depois filtra pela viagem; o ganho é a junção/`distinct on` receber 60 linhas em vez de 10 000 (~1,5 ms no padrão,
+ruído no `seqscan off`). A trilha da correção segue em `Index Scan using geocoded_address_corrections_address_key_idx`.
+Eliminar a leitura do refino exige o índice `(company_id, address_key)` — **migration, a perguntar ao usuário**; não
+criada (instrução: sem migration).
+
+### Mutações (todas mortas)
+
+| Mutação                                                 | Quem matou                                                                     |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| M1 `pin` sempre `device`                                | contrato `timeline-address-change` (pin do endereço)                           |
+| M1 legenda sempre `legend`                              | DOM `timeline-canhoto-address` (legenda do mapa expandido)                     |
+| M1 rótulo do pino sempre `eventPin`                     | contrato estático do componente do mapa                                        |
+| M1 tooltip sempre `capturedAt`                          | contrato `timeline-address-change`                                             |
+| M2 `address_corrected: 'status'`                        | 3 testes do `timeline-address-change` (tabela, pino, pino entre dois)          |
+| M3 `summary` sempre só a origem                         | contrato `timeline-address-change` + DOM; smoke 375 (frase "· deslocado 45 m") |
+| M3 sem `className` no span                              | contrato estático do DOM                                                       |
+| M4 foto contada na legenda                              | 2 testes de mapa (isolada, fundida)                                            |
+| M4 `hasOnlyPhotos: false`                               | teste da foto isolada (glifo/rótulo)                                           |
+| M4 fusão sobrescreve `hasOnlyPhotos`                    | teste da foto fundida                                                          |
+| B1 sem o ramo da foto em `isOwnDelivery`                | 2 testes de "Eventos desta entrega"                                            |
+| B5 validação rejeita `stop.arrived` sem `addressChange` | controle negativo do `timeline.contract`                                       |
+| Refino sem semi-join                                    | contrato estático novo                                                         |
+| B4 marcador do select list com espaço (fatia vazia)     | **novo** reprova; o contrato antigo (`git show HEAD:`) **passava vazio**       |
+| B4 marcadores do subselect                              | novo reprova                                                                   |
+
+### Fixture e smoke dos prints (sem regerar os prints finais)
+
+`test/trip-note-accordion.fixture.ts` (modo `note-accordion`) ganhou `document.canhoto_photo` (com `location`) e
+`stop.address_corrected` (origem contratante, 45 m, com `location`) na timeline da nota; `spec-227-prints.smoke.spec.ts`
+afirma "Foto do canhoto", "Endereço da parada corrigido" e "Corrigido pelo contratante · deslocado 45 m" em "Eventos
+desta entrega" (o teste já exige sem transbordo em 375 via `expectNothingEscapes` e `expectNoHorizontalOverflow`).
+`PLAYWRIGHT_FRONTEND_PORT=53225 PLAYWRIGHT_TEST_MATCH=spec-227-prints.smoke.spec.ts bun run smoke`: **13 passed**
+(mutação do `summary` derrubou o teste 375 dark). Os PNGs regenerados foram restaurados com `git restore` (arquivos de
+saída, sem outra edição); os prints finais da T4.2 dependem do ok do usuário.
+
+### Portões
+
+- Painel: `bun run typecheck` limpo; `bun run lint` 0 erros / 16 avisos (os pré-existentes); `bun run test`
+  **6385 pass / 0 fail** + hooks **322 pass / 0 fail**; prettier limpo nos arquivos tocados.
+- API: `bun run typecheck` limpo; `bun run lint` (`--max-warnings=0`) limpo;
+  `bun --env-file=../../.env.test test --timeout 120000`: **8715 pass / 23 skip / 0 fail** (192 arquivos).
+- Integração (toca SQL): `DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65437/postgres bun --env-file=../../.env.test test ./test/integration/trip-timeline.integration.ts --timeout 120000`: **42 pass / 0 fail**.
+  O Postgres 65432 do `.env.test` respondia, mas é infra compartilhada; rodou-se num Postgres 18 nativo descartável
+  (65437, `initdb` no scratchpad), **parado e apagado no fim**. Não verificado contra o Postgres 17 da CI.
+
+### Não verificado
+
+- Aparência real do mapa expandido (pino/legenda do endereço) no navegador: coberto por DOM (legenda) e estático
+  (rótulo do pino), não por captura; o rótulo do pino vive dentro do mapa vetorial lazy.
+- A legenda do minimapa não mostra entrada para a foto isolada (só o pino com câmera e a lista de pontos): decisão
+  mínima do M4, a revisar no design.
+- Prints finais (T4.2), integração completa (só o arquivo tocado) e a CI.
