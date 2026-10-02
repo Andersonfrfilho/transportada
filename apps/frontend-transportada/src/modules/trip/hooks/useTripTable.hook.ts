@@ -114,19 +114,20 @@ export function useTripTable(input: UseTripTableInput) {
       })
       restartPagination()
     },
-    setStatusFilter: (value: '' | TripStatus) => {
+    /** Seleção vazia é "sem filtro": a chave sai do objeto, e não vira `statusIn=` na query. */
+    setStatusFilter: (values: readonly TripStatus[]) => {
       setFilters((current) =>
-        value === ''
-          ? clearTripFilterField({ field: 'statusEq', filters: current })
-          : { ...current, statusEq: value },
+        values.length === 0
+          ? clearTripFilterField({ field: 'statusIn', filters: current })
+          : { ...current, statusIn: values },
       )
       restartPagination()
     },
-    setTextFilter: (field: 'driverIdEq' | 'vehicleIdEq', value: string) => {
+    setIdFilter: (field: 'driverIdIn' | 'vehicleIdIn', values: readonly string[]) => {
       setFilters((current) =>
-        value === ''
+        values.length === 0
           ? clearTripFilterField({ field, filters: current })
-          : { ...current, [field]: value },
+          : { ...current, [field]: values },
       )
       restartPagination()
     },

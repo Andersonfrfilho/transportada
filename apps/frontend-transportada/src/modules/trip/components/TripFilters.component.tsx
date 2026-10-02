@@ -1,24 +1,49 @@
-/* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { FilterPills, type FilterPill } from '@/components/ui/filter-pills'
 import { Icon } from '@/components/ui/icon'
-import { Select } from '@/components/ui/select'
+import { MultiSelect, type MultiSelectOption } from '@/components/ui/multi-select'
+import { useVehicleSelectOptions } from '@/modules/fleet/hooks/useVehicleSelectOptions.hook'
+import type { FleetDriverListItem, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 import { formatCalendarDate } from '@/modules/shared/calendarDate.service'
 
 import type { TripTableController } from '../hooks/useTripTable.hook'
-import { TRIP_STATUS, type TripStatus } from '../shared/trip.types'
+import { TRIP_STATUS } from '../shared/trip.types'
 import { describeTripFilterPills, type TripFilterPill } from '../shared/tripFilterPills.service'
 import styles from '../styles/trip.module.css'
 
-type TripFiltersProps = Readonly<{ table: TripTableController }>
+function labelOf(options: readonly MultiSelectOption[], value: string): string {
+  return options.find((option) => option.value === value)?.label ?? value
+}
 
-export function TripFilters({ table }: TripFiltersProps) {
+type TripFiltersProps = Readonly<{
+  drivers: readonly FleetDriverListItem[]
+  table: TripTableController
+  vehicles: readonly FleetVehicleDetail[]
+}>
+
+/**
+ * Veículo e motorista eram caixas de texto esperando o UUID do cadastro — ninguém decora um, e
+ * digitar errado devolvia lista vazia sem dizer por quê. Os três filtros escolhem do catálogo, e
+ * escolhem mais de um: "quais viagens destes dois caminhões estão em rota" é uma pergunta só.
+ *
+ * O catálogo é o cadastro **inteiro**, não só o ativo: filtrar viagem antiga exige o veículo que
+ * saiu da frota depois dela.
+ */
+export function TripFilters({ drivers, table, vehicles }: TripFiltersProps) {
   const { t } = useTranslation('trip')
 
+  const vehicleOptions = useVehicleSelectOptions(vehicles)
+  const driverOptions: readonly MultiSelectOption[] = drivers.map((driver) => ({
+    label: driver.name,
+    value: driver.id,
+  }))
+
   const descriptors = describeTripFilterPills({
+    describeDriver: (driverId) => labelOf(driverOptions, driverId),
+    describeVehicle: (vehicleId) => labelOf(vehicleOptions, vehicleId),
     filters: table.filters,
     formatDay: formatCalendarDate,
   })
@@ -26,7 +51,10 @@ export function TripFilters({ table }: TripFiltersProps) {
 
   function toPill(descriptor: TripFilterPill): FilterPill {
     const label = t(descriptor.labelKey)
-    const value = descriptor.valueKey === undefined ? descriptor.value : t(descriptor.valueKey)
+    const value =
+      descriptor.valueKeys === undefined
+        ? descriptor.value
+        : descriptor.valueKeys.map((key) => t(key)).join(', ')
     return {
       id: descriptor.field,
       label,
@@ -43,29 +71,52 @@ export function TripFilters({ table }: TripFiltersProps) {
       <div className={styles.fieldGrid}>
         <label>
           {t('filters.status')}
-          <Select
+          <MultiSelect
             ariaLabel={t('filters.status')}
-            clearable
-            options={TRIP_STATUS.map((status) => ({ label: t(`status.${status}`), value: status }))}
+            clearAllLabel={t('filters.statusClearAll')}
+            emptyLabel={t('filters.statusEmpty')}
+            onChange={(values) =>
+              table.setStatusFilter(TRIP_STATUS.filter((status) => values.includes(status)))
+            }
+            options={TRIP_STATUS.map((status) => ({
+              label: t(`status.${status}`),
+              value: status,
+            }))}
             placeholder={t('filters.all')}
-            value={table.filters.statusEq ?? ''}
-            onChange={(value) => table.setStatusFilter(value as '' | TripStatus)}
+            removeLabel={t('filters.removeStatus')}
+            searchPlaceholder={t('filters.statusSearch')}
+            summaryLabel={(count) => t('filters.statusSummary', { count })}
+            values={table.filters.statusIn ?? []}
           />
         </label>
         <label>
           {t('filters.vehicleId')}
-          <input
-            onChange={(event) => table.setTextFilter('vehicleIdEq', event.target.value)}
-            type="search"
-            value={table.filters.vehicleIdEq ?? ''}
+          <MultiSelect
+            ariaLabel={t('filters.vehicleId')}
+            clearAllLabel={t('filters.vehicleClearAll')}
+            emptyLabel={t('filters.vehicleEmpty')}
+            onChange={(values) => table.setIdFilter('vehicleIdIn', values)}
+            options={vehicleOptions}
+            placeholder={t('filters.allMasculine')}
+            removeLabel={t('filters.removeVehicle')}
+            searchPlaceholder={t('filters.vehicleSearch')}
+            summaryLabel={(count) => t('filters.vehicleSummary', { count })}
+            values={table.filters.vehicleIdIn ?? []}
           />
         </label>
         <label>
           {t('filters.driverId')}
-          <input
-            onChange={(event) => table.setTextFilter('driverIdEq', event.target.value)}
-            type="search"
-            value={table.filters.driverIdEq ?? ''}
+          <MultiSelect
+            ariaLabel={t('filters.driverId')}
+            clearAllLabel={t('filters.driverClearAll')}
+            emptyLabel={t('filters.driverEmpty')}
+            onChange={(values) => table.setIdFilter('driverIdIn', values)}
+            options={driverOptions}
+            placeholder={t('filters.allMasculine')}
+            removeLabel={t('filters.removeDriver')}
+            searchPlaceholder={t('filters.driverSearch')}
+            summaryLabel={(count) => t('filters.driverSummary', { count })}
+            values={table.filters.driverIdIn ?? []}
           />
         </label>
         <label>

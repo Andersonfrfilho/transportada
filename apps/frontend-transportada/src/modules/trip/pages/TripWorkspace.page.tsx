@@ -436,7 +436,11 @@ export function TripWorkspacePage() {
                 vehicles={fleet.viewModel.vehicles ?? []}
               />
 
-              <TripFilters table={table} />
+              <TripFilters
+                drivers={fleet.viewModel.drivers ?? []}
+                table={table}
+                vehicles={fleet.viewModel.vehicles ?? []}
+              />
 
               {table.tripsQuery.isLoading ? (
                 <SkeletonGroup className={styles.panel} label={t('loading')}>

@@ -1436,9 +1436,9 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       const search = buildSearch(input, {
         createdFrom: input.filters?.createdFrom,
         createdUntil: input.filters?.createdUntil,
-        driverIdEq: input.filters?.driverIdEq,
-        statusEq: input.filters?.statusEq,
-        vehicleIdEq: input.filters?.vehicleIdEq,
+        driverIdIn: input.filters?.driverIdIn?.join(','),
+        statusIn: input.filters?.statusIn?.join(','),
+        vehicleIdIn: input.filters?.vehicleIdIn?.join(','),
       })
       const response = await authorizedRequest({
         dependencies,
