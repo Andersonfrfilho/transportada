@@ -4,7 +4,9 @@ import type {
   DailyAllowanceRateOrigin,
   TripDriverCostCrewLine,
   TripValuation,
+  TripValuationCostParcel,
   TripValuationCostParcelBasis,
+  TripValuationRevenueLine,
   ValuationSource,
 } from './tripValuation.service'
 
@@ -43,6 +45,30 @@ function readGap(value: unknown): null | string {
 }
 
 /**
+ * Dinheiro é lido **por forma**, não por confiança: a escala fiscal de quatro casas do repositório,
+ * que é exatamente o conjunto que `formatAmount` aceita.
+ *
+ * ⚠️ Fora dela não serve `readText`. Valor fora de forma viraria `''`, atravessaria a fronteira
+ * calado e **lançaria na renderização** (`INVALID_AMOUNT`), derrubando a tela da viagem por causa
+ * da conta de apoio — o oposto do que esta borda existe para fazer.
+ */
+const MONEY_PATTERN = /^-?\d+(\.\d{1,4})?$/u
+
+function readMoney(value: unknown): null | string {
+  return typeof value === 'string' && MONEY_PATTERN.test(value) ? value : null
+}
+
+/**
+ * O lote só vale inteiro: linha com dinheiro fora de forma invalida a avaliação, em vez de sumir
+ * da conta e fazer o total desmentir as linhas que sobraram.
+ */
+function collectLines<TLine>(entries: readonly (null | TLine)[]): null | readonly TLine[] {
+  const kept = entries.flatMap((entry) => (entry === null ? [] : [entry]))
+
+  return kept.length === entries.length ? kept : null
+}
+
+/**
  * Corpo malformado vira **ausência**, não exceção: a conta prevista é informação de apoio, e
  * derrubar a tela da viagem por causa dela seria trocar o problema de lugar.
  */
@@ -58,38 +84,57 @@ export function toTripValuation(envelope: unknown): TripValuation | null {
   const source = payload.revenueSource
   if (!isSource(source)) return null
 
-  const costParcels = Array.isArray(payload.costParcels) ? payload.costParcels : []
-  const revenueLines = Array.isArray(payload.revenueLines) ? payload.revenueLines : []
+  const rawCostParcels = Array.isArray(payload.costParcels) ? payload.costParcels : []
+  const rawRevenueLines = Array.isArray(payload.revenueLines) ? payload.revenueLines : []
+
+  const costParcels = collectLines(rawCostParcels.filter(isRecord).map(toCostParcel))
+  if (costParcels === null) return null
+  const revenueLines = collectLines(rawRevenueLines.filter(isRecord).map(toRevenueLine))
+  if (revenueLines === null) return null
 
   return {
-    costParcels: costParcels.filter(isRecord).map((parcel) => ({
-      amount: readText(parcel.amount),
-      /** Resposta anterior à 110 não traz base: a linha sai sem derivação, nunca quebrada. */
-      basis: readBasis(parcel.basis),
-      /** Resposta anterior à 086 não traz o campo: ausência é `null`, nunca "undefined" na tela. */
-      detail: typeof parcel.detail === 'string' && parcel.detail !== '' ? parcel.detail : null,
-      gap: readGap(parcel.gap),
-      kind: readText(parcel.kind),
-      source: isSource(parcel.source) ? parcel.source : 'estimated',
-    })),
+    costParcels,
     hasGaps: payload.hasGaps === true,
     marginPercentage:
       typeof payload.marginPercentage === 'string' ? payload.marginPercentage : null,
-    revenueLines: revenueLines.filter(isRecord).map((line) => ({
-      amount: readText(line.amount),
-      /** Só a linha prevista traz regra: a realizada vem do CT-e já emitido, não de um cálculo agora. */
-      freightRuleId: typeof line.freightRuleId === 'string' ? line.freightRuleId : null,
-      freightRuleName: typeof line.freightRuleName === 'string' ? line.freightRuleName : null,
-      percentage: typeof line.percentage === 'string' ? line.percentage : null,
-      gap: readGap(line.gap),
-      nfeDocumentId: typeof line.nfeDocumentId === 'string' ? line.nfeDocumentId : null,
-      source: isSource(line.source) ? line.source : 'estimated',
-      tripDocumentId: readText(line.tripDocumentId),
-    })),
+    revenueLines,
     revenueSource: source,
     totalCost: readText(payload.totalCost),
     totalMargin: readText(payload.totalMargin),
     totalRevenue: readText(payload.totalRevenue),
+  }
+}
+
+function toCostParcel(parcel: Record<string, unknown>): null | TripValuationCostParcel {
+  const amount = readMoney(parcel.amount)
+  if (amount === null) return null
+
+  return {
+    amount,
+    /** Resposta anterior à 110 não traz base: a linha sai sem derivação, nunca quebrada. */
+    basis: readBasis(parcel.basis),
+    /** Resposta anterior à 086 não traz o campo: ausência é `null`, nunca "undefined" na tela. */
+    detail: typeof parcel.detail === 'string' && parcel.detail !== '' ? parcel.detail : null,
+    gap: readGap(parcel.gap),
+    kind: readText(parcel.kind),
+    source: isSource(parcel.source) ? parcel.source : 'estimated',
+  }
+}
+
+function toRevenueLine(line: Record<string, unknown>): null | TripValuationRevenueLine {
+  const amount = readMoney(line.amount)
+  if (amount === null) return null
+
+  return {
+    amount,
+    /** Só a linha prevista traz regra: a realizada vem do CT-e já emitido, não de um cálculo agora. */
+    freightRuleId: typeof line.freightRuleId === 'string' ? line.freightRuleId : null,
+    freightRuleName: typeof line.freightRuleName === 'string' ? line.freightRuleName : null,
+    percentage: typeof line.percentage === 'string' ? line.percentage : null,
+    gap: readGap(line.gap),
+    nfeDocumentId: typeof line.nfeDocumentId === 'string' ? line.nfeDocumentId : null,
+    source: isSource(line.source) ? line.source : 'estimated',
+    tripDocumentId: readText(line.tripDocumentId),
   }
 }
 
