@@ -16,6 +16,7 @@ import type {
 import { buildEventQueueView, type EventQueueItemView } from '../shared/eventQueueView.service'
 import {
   createIndexedDbAttachmentStore,
+  createIndexedDbProofThumbnailStore,
   createIndexedDbQueueStore,
   createIndexedDbTripSnapshotStore,
 } from '../shared/indexedDbQueue.service'
@@ -57,6 +58,7 @@ import {
   type ProofPhotoReductions,
 } from '../shared/proofPhotoRecovery.service'
 import { buildProofReceiverReport } from '../shared/proofReceiver.service'
+import { saveProofThumbnail } from '../shared/proofThumbnailArchive.service'
 import {
   discardForeignPending,
   discardOwnPending,
@@ -103,6 +105,7 @@ const THUMBNAIL_FILE_NAME = 'thumbnail.jpg'
 
 /** O store não guarda estado — cada operação abre a base —, então um só serve a app inteira. */
 const TRIP_SNAPSHOT_STORE = createIndexedDbTripSnapshotStore()
+const PROOF_THUMBNAIL_STORE = createIndexedDbProofThumbnailStore()
 
 export type DriverProofInput = Readonly<{
   /** Spec 207: gerada na tela — é o que "Remover" (por item, nunca por nota) precisa depois. */
@@ -425,6 +428,21 @@ export function useDriverTrip(
                 ? {}
                 : { lateRegistration: attachment.lateRegistration }),
             })
+            /**
+             * Pedido do usuário (01/10): aceito o anexo, o original sai da fila — a miniatura fica
+             * no aparelho para a tela mostrar a foto, e não só a frase "Comprovante já enviado".
+             * Falhar ao guardar não desfaz o envio: o canhoto está no servidor, a tela é que volta
+             * à frase.
+             */
+            if (attachment.kind === 'photo') {
+              await saveProofThumbnail({
+                blob: attachment.thumbnail ?? attachment.blob,
+                documentId: attachment.documentId,
+                now: new Date(),
+                store: PROOF_THUMBNAIL_STORE,
+                subHash: session.subHash,
+              }).catch(() => undefined)
+            }
             return { kind: 'sent', punctuality: result.punctuality }
           } catch (error) {
             return toAttachmentSendOutcome(error)

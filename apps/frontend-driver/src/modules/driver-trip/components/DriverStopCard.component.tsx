@@ -19,6 +19,7 @@ import { SignaturePad } from './SignaturePad.component'
 import { useCameraCaptureFieldRef } from '../hooks/useCameraCaptureFieldRef.hook'
 import { useCaptureRegistration } from '../hooks/useCaptureRegistration.hook'
 import { usePhotoPreviewUrl } from '../hooks/usePhotoPreviewUrl.hook'
+import { useStoredProofThumbnail } from '../hooks/useStoredProofThumbnail.hook'
 import { ProofUploadStatus } from './ProofUploadStatus.component'
 import { useProofUploadStatus } from '../hooks/useProofUploadStatus.hook'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
@@ -1262,6 +1263,17 @@ function ProofCaptureFields({
     kind: 'photo',
     proofPending: serverProof?.proofPending ?? true,
   })
+  /** A miniatura que ficou no aparelho quando a drenagem levou o original (pedido de 01/10). */
+  const storedThumbnailUrl = useStoredProofThumbnail({
+    documentId,
+    enabled: isPhotoConfirmedByServer,
+  })
+  /** "Ver" abre o que a tela está mostrando: o anexo da fila, ou a miniatura guardada do enviado. */
+  const openImageUrl =
+    openImageKind === undefined
+      ? undefined
+      : (previewByKind[openImageKind].previewUrl ??
+        (openImageKind === 'photo' ? storedThumbnailUrl : undefined))
   const nameInputRef = useRef<HTMLInputElement>(null)
   /** Spec 193 D14: PJ recebe o nome selecionado, com foco — o motorista digita por cima. */
   const [selectNameOnNextRender, setSelectNameOnNextRender] = useState(false)
@@ -1466,13 +1478,35 @@ function ProofCaptureFields({
     )
   }
 
-  /** O servidor já tem a foto, o aparelho não: sem hora (o snapshot não manda) e sem convite à primeira captura. */
+  /**
+   * O servidor já tem a foto: sem hora (o snapshot não manda) e sem convite à primeira captura.
+   *
+   * Pedido do usuário (01/10): a miniatura guardada no aparelho aparece aqui — a foto é a prova, e
+   * uma frase sozinha não diz qual foto subiu. Quando não há miniatura guardada (foto anexada pelo
+   * escritório, outro aparelho, as 24 h vencidas), fica só a frase, como antes.
+   */
   function renderConfirmedFrame(): ReactNode {
     return (
       <div className={styles.proofCaptureAttached}>
         <div className={styles.proofConfirmedFrame}>
-          <Icon name="check" />
-          <span>{t('proofCapture.upload.confirmed')}</span>
+          {storedThumbnailUrl === undefined ? null : (
+            <button
+              aria-label={t('proofCapture.view')}
+              className={styles.proofConfirmedThumbnailButton}
+              onClick={() => setOpenImageKind('photo')}
+              type="button"
+            >
+              <img
+                alt={t('proofCapture.thumbnail')}
+                className={styles.proofConfirmedThumbnail}
+                src={storedThumbnailUrl}
+              />
+            </button>
+          )}
+          <span className={styles.proofConfirmedText}>
+            <Icon name="check" />
+            {t('proofCapture.upload.confirmed')}
+          </span>
         </div>
       </div>
     )
@@ -1756,13 +1790,13 @@ function ProofCaptureFields({
         summary
       )}
 
-      {openImageKind !== undefined && previewByKind[openImageKind].previewUrl !== undefined ? (
+      {openImageKind !== undefined && openImageUrl !== undefined ? (
         <ProofImageLightbox
           alt={
             openImageKind === 'signature' ? t('signature.thumbnail') : t('proofCapture.thumbnail')
           }
           onClose={() => setOpenImageKind(undefined)}
-          src={previewByKind[openImageKind].previewUrl}
+          src={openImageUrl}
         />
       ) : null}
 

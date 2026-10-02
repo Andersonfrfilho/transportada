@@ -61,6 +61,19 @@ deste — aparece como "pendências de outra conta", com "Descartar"
 `test/driver-trip/trip-snapshot.contract.ts`, `test/driver-trip/queue-owner.contract.ts`,
 `test/driver-trip/pending-queue.contract.ts`.
 
+## A miniatura do canhoto já enviado
+
+Pedido do usuário (01/10): no estado "Comprovante já enviado" a tela mostrava só uma frase, dentro de
+uma moldura quadrada de `--space-16` por onde o texto vazava. Agora as duas molduras do canhoto (a
+vazia e a confirmada) ocupam a largura do card, e a foto aparece em miniatura: quando a drenagem
+aceita o anexo, `saveProofThumbnail` guarda a **miniatura** (a da spec 220, ≤128 KiB — nunca o
+original) no store `proof-thumbnails` do IndexedDB (versão **4**, só cria store novo, sem migração).
+`useStoredProofThumbnail` lê por `documentId` em `renderConfirmedFrame`; sem miniatura guardada (foto
+do escritório, outro aparelho, 24 h vencidas) fica a frase, como antes. Dono e prazo são os do
+snapshot: `subHash` dentro do registro, `retainOnly` no boot autenticado (`main.tsx`),
+`discardProofThumbnails` no "Sair" e 24 h de validade. Registro em `docs/SECURITY.md`.
+`test/driver-trip/proof-thumbnail-archive.contract.ts`, `proof-confirmed-by-server.contract.ts`.
+
 ## Drenagem
 
 Gatilhos (`pendingQueue.service.ts:scheduleQueueDrainTriggers`, chamado por

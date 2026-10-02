@@ -1507,29 +1507,69 @@
   gap: var(--space-2);
 }
 
+/*
+ * Pedido do usuário (01/10): as duas molduras do canhoto — a sem foto e a que o servidor já tem —
+ * ocupam a largura inteira do card, como a miniatura e os botões. O quadrado de `--space-16`
+ * partia a frase ao meio e a deixava vazar por cima da borda.
+ */
 .proofEmptyFrame {
+  align-content: center;
   align-items: center;
   border: 1px dashed var(--color-slate);
+  box-sizing: border-box;
   color: var(--color-slate);
   display: grid;
   gap: var(--space-1);
-  height: var(--space-16);
   justify-items: center;
-  align-content: center;
+  min-height: var(--space-16);
+  padding: var(--space-3);
   text-align: center;
+  width: 100%;
+}
+
+/*
+ * Enviada, a foto vira referência, não conferência: a faixa ocupa a largura do card e a foto entra
+ * como miniatura ao lado da frase (pedido do usuário, 01/10) — grande ela já foi, enquanto subia.
+ */
+.proofConfirmedFrame {
+  align-items: center;
+  border: 1px solid var(--color-ready);
+  box-sizing: border-box;
+  color: var(--color-ready);
+  display: flex;
+  gap: var(--space-3);
+  min-height: var(--space-16);
+  padding: var(--space-3);
+  width: 100%;
+}
+
+.proofConfirmedThumbnailButton {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  display: block;
+  flex: none;
+  padding: 0;
+}
+
+.proofConfirmedThumbnailButton:focus-visible {
+  outline: 2px solid var(--color-ready);
+  outline-offset: 2px;
+}
+
+.proofConfirmedThumbnail {
+  border: 1px solid var(--color-slate);
+  display: block;
+  height: var(--space-16);
+  object-fit: cover;
   width: var(--space-16);
 }
 
-.proofConfirmedFrame {
-  align-content: center;
-  border: 1px solid var(--color-ready);
-  color: var(--color-ready);
-  display: grid;
-  gap: var(--space-1);
-  height: var(--space-16);
-  justify-items: center;
-  text-align: center;
-  width: var(--space-16);
+.proofConfirmedText {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .proofUploadChip {
