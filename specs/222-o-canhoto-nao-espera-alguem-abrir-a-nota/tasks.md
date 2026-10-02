@@ -56,7 +56,7 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
       — o detalhe da viagem não passa a buscar comprovante de graça (plan.md § frontend)
 - [x] T2.5 `approveCanhotoBatch` em `useTripWorkspace.hook.ts`, devolvendo
       `{ approved, conflicted, failed }` e invalidando a consulta da viagem
-- [ ] T2.6 `TripCanhotoBatchDialog.component.tsx`: grid com `ProofImage`, número e série da nota, a
+- [x] T2.6 `TripCanhotoBatchDialog.component.tsx`: grid com `ProofImage`, número e série da nota, a
       leitura automática quando houver, caixa marcada por item, rótulo com a contagem (CA05, CA06).
       Molde de diálogo: `TripReturnReasonDialog.component.tsx` — `createPortal` + `useModalDialog`,
       classes `styles.mdfeGateOverlay` / `styles.mdfeGateDialog`, `aria-modal` e `aria-labelledby`.

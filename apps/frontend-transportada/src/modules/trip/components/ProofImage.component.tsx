@@ -19,16 +19,30 @@ import {
 } from '../shared/deliveryProof.service'
 import styles from '../styles/trip.module.css'
 
+export type ProofImageOutcome = 'failed' | 'loaded'
+
 type ProofImageProps = Readonly<{
   alt: string
+  /** Quem decide com base na foto (spec 222) precisa dela já, não quando a rolagem chegar perto. */
+  isEager?: boolean
   label: string
   onOpen: (proofId: string) => void
+  /** Diz **como** a imagem resolveu — `hasSettled` só sabe que resolveu. */
+  onSettled?: (outcome: ProofImageOutcome) => void
   proof: DeliveryProof
   variant: 'main' | 'thumbnail'
 }>
 
 /** Sem original (`downloadUrl` vazio) a galeria não o contém: fica só a miniatura, sem botão. */
-export function ProofImage({ alt, label, onOpen, proof, variant }: ProofImageProps) {
+export function ProofImage({
+  alt,
+  isEager = false,
+  label,
+  onOpen,
+  onSettled,
+  proof,
+  variant,
+}: ProofImageProps) {
   const { t } = useTranslation('trip')
   const [hasSettled, setHasSettled] = useState(false)
 
@@ -37,8 +51,14 @@ export function ProofImage({ alt, label, onOpen, proof, variant }: ProofImagePro
   /** Sem fonte não há evento para esperar — o marcador ficaria preso no vazio. */
   const isWaiting = source !== '' && !hasSettled
 
-  function handleSettled(): void {
+  function handleLoad(): void {
     setHasSettled(true)
+    onSettled?.('loaded')
+  }
+
+  function handleError(): void {
+    setHasSettled(true)
+    onSettled?.('failed')
   }
 
   function handleOpen(): void {
@@ -54,9 +74,9 @@ export function ProofImage({ alt, label, onOpen, proof, variant }: ProofImagePro
         !isMain && styles.proofThumbnailImage,
         isWaiting && styles.deliveryProofImagePending,
       )}
-      loading="lazy"
-      onError={handleSettled}
-      onLoad={handleSettled}
+      loading={isEager ? 'eager' : 'lazy'}
+      onError={handleError}
+      onLoad={handleLoad}
       src={source}
     />
   )

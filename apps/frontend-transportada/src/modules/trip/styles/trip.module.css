@@ -4823,3 +4823,53 @@ button.occurrenceCaseBadge {
   justify-content: center;
   color: var(--color-fog);
 }
+
+/*
+ * Conferência de canhotos em maço (spec 222): o diálogo é o único da tela que mostra dezenas de
+ * fotos de uma vez, então passa da caixa estreita do portão de CT-e para uma grade de cartões.
+ * Fica no fim do arquivo de propósito: precisa vencer `.mdfeGateDialog` dentro da media query.
+ */
+.canhotoBatchGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.canhotoBatchItem {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+}
+
+/* Altura limitada: um canhoto em pé não pode empurrar os outros trinta e nove para fora da tela. */
+.canhotoBatchItem .deliveryProofImage {
+  max-block-size: 16rem;
+}
+
+.canhotoBatchPlaceholder {
+  height: 12rem;
+}
+
+.canhotoBatchSummary {
+  margin: 0;
+  margin-inline-end: auto;
+  align-self: center;
+  color: var(--color-slate-muted);
+  font-size: 0.8rem;
+}
+
+@media (min-width: 40rem) {
+  .canhotoBatchDialog {
+    width: min(64rem, 100%);
+  }
+
+  .canhotoBatchGrid {
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  }
+}

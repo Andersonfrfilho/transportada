@@ -281,3 +281,29 @@ existe nos dois idiomas, mesmos placeholders, plural com `{{count}}`, falha parc
 recusa** (recus/reject/rejeit) — a máquina não recusa —, e pt-BR sem palavra sem acento.
 
 Gates: typecheck sem erro; prettier conforme.
+
+### T2.6 — `TripCanhotoBatchDialog`
+
+Vermelho antes: `test/trip-hooks/canhoto-batch-dialog.contract.ts` → **0 pass / 1 fail / 1 error**
+(módulo inexistente). Verde depois: **16 pass / 0 fail, 36 asserções**. Suítes completas:
+`bun run test` → **6191 pass / 0 fail**; hooks → **202 pass / 0 fail**.
+
+Mutações: tirar `!isWaitingImages` do `canConfirm` → **15 pass / 1 fail**; `loadedIds` que nunca
+registra a foto → **13 / 3**; `checkedItems = items` (ignora a desmarcação) → **13 / 3**; tirar
+`isEager` do item → **15 / 1**. Todas restauradas, 16 pass. **Não provado por mutação:** que o
+Escape da foto em tamanho real não fecha a conferência (a galeria é irmã do overlay, não filha; o
+caso passa, mas não tentei a mutação que a põe dentro).
+
+Forma: diálogo montado só enquanto aberto (`isOpen: true` fixo no `useModalDialog`), então cada
+abertura nasce do zero. Props: `{items, onClose, onConfirm, overflowCount, status}`, com
+`status: 'loading' | 'ready' | 'submitting' | 'failed'`. O cartão de cada nota é
+`TripCanhotoBatchItem` (arquivo próprio). A leitura automática reaproveita `ProofReview`, que já
+traduz o veredito do canhoto.
+
+⚠️ Desvio, **mais estrito que a spec**: as fotos carregam `eager` (nova prop `isEager` no
+`ProofImage`) e o botão só vale quando todas as **marcadas** chegaram. Com `lazy` a foto abaixo da
+dobra nunca carregaria e a pessoa aprovaria o que não viu. Nota desmarcada não segura o botão.
+
+O `action-icons.contract` (já existente) reprovou o "Cancelar" sem ícone — corrigido.
+
+Gates: typecheck sem erro; prettier conforme; eslint 0 erros (os 16 avisos preexistentes).
