@@ -325,6 +325,7 @@ describe('Drizzle migrations', () => {
       '20261001123700_event_location_stamp',
       '20261002120000_trip_canhoto_read_job',
       '20261002153258_occurrence_location_stamp',
+      '20261002213734_delivered_moment_clock',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -1995,6 +1996,61 @@ describe('o estado do ponto entra aditivo e o histórico sem coordenada fica NUL
     expect(restoredChecks).toContain('"job_schedules_job_check"')
     expect(restoredChecks).toContain('"job_executions_job_check"')
     expect(restoredChecks.split('DO $$')[0]).not.toContain(`'trip.canhoto.read'`)
+
+    expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * Spec 232 T1.5: a hora corrigida do evento e o índice do momento da entrega. O teste de banco roda
+   * contra base vazia e não vê três coisas: o índice velho continua (outras leituras ainda o usam), a
+   * expressão do novo é a da consulta, e o desvio cabe em ±365 dias (`integer` estoura em 24,8).
+   */
+  test('adds the corrected event clock and the delivered moment index without touching the old one', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_delivered_moment_clock'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    expect(migrationSql).not.toMatch(DESTRUCTIVE_MIGRATION_PATTERN)
+
+    const statements = migrationSql
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('--'))
+      .join('\n')
+
+    expect(statements).toContain(
+      'ALTER TABLE "trip_stop_events" ADD COLUMN "occurred_at" timestamp with time zone;',
+    )
+    for (const table of ['trip_stop_events', 'trip_delivery_proofs']) {
+      expect(statements).toContain(`ALTER TABLE "${table}" ADD COLUMN "clock_offset_ms" bigint;`)
+    }
+    // Sem backfill: o evento antigo não tem desvio medido, e o veredito gravado não é recalculado.
+    expect(statements).not.toContain('NOT NULL')
+    expect(statements).not.toContain('DEFAULT')
+    expect(statements).not.toContain('UPDATE ')
+    expect(statements).not.toContain('trip_stop_events_company_delivered_at_idx')
+
+    const indexStatement = statements.match(
+      /CREATE INDEX "trip_stop_events_company_delivered_moment_idx"[^;]*;/u,
+    )
+    expect(indexStatement?.[0]).toContain(
+      `("company_id",coalesce("occurred_at", "captured_at", "recorded_at")) WHERE "kind" = 'delivered'`,
+    )
+
+    const droppedIndex = rollbackSql.indexOf(
+      'DROP INDEX IF EXISTS "trip_stop_events_company_delivered_moment_idx"',
+    )
+    expect(droppedIndex).toBeGreaterThan(-1)
+    expect(rollbackSql.indexOf('DROP COLUMN IF EXISTS "occurred_at"')).toBeGreaterThan(droppedIndex)
+    expect(rollbackSql.indexOf('DROP COLUMN IF EXISTS "clock_offset_ms"')).toBeGreaterThan(
+      droppedIndex,
+    )
+    expect(rollbackSql).not.toContain('trip_stop_events_company_delivered_at_idx')
 
     expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
     expect(rollbackSql).toContain('deleted_migrations <> 1')

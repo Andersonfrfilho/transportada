@@ -46,6 +46,7 @@ import {
   EVENT_LOCATION_STATES,
   type EventLocationState,
 } from './event-location.schema.js'
+import { deliveredMomentSql } from './delivered-moment.support.js'
 
 /**
  * ADR-0067 §2: quem registrou o evento de campo — motorista pelo PWA, escritório em nome dele, ou
@@ -1150,8 +1151,23 @@ export const tripStopEvents = pgTable(
      * do GPS, que pode nem existir) nem a do servidor. É ela que ordena a fila: o item recusado não é
      * descartado, o reenvio manual chega fora de ordem, e sem o `tapped_at` um toque velho marcaria a
      * parada errada. Anulável: todo evento anterior a esta spec não tem.
+     *
+     * Spec 232 D2: `arrived`/`delivered`/`returned` também a gravam quando o app manda — crua, mesmo
+     * quando a correção é descartada. Quem vale como hora do evento é `occurred_at`, nunca esta.
      */
     tappedAt: timestamp('tapped_at', { withTimezone: true }),
+    /**
+     * Spec 232 D3: `tapped_at + clock_offset_ms`, gravada **só** quando `resolveOccurredAt` aceitou a
+     * correção — a decisão fica no banco, e uma correção descartada (futuro, mais de 30 dias) nunca
+     * volta a valer numa leitura em SQL. Não é o `created_at` que o escritório sobrescreve (ADR-0067
+     * §3). O momento da entrega da nota e da pontualidade é `deliveredMomentSql`. Sem backfill.
+     */
+    occurredAt: timestamp('occurred_at', { withTimezone: true }),
+    /**
+     * Spec 232 D3: o desvio aplicado em `occurred_at` (servidor − aparelho), para auditoria. `bigint`:
+     * o esquema aceita até ±365 dias, e `integer` estoura em ±24,8 dias (`22003` derrubaria o toque).
+     */
+    clockOffsetMs: bigint('clock_offset_ms', { mode: 'number' }),
     actorUserId: uuid('actor_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     /** ADR-0067 §2: quem gravou. Sem backfill: o default descreve o histórico. */
@@ -1244,6 +1260,14 @@ export const tripStopEvents = pgTable(
      */
     index('trip_stop_events_company_delivered_at_idx')
       .on(table.companyId, sql`coalesce(${table.capturedAt}, ${table.recordedAt})`)
+      .where(sql`${table.kind} = 'delivered'`),
+    /**
+     * Spec 232 D3 (risco 3 da T1.5): o mesmo índice para o momento da entrega com a hora corrigida,
+     * montado pela própria `deliveredMomentSql` — expressão diferente da consulta deixa o índice de
+     * fora. O anterior fica: as outras leituras ainda usam `captured_at ?? recorded_at`.
+     */
+    index('trip_stop_events_company_delivered_moment_idx')
+      .on(table.companyId, deliveredMomentSql(table))
       .where(sql`${table.kind} = 'delivered'`),
     /** O expurgo dos 90 dias varre por data e apaga só a coordenada; sem este índice ele varre tudo. */
     index('trip_stop_events_located_created_at_idx')
@@ -1727,6 +1751,13 @@ export const tripDeliveryProofs = pgTable(
     longitude: numeric({ precision: 10, scale: 7 }),
     accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
     capturedAt: timestamp('captured_at', { withTimezone: true }),
+    /**
+     * Spec 232 D4 (risco 5 da T1.5): o desvio do relógio com que a foto foi julgada — só quando
+     * `resolveOccurredAt` aceitou a correção. `captured_at` segue a hora crua do aparelho; os dois
+     * juntos reproduzem o veredito. Sem backfill: o veredito antigo não é recalculado. `bigint` pelo
+     * mesmo motivo de `trip_stop_events.clock_offset_ms`.
+     */
+    clockOffsetMs: bigint('clock_offset_ms', { mode: 'number' }),
     /** ADR-0081 §2 / spec 196 D2: por que a coordenada da foto não veio. `null` é não se aplica. */
     locationState: varchar('location_state', { length: 16 }).$type<EventLocationState>(),
     /**

@@ -55,3 +55,29 @@ export function resolveOccurredAt(params: ResolveOccurredAtParams): OccurredAtRe
 
   return { kind: 'corrected', occurredAt: new Date(occurredAtMilliseconds) }
 }
+
+/** Spec 232 D3: a correção aceita, como o evento a grava (`occurred_at`, `clock_offset_ms`). */
+export type CorrectedClock = {
+  readonly clockOffsetMs: number
+  readonly occurredAt: Date
+}
+
+/** O que o evento do motorista grava do relógio: a hora crua do toque e, só se aceita, a corrigida. */
+export type RecordedEventClock = {
+  readonly correctedClock?: CorrectedClock
+  readonly tappedAt?: Date
+}
+
+/**
+ * Spec 232 D3 (risco 2 da T1.5): grava a **decisão** de `resolveOccurredAt`, não o desvio cru — a
+ * correção descartada não deixa `occurred_at` nem `clock_offset_ms`, e nenhuma leitura a ressuscita.
+ * O `tapped_at` cru fica mesmo assim, como a spec 206 já o guarda.
+ */
+export function resolveRecordedEventClock(params: ResolveOccurredAtParams): RecordedEventClock {
+  const { clockOffsetMs, receivedAt, tappedAt } = params
+  const tapped = tappedAt === undefined ? {} : { tappedAt }
+  const resolution = resolveOccurredAt({ clockOffsetMs, receivedAt, tappedAt })
+  if (resolution.kind !== 'corrected' || clockOffsetMs === undefined) return tapped
+
+  return { ...tapped, correctedClock: { clockOffsetMs, occurredAt: resolution.occurredAt } }
+}

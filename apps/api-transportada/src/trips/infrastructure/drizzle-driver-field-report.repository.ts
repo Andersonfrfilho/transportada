@@ -782,6 +782,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
         actorUserId: input.actorUserId,
         capturedAt: input.location === null ? null : new Date(input.location.capturedAt),
         channel: input.authorship.channel,
+        clockOffsetMs: input.correctedClock?.clockOffsetMs ?? null,
         companyId: input.companyId,
         ...(input.occurredAt === undefined ? {} : { createdAt: input.occurredAt }),
         kind: input.kind,
@@ -793,6 +794,8 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
           hasCoordinate: input.location !== null,
         }),
         longitude: input.location?.longitude ?? null,
+        /** Spec 232 D3: só a correção aceita — não é o `createdAt` que o escritório sobrescreve. */
+        occurredAt: input.correctedClock?.occurredAt ?? null,
         onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
         ...(input.recordedAt === undefined ? {} : { recordedAt: input.recordedAt }),
         reportedByDriverId: input.reportedByDriverId ?? null,

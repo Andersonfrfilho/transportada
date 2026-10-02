@@ -10,6 +10,7 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, desc, eq, gte, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
+import { deliveredMomentSql } from '../../database/delivered-moment.support.js'
 import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
 import {
   companyDeliveryProofSettings,
@@ -51,7 +52,8 @@ const RETURNED_DOCUMENT_STATUS = 'returned'
 type ReadScoresInput = Parameters<DriverScorePort['readScores']>[0]
 
 type DeliveryRow = {
-  readonly capturedAt: Date | null
+  /** Spec 232 D3: `deliveredMomentSql` — a hora corrigida, senão o GPS, senão o recebimento. */
+  readonly deliveredAt: Date
   readonly documentNumber: string | null
   readonly driverId: string
   readonly punctuality: DriverScoreDelivery['photoPunctuality'] | null
@@ -127,7 +129,7 @@ export class DrizzleDriverScoreRepository implements DriverScorePort {
 
     return this.database
       .select({
-        capturedAt: lastDelivery.capturedAt,
+        deliveredAt: lastDelivery.deliveredAt,
         documentNumber: nfeDocuments.number,
         driverId,
         punctuality: tripDeliveryProofs.punctuality,
@@ -203,8 +205,8 @@ function buildLastDeliverySubquery(input: ReadScoresInput & { readonly database:
   return input.database
     .selectDistinctOn([tripStopEvents.tripDocumentId], {
       actorUserId: tripStopEvents.actorUserId,
-      capturedAt: tripStopEvents.capturedAt,
       channel: tripStopEvents.channel,
+      deliveredAt: deliveredMomentSql(tripStopEvents).as('delivered_at'),
       eventId: tripStopEvents.id,
       onBehalfOfDriverId: tripStopEvents.onBehalfOfDriverId,
       recordedAt: tripStopEvents.recordedAt,
@@ -216,10 +218,7 @@ function buildLastDeliverySubquery(input: ReadScoresInput & { readonly database:
       and(
         eq(tripStopEvents.companyId, input.companyId),
         eq(tripStopEvents.kind, DELIVERED_EVENT_KIND),
-        gte(
-          sql`coalesce(${tripStopEvents.capturedAt}, ${tripStopEvents.recordedAt})`,
-          timestamptzParameter(windowStart),
-        ),
+        gte(deliveredMomentSql(tripStopEvents), timestamptzParameter(windowStart)),
         inArray(
           tripStopEvents.tripDocumentId,
           buildRequestedDriverDocuments({ ...input, windowStart }),
@@ -259,10 +258,7 @@ function buildRequestedDriverDocuments(
       and(
         eq(driverEvent.companyId, input.companyId),
         eq(driverEvent.kind, DELIVERED_EVENT_KIND),
-        gte(
-          sql`coalesce(${driverEvent.capturedAt}, ${driverEvent.recordedAt})`,
-          timestamptzParameter(input.windowStart),
-        ),
+        gte(deliveredMomentSql(driverEvent), timestamptzParameter(input.windowStart)),
         or(
           inArray(driverEvent.onBehalfOfDriverId, driverIds),
           inArray(driverEvent.reportedByDriverId, driverIds),
@@ -327,7 +323,7 @@ function groupDeliveriesByDriver(input: {
       recipientTaxId: row.recipientTaxId ?? '',
     })
     const delivery: DriverScoreDelivery = {
-      deliveredAt: row.capturedAt ?? row.recordedAt,
+      deliveredAt: row.deliveredAt,
       deliveryReceivedAt: row.recordedAt,
       documentNumber: row.documentNumber ?? '',
       photoMode: settings.photo,

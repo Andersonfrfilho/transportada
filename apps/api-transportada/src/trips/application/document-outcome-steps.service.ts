@@ -14,6 +14,7 @@ import {
   assertInformedTimeWithinWindow,
   FIELD_INFORMED_TIME,
 } from '../domain/field-delivery-timing.policy.js'
+import { resolveRecordedEventClock } from '../domain/occurred-at.policy.js'
 import {
   TripDocumentAlreadySettledError,
   TripDocumentNotReachableError,
@@ -133,7 +134,11 @@ function recordOutcomeEvent(input: {
     location: report.location,
     ...(context.isOffice
       ? { occurredAt: report.now, recordedAt: report.recordedAt ?? new Date() }
-      : {}),
+      : resolveRecordedEventClock({
+          clockOffsetMs: report.clockOffsetMs,
+          receivedAt: report.now,
+          tappedAt: report.tappedAt,
+        })),
     ...(report.driverId === undefined ? {} : { reportedByDriverId: report.driverId }),
     stopId: document.stopId,
   })

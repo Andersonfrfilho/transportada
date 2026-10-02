@@ -424,3 +424,176 @@ Antes: 8610 pass / 23 skip; a diferença é exatamente os 57 casos novos. Nenhum
 | 8   | multipart aceita fracionário/expoente (regex frouxa)                  | pegou: 1 fail                                                                |
 | 9   | `toEventClock` devolve `clockOffsetMs: undefined` explícito           | pegou: 14 fail (cliente antigo ganha a chave)                                |
 | 10  | rota `/arrive` descarta os campos do relógio                          | pegou: 1 fail (caso de rota `/arrive`)                                       |
+
+## T1.5 — migration aditiva, a hora corrigida gravada e a leitura única do momento da entrega
+
+### O que mudou
+
+- **Migration** `apps/api-transportada/drizzle/20261002213734_delivered_moment_clock/` (`migration.sql`
+  gerado pelo `db:generate` + cabeçalho, `snapshot.json`, `rollback.sql`): `trip_stop_events.occurred_at
+timestamptz NULL`, `trip_stop_events.clock_offset_ms bigint NULL`, `trip_delivery_proofs.clock_offset_ms
+bigint NULL` e o índice novo `trip_stop_events_company_delivered_moment_idx (company_id,
+coalesce(occurred_at, captured_at, recorded_at)) WHERE kind = 'delivered'`. Sem backfill, sem DEFAULT,
+  sem NOT NULL; o índice antigo `trip_stop_events_company_delivered_at_idx` fica (as outras seis
+  leituras usam). Timestamp posterior ao último de `origin/staging` (`20261002120000_trip_canhoto_read_job`,
+  conferido com `git fetch` + `git ls-tree`).
+- **`bigint`, não `integer`** (decisão desta task): o esquema da T1.4 aceita desvio de até ±365 dias, e
+  `integer` estoura em ±24,8 dias — aparelho com o relógio um mês errado daria `22003` e derrubaria o
+  toque inteiro em vez de só gravar a correção.
+- **Leitura única (risco 4):** `src/database/delivered-moment.support.ts` exporta `deliveredMomentSql`
+  (`coalesce(occurred_at, captured_at, recorded_at)`), usada pelo **próprio índice** no schema TS e pelos
+  quatro pontos: nota (`drizzle-driver-score.repository.ts`: filtro da janela no `distinct on`, no
+  pré-filtro por motorista e o `deliveredAt` selecionado — a linha não faz mais `capturedAt ??
+recordedAt` em TS), `findDeliveryContext` e `listPendingProofs` (filtro e `deliveredAt`). As outras
+  leituras de `captured_at ?? recorded_at` não foram tocadas.
+- **Gravação (riscos 1 e 2):** campo novo `correctedClock?: { occurredAt, clockOffsetMs }` em
+  `recordEvent` — o `occurredAt` que a porta já tinha (sobrescreve `created_at`, escritório) não foi
+  reusado. `resolveRecordedEventClock` (domínio, puro) chama `resolveOccurredAt` e devolve a **decisão**:
+  `correctedClock` só quando `corrected`; o `tappedAt` cru vai sempre que veio (agora também em
+  `arrived`/`delivered`/`returned`; o único leitor de `tapped_at` filtra `kind = 'departed'`). Chegada,
+  entrega e devolução do motorista usam; o escritório segue com o caminho dele. A ocorrência de parada
+  grava em `trip_stop_occurrences`, outro caminho — fora (a spec diz que só a entrega e a foto usam).
+  Idempotência intocada: o reenvio devolve o evento já gravado.
+- **Foto (risco 5):** `classifyPhotoPunctuality` devolve o veredito e o desvio aplicado; `saveProof` grava
+  `clock_offset_ms` só quando `hasCorrectedClock` foi `true` (`null` no descarte, no cliente antigo, na
+  assinatura e no escritório), e `captured_at` segue cru (trava da T1.3 mantida). A recaptura grava o dela.
+- Comentários de `tapped_at` no schema e na porta atualizados (não é mais "só em departed").
+
+### Vermelho (teste antes do código)
+
+`test/integration/delivered-moment.integration.ts` (novo, registrado no `test:integration`), escrito antes
+de qualquer linha de `src/`:
+
+```text
+apps/api-transportada$ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/delivered-moment.integration.ts
+(fail) ... CA3: tocada às 10:00 sem posição e recebida às 14:00, com os campos, é entregue às 10:00   TypeError (coluna occurred_at não existe no schema)
+(fail) ... a janela de 90 dias da nota conta da hora corrigida, não do recebimento                     Expected { penalties: [], score: null } — Received missing_proof, deliveredAt = recebimento, score 90
+(fail) ... a nota e a lista de pendências usam o mesmo instante na fronteira do effectiveSince        idem: a entrega das 10:00 entrou como sendo das 14:00, depois da ativação
+(fail) ... (+ 7 casos que leem as colunas novas: TypeError de coluna inexistente)
+ 1 pass   (espelho da fronteira, sem os campos — trava de regressão)
+ 10 fail
+```
+
+Segundo vermelho, **com a migration e sem o código** (as colunas existem; só a gravação/leitura falta):
+
+```text
+(fail) CA3 ...                                   Expected occurredAt "…17:38:06.436Z"  Received undefined
+(fail) janela de 90 dias ...                     Received missing_proof, score 90 (deliveredAt = recebimento)
+(fail) descartada no futuro / velha demais ...   Expected tappedAt cru  Received undefined (o evento de entrega não gravava tapped_at)
+(fail) reenvio ...                               Expected occurredAt  Received undefined
+(fail) fronteira do effectiveSince ...           Received missing_proof, score 90
+(fail) a chegada também grava ...                Expected occurredAt  Received undefined
+(fail) foto com relógio corrigido ...            Expected clockOffsetMs 90000  Received null
+ 3 pass   (cliente antigo, espelho da fronteira, foto com correção descartada — travas)
+ 8 fail
+```
+
+Vermelho pelo motivo certo: a hora corrigida não era gravada nem lida.
+
+### Verde
+
+```text
+apps/api-transportada$ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/delivered-moment.integration.ts
+ 12 pass
+ 0 fail
+Ran 12 tests across 1 file.
+```
+
+Casos: (a) CA3 — `occurred_at` = 10:00, `clock_offset_ms` = 90000, `tapped_at` cru, `created_at` =
+`recorded_at` (o campo novo não sobrescreve `created_at`), e nota, `findDeliveryContext` e
+`listPendingProofs` leem **o mesmo** 10:00 (f); com posição, a hora corrigida vence o `captured_at` cru do
+GPS; a janela de 90 dias conta da hora corrigida (lida 90 d + 1 h depois dela: fora na nota e na lista;
+o espelho sem os campos continua dentro); (b) cliente antigo — colunas nulas, momento = `recorded_at` nos
+três; (c) correção descartada no futuro (+1 h) e velha demais (−31 d) — `occurred_at` e `clock_offset_ms`
+nulos, `tapped_at` cru gravado, momento = `recorded_at` nos três; (d) reenvio pela mesma chave e por
+chave nova não regrava nem cria evento; (e) `effectiveSince` entre a hora corrigida e o recebimento —
+fora na nota **e** na lista (espelho sem os campos: dentro nos dois); chegada grava a hora corrigida; foto
+grava `clock_offset_ms` só com a correção aceita.
+
+O `recorded_at` do motorista nasce do `now()` do banco, então o teste usa o relógio real (não um `NOW`
+congelado) e mede tudo relativo ao recebimento.
+
+Contratos puros novos: `test/trip-schema/delivered-moment.contract.ts` (a expressão e a ordem; o índice
+novo é montado com a mesma expressão da consulta e o antigo continua; colunas anuláveis e `bigint`),
+`resolveRecordedEventClock` em `test/trip-delivery-proof/occurred-at.contract.ts` (4), caso de
+`static-migration.contract.ts` para a pasta nova (aditiva, sem backfill, índice velho intocado, rollback
+derruba o índice antes das colunas e remove a linha do journal), e (i)/(i2) em
+`delivery-proof-clock-corrected.contract.ts` (o `saveProof` recebe o desvio aplicado; descartado e cliente
+antigo, `null`).
+
+### EXPLAIN (Postgres de teste, 65432)
+
+Base descartável com as migrations, 20 000 eventos (4 000 `delivered`, metade com `occurred_at`),
+`ANALYZE`. As consultas são as **reais**, capturadas pelo logger do drizzle ao chamar
+`DrizzleDriverScoreRepository.readPenalties` e `DrizzleCurrentDriverTripRepository.listPendingProofs`, e
+explicadas com os mesmos parâmetros. Com `enable_seqscan = on` (e também `off`) o plano é o mesmo:
+
+```text
+-- nota: o distinct on e o pré-filtro por motorista (alias driver_delivery)
+Bitmap Heap Scan on trip_stop_events driver_delivery  (cost=86.29..585.61 rows=1333)
+  Recheck Cond: ((company_id = '…') AND (COALESCE(occurred_at, captured_at, recorded_at) >= '2026-07-04 …'::timestamptz) AND (kind = 'delivered'))
+  ->  Bitmap Index Scan on trip_stop_events_company_delivered_moment_idx  (cost=0.00..65.61 rows=1333)
+        Index Cond: ((company_id = '…') AND (COALESCE(occurred_at, captured_at, recorded_at) >= '2026-07-04 …'::timestamptz))
+Bitmap Heap Scan on trip_stop_events  (cost=65.94..555.27 rows=1333)
+  ->  Bitmap Index Scan on trip_stop_events_company_delivered_moment_idx  (cost=0.00..65.61 rows=1333)
+        Index Cond: ((company_id = '…') AND (COALESCE(occurred_at, captured_at, recorded_at) >= …))
+-- listPendingProofs
+Bitmap Heap Scan on trip_stop_events  (cost=65.94..555.27 rows=1333)
+  ->  Bitmap Index Scan on trip_stop_events_company_delivered_moment_idx  (cost=0.00..65.61 rows=1333)
+        Index Cond: ((company_id = '…') AND (COALESCE(occurred_at, captured_at, recorded_at) >= …))
+```
+
+Espelho, com a mutação M2 (ordem do `coalesce` trocada só na consulta; o índice do banco é o da
+migration): o índice só casa o prefixo `company_id` (rows=4000, todo `delivered` da empresa) e a janela
+vira `Filter: (COALESCE(captured_at, occurred_at, recorded_at) >= …)` — é a varredura que o risco 3
+descreve. Volume pequeno: o plano prova que a expressão casa com o índice, não o ganho em produção.
+
+### Prova por mutação (restaurada e conferida por sha256 a cada uma; `git diff` idêntico ao final)
+
+| #   | Mutação                                                              | Resultado                                                                                                                    |
+| --- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| M1  | leitura ignora `occurred_at` (helper volta a `captured ?? recorded`) | pegou: integração 4 fail (CA3, com posição, janela, fronteira); trip-schema 1 fail                                           |
+| M2  | ordem do `coalesce` trocada (`captured` antes de `occurred`)         | pegou: integração 1 fail (com posição, a hora corrigida vence o GPS cru); trip-schema 1 fail; EXPLAIN perde o índice (acima) |
+| M3  | grava `occurred_at` também quando a correção foi descartada          | pegou: integração 2 fail (descartada no futuro, velha demais); trip-delivery-proof 2 fail                                    |
+| M4  | esquece `listPendingProofs`                                          | pegou: integração 4 fail (CA3, com posição, janela, fronteira do `effectiveSince`)                                           |
+| M5  | esquece `findDeliveryContext`                                        | pegou: integração 2 fail (CA3, com posição)                                                                                  |
+| M6  | reutiliza o `occurredAt` da porta (sobrescreve `created_at`)         | pegou: integração 6 fail (CA3, com posição, janela, reenvio, fronteira, chegada)                                             |
+| M7  | esquece a nota (só o score segue `captured ?? recorded`)             | pegou: integração 3 fail (CA3, com posição, fronteira)                                                                       |
+| M8  | a foto não grava o desvio que a julgou                               | pegou: integração 1 fail; driver-trip 1 fail                                                                                 |
+| M9  | a foto grava o desvio mesmo com a correção descartada                | pegou: integração 1 fail; driver-trip 1 fail                                                                                 |
+| M10 | a chegada não grava a correção                                       | pegou: integração 1 fail                                                                                                     |
+
+### Gates
+
+```text
+apps/api-transportada$ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/delivered-moment.integration.ts → 12 pass, 0 fail, 0 skip
+raiz$ make migration-test                                     → 116 pass, 0 fail (8 arquivos; migra tudo, roda todos os rollback.sql em ordem inversa, migra de novo) — exit 0
+apps/api-transportada$ bun run db:generate --name tmp         → {"status":"no_changes"}
+apps/api-transportada$ bun run typecheck                      → exit 0
+apps/api-transportada$ bun run lint                           → exit 0 (--max-warnings=0)
+apps/api-transportada$ bun --env-file=../../.env.test run test → 8676 pass, 23 skip, 0 fail (8699 testes, 192 arquivos); antes 8667/23 — +9 novos
+raiz$ bun run format:check                                    → exit 0
+```
+
+Integração dos arquivos que tocam o que mudou (um por vez, com `./` e `--env-file`, todos 0 skip):
+
+```text
+driver-score 10 · event-location-stamp 6 · delivery-proof-received-by 10 · delivery-proof-thumbnail 5 ·
+delivery-proof-canhoto-review 13 · driver-delivery-proof-read 4 · me-trip 19 · me-trip-departure 12 ·
+current-driver-trip-concluded-window 4 · trip-field-office 25 · trip-field-authorship 5 ·
+field-trip-target 7 · delivery-proofs-by-trip 5 · whatsapp-driver-flow-actions 1 ·
+whatsapp-operator-flow-actions 7 · stop-occurrence-photo 8 · mixed-cargo-end-to-end 1 ·
+trip-auto-dispatch 8 · trip-occurrence-attachment 6 · me-location-consent 5   → todos pass, 0 fail
+```
+
+### Fica para decisão
+
+- **CA3 × D4b.** A entrega **sem posição** com desvio aceito grava a hora corrigida (o CA3 pede isso). Com
+  a D4b a foto dela é julgada pelo recebimento; como o momento da entrega agora é mais cedo, a mesma foto
+  pode passar de `away` para `late_and_away`. E o `tappedAt` forjado (até 30 dias) numa entrega sem
+  posição pode puxar o momento para antes do `effectiveSince` ou adiantar a saída da janela de 90 dias.
+  Se a D4b ("sem posição, o relógio não vale") deve valer também para o evento, a regra é uma linha em
+  `resolveRecordedEventClock`/use case — não foi feito, por contrariar o CA3.
+- **T1.4 recusa desvio acima de ±365 dias com `400`.** Aparelho que zerou o relógio (1970) mandaria um
+  desvio de décadas e teria todo relato recusado. A Fase 2 (app) precisa omitir o campo nesse caso, ou o
+  esquema precisa descartar em vez de recusar.

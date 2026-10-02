@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { resolveEtaShiftMilliseconds } from '../domain/eta-anchor.policy.js'
-import type { EventClockFields } from '../domain/occurred-at.policy.js'
+import { resolveRecordedEventClock, type EventClockFields } from '../domain/occurred-at.policy.js'
 import {
   assertInformedTimeWithinWindow,
   FIELD_INFORMED_TIME,
@@ -125,7 +125,11 @@ export async function reportStopArrival(
           location: input.location,
           ...(isOffice
             ? { occurredAt: input.now, recordedAt: input.recordedAt ?? new Date() }
-            : {}),
+            : resolveRecordedEventClock({
+                clockOffsetMs: input.clockOffsetMs,
+                receivedAt: input.now,
+                tappedAt: input.tappedAt,
+              })),
           stopId: input.stopId,
         })
       },

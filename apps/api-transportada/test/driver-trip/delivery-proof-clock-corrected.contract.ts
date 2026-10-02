@@ -229,13 +229,39 @@ describe('caso de uso: foto julgada pelo relógio corrigido (spec 232 D4/D4b)', 
     expect(world.stored).toHaveLength(0)
   })
 
-  /** (i) Até a T1.5 decidir onde guardar o desvio, a persistência recebe a hora crua do aparelho. */
-  it('saveProof recebe o capturedAt cru do aparelho, não o corrigido', async () => {
+  /**
+   * (i) A persistência recebe a hora crua do aparelho e, ao lado, o desvio que a julgou (T1.5,
+   * risco 5): os dois juntos reproduzem o veredito.
+   */
+  it('saveProof recebe o capturedAt cru do aparelho e o desvio aplicado', async () => {
     const world = buildRequiredWorld()
 
     await attach(world, correctedPhoto(), THIRTY_HOURS_LATER)
 
     expect(world.saved[0]?.capturedAt).toEqual(RAW_PHOTO_AT)
+    expect(world.saved[0]?.clockOffsetMs).toBe(DEVICE_AHEAD_OFFSET_MS)
+  })
+
+  /** (i2) Correção descartada (futuro) ou ausente não deixa desvio na linha da foto. */
+  it('correção descartada ou cliente antigo grava clockOffsetMs nulo', async () => {
+    const world = buildRequiredWorld()
+
+    await attach(
+      world,
+      correctedPhoto({
+        attachmentKey: 'future',
+        capturedAt: TRUE_PHOTO_AT,
+        clockOffsetMs: 31 * MILLISECONDS_PER_HOUR,
+      }),
+      THIRTY_HOURS_LATER,
+    )
+    await attach(
+      world,
+      { attachmentKey: 'old', capturedAt: TRUE_PHOTO_AT, position: PHOTO_AT_DELIVERY_PLACE },
+      THIRTY_HOURS_LATER,
+    )
+
+    expect(world.saved.map((proof) => proof.clockOffsetMs)).toEqual([null, null])
   })
 
   describe('entrega sem posição (D4b): o caso de uso passa a flag, a política decide', () => {

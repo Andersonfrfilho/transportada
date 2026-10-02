@@ -6,6 +6,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   OCCURRED_AT_MAX_AGE_DAYS,
   resolveOccurredAt,
+  resolveRecordedEventClock,
 } from '../../src/trips/domain/occurred-at.policy.js'
 import { DELIVERED_AT_FUTURE_TOLERANCE_MILLISECONDS } from '../../src/trips/domain/field-delivery-timing.policy.js'
 import {
@@ -208,5 +209,51 @@ describe('resolveOccurredAt — a hora do evento é a do toque corrigida (spec 2
     expect(receivedAt.getTime()).toBe(RECEIVED_AT.getTime())
     expect(params.clockOffsetMs).toBe(7 * MILLISECONDS_PER_MINUTE)
     expect(result.kind === 'corrected' && result.occurredAt).not.toBe(tappedAt)
+  })
+})
+
+describe('resolveRecordedEventClock — o evento grava a decisão, não o desvio cru (spec 232 T1.5)', () => {
+  const tappedAt = new Date('2026-10-03T09:58:30.000Z')
+
+  test('correção aceita: hora crua do toque e a corrigida com o desvio aplicado', () => {
+    expect(
+      resolveRecordedEventClock({ clockOffsetMs: 90_000, receivedAt: RECEIVED_AT, tappedAt }),
+    ).toEqual({
+      correctedClock: { clockOffsetMs: 90_000, occurredAt: new Date('2026-10-03T10:00:00.000Z') },
+      tappedAt,
+    })
+  })
+
+  test('correção no futuro: só a hora crua, sem a chave da corrigida', () => {
+    const future = new Date(RECEIVED_AT.getTime() + MILLISECONDS_PER_HOUR)
+    const recorded = resolveRecordedEventClock({
+      clockOffsetMs: 0,
+      receivedAt: RECEIVED_AT,
+      tappedAt: future,
+    })
+
+    expect(recorded).toEqual({ tappedAt: future })
+    expect('correctedClock' in recorded).toBe(false)
+  })
+
+  test('correção velha demais: só a hora crua', () => {
+    const old = new Date(RECEIVED_AT.getTime() - MAX_AGE_MILLISECONDS - 1)
+
+    expect(
+      resolveRecordedEventClock({ clockOffsetMs: 0, receivedAt: RECEIVED_AT, tappedAt: old }),
+    ).toEqual({ tappedAt: old })
+  })
+
+  test('sem desvio: só a hora crua; sem toque: nada — cliente antigo grava como hoje', () => {
+    expect(
+      resolveRecordedEventClock({ clockOffsetMs: undefined, receivedAt: RECEIVED_AT, tappedAt }),
+    ).toEqual({ tappedAt })
+    const nothing = resolveRecordedEventClock({
+      clockOffsetMs: 90_000,
+      receivedAt: RECEIVED_AT,
+      tappedAt: undefined,
+    })
+    expect(nothing).toEqual({})
+    expect(Object.keys(nothing)).toEqual([])
   })
 })
