@@ -67,6 +67,7 @@ const emitterParticipant = aliasedTable(nfeParticipants, 'valuation_emitter_part
  * serve para rastrear a diferença de margem, não para publicar quem dirige.
  */
 const PREVIEW_CREW_DRIVER_NOT_FOUND = 'trip.valuation.preview_crew_driver_not_found'
+const STOP_DWELLS_UNAVAILABLE = 'trip.valuation.stop_dwells_unavailable'
 
 export class DrizzleTripValuationQuery {
   public constructor(
@@ -278,7 +279,7 @@ export class DrizzleTripValuationQuery {
       this.readFederalRates({ companyId: input.companyId }),
       this.readIcmsProfiles(input.companyId),
       this.readCompanyDailyAllowanceAmount(input.companyId),
-      this.readStopDwells(input),
+      this.readStopDwellsOrNone(input),
     ])
 
     return {
@@ -324,6 +325,26 @@ export class DrizzleTripValuationQuery {
    * inteira — as paradas e os eventos que medem a espera vêm juntos, e nenhuma delas é lida por
    * parada nem por nota. Coordenada não entra: só o instante do evento.
    */
+  /**
+   * A espera na parada é refinamento da conta por nota — os totais da viagem não dependem dela, e esta
+   * mesma leitura alimenta o recálculo do resultado congelado. Uma falha aqui não pode derrubar o caminho
+   * crítico: sem paradas a política devolve `unavailable` (spec 225 D5), que é o comportamento declarado.
+   * ⚠️ Só o nome do erro vai para o log: a mensagem do banco pode citar a linha.
+   */
+  private async readStopDwellsOrNone(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<readonly ApportionmentStop[]> {
+    return this.readStopDwells(input).catch((error: unknown) => {
+      this.logger.warn(STOP_DWELLS_UNAVAILABLE, {
+        companyId: input.companyId,
+        errorName: error instanceof Error ? error.name : 'unknown',
+        tripId: input.tripId,
+      })
+      return []
+    })
+  }
+
   private async readStopDwells(input: {
     readonly companyId: string
     readonly tripId: string

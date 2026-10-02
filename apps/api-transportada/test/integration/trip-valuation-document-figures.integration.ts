@@ -180,6 +180,53 @@ describe('a soma das notas fecha com a viagem (spec 225 D4, CA01)', () => {
     })
   })
 
+  /**
+   * Revisão da 225, M4. A espera na parada é refinamento: os totais da viagem não dependem dela, e a
+   * mesma leitura alimenta o recálculo do resultado congelado. Falha aqui não pode virar 500 na
+   * avaliação — e o que vai para o log é o nome do erro, nunca a mensagem, que o Postgres enche com a linha.
+   */
+  testWithPostgres(
+    'falha na leitura da espera não derruba a avaliação nem vaza no log',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database)
+        const tripId = await seedTrip(database, { documentsPerStop: [2, 2, 1], world })
+        const healthy = await valuate(database, world.companyId, tripId)
+
+        const warnings: { readonly message: string; readonly metadata: unknown }[] = []
+        const query = new DrizzleTripValuationQuery(database.db, {
+          ...SILENT_LOGGER,
+          warn: (message: string, metadata?: Record<string, unknown>) => {
+            warnings.push({ message, metadata })
+          },
+        })
+        Reflect.set(query, 'readStopDwells', () =>
+          Promise.reject(new Error('conexão caiu perto de -23.5505199,-46.6333094')),
+        )
+
+        const valuation = await readTripValuation({
+          companyId: world.companyId,
+          repository: {
+            findApplicableRule: () => Promise.resolve(TEN_PERCENT_RULE),
+            readContext: (input) => query.readContext(input),
+          },
+          tripId,
+        })
+
+        expect(valuation.totalCost).toBe(healthy.totalCost)
+        expect(valuation.totalRevenue).toBe(healthy.totalRevenue)
+        expect(valuation.revenueLines.length).toBe(healthy.revenueLines.length)
+        for (const line of valuation.revenueLines) {
+          expect(line.costBasis).toBe(COST_BASES.unavailable)
+        }
+        expect(warnings.map((entry) => entry.message)).toEqual([
+          'trip.valuation.stop_dwells_unavailable',
+        ])
+        expect(JSON.stringify(warnings)).not.toContain('-23.5505199')
+      })
+    },
+  )
+
   testWithPostgres(
     'não há N+1: o número de consultas não cresce com paradas nem com notas',
     async () => {
