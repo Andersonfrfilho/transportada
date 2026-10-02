@@ -910,3 +910,59 @@ Restaurado: **63 / 0 / 0 skip**; `tsc`, `eslint` e `prettier` limpos.
 ⚠️ O que o log não cobre: a **exceção inesperada vai crua ao Sentry** (`captureException(error)`), com a
 mensagem que a biblioteca de origem escreveu. A garantia ali é o `scrubSentryEvent` do
 `observability/sentry.service.ts`, não esta rotina — não foi exercitada aqui.
+
+## T6.9 — integração do ciclo (CA10, CA11)
+
+`test/integration/canhoto-read-cycle.integration.ts` (+ `test/fixtures/canhoto-access-key.fixture.ts`,
+que monta chave de NF-e com dígito do módulo 11 válido). Doze canhotos pendentes numa viagem, contra
+Postgres de verdade (fila, casamento com as notas da viagem e carimbo são os adaptadores reais).
+Fotos: 8 trazem a chave da própria nota, 2 a de **outra nota da mesma viagem**, 2 a de nota **fora**
+da viagem. Afirma: 8 `approved` com origem `automatic`; 4 `pending` **com o número lido**, fonte
+`barcode`, origem nula; nenhum `rejected`; contadores `approved 8 / pending 4 / reported 12`; o
+worker reportou só os quatro campos, um relato por comprovante, cada um para o próprio documento; o
+**segundo ciclo** não baixa, não reporta e deixa as doze linhas idênticas (`proofsSeen 0`).
+
+⚠️ O veredito **não é real**: a regra `resolveAutomaticVerdict` mora na API e nenhuma app importa
+código de outra. O `serverEmulator` do teste a reproduz em SQL (casou documento **e** número ⇒
+`approved`/`automatic`). Não houve HTTP nem Keycloak. A regra em si só é provada nos testes da API.
+O decodificador também é dublê (a "foto" é o texto da chave): o real é prova da T6.4 e da T6.10.
+
+Não nasceu vermelho — a rotina e a fila já existiam. Prova por mutação (suíte de 3, Postgres
+nativo 18 descartável, `DATABASE_URL` explícita):
+
+| Mutação                                                  | Resultado                                     |
+| -------------------------------------------------------- | --------------------------------------------- |
+| rotina reporta `readDocumentId: null`                    | 2 pass / **1 fail**                           |
+| fila sem o predicado `canhoto_read_source is null`       | 2 / **1**                                     |
+| rotina reporta `readNumber: null`                        | 1 / **2**                                     |
+| rotina reporta `readSource: 'manual'`                    | 1 / **2**                                     |
+| rotina manda campo extra `verdict` no relato             | 2 / **1**                                     |
+| fila sem o predicado `canhoto_read_attempted_at is null` | 3 / 0 (**sobrevive**; é da T6.10)             |
+| fila sem o filtro `kind = 'photo'`                       | 3 / 0 (**sobrevive**; só há fotos no cenário) |
+
+Restaurado: **3 pass / 0 fail**. `tsc`, `eslint`, `prettier` limpos.
+
+## T6.10 — integração da convergência (CA17)
+
+`test/integration/canhoto-read-convergence.integration.ts`. Aqui o decodificador
+(`createThreadedCanhotoBarcodeDecoder`, worker_thread + zxing) e o leitor de imagem são os **reais**,
+com JPEG de câmera de 12 MP (`REALISTIC_CAMERA_PHOTO`); só o armazenamento (contador de downloads) e a
+API (grava a leitura) são dublês. Dois canhotos: um **sem** código de barras e um com a chave
+`35240912345678000199550010000123451876543212`. Ciclo 1: o sem código é baixado **1 vez**,
+`canhoto_read_attempted_at` fica gravado, a análise segue `pending`, sem fonte nem número, e não
+há relato; o com código é decodificado de verdade e reportado com `readNumber 12345`, série `1`,
+`barcode`, documento da própria viagem. Ciclo 2: `proofsSeen 0`, o sem código **continua com 1
+download** (CA17), nenhum relato novo.
+
+| Mutação                                               | Resultado           |
+| ----------------------------------------------------- | ------------------- |
+| fila sem `canhoto_read_attempted_at is null`          | 2 pass / **1 fail** |
+| rotina não carimba a tentativa (`markAttempted` mudo) | 1 / **2**           |
+| fila sem `canhoto_read_source is null`                | 2 / **1**           |
+
+Restaurado: **3 pass / 0 fail**. Junto com `canhoto-read-queue.integration.ts` e a do ciclo:
+**15 pass / 0 fail** com `DATABASE_URL`; **sem** `DATABASE_URL` os mesmos três arquivos reportam
+**21 skip / 0 pass** (pular não é passar). `tsc`, `eslint`, `prettier` limpos.
+
+Ambas registradas em `test:integration` do `package.json` do worker. Não rodou: RabbitMQ/MinIO
+(nenhum teste novo precisa), `make check`, `make migration-test` (sem migration), deploy.
