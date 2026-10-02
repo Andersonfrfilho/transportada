@@ -119,7 +119,6 @@ export function DriverTripWorkspacePage() {
    * A ocorrência que falha **não** muda o estado da nota — ao contrário de entregar e devolver. O
    * aviso diz isso, e repetir o toque é o conserto.
    */
-  const [occurrenceFailed, setOccurrenceFailed] = useState(false)
   /** Spec 082 (revisão): teto tipado da fila de EVENTOS — recusa anunciada, nada descartado. */
   const [eventLimitReached, setEventLimitReached] = useState(false)
   /** Spec 209 (D3): a foto do "Deu problema" não coube — o relato entrou sem ela, e a tela diz. */
@@ -569,8 +568,8 @@ export function DriverTripWorkspacePage() {
     )
   }
 
-  /** Spec 218 D3: a ocorrência de nota com foto — o item da 179, que sobe a foto antes do registro. */
-  async function reportDocumentOccurrenceWithPhoto(
+  /** Spec 218 D3 + 226: a ocorrência de nota — o item da 179, que sobe a foto (se há) antes do registro. */
+  async function reportDocumentOccurrence(
     input: Parameters<OccurrenceRegistrationHandlers['enqueueDocumentOccurrence']>[0],
   ): Promise<void> {
     setAttachmentLimit(undefined)
@@ -828,11 +827,6 @@ export function DriverTripWorkspacePage() {
           </p>
         ) : null}
 
-        {occurrenceFailed ? (
-          <p className={styles.alert} role="alert">
-            {t('documentOccurrenceFailed')}
-          </p>
-        ) : null}
         {proofFailed ? (
           <p className={styles.rejectedBanner} role="alert">
             {t('proofFailed')}
@@ -954,23 +948,7 @@ export function DriverTripWorkspacePage() {
                   occurrenceTypes={occurrenceTypes}
                   onRetryOccurrenceTypes={handleRetryOccurrenceTypes}
                   onToggle={() => stopExpansion.toggle(stop.id)}
-                  onDocumentOccurrence={(input: {
-                    documentId: string
-                    note: string
-                    occurrenceTypeId: string
-                    productCode: string
-                  }) =>
-                    getDriverTripClient()
-                      .registerDocumentOccurrence(input)
-                      .then(() => true)
-                      .catch(() => {
-                        setOccurrenceFailed(true)
-                        return false
-                      })
-                  }
-                  onQueuedDocumentOccurrence={(input) =>
-                    void reportDocumentOccurrenceWithPhoto(input)
-                  }
+                  onQueuedDocumentOccurrence={(input) => void reportDocumentOccurrence(input)}
                   onStopOccurrence={(input) => void reportStopOccurrence(input)}
                   notDeliveredStatusByDocumentId={notDeliveredStatusByDocumentId}
                   onNotDelivered={(input) => void reportNotDelivered(input)}

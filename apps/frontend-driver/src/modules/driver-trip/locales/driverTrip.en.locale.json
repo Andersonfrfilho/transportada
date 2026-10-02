@@ -450,7 +450,6 @@
     "delivered": "Delivered at {{time}}",
     "deliveredQueued": "Delivered at {{time}} · queued",
     "deliveredRejected": "The office refused the delivery recorded at {{time}}. See pending events.",
-    "documentOccurrenceRecorded": "Occurrence recorded at {{time}}",
     "occurrenceMarker": "Has an occurrence",
     "occurrenceQueued": "Occurrence recorded at {{time}} · queued",
     "occurrenceRejected": "The office refused the occurrence recorded at {{time}}. See pending events.",

@@ -6,8 +6,20 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'bun:test'
 
 import driverTrip from '../../src/modules/driver-trip/locales/driverTrip.locale.json'
-import { createDriverTripClient } from '../../src/modules/driver-trip/shared/driverTripClient.service'
-import { DRIVER_RETURN_REASONS } from '../../src/modules/driver-trip/shared/driverTrip.types'
+import {
+  createDriverTripClient,
+  toAttachmentSendOutcome,
+} from '../../src/modules/driver-trip/shared/driverTripClient.service'
+import {
+  DRIVER_RETURN_REASONS,
+  type DriverFieldReport,
+} from '../../src/modules/driver-trip/shared/driverTrip.types'
+import {
+  drainQueue,
+  enqueueReport,
+  type OfflineQueueStore,
+  type QueuedReport,
+} from '../../src/modules/driver-trip/shared/offlineQueue.service'
 
 const CARD = new URL(
   '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
@@ -65,7 +77,8 @@ describe('ocorrência de nota na tela do motorista (spec 079)', () => {
   })
 
   it('a nota tem como registrar a ocorrência', () => {
-    expect(source).toInclude('onDocumentOccurrence')
+    expect(source).toInclude('onQueuedDocumentOccurrence')
+    expect(source).not.toInclude('onDocumentOccurrence(')
     expect(readFileSync(OCCURRENCE_FORM, 'utf8')).toInclude('form.types.map(')
   })
 
@@ -78,11 +91,6 @@ describe('ocorrência de nota na tela do motorista (spec 079)', () => {
   it('explica que a carga não volta', () => {
     expect(driverTrip.documentOccurrenceHint.toLowerCase()).toInclude('não volta')
     expect(DRIVER_RETURN_REASONS).toContain('recipient_refused')
-  })
-
-  /** Falhar aqui não muda o estado da nota, e o aviso diz isso. */
-  it('avisa sem assustar quando o registro falha', () => {
-    expect(driverTrip.documentOccurrenceFailed.toLowerCase()).toInclude('continua como estava')
   })
 })
 
@@ -177,38 +185,94 @@ describe('aviso quando a lista de tipos falha (spec 157 RF5)', () => {
 })
 
 /**
- * Spec 179 T200 passou a exigir `Idempotency-Key` na ocorrência de nota do motorista. Sem ela a API
- * responde 400 e o toque do motorista não registra nada — e cada toque é uma chave nova, porque
- * repetir o toque depois de uma falha é o conserto.
+ * Spec 226. A ocorrência de nota sem foto era chamada direta (`registerDocumentOccurrence`): sem
+ * rede o toque falhava com alerta, o texto digitado se perdia e a chave nascia nova a cada toque —
+ * uma resposta perdida seguida de novo toque podia duplicar a ocorrência. Agora ela é o item
+ * `documentOccurrence` da fila com `photo: null`, e a chave nasce uma vez, no toque.
  */
-describe('a ocorrência de nota leva a chave de idempotência', () => {
-  const input = { documentId: 'document-1', occurrenceTypeId: 'type-1', productCode: 'SKU-1' }
+describe('a ocorrência de nota sem foto vai pela fila (spec 226)', () => {
+  function buildReport(): Extract<DriverFieldReport, { kind: 'documentOccurrence' }> {
+    return {
+      documentId: 'document-1',
+      idempotencyKey: 'chave-do-toque',
+      kind: 'documentOccurrence',
+      note: 'Portão sem número',
+      occurrenceTypeId: 'type-1',
+      occurrenceTypeName: 'Endereço',
+      photo: null,
+      productCode: '',
+    }
+  }
 
-  it('o pedido carrega o cabeçalho idempotency-key', async () => {
+  it('o send leva a chave do item e nenhum anexo', async () => {
     const { client, seen } = buildClient(new Response('{"data":{}}', { status: 201 }))
 
-    await client.registerDocumentOccurrence(input)
+    await client.send(buildReport())
 
-    const key = seen[0]?.headers.get('idempotency-key') ?? ''
-    expect(key.trim()).not.toBe('')
+    expect(seen).toHaveLength(1)
+    expect(new URL(seen[0]?.url ?? '').pathname).toBe(
+      '/me/trips/current/documents/document-1/occurrences',
+    )
+    expect(seen[0]?.headers.get('idempotency-key')).toBe('chave-do-toque')
+    expect(await seen[0]?.json()).toEqual({
+      note: 'Portão sem número',
+      occurrenceTypeId: 'type-1',
+      productCode: '',
+    })
   })
 
-  it('dois toques são duas chaves', async () => {
-    const seen: Request[] = []
+  /** Reenviar o mesmo item é a mesma chave: o servidor casa e não duplica. */
+  it('o reenvio do mesmo item repete a chave', async () => {
+    const keys: (string | null)[] = []
     const client = createDriverTripClient({
       apiUrl: 'https://api.test',
-      fetch: (request) => {
-        seen.push(request as Request)
+      fetch: (input) => {
+        keys.push((input as Request).headers.get('idempotency-key'))
         return Promise.resolve(new Response('{"data":{}}', { status: 201 }))
       },
       getAccessToken: () => Promise.resolve('token-de-mentira'),
     })
 
-    await client.registerDocumentOccurrence(input)
-    await client.registerDocumentOccurrence(input)
+    await client.send(buildReport())
+    await client.send(buildReport())
 
-    expect(seen[0]?.headers.get('idempotency-key')).not.toBe(
-      seen[1]?.headers.get('idempotency-key'),
-    )
+    expect(keys).toEqual(['chave-do-toque', 'chave-do-toque'])
+  })
+
+  it('sem rede o texto fica na fila para a próxima drenagem', async () => {
+    let items: readonly QueuedReport[] = []
+    const store: OfflineQueueStore = {
+      read: () => Promise.resolve(items),
+      update: (mutate) => {
+        items = [...mutate(items)]
+        return Promise.resolve(items)
+      },
+    }
+    const client = createDriverTripClient({
+      apiUrl: 'https://api.test',
+      fetch: () => Promise.reject(new TypeError('Failed to fetch')),
+      getAccessToken: () => Promise.resolve('token-de-mentira'),
+    })
+    await enqueueReport({ now: new Date(), report: buildReport(), store })
+
+    const result = await drainQueue({
+      send: async (report) => {
+        try {
+          await client.send(report)
+          return 'sent'
+        } catch (error) {
+          return toAttachmentSendOutcome(error).kind
+        }
+      },
+      store,
+    })
+
+    expect(result).toEqual({ rejected: [], remaining: 1, sent: 0 })
+    expect(items[0]?.report).toMatchObject({ note: 'Portão sem número' })
+  })
+
+  it('a tela e o cliente não têm mais a chamada direta', () => {
+    expect(readFileSync(PAGE, 'utf8')).not.toInclude('registerDocumentOccurrence')
+    expect(readFileSync(CLIENT, 'utf8')).not.toInclude('registerDocumentOccurrence')
   })
 })

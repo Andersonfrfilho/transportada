@@ -20,7 +20,7 @@ import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripRespo
 import { LATE_REGISTRATION_FIELD_ENABLED } from './lateRegistration.constant'
 import { shouldSendLateRegistration } from './lateRegistration.service'
 import type { AttachmentSendOutcome } from './offlineAttachments.service'
-import { createIdempotencyKey, type DriverTripErrorDetail } from './offlineQueue.service'
+import type { DriverTripErrorDetail } from './offlineQueue.service'
 
 const CURRENT_TRIP_PATH = '/me/trips/current'
 const LOCATION_CONSENT_PATH = '/me/location-consent'
@@ -100,12 +100,26 @@ export class DriverTripRequestError extends Error {
 }
 
 /**
+ * Quem falhou foi o caminho, não o item: gateway fora (502/503/504), limite de taxa (429) e tempo
+ * esgotado (408). ⚠️ O 500 fica de fora — `failed-network` para a drenagem inteira, e um item que
+ * derruba o servidor travaria todos os de trás por até 7 dias.
+ */
+const RETRYABLE_STATUSES: ReadonlySet<number> = new Set([408, 429, 502, 503, 504])
+
+export function isRetryableStatus(status: number | undefined): boolean {
+  return status !== undefined && RETRYABLE_STATUSES.has(status)
+}
+
+/**
  * O resultado de um envio da fila. Rede caída **e** erro de identidade (`IDENTITY_*`: refresh sem
  * transporte, sessão vencida) são "tente depois" — o item fica drenável, sem causa de recusa, e sobe
  * depois de a rede ou a sessão voltarem. Só a resposta do servidor recusa.
  */
 export function toAttachmentSendOutcome(error: unknown): AttachmentSendOutcome {
   if (error instanceof DriverTripRequestError && error.isOffline) return { kind: 'failed-network' }
+  if (error instanceof DriverTripRequestError && isRetryableStatus(error.status)) {
+    return { kind: 'failed-network' }
+  }
   if (isIdentityError(error)) return { kind: 'failed-network' }
   const cause =
     error instanceof DriverTripRequestError
@@ -171,18 +185,6 @@ export type DriverTripClient = Readonly<{
    * que abre o portão.
    */
   dispatchTrip: (input: { tripId: string }) => Promise<void>
-  /**
-   * Spec 079: o que aconteceu **sem** a carga voltar. Não passa pela fila de relatos: ao contrário
-   * de entregar e devolver, isto não muda o estado da nota — falhar aqui não deixa a viagem num
-   * estado que ninguém sabe destravar, e repetir o toque é o conserto.
-   */
-  registerDocumentOccurrence: (input: {
-    documentId: string
-    /** Spec 218: o que o motorista escreveu no formulário único; ausente é vazio. */
-    note?: string
-    occurrenceTypeId: string
-    productCode: string
-  }) => Promise<void>
   /**
    * Os tipos de rua que a empresa cadastrou — o motorista escolhe entre eles.
    *
@@ -352,20 +354,6 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         dependencies,
         method: 'POST',
         path: `${CURRENT_TRIP_PATH}/dispatch`,
-      })
-    },
-    async registerDocumentOccurrence(input) {
-      await request({
-        body: JSON.stringify({
-          note: input.note ?? '',
-          occurrenceTypeId: input.occurrenceTypeId,
-          productCode: input.productCode,
-        }),
-        dependencies,
-        // Um toque, uma chave: repetir o toque depois de uma falha é o conserto (spec 179 T200).
-        idempotencyKey: createIdempotencyKey(),
-        method: 'POST',
-        path: `${CURRENT_TRIP_PATH}/documents/${input.documentId}/occurrences`,
       })
     },
     async listOccurrenceTypes() {
@@ -878,9 +866,11 @@ async function request(
   try {
     payload = rawBody.length === 0 ? {} : (JSON.parse(rawBody) as unknown)
   } catch {
+    /** O status só vai quando a resposta já era recusa: o HTML de um 502 precisa dele para esperar. */
     throw new DriverTripRequestError({
       code: DRIVER_TRIP_ERROR.RESPONSE_INVALID,
       isOffline: false,
+      ...(response.ok ? {} : { status: response.status }),
     })
   }
 

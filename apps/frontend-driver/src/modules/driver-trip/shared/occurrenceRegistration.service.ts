@@ -99,21 +99,19 @@ export type OccurrenceRegistrationDraft = Readonly<{
   photo: DriverOccurrencePhoto | undefined
 }>
 
-/** As três rotas que já existiam — o formulário único só escolhe uma delas. */
+/** As duas rotas que existem — o formulário único só escolhe uma delas. */
 export type OccurrenceRegistrationHandlers = Readonly<{
-  /** D3: nota com foto — o item `documentOccurrence` da fila, que sobe a foto antes do registro. */
+  /**
+   * D3 + spec 226: nota com ou sem foto — o item `documentOccurrence` da fila, que sobe a foto antes
+   * do registro quando há uma. Sem foto o item vai com `photo: null`, e o texto digitado sobrevive
+   * à falta de rede.
+   */
   enqueueDocumentOccurrence: (input: {
     readonly documentId: string
     readonly note: string
     readonly occurrenceTypeId: string
     readonly occurrenceTypeName: string
-    readonly photo: DriverOccurrencePhoto
-  }) => void
-  /** Spec 079: nota sem foto — a chamada direta de sempre, sem fila. */
-  registerDocumentOccurrence: (input: {
-    readonly documentId: string
-    readonly note: string
-    readonly occurrenceTypeId: string
+    readonly photo: DriverOccurrencePhoto | null
   }) => void
   /** Spec 209 + D2: a fila da parada, com o tipo do catálogo. */
   reportStopOccurrence: (input: {
@@ -126,7 +124,7 @@ export type OccurrenceRegistrationHandlers = Readonly<{
   }) => void
 }>
 
-export type OccurrenceRegistrationRoute = 'document-direct' | 'document-queued' | 'stop'
+export type OccurrenceRegistrationRoute = 'document-queued' | 'stop'
 
 /**
  * Uma rota só, a do `flow`. D4: tipo de parada registra **na parada** — a nota é só de onde veio o
@@ -153,21 +151,12 @@ export function dispatchOccurrenceRegistration(input: {
     return 'stop'
   }
 
-  if (draft.photo !== undefined) {
-    handlers.enqueueDocumentOccurrence({
-      documentId: input.documentId,
-      note,
-      occurrenceTypeId: type.id,
-      occurrenceTypeName: type.name,
-      photo: draft.photo,
-    })
-    return 'document-queued'
-  }
-
-  handlers.registerDocumentOccurrence({
+  handlers.enqueueDocumentOccurrence({
     documentId: input.documentId,
     note,
     occurrenceTypeId: type.id,
+    occurrenceTypeName: type.name,
+    photo: draft.photo ?? null,
   })
-  return 'document-direct'
+  return 'document-queued'
 }

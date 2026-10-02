@@ -2,7 +2,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { DriverTripRequestError, getDriverTripClient } from '../shared/driverTripClient.service'
+import {
+  DriverTripRequestError,
+  getDriverTripClient,
+  isRetryableStatus,
+} from '../shared/driverTripClient.service'
 import { readCurrentLocation } from '../shared/driverLocation.service'
 import type {
   DriverFieldReport,
@@ -128,8 +132,11 @@ export type DriverTripController = Readonly<{
   status: 'error' | 'loading' | 'ready'
 }>
 
-function toOutcome(error: unknown): AttachmentSendOutcome {
+export function toOutcome(error: unknown): AttachmentSendOutcome {
   if (error instanceof DriverTripRequestError && error.isOffline) return { kind: 'failed-network' }
+  if (error instanceof DriverTripRequestError && isRetryableStatus(error.status)) {
+    return { kind: 'failed-network' }
+  }
   const cause =
     error instanceof DriverTripRequestError
       ? error.status !== undefined

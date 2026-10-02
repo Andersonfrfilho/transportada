@@ -162,7 +162,7 @@ type DriverStopCardProps = Readonly<{
   blockingStopSequence?: number
   /** Spec 206 D6/D9: pode ficar em branco (bloqueado, com o atalho) ou liberado, sem escolher UI. */
   canStartRoute: StartRouteBlock
-  /** Pedido do usuário (25/09): "entrega guardada" — a foto/nota que veio de `onDocumentOccurrence`. */
+  /** Pedido do usuário (25/09): "entrega guardada" — o retorno de fila da entrega. */
   deliverActivityByDocumentId: ReadonlyMap<string, DocumentActivityView>
   /** Spec 206 D6: "Cheguei" só aparece aqui — parada a caminho, ou qualquer uma na API antiga (D17). */
   canReportArrival: boolean
@@ -192,14 +192,7 @@ type DriverStopCardProps = Readonly<{
   onFocusStop: (stopId: string) => void
   /** Spec 206: o cabeçalho se registra aqui — é o alvo do `scrollTo`/`focus()` de `onFocusStop`. */
   onHeaderRef: (stopId: string, element: HTMLButtonElement | null) => void
-  /** `Promise<boolean>`: sucesso acende a linha e o aviso transitório no cartão, nunca à cega. */
-  onDocumentOccurrence: (input: {
-    documentId: string
-    note: string
-    occurrenceTypeId: string
-    productCode: string
-  }) => Promise<boolean>
-  /** Spec 218 D3: ocorrência de nota com foto — o item `documentOccurrence` da fila. */
+  /** Spec 218 D3 + 226: ocorrência de nota, com ou sem foto — o item `documentOccurrence` da fila. */
   onQueuedDocumentOccurrence: OccurrenceRegistrationHandlers['enqueueDocumentOccurrence']
   occurrenceTypes: DriverOccurrenceTypesState
   onProof: (input: DriverProofAttachment) => Promise<boolean>
@@ -257,7 +250,6 @@ export function DriverStopCard({
   onFocusStop,
   onHeaderRef,
   occurrenceTypes,
-  onDocumentOccurrence,
   onNotDelivered,
   onProof,
   onQueuedDocumentOccurrence,
@@ -277,9 +269,6 @@ export function DriverStopCard({
   const [isConfirmingCancelDeparture, setIsConfirmingCancelDeparture] = useState(false)
   /** Pedido do usuário (25/09): quem registra vê — um aviso que some sozinho, perto do que ele tocou. */
   const { announce, notice } = useTransientNotice()
-  /** Painel "Registrar ocorrência" da nota (`onDocumentOccurrence`): chamada direta, sem fila offline. */
-  const [documentOccurrenceRecordedAtByDocumentId, setDocumentOccurrenceRecordedAtByDocumentId] =
-    useState<ReadonlyMap<string, string>>(new Map())
   /**
    * Pedido do usuário (25/09): "Registrar entrega depois" — escape hatch de quem não tocou
    * "Cheguei" na hora. Vale só para ESTA parada, e só no estado da página (nunca `localStorage`):
@@ -299,11 +288,7 @@ export function DriverStopCard({
   const stopChipView = isCompleted ? 'completed' : isCurrent ? 'current' : 'pending'
   const documentIdsWithOccurrence = new Set(
     stop.documents
-      .filter(
-        (document) =>
-          documentOccurrenceRecordedAtByDocumentId.has(document.id) ||
-          notDeliveredStatusByDocumentId.get(document.id) !== undefined,
-      )
+      .filter((document) => notDeliveredStatusByDocumentId.get(document.id) !== undefined)
       .map((document) => document.id),
   )
   const hasOccurrenceMarker = stopHasOccurrenceMarker({
@@ -335,16 +320,6 @@ export function DriverStopCard({
     enqueueDocumentOccurrence: (input) => {
       onQueuedDocumentOccurrence(input)
       announce(input.documentId, t('activity.toast.documentOccurrence'))
-    },
-    registerDocumentOccurrence: (input) => {
-      /* ⚠️ Vazio é a nota inteira: a nota do motorista ainda não carrega os produtos. */
-      void onDocumentOccurrence({ ...input, productCode: '' }).then((success) => {
-        if (!success) return
-        setDocumentOccurrenceRecordedAtByDocumentId((current) =>
-          new Map(current).set(input.documentId, new Date().toISOString()),
-        )
-        announce(input.documentId, t('activity.toast.documentOccurrence'))
-      })
     },
     reportStopOccurrence: (input) => {
       onStopOccurrence(input)
@@ -605,9 +580,6 @@ export function DriverStopCard({
               canActOnDocuments={canActOnDocuments}
               deliverActivity={deliverActivityByDocumentId.get(document.id)}
               document={document}
-              documentOccurrenceRecordedAt={documentOccurrenceRecordedAtByDocumentId.get(
-                document.id,
-              )}
               isFieldWorkBlocked={isFieldWorkBlocked}
               isLateRegistration={isLateRegistration}
               key={document.id}
@@ -677,8 +649,6 @@ type DocumentRowProps = Readonly<{
   /** Pedido do usuário (25/09): "entregue às HH:MM" — mesmo retorno de fila da devolução/ocorrência. */
   deliverActivity: DocumentActivityView | undefined
   document: DriverTripDocument
-  /** Painel "Registrar ocorrência" (chamada direta): hora da última confirmação, se houve. */
-  documentOccurrenceRecordedAt: string | undefined
   isFieldWorkBlocked: boolean
   /** Pedido do usuário (25/09): carimba `lateRegistration` no deliver/return/proof desta parada. */
   isLateRegistration: boolean
@@ -713,7 +683,6 @@ function DocumentRow({
   canActOnDocuments,
   deliverActivity,
   document,
-  documentOccurrenceRecordedAt,
   isFieldWorkBlocked,
   isLateRegistration,
   notDeliveredStatus,
@@ -777,14 +746,6 @@ function DocumentRow({
             : t(`returnReason.${document.returnReason ?? 'recipient_absent'}`)}
         </span>
         <DriverNotDeliveredStatus status={notDeliveredStatus} />
-        {documentOccurrenceRecordedAt === undefined ? null : (
-          <ActivityStatusLine
-            status="sent"
-            text={t('activity.documentOccurrenceRecorded', {
-              time: formatActivityTime(documentOccurrenceRecordedAt),
-            })}
-          />
-        )}
         <div className={styles.actions}>
           <DocumentOccurrenceButton
             isOpen={openOccurrence}
@@ -818,14 +779,6 @@ function DocumentRow({
     <li className={styles.document}>
       <DocumentDetails document={document} />
       <DriverNotDeliveredStatus status={notDeliveredStatus} />
-      {documentOccurrenceRecordedAt === undefined ? null : (
-        <ActivityStatusLine
-          status="sent"
-          text={t('activity.documentOccurrenceRecorded', {
-            time: formatActivityTime(documentOccurrenceRecordedAt),
-          })}
-        />
-      )}
       {/*
        * Pedido do usuário (25/09): "registrei e nada aconteceu?" — a nota ainda não bate como
        * entregue/devolvida no snapshot (a API não confirmou), mas o toque já está na fila, e a
