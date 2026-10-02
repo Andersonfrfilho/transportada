@@ -337,3 +337,35 @@ export async function mockDriverTripApi(
     },
   }
 }
+
+/**
+ * Envelhece todo item da fila: a data de criação passa a ser a de `ageMs` atrás. A fila é um registro
+ * só (`field-reports/queue`), e é o próprio app que a escreve — o teste só muda a data.
+ */
+export async function ageQueuedItems(input: {
+  readonly ageMs: number
+  readonly page: Page
+}): Promise<void> {
+  await input.page.evaluate(
+    (ageMs) =>
+      new Promise<void>((resolveAge, rejectAge) => {
+        const open = indexedDB.open('transportada.driver-trip')
+        open.onerror = () => rejectAge(new Error('INDEXED_DB_OPEN_FAILED'))
+        open.onsuccess = () => {
+          const transaction = open.result.transaction('field-reports', 'readwrite')
+          const store = transaction.objectStore('field-reports')
+          const read = store.get('queue')
+          read.onsuccess = () => {
+            const aged = (read.result as { createdAt: string }[]).map((item) => ({
+              ...item,
+              createdAt: new Date(Date.now() - ageMs).toISOString(),
+            }))
+            store.put(aged, 'queue')
+          }
+          transaction.oncomplete = () => resolveAge()
+          transaction.onerror = () => rejectAge(new Error('INDEXED_DB_WRITE_FAILED'))
+        }
+      }),
+    input.ageMs,
+  )
+}

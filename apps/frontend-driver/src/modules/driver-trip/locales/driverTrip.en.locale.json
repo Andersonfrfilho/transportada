@@ -285,6 +285,10 @@
     "pending": "Pending"
   },
   "stopTitle": "Stop {{sequence}}",
+  "stalePending": {
+    "notice_one": "{{count}} of your records has been stuck since {{date}} and has not reached the office yet. Open the app with a signal to send it.",
+    "notice_other": "{{count}} of your records have been stuck since {{date}} and have not reached the office yet. Open the app with a signal to send them."
+  },
   "sync": {
     "hours_one": "Synced {{count}} hour ago",
     "hours_other": "Synced {{count}} hours ago",

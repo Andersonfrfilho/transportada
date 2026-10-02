@@ -312,6 +312,10 @@
     "pending": "Pendente"
   },
   "stopTitle": "Parada {{sequence}}",
+  "stalePending": {
+    "notice_one": "{{count}} registro seu está parado desde {{date}} e ainda não chegou ao escritório. Abra o app com sinal para enviar.",
+    "notice_other": "{{count}} registros seus estão parados desde {{date}} e ainda não chegaram ao escritório. Abra o app com sinal para enviar."
+  },
   "sync": {
     "hours_one": "Sincronizado há {{count}} hora",
     "hours_other": "Sincronizado há {{count}} horas",

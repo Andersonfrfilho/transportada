@@ -17,6 +17,7 @@ import {
   type EventQueueItemView,
 } from '../shared/eventQueueView.service'
 import { resolveRejectionCauseLabelKey } from '../shared/rejectionCauseLabel.service'
+import { formatQueuedAt } from '../shared/stalePending.service'
 import styles from '../styles/driverTrip.module.css'
 
 type DriverEventQueuePageProps = Readonly<{
@@ -174,10 +175,7 @@ export function DriverEventQueuePage({
                     <p className={styles.eventQueueItemTitle}>
                       {itemTitle(item)}
                       <span className={styles.eventQueueItemTime}>
-                        {new Date(item.queuedAt).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                        {formatQueuedAt({ nowMs: Date.now(), queuedAt: item.queuedAt })}
                       </span>
                     </p>
                     {item.attachmentCount > 0 ? (

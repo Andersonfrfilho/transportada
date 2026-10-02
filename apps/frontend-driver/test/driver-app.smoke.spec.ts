@@ -16,6 +16,7 @@ import type { Page } from '@playwright/test'
 
 import { loginAsLocalUser } from './authenticated-smoke.helper'
 import {
+  ageQueuedItems,
   DRIVER_ACCESS_KEY,
   DRIVER_STOP_ID,
   mockDriverTripApi,
@@ -1056,4 +1057,30 @@ test('Não entreguei sem sinal: foto e ocorrência na fila, e "enviado" só depo
     'occurrences',
     'return',
   ])
+})
+
+/**
+ * Spec 229: o app só envia aberto e nada sai da fila por idade (227) — o que está parado há mais de um
+ * dia ganha uma faixa que diz quantos e desde quando. Item novo não ganha.
+ */
+test('o que está parado há mais de um dia ganha a faixa de aviso; o recente, não', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  const api = await mockDriverTripApi({ page })
+  await loginAsLocalUser(page)
+  api.setOffline(true)
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await expect(page.getByRole('button', { name: /^Fila de envio/u })).toBeVisible()
+  await expect(page.getByText(/parado desde/u)).toHaveCount(0)
+
+  await ageQueuedItems({ ageMs: 30 * 60 * 60 * 1000, page })
+  await page.reload()
+
+  const notice = page.getByRole('alert').filter({ hasText: 'parado desde' })
+  await expect(notice).toBeVisible()
+  await expect(notice).toContainText('1 registro seu está parado desde')
+  await notice.click()
+  await expect(page.getByRole('button', { name: 'Enviar todos agora' })).toBeVisible()
 })

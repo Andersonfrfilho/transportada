@@ -21,6 +21,7 @@ import { DriverTripAutoSwitchNotice } from '../components/DriverTripAutoSwitchNo
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
 import { DriverTripReassignedNotice } from '../components/DriverTripReassignedNotice.component'
 import { DriverTripSelector } from '../components/DriverTripSelector.component'
+import { DriverStalePendingNotice } from '../components/DriverStalePendingNotice.component'
 import { DriverUnverifiedPendingNotice } from '../components/DriverUnverifiedPendingNotice.component'
 import { useDriverSession } from '../hooks/useDriverSession.hook'
 import { useDriverTrip } from '../hooks/useDriverTrip.hook'
@@ -36,6 +37,7 @@ import {
   subscribeDriverRoute,
 } from '@/modules/shared/driverRoute.service'
 import { getDriverTripClient } from '../shared/driverTripClient.service'
+import { resolveStalePending } from '../shared/stalePending.service'
 import { describeTripSelectorPath } from '../shared/driverTripSelection.service'
 import {
   resolveDocumentActivityStatus,
@@ -459,6 +461,7 @@ export function DriverTripWorkspacePage() {
     return statuses
   }
   const notDeliveredStatusByDocumentId = buildNotDeliveredStatuses()
+  const stalePending = resolveStalePending({ items: driverTrip.queueView, nowMs: Date.now() })
 
   /**
    * Pedido do usuário (25/09): "registrei... e nada aconteceu?" — entrega, devolução e "Deu
@@ -791,6 +794,15 @@ export function DriverTripWorkspacePage() {
         {driverTrip.hasReassignedTripNotice ? (
           <DriverTripReassignedNotice onDismiss={driverTrip.dismissReassignedTripNotice} />
         ) : null}
+
+        {/* Spec 229: parado há mais de um dia — o app só envia aberto, e nada sai da fila por idade */}
+        {stalePending === undefined ? null : (
+          <DriverStalePendingNotice
+            count={stalePending.count}
+            oldestQueuedAt={stalePending.oldestQueuedAt}
+            onOpenQueue={() => navigateToDriverSection('queue')}
+          />
+        )}
 
         {/* A tela diz a verdade: o que está na fila aparece como aguardando, nunca como enviado */}
         {driverTrip.queuedCount > 0 ? (
