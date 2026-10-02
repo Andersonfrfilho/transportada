@@ -72,7 +72,7 @@ Nenhum `[NEEDS CLARIFICATION]` aberto nesta spec.
       **Pare e pergunte antes de qualquer migration.**
 - [x] **T5.1** API: filtro por nota em `GET /trips/:id/timeline`, no servidor, com contrato de tenant e de
       permissão (`trip.event-location`). Não depende da 228.
-- [ ] **T5.2** API: o raio na resposta do comprovante (D6), resolvido por contratante, sem
+- [x] **T5.2** API: o raio na resposta do comprovante (D6), resolvido por contratante, sem
       `settings.manage` do leitor. Não depende da 228.
 - [ ] **T5.3** Painel: _Eventos desta entrega_ por nota; rótulo do `departed` = **"Saída para esta
       parada"** (D11); círculo do raio **só** com o dado; os dois eventos novos quando a 228 existir.

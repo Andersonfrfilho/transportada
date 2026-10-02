@@ -4243,6 +4243,7 @@ function createApplicationRoutes({
             repository: {
               findByTrip: (query) => findDeliveryProofsByTrip(database, query),
             },
+            settings: deliveryProofRepository,
             tripId: input.tripId,
           }),
       },

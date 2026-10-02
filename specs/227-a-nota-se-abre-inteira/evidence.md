@@ -428,3 +428,62 @@ comportamental consegue distingui-lo; a prova é o contrato estático.
 | `bun run lint`                                                                                         | exit 0, `--max-warnings=0`       |
 | `bun --env-file=../../.env.test test --timeout 120000`                                                 | **8647 pass · 23 skip · 0 fail** |
 | `bun --env-file=../../.env.test test ./test/integration/trip-timeline.integration.ts` (Postgres 65432) | **27 pass · 0 fail**             |
+
+## T5.2 — `GET /trips/:id/delivery-proofs` devolve o raio tolerado (D6)
+
+**O que saiu.** Cada item da resposta ganha `proofRadiusMeters?: number` (metros), lido no servidor pela
+mesma fonte única que o juiz da captura usa (`DrizzleDeliveryProofRepository.resolveProofPunctualitySettings`;
+linha da empresa, ou 300 m de fábrica). A rota continua em `TRIP_FIELD_READ_POLICY` (`fleet.read`): o leitor
+**não** precisa de `settings.manage`, e `settings.manage` sozinho continua sem ler a rota (403). Campo opcional
+e tipado em `TripDeliveryProofView`; sem número finito e positivo ele **não vai** (nunca zero). Viagem sem
+comprovante (inclusive a de outra empresa, que a consulta já não alcança) devolve `[]` **sem sequer consultar
+a configuração** — nada da configuração alheia pode escapar.
+
+⚠️ **Desvio da premissa da D6, a decidir.** A D6 diz "resolvido por contratante, a mesma resolução da spec 218".
+Mas a 218 só resolve por contratante os **modos dos campos** (foto, assinatura, quem recebeu…); o raio
+(`proof_radius_meters`) existe **só na configuração geral da empresa** — `company_delivery_proof_settings` —
+e a tabela de exceção por contratante (`delivery_proof_setting_contractor_overrides`) não tem a coluna. É
+decisão registrada: _"a regra é da empresa, não do destinatário"_ (ADR-0070 §3-5; comentário em
+`delivery-proof-settings.policy.ts`). Logo o valor devolvido é o raio **da empresa**, que é exatamente o que o
+juiz aplicou ao `punctuality`/`distanceMeters` de cada item; **raio por contratante exigiria coluna nova e
+migration (fora desta task)**. O campo está por item para que o dia em que isso exista não mude o contrato.
+
+⚠️ **Ordem de publicação.** `isDeliveryProof` do painel (`tripResponse.validation.ts`) recusa chave
+desconhecida e `tripDeliveryProofsFromApi` descarta o item inteiro: com esta API em staging e o painel antigo,
+**todo comprovante some da tela**, sem erro. `proofRadiusMeters` precisa entrar em
+`DELIVERY_PROOF_OPTIONAL_KEYS` (`trip.constant.ts`) no painel **antes ou junto** (é a regra do próprio
+comentário: "o painel tem de aceitá-las antes de a API mandá-las"). Não toquei o painel — é a T5.3.
+
+**Contratos (antes da implementação).**
+
+- `test/trip-delivery-proof/read-by-trip-radius.contract.ts` — cada item leva o raio e a configuração é lida com
+  o `companyId` do contexto; viagem vazia não consulta a configuração; 0, negativo, `NaN` e infinito saem
+  ausentes; o corpo tem `"proofRadiusMeters":300` e nenhuma coordenada nem outro parâmetro da nota.
+- `test/trip-delivery-proof/read-by-trip.contract.ts` — a igualdade com a leitura de uma nota passou a incluir o raio.
+- `test/trip-http/delivery-proofs-batch.contract.ts` — só `fleet.read` recebe o item com o raio (200); só
+  `settings.manage` leva 403 e o caso de uso nem roda.
+- `test/integration/delivery-proofs-by-trip.integration.ts` (Postgres real) — raio 500 gravado, 300 sem linha, e
+  empresa estranha (raio 800) pedindo a viagem alheia recebe `[]` sem o número.
+
+### Mutações
+
+| mutação                                          | o que reprovou                                              |
+| ------------------------------------------------ | ----------------------------------------------------------- |
+| tirar o raio do item                             | 3 contratos + a integração                                  |
+| tirar o guard "positivo e finito"                | "raio que não é um número positivo sai ausente, nunca zero" |
+| tirar o retorno antecipado da lista vazia        | "viagem sem comprovante… a configuração nem é consultada"   |
+| raio fixo em 300                                 | 2 contratos + a integração (500)                            |
+| configuração lida com o `companyId` errado       | contrato do `companyId` + a integração                      |
+| trocar a política da rota para `settings.manage` | 8 testes da rota                                            |
+
+⚠️ Não coberto por teste: a **fiação** em `main.ts` (`settings: deliveryProofRepository`) — o `typecheck`
+exige o campo, mas nenhum teste sobe o `main.ts`.
+
+### Portões (de dentro de `apps/api-transportada`)
+
+| Portão                                                                                                           | Resultado                        |
+| ---------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `bun run typecheck`                                                                                              | exit 0                           |
+| `bun run lint`                                                                                                   | exit 0, `--max-warnings=0`       |
+| `bun --env-file=../../.env.test test --timeout 120000`                                                           | **8653 pass · 23 skip · 0 fail** |
+| `bun --env-file=../../.env.test test ./test/integration/delivery-proofs-by-trip.integration.ts` (Postgres 65432) | **7 pass · 0 fail**              |

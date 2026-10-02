@@ -7,6 +7,7 @@
  * devolveria o comprovante de outra nota (ou de outra empresa) e passaria em todos eles.
  */
 import { describe, expect } from 'bun:test'
+import { eq } from 'drizzle-orm'
 
 import { companyDeliveryProofSettings } from '../../src/database/company-delivery-proof-settings.schema.js'
 import { attachDeliveryProof } from '../../src/trips/application/attach-delivery-proof.use-case.js'
@@ -128,6 +129,7 @@ async function readByTrip(
     ...input,
     downloads: signedDownloads,
     repository: { findByTrip: (query) => findDeliveryProofsByTrip(database.db, query) },
+    settings: new DrizzleDeliveryProofRepository(database.db, TEST_BUCKET),
   })
 }
 
@@ -243,6 +245,59 @@ describe('os comprovantes da viagem contra o Postgres (spec 222 T1.6, CA01)', ()
         })
 
         expect(views).toEqual([])
+      })
+    },
+    120_000,
+  )
+
+  testWithPostgres(
+    'o raio (spec 227 D6) é o da própria empresa: 500 gravado, 300 de fábrica, e nunca o de outra',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const configured = await seedTripWithThreeProofs(database)
+        const factory = await seedTripWithThreeProofs(database)
+        await database.db
+          .update(companyDeliveryProofSettings)
+          .set({ proofRadiusMeters: 500 })
+          .where(eq(companyDeliveryProofSettings.companyId, configured.company.companyId))
+        await database.db
+          .delete(companyDeliveryProofSettings)
+          .where(eq(companyDeliveryProofSettings.companyId, factory.company.companyId))
+
+        const ofConfigured = await readByTrip(database, {
+          companyId: configured.company.companyId,
+          tripId: configured.trip.tripId,
+        })
+        const ofFactory = await readByTrip(database, {
+          companyId: factory.company.companyId,
+          tripId: factory.trip.tripId,
+        })
+
+        expect(ofConfigured.map((view) => view.proofRadiusMeters)).toEqual([500, 500, 500])
+        expect(ofFactory.map((view) => view.proofRadiusMeters)).toEqual([300, 300, 300])
+      })
+    },
+    120_000,
+  )
+
+  testWithPostgres(
+    'tenant do raio: pedir a viagem de outra empresa devolve lista vazia, sem raio nenhum',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const owner = await seedTripWithThreeProofs(database)
+        const stranger = await seedTripWithThreeProofs(database)
+        await database.db
+          .update(companyDeliveryProofSettings)
+          .set({ proofRadiusMeters: 800 })
+          .where(eq(companyDeliveryProofSettings.companyId, stranger.company.companyId))
+
+        const asStranger = await readByTrip(database, {
+          companyId: stranger.company.companyId,
+          tripId: owner.trip.tripId,
+        })
+
+        expect(asStranger).toEqual([])
+        expect(JSON.stringify(asStranger)).not.toContain('800')
       })
     },
     120_000,

@@ -174,9 +174,25 @@ export async function readDeliveryProofs({
   return Promise.all(records.map((record) => buildDeliveryProofView({ downloads, record })))
 }
 
+/**
+ * Spec 227 D6: o raio que o juiz da captura usa — a mesma fonte única da pontualidade
+ * (`DrizzleDeliveryProofRepository.resolveProofPunctualitySettings`). Só o raio é lido aqui: os
+ * demais parâmetros da nota do motorista não saem desta rota.
+ */
+export type ProofRadiusPort = {
+  resolveProofPunctualitySettings(input: {
+    readonly companyId: string
+  }): Promise<{ readonly proofRadiusMeters: number }>
+}
+
 /** Spec 222 T1.4: o item da leitura por viagem é o da leitura de uma nota, mais a nota dele. */
 export type TripDeliveryProofView = DeliveryProofView & {
   readonly documentId: string
+  /**
+   * Spec 227 D6: o raio de "longe do ponto", em metros, já resolvido no servidor — o leitor não
+   * precisa de `settings.manage`. Ausente (nunca zero) quando não há número positivo para dizer.
+   */
+  readonly proofRadiusMeters?: number
 }
 
 export type ReadDeliveryProofsByTripInput = {
@@ -185,6 +201,7 @@ export type ReadDeliveryProofsByTripInput = {
   readonly documentIds?: readonly string[] | undefined
   readonly downloads: DeliveryProofDownloadPort
   readonly repository: ReadTripDeliveryProofsPort
+  readonly settings: ProofRadiusPort
   readonly tripId: string
 }
 
@@ -200,6 +217,7 @@ export async function readDeliveryProofsByTrip({
   documentIds,
   downloads,
   repository,
+  settings,
   tripId,
 }: ReadDeliveryProofsByTripInput): Promise<readonly TripDeliveryProofView[]> {
   const records = await repository.findByTrip({
@@ -207,11 +225,17 @@ export async function readDeliveryProofsByTrip({
     ...(documentIds === undefined ? {} : { documentIds }),
     tripId,
   })
+  if (records.length === 0) return []
+
+  const { proofRadiusMeters } = await settings.resolveProofPunctualitySettings({ companyId })
+  const radius =
+    Number.isFinite(proofRadiusMeters) && proofRadiusMeters > 0 ? { proofRadiusMeters } : {}
 
   return Promise.all(
     records.map(async (record) => ({
       ...(await buildDeliveryProofView({ downloads, record })),
       documentId: record.documentId,
+      ...radius,
     })),
   )
 }
