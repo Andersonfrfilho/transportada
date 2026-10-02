@@ -4,7 +4,11 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 
-import { listIntegrationFiles, partitionByWeight } from '../scripts/integration-shard.js'
+import {
+  IDENTITY_FILES,
+  listIntegrationFiles,
+  partitionByWeight,
+} from '../scripts/integration-shard.js'
 
 describe('integration shard partition', () => {
   test('places every file in exactly one shard', () => {
@@ -32,7 +36,8 @@ describe('integration shard partition', () => {
       scripts: Record<string, string>
     }
     const files = listIntegrationFiles(packageJson.scripts['test:integration'] ?? '')
-    const shards = partitionByWeight({ files, weights: {}, shardCount: 4 })
-    expect(shards.flat().sort()).toEqual([...files].sort())
+    const regular = files.filter((file) => !IDENTITY_FILES.includes(file))
+    const shards = partitionByWeight({ files: regular, weights: {}, shardCount: 4 })
+    expect([...shards.flat(), ...IDENTITY_FILES].sort()).toEqual([...files].sort())
   })
 })
