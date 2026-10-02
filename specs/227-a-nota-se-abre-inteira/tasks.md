@@ -92,9 +92,9 @@ Nenhum `[NEEDS CLARIFICATION]` aberto nesta spec.
       números (D10). **Exige o ok explícito do usuário** (web.md §15). Levar junto a ressalva da 228 D12: a
       "Foto do canhoto" é evento derivado de `trip_delivery_proofs`, sem tabela nova — confirmar com o usuário.
 - [x] **T6.2** Documentação viva: `docs/ai-context/frontend-transportada.md` (e `api-transportada.md`).
-- [ ] **T6.3** Portão completo na raiz, um comando por vez em primeiro plano; `format:check` é gate **só da
+- [x] **T6.3** Portão completo na raiz, um comando por vez em primeiro plano; `format:check` é gate **só da
       raiz** e a spec em markdown entra nele.
-- [ ] **T6.4** Revisão por `code-reviewer` em `opus`, com **cinco políticas de permissão na mesma tela** e a
+- [x] **T6.4** Revisão por `code-reviewer` em `opus`, com **cinco políticas de permissão na mesma tela** e a
       revogação da spec 181 como foco.
 
 ## O que não se decide sozinho

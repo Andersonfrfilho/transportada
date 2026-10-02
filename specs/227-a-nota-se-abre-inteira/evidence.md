@@ -615,3 +615,15 @@ toque (`pointer: coarse`) o link chega a `min-height: var(--touch-target)`. Cont
 `client-link-handoff.contract.ts`, `trip-hooks/delivery-clients-search-handoff.contract.ts` (o hook consome uma vez e
 ignora o nome na URL), `document-data.contract.tsx`. Mutações reprovadas: não remover o recado; voltar a `?name=` na
 rota; tirar o portão de permissão; zerar o `min-height`; o hook lendo a URL.
+
+## T6.3 — portão da raiz (2026-10-02)
+
+Na raiz, em primeiro plano: `bun run format:check` limpo; `bun run lint` e `bun run typecheck` sem erro; `bun run build` ok;
+`bun run test` com 0 falhas em todas as apps (API 8651, painel 6353 + hooks 307, demais 1558/101/89/981/131).
+**Não rodado**: a integração inteira da API (`test:integration`, ~17 min) e `make migration-test` — a integração inteira
+precisa repetir antes do push, porque a API mudou depois da última rodada completa. Sem migration nesta spec.
+
+## T6.4 — revisão opus
+
+Reprovada na primeira rodada (A1, A2, A3 altos; M1–M5; B1–B3). Corrigidos A1, A2, M1, M3, M4, M5; A3 registrada como
+pré-condição do push; M2 reescrita (RF8). Pendências: B1, B2, B3, ordem dos trechos × paradas no rateio, CPF na tela (LGPD).
