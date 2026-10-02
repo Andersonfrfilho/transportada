@@ -15,6 +15,7 @@
       "topRight": "Top right corner"
     },
     "previewLabel": "Proof preview for cropping",
+    "rotate": "Rotate",
     "useCrop": "Use crop",
     "useOriginal": "Use without cropping"
   },

@@ -14,8 +14,11 @@ import {
   boundsToCorners,
   cornersToBounds,
   detectDocumentBounds,
+  nextCropRotation,
+  rotatedCropSize,
   toLuminanceGrid,
   type CropCorners,
+  type CropRotation,
 } from '../shared/proofCrop.service'
 import { resolveInitialCropBounds } from '../shared/proofCropFrame.service'
 import { PROOF_PHOTO_MAX_SIDE } from '../shared/proofPhotoReduction.service'
@@ -24,6 +27,33 @@ import styles from '../styles/driverTrip.module.css'
 const PREVIEW_MAX_WIDTH = 480
 
 type CornerKey = keyof CropCorners
+
+type RotatedSource = CanvasImageSource & { height: number; width: number }
+
+/**
+ * Impura: devolve a imagem já girada, para o resto do fluxo tratá-la como se fosse o original. Em
+ * 0° devolve a própria imagem — girar zero grau só gastaria um canvas do tamanho da foto.
+ * Sem contexto 2D (aparelho sem canvas) devolve o original: melhor sem girar que sem recorte.
+ */
+function buildRotatedSource(image: HTMLImageElement, rotation: CropRotation): RotatedSource {
+  if (rotation === 0) return image
+
+  const { height, width } = rotatedCropSize({
+    height: image.height,
+    rotation,
+    width: image.width,
+  })
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const context = canvas.getContext('2d')
+  if (context === null) return image
+
+  context.translate(width / 2, height / 2)
+  context.rotate((rotation * Math.PI) / 180)
+  context.drawImage(image, -image.width / 2, -image.height / 2)
+  return canvas
+}
 
 type ProofCropProps = Readonly<{
   file: File
@@ -43,8 +73,12 @@ export function ProofCrop({ file, onCancel, onConfirm }: ProofCropProps) {
   const { panelRef } = useRevealedPanel<HTMLDivElement>()
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const imageRef = useRef<HTMLImageElement | null>(null)
+  /** A origem do recorte: a imagem em 0°, ou o canvas já girado. Toda coordenada vive no espaço dela. */
+  const sourceRef = useRef<CanvasImageSource & { height: number; width: number }>(null)
   const draggingRef = useRef<CornerKey | null>(null)
   const [corners, setCorners] = useState<CropCorners | null>(null)
+  const [isImageReady, setIsImageReady] = useState(false)
+  const [rotation, setRotation] = useState<CropRotation>(0)
   const [size, setSize] = useState<{ height: number; width: number } | null>(null)
 
   /** Plan D2: aberto do montar ao desmontar — navegar no meio do recorte perdia o ajuste. */
@@ -58,25 +92,38 @@ export function ProofCrop({ file, onCancel, onConfirm }: ProofCropProps) {
     const image = new Image()
     image.onload = () => {
       imageRef.current = image
-      const scale = Math.min(1, PREVIEW_MAX_WIDTH / image.width)
-      const width = Math.round(image.width * scale)
-      const height = Math.round(image.height * scale)
-      setSize({ height, width })
-
-      const canvas = canvasRef.current
-      const context = canvas?.getContext('2d')
-      if (canvas === null || context === null || context === undefined) return
-      canvas.width = width
-      canvas.height = height
-      context.drawImage(image, 0, 0, width, height)
-      const bounds = detectDocumentBounds(
-        toLuminanceGrid(context.getImageData(0, 0, width, height)),
-      )
-      setCorners(boundsToCorners(resolveInitialCropBounds({ detected: bounds, height, width })))
+      setIsImageReady(true)
     }
     image.src = url
     return () => URL.revokeObjectURL(url)
   }, [file])
+
+  /**
+   * Girar UMA vez, para uma origem já rotacionada, e deixar o resto da matemática intacto: a
+   * detecção, o arrasto dos cantos e o recorte final seguem todos em "pixel da origem", sem
+   * trigonometria inversa espalhada. Em 0° a origem é a própria imagem — nenhum canvas extra.
+   */
+  useEffect(() => {
+    const image = imageRef.current
+    if (!isImageReady || image === null) return
+
+    const source = buildRotatedSource(image, rotation)
+    sourceRef.current = source
+    const scale = Math.min(1, PREVIEW_MAX_WIDTH / source.width)
+    const width = Math.round(source.width * scale)
+    const height = Math.round(source.height * scale)
+    setSize({ height, width })
+
+    const canvas = canvasRef.current
+    const context = canvas?.getContext('2d')
+    if (canvas === null || context === null || context === undefined) return
+    canvas.width = width
+    canvas.height = height
+    context.drawImage(source, 0, 0, width, height)
+    /** A detecção roda sobre a imagem JÁ girada: sobre a original ela sugeriria cantos tortos. */
+    const bounds = detectDocumentBounds(toLuminanceGrid(context.getImageData(0, 0, width, height)))
+    setCorners(boundsToCorners(resolveInitialCropBounds({ detected: bounds, height, width })))
+  }, [isImageReady, rotation])
 
   const frame =
     corners === null || size === null
@@ -103,7 +150,8 @@ export function ProofCrop({ file, onCancel, onConfirm }: ProofCropProps) {
   }
 
   function confirmCrop(): void {
-    const image = imageRef.current
+    /** A origem girada, não a imagem: os cantos foram arrastados sobre ela. */
+    const image = sourceRef.current
     if (image === null || corners === null || size === null) return
     const bounds = cornersToBounds({ corners, height: size.height, width: size.width })
     const scaleX = image.width / size.width
@@ -194,6 +242,18 @@ export function ProofCrop({ file, onCancel, onConfirm }: ProofCropProps) {
             ))}
       </div>
       <div className={styles.actions}>
+        {/*
+         * Pedido do usuário (01/10): girar a foto. Um quarto de volta por toque — quatro toques
+         * voltam ao começo, então não precisa de um segundo botão para desfazer.
+         */}
+        <Button
+          onClick={() => setRotation((current) => nextCropRotation(current))}
+          type="button"
+          variant="secondary"
+        >
+          <Icon name="refresh" />
+          {t('crop.rotate')}
+        </Button>
         <Button onClick={onCancel} type="button" variant="ghost">
           {t('crop.cancel')}
         </Button>

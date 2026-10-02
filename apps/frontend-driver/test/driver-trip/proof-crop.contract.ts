@@ -1,10 +1,14 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'bun:test'
 
 import {
   boundsToCorners,
   cornersToBounds,
   detectDocumentBounds,
+  nextCropRotation,
+  rotatedCropSize,
   toLuminanceGrid,
   type LuminanceGrid,
 } from '@/modules/driver-trip/shared/proofCrop.service'
@@ -89,5 +93,49 @@ describe('o recorte do comprovante (D5/T052)', () => {
     const grid = toLuminanceGrid(imageData)
     expect(Math.round(grid.data[0] ?? 0)).toBe(255)
     expect(Math.round(grid.data[1] ?? 0)).toBe(0)
+  })
+
+  /**
+   * Pedido do usuário (01/10): girar a foto antes de recortar. O giro é aplicado UMA vez, numa
+   * origem já rotacionada (`buildRotatedSource` no componente), para a detecção, o arrasto e o
+   * recorte seguirem na mesma convenção de "pixel da origem" — sem trigonometria inversa espalhada.
+   */
+  it('um toque é um quarto de volta, e quatro toques voltam ao começo', () => {
+    expect(nextCropRotation(0)).toBe(90)
+    expect(nextCropRotation(90)).toBe(180)
+    expect(nextCropRotation(180)).toBe(270)
+    expect(nextCropRotation(270)).toBe(0)
+  })
+
+  it('um quarto de volta troca largura por altura; meia volta preserva as duas', () => {
+    expect(rotatedCropSize({ height: 300, rotation: 90, width: 400 })).toEqual({
+      height: 400,
+      width: 300,
+    })
+    expect(rotatedCropSize({ height: 300, rotation: 270, width: 400 })).toEqual({
+      height: 400,
+      width: 300,
+    })
+    expect(rotatedCropSize({ height: 300, rotation: 180, width: 400 })).toEqual({
+      height: 300,
+      width: 400,
+    })
+    expect(rotatedCropSize({ height: 300, rotation: 0, width: 400 })).toEqual({
+      height: 300,
+      width: 400,
+    })
+  })
+
+  it('o recorte final lê a origem GIRADA, nunca a imagem crua', () => {
+    const component = readFileSync(
+      new URL('../../src/modules/driver-trip/components/ProofCrop.component.tsx', import.meta.url),
+      'utf8',
+    )
+    const confirm = component.slice(component.indexOf('function confirmCrop'))
+
+    expect(confirm).toInclude('const image = sourceRef.current')
+    expect(confirm).not.toInclude('imageRef.current')
+    /** A detecção também: sobre a imagem crua ela sugeriria cantos tortos depois do giro. */
+    expect(component).toInclude('const source = buildRotatedSource(image, rotation)')
   })
 })
