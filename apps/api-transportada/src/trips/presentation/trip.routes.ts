@@ -2272,6 +2272,7 @@ type SerializedTripDocumentDetail = SerializedTripDocument &
     nfeTotalValue: TripDocumentDetail['nfeTotalValue']
     openOccurrenceCase: TripDocumentDetail['openOccurrenceCase']
     proofPending: TripDocumentDetail['proofPending']
+    volumeCount: TripDocumentDetail['volumeCount']
   }>
 
 /**
@@ -2309,6 +2310,7 @@ const TRIP_DOCUMENT_DETAIL_FIELD_POLICY = {
   stopId: 'safe',
   tripId: 'safe',
   updatedAt: 'safe',
+  volumeCount: 'safe',
 } as const satisfies FieldPolicy<SerializedTripDocumentDetail>
 const TRIP_DOCUMENT_DETAIL_MONEY_FIELDS = moneyFieldsOf(TRIP_DOCUMENT_DETAIL_FIELD_POLICY)
 
@@ -2332,6 +2334,7 @@ function serializeTripDocumentDetail(input: {
     nfeTotalValue: document.nfeTotalValue,
     openOccurrenceCase: document.openOccurrenceCase,
     proofPending: document.proofPending,
+    volumeCount: document.volumeCount,
   }
   return redactMoneyFields({
     canReadFinancials: input.canReadFinancials,

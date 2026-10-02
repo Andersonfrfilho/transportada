@@ -120,6 +120,11 @@ export type TripDocumentDetail = TripDocument & {
    */
   readonly proofPending: boolean
   /**
+   * Spec 227 D5/T2.3: soma de `nfe_volumes.quantity` da nota (`qVol` de cada `<vol>`). `null` quando a
+   * NF-e não tem linha de volume — desconhecido, nunca `0`: zero diria "a nota não tem volumes".
+   */
+  readonly volumeCount: null | number
+  /**
    * Spec 079 T017: como a nota se chama na tela. `null` quando o vínculo é só cálculo de frete, ou
    * quando a nota sumiu da junção — a queda para o identificador continua existindo, mas deixou de
    * ser o caminho normal.
