@@ -132,3 +132,29 @@ Comandos (de `apps/api-transportada`; o `.env.test` é o link simbólico da raiz
 A lista de integração foi partida em três (48 + 49 + 49 arquivos, 292 + 272 + 236 pass) só porque
 o primeiro plano tem teto de 10 min; os três saíram da própria lista de `test:integration`. Os 8
 skips estão fora dos arquivos tocados (os três arquivos de integração tocados: 24 pass, 0 skip).
+
+## T1.5 — Contrato do seletor antes da implementação (vermelho)
+
+`apps/frontend-driver/test/driver-trip/trip-selection.contract.ts`: bloco novo `viagem concluída
+nunca é a eleita (spec 224 RF2)`, com `it.each(['completed', 'cancelled'])` nos casos (a) escolhida
+por `selectedTripId` e (c) fallback `trips[0]` (à frente de uma `route_planned`, e sozinha na lista),
+mais o caso misto (concluída + `in_transit` → a `in_transit`, com e sem a concluída escolhida) e a
+lista só com a concluída (`undefined`). O caminho (b), "em rota", só olha `in_transit` e
+`on_delivery_route`: não alcança concluída por construção, e é o caminho que o caso misto exercita.
+
+Comando, de `apps/frontend-driver` (`bun run test`, nunca `bun test` cru): **942 pass, 8 fail**
+(950 testes, 3 arquivos). Os 8 são exatamente os do bloco novo, pelo motivo certo — a função devolve
+a concluída:
+
+```text
+(fail) ... > a escolhida pelo motorista, se já está completed, não vale
+(fail) ... > a escolhida pelo motorista, se já está cancelled, não vale
+(fail) ... > o fallback trips[0] pula uma completed que está à frente da lista
+(fail) ... > o fallback trips[0] pula uma cancelled que está à frente da lista
+(fail) ... > o fallback trips[0] não devolve uma completed, nem sozinha na lista
+(fail) ... > o fallback trips[0] não devolve uma cancelled, nem sozinha na lista
+(fail) ... > uma concluída e uma em rota na lista: vale a em rota, mesmo com a concluída escolhida
+(fail) ... > lista só com a concluída: nenhuma viagem
+  Expected: undefined
+  Received: { id: "a", status: "completed", ... }
+```
