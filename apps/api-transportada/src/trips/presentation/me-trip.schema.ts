@@ -8,6 +8,7 @@ import { TRIP_STOP_OCCURRENCE_KINDS } from '../../database/trip.schema.js'
 import { DRIVER_RETURN_REASONS } from '../domain/driver-return-reason.policy.js'
 import { type EventClockFields } from '../domain/occurred-at.policy.js'
 import type { ReportedLocation } from '../application/driver-field-report.port.js'
+import { locationSchema, toReportedLocation } from './reported-location.schema.js'
 
 /**
  * A chave vem do aparelho e viaja no cabeçalho que o `apis.md` já exige em `POST` que cria recurso.
@@ -19,19 +20,6 @@ const IDEMPOTENCY_KEY_MAX_LENGTH = 200
 const OCCURRENCE_DESCRIPTION_MAX_LENGTH = 500
 /** Abaixo disto o `tappedAt` é lixo de relógio zerado; 1970 e 1900 ficam. */
 const MINIMUM_TAPPED_AT_YEAR = 1900
-
-/**
- * Coordenada anulável **inteira**, nunca meia: latitude sem longitude é dado que mente. O aparelho
- * manda as duas ou não manda nenhuma, e não mandar é o caso normal do galpão sem sinal.
- */
-const locationSchema = z
-  .object({
-    accuracyMeters: z.number().nonnegative().optional(),
-    capturedAt: z.iso.datetime(),
-    latitude: z.number().min(-90).max(90),
-    longitude: z.number().min(-180).max(180),
-  })
-  .strict()
 
 /**
  * Spec 205 RF1/RF2: o "Registrar entrega depois" da app do motorista. Opcional — ausente é o toque
@@ -87,24 +75,50 @@ const occurrenceBodySchema = z.object({
    */
   distanceMeters: z.int().min(0).nullish(),
   documentId: z.uuid().nullish(),
+  /** Spec 196 T3.2: o ponto do toque. Ausente ou `null` é a ocorrência sem ponto. */
+  location: locationSchema.nullish(),
 })
 
 /**
  * Spec 218 D2: um dos dois, nunca os dois — o tipo do catálogo (`flow: stop`, o kind sai do
  * `stop_kind` dele), ou o corpo antigo, que a fila gravou antes da troca e só conhecia o valor fixo.
+ *
+ * ⚠️ Não é `z.union`: o erro de uma união chega com `path` vazio, e o `400` de `location` parcial
+ * (spec 196 T3.2) tem de apontar para `location`.
  */
-const occurrenceSchema = z.union([
-  occurrenceBodySchema.extend({ occurrenceTypeId: z.uuid() }).strict(),
-  occurrenceBodySchema.extend({ kind: z.enum(TRIP_STOP_OCCURRENCE_KINDS) }).strict(),
-])
+const occurrenceSchema = occurrenceBodySchema
+  .extend({
+    kind: z.enum(TRIP_STOP_OCCURRENCE_KINDS).optional(),
+    occurrenceTypeId: z.uuid().optional(),
+  })
+  .strict()
+  .transform((body, context) => {
+    const { kind, occurrenceTypeId, ...common } = body
+    if (occurrenceTypeId !== undefined && kind === undefined) {
+      return { ...common, occurrenceTypeId }
+    }
+    if (kind !== undefined && occurrenceTypeId === undefined) return { ...common, kind }
 
-const dispatchCurrentTripSchema = z.object({ tripId: z.uuid() }).strict()
+    context.issues.push({
+      code: 'custom',
+      input: body,
+      message: 'Send exactly one of kind and occurrenceTypeId.',
+      path: ['occurrenceTypeId'],
+    })
+    return z.NEVER
+  })
+
+const dispatchCurrentTripSchema = z
+  .object({ location: locationSchema.nullish(), tripId: z.uuid() })
+  .strict()
 
 /** ADR-0058: a viagem vem no corpo — o snapshot já a entregou; o vínculo é conferido no caso de uso. */
-export async function parseDispatchCurrentTripRequest(request: Request): Promise<string> {
+export async function parseDispatchCurrentTripRequest(
+  request: Request,
+): Promise<{ readonly location: ReportedLocation | null; readonly tripId: string }> {
   const body = await parseBody(dispatchCurrentTripSchema, request)
 
-  return body.tripId
+  return { location: toReportedLocation(body.location), tripId: body.tripId }
 }
 
 export function parseIdempotencyKey(request: Request): string {
@@ -134,20 +148,6 @@ function toEventClock(body: {
   return {
     ...(body.clockOffsetMs === undefined ? {} : { clockOffsetMs: body.clockOffsetMs }),
     ...(isTappedAtPlausible ? { tappedAt } : {}),
-  }
-}
-
-/** A precisão vira texto decimal porque a coluna é `numeric` — `float` de precisão não é precisão. */
-function toReportedLocation(
-  value: z.infer<typeof locationSchema> | null | undefined,
-): ReportedLocation | null {
-  if (value === null || value === undefined) return null
-
-  return {
-    accuracyMeters: value.accuracyMeters === undefined ? null : value.accuracyMeters.toFixed(2),
-    capturedAt: value.capturedAt,
-    latitude: value.latitude.toFixed(7),
-    longitude: value.longitude.toFixed(7),
   }
 }
 
@@ -207,6 +207,7 @@ export type StopOccurrenceRequest = {
   readonly description: string
   readonly distanceMeters: number | null
   readonly documentId: string | null
+  readonly location: ReportedLocation | null
 } & EventClockFields &
   (
     | {
@@ -225,6 +226,7 @@ export async function parseStopOccurrenceRequest(request: Request): Promise<Stop
     /* Ausente e nulo dizem a mesma coisa — não aferida —, e viram o mesmo valor aqui. */
     distanceMeters: body.distanceMeters ?? null,
     documentId: body.documentId ?? null,
+    location: toReportedLocation(body.location),
   }
 
   return 'occurrenceTypeId' in body

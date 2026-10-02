@@ -195,7 +195,7 @@ do usuário. A API não é revertida com a app nova no ar.
       `test/trip-domain.contract.test.ts`): `driver_app`, `whatsapp` do motorista, `whatsapp` do
       operador, `office`, `backoffice` × com/sem ponto × toque/derivado. Aceite: verde; a contagem subiu
       em N.
-- [ ] **T3.2** Fronteira HTTP, contrato primeiro (`test/trip-http/event-location-request.contract.ts`,
+- [x] **T3.2** Fronteira HTTP, contrato primeiro (`test/trip-http/event-location-request.contract.ts`,
       importado por `test/trip-http.contract.test.ts`):
   - `dispatch` com `{ tripId, location? }`;
   - `start-route`/`confirm-load` com corpo opcional, e corpo vazio continua `200`;

@@ -7,6 +7,8 @@ import { parseBody } from '../../http/request-parsing.service.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
 import { buildTaxIdSchema } from '../../shared/tax-id.schema.js'
+import type { ReportedLocation } from '../application/driver-field-report.port.js'
+import { locationSchema, toReportedLocation } from './reported-location.schema.js'
 import { TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 import { OCCURRENCE_TYPE_FLOWS } from '../../shared/trip-occurrence.constant.js'
 import { DELIVERY_PROOF_FIELD_MODES } from '../domain/delivery-proof-settings.policy.js'
@@ -31,6 +33,8 @@ const registerOccurrenceSchema = z
      * "sem anexo", recusado pelo caso de uso quando o tipo exige (`attachmentMode = 'required'`).
      */
     attachmentObjectId: z.string().uuid().optional(),
+    /** Spec 196 T3.2: o ponto do toque; só a rota do motorista usa este schema. */
+    location: locationSchema.nullish(),
     note: z.string().trim().max(500).default(''),
     /** O tipo que a empresa cadastrou — conferido contra o cadastro dela, não contra uma lista. */
     occurrenceTypeId: z.string().uuid(),
@@ -39,12 +43,16 @@ const registerOccurrenceSchema = z
   })
   .strict()
 
-export type RegisterOccurrenceBody = z.infer<typeof registerOccurrenceSchema>
+export type RegisterOccurrenceBody = Omit<z.infer<typeof registerOccurrenceSchema>, 'location'> & {
+  readonly location: ReportedLocation | null
+}
 
 export async function parseRegisterOccurrenceRequest(
   request: Request,
 ): Promise<RegisterOccurrenceBody> {
-  return parseBody(registerOccurrenceSchema, request)
+  const body = await parseBody(registerOccurrenceSchema, request)
+
+  return { ...body, location: toReportedLocation(body.location) }
 }
 
 /**

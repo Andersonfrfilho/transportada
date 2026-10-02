@@ -1948,3 +1948,86 @@ ficam como guarda do banco, e as sondas acima já reprovam o que as violaria.
 | `bun run typecheck`                       | exit 0                                                           |
 | `bun run lint`                            | exit 0                                                           |
 | `bun --env-file=../../.env.test test ...` | **8760 pass · 23 skip · 0 fail · 28186 expect() · 193 arquivos** |
+
+## T3.2 — a fronteira HTTP do ponto do toque
+
+As cinco rotas do motorista que não aceitavam `location` passam a aceitá-lo: `dispatch`
+(`{ tripId, location? }`), `start-route` e `confirm-load` (corpo opcional — o `parse` deixou de ser
+`() => undefined`), a ocorrência da parada e a ocorrência da nota. Quatro arquivos de apresentação e uma
+constante:
+
+- `presentation/reported-location.schema.ts` (novo): `locationSchema` e `toReportedLocation` saíram de
+  `me-trip.schema.ts` para serem compartilhados com `occurrence.schema.ts`, e a precisão passa por
+  `Math.min(value, EVENT_LOCATION_ACCURACY_MAX_METERS)` antes de `toFixed(2)`;
+- `database/event-location.schema.ts`: `EVENT_LOCATION_ACCURACY_MAX_METERS = 99_999_999.99`, o maior valor
+  de `numeric(10,2)`. A conta vale para **todas** as rotas com ponto, inclusive as três que já existiam
+  (chegada, entrega, devolução) — antes, `1e12` metros estourava a coluna e virava `500`.
+
+⚠️ **Divergência do plano:** o `plan.md` previa `parseFieldTripStepRequest` (novo). Não criei: o corpo
+`{ location? }` com `parseOptionalBody` é exatamente `parseFieldReportRequest`, e uma segunda função com o
+mesmo schema e outro nome seria abstração de uso único.
+
+⚠️ **O `400` de `location` parcial pedia mais do que o schema dava.** O corpo da ocorrência da parada era um
+`z.union` (tipo do catálogo **ou** `kind`), e erro de união chega com `path` vazio: `location` parcial
+respondia `400`, mas com `details[].field = ''`. Troquei a união por um objeto `.strict()` com os dois
+opcionais mais um `.transform` que exige exatamente um — o mesmo conjunto de corpos aceitos, e agora o erro
+aponta `location.longitude`, `location.capturedAt`. O escritório continua com a união dele
+(`trip-field-office.schema.ts`), que **não** aceita `location`, que é o que se quer.
+
+Vermelho registrado antes da implementação (com o contrato importado e a constante já existente): **38 fail ·
+223 pass** de 261, pelos motivos certos — `location` desconhecida recusada com `400`, ponto não chegando ao
+caso de uso, precisão sem teto.
+
+### A contagem subiu
+
+| Suíte                             | Antes | Depois | Subiu em |
+| --------------------------------- | ----- | ------ | -------- |
+| `test/trip-http.contract.test.ts` | 209   | 267    | **58**   |
+| `bun test` da API (193 arquivos)  | 8760  | 8818   | **58**   |
+
+### Provado por mutação (toda a superfície nova)
+
+| Mutação                                                         | Falhas | Primeira asserção que cai                                               |
+| --------------------------------------------------------------- | ------ | ----------------------------------------------------------------------- |
+| S1 tirar o teto da precisão                                     | 6      | `dispatch grava 1e12 metros no teto`                                    |
+| S2 teto como `.max()` no schema (viraria `400`)                 | 7      | `dispatch grava 1e12 metros no teto`                                    |
+| S3 `capturedAt` opcional                                        | 5      | `dispatch recusa location pela metade`                                  |
+| S4 `longitude` opcional                                         | 5      | `dispatch recusa location pela metade`                                  |
+| S5 tirar o `.strict()` de `locationSchema`                      | 5      | `dispatch recusa latitude fora da faixa e chave extra`                  |
+| S6 precisão sem `toFixed(2)`                                    | 6      | `dispatch leva o ponto até o caso de uso`                               |
+| S7 latitude sem faixa                                           | 6      | `dispatch recusa latitude fora da faixa e chave extra`                  |
+| P1 `dispatch` perde a `location` no retorno                     | 4      | `dispatch leva o ponto até o caso de uso`                               |
+| P2 `dispatch` com `location` sem schema                         | 3      | `dispatch recusa location pela metade`                                  |
+| P3 ocorrência da parada perde a `location`                      | 2      | `ocorrência da parada leva o ponto até o caso de uso`                   |
+| P4 ocorrência da parada com `location` sem schema               | 2      | `ocorrência da parada recusa location pela metade`                      |
+| P5 aceitar `kind` e tipo juntos                                 | 1      | `os dois juntos é 400 e nada é gravado`                                 |
+| P6 aceitar nenhum dos dois                                      | 2      | `os dois juntos é 400 e nada é gravado`                                 |
+| O1 ocorrência da nota perde a `location`                        | 2      | `ocorrência da nota leva o ponto até o caso de uso`                     |
+| O2 ocorrência da nota com `location` sem schema                 | 2      | `ocorrência da nota recusa location pela metade`                        |
+| R1 `start-route`/`confirm-load` voltam a ignorar o corpo        | 10     | `start-route leva o ponto até o caso de uso`                            |
+| R2 `start-route`/`confirm-load` não repassam                    | 4      | `start-route leva o ponto até o caso de uso`                            |
+| R3 `dispatch` não repassa ao caso de uso                        | 4      | `dispatch leva o ponto até o caso de uso`                               |
+| R4 ocorrência da nota não repassa                               | 2      | `ocorrência da nota leva o ponto até o caso de uso`                     |
+| R5 ocorrência da nota perde no `parse`                          | 2      | `ocorrência da nota leva o ponto até o caso de uso`                     |
+| E1a escritório: ocorrência (tipo do catálogo) aceita `location` | 1      | `ocorrência da parada (tipo do catálogo) do escritório recusa location` |
+| E1b escritório: ocorrência (`kind`) aceita `location`           | 2      | `ocorrência da parada do escritório recusa location`                    |
+| E2 escritório: chegada aceita `location`                        | 2      | `chegada do escritório recusa location`                                 |
+| E3 escritório: `confirm-load`/`start-route` aceitam `location`  | 5      | `start-route do escritório recusa location`                             |
+| E4 escritório: despacho aceita `location`                       | 1      | `despacho do escritório recusa location`                                |
+
+⚠️ A primeira sonda do escritório (E1) **sobreviveu**: mutei só o ramo do tipo do catálogo, e o contrato
+mandava o corpo do ramo `kind`. Acrescentei a variante `occurrenceTypeId` ao contrato e mutei os dois
+ramos separados (E1a, E1b) — ambos reprovam agora. Cada teste "recusa location" tem o par "sem location
+passa do parse" (chega na dependência, que lança `ROUTE_DEPENDENCY_NOT_EXPECTED`), para o `400` nunca ser
+efeito de outro campo.
+
+Também coberto: o `400` não repete a coordenada que o aparelho mandou (nem em `details`, nem em
+`message`).
+
+### Portões
+
+| Portão                                    | Resultado                                                        |
+| ----------------------------------------- | ---------------------------------------------------------------- |
+| `bun run typecheck`                       | exit 0                                                           |
+| `bun run lint`                            | exit 0                                                           |
+| `bun --env-file=../../.env.test test ...` | **8818 pass · 23 skip · 0 fail · 28472 expect() · 193 arquivos** |

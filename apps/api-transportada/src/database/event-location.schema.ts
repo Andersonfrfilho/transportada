@@ -26,6 +26,13 @@ export const EVENT_LOCATION_STATES = {
 } as const
 export type EventLocationState = (typeof EVENT_LOCATION_STATES)[keyof typeof EVENT_LOCATION_STATES]
 
+/**
+ * O maior valor que `accuracy_meters numeric(10,2)` guarda. Precisão acima disso é gravada aqui, e
+ * não recusada: o aparelho leu a posição, e perdê-la por causa do tamanho do erro seria trocar o
+ * dado pela exigência sobre ele.
+ */
+export const EVENT_LOCATION_ACCURACY_MAX_METERS = 99_999_999.99
+
 const raw = (value: string): ReturnType<typeof sql.raw> => sql.raw(value)
 
 /**

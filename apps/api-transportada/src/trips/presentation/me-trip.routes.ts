@@ -162,7 +162,10 @@ export type MeTripDependencies = {
   ) => Promise<CancelStopDepartureResult>
   /** ADR-0058: conferir a carga e iniciar o trajeto, os dois pelo mesmo caso de uso. */
   readonly startFieldTrip: (
-    input: DriverContextInput & { readonly step: FieldTripStep },
+    input: DriverContextInput & {
+      readonly location: ReportedLocation | null
+      readonly step: FieldTripStep
+    },
   ) => Promise<StartFieldTripResult>
   readonly reportDelivery: (
     input: DriverDocumentOutcomeInput,
@@ -178,6 +181,7 @@ export type MeTripDependencies = {
         readonly distanceMeters: number | null
         readonly documentId: string | null
         readonly idempotencyKey: string
+        readonly location: ReportedLocation | null
         readonly stopId: string
       },
   ) => Promise<ReportStopOccurrenceResult>
@@ -192,6 +196,7 @@ export type MeTripDependencies = {
     readonly documentId: string
     readonly driverId: string
     readonly idempotencyKey: string
+    readonly location: ReportedLocation | null
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
@@ -215,6 +220,7 @@ export type MeTripDependencies = {
     readonly actorUserId: string
     readonly companyId: string
     readonly driverId: string
+    readonly location: ReportedLocation | null
     readonly tripId: string
   }) => Promise<{ readonly tripStatus: string }>
   readonly attachProof: (
@@ -348,18 +354,19 @@ export function createMeTripRoutes(
       policy: DRIVER_READ_POLICY,
     }),
     ...([FIELD_TRIP_STEP.confirmLoad, FIELD_TRIP_STEP.startRoute] as const).map((step) =>
-      defineRoute<undefined>({
+      defineRoute<{ readonly location: ReportedLocation | null }>({
         /**
          * `200`, e não `201`: nenhum recurso nasce aqui — a viagem já existia, e o que muda é o
          * estado dela. E o corpo devolve `changed`, porque repetir o toque é caso normal: a rede do
          * pátio cai e o motorista toca de novo, e isso converge em vez de dar conflito.
          */
-        async handle({ context }): Promise<Response> {
+        async handle({ context, input }): Promise<Response> {
           const driverId = await resolveDriver(context.scope)
           const result = await dependencies.startFieldTrip({
             actorUserId: context.scope.userId,
             companyId: context.scope.companyId,
             driverId,
+            location: input.location,
             step,
           })
 
@@ -369,7 +376,8 @@ export function createMeTripRoutes(
           })
         },
         method: 'POST',
-        parse: () => undefined,
+        /** Corpo opcional: o app antigo não manda nenhum, e continua `200`. */
+        parse: ({ request }) => parseFieldReportRequest(request),
         pathname:
           step === FIELD_TRIP_STEP.confirmLoad ? TRIP_CONFIRM_LOAD_PATH : TRIP_START_ROUTE_PATH,
         policy: DRIVER_REPORT_POLICY,
@@ -540,22 +548,21 @@ export function createMeTripRoutes(
       pathname: DOCUMENT_RETURN_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
-    defineRoute<{ readonly tripId: string }>({
+    defineRoute<{ readonly location: ReportedLocation | null; readonly tripId: string }>({
       async handle({ context, input }): Promise<Response> {
         const driverId = await resolveDriver(context.scope)
         const result = await dependencies.dispatchCurrentTrip({
           actorUserId: context.scope.userId,
           companyId: context.scope.companyId,
           driverId,
+          location: input.location,
           tripId: input.tripId,
         })
 
         return jsonResponse({ body: { data: result }, status: 200 })
       },
       method: 'POST',
-      async parse({ request }) {
-        return { tripId: await parseDispatchCurrentTripRequest(request) }
-      },
+      parse: ({ request }) => parseDispatchCurrentTripRequest(request),
       pathname: TRIP_DISPATCH_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
@@ -616,6 +623,7 @@ export function createMeTripRoutes(
       readonly attachmentObjectId?: string | undefined
       readonly documentId: string
       readonly idempotencyKey: string
+      readonly location: ReportedLocation | null
       readonly note: string
       readonly occurrenceTypeId: string
       readonly productCode: string
@@ -629,6 +637,7 @@ export function createMeTripRoutes(
           documentId: input.documentId,
           driverId,
           idempotencyKey: input.idempotencyKey,
+          location: input.location,
           note: input.note,
           occurrenceTypeId: input.occurrenceTypeId,
           productCode: input.productCode,
@@ -643,6 +652,7 @@ export function createMeTripRoutes(
           attachmentObjectId: body.attachmentObjectId,
           documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
           idempotencyKey: parseIdempotencyKey(request),
+          location: body.location,
           note: body.note,
           occurrenceTypeId: body.occurrenceTypeId,
           productCode: body.productCode,
