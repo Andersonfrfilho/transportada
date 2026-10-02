@@ -195,6 +195,10 @@ export async function listAddressCorrectedRows(
           null::numeric, null::numeric, actor_user_id
         from geocoding_refinement_requests
         where company_id = ${params.companyId} and outcome = 'refined'
+          and address_key in (
+            select address_key from trip_stops
+            where company_id = ${params.companyId} and trip_id = ${params.tripId}
+          )
       ) changes
         on changes.address_key = trip_stops.address_key
         and changes.created_at >= trip_stops.created_at

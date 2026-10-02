@@ -22,6 +22,9 @@ const STOP_SOURCE = readFileSync(
   'utf8',
 )
 
+/** Uma fatia por `indexOf` que vira vazia faria todo `not.toContain` passar sem provar nada. */
+const MINIMUM_SLICE_LENGTH = 20
+
 describe('SQL do endereço corrigido na linha do tempo (spec 228 T3.1)', () => {
   test('a empresa ancora as duas trilhas, a parada e o membro do ator', () => {
     const companyFilters = ADDRESS_SOURCE.match(/company_id = \$\{params\.companyId\}/gu) ?? []
@@ -51,6 +54,13 @@ describe('SQL do endereço corrigido na linha do tempo (spec 228 T3.1)', () => {
     )
   })
 
+  test('a trilha do refino também só lê as chaves das paradas da viagem, no mesmo semi-join', () => {
+    expect(ADDRESS_SOURCE).toMatch(
+      /from geocoding_refinement_requests\s+where company_id = \$\{params\.companyId\}\s+and outcome = 'refined'\s+and address_key in \(\s+select address_key from trip_stops\s+where company_id = \$\{params\.companyId\} and trip_id = \$\{params\.tripId\}\s+\)/u,
+    )
+    expect(ADDRESS_SOURCE.match(/and address_key in \(/gu) ?? []).toHaveLength(2)
+  })
+
   test('as duas trilhas viram uma só consulta (union all), com os tipos fixados', () => {
     expect(ADDRESS_SOURCE.match(/union all/gu) ?? []).toHaveLength(1)
     expect(ADDRESS_SOURCE).toContain("'refinement'::text")
@@ -65,10 +75,12 @@ describe('SQL do endereço corrigido na linha do tempo (spec 228 T3.1)', () => {
     expect(ADDRESS_SOURCE).toContain('timelineKeysetCondition(')
     expect(ADDRESS_SOURCE).toContain('timelineOrderExpression(')
     expect(ADDRESS_SOURCE).toContain('limit ${params.limit + 1}')
-    const subselect = ADDRESS_SOURCE.slice(
-      ADDRESS_SOURCE.indexOf('select distinct on'),
-      ADDRESS_SOURCE.indexOf(') matched'),
-    )
+    const subselectStart = ADDRESS_SOURCE.indexOf('select distinct on')
+    const subselectEnd = ADDRESS_SOURCE.indexOf(') matched')
+    expect(subselectStart).not.toBe(-1)
+    expect(subselectEnd).toBeGreaterThan(subselectStart)
+    const subselect = ADDRESS_SOURCE.slice(subselectStart, subselectEnd)
+    expect(subselect.length).toBeGreaterThan(MINIMUM_SLICE_LENGTH)
     expect(subselect).not.toContain('limit')
     expect(subselect).not.toContain('timelineKeysetCondition')
   })
@@ -91,10 +103,12 @@ describe('SQL do endereço corrigido na linha do tempo (spec 228 T3.1)', () => {
     ]) {
       expect(ADDRESS_SOURCE).not.toContain(forbidden)
     }
-    const selectList = ADDRESS_SOURCE.slice(
-      ADDRESS_SOURCE.indexOf('select\n      matched.id'),
-      ADDRESS_SOURCE.indexOf('from ('),
-    )
+    const selectListStart = ADDRESS_SOURCE.indexOf('select\n      matched.id')
+    const selectListEnd = ADDRESS_SOURCE.indexOf('from (')
+    expect(selectListStart).not.toBe(-1)
+    expect(selectListEnd).toBeGreaterThan(selectListStart)
+    const selectList = ADDRESS_SOURCE.slice(selectListStart, selectListEnd)
+    expect(selectList.length).toBeGreaterThan(MINIMUM_SLICE_LENGTH)
     expect(selectList).not.toContain('address_key')
   })
 
