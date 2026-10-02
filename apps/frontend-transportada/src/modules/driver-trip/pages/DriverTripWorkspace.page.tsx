@@ -25,6 +25,7 @@ import { DriverProfilePage } from './DriverProfile.page'
 import { getDriverTripClient } from '../shared/driverTripClient.service'
 import { readCurrentLocation } from '../shared/driverLocation.service'
 import { saveDriverFile } from '../shared/driverFileSave.service'
+import { findCurrentDriverTrip } from '../shared/driverTripCurrent.service'
 import type {
   DriverOccurrenceTypesState,
   DriverReportedLocation,
@@ -137,7 +138,7 @@ export function DriverTripWorkspacePage() {
   }
 
   const snapshot = driverTrip.snapshot
-  const trip = snapshot?.trips[0]
+  const trip = findCurrentDriverTrip(snapshot)
 
   if (driverTrip.status === 'loading') {
     return (

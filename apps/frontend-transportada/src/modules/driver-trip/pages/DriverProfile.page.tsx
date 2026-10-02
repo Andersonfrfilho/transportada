@@ -9,6 +9,7 @@ import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 
 import type { DriverTripSnapshot } from '../shared/driverTrip.types'
+import { findCurrentDriverTrip } from '../shared/driverTripCurrent.service'
 import { listProofPendingDocuments } from '../shared/driverTripView.service'
 import styles from '../styles/driverTrip.module.css'
 
@@ -40,7 +41,7 @@ export function DriverProfilePage({
   const pendingProofCount = listProofPendingDocuments(snapshot).length
   const authMeQuery = useAuthMeQuery()
   const profile = getKeycloakAuthProvider().getProfile()
-  const trip = snapshot?.trips[0]
+  const trip = findCurrentDriverTrip(snapshot)
   const role = authMeQuery.data?.data.roles.find(
     (candidate) => FIELD_ROLE_LABEL_KEYS[candidate] !== undefined,
   )
