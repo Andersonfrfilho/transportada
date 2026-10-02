@@ -213,7 +213,7 @@ do usuário. A API não é revertida com a app nova no ar.
       backoffice gravam `null`. Aceite: contratos da aplicação verdes, e as suítes que exercitam as
       chamadas existentes de `recordTripStatusChange` seguem verdes sem mudança de expectativa —
       `trip-status-write-guard`, `trip-timeline`, `trip-lifecycle` e `trip-auto-dispatch`.
-- [ ] **T3.4** Contrato de inventário do D9 (`test/trip-http/driver-location-stamp-inventory.contract.ts`,
+- [x] **T3.4** Contrato de inventário do D9 (`test/trip-http/driver-location-stamp-inventory.contract.ts`,
       importado por `test/trip-http.contract.test.ts`), pelo comportamento descrito no `plan.md` §
       Exceções do inventário do D9:
   - a lista de rotas vem de `createMeTripRoutes`;

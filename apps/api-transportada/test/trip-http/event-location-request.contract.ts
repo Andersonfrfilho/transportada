@@ -9,18 +9,11 @@
 import { describe, expect, test } from 'bun:test'
 
 import { EVENT_LOCATION_ACCURACY_MAX_METERS } from '../../src/database/event-location.schema.js'
-import { resolveCompanyPermissions } from '../../src/identity/domain/authorization.policy.js'
-import type {
-  AuthenticatedContext,
-  CompanyContext,
-} from '../../src/identity/domain/tenant-context.js'
-import type { RegisteredRouterRoute } from '../../src/http/router.service.js'
-import { ApiError } from '../../src/shared/api.error.js'
 import { createMeTripRoutes } from '../../src/trips/presentation/me-trip.routes.js'
 import { createTripFieldOfficeTripRoutes } from '../../src/trips/presentation/trip-field-office-trip.routes.js'
 import { createTripRoutes } from '../../src/trips/presentation/trip.routes.js'
+import { expectInvalidRequest, findRoute, send } from '../fixtures/driver-route-request.fixture.js'
 
-const COMPANY_ID = '00000000-0000-4000-8000-000000000002'
 const DRIVER_ID = '00000000-0000-4000-8000-0000000000d1'
 const TRIP_ID = '00000000-0000-4000-8000-0000000000a1'
 const STOP_ID = '00000000-0000-4000-8000-0000000000b1'
@@ -88,75 +81,6 @@ function buildDriverWorld() {
   })
 
   return { calls, routes }
-}
-
-function driverContext(): AuthenticatedContext<CompanyContext> {
-  return {
-    identity: {
-      companyIdClaim: COMPANY_ID,
-      externalIdentityId: '00000000-0000-4000-8000-000000000004',
-      issuer: 'https://issuer.test',
-      platformAdmin: false,
-      serviceAccount: false,
-      subject: 'driver',
-      userId: '00000000-0000-4000-8000-000000000001',
-    },
-    scope: {
-      companyId: COMPANY_ID,
-      kind: 'company',
-      membershipId: '00000000-0000-4000-8000-000000000003',
-      permissions: resolveCompanyPermissions(['driver']),
-      roles: ['driver'],
-      userId: '00000000-0000-4000-8000-000000000001',
-    },
-  }
-}
-
-function findRoute(
-  routes: readonly RegisteredRouterRoute[],
-  pathname: string,
-): RegisteredRouterRoute {
-  const route = routes.find(
-    (candidate) => candidate.method === 'POST' && candidate.pathname === pathname,
-  )
-  if (route === undefined) throw new Error(`ROUTE_NOT_FOUND:${pathname}`)
-
-  return route
-}
-
-type SendParams = {
-  readonly body?: unknown
-  readonly pathParameters?: Record<string, string> | undefined
-  readonly route: RegisteredRouterRoute
-}
-
-async function send({ body, pathParameters = {}, route }: SendParams): Promise<Response> {
-  const headers = new Headers({ 'idempotency-key': 'key-1' })
-  if (body !== undefined) headers.set('content-type', 'application/json')
-
-  return route.execute({
-    context: driverContext(),
-    correlationId: 'correlation-1',
-    pathParameters,
-    request: new Request(`http://localhost${route.pathname}`, {
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      headers,
-      method: 'POST',
-    }),
-  })
-}
-
-async function expectInvalidRequest(operation: Promise<unknown>): Promise<ApiError> {
-  try {
-    await operation
-  } catch (error) {
-    expect(error).toBeInstanceOf(ApiError)
-    expect((error as ApiError).status).toBe(400)
-
-    return error as ApiError
-  }
-
-  throw new Error('EXPECTED_400')
 }
 
 /** A rota do motorista, o caminho dela e o corpo mínimo válido — sem `location`. */

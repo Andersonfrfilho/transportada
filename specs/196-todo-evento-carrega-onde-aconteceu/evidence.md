@@ -2141,3 +2141,71 @@ ela — o comportamento é o do caso de uso, coberto acima.
 As duas linhas de integração rodaram **antes** do ajuste do `startFieldTrip` (carimbo só para o motorista,
 G3); esse ajuste só tira um objeto do caminho do escritório, e a integração **completa** da T3.5 reexecuta
 tudo contra o código final.
+
+## T3.4 — o inventário do D9: toque novo sem ponto reprova
+
+`test/trip-http/driver-location-stamp-inventory.contract.ts` (importado por
+`test/trip-http.contract.test.ts`). A lista de rotas vem das fábricas — `createMeTripRoutes` e as duas
+irmãs que também montam caminho sob `/me/trips/current` (`createMeLocationRoutes`,
+`createMeProofReceiverRoutes`) —, filtrada por `POST` e prefixo; não há texto de rota copiado de
+`main.ts`. Cada `POST` está na **tabela de amostras** (dez rotas, com o corpo mínimo válido) ou nas
+**exceções com motivo** (`/location`, `proof`, os quatro `occurrence-uploads`/`confirm` das notas e das
+paradas, e `stop-order-suggestions` da 192, marcada `whenPresent`).
+
+Para cada amostra o contrato decide "aceita `location`" **pelo comportamento**, em três disparos contra a
+rota real: sem `location` (a amostra passa do `parse`), com `location` válido (idem) e com `location`
+parcial (`400` com `details[].field` começando em `location`). Os três juntos fecham o buraco que um
+deles sozinho deixaria: uma rota `.strict()` que não conhece `location` recusa o válido; uma que ignora o
+corpo aceita o parcial.
+
+⚠️ **Divergência do plano:** o `plan.md` listava só `createMeTripRoutes`. A exceção `/location` mora em
+`createMeLocationRoutes`, e um `POST` novo escrito lá escaparia de um inventário que só olhasse a
+primeira. As três fábricas entram; `createMeProofReceiverRoutes` só tem `PATCH` e o filtro por método a
+deixa de fora.
+
+⚠️ **Sem implementação a escrever, o vermelho é a mutação.** A T3.2 já tinha ligado as cinco rotas; este
+contrato nasce verde e só vale se reprovar quando a regra quebra. As sondas abaixo são o registro disso, e
+o próprio contrato traz as três provas internas pedidas: uma rota falsa fora das duas listas reprova
+(`findUninventoried`), uma rota que ignora o corpo não passa por aceitar `location`, e uma rota estrita
+sem `location` também não — ao lado da rota honesta, que passa.
+
+Também prende a higiene das listas: amostra e exceção não se sobrepõem, toda exceção tem motivo escrito, e
+nenhuma entrada aponta para rota que não existe (salvo a marcada `whenPresent`).
+
+Os helpers de pedido (`driverContext`, `findRoute`, `send`, `expectInvalidRequest`) saíram do contrato da
+T3.2 para `test/fixtures/driver-route-request.fixture.ts`, porque os dois contratos os usam; o da T3.2
+continua com os mesmos 58 testes.
+
+### A contagem subiu
+
+| Suíte                             | Antes | Depois | Subiu em |
+| --------------------------------- | ----- | ------ | -------- |
+| `test/trip-http.contract.test.ts` | 267   | 286    | **19**   |
+| `bun test` da API (193 arquivos)  | 8857  | 8876   | **19**   |
+
+### Provado por mutação (14 sondas, todas reprovadas)
+
+| Mutação                                                              | Falhas | Primeira asserção que cai (no inventário)                             |
+| -------------------------------------------------------------------- | ------ | --------------------------------------------------------------------- |
+| T1 `depart`/`cancel-departure` perdem `location`                     | 2      | `toda amostra aceita location ... /stops/:stopId/depart`              |
+| T2 `return` perde `location`                                         | 1      | `toda amostra aceita location ... /documents/:documentId/return`      |
+| T3 `arrive`/`deliver`/`start-route`/`confirm-load` perdem `location` | 4      | `toda amostra aceita location ... /confirm-load`                      |
+| T4 `dispatch` perde `location`                                       | 1      | `toda amostra aceita location ... /dispatch`                          |
+| T5 ocorrência da parada perde `location`                             | 1      | `toda amostra aceita location ... /stops/:stopId/occurrences`         |
+| T6 ocorrência da nota perde `location`                               | 1      | `toda amostra aceita location ... /documents/:documentId/occurrences` |
+| T7 rota `POST` nova (`.../stops/:stopId/pause`) sem inventário       | 2      | `toda rota POST sob a viagem atual está na tabela de amostras ...`    |
+| T8 `start-route` volta a ignorar o corpo                             | 2      | `toda amostra aceita location ... /confirm-load`                      |
+| T9 exceção de `proof` esquecida                                      | 2      | `toda rota POST sob a viagem atual está na tabela de amostras ...`    |
+| T10 amostra do `dispatch` esquecida                                  | 2      | `toda rota POST sob a viagem atual está na tabela de amostras ...`    |
+| T11 exceção da 192 sem `whenPresent`                                 | 1      | `nenhuma entrada das duas listas aponta para rota que não existe`     |
+| T12 exceção sem motivo                                               | 1      | `toda exceção traz o motivo escrito`                                  |
+| T13 amostra repetida nas exceções                                    | 1      | `amostra e exceção não se sobrepõem`                                  |
+| T14 classificador nunca vê o `400` em `location`                     | 11     | `toda amostra aceita location ... /dispatch`                          |
+
+### Portões
+
+| Portão                                    | Resultado                                                              |
+| ----------------------------------------- | ---------------------------------------------------------------------- |
+| `bun run typecheck`                       | exit 0                                                                 |
+| `bun run lint`                            | exit 0                                                                 |
+| `bun --env-file=../../.env.test test ...` | **8876 pass · 23 skip · 0 fail · 193 arquivos** (3 execuções seguidas) |
