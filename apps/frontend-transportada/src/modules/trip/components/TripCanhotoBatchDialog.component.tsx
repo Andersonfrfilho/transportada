@@ -147,6 +147,17 @@ export function TripCanhotoBatchDialog({
             </button>
           </header>
 
+          {/*
+           * Antes da grade, não depois: a dica ensina a andar pelas notas, e atrás delas ela só
+           * aparece depois de rolar a grade inteira — medido em staging, 176 px fora da área
+           * visível com apenas quatro canhotos.
+           */}
+          {items.length === 0 ? null : (
+            <p className={cn(styles.hint, styles.canhotoBatchKeyboardHint)}>
+              {t('deliveryProof.canhotoBatch.keyboardHint')}
+            </p>
+          )}
+
           {status === 'loading' ? (
             <SkeletonGroup label={t('deliveryProof.canhotoBatch.loading')}>
               <Skeleton className={styles.canhotoBatchPlaceholder} />
@@ -178,12 +189,6 @@ export function TripCanhotoBatchDialog({
                 />
               ))}
             </ul>
-          )}
-
-          {items.length === 0 ? null : (
-            <p className={cn(styles.hint, styles.canhotoBatchKeyboardHint)}>
-              {t('deliveryProof.canhotoBatch.keyboardHint')}
-            </p>
           )}
 
           {overflowCount > 0 ? (
