@@ -153,7 +153,7 @@ function flatKeysOf(permissions: readonly string[]): readonly string[] {
 describe('o menu filtra por permissão — separator (CA01, CA04)', () => {
   test('tem exatamente NF-e, Viagens, Ocorrências, Frota e Pendências', () => {
     expect([...flatKeysOf(SEPARATOR_PERMISSIONS)].sort()).toEqual(
-      ['fleet', 'nfe', 'pendencias', 'trip', 'trip-occurrences'].sort(),
+      ['delivery-clients', 'fleet', 'nfe', 'pendencias', 'trip', 'trip-occurrences'].sort(),
     )
   })
 
@@ -161,7 +161,7 @@ describe('o menu filtra por permissão — separator (CA01, CA04)', () => {
     expect(menuOf(SEPARATOR_PERMISSIONS)).toEqual({
       fiscal: ['nfe', 'trip'],
       operations: ['trip-occurrences'],
-      registries: ['fleet', 'pendencias'],
+      registries: ['fleet', 'pendencias', 'delivery-clients'],
     })
   })
 
@@ -229,9 +229,17 @@ describe('o menu filtra por permissão — Repasses e Minha viagem (RF-E6, CA16,
     expect(menuOf(DRIVER_AND_SEPARATOR_PERMISSIONS).operations).toContain('driver-trip')
   })
 
-  test('o motorista-separador ainda tem os cinco itens do separador, mais Minha viagem', () => {
+  test('o motorista-separador tem os itens do separador, mais Minha viagem', () => {
     expect([...flatKeysOf(DRIVER_AND_SEPARATOR_PERMISSIONS)].sort()).toEqual(
-      ['driver-trip', 'fleet', 'nfe', 'pendencias', 'trip', 'trip-occurrences'].sort(),
+      [
+        'delivery-clients',
+        'driver-trip',
+        'fleet',
+        'nfe',
+        'pendencias',
+        'trip',
+        'trip-occurrences',
+      ].sort(),
     )
   })
 
@@ -286,7 +294,7 @@ describe('o estado do menu enquanto as permissões chegam (RF-B3, RF-B4)', () =>
     expect(state.kind).toBe('ready')
     expect(
       state.kind === 'ready' ? state.groups.flatMap((group) => group.items.length) : [],
-    ).toEqual([2, 1, 2])
+    ).toEqual([2, 1, 3])
   })
 
   test('refetch com falha mantém o menu das permissões que já chegaram', () => {

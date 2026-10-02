@@ -10,8 +10,8 @@ Cadastros (4), Usuários (2) e Administração (1). O único `permissions` do ar
 redirecionamento do motorista (`:507`), nunca ao menu. Um **separador** — quem monta a viagem no
 barracão, com `invoices.read`, `fleet.read`, `trip.read`, `trip.manage` e `cargo.measure` — vê, e
 pode clicar, em CT-e, MDF-e, Faturamento, NFS-e, Operações, Empresa, Acessos, Papéis e grupos,
-Perfis CT-e, Frete, Clientes, Repasses, Ressarcimentos e Resultados. **Cinco das dezenove portas
-são dele; quatorze não.**
+Perfis CT-e, Frete, Repasses, Ressarcimentos e Resultados. **Seis das dezenove portas são dele;
+treze não.**
 
 Isso foi relatado como defeito crítico de produção em 2026-10-01 ("os botões de CT-e não podem
 aparecer para quem carrega"), e a investigação encontrou os gates de conteúdo todos corretos: a API
@@ -129,28 +129,28 @@ Como **separador**, quero abrir o painel já na listagem de viagens, porque é d
   de origem anotados ao lado de cada entrada, no molde de `state-gates.contract.ts` (que transcreve
   a máquina de estados do backend). O valor verificado em 2026-10-01 é:
 
-  | Item do menu    | Chave              | Abre com                                | Origem verificada                                      |
-  | --------------- | ------------------ | --------------------------------------- | ------------------------------------------------------ |
-  | NF-e            | `nfe`              | `invoices.read`                         | `nfeWorkspaceViewModel.service.ts:28`                  |
-  | Frete           | `freight`          | `settings.manage`                       | `freightViewModel.service.ts:38`                       |
-  | CT-e            | `cte-batch`        | `cte.manage` ou `cte.submit`            | `CteBatchWorkspace.page.tsx:75`                        |
-  | Viagens         | `trip`             | `fleet.read` ou `trip.report-on-behalf` | `canReadTrip` (`trip.constant.ts`)                     |
-  | MDF-e           | `mdfe-manifest`    | `mdfe.read`                             | `useMdfeManifests.hook.ts:63`                          |
-  | Faturamento     | `billing`          | `billing.read`                          | `billingViewModel.service.ts:25`                       |
-  | NFS-e           | `nfse-invoice`     | `nfse.read` ou `settings.manage`        | ✔ `NfseInvoiceWorkspace.page.tsx:64-66` — duas abas   |
-  | Operações       | `operations`       | `operations.read`                       | `operationsViewModel.service.ts:10`                    |
-  | Ocorrências     | `trip-occurrences` | `fleet.read`                            | CLAUDE.md § "a tela de `/ocorrencias` … em fleet.read" |
-  | Empresa         | `company-settings` | `settings.manage`                       | ✔ `company-settings.routes.ts:22` — o GET exige       |
-  | Acessos         | `users`            | `users.manage`                          | `companyUsers.constant.ts:4`                           |
-  | Papéis e grupos | `access-profiles`  | `groups.manage`                         | `companyUsers.constant.ts:8`                           |
-  | Perfis CT-e     | `cte-profiles`     | `settings.manage`                       | `cteProfiles.constant.ts:3`                            |
-  | Frota           | `fleet`            | `fleet.read`                            | `useFleet.hook.ts`                                     |
-  | Pendências      | `pendencias`       | `fleet.read`                            | `usePendingItems.hook.ts:17`                           |
-  | Clientes        | `delivery-clients` | `fleet.manage`                          | `useDeliveryClients.hook.ts:16`                        |
-  | Repasses        | `extra-charges`    | `billing.create` ou `trip.financials`   | ⚠️ intenção — a API lê com `trip.read` (nota abaixo)   |
-  | Ressarcimentos  | `reimbursements`   | `trip.financials`                       | `useOccurrenceReimbursements.hook.ts:20`               |
-  | Resultados      | `trip-financials`  | `trip.financials`                       | `FinancialResultsWorkspace.page.tsx:27`                |
-  | Minha viagem    | `driver-trip`      | `trip.report`                           | entrada nova no menu (RF-E6)                           |
+  | Item do menu    | Chave              | Abre com                                | Origem verificada                                           |
+  | --------------- | ------------------ | --------------------------------------- | ----------------------------------------------------------- |
+  | NF-e            | `nfe`              | `invoices.read`                         | `nfeWorkspaceViewModel.service.ts:28`                       |
+  | Frete           | `freight`          | `settings.manage`                       | `freightViewModel.service.ts:38`                            |
+  | CT-e            | `cte-batch`        | `cte.manage` ou `cte.submit`            | `CteBatchWorkspace.page.tsx:75`                             |
+  | Viagens         | `trip`             | `fleet.read` ou `trip.report-on-behalf` | `canReadTrip` (`trip.constant.ts`)                          |
+  | MDF-e           | `mdfe-manifest`    | `mdfe.read`                             | `useMdfeManifests.hook.ts:63`                               |
+  | Faturamento     | `billing`          | `billing.read`                          | `billingViewModel.service.ts:25`                            |
+  | NFS-e           | `nfse-invoice`     | `nfse.read` ou `settings.manage`        | ✔ `NfseInvoiceWorkspace.page.tsx:64-66` — duas abas        |
+  | Operações       | `operations`       | `operations.read`                       | `operationsViewModel.service.ts:10`                         |
+  | Ocorrências     | `trip-occurrences` | `fleet.read`                            | CLAUDE.md § "a tela de `/ocorrencias` … em fleet.read"      |
+  | Empresa         | `company-settings` | `settings.manage`                       | ✔ `company-settings.routes.ts:22` — o GET exige            |
+  | Acessos         | `users`            | `users.manage`                          | `companyUsers.constant.ts:4`                                |
+  | Papéis e grupos | `access-profiles`  | `groups.manage`                         | `companyUsers.constant.ts:8`                                |
+  | Perfis CT-e     | `cte-profiles`     | `settings.manage`                       | `cteProfiles.constant.ts:3`                                 |
+  | Frota           | `fleet`            | `fleet.read`                            | `useFleet.hook.ts`                                          |
+  | Pendências      | `pendencias`       | `fleet.read`                            | `usePendingItems.hook.ts:17`                                |
+  | Clientes        | `delivery-clients` | `fleet.read`                            | ✔ `delivery-client.routes.ts:38` — `fleet.manage` é edição |
+  | Repasses        | `extra-charges`    | `billing.create` ou `trip.financials`   | ⚠️ intenção — a API lê com `trip.read` (nota abaixo)        |
+  | Ressarcimentos  | `reimbursements`   | `trip.financials`                       | `useOccurrenceReimbursements.hook.ts:20`                    |
+  | Resultados      | `trip-financials`  | `trip.financials`                       | `FinancialResultsWorkspace.page.tsx:27`                     |
+  | Minha viagem    | `driver-trip`      | `trip.report`                           | entrada nova no menu (RF-E6)                                |
 
   ⚠️ **A primeira task reconfere cada linha contra o código antes de escrever o mapa.** A tabela é
   ponto de partida medido, não verdade transcrita de memória. As duas entradas que estavam em aberto
@@ -263,8 +263,8 @@ Como **separador**, quero abrir o painel já na listagem de viagens, porque é d
   Viagens pela RF-C6. Mas hoje ela não tem como chegar na própria viagem: "Minha viagem" está **fora**
   dos grupos do menu de propósito (`main.tsx:134`, "quem é do campo não navega por menu"), e essa
   premissa deixa de valer para quem é das duas coisas. Então o item **passa a aparecer no menu para
-  quem tem `trip.report`** — e só para esses, o que mantém o menu do separador puro com os cinco itens
-  da CA01. Com o interruptor ligado ele leva ao app do motorista (`/minha-viagem` é entrada de
+  quem tem `trip.report`** — e só para esses, então o separador puro continua com os itens da CA01, sem
+  "Minha viagem". Com o interruptor ligado ele leva ao app do motorista (`/minha-viagem` é entrada de
   motorista, e a precedência da RF-E2 continua valendo); desligado, à tela antiga que o painel serve.
 
 ## Requisitos não funcionais
@@ -301,8 +301,8 @@ Como **separador**, quero abrir o painel já na listagem de viagens, porque é d
 
 1. **CA01.** Dado o conjunto de permissões do `separator` transcrito de `authorization.policy.ts`
    (`invoices.read`, `fleet.read`, `trip.read`, `trip.manage`, `cargo.measure`), o menu tem
-   exatamente cinco itens — NF-e, Viagens, Ocorrências, Frota, Pendências — e dois grupos, Fiscal e
-   Operações mais Cadastros conforme a tabela da RF-A3 resolver.
+   exatamente seis itens — NF-e, Viagens (Fiscal), Ocorrências (Operações), Frota, Pendências e
+   Clientes (Cadastros) — e três grupos; **Usuários** e **Administração** não são renderizados.
 2. **CA02.** Com as permissões do `company-admin`, nenhum item desaparece em relação a hoje.
 3. **CA03.** Com as permissões do `fiscal`, o grupo Usuários não aparece, e CT-e, MDF-e e NFS-e
    aparecem.
@@ -381,6 +381,12 @@ Como **separador**, quero abrir o painel já na listagem de viagens, porque é d
   primeiro item do menu e não é onde o barracão começa o dia (RF-C6). A preferência é uma lista curta
   no código, avaliada em ordem. Guardar "a tela inicial **de cada usuário**" continua fora — isso é
   configuração, e configuração é spec própria.
+- **D11 — Clientes abre com `fleet.read`, e o separador o vê. ✔ Decidido pelo usuário em
+  2026-10-01.** A primeira versão usou `fleet.manage` e tirava a tela de `fiscal` e `viewer`, que a
+  abrem em leitura — e o único motivo era fazer o menu do separador fechar em cinco itens, que é
+  argumento de teste, não de produto. O usuário confirmou que esses papéis podem ver Clientes, então
+  o mapa segue a permissão real da rota (`delivery-client.routes.ts:38`), `fleet.manage` fica como o
+  que sempre foi (edição), e o separador ganha o item junto. A CA01 passou a afirmar seis.
 - **D6 — Errar escondendo.** Nos dois estados de incerteza (carregando, erro de leitura) o menu
   mostra menos, nunca mais. É a direção reversível.
 - **D7 — O motorista é levado, não barrado.** Conta de campo poderia receber a tela de sem acesso,

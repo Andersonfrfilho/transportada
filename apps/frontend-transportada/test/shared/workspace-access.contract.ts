@@ -49,7 +49,7 @@ const EXPECTED_WORKSPACE_PERMISSIONS: Readonly<Record<string, readonly string[]>
   // usePendingItems.hook.ts:28
   pendencias: ['fleet.read'],
   // useDeliveryClients.hook.ts:91 — governa a edição; a página abre em leitura com fleet.read
-  'delivery-clients': ['fleet.manage'],
+  'delivery-clients': ['fleet.read'],
   // ⚠️ intenção de produto, não transcrição (spec 221 D4): a API lê com trip.read e a página não
   // tem parede. `trip.manage` deixaria o separador entrar; trip.financials é a permissão de
   // dinheiro que o operator tem e o separator não (authorization.policy.ts, ADR-0049 §6)
@@ -171,7 +171,14 @@ describe('visibleWorkspaceKeys', () => {
   test('segue a ordem de WORKSPACE_NAVIGATION_ITEMS, não a das permissões', () => {
     const keys = visibleWorkspaceKeys(['fleet.read', 'invoices.read'])
 
-    expect(keys).toEqual(['nfe', 'trip', 'trip-occurrences', 'fleet', 'pendencias'])
+    expect(keys).toEqual([
+      'nfe',
+      'trip',
+      'trip-occurrences',
+      'fleet',
+      'pendencias',
+      'delivery-clients',
+    ])
   })
 
   test('não repete chave quando duas permissões abrem o mesmo workspace', () => {
