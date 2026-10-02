@@ -147,6 +147,98 @@ describe('convite de usuário — vínculo com fleet_drivers', () => {
     })
   })
 
+  // Spec 234 D2/D8: o ajudante convidado casa a ficha órfã e ela passa a refletir o perfil
+  testWithPostgres('convidar um ajudante deixa a ficha órfã só ajudando', async () => {
+    await withDisposableDatabase(async ({ db }) => {
+      const companyId = await seedCompany(db)
+      const driverId = await seedDriver(db, { companyId, membershipId: null })
+
+      const repository = new DrizzleCompanyUserRepository(db)
+      const { linkedFleetDriverId, membershipId } = await repository.createInvitedUser(
+        buildInvite({ companyId, roles: ['helper'], taxId: DRIVER_TAX_ID }),
+      )
+
+      expect(linkedFleetDriverId).toBe(driverId)
+      expect(await readCrewCapabilities(db, driverId)).toEqual({
+        canActAsHelper: true,
+        canDrive: false,
+        version: 2n,
+      })
+      const [driver] = await db
+        .select({ membershipId: fleetDrivers.membershipId })
+        .from(fleetDrivers)
+        .where(eq(fleetDrivers.id, driverId))
+      expect(driver?.membershipId).toBe(membershipId)
+    })
+  })
+
+  testWithPostgres('helper com motorista mantém a ficha dirigindo e liga o ajudar', async () => {
+    await withDisposableDatabase(async ({ db }) => {
+      const companyId = await seedCompany(db)
+      const driverId = await seedDriver(db, { companyId, membershipId: null })
+
+      const repository = new DrizzleCompanyUserRepository(db)
+      await repository.createInvitedUser(
+        buildInvite({ companyId, roles: ['driver', 'helper'], taxId: DRIVER_TAX_ID }),
+      )
+
+      expect(await readCrewCapabilities(db, driverId)).toEqual({
+        canActAsHelper: true,
+        canDrive: true,
+        version: 2n,
+      })
+    })
+  })
+
+  testWithPostgres('convidar motorista não mexe nas colunas nem na versão', async () => {
+    await withDisposableDatabase(async ({ db }) => {
+      const companyId = await seedCompany(db)
+      const driverId = await seedDriver(db, { companyId, membershipId: null })
+
+      const repository = new DrizzleCompanyUserRepository(db)
+      await repository.createInvitedUser(
+        buildInvite({ companyId, roles: ['driver'], taxId: DRIVER_TAX_ID }),
+      )
+
+      expect(await readCrewCapabilities(db, driverId)).toEqual({
+        canActAsHelper: false,
+        canDrive: true,
+        version: 1n,
+      })
+    })
+  })
+
+  testWithPostgres(
+    'ajudante convidado não altera ficha vinculada nem de outra empresa',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const companyId = await seedCompany(db)
+        const otherCompanyId = await seedCompany(db)
+        const first = await new DrizzleCompanyUserRepository(db).createInvitedUser(
+          buildInvite({ companyId, roles: ['driver'], taxId: '' }),
+        )
+        const linkedDriverId = await seedDriver(db, { companyId, membershipId: first.membershipId })
+        const otherDriverId = await seedDriver(db, {
+          companyId: otherCompanyId,
+          membershipId: null,
+        })
+
+        const { linkedFleetDriverId } = await new DrizzleCompanyUserRepository(
+          db,
+        ).createInvitedUser(buildInvite({ companyId, roles: ['helper'], taxId: DRIVER_TAX_ID }))
+
+        expect(linkedFleetDriverId).toBeNull()
+        for (const driverId of [linkedDriverId, otherDriverId]) {
+          expect(await readCrewCapabilities(db, driverId)).toEqual({
+            canActAsHelper: false,
+            canDrive: true,
+            version: 1n,
+          })
+        }
+      })
+    },
+  )
+
   testWithPostgres('o vínculo aparece na membership da empresa que convidou', async () => {
     await withDisposableDatabase(async ({ db }) => {
       const companyId = await seedCompany(db)

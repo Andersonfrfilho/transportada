@@ -12,7 +12,11 @@ import {
 import { auditLogs } from '../../database/fiscal-operation.schema.js'
 import { loginIdentifiers } from '../../database/login-identifier.schema.js'
 import { projectLoginIdentifiers } from '../domain/login-identifier-projection.policy.js'
-import { reconcileFleetCrewCapabilities } from '../domain/fleet-role-reconciliation.policy.js'
+import { FLEET_LINKED_ROLES } from '../domain/fleet-linked-roles.constant.js'
+import {
+  reconcileFleetCrewCapabilities,
+  resolveInvitedFleetCrewCapabilities,
+} from '../domain/fleet-role-reconciliation.policy.js'
 import { jobExecutions, jobSchedules } from '../../database/job-schedule.schema.js'
 import type { JobOutcome, ScheduledJob } from '../../shared/job-catalog.constant.js'
 import type { CompanyUserIdentifier } from '../application/company-user.port.js'
@@ -105,9 +109,6 @@ const MEMBERSHIP_REMOVED_PERMISSION = 'users.manage'
 const DEFAULT_CONTACT_CHANNEL = 'email' as const
 
 const TAX_ID_CONSTRAINT = 'identity_user_profiles_tax_id_unique'
-
-/** Papéis cuja pessoa tem ficha em `fleet_drivers` — é por eles que o vínculo é procurado. */
-const FLEET_LINKED_ROLES: readonly CompanyRole[] = ['driver', 'aggregate']
 
 const USERNAME_CONSTRAINT = 'identity_user_profiles_username_key'
 
@@ -1088,16 +1089,36 @@ async function linkFleetDriver(
   if (input.taxId === '') return null
   if (!input.roles.some((role) => FLEET_LINKED_ROLES.includes(role))) return null
 
+  const orphanFilter = and(
+    eq(fleetDrivers.companyId, input.companyId),
+    eq(fleetDrivers.taxId, input.taxId),
+    isNull(fleetDrivers.membershipId),
+  )
+  const [orphan] = await transaction
+    .select({
+      canActAsHelper: fleetDrivers.canActAsHelper,
+      canDrive: fleetDrivers.canDrive,
+      id: fleetDrivers.id,
+    })
+    .from(fleetDrivers)
+    .where(orphanFilter)
+    .for('update')
+  if (orphan === undefined) return null
+
+  const reconciliation = resolveInvitedFleetCrewCapabilities({
+    current: orphan,
+    roles: input.roles,
+  })
   const [linked] = await transaction
     .update(fleetDrivers)
-    .set({ membershipId: input.membershipId, updatedAt: new Date() })
-    .where(
-      and(
-        eq(fleetDrivers.companyId, input.companyId),
-        eq(fleetDrivers.taxId, input.taxId),
-        isNull(fleetDrivers.membershipId),
-      ),
-    )
+    .set({
+      membershipId: input.membershipId,
+      updatedAt: new Date(),
+      ...(reconciliation.kind === 'changed'
+        ? { ...reconciliation.capabilities, version: sql`${fleetDrivers.version} + 1` }
+        : {}),
+    })
+    .where(and(orphanFilter, eq(fleetDrivers.id, orphan.id)))
     .returning({ id: fleetDrivers.id })
 
   return linked?.id ?? null

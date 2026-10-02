@@ -52,6 +52,29 @@ export function reconcileFleetCrewCapabilities({
   return { capabilities: { canActAsHelper, canDrive }, kind: 'changed' }
 }
 
+/**
+ * Spec 234 D2 no convite: a ficha órfã que o convite vincula ganha as colunas do perfil quando o papel
+ * é `helper` — só ajuda se não houver papel de quem dirige. Convite sem `helper` mantém o comportamento
+ * de sempre e não toca as colunas.
+ */
+export function resolveInvitedFleetCrewCapabilities(params: {
+  readonly current: FleetCrewCapabilities
+  readonly roles: readonly CompanyRole[]
+}): ReconcileFleetCrewCapabilitiesResult {
+  if (!params.roles.includes(HELPER_ROLE)) return { kind: 'unchanged' }
+  const capabilities = {
+    canActAsHelper: true,
+    canDrive: params.roles.some((role) => DRIVING_ROLES.includes(role)),
+  }
+  if (
+    capabilities.canDrive === params.current.canDrive &&
+    capabilities.canActAsHelper === params.current.canActAsHelper
+  ) {
+    return { kind: 'unchanged' }
+  }
+  return { capabilities, kind: 'changed' }
+}
+
 function resolveCapability(input: {
   readonly current: boolean
   readonly isGranted: (roles: readonly CompanyRole[]) => boolean

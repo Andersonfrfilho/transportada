@@ -29,7 +29,7 @@ da app. Cada task fecha com typecheck, testes da app, commit isolado e evidênci
       schema de resposta). A ficha nasce com as colunas do perfil no `create` (criar ficha e convite não
       compartilham transação hoje); desligar `can_act_as_helper` num ajudante puro recebe
       `409 FLEET_DRIVER_PROFILE_EMPTY`, nunca 500.
-- [ ] **T5** `helper` em `ROLE_PERMISSIONS` (`trip.read`, D7) e em `FLEET_LINKED_ROLES` (D8); contrato
+- [x] **T5** `helper` em `ROLE_PERMISSIONS` (`trip.read`, D7) e em `FLEET_LINKED_ROLES` (D8); contrato
       de que não alcança `trip.report` nem frota.
 - [ ] **T6** Proposta de viagem e consulta de motoristas filtram `can_drive`; ajudantes seguem por
       `can_act_as_helper` (`drizzle-multi-vehicle-suggestion.repository.ts`); gêmeo de

@@ -311,3 +311,69 @@ migrado; `.env.test` aponta para 65434, vazio), `DATABASE_URL`/`DRIZZLE_TEST_DAT
 - Integração: fleet-driver-repository 3/0 · driver-score 8/0 · company-user-fleet-link 16/0 (0 skip).
 - `bun run typecheck` (raiz) sem erro · `bun run lint` (cwd `apps/api-transportada`) exit 0 ·
   `prettier --check` nos arquivos tocados limpo.
+
+## T5 — `helper` no convite (`FLEET_LINKED_ROLES`) e contrato de permissão
+
+Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+
+### O que mudou
+
+- **`trip.read` para o `helper` já estava na T1** (`COMPANY_ROLE_PERMISSIONS.helper`); a T5 só acrescenta o
+  contrato dela e a D8.
+- `FLEET_LINKED_ROLES` estava duplicado (`invite-company-user.use-case.ts` e
+  `drizzle-company-user.repository.ts`). Passou a **uma** constante,
+  `src/identity/domain/fleet-linked-roles.constant.ts` (`aggregate`, `driver`, `helper`), importada pelos
+  dois. Não deriva de `FLEET_DRIVER_PROFILES` para não acoplar identidade a frota; um contrato
+  (`fleet-role-reconciliation.contract.ts`: "são exatamente os perfis do cadastro de frota") mantém as
+  duas em sintonia.
+- Convite com `helper` e CPF casa a ficha órfã (`linkFleetDriver`) e responde `fleetLink: 'linked'`; sem
+  ficha, `'no-driver-record'` e o convite sai.
+- **Decisão (D2 no convite):** ao vincular a ficha órfã, `linkFleetDriver` agora lê a ficha com
+  `SELECT … FOR UPDATE` e aplica a política pura nova `resolveInvitedFleetCrewCapabilities`
+  (`fleet-role-reconciliation.policy.ts`): com `helper` nos papéis, `can_act_as_helper = true` e
+  `can_drive` = há `driver`/`aggregate` nos papéis; sem `helper`, **nada muda** (o convite de motorista
+  continua byte a byte como era, sem mexer em colunas nem em `version`). Mudou ⇒ `version + 1`. Não usei
+  `reconcileFleetCrewCapabilities` porque ela é por diferença de papéis: com papéis antigos vazios, um
+  `helper` sozinho deixaria `can_drive = true` numa ficha órfã de motorista, contra a D2 (perfil `helper`
+  ⇒ `can_drive = false`).
+- `test/helper-role.contract.test.ts` (molde do separador, entrou no script `test`): as rotas são as do
+  contrato do separador mais as do app do motorista (`/me`, cobrança de entrega), que é onde `trip.read` e
+  `trip.report` se separam.
+
+### Contrato vermelho antes do código
+
+Com o código de `src/identity` revertido e a constante apenas com o par antigo:
+`user-administration-application.contract.test.ts` → `0 pass · 1 fail` (o arquivo nem carrega: falta
+`resolveInvitedFleetCrewCapabilities`); `company-user-fleet-link.integration.ts` → `18 pass · 2 fail`
+(ajudante convidado deixa a ficha só ajudando; helper + motorista mantém a ficha dirigindo e liga o ajudar).
+O `helper-role` é verde de partida porque a permissão veio na T1; ele foi provado por mutação (abaixo).
+
+### Achado para o usuário (fora do escopo)
+
+`trip.read` é a permissão das rotas de **leitura do app do motorista**: o ajudante alcança
+`GET /me/trips/current`, `.../documents/:id/proof`, `.../manifests/:id` (e o DAMDFE),
+`.../occurrence-conversations`, `.../occurrences/:id/messages` (+ `POST .../messages/read`),
+`GET /delivery-charges` e `GET /delivery-clients/:id/charge-rules`. Nenhuma escrita (`trip.report`).
+O contrato lista as nove por extenso. Se a leitura de cobrança de entrega não for para o ajudante, é
+decisão de produto à parte (spec fora do escopo: "o que o `frontend-driver` mostra a ele").
+
+### Prova por mutação
+
+- `helper` fora do `if` da política (`!roles.includes(HELPER_ROLE)` removido) → `138 pass · 1 fail`.
+- `canDrive` da política fixo em `false` → `137 pass · 2 fail`; `canActAsHelper` em `false` → `136 pass · 3 fail`.
+- `helper` fora de `FLEET_LINKED_ROLES` → `136 pass · 3 fail` (sintonia + as duas do convite).
+- Repositório sem `version + 1` → integração `18 pass · 2 fail`; sem usar a política → `18 pass · 2 fail`.
+- `'helper'` trocado por outro literal na política → `132 pass · 7 fail`.
+- Permissão `helper` com `trip.report` (ou `fleet.read`) → `helper-role` `1 pass · 4 fail`.
+
+### Gates
+
+Postgres 18.4 nativo descartável (porta 65435), `DATABASE_URL`/`DRIZZLE_TEST_DATABASE_URL` no shell.
+
+- Contrato da API: `bun --env-file=../../.env.test test --timeout 120000` →
+  `8785 pass · 0 fail · Ran 8785 tests across 194 files` (0 skip; T4: 8773).
+- Integração, uma por vez, 0 skip: company-user-fleet-link 20/0 · company-user-listing 10/0 ·
+  company-user-removal 4/0 · identity-subject-relink 2/0 · invitation-status-join 1/0 ·
+  local-identity-seed 5/0 · fleet-driver-repository 3/0.
+- `bun run typecheck` (raiz) exit 0 · `bun run lint` (cwd `apps/api-transportada`) exit 0 ·
+  `prettier --check` limpo.

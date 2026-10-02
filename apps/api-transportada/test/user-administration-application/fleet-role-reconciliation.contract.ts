@@ -5,8 +5,11 @@ import { describe, expect, test } from 'bun:test'
 
 import type { CompanyRole } from '../../src/database/identity.schema.js'
 import { FleetDriverProfileEmptyError } from '../../src/fleet/domain/fleet.error.js'
+import { FLEET_DRIVER_PROFILES } from '../../src/fleet/domain/fleet-driver-profile.constant.js'
+import { FLEET_LINKED_ROLES } from '../../src/identity/domain/fleet-linked-roles.constant.js'
 import {
   reconcileFleetCrewCapabilities,
+  resolveInvitedFleetCrewCapabilities,
   type FleetCrewCapabilities,
 } from '../../src/identity/domain/fleet-role-reconciliation.policy.js'
 
@@ -123,5 +126,62 @@ describe('reconciliação papel → colunas da ficha de frota', () => {
       capabilities: DRIVER_ONLY,
       kind: 'changed',
     })
+  })
+})
+
+/** Spec 234 D8: quem tem papel de frota procura a ficha pelo CPF, e o papel é o perfil da ficha. */
+describe('papéis que casam a ficha de frota no convite', () => {
+  test('são exatamente os perfis do cadastro de frota', () => {
+    expect([...FLEET_LINKED_ROLES].sort()).toEqual([...FLEET_DRIVER_PROFILES].sort())
+  })
+})
+
+/**
+ * Spec 234 D2 no convite: a ficha órfã que o convite vincula ganha as colunas do perfil quando o papel
+ * é `helper`; convite sem `helper` mantém o comportamento de sempre e não toca as colunas.
+ */
+describe('colunas da ficha órfã vinculada pelo convite', () => {
+  test('helper sozinho deixa a ficha só ajudando', () => {
+    expect(
+      resolveInvitedFleetCrewCapabilities({ current: DRIVER_ONLY, roles: ['helper'] }),
+    ).toEqual({
+      capabilities: HELPER_ONLY,
+      kind: 'changed',
+    })
+  })
+
+  test('helper com motorista ou agregado mantém quem dirige e liga o ajudar', () => {
+    for (const roles of [
+      ['helper', 'driver'],
+      ['aggregate', 'helper'],
+    ] as const) {
+      expect(resolveInvitedFleetCrewCapabilities({ current: HELPER_ONLY, roles })).toEqual({
+        capabilities: DRIVER_AND_HELPER,
+        kind: 'changed',
+      })
+    }
+  })
+
+  test('ficha que já está certa não muda', () => {
+    expect(
+      resolveInvitedFleetCrewCapabilities({ current: HELPER_ONLY, roles: ['helper'] }),
+    ).toEqual({ kind: 'unchanged' })
+    expect(
+      resolveInvitedFleetCrewCapabilities({
+        current: DRIVER_AND_HELPER,
+        roles: ['driver', 'helper'],
+      }),
+    ).toEqual({ kind: 'unchanged' })
+  })
+
+  test('convite sem helper não toca as colunas', () => {
+    expect(
+      resolveInvitedFleetCrewCapabilities({ current: HELPER_ONLY, roles: ['driver'] }),
+    ).toEqual({
+      kind: 'unchanged',
+    })
+    expect(
+      resolveInvitedFleetCrewCapabilities({ current: DRIVER_ONLY, roles: ['aggregate', 'fiscal'] }),
+    ).toEqual({ kind: 'unchanged' })
   })
 })
