@@ -66,10 +66,11 @@ em `evidence.md`. Contrato antes da implementação, **toda asserção nova prov
 ⚠️ **Bloqueada pela spec 228** (os dois eventos novos, D12) **e pela spec 206** (dona do `stop.departed`).
 Nenhum `[NEEDS CLARIFICATION]` aberto nesta spec.
 
-- [ ] **T5.0** Escrever a **spec 228** — "Foto do canhoto" e "Endereço da parada (geocodificado)" como eventos
+- [x] **T5.0** Escrever a **spec 228** — "Foto do canhoto" e "Endereço da parada (geocodificado)" como eventos
       (D12). Lê antes `specs/196-…`, `specs/206-…`, o ADR-0088 e a spec 218. Responde, **antes de qualquer
       migration**: de quem é o evento do endereço e quando nasce. Número 228 conferido contra `origin/staging`.
-      **Pare e pergunte antes de qualquer migration.**
+      **Pare e pergunte antes de qualquer migration.** Feita: `specs/228-a-foto-do-canhoto-e-o-endereco-viram-evento/`,
+      com uma `[NEEDS CLARIFICATION]` (N1) — os eventos novos da T5.3 esperam a 228.
 - [x] **T5.1** API: filtro por nota em `GET /trips/:id/timeline`, no servidor, com contrato de tenant e de
       permissão (`trip.event-location`). Não depende da 228.
 - [x] **T5.2** API: o raio na resposta do comprovante (D6), resolvido por contratante, sem

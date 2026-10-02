@@ -368,6 +368,19 @@ registrado como oportunidade: unificar as chaves.
   (conferência, pontualidade e "Canhoto pendente") pode apertar em 375 px — é o que a revisão tem de olhar.
 - Não criei CSS: os selos reaproveitam `.proofBadges` e as classes do `ProofReviewChip`.
 
+## T5.0 — Spec 228 escrita
+
+`specs/228-a-foto-do-canhoto-e-o-endereco-viram-evento/` (spec, plan, tasks, evidence). Número conferido livre em
+`origin/staging` e `origin/main` (o último em staging é a 225). Respostas que a D12 pedia antes de qualquer migration:
+
+- **Foto do canhoto**: derivada na leitura de `trip_delivery_proofs` (`kind = 'photo'`), que já tem instante, ponto,
+  estado, autor, canal, expurgo e lista de leitores — **sem** tabela, coluna nem migration (228 D1). Revisa a
+  estimativa da D12, não a decisão: o evento existe na linha do tempo (`document.canhoto_photo`).
+- **Endereço**: evento **da parada**, nascido de cada correção humana (`geocoded_address_corrections`) ou refino
+  pedido no painel (`geocoding_refinement_requests`, `refined`) da mesma empresa, depois da criação da parada (228
+  D4) — também **sem** migration. A geocodificação automática não deixa rastro por empresa (`geocoded_addresses` é
+  global e o `geocoded_at` é sobrescrito); incluí-la exige migration e ficou como **N1** da 228, com recomendação "não".
+
 ## T5.1 — `GET /trips/:id/timeline?documentId=` filtra por nota no servidor
 
 **Desenho (D7).** Query param `documentId` (UUID, opcional). Aplicado no SQL das fontes que carregam nota:
