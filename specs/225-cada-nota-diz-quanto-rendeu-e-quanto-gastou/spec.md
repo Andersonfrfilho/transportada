@@ -134,10 +134,12 @@ rateio do frete nem por peso.
 
 ## Requisitos funcionais
 
-- **RF1** `GET /trips/:id/valuation` devolve, por nota: `freightAmount` (já existe), `legCostAmount`,
+- **RF1** `GET /trips/:id/valuation` devolve, por nota: o frete em `amount` (já existe — ⚠️ a linha de
+  receita chama o frete de `amount`, **não** `freightAmount`; `freightAmount` é o nome interno do
+  resultado da política, e a T2.2 faz o mapeamento), `legCostAmount`,
   `tripShareCostAmount`, `costAmount` (soma das duas), `taxAmount`, `marginAmount`,
   `marginPercentage` e `costBasis` (`'leg'` quando houve roteiro, `'unavailable'` quando não).
-- **RF2** `Σ (costAmount + taxAmount) == totalCost`, `Σ freightAmount == totalRevenue` e
+- **RF2** `Σ (costAmount + taxAmount) == totalCost`, `Σ amount == totalRevenue` e
   `Σ marginAmount == totalMargin`, com o resto de arredondamento na nota de maior gasto. `costAmount` é
   só operação (trecho + rateio); imposto vive em `taxAmount`, para a tela separar as naturezas como já
   separa hoje.
@@ -160,7 +162,7 @@ rateio do frete nem por peso.
 ## Critérios de aceite
 
 - **CA01** Viagem com três paradas e cinco notas: `Σ (costAmount + taxAmount)` é igual ao `totalCost`
-  ao centavo, `Σ freightAmount` ao `totalRevenue` e `Σ marginAmount` ao `totalMargin`.
+  ao centavo, `Σ amount` ao `totalRevenue` e `Σ marginAmount` ao `totalMargin`.
 - **CA02** Nota entregue na primeira parada tem gasto de trecho **menor** que nota entregue na última,
   com o mesmo frete — é a prova de que distância e tempo entraram na conta.
 - **CA03** Viagem com retorno: o rateio de viagem é maior que zero em toda nota, e a soma continua

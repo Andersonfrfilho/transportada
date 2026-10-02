@@ -41,7 +41,7 @@ em `evidence.md`.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T2.1** Contrato da resposta, em `test/trip-valuation/document-figures.contract.ts`: os campos
+- [x] **T2.1** Contrato da resposta, em `test/trip-valuation/document-figures.contract.ts`: os campos
       do RF1 presentes com `trip.financials`; **ausentes** sem a permissão; ausentes na resposta do
       portal da contratante. Aceite: vermelho pelo motivo certo.
 

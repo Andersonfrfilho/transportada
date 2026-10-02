@@ -119,3 +119,84 @@ acaso de números redondos — tirar a correção de resto quebra cinco asserç�
 
 A integração não foi rodada nesta task, e não precisa: a política é função pura, sem I/O. Ela entra na
 T2.2, quando a resposta passar a carregar os campos.
+
+## T2.1 — o contrato da resposta
+
+Executada por subagente `executor` em `sonnet`; gates conferidos por mim depois. `git status` confirma
+`src/` intacto — só três arquivos de teste.
+
+### O que entrou
+
+- `test/trip-valuation/document-figures.contract.ts` (novo, 23 testes), importado por
+  `test/trip-valuation.contract.test.ts` — que já está no script `test` do `package.json`.
+- `test/fixtures/trip-http.fixture.ts`: um parâmetro opcional `readValuationExecute`, no molde do
+  `readTripRouteGeometryExecute` que já existia. Sem o parâmetro, o fixture se comporta como antes.
+
+O contrato roda o **caso de uso real atrás da rota real**, com permissões reais: três paradas, cinco
+notas, frete de 10%, ICMS de 20 por nota, segunda parada esperando 30 min. Custo total 640, dos quais
+100 são imposto — de propósito, para que uma conta que esquecesse o imposto ficasse fora por 100.
+
+### A permissão é afirmada por papel real, não por texto da fonte
+
+O contrato itera sobre `COMPANY_ROLE_PERMISSIONS`, o catálogo real: papel sem `trip.financials` recebe
+403 e o caso de uso **não é chamado**; papel com a permissão recebe 200 com os oito campos. Há um
+teste-guarda para o laço não passar vazio — existe papel que vê e papel que não vê. Isso evita o defeito
+que esta base já registrou: `toContain('trip.financials')` no texto do arquivo não prende regra
+nenhuma.
+
+`sumOf` **lança** quando o campo está ausente, em vez de tratar `undefined` como zero. Sem isso a soma
+poderia "fechar" por acidente.
+
+### Uma divergência de nome que a spec tinha errado
+
+O RF1 dizia que `freightAmount` "já existe" na linha de receita. Não existe: `TripRevenueLine` chama o
+frete de **`amount`** (`trip-valuation.policy.ts:240`), e `freightAmount` é o nome interno do resultado
+da política. Spec corrigida; a T2.2 faz o mapeamento. Afirmar a chave errada teria produzido um
+vermelho que parece defeito de implementação e é defeito de spec.
+
+### Vermelho pelo motivo certo
+
+**181 pass · 9 fail** no arquivo; **8550 pass · 23 skip · 9 fail** na app inteira, contra a referência
+de 8536 pass · 0 fail — ou seja **+14 passando** (os negativos e os guardas) e os 9 vermelhos todos
+deste arquivo. Nada que já passava quebrou.
+
+As 9 falhas são todas campo ausente na resposta: os oito campos em toda linha, `costBasis` esperado
+`'leg'`, `legCost + tripShare == cost`, as três somas do D4 e os três papéis que têm a permissão.
+
+### Os negativos nascem verdes, e por isso foram provados por mutação
+
+O fechamento da rota já existe, então os testes de "não vaza" passam de primeira — o que os tornaria
+inúteis sem prova. Duas sondas, aplicadas e desfeitas:
+
+| sonda                                                                 | o que reprovou                                                                                                        |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| política da rota de valoração trocada para `TRIP_MANAGE_POLICY`       | 4 testes a mais (13 contra 9), entre eles "o papel `separator` é recusado" e "quem só monta a viagem não recebe nada" |
+| `...delivery` espalhado no `serialize` da lista de entregas do portal | "a lista de entregas do portal é projeção fechada" (10 contra 9)                                                      |
+
+### O portal, provado em três camadas
+
+O portal não tem valoração hoje — `grep -iE "freight|cost|margin|valuation|financial|revenue"` em
+`src/contractor-portal` não acha nada. Provar ausência exigiria banco, então o contrato prova o que dá
+sem ele: (1) o papel `contractor` não tem `trip.financials`, e a rota de valoração lhe dá 403; (2) a
+lista de entregas do portal é alimentada com um objeto carregando **todas** as chaves do RF1 mais um
+sentinela `777.7777`, e nenhuma sai em qualquer profundidade; (3) o mesmo para a lista de ocorrências.
+Vale porque o `serialize` do portal é projeção explícita campo a campo.
+
+### O que ficou declaradamente fora
+
+- A camada **SQL** do portal (`contractor-occurrence.query.ts`, `contractor-delivery.query.ts`) não é
+  exercitada em contrato; a prova fica para a integração da T2.2.
+- `POST /trips/valuation-preview` usa o mesmo `buildValuationFromContext`, então ganha os campos na
+  T2.2; o 403 dela não foi coberto porque o fixture HTTP não tem a dependência `previewValuation`.
+- O RF9 foi afirmado como "`timeBasis` é um dos valores de `TIME_BASES`", não valor a valor — cada caso
+  de espera já tem teste na política da Fase 1.
+- Mutação nas **somas** do D4 sobre a resposta montada: só faz sentido quando a T2.2 existir.
+
+### Portões
+
+| Portão                                        | Resultado                                                    |
+| --------------------------------------------- | ------------------------------------------------------------ |
+| `bun run typecheck` (api)                     | exit 0                                                       |
+| `bun run lint` (api)                          | exit 0                                                       |
+| `test ./test/trip-valuation.contract.test.ts` | **181 pass · 9 fail · 798 expect()** — vermelho pretendido   |
+| contrato inteiro da API                       | **8550 pass · 23 skip · 9 fail** (referência: 8536 · 0 fail) |
