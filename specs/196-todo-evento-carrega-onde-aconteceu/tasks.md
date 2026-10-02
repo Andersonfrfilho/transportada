@@ -348,9 +348,18 @@ do usuário. A API não é revertida com a app nova no ar.
       local) — nunca `INSERT` cru —, com **coordenadas sintéticas** (um ponto de teste, não uma
       posição real). Mostrar os estados do RF10, o mapa expandido e a visão do `finance` (estado sem
       coordenada). Aceite: prints em 1280 e 375 px em `prints/` e o **ok do usuário** antes de subir.
-- [ ] **T6.4** O validador do painel passa a **exigir** `location` e `locationState` (a API já as
+- [x] **T6.4** O validador do painel passa a **exigir** `location` e `locationState` (a API já as
       manda desde o push 2). Aceite: contrato da T4.0 ajustado (item sem as chaves falha); `check`
       verde.
+
+  > Fechada em `5c2d54ff7`. Conferido antes de exigir, não assumido: as **três** consultas emitem as
+  > chaves pelo spread de `NO_EVENT_LOCATION`, o recorte por permissão apaga o valor e preserva a
+  > chave, e `29510bbae` (o commit que as publicou na API) está em `main`, não só em `staging`.
+  > O escopo incluiu o **tipo** — `TripTimelineItem` marcava as duas como `?`, e um opcional sobre
+  > campo que sempre chega só gera guarda morta. O `exactOptionalPropertyTypes` apontou nove fixtures
+  > e **nenhum arquivo de produção**; dois contratos de payload cru só apareceram na suíte.
+  > 6166 pass · 0 fail · hooks 180 · typecheck, lint e `format:check` limpos. Detalhe e o alarme
+  > falso do `grep` em `evidence.md` § "T6.4 — a tolerância fechou".
 
 ## Fase 7 — Revisão de design, documentação viva, gates e medição
 

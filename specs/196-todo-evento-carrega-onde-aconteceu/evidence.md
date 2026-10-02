@@ -1066,3 +1066,54 @@ PLAYWRIGHT_FRONTEND_PORT=53110 PLAYWRIGHT_REUSE_EXISTING_FRONTEND_SERVER=false \
 | `test` (17.374) | 0     |
 | `build`         | 0     |
 | smoke da linha  | 5/5   |
+
+## T6.4 — a tolerância fechou, e o tipo deixou de mentir
+
+Fechada em `5c2d54ff7`.
+
+A T4.0 deixou `location` e `locationState` em `TRIP_TIMELINE_ITEM_OPTIONAL_KEYS` por um motivo com
+prazo: entre a subida da API e a do painel, exigir a chave exata recusaria a página inteira. O prazo
+venceu — e a verificação que autorizou fechar não foi "a spec disse que subiu", foi medida:
+
+- `NO_EVENT_LOCATION = { location: null, locationState: null }`
+  (`trips/application/trip-timeline.types.ts:110`) é espalhado pelas **três** consultas da linha do
+  tempo — `trip-timeline-status.query.ts` (4 usos), `trip-timeline-document.query.ts` (3) e
+  `trip-timeline-stop.query.ts` (2). O toque que nunca carimbou sai com as duas chaves em `null`,
+  nunca sem elas;
+- o recorte por permissão também preserva a forma: sem `trip.event-location`,
+  `read-trip-timeline.use-case.ts` devolve `{ ...item, location: null }` — apaga o valor, não a chave;
+- `29510bbae`, o commit que publicou as chaves na API, **está em `main`**, não só em `staging`
+  (`git merge-base --is-ancestor`). Exigir num painel servido por uma API de produção sem os campos
+  é que seria o defeito.
+
+⚠️ **Um alarme falso no caminho, que vale registrar.** Um `grep` por `location:` nas três consultas
+devolveu resultado só em `trip-timeline-stop.query.ts`, o que sugeria que status e documento não
+mandavam as chaves — e que exigir derrubaria metade da lista. Era o `grep` que estava errado: as
+outras duas emitem pelo spread da constante, e nenhum `location:` literal aparece nelas. Procurar o
+literal de uma chave encontra quem a escreve à mão, nunca quem a herda.
+
+O escopo foi além do validador de propósito. `TripTimelineItem` marcava as duas como `?`, e um tipo
+opcional sobre um campo que sempre chega obriga todo leitor a carregar guarda de `undefined` que
+nunca dispara. Com elas obrigatórias, o `exactOptionalPropertyTypes` apontou **nove** fixtures de
+contrato e nenhum arquivo de produção — a prova de que o código já tratava a forma certa. Dois outros
+contratos montam o payload **cru** (`Record<string, unknown>`), que o typecheck não alcança: esses só
+apareceram ao rodar a suíte, e são a razão de o portão de teste não ser substituível pelo de tipo.
+
+O contrato da T4.0 virou o seu oposto por emenda, não por remoção: `aceita o item sem as duas chaves`
+virou `recusa o item sem as duas chaves`, com os dois casos de meia-forma (só `location`, só
+`locationState`) que antes não existiam. Quatro testes vizinhos ganharam as chaves porque passariam
+**pelo motivo errado** sem elas — `recusa location com chave a mais` reprovaria por falta de
+`locationState`, não pela chave a mais, e um teste que passa pelo motivo errado é um teste que não
+cobre nada.
+
+| Portão                  | Saída                                |
+| ----------------------- | ------------------------------------ |
+| `format:check` (raiz)   | 0                                    |
+| `lint` (raiz)           | 0 erros (16 warnings pré-existentes) |
+| `typecheck` do painel   | 0                                    |
+| `test` do painel (6166) | 0                                    |
+| `test:hooks` (180)      | 0                                    |
+
+**O vermelho veio antes do verde.** Com o contrato ajustado e o código ainda intacto, a suíte deu
+`1 fail` em `recusa o item sem as duas chaves`; depois das três camadas (lista de chaves, validador,
+tipo), `0 fail`.
