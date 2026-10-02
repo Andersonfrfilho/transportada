@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { driverClockOffset } from '../shared/clockOffset.service'
 import { getDriverTripClient, toAttachmentSendOutcome } from '../shared/driverTripClient.service'
 import { readCurrentLocation } from '../shared/driverLocation.service'
 import { captureRegistry, persistWhileOpen } from '../shared/captureRegistry.service'
@@ -385,9 +386,9 @@ export function useDriverTrip(
         attachmentStore,
         ...(only === undefined ? {} : { only }),
         ownerSubHash: session.subHash,
-        send: async (report): Promise<AttachmentSendOutcome> => {
+        send: async (report, stamp): Promise<AttachmentSendOutcome> => {
           try {
-            await client.send(report)
+            await client.send(report, stamp)
             sentKeys.push(report.idempotencyKey)
             return { kind: 'sent' }
           } catch (error) {
@@ -399,6 +400,9 @@ export function useDriverTrip(
             const result = await client.attachProof({
               attachmentKey: attachment.attachmentKey,
               capturedAt: attachment.capturedAt,
+              ...(attachment.clockOffsetMs === undefined
+                ? {}
+                : { clockOffsetMs: attachment.clockOffsetMs }),
               documentId: attachment.documentId,
               file: new File([attachment.blob], attachment.fileName, {
                 type: attachment.blob.type,
@@ -564,6 +568,7 @@ export function useDriverTrip(
   function report(fieldReport: DriverFieldReport): Promise<DriverReportOutcome> {
     return persistWhileOpen(captureRegistry, async () => {
       const result = await enqueueReport({
+        clockOffsetMs: driverClockOffset.read(),
         isUnverified: !session.canSync,
         now: new Date(),
         report: fieldReport,
@@ -590,6 +595,7 @@ export function useDriverTrip(
     return persistWhileOpen(captureRegistry, async () => {
       const fieldReport = build(null)
       const result = await enqueueReport({
+        clockOffsetMs: driverClockOffset.read(),
         isUnverified: !session.canSync,
         now: new Date(),
         report: fieldReport,
@@ -638,6 +644,7 @@ export function useDriverTrip(
       }
 
       const result = await enqueueReports({
+        clockOffsetMs: driverClockOffset.read(),
         isUnverified: !session.canSync,
         now: new Date(),
         reports,
@@ -686,6 +693,7 @@ export function useDriverTrip(
       })
       const enqueue = (items: readonly DriverFieldReport[]) =>
         enqueueReports({
+          clockOffsetMs: driverClockOffset.read(),
           isUnverified: !session.canSync,
           now: new Date(),
           reports: items,
@@ -728,10 +736,12 @@ export function useDriverTrip(
     const attachmentKey = input.attachmentKey ?? createIdempotencyKey()
     /** Spec 212: a foto nasce marcada — nenhuma drenagem a leva antes da versão leve. */
     const shouldReduce = shouldReduceProofFile({ file: input.file, kind: input.kind })
+    const clockOffsetMs = driverClockOffset.read()
     const attachment: QueuedAttachment = {
       attachmentKey,
       blob: input.file,
       capturedAt: new Date().toISOString(),
+      ...(clockOffsetMs === undefined ? {} : { clockOffsetMs }),
       documentId: input.documentId,
       fileName: input.file.name,
       kind: input.kind,

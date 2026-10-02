@@ -1,5 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/offlineAttachments.service.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { toEventClockStamp, type EventClockStamp } from './clockOffset.service'
 import type { DriverReportedLocation, ProofPunctuality } from './driverTrip.types'
 import type { DriverTripErrorDetail, OfflineQueueStore, QueuedReport } from './offlineQueue.service'
 
@@ -26,6 +27,8 @@ export type QueuedAttachment = Readonly<{
   attachmentKey: string
   blob: Blob
   capturedAt: string
+  /** Spec 234 D2: o desvio do relógio medido na captura (junto de `capturedAt`); ausente, a API usa o piso de hoje. */
+  clockOffsetMs?: number
   documentId: string
   fileName: string
   /** Spec 189 T9.2 ("Confirmar em lote"): capturado sem sessão — só sobe depois da confirmação. */
@@ -343,7 +346,10 @@ export async function drainQueueWithAttachments(input: {
    * conta. Sem dono, a drenagem é a de sempre.
    */
   readonly ownerSubHash?: string
-  readonly send: (report: QueuedReport['report']) => Promise<AttachmentSendOutcome>
+  readonly send: (
+    report: QueuedReport['report'],
+    stamp: EventClockStamp | undefined,
+  ) => Promise<AttachmentSendOutcome>
   readonly sendAttachment: (attachment: QueuedAttachment) => Promise<AttachmentSendOutcome>
   readonly store: OfflineQueueStore
 }): Promise<AttachmentDrainResult> {
@@ -371,7 +377,7 @@ export async function drainQueueWithAttachments(input: {
     if (item.isUnverified === true) blockedByUnverified = true
     if (networkDown || blockedByUnverified || !isTargeted || skipRejected) continue
 
-    const outcome = await input.send(item.report)
+    const outcome = await input.send(item.report, toEventClockStamp(item))
     if (outcome.kind === 'sent') {
       sentKeys.add(key)
       sent += 1
@@ -398,6 +404,7 @@ export async function drainQueueWithAttachments(input: {
         return [
           {
             attempts: item.attempts,
+            ...(item.clockOffsetMs === undefined ? {} : { clockOffsetMs: item.clockOffsetMs }),
             createdAt: item.createdAt,
             ...(item.isUnverified === true ? { isUnverified: true as const } : {}),
             rejectionCause: cause,
