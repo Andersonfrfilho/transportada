@@ -30,5 +30,21 @@ colunas. Sem `label`, a raiz é um `<span>`, porque o chamador já envolve tudo 
 
 Caixa quadrada (`border-radius: 0`) de `var(--space-5)`, borda `--color-slate`, preenchimento
 `--color-copper` quando marcada, check em `--color-asphalt`. Foco com o mesmo anel de cobre do
-select. Em ponteiro grosso a área clicável sobe para 44px sem mudar o tamanho da caixa. Só tokens —
-nenhum hexadecimal ou `rgb()` no CSS do componente.
+select. Só tokens — nenhum hexadecimal ou `rgb()` no CSS do componente.
+
+## Alvo de toque
+
+Em ponteiro grosso a área clicável sobe para `var(--touch-target)` (44px) **sem mudar o tamanho da
+caixa**, que continua em `var(--space-5)`. São três regras, e as três têm motivo:
+
+| Regra                  | Efeito                                          | Por quê                                                                          |
+| ---------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------- |
+| `.root.root`           | altura mínima de 44px em toda variante          | a classe **dobra** porque a regra base dobra — ver abaixo                        |
+| `span.root.root`       | largura mínima de 44px e caixa centrada         | sem rótulo a raiz tem a largura da caixa (20px); é a variante de linha de tabela |
+| `label span.root.root` | desfaz a largura quando a raiz está num `label` | ali o alvo é o `label` do chamador, e alargar só empurraria o texto do chip      |
+
+⚠️ **A classe dobra de propósito, e tirar a duplicação mata a regra.** A base é `.root.root`, e
+`@media` **não** soma especificidade: escrita como `.root`, a regra de toque perde para a base e
+não vale nada. Foi o que aconteceu — a regra existia desde a criação do primitivo, media 24px no
+navegador, e o contrato passava verde porque só procurava a string no arquivo. O contrato atual
+compara a especificidade dos dois seletores.
