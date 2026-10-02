@@ -87,3 +87,48 @@ implementação, e pelo motivo certo (a consulta filtra a viagem concluída para
 
 Os dois que passam (fora da janela não aparece; ativa continua) são o contrato que a implementação
 **não pode** quebrar.
+
+## T1.4 — A consulta aceita ativo ou concluído na janela (verde)
+
+`apps/api-transportada/src/trips/infrastructure/drizzle-current-driver-trip.repository.ts`: a
+constante `RECENTLY_CONCLUDED_TRIP_WINDOW_MINUTES = 15` nasce ao lado de
+`CURRENT_DRIVER_TRIP_STATUSES`, e o `where` de `listActiveTrips` passa a
+`status ativo OR (status em TRIP_TERMINAL_STATUSES AND updated_at >= now() - make_interval(mins => 15))`.
+Os status concluídos vêm de `TRIP_TERMINAL_STATUSES` (`database/trip.schema.ts:99`) — a constante
+que já existia; nada foi redeclarado.
+
+**Os dois usos de `inArray(trips.status, CURRENT_DRIVER_TRIP_STATUSES)`** no arquivo:
+
+| método                         | quem consome                                                                | muda?   |
+| ------------------------------ | --------------------------------------------------------------------------- | ------- |
+| `listActiveTrips` (linha ~264) | `findCurrentDriverTrip` → `GET /me/trips/current` e o fluxo de WhatsApp     | **sim** |
+| `readCurrent` (linha ~176)     | `startFieldTrip` — a viagem que os dois toques do campo alcançam (ADR-0058) | **não** |
+
+`readCurrent` decide a qual viagem o motorista aplica "iniciar trajeto"/despacho; com a concluída
+dentro dele, o toque poderia mirar uma viagem terminada. Fica só com o ativo.
+
+⚠️ **Efeito colateral achado e tratado.** `findCurrentDriverTrip` não serve só ao endpoint: o fluxo
+de WhatsApp do motorista (`register-driver-flow-actions.ts`, `currentTrip` e `findTripById`) o usa
+com `result.trips[0]`. Sem tratamento, o WhatsApp passaria a oferecer a viagem concluída como "em
+andamento" por 15 minutos. O fluxo agora descarta viagem em `TRIP_TERMINAL_STATUSES` antes de
+escolher (contrato novo em `test/whatsapp-commands/driver-flow-actions.contract.ts`; reprova sem o
+filtro — mutação feita à mão: 25 pass / 1 fail).
+
+**Dois testes antigos afirmavam o estado que a spec 224 muda** e foram ajustados, não os
+contornados: `me-trip.integration.ts` ("a última entrega conclui a viagem…", `trips` deixa de ser
+`[]` e passa a ser `['completed']`) e `whatsapp-driver-flow-actions.integration.ts` (idem, o lookup
+direto do use case).
+
+Comandos (de `apps/api-transportada`; o `.env.test` é o link simbólico da raiz do worktree):
+
+| comando                                                                                                                       | resultado                      |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/current-driver-trip-concluded-window.integration.ts` | **4 pass, 0 fail** (era 2/2)   |
+| `bun --env-file=../../.env.test test --timeout 120000` (contrato)                                                             | **8490 pass, 23 skip, 0 fail** |
+| `test:integration`, lista inteira do `package.json` (146 arquivos) em 3 lotes em primeiro plano                               | **800 pass, 8 skip, 0 fail**   |
+| `bunx tsc --noEmit`                                                                                                           | exit 0                         |
+| `bunx eslint` nos 6 arquivos tocados, `--max-warnings=0`                                                                      | limpo                          |
+
+A lista de integração foi partida em três (48 + 49 + 49 arquivos, 292 + 272 + 236 pass) só porque
+o primeiro plano tem teto de 10 min; os três saíram da própria lista de `test:integration`. Os 8
+skips estão fora dos arquivos tocados (os três arquivos de integração tocados: 24 pass, 0 skip).

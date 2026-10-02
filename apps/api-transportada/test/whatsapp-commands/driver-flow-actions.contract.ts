@@ -384,6 +384,30 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     expect(result).toEqual({ next: 'menu' })
   })
 
+  test('viagem concluída na lista do app não é viagem em andamento (spec 224)', async () => {
+    const { channel, sent } = buildChannel()
+    const result = await callAction({
+      channel,
+      deps: buildDeps({
+        findCurrentTrip: async () => {
+          const [trip] = buildDriverTrip({}).trips
+          if (trip === undefined) throw new Error('fixture sem viagem')
+
+          return {
+            isRegisteredDriver: true,
+            pendingProofs: [],
+            score: null,
+            trips: [{ ...trip, status: 'completed' }],
+          }
+        },
+      }),
+      kind: DRIVER_FLOW_ACTION_KIND.currentTrip,
+    })
+
+    expect(sent).toEqual([{ body: 'Você não tem viagem em andamento.', kind: 'text' }])
+    expect(result).toEqual({ next: 'menu' })
+  })
+
   test('conta sem cadastro de motorista recebe aviso diferente de "sem viagem"', async () => {
     const { channel, sent } = buildChannel()
     await callAction({

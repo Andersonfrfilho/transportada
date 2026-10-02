@@ -41,6 +41,7 @@ import {
   TripDocumentNotReachableError,
   TripStateTransitionNotAllowedError,
 } from '../../trips/domain/trip.error.js'
+import { TRIP_TERMINAL_STATUSES } from '../../database/trip.schema.js'
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import {
   DRIVER_FLOW_ACTION_KIND,
@@ -149,8 +150,22 @@ function toStepLabel(step: DriverFlowStep): string {
 export function createDriverWhatsAppFlowActions(
   deps: DriverFlowActionDependencies,
 ): readonly WhatsAppFlowActionDefinition[] {
+  /** Spec 224: a lista do app traz a concluída recente; a conversa só trabalha viagem em andamento. */
+  async function findCurrentTrip(
+    input: Parameters<DriverFlowActionDependencies['findCurrentTrip']>[0],
+  ): Promise<FindCurrentDriverTripResult> {
+    const result = await deps.findCurrentTrip(input)
+
+    return {
+      ...result,
+      trips: result.trips.filter(
+        (trip) => !(TRIP_TERMINAL_STATUSES as readonly string[]).includes(trip.status),
+      ),
+    }
+  }
+
   const currentTrip: WhatsAppAuthorizedActionHandler = async ({ actor, channel, session }) => {
-    const result = await deps.findCurrentTrip({
+    const result = await findCurrentTrip({
       companyId: actor.scope.companyId,
       membershipId: actor.scope.membershipId,
     })
@@ -499,7 +514,7 @@ export function createDriverWhatsAppFlowActions(
     readonly actor: Parameters<WhatsAppAuthorizedActionHandler>[0]['actor']
     readonly tripId: string
   }): Promise<DriverTrip | undefined> {
-    const result = await deps.findCurrentTrip({
+    const result = await findCurrentTrip({
       companyId: input.actor.scope.companyId,
       membershipId: input.actor.scope.membershipId,
     })
