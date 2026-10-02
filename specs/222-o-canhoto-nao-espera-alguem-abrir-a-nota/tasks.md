@@ -222,6 +222,11 @@ antes de o foco chegar ao botão de aprovar.
       Contrato: `test/trip-hooks/canhoto-batch-roving-focus.contract.ts` (18 casos), fechado com
       quatro mutações e revisão de design com print (`web.md` §15).
 
+- [x] T8.2 Conferência da T8.1 na tela real de staging (viagem `a6e7662d`, 4 canhotos pendentes):
+      mediu as 4 paradas de Tab, as setas, o Enter e a regra de toque viva no CSSOM. Achou e
+      corrigiu a dica de teclado posicionada **depois** da grade — 176 px fora da área visível com
+      quatro notas. Contrato de ordem no DOM, provado por mutação. Nada foi aprovado em staging.
+
 ## Prompt de execução
 
 ```text

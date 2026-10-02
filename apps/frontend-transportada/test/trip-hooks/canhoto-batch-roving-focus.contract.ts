@@ -140,6 +140,25 @@ describe('a navegação do maço de canhotos por teclado (spec 222 T8.1)', () =>
       expect(withEight).toBe(withThree)
     })
 
+    /**
+     * Medido em staging: com **quatro** canhotos a dica ficava 176 px abaixo da área visível, porque
+     * vinha depois da grade. Instrução de teclado atrás do que ela ensina a navegar não é instrução.
+     */
+    it('a dica de teclado vem antes da grade, não depois dela', async () => {
+      await renderDialog(THREE)
+
+      const hint = [...dialog().querySelectorAll('p')].find((p) =>
+        (p.textContent ?? '').includes('Setas andam'),
+      )
+      const grade = dialog().querySelector('ul')
+
+      expect(hint).toBeDefined()
+      expect(grade).not.toBeNull()
+      expect(
+        (hint?.compareDocumentPosition(grade as Node) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeGreaterThan(0)
+    })
+
     it('a grade inteira é uma parada: a primeira caixa de marcação', async () => {
       await renderDialog(THREE)
 

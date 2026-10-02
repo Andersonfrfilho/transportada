@@ -1302,3 +1302,38 @@ Decisão de produto, fora desta spec.
 O contrato novo esbarrou no contrato do design system: `test/design-system/checkbox.contract.ts`
 varre `src/` atrás da string `type="checkbox"`, e o `querySelector` do foco a continha. Trocado por
 `input` — o item tem um só.
+
+## T8.2 — a conferência na tela real de staging, e o que ela corrigiu
+
+A T8.1 foi medida num arnês local (componente e CSS reais, dados sintéticos). Conferida em staging,
+na viagem `a6e7662d` (CONCLUÍDA, 5 notas entregues, 4 canhotos aguardando conferência), com a conta
+do usuário:
+
+| O que                                     | Na tela real                                                        |
+| ----------------------------------------- | ------------------------------------------------------------------- |
+| Botão do maço                             | **"Conferir 4 canhotos"** — 5 notas marcadas, 4 elegíveis           |
+| Paradas de Tab no diálogo, com 4 canhotos | **4** — fechar, a primeira caixa, cancelar, aprovar                 |
+| `tabIndex` das caixas                     | `[0, -1, -1, -1]`                                                   |
+| `tabIndex` dos botões de foto             | `[-1, -1, -1, -1]`                                                  |
+| Fotos carregadas do storage               | 4 de 4                                                              |
+| Duas setas para baixo                     | foco 899872/2 → 899867/2, parada acompanhou, 4 de 4 seguem marcados |
+| Enter na nota em foco                     | abriu a galeria com a foto real daquela nota                        |
+| Caixa de marcação no desktop              | 20×24, inalterada                                                   |
+| Regra de toque no CSSOM da página viva    | as três, com a classe dobrada                                       |
+
+Nada foi aprovado: o botão "Aprovar 4 canhotos" não foi tocado, a seleção foi desfeita e o diálogo
+fechado por "Cancelar".
+
+**O defeito que só a tela real mostrou.** A dica de teclado estava **depois** da grade. Com apenas
+quatro canhotos ela ficava **176 px abaixo da área visível** do diálogo — para ler a instrução de
+como andar pelas notas era preciso rolar por todas elas primeiro. Com o teto de 40 seriam milhares
+de pixels. O arnês local não pegou porque a janela era mais alta e as imagens sintéticas, menores.
+
+Corrigido: a dica subiu para logo abaixo do subtítulo, antes da grade. O contrato novo afirma a
+**ordem no DOM** (`compareDocumentPosition`), e devolver a dica para depois da grade reprova
+(1 fail).
+
+**Observação não corrigida:** os cartões do maço têm alturas desiguais (346/346/346/233 px medidos),
+porque cada foto tem proporção própria e a grade usa `align-content: start`. É anterior a esta spec
+e não atrapalha a conferência — a foto aparece inteira, que é o que importa. Registrado para quem
+mexer no enquadramento depois.
