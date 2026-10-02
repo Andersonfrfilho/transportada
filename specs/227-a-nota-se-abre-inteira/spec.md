@@ -106,8 +106,7 @@ specs **222** (fechada), **223** e **224**, que mexem exatamente neste fluxo —
 - **D8 — Links seguem o padrão do painel, não `href` cru.** O painel **não tem router**: `main.tsx` decide a
   tela por `window.location.pathname`. O padrão é `<a href>` **com** `onClick` + `preventDefault` +
   `navigateTo…` (`tripRoute`, `tripOccurrenceRoute`, `tripNavigation`) — navega na mesma aba sem recarregar, e
-  o `href` serve para "abrir em outra aba". "Resultado da viagem" (`/resultados`) **não tem helper**
-  dedicado. O `href` do canvas com `appBaseUrl` é recurso de **protótipo**, não de produto.
+  o `href` serve para "abrir em outra aba". O `href` do canvas com `appBaseUrl` é recurso de **protótipo**, não de produto.
 
 - **D9 — Copiar usa o primitivo da casa.** `src/components/ui/copy-button.tsx` (`CopyButton`: `label`,
   `copiedLabel`, `value`, `variant`). O rótulo vem por prop; o primitivo não traduz. Há cópias soltas fora do
@@ -166,8 +165,10 @@ Não há `[NEEDS CLARIFICATION]` aberto nesta spec nem na 228.
 - **RF7** _Eventos desta entrega_ mostra os eventos **daquela nota** e os da parada dela, em ordem, com a
   distância ao ponto quando o leitor tem `trip.event-location`; sem a permissão, o evento aparece **sem**
   distância e **sem** mapa (spec 196).
-- **RF8** "Abrir em outras páginas" leva à lista de NF-e, ao cliente, à ocorrência e ao resultado da viagem
-  (D8); o link de resultado **só** aparece com a permissão que a tela de resultados exige.
+- **RF8** "Abrir em outras páginas" leva ao cliente ("Ver cliente") e à ocorrência ("Ver ocorrência"), pelo
+  padrão da D8. O usuário disse em 2026-10-02 que "Lista de NF-e" e "Resultado da viagem" **não são
+  necessários** (já estão na tela): nenhum dos dois existe. "Ver cliente" **só** aparece a quem abre `/clientes`
+  (`canOpenWorkspace`) e leva o nome por `sessionStorage`, nunca pela URL (revisão M4, security.md §8).
 - **RF9** Seguir a âncora da linha do tempo para uma nota **abre** a nota.
 - **RF10** Em 375 px nada transborda na horizontal e nenhuma letra é cortada (a revisão da 226 achou esse
   defeito três vezes).

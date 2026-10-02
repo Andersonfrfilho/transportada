@@ -3,6 +3,10 @@
 Uma task por vez, na ordem. Cada uma fecha com typecheck + lint + testes da app + commit isolado e evidência
 em `evidence.md`. Contrato antes da implementação, **toda asserção nova provada por mutação**.
 
+> **RF8 reescrita (2026-10-02):** o usuário disse que "Lista de NF-e" e "Resultado da viagem" **não são
+> necessários** (já estão na tela). Os links rápidos são só **Ver cliente** e **Ver ocorrência**; nenhuma task
+> cria os outros dois.
+
 ⚠️ Nada daqui começa antes da **Fase 0**. **Nenhum `[NEEDS CLARIFICATION]` aberto**: N1 a N5 foram respondidas em
 2026-10-02. A **Fase 5** espera a **spec 228** (D12).
 

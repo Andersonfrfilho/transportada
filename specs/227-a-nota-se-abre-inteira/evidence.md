@@ -532,3 +532,86 @@ se abre inteira" em `docs/ai-context/api-transportada.md`; ponteiros de poucas l
 apps. As seções da 226 já existiam nos dois documentos e não foram repetidas. Nomes de arquivo e símbolos
 conferidos por `ls`/`grep` antes de citar. Registrado o desvio da D6 (raio da empresa, não do contratante) e
 a armadilha de ordem de publicação do validador do comprovante. Só documentação: nenhum código tocado.
+
+## Revisão opus (2026-10-02): A1, A2, A3, M1, M3, M4, M5
+
+Cada achado foi **confirmado lendo o código** antes de corrigir. Todos se sustentaram. Um commit por achado;
+gates por achado na app tocada (saídas literais no relatório da sessão). Mutações: edita, roda, restaura.
+
+### A1 — o filtro da nota deixava passar eventos de outras paradas (API) — `864008692`
+
+Confirmado em `trip-timeline-stop.query.ts` (`isNull(tripDocumentId) or = documentId` sem limitar a parada) e em
+`listStopOccurrenceRows` (nenhum filtro com `documentId`): `arrived`, `departed`, `departure_cancelled` e as
+ocorrências de **toda** parada entravam na nota. Correção: `findTripDocumentScope` devolve `stopId`; o caso de uso
+repassa `documentStopId` ao leitor; `documentStopScope(params)` restringe eventos **e** ocorrências de parada à parada
+da nota, e nota sem parada não traz **nenhum** evento de parada. O painel não precisou mudar: ele só desenha o que a
+API manda (o "Saída para esta parada" só vale agora porque o `departed` é mesmo daquela parada).
+
+**Decisão registrada:** eventos **sem** parada da viagem (criação, despacho, troca de status da viagem) **seguem
+como estavam** — passam em qualquer nota, porque são da viagem inteira e a nota nasceu dentro dela. Mudar isso é
+decisão de produto, não correção de defeito. Também: um `delivered`/`returned` da **própria nota** num stop que ela
+já não ocupa (nota reatribuída) deixa de aparecer; é raro e o filtro ficou literal ao que foi pedido.
+
+Contratos: `read-trip-timeline-document-filter.contract.ts` (leitor recebe `documentStopId`, nulo para nota sem
+parada), `trip-timeline-document-filter.contract.ts` (fonte), integração `trip-timeline.integration.ts` (2 paradas:
+o `departed` e a ocorrência da outra parada **não** aparecem; nota sem parada não traz item de parada).
+Mutações reprovadas: tirar `documentStopScope` dos eventos; tirar das ocorrências.
+
+### A2 — o raio dos eventos vinha da rota por nota, que a API não enriquece (painel) — `5a0103e00`
+
+Confirmado: `TripDetail.component.tsx` lia `resolveProofRadiusMeters(workspace.deliveryProofsQuery.data)`, que é
+`GET /trips/:id/documents/:docId/proof`; só `GET /trips/:id/delivery-proofs` leva `proofRadiusMeters`. Correção:
+`useTripProofRadiusQuery` (mesmo arquivo dos selos, mesma chave e mesma chamada — o cache deduplica; `select`
+diferente). Os dublês de `/proof` (`trip-smoke.helper.ts`, `trip-note-accordion.fixture.ts`) deixaram de carregar o
+raio; ele existe só no dublê de `/delivery-proofs`. Prints regerados (`PLAYWRIGHT_FRONTEND_PORT=53225`, 13 passed).
+Mutações reprovadas: `select` do raio devolvendo `undefined`; `proofRadiusMeters={undefined}` no `TripDetail`.
+
+### A3 — ordem de publicação obrigatória (pré-condição do push)
+
+⚠️ **O painel que aceita `volumeCount` e `proofRadiusMeters` tem de estar no ar ANTES de a API que os manda.**
+`isDeliveryProof` recusa chave desconhecida e descarta o comprovante inteiro, e a guarda do detalhe da viagem tem
+lista fechada de chaves do documento: API nova com painel antigo derruba "Não foi possível carregar esta viagem"
+(o mesmo defeito de 22/09 da 164 T15). **Push único não garante ordem** — o deploy de API e o de painel são
+serviços separados. Procedimento: publicar e **confirmar o painel no ar** (build servido, não só o workflow verde)
+e só então liberar a API; ou confirmar o painel antes do deploy da API. Nada disso foi executado: não houve push.
+
+### M1 — o raio podia derrubar `GET /trips/:id/delivery-proofs` (API) — `0afd2a4ae`
+
+Confirmado: `await settings.resolveProofPunctualitySettings(...)` sem tratamento em `readDeliveryProofsByTrip`; uma
+configuração que lança tirava a lista de comprovantes por um refinamento. Correção no molde de `readStopDwellsOrNone`:
+`readProofRadiusOrNone` isola com `try/catch`, campo omitido (nunca zero) e `logger.warn` só com `companyId`,
+`tripId` e `errorName` (a mensagem do erro pode citar dado). Contrato: configuração que lança ⇒ comprovantes sem
+`proofRadiusMeters`, aviso sem a mensagem. Mutação reprovada: relançar o erro.
+
+### M3 — imposto "0,00" quando não pôde ser distribuído (API/painel) — `e2ab47179`
+
+Confirmado: frete total zero com ICMS positivo ⇒ `distribute` devolve zeros ⇒ `taxAmount: "0.0000"` no resultado
+`unavailable`, e o painel imprimia "Imposto R$ 0,00". Correção: `isTaxDistributable` (`bucket === 0` ou frete total
+
+> 0); fora disso `taxAmount: null`. O tipo (`null | string`) e a guarda do painel (`isDecimalOrNull`) já aceitavam
+> `null`, e `describeRevenueLineCost` já omite o imposto nulo — só faltava a API parar de mandar zero. Contratos: três
+> casos em `document-cost-apportionment.contract.ts` (indistribuível ⇒ `null`; sem imposto ⇒ `"0.0000"` verdadeiro;
+> sem roteiro mas com frete ⇒ exato) e um no painel (`revenue-line-cost.contract.ts`: aceita `null`, sem figura de
+> imposto). Mutações reprovadas: `isTaxDistributable = true`; guarda do painel só aceitando string.
+
+### M5 — `qVol` fracionário derrubava a viagem inteira — `f8aa552b0`
+
+Confirmado: `Number(sum(nfe_volumes.quantity))` publicado como veio e `Number.isInteger` na guarda do painel
+(`tripResponse.validation.ts`). Correção na API: soma não inteira ⇒ nota fora do mapa ⇒ `volumeCount: null` (nunca
+arredondado). No painel: a guarda aceita número finito `>= 0` ou `null`; `TripDocumentData` só imprime "Volumes" com
+inteiro. Contratos: integração `trip-detail-volume-count.integration.ts` (soma 3,5 ⇒ `null`), novo
+`volume-count-tolerance.contract.ts` (aceita 12, 0, `null`, 2,5, ausente; recusa -1, NaN, Infinity, string,
+booleano) e `document-data.contract.tsx` (2,5 não imprime Volumes). Mutações reprovadas: tirar a checagem de
+inteiro na API; voltar a `Number.isInteger` na guarda; tirar o filtro de inteiro na tela.
+
+### M4 — "Ver cliente" levava o nome na URL (painel) — `ae72fdc63`
+
+Confirmado: `buildDeliveryClientSearchRoute` montava `/clientes?name=<nome>` e o destinatário pode ser pessoa física
+(security.md §8). Correção: handoff por `sessionStorage` (`DELIVERY_CLIENT_SEARCH_STORAGE_KEY`, `try/catch`),
+`consumeDeliveryClientSearch` lê e remove uma vez ao montar `useDeliveryClients`; o `href` é `/clientes`. O link só
+aparece a quem abre `/clientes` — `canOpenWorkspace` (mapa único), calculado em `TripStopList` a partir de
+`actions.permissions` e passado como `canOpenClients` (padrão `canOpenOccurrence`: booleano, padrão `false`); no
+toque (`pointer: coarse`) o link chega a `min-height: var(--touch-target)`. Contratos:
+`client-link-handoff.contract.ts`, `trip-hooks/delivery-clients-search-handoff.contract.ts` (o hook consome uma vez e
+ignora o nome na URL), `document-data.contract.tsx`. Mutações reprovadas: não remover o recado; voltar a `?name=` na
+rota; tirar o portão de permissão; zerar o `min-height`; o hook lendo a URL.

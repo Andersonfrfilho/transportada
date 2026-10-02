@@ -671,3 +671,10 @@ não de defeito. A infra foi a de E2E (postgres 65432), que o `.env.test` aponta
 
 ⚠️ Isto vale para a base **atual**, 93 commits atrás de `origin/staging`. A spec 227, Fase 0, refaz o rebase e
 **repete** esta integração (T0.4) — é o gate de push, e este resultado não o substitui.
+
+## Revisão opus (2026-10-02): M3
+
+Confirmado e corrigido junto da 227 (`e2ab47179`): resultado `unavailable` com imposto que não pôde ser distribuído
+(frete total zero e ICMS positivo) publicava `taxAmount: "0.0000"` e o painel imprimia "Imposto R$ 0,00". Agora
+`taxAmount: null` nesse caso (zero só quando não há imposto). Detalhe, contratos e mutações em
+`specs/227-a-nota-se-abre-inteira/evidence.md`.
