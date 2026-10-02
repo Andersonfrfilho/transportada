@@ -43,6 +43,8 @@ export type TripTimelineLocationView = Readonly<{
   kind: 'captured' | 'expired' | 'restricted' | 'unavailable'
   label: string
   lines: readonly string[]
+  /** `address` é o ponto novo do endereço corrigido; `device` é a posição que o aparelho carimbou. */
+  pin: 'address' | 'device'
   tone: 'neutral' | 'problem'
   tooltip: string
 }>
@@ -83,11 +85,16 @@ function hasReadableCoordinate(item: TripTimelineItem): boolean {
 
 function buildLocationView(
   input: Pick<TripTimelineLocationView, 'canViewMap' | 'coordinates' | 'icon' | 'kind' | 'tone'> &
-    Readonly<{ lines: readonly string[]; translate: Translate }>,
+    Readonly<{
+      lines: readonly string[]
+      pin?: TripTimelineLocationView['pin']
+      translate: Translate
+    }>,
 ): TripTimelineLocationView {
-  const { translate, ...view } = input
+  const { pin = 'device', translate, ...view } = input
   return {
     ...view,
+    pin,
     label: translate(`eventTimeline.location.label.${view.kind}`),
     tooltip: view.lines.join(TRIP_TIMELINE_LOCATION_LINE_SEPARATOR),
   }
@@ -155,14 +162,18 @@ export function resolveTimelineLocationView(
       translate(`eventTimeline.location.distance.${distance.unit}`, { distance: distance.value }),
     )
   }
+  const isAddressPoint = item.kind === 'stop.address_corrected'
   lines.push(
     translate('eventTimeline.location.coordinates', {
       latitude: location.latitude.toFixed(TRIP_TIMELINE_LOCATION_COORDINATE_DIGITS),
       longitude: location.longitude.toFixed(TRIP_TIMELINE_LOCATION_COORDINATE_DIGITS),
     }),
-    translate('eventTimeline.location.capturedAt', {
-      moment: formatLocationMoment(location.capturedAt),
-    }),
+    translate(
+      isAddressPoint
+        ? 'eventTimeline.location.addressCorrectedAt'
+        : 'eventTimeline.location.capturedAt',
+      { moment: formatLocationMoment(location.capturedAt) },
+    ),
   )
   return buildLocationView({
     canViewMap: true,
@@ -170,6 +181,7 @@ export function resolveTimelineLocationView(
     icon: 'map-pin',
     kind: 'captured',
     lines,
+    pin: isAddressPoint ? 'address' : 'device',
     tone: 'neutral',
     translate,
   })

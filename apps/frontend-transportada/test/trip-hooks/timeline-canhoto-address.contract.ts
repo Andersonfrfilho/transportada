@@ -4,6 +4,8 @@
  * Spec 228 T4.1: a foto do canhoto e o endereço corrigido no DOM — na linha do tempo da viagem e em
  * "Eventos desta entrega". Origem, deslocamento, ator e "Ver no mapa" só com ponto. Dados sintéticos.
  */
+import { readFileSync } from 'node:fs'
+
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -183,10 +185,56 @@ describe('linha do tempo da viagem: endereço corrigido (spec 228 T4.1)', () => 
     const dom = renderTimeline([ADDRESS_WITH_POINT])
 
     expect(dom.textContent).toContain('Endereço da parada corrigido')
-    expect(dom.textContent).toContain('Corrigido pelo escritório')
-    expect(dom.textContent).toContain('deslocado 45 m')
+    expect(dom.textContent).toContain('Endereço da parada corrigido')
     expect(dom.textContent).toContain('Marina Alves')
     expect(viewMapButtons(dom)).toHaveLength(1)
+  })
+
+  it('origem e deslocamento são uma frase só, num único elemento (M3)', () => {
+    const dom = renderTimeline([ADDRESS_WITH_POINT])
+
+    const phrases = [...dom.querySelectorAll('span')].filter((node) =>
+      node.textContent?.includes('Corrigido pelo escritório'),
+    )
+    expect(phrases.map((node) => node.textContent)).toEqual([
+      'Corrigido pelo escritório · deslocado 45 m',
+    ])
+  })
+
+  it('o refino, sem deslocamento, escreve só a origem, sem separador (M3)', () => {
+    const dom = renderTimeline([ADDRESS_REFINEMENT])
+
+    const phrase = [...dom.querySelectorAll('span')].find((node) =>
+      node.textContent?.includes('Refino de precisão'),
+    )
+    expect(phrase?.textContent).toBe('Refino de precisão')
+  })
+
+  it('o elemento da frase tem classe no CSS module e nenhum estilo inline (M3)', () => {
+    const component = readFileSync(
+      new URL('../../src/modules/trip/components/TripTimeline.component.tsx', import.meta.url),
+      'utf8',
+    )
+    const styles = readFileSync(
+      new URL('../../src/modules/trip/styles/tripTimeline.module.css', import.meta.url),
+      'utf8',
+    )
+    expect(component).toContain('className={styles.itemAddressChange}>{addressChange.summary}')
+    expect(styles).toMatch(/\.itemAddressChange\s*\{[^}]*overflow-wrap:\s*anywhere/u)
+    expect(component).not.toContain('style={{')
+  })
+
+  it('o mapa do endereço diz "novo ponto do endereço", e o da foto continua "onde o motorista tocou" (M1)', () => {
+    const dom = renderTimeline([ADDRESS_WITH_POINT, PHOTO_WITH_POINT])
+
+    for (const button of viewMapButtons(dom)) act(() => button.click())
+    const captions = [...dom.querySelectorAll('figcaption')].map((node) => node.textContent ?? '')
+    expect(captions).toHaveLength(2)
+    const addressCaption = captions.find((text) => text.includes('endereço'))
+    const photoCaption = captions.find((text) => text.includes('motorista tocou'))
+    expect(addressCaption).toContain('Pino liso: novo ponto do endereço da parada')
+    expect(addressCaption).not.toContain('motorista tocou')
+    expect(photoCaption).not.toContain('endereço')
   })
 
   it('o refino de precisão não tem ponto: origem sem deslocamento e sem "Ver no mapa"', () => {
@@ -200,8 +248,7 @@ describe('linha do tempo da viagem: endereço corrigido (spec 228 T4.1)', () => 
   it('deslocamento grande sai em quilômetros, como a distância do resto do painel', () => {
     const dom = renderTimeline([ADDRESS_LONG_MOVE])
 
-    expect(dom.textContent).toContain('Corrigido pelo contratante')
-    expect(dom.textContent).toContain('deslocado 1.5 km')
+    expect(dom.textContent).toContain('Corrigido pelo contratante · deslocado 1.5 km')
   })
 
   it('sem trip.event-location o deslocamento continua e nenhuma coordenada aparece', () => {
@@ -240,7 +287,7 @@ describe('Eventos desta entrega: os dois eventos novos (spec 228 T4.1)', () => {
     const titles = [...dom.querySelectorAll('ol > li p')].map((node) => node.textContent)
     expect(titles[0]).toBe('Endereço da parada corrigido')
     expect(titles[1]).toContain('entregue')
-    expect(titles[2]).toBe('Foto do canhoto — NF-e 123/1')
+    expect(titles[2]).toBe('Foto do canhoto')
   })
 
   it('o endereço da parada traz origem e deslocamento; só o evento com ponto abre o mapa', async () => {
@@ -253,7 +300,7 @@ describe('Eventos desta entrega: os dois eventos novos (spec 228 T4.1)', () => {
     expect(dom.textContent).toContain('Corrigido pelo escritório')
     expect(dom.textContent).toContain('Refino de precisão')
     expect(viewMapButtons(dom)).toHaveLength(1)
-    expect(entryOf(dom, 'Foto do canhoto — NF-e 123/1').textContent).not.toContain('Ver no mapa')
+    expect(entryOf(dom, 'Foto do canhoto').textContent).not.toContain('Ver no mapa')
   })
 
   it('sem o evento do endereço na resposta, a seção não o mostra', async () => {

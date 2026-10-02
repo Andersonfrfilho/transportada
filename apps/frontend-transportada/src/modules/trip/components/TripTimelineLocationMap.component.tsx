@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import type { AssemblyMapPoint } from '../shared/assemblyMap.service'
+import type { TripTimelineLocationView } from '../shared/tripTimelineDetail.service'
 import { EVENT_PIN_COLOR, stopColorOf } from '../shared/stopColor.service'
 import {
   TRIP_TIMELINE_LOCATION_EVENT_PIN_KEY,
@@ -31,6 +32,8 @@ export type TripTimelineLocationMapStop = Readonly<{
 type TripTimelineLocationMapProps = Readonly<{
   eventLatitude: number
   eventLongitude: number
+  /** `address`: o pino liso é o ponto novo do endereço, não o toque do motorista. */
+  pin: TripTimelineLocationView['pin']
   /** `null` quando a parada não tem coordenada geocodificada: o mapa mostra só o ponto do evento. */
   stop: null | TripTimelineLocationMapStop
 }>
@@ -68,15 +71,17 @@ function buildPoint(
 export function TripTimelineLocationMap({
   eventLatitude,
   eventLongitude,
+  pin,
   stop,
 }: TripTimelineLocationMapProps) {
   const { t } = useTranslation('trip')
   const [hasBasemap, setHasBasemap] = useState(true)
+  const legendKeyPrefix = pin === 'address' ? 'legendAddress' : 'legend'
   const points = useMemo(
     () => [
       buildPoint({
         isUnnumbered: true,
-        label: t('eventTimeline.location.eventPin'),
+        label: t(`eventTimeline.location.${pin === 'address' ? 'addressPin' : 'eventPin'}`),
         latitude: eventLatitude,
         longitude: eventLongitude,
         sequence: TRIP_TIMELINE_LOCATION_EVENT_PIN_SEQUENCE,
@@ -84,7 +89,7 @@ export function TripTimelineLocationMap({
       }),
       ...(stop === null ? [] : [buildPoint(stop)]),
     ],
-    [eventLatitude, eventLongitude, stop, t],
+    [eventLatitude, eventLongitude, pin, stop, t],
   )
 
   if (!hasBasemap)
@@ -111,8 +116,8 @@ export function TripTimelineLocationMap({
       </Suspense>
       <figcaption className={styles.itemDetail}>
         {stop === null
-          ? t('eventTimeline.location.legendEventOnly')
-          : t('eventTimeline.location.legend', { sequence: stop.sequence })}
+          ? t(`eventTimeline.location.${legendKeyPrefix}EventOnly`)
+          : t(`eventTimeline.location.${legendKeyPrefix}`, { sequence: stop.sequence })}
       </figcaption>
     </figure>
   )

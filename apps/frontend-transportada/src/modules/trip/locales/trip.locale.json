@@ -736,6 +736,7 @@
   "error": "Não foi possível carregar as viagens",
   "eventTimeline": {
     "addressChange": {
+      "summary": "{{origin}} · {{displacement}}",
       "displacement": {
         "meters": "deslocado {{distance}} m",
         "kilometers": "deslocado {{distance}} km"
@@ -897,7 +898,11 @@
       "mapMissing": "O mapa não está disponível agora.",
       "eventPin": "Onde o motorista tocou",
       "legend": "Pino liso: onde o motorista tocou. Pino numerado: parada {{sequence}}.",
-      "legendEventOnly": "Pino liso: onde o motorista tocou. A parada não tem coordenada cadastrada."
+      "legendEventOnly": "Pino liso: onde o motorista tocou. A parada não tem coordenada cadastrada.",
+      "addressPin": "Novo ponto do endereço",
+      "addressCorrectedAt": "Corrigido em {{moment}}",
+      "legendAddress": "Pino liso: novo ponto do endereço da parada. Pino numerado: parada {{sequence}}.",
+      "legendAddressEventOnly": "Pino liso: novo ponto do endereço da parada."
     }
   },
   "feedback": {

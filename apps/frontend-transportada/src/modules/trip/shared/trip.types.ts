@@ -293,7 +293,7 @@ export const TRIP_TIMELINE_KINDS = [
   'document.occurrence',
   'document.status_changed',
   'trip.created',
-  /** Spec 228 D6: a foto do canhoto e a correção do endereço da parada. Prioridades 4 e 2 na API. */
+  /** Spec 228 D6: a foto do canhoto e a correção do endereço da parada. Prioridades 3 e 2 na API. */
   'document.canhoto_photo',
   'stop.address_corrected',
 ] as const

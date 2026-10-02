@@ -313,6 +313,12 @@
   color: var(--color-slate-muted);
 }
 
+/* Origem e deslocamento do endereço corrigido são uma frase só: quebra por palavra, nunca rola. */
+.itemAddressChange {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 /**
  * Spec 180 RF15: o link para a nota/parada fica visível fechado — é navegação, não detalhe a
  * esconder (RF16 recolhe o que sobra, não o caminho para a coisa citada).

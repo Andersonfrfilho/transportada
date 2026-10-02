@@ -736,6 +736,7 @@
   "error": "Could not load trips",
   "eventTimeline": {
     "addressChange": {
+      "summary": "{{origin}} · {{displacement}}",
       "displacement": {
         "meters": "moved {{distance}} m",
         "kilometers": "moved {{distance}} km"
@@ -897,7 +898,11 @@
       "mapMissing": "The map is not available right now.",
       "eventPin": "Where the driver tapped",
       "legend": "Plain pin: where the driver tapped. Numbered pin: stop {{sequence}}.",
-      "legendEventOnly": "Plain pin: where the driver tapped. The stop has no registered coordinate."
+      "legendEventOnly": "Plain pin: where the driver tapped. The stop has no registered coordinate.",
+      "addressPin": "New address point",
+      "addressCorrectedAt": "Corrected at {{moment}}",
+      "legendAddress": "Plain pin: new point of the stop address. Numbered pin: stop {{sequence}}.",
+      "legendAddressEventOnly": "Plain pin: new point of the stop address."
     }
   },
   "feedback": {

@@ -3,6 +3,8 @@
  * Spec 228 T4.1: origem e deslocamento do endereço corrigido, o ponto do endereço (sem
  * `locationState`) e a decisão do pino dos dois eventos novos. Dados sintéticos.
  */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'bun:test'
 
 import tripEn from '../../src/modules/trip/locales/trip.en.locale.json'
@@ -10,6 +12,7 @@ import tripPt from '../../src/modules/trip/locales/trip.locale.json'
 import {
   TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS,
   type TripTimelineItem,
+  type TripTimelineKind,
 } from '../../src/modules/trip/shared/trip.types'
 import {
   formatTripTimelineDistance,
@@ -55,6 +58,33 @@ const ADDRESS_ITEM: TripTimelineItem = {
   toStatus: null,
 }
 
+function located(
+  id: string,
+  occurredAt: string,
+  kind: TripTimelineKind,
+  latitude: number,
+  longitude: number,
+): TripTimelineItem {
+  const withoutChange = withoutAddressChange(ADDRESS_ITEM)
+  return {
+    ...withoutChange,
+    id,
+    kind,
+    location: { ...POINT, latitude, longitude },
+    locationState: 'captured',
+    occurredAt,
+    stop: null,
+  }
+}
+
+const PHOTO_ITEM = located(
+  'photo-1',
+  '2026-10-01T12:00:00.000Z',
+  'document.canhoto_photo',
+  -23.5,
+  -46.6,
+)
+
 function withoutAddressChange(item: TripTimelineItem): TripTimelineItem {
   const copy: Record<string, unknown> = { ...item }
   delete copy['addressChange']
@@ -78,6 +108,8 @@ describe('origem e deslocamento do endereço corrigido (spec 228 T4.1)', () => {
     expect(resolveTripTimelineAddressChange(ADDRESS_ITEM, translate)).toEqual({
       displacement: 'eventTimeline.addressChange.displacement.meters(distance=45)',
       origin: 'eventTimeline.addressChange.origin.operator',
+      summary:
+        'eventTimeline.addressChange.summary(displacement=eventTimeline.addressChange.displacement.meters(distance=45),origin=eventTimeline.addressChange.origin.operator)',
     })
     expect(
       resolveTripTimelineAddressChange(
@@ -105,6 +137,7 @@ describe('origem e deslocamento do endereço corrigido (spec 228 T4.1)', () => {
     expect(change).toEqual({
       displacement: null,
       origin: 'eventTimeline.addressChange.origin.refinement',
+      summary: 'eventTimeline.addressChange.origin.refinement',
     })
   })
 
@@ -149,6 +182,19 @@ describe('origem e deslocamento do endereço corrigido (spec 228 T4.1)', () => {
   })
 })
 
+describe('o rótulo do pino do endereço (spec 228 M1)', () => {
+  it('o mapa expandido escolhe o rótulo do ponto novo quando o pino é address', () => {
+    const source = readFileSync(
+      new URL(
+        '../../src/modules/trip/components/TripTimelineLocationMap.component.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    expect(source).toMatch(/pin === 'address' \? 'addressPin' : 'eventPin'/u)
+  })
+})
+
 describe('o ponto do endereço corrigido não tem locationState (spec 228 D7)', () => {
   it('com ponto novo, é posição legível e abre o mapa', () => {
     const view = resolveTimelineLocationView(ADDRESS_ITEM, translate)
@@ -156,6 +202,42 @@ describe('o ponto do endereço corrigido não tem locationState (spec 228 D7)', 
     expect(view?.canViewMap).toBe(true)
     expect(view?.coordinates).toEqual({ latitude: -23.55, longitude: -46.63 })
     expect(hasTripTimelineExpandableDetail(ADDRESS_ITEM)).toBe(true)
+  })
+
+  it('o ponto do endereço é do tipo address, com "Corrigido em" no lugar de "Lida em" (M1)', () => {
+    const view = resolveTimelineLocationView(ADDRESS_ITEM, translate)
+    expect(view?.pin).toBe('address')
+    expect(view?.lines.at(-1)).toStartWith('eventTimeline.location.addressCorrectedAt(')
+    expect(view?.tooltip).not.toContain('eventTimeline.location.capturedAt')
+  })
+
+  it('a posição do aparelho (foto) continua do tipo device, com "Lida em" (M1)', () => {
+    const photo: TripTimelineItem = {
+      ...withoutAddressChange(ADDRESS_ITEM),
+      kind: 'document.canhoto_photo',
+      locationState: 'captured',
+    }
+    const view = resolveTimelineLocationView(photo, translate)
+    expect(view?.pin).toBe('device')
+    expect(view?.lines.at(-1)).toStartWith('eventTimeline.location.capturedAt(')
+  })
+
+  it('pt-BR e en têm as quatro chaves do ponto do endereço, acentuadas em pt-BR (M1)', () => {
+    const paths = [
+      'eventTimeline.location.addressPin',
+      'eventTimeline.location.addressCorrectedAt',
+      'eventTimeline.location.legendAddress',
+      'eventTimeline.location.legendAddressEventOnly',
+      'eventTimeline.addressChange.summary',
+    ]
+    for (const path of paths) {
+      expect([path, typeof lookup(tripPt, path)]).toEqual([path, 'string'])
+      expect([path, typeof lookup(tripEn, path)]).toEqual([path, 'string'])
+    }
+    expect(lookup(tripPt, 'eventTimeline.location.addressPin')).toBe('Novo ponto do endereço')
+    expect(lookup(tripPt, 'eventTimeline.location.addressCorrectedAt')).toBe(
+      'Corrigido em {{moment}}',
+    )
   })
 
   it('sem ponto (refino, ou sem trip.event-location), não há view nem detalhe', () => {
@@ -183,18 +265,67 @@ describe('o ponto do endereço corrigido não tem locationState (spec 228 D7)', 
 })
 
 describe('o pino dos eventos novos (spec 228 T4.1, decisão registrada no evidence.md)', () => {
-  it('a foto do canhoto reaproveita o pino da entrega e o endereço, o da mudança de situação', () => {
+  it('a foto do canhoto reaproveita a cor da entrega e o endereço fica fora do mapa (null explícito)', () => {
     expect(TIMELINE_MAP_CATEGORY_BY_KIND['document.canhoto_photo']).toBe('delivered')
-    expect(TIMELINE_MAP_CATEGORY_BY_KIND['stop.address_corrected']).toBe('status')
+    expect(Object.hasOwn(TIMELINE_MAP_CATEGORY_BY_KIND, 'stop.address_corrected')).toBe(true)
+    expect(TIMELINE_MAP_CATEGORY_BY_KIND['stop.address_corrected']).toBeNull()
   })
 
-  it('o endereço corrigido com ponto vira pino no mapa, e o refino sem ponto não', () => {
+  it('o endereço corrigido, com ponto ou sem, não é pino, contagem nem falta no mapa da viagem (M2)', () => {
     const view = resolveTimelineMapView(
       [ADDRESS_ITEM, { ...ADDRESS_ITEM, id: 'address-2', location: null }],
       translate,
     )
-    expect(view.locatedCount).toBe(1)
-    expect(view.points).toHaveLength(1)
+    expect(view.locatedCount).toBe(0)
+    expect(view.points).toHaveLength(0)
+    expect(view.categories).toEqual([])
     expect(view.missingCount).toBe(0)
+  })
+
+  it('o endereço no meio de dois pinos não vira pino, nem ganha "X min do anterior" (M2)', () => {
+    const view = resolveTimelineMapView(
+      [
+        located('a', '2026-10-01T12:00:00.000Z', 'stop.arrived', -23.55, -46.63),
+        { ...ADDRESS_ITEM, occurredAt: '2026-10-01T12:30:00.000Z' },
+        located('b', '2026-10-01T13:00:00.000Z', 'stop.departed', -23.56, -46.64),
+      ],
+      translate,
+    )
+    expect(view.points.map((point) => point.order)).toEqual([1, 2])
+    expect(view.points[1]?.minutesFromPrevious).toBe(60)
+    expect(view.categories.map(({ category }) => category)).toEqual(['arrived', 'departed'])
+  })
+
+  it('foto isolada vira pino da câmera com rótulo próprio e não conta como entrega (M4)', () => {
+    const view = resolveTimelineMapView([PHOTO_ITEM], translate)
+    expect(view.points).toHaveLength(1)
+    expect(view.points[0]).toMatchObject({
+      category: 'delivered',
+      icon: 'camera',
+      label: 'eventTimeline.itemTitle.canhotoPhotoUnknownDocument',
+    })
+    expect(view.categories).toEqual([])
+  })
+
+  it('foto fundida com a entrega continua num pino de entrega e a legenda conta uma só (M4)', () => {
+    const view = resolveTimelineMapView(
+      [
+        { ...PHOTO_ITEM, occurredAt: '2026-10-01T12:05:00.000Z' },
+        {
+          ...PHOTO_ITEM,
+          id: 'delivered-1',
+          kind: 'document.delivered',
+          occurredAt: '2026-10-01T12:00:00.000Z',
+        },
+      ],
+      translate,
+    )
+    expect(view.points).toHaveLength(1)
+    expect(view.points[0]).toMatchObject({
+      count: 2,
+      icon: 'check',
+      label: 'eventTimeline.map.category.delivered',
+    })
+    expect(view.categories).toEqual([{ category: 'delivered', count: 1 }])
   })
 })

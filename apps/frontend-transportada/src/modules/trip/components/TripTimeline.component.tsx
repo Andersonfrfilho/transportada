@@ -333,6 +333,20 @@ export function TripTimeline({ openDocumentId, query, stops }: TripTimelineProps
   )
 }
 
+/** Na nota que já é o assunto da seção, o título não repete a NF-e (a foto) nem a parada (a saída). */
+function resolveEntryTitle(
+  input: Readonly<{ isOwnDelivery: boolean; item: TripTimelineItem; translate: Translate }>,
+): string {
+  const { isOwnDelivery, item, translate } = input
+  if (isOwnDelivery && item.kind === 'stop.departed') {
+    return translate('eventTimeline.itemTitle.stopDepartedForThisStop')
+  }
+  if (isOwnDelivery && item.kind === 'document.canhoto_photo') {
+    return translate('eventTimeline.itemTitle.canhotoPhotoUnknownDocument')
+  }
+  return resolveTripTimelineTitle(item, translate)
+}
+
 /**
  * `isOwnDelivery` (spec 227 D11): a linha aparece dentro da própria nota — o `departed` ali é a saída
  * **para esta parada**, e o título não aponta de volta para a nota em que já está.
@@ -366,13 +380,11 @@ export function TripTimelineEntry({
       <TripTimelineLocationMap
         eventLatitude={locationView.coordinates.latitude}
         eventLongitude={locationView.coordinates.longitude}
+        pin={locationView.pin}
         stop={findStopForMap(item, stops)}
       />
     )
-  const title =
-    isOwnDelivery && item.kind === 'stop.departed'
-      ? t('eventTimeline.itemTitle.stopDepartedForThisStop')
-      : resolveTripTimelineTitle(item, translate)
+  const title = resolveEntryTitle({ isOwnDelivery, item, translate })
   /** Autoria igual à do evento anterior cala: o leitor já sabe de quem é (spec 180). */
   const authorship = repeatsAuthorship ? null : resolveTripTimelineAuthorshipText(item, translate)
   const { icon, tone } = resolveTripTimelineIcon(item)
@@ -503,9 +515,8 @@ export function TripTimelineEntry({
           locationView === null &&
           addressChange === null ? null : (
             <div className={styles.itemMeta}>
-              {addressChange === null ? null : <span>{addressChange.origin}</span>}
-              {addressChange?.displacement == null ? null : (
-                <span>{addressChange.displacement}</span>
+              {addressChange === null ? null : (
+                <span className={styles.itemAddressChange}>{addressChange.summary}</span>
               )}
               {authorship === null ? null : (
                 <span className={styles.itemAuthorship}>{authorship}</span>

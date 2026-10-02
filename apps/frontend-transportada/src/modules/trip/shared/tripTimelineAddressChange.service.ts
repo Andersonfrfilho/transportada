@@ -7,6 +7,8 @@ import type { TripTimelineItem } from './trip.types'
 export type TripTimelineAddressChangeText = Readonly<{
   displacement: null | string
   origin: string
+  /** A frase única da linha: "Corrigido pelo contratante · deslocado 45 m", ou só a origem. */
+  summary: string
 }>
 
 /**
@@ -21,13 +23,19 @@ export function resolveTripTimelineAddressChange(
   const { displacementMeters, origin } = item.addressChange
   const distance =
     displacementMeters === null ? null : formatTripTimelineDistance(displacementMeters)
+  const displacement =
+    distance === null
+      ? null
+      : t(`eventTimeline.addressChange.displacement.${distance.unit}`, {
+          distance: distance.value,
+        })
+  const originText = t(`eventTimeline.addressChange.origin.${origin}`)
   return {
-    displacement:
-      distance === null
-        ? null
-        : t(`eventTimeline.addressChange.displacement.${distance.unit}`, {
-            distance: distance.value,
-          }),
-    origin: t(`eventTimeline.addressChange.origin.${origin}`),
+    displacement,
+    origin: originText,
+    summary:
+      displacement === null
+        ? originText
+        : t('eventTimeline.addressChange.summary', { displacement, origin: originText }),
   }
 }
