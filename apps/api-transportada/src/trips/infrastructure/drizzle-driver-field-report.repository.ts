@@ -53,7 +53,8 @@ import {
   TRIP_DISPATCHED_STATUSES,
   TRIP_ON_ROAD_STATUSES,
 } from '../domain/trip-state.policy.js'
-import { resolveEventLocationState } from '../domain/event-location-state.policy.js'
+import { resolveEventLocationStamp } from '../domain/event-location-stamp.policy.js'
+import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
 import { buildProofInsertValues, buildProofUpsertSet } from './drizzle-delivery-proof.repository.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import { insertTripFieldOfficeAudit } from './trip-field-office-audit.persistence.js'
@@ -775,25 +776,23 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
   }
 
   public async recordEvent(input: Parameters<DriverFieldReportTransactionPort['recordEvent']>[0]) {
+    /** ADR-0081 §3: todo `recordEvent` é toque do motorista; o escritório e o backoffice ficam `null`. */
+    const stamp = resolveEventLocationStamp({
+      channel: input.authorship.channel,
+      isDriverTap: true,
+      location: input.location,
+    })
     const [event] = await this.transaction
       .insert(tripStopEvents)
       .values({
-        accuracyMeters: input.location?.accuracyMeters ?? null,
         actorUserId: input.actorUserId,
-        capturedAt: input.location === null ? null : new Date(input.location.capturedAt),
         channel: input.authorship.channel,
         clockOffsetMs: input.correctedClock?.clockOffsetMs ?? null,
         companyId: input.companyId,
         ...(input.occurredAt === undefined ? {} : { createdAt: input.occurredAt }),
         kind: input.kind,
-        latitude: input.location?.latitude ?? null,
         lateRegistration: input.lateRegistration ?? false,
-        /** ADR-0081 §3: o estado é do toque do motorista; o escritório e o backoffice ficam `null`. */
-        locationState: resolveEventLocationState({
-          channel: input.authorship.channel,
-          hasCoordinate: input.location !== null,
-        }),
-        longitude: input.location?.longitude ?? null,
+        ...stamp,
         /** Spec 234 D3: só a correção aceita — não é o `createdAt` que o escritório sobrescreve. */
         occurredAt: input.correctedClock?.occurredAt ?? null,
         onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
@@ -1072,6 +1071,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
         companyId: input.companyId,
         description: input.description,
         kind: input.kind,
+        ...input.locationStamp,
         occurrenceTypeId: input.occurrenceTypeId,
         onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
         reportedDistanceMeters: input.distanceMeters,
@@ -1144,6 +1144,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly documentId: string
+    readonly locationStamp: EventLocationStampColumns
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
@@ -1157,6 +1158,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       authorship: input.authorship,
       companyId: input.companyId,
       documentId: input.documentId,
+      locationStamp: input.locationStamp,
       note: input.note,
       occurrenceTypeId: input.occurrenceTypeId,
       productCode: input.productCode,

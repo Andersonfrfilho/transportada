@@ -54,6 +54,7 @@ import { reviewCanhotoProof } from '../../src/trips/application/review-canhoto-p
 import { DrizzleCanhotoReviewUnitOfWork } from '../../src/trips/infrastructure/drizzle-canhoto-review.repository.js'
 import { dispatchDriverTrip } from '../../src/trips/application/dispatch-driver-trip.use-case.js'
 import { dispatchTrip } from '../../src/trips/application/dispatch-trip.use-case.js'
+import type { EventLocationStampColumns } from '../../src/trips/domain/event-location-stamp.types.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { PROOF_PUNCTUALITY } from '../../src/trips/domain/delivery-proof-punctuality.policy.js'
 import {
@@ -1078,11 +1079,16 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       const stranger = await seedDriverOnly(database)
       const reads = new DrizzleCurrentDriverTripRepository(database.db)
       const routeRepository = new DrizzleTripRouteRepository(database.db)
-      const dispatch = (input: { readonly actorUserId: string; readonly tripId: string }) =>
+      const dispatch = (input: {
+        readonly actorUserId: string
+        readonly locationStamp: EventLocationStampColumns
+        readonly tripId: string
+      }) =>
         dispatchTrip({
           actorUserId: input.actorUserId,
           channel: TRIP_FIELD_CHANNELS.driverApp,
           companyId: world.companyId,
+          locationStamp: input.locationStamp,
           repository: routeRepository,
           tripId: input.tripId,
         })
@@ -1104,6 +1110,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         dispatch,
         driverId: stranger.driverId,
         linkage: reads,
+        location: null,
         tripId: world.tripId,
       })
       await expect(foreign).rejects.toMatchObject({ code: 'TRIP_NOT_OF_DRIVER', status: 403 })
@@ -1116,6 +1123,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         dispatch,
         driverId: world.driverId,
         linkage: reads,
+        location: null,
         tripId: world.tripId,
       })
       expect(first).toEqual({ tripStatus: 'dispatched' })
@@ -1128,6 +1136,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         dispatch,
         driverId: world.driverId,
         linkage: reads,
+        location: null,
         tripId: world.tripId,
       })
       expect(second).toEqual({ tripStatus: 'dispatched' })
@@ -1149,11 +1158,13 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
             actorUserId: input.actorUserId,
             channel: TRIP_FIELD_CHANNELS.driverApp,
             companyId: world.companyId,
+            locationStamp: input.locationStamp,
             repository: routeRepository,
             tripId: input.tripId,
           }),
         driverId: world.driverId,
         linkage: reads,
+        location: null,
         tripId: world.tripId,
       })
 
@@ -1191,11 +1202,16 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       })
       const reads = new DrizzleCurrentDriverTripRepository(database.db)
       const routeRepository = new DrizzleTripRouteRepository(database.db)
-      const dispatch = (input: { readonly actorUserId: string; readonly tripId: string }) =>
+      const dispatch = (input: {
+        readonly actorUserId: string
+        readonly locationStamp: EventLocationStampColumns
+        readonly tripId: string
+      }) =>
         dispatchTrip({
           actorUserId: input.actorUserId,
           channel: TRIP_FIELD_CHANNELS.driverApp,
           companyId: world.companyId,
+          locationStamp: input.locationStamp,
           repository: routeRepository,
           tripId: input.tripId,
         })
@@ -1206,6 +1222,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         dispatch,
         driverId: helperId,
         linkage: reads,
+        location: null,
         tripId: world.tripId,
       })
       await expect(dispatchAttempt).rejects.toMatchObject({
@@ -1232,6 +1249,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         dispatch,
         driverId: world.driverId,
         linkage: reads,
+        location: null,
         tripId: world.tripId,
       })
       expect(driverDispatch).toEqual({ tripStatus: 'dispatched' })
@@ -1593,11 +1611,13 @@ describe('os códigos de erro do motorista removido da tripulação (spec 217 T6
               actorUserId: input.actorUserId,
               channel: TRIP_FIELD_CHANNELS.driverApp,
               companyId: world.companyId,
+              locationStamp: input.locationStamp,
               repository: routeRepository,
               tripId: input.tripId,
             }),
           driverId: world.driverId,
           linkage: reads,
+          location: null,
           tripId: world.tripId,
         })
         await expect(dispatchAttempt).rejects.toMatchObject({

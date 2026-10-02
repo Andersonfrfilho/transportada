@@ -19,7 +19,8 @@ import {
   TripOccurrenceNoteRequiredError,
 } from '../domain/trip.error.js'
 import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
-import type { DriverFieldReportUnitOfWork } from './driver-field-report.port.js'
+import type { DriverFieldReportUnitOfWork, ReportedLocation } from './driver-field-report.port.js'
+import { resolveFieldTapLocationStamp } from './field-tap-location-stamp.service.js'
 import {
   deriveFieldAuthorship,
   toFieldTripTarget,
@@ -68,6 +69,8 @@ export type RegisterDriverOccurrenceInput = FieldTripLocator & {
   readonly companyId: string
   readonly documentId: string
   readonly idempotencyKey: string
+  /** Spec 196 T3.3: o ponto do toque; ausente é o aparelho que não mandou, e carimba `unavailable`. */
+  readonly location?: ReportedLocation | null | undefined
   readonly note: string
   readonly occurrenceTypeId: string
   /** Vazio é a nota inteira: o motorista aponta o item quando o cliente recusou só parte. */
@@ -184,6 +187,10 @@ export async function registerDriverOccurrence(
           authorship,
           companyId: input.companyId,
           documentId: input.documentId,
+          locationStamp: resolveFieldTapLocationStamp({
+            location: input.location,
+            locator: input,
+          }),
           note: input.note,
           occurrenceTypeId: occurrenceType.id,
           productCode: scope.productCode,

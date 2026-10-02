@@ -2031,3 +2031,113 @@ Também coberto: o `400` não repete a coordenada que o aparelho mandou (nem em 
 | `bun run typecheck`                       | exit 0                                                           |
 | `bun run lint`                            | exit 0                                                           |
 | `bun --env-file=../../.env.test test ...` | **8818 pass · 23 skip · 0 fail · 28472 expect() · 193 arquivos** |
+
+## T3.3 — o ponto desce até o banco, e só o toque do motorista o leva
+
+O carimbo da T3.1 agora é decidido uma vez e chega a cada escritor:
+
+| Toque                                 | Quem decide o carimbo                                     | Quem grava                                                                    |
+| ------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Despachar                             | `dispatchDriverTrip` (canal `driver_app`, sempre toque)   | `dispatchTrip` → `DrizzleTripRouteRepository` → `recordTripStatusChange`      |
+| Conferir carga / Iniciar rota         | `startFieldTrip` (só quando o alvo é o motorista)         | `DrizzleCurrentDriverTripRepository.updateStatus` → `recordTripStatusChange`  |
+| Ocorrência da parada                  | `reportStopOccurrence` via `resolveFieldTapLocationStamp` | `recordOccurrence` → `trip_stop_occurrences`                                  |
+| Ocorrência da nota                    | `registerDriverOccurrence` via o mesmo serviço            | `saveDocumentOccurrence` → `saveTripOccurrence` → `trip_document_occurrences` |
+| Chegada / entrega / devolução / saída | `recordEvent` (todo chamador é toque)                     | `resolveEventLocationStamp` no próprio repositório                            |
+
+- `application/field-tap-location-stamp.service.ts` (novo): o motorista é quem toca quando a viagem foi
+  achada pelo vínculo dele (`{ driverId }`, app **ou** WhatsApp); o escritório chega com `{ target }`.
+  Três casos de uso precisavam da mesma conta, e é isso que justifica o arquivo.
+- `recordTripStatusChange` ganhou `locationStamp?`; **ausente grava tudo `null`** (D4), então as dez
+  chamadas derivadas existentes não mudaram uma linha. As suítes citadas na task — `trip-status-write-guard`,
+  `trip-timeline`, `trip-lifecycle`, `trip-auto-dispatch` — rodaram contra Postgres **sem mudar expectativa**.
+- WhatsApp: `registerOccurrence`, `reportDelivery` e `reportReturn` do motorista usam o mesmo locator
+  `{ driverId, channel: 'whatsapp' }`, então gravam `unavailable` sem tocar em `main.ts`; o operador
+  (`dispatchTrip` e a ocorrência de separação) não passa carimbo e grava `null`.
+
+⚠️ **`recordEvent` deixou de usar `resolveEventLocationState`.** Era ele quem decidia o estado dos eventos
+de parada, e recusava o WhatsApp (a T1.4 vai invertê-lo). Para o WhatsApp do motorista gravar
+`unavailable` já nesta task, `recordEvent` passa pela política de carimbo, e as cinco colunas (não só o
+estado) saem dela — o escritório com ponto na mão passa a gravar tudo `null` em vez de depender do CHECK
+recusar. `event-location-state.policy.ts` **não foi tocada**; a foto do canhoto
+(`drizzle-delivery-proof.repository.ts`) continua nela. Depois da T1.4 as duas decisões coincidem e uma
+das duas pode sair.
+
+⚠️ **`dispatchDriverTrip` ganhou `location` obrigatório**, e o `dispatch` recebe `locationStamp`. Isso
+mudou o texto de `test/driver-trip/dispatch.contract.ts` (cinco chamadas ganham `location: null`, e a
+expectativa `toEqual` do repasse passou a incluir `locationStamp: unavailable` — é exatamente a mudança
+da task) e de `test/integration/me-trip.integration.ts` (sete chamadas). Nos demais casos de uso
+`location` é opcional: o escritório não tem ponto, e o item antigo da fila também não.
+
+⚠️ `startFieldTrip` só passa `locationStamp` à porta quando quem toca é o motorista. A primeira versão
+passava o carimbo vazio também para o escritório, e `test/field-trip-target/use-cases.contract.ts:338`
+(`toEqual` do que `updateStatus` recebe) reprovou — foi o contrato certo reprovando, e o caminho do
+escritório ficou **byte a byte** o que era.
+
+### Vermelho registrado
+
+Com os contratos novos importados e a implementação ausente: `test/driver-trip.contract.test.ts` **15 fail ·
+138 pass** de 153, e `test/trip-schema.contract.test.ts` **10 fail · 204 pass** de 214 — todos pelo motivo
+certo (a porta recebia `undefined` no lugar do carimbo; o `INSERT` não levava as colunas).
+
+### A contagem subiu
+
+| Suíte                               | Antes | Depois | Subiu em |
+| ----------------------------------- | ----- | ------ | -------- |
+| `test/driver-trip.contract.test.ts` | 137   | 153    | **16**   |
+| `test/trip-schema.contract.test.ts` | 199   | 219    | **20**   |
+| `test/composition.contract.test.ts` | 4     | 7      | **3**    |
+| `bun test` da API (193 arquivos)    | 8818  | 8857   | **39**   |
+
+### Provado por mutação
+
+| Mutação                                                         | Falhas | Primeira asserção que cai                                         |
+| --------------------------------------------------------------- | ------ | ----------------------------------------------------------------- |
+| D1 despacho com carimbo vazio                                   | 3      | `o dispatch pelo motorista ... passa pela mesma transição`        |
+| D2 despacho ignora o ponto                                      | 1      | `com ponto, o despacho recebe captured`                           |
+| D3 despacho não é toque                                         | 3      | `o dispatch pelo motorista ... passa pela mesma transição`        |
+| F2 serviço: ninguém carimba                                     | 10     | `confirmLoad do motorista com ponto grava captured`               |
+| F4 serviço: ponto ignorado                                      | 5      | `confirmLoad do motorista com ponto grava captured`               |
+| F5 serviço: `location` ausente não carimba                      | 4      | `confirmLoad do motorista sem ponto grava unavailable`            |
+| G1 `startFieldTrip` com carimbo vazio                           | 4      | `confirmLoad do motorista com ponto grava captured`               |
+| G2 `startFieldTrip` ignora o `location`                         | 2      | `confirmLoad do motorista com ponto grava captured`               |
+| G3 `startFieldTrip` passa carimbo também ao escritório          | 2      | `confirmLoad pelo escritório não leva carimbo`                    |
+| H1 ocorrência da parada com carimbo vazio                       | 4      | `app com ponto grava captured; sem ponto grava unavailable`       |
+| H2 ocorrência da parada ignora o `location`                     | 2      | `app com ponto grava captured; sem ponto grava unavailable`       |
+| I1 ocorrência da nota com carimbo vazio                         | 2      | `app com ponto grava captured; sem ponto grava unavailable`       |
+| I2 ocorrência da nota ignora o `location`                       | 1      | `app com ponto grava captured; sem ponto grava unavailable`       |
+| J1 `recordTripStatusChange` não grava o carimbo                 | 5      | `o carimbo captured desce até o INSERT`                           |
+| K1 `updateStatus` não repassa o carimbo                         | 3      | `o carimbo do motorista desce até trip_status_events`             |
+| L1 `recordEvent` nunca é toque                                  | 3      | `app com ponto grava captured e as quatro colunas`                |
+| L2 `recordEvent` não grava o carimbo                            | 5      | `app com ponto grava captured e as quatro colunas`                |
+| L3 `recordOccurrence` não grava o carimbo                       | 3      | `a ocorrência da parada grava as cinco colunas do carimbo`        |
+| L4 `saveDocumentOccurrence` não repassa ao `saveTripOccurrence` | 2      | `o repositório do motorista leva o carimbo da ocorrência da nota` |
+| L5 `recordEvent` decide pelo canal fixo `driver_app`            | 2      | `office grava tudo null, mesmo com ponto na mão`                  |
+| M1 `saveTripOccurrence` não grava o carimbo                     | 2      | `a ocorrência da nota grava as cinco colunas do carimbo`          |
+| N1 `main.ts` não repassa o carimbo do despacho                  | 1      | `e repassa o carimbo que recebeu ao dispatchTrip`                 |
+
+Três sondas **sobreviveram e são equivalentes, não lacunas**: F1 (`isDriverTap: true` no serviço também
+para o escritório) e F3 (canal fixo `driver_app` no serviço) sobrevivem porque a política **repete** a
+guarda de canal — o escritório já zera ali —, e a reescrita de `?? null` como `=== undefined ? null : …`
+é a mesma expressão. L4 foi uma sobrevivente real: o repositório do motorista não repassava o carimbo ao
+`saveTripOccurrence`, e nenhum teste enxergava; ganhou o teste do repositório e a sonda reprova agora.
+
+⚠️ O que esta task **não** prova, e a T3.5 prova: o `dispatch` interno de `DrizzleTripRouteRepository`
+(que passa `locationStamp` a `recordTripStatusChange` dentro da transação do despacho, com `FOR NO KEY
+UPDATE`, snapshot e deslocamento de ETA) é grande demais para um dublê de transação sem virar teste do
+dublê; fica para o SQL real. A fiação de `main.ts` é uma varredura de **texto** (molde de
+`occurrence-persistence-wiring.contract.ts`): ela prova que a linha existe, não que o servidor sobe com
+ela — o comportamento é o do caso de uso, coberto acima.
+
+### Portões
+
+| Portão                                                                                                                                                  | Resultado                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `bun run typecheck`                                                                                                                                     | exit 0                                                           |
+| `bun run lint`                                                                                                                                          | exit 0                                                           |
+| `bun --env-file=../../.env.test test ...`                                                                                                               | **8857 pass · 23 skip · 0 fail · 28525 expect() · 193 arquivos** |
+| integração: `me-trip`, `trip-status-write-guard`, `whatsapp-driver-flow-actions`, `trip-field-authorship`, `field-trip-target`, `stop-occurrence-photo` | **44 pass · 0 fail** (6 arquivos, 78,8 s)                        |
+| integração: `trip-lifecycle`, `trip-auto-dispatch` (+ concorrência), `trip-timeline`, `trip-occurrence-timeline`                                        | **64 pass · 0 fail** (5 arquivos, 112 s)                         |
+
+As duas linhas de integração rodaram **antes** do ajuste do `startFieldTrip` (carimbo só para o motorista,
+G3); esse ajuste só tira um objeto do caminho do escritório, e a integração **completa** da T3.5 reexecuta
+tudo contra o código final.

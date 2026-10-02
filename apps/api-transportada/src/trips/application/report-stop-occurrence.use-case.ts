@@ -14,7 +14,9 @@ import type { SuggestDeliveryChargesPort } from '../../delivery-clients/applicat
 import type {
   DriverFieldReportTransactionPort,
   DriverFieldReportUnitOfWork,
+  ReportedLocation,
 } from './driver-field-report.port.js'
+import { resolveFieldTapLocationStamp } from './field-tap-location-stamp.service.js'
 import {
   deriveFieldAuthorship,
   toFieldTripTarget,
@@ -88,6 +90,8 @@ export type ReportStopOccurrenceInput = FieldTripLocator &
     readonly distanceMeters: number | null
     readonly documentId: string | null
     readonly idempotencyKey: string
+    /** Spec 196 T3.3: o ponto do toque do motorista; o escritório não manda. */
+    readonly location?: ReportedLocation | null | undefined
     /** Spec 156 T15 M11: só o escritório manda — a trilha nasce na transação da ocorrência. */
     readonly officeAudit?: OfficeAuditRequest
     readonly stopId: string
@@ -205,6 +209,10 @@ export async function reportStopOccurrence(
           distanceMeters: input.distanceMeters,
           documentId: input.documentId,
           kind: reference.kind,
+          locationStamp: resolveFieldTapLocationStamp({
+            location: input.location,
+            locator: input,
+          }),
           occurrenceTypeId: reference.occurrenceTypeId,
           stopId: input.stopId,
         })

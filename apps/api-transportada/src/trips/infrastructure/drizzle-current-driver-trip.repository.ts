@@ -76,6 +76,7 @@ import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import type { TripDatabase } from './trip-queryable.type.js'
 import { TRIP_DISPATCHED_STATUSES, TRIP_ON_ROAD_STATUSES } from '../domain/trip-state.policy.js'
 import type { TripStatus } from '../../database/trip.schema.js'
+import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { TripFieldOfficeAuditInput } from '../application/trip-field-office-audit.port.js'
 import { insertTripFieldOfficeAudit } from './trip-field-office-audit.persistence.js'
@@ -217,6 +218,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     readonly channel: TripFieldChannel
     readonly companyId: string
     readonly expectedStatus: TripStatus
+    readonly locationStamp?: EventLocationStampColumns | undefined
     readonly onBehalfOfDriverId: string | null
     readonly tripId: string
     readonly tripStatus: TripStatus
@@ -241,6 +243,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         channel: input.channel,
         companyId: input.companyId,
         fromStatus: input.expectedStatus,
+        locationStamp: input.locationStamp,
         onBehalfOfDriverId: input.onBehalfOfDriverId,
         toStatus: input.tripStatus,
         tripId: input.tripId,

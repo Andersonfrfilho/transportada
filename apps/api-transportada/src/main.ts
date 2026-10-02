@@ -3537,6 +3537,7 @@ function createApplicationRoutes({
               actorUserId: request.actorUserId,
               channel: TRIP_FIELD_CHANNELS.driverApp,
               companyId: input.companyId,
+              locationStamp: request.locationStamp,
               repository: tripRouteRepository,
               tripId: request.tripId,
             }),

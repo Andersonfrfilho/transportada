@@ -206,7 +206,7 @@ do usuário. A API não é revertida com a app nova no ar.
 
   Aceite: verde; a contagem subiu em N.
 
-- [ ] **T3.3** Levar o ponto até o banco: `dispatchTrip`/`startFieldTrip` → `recordTripStatusChange`
+- [x] **T3.3** Levar o ponto até o banco: `dispatchTrip`/`startFieldTrip` → `recordTripStatusChange`
       (`locationStamp` opcional; as chamadas derivadas não mudam), ocorrência da parada, ocorrência da
       nota, e o `location_state` em chegada/entrega/devolução. As três ações de
       `driverWhatsAppFlowActions` gravam `unavailable`; `operatorWhatsAppFlowActions`, escritório e

@@ -9,6 +9,7 @@ import type {
   FieldReportClaim,
 } from '../../src/trips/application/driver-field-report.port.js'
 import type { TripStopOccurrenceKind } from '../../src/database/trip.schema.js'
+import type { EventLocationStampColumns } from '../../src/trips/domain/event-location-stamp.types.js'
 import type { TripFieldChannel } from '../../src/trips/domain/trip-field-channel.constant.js'
 import type { TripOccurrence } from '../../src/trips/application/register-trip-occurrence.use-case.js'
 
@@ -24,6 +25,10 @@ export type FieldReportState = {
   readonly dispatchedAtByTripId: Map<string, Date>
   /** Spec 179 T200: a ocorrência de nota (`trip_document_occurrences`), id à parte da de parada. */
   readonly documentOccurrences: Map<string, TripOccurrence>
+  /** Spec 196 T3.3: o carimbo que cada `saveDocumentOccurrence` recebeu, na ordem. */
+  readonly documentOccurrenceStamps: EventLocationStampColumns[]
+  /** Spec 196 T3.3: o carimbo que cada `recordOccurrence` recebeu, na ordem. */
+  readonly occurrenceStamps: EventLocationStampColumns[]
   readonly documents: Map<string, DriverDocumentReference>
   readonly events: Map<string, { readonly id: string }>
   /** Spec 205 RF4: `eventId` → o `lateRegistration` que a baixa gravou (ausente cai em `false`). */
@@ -73,10 +78,12 @@ export function createFieldReportState(
     calls: [],
     dispatchedAtByTripId: new Map(),
     documentOccurrences: new Map(),
+    documentOccurrenceStamps: [],
     documents: new Map(),
     events: new Map(),
     eventLateRegistrations: new Map(),
     latestEvents: new Map(),
+    occurrenceStamps: [],
     occurrences: new Map(),
     recordedOccurrenceTypeIds: [],
     stopOccurrenceTypes: new Map(),
@@ -254,6 +261,7 @@ export function createFieldReportUnitOfWork(
       state.stopOccurrenceTypes.get(`${input.companyId}:${input.occurrenceTypeId}`) ?? null,
     recordOccurrence: async (input) => {
       state.calls.push(`recordOccurrence:${input.kind}`)
+      state.occurrenceStamps.push(input.locationStamp)
       state.recordedOccurrenceTypeIds.push(input.occurrenceTypeId)
       const occurrence = { id: nextIdentifier('occurrence') }
       state.occurrences.set(occurrence.id, occurrence)
@@ -313,6 +321,7 @@ export function createFieldReportUnitOfWork(
         `saveDocumentOccurrence:${input.documentId}:${input.attachmentObjectId ?? 'none'}`,
       )
       if (!state.documents.has(input.documentId)) return null
+      state.documentOccurrenceStamps.push(input.locationStamp)
       const occurrence: TripOccurrence = {
         createdAt: new Date().toISOString(),
         id: nextIdentifier('document-occurrence'),

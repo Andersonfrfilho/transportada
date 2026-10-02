@@ -12,6 +12,7 @@ import type {
   TripStopEventKind,
   TripStopOccurrenceKind,
 } from '../../database/trip.schema.js'
+import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
 import type { CorrectedClock } from '../domain/occurred-at.policy.js'
 import type { ReceivedByFields } from '../domain/received-by.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
@@ -386,6 +387,8 @@ export type DriverFieldReportTransactionPort = {
     readonly distanceMeters: number | null
     readonly documentId: string | null
     readonly kind: TripStopOccurrenceKind
+    /** Spec 196 T3.3: o ponto do toque e o estado dele, já decididos pela política. */
+    readonly locationStamp: EventLocationStampColumns
     /** Spec 218 D2: o tipo do catálogo; `null` no corpo antigo, que só manda `kind`. */
     readonly occurrenceTypeId: string | null
     readonly stopId: string
@@ -419,6 +422,8 @@ export type DriverFieldReportTransactionPort = {
     readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly documentId: string
+    /** Spec 196 T3.3: o ponto do toque e o estado dele, já decididos pela política. */
+    readonly locationStamp: EventLocationStampColumns
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
