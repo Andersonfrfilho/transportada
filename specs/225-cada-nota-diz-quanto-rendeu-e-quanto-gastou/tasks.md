@@ -99,6 +99,28 @@ em `evidence.md`.
 - [ ] **T4.4** Revisão por `code-reviewer` em `opus`, com a invariante do D4 e a classificação das
       parcelas como foco.
 
+- [ ] **T4.5** 🔁 **Comparar a tela implementada com o canvas aprovado**, lado a lado — pedido do usuário
+      em 2026-10-02 ("quando vc for desenvolver, ao final compare ela com o seu preview"). Referência:
+      o canvas "Preview expansivo de entrega" (`claude.ai/artifact/Q5dwyMjB9oTGG8x8FJab1T`, prancha
+      `Main.dc.html`, versão 4). Ele usa os **mesmos tokens** do painel, então diferença de cor é defeito.
+      Divergências **já visíveis** entre a fonte do canvas e o print de `/trips/:id`, a resolver ou
+      declarar como pendência:
+  - **Espera no cliente**: o canvas mostra "espera no cliente · N min" como parte própria do gasto; a
+    tela real a **soma em "do trecho"**. Separar exige a API devolver a espera à parte
+    (`legCostAmount` hoje junta trecho e espera);
+  - **Botão de copiar** em cada campo e em cada valor de custo: a tela real **não tem**;
+  - **"Abrir em outras páginas"** (lista de NF-e, cliente, ocorrência, resultado da viagem): a tela real
+    **não tem**;
+  - **"Previsão — a nota ainda não foi entregue"** na nota pendente: a tela real não diferencia;
+  - **Bloco "Frete"** dentro do custo e lucro: no canvas é o primeiro dos cinco; na tela real o frete
+    já está na linha da nota, acima do detalhe;
+  - o canvas é uma prancha de **"Detalhe da viagem — expansivo por nota"** com Dados da nota,
+    Comprovante, Ocorrências e Eventos; a tela real `/trips/:id` tem outra organização, e o canvas
+    **não existe como tela** no repositório (nenhuma spec a descreve).
+
+  Aceite: prints da tela real e da prancha do canvas lado a lado, em 1280 e 375, com **cada divergência
+  listada** no `evidence.md` como defeito corrigido ou pendência declarada.
+
 ## O que não se decide sozinho
 
 Pare e pergunte antes de: empurrar para staging, deploy, migration (esta spec **não** deve precisar de

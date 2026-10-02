@@ -1,3 +1,4 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
 import { useDocumentCostLine } from '../hooks/useDocumentCostLine.hook'

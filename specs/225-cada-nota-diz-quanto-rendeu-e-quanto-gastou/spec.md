@@ -174,10 +174,11 @@ rateio do frete nem por peso.
 - **RF6** Sem `trip.financials`, nada disso aparece na resposta nem na tela.
 - **RF7** A nota sem parada (`stop_id` nulo) não recebe gasto de trecho: entra só no rateio de viagem,
   e a tela diz por quê.
-- **RF8** A base de tempo soma trecho rodado e espera na parada (`departed − arrived`); a espera vai
-  direto às notas entregues naquela parada, dividida igualmente. Sem `departed`, o último `delivered`
-  da parada serve de saída e o tempo sai parcial; sem `arrived`, a espera é zero e o tempo sai
-  incompleto.
+- **RF8** A base de tempo soma trecho rodado e espera na parada. A espera na parada X vai da chegada em X
+  até o **primeiro `departed` de outra parada** com instante maior ou igual (D9 — **não** é
+  `departed − arrived` da mesma parada, que sairia negativa), e vai direto às notas entregues ali,
+  dividida igualmente. Sem saída, mas com `delivered`, o último `delivered` da parada serve de saída e o
+  tempo sai parcial; sem `arrived`, a espera é zero e o tempo sai incompleto.
 - **RF9** A resposta diz, por nota, `timeBasis` (`'complete'`, `'partial'`, `'incomplete'`), para a
   tela não ter de inferir se o tempo está fechado.
 

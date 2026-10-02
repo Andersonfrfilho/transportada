@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { ReactNode } from 'react'
+import { type ReactNode, useMemo } from 'react'
 
 import { DocumentCostContext } from '../hooks/useDocumentCostLine.hook'
 import { indexRevenueLinesByDocument } from '../shared/documentCostIndex.service'
@@ -12,9 +12,8 @@ type DocumentCostProviderProps = Readonly<{
 }>
 
 export function DocumentCostProvider({ children, valuation }: DocumentCostProviderProps) {
-  return (
-    <DocumentCostContext.Provider value={indexRevenueLinesByDocument(valuation)}>
-      {children}
-    </DocumentCostContext.Provider>
-  )
+  // Um `Map` novo a cada render trocaria o valor do contexto e re-renderizaria todas as notas.
+  const index = useMemo(() => indexRevenueLinesByDocument(valuation), [valuation])
+
+  return <DocumentCostContext.Provider value={index}>{children}</DocumentCostContext.Provider>
 }
