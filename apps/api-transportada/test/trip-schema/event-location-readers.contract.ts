@@ -1,0 +1,154 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * RF12/D7 da spec 196. A lista fechada de leitores vive em
+ * `src/trips/application/event-location-readers.constant.ts`; aqui ela é cobrada contra o texto de
+ * `src/`. A varredura é por **tabela qualificada** (`tripStopEvents.latitude`) de propósito: a
+ * palavra `latitude` solta aparece em geocodificação, pedágio e endereço, que não têm nada a ver com
+ * posição de evento, e um recorte mais largo viraria ruído que ninguém lê.
+ */
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { join, relative } from 'node:path'
+
+import { describe, expect, test } from 'bun:test'
+
+import {
+  EVENT_LOCATION_FORBIDDEN_RESPONSES,
+  EVENT_LOCATION_POSITION_COLUMNS,
+  EVENT_LOCATION_READERS,
+  EVENT_LOCATION_TABLE_IDENTIFIERS,
+} from '../../src/trips/application/event-location-readers.constant.js'
+
+const SOURCE_ROOT = new URL('../../src', import.meta.url).pathname
+
+/** O próprio arquivo da lista cita caminhos e nomes de coluna — não é leitor. */
+const SWEEP_EXEMPT_PATHS = ['trips/application/event-location-readers.constant.ts']
+
+const BARE_SELECT_PATTERN = /\.(select|selectDistinct)\(\s*\)/
+const ROW_SPREAD_PATTERN = /\.\.\.(?!new\b)[a-zA-Z_$][\w$]*\s*[,}]/
+
+type PositionReference = {
+  readonly column: string
+  readonly path: string
+  readonly table: string
+}
+
+function listSourceFiles(directory: string): readonly string[] {
+  const files: string[] = []
+
+  for (const entry of readdirSync(directory)) {
+    const fullPath = join(directory, entry)
+    if (statSync(fullPath).isDirectory()) {
+      files.push(...listSourceFiles(fullPath))
+      continue
+    }
+    if (entry.endsWith('.ts')) files.push(fullPath)
+  }
+
+  return files
+}
+
+function collectPositionReferences(path: string, content: string): readonly PositionReference[] {
+  const references: PositionReference[] = []
+
+  for (const table of EVENT_LOCATION_TABLE_IDENTIFIERS) {
+    for (const column of EVENT_LOCATION_POSITION_COLUMNS) {
+      const pattern = new RegExp(`\\b${table}\\s*\\.\\s*${column}\\b`)
+      if (pattern.test(content)) references.push({ column, path, table })
+    }
+  }
+
+  return references
+}
+
+const sourceFiles = listSourceFiles(SOURCE_ROOT).map((fullPath) => ({
+  content: readFileSync(fullPath, 'utf8'),
+  path: relative(SOURCE_ROOT, fullPath).split('\\').join('/'),
+}))
+
+const references = sourceFiles
+  .filter((file) => !SWEEP_EXEMPT_PATHS.includes(file.path))
+  .flatMap((file) => collectPositionReferences(file.path, file.content))
+
+const allowedColumnsByPath = new Map(
+  EVENT_LOCATION_READERS.map((reader) => [reader.path, new Set<string>(reader.columns)]),
+)
+
+describe('lista fechada de leitores da posição do evento (196 RF12/D7)', () => {
+  test('nenhum arquivo fora da lista referencia coluna de posição das cinco tabelas', () => {
+    const offenders = references
+      .filter((reference) => !allowedColumnsByPath.has(reference.path))
+      .map((reference) => `${reference.path} -> ${reference.table}.${reference.column}`)
+      .toSorted((left, right) => left.localeCompare(right))
+
+    expect(offenders).toEqual([])
+  })
+
+  test('leitor da lista só referencia as colunas que a lista lhe deu', () => {
+    const offenders = references
+      .filter((reference) => {
+        const allowed = allowedColumnsByPath.get(reference.path)
+        return allowed !== undefined && !allowed.has(reference.column)
+      })
+      .map((reference) => `${reference.path} -> ${reference.table}.${reference.column}`)
+      .toSorted((left, right) => left.localeCompare(right))
+
+    expect(offenders).toEqual([])
+  })
+
+  test('a lista não tem caminho morto nem repetido', () => {
+    const knownPaths = new Set(sourceFiles.map((file) => file.path))
+    const listedPaths = EVENT_LOCATION_READERS.map((reader) => reader.path)
+
+    expect(listedPaths.filter((path) => !knownPaths.has(path))).toEqual([])
+    expect(listedPaths.length).toBe(new Set(listedPaths).size)
+  })
+
+  test('todo leitor declara pelo menos uma coluna e um motivo', () => {
+    const incomplete = EVENT_LOCATION_READERS.filter(
+      (reader) => reader.columns.length === 0 || reader.reason.trim() === '',
+    ).map((reader) => reader.path)
+
+    expect(incomplete).toEqual([])
+  })
+})
+
+describe('respostas que não podem carregar posição de evento (196 RF12)', () => {
+  const forbidden = EVENT_LOCATION_FORBIDDEN_RESPONSES.map((entry) => {
+    const file = sourceFiles.find((candidate) => candidate.path === entry.path)
+    return { ...entry, content: file?.content }
+  })
+
+  test('todo caminho da lista negativa existe', () => {
+    expect(
+      forbidden.filter((entry) => entry.content === undefined).map((entry) => entry.path),
+    ).toEqual([])
+  })
+
+  test('nenhuma delas referencia coluna de posição das cinco tabelas', () => {
+    const offenders = forbidden
+      .flatMap((entry) =>
+        entry.content === undefined ? [] : collectPositionReferences(entry.path, entry.content),
+      )
+      .map((reference) => `${reference.path} -> ${reference.table}.${reference.column}`)
+      .toSorted((left, right) => left.localeCompare(right))
+
+    expect(offenders).toEqual([])
+  })
+
+  test('nenhuma delas usa `select()` sem projeção', () => {
+    const offenders = forbidden
+      .filter((entry) => entry.content !== undefined && BARE_SELECT_PATTERN.test(entry.content))
+      .map((entry) => entry.path)
+
+    expect(offenders).toEqual([])
+  })
+
+  test('nenhuma delas espalha a linha do banco na resposta', () => {
+    const offenders = forbidden
+      .filter((entry) => entry.content !== undefined && ROW_SPREAD_PATTERN.test(entry.content))
+      .map((entry) => entry.path)
+
+    expect(offenders).toEqual([])
+  })
+})

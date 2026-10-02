@@ -108,13 +108,18 @@ do usuário. A API não é revertida com a app nova no ar.
   `db:generate` = `no_changes`, `test/database-migration/schema-snapshot.contract.ts` verde e
   **`make migration-test`** verde.
 
-- [ ] **T1.3** Auditoria de leitura (RF12), **antes** de qualquer escrita de ponto:
+- [x] **T1.3** Auditoria de leitura (RF12), **antes** de qualquer escrita de ponto:
   - os leitores listados no `plan.md` § API — leitura são conferidos contra `select()` sem projeção e
     contra spread da linha na resposta; quem devolver a linha inteira passa a projetar colunas;
   - `trips/application/event-location-readers.constant.ts` com a lista de leitores permitidos (D7) e
     `test/trip-schema/event-location-readers.contract.ts` (importado por
     `test/trip-schema.contract.test.ts`), que varre `src/` e reprova referência às colunas de posição
-    das cinco tabelas fora da lista;
+    das cinco tabelas fora da lista. ⚠️ A lista é **por coluna**, não por arquivo: o feed da 195 vê
+    `location_state` e não pode ver coordenada, e `captured_at` entra sozinho em quatro leitores onde
+    é **instante** (`coalesce(captured_at, recorded_at)`), não posição — lista por arquivo obrigaria a
+    liberar coordenada junto com tempo. ⚠️ A varredura casa **tabela qualificada**
+    (`tripStopEvents.latitude`): `latitude` solta aparece em 85 arquivos de `src/` que não são evento
+    (geocodificação, pedágio, centroide), e recorte largo viraria ruído desligado;
   - contrato negativo por resposta: portal (`contractor-occurrence.query.ts`), tratativa,
     demonstrativo, acerto e reentrega sem `latitude`, `longitude`, `accuracyMeters`, `capturedAt` ou
     `locationState`.

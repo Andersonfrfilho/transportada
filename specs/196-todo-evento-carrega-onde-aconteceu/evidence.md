@@ -1445,3 +1445,128 @@ Pasta cujo nome não está no journal roda, qualquer que seja o timestamp. E `as
 (`migration-completeness.service.ts`) confere o mesmo conjunto depois do `migrate()`, então um pulo
 reprovaria o pre-deploy em voz alta em vez de passar com o banco pela metade. **Nenhum rename é
 necessário.**
+
+### Adendo — o `make migration-test` prescrito rodou, com o Docker de volta
+
+O daemon voltou com `open -a Docker` (10 s até responder, `28.5.1`), e aí o caminho do Makefile rodou
+inteiro, sem substituição nenhuma:
+
+```
+make migration-test
+ Container transportada-local-postgres-1  Healthy
+ 114 pass · 0 fail · 1673 expect() calls · 8 arquivos · [34.10s]
+```
+
+Mesmo número do cluster nativo, agora no Postgres do `compose.yaml`. A medição com cluster nativo
+acima fica registrada como o que foi feito antes, não como equivalência que ninguém conferiu.
+
+## T1.3 — a auditoria de leitura, antes de qualquer escrita de ponto
+
+### A auditoria dos onze leitores: nenhum devolve a linha inteira
+
+Os leitores que o `plan.md` § API — leitura manda conferir — `contractor-occurrence.query.ts`,
+`trip-occurrence-feed.query.ts`, `drizzle-occurrence-case.repository.ts`,
+`occurrence-case-marker.query.ts`, `drizzle-occurrence-statement.repository.ts`,
+`drizzle-occurrence-settlement.repository.ts`, `drizzle-occurrence-settlement-charge.repository.ts`,
+`drizzle-redelivery-proposal.repository.ts`, `drizzle-redelivery-application.repository.ts`,
+`drizzle-office-occurrence-batch.repository.ts`, `drizzle-occurrence-attachment.repository.ts` e
+`dispatch-readiness.query.ts` — foram varridos por `\.(select|selectDistinct)\(\)`: **nenhuma
+ocorrência**. Todos projetam coluna a coluna, então nenhum passa a projetar nada nesta task.
+
+Um spread de linha existe, e não está em nenhuma dessas respostas:
+`trip-occurrence-feed.query.ts:589` faz `rows.map(({ nfeDocumentId, totalValue, tripDocumentId,
+...row }) => ({ ...row, ... }))`. O feed é leitor permitido da 195 — e permitido **só para
+`location_state`**. Enquanto a projeção dele não nomear coordenada, o spread não tem o que vazar; e
+se alguém nomear, a lista por coluna reprova (provado por mutação abaixo).
+
+### A lista é por coluna, não por arquivo
+
+`src/trips/application/event-location-readers.constant.ts` declara
+`EVENT_LOCATION_POSITION_COLUMNS`, `EVENT_LOCATION_TABLE_IDENTIFIERS`, `EVENT_LOCATION_READERS`
+(caminho + colunas + motivo) e `EVENT_LOCATION_FORBIDDEN_RESPONSES`.
+
+Escopo por coluna porque arquivo não é a unidade certa do problema: o feed da 195 **vê o estado e não
+pode ver o ponto**, e uma lista por arquivo diria sim para os dois. A outra razão apareceu na
+varredura: `capturedAt` entra sozinho em quatro leitores
+(`drizzle-driver-field-report.repository.ts`, `drizzle-current-driver-trip.repository.ts`,
+`drizzle-driver-score.repository.ts` e parte do comprovante) porque ali ele é **instante**, não
+ponto — `coalesce(captured_at, recorded_at)` para ordenar e medir pontualidade. Lista por arquivo
+obrigaria a liberar coordenada junto com tempo, ou a reprovar código que não lê coordenada nenhuma.
+
+Os nove leitores permitidos hoje, e o que cada um pode ver:
+
+| leitor                                      | colunas               | por quê                                       |
+| ------------------------------------------- | --------------------- | --------------------------------------------- |
+| `trip-timeline-stop.query.ts`               | as cinco              | ponto do evento na linha do tempo             |
+| `trip-timeline-status.query.ts`             | as cinco              | idem (Fase 4)                                 |
+| `trip-timeline-document.query.ts`           | as cinco              | idem (Fase 4)                                 |
+| `delivery-proof-read.support.ts`            | as cinco              | comprovante: ponto do comprovante e da parada |
+| `drizzle-delivery-proof.repository.ts`      | lat, long, capturedAt | distância entre os dois pontos                |
+| `trip-occurrence-feed.query.ts`             | só `locationState`    | feed da 195 — estado, nunca ponto             |
+| `drizzle-driver-field-report.repository.ts` | só `capturedAt`       | instante do relato                            |
+| `drizzle-current-driver-trip.repository.ts` | só `capturedAt`       | instante da chegada                           |
+| `drizzle-driver-score.repository.ts`        | só `capturedAt`       | instante para pontualidade                    |
+
+A varredura é por **tabela qualificada** (`tripStopEvents.latitude`), e isso é decisão, não preguiça:
+`latitude` solta aparece em 85 arquivos de `src/` — geocodificação, pedágio, endereço de cliente,
+centroide de município, OSRM — nada disso é posição de evento. Recorte largo viraria ruído, e ruído
+em contrato estático acaba desligado.
+
+### Provado por mutação, cinco sondas
+
+Verde de primeira não prova detector nenhum, então cada asserção levou uma sonda e foi vista
+reprovar. Depois de cada uma, `git checkout` do arquivo:
+
+| sonda                                                                                            | asserção que pegou                                             |
+| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| `tripStatusEvents.longitude` em `trip-valuation.query.ts` (fora da lista)                        | "nenhum arquivo fora da lista referencia coluna de posição"    |
+| `tripStopOccurrences.latitude` em `trip-occurrence-feed.query.ts` (leitor de `locationState` só) | "leitor da lista só referencia as colunas que a lista lhe deu" |
+| `tripStopOccurrences.latitude` em `contractor-occurrence.query.ts`                               | "nenhuma delas referencia coluna de posição"                   |
+| `queryable.select()` em `occurrence-case-marker.query.ts`                                        | "nenhuma delas usa `select()` sem projeção"                    |
+| `{ ...row, extra: 1 }` em `occurrence-case-marker.query.ts`                                      | "nenhuma delas espalha a linha do banco"                       |
+
+As três primeiras rodaram juntas (**167 pass · 3 fail**), as duas últimas juntas (**168 pass ·
+2 fail**), cada falha com a mensagem nomeando arquivo e coluna. Sem sonda: **170 pass · 0 fail**, oito
+testes novos sobre os 162 da T1.2.
+
+O contrato negativo prova por **estrutura**, não por palavra: projeção explícita + nenhum `select()`
+cru + nenhum spread de linha, as três juntas, fazem a resposta não ter como carregar o ponto. Afirmar
+só "o arquivo não contém a palavra latitude" seria contrato de parede.
+
+### O `.env.test` não existia neste worktree, e a integração estava pulando
+
+Este worktree foi criado pelo app do Claude, não por `make worktree` — e por isso **não tinha `.env`
+nem `.env.test`**. A primeira execução de `bun --env-file=../../.env.test run test:integration`
+devolveu **91 pass · 721 skip · 3 fail**, com `A PostgreSQL test URL is required`: o
+`--env-file` apontava para arquivo inexistente, a URL vinha `undefined`, e 721 testes viraram
+`test.skip` — exatamente o "pular não é passar" que o `CLAUDE.md` avisa, por um caminho que o aviso
+não cobria (ele fala da flag ausente, não do arquivo ausente).
+
+Corrigido como o `make worktree` faz: link simbólico de `.env` e `.env.test` para o checkout
+principal. Os dois são `.gitignore` (`.env`, `.env.*`), então não entram em commit nenhum.
+
+Isso também diz o que **não** vale deste worktree até aqui: toda execução de contrato segue válida
+(não tocam banco), mas qualquer "integração verde" anterior a este ponto, nesta árvore, não exercitou
+o banco.
+
+### Portões da T1.3
+
+| Portão                                     | Resultado                                                                   |
+| ------------------------------------------ | --------------------------------------------------------------------------- |
+| `bun run typecheck` (api)                  | exit 0                                                                      |
+| `bun run lint` (api)                       | exit 0                                                                      |
+| `prettier --write` nos três arquivos       | aplicado, sem pendência                                                     |
+| `test ./test/trip-schema.contract.test.ts` | **170 pass · 0 fail · 658 expect()** — +8 sobre os 162 da T1.2              |
+| contrato inteiro da API (`bun test`)       | **8503 pass · 32 skip · 0 fail · 27423 expect() · 192 arquivos · [18.67s]** |
+| integração da API (`run test:integration`) | **795 pass · 8 skip · 1 fail · 4913 expect() · 804 testes · [1154.37s]**    |
+
+O 1 fail da integração **não é verde disfarçado, e não é da T1.3**:
+`company-user-listing.integration.ts > publica a ficha de motorista e o veículo atribuído` estourou o
+teto de 120 s (`this test timed out after 120000ms`), sem asserção nenhuma falhando. O mesmo arquivo,
+sozinho, dá **10 pass · 0 fail · [16.95s]** — é a carga de 145 arquivos no mesmo Postgres, o padrão
+que `integracao-local-nao-e-evidencia-sob-disputa` já registrou. Listagem de usuário e vínculo de
+frota não encostam em nenhuma das cinco tabelas de evento nem na lista de leitores.
+
+A T1.3 não altera caminho de execução nenhum: o `constant.ts` é importado só pelo contrato. A
+integração entra aqui como prova de que nada regrediu, não como prova do que a task faz — essa é a
+mutação.
