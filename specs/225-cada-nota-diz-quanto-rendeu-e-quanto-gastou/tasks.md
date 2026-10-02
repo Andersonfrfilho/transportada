@@ -93,7 +93,7 @@ em `evidence.md`.
 - [x] **T4.2** Documentação viva: `docs/ai-context/api-transportada.md` e
       `docs/ai-context/frontend-transportada.md` com a regra de rateio em uma linha, apontando para a
       política.
-- [ ] **T4.3** Portão completo na raiz, um comando por vez em primeiro plano (`make check` estoura o
+- [x] **T4.3** Portão completo na raiz, um comando por vez em primeiro plano (`make check` estoura o
       teto de 600 s): `format:check`, `lint`, `typecheck`, `test`, `build`. ⚠️ `format:check` é portão
       **só na raiz**, e a spec em markdown entra nele — rodar prettier nos `.md` antes.
 - [ ] **T4.4** Revisão por `code-reviewer` em `opus`, com a invariante do D4 e a classificação das

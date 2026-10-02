@@ -509,3 +509,38 @@ fundos. São os tokens que o painel já usava, então não há combinação nova
 - **A tabela de comparação rola na horizontal em 375 px.** Escolha consciente: ela precisa de ~400 px.
   Alternativas apresentadas ao usuário (empilhar em três blocos; esconder em tela estreita), **ainda sem
   resposta**.
+
+## T4.3 — o portão completo na raiz
+
+Um comando por vez, em primeiro plano — `make check` estoura o teto de 600 s.
+
+| Portão                 | Resultado                                                                                                                           |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run format:check` | **reprovou na primeira passada** — `apps/frontend-transportada/test/trip-smoke.helper.ts` sem prettier; corrigido; depois **verde** |
+| `bun run lint`         | 0 erros · 16 avisos `exhaustive-deps` **pré-existentes** do painel                                                                  |
+| `bun run typecheck`    | exit 0, as sete apps                                                                                                                |
+| `bun run test`         | **0 fail nas sete apps** (tabela abaixo)                                                                                            |
+| `bun run build`        | exit 0, as sete apps (`✓ built`; o aviso de tamanho de chunk é do Vite e pré-existente)                                             |
+
+O `format:check` pegou exatamente o defeito que já derrubou deploy de staging nesta base: **gate só da
+raiz**, que os jobs por app não cobrem. Um helper de teste que o executor tocou e não formatou.
+
+| App                     | Resultado                                                         |
+| ----------------------- | ----------------------------------------------------------------- |
+| `api-transportada`      | 8561 pass · 32 skip · 0 fail · 192 arquivos                       |
+| `worker-transportada`   | 1486 pass · 0 fail · 94 arquivos                                  |
+| `cron-transportada`     | 101 pass · 0 fail · 8 arquivos                                    |
+| `frontend-transportada` | 6220 pass · 0 fail · 31 arquivos + `test:hooks` 180 pass · 0 fail |
+| `frontend-client`       | 89 pass · 0 fail · 5 arquivos                                     |
+| `frontend-driver`       | 942 pass · 0 fail · 3 arquivos                                    |
+| `frontend-landing`      | 131 pass · 0 fail · 5 arquivos                                    |
+
+⚠️ **A API mostra 32 skip aqui contra os 23 citados nas tasks anteriores.** O total é o mesmo (8593): a
+diferença são **9 testes que só rodam com `--env-file=../../.env.test`**, e o script `test` da raiz não o
+passa. Não é regressão; é o aviso do `CLAUDE.md` sobre "pular não é passar", e por isso os números
+anteriores (com o env) e este (sem) não se comparam direto.
+
+⚠️ **A integração da API (~19 min) não foi rodada neste portão.** Ela passou na T2.2 só para
+`trip-valuation-document-figures.integration.ts` (5 · 0), e a suíte inteira **não** foi repetida depois
+que o frontend mudou — o que é coerente, porque as mudanças da T3.x e da T4.1 são todas no painel. Mas
+fica dito: o portão da raiz **não** cobre a integração, e ela é gate de **push** (T4.4 em diante).
