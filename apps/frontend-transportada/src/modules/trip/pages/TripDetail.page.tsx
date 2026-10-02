@@ -12,6 +12,7 @@ import { navigateToCteProfiles } from '@/modules/nfe-workspace/shared/cteProfile
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 
 import { TRIP_COST_ENTRY_AMOUNT_FIELD_ID } from '@/modules/trip-financials/components/TripCostEntryForm.component'
+import { DocumentCostProvider } from '@/modules/trip-financials/components/DocumentCostProvider.component'
 import { TripFinancialPanel } from '@/modules/trip-financials/components/TripFinancialPanel.component'
 import type { GapActions } from '@/modules/trip-financials/components/ValuationLedger.component'
 import { useTripCostEntries } from '@/modules/trip-financials/hooks/useTripCostEntries.hook'
@@ -146,14 +147,16 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
       ) : null}
       {authQuery.isSuccess ? (
         <div className={styles.deck}>
-          <TripDetail
-            canAdjustTollBooth={canAdjustTollBooth}
-            canReadFinancials={financials.canReadFinancials}
-            drivers={fleet.viewModel.drivers ?? []}
-            linkForm={linkForm}
-            vehicles={fleet.viewModel.vehicles ?? []}
-            workspace={workspace}
-          />
+          <DocumentCostProvider valuation={financials.valuation}>
+            <TripDetail
+              canAdjustTollBooth={canAdjustTollBooth}
+              canReadFinancials={financials.canReadFinancials}
+              drivers={fleet.viewModel.drivers ?? []}
+              linkForm={linkForm}
+              vehicles={fleet.viewModel.vehicles ?? []}
+              workspace={workspace}
+            />
+          </DocumentCostProvider>
           {/* Spec 158 T8 (RF6): entre o detalhe (paradas/notas) e o razão financeiro. */}
           {workspace.controller.canReadTrips ? (
             <TripTimeline

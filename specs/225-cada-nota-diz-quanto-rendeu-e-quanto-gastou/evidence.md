@@ -339,3 +339,56 @@ correto já existindo no mesmo módulo (a guarda desta T3.1).
 O `tasks.md` apontava `tripResponse.validation.ts` e `trip.types.ts` do módulo `trip`. A validação de
 `revenueLines` mora em `trip-financials/shared/`, e é lá que o trabalho foi feito; o contrato foi para
 `test/trip-financials/`. O `tasks.md` fica corrigido.
+
+## T3.2 — a linha da nota passa a dizer gasto e lucro
+
+Executada por subagente `executor` em `sonnet`; gates conferidos por mim.
+
+### A fiação foi decidida antes de delegar, e por regra, não por gosto
+
+O caminho da página até a linha da nota tem **três níveis**
+(`TripDetail.page.tsx` → `TripDetail.component.tsx` → `TripStopList` → a linha) e `TripStopList` já
+tinha **cinco props**, que é o teto desta base. As duas regras apontam para o mesmo lugar: contexto.
+Entrou `DocumentCostContext` + `DocumentCostProvider`, provido pela página, consumido por
+`TripDocumentCost`. `TripStopList` continua com cinco props e ganhou **uma linha**.
+
+### O que a linha imprime, e o que ela não imprime
+
+Com os campos: gasto com as duas partes nomeadas, lucro, margem, imposto, a frase do critério de
+divisão (RF4 pede o critério **nomeado**, não implícito) e o aviso de tempo quando existe. Prejuízo
+troca o rótulo para "Prejuízo", sai negativo e ganha classe própria — **o sinal não depende só de cor**.
+Roteiro não calculado mostra o texto da ausência e nunca zero.
+
+Sem permissão, sem provedor, sem a linha daquela nota, ou com linha sem os oito campos: **não imprime
+nada** — sem rótulo vazio, sem "—", sem espaço reservado. Provado por mutação: fazer o componente
+imprimir o bloco mesmo sem linha reprova **4 asserções**, uma por caminho de ausência.
+
+### O RF7 **não** foi cumprido, e não vou inferi-lo na tela
+
+O RF7 pede que a nota sem parada (`stop_id` nulo) diga na tela que entra **só** no rateio de viagem. A
+T3.2 não entrega isso, e a razão é que **a API não manda esse indicador**: o `stopId` existe no contexto
+do cálculo e não na resposta.
+
+Daria para inferir — "gasto de trecho zero e rateio maior que zero" —, e seria errado: uma nota **com**
+parada pode ter gasto de trecho zero legitimamente (trecho de distância e duração zero, parada na mesma
+coordenada da anterior). Inferência que acerta quase sempre é a pior espécie de rótulo: ela mente
+exatamente no caso raro que alguém vai investigar.
+
+Fica como **T3.4**, com a mudança do lado da API nomeada: a linha de receita precisa dizer se a nota
+tem parada.
+
+### Portões
+
+| Portão                       | Resultado                                                                    |
+| ---------------------------- | ---------------------------------------------------------------------------- |
+| `bun run typecheck` (painel) | exit 0                                                                       |
+| `bun run lint` (painel)      | 0 errors · 16 warnings **pré-existentes**, nenhum em arquivo novo            |
+| `bun run test` (script)      | **6203 pass · 0 fail** (+11 sobre 6192) e `test:hooks` **180 pass · 0 fail** |
+
+### Observação de layout, não verificada em tela
+
+O bloco usa `grid-column: 1 / -1` com grade interna `repeat(auto-fit, minmax(9rem, 1fr))`. Ninguém viu
+isso em 375 px ainda — o palpite do executor é que cai em duas colunas e cada nota ganha uma linha de
+texto a mais, com a frase do critério e o aviso de tempo como as partes mais compridas. **A T4.1
+decide** se o critério e o "rateio da viagem" vão para o detalhe expandido. Palpite não é prova, e por
+isso está escrito como palpite.

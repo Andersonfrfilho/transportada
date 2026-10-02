@@ -62,8 +62,18 @@ em `evidence.md`.
       `revenueLineCostFigures.validation.ts` e `tripValuation.constant.ts` (**sem zod** — esta app usa
       guarda escrita à mão), mais `revenueLineCost.service.ts`, que formata "do trecho" e "rateio da
       viagem", e o contrato em `test/trip-financials/`.
-- [ ] **T3.2** `TripStopList.component.tsx`: a linha da nota mostra frete, gasto e lucro, com as duas
+- [x] **T3.2** `TripStopList.component.tsx`: a linha da nota mostra frete, gasto e lucro, com as duas
       partes do gasto separadas e o critério nomeado; locales pt-BR e en; CSS por módulo.
+- [ ] **T3.4** O RF7 que a T3.2 não cumpriu: a nota **sem parada** diz na tela que entra só no rateio
+      de viagem. ⚠️ Exige mudança **na API** — a linha de receita precisa dizer se a nota tem parada; o
+      `stopId` existe no contexto do cálculo e **não** na resposta. ⚠️ **Proibido inferir na tela** por
+      "gasto de trecho zero e rateio maior que zero": uma nota **com** parada pode ter gasto de trecho
+      zero legitimamente (trecho de distância e duração zero, parada na mesma coordenada da anterior), e
+      rótulo que acerta quase sempre mente justamente no caso que alguém vai investigar.
+
+  Aceite: contrato da resposta com e sem parada, contrato da linha nos dois casos, os dois comandos da
+  API verdes, e a suíte do painel verde.
+
 - [ ] **T3.3** `TripFinancialPanel.component.tsx`: previsto e fechado **lado a lado** (D6), com a
       diferença, e o aviso de que o fechado ainda não existe na viagem aberta.
 

@@ -42,8 +42,10 @@
   "documentCost": {
     "cost": "Gasto",
     "legCost": "do trecho",
+    "loss": "Prejuízo",
     "margin": "Margem",
     "profit": "Lucro",
+    "splitCriterion": "Retorno e avulso são repartidos igualmente entre as notas da viagem.",
     "tax": "Imposto",
     "timeBasis": {
       "complete": "Tempo completo.",

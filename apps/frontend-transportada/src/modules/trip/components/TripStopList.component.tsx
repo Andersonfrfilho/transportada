@@ -12,6 +12,7 @@ import { Icon } from '@/components/ui/icon'
 import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { NfseEmissionAction } from '@/modules/nfse-invoice/components/NfseEmissionAction.component'
+import { TripDocumentCost } from '@/modules/trip-financials/components/TripDocumentCost.component'
 
 import type { TripDocumentSelectionController } from '../hooks/useTripDocumentSelection.hook'
 import { useTripStopOrder } from '../hooks/useTripStopOrder.hook'
@@ -650,6 +651,8 @@ function TripStopDocumentRow({
             </span>
           </div>
         )}
+        {/* Spec 225 RF4/RF6: o gasto vem do contexto da avaliação — sem `trip.financials` não imprime nada. */}
+        <TripDocumentCost documentId={document.id} />
       </div>
       <div className={styles.rowActions}>
         {/*

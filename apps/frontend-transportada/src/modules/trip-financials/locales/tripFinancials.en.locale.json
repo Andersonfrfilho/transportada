@@ -42,8 +42,10 @@
   "documentCost": {
     "cost": "Cost",
     "legCost": "of the leg",
+    "loss": "Loss",
     "margin": "Margin",
     "profit": "Profit",
+    "splitCriterion": "Return leg and one-off costs are split equally across the trip notes.",
     "tax": "Tax",
     "timeBasis": {
       "complete": "Time complete.",
