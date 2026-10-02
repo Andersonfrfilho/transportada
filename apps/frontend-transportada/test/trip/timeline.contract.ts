@@ -229,6 +229,33 @@ describe('cliente HTTP da linha do tempo (spec 158 T7)', () => {
     expect(request.headers.get('authorization')).toBe('Bearer synthetic-access-token')
   })
 
+  /** Spec 227 T5.3: a nota aberta pede só os eventos dela — o filtro é do servidor (T5.1). */
+  it('com documentId, a query string leva o filtro da nota', async () => {
+    const requests: Request[] = []
+    const client = createTripClient({
+      apiUrl: 'https://api.example.test',
+      fetch: (input, init) => {
+        const request = new Request(input, init)
+        requests.push(request)
+        return Promise.resolve(Response.json({ data: { items: [], nextCursor: null } }))
+      },
+      getAccessToken: () => Promise.resolve('synthetic-access-token'),
+    })
+
+    await client.readTripTimeline({
+      cursor: null,
+      documentId: 'doc 1',
+      limit: 50,
+      tripId: 'trip-1',
+    })
+
+    const [request] = requests
+    if (request === undefined) throw new Error('TRIP_TIMELINE_REQUEST_MISSING')
+    expect(request.url).toBe(
+      'https://api.example.test/trips/trip-1/timeline?limit=50&documentId=doc+1',
+    )
+  })
+
   it('sem cursor, a query string não leva a chave', async () => {
     const requests: Request[] = []
     const client = createTripClient({

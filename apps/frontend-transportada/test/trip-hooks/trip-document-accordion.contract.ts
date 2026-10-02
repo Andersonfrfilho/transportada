@@ -55,6 +55,8 @@ function makeActions(overrides: Partial<TripStopDocumentActions>): TripStopDocum
       createElement('section', { 'data-part': 'proof' }, `comprovante ${documentId}`),
     renderOccurrences: (documentId: string) =>
       createElement('section', { 'data-part': 'occurrences' }, `ocorrencias ${documentId}`),
+    renderEvents: (documentId: string) =>
+      createElement('section', { 'data-part': 'events' }, `eventos ${documentId}`),
     ...overrides,
   } as unknown as TripStopDocumentActions
 }
@@ -188,6 +190,19 @@ describe('a seção Ocorrências é irmã do comprovante, depois dele (spec 227 
     expect(parts.indexOf('proof')).toBeGreaterThanOrEqual(0)
     expect(parts.indexOf('occurrences')).toBeGreaterThan(parts.indexOf('proof'))
     expect(proof?.contains(occurrences ?? proof)).toBe(false)
+  })
+
+  it('Eventos desta entrega fecham a nota aberta, depois das ocorrências (spec 227 T5.3)', () => {
+    const { dom } = renderAccordion()
+    expect(dom.querySelector('[data-part="events"]')).toBeNull()
+
+    act(() => toggleOf(dom, 'doc-a').click())
+    const parts = Array.from(bodyOf(dom, 'doc-a').children).map((child) =>
+      child.getAttribute('data-part'),
+    )
+
+    expect(parts.indexOf('events')).toBeGreaterThan(parts.indexOf('occurrences'))
+    expect(parts.indexOf('events')).toBe(parts.length - 1)
   })
 
   it('a nota não entregue aberta mostra as ocorrências mesmo sem comprovante', () => {

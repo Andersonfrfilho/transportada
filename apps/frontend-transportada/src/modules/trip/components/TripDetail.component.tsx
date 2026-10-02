@@ -76,10 +76,11 @@ import { TripMdfePendingDialog } from './TripMdfePendingDialog.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
 import { TripReviewQueue } from './TripReviewQueue.component'
 import { TripDeliveryProof } from './TripDeliveryProof.component'
+import { TripDocumentEvents } from './TripDocumentEvents.component'
 import { TripDocumentOccurrences } from './TripDocumentOccurrences.component'
 import { SeparationOccurrenceDialog } from './SeparationOccurrenceDialog.component'
 import { TripRouteMap } from './TripRouteMap.component'
-import { resolveDeliveryProofView } from '../shared/deliveryProof.service'
+import { resolveDeliveryProofView, resolveProofRadiusMeters } from '../shared/deliveryProof.service'
 import { resolveTripProgress } from '../shared/tripProgress.service'
 import type { TripDocumentDetail } from '../shared/trip.types'
 import { TripProcessFlow } from './TripProcessFlow.component'
@@ -551,6 +552,15 @@ export function TripDetail({
         <TripDocumentOccurrences document={occurrencesDocument} workspace={workspace} />
       )
     },
+    renderEvents: (documentId: string) => (
+      <TripDocumentEvents
+        documentId={documentId}
+        permissions={workspace.permissions}
+        proofRadiusMeters={resolveProofRadiusMeters(workspace.deliveryProofsQuery.data ?? [])}
+        stops={trip.stops}
+        tripId={trip.id}
+      />
+    ),
     isEditable,
     isReleasePending: workspace.releaseDocumentMutation.isPending,
     isReturnPending: workspace.fieldReturnDocumentMutation.isPending,

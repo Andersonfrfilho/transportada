@@ -167,3 +167,8 @@ export function resolveDeliveryProofImageSource(proof: DeliveryProof): string {
 export function resolveDeliveryProofFullSizeUrl(proof: DeliveryProof): string {
   return proof.downloadUrl
 }
+
+/** Spec 227 D6: o raio do primeiro comprovante que o trouxe; nenhum, nenhum raio — nunca um suposto. */
+export function resolveProofRadiusMeters(proofs: readonly DeliveryProof[]): number | undefined {
+  return proofs.find((proof) => proof.proofRadiusMeters !== undefined)?.proofRadiusMeters
+}

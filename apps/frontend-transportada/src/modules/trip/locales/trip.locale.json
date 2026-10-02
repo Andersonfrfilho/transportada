@@ -746,6 +746,13 @@
       "today": "Hoje",
       "yesterday": "Ontem"
     },
+    "document": {
+      "empty": "Nenhum evento registrado para esta nota ainda",
+      "error": "Não foi possível carregar os eventos desta entrega",
+      "loading": "Carregando os eventos desta entrega",
+      "radius": "Raio tolerado da parada: {{meters}} m",
+      "title": "Eventos desta entrega"
+    },
     "empty": "Nada registrado ainda nesta viagem",
     "error": "Não foi possível carregar a linha do tempo",
     "expand": "Ver mais",
@@ -768,6 +775,7 @@
       "stopArrived": "Chegada na parada {{sequence}}",
       "stopArrivedUnknown": "Chegada em parada",
       "stopDeparted": "A caminho da parada {{sequence}}",
+      "stopDepartedForThisStop": "Saída para esta parada",
       "stopDepartedUnknown": "A caminho de parada",
       "stopDepartureCancelled": "Cancelou a rota da parada {{sequence}}",
       "stopDepartureCancelledUnknown": "Cancelou a rota de parada",

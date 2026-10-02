@@ -7,6 +7,7 @@
  */
 import { describe, expect, it } from 'bun:test'
 
+import { resolveProofRadiusMeters } from '../../src/modules/trip/shared/deliveryProof.service'
 import { createTripResponseAdapters } from '../../src/modules/trip/shared/tripResponse.validation'
 
 const adapters = createTripResponseAdapters()
@@ -135,5 +136,21 @@ describe('comprovante recusa distanceMeters que não é distância', () => {
     ['string numérica', '120'],
   ])('descarta o comprovante com distanceMeters %s', (_label, distanceMeters) => {
     expect(adapters.deliveryProofsFromApi([{ ...PROOF, distanceMeters }, PROOF])).toEqual([PROOF])
+  })
+})
+
+describe('o raio que a nota mostra vem do comprovante (spec 227 D6/T5.3)', () => {
+  it('devolve o raio do primeiro comprovante que o trouxe', () => {
+    const proofs = adapters.deliveryProofsFromApi([
+      PROOF,
+      { ...PROOF, id: 'p2', proofRadiusMeters: 300 },
+    ])
+
+    expect(resolveProofRadiusMeters(proofs)).toBe(300)
+  })
+
+  it('sem raio em nenhum comprovante, não há raio — nunca um número suposto', () => {
+    expect(resolveProofRadiusMeters(adapters.deliveryProofsFromApi([PROOF]))).toBeUndefined()
+    expect(resolveProofRadiusMeters([])).toBeUndefined()
   })
 })

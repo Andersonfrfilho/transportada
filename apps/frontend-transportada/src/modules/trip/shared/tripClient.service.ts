@@ -243,7 +243,13 @@ export type TripClient = Readonly<{
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
   /** Spec 158 D4: `GET /trips/:id/timeline`, paginada por cursor `(occurredAt, id)`. */
   readTripTimeline: (
-    input: Readonly<{ cursor: null | string; limit: number; tripId: string }>,
+    input: Readonly<{
+      cursor: null | string
+      /** Spec 227 T5.1: só os eventos desta nota e os da parada dela — o filtro é do servidor. */
+      documentId?: string
+      limit: number
+      tripId: string
+    }>,
   ) => Promise<TripTimelinePage>
   listOccurrenceTypes: () => Promise<readonly OccurrenceType[]>
   readDeliveryProofSettings: () => Promise<CompanyDeliveryProofSettings>
@@ -1117,7 +1123,10 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       return adapters.occurrencesFromApi(readEnvelopeData(response))
     },
     async readTripTimeline(input) {
-      const search = buildSearch({ cursor: input.cursor, limit: input.limit }, {})
+      const search = buildSearch(
+        { cursor: input.cursor, limit: input.limit },
+        { documentId: input.documentId },
+      )
       const response = await authorizedRequest({
         dependencies,
         method: 'GET',

@@ -116,6 +116,9 @@ for (const theme of THEMES) {
 
       const row = await openNote(stops, DELIVERED_WITH_OCCURRENCE)
       await expect(row.getByText('Caixa 3 chegou com amassado').first()).toBeVisible()
+      await expect(row.getByRole('heading', { name: 'Eventos desta entrega' })).toBeVisible()
+      await expect(row.getByText('Saída para esta parada')).toBeVisible()
+      await expect(row.getByText('Raio tolerado da parada: 300 m')).toBeVisible()
       await expectNothingEscapes(row)
       await expectNoHorizontalOverflow(page)
       await row.screenshot({ path: printPath('nota-aberta-entregue', viewport.label, theme) })

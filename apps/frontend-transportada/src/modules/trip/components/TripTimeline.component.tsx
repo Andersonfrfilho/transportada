@@ -332,13 +332,19 @@ export function TripTimeline({ openDocumentId, query, stops }: TripTimelineProps
   )
 }
 
-function TripTimelineEntry({
+/**
+ * `isOwnDelivery` (spec 227 D11): a linha aparece dentro da própria nota — o `departed` ali é a saída
+ * **para esta parada**, e o título não aponta de volta para a nota em que já está.
+ */
+export function TripTimelineEntry({
   elapsedMinutes,
+  isOwnDelivery = false,
   item,
   repeatsAuthorship,
   stops,
 }: Readonly<{
   elapsedMinutes: null | number
+  isOwnDelivery?: boolean
   item: TripTimelineItem
   repeatsAuthorship: boolean
   stops: readonly TripStopDetail[] | undefined
@@ -362,7 +368,10 @@ function TripTimelineEntry({
         stop={findStopForMap(item, stops)}
       />
     )
-  const title = resolveTripTimelineTitle(item, translate)
+  const title =
+    isOwnDelivery && item.kind === 'stop.departed'
+      ? t('eventTimeline.itemTitle.stopDepartedForThisStop')
+      : resolveTripTimelineTitle(item, translate)
   /** Autoria igual à do evento anterior cala: o leitor já sabe de quem é (spec 180). */
   const authorship = repeatsAuthorship ? null : resolveTripTimelineAuthorshipText(item, translate)
   const { icon, tone } = resolveTripTimelineIcon(item)
@@ -400,11 +409,13 @@ function TripTimelineEntry({
   const isOccurrenceEvent = item.kind === 'stop.occurrence' || item.kind === 'document.occurrence'
   const titleHref = isOccurrenceEvent
     ? resolveTripTimelineOccurrenceHref(item.id)
-    : item.document !== null
-      ? resolveTripTimelineDocumentHref(item.document.id)
-      : item.stop !== null
-        ? resolveTripTimelineStopHref(item.stop.id)
-        : null
+    : isOwnDelivery
+      ? null
+      : item.document !== null
+        ? resolveTripTimelineDocumentHref(item.document.id)
+        : item.stop !== null
+          ? resolveTripTimelineStopHref(item.stop.id)
+          : null
   const returnReasonCode =
     item.kind === 'document.returned' && item.returnReason !== null && item.returnReason !== ''
       ? item.returnReason

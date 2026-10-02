@@ -218,6 +218,7 @@ export function noteAccordionProofs(imageOrigin: string, documentIndex: number) 
       capturedAt: noteAt(documentIndex).deliveredAt ?? '',
       createdAt: '2026-08-10T14:00:00.000Z',
       distanceMeters: axes.punctuality === 'away' ? 1480 : 42,
+      proofRadiusMeters: 300,
       downloadUrl: `${imageOrigin}/canhoto-${documentIndex}.png`,
       expiresAt: '2026-08-10T18:42:00.000Z',
       id: `00000000-0000-4000-8000-00000000067${documentIndex}`,
@@ -265,3 +266,43 @@ export const NOTE_ACCORDION_OCCURRENCES: readonly (readonly Record<string, unkno
     }),
   ],
 ]
+
+/** Spec 227 T5.3: os eventos de uma nota (`GET /trips/:id/timeline?documentId=`), do mais recente ao mais antigo. */
+export function noteAccordionTimelineItems(documentId: string) {
+  const base = {
+    actorName: 'Marina Alves',
+    channel: 'driver_app',
+    closeReason: null,
+    document: { id: documentId, number: '000124', series: '1' },
+    fromStatus: null,
+    location: null,
+    locationState: null,
+    occurrence: null,
+    onBehalfOfDriverName: null,
+    recordedAt: null,
+    returnReason: null,
+    stop: { id: NOTE_ACCORDION_STOP_IDS[0], sequence: 1 },
+    toStatus: null,
+  } as const
+
+  return [
+    {
+      ...base,
+      id: `${documentId}-delivered`,
+      kind: 'document.delivered',
+      occurredAt: '2026-10-01T13:05:00.000Z',
+    },
+    {
+      ...base,
+      id: `${documentId}-arrived`,
+      kind: 'stop.arrived',
+      occurredAt: '2026-10-01T12:40:00.000Z',
+    },
+    {
+      ...base,
+      id: `${documentId}-departed`,
+      kind: 'stop.departed',
+      occurredAt: '2026-10-01T12:00:00.000Z',
+    },
+  ]
+}

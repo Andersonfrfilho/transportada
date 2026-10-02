@@ -8,6 +8,7 @@ import {
   NOTE_ACCORDION_OCCURRENCES,
   NOTE_ACCORDION_STOPS,
   noteAccordionProofs,
+  noteAccordionTimelineItems,
   noteAccordionValuation,
 } from './trip-note-accordion.fixture'
 import { type Page, type Route } from '@playwright/test'
@@ -1141,7 +1142,17 @@ async function registerTripMocks(
       await fulfillOptions(route)
       return
     }
-    await fulfillJson(route, { data: { items: [], nextCursor: null } })
+    const documentId = new URL(route.request().url()).searchParams.get('documentId')
+    // Spec 227 T5.3: a nota aberta pede os eventos dela (`?documentId=`); só o smoke do acordeão os tem.
+    await fulfillJson(route, {
+      data: {
+        items:
+          input.mode === 'note-accordion' && documentId !== null
+            ? noteAccordionTimelineItems(documentId)
+            : [],
+        nextCursor: null,
+      },
+    })
   })
   await input.page.route(/\/trips\/occurrence-types\/field$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {

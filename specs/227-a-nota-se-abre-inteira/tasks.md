@@ -74,7 +74,7 @@ Nenhum `[NEEDS CLARIFICATION]` aberto nesta spec.
       permissão (`trip.event-location`). Não depende da 228.
 - [x] **T5.2** API: o raio na resposta do comprovante (D6), resolvido por contratante, sem
       `settings.manage` do leitor. Não depende da 228.
-- [ ] **T5.3** Painel: _Eventos desta entrega_ por nota; rótulo do `departed` = **"Saída para esta
+- [x] **T5.3** Painel: _Eventos desta entrega_ por nota; rótulo do `departed` = **"Saída para esta
       parada"** (D11); círculo do raio **só** com o dado; os dois eventos novos quando a 228 existir.
 
 ## Fase 6 — Comparação, revisão e portões

@@ -746,6 +746,13 @@
       "today": "Today",
       "yesterday": "Yesterday"
     },
+    "document": {
+      "empty": "No events recorded for this invoice yet",
+      "error": "Could not load the events for this delivery",
+      "loading": "Loading the events for this delivery",
+      "radius": "Tolerated radius from the stop: {{meters}} m",
+      "title": "Events for this delivery"
+    },
     "empty": "Nothing recorded on this trip yet",
     "error": "Could not load the timeline",
     "expand": "View more",
@@ -768,6 +775,7 @@
       "stopArrived": "Arrival at stop {{sequence}}",
       "stopArrivedUnknown": "Arrival at stop",
       "stopDeparted": "On the way to stop {{sequence}}",
+      "stopDepartedForThisStop": "Departure for this stop",
       "stopDepartedUnknown": "On the way to a stop",
       "stopDepartureCancelled": "Cancelled the route to stop {{sequence}}",
       "stopDepartureCancelledUnknown": "Cancelled the route to a stop",

@@ -487,3 +487,24 @@ exige o campo, mas nenhum teste sobe o `main.ts`.
 | `bun run lint`                                                                                                   | exit 0, `--max-warnings=0`       |
 | `bun --env-file=../../.env.test test --timeout 120000`                                                           | **8653 pass · 23 skip · 0 fail** |
 | `bun --env-file=../../.env.test test ./test/integration/delivery-proofs-by-trip.integration.ts` (Postgres 65432) | **7 pass · 0 fail**              |
+
+## T5.3 — Painel: Eventos desta entrega
+
+`TripDocumentEvents` (última seção da nota aberta, depois das Ocorrências) lê `GET /trips/:id/timeline?documentId=`
+por `useTripDocumentTimelineQuery` (`queries/useTripDocumentTimeline.query.ts`; mesma permissão `canReadTrip`
+do `useTripTimeline`; chave sob `[trip, id, 'timeline']`). Reaproveita `TripTimelineEntry` (agora exportada, prop
+`isOwnDelivery`): `stop.departed` diz **"Saída para esta parada"** (D11) e o título não linka de volta à nota.
+Ordem cronológica (inverso da API). O raio vem de `resolveProofRadiusMeters` (comprovante) e só é escrito
+("Raio tolerado da parada: N m") quando existe. "Foto do canhoto" e "Endereço geocodificado" **não** foram criados (spec 228).
+
+Contratos: `test/trip-hooks/trip-document-events.contract.ts` (6), accordion (ordem da seção), `timeline.contract.ts`
+(`documentId` na URL), `late-registration-tolerance.contract.ts` (raio). Mutações reprovadas: tirar `documentId` da
+query; tirar a permissão do `enabled`; tirar `isOwnDelivery`; raio sempre escrito; tirar `.toReversed()`; tirar o
+retorno sem permissão; tirar o filtro no cliente; trocar a ordem das seções; raio com `?? 300`.
+
+Gates (apps/frontend-transportada): `typecheck` exit 0 · `lint` 0 erros, 16 avisos pré-existentes · `test` 6335 pass /
+0 fail + hooks 301 pass / 0 fail · prettier ok. Smoke de prints (13 passed) sem overflow em 375.
+
+⚠️ O círculo do raio **não é desenhado no mapa** (o `AssemblyVectorMap` não tem camada de círculo e não há teste
+renderizável de WebGL); o raio aparece como linha de texto. Mapa agregado do canvas também não foi trazido: cada
+evento mantém o "Ver no mapa" próprio. Pendência para a T6.1.

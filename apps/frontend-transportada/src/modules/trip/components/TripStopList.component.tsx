@@ -138,6 +138,8 @@ export type TripStopDocumentActions = Readonly<{
   renderProof: (documentId: string) => ReactNode
   /** Spec 227 D2: a seção Ocorrências da nota aberta, depois do comprovante. */
   renderOccurrences: (documentId: string) => ReactNode
+  /** Spec 227 T5.3: "Eventos desta entrega", a última seção da nota aberta. */
+  renderEvents: (documentId: string) => ReactNode
   onLoad: (documentId: string) => void
   onOverrideAddress: (documentId: string) => void
   /** Spec 180: registra a ocorrência desta parada — o diálogo (`TripStopOccurrenceDialog`) mora aqui. */
@@ -810,6 +812,7 @@ function TripStopDocumentRow({
           <TripDocumentData document={document} />
           {hasProof ? actions.renderProof(document.id) : null}
           {actions.renderOccurrences(document.id)}
+          {actions.renderEvents(document.id)}
         </div>
       ) : null}
     </li>
