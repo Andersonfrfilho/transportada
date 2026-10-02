@@ -63,6 +63,7 @@ async function runCycle(buildRedactor: (name: RedactorName) => RedactTripLocatio
     REDACTOR_NAMES.map((name) => [name, buildRedactor(name)]),
   ) as Redactors
   const dependencies = {
+    enabled: true,
     logger: {
       error: () => undefined,
       info: (message: string, metadata?: Record<string, unknown>) => {

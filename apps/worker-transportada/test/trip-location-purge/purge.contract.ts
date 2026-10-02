@@ -40,6 +40,7 @@ function buildRoutine(
   redactProofLocations: RedactDeliveryProofLocations = async () => 0,
 ) {
   return createTripLocationPurgeRoutine({
+    enabled: true,
     logger: SILENT_LOGGER as never,
     purgeStalePings: async () => 0,
     now: () => NOW,

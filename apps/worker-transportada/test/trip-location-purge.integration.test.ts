@@ -161,6 +161,7 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
 
   test('apaga a coordenada vencida e preserva o evento inteiro', async () => {
     const routine = createTripLocationPurgeRoutine({
+      enabled: true,
       logger: SILENT_LOGGER as never,
       purgeStalePings: async () => 0,
       now: () => NOW,
@@ -226,6 +227,7 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
   /** Correr de novo não tem o que apagar — e é assim que a batida diária se comporta todo dia. */
   test('o segundo ciclo não encontra mais nada para apagar', async () => {
     const routine = createTripLocationPurgeRoutine({
+      enabled: true,
       logger: SILENT_LOGGER as never,
       purgeStalePings: async () => 0,
       now: () => NOW,
@@ -434,6 +436,7 @@ describeDatabase('expurgo da posição nas cinco tabelas de evento (spec 196 T2.
   test('91 dias perdem as quatro colunas e ficam expired; 89 ficam intactos; a linha nunca some', async () => {
     const infoLogs: Record<string, unknown>[] = []
     const routine = createTripLocationPurgeRoutine({
+      enabled: true,
       logger: {
         ...SILENT_LOGGER,
         info: (_message: string, metadata?: Record<string, unknown>) => {

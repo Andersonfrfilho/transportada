@@ -72,6 +72,11 @@ export type WorkerEnvironment = {
   readonly aggregateDocumentOcrUrl?: string
   /** ADR-0062: sem ela a rotina `geocoding.refine` não é registrada. */
   readonly googleMapsApiKey?: string
+  /**
+   * Spec 196: o expurgo de posição de evento nasce desligado, e o controle vai virar página de
+   * configuração. Ausente conta como desligado — apagar coordenada é irreversível.
+   */
+  readonly tripLocationPurgeEnabled: boolean
   /** Endereço da própria API. Hoje o e-mail de código lê dele a marca pública da instalação. */
   readonly apiBaseUrl: string | undefined
   /** Origem do painel, de onde o rodapé do e-mail carrega o desenho da Ada. */

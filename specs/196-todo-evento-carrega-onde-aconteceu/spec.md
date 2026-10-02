@@ -174,6 +174,18 @@ sem ninguém o ter olhado.
   exclusões com motivo (`trip_stops`, `client_delivery_addresses`, `geocoded_addresses`,
   `geocoded_address_corrections`, `municipality_centroids`, `toll_booths`: endereço ou cadastro, não
   posição de pessoa; `trip_location_pings`: rastro ao vivo, com expurgo próprio de horas).
+- **D11 — O expurgo nasce desligado, e o interruptor é de ambiente até virar tela.** Decisão do
+  usuário em 2026-10-02: `trip.location.purge` **não roda** enquanto ninguém o ligar, e isso vale para
+  as cinco tabelas **e** para o rastro ao vivo da spec 158. O controle é
+  `TRIP_LOCATION_PURGE_ENABLED`, validada no boot, padrão `false`, e variável **ausente conta como
+  desligada**: apagar coordenada é irreversível, então um deploy que esquece a chave tem de não apagar
+  nada. Só `true` liga; qualquer outro valor derruba o boot em vez de adivinhar. Desligado significa
+  nenhuma leitura, nenhum lote e nenhuma escrita — o ciclo fecha `succeeded` e registra
+  `trip_location_purge_disabled`, para que "o expurgo parou" seja uma resposta e não uma investigação.
+  ⚠️ Isto **suspende** a proteção de noventa dias que a LGPD motivou (ADR-0045 §3.3), por decisão de
+  produto e por escrito. O destino do controle é uma **página de configuração**, por empresa, em spec
+  própria — escrita depois da 196.
+
 - **D9 — Toda rota nova de escrita do motorista declara o ponto.** Um contrato percorre as rotas
   `POST` de `/me/trips/current/**` e exige que cada uma aceite `location` ou esteja numa lista
   explícita de exceções com o motivo (D9 no `plan.md`). Rota nova que esquecer reprova.

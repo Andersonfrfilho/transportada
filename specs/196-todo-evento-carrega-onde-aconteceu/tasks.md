@@ -149,6 +149,16 @@ do usuário. A API não é revertida com a app nova no ar.
       perde as quatro colunas e fica `expired`, o de 89 fica intacto, o evento continua existindo; a
       contagem subiu em N.
 
+- [x] **T2.3** O expurgo nasce desligado (D11): `TRIP_LOCATION_PURGE_ENABLED` no schema de env do
+      worker (padrão `false`, ausente = desligada, só `true` liga), `enabled` **obrigatório** nas
+      dependências da rotina — opcional com padrão ligado faria uma fiação esquecida apagar coordenada
+      em silêncio —, saída antecipada antes de qualquer leitura, log `trip_location_purge_disabled`, e
+      a variável declarada no `.env.example`.
+
+  Aceite: contrato novo verde e **provado por mutação** (religar o padrão e remover a saída antecipada
+  têm de reprovar); o `toEqual` exato de `test/environment.contract.test.ts` atualizado; app inteira e
+  `make worker-integration` sem regressão.
+
 ## Fase 3 — A API grava o ponto de todo toque
 
 > 🤖 Modelo: `sonnet`

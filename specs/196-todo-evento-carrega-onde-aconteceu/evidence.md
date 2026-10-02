@@ -1739,3 +1739,69 @@ por tabela tolera.
   vivem no log (`redactedByTable`), como o `plan.md` manda.
 - Falha de tabela **não muda o `outcome`** do job: o catálogo tem `failureOutcomes: []`, então a falha
   aparece em `failedTables` e no log de erro. Fica anotado como item de observabilidade, não resolvido.
+
+## T2.3 — o expurgo nasce desligado (D11)
+
+Pedido do usuário em 2026-10-02, no meio da execução: "o expurgo por enquanto é para ficar desligado
+para tudo, isso deve ficar em uma página de configuração". "Para tudo" inclui o rastro ao vivo da
+spec 158, que já rodava em produção.
+
+⚠️ **Isto suspende a proteção de noventa dias que a LGPD motivou** (ADR-0045 §3.3). Está aqui por
+escrito porque é decisão de produto, não descuido de implementação, e porque quem auditar depois
+precisa achar a decisão e a data sem escavar histórico de conversa.
+
+### O que entrou
+
+- `src/config/environment.schema.ts`: `TRIP_LOCATION_PURGE_ENABLED`, `z.enum(['true','false'])`,
+  padrão `'false'`, no molde de `FOUNDATION_SYNTHETIC_CONSUMER_ENABLED`. Exposta como
+  `tripLocationPurgeEnabled`.
+- `src/shared/worker.types.ts`: o campo no tipo `WorkerEnvironment`.
+- `trip-location-purge.routine.ts`: `enabled` **obrigatório** nas dependências e saída antecipada
+  antes de qualquer leitura, com `trip_location_purge_disabled` e contadores zerados.
+- `src/main.ts`: `enabled: config.tripLocationPurgeEnabled`.
+- `.env.example`: a variável declarada, com o comentário do que ausente significa.
+- `test/trip-location-purge/disabled-switch.contract.ts` (novo, 6 testes) e os sete sítios que montam
+  a rotina passaram a declarar `enabled: true` — **nenhuma asserção tocada**.
+
+### Por que `enabled` é obrigatório, e não opcional com padrão
+
+Opcional com padrão ligado deixa uma fiação esquecida apagando coordenada em silêncio; opcional com
+padrão desligado faz o esquecimento virar "o expurgo não roda e ninguém sabe por quê". Obrigatório
+transforma os dois casos em erro de compilação. O custo é declarar `enabled: true` em sete sítios de
+teste, pago uma vez.
+
+### Desligado significa não ter lido, não "não ter achado"
+
+Uma rotina que roda tudo e não encontra linha venceria um contrato preguiçoso. O contrato conta
+**chamadas**: com `enabled: false`, a lista de redatores chamados tem de ser exatamente `[]` —
+inclusive `purgeStalePings`.
+
+### Provado por mutação, duas sondas
+
+| sonda                                          | o que reprovou                                                          |
+| ---------------------------------------------- | ----------------------------------------------------------------------- |
+| padrão do env de `'false'` para `'true'`       | "sem a variável no ambiente, o expurgo fica desligado"                  |
+| `if (!enabled)` virou `if (false && !enabled)` | os três testes de "desligado" (nenhum redator, contadores zerados, log) |
+
+As duas juntas: **35 pass · 4 fail**. Revertidas, **39 pass · 0 fail** no entrypoint do expurgo.
+
+### O contrato de ambiente quebrou por acerto
+
+`test/environment.contract.test.ts` faz `toEqual` **exato** no objeto de configuração inteiro, então
+chave nova reprova — é exatamente o que um contrato de ambiente deve fazer. Acrescentei
+`tripLocationPurgeEnabled: false` à expectativa; não afrouxei o `toEqual`.
+
+### Portões
+
+| Portão                    | Resultado                                                      |
+| ------------------------- | -------------------------------------------------------------- |
+| `bun run typecheck`       | exit 0                                                         |
+| `bun run lint`            | exit 0                                                         |
+| `bun run test` (app)      | **1486 pass · 0 fail · 3969 expect() · 94 arquivos · [6.36s]** |
+| `make worker-integration` | **146 pass · 1 fail** — o mesmo OSRM de ambiente, inalterado   |
+
+### Pendência que nasce daqui
+
+A **página de configuração do expurgo** (por empresa) é spec própria, a escrever **depois** da 196 —
+decisão do usuário na mesma conversa. Enquanto ela não existe, ligar o expurgo é mexer em variável de
+ambiente, e produção fica desligada.

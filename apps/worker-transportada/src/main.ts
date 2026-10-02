@@ -1214,6 +1214,7 @@ export async function startWorkerRuntime(
                 }),
               }),
           [TRIP_LOCATION_PURGE_JOB]: createTripLocationPurgeRoutine({
+            enabled: config.tripLocationPurgeEnabled,
             purgeStalePings: createDrizzlePurgeStalePings(
               database.db as ReturnType<typeof createDrizzleProvider>['db'],
             ),

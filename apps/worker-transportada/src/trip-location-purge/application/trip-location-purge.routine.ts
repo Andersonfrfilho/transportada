@@ -33,8 +33,14 @@ import type {
 
 const COMPLETED_OUTCOME: JobOutcome = 'succeeded'
 const TABLE_FAILED_MESSAGE = 'trip_location_purge_table_failed'
+const DISABLED_MESSAGE = 'trip_location_purge_disabled'
 
 export type TripLocationPurgeRoutineDependencies = {
+  /**
+   * Spec 196: o expurgo nasce desligado e o controle vai virar página de configuração. Obrigatório de
+   * propósito — opcional com padrão ligado faria uma fiação esquecida apagar coordenada em silêncio.
+   */
+  readonly enabled: boolean
   readonly logger: WorkerLogger
   readonly now: () => Date
   /** ADR-0056 §2: o rastro ao vivo, com prazo próprio e muito mais curto que o da coordenada. */
@@ -99,6 +105,29 @@ async function runCycle(input: {
   readonly dependencies: TripLocationPurgeRoutineDependencies
 }): Promise<JobRoutineResult> {
   const { context, dependencies } = input
+
+  /**
+   * Desligado não é "rodou e não achou nada": nenhuma leitura, nenhum lote, nenhuma escrita. O ciclo
+   * fecha `succeeded` porque não houve falha — e o log diz por que não apagou nada, senão a próxima
+   * pessoa a investigar "o expurgo parou" não tem como saber que foi de propósito.
+   */
+  if (!dependencies.enabled) {
+    safeLogInfo({
+      logger: dependencies.logger,
+      message: DISABLED_MESSAGE,
+      metadata: {
+        correlationId: context.correlationId,
+        executionId: context.executionId,
+        retentionDays: TRIP_LOCATION_RETENTION_DAYS,
+      },
+    })
+
+    return {
+      counters: { batches: 0, purgedPings: 0, redacted: 0, redactedProofs: 0 },
+      outcome: COMPLETED_OUTCOME,
+    }
+  }
+
   const now = dependencies.now()
   const before = resolveRetentionCutoff(now)
   const redactedByTable: Record<string, number> = {}

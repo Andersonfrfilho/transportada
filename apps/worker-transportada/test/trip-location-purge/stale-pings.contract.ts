@@ -33,6 +33,7 @@ function buildRoutine(input: {
   }) => Promise<number>
 }) {
   return createTripLocationPurgeRoutine({
+    enabled: true,
     logger: { error() {}, info() {}, warn() {} } as never,
     now: () => NOW,
     purgeStalePings: input.purgeStalePings,
