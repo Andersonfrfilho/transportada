@@ -904,6 +904,8 @@
     "driverSearch": "Search by name",
     "driverSummary": "{{count}} driver",
     "driverSummary_other": "{{count}} drivers",
+    "proofPendingEq": "Receipt",
+    "proofPendingOnly": "Only with pending receipt",
     "removeDriver": "Remove this driver",
     "removeFilter": "Remove the {{field}} filter",
     "removeStatus": "Remove this status",
@@ -962,6 +964,10 @@
     "weightConcentration": "Warning: {{percent}}% of the weight is at stop {{stop}} — the drawing above shows volume, not weight.",
     "withoutVolume": "{{count}} invoice without volume was left out of the calculation.",
     "withoutVolume_other": "{{count}} invoices without volume were left out of the calculation."
+  },
+  "proofPending": {
+    "badge": "Receipt pending",
+    "hint": "Document delivered without its receipt, and the company settings require it. It stays pending until the receipt arrives."
   },
   "occurrence": {
     "openCase": "Occurrence under case",

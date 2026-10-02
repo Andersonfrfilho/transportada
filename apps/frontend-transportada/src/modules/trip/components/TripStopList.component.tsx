@@ -30,6 +30,7 @@ import type {
   TripDocumentSeparationStatus,
   TripStopDetail,
 } from '../shared/trip.types'
+import { hasProofPendingMarker } from '../shared/proofPendingMarker.service'
 import {
   countDocumentsWithOpenOccurrence,
   hasOpenOccurrenceMarker,
@@ -543,6 +544,15 @@ function TripStopDocumentRow({
                 <Icon name="alert" size="sm" />
                 {t('occurrence.openCase')}
               </Button>
+            </Tooltip>
+          ) : null}
+          {/* Spec 223 RF4/RF9: baixada sem canhoto — sinaliza, não bloqueia nem substitui ação. */}
+          {hasProofPendingMarker(document) ? (
+            <Tooltip label={t('proofPending.hint')}>
+              <span className={styles.proofPendingBadge}>
+                <Icon name="alert" size="sm" />
+                {t('proofPending.badge')}
+              </span>
             </Tooltip>
           ) : null}
           {/*

@@ -116,6 +116,14 @@ export function useTripTable(input: UseTripTableInput) {
       })
       restartPagination()
     },
+    setProofPendingFilter: (isOnlyPending: boolean) => {
+      setFilters((current) =>
+        isOnlyPending
+          ? { ...current, proofPendingEq: true }
+          : clearTripFilterField({ field: 'proofPendingEq', filters: current }),
+      )
+      restartPagination()
+    },
     /** Seleção vazia é "sem filtro": a chave sai do objeto, e não vira `statusIn=` na query. */
     setStatusFilter: (values: readonly TripStatus[]) => {
       setFilters((current) =>

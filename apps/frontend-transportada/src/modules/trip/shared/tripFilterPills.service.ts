@@ -2,7 +2,13 @@ import { describeRangeValue } from '@/modules/shared/filterPill.service'
 
 import type { TripFilters } from './trip.types'
 
-export const TRIP_PILL_FIELDS = ['statusIn', 'vehicleIdIn', 'driverIdIn', 'createdRange'] as const
+export const TRIP_PILL_FIELDS = [
+  'statusIn',
+  'vehicleIdIn',
+  'driverIdIn',
+  'proofPendingEq',
+  'createdRange',
+] as const
 export type TripPillField = (typeof TRIP_PILL_FIELDS)[number]
 
 export type TripFilterPill = Readonly<{
@@ -15,6 +21,7 @@ export type TripFilterPill = Readonly<{
 const FIELD_LABEL_KEY: Readonly<Record<TripPillField, string>> = {
   createdRange: 'filters.createdRange',
   driverIdIn: 'filters.driverId',
+  proofPendingEq: 'filters.proofPendingEq',
   statusIn: 'filters.status',
   vehicleIdIn: 'filters.vehicleId',
 }
@@ -58,6 +65,15 @@ function describeField(field: TripPillField, input: DescribePillsInput): null | 
       field,
       labelKey: FIELD_LABEL_KEY[field],
       value: driverIds.map(input.describeDriver).join(', '),
+    }
+  }
+  if (field === 'proofPendingEq') {
+    if (filters.proofPendingEq !== true) return null
+    return {
+      field,
+      labelKey: FIELD_LABEL_KEY[field],
+      value: '',
+      valueKeys: ['filters.proofPendingOnly'],
     }
   }
   const value = describeRangeValue({

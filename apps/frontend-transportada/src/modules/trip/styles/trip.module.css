@@ -399,6 +399,20 @@ button.occurrenceCaseBadge {
   text-transform: uppercase;
 }
 
+/* Spec 223: mesma família do selo de ocorrência em tratativa — sinaliza, não é ação. */
+.proofPendingBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height-compact);
+  padding: 0 var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
 .rowActions {
   display: flex;
   flex-wrap: wrap;

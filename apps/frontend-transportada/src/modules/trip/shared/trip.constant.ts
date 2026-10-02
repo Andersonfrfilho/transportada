@@ -248,6 +248,8 @@ export const TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS = [
    * ausência como "não deixa a nota para trás", nunca como bloqueio de resposta.
    */
   'leavesBehindOnDispatch',
+  /** Spec 223 RF4: ausente é API anterior ao campo — o selo só aparece com `true`. */
+  'proofPending',
   'contact',
   'nfeIssuedAt',
   'nfeNumber',

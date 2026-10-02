@@ -1437,6 +1437,10 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         createdFrom: input.filters?.createdFrom,
         createdUntil: input.filters?.createdUntil,
         driverIdIn: input.filters?.driverIdIn?.join(','),
+        proofPendingEq:
+          input.filters?.proofPendingEq === undefined
+            ? undefined
+            : String(input.filters.proofPendingEq),
         statusIn: input.filters?.statusIn?.join(','),
         vehicleIdIn: input.filters?.vehicleIdIn?.join(','),
       })

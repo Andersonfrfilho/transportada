@@ -136,3 +136,26 @@ A integração rodou contra o Postgres descartável em `127.0.0.1:55499`
 Postgres do Docker com I/O error. As duas suítes de integração novas estão na lista
 `test:integration` do `package.json`. A lista inteira (~17 min) não foi rodada; rodaram os 39 arquivos
 de viagem e nota do motorista, que são os que leem o detalhe e a lista.
+
+### T4.4 (UI) e T4.5 — painel: filtro na lista e selo na nota
+
+Contrato escrito antes (`apps/frontend-transportada/test/trip/proof-pending.contract.ts`, registrado em
+`test/trip.contract.test.ts`). Vermelho:
+
+```
+error: Cannot find module '@/modules/trip/shared/proofPendingMarker.service'
+ 0 pass / 1 fail / 1 error
+```
+
+Implementação: `proofPendingMarker.service.ts` (só `true` marca; ausente é API anterior), campo
+opcional em `TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS` e no guard, `proofPendingEq` em `TripFilters`, no
+`buildSearch` do cliente (booleano estringado), na pílula, em `setProofPendingFilter` e num `Checkbox`
+em `TripFilters`; selo `proofPendingBadge` ao lado do selo de ocorrência em `TripStopList`.
+
+```
+bun test ./test/trip.contract.test.ts   → 2202 pass / 0 fail
+bun run test                            → 6187 pass / 0 fail (32 arquivos)
+bun run test:hooks                      → 184 pass / 0 fail
+bun run typecheck                       → limpo
+bun run lint                            → 0 erros (16 avisos preexistentes)
+```

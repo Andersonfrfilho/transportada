@@ -378,6 +378,8 @@ function isDocumentDetail(value: unknown): value is TripDocumentDetail {
     isString(value.fiscalStatus) &&
     /** Spec 164 T15: ausente é API anterior ao marcador; presente tem de ser booleano. */
     (value.openOccurrenceCase === undefined || isBoolean(value.openOccurrenceCase)) &&
+    /** Spec 223: ausente é API anterior ao campo; presente tem de ser booleano. */
+    (value.proofPending === undefined || isBoolean(value.proofPending)) &&
     /** Spec 185 T6.1: mesma tolerância — ausente é API anterior ao campo (spec 078 D2). */
     (value.leavesBehindOnDispatch === undefined || isBoolean(value.leavesBehindOnDispatch)) &&
     /** Spec 176: ausente é API anterior à feature; presente segue a mesma regra de dinheiro/rótulo. */

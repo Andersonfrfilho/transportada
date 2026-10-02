@@ -904,6 +904,8 @@
     "driverSearch": "Buscar por nome",
     "driverSummary": "{{count}} motorista",
     "driverSummary_other": "{{count}} motoristas",
+    "proofPendingEq": "Canhoto",
+    "proofPendingOnly": "Só com canhoto pendente",
     "removeDriver": "Retirar este motorista",
     "removeFilter": "Remover o filtro {{field}}",
     "removeStatus": "Retirar esta situação",
@@ -962,6 +964,10 @@
     "weightConcentration": "Atenção: {{percent}}% do peso está na parada {{stop}} — o desenho acima é de volume, não de peso.",
     "withoutVolume": "{{count}} nota sem cubagem não entrou na conta.",
     "withoutVolume_other": "{{count}} notas sem cubagem não entraram na conta."
+  },
+  "proofPending": {
+    "badge": "Canhoto pendente",
+    "hint": "Nota baixada sem canhoto, e a configuração da empresa exige o canhoto. A cobrança segue pendente até o canhoto chegar."
   },
   "occurrence": {
     "openCase": "Ocorrência em tratativa",

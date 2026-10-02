@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { FilterPills, type FilterPill } from '@/components/ui/filter-pills'
 import { Icon } from '@/components/ui/icon'
@@ -119,6 +120,11 @@ export function TripFilters({ drivers, table, vehicles }: TripFiltersProps) {
             values={table.filters.driverIdIn ?? []}
           />
         </label>
+        <Checkbox
+          checked={table.filters.proofPendingEq === true}
+          label={t('filters.proofPendingOnly')}
+          onChange={table.setProofPendingFilter}
+        />
         <label>
           {t('filters.createdRange')}
           <DateRangePicker

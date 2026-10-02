@@ -34,8 +34,8 @@
 - [x] **T4.1** Contrato: a leitura do detalhe devolve a pendência de canhoto por nota (RF4).
 - [x] **T4.2** Expor a pendência na leitura do detalhe.
 - [x] **T4.3** Contrato do filtro "com canhoto pendente" na lista de viagens (RF4).
-- [ ] **T4.4** Filtro na API + na UI da lista.
-- [ ] **T4.5** Selo "canhoto pendente" na linha da nota (RF9).
+- [x] **T4.4** Filtro na API + na UI da lista.
+- [x] **T4.5** Selo "canhoto pendente" na linha da nota (RF9).
 
 ## Fase 5 — Revisão
 
