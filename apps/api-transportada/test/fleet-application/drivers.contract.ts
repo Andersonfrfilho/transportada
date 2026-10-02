@@ -52,11 +52,61 @@ describe('fleet drivers use case contract', () => {
     expect(stub.createCalls).toEqual([
       {
         companyId: FLEET_CONTEXT.companyId,
+        canDrive: true,
         driver: { ...DRIVER_INPUT, membershipId: MEMBERSHIP_ID },
       },
     ])
     // O vínculo acabou de nascer nesta empresa: conferi-lo seria consultar o que se escreveu
     expect(stub.membershipCalls).toEqual([])
+  })
+
+  // Spec 234 D2: o perfil vira colunas; `canDrive` vai no `create` porque a ficha e o convite não
+  // compartilham transação, e uma ficha que nascesse `true` e fosse corrigida depois já teria dirigido
+  test('translates the profile into the crew columns on create', async () => {
+    const cases = [
+      { canActAsHelper: false, profile: 'helper' },
+      { canActAsHelper: true, profile: 'helper' },
+      { canActAsHelper: false, profile: 'driver' },
+      { canActAsHelper: true, profile: 'driver' },
+      { canActAsHelper: false, profile: 'aggregate' },
+      { canActAsHelper: true, profile: 'aggregate' },
+    ] as const
+    const seen: unknown[] = []
+
+    for (const item of cases) {
+      const stub = createDriverRepositoryStub()
+      const account = createDriverAccountStub()
+      const useCase = createFleetDriversUseCase({
+        account: account.account,
+        contacts: createDriverContactDirectoryStub().contacts,
+        repository: stub.repository,
+      })
+
+      await useCase.create({
+        context: FLEET_CONTEXT,
+        correlationId: CORRELATION_ID,
+        driver: { ...DRIVER_FIELDS, canActAsHelper: item.canActAsHelper },
+        profile: item.profile,
+      })
+
+      const call = stub.createCalls[0] as {
+        canDrive: boolean
+        driver: { canActAsHelper: boolean }
+      }
+      seen.push({ canActAsHelper: call.driver.canActAsHelper, canDrive: call.canDrive })
+      expect(
+        account.calls.map((accountCall) => (accountCall as { roles: string[] }).roles),
+      ).toEqual([[item.profile]])
+    }
+
+    expect(seen).toEqual([
+      { canActAsHelper: true, canDrive: false },
+      { canActAsHelper: true, canDrive: false },
+      { canActAsHelper: false, canDrive: true },
+      { canActAsHelper: true, canDrive: true },
+      { canActAsHelper: false, canDrive: true },
+      { canActAsHelper: true, canDrive: true },
+    ])
   })
 
   // O motorista entrega pelo app dele: sem e-mail, o convite sai pelo telefone

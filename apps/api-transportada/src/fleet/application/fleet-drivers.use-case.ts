@@ -25,6 +25,8 @@ import type {
   FleetDriverRepositoryPort,
 } from './fleet.port.js'
 
+const HELPER_PROFILE = 'helper' satisfies FleetDriverProfile
+
 export type CreateFleetDriverInput = {
   readonly context: FleetCompanyContext
   readonly correlationId: string
@@ -184,9 +186,16 @@ export function createFleetDriversUseCase(dependencies: {
         name: input.driver.name,
         roles: [input.profile],
       })
+      // Spec 234 D2: ajudante não dirige e sempre ajuda; os outros perfis dirigem e ajudam se marcado
+      const isHelperProfile = input.profile === HELPER_PROFILE
       const created = await repository.create({
+        canDrive: !isHelperProfile,
         companyId,
-        driver: { ...input.driver, membershipId },
+        driver: {
+          ...input.driver,
+          canActAsHelper: isHelperProfile || input.driver.canActAsHelper,
+          membershipId,
+        },
       })
       await fillHomeCoordinate({ companyId, driverId: created.id })
       return created

@@ -24,7 +24,7 @@ da app. Cada task fecha com typecheck, testes da app, commit isolado e evidênci
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T4** `FLEET_DRIVER_PROFILES` com `helper`; corpo de `POST/PATCH /fleet/drivers` dispensa CNH
+- [x] **T4** `FLEET_DRIVER_PROFILES` com `helper`; corpo de `POST/PATCH /fleet/drivers` dispensa CNH
       para ele; o use case traduz perfil em colunas (D2); `canDrive` na leitura (port, mapper, rota,
       schema de resposta). A ficha nasce com as colunas do perfil no `create` (criar ficha e convite não
       compartilham transação hoje); desligar `can_act_as_helper` num ajudante puro recebe

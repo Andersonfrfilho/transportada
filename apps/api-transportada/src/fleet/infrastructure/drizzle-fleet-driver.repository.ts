@@ -8,7 +8,10 @@ import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { fleetDrivers, userCompanyMemberships } from '../../database/database.schema.js'
 import type { DriverHomeState } from '../domain/driver-home-geocoding.policy.js'
 import type { FleetDriverStatus } from '../../database/fleet.schema.js'
-import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
+import {
+  violatedCheckConstraint,
+  violatedUniqueConstraint,
+} from '../../database/postgres-error.support.js'
 import type {
   FleetDriver,
   FleetDriverDocumentConflicts,
@@ -20,6 +23,7 @@ import type {
 import {
   FleetDriverLicenseNumberTakenError,
   FleetDriverMembershipTakenError,
+  FleetDriverProfileEmptyError,
   FleetDriverTaxIdTakenError,
 } from '../domain/fleet.error.js'
 import { decodeKeysetCursor, encodeKeysetCursor } from '../../shared/keyset-cursor.support.js'
@@ -28,6 +32,7 @@ import { mapDriver, toDriverColumns } from './fleet.mapper.js'
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 const ACTIVE_MEMBERSHIP_STATUS = 'active'
+const CREW_CAPABILITY_CONSTRAINT = 'fleet_drivers_crew_capability_check'
 const LICENSE_NUMBER_CONSTRAINT = 'fleet_drivers_company_license_number_unique'
 const MEMBERSHIP_CONSTRAINT = 'fleet_drivers_company_membership_unique'
 const TAX_ID_CONSTRAINT = 'fleet_drivers_company_id_tax_id_unique'
@@ -36,13 +41,18 @@ export class DrizzleFleetDriverRepository implements FleetDriverRepositoryPort {
   public constructor(private readonly database: Database) {}
 
   public async create(input: {
+    readonly canDrive: boolean
     readonly companyId: string
     readonly driver: FleetDriverInput
   }): Promise<FleetDriver> {
     const record = await runGuarded(async () => {
       const [created] = await this.database
         .insert(fleetDrivers)
-        .values({ ...toDriverColumns(input.driver), companyId: input.companyId })
+        .values({
+          ...toDriverColumns(input.driver),
+          canDrive: input.canDrive,
+          companyId: input.companyId,
+        })
         .returning()
       return created
     })
@@ -266,6 +276,10 @@ async function runGuarded<TResult>(operation: () => Promise<TResult>): Promise<T
     if (constraint === TAX_ID_CONSTRAINT) throw new FleetDriverTaxIdTakenError()
     if (constraint === MEMBERSHIP_CONSTRAINT) throw new FleetDriverMembershipTakenError()
     if (constraint === LICENSE_NUMBER_CONSTRAINT) throw new FleetDriverLicenseNumberTakenError()
+    // Desligar `canActAsHelper` de quem não dirige esvazia a ficha: 409 estável, nunca 500 do CHECK
+    if (violatedCheckConstraint(error) === CREW_CAPABILITY_CONSTRAINT) {
+      throw new FleetDriverProfileEmptyError()
+    }
     throw error
   }
 }

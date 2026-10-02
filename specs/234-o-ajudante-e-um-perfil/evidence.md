@@ -242,3 +242,72 @@ with the API authorization policy`: a lista fechada de `useAuthMe.query.ts` não
 usuário com o papel derrubaria o `/auth/me` do painel. `helper` entrou na lista (a parte de T10 que
 precisa subir junto da API); `bun test ./test/frontend-contract.test.ts` → 15 pass · 0 fail; typecheck do
 frontend em exit 0. O resto da T10 (rótulos, convite, tabela) segue na Fase 3.
+
+## T4 — Perfil `helper` no cadastro de frota e `canDrive` na leitura
+
+Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+
+### O que mudou
+
+- `FLEET_DRIVER_PROFILES` ganha `helper` (`src/fleet/domain/fleet-driver-profile.constant.ts`); o
+  `satisfies readonly CompanyRole[]` e o `z.enum(FLEET_DRIVER_PROFILES)` do `POST` seguem o catálogo.
+- **A CNH já era opcional no corpo** (`licenseNumber` = `optionalDigits`, `licenseCategory` =
+  `literal('').or(enum)`, `licenseExpiresAt` = `iso.date().nullable()`), então não há schema condicional
+  por perfil: o contrato só prova que o `helper` entra sem os três campos. `grep licenseExpiresAt src`
+  só acha schema, semente, porta, mapper, política do agregado, rota e o schema do corpo — nenhum use
+  case nem política de viagem lê vencimento, logo **nenhum gate de vencimento alcança o helper** (nada a
+  alterar).
+- `createFleetDriversUseCase.create` traduz o perfil em colunas (D2): `helper` ⇒ `canDrive = false` e
+  `canActAsHelper = true` (ignora o valor do corpo); `driver`/`aggregate` ⇒ `canDrive = true` e
+  `canActAsHelper` como veio. `canDrive` vai no `create` do repositório (campo novo do input da porta,
+  gravado no `INSERT`) porque criar a ficha e o convite não compartilham transação — corrigir depois do
+  `INSERT` deixaria a ficha nascer `can_drive = true`.
+- Leitura: `FleetDriver.canDrive` (porta), `mapDriver`, `serializeDriver` (`GET` lista, `POST`, `PATCH`).
+  O projeto não tem schema de **resposta** de frota (só de corpo), então não há schema a estender.
+- `PATCH`: o corpo é `strict` e não aceita `canDrive` nem `profile` (hoje ele não trata perfil e nada foi
+  inventado); `toDriverColumns` — usado também no `UPDATE` — não carrega `canDrive`, então só criação e
+  troca de papéis (T3) o escrevem. Desligar `canActAsHelper` de quem não dirige bate no CHECK
+  `fleet_drivers_crew_capability_check` (`23514`), que `runGuarded` converte em
+  `FleetDriverProfileEmptyError` (`409 FLEET_DRIVER_PROFILE_EMPTY`) — nunca 500. A trava otimista segue:
+  com versão velha nenhuma linha casa e o `UPDATE` devolve `null` sem avaliar o CHECK.
+- Seed: o contrato "a semente cobre os dois perfis do catálogo" comparava com `FLEET_DRIVER_PROFILES`
+  inteiro e passaria a exigir o `helper`; por ora ele filtra o `helper` (a T7 devolve a cobertura
+  completa com as sementes novas).
+- `package.json`: `test:integration` ganha `./test/integration/fleet-driver-repository.integration.ts`
+  (arquivo novo; o repositório de motorista não tinha integração própria).
+
+### Contrato vermelho antes do código
+
+`bun --env-file=../../.env.test test --timeout 120000 ./test/fleet-http.contract.test.ts ./test/fleet-application.contract.test.ts`
+→ `233 pass · 6 fail` (helper aceito sem CNH, `canDrive` em lista/criação/`PATCH`, tradução perfil →
+colunas, `createCalls` com `canDrive`, lista de ficha). Integração nova:
+`./test/integration/fleet-driver-repository.integration.ts` → `0 pass · 3 fail` antes do código.
+
+Casos: use case — seis combinações perfil × switch (sem `test.each`); HTTP — helper sem CNH
+encaminhado como `profile: 'helper'`, `canDrive` presente nas três respostas e `canDrive` no corpo de
+`POST`/`PATCH` recusado com 400; integração — colunas gravadas e lidas por `findById`/`list`, recusa 409
+sem alterar linha nem versão, `UPDATE` que não mexe em `can_drive` (ajudante renomeado, motorista liga e
+desliga o switch) e versão velha → `null`.
+
+### Prova por mutação
+
+Cada uma restaurada por cópia do original.
+
+- `canDrive: !isHelperProfile` → `canDrive: true` → `238 pass · 1 fail` (tradução perfil → colunas).
+- `isHelperProfile || input.driver.canActAsHelper` → só o corpo → `238 pass · 1 fail` (mesmo teste).
+- `serializeDriver` sem `canDrive` → `236 pass · 3 fail`.
+- `canDrive: input.canDrive` arrancado do `INSERT` → integração `0 pass · 3 fail`.
+- Conversão do CHECK em 409 desligada → integração `2 pass · 1 fail` (a recusa).
+- `canDrive` fora do `mapDriver` → integração `0 pass · 3 fail`.
+- `helper` fora de `FLEET_DRIVER_PROFILES` → `238 pass · 1 fail` (helper sem CNH aceito).
+
+### Gates
+
+Postgres 18.4 nativo descartável da T1 (porta 65435, usuário `postgres`, banco `transportada`
+migrado; `.env.test` aponta para 65434, vazio), `DATABASE_URL`/`DRIZZLE_TEST_DATABASE_URL` no shell.
+
+- Contrato da API: `bun --env-file=../../.env.test test --timeout 120000` →
+  `8773 pass · 0 fail · Ran 8773 tests across 193 files` (0 skip; T3: 8770).
+- Integração: fleet-driver-repository 3/0 · driver-score 8/0 · company-user-fleet-link 16/0 (0 skip).
+- `bun run typecheck` (raiz) sem erro · `bun run lint` (cwd `apps/api-transportada`) exit 0 ·
+  `prettier --check` nos arquivos tocados limpo.

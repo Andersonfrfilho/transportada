@@ -49,7 +49,9 @@ describe('local fleet seed contract', () => {
   test('a semente cobre os dois perfis do catálogo', () => {
     const profiles = new Set(LOCAL_FLEET_DRIVER_SEEDS.map((seed) => seed.profile))
 
-    expect([...profiles].sort()).toEqual([...FLEET_DRIVER_PROFILES].sort())
+    expect([...profiles].sort()).toEqual(
+      FLEET_DRIVER_PROFILES.filter((profile) => profile !== 'helper').sort(),
+    )
     expect(LOCAL_FLEET_DRIVER_SEEDS.length).toBeGreaterThanOrEqual(4)
   })
 

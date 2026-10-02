@@ -69,6 +69,67 @@ describe('fleet drivers http contract', () => {
     ])
   })
 
+  // Spec 234 D6: quem não dirige não tem CNH, e o corpo não a pede — nem número, nem categoria, nem validade
+  test('accepts the helper profile without any licence field and forwards it', async () => {
+    const fixture = await createFleetHttpFixture()
+    const withoutLicense = {
+      ...DRIVER_FIELDS,
+      canActAsHelper: true,
+      licenseCategory: '',
+      licenseExpiresAt: null,
+      licenseNumber: '',
+    }
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { ...withoutLicense, profile: 'helper' },
+        method: 'POST',
+        path: FLEET_DRIVERS_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(fixture.createDriverCalls).toEqual([
+      {
+        context: COMPANY_CONTEXT,
+        correlationId: 'fleet-http-correlation',
+        driver: withoutLicense,
+        profile: 'helper',
+      },
+    ])
+  })
+
+  // `canDrive` é decidido pelo servidor a partir do perfil: o corpo não o escolhe
+  test('answers canDrive on every driver read and refuses it in the body', async () => {
+    const fixture = await createFleetHttpFixture()
+
+    const listed = await fixture.handle(jsonRequest({ method: 'GET', path: FLEET_DRIVERS_PATH }))
+    const created = await fixture.handle(
+      jsonRequest({ body: CREATE_DRIVER_BODY, method: 'POST', path: FLEET_DRIVERS_PATH }),
+    )
+    const updated = await fixture.handle(
+      jsonRequest({ body: UPDATE_DRIVER_BODY, method: 'PATCH', path: DRIVER_PATH }),
+    )
+
+    for (const response of [listed, created, updated]) {
+      const { data } = (await response.json()) as { data: unknown }
+      const driver = Array.isArray(data) ? data[0] : data
+      expect((driver as { canDrive: unknown }).canDrive).toBe(true)
+    }
+
+    for (const request of [
+      {
+        body: { ...CREATE_DRIVER_BODY, canDrive: false },
+        method: 'POST',
+        path: FLEET_DRIVERS_PATH,
+      },
+      { body: { ...UPDATE_DRIVER_BODY, canDrive: false }, method: 'PATCH', path: DRIVER_PATH },
+    ] as const) {
+      const response = await fixture.handle(jsonRequest(request))
+      expect(response.status).toBe(400)
+    }
+  })
+
   // O vínculo nasce com o usuário que a criação abre: digitá-lo aqui é campo desconhecido
   test('refuses a membership and a missing profile on create', async () => {
     const fixture = await createFleetHttpFixture()
