@@ -56,3 +56,19 @@ function resolveOnTheRoadInterval(input: {
 
   return hasPending ? TRIP_ON_THE_ROAD_REFETCH_MS : false
 }
+
+/**
+ * Spec 057 P2: a linha do tempo repete a consulta **pela mesma regra do corpo da viagem**, e não por
+ * uma própria. Enquanto a viagem está na rua quem move os eventos é o motorista, do outro lado — sem
+ * isto, "Iniciar rota" deixava o trilho de eventos congelado no que estava em tela quando a página
+ * abriu, e só um recarregamento manual mostrava chegada em parada, entrega e ocorrência.
+ *
+ * Duas políticas na mesma tela mostrariam a parada baixada no detalhe e ainda pendente na linha do
+ * tempo — o operador não tem como saber qual dos dois painéis está velho.
+ */
+export function resolveTripTimelineRefetchInterval(input: {
+  readonly documents: readonly TripPollingDocument[]
+  readonly status: string | undefined
+}): false | number {
+  return resolveOnTheRoadInterval(input)
+}

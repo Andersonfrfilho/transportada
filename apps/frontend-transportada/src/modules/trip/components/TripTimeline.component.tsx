@@ -24,6 +24,7 @@ import {
   formatTripTimelineDocumentFilterLabel,
   groupTripTimelineItemsByDay,
   removeDuplicateDispatchEvents,
+  removeDuplicateTimelineItems,
   resolveTripTimelineAuthorshipText,
   resolveTripTimelineTitle,
 } from '../shared/tripTimeline.service'
@@ -166,7 +167,9 @@ export function TripTimeline({ openDocumentId, query, stops }: TripTimelineProps
 
   const loadedItems = useMemo(() => {
     const pages = query.data?.pages ?? []
-    return removeDuplicateDispatchEvents(pages.flatMap((page) => page.items))
+    return removeDuplicateDispatchEvents(
+      removeDuplicateTimelineItems(pages.flatMap((page) => page.items)),
+    )
   }, [query.data])
 
   const documents = useMemo(() => collectTripTimelineDocuments(loadedItems), [loadedItems])
