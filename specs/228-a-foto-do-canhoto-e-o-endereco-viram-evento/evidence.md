@@ -203,5 +203,5 @@ migration necessária.
 - `bun --env-file=../../.env.test test --timeout 120000`: **8689 pass / 23 skip / 0 fail** (192 arquivos).
 - `bun --env-file=../../.env.test run test:integration` (completo, Postgres 65432 do `.env.test`):
   **847 pass / 8 skip / 0 fail**, 855 testes em 151 arquivos, 1050 s. Os 8 skips são pré-existentes
-  (variantes que dependem de infra ausente), não do bloco novo (34 → 41 testes em `trip-timeline.integration.ts`, todos verdes).
+  (variantes que dependem de infra ausente), não do bloco novo (6 testes novos em `trip-timeline.integration.ts`, todos verdes).
 - Painel não tocado nesta task (nenhuma prioridade copiada no painel).
