@@ -15,6 +15,7 @@ import {
   type MdfeDocumentDownload,
 } from '../../mdfe-manifests/application/read-mdfe-document.port.js'
 import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
+import type { DriverDeliveryProofView } from '../application/read-driver-delivery-proof.use-case.js'
 import type { FieldOccurrenceType } from '../application/list-field-occurrence-types.use-case.js'
 import type { ProofPunctuality } from '../domain/delivery-proof-punctuality.policy.js'
 import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
@@ -219,6 +220,12 @@ export type MeTripDependencies = {
       readonly upload: DeliveryProofUpload
     },
   ) => Promise<{ readonly id: string; readonly punctuality: ProofPunctuality }>
+  /** Pedido do usuário (01/10): rever o canhoto já enviado, pela nota da viagem dele. */
+  readonly readDeliveryProofs: (input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly driverId: string
+  }) => Promise<readonly DriverDeliveryProofView[]>
   readonly readManifestXml: (input: {
     readonly companyId: string
     readonly driverId: string
@@ -583,6 +590,29 @@ export function createMeTripRoutes(
       },
       pathname: DOCUMENT_PROOF_PATH,
       policy: DRIVER_REPORT_POLICY,
+    }),
+    /**
+     * Pedido do usuário (01/10): o motorista rever o canhoto que já subiu. `trip.read` é da empresa
+     * inteira — quem recorta é a consulta da nota alcançável dentro das viagens **dele**, dentro do
+     * caso de uso. Lista vazia é resposta legítima: entrega sem canhoto existe.
+     */
+    defineRoute<{ readonly documentId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const driverId = await resolveDriver(context.scope)
+        const proofs = await dependencies.readDeliveryProofs({
+          companyId: context.scope.companyId,
+          documentId: input.documentId,
+          driverId,
+        })
+
+        return jsonResponse({ body: { data: proofs }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+      }),
+      pathname: DOCUMENT_PROOF_PATH,
+      policy: DRIVER_READ_POLICY,
     }),
     defineRoute<{
       readonly attachmentObjectId?: string | undefined

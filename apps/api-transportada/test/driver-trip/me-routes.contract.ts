@@ -30,6 +30,7 @@ const meRoutes = createMeTripRoutes({
   cancelStopDeparture: NOT_CALLED,
   reportDelivery: NOT_CALLED,
   reportOccurrence: NOT_CALLED,
+  readDeliveryProofs: NOT_CALLED,
   readManifestXml: NOT_CALLED,
   renderManifestDamdfe: NOT_CALLED,
   reportReturn: NOT_CALLED,
@@ -185,6 +186,7 @@ describe('os tipos de ocorrência do motorista (spec 157)', () => {
           },
         ]
       },
+      readDeliveryProofs: NOT_CALLED,
       readManifestXml: NOT_CALLED,
       registerDriverOccurrence: NOT_CALLED,
       renderManifestDamdfe: NOT_CALLED,

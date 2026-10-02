@@ -67,8 +67,7 @@ describe('a foto do canhoto e a assinatura têm miniatura, chave e lightbox pró
 
   it('o lightbox abre pelo kind clicado (openImageKind), nunca por um estado global', () => {
     const section = proofSection()
-    expect(section).toContain(
-      'openImageKind !== undefined && previewByKind[openImageKind].previewUrl !== undefined',
-    )
+    expect(section).toContain('openImageKind !== undefined && openImageUrl !== undefined')
+    expect(section).toContain('previewByKind[openImageKind].previewUrl ??')
   })
 })

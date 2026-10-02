@@ -34,8 +34,8 @@ describe('a CSP da app do motorista (ADR-0075 §4)', () => {
   })
 
   /**
-   * `blob:` é a prévia da foto e do recorte; a origem da API é o logo da instalação. A origem do
-   * armazenamento chega com a spec 179, e não antes.
+   * `blob:` é a prévia da foto e do recorte; a origem da API é o logo da instalação. Sem bucket
+   * configurado, a diretiva fecha nessas três — origem ausente nunca abre nada.
    */
   test("img-src é 'self', blob: e a origem da API", () => {
     const policy = buildContentSecurityPolicy({ ...ORIGINS, allowsInlineScript: false })
@@ -45,10 +45,13 @@ describe('a CSP da app do motorista (ADR-0075 §4)', () => {
 
   /**
    * Spec 179 (RF2): a foto da ocorrência sobe por `PUT` direto ao bucket, pela URL assinada — sem a
-   * origem dele no `connect-src`, o navegador recusa o envio antes de a rede ver o pedido. Só o
-   * `connect-src`: nada desta app exibe imagem do bucket.
+   * origem dele no `connect-src`, o navegador recusa o envio antes de a rede ver o pedido.
+   *
+   * Pedido do usuário (01/10): ela entra também no `img-src`, porque agora esta app **exibe** imagem
+   * de lá — o canhoto já enviado, por URL assinada de 5 min que a API devolve. Sem isso a foto
+   * voltaria em branco no celular, sem erro visível nenhum.
    */
-  test('a origem do storage entra no connect-src, e só nele', () => {
+  test('a origem do storage entra no connect-src e no img-src', () => {
     const policy = buildContentSecurityPolicy({
       ...ORIGINS,
       allowsInlineScript: false,
@@ -58,7 +61,9 @@ describe('a CSP da app do motorista (ADR-0075 §4)', () => {
     expect(readDirective(policy, 'connect-src')).toBe(
       "connect-src 'self' https://api.exemplo.test https://auth.exemplo.test https://bucket.exemplo.test",
     )
-    expect(readDirective(policy, 'img-src')).toBe("img-src 'self' blob: https://api.exemplo.test")
+    expect(readDirective(policy, 'img-src')).toBe(
+      "img-src 'self' blob: https://api.exemplo.test https://bucket.exemplo.test",
+    )
   })
 
   /** O `sw.ts` e o manifesto são da própria origem — é o que a spec 147 encontra pronto. */

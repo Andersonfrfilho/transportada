@@ -263,6 +263,18 @@ sendo o gesto do barracão. A ocorrência na linha da nota (`fieldOccurrence`) e
   `allowed-actions`; o roteador derruba o boot se ela aparecer fora de `GET`. Sem `fleet.read`,
   `driverTaxId`/`driverEmail`/`driverPhone` saem nulos.
 
+**O motorista relê o canhoto da própria nota** (pedido do usuário, 01/10):
+`GET /me/trips/current/documents/:documentId/proof` — mesmo caminho do `POST` que envia, com
+`trip.read` em vez de `trip.report`. Devolve só `{ id, kind, createdAt, downloadUrl, expiresAt,
+thumbnailUrl? }`, URLs assinadas de 5 min pelo mesmo `createDeliveryProofDownloadGateway` do
+escritório; **nada de quem recebeu, documento mascarado, veredito ou distância** — a rua reconhece a
+própria foto, auditar é do painel. ⚠️ `trip.read` vale para a empresa inteira: quem recorta é
+`findReachableDocument` (a consulta da spec 179 T202) **dentro** do caso de uso
+(`read-driver-delivery-proof.use-case.ts`), e nota fora das viagens dele responde como inexistente
+(OWASP API1/BOLA). Entrega sem canhoto é lista vazia, nunca erro.
+`test/trip-delivery-proof/driver-proof-read.contract.ts`,
+`test/integration/driver-delivery-proof-read.integration.ts`.
+
 **A leitura do canhoto é interruptor da empresa, não do destinatário** (spec 156 T13, ADR-0069):
 `company_delivery_proof_settings.canhoto_ocr_enabled` (padrão `false`, sem coluna na tabela de
 exceções) sai no `GET`/`PUT /company-settings/delivery-proof` (`settings.manage`; no `PUT` o campo é

@@ -28,8 +28,12 @@ export type TripPageState = Readonly<{
 
 export const TRIP_FIRST_PAGE: TripPageState = { cursor: null, history: [] }
 
+/** Seleção vazia não é filtro: `statusIn: []` contaria como ativo e a tela diria "1 filtro". */
 export function countActiveTripFilters(filters: TripFilters): number {
-  return Object.values(filters).filter((value) => value !== undefined && value !== '').length
+  return Object.values(filters).filter((value) => {
+    if (Array.isArray(value)) return value.length > 0
+    return value !== undefined && value !== ''
+  }).length
 }
 
 export function nextTripSortState(current: TripSortState, column: TripColumnKey): TripSortState {

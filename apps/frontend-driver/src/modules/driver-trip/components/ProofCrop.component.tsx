@@ -9,6 +9,7 @@ import { Icon } from '@/components/ui/icon'
 import { useRevealedPanel } from '@/modules/shared/useRevealedPanel.hook'
 
 import { captureRegistry } from '../shared/captureRegistry.service'
+import { computeOccurrencePhotoOriginalDimensions } from '../shared/occurrencePhotoImage.service'
 import {
   boundsToCorners,
   cornersToBounds,
@@ -20,6 +21,7 @@ import {
   type CropRotation,
 } from '../shared/proofCrop.service'
 import { resolveInitialCropBounds } from '../shared/proofCropFrame.service'
+import { PROOF_PHOTO_MAX_SIDE } from '../shared/proofPhotoReduction.service'
 import styles from '../styles/driverTrip.module.css'
 
 const PREVIEW_MAX_WIDTH = 480
@@ -154,23 +156,34 @@ export function ProofCrop({ file, onCancel, onConfirm }: ProofCropProps) {
     const bounds = cornersToBounds({ corners, height: size.height, width: size.width })
     const scaleX = image.width / size.width
     const scaleY = image.height / size.height
-    const cropWidth = Math.round((bounds.right - bounds.left) * scaleX)
-    const cropHeight = Math.round((bounds.bottom - bounds.top) * scaleY)
+    const sourceWidth = Math.round((bounds.right - bounds.left) * scaleX)
+    const sourceHeight = Math.round((bounds.bottom - bounds.top) * scaleY)
+    /**
+     * Defeito medido (01/10): o recorte saía na resolução cheia da câmera (3–5 MB) e a redução logo
+     * depois decodificava e reencodava tudo de novo — dois encodes de resolução cheia jogados fora,
+     * na main thread, com a tela parada em "enviando". Sair já na régua de `PROOF_PHOTO_MAX_SIDE`
+     * dá o mesmo arquivo final por uma fração do trabalho; o `drawImage` reescala de graça.
+     */
+    const output = computeOccurrencePhotoOriginalDimensions({
+      height: sourceHeight,
+      maxSide: PROOF_PHOTO_MAX_SIDE,
+      width: sourceWidth,
+    })
     const target = document.createElement('canvas')
-    target.width = cropWidth
-    target.height = cropHeight
+    target.width = output.width
+    target.height = output.height
     const context = target.getContext('2d')
     if (context === null) return
     context.drawImage(
       image,
       Math.round(bounds.left * scaleX),
       Math.round(bounds.top * scaleY),
-      cropWidth,
-      cropHeight,
+      sourceWidth,
+      sourceHeight,
       0,
       0,
-      cropWidth,
-      cropHeight,
+      output.width,
+      output.height,
     )
     target.toBlob((blob) => {
       if (blob === null) return

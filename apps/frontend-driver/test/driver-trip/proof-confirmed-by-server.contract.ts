@@ -15,6 +15,11 @@ const CARD = readFileSync(
   'utf8',
 )
 
+const STYLES = readFileSync(
+  new URL('../../src/modules/driver-trip/styles/driverTrip.module.css', import.meta.url),
+  'utf8',
+)
+
 const SETTLED_REQUIRED_PHOTO = {
   hasLocalAttachment: false,
   isDelivered: true,
@@ -65,6 +70,32 @@ describe('o comprovante que o servidor já tem, sem cópia neste aparelho', () =
       body.indexOf('renderEmptyFrame()'),
     )
     expect(CARD).toInclude('attached.photo || isPhotoConfirmedByServer ? retakeLabel')
+  })
+
+  /** Pedido do usuário (01/10): a foto já enviada aparece em miniatura, não só como frase. */
+  it('com a miniatura guardada, a tela mostra a foto; sem ela, continua a moldura com a frase', () => {
+    const start = CARD.indexOf('function renderConfirmedFrame()')
+    const body = CARD.slice(start, CARD.indexOf('function renderLoadingFrame(', start))
+    expect(body).toInclude('storedThumbnailUrl === undefined')
+    expect(body).toInclude('styles.proofConfirmedFrame')
+    expect(body).toInclude('styles.proofConfirmedThumbnail')
+    expect(body).toInclude("setOpenImageKind('photo')")
+    expect(CARD).toInclude('useStoredProofThumbnail({')
+    expect(CARD).toInclude('enabled: isPhotoConfirmedByServer')
+  })
+
+  /** Pedido do usuário (01/10): a frase cabia num quadrado de 4rem e vazava por cima da borda. */
+  it('a moldura confirmada ocupa a largura inteira do card, com a foto em miniatura', () => {
+    const rule = STYLES.slice(STYLES.indexOf('.proofConfirmedFrame {'))
+    const block = rule.slice(0, rule.indexOf('}'))
+    expect(block).toInclude('width: 100%')
+    expect(block).toInclude('min-height: var(--space-16)')
+    expect(block).not.toInclude('width: var(--space-16)')
+
+    const thumbnailRule = STYLES.slice(STYLES.indexOf('.proofConfirmedThumbnail {'))
+    const thumbnail = thumbnailRule.slice(0, thumbnailRule.indexOf('}'))
+    expect(thumbnail).toInclude('width: var(--space-16)')
+    expect(thumbnail).toInclude('height: var(--space-16)')
   })
 
   it('o texto existe em pt-BR e en, sem hora', () => {

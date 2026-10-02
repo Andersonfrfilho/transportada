@@ -976,6 +976,70 @@
   min-height: 2.75rem;
 }
 
+/*
+ * Pedido do usuário (01/10): a sincronização da fila precisa aparecer acontecendo, com loading. A
+ * drenagem só roda com a app aberta (sem Background Sync — `security.md` §8), então esta linha é
+ * onde o motorista descobre que algo ficou para trás.
+ */
+/*
+ * O identificador curto da viagem, ao lado da placa: monoespaçado porque é código para ditar ao
+ * telefone — proporcional embaralha 0/O e 1/l justamente em quem está dirigindo.
+ */
+.tripCodeLabel {
+  margin-left: var(--space-3);
+}
+
+.tripCode {
+  background: color-mix(in srgb, var(--color-slate) 22%, transparent);
+  font-family: ui-monospace, monospace;
+  margin-left: var(--space-1);
+  padding: 0 var(--space-1);
+}
+
+.syncStatus {
+  align-items: center;
+  color: var(--color-fog);
+  display: flex;
+  font-size: var(--font-size-sm);
+  gap: var(--space-2);
+  margin: 0;
+}
+
+/*
+ * `em`, não `rem`: é um glifo na linha do texto, acompanha a tipografia de quem o hospeda (a linha
+ * de status e o botão têm escalas diferentes). Não é alvo de toque — o `aria-hidden` no JSX diz isso.
+ */
+.syncStatusSpinner {
+  /*
+   * `currentColor`, não cobre fixo: dentro do botão primário o fundo JÁ é cobre e o spinner sumia
+   * (medido no print da revisão). Assim ele acompanha o texto ao lado, em qualquer fundo.
+   */
+  border: 2px solid color-mix(in srgb, currentcolor 30%, transparent);
+  border-radius: 50%;
+  border-top-color: currentcolor;
+  display: block;
+  flex: none;
+  height: 1em;
+  width: 1em;
+}
+
+/* Girar é enfeite com função (diz que algo está em curso) — quem pediu menos movimento fica sem. */
+@media (prefers-reduced-motion: no-preference) {
+  .syncStatusSpinner {
+    animation: driver-sync-spin 0.9s linear infinite;
+  }
+
+  .eventQueueItem[data-syncing='true'] {
+    animation: driver-progress-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes driver-sync-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
 .eventQueueHeader {
   align-items: center;
   display: flex;
@@ -1462,29 +1526,69 @@
   gap: var(--space-2);
 }
 
+/*
+ * Pedido do usuário (01/10): as duas molduras do canhoto — a sem foto e a que o servidor já tem —
+ * ocupam a largura inteira do card, como a miniatura e os botões. O quadrado de `--space-16`
+ * partia a frase ao meio e a deixava vazar por cima da borda.
+ */
 .proofEmptyFrame {
+  align-content: center;
   align-items: center;
   border: 1px dashed var(--color-slate);
+  box-sizing: border-box;
   color: var(--color-slate);
   display: grid;
   gap: var(--space-1);
-  height: var(--space-16);
   justify-items: center;
-  align-content: center;
+  min-height: var(--space-16);
+  padding: var(--space-3);
   text-align: center;
+  width: 100%;
+}
+
+/*
+ * Enviada, a foto vira referência, não conferência: a faixa ocupa a largura do card e a foto entra
+ * como miniatura ao lado da frase (pedido do usuário, 01/10) — grande ela já foi, enquanto subia.
+ */
+.proofConfirmedFrame {
+  align-items: center;
+  border: 1px solid var(--color-ready);
+  box-sizing: border-box;
+  color: var(--color-ready);
+  display: flex;
+  gap: var(--space-3);
+  min-height: var(--space-16);
+  padding: var(--space-3);
+  width: 100%;
+}
+
+.proofConfirmedThumbnailButton {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  display: block;
+  flex: none;
+  padding: 0;
+}
+
+.proofConfirmedThumbnailButton:focus-visible {
+  outline: 2px solid var(--color-ready);
+  outline-offset: 2px;
+}
+
+.proofConfirmedThumbnail {
+  border: 1px solid var(--color-slate);
+  display: block;
+  height: var(--space-16);
+  object-fit: cover;
   width: var(--space-16);
 }
 
-.proofConfirmedFrame {
-  align-content: center;
-  border: 1px solid var(--color-ready);
-  color: var(--color-ready);
-  display: grid;
-  gap: var(--space-1);
-  height: var(--space-16);
-  justify-items: center;
-  text-align: center;
-  width: var(--space-16);
+.proofConfirmedText {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .proofUploadChip {

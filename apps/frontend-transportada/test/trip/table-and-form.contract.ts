@@ -56,12 +56,15 @@ describe('trip table contract', () => {
     )
 
     expect(countActiveTripFilters({})).toBe(0)
-    expect(countActiveTripFilters({ statusEq: 'draft', vehicleIdEq: '' })).toBe(1)
+    // Seleção esvaziada deixa `[]` para trás em quem guarda o objeto. Contar isso diria "2 filtros
+    // ativos" com a tela sem filtro nenhum, e ofereceria "limpar filtros" sem nada para limpar.
+    expect(countActiveTripFilters({ statusIn: [], vehicleIdIn: [] })).toBe(0)
+    expect(countActiveTripFilters({ statusIn: ['draft'], vehicleIdIn: [] })).toBe(1)
     expect(
       countActiveTripFilters({
         createdFrom: '2026-07-01',
-        statusEq: 'draft',
-        vehicleIdEq: VEHICLE_ID,
+        statusIn: ['draft', 'loading'],
+        vehicleIdIn: [VEHICLE_ID],
       }),
     ).toBe(3)
   })
@@ -73,30 +76,44 @@ describe('trip filter pills contract', () => {
       await loadFutureModule<TripFilterPillsModule>(
         '../../src/modules/trip/shared/tripFilterPills.service',
       )
-    const formatDay = (value: string) => value
+    const labels = {
+      describeDriver: (driverId: string) => (driverId === 'driver-1' ? 'Joana Alves' : driverId),
+      describeVehicle: (vehicleId: string) =>
+        vehicleId === VEHICLE_ID ? 'ABC1D23 · SP' : vehicleId,
+      formatDay: (value: string) => value,
+    }
 
-    expect(describeTripFilterPills({ filters: {}, formatDay })).toEqual([])
+    expect(describeTripFilterPills({ ...labels, filters: {} })).toEqual([])
+    // Seleção esvaziada não é filtro: a pílula sairia sem valor e sem motivo de existir.
+    expect(
+      describeTripFilterPills({ ...labels, filters: { driverIdIn: [], statusIn: [] } }),
+    ).toEqual([])
 
     const filters = {
       createdFrom: '2026-07-01',
       createdUntil: '2026-07-31',
-      driverIdEq: 'driver-1',
-      statusEq: 'draft' as const,
-      vehicleIdEq: VEHICLE_ID,
+      driverIdIn: ['driver-1', 'driver-sem-cadastro'],
+      statusIn: ['draft', 'loading'] as const,
+      vehicleIdIn: [VEHICLE_ID],
     }
-    const pills = describeTripFilterPills({ filters, formatDay })
+    const pills = describeTripFilterPills({ ...labels, filters })
     expect(pills.map((pill) => pill.field)).toEqual([
-      'statusEq',
-      'vehicleIdEq',
-      'driverIdEq',
+      'statusIn',
+      'vehicleIdIn',
+      'driverIdIn',
       'createdRange',
     ])
+    // Situação é chave de idioma; placa e nome vivem no cadastro da frota, e quem chama os resolve.
+    expect(pills[0]?.valueKeys).toEqual(['status.draft', 'status.loading'])
+    expect(pills[1]?.value).toBe('ABC1D23 · SP')
+    // Id sem cadastro aparece como id em vez de sumir da pílula — filtro invisível é pior que id cru.
+    expect(pills[2]?.value).toBe('Joana Alves, driver-sem-cadastro')
 
-    expect(clearTripFilterField({ field: 'statusEq', filters })).not.toHaveProperty('statusEq')
-    expect(clearTripFilterField({ field: 'vehicleIdEq', filters })).not.toHaveProperty(
-      'vehicleIdEq',
+    expect(clearTripFilterField({ field: 'statusIn', filters })).not.toHaveProperty('statusIn')
+    expect(clearTripFilterField({ field: 'vehicleIdIn', filters })).not.toHaveProperty(
+      'vehicleIdIn',
     )
-    expect(clearTripFilterField({ field: 'driverIdEq', filters })).not.toHaveProperty('driverIdEq')
+    expect(clearTripFilterField({ field: 'driverIdIn', filters })).not.toHaveProperty('driverIdIn')
     const clearedRange = clearTripFilterField({ field: 'createdRange', filters })
     expect(clearedRange).not.toHaveProperty('createdFrom')
     expect(clearedRange).not.toHaveProperty('createdUntil')
@@ -326,9 +343,9 @@ type TripPageState = Readonly<{ cursor: null | string; history: readonly (null |
 type TripFilters = Readonly<{
   createdFrom?: string
   createdUntil?: string
-  driverIdEq?: string
-  statusEq?: TripStatusContract
-  vehicleIdEq?: string
+  driverIdIn?: readonly string[]
+  statusIn?: readonly TripStatusContract[]
+  vehicleIdIn?: readonly string[]
 }>
 type TripRow = Readonly<{
   companyId: string
@@ -351,11 +368,17 @@ type TripTableModule = {
 
 type TripFilterPillsModule = {
   readonly clearTripFilterField: (input: {
-    readonly field: 'createdRange' | 'driverIdEq' | 'statusEq' | 'vehicleIdEq'
+    readonly field: 'createdRange' | 'driverIdIn' | 'statusIn' | 'vehicleIdIn'
     readonly filters: TripFilters
   }) => TripFilters
   readonly describeTripFilterPills: (input: {
+    readonly describeDriver: (driverId: string) => string
+    readonly describeVehicle: (vehicleId: string) => string
     readonly filters: TripFilters
     readonly formatDay: (value: string) => string
-  }) => readonly Readonly<{ field: string }>[]
+  }) => readonly Readonly<{
+    field: string
+    value: string
+    valueKeys?: readonly string[]
+  }>[]
 }

@@ -47,12 +47,13 @@ describe('a moldura sem foto é um marcador estático', () => {
     expect(loading).toInclude('<Skeleton ')
   })
 
-  it('contorno tracejado no tamanho exato da miniatura, sem animação', () => {
+  it('contorno tracejado na largura inteira do card, sem animação', () => {
     const rule = STYLES.slice(STYLES.indexOf('.proofEmptyFrame {'))
     const block = rule.slice(0, rule.indexOf('}'))
     expect(block).toInclude('dashed')
-    expect(block).toInclude(`width: ${PROOF_FRAME_SIZE}`)
-    expect(block).toInclude(`height: ${PROOF_FRAME_SIZE}`)
+    expect(block).toInclude('width: 100%')
+    expect(block).toInclude(`min-height: ${PROOF_FRAME_SIZE}`)
+    expect(block).not.toInclude(`width: ${PROOF_FRAME_SIZE}`)
     expect(block).not.toInclude('animation')
   })
 

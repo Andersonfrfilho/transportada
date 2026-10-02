@@ -27,7 +27,10 @@ import {
   captureRegistry,
   createAuthenticationCaptureView,
 } from '@/modules/driver-trip/shared/captureRegistry.service'
-import { createIndexedDbTripSnapshotStore } from '@/modules/driver-trip/shared/indexedDbQueue.service'
+import {
+  createIndexedDbProofThumbnailStore,
+  createIndexedDbTripSnapshotStore,
+} from '@/modules/driver-trip/shared/indexedDbQueue.service'
 import {
   handleServiceWorkerUpdateAvailable,
   requestServiceWorkerUpdate,
@@ -66,6 +69,7 @@ import '@/styles/index.css'
 const deploymentEnvironment = getDeploymentEnvironment()
 const queryClient = new QueryClient()
 const tripSnapshotStore = createIndexedDbTripSnapshotStore()
+const proofThumbnailStore = createIndexedDbProofThumbnailStore()
 
 applyEnvironmentBadge({ document, environment: deploymentEnvironment })
 
@@ -236,6 +240,8 @@ async function startAuthenticated(root: Root): Promise<void> {
     store: tripSnapshotStore,
     subHash,
   }).catch(() => undefined)
+  /** O canhoto guardado de outro motorista sai junto com o snapshot dele — mesmo dono, mesma regra. */
+  await proofThumbnailStore.retainOnly(subHash).catch(() => undefined)
 
   let authorizedPayload: unknown
   const authorization = await checkDriverAuthorization({

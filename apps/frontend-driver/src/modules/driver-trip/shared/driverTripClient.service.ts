@@ -175,6 +175,12 @@ export type DriverTripClient = Readonly<{
   /** Já o XML sai por URL assinada — ele existe para ser repassado, não para ser lido na tela. */
   readManifestXml: (manifestId: string) => Promise<DriverTripManifestDownload>
   readCurrent: () => Promise<DriverTripSnapshot>
+  /**
+   * Pedido do usuário (01/10): o canhoto que o servidor já tem, por URL assinada de 5 min. A
+   * miniatura guardada no aparelho responde primeiro; esta leitura é a saída para a foto que não
+   * passou por este celular, ou passou faz mais de 24 h.
+   */
+  readDeliveryProofs: (documentId: string) => Promise<readonly DriverDeliveryProof[]>
   /** Spec 189 T7.5: o consentimento de posição — `null` é "nunca consentiu" ou "retirou". */
   readLocationConsent: () => Promise<LocationConsent>
   send: (report: DriverFieldReport) => Promise<void>
@@ -184,6 +190,14 @@ export type DriverTripClient = Readonly<{
     signal: AbortSignal,
   ) => Promise<void>
   setLocationConsent: (accepted: boolean) => Promise<LocationConsent>
+}>
+
+/** O que a rua usa do comprovante: a imagem e o que ela é. Nada de quem recebeu — isso é do painel. */
+export type DriverDeliveryProof = Readonly<{
+  downloadUrl: string
+  id: string
+  kind: 'cargo' | 'photo' | 'signature'
+  thumbnailUrl?: string
 }>
 
 export type LocationConsent = Readonly<{ acceptedAt: string | null }>
@@ -365,6 +379,14 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
     async readCurrent() {
       const payload = await request({ dependencies, method: 'GET', path: CURRENT_TRIP_PATH })
       return toDriverTripSnapshot(payload)
+    },
+    async readDeliveryProofs(documentId) {
+      const payload = await request({
+        dependencies,
+        method: 'GET',
+        path: `${CURRENT_TRIP_PATH}/documents/${documentId}/proof`,
+      })
+      return toDriverDeliveryProofs(payload)
     },
     async readLocationConsent() {
       const payload = await request({ dependencies, method: 'GET', path: LOCATION_CONSENT_PATH })
@@ -634,6 +656,40 @@ function toProofAttachResult(
 function readFileName(disposition: string | null, fallback: string): string {
   const match = disposition?.match(/filename="([^"]+)"/u)
   return match?.[1] ?? fallback
+}
+
+const PROOF_KINDS: ReadonlySet<string> = new Set(['cargo', 'photo', 'signature'])
+
+/**
+ * A lista do comprovante. Entrega sem canhoto é lista vazia — resposta legítima, nunca erro. Item
+ * sem a forma esperada derruba a leitura inteira: meia lista mostraria a foto errada na nota.
+ */
+function toDriverDeliveryProofs(payload: unknown): readonly DriverDeliveryProof[] {
+  const data =
+    typeof payload === 'object' && payload !== null
+      ? (payload as { readonly data?: unknown }).data
+      : undefined
+  if (!Array.isArray(data)) throw new DriverTripResponseError()
+
+  return data.map((item) => {
+    if (typeof item !== 'object' || item === null) throw new DriverTripResponseError()
+    const record = item as Record<string, unknown>
+    const { downloadUrl, id, kind, thumbnailUrl } = record
+    if (typeof downloadUrl !== 'string' || typeof id !== 'string') {
+      throw new DriverTripResponseError()
+    }
+    if (typeof kind !== 'string' || !PROOF_KINDS.has(kind)) throw new DriverTripResponseError()
+    if (thumbnailUrl !== undefined && typeof thumbnailUrl !== 'string') {
+      throw new DriverTripResponseError()
+    }
+
+    return {
+      downloadUrl,
+      id,
+      kind: kind as DriverDeliveryProof['kind'],
+      ...(thumbnailUrl === undefined ? {} : { thumbnailUrl }),
+    }
+  })
 }
 
 function toLocationConsent(payload: unknown): LocationConsent {

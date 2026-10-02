@@ -7,6 +7,11 @@ import type {
 } from './offlineAttachments.service'
 import type { OfflineQueueStore, QueuedReport } from './offlineQueue.service'
 import {
+  isStoredProofThumbnail,
+  type ProofThumbnailStore,
+  type StoredProofThumbnail,
+} from './proofThumbnailArchive.service'
+import {
   isStoredTripSnapshot,
   type StoredTripSnapshot,
   type TripSnapshotStore,
@@ -31,11 +36,13 @@ const STORE_NAME = 'field-reports'
 const ATTACHMENT_STORE_NAME = 'event-attachments'
 const QUEUE_KEY = 'queue'
 /**
- * ADR-0075 §8 (plan D5): a versão 3 traz o store `trip-snapshot`. A origem da app do motorista é
- * nova e nasce sem dados — ela já abre na 3, sem migração de nada.
+ * ADR-0075 §8 (plan D5): a versão 3 traz o store `trip-snapshot`. A 4 traz `proof-thumbnails` — a
+ * miniatura do canhoto que o servidor já aceitou (pedido do usuário, 01/10). As duas só criam store
+ * novo: o `onupgradeneeded` abaixo nada migra, e aparelho na 3 sobe sem perder fila nem snapshot.
  */
-const DATABASE_VERSION = 3
+const DATABASE_VERSION = 4
 const TRIP_SNAPSHOT_STORE_NAME = 'trip-snapshot'
+const PROOF_THUMBNAIL_STORE_NAME = 'proof-thumbnails'
 /** Ponteiro para o `subHash` de quem usou por último — é o snapshot que o boot sem rede abre. */
 const LAST_OWNER_KEY = 'last'
 
@@ -43,7 +50,12 @@ function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION)
     request.onupgradeneeded = () => {
-      for (const name of [STORE_NAME, ATTACHMENT_STORE_NAME, TRIP_SNAPSHOT_STORE_NAME]) {
+      for (const name of [
+        STORE_NAME,
+        ATTACHMENT_STORE_NAME,
+        TRIP_SNAPSHOT_STORE_NAME,
+        PROOF_THUMBNAIL_STORE_NAME,
+      ]) {
         if (!request.result.objectStoreNames.contains(name)) {
           request.result.createObjectStore(name)
         }
@@ -204,13 +216,16 @@ export function createIndexedDbAttachmentStore(): AttachmentStore {
   }
 }
 
-/** Uma transação `readwrite` no store do snapshot: tudo o que `apply` faz entra junto, ou nada. */
-function writeTripSnapshotStore(apply: (store: IDBObjectStore) => void): Promise<void> {
+/** Uma transação `readwrite` no store nomeado: tudo o que `apply` faz entra junto, ou nada. */
+function writeStore(input: {
+  readonly apply: (store: IDBObjectStore) => void
+  readonly storeName: string
+}): Promise<void> {
   return openDatabase().then(
     (database) =>
       new Promise<void>((resolve, reject) => {
-        const transaction = database.transaction(TRIP_SNAPSHOT_STORE_NAME, 'readwrite')
-        apply(transaction.objectStore(TRIP_SNAPSHOT_STORE_NAME))
+        const transaction = database.transaction(input.storeName, 'readwrite')
+        input.apply(transaction.objectStore(input.storeName))
         transaction.oncomplete = () => {
           resolve()
           database.close()
@@ -223,6 +238,14 @@ function writeTripSnapshotStore(apply: (store: IDBObjectStore) => void): Promise
         transaction.onabort = fail
       }),
   )
+}
+
+function writeTripSnapshotStore(apply: (store: IDBObjectStore) => void): Promise<void> {
+  return writeStore({ apply, storeName: TRIP_SNAPSHOT_STORE_NAME })
+}
+
+function writeProofThumbnailStore(apply: (store: IDBObjectStore) => void): Promise<void> {
+  return writeStore({ apply, storeName: PROOF_THUMBNAIL_STORE_NAME })
 }
 
 export function createIndexedDbTripSnapshotStore(): TripSnapshotStore {
@@ -251,6 +274,37 @@ export function createIndexedDbTripSnapshotStore(): TripSnapshotStore {
       writeTripSnapshotStore((store) => {
         store.put(input.record, input.subHash)
         store.put(input.subHash, LAST_OWNER_KEY)
+      }),
+  }
+}
+
+/**
+ * A miniatura do canhoto que o servidor já aceitou, por `documentId` — o dono vai **dentro** do
+ * registro, não na chave: a tela lê pela nota que está mostrando, e quem confere o dono é a leitura
+ * de `proofThumbnailArchive.service`.
+ */
+export function createIndexedDbProofThumbnailStore(): ProofThumbnailStore {
+  return {
+    clear: () => writeProofThumbnailStore((store) => store.clear()),
+    async read(documentId) {
+      const stored = await readValue({ key: documentId, storeName: PROOF_THUMBNAIL_STORE_NAME })
+      return isStoredProofThumbnail(stored) ? stored : undefined
+    },
+    remove: (documentId) => writeProofThumbnailStore((store) => store.delete(documentId)),
+    retainOnly: (subHash) =>
+      writeProofThumbnailStore((store) => {
+        const entriesRequest = store.openCursor()
+        entriesRequest.onsuccess = () => {
+          const cursor = entriesRequest.result
+          if (cursor === null) return
+          const stored: unknown = cursor.value
+          if (!isStoredProofThumbnail(stored) || stored.subHash !== subHash) cursor.delete()
+          cursor.continue()
+        }
+      }),
+    write: (input: { readonly documentId: string; readonly record: StoredProofThumbnail }) =>
+      writeProofThumbnailStore((store) => {
+        store.put(input.record, input.documentId)
       }),
   }
 }

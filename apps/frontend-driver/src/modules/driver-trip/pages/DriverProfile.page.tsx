@@ -13,7 +13,11 @@ import { getKeycloakAuthProvider } from '@/modules/shared/KeycloakAuthProvider.p
 import { DriverLocationConsentCard } from '../components/DriverLocationConsentCard.component'
 import type { DriverTrip, DriverTripSnapshot } from '../shared/driverTrip.types'
 import { listProofPendingDocuments } from '../shared/driverTripView.service'
-import { createIndexedDbTripSnapshotStore } from '../shared/indexedDbQueue.service'
+import {
+  createIndexedDbProofThumbnailStore,
+  createIndexedDbTripSnapshotStore,
+} from '../shared/indexedDbQueue.service'
+import { discardProofThumbnails } from '../shared/proofThumbnailArchive.service'
 import { signOutDriver } from '../shared/signOut.service'
 import { discardTripSnapshots } from '../shared/tripSnapshot.service'
 import styles from '../styles/driverTrip.module.css'
@@ -66,7 +70,11 @@ export function DriverProfilePage({
    */
   function signOut(): Promise<void> {
     return signOutDriver({
-      discardSnapshots: () => discardTripSnapshots({ store: createIndexedDbTripSnapshotStore() }),
+      discardSnapshots: async () => {
+        await discardTripSnapshots({ store: createIndexedDbTripSnapshotStore() })
+        /** A miniatura do canhoto é foto de entrega de terceiro: sai no mesmo toque. */
+        await discardProofThumbnails({ store: createIndexedDbProofThumbnailStore() })
+      },
       logout: () => getKeycloakAuthProvider().logout(),
       reload: () => window.location.reload(),
     })

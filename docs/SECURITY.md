@@ -1591,6 +1591,44 @@ substitui o conjunto inteiro de atributos.
 **O que falta:** decidir a retenção do atributo no realm (hoje nada o expira), e reavaliar o índice
 cego se o Keycloak passar a ser acessado por mais gente do que hoje.
 
+## Miniatura do canhoto no aparelho do motorista, para a tela mostrar a foto enviada
+
+**Data:** 2026-10-01 · **Decidido conscientemente** · **Pedido do usuário**
+
+**Amplia** o achado "snapshot e fila offline no aparelho do motorista" (2026-09-25, spec 189 T3.3a):
+o cofre é o mesmo, muda o que entra nele.
+
+**Onde:** `frontend-driver`, IndexedDB `transportada.driver-trip` versão 4, store `proof-thumbnails`
+(`shared/proofThumbnailArchive.service.ts`, `shared/indexedDbQueue.service.ts`).
+
+**Que dado passa a ficar no aparelho.** A **miniatura** do canhoto que o servidor já aceitou — a
+mesma que a spec 220 já gera no cliente, com teto de 128 KiB —, uma por nota, chaveada pelo
+`documentId`. O original **não** fica: ele sai da fila com a drenagem, como sempre. Antes disso a
+foto já passava pelo aparelho (fila de anexos, prazo de 7 dias); o que muda é que uma cópia reduzida
+sobrevive ao envio, para a tela mostrar a foto em vez da frase "Comprovante já enviado" — a foto é a
+prova da entrega, e o motorista precisa ver qual subiu.
+
+**Por quanto tempo.** Até 24 h (`PROOF_THUMBNAIL_MAX_AGE_MS`), o mesmo prazo do snapshot. O expurgo é
+preguiçoso, como o do snapshot: a vencida sai na primeira leitura daquela nota.
+
+**Quem apaga.** `retainOnly(subHash)` no boot autenticado apaga a miniatura de qualquer outro dono (o
+registro carrega o `subHash`, e a leitura recusa e remove o que não é do motorista da sessão);
+`discardProofThumbnails` esvazia a store no "Sair", junto do snapshot.
+
+**Se o motorista perder o telefone.** Mesmo cenário do snapshot: aparelho desbloqueado expõe, por
+posse, a imagem reduzida do canhoto das notas das últimas 24 h — assinatura e nome de quem recebeu
+podem aparecer nela. É menos do que a fila já guardava durante o envio, e por menos tempo.
+
+**Emenda do mesmo dia — o canhoto também passa a ser legível pelo servidor.** `GET
+/me/trips/current/documents/:documentId/proof` (`trip.read`) devolve URL assinada de 5 min do
+original e da miniatura, para a foto que não está neste aparelho. Três limites, todos no código e em
+teste: a nota é resolvida por `findReachableDocument`, que só acha dentro das viagens **daquele**
+motorista (`trip.read` sozinha alcançaria a empresa inteira — OWASP API1); a resposta não carrega
+quem recebeu, documento mascarado, veredito nem distância; e nenhuma chave de objeto ou bucket sai no
+corpo. Um motorista passa a poder rever o canhoto de qualquer nota que já esteve numa viagem dele,
+sem prazo — antes isso exigia `fleet.read`, do escritório. A origem do storage entrou no `img-src`
+da CSP do app por causa disso (ADR-0075 §4).
+
 ## CPF do destinatário no aparelho do motorista, para a busca dentro da viagem
 
 **Data:** 2026-09-26 · **Decidido conscientemente** · **Spec 214** · **ADR-0090 §3**

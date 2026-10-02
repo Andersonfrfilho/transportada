@@ -23,6 +23,14 @@ export const PROOF_THUMBNAIL_TARGET_BYTES = 60 * 1024
 export const PROOF_THUMBNAIL_MAX_BYTES = 128 * 1024
 /** O corpo inteiro da API para em 1 MiB: original + miniatura acima disto voltaria 413 e prenderia a foto. */
 const PROOF_REQUEST_FILES_BUDGET_BYTES = 1000 * 1024
+/**
+ * Defeito medido em produção (01/10): a redução depende de `Image.onload` e `canvas.toBlob`, e
+ * nenhuma das duas promete assentar — blob que o navegador não decodifica deixa a promise pendente
+ * para sempre. Sem teto, `pendingReduction` nunca sai e a drenagem pula o anexo em toda volta
+ * (`offlineAttachments.service.ts`): a foto fica em "enviando" para sempre, sem erro nem
+ * retentativa. Estourar o teto é tratado como falha — a marca sai e o original sobe como está.
+ */
+export const PROOF_PHOTO_REDUCTION_TIMEOUT_MS = 20_000
 
 export type ProofPhotoWithThumbnail = Readonly<{ original: Blob; thumbnail?: Blob }>
 

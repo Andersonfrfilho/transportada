@@ -6,8 +6,13 @@
   display: inline-flex;
   gap: var(--space-1);
   align-items: center;
-  /* Alvo de toque de 44px (T3.6, `web.md` §10) — era 1.75rem. */
+  justify-content: center;
+  /*
+   * Alvo de toque de 44px (T3.6, `web.md` §10) — era 1.75rem. A largura entrou depois, medida:
+   * só com ícone o botão ficava 32 px de largo (44 de alto), e o contrato de CSS só varre altura.
+   */
   min-height: var(--touch-target);
+  min-width: var(--touch-target);
   padding: var(--space-1) var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
   font: inherit;

@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'bun:test'
 
 import {
@@ -245,5 +247,27 @@ describe('chegada da parada libera as ações das notas (pedido do usuário 25/0
     expect(isStopOpen({ currentStopId: 'stop-1', overrides: new Map(), stopId: 'stop-1' })).toBe(
       true,
     )
+  })
+
+  /**
+   * Defeito medido em produção (01/10): o botão "Cheguei" lia `stop.arrivedAt` cru, do servidor, e
+   * não a chegada que `isStopArrivalRecorded` resolve — depois do toque o botão voltava e só sumia
+   * no refetch (até 30 s, ou mais sem sinal), e o motorista tocava de novo. As ações das notas já
+   * liberavam na hora pela mesma regra, então a tela se contradizia.
+   */
+  it('o botão "Cheguei" e o selo de chegada seguem isArrivalRecorded, nunca `stop.arrivedAt` cru', () => {
+    const card = readFileSync(
+      new URL(
+        '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+
+    expect(card).toInclude('{isFieldWorkBlocked || isArrivalRecorded ? null : canReportArrival ? (')
+    expect(card).not.toInclude('isFieldWorkBlocked || stop.arrivedAt !== null ? null')
+    expect(card).toInclude('{isEnRoute && !isArrivalRecorded ? (')
+    /** Sem hora do servidor, o selo diz "na fila" em vez de inventar um horário. */
+    expect(card).toInclude("t('arrivedQueued')")
   })
 })

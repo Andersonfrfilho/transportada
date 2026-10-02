@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import type { DeliveryProof } from '../shared/deliveryProof.service'
-import { isDeliveryProofFarFromStop } from '../shared/deliveryProofCard.service'
+import { isDeliveryProofAwayFromDeliveryEvent } from '../shared/deliveryProofCard.service'
 import styles from '../styles/trip.module.css'
 
 const PUNCTUALITY_BADGE_VARIANT = {
@@ -55,7 +55,7 @@ export function ProofReadings({ proof }: Readonly<{ proof: DeliveryProof }>) {
         )}
         {distanceMeters === undefined ? null : (
           <ReadingCell
-            isAlert={isDeliveryProofFarFromStop(proof)}
+            isAlert={isDeliveryProofAwayFromDeliveryEvent(proof)}
             label={t('deliveryProof.readings.distance')}
           >
             {describeDistance(distanceMeters, t)}

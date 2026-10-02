@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, eq, gte, lte, lt, or, sql, type SQL } from 'drizzle-orm'
+import { and, eq, gte, inArray, lte, lt, or, sql, type SQL } from 'drizzle-orm'
 
 import { cteBatchItems } from '../../database/cte-batch.schema.js'
 import { cteFiscalDocuments } from '../../database/cte-issuance.schema.js'
@@ -28,9 +28,15 @@ export function buildTripListFilters({
   const conditions: SQL[] = [eq(trips.companyId, companyId)]
   if (cursor !== null) conditions.push(buildCursorCondition(cursor))
   if (filters?.statusEq !== undefined) conditions.push(eq(trips.status, filters.statusEq))
+  if (filters?.statusIn !== undefined) conditions.push(inArray(trips.status, filters.statusIn))
   if (filters?.vehicleIdEq !== undefined) conditions.push(eq(trips.vehicleId, filters.vehicleIdEq))
+  if (filters?.vehicleIdIn !== undefined) {
+    conditions.push(inArray(trips.vehicleId, filters.vehicleIdIn))
+  }
   if (filters?.driverIdEq !== undefined)
-    conditions.push(tripDriverExistsCondition(filters.driverIdEq))
+    conditions.push(tripDriverExistsCondition([filters.driverIdEq]))
+  if (filters?.driverIdIn !== undefined)
+    conditions.push(tripDriverExistsCondition(filters.driverIdIn))
   if (filters?.createdFrom !== undefined) {
     conditions.push(gte(trips.createdAt, new Date(filters.createdFrom)))
   }
@@ -53,11 +59,11 @@ export function buildTripDocumentListFilters({
  * `exists()`/`inArray(column, subquery)` precedente no repositório, então segue o mesmo desenho de
  * `billingItemExistsExpression()` em `drizzle-cte-batch-item.repository.ts`.
  */
-function tripDriverExistsCondition(driverId: string): SQL {
+function tripDriverExistsCondition(driverIds: readonly string[]): SQL {
   return sql`exists (select 1 from ${tripDrivers} where ${and(
     eq(tripDrivers.companyId, trips.companyId),
     eq(tripDrivers.tripId, trips.id),
-    eq(tripDrivers.driverId, driverId),
+    inArray(tripDrivers.driverId, driverIds),
   )})`
 }
 

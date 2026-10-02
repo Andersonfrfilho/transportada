@@ -148,10 +148,14 @@ Não se cria client novo. A app entra como terceira origem de `transportada-spa`
 - **Origens só de navegação.** `maps.google.com` (`DriverStopCard:141`) e o XML do MDF-e por URL
   assinada (`DriverTripWorkspace.page.tsx:219-221`) são `window.open`. Ficam em `NON_FETCH_ORIGIN`, e
   um contrato varre `https://` no código.
-- **`img-src 'self' blob: <origem da API>`.**
+- **`img-src 'self' blob: <origem da API> <origem do storage>`.**
   - `blob:` é a prévia da foto e do recorte.
   - A origem da API é o logo da instalação (`/public/landing-logo`, `installationBrand.service.ts:13`).
-  - A origem do storage entra com a 179 (§8).
+  - A origem do storage entrou no `connect-src` com a 179 (§8) e **no `img-src` em 01/10**, por
+    pedido do usuário: a app passou a **exibir** imagem de lá — o canhoto já enviado, por URL
+    assinada de 5 min que `GET /me/trips/current/documents/:documentId/proof` devolve. Enquanto só
+    subia arquivo, o `img-src` não precisava dela; agora precisa, e sem isso a foto voltaria em
+    branco no celular, sem erro visível.
 - **Headers de resposta.**
   - `Permissions-Policy: camera=(self), geolocation=(self), microphone=()`, o valor do painel
     (`server.ts:61`) e não o do portal.

@@ -2,6 +2,7 @@
   "arrivalRequired": "Tap Arrived to unlock delivery",
   "arrive": "I arrived",
   "arrived": "Arrived at {{time}}",
+  "arrivedQueued": "Arrived — queued",
   "attachmentLimitCount": "The limit of attachments waiting to be sent was reached. Send the pending ones before attaching another — nothing was discarded.",
   "attachmentLimitSize": "The space for attachments waiting to be sent is full. Send the pending ones before attaching another — nothing was discarded.",
   "occurrencePhotoDropped": "Occurrence recorded without the photo: the space for photos waiting to be sent is full. Send the pending ones and record another occurrence with the photo, if needed.",
@@ -57,6 +58,7 @@
     "open": "See pending events",
     "sendAll": "Send all now",
     "sendNow": "Send now",
+    "sending": "Sending…",
     "status": {
       "attachmentRejected": "Attachment rejected by the server: {{cause}}. The event was already accepted.",
       "failed_one": "Failed {{count}} time — no network on the last attempt",
@@ -266,7 +268,20 @@
     "pending": "Pending"
   },
   "stopTitle": "Stop {{sequence}}",
+  "sync": {
+    "hours_one": "Synced {{count}} hour ago",
+    "hours_other": "Synced {{count}} hours ago",
+    "minutes_one": "Synced {{count}} minute ago",
+    "minutes_other": "Synced {{count}} minutes ago",
+    "never": "Not synced yet",
+    "now": "Synced just now",
+    "syncing_one": "Sending {{count}} pending item…",
+    "syncing_other": "Sending {{count}} pending items…"
+  },
   "title": "My trip",
+  "tripCodeCopied": "Code copied",
+  "tripCodeCopy": "Copy the trip code",
+  "tripCodeLabel": "Trip",
   "tripCompleted": "Trip completed. Good work.",
   "vehicle": "Vehicle {{plate}}",
   "proofPendingWarning": "Retaking it never helps: the worst photo counts. A photo sent much later counts as late, even if the device clock shows another time.",
