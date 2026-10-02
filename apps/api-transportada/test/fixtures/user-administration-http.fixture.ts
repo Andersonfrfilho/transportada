@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { stubCompanyFiscalEnvironment } from './company-fiscal-environment.fixture'
+import { FleetDriverProfileEmptyError } from '../../src/fleet/domain/fleet.error'
 import { stubUserPictureExistence } from './user-picture-existence.fixture'
 import { HealthService } from '../../src/health/health.service'
 import { appliedMigrations } from './health.fixture'
@@ -18,7 +19,12 @@ type RegisteredRoute = ReturnType<typeof defineRoute>
 type ExecuteCall = Record<string, unknown>
 
 /** Recusas de domínio que a rota precisa devolver com código estável e sem contar o motivo real. */
-export type RefusalKind = 'cross-tenant' | 'duplicate-username' | 'last-admin' | 'self-removal'
+export type RefusalKind =
+  | 'cross-tenant'
+  | 'duplicate-username'
+  | 'fleet-profile-empty'
+  | 'last-admin'
+  | 'self-removal'
 
 type RouteDependencies = {
   readonly activate: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
@@ -446,6 +452,7 @@ export async function responseData<TData extends object = object>(
 
 async function refusalError(kind: RefusalKind): Promise<Error> {
   if (kind === 'last-admin') return new LastCompanyAdminError()
+  if (kind === 'fleet-profile-empty') return new FleetDriverProfileEmptyError()
 
   const module = (await import('../../src/identity/domain/company-user.error.js')) as {
     CompanyUserNotFoundError: new () => Error

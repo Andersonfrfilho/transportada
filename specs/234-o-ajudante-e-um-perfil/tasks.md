@@ -13,7 +13,7 @@ da app. Cada task fecha com typecheck, testes da app, commit isolado e evidênci
 - [x] **T2** 🧠 `resolveTripCrew` recusa `can_drive = false` (D5): `TripDriverCannotDriveError`
       (`409 TRIP_DRIVER_CANNOT_DRIVE`), `TripDriverCandidate.canDrive`, leitura no repositório da viagem.
       Aceite: contrato vermelho → verde, incluindo ajudante-puro como condutor.
-- [ ] **T3** 🧠 Reconciliação papel → colunas (D4 revisada) em `replaceRoles` — política pura nova em
+- [x] **T3** 🧠 Reconciliação papel → colunas (D4 revisada) em `replaceRoles` — política pura nova em
       `identity/domain`, só quando a diferença toca `driver`/`aggregate`/`helper`, papéis antigos lidos
       dentro da transação, ficha travada com `FOR UPDATE`, `version + 1`, recusa
       `409 FLEET_DRIVER_PROFILE_EMPTY` (em `fleet.error.ts`) sem alteração parcial. `assign` e papéis

@@ -137,3 +137,100 @@ Mesmo Postgres 18.4 nativo descartável da T1 (porta 65435; o `.env.test` aponta
 - MDF-e avulso (`src/mdfe-manifests/application/mdfe-manifest-crew.service.ts`) monta condutores sem
   passar por `resolveTripCrew` e não lê `can_drive`.
 - A proposta de viagem / consulta de motoristas ainda não filtra `can_drive` — é a T6.
+
+## T3 — Reconciliação papel → colunas em `replaceRoles`
+
+Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+
+### O que mudou
+
+- Política pura `reconcileFleetCrewCapabilities`
+  (`apps/api-transportada/src/identity/domain/fleet-role-reconciliation.policy.ts`): recebe papéis antes,
+  papéis depois e as colunas atuais; cada coluna só muda pela entrada/saída do papel que lhe corresponde
+  (`helper` → `can_act_as_helper`; `driver`/`aggregate` → `can_drive`), então troca que não toca a frota
+  devolve `unchanged` e o switch da ficha sobrevive a troca alheia. Resultado `false/false` lança
+  `FleetDriverProfileEmptyError`.
+- `FleetDriverProfileEmptyError` (`409 FLEET_DRIVER_PROFILE_EMPTY`) em
+  `apps/api-transportada/src/fleet/domain/fleet.error.ts`, ao lado dos `FLEET_DRIVER_*`.
+- `replaceRoles` (`apps/api-transportada/src/identity/infrastructure/drizzle-company-user.repository.ts`)
+  chama `reconcileFleetDriverWithRoles` dentro da transação, antes de apagar/regravar os papéis: acha a
+  ficha por `company_id` + `membership_id` com `SELECT … FOR UPDATE`, **depois** lê os papéis antigos
+  (assim duas trocas simultâneas da mesma pessoa ficam em fila na trava e a segunda lê o que a primeira
+  gravou), decide pela política e, se mudou, faz `UPDATE` com `version = version + 1`. Sem ficha
+  vinculada, nada. A recusa sai de dentro do callback e a transação desfaz tudo.
+- Use case `replace-company-user-roles.use-case.ts` e porta **sem mudança**: o erro atravessa até o
+  roteador como qualquer `ApiError`. O fixture HTTP ganhou a recusa `fleet-profile-empty`.
+
+### Contrato vermelho antes do código
+
+- `test/user-administration-application/fleet-role-reconciliation.contract.ts` (novo, ligado ao
+  entrypoint `test/user-administration-application.contract.test.ts`, que já está no script `test`): 15
+  testes explícitos, sem `test.each`. Antes do código:
+  `SyntaxError: Export named 'FleetDriverProfileEmptyError' not found` e, com o erro criado,
+  `Cannot find module '../../src/identity/domain/fleet-role-reconciliation.policy.js'`.
+- `test/user-administration-http/routes.contract.ts`: "troca que deixaria a ficha de frota sem perfil
+  responde 409" (`FLEET_DRIVER_PROFILE_EMPTY`). Passa assim que a classe existe — o mapeamento de
+  `ApiError` é genérico; fica como guarda do código estável.
+- `test/integration/company-user-fleet-link.integration.ts`, describe novo "troca de papéis —
+  reconciliação com a ficha de frota" (já no `test:integration`). Antes do código:
+  `8 pass · 7 fail` (os 6 originais + "fiscal não mexe" e "pessoa sem ficha" passam; helper entra,
+  helper sai de quem dirige, helper sai de ajudante puro, driver entra, driver+aggregate saem, outra
+  empresa e trava falham).
+
+Casos da integração (9): dar `fiscal` não mexe na ficha (versão 1); `helper` entrou liga
+`can_act_as_helper` e versão 2; `helper` saiu de quem dirige desliga só ele; `helper` saiu de ajudante
+puro → `FleetDriverProfileEmptyError` e **nem papéis nem ficha** mudam; `driver` entrou num ajudante
+puro liga `can_drive`; `driver`+`aggregate` saíram de quem não ajuda → 409 e nada muda; ficha da
+mesma pessoa em **outra empresa** (vínculo próprio lá) intocada; falha ao gravar os papéis (papel fora
+do catálogo, CHECK) desfaz também a ficha; pessoa sem ficha troca de papel sem reconciliar; com a ficha
+travada por outra transação, a troca **espera** (300 ms sem concluir) e decide sobre o valor gravado
+por ela (switch ligado → vira ajudante puro, versão 3, em vez de 409).
+
+### Prova por mutação
+
+Postgres 18.4 nativo descartável da T1 (porta 65435). Cada mutação restaurada e conferida com `cmp`.
+
+- Política: `resolveCapability` sempre devolvendo o atual → contrato `5 pass · 10 fail`.
+- Política: guarda `false/false` trocada por `if (false)` → contrato `13 pass · 2 fail` (as duas
+  recusas) e integração `13 pass · 2 fail` (o `UPDATE` bate no CHECK `23514`, não no 409).
+- Repositório: `UPDATE` da reconciliação arrancado → integração `10 pass · 5 fail`.
+- Repositório: `.for('update')` arrancado → integração `14 pass · 1 fail` ("espera a ficha travada…").
+- Repositório: `replaceRoles` sem `this.database.transaction` → na primeira rodada **passou tudo** (o
+  `SELECT … FOR UPDATE` em autocommit também espera a trava, e a recusa sai antes de qualquer escrita).
+  Por isso entrou o caso "falha ao gravar os papéis desfaz também a ficha"; com ele, a mesma mutação dá
+  `15 pass · 1 fail`.
+
+### Gates
+
+Banco: `.env.test` aponta para `127.0.0.1:65434` (vazio). Postgres 18.4 nativo no scratchpad, porta
+65435, `LC_ALL=C` e sem soquete Unix (caminho do scratchpad passa de 103 bytes),
+`DATABASE_URL`/`DRIZZLE_TEST_DATABASE_URL` sobrescritos no shell. Parado ao fim.
+
+- Contrato da API: `bun --env-file=../../.env.test test --timeout 120000` →
+  `8770 pass · 0 fail · Ran 8770 tests across 193 files` (T2: 8754; +15 política, +1 rota).
+- Integração, um arquivo por vez (`bun --env-file=../../.env.test test --timeout 120000 ./test/integration/<x>.integration.ts`),
+  nenhum `(skip)`: company-user-fleet-link 16/0 · company-user-listing 10/0 · company-user-removal 4/0 ·
+  identity-subject-relink 2/0 · invitation-status-join 1/0 · local-identity-seed 5/0 ·
+  fleet-vehicle-repository 6/0 · driver-score 8/0 · current-driver-trip-concluded-window 4/0 ·
+  driver-delivery-proof-read 4/0 · occurrence-conversation-driver 2/0 · whatsapp-command-driver 5/0 ·
+  whatsapp-driver-flow-actions 1/0 · freight-region-repository 10/0 · pending-items 1/0 ·
+  trip-repository 5/0 · trip-crew-update 10/0.
+- `db:test` (equivalente do `make migration-test` sem `postgres-up`) → `115 pass · 0 fail`;
+  `db:generate --name probe` → `no_changes`.
+- `bun run format:check` (raiz) → "All matched files use Prettier code style!".
+- `bun run lint` (raiz, todas as apps) → exit 0 (avisos antigos do frontend, nenhum novo).
+- `bun run typecheck` (raiz) → exit 0.
+- `bun run build` (raiz) → exit 0.
+- `bun run test` (raiz) → **exit 1**: API 8770/0, worker 1558/0, cron 101/0, e o
+  `frontend-transportada` `6421 pass · 1 fail` em `frontend foundation contract > keeps the allowlist in
+sync with the API authorization policy` — o `COMPANY_ROLES` do painel (`useAuthMe.query.ts`) ainda
+  não tem `helper`. Vem da T1 e é escopo da **T10** (já registrado em § T1 "Fora desta task"); a T3 não
+  toca painel. As apps seguintes, rodadas à parte: frontend-client 89/0, frontend-driver 1048/0,
+  frontend-landing 131/0. Logo `make check` **não** está verde ao fim da Fase 1 até a T10.
+
+### Limites conhecidos (fora desta task, D4)
+
+- `addRoles` / `assign-company-user-roles.use-case.ts` (atribuição em lote, só acrescenta) não
+  reconcilia: dar `helper` em lote não liga `can_act_as_helper`.
+- Papéis herdados por **grupo** (`company_group_roles`) não entram na conta: só os papéis diretos de
+  `membership_roles`.
