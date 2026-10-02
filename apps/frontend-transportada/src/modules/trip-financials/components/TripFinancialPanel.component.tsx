@@ -9,11 +9,13 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import type { TripCostEntriesController } from '../hooks/useTripCostEntries.hook'
 import type { TripRevenueEntriesController } from '../hooks/useTripRevenueEntries.hook'
 import type { TripFinancialResult } from '../shared/tripFinancials.types'
+import { buildExpectedVersusClosed } from '../shared/expectedVersusClosed.service'
 import { summarizeTripValuation, type TripValuation } from '../shared/tripValuation.service'
-import { FrozenResultTable } from './FrozenResultTable.component'
+import { ExpectedVersusClosedTable } from './ExpectedVersusClosedTable.component'
 import { TripCostEntries } from './TripCostEntries.component'
+import { TripFinancialColumns } from './TripFinancialColumns.component'
 import { TripRevenueEntries } from './TripRevenueEntries.component'
-import { ValuationLedger, type GapActions } from './ValuationLedger.component'
+import type { GapActions } from './ValuationLedger.component'
 import styles from '../styles/tripFinancials.module.css'
 
 type TripFinancialPanelProps = Readonly<{
@@ -30,7 +32,7 @@ type TripFinancialPanelProps = Readonly<{
    * quebrar quem ainda não monta o controller (spec 169 não altera `TripDetail.page.tsx`).
    */
   revenueEntries?: TripRevenueEntriesController
-  /** A conta prevista da viagem aberta — é ela que aparece enquanto não há congelada. */
+  /** A conta prevista — aparece sempre; com a viagem fechada, ao lado da congelada. */
   valuation: TripValuation | null
 }>
 
@@ -121,33 +123,6 @@ export function TripFinancialPanel({
     )
   }
 
-  /** Viagem aberta não tem congelado — o painel mostra a prevista até ela fechar. */
-  if (result === null) {
-    const expected = summarizeTripValuation(valuation)
-
-    return (
-      <section className={styles.panel}>
-        <h2>{t('panel.title')}</h2>
-        <p className={styles.hint}>{t('panel.notFrozen')}</p>
-        {/* RF11/CA08: os lançamentos vêm antes do total — aqui, a prévia (ValuationLedger). */}
-        <LaunchedEntries costEntries={costEntries} revenueEntries={revenueEntries} />
-        {expected === null ? null : (
-          <>
-            <ValuationLedger gapActions={gapActions} valuation={valuation} />
-            {/* A lacuna vai junto do número: total sem parcela sai menor do que a viagem custa. */}
-            {expected.hasGaps ? (
-              <p className={styles.hint}>
-                {t('panel.expectedGaps', {
-                  reasons: expected.gaps.map((gap) => t(`gap.${gap}`, gap)).join(', '),
-                })}
-              </p>
-            ) : null}
-          </>
-        )}
-      </section>
-    )
-  }
-
   async function handleRecalculate(): Promise<void> {
     setIsRecalculating(true)
     try {
@@ -158,42 +133,59 @@ export function TripFinancialPanel({
     }
   }
 
+  const expected = summarizeTripValuation(valuation)
+  const comparison =
+    result === null || expected === null
+      ? null
+      : buildExpectedVersusClosed({ closed: result, expected })
+
   return (
     <section className={styles.panel}>
       <header className={styles.header}>
         <h2>{t('panel.title')}</h2>
-        <p className={styles.hint}>
-          {t('panel.frozenAt', { date: result.frozenAt.slice(0, 10), version: result.version })}
-        </p>
-        {/* A margem aqui é operacional: ela desce imposto sobre o frete, não folha nem contábil. */}
-        <p className={styles.hint}>{t('panel.operationalNote')}</p>
+        {result === null ? null : (
+          <>
+            <p className={styles.hint}>
+              {t('panel.frozenAt', {
+                date: result.frozenAt.slice(0, 10),
+                version: result.version,
+              })}
+            </p>
+            {/* A margem aqui é operacional: ela desce imposto sobre o frete, não folha nem contábil. */}
+            <p className={styles.hint}>{t('panel.operationalNote')}</p>
+          </>
+        )}
       </header>
 
-      {/* RF11/CA08: os lançamentos vêm antes do total — aqui, o resultado congelado. */}
+      {/* RF11/CA08: os lançamentos vêm antes do total — previsto e fechado vêm depois deles. */}
       <LaunchedEntries costEntries={costEntries} revenueEntries={revenueEntries} />
 
-      <FrozenResultTable result={result} />
+      {comparison === null ? null : <ExpectedVersusClosedTable rows={comparison} />}
 
-      <div className={styles.recalculate}>
-        <label className={styles.field}>
-          {t('panel.reason')}
-          <input
-            onChange={(event) => setReason(event.target.value)}
-            placeholder={t('panel.reasonPlaceholder')}
-            value={reason}
-          />
-        </label>
-        {/* Recalcular exige motivo: número que muda sem explicação é pergunta sem resposta. */}
-        <Button
-          disabled={reason.trim() === '' || isRecalculating}
-          onClick={() => void handleRecalculate()}
-          type="button"
-          variant="ghost"
-        >
-          <Icon name="refresh" />
-          {isRecalculating ? t('panel.recalculating') : t('panel.recalculate')}
-        </Button>
-      </div>
+      <TripFinancialColumns gapActions={gapActions} result={result} valuation={valuation} />
+
+      {result === null ? null : (
+        <div className={styles.recalculate}>
+          <label className={styles.field}>
+            {t('panel.reason')}
+            <input
+              onChange={(event) => setReason(event.target.value)}
+              placeholder={t('panel.reasonPlaceholder')}
+              value={reason}
+            />
+          </label>
+          {/* Recalcular exige motivo: número que muda sem explicação é pergunta sem resposta. */}
+          <Button
+            disabled={reason.trim() === '' || isRecalculating}
+            onClick={() => void handleRecalculate()}
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="refresh" />
+            {isRecalculating ? t('panel.recalculating') : t('panel.recalculate')}
+          </Button>
+        </div>
+      )}
     </section>
   )
 }

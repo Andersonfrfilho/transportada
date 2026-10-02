@@ -74,7 +74,7 @@ em `evidence.md`.
   Aceite: contrato da resposta com e sem parada, contrato da linha nos dois casos, os dois comandos da
   API verdes, e a suíte do painel verde.
 
-- [ ] **T3.3** `TripFinancialPanel.component.tsx`: previsto e fechado **lado a lado** (D6), com a
+- [x] **T3.3** `TripFinancialPanel.component.tsx`: previsto e fechado **lado a lado** (D6), com a
       diferença, e o aviso de que o fechado ainda não existe na viagem aberta.
 
   Aceite de cada uma: contratos verdes, typecheck, lint, `bun run --cwd apps/frontend-transportada test`

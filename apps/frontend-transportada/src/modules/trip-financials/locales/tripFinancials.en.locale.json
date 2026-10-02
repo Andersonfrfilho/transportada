@@ -88,6 +88,19 @@
     "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "toll is only computed once the trip exists",
     "TOLL_PARTIAL": "a toll plaza on the route has no known tariff — the total only sums the others"
   },
+  "comparison": {
+    "caption": "Expected and closed, with the difference (closed minus expected).",
+    "line": "Line",
+    "expected": "Expected",
+    "closed": "Closed",
+    "difference": "Difference",
+    "noDifference": "no difference",
+    "lines": {
+      "revenue": "Revenue",
+      "cost": "Cost (with tax)",
+      "result": "Result"
+    }
+  },
   "ledger": {
     "driverBasis_one": "{{amount}} × {{days}} day · {{origin}}",
     "driverBasis_other": "{{amount}} × {{days}} days · {{origin}}",

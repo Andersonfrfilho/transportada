@@ -392,3 +392,68 @@ isso em 375 px ainda — o palpite do executor é que cai em duas colunas e cada
 texto a mais, com a frase do critério e o aviso de tempo como as partes mais compridas. **A T4.1
 decide** se o critério e o "rateio da viagem" vão para o detalhe expandido. Palpite não é prova, e por
 isso está escrito como palpite.
+
+## T3.3 — previsto e fechado lado a lado (D6)
+
+Executada por subagente `executor` em `sonnet`; gates conferidos por mim.
+
+### O painel perdeu o ramo, e isso é a mudança estrutural
+
+Antes havia `if (result === null)` com retorno antecipado: um ramo para viagem aberta, outro para
+fechada. Agora é **um caminho só** — cabeçalho, lançamentos, tabela de comparação (quando há os dois),
+as duas colunas, recálculo (quando há fechado). O painel ficou em 191 linhas, sob o teto de 200.
+
+### O custo comparável inclui imposto, e isso não era óbvio
+
+O `totalCost` do previsto já contém imposto (a mesma descoberta que corrigiu o D4 na T1.1). Então o
+custo **fechado** comparável é `taxTotal + costTotal`, e o rótulo da linha diz **"Custo (com
+imposto)"** em vez de só "Custo". Comparar `costTotal` puro contra o previsto mostraria uma diferença
+que é só o imposto, e ninguém saberia disso olhando a tela.
+
+### A diferença não é colorida, de propósito
+
+Diferença positiva é **boa** na receita e **ruim** no custo. Verde e vermelho induziriam leitura errada
+na metade das linhas, então a célula não tem cor; o sinal (`+` ou `−`) carrega o significado. Diferença
+zero **continua na tela**, com "sem diferença" — ausência de linha pareceria dado faltando.
+
+A conta é `fechado − previsto` com `sumScaledAmounts` + `negateAmount` sobre BigInt, em
+`shared/expectedVersusClosed.service.ts`. **Nenhum `Number()` em dinheiro.**
+
+### A primeira versão da mutação passou, e o teste foi endurecido
+
+Vale registrar porque é o padrão que esta base já pagou para aprender: a sonda (inverter a diferença
+para `previsto − fechado`) **passava** na primeira redação do teste de painel, porque ele procurava
+`"+27"` e `"−27"` soltos no markup. Trocado por asserção da **linha contígua** — rótulo, previsto,
+fechado e diferença juntos —, com o painel renderizado de verdade por `renderToStaticMarkup`. Aí a
+mutação reprovou: **3 falhas**, incluindo `Expected: "0.2000" / Received: "-0.2000"`.
+
+### Dois contratos antigos mudaram, e eu conferi o diff
+
+Eles liam o **texto-fonte** do painel, então a reestruturação os quebrou:
+
+- `valuation-panel.contract.ts`: a asserção de `<ValuationLedger` e `valuation={valuation}` **mudou de
+  arquivo** para o componente de colunas — não desapareceu, e ganhou `valuation={valuation}` a mais.
+- `cost-entries.contract.ts`: `LaunchedEntries` de `2` para `1`, **compensado** por uma asserção nova e
+  mais forte, `not.toMatch(/if \(result === null\)/u)`, que prende o caminho único. Teste renomeado.
+
+Nenhuma intenção foi perdida. O contrato **novo** usa `renderToStaticMarkup`, não texto de fonte.
+
+### Portões
+
+| Portão                       | Resultado                                                          |
+| ---------------------------- | ------------------------------------------------------------------ |
+| `bun run typecheck` (painel) | exit 0                                                             |
+| `bun run lint` (painel)      | 0 errors · 16 warnings **pré-existentes**                          |
+| `bun run test` (script)      | **6216 pass · 0 fail** (+13 sobre 6203) e `test:hooks` **180 · 0** |
+
+### Achados que vão para a T4.1, nenhum resolvido às cegas
+
+1. **"previsto" × "estimado" no mesmo painel.** O selo `source.estimated` da **parcela** aparece dentro
+   da coluna **"Previsto"** — "estimado R$ 480,00" sob o cabeçalho "Previsto". São eixos diferentes
+   (origem do número × estado da viagem) e ficaram vizinhos. Nada foi renomeado: se confundir na tela, é
+   decisão de produto.
+2. **Tabela de 4 colunas em 375 px.** Linha, Previsto, Fechado, Diferença, com valores tipo
+   `R$ 1.365,45`. Abaixo de 64rem as colunas empilham e a comparação vai para o topo. **Ninguém mediu** —
+   é suspeita, e a T4.1 olha isso primeiro.
+3. **Buraco pré-existente de locale**: `tripFinancials.en.locale.json` não tem `panel.error` nem
+   `panel.retry`, que existem em pt-BR. Já era assim; o bloco `comparison` criado aqui está nos dois.

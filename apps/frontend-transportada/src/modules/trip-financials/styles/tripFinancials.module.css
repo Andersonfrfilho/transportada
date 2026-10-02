@@ -553,3 +553,26 @@
   color: var(--color-slate);
   font-size: 0.75rem;
 }
+
+/* Spec 225 D6: previsto e fechado lado a lado em tela larga, empilhados em tela estreita. */
+.sideBySide {
+  display: grid;
+  gap: var(--space-4);
+}
+
+@media (min-width: 64rem) {
+  .sideBySide {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.column {
+  align-content: start;
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.column h3 {
+  margin: 0;
+}

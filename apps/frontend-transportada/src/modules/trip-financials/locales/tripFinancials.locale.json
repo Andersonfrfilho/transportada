@@ -88,6 +88,19 @@
     "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "pedágio só é calculado depois da viagem criada",
     "TOLL_PARTIAL": "praça sem tarifa conhecida no trajeto — o total soma só as demais"
   },
+  "comparison": {
+    "caption": "Previsto e fechado, com a diferença (fechado menos previsto).",
+    "line": "Linha",
+    "expected": "Previsto",
+    "closed": "Fechado",
+    "difference": "Diferença",
+    "noDifference": "sem diferença",
+    "lines": {
+      "revenue": "Receita",
+      "cost": "Custo (com imposto)",
+      "result": "Resultado"
+    }
+  },
   "ledger": {
     "driverBasis_one": "{{amount}} × {{days}} dia · {{origin}}",
     "driverBasis_other": "{{amount}} × {{days}} dias · {{origin}}",

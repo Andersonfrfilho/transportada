@@ -15,6 +15,7 @@ const RESULTS_PAGE = 'src/modules/trip-financials/pages/FinancialResultsWorkspac
 const ENTRIES_COMPONENT = 'src/modules/trip-financials/components/TripCostEntries.component.tsx'
 const FORM_COMPONENT = 'src/modules/trip-financials/components/TripCostEntryForm.component.tsx'
 const PANEL = 'src/modules/trip-financials/components/TripFinancialPanel.component.tsx'
+const COLUMNS = 'src/modules/trip-financials/components/TripFinancialColumns.component.tsx'
 const PAGE = 'src/modules/trip/pages/TripDetail.page.tsx'
 
 function readSource(filePath: string): Promise<string> {
@@ -412,21 +413,22 @@ describe('o painel monta a lista nas duas situações da viagem', () => {
    * implementação da mesma conta diverge calada. A lista entra **depois** dele, irmã no painel.
    */
   test('o ledger compartilhado não ganha prop nem variante', async () => {
-    const panel = await readSource(PANEL)
+    const columns = await readSource(COLUMNS)
 
-    expect(panel).toContain('<ValuationLedger')
-    expect(panel).toContain('valuation={valuation}')
+    expect(columns).toContain('<ValuationLedger')
+    expect(columns).toContain('valuation={valuation}')
   })
 
   /**
-   * Viagem aberta e viagem fechada mostram o que foi lançado: os dois ramos montam
-   * `LaunchedEntries` (spec 169 RF11 — extraído para caber no teto e nascer antes do total),
-   * que por sua vez monta `TripCostEntries` uma vez só.
+   * Viagem aberta e viagem fechada mostram o que foi lançado: desde a spec 225 D6 o painel tem um
+   * caminho só para as duas, sem ramo por `result`, e monta `LaunchedEntries` (spec 169 RF11 —
+   * extraído para caber no teto e nascer antes do total), que monta `TripCostEntries` uma vez só.
    */
-  test('os dois ramos do painel montam os lançamentos', async () => {
+  test('as duas situações da viagem montam os lançamentos pelo mesmo caminho', async () => {
     const panel = await readSource(PANEL)
 
-    expect(panel.match(/<LaunchedEntries\b/gu)?.length).toBe(2)
+    expect(panel).not.toMatch(/if \(result === null\)/u)
+    expect(panel.match(/<LaunchedEntries\b/gu)?.length).toBe(1)
     expect(panel.match(/<TripCostEntries\b/gu)?.length).toBe(1)
   })
 
