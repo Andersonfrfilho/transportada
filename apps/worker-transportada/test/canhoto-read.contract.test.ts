@@ -3,4 +3,5 @@
  */
 import './canhoto-read/barcode-policy.contract.js'
 import './canhoto-read/canhoto-image-reader.contract.js'
+import './canhoto-read/canhoto-read-routine.contract.js'
 import './canhoto-read/canhoto-review-api.gateway.contract.js'

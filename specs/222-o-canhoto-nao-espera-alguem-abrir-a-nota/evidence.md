@@ -823,3 +823,49 @@ Restaurado: **35 / 0**.
 
 Não rodou: chamada real à API ou ao Keycloak (o `fetch` é injetado nos testes; a ponta a ponta com a
 rota real é da T6.9, que ainda fala com um gateway falso, não com o HTTP).
+
+## T6.6 / T6.7 (rotina) — o laço: tetos, parada, falha contada, quando a tentativa é gravada
+
+Teste antes: `canhoto-read-routine.contract.ts` vermelho (`Cannot find module .../canhoto-read.routine.js`,
+0 pass / 1 fail / 1 error). Depois, com `application/canhoto-read.routine.ts`:
+`canhoto-read.contract.test.ts` **59 pass / 0 fail / 0 skip** (35 + 24) e `build-entrypoints`
+2 pass — os dois juntos, 61 / 0. `tsc --noEmit`, `eslint` (cwd da app) e `prettier` limpos.
+
+O que o laço faz (e o contrato prende):
+
+- Lotes de 10 (`CANHOTO_READ_BATCH_SIZE`), teto de 40 por ciclo; `excludeProofIds` cresce a cada lote,
+  então a falha de infraestrutura — que continua na fila — não volta no mesmo ciclo. Lote curto
+  encerra o laço (a fila secou).
+- `isStopRequested()` é lido antes de cada lote **e** antes de cada comprovante.
+- Um comprovante ruim não derruba os outros: o ciclo sempre fecha `succeeded` e a falha vira contador
+  (`objectUnavailable`, `unsupportedMedia`, `tooLarge`, `decodeTimeout`, `apiUnreachable`,
+  `reportRejected`, `apiUnauthorized`, `unexpectedErrors`). Todos os contadores saem sempre, com zero.
+- Tentativa (`markAttempted`) só quando a leitura terminou **sem** código utilizável; nesse caso
+  nenhuma chamada à API. Falha de infraestrutura, 4xx e 401/403 não gravam.
+- Sentry: `report_rejected`, `api_unauthorized` e exceção inesperada. `api_unreachable` não é
+  incidente nosso e não vai.
+- O que sobe à API são exatamente os quatro campos de leitura; `approved`/`pending` são só contados a
+  partir do `review` que o servidor devolveu.
+
+Mutações (restaurada a cada uma; suíte de 59):
+
+| Mutação                                             | Resultado                      |
+| --------------------------------------------------- | ------------------------------ |
+| teto de ciclo de 40 vira 1000                       | 57 pass / **2 fail**           |
+| sem checagem de parada por comprovante              | 58 / **1**                     |
+| grava a tentativa também na falha de infraestrutura | 55 / **4** (uma por resultado) |
+| não grava a tentativa quando não há código          | 57 / **2**                     |
+| `api_unreachable` passa a ir para o Sentry          | 58 / **1**                     |
+| `CanhotoReviewApiError` tratado como inesperado     | 53 / **6**                     |
+| sem `excludeProofIds` (a falha voltaria no ciclo)   | 58 / **1**                     |
+| sem o encerramento por lote curto                   | 58 / **1**                     |
+| exceção inesperada de um comprovante escapa         | 58 / **1**                     |
+| um campo `review` extra no que se reporta           | 57 / **2**                     |
+| contagem `approved` invertida                       | 58 / **1**                     |
+
+Restaurado: **59 / 0**. A primeira tentativa da mutação do teto (remover a condição) entrou em laço
+infinito — `limit` ficava negativo e o `slice` devolvia fila —; foi abortada, restaurada, e refeita
+trocando 40 por 1000, que é a mutação que vale.
+
+Não rodou: a ligação em `main.ts` (próximo commit), o contrato de log (T6.8) e as integrações
+(T6.9/T6.10).
