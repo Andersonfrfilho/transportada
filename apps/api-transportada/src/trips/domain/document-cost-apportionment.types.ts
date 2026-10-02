@@ -3,7 +3,7 @@
  */
 import type { TripCostKind } from './trip-valuation.policy.js'
 
-/** Como cada parcela de custo chega à nota. Spec 225 D1 — tabela exaustiva, sem `default`. */
+/** Como cada parcela de custo chega à nota. Spec 226 D1 — tabela exaustiva, sem `default`. */
 export const APPORTIONMENT_BASES = {
   /** Reparte pela distância do trecho, entre as notas a bordo dele. */
   distance: 'distance',

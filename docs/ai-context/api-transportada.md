@@ -2153,7 +2153,7 @@ mesma transação, para uma falha do roteirizador não desfazer o vínculo ou a 
 revisão (`move`/`swap`) funciona por vinculação/desvinculação das duas viagens (origem e destino);
 ambas recalculam, em paralelo e cada uma isolada, antes do despacho (T206, RF12).
 
-## Spec 225 — o custo da viagem desce para a nota, por distância e tempo
+## Spec 226 — o custo da viagem desce para a nota, por distância e tempo
 
 `GET /trips/:id/valuation` devolve, em cada item de `revenueLines`, oito campos além do frete
 (`amount`): `costAmount`, `legCostAmount`, `tripShareCostAmount`, `taxAmount`, `marginAmount`,

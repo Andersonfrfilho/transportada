@@ -856,7 +856,7 @@ function TripStopDocumentRow({
               {t('stops.freight.rule', { name: document.freightRuleName })}
             </span>
           )}
-          {/* Spec 225 RF4/RF6: o gasto vem do contexto da avaliação — sem `trip.financials` não imprime nada. */}
+          {/* Spec 226 RF4/RF6: o gasto vem do contexto da avaliação — sem `trip.financials` não imprime nada. */}
 
           <TripDocumentCost documentId={document.id} />
           <TripDocumentCostCriterion documentId={document.id} />

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 225 D9: quanto o caminhão ficou parado em cada parada, para o rateio do tempo.
+ * Spec 226 D9: quanto o caminhão ficou parado em cada parada, para o rateio do tempo.
  *
  * ⚠️ `departed` é a saída **para** a parada (ADR-0088 §1): o evento mora na parada de **destino**, e
  * `arrived − departed` da mesma parada é o trajeto. Por isso a saída de uma parada é o primeiro

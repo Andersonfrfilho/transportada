@@ -113,7 +113,7 @@ type CreateFixtureParams = {
   readonly readTripRouteGeometryExecute?: (input: ExecuteCall) => Promise<unknown>
   /** Spec 222 T1.2: o que `GET /trips/:id/delivery-proofs` devolve; ausente é lista vazia. */
   readonly readTripDeliveryProofsResult?: unknown
-  /** Spec 225 T2.1: a avaliação real atrás da rota, para provar o que a resposta carrega e o que não. */
+  /** Spec 226 T2.1: a avaliação real atrás da rota, para provar o que a resposta carrega e o que não. */
   readonly readValuationExecute?: (input: ExecuteCall) => Promise<unknown>
   /** Espelha `readTripRouteGeometryExecute` para a rota solta (`POST /route-geometry`, T301). */
   readonly readRouteGeometryExecute?: (input: ExecuteCall) => Promise<unknown>

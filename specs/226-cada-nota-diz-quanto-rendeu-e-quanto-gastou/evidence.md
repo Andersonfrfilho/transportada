@@ -1,4 +1,4 @@
-# Evidências — 225 Cada nota diz quanto rendeu e quanto gastou
+# Evidências — 226 Cada nota diz quanto rendeu e quanto gastou
 
 ## T1.1 — o contrato da regra de rateio
 
@@ -460,13 +460,13 @@ Nenhuma intenção foi perdida. O contrato **novo** usa `renderToStaticMarkup`, 
 
 ## T4.1 — revisão de design (web.md §15), **aguardando o ok do usuário**
 
-Os 16 prints estão em `specs/225-cada-nota-diz-quanto-rendeu-e-quanto-gastou/prints/`, nas larguras
+Os 16 prints estão em `specs/226-cada-nota-diz-quanto-rendeu-e-quanto-gastou/prints/`, nas larguras
 **1280 e 375**, nos temas **dark e light**, em quatro situações: notas por parada com o detalhe aberto,
 painel da conta, e as duas variações de ausência ("roteiro ainda não calculado" + fechado inexistente).
 Para gerar de novo:
 
 ```bash
-cd apps/frontend-transportada && PLAYWRIGHT_FRONTEND_PORT=53225 PLAYWRIGHT_TEST_MATCH=spec-225-prints.smoke.spec.ts bun run smoke
+cd apps/frontend-transportada && PLAYWRIGHT_FRONTEND_PORT=53225 PLAYWRIGHT_TEST_MATCH=spec-226-prints.smoke.spec.ts bun run smoke
 ```
 
 A API é dublada na rede (`mockTripWorkspaceApi`, dois modos novos: `document-cost` e

@@ -2,7 +2,7 @@
 import type { TripValuation, TripValuationRevenueLine } from './tripValuation.service'
 
 /**
- * Spec 225 RF4/RF6: a linha da nota procura o seu gasto por `tripDocumentId`. Sem avaliação — quem
+ * Spec 226 RF4/RF6: a linha da nota procura o seu gasto por `tripDocumentId`. Sem avaliação — quem
  * não tem `trip.financials` nunca a recebe — o índice é vazio, e a nota não imprime nada.
  */
 export function indexRevenueLinesByDocument(

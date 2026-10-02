@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 225: reparte o custo que a viagem já calculou entre as notas dela. Não recalcula nada — o
+ * Spec 226: reparte o custo que a viagem já calculou entre as notas dela. Não recalcula nada — o
  * total não se move, só se divide, e `document-cost-apportionment.contract.ts` prende a invariante.
  *
  * Toda divisão é exata porque acontece em dois níveis, nunca num só: primeiro o balde se reparte
@@ -33,7 +33,7 @@ const ERROR_CODE_PREFIX = 'DOCUMENT_COST_APPORTIONMENT'
 const PERCENT_FACTOR = 100n
 
 /**
- * Spec 225 D1. `Record<TripCostKind, …>` obriga o compilador a cobrar parcela nova — e o contrato
+ * Spec 226 D1. `Record<TripCostKind, …>` obriga o compilador a cobrar parcela nova — e o contrato
  * cobra o **valor** de cada uma, porque classificar errado compila igual.
  */
 export const COST_KIND_APPORTIONMENT: CostKindApportionment = {

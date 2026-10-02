@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
-/** ⚠️ Cópia por valor do vocabulário da API (spec 225) — o bundle não carrega código de lá. */
+/** ⚠️ Cópia por valor do vocabulário da API (spec 226) — o bundle não carrega código de lá. */
 export const COST_BASIS = { LEG: 'leg', UNAVAILABLE: 'unavailable' } as const
 export type CostBasis = (typeof COST_BASIS)[keyof typeof COST_BASIS]
 export const COST_BASES: readonly CostBasis[] = Object.values(COST_BASIS)

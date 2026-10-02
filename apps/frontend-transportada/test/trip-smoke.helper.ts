@@ -472,7 +472,7 @@ const PROOF_STOP = {
 } as const
 
 /**
- * Spec 225 (T4.3): três paradas e cinco notas, com a conta **fechando** — Σ (gasto + imposto) =
+ * Spec 226 (T4.3): três paradas e cinco notas, com a conta **fechando** — Σ (gasto + imposto) =
  * `totalCost`, Σ frete = `totalRevenue` e Σ lucro = `totalMargin` da avaliação. Print com conta que
  * não fecha é pior que print nenhum. Uma nota em prejuízo com tempo completo (D3), outra em prejuízo
  * com tempo incompleto (D5) e uma parcial (D4) cobrem os estados que a linha da nota sabe dizer.
@@ -1193,7 +1193,7 @@ async function registerTripMocks(
     })
   })
   /**
-   * Spec 225: a conta da viagem. Nenhum outro modo a dubla — sem `trip.financials` o painel nem
+   * Spec 226: a conta da viagem. Nenhum outro modo a dubla — sem `trip.financials` o painel nem
    * pergunta —, e é ela que alimenta a linha da nota e o previsto/fechado lado a lado.
    * `document-cost-open` é a viagem aberta: roteiro sem cálculo e nada congelado (`data: null`).
    */

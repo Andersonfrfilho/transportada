@@ -9,7 +9,7 @@ import styles from '../styles/tripFinancials.module.css'
 type TripDocumentCostCriterionProps = Readonly<{ documentId: string }>
 
 /**
- * Spec 225 RF4: o critério do rateio mora no detalhe da nota, ao lado do "rateio da viagem" que explica.
+ * Spec 226 RF4: o critério do rateio mora no detalhe da nota, ao lado do "rateio da viagem" que explica.
  * Só aparece quando esta nota mostra esse número — sem ele a frase explicaria o que não está na tela.
  */
 export function TripDocumentCostCriterion({ documentId }: TripDocumentCostCriterionProps) {

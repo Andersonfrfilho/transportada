@@ -72,7 +72,7 @@ export type TripValuationCostParcel = Readonly<{
 }>
 
 /**
- * Spec 225: quanto a nota rendeu e quanto gastou. ⚠️ **Os oito saem juntos ou nenhum sai** — a
+ * Spec 226: quanto a nota rendeu e quanto gastou. ⚠️ **Os oito saem juntos ou nenhum sai** — a
  * prévia e a sugestão multi-veículo passam pelo mesmo caminho sem trechos nem paradas, e as linhas
  * delas saem sem eles. O frete da linha continua sendo `amount`; não há `freightAmount`.
  *

@@ -67,7 +67,7 @@ function isCoherent(figures: TripValuationRevenueLineCostFigures): boolean {
 }
 
 /**
- * Spec 225: os oito campos saem **juntos ou nenhum sai**. Nenhum é a prévia e a sugestão, e é
+ * Spec 226: os oito campos saem **juntos ou nenhum sai**. Nenhum é a prévia e a sugestão, e é
  * legítimo; parte deles, ou um com tipo errado, é corpo malformado — e a leitura diz isso em vez de
  * aceitar o que parece certo e seguir.
  */

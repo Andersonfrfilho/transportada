@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 225 T2.1. A avaliação da viagem passa a dizer, por nota, quanto rendeu e quanto gastou — e
+ * Spec 226 T2.1. A avaliação da viagem passa a dizer, por nota, quanto rendeu e quanto gastou — e
  * isso é dinheiro: só `trip.financials` o vê, e o portal da contratante nunca. O contrato monta a
  * resposta de verdade (caso de uso real atrás da rota real) e confere por **conjunto de chaves**, de
  * modo que campo novo de custo que alguém acrescente depois reprove sozinho onde não deve aparecer.
@@ -187,7 +187,7 @@ function forbiddenKeysIn(value: unknown): string[] {
     .sort()
 }
 
-describe('com trip.financials, cada nota diz quanto rendeu e quanto gastou (spec 225 RF1)', () => {
+describe('com trip.financials, cada nota diz quanto rendeu e quanto gastou (spec 226 RF1)', () => {
   test('toda linha de receita traz os oito campos novos', async () => {
     const body = await readValuationBody()
 
@@ -226,7 +226,7 @@ describe('com trip.financials, cada nota diz quanto rendeu e quanto gastou (spec
   })
 })
 
-describe('a soma das notas fecha com a viagem, na resposta montada (spec 225 D4, CA01)', () => {
+describe('a soma das notas fecha com a viagem, na resposta montada (spec 226 D4, CA01)', () => {
   /**
    * ⚠️ O `totalCost` da viagem já inclui o imposto. Se a soma só olhasse `costAmount`, ela ficaria
    * fora por todo o imposto — e nada falharia. O cenário tem ICMS de propósito: a parcela existe, é
@@ -281,7 +281,7 @@ describe('a soma das notas fecha com a viagem, na resposta montada (spec 225 D4,
   })
 })
 
-describe('sem trip.financials, nenhum campo novo aparece (spec 225 RF6, D7, CA07)', () => {
+describe('sem trip.financials, nenhum campo novo aparece (spec 226 RF6, D7, CA07)', () => {
   const roles = Object.keys(COMPANY_ROLE_PERMISSIONS) as (keyof typeof COMPANY_ROLE_PERMISSIONS)[]
   const hasFinancials = (role: keyof typeof COMPANY_ROLE_PERMISSIONS) =>
     (COMPANY_ROLE_PERMISSIONS[role] as readonly string[]).includes(FINANCIALS_PERMISSION)
@@ -328,7 +328,7 @@ describe('sem trip.financials, nenhum campo novo aparece (spec 225 RF6, D7, CA07
   })
 })
 
-describe('no portal da contratante, nunca (spec 225 D7, CA07)', () => {
+describe('no portal da contratante, nunca (spec 226 D7, CA07)', () => {
   const PORTAL_PERMISSIONS = new Set(COMPANY_ROLE_PERMISSIONS.contractor)
   const PORTAL_CONTEXT: CompanyContext = {
     companyId: COMPANY_CONTEXT.companyId,

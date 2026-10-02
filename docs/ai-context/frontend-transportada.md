@@ -863,11 +863,11 @@ Contratos: `test/trip/route-geometry-money-optional.contract.ts` (D2/D3/D10, din
 condicionalmente ausente e `choiceReproduced`) e `test/trip/route-geometry-options-validation.contract.ts`
 (spec 096 T1, opção malformada não derruba a principal).
 
-## Spec 225 — gasto e lucro por nota na tela da viagem
+## Spec 226 — gasto e lucro por nota na tela da viagem
 
 Em `/trips/:id`, a linha de cada nota mostra, além de mercadoria e frete, o **gasto** (com "do trecho" e
 "rateio da viagem" separados), o **lucro**, a **margem** e o imposto. Os números vêm de
-`GET /trips/:id/valuation`, nos campos novos de `revenueLines` (spec 225 na API).
+`GET /trips/:id/valuation`, nos campos novos de `revenueLines` (spec 226 na API).
 
 A fiação é **contexto, não prop drilling**, e por regra: o caminho
 `TripDetail.page.tsx` → `TripDetail.component.tsx` → `TripStopList` → linha tem três níveis, e

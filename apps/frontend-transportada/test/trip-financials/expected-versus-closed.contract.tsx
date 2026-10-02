@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 225 T3.3 (D6, CA08) — o painel da viagem mostra o previsto e o fechado lado a lado, com a
+ * Spec 226 T3.3 (D6, CA08) — o painel da viagem mostra o previsto e o fechado lado a lado, com a
  * diferença entre eles (fechado menos previsto). Viagem aberta mostra só o previsto e diz que o
  * fechado ainda não existe.
  */
@@ -118,7 +118,7 @@ function renderPanel(input: { result: TripFinancialResult | null; valuation: Tri
   )
 }
 
-describe('a diferença entre o previsto e o fechado (spec 225 D6)', () => {
+describe('a diferença entre o previsto e o fechado (spec 226 D6)', () => {
   it('é fechado menos previsto, linha a linha, com o imposto dentro do custo dos dois lados', () => {
     const rows = buildExpectedVersusClosed({ closed: closed(), expected: summary() })
 
@@ -145,7 +145,7 @@ describe('a diferença entre o previsto e o fechado (spec 225 D6)', () => {
   })
 })
 
-describe('o nome da coluna da conta de agora não promete uma previsão (spec 225 D6, revisão M5)', () => {
+describe('o nome da coluna da conta de agora não promete uma previsão (spec 226 D6, revisão M5)', () => {
   /**
    * A coluna é a avaliação **calculada agora**, pela mesma função que gerou o congelado — não a
    * previsão do planejamento, que ninguém grava. "Previsto" prometia mais do que ela entrega, e a

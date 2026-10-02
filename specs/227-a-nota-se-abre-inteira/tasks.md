@@ -10,7 +10,7 @@ foram resolvidas em 2026-10-02) — bloqueia **apenas a Fase 5**.
 
 > 🤖 Modelo: `opus` 🧠 — rebase com conflito em `trip.schema.ts` e migration reencadeada.
 
-- [ ] **T0.1** Renumerar `225-cada-nota-diz-quanto-rendeu-e-quanto-gastou` → `226-…` (`git mv`) e **todas** as
+- [x] **T0.1** Renumerar `225-cada-nota-diz-quanto-rendeu-e-quanto-gastou` → `226-…` (`git mv`) e **todas** as
       referências a "spec 225" em código, testes, docs e locales. `grep` antes e depois; contagem no
       `evidence.md`. Aceite: nenhuma referência a 225 como _esta_ spec; typecheck e testes verdes.
 - [ ] **T0.2** Rebase das 28 commits em `origin/staging`. Resolver os 12 arquivos medidos. ⚠️ **Nunca**
