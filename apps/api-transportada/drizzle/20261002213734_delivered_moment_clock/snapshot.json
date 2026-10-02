@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "3974b1b6-6dd0-42ed-9a12-039bac6714bb",
+  "id": "b91168e2-3f91-4dcc-947e-b4e940dda6a4",
   "prevIds": [
-    "2a035334-4d11-4179-b824-a434eed91608"
+    "0447297e-9983-4740-a207-84c3be7aa42a"
   ],
   "ddl": [
     {
@@ -29815,6 +29815,71 @@
       "table": "trip_document_occurrences"
     },
     {
+      "type": "numeric(10,2)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "accuracy_meters",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "captured_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "type": "numeric(10,7)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "latitude",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "location_state",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "type": "numeric(10,7)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "longitude",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -31037,6 +31102,71 @@
       "table": "trip_status_events"
     },
     {
+      "type": "numeric(10,2)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "accuracy_meters",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_status_events"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "captured_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_status_events"
+    },
+    {
+      "type": "numeric(10,7)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "latitude",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_status_events"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "location_state",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_status_events"
+    },
+    {
+      "type": "numeric(10,7)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "longitude",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_status_events"
+    },
+    {
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -31461,6 +31591,71 @@
       "generated": null,
       "identity": null,
       "name": "on_behalf_of_driver_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_stop_occurrences"
+    },
+    {
+      "type": "numeric(10,2)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "accuracy_meters",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_stop_occurrences"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "captured_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_stop_occurrences"
+    },
+    {
+      "type": "numeric(10,7)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "latitude",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_stop_occurrences"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "location_state",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_stop_occurrences"
+    },
+    {
+      "type": "numeric(10,7)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "longitude",
       "entityType": "columns",
       "schema": "public",
       "table": "trip_stop_occurrences"
@@ -39088,6 +39283,27 @@
       "nameExplicit": true,
       "columns": [
         {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"latitude\" is not null",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "trip_document_occurrences_located_created_at_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
           "value": "company_id",
           "isExpression": false,
           "asc": true,
@@ -39452,6 +39668,27 @@
       "nameExplicit": true,
       "columns": [
         {
+          "value": "recorded_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"latitude\" is not null",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "trip_status_events_located_recorded_at_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "trip_status_events"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
           "value": "company_id",
           "isExpression": false,
           "asc": true,
@@ -39647,6 +39884,27 @@
       "method": "btree",
       "concurrently": false,
       "name": "trip_stop_occurrences_company_stop_created_at_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "trip_stop_occurrences"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"latitude\" is not null",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "trip_stop_occurrences_located_created_at_idx",
       "entityType": "indexes",
       "schema": "public",
       "table": "trip_stop_occurrences"
@@ -59372,6 +59630,62 @@
       "table": "trip_document_occurrences"
     },
     {
+      "value": "(\"latitude\" is null) = (\"longitude\" is null)",
+      "name": "trip_document_occurrences_coordinates_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "value": "\"latitude\" is null or \"latitude\" between -90 and 90",
+      "name": "trip_document_occurrences_latitude_range_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "value": "\"longitude\" is null or \"longitude\" between -180 and 180",
+      "name": "trip_document_occurrences_longitude_range_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "value": "\"accuracy_meters\" is null or \"latitude\" is not null",
+      "name": "trip_document_occurrences_accuracy_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "value": "\"location_state\" is null or \"location_state\" in ('captured', 'unavailable', 'expired')",
+      "name": "trip_document_occurrences_location_state_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "value": "(\"location_state\" is not distinct from 'captured') = (\"latitude\" is not null)",
+      "name": "trip_document_occurrences_location_state_consistency_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "value": "\"latitude\" is null or \"channel\" = 'driver_app'",
+      "name": "trip_document_occurrences_coordinates_channel_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "value": "\"location_state\" is null or \"channel\" in ('driver_app', 'whatsapp')",
+      "name": "trip_document_occurrences_location_state_channel_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
       "value": "(\"nfe_document_id\" is null) <> (\"freight_calculation_id\" is null)",
       "name": "trip_documents_entity_xor_check",
       "entityType": "checks",
@@ -59708,6 +60022,62 @@
       "table": "trip_status_events"
     },
     {
+      "value": "(\"latitude\" is null) = (\"longitude\" is null)",
+      "name": "trip_status_events_coordinates_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_status_events"
+    },
+    {
+      "value": "\"latitude\" is null or \"latitude\" between -90 and 90",
+      "name": "trip_status_events_latitude_range_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_status_events"
+    },
+    {
+      "value": "\"longitude\" is null or \"longitude\" between -180 and 180",
+      "name": "trip_status_events_longitude_range_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_status_events"
+    },
+    {
+      "value": "\"accuracy_meters\" is null or \"latitude\" is not null",
+      "name": "trip_status_events_accuracy_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_status_events"
+    },
+    {
+      "value": "\"location_state\" is null or \"location_state\" in ('captured', 'unavailable', 'expired')",
+      "name": "trip_status_events_location_state_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_status_events"
+    },
+    {
+      "value": "(\"location_state\" is not distinct from 'captured') = (\"latitude\" is not null)",
+      "name": "trip_status_events_location_state_consistency_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_status_events"
+    },
+    {
+      "value": "\"latitude\" is null or \"channel\" = 'driver_app'",
+      "name": "trip_status_events_coordinates_channel_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_status_events"
+    },
+    {
+      "value": "\"location_state\" is null or \"channel\" in ('driver_app', 'whatsapp')",
+      "name": "trip_status_events_location_state_channel_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_status_events"
+    },
+    {
       "value": "\"kind\" in ('arrived', 'delivered', 'returned', 'occurrence', 'departed', 'departure_cancelled')",
       "name": "trip_stop_events_kind_check",
       "entityType": "checks",
@@ -59794,6 +60164,62 @@
     {
       "value": "\"channel\" <> 'office' or \"on_behalf_of_driver_id\" is not null",
       "name": "trip_stop_occurrences_office_driver_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_stop_occurrences"
+    },
+    {
+      "value": "(\"latitude\" is null) = (\"longitude\" is null)",
+      "name": "trip_stop_occurrences_coordinates_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_stop_occurrences"
+    },
+    {
+      "value": "\"latitude\" is null or \"latitude\" between -90 and 90",
+      "name": "trip_stop_occurrences_latitude_range_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_stop_occurrences"
+    },
+    {
+      "value": "\"longitude\" is null or \"longitude\" between -180 and 180",
+      "name": "trip_stop_occurrences_longitude_range_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_stop_occurrences"
+    },
+    {
+      "value": "\"accuracy_meters\" is null or \"latitude\" is not null",
+      "name": "trip_stop_occurrences_accuracy_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_stop_occurrences"
+    },
+    {
+      "value": "\"location_state\" is null or \"location_state\" in ('captured', 'unavailable', 'expired')",
+      "name": "trip_stop_occurrences_location_state_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_stop_occurrences"
+    },
+    {
+      "value": "(\"location_state\" is not distinct from 'captured') = (\"latitude\" is not null)",
+      "name": "trip_stop_occurrences_location_state_consistency_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_stop_occurrences"
+    },
+    {
+      "value": "\"latitude\" is null or \"channel\" = 'driver_app'",
+      "name": "trip_stop_occurrences_coordinates_channel_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_stop_occurrences"
+    },
+    {
+      "value": "\"location_state\" is null or \"channel\" in ('driver_app', 'whatsapp')",
+      "name": "trip_stop_occurrences_location_state_channel_check",
       "entityType": "checks",
       "schema": "public",
       "table": "trip_stop_occurrences"
