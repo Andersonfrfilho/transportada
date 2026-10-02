@@ -323,3 +323,33 @@ falhou, ou canhoto sem imagem nenhuma (sem `onError` para esperar), fica desmarc
 travada (`disabled`) e o aviso `role="alert"`; não segura as outras notas.
 
 Gates: typecheck sem erro; prettier conforme; eslint 0 erros (16 avisos preexistentes).
+
+### T2.8 — o botão no maço, e o fluxo do maço no detalhe da viagem (RF-A2, RF-A3, RF-A9, CA02–CA04)
+
+Vermelho antes:
+`canhoto-batch-action.contract.ts` → **2 pass / 2 fail** (CA02 e o clique; CA03 e CA04 passam no
+vazio, porque "nenhum botão" é verdade antes de o botão existir — o que as prende é a mutação
+abaixo). `canhoto-batch-review-flow.contract.ts` → módulo `useCanhotoBatchReview.hook` inexistente,
+a suíte nem carrega (vermelho de importação, sem número). Verde depois: **4 pass / 0 fail** e
+**7 pass / 0 fail**. Suítes completas: `bun run test` → **6191 pass / 0 fail**; hooks → **219 pass
+/ 0 fail** (eram 208; +11 desta task).
+
+Mutações (restauradas): confirmar sem tirar o `conflicted` da seleção → **5 / 1**; sem o aviso de
+exclusão do canhoto → **3 / 1**; sem `setIsRefreshing(true)` ao abrir → 6 / 0 (**sobrevivia**) e,
+depois do teste "enquanto a releitura está pendente o diálogo não mostra foto", **6 / 1**.
+
+Desenho: o botão e o aviso vivem em `TripStateActions` (props novas `canhotoBatch` e
+`onOpenCanhotoBatch`), no molde do `batchFieldDelivery`; a contagem de excluídas é a `excludedCount`
+da T2.2, que já devolve `0` quando nada é oferecido. O fluxo (consulta, abrir-relê, confirmar,
+falha "N de M") mora no hook novo `useCanhotoBatchReview`, para não inchar o `TripDetail`. Sem
+`trip.manage` o `TripStateActions` já devolve `null` e a consulta nem dispara (T2.4).
+
+- RF-A9: abrir chama `refetch()` e o diálogo fica em `loading`, **sem itens**, até a releitura
+  voltar — a tela não mostra (e portanto não aprova) o que a releitura pode ter tirado da fila.
+  Releitura que falha → `failed`, também sem itens.
+- Confirmar tira da seleção o aprovado **e** o conflito (409); o que falhou continua marcado e o
+  aviso `batchCanhotoPartialFailure` ("1 de 5") aparece ao lado do de devolução em massa. Nota
+  desmarcada no diálogo não é enviada e continua marcada.
+- `CanhotoAutomaticReview` não foi tocado.
+
+Gates: typecheck sem erro; prettier conforme; eslint 0 erros (16 avisos preexistentes).

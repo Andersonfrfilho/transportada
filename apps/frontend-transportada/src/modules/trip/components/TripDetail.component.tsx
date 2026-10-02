@@ -20,6 +20,7 @@ import { useSlowLoadNotice } from '../hooks/useSlowLoadNotice.hook'
 import { useFieldDeliveryDocumentsQuery } from '../queries/useFieldDeliveryDocuments.query'
 import { useFieldDeliverySettingsQuery } from '../queries/useFieldDeliverySettings.query'
 import { useVehicleSelectOptions } from '@/modules/fleet/hooks/useVehicleSelectOptions.hook'
+import { useCanhotoBatchReview } from '../hooks/useCanhotoBatchReview.hook'
 import { useTripDocumentSelection } from '../hooks/useTripDocumentSelection.hook'
 import type { TripDocumentLinkFormController } from '../hooks/useTripDocumentLinkForm.hook'
 import type { TripWorkspaceController } from '../hooks/useTripWorkspace.hook'
@@ -84,6 +85,7 @@ import { TripProcessFlow } from './TripProcessFlow.component'
 import { TripCloseDialog } from './TripCloseDialog.component'
 import { CanhotoRejectDialog, type CanhotoRejectSubmission } from './CanhotoRejectDialog.component'
 import { TripReasonDialog } from './TripReasonDialog.component'
+import { TripCanhotoBatchDialog } from './TripCanhotoBatchDialog.component'
 import { TripReturnReasonDialog } from './TripReturnReasonDialog.component'
 import { TripScanQueue } from './TripScanQueue.component'
 import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityBand.component'
@@ -313,6 +315,16 @@ export function TripDetail({
    */
   const [isCloseDialogOpen, setIsCloseDialogOpen] = useState(false)
   const selection = useTripDocumentSelection()
+  /** Spec 222 T2.8: antes dos `return` condicionais — a viagem pode não ter carregado, `''` não resolve. */
+  const canhotoBatchReview = useCanhotoBatchReview({
+    approveBatch: workspace.approveCanhotoBatchMutation.mutateAsync,
+    canManage: workspace.controller.canManageTrips,
+    companyId: workspace.companyId ?? '',
+    documents: workspace.trip?.documents ?? [],
+    selection,
+    tripId: workspace.trip?.id ?? '',
+    tripStatus: workspace.trip?.status ?? 'draft',
+  })
   /**
    * Spec 156 T9: uma nota (ação da linha) ou o maço da seleção (ação em massa) — `null` fecha o
    * diálogo. As duas entradas passam pelo mesmo estado porque é o mesmo formulário.
@@ -893,6 +905,15 @@ export function TripDetail({
         </p>
       )}
 
+      {canhotoBatchReview.failure === null || selection.selectedIds.size === 0 ? null : (
+        <p className={styles.alert} role="alert">
+          {t('stateActions.batchCanhotoPartialFailure', {
+            failed: canhotoBatchReview.failure.failedCount,
+            total: canhotoBatchReview.failure.totalCount,
+          })}
+        </p>
+      )}
+
       {/*
        * Spec 156 D11: sem `fleet.read` a viagem não traz placa nenhuma — só o `vehicleId` bruto — e
        * mostrá-lo vazaria o identificador interno em vez de omitir a linha (t7-design §2.6).
@@ -1140,6 +1161,7 @@ export function TripDetail({
         canFieldDeliveryBatch={canFieldDeliveryBatch}
         canFieldOccurrenceBatch={canFieldOccurrenceBatch}
         canSeparateOrLoad={canSeparateOrLoad}
+        canhotoBatch={canhotoBatchReview.batch}
         capabilities={workspace.fieldActionCapabilities}
         isBatchPending={workspace.batchStatusMutation.isPending}
         isBatchReturnPending={workspace.batchFieldReturnMutation.isPending}
@@ -1147,6 +1169,7 @@ export function TripDetail({
         onBatch={handleBatch}
         onBatchDeliver={handleBatchDeliver}
         onBatchReturn={handleBatchReturn}
+        onOpenCanhotoBatch={() => void canhotoBatchReview.open()}
         onOpenFieldDeliveryBatch={(documentIds) => setFieldDeliveryDocumentIds([...documentIds])}
         onOpenFieldOccurrenceBatch={(documentIds) =>
           setFieldOccurrenceDocumentIds([...documentIds])
@@ -1410,6 +1433,16 @@ export function TripDetail({
         submitLabel={t('requirement.dispense')}
         title={t('requirement.dispenseTitle')}
       />
+
+      {canhotoBatchReview.dialog.isOpen ? (
+        <TripCanhotoBatchDialog
+          items={canhotoBatchReview.dialog.items}
+          onClose={canhotoBatchReview.close}
+          onConfirm={(documentIds) => void canhotoBatchReview.confirm(documentIds)}
+          overflowCount={canhotoBatchReview.dialog.overflowCount}
+          status={canhotoBatchReview.dialog.status}
+        />
+      ) : null}
 
       <TripReturnReasonDialog
         isOpen={returnDocumentId !== null}

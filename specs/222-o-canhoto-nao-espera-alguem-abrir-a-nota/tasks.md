@@ -63,7 +63,7 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
       Nenhuma biblioteca de modal nova
 - [x] T2.7 Item cuja imagem não carregou nasce **desmarcado**, com aviso — a tela não aprova o que
       não mostrou (RF-A8, CA09). O gancho é o `onError` que o `ProofImage` já tem
-- [ ] T2.8 Botão no maço em `TripStateActions.component.tsx`, no molde de `batchFieldDelivery`, com
+- [x] T2.8 Botão no maço em `TripStateActions.component.tsx`, no molde de `batchFieldDelivery`, com
       o aviso de exclusão reaproveitando a contagem da T2.2 (CA02–CA04)
 - [x] T2.9 Textos em `trip.locale.json` (`stateActions.batchCanhoto*`, `deliveryProof.canhotoBatch.*`)
 - [ ] T2.10 Revisão de design e usabilidade do diálogo (`web.md` §15): teto de itens, foco no
