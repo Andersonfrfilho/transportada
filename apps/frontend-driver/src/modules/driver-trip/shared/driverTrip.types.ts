@@ -119,6 +119,8 @@ export type DriverTrip = Readonly<{
   manifest: DriverTripManifest | null
   status: string
   stops: readonly DriverTripStop[]
+  /** Quando a viagem foi aberta. Vazio em snapshot antigo: a tela omite a linha. */
+  createdAt: string
   vehiclePlate: string
 }>
 

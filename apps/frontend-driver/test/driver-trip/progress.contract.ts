@@ -57,7 +57,14 @@ function buildStop(overrides: Partial<DriverTripStop> = {}): DriverTripStop {
 }
 
 function buildTrip(stops: readonly DriverTripStop[]): DriverTrip {
-  return { id: 'trip-1', manifest: null, status: 'dispatched', stops, vehiclePlate: 'ABC1D23' }
+  return {
+    createdAt: '2026-09-18T09:00:00.000Z',
+    id: 'trip-1',
+    manifest: null,
+    status: 'dispatched',
+    stops,
+    vehiclePlate: 'ABC1D23',
+  }
 }
 
 describe('a barra de progresso da viagem', () => {

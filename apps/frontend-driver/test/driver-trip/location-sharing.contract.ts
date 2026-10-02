@@ -14,7 +14,14 @@ import {
 } from '@/modules/driver-trip/shared/locationSharing.service'
 
 function buildTrip(status: string): DriverTrip {
-  return { id: status, manifest: null, status, stops: [], vehiclePlate: 'GCQ8E47' }
+  return {
+    createdAt: '2026-09-18T09:00:00.000Z',
+    id: status,
+    manifest: null,
+    status,
+    stops: [],
+    vehiclePlate: 'GCQ8E47',
+  }
 }
 
 type FakeWatch = Readonly<{

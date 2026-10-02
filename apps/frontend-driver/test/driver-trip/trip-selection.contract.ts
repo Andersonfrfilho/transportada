@@ -9,7 +9,14 @@ import {
 } from '@/modules/driver-trip/shared/driverTripSelection.service'
 
 function buildTrip(id: string, status: string, stops: readonly DriverTripStop[] = []): DriverTrip {
-  return { id, manifest: null, status, stops, vehiclePlate: `PLACA-${id}` }
+  return {
+    createdAt: '2026-09-18T09:00:00.000Z',
+    id,
+    manifest: null,
+    status,
+    stops,
+    vehiclePlate: `PLACA-${id}`,
+  }
 }
 
 function buildStop(label: string, sequence = 1): DriverTripStop {

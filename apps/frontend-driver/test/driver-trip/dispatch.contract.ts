@@ -52,7 +52,14 @@ describe('iniciar trajeto (route_planned)', () => {
   })
 
   it('só route_planned aguarda início', () => {
-    const trip = { id: 't', manifest: null, status: 'route_planned', stops: [], vehiclePlate: 'A' }
+    const trip = {
+      createdAt: '2026-09-18T09:00:00.000Z',
+      id: 't',
+      manifest: null,
+      status: 'route_planned',
+      stops: [],
+      vehiclePlate: 'A',
+    }
     expect(isAwaitingDispatch(trip)).toBe(true)
     expect(isAwaitingDispatch({ ...trip, status: 'dispatched' })).toBe(false)
     expect(isAwaitingDispatch({ ...trip, status: 'in_transit' })).toBe(false)

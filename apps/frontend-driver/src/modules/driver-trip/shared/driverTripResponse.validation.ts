@@ -260,6 +260,11 @@ function toTrip(value: unknown): DriverTrip {
     manifest: toManifest(value.manifest),
     status: readString(value.status),
     stops: value.stops.map(toStop),
+    /**
+     * Ausente (snapshot antigo no celular, ou API anterior) vira vazio e a linha da data some —
+     * exigir o campo faria um cache de ontem derrubar a tela inteira.
+     */
+    createdAt: readOptionalText(value.createdAt),
     vehiclePlate: readString(value.vehiclePlate),
   }
 }

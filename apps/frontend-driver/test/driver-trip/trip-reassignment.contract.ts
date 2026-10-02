@@ -4,7 +4,14 @@ import type { DriverTrip } from '@/modules/driver-trip/shared/driverTrip.types'
 import { hasReassignedTrip } from '@/modules/driver-trip/shared/tripReassignment.service'
 
 function buildTrip(id: string, status: string): DriverTrip {
-  return { id, manifest: null, status, stops: [], vehiclePlate: 'ABC1D23' }
+  return {
+    createdAt: '2026-09-18T09:00:00.000Z',
+    id,
+    manifest: null,
+    status,
+    stops: [],
+    vehiclePlate: 'ABC1D23',
+  }
 }
 
 describe('hasReassignedTrip (spec 217 RF8/D6)', () => {
