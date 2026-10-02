@@ -9,6 +9,7 @@
  * a bordo. Dois `distribute` encadeados fecham a soma em cada nível, então ela fecha no fim.
  */
 import {
+  divideHalfUp,
   formatScaledDecimal,
   MONEY_SCALE,
   parseScaledDecimal,
@@ -56,22 +57,7 @@ export function apportionDocumentCosts(
   const freights = params.documents.map((document) => parseMoney(document.freightAmount))
   const taxes = distribute(bucketOf(params, APPORTIONMENT_BASES.revenue), freights)
 
-  if (!hasUsableRoute(params)) {
-    return {
-      documents: params.documents.map((document, index) => ({
-        costAmount: null,
-        costBasis: COST_BASES.unavailable,
-        freightAmount: document.freightAmount,
-        legCostAmount: null,
-        marginAmount: null,
-        marginPercentage: null,
-        taxAmount: formatScaledDecimal(taxes[index] ?? 0n, MONEY_SCALE),
-        timeBasis,
-        tripDocumentId: document.tripDocumentId,
-        tripShareCostAmount: null,
-      })),
-    }
-  }
+  if (!hasUsableRoute(params)) return buildUnavailableResult({ params, taxes, timeBasis })
 
   const legCosts = new Array<bigint>(params.documents.length).fill(0n)
   let orphanCost = spreadDistance({ legCosts, params })
@@ -83,6 +69,13 @@ export function apportionDocumentCosts(
     // quem só tem rateio.
     params.documents.map(() => 1n),
   )
+
+  // Rede de segurança: o que desceu para as notas — trecho, rateio e imposto — tem de ser exatamente o
+  // que as parcelas somam. Se não fechar por qualquer razão (hoje, frete total zero com imposto
+  // positivo), "indisponível" é a resposta honesta; um número que parece conta e não fecha, não é.
+  if (sumOf([...legCosts, ...shares, ...taxes]) !== sumOf(listParcelAmounts(params))) {
+    return buildUnavailableResult({ params, taxes, timeBasis })
+  }
 
   return {
     documents: params.documents.map((document, index) => {
@@ -101,7 +94,10 @@ export function apportionDocumentCosts(
         marginPercentage:
           freight === 0n
             ? null
-            : formatScaledDecimal((margin * PERCENT_FACTOR * scaleFactor()) / freight, MONEY_SCALE),
+            : formatScaledDecimal(
+                divideHalfUp(margin * PERCENT_FACTOR * scaleFactor(), freight),
+                MONEY_SCALE,
+              ),
         taxAmount: formatScaledDecimal(tax, MONEY_SCALE),
         timeBasis,
         tripDocumentId: document.tripDocumentId,
@@ -109,6 +105,42 @@ export function apportionDocumentCosts(
       } satisfies DocumentCostFigures
     }),
   }
+}
+
+type UnavailableResultParams = {
+  readonly params: ApportionDocumentCostsParams
+  readonly taxes: readonly bigint[]
+  readonly timeBasis: TimeBasis
+}
+
+/** O imposto por nota é exato com ou sem roteiro; gasto, lucro e margem ficam ausentes — nunca zero. */
+function buildUnavailableResult(input: UnavailableResultParams): ApportionDocumentCostsResult {
+  const { params, taxes, timeBasis } = input
+
+  return {
+    documents: params.documents.map((document, index) => ({
+      costAmount: null,
+      costBasis: COST_BASES.unavailable,
+      freightAmount: document.freightAmount,
+      legCostAmount: null,
+      marginAmount: null,
+      marginPercentage: null,
+      taxAmount: formatScaledDecimal(taxes[index] ?? 0n, MONEY_SCALE),
+      timeBasis,
+      tripDocumentId: document.tripDocumentId,
+      tripShareCostAmount: null,
+    })),
+  }
+}
+
+function listParcelAmounts(params: ApportionDocumentCostsParams): bigint[] {
+  return params.costParcels.flatMap((parcel) =>
+    parcel.amount === null ? [] : [parseMoney(parcel.amount)],
+  )
+}
+
+function sumOf(values: readonly bigint[]): bigint {
+  return values.reduce((sum, value) => sum + value, 0n)
 }
 
 /** D5: trecho ausente, ou contagem que não casa com as paradas, é ausência — nunca aproximação. */
@@ -130,7 +162,13 @@ function spreadDistance(input: {
     ...params.legs.map((leg) => BigInt(Math.max(0, Math.round(leg.distanceMetres)))),
     returnDistance,
   ]
-  const perLeg = distribute(bucketOf(params, APPORTIONMENT_BASES.distance), weights)
+  const bucket = bucketOf(params, APPORTIONMENT_BASES.distance)
+  // Sem distância nenhuma (paradas na mesma coordenada, barracão no mesmo ponto), `distribute` devolve
+  // zeros e o balde some. `delivery_charges` e o pedágio lançado à mão não dependem de quilometragem:
+  // o dinheiro existe, e desce como rateio da viagem — a mesma saída que o tempo já tem.
+  if (weights.every((weight) => weight === 0n)) return bucket
+
+  const perLeg = distribute(bucket, weights)
 
   return params.legs.reduce(
     (orphan, _leg, legIndex) =>

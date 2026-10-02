@@ -252,6 +252,78 @@ describe('espera no cliente (spec 225 D9, CA03b)', () => {
   })
 })
 
+describe('balde sem peso nenhum não desaparece (revisão da 225, A1)', () => {
+  /**
+   * Gêmeo do defeito do D3: com todos os trechos e o retorno em zero metro, o balde de distância não
+   * tem peso nenhum para se repartir. `delivery_charges` e o pedágio lançado à mão não dependem da
+   * quilometragem, então esse dinheiro existe e tem de ir para algum lugar — o rateio da viagem.
+   */
+  test('trechos e retorno de zero metro mandam o balde de distância para o rateio', () => {
+    const params = buildScenario({
+      costParcels: [
+        parcel('fuel', '50.0000'),
+        parcel('driver', '200.0000'),
+        parcel('delivery_charges', '30.0000'),
+        parcel('icms', '12.0000'),
+        parcel('manual', '7.0000'),
+      ],
+      documents: [note('doc-1', 'stop-1'), note('doc-2', 'stop-2')],
+      legs: [
+        { distanceMetres: 0, durationSeconds: 100 },
+        { distanceMetres: 0, durationSeconds: 100 },
+      ],
+      returnDistanceMetres: 0,
+      stops: [stop('stop-1'), stop('stop-2')],
+    })
+
+    const figures = apportionDocumentCosts(params).documents
+    const total =
+      sumOf(figures.map((entry) => entry.costAmount)) +
+      sumOf(figures.map((entry) => entry.taxAmount))
+
+    expect(total).toBeCloseTo(299, 4)
+  })
+
+  test('retorno nulo, em vez de zero, se comporta igual', () => {
+    const figures = apportionDocumentCosts(
+      buildScenario({
+        costParcels: [parcel('fuel', '50.0000'), parcel('delivery_charges', '30.0000')],
+        documents: [note('doc-1', 'stop-1'), note('doc-2', 'stop-2')],
+        legs: [
+          { distanceMetres: 0, durationSeconds: 100 },
+          { distanceMetres: 0, durationSeconds: 100 },
+        ],
+        returnDistanceMetres: null,
+        stops: [stop('stop-1'), stop('stop-2')],
+      }),
+    ).documents
+
+    expect(sumOf(figures.map((entry) => entry.costAmount))).toBeCloseTo(80, 4)
+  })
+
+  /**
+   * A rede de segurança: se a soma de conferência não fechar por qualquer razão — hoje, frete total
+   * zero com imposto positivo faz o balde de imposto não ter para quem descer —, a resposta é
+   * "indisponível", nunca um número que parece conta e não fecha.
+   */
+  test('soma que não fecha vira indisponível, não número errado', () => {
+    const figures = apportionDocumentCosts(
+      buildScenario({
+        costParcels: [parcel('fuel', '50.0000'), parcel('icms', '12.0000')],
+        documents: [note('doc-1', 'stop-1', '0.0000'), note('doc-2', 'stop-2', '0.0000')],
+        stops: [stop('stop-1'), stop('stop-2')],
+        legs: [
+          { distanceMetres: TEN_KILOMETRES, durationSeconds: ONE_HOUR },
+          { distanceMetres: TEN_KILOMETRES, durationSeconds: ONE_HOUR },
+        ],
+      }),
+    ).documents
+
+    expect(figures.every((entry) => entry.costBasis === 'unavailable')).toBeTrue()
+    expect(figures.every((entry) => entry.costAmount === null)).toBeTrue()
+  })
+})
+
 describe('sem roteiro não há número inventado (spec 225 D5, CA04 e CA05)', () => {
   test('sem trechos, toda nota sai indisponível e sem valor', () => {
     const figures = apportionDocumentCosts(buildScenario({ legs: [] })).documents
