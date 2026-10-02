@@ -21,7 +21,7 @@ D11. **Esta spec não tem migration** — se alguma task concluir que precisa de
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T1.1** Contrato: a paridade `apps/frontend-transportada/test/trip/timeline.contract.ts` com os dois
+- [x] **T1.1** Contrato: a paridade `apps/frontend-transportada/test/trip/timeline.contract.ts` com os dois
       `kind`s; prioridades da D6 sem renumerar nenhuma existente; `addressChange` aceito **só** no `kind` do
       endereço e recusado em qualquer outro; o validador **atual** descarta os `kind`s novos sem recusar a página
       (CA07).

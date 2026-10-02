@@ -52,3 +52,21 @@ muda o desenho** (D1–D12 intactas, sem migration). Só a numeração de linhas
    `drizzle-geocoding-refinement.repository.ts` escreve nas duas trilhas.
 
 Divergências que mudam o desenho: **nenhuma**.
+
+## T1.1 — Contrato do vocabulário (vermelho antes da implementação)
+
+Arquivos: `apps/frontend-transportada/test/trip/timeline.contract.ts` (bloco "vocabulário da spec 228"),
+`timeline-view.contract.ts` (bloco "títulos dos eventos da spec 228"), `timeline-event-row.contract.ts`
+(ícone e tom); `apps/api-transportada/test/trip-application/trip-timeline-vocabulary.contract.ts` (novo,
+registrado em `test/trip-application.contract.test.ts`). Todos já fazem parte das listas existentes.
+
+Estado vermelho medido antes de qualquer código de produção:
+
+- Painel: `bun test ./test/trip.contract.test.ts` → 2291 pass, **10 fail** (kinds ausentes do vocabulário,
+  item aceito/recusado, títulos, locales, ícone/tom).
+- API: `bun --env-file=../../.env.test test ./test/trip-application.contract.test.ts` → o arquivo não
+  carrega (`TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS` não é exportado): 0 pass, 1 fail.
+
+Duas asserções passam no vermelho **por construção** e só provam algo depois da T1.2 — a prova por mutação
+delas está na T1.2: "recusa addressChange em qualquer kind que não seja o do endereço" (hoje a chave é
+desconhecida para todos) e "o tom dos dois é progress".

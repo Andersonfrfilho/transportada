@@ -66,6 +66,17 @@ describe('ícone e tom por tipo de evento', () => {
     expect(resolveTripTimelineIcon(makeItem({ kind: 'document.occurrence' })).tone).toBe('problem')
   })
 
+  it('foto do canhoto e endereço corrigido: câmera e lápis, tom neutro (spec 228)', () => {
+    expect(resolveTripTimelineIcon(makeItem({ kind: 'document.canhoto_photo' }))).toEqual({
+      icon: 'camera',
+      tone: 'neutral',
+    })
+    expect(resolveTripTimelineIcon(makeItem({ kind: 'stop.address_corrected' }))).toEqual({
+      icon: 'edit',
+      tone: 'neutral',
+    })
+  })
+
   it('o marco (viagem criada, chegada) é neutro e o andamento é cobre', () => {
     expect(resolveTripTimelineIcon(makeItem({ kind: 'trip.created' })).tone).toBe('neutral')
     expect(resolveTripTimelineIcon(makeItem({ kind: 'stop.arrived' })).tone).toBe('neutral')

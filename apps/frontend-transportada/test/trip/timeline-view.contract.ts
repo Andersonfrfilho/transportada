@@ -535,3 +535,49 @@ describe('rótulos da saída da parada (spec 206 T0.3 / D12)', () => {
     expect(en.stopDepartureCancelledUnknown).toBe('Cancelled the route to a stop')
   })
 })
+
+/** Spec 228 T1.1 (RF6): título, tom e rótulos dos dois eventos novos. Nenhuma fonte os emite ainda. */
+describe('títulos dos eventos da spec 228', () => {
+  it('a foto do canhoto leva a nota e, sem número legível, cai no título sem nota', () => {
+    const photo: TripTimelineItem = { ...BASE_ITEM, kind: 'document.canhoto_photo', toStatus: null }
+    expect(resolveTripTimelineTitle(photo, fakeTranslate)).toBe(
+      'eventTimeline.itemTitle.canhotoPhoto(invoice=123/1)',
+    )
+    expect(resolveTripTimelineTitle({ ...photo, document: null }, fakeTranslate)).toBe(
+      'eventTimeline.itemTitle.canhotoPhotoUnknownDocument',
+    )
+  })
+
+  it('o endereço corrigido tem título fixo, sem endereço nem nota', () => {
+    const corrected: TripTimelineItem = {
+      ...BASE_ITEM,
+      addressChange: { displacementMeters: 45, origin: 'operator' },
+      document: null,
+      kind: 'stop.address_corrected',
+      toStatus: null,
+    }
+    expect(resolveTripTimelineTitle(corrected, fakeTranslate)).toBe(
+      'eventTimeline.itemTitle.addressCorrected',
+    )
+  })
+
+  it('o tom dos dois é progress — não é conclusão nem problema', () => {
+    expect(
+      resolveTripTimelineTone({ ...BASE_ITEM, kind: 'document.canhoto_photo', toStatus: null }),
+    ).toBe('progress')
+    expect(
+      resolveTripTimelineTone({ ...BASE_ITEM, kind: 'stop.address_corrected', toStatus: null }),
+    ).toBe('progress')
+  })
+
+  it('os rótulos existem em pt e en', () => {
+    const pt = tripPt.eventTimeline.itemTitle
+    const en = tripEn.eventTimeline.itemTitle
+    expect(pt.canhotoPhoto).toBe('Foto do canhoto — NF-e {{invoice}}')
+    expect(pt.canhotoPhotoUnknownDocument).toBe('Foto do canhoto')
+    expect(pt.addressCorrected).toBe('Endereço da parada corrigido')
+    expect(en.canhotoPhoto).toBe('Receipt photo — invoice {{invoice}}')
+    expect(en.canhotoPhotoUnknownDocument).toBe('Receipt photo')
+    expect(en.addressCorrected).toBe('Stop address corrected')
+  })
+})
