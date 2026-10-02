@@ -32,6 +32,8 @@ function makeItem(id: string, overrides: Partial<TripTimelineItem>): TripTimelin
     fromStatus: null,
     id,
     kind: 'stop.arrived',
+    location: null,
+    locationState: null,
     occurrence: null,
     occurredAt: '2026-09-18T12:00:00',
     onBehalfOfDriverName: null,

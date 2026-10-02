@@ -20,6 +20,8 @@ const BASE_ITEM: TripTimelineItem = {
   fromStatus: null,
   id: 'item-1',
   kind: 'trip.status_changed',
+  location: null,
+  locationState: null,
   occurrence: null,
   occurredAt: '2026-09-18T12:00:00.000Z',
   onBehalfOfDriverName: null,

@@ -339,9 +339,9 @@ export type TripTimelineItem = Readonly<{
   kind: TripTimelineKind
   /** Spec 205 RF8: baixa registrada depois ("registrar entrega depois"). Ausente na API anterior. */
   lateRegistration?: boolean
-  /** Spec 196 RF9/RF10: ausente na API anterior. */
-  location?: null | TripTimelineLocation
-  locationState?: null | TripTimelineLocationState
+  /** Spec 196 RF9/RF10: sempre presente — `null` quando o toque não carimbou (T6.4). */
+  location: null | TripTimelineLocation
+  locationState: null | TripTimelineLocationState
   occurrence: null | TripTimelineOccurrenceReference
   occurredAt: string
   onBehalfOfDriverName: null | string
