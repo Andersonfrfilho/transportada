@@ -6,38 +6,38 @@ Uma fase só. O conserto é pequeno; o que o torna uma spec é mexer numa decis�
 
 > 🤖 Modelo: `sonnet` (nenhuma task 🧠 — a decisão está fechada na spec)
 
-- [ ] **T1.1** Confirmar no schema qual coluna marca a conclusão da viagem (`updatedAt` ou coluna
+- [x] **T1.1** Confirmar no schema qual coluna marca a conclusão da viagem (`updatedAt` ou coluna
       própria) e registrar a escolha em `evidence.md` — `apps/api-transportada/src/database/trip.schema.ts` —
       evidência: o trecho do schema citado, com o nome da coluna que a janela vai usar.
-- [ ] **T1.2** [P] Varrer os chamadores de `GET /me/trips/current` e afirmar que só o app do
+- [x] **T1.2** [P] Varrer os chamadores de `GET /me/trips/current` e afirmar que só o app do
       motorista o consome — evidência: a lista de chamadores em `evidence.md`.
-- [ ] **T1.3** Teste de integração **antes** da implementação: viagem concluída aparece dentro da
+- [x] **T1.3** Teste de integração **antes** da implementação: viagem concluída aparece dentro da
       janela com `status: 'completed'` e não aparece fora dela —
       `apps/api-transportada/test/integration/current-driver-trip-concluded-window.integration.ts`
       (+ a linha na lista de `package.json`, senão não roda) — evidência: vermelho pelo motivo certo.
-- [ ] **T1.4** A consulta aceita ativo **ou** concluído na janela, com a constante nomeada —
+- [x] **T1.4** A consulta aceita ativo **ou** concluído na janela, com a constante nomeada —
       `apps/api-transportada/src/trips/infrastructure/drizzle-current-driver-trip.repository.ts` —
       evidência: T1.3 verde, `bun --env-file=../../.env.test run test:integration` na app.
-- [ ] **T1.5** Teste de contrato do seletor: concluída não é eleita em nenhum dos três caminhos
+- [x] **T1.5** Teste de contrato do seletor: concluída não é eleita em nenhum dos três caminhos
       (CA2) — `apps/frontend-driver/test/driver-trip/trip-selection.contract.ts` — evidência:
       vermelho antes, verde depois da T1.6.
-- [ ] **T1.6** `resolveSelectedTrip` descarta viagem concluída —
+- [x] **T1.6** `resolveSelectedTrip` descarta viagem concluída —
       `apps/frontend-driver/src/modules/driver-trip/shared/driverTripSelection.service.ts` —
       evidência: T1.5 verde.
-- [ ] **T1.7** Trocar o caso inalcançável pelo real em
+- [x] **T1.7** Trocar o caso inalcançável pelo real em
       `apps/frontend-driver/test/driver-trip/trip-reassignment.contract.ts`: a sequência
       `on_delivery_route` → `completed` → ausente não avisa (CA3), e a troca de tripulação sem passar
       por `completed` continua avisando (CA4) — evidência: o caso antigo removido no diff, não
       apenas somado.
-- [ ] **T1.8** Prova por mutação (CA5): desfazer a T1.6 faz T1.5 falhar; desfazer a T1.4 faz T1.3
+- [x] **T1.8** Prova por mutação (CA5): desfazer a T1.6 faz T1.5 falhar; desfazer a T1.4 faz T1.3
       falhar — evidência: as duas saídas de falha em `evidence.md`.
-- [ ] **T1.9** Revisão de design e usabilidade (CA6, web.md §15): print da tela ao concluir a última
+- [x] **T1.9** Revisão de design e usabilidade (CA6, web.md §15): print da tela ao concluir a última
       viagem — estado de sem viagem, **sem** o aviso — em 375, 768 e 1280, entregue ao usuário.
-- [ ] **T1.11** (achado da T1.2) A cópia legada do painel também ignora viagem concluída ao pegar
+- [x] **T1.11** (achado da T1.2) A cópia legada do painel também ignora viagem concluída ao pegar
       `trips[0]` — `apps/frontend-transportada/src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx:140`
       e `.../DriverProfile.page.tsx:43` — evidência: contrato no painel afirmando que viagem
       concluída não é exibida. Não é a remoção do módulo (Fase 10 da 189, sob aprovação).
-- [ ] **T1.10** Atualizar o contexto da I.A.: `apps/frontend-driver/CLAUDE.md` (o aviso e por que o
+- [x] **T1.10** Atualizar o contexto da I.A.: `apps/frontend-driver/CLAUDE.md` (o aviso e por que o
       status concluído agora chega), `apps/api-transportada/CLAUDE.md` (a janela na consulta) e a
       emenda à 217 em `specs/217-.../spec.md` apontando para esta spec.
 
