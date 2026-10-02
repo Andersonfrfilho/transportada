@@ -1,4 +1,4 @@
-# Feature 226 — Cada nota diz quanto rendeu e quanto gastou
+# Feature 232 — Cada nota diz quanto rendeu e quanto gastou
 
 ## Problema e resultado
 

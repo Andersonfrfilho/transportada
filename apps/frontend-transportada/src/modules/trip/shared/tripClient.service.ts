@@ -245,7 +245,7 @@ export type TripClient = Readonly<{
   readTripTimeline: (
     input: Readonly<{
       cursor: null | string
-      /** Spec 227 T5.1: só os eventos desta nota e os da parada dela — o filtro é do servidor. */
+      /** Spec 233 T5.1: só os eventos desta nota e os da parada dela — o filtro é do servidor. */
       documentId?: string
       limit: number
       tripId: string

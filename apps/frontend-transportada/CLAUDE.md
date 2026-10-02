@@ -306,7 +306,7 @@ window`), e o `mock.module` que troca os clientes (`getTripClient`, `getRouteSug
 `test/trip-hooks/renderHook.helper.ts`, sobre `react-dom/client` + `act` — sem
 `@testing-library/*`. Storage em memória e cliente falso: `test/fixtures/tripAssemblyHooks.fixture.ts`.
 
-## A nota se abre inteira (spec 227)
+## A nota se abre inteira (spec 233)
 
 A linha da nota na viagem é um acordeão de abertura exclusiva (`useOpenTripDocument`) com Dados da nota,
 Ocorrências, Comprovante (dois selos) e Eventos desta entrega. ⚠️ `isDeliveryProof` recusa chave desconhecida

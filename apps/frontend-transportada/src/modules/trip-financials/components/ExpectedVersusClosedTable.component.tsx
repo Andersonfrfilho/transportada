@@ -18,7 +18,7 @@ function formatDifference(row: ExpectedVersusClosedRow): string {
 }
 
 /**
- * Spec 226 D6: previsto, fechado e a diferença entre eles, linha a linha. A diferença que dá zero
+ * Spec 232 D6: previsto, fechado e a diferença entre eles, linha a linha. A diferença que dá zero
  * continua na tela dizendo que é zero — "sem diferença" também é informação.
  */
 export function ExpectedVersusClosedTable({ rows }: ExpectedVersusClosedTableProps) {

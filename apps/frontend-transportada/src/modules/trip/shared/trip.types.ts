@@ -418,7 +418,7 @@ export type TripDocumentDetail = TripDocument &
     nfeNumber?: null | string
     nfeSeries?: null | string
     nfeTotalValue?: null | string
-    /** Spec 227 D5: quantos volumes a nota declara. Ausente é API anterior; `null`, nota sem a informação. */
+    /** Spec 233 D5: quantos volumes a nota declara. Ausente é API anterior; `null`, nota sem a informação. */
     volumeCount?: null | number
     /**
      * Spec 176: quanto esta nota rende de frete — nunca a mercadoria. `null`/ausente é "não há como

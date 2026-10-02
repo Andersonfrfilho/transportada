@@ -52,7 +52,7 @@ import {
 import styles from '../styles/trip.module.css'
 
 type TripOccurrencesProps = Readonly<{
-  /** Spec 227 D8: só quem lê a frota abre `/ocorrencias/:id` — sem isso, o tipo sai como texto. */
+  /** Spec 233 D8: só quem lê a frota abre `/ocorrencias/:id` — sem isso, o tipo sai como texto. */
   canOpenOccurrence?: boolean
   canRegister: boolean
   /** O e-mail que o último registro produziu, para o operador conferir e enviar. */

@@ -177,7 +177,7 @@ export async function readDeliveryProofs({
 }
 
 /**
- * Spec 227 D6: o raio que o juiz da captura usa — a mesma fonte única da pontualidade
+ * Spec 233 D6: o raio que o juiz da captura usa — a mesma fonte única da pontualidade
  * (`DrizzleDeliveryProofRepository.resolveProofPunctualitySettings`). Só o raio é lido aqui: os
  * demais parâmetros da nota do motorista não saem desta rota.
  */
@@ -191,7 +191,7 @@ export type ProofRadiusPort = {
 export type TripDeliveryProofView = DeliveryProofView & {
   readonly documentId: string
   /**
-   * Spec 227 D6: o raio de "longe do ponto", em metros, já resolvido no servidor — o leitor não
+   * Spec 233 D6: o raio de "longe do ponto", em metros, já resolvido no servidor — o leitor não
    * precisa de `settings.manage`. Ausente (nunca zero) quando não há número positivo para dizer.
    */
   readonly proofRadiusMeters?: number

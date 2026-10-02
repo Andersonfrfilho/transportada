@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Revisão da spec 227 (M4): "Ver cliente" levava o NOME do destinatário na query string
+ * Revisão da spec 233 (M4): "Ver cliente" levava o NOME do destinatário na query string
  * (`/clientes?name=`) — e o destinatário pode ser pessoa física (security.md §8: nenhum dado pessoal em
  * URL). O nome agora vai por `sessionStorage`, lido e removido uma vez pela lista; o endereço é `/clientes`.
  */
@@ -57,7 +57,7 @@ afterEach(() => {
   else Object.defineProperty(globalThis, 'sessionStorage', originalStorage)
 })
 
-describe('Ver cliente: o nome não viaja na URL (revisão 227 M4)', () => {
+describe('Ver cliente: o nome não viaja na URL (revisão 233 M4)', () => {
   it('o endereço é só /clientes, sem query', () => {
     expect(buildDeliveryClientSearchRoute()).toBe('/clientes')
   })

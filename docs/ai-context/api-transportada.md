@@ -2153,7 +2153,7 @@ mesma transação, para uma falha do roteirizador não desfazer o vínculo ou a 
 revisão (`move`/`swap`) funciona por vinculação/desvinculação das duas viagens (origem e destino);
 ambas recalculam, em paralelo e cada uma isolada, antes do despacho (T206, RF12).
 
-## Spec 226 — o custo da viagem desce para a nota, por distância e tempo
+## Spec 232 — o custo da viagem desce para a nota, por distância e tempo
 
 `GET /trips/:id/valuation` devolve, em cada item de `revenueLines`, oito campos além do frete
 (`amount`): `costAmount`, `legCostAmount`, `tripShareCostAmount`, `taxAmount`, `marginAmount`,
@@ -2200,7 +2200,7 @@ existia): paradas e eventos da viagem inteira de uma vez. O teste de integraçã
 `buildValuationFromContext` **sem** trechos e paradas: as linhas delas saem `unavailable`, com
 `taxAmount` calculado. É por isso que os oito campos são **opcionais** na resposta.
 
-## Spec 227 — a nota se abre inteira (o que a API devolveu ao painel)
+## Spec 233 — a nota se abre inteira (o que a API devolveu ao painel)
 
 Três leituras ganharam campo ou filtro, todas aditivas:
 
@@ -2220,7 +2220,7 @@ Três leituras ganharam campo ou filtro, todas aditivas:
 
 ⚠️ Campo novo no comprovante só pode ir para staging **depois** de o painel aceitá-lo: o validador do
 painel descarta o item inteiro que traga chave desconhecida (ver `frontend-transportada.md`, § "A nota
-se abre inteira"). O rateio de custo da 226 está acima, em "Spec 226".
+se abre inteira"). O rateio de custo da 232 está acima, em "Spec 232".
 
 ## Spec 228 — a foto do canhoto e o endereço corrigido viram evento da linha do tempo
 

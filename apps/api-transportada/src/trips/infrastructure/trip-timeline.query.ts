@@ -68,7 +68,7 @@ export async function findTripCompanyScope(
 }
 
 /**
- * Spec 227 D7: a nota pedida tem de ser **desta viagem e desta empresa**. Sem as duas chaves, o filtro
+ * Spec 233 D7: a nota pedida tem de ser **desta viagem e desta empresa**. Sem as duas chaves, o filtro
  * viraria sonda de existência de nota alheia (lista vazia para "não existe" e para "existe em outra
  * empresa" seria o mesmo sinal, e 404 para uma e 200 para outra vazaria qual é qual).
  */

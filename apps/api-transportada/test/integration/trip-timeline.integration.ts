@@ -1384,7 +1384,7 @@ describe('GET /trips/:id/timeline carrega onde o motorista tocou (spec 196 T4.2)
   })
 })
 
-describe('trip-timeline.query com documentId (spec 227 T5.1) contra o Postgres', () => {
+describe('trip-timeline.query com documentId (spec 233 T5.1) contra o Postgres', () => {
   type DocumentFilterSeed = {
     readonly company: Company
     readonly documentA: string

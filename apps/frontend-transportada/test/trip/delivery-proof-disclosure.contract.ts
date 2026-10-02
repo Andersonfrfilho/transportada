@@ -5,7 +5,7 @@
  * **incondicionalmente** nos três estados (`proposta-ux.md` item 1, "o comprovante despeja tudo de
  * uma vez") — é daí que vem o "muro de texto" do card do usuário. Cada lista virou a própria
  * expansão, reusando o padrão da spec 180 (`aria-expanded`/`aria-controls`, chevron), com a
- * contagem no rótulo fechado para produtos. Spec 227 D2: a das ocorrências saiu do comprovante e
+ * contagem no rótulo fechado para produtos. Spec 233 D2: a das ocorrências saiu do comprovante e
  * virou seção da nota aberta (`TripDocumentOccurrences`), então o comprovante guarda só a de itens.
  */
 import { readFileSync } from 'node:fs'
@@ -24,7 +24,7 @@ const DETAIL = new URL(
   import.meta.url,
 )
 
-describe('os itens do comprovante abrem sob demanda; as ocorrências são seção da nota (spec 181 RF6/RF7, 227 D2)', () => {
+describe('os itens do comprovante abrem sob demanda; as ocorrências são seção da nota (spec 181 RF6/RF7, 233 D2)', () => {
   const source = [COMPONENT, DETAIL].map((file) => readFileSync(file, 'utf8')).join('\n')
 
   it('nenhum dos três estados despeja a lista de produtos incondicionalmente', () => {
@@ -60,7 +60,7 @@ describe('os itens do comprovante abrem sob demanda; as ocorrências são seçã
     const ariaControles = (source.match(/aria-controls=/gu) ?? []).length
     const ariaExpandidos = (source.match(/aria-expanded=/gu) ?? []).length
 
-    /** Dois: os itens e, desde a revisão de design da 227, o resumo que abre o comprovante. */
+    /** Dois: os itens e, desde a revisão de design da 233, o resumo que abre o comprovante. */
     expect(ariaControles).toBe(2)
     expect(ariaExpandidos).toBe(2)
     expect(source.match(/chevron-up/gu)).toHaveLength(2)
@@ -72,7 +72,7 @@ describe('os itens do comprovante abrem sob demanda; as ocorrências são seçã
     expect(source).toContain('trip-delivery-proof-products-${documentId}')
   })
 
-  /** Spec 227 D2: o que a expansão de ocorrências garantia passa a ser garantido pela seção. */
+  /** Spec 233 D2: o que a expansão de ocorrências garantia passa a ser garantido pela seção. */
   it('o comprovante não carrega mais ocorrência: nem prop, nem expansão, nem estado', () => {
     expect(source).not.toContain('occurrences')
     expect(source).not.toContain('isOccurrencesExpanded')

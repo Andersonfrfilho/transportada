@@ -20,7 +20,7 @@ const quantityFormatter = new Intl.NumberFormat('pt-BR', {
  * comprovante — a lista vira a própria expansão, reusando o padrão da spec 180
  * (`aria-expanded`/`aria-controls`, chevron). Nota sem produto não oferece a expansão vazia; ela só
  * imprime o aviso de que não há item (mesma regra da CA07/CA16). As ocorrências saíram daqui
- * (spec 227 D2): são seção da nota aberta (`TripDocumentOccurrences`).
+ * (spec 233 D2): são seção da nota aberta (`TripDocumentOccurrences`).
  */
 export function TripDeliveryProofDetail({
   documentId,

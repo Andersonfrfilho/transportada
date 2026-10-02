@@ -366,7 +366,7 @@ export function useTripWorkspace(
   /** Prefixo compartilhado: invalidar `['trips']` alcança o detalhe e a tabela paginada. */
   const listKey = [TRIP_QUERY_KEY] as const
 
-  /** Spec 227 D1: a nota aberta no acordeão — uma só, e é ela que a âncora da linha do tempo abre. */
+  /** Spec 233 D1: a nota aberta no acordeão — uma só, e é ela que a âncora da linha do tempo abre. */
   const { openDocumentId, toggleDocument } = useOpenTripDocument()
   /**
    * Qual nota está com o diálogo de ocorrência de separação aberto (botão da linha, sem passar
@@ -415,7 +415,7 @@ export function useTripWorkspace(
   })
 
   /**
-   * Spec 227 D1: abrir a nota **não** é pedir o comprovante. Nota que não foi entregue nem devolvida
+   * Spec 233 D1: abrir a nota **não** é pedir o comprovante. Nota que não foi entregue nem devolvida
    * não tem comprovante — buscá-lo daria 404 e um estado de erro na tela. As três consultas abaixo
    * (comprovante, itens) seguem `openProofDocumentId`, que só existe quando há o que buscar. As
    * ocorrências são a exceção: nota não entregue também as tem (a ocorrência não espera a viagem

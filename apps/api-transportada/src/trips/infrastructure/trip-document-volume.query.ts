@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 227 D5/T2.3: quantos volumes cada nota tem, em **uma consulta** para a viagem inteira.
+ * Spec 233 D5/T2.3: quantos volumes cada nota tem, em **uma consulta** para a viagem inteira.
  * `quantity` é o `qVol` de cada `<vol>` da NF-e, então a soma por nota é o número de volumes dela.
  * Nota sem linha de volume, ou com soma que não é inteira, não entra no mapa: o chamador lê
  * "desconhecido", nunca zero.

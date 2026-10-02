@@ -164,7 +164,7 @@ describe('GET /trips/:id/delivery-proofs (spec 222 T1.2)', () => {
     expect(fixture.readTripDeliveryProofsCalls).toEqual([])
   })
 
-  test('o raio (spec 227 D6) sai ao leitor só com fleet.read: nem settings.manage nem trip.financials', async () => {
+  test('o raio (spec 233 D6) sai ao leitor só com fleet.read: nem settings.manage nem trip.financials', async () => {
     const withRadius = PROOF_VIEWS.map((view) => ({ ...view, proofRadiusMeters: 300 }))
     const fixture = await createTripHttpFixture({
       permissions: new Set(['fleet.read']),

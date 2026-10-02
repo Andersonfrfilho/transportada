@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 227 D5/T2.3: `documents[].volumeCount` no detalhe da viagem — inteiro ou `null`, nunca `0`
+ * Spec 233 D5/T2.3: `documents[].volumeCount` no detalhe da viagem — inteiro ou `null`, nunca `0`
  * no lugar de "desconhecido". Não é dinheiro nem dado pessoal: aparece sem `trip.financials`.
  */
 import { describe, expect, test } from 'bun:test'
@@ -67,7 +67,7 @@ async function readDocuments(input: {
   return { documents: data.documents, stopDocuments: data.stops[0]?.documents ?? [] }
 }
 
-describe('GET /trips/:id answers documents[].volumeCount (spec 227 T2.3)', () => {
+describe('GET /trips/:id answers documents[].volumeCount (spec 233 T2.3)', () => {
   test('keeps a count, a zero and an unknown apart — null is never turned into 0', async () => {
     const { documents, stopDocuments } = await readDocuments({
       permissions: FINANCIALS_PERMISSIONS,

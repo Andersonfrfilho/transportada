@@ -15,7 +15,7 @@ type TripFinancialColumnsProps = Readonly<{
 }>
 
 /**
- * Spec 226 D6: a conta **prevista** e a conta **fechada**, cada uma sob o próprio rótulo. Lado a
+ * Spec 232 D6: a conta **prevista** e a conta **fechada**, cada uma sob o próprio rótulo. Lado a
  * lado em tela larga, uma sobre a outra em tela estreita.
  */
 export function TripFinancialColumns({ gapActions, result, valuation }: TripFinancialColumnsProps) {

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 227 T5.1 (D7): o filtro por nota é aplicado no SQL das fontes que carregam nota, e a conferência
+ * Spec 233 T5.1 (D7): o filtro por nota é aplicado no SQL das fontes que carregam nota, e a conferência
  * de que a nota é da viagem e da empresa do contexto ancora as duas chaves. Lê a fonte, no molde de
  * `trip-timeline-query-tenant-safety.contract.ts`; a prova de comportamento contra o banco está em
  * `test/integration/trip-timeline.integration.ts`.
@@ -19,7 +19,7 @@ const DOCUMENT_SOURCE = readSource('../../src/trips/infrastructure/trip-timeline
 const ORCHESTRATOR_SOURCE = readSource('../../src/trips/infrastructure/trip-timeline.query.ts')
 const STATUS_SOURCE = readSource('../../src/trips/infrastructure/trip-timeline-status.query.ts')
 
-describe('filtro por nota da linha do tempo (spec 227 T5.1)', () => {
+describe('filtro por nota da linha do tempo (spec 233 T5.1)', () => {
   test('eventos de parada deixam passar o que não tem nota e filtram o que tem', () => {
     expect(STOP_SOURCE).toContain('isNull(tripStopEvents.tripDocumentId)')
     expect(STOP_SOURCE).toContain('eq(tripStopEvents.tripDocumentId, params.documentId)')

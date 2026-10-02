@@ -1,6 +1,6 @@
 # Evidence — 228 A foto do canhoto e o endereço viram evento
 
-Spec escrita em 2026-10-02 (227 T5.0), a partir da leitura do código em `HEAD` 0ebe811d5. Número 228 conferido
+Spec escrita em 2026-10-02 (233 T5.0), a partir da leitura do código em `HEAD` 0ebe811d5. Número 228 conferido
 livre em `origin/staging` (último: `225-a-viagem-terminada-nao-foi-movida`) e em `origin/main`.
 
 N1 respondida pelo usuário em 2026-10-02 ("Só correção humana (Recomendado)") →
@@ -10,7 +10,7 @@ spec D11; nenhum `[NEEDS CLARIFICATION]` aberto, nenhuma migration.
 
 Cada linha da tabela "O que já existe" foi aberta no código. **Todos os fatos se mantêm; nenhuma divergência
 muda o desenho** (D1–D12 intactas, sem migration). Só a numeração de linhas deslocou — a spec cita as de
-`0ebe811d5`, e a 227 mexeu depois em arquivos vizinhos.
+`0ebe811d5`, e a 233 mexeu depois em arquivos vizinhos.
 
 | Fato da spec                                                                                | Estado em 6fab0fc23                                                                                                                                                                                  |
 | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -27,7 +27,7 @@ muda o desenho** (D1–D12 intactas, sem migration). Só a numeração de linhas
 | `geocoding_refinement_requests` com `company_id`, ator, `outcome`, `created_at`             | confere: `geocoding-refinement.schema.ts:29-41`; índice `(company_id, created_at)` em `:54`                                                                                                          |
 | `Promise.all` das fontes + ordenação `(occurredAt, prioridade, id)` e `::int`               | confere: `trip-timeline.query.ts:112-120` (sete fontes); `trip-timeline-condition.helper.ts:43` e `:72` (`::int`)                                                                                    |
 | prioridades                                                                                 | confere: `TRIP_TIMELINE_KIND_PRIORITY` em `trip-timeline.types.ts` — `document.delivered = 4`, `stop.occurrence = 1`; **2 já é de `document.occurrence`** (ver nota)                                 |
-| filtro `?documentId=` deixa passar `trip_document_id is null`                               | confere: `trip-timeline-stop.query.ts:113` (a spec cita `:104-106`); a 227 T5.1 acrescentou `documentStopId` em `ReadTripTimelineParams`                                                             |
+| filtro `?documentId=` deixa passar `trip_document_id is null`                               | confere: `trip-timeline-stop.query.ts:113` (a spec cita `:104-106`); a 233 T5.1 acrescentou `documentStopId` em `ReadTripTimelineParams`                                                             |
 | sem `trip.event-location` o caso de uso zera `location`                                     | confere: `read-trip-timeline.use-case.ts` (recorte logo após `canReadEventLocation`)                                                                                                                 |
 | `trip_documents.stop_id` anulável                                                           | confere: `trip.schema.ts:773`                                                                                                                                                                        |
 | nada impede duas paradas com a mesma `address_key`                                          | confere: só `(company, trip, sequence)` é único (`:710`)                                                                                                                                             |
@@ -344,8 +344,8 @@ M8 foto com pino `status` · M9 componente sem a origem · M10 componente sem o 
   colunas proibidas, erro de fonte propaga, limite da correção de outra empresa).
 - `docs/ai-context/frontend-transportada.md`: nova seção (ícones, títulos, pinos, origem e deslocamento, "Ver no mapa"
   só com `location`, pendência da legenda "Mudança de situação").
-- Ponteiros de 3 a 4 linhas nos `CLAUDE.md` das duas apps, dentro das seções da 227.
-- 227: `tasks.md` e `evidence.md` registram que a Fase 5 recebeu os eventos; a ressalva D12 segue na T6.1 da 227.
+- Ponteiros de 3 a 4 linhas nos `CLAUDE.md` das duas apps, dentro das seções da 233.
+- 233: `tasks.md` e `evidence.md` registram que a Fase 5 recebeu os eventos; a ressalva D12 segue na T6.1 da 233.
 - Nomes conferidos contra o código com `ls`/`grep`. Só documentação; nada executado além do `prettier`.
 
 ## Revisão opus da spec 228 — achados tratados
@@ -407,10 +407,10 @@ criada (instrução: sem migration).
 ### Fixture e smoke dos prints (sem regerar os prints finais)
 
 `test/trip-note-accordion.fixture.ts` (modo `note-accordion`) ganhou `document.canhoto_photo` (com `location`) e
-`stop.address_corrected` (origem contratante, 45 m, com `location`) na timeline da nota; `spec-227-prints.smoke.spec.ts`
+`stop.address_corrected` (origem contratante, 45 m, com `location`) na timeline da nota; `spec-233-prints.smoke.spec.ts`
 afirma "Foto do canhoto", "Endereço da parada corrigido" e "Corrigido pelo contratante · deslocado 45 m" em "Eventos
 desta entrega" (o teste já exige sem transbordo em 375 via `expectNothingEscapes` e `expectNoHorizontalOverflow`).
-`PLAYWRIGHT_FRONTEND_PORT=53225 PLAYWRIGHT_TEST_MATCH=spec-227-prints.smoke.spec.ts bun run smoke`: **13 passed**
+`PLAYWRIGHT_FRONTEND_PORT=53225 PLAYWRIGHT_TEST_MATCH=spec-233-prints.smoke.spec.ts bun run smoke`: **13 passed**
 (mutação do `summary` derrubou o teste 375 dark). Os PNGs regenerados foram restaurados com `git restore` (arquivos de
 saída, sem outra edição); os prints finais da T4.2 dependem do ok do usuário.
 
@@ -434,6 +434,6 @@ saída, sem outra edição); os prints finais da T4.2 dependem do ok do usuário
 
 ## T4.2 / T5.2 / T5.3 — fechamento (2026-10-02)
 
-T4.2: prints aprovados pelo usuário junto da T6.1 da 227. T5.2: portão da raiz verde (format:check, lint, typecheck, build,
+T4.2: prints aprovados pelo usuário junto da T6.1 da 233. T5.2: portão da raiz verde (format:check, lint, typecheck, build,
 test); integração completa da API 853 pass / 1 fail por timeout de 30 s sob carga em `trip-occurrence-item-quantity`
 (5/5 isolado). T5.3: revisão opus “aprovada com pendências”, achados tratados em `fixes-228`.

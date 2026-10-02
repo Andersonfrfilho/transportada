@@ -21,7 +21,7 @@ type TripDocumentProofBadgesProps = Readonly<{
   badges: TripDocumentProofBadgesValue | undefined
 }>
 
-/** Spec 227 D4: dois selos lado a lado, o de conferência e o de pontualidade; o rótulo diz, não só a cor. */
+/** Spec 233 D4: dois selos lado a lado, o de conferência e o de pontualidade; o rótulo diz, não só a cor. */
 export function TripDocumentProofBadges({ badges }: TripDocumentProofBadgesProps) {
   const { t } = useTranslation('trip')
   if (badges === undefined) return null

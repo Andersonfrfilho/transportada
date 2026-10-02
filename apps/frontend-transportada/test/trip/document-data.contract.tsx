@@ -1,8 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 227 T2.1 (RF3/RF4, CA02/CA03) — "Dados da nota": NF-e, Série, Cliente, CNPJ, Valor da carga
- * e Volumes, cada um com o próprio botão de copiar, e o custo e lucro (spec 226) como filho da
+ * Spec 233 T2.1 (RF3/RF4, CA02/CA03) — "Dados da nota": NF-e, Série, Cliente, CNPJ, Valor da carga
+ * e Volumes, cada um com o próprio botão de copiar, e o custo e lucro (spec 232) como filho da
  * seção. Cobre o **renderizado** (`renderToStaticMarkup`), nunca texto de fonte para o conteúdo.
  */
 import { readFileSync } from 'node:fs'
@@ -103,7 +103,7 @@ function render(
   ).replace(NON_BREAKING_SPACE, ' ')
 }
 
-describe('Dados da nota: os campos (spec 227 RF3)', () => {
+describe('Dados da nota: os campos (spec 233 RF3)', () => {
   it('a série tem rótulo próprio, separada do número', () => {
     const html = render(buildDocument())
 
@@ -193,7 +193,7 @@ describe('Dados da nota: os campos (spec 227 RF3)', () => {
   })
 })
 
-describe('Dados da nota: ver cliente (spec 227, link rápido)', () => {
+describe('Dados da nota: ver cliente (spec 233, link rápido)', () => {
   it('o cliente leva à lista de clientes, pelo href, sem o nome na URL (revisão M4)', () => {
     const html = render(buildDocument(), null, true)
 
@@ -228,7 +228,7 @@ describe('Dados da nota: ver cliente (spec 227, link rápido)', () => {
   })
 })
 
-describe('Dados da nota: emissão e frete cedidos pelo resumo da linha (revisão de design da 227)', () => {
+describe('Dados da nota: emissão e frete cedidos pelo resumo da linha (revisão de design da 233)', () => {
   it('a nota aberta traz a emissão e o frete previsto, cada um com o seu botão de copiar', () => {
     const html = render(
       buildDocument({
@@ -257,7 +257,7 @@ describe('Dados da nota: emissão e frete cedidos pelo resumo da linha (revisão
   })
 })
 
-describe('Dados da nota: copiar (spec 227 D9)', () => {
+describe('Dados da nota: copiar (spec 233 D9)', () => {
   it('um botão por campo, com rótulo que diz o que copia', () => {
     const html = render(buildDocument())
 
@@ -307,7 +307,7 @@ describe('Dados da nota: copiar (spec 227 D9)', () => {
   })
 })
 
-describe('Dados da nota: custo e lucro dentro da seção (spec 227 RF4, D3)', () => {
+describe('Dados da nota: custo e lucro dentro da seção (spec 233 RF4, D3)', () => {
   it('o bloco de custo é filho da seção, depois da grade', () => {
     const html = render(buildDocument(), buildValuation())
     const sectionEnd = html.indexOf('</section>')

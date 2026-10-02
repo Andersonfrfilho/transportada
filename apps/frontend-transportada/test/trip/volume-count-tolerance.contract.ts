@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Revisão da spec 227 (M5): `documents[].volumeCount` é a soma de `nfe_volumes.quantity`, que é decimal.
+ * Revisão da spec 233 (M5): `documents[].volumeCount` é a soma de `nfe_volumes.quantity`, que é decimal.
  * A guarda exigia inteiro e uma nota com qVol fracionário derrubava a viagem inteira ("Não foi possível
  * carregar esta viagem"). Um refinamento de tela não pode recusar a resposta: a guarda aceita número
  * finito não negativo ou nulo; quem decide se o número é imprimível é a tela.
@@ -65,7 +65,7 @@ function buildDetail(volumeCount: unknown) {
   }
 }
 
-describe('volumeCount na viagem não derruba a resposta (revisão 227 M5)', () => {
+describe('volumeCount na viagem não derruba a resposta (revisão 233 M5)', () => {
   it.each([12, 0, null, 2.5])('aceita %p', (volumeCount) => {
     expect(adapters.tripDetailFromApi(buildDetail(volumeCount)).documents).toHaveLength(1)
   })

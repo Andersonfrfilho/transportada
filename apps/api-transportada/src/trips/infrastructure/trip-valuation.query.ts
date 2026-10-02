@@ -231,7 +231,7 @@ export class DrizzleTripValuationQuery {
         plannedJourneyIncludesReturn: trips.plannedJourneyIncludesReturn,
         plannedJourneySeconds: trips.plannedJourneySeconds,
         plannedReturnDistanceMeters: trips.plannedReturnDistanceMeters,
-        /** Spec 226: o jsonb inteiro, para os trechos do rateio — o parse é da política. */
+        /** Spec 232: o jsonb inteiro, para os trechos do rateio — o parse é da política. */
         plannedRoute: trips.plannedRoute,
         plannedToll: trips.plannedToll,
         /**
@@ -299,7 +299,7 @@ export class DrizzleTripValuationQuery {
       helperCrew,
       journeyIncludesReturn: trip.plannedJourneyIncludesReturn,
       journeySeconds: trip.plannedJourneySeconds,
-      /** Spec 226 D5: ausente quando o roteiro não foi congelado; a política trata como ausência. */
+      /** Spec 232 D5: ausente quando o roteiro não foi congelado; a política trata como ausência. */
       legs: readApportionmentLegs(trip.plannedRoute),
       manualCostTotal,
       returnDistanceMetres: trip.plannedReturnDistanceMeters,
@@ -322,14 +322,14 @@ export class DrizzleTripValuationQuery {
   }
 
   /**
-   * Spec 226 D9: as paradas na ordem da rota com a espera de cada uma. **Uma consulta** para a viagem
+   * Spec 232 D9: as paradas na ordem da rota com a espera de cada uma. **Uma consulta** para a viagem
    * inteira — as paradas e os eventos que medem a espera vêm juntos, e nenhuma delas é lida por
    * parada nem por nota. Coordenada não entra: só o instante do evento.
    */
   /**
    * A espera na parada é refinamento da conta por nota — os totais da viagem não dependem dela, e esta
    * mesma leitura alimenta o recálculo do resultado congelado. Uma falha aqui não pode derrubar o caminho
-   * crítico: sem paradas a política devolve `unavailable` (spec 226 D5), que é o comportamento declarado.
+   * crítico: sem paradas a política devolve `unavailable` (spec 232 D5), que é o comportamento declarado.
    * ⚠️ Só o nome do erro vai para o log: a mensagem do banco pode citar a linha.
    */
   private async readStopDwellsOrNone(input: {

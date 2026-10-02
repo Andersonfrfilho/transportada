@@ -348,7 +348,7 @@ function resolveEntryTitle(
 }
 
 /**
- * `isOwnDelivery` (spec 227 D11): a linha aparece dentro da própria nota — o `departed` ali é a saída
+ * `isOwnDelivery` (spec 233 D11): a linha aparece dentro da própria nota — o `departed` ali é a saída
  * **para esta parada**, e o título não aponta de volta para a nota em que já está.
  */
 export function TripTimelineEntry({

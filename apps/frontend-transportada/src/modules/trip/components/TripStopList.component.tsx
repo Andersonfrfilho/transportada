@@ -131,15 +131,15 @@ export type TripStopDocumentActions = Readonly<{
   onOpenFieldDelivery: (documentId: string) => void
   /** Abre `SeparationOccurrenceDialog` para esta nota (ação da linha, no galpão). */
   onOpenSeparationOccurrence: (documentId: string) => void
-  /** Spec 227 D1: abre e fecha a nota — abrir uma fecha a que estava aberta. */
+  /** Spec 233 D1: abre e fecha a nota — abrir uma fecha a que estava aberta. */
   onToggleDocument: (documentId: string) => void
   openDocumentId: null | string
-  /** Spec 227 D4: conferência e pontualidade de cada nota, para o cabeçalho fechado. */
+  /** Spec 233 D4: conferência e pontualidade de cada nota, para o cabeçalho fechado. */
   proofBadgesByDocumentId: ReadonlyMap<string, TripDocumentProofBadgesValue>
   renderProof: (documentId: string) => ReactNode
-  /** Spec 227 D2: a seção Ocorrências da nota aberta, depois do comprovante. */
+  /** Spec 233 D2: a seção Ocorrências da nota aberta, depois do comprovante. */
   renderOccurrences: (documentId: string) => ReactNode
-  /** Spec 227 T5.3: "Eventos desta entrega", a última seção da nota aberta. */
+  /** Spec 233 T5.3: "Eventos desta entrega", a última seção da nota aberta. */
   renderEvents: (documentId: string) => ReactNode
   onLoad: (documentId: string) => void
   onOverrideAddress: (documentId: string) => void
@@ -520,7 +520,7 @@ function TripStopDocumentRow({
           />
         </span>
         {/*
-         * Spec 227 RF1: a caixa e o botão de abrir são **irmãos**. Botão dentro de botão é HTML
+         * Spec 233 RF1: a caixa e o botão de abrir são **irmãos**. Botão dentro de botão é HTML
          * inválido e engole o clique; a caixa marcada para o lote nunca abre nem fecha a nota.
          */}
         <button
@@ -561,7 +561,7 @@ function TripStopDocumentRow({
               </Button>
             </Tooltip>
           ) : null}
-          {/* Spec 227 D4: os dois selos do comprovante ficam fora do botão de abrir, com a nota fechada. */}
+          {/* Spec 233 D4: os dois selos do comprovante ficam fora do botão de abrir, com a nota fechada. */}
           <TripDocumentProofBadges badges={actions.proofBadgesByDocumentId.get(document.id)} />
           {/* Spec 223 RF4/RF9: baixada sem canhoto — sinaliza, não bloqueia nem substitui ação. */}
           {hasProofPendingMarker(document) ? (
@@ -618,7 +618,7 @@ function TripStopDocumentRow({
        * expansão (T304) — são dado de confirmação, não de triagem.
        */}
       {/*
-       * Revisão de design da 227: aberta, a nota **cede** o resumo — carga, cliente, emissão e frete
+       * Revisão de design da 233: aberta, a nota **cede** o resumo — carga, cliente, emissão e frete
        * já estão em "Dados da nota", e dizê-los duas vezes na mesma tela era o ruído que o canvas não tem.
        */}
       {isOpen ? null : (

@@ -1,4 +1,4 @@
-# Plano — 227 A nota se abre inteira
+# Plano — 233 A nota se abre inteira
 
 ## Contexto e premissas
 
@@ -13,7 +13,7 @@ Quase tudo que o canvas mostra **já existe**, espalhado. O trabalho é **reorga
 | card do comprovante           | `TripDeliveryProof.component.tsx`, `ProofReadings.component.tsx`, `ProofReviewChip.component.tsx`                       | seção _Comprovante_                        |
 | ocorrências                   | `TripOccurrences.component.tsx`, hoje dentro de `TripDeliveryProofDetail.component.tsx`                                 | seção _Ocorrências_                        |
 | linha do tempo e mapa         | `TripTimeline.component.tsx`, `TripTimelineLocation*.component.tsx` (spec 196)                                          | seção _Eventos_                            |
-| custo e lucro                 | `modules/trip-financials/components/TripDocumentCost.component.tsx` (spec 226)                                          | entra em _Dados da nota_                   |
+| custo e lucro                 | `modules/trip-financials/components/TripDocumentCost.component.tsx` (spec 232)                                          | entra em _Dados da nota_                   |
 | copiar                        | `src/components/ui/copy-button.tsx`                                                                                     | RF4                                        |
 | navegação                     | `tripRoute.service.ts`, `tripOccurrenceRoute.service.ts`, `tripNavigation.service.ts`, `workspaceNavigation.service.ts` | RF6, RF8                                   |
 | seleção por checkbox          | `hooks/useTripDocumentSelection.hook.ts`                                                                                | **não pode quebrar** (RF1)                 |
@@ -38,7 +38,7 @@ F1 a F4 **não dependem** de pergunta em aberto nem de spec aberta (todas foram 
 
 ### F0 — O chão
 
-- `git mv specs/225-… specs/226-…` e **todas** as referências: `Spec 225`/`spec 225`/`(225 …)` em código,
+- `git mv specs/225-… specs/232-…` e **todas** as referências: `Spec 225`/`spec 225`/`(225 …)` em código,
   testes, `docs/ai-context/*`, locales, e a própria pasta de prints. Mecânico, com `grep` antes e depois;
   mensagens de commit já feitas **não** se reescrevem.
 - Rebase em `origin/staging`. Conflitos esperados nos 12 arquivos medidos (spec D0).
@@ -89,7 +89,7 @@ F1 a F4 **não dependem** de pergunta em aberto nem de spec aberta (todas foram 
 ## Riscos e mitigação
 
 1. **O rebase** — medido (12 arquivos); fatiado em F0 e feito **antes** de qualquer tela.
-2. **Revogar a spec 181** — o contrato T202 é **atualizado**, e a spec 181 ganha uma nota apontando para a 227.
+2. **Revogar a spec 181** — o contrato T202 é **atualizado**, e a spec 181 ganha uma nota apontando para a 233.
 3. **Cinco políticas de permissão na mesma tela** — cada seção trata **a sua** ausência; um contrato por seção
    prova "sem permissão não aparece nem rótulo vazio".
 4. **Transbordo em 375 px** — asserção `scrollWidth <= innerWidth` no smoke, desde a F1, não só no print.
@@ -98,6 +98,6 @@ F1 a F4 **não dependem** de pergunta em aberto nem de spec aberta (todas foram 
 ## Estratégia de testes
 
 - Contrato primeiro, em cada fatia, **provado por mutação**.
-- Smoke de print `spec-227-prints.smoke.spec.ts` no molde da 181, em **1280 e 375**, **dark e light**, com a
+- Smoke de print `spec-233-prints.smoke.spec.ts` no molde da 181, em **1280 e 375**, **dark e light**, com a
   nota **aberta** (print de acordeão fechado não mostra nada) e com a ausência de cada permissão.
 - Contrato de comparação com o canvas na F6: a **lista de divergências** é artefato, não opinião.

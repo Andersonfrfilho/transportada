@@ -485,7 +485,7 @@ const PROOF_STOP = {
 } as const
 
 /**
- * Spec 226 (T4.3): três paradas e cinco notas, com a conta **fechando** — Σ (gasto + imposto) =
+ * Spec 232 (T4.3): três paradas e cinco notas, com a conta **fechando** — Σ (gasto + imposto) =
  * `totalCost`, Σ frete = `totalRevenue` e Σ lucro = `totalMargin` da avaliação. Print com conta que
  * não fecha é pior que print nenhum. Uma nota em prejuízo com tempo completo (D3), outra em prejuízo
  * com tempo incompleto (D5) e uma parcial (D4) cobrem os estados que a linha da nota sabe dizer.
@@ -1145,7 +1145,7 @@ async function registerTripMocks(
       return
     }
     const documentId = new URL(route.request().url()).searchParams.get('documentId')
-    // Spec 227 T5.3: a nota aberta pede os eventos dela (`?documentId=`); só o smoke do acordeão os tem.
+    // Spec 233 T5.3: a nota aberta pede os eventos dela (`?documentId=`); só o smoke do acordeão os tem.
     await fulfillJson(route, {
       data: {
         items:
@@ -1222,7 +1222,7 @@ async function registerTripMocks(
     })
   })
   /**
-   * Spec 226: a conta da viagem. Nenhum outro modo a dubla — sem `trip.financials` o painel nem
+   * Spec 232: a conta da viagem. Nenhum outro modo a dubla — sem `trip.financials` o painel nem
    * pergunta —, e é ela que alimenta a linha da nota e o previsto/fechado lado a lado.
    * `document-cost-open` é a viagem aberta: roteiro sem cálculo e nada congelado (`data: null`).
    */
@@ -1270,12 +1270,12 @@ function documentIndexFromUrl(url: string): number {
 }
 
 /**
- * Spec 227: o lote dos selos, o comprovante e as ocorrências de cada nota. Registrado **depois** das
+ * Spec 233: o lote dos selos, o comprovante e as ocorrências de cada nota. Registrado **depois** das
  * rotas genéricas — no Playwright a mais recente vence. A foto sai da origem da API (a CSP só admite
  * as origens declaradas) e a própria rota do teste a atende com um SVG sintético.
  */
 async function registerNoteAccordionMocks(page: Page): Promise<void> {
-  const imageOrigin = `${getApiBaseUrl()}/spec-227-prints`
+  const imageOrigin = `${getApiBaseUrl()}/spec-233-prints`
   await page.route(`${imageOrigin}/**`, async (route) => {
     await route.fulfill({
       body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect width="640" height="480" fill="#8b8379"/></svg>',

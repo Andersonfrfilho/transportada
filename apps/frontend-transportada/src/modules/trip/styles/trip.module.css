@@ -1302,7 +1302,7 @@ button.occurrenceCaseBadge {
 }
 
 /**
- * Spec 227 RF1: o botão que abre a nota — irmão da caixa de seleção, nunca pai dela. O rótulo e o
+ * Spec 233 RF1: o botão que abre a nota — irmão da caixa de seleção, nunca pai dela. O rótulo e o
  * chevron dividem a faixa; `min-width: 0` deixa o rótulo quebrar em vez de empurrar a janela em 375px.
  */
 .stopDocumentHeadToggle {
@@ -5013,7 +5013,7 @@ button.occurrenceCaseBadge {
   }
 }
 
-/* Spec 227 RF3: a identidade da nota em grade rotulada; uma coluna no celular, três a partir do tablet. */
+/* Spec 233 RF3: a identidade da nota em grade rotulada; uma coluna no celular, três a partir do tablet. */
 .documentData {
   min-width: 0;
   display: grid;

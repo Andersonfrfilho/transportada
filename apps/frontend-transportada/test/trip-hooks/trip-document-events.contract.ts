@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 227 T5.3 (RF7, D11): "Eventos desta entrega" na nota aberta. Prova pelo **DOM renderizado**:
+ * Spec 233 T5.3 (RF7, D11): "Eventos desta entrega" na nota aberta. Prova pelo **DOM renderizado**:
  * a consulta é filtrada pela nota no servidor, só dispara com a nota aberta e com a leitura da
  * timeline, o `departed` da própria nota diz "Saída para esta parada", e o raio só aparece com o dado.
  * Dados sintéticos.
@@ -101,7 +101,7 @@ afterEach(async () => {
   await i18n.changeLanguage('pt-BR')
 })
 
-describe('Eventos desta entrega (spec 227 T5.3)', () => {
+describe('Eventos desta entrega (spec 233 T5.3)', () => {
   it('pede a linha do tempo filtrada pela nota, com a permissão de leitura da timeline', async () => {
     const { requests } = await renderEvents()
 

@@ -1,4 +1,4 @@
-# Evidências — 226 Cada nota diz quanto rendeu e quanto gastou
+# Evidências — 232 Cada nota diz quanto rendeu e quanto gastou
 
 ## T1.1 — o contrato da regra de rateio
 
@@ -460,13 +460,13 @@ Nenhuma intenção foi perdida. O contrato **novo** usa `renderToStaticMarkup`, 
 
 ## T4.1 — revisão de design (web.md §15), **aguardando o ok do usuário**
 
-Os 16 prints estão em `specs/226-cada-nota-diz-quanto-rendeu-e-quanto-gastou/prints/`, nas larguras
+Os 16 prints estão em `specs/232-cada-nota-diz-quanto-rendeu-e-quanto-gastou/prints/`, nas larguras
 **1280 e 375**, nos temas **dark e light**, em quatro situações: notas por parada com o detalhe aberto,
 painel da conta, e as duas variações de ausência ("roteiro ainda não calculado" + fechado inexistente).
 Para gerar de novo:
 
 ```bash
-cd apps/frontend-transportada && PLAYWRIGHT_FRONTEND_PORT=53225 PLAYWRIGHT_TEST_MATCH=spec-226-prints.smoke.spec.ts bun run smoke
+cd apps/frontend-transportada && PLAYWRIGHT_FRONTEND_PORT=53225 PLAYWRIGHT_TEST_MATCH=spec-232-prints.smoke.spec.ts bun run smoke
 ```
 
 A API é dublada na rede (`mockTripWorkspaceApi`, dois modos novos: `document-cost` e
@@ -669,12 +669,23 @@ Os 8 skips são os de sempre da suíte. Desta vez o `company-user-listing.integr
 teto de 120 s que estourou na primeira rodada da T1.3 — o que confirma o diagnóstico de carga de ambiente,
 não de defeito. A infra foi a de E2E (postgres 65432), que o `.env.test` aponta.
 
-⚠️ Isto vale para a base **atual**, 93 commits atrás de `origin/staging`. A spec 227, Fase 0, refaz o rebase e
+⚠️ Isto vale para a base **atual**, 93 commits atrás de `origin/staging`. A spec 233, Fase 0, refaz o rebase e
 **repete** esta integração (T0.4) — é o gate de push, e este resultado não o substitui.
 
 ## Revisão opus (2026-10-02): M3
 
-Confirmado e corrigido junto da 227 (`e2ab47179`): resultado `unavailable` com imposto que não pôde ser distribuído
+Confirmado e corrigido junto da 233 (`e2ab47179`): resultado `unavailable` com imposto que não pôde ser distribuído
 (frete total zero e ICMS positivo) publicava `taxAmount: "0.0000"` e o painel imprimia "Imposto R$ 0,00". Agora
 `taxAmount: null` nesse caso (zero só quando não há imposto). Detalhe, contratos e mutações em
-`specs/227-a-nota-se-abre-inteira/evidence.md`.
+`specs/233-a-nota-se-abre-inteira/evidence.md`.
+
+## Renumeração 226 → 232 e 227 → 233
+
+Em 2026-10-02 a numeração colidiu com `226-a-fila-do-motorista-nao-trava-com-o-servidor-fora` e
+`227-a-fila-nao-apaga-o-que-nao-subiu` (outra frente, em `origin/staging`). Esta spec virou 232 e a
+"A nota se abre inteira" virou 233; a 228 permanece. Padrões trocados (perl, nos arquivos que a
+branch toca, fora `snapshot.json` e PNG): número solto `226`/`227` não colado a letra, dígito ou ponto
+(cobre "spec 226", "226 T3.2", "(226 D4)", "226 RF4", "a 227", `transportada_226_`, `integration-226`),
+`spec-226-`/`spec-227-` (smokes e PNGs, renomeados com `git mv`) e as pastas `specs/226-…`/`specs/227-…`.
+Não trocados: `217-227` (linhas de código em `specs/196`), "78 de 227" e "(226 linhas)" em
+`docs/ai-context/api-transportada.md`.

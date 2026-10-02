@@ -122,7 +122,7 @@ export function TripDeliveryProof({
   return (
     <section aria-labelledby={titleId} className={styles.proofCard}>
       {/*
-       * Spec 227 (revisão de design): o comprovante nasce **compacto** — miniatura, rótulo e o resumo
+       * Spec 233 (revisão de design): o comprovante nasce **compacto** — miniatura, rótulo e o resumo
        * da baixa numa linha —, e o botão do título o expande (mesmo padrão `aria-expanded`/
        * `aria-controls` dos itens, abaixo). Os selos de conferência e pontualidade não se repetem
        * aqui: moram no cabeçalho da nota, um lugar só. A miniatura é irmã do botão, nunca filha.

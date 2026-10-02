@@ -8,7 +8,7 @@ import type { TripTimelinePage } from '../shared/trip.types'
 const TRIP_DOCUMENT_TIMELINE_KEY_PART = 'timeline'
 
 /**
- * Spec 227 T5.3: os eventos de **uma** nota, filtrados no servidor (`?documentId=`). A chave mora sob
+ * Spec 233 T5.3: os eventos de **uma** nota, filtrados no servidor (`?documentId=`). A chave mora sob
  * `[trip, id, 'timeline']`, então o que invalida a linha do tempo da viagem derruba esta junto. A
  * leitura exige a mesma permissão de `useTripTimeline` (`canReadTrip`), e quem monta o componente só
  * o faz com a nota aberta — a consulta não corre com a nota fechada.

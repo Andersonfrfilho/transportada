@@ -7,10 +7,10 @@ import { loginAsLocalUser } from './authenticated-smoke.helper'
 import { mockTripWorkspaceApi } from './trip-smoke.helper'
 
 /**
- * Spec 226 (`web.md` §15): os prints da revisão de design da linha da nota (gasto, lucro, margem,
+ * Spec 232 (`web.md` §15): os prints da revisão de design da linha da nota (gasto, lucro, margem,
  * imposto e critério) e do painel "A conta desta viagem" com previsto e fechado lado a lado. Fora do
- * smoke da CI — roda com `PLAYWRIGHT_TEST_MATCH=spec-226-prints.smoke.spec.ts` e grava os PNGs em
- * `specs/226-.../prints/`, que é onde a evidência mora.
+ * smoke da CI — roda com `PLAYWRIGHT_TEST_MATCH=spec-232-prints.smoke.spec.ts` e grava os PNGs em
+ * `specs/232-.../prints/`, que é onde a evidência mora.
  *
  * ⚠️ O print sai daqui, e não do navegador apontado para o `make dev`: o app redireciona para a URL
  * do `.env` (53000), então preview em porta alternativa devolve a árvore de outra sessão. Confira
@@ -18,7 +18,7 @@ import { mockTripWorkspaceApi } from './trip-smoke.helper'
  */
 const PRINTS_DIRECTORY = resolve(
   process.cwd(),
-  '../../specs/226-cada-nota-diz-quanto-rendeu-e-quanto-gastou/prints',
+  '../../specs/232-cada-nota-diz-quanto-rendeu-e-quanto-gastou/prints',
 )
 const VIEWPORTS = [
   { height: 900, label: '1280', width: 1280 },
@@ -101,14 +101,14 @@ for (const theme of THEMES) {
       await expect(stops.getByText(/rateio da viagem/iu).first()).toBeVisible()
       await expectNothingEscapes(stops)
       await stops.screenshot({
-        path: printPath('spec-226-notas-por-parada', viewport.label, theme),
+        path: printPath('spec-232-notas-por-parada', viewport.label, theme),
       })
 
       const panel = financialPanel(page)
       await expect(panel).toBeVisible()
       await expectNothingEscapes(panel)
       await expectNoHorizontalOverflow(page)
-      await panel.screenshot({ path: printPath('spec-226-painel-da-conta', viewport.label, theme) })
+      await panel.screenshot({ path: printPath('spec-232-painel-da-conta', viewport.label, theme) })
     })
 
     test(`print da ausência — roteiro não calculado e fechado inexistente — ${viewport.label} ${theme}`, async ({
@@ -119,13 +119,13 @@ for (const theme of THEMES) {
       const stops = page.locator('#trip-stops-title').locator('xpath=ancestor::section[1]')
       await stops.getByRole('button', { name: 'Detalhes da nota' }).first().click()
       await expectNothingEscapes(stops)
-      await stops.screenshot({ path: printPath('spec-226-ausencia-notas', viewport.label, theme) })
+      await stops.screenshot({ path: printPath('spec-232-ausencia-notas', viewport.label, theme) })
 
       const panel = financialPanel(page)
       await expect(panel).toBeVisible()
       await expectNothingEscapes(panel)
       await expectNoHorizontalOverflow(page)
-      await panel.screenshot({ path: printPath('spec-226-ausencia-painel', viewport.label, theme) })
+      await panel.screenshot({ path: printPath('spec-232-ausencia-painel', viewport.label, theme) })
     })
   }
 }

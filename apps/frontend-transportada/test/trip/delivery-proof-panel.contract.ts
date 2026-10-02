@@ -275,7 +275,7 @@ describe('hora e distância da captura no comprovante (spec 220 T4.2)', () => {
  * de `lateRegistration`) — dois campos, dois selos, por imagem.
  */
 describe('selos do comprovante (spec 220 T4.3)', () => {
-  /** Spec 227 D4: o selo de pontualidade saiu da leitura para o componente de selos; o de registro tardio ficou. */
+  /** Spec 233 D4: o selo de pontualidade saiu da leitura para o componente de selos; o de registro tardio ficou. */
   const readingsSource = readFileSync(READINGS, 'utf8')
   const badgesSource = readFileSync(
     new URL(

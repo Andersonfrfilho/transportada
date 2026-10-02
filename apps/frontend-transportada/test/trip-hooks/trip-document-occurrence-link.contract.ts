@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 227 T3.1 (CA04): o link da ocorrência na nota aberta navega na mesma aba, sem recarregar.
+ * Spec 233 T3.1 (CA04): o link da ocorrência na nota aberta navega na mesma aba, sem recarregar.
  * O painel não tem router — o `onClick` cancela a navegação do navegador e empilha o caminho com
  * `pushState`; o `href` fica para "abrir em outra aba". Dados sintéticos.
  */
@@ -63,7 +63,7 @@ afterEach(() => {
   window.history.replaceState(null, '', '/')
 })
 
-describe('o link da ocorrência na nota aberta (spec 227 CA04)', () => {
+describe('o link da ocorrência na nota aberta (spec 233 CA04)', () => {
   it('o clique cancela a navegação do navegador e leva a /ocorrencias/:id na mesma aba', () => {
     const dom = renderSection(true)
     const link = dom.querySelector<HTMLAnchorElement>('a')

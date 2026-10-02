@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 226 T3.2 (RF4/RF6/RF9) — a linha da nota diz o que gastou e o que lucrou, com o gasto em duas
+ * Spec 232 T3.2 (RF4/RF6/RF9) — a linha da nota diz o que gastou e o que lucrou, com o gasto em duas
  * partes. Cobre o **renderizado** (`renderToStaticMarkup`, sem jsdom) e prende que, sem a avaliação
  * — quem não tem `trip.financials` nunca a recebe —, a nota não imprime rótulo, traço nem espaço.
  */
@@ -92,7 +92,7 @@ function renderCost(valuation: null | TripValuation): string {
   ).replace(NON_BREAKING_SPACE, ' ')
 }
 
-describe('a linha da nota com gasto, lucro e margem (spec 226 T3.2)', () => {
+describe('a linha da nota com gasto, lucro e margem (spec 232 T3.2)', () => {
   it('linha com os campos: gasto com as duas partes nomeadas, lucro e margem', () => {
     const html = renderCost(buildValuation([buildLine()]))
 
@@ -235,7 +235,7 @@ describe('a linha da nota com gasto, lucro e margem (spec 226 T3.2)', () => {
   })
 })
 
-describe('a fiação é por contexto, sem sexta prop no TripStopList (spec 226 T3.2)', () => {
+describe('a fiação é por contexto, sem sexta prop no TripStopList (spec 232 T3.2)', () => {
   it('o gasto vive dentro de "Dados da nota", no corpo da nota aberta, nunca na linha sempre visível', () => {
     const stopList = readFileSync(STOP_LIST, 'utf8')
     const dataComponent = readFileSync(DATA_COMPONENT, 'utf8')

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 227 T5.1 (D7): o filtro por nota é conferido contra a empresa **e a viagem** do contexto antes
+ * Spec 233 T5.1 (D7): o filtro por nota é conferido contra a empresa **e a viagem** do contexto antes
  * de o leitor rodar — nota de outra empresa ou de outra viagem responde 404 `TRIP_DOCUMENT_NOT_FOUND`,
  * nunca lista vazia que confirme a existência, e a recusa de localização continua valendo.
  */
@@ -39,7 +39,7 @@ function createDoubles(options: { readonly documentExists: boolean }) {
   return { documentScopeCalls, readerCalls, useCase }
 }
 
-describe('createReadTripTimelineUseCase com documentId (spec 227 T5.1)', () => {
+describe('createReadTripTimelineUseCase com documentId (spec 233 T5.1)', () => {
   test('nota que não é desta viagem e desta empresa: 404 sem chamar o leitor', async () => {
     const { documentScopeCalls, readerCalls, useCase } = createDoubles({ documentExists: false })
 

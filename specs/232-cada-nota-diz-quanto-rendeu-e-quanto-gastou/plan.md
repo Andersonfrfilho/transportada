@@ -1,4 +1,4 @@
-# Plano — 226 Cada nota diz quanto rendeu e quanto gastou
+# Plano — 232 Cada nota diz quanto rendeu e quanto gastou
 
 ## Contexto e premissas
 

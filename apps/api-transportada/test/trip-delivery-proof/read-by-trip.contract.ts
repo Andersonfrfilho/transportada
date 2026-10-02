@@ -143,7 +143,7 @@ describe('readDeliveryProofsByTrip (spec 222 T1.4)', () => {
     ])
   })
 
-  test('a serialização é a da leitura de uma nota, mais o documentId e o raio (spec 227 D6)', async () => {
+  test('a serialização é a da leitura de uma nota, mais o documentId e o raio (spec 233 D6)', async () => {
     const { port } = repository([FIRST, SECOND])
     const singleFirst = await readSingle(FIRST, FIRST_DOCUMENT_ID)
     const singleSecond = await readSingle(SECOND, SECOND_DOCUMENT_ID)

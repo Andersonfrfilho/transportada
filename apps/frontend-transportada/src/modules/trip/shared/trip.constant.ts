@@ -255,7 +255,7 @@ export const TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS = [
   'nfeNumber',
   'nfeSeries',
   'nfeTotalValue',
-  /** Spec 227 D5: ausente é API anterior ao campo; presente é inteiro ou `null`. */
+  /** Spec 233 D5: ausente é API anterior ao campo; presente é inteiro ou `null`. */
   'volumeCount',
   /** Spec 176: mesmo motivo — API vai à frente do bundle, e ausente é API anterior à feature. */
   'freightAmount',

@@ -1401,7 +1401,7 @@ async function readTripDetail(
       (document) => document.tripDocumentId,
     ),
   )
-  /** Spec 227 T2.3: uma consulta agregada para as N notas (`GROUP BY document_id`) — nunca por nota. */
+  /** Spec 233 T2.3: uma consulta agregada para as N notas (`GROUP BY document_id`) — nunca por nota. */
   const volumeCountByNfeDocumentId = await loadTripDocumentVolumeCounts(queryable, {
     companyId: input.companyId,
     nfeDocumentIds: documentRecords.flatMap((row) =>

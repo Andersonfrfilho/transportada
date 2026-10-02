@@ -29,7 +29,7 @@ function buildTripProofsQueryOptions(input: TripProofBadgesQueryInput) {
 }
 
 /**
- * Spec 227 D4: o selo do cabeçalho da nota fechada vem de uma chamada só para a viagem inteira
+ * Spec 233 D4: o selo do cabeçalho da nota fechada vem de uma chamada só para a viagem inteira
  * (`GET /trips/:id/delivery-proofs`, `fleet.read`) — abrir nota por nota seria o oposto de um cabeçalho.
  * A chave mora sob a da viagem, então `invalidateTrip` a derruba junto depois de uma conferência.
  */
@@ -45,7 +45,7 @@ export function useTripProofBadgesQuery(input: TripProofBadgesQueryInput) {
 }
 
 /**
- * Revisão da 227 (A2): o raio tolerado só vem em `GET /trips/:id/delivery-proofs`; a rota por nota
+ * Revisão da 233 (A2): o raio tolerado só vem em `GET /trips/:id/delivery-proofs`; a rota por nota
  * não o traz. Mesma chave e mesma chamada dos selos — o cache de React Query deduplica.
  */
 export function useTripProofRadiusQuery(input: TripProofBadgesQueryInput) {

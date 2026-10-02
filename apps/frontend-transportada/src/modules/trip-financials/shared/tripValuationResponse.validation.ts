@@ -123,7 +123,7 @@ function toCostParcel(parcel: Record<string, unknown>): null | TripValuationCost
 }
 
 /**
- * Spec 226: a prévia e a sugestão multi-veículo saem com os oito campos de gasto, como `unavailable`
+ * Spec 232: a prévia e a sugestão multi-veículo saem com os oito campos de gasto, como `unavailable`
  * (não têm trechos nem paradas). Linha **sem** nenhum deles continua válida — é a resposta de uma API
  * anterior à spec durante a publicação. Linha com campo de tipo errado **derruba a avaliação inteira**,
  * como `amount` malformado já faz: o gasto errado de uma nota é pior do que a conta ausente, porque a

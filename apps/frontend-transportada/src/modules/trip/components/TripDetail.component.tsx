@@ -332,7 +332,7 @@ export function TripDetail({
     tripId: workspace.trip?.id ?? '',
     tripStatus: workspace.trip?.status ?? 'draft',
   })
-  /** Spec 227 D4: os selos do comprovante no cabeçalho de cada nota; `fleet.read`, como a rota. */
+  /** Spec 233 D4: os selos do comprovante no cabeçalho de cada nota; `fleet.read`, como a rota. */
   const proofQueryInput = {
     canRead: workspace.controller.canReadTripFleetDetails,
     companyId: workspace.companyId ?? '',
@@ -340,7 +340,7 @@ export function TripDetail({
     tripId: workspace.trip?.id ?? '',
   }
   const proofBadgesQuery = useTripProofBadgesQuery(proofQueryInput)
-  /** Revisão da 227 (A2): o raio vem da mesma consulta por viagem dos selos, não da rota por nota. */
+  /** Revisão da 233 (A2): o raio vem da mesma consulta por viagem dos selos, não da rota por nota. */
   const proofRadiusQuery = useTripProofRadiusQuery(proofQueryInput)
   /**
    * Spec 156 T9: uma nota (ação da linha) ou o maço da seleção (ação em massa) — `null` fecha o

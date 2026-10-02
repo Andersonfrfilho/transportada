@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Revisão da spec 227 (M4): a lista de clientes abre já filtrada pelo nome que "Ver cliente" deixou no
+ * Revisão da spec 233 (M4): a lista de clientes abre já filtrada pelo nome que "Ver cliente" deixou no
  * `sessionStorage`, consome o recado uma vez e não o lê da URL.
  */
 import { afterEach, describe, expect, it } from 'bun:test'
@@ -14,7 +14,7 @@ const { useDeliveryClients } = await import(
   '@/modules/delivery-clients/hooks/useDeliveryClients.hook'
 )
 
-describe('a lista de clientes abre filtrada pelo recado de "Ver cliente" (revisão 227 M4)', () => {
+describe('a lista de clientes abre filtrada pelo recado de "Ver cliente" (revisão 233 M4)', () => {
   afterEach(() => {
     sessionStorage.removeItem(DELIVERY_CLIENT_SEARCH_STORAGE_KEY)
     window.history.replaceState(null, '', '/')

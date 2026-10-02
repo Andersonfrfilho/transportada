@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 226 T2.2 — **a soma das notas fecha com a viagem, contra Postgres.** Viagem de verdade com
+ * Spec 232 T2.2 — **a soma das notas fecha com a viagem, contra Postgres.** Viagem de verdade com
  * rota congelada (barracão de ida e volta), três paradas, cinco notas e eventos de chegada e saída:
  * `Σ (costAmount + taxAmount)`, `Σ amount` e `Σ marginAmount` conferidos contra o que a própria
  * avaliação devolve, e a espera lida do banco (D9) provada por contraste com a mesma viagem sem eventos.
@@ -91,10 +91,10 @@ const ROUTE_WITH_DEPOT = {
     durationSeconds: ONE_HOUR,
   })),
   points: [],
-  signature: 'integration-226',
+  signature: 'integration-232',
 }
 
-describe('a soma das notas fecha com a viagem (spec 226 D4, CA01)', () => {
+describe('a soma das notas fecha com a viagem (spec 232 D4, CA01)', () => {
   testWithPostgres(
     'Σ (costAmount + taxAmount) é o totalCost, Σ amount o totalRevenue e Σ marginAmount o totalMargin',
     async () => {
@@ -145,7 +145,7 @@ describe('a soma das notas fecha com a viagem (spec 226 D4, CA01)', () => {
 
         const withEvents = await valuate(database, world.companyId, tripId)
         // Viagem completa e semeada: tem `departed` para toda parada que tem uma seguinte. A última não
-        // tem saída possível depois dela e não rebaixa o tempo (revisão da 226, M2) — esta asserção
+        // tem saída possível depois dela e não rebaixa o tempo (revisão da 232, M2) — esta asserção
         // dizia `partial` e só passava por causa dela.
         expect(new Set(withEvents.revenueLines.map((line) => line.timeBasis))).toEqual(
           new Set([TIME_BASES.complete]),
@@ -184,7 +184,7 @@ describe('a soma das notas fecha com a viagem (spec 226 D4, CA01)', () => {
   })
 
   /**
-   * Revisão da 226, M4. A espera na parada é refinamento: os totais da viagem não dependem dela, e a
+   * Revisão da 232, M4. A espera na parada é refinamento: os totais da viagem não dependem dela, e a
    * mesma leitura alimenta o recálculo do resultado congelado. Falha aqui não pode virar 500 na
    * avaliação — e o que vai para o log é o nome do erro, nunca a mensagem, que o Postgres enche com a linha.
    */
@@ -530,7 +530,7 @@ async function withDisposableDatabase(
 ): Promise<void> {
   if (databaseUrl === undefined) throw new Error('A PostgreSQL test URL is required')
   const admin = new SQL(databaseUrl, { max: 1 })
-  const databaseName = `transportada_226_${crypto.randomUUID().replaceAll('-', '')}`
+  const databaseName = `transportada_232_${crypto.randomUUID().replaceAll('-', '')}`
   const disposableUrl = new URL(databaseUrl)
   disposableUrl.pathname = `/${databaseName}`
   disposableUrl.search = ''

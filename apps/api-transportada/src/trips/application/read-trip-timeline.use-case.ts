@@ -15,7 +15,7 @@ export type TripTimelineExistencePort = {
     readonly companyId: string
     readonly tripId: string
   }): Promise<{ readonly id: string } | null>
-  /** `null` quando a nota não é desta viagem **nesta** empresa (Spec 227 D7). */
+  /** `null` quando a nota não é desta viagem **nesta** empresa (Spec 233 D7). */
   findTripDocumentScope(input: {
     readonly companyId: string
     readonly documentId: string

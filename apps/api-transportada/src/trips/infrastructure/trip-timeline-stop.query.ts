@@ -79,7 +79,7 @@ export function toTimelineLocation(row: StopEventLocationColumns): TripTimelineL
   }
 }
 
-/** Spec 227 (revisão A1): evento e ocorrência de parada, com o filtro por nota, são só os da parada dela. */
+/** Spec 233 (revisão A1): evento e ocorrência de parada, com o filtro por nota, são só os da parada dela. */
 export function documentStopScope(params: ReadTripTimelineParams): SQL {
   if (params.documentStopId === undefined || params.documentStopId === null) return sql`false`
   return eq(tripStops.id, params.documentStopId)

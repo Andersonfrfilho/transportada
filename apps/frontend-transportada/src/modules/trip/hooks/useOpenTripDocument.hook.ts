@@ -6,7 +6,7 @@ import { parseTripTimelineDocumentHref } from '../shared/tripTimelineLink.servic
 export type OpenTripDocumentController = ReturnType<typeof useOpenTripDocument>
 
 /**
- * Spec 227 D1: uma nota aberta por vez — abrir outra fecha a anterior. O estado é **da lista**, não
+ * Spec 233 D1: uma nota aberta por vez — abrir outra fecha a anterior. O estado é **da lista**, não
  * de cada linha, porque é o que permite fechar as outras e o que a âncora da linha do tempo precisa
  * para abrir a nota que ela aponta (RF9).
  */

@@ -238,7 +238,7 @@ export const TRIP_COST_KINDS = [
 export type TripCostKind = (typeof TRIP_COST_KINDS)[number]
 
 /**
- * Spec 226 RF1: o que a nota gastou e deixou de margem. Opcional porque quem resolve a receita
+ * Spec 232 RF1: o que a nota gastou e deixou de margem. Opcional porque quem resolve a receita
  * (`resolveRevenueLine`) ainda não conhece o custo — `buildValuationFromContext` anexa depois, e é o
  * frete da própria linha (`amount`) que fecha a conta, por isso `freightAmount` não se repete aqui.
  */

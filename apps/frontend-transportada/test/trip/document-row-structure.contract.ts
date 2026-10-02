@@ -87,7 +87,7 @@ describe('dinheiro e pessoas em blocos com rótulo próprio (spec 181 RF4/CA04)'
   })
 })
 
-describe('a nota é um acordeão de abertura exclusiva (spec 227 RF1, sobre a spec 181 RF1/T302)', () => {
+describe('a nota é um acordeão de abertura exclusiva (spec 233 RF1, sobre a spec 181 RF1/T302)', () => {
   const source = readFileSync(ROW, 'utf8')
   const stylesheet = readFileSync(STYLESHEET, 'utf8')
   const rowSource = source.slice(source.indexOf('function TripStopDocumentRow'))

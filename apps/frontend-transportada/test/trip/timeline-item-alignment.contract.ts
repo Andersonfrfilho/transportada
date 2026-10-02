@@ -75,7 +75,7 @@ describe('calha do item da linha do tempo (spec 196)', () => {
     expect(toggle).toContain(`margin-inline-start: calc(-1 * ${TOGGLE_INSET_TOKEN})`)
   })
 
-  /** Altura de botão é a do design system: compacta com mouse, alvo de toque sob toque (revisão da 227). */
+  /** Altura de botão é a do design system: compacta com mouse, alvo de toque sob toque (revisão da 233). */
   it('e a caixa tem a altura compacta do botão, e o alvo de toque sob pointer: coarse', () => {
     expect(readRuleBlock('.itemToggle')).toContain('min-height: var(--control-height-compact)')
     expect(styles).toMatch(

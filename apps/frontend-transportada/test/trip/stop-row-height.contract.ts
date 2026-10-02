@@ -12,7 +12,7 @@ const TRIP_STYLESHEET_PATH = 'src/modules/trip/styles/trip.module.css'
 const ROW_ALIGNED_CLASSES = ['stopSequence'] as const
 
 /**
- * Selo e etiqueta da nota (revisão de design da 227): `--control-height-dense`, o degrau abaixo do
+ * Selo e etiqueta da nota (revisão de design da 233): `--control-height-dense`, o degrau abaixo do
  * compacto — quem rotula não precisa da altura de quem recebe clique. O print mostrava "ENTREGUE" com
  * 38px ao lado de selos de 24px; a altura agora é uma só, e é medida no navegador pelo smoke.
  */

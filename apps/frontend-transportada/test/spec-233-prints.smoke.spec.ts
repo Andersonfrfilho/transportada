@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 227 (`web.md` §15): os prints intermediários do acordeão da nota — as notas fechadas com os
+ * Spec 233 (`web.md` §15): os prints intermediários do acordeão da nota — as notas fechadas com os
  * selos do cabeçalho, uma nota entregue aberta e uma não entregue aberta. Fora do smoke da CI: roda com
- * `PLAYWRIGHT_TEST_MATCH=spec-227-prints.smoke.spec.ts` e grava os PNGs em `specs/227-.../prints/`.
+ * `PLAYWRIGHT_TEST_MATCH=spec-233-prints.smoke.spec.ts` e grava os PNGs em `specs/233-.../prints/`.
  *
  * ⚠️ O print sai daqui, e não do navegador apontado para o `make dev` (ver `spec-181-prints`): o app
  * redireciona para a URL do `.env`, então preview em porta alternativa devolve a árvore de outra sessão.
@@ -15,7 +15,7 @@ import { expect, type Locator, type Page, test } from '@playwright/test'
 import { loginAsLocalUser } from './authenticated-smoke.helper'
 import { mockTripWorkspaceApi } from './trip-smoke.helper'
 
-const PRINTS_DIRECTORY = resolve(process.cwd(), '../../specs/227-a-nota-se-abre-inteira/prints')
+const PRINTS_DIRECTORY = resolve(process.cwd(), '../../specs/233-a-nota-se-abre-inteira/prints')
 const VIEWPORTS = [
   { height: 900, label: '1280', width: 1280 },
   { height: 844, label: '375', width: 375 },
@@ -31,7 +31,7 @@ const DELIVERED_WITHOUT_ITEMS = DELIVERED_AWAY
 const PROOF_TOGGLE = /^Comprovante da entrega/u
 
 function printPath(name: string, width: string, theme: Theme): string {
-  return resolve(PRINTS_DIRECTORY, `spec-227-${name}-${width}-${theme}.png`)
+  return resolve(PRINTS_DIRECTORY, `spec-233-${name}-${width}-${theme}.png`)
 }
 
 async function openTripDetail(
@@ -171,7 +171,7 @@ test('abrir uma nota fecha a anterior — só uma fica aberta', async ({ page })
 })
 
 /**
- * Revisão de design da 227 (T4.4): o que o usuário reprovou, medido no navegador — `getBoundingClientRect`
+ * Revisão de design da 233 (T4.4): o que o usuário reprovou, medido no navegador — `getBoundingClientRect`
  * e estilo computado, nunca o texto do `.css`. Cada asserção abaixo foi provada por mutação (evidence.md).
  */
 async function tokenPixels(row: Locator, token: string): Promise<number> {

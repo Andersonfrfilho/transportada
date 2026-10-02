@@ -63,7 +63,7 @@ async function renderCard(
     )
     await Promise.resolve()
   })
-  /** O comprovante nasce compacto (revisão de design da 227): quase todo caso abaixo olha o aberto. */
+  /** O comprovante nasce compacto (revisão de design da 233): quase todo caso abaixo olha o aberto. */
   if (options.isExpanded !== false) {
     await act(async () => {
       container?.querySelector<HTMLButtonElement>('button[aria-expanded]')?.click()

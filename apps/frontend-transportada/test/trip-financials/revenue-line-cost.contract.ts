@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 226 T3.1 — a nota diz quanto rendeu e quanto gastou. A API passou a mandar, em cada item de
+ * Spec 232 T3.1 — a nota diz quanto rendeu e quanto gastou. A API passou a mandar, em cada item de
  * `revenueLines`, oito campos opcionais que saem juntos ou nenhum sai; a guarda de tipo é escrita à
  * mão (esta app não usa zod) e o serviço de formatação entrega à tela o que ela só imprime.
  */
@@ -124,7 +124,7 @@ function apiVocabulary(constantName: string): readonly string[] {
   return [...block.matchAll(/'([a-z]+)'/g)].map((match) => match[1] ?? '')
 }
 
-describe('a linha da nota com gasto e lucro (spec 226 T3.1)', () => {
+describe('a linha da nota com gasto e lucro (spec 232 T3.1)', () => {
   it('linha completa: gasto com as duas partes nomeadas, imposto, lucro e margem', () => {
     const view = availableViewOf(completeFigures())
 

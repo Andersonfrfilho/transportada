@@ -420,7 +420,7 @@ describe('o painel monta a lista nas duas situações da viagem', () => {
   })
 
   /**
-   * Viagem aberta e viagem fechada mostram o que foi lançado: desde a spec 226 D6 o painel tem um
+   * Viagem aberta e viagem fechada mostram o que foi lançado: desde a spec 232 D6 o painel tem um
    * caminho só para as duas, sem ramo por `result`, e monta `LaunchedEntries` (spec 169 RF11 —
    * extraído para caber no teto e nascer antes do total), que monta `TripCostEntries` uma vez só.
    */

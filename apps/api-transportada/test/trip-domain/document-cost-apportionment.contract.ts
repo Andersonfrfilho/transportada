@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 226. O custo da viagem não muda: ele se divide. Por isso quase todo teste aqui termina na
+ * Spec 232. O custo da viagem não muda: ele se divide. Por isso quase todo teste aqui termina na
  * mesma pergunta — a soma das notas fecha com o total? — e os que não terminam nela são os que
  * provam que distância, tempo e espera entraram de verdade na conta.
  */
@@ -82,7 +82,7 @@ function figuresById(params: ApportionDocumentCostsParams) {
   )
 }
 
-describe('classificação das parcelas de custo (spec 226 D1)', () => {
+describe('classificação das parcelas de custo (spec 232 D1)', () => {
   test('toda parcela que o domínio conhece tem critério declarado', () => {
     const missing = TRIP_COST_KINDS.filter((kind) => COST_KIND_APPORTIONMENT[kind] === undefined)
 
@@ -104,7 +104,7 @@ describe('classificação das parcelas de custo (spec 226 D1)', () => {
   })
 })
 
-describe('a soma das notas fecha com a viagem (spec 226 D4, CA01)', () => {
+describe('a soma das notas fecha com a viagem (spec 232 D4, CA01)', () => {
   test('custo mais imposto somam o total das parcelas, ao centavo', () => {
     const figures = apportionDocumentCosts(buildScenario()).documents
 
@@ -145,7 +145,7 @@ describe('a soma das notas fecha com a viagem (spec 226 D4, CA01)', () => {
   })
 })
 
-describe('distância e tempo entram na conta (spec 226 CA02)', () => {
+describe('distância e tempo entram na conta (spec 232 CA02)', () => {
   test('nota da primeira parada gasta menos que nota da última, com o mesmo frete', () => {
     const figures = figuresById(buildScenario())
 
@@ -166,7 +166,7 @@ describe('distância e tempo entram na conta (spec 226 CA02)', () => {
   })
 })
 
-describe('o retorno não desaparece (spec 226 D3, CA03)', () => {
+describe('o retorno não desaparece (spec 232 D3, CA03)', () => {
   test('com retorno, toda nota recebe rateio de viagem maior que zero', () => {
     for (const entry of apportionDocumentCosts(buildScenario()).documents) {
       expect(Number(entry.tripShareCostAmount)).toBeGreaterThan(0)
@@ -186,7 +186,7 @@ describe('o retorno não desaparece (spec 226 D3, CA03)', () => {
   })
 })
 
-describe('espera no cliente (spec 226 D9, CA03b)', () => {
+describe('espera no cliente (spec 232 D9, CA03b)', () => {
   const waitingScenario = buildScenario({
     costParcels: [parcel('driver', '240.0000')],
     documents: [note('doc-1', 'stop-1'), note('doc-2', 'stop-2'), note('doc-3', 'stop-3')],
@@ -232,7 +232,7 @@ describe('espera no cliente (spec 226 D9, CA03b)', () => {
   })
 
   /**
-   * Revisão da 226, M2. A última parada nunca tem um `departed` depois dela, então a saída dela só pode
+   * Revisão da 232, M2. A última parada nunca tem um `departed` depois dela, então a saída dela só pode
    * ser o último `delivered` — sempre `proxy`. Se isso rebaixasse a viagem inteira para `partial`, o aviso
    * de tempo parcial apareceria em toda viagem e deixaria de informar.
    */
@@ -275,7 +275,7 @@ describe('espera no cliente (spec 226 D9, CA03b)', () => {
   })
 })
 
-describe('balde sem peso nenhum não desaparece (revisão da 226, A1)', () => {
+describe('balde sem peso nenhum não desaparece (revisão da 232, A1)', () => {
   /**
    * Gêmeo do defeito do D3: com todos os trechos e o retorno em zero metro, o balde de distância não
    * tem peso nenhum para se repartir. `delivery_charges` e o pedágio lançado à mão não dependem da
@@ -391,7 +391,7 @@ describe('balde sem peso nenhum não desaparece (revisão da 226, A1)', () => {
   })
 })
 
-describe('sem roteiro não há número inventado (spec 226 D5, CA04 e CA05)', () => {
+describe('sem roteiro não há número inventado (spec 232 D5, CA04 e CA05)', () => {
   test('sem trechos, toda nota sai indisponível e sem valor', () => {
     const figures = apportionDocumentCosts(buildScenario({ legs: [] })).documents
 
@@ -418,7 +418,7 @@ describe('sem roteiro não há número inventado (spec 226 D5, CA04 e CA05)', ()
   })
 })
 
-describe('casos extremos (spec 226)', () => {
+describe('casos extremos (spec 232)', () => {
   test('nota sem parada não recebe trecho, só rateio de viagem (CA06)', () => {
     const figures = figuresById(
       buildScenario({

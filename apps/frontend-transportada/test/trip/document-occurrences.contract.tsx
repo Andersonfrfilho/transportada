@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 227 T3.1 (RF6, CA04) — a seção "Ocorrências" da nota aberta: lista direta, cada ocorrência
+ * Spec 233 T3.1 (RF6, CA04) — a seção "Ocorrências" da nota aberta: lista direta, cada ocorrência
  * com link para `/ocorrencias/:id`, e "Nenhuma ocorrência registrada" quando não há. Cobre o
  * **renderizado**; o clique do link e a busca ficam em `test/trip-hooks`. Dados sintéticos.
  */
@@ -69,7 +69,7 @@ function renderAsManager(document: TripDocumentDetail): string {
   return renderToStaticMarkup(<TripDocumentOccurrences document={document} workspace={workspace} />)
 }
 
-describe('a seção Ocorrências da nota aberta (spec 227 RF6)', () => {
+describe('a seção Ocorrências da nota aberta (spec 233 RF6)', () => {
   /**
    * A lista aparece em toda nota aberta, mas o **formulário** de registro continua só onde já estava: dentro
    * do comprovante, de nota entregue ou devolvida. Numa nota não entregue a busca de itens não roda, então o

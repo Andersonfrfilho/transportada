@@ -1,4 +1,4 @@
-# Tasks — 226 Cada nota diz quanto rendeu e quanto gastou
+# Tasks — 232 Cada nota diz quanto rendeu e quanto gastou
 
 Uma task por vez, na ordem. Cada uma fecha com typecheck + testes da app + commit isolado e evidência
 em `evidence.md`.
@@ -136,7 +136,7 @@ com parada nem com nota. Parcela **nova** que apareça depois disso: **pergunte*
 ## Prompt de execução
 
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/226-cada-nota-diz-quanto-rendeu-e-quanto-gastou/
+/oh-my-claudecode:autopilot Execute a spec specs/232-cada-nota-diz-quanto-rendeu-e-quanto-gastou/
 (leia spec.md, plan.md e tasks.md antes de tocar em código). Uma task por vez, na ordem do tasks.md.
 Modelos: Fase 1 → opus 🧠 (é a regra de rateio) · Fase 2 → executor model=sonnet ·
 Fase 3 → executor model=sonnet · Fase 4 → code-reviewer model=opus na T4.4.

@@ -1,11 +1,11 @@
-# Feature 227 — A nota se abre inteira
+# Feature 233 — A nota se abre inteira
 
 ## Problema e resultado
 
 Tudo o que se quer saber de **uma** entrega mora em três lugares da página `/trips/:id`, e quem investiga uma
 nota percorre os três:
 
-1. **"Detalhes da nota"** na linha da nota (telefone, contratante, regra de frete e — desde a spec 226 —
+1. **"Detalhes da nota"** na linha da nota (telefone, contratante, regra de frete e — desde a spec 232 —
    custo e lucro);
 2. **"Ver comprovante"**, que abre o comprovante e, **dentro dele**, uma terceira expansão com as
    ocorrências;
@@ -33,7 +33,7 @@ pendência declarada. Ver D10 — o canvas tem **dados de mentira** que não sã
 
 | Seção do canvas    | Hoje no app real                                                                                                                                                                                                             | Falta                                                                                                                                                                                   |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Dados da nota**  | `TripStopList.component.tsx` — linha da nota e "Detalhes da nota"; `TripDocumentCost` (spec 226)                                                                                                                             | **Série** separada (hoje colada: `123/1`); **CNPJ** (a API já devolve `contact.taxId`, **nenhum componente o imprime**); **Volumes** (**não existe na API**); botão de copiar por campo |
+| **Dados da nota**  | `TripStopList.component.tsx` — linha da nota e "Detalhes da nota"; `TripDocumentCost` (spec 232)                                                                                                                             | **Série** separada (hoje colada: `123/1`); **CNPJ** (a API já devolve `contact.taxId`, **nenhum componente o imprime**); **Volumes** (**não existe na API**); botão de copiar por campo |
 | **Comprovante**    | `TripDeliveryProof.component.tsx`, só **depois** de "Ver comprovante"; selo de situação `ProofReviewChip` (Aguardando conferência / Aprovado / Recusado); "Longe do ponto" é um badge **à parte**, dentro de `ProofReadings` | Um selo único; comprovante visível **sem** um segundo clique                                                                                                                            |
 | **Ocorrências**    | `TripOccurrences.component.tsx`, numa **terceira expansão dentro** do comprovante                                                                                                                                            | Lista direta na nota; **link por ocorrência** para `/ocorrencias/:id` (spec 183)                                                                                                        |
 | **Eventos + mapa** | `TripTimeline.component.tsx`: **uma por viagem**, filtro por nota em memória e só sobre as páginas já carregadas; spec 196: ícone, tooltip, mapa do ponto com dois pinos                                                     | Eventos **por nota**; **raio tolerado** (não existe na tela); eventos "Foto do canhoto" e "endereço geocodificado" (**não existem como evento**)                                        |
@@ -43,7 +43,7 @@ specs **222** (fechada), **223** e **224**, que mexem exatamente neste fluxo —
 
 ## Fora do escopo
 
-- Mudar a regra do custo e lucro por nota. É a spec **226**; aqui ela só **muda de lugar** (D3).
+- Mudar a regra do custo e lucro por nota. É a spec **232**; aqui ela só **muda de lugar** (D3).
 - Congelar a conta no despacho (planejado × realizado). Já decidido fora desta spec.
 - A planta de empacotamento (`cargoLayout`, spec 145) — o nome "planta" engana: não tem relação com isto.
 - Tela do **motorista** (`apps/frontend-driver`) e portal do contratante. Esta spec é só o painel.
@@ -53,7 +53,7 @@ specs **222** (fechada), **223** e **224**, que mexem exatamente neste fluxo —
 
 - **D0 — Antes de qualquer fatia, o chão tem de estar certo.** Três coisas, nesta ordem, e é a **Fase 0**:
   1. **Renumerar a minha spec de custo**: `225-cada-nota-diz-quanto-rendeu-e-quanto-gastou` vira
-     **`226-…`**, porque `origin/staging` já tem `225-a-viagem-terminada-nao-foi-movida`.
+     **`232-…`**, porque `origin/staging` já tem `225-a-viagem-terminada-nao-foi-movida`.
   2. **Rebase em `origin/staging`** (93 atrás, 28 à frente). A interseção medida é de **12 arquivos**, quase
      todos entrypoints de teste e `package.json`; os que pedem cuidado são `trip.schema.ts`,
      `static-migration.contract.ts`, `TripStopList.component.tsx` e `TripDetail.page.tsx`.
@@ -75,7 +75,7 @@ specs **222** (fechada), **223** e **224**, que mexem exatamente neste fluxo —
 - **D2 — A ordem das seções é a da pergunta.** _Dados da nota_ → _Comprovante da entrega_ → _Ocorrências_ →
   _Eventos desta entrega_, como no canvas. O comprovante é **visível** ao abrir a nota, sem um segundo clique.
 
-- **D3 — O custo e lucro (spec 226) muda de lugar, não de conteúdo.** Sai do "Detalhes da nota" e entra em
+- **D3 — O custo e lucro (spec 232) muda de lugar, não de conteúdo.** Sai do "Detalhes da nota" e entra em
   _Dados da nota_, como no canvas, com as mesmas regras: sem `trip.financials` **nada** aparece, nem o
   "Valor da carga" nem o "Frete" (a API os redige — `nfeTotalValue` e `freightAmount` são `'money'`).
 
@@ -155,7 +155,7 @@ Não há `[NEEDS CLARIFICATION]` aberto nesta spec nem na 228.
   checkbox de seleção **fora** do botão de abrir.
 - **RF2** A nota aberta mostra, nesta ordem, _Dados da nota_, _Comprovante da entrega_, _Ocorrências_ e
   _Eventos desta entrega_ (D2).
-- **RF3** _Dados da nota_ mostra NF-e, **Série**, Cliente, **CNPJ**, Valor da carga e **Volumes** (campo novo na API, D5); mais o bloco de custo e lucro da spec 226 (D3).
+- **RF3** _Dados da nota_ mostra NF-e, **Série**, Cliente, **CNPJ**, Valor da carga e **Volumes** (campo novo na API, D5); mais o bloco de custo e lucro da spec 232 (D3).
 - **RF4** Cada campo de _Dados da nota_ e cada valor de custo tem **botão de copiar** (`CopyButton`), com
   rótulo acessível que diz **o que** copia ("Copiar CNPJ", não "Copiar").
 - **RF5** _Comprovante da entrega_ aparece **sem segundo clique**, com um selo de situação (D4/N1), data, "recebido
@@ -170,7 +170,7 @@ Não há `[NEEDS CLARIFICATION]` aberto nesta spec nem na 228.
   necessários** (já estão na tela): nenhum dos dois existe. "Ver cliente" **só** aparece a quem abre `/clientes`
   (`canOpenWorkspace`) e leva o nome por `sessionStorage`, nunca pela URL (revisão M4, security.md §8).
 - **RF9** Seguir a âncora da linha do tempo para uma nota **abre** a nota.
-- **RF10** Em 375 px nada transborda na horizontal e nenhuma letra é cortada (a revisão da 226 achou esse
+- **RF10** Em 375 px nada transborda na horizontal e nenhuma letra é cortada (a revisão da 232 achou esse
   defeito três vezes).
 
 ## Critérios de aceite

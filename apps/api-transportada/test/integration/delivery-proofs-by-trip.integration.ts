@@ -251,7 +251,7 @@ describe('os comprovantes da viagem contra o Postgres (spec 222 T1.6, CA01)', ()
   )
 
   testWithPostgres(
-    'o raio (spec 227 D6) é o da própria empresa: 500 gravado, 300 de fábrica, e nunca o de outra',
+    'o raio (spec 233 D6) é o da própria empresa: 500 gravado, 300 de fábrica, e nunca o de outra',
     async () => {
       await withDisposableDatabase(async (database) => {
         const configured = await seedTripWithThreeProofs(database)

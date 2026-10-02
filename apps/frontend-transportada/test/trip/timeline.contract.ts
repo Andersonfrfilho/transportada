@@ -229,7 +229,7 @@ describe('cliente HTTP da linha do tempo (spec 158 T7)', () => {
     expect(request.headers.get('authorization')).toBe('Bearer synthetic-access-token')
   })
 
-  /** Spec 227 T5.3: a nota aberta pede só os eventos dela — o filtro é do servidor (T5.1). */
+  /** Spec 233 T5.3: a nota aberta pede só os eventos dela — o filtro é do servidor (T5.1). */
   it('com documentId, a query string leva o filtro da nota', async () => {
     const requests: Request[] = []
     const client = createTripClient({

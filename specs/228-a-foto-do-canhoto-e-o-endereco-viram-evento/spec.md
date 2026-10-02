@@ -2,9 +2,9 @@
 
 ## Problema e resultado
 
-A spec 227 abriu a nota inteira, e a seção _Eventos desta entrega_ lê `GET /trips/:id/timeline?documentId=`
-(227 T5.1/T5.3). Faltam nela dois acontecimentos que o canvas aprovado mostra e que o usuário decidiu criar
-(227 D12, N5: _"Cria os dois eventos"_):
+A spec 233 abriu a nota inteira, e a seção _Eventos desta entrega_ lê `GET /trips/:id/timeline?documentId=`
+(233 T5.1/T5.3). Faltam nela dois acontecimentos que o canvas aprovado mostra e que o usuário decidiu criar
+(233 D12, N5: _"Cria os dois eventos"_):
 
 1. **"Foto do canhoto"** — o momento em que o motorista (ou o escritório, em nome dele) tirou a foto do
    canhoto, com o ponto onde estava;
@@ -14,7 +14,7 @@ A spec 227 abriu a nota inteira, e a seção _Eventos desta entrega_ lê `GET /t
 **Resultado**: os dois aparecem na linha do tempo da viagem e em _Eventos desta entrega_, na ordem certa, com a
 mesma regra de posição dos outros eventos (spec 196), sem coordenada para quem não tem `trip.event-location`.
 
-A 227 D12 estimou "tipo novo em `TRIP_STOP_EVENT_KINDS`, CHECK, migration, escrita nas rotas do motorista e no
+A 233 D12 estimou "tipo novo em `TRIP_STOP_EVENT_KINDS`, CHECK, migration, escrita nas rotas do motorista e no
 geocodificador". A leitura do código (abaixo) mostra que a **foto do canhoto não precisa de nada disso** , e que o
 **endereço** também não, depois que o usuário escolheu só a correção humana (D11).
 
@@ -34,7 +34,7 @@ geocodificador". A leitura do código (abaixo) mostra que a **foto do canhoto n�
 | A **correção humana** de coordenada é trilha append-only **com** `company_id`, ator, origem (`contractor`/`driver`/`operator`), ponto anterior e novo, e `created_at` — gravada só quando aplicada       | `src/database/geocoded-address-correction.schema.ts:25`, `:50-78`; `src/routing/infrastructure/drizzle-geocoded-address-correction.repository.ts:70-73`                                                          |
 | O **refino pago pedido por gente** (spec 069) é trilha append-only **com** `company_id`, ator, `outcome` e `created_at`; só `refined` mudou a coordenada                                                 | `src/database/geocoding-refinement.schema.ts:11-41`                                                                                                                                                              |
 | A linha do tempo junta fontes em `Promise.all` e ordena por `(occurredAt, prioridade, id)` decrescente; a prioridade é `::int`                                                                           | `src/trips/infrastructure/trip-timeline.query.ts:112-120`; `src/trips/infrastructure/trip-timeline-condition.helper.ts:37-44`; `src/trips/application/trip-timeline.types.ts` (`TRIP_TIMELINE_KIND_PRIORITY`)    |
-| O filtro `?documentId=` da 227 T5.1 deixa passar o que é da parada (`trip_document_id is null`)                                                                                                          | `src/trips/infrastructure/trip-timeline-stop.query.ts:104-106`                                                                                                                                                   |
+| O filtro `?documentId=` da 233 T5.1 deixa passar o que é da parada (`trip_document_id is null`)                                                                                                          | `src/trips/infrastructure/trip-timeline-stop.query.ts:104-106`                                                                                                                                                   |
 | Sem `trip.event-location` o caso de uso zera `location` de **todo** item e mantém `locationState`                                                                                                        | `src/trips/application/read-trip-timeline.use-case.ts:37-38`, `:75-78`                                                                                                                                           |
 | A nota sabe a parada dela (`trip_documents.stop_id`, anulável)                                                                                                                                           | `trip.schema.ts:773`                                                                                                                                                                                             |
 | Nada impede duas paradas da mesma viagem com a mesma `address_key` (só `(trip, sequence)` é único)                                                                                                       | `trip.schema.ts:709-716`                                                                                                                                                                                         |
@@ -58,7 +58,7 @@ geocodificador". A leitura do código (abaixo) mostra que a **foto do canhoto n�
   contratante. A 228 só **lê** a trilha.
 - **069** (27/27) — dona de `geocoding_refinement_requests`. A 228 só **lê** a trilha.
 - **194 / 220 / 222 / 224** — conferência e leitura do canhoto. O veredito (`canhoto_review`) é o selo da
-  seção _Comprovante_ (227 D4); a 228 **não** o repete no evento.
+  seção _Comprovante_ (233 D4); a 228 **não** o repete no evento.
 - **218** (30/30) — modos do comprovante por contratante. Não muda a foto nem o ponto.
 
 ## Fora do escopo
@@ -77,7 +77,7 @@ geocodificador". A leitura do código (abaixo) mostra que a **foto do canhoto n�
   `trip_delivery_proofs` com `kind = 'photo'` **é** o fato: tem instante, ponto, estado do ponto, autor, canal,
   expurgo e lista de leitores. Gravar um `trip_stop_events.kind = 'canhoto_photo'` copiaria `captured_at` e o
   ponto para uma segunda tabela — duas fontes da mesma verdade, que divergem na primeira substituição. Isto
-  **cumpre** a 227 D12 ("passam a ser eventos de verdade"): o evento existe no vocabulário da linha do tempo
+  **cumpre** a 233 D12 ("passam a ser eventos de verdade"): o evento existe no vocabulário da linha do tempo
   (`document.canhoto_photo`), com ordem, ponto e permissão próprios; o que se evita é só a cópia. Revisa a
   **estimativa** da D12 (tipo em `TRIP_STOP_EVENT_KINDS` + migration), não a decisão.
 - **D2 — O instante da foto é `coalesce(captured_at, created_at)`.** `captured_at` é a hora do aparelho
@@ -88,7 +88,7 @@ geocodificador". A leitura do código (abaixo) mostra que a **foto do canhoto n�
 - **D3 — A foto é da nota.** Ela pertence ao evento de baixa (`stop_event_id` → `trip_stop_events.trip_document_id`).
   Com `?documentId=`, só a foto **daquela** nota passa — nunca a de outra nota da mesma parada.
 - **D4 — O evento do endereço é da parada, e nasce quando a coordenada do endereço dela muda por ação desta
-  empresa.** Respostas à pergunta que a 227 D12 deixou:
+  empresa.** Respostas à pergunta que a 233 D12 deixou:
   - **De quem é**: da **parada** (`stop` preenchido, `document = null`), porque a coordenada é do endereço e a
     parada é quem o carrega (`trip_stops.address_key`). Toda nota da parada o vê.
   - **Quando nasce (derivado, sem migration)**: a cada linha de `geocoded_address_corrections` (correção
@@ -150,7 +150,7 @@ displacementMeters }`, com `origin ∈ contractor | driver | operator | refineme
   viagem, pela mesma empresa, a partir da criação da parada, uma vez por viagem (D4, D5), com
   `addressChange` (D8).
 - **RF3** Com `?documentId=`, a foto passa só se for daquela nota; o endereço passa só se for da parada da
-  nota (D3, D5). Nota de outra empresa ou viagem continua `404 TRIP_DOCUMENT_NOT_FOUND` (227 T5.1).
+  nota (D3, D5). Nota de outra empresa ou viagem continua `404 TRIP_DOCUMENT_NOT_FOUND` (233 T5.1).
 - **RF4** A paginação por cursor não repete nem pula item das fontes novas, inclusive no empate de instante.
 - **RF5** Sem `trip.event-location`, os dois `kind`s saem com `location = null`; com ela, com o ponto (D7).
 - **RF6** O painel conhece os dois `kind`s (lista de paridade), com ícone, tom e rótulo:
@@ -159,7 +159,7 @@ displacementMeters }`, com `origin ∈ contractor | driver | operator | refineme
   - `stop.address_corrected` → ícone `edit`, tom neutro, **"Endereço da parada corrigido"**, com a origem
     ("pelo contratante", "pelo motorista", "pelo escritório", "refino de precisão") e o deslocamento quando
     houver ("deslocado 45 m").
-- **RF7** _Eventos desta entrega_ (227 T5.3) mostra os dois na ordem cronológica, com "Ver no mapa" só quando
+- **RF7** _Eventos desta entrega_ (233 T5.3) mostra os dois na ordem cronológica, com "Ver no mapa" só quando
   há `location` (spec 196).
 
 ## Critérios de aceite
@@ -180,7 +180,7 @@ displacementMeters }`, com `origin ∈ contractor | driver | operator | refineme
 - **CA07** Painel antigo (sem os `kind`s novos) recebendo a API nova: a página **não** é recusada (o item é
   descartado) — contrato no painel com o validador atual.
 - **CA08** Print de _Eventos desta entrega_ com os dois eventos, 1280 e 375 px, dark e light, sem transbordo
-  (227 RF10), e comparado com a prancha do canvas da 227 (web.md §15).
+  (233 RF10), e comparado com a prancha do canvas da 233 (web.md §15).
 
 ## Decisões do usuário
 
@@ -194,11 +194,11 @@ displacementMeters }`, com `origin ∈ contractor | driver | operator | refineme
   Razão registrada: para quem investiga uma entrega, o que importa é "o ponto mudou e por quem"; a primeira
   geocodificação quase sempre é anterior à viagem (o endereço é reaproveitado entre viagens e empresas, ADR-0044
   §3).
-- **D12 — Ressalva sobre a 227 D12: a foto do canhoto é evento derivado.** O usuário escolheu "Cria os dois
-  eventos" (227 N5) **contra** a recomendação "derivar a foto da leitura do comprovante, sem evento novo". A 228
+- **D12 — Ressalva sobre a 233 D12: a foto do canhoto é evento derivado.** O usuário escolheu "Cria os dois
+  eventos" (233 N5) **contra** a recomendação "derivar a foto da leitura do comprovante, sem evento novo". A 228
   D1 **entrega** o evento — `document.canhoto_photo` existe na linha do tempo e em _Eventos desta entrega_, com
   ordem, ponto e permissão próprios —, mas **sem tabela nova**: ele é lido de `trip_delivery_proofs`, que já é o
-  fato. Isso **não** é pergunta bloqueante; é ponto a **confirmar com o usuário na T6.1 da 227**, junto dos prints.
+  fato. Isso **não** é pergunta bloqueante; é ponto a **confirmar com o usuário na T6.1 da 233**, junto dos prints.
   Se ele quiser a cópia em `trip_stop_events`, é outra spec (com migration).
 
 Nenhum `[NEEDS CLARIFICATION]` aberto.

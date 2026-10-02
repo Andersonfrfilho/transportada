@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 227 T5.1 (D7): `GET /trips/:id/timeline?documentId=` filtra por nota no servidor. A fronteira
+ * Spec 233 T5.1 (D7): `GET /trips/:id/timeline?documentId=` filtra por nota no servidor. A fronteira
  * valida o UUID (400), recusa chave repetida e entrega o filtro ao caso de uso junto com o cursor.
  */
 import { describe, expect, test } from 'bun:test'
@@ -80,7 +80,7 @@ function callTimeline(route: ReturnType<typeof findTimelineRoute>, query: string
   })
 }
 
-describe('GET /trips/:id/timeline?documentId= (spec 227 T5.1)', () => {
+describe('GET /trips/:id/timeline?documentId= (spec 233 T5.1)', () => {
   test('sem o filtro, a chave documentId nem chega ao caso de uso', async () => {
     const calls: object[] = []
     await callTimeline(recordingRoute(calls), '')

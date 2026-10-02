@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
 /**
- * Spec 227: as quatro notas do acordeão em três paradas, com a conta fechando — Σ frete = 2310,00,
+ * Spec 233: as quatro notas do acordeão em três paradas, com a conta fechando — Σ frete = 2310,00,
  * Σ (gasto + imposto) = 1217,20 e Σ lucro = 1092,80. Print com conta que não fecha é pior que nenhum.
  * Mora fora de `trip-smoke.helper.ts` porque é só dado: o helper registra as rotas.
  */
@@ -302,7 +302,7 @@ export function noteAccordionProducts(documentIndex: number) {
 }
 
 /**
- * Spec 227 T5.3: os eventos de uma nota (`GET /trips/:id/timeline?documentId=`), do mais recente ao mais
+ * Spec 233 T5.3: os eventos de uma nota (`GET /trips/:id/timeline?documentId=`), do mais recente ao mais
  * antigo. Os horários saem da baixa da própria nota — a lista e o comprovante contam o mesmo minuto —, e
  * a nota ainda não entregue só tem a saída, a chegada e a correção do endereço.
  */

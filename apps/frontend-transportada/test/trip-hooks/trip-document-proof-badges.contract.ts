@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 227 T4.1 (D4): o comprovante tem dois eixos — conferência e pontualidade — e cada um é um selo.
+ * Spec 233 T4.1 (D4): o comprovante tem dois eixos — conferência e pontualidade — e cada um é um selo.
  * Prova pelo **markup renderizado**: nenhum estado esconde o outro (recusado e longe do ponto diz as
  * duas coisas), nota sem comprovante não ganha selo, e sem `fleet.read` a consulta nem é feita.
  */
@@ -132,7 +132,7 @@ function badgesOf(dom: HTMLElement): HTMLElement | null {
   return dom.querySelector<HTMLElement>('[data-part="proof-badges"]')
 }
 
-describe('os selos do comprovante no cabeçalho da nota (spec 227 D4)', () => {
+describe('os selos do comprovante no cabeçalho da nota (spec 233 D4)', () => {
   for (const review of REVIEWS) {
     for (const punctuality of PUNCTUALITIES) {
       it(`conferência ${review} × pontualidade ${punctuality ?? 'ausente'}: um selo por eixo`, () => {
@@ -204,7 +204,7 @@ describe('os selos do comprovante no cabeçalho da nota (spec 227 D4)', () => {
   })
 })
 
-describe('os selos não se repetem na seção do comprovante (spec 227 D4, revisão de design)', () => {
+describe('os selos não se repetem na seção do comprovante (spec 233 D4, revisão de design)', () => {
   function renderSection(proof: DeliveryProof, isExpanded = false): HTMLElement {
     const view = resolveDeliveryProofView({
       document: {
@@ -253,7 +253,7 @@ describe('os selos não se repetem na seção do comprovante (spec 227 D4, revis
   })
 })
 
-describe('a consulta dos selos (spec 227 D4)', () => {
+describe('a consulta dos selos (spec 233 D4)', () => {
   const PROOFS = [
     { ...makeProof('rejected', 'away'), documentId: 'doc-1' },
     { ...makeProof('approved', undefined), documentId: 'doc-2', id: 'proof-2' },

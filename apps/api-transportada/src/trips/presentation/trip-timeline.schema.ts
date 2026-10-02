@@ -4,7 +4,7 @@
  * Spec 158 T6: chave desconhecida é recusa (molde de `readListQuery`). `cursor` só confere presença
  * e tipo string na fronteira — o parse de verdade é `parseTripTimelineCursor` (T5, infraestrutura),
  * reaproveitado aqui porque é quem sabe o formato que ele mesmo produziu (evidence.md T5). `limit`
- * é 1..200, padrão 100. `documentId` (spec 227 D7) é UUID ou 400 — diferente do teto de 100 de `readPaging`, por isso não reaproveitado.
+ * é 1..200, padrão 100. `documentId` (spec 233 D7) é UUID ou 400 — diferente do teto de 100 de `readPaging`, por isso não reaproveitado.
  */
 import {
   invalidRequest,

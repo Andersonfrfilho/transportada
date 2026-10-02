@@ -24,7 +24,7 @@ import { TripTimelineEntry } from './TripTimeline.component'
 type TripDocumentEventsProps = Readonly<{
   documentId: string
   permissions: readonly string[]
-  /** Spec 227 D6: o raio que valeu para o comprovante. Ausente, nenhum raio é escrito — nunca um número suposto. */
+  /** Spec 233 D6: o raio que valeu para o comprovante. Ausente, nenhum raio é escrito — nunca um número suposto. */
   proofRadiusMeters?: number | undefined
   stops?: readonly TripStopDetail[] | undefined
   tripId: string
@@ -33,7 +33,7 @@ type TripDocumentEventsProps = Readonly<{
 const SKELETON_ROWS = 2
 
 /**
- * Spec 227 T5.3 (RF7, D11): "Eventos desta entrega" na nota aberta — os eventos **da nota** e os da
+ * Spec 233 T5.3 (RF7, D11): "Eventos desta entrega" na nota aberta — os eventos **da nota** e os da
  * parada dela, vindos de `GET /trips/:id/timeline?documentId=`. A apresentação de cada evento é a
  * `TripTimelineEntry` da linha do tempo da viagem (distância ao ponto e mapa só com
  * `trip.event-location`, que a API já aplica). Em ordem cronológica, como no canvas.

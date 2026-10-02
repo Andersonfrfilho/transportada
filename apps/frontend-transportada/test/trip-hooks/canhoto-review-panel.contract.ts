@@ -122,7 +122,7 @@ describe('o veredito do canhoto aparece no item da nota (spec 220 T7.8)', () => 
     expect(badgeTexts()).toContain(EXPERIMENTAL_LABEL)
   })
 
-  /** O selo do cabeçalho da nota já diz "Aguardando conferência": repetir a frase era ruído (revisão da 227). */
+  /** O selo do cabeçalho da nota já diz "Aguardando conferência": repetir a frase era ruído (revisão da 233). */
   it('pendingUnread: a frase não repete o selo, e sem número nem Experimental nada sobra', async () => {
     const text = await renderReview(makeProof({ canhotoReview: 'pending' }))
 

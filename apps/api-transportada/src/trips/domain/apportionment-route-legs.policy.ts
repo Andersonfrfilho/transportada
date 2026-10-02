@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 226 D5: os trechos de `trips.planned_route` na forma que o rateio espera — `legs[i]` é o
+ * Spec 232 D5: os trechos de `trips.planned_route` na forma que o rateio espera — `legs[i]` é o
  * trecho que **chega** a `stops[i]`.
  *
  * A rota congelada guarda a lista crua do roteirizador: a saída do barracão na frente e o retorno no

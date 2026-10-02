@@ -94,7 +94,7 @@ function buildDataFields(
   }
   /**
    * Emissão e frete **da nota** moravam no resumo da linha, que cede quando a nota abre: eles
-   * entram aqui para a nota aberta não perder o dado nem repeti-lo (revisão de design da 227).
+   * entram aqui para a nota aberta não perder o dado nem repeti-lo (revisão de design da 233).
    */
   if (hasText(document.nfeIssuedAt)) {
     const issuedAt = dayFormatter.format(new Date(document.nfeIssuedAt))
@@ -126,7 +126,7 @@ function buildFreightField(
   }
 }
 
-/** Spec 227 RF3/RF4: a identidade da nota, copiável campo a campo, e o custo e lucro (226) abaixo dela. */
+/** Spec 233 RF3/RF4: a identidade da nota, copiável campo a campo, e o custo e lucro (232) abaixo dela. */
 export function TripDocumentData({ canOpenClients = false, document }: TripDocumentDataProps) {
   const { t } = useTranslation('trip')
   const hasDocumentCost = useHasDocumentCost(document.id)
@@ -197,7 +197,7 @@ export function TripDocumentData({ canOpenClients = false, document }: TripDocum
       {hasDocumentCost ? (
         <div className={styles.documentDataCost}>
           <p className={styles.documentDataTitle}>{t('documentData.costTitle')}</p>
-          {/* Spec 226 RF4/RF6: o gasto vem do contexto da avaliação — sem `trip.financials` não imprime nada. */}
+          {/* Spec 232 RF4/RF6: o gasto vem do contexto da avaliação — sem `trip.financials` não imprime nada. */}
           <TripDocumentCost documentId={document.id} />
           <TripDocumentCostCriterion documentId={document.id} />
         </div>

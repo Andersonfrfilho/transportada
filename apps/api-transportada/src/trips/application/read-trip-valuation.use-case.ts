@@ -77,7 +77,7 @@ export type TripValuationDocument = {
    */
   readonly recipientTaxId?: null | string
   readonly senderTaxId: null | string
-  /** Spec 226: em que parada a nota desce. Ausente ou `null`, ela só entra no rateio da viagem. */
+  /** Spec 232: em que parada a nota desce. Ausente ou `null`, ela só entra no rateio da viagem. */
   readonly stopId?: null | string
   readonly tripDocumentId: string
 }
@@ -145,7 +145,7 @@ export type TripValuationContext = {
   readonly federalRates?: CompanyFederalRates | null
   readonly fuelPricePerLiter: null | string
   /**
-   * Spec 226 D5: os trechos congelados, na forma do rateio — `legs[i]` chega a `stops[i]`. Ausente ou
+   * Spec 232 D5: os trechos congelados, na forma do rateio — `legs[i]` chega a `stops[i]`. Ausente ou
    * vazio é "roteiro ainda não calculado", e o gasto por nota sai ausente, nunca zero.
    */
   readonly legs?: readonly ApportionmentLeg[]
@@ -154,9 +154,9 @@ export type TripValuationContext = {
    * quando ninguém lançou nada — ausência de lançamento, não gratuidade.
    */
   readonly manualCostTotal?: null | string
-  /** Spec 226 D3: o retorno ao ponto de término, que nenhuma nota tem a bordo. */
+  /** Spec 232 D3: o retorno ao ponto de término, que nenhuma nota tem a bordo. */
   readonly returnDistanceMetres?: null | number
-  /** Spec 226 D9: as paradas na ordem da rota, cada uma com a espera medida. */
+  /** Spec 232 D9: as paradas na ordem da rota, cada uma com a espera medida. */
   readonly stops?: readonly ApportionmentStop[]
   /**
    * Spec 090 T9/T11: a **projeção** de pedágio — calculada pela mesma rota que resolveu
@@ -506,7 +506,7 @@ export async function buildValuationFromContext(input: {
 }
 
 /**
- * Spec 226 D8: o gasto por nota é o **mesmo** `totalCost` repartido, nunca uma segunda conta. O
+ * Spec 232 D8: o gasto por nota é o **mesmo** `totalCost` repartido, nunca uma segunda conta. O
  * `amount` da linha é o frete; `freightAmount` é só o nome que a política dá a ele.
  */
 function attachDocumentCostFigures(input: {

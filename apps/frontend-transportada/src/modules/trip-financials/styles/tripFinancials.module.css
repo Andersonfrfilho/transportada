@@ -507,7 +507,7 @@
 }
 
 /*
- * Spec 226 RF4: o gasto e o lucro da nota moram na grade da nota (`stopDocumentGrid` do módulo trip),
+ * Spec 232 RF4: o gasto e o lucro da nota moram na grade da nota (`stopDocumentGrid` do módulo trip),
  * que é um `grid` de colunas automáticas — `grid-column: 1 / -1` põe este bloco em linha própria, e a
  * grade interna se reparte pelo espaço (nenhum breakpoint fixo, 375 px incluído).
  */
@@ -561,7 +561,7 @@
   font-size: 0.75rem;
 }
 
-/* Spec 226 D6: previsto e fechado lado a lado em tela larga, empilhados em tela estreita. */
+/* Spec 232 D6: previsto e fechado lado a lado em tela larga, empilhados em tela estreita. */
 .sideBySide {
   display: grid;
   gap: var(--space-4);

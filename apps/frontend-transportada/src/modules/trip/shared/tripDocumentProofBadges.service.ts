@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 227 D4: o comprovante tem dois eixos independentes — a conferência do canhoto e a pontualidade
+ * Spec 233 D4: o comprovante tem dois eixos independentes — a conferência do canhoto e a pontualidade
  * da baixa. Cada um vira um selo, e nenhum esconde o outro: recusado e longe do ponto diz as duas coisas.
  */
 import type {

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 226 D9: a espera na parada. `departed` mora na parada de **destino** (ADR-0088 §1), então a
+ * Spec 232 D9: a espera na parada. `departed` mora na parada de **destino** (ADR-0088 §1), então a
  * saída de uma parada é o primeiro `departed` de outra depois da chegada — e estes testes prendem
  * isso, porque `departed − arrived` da mesma parada daria negativo e nada acusaria.
  */
@@ -42,7 +42,7 @@ function event(
   }
 }
 
-describe('a espera da parada é da chegada até a saída para a próxima (spec 226 D9)', () => {
+describe('a espera da parada é da chegada até a saída para a próxima (spec 232 D9)', () => {
   test('a saída é o departed da PRÓXIMA parada, não o da própria', () => {
     const [first] = resolveStopDwells({
       events: [
@@ -108,7 +108,7 @@ describe('a espera da parada é da chegada até a saída para a próxima (spec 2
   })
 
   /**
-   * Revisão da 226, M1. Sem `departed` para a parada seguinte (chegada pelo escritório, pelo WhatsApp,
+   * Revisão da 232, M1. Sem `departed` para a parada seguinte (chegada pelo escritório, pelo WhatsApp,
    * por app antigo ou por "Registrar entrega depois" — a API aceita chegada sem saída, ADR-0088 §5), o
    * primeiro `departed` de outra parada fica lá na frente e a espera engolia o trajeto **e** a espera
    * da parada seguinte: o mesmo minuto contado duas vezes, o erro que o próprio D9 condena.
@@ -147,7 +147,7 @@ describe('a espera da parada é da chegada até a saída para a próxima (spec 2
   })
 
   /**
-   * Revisão da 226, M3. O ADR-0088 §6 só mede com os dois extremos no mesmo relógio e do `driver_app`.
+   * Revisão da 232, M3. O ADR-0088 §6 só mede com os dois extremos no mesmo relógio e do `driver_app`.
    * Subtrair o `departed` do aparelho do `arrived` que o escritório digitou, ou que o servidor carimbou,
    * inflaria ou zeraria a espera — e a espera negativa ainda sairia como medida.
    */

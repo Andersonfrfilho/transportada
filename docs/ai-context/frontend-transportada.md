@@ -863,11 +863,11 @@ Contratos: `test/trip/route-geometry-money-optional.contract.ts` (D2/D3/D10, din
 condicionalmente ausente e `choiceReproduced`) e `test/trip/route-geometry-options-validation.contract.ts`
 (spec 096 T1, opção malformada não derruba a principal).
 
-## Spec 226 — gasto e lucro por nota na tela da viagem
+## Spec 232 — gasto e lucro por nota na tela da viagem
 
 Em `/trips/:id`, a linha de cada nota mostra, além de mercadoria e frete, o **gasto** (com "do trecho" e
 "rateio da viagem" separados), o **lucro**, a **margem** e o imposto. Os números vêm de
-`GET /trips/:id/valuation`, nos campos novos de `revenueLines` (spec 226 na API).
+`GET /trips/:id/valuation`, nos campos novos de `revenueLines` (spec 232 na API).
 
 A fiação é **contexto, não prop drilling**, e por regra: o caminho
 `TripDetail.page.tsx` → `TripDetail.component.tsx` → `TripStopList` → linha tem três níveis, e
@@ -890,7 +890,7 @@ A fiação é **contexto, não prop drilling**, e por regra: o caminho
   manda esse indicador, e **inferir por "gasto de trecho zero"** seria errado — uma nota com parada pode
   ter trecho de distância zero legitimamente.
 
-## A nota se abre inteira (spec 227)
+## A nota se abre inteira (spec 233)
 
 Em `/trips/:id`, a linha da nota é um **acordeão de abertura exclusiva**: `useOpenTripDocument`
 guarda o id da nota aberta **na lista**, não em cada linha — é isso que fecha a anterior ao abrir outra
@@ -901,7 +901,7 @@ aponta. O checkbox de seleção **não** abre nem fecha, e o cabeçalho não ani
 A nota aberta tem quatro seções, nesta ordem:
 
 - **Dados da nota** (`TripDocumentData`): série, CNPJ formatado, volumes e, com `trip.financials`, o
-  custo e o lucro da 226. Cada campo tem `CopyButton` com rótulo que diz **o que** copia. Sem
+  custo e o lucro da 232. Cada campo tem `CopyButton` com rótulo que diz **o que** copia. Sem
   permissão, volume ou CNPJ não sobra rótulo vazio. **Ver cliente** é o `DeliveryClientLink`: `<a href>`
   para `/clientes?name=<nome>` (`buildDeliveryClientSearchRoute`), e a lista de clientes lê o `name` da
   URL como busca inicial (`readDeliveryClientSearchFromLocation`).
@@ -923,7 +923,7 @@ novo para um painel que não o conhece faz **todo comprovante sumir da tela**, s
 aceita `proofRadiusMeters` (`DELIVERY_PROOF_OPTIONAL_KEYS`, `trip.constant.ts`) **antes** de a API
 mandá-lo; campo novo no comprovante entra na lista **antes ou junto**.
 
-A seção da spec 226 (gasto e lucro por nota) está acima.
+A seção da spec 232 (gasto e lucro por nota) está acima.
 
 ## Foto do canhoto e endereço corrigido na linha do tempo (spec 228)
 

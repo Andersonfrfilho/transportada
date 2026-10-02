@@ -1,10 +1,10 @@
-# Evidências — 227 A nota se abre inteira
+# Evidências — 233 A nota se abre inteira
 
 Spec escrita em 2026-10-02 a partir do mapa da exploração. Todas as perguntas respondidas em 2026-10-02; a Fase 5 recebeu os eventos da spec 228 (docs 228 T5.1); a ressalva da D12 (foto derivada, sem tabela) segue na T6.1.
 
-## T0.1 — renumeração 225 → 226
+## T0.1 — renumeração 225 → 232
 
-`origin/staging` já tinha `225-a-viagem-terminada-nao-foi-movida`; os números 226 a 229 estavam livres em
+`origin/staging` já tinha `225-a-viagem-terminada-nao-foi-movida`; os números 232 a 229 estavam livres em
 **todas** as refs. Feita **antes** do rebase, o único momento em que toda referência a 225 é minha.
 37 arquivos, 85 substituições por lista explícita de padrões e 21 renomes via `git mv`; **zero resíduo**
 conferido por `grep`. Ficaram de fora de propósito os falsos positivos — `'225.0000'`, o código `'225'`
@@ -12,7 +12,7 @@ da SEFAZ, os builds em `dist/`. Os commits antigos continuam dizendo 225: histó
 
 ## T0.2 — rebase em `origin/staging`
 
-93 commits atrás, 32 à frente. Backup guardado em `backup/pre-rebase-226`. **Seis conflitos**, todos
+93 commits atrás, 32 à frente. Backup guardado em `backup/pre-rebase-232`. **Seis conflitos**, todos
 resolvidos sem perder o trabalho de ninguém:
 
 | arquivo                               | natureza                                          | resolução                                                |
@@ -126,14 +126,14 @@ ambiente e se parece com defeito.
 
 - **`scrollWidth <= innerWidth` em 375 px** não foi medido (exige o smoke com a stack de pé). Pelo CSS não há
   causa de transbordo (`min-width: 0` no botão e no corpo), mas CSS lido não é medida: fica para o smoke
-  `spec-227-prints` e para a T6.1.
+  `spec-233-prints` e para a T6.1.
 - Os dois `useState` de dentro do comprovante (`isProductsExpanded`, `isOccurrencesExpanded`) continuam —
   são das Fases 3 e 4.
 - A ordem do canvas dentro do corpo é só a aproximação de detalhes → comprovante.
 
 ## T0.4 — a integração inteira da API, sobre a base rebaseada
 
-Gate de push das specs 196 e 226, rodado **depois** do rebase, da renumeração e do reencadeamento da
+Gate de push das specs 196 e 232, rodado **depois** do rebase, da renumeração e do reencadeamento da
 migration — ou seja, sobre o código que de fato seria publicado:
 
 ```
@@ -157,7 +157,7 @@ por mim.
 
 A nota aberta passou a ter a seção **Dados da nota** (`TripDocumentData.component.tsx`, 153 linhas — o
 `TripStopList` **diminuiu**): NF-e, **Série** própria, Cliente, **CNPJ**, Valor da carga e **Volumes**, cada
-um com um `CopyButton` do primitivo da casa; o contato, a regra de frete e o bloco de custo e lucro (spec 226) entraram **nela**, e `hasNoteDetail` deixou de existir. Seção sem nenhum dado devolve `null`.
+um com um `CopyButton` do primitivo da casa; o contato, a regra de frete e o bloco de custo e lucro (spec 232) entraram **nela**, e `hasNoteDetail` deixou de existir. Seção sem nenhum dado devolve `null`.
 
 O CNPJ vinha da API e **nenhum componente o imprimia**. **Volumes** é campo novo: `volumeCount` em
 `documents[]` do `GET /trips/:id`.
@@ -527,9 +527,9 @@ evento mantém o "Ver no mapa" próprio. Pendência para a T6.1.
 
 ## T6.2 — Documentação viva
 
-Seção "A nota se abre inteira (spec 227)" em `docs/ai-context/frontend-transportada.md` e "Spec 227 — a nota
+Seção "A nota se abre inteira (spec 233)" em `docs/ai-context/frontend-transportada.md` e "Spec 233 — a nota
 se abre inteira" em `docs/ai-context/api-transportada.md`; ponteiros de poucas linhas nos `CLAUDE.md` das duas
-apps. As seções da 226 já existiam nos dois documentos e não foram repetidas. Nomes de arquivo e símbolos
+apps. As seções da 232 já existiam nos dois documentos e não foram repetidas. Nomes de arquivo e símbolos
 conferidos por `ls`/`grep` antes de citar. Registrado o desvio da D6 (raio da empresa, não do contratante) e
 a armadilha de ordem de publicação do validador do comprovante. Só documentação: nenhum código tocado.
 
@@ -631,7 +631,7 @@ pré-condição do push; M2 reescrita (RF8). Pendências: B1, B2, B3, ordem dos 
 ## T4.4 — revisão de design: alturas, comprovante compacto, repetição (2026-10-02)
 
 Reprovação do usuário sobre os prints: alturas fora do padrão, recibo grande demais, copiar grande, informação
-repetida, "bem diferente do preview". Contratos novos **no navegador** (`spec-227-prints.smoke.spec.ts`, 1280 e 375)
+repetida, "bem diferente do preview". Contratos novos **no navegador** (`spec-233-prints.smoke.spec.ts`, 1280 e 375)
 e no DOM; os textos de contrato antigos que afirmavam o comportamento reprovado foram **atualizados com intenção**
 (cada um com o motivo no próprio arquivo).
 

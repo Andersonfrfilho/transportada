@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 226 D5: `legs[i]` chega a `stops[i]`. A rota congelada traz o trecho de saída do barracão e o
+ * Spec 232 D5: `legs[i]` chega a `stops[i]`. A rota congelada traz o trecho de saída do barracão e o
  * de retorno misturados aos trechos entre paradas — a política separa, e estes testes prendem a
  * suposição que a spec chama de "a parte frágil".
  */
@@ -27,7 +27,7 @@ function route(input: { readonly depot?: unknown; readonly legs?: unknown }) {
   }
 }
 
-describe('os trechos da rota congelada chegam às paradas (spec 226 D5)', () => {
+describe('os trechos da rota congelada chegam às paradas (spec 232 D5)', () => {
   test('com barracão de ida e volta: o primeiro trecho é a saída, o último é o retorno e fica de fora', () => {
     const legs = readApportionmentLegs(route({ depot: { leadingLegs: 1, trailingLegs: 1 } }))
 

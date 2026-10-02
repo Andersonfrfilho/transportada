@@ -52,7 +52,7 @@ export type DeliveryProof = Readonly<{
   capturedAt?: string
   /** Spec 220 RF15: distância ao ponto, em metros; ausente sem posição. Nunca a coordenada. */
   distanceMeters?: number
-  /** Spec 227 D6: o raio de “longe do ponto” que valeu para este comprovante; ausente na API anterior. */
+  /** Spec 233 D6: o raio de “longe do ponto” que valeu para este comprovante; ausente na API anterior. */
   proofRadiusMeters?: number
   createdAt: string
   downloadUrl: string
@@ -168,7 +168,7 @@ export function resolveDeliveryProofFullSizeUrl(proof: DeliveryProof): string {
   return proof.downloadUrl
 }
 
-/** Spec 227 D6: o raio do primeiro comprovante que o trouxe; nenhum, nenhum raio — nunca um suposto. */
+/** Spec 233 D6: o raio do primeiro comprovante que o trouxe; nenhum, nenhum raio — nunca um suposto. */
 export function resolveProofRadiusMeters(proofs: readonly DeliveryProof[]): number | undefined {
   return proofs.find((proof) => proof.proofRadiusMeters !== undefined)?.proofRadiusMeters
 }

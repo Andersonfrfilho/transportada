@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 227 T1.1 (RF1/RF2/RF9, CA01): a nota é um acordeão de abertura exclusiva. Prova pela
+ * Spec 233 T1.1 (RF1/RF2/RF9, CA01): a nota é um acordeão de abertura exclusiva. Prova pela
  * **estrutura renderizada** — a caixa de seleção e o botão de abrir são irmãos (botão dentro de
  * botão é HTML inválido e engole o clique), só uma nota abre por vez, e seguir a âncora da linha do
  * tempo abre a nota. Dados sintéticos.
@@ -127,7 +127,7 @@ afterEach(() => {
   container = undefined
 })
 
-describe('a nota é um acordeão de abertura exclusiva (spec 227 RF1/CA01)', () => {
+describe('a nota é um acordeão de abertura exclusiva (spec 233 RF1/CA01)', () => {
   it('nasce toda fechada, e cada cabeçalho tem um botão com aria-expanded', () => {
     const { dom } = renderAccordion()
 
@@ -169,7 +169,7 @@ describe('a nota é um acordeão de abertura exclusiva (spec 227 RF1/CA01)', () 
   })
 })
 
-describe('a seção Ocorrências é irmã do comprovante, depois dele (spec 227 D2/RF2)', () => {
+describe('a seção Ocorrências é irmã do comprovante, depois dele (spec 233 D2/RF2)', () => {
   function bodyOf(dom: HTMLElement, documentId: string): HTMLElement {
     const body = toggleOf(dom, documentId)
       .closest('li')
@@ -193,7 +193,7 @@ describe('a seção Ocorrências é irmã do comprovante, depois dele (spec 227 
     expect(proof?.contains(occurrences ?? proof)).toBe(false)
   })
 
-  it('Eventos desta entrega fecham a nota aberta, depois das ocorrências (spec 227 T5.3)', () => {
+  it('Eventos desta entrega fecham a nota aberta, depois das ocorrências (spec 233 T5.3)', () => {
     const { dom } = renderAccordion()
     expect(dom.querySelector('[data-part="events"]')).toBeNull()
 
@@ -221,7 +221,7 @@ describe('a seção Ocorrências é irmã do comprovante, depois dele (spec 227 
   })
 })
 
-describe('a caixa de seleção e o botão de abrir são irmãos (spec 227 RF1)', () => {
+describe('a caixa de seleção e o botão de abrir são irmãos (spec 233 RF1)', () => {
   it('a caixa não está dentro do botão, e o botão não está dentro da caixa', () => {
     const { dom } = renderAccordion()
 
@@ -263,7 +263,7 @@ describe('a caixa de seleção e o botão de abrir são irmãos (spec 227 RF1)',
   })
 })
 
-describe('seguir a âncora da linha do tempo abre a nota (spec 227 RF9)', () => {
+describe('seguir a âncora da linha do tempo abre a nota (spec 233 RF9)', () => {
   it('o clique no link do evento abre a nota apontada, e fecha a anterior', () => {
     const { dom } = renderAccordion()
     act(() => toggleOf(dom, 'doc-a').click())
@@ -298,7 +298,7 @@ describe('seguir a âncora da linha do tempo abre a nota (spec 227 RF9)', () => 
   })
 })
 
-describe('abrir a nota não pede comprovante que não existe (spec 227 D1)', () => {
+describe('abrir a nota não pede comprovante que não existe (spec 233 D1)', () => {
   const TRIP = {
     documents: [
       makeDocument('doc-a'),

@@ -14,7 +14,7 @@ type TripDocumentOccurrencesProps = Readonly<{
 }>
 
 /**
- * Spec 227 D2: as ocorrências são seção da nota aberta, irmã de "Dados da nota" e do comprovante —
+ * Spec 233 D2: as ocorrências são seção da nota aberta, irmã de "Dados da nota" e do comprovante —
  * não mais uma terceira expansão dentro do comprovante. A busca segue a nota aberta (entregue ou
  * não), então a lista vazia aqui quer dizer que não há ocorrência, não que ela não foi buscada.
  *

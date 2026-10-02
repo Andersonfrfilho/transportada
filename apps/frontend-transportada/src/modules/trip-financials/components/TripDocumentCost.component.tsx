@@ -32,7 +32,7 @@ function CostGroup({ figure, flow, isLoss = false }: CostGroupProps) {
 }
 
 /**
- * Spec 226 RF4/RF6/RF9: quanto a nota gastou e lucrou, com o gasto em duas partes. Sem a linha de
+ * Spec 232 RF4/RF6/RF9: quanto a nota gastou e lucrou, com o gasto em duas partes. Sem a linha de
  * avaliação — sem `trip.financials` ou prévia sem os campos — não renderiza nada, nem rótulo vazio.
  */
 export function TripDocumentCost({ documentId }: TripDocumentCostProps) {

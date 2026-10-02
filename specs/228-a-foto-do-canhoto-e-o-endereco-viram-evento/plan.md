@@ -52,7 +52,7 @@ created_at)` usada no filtro, na ordem e na chave em texto, e prioridade constan
 
 ## F4 — Painel
 
-- `TripTimelineEntry` (reaproveitada pela 227 T5.3) com os dois rótulos; _Eventos desta entrega_ sem mudança
+- `TripTimelineEntry` (reaproveitada pela 233 T5.3) com os dois rótulos; _Eventos desta entrega_ sem mudança
   de estrutura — os itens chegam pelo mesmo `useTripDocumentTimelineQuery`.
 - Na linha do tempo da viagem, a foto leva o rótulo da nota (como `document.delivered`).
 

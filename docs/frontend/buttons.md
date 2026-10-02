@@ -46,7 +46,7 @@ Um degrau abaixo do compacto existe `--control-height-dense` (1,5rem): é a altu
 de copiar (`@/components/ui/copy-button`) é quadrado pelo compacto, sem borda, com ícone `--icon-size-sm`, e uma
 margem negativa devolve à linha o espaço da área de toque. Ação de texto ("Ver cliente", "Ver no mapa") é compacta
 e sobe a `--touch-target` sob `pointer: coarse`. A medida é provada no navegador por
-`test/spec-227-prints.smoke.spec.ts`.
+`test/spec-233-prints.smoke.spec.ts`.
 
 ## Ícone e rótulo saem de uma regra só
 

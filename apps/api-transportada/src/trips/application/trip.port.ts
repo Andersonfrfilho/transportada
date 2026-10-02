@@ -120,7 +120,7 @@ export type TripDocumentDetail = TripDocument & {
    */
   readonly proofPending: boolean
   /**
-   * Spec 227 D5/T2.3: soma de `nfe_volumes.quantity` da nota (`qVol` de cada `<vol>`). `null` quando a
+   * Spec 233 D5/T2.3: soma de `nfe_volumes.quantity` da nota (`qVol` de cada `<vol>`). `null` quando a
    * NF-e não tem linha de volume — desconhecido, nunca `0`: zero diria "a nota não tem volumes".
    */
   readonly volumeCount: null | number

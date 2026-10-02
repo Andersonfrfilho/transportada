@@ -76,7 +76,7 @@ export function hasRevenueLineCost(line: TripValuationRevenueLine): boolean {
 }
 
 /**
- * Spec 226 RF4/RF9: a linha da nota diz o que rendeu e o que gastou, com o gasto em duas partes —
+ * Spec 232 RF4/RF9: a linha da nota diz o que rendeu e o que gastou, com o gasto em duas partes —
  * "do trecho" (o que a nota causou andando e esperando) e "rateio da viagem" (retorno e avulso,
  * repartidos igualmente). `null` quando a linha veio sem os campos: a prévia e a sugestão não os têm.
  *

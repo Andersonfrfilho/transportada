@@ -61,14 +61,14 @@ D11. **Esta spec não tem migration** — se alguma task concluir que precisa de
       canhoto" e "Endereço da parada corrigido", com origem e deslocamento; "Ver no mapa" só com
       `location`. Aceite: suíte do painel verde pelo script `test` (nunca `bun test` cru).
 - [x] **T4.2** Prints (CA08) em 1280 e 375, dark e light, sem transbordo, comparados com a prancha do canvas
-      da 227. **Exige o ok explícito do usuário** (web.md §15).
+      da 233. **Exige o ok explícito do usuário** (web.md §15).
 
 ## Fase 5 — Documentação, portões e revisão
 
 > 🤖 Modelo: `sonnet` · T5.3 `code-reviewer` em `opus`
 
 - [x] **T5.1** Documentação viva: `docs/ai-context/api-transportada.md` (as duas fontes novas, D1/D4) e
-      `frontend-transportada.md`; marcar na 227 que a Fase 5 dela recebeu os eventos, e levar à T6.1 da 227 a ressalva da
+      `frontend-transportada.md`; marcar na 233 que a Fase 5 dela recebeu os eventos, e levar à T6.1 da 233 a ressalva da
       D12 (foto derivada, sem tabela) para o usuário confirmar junto dos prints.
 - [x] **T5.2** Portão completo na raiz, um comando por vez em primeiro plano (`make check`; `format:check` é
       gate só da raiz e cobre `specs/`).

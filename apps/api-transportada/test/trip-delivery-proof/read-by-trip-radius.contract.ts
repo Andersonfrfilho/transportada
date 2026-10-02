@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 227 T5.2 (D6): a leitura dos comprovantes da viagem devolve o raio tolerado de pontualidade
+ * Spec 233 T5.2 (D6): a leitura dos comprovantes da viagem devolve o raio tolerado de pontualidade
  * ("longe do ponto") como dado, para o painel desenhar o círculo sem ler `settings.manage`. O raio é o
  * mesmo que o juiz da captura usa (`resolveProofPunctualitySettings`), lido da empresa do contexto.
  */
@@ -60,7 +60,7 @@ function createDoubles(input: {
   }
 }
 
-describe('readDeliveryProofsByTrip devolve o raio (spec 227 T5.2)', () => {
+describe('readDeliveryProofsByTrip devolve o raio (spec 233 T5.2)', () => {
   test('cada item leva o raio da empresa do contexto', async () => {
     const { read, settingsCalls } = createDoubles({
       proofRadiusMeters: 450,

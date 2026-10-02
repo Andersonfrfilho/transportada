@@ -105,7 +105,7 @@ export function mapTripDocumentDetail(input: {
   readonly leavesBehindOnDispatch?: boolean
   /** Spec 223 RF4: derivado fora daqui (`proof-pending.query.ts`) — padrão `false`. */
   readonly proofPending?: boolean
-  /** Spec 227 T2.3: derivado fora daqui (`trip-document-volume.query.ts`) — padrão `null`. */
+  /** Spec 233 T2.3: derivado fora daqui (`trip-document-volume.query.ts`) — padrão `null`. */
   readonly volumeCount?: null | number
 }): TripDocumentDetail {
   const fiscalStatus = input.nfeDocumentStatus ?? input.freightCalculationStatus

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 227 D5/T2.3, contra Postgres real: `documents[].volumeCount` no detalhe da viagem é a soma de
+ * Spec 233 D5/T2.3, contra Postgres real: `documents[].volumeCount` no detalhe da viagem é a soma de
  * `nfe_volumes.quantity` da nota; `null` sem linha de volume ou com soma fracionária; `0` com linhas somando zero. Uma
  * consulta agregada para a viagem inteira (não cresce com as notas) e recortada por empresa.
  */
@@ -53,7 +53,7 @@ function countingDatabase(db: TestDatabase['db']): {
   return { database, selectCount: () => count }
 }
 
-describe('volumeCount no detalhe da viagem (spec 227 T2.3)', () => {
+describe('volumeCount no detalhe da viagem (spec 233 T2.3)', () => {
   testWithPostgres(
     'soma os volumes da nota; null sem linha de volume; 0 com linhas somando zero',
     async () => {

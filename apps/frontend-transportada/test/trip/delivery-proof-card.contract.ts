@@ -168,7 +168,7 @@ describe('o card por texto de fonte', () => {
   const card = readFileSync(new URL('TripDeliveryProof.component.tsx', COMPONENTS), 'utf8')
   const styles = readFileSync(STYLES, 'utf8')
 
-  /** Revisão de design da 227: os selos moram só no cabeçalho da nota; o card tem o resumo que abre. */
+  /** Revisão de design da 233: os selos moram só no cabeçalho da nota; o card tem o resumo que abre. */
   it('o card não desenha selos: o título é o botão que abre o comprovante', () => {
     expect(card).not.toInclude('<TripDocumentProofBadges')
     expect(card).not.toInclude('<header')
