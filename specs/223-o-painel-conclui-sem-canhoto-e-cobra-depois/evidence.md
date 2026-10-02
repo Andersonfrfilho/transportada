@@ -97,3 +97,42 @@ bun run test:hooks  → 184 pass / 0 fail
 ```
 
 A suíte nova foi acrescentada à lista explícita do `package.json` do painel — sem isso ela não roda.
+
+## Fase 4 — a pendência de canhoto legível fora da baixa (T4.1 a T4.4 API)
+
+**Vermelho primeiro (T4.1 e T4.3).** Contrato: `bun --env-file=../../.env.test test ./test/trip-delivery-proof.contract.test.ts ./test/trip-http.contract.test.ts` →
+185 pass / 5 fail / 1 error. O erro: `Export named 'isProofRequiredBySettings' not found` em
+`proof-pending-settings.contract.ts`; as falhas: o detalhe não serializava `proofPending` e a lista
+respondia 400 a `proofPendingEq` (chave fora da allowlist). Integração
+(`trip-detail-proof-pending.integration.ts`): os 4 casos vermelhos — três com `Expected: true / Received: undefined`,
+e o da exceção do destinatário primeiro por FK (faltava a linha de `delivery_clients`, corrigida na fixture)
+e depois pelo mesmo `Received: undefined`.
+
+**Verde (T4.2 e API de T4.4).** `isProofRequiredBySettings` na policy `delivery-proof-settings.policy.ts`
+é a regra única do `||` de foto/assinatura: `resolveProofPendingFlag` (escrita) e `proof-pending.query.ts`
+(leitura) a chamam. O detalhe lê a pendência com no máximo três consultas fixas, nenhuma quando
+não há nota baixada sem foto (`trip-detail-query-count.integration.ts` segue verde). O campo é
+derivado, sem coluna nem migration. A exceção por contratante (spec 218) não entra, como no resto da
+resolução atual.
+
+**O filtro em SQL é uma segunda cópia da regra.** `proofPendingEq` precisa da condição dentro do
+`WHERE` da lista, então `tripHasProofPendingDocumentCondition` reescreve em SQL "exceção do destinatário,
+senão geral, senão nada exigido". A cópia fica presa por `trip-list-proof-pending-filter.integration.ts`,
+que cruza a lista com o detalhe em seis cenários (foto exigida, com foto, assinatura, nada exigido,
+exceção que dispensa, exceção que exige). Esse teste nasceu junto da implementação do filtro, sem
+rodada vermelha própria: a rodada vermelha do filtro é a do contrato (`proofPendingEq` → 400).
+
+`proofPendingEq` aceita só `true` e `false`; `maybe` e valor vazio dão 400.
+
+```
+bun --env-file=../../.env.test test --timeout 120000          → 8519 pass / 1 fail / 23 skip (8520 testes, 192 arquivos)
+  a falha: database-migration (23503 em vez de 23001 — Postgres local ≠ o da CI, já registrado)
+bun run typecheck                                              → limpo
+integração das viagens (trip*.integration.ts + driver-score)   → 265 pass / 1 skip / 0 fail (39 arquivos)
+```
+
+A integração rodou contra o Postgres descartável em `127.0.0.1:55499`
+(`DRIZZLE_TEST_DATABASE_URL`): o `DATABASE_URL` do `.env.test` aponta para `localhost:65432`, o
+Postgres do Docker com I/O error. As duas suítes de integração novas estão na lista
+`test:integration` do `package.json`. A lista inteira (~17 min) não foi rodada; rodaram os 39 arquivos
+de viagem e nota do motorista, que são os que leem o detalhe e a lista.

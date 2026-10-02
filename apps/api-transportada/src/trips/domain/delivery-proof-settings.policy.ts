@@ -50,6 +50,16 @@ export const DEFAULT_DELIVERY_PROOF_SETTINGS: DeliveryProofFieldSettings = {
   signature: 'optional',
 }
 
+/**
+ * Spec 223 RF3: a configuração exige canhoto quando a foto **ou** a assinatura é `required`.
+ * Regra única da escrita (`resolveProofPendingFlag`) e da leitura (`proof-pending.query.ts`).
+ */
+export function isProofRequiredBySettings(
+  settings: Pick<DeliveryProofFieldSettings, 'photo' | 'signature'> | undefined,
+): boolean {
+  return settings?.photo === 'required' || settings?.signature === 'required'
+}
+
 /** Spec 220 RF06: com `cargo` opcional ou desligado não há mínimo a cobrar. */
 export function readCargoRequiredCount(
   settings: Pick<DeliveryProofFieldSettings, 'cargo' | 'cargoMinimumCount'>,

@@ -94,6 +94,7 @@ import {
 } from './trip.query.js'
 import { listDeliveryContacts } from './delivery-proof-read.support.js'
 import { loadTripDocumentIdsWithOpenOccurrenceCase } from './occurrence-case-marker.query.js'
+import { loadProofPendingDocumentIds } from './proof-pending.query.js'
 import { readDispatchReadinessDocuments } from './dispatch-readiness.query.js'
 import { resolveDispatchReadiness } from '../domain/dispatch-readiness.policy.js'
 import { timelineActorMembership, timelineActorProfile } from './trip-timeline-condition.helper.js'
@@ -1380,6 +1381,11 @@ async function readTripDetail(
     companyId: input.companyId,
     tripDocumentIds: documentRecords.map((row) => row.document.id),
   })
+  /** Spec 223 RF4: até três leituras fixas para a viagem inteira; nenhuma sem nota baixada sem foto. */
+  const proofPendingDocumentIds = await loadProofPendingDocumentIds(queryable, {
+    companyId: input.companyId,
+    tripDocumentIds: documentRecords.map((row) => row.document.id),
+  })
   /**
    * Spec 185 T6.1: uma consulta a mais, fixa para a viagem inteira (nunca por nota) — o mesmo
    * `readDispatchReadinessDocuments` que o despacho usa, alimentando a mesma conta pura
@@ -1418,6 +1424,7 @@ async function readTripDetail(
       }),
       leavesBehindOnDispatch: leavesBehindOnDispatchIds.has(row.document.id),
       openOccurrenceCase: openOccurrenceCaseDocumentIds.has(row.document.id),
+      proofPending: proofPendingDocumentIds.has(row.document.id),
     }),
   )
 

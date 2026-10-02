@@ -130,6 +130,7 @@ const documentDetail = (overrides: Partial<TripDocument> = {}): TripDocumentDeta
   nfeSeries: null,
   nfeTotalValue: null,
   openOccurrenceCase: false,
+  proofPending: false,
 })
 
 type FixtureParams = {

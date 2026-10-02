@@ -4,12 +4,11 @@
  * Spec 156 T6 e spec 159 RF1/RF2: o comprovante dentro da baixa de uma nota — a configuração lida
  * antes da transação, o canhoto do escritório gravado dentro dela e o `proofPending` da resposta.
  */
+import { DELIVERED_EVENT_KIND, PHOTO_PROOF_KIND } from '../domain/delivery-event.constant.js'
 import {
-  DELIVERED_EVENT_KIND,
-  PHOTO_PROOF_KIND,
-  REQUIRED_PROOF_FIELD_MODE,
-} from '../domain/delivery-event.constant.js'
-import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
+  isProofRequiredBySettings,
+  type DeliveryProofFieldSettings,
+} from '../domain/delivery-proof-settings.policy.js'
 import {
   assertOfficeProofMeetsSettings,
   resolveOfficeReceivedBy,
@@ -99,11 +98,7 @@ export async function resolveProofPendingFlag(params: {
   readonly pendingSettings: DeliveryProofFieldSettings | undefined
   readonly transaction: DriverFieldReportTransactionPort
 }): Promise<boolean> {
-  const settings = params.pendingSettings
-  const isProofRequired =
-    settings?.photo === REQUIRED_PROOF_FIELD_MODE ||
-    settings?.signature === REQUIRED_PROOF_FIELD_MODE
-  if (!isProofRequired) return false
+  if (!isProofRequiredBySettings(params.pendingSettings)) return false
 
   const hasPhoto = await params.transaction.findProofExistsForEvent({
     companyId: params.companyId,

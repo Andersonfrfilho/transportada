@@ -103,6 +103,8 @@ export function mapTripDocumentDetail(input: {
   readonly openOccurrenceCase?: boolean
   /** Spec 185 T6.1: derivado fora daqui (`resolveDispatchReadiness`) — padrão `false`. */
   readonly leavesBehindOnDispatch?: boolean
+  /** Spec 223 RF4: derivado fora daqui (`proof-pending.query.ts`) — padrão `false`. */
+  readonly proofPending?: boolean
 }): TripDocumentDetail {
   const fiscalStatus = input.nfeDocumentStatus ?? input.freightCalculationStatus
   if (fiscalStatus === null) throw new Error('TRIP_DOCUMENT_FISCAL_STATUS_MISSING')
@@ -120,6 +122,7 @@ export function mapTripDocumentDetail(input: {
     nfeTotalValue: input.nfeTotalValue ?? null,
     leavesBehindOnDispatch: input.leavesBehindOnDispatch ?? false,
     openOccurrenceCase: input.openOccurrenceCase ?? false,
+    proofPending: input.proofPending ?? false,
   }
 }
 

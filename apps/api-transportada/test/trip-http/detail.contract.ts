@@ -37,6 +37,23 @@ describe('GET /trips/:id', () => {
     ])
   })
 
+  /** Spec 223 RF4: o selo "canhoto pendente" lê este campo — a serialização não pode descartá-lo. */
+  test('answers proofPending per document, as the read produced it', async () => {
+    const [firstDocument] = TRIP_DETAIL.documents
+    if (firstDocument === undefined) throw new Error('EXPECTED_DOCUMENT')
+    const documents = [{ ...firstDocument, proofPending: true }]
+    const fixture = await createTripHttpFixture({
+      getTripResult: { ...TRIP_DETAIL, documents },
+      permissions: FINANCIALS_PERMISSIONS,
+    })
+
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: tripDetailPath() }))
+
+    expect(response.status).toBe(200)
+    const body = (await responseData(response)) as { documents: { proofPending: boolean }[] }
+    expect(body.documents.map((document) => document.proofPending)).toEqual([true])
+  })
+
   test('refuses an identifier that is not a trip id', async () => {
     const fixture = await createTripHttpFixture()
 
