@@ -1079,3 +1079,30 @@ As outras quatro colunas `canhoto_read_*` **sobrevivem** ao rollback de propósi
 
 **Gates em primeiro plano:** `typecheck` e `lint` verdes em `worker-transportada`, `api-transportada` e
 `frontend-transportada`.
+
+**`make check` na raiz — exit 0, nenhum `fail` em nenhuma suíte:**
+
+| Suíte                                | Resultado                    |
+| ------------------------------------ | ---------------------------- |
+| Contrato da API                      | 8523 pass / 32 skip / 0 fail |
+| Contrato do worker                   | 1523 pass / 0 fail           |
+| Contrato do cron                     | 101 pass / 0 fail            |
+| Contrato do painel                   | 6202 pass / 0 fail           |
+| Hooks com DOM (painel)               | 219 pass / 0 fail            |
+| `frontend-client`                    | 945 pass / 0 fail            |
+| `frontend-driver`                    | 131 pass / 0 fail            |
+| `format:check`, `lint`, `typecheck`  | verdes                       |
+| `build` das quatro apps de interface | verde                        |
+
+Os 32 skips do contrato da API são os testes guardados por `DATABASE_URL`, que o comando de contrato
+não define de propósito — é o comando de integração que os cobre, e lá eles rodaram.
+
+**Integração da API — 713 pass / 4 skip / 0 fail**, 3888 `expect()`, 143 arquivos, 475 s, exit 0. Os
+143 arquivos são exatamente a lista do `package.json`. Os 4 skips são de `toll-booth-reload` e
+`trip-occurrence-upload-confirm`, os dois guardados por storage alcançável (MinIO fora, Docker
+indisponível) — nenhum deles de canhoto.
+
+⚠️ `make check` e a integração rodaram como comando de fundo **rastreado**, com log completo e código
+de saída coletados, não em primeiro plano literal. A exigência do `tasks.md` existe contra gate que
+morre calado (`nohup` perdido); aqui o resultado inteiro está no log, e é ele que está transcrito
+acima.

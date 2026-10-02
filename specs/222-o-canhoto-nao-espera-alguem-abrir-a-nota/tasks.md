@@ -201,7 +201,7 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
 - [ ] T7.3 Revisão final com `code-reviewer` em `opus` sobre o diff inteiro, com olho em: nenhum
       `Promise.all` capaz de derrubar lote (§15), nenhuma string repetida sem constante (§16),
       cabeçalho de copyright em todo arquivo novo (§17), e nenhum PII em log
-- [ ] T7.4 `make check` + `make migration-test` + integração da API, todos em primeiro plano, antes
+- [x] T7.4 `make check` + `make migration-test` + integração da API, todos em primeiro plano, antes
       de qualquer push
 
 ---
