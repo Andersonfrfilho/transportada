@@ -87,6 +87,12 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
    */
   'whatsapp.settle',
   /**
+   * Spec 222 / ADR-0091 §2: a leitura automática do canhoto, também do **serviço** e de uma rota só.
+   * O robô reporta o que leu e o servidor decide; ele não recebe `trip.manage`, que lhe daria
+   * separar, carregar e cancelar viagem. Sufixo `-review` porque `.read` significa ver no catálogo.
+   */
+  'trip.canhoto-auto-review',
+  /**
    * Spec 085 G005: medir a caixa de papelão é trabalho de galpão, e tem permissão própria.
    * `settings.manage` entregaria de carona o preço do combustível, a tabela de frete e a credencial
    * da prefeitura — quem confere caixa não administra nada disso.
@@ -261,7 +267,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
    * Nada de leitura de nota, de frota ou de faturamento: o worker só precisa pedir o manifesto que
    * a viagem já está pronta para ter.
    */
-  automation: Object.freeze(['mdfe.auto-issue', 'whatsapp.settle']),
+  automation: Object.freeze(['mdfe.auto-issue', 'whatsapp.settle', 'trip.canhoto-auto-review']),
 } satisfies Readonly<Record<CompanyRole, readonly CompanyPermission[]>>)
 
 export type CompanyAuthorizationPolicy = {
@@ -363,7 +369,11 @@ export function isCompanyPermission(value: string): value is CompanyPermission {
  * concessão avulsa a recusam na escrita, e a linha já gravada é ignorada na resolução: quem tem
  * `groups.manage` não concede a si mesmo a liquidação de pedido alheio nem a emissão de MDF-e.
  */
-export const SERVICE_ONLY_PERMISSIONS = ['mdfe.auto-issue', 'whatsapp.settle'] as const
+export const SERVICE_ONLY_PERMISSIONS = [
+  'mdfe.auto-issue',
+  'whatsapp.settle',
+  'trip.canhoto-auto-review',
+] as const
 
 /** O que grupo e concessão avulsa podem dar: permissão da empresa, e não de serviço. */
 export function isGrantablePermission(value: string): value is CompanyPermission {

@@ -433,3 +433,35 @@ depois de provar que ela **existe** (sem a primeira asserção, `false` seria va
 
 ⚠️ Este commit é **vermelho de propósito**: contrato antes da implementação. T3.4 e T3.5 o
 fecham.
+
+### T3.4 — a permissão `trip.canhoto-auto-review` existe em três lugares
+
+Fonte (`authorization.policy.ts`): catálogo `TRANSPORTADA_PERMISSIONS`, papel `automation` e
+`SERVICE_ONLY_PERMISSIONS`. Nenhum grupo a recebe (`permissionGroups.constant.ts` intocado) e o
+realm do Keycloak não muda. Espelho do frontend em `useAuthMe.query.ts`.
+
+Vermelho mecânico antes de acertar as igualdades exatas: com só a fonte editada, o contrato da API
+fechou em **8494 pass / 30 fail** = 9 do toll booth (baseline sem Postgres) + 16 da rota do robô
+(T3.5) + **5 de igualdade de catálogo** (matriz completa e seed local em `authorization`, T014b ×2,
+conta de serviço em `tenant-context`). Acertadas as igualdades: `authorization` + `tenant-context`
+
+- `user-administration-application` → **155 pass / 0 fail**.
+
+Verde de depois: API **8499 pass / 25 fail** (os 9 do toll booth + os 16 da rota do robô, ambos
+vermelhos conhecidos: o primeiro é Postgres fora do ar, o segundo é a T3.5). Frontend: **6202 pass
+/ 0 fail** (31 arquivos) e 219 / 0 no segundo comando do `test`; `tsc` limpo; lint 0 erros.
+
+Mutações (as três suítes direcionadas, 155 asserções):
+
+- tirar a permissão de `SERVICE_ONLY_PERMISSIONS` → **4 fail** (declaradas como de serviço, `isGrantablePermission`, matriz "não oferece permissão de serviço", grupo recusa todas as de serviço);
+- tirar do papel `automation` → **5 fail** (matriz completa, "automation recebe todas", `tenant-context`, matriz, `isGrantablePermission`);
+- restaurado: 155 / 0.
+
+Locales (medição): a divergência é que `identity.en.locale.json` carrega `mdfe.*` em português e
+`whatsapp.settle` em inglês. **Sem entradas de locale para a permissão nova, o frontend segue em
+6202 / 0**: o contrato só exige rótulo para `apiPermissions`, que exclui as de serviço. Entradas
+adicionadas mesmo assim, por convenção das duas de máquina existentes (pt no pt, en no en);
+continua 6202 / 0.
+
+Lint: `routes.contract.ts` da T3.3 tinha um `_omitted` não usado (eslint); trocado por filtro de
+`Object.entries`, comportamento igual.

@@ -420,6 +420,10 @@
         "label": "WhatsApp request settlement",
         "where": "Service only: bills on behalf of whoever confirmed, no screen. No person receives it."
       },
+      "trip.canhoto-auto-review": {
+        "label": "Automatic proof-of-delivery review",
+        "where": "Service only: the robot that reads the delivery receipt, no screen. No person receives it."
+      },
       "nfse.read": {
         "label": "Ver NFS-e",
         "where": "Tela Nota de serviço: a listagem e o documento."

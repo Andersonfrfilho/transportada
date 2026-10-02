@@ -84,7 +84,7 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
 - [x] T3.3 Contrato **antes da rota**: a rota do robô aceita o token da automação, recusa token de
       gente com `trip.manage`, o schema recusa `action` no corpo, e `isGrantablePermission` recusa a
       permissão a grupo e a concessão avulsa (CA13, CA16)
-- [ ] T3.4 A permissão em **três** lugares: catálogo, papel `automation` e `SERVICE_ONLY_PERMISSIONS`
+- [x] T3.4 A permissão em **três** lugares: catálogo, papel `automation` e `SERVICE_ONLY_PERMISSIONS`
       (`authorization.policy.ts:366`). ⚠️ São oito arquivos no total, e três comparam listas por
       igualdade exata — a lista está no plan.md § "Grupo B". Sem a entrada em
       `SERVICE_ONLY_PERMISSIONS`, quem tem `groups.manage` concede a porta do robô a uma pessoa

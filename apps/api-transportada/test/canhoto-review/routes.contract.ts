@@ -354,7 +354,9 @@ describe('o corpo do robô não aceita ação nem veredito (CA16)', () => {
     'campo de leitura ausente (%s) é 400: `null` é leitura vazia, ausente é corpo malformado',
     async (field) => {
       const fixture = createFixture({ permissions: SERVICE_PERMISSIONS })
-      const { [field]: _omitted, ...rest } = ROBOT_READING
+      const rest = Object.fromEntries(
+        Object.entries(ROBOT_READING).filter(([key]) => key !== field),
+      )
       expect((await patchAutomatic(fixture, rest)).status).toBe(400)
       expect(fixture.calls).toEqual([])
     },
