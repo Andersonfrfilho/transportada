@@ -1467,7 +1467,7 @@
     "closeTrips_other": "Encerrar {{count}} viagens",
     "count_one": "{{count}} viagem selecionada",
     "count_other": "{{count}} viagens selecionadas",
-    "selectAll": "Selecionar todas as viagens canceláveis da página",
+    "selectAll": "Selecionar as viagens da página que aceitam ação em lote",
     "selectTrip": "Selecionar a viagem do veículo {{vehicle}}"
   },
   "separationStatus": {
@@ -2002,6 +2002,7 @@
   "closeBulkDialog": {
     "closing": "Encerrando…",
     "confirm": "Encerrar",
+    "partialFailure": "{{failed}} de {{total}} viagem(ns) não encerraram: {{reason}}",
     "reasonLabel": "Motivo do encerramento",
     "subtitle": "As notas sem baixa ficam como pendência de canhoto — o encerramento não espera por elas.",
     "title": "Encerrar {{count}} viagem",

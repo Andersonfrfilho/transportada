@@ -42,7 +42,7 @@
 > 🤖 Modelo: `opus`
 
 - [x] **T5.1 🧠** Revisão de design e usabilidade das telas tocadas, com print.
-- [ ] **T5.2 🧠** Revisão de código da feature inteira por `code-reviewer`.
+- [x] **T5.2 🧠** Revisão de código da feature inteira por `code-reviewer`.
 
 ## Prompt de execução
 

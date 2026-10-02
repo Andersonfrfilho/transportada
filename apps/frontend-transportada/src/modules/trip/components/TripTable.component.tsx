@@ -19,9 +19,9 @@ import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 import { describeBoundVehicle } from '../shared/driverBoundVehicles.service'
 import type { TripTableController } from '../hooks/useTripTable.hook'
 import type { Trip, TripStatus } from '../shared/trip.types'
-import { isCancellable } from '../shared/tripSelection.service'
+import { bulkActionableSelection, isSelectableForBulk } from '../shared/tripSelection.service'
 import { TripCancelDialog } from './TripCancelDialog.component'
-import { TripCloseBulkDialog } from './TripCloseBulkDialog.component'
+import { TripCloseBulkDialog, type TripCloseBulkFailure } from './TripCloseBulkDialog.component'
 import type { TripColumnKey } from '../shared/tripTable.service'
 import styles from '../styles/trip.module.css'
 
@@ -44,7 +44,7 @@ type TripTableProps = Readonly<{
   isClosing: boolean
   onCloseSelected: (reason: string) => void
   /** A recusa do encerramento em massa, já em chave de feedback. */
-  closeFeedbackKey: null | string
+  closeFailure: null | TripCloseBulkFailure
 }>
 
 /**
@@ -63,7 +63,7 @@ function statusClassName(status: TripStatus): string {
 export function TripTable({
   canCancel,
   canClose,
-  closeFeedbackKey,
+  closeFailure,
   isCancelling,
   isClosing,
   onCancelSelected,
@@ -242,11 +242,19 @@ export function TripTable({
         {(canCancel && table.cancellableSelection.length > 0) ||
         (canClose && table.closeableSelection.length > 0) ? (
           <div className={styles.bulkBar} role="group" aria-label={t('selection.barLabel')}>
+            {/*
+             * A conta é das marcadas que **esta** permissão consegue agir, não de um dos dois
+             * conjuntos escolhido por `canCancel`: com só a permissão de encerrar, contar as
+             * canceláveis dizia um número que nenhum botão da barra honra.
+             */}
             <p className={styles.bulkCount}>
               {t('selection.count', {
-                count: canCancel
-                  ? table.cancellableSelection.length
-                  : table.closeableSelection.length,
+                count: bulkActionableSelection({
+                  canCancel,
+                  canClose,
+                  selectedIds: table.selectedIds,
+                  trips: table.visibleItems,
+                }).length,
               })}
             </p>
             {canCancel && table.cancellableSelection.length > 0 ? (
@@ -323,7 +331,7 @@ export function TripTable({
                 {canCancel || canClose ? (
                   <td>
                     {/* Concluída e cancelada não têm caixa: oferecer o que dá 409 é atrito puro. */}
-                    {isCancellable(trip) ? (
+                    {isSelectableForBulk(trip) ? (
                       <Checkbox
                         ariaLabel={t('selection.selectTrip', { vehicle: vehicleLabel(trip) })}
                         checked={table.selectedIds.includes(trip.id)}
@@ -372,7 +380,7 @@ export function TripTable({
       />
 
       <TripCloseBulkDialog
-        feedbackKey={closeFeedbackKey}
+        failure={closeFailure}
         isOpen={closing}
         isSubmitting={isClosing}
         onClose={() => setClosing(false)}

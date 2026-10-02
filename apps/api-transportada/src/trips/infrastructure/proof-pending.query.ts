@@ -7,7 +7,7 @@
  * calcula na escrita. Na leitura do detalhe a regra roda em TypeScript (uma função só); no filtro
  * da lista ela precisa existir em SQL, e o teste de paridade da integração prende as duas.
  */
-import { and, eq, inArray, sql, type SQL } from 'drizzle-orm'
+import { and, eq, inArray, ne, sql, type SQL } from 'drizzle-orm'
 
 import {
   companyDeliveryProofSettings,
@@ -15,6 +15,7 @@ import {
 } from '../../database/company-delivery-proof-settings.schema.js'
 import { nfeParticipants } from '../../database/nfe.schema.js'
 import {
+  TRIP_DELIVERY_PROOF_CANHOTO_REJECTED_REVIEW,
   tripDeliveryProofs,
   tripDocuments,
   tripStopEvents,
@@ -34,12 +35,18 @@ import {
 } from '../domain/delivery-proof-settings.policy.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
-/** Nenhum evento de entrega do documento tem foto anexada. */
+/**
+ * Nenhum evento de entrega do documento tem foto **que sirva** anexada. Canhoto recusado pela
+ * conferência (`canhoto_review = 'rejected'`) não conta: é a mesma leitura de
+ * `isDeliveryProofSettled` (spec 220 RF29) — "tem foto" deixou de significar "está comprovado", e
+ * contar o ilegível apagaria a dívida do escritório enquanto a fila do motorista ainda a cobra.
+ */
 function deliveredDocumentWithoutPhoto(): SQL {
   return sql`not exists (select 1 from ${tripStopEvents} inner join ${tripDeliveryProofs} on ${and(
     eq(tripDeliveryProofs.companyId, tripStopEvents.companyId),
     eq(tripDeliveryProofs.stopEventId, tripStopEvents.id),
     eq(tripDeliveryProofs.kind, PHOTO_PROOF_KIND),
+    ne(tripDeliveryProofs.canhotoReview, TRIP_DELIVERY_PROOF_CANHOTO_REJECTED_REVIEW),
   )} where ${and(
     eq(tripStopEvents.companyId, tripDocuments.companyId),
     eq(tripStopEvents.tripDocumentId, tripDocuments.id),

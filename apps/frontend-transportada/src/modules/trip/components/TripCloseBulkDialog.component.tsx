@@ -10,9 +10,16 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 import type { Trip } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
+/** A recusa já contada: o lote encerra o que dá, e o aviso diz quantas ficaram de fora e por quê. */
+export type TripCloseBulkFailure = Readonly<{
+  failedCount: number
+  feedbackKey: string
+  totalCount: number
+}>
+
 type TripCloseBulkDialogProps = Readonly<{
-  /** A recusa do servidor, já traduzida em chave de feedback. `null` enquanto nada falhou. */
-  feedbackKey: null | string
+  /** `null` enquanto nada falhou. */
+  failure: null | TripCloseBulkFailure
   isOpen: boolean
   isSubmitting: boolean
   onClose: () => void
@@ -30,7 +37,7 @@ type TripCloseBulkDialogProps = Readonly<{
  * motivo — é o mesmo que o servidor exigiria na pior das viagens marcadas.
  */
 export function TripCloseBulkDialog({
-  feedbackKey,
+  failure,
   isOpen,
   isSubmitting,
   onClose,
@@ -92,9 +99,13 @@ export function TripCloseBulkDialog({
           ))}
         </ul>
 
-        {feedbackKey === null ? null : (
+        {failure === null ? null : (
           <p className={styles.alert} role="alert">
-            {t(`feedback.${feedbackKey}`)}
+            {t('closeBulkDialog.partialFailure', {
+              failed: failure.failedCount,
+              reason: t(`feedback.${failure.feedbackKey}`),
+              total: failure.totalCount,
+            })}
           </p>
         )}
 

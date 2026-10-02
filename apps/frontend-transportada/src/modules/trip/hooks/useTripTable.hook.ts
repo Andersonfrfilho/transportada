@@ -75,6 +75,8 @@ export function useTripTable(input: UseTripTableInput) {
     cancellableSelection: cancellableSelection({ selectedIds, trips: visibleItems }),
     closeableSelection: closeableSelection({ selectedIds, trips: visibleItems }),
     clearSelection: () => setRawSelection([]),
+    /** Spec 223 RF8: o lote devolve as que falharam, e só elas continuam marcadas. */
+    replaceSelection: (tripIds: readonly string[]) => setRawSelection(tripIds),
     columns: visibleTripColumns({
       canReadFinancials: input.permissions.includes(FINANCIALS_PERMISSION),
     }),

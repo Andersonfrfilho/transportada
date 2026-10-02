@@ -754,6 +754,13 @@ export function useTripWorkspace(
    * usuário clicando de novo, não o TanStack tentando sozinho.
    */
   const fieldReportKeysRef = useRef<Record<string, string>>({})
+  /**
+   * Spec 223: o escopo da chave da baixa de campo, numa função só — a baixa individual, a em massa
+   * e o descarte da chave precisam escrever **o mesmo** escopo, e três literais iguais divergem.
+   */
+  function fieldDeliverReportKey(documentId: string): string {
+    return `fieldDeliver:${documentId}`
+  }
   function resolveFieldReportKey(scope: string): string {
     const existing = fieldReportKeysRef.current[scope]
     if (existing !== undefined) return existing
@@ -835,10 +842,10 @@ export function useTripWorkspace(
     mutationFn: (body: Omit<FieldDeliverDocumentInput, 'idempotencyKey'>) =>
       controller.fieldDeliverDocument({
         ...body,
-        idempotencyKey: resolveFieldReportKey(`fieldDeliver:${body.documentId}`),
+        idempotencyKey: resolveFieldReportKey(fieldDeliverReportKey(body.documentId)),
       }),
     onSuccess: (_result, variables) => {
-      clearFieldReportKey(`fieldDeliver:${variables.documentId}`)
+      clearFieldReportKey(fieldDeliverReportKey(variables.documentId))
       return invalidate()
     },
   })
@@ -905,11 +912,11 @@ export function useTripWorkspace(
               deliveredAt: body.deliveredAt,
               documentId,
               ...(body.driverId === undefined ? {} : { driverId: body.driverId }),
-              idempotencyKey: resolveFieldReportKey(`fieldDeliver:${documentId}`),
+              idempotencyKey: resolveFieldReportKey(fieldDeliverReportKey(documentId)),
               tripId: body.tripId,
             })
             .then((result) => {
-              clearFieldReportKey(`fieldDeliver:${documentId}`)
+              clearFieldReportKey(fieldDeliverReportKey(documentId))
               return result
             }),
       }),

@@ -1467,7 +1467,7 @@
     "closeTrips_other": "Close {{count}} trips",
     "count_one": "{{count}} trip selected",
     "count_other": "{{count}} trips selected",
-    "selectAll": "Select every cancellable trip on this page",
+    "selectAll": "Select every trip on this page that accepts a bulk action",
     "selectTrip": "Select the trip for vehicle {{vehicle}}"
   },
   "separationStatus": {
@@ -2002,6 +2002,7 @@
   "closeBulkDialog": {
     "closing": "Closing…",
     "confirm": "Close",
+    "partialFailure": "{{failed}} of {{total}} trip(s) were not closed: {{reason}}",
     "reasonLabel": "Reason for closing",
     "subtitle": "Documents without delivery stay as a pending receipt — closing does not wait for them.",
     "title": "Close {{count}} trip",

@@ -38,6 +38,7 @@ import { useTripRouteAssembly } from '../hooks/useTripRouteAssembly.hook'
 import { useTripTable } from '../hooks/useTripTable.hook'
 import { useTripWorkspace } from '../hooks/useTripWorkspace.hook'
 import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
+import { runFieldActionQueue } from '../shared/tripFieldActionQueue.service'
 import { navigateToTrip, parseTripCreationDocumentIds } from '../shared/tripRoute.service'
 import { type TripColumnKey, visibleTripColumns } from '../shared/tripTable.service'
 import styles from '../styles/trip.module.css'
@@ -272,21 +273,58 @@ export function TripWorkspacePage() {
   })
 
   /**
-   * Spec 223 RF8 (ADR-0091): encerrar as marcadas, **uma por uma e em sequência**, pela mesma razão
-   * do cancelamento em lote — `Promise.all` esconderia quais das outras chegaram a acontecer. O
-   * motivo é o mesmo para todas: foi digitado uma vez, no diálogo da lista.
+   * Spec 223 RF8 (ADR-0091): encerrar as marcadas pelo **mesmo leque** da baixa em massa
+   * (`runFieldActionQueue`) — falha isolada, resultado por viagem e a lista reconciliada mesmo
+   * quando alguma recusa. O laço anterior parava na primeira recusa e, por abortar antes do
+   * `onSuccess`, deixava a tela mostrando como abertas viagens que já estavam encerradas.
+   *
+   * As viagens vêm em `tripIds`, resolvidas no clique: ler a seleção aqui dentro deixaria um
+   * refetch trocar o conjunto entre a confirmação e o fim do laço. O motivo é o mesmo para todas —
+   * foi digitado uma vez, no diálogo da lista.
    */
   const closeSelectedMutation = useMutation({
-    mutationFn: async (reason: string) => {
-      for (const trip of table.closeableSelection) {
-        await workspace.controller.closeTrip({ reason, tripId: trip.id })
-      }
-    },
-    onSuccess: () => {
-      table.clearSelection()
-      void queryClient.invalidateQueries({ queryKey: TRIP_LIST_QUERY_KEY })
-    },
+    mutationFn: (input: { readonly reason: string; readonly tripIds: readonly string[] }) =>
+      runFieldActionQueue({
+        concurrency: 3,
+        items: input.tripIds,
+        run: (tripId) => workspace.controller.closeTrip({ reason: input.reason, tripId }),
+      }),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: TRIP_LIST_QUERY_KEY }),
   })
+
+  /** Quantas de quantas não encerraram, e por quê — o diálogo continua aberto com as que faltam. */
+  const [closeFailure, setCloseFailure] = useState<null | {
+    readonly failedCount: number
+    readonly feedbackKey: string
+    readonly totalCount: number
+  }>(null)
+
+  function handleCloseSelected(reason: string): void {
+    const tripIds = table.closeableSelection.map((trip) => trip.id)
+    if (tripIds.length === 0) return
+    setCloseFailure(null)
+    closeSelectedMutation.mutate(
+      { reason, tripIds },
+      {
+        onSuccess: (results) => {
+          const failed = results.filter((result) => result.errorCode !== null)
+          if (failed.length === 0) {
+            table.clearSelection()
+            return
+          }
+          const firstErrorCode = failed[0]?.errorCode ?? null
+          setCloseFailure({
+            failedCount: failed.length,
+            feedbackKey:
+              resolveTripFeedbackKey(firstErrorCode === null ? null : new Error(firstErrorCode)) ??
+              'requestFailed',
+            totalCount: results.length,
+          })
+          table.replaceSelection(failed.map((result) => result.item))
+        },
+      },
+    )
+  }
 
   const assembly = useTripRouteAssembly({
     canManageTrips: workspace.controller.canManageTrips,
@@ -480,9 +518,9 @@ export function TripWorkspacePage() {
                   isCancelling={cancelSelectedMutation.isPending}
                   onCancelSelected={() => cancelSelectedMutation.mutate()}
                   canClose={workspace.controller.canReportOnBehalf}
-                  closeFeedbackKey={resolveTripFeedbackKey(closeSelectedMutation.error) ?? null}
+                  closeFailure={closeFailure}
                   isClosing={closeSelectedMutation.isPending}
-                  onCloseSelected={(reason) => closeSelectedMutation.mutate(reason)}
+                  onCloseSelected={handleCloseSelected}
                   table={table}
                   vehicles={fleet.viewModel.vehicles ?? []}
                 />

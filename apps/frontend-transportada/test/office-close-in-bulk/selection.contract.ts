@@ -2,7 +2,12 @@
 import { describe, expect, it } from 'bun:test'
 
 import { TRIP_STATUS, type Trip, type TripStatus } from '@/modules/trip/shared/trip.types'
-import { closeableSelection, isCloseable } from '@/modules/trip/shared/tripSelection.service'
+import {
+  bulkActionableSelection,
+  closeableSelection,
+  isCloseable,
+  isSelectableForBulk,
+} from '@/modules/trip/shared/tripSelection.service'
 
 function trip(id: string, status: TripStatus): Trip {
   return {
@@ -47,5 +52,30 @@ describe('seleção de encerramento em massa (spec 223 RF8)', () => {
     const chosen = closeableSelection({ selectedIds: ['a', 'fora'], trips: [trip('a', 'loading')] })
 
     expect(chosen.map((item) => item.id)).toEqual(['a'])
+  })
+
+  /**
+   * A caixa de marcação é de **as duas** ações do lote: cancelar e encerrar. Prendê-la só a
+   * `isCancellable` deixava de fora a viagem que aceita encerramento, e a barra contava marcada
+   * que nenhuma permissão alcançava.
+   */
+  it('marca quem aceita alguma das duas ações do lote', () => {
+    expect(isSelectableForBulk(trip('a', 'in_transit'))).toBe(true)
+    expect(isSelectableForBulk(trip('b', 'completed'))).toBe(false)
+    expect(isSelectableForBulk(trip('c', 'cancelled'))).toBe(false)
+  })
+
+  it('conta na barra só o que a permissão de quem olha alcança', () => {
+    const trips = [trip('a', 'in_transit'), trip('b', 'route_planned')]
+    const selectedIds = ['a', 'b']
+
+    expect(
+      bulkActionableSelection({ canCancel: false, canClose: true, selectedIds, trips }).map(
+        (item) => item.id,
+      ),
+    ).toEqual(['a', 'b'])
+    expect(
+      bulkActionableSelection({ canCancel: false, canClose: false, selectedIds, trips }),
+    ).toEqual([])
   })
 })

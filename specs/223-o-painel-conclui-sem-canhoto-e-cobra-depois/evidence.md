@@ -222,3 +222,59 @@ bun run typecheck   → limpo
 bun run test        → 6187 pass / 0 fail
 bun run test:hooks  → 184 pass / 0 fail
 ```
+
+### T5.2 — revisão de código da feature inteira
+
+A revisão veio de `code-reviewer` sobre o diff inteiro da spec. Tratei cada achado como alegação a
+conferir no código e no texto da spec antes de mexer, e dois deles mudaram de tamanho na conferência.
+
+**Corrigidos**
+
+| Achado                                                                                                                                             | Correção                                                                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Canhoto recusado contava como foto** — `canhoto_review = 'rejected'` tem foto anexada, e a pendência sumia; a fila do motorista ainda cobrava    | `proof-pending.query.ts`: `ne(canhotoReview, 'rejected')` no join. O helper é um só, então conserta a leitura por nota **e** o filtro        |
+| **Lote de encerramento em série, sem isolar falha** — um `409` no meio abortava o resto                                                            | `runFieldActionQueue({concurrency: 3})` (molde da RF7); `onSettled` invalida a lista; as que falharam voltam marcadas por `replaceSelection` |
+| **A recusa parcial não era contada ao usuário**                                                                                                    | `TripCloseBulkFailure` + `closeBulkDialog.partialFailure`: "{{failed}} de {{total}} viagem(ns) não encerraram: {{reason}}"                   |
+| **A caixa de marcação só olhava `isCancellable`** — viagem que aceitava encerrar ficava sem caixa, e a barra contava marcada que ninguém alcançava | `isSelectableForBulk` (união das duas ações) na caixa, e `bulkActionableSelection` na contagem, cruzando com a permissão de quem olha        |
+| **Dois vocabulários de status terminais duplicados**                                                                                               | `TERMINAL_STATUSES` único; `isCancellable` e `isCloseable` seguem nomeados, para divergir só por edição explícita                            |
+| **Três literais `` `fieldDeliver:${id}` ``**                                                                                                       | `fieldDeliverReportKey(documentId)` em `useTripWorkspace.hook.ts`                                                                            |
+| **O cenário de pendência não sabia recusar canhoto**                                                                                               | `rejectDocumentCanhoto` na fixture, mais 7º caso de paridade e um teste **absoluto** no filtro                                               |
+
+**Recusados, com razão**
+
+- **Chave de idempotência no `/close`**: `CloseTripInput` não tem nenhuma, o encerramento não cria
+  evento e a máquina de estado já recusa o segundo. Seria mudança de superfície de API que ninguém
+  pediu — o que importava do achado (falha isolada, invalidação, remarcar o que falhou) está feito.
+- **Custo do `exists` correlacionado e do `await` sequencial** (perf): o `await` extra é padrão
+  pré-existente do `drizzle-trip.repository.ts`, e trocar o filtro exige `EXPLAIN` num tenant
+  grande antes. Fica anotado, não chutado.
+
+**Efeito colateral legítimo**: a parede da CA13 (`test/canhoto-review/no-gate.contract.ts`) tem
+lista exata de quem pode falar do veredito, e `proof-pending.query.ts` passou a falar. Entrou na
+lista com justificativa: ele **cobra** a foto de novo, igual à fila do motorista da RF29 — dívida
+aberta, não entrega barrada. Nenhum dos nove portões da CA13 foi tocado.
+
+**Mutação do achado 1** — removida a condição `ne(...)` do join:
+
+| Mutação                                  | Resultado           |
+| ---------------------------------------- | ------------------- |
+| join sem `ne(canhotoReview, 'rejected')` | 7 pass / **1 fail** |
+
+Quem caiu foi o teste **absoluto** ("canhoto recusado continua pendente nos dois caminhos"); o 7º
+caso de paridade passou mesmo com a mutação, que é exatamente o ponto cego dela: comparar detalhe
+contra lista passa quando os dois lados erram igual. Por isso o achado 1 ganhou asserção absoluta,
+não só uma linha nova na tabela de paridade.
+
+```
+bun run typecheck (raiz, 7 apps)                 → limpo
+painel: bun run test                             → 6189 pass / 0 fail
+painel: bun run test:hooks                       → 184 pass / 0 fail
+api contrato: bun --env-file=../../.env.test test → 8487 pass / 23 skip / 10 fail
+api integração (arquivo tocado, Postgres 55499)   → 8 pass / 0 fail
+```
+
+As 10 falhas do contrato são pré-existentes e alheias à spec: 9 são
+`test/toll-booths/toll-booth-catalog-repository.integration.js`, um arquivo de **integração**
+importado pelo entrypoint de contrato, que morre com `PostgresError: Connection closed` no Postgres
+do Docker (o do `.env.test`, com I/O error); a décima era a parede da CA13, verde depois da entrada
+justificada acima (`bun test ./test/canhoto-review.contract.test.ts` → 78 pass / 0 fail).
