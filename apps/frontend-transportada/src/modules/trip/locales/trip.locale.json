@@ -478,6 +478,25 @@
     "title": "Desviar entrega"
   },
   "deliveryProof": {
+    "canhotoBatch": {
+      "approve": "Aprovar {{count}} canhoto",
+      "approve_other": "Aprovar {{count}} canhotos",
+      "approving": "Aprovando…",
+      "cancel": "Cancelar",
+      "checkedCount": "{{checked}} de {{total}} marcados",
+      "close": "Fechar a conferência de canhotos",
+      "empty": "Nenhum canhoto desta seleção está aguardando conferência.",
+      "imageFailed": "A foto não abriu. Este canhoto não pode ser aprovado sem ser visto.",
+      "loadFailed": "Não foi possível carregar os canhotos. Tente de novo.",
+      "loading": "Carregando os canhotos",
+      "noteLabel": "Nota {{label}}",
+      "overflow": "{{count}} canhoto ficou para a próxima rodada.",
+      "overflow_other": "{{count}} canhotos ficaram para a próxima rodada.",
+      "selectItem": "Aprovar o canhoto da nota {{label}}",
+      "subtitle": "Confira a foto de cada canhoto. Só o que estiver marcado é aprovado.",
+      "title": "Conferir canhotos",
+      "waitingImages": "Aguarde as fotos carregarem para aprovar."
+    },
     "canhotoReview": {
       "alreadyResolved": "Outra pessoa já conferiu este canhoto. Atualizamos a tela com o veredito que valeu.",
       "approve": "Aprovar canhoto",
@@ -1629,6 +1648,11 @@
     "batchFieldDelivery_other": "Dar baixa em {{count}} notas",
     "batchFieldDeliveryExcluded": "{{count}} nota marcada não aceita baixa de entrega.",
     "batchFieldDeliveryExcluded_other": "{{count}} notas marcadas não aceitam baixa de entrega.",
+    "batchCanhoto": "Conferir {{count}} canhoto",
+    "batchCanhoto_other": "Conferir {{count}} canhotos",
+    "batchCanhotoExcluded": "{{count}} nota marcada não tem canhoto aguardando conferência.",
+    "batchCanhotoExcluded_other": "{{count}} notas marcadas não têm canhoto aguardando conferência.",
+    "batchCanhotoPartialFailure": "{{failed}} de {{total}} canhoto(s) não foram aprovados. Abra a conferência para tentar de novo.",
     "batchDeliverWithoutProof": "Baixar {{count}} nota sem canhoto",
     "batchDeliverWithoutProof_other": "Baixar {{count}} notas sem canhoto",
     "trailerRequired": "O cavalo não sai sem carreta."

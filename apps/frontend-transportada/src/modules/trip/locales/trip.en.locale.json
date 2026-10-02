@@ -478,6 +478,25 @@
     "title": "Redirect delivery"
   },
   "deliveryProof": {
+    "canhotoBatch": {
+      "approve": "Approve {{count}} receipt",
+      "approve_other": "Approve {{count}} receipts",
+      "approving": "Approving…",
+      "cancel": "Cancel",
+      "checkedCount": "{{checked}} of {{total}} checked",
+      "close": "Close the receipt review",
+      "empty": "None of the selected receipts is awaiting review.",
+      "imageFailed": "The photo did not open. This receipt cannot be approved without being seen.",
+      "loadFailed": "Could not load the receipts. Try again.",
+      "loading": "Loading the receipts",
+      "noteLabel": "Invoice {{label}}",
+      "overflow": "{{count}} receipt was left for the next round.",
+      "overflow_other": "{{count}} receipts were left for the next round.",
+      "selectItem": "Approve the receipt of invoice {{label}}",
+      "subtitle": "Check the photo of each receipt. Only what is checked gets approved.",
+      "title": "Review receipts",
+      "waitingImages": "Wait for the photos to load before approving."
+    },
     "canhotoReview": {
       "alreadyResolved": "Someone else has already reviewed this receipt. The screen now shows the verdict that stood.",
       "approve": "Approve delivery receipt",
@@ -1629,6 +1648,11 @@
     "batchFieldDelivery_other": "Deliver {{count}} documents",
     "batchFieldDeliveryExcluded": "{{count}} selected invoice does not accept delivery confirmation.",
     "batchFieldDeliveryExcluded_other": "{{count}} selected invoices do not accept delivery confirmation.",
+    "batchCanhoto": "Review {{count}} receipt",
+    "batchCanhoto_other": "Review {{count}} receipts",
+    "batchCanhotoExcluded": "{{count}} selected invoice has no receipt awaiting review.",
+    "batchCanhotoExcluded_other": "{{count}} selected invoices have no receipt awaiting review.",
+    "batchCanhotoPartialFailure": "{{failed}} of {{total}} receipt(s) were not approved. Open the review to try again.",
     "batchDeliverWithoutProof": "Deliver {{count}} document without receipt",
     "batchDeliverWithoutProof_other": "Deliver {{count}} documents without receipt",
     "trailerRequired": "The tractor unit does not leave without a trailer."

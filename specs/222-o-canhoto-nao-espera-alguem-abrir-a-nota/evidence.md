@@ -264,3 +264,20 @@ Forma: é uma `useMutation` (`approveCanhotoBatchMutation`), no molde de `batchF
 
 Gates: typecheck sem erro; prettier conforme; `eslint --max-warnings=0` continua vermelho só pelos 16
 avisos preexistentes (0 erros).
+
+### T2.9 — textos do maço nos dois idiomas (feita antes da T2.6, que precisa deles)
+
+Vermelho antes: `bun test ./test/trip/canhoto-batch-labels.contract.ts` → **3 pass / 2 fail**
+(chaves ausentes; os 3 verdes são vácuos de chave ausente: `[] == []`). Verde depois: **5 pass / 0
+fail, 537 asserções**. Suítes completas: `bun run test` → **6191 pass / 0 fail**; hooks → **186 pass /
+0 fail**.
+
+Mutação: tirando `{{label}}` da chave `selectItem` do en → **4 pass / 1 fail** (paridade de
+placeholders). Restaurado, 5 pass.
+
+O contrato prova: toda chave (`stateActions.batchCanhoto*` com `_other`, `deliveryProof.canhotoBatch.*`)
+existe nos dois idiomas, mesmos placeholders, plural com `{{count}}`, falha parcial com
+`{{failed}}`/`{{total}}`, nenhuma palavra de portão (bloque/trava/impede/invalid) e **nenhuma de
+recusa** (recus/reject/rejeit) — a máquina não recusa —, e pt-BR sem palavra sem acento.
+
+Gates: typecheck sem erro; prettier conforme.
