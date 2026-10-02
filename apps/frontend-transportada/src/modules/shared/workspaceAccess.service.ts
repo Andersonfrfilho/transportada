@@ -169,7 +169,9 @@ export function resolveLandingWorkspace(
 
   const visible = visibleWorkspaceKeys(input.permissions)
   const first = visible[0]
-  if (first === undefined) return { kind: 'no-access' }
+  if (first === undefined) {
+    return input.source === 'default' ? { kind: 'no-access' } : { kind: 'stay' }
+  }
 
   const target = resolveLandingPreference(input) ?? first
   return target === input.current ? { kind: 'stay' } : { kind: 'replace', workspace: target }
