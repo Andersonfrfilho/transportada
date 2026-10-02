@@ -39,16 +39,16 @@ começam.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T2.1 [P] Contrato de `canhotoBatchSelection.service.ts` **antes da função**: da seleção +
+- [x] T2.1 [P] Contrato de `canhotoBatchSelection.service.ts` **antes da função**: da seleção +
       comprovantes sai `eligible` (canhoto `pending`), `excluded` (contagem) e os itens do diálogo;
       nota sem comprovante, comprovante que não é canhoto e canhoto já conferido ficam de fora
       (CA02, CA03)
-- [ ] T2.2 A função pura `shared/canhotoBatchSelection.service.ts`
-- [ ] T2.3 [P] Contrato do lote no cliente: `canhotoReviewProof` por item, 409 vira `conflicted`
+- [x] T2.2 A função pura `shared/canhotoBatchSelection.service.ts`
+- [x] T2.3 [P] Contrato do lote no cliente: `canhotoReviewProof` por item, 409 vira `conflicted`
       (não falha), falha de rede remarca só o que falhou e relata "1 de 5" (CA07, CA08).
       ⚠️ **Reaproveitar, não reinventar**: `runFieldActionQueue`
       (`shared/tripFieldActionQueue.service.ts`, `concurrency: 3`) já devolve `{errorCode, item,
-  value}` por item e isola a falha; `batchFieldReturnMutation`
+value}` por item e isola a falha; `batchFieldReturnMutation`
       (`useTripWorkspace.hook.ts:861`) é o molde da mutation. E o código do 409 já existe:
       `CANHOTO_REVIEW_ALREADY_RESOLVED_CODE` em `shared/trip.constant.ts:69` — importar, nunca
       redeclarar (§16)

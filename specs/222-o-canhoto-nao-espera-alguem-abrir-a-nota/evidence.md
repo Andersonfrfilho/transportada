@@ -185,3 +185,35 @@ Commit: `bbf2c13c0`.
 - Contrato (`bun --env-file=../../.env.test test --timeout 120000`): 8498 pass, 23 skip, 0 fail, 192
   arquivos.
 - Integração: 705 pass, 3 skip, 0 fail, 142 arquivos (em fatias).
+
+## Fase 2 — T2.1 a T2.3
+
+As três fecharam no executor da Fase 2, que foi interrompido antes de registrar evidência; as
+medições abaixo são de execução própria depois disso, não relatório dele.
+
+### T2.1 / T2.2 — a seleção sabe o que é elegível
+
+`bun test ./test/trip/canhoto-batch-selection.contract.ts` → **10 pass, 0 fail, 27 asserções**.
+
+Commit: `7ead3c6ec`.
+
+### T2.3 — o lote no cliente
+
+`bun test ./test/trip/canhoto-batch-approval.contract.ts` → **7 pass, 0 fail, 20 asserções**.
+
+O 409 sendo conflito e não falha foi provado **por mutação**: trocando o `return OUTCOME.CONFLICTED`
+por `throw error` em `canhotoBatchApproval.service.ts`, o contrato cai para **5 pass / 2 fail** (o
+caso do CA07 e o caso de conflito-e-falha no mesmo maço). Restaurado, volta a 7 pass.
+
+Reaproveitamento conferido por leitura, sem nada reinventado: `runFieldActionQueue` entrega
+`{errorCode, item, value}` por item, e o código do 409 é o `CANHOTO_REVIEW_ALREADY_RESOLVED_CODE`
+que já existia. O serviço compara `error.message` com essa constante porque é **ali** que esta base
+carrega o código de erro — `readErrorCode` do próprio arnês documenta que ler `.code` nunca bate e
+jogaria toda falha em `UNKNOWN`.
+
+⚠️ Registro de um erro meu de método, não de código: ao conferir `canhotoBatch.constant.ts` com `cat`,
+o hook do rtk devolveu o arquivo **sem** a linha de copyright que já estava lá, e eu quase a
+dupliquei. Conferência de conteúdo de arquivo nesta base é por `rtk proxy cat`.
+
+Gates: `bunx prettier --check` nos três arquivos → estilo em conformidade. `bun run typecheck` →
+sem erro.
