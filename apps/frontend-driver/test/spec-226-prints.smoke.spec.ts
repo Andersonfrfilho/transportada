@@ -65,3 +65,35 @@ for (const theme of THEMES) {
     ).toBeLessThanOrEqual(0)
   })
 }
+
+/** A tela de pendências de envio com eventos de verdade na fila, sem sinal (T3.3). */
+for (const theme of THEMES) {
+  test(`print: tela de pendências de envio com eventos parados (375 ${theme})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(MOBILE)
+    await page.emulateMedia({ colorScheme: theme })
+    await page.context().grantPermissions(['geolocation'])
+    await page.context().setGeolocation({ latitude: -23.5505, longitude: -46.6333 })
+    const api = await mockDriverTripApi({ page })
+    await loginAsLocalUser(page)
+    await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
+
+    api.setOffline(true)
+    await page.getByRole('button', { exact: true, name: 'Ocorrência' }).first().click()
+    const form = page.getByRole('group', { name: 'Registrar ocorrência' })
+    await form.getByRole('radio', { name: /Cliente ausente/u }).click()
+    await form.getByRole('textbox').fill('Portão sem número, ninguém atendeu')
+    await form.getByRole('button', { exact: true, name: 'Registrar' }).click()
+    await expect(page.getByText('Ocorrência na fila — sobe quando o sinal voltar.')).toBeVisible()
+    await page.getByRole('button', { name: 'Cheguei' }).click()
+
+    await page.getByRole('button', { name: /^Fila de envio/u }).click()
+    await expect(page.getByRole('button', { name: 'Enviar todos agora' })).toBeVisible()
+    await page.mouse.move(0, 0)
+    await page.screenshot({
+      animations: 'disabled',
+      path: resolve(PRINTS_DIRECTORY, `fila-de-pendencias-375-${theme}.png`),
+    })
+  })
+}
