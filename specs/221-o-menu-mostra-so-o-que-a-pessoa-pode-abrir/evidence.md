@@ -717,3 +717,24 @@ bun run format:check → limpo
 - **11** (`legacy-home` antes de `pendingTotal`): sem perda prática — sem o interruptor,
   `pending-screen` nunca era alcançável e a fila mora em `/minha-viagem`. Fica registrado como
   afirmação da RF-E2 que nenhum teste cobre.
+
+## Clientes volta a abrir com `fleet.read` (decisão do usuário, 2026-10-01)
+
+O mapa usava `fleet.manage`, e isso tirava **Clientes** do menu de `fiscal` e `viewer` — papéis que
+abrem a tela em leitura. Estava registrado como trade-off deliberado, e o único motivo real era fazer
+o menu do separador fechar em cinco itens: argumento de teste, não de produto. O usuário confirmou
+que esses papéis podem ver Clientes.
+
+`delivery-client.routes.ts:38` lê com `fleet.read`; `fleet.manage` governa a edição
+(`useDeliveryClients.hook.ts:91`, `canManageClients`) — é o mesmo padrão das outras entradas do mapa,
+em que a permissão de leitura abre o workspace e a de escrita governa ações dentro dele.
+
+**Quatro contratos reprovaram a mudança, que é o que se espera deles**: a ordem de
+`visibleWorkspaceKeys`, o menu do separador por grupo, o do motorista-separador e a contagem por
+grupo do estado "permissões conhecidas". Todos afirmavam cinco itens; passaram a afirmar seis, com
+`delivery-clients` em Cadastros. A CA01 e a tabela da RF-A3 foram atualizadas junto, e a decisão
+ficou na D11.
+
+```
+bun test test/shared.contract.test.ts → 394 pass / 0 fail
+```

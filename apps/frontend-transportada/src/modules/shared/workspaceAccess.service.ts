@@ -45,8 +45,8 @@ export const WORKSPACE_PERMISSIONS = {
   fleet: ['fleet.read'],
   // usePendingItems.hook.ts:28
   pendencias: ['fleet.read'],
-  // useDeliveryClients.hook.ts:91 — governa a edição; a página abre em leitura com fleet.read
-  'delivery-clients': ['fleet.manage'],
+  // delivery-client.routes.ts:38 — a leitura é fleet.read; fleet.manage governa só a edição
+  'delivery-clients': ['fleet.read'],
   // Intenção de produto: a API lê com trip.read (SECURITY.md:383); trip.manage abriria ao separador
   'extra-charges': ['billing.create', 'trip.financials'],
   // useOccurrenceReimbursements.hook.ts:54
