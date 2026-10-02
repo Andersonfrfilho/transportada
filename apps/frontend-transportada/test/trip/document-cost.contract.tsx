@@ -235,6 +235,47 @@ describe('a linha da nota com gasto, lucro e margem (spec 232 T3.2)', () => {
   })
 })
 
+describe('a nota sem parada diz que entra só no rateio (spec 232 T3.4, RF7)', () => {
+  function renderCriterion(line: TripValuationRevenueLine): string {
+    return renderToStaticMarkup(
+      <DocumentCostProvider valuation={buildValuation([line])}>
+        <TripDocumentCostCriterion documentId={DOCUMENT_ID} />
+      </DocumentCostProvider>,
+    ).replace(NON_BREAKING_SPACE, ' ')
+  }
+
+  const NO_STOP_NOTICE = financialsPt.documentCost.noStop
+
+  it('hasStop false: a frase aparece no critério, em pt-BR acentuado, e fica fora da linha de gasto', () => {
+    const line = buildLine({ hasStop: false, legCostAmount: '0.0000', costAmount: '100.0000' })
+
+    expect(NO_STOP_NOTICE).toBe('Sem parada: entra só no rateio de viagem, sem gasto de trecho.')
+    expect(renderCriterion(line)).toContain(NO_STOP_NOTICE)
+    expect(renderCost(buildValuation([line]))).not.toContain(NO_STOP_NOTICE)
+  })
+
+  it('nota COM parada e gasto de trecho zero NÃO mostra a frase (o caso que a spec protege)', () => {
+    const line = buildLine({ hasStop: true, legCostAmount: '0.0000', costAmount: '100.0000' })
+    const html = renderCriterion(line)
+
+    expect(html).toContain(financialsPt.documentCost.splitCriterion)
+    expect(html).not.toContain(NO_STOP_NOTICE)
+  })
+
+  it('campo ausente NÃO mostra a frase, nem com trecho zero e rateio positivo', () => {
+    const line = buildLine({ legCostAmount: '0.0000', costAmount: '100.0000' })
+
+    expect('hasStop' in line).toBe(false)
+    expect(renderCriterion(line)).not.toContain(NO_STOP_NOTICE)
+  })
+
+  it('a frase existe nos dois locales', () => {
+    expect(financialsEn.documentCost.noStop).toBe(
+      'No stop: counted only in the trip share, with no leg cost.',
+    )
+  })
+})
+
 describe('a fiação é por contexto, sem sexta prop no TripStopList (spec 232 T3.2)', () => {
   it('o gasto vive dentro de "Dados da nota", no corpo da nota aberta, nunca na linha sempre visível', () => {
     const stopList = readFileSync(STOP_LIST, 'utf8')

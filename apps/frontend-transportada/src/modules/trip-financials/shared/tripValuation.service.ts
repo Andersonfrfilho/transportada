@@ -102,6 +102,11 @@ export type TripValuationRevenueLine = Readonly<{
   percentage: null | string
   gap: null | string
   nfeDocumentId: null | string
+  /**
+   * Spec 232 RF7: a nota desce numa parada? Só a API sabe; ausente é "não informado" (API anterior,
+   * prévia) e **nunca** vira `false` — a tela não infere "sem parada" de gasto de trecho zero.
+   */
+  hasStop?: boolean
   source: ValuationSource
   tripDocumentId: string
 }> &

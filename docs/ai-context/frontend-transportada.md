@@ -886,9 +886,12 @@ A fiação é **contexto, não prop drilling**, e por regra: o caminho
 - **Sem a permissão `trip.financials`** a valoração não vem, o contexto fica vazio e a linha da nota fica
   **idêntica à de antes**: sem rótulo vazio, sem travessão, sem espaço reservado.
 - **Prejuízo não depende só de cor**: o rótulo vira "Prejuízo" e o valor sai negativo.
-- ⚠️ Pendência conhecida: a nota **sem parada** ainda não diz que entra só no rateio (RF7). A API não
-  manda esse indicador, e **inferir por "gasto de trecho zero"** seria errado — uma nota com parada pode
-  ter trecho de distância zero legitimamente.
+- **Nota sem parada (RF7, T3.4)**: a linha de receita traz `hasStop` (booleano). `hasStop === false` faz o
+  critério (`TripDocumentCostCriterion`) imprimir "Sem parada: entra só no rateio de viagem, sem gasto de
+  trecho." (`documentCost.noStop`, pt-BR e en). Campo ausente (API anterior, prévia) ou não booleano é
+  **ignorado** e nada é impresso; a tela **nunca** infere por trecho zero. O validador de linha não é estrito
+  (lê chaves conhecidas), então tanto faz publicar painel ou API primeiro; sem o painel novo, a API nova só
+  manda um campo que o painel antigo ignora.
 
 ## A nota se abre inteira (spec 233)
 

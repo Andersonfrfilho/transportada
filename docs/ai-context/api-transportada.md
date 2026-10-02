@@ -2200,6 +2200,11 @@ existia): paradas e eventos da viagem inteira de uma vez. O teste de integraçã
 `buildValuationFromContext` **sem** trechos e paradas: as linhas delas saem `unavailable`, com
 `taxAmount` calculado. É por isso que os oito campos são **opcionais** na resposta.
 
+- **`hasStop`** (T3.4, RF7) em cada `revenueLines[]`: `true` se a nota desce numa parada, `false` se
+  `trip_documents.stop_id` é nulo. Vem do dado real (`attachDocumentCostFigures`/`toStopFlag`); contexto
+  que não informou `stopId` (undefined) **não** manda o campo — nunca um `false` inventado. Não é dinheiro,
+  mas segue a rota de `trip.financials`. Aditivo: o painel antigo o ignora.
+
 ## Spec 233 — a nota se abre inteira (o que a API devolveu ao painel)
 
 Três leituras ganharam campo ou filtro, todas aditivas:

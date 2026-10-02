@@ -64,7 +64,7 @@ em `evidence.md`.
       viagem", e o contrato em `test/trip-financials/`.
 - [x] **T3.2** `TripStopList.component.tsx`: a linha da nota mostra frete, gasto e lucro, com as duas
       partes do gasto separadas e o critério nomeado; locales pt-BR e en; CSS por módulo.
-- [ ] **T3.4** O RF7 que a T3.2 não cumpriu: a nota **sem parada** diz na tela que entra só no rateio
+- [x] **T3.4** O RF7 que a T3.2 não cumpriu: a nota **sem parada** diz na tela que entra só no rateio
       de viagem. ⚠️ Exige mudança **na API** — a linha de receita precisa dizer se a nota tem parada; o
       `stopId` existe no contexto do cálculo e **não** na resposta. ⚠️ **Proibido inferir na tela** por
       "gasto de trecho zero e rateio maior que zero": uma nota **com** parada pode ter gasto de trecho

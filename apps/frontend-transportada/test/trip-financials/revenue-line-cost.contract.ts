@@ -321,3 +321,43 @@ describe('o vocabulário e os rótulos', () => {
     expect(texts.some((text) => text.includes('roteiro ainda não calculado'))).toBe(false)
   })
 })
+
+describe('a nota sem parada diz por quê (spec 232 T3.4, RF7)', () => {
+  it('o validador aceita hasStop booleano e o devolve na linha', () => {
+    expect(parsedLine(completeFigures({ hasStop: false })).hasStop).toBe(false)
+    expect(parsedLine(completeFigures({ hasStop: true })).hasStop).toBe(true)
+  })
+
+  it('campo ausente (API anterior) continua válido e a linha não ganha hasStop', () => {
+    const line = parsedLine(completeFigures())
+
+    expect('hasStop' in line).toBe(false)
+  })
+
+  it('hasStop que não é booleano é ignorado, sem derrubar a avaliação', () => {
+    const line = parsedLine(completeFigures({ hasStop: 'no' }))
+
+    expect('hasStop' in line).toBe(false)
+  })
+
+  it('só hasStop false produz o aviso, em pt-BR e em inglês', () => {
+    expect(availableViewOf(completeFigures({ hasStop: false })).stopNotice).toBe(
+      'Sem parada: entra só no rateio de viagem, sem gasto de trecho.',
+    )
+    const english = describeRevenueLineCost({
+      line: parsedLine(completeFigures({ hasStop: false })),
+      t: translateEn,
+    })
+    expect(english?.status === 'available' ? english.stopNotice : undefined).toBe(
+      'No stop: counted only in the trip share, with no leg cost.',
+    )
+  })
+
+  it('com parada ou sem o campo não há aviso — nem com gasto de trecho zero', () => {
+    const zeroLeg = { costAmount: '100.0000', legCostAmount: '0.0000' }
+
+    expect(availableViewOf(completeFigures({ hasStop: true, ...zeroLeg })).stopNotice).toBeNull()
+    expect(availableViewOf(completeFigures(zeroLeg)).stopNotice).toBeNull()
+    expect(availableViewOf(completeFigures()).stopNotice).toBeNull()
+  })
+})

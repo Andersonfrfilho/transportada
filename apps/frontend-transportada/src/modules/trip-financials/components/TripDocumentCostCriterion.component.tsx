@@ -15,11 +15,16 @@ type TripDocumentCostCriterionProps = Readonly<{ documentId: string }>
 export function TripDocumentCostCriterion({ documentId }: TripDocumentCostCriterionProps) {
   const { t } = useTranslation('tripFinancials')
   const line = useDocumentCostLine(documentId)
-  const isShareShown =
-    line !== undefined &&
-    describeRevenueLineCost({ line, t: t as Translate })?.status === 'available'
+  const view = line === undefined ? null : describeRevenueLineCost({ line, t: t as Translate })
 
-  if (!isShareShown) return null
+  if (view?.status !== 'available') return null
 
-  return <p className={styles.documentCostNotice}>{t('documentCost.splitCriterion')}</p>
+  return (
+    <>
+      <p className={styles.documentCostNotice}>{t('documentCost.splitCriterion')}</p>
+      {view.stopNotice === null ? null : (
+        <p className={styles.documentCostNotice}>{view.stopNotice}</p>
+      )}
+    </>
+  )
 }

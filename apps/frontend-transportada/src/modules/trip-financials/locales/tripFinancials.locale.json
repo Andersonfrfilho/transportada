@@ -44,6 +44,7 @@
     "legCost": "do trecho",
     "loss": "Prejuízo",
     "margin": "Margem",
+    "noStop": "Sem parada: entra só no rateio de viagem, sem gasto de trecho.",
     "profit": "Lucro",
     "splitCriterion": "Retorno e avulso são repartidos igualmente entre as notas da viagem.",
     "tax": "Imposto",

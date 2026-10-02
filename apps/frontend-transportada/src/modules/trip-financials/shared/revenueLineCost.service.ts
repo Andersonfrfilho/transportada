@@ -31,6 +31,8 @@ export type RevenueLineCostView =
       parts: readonly [RevenueLineCostFigure, RevenueLineCostFigure]
       profit: RevenueLineCostFigure
       status: 'available'
+      /** Só quando a API disse que a nota **não** tem parada; ausente nunca vira este aviso. */
+      stopNotice: null | string
       tax: null | RevenueLineCostFigure
       /** `null` quando o tempo está completo; senão, o que faltou nele. */
       timeNotice: null | string
@@ -117,6 +119,7 @@ export function describeRevenueLineCost(input: {
     ],
     profit: toFigure({ amount: marginAmount, key: 'profit', t }),
     status: 'available',
+    stopNotice: line.hasStop === false ? t('documentCost.noStop') : null,
     tax,
     timeNotice: describeTimeNotice(line.timeBasis, t),
   }

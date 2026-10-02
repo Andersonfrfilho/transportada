@@ -503,7 +503,7 @@ fundos. São os tokens que o painel já usava, então não há combinação nova
 
 ### Dívida conhecida que a revisão **não** resolve
 
-- **RF7** — a nota sem parada ainda não diz que entra só no rateio (T3.4): exige a API mandar o indicador.
+- **RF7** — a nota sem parada ainda não diz que entra só no rateio (T3.4): exige a API mandar o indicador. **Resolvida na T3.4** (seção abaixo).
 - **"Previsto" × "estimado"** convivem na coluna Previsto: o título da coluna é o estado da viagem, o selo
   "estimado" é a origem de cada parcela. Não vi confusão no print, só repetição; nada foi renomeado.
 - **A tabela de comparação rola na horizontal em 375 px.** Escolha consciente: ela precisa de ~400 px.
@@ -689,3 +689,37 @@ branch toca, fora `snapshot.json` e PNG): número solto `226`/`227` não colado 
 `spec-226-`/`spec-227-` (smokes e PNGs, renomeados com `git mv`) e as pastas `specs/226-…`/`specs/227-…`.
 Não trocados: `217-227` (linhas de código em `specs/196`), "78 de 227" e "(226 linhas)" em
 `docs/ai-context/api-transportada.md`.
+
+## T3.4 — a nota sem parada diz por quê (RF7)
+
+**API.** A linha de `revenueLines` ganhou `hasStop?: boolean` (aditivo), montado em `attachDocumentCostFigures` a
+partir do `stopId` do contexto (`trip_documents.stop_id`, lido do banco): `true` com parada, `false` com `stop_id`
+nulo, e **sem a chave** quando o contexto não informou `stopId` (undefined) — nunca um `false` inventado.
+Não é dinheiro: não há classificação de redação monetária neste caminho (a rota inteira é `trip.financials`; o
+contrato do portal ganhou `hasStop` na lista de chaves proibidas).
+
+**Painel.** O validador de linha (`toRevenueLine`) lê chaves conhecidas, **não é estrito**: o painel antigo já
+ignora `hasStop`. Ordem de publicação: **indiferente** — API primeiro (painel antigo ignora o campo) ou painel
+primeiro (sem o campo, nada é impresso). O validador novo aceita booleano e ignora o resto, sem derrubar a avaliação.
+A frase (`documentCost.noStop`, pt-BR e en) sai no `TripDocumentCostCriterion` só com `hasStop === false`.
+
+**Mutações** (todas restauradas; arquivo reescrito, sem checkout):
+
+| Mutação                                          | Reprovou                      |
+| ------------------------------------------------ | ----------------------------- |
+| API: `hasStop: true` sempre                      | 2 (contrato) + 1 (integração) |
+| API: contexto sem `stopId` vira `hasStop: false` | 1                             |
+| API: não anexa `hasStop`                         | 3                             |
+| Painel: `hasStop !== true` (infere por ausência) | 2                             |
+| Painel: infere também por trecho zero            | 3                             |
+| Painel: validador descarta o campo               | 2                             |
+| Painel: critério não imprime o aviso             | 1                             |
+| Painel: não booleano aceito como `true/false`    | 1                             |
+| Painel: quebra a frase pt-BR                     | 2                             |
+
+**Portões.**
+
+- API: `bun run typecheck` exit 0; `bun run lint` (`--max-warnings=0`) limpo;
+  `bun --env-file=../../.env.test test --timeout 120000` -> 8728 pass · 23 skip · 0 fail (8751 testes, 193 arquivos);
+  integração `./test/integration/trip-valuation-document-figures.integration.ts` -> 7 pass · 0 fail (Postgres 65432 do `.env.test`).
+- Painel: `bun run typecheck` exit 0; `bun run lint` 0 errors · 16 warnings pré-existentes; `bun run test` -> 6431 pass · 0 fail (+ 327 pass · 0 fail no segundo arquivo do script).

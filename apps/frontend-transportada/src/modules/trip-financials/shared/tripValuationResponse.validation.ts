@@ -145,6 +145,7 @@ function toRevenueLine(line: Record<string, unknown>): null | TripValuationReven
     nfeDocumentId: typeof line.nfeDocumentId === 'string' ? line.nfeDocumentId : null,
     source: isSource(line.source) ? line.source : 'estimated',
     tripDocumentId: readText(line.tripDocumentId),
+    ...(typeof line.hasStop === 'boolean' ? { hasStop: line.hasStop } : {}),
     ...(costFigures.kind === 'present' ? costFigures.figures : {}),
   }
 }

@@ -44,6 +44,7 @@
     "legCost": "of the leg",
     "loss": "Loss",
     "margin": "Margin",
+    "noStop": "No stop: counted only in the trip share, with no leg cost.",
     "profit": "Profit",
     "splitCriterion": "Return leg and one-off costs are split equally across the trip notes.",
     "tax": "Tax",
