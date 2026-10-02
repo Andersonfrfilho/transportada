@@ -132,6 +132,8 @@ export type TripStopDocumentActions = Readonly<{
   onToggleDocument: (documentId: string) => void
   openDocumentId: null | string
   renderProof: (documentId: string) => ReactNode
+  /** Spec 227 D2: a seção Ocorrências da nota aberta, depois do comprovante. */
+  renderOccurrences: (documentId: string) => ReactNode
   onLoad: (documentId: string) => void
   onOverrideAddress: (documentId: string) => void
   /** Spec 180: registra a ocorrência desta parada — o diálogo (`TripStopOccurrenceDialog`) mora aqui. */
@@ -801,6 +803,7 @@ function TripStopDocumentRow({
         <div className={styles.stopDocumentBody} id={bodyId}>
           <TripDocumentData document={document} />
           {hasProof ? actions.renderProof(document.id) : null}
+          {actions.renderOccurrences(document.id)}
         </div>
       ) : null}
     </li>

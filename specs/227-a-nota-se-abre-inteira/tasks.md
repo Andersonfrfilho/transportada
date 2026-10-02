@@ -3,8 +3,8 @@
 Uma task por vez, na ordem. Cada uma fecha com typecheck + lint + testes da app + commit isolado e evidência
 em `evidence.md`. Contrato antes da implementação, **toda asserção nova provada por mutação**.
 
-⚠️ Nada daqui começa antes da **Fase 0**. ⚠️ **`[NEEDS CLARIFICATION]` aberto** — só **N2** e **N5** (N1, N3 e N4
-foram resolvidas em 2026-10-02) — bloqueia **apenas a Fase 5**.
+⚠️ Nada daqui começa antes da **Fase 0**. **Nenhum `[NEEDS CLARIFICATION]` aberto**: N1 a N5 foram respondidas em
+2026-10-02. A **Fase 5** espera a **spec 228** (D12).
 
 ## Fase 0 — O chão
 
@@ -47,7 +47,7 @@ foram resolvidas em 2026-10-02) — bloqueia **apenas a Fase 5**.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T3.1** Contrato + implementação: seção própria, link por ocorrência (`<a href>` + `onClick` +
+- [x] **T3.1** Contrato + implementação: seção própria, link por ocorrência (`<a href>` + `onClick` +
       `navigateToTripOccurrence`), vazio dito. Cuidado com a spec 167.
 
 ## Fase 4 — Comprovante unificado
@@ -61,15 +61,21 @@ foram resolvidas em 2026-10-02) — bloqueia **apenas a Fase 5**.
 
 ## Fase 5 — Eventos da nota e raio
 
-> 🤖 Modelo: `opus` 🧠 na API; `sonnet` no painel
+> 🤖 Modelo: `opus` 🧠 na API e na spec 228; `sonnet` no painel
 
-⚠️ **Bloqueada por N2, N5 e pela spec 206.**
+⚠️ **Bloqueada pela spec 228** (os dois eventos novos, D12) **e pela spec 206** (dona do `stop.departed`).
+Nenhum `[NEEDS CLARIFICATION]` aberto nesta spec.
 
+- [ ] **T5.0** Escrever a **spec 228** — "Foto do canhoto" e "Endereço da parada (geocodificado)" como eventos
+      (D12). Lê antes `specs/196-…`, `specs/206-…`, o ADR-0088 e a spec 218. Responde, **antes de qualquer
+      migration**: de quem é o evento do endereço e quando nasce. Número 228 conferido contra `origin/staging`.
+      **Pare e pergunte antes de qualquer migration.**
 - [ ] **T5.1** API: filtro por nota em `GET /trips/:id/timeline`, no servidor, com contrato de tenant e de
-      permissão (`trip.event-location`).
-- [ ] **T5.2** API: o raio na resposta do comprovante (N2), sem `settings.manage` do leitor.
-- [ ] **T5.3** Painel: _Eventos desta entrega_ por nota; rótulo do `departed` = **"Saída para esta parada"** (D11); círculo do raio **só**
-      com o dado.
+      permissão (`trip.event-location`). Não depende da 228.
+- [ ] **T5.2** API: o raio na resposta do comprovante (D6), resolvido por contratante, sem
+      `settings.manage` do leitor. Não depende da 228.
+- [ ] **T5.3** Painel: _Eventos desta entrega_ por nota; rótulo do `departed` = **"Saída para esta
+      parada"** (D11); círculo do raio **só** com o dado; os dois eventos novos quando a 228 existir.
 
 ## Fase 6 — Comparação, revisão e portões
 
@@ -95,10 +101,10 @@ CLARIFICATION]`, e na **T6.1**, que exige o ok do usuário sobre os prints.
 ```text
 /oh-my-claudecode:autopilot Execute a spec specs/227-a-nota-se-abre-inteira/ (leia spec.md, plan.md e
 tasks.md antes de tocar em código). Uma task por vez, na ordem do tasks.md, começando pela Fase 0.
-Modelos: Fase 0 → opus 🧠 · Fases 1, 2, 3 → executor model=sonnet · Fase 4 → executor model=sonnet · Fase 5 → opus 🧠 na API e sonnet no painel, depois de N2 e N5 · Fase 6 → opus 🧠 na
+Modelos: Fase 0 → opus 🧠 · Fases 1, 2, 3 → executor model=sonnet · Fase 4 → executor model=sonnet · Fase 5 → opus 🧠 na API e sonnet no painel, depois da spec 228 · Fase 6 → opus 🧠 na
 revisão e code-reviewer model=opus na T6.4.
 Cada task fecha com typecheck + lint + testes da app + commit isolado e evidência em evidence.md.
 Contrato antes da implementação, e toda asserção nova provada por mutação.
 PARE E PERGUNTE antes de: empurrar para staging, deploy, qualquer migration, qualquer [NEEDS CLARIFICATION]
-(N2 e N5), e na T6.1 — ela compara com o canvas aprovado e exige o ok explícito do usuário (web.md §15).
+(nenhum aberto), e na T6.1 — ela compara com o canvas aprovado e exige o ok explícito do usuário (web.md §15).
 ```

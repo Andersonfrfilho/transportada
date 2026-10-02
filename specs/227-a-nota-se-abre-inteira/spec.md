@@ -95,13 +95,13 @@ specs **222** (fechada), **223** e **224**, que mexem exatamente neste fluxo —
 - **D6 — O raio tolerado é dado, não desenho.** Hoje ele só existe em `GET /company-settings/delivery-proof`
   e em `…/settings-resolution` (spec 218, resolvido por contratante), ambas sob `settings.manage` —
   **não** a permissão do detalhe da viagem. O padrão do app é **300 m**; o **"20 m" do canvas é de mentira**.
-  Mostrar o raio exige decidir de onde ele vem — ver N2.
+  **Decisão do usuário (N2)**: a API devolve o raio **já resolvido por contratante** (a mesma resolução da spec 218), calculado no servidor e **sem** exigir `settings.manage` do leitor. O círculo só é desenhado quando o dado existe.
 
 - **D7 — Eventos por nota exigem a linha do tempo filtrável no servidor.** Hoje `GET /trips/:id/timeline` é
   paginada por cursor e **sem filtro por nota**; o filtro é em memória e só vale sobre as páginas carregadas
   (uma nota entregue cedo pode nem estar na página). Eventos de parada (`document === null`) passam por
   qualquer filtro. Os eventos "Foto do canhoto" e "endereço geocodificado" **não existem** como evento —
-  ver N5.
+  ver D12.
 
 - **D8 — Links seguem o padrão do painel, não `href` cru.** O painel **não tem router**: `main.tsx` decide a
   tela por `window.location.pathname`. O padrão é `<a href>` **com** `onClick` + `preventDefault` +
@@ -124,19 +124,26 @@ specs **222** (fechada), **223** e **224**, que mexem exatamente neste fluxo —
   **própria** parada, descrevia o evento errado. O canvas passa a dizer **"Saída para esta parada"**, e a tela
   real usa o **mesmo texto**.
 
-## Decisões tomadas e perguntas em aberto
+## Decisões tomadas
 
-**Resolvidas pelo usuário em 2026-10-02**: **N1** — dois selos lado a lado (D4); **N3** — "Saída para esta
-parada" (D11); **N4** — Volumes entra como campo novo na API (D5, T2.3).
+Todas as perguntas foram respondidas pelo usuário em 2026-10-02: **N1** — dois selos lado a lado (D4);
+**N2** — a API devolve o raio (D6); **N3** — "Saída para esta parada" (D11); **N4** — Volumes é campo novo na
+API (D5, T2.3); **N5** — criar os dois eventos (D12).
 
-**Em aberto — `[NEEDS CLARIFICATION]`.** Bloqueiam **só** a Fase 5, a última; nenhuma impede as Fases 0 a 4.
+- **D12 — "Foto do canhoto" e "Endereço da parada (geocodificado)" passam a ser eventos de verdade.**
+  Decisão do usuário, **contra a recomendação registrada**: eu sugeri tirar o endereço (é dado do cadastro
+  da parada, não algo que aconteceu) e derivar a foto da leitura do comprovante, sem evento novo. O usuário
+  preferiu criar os dois. Isso **não cabe como uma tarefa desta spec**, e a razão é de tamanho medido, não de
+  gosto: evento novo é **tipo novo** em `TRIP_STOP_EVENT_KINDS` (e no CHECK que o espelha), **migration**,
+  escrita nas rotas do motorista (o canhoto) e no geocodificador (o endereço), **carimbo de posição**
+  (spec 196: todo evento carrega onde aconteceu), **entrada no expurgo** (a paridade do D8 reprova tabela com
+  coordenada fora da lista), **entrada na lista fechada de leitores** (T1.3 da 196) e o mapeamento na linha do
+  tempo. Por isso vira a **spec 228**, escrita **antes** da Fase 5 (T5.0), e a Fase 5 desta spec **consome** o
+  que a 228 entregar. ⚠️ O endereço geocodificado como evento tem uma pergunta de modelagem própria — **de
+  quem é o evento** (da parada? de uma re-geocodificação?) e **quando** ele nasce — que a 228 precisa
+  responder antes de qualquer migration.
 
-- **N2 — De onde vem o raio.** Campo novo na resposta do comprovante, calculado no servidor com a mesma
-  resolução da spec 218 (e **sem** exigir `settings.manage` do leitor)? **Recomendação**: sim; e **não**
-  desenhar o círculo enquanto o dado não existir.
-- **N5 — "Foto do canhoto" e "endereço geocodificado" como eventos da nota.** Criar o evento, derivar da
-  leitura do comprovante, ou **tirar do canvas**? **Recomendação**: tirar "endereço geocodificado" (é dado
-  da parada, não evento) e derivar "Foto do canhoto" da leitura do comprovante, sem evento novo.
+Não há `[NEEDS CLARIFICATION]` aberto nesta spec; a **228** nasce com as dela.
 
 ## Requisitos funcionais
 

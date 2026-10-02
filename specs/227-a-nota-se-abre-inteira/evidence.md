@@ -1,6 +1,6 @@
 # Evidências — 227 A nota se abre inteira
 
-Spec escrita em 2026-10-02 a partir do mapa da exploração. Aguarda N2 e N5 (só bloqueiam a Fase 5).
+Spec escrita em 2026-10-02 a partir do mapa da exploração. Todas as perguntas respondidas em 2026-10-02; a Fase 5 espera a spec 228.
 
 ## T0.1 — renumeração 225 → 226
 
@@ -227,3 +227,74 @@ depois da mutação, não defeito.
 - O "não aparece no portal da contratante" é **só de tipo** (`volumeCount` não está em `ContractorDelivery`):
   o `serializeTripDocumentDetail` não alimenta o portal.
 - Revisão visual e `scrollWidth <= innerWidth` em 375 px: T6.1.
+
+## Fase 3 — Ocorrências por nota, com link (T3.1)
+
+Executada por subagente `executor` em `sonnet`; gates, mutações e uma correção conferidos por mim.
+
+### O que mudou
+
+A lista de ocorrências saiu da **terceira expansão dentro do comprovante** e virou a **seção Ocorrências** da
+nota aberta, irmã de Dados da nota e do Comprovante, nessa ordem (D2). O `isOccurrencesExpanded` e o toggle
+somaram-se à lista do que sumiu; o `isProductsExpanded` (itens) **fica**, é do comprovante. Cada ocorrência
+tem `<a href="/ocorrencias/:id">` **com** `onClick` + `preventDefault` + `navigateToTripOccurrence`: navega
+na mesma aba sem recarregar, e o `href` serve para "abrir em outra aba".
+
+### A armadilha que a Fase 1 criou, e que o briefing nomeou
+
+`activeOccurrenceDocumentId` seguia `openProofDocumentId`, que só existe para nota **entregue** — mas nota
+**não entregue** também tem ocorrências (spec 182). Só mover a lista deixaria a seção de uma nota não entregue
+**sempre vazia por defeito de busca**, dizendo "Nenhuma ocorrência registrada" quando existe: mentira pior que
+não mostrar. A busca de ocorrências agora segue `openDocumentId` (a nota aberta, entregue ou não); a de
+comprovante e a de itens continuam seguindo `openProofDocumentId`. O contrato prova as duas coisas separadas.
+
+### A permissão do link: o `TripTimeline` não serve de modelo
+
+O executor foi ver como o `TripTimeline` decide mostrar o link e achou que **ele não decide**: mostra sempre,
+porque a linha do tempo já mora numa tela que exige leitura da viagem. Aqui isso não serve: `/ocorrencias/:id`
+exige **estritamente `fleet.read`**, e `canReadTrips` também aceita `trip.report-on-behalf` — quem tem só essa
+cairia numa tela que não pode abrir. Usei `canReadTripFleetDetails`, que é exatamente `fleet.read`. Sem ela a
+ocorrência **continua listada**, só sem link.
+
+### Um defeito que o relatório sinalizou e eu corrigi
+
+O executor moveu o `TripOccurrences` **inteiro**, que carrega a lista **e o formulário de registro**, e avisou
+que o formulário passaria a aparecer em **toda** nota aberta (para quem tem `trip.manage`). Conferi: antes o
+formulário só existia dentro do comprovante de nota entregue (`canRegister={canManageTrips}` lá). Numa nota
+**não entregue** a busca de itens não roda, então o formulário listaria produtos só pelo código — e duplicaria
+o botão "Ocorrência" da separação (spec 182). Corrigi: `canRegister = canManageTrips && hasTripDocumentProof(document)`.
+A **lista** aparece em toda nota; o **formulário** só onde já aparecia. Provado por mutação: sem a restrição o
+teste novo reprova ("o botão de registrar só aparece na nota entregue ou devolvida").
+
+### Provado por mutação
+
+| mutação                                                     | o que reprovou                                                                               |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| a busca de ocorrências volta a seguir `openProofDocumentId` | "a nota não entregue abre sem buscar comprovante nem itens, mas busca as ocorrências"        |
+| tirar o `onClick` do link                                   | "o clique cancela a navegação do navegador e leva a /ocorrencias/:id na mesma aba"           |
+| `canOpenOccurrence` forçado para `true`                     | "sem permissão… ela continua listada, sem link" (markup) e "sem permissão não há link" (DOM) |
+| remover a restrição do formulário a nota entregue           | "o botão de registrar só aparece na nota entregue ou devolvida"                              |
+
+### O contrato da spec que mudou, e como
+
+`delivery-proof-disclosure.contract.ts`: `aria-controls`/`aria-expanded` de `toBe(2)` para `toBe(1)` (a
+expansão de ocorrências deixou de existir; a de itens continua exigindo o padrão da spec 180), e a asserção do
+id `trip-delivery-proof-occurrences-…` saiu **porque o alvo sumiu**. Entrou uma asserção nova — "o
+comprovante não carrega mais ocorrência" — e a garantia sobre a lista passou para
+`document-occurrences.contract.tsx` e para o DOM de ordem e irmandade. O executor ainda renomeou um teste de
+hooks que passara a mentir sobre ocorrências no título, sem tocar a asserção.
+
+### Portões
+
+| Portão                        | Resultado                                               |
+| ----------------------------- | ------------------------------------------------------- |
+| `typecheck` · `lint` (painel) | exit 0 · 0 erros, 16 avisos pré-existentes, nenhum novo |
+| `bun run test` (painel)       | **6325 pass · 0 fail** (era 6318)                       |
+| `test:hooks`                  | **267 pass · 0 fail** (era 261)                         |
+
+### Declaradamente fora
+
+- O CSS do link (`.occurrenceEntryLink`, copiado do padrão do `itemTitleLink`) **não tem a área de toque de
+  44 px**: é a revisão da T6.1.
+- Os itens na descrição do formulário de uma nota não entregue seguem sem descrição — a busca de itens continua
+  só em nota entregue, por decisão da Fase 1.

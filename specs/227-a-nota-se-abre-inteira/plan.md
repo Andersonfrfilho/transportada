@@ -28,11 +28,11 @@ F0 chão  ──►  F1 acordeão ──►  F2 dados da nota ──►  F6 comp
    │              │                                    │
    │              └──►  F4 comprovante  (N1) ─────────►┤
    │                                                   │
-   └─────────────────►  F5 eventos + raio (N2,N3,N5) ──┘
+   └─────────────────►  F5 eventos + raio (228, 206) ──┘
 ```
 
-F1, F2 e F3 **não dependem** de nenhuma pergunta em aberto nem de spec aberta. F4 espera N1; F5 espera N2, N3 e N5 e
-a spec 206.
+F1 a F4 **não dependem** de pergunta em aberto nem de spec aberta (todas foram respondidas). F5 espera a **spec 228**
+(os dois eventos novos) e a spec 206.
 
 ## Arquitetura e arquivos afetados
 
@@ -75,10 +75,10 @@ a spec 206.
 - Selo(s) de situação conforme N1; usa `GET /trips/:id/delivery-proofs` (spec 222, **só em staging**) para
   não fazer uma chamada por nota; encaixa o `proofPending` da 223 e as fotos da 224.
 
-### F5 — Eventos da nota + raio (N2, N3, N5)
+### F5 — Eventos da nota + raio (spec 228, spec 206)
 
 - `GET /trips/:id/timeline` ganha filtro por nota **no servidor**; `TripTimeline` deixa de filtrar em memória.
-- Raio: campo novo na resposta do comprovante (N2), sem `settings.manage` do leitor.
+- Raio: campo novo na resposta do comprovante, resolvido por contratante (N2, D6), sem `settings.manage` do leitor.
 - Rótulo do `departed` conforme N3.
 
 ### Documentação

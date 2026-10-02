@@ -75,7 +75,7 @@ import { TripMdfePendingDialog } from './TripMdfePendingDialog.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
 import { TripReviewQueue } from './TripReviewQueue.component'
 import { TripDeliveryProof } from './TripDeliveryProof.component'
-import { TripOccurrences } from './TripOccurrences.component'
+import { TripDocumentOccurrences } from './TripDocumentOccurrences.component'
 import { SeparationOccurrenceDialog } from './SeparationOccurrenceDialog.component'
 import { TripRouteMap } from './TripRouteMap.component'
 import { resolveDeliveryProofView } from '../shared/deliveryProof.service'
@@ -534,6 +534,12 @@ export function TripDetail({
         workspace={workspace}
       />
     ),
+    renderOccurrences: (documentId: string) => {
+      const occurrencesDocument = trip.documents.find((candidate) => candidate.id === documentId)
+      return occurrencesDocument === undefined ? null : (
+        <TripDocumentOccurrences document={occurrencesDocument} workspace={workspace} />
+      )
+    },
     isEditable,
     isReleasePending: workspace.releaseDocumentMutation.isPending,
     isReturnPending: workspace.fieldReturnDocumentMutation.isPending,
@@ -1621,30 +1627,6 @@ export function TripDeliveryProofLoader({
       )}
       <TripDeliveryProof
         documentId={documentId}
-        occurrences={
-          <TripOccurrences
-            canRegister={workspace.controller.canManageTrips}
-            email={workspace.lastOccurrenceEmail}
-            isRegistering={workspace.isSendingOccurrencePhotos}
-            occurrences={workspace.occurrencesQuery.data ?? []}
-            onRegister={(occurrence) =>
-              workspace.sendSeparationOccurrencePhotos({
-                documentId,
-                note: occurrence.note,
-                occurrenceTypeId: occurrence.occurrenceTypeId,
-                photos: occurrence.photos,
-                productCodes: occurrence.productCodes,
-                productQuantities: occurrence.productQuantities,
-                productQuantityUnits: occurrence.productQuantityUnits,
-                tripId: document.tripId,
-              })
-            }
-            onReset={workspace.resetSeparationOccurrencePhotoSend}
-            photoSendState={workspace.occurrencePhotoSendState}
-            products={workspace.documentProductsQuery.data ?? []}
-            types={workspace.occurrenceTypesQuery.data ?? []}
-          />
-        }
         products={workspace.documentProductsQuery.data ?? []}
         reviewActions={{
           canReview: workspace.controller.canManageTrips,

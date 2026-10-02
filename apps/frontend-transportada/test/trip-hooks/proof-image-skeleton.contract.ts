@@ -63,7 +63,6 @@ async function renderProofs(proofs: readonly DeliveryProof[]): Promise<void> {
         null,
         createElement(TripDeliveryProof, {
           documentId: 'document-1',
-          occurrences: null,
           products: [],
           reviewActions: {
             canReview: false,

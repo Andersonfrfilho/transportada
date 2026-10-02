@@ -4283,6 +4283,19 @@ button.occurrenceCaseBadge {
   font-weight: 600;
 }
 
+.occurrenceEntryLink {
+  color: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.occurrenceEntryLink:hover,
+.occurrenceEntryLink:focus-visible {
+  color: var(--color-copper);
+  text-decoration: underline;
+}
+
 .occurrenceEntryItems {
   list-style: none;
   margin: var(--space-1) 0 0;

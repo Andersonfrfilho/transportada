@@ -50,7 +50,10 @@ function makeActions(overrides: Partial<TripStopDocumentActions>): TripStopDocum
     canSeparationOccurrence: false,
     capabilities: { canDocument: () => false, canStop: () => false, canTrip: () => false },
     fiscalReadinessByDocumentId: new Map(),
-    renderProof: (documentId: string) => createElement('p', null, `comprovante ${documentId}`),
+    renderProof: (documentId: string) =>
+      createElement('section', { 'data-part': 'proof' }, `comprovante ${documentId}`),
+    renderOccurrences: (documentId: string) =>
+      createElement('section', { 'data-part': 'occurrences' }, `ocorrencias ${documentId}`),
     ...overrides,
   } as unknown as TripStopDocumentActions
 }
@@ -162,6 +165,45 @@ describe('a nota é um acordeão de abertura exclusiva (spec 227 RF1/CA01)', () 
   })
 })
 
+describe('a seção Ocorrências é irmã do comprovante, depois dele (spec 227 D2/RF2)', () => {
+  function bodyOf(dom: HTMLElement, documentId: string): HTMLElement {
+    const body = toggleOf(dom, documentId)
+      .closest('li')
+      ?.querySelector<HTMLElement>('[id^="trip-stop-document-body-"]')
+    if (body === null || body === undefined) throw new Error(`BODY_NOT_FOUND:${documentId}`)
+    return body
+  }
+
+  it('na nota entregue aberta, o comprovante vem antes das ocorrências, como irmãos', () => {
+    const { dom } = renderAccordion()
+    act(() => toggleOf(dom, 'doc-b').click())
+
+    const parts = Array.from(bodyOf(dom, 'doc-b').children).map((child) =>
+      child.getAttribute('data-part'),
+    )
+    const proof = dom.querySelector('[data-part="proof"]')
+    const occurrences = dom.querySelector('[data-part="occurrences"]')
+
+    expect(parts.indexOf('proof')).toBeGreaterThanOrEqual(0)
+    expect(parts.indexOf('occurrences')).toBeGreaterThan(parts.indexOf('proof'))
+    expect(proof?.contains(occurrences ?? proof)).toBe(false)
+  })
+
+  it('a nota não entregue aberta mostra as ocorrências mesmo sem comprovante', () => {
+    const { dom } = renderAccordion()
+    act(() => toggleOf(dom, 'doc-a').click())
+
+    expect(dom.querySelector('[data-part="proof"]')).toBeNull()
+    expect(dom.querySelector('[data-part="occurrences"]')).not.toBeNull()
+  })
+
+  it('a nota fechada não mostra seção nenhuma', () => {
+    const { dom } = renderAccordion()
+
+    expect(dom.querySelector('[data-part="occurrences"]')).toBeNull()
+  })
+})
+
 describe('a caixa de seleção e o botão de abrir são irmãos (spec 227 RF1)', () => {
   it('a caixa não está dentro do botão, e o botão não está dentro da caixa', () => {
     const { dom } = renderAccordion()
@@ -252,6 +294,7 @@ describe('abrir a nota não pede comprovante que não existe (spec 227 D1)', () 
   async function renderWorkspaceWithCounter() {
     resetTripHookFakes([])
     const proofCalls: string[] = []
+    const occurrenceCalls: string[] = []
     fakes.tripClient = {
       ...fakes.tripClient,
       getTrip: () => Promise.resolve(TRIP),
@@ -260,7 +303,10 @@ describe('abrir a nota não pede comprovante que não existe (spec 227 D1)', () 
         return Promise.resolve([])
       },
       readTripDocumentProducts: () => Promise.resolve([]),
-      readTripOccurrences: () => Promise.resolve([]),
+      readTripOccurrences: (input: { documentId: string }) => {
+        occurrenceCalls.push(input.documentId)
+        return Promise.resolve([])
+      },
     } as unknown as typeof fakes.tripClient
     const rendered = await renderHook(() =>
       useTripWorkspace({
@@ -270,28 +316,40 @@ describe('abrir a nota não pede comprovante que não existe (spec 227 D1)', () 
       }),
     )
     await waitFor(() => expect(rendered.result().trip).toBeDefined())
-    return { proofCalls, rendered }
+    return { occurrenceCalls, proofCalls, rendered }
   }
 
-  it('a nota não entregue abre sem buscar comprovante, itens nem ocorrências', async () => {
-    const { proofCalls, rendered } = await renderWorkspaceWithCounter()
+  it('a nota não entregue abre sem buscar comprovante nem itens, mas busca as ocorrências', async () => {
+    const { occurrenceCalls, proofCalls, rendered } = await renderWorkspaceWithCounter()
 
     act(() => rendered.result().toggleDocument('doc-a'))
+    await waitFor(() => expect(occurrenceCalls).toEqual(['doc-a']))
     await new Promise((resolve) => setTimeout(resolve, 30))
 
     expect(rendered.result().openDocumentId).toBe('doc-a')
     expect(rendered.result().openProofDocumentId).toBeNull()
     expect(proofCalls).toEqual([])
+    expect(occurrenceCalls).toEqual(['doc-a'])
     rendered.unmount()
   })
 
-  it('a nota entregue busca o comprovante uma vez', async () => {
-    const { proofCalls, rendered } = await renderWorkspaceWithCounter()
+  it('a nota entregue busca o comprovante e as ocorrências, uma vez cada', async () => {
+    const { occurrenceCalls, proofCalls, rendered } = await renderWorkspaceWithCounter()
 
     act(() => rendered.result().toggleDocument('doc-b'))
     await waitFor(() => expect(proofCalls).toEqual(['doc-b']))
+    await waitFor(() => expect(occurrenceCalls).toEqual(['doc-b']))
 
     expect(rendered.result().openProofDocumentId).toBe('doc-b')
+    rendered.unmount()
+  })
+
+  it('a nota fechada não busca nada', async () => {
+    const { occurrenceCalls, proofCalls, rendered } = await renderWorkspaceWithCounter()
+    await new Promise((resolve) => setTimeout(resolve, 30))
+
+    expect(proofCalls).toEqual([])
+    expect(occurrenceCalls).toEqual([])
     rendered.unmount()
   })
 })

@@ -548,8 +548,6 @@
     "imageLoading": "Carregando a imagem do comprovante",
     "lateRegistration": "Registrado depois",
     "notDelivered": "Esta nota ainda não foi entregue.",
-    "occurrencesCollapse": "Recolher ocorrências",
-    "occurrencesToggle": "Ver ocorrências",
     "open": "Abrir em tamanho real",
     "photoAlt": "Foto do comprovante de entrega",
     "productLine": "{{quantity}} {{unit}} · {{description}}",

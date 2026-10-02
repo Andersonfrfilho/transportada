@@ -30,8 +30,6 @@ import { TripDeliveryProofDetail } from './TripDeliveryProofDetail.component'
 type TripDeliveryProofProps = Readonly<{
   /** Spec 181 RF7: as duas expansões abaixo precisam de um id estável por nota. */
   documentId: string
-  /** Spec 079 T020: o que houve com a carga. Só anota — ver `TripOccurrences`. */
-  occurrences: React.ReactNode
   /** Spec 079 T019: o que vai dentro da nota, conferido de pé no galpão. */
   products: readonly TripDocumentProduct[]
   reviewActions: CanhotoReviewActions
@@ -50,7 +48,6 @@ type TripDeliveryProofProps = Readonly<{
  */
 export function TripDeliveryProof({
   documentId,
-  occurrences,
   products,
   reviewActions,
   view,
@@ -69,11 +66,7 @@ export function TripDeliveryProof({
     return (
       <>
         <p className={styles.hint}>{t('deliveryProof.notDelivered')}</p>
-        <TripDeliveryProofDetail
-          documentId={documentId}
-          occurrences={occurrences}
-          products={products}
-        />
+        <TripDeliveryProofDetail documentId={documentId} products={products} />
       </>
     )
   }
@@ -96,11 +89,7 @@ export function TripDeliveryProof({
                 }),
               })}
         </p>
-        <TripDeliveryProofDetail
-          documentId={documentId}
-          occurrences={occurrences}
-          products={products}
-        />
+        <TripDeliveryProofDetail documentId={documentId} products={products} />
       </>
     )
   }
@@ -145,11 +134,7 @@ export function TripDeliveryProof({
           </div>
         </footer>
       ) : null}
-      <TripDeliveryProofDetail
-        documentId={documentId}
-        occurrences={occurrences}
-        products={products}
-      />
+      <TripDeliveryProofDetail documentId={documentId} products={products} />
       {openProofId === null ? null : (
         <ProofGalleryDialog
           gallery={gallery}

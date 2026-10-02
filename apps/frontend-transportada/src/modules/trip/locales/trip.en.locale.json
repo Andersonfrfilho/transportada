@@ -548,8 +548,6 @@
     "imageLoading": "Loading the proof image",
     "lateRegistration": "Registered afterwards",
     "notDelivered": "This document has not been delivered yet.",
-    "occurrencesCollapse": "Collapse occurrences",
-    "occurrencesToggle": "View occurrences",
     "open": "Open in full size",
     "photoAlt": "Photo of the delivery proof",
     "productLine": "{{quantity}} {{unit}} · {{description}}",

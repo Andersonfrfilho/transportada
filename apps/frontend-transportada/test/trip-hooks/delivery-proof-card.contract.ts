@@ -52,7 +52,6 @@ async function renderCard(
     root?.render(
       createElement(TripDeliveryProof, {
         documentId: 'document-1',
-        occurrences: null,
         products: [],
         reviewActions: {
           canReview: options.canReview ?? false,

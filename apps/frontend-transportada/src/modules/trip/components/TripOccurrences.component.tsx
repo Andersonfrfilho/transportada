@@ -10,6 +10,7 @@ import { MultiSelect } from '@/components/ui/multi-select'
 import { Select } from '@/components/ui/select'
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
+import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 
 import { loadTripOccurrenceAttachments } from '../queries/tripOccurrenceFeed.query'
 import { resolveFieldAuthorshipText } from '../shared/fieldAuthorship.service'
@@ -44,9 +45,15 @@ import {
   OCCURRENCE_NOTE_PRESET_IDS,
   resolveOccurrenceNoteCounter,
 } from '../shared/occurrenceNotePreset.service'
+import {
+  buildTripOccurrenceRoute,
+  navigateToTripOccurrence,
+} from '../shared/tripOccurrenceRoute.service'
 import styles from '../styles/trip.module.css'
 
 type TripOccurrencesProps = Readonly<{
+  /** Spec 227 D8: só quem lê a frota abre `/ocorrencias/:id` — sem isso, o tipo sai como texto. */
+  canOpenOccurrence?: boolean
   canRegister: boolean
   /** O e-mail que o último registro produziu, para o operador conferir e enviar. */
   email: null | Readonly<{ body: string; subject: string }>
@@ -116,6 +123,7 @@ function isFallbackQuantityUnit(
  * obrigar a escolher faria quem registra escolher qualquer um.
  */
 export function TripOccurrences({
+  canOpenOccurrence = false,
   canRegister,
   email,
   isDialog = false,
@@ -258,7 +266,24 @@ export function TripOccurrences({
             return (
               <li key={occurrence.id}>
                 <p className={styles.occurrenceEntryHeader}>
-                  <span className={styles.occurrenceEntryType}>{occurrence.typeName}</span>
+                  {canOpenOccurrence ? (
+                    <a
+                      className={styles.occurrenceEntryLink}
+                      href={buildTripOccurrenceRoute(occurrence.id)}
+                      onClick={(event) => {
+                        /** Sem router: a troca de página é `pushState`, sem recarregar o app. */
+                        event.preventDefault()
+                        navigateToTripOccurrence({
+                          navigator: createBrowserWorkspaceNavigator(),
+                          occurrenceId: occurrence.id,
+                        })
+                      }}
+                    >
+                      {occurrence.typeName}
+                    </a>
+                  ) : (
+                    <span className={styles.occurrenceEntryType}>{occurrence.typeName}</span>
+                  )}
                   <span className={styles.hint}>{formatMoment(occurrence.createdAt)}</span>
                 </p>
                 {/*

@@ -417,13 +417,15 @@ export function useTripWorkspace(
   /**
    * Spec 227 D1: abrir a nota **não** é pedir o comprovante. Nota que não foi entregue nem devolvida
    * não tem comprovante — buscá-lo daria 404 e um estado de erro na tela. As três consultas abaixo
-   * (comprovante, itens, ocorrências) seguem `openProofDocumentId`, que só existe quando há o que
-   * buscar.
+   * (comprovante, itens) seguem `openProofDocumentId`, que só existe quando há o que buscar. As
+   * ocorrências são a exceção: nota não entregue também as tem (a ocorrência não espera a viagem
+   * sair), então a busca delas segue a nota aberta, entregue ou não.
    */
   const openDocument = tripQuery.data?.documents.find((document) => document.id === openDocumentId)
   const openProofDocumentId =
     openDocument !== undefined && hasTripDocumentProof(openDocument) ? openDocument.id : null
-  const activeOccurrenceDocumentId = openProofDocumentId ?? openSeparationOccurrenceDocumentId
+  const activeProductsDocumentId = openProofDocumentId ?? openSeparationOccurrenceDocumentId
+  const activeOccurrenceDocumentId = openDocumentId ?? openSeparationOccurrenceDocumentId
 
   const nextCargoLayoutEpisode = trackCargoLayoutPendingEpisode({
     key: cargoLayoutKey,
@@ -478,15 +480,15 @@ export function useTripWorkspace(
   const documentProductsQuery = useQuery({
     enabled:
       controller.canReadTripFleetDetails &&
-      activeOccurrenceDocumentId !== null &&
+      activeProductsDocumentId !== null &&
       input.tripId !== undefined &&
       input.tripId !== '',
     queryFn: () =>
       controller.readTripDocumentProducts({
-        documentId: activeOccurrenceDocumentId ?? '',
+        documentId: activeProductsDocumentId ?? '',
         tripId: input.tripId ?? '',
       }),
-    queryKey: [...tripKey, 'document-products', activeOccurrenceDocumentId] as const,
+    queryKey: [...tripKey, 'document-products', activeProductsDocumentId] as const,
   })
 
   /** Os tipos cadastrados: o painel da nota precisa deles para oferecer a escolha. */
