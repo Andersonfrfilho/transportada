@@ -36,6 +36,14 @@ const LABELS: PackageBoxPendingExportLabels = {
     productCode: 'Código do produto',
     transportedVolumes: 'Quantidade pendente',
   },
+  measurementHeader: {
+    heightCm: 'Altura (cm)',
+    lengthCm: 'Comprimento (cm)',
+    measuredAt: 'Medida em',
+    measuredByName: 'Medida por',
+    unitsPerBox: 'Unidades por caixa',
+    widthCm: 'Largura (cm)',
+  },
 }
 
 const WITH_FAMILY_AND_GTIN: PackageBox = {
@@ -167,6 +175,65 @@ describe('exportar a fila de caixas pendentes em CSV/Excel', () => {
     )
   })
 
+  it('medidas e todas trazem as dimensões, a data e quem mediu; pendentes não', () => {
+    const measured: PackageBox = {
+      ...WITH_FAMILY_AND_GTIN,
+      heightMm: 130,
+      lengthMm: 190,
+      measuredAt: '2026-10-01T15:30:00.000Z',
+      measuredByName: 'Maria Lima',
+      unitsPerBox: 24,
+      widthMm: 185,
+    }
+
+    const pending = buildPackageBoxPendingExportSheetData({ boxes: [measured], labels: LABELS })
+    const everything = buildPackageBoxPendingExportSheetData({
+      boxes: [measured],
+      labels: LABELS,
+      status: 'measured',
+    })
+
+    expect(pending[0]).toHaveLength(7)
+    expect(everything[0]?.slice(7)).toEqual([
+      'Comprimento (cm)',
+      'Largura (cm)',
+      'Altura (cm)',
+      'Unidades por caixa',
+      'Medida em',
+      'Medida por',
+    ])
+    expect(everything[1]?.slice(7)).toEqual([19, 18.5, 13, 24, '2026-10-01', 'Maria Lima'])
+  })
+
+  it('a caixa medida sem autor sai com o traço, e a pendente sem medida também', () => {
+    const rows = buildPackageBoxPendingExportSheetData({
+      boxes: [{ ...WITH_FAMILY_AND_GTIN, measuredAt: null, measuredByName: null }],
+      labels: LABELS,
+      status: 'all',
+    })
+
+    expect(rows[1]?.slice(7)).toEqual(['—', '—', '—', 1, '—', '—'])
+  })
+
+  it('o nome do arquivo diz a situação exportada', () => {
+    const name = (status: 'all' | 'measured' | 'pending') =>
+      packageBoxPendingExportFileName({ extension: 'xlsx', status, today: '2026-10-02' })
+
+    expect(name('pending')).toBe('medidas-pendentes-caixas-2026-10-02.xlsx')
+    expect(name('measured')).toBe('caixas-medidas-2026-10-02.xlsx')
+    expect(name('all')).toBe('caixas-2026-10-02.xlsx')
+  })
+
+  it('pede a exportação com a situação escolhida na URL', async () => {
+    const captured: CapturedRequest = {}
+    await buildClient({
+      body: { data: { items: [], truncated: false } },
+      captured,
+    }).listPendingExport({ status: 'measured' })
+
+    expect(captured.url).toBe('https://api.test/nfe-package-boxes/pending-export?status=measured')
+  })
+
   it('o CSV tem BOM e escapa vírgula/aspas do código de produto', () => {
     const csv = buildPackageBoxPendingExportCsv({
       boxes: [WITHOUT_DESCRIPTION_OR_FAMILY],
@@ -258,7 +325,8 @@ describe('exportar a fila de caixas pendentes em CSV/Excel', () => {
 
     expect(source).toInclude("t('packageBoxes.pendingExport.xlsx')")
     expect(source).toInclude("t('packageBoxes.pendingExport.csv')")
-    expect(source).toInclude("import('write-excel-file/browser')")
+    expect(source).toInclude('useSpreadsheetExport')
+    expect(source).not.toInclude('write-excel-file')
   })
 
   it('os rótulos e as colunas existem em pt e em en', () => {
@@ -348,7 +416,7 @@ describe('exportar a fila de caixas pendentes em CSV/Excel', () => {
     }
     const pt = nfeWorkspace.packageBoxes.pendingExport
     expect(pt.truncated).toBe(
-      'O arquivo traz as {{total, number}} primeiras caixas pendentes da fila — há mais caixas por medir além delas.',
+      'O arquivo traz as {{total, number}} primeiras caixas da fila — há mais caixas além delas.',
     )
     expect(pt.preparing).toBe('Preparando…')
     expect(pt.rateLimited).toBe('Muitas exportações seguidas. Tente de novo em alguns minutos.')

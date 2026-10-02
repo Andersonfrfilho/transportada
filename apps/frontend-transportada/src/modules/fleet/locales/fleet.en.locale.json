@@ -639,9 +639,12 @@
     "copyCities": "Copy cities ({{count}})",
     "count": "{{count}} route selected",
     "count_other": "{{count}} routes selected",
-    "export": "Export selection ({{count}})",
+    "export": "Export CSV ({{count}})",
     "select": "Select route {{code}}",
-    "selectAll": "Select every route on the list"
+    "selectAll": "Select every route on the list",
+    "exportExcel": "Export Excel ({{count}})",
+    "sheetName": "Regions",
+    "title": "Freight regions"
   },
   "regionStatus": {
     "active": "Active",
@@ -840,9 +843,12 @@
     "count": "{{count}} vehicle selected",
     "count_other": "{{count}} vehicles selected",
     "deactivate": "Deactivate ({{count}})",
-    "export": "Export selection ({{count}})",
+    "export": "Export CSV ({{count}})",
     "select": "Select vehicle with plate {{plate}}",
-    "selectAll": "Select every vehicle in the list"
+    "selectAll": "Select every vehicle in the list",
+    "exportExcel": "Export Excel ({{count}})",
+    "sheetName": "Vehicles",
+    "title": "Fleet vehicles"
   },
   "vehicleState": "Licensing state",
   "vehicleStateUnset": "Select the state",

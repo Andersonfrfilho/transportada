@@ -1,5 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
+  toSpreadsheetNumber,
+  type SpreadsheetCellValue,
+  type SpreadsheetColumn,
+} from '@/modules/shared/spreadsheet/spreadsheetLayout.service'
+import {
   CSV_BYTE_ORDER_MARK,
   CSV_FIELD_SEPARATOR,
   CSV_LINE_SEPARATOR,
@@ -22,6 +27,7 @@ export const FREIGHT_REGION_EXPORT_COLUMNS = [
 export type FreightRegionExportColumn = (typeof FREIGHT_REGION_EXPORT_COLUMNS)[number]
 
 export const FREIGHT_REGION_EXPORT_FILE_NAME = 'regioes-frete.csv'
+export const FREIGHT_REGION_EXPORT_EXCEL_FILE_NAME = 'regioes-frete.xlsx'
 export const FREIGHT_REGION_EXPORT_MEDIA_TYPE = 'text/csv;charset=utf-8'
 
 const CITY_SEPARATOR = ', '
@@ -45,6 +51,37 @@ function readColumn(
   if (column === 'cities') return region.cities.map(describeCity).join(CITY_SEPARATOR)
 
   return toSpreadsheetDecimal(rateOfRegion(region, column))
+}
+
+const FREIGHT_REGION_TEXT_COLUMNS: ReadonlySet<FreightRegionExportColumn> = new Set([
+  'cities',
+  'code',
+  'name',
+])
+
+/** Cabeçalho, largura e formato: o código é texto, a zona e os valores por classe são número. */
+export function buildFreightRegionExportColumns(
+  header: Readonly<Record<FreightRegionExportColumn, string>>,
+): readonly SpreadsheetColumn[] {
+  return FREIGHT_REGION_EXPORT_COLUMNS.map((column) => {
+    if (column === 'code') return { format: '@', header: header[column], width: 14 }
+    if (column === 'name') return { header: header[column], width: 28 }
+    if (column === 'cities') return { header: header[column], width: 60 }
+    if (column === 'zone') return { align: 'right', format: '0', header: header[column], width: 10 }
+    return { align: 'right', format: '#,##0.00', header: header[column], width: 14 }
+  })
+}
+
+/** As mesmas células do CSV, com zona e valores como número para somar e ordenar na planilha. */
+export function buildFreightRegionRows(
+  regions: readonly FreightRegion[],
+): readonly (readonly SpreadsheetCellValue[])[] {
+  return regions.map((region) =>
+    FREIGHT_REGION_EXPORT_COLUMNS.map((column) => {
+      const text = readColumn({ column, region })
+      return FREIGHT_REGION_TEXT_COLUMNS.has(column) ? text : toSpreadsheetNumber(text)
+    }),
+  )
 }
 
 export function buildFreightRegionCsv(

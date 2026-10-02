@@ -671,9 +671,12 @@
     "copyCities": "Copiar cidades ({{count}})",
     "count": "{{count}} rota selecionada",
     "count_other": "{{count}} rotas selecionadas",
-    "export": "Exportar seleção ({{count}})",
+    "export": "Exportar CSV ({{count}})",
     "select": "Selecionar a rota {{code}}",
-    "selectAll": "Selecionar todas as rotas da lista"
+    "selectAll": "Selecionar todas as rotas da lista",
+    "exportExcel": "Exportar Excel ({{count}})",
+    "sheetName": "Regiões",
+    "title": "Regiões de frete"
   },
   "regionStatus": {
     "active": "Ativa",
@@ -872,9 +875,12 @@
     "count": "{{count}} veículo selecionado",
     "count_other": "{{count}} veículos selecionados",
     "deactivate": "Desativar ({{count}})",
-    "export": "Exportar seleção ({{count}})",
+    "export": "Exportar CSV ({{count}})",
     "select": "Selecionar o veículo de placa {{plate}}",
-    "selectAll": "Selecionar todos os veículos da lista"
+    "selectAll": "Selecionar todos os veículos da lista",
+    "exportExcel": "Exportar Excel ({{count}})",
+    "sheetName": "Veículos",
+    "title": "Veículos da frota"
   },
   "vehicleState": "UF de licenciamento",
   "vehicleStateUnset": "Selecione a UF",

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { COPY_FEEDBACK_MILLISECONDS } from '@/modules/shared/clipboard.constant'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { useSpreadsheetExport } from '@/modules/shared/spreadsheet/useSpreadsheetExport.hook'
 import { saveArchiveFile } from '@/modules/shared/archiveDownload.service'
 
 import type { FreightRegionTableController } from '../hooks/useFreightRegionTable.hook'
@@ -12,6 +13,9 @@ import {
   buildFreightRegionCityList,
   buildFreightRegionCsv,
   FREIGHT_REGION_EXPORT_COLUMNS,
+  buildFreightRegionExportColumns,
+  buildFreightRegionRows,
+  FREIGHT_REGION_EXPORT_EXCEL_FILE_NAME,
   FREIGHT_REGION_EXPORT_FILE_NAME,
   FREIGHT_REGION_EXPORT_MEDIA_TYPE,
   type FreightRegionExportColumn,
@@ -22,16 +26,31 @@ type FreightRegionSelectionBarProps = Readonly<{ table: FreightRegionTableContro
 
 export function FreightRegionSelectionBar({ table }: FreightRegionSelectionBarProps) {
   const { t } = useTranslation('fleet')
+  const spreadsheetExport = useSpreadsheetExport()
   const [hasCopiedCities, setHasCopiedCities] = useState(false)
 
   const selected = table.selectedRegions
   if (selected.length === 0) return null
 
+  async function exportExcel(): Promise<void> {
+    await spreadsheetExport.exportSpreadsheet({
+      columns: buildFreightRegionExportColumns(regionHeader()),
+      fileName: FREIGHT_REGION_EXPORT_EXCEL_FILE_NAME,
+      rows: buildFreightRegionRows(selected),
+      sheetName: t('regionSelection.sheetName'),
+      title: t('regionSelection.title'),
+    })
+  }
+
+  function regionHeader(): Record<FreightRegionExportColumn, string> {
+    return Object.fromEntries(
+      FREIGHT_REGION_EXPORT_COLUMNS.map((column) => [column, t(`regionColumns.${column}`)]),
+    ) as Record<FreightRegionExportColumn, string>
+  }
+
   function exportSelection(): void {
     const csv = buildFreightRegionCsv({
-      header: Object.fromEntries(
-        FREIGHT_REGION_EXPORT_COLUMNS.map((column) => [column, t(`regionColumns.${column}`)]),
-      ) as Record<FreightRegionExportColumn, string>,
+      header: regionHeader(),
       regions: selected,
     })
 
@@ -56,6 +75,17 @@ export function FreightRegionSelectionBar({ table }: FreightRegionSelectionBarPr
     <div className={styles.bulkBar}>
       <p className={styles.counter}>{t('regionSelection.count', { count: selected.length })}</p>
       <div className={styles.bulkActions}>
+        <Button
+          onClick={() => {
+            void exportExcel()
+          }}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
+          <Icon name="export" />
+          {t('regionSelection.exportExcel', { count: selected.length })}
+        </Button>
         <Button onClick={exportSelection} size="sm" type="button" variant="secondary">
           <Icon name="export" />
           {t('regionSelection.export', { count: selected.length })}

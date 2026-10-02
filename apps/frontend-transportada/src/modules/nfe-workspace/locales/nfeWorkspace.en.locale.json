@@ -617,11 +617,25 @@
         "commercialUnit": "Packaging",
         "transportedVolumes": "Pending quantity"
       },
-      "truncated": "The file holds the first {{total, number}} pending boxes in the queue — there are more boxes to measure beyond them.",
+      "measurementColumns": {
+        "lengthCm": "Length (cm)",
+        "widthCm": "Width (cm)",
+        "heightCm": "Height (cm)",
+        "unitsPerBox": "Units per box",
+        "measuredAt": "Measured on",
+        "measuredByName": "Measured by"
+      },
+      "truncated": "The file has the first {{total, number}} boxes of the queue — there are more boxes beyond them.",
       "preparing": "Preparing…",
-      "empty": "There are no pending boxes to export.",
+      "empty": "There are no boxes to export in this status.",
       "failed": "The file could not be prepared. Try again.",
-      "rateLimited": "Too many exports in a row. Try again in a few minutes."
+      "rateLimited": "Too many exports in a row. Try again in a few minutes.",
+      "sheetName": "Boxes",
+      "title": {
+        "pending": "Boxes to measure",
+        "measured": "Measured boxes",
+        "all": "All boxes"
+      }
     },
     "estimate": {
       "badge": "Estimated",
@@ -654,5 +668,8 @@
       "postalCodeInvalid": "Postal code must have 8 digits.",
       "cityCodeInvalid": "IBGE code must have 7 digits and start with the chosen state's prefix."
     }
-  }
+  },
+  "cameraMeasurementValidationExportExcel": "Export period Excel",
+  "cameraMeasurementExportSheetName": "Camera measurements",
+  "cameraMeasurementExportTitle": "Camera measurements"
 }

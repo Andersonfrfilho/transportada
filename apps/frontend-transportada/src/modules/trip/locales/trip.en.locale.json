@@ -1189,7 +1189,9 @@
     "unknownProduct": "Unidentified product",
     "export": {
       "csv": "Download CSV",
-      "xlsx": "Download Excel"
+      "xlsx": "Download Excel",
+      "sheetName": "To measure",
+      "title": "What is left to measure on the trip"
     },
     "inline": {
       "length": "Length (cm)",

@@ -20,6 +20,8 @@ import driverTripLocale from '@/modules/driver-trip/locales/driverTrip.locale.js
 import driverTripEnglishLocale from '@/modules/driver-trip/locales/driverTrip.en.locale.json'
 import extraChargesLocale from '@/modules/extra-charges/locales/extraCharges.locale.json'
 import extraChargesEnglishLocale from '@/modules/extra-charges/locales/extraCharges.en.locale.json'
+import spreadsheetLocale from '@/modules/shared/spreadsheet/locales/spreadsheet.locale.json'
+import spreadsheetEnglishLocale from '@/modules/shared/spreadsheet/locales/spreadsheet.en.locale.json'
 import fleetLocale from '@/modules/fleet/locales/fleet.locale.json'
 import fleetEnglishLocale from '@/modules/fleet/locales/fleet.en.locale.json'
 import foundationLocale from '@/modules/foundation/locales/foundation.locale.json'
@@ -72,6 +74,7 @@ void i18n.use(initReactI18next).init({
       operationsWorkspace: operationsWorkspaceEnglishLocale,
       pendingItems: pendingItemsEnglishLocale,
       routing: routingEnglishLocale,
+      spreadsheet: spreadsheetEnglishLocale,
       translation: foundationEnglishLocale,
       trip: tripEnglishLocale,
       tripFinancials: tripFinancialsEnglishLocale,
@@ -96,6 +99,7 @@ void i18n.use(initReactI18next).init({
       operationsWorkspace: operationsWorkspaceLocale,
       pendingItems: pendingItemsLocale,
       routing: routingLocale,
+      spreadsheet: spreadsheetLocale,
       translation: foundationLocale,
       trip: tripLocale,
       tripFinancials: tripFinancialsLocale,

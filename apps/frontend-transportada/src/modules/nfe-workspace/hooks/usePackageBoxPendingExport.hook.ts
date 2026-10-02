@@ -8,22 +8,25 @@ import {
   createPackageBoxClient,
   type PackageBox,
   type PackageBoxPendingExport,
+  type PackageBoxStatusFilter,
 } from '../shared/packageBoxClient.service'
 import {
   resolvePackageBoxPendingExportFeedback,
   type PackageBoxPendingExportFormat,
 } from '../shared/packageBoxPendingExport.service'
 
-function loadPendingExportFromApi(): Promise<PackageBoxPendingExport> {
+function loadPendingExportFromApi(
+  status: PackageBoxStatusFilter,
+): Promise<PackageBoxPendingExport> {
   return createPackageBoxClient({
     apiUrl: getIdentityEnvironment().apiBaseUrl,
     fetch: (request, init) => fetch(request, init),
     getAccessToken: () => getKeycloakAuthProvider().getAccessToken(),
-  }).listPendingExport()
+  }).listPendingExport({ status })
 }
 
 /**
- * A lista para exportar é sempre "tudo o que falta medir" — nunca a busca/etiqueta da fila
+ * A lista para exportar é a situação que a tela mostra — nunca a busca/etiqueta da fila
  * interativa (`usePackageBoxQueue`). ⚠️ **Busca só no clique**, nunca ao abrir a aba: a rota tem teto
  * de 10 pedidos a cada 5 min por usuário e devolve a empresa inteira, então consulta automática
  * (abertura, foco da janela, `staleTime`) gastava o teto e baixava megabytes que ninguém pediu — e
@@ -31,13 +34,20 @@ function loadPendingExportFromApi(): Promise<PackageBoxPendingExport> {
  *
  * `loadPendingExport` existe para o teste de hook trocar a rede por um falso.
  */
+type PendingExportRequest = Readonly<{
+  format: PackageBoxPendingExportFormat
+  status: PackageBoxStatusFilter
+}>
+
 export function usePackageBoxPendingExport(
-  input: Readonly<{ loadPendingExport?: () => Promise<PackageBoxPendingExport> }> = {},
+  input: Readonly<{
+    loadPendingExport?: (status: PackageBoxStatusFilter) => Promise<PackageBoxPendingExport>
+  }> = {},
 ) {
   const loadPendingExport = input.loadPendingExport ?? loadPendingExportFromApi
   // O formato só vai como variável da mutação: é ele que diz qual botão mostra "Preparando…".
-  const mutation = useMutation<PackageBoxPendingExport, Error, PackageBoxPendingExportFormat>({
-    mutationFn: () => loadPendingExport(),
+  const mutation = useMutation<PackageBoxPendingExport, Error, PendingExportRequest>({
+    mutationFn: (request) => loadPendingExport(request.status),
   })
 
   return {
@@ -46,13 +56,14 @@ export function usePackageBoxPendingExport(
       isPending: mutation.isPending,
       result: mutation.data,
     }),
-    preparingFormat: mutation.isPending ? mutation.variables : undefined,
+    preparingFormat: mutation.isPending ? mutation.variables?.format : undefined,
     /** As caixas para o arquivo, ou `undefined` quando não há o que baixar (falha, 429, vazio). */
     async prepare(
       format: PackageBoxPendingExportFormat,
+      status: PackageBoxStatusFilter = 'pending',
     ): Promise<readonly PackageBox[] | undefined> {
       // A falha já fica em `mutation.error` e vira aviso na tela: aqui só não há arquivo.
-      const result = await mutation.mutateAsync(format).catch(() => undefined)
+      const result = await mutation.mutateAsync({ format, status }).catch(() => undefined)
       return result === undefined || result.items.length === 0 ? undefined : result.items
     },
   }

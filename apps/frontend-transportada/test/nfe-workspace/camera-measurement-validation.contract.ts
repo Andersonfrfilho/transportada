@@ -2,7 +2,9 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  buildCameraMeasurementColumns,
   buildCameraMeasurementCsv,
+  buildCameraMeasurementRows,
   CAMERA_MEASUREMENT_EXPORT_COLUMNS,
 } from '../../src/modules/nfe-workspace/shared/cameraMeasurementExport.service'
 import {
@@ -207,6 +209,20 @@ describe('CSV do histórico da câmera (spec 152 R8)', () => {
 
     expect(csv).toContain('"\'=cmd')
     expect(csv).not.toMatch(/;"=cmd/u)
+  })
+
+  test('o Excel traz as medidas em milímetros como número, e a linha typed continua fora', () => {
+    const rows = buildCameraMeasurementRows([
+      entry({ source: 'camera' }),
+      entry({ source: 'typed' }),
+    ])
+
+    expect(buildCameraMeasurementColumns().map((column) => column.header)).toEqual([
+      ...CAMERA_MEASUREMENT_EXPORT_COLUMNS,
+    ])
+    expect(rows).toHaveLength(3)
+    expect(typeof rows[0]?.[2]).toBe('number')
+    expect(rows[0]?.[0]).toBeString()
   })
 
   test('linha typed não entra (não há proposta da câmera para validar)', () => {

@@ -1189,7 +1189,9 @@
     "unknownProduct": "Produto sem identificação",
     "export": {
       "csv": "Baixar CSV",
-      "xlsx": "Baixar Excel"
+      "xlsx": "Baixar Excel",
+      "sheetName": "O que falta medir",
+      "title": "O que falta medir na viagem"
     },
     "inline": {
       "length": "Comprimento (cm)",
