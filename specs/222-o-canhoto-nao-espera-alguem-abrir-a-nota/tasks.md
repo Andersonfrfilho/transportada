@@ -66,7 +66,7 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
 - [x] T2.8 Botão no maço em `TripStateActions.component.tsx`, no molde de `batchFieldDelivery`, com
       o aviso de exclusão reaproveitando a contagem da T2.2 (CA02–CA04)
 - [x] T2.9 Textos em `trip.locale.json` (`stateActions.batchCanhoto*`, `deliveryProof.canhotoBatch.*`)
-- [ ] T2.10 Revisão de design e usabilidade do diálogo (`web.md` §15): teto de itens, foco no
+- [x] T2.10 Revisão de design e usabilidade do diálogo (`web.md` §15): teto de itens, foco no
       diálogo, leitura por teclado, e **print ao usuário** antes de fechar a fase
 
 ## Fase 3 — O robô tem porta própria

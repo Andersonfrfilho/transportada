@@ -7,6 +7,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox } from '@/components/ui/checkbox'
+import { cn } from '@/lib/utils'
 
 import type { CanhotoBatchItem } from '../shared/canhotoBatchSelection.service'
 import type { ProofImageOutcome } from './ProofImage.component'
@@ -37,7 +38,7 @@ export function TripCanhotoBatchItem({
   const { documentId, label, proof } = item
 
   return (
-    <li className={styles.canhotoBatchItem}>
+    <li className={cn(styles.canhotoBatchItem, hasImageFailed && styles.canhotoBatchItemFailed)}>
       <ProofImage
         alt={t('deliveryProof.photoAlt')}
         isEager

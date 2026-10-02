@@ -4856,6 +4856,16 @@ button.occurrenceCaseBadge {
   height: 12rem;
 }
 
+/* O texto alternativo da foto quebrada se sobrepõe ao rótulo da nota; o aviso abaixo já diz o que houve. */
+.canhotoBatchItemFailed .deliveryProofImageFrame {
+  min-block-size: 9rem;
+  border: 1px dashed color-mix(in srgb, var(--color-slate) 40%, transparent);
+}
+
+.canhotoBatchItemFailed .deliveryProofImage {
+  visibility: hidden;
+}
+
 .canhotoBatchSummary {
   margin: 0;
   margin-inline-end: auto;

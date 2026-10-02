@@ -353,3 +353,31 @@ falha "N de M") mora no hook novo `useCanhotoBatchReview`, para não inchar o `T
 - `CanhotoAutomaticReview` não foi tocado.
 
 Gates: typecheck sem erro; prettier conforme; eslint 0 erros (16 avisos preexistentes).
+
+### T2.10 — revisão de design e usabilidade do diálogo (`web.md` §15)
+
+Sem teste novo: é revisão de tela. O diálogo foi renderizado no Vite **deste worktree** (porta 53222,
+`cwd` conferido com `lsof`; a 53000 era de outra sessão — `reconcile-spec-145` — e a API/infra não
+estavam de pé). Foi uma página descartável, fora do repositório, com 5 e com 43 itens, uma foto
+quebrada de propósito; **a tela real do detalhe da viagem, com dados e login, não foi levantada**.
+
+Medido por DOM e geometria (screenshot só no fim):
+
+- **Teto**: 43 canhotos pendentes → 40 itens, aviso "3 canhotos ficaram para a próxima rodada.",
+  rodapé "39 de 40 marcados" (1 com foto quebrada, desmarcada e travada), botão "Aprovar 39 canhotos".
+- **Foco**: ao abrir, o foco está no diálogo (`aria-modal`, `aria-labelledby`); Shift+Tab a partir
+  dele cai em "Aprovar N canhotos" (armadilha de Tab), então o botão não exige 80 Tabs.
+- **Teclado**: 82 paradas de Tab com 40 itens (duas por item: abrir em tamanho real e a caixa). É o
+  custo do teto de 40; com a seleção por teclado, quem quiser pode ir direto ao botão por Shift+Tab.
+- **Rodapé**: `position: sticky`, fica visível com o diálogo rolado (4512 px de conteúdo em 736).
+- **Desktop 1280**: diálogo de 64rem, três colunas de ~319 px; **celular 375**: uma coluna de 335 px,
+  sem rolagem horizontal, botões de 44 px de altura, rodapé em 129 px.
+- **Visual**: tema escuro, cobre, cantos retos (`border-radius: 0`), rótulos em mono — o idioma da app.
+
+⚠️ Defeito achado e corrigido: na foto quebrada o texto alternativo do `<img>` se sobrepunha ao
+rótulo da nota. Agora o item com foto que não abriu ganha `canhotoBatchItemFailed` (moldura
+tracejada de 9 rem, imagem oculta), e o aviso abaixo diz o que houve. Conferido de novo no DOM
+(`visibility: hidden`, moldura de 144 px) e no print.
+
+Gates: typecheck sem erro; `bun run test` → 6191 pass / 0 fail e hooks 219 pass / 0 fail; eslint 0
+erros (16 avisos preexistentes); prettier conforme.
