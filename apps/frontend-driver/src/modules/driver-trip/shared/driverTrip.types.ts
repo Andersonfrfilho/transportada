@@ -255,6 +255,16 @@ export type DriverFieldReport =
       stopId: string
       tappedAt: string
     }>
+  /**
+   * Spec 230: "Despachar viagem" vai pela fila como qualquer toque de campo — sem sinal fica como
+   * pendência de envio e sobe sozinho (ou pelo envio manual). O servidor trata o despacho repetido
+   * como `unchanged`, então reenviar é seguro. Sem posição: a 196 trata disso.
+   */
+  | Readonly<{
+      idempotencyKey: string
+      kind: 'dispatch'
+      tripId: string
+    }>
   /** Spec 206 D18: desfaz o "Iniciar rota" desta parada, a qualquer momento antes do "Cheguei". */
   | Readonly<{
       idempotencyKey: string

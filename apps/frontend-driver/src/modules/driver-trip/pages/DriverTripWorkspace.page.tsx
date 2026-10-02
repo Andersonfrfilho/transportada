@@ -125,9 +125,6 @@ export function DriverTripWorkspacePage() {
   const [eventLimitReached, setEventLimitReached] = useState(false)
   /** Spec 209 (D3): a foto do "Deu problema" não coube — o relato entrou sem ela, e a tela diz. */
   const [occurrencePhotoDropped, setOccurrencePhotoDropped] = useState(false)
-  /** Iniciar trajeto: falhar não muda nada no servidor — repetir o toque é o conserto. */
-  const [isDispatching, setIsDispatching] = useState(false)
-  const [dispatchFailed, setDispatchFailed] = useState(false)
   /**
    * Os tipos cadastrados pela empresa. Spec 157 RF5: falha e lista vazia de verdade são estados
    * diferentes — o painel avisa a falha e oferece tentar de novo; entregar e devolver nunca
@@ -596,18 +593,16 @@ export function DriverTripWorkspacePage() {
     )
   }
 
-  /** Sucesso → refetch: é o snapshot novo que abre as ações de campo. */
-  async function dispatchTrip(tripId: string): Promise<void> {
-    setDispatchFailed(false)
-    setIsDispatching(true)
-    try {
-      await getDriverTripClient().dispatchTrip({ tripId })
-      driverTrip.refetchTrip()
-    } catch {
-      setDispatchFailed(true)
-    } finally {
-      setIsDispatching(false)
-    }
+  /**
+   * Spec 230: o despacho entra na fila como qualquer toque de campo — sem sinal fica como pendência de
+   * envio e sobe sozinho (ou pelo envio manual). Quando sobe, o snapshot novo abre as ações de campo.
+   */
+  function dispatchTrip(tripId: string): void {
+    void driverTrip
+      .report({ idempotencyKey: createIdempotencyKey(), kind: 'dispatch', tripId })
+      .then((outcome) => {
+        if (outcome === 'count-limit') setEventLimitReached(true)
+      })
   }
 
   function rememberTappedReport(tappedReport: TappedStopReport): void {
@@ -653,7 +648,16 @@ export function DriverTripWorkspacePage() {
     }))
   }
 
-  const isTripAwaitingDispatch = trip !== undefined && isAwaitingDispatch(trip)
+  /**
+   * Spec 230: o despacho na fila destrava as ações de campo — ele sobe antes de tudo que vier depois
+   * (a fila é em ordem), então o motorista segue trabalhando sem sinal. Recusado volta ao botão.
+   */
+  const dispatchItems = driverTrip.queueView.filter(
+    (item) => item.kind === 'dispatch' && item.tripId === trip?.id,
+  )
+  const isDispatchQueued = dispatchItems.some((item) => item.status.state !== 'rejected')
+  const isDispatchRejected = dispatchItems.some((item) => item.status.state === 'rejected')
+  const isTripAwaitingDispatch = trip !== undefined && isAwaitingDispatch(trip) && !isDispatchQueued
   const proofPendingCount = listProofPendingDocuments(snapshot).length
   /** Spec 159 (T11): entradas ainda não dispensadas — computado no render, nunca em `useEffect`. */
   const visibleProofOutcomes = [...driverTrip.proofOutcomeByDocumentId].filter(
@@ -738,18 +742,21 @@ export function DriverTripWorkspacePage() {
         {/* Spec 082 (revisão): viagem `route_planned` só abre as ações depois de iniciar o trajeto */}
         {isTripAwaitingDispatch && trip !== undefined ? (
           <div className={styles.actions}>
-            <Button
-              disabled={isDispatching}
-              onClick={() => void dispatchTrip(trip.id)}
-              type="button"
-            >
+            <Button onClick={() => dispatchTrip(trip.id)} type="button">
               <Icon name="check" />
               {t('dispatch.start')}
             </Button>
             <p className={styles.stopMeta}>{t('dispatch.waiting')}</p>
           </div>
         ) : null}
-        {dispatchFailed ? (
+        {/* Spec 230: o despacho ficou na fila — a tela diz que ainda não chegou ao servidor */}
+        {isDispatchQueued && trip !== undefined && isAwaitingDispatch(trip) ? (
+          <p className={styles.stopMeta} role="status">
+            <Icon name="clock" />
+            {t('dispatch.queued')}
+          </p>
+        ) : null}
+        {isDispatchRejected ? (
           <p className={styles.alert} role="alert">
             {t('dispatch.failed')}
           </p>

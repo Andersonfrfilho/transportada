@@ -11,6 +11,7 @@
   "attachmentLimitSize": "Espaço para anexos aguardando envio cheio. Envie os pendentes antes de anexar outro — nada foi descartado.",
   "occurrencePhotoDropped": "Ocorrência registrada sem a foto: o espaço para fotos aguardando envio está cheio. Envie os pendentes e registre outra ocorrência com a foto, se precisar.",
   "dispatch": {
+    "queued": "Início da viagem aguardando envio — sobe quando o sinal voltar. Você já pode registrar as paradas.",
     "failed": "Não foi possível iniciar o trajeto. Toque de novo.",
     "start": "Despachar viagem",
     "waiting": "Aguardando o despacho — as ações de campo liberam depois de despachar a viagem."
@@ -37,6 +38,7 @@
       "depart": "Iniciar rota — parada {{sequence}}"
     },
     "kind": {
+      "dispatch": "Iniciar viagem",
       "arrive": "Chegada",
       "cancelDeparture": "Cancelamento de rota",
       "depart": "Iniciar rota",

@@ -47,6 +47,10 @@ export type DriverTripProofScenario = Readonly<{
    * comprovante no cartão da parada. Sem ele, a nota fica `loaded` (o que os outros cenários esperam).
    */
   settlesDeliveries?: boolean
+  /** Spec 230: o servidor recusa o despacho com este status (ex.: 409) e a viagem segue `route_planned`. */
+  dispatchRefusedWith?: number
+  /** Spec 230: a viagem nasce `route_planned` e só vira `dispatched` depois do `POST /dispatch`. */
+  startsPlanned?: boolean
   stopDeliveryProof?: Readonly<Record<string, string>>
 }>
 
@@ -57,6 +61,7 @@ function isProofDelivered(item: unknown, provedDocumentIds: ReadonlySet<string>)
 
 function buildSnapshot(input: {
   readonly arrived: boolean
+  readonly isDispatched: boolean
   readonly deliveredDocumentIds: ReadonlySet<string>
   readonly provedDocumentIds: ReadonlySet<string>
   readonly scenario: DriverTripProofScenario | undefined
@@ -73,7 +78,11 @@ function buildSnapshot(input: {
         {
           createdAt: '2026-08-26T12:00:00.000Z',
           id: '00000000-0000-4000-8000-000000000100',
-          status: input.arrived ? 'in_transit' : 'dispatched',
+          status: !input.isDispatched
+            ? 'route_planned'
+            : input.arrived
+              ? 'in_transit'
+              : 'dispatched',
           stops: [
             {
               arrivedAt: input.arrived ? '2026-08-26T13:00:00.000Z' : null,
@@ -152,6 +161,7 @@ export async function mockDriverTripApi(
   const reports: Array<{ body: unknown; idempotencyKey: string; path: string }> = []
   const storageUploads: Array<{ bytes: number; contentType: string }> = []
   let arrived = false
+  let isDispatched = input.scenario?.startsPlanned !== true
   let isOffline = input.isOffline === true
   const provedDocumentIds = new Set<string>()
   const deliveredDocumentIds = new Set<string>()
@@ -169,8 +179,37 @@ export async function mockDriverTripApi(
     }
     await fulfillJson(
       route,
-      buildSnapshot({ arrived, deliveredDocumentIds, provedDocumentIds, scenario: input.scenario }),
+      buildSnapshot({
+        arrived,
+        deliveredDocumentIds,
+        isDispatched,
+        provedDocumentIds,
+        scenario: input.scenario,
+      }),
     )
+  })
+
+  /** Spec 230: o despacho. Sem sinal a requisição morre no transporte, como as outras. */
+  await input.page.route(/\/me\/trips\/current\/dispatch$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ headers: CORS_HEADERS, status: 204 })
+      return
+    }
+    if (isOffline) {
+      await route.abort('internetdisconnected')
+      return
+    }
+    reports.push({ body: null, idempotencyKey: '', path: new URL(route.request().url()).pathname })
+    if (input.scenario?.dispatchRefusedWith !== undefined) {
+      await fulfillJson(
+        route,
+        { error: { code: 'STATE_TRANSITION_NOT_ALLOWED' } },
+        input.scenario.dispatchRefusedWith,
+      )
+      return
+    }
+    isDispatched = true
+    await fulfillJson(route, { data: { status: 'dispatched' } })
   })
 
   /** A lista de tipos de rua do motorista — sem o dublê, o pedido escapa para a API real. */

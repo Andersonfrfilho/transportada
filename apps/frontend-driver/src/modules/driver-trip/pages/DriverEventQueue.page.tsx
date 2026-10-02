@@ -46,6 +46,8 @@ const KIND_LABEL_KEYS: Readonly<Record<EventQueueItemView['kind'], string>> = {
   /** Spec 206 D18: desfaz o "Iniciar rota" — mesmo molde do `depart` acima. */
   cancelDeparture: 'eventQueue.kind.cancelDeparture',
   deliver: 'eventQueue.kind.deliver',
+  /** Spec 230: "Iniciar viagem" — o despacho que ficou pendente de envio. */
+  dispatch: 'eventQueue.kind.dispatch',
   /** Spec 179: a ocorrência da nota com a foto — os dois sobem juntos, no mesmo item. */
   documentOccurrence: 'eventQueue.kind.documentOccurrence',
   occurrence: 'eventQueue.kind.occurrence',

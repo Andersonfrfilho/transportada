@@ -22,6 +22,7 @@
   "deliver": "Delivered",
   "deliveredState": "Delivered",
   "dispatch": {
+    "queued": "Trip start waiting to send — it goes up when the signal is back. You can already log the stops.",
     "failed": "The route could not be started. Tap again.",
     "start": "Dispatch trip",
     "waiting": "Waiting for dispatch — field actions unlock after the trip is dispatched."
@@ -50,6 +51,7 @@
       "depart": "Start route — stop {{sequence}}"
     },
     "kind": {
+      "dispatch": "Start trip",
       "arrive": "Arrival",
       "cancelDeparture": "Route cancellation",
       "depart": "Start route",

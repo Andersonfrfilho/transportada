@@ -59,6 +59,8 @@ export type EventQueueItemView = Readonly<{
    */
   stopId?: string
   status: EventQueueItemStatus
+  /** Spec 230: a viagem do despacho na fila — é ela que destrava as ações de campo na tela. */
+  tripId?: string
 }>
 
 function toProofAttachments(
@@ -120,6 +122,7 @@ export function buildEventQueueView(input: {
       ...(report.kind === 'arrive' || report.kind === 'depart' || report.kind === 'cancelDeparture'
         ? { stopId: report.stopId }
         : {}),
+      ...(report.kind === 'dispatch' ? { tripId: report.tripId } : {}),
       status: toStatus(item),
     }
   })

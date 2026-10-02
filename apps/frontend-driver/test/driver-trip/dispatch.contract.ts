@@ -42,9 +42,13 @@ describe('iniciar trajeto (route_planned)', () => {
   const workspace = readFileSync(WORKSPACE, 'utf8')
   const card = readFileSync(CARD, 'utf8')
 
-  it('o cliente despacha por POST /me/trips/current/dispatch', async () => {
+  it('o despacho sai por POST /me/trips/current/dispatch, pela fila (spec 230)', async () => {
     const requests: Request[] = []
-    await createCapturingClient(requests).dispatchTrip({ tripId: 'trip-1' })
+    await createCapturingClient(requests).send({
+      idempotencyKey: 'chave-1',
+      kind: 'dispatch',
+      tripId: 'trip-1',
+    })
 
     expect(requests[0]?.url).toBe('https://api.test/me/trips/current/dispatch')
     expect(requests[0]?.method).toBe('POST')
@@ -65,11 +69,10 @@ describe('iniciar trajeto (route_planned)', () => {
     expect(isAwaitingDispatch({ ...trip, status: 'in_transit' })).toBe(false)
   })
 
-  it('a tela mostra o botão primário e refaz o snapshot no sucesso', () => {
+  it('a tela mostra o botão primário e destrava o campo', () => {
     expect(workspace).toInclude('isAwaitingDispatch')
     expect(workspace).toInclude("t('dispatch.start')")
-    expect(workspace).toInclude('dispatchTrip({ tripId })')
-    expect(workspace).toInclude('driverTrip.refetchTrip()')
+    expect(workspace).toInclude("kind: 'dispatch'")
     expect(workspace).toInclude('isFieldWorkBlocked={isTripAwaitingDispatch}')
   })
 

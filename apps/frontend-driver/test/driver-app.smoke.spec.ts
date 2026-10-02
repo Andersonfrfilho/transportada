@@ -1120,3 +1120,85 @@ test('o copiar do código e a câmera da busca ficam alinhados e sem borda próp
   expect(await camera.evaluate((element) => getComputedStyle(element).borderRightWidth)).toBe('0px')
   await expect(page.getByPlaceholder('Buscar nota, cliente ou endereço')).toBeVisible()
 })
+
+/**
+ * Spec 230 (decisão do usuário, 03/10): despachar precisa chegar ao servidor, mas sem rede o toque
+ * fica como pendência de envio — o motorista já trabalha — e sobe sozinho quando o sinal volta, antes
+ * do que veio depois dele.
+ */
+test('despachar sem sinal fica pendente, libera o campo e sobe antes do resto quando o sinal volta', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  const api = await mockDriverTripApi({ page, scenario: { startsPlanned: true } })
+  await loginAsLocalUser(page)
+  const dispatch = page.getByRole('button', { name: 'Despachar viagem' })
+  await expect(dispatch).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Cheguei' })).toHaveCount(0)
+
+  api.setOffline(true)
+  await dispatch.click()
+  await expect(page.getByText(/Início da viagem aguardando envio/u)).toBeVisible()
+  await expect(dispatch).toHaveCount(0)
+  expect(api.reports().some((report) => report.path.endsWith('/dispatch'))).toBe(false)
+
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await expect(page.getByRole('button', { name: /^Fila de envio/u })).toBeVisible()
+
+  api.setOffline(false)
+  await page.evaluate(() => window.dispatchEvent(new Event('online')))
+  await expect
+    .poll(() => api.reports().some((report) => report.path.endsWith('/arrive')), {
+      timeout: 20_000,
+    })
+    .toBe(true)
+  const paths = api.reports().map((report) => report.path)
+  expect(paths.findIndex((path) => path.endsWith('/dispatch'))).toBeGreaterThanOrEqual(0)
+  expect(paths.findIndex((path) => path.endsWith('/dispatch'))).toBeLessThan(
+    paths.findIndex((path) => path.endsWith('/arrive')),
+  )
+  await expect(page.getByText(/Início da viagem aguardando envio/u)).toHaveCount(0)
+})
+
+test('despachar com sinal sobe na hora e tira o botão', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  const api = await mockDriverTripApi({ page, scenario: { startsPlanned: true } })
+  await loginAsLocalUser(page)
+
+  await page.getByRole('button', { name: 'Despachar viagem' }).click()
+
+  await expect
+    .poll(() => api.reports().some((report) => report.path.endsWith('/dispatch')), {
+      timeout: 20_000,
+    })
+    .toBe(true)
+  await expect(page.getByRole('button', { name: 'Despachar viagem' })).toHaveCount(0, {
+    timeout: 20_000,
+  })
+  await expect(page.getByRole('button', { name: 'Cheguei' })).toBeVisible()
+})
+
+test('despacho recusado pelo servidor avisa e devolve o botão', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  const api = await mockDriverTripApi({
+    page,
+    scenario: { dispatchRefusedWith: 409, startsPlanned: true },
+  })
+  await loginAsLocalUser(page)
+
+  await page.getByRole('button', { name: 'Despachar viagem' }).click()
+
+  await expect
+    .poll(() => api.reports().some((report) => report.path.endsWith('/dispatch')), {
+      timeout: 20_000,
+    })
+    .toBe(true)
+  await expect(page.getByText('Não foi possível iniciar o trajeto. Toque de novo.')).toBeVisible({
+    timeout: 20_000,
+  })
+  await expect(page.getByRole('button', { name: 'Despachar viagem' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Cheguei' })).toHaveCount(0)
+})

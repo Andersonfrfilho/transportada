@@ -180,12 +180,6 @@ export type DriverTripClient = Readonly<{
     thumbnail?: File
   }) => Promise<Readonly<{ id: string; punctuality: ProofPunctuality }>>
   /**
-   * Spec 082 (revisão): o snapshot inclui viagem `route_planned`, e é o motorista quem inicia o
-   * trajeto. Fora de `dispatched`/`in_transit` a API recusa as escritas de campo — este é o botão
-   * que abre o portão.
-   */
-  dispatchTrip: (input: { tripId: string }) => Promise<void>
-  /**
    * Os tipos de rua que a empresa cadastrou — o motorista escolhe entre eles.
    *
    * ⚠️ **Nunca lança.** Falha de rede, recusa do servidor ou corpo inválido viram `{ status:
@@ -251,6 +245,8 @@ export function reportPath(report: JsonFieldReport): string {
       return `${CURRENT_TRIP_PATH}/stops/${report.stopId}/depart`
     case 'cancelDeparture':
       return `${CURRENT_TRIP_PATH}/stops/${report.stopId}/cancel-departure`
+    case 'dispatch':
+      return `${CURRENT_TRIP_PATH}/dispatch`
     case 'deliver':
       return `${CURRENT_TRIP_PATH}/documents/${report.documentId}/deliver`
     case 'return':
@@ -272,6 +268,8 @@ export function reportBody(report: JsonFieldReport): string {
     case 'depart':
     case 'cancelDeparture':
       return JSON.stringify({ location: report.location, tappedAt: report.tappedAt })
+    case 'dispatch':
+      return JSON.stringify({ tripId: report.tripId })
     case 'deliver':
       return JSON.stringify({
         location: report.location,
@@ -347,14 +345,6 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         path: `${CURRENT_TRIP_PATH}/documents/${input.documentId}/proof`,
       })
       return toProofAttachResult(payload)
-    },
-    async dispatchTrip(input) {
-      await request({
-        body: JSON.stringify({ tripId: input.tripId }),
-        dependencies,
-        method: 'POST',
-        path: `${CURRENT_TRIP_PATH}/dispatch`,
-      })
     },
     async listOccurrenceTypes() {
       /**
