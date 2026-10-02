@@ -31,19 +31,14 @@ const PHOTO_FAR_AWAY: ProofPosition = {
 }
 const TWO_MINUTES = 2 * MILLISECONDS_PER_MINUTE
 
-// O campo ainda não existe em ClassifyProofPunctualityParams; a interseção sai na T1.3.
-type ClockCorrectedParams = ClassifyProofPunctualityParams & {
-  readonly hasCorrectedClock?: boolean
-}
-
 function afterDelivery(milliseconds: number): Date {
   return new Date(DELIVERED_AT.getTime() + milliseconds)
 }
 
 function classify(
-  overrides: Partial<ClockCorrectedParams>,
+  overrides: Partial<ClassifyProofPunctualityParams>,
 ): ReturnType<typeof classifyProofPunctuality> {
-  const params: ClockCorrectedParams = {
+  const params: ClassifyProofPunctualityParams = {
     capturedAt: DELIVERED_AT,
     deliveredAt: DELIVERED_AT,
     deliveryEventPosition: DELIVERY_EVENT_POSITION,

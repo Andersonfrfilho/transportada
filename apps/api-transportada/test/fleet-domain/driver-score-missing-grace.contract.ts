@@ -18,9 +18,6 @@ import { MILLISECONDS_PER_DAY, MILLISECONDS_PER_HOUR } from '../../src/shared/ti
 const NOW = new Date('2026-10-03T12:00:00.000Z')
 const SETTINGS = { latePenaltyPoints: 5, missingAfterHours: 24, missingPenaltyPoints: 10 }
 
-// O campo ainda não existe em DriverScoreDelivery; a interseção sai na T1.3.
-type GraceDelivery = DriverScoreDelivery & { readonly deliveryReceivedAt?: Date | undefined }
-
 function hoursAgo(hours: number): Date {
   return new Date(NOW.getTime() - hours * MILLISECONDS_PER_HOUR)
 }
@@ -30,7 +27,7 @@ function buildDelivery(input: {
   readonly deliveryReceivedAt?: Date
   readonly photoPunctuality?: ProofPunctuality
   readonly tripDocumentId?: string
-}): GraceDelivery {
+}): DriverScoreDelivery {
   return {
     deliveredAt: input.deliveredAt,
     deliveryReceivedAt: input.deliveryReceivedAt,
@@ -41,8 +38,8 @@ function buildDelivery(input: {
   }
 }
 
-function score(delivery: GraceDelivery): ReturnType<typeof computeDriverScore> {
-  const deliveries: readonly GraceDelivery[] = [delivery]
+function score(delivery: DriverScoreDelivery): ReturnType<typeof computeDriverScore> {
+  const deliveries: readonly DriverScoreDelivery[] = [delivery]
   return computeDriverScore({ deliveries, now: NOW, settings: SETTINGS })
 }
 
@@ -164,7 +161,7 @@ describe('o recebimento da entrega não mexe na janela da nota (spec 232 D5)', (
 
   test('entrega anterior ao effectiveSince e recebida depois dele não entra na nota', () => {
     const effectiveSince = hoursAgo(48)
-    const deliveries: readonly GraceDelivery[] = [
+    const deliveries: readonly DriverScoreDelivery[] = [
       buildDelivery({
         deliveredAt: hoursAgo(50),
         deliveryReceivedAt: hoursAgo(1),
@@ -181,7 +178,7 @@ describe('o recebimento da entrega não mexe na janela da nota (spec 232 D5)', (
   test('o recebimento não altera a ordenação nem a validade das penalidades', () => {
     const olderDeliveredAt = hoursAgo(40)
     const newerDeliveredAt = hoursAgo(30)
-    const deliveries: readonly GraceDelivery[] = [
+    const deliveries: readonly DriverScoreDelivery[] = [
       buildDelivery({
         deliveredAt: olderDeliveredAt,
         deliveryReceivedAt: hoursAgo(26),

@@ -15,6 +15,7 @@ import {
   type ProofPosition,
   type ProofPunctuality,
 } from '../domain/delivery-proof-punctuality.policy.js'
+import { resolveOccurredAt } from '../domain/occurred-at.policy.js'
 import {
   buildDeliveryProofObjectKey,
   DELIVERY_PROOF_MAX_BYTES,
@@ -62,6 +63,8 @@ export type DeliveryProofUpload = {
   readonly bytes: Uint8Array
   /** ADR-0070 §3, spec 159 RF3/RF5: o que o aparelho diz ter tirado a foto — não confiável sozinho. */
   readonly capturedAt: Date | undefined
+  /** Spec 232 D2: servidor − aparelho, medido pelo app; corrige `capturedAt` em `resolveOccurredAt`. */
+  readonly clockOffsetMs?: number
   readonly kind: TripDeliveryProofKind
   /**
    * Spec 205 RF3: o envio veio pelo "Registrar entrega depois" da app do motorista. Ausente é
@@ -422,6 +425,9 @@ async function classifyUploadPunctuality(params: {
  *
  * Spec 205 D2: registro tardio no envio **ou** na entrega — a app pode esquecer o campo no segundo
  * toque, e a entrega já disse.
+ *
+ * Spec 232 D4: a foto é julgada pela hora do toque corrigida pelo desvio do relógio; correção
+ * descartada por `resolveOccurredAt` mantém a hora crua e o piso de `missingAfterHours`.
  */
 async function classifyPhotoPunctuality(params: {
   readonly eventId: string
@@ -434,10 +440,17 @@ async function classifyPhotoPunctuality(params: {
     input.repository.findDeliveryContext({ companyId: input.companyId, eventId }),
   ])
 
+  const occurred = resolveOccurredAt({
+    clockOffsetMs: input.upload.clockOffsetMs,
+    receivedAt: input.now,
+    tappedAt: input.upload.capturedAt,
+  })
+
   return classifyProofPunctuality({
-    capturedAt: input.upload.capturedAt,
+    capturedAt: occurred.kind === 'corrected' ? occurred.occurredAt : input.upload.capturedAt,
     deliveredAt: context.deliveredAt,
     deliveryEventPosition: context.deliveryEventPosition,
+    hasCorrectedClock: occurred.kind === 'corrected',
     lateRegistration: input.upload.lateRegistration === true || context.lateRegistration === true,
     missingAfterHours: punctualitySettings.missingAfterHours,
     photoMode: input.upload.kind === CARGO_PROOF_KIND ? settings.cargo : settings.photo,

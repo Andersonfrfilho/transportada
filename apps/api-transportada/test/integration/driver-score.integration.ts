@@ -71,6 +71,8 @@ type DeliveryInput = {
   readonly channel?: TripFieldChannel
   readonly onBehalfOfDriverId?: string
   readonly photo?: TripDeliveryProofPunctuality
+  /** Spec 232 D5: a entrega foi tocada em `deliveredAgo` (captured_at) e recebida em `receivedAgo` (recorded_at). */
+  readonly receivedAgo?: number
   readonly recipientTaxId?: string
   readonly reportedByDriverId?: string
   readonly returned?: boolean
@@ -317,6 +319,59 @@ describe('a nota do motorista lida do banco (spec 159 T7)', () => {
     })
   })
 
+  /** Spec 232 D5 (CA4): o prazo de "ausente" conta do recebimento da entrega, não do toque. */
+  testWithPostgres(
+    'entrega tocada há 30 h e recebida há 1 h, sem foto: ainda não penaliza',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const driver = await seedDriver(database, company.companyId)
+        await seedDelivery(database, {
+          actorUserId: driver.userId,
+          company,
+          deliveredAgo: 30 * HOUR,
+          receivedAgo: HOUR,
+        })
+
+        const result = await new DrizzleDriverScoreRepository(database.db).readPenalties({
+          companyId: company.companyId,
+          driverId: driver.driverId,
+          now: NOW,
+        })
+
+        expect(result.penalties).toEqual([])
+        expect(result.score).toBe(100)
+      })
+    },
+  )
+
+  testWithPostgres(
+    'entrega tocada e recebida há 30 h, sem foto: missing_proof (espelho)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const driver = await seedDriver(database, company.companyId)
+        const delivered = await seedDelivery(database, {
+          actorUserId: driver.userId,
+          company,
+          deliveredAgo: 30 * HOUR,
+          receivedAgo: 30 * HOUR,
+        })
+
+        const result = await new DrizzleDriverScoreRepository(database.db).readPenalties({
+          companyId: company.companyId,
+          driverId: driver.driverId,
+          now: NOW,
+        })
+
+        expect(result.score).toBe(90)
+        expect(result.penalties.map((penalty) => [penalty.tripDocumentId, penalty.reason])).toEqual(
+          [[delivered.tripDocumentId, 'missing_proof']],
+        )
+      })
+    },
+  )
+
   /** Spec 159 T8, aceite 6: a ficha da frota lê a nota do banco e dá 404 para motorista alheio. */
   testWithPostgres('frota: a listagem traz a nota e a ficha de outra empresa é 404', async () => {
     await withDisposableDatabase(async (database) => {
@@ -455,11 +510,12 @@ async function seedEvent(
     actorUserId: input.actorUserId,
     channel: input.channel ?? 'driver_app',
     companyId: input.company.companyId,
+    ...(input.receivedAgo === undefined ? {} : { capturedAt: at }),
     createdAt: at,
     id: eventId,
     kind: 'delivered',
     onBehalfOfDriverId: input.onBehalfOfDriverId ?? null,
-    recordedAt: at,
+    recordedAt: input.receivedAgo === undefined ? at : new Date(NOW.getTime() - input.receivedAgo),
     reportedByDriverId: input.reportedByDriverId ?? null,
     stopId: input.company.stopId,
     tripDocumentId: input.tripDocumentId,

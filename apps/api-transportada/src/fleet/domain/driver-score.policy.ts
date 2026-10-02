@@ -49,6 +49,8 @@ export type DriverScoreDelivery = {
   readonly deliveredAt: Date
   readonly photoMode: 'required' | 'optional' | 'off'
   readonly photoPunctuality: ProofPunctuality | undefined
+  /** Spec 232 D5: quando o servidor recebeu a entrega — o prazo de "ausente" conta do mais tardio. */
+  readonly deliveryReceivedAt?: Date | undefined
 }
 
 export type DriverPenalty = {
@@ -96,8 +98,11 @@ function buildPenalty(
   )
 
   if (delivery.photoPunctuality === undefined) {
-    const hoursSinceDelivery =
-      (now.getTime() - delivery.deliveredAt.getTime()) / MILLISECONDS_PER_HOUR
+    const missingDeadlineStart = Math.max(
+      delivery.deliveredAt.getTime(),
+      (delivery.deliveryReceivedAt ?? delivery.deliveredAt).getTime(),
+    )
+    const hoursSinceDelivery = (now.getTime() - missingDeadlineStart) / MILLISECONDS_PER_HOUR
     if (hoursSinceDelivery <= settings.missingAfterHours) return undefined
 
     return {

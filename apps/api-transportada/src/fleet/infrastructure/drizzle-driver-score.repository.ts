@@ -328,6 +328,7 @@ function groupDeliveriesByDriver(input: {
     })
     const delivery: DriverScoreDelivery = {
       deliveredAt: row.capturedAt ?? row.recordedAt,
+      deliveryReceivedAt: row.recordedAt,
       documentNumber: row.documentNumber ?? '',
       photoMode: settings.photo,
       photoPunctuality: row.punctuality ?? undefined,

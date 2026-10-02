@@ -40,14 +40,13 @@ const TRUE_PHOTO_AT = new Date(DELIVERED_AT.getTime() + 10 * MILLISECONDS_PER_MI
 /** O que o aparelho adiantado carimba: entrega + 2 h 10 min — fora da janela se não for corrigido. */
 const RAW_PHOTO_AT = new Date(TRUE_PHOTO_AT.getTime() - DEVICE_AHEAD_OFFSET_MS)
 
-// O campo ainda não existe em DeliveryProofUpload; a interseção sai na T1.3.
-type ClockCorrectedUpload = Partial<DeliveryProofUpload> & { readonly clockOffsetMs?: number }
-
 function afterDelivery(milliseconds: number): Date {
   return new Date(DELIVERED_AT.getTime() + milliseconds)
 }
 
-function buildRequiredWorld(deliveryEventPosition: Coordinate | undefined = DELIVERY_POSITION) {
+/** `buildRequiredWorld(undefined)` é a entrega SEM posição; um parâmetro com valor padrão a esconderia. */
+function buildRequiredWorld(...args: readonly [] | readonly [Coordinate | undefined]) {
+  const deliveryEventPosition = args.length === 0 ? DELIVERY_POSITION : args[0]
   const world = buildWorld({
     deliveredAt: DELIVERED_AT,
     ...(deliveryEventPosition === undefined ? {} : { deliveryEventPosition }),
@@ -61,12 +60,18 @@ function buildRequiredWorld(deliveryEventPosition: Coordinate | undefined = DELI
   return world
 }
 
-function attach(world: ReturnType<typeof buildWorld>, upload: ClockCorrectedUpload, now: Date) {
+function attach(
+  world: ReturnType<typeof buildWorld>,
+  upload: Partial<DeliveryProofUpload>,
+  now: Date,
+) {
   return attachDeliveryProof(buildInput(world, upload, now))
 }
 
 /** A foto tirada na hora, com o desvio medido, em `kind` e `attachmentKey` à escolha. */
-function correctedPhoto(overrides: ClockCorrectedUpload = {}): ClockCorrectedUpload {
+function correctedPhoto(
+  overrides: Partial<DeliveryProofUpload> = {},
+): Partial<DeliveryProofUpload> {
   return {
     capturedAt: RAW_PHOTO_AT,
     clockOffsetMs: DEVICE_AHEAD_OFFSET_MS,

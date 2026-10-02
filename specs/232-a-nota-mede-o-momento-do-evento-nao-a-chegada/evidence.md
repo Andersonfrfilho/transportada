@@ -297,3 +297,63 @@ raiz$ bun run format:check                 → exit 0
 
 Não feito aqui: prova por mutação — não há código novo para mutar; fica para a T1.3, que deve provar
 em especial que (b)/(c) pegam a derivação "o campo veio" e que (g) pega a fusão desligada.
+
+## T1.3 — a foto pela hora corrigida e o prazo de ausente do recebimento
+
+Implementado: `hasCorrectedClock` em `classifyProofPunctuality` (D4 sem o piso de `missingAfterHours`; D4b sem
+posição na entrega a referência é o recebimento e a entrega conta como longe), `deliveryReceivedAt` no
+`DriverScoreDelivery` (D5: o prazo de "ausente" conta de `max(deliveredAt, deliveryReceivedAt)`),
+`clockOffsetMs` no `DeliveryProofUpload` e a flag nascendo de `resolveOccurredAt(...).kind ===
+'corrected'` no caso de uso, e `deliveryReceivedAt: row.recordedAt` no repositório da nota. `saveProof`
+segue recebendo a hora crua. As interseções locais de tipo dos três contratos saíram.
+
+Um defeito de fixture dos contratos da T1.2b, corrigido sem tocar em assertiva: em
+`delivery-proof-clock-corrected.contract.ts`, `buildRequiredWorld(deliveryEventPosition = DELIVERY_POSITION)`
+trocava o `undefined` explícito pelo valor padrão, então os casos "entrega sem posição" (j, k) rodavam COM
+posição e só falhavam vermelhos por acaso (`on_time` em vez de `away`). Agora o helper usa `...args` e
+`buildRequiredWorld(undefined)` é de fato a entrega sem posição.
+
+### Verde
+
+```text
+apps/api-transportada$ bun --env-file=../../.env.test test --timeout 120000 ./test/trip-delivery-proof.contract.test.ts → 321 pass, 0 fail
+                                                                                  ./test/fleet-domain.contract.test.ts → 152 pass, 0 fail
+                                                                                  ./test/driver-trip.contract.test.ts  → 149 pass, 0 fail
+apps/api-transportada$ bun run typecheck                      → exit 0
+apps/api-transportada$ bun run lint                           → exit 0 (--max-warnings=0)
+apps/api-transportada$ bun --env-file=../../.env.test run test → 8610 pass, 23 skip, 0 fail (8633 testes, 192 arquivos)
+raiz$ bun run format:check                                    → exit 0
+```
+
+Os 15 vermelhos da T1.2/T1.2b ficaram verdes (9 + 2 + 4); os 23 `skip` da suíte inteira são de testes
+condicionais que já existiam (nenhum deste lote).
+
+### Integração (CA4 de ponta a ponta, contra o Postgres de teste)
+
+Dois casos novos em `test/integration/driver-score.integration.ts` (já na lista do `test:integration`):
+`captured_at = agora − 30 h`, `recorded_at = agora − 1 h`, sem foto → sem penalidade (nota 100); espelho
+com `recorded_at = agora − 30 h` → `missing_proof` (nota 90).
+
+```text
+apps/api-transportada$ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/driver-score.integration.ts
+ 10 pass
+ 0 skip
+ 0 fail
+Ran 10 tests across 1 file.
+```
+
+### Prova por mutação (restaurada e conferida a cada uma)
+
+| #    | Mutação                                                                 | Resultado                                                                                                                        |
+| ---- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| i    | flag = `clockOffsetMs !== undefined` (em vez de `kind === 'corrected'`) | pegou: driver-trip 2 fail — casos (b) futuro e (c) mais de 30 dias                                                               |
+| ii   | flag = `true` sempre                                                    | pegou: trip-delivery-proof 1 fail, driver-trip 4 fail (sem desvio continua late, (b), (c), espelho D4b)                          |
+| iii  | remove a D4b de `isAway`                                                | pegou: trip-delivery-proof 3 fail, driver-trip 2 fail (away / late_and_away sem posição)                                         |
+| iv   | remove a D4b de `resolveTimeReference`                                  | pegou: trip-delivery-proof 2 fail, driver-trip 1 fail (late_and_away: a foto de 10:00 não pode valer sem posição)                |
+| v    | `max` → só `deliveredAt` no prazo de ausente                            | pegou: fleet-domain 2 fail (CA4 e a fronteira de 24 h)                                                                           |
+| vi   | fusão (`mergeProofPunctuality`) desligada no caso de uso                | pegou: trip-delivery-proof 1 fail, driver-trip 2 fail — inclui o caso (g) "substituto corrigido depois de um late continua late" |
+| vii  | `saveProof.capturedAt` recebe a hora corrigida                          | pegou: driver-trip 1 fail — caso (i) "saveProof recebe o capturedAt cru"                                                         |
+| viii | D4 desligada (piso de 24 h sempre aplicado)                             | pegou: trip-delivery-proof 6 fail, driver-trip 2 fail (CA1, limite da janela, rede de 10 dias, cargo, …)                         |
+| ix   | repositório sem `deliveryReceivedAt` (só a integração enxerga)          | pegou: driver-score.integration 1 fail — "tocada há 30 h e recebida há 1 h: ainda não penaliza"                                  |
+
+Só a ordem de verificação da integração exige o Postgres; as oito primeiras rodam sem banco.
