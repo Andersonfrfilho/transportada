@@ -22,19 +22,30 @@ describe('hasReassignedTrip (spec 217 RF8/D6)', () => {
     expect(hasReassignedTrip({ currentTrips, previousTrips })).toBe(true)
   })
 
-  it('viagem concluída some pelo caminho normal — não é aviso', () => {
-    const previousTrips = [buildTrip('trip-1', 'completed')]
-    const currentTrips: DriverTrip[] = []
+  /**
+   * Spec 224: o servidor devolve a viagem terminada por 15 min com o status real, então a conclusão
+   * chega em duas leituras — primeiro a mesma viagem já `completed`/`cancelled`, depois a janela
+   * fecha e ela some. Nenhuma das duas é troca de tripulação.
+   */
+  it.each(['completed', 'cancelled'])(
+    'a viagem passa a %s na leitura nova: ela segue na lista, não é aviso',
+    (concludedStatus) => {
+      const previousTrips = [buildTrip('trip-1', 'on_delivery_route')]
+      const currentTrips = [buildTrip('trip-1', concludedStatus)]
 
-    expect(hasReassignedTrip({ currentTrips, previousTrips })).toBe(false)
-  })
+      expect(hasReassignedTrip({ currentTrips, previousTrips })).toBe(false)
+    },
+  )
 
-  it('viagem cancelada some pelo caminho normal — não é aviso', () => {
-    const previousTrips = [buildTrip('trip-1', 'cancelled')]
-    const currentTrips: DriverTrip[] = []
+  it.each(['completed', 'cancelled'])(
+    'a %s sai da janela e some da lista: o status terminal já foi visto, não é aviso',
+    (concludedStatus) => {
+      const previousTrips = [buildTrip('trip-1', concludedStatus)]
+      const currentTrips: DriverTrip[] = []
 
-    expect(hasReassignedTrip({ currentTrips, previousTrips })).toBe(false)
-  })
+      expect(hasReassignedTrip({ currentTrips, previousTrips })).toBe(false)
+    },
+  )
 
   it('nenhuma viagem sumiu — não é aviso', () => {
     const previousTrips = [buildTrip('trip-1', 'in_transit')]

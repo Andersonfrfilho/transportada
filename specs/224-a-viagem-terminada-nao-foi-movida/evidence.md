@@ -186,3 +186,24 @@ De `apps/frontend-driver`:
 | `bun run test`                                                     | **950 pass, 0 fail** (era 8) |
 | `bunx tsc --noEmit`                                                | exit 0                       |
 | `bunx eslint <3 arquivos tocados> --max-warnings=0` (app como cwd) | exit 0                       |
+
+## T1.7 — O caso inalcançável sai, a sequência real entra
+
+`apps/frontend-driver/test/driver-trip/trip-reassignment.contract.ts`. **Saíram** (substituídos, não
+somados) os dois casos que montavam `previousTrips` com `completed`/`cancelled` e `currentTrips`
+vazio como **única** prova do "não é aviso": estado que o endpoint não produzia, e por isso o defeito
+passou. **Entraram**, cada um com `it.each(['completed', 'cancelled'])`:
+
+1. lista anterior com `on_delivery_route`, leitura nova com a **mesma** viagem em `completed`/`cancelled`
+   → sem aviso (a viagem segue na lista);
+2. lista anterior já com `completed`/`cancelled`, leitura nova sem a viagem (a janela fechou) → sem
+   aviso (o status terminal já foi visto).
+
+O segundo tem a mesma forma do caso removido, mas agora é a **segunda** leitura de uma sequência que o
+servidor de fato produz, e vem precedido do primeiro. **Mantidos sem mudança:** `in_transit` →
+ausente avisa, `route_planned` → ausente avisa (troca de veículo, D3), nenhuma sumiu, snapshot
+anterior vazio. `hasReassignedTrip` não mudou: já tratava os dois passos, o que faltava era o teste
+da sequência real.
+
+De `apps/frontend-driver`: `bun run test` → **952 pass, 0 fail** (950 + 4 casos novos − 2 removidos);
+eslint do arquivo com `--max-warnings=0` → exit 0.
