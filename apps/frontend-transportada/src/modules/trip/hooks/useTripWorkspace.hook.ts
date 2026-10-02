@@ -6,6 +6,7 @@ import type {
   CanhotoReviewProofInput,
   CanhotoReviewResult,
 } from '../shared/canhotoReviewResult.service'
+import { approveCanhotoBatch } from '../shared/canhotoBatchApproval.service'
 import { applyCanhotoReviewResult } from '../shared/canhotoReviewCache.service'
 import type { DeliveryProof } from '../shared/deliveryProof.service'
 import type { RouteChoice, RouteGeometry } from '../shared/routeGeometry.service'
@@ -922,6 +923,16 @@ export function useTripWorkspace(
       }),
     onSuccess: invalidate,
   })
+  /**
+   * Spec 222 T2.5: o maço aprova pela conferência de uma nota, repetida — não há rota de lote. O
+   * resultado separa aprovado, conflito (409) e falha; a consulta da viagem cai ao fim, para o que
+   * saiu da fila sair da tela e o veredito que valeu num conflito aparecer.
+   */
+  const approveCanhotoBatchMutation = useMutation({
+    mutationFn: (body: { readonly documentIds: readonly string[]; readonly tripId: string }) =>
+      approveCanhotoBatch({ ...body, review: controller.canhotoReviewProof }),
+    onSuccess: invalidate,
+  })
   const releaseDocumentMutation = useMutation({
     mutationFn: controller.releaseTripDocument,
     onSuccess: invalidateDocumentLink,
@@ -1014,6 +1025,7 @@ export function useTripWorkspace(
   })
 
   return {
+    approveCanhotoBatchMutation,
     autoDispatchOutcome,
     batchFieldDeliverMutation,
     batchFieldReturnMutation,

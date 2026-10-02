@@ -244,3 +244,23 @@ Gates: typecheck sem erro; `eslint src test --max-warnings=0` → **0 erros**, 1
 `react-hooks/exhaustive-deps` **preexistentes** em arquivos que não toquei (o `--max-warnings=0` já
 estava vermelho antes). Dois erros de lint saíram: um num teste meu da T2.3 (`prefer-promise-reject-errors`,
 de propósito rejeita um não-Error) e um `_omitted` não usado na T2.4.
+
+### T2.5 — `approveCanhotoBatchMutation` no workspace
+
+Vermelho antes: `test:hooks` no arquivo novo → **0 pass / 3 fail**. Verde depois: **3 pass / 0 fail,
+10 asserções**. Suítes completas: `bun run test` → **6186 pass / 0 fail**; `bun run test:hooks` →
+**186 pass / 0 fail**.
+
+Mutação: tirando o `onSuccess: invalidate` → **1 pass / 2 fail** (os dois casos que afirmam a
+invalidação). Restaurado, 3 pass.
+
+O que o contrato prova: cinco notas → cinco `approve`; `409` vai para `conflicted` e falha de rede
+para `failed`, com as outras três aprovadas; sem `trip.manage` nenhuma chamada chega ao cliente (o
+controlador recusa antes) e as cinco voltam como `failed`. A viagem é invalidada nos dois primeiros.
+
+Forma: é uma `useMutation` (`approveCanhotoBatchMutation`), no molde de `batchFieldReturnMutation`;
+`mutateAsync` devolve o `{ approved, conflicted, failed }` da T2.3. A consulta do maço
+(`delivery-proofs-batch`) mora sob a chave da viagem, então a mesma invalidação a refaz.
+
+Gates: typecheck sem erro; prettier conforme; `eslint --max-warnings=0` continua vermelho só pelos 16
+avisos preexistentes (0 erros).

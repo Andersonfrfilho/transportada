@@ -54,7 +54,7 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
       redeclarar (§16)
 - [x] T2.4 `useTripDeliveryProofs.query.ts`, `enabled` só com `trip.manage` **e** seleção não vazia
       — o detalhe da viagem não passa a buscar comprovante de graça (plan.md § frontend)
-- [ ] T2.5 `approveCanhotoBatch` em `useTripWorkspace.hook.ts`, devolvendo
+- [x] T2.5 `approveCanhotoBatch` em `useTripWorkspace.hook.ts`, devolvendo
       `{ approved, conflicted, failed }` e invalidando a consulta da viagem
 - [ ] T2.6 `TripCanhotoBatchDialog.component.tsx`: grid com `ProofImage`, número e série da nota, a
       leitura automática quando houver, caixa marcada por item, rótulo com a contagem (CA05, CA06).
