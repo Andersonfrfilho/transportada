@@ -121,3 +121,25 @@ A entrada é `RGBLuminanceSource` → `HybridBinarizer` → `BinaryBitmap`, tudo
 - Chave de 44 caracteres com letra **não cabe em Code-128C** — ele codifica pares de dígitos. Se a
   etiqueta do cliente for C e o emitente passar a ter CNPJ alfanumérico, quem muda a impressão é o
   emitente, não o leitor: este decodifica os dois conjuntos.
+
+## Emenda (02/10/2026): `worker-src` passa a aceitar `blob:`, só para a planilha
+
+A regra acima valia para o leitor de etiqueta, e continua valendo para ele: nenhum motor de leitura
+ou de medida cria worker a partir de `Blob`. O que mudou é outra biblioteca.
+
+- **O que quebrou.** O `write-excel-file` comprime o `.xlsx` com o `fflate`, que monta o worker a
+  partir de um `Blob` quando a planilha é grande. Com `worker-src 'self'` o navegador recusava o
+  worker e o arquivo nunca saía; só o script do worker era gerado. Reproduzido com 900 linhas na
+  CSP antiga. Com poucas linhas a biblioteca não usa worker, por isso o defeito só aparecia com as
+  centenas de caixas reais, e o CSV (que não comprime) seguia funcionando.
+- **Decisão (do usuário, 02/10/2026).** `worker-src 'self' blob:`. `script-src` continua
+  `'self' 'wasm-unsafe-eval'`, sem `blob:` e sem `unsafe-eval`.
+- **Por que é uma exceção estreita.** O código do worker nasce do bundle (`fflate`), nunca de texto
+  de terceiro; um XSS ainda precisaria passar por `script-src` antes de chegar ao `Blob`. Mesmo
+  assim é afrouxamento real: quem escrever worker novo a partir de `Blob` agora roda, e antes era
+  recusado no teste.
+- **O que não muda.** Worker de leitor, de OCR e de mapa continuam empacotados na própria origem
+  (`pdfjsLoader`, `canhotoOcrEngine`, MapLibre) — a regra de empacotar vale por si e não depende
+  da CSP recusar o resto.
+- **Contrato.** `test/shared/opencv-build.contract.ts` afirma `worker-src 'self' blob:` e que
+  `script-src` não contém `blob:`. Voltar atrás exige trocar o Excel por uma geração sem worker.
