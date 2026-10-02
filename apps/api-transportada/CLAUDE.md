@@ -263,6 +263,24 @@ sendo o gesto do barracão. A ocorrência na linha da nota (`fieldOccurrence`) e
   `allowed-actions`; o roteador derruba o boot se ela aparecer fora de `GET`. Sem `fleet.read`,
   `driverTaxId`/`driverEmail`/`driverPhone` saem nulos.
 
+**A lista do motorista carrega a viagem recém-concluída por 15 minutos** (spec 224, relato do
+usuário em 02/10). `listActiveTrips` (`drizzle-current-driver-trip.repository.ts`) passou de "status
+ativo" para "ativo **ou** terminal com `updatedAt` dentro de
+`RECENTLY_CONCLUDED_TRIP_WINDOW_MINUTES`". Sem isso o app nunca lia `completed`: o status sumia da
+resposta no mesmo instante em que passava a valer, e o aviso de reatribuição do PWA disparava em
+toda viagem terminada.
+
+⚠️ Três coisas que a janela **não** mudou, e cada uma foi decisão:
+
+- `readCurrent` (a viagem que os toques de campo alcançam, `startFieldTrip`/ADR-0058) continua só
+  com os ativos — "iniciar trajeto" não pode mirar viagem terminada.
+- A coluna é `updatedAt`, não `closedAt`: `closedAt` nasce com `closedByUserId` (spec 156/ADR-0067)
+  e é **null** quando o motorista conclui pelo app. `trip_status_events.occurredAt` seria exato e
+  custaria subconsulta num endpoint lido a cada 30 s por motorista.
+- O fluxo "Minha viagem" do WhatsApp (`register-driver-flow-actions.ts`) come do mesmo
+  `findCurrentDriverTrip` e usa `trips[0]`: ganhou filtro próprio de `TRIP_TERMINAL_STATUSES`, senão
+  ofereceria a viagem concluída como em andamento.
+
 **O motorista relê o canhoto da própria nota** (pedido do usuário, 01/10):
 `GET /me/trips/current/documents/:documentId/proof` — mesmo caminho do `POST` que envia, com
 `trip.read` em vez de `trip.report`. Devolve só `{ id, kind, createdAt, downloadUrl, expiresAt,
