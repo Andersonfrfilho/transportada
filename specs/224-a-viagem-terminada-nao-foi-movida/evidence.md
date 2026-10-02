@@ -158,3 +158,31 @@ a concluída:
   Expected: undefined
   Received: { id: "a", status: "completed", ... }
 ```
+
+## T1.6 — `resolveSelectedTrip` descarta a concluída (verde)
+
+`apps/frontend-driver/src/modules/driver-trip/shared/driverTripSelection.service.ts`: a função filtra
+`trips` com `isConcludedTripStatus` (importado de `./tripSnapshot.service`, nenhuma lista redeclarada)
+e os três caminhos (escolhida, "em rota", `trips[0]`) passam a operar sobre a lista aberta.
+
+**Seletor da interface.** `DriverTripSelector.component.tsx` recebia `snapshot?.trips` cru: com a
+janela, uma concluída ao lado de uma ativa apareceria como **opção escolhível** (e `trips.length < 2`
+contaria a concluída, mostrando um seletor de uma opção só). O componente agora filtra as concluídas
+antes de contar e de montar os botões. `describeTripSelectorPath` só é chamado com a viagem já
+eleita (`DriverTripWorkspace.page.tsx:701`) ou dentro do seletor, então ficou coberto.
+`useLocationSharing(snapshot?.trips)` não precisa de filtro: `shouldShareLocation` só olha
+`ON_ROAD_TRIP_STATUSES`.
+
+**Tela com `trip === undefined`** (`DriverTripWorkspace.page.tsx`): `enRouteStopId`, `currentStopId`
+e o `DriverLoadSheet` já guardam `trip === undefined`; a lista de paradas renderiza
+`<p>{t('noTrip')}</p>`, exceto quando `snapshot.isRegisteredDriver === false` (nada). O seletor
+retorna `null`, e o aviso de troca automática não aparece (`resolveTripSwitch` só marca
+`autoSwitchedTripId` quando `resolvedTrip !== undefined`).
+
+De `apps/frontend-driver`:
+
+| comando                                                            | resultado                    |
+| ------------------------------------------------------------------ | ---------------------------- |
+| `bun run test`                                                     | **950 pass, 0 fail** (era 8) |
+| `bunx tsc --noEmit`                                                | exit 0                       |
+| `bunx eslint <3 arquivos tocados> --max-warnings=0` (app como cwd) | exit 0                       |

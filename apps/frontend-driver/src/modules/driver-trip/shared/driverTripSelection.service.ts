@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DriverTrip } from './driverTrip.types'
+import { isConcludedTripStatus } from './tripSnapshot.service'
 
 /**
  * ADR-0075 §8: "em rota" para escolher a viagem padrão. `dispatched` fica de fora de propósito — a
@@ -16,16 +17,18 @@ export type ResolveSelectedTripParams = Readonly<{
 /**
  * RF12: a escolha do motorista vale enquanto a viagem continuar na lista. Sem escolha, ou com a
  * escolhida fora da lista (fechou, saiu dele), vale a padrão: a mais antiga em rota, senão a mais
- * antiga de todas.
+ * antiga de todas. Viagem concluída ou cancelada (spec 224: a API a devolve por 15 min, só para o
+ * aviso de reatribuição não confundir conclusão com troca de tripulação) nunca é eleita.
  */
 export function resolveSelectedTrip({
   selectedTripId,
   trips,
 }: ResolveSelectedTripParams): DriverTrip | undefined {
-  const chosen = trips.find((trip) => trip.id === selectedTripId)
+  const openTrips = trips.filter((trip) => !isConcludedTripStatus(trip.status))
+  const chosen = openTrips.find((trip) => trip.id === selectedTripId)
   if (chosen !== undefined) return chosen
 
-  return trips.find((trip) => ON_ROUTE_TRIP_STATUSES.has(trip.status)) ?? trips[0]
+  return openTrips.find((trip) => ON_ROUTE_TRIP_STATUSES.has(trip.status)) ?? openTrips[0]
 }
 
 export type ResolveTripSwitchParams = Readonly<{
