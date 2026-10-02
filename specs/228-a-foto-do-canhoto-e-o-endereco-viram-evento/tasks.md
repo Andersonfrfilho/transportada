@@ -57,7 +57,7 @@ D11. **Esta spec não tem migration** — se alguma task concluir que precisa de
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T4.1** Contrato + implementação: _Eventos desta entrega_ e a linha do tempo da viagem mostram "Foto do
+- [x] **T4.1** Contrato + implementação: _Eventos desta entrega_ e a linha do tempo da viagem mostram "Foto do
       canhoto" e "Endereço da parada corrigido", com origem e deslocamento; "Ver no mapa" só com
       `location`. Aceite: suíte do painel verde pelo script `test` (nunca `bun test` cru).
 - [ ] **T4.2** Prints (CA08) em 1280 e 375, dark e light, sem transbordo, comparados com a prancha do canvas

@@ -13,6 +13,7 @@ import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelD
 
 import { useTripOccurrenceAttachmentsQuery } from '../queries/tripOccurrenceFeed.query'
 import type { TripStopDetail, TripTimelineItem, TripTimelinePage } from '../shared/trip.types'
+import { resolveTripTimelineAddressChange } from '../shared/tripTimelineAddressChange.service'
 import {
   hasTripTimelineExpandableDetail,
   resolveTimelineLocationView,
@@ -376,6 +377,7 @@ export function TripTimelineEntry({
   const authorship = repeatsAuthorship ? null : resolveTripTimelineAuthorshipText(item, translate)
   const { icon, tone } = resolveTripTimelineIcon(item)
   const chips = resolveTripTimelineChips(item, translate)
+  const addressChange = resolveTripTimelineAddressChange(item, translate)
   const occurrenceNote =
     (item.kind === 'stop.occurrence' || item.kind === 'document.occurrence') &&
     item.occurrence !== null &&
@@ -496,8 +498,15 @@ export function TripTimelineEntry({
               ))}
             </ul>
           )}
-          {authorship === null && elapsedMinutes === null && locationView === null ? null : (
+          {authorship === null &&
+          elapsedMinutes === null &&
+          locationView === null &&
+          addressChange === null ? null : (
             <div className={styles.itemMeta}>
+              {addressChange === null ? null : <span>{addressChange.origin}</span>}
+              {addressChange?.displacement == null ? null : (
+                <span>{addressChange.displacement}</span>
+              )}
               {authorship === null ? null : (
                 <span className={styles.itemAuthorship}>{authorship}</span>
               )}

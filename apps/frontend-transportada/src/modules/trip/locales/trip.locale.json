@@ -735,6 +735,18 @@
   "empty": "Nenhuma viagem encontrada",
   "error": "Não foi possível carregar as viagens",
   "eventTimeline": {
+    "addressChange": {
+      "displacement": {
+        "meters": "deslocado {{distance}} m",
+        "kilometers": "deslocado {{distance}} km"
+      },
+      "origin": {
+        "contractor": "Corrigido pelo contratante",
+        "driver": "Corrigido pelo motorista",
+        "operator": "Corrigido pelo escritório",
+        "refinement": "Refino de precisão"
+      }
+    },
     "attachmentCount_one": "{{count}} foto anexada",
     "attachmentCount_other": "{{count}} fotos anexadas",
     "closeReason": "Motivo do encerramento: {{reason}}",

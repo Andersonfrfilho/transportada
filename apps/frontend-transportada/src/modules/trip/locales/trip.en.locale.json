@@ -735,6 +735,18 @@
   "empty": "No trip found",
   "error": "Could not load trips",
   "eventTimeline": {
+    "addressChange": {
+      "displacement": {
+        "meters": "moved {{distance}} m",
+        "kilometers": "moved {{distance}} km"
+      },
+      "origin": {
+        "contractor": "Corrected by the contractor",
+        "driver": "Corrected by the driver",
+        "operator": "Corrected by the office",
+        "refinement": "Precision refinement"
+      }
+    },
     "attachmentCount_one": "{{count}} photo attached",
     "attachmentCount_other": "{{count}} photos attached",
     "closeReason": "Close reason: {{reason}}",

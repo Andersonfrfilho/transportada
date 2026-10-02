@@ -294,3 +294,45 @@ test:integration` (completo): **861 pass / 1 skip / 0 fail**, 862 testes em 151 
   descartável em 65434 (`initdb` no scratchpad), e as migrations rodam em banco descartável por teste. 7 testes novos
   em `trip-timeline.integration.ts`. Não verificado contra o Postgres 65432/17 da CI.
 - Painel não tocado nesta task.
+
+## T4.1 — Painel: os dois eventos na linha do tempo e em _Eventos desta entrega_
+
+### O que mudou (apps/frontend-transportada)
+
+- `shared/tripTimelineAddressChange.service.ts` (novo): `resolveTripTimelineAddressChange` devolve a frase da origem
+  (`contractor`/`driver`/`operator`/`refinement`) e a do deslocamento, na unidade de `formatTripTimelineDistance` (m ou km,
+  como a distância do resto do painel); `null` fora do `stop.address_corrected` e sem `addressChange`.
+- `TripTimelineEntry` (a mesma linha serve à linha do tempo e a _Eventos desta entrega_) escreve origem e deslocamento
+  na `itemMeta`, junto da autoria. Ator: a frase de autoria já existente.
+- `tripTimelineDetail.service.ts`: o endereço corrigido chega com ponto e **sem** `locationState` (D7); com o ponto na mão
+  ele é lido como `captured` (mapa e "Ver no mapa"), sem ponto fica sem nada (refino, ou sem `trip.event-location`). A
+  exceção é só do `kind` do endereço.
+- Locales pt-BR/en: `eventTimeline.addressChange.origin.*` e `.displacement.{meters,kilometers}`.
+
+### Decisão do pino (mapa da linha do tempo)
+
+Nenhuma cor nova (`TIMELINE_EVENT_CATEGORY_COLOR` e o contrato de cor intactos).
+
+- `document.canhoto_photo` -> `delivered` (verde, check): a foto é parte da entrega, tirada no mesmo lugar; pinos do mesmo
+  lugar e mesma categoria já viram um só com contador.
+- `stop.address_corrected` -> `status` (cinza neutro, relógio): não é alarme nem entrega. Só tem pino quando há ponto novo;
+  o refino não tem ponto e não aparece no mapa.
+- Pendência de design: o rótulo da legenda de `status` é "Mudança de situação", impreciso para o endereço corrigido. Não
+  renomeado aqui (muda texto de outro evento); fica para a revisão de design da T4.2.
+
+### Contratos (antes do código; vermelhos: unitário não carregava o módulo, DOM 6 falhas)
+
+- `test/trip/timeline-address-change.contract.ts` (12; entrypoint `test/trip.contract.test.ts`).
+- `test/trip-hooks/timeline-canhoto-address.contract.ts` (DOM, 11; entrypoint `test/trip-hooks.contract.test.ts`).
+
+### Mutações (edição aplicada, suíte rodada, arquivo restaurado por regravação; 12/12 mortas)
+
+M1 serviço sem checar o `kind` · M2 deslocamento nulo vira texto · M3 unidade sempre metros · M4 origem fixa em `operator` ·
+M5 exceção do `locationState` vale para qualquer `kind` · M6 sem a exceção do endereço · M7 exceção sem checar `location` ·
+M8 foto com pino `status` · M9 componente sem a origem · M10 componente sem o deslocamento · M11 en quebrado · M12 pt quebrado.
+
+### Portões
+
+- `bun run typecheck`: limpo. `bun run lint`: 0 erros, 16 avisos (os pré-existentes). Prettier nos arquivos tocados: limpo.
+- `bun run test`: 6378 pass / 0 fail (contratos) e 318 pass / 0 fail (hooks com DOM).
+- Não verificado: 375 px sem rolagem horizontal e print (T4.2); o fixture de prints não foi atualizado com os dois eventos.

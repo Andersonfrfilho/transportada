@@ -60,8 +60,25 @@ function formatLocationMoment(value: string): string {
   return Number.isNaN(moment.getTime()) ? value : locationMomentFormatter.format(moment)
 }
 
+/**
+ * Spec 228 D7: o endereço corrigido chega com ponto e sem `locationState` ("não se aplica": não é
+ * posição de pessoa). Com o ponto na mão ele se lê como capturado; sem ele, continua sem nada.
+ */
+function resolveLocationState(item: TripTimelineItem): TripTimelineItem['locationState'] {
+  const isAddressPoint =
+    item.kind === 'stop.address_corrected' &&
+    (item.locationState === undefined || item.locationState === null) &&
+    item.location !== undefined &&
+    item.location !== null
+  return isAddressPoint ? 'captured' : item.locationState
+}
+
 function hasReadableCoordinate(item: TripTimelineItem): boolean {
-  return item.locationState === 'captured' && item.location !== undefined && item.location !== null
+  return (
+    resolveLocationState(item) === 'captured' &&
+    item.location !== undefined &&
+    item.location !== null
+  )
 }
 
 function buildLocationView(
@@ -86,7 +103,8 @@ export function resolveTimelineLocationView(
   item: TripTimelineItem,
   translate: Translate,
 ): null | TripTimelineLocationView {
-  const { location, locationState } = item
+  const { location } = item
+  const locationState = resolveLocationState(item)
   if (locationState === undefined || locationState === null) return null
 
   if (locationState === 'unavailable') {

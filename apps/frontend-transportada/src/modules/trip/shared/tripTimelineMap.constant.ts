@@ -18,12 +18,13 @@ export type TimelineMapCategory = (typeof TIMELINE_MAP_CATEGORIES)[number]
 export const TIMELINE_MAP_CATEGORY_BY_KIND: Readonly<
   Record<TripTimelineKind, TimelineMapCategory>
 > = {
-  /** Spec 228 T1.2: categoria provisória — o pino próprio (câmera, lápis) é decisão visual da T4.1. */
-  'document.canhoto_photo': 'status',
+  /** Spec 228 T4.1: a foto é parte da entrega — mesma cor e glifo, e pinos do mesmo lugar viram um. */
+  'document.canhoto_photo': 'delivered',
   'document.delivered': 'delivered',
   'document.occurrence': 'occurrence',
   'document.returned': 'returned',
   'document.status_changed': 'status',
+  /** Spec 228 T4.1: neutro, como a mudança de situação — o endereço não é alarme nem entrega. */
   'stop.address_corrected': 'status',
   'stop.arrived': 'arrived',
   'stop.departed': 'departed',
