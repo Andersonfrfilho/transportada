@@ -150,7 +150,7 @@ function toStepLabel(step: DriverFlowStep): string {
 export function createDriverWhatsAppFlowActions(
   deps: DriverFlowActionDependencies,
 ): readonly WhatsAppFlowActionDefinition[] {
-  /** Spec 224: a lista do app traz a concluída recente; a conversa só trabalha viagem em andamento. */
+  /** Spec 225: a lista do app traz a concluída recente; a conversa só trabalha viagem em andamento. */
   async function findCurrentTrip(
     input: Parameters<DriverFlowActionDependencies['findCurrentTrip']>[0],
   ): Promise<FindCurrentDriverTripResult> {

@@ -1,4 +1,4 @@
-# Evidência — spec 224
+# Evidência — spec 225
 
 ## T1.1 — Qual coluna marca a conclusão
 
@@ -114,7 +114,7 @@ andamento" por 15 minutos. O fluxo agora descarta viagem em `TRIP_TERMINAL_STATU
 escolher (contrato novo em `test/whatsapp-commands/driver-flow-actions.contract.ts`; reprova sem o
 filtro — mutação feita à mão: 25 pass / 1 fail).
 
-**Dois testes antigos afirmavam o estado que a spec 224 muda** e foram ajustados, não os
+**Dois testes antigos afirmavam o estado que a spec 225 muda** e foram ajustados, não os
 contornados: `me-trip.integration.ts` ("a última entrega conclui a viagem…", `trips` deixa de ser
 `[]` e passa a ser `['completed']`) e `whatsapp-driver-flow-actions.integration.ts` (idem, o lookup
 direto do use case).
@@ -136,7 +136,7 @@ skips estão fora dos arquivos tocados (os três arquivos de integração tocado
 ## T1.5 — Contrato do seletor antes da implementação (vermelho)
 
 `apps/frontend-driver/test/driver-trip/trip-selection.contract.ts`: bloco novo `viagem concluída
-nunca é a eleita (spec 224 RF2)`, com `it.each(['completed', 'cancelled'])` nos casos (a) escolhida
+nunca é a eleita (spec 225 RF2)`, com `it.each(['completed', 'cancelled'])` nos casos (a) escolhida
 por `selectedTripId` e (c) fallback `trips[0]` (à frente de uma `route_planned`, e sozinha na lista),
 mais o caso misto (concluída + `in_transit` → a `in_transit`, com e sem a concluída escolhida) e a
 lista só com a concluída (`undefined`). O caminho (b), "em rota", só olha `in_transit` e
@@ -254,12 +254,12 @@ diferentes, e a mutação mostrou qual é qual.
 
 ## T1.9 — Revisão de design (CA6, `web.md` §15)
 
-`apps/frontend-driver/test/spec-224-prints.smoke.spec.ts`, fora do smoke da CI. Rodado com o
+`apps/frontend-driver/test/spec-225-prints.smoke.spec.ts`, fora do smoke da CI. Rodado com o
 Keycloak local (realm `transportada-local` respondendo 200) e a resposta da API servindo **uma
 viagem `completed`**, que é o que a janela da T1.4 passou a devolver.
 
 ```
-PLAYWRIGHT_TEST_MATCH=spec-224-prints.smoke.spec.ts ... bunx playwright test
+PLAYWRIGHT_TEST_MATCH=spec-225-prints.smoke.spec.ts ... bunx playwright test
 4 passed (7.9s) — 375 dark, 768 dark, 1280 dark, 375 light
 ```
 

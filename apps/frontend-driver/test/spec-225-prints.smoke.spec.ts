@@ -1,10 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /**
- * Prints da revisão de design (`web.md` §15) da spec 224: o motorista concluiu a viagem e a tela
+ * Prints da revisão de design (`web.md` §15) da spec 225: o motorista concluiu a viagem e a tela
  * **não** acusa reatribuição. O que o usuário fotografou em 02/10 era o aviso "Esta viagem não está
  * mais com você" depois de uma conclusão normal.
  *
- * Fora do smoke da CI — roda com `PLAYWRIGHT_TEST_MATCH=spec-224-prints.smoke.spec.ts` e o bypass de
+ * Fora do smoke da CI — roda com `PLAYWRIGHT_TEST_MATCH=spec-225-prints.smoke.spec.ts` e o bypass de
  * fumaça, e grava os PNGs em `PRINTS_DIR` (por padrão `prints/` dentro da app).
  *
  * ⚠️ O que este print prova é o **visual** do estado final: sem viagem na tela e sem o aviso. A
@@ -95,7 +95,7 @@ for (const viewport of VIEWPORTS) {
 
     await page.screenshot({
       fullPage: true,
-      path: `${PRINTS_DIRECTORY}/spec-224-concluida-sem-aviso-${viewport.label}-dark.png`,
+      path: `${PRINTS_DIRECTORY}/spec-225-concluida-sem-aviso-${viewport.label}-dark.png`,
     })
   })
 }
@@ -109,6 +109,6 @@ test('print: viagem concluída não acusa reatribuição (375 light)', async ({ 
 
   await page.screenshot({
     fullPage: true,
-    path: `${PRINTS_DIRECTORY}/spec-224-concluida-sem-aviso-375-light.png`,
+    path: `${PRINTS_DIRECTORY}/spec-225-concluida-sem-aviso-375-light.png`,
   })
 })

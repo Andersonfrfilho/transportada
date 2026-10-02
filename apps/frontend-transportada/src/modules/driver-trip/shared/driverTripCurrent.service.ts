@@ -3,7 +3,7 @@ import type { DriverTrip, DriverTripSnapshot } from './driverTrip.types'
 
 /**
  * ⚠️ Cópia por valor de `isConcludedTripStatus` do `frontend-driver` (ADR-0075 §7) — o bundle não
- * carrega código de outra app. Spec 224: a API devolve a viagem concluída/cancelada por 15 min,
+ * carrega código de outra app. Spec 225: a API devolve a viagem concluída/cancelada por 15 min,
  * só para o aviso de reatribuição do app do motorista; esta cópia legada nunca a exibe como ativa.
  */
 const CONCLUDED_TRIP_STATUSES: ReadonlySet<string> = new Set(['completed', 'cancelled'])

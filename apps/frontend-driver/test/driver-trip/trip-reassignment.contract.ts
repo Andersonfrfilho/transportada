@@ -23,7 +23,7 @@ describe('hasReassignedTrip (spec 217 RF8/D6)', () => {
   })
 
   /**
-   * Spec 224: o servidor devolve a viagem terminada por 15 min com o status real, então a conclusão
+   * Spec 225: o servidor devolve a viagem terminada por 15 min com o status real, então a conclusão
    * chega em duas leituras — primeiro a mesma viagem já `completed`/`cancelled`, depois a janela
    * fecha e ela some. Nenhuma das duas é troca de tripulação.
    */

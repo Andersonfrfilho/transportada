@@ -248,7 +248,7 @@ describe('o motorista entrega pelo WhatsApp (spec 144 T015 AC7)', () => {
       const [completedTrip] = await db.select().from(trips).where(eq(trips.id, world.tripId))
       expect(completedTrip?.status).toBe('completed')
 
-      /** Spec 224: a concluída ainda chega ao use case, com o status real; quem a descarta é o fluxo. */
+      /** Spec 225: a concluída ainda chega ao use case, com o status real; quem a descarta é o fluxo. */
       const opened = await findCurrentDriverTrip({
         companyId: world.companyId,
         membershipId: world.membershipId,
