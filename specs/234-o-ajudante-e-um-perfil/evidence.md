@@ -234,3 +234,11 @@ sync with the API authorization policy` — o `COMPANY_ROLES` do painel (`useAut
   reconcilia: dar `helper` em lote não liga `can_act_as_helper`.
 - Papéis herdados por **grupo** (`company_group_roles`) não entram na conta: só os papéis diretos de
   `membership_roles`.
+
+## Fechamento da Fase 1 — painel aceita `helper` em `/auth/me`
+
+O `make check` da Fase 1 ficou vermelho em `frontend foundation contract > keeps the allowlist in sync
+with the API authorization policy`: a lista fechada de `useAuthMe.query.ts` não tinha `helper`, e um
+usuário com o papel derrubaria o `/auth/me` do painel. `helper` entrou na lista (a parte de T10 que
+precisa subir junto da API); `bun test ./test/frontend-contract.test.ts` → 15 pass · 0 fail; typecheck do
+frontend em exit 0. O resto da T10 (rótulos, convite, tabela) segue na Fase 3.
