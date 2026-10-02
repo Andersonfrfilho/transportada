@@ -30,7 +30,7 @@ export function buildWorld(
     readonly deliveryEventPosition?: Coordinate
     readonly eventId?: string | null
     readonly existingProofByKey?: Readonly<Record<string, ProofPunctuality>>
-    /** Spec 232 R1: o evento de entrega gravou `occurred_at` (a correção do relógio foi aceita). */
+    /** Spec 234 R1: o evento de entrega gravou `occurred_at` (a correção do relógio foi aceita). */
     readonly isEventClockCorrected?: boolean
   } = {},
 ) {

@@ -2085,7 +2085,7 @@ só envia os marcados.
 Detalhe completo (rota, permissão, diálogo, testes/integração): spec 222 (seções de requisitos,
 decisões, strategy de teste, evidence.md).
 
-## O momento do evento do motorista (spec 232)
+## O momento do evento do motorista (spec 234)
 
 **`resolveOccurredAt` corrige a hora do evento e nunca o recusa.** `src/trips/domain/occurred-at.policy.ts`
 devolve `corrected` (`tappedAt + clockOffsetMs`) ou `ignored` (`missing` quando falta um dos dois campos
@@ -2112,7 +2112,7 @@ veio"; R1: com posição na entrega só vale se `findDeliveryContext.isEventCloc
 entrega conta como longe (D4b). O prazo de "foto ausente" (`fleet/domain/driver-score.policy.ts`) conta
 de `max(momento da entrega, deliveryReceivedAt)`, e `deliveryReceivedAt` é `trip_stop_events.recorded_at`
 (D5). Limite antifraude e achado do `location.capturedAt` sem teto: `docs/SECURITY.md`, entrada de
-2026-10-03. Spec: `specs/232-a-nota-mede-o-momento-do-evento-nao-a-chegada/`.
+2026-10-03. Spec: `specs/234-a-nota-mede-o-momento-do-evento-nao-a-chegada/`.
 
 ## Planejamento de viagem com rota escolhida e redação monetária por permissão (spec 153)
 

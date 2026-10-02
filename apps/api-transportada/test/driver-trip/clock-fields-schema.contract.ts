@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 232 T1.4 (D2/D6): os esquemas `.strict()` do motorista aceitam `tappedAt` e `clockOffsetMs`
+ * Spec 234 T1.4 (D2/D6): os esquemas `.strict()` do motorista aceitam `tappedAt` e `clockOffsetMs`
  * antes de o app os mandar — e o cliente antigo, sem os campos, segue passando. O servidor sobe
  * primeiro: app novo contra servidor velho recebe `400` em todo relato. Aqui os campos são
  * aceitos, validados e carregados como dado até a entrada do caso de uso; gravar é da T1.5.
@@ -79,7 +79,7 @@ async function expectBadRequest(operation: Promise<unknown>): Promise<void> {
 }
 
 for (const { baseBody, name, parse } of EVENT_PARSERS) {
-  describe(`${name}: tappedAt e clockOffsetMs no corpo (spec 232 T1.4)`, () => {
+  describe(`${name}: tappedAt e clockOffsetMs no corpo (spec 234 T1.4)`, () => {
     it('cliente antigo: sem os campos continua válido e o resultado não ganha as chaves', async () => {
       const parsed = await parse(jsonRequest(baseBody))
 
@@ -232,7 +232,7 @@ for (const { baseBody, name, parse } of EVENT_PARSERS) {
   })
 }
 
-describe('depart e cancel-departure não mudam (spec 232 T1.4, d)', () => {
+describe('depart e cancel-departure não mudam (spec 234 T1.4, d)', () => {
   it('tappedAt segue obrigatório, e o resultado carrega só location e tappedAt', async () => {
     const parsed = await parseDepartureRequest(jsonRequest({ tappedAt: TAPPED_AT }))
 
@@ -247,7 +247,7 @@ describe('depart e cancel-departure não mudam (spec 232 T1.4, d)', () => {
   })
 })
 
-describe('o multipart do comprovante aceita clockOffsetMs (spec 232 T1.4, e)', () => {
+describe('o multipart do comprovante aceita clockOffsetMs (spec 234 T1.4, e)', () => {
   function proofRequest(fields: Record<string, string>): Request {
     const form = new FormData()
     form.set('file', new File([new Uint8Array([1, 2, 3])], 'canhoto.jpg', { type: 'image/jpeg' }))
@@ -340,7 +340,7 @@ describe('o multipart do comprovante aceita clockOffsetMs (spec 232 T1.4, e)', (
   })
 })
 
-describe('pela rota: os campos chegam à dependência como dado (spec 232 T1.4)', () => {
+describe('pela rota: os campos chegam à dependência como dado (spec 234 T1.4)', () => {
   const CONTEXT = authenticatedContext(new Set(['trip.report'] as const))
 
   function buildRoutes() {

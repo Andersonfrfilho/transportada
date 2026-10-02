@@ -479,7 +479,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         canhotoReview: tripDeliveryProofs.canhotoReview,
         canhotoReviewNote: tripDeliveryProofs.canhotoReviewNote,
         canhotoReviewReason: tripDeliveryProofs.canhotoReviewReason,
-        /** Spec 232 D3: o mesmo instante da nota — os dois não discordam na fronteira. */
+        /** Spec 234 D3: o mesmo instante da nota — os dois não discordam na fronteira. */
         deliveredAt: deliveredMomentSql(tripStopEvents),
         documentNumber: nfeDocuments.number,
         documentSeries: nfeDocuments.series,

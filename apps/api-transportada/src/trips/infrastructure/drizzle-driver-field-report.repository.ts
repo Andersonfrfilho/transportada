@@ -794,7 +794,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
           hasCoordinate: input.location !== null,
         }),
         longitude: input.location?.longitude ?? null,
-        /** Spec 232 D3: só a correção aceita — não é o `createdAt` que o escritório sobrescreve. */
+        /** Spec 234 D3: só a correção aceita — não é o `createdAt` que o escritório sobrescreve. */
         occurredAt: input.correctedClock?.occurredAt ?? null,
         onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
         ...(input.recordedAt === undefined ? {} : { recordedAt: input.recordedAt }),

@@ -287,7 +287,7 @@ desbloqueado). Se o produto passar a guardar mais do que a viagem corrente, revi
 
 **Origem:** spec 189 T3.3a (boot sem rede, snapshot e fila com dono). Registrado em 2026-09-25.
 
-### 2026-10-03 — spec 232 — o relógio do aparelho vale mais para a nota
+### 2026-10-03 — spec 234 — o relógio do aparelho vale mais para a nota
 
 **Onde:** `api-transportada`, `src/trips/domain/occurred-at.policy.ts` (`resolveOccurredAt`,
 `resolveRecordedEventClock`), `src/trips/domain/delivery-proof-punctuality.policy.ts` (D3a da spec 159
@@ -334,8 +334,8 @@ barrado por isso.
 entrega **não tem limite** — `me-trip.schema.ts` (~linhas 24-27, `locationSchema`) só valida o formato ISO
 e o valor é gravado cru em `trip_stop_events.captured_at`. Como a leitura do momento da entrega é
 `coalesce(occurred_at, captured_at, recorded_at)`, uma posição com 100 dias de idade tira a entrega da
-janela de 90 dias da nota. Pré-existente à spec 232 (a leitura anterior, `captured_at ?? recorded_at`,
-tinha o mesmo furo), mas a 232 dá mais motivo para fechar: aplicar a `resolveOccurredAt` (ou o mesmo
+janela de 90 dias da nota. Pré-existente à spec 234 (a leitura anterior, `captured_at ?? recorded_at`,
+tinha o mesmo furo), mas a 234 dá mais motivo para fechar: aplicar a `resolveOccurredAt` (ou o mesmo
 teto de +2 min / 30 dias) ao `captured_at` da posição. Também não há atestado do aparelho.
 
 **Limites aceitos da revisão da Fase 1 (decisão pendente do usuário):**
@@ -353,7 +353,7 @@ teto de +2 min / 30 dias) ao `captured_at` da posição. Também não há atesta
    janela, `effectiveSince` e `expiresAt` em `recorded_at` e usar o momento corrigido só para a
    pontualidade.
 
-**Origem:** spec 232 (decisões D1–D6 e D4b; limite em "O que esta decisão NÃO protege"). Registrado em
+**Origem:** spec 234 (decisões D1–D6 e D4b; limite em "O que esta decisão NÃO protege"). Registrado em
 2026-10-03.
 
 ### 2026-09-18 — posição e horário da foto do comprovante são declarados pelo aparelho (spec 159)

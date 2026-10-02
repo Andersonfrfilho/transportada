@@ -23,7 +23,7 @@ function tappedAtFor(occurredAt: Date, clockOffsetMs: number): Date {
   return new Date(occurredAt.getTime() - clockOffsetMs)
 }
 
-describe('resolveOccurredAt — a hora do evento é a do toque corrigida (spec 232 D3)', () => {
+describe('resolveOccurredAt — a hora do evento é a do toque corrigida (spec 234 D3)', () => {
   test('a idade máxima da correção é de 30 dias', () => {
     expect(OCCURRED_AT_MAX_AGE_DAYS).toBe(30)
   })
@@ -212,7 +212,7 @@ describe('resolveOccurredAt — a hora do evento é a do toque corrigida (spec 2
   })
 })
 
-describe('resolveRecordedEventClock — o evento grava a decisão, não o desvio cru (spec 232 T1.5, T1.5b)', () => {
+describe('resolveRecordedEventClock — o evento grava a decisão, não o desvio cru (spec 234 T1.5, T1.5b)', () => {
   const tappedAt = new Date('2026-10-03T09:58:30.000Z')
 
   test('correção aceita: hora crua do toque e a corrigida com o desvio aplicado', () => {

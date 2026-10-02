@@ -1152,19 +1152,19 @@ export const tripStopEvents = pgTable(
      * descartado, o reenvio manual chega fora de ordem, e sem o `tapped_at` um toque velho marcaria a
      * parada errada. Anulável: todo evento anterior a esta spec não tem.
      *
-     * Spec 232 D2: `arrived`/`delivered`/`returned` também a gravam quando o app manda — crua, mesmo
+     * Spec 234 D2: `arrived`/`delivered`/`returned` também a gravam quando o app manda — crua, mesmo
      * quando a correção é descartada. Quem vale como hora do evento é `occurred_at`, nunca esta.
      */
     tappedAt: timestamp('tapped_at', { withTimezone: true }),
     /**
-     * Spec 232 D3: `tapped_at + clock_offset_ms`, gravada **só** quando `resolveOccurredAt` aceitou a
+     * Spec 234 D3: `tapped_at + clock_offset_ms`, gravada **só** quando `resolveOccurredAt` aceitou a
      * correção — a decisão fica no banco, e uma correção descartada (futuro, mais de 30 dias) nunca
      * volta a valer numa leitura em SQL. Não é o `created_at` que o escritório sobrescreve (ADR-0067
      * §3). O momento da entrega da nota e da pontualidade é `deliveredMomentSql`. Sem backfill.
      */
     occurredAt: timestamp('occurred_at', { withTimezone: true }),
     /**
-     * Spec 232 D3: o desvio aplicado em `occurred_at` (servidor − aparelho), para auditoria. `bigint`:
+     * Spec 234 D3: o desvio aplicado em `occurred_at` (servidor − aparelho), para auditoria. `bigint`:
      * o desvio não tem teto no esquema (qualquer inteiro seguro é aceito; `resolveOccurredAt` descarta o
      * absurdo), e `integer` estoura em ±24,8 dias (`22003` derrubaria o toque).
      */
@@ -1263,7 +1263,7 @@ export const tripStopEvents = pgTable(
       .on(table.companyId, sql`coalesce(${table.capturedAt}, ${table.recordedAt})`)
       .where(sql`${table.kind} = 'delivered'`),
     /**
-     * Spec 232 D3 (risco 3 da T1.5): o mesmo índice para o momento da entrega com a hora corrigida,
+     * Spec 234 D3 (risco 3 da T1.5): o mesmo índice para o momento da entrega com a hora corrigida,
      * montado pela própria `deliveredMomentSql` — expressão diferente da consulta deixa o índice de
      * fora. O anterior fica só para o rollback (a API velha precisa dele) e deve ser dropado numa
      * migration futura, depois de a API estabilizar; a leitura de `arrived` do relatório de campo não
@@ -1755,7 +1755,7 @@ export const tripDeliveryProofs = pgTable(
     accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
     capturedAt: timestamp('captured_at', { withTimezone: true }),
     /**
-     * Spec 232 D4 (risco 5 da T1.5; R2): o desvio do relógio que julgou esta foto, antes da fusão
+     * Spec 234 D4 (risco 5 da T1.5; R2): o desvio do relógio que julgou esta foto, antes da fusão
      * com a anterior — só quando a correção foi aceita por `resolveOccurredAt` e usada (entrega com
      * posição e evento corrigido); em D4b e na foto sem correção usada fica nulo. `captured_at` segue
      * a hora crua do aparelho. Sem backfill. `bigint` pelo mesmo motivo de

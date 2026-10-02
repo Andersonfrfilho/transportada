@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 232 D3 (T1.5): o momento da entrega da nota e da pontualidade é uma expressão só, e o índice
+ * Spec 234 D3 (T1.5): o momento da entrega da nota e da pontualidade é uma expressão só, e o índice
  * é montado com ela. Expressão diferente da do índice (outra ordem, outro cast) não quebra nenhum
  * teste de banco vazio — só faz o filtro da janela da nota voltar a varrer a tabela.
  */
@@ -27,7 +27,7 @@ function indexExpression(name: string): string {
   return is(expression, SQL) ? dialect.sqlToQuery(expression).sql : ''
 }
 
-describe('o momento da entrega (spec 232 D3)', () => {
+describe('o momento da entrega (spec 234 D3)', () => {
   test('é a hora corrigida, senão a leitura do GPS, senão o recebimento — nessa ordem', () => {
     expect(dialect.sqlToQuery(deliveredMomentSql(tripStopEvents)).sql).toBe(
       'coalesce("trip_stop_events"."occurred_at", "trip_stop_events"."captured_at", "trip_stop_events"."recorded_at")',

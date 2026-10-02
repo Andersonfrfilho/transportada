@@ -35,7 +35,7 @@ const ACCURACY_METERS_FIELD = 'accuracyMeters'
 const CAPTURED_AT_FIELD = 'capturedAt'
 /** Spec 205 RF3: o "Registrar entrega depois" — texto `true`/`false`, ausente ou vazio é `false`. */
 const LATE_REGISTRATION_FIELD = 'lateRegistration'
-/** Spec 232 D2: servidor − aparelho em ms, texto inteiro com sinal opcional. */
+/** Spec 234 D2: servidor − aparelho em ms, texto inteiro com sinal opcional. */
 const CLOCK_OFFSET_FIELD = 'clockOffsetMs'
 
 /**

@@ -63,7 +63,7 @@ export type DeliveryProofUpload = {
   readonly bytes: Uint8Array
   /** ADR-0070 §3, spec 159 RF3/RF5: o que o aparelho diz ter tirado a foto — não confiável sozinho. */
   readonly capturedAt: Date | undefined
-  /** Spec 232 D2: servidor − aparelho, medido pelo app; corrige `capturedAt` em `resolveOccurredAt`. */
+  /** Spec 234 D2: servidor − aparelho, medido pelo app; corrige `capturedAt` em `resolveOccurredAt`. */
   readonly clockOffsetMs?: number
   readonly kind: TripDeliveryProofKind
   /**
@@ -129,7 +129,7 @@ export type DeliveryProofPort = {
     /** Spec 205 D2: a entrega foi registrada depois (`trip_stop_events.late_registration`). */
     readonly lateRegistration?: boolean
     /**
-     * Spec 232 R1: o evento de entrega gravou a hora corrigida (`occurred_at`). Ausente = não. Sem
+     * Spec 234 R1: o evento de entrega gravou a hora corrigida (`occurred_at`). Ausente = não. Sem
      * isso `deliveredAt` pode ser a hora crua do aparelho, e compará-la com a foto corrigida inventa
      * atraso.
      */
@@ -169,7 +169,7 @@ export type DeliveryProofPort = {
     readonly cargoLimit?: number
     readonly capturedAt: Date | null
     /**
-     * Spec 232 D4 (risco 5 da T1.5): o desvio com que a foto foi julgada — `null` quando a correção
+     * Spec 234 D4 (risco 5 da T1.5): o desvio com que a foto foi julgada — `null` quando a correção
      * não foi aceita ou a foto não classifica. `capturedAt` segue a hora crua do aparelho.
      */
     readonly clockOffsetMs: number | null
@@ -432,7 +432,7 @@ async function classifyUploadPunctuality(params: {
   return classifyPhotoPunctuality(params)
 }
 
-/** O veredito e o desvio que o produziu (spec 232 D4) — os dois vão juntos para a linha da foto. */
+/** O veredito e o desvio que o produziu (spec 234 D4) — os dois vão juntos para a linha da foto. */
 type ClassifiedUpload = {
   readonly clockOffsetMs: number | null
   readonly punctuality: ProofPunctuality
@@ -446,7 +446,7 @@ type ClassifiedUpload = {
  * Spec 205 D2: registro tardio no envio **ou** na entrega — a app pode esquecer o campo no segundo
  * toque, e a entrega já disse.
  *
- * Spec 232 D4: a foto é julgada pela hora do toque corrigida pelo desvio do relógio; correção
+ * Spec 234 D4: a foto é julgada pela hora do toque corrigida pelo desvio do relógio; correção
  * descartada por `resolveOccurredAt` mantém a hora crua e o piso de `missingAfterHours`. R1: com
  * posição na entrega, a correção da foto só vale se o evento de entrega também foi corrigido — senão
  * `deliveredAt` é hora crua e a comparação seria entre relógios diferentes. Sem posição (D4b) a flag

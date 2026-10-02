@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 232 D4/D4b no caso de uso `attachDeliveryProof`. A flag de relógio corrigido nasce SÓ de
+ * Spec 234 D4/D4b no caso de uso `attachDeliveryProof`. A flag de relógio corrigido nasce SÓ de
  * `resolveOccurredAt({ tappedAt: upload.capturedAt, clockOffsetMs, receivedAt: now }).kind ===
  * 'corrected'` — nunca de "o campo veio" — e a classificação recebe o `capturedAt` corrigido. Ter ou
  * não posição na entrega é decisão da política (D4b), não do caso de uso.
@@ -104,7 +104,7 @@ async function resolveOfficeTarget() {
   })
 }
 
-describe('caso de uso: foto julgada pelo relógio corrigido (spec 232 D4/D4b)', () => {
+describe('caso de uso: foto julgada pelo relógio corrigido (spec 234 D4/D4b)', () => {
   const THIRTY_HOURS_LATER = afterDelivery(30 * MILLISECONDS_PER_HOUR)
 
   /** (a) CA1 de ponta a ponta: o caso de uso passa a flag e o `capturedAt` corrigido. */

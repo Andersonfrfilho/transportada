@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 232 D4 (CA1, CA2): quando o app manda o desvio do relógio, `capturedAt` já chega corrigido e
+ * Spec 234 D4 (CA1, CA2): quando o app manda o desvio do relógio, `capturedAt` já chega corrigido e
  * a foto é julgada pela hora em que foi tirada — o piso `recebimento − missingAfterHours` (spec 159
  * T11 D3a) deixa de valer. A janela, o raio, a folga de 2 min e o "registrar depois" continuam.
  * D4b (CA6): sem posição na entrega, a flag é ignorada — vale o recebimento e a entrega conta como longe.
@@ -53,7 +53,7 @@ function classify(
   return classifyProofPunctuality(params)
 }
 
-describe('foto julgada pelo relógio corrigido (spec 232 D4)', () => {
+describe('foto julgada pelo relógio corrigido (spec 234 D4)', () => {
   test('os números da regra são os padrões de hoje: janela 60 min, raio 300 m, prazo 24 h', () => {
     expect(DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS.proofWindowMinutes).toBe(60)
     expect(DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS.proofRadiusMeters).toBe(300)
@@ -197,11 +197,11 @@ describe('foto julgada pelo relógio corrigido (spec 232 D4)', () => {
 })
 
 /**
- * Spec 232 D4b (CA6, decisão do usuário P2): entrega sem posição com o app alegando relógio corrigido
+ * Spec 234 D4b (CA6, decisão do usuário P2): entrega sem posição com o app alegando relógio corrigido
  * — a correção é ignorada, a referência é o recebimento (não o `capturedAt`) e a entrega conta como
  * longe. Regra da política, não do caso de uso. Fecha o furo de forjar `clockOffsetMs: 0`.
  */
-describe('sem posição na entrega o relógio não vale (spec 232 D4b)', () => {
+describe('sem posição na entrega o relógio não vale (spec 234 D4b)', () => {
   test('flag ligada, recebida 30 min depois da entrega: away', () => {
     const result = classify({
       deliveryEventPosition: undefined,

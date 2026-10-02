@@ -49,7 +49,7 @@ export type DriverScoreDelivery = {
   readonly deliveredAt: Date
   readonly photoMode: 'required' | 'optional' | 'off'
   readonly photoPunctuality: ProofPunctuality | undefined
-  /** Spec 232 D5: quando o servidor recebeu a entrega — o prazo de "ausente" conta do mais tardio. */
+  /** Spec 234 D5: quando o servidor recebeu a entrega — o prazo de "ausente" conta do mais tardio. */
   readonly deliveryReceivedAt?: Date | undefined
 }
 

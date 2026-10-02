@@ -209,7 +209,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
    * ADR-0070 §5-6, spec 159 RF5/RF6: quando e onde a entrega aconteceu — o evento já resolvido por
    * `findDeliveryEventId`, nunca a nota (uma nota pode ter mais de uma entrega ao longo do tempo,
    * ainda que rara). A posição é a do evento, nunca o pino da parada (emenda 2026-09-25 da ADR-0070).
-   * O quando é `deliveredMomentSql` (spec 232 D3), o mesmo instante que a nota lê.
+   * O quando é `deliveredMomentSql` (spec 234 D3), o mesmo instante que a nota lê.
    */
   public async findDeliveryContext(input: {
     readonly companyId: string
@@ -415,7 +415,7 @@ type SaveProofInput = {
   /** ADR-0070 §3: o que o aparelho diz ter tirado a foto. `null` quando ele não manda. */
   readonly capturedAt: Date | null
   /**
-   * Spec 232 D4 (risco 5 da T1.5): o desvio com que a foto foi julgada. Ausente no escritório, que
+   * Spec 234 D4 (risco 5 da T1.5): o desvio com que a foto foi julgada. Ausente no escritório, que
    * não classifica; a recaptura grava o dela (ou `null`), nunca herda o da foto que saiu.
    */
   readonly clockOffsetMs?: number | null

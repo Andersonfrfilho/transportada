@@ -1,4 +1,4 @@
--- Spec 232 D3/D4 (T1.5): o evento do motorista guarda a hora do toque corrigida pelo desvio do
+-- Spec 234 D3/D4 (T1.5): o evento do motorista guarda a hora do toque corrigida pelo desvio do
 -- relógio, e o momento da entrega da nota e da pontualidade passa a ser
 -- `coalesce(occurred_at, captured_at, recorded_at)`.
 --

@@ -43,7 +43,7 @@
 ## Prompt de execução
 
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/232-a-nota-mede-o-momento-do-evento-nao-a-chegada/
+/oh-my-claudecode:autopilot Execute a spec specs/234-a-nota-mede-o-momento-do-evento-nao-a-chegada/
 (leia spec.md, plan.md e tasks.md inteiros antes de tocar em código). Uma task por vez, na ordem do
 tasks.md, em worktree/branch própria a partir de origin/staging (git fetch antes).
 

@@ -511,7 +511,7 @@ substituta fica com a pior pontualidade; a do escritório não classifica (spec 
 foto nunca sai nessas respostas — só motivo, pontos e datas — e cai aos 90 dias pelo expurgo do worker.
 
 ⚠️ **O momento do evento do motorista é `tappedAt + clockOffsetMs`, só com posição e só quando
-`resolveOccurredAt` devolve `corrected`** (spec 232). Relógio ruim (futuro, mais de 30 dias, campo
+`resolveOccurredAt` devolve `corrected`** (spec 234). Relógio ruim (futuro, mais de 30 dias, campo
 faltando) **descarta a correção e NUNCA recusa o evento** — recusar vira `422` e o app deixa o motorista
 descartar a entrega. A nota e a pontualidade leem o momento por `deliveredMomentSql`
 (`database/delivered-moment.support.ts`), nunca por `captured_at ?? recorded_at` solto, e a flag de

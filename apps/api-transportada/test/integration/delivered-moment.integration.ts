@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 232 D3/CA3 (T1.5) contra o Postgres de verdade: o evento do motorista é gravado com a hora do
+ * Spec 234 D3/CA3 (T1.5) contra o Postgres de verdade: o evento do motorista é gravado com a hora do
  * toque corrigida pelo desvio do relógio, e o "momento da entrega" que a nota, o comprovante e a
  * lista de pendências leem é `occurred_at ?? captured_at ?? recorded_at` — a mesma expressão nos
  * três, para eles não discordarem na fronteira da janela nem na do `effectiveSince`.
@@ -144,7 +144,7 @@ async function readSingleEvent(
   return row
 }
 
-/** Spec 232 R1: o que `findDeliveryContext` diz sobre o evento de entrega ter a hora corrigida. */
+/** Spec 234 R1: o que `findDeliveryContext` diz sobre o evento de entrega ter a hora corrigida. */
 async function readIsEventClockCorrected(world: World): Promise<boolean> {
   const event = await readSingleEvent(world, 'delivered')
   const context = await new DrizzleDeliveryProofRepository(
@@ -253,7 +253,7 @@ function longAgo(receivedAt: Date): Date {
   return new Date(receivedAt.getTime() - 200 * DAY)
 }
 
-describe('o momento da entrega é a hora corrigida do toque (spec 232 D3, CA3)', () => {
+describe('o momento da entrega é a hora corrigida do toque (spec 234 D3, CA3)', () => {
   testWithPostgres(
     'CA3: tocada às 10:00 com posição e recebida às 14:00, com os campos, é entregue às 10:00',
     async () => {
@@ -616,7 +616,7 @@ describe('o momento da entrega é a hora corrigida do toque (spec 232 D3, CA3)',
   }
 })
 
-describe('a foto guarda o desvio que a julgou (spec 232 D4, risco 5 da T1.5)', () => {
+describe('a foto guarda o desvio que a julgou (spec 234 D4, risco 5 da T1.5)', () => {
   testWithPostgres(
     'foto com relógio corrigido grava clock_offset_ms; sem o campo, fica nulo',
     async () => {

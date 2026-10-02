@@ -40,7 +40,7 @@ const locationSchema = z
 const lateRegistrationSchema = z.boolean().optional()
 
 /**
- * Spec 232 D2/D6: a hora do toque no aparelho e o desvio dele para o servidor. Opcionais — cliente
+ * Spec 234 D2/D6: a hora do toque no aparelho e o desvio dele para o servidor. Opcionais — cliente
  * antigo não os manda, e o `.strict()` de cada corpo continua recusando qualquer outra chave. Um sem
  * o outro vale: quem decide o que fazer é `resolveOccurredAt`, que trata como `missing`.
  */
@@ -120,7 +120,7 @@ export function parseIdempotencyKey(request: Request): string {
 
 /**
  * Chave ausente fica ausente: o projeto usa `exactOptionalPropertyTypes`, `undefined` explícito não
- * vale. Spec 232 R3: `tappedAt` em ano impossível (`0000-01-01` passa no ISO) é descartado — o
+ * vale. Spec 234 R3: `tappedAt` em ano impossível (`0000-01-01` passa no ISO) é descartado — o
  * Postgres recusaria o ano 0 (`22008`) e o app reenviaria para sempre; o relógio nunca derruba o evento.
  */
 function toEventClock(body: {

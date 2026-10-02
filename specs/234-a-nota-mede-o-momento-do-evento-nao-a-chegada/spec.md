@@ -1,4 +1,4 @@
-# Spec 232 — A nota mede o momento do evento, não a chegada
+# Spec 234 — A nota mede o momento do evento, não a chegada
 
 ## Problema
 

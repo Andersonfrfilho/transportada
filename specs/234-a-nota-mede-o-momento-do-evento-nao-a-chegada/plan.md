@@ -1,4 +1,4 @@
-# Plan — spec 232
+# Plan — spec 234
 
 Duas apps e uma migration aditiva. **Ordem de publicação: API primeiro, app depois** (D6).
 

@@ -1,6 +1,6 @@
 -- Copyright (c) 2026 Ada Technology. MIT License.
 -- Manual rollback only. Do not run from application startup.
--- Desfaz a spec 232 T1.5: o índice do momento da entrega e as colunas da hora corrigida.
+-- Desfaz a spec 234 T1.5: o índice do momento da entrega e as colunas da hora corrigida.
 --
 -- ⚠️ Reverter só com a API também revertida — a API desta spec grava e lê `occurred_at`. O que se
 -- perde é a hora corrigida dos eventos e o desvio que julgou cada foto: a nota volta a ler

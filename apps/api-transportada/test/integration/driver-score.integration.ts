@@ -71,7 +71,7 @@ type DeliveryInput = {
   readonly channel?: TripFieldChannel
   readonly onBehalfOfDriverId?: string
   readonly photo?: TripDeliveryProofPunctuality
-  /** Spec 232 D5: a entrega foi tocada em `deliveredAgo` (captured_at) e recebida em `receivedAgo` (recorded_at). */
+  /** Spec 234 D5: a entrega foi tocada em `deliveredAgo` (captured_at) e recebida em `receivedAgo` (recorded_at). */
   readonly receivedAgo?: number
   readonly recipientTaxId?: string
   readonly reportedByDriverId?: string
@@ -319,7 +319,7 @@ describe('a nota do motorista lida do banco (spec 159 T7)', () => {
     })
   })
 
-  /** Spec 232 D5 (CA4): o prazo de "ausente" conta do recebimento da entrega, não do toque. */
+  /** Spec 234 D5 (CA4): o prazo de "ausente" conta do recebimento da entrega, não do toque. */
   testWithPostgres(
     'entrega tocada há 30 h e recebida há 1 h, sem foto: ainda não penaliza',
     async () => {

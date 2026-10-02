@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 232 D5 (CA4): o prazo de "foto ausente" conta de `max(entrega, recebimento da entrega)`. Se a
+ * Spec 234 D5 (CA4): o prazo de "foto ausente" conta de `max(entrega, recebimento da entrega)`. Se a
  * própria entrega chegou tarde ao servidor, o motorista estava sem sinal, e a foto vem logo atrás
  * dela na mesma drenagem da fila. A validade da penalidade (`expiresAt`) segue contada da entrega.
  */
@@ -43,7 +43,7 @@ function score(delivery: DriverScoreDelivery): ReturnType<typeof computeDriverSc
   return computeDriverScore({ deliveries, now: NOW, settings: SETTINGS })
 }
 
-describe('prazo de "foto ausente" contado do recebimento da entrega (spec 232 D5)', () => {
+describe('prazo de "foto ausente" contado do recebimento da entrega (spec 234 D5)', () => {
   /** CA4: tocada há 30 h sem sinal, a entrega só chegou há 1 h — a foto ainda tem prazo. */
   test('CA4: entrega de 30 h atrás recebida há 1 h, sem foto, ainda não penaliza', () => {
     const result = score(
@@ -142,11 +142,11 @@ describe('prazo de "foto ausente" contado do recebimento da entrega (spec 232 D5
 })
 
 /**
- * Spec 232 D5, validação do architect: o recebimento da entrega só adia o prazo de "ausente". A janela
+ * Spec 234 D5, validação do architect: o recebimento da entrega só adia o prazo de "ausente". A janela
  * de 90 dias e o corte `effectiveSince` (spec 159 T11 D1) seguem filtrando por `deliveredAt`, e a
  * ordenação e a validade das penalidades também.
  */
-describe('o recebimento da entrega não mexe na janela da nota (spec 232 D5)', () => {
+describe('o recebimento da entrega não mexe na janela da nota (spec 234 D5)', () => {
   test('entrega de 91 dias atrás recebida há 1 h não entra na nota', () => {
     const result = score(
       buildDelivery({

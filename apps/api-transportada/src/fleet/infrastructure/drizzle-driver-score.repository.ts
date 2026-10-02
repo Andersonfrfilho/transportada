@@ -52,7 +52,7 @@ const RETURNED_DOCUMENT_STATUS = 'returned'
 type ReadScoresInput = Parameters<DriverScorePort['readScores']>[0]
 
 type DeliveryRow = {
-  /** Spec 232 D3: `deliveredMomentSql` — a hora corrigida, senão o GPS, senão o recebimento. */
+  /** Spec 234 D3: `deliveredMomentSql` — a hora corrigida, senão o GPS, senão o recebimento. */
   readonly deliveredAt: Date
   readonly documentNumber: string | null
   readonly driverId: string

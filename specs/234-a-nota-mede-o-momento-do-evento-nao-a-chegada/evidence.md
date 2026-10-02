@@ -1,4 +1,4 @@
-# Evidence — spec 232
+# Evidence — spec 234
 
 ## T1.1
 
@@ -115,7 +115,7 @@ $ bun --env-file=../../.env.test test ./test/fleet-domain.contract.test.ts
 
 ```text
 $ bun --env-file=../../.env.test test ./test/trip-delivery-proof.contract.test.ts
-(fail) foto julgada pelo relógio corrigido (spec 232 D4) > CA1: foto na hora da entrega recebida 30 h depois, com relógio corrigido, é on_time
+(fail) foto julgada pelo relógio corrigido (spec 234 D4) > CA1: foto na hora da entrega recebida 30 h depois, com relógio corrigido, é on_time
        Expected: "on_time"  Received: "late"
 (fail) ... > no limite exato da janela (entrega + 60 min) é on_time
        Expected: "on_time"  Received: "late"
@@ -127,7 +127,7 @@ $ bun --env-file=../../.env.test test ./test/trip-delivery-proof.contract.test.t
  4 fail
 
 $ bun --env-file=../../.env.test test ./test/fleet-domain.contract.test.ts
-(fail) prazo de "foto ausente" contado do recebimento da entrega (spec 232 D5) > CA4: entrega de 30 h atrás recebida há 1 h, sem foto, ainda não penaliza
+(fail) prazo de "foto ausente" contado do recebimento da entrega (spec 234 D5) > CA4: entrega de 30 h atrás recebida há 1 h, sem foto, ainda não penaliza
        toEqual: esperado { penalties: [], score: 100 }, recebido a penalidade missing_proof (score 90)
 (fail) ... > fronteira: exatamente 24 h desde o recebimento ainda não penaliza
        idem
@@ -201,22 +201,22 @@ Os 4 + 2 vermelhos são os da T1.2.
 
 ```text
 $ bun --env-file=../../.env.test test ./test/trip-delivery-proof.contract.test.ts
-(fail) ... (spec 232 D4) > CA1: foto na hora da entrega recebida 30 h depois, com relógio corrigido, é on_time   Expected "on_time"  Received "late"
-(fail) ... (spec 232 D4) > no limite exato da janela (entrega + 60 min) é on_time                              Expected "on_time"  Received "late"
-(fail) ... (spec 232 D4) > a distância continua pesando: foto na hora, mas fora do raio, é away                 Expected "away"     Received "late_and_away"
-(fail) ... (spec 232 D4) > o piso de 24 h saiu: capturedAt 3 h antes da entrega, recebida 30 h depois, é on_time Expected "on_time" Received "late"
-(fail) ... (spec 232 D4) > foto atrasada pela rede: tirada na entrega e recebida 10 dias depois, com a flag, é on_time  Expected "on_time" Received "late"
-(fail) ... (spec 232 D4b) > flag ligada, recebida 30 min depois da entrega: away                              Expected "away"           Received "on_time"
-(fail) ... (spec 232 D4b) > flag ligada, recebida 61 min depois da entrega: late_and_away                     Expected "late_and_away"  Received "on_time"
-(fail) ... (spec 232 D4b) > flag ligada, recebida 30 h depois da entrega: late_and_away                       Expected "late_and_away"  Received "late"
-(fail) ... (spec 232 D4b) > flag ligada e posição na entrega: vale a D4, recebida 30 h depois é on_time       Expected "on_time"        Received "late"
+(fail) ... (spec 234 D4) > CA1: foto na hora da entrega recebida 30 h depois, com relógio corrigido, é on_time   Expected "on_time"  Received "late"
+(fail) ... (spec 234 D4) > no limite exato da janela (entrega + 60 min) é on_time                              Expected "on_time"  Received "late"
+(fail) ... (spec 234 D4) > a distância continua pesando: foto na hora, mas fora do raio, é away                 Expected "away"     Received "late_and_away"
+(fail) ... (spec 234 D4) > o piso de 24 h saiu: capturedAt 3 h antes da entrega, recebida 30 h depois, é on_time Expected "on_time" Received "late"
+(fail) ... (spec 234 D4) > foto atrasada pela rede: tirada na entrega e recebida 10 dias depois, com a flag, é on_time  Expected "on_time" Received "late"
+(fail) ... (spec 234 D4b) > flag ligada, recebida 30 min depois da entrega: away                              Expected "away"           Received "on_time"
+(fail) ... (spec 234 D4b) > flag ligada, recebida 61 min depois da entrega: late_and_away                     Expected "late_and_away"  Received "on_time"
+(fail) ... (spec 234 D4b) > flag ligada, recebida 30 h depois da entrega: late_and_away                       Expected "late_and_away"  Received "late"
+(fail) ... (spec 234 D4b) > flag ligada e posição na entrega: vale a D4, recebida 30 h depois é on_time       Expected "on_time"        Received "late"
  312 pass
  9 fail
 Ran 321 tests across 1 file.
 
 $ bun --env-file=../../.env.test test ./test/fleet-domain.contract.test.ts
-(fail) ... (spec 232 D5) > CA4: entrega de 30 h atrás recebida há 1 h, sem foto, ainda não penaliza
-(fail) ... (spec 232 D5) > fronteira: exatamente 24 h desde o recebimento ainda não penaliza
+(fail) ... (spec 234 D5) > CA4: entrega de 30 h atrás recebida há 1 h, sem foto, ainda não penaliza
+(fail) ... (spec 234 D5) > fronteira: exatamente 24 h desde o recebimento ainda não penaliza
  150 pass
  2 fail
 Ran 152 tests across 1 file.
@@ -692,7 +692,7 @@ Todas restauradas; o verde acima é da árvore restaurada.
 
 Só documentação; nenhum código nem teste mudou.
 
-- `docs/SECURITY.md`: entrada de 2026-10-03 "spec 232 — o relógio do aparelho vale mais para a nota",
+- `docs/SECURITY.md`: entrada de 2026-10-03 "spec 234 — o relógio do aparelho vale mais para a nota",
   antes da entrada da spec 159. Registra a decisão do usuário, o que mudou na D3a da 159 T11 (o piso de
   `recebimento − missingAfterHours` deixa de valer para quem manda o desvio e tem posição na entrega), o
   limite honesto (relógio adulterado offline e `clockOffsetMs` forjável no corpo), a defesa que sobra
@@ -701,7 +701,7 @@ Só documentação; nenhum código nem teste mudou.
   (penalidade de "ausente" temporária; some o incentivo do prazo) e o achado fora do escopo: o
   `location.capturedAt` da entrega não tem limite e uma posição com 100 dias tira a entrega da janela de
   90 dias da nota.
-- `docs/ai-context/api-transportada.md`: seção "O momento do evento do motorista (spec 232)" —
+- `docs/ai-context/api-transportada.md`: seção "O momento do evento do motorista (spec 234)" —
   `resolveOccurredAt`/`resolveRecordedEventClock`, os campos nos esquemas `.strict()`, a migration
   `20261002213734_delivered_moment_clock` (colunas e índice), `deliveredMomentSql` e os três pontos que a
   usam, `hasCorrectedClock` (D4/D4b) e `deliveryReceivedAt` (D5).

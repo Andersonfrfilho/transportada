@@ -57,7 +57,7 @@ export type ClassifyProofPunctualityParams = {
    */
   readonly lateRegistration?: boolean
   /**
-   * Spec 232 D4: `capturedAt` já é a hora do toque corrigida pelo desvio do relógio. Vem de
+   * Spec 234 D4: `capturedAt` já é a hora do toque corrigida pelo desvio do relógio. Vem de
    * `resolveOccurredAt(...).kind === 'corrected'` — nunca de "o campo veio": correção descartada
    * (futuro, velha demais) mantém o piso. Sem posição na entrega (D4b) a correção é ignorada.
    */
@@ -70,7 +70,7 @@ export type ClassifyProofPunctualityParams = {
  *
  * Spec 159 T11 (D3a): o piso também nunca fica antes de `recebimento − missingAfterHours`. Sem isso,
  * uma foto tirada dias depois, com o relógio do aparelho voltado para a hora da entrega, passava
- * como pontual pela fila offline. Spec 232 D4: com o relógio corrigido e posição na entrega esse
+ * como pontual pela fila offline. Spec 234 D4: com o relógio corrigido e posição na entrega esse
  * piso não se aplica.
  */
 function resolveTimeReference(params: ClassifyProofPunctualityParams): Date {
@@ -91,7 +91,7 @@ function resolveTimeReference(params: ClassifyProofPunctualityParams): Date {
   return new Date(clamped)
 }
 
-/** Spec 232 D4b: o relógio corrigido só vale com prova de lugar na entrega. */
+/** Spec 234 D4b: o relógio corrigido só vale com prova de lugar na entrega. */
 function isCorrectedClockWithoutPosition(params: ClassifyProofPunctualityParams): boolean {
   return params.hasCorrectedClock === true && params.deliveryEventPosition === undefined
 }

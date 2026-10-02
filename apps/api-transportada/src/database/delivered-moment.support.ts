@@ -12,7 +12,7 @@ type DeliveredMomentColumns = {
 }
 
 /**
- * Spec 232 D3: o momento da entrega da nota e da pontualidade — a hora corrigida do toque, senão a
+ * Spec 234 D3: o momento da entrega da nota e da pontualidade — a hora corrigida do toque, senão a
  * leitura do GPS, senão o recebimento. Uma expressão só para a nota, o comprovante e a lista de
  * pendências (risco 4 da T1.5), e a mesma do índice `trip_stop_events_company_delivered_moment_idx`:
  * qualquer outra forma (outra ordem, outro cast) deixa o índice de fora e o filtro da janela varre a

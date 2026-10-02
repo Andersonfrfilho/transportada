@@ -261,12 +261,12 @@ export type DriverFieldReportTransactionPort = {
     readonly stopId: string
     /**
      * Spec 206 D3: a hora crua do aparelho no toque — em `departed`/`departure_cancelled` e, desde a
-     * spec 232 D2, em `arrived`/`delivered`/`returned` quando o app a manda (mesmo com a correção
+     * spec 234 D2, em `arrived`/`delivered`/`returned` quando o app a manda (mesmo com a correção
      * descartada). Nunca é a hora do evento: essa é `correctedClock`.
      */
     readonly tappedAt?: Date | null
     /**
-     * Spec 232 D3: a hora do toque corrigida pelo desvio do relógio, **só** quando `resolveOccurredAt`
+     * Spec 234 D3: a hora do toque corrigida pelo desvio do relógio, **só** quando `resolveOccurredAt`
      * a aceitou — grava `occurred_at` e `clock_offset_ms`. Não é `occurredAt` (acima), que sobrescreve
      * `created_at` e é do escritório.
      */

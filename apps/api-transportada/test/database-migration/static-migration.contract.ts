@@ -2005,7 +2005,7 @@ describe('o estado do ponto entra aditivo e o histórico sem coordenada fica NUL
   })
 
   /**
-   * Spec 232 T1.5: a hora corrigida do evento e o índice do momento da entrega. O teste de banco roda
+   * Spec 234 T1.5: a hora corrigida do evento e o índice do momento da entrega. O teste de banco roda
    * contra base vazia e não vê três coisas: o índice velho continua (para o rollback, a API velha o
    * usa), a expressão do novo é a da consulta, e o desvio é `bigint` (`integer` estoura em 24,8 dias).
    */
