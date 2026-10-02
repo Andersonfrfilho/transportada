@@ -290,9 +290,40 @@ export function noteAccordionTimelineItems(documentId: string) {
   return [
     {
       ...base,
+      id: `${documentId}-canhoto-photo`,
+      kind: 'document.canhoto_photo',
+      location: {
+        accuracyMeters: 8,
+        capturedAt: '2026-10-01T13:10:00.000Z',
+        distanceMeters: 120,
+        latitude: -23.5505,
+        longitude: -46.6333,
+      },
+      locationState: 'captured',
+      occurredAt: '2026-10-01T13:10:00.000Z',
+    },
+    {
+      ...base,
       id: `${documentId}-delivered`,
       kind: 'document.delivered',
       occurredAt: '2026-10-01T13:05:00.000Z',
+    },
+    {
+      ...base,
+      actorName: 'Contratante Exemplo',
+      addressChange: { displacementMeters: 45, origin: 'contractor' },
+      channel: 'backoffice',
+      document: null,
+      id: `${documentId}-address-corrected`,
+      kind: 'stop.address_corrected',
+      location: {
+        accuracyMeters: null,
+        capturedAt: '2026-10-01T12:50:00.000Z',
+        distanceMeters: null,
+        latitude: -23.5507,
+        longitude: -46.6335,
+      },
+      occurredAt: '2026-10-01T12:50:00.000Z',
     },
     {
       ...base,

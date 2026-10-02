@@ -119,6 +119,10 @@ for (const theme of THEMES) {
       await expect(row.getByRole('heading', { name: 'Eventos desta entrega' })).toBeVisible()
       await expect(row.getByText('Saída para esta parada')).toBeVisible()
       await expect(row.getByText('Raio tolerado da parada: 300 m')).toBeVisible()
+      /** Spec 228: a foto do canhoto e o endereço corrigido entram na própria lista da nota. */
+      await expect(row.getByText('Foto do canhoto', { exact: true })).toBeVisible()
+      await expect(row.getByText('Endereço da parada corrigido')).toBeVisible()
+      await expect(row.getByText('Corrigido pelo contratante · deslocado 45 m')).toBeVisible()
       await expectNothingEscapes(row)
       await expectNoHorizontalOverflow(page)
       await row.screenshot({ path: printPath('nota-aberta-entregue', viewport.label, theme) })
