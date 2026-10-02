@@ -188,6 +188,41 @@
   transform: rotate(180deg);
 }
 
+/* Identificação da nota no cabeçalho recolhido: é por ela que o motorista reconhece a parada. */
+.stopNotes {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.stopNote {
+  align-items: baseline;
+  column-gap: var(--space-3);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: var(--space-1);
+}
+
+.stopNoteTitle {
+  align-items: center;
+  display: flex;
+  font-weight: 600;
+  gap: var(--space-1);
+}
+
+.stopNoteAmount {
+  color: var(--color-copper);
+  font-weight: 600;
+}
+
+/* O cliente ocupa a linha inteira: nome comprido não espreme o valor para fora do cartão. */
+.stopNoteRecipient {
+  align-items: center;
+  color: var(--color-slate);
+  display: flex;
+  gap: var(--space-1);
+  grid-column: 1 / -1;
+}
+
 .stopChips {
   display: flex;
   flex-wrap: wrap;
