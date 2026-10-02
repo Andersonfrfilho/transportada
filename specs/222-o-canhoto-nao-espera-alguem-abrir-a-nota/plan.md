@@ -118,6 +118,19 @@ recriar as duas CHECK — o molde exato está em
 seguido do `INSERT INTO "job_schedules"` da linha nova. `rollback.sql` desfaz na ordem inversa:
 apaga a linha e volta as CHECK sem o nome novo. `make migration-test` fecha a task.
 
+A mesma migration leva o **índice parcial da varredura**. `trip_delivery_proofs` tem três índices e
+nenhum deles cobre `canhoto_review` (conferido no schema): sem o índice, a rotina faz varredura
+sequencial na tabela que a execução de campo escreve o dia inteiro, de cinco em cinco minutos.
+
+```sql
+CREATE INDEX "trip_delivery_proofs_canhoto_pending_idx"
+  ON "trip_delivery_proofs" ("company_id", "created_at")
+  WHERE "kind" = 'photo' AND "canhoto_review" = 'pending' AND "canhoto_read_source" IS NULL;
+```
+
+Parcial de propósito: ele é do tamanho da fila, e **encolhe sozinho** conforme a rotina drena — o
+índice desaparece quando não há o que ler, que é o estado normal.
+
 ## Segurança e tenant
 
 - `companyId` sempre do contexto; o robô manda `x-company-id` e a API o valida contra a membership

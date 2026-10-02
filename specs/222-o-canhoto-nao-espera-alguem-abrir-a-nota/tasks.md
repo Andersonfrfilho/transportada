@@ -103,6 +103,10 @@ começam.
 - [ ] T5.3 Migration no molde de `drizzle/20260915233000_rate_limit_windows/migration.sql`:
       recria `job_executions_job_check` e `job_schedules_job_check` com o nome novo
       (DROP → ADD NOT VALID → VALIDATE) e insere a linha em `job_schedules`
+- [ ] T5.3b Na **mesma** migration, o índice parcial da varredura
+      (`trip_delivery_proofs_canhoto_pending_idx`, SQL no plan.md § "Dados, migration e rollback") e
+      a declaração dele no `trip.schema.ts` — `trip_delivery_proofs` não tem índice que cubra
+      `canhoto_review`, e sem ele a rotina varre a tabela inteira de cinco em cinco minutos
 - [ ] T5.4 `rollback.sql` na ordem inversa + `make migration-test` verde
 - [ ] T5.5 `db:generate` precisa dizer `no_changes` depois da migration à mão — se divergir, o
       schema e a migration não casam
