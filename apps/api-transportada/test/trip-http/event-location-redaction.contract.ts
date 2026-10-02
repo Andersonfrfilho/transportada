@@ -98,7 +98,10 @@ function unusedDependencies(): unknown {
   return new Proxy(() => unusedDependencies(), handler)
 }
 
-async function requestTimeline(permissions: CompanyContext['permissions']): Promise<Response> {
+async function requestTimeline(
+  permissions: CompanyContext['permissions'],
+  items: readonly TripTimelineItem[] = [CAPTURED_ITEM, UNAVAILABLE_ITEM, NOT_APPLICABLE_ITEM],
+): Promise<Response> {
   const readTripTimeline = createReadTripTimelineUseCase({
     existence: {
       findTripCompanyScope: async () => ({ id: TRIP_ID }),
@@ -106,7 +109,7 @@ async function requestTimeline(permissions: CompanyContext['permissions']): Prom
     },
     reader: {
       listTripTimeline: async (): Promise<ReadTripTimelineResult> => ({
-        items: [CAPTURED_ITEM, UNAVAILABLE_ITEM, NOT_APPLICABLE_ITEM],
+        items,
         nextCursor: null,
       }),
     },
@@ -167,5 +170,49 @@ describe('a linha do tempo recorta a coordenada sem trip.event-location (spec 19
     expect(unavailable?.locationState).toBe('unavailable')
     expect(notApplicable?.location).toBeNull()
     expect(notApplicable?.locationState).toBeNull()
+  })
+})
+
+describe('a linha do tempo repassa addressChange só no endereço corrigido (spec 228 T3.1)', () => {
+  const CORRECTED_ITEM = buildItem({
+    addressChange: { displacementMeters: 45, origin: 'operator' },
+    id: '00000000-0000-4000-8000-0000000000c1',
+    kind: 'stop.address_corrected',
+    location: {
+      accuracyMeters: null,
+      capturedAt: '2026-10-01T10:00:00.000Z',
+      distanceMeters: null,
+      latitude: LATITUDE,
+      longitude: LONGITUDE,
+    },
+  })
+  const ITEMS = [CORRECTED_ITEM, NOT_APPLICABLE_ITEM]
+
+  test('com trip.event-location o item leva addressChange e o ponto; o outro kind não ganha a chave', async () => {
+    const response = await requestTimeline(
+      new Set(['fleet.read', 'trip.event-location'] as const),
+      ITEMS,
+    )
+
+    const body = (await response.json()) as TimelineBody
+    const [corrected, other] = body.data.items
+    expect(corrected?.addressChange).toEqual({ displacementMeters: 45, origin: 'operator' })
+    expect(corrected?.location?.latitude).toBe(LATITUDE)
+    expect(other).toBeDefined()
+    expect('addressChange' in (other ?? {})).toBe(false)
+  })
+
+  test('sem trip.event-location o ponto some do JSON inteiro, mas origem e deslocamento ficam', async () => {
+    const response = await requestTimeline(new Set(['fleet.read'] as const), ITEMS)
+    const text = await response.text()
+    const body = JSON.parse(text) as TimelineBody
+
+    expect(body.data.items[0]?.location).toBeNull()
+    expect(body.data.items[0]?.addressChange).toEqual({
+      displacementMeters: 45,
+      origin: 'operator',
+    })
+    expect(text).not.toContain(String(LATITUDE))
+    expect(text).not.toContain(String(LONGITUDE))
   })
 })

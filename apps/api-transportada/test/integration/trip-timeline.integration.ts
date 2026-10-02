@@ -35,6 +35,8 @@ import {
   trips,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
+import { geocodedAddressCorrections } from '../../src/database/geocoded-address-correction.schema.js'
+import { geocodingRefinementRequests } from '../../src/database/geocoding-refinement.schema.js'
 import { geocodedAddresses } from '../../src/database/geocoding.schema.js'
 import {
   findTripCompanyScope,
@@ -2137,6 +2139,455 @@ describe('trip-timeline.query com a foto do canhoto (spec 228 T2.1) contra o Pos
           'thumbnailObjectId',
           'canhotoRead',
           '777777777',
+        ]) {
+          expect(body).not.toContain(forbidden)
+        }
+      })
+    },
+  )
+})
+
+describe('trip-timeline.query com o endereço corrigido (spec 228 T3.1) contra o Postgres', () => {
+  const STOP_CREATED_AT = new Date('2026-09-30T08:00:00.000Z')
+  const SHARED_KEY = '3550308|01001000|rua-compartilhada'
+
+  async function seedStopWithKey(
+    database: TestDatabase,
+    input: {
+      readonly addressKey: string
+      readonly company: Company
+      readonly sequence: number
+      readonly tripId: string
+    },
+  ): Promise<string> {
+    const stopId = crypto.randomUUID()
+    await database.db.insert(tripStops).values({
+      addressKey: input.addressKey,
+      companyId: input.company.companyId,
+      createdAt: STOP_CREATED_AT,
+      id: stopId,
+      label: `Parada ${input.sequence}`,
+      sequence: BigInt(input.sequence),
+      tripId: input.tripId,
+    })
+    return stopId
+  }
+
+  async function seedCorrection(
+    database: TestDatabase,
+    input: {
+      readonly addressKey: string
+      readonly company: Company
+      readonly createdAt: string
+      readonly origin?: 'contractor' | 'driver' | 'operator'
+      readonly previous?: { readonly latitude: string; readonly longitude: string } | null
+      readonly reason?: string
+      readonly requestedBy?: string
+    },
+  ): Promise<string> {
+    const id = crypto.randomUUID()
+    const previous = input.previous ?? null
+    await database.db.insert(geocodedAddressCorrections).values({
+      actorUserId: input.company.userId,
+      addressKey: input.addressKey,
+      companyId: input.company.companyId,
+      createdAt: new Date(input.createdAt),
+      id,
+      newLatitude: '-23.5505000',
+      newLongitude: '-46.6334000',
+      newPrecision: 'rooftop',
+      newSource: 'manual',
+      origin: input.origin ?? 'operator',
+      ...(previous === null
+        ? {}
+        : {
+            previousLatitude: previous.latitude,
+            previousLongitude: previous.longitude,
+            previousPrecision: 'rooftop' as const,
+            previousSource: 'manual' as const,
+          }),
+      reason: input.reason ?? '',
+      requestedBy: input.requestedBy ?? '',
+    })
+    return id
+  }
+
+  async function seedRefinement(
+    database: TestDatabase,
+    input: {
+      readonly addressKey: string
+      readonly company: Company
+      readonly createdAt: string
+      readonly outcome: 'not_improved' | 'provider_not_configured' | 'refined'
+    },
+  ): Promise<string> {
+    const id = crypto.randomUUID()
+    await database.db.insert(geocodingRefinementRequests).values({
+      actorUserId: input.company.userId,
+      addressKey: input.addressKey,
+      companyId: input.company.companyId,
+      createdAt: new Date(input.createdAt),
+      id,
+      outcome: input.outcome,
+      precision: input.outcome === 'refined' ? 'rooftop' : null,
+    })
+    return id
+  }
+
+  async function listAddressItems(
+    database: TestDatabase,
+    params: Omit<ReadTripTimelineParams, 'cursor' | 'limit'>,
+  ) {
+    const result = await listTripTimeline(database.db, { ...params, cursor: null, limit: 100 })
+    return result.items.filter((item) => item.kind === 'stop.address_corrected')
+  }
+
+  testWithPostgres(
+    'a correção humana e o refino refined da empresa aparecem, com origem, ponto novo e deslocamento',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const stopId = await seedStopWithKey(database, {
+          addressKey: SHARED_KEY,
+          company,
+          sequence: 1,
+          tripId,
+        })
+        const withPrevious = await seedCorrection(database, {
+          addressKey: SHARED_KEY,
+          company,
+          createdAt: '2026-10-01T10:00:00.000Z',
+          origin: 'contractor',
+          previous: { latitude: '-23.5505000', longitude: '-46.6333000' },
+        })
+        const withoutPrevious = await seedCorrection(database, {
+          addressKey: SHARED_KEY,
+          company,
+          createdAt: '2026-10-01T11:00:00.000Z',
+          origin: 'driver',
+        })
+        const refined = await seedRefinement(database, {
+          addressKey: SHARED_KEY,
+          company,
+          createdAt: '2026-10-01T12:00:00.000Z',
+          outcome: 'refined',
+        })
+
+        const items = await listAddressItems(database, {
+          companyId: company.companyId,
+          tripId,
+        })
+        const byId = new Map(items.map((item) => [item.id, item]))
+
+        expect(items.map((item) => item.id)).toEqual([refined, withoutPrevious, withPrevious])
+        expect(byId.get(withPrevious)?.addressChange).toEqual({
+          displacementMeters: 10,
+          origin: 'contractor',
+        })
+        expect(byId.get(withPrevious)?.location?.latitude).toBe(-23.5505)
+        expect(byId.get(withPrevious)?.location?.accuracyMeters).toBeNull()
+        expect(byId.get(withPrevious)?.location?.distanceMeters).toBeNull()
+        expect(byId.get(withPrevious)?.location?.capturedAt).toBe('2026-10-01T10:00:00.000Z')
+        expect(byId.get(withoutPrevious)?.addressChange).toEqual({
+          displacementMeters: null,
+          origin: 'driver',
+        })
+        expect(byId.get(refined)?.addressChange).toEqual({
+          displacementMeters: null,
+          origin: 'refinement',
+        })
+        expect(byId.get(refined)?.location).toBeNull()
+        for (const item of items) {
+          expect(item.stop).toEqual({ id: stopId, sequence: 1 })
+          expect(item.document).toBeNull()
+          expect(item.locationState).toBeNull()
+          expect(item.channel).toBeNull()
+          expect(item.actorName).toBe('Usuária Escritório')
+        }
+        const withoutAddressKinds = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 100,
+          tripId,
+        })
+        for (const item of withoutAddressKinds.items) {
+          expect('addressChange' in item).toBe(item.kind === 'stop.address_corrected')
+        }
+      })
+    },
+  )
+
+  testWithPostgres(
+    'CA03: outra empresa na mesma chave, correção anterior à parada, refino sem melhora e outra chave não aparecem',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const otherCompany = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        await seedStopWithKey(database, { addressKey: SHARED_KEY, company, sequence: 1, tripId })
+        const valid = await seedCorrection(database, {
+          addressKey: SHARED_KEY,
+          company,
+          createdAt: '2026-10-01T10:00:00.000Z',
+        })
+        await seedCorrection(database, {
+          addressKey: SHARED_KEY,
+          company: otherCompany,
+          createdAt: '2026-10-01T10:30:00.000Z',
+        })
+        await seedCorrection(database, {
+          addressKey: SHARED_KEY,
+          company,
+          createdAt: '2026-09-29T10:00:00.000Z',
+        })
+        await seedCorrection(database, {
+          addressKey: '3550308|01001000|outra-rua',
+          company,
+          createdAt: '2026-10-01T10:45:00.000Z',
+        })
+        await seedRefinement(database, {
+          addressKey: SHARED_KEY,
+          company,
+          createdAt: '2026-10-01T11:00:00.000Z',
+          outcome: 'not_improved',
+        })
+        await seedRefinement(database, {
+          addressKey: SHARED_KEY,
+          company,
+          createdAt: '2026-10-01T11:15:00.000Z',
+          outcome: 'provider_not_configured',
+        })
+        await seedRefinement(database, {
+          addressKey: SHARED_KEY,
+          company: otherCompany,
+          createdAt: '2026-10-01T11:30:00.000Z',
+          outcome: 'refined',
+        })
+
+        const items = await listAddressItems(database, { companyId: company.companyId, tripId })
+
+        expect(items.map((item) => item.id)).toEqual([valid])
+      })
+    },
+  )
+
+  testWithPostgres(
+    'CA04: duas paradas com a mesma chave dão um evento só, na parada de menor sequência, e o cursor em páginas de 1 não repete nem pula',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        await seedStopWithKey(database, { addressKey: SHARED_KEY, company, sequence: 3, tripId })
+        const lowestStopId = await seedStopWithKey(database, {
+          addressKey: SHARED_KEY,
+          company,
+          sequence: 1,
+          tripId,
+        })
+        await seedStopWithKey(database, { addressKey: SHARED_KEY, company, sequence: 2, tripId })
+        const ids: string[] = []
+        for (const hour of ['10', '11', '12']) {
+          ids.push(
+            await seedCorrection(database, {
+              addressKey: SHARED_KEY,
+              company,
+              createdAt: `2026-10-01T${hour}:00:00.000Z`,
+            }),
+          )
+        }
+
+        const whole = await listAddressItems(database, { companyId: company.companyId, tripId })
+        const paged = await readAllPages(database, { companyId: company.companyId, tripId }, 1)
+
+        expect(whole.map((item) => item.id)).toEqual(ids.toReversed())
+        for (const item of whole) expect(item.stop?.id).toBe(lowestStopId)
+        expect(paged.map((item) => item.id)).toEqual(ids.toReversed())
+      })
+    },
+  )
+
+  testWithPostgres(
+    'empate de instante e de prioridade com document.occurrence: cada id sai uma vez em páginas de 1, em ordem estável',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const stopId = await seedStopWithKey(database, {
+          addressKey: SHARED_KEY,
+          company,
+          sequence: 1,
+          tripId,
+        })
+        const documentId = await seedTripDocument(database, company, tripId, stopId)
+        const occurrenceTypeId = crypto.randomUUID()
+        await database.db.insert(companyOccurrenceTypes).values({
+          companyId: company.companyId,
+          id: occurrenceTypeId,
+          name: 'Endereço errado',
+          stage: 'delivery',
+        })
+        const instant = '2026-10-01T10:00:00.123456Z'
+        const tiedIds: string[] = []
+        for (let index = 0; index < 3; index += 1) {
+          const correctionId = await seedCorrection(database, {
+            addressKey: SHARED_KEY,
+            company,
+            createdAt: instant,
+          })
+          const occurrenceId = crypto.randomUUID()
+          await database.db.insert(tripDocumentOccurrences).values({
+            actorUserId: company.userId,
+            channel: 'driver_app',
+            companyId: company.companyId,
+            id: occurrenceId,
+            note: 'relato',
+            occurrenceTypeId,
+            stage: 'delivery',
+            tripDocumentId: documentId,
+          })
+          await database.db.execute(
+            sql`update trip_document_occurrences set created_at = ${instant}::timestamptz where id = ${occurrenceId}`,
+          )
+          tiedIds.push(correctionId, occurrenceId)
+        }
+
+        const paged = await readAllPages(database, { companyId: company.companyId, tripId }, 1)
+        const single = await readAllPages(database, { companyId: company.companyId, tripId }, 100)
+        const tied = paged.filter((item) => tiedIds.includes(item.id))
+
+        expect(tied).toHaveLength(6)
+        expect(new Set(tied.map((item) => item.id))).toEqual(new Set(tiedIds))
+        expect(paged.map((item) => item.id)).toEqual(single.map((item) => item.id))
+        expect(tied.map((item) => item.id)).toEqual(tiedIds.toSorted().toReversed())
+      })
+    },
+  )
+
+  testWithPostgres(
+    '?documentId= devolve o evento só da parada da nota, mesmo com a mesma chave em outra parada; nota sem parada não recebe nenhum',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const firstStopId = await seedStopWithKey(database, {
+          addressKey: SHARED_KEY,
+          company,
+          sequence: 1,
+          tripId,
+        })
+        const secondStopId = await seedStopWithKey(database, {
+          addressKey: SHARED_KEY,
+          company,
+          sequence: 2,
+          tripId,
+        })
+        const documentOfSecond = await seedTripDocument(database, company, tripId, secondStopId)
+        await seedCorrection(database, {
+          addressKey: SHARED_KEY,
+          company,
+          createdAt: '2026-10-01T10:00:00.000Z',
+        })
+
+        const ofSecond = await listAddressItems(database, {
+          companyId: company.companyId,
+          documentId: documentOfSecond,
+          documentStopId: secondStopId,
+          tripId,
+        })
+        const ofFirstStop = await listAddressItems(database, {
+          companyId: company.companyId,
+          tripId,
+        })
+        const withoutStop = await listAddressItems(database, {
+          companyId: company.companyId,
+          documentId: documentOfSecond,
+          documentStopId: null,
+          tripId,
+        })
+
+        expect(ofSecond).toHaveLength(1)
+        expect(ofSecond[0]?.stop).toEqual({ id: secondStopId, sequence: 2 })
+        expect(ofFirstStop[0]?.stop?.id).toBe(firstStopId)
+        expect(withoutStop).toEqual([])
+      })
+    },
+  )
+
+  testWithPostgres(
+    'CA05: sem trip.event-location o ponto some e o deslocamento fica; com ela, o ponto sai',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        await seedStopWithKey(database, { addressKey: SHARED_KEY, company, sequence: 1, tripId })
+        await seedCorrection(database, {
+          addressKey: SHARED_KEY,
+          company,
+          createdAt: '2026-10-01T10:00:00.000Z',
+          previous: { latitude: '-23.5505000', longitude: '-46.6333000' },
+        })
+
+        const [cut] = (await requestLocatedTimeline({
+          company,
+          database,
+          permissions: ['fleet.read'],
+          tripId,
+        })) as readonly {
+          readonly addressChange?: { readonly displacementMeters: number | null }
+          readonly location: unknown
+        }[]
+        const [full] = (await requestLocatedTimeline({
+          company,
+          database,
+          permissions: ['fleet.read', 'trip.event-location'],
+          tripId,
+        })) as readonly { readonly location: { readonly latitude: number } | null }[]
+
+        expect(cut?.location).toBeNull()
+        expect(cut?.addressChange?.displacementMeters).toBe(10)
+        expect(full?.location?.latitude).toBe(-23.5505)
+      })
+    },
+  )
+
+  testWithPostgres(
+    'CA06: o corpo não carrega a chave do endereço, o motivo, quem pediu nem procedência',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        await seedStopWithKey(database, { addressKey: SHARED_KEY, company, sequence: 1, tripId })
+        const correctionId = await seedCorrection(database, {
+          addressKey: SHARED_KEY,
+          company,
+          createdAt: '2026-10-01T10:00:00.000Z',
+          previous: { latitude: '-23.5505000', longitude: '-46.6333000' },
+          reason: 'portão azul ao lado da farmácia',
+          requestedBy: 'Gerente Sigiloso da Loja',
+        })
+
+        const result = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 100,
+          tripId,
+        })
+        const body = JSON.stringify(result)
+
+        expect(body).toContain(correctionId)
+        for (const forbidden of [
+          SHARED_KEY,
+          'rua-compartilhada',
+          'address_key',
+          'addressKey',
+          'portão azul',
+          'Gerente Sigiloso',
+          'reason',
+          'requestedBy',
+          'previousLatitude',
+          'newSource',
+          'rooftop',
         ]) {
           expect(body).not.toContain(forbidden)
         }
