@@ -81,7 +81,7 @@ value}` por item e isola a falha; `batchFieldReturnMutation`
       regra de parada
 - [x] T3.2 🧠 Permissão: **`trip.canhoto-auto-review`**. Prefixo `trip` porque `canhoto` não é
       domínio; sufixo `-review` porque `.read` significa ver em todo o catálogo
-- [ ] T3.3 Contrato **antes da rota**: a rota do robô aceita o token da automação, recusa token de
+- [x] T3.3 Contrato **antes da rota**: a rota do robô aceita o token da automação, recusa token de
       gente com `trip.manage`, o schema recusa `action` no corpo, e `isGrantablePermission` recusa a
       permissão a grupo e a concessão avulsa (CA13, CA16)
 - [ ] T3.4 A permissão em **três** lugares: catálogo, papel `automation` e `SERVICE_ONLY_PERMISSIONS`

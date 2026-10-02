@@ -37,6 +37,8 @@ const CLIENT_IP = '203.0.113.7'
 const DOCUMENT_ID = '00000000-0000-4000-8000-00000000d001'
 const TRIP_ID = '00000000-0000-4000-8000-00000000d002'
 const REVIEW_PATH = `/trips/${TRIP_ID}/documents/${DOCUMENT_ID}/proof/review`
+const AUTOMATIC_REVIEW_PATH = `${REVIEW_PATH}/automatic`
+const SERVICE_PERMISSIONS: CompanyContext['permissions'] = new Set(['trip.canhoto-auto-review'])
 const READ_NUMBER = '12345'
 const READ_SERIES = '1'
 
@@ -113,6 +115,17 @@ function createFixture(params: {
 function patch(fixture: ReturnType<typeof createFixture>, body: unknown) {
   return fixture.handle(jsonRequest({ body, method: 'PATCH', path: REVIEW_PATH }))
 }
+
+function patchAutomatic(fixture: ReturnType<typeof createFixture>, body: unknown) {
+  return fixture.handle(jsonRequest({ body, method: 'PATCH', path: AUTOMATIC_REVIEW_PATH }))
+}
+
+const ROBOT_READING = {
+  readDocumentId: DOCUMENT_ID,
+  readNumber: READ_NUMBER,
+  readSeries: READ_SERIES,
+  readSource: 'barcode',
+} as const
 
 describe('conferir o canhoto é `trip.manage` (RF27)', () => {
   test('quem só lê a frota recebe 403, e a porta não é tocada', async () => {
@@ -281,5 +294,94 @@ describe('o mapa dos erros do domínio', () => {
     const body = await response.text()
     expect(body).not.toContain('123.456.789-09')
     expect(body).toContain('cpf')
+  })
+})
+
+/**
+ * Spec 222 T3.3 (ADR-0091 §2): o robô tem rota e permissão próprias. O token dele **não** é
+ * `trip.manage`, e o de gente não é `trip.canhoto-auto-review` — as duas portas não se confundem.
+ */
+describe('a rota do robô é de uma permissão só (CA13)', () => {
+  test('o token da automação alcança a rota, com a empresa e o autor do contexto', async () => {
+    const fixture = createFixture({ permissions: SERVICE_PERMISSIONS })
+    const response = await patchAutomatic(fixture, ROBOT_READING)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: VIEW })
+    expect(fixture.calls[0]).toMatchObject({
+      actorUserId: COMPANY_CONTEXT.userId,
+      command: { action: 'automatic', ...ROBOT_READING },
+      companyId: COMPANY_CONTEXT.companyId,
+      documentId: DOCUMENT_ID,
+      tripId: TRIP_ID,
+    })
+  })
+
+  test('quem tem `trip.manage` e não tem a permissão do robô recebe 403', async () => {
+    const fixture = createFixture({
+      permissions: new Set(['trip.manage', 'trip.report-on-behalf', 'fleet.read']),
+    })
+    expect((await patchAutomatic(fixture, ROBOT_READING)).status).toBe(403)
+    expect(fixture.calls).toEqual([])
+  })
+
+  test('o token do robô não alcança a rota de gente', async () => {
+    const fixture = createFixture({ permissions: SERVICE_PERMISSIONS })
+    for (const body of [{ action: 'approve' }, AUTOMATIC_READING]) {
+      expect((await patch(fixture, body)).status).toBe(403)
+    }
+    expect(fixture.calls).toEqual([])
+  })
+})
+
+describe('o corpo do robô não aceita ação nem veredito (CA16)', () => {
+  test.each([
+    { extra: { action: 'automatic' }, label: '`action` no corpo, mesmo o valor certo' },
+    { extra: { action: 'approve' }, label: 'aprovar à mão pelo canal do robô' },
+    { extra: { action: 'reject' }, label: 'recusar pelo canal do robô' },
+    { extra: { review: 'approved' }, label: 'veredito no corpo' },
+    { extra: { canhotoReviewOrigin: 'automatic' }, label: 'origem do veredito no corpo' },
+    { extra: { companyId: crypto.randomUUID() }, label: 'empresa no corpo' },
+    { extra: { accessKey: '1'.repeat(44) }, label: 'chave de acesso de carona (RNF03)' },
+    { extra: { readNumber: '1'.repeat(44) }, label: 'chave disfarçada de número lido (RNF03)' },
+    { extra: { readSeries: '1'.repeat(44) }, label: 'chave disfarçada de série (RNF03)' },
+  ])('$label é 400 e não chega à porta', async ({ extra }) => {
+    const fixture = createFixture({ permissions: SERVICE_PERMISSIONS })
+    expect((await patchAutomatic(fixture, { ...ROBOT_READING, ...extra })).status).toBe(400)
+    expect(fixture.calls).toEqual([])
+  })
+
+  test.each(['readDocumentId', 'readNumber', 'readSeries', 'readSource'] as const)(
+    'campo de leitura ausente (%s) é 400: `null` é leitura vazia, ausente é corpo malformado',
+    async (field) => {
+      const fixture = createFixture({ permissions: SERVICE_PERMISSIONS })
+      const { [field]: _omitted, ...rest } = ROBOT_READING
+      expect((await patchAutomatic(fixture, rest)).status).toBe(400)
+      expect(fixture.calls).toEqual([])
+    },
+  )
+
+  test('leitura vazia (os quatro `null`) é legítima e chega à porta sem `action` do corpo', async () => {
+    const fixture = createFixture({ permissions: SERVICE_PERMISSIONS })
+    const response = await patchAutomatic(fixture, {
+      readDocumentId: null,
+      readNumber: null,
+      readSeries: null,
+      readSource: null,
+    })
+    expect(response.status).toBe(200)
+    expect(fixture.calls[0]).toMatchObject({
+      command: {
+        action: 'automatic',
+        readDocumentId: null,
+        readNumber: null,
+        readSeries: null,
+        readSource: null,
+      },
+    })
+  })
+
+  test('a rota de gente continua aceitando `automatic` (o navegador não muda)', async () => {
+    const fixture = createFixture({})
+    expect((await patch(fixture, AUTOMATIC_READING)).status).toBe(200)
   })
 })

@@ -7,6 +7,7 @@ import { LOCAL_IDENTITY_ROLES } from '../src/database/local-identity-seed.consta
 import { AuthorizationService } from '../src/identity/application/authorization.service'
 import {
   COMPANY_ROLE_PERMISSIONS,
+  isCompanyPermission,
   isGrantablePermission,
   resolveCompanyPermissions,
   SERVICE_ONLY_PERMISSIONS,
@@ -730,6 +731,31 @@ describe('permissão de serviço (spec 144 T014b)', () => {
     expect(permissions.has('mdfe.auto-issue')).toBe(false)
     expect(permissions.has('whatsapp.settle')).toBe(false)
     expect(permissions.has('billing.read')).toBe(true)
+  })
+
+  /**
+   * Spec 222 T3.3 (ADR-0091 §2): a porta do robô de canhoto é de máquina. Sem a entrada em
+   * `SERVICE_ONLY_PERMISSIONS`, quem tem `groups.manage` concederia a si mesmo um `approved` sem
+   * `trip.manage` e sem trilha de pessoa. A primeira asserção prende que ela **existe** no catálogo
+   * — sem ela `isGrantablePermission` devolveria `false` por motivo nenhum.
+   */
+  test('`trip.canhoto-auto-review` é permissão de máquina: existe, e grupo nem avulsa a concedem', () => {
+    expect(isCompanyPermission('trip.canhoto-auto-review')).toBe(true)
+    expect(isGrantablePermission('trip.canhoto-auto-review')).toBe(false)
+    expect(SERVICE_ONLY_PERMISSIONS).toContain('trip.canhoto-auto-review')
+
+    const person = resolveCompanyPermissions({
+      granted: ['trip.canhoto-auto-review', 'billing.read'],
+      roles: ['viewer'],
+    })
+    expect(person.has('trip.canhoto-auto-review')).toBe(false)
+    expect(person.has('billing.read')).toBe(true)
+
+    expect(
+      resolveCompanyPermissions({ granted: [], roles: ['automation'] }).has(
+        'trip.canhoto-auto-review',
+      ),
+    ).toBe(true)
   })
 
   test('o papel automation continua recebendo as duas', () => {

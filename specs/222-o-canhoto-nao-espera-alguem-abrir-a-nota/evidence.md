@@ -408,3 +408,28 @@ origin/staging HEAD)..HEAD`) é **vazia**, que é a prova de que os avisos são 
 
 Artefatos descartáveis do print (`print-canhoto.{html,tsx,mjs}`, `public/print-canhoto/`) removidos;
 árvore limpa.
+
+## Fase 3 — O robô tem porta própria
+
+### T3.3 — o contrato da rota do robô e de `isGrantablePermission`, antes da implementação
+
+Dois arquivos de contrato, ambos já na lista do `package.json` (`canhoto-review.contract.test.ts` e
+`authorization.contract.test.ts`): três blocos novos em `test/canhoto-review/routes.contract.ts` e
+um teste em `test/authorization.contract.test.ts`.
+
+Vermelho de antes (de `apps/api-transportada`): `bun --env-file=../../.env.test test
+./test/canhoto-review.contract.test.ts` → **80 pass / 16 fail** (78 preexistentes + 18 novos, dos
+quais 16 vermelhos); `authorization.contract.test.ts` → **32 pass / 1 fail**. Os 16 falham com
+`Received: 404` — a rota não existe. Os dois que passam já antes são por desenho, e não provam a
+rota: "o token do robô não alcança a rota de gente" (403 porque o token não tem `trip.manage`) e
+"a rota de gente continua aceitando `automatic`" (é o contrato de que o navegador não muda).
+
+O que os testes prendem: o token com só `trip.canhoto-auto-review` → 200 com empresa e autor do
+contexto; `trip.manage` sem a permissão do robô → 403 na rota do robô; o `.strict()` recusa
+`action` (os três valores), veredito, origem, empresa, chave de acesso e número/série com 44
+posições; **campo de leitura ausente é 400** (os quatro, um a um) e os quatro `null` são 200 —
+é o que impede o `optional()` de entrar sem aviso; e `isGrantablePermission` recusa a permissão
+depois de provar que ela **existe** (sem a primeira asserção, `false` seria vacuamente verdade).
+
+⚠️ Este commit é **vermelho de propósito**: contrato antes da implementação. T3.4 e T3.5 o
+fecham.
