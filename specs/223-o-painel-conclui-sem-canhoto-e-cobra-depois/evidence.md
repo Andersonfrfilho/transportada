@@ -183,12 +183,42 @@ error.
 
 **Mutação** (o que prende a regra duplicada em TypeScript e em SQL):
 
-| Mutação | Resultado |
-|---|---|
+| Mutação                                      | Resultado           |
+| -------------------------------------------- | ------------------- |
 | `isProofRequiredBySettings` → `return false` | 4 pass / **6 fail** |
-| `requiredByColumns`: `or` → `and` no SQL | 7 pass / **3 fail** |
+| `requiredByColumns`: `or` → `and` no SQL     | 7 pass / **3 fail** |
 
 A segunda é a que importa: a paridade TS↔SQL está realmente presa — com `and`, a viagem cuja
 configuração exige só a assinatura deixa de aparecer no filtro e três casos caem. A duplicação
 fica como dívida consciente: a leitura por nota não pode virar SQL sem perder a função única da
 escrita, e o filtro da lista não pode virar TypeScript sem trazer a lista inteira para a memória.
+
+### T5.1 — revisão de design e usabilidade, com print
+
+O painel não sobe sem Keycloak e sem API, e nenhum dublê serve a lista de viagens, então a revisão
+usou um harness temporário (`preview-223.html` + `src/preview-223.tsx`, apagados depois, nunca
+commitados) servido pelo Vite da própria app na porta 53010. Ele renderiza os quatro pontos novos
+com o CSS e os componentes reais: a barra de seleção da lista, o diálogo de encerramento em massa,
+a nota com o selo de canhoto pendente e o filtro. Console do browser sem erro.
+
+Dois defeitos de usabilidade achados no print e corrigidos:
+
+| Achado                                                                                                                                  | Correção                                                                                                     |
+| --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Na mesma nota conviviam **"Dar baixa"** e **"Baixar sem canhoto"** — dois rótulos quase iguais, e o primeiro não dizia que pede canhoto | `actions.fieldDelivery` virou "Dar baixa com canhoto" / "Deliver with proof" (uso único, em `TripStopList`)  |
+| A pílula do filtro saía **"Canhoto: Só com canhoto pendente"**, repetindo a palavra                                                     | `filters.proofPendingPillValue` ("Pendente" / "Pending") só para a pílula; o checkbox mantém a frase inteira |
+
+Conferido depois da correção, na própria página: os botões da nota são "Dar baixa com canhoto"
+(primário, ícone de câmera) e "Baixar sem canhoto" (secundário, ícone de check); a pílula é
+"Canhoto: Pendente".
+
+Duas observações **não** corrigidas, por consistência com o que já existe: "Cancelar selecionadas"
+não traz contagem enquanto "Encerrar 2 viagens" traz (o rótulo do cancelar é da spec 102, e a
+contagem já aparece à esquerda da barra); e a lista de viagens dentro do diálogo tem a mesma
+moldura do campo de motivo — é o padrão do `TripCancelDialog`, de onde o diálogo foi copiado.
+
+```
+bun run typecheck   → limpo
+bun run test        → 6187 pass / 0 fail
+bun run test:hooks  → 184 pass / 0 fail
+```

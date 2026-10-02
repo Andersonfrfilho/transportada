@@ -16,7 +16,7 @@
     "viewProof": "Delivery receipt",
     "viewTrip": "Open the trip for {{vehicle}}",
     "fieldOccurrence": "Occurrence",
-    "fieldDelivery": "Deliver",
+    "fieldDelivery": "Deliver with proof",
     "separationOccurrence": "Separation occurrence",
     "generateCte": "Issue CT-e"
   },
@@ -906,6 +906,7 @@
     "driverSummary_other": "{{count}} drivers",
     "proofPendingEq": "Receipt",
     "proofPendingOnly": "Only with pending receipt",
+    "proofPendingPillValue": "Pending",
     "removeDriver": "Remove this driver",
     "removeFilter": "Remove the {{field}} filter",
     "removeStatus": "Remove this status",

@@ -73,7 +73,7 @@ function describeField(field: TripPillField, input: DescribePillsInput): null | 
       field,
       labelKey: FIELD_LABEL_KEY[field],
       value: '',
-      valueKeys: ['filters.proofPendingOnly'],
+      valueKeys: ['filters.proofPendingPillValue'],
     }
   }
   const value = describeRangeValue({

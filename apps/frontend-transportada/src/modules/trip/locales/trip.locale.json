@@ -16,7 +16,7 @@
     "viewProof": "Comprovante",
     "viewTrip": "Abrir a viagem de {{vehicle}}",
     "fieldOccurrence": "Ocorrência",
-    "fieldDelivery": "Dar baixa",
+    "fieldDelivery": "Dar baixa com canhoto",
     "separationOccurrence": "Ocorrência de separação",
     "generateCte": "Gerar CT-e"
   },
@@ -906,6 +906,7 @@
     "driverSummary_other": "{{count}} motoristas",
     "proofPendingEq": "Canhoto",
     "proofPendingOnly": "Só com canhoto pendente",
+    "proofPendingPillValue": "Pendente",
     "removeDriver": "Retirar este motorista",
     "removeFilter": "Remover o filtro {{field}}",
     "removeStatus": "Retirar esta situação",
