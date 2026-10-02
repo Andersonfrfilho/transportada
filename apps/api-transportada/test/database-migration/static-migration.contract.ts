@@ -2006,8 +2006,8 @@ describe('o estado do ponto entra aditivo e o histórico sem coordenada fica NUL
 
   /**
    * Spec 232 T1.5: a hora corrigida do evento e o índice do momento da entrega. O teste de banco roda
-   * contra base vazia e não vê três coisas: o índice velho continua (outras leituras ainda o usam), a
-   * expressão do novo é a da consulta, e o desvio cabe em ±365 dias (`integer` estoura em 24,8).
+   * contra base vazia e não vê três coisas: o índice velho continua (para o rollback, a API velha o
+   * usa), a expressão do novo é a da consulta, e o desvio é `bigint` (`integer` estoura em 24,8 dias).
    */
   test('adds the corrected event clock and the delivered moment index without touching the old one', async () => {
     const directories = await listMigrationDirectories()

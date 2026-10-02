@@ -43,7 +43,7 @@ describe('o momento da entrega (spec 232 D3)', () => {
     )
   })
 
-  test('as colunas novas são anuláveis e cabem ±365 dias de desvio', () => {
+  test('as colunas novas são anuláveis e o desvio é bigint, sem teto no esquema', () => {
     expect(columnSqlTypes(tripStopEvents)).toMatchObject({
       clock_offset_ms: 'bigint',
       occurred_at: 'timestamp with time zone',

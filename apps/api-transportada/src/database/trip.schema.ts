@@ -1165,7 +1165,8 @@ export const tripStopEvents = pgTable(
     occurredAt: timestamp('occurred_at', { withTimezone: true }),
     /**
      * Spec 232 D3: o desvio aplicado em `occurred_at` (servidor − aparelho), para auditoria. `bigint`:
-     * o esquema aceita até ±365 dias, e `integer` estoura em ±24,8 dias (`22003` derrubaria o toque).
+     * o desvio não tem teto no esquema (qualquer inteiro seguro é aceito; `resolveOccurredAt` descarta o
+     * absurdo), e `integer` estoura em ±24,8 dias (`22003` derrubaria o toque).
      */
     clockOffsetMs: bigint('clock_offset_ms', { mode: 'number' }),
     actorUserId: uuid('actor_user_id').notNull(),
@@ -1264,7 +1265,9 @@ export const tripStopEvents = pgTable(
     /**
      * Spec 232 D3 (risco 3 da T1.5): o mesmo índice para o momento da entrega com a hora corrigida,
      * montado pela própria `deliveredMomentSql` — expressão diferente da consulta deixa o índice de
-     * fora. O anterior fica: as outras leituras ainda usam `captured_at ?? recorded_at`.
+     * fora. O anterior fica só para o rollback (a API velha precisa dele) e deve ser dropado numa
+     * migration futura, depois de a API estabilizar; a leitura de `arrived` do relatório de campo não
+     * é atendida por ele (o predicado só cobre `delivered`).
      */
     index('trip_stop_events_company_delivered_moment_idx')
       .on(table.companyId, deliveredMomentSql(table))

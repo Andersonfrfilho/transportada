@@ -16,7 +16,8 @@ type DeliveredMomentColumns = {
  * leitura do GPS, senão o recebimento. Uma expressão só para a nota, o comprovante e a lista de
  * pendências (risco 4 da T1.5), e a mesma do índice `trip_stop_events_company_delivered_moment_idx`:
  * qualquer outra forma (outra ordem, outro cast) deixa o índice de fora e o filtro da janela varre a
- * tabela. As outras leituras de `captured_at ?? recorded_at` ficam fora desta spec.
+ * tabela. O índice antigo `coalesce(captured_at, recorded_at)` fica só para o rollback e deve ser
+ * dropado numa migration futura, depois de a API estabilizar.
  */
 export function deliveredMomentSql(columns: DeliveredMomentColumns): SQL<Date> {
   return sql`coalesce(${columns.occurredAt}, ${columns.capturedAt}, ${columns.recordedAt})`.mapWith(

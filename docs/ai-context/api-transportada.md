@@ -2099,7 +2099,7 @@ Migration `20261002213734_delivered_moment_clock`: `trip_stop_events.occurred_at
 `trip_stop_events.clock_offset_ms` (`bigint`), `trip_delivery_proofs.clock_offset_ms` e o índice
 `trip_stop_events_company_delivered_moment_idx`; todas nulas, sem backfill, gravadas **só** quando a
 correção vale (`recordEvent` recebe `correctedClock`, campo à parte do `occurredAt` do escritório;
-`saveProof` grava o desvio quando `hasCorrectedClock`). **O momento da entrega tem uma expressão só,
+`saveProof` grava o desvio só quando a correção foi usada: flag efetiva e posição na entrega). **O momento da entrega tem uma expressão só,
 `deliveredMomentSql` (`src/database/delivered-moment.support.ts`, `coalesce(occurred_at, captured_at,
 recorded_at)`), usada SÓ na nota (`fleet/infrastructure/drizzle-driver-score.repository.ts`), em
 `findDeliveryContext` (`drizzle-delivery-proof.repository.ts`) e em `listPendingProofs`
@@ -2107,7 +2107,7 @@ recorded_at)`), usada SÓ na nota (`fleet/infrastructure/drizzle-driver-score.re
 seis consultas continuam em `captured_at ?? recorded_at` (fora de escopo).** A política de pontualidade
 (`trips/domain/delivery-proof-punctuality.policy.ts`) recebe `hasCorrectedClock`, que nasce de
 `resolveOccurredAt(...).kind === 'corrected'` em `attach-delivery-proof.use-case.ts` (nunca de "o campo
-veio"): com a flag e posição na entrega, a foto é julgada pela hora corrigida sem o piso de
+veio"; R1: com posição na entrega só vale se `findDeliveryContext.isEventClockCorrected`, senão `deliveredAt` é hora crua): com a flag e posição na entrega, a foto é julgada pela hora corrigida sem o piso de
 `recebimento − missingAfterHours` (D4); sem posição na entrega a flag é ignorada, vale o recebimento e a
 entrega conta como longe (D4b). O prazo de "foto ausente" (`fleet/domain/driver-score.policy.ts`) conta
 de `max(momento da entrega, deliveryReceivedAt)`, e `deliveryReceivedAt` é `trip_stop_events.recorded_at`

@@ -17,10 +17,16 @@
 - [x] **T1.3** Implementar `resolveOccurredAt`, a pontualidade (D4) e o "ausente" (D5) — T1.1 e T1.2 verdes.
 - [x] **T1.4** Esquemas `.strict()` aceitam `tappedAt`/`clockOffsetMs` opcionais; cliente antigo segue
       passando — contrato de rota.
-- [ ] **T1.5** 🧠 Migration `clock_offset_ms` + `rollback.sql`; gravar o evento com a hora corrigida;
+- [x] **T1.5** 🧠 Migration `clock_offset_ms` + `rollback.sql`; gravar o evento com a hora corrigida;
       ler o momento da entrega da nota e da pontualidade (D3) — `make migration-test` e a integração da
       nota (CA3) verdes.
+- [x] **T1.4b** O esquema do motorista nunca recusa o desvio de relógio por ser grande (sem teto de
+      ±365 dias; `resolveOccurredAt` descarta o absurdo).
+- [x] **T1.5b** Sem posição no relato, a hora corrigida do evento não vale — vale o horário de envio (D4b).
 - [x] **T1.6** Registrar o limite antifraude em `docs/SECURITY.md`.
+- [x] **R1–R5** Ajustes da revisão da Fase 1: foto corrigida só com evento corrigido e auditoria só do
+      desvio usado (R1/R2), `tappedAt` de ano impossível descartado (R3), documentação velha e limites
+      aceitos (R4/R5).
 - [ ] **T1.7** Publicar a API em staging e **confirmar o deploy** antes da Fase 2.
 
 ## Fase 2 — App: medir e mandar

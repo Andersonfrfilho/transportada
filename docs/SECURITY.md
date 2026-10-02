@@ -319,8 +319,11 @@ sinal de gestão, não prova (mesma premissa da spec 159).
   "longe". O mesmo para o evento: relato sem posição não grava `occurred_at` nem `clock_offset_ms`. Fecha
   o furo de forjar `clockOffsetMs: 0` numa entrega sem prova de lugar.
 - Cliente que **não** manda o desvio segue com o piso antigo.
-- A decisão é gravada (`trip_stop_events.occurred_at`/`clock_offset_ms`, `trip_delivery_proofs.clock_offset_ms`),
-  então o veredito se reproduz e uma correção descartada não volta a valer na leitura.
+- Com posição na entrega, a foto corrigida só vale se o evento de entrega também foi corrigido (senão a
+  entrega é hora crua e a comparação seria entre relógios diferentes); a foto segue a regra antiga.
+- A decisão é gravada (`trip_stop_events.occurred_at`/`clock_offset_ms`, `trip_delivery_proofs.clock_offset_ms`):
+  a linha da foto guarda o desvio que julgou esta foto, antes da fusão com a anterior (nulo quando a
+  correção não foi usada), e uma correção descartada não volta a valer na leitura.
 
 **Consequências aceitas pelo usuário:** a penalidade de "foto ausente" passa a ser **temporária e
 reversível** (a foto que chega fora do prazo, com prova de lugar, vira pontual e a nota se recalcula), e
@@ -334,6 +337,21 @@ e o valor é gravado cru em `trip_stop_events.captured_at`. Como a leitura do mo
 janela de 90 dias da nota. Pré-existente à spec 232 (a leitura anterior, `captured_at ?? recorded_at`,
 tinha o mesmo furo), mas a 232 dá mais motivo para fechar: aplicar a `resolveOccurredAt` (ou o mesmo
 teto de +2 min / 30 dias) ao `captured_at` da posição. Também não há atestado do aparelho.
+
+**Limites aceitos da revisão da Fase 1 (decisão pendente do usuário):**
+
+1. **Assimetria da D4b.** A punição por "sem posição = longe" só vale para quem manda `clockOffsetMs`.
+   Cenário: o motorista com o app novo e honesto, numa entrega sem GPS, recebe `away`; o que tira o campo
+   do corpo (ou ainda usa o app antigo) cai no comportamento antigo, em que a distância sem posição na
+   entrega não pesa, e não é punido. Há incentivo a omitir o campo. Opção futura: tornar "sem posição na
+   entrega = longe" regra do canal do motorista para qualquer cliente (muda a nota do cliente antigo).
+2. **Desvio forjado empurra a entrega para trás.** Cenário: um motorista no local manda `clockOffsetMs`
+   perto de −(30 dias − 1 min); `occurred_at` cai em recebimento − 30 dias (dentro do teto que
+   `resolveOccurredAt` aceita). Como a janela de 90 dias, o `effectiveSince` e o `expiresAt` da nota
+   ancoram no momento da entrega, a entrega pode sair da nota inteira (se o `effectiveSince` foi ativado
+   há menos de 30 dias) ou a penalidade expirar até 30 dias antes. Mitigação futura: ancorar
+   janela, `effectiveSince` e `expiresAt` em `recorded_at` e usar o momento corrigido só para a
+   pontualidade.
 
 **Origem:** spec 232 (decisões D1–D6 e D4b; limite em "O que esta decisão NÃO protege"). Registrado em
 2026-10-03.

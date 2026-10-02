@@ -4,8 +4,9 @@ Duas apps e uma migration aditiva. **Ordem de publicação: API primeiro, app de
 
 ## API (`apps/api-transportada`)
 
-- Migration aditiva `trip_stop_events.clock_offset_ms integer null` (+ `rollback.sql`; `make
-migration-test`). Nada destrutivo.
+- Migration aditiva `trip_stop_events.clock_offset_ms bigint null` (+ `occurred_at`,
+  `trip_delivery_proofs.clock_offset_ms`, `rollback.sql`; `make migration-test`). `bigint` porque
+  `integer` estoura em ±24,8 dias. Nada destrutivo.
 - `me-trip.schema.ts`: `tappedAt` e `clockOffsetMs` opcionais em `arrive`/`deliver`/`return`/ocorrência;
   `clockOffsetMs` opcional no multipart do comprovante. Hora no futuro (+2 min) ou com mais de 30 dias descarta a
   correção; nunca recusa o evento.
@@ -31,8 +32,10 @@ migration-test`). Nada destrutivo.
 ## Como a flag nasce (caso de uso)
 
 `hasCorrectedClock = resolveOccurredAt({ tappedAt: upload.capturedAt, clockOffsetMs,
-receivedAt: now }).kind === 'corrected'`, e o `capturedAt` passado à classificação é o corrigido. Nunca "`clockOffsetMs` presente".
-Ter ou não posição na entrega **não** entra na flag: quem decide é a política (`classifyProofPunctuality`,
+receivedAt: now }).kind === 'corrected' && (sem posição na entrega || evento de entrega corrigido)`
+(R1: com posição, a foto só vale corrigida se `occurred_at` do evento existe, senão `deliveredAt` é hora
+crua), e o `capturedAt` passado à classificação é o corrigido. Nunca "`clockOffsetMs` presente".
+A política decide o resto da posição (`classifyProofPunctuality`,
 D4b — sem posição na entrega, a flag é ignorada, vale o recebimento e a entrega conta como longe). Canal
 `office` não participa. `deliveryReceivedAt` do prazo de "ausente" é
 `trip_stop_events.recorded_at`, que o repositório da nota já seleciona — ligação sem migration (T1.3).
@@ -49,6 +52,14 @@ D4b — sem posição na entrega, a flag é ignorada, vale o recebimento e a ent
 5. Auditoria: gravar o desvio também em `trip_delivery_proofs` para reproduzir o veredito.
 6. Sem retroatividade: vereditos já gravados não são recalculados.
 7. Migration: coluna nula, sem backfill, `snapshot.json`, `rollback.sql`, `make migration-test`.
+
+## Pendência (revisão da Fase 1)
+
+- O índice antigo `trip_stop_events_company_delivered_at_idx` (`coalesce(captured_at, recorded_at)`)
+  fica só para o ROLLBACK: a API velha precisa dele. Dropar numa migration futura, depois de a API
+  estabilizar. O único uso restante de `captured_at ?? recorded_at` é a leitura de `arrived` do
+  relatório de campo (`drizzle-driver-field-report.repository.ts`), que o índice parcial de `delivered`
+  não atende.
 
 ## Riscos
 

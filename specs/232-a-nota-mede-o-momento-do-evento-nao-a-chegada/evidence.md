@@ -788,3 +788,37 @@ raiz$ bun run format:check → exit 0
 Fora do pedido, registrado: `locationSchema.capturedAt` (`z.iso.datetime()`, a leitura do GPS que vai para
 `trip_stop_events.captured_at`) tem a mesma forma do defeito — `0000-01-01` passaria o esquema. Não foi
 alterado aqui; fica como achado.
+
+## Revisão R4/R5
+
+Só documentação e comentários; nenhuma instrução SQL, nenhum código de regra mudou.
+
+- **R4a** O teto de ±365 dias saiu na T1.4b, mas ainda constava em `migration.sql`, `trip.schema.ts`, no
+  contrato estático e no nome do teste de `trip-schema/delivered-moment.contract.ts`. Todos dizem agora: o
+  desvio não tem teto no esquema (qualquer inteiro seguro; `resolveOccurredAt` descarta o absurdo) e é
+  `bigint` porque `integer` estoura em ±24,8 dias. A migration não foi aplicada em lugar nenhum, e o
+  contrato estático ignora linhas de comentário (`--`) ao comparar as instruções.
+- **R4b** `plan.md` (`bigint`, e a flag com a exigência do R1), `tasks.md` (T1.5 `[x]`, T1.4b, T1.5b e
+  R1–R5) e `spec.md` (ocorrência de nota e `proof/receiver` NÃO ganham os campos).
+- **R4c** O índice antigo `coalesce(captured_at, recorded_at)` não serve "as outras leituras": o único uso
+  restante é `drizzle-driver-field-report.repository.ts`, que lê `kind = 'arrived'` e não é atendido pelo
+  índice parcial de `delivered`. Fica só para o rollback (a API velha precisa dele), a dropar numa migration
+  futura depois de a API estabilizar — corrigido em `trip.schema.ts`, `migration.sql` e
+  `delivered-moment.support.ts`, e registrado como pendência no fim do `plan.md`.
+- **R4d** Lock: o `CREATE INDEX` sem `CONCURRENTLY` toma SHARE em `trip_stop_events`; a API em pé tem
+  `statement_timeout` de 8 s, então passando disso o INSERT do motorista falha (`57014`) e o app reenvia —
+  nada se perde. O comentário da migration diz isso e recomenda o deploy fora do horário de campo. Sem
+  `lock_timeout` (decisão).
+- **R5** `docs/SECURITY.md` (entrada de 2026-10-03): a frase "o veredito se reproduz" virou "a linha da foto
+  guarda o desvio que julgou esta foto, antes da fusão com a anterior"; entrou a defesa do R1; e dois
+  LIMITES ACEITOS, com cenário, marcados como decisão pendente do usuário — (1) assimetria da D4b e (2)
+  desvio forjado empurra a entrega para trás. `docs/ai-context/api-transportada.md` ajustado ao R1/R2.
+
+```text
+raiz$ make migration-test → 116 pass, 0 fail
+apps/api-transportada$ bun run db:generate --name tmp → {"status":"no_changes","dialect":"postgresql"}
+apps/api-transportada$ bun --env-file=../../.env.test test ./test/trip-schema.contract.test.ts → 150 pass, 0 fail
+apps/api-transportada$ bun --env-file=../../.env.test test ./test/database-migration.contract.test.ts → 76 pass, 0 fail
+apps/api-transportada$ bun run typecheck → exit 0 · bun run lint → exit 0
+raiz$ bun run format:check → exit 0
+```

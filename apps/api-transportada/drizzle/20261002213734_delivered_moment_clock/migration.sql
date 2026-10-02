@@ -7,19 +7,22 @@
 -- `clock_offset_ms` só nascem quando a correção foi aceita (`resolveOccurredAt` → `corrected`): a
 -- decisão fica gravada, e uma correção descartada nunca volta a valer numa leitura em SQL.
 --
--- `clock_offset_ms` é `bigint`: o esquema da rota aceita até ±365 dias, e `integer` estoura em
--- ±24,8 dias — o `22003` derrubaria o toque do motorista em vez de só descartar a correção.
+-- `clock_offset_ms` é `bigint`: o desvio não tem teto no esquema (qualquer inteiro seguro é aceito;
+-- `resolveOccurredAt` descarta o absurdo), e `integer` estoura em ±24,8 dias — o `22003` derrubaria o
+-- toque do motorista em vez de só descartar a correção.
 --
--- O índice é novo e o antigo (`trip_stop_events_company_delivered_at_idx`) fica: as outras leituras
--- ainda filtram por `coalesce(captured_at, recorded_at)`. A expressão é a mesma de
--- `deliveredMomentSql`, que o schema TS usa para montar este índice.
+-- O índice é novo e o antigo (`trip_stop_events_company_delivered_at_idx`) fica só para o ROLLBACK: a
+-- API velha ainda filtra por `coalesce(captured_at, recorded_at)` e precisa dele. Deve ser dropado numa
+-- migration futura, depois de a API estabilizar. A expressão do novo é a de `deliveredMomentSql`, que o
+-- schema TS usa para montar este índice.
 --
 -- Custo de lock a enxergar em produção:
 --   * `ADD COLUMN` anulável e sem default só toca o catálogo; não reescreve a tabela.
---   * `CREATE INDEX` toma SHARE sobre `trip_stop_events` enquanto constrói, e escrita espera. O
---     predicado só indexa `delivered`, mas a varredura para construí-lo é da tabela inteira. O
---     migrator roda em transação, então `CONCURRENTLY` não cabe aqui; fora do horário de campo, ou
---     aceitar a espera.
+--   * `CREATE INDEX` toma SHARE sobre `trip_stop_events` enquanto constrói, e escrita é bloqueada. O
+--     predicado só indexa `delivered`, mas a varredura para construí-lo é da tabela inteira. A API em
+--     pé tem `statement_timeout` de 8 s: se a construção passar disso, o INSERT do motorista FALHA
+--     (57014) e o app reenvia — nada se perde. O migrator roda em transação, então `CONCURRENTLY` não
+--     cabe aqui; faça o deploy fora do horário de campo.
 ALTER TABLE "trip_delivery_proofs" ADD COLUMN "clock_offset_ms" bigint;--> statement-breakpoint
 ALTER TABLE "trip_stop_events" ADD COLUMN "occurred_at" timestamp with time zone;--> statement-breakpoint
 ALTER TABLE "trip_stop_events" ADD COLUMN "clock_offset_ms" bigint;--> statement-breakpoint

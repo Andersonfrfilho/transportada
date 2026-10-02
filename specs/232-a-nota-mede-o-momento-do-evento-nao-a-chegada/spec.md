@@ -73,7 +73,8 @@ dias da nota. Fica registrado em `SECURITY.md`.
 - As outras seis consultas que leem `captured_at ?? recorded_at` (listagens, relatórios, ordenação do
   escritório): seguem com a hora de hoje até serem pedidas. Mudar o "momento da entrega" em todo o
   produto é uma decisão maior (CT-e, MDF-e, SLA).
-- Ocorrência e `proof/receiver` ganham os campos no corpo, mas só a entrega e a foto os usam nesta spec.
+- Ocorrência de nota e `proof/receiver` NÃO ganham os campos; só arrive/deliver/return, ocorrência de
+  parada e o multipart do comprovante (os esquemas são `.strict()`).
 - Desvio medido por NTP/serviço de hora externo: o cabeçalho `Date` da própria API basta e não adiciona
   dependência.
 
