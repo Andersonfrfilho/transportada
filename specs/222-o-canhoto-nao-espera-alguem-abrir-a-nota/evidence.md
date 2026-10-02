@@ -649,3 +649,14 @@ gerou.
 ⚠️ **Para a Fase 6**: a consulta da rotina tem de repetir os literais (`canhoto_review = 'pending'`,
 `canhoto_read_source is null`, `canhoto_read_attempted_at is null`), nunca `eq()` com valor JS — senão
 o índice é ignorado em silêncio. O `EXPLAIN` acima é o modelo do CA20 / T6.3.
+
+### T5.3b (complemento) — a recaptura zera o carimbo
+
+O `make check` pegou um vermelho que o `db:test` não podia pegar: `nenhuma coluna da família canhoto
+fica de fora do zeramento` (`trip-delivery-proof.contract.test.ts`) — **8522 pass / 1 fail**, a coluna
+nova `canhotoReadAttemptedAt` faltando em `buildCanhotoReviewReset`. Não é formalidade: a recaptura cai
+no `ON CONFLICT DO UPDATE` da **mesma linha** e o `SET` é denotativo, então sem o `null` ali o canhoto
+refotografado herdaria o "a máquina já tentou" e **nunca** entraria de novo na fila. (A afirmação
+anterior, de que recaptura cria comprovante novo e não é afetada, estava errada para esse caminho.)
+`canhotoReadAttemptedAt: null` entrou no tipo e no objeto do zeramento, e na lista `RESET_TO_NULL` do
+contrato: `trip-delivery-proof.contract.test.ts` → **273 pass / 0 fail**.
