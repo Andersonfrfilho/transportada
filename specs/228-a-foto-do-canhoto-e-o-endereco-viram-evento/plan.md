@@ -25,10 +25,13 @@ Sem migration (spec D11). F2 e F3 são independentes entre si.
 
 - Arquivo novo `src/trips/infrastructure/trip-timeline-proof.query.ts` com `listCanhotoPhotoRows`:
   `trip_delivery_proofs` ⨝ `trip_stop_events` (por `(company_id, stop_event_id)`) ⨝ `trip_stops` (viagem) ⨝
-  `trip_documents` (número/série) ⟕ `geocoded_addresses` (ponto vivo, para `distanceMeters`), filtro
-  `kind = 'photo'`, `company_id` nas **quatro** tabelas, keyset com
-  `coalesce(captured_at, created_at)` e prioridade constante 4, filtro `?documentId=` em
-  `trip_stop_events.trip_document_id = :documentId` (estrito, D3).
+  `trip_documents`/`nfe_documents` (número/série) ⟕ `geocoded_addresses` (só referência de `distanceMeters`,
+  depois do escopo), filtro `kind = 'photo'` (**literal**, para casar o índice parcial `kind <> 'cargo'`),
+  `company_id` em todas as tabelas, keyset com **uma** constante `photoInstant = coalesce(captured_at,
+created_at)` usada no filtro, na ordem e na chave em texto, e prioridade constante **3**; com `?documentId=`,
+  `trip_stop_events.trip_document_id = :documentId AND documentStopScope(params)` (D3; `documentStopScope` sai
+  de `trip-timeline-stop.query.ts` para o helper e é exportado). Erro de fonte **propaga** (nada de catch: o
+  `nextCursor` sai do último item da página mesclada).
 - Entra no `Promise.all` de `listTripTimeline` (`trip-timeline.query.ts:112-120`) e na lista de leitores
   (`event-location-readers.constant.ts`, D9).
 - Reaproveitar o mapeamento de posição de `trip-timeline-stop.query.ts` (sem copiar a conta: se a função não
@@ -39,8 +42,9 @@ Sem migration (spec D11). F2 e F3 são independentes entre si.
 - Arquivo novo `src/trips/infrastructure/trip-timeline-address.query.ts` com `listAddressCorrectedRows`:
   `union all` de `geocoded_address_corrections` (origem da linha) e `geocoding_refinement_requests`
   (`outcome = 'refined'`, origem `refinement`), ⨝ `trip_stops` por `(company_id, address_key)`, com
-  `created_at >= trip_stops.created_at`, `distinct on (id)` pela menor `sequence` (D5); com `?documentId=`,
-  `trip_stops.id = (select stop_id from trip_documents where company_id = :c and trip_id = :t and id = :d)`.
+  `created_at >= trip_stops.created_at`, `distinct on (id)` pela menor `sequence` (D5) **num subselect**
+  (ordem, keyset e limit na consulta externa), em **uma** consulta (pool); com `?documentId=`,
+  `documentStopScope(params)` sobre `trip_stops.id`. Nenhum join com `geocoded_addresses`.
 - `displacementMeters` pela mesma função de distância (`addresses/domain/coordinate-distance.js`), arredondada.
 - ⚠️ `trip_stops` não tem índice por `(company_id, address_key)`; as correções têm por `address_key`
   (`geocoded_address_corrections_address_key_idx`). Começar das paradas da viagem (poucas) e casar pela chave.

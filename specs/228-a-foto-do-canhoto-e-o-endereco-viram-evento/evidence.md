@@ -121,3 +121,10 @@ Mutação (cada edição aplicada, a suíte do lado rodada, arquivo restaurado p
 | ordem dos kinds invertida (painel e API)                               | mortas    |
 | API: prioridade da foto 4→5, do endereço 2→3, `document.returned` 3→33 | mortas    |
 | API: origem inventada acrescentada ao vocabulário                      | morta     |
+
+## Correções pós-parecer do architect (2026-10-02)
+
+Parecer do architect (opus) sobre T2.2/T3.2 aplicado à spec: D6 (foto com prioridade **3**, não 4: o empate
+foto×entrega não é raro — mesma transação, `created_at` ambos `now()`), D2 e fora do escopo (o upsert não regrava
+`created_at`), D4 (limite de correção de outra empresa; parada recriada), D5 (`documentStopScope`), D7 (refino
+com `location = null`), CA06 (colunas proibidas), Risco 2 (`enable_seqscan = off` e pressão no pool), plan F2/F3.

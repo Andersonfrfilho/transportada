@@ -35,12 +35,12 @@ D11. **Esta spec não tem migration** — se alguma task concluir que precisa de
 > `architect` em `opus` antes)
 
 - [ ] **T2.1** Contratos (antes): unitário do mapeamento (D2: `captured_at` ou `created_at`; posição; estado);
-      estático do SQL (`company_id` nas quatro tabelas, `kind = 'photo'`, filtro de nota estrito); leitores
+      estático do SQL (`company_id` em todas as tabelas, `'photo'` literal, `trip_document_id = documentId` sem ramo `is null` + `documentStopScope`, mesma expressão `coalesce` no filtro/ordem/chave, colunas proibidas ausentes); leitores
       (`event-location-readers.contract.ts` reprova sem a entrada); rota (sem `trip.event-location` →
       `location = null`); corpo sem `receiverName`/`receivedBy`/URL (CA06); integração Postgres: CA01, CA02,
-      cursor em páginas de 1 com foto e entrega no mesmo instante (RF4), empresa estranha → nada.
+      cursor em páginas de 1 com foto e entrega com `created_at` forçado igual e `captured_at` nulo, e instantes que diferem só no µs (RF4), empresa/viagem estranha → nada. A foto tem prioridade **3** (D6).
 - [ ] **T2.2** 🧠 `trip-timeline-proof.query.ts` + `Promise.all` + entrada em `EVENT_LOCATION_READERS`.
-      Aceite: os **dois** comandos da API verdes; `EXPLAIN` da consulta registrado no `evidence.md`.
+      Aceite: os **dois** comandos da API verdes; `EXPLAIN` (com `SET LOCAL enable_seqscan = off` em transação) registrado no `evidence.md`. Erro de fonte propaga (sem catch).
 
 ## Fase 3 — Endereço corrigido (API)
 
@@ -48,7 +48,7 @@ D11. **Esta spec não tem migration** — se alguma task concluir que precisa de
 
 - [ ] **T3.1** Contratos (antes): unitário de `addressChange` (origem, deslocamento, `null` sem ponto
       anterior e no refino); estático (empresa nas duas trilhas e na parada, `created_at >= parada`, só
-      `refined`); integração: CA03, CA04 (duas paradas, mesma chave, páginas de 1), CA05, filtro por nota (só a
+      `refined`, `distinct on` em subselect, nenhum `geocodedAddresses`, nenhum `reason`/`requestedBy`, `documentStopScope`); refino com `location = null`; empate forçado com `document.occurrence`; integração: CA03, CA04 (duas paradas, mesma chave, páginas de 1), CA05, filtro por nota (só a
       parada da nota; nota sem parada → nenhum evento de endereço).
 - [ ] **T3.2** 🧠 `trip-timeline-address.query.ts` + `Promise.all`. Aceite: os **dois** comandos da API
       verdes; `EXPLAIN` registrado.

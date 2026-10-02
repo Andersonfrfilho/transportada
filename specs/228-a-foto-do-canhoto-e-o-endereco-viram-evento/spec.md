@@ -66,7 +66,9 @@ geocodificador". A leitura do código (abaixo) mostra que a **foto do canhoto n�
 - Mudar quando, como ou por quem a foto é tirada (app do motorista, 218/220).
 - Redesenhar a geocodificação, o refino automático (ADR-0062) ou a agenda de endereços (084).
 - Histórico de fotos **substituídas**: o unique `(empresa, evento, tipo)` (`trip.schema.ts:1868`) guarda só a
-  foto vigente; o evento mostra o instante **dela**. Guardar substituições é outra spec.
+  foto vigente. O upsert **não regrava `created_at`** (`buildProofUpsertSet`,
+  `drizzle-delivery-proof.repository.ts:496-519`): foto substituída sem `captured_at` mostra o instante da
+  **primeira**; com envelope de posição a substituição troca o `id` (`:525`). Guardar substituições é outra spec.
 - A foto da mercadoria (`cargo`, spec 220) e a assinatura. O pedido é "Foto do canhoto".
 
 ## Decisões
@@ -80,8 +82,9 @@ geocodificador". A leitura do código (abaixo) mostra que a **foto do canhoto n�
   **estimativa** da D12 (tipo em `TRIP_STOP_EVENT_KINDS` + migration), não a decisão.
 - **D2 — O instante da foto é `coalesce(captured_at, created_at)`.** `captured_at` é a hora do aparelho
   quando a foto foi tirada (ADR-0070 §2) e sobrevive ao expurgo; `created_at` é a chegada ao servidor, para o
-  comprovante antigo ou de canal sem leitura do aparelho. O item diz qual foi (`location` nulo, estado
-  `null`/`unavailable`) sem inventar.
+  comprovante antigo ou de canal sem leitura do aparelho. O item só diz qual dos dois foi quando há
+  `location` (com `captured_at` o instante é o do aparelho); sem posição não há como distinguir. Foto
+  substituída sem `captured_at` mostra o `created_at` da primeira (o upsert não o regrava).
 - **D3 — A foto é da nota.** Ela pertence ao evento de baixa (`stop_event_id` → `trip_stop_events.trip_document_id`).
   Com `?documentId=`, só a foto **daquela** nota passa — nunca a de outra nota da mesma parada.
 - **D4 — O evento do endereço é da parada, e nasce quando a coordenada do endereço dela muda por ação desta
@@ -94,7 +97,10 @@ geocodificador". A leitura do código (abaixo) mostra que a **foto do canhoto n�
     empresa**, com a mesma `address_key` da parada e `created_at >= trip_stops.created_at`.
   - **Sem limite superior**: a distância de cada evento é medida contra o ponto **vivo** do endereço
     (`trip-timeline-stop.query.ts:156`); uma correção depois da entrega muda a distância exibida, e a linha do
-    tempo precisa dizer por quê.
+    tempo precisa dizer por quê. **Limite inevitável**: correção de **outra** empresa também muda o ponto vivo
+    e a distância, sem gerar evento aqui (`geocoded_addresses` é global).
+  - **Parada recriada**: `trip_stops.created_at` pode ser mais novo que a viagem se a parada for recriada
+    (`reconcileStopOnLink`); correção entre a criação da viagem e a recriação some. Aceitável.
   - **O que fica de fora (D11)**: a primeira geocodificação automática, o refino automático (ADR-0062) e o
     backfill. Eles gravam em `geocoded_addresses`, que é global, sem empresa, e cujo `geocoded_at` é
     reescrito — não há evento a derivar, e usar `geocoded_at` mostraria o instante de uma ação de **outra**
@@ -102,19 +108,21 @@ geocodificador". A leitura do código (abaixo) mostra que a **foto do canhoto n�
 - **D5 — Um endereço corrigido aparece uma vez por viagem.** Sem filtro, se duas paradas da viagem têm a mesma
   `address_key`, o item vai com a de **menor** `sequence` (`distinct on` pelo id da correção). O keyset
   `(occurredAt, prioridade, id)` exige id único na lista: dois itens com o mesmo id e o mesmo instante fariam a
-  página seguinte pular um. Com `?documentId=`, só a parada da nota (`trip_documents.stop_id`); nota sem
-  parada não recebe evento de endereço.
+  página seguinte pular um. Com `?documentId=`, só a parada da nota, via `documentStopScope` (o caso de uso já resolve
+  `documentStopId` com escopo de empresa e viagem); nota sem parada não recebe evento de endereço.
 - **D6 — Vocabulário e prioridade.** Dois `kind`s novos, acrescentados ao **fim** de `TRIP_TIMELINE_KINDS`:
   | `kind` | fonte | prioridade | por quê |
   | ----------------------- | ---------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------- |
-  | `document.canhoto_photo` | `trip_delivery_proofs` (`kind = 'photo'`) | **4** | a mesma de `document.delivered`; empate exato exigiria a hora do aparelho e a do servidor no mesmo microssegundo — o `id` desempata |
+  | `document.canhoto_photo` | `trip_delivery_proofs` (`kind = 'photo'`) | **3** | logo abaixo de `document.delivered` (4). O empate foto×entrega **não é raro**: o comprovante é gravado na mesma transação da baixa (`drizzle-driver-field-report.repository.ts:889`) e os dois `created_at` são `defaultNow()` (mesmo `now()`); com `captured_at` nulo empatam em instante e prioridade e o `id` (uuid v4) decidiria ao acaso — a prioridade 3 fixa a ordem |
   | `stop.address_corrected` | `geocoded_address_corrections` + `geocoding_refinement_requests` (`refined`) | **2** | acima de `stop.occurrence` (1): a correção é efeito do relato de endereço errado (195) — efeito acima da causa (158 D8) |
-  Prioridade é `::int` e **nenhuma existente é renumerada** — cursor em voo continua válido (206 D12).
+  Prioridade é `::int` e **nenhuma existente é renumerada** — cursor em voo continua válido (206 D12); nenhuma fonte
+  emitia a foto ainda, então não há cursor com prioridade da foto em voo.
 - **D7 — Posição só com `trip.event-location`, e nenhum texto de endereço.**
   - Foto: `location` é o ponto da foto, com `distanceMeters` contra o ponto vivo da parada (mesma conta de
     `trip-timeline-stop.query.ts`); `locationState` é o da foto.
-  - Endereço: `location` é o **ponto novo** do endereço (`accuracyMeters = null`, `capturedAt = created_at`,
-    `distanceMeters = null`); `locationState = null` ("não se aplica" — não é posição de pessoa).
+  - Endereço: `location` é o **ponto novo** da `geocoded_address_corrections` (`new_latitude`/`new_longitude`;
+    `accuracyMeters = null`, `capturedAt = created_at`, `distanceMeters = null`); no **refino** `location = null`
+    (não há ponto guardado, e o ponto vivo pode ter sido gravado por outra empresa); `locationState = null` ("não se aplica" — não é posição de pessoa).
   - O recorte do caso de uso (`read-trip-timeline.use-case.ts:75-78`) zera `location` dos dois sem
     `trip.event-location`; nenhum dos dois leva logradouro, número, CEP ou `address_key` em campo nenhum.
 - **D8 — O endereço leva um campo próprio, só nos itens do `kind` novo.** `addressChange: { origin,
@@ -165,8 +173,10 @@ displacementMeters }`, com `origin ∈ contractor | driver | operator | refineme
   não repete nem pula.
 - **CA05** Sem `trip.event-location`: nenhum dos dois traz `location`; `addressChange.displacementMeters`
   continua.
-- **CA06** O corpo da resposta não contém `address_key`, logradouro, CEP, `receiverName`, `receivedBy` nem URL
-  de objeto (contrato por `JSON.stringify` e `not.toContain`).
+- **CA06** O corpo da resposta não contém `address_key`, logradouro, CEP, `receiverName`, `receivedBy`, `reason`,
+  `requestedBy`, `objectId`, `thumbnailObjectId`, `canhotoRead*` nem URL de objeto (contrato por
+  `JSON.stringify` e `not.toContain`), e um contrato estático prende que os arquivos das fontes novas não citam
+  as colunas proibidas.
 - **CA07** Painel antigo (sem os `kind`s novos) recebendo a API nova: a página **não** é recusada (o item é
   descartado) — contrato no painel com o validador atual.
 - **CA08** Print de _Eventos desta entrega_ com os dois eventos, 1280 e 375 px, dark e light, sem transbordo
@@ -198,7 +208,12 @@ Nenhum `[NEEDS CLARIFICATION]` aberto.
 1. **Duplicar a 195.** Mitigado pela D4: a 228 lê o **efeito** (`geocoded_address_corrections`), a 195 grava o
    **relato** (`stop.occurrence`). Contrato de paridade dos `kind`s do painel prende o vocabulário.
 2. **Keyset com fonte de instante calculado** (`coalesce`) — sem índice dedicado; a consulta é escopada por
-   viagem (poucas linhas), como as fontes atuais. Medir com `EXPLAIN` na integração, não supor.
+   viagem (poucas linhas), como as fontes atuais. Medir com `EXPLAIN` na integração, não supor: tabelas de teste
+   minúsculas fazem Seq Scan de qualquer jeito, então a evidência usa `SET LOCAL enable_seqscan = off` dentro de
+   transação. **Pressão no pool**: `DATABASE_POOL_MAX=10` e o `Promise.all` já abre 7 consultas; foto (8) +
+   endereço (9) cabem, duas consultas de endereço (10) esgotariam — o endereço é **uma** consulta (`union all`).
+   O refino não tem índice por `address_key`: se pesar em volume real, a saída é migration (índice
+   `(company_id, address_key)`) — **parar e perguntar**, não criar.
 3. **Ordem de publicação** — resolvida pelo descarte de `kind` desconhecido (D8); o contrato CA07 a prende.
 4. **Permissão** — a fonte do endereço é tabela **fora** da lista fechada de leitores; o recorte do caso de uso
    é genérico, mas um contrato específico prova que o `kind` novo também é recortado.
