@@ -995,9 +995,13 @@
  * de status e o botão têm escalas diferentes). Não é alvo de toque — o `aria-hidden` no JSX diz isso.
  */
 .syncStatusSpinner {
-  border: 2px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  /*
+   * `currentColor`, não cobre fixo: dentro do botão primário o fundo JÁ é cobre e o spinner sumia
+   * (medido no print da revisão). Assim ele acompanha o texto ao lado, em qualquer fundo.
+   */
+  border: 2px solid color-mix(in srgb, currentcolor 30%, transparent);
   border-radius: 50%;
-  border-top-color: var(--color-copper);
+  border-top-color: currentcolor;
   display: block;
   flex: none;
   height: 1em;

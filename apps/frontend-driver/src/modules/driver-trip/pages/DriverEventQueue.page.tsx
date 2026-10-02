@@ -131,10 +131,20 @@ export function DriverEventQueuePage({
             pendingCount={pendingCount}
           />
           <Button
+            aria-busy={isSyncing}
+            aria-disabled={isSyncing || !hasSendableEvents(items)}
             className={styles.eventQueueSendAll}
-            disabled={isSyncing || !hasSendableEvents(items)}
+            /**
+             * `disabled` só para "não há o que enviar". Durante o envio vale `aria-disabled`: o
+             * `.ui-button:disabled` tem `opacity: 0.5` e apagava justamente o texto que diz o que
+             * está acontecendo (medido no print da revisão). O toque é recusado no handler.
+             */
+            disabled={!hasSendableEvents(items)}
             type="button"
-            onClick={onSendAll}
+            onClick={() => {
+              if (isSyncing) return
+              onSendAll()
+            }}
           >
             {isSyncing ? (
               <span aria-hidden="true" className={styles.syncStatusSpinner} />
