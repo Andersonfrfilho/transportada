@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { encodeCode128C, totalCode128Width } from './code128.service'
+import { buildCode128Layout, type Code128Layout } from './code128.service'
 import styles from './barcode.module.css'
 
 type BarcodeProps = Readonly<{
@@ -18,11 +18,8 @@ const BAR_HEIGHT_MODULES = 30
  * mostra nada em vez de um desenho que nenhum leitor aceita.
  */
 export function Barcode({ className, label, value }: BarcodeProps) {
-  const widths = safeEncode(value)
-  if (widths === null) return null
-
-  const total = totalCode128Width(widths)
-  let offset = 0
+  const layout = safeLayout(value)
+  if (layout === null) return null
 
   return (
     <svg
@@ -30,24 +27,38 @@ export function Barcode({ className, label, value }: BarcodeProps) {
       className={className ?? styles.barcode}
       preserveAspectRatio="none"
       role="img"
-      viewBox={`0 0 ${total} ${BAR_HEIGHT_MODULES}`}
+      viewBox={`0 0 ${layout.totalWidth} ${BAR_HEIGHT_MODULES}`}
     >
-      {widths.map((width, index) => {
-        const x = offset
-        offset += width
-        // Índice par é barra, ímpar é espaço: é a alternância que o Code 128 define.
-        return index % 2 === 0 ? (
-          <rect fill="currentColor" height={BAR_HEIGHT_MODULES} key={x} width={width} x={x} y={0} />
-        ) : null
-      })}
+      {/*
+        ⚠️ Barra escura sobre papel claro, sempre — nunca `currentColor`. No tema escuro a barra
+        herdava a cor do texto e saía clara sobre fundo escuro: o desenho fica certo e **nenhum
+        leitor lê**, porque o Code 128 pressupõe tinta escura sobre papel claro.
+      */}
+      <rect
+        className={styles.paper}
+        height={BAR_HEIGHT_MODULES}
+        width={layout.totalWidth}
+        x={0}
+        y={0}
+      />
+      {layout.bars.map((bar) => (
+        <rect
+          className={styles.bar}
+          height={BAR_HEIGHT_MODULES}
+          key={bar.x}
+          width={bar.width}
+          x={bar.x}
+          y={0}
+        />
+      ))}
     </svg>
   )
 }
 
 /** Chave fora do formato não vira desenho: um código que o leitor recusa é pior que nenhum. */
-function safeEncode(value: string): readonly number[] | null {
+function safeLayout(value: string): Code128Layout | null {
   try {
-    return encodeCode128C(value)
+    return buildCode128Layout(value)
   } catch {
     return null
   }
