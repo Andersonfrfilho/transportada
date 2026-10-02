@@ -42,10 +42,11 @@ export const TRIP_DOCUMENT_PROOF_REVIEW_PATH = `${API_TRIPS_PATH}/:id/documents/
 export const TRIP_DOCUMENT_PROOF_AUTOMATIC_REVIEW_PATH = `${TRIP_DOCUMENT_PROOF_REVIEW_PATH}/automatic`
 
 /**
- * `automatic` entra pela rota porque RF25 põe a leitura no navegador: não existe outro chamador. O
- * que ele manda é só o que **leu** — o veredito é derivado no servidor
- * (`canhoto-review-decision.policy.ts`), contra o documento da rota e o número daquela nota. Por
- * isso RF26 ("OCR nunca aprova sozinho") é invariante, e não convenção do cliente: um painel
+ * `automatic` entra pela rota porque RF25 põe a leitura no navegador — e desde a spec 222 o robô da
+ * rotina `trip.canhoto.read` chega pela mesma porta, de fora do processo, com a permissão de serviço
+ * `trip.canhoto-auto-review`. O que qualquer um dos dois manda é só o que **leu** — o veredito é
+ * derivado no servidor (`canhoto-review-decision.policy.ts`), contra o documento da rota e o número
+ * daquela nota. Por isso RF26 ("OCR nunca aprova sozinho") é invariante, e não convenção do cliente: um painel
  * adulterado consegue no máximo mentir sobre o que leu, e uma leitura que não casa vira `pending`.
  *
  * ⚠️ O `.strict()` é parte da garantia: `review` no corpo é 400, não campo ignorado.
