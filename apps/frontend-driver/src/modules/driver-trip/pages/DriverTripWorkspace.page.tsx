@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { CopyButton } from '@/components/ui/copy-button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
@@ -668,6 +669,16 @@ export function DriverTripWorkspacePage() {
                */}
               <span className={styles.tripCodeLabel}>{t('tripCodeLabel')}</span>
               <code className={styles.tripCode}>{formatShortTripId(trip.id)}</code>
+              {/*
+               * Copia o id INTEIRO, como a listagem do escritório: o recorte é para ler na tela, e
+               * o que o escritório procura é o id completo — mandar os 8 pelo WhatsApp obrigaria
+               * alguém a adivinhar o resto.
+               */}
+              <CopyButton
+                copiedLabel={t('tripCodeCopied')}
+                label={t('tripCodeCopy')}
+                value={trip.id}
+              />
             </p>
           )}
           {trip?.status === 'on_delivery_route' ? (

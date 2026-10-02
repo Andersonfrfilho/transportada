@@ -305,6 +305,8 @@
     "syncing_other": "Enviando {{count}} pendências…"
   },
   "title": "Minha viagem",
+  "tripCodeCopied": "Código copiado",
+  "tripCodeCopy": "Copiar o código da viagem",
   "tripCodeLabel": "Viagem",
   "tripCompleted": "Viagem concluída. Bom trabalho.",
   "vehicle": "Veículo {{plate}}",

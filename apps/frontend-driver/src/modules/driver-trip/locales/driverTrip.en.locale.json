@@ -278,6 +278,8 @@
     "syncing_other": "Sending {{count}} pending items…"
   },
   "title": "My trip",
+  "tripCodeCopied": "Code copied",
+  "tripCodeCopy": "Copy the trip code",
   "tripCodeLabel": "Trip",
   "tripCompleted": "Trip completed. Good work.",
   "vehicle": "Vehicle {{plate}}",
