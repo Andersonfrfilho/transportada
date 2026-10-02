@@ -121,6 +121,16 @@ Todo veículo que carrega, exceto o cavalo, é obrigado a escolher a carroceria 
 reescrito e aparece na página `/pendencias` (`GET /pending-items`, `fleet.read`). Detalhe em
 `docs/ai-context/api-transportada.md` §093.
 
+**O canhoto é lido sem ninguém abrir a viagem** (spec 220 + 222). A rotina agendada `trip.canhoto.read`
+no worker varredura comprovantes pendentes de cinco em cinco minutos, decodifica o código de barras em
+`worker_thread` e reporta o que leu à API. Quem decide é `resolveAutomaticCanhotoReview` (código que
+casa aprova, resto é `pending` para conferência manual — máquina nunca recusa). A rota do robô
+(`PATCH .../proof/review/automatic`) tem permissão própria (`trip.canhoto-auto-review`, só no papel
+`automation`, não herda `trip.manage`). No painel, o maço de aprovação (`TripCanhotoBatchDialog`,
+Fase 2) permite o operador, depois que a rotina passa, marcar as entregas, ver as fotos e aprovar em
+lote — nada de conferência sem a imagem na frente. Detalhe em `docs/ai-context/worker-transportada.md`
+(rotina) e `docs/ai-context/api-transportada.md` (rota do robô).
+
 ## Convenções
 
 Sufixos em uso: `.use-case.ts` · `.service.ts` · `.schema.ts` · `.repository.ts` (sempre prefixo

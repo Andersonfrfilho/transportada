@@ -2043,6 +2043,48 @@ registro datado: o que se decidiu, o que se mediu e os defeitos achados no camin
     posição duplicada das respostas rápidas (C13), atualização perdida no contato (C14),
     fingerprint sem ator (C15).
 
+## A leitura automática do canhoto (spec 220 + 222)
+
+**Rota do robô: `PATCH /trips/:tripId/documents/:documentId/proof/review/automatic`.** O worker
+chama com `client_credentials` do `config.mdfeAutoIssue` (Keycloak, compartilhado com MDF-e) +
+`x-company-id` + os quatro campos de leitura (`readDocumentId`, `readNumber`, `readSeries`,
+`readSource`). Schema próprio, `.strict()` — recusa `action`, veredito, empresa, qualquer campo que
+não seja os quatro de leitura. **Nenhum deles é `optional()`** — com `exactOptionalPropertyTypes` um
+campo ausente chega `undefined`, e `assertReadingIsConsistent` compara contra `null`: os quatro são
+`nullable()` e obrigatórios, logo "não enviado" é 400.
+
+**A decisão não sai do servidor.** `resolveAutomaticCanhotoReview` (220 RF26: código de barras que casa
+aprova; o resto é `pending`, nunca recusa) fica na API, e o worker só reporta o que leu — é a premissa
+que segura a 220 invariante mesmo com um canal novo. **Máquina nunca recusa.** Foto ilegível, código de
+outra nota, código fora da viagem, código-malformado, tudo fica `pending` com a leitura gravada para o
+operador revisar. A trilha fica em `audit_logs` com ação `trip.canhoto-review.automatic`, ator = usuário
+do serviço (do token `client_credentials`), e sem nota nem PII — o Keycloak, em `audit_logs`, é o único
+lugar onde a identidade do serviço aparece (ADR-0047 §6).
+
+**Permissão: `trip.canhoto-auto-review`** — nova, só no papel `automation`, entra no catálogo de
+`TRANSPORTADA_PERMISSIONS` e em `SERVICE_ONLY_PERMISSIONS` (lista que `isGrantablePermission` consulta
+para recusar concessão por grupo ou avulsa). O robô não herda `trip.manage`: não separa, não carrega,
+não cancela, não aprova nem recusa à mão. A rota de gente (`PATCH .../proof/review`, `trip.manage`)
+continua aceitando `action: 'automatic'` (para o navegador não mudar), mas o canal que ela reporta é
+`person`, então não grava trilha (o navegador já vem com pessoa logada).
+
+**A rota de gente e a do robô são paralelas**, não cadeia. Tanto `status 200` (aprovado/recusado) como
+`status 409` (já resolvido) devolvem a view final. Mas `409` **não** recusa aprovação humana por cima de
+automática: quem olhou a foto manda mais que quem leu a barra. A policy não trata origem `automatic`
+como veredito humano — ela se importa se há **veredito**, período. Então: veredito humano rejeitado →
+`unchanged` (segunda rota não altera); veredito automático aprovado → segunda rota aprova e devolve 200.
+Tela não chama isso de conflito (RF-A7). A idempotência é dupla: primeira rota por `(document_id, value)`,
+segunda por veredito de fato (já gravado ≠ novo = `unchanged`).
+
+**Lote em massa** (`GET /trips/:tripId/delivery-proofs`, RF-A1) retorna os comprovantes da viagem com
+`documentId` por item, permissão `fleet.read` (mesma do comprovante de uma nota, 220 RF26), `trip.manage`
+não é exigido. O diálogo do painel mostra as fotos e permite ao operador marcar e confirmar a aprovação
+— **a tela não aprova o que não mostrou** (RF-A8). Item cuja foto não carregou nasce desmarcado; o lote
+só envia os marcados.
+
+Detalhe completo (rota, permissão, diálogo, testes/integração): spec 222 (seções de requisitos,
+decisões, strategy de teste, evidence.md).
+
 ## Planejamento de viagem com rota escolhida e redação monetária por permissão (spec 153)
 
 ### Rota gravada no planejamento, não descartada após criação (spec 153 Fase 1–2)
