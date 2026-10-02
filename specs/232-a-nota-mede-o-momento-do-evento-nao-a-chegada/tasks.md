@@ -30,3 +30,38 @@
 - [ ] **T2.3** Smoke: o corpo do `deliver` leva os dois campos; sem resposta ainda, vai sem eles.
 - [ ] **T2.4** Prova por mutação (cada fase) — evidência em `evidence.md`.
 - [ ] **T2.5** Publicar o app em staging depois da API (T1.7).
+
+## Prompt de execução
+
+```text
+/oh-my-claudecode:autopilot Execute a spec specs/232-a-nota-mede-o-momento-do-evento-nao-a-chegada/
+(leia spec.md, plan.md e tasks.md inteiros antes de tocar em código). Uma task por vez, na ordem do
+tasks.md, em worktree/branch própria a partir de origin/staging (git fetch antes).
+
+MODELOS (a sessão não troca de modelo: delegue cada task a um subagente `executor` com o modelo da fase):
+- Fase 1 — API: T1.1, T1.2 e T1.5 são 🧠 → executor model=opus (T1.1 e T1.2 são os contratos que
+  definem a regra da nota; T1.5 é a migration). T1.3, T1.4, T1.6 → executor model=sonnet. Antes de
+  implementar T1.3, valide os contratos T1.1/T1.2 com architect model=opus.
+- Fase 2 — App: T2.1 a T2.5 → executor model=sonnet.
+- Revisão final de cada fase → code-reviewer model=opus, em passada separada (quem escreveu não aprova).
+
+REGRAS DE CADA TASK (model-economy §3): teste/contrato ANTES do código, visto vermelho pelo motivo
+certo; depois `bun run typecheck`, `bun run lint`, o teste da app pelo script do package.json (nunca
+`bun test` cru), `bun run format:check` na raiz; commit isolado por task com caminhos explícitos
+(`--no-verify`, nunca `git add -A`); prova por mutação onde a task muda regra; evidência em
+`evidence.md`. Task só fecha com evidência.
+
+FASE 1 (API) — gates extras: a migration é aditiva (coluna nula) e traz `rollback.sql`; rode
+`make migration-test` e a integração da nota (CA3) contra um Postgres que de fato responda — se o
+Postgres local estiver quebrado, suba um descartável; PULAR NÃO É PASSAR. Publique a API em staging
+(T1.7) só com tudo verde, `git fetch` + rebase limpo + `bun install --frozen-lockfile` + typecheck
+antes do push, e CONFIRME QUE O DEPLOY DA API SUBIU (gh run / Railway) antes de seguir.
+
+FASE 2 (App) — só comece depois de T1.7 confirmada: os esquemas da API são `.strict()`, e app novo
+contra API velha recebe 400 em todo relato. Se não conseguir confirmar o deploy da API, PARE e pergunte.
+
+PARE E PERGUNTE antes de: deploy em produção (nunca), qualquer migration destrutiva, qualquer
+[NEEDS CLARIFICATION], mudar o "momento da entrega" fora da nota e da pontualidade (está fora de
+escopo), e qualquer mudança visível de tela (não há nenhuma prevista: o app só passa a mandar dois
+campos). Não deixe stub, TODO nem teste pulado: são bloqueios, não evidência.
+```
