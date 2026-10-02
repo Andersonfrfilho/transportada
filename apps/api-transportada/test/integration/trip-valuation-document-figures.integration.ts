@@ -183,6 +183,28 @@ describe('a soma das notas fecha com a viagem (spec 232 D4, CA01)', () => {
     })
   })
 
+  testWithPostgres('a nota sem parada diz hasStop false, lida do banco (RF7)', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedWorld(database)
+      const tripId = await seedTrip(database, { documentsPerStop: [2, 2, 1], world })
+      const [detached] = await database.db
+        .select({ id: tripDocuments.id })
+        .from(tripDocuments)
+        .where(eq(tripDocuments.tripId, tripId))
+      await database.db
+        .update(tripDocuments)
+        .set({ stopId: null })
+        .where(eq(tripDocuments.id, (detached as { id: string }).id))
+
+      const valuation = await valuate(database, world.companyId, tripId)
+      const byStop = valuation.revenueLines.map((line) => line.hasStop)
+
+      expect(byStop.filter((hasStop) => hasStop === false)).toHaveLength(1)
+      expect(byStop.filter((hasStop) => hasStop === true)).toHaveLength(4)
+      expectSumsToClose(valuation)
+    })
+  })
+
   /**
    * Revisão da 232, M4. A espera na parada é refinamento: os totais da viagem não dependem dela, e a
    * mesma leitura alimenta o recálculo do resultado congelado. Falha aqui não pode virar 500 na

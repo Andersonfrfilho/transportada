@@ -244,7 +244,10 @@ export type TripCostKind = (typeof TRIP_COST_KINDS)[number]
  */
 export type TripRevenueLineFigures = Partial<
   Omit<DocumentCostFigures, 'freightAmount' | 'tripDocumentId'>
->
+> & {
+  /** Spec 232 RF7: a nota desce numa parada? Ausente quando o contexto não informou — nunca inferido. */
+  readonly hasStop?: boolean
+}
 
 export type TripRevenueLine = TripRevenueLineFigures & {
   readonly amount: string

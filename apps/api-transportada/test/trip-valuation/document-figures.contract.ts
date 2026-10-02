@@ -52,6 +52,7 @@ const FIGURE_KEYS = [
 const FORBIDDEN_KEYS = [
   ...FIGURE_KEYS,
   'freightAmount',
+  'hasStop',
   'revenueLines',
   'totalCost',
   'totalMargin',
@@ -133,12 +134,17 @@ function buildContext() {
   return context
 }
 
-const REPOSITORY: TripValuationPort = {
-  findApplicableRule: () => Promise.resolve(TEN_PERCENT_RULE),
-  readContext: () => Promise.resolve(buildContext()),
+function repositoryFor(buildContextOverride: () => TripValuationContext): TripValuationPort {
+  return {
+    findApplicableRule: () => Promise.resolve(TEN_PERCENT_RULE),
+    readContext: () => Promise.resolve(buildContextOverride()),
+  }
 }
 
-async function requestValuation(permissions: CompanyContext['permissions']) {
+async function requestValuation(
+  permissions: CompanyContext['permissions'],
+  repository: TripValuationPort = repositoryFor(buildContext),
+) {
   const executions: object[] = []
   const fixture = await createTripHttpFixture({
     permissions,
@@ -146,7 +152,7 @@ async function requestValuation(permissions: CompanyContext['permissions']) {
       executions.push(input)
       return readTripValuation({
         companyId: COMPANY_CONTEXT.companyId,
-        repository: REPOSITORY,
+        repository,
         tripId: TRIP_ID,
       })
     },
@@ -223,6 +229,71 @@ describe('com trip.financials, cada nota diz quanto rendeu e quanto gastou (spec
         4,
       )
     }
+  })
+})
+
+describe('a linha diz se a nota tem parada (spec 232 RF7)', () => {
+  const [first, second, third, fourth, fifth] = buildContext().documents as [
+    TripValuationDocument,
+    TripValuationDocument,
+    TripValuationDocument,
+    TripValuationDocument,
+    TripValuationDocument,
+  ]
+
+  /** A segunda nota sem parada (`null`) e a terceira sem a chave: "sem parada" e "não informado" são casos distintos. */
+  function contextWithStopCases(): TripValuationContext {
+    const { stopId: omittedStopId, ...withoutStopKey } = third
+    expect(omittedStopId).toBe('stop-2')
+    return {
+      ...buildContext(),
+      documents: [first, { ...second, stopId: null }, withoutStopKey, fourth, fifth],
+    }
+  }
+
+  async function linesFor(buildContextOverride: () => TripValuationContext) {
+    const { response } = await requestValuation(
+      new Set([FINANCIALS_PERMISSION]),
+      repositoryFor(buildContextOverride),
+    )
+    expect(response.status).toBe(200)
+    return ((await responseData(response)) as ValuationBody).revenueLines
+  }
+
+  test('nota com parada diz hasStop true; sem parada, false', async () => {
+    const lines = await linesFor(contextWithStopCases)
+
+    expect(lines[0]?.hasStop).toBe(true)
+    expect(lines[1]?.hasStop).toBe(false)
+    expect(lines[3]?.hasStop).toBe(true)
+    expect(lines[4]?.hasStop).toBe(true)
+  })
+
+  test('contexto que não informou a parada não ganha hasStop — nem false inventado', async () => {
+    const lines = await linesFor(contextWithStopCases)
+
+    expect('hasStop' in (lines[2] as ResponseLine)).toBe(false)
+  })
+
+  test('o campo é booleano em toda linha quando o contexto informa a parada', async () => {
+    const lines = await linesFor(buildContext)
+
+    expect(lines.map((line) => line.hasStop)).toEqual([true, true, true, true, true])
+  })
+
+  test('a nota sem parada não recebe gasto de trecho e o rateio fecha o custo', async () => {
+    const [, line] = await linesFor(contextWithStopCases)
+
+    expect(line?.hasStop).toBe(false)
+    expect(Number(line?.legCostAmount)).toBe(0)
+    expect(Number(line?.tripShareCostAmount)).toBeGreaterThan(0)
+  })
+
+  test('hasStop é proibido sem trip.financials, como o resto', async () => {
+    const { response } = await requestValuation(new Set(['trip.read']))
+
+    expect(response.status).toBe(403)
+    expect(JSON.stringify(await response.json())).not.toContain('hasStop')
   })
 })
 

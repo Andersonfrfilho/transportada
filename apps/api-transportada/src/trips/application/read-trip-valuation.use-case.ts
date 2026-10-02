@@ -515,7 +515,7 @@ function attachDocumentCostFigures(input: {
 }): TripValuation {
   const { context, valuation } = input
   const stopIdByDocument = new Map(
-    context.documents.map((document) => [document.tripDocumentId, document.stopId ?? null]),
+    context.documents.map((document) => [document.tripDocumentId, document.stopId]),
   )
   const apportioned = apportionDocumentCosts({
     costParcels: valuation.costParcels.map((parcel) => ({
@@ -540,8 +540,14 @@ function attachDocumentCostFigures(input: {
     revenueLines: valuation.revenueLines.map((line) => ({
       ...line,
       ...figuresByDocument.get(line.tripDocumentId),
+      ...toStopFlag(stopIdByDocument.get(line.tripDocumentId)),
     })),
   }
+}
+
+/** Spec 232 RF7: `stopId` ausente é "o contexto não disse" — nada sai, em vez de um `false` inventado. */
+function toStopFlag(stopId: null | string | undefined): { readonly hasStop?: boolean } {
+  return stopId === undefined ? {} : { hasStop: stopId !== null }
 }
 
 /** O frete já é o `amount` da linha, e o id é a chave dela: nenhum dos dois se repete na resposta. */
