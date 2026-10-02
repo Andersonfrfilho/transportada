@@ -885,3 +885,28 @@ integração T6.9/T6.10, que usam a rotina com o mesmo `createDrizzleCanhotoRead
 
 ⚠️ O `createCanhotoReviewApiGateway` não tem timeout de `fetch` (igual ao do MDF-e): API pendurada
 poderia segurar um ciclo. Fica registrado, não corrigido aqui.
+
+## T6.8 — contrato de log (CA15)
+
+`canhoto-read-log.contract.ts`: um ciclo de seis comprovantes com **todo** tipo de falha (objeto
+ausente, exceção com nome, CPF, endereço e marcador de bytes na mensagem, leitura sem código, 400 da
+API, API fora, leitura que casa) e o logger capturando as quatro linhas possíveis. Afirma: nenhuma
+linha contém a chave de acesso, o número da nota, nome, CPF, endereço ou os bytes; toda chave de
+metadata está numa lista de permissão (id opaco, código, booleano, contagem); o resumo do ciclo traz
+as contagens e os ids de correlação/execução; a falha de um comprovante sai por `proofId` + resultado,
+nunca pela mensagem do erro.
+
+Nasceu verde (a rotina já loga assim desde a T6.7), então a prova é por mutação — suíte de 63:
+
+| Mutação                                        | Resultado            |
+| ---------------------------------------------- | -------------------- |
+| texto do erro vira o "resultado" do log        | 61 pass / **2 fail** |
+| número lido (`12345`) entra no resumo do ciclo | 61 / **2**           |
+| `objectKey` entra no log de falha              | 61 / **2**           |
+| `proofId` sai do log de falha                  | 62 / **1**           |
+
+Restaurado: **63 / 0 / 0 skip**; `tsc`, `eslint` e `prettier` limpos.
+
+⚠️ O que o log não cobre: a **exceção inesperada vai crua ao Sentry** (`captureException(error)`), com a
+mensagem que a biblioteca de origem escreveu. A garantia ali é o `scrubSentryEvent` do
+`observability/sentry.service.ts`, não esta rotina — não foi exercitada aqui.
