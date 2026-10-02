@@ -785,3 +785,41 @@ caracteres em 170 ms.
 
 `tsc --noEmit`, `eslint` (cwd da app) e `prettier` limpos. Não rodou: RabbitMQ, MinIO — nenhum
 teste desta task os exige (o leitor recebe `AttachmentObjectReaderPort` por injeção).
+
+## Fase 6 — T6.5: o gateway autenticado da API
+
+Calco de `mdfe-auto-issue/infrastructure/automatic-manifest-api.gateway.ts`: mesmo crachá
+(`config.mdfeAutoIssue`: `client_credentials`, `tokenUrl`, `apiBaseUrl`), token em cache com margem de
+30 s, `fetch` e `now` injetáveis. O papel `automation` já carrega `trip.canhoto-auto-review`
+(`authorization.policy.ts`); **`trip.manage` não foi tocado**.
+
+Teste antes: `canhoto-review-api.gateway.contract.ts` vermelho (`Cannot find module`). Depois:
+`canhoto-read.contract.test.ts` **35 pass / 0 fail / 0 skip** (27 + 8).
+
+- `PATCH {base}/trips/:tripId/documents/:documentId/proof/review/automatic`; `:documentId` é o
+  `trip_documents.id` do comprovante, não o `readDocumentId` lido. `authorization: Bearer`,
+  `x-company-id`, `content-type: application/json`.
+- Corpo **exatamente** `{readDocumentId, readNumber, readSeries, readSource}` — nem `action`, nem
+  veredito. "Li e não achei" são quatro `null` explícitos, nunca campos ausentes.
+- 400/404/409 → `report_rejected`; 401/403 → `api_unauthorized` (e o 401 descarta o token em cache);
+  429/5xx/conexão recusada/token malformado → `api_unreachable`. Recusa do endpoint de token é
+  classificada pelo mesmo status. O erro leva só resultado e status: corpo da resposta e segredo não.
+- O gateway devolve `{ review }` (o `canhotoReview` que o servidor gravou), que a rotina usa para
+  contar `approved` e `pending` sem recalcular o veredito.
+
+Mutações (restaurada a cada uma; suíte de 35):
+
+| Mutação                        | Resultado                                         |
+| ------------------------------ | ------------------------------------------------- |
+| `action: 'approve'` no corpo   | 33 pass / **2 fail** (corpo exato e quatro nulls) |
+| margem de 30 s zerada          | 34 / **1** (`reuses the token until 30 seconds`)  |
+| 409 sai de `report_rejected`   | 34 / **1**                                        |
+| 403 sai de `api_unauthorized`  | 34 / **1**                                        |
+| 401 não descarta o token       | 34 / **1**                                        |
+| exceção de `fetch` escapa crua | 34 / **1** (`api_unreachable`)                    |
+| `null` omitido do corpo        | 34 / **1** (`four explicit nulls`)                |
+
+Restaurado: **35 / 0**.
+
+Não rodou: chamada real à API ou ao Keycloak (o `fetch` é injetado nos testes; a ponta a ponta com a
+rota real é da T6.9, que ainda fala com um gateway falso, não com o HTTP).
