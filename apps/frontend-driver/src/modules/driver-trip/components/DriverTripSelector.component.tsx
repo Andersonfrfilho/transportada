@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 
 import { describeTripSelectorPath } from '../shared/driverTripSelection.service'
 import type { DriverTrip } from '../shared/driverTrip.types'
+import { isConcludedTripStatus } from '../shared/tripSnapshot.service'
 import styles from '../styles/driverTrip.module.css'
 
 type DriverTripSelectorProps = Readonly<{
@@ -15,7 +16,8 @@ type DriverTripSelectorProps = Readonly<{
 
 /**
  * RF12 (ADR-0075 §8): o agregado com duas viagens ativas vê as duas. Com uma só não há o que
- * escolher, e o seletor não aparece. A ordem é a da API (`createdAt` ascendente).
+ * escolher, e o seletor não aparece. A ordem é a da API (`createdAt` ascendente). Viagem concluída
+ * (spec 224) não é opção: a API a devolve por 15 min, mas ela não é mais do motorista.
  *
  * O botão diz o **caminho** da viagem (`describeTripSelectorPath`), não a posição na lista: "Viagem
  * 1"/"Viagem 2" não dizia para onde cada uma ia, e duas viagens podem ter a mesma placa — a placa
@@ -24,11 +26,12 @@ type DriverTripSelectorProps = Readonly<{
 export function DriverTripSelector({ onSelect, selectedTripId, trips }: DriverTripSelectorProps) {
   const { t } = useTranslation('driverTrip')
 
-  if (trips.length < 2) return null
+  const openTrips = trips.filter((trip) => !isConcludedTripStatus(trip.status))
+  if (openTrips.length < 2) return null
 
   return (
     <div aria-label={t('tripSelector.label')} className={styles.tripSelector} role="group">
-      {trips.map((trip) => {
+      {openTrips.map((trip) => {
         const path = describeTripSelectorPath(trip)
         return (
           <Button
