@@ -326,6 +326,7 @@ describe('Drizzle migrations', () => {
       '20261002120000_trip_canhoto_read_job',
       '20261002153258_occurrence_location_stamp',
       '20261002213734_delivered_moment_clock',
+      '20261002230234_helper_role_and_can_drive',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

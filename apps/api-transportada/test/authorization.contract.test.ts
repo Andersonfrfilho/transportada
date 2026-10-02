@@ -196,6 +196,7 @@ describe('authorization contract', () => {
       driver: ['trip.read', 'trip.report'],
       aggregate: ['trip.read', 'trip.report'],
       separator: ['invoices.read', 'fleet.read', 'trip.read', 'trip.manage', 'cargo.measure'],
+      helper: ['trip.read'],
       contractor: ['deliveries.track', 'charges.decide', 'occurrences.decide'],
       automation: ['mdfe.auto-issue', 'whatsapp.settle', 'trip.canhoto-auto-review'],
     })
@@ -244,6 +245,11 @@ describe('authorization contract', () => {
         expect(permissions.has(denied)).toBe(false)
       }
     }
+  })
+
+  // Spec 234 D7: o ajudante acompanha a viagem e não reporta entrega nem comprovante.
+  test('grants the helper role only the trip read', () => {
+    expect([...resolveCompanyPermissions(['helper'])]).toEqual(['trip.read'])
   })
 
   /**

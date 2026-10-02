@@ -13,6 +13,7 @@ import { assertDriverAllowanceRollbackRefusesRecordedMoney } from './driver-allo
 import { assertFiscalConstraints } from './fiscal-constraints.assertion.js'
 import { assertFleetConstraints } from './fleet-constraints.assertion.js'
 import { assertFreightRegionConstraints } from './freight-region-constraints.assertion.js'
+import { assertHelperRoleRollbackRefusesHelpers } from './helper-role-rollback.assertion.js'
 import { assertIdentityConstraints } from './identity-constraints.assertion.js'
 import { assertInvitationConstraints } from './invitation-constraints.assertion.js'
 import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
@@ -220,6 +221,14 @@ describe('Drizzle migration integration', () => {
         await assertTollBoothExtractConstraints({
           database,
           directories: migrationDirectories,
+        })
+        await assertHelperRoleRollbackRefusesHelpers({
+          companyId: identityFixture.companyId,
+          database,
+          directories: migrationDirectories,
+          driverId: fleetFixture.driverId,
+          membershipId: identityFixture.membershipId,
+          userId: identityFixture.userId,
         })
 
         const postIdentityRollbacks = await Promise.all(

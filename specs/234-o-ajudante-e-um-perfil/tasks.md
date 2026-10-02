@@ -7,7 +7,7 @@ da app. Cada task fecha com typecheck, testes da app, commit isolado e evidênci
 
 > 🤖 Modelo: `opus` 🧠 (validar a migration com `architect` antes de gerar)
 
-- [ ] **T1** 🧠 Papel `helper` e `fleet_drivers.can_drive`: `COMPANY_ROLES`, CHECKs de
+- [x] **T1** 🧠 Papel `helper` e `fleet_drivers.can_drive`: `COMPANY_ROLES`, CHECKs de
       `membership_roles` e `user_invitation_roles`, coluna e CHECK da D2, `rollback.sql`.
       Aceite: `make migration-test` verde e `db:generate` = `no_changes`.
 - [ ] **T2** 🧠 `resolveTripCrew` recusa `can_drive = false` (D5): `TripDriverCannotDriveError`

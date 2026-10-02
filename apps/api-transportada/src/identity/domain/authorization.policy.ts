@@ -255,6 +255,8 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'trip.manage',
     'cargo.measure',
   ]),
+  // Spec 234 D7: o ajudante acompanha a viagem; não reporta entrega nem comprovante (`trip.report`).
+  helper: Object.freeze(['trip.read']),
   /**
    * ADR-0050: o contratante lê **a entrega**, e só a das notas dos documentos dele — o recorte não
    * vem do papel, vem do vínculo, e é o repositório que o aplica. Nada de frota, faturamento ou
