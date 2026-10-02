@@ -117,5 +117,6 @@
     "missingAmount": "A selected suggestion has no amount. Fill it in before confirming.",
     "select": "Select the charge",
     "title": "Suggestions to review ({{count}})"
-  }
+  },
+  "forbidden": "You do not have permission to review and send delivery charges."
 }

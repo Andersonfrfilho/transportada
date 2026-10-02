@@ -629,3 +629,91 @@ Corrigido comparando com a tela vizinha (`.firstAccessTitle`, a outra tela de be
 | Apoio ("peça ao…") | `#8FA3AD`           | **5,55:1**  |
 
 Os três passam AA (4,5:1). Botão "Sair" com 48 px de altura — acima do alvo de toque de 44 px.
+
+## T6.4 — Revisão final, e o bloqueante que ela achou (2026-10-01)
+
+A revisão independente (`code-reviewer`, opus) reprovou a entrega: **REQUEST CHANGES**, com um
+bloqueante e cinco importantes. Nenhum era vazamento de dado; o que estava quebrado era navegação — e
+a prova dela.
+
+### Bloqueante — o separador via NF-e no menu e não conseguia abrir
+
+Clicar em NF-e leva a `/`. `resolveWorkspaceFromPath` não tem ramo para `/`, e
+`persistWorkspacePreference('nfe')` **apaga** a chave do `sessionStorage` de propósito. Resultado: o
+render seguinte lia `source: 'default'`, a preferência da RF-C6 disparava de novo e devolvia a pessoa
+para `/trips`. O item aparecia no menu, afirmado pela CA01, e não abria — por clique, por URL e por
+sessão.
+
+Causa raiz conceitual: **aterrissar é decisão de entrada, e eu a calculava a cada render**.
+
+Correção: a trava virou parâmetro da função pura (`hasLanded`), não um `ref` escondido no componente
+— assim ela é afirmável por teste. O efeito passou a decidir uma vez por montagem e a gravar o
+`sessionStorage` do destino (sem isso, um `popstate` ressuscitava a tela proibida — achado 6).
+
+```
+# sem a trava (o bloqueante de volta)
+bun test test/shared.contract.test.ts → 391 pass / 2 fail
+  (fail) depois de aterrissar, NF-e abre para o separador em vez de devolvê-lo
+  (fail) a trava vale para toda origem, inclusive a sessão guardada
+```
+
+### Importante 2 — o contrato de parede ainda passava com a parede invertida
+
+A revisão mostrou a mutação: trocar `!canOpenWorkspace(...)` por `canOpenWorkspace(...)` abre a tela
+para exatamente quem não pode, e as três asserções de texto (`toInclude`) continuavam verdes. É a
+**segunda** geração deste arquivo a nascer inútil pelo mesmo motivo.
+
+Correção: a decisão saiu do componente para `shared/workspaceWall.service.ts`
+(`isWorkspaceForbidden`), e o contrato exercita conjuntos de permissão por papel.
+
+```
+# parede invertida
+bun test test/shared.contract.test.ts → 386 pass / 5 fail
+```
+
+### Importante 3 — fixture que se dizia transcrito e não era
+
+`OPERATOR` incluía `settings.manage`, que o papel `operator` **não** tem
+(`authorization.policy.ts:192`). A asserção "o operador mantém Empresa" passava por causa da
+permissão inventada, enquanto `workspace-menu.contract.ts` — com o conjunto certo — afirmava o
+contrário. Dois contratos da mesma spec respondiam de formas opostas à mesma pergunta. Corrigidos os
+dois fixtures contra a política real; esconder Empresa do operador está certo, porque o
+`GET /company-settings` exige `settings.manage`.
+
+### Importante 4 — RF-E4 não cumprida
+
+Com o interruptor ligado, a conta de campo pintava a barra do painel enquanto o efeito esperava dois
+`import()` dinâmicos e uma leitura de IndexedDB. Correção: retorno antecipado no render para
+`isFieldOnlyUser`.
+
+### Importante 5 — o mapa travava a chave, não o valor
+
+`readonly string[]` deixava `'trip.financial'` sem o `s` compilar e passar: o contrato comparava o
+mapa com uma cópia das mesmas strings. Correção: contrato novo cruzando todo valor contra
+`COMPANY_PERMISSIONS`.
+
+```
+# permissão com erro de digitação no mapa
+bun test test/shared.contract.test.ts → 3 fail, incluindo "nenhum valor fora de COMPANY_PERMISSIONS"
+```
+
+### Menor 7 — par em inglês do locale de Repasses, acrescentado.
+
+### Gates depois das correções
+
+```
+bun run --cwd apps/frontend-transportada test → 6166 pass / 0 fail + 180 pass / 0 fail (hooks)
+bun run typecheck    → 0 erros, 7 apps
+bun run lint         → 0 erros, 16 avisos pré-existentes
+bun run format:check → limpo
+```
+
+### Achados aceitos sem correção
+
+- **8, 9, 10, 12, 13, 14** (props redundantes em `CompanySettings`, chave de locale órfã `readOnly`,
+  ramo `legacy-home` inalcançável no caminho com interruptor, leitura de `window` no corpo do render,
+  duplicação deliberada do mapa no contrato, repetição de CSS entre as duas telas de beco): nenhum
+  muda comportamento, e três deles são o padrão da casa.
+- **11** (`legacy-home` antes de `pendingTotal`): sem perda prática — sem o interruptor,
+  `pending-screen` nunca era alcançável e a fila mora em `/minha-viagem`. Fica registrado como
+  afirmação da RF-E2 que nenhum teste cobre.

@@ -22,7 +22,7 @@ const COMPANY_ROLES = [
   /** ADR-0047 §1: o papel do ator sintético. Não se convida um robô, e nenhuma tela o oferece. */
   'automation',
 ] as const
-const COMPANY_PERMISSIONS = [
+export const COMPANY_PERMISSIONS = [
   'users.manage',
   'users.reveal',
   'groups.manage',

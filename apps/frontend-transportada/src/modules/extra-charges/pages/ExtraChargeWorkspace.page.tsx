@@ -9,7 +9,7 @@ import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
-import { canOpenWorkspace } from '@/modules/shared/workspaceAccess.service'
+import { isWorkspaceForbidden } from '@/modules/shared/workspaceWall.service'
 
 import { useExtraCharges } from '../hooks/useExtraCharges.hook'
 import {
@@ -42,9 +42,11 @@ export function ExtraChargeWorkspacePage() {
   const { t } = useTranslation('extraCharges')
   const authQuery = useAuthMeQuery()
   const permissions = authQuery.data?.data.permissions ?? []
-  const isForbidden =
-    authQuery.data?.data.company.id === undefined ||
-    !canOpenWorkspace({ permissions, workspace: 'extra-charges' })
+  const isForbidden = isWorkspaceForbidden({
+    companyId: authQuery.data?.data.company.id,
+    permissions,
+    workspace: 'extra-charges',
+  })
   const controller = useExtraCharges({ enabled: !isForbidden, permissions })
   const [draft, setDraft] = useState<ChargeQueueDraft>({})
   const [contractorId, setContractorId] = useState('')

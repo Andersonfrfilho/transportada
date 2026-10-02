@@ -146,11 +146,19 @@ function resolveLandingPreference(input: {
 export function resolveLandingWorkspace(
   input: Readonly<{
     current: WorkspaceKey
+    /**
+     * Já se aterrissou nesta montagem. Aterrissar é decisão de **entrada**, e sem esta trava o
+     * separador não alcançava NF-e: clicar nela leva a `/`, que não tem mapeamento de caminho e cujo
+     * `sessionStorage` é apagado de propósito, então a decisão rodava de novo lendo "entrou sem
+     * endereço" e a preferência da RF-C6 devolvia a pessoa para `/trips`.
+     */
+    hasLanded: boolean
     permissions: readonly string[]
     roles: readonly string[]
     source: WorkspaceSource
   }>,
 ): LandingDecision {
+  if (input.hasLanded) return { kind: 'stay' }
   if (input.source === 'path') return { kind: 'stay' }
 
   const canOpenCurrent = canOpenWorkspace({

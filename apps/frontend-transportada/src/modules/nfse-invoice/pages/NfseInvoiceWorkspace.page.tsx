@@ -6,7 +6,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tabs, type TabsItem } from '@/components/ui/tabs'
 import { resolveSettingsDataScope } from '@/modules/company-settings/shared/companySettingsTabs.service'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
-import { canOpenWorkspace } from '@/modules/shared/workspaceAccess.service'
+import { isWorkspaceForbidden } from '@/modules/shared/workspaceWall.service'
 
 import { NfseCredentialPanel } from '../components/NfseCredentialPanel.component'
 import { NfseEmissionProfilePanel } from '../components/NfseEmissionProfilePanel.component'
@@ -64,8 +64,7 @@ export function NfseInvoiceWorkspacePage({
   const [activeTab, setActiveTab] = useState<NfseInvoiceTabId>('invoices')
   const canReadInvoices = permissions.includes(NFSE_READ_PERMISSION)
   const canManageSettings = permissions.includes(NFSE_SETTINGS_MANAGE_PERMISSION)
-  const isForbidden =
-    companyId === undefined || !canOpenWorkspace({ permissions, workspace: 'nfse-invoice' })
+  const isForbidden = isWorkspaceForbidden({ companyId, permissions, workspace: 'nfse-invoice' })
   const table = useNfseInvoiceTable({
     ...(companyId === undefined ? {} : { companyId }),
     openInvoiceId,

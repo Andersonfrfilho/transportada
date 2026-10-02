@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, test } from 'bun:test'
 
+import { COMPANY_PERMISSIONS } from '../../src/modules/identity/queries/useAuthMe.query'
 import {
   NAVIGATION_GROUPS,
   WORKSPACE_NAVIGATION_ITEMS,
@@ -177,5 +178,25 @@ describe('visibleWorkspaceKeys', () => {
     const keys = visibleWorkspaceKeys(['cte.manage', 'cte.submit'])
 
     expect(keys).toEqual(['cte-batch'])
+  })
+})
+
+/**
+ * Achado 5 da revisão da T6.4: a RF-A1 travou a **chave** (chave nova sem entrada reprova o
+ * typecheck), mas não o **valor** — o mapa é `readonly string[]`, então `'trip.financial'` sem o `s`
+ * compilaria, passaria no contrato acima (que compara o mapa com uma cópia das mesmas strings) e
+ * faria o workspace sumir de todos os menus em silêncio. Como some escondendo (D6), ninguém reporta
+ * como quebra: reporta como "o item sumiu".
+ */
+describe('toda permissão do mapa existe no catálogo da API (RF-A1)', () => {
+  test('nenhum valor fora de COMPANY_PERMISSIONS', () => {
+    const catalogo = new Set<string>(COMPANY_PERMISSIONS)
+    const fora = Object.entries(WORKSPACE_PERMISSIONS).flatMap(([chave, permissoes]) =>
+      (permissoes as readonly string[])
+        .filter((permissao) => !catalogo.has(permissao))
+        .map((permissao) => `${chave}: ${permissao}`),
+    )
+
+    expect(fora).toEqual([])
   })
 })
