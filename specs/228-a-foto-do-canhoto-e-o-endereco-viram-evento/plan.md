@@ -3,15 +3,12 @@
 ## Ordem das fatias
 
 ```
-F0 conferência ──► F1 vocabulário (API + painel, mesma lista) ──► F2 foto do canhoto (API)
-                                                              └─► F3 endereço corrigido (API) ──► F5 painel
-                                                                    (espera N1)          ▲
-                                                 F4 migration — só se N1 = sim, 🧠 ─────┘
-F5 painel ──► F6 documentação, portões, revisão
+F0 conferência ──► F1 vocabulário (API + painel, mesma lista) ──► F2 foto do canhoto (API) ──┐
+                                                              └─► F3 endereço corrigido (API) ─┴─► F4 painel
+F4 painel ──► F5 documentação, portões, revisão
 ```
 
-F2 não depende da N1. F3 depende dela só no rótulo e no nome do `kind` (se N1 = sim, o `kind` passa a cobrir
-também a geocodificação automática; o nome `stop.address_corrected` é revisto **antes** da F1 publicar).
+Sem migration (spec D11). F2 e F3 são independentes entre si.
 
 ## F1 — Vocabulário
 
@@ -49,19 +46,7 @@ também a geocodificação automática; o nome `stop.address_corrected` é revis
   (`geocoded_address_corrections_address_key_idx`). Começar das paradas da viagem (poucas) e casar pela chave.
   Medir com `EXPLAIN` na integração.
 
-## F4 — Só se N1 = sim (🧠, migration — PARAR E PERGUNTAR)
-
-Esboço, a validar com `architect` em `opus` antes de escrever:
-
-- Tabela `stop_geocoding_events` (`id`, `company_id`, `stop_id`, `address_key`, `source`, `precision`,
-  `latitude`, `longitude`, `created_at`), FK composta para `trip_stops`, `rollback.sql`.
-- Escrita: no worker (sugestão de rota e rotina de população) **quando a coordenada da chave muda** e há
-  parada aberta com aquela chave — fan-out por empresa dona da parada; na API, idem no upsert.
-- Decidir: o que gravar quando o endereço **já** tinha coordenada antes da parada nascer (nada? um evento
-  sintético no nascimento da parada?).
-- Entrar na lista de exclusões do 196 D8 com motivo (é endereço) ou no expurgo — decisão da task.
-
-## F5 — Painel
+## F4 — Painel
 
 - `TripTimelineEntry` (reaproveitada pela 227 T5.3) com os dois rótulos; _Eventos desta entrega_ sem mudança
   de estrutura — os itens chegam pelo mesmo `useTripDocumentTimelineQuery`.
@@ -77,4 +62,4 @@ Esboço, a validar com `architect` em `opus` antes de escrever:
 
 ## Riscos e mitigação
 
-Ver `spec.md` § Riscos. O maior é a F4: ela só existe com "sim" do usuário e é 🧠.
+Ver `spec.md` § Riscos. O maior é o keyset com instante calculado (F2) e com `distinct on` (F3), ambos 🧠.

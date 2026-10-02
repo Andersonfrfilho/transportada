@@ -70,7 +70,7 @@ Nenhum `[NEEDS CLARIFICATION]` aberto nesta spec.
       (D12). Lê antes `specs/196-…`, `specs/206-…`, o ADR-0088 e a spec 218. Responde, **antes de qualquer
       migration**: de quem é o evento do endereço e quando nasce. Número 228 conferido contra `origin/staging`.
       **Pare e pergunte antes de qualquer migration.** Feita: `specs/228-a-foto-do-canhoto-e-o-endereco-viram-evento/`,
-      com uma `[NEEDS CLARIFICATION]` (N1) — os eventos novos da T5.3 esperam a 228.
+      N1 respondida ("Só correção humana"): "Foto do canhoto" e "Endereço da parada corrigido", sem migration.
 - [x] **T5.1** API: filtro por nota em `GET /trips/:id/timeline`, no servidor, com contrato de tenant e de
       permissão (`trip.event-location`). Não depende da 228.
 - [x] **T5.2** API: o raio na resposta do comprovante (D6), resolvido por contratante, sem
@@ -85,7 +85,8 @@ Nenhum `[NEEDS CLARIFICATION]` aberto nesta spec.
 - [ ] **T6.1** **Comparar com o canvas**, lado a lado (spec, "A referência é um canvas"). Prints da tela real e
       da prancha, em 1280 e 375 px, dark e light, **cada divergência listada** no `evidence.md` como
       defeito corrigido ou pendência declarada. Olha estrutura, ordem, vocabulário, cor e estados — **não** os
-      números (D10). **Exige o ok explícito do usuário** (web.md §15).
+      números (D10). **Exige o ok explícito do usuário** (web.md §15). Levar junto a ressalva da 228 D12: a
+      "Foto do canhoto" é evento derivado de `trip_delivery_proofs`, sem tabela nova — confirmar com o usuário.
 - [ ] **T6.2** Documentação viva: `docs/ai-context/frontend-transportada.md` (e `api-transportada.md`).
 - [ ] **T6.3** Portão completo na raiz, um comando por vez em primeiro plano; `format:check` é gate **só da
       raiz** e a spec em markdown entra nele.

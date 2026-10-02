@@ -142,8 +142,13 @@ API (D5, T2.3); **N5** — criar os dois eventos (D12).
   que a 228 entregar. ⚠️ O endereço geocodificado como evento tem uma pergunta de modelagem própria — **de
   quem é o evento** (da parada? de uma re-geocodificação?) e **quando** ele nasce — que a 228 precisa
   responder antes de qualquer migration.
+  **Respondida pela 228** (2026-10-02): o evento do endereço é da **parada**, rótulo **"Endereço da parada
+  corrigido"** (`stop.address_corrected`), nascido de correção humana ou refino pedido no painel — o usuário
+  escolheu "Só correção humana" (228 D11), sem migration. A foto é **"Foto do canhoto"**
+  (`document.canhoto_photo`), derivada de `trip_delivery_proofs` sem tabela nova (228 D1/D12) — ponto a
+  **confirmar com o usuário na T6.1**, não pergunta bloqueante.
 
-Não há `[NEEDS CLARIFICATION]` aberto nesta spec; a **228** nasce com as dela.
+Não há `[NEEDS CLARIFICATION]` aberto nesta spec nem na 228.
 
 ## Requisitos funcionais
 

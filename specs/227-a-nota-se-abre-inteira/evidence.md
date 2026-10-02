@@ -380,6 +380,9 @@ registrado como oportunidade: unificar as chaves.
   pedido no painel (`geocoding_refinement_requests`, `refined`) da mesma empresa, depois da criação da parada (228
   D4) — também **sem** migration. A geocodificação automática não deixa rastro por empresa (`geocoded_addresses` é
   global e o `geocoded_at` é sobrescrito); incluí-la exige migration e ficou como **N1** da 228, com recomendação "não".
+- **N1 respondida pelo usuário em 2026-10-02**: "Só correção humana (Recomendado)". Rótulo final **"Endereço da
+  parada corrigido"** (`stop.address_corrected`, 228 D11); a 228 fica sem migration e sem `[NEEDS CLARIFICATION]`.
+  A foto derivada (228 D12) vai para confirmação na T6.1.
 
 ## T5.1 — `GET /trips/:id/timeline?documentId=` filtra por nota no servidor
 

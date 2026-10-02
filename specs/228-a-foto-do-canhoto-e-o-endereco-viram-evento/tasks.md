@@ -5,8 +5,8 @@ em `evidence.md`. Contrato antes da implementação, **toda asserção nova prov
 `test/integration/**` da API só fecha com o **segundo** comando
 (`bun --env-file=../../.env.test run test:integration`).
 
-⚠️ **Uma `[NEEDS CLARIFICATION]` aberta (N1, `spec.md` § Perguntas abertas).** A F2 não depende dela; a F1
-(nome do `kind`), a F3 (rótulo) e a F4 (existência) dependem.
+Nenhum `[NEEDS CLARIFICATION]` aberto: a N1 foi respondida em 2026-10-02 ("Só correção humana") e virou a
+D11. **Esta spec não tem migration** — se alguma task concluir que precisa de uma, pare e pergunte.
 
 ## Fase 0 — Conferência
 
@@ -19,7 +19,7 @@ em `evidence.md`. Contrato antes da implementação, **toda asserção nova prov
 
 ## Fase 1 — Vocabulário (API e painel na mesma lista)
 
-> 🤖 Modelo: `sonnet` · espera N1 (nome do `kind` do endereço)
+> 🤖 Modelo: `sonnet`
 
 - [ ] **T1.1** Contrato: a paridade `apps/frontend-transportada/test/trip/timeline.contract.ts` com os dois
       `kind`s; prioridades da D6 sem renumerar nenhuma existente; `addressChange` aceito **só** no `kind` do
@@ -44,7 +44,7 @@ em `evidence.md`. Contrato antes da implementação, **toda asserção nova prov
 
 ## Fase 3 — Endereço corrigido (API)
 
-> 🤖 Modelo: `sonnet` · espera N1 · T3.2 🧠 (`distinct on` + keyset — validar com `architect` em `opus`)
+> 🤖 Modelo: `sonnet` · T3.2 🧠 (`distinct on` + keyset — validar com `architect` em `opus`)
 
 - [ ] **T3.1** Contratos (antes): unitário de `addressChange` (origem, deslocamento, `null` sem ponto
       anterior e no refino); estático (empresa nas duas trilhas e na parada, `created_at >= parada`, só
@@ -53,52 +53,49 @@ em `evidence.md`. Contrato antes da implementação, **toda asserção nova prov
 - [ ] **T3.2** 🧠 `trip-timeline-address.query.ts` + `Promise.all`. Aceite: os **dois** comandos da API
       verdes; `EXPLAIN` registrado.
 
-## Fase 4 — Geocodificação automática como evento (só se N1 = sim)
-
-> 🤖 Modelo: `opus` 🧠 · **PARAR E PERGUNTAR ao usuário antes de escrever a migration**
-
-- [ ] **T4.1** 🧠 Desenho com `architect` em `opus` (esboço no `plan.md` § F4): tabela, fan-out por empresa,
-      o que gravar quando o endereço já tinha coordenada, expurgo ou exclusão do 196 D8. **Parar e mostrar ao
-      usuário** antes da T4.2.
-- [ ] **T4.2** 🧠 Migration aditiva com `rollback.sql`, `db:generate` = `no_changes` depois,
-      `make migration-test` verde. **Só com o ok explícito do usuário.**
-- [ ] **T4.3** Escritas no worker e na API, contrato de paridade do expurgo (`stamped-tables.contract.ts`),
-      fonte nova na linha do tempo. Aceite: testes do worker (`make worker-integration`) e os dois da API.
-
-## Fase 5 — Painel
+## Fase 4 — Painel
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T5.1** Contrato + implementação: _Eventos desta entrega_ e a linha do tempo da viagem mostram "Foto do
-      canhoto" e o evento do endereço (rótulo da N1), com origem e deslocamento; "Ver no mapa" só com
+- [ ] **T4.1** Contrato + implementação: _Eventos desta entrega_ e a linha do tempo da viagem mostram "Foto do
+      canhoto" e "Endereço da parada corrigido", com origem e deslocamento; "Ver no mapa" só com
       `location`. Aceite: suíte do painel verde pelo script `test` (nunca `bun test` cru).
-- [ ] **T5.2** Prints (CA08) em 1280 e 375, dark e light, sem transbordo, comparados com a prancha do canvas
+- [ ] **T4.2** Prints (CA08) em 1280 e 375, dark e light, sem transbordo, comparados com a prancha do canvas
       da 227. **Exige o ok explícito do usuário** (web.md §15).
 
-## Fase 6 — Documentação, portões e revisão
+## Fase 5 — Documentação, portões e revisão
 
-> 🤖 Modelo: `sonnet` · T6.3 `code-reviewer` em `opus`
+> 🤖 Modelo: `sonnet` · T5.3 `code-reviewer` em `opus`
 
-- [ ] **T6.1** Documentação viva: `docs/ai-context/api-transportada.md` (as duas fontes novas, D1/D4) e
-      `frontend-transportada.md`; marcar na 227 que a Fase 5 recebeu os eventos.
-- [ ] **T6.2** Portão completo na raiz, um comando por vez em primeiro plano (`make check`; `format:check` é
+- [ ] **T5.1** Documentação viva: `docs/ai-context/api-transportada.md` (as duas fontes novas, D1/D4) e
+      `frontend-transportada.md`; marcar na 227 que a Fase 5 dela recebeu os eventos, e levar à T6.1 da 227 a ressalva da
+      D12 (foto derivada, sem tabela) para o usuário confirmar junto dos prints.
+- [ ] **T5.2** Portão completo na raiz, um comando por vez em primeiro plano (`make check`; `format:check` é
       gate só da raiz e cobre `specs/`).
-- [ ] **T6.3** Revisão por `code-reviewer` em `opus`: tenant nas fontes novas, recorte de posição, PII no
+- [ ] **T5.3** Revisão por `code-reviewer` em `opus`: tenant nas fontes novas, recorte de posição, PII no
       corpo e no log, keyset.
 
 ## O que não se decide sozinho
 
-Pare e pergunte antes de: empurrar para staging, deploy, **qualquer migration** (F4), qualquer `[NEEDS
-CLARIFICATION]`, e na **T5.2** (ok do usuário sobre os prints).
+Pare e pergunte antes de: empurrar para staging, deploy, **qualquer migration** (esta spec não prevê
+nenhuma), migration destrutiva, qualquer `[NEEDS CLARIFICATION]`, e na **T4.2** (ok do usuário sobre os
+prints).
 
-## Perguntas pendentes (no lugar do prompt de execução)
+## Prompt de execução
 
-Esta spec **não** tem prompt de autopilot enquanto houver `[NEEDS CLARIFICATION]` aberto.
-
-1. **N1** — A linha do tempo deve mostrar também quando **o sistema** geocodificou o endereço sozinho
-   (primeira geocodificação, refino automático, rotina de população)? **Recomendação: não** — o evento vira
-   "Endereço da parada corrigido" (correção humana e refino pedido no painel, derivados sem migration) e a
-   Fase 4 sai. **Sim** liga a Fase 4 (migration 🧠, worker e API) e o rótulo "Endereço da parada
-   geocodificado".
-
-Respondida a N1, este bloco é trocado pela seção `## Prompt de execução`.
+```text
+/oh-my-claudecode:autopilot Execute a spec specs/228-a-foto-do-canhoto-e-o-endereco-viram-evento/ (leia
+spec.md, plan.md e tasks.md antes de tocar em código). Uma task por vez, na ordem do tasks.md, começando
+pela Fase 0.
+Modelos: Fase 0 → executor model=sonnet · Fase 1 → executor model=sonnet · Fase 2 → executor model=sonnet,
+com T2.2 🧠 validada por architect model=opus antes · Fase 3 → executor model=sonnet, com T3.2 🧠 validada por
+architect model=opus antes · Fase 4 → executor model=sonnet · Fase 5 → executor model=sonnet, revisão T5.3 →
+code-reviewer model=opus.
+Cada task fecha com typecheck + lint + testes da app (script `test`, nunca `bun test` cru) + commit isolado,
+evidência em evidence.md. Task que toca test/integration/** da API só fecha com
+`bun --env-file=../../.env.test run test:integration`. Contrato antes da implementação, e toda asserção nova
+provada por mutação. Prettier nos .md (format:check da raiz cobre specs/).
+PARE E PERGUNTE antes de: deploy, empurrar para staging, qualquer migration (esta spec não prevê nenhuma),
+migration destrutiva, qualquer [NEEDS CLARIFICATION] (nenhum aberto), e na T4.2 — os prints exigem o ok
+explícito do usuário (web.md §15).
+```

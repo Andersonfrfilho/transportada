@@ -8,14 +8,15 @@ A spec 227 abriu a nota inteira, e a seção _Eventos desta entrega_ lê `GET /t
 
 1. **"Foto do canhoto"** — o momento em que o motorista (ou o escritório, em nome dele) tirou a foto do
    canhoto, com o ponto onde estava;
-2. **"Endereço da parada geocodificado"** — o momento em que a coordenada do endereço da parada mudou.
+2. **"Endereço da parada corrigido"** — o momento em que alguém desta empresa mudou a coordenada do endereço
+   da parada (pedido original: "endereço geocodificado"; o nome final vem da D11).
 
 **Resultado**: os dois aparecem na linha do tempo da viagem e em _Eventos desta entrega_, na ordem certa, com a
 mesma regra de posição dos outros eventos (spec 196), sem coordenada para quem não tem `trip.event-location`.
 
 A 227 D12 estimou "tipo novo em `TRIP_STOP_EVENT_KINDS`, CHECK, migration, escrita nas rotas do motorista e no
-geocodificador". A leitura do código (abaixo) mostra que a **foto do canhoto não precisa de nada disso** e
-que o **endereço só precisa** se a resposta da N1 for "sim".
+geocodificador". A leitura do código (abaixo) mostra que a **foto do canhoto não precisa de nada disso** , e que o
+**endereço** também não, depois que o usuário escolheu só a correção humana (D11).
 
 ## O que já existe (medido em 2026-10-02, `HEAD` 0ebe811d5)
 
@@ -94,10 +95,10 @@ que o **endereço só precisa** se a resposta da N1 for "sim".
   - **Sem limite superior**: a distância de cada evento é medida contra o ponto **vivo** do endereço
     (`trip-timeline-stop.query.ts:156`); uma correção depois da entrega muda a distância exibida, e a linha do
     tempo precisa dizer por quê.
-  - **O que fica de fora sem a N1**: a primeira geocodificação automática, o refino automático (ADR-0062) e o
+  - **O que fica de fora (D11)**: a primeira geocodificação automática, o refino automático (ADR-0062) e o
     backfill. Eles gravam em `geocoded_addresses`, que é global, sem empresa, e cujo `geocoded_at` é
     reescrito — não há evento a derivar, e usar `geocoded_at` mostraria o instante de uma ação de **outra**
-    empresa (ou de antes da viagem existir). Ver N1.
+    empresa (ou de antes da viagem existir).
 - **D5 — Um endereço corrigido aparece uma vez por viagem.** Sem filtro, se duas paradas da viagem têm a mesma
   `address_key`, o item vai com a de **menor** `sequence` (`distinct on` pelo id da correção). O keyset
   `(occurredAt, prioridade, id)` exige id único na lista: dois itens com o mesmo id e o mesmo instante fariam a
@@ -147,7 +148,7 @@ displacementMeters }`, com `origin ∈ contractor | driver | operator | refineme
 - **RF6** O painel conhece os dois `kind`s (lista de paridade), com ícone, tom e rótulo:
   - `document.canhoto_photo` → ícone `camera`, tom neutro, **"Foto do canhoto"** (na linha do tempo da
     viagem: "Foto do canhoto — NF-e {número}/{série}");
-  - `stop.address_corrected` → ícone `edit`, tom neutro, rótulo conforme N1 (ver abaixo), com a origem
+  - `stop.address_corrected` → ícone `edit`, tom neutro, **"Endereço da parada corrigido"**, com a origem
     ("pelo contratante", "pelo motorista", "pelo escritório", "refino de precisão") e o deslocamento quando
     houver ("deslocado 45 m").
 - **RF7** _Eventos desta entrega_ (227 T5.3) mostra os dois na ordem cronológica, com "Ver no mapa" só quando
@@ -171,25 +172,26 @@ displacementMeters }`, com `origin ∈ contractor | driver | operator | refineme
 - **CA08** Print de _Eventos desta entrega_ com os dois eventos, 1280 e 375 px, dark e light, sem transbordo
   (227 RF10), e comparado com a prancha do canvas da 227 (web.md §15).
 
-## Perguntas abertas
+## Decisões do usuário
 
-- **[NEEDS CLARIFICATION] N1 — "Endereço geocodificado" inclui a geocodificação automática?** Hoje só dá para
-  mostrar, **sem migration**, quando **alguém desta empresa** mudou a coordenada (correção do contratante,
-  motorista ou escritório; refino de precisão pedido no painel). O momento em que **o sistema** achou a
-  coordenada sozinho (primeira geocodificação, refino automático da ADR-0062, rotina de população) **não
-  deixa rastro por empresa nem por parada** — `geocoded_addresses` é global e o `geocoded_at` é sobrescrito.
-  Mostrá-lo exige tabela nova de eventos de geocodificação por (empresa, parada), escrita no worker (sugestão
-  de rota e rotina de população) e na API (geocodificação do depósito/comparação), **com migration**.
-  **Pergunta**: a linha do tempo deve mostrar também quando o sistema geocodificou o endereço sozinho?
-  - **Não (recomendado)** — o evento é "**Endereço da parada corrigido**" (correção e refino pedido por gente).
-    Sem migration; Fases 1–3 e 5 resolvem. Para a pessoa que investiga uma entrega, o que importa é "o ponto
-    mudou e por quem"; a primeira geocodificação quase sempre é anterior à viagem (o endereço é reaproveitado
-    entre viagens e empresas, ADR-0044 §3) e viraria um evento repetido sem informação.
-  - **Sim** — o rótulo vira "**Endereço da parada geocodificado**", e a Fase 4 (migration 🧠) entra, com a
-    tabela, as escritas no worker e na API, a entrada no expurgo ou na lista de exclusões do 196 D8, e a
-    decisão de o que gravar quando o endereço **já** tinha coordenada antes da parada nascer.
+- **D11 — Só correção humana (N1, respondida pelo usuário em 2026-10-02: "Só correção humana (Recomendado)").**
+  O evento do endereço é **"Endereço da parada corrigido"**, `kind` `stop.address_corrected`, derivado de
+  `geocoded_address_corrections` (contratante, motorista, escritório) e de `geocoding_refinement_requests` com
+  `outcome = 'refined'` (refino de precisão **pedido por uma pessoa** no painel, spec 069). A geocodificação
+  feita pelo sistema sozinho — primeira geocodificação, refino automático da ADR-0062, rotina de população —
+  **não** vira evento: não deixa rastro por empresa nem por parada (`geocoded_addresses` é global e o
+  `geocoded_at` é sobrescrito), e mostrá-la exigiria tabela e migration. **Esta spec não tem migration.**
+  Razão registrada: para quem investiga uma entrega, o que importa é "o ponto mudou e por quem"; a primeira
+  geocodificação quase sempre é anterior à viagem (o endereço é reaproveitado entre viagens e empresas, ADR-0044
+  §3).
+- **D12 — Ressalva sobre a 227 D12: a foto do canhoto é evento derivado.** O usuário escolheu "Cria os dois
+  eventos" (227 N5) **contra** a recomendação "derivar a foto da leitura do comprovante, sem evento novo". A 228
+  D1 **entrega** o evento — `document.canhoto_photo` existe na linha do tempo e em _Eventos desta entrega_, com
+  ordem, ponto e permissão próprios —, mas **sem tabela nova**: ele é lido de `trip_delivery_proofs`, que já é o
+  fato. Isso **não** é pergunta bloqueante; é ponto a **confirmar com o usuário na T6.1 da 227**, junto dos prints.
+  Se ele quiser a cópia em `trip_stop_events`, é outra spec (com migration).
 
-Nenhuma outra pergunta: D1–D10 decidem o resto com evidência.
+Nenhum `[NEEDS CLARIFICATION]` aberto.
 
 ## Riscos
 
