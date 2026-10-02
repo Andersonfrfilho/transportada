@@ -236,7 +236,20 @@ jobs:
 
   # O único dos quatro que ainda depende de `identity-bootstrap` (realm do Keycloak, seed local) e
   # do Playwright — os outros três nunca abrem um navegador nem tocam o Keycloak de verdade.
+  #
+  # Duas frentes, cada uma com a própria stack: o painel (62 testes + health checks) de um lado, a
+  # landing e o motorista do outro. Medido em 2026-10-02: o smoke inteiro levava 8m38s e passava a
+  # ser o gargalo do gate, depois que os shards da API caíram para ~7 min.
   integration-smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: panel
+            targets: smoke-health smoke-panel
+          - suite: apps
+            targets: smoke-landing smoke-driver
+    name: integration-smoke (${{ matrix.suite }})
     runs-on: ubuntu-latest
     # Folga de mais de 10 min sobre o teto do passo de apt (5 min) — contrato em
     # test/deploy/integration-gate.contract.ts.
@@ -311,7 +324,7 @@ jobs:
             exit 1
           fi
 
-          make smoke
+          make ${{ matrix.targets }}
       - if: always()
         run: make down
 
