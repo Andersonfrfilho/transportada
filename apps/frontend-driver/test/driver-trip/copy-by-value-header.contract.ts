@@ -170,6 +170,34 @@ const COPIED_FILES: ReadonlyArray<readonly [path: string, origin: string]> = [
   ],
   ['src/components/ui/barcode.tsx', 'apps/frontend-transportada/src/components/ui/barcode.tsx'],
   [
+    'src/components/ui/barcode-scanner.tsx',
+    'apps/frontend-transportada/src/components/ui/barcode-scanner.tsx',
+  ],
+  [
+    'src/components/ui/barcode-scanner.module.css',
+    'apps/frontend-transportada/src/components/ui/barcode-scanner.module.css',
+  ],
+  [
+    'src/components/ui/useBarcodeScanner.hook.ts',
+    'apps/frontend-transportada/src/components/ui/useBarcodeScanner.hook.ts',
+  ],
+  [
+    'src/components/ui/barcodeScanner.service.ts',
+    'apps/frontend-transportada/src/components/ui/barcodeScanner.service.ts',
+  ],
+  [
+    'src/components/ui/barcodeDecoder.service.ts',
+    'apps/frontend-transportada/src/components/ui/barcodeDecoder.service.ts',
+  ],
+  [
+    'src/components/ui/barcodeDecoder.worker.ts',
+    'apps/frontend-transportada/src/components/ui/barcodeDecoder.worker.ts',
+  ],
+  [
+    'src/components/ui/cameraFrame.constant.ts',
+    'apps/frontend-transportada/src/components/ui/cameraFrame.constant.ts',
+  ],
+  [
     'src/components/ui/barcode.module.css',
     'apps/frontend-transportada/src/components/ui/barcode.module.css',
   ],

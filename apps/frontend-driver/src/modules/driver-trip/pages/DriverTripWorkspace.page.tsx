@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
+import { BarcodeScanner } from '@/components/ui/barcode-scanner'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
@@ -108,6 +109,7 @@ export function DriverTripWorkspacePage() {
   const isPendingProofsOpen = routeSection === 'pending-proofs'
   /** O anexo que falha **não** desfaz a entrega: o aviso é do arquivo, e diz isso por extenso. */
   const [searchTerm, setSearchTerm] = useState('')
+  const [isScannerOpen, setIsScannerOpen] = useState(false)
   const [proofFailed, setProofFailed] = useState(false)
   /** Spec 082 D6: teto da fila de anexos atingido — anunciado antes de qualquer descarte. */
   const [attachmentLimit, setAttachmentLimit] = useState<'count-limit' | 'size-limit' | undefined>(
@@ -865,8 +867,35 @@ export function DriverTripWorkspacePage() {
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
             />
+            {/*
+              A etiqueta da nota traz a chave de 44 dígitos em Code128 (e a NFC-e em QR): ler com a
+              câmera é digitar a chave inteira sem errar um dígito no caminhão.
+            */}
+            <Button
+              aria-label={t('search.scanTrigger')}
+              onClick={() => setIsScannerOpen(true)}
+              type="button"
+              variant="ghost"
+            >
+              <Icon name="camera" />
+            </Button>
           </div>
         )}
+
+        <BarcodeScanner
+          closeLabel={t('search.scanClose')}
+          deniedMessage={t('search.scanDenied')}
+          isOpen={isScannerOpen}
+          onClose={() => setIsScannerOpen(false)}
+          onRead={(text) => {
+            setSearchTerm(text)
+            setIsScannerOpen(false)
+          }}
+          readingMessage={t('search.scanReading')}
+          startingMessage={t('search.scanStarting')}
+          title={t('search.scanTitle')}
+          unavailableMessage={t('search.scanUnavailable')}
+        />
 
         {trip === undefined ? (
           snapshot?.isRegisteredDriver === false ? null : (

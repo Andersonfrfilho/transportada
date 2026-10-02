@@ -50,6 +50,15 @@ function isVisuallyHiddenRule(body: string): boolean {
   return body.includes('clip-path') && body.includes('position: absolute')
 }
 
+/**
+ * Desenho que não recebe toque não é alvo de toque: a mira do leitor de código é feita de traços de
+ * 2px sobre o vídeo. A regra tem de **declarar** a renúncia — herdar do pai não vale, porque aí o
+ * arquivo não diz que aquilo é decoração.
+ */
+function isUntouchableDecorationRule(body: string): boolean {
+  return body.includes('pointer-events: none')
+}
+
 describe('alvo de toque: nenhum controle abaixo de 44px (spec 189 T3.6)', () => {
   test('nada de --control-height-compact na app', async () => {
     const stylesheets = await listStylesheets()
@@ -71,7 +80,7 @@ describe('alvo de toque: nenhum controle abaixo de 44px (spec 189 T3.6)', () => 
     for (const filePath of stylesheets) {
       const stylesheet = await readApplicationFile(filePath)
       for (const { body, selector } of listRules(stylesheet)) {
-        if (isVisuallyHiddenRule(body)) continue
+        if (isVisuallyHiddenRule(body) || isUntouchableDecorationRule(body)) continue
         for (const { property, value } of listHeightDeclarations(body)) {
           const pixels = toPixels(value)
           if (pixels !== undefined && pixels < TOUCH_TARGET_PX) {
