@@ -145,6 +145,20 @@ describe('a diferença entre o previsto e o fechado (spec 225 D6)', () => {
   })
 })
 
+describe('o nome da coluna da conta de agora não promete uma previsão (spec 225 D6, revisão M5)', () => {
+  /**
+   * A coluna é a avaliação **calculada agora**, pela mesma função que gerou o congelado — não a
+   * previsão do planejamento, que ninguém grava. "Previsto" prometia mais do que ela entrega, e a
+   * diferença tende a sair sempre "sem diferença". Decisão do usuário em 2026-10-02.
+   */
+  it('chama-se conta atual nos dois idiomas, e nenhum deles diz previsto', () => {
+    expect(financialsPt.comparison.expected).toBe('Conta atual')
+    expect(financialsEn.comparison.expected).toBe('Current account')
+    expect(financialsPt.comparison.caption).not.toMatch(/previst/iu)
+    expect(financialsEn.comparison.caption).not.toMatch(/expected/iu)
+  })
+})
+
 describe('o painel com a viagem fechada (CA08)', () => {
   const markup = renderPanel({ result: closed(), valuation: valuation() })
 

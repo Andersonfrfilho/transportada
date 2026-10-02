@@ -95,10 +95,18 @@ rateio do frete nem por peso.
   à parada `i+1`** na ordem da rota, e a spec 206 mexeu em onde a rota começa. Um contrato prende esse
   mapeamento, e a divergência de contagem é tratada como ausência, não como aproximação.
 
-- **D6 — Previsão e congelado lado a lado, cada um com nome.** Hoje o painel mostra a previsão com a
-  viagem aberta e troca para o congelado quando ela fecha. Passa a mostrar os dois, rotulados:
-  **"previsto"** e **"fechado"**, com a diferença entre eles visível. Viagem aberta mostra só o
-  previsto, dizendo que o fechado ainda não existe — não um campo vazio.
+- **D6 — A conta atual e a conta fechada, lado a lado, cada uma com nome.** Hoje o painel mostra a
+  avaliação com a viagem aberta e troca para o congelado quando ela fecha. Passa a mostrar as duas, com a
+  diferença entre elas visível: **"Conta atual"** e **"Fechado"**. Viagem aberta mostra só a conta atual,
+  dizendo que o fechado ainda não existe — não um campo vazio.
+
+  ⚠️ **Não se chama "Previsto", e a razão é medida, não gosto.** A coluna é a avaliação **calculada
+  agora**, pela mesma função (`readTripValuation`) que gerou o congelado — não a previsão do
+  planejamento, que ninguém grava. Chamá-la de previsão prometia mais do que ela entrega, e a diferença
+  tende a sair sempre "sem diferença": só se move se algo mudou **depois** do fechamento (um CT-e
+  autorizado, um lançamento novo). Decisão do usuário em 2026-10-02, a partir da revisão da T4.4 (M5).
+  Planejado contra realizado exigiria **congelar a conta no despacho** — coluna nova e migration, fora do
+  escopo desta spec.
 
 - **D7 — Nada de dinheiro sem `trip.financials`.** A rota já remove `amounts` inteiro sem a permissão
   (`trip.routes.ts:742-751`), e os campos novos seguem a mesma porta. Um contrato negativo garante que

@@ -636,3 +636,21 @@ estão limpos. Acessibilidade da tabela e do bloco de custo está correta.
 | `bun run test` (painel) · `test:hooks`           | **6220 pass · 0 fail** · **180 pass · 0 fail**                   |
 
 ⚠️ A integração da API **inteira** (~19 min) não foi repetida depois destas correções — só o arquivo da 225. Ela é gate de **push**, e a T4.3 já registrava que o portão da raiz não a cobre.
+
+### M5 resolvido — "Previsto" virou "Conta atual"
+
+Pergunta de produto da revisão, respondida pelo usuário em 2026-10-02. A coluna "Previsto" era a
+avaliação **calculada agora** pela mesma função que gerou o congelado; chamá-la de previsão prometia mais
+do que ela entrega, e a diferença tende a sair sempre "sem diferença". Alternativas apresentadas:
+congelar a conta no despacho (planejado × realizado — exige coluna nova e migration) ou deixar o rótulo.
+Escolhido o honesto e barato: **"Conta atual"** (`Current account` em `en`), legenda
+"Conta atual e conta fechada, com a diferença (fechado menos conta atual)".
+
+Mudou o **texto**, não a chave (`comparison.expected` fica — renomear chave é churn sem ganho). Não toquei
+em `expectedCost`/`expectedRevenue`/`expectedMargin`: são pré-existentes, de outro contexto (propostas de
+roteiro, onde "previsto" está certo). O D6 da spec foi reescrito com a razão medida.
+
+Os testes **passaram sem mudança** porque leem o rótulo pela chave — ou seja, nada prendia a decisão.
+Acrescentei a asserção que a prende (`Conta atual` / `Current account`, e nenhuma legenda com "previst" ou
+"expected"); revertendo o rótulo para "Previsto" ela reprova (**13 pass · 1 fail**, e **14 · 0** depois).
+Prints regenerados (8 passed).
