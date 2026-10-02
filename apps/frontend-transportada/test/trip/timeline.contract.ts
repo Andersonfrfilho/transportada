@@ -377,6 +377,10 @@ describe('vocabulário da spec 228 na linha do tempo', () => {
           nextCursor: null,
         }),
       ).toThrow()
+      // Controle negativo: o mesmo kind sem addressChange é aceito, então o toThrow acima é pela chave.
+      expect(() =>
+        adapters.tripTimelineFromApi({ items: [{ ...BASE_ITEM, kind }], nextCursor: null }),
+      ).not.toThrow()
     }
   })
 
