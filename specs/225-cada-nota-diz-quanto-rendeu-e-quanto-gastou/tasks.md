@@ -90,7 +90,7 @@ em `evidence.md`.
       selecionado. **Exige o ok explícito do usuário** — esta task não fecha sozinha. Se a linha ficar
       ilegível em 375 px, "rateio da viagem" vai para o detalhe expandido, e isso é decisão de produto,
       não de implementação.
-- [ ] **T4.2** Documentação viva: `docs/ai-context/api-transportada.md` e
+- [x] **T4.2** Documentação viva: `docs/ai-context/api-transportada.md` e
       `docs/ai-context/frontend-transportada.md` com a regra de rateio em uma linha, apontando para a
       política.
 - [ ] **T4.3** Portão completo na raiz, um comando por vez em primeiro plano (`make check` estoura o

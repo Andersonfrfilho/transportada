@@ -2152,3 +2152,47 @@ congela. Toda mudança de parada antes do despacho recalcula: `linkDocument`, `u
 mesma transação, para uma falha do roteirizador não desfazer o vínculo ou a reordenação. Fila de
 revisão (`move`/`swap`) funciona por vinculação/desvinculação das duas viagens (origem e destino);
 ambas recalculam, em paralelo e cada uma isolada, antes do despacho (T206, RF12).
+
+## Spec 225 — o custo da viagem desce para a nota, por distância e tempo
+
+`GET /trips/:id/valuation` devolve, em cada item de `revenueLines`, oito campos além do frete
+(`amount`): `costAmount`, `legCostAmount`, `tripShareCostAmount`, `taxAmount`, `marginAmount`,
+`marginPercentage`, `costBasis` e `timeBasis`. **Nada é persistido** — o número é derivado na leitura
+sobre a avaliação que já existia, e o `totalCost` da viagem **não se move**: ele só se reparte.
+
+A regra vive em `trips/domain/document-cost-apportionment.policy.ts`, função pura. Quatro coisas dela
+que não se adivinham lendo o código rápido:
+
+1. **A classificação das nove parcelas é tabela exaustiva** (`COST_KIND_APPORTIONMENT`, tipada
+   `Record<TripCostKind, …>`), sem `default`. Estrada (`fuel`, `other_per_kilometer`, `toll`,
+   `delivery_charges`) reparte por **distância**; `driver` e `helper` por **tempo**; `icms` e
+   `pis_cofins` acompanham o **frete da própria nota**; `manual` é **rateio de viagem**, porque
+   `trip_cost_entries` tem só `trip_id` — não existe vínculo com parada nem nota a que amarrá-lo.
+   ⚠️ `delivery_charges` tem `trip_document_id` e **daria** para atribuir exato; vai por distância por
+   decisão de produto, registrada no D1 da spec.
+2. **A invariante inclui imposto**: `Σ (costAmount + taxAmount) == totalCost`. O `buildTripValuation`
+   final recebe `[...buildCostParcels(context), ...taxParcels]`, então o `totalCost` **já** o contém,
+   ainda que a tela separe as naturezas. Afirmar `Σ costAmount == totalCost` deixaria a conta fora por
+   todo o imposto, sem nada falhar.
+3. **A soma fecha por construção, não por tolerância**: toda divisão acontece em dois níveis — o balde
+   entre os trechos (e, no tempo, também entre as paradas), e cada trecho entre as notas a bordo —, com
+   piso e o resto inteiro para o de maior peso, desempate determinístico. Dinheiro é `bigint` escalado.
+4. **A espera na parada não é `departed − arrived`.** O `departed` da ADR-0088 é a saída **em direção**
+   à parada, com o `stopId` do destino: na mesma parada ele vem **antes** do `arrived`, e essa conta
+   sairia negativa. A espera vai da chegada até o **primeiro `departed` de outra parada** com instante
+   maior ou igual (`trips/domain/stop-dwell.policy.ts`), e `departure_cancelled` desfaz o `departed`
+   anterior da mesma parada.
+
+`trips/domain/apportionment-route-legs.policy.ts` normaliza `planned_route.legs`: tira o retorno (ele já
+vem em `planned_return_distance_meters` e entraria duas vezes) e, **sem barracão**, põe um trecho vazio
+na frente, porque o caminhão começa na primeira parada e nenhum trecho a alcança. Sem roteiro utilizável
+— ou com contagem de trechos que não casa com as paradas — a nota sai `costBasis: 'unavailable'` com os
+valores **nulos**, nunca zero.
+
+A leitura dos fatos custa **uma** consulta nova (`readStopDwells`, dentro do `Promise.all` que já
+existia): paradas e eventos da viagem inteira de uma vez. O teste de integração conta os `select` com um
+`Proxy` e **exige igualdade** entre viagem de 1 parada/1 nota e de 3 paradas/5 notas.
+
+⚠️ A prévia (`POST /trips/valuation-preview`) e a sugestão multi-veículo passam pelo mesmo
+`buildValuationFromContext` **sem** trechos e paradas: as linhas delas saem `unavailable`, com
+`taxAmount` calculado. É por isso que os oito campos são **opcionais** na resposta.

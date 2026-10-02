@@ -862,3 +862,30 @@ porque a chave inteira some quando `trip.financials` está ausente (redação do
 Contratos: `test/trip/route-geometry-money-optional.contract.ts` (D2/D3/D10, dinheiro
 condicionalmente ausente e `choiceReproduced`) e `test/trip/route-geometry-options-validation.contract.ts`
 (spec 096 T1, opção malformada não derruba a principal).
+
+## Spec 225 — gasto e lucro por nota na tela da viagem
+
+Em `/trips/:id`, a linha de cada nota mostra, além de mercadoria e frete, o **gasto** (com "do trecho" e
+"rateio da viagem" separados), o **lucro**, a **margem** e o imposto. Os números vêm de
+`GET /trips/:id/valuation`, nos campos novos de `revenueLines` (spec 225 na API).
+
+A fiação é **contexto, não prop drilling**, e por regra: o caminho
+`TripDetail.page.tsx` → `TripDetail.component.tsx` → `TripStopList` → linha tem três níveis, e
+`TripStopList` já estava no teto de cinco props. `DocumentCostProvider` é provido pela página;
+`TripDocumentCost` consome por `tripDocumentId` e **só imprime** — quem formata é
+`shared/revenueLineCost.service.ts`.
+
+- **A guarda é escrita à mão** (`shared/revenueLineCostFigures.validation.ts`): esta app não usa `zod`.
+  Linha **sem nenhum** dos oito campos é válida — é a prévia e a sugestão multi-veículo. Linha com **só
+  parte** deles, dinheiro fora de `^-?\d+(\.\d{1,4})?$`, base desconhecida ou combinação incoerente é
+  **malformada**, e `toTripValuation` devolve `null`: falha em voz alta em vez de painel mostrando parte
+  do dinheiro, pelo mesmo caminho que `revenueSource` inválido já usava.
+- **Ausência reaproveita `gap.NO_PLANNED_DISTANCE`** ("roteiro ainda não calculado"), a chave que o razão
+  já usava, e um contrato proíbe rótulo novo que repita a frase. Duas frases para a mesma ausência é
+  como a tela passa a dizer coisas diferentes sobre o mesmo estado.
+- **Sem a permissão `trip.financials`** a valoração não vem, o contexto fica vazio e a linha da nota fica
+  **idêntica à de antes**: sem rótulo vazio, sem travessão, sem espaço reservado.
+- **Prejuízo não depende só de cor**: o rótulo vira "Prejuízo" e o valor sai negativo.
+- ⚠️ Pendência conhecida: a nota **sem parada** ainda não diz que entra só no rateio (RF7). A API não
+  manda esse indicador, e **inferir por "gasto de trecho zero"** seria errado — uma nota com parada pode
+  ter trecho de distância zero legitimamente.
