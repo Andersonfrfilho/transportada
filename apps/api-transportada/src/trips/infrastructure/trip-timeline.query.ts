@@ -96,9 +96,15 @@ export async function findTripDocumentScope(
 
 /**
  * A linha do tempo de uma viagem: nove consultas (D5 — `trip_stop_events` cobre três `kind`s; spec
- * 171 acrescenta `trip.created`; spec 228 a foto do canhoto e o endereço corrigido), contra o pool de
- * `DATABASE_POOL_MAX = 10` (uma décima esgotaria o pool, por isso o endereço é uma consulta só, `union
- * all`), escopadas por `companyId` e `tripId`, unidas em memória por `mergeTripTimeline`. RNF: uma consulta por fonte, `Promise.all`, sem N+1.
+ * 171 acrescenta `trip.created`; spec 228 a foto do canhoto e o endereço corrigido), escopadas por
+ * `companyId` e `tripId`, unidas em memória por `mergeTripTimeline`. RNF: uma consulta por fonte,
+ * `Promise.all`, sem N+1.
+ *
+ * ⚠️ **O risco do pool não é uma requisição, é a soma delas.** Nove (ou dez) consultas cabem em
+ * `DATABASE_POOL_MAX = 10`. O que esgota é a concorrência *entre* requisições: a linha do tempo da
+ * viagem e "Eventos desta entrega" (`?documentId=`) abrem juntas 18 consultas, e o prazo de
+ * `DATABASE_QUERY_TIMEOUT_MS = 8000` conta desde a fila — a que não pega conexão a tempo vira 503.
+ * Por isso o endereço segue sendo uma consulta só (`union all`), e não duas.
  */
 export async function listTripTimeline(
   queryable: TripQueryable,

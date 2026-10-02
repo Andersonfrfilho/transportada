@@ -210,8 +210,11 @@ Nenhum `[NEEDS CLARIFICATION]` aberto.
 2. **Keyset com fonte de instante calculado** (`coalesce`) — sem índice dedicado; a consulta é escopada por
    viagem (poucas linhas), como as fontes atuais. Medir com `EXPLAIN` na integração, não supor: tabelas de teste
    minúsculas fazem Seq Scan de qualquer jeito, então a evidência usa `SET LOCAL enable_seqscan = off` dentro de
-   transação. **Pressão no pool**: `DATABASE_POOL_MAX=10` e o `Promise.all` já abre 7 consultas; foto (8) +
-   endereço (9) cabem, duas consultas de endereço (10) esgotariam — o endereço é **uma** consulta (`union all`).
+   transação. **Pressão no pool**: o risco não é uma
+   requisição, é a soma delas. Nove consultas (dez também) cabem em `DATABASE_POOL_MAX=10`; o que esgota é a
+   concorrência **entre** requisições — a linha do tempo da viagem e "Eventos desta entrega" abrem juntas 18
+   consultas, e o prazo de 8 s (`DATABASE_QUERY_TIMEOUT_MS`) conta desde a fila, então a consulta que não pega
+   conexão a tempo vira 503. Por isso o endereço é **uma** consulta (`union all`), não duas.
    O refino não tem índice por `address_key`: se pesar em volume real, a saída é migration (índice
    `(company_id, address_key)`) — **parar e perguntar**, não criar.
 3. **Ordem de publicação** — resolvida pelo descarte de `kind` desconhecido (D8); o contrato CA07 a prende.
