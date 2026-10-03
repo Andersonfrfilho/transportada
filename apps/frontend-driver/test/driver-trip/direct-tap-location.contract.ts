@@ -13,6 +13,8 @@ import {
 } from '../../src/modules/driver-trip/shared/driverLocation.service'
 import type { DriverFieldReport } from '../../src/modules/driver-trip/shared/driverTrip.types'
 
+import { sliceFunction } from './function-slice.support'
+
 const HOOK = new URL('../../src/modules/driver-trip/hooks/useDriverTrip.hook.ts', import.meta.url)
 
 type PositionCallback = (position: GeolocationPosition) => void
@@ -187,7 +189,8 @@ describe('quem usa a leitura com relógio (196 RF8)', () => {
   it('o hook escolhe a leitura por quem toca', () => {
     const hook = readFileSync(HOOK, 'utf8')
 
-    expect(hook).toInclude('usesDirectTapLocation(reports)')
-    expect(hook).toInclude('readDirectTapLocation()')
+    const completion = sliceFunction(hook, 'completeLocations')
+    expect(completion).toInclude('usesDirectTapLocation(reports)')
+    expect(completion).toInclude('readDirectTapLocation()')
   })
 })

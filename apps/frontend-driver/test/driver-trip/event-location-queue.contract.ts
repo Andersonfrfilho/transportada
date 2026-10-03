@@ -20,6 +20,7 @@ import {
   type QueuedReport,
 } from '../../src/modules/driver-trip/shared/offlineQueue.service'
 import { buildStopOccurrenceReports } from '../../src/modules/driver-trip/shared/stopOccurrencePhoto.service'
+import { sliceFunction } from './function-slice.support'
 
 const HOOK = new URL('../../src/modules/driver-trip/hooks/useDriverTrip.hook.ts', import.meta.url)
 const PAGE = new URL(
@@ -32,13 +33,6 @@ const LOCATION: DriverReportedLocation = {
   capturedAt: NOW,
   latitude: -23.55,
   longitude: -46.63,
-}
-
-/** O corpo da função, do `function nome(` até o `\n  }\n` que a fecha no nível do hook. */
-function sliceFunction(source: string, name: string): string {
-  const start = source.search(new RegExp(`function ${name}\\(`, 'u'))
-  const end = source.indexOf('\n  }\n', start)
-  return source.slice(start, end)
 }
 
 function queued(report: DriverFieldReport): QueuedReport {
@@ -268,6 +262,7 @@ describe('a fiação do hook e da tela (196 T5.2)', () => {
     const files = [
       '../../src/modules/driver-trip/shared/offlineQueue.service.ts',
       '../../src/modules/driver-trip/shared/driverLocation.service.ts',
+      '../../src/modules/driver-trip/shared/driverTripClient.service.ts',
       '../../src/modules/driver-trip/hooks/useDriverTrip.hook.ts',
     ]
     for (const file of files) {

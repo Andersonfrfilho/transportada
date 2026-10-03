@@ -12,6 +12,7 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, test } from 'bun:test'
 
+const MIN_BLOCK_LENGTH = 40
 const MAIN_TS_PATH = new URL('../../src/main.ts', import.meta.url)
 
 function extractDispatchCurrentTripBlock(source: string): string {
@@ -20,7 +21,10 @@ function extractDispatchCurrentTripBlock(source: string): string {
   const end = source.indexOf('listFieldOccurrenceTypes: (input) =>', start)
   if (end === -1) throw new Error('fim do bloco dispatchCurrentTrip não encontrado em main.ts')
 
-  return source.slice(start, end)
+  const block = source.slice(start, end)
+  if (block.length < MIN_BLOCK_LENGTH) throw new Error('bloco dispatchCurrentTrip curto demais')
+
+  return block
 }
 
 describe('fiação do carimbo do despacho do motorista em main.ts (196 T3.3)', () => {
