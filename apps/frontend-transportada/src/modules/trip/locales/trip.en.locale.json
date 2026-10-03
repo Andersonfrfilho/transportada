@@ -2040,6 +2040,20 @@
       "summary": "Summary",
       "contractor": "Contractor",
       "driver": "Driver"
+    },
+    "correction": {
+      "unavailable": {
+        "occurrenceCancelled": "This occurrence was already cancelled and can no longer be corrected or cancelled.",
+        "caseOpen": "The case is open: once it opens, the occurrence already carries money and can no longer be corrected or cancelled.",
+        "caseDecided": {
+          "redelivery_authorized": "The case was decided with redelivery authorized; the redelivery starts from this occurrence, so it can no longer be corrected or cancelled.",
+          "goods_paid": "The case was decided with the goods paid; the settlement starts from this occurrence, so it can no longer be corrected or cancelled.",
+          "other": "The case was decided another way, with an office note; the occurrence can no longer be corrected or cancelled."
+        },
+        "caseReturnedToWarehouse": "The goods already went back to the warehouse through this case; the occurrence can no longer be corrected or cancelled.",
+        "caseClosed": "The case was closed; the occurrence became history and can no longer be corrected or cancelled.",
+        "caseCancelled": "The case was cancelled; the occurrence keeps its history and can no longer be corrected or cancelled."
+      }
     }
   },
   "occurrenceTimeline": {
