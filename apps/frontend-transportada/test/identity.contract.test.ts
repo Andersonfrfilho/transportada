@@ -1,6 +1,7 @@
 import './identity/access-profiles-screen.contract.js'
 import './identity/bootstrap-client.contract.js'
 import './identity/bulk-role-bar-error.contract'
+import './identity/bulk-role-bar-feedback-contrast.contract'
 import './identity/company-user-contact-fields.contract.js'
 import './identity/company-user-edit-dialog.contract.js'
 import './identity/company-user-invite.contract.js'

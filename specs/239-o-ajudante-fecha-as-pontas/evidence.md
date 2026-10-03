@@ -453,3 +453,22 @@ e nenhuma ação (sem Cheguei, Iniciar rota, Entreguei, nem "Iniciar viagem"). O
 comportamento. Mutações: `isAwaiting` com `canReportOnTrip`, 3 fails; `canDispatch` sem o papel, 2 fails;
 restaurado e conferido com `cmp`. **Limite:** o fio página → função → cartão não é montado (a página exige
 sessão e dezenas de hooks); vale pelo typecheck e pela função pura.
+
+### N1 — contraste do alerta da barra em lote (achado da revisão final)
+
+O `.feedback` (texto de 13,6 px) tinha cor `--color-alert` sobre um fundo rosado (alerta a 8% sobre o asfalto):
+5,01:1 no escuro e 4,19:1 no claro (medido 4,18 pela fórmula do contrato). Não existe token de tinta de alerta
+no `index.css`; o par que atinge 4,5:1 nos dois temas sem inventar cor é o mesmo texto sobre `--color-graphite`
+(escuro 4,87:1, claro 5,12:1). O fundo passou a `var(--color-graphite)`; o texto e a borda vermelha ficam.
+
+Contrato `identity/bulk-role-bar-feedback-contrast.contract.ts` (vermelho antes: claro): lê a regra `.feedback`,
+resolve cor e fundo (`var()` ou `color-mix` de dois tokens) com os temas do `index.css` e exige razão >= 4,5
+nos dois, pelas funções de luminância de `design-system/contrast.helper.ts`. Mutação: fundo antigo, 1 fail
+(claro); restaurado e conferido com `cmp`. Uma troca de cor para `--color-slate` sobre o asfalto passou, porque
+esse par também tem >= 4,5:1 — o contrato mede o resultado, não proíbe token.
+
+### N2 — registro, sem mudança de código
+
+O texto de `FLEET_DRIVER_PROFILE_EMPTY` fala em tirar papéis, mas a barra em lote só acrescenta papéis: o 409
+nunca ocorre ali na prática (foi simulado nos prints para provar a exibição do erro). Observação conhecida,
+sem ação.

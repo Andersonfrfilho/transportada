@@ -293,7 +293,7 @@
   border-left: 3px solid var(--color-alert);
   color: var(--color-alert);
   font-size: 0.85rem;
-  background: color-mix(in srgb, var(--color-alert) 8%, var(--color-asphalt) 92%);
+  background: var(--color-graphite);
 }
 
 .emptyState {
