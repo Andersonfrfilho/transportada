@@ -23,7 +23,8 @@ import {
   type CargoArrivalDocumentState,
   type CargoArrivalEventKind,
 } from '../shared/cargo-arrival.constant.js'
-import { cargoArrivalDocuments, cargoArrivals } from './cargo-arrival.schema.js'
+import { cargoArrivalDocuments } from './cargo-arrival-document.schema.js'
+import { cargoArrivals } from './cargo-arrival.schema.js'
 import { companies, userCompanyMemberships } from './identity.schema.js'
 import { inList } from './schema-check.constant.js'
 

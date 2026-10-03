@@ -9,6 +9,13 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, test } from 'bun:test'
 
 import {
+  buildAvailableDocumentFilters,
+  buildCandidateDocumentFilters,
+} from '../../src/cargo-receiving/infrastructure/cargo-arrival-document.query.js'
+import { buildArrivalFilters } from '../../src/cargo-receiving/infrastructure/cargo-arrival-persistence.support.js'
+import { buildArrivalListFilters } from '../../src/cargo-receiving/infrastructure/drizzle-cargo-arrival-read.repository.js'
+import { buildArrivalDocumentFilters } from '../../src/cargo-receiving/infrastructure/drizzle-cargo-arrival-separation.repository.js'
+import {
   buildReceivingProfileContractorFilters,
   buildReceivingProfileFilters,
 } from '../../src/cargo-receiving/infrastructure/drizzle-contractor-receiving-profile.repository.js'
@@ -41,5 +48,50 @@ describe('isolamento do perfil de recebimento (spec 237 T1.3)', () => {
     expect(query.sql).toContain('"contractor_receiving_profiles"."company_id" = $')
     expect(query.sql).toContain('"contractor_receiving_profiles"."contractor_id" = $')
     expect(query.params).toEqual([COMPANY_ID, CONTRACTOR_ID])
+  })
+})
+
+describe('isolamento da chegada (spec 237 T2.3)', () => {
+  const ARRIVAL_ID = '00000000-0000-4000-8000-000000000c03'
+  const render = (filters: Parameters<typeof and>) => dialect.sqlToQuery(and(...filters)!)
+
+  test('a chegada é alcançada pela empresa e pelo id juntos', () => {
+    const query = render(buildArrivalFilters({ arrivalId: ARRIVAL_ID, companyId: COMPANY_ID }))
+    expect(query.sql).toContain('"cargo_arrivals"."company_id" = $')
+    expect(query.params).toEqual([COMPANY_ID, ARRIVAL_ID])
+  })
+
+  test('as notas da chegada são da empresa e da chegada', () => {
+    const query = render(
+      buildArrivalDocumentFilters({ arrivalId: ARRIVAL_ID, companyId: COMPANY_ID }),
+    )
+    expect(query.sql).toContain('"cargo_arrival_documents"."company_id" = $')
+    expect(query.sql).toContain('"cargo_arrival_documents"."arrival_id" = $')
+  })
+
+  test('a lista começa pela empresa, mesmo sem filtro', () => {
+    const query = render(
+      buildArrivalListFilters({
+        companyId: COMPANY_ID,
+        filters: {},
+        paging: { cursor: null, limit: 25 },
+      }),
+    )
+    expect(query.sql).toBe('"cargo_arrivals"."company_id" = $1')
+    expect(query.params).toEqual([COMPANY_ID])
+  })
+
+  test('candidatas e disponíveis filtram a nota pela empresa e o emitente pelo CNPJ', () => {
+    const candidates = render(
+      buildCandidateDocumentFilters({ companyId: COMPANY_ID, documentIds: [ARRIVAL_ID] }),
+    )
+    expect(candidates.sql).toContain('"nfe_documents"."company_id" = $')
+    const available = render(
+      buildAvailableDocumentFilters({ companyId: COMPANY_ID, emitterTaxId: '30290856000160' }),
+    )
+    expect(available.sql).toContain('"nfe_documents"."company_id" = $')
+    expect(available.sql).toContain('"cargo_emitter_participant"."tax_id" = $')
+    expect(available.sql).toContain('"trip_documents"."released_at" is null')
+    expect(available.params).toEqual(expect.arrayContaining([COMPANY_ID, '30290856000160']))
   })
 })

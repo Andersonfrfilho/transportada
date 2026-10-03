@@ -2459,3 +2459,50 @@ carência, grava e insere em `audit_logs` na **mesma transação** (ator, empres
 ligar/alongar (não vem do cliente). Sem rate limit por rota: nenhuma rota de `company-settings` o tem.
 Provas: `test/companies/location-retention-settings.contract.ts` e
 `test/integration/location-retention-settings.integration.ts`.
+
+### Fase 2 — a chegada e a primeira separação (T2.1–T2.3)
+
+`cargo_arrivals`, `cargo_arrival_documents` e `cargo_arrival_events` (append-only por trigger). A nota
+da chegada tem **eixo próprio** `expected → received → separated` (`cargo-arrival-transition.policy.ts`):
+entra `expected`, uma etapa por vez, sem volta; repetir é no-op sem evento; chegada `closed` recusa tudo.
+`trip_documents.separation_status`, o despacho e o roteirizador **não são tocados** — a nota entra na
+viagem pelo fluxo de sempre, e a leitura da chegada só a marca `isInLiveTrip`.
+
+- **Relógio copiado:** a chegada só nasce com o perfil ligado (`422 CARGO_RECEIVING_NOT_ENABLED`) e copia
+  `separation_window_hours`/`delivery_deadline_business_days` naquele instante; `separation_due_at =
+arrived_at + janela` em horas corridas, preso por CHECK exato
+  (`extract(epoch from separation_due_at - arrived_at) = separation_window_hours * 3600`). Editar o
+  perfil depois não muda chegada nenhuma. `isSeparationOverdue` é leitura (prazo passado e nota pendente).
+- **Uma nota, uma chegada, para sempre** (`unique (company_id, nfe_document_id)`, ADR-0094 §6): nota
+  posta por engano não tem conserto nesta fase. Candidata = emitente com o CNPJ do contratante
+  (`nfe_participants` papel `emitter`, índice novo `(company_id, role, tax_id)`), `authorized`, sem
+  `trip_documents` com `released_at is null`, sem chegada.
+- **Rotas** (`fleet.read` lê, `trip.manage` escreve — o `separator` tem as duas; `trip.read` ficou de fora
+  porque daria a motorista/ajudante/agregado as chegadas da empresa inteira):
+  `GET /cargo-arrivals/available-documents?contractorId=` (cursor `issued_at desc, id desc`, `limit` ≤
+  100), `POST /cargo-arrivals` (`Idempotency-Key` obrigatório; repetição com o mesmo pedido → **200** com
+  a mesma chegada; mesma chave com outro pedido → `409 CARGO_ARRIVAL_KEY_REUSED`, pela
+  `request_fingerprint`; `arrivedAt` > agora + 2 min → `422 CARGO_ARRIVAL_ARRIVED_AT_IN_FUTURE`; toda
+  nota recusada volta junta em `422 CARGO_ARRIVAL_DOCUMENTS_REFUSED`, `details[{ field:
+'documentIds.<i>', message: <motivo> }]`), `GET /cargo-arrivals` (filtros `contractorId`, `status`,
+  cursor), `GET /cargo-arrivals/:id` (grupos rota × cidade, contagens, vencimento),
+  `POST …/documents/:documentId/receive|separate` (`documentId` = id da NF-e), `POST
+…/documents/batch-status` (≤ 300, resultado por nota `changed|unchanged|refused`), `POST
+…/route-assignment` (`routeName` ≤ 40 ou `null`, tudo ou nada) e `POST …/close` (`409
+CARGO_ARRIVAL_HAS_PENDING_DOCUMENTS` com a lista; fechar de novo é `unchanged`).
+- **Concorrência:** o registro trava o contratante (`for no key update`) — só notas do emitente dele
+  entram, então a trava serializa a disputa pela mesma nota e pela mesma chave; a chave é procurada
+  **antes** das notas (na repetição elas já estão na chegada). Toda escrita de separação trava a chegada
+  primeiro e as notas depois, em ordem de id. O lote é decidido em memória (`decideCargoArrivalBatch`) e
+  gravado com um UPDATE e um INSERT — uma recusa nunca derruba as outras notas.
+- **Trilha:** canal `backoffice` (ADR-0068 §3), ator, `occurred_at` (a chegada usa `arrived_at`) e
+  `recorded_at`; `from_state`/`to_state` em coluna, com o CHECK de forma repetindo a tabela de
+  transições; `route_assigned` guarda a rota anterior e a nova em `details`. `audit_logs` no registro e
+  no fechamento.
+- Contratos: `test/cargo-receiving/cargo-arrival-*.contract.ts`,
+  `test/cargo-receiving-http/cargo-arrival-routes.contract.ts`,
+  `test/cargo-receiving-schema/{cargo-arrival,tenant-safety}.contract.ts` e
+  `test/separator-role.contract.test.ts`; integração `test/integration/cargo-arrival.integration.ts`.
+- **Follow-ups:** a cidade do grupo vem do destinatário (`<enderDest>`), não do seam
+  `resolvePhysicalDestination` (`<entrega>`); corrida aceita — a nota pode entrar numa viagem entre a
+  checagem e o commit da chegada (a leitura mostra "já em viagem").

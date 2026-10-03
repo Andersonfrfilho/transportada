@@ -27,7 +27,7 @@
 - [x] **T2.1** 🧠 Eixo `expected/received/separated` por nota, com o agrupamento rota × cidade, e a política
       pura de transição (contrato em tabela antes; eventos append-only com ator e canal).
 - [x] **T2.2** Migration `cargo_arrivals`, `cargo_arrival_documents`, `cargo_arrival_events` (+ rollback).
-- [ ] **T2.3** Casos de uso e rotas: registrar chegada (idempotente), agrupar por rota × cidade, separar;
+- [x] **T2.3** Casos de uso e rotas: registrar chegada (idempotente), agrupar por rota × cidade, separar;
       `separation_due_at` do perfil; integração contra Postgres.
 - [ ] **T2.4** Tela de Recebimento no painel (chegada, grupos rota × cidade) e a **tela do celular do
       separador** (PWA, por nota, agrupada por rota e cidade, alvo ≥ 44 px), contratos antes; prova por

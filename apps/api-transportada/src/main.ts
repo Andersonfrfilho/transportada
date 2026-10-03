@@ -623,6 +623,24 @@ import {
 } from './cargo-receiving/application/contractor-receiving-profile.use-case.js'
 import { DrizzleContractorReceivingProfileRepository } from './cargo-receiving/infrastructure/drizzle-contractor-receiving-profile.repository.js'
 import { createContractorReceivingProfileRoutes } from './cargo-receiving/presentation/contractor-receiving-profile.routes.js'
+import {
+  createGetCargoArrivalUseCase,
+  createListAvailableArrivalDocumentsUseCase,
+  createListCargoArrivalsUseCase,
+} from './cargo-receiving/application/read-cargo-arrival.use-case.js'
+import { createRegisterCargoArrivalUseCase } from './cargo-receiving/application/register-cargo-arrival.use-case.js'
+import {
+  createAssignCargoArrivalRouteUseCase,
+  createBatchCargoArrivalStatusUseCase,
+  createChangeCargoArrivalDocumentStateUseCase,
+  createCloseCargoArrivalUseCase,
+} from './cargo-receiving/application/separate-cargo-arrival.use-case.js'
+import { DrizzleCargoArrivalReadRepository } from './cargo-receiving/infrastructure/drizzle-cargo-arrival-read.repository.js'
+import { DrizzleCargoArrivalRegistrationRepository } from './cargo-receiving/infrastructure/drizzle-cargo-arrival-registration.repository.js'
+import { DrizzleCargoArrivalSeparationRepository } from './cargo-receiving/infrastructure/drizzle-cargo-arrival-separation.repository.js'
+import { createCargoArrivalSeparationRoutes } from './cargo-receiving/presentation/cargo-arrival-separation.routes.js'
+import { createCargoArrivalRoutes } from './cargo-receiving/presentation/cargo-arrival.routes.js'
+import { CARGO_ARRIVAL_CHANNEL } from './shared/cargo-arrival.constant.js'
 import { createContractorContactsUseCase } from './contractor-mail/application/contractor-contacts.use-case.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
 import { createContractorMailSettingsUseCase } from './contractor-mail/application/contractor-mail-settings.use-case.js'
@@ -1942,6 +1960,13 @@ function createApplicationRoutes({
     repository: new DrizzleContractorRepository(database),
   })
   const receivingProfileRepository = new DrizzleContractorReceivingProfileRepository(database)
+  const cargoArrivalReads = new DrizzleCargoArrivalReadRepository(database)
+  // Spec 237 Fase 2: a chegada só é registrada pela tela (painel e PWA do separador), ADR-0068 §3.
+  const cargoArrivalWriting = {
+    channel: CARGO_ARRIVAL_CHANNEL.backoffice,
+    now: () => new Date(),
+    repository: new DrizzleCargoArrivalSeparationRepository(database),
+  }
   const contractorPortalBindings = new DrizzleContractorPortalBindingRepository(database)
   const tripLocationRepository = new DrizzleTripLocationRepository(database)
   const recordTripLocation = createRecordTripLocationUseCase({ repository: tripLocationRepository })
@@ -3304,6 +3329,31 @@ function createApplicationRoutes({
       saveProfile: createSaveContractorReceivingProfileUseCase({
         repository: receivingProfileRepository,
       }),
+    }),
+    ...createCargoArrivalRoutes({
+      getArrival: createGetCargoArrivalUseCase({
+        now: cargoArrivalWriting.now,
+        readRepository: cargoArrivalReads,
+      }),
+      listArrivals: createListCargoArrivalsUseCase({
+        now: cargoArrivalWriting.now,
+        readRepository: cargoArrivalReads,
+      }),
+      listAvailableDocuments: createListAvailableArrivalDocumentsUseCase({
+        readRepository: cargoArrivalReads,
+      }),
+      registerArrival: createRegisterCargoArrivalUseCase({
+        channel: cargoArrivalWriting.channel,
+        now: cargoArrivalWriting.now,
+        readRepository: cargoArrivalReads,
+        registrationRepository: new DrizzleCargoArrivalRegistrationRepository(database),
+      }),
+    }),
+    ...createCargoArrivalSeparationRoutes({
+      assignRoute: createAssignCargoArrivalRouteUseCase(cargoArrivalWriting),
+      batchStatus: createBatchCargoArrivalStatusUseCase(cargoArrivalWriting),
+      changeDocumentState: createChangeCargoArrivalDocumentStateUseCase(cargoArrivalWriting),
+      closeArrival: createCloseCargoArrivalUseCase(cargoArrivalWriting),
     }),
     ...createContractorContactRoutes({
       createContact: { execute: (input) => contractorContacts.create(input) },

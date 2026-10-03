@@ -12,6 +12,7 @@ import {
   type CargoArrivalDocumentState,
   type CargoArrivalStatus,
 } from '../../shared/cargo-arrival.constant.js'
+import { CARGO_ARRIVAL_DOCUMENT_NOT_FOUND } from './cargo-arrival.error.js'
 
 const HOUR_MS = 3_600_000
 
@@ -124,4 +125,46 @@ export function isSeparationOverdue({
 }: IsSeparationOverdueParams): boolean {
   if (separationDueAt === null || pendingDocumentCount === 0) return false
   return now.getTime() > separationDueAt.getTime()
+}
+
+export type CargoArrivalDocumentOutcome =
+  | { readonly documentId: string; readonly outcome: 'changed' | 'unchanged' }
+  | { readonly documentId: string; readonly outcome: 'refused'; readonly reason: string }
+
+export type CargoArrivalBatchRow = {
+  readonly id: string
+  readonly nfeDocumentId: string
+  readonly separationState: CargoArrivalDocumentState
+}
+
+export type DecideCargoArrivalBatchParams<TRow extends CargoArrivalBatchRow> = {
+  readonly arrivalStatus: CargoArrivalStatus
+  readonly documentIds: readonly string[]
+  readonly rows: readonly TRow[]
+  readonly to: CargoArrivalTransitionTarget
+}
+
+/** Um resultado por nota pedida: a recusada fica no resultado dela e nunca derruba as outras. */
+export function decideCargoArrivalBatch<TRow extends CargoArrivalBatchRow>({
+  arrivalStatus,
+  documentIds,
+  rows,
+  to,
+}: DecideCargoArrivalBatchParams<TRow>): {
+  readonly changed: readonly TRow[]
+  readonly results: readonly CargoArrivalDocumentOutcome[]
+} {
+  const rowsByDocument = new Map(rows.map((row) => [row.nfeDocumentId, row]))
+  const changed: TRow[] = []
+  const results = documentIds.map((documentId): CargoArrivalDocumentOutcome => {
+    const row = rowsByDocument.get(documentId)
+    if (row === undefined) {
+      return { documentId, outcome: 'refused', reason: CARGO_ARRIVAL_DOCUMENT_NOT_FOUND }
+    }
+    const decision = decideCargoArrivalTransition({ arrivalStatus, from: row.separationState, to })
+    if (decision.outcome === 'refused') return { documentId, ...decision }
+    if (decision.outcome === 'changed') changed.push(row)
+    return { documentId, outcome: decision.outcome }
+  })
+  return { changed, results }
 }

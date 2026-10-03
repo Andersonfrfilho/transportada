@@ -11,6 +11,7 @@ import {
   CARGO_ARRIVAL_INITIAL_DOCUMENT_STATE,
   CARGO_ARRIVAL_TRANSITIONS,
   copyArrivalRulesFromProfile,
+  decideCargoArrivalBatch,
   decideCargoArrivalTransition,
   isArrivedAtTooFarInFuture,
   isSeparationOverdue,
@@ -126,5 +127,44 @@ describe('os relógios da chegada (spec 237 T2.1, ADR-0094 §2)', () => {
     const now = new Date(arrivedAt.getTime() + elapsedHours * HOUR_MS)
 
     expect(isSeparationOverdue({ now, pendingDocumentCount, separationDueAt })).toBe(isOverdue)
+  })
+})
+
+describe('o lote da separação (spec 237 T2.3)', () => {
+  const rows = [
+    { id: 'r1', nfeDocumentId: 'n1', separationState: 'received' },
+    { id: 'r2', nfeDocumentId: 'n2', separationState: 'separated' },
+    { id: 'r3', nfeDocumentId: 'n3', separationState: 'expected' },
+  ] as const
+
+  test('um resultado por nota pedida; só o que muda vai para a escrita', () => {
+    const decision = decideCargoArrivalBatch({
+      arrivalStatus: 'open',
+      documentIds: ['n1', 'n2', 'n3', 'n4'],
+      rows,
+      to: 'separated',
+    })
+
+    expect(decision.results).toEqual([
+      { documentId: 'n1', outcome: 'changed' },
+      { documentId: 'n2', outcome: 'unchanged' },
+      { documentId: 'n3', outcome: 'refused', reason: 'CARGO_ARRIVAL_DOCUMENT_NOT_RECEIVED' },
+      { documentId: 'n4', outcome: 'refused', reason: 'CARGO_ARRIVAL_DOCUMENT_NOT_FOUND' },
+    ])
+    expect(decision.changed.map((row) => row.id)).toEqual(['r1'])
+  })
+
+  test('chegada fechada recusa o lote inteiro sem escrever nada', () => {
+    const decision = decideCargoArrivalBatch({
+      arrivalStatus: 'closed',
+      documentIds: ['n1'],
+      rows,
+      to: 'separated',
+    })
+
+    expect(decision).toEqual({
+      changed: [],
+      results: [{ documentId: 'n1', outcome: 'refused', reason: 'CARGO_ARRIVAL_CLOSED' }],
+    })
   })
 })

@@ -46,6 +46,10 @@ export const CARGO_ARRIVAL_CHANNEL = { backoffice: 'backoffice' } as const
 export type CargoArrivalChannel = (typeof CARGO_ARRIVAL_CHANNEL)[keyof typeof CARGO_ARRIVAL_CHANNEL]
 export const CARGO_ARRIVAL_CHANNELS = Object.values(CARGO_ARRIVAL_CHANNEL)
 
+/** Ler a chegada e escrever nela (ADR-0094 §6): o separador tem as duas. */
+export const CARGO_ARRIVAL_READ_PERMISSION = 'fleet.read'
+export const CARGO_ARRIVAL_WRITE_PERMISSION = 'trip.manage'
+
 export const CARGO_ARRIVAL_LIMITS = {
   documentsPerRequest: 300,
   /** A folga do relógio de quem digita a hora: além disso a chegada está no futuro. */

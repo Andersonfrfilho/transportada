@@ -324,3 +324,78 @@ nfe_document_id)` (uma nota, uma chegada — ADR-0094 §6) e `unique (company_id
   arquivos; a linha de base desta sessão era 9243, não 9259) · `bun run format:check` na raiz ✓.
 - `docs/spec/domain-model.md`: agregados `CargoArrival`, `CargoArrivalDocument`, `CargoArrivalEvent` e as
   constraints únicas.
+
+## T2.3 — casos de uso e rotas da chegada e da primeira separação (2026-10-03)
+
+- **Contrato antes:** `test/cargo-receiving/cargo-arrival-candidate.contract.ts`,
+  `cargo-arrival-use-case.contract.ts` e `test/cargo-receiving-http/cargo-arrival-routes.contract.ts`
+  (entrypoints já listados no `test`) vermelhos por `Cannot find module …/cargo-arrival-candidate.policy.js`
+  e `…/cargo-arrival.routes.js`. Depois: módulo **87 pass** (contrato de domínio/caso de uso), **31 pass**
+  (HTTP), **22 pass** (schema + isolamento).
+- **Permissões (conferidas em `authorization.policy.ts`):** leitura `fleet.read`, escrita `trip.manage` —
+  o papel `separator` tem as duas. `trip.read` foi descartada: é a leitura recortada do motorista, e daria a
+  `driver`/`helper`/`aggregate` as chegadas da empresa inteira (BOLA). As 9 rotas entraram na lista
+  exaustiva de `test/separator-role.contract.test.ts` (vermelho de 9 linhas antes, verde depois).
+- **Rotas:** `GET /cargo-arrivals/available-documents`, `POST /cargo-arrivals`, `GET /cargo-arrivals`,
+  `GET /cargo-arrivals/:id`, `POST …/documents/:documentId/receive|separate`, `POST
+…/documents/batch-status`, `POST …/route-assignment`, `POST …/close` (caminhos em
+  `src/shared/api.constant.ts`, composição em `src/main.ts`, canal `backoffice` decidido na composição).
+- **Integração** (`bun --env-file=../../.env.test test --timeout 120000
+./test/integration/cargo-arrival.integration.ts`, Postgres do `.env.test` em 65432, banco descartável
+  migrado por teste): **6 pass, 0 fail, 0 skip** (49 expects) — chegada completa na mesma transação (1
+  chegada, 3 notas, 4 eventos, 1 auditoria) e as candidatas somem; repetição → 200 com a mesma chegada e as
+  mesmas contagens; mesma chave com outro pedido → 409; nota de outro emitente, em viagem viva, em outra
+  chegada e de outra empresa recusadas **de uma vez** (4 `details`), sem escrita; sem perfil e com perfil
+  desligado → 422; contratante de outra empresa → 404; chegada lida/escrita/listada pela outra empresa →
+  404/404/vazia, estado intacto; transições e no-op sem evento (contagem exata), `separate` sem `receive`
+  → 409, volta → 409; lote com recusa parcial; UPDATE e DELETE na trilha → `55000`; rota repetida sem
+  evento, nota fora da chegada → 422; fechar com pendência → 409 com a lista, depois fecha, fechar de novo
+  `unchanged`, chegada fechada recusa rota; perfil editado para 48 h depois do registro → a chegada segue
+  com 24 h e o mesmo `separation_due_at`; `separation_due_at` fora da janela por fora da API → `23514`;
+  "já em viagem" na leitura; quem só tem `fleet.read` → 403 na escrita, sem linha. Registrada em
+  `test:integration` (o `package.json` só ganhou essa entrada — conferido por diff dos scripts);
+  `integration-shard.contract.test.ts` + integração da Fase 1: 7 pass.
+- **Mutações** (script, restauração automática; contrato do módulo + integração da chegada):
+
+  | Mutação                                       | Vermelho                             |
+  | --------------------------------------------- | ------------------------------------ |
+  | tirar `company_id` do filtro da chegada       | isolamento 1 fail; integração 1 fail |
+  | tirar `company_id` do filtro da lista         | isolamento 1 fail; integração 1 fail |
+  | tirar o emitente da política de candidatas    | contrato 3 fail; integração 1 fail   |
+  | tirar o emitente do filtro das disponíveis    | isolamento 1 fail; integração 1 fail |
+  | permitir `separated` sem `received`           | contrato 3 fail; integração 1 fail   |
+  | no-op grava (e gera evento)                   | contrato 1 fail; integração 1 fail   |
+  | janela lida do perfil atual na leitura        | integração 1 fail                    |
+  | uma recusa derruba o lote (lança na primeira) | contrato 2 fail; integração 1 fail   |
+  | repetição sem procurar a chave                | integração 1 fail                    |
+  | escrita com `fleet.read`                      | HTTP 1 fail; integração 1 fail       |
+  | corpo sem `.strict()`                         | HTTP 1 fail                          |
+  | perfil desligado registra                     | contrato 1 fail; integração 1 fail   |
+
+  A primeira rodada da "janela lida do perfil atual" quebrou por import ausente (erro, não comportamento);
+  refeita com o import: integração 5 pass / 1 fail. "Uma recusa derruba o lote" é a prova do `Promise.all`
+  pedido: não há `Promise.all` na escrita — o lote é decidido em memória e gravado com um UPDATE e um
+  INSERT, e a mutação simula o efeito (lançar na primeira recusa).
+
+- **Gates:** `bun run typecheck` ✓ · `bun run lint` ✓ · contrato
+  `bun --env-file=../../.env.test test --timeout 120000`: **9286 → 9330 pass**, 24 skip, 0 fail (198
+  arquivos; o script `test` dá os mesmos 9354 testes) · `bun run db:generate` → `no_changes` · `bun run
+format:check` na raiz ✓.
+- **Divergências do pedido:**
+  1. `perPage` virou `limit` (≤ 100): é o parâmetro de `readPaging`, que toda listagem desta API usa.
+  2. Erros: `CARGO_ARRIVAL_KEY_REUSED` (precedente `TRIP_FIELD_REPORT_KEY_REUSED`),
+     `CARGO_ARRIVAL_ARRIVED_AT_IN_FUTURE` (422, campo `arrivedAt`), `CARGO_ARRIVAL_DOCUMENTS_REFUSED` (422),
+     `CARGO_ARRIVAL_DOCUMENTS_NOT_IN_ARRIVAL` (422, rota), `CARGO_ARRIVAL_DOCUMENT_NOT_FOUND` (404),
+     `CARGO_ARRIVAL_NOT_FOUND` (404), e o 409 da nota avulsa leva o motivo da política como código
+     (`CARGO_ARRIVAL_CLOSED`, `…_DOCUMENT_NOT_RECEIVED`, `…_TRANSITION_NOT_ALLOWED`). Esta API não tem
+     `codes.ts`: o padrão é `ApiError` por domínio em `domain/*.error.ts`.
+  3. `:documentId` nas rotas é o id da NF-e (chave natural: a nota está numa chegada só).
+  4. Lote: nota repetida no pedido é 400 (Zod), não "unchanged".
+  5. `route-assignment` é tudo ou nada (nota fora da chegada → 422 com todas), ao contrário do lote de
+     estado; chegada fechada recusa rota (409 `CARGO_ARRIVAL_CLOSED`).
+  6. Na T2.3 o schema da nota foi para `src/database/cargo-arrival-document.schema.ts` (o arquivo passava
+     de 200 linhas); DDL igual, `db:generate` = `no_changes`.
+  7. `isSeparationOverdue`: prazo passado **e** nota ainda não separada (tudo separado nunca vence).
+- **Não rodou:** a suíte de integração inteira (`bun run test:integration`, ~17 min) — só os arquivos
+  tocados; corrida real entre duas requisições concorrentes (a serialização por trava foi desenhada e
+  revisada, não exercitada por teste de concorrência).

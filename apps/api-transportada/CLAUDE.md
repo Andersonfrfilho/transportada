@@ -762,3 +762,12 @@ regras como dado, nunca CNPJ no código; sem perfil ou com `is_enabled = false`,
 `GET`/`PUT /contractors/:id/receiving-profile` (`fleet.read`/`settings.manage`); o `PUT` exige todas as
 chaves, só audita quando muda, e o padrão do `NroCarga` é filtrado (nunca executado) na gravação. O eixo
 do recebimento é próprio e **não toca** `separation_status`. Detalhe: docs/ai-context § "Spec 237".
+
+**A chegada e a primeira separação** (Fase 2): `cargo_arrivals` / `cargo_arrival_documents` /
+`cargo_arrival_events` (append-only). Eixo `expected → received → separated`, sem volta, no-op sem evento,
+chegada `closed` recusa tudo (`cargo-arrival-transition.policy.ts`). A chegada só nasce com perfil ligado e
+**copia** janela e prazo; `separation_due_at` preso por CHECK exato. Uma nota entra em no máximo uma
+chegada. Rotas `/cargo-arrivals…` com `fleet.read` (leitura) e `trip.manage` (escrita), as duas do
+`separator` — e todas listadas em `test/separator-role.contract.test.ts`. ⚠️ Escrita nova trava a chegada
+primeiro e as notas depois (ordem de id), e o registro trava o contratante antes de procurar a chave.
+Detalhe: docs/ai-context § "Spec 237" → "Fase 2".

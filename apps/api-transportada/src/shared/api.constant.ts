@@ -73,6 +73,17 @@ export const API_CONTRACTOR_CONTACTS_PATH = '/contractors/:id/contacts'
 export const API_CONTRACTOR_CONTACT_PATH = '/contractors/:id/contacts/:contactId'
 /** Spec 237 (ADR-0094): as regras de recebimento do contratante, como dado. */
 export const API_CONTRACTOR_RECEIVING_PROFILE_PATH = '/contractors/:id/receiving-profile'
+/** Spec 237 Fase 2: a chegada da carga e a primeira separação, antes da viagem (ADR-0094 §6). */
+export const API_CARGO_ARRIVALS_PATH = '/cargo-arrivals'
+export const API_CARGO_ARRIVAL_AVAILABLE_DOCUMENTS_PATH = '/cargo-arrivals/available-documents'
+export const API_CARGO_ARRIVAL_PATH = '/cargo-arrivals/:id'
+export const API_CARGO_ARRIVAL_DOCUMENT_RECEIVE_PATH =
+  '/cargo-arrivals/:id/documents/:documentId/receive'
+export const API_CARGO_ARRIVAL_DOCUMENT_SEPARATE_PATH =
+  '/cargo-arrivals/:id/documents/:documentId/separate'
+export const API_CARGO_ARRIVAL_BATCH_STATUS_PATH = '/cargo-arrivals/:id/documents/batch-status'
+export const API_CARGO_ARRIVAL_ROUTE_ASSIGNMENT_PATH = '/cargo-arrivals/:id/route-assignment'
+export const API_CARGO_ARRIVAL_CLOSE_PATH = '/cargo-arrivals/:id/close'
 /** Spec 143 (ADR-0063): a chave do Resend, o segredo do webhook e o remetente, por empresa. */
 export const API_CONTRACTOR_MAIL_SETTINGS_PATH = '/contractor-mail-settings'
 export const API_CONTRACTOR_MAIL_SETTINGS_CHECKS_PATH = '/contractor-mail-settings/checks'
