@@ -12,7 +12,7 @@
 
 - [x] **T1.1** 🧠 ADR-0094 (eixo do recebimento + perfil por contratante) e modelo de dados do perfil
       (RF1) — revisão com `architect` em `opus`.
-- [ ] **T1.2** Migration aditiva `contractor_receiving_profiles` (FK composta, unique, CHECKs de faixa),
+- [x] **T1.2** Migration aditiva `contractor_receiving_profiles` (FK composta, unique, CHECKs de faixa),
       `rollback.sql`, `make migration-test`, `db:generate` = `no_changes`.
 - [ ] **T1.3** Rotas do perfil (`settings.manage`, Zod `.strict()`) e contrato; atualizar as guardas de
       chave exata do agregado de contratante do painel (3 cópias).

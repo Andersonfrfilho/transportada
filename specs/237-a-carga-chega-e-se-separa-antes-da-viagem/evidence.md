@@ -54,3 +54,30 @@ resultado completo no banco sai de `consulta-recebimento-vs-xml.sql`.
   (depende da D6); `grouping` não vira coluna (rota × cidade é decisão fixa do usuário).
 - **Agregado `Contractor` não muda:** o perfil é recurso separado; as guardas de chave exata do painel
   não precisam de alteração.
+
+## T1.2 — Migration `contractor_receiving_profiles` (2026-10-03)
+
+- **Contrato antes:** `test/cargo-receiving-schema/contractor-receiving-profile.contract.ts` (registrado no
+  `test` do `package.json`) vermelho pelo motivo certo —
+  `Export named 'contractorReceivingProfiles' not found` — e verde (5 pass) com o schema.
+- **Schema:** `src/database/contractor-receiving-profile.schema.ts`, exportado em `database.schema.ts`.
+  FK `(company_id, contractor_id)` → `contractors(company_id, id)` e `company_id` → `companies`, ambas
+  `restrict/cascade`; unique `(company_id, contractor_id)`; 8 CHECKs (faixas, `jsonb_typeof = 'object'`,
+  prévia ligada exige mapa, tamanho da aba e do padrão).
+- **Migration:** `bun run db:generate --name contractor_receiving_profiles` →
+  `drizzle/20261003170340_contractor_receiving_profiles/` (só `CREATE TABLE` + 2 FKs na própria tabela).
+  `snapshot.json` encadeado: `prevIds = ["eb960c28-…"]`, que é o `id` do snapshot de
+  `20261003010806_event_location_whatsapp_coordinate` (nenhum outro snapshot aponta para ele). Depois:
+  `bun run db:generate` → `{"status":"no_changes"}`.
+- **`rollback.sql` à mão:** `DROP TABLE IF EXISTS` + remoção da entrada do diário, sem `CASCADE`.
+- **`make migration-test`:** 1ª rodada vermelha (a lista fixa de pastas do
+  `static-migration.contract.ts` não tinha a nova) → pasta acrescentada + teste estático da migration
+  (só tabela nova, rollback sem `CASCADE`) → **120 pass, 0 fail** (8 arquivos, Postgres descartável; o
+  `database-migration.integration.ts` aplica todos os `rollback.sql` em ordem inversa).
+- **Gates:** `bun run typecheck` ✓ · `bun run lint` ✓ · contrato
+  `bun --env-file=../../.env.test test --timeout 120000`: **9167 → 9173 pass**, 24 skip, 0 fail (194 → 195
+  arquivos) · `bun run format:check` na raiz ✓.
+- **Mutação:** CHECK de `separation_window_hours` alargado para `1..9999` → o contrato de faixas reprova
+  (4 pass, 1 fail); restaurado → 5 pass.
+- `docs/spec/domain-model.md`: agregado `ContractorReceivingProfile` e a constraint unique. O worker
+  (`apps/worker-transportada/src/database/delivery-client.schema.ts`) não mudou.

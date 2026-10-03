@@ -328,6 +328,7 @@ describe('Drizzle migrations', () => {
       '20261002213734_delivered_moment_clock',
       '20261002230234_helper_role_and_can_drive',
       '20261003010806_event_location_whatsapp_coordinate',
+      '20261003170340_contractor_receiving_profiles',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -2137,5 +2138,28 @@ describe('o estado do ponto entra aditivo e o histórico sem coordenada fica NUL
     expect(rollbackBegin).toBeGreaterThan(-1)
     expect(rollbackTimeout).toBeGreaterThan(rollbackBegin)
     expect(rollbackTimeout).toBeLessThan(rollbackSql.indexOf('ALTER TABLE'))
+  })
+
+  /**
+   * Spec 237 T1.2 (ADR-0094): o perfil de recebimento é tabela nova e nada mais — nenhuma tabela
+   * existente é alterada, e o rollback apaga só ela, sem CASCADE.
+   */
+  test('creates the contractor receiving profile table without touching existing tables', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_contractor_receiving_profiles'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    expect(migrationSql).toContain('CREATE TABLE "contractor_receiving_profiles"')
+    expect(migrationSql.match(/ALTER TABLE "([a-z_]+)"/gu) ?? []).toEqual([
+      'ALTER TABLE "contractor_receiving_profiles"',
+      'ALTER TABLE "contractor_receiving_profiles"',
+    ])
+    expect(migrationSql).not.toMatch(/\bDROP\b/u)
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/u)
+    expect(rollbackSql).toContain('DROP TABLE IF EXISTS "contractor_receiving_profiles";')
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
   })
 })

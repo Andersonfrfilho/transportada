@@ -56,6 +56,12 @@ emitente da nota.
   entrega, não o relacionamento comercial: isto **não é CRM**.
 - Contractor: **o embarcador que contratou o frete** — o emitente da nota, pelo mesmo caminho
   automático. Guarda o período de fechamento e para quem o relatório de repasse vai.
+- ContractorReceivingProfile: **as regras de recebimento de um contratante, como dado** (spec 237,
+  ADR-0094). Uma linha por contratante, FK composta `(company_id, contractor_id)`; sem linha, ou com
+  `is_enabled = false`, o contratante segue o fluxo de hoje. Guarda a janela de separação, o prazo de
+  entrega em dias úteis (lido pela 236), a prévia por planilha (aba e mapa **nome de coluna → campo**),
+  o padrão que lê o `NroCarga` e os parâmetros do vínculo por conteúdo. Editar o perfil nunca age sobre
+  chegada já registrada: a chegada copia as regras no momento do registro.
 - DeliveryClientWindow e DeliveryClientException: a hora em que o cliente recebe. A janela é lista
   (o almoço fechado é um buraco entre dois intervalos), e a exceção é a data que foge da semana.
 - MunicipalHoliday: `(company_id, city_ibge_code, holiday_on)`. O feriado é **da cidade**, não do
@@ -119,6 +125,7 @@ erDiagram
 - FK compostas ou validação equivalente impedem relação entre tenants.
 - `numeric(19,4)` para valores; percentual `numeric(9,6)`.
 - `trip_stop(trip_id, sequence)` unique.
+- `contractor_receiving_profiles(company_id, contractor_id)` unique, com FK composta para `contractors`.
 - índice unique parcial garante que uma NF-e viva esteja em no máximo uma viagem.
 - ordem das paradas imutável a partir de `dispatched` (ADR-0043 §2).
 
