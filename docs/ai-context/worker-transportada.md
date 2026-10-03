@@ -253,11 +253,14 @@ próprio (horas, ADR-0056). A coluna de tempo é a de cada tabela (`created_at`,
 `trip_status_events`), a mesma do índice parcial: `EXPLAIN` mostra `Index Scan` nos cinco índices
 (`evidence.md` T7.3).
 
-- ⚠️ **Desligado por padrão** (`TRIP_LOCATION_PURGE_ENABLED=false`): apagar coordenada é irreversível, e o
-  controle vai virar configuração. Enquanto estiver desligado, a retenção de 90 dias das cinco tabelas de evento
-  **não é cumprida**; o ciclo fecha `succeeded` e o log diz que foi de propósito. **Decisão de 2026-10-03:** o
-  interruptor suspende só esse expurgo — o de 36 h dos pings do rastro ao vivo (`purgeStalePings`) roda sempre,
-  antes do desvio, e entra no contador `purgedPings` do ciclo desligado.
+- ⚠️ **Desligado por padrão, e a empresa liga na tela** (spec 239): apagar coordenada é irreversível. A variável
+  `TRIP_LOCATION_PURGE_ENABLED` **saiu** (se sobrar no Railway é ignorada). O worker lê
+  `company_location_retention_settings` a cada ciclo: `CountEligibleCompanies` (no mesmo `now` dos redatores) e,
+  com ao menos uma empresa ligada e com a carência vencida, um `UPDATE` único por tabela com
+  `CROSS JOIN LATERAL`, cada linha comparada só com o prazo (`retention_days`, 30–90) **da própria empresa**.
+  Sem empresa elegível o ciclo fecha `succeeded` e o log `trip_location_purge_disabled` diz que foi de
+  propósito. O de 36 h dos pings do rastro ao vivo (`purgeStalePings`) roda sempre, antes da contagem.
+  Tabela de configuração ausente (deploy fora de ordem): a contagem lança e o ciclo falha inteiro, nada apagado.
 - O log do ciclo conta linhas por tabela. Nunca coordenada, evento ou pessoa.
 - Um contrato da API reprova tabela com coluna `*latitude*` que não esteja na lista do worker nem na lista de
   exclusões com motivo.

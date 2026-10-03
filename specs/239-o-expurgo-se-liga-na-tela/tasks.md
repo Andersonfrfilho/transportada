@@ -53,7 +53,7 @@ latitude IS NOT NULL`; `rollback.sql` que recusa com linha; asserção de rollba
       `EXPLAIN` (`SET LOCAL enable_seqscan = off`) conferindo o nome `*_company_located_*` e `company_id` no
       `Index Cond`, e `EXPLAIN` sem toggle no volume possível, registrados em `evidence.md`.
       `make worker-integration`.
-- [ ] **T2.3** Remover `TRIP_LOCATION_PURGE_ENABLED` (D3, CA9): schema de ambiente, tipo, `main.ts`,
+- [x] **T2.3** Remover `TRIP_LOCATION_PURGE_ENABLED` (D3, CA9): schema de ambiente, tipo, `main.ts`,
       `.env.example`, rotina; `disabled-switch.contract.ts` vira "sem empresa elegível" (CA8) contando
       **chamadas** (lista de redatores chamados = `[]`, pings chamados). Mutação no desvio.
 - [ ] **T2.4** Revisão da fase com `code-reviewer` em `opus`.

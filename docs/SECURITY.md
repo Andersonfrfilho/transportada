@@ -1262,8 +1262,8 @@ se o GPS falhou ou se o app daquela época nem pedia posição, e o palpite sair
 tabela, apaga `latitude`, `longitude`, `accuracy_meters` e `captured_at` com 90 dias e grava
 `location_state = 'expired'`, preservando o evento. O rastro ao vivo (`trip_location_pings`) tem expurgo
 próprio, de horas, e **roda sempre** (decisão de 2026-10-03: fora do interruptor). ⚠️ **O expurgo de 90 dias
-nasce desligado** (`TRIP_LOCATION_PURGE_ENABLED=false`, suspende só as cinco tabelas de evento): ver o
-achado de 2026-10-02 abaixo. O contrato de cabeçalhos guarda os dois sentidos (falha se `geolocation` voltar a `()` e
+nasce desligado** (cada empresa liga na tela, spec 239; sem linha de configuração nada expira, e a variável
+`TRIP_LOCATION_PURGE_ENABLED` deixou de existir): ver o achado de 2026-10-02 abaixo. O contrato de cabeçalhos guarda os dois sentidos (falha se `geolocation` voltar a `()` e
 falha se `microphone` deixar de ser `()`), e o expurgo tem teste de integração com relógio injetado —
 retenção escrita e não implementada é retenção que não existe.
 
@@ -1279,7 +1279,8 @@ de aplicação; o log de acesso é o da plataforma (ver o achado de 2026-10-02).
 
 ### 2026-10-02 — auditoria da spec 196: o expurgo de posição nasce desligado, e o log de acesso do mapa não foi verificado
 
-**Onde:** `apps/worker-transportada` (`TRIP_LOCATION_PURGE_ENABLED`, padrão `false`);
+**Onde:** `apps/worker-transportada` (`company_location_retention_settings`, spec 239; antes, a variável
+`TRIP_LOCATION_PURGE_ENABLED`, que saiu);
 `.railway/railway.ts` (`VITE_MAP_TILES_URL: preserve()`); `deploy/map-tiles/server.ts`.
 
 **O que a auditoria (T7.3) encontrou:**
@@ -1288,8 +1289,8 @@ de aplicação; o log de acesso é o da plataforma (ver o achado de 2026-10-02).
    decisão de produto (apagar coordenada é irreversível; o controle vai virar configuração). **Emenda de
    2026-10-03:** o interruptor suspende **só** o expurgo de 90 dias das cinco tabelas de evento; o expurgo de
    36 h dos pings do rastro ao vivo (`purgeStalePings`) roda sempre. O resultado, para as cinco tabelas, é
-   que a coordenada das cinco tabelas **não expira** até alguém ligar `TRIP_LOCATION_PURGE_ENABLED=true` no
-   worker de cada ambiente. É dado pessoal (LGPD, art. 5º, I) retido além do prazo escrito. **Pendência:**
+   que a coordenada das cinco tabelas **não expira** até a empresa ligar o expurgo na tela (spec 239; a
+   variável `TRIP_LOCATION_PURGE_ENABLED` foi removida). É dado pessoal (LGPD, art. 5º, I) retido além do prazo escrito. **Pendência:**
    ligar em staging, medir um ciclo, ligar em produção — decisão do usuário.
 2. **Origem do mapa base não verificável pelo repositório.** `VITE_MAP_TILES_URL` é `preserve()` nos dois
    ambientes: o valor vive no painel do Railway e entra no bundle em tempo de build. A intenção declarada é

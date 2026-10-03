@@ -542,3 +542,29 @@ sem relação com esta mudança. Em vez de tocar nele, a mesma receita rodou num
 **168 pass / 1 fail** — a falha é `osrm-routing-matrix.integration.test.ts` ("a matriz do OSRM contra o
 serviço de verdade", `Expected: 4511.2, Received: 1143650`), serviço OSRM local que responde com outro
 dataset, sem relação com o expurgo. `trip-location-purge.integration.test.ts` passou inteiro (10 testes).
+
+### T2.3 — `TRIP_LOCATION_PURGE_ENABLED` removida (D3, CA9)
+
+Saiu do schema de ambiente (`environment.schema.ts`), do tipo `WorkerEnvironment` (`worker.types.ts`), do
+`.env.example`, de `main.ts` e da rotina (já na T2.2: `enabled` virou `countEligibleCompanies`), e as menções em
+`docs/SECURITY.md` (3), `docs/ai-context/worker-transportada.md` e `apps/worker-transportada/CLAUDE.md` foram
+reescritas ("a empresa liga na tela"; a variável saiu e, se sobrar, é ignorada). O texto completo do
+achado de 2026-10-02 no `SECURITY.md` e a pendência do WhatsApp continuam para a T4.1/T4.2.
+
+Contratos: `environment.contract.test.ts` perdeu a chave do `toEqual` (sem afrouxá-lo);
+`disabled-switch.contract.ts` ganhou "a chave que sobrou no ambiente é ignorada" (`'true'`, `'false'` e `'1'`
+não derrubam o boot e o campo não existe) no lugar dos dois testes da variável; "sem empresa elegível" e a
+contagem de **chamadas** já tinham entrado na T2.2.
+
+| Mutação                                                                      | Reprova                                                                     |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Devolver `TRIP_LOCATION_PURGE_ENABLED` ao schema e ao objeto de configuração | "a chave que sobrou é ignorada" **e** o `toEqual` do `environment.contract` |
+| Desvio `companies === 0` desligado (R1, T2.2)                                | 3 testes de "sem empresa elegível"                                          |
+
+**Gates (worker):** `bun run typecheck` limpo; `bun run lint` limpo; `bun run test` 1567 pass / 0 fail;
+`bun run format:check` (raiz) limpo; `bun run test:integration` no banco descartável próprio, 168 pass / 1 fail
+(o mesmo `osrm-routing-matrix`, sem relação; `make worker-integration` segue quebrado pelo banco compartilhado,
+ver T2.2). Nada da API foi tocado: os gates da API não se aplicam a esta task.
+
+`grep` por `TRIP_LOCATION_PURGE_ENABLED` em `apps/**/src|test`, `.env.example` e `docs/` só acha as frases
+que dizem que ela saiu; sobram as menções históricas em `specs/196-*` e o `dist/` ignorado pelo git.

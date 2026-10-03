@@ -154,24 +154,19 @@ describe('sem empresa elegível o expurgo não toca as cinco tabelas (spec 239 D
     expect([...new Set(calls)]).toEqual(['purgeStalePings', 'countEligibleCompanies'])
   })
 
-  /** Variável ausente tem de significar desligado: deploy que esquece a chave não pode apagar nada. */
-  test('sem a variável no ambiente, o expurgo fica desligado', () => {
-    const withoutTheKey = parseWorkerEnvironment(MINIMAL_ENVIRONMENT)
+  /**
+   * Spec 239 D3: a variável saiu. Uma que sobrar no Railway não pode derrubar o boot (o schema não é
+   * `.strict()`) nem voltar a decidir nada: quem liga é a empresa, na tela.
+   */
+  test('a chave que sobrou no ambiente é ignorada: não derruba o boot e não vira configuração', () => {
+    for (const value of ['true', 'false', '1']) {
+      const config = parseWorkerEnvironment({
+        ...MINIMAL_ENVIRONMENT,
+        TRIP_LOCATION_PURGE_ENABLED: value,
+      })
 
-    expect(withoutTheKey.tripLocationPurgeEnabled).toBeFalse()
-  })
-
-  test('só `true` liga; qualquer outro valor derruba o boot em vez de adivinhar', () => {
-    expect(
-      parseWorkerEnvironment({ ...MINIMAL_ENVIRONMENT, TRIP_LOCATION_PURGE_ENABLED: 'true' })
-        .tripLocationPurgeEnabled,
-    ).toBeTrue()
-    expect(
-      parseWorkerEnvironment({ ...MINIMAL_ENVIRONMENT, TRIP_LOCATION_PURGE_ENABLED: 'false' })
-        .tripLocationPurgeEnabled,
-    ).toBeFalse()
-    expect(() =>
-      parseWorkerEnvironment({ ...MINIMAL_ENVIRONMENT, TRIP_LOCATION_PURGE_ENABLED: '1' }),
-    ).toThrow()
+      expect(config).not.toHaveProperty('tripLocationPurgeEnabled')
+      expect(JSON.stringify(config)).not.toContain('PURGE_ENABLED')
+    }
   })
 })

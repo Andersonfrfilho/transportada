@@ -73,13 +73,6 @@ const workerEnvironmentSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
-    // Spec 196: o expurgo de posição nasce **desligado**, por decisão de produto — o controle vai
-    // virar página de configuração (só as cinco tabelas; o rastro ao vivo expurga sempre). Padrão `false` porque apagar coordenada é irreversível: ligar
-    // por engano é pior do que guardar dado além do prazo até alguém ligar de propósito.
-    TRIP_LOCATION_PURGE_ENABLED: z
-      .enum(['true', 'false'])
-      .default('false')
-      .transform((value) => value === 'true'),
     FOUNDATION_SYNTHETIC_EFFECT_DELAY_MS: z.coerce.number().int().min(0).max(30_000).default(0),
     // Spec 071: o `tesseract-server` self-hosted que lê a CNH fotografada. Opcional, e a ausência é
     // silenciosa de propósito — leitura é conveniência para o operador, nunca porta de entrada, e um
@@ -240,7 +233,6 @@ export function parseWorkerEnvironment(
     foundationSyntheticConsumerEnabled: result.data.FOUNDATION_SYNTHETIC_CONSUMER_ENABLED,
     foundationSyntheticEffectDelayMs: result.data.FOUNDATION_SYNTHETIC_EFFECT_DELAY_MS,
     logLevel: result.data.LOG_LEVEL,
-    tripLocationPurgeEnabled: result.data.TRIP_LOCATION_PURGE_ENABLED,
     ...(mdfeAutoIssue === undefined ? {} : { mdfeAutoIssue }),
     nfseProvider: {
       baseUrl: result.data.NFSE_PROVIDER_BASE_URL,

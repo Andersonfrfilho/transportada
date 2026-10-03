@@ -96,8 +96,10 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
 ## O expurgo de posição (spec 196, ADR-0081)
 
 `trip.location.purge` (`trip-location-purge/`) varre **as cinco tabelas** de evento com ponto, uma por vez e
-com teto de lotes por tabela, apaga `latitude`, `longitude`, `accuracy_meters` e `captured_at` com 90 dias e
-marca `location_state = 'expired'`, preservando o evento; os pings ao vivo têm corte próprio (36 h) e **rodam sempre**. ⚠️ O expurgo de 90 dias nasce
-**desligado** (`TRIP_LOCATION_PURGE_ENABLED=false`, só as cinco tabelas de evento): enquanto não for ligado, a
-retenção de 90 dias não é cumprida. O log conta linhas por tabela, nunca coordenada, evento ou pessoa. Detalhe:
+com teto de lotes por tabela, apaga `latitude`, `longitude`, `accuracy_meters` e `captured_at` pelo prazo da empresa e
+marca `location_state = 'expired'`, preservando o evento; os pings ao vivo têm corte próprio (36 h) e **rodam sempre**. ⚠️ Quem liga o expurgo das
+cinco tabelas é a **empresa, na tela** (spec 239): o worker lê `company_location_retention_settings` a cada ciclo, num
+`UPDATE` único com `CROSS JOIN LATERAL` por tabela, e cada empresa vale pelo próprio prazo (30–90 dias) depois da
+carência de 24 h. Sem linha ou desligada, nada é apagado; não existe variável de ambiente (`TRIP_LOCATION_PURGE_ENABLED`
+saiu e, se sobrar no Railway, é ignorada). O log conta linhas por tabela e `companies`, nunca coordenada, evento ou pessoa. Detalhe:
 docs/ai-context/worker-transportada.md § "O expurgo de posição".

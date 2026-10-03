@@ -43,7 +43,6 @@ describe('worker environment contract', () => {
       fiscalEnvironment: 'production',
       foundationSyntheticConsumerEnabled: false,
       foundationSyntheticEffectDelayMs: 0,
-      tripLocationPurgeEnabled: false,
       fuelPricePull: undefined,
       /** Spec 062 T005: sem segredo e sem template — o padrão é a versão da Graph API e mais nada. */
       whatsapp: {
