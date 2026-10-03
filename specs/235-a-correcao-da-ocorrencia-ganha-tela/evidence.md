@@ -1521,3 +1521,21 @@ Contrato `test/trip-hooks/occurrence-correction-mutations.contract.ts`: a chave 
 - **Vermelho antes** (`bun test --preload ./test/trip-hooks/dom.preload.ts ./test/trip-hooks/occurrence-correction-mutations.contract.ts`):
   `1 pass, 3 fail` (corrigir, cancelar e o 409).
 - **Verde depois:** `4 pass, 0 fail`; `bun run typecheck` limpo.
+
+## T6.3 — Nota inteira na correção (decisão a)
+
+O formulário já aceitava a lista vazia — o seletor tem "A nota inteira" como escolha de primeira classe,
+igual ao registro — e a API também: `correctOccurrenceItemsSchema` (`occurrence.schema.ts`) tem
+`items: ….default([])` e `resolveOccurrenceProductSelection` devolve `scope: 'document'` para a lista
+vazia. O que faltava era (i) um contrato que prendesse isso e (ii) o histórico, que mostraria
+"Passou a valer:" sem nada.
+
+- `OccurrenceCorrectionHistory.component.tsx`: conjunto vigente vazio mostra "a nota inteira"
+  (`occurrenceDetail.corrections.wholeDocument`, pt-BR e en); o texto de ajuda do formulário passa a dizer
+  que sem itens a ocorrência vale para a nota inteira.
+- Contrato do histórico (`occurrence-correction-history.contract.tsx`): **vermelho antes** (`7 pass, 1 fail`),
+  verde depois (`8 pass, 0 fail`).
+- Contrato do formulário (`test/trip-hooks/occurrence-correction-form.contract.ts`): limpar os itens e salvar
+  manda `items: []` e o detalhe fica sem itens — `3 pass, 0 fail`. Esse teste **nunca esteve vermelho**
+  para a parte do envio (o formulário já mandava `[]`); a parte que ficava vermelha — Corrigir sumir depois
+  de salvar a nota inteira — é da T6.4.

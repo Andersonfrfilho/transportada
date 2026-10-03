@@ -44,12 +44,14 @@ export function OccurrenceCorrectionHistory({ occurrence }: OccurrenceCorrection
             </p>
             <p className={styles.hint}>
               {t('occurrenceDetail.corrections.nowValid')}{' '}
-              {entry.items
-                .map((item) => {
-                  const quantity = formatOccurrenceItemQuantity(item, formatOccurrenceQuantity)
-                  return quantity === '' ? item.code : `${item.code} · ${quantity}`
-                })
-                .join(', ')}
+              {entry.items.length === 0
+                ? t('occurrenceDetail.corrections.wholeDocument')
+                : entry.items
+                    .map((item) => {
+                      const quantity = formatOccurrenceItemQuantity(item, formatOccurrenceQuantity)
+                      return quantity === '' ? item.code : `${item.code} · ${quantity}`
+                    })
+                    .join(', ')}
             </p>
           </li>
         ))}
