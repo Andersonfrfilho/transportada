@@ -2272,8 +2272,6 @@ do último item da página mesclada, e omitir uma fonte faria o cursor pular ite
 de **outra empresa** muda essa distância sem gerar evento aqui, porque a geocodificação automática não deixa
 rastro por empresa. Incluí-la exigiria migration e foi recusada (spec 228, N1: "Só correção humana").
 
-<<<<<<< HEAD
-
 ## Spec 235 — O ajudante é um perfil
 
 **Arquivos-chave:** reconciliação em `identity/domain/fleet-role-reconciliation.policy.ts`, erros em
@@ -2311,7 +2309,6 @@ não reconciliam. Ver ADR-0093.
   (decisão pendente do usuário). O teste que documenta o limite deve ficar vermelho quando subirem.
 - **N+1:** `test/integration/trip-timeline.integration.ts` conta as consultas de `listTripTimeline` com 1 nota e
   com 50 notas (todas com ponto): o número é o mesmo (9 em 2026-10-02).
-  =======
 
 ## Spec 235 — as leituras publicam a correção e o cancelamento (RF9)
 
@@ -2332,8 +2329,6 @@ do contexto. `readOccurrenceView` (a resposta das escritas) passou a usar o mesm
   o contrato publicado é o dos tipos `TripOccurrenceFeedItem` / `TripOccurrenceDetail` e os testes
   `test/integration/trip-occurrence-correction-read.integration.ts` e
   `test/trip-http/occurrence-detail.contract.ts`.
-  <<<<<<< HEAD
-  > > > > > > > # d8d7b27a2 (docs(trip-occurrence): gates da API da Fase 0.5 e nota da leitura de correção/cancelamento)
 
 **As duas linhas do tempo (T3.2a).** `GET /trips/:id/timeline`: o item `document.occurrence` ganhou
 `occurrence.cancellation` (`null` ou o mesmo `{ cancelledAt, cancelledByName, reason }`), lido por
@@ -2342,16 +2337,9 @@ do contexto. `readOccurrenceView` (a resposta das escritas) passou a usar o mesm
 (`GET /trip-occurrences/:id/timeline`, spec 183) ganhou o evento `occurrence.cancelled`
 (`reason`; ator `operation` com `cancelledByName`; data = `cancelledAt`; prioridade 5, por último no
 mesmo instante), montado a partir do `cancellation` que o leitor do feed já traz — sem consulta nova.
-<<<<<<< HEAD
-Não é evento-chave nem fecha `openUntil`: a 183 define as duas coisas pela tratativa, e isso não foi
-reaberto. O painel precisa conhecer o kind novo antes de a API ir a produção.
-
-> > > > > > > # 93f260e4d (feat(trip-timeline): as duas linhas do tempo publicam o cancelamento da ocorrência)
-> > > > > > >
-> > > > > > > Não é evento-chave. **Fecha `openUntil`** (decisão de 2026-10-03, T6.5): `resolveTimings`
-> > > > > > > (`occurrence-timeline.policy.ts`) toma o **mais cedo** entre o terminal da tratativa e o cancelamento da
-> > > > > > > ocorrência — a cancelada deixa de aparecer "em andamento" para sempre; `driverReleasedAt` segue só da
-> > > > > > > tratativa. Contrato `test/trip-occurrence/timeline.contract.ts` e integração
-> > > > > > > `trip-occurrence-correction-read.integration.ts`. O painel precisa conhecer o kind novo antes de a API ir
-> > > > > > > a produção (etapa 1 da ordem de publicação, `specs/235-…/evidence.md` T6.1).
-> > > > > > > 871188e8f (fix(trip-occurrence): o cancelamento da ocorrência fecha o relógio da linha do tempo)
+Não é evento-chave. **Fecha `openUntil`** (decisão de 2026-10-03, T6.5): `resolveTimings`
+(`occurrence-timeline.policy.ts`) toma o **mais cedo** entre o terminal da tratativa e o cancelamento da
+ocorrência — a cancelada deixa de aparecer "em andamento" para sempre; `driverReleasedAt` segue só da
+tratativa. Contrato `test/trip-occurrence/timeline.contract.ts` e integração
+`trip-occurrence-correction-read.integration.ts`. O painel precisa conhecer o kind novo antes de a API ir
+a produção (etapa 1 da ordem de publicação, `specs/235-…/evidence.md` T6.1).
