@@ -874,3 +874,38 @@ cd apps/frontend-transportada && bun test ./test/trip.contract.test.ts -t "clien
 bun run typecheck                                  # limpo
 bun run lint                                       # 0 erros, 16 avisos preexistentes
 ```
+
+## T1.2 — Quando Corrigir e Cancelar agem, e o texto de quando não
+
+`resolveOccurrenceCorrectionActions(input, t)` em `tripOccurrenceDetail.service.ts`: função pura que
+devolve, para cada botão, `hidden`, `enabled` ou `disabled` com o `reason` já traduzido. Espelha o
+servidor (`correct-occurrence-items.use-case.ts`, `cancel-occurrence.use-case.ts`,
+`drizzle-occurrence-correction.repository.ts#hasOpenOccurrenceCase`):
+
+- sem `trip.manage`: os dois `hidden`, sem texto (CA02);
+- ocorrência cancelada vence qualquer tratativa (`OCCURRENCE_CANCELLED`/`OCCURRENCE_ALREADY_CANCELLED`
+  vêm antes de `OCCURRENCE_CASE_ALREADY_OPEN` nos dois casos de uso);
+- **qualquer** linha em `trip_occurrence_cases` fecha a janela — `hasOpenOccurrenceCase` só testa se a
+  linha existe, sem olhar `status`. Os estados da tratativa só mudam o **texto**;
+- sem itens: Corrigir `hidden` (RF10), Cancelar segue a mesma regra.
+
+Textos em `occurrenceDetail.correction.unavailable.*` (pt-BR e en). Texto exato por estado, afirmado
+pelo contrato `test/trip/occurrence-correction-actions.contract.ts` (importado por
+`test/trip.contract.test.ts`):
+
+| Estado                                                        | Texto (pt-BR)                                                                                                                        |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| tratativa `recorded` / `under_review` / `awaiting_contractor` | A tratativa está aberta: depois que ela abre, a ocorrência já vale dinheiro e não pode mais ser corrigida nem cancelada.             |
+| `decided` + `redelivery_authorized`                           | A tratativa foi decidida com reentrega autorizada; a reentrega parte desta ocorrência e ela já não pode ser corrigida nem cancelada. |
+| `decided` + `goods_paid`                                      | A tratativa foi decidida com mercadoria paga; o acerto nasce desta ocorrência e ela já não pode ser corrigida nem cancelada.         |
+| `decided` + `other`                                           | A tratativa foi decidida por outro caminho, com nota do escritório; a ocorrência já não pode ser corrigida nem cancelada.            |
+| `closed`                                                      | A tratativa foi fechada; a ocorrência virou histórico e já não pode ser corrigida nem cancelada.                                     |
+| `returned_to_warehouse`                                       | A mercadoria já voltou ao barracão por esta tratativa; a ocorrência já não pode ser corrigida nem cancelada.                         |
+| tratativa `cancelled`                                         | A tratativa foi cancelada; a ocorrência segue com o histórico dela e já não pode ser corrigida nem cancelada.                        |
+| ocorrência cancelada                                          | Esta ocorrência já foi cancelada e não pode mais ser corrigida nem cancelada.                                                        |
+
+```bash
+bun run --cwd apps/frontend-transportada test   # 6475 pass, 0 fail (32 arquivos); lote restante 327 pass, 0 fail
+bun run typecheck                               # limpo
+cd apps/frontend-transportada && bun run lint   # 0 erros, 16 avisos preexistentes
+```
