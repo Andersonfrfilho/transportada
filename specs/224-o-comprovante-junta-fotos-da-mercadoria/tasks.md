@@ -28,7 +28,7 @@ Todo arquivo de teste novo entra **à mão** na lista explícita do `package.jso
 
 ## Fase 1 — O banco guarda a foto de produto, com teto, chave e lápide
 
-> 🤖 Modelo: 🧠 `opus`
+> 🤖 Modelo: `sonnet` (trigger e tetos já decididos na ADR-0089 e no plan.md; a pendência do teto 4+5 × 220 RF08 é do usuário, não do executor)
 
 - [ ] **T1.1** Mapear o que a mudança toca. O `evidence.md` registra quatro listas, cada item com
       `arquivo:linha`:
@@ -72,7 +72,7 @@ Todo arquivo de teste novo entra **à mão** na lista explícita do `package.jso
 
 ## Fase 2 — A API recebe, lista, mostra e apaga
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `sonnet` (T2.4, T2.5 e T2.7 → `haiku`)
 
 - [ ] **T2.1** Contratos vermelhos em `test/trip-delivery-proof-cargo/`.
   - `driver-upload.contract.ts` (CA04, CA05):
@@ -103,12 +103,12 @@ Todo arquivo de teste novo entra **à mão** na lista explícita do `package.jso
     - depois do commit: `deleteObject` e `status = 'deleted'`;
     - se o bucket falhar, a resposta continua 204 e o log registra `storage_delete_deferred`.
   - `listDeliveryProofs` passa a filtrar lápide e `status`, e a devolver `channel` (RF7).
-- [ ] **T2.4** Registrar a D11 no `evidence.md`: nenhuma rota nova devolve URL do bucket ao motorista,
+- [ ] **T2.4** `haiku` Registrar a D11 no `evidence.md`: nenhuma rota nova devolve URL do bucket ao motorista,
       e a app não faz `GET` ao storage. Conferir com `grep` de `downloadUrl` e da origem do storage
       em `apps/frontend-driver/src`. Se alguém quiser voltar à URL assinada, antes é preciso
       conferir o CORS de `GET` do bucket para `motorista.<zona>` em staging e produção, com a
       evidência da resposta do preflight. Essa conferência fica registrada como condição.
-- [ ] **T2.5** Worker: o purpose novo no expurgo (RF6). Contrato na suíte
+- [ ] **T2.5** `haiku` Worker: o purpose novo no expurgo (RF6). Contrato na suíte
       `test/trip-occurrence-attachment-purge/`:
   - o `delivery_proof_cargo` vencido é apagado;
   - o `delivery_proof` nunca é (CA10);
@@ -120,7 +120,7 @@ Todo arquivo de teste novo entra **à mão** na lista explícita do `package.jso
       apagados do dublê e regressão da nota (CA06) em `driver-score.integration.ts` e
       `me-trip.integration.ts`. **Só fecha com `bun --env-file=../../.env.test run test:integration`
       verde**, com a contagem no `evidence.md`.
-- [ ] **T2.7** Documentação viva:
+- [ ] **T2.7** `haiku` Documentação viva:
   - `apps/api-transportada/CLAUDE.md`: a foto de produto do motorista, o teto por canal no trigger, a
     lápide, o `DELETE` sem `Idempotency-Key` e a retenção;
   - `docs/SECURITY.md`: a LGPD da foto de produto e o risco aceito;
@@ -128,7 +128,7 @@ Todo arquivo de teste novo entra **à mão** na lista explícita do `package.jso
 
 ## Fase 3 — A fila do aparelho leva a foto de produto sem tirar lugar do canhoto
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `sonnet` (T3.2 → `haiku`, com o contrato da T3.1 vermelho)
 
 - [ ] **T3.1** Contratos vermelhos.
   - `test/driver-trip/cargo-photo-queue.contract.ts` (CA11, CA12):
@@ -145,7 +145,7 @@ Todo arquivo de teste novo entra **à mão** na lista explícita do `package.jso
   - `test/driver-trip/driver-trip-client-delete.contract.ts`: `request()` aceita `'DELETE'`, o
     `DELETE` sai sem `idempotency-key`, 204 tira o `cargoPhotoRemoval` da fila, e erro de rede
     mantém o evento.
-- [ ] **T3.2** Implementar: `offlineAttachments.service.ts`, `cargoPhotoQueue.constant.ts`, a régua
+- [ ] **T3.2** `haiku` Implementar: `offlineAttachments.service.ts`, `cargoPhotoQueue.constant.ts`, a régua
       por `kind` na redução e na recuperação, o cliente (`request` com `DELETE`, `listDriverProofs`,
       `readDriverProofContent`, `removeCargoProof`, `attachProof` com `cargo`),
       `driverProofListFromApi` e o evento `cargoPhotoRemoval`. Gate:
@@ -153,9 +153,9 @@ Todo arquivo de teste novo entra **à mão** na lista explícita do `package.jso
 
 ## Fase 4 — A tela: fotos dos produtos, ver, remover e substituir
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `sonnet` (T4.0 → `haiku`)
 
-- [ ] **T4.0** Pré-requisitos. O `evidence.md` registra a saída de três comandos:
+- [ ] **T4.0** `haiku` Pré-requisitos. O `evidence.md` registra a saída de três comandos:
   - `git log --oneline -5 origin/staging -- apps/frontend-driver/src/modules/driver-trip/components/DriverStopCard.component.tsx`;
   - `git log --oneline -1 origin/staging -- apps/frontend-driver/src/modules/driver-trip/components/ProofImageLightbox.component.tsx`;
   - `grep -n "removeQueuedAttachmentByKey" apps/frontend-driver/src/modules/driver-trip/shared/offlineAttachments.service.ts`.
@@ -208,7 +208,7 @@ Todo arquivo de teste novo entra **à mão** na lista explícita do `package.jso
 
 ## Fase 6 — Revisão de design, segurança e publicação
 
-> 🤖 Modelo: 🧠 `opus`
+> 🤖 Modelo: `sonnet` (T6.3 e T6.4 → `haiku`)
 
 - [ ] **T6.1** Revisão de design e usabilidade (`designer`). Olhar os estados da T4.4 em 375 e
       768 px, claro e escuro: contraste AA medido, alvos de pelo menos 44 px medidos por
@@ -225,9 +225,9 @@ Todo arquivo de teste novo entra **à mão** na lista explícita do `package.jso
   - bytes apagados de verdade;
   - auditoria;
   - §15 do code-standart.
-- [ ] **T6.3** Atualizar `apps/frontend-driver/CLAUDE.md`: a galeria, a reserva da fila, as duas
+- [ ] **T6.3** `haiku` Atualizar `apps/frontend-driver/CLAUDE.md`: a galeria, a reserva da fila, as duas
       passagens, o `DELETE` sem header e a leitura pela API.
-- [ ] **T6.4** Publicar em staging, com os passos encadeados por `&&`:
+- [ ] **T6.4** `haiku` Publicar em staging, com os passos encadeados por `&&`:
       `git fetch && git rebase origin/staging && bun install --frozen-lockfile && make check && make migration-test && git push origin HEAD:staging`.
   - Antes do push: prettier nos `.md` e `db:generate` = `no_changes`.
   - Produção só com aprovação humana.
@@ -338,10 +338,11 @@ Resolvido isso, o prompt abaixo volta a valer (a Fase 1 depende da decisão):
 /oh-my-claudecode:autopilot Execute a spec specs/224-o-comprovante-junta-fotos-da-mercadoria/
 (leia spec.md, plan.md, tasks.md e a ADR-0089 antes de começar). Uma task por vez, na ordem do
 tasks.md, cada uma com o contrato vermelho antes da implementação.
-Modelos: Fase 0 → executor model=haiku · Fase 1 🧠 → opus (migration, trigger, rollback) ·
-Fase 2 → executor model=sonnet · Fase 3 → executor model=sonnet · Fase 4 → executor model=sonnet ·
-Fase 5 → executor model=haiku · Fase 6 🧠 → opus (designer e security-reviewer) ·
-revisão final → code-reviewer model=opus.
+Modelos: Fase 0 → executor model=haiku · Fase 1 → executor model=sonnet (migration, trigger, rollback) ·
+Fase 2 → executor model=sonnet (T2.4, T2.5, T2.7 → haiku) · Fase 3 → executor model=sonnet (T3.2 → haiku) ·
+Fase 4 → executor model=sonnet (T4.0 → haiku) · Fase 5 → executor model=haiku ·
+Fase 6 → sonnet (designer e security-reviewer; T6.3 e T6.4 → haiku) · revisão final → code-reviewer model=sonnet.
+Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
 Cada task fecha com typecheck + testes + commit isolado (--no-verify, caminhos explícitos) e
 evidência em evidence.md. Teste novo entra à mão na lista do package.json da app.
 Na API, de dentro de apps/api-transportada, os dois comandos:

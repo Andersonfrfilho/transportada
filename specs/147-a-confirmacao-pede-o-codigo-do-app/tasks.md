@@ -34,15 +34,15 @@ Todas as decisões estão fechadas (D1, D2, D4 e D6 respondidas pelo usuário em
 
 ## Fase 1 — Configuração e a parada
 
-> 🤖 Modelo: `opus` 🧠 — muda o que o bot executa nas quatro operações
+> 🤖 Modelo: `sonnet` (T003 é 🧠 — validar com `opus`: o seam é herdado pela T004 e pelas quatro operações)
 
-- [ ] **T001** 🧠 Migration de `company_whatsapp_confirmation_settings` com chave
+- [ ] **T001** Migration de `company_whatsapp_confirmation_settings` com chave
       `(company_id, channel, operation)`, CHECKs de `channel` e `operation` vindos de
       `WHATSAPP_CONFIRMATION_OPERATIONS` e da constante de canais, e o padrão por canal em constante (no
       WhatsApp, as quatro ligadas). Rota `GET`/`PUT`/`DELETE /company-settings/whatsapp-confirmation`
       (`settings.manage`) e painel na aba WhatsApp de Configurações. Contratos de schema, de rota e de
       "linha ausente segue o padrão do canal".
-- [ ] **T002** 🧠 Tabela do código ligada à operação: `whatsapp_confirmation_codes` (empresa, ator,
+- [ ] **T002** Tabela do código ligada à operação: `whatsapp_confirmation_codes` (empresa, ator,
       sessão, operação, referência opaca da operação, `code_hash`, `code_sealed`, `expires_at`,
       `attempt_count` com CHECK, `consumed_at`), com o código vivo único por (empresa, ator, sessão).
       Na emissão, `awaiting_code` entra no CHECK de `whatsapp_command_requests`. O `resume` e o índice de
@@ -51,7 +51,7 @@ Todas as decisões estão fechadas (D1, D2, D4 e D6 respondidas pelo usuário em
       decide pela configuração, gera, sela, grava e notifica, e devolve "aguardando". Um nó comum da
       conversa lê os 6 dígitos e executa a operação guardada. Contratos do AC1 ao AC4, com o seam
       testado isolado.
-- [ ] **T004** 🧠 Plugar o seam nas quatro operações: a confirmação da emissão (entre o hash e o
+- [ ] **T004** Plugar o seam nas quatro operações: a confirmação da emissão (entre o hash e o
       `claim`), entrega e devolução (T015), ocorrência (T015 e T016), e separar, carregar e despachar
       (T016). O `context` da sessão guarda só ids opacos. Contrato por operação: ligada pede código,
       desligada executa como na 144.
@@ -71,18 +71,18 @@ Todas as decisões estão fechadas (D1, D2, D4 e D6 respondidas pelo usuário em
 
 ## Fase 3 — Web Push
 
-> 🤖 Modelo: `opus` 🧠 na decisão da dependência e na troca do service worker; `sonnet` no resto
+> 🤖 Modelo: `sonnet` (T007 é 🧠 — `opus`: a decisão da dependência é herdada pela T011; T009 → `haiku`)
 
 - [ ] **T007** 🧠 Medir `web-push` (npm) no Bun: gerar par VAPID, cifrar `aes128gcm` e mandar para um
       endpoint fake. Se falhar, implementar com `crypto` nativo (RFC 8291/8292). ADR com a decisão e a
       medida **antes** de qualquer código de envio.
-- [ ] **T008** 🧠 (emenda spec 189/ADR-0075, T8.3) O SW da **app do motorista**
+- [ ] **T008** (emenda spec 189/ADR-0075, T8.3) O SW da **app do motorista**
       (`apps/frontend-driver/src/sw.ts`, que já é `injectManifest` desde que a app nasceu): acrescentar
       `push` e `notificationclick`, abrindo a tela do código. Smoke do PWA verde, e o `Cache-Control` do
       `sw.js` no `server.ts` do motorista conferido. Contrato do service worker. Sem troca de modo — o
       risco do `plan.md` ("`generateSW` → `injectManifest` pode quebrar o PWA inteiro") não se aplica
       mais.
-- [ ] **T009** Chaves VAPID no ambiente, validadas no boot (a privada nunca chega ao bundle), e a rota
+- [ ] **T009** `haiku` Chaves VAPID no ambiente, validadas no boot (a privada nunca chega ao bundle), e a rota
       da chave pública.
 - [ ] **T010** Inscrição por gesto do usuário: `POST`/`DELETE /me/web-push-subscriptions`, em
       `notification.devices` com `platform: 'web'`, na allowlist da T005b. Aviso de que no iPhone é
@@ -93,7 +93,7 @@ Todas as decisões estão fechadas (D1, D2, D4 e D6 respondidas pelo usuário em
 
 ## Fase 4 — O B1 da 144 e o fechamento
 
-> 🤖 Modelo: `sonnet`; revisão final em `opus`
+> 🤖 Modelo: `sonnet` (revisão final também em `sonnet`)
 
 - [ ] **T012** Liquidação: revalidar `billing.create` só quando há CT-e autorizado a faturar. Pedido só
       de NFS-e liquida como `settled` e manda o resumo. Com CT-e e sem a permissão, emite, não fatura,
@@ -102,7 +102,7 @@ Todas as decisões estão fechadas (D1, D2, D4 e D6 respondidas pelo usuário em
       da 144 (`settleDispatched`, chamada de `revalidateActor`). Contrato do AC7.
 - [ ] **T013** ADR "a segunda confirmação", `CLAUDE.md` (inclusive o aviso de que o primeiro deploy
       liga o código nas quatro operações do WhatsApp) e `docs/SECURITY.md`.
-- [ ] **T014** Revisão de segurança e de código em `opus`, e o roteiro da prova em staging, para o
+- [ ] **T014** Revisão de segurança e de código em `sonnet`, e o roteiro da prova em staging, para o
       usuário executar.
 
 `[P]` significa que a tarefa pode executar em paralelo sem editar os mesmos arquivos. Marque como
@@ -126,9 +126,10 @@ spec.md, plan.md e tasks.md antes de começar; leia também specs/144-o-comando-
 de que ela depende). No worktree spec-147: git fetch && git rebase origin/staging, e confira que
 apps/api-transportada/src/whatsapp-commands/ existe — se não existir, a 144 não foi publicada: PARE.
 Uma task por vez, na ordem do tasks.md.
-Modelos: Fase 1 (T001–T004 🧠) → executor model=opus, architect valida o seam da T003 antes da T004 ·
-Fase 2 → executor model=sonnet · Fase 3: T007 e T008 🧠 → opus, T009–T011 → sonnet ·
-Fase 4 → sonnet · revisão final → security-reviewer e code-reviewer model=opus.
+Modelos: Fase 1 → executor model=sonnet, exceto T003 🧠 → opus (architect valida o seam antes da T004) ·
+Fase 2 → sonnet · Fase 3: T007 🧠 → opus, T008/T010/T011 → sonnet, T009 → haiku ·
+Fase 4 → sonnet · revisão final → security-reviewer e code-reviewer model=sonnet.
+Escalada: gate falhou 2x em haiku → sonnet → opus, registrada em evidence.md.
 Cada task fecha com bun run typecheck + testes da app + make check + commit isolado, evidência em
 evidence.md. Teste novo entra na lista explícita do package.json. Integração da API só com
 bun --env-file=../../.env.test a partir de apps/api-transportada.

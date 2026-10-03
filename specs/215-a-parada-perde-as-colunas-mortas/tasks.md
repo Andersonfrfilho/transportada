@@ -2,7 +2,7 @@
 
 ## Fase A — o código esquece as colunas
 
-> 🤖 Modelo: `sonnet` (T2 é 🧠 — validar o snapshot à mão com `opus` antes do commit)
+> 🤖 Modelo: `sonnet` (T2, já fechada, foi 🧠 — snapshot validado à mão)
 
 - [x] **T1** Contrato estático (CA2): reprova se `tripStops` declarar `latitude`, `longitude` ou
       `geocodingPrecision` — `test/trip-schema/*.contract.ts` + lista do `package.json` — evidência:
@@ -21,7 +21,7 @@
 
 ## Fase B — o banco apaga as colunas
 
-> 🤖 Modelo: `sonnet`. Nada desta fase começa antes de T5 estar em produção.
+> 🤖 Modelo: `sonnet` (T9 ⚙️ `haiku`: só gates). Nada desta fase começa antes de T5 estar em produção.
 
 - [ ] **T6** RF2: contagem das três colunas não nulas = 0 em dev, staging e produção (`Postgres-Hqfu`),
       registrada em `evidence.md` com data. Diferente de zero → parar e reportar.
@@ -30,9 +30,9 @@
 - [ ] **T8** Migration de remoção com `rollback.sql` — `drizzle/<ts>_trip_stops_drop_dead_coordinates/`
       — evidência: `make migration-test` (aplica, desfaz, reaplica), T7 verde, `db:generate` =
       `no_changes`.
-- [ ] **T9** Gates da fase B; commit isolado. **Parar e pedir aprovação humana** antes do push para
+- [ ] **T9** ⚙️ Gates da fase B; commit isolado. **Parar e pedir aprovação humana** antes do push para
       staging (migration destrutiva) e de novo antes do PR para produção.
-- [ ] **T10** Revisão final: `code-reviewer` (`opus`) sobre as duas fases; atualizar o núcleo da API
+- [ ] **T10** Revisão final: `code-reviewer` (`sonnet`) sobre as duas fases; atualizar o núcleo da API
       (`apps/api-transportada/CLAUDE.md`) se ele citar as colunas.
 
 ## Prompt de execução
@@ -40,8 +40,9 @@
 ```text
 /oh-my-claudecode:autopilot Execute a spec specs/215-a-parada-perde-as-colunas-mortas/ (leia spec.md,
 plan.md e tasks.md antes de começar). Uma task por vez, na ordem do tasks.md.
-Modelos: Fase A → executor model=sonnet · T2 🧠 → opus (validar o snapshot com architect antes do
-commit) · Fase B → executor model=sonnet · revisão final (T10) → code-reviewer model=opus.
+Modelos: Fase A → executor model=sonnet · Fase B → executor model=sonnet (T9 haiku) · revisão final
+(T10) → code-reviewer model=sonnet.
+Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
 Cada task fecha com typecheck + lint + os dois comandos de teste da API (contrato e
 test:integration com --env-file=../../.env.test) + make migration-test quando houver migration +
 commit isolado com caminhos explícitos e --no-verify, evidência em evidence.md.

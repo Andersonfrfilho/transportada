@@ -121,7 +121,7 @@ cap`, e a **Q5** ficou aberta (teto de avisos por parada e endereço). As Fases 
 
 ## Fase 1 — Banco
 
-> 🤖 Modelo: `opus` 🧠 (constraint, índice e rollback destrutivo)
+> 🤖 Modelo: `sonnet` (só a T1.3 está aberta: medir com `count(*)` e decidir; o desenho da constraint e do índice já foi feito na T1.2)
 
 - [x] **T1.1** 🧠 Contratos antes (CA1). **Feita em 2026-09-26**, vermelho registrado no `evidence.md`
       (`42703`, `tapped_at` não existe; `111 pass, 1 fail`). Um caso a mais do que a task pedia: a
@@ -162,8 +162,7 @@ snapshot.json}` conforme o plano, e a cópia do schema no worker (`tapped_at`). 
 
 ## Fase 2 — API do motorista
 
-> 🤖 Modelo: `sonnet` (T2.2, T2.2a e T2.3 🧠 — validar a transação e as travas com `architect` opus
-> antes)
+> 🤖 Modelo: `sonnet` (só T2.6 está aberta → `haiku`: quatro requisições com resposta esperada)
 
 - [x] **T2.1** Contratos antes (CA2), em `test/driver-trip/stop-departure.contract.ts`, importado em
       `test/driver-trip.contract.test.ts`.
@@ -272,7 +271,7 @@ sequence }`, e a página com `departed`, `departure_cancelled` e `arrived` pagin
 
   **Aceite:** os dois comandos da API verdes.
 
-- [ ] **T2.6** ⏸️ **PENDENTE — exige a API já em staging** (2026-09-26): esta execução implementou
+- [ ] **T2.6** `haiku` ⏸️ **PENDENTE — exige a API já em staging** (2026-09-26): esta execução implementou
       T2.1–T2.5 sem deploy nenhum (fora do escopo autorizado); a sonda só pode rodar depois da subida.
       Sonda de publicação (ADR-0081 §9), sem efeito nenhum.
   - Depois do deploy da API em staging, um `POST .../stops/<uuid>/depart` e um
@@ -304,9 +303,9 @@ sequence }`, e a página com `departed`, `departure_cancelled` e `arrived` pagin
 
 ## Fase 4 — App do motorista
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `sonnet` (T4.0 e T4.2 → `haiku`: conferência por `git` e implementação com o contrato da T4.1 já escrito)
 
-- [ ] **T4.0** Pré-requisito: `3e3730732` ("Cheguei libera a entrega") e a 205 em `origin/staging`.
+- [ ] **T4.0** `haiku` Pré-requisito: `3e3730732` ("Cheguei libera a entrega") e a 205 em `origin/staging`.
       Sem eles, pare e pergunte.
   - A **Q4 já está respondida** (usuário, 2026-09-26: "Desfazer sempre, com registro"): nada a
     perguntar. O "Cancelar rota" é escopo, com o desenho da D18/D19.
@@ -341,7 +340,7 @@ sequence }`, e a página com `departed`, `departure_cancelled` e `arrived` pagin
 
   **Aceite:** os casos rodam e falham.
 
-- [ ] **T4.2** Implementar:
+- [ ] **T4.2** `haiku` Implementar:
   - tipos, validador (ausente ≠ `null`), cliente e fila, com o `rejectionCause` de
     `TRIP_HAS_STOP_EN_ROUTE` (o item **fica** na fila, como no `404`);
   - `enRouteStop.service.ts` (com `canStartRouteAtStop` devolvendo `blockingStopId`) e
@@ -384,7 +383,7 @@ Preview` — ela diz o efeito no cliente, e o botão desaparece depois do Chegue
 
 ## Fase 5 — Painel
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `haiku` (rótulos, ícones e contrato; o print vai ao `painel-local`)
 
 - [ ] **T5.1** Se a T0.3 publicou só a tolerância, entram agora os rótulos e os ícones do
       `stop.departed` e do `stop.departure_cancelled`, com contrato em `timeline-view.contract.ts`, e o
@@ -393,7 +392,7 @@ Preview` — ela diz o efeito no cliente, e o botão desaparece depois do Chegue
 
 ## Fase 6 — Revisão de design, documentação viva e publicação
 
-> 🤖 Modelo: `sonnet` (revisão final → `code-reviewer` com `opus`)
+> 🤖 Modelo: `sonnet` (T6.2 → `haiku`; revisão final → `code-reviewer` com `sonnet`)
 
 - [ ] **T6.1** Revisão de design e usabilidade (`web.md` §15).
   - O cartão contra os vizinhos.
@@ -402,7 +401,7 @@ Preview` — ela diz o efeito no cliente, e o botão desaparece depois do Chegue
 
   **Aceite:** prints, com as divergências consertadas ou listadas.
 
-- [ ] **T6.2** Documentação viva.
+- [ ] **T6.2** `haiku` Documentação viva.
   - `apps/api-transportada/CLAUDE.md` § "Viagem": a rota `depart`, `en_route_*`, `stop.depart`,
     `result_changed`, o `409 TRIP_HAS_STOP_EN_ROUTE` (uma parada a caminho por vez, sem troca), a rota
     `cancel-departure` com o `409 TRIP_STOP_DEPARTURE_NOT_CANCELLABLE` e o kind
@@ -417,7 +416,7 @@ Preview` — ela diz o efeito no cliente, e o botão desaparece depois do Chegue
   - N+1 no snapshot.
   - PII em log.
   - `tenant-safety`.
-  - A revisão do `code-reviewer` (opus).
+  - A revisão do `code-reviewer` (`sonnet`).
 
   **Aceite:** o parecer no `evidence.md`, sem achado alto aberto.
 
@@ -426,7 +425,7 @@ Preview` — ela diz o efeito no cliente, e o botão desaparece depois do Chegue
 
 ## Fase 7 — Aviso ao destinatário, sem custo, **nascendo desligado** (separada)
 
-> 🤖 Modelo: `opus` 🧠 em T7.0–T7.2; `sonnet` em T7.3–T7.7
+> 🤖 Modelo: `sonnet` em T7.0–T7.7 (as decisões da fase já estão tomadas na spec, D13/D19/D20; a execução é descrita item a item)
 >
 > **Decisão do usuário, 2026-09-26** (spec D20): esta fase é **implementada e sobe sem efeito**. O
 > interruptor é **configuração de empresa**, desligado de fábrica — nada de variável de ambiente para
@@ -440,7 +439,7 @@ Preview` — ela diz o efeito no cliente, e o botão desaparece depois do Chegue
 > Depende da **193 T6.5** (`nfe_participants.email`) em `origin/staging`. As Fases 0–6 não dependem
 > desta.
 
-- [ ] **T7.0** 🧠 Medir e conferir antes de fixar (D13).
+- [ ] **T7.0** Medir e conferir antes de fixar (D13).
   - O volume diário e mensal dos e-mails que a conta do `RESEND_API_KEY` já manda.
   - **Pelo nome**, que o worker de produção tem `RESEND_API_KEY` e `EMAIL_FROM`, com
     `railway variables --json | jq 'keys'`, nunca o valor.
@@ -455,7 +454,7 @@ Preview` — ela diz o efeito no cliente, e o botão desaparece depois do Chegue
 
   **Aceite:** números, fonte e decisão no `evidence.md`.
 
-- [ ] **T7.1** 🧠 Registrar a decisão em `docs/SECURITY.md`:
+- [ ] **T7.1** Registrar a decisão em `docs/SECURITY.md`:
   - legítimo interesse (art. 7º IX), com a finalidade de avisar a chegada da própria entrega **e o
     cancelamento dela** — o segundo e-mail serve ao mesmo titular e à mesma finalidade, e não amplia a
     base legal;
@@ -472,7 +471,7 @@ Preview` — ela diz o efeito no cliente, e o botão desaparece depois do Chegue
 
   **Aceite:** o ok do usuário ao texto antes do commit.
 
-- [ ] **T7.2** 🧠 Contratos antes (CA11–CA13), com a migration e o `rollback.sql`.
+- [ ] **T7.2** Contratos antes (CA11–CA13), com a migration e o `rollback.sql`.
   - `company_recipient_notice_settings`.
   - `contractors.recipient_en_route_notice_enabled`.
   - **A Q5 não é mais pré-requisito desta task** (Revisão 5): o aviso nasce desligado, então o pior caso
@@ -572,7 +571,7 @@ Preview` — ela diz o efeito no cliente, e o botão desaparece depois do Chegue
 
   **Aceite:** prints e o ok do usuário.
 
-- [ ] **T7.7** Revisão de segurança (`security-reviewer`, opus) e publicação, com aprovação humana
+- [ ] **T7.7** Revisão de segurança (`security-reviewer`, `sonnet`) e publicação, com aprovação humana
       para produção.
   - A publicação sobe a fase **desligada**, sem efeito nenhum em produção (plan.md § "Fase 7: sobe por
     último e sobe sem efeito"). Ligar é conversa posterior com a transportadora, e é o momento da Q5.
@@ -587,11 +586,12 @@ Preview` — ela diz o efeito no cliente, e o botão desaparece depois do Chegue
 plan.md, tasks.md e docs/adr/0088-a-rota-comeca-em-cada-parada.md antes de começar). Uma task por
 vez, na ordem do tasks.md, Fases 0 a 6. A Fase 7 só começa com a 193 T6.5 em origin/staging e com a
 T7.0 medida.
-Modelos: Fase 0 → opus (T0.3 → executor model=sonnet) · Fase 1 → opus 🧠 · Fase 2 → executor
-model=sonnet (T2.2, T2.2a e T2.3 🧠 → validar travas e transação com architect opus antes) · Fase 3 →
-executor model=sonnet · Fase 4 → executor model=sonnet · Fase 5 → executor model=sonnet · Fase 6 →
-sonnet, revisão final → code-reviewer model=opus · Fase 7 → T7.0–T7.2 opus 🧠, T7.3–T7.7 executor
-model=sonnet, security-reviewer model=opus.
+Modelos (só o que está aberto): Fase 1 (T1.3) → executor model=sonnet · Fase 2 (T2.6) → executor
+model=haiku · Fase 3 → executor model=sonnet · Fase 4 → executor model=sonnet, exceto T4.0 e T4.2 →
+model=haiku · Fase 5 → executor model=haiku · Fase 6 → executor model=sonnet, exceto T6.2 →
+model=haiku, revisão final → code-reviewer model=sonnet · Fase 7 → executor model=sonnet,
+security-reviewer model=sonnet. Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e
+registra em evidence.md.
 Cada task: contrato antes, typecheck, os dois comandos da API (contrato e test:integration com
 --env-file=../../.env.test; suíte nova em entrypoint nomeado e test:integration editado à mão),
 make migration-test onde houver migration, commit isolado com caminhos explícitos, evidência em

@@ -1,7 +1,7 @@
 # Tasks — Spec 191
 
 **👤 = ação humana.** O executor para, descreve o passo exato, espera o "feito" e confere o efeito.
-**🧠 = task que sobe para `opus`** dentro de uma fase mais barata.
+**🧠 = task que sobe para `opus`** dentro de uma fase mais barata. Nas fases abertas não há 🧠: o desenho (ADR-0076) já está fechado, e as revisões são `sonnet`. `haiku` marca a task mecânica com aceite por comando.
 
 Toda task de comportamento começa pelo contrato ou teste, **visto vermelho**, e fecha com:
 
@@ -148,9 +148,9 @@ com `rollback.sql` e fecha com `make migration-test`.
 
 ## Fase 3 — Reenvio: mesmo código enquanto válido, rota pública
 
-> 🤖 Modelo: `opus` (anti-enumeração: forma, tempo e log da resposta são o contrato)
+> 🤖 Modelo: `sonnet` (anti-enumeração: forma, tempo e log da resposta são o contrato, já fechado na ADR-0076; T3.4 → `haiku`)
 
-- [ ] **T3.1** 🧠 **Núcleo de entrega e serviço de autoatendimento.**
+- [ ] **T3.1** **Núcleo de entrega e serviço de autoatendimento.**
       Contrato primeiro, em `test/user-activation/invitation-delivery.contract.ts` e
       `invitation-self-resend.contract.ts`.
 
@@ -179,7 +179,7 @@ com `rollback.sql` e fecha com `make migration-test`.
       Conferir que nenhum job apaga linhas de `invitation_delivery_outbox` com menos de 24 h. Se
       algum apagar, contar em `audit_logs`.
 
-- [ ] **T3.2** 🧠 **`POST /invitation-resends` e piso de tempo.**
+- [ ] **T3.2** **`POST /invitation-resends` e piso de tempo.**
       Contrato primeiro, em `test/user-activation/invitation-resend-route.contract.ts`: - os 8 casos do CA1: 204, corpo vazio, cabeçalhos iguais exceto `x-correlation-id` e `Date`; - 400 para corpo malformado e para mais de 254 caracteres; - os dois caminhos, e o caminho em que o trabalho rejeita, aguardam o mesmo piso. Usar
       `respondAfterFloor` com sono falso: o contrato conta as chamadas ao sono; - a rota declara IP e alvo (RF12), e o alvo é consumido depois do desafio.
 
@@ -191,13 +191,13 @@ com `rollback.sql` e fecha com `make migration-test`.
       env. Vai para o `evidence.md`, e o `SELF_SERVICE_RESPONSE_FLOOR_MS` padrão fica acima dele com
       pelo menos 30% de margem.
 
-- [ ] **T3.4** **`POST /password-resets` aceita `{ identifier }`** (RF11), com o schema como união
+- [ ] **T3.4** `haiku` **`POST /password-resets` aceita `{ identifier }`** (RF11), com o schema como união
       estrita (`password-reset.schema.ts`).
       Contrato em `test/password-reset/`: - `{ username }` segue igual; - `{ identifier }` com e-mail, CPF ou telefone chega ao mesmo alvo; - `{ username }` e `{ identifier }` com o mesmo texto caem no mesmo balde; - os dois campos juntos dão 400; - mais de 254 caracteres dá 400.
 
 ## Fase 4 — Desafio invisível, desligado
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `sonnet` (T4.2 e T4.3 → `haiku`)
 
 - [ ] **T4.1** **Flag na API.**
       `SELF_SERVICE_CHALLENGE_ENABLED` aceita `'true'` ou `'false'`, com padrão `false`, no padrão de
@@ -209,12 +209,12 @@ com `rollback.sql` e fecha com `make migration-test`.
       - ligada sem segredo, não sobe;
       - ligada, exige o token, e **token inválido não incrementa o balde do alvo**.
 
-- [ ] **T4.2** **Widget e CSP nos três fronts.** - `TurnstileWidget.component.tsx` é copiado por valor da `frontend-landing` e só é montado com a
+- [ ] **T4.2** `haiku` **Widget e CSP nos três fronts.** - `TurnstileWidget.component.tsx` é copiado por valor da `frontend-landing` e só é montado com a
       chave pública. - A CSP de cada app ganha `https://challenges.cloudflare.com` em `script-src`, `frame-src` e
       `connect-src` **só** com a chave. - Contrato de CSP nos dois ramos, em cada app. Sem a chave, a CSP fica byte a byte igual à de
       hoje.
 
-- [ ] **T4.3** **Critério e procedimento para ligar.**
+- [ ] **T4.3** `haiku` **Critério e procedimento para ligar.**
       Entrada nova no `docs/SECURITY.md` com o evento `self_service_request`, os três gatilhos do
       plano e o passo a passo: - variável na Railway; - chave pública nos builds; **no motorista, isso exige commit**, porque o `VITE_*` é literal; - hostnames das três apps na chave do widget no Cloudflare.
 
@@ -223,7 +223,7 @@ com `rollback.sql` e fecha com `make migration-test`.
 
 ## Fase 5 — Telas públicas nas três apps
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `sonnet` (T5.2 é cópia por valor com contrato → `haiku`)
 
 - [ ] **T5.1** **Painel.** Não tocar em `/primeiro-acesso` nem em `FirstAccess.page.tsx`. - `/ativar`: sem fragmento, mostra a escolha; com `#codigo=`, vai direto ao formulário. Os
       contratos da 188 continuam verdes. - `InvitationResendForm`: - mostra a mensagem neutra, "Já tenho o código" e "Voltar ao login"; - no 429, mostra "Muitas tentativas. Tente de novo em N min."; - o campo nasce preenchido pelo `loginIdentifierMemory`, nunca pela URL. - `PasswordReset.page.tsx`: o campo passa a ser "e-mail, CPF, telefone ou usuário" e envia
@@ -231,7 +231,7 @@ com `rollback.sql` e fecha com `make migration-test`.
       não é "Primeiro acesso?", para não colidir com o assistente do primeiro administrador; anotar
       no `evidence.md`. - Chaves `activation.choice.*` nos dois locales. - Contratos em `test/identity/`, agregados em `test/identity.contract.test.ts`.
 
-- [ ] **T5.2** **Portal (`apps/frontend-client`).** - Cópias por valor de `/ativar` (com a escolha), `/recuperar-senha` (com `{ identifier }`) e
+- [ ] **T5.2** `haiku` **Portal (`apps/frontend-client`).** - Cópias por valor de `/ativar` (com a escolha), `/recuperar-senha` (com `{ identifier }`) e
       `PublicRouteFrame`, registradas em `main.tsx` antes do `initializeKeycloakAuth()` (`:116`). - O "voltar ao login" leva à origem do portal. - Links na `LoginIdentifier.page.tsx`. Os textos ficam no TSX. - Cada cópia leva o cabeçalho "Cópia por valor de apps/frontend-transportada/…". - Contratos na lista do `package.json:14`.
 
 - [ ] **T5.3** **Motorista (`apps/frontend-driver`).**
@@ -275,7 +275,7 @@ com `rollback.sql` e fecha com `make migration-test`.
 
 ## Fase 7 — Chave, revisão, publicação e documentação
 
-> 🤖 Modelo: `sonnet` (T7.2 → `opus`) · 👤 onde marcado
+> 🤖 Modelo: `sonnet` (T7.5 → `haiku`) · 👤 onde marcado
 
 - [ ] **T7.1** **Revisão de design e usabilidade** (`web.md` §15), com o agente `designer`.
       Prints em **375 e 768** de: - a identificação das três apps, com os dois links; - `/ativar` nos quatro estados: escolha, "Tenho o código", "Reenviar" com a mensagem neutra, e
@@ -283,7 +283,7 @@ com `rollback.sql` e fecha com `make migration-test`.
 
       Comparar as três cópias lado a lado. Os achados são corrigidos antes de fechar.
 
-- [ ] **T7.2** 🧠 **Revisão de segurança** (`security-reviewer`, `model=opus`), sobre o diff inteiro,
+- [ ] **T7.2** **Revisão de segurança** (`security-reviewer`, `model=opus`, gate de segurança do agent-strategy.md), sobre o diff inteiro,
       com o `docs/SECURITY.md`.
       Pontos a revisar: - enumeração: corpo, cabeçalhos, tempo e 429; - PII em log e em `rate_limit_windows`; - chave HMAC; - IP forjado nos oito pontos; - falha fechada do store e do desafio; - ordem entre desafio e alvo; - isolamento; - CSP.
 
@@ -306,7 +306,7 @@ com `rollback.sql` e fecha com `make migration-test`.
 - [ ] **T7.4** **Gates e staging.** Só depois da T7.3. - `make check`, os dois comandos da API e prettier nos `.md`. - Publicação, tudo encadeado com `&&`: `git fetch && git rebase origin/staging && bun install --frozen-lockfile && make check && git push origin HEAD:staging`. - Em staging: - convidado real pede reenvio pela tela do motorista e pela do painel, recebe no Mailpit o
       **mesmo** código e ativa; - o 11º pedido do mesmo IP dá 429; - checagem qualitativa de tempo com 20 convidados distintos; - a Admin API mostra `bruteForceProtected: true` depois do passo "Reconciliar realm"; - `x-real-ip` e `x-forwarded-for` forjados não mudam o balde (a medição de 14/09 repetida).
 
-- [ ] **T7.5** **Documentação viva.** - `apps/api-transportada/CLAUDE.md`: seção de identidade com a rota nova, o limite e o piso. - `docs/ai-context/<app>.md` das apps tocadas, se existirem.
+- [ ] **T7.5** `haiku` **Documentação viva.** - `apps/api-transportada/CLAUDE.md`: seção de identidade com a rota nova, o limite e o piso. - `docs/ai-context/<app>.md` das apps tocadas, se existirem.
 
 - [ ] **T7.6** 👤 **Produção.**
       Pré-requisito: T6.8–T6.10 da spec 189 fechadas. - O executor confere que `RATE_LIMIT_SUBJECT_HMAC_KEY` **existe** em produção (só o nome). - Monta o PR por branch própria sobre `main` e confere a lista de commits. - O usuário aprova. - Depois do deploy, conferir o passo "Reconciliar realm" e a força bruta pela Admin API.
@@ -318,11 +318,11 @@ com `rollback.sql` e fecha com `make migration-test`.
 spec.md, plan.md, tasks.md e docs/adr/0076-primeiro-acesso-sem-oraculo.md antes de começar). Uma
 task por vez, na ordem do tasks.md, numa branch na própria árvore (git switch -c work/spec-191 a
 partir de origin/staging) — nunca `make worktree`. T2.4 vem depois de T3.1.
-Modelos: Fase 0 → opus · Fase 1 → executor model=opus (T1.1–T1.3 🧠) · Fase 2 → executor
-model=sonnet · Fase 3 → executor model=opus (T3.1, T3.2 🧠; T3.3 e T3.4 → sonnet) · Fase 4 →
-executor model=sonnet · Fase 5 → executor model=sonnet · Fase 6 → executor model=sonnet · T7.1 →
-designer model=sonnet · T7.2 → security-reviewer model=opus · T7.4/T7.5 → executor model=sonnet ·
-revisão final → code-reviewer model=opus.
+Modelos (só o que está aberto): Fase 2 (T2.4) → executor model=sonnet · Fase 3 → executor
+model=sonnet (T3.4 → haiku) · Fase 4 → sonnet (T4.2, T4.3 → haiku) · Fase 5 → sonnet (T5.2 → haiku) ·
+Fase 6 → sonnet · T7.1 → designer model=sonnet · T7.2 → security-reviewer model=sonnet · T7.4 →
+executor model=sonnet · T7.5 → haiku · revisão final → code-reviewer model=sonnet.
+Escalada: gate falhou 2x em haiku → sonnet → opus, registrada em evidence.md.
 Cada task fecha com typecheck + lint + testes + commit isolado (--no-verify, caminhos explícitos),
 evidência em evidence.md. Na API, os DOIS comandos (contrato e `bun --env-file=../../.env.test run
 test:integration`, de dentro de apps/api-transportada). Teste novo entra no package.json e no

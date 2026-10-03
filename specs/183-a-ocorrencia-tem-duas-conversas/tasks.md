@@ -114,7 +114,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 
 - [x] **T601** Rotas `/me/trips/current/occurrences/:id/messages` (listar, responder com foto) e o
       aviso na inbox com `dedupeKey`. Evidência: contratos (motorista de outra viagem não alcança).
-- [ ] **T602** 🧠 Canal WhatsApp do motorista pelo telefone verificado (ADR-0063), com o desvio dos
+- [ ] **T602** Canal WhatsApp do motorista pelo telefone verificado (ADR-0063), com o desvio dos
       fluxos de comando só por `context.id` (RF9). Evidência: teste de caso de uso + contrato de que
       mensagem sem `context.id` da conversa continua chegando aos fluxos da spec 144.
 - [x] **T603** Aba Motorista no detalhe, com "Anexar à ocorrência" e "Encaminhar à contratante".
@@ -227,9 +227,8 @@ Não publique em staging nem em lugar nenhum sem me perguntar.
 ORDEM: uma task por vez, na ordem do tasks.md: Fase 0 → 1 → 2 → 3 → 4 → 5 → 6 → 6b → 7 → 8 → 9.
 Se a Fase 1 parar por falta no pacote, siga pelas Fases 2 e 3 (não dependem dele) e pare antes da 4.
 
-MODELOS: o que cada fase indica no tasks.md. Tasks marcadas 🧠 (T301, T401, T502, T602, T651,
-T902) são validadas com architect model=opus antes de fechar. Revisão final (T901) com
-code-reviewer + security-reviewer model=opus.
+MODELOS: o que cada fase indica no tasks.md (o que resta aberto é `sonnet`, inclusive a T602).
+Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
 
 CADA TASK:
 1. escreva primeiro o teste de contrato/aceite e mostre-o falhando;
