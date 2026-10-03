@@ -5,7 +5,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { driverClockOffset } from '../shared/clockOffset.service'
 import { getDriverTripClient, toAttachmentSendOutcome } from '../shared/driverTripClient.service'
-import { readCurrentLocation } from '../shared/driverLocation.service'
+import {
+  readCurrentLocation,
+  readDirectTapLocation,
+  usesDirectTapLocation,
+} from '../shared/driverLocation.service'
 import { captureRegistry, persistWhileOpen } from '../shared/captureRegistry.service'
 import type {
   DriverFieldReport,
@@ -620,11 +624,13 @@ export function useDriverTrip(
     })
   }
 
-  /** Spec 196 D5: uma leitura de 8 s completa, pelas chaves, todos os itens do toque que levam ponto. */
+  /** Spec 196 D5: uma leitura (de 8 s, ou de 3 s no despacho e no "Iniciar rota") completa, pelas chaves, todos os itens do toque que levam ponto. */
   async function completeLocations(reports: readonly DriverFieldReport[]): Promise<void> {
     const keys = listLocatedReportKeys(reports)
     if (keys.length === 0) return
-    const location = await readCurrentLocation()
+    const location = await (usesDirectTapLocation(reports)
+      ? readDirectTapLocation()
+      : readCurrentLocation())
     if (location === null) return
     await store.update((items) => completeReportLocations({ items, keys, location }))
   }

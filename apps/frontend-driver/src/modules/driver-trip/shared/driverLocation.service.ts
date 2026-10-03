@@ -1,7 +1,7 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/driverLocation.service.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { clampProofAccuracyMeters } from './driverTripClient.service'
-import type { DriverReportedLocation } from './driverTrip.types'
+import type { DriverFieldReport, DriverReportedLocation } from './driverTrip.types'
 
 /**
  * ADR-0045 §3: uma leitura por confirmação; posição contínua só com consentimento (ADR-0050 §5,
@@ -42,6 +42,18 @@ export function readCurrentLocation(): Promise<DriverReportedLocation | null> {
  */
 export const DIRECT_TAP_POSITION_BUDGET_MS = 3_000
 export const DIRECT_TAP_POSITION_MAX_AGE_MS = 300_000
+
+/**
+ * "Despachar" e "Iniciar rota" (spec 196 RF8) seguem saindo em até 3 s, com ou sem posição. Desde as
+ * specs 230 e 206 eles são itens da fila, e a fila espera a leitura de 8 s (sem prazo nenhum, com o
+ * pedido de permissão aberto) antes de pedir a drenagem — então são eles que usam a leitura com relógio.
+ */
+export function usesDirectTapLocation(reports: readonly DriverFieldReport[]): boolean {
+  return (
+    reports.length > 0 &&
+    reports.every((report) => report.kind === 'dispatch' || report.kind === 'depart')
+  )
+}
 
 type CancelTimer = () => void
 type StartTimer = (callback: () => void, milliseconds: number) => CancelTimer

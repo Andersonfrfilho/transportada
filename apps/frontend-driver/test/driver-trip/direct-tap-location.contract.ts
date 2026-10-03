@@ -1,11 +1,17 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'bun:test'
 
 import {
   DIRECT_TAP_POSITION_BUDGET_MS,
   DIRECT_TAP_POSITION_MAX_AGE_MS,
   readDirectTapLocation,
+  usesDirectTapLocation,
 } from '../../src/modules/driver-trip/shared/driverLocation.service'
+import type { DriverFieldReport } from '../../src/modules/driver-trip/shared/driverTrip.types'
+
+const HOOK = new URL('../../src/modules/driver-trip/hooks/useDriverTrip.hook.ts', import.meta.url)
 
 type PositionCallback = (position: GeolocationPosition) => void
 
@@ -106,5 +112,38 @@ describe('readDirectTapLocation (196 T5.3)', () => {
 
     expect(await readDirectTapLocation({ geolocation: undefined, timer: clock.timer })).toBeNull()
     expect(clock.scheduled).toHaveLength(0)
+  })
+})
+
+/**
+ * Spec 196 RF8: despachar e "Iniciar rota" disparam o `POST` em até 3 s. Os dois viraram itens da
+ * fila (specs 230 e 206), que espera a leitura antes da drenagem — a leitura deles é a do relógio.
+ */
+describe('quem usa a leitura com relógio (196 RF8)', () => {
+  const key = { idempotencyKey: 'chave-1' }
+
+  it('o despacho e o "Iniciar rota" usam; os demais toques mantêm a leitura de 8 s', () => {
+    const dispatch: DriverFieldReport = { ...key, kind: 'dispatch', location: null, tripId: 't' }
+    const depart: DriverFieldReport = {
+      ...key,
+      kind: 'depart',
+      location: null,
+      stopId: 's',
+      tappedAt: '2026-10-03T12:00:00.000Z',
+    }
+    const arrive: DriverFieldReport = { ...key, kind: 'arrive', location: null, stopId: 's' }
+
+    expect(usesDirectTapLocation([dispatch])).toBe(true)
+    expect(usesDirectTapLocation([depart])).toBe(true)
+    expect(usesDirectTapLocation([arrive])).toBe(false)
+    expect(usesDirectTapLocation([dispatch, arrive])).toBe(false)
+    expect(usesDirectTapLocation([])).toBe(false)
+  })
+
+  it('o hook escolhe a leitura por quem toca', () => {
+    const hook = readFileSync(HOOK, 'utf8')
+
+    expect(hook).toInclude('usesDirectTapLocation(reports)')
+    expect(hook).toInclude('readDirectTapLocation()')
   })
 })
