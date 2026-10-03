@@ -20,6 +20,7 @@ import { SETTINGS_MANAGE_PERMISSION } from '@/modules/company-settings/shared/co
 import { resolveSettingsDataScope } from '@/modules/company-settings/shared/companySettingsTabs.service'
 
 import { TripDeliveryProofSettingsPanel } from '../components/TripDeliveryProofSettingsPanel.component'
+import { TripLocationRetentionPanel } from '../components/TripLocationRetentionPanel.component'
 import { TripRouteAssemblyLeftovers } from '../components/TripRouteAssemblyLeftovers.component'
 import { TripRouteAssemblyDialog } from '../components/TripRouteAssemblyDialog.component'
 import {
@@ -137,9 +138,9 @@ function TripWorkspacePageSkeleton() {
   )
 }
 
-type TripTabId = 'proof' | 'trips'
+type TripTabId = 'location' | 'proof' | 'trips'
 
-const TRIP_TABS: readonly TripTabId[] = ['trips', 'proof']
+const TRIP_TABS: readonly TripTabId[] = ['trips', 'proof', 'location']
 
 function resolveTripTab(id: string): TripTabId {
   return TRIP_TABS.find((tab) => tab === id) ?? 'trips'
@@ -411,13 +412,18 @@ export function TripWorkspacePage() {
                       saveCanhotoOcrEnabledMutation.isError
                     }
                   />
+                ) : tab === 'location' ? (
+                  <TripLocationRetentionPanel
+                    canManage={canManageSettings}
+                    isEnabled={settingsScope.locationRetentionSettings}
+                  />
                 ) : null,
             }))}
             onChange={(id) => setActiveTab(resolveTripTab(id))}
             value={activeTab}
           />
 
-          {activeTab === 'proof' ? null : (
+          {activeTab === 'trips' ? (
             <>
               {feedbackKey === null ? null : (
                 <p className={styles.alert} role="alert">
@@ -524,7 +530,7 @@ export function TripWorkspacePage() {
                 />
               )}
             </>
-          )}
+          ) : null}
         </div>
       ) : null}
     </main>

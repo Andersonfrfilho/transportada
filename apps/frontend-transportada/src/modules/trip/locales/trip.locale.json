@@ -853,8 +853,8 @@
       "partial": "O mapa mostra só os eventos já carregados. Carregue mais para incluir os anteriores.",
       "missingUnavailable_one": "{{count}} evento sem posição: o aparelho não a entregou.",
       "missingUnavailable_other": "{{count}} eventos sem posição: o aparelho não a entregou.",
-      "missingExpired_one": "{{count}} evento com posição apagada após 90 dias.",
-      "missingExpired_other": "{{count}} eventos com posição apagada após 90 dias.",
+      "missingExpired_one": "{{count}} evento com posição apagada pelo prazo de retenção.",
+      "missingExpired_other": "{{count}} eventos com posição apagada pelo prazo de retenção.",
       "missingRestricted_one": "{{count}} evento com posição registrada, mas oculta para o seu acesso.",
       "missingRestricted_other": "{{count}} eventos com posição registrada, mas oculta para o seu acesso.",
       "legendLabel": "Tipos de evento no mapa",
@@ -896,7 +896,7 @@
       "capturedAt": "Lida em {{moment}}",
       "restricted": "O ponto foi registrado, mas este acesso não mostra a coordenada.",
       "unavailable": "O aparelho não entregou a posição neste toque.",
-      "expired": "A coordenada é apagada após 90 dias; o evento permanece.",
+      "expired": "A coordenada é apagada pelo prazo de retenção; o evento permanece.",
       "viewMap": "Ver no mapa",
       "hideMap": "Ocultar mapa",
       "mapLoading": "Carregando o mapa",
@@ -1024,6 +1024,60 @@
   "intro": "Organize viagens sem CT-e: vincule veículo, motoristas e as notas fiscais transportadas.",
   "kicker": "Operação não fiscal",
   "loading": "Carregando viagens",
+  "locationRetention": {
+    "clear": "Voltar ao padrão",
+    "confirm": {
+      "action": {
+        "enable": {
+          "pending": "Ligar e apagar…",
+          "ready_one": "Ligar e apagar {{amount}} ponto",
+          "ready_other": "Ligar e apagar {{amount}} pontos"
+        },
+        "shorten": {
+          "pending": "Encurtar e apagar…",
+          "ready_one": "Encurtar e apagar {{amount}} ponto",
+          "ready_other": "Encurtar e apagar {{amount}} pontos"
+        }
+      },
+      "cancel": "Cancelar",
+      "cappedCount": "mais de 100 mil",
+      "grace": "O apagamento só começa 24 horas depois da confirmação. Para desfazer nesse intervalo, desligue: nada terá sido apagado.",
+      "groups": {
+        "arrival": "Chegadas e entregas",
+        "canhotoPhoto": "Fotos do canhoto",
+        "occurrence": "Ocorrências",
+        "statusChange": "Mudanças de status"
+      },
+      "intro": "Com o prazo de {{days}} dias, estes eventos perdem o ponto no primeiro ciclo:",
+      "loadError": "Não foi possível contar o que seria apagado. Feche e tente de novo.",
+      "loading": "Contando os eventos",
+      "title": {
+        "enable": "Ligar o apagamento da posição?",
+        "shorten": "Encurtar o prazo de retenção?"
+      }
+    },
+    "daysLabel": "Prazo de retenção (dias)",
+    "daysRangeError": "Informe um número inteiro de {{min}} a {{max}}.",
+    "disable": "Desligar o apagamento",
+    "effectiveAt": "Começa a valer em {{moment}}",
+    "enable": "Ligar o apagamento",
+    "forbidden": "Somente quem administra as configurações da empresa vê e altera este prazo.",
+    "hint": "Por quanto tempo a posição registrada nos eventos da viagem fica guardada. Depois do prazo o evento continua na linha do tempo, sem o ponto.",
+    "lgpd": "A posição registrada nos eventos da viagem é dado pessoal do motorista (LGPD, art. 5º, I). Guardar por um prazo definido e apagar depois atende aos princípios de necessidade e de limitação do tratamento (art. 6º, III). Apagar é definitivo: o evento continua na linha do tempo, mas sem o ponto. A pontualidade e a distância já avaliadas não mudam.",
+    "liveTrail": "O rastro ao vivo da viagem é apagado em 36 horas, sempre; este prazo não o altera.",
+    "loadError": "Não foi possível ler o prazo de retenção da posição.",
+    "loading": "Carregando o prazo de retenção",
+    "saveDays": "Salvar prazo",
+    "saveError": "Não foi possível gravar. Nada foi alterado.",
+    "saving": "Gravando",
+    "status": {
+      "active": "Ligado: a posição é apagada depois de {{days}} dias.",
+      "off": "Desligado: nenhuma posição é apagada.",
+      "waiting": "Ligado, aguardando a carência de 24 horas: nada é apagado ainda."
+    },
+    "title": "Apagar a posição pelo prazo de retenção",
+    "whatsapp": "As mensagens do WhatsApp seguem regra própria."
+  },
   "mdfeGate": {
     "close": "Fechar",
     "documentColumn": "Nota",
@@ -1784,6 +1838,7 @@
     "withoutDriver": "Sem motorista"
   },
   "tabs": {
+    "location": "Localização",
     "proof": "Comprovante",
     "trips": "Viagens"
   },

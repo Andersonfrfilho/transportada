@@ -5181,3 +5181,33 @@ button.occurrenceCaseBadge {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* Spec 239 D5: a contagem do que cai no primeiro ciclo, uma linha por tipo de evento. */
+.retentionImpactList {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+}
+
+.retentionImpactList li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 40%, transparent);
+  font-size: 0.85rem;
+}
+
+/* O botão que apaga veste o tom de alerta, sem ir para a outra ponta como `.actionDestructive`. */
+.retentionDestructive {
+  border-color: color-mix(in srgb, var(--color-alert) 45%, transparent);
+  color: var(--color-alert);
+}
+
+.retentionDestructive:hover:not(:disabled) {
+  border-color: var(--color-alert);
+  background: color-mix(in srgb, var(--color-alert) 12%, transparent);
+}
