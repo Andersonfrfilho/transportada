@@ -1,5 +1,31 @@
 # Evidência — spec 235, Fase 0
 
+## Índice (task → commit → evidência)
+
+| Task       | Commit                              | Evidência (seção abaixo)                                                                         |
+| ---------- | ----------------------------------- | ------------------------------------------------------------------------------------------------ |
+| T0.1, T0.2 | `d653d1570`                         | T0.1 — Escritas / Recusas; T0.2 — Leitura depois das escritas (a leitura não devolvia os campos) |
+| T0.3       | `6952f9eda`                         | T0.3 — Testes primeiro, vermelhos                                                                |
+| T0.4       | `3a307bbf3`                         | T0.4 — Implementação                                                                             |
+| T0.5       | `d8d7b27a2`                         | T0.5 — Gates da API                                                                              |
+| T1.1       | `dc33d02a3`                         | T1.1 — O cliente das duas escritas                                                               |
+| T1.2       | `cda66c6db`                         | T1.2 — Quando Corrigir e Cancelar agem                                                           |
+| T1.3       | `449709816`                         | T1.2/T1.3 — mutação vermelha registrada                                                          |
+| T1.4       | `d9ff8b763`                         | T1.4 — As mutações de dados, com invalidação                                                     |
+| T2.1       | `9d3359924`                         | T2.1 — O botão Corrigir no detalhe                                                               |
+| T2.2       | `639e38e26`                         | T2.2 — O formulário de correção                                                                  |
+| T2.3       | `24977faa5`                         | T2.3 — As mensagens de erro por código estável                                                   |
+| T2.4       | `96626a4d5`                         | T2.3/T2.4 — mutação vermelha registrada                                                          |
+| T3.1       | `df8893cee`                         | T3.1 — O diálogo de cancelamento                                                                 |
+| T3.2a      | `9ca78e561` (spec), `93f260e4d`     | T3.2a — As duas linhas do tempo publicam o cancelamento                                          |
+| T3.2       | `c1eb0dc17`                         | T3.2 — A marca de cancelada                                                                      |
+| T4.1       | `4f774cdab`                         | T4.1 — A lista de correções no detalhe                                                           |
+| T4.2       | `c87378075`                         | T4.2 — Duas correções seguidas                                                                   |
+| T5.0       | `09d6be608`                         | Fase 5, T5.0 — `correctedByName` nulo                                                            |
+| T5.1       | `4953d4026`                         | Fase 5, T5.1 — Revisão de design e usabilidade, 21 prints em `prints/`                           |
+| T5.2       | `68319e473`                         | Fase 5, T5.2 — `tasks.md` da 167 conferido                                                       |
+| T5.3, T5.4 | commit de fechamento (este arquivo) | Fase 5, T5.3 — Gates; Fase 5, T5.4 — Pendências                                                  |
+
 Ambiente: API deste worktree (`work/spec-235`) subida na porta 53091 contra o Postgres local
 (127.0.0.1:55432) e o Keycloak local; token do usuário de seed `local-user` (papéis
 `company-admin` + `operator`, tem `trip.manage`) obtido por authorization code + PKCE no cliente
@@ -1323,16 +1349,16 @@ Prints (`specs/235-a-correcao-da-ocorrencia-ganha-tela/prints/`, `NN-descricao-L
 `03-formulario-correcao` · `04-desabilitado-motivo` · `05-cancelada-detalhe-topo` · `06-cancelada-historico` ·
 `07-feed-cancelada` — 21 arquivos.
 
-| Verificação                                                      | desktop 1280        | tablet 768          | mobile 375                           |
-| ---------------------------------------------------------------- | ------------------- | ------------------- | ------------------------------------ |
-| Rolagem horizontal da página (detalhe, diálogo, formulário, feed) | nenhuma             | nenhuma             | nenhuma                              |
-| Altura dos botões Corrigir/Cancelar/Salvar/Confirmar             | 38px                | 38px                | **44px** (alvo de toque)             |
-| Largura do fechar do diálogo                                     | 28px → **38px**     | 28px → **38px**     | **20px → 44px**                      |
-| Foco por teclado em Corrigir                                     | contorno 2px cobre  | idem                | idem                                 |
-| Foco ao fechar o diálogo (Esc)                                   | volta ao botão      | idem                | idem                                 |
-| Confirmar cancelamento com motivo vazio                          | `disabled`          | idem                | idem                                 |
-| Motivo do estado desabilitado                                    | texto à vista + `aria-describedby`, 12,8px, contraste 5,7:1 | idem | idem |
-| Selo "Cancelada" no feed                                         | vermelho, contraste ≥ 4,5:1 (4,53 sobre a linha destacada, 5,08 sobre o fundo) | idem | idem |
+| Verificação                                                       | desktop 1280                                                                   | tablet 768      | mobile 375               |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------ | --------------- | ------------------------ |
+| Rolagem horizontal da página (detalhe, diálogo, formulário, feed) | nenhuma                                                                        | nenhuma         | nenhuma                  |
+| Altura dos botões Corrigir/Cancelar/Salvar/Confirmar              | 38px                                                                           | 38px            | **44px** (alvo de toque) |
+| Largura do fechar do diálogo                                      | 28px → **38px**                                                                | 28px → **38px** | **20px → 44px**          |
+| Foco por teclado em Corrigir                                      | contorno 2px cobre                                                             | idem            | idem                     |
+| Foco ao fechar o diálogo (Esc)                                    | volta ao botão                                                                 | idem            | idem                     |
+| Confirmar cancelamento com motivo vazio                           | `disabled`                                                                     | idem            | idem                     |
+| Motivo do estado desabilitado                                     | texto à vista + `aria-describedby`, 12,8px, contraste 5,7:1                    | idem            | idem                     |
+| Selo "Cancelada" no feed                                          | vermelho, contraste ≥ 4,5:1 (4,53 sobre a linha destacada, 5,08 sobre o fundo) | idem            | idem                     |
 
 Console: só `404` de miniatura de foto — o MinIO local (`:59000`) não estava no ar (`compose.yaml` puxa imagem
 privada do GHCR); ruído de ambiente, nenhum erro de script. Rede: nenhuma chamada da tela com status de erro.
@@ -1365,27 +1391,70 @@ contratos e a integração existentes.
 
 **Marcadas (15):**
 
-| Task | Prova |
-| ---- | ----- |
-| T101 | `apps/frontend-transportada/test/trip/occurrence-history-tolerance.contract.ts` (roda no lote `trip`); commit `7709ea673` em `origin/staging` |
-| T102 | `corrections` e `cancellation` em `TRIP_OCCURRENCE_OPTIONAL_KEYS` (`trip.constant.ts`), guards `isOccurrenceCorrection`/`isOccurrenceCancellation` |
-| T201 | `drizzle/20260928010022_occurrence_correction_and_cancellation/` com `migration.sql`, `rollback.sql`, `snapshot.json` e o CHECK `trip_document_occurrences_cancellation_presence_check`; `make migration-test` na evidência da 167 |
-| T202, T203 | `occurrence-correction.policy.ts` e `occurrence-cancellation.policy.ts`; `test/trip-domain/occurrence-correction.contract.ts` e `occurrence-cancellation.contract.ts` |
+| Task             | Prova                                                                                                                                                                                                                                                                                  |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T101             | `apps/frontend-transportada/test/trip/occurrence-history-tolerance.contract.ts` (roda no lote `trip`); commit `7709ea673` em `origin/staging`                                                                                                                                          |
+| T102             | `corrections` e `cancellation` em `TRIP_OCCURRENCE_OPTIONAL_KEYS` (`trip.constant.ts`), guards `isOccurrenceCorrection`/`isOccurrenceCancellation`                                                                                                                                     |
+| T201             | `drizzle/20260928010022_occurrence_correction_and_cancellation/` com `migration.sql`, `rollback.sql`, `snapshot.json` e o CHECK `trip_document_occurrences_cancellation_presence_check`; `make migration-test` na evidência da 167                                                     |
+| T202, T203       | `occurrence-correction.policy.ts` e `occurrence-cancellation.policy.ts`; `test/trip-domain/occurrence-correction.contract.ts` e `occurrence-cancellation.contract.ts`                                                                                                                  |
 | T301, T302, T303 | os dois casos de uso reaproveitam `resolveOccurrenceItemQuantities`/`resolveOccurrenceProductSelection`; a leitura da tratativa mora na unidade de trabalho da escrita; os `409` e o `200` sem mudança estão em W1–W5 e C1–C4 da T0.1 e em `trip-occurrence-correction.integration.ts` |
-| T305 | as duas rotas respondem com `trip.manage` e `Idempotency-Key` (T0.1: E5 sem chave = 400), balde de taxa em `rate-limited-routes.contract.test.ts` |
-| T306 | **só a partir da 235**: a T0.2 provou que nenhuma leitura publicava os campos; a Fase 0.5 (T0.3–T0.5) fez detalhe, lista da nota e feed publicarem, com `trip-occurrence-correction-read.integration.ts` |
-| T309 | `test/integration/trip-occurrence-correction.integration.ts` e `-read.integration.ts`, ambos executados nas Fases 0.5 e 3 desta spec |
-| T401, T402, T404 | 235 T2.1/T2.2 (Corrigir reabre o formulário com o conjunto atual), T3.1 (diálogo com motivo obrigatório), T3.2 (marca de cancelada na lista) |
-| T502 | 235 T5.1 (esta fase), com os prints |
+| T305             | as duas rotas respondem com `trip.manage` e `Idempotency-Key` (T0.1: E5 sem chave = 400), balde de taxa em `rate-limited-routes.contract.test.ts`                                                                                                                                      |
+| T306             | **só a partir da 235**: a T0.2 provou que nenhuma leitura publicava os campos; a Fase 0.5 (T0.3–T0.5) fez detalhe, lista da nota e feed publicarem, com `trip-occurrence-correction-read.integration.ts`                                                                               |
+| T309             | `test/integration/trip-occurrence-correction.integration.ts` e `-read.integration.ts`, ambos executados nas Fases 0.5 e 3 desta spec                                                                                                                                                   |
+| T401, T402, T404 | 235 T2.1/T2.2 (Corrigir reabre o formulário com o conjunto atual), T3.1 (diálogo com motivo obrigatório), T3.2 (marca de cancelada na lista)                                                                                                                                           |
+| T502             | 235 T5.1 (esta fase), com os prints                                                                                                                                                                                                                                                    |
 
 **Deixadas desmarcadas (7), com o motivo:**
 
-| Task | Motivo |
-| ---- | ------ |
-| T103 | "confirmar o bundle servido" é um fato de publicação que não dá para provar daqui; só se sabe que o commit está em `origin/staging` |
+| Task | Motivo                                                                                                                                                                                                                                                                             |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T103 | "confirmar o bundle servido" é um fato de publicação que não dá para provar daqui; só se sabe que o commit está em `origin/staging`                                                                                                                                                |
 | T304 | só a parte da tratativa tem prova (`hasOpenCase` trava correção e cancelamento, integração da 167); "fora de contagem, listagem de ativas e e-mail" não foi verificado — o painel não tem contador de ocorrências ativas e o marcador da 173 não filtra cancelada (não verificado) |
-| T307 | a 235 só acrescentou o `occurrence.cancelled`; não existe evento de **correção** em nenhuma das duas linhas do tempo |
-| T308 | não há aviso de correção no código; a dúvida do e-mail continua aberta e fora de escopo |
-| T403 | a tela mostra o conjunto vigente em cada correção (derivado de `previousItems`), mas nunca o conjunto **original** (o `previousItems` da primeira correção), então "o que era" não aparece |
-| T501 | `make migration-test` não foi repetido na 235 e o carimbo provisório da migration foi tratado na T503; os gates da API e do painel foram, mas a task cobre mais |
-| T503 | a migration foi renumerada depois do rebase (`1ef417b8c`) e está em `origin/staging`, mas o `db:generate` até `no_changes` não está registrado como execução |
+| T307 | a 235 só acrescentou o `occurrence.cancelled`; não existe evento de **correção** em nenhuma das duas linhas do tempo                                                                                                                                                               |
+| T308 | não há aviso de correção no código; a dúvida do e-mail continua aberta e fora de escopo                                                                                                                                                                                            |
+| T403 | a tela mostra o conjunto vigente em cada correção (derivado de `previousItems`), mas nunca o conjunto **original** (o `previousItems` da primeira correção), então "o que era" não aparece                                                                                         |
+| T501 | `make migration-test` não foi repetido na 235 e o carimbo provisório da migration foi tratado na T503; os gates da API e do painel foram, mas a task cobre mais                                                                                                                    |
+| T503 | a migration foi renumerada depois do rebase (`1ef417b8c`) e está em `origin/staging`, mas o `db:generate` até `no_changes` não está registrado como execução                                                                                                                       |
+
+## T5.3 — Gates (primeiro plano, worktree `work/spec-235`)
+
+| Comando                                                                                                        | Resultado                                                                                         |
+| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `bun install --frozen-lockfile`                                                                                | `Checked 788 installs across 921 packages (no changes)`                                           |
+| `bun run typecheck` (raiz)                                                                                     | limpo, sem saída de erro                                                                          |
+| `cd apps/frontend-transportada && bun run lint`                                                                | 0 erros, 16 avisos `react-hooks/exhaustive-deps` já existentes (nenhum em arquivo tocado)         |
+| `bun run --cwd apps/frontend-transportada test`                                                                | contratos **6519 pass, 0 fail** (32 arquivos); lote DOM `test:hooks` **354 pass, 0 fail**; 0 skip |
+| `bun run format:check` (raiz), depois de `prettier --write` nos `.md` da spec                                  | `All matched files use Prettier code style!`                                                      |
+| `cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000` (contrato, regressão final) | **8899 pass, 23 skip, 0 fail** (193 arquivos)                                                     |
+
+Integração da API **não repetida**: já foi executada em blocos nas Fases 0.5 e 3 (T0.5 e T3.2a) e a Fase 5 não
+tocou a API — só `apps/frontend-transportada` e `specs/`. `make migration-test` **não se aplica**: nenhuma
+migration nesta spec (`git diff --stat origin/staging...HEAD -- apps/api-transportada/src/database
+apps/api-transportada/drizzle` sai vazio; as mudanças da API são só as leituras da Fase 0.5 e da T3.2a).
+
+## T5.4 — Pendências honestas (o que ficou fora ou diverge da spec)
+
+1. **A janela de correção fecha com qualquer tratativa**, não só com a aberta: é o que o servidor faz
+   (`correct-occurrence-items.use-case.ts`), e a função pura do painel espelha. O texto distingue os estados.
+2. **O histórico mostra o conjunto vigente**, derivado de `previousItems` (o da correção seguinte, e na última os
+   itens atuais). O conjunto **original** — o `previousItems` da primeira correção — não aparece; a 167 T403 ("o
+   que era e o que passou a ser") fica desmarcada por isso.
+3. **Corrigir só existe com itens**; **Cancelar e Corrigir só existem para ocorrência de nota** (a de parada é
+   outra tabela e fora de escopo).
+4. **`occurrence.cancelled` não é evento-chave** e não fecha `openUntil` na linha do tempo da ocorrência.
+5. **O marcador da 173 não filtra cancelada** — não verificado: a conta é da API
+   (`occurrence-case-marker.query.ts`) e o painel só lê o booleano; também não existe contador de ocorrências
+   ativas no painel (T3.2).
+6. **A Fase 0.5 e a T3.2a estenderam a API só em leitura**, por decisão do usuário em 2026-10-02: sem migration,
+   sem rota, sem regra nova, sem mudar as escritas da 167.
+7. **"Prorrogação" não existe no catálogo de tipos** (`occurrence-type-catalog.constant.ts` só tem "segunda via do
+   boleto"); cadastro de tipo é da 234/208 — fora de escopo.
+8. **A correção não reenvia e-mail** ao contratante; a dúvida herdada da 167 segue aberta e o comportamento é o de hoje.
+9. **Não existe evento de correção nas linhas do tempo** (167 T307 desmarcada) nem aviso de correção (T308).
+10. **Ambiente da revisão de design:** MinIO local fora do ar (miniaturas de foto dão 404 no console) e o painel
+    foi exercitado com o bypass de smoke contra a API real, por a 53000 ser de outra sessão e o Keycloak local só
+    aceitar callback nas origens fixas do realm. Os PNGs vêm do Chromium do Playwright, não do navegador embutido
+    (que não grava arquivo); a verificação por texto e geometria usou os dois.
+11. **Achados de design fora desta spec**, registrados na T5.1: "1 itens escolhidos" (plural do seletor de
+    produtos da 161), foco inicial do diálogo no contêiner e não no campo do motivo, e os nomes parecidos
+    "Cancelar ocorrência" / "Cancelar tratativa".

@@ -86,14 +86,15 @@ já faz (`listOccurrenceCorrections`, o mapeamento de `cancellation`), em lote �
 
 > 🤖 Modelo: `sonnet`; revisão final com `code-reviewer` em `opus`
 
-- [ ] **T5.1** Revisão de design e usabilidade, com print nas três larguras, incluindo o diálogo
+- [x] **T5.0** (resíduo da T3.2) `correctedByName` nulo: tipo, guard e texto do histórico, como a marca de cancelada fez com `cancelledByName`.
+- [x] **T5.1** Revisão de design e usabilidade, com print nas três larguras, incluindo o diálogo
       aberto e o estado desabilitado com motivo (CA07).
-- [ ] **T5.2** Marcar no `tasks.md` da spec 167 o que de fato está feito, com a evidência da T0.1 —
+- [x] **T5.2** Marcar no `tasks.md` da spec 167 o que de fato está feito, com a evidência da T0.1 —
       a lista de lá está inteiramente desmarcada e mente sobre o estado da API.
-- [ ] **T5.3** Gates: `bun run typecheck`, `bun run lint` com a app como cwd,
+- [x] **T5.3** Gates: `bun run typecheck`, `bun run lint` com a app como cwd,
       `bun run --cwd apps/frontend-transportada test` (nunca `bun test` cru) e `format:check` na
       raiz.
-- [ ] **T5.4** `evidence.md` consolidado.
+- [x] **T5.4** `evidence.md` consolidado.
 
 ⚠️ Todo arquivo de teste novo entra na lista do `package.json` da app — fora dela, não roda.
 
