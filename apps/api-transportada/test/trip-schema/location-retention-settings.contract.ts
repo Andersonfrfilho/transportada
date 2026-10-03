@@ -13,7 +13,7 @@ import { getTableConfig } from 'drizzle-orm/pg-core'
 import {
   LOCATION_RETENTION_MAX_DAYS,
   LOCATION_RETENTION_MIN_DAYS,
-} from '../../src/companies/domain/location-retention.policy.js'
+} from '../../src/shared/location-retention.constant.js'
 import {
   companyLocationRetentionSettings,
   tripDeliveryProofs,
@@ -82,8 +82,18 @@ describe('a configuração do expurgo da posição (spec 239 D1)', () => {
     expect(findColumn('purge_effective_at')?.hasDefault).toBeFalse()
   })
 
+  test('o schema lê a faixa de uma constante neutra, sem importar do domínio de companies', async () => {
+    const source = await Bun.file(
+      new URL('../../src/database/company-location-retention-settings.schema.ts', import.meta.url),
+    ).text()
+
+    expect(source).toContain("from '../shared/location-retention.constant.js'")
+    expect(source).not.toContain('/companies/')
+  })
+
   test('o banco recusa prazo fora de 30 a 90 dias', () => {
     expect(LOCATION_RETENTION_MIN_DAYS).toBe(30)
+    expect(LOCATION_RETENTION_MAX_DAYS).toBe(90)
     expect(
       unqualifiedCheckSqlByName(companyLocationRetentionSettings)
         .company_location_retention_settings_retention_days_check,

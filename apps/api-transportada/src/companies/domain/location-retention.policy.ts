@@ -6,8 +6,11 @@
  * enxergar a empresa (spec 239 D5). Desligar, alongar e repetir o valor não ampliam o que cai, então
  * não abrem carência nova. O relógio entra por parâmetro: a política não lê a hora.
  */
-export const LOCATION_RETENTION_MIN_DAYS = 30
-export const LOCATION_RETENTION_MAX_DAYS = 90
+import {
+  LOCATION_RETENTION_MAX_DAYS,
+  LOCATION_RETENTION_MIN_DAYS,
+} from '../../shared/location-retention.constant.js'
+
 export const LOCATION_PURGE_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000
 
 export type LocationRetentionChoice = {

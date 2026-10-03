@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { LOCATION_RETENTION_MAX_DAYS } from './location-retention.policy.js'
+import { LOCATION_RETENTION_MAX_DAYS } from '../../shared/location-retention.constant.js'
 
 /** Teto da contagem de impacto: acima disso a tela diz "mais de 100 mil" (spec 239 D5). */
 export const LOCATION_RETENTION_IMPACT_CAP = 100_000

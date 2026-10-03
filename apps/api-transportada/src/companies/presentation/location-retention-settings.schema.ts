@@ -5,10 +5,10 @@ import { z } from 'zod'
 
 import { invalidRequest, parseBody, readListQuery } from '../../http/request-parsing.service.js'
 import {
-  isValidRetentionDays,
   LOCATION_RETENTION_MAX_DAYS,
   LOCATION_RETENTION_MIN_DAYS,
-} from '../domain/location-retention.policy.js'
+} from '../../shared/location-retention.constant.js'
+import { isValidRetentionDays } from '../domain/location-retention.policy.js'
 
 const DIGITS_ONLY = /^\d+$/
 const IMPACT_QUERY_KEYS: ReadonlySet<string> = new Set(['retentionDays'])

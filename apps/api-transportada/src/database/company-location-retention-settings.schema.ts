@@ -7,7 +7,7 @@ import { boolean, check, foreignKey, integer, pgTable, timestamp, uuid } from 'd
 import {
   LOCATION_RETENTION_MAX_DAYS,
   LOCATION_RETENTION_MIN_DAYS,
-} from '../companies/domain/location-retention.policy.js'
+} from '../shared/location-retention.constant.js'
 import { companies } from './identity.schema.js'
 
 /**
