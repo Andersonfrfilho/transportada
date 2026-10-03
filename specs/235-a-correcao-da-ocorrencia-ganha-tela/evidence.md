@@ -909,3 +909,42 @@ bun run --cwd apps/frontend-transportada test   # 6475 pass, 0 fail (32 arquivos
 bun run typecheck                               # limpo
 cd apps/frontend-transportada && bun run lint   # 0 erros, 16 avisos preexistentes
 ```
+
+## T1.3 — Mutação: arrancar a condição de tratativa aberta
+
+Mutação aplicada em `resolveUnavailableReason` (`tripOccurrenceDetail.service.ts`): a linha
+`if (caseView === null) return null` virou `if (caseView !== null) return null` — a tratativa passa a
+ser ignorada e a janela nunca fecha por causa dela. Nada além dessa linha mudou
+(`git diff` = 1 linha acrescentada).
+
+```bash
+bun run --cwd apps/frontend-transportada test
+```
+
+Execução **vermelha**: `6463 pass, 12 fail` (`Ran 6475 tests across 32 files`). Trecho real:
+
+```text
+error: expect(received).toBe(expected)
+Expected: "disabled"
+Received: "enabled"
+(fail) Corrigir e Cancelar: ... > sem itens e com tratativa aberta: Corrigir segue ausente e Cancelar explica
+error: expect(received).toEqual(expected)
+- Expected  - 4
++ Received  + 2
+(fail) Corrigir e Cancelar: ... > o motivo desabilitado, em texto, por estado > tratativa registrada: os dois botões desabilitados com o texto exato
+(fail) ... > tratativa em análise: os dois botões desabilitados com o texto exato
+(fail) ... > tratativa aguardando o contratante: os dois botões desabilitados com o texto exato
+(fail) ... > decidida com reentrega: os dois botões desabilitados com o texto exato
+(fail) ... > decidida com mercadoria paga: os dois botões desabilitados com o texto exato
+(fail) ... > decidida de outro jeito: os dois botões desabilitados com o texto exato
+(fail) ... > fechada: os dois botões desabilitados com o texto exato
+(fail) ... > devolvida ao barracão: os dois botões desabilitados com o texto exato
+(fail) ... > tratativa cancelada: os dois botões desabilitados com o texto exato
+ 6463 pass
+ 12 fail
+```
+
+Os 12 que caem: o caso "sem itens e com tratativa aberta", os 9 estados da tratativa, a prova de
+que cada estado tem texto próprio e o caso em inglês. Restaurado com `git checkout` do arquivo;
+`bun run --cwd apps/frontend-transportada test` voltou a **6475 pass, 0 fail** (lote restante 327
+pass, 0 fail).
