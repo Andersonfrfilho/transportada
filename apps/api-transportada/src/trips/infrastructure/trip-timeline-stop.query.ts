@@ -18,10 +18,7 @@ import {
   tripStops,
 } from '../../database/trip.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
-import {
-  NO_EVENT_LOCATION,
-  TRIP_TIMELINE_KIND_PRIORITY,
-} from '../application/trip-timeline.types.js'
+import { TRIP_TIMELINE_KIND_PRIORITY } from '../application/trip-timeline.types.js'
 import { resolveRecordedAt } from '../application/trip-timeline-merge.service.js'
 import type { TripTimelineRow } from '../application/trip-timeline-merge.service.js'
 import type {
@@ -246,16 +243,23 @@ export async function listStopOccurrenceRows(
 
   const rows = await queryable
     .select({
+      accuracyMeters: tripStopOccurrences.accuracyMeters,
       actorName: timelineActorProfile.name,
       /** Fora do escopo da spec 161 (D2/D12): a parada só tem a coluna antiga, no máximo um anexo. */
       attachmentObjectId: tripStopOccurrences.attachmentObjectId,
+      capturedAt: tripStopOccurrences.capturedAt,
       channel: tripStopOccurrences.channel,
       description: tripStopOccurrences.description,
       id: tripStopOccurrences.id,
       kind: tripStopOccurrences.kind,
+      latitude: tripStopOccurrences.latitude,
+      locationState: tripStopOccurrences.locationState,
+      longitude: tripStopOccurrences.longitude,
       occurredAt: tripStopOccurrences.createdAt,
       occurredAtKey: formatTimelineTimestampKey(tripStopOccurrences.createdAt),
       onBehalfOfDriverName: timelineOnBehalfDriver.name,
+      referenceLatitude: geocodedAddresses.latitude,
+      referenceLongitude: geocodedAddresses.longitude,
       stopId: tripStops.id,
       stopSequence: tripStops.sequence,
     })
@@ -267,6 +271,7 @@ export async function listStopOccurrenceRows(
         eq(tripStops.id, tripStopOccurrences.stopId),
       ),
     )
+    .leftJoin(geocodedAddresses, eq(geocodedAddresses.addressKey, tripStops.addressKey))
     .leftJoin(
       timelineActorMembership,
       and(
@@ -302,7 +307,8 @@ export async function listStopOccurrenceRows(
     id: row.id,
     kind: 'stop.occurrence' as const,
     lateRegistration: false,
-    ...NO_EVENT_LOCATION,
+    location: toTimelineLocation({ ...row, recordedAt: row.occurredAt }),
+    locationState: row.locationState ?? null,
     occurrence: {
       attachmentCount: row.attachmentObjectId === null ? 0 : 1,
       note: row.description,

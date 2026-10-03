@@ -2301,3 +2301,44 @@ máquina não tem (storage alcançável, recarga de pedágio) — nenhum é do a
 `8875 pass · 1 fail`. O nome do teste não foi capturado, e as nove execuções seguintes deram `8876 pass · 0
 fail`. Registro por honestidade: não consigo chamá-la de flake sem saber qual arquivo era, e também não
 tenho como atribuí-la a esta spec.
+
+## T4.2 (leitura) — status, ocorrência de parada e ocorrência de nota passam a devolver o ponto
+
+`trip-timeline-status.query.ts` (`trip.status_changed` e `trip.created`, ambos de `trip_status_events`),
+`trip-timeline-stop.query.ts` (`stop.occurrence`) e `trip-timeline-document.query.ts`
+(`document.occurrence`) leem agora `accuracy_meters`, `captured_at`, `latitude`, `location_state` e
+`longitude` e montam `location`/`locationState` pelo mesmo `toTimelineLocation` dos eventos de parada.
+O recorte por `trip.event-location` não mudou: ele vive em `read-trip-timeline.use-case.ts` e zera
+`location` de todo item, deixando o estado. Os três arquivos já estavam em `EVENT_LOCATION_READERS`
+com as cinco colunas, então a lista fechada não mudou.
+
+- `distanceMeters`: só a ocorrência de parada tem ponto de referência (junção por `address_key` de
+  `trip_stops`, igual à dos eventos de parada); status e ocorrência de nota saem `null`.
+- `capturedAt` recua para `occurred_at` (ocorrências) quando a coluna é nula, como já fazia nos eventos.
+- Ficam `null`/`null` por não terem coluna: `trip.dispatched` (`trip_dispatch_snapshots`) e
+  `document.status_changed` (`trip_document_events`). O painel não precisou mudar.
+
+Testes novos: dois de integração em `test/integration/trip-timeline.integration.ts` (os quatro estados
+nas três tabelas com o recorte e a distância; 250 eventos misturados das três tabelas paginados em 100
+sem pular nem repetir, com o estado preservado) e três contratos de leitura da fonte em
+`trip-timeline-query-tenant-safety.contract.ts` (colunas lidas por tabela; duas junções de
+`geocoded_addresses` ancoradas na `address_key`; só duas ocorrências de `...NO_EVENT_LOCATION`). A asserção
+de 404 de outra empresa e o filtro `?documentId=` já existentes seguem verdes.
+
+Mutações (todas reprovaram e foram restauradas): `locationState: null` em status, e em ocorrência de nota;
+`location: null` em status e em ocorrência de parada (integração, 2 falhas cada); referência da distância
+anulada (1 falha); coluna `latitude` de ocorrência de nota removida, junção de `geocoded_addresses` da
+ocorrência de parada removida e status devolvido a `...NO_EVENT_LOCATION` (contrato, 1 falha cada).
+Coordenada em log: as consultas não registram nada; nenhum `log` novo.
+
+Portões da T4.2 (leitura), todos em API, saídas literais:
+
+| Portão                                                               | Resultado                                                                                                   |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `bun run typecheck`                                                  | exit 0                                                                                                      |
+| `bun run lint`                                                       | exit 0                                                                                                      |
+| `bun --env-file=../../.env.test test --timeout 120000`               | **8879 pass · 23 skip · 0 fail** (subiu em 3: era 8876), 193 arquivos                                       |
+| `bun --env-file=../../.env.test run test:integration` — **completo** | **876 pass · 8 skip · 0 fail · 5836 expect() · 884 testes · 152 arquivos** (subiu em 2: era 874; 1385,83 s) |
+| `bun run format:check` (raiz)                                        | `All matched files use Prettier code style!`                                                                |
+
+Postgres de `65432` respondeu a `pg_isready -h 127.0.0.1` (aceitando conexões).

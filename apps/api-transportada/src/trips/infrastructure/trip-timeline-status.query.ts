@@ -20,6 +20,7 @@ import type { TripTimelineRow } from '../application/trip-timeline-merge.service
 import { NO_EVENT_LOCATION } from '../application/trip-timeline.types.js'
 import type { ReadTripTimelineParams } from '../application/trip-timeline.types.js'
 import type { TripQueryable } from './trip-queryable.type.js'
+import { toTimelineLocation } from './trip-timeline-stop.query.js'
 import {
   constantPriority,
   formatTimelineTimestampKey,
@@ -126,11 +127,16 @@ export async function listStatusChangedRows(
 
   const rows = await queryable
     .select({
+      accuracyMeters: tripStatusEvents.accuracyMeters,
       actorName: timelineActorProfile.name,
+      capturedAt: tripStatusEvents.capturedAt,
       channel: tripStatusEvents.channel,
       closeReason: trips.closeReason,
       fromStatus: tripStatusEvents.fromStatus,
       id: tripStatusEvents.id,
+      latitude: tripStatusEvents.latitude,
+      locationState: tripStatusEvents.locationState,
+      longitude: tripStatusEvents.longitude,
       occurredAt: tripStatusEvents.occurredAt,
       occurredAtKey: formatTimelineTimestampKey(tripStatusEvents.occurredAt),
       onBehalfOfDriverName: timelineOnBehalfDriver.name,
@@ -177,7 +183,8 @@ export async function listStatusChangedRows(
     id: row.id,
     kind: 'trip.status_changed' as const,
     lateRegistration: false,
-    ...NO_EVENT_LOCATION,
+    location: toTimelineLocation({ ...row, referenceLatitude: null, referenceLongitude: null }),
+    locationState: row.locationState ?? null,
     occurrence: null,
     occurredAt: row.occurredAt,
     occurredAtKey: row.occurredAtKey,
@@ -220,9 +227,14 @@ export async function listCreatedRows(
 
   const rows = await queryable
     .select({
+      accuracyMeters: tripStatusEvents.accuracyMeters,
       actorName: timelineActorProfile.name,
+      capturedAt: tripStatusEvents.capturedAt,
       channel: tripStatusEvents.channel,
       id: tripStatusEvents.id,
+      latitude: tripStatusEvents.latitude,
+      locationState: tripStatusEvents.locationState,
+      longitude: tripStatusEvents.longitude,
       occurredAt: tripStatusEvents.occurredAt,
       occurredAtKey: formatTimelineTimestampKey(tripStatusEvents.occurredAt),
       recordedAt: tripStatusEvents.recordedAt,
@@ -252,7 +264,8 @@ export async function listCreatedRows(
     id: row.id,
     kind: 'trip.created' as const,
     lateRegistration: false,
-    ...NO_EVENT_LOCATION,
+    location: toTimelineLocation({ ...row, referenceLatitude: null, referenceLongitude: null }),
+    locationState: row.locationState ?? null,
     occurrence: null,
     occurredAt: row.occurredAt,
     occurredAtKey: row.occurredAtKey,

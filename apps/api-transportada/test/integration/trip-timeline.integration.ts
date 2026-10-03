@@ -1130,8 +1130,8 @@ describe('GET /trips/:id/timeline contra o Postgres (spec 158 T6)', () => {
 
 /**
  * Spec 196 T4.2 (ADR-0081 §6): a coordenada e o estado do carimbo chegam à linha do tempo, contra o
- * Postgres de verdade. Só `trip_stop_events` carimba nesta fatia — as outras fontes respondem
- * `location: null` e `locationState: null` ("não se aplica"), e o teste prova exatamente isso.
+ * Postgres de verdade, nas quatro fontes que têm as colunas: eventos de parada, status, ocorrência
+ * de parada e ocorrência de nota. Linha sem carimbo responde `null`/`null` ("não se aplica").
  */
 type LocatedTimelineItem = {
   readonly id: string
@@ -1362,6 +1362,227 @@ describe('GET /trips/:id/timeline carrega onde o motorista tocou (spec 196 T4.2)
 
         expect(seen).toHaveLength(250)
         expect(new Set(seen)).toEqual(new Set(rows.map((row) => row.id)))
+      })
+    },
+  )
+
+  testWithPostgres(
+    'status, ocorrência de parada e de nota também saem com os quatro estados e o recorte',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const stopId = await seedStop(database, company, tripId, 1)
+        const documentId = await seedTripDocument(database, company, tripId, stopId)
+        await database.db.insert(geocodedAddresses).values({
+          addressKey: `3550308|01001000|${stopId}`,
+          latitude: '-23.5505000',
+          longitude: '-46.6333000',
+          precision: 'rooftop',
+          source: 'manual',
+        })
+        const occurrenceTypeId = crypto.randomUUID()
+        await database.db.insert(companyOccurrenceTypes).values({
+          companyId: company.companyId,
+          id: occurrenceTypeId,
+          name: 'Item faltante',
+          stage: 'separation',
+        })
+        const newIds = (): string[] => [0, 1, 2, 3].map(() => crypto.randomUUID())
+        const ids = { document: newIds(), status: newIds(), stop: newIds() }
+        const stamps = [
+          {
+            accuracyMeters: '8.00',
+            capturedAt: new Date('2026-10-01T09:59:00.000Z'),
+            latitude: '-23.5505000',
+            locationState: 'captured' as const,
+            longitude: '-46.6334000',
+          },
+          { locationState: 'unavailable' as const },
+          { locationState: 'expired' as const },
+          {},
+        ]
+        await database.db.insert(tripStatusEvents).values(
+          ids.status.map((id, index) => ({
+            actorUserId: company.userId,
+            channel: 'driver_app' as const,
+            companyId: company.companyId,
+            fromStatus: 'route_planned' as const,
+            id,
+            occurredAt: new Date(Date.UTC(2026, 9, 1, 10 + index, 0, 0)),
+            toStatus: 'separating' as const,
+            tripId,
+            ...stamps[index],
+          })),
+        )
+        await database.db.insert(tripStopOccurrences).values(
+          ids.stop.map((id, index) => ({
+            actorUserId: company.userId,
+            channel: 'driver_app' as const,
+            companyId: company.companyId,
+            createdAt: new Date(Date.UTC(2026, 9, 1, 14 + index, 0, 0)),
+            description: 'fila longa',
+            id,
+            kind: 'long_wait' as const,
+            stopId,
+            ...stamps[index],
+          })),
+        )
+        await database.db.insert(tripDocumentOccurrences).values(
+          ids.document.map((id, index) => ({
+            actorUserId: company.userId,
+            channel: 'driver_app' as const,
+            companyId: company.companyId,
+            createdAt: new Date(Date.UTC(2026, 9, 1, 18 + index, 0, 0)),
+            id,
+            note: 'ocorrência da nota',
+            occurrenceTypeId,
+            stage: 'separation' as const,
+            tripDocumentId: documentId,
+            ...stamps[index],
+          })),
+        )
+
+        const operatorItems = await requestLocatedTimeline({
+          company,
+          database,
+          permissions: ['fleet.read', 'trip.event-location'],
+          tripId,
+        })
+        const byId = new Map(operatorItems.map((item) => [item.id, item]))
+        const expectedStates = ['captured', 'unavailable', 'expired', null] as const
+        for (const group of [ids.status, ids.stop, ids.document]) {
+          group.forEach((id, index) => {
+            expect(byId.get(id)?.locationState).toBe(expectedStates[index])
+            expect(byId.get(id)?.location === null).toBe(index !== 0)
+          })
+          expect(byId.get(group[0]!)?.location).toMatchObject({
+            accuracyMeters: 8,
+            capturedAt: '2026-10-01T09:59:00.000Z',
+            latitude: -23.5505,
+            longitude: -46.6334,
+          })
+        }
+        expect(byId.get(ids.stop[0]!)?.location?.distanceMeters).toBeGreaterThan(0)
+        expect(byId.get(ids.stop[0]!)?.location?.distanceMeters).toBeLessThan(200)
+        expect(byId.get(ids.status[0]!)?.location?.distanceMeters).toBeNull()
+        expect(byId.get(ids.document[0]!)?.location?.distanceMeters).toBeNull()
+
+        const officeItems = await requestLocatedTimeline({
+          company,
+          database,
+          permissions: ['fleet.read'],
+          tripId,
+        })
+        const officeById = new Map(officeItems.map((item) => [item.id, item]))
+        for (const group of [ids.status, ids.stop, ids.document]) {
+          group.forEach((id, index) => {
+            expect(officeById.get(id)?.location).toBeNull()
+            expect(officeById.get(id)?.locationState).toBe(expectedStates[index])
+          })
+        }
+        expect(JSON.stringify(officeItems)).not.toContain('-23.5505')
+        expect(JSON.stringify(officeItems)).not.toContain('-46.6334')
+      })
+    },
+  )
+
+  testWithPostgres(
+    '250 eventos de status e de ocorrência paginam em 100 sem pular nem repetir, estado preservado',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const stopId = await seedStop(database, company, tripId, 1)
+        const documentId = await seedTripDocument(database, company, tripId, stopId)
+        const occurrenceTypeId = crypto.randomUUID()
+        await database.db.insert(companyOccurrenceTypes).values({
+          companyId: company.companyId,
+          id: occurrenceTypeId,
+          name: 'Item faltante',
+          stage: 'separation',
+        })
+        const states = ['captured', 'unavailable', 'expired', null] as const
+        const stampOf = (index: number) => {
+          const state = states[index % states.length] ?? null
+          return {
+            locationState: state,
+            ...(state === 'captured' ? { latitude: '-23.5505000', longitude: '-46.6333000' } : {}),
+          }
+        }
+        const timeOf = (index: number): Date => new Date(Date.UTC(2026, 9, 1, 0, 0, index))
+        const indexes = Array.from({ length: 250 }, (_unused, index) => index)
+        const idOf = new Map(indexes.map((index) => [index, crypto.randomUUID()]))
+        const base = {
+          actorUserId: company.userId,
+          channel: 'driver_app' as const,
+          companyId: company.companyId,
+        }
+        await database.db.insert(tripStatusEvents).values(
+          indexes
+            .filter((index) => index % 3 === 0)
+            .map((index) => ({
+              ...base,
+              fromStatus: 'route_planned' as const,
+              id: idOf.get(index)!,
+              occurredAt: timeOf(index),
+              toStatus: 'separating' as const,
+              tripId,
+              ...stampOf(index),
+            })),
+        )
+        await database.db.insert(tripStopOccurrences).values(
+          indexes
+            .filter((index) => index % 3 === 1)
+            .map((index) => ({
+              ...base,
+              createdAt: timeOf(index),
+              description: 'fila longa',
+              id: idOf.get(index)!,
+              kind: 'long_wait' as const,
+              stopId,
+              ...stampOf(index),
+            })),
+        )
+        await database.db.insert(tripDocumentOccurrences).values(
+          indexes
+            .filter((index) => index % 3 === 2)
+            .map((index) => ({
+              ...base,
+              createdAt: timeOf(index),
+              id: idOf.get(index)!,
+              note: 'ocorrência da nota',
+              occurrenceTypeId,
+              stage: 'separation' as const,
+              tripDocumentId: documentId,
+              ...stampOf(index),
+            })),
+        )
+        const stateById = new Map<string, string | null>(
+          indexes.map((index) => [idOf.get(index)!, stampOf(index).locationState]),
+        )
+
+        const seen: string[] = []
+        let cursor: ReadTripTimelineParams['cursor'] = null
+        for (let page = 0; page < 5; page += 1) {
+          const result = await listTripTimeline(database.db, {
+            companyId: company.companyId,
+            cursor,
+            limit: 100,
+            tripId,
+          })
+          for (const item of result.items) {
+            if (!stateById.has(item.id)) continue
+            expect(item.locationState as string | null).toBe(stateById.get(item.id) ?? null)
+            expect(item.location === null).toBe(item.locationState !== 'captured')
+            seen.push(item.id)
+          }
+          if (result.nextCursor === null) break
+          cursor = parseTripTimelineCursor(result.nextCursor)
+        }
+
+        expect(seen).toHaveLength(250)
+        expect(new Set(seen)).toEqual(new Set(idOf.values()))
       })
     },
   )

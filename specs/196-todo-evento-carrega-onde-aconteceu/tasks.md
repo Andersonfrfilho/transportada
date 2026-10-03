@@ -305,16 +305,18 @@ do usuário. A API não é revertida com a app nova no ar.
   > `auth-me.integration.ts` compara com `toEqual`, que compara posição. Inferir a posição pelo
   > catálogo custou uma rodada vermelha.
 
-- [ ] **T4.2 — parcial** Integração: viagem com os quatro estados (`captured`, `unavailable`,
+- [x] **T4.2** Integração: viagem com os quatro estados (`captured`, `unavailable`,
       `expired`, `null`) nas quatro fontes; cursor com 250 eventos continua sem pular nem repetir;
       `test/trip-schema/trip-timeline-query-tenant-safety.contract.ts` cobre as colunas novas; outra
       empresa → `404`. Aceite: os dois comandos da API verdes; a contagem subiu em N.
 
-  > ⚠️ **Não tique.** Os quatro estados são exercitados **só na fonte dos eventos de parada**. As
-  > fontes de status, de ocorrência e de documento são afirmadas `null`/`null`, porque as três
-  > tabelas delas não ganharam coluna de posição nenhuma — a migration do recorte cobriu duas tabelas
-  > (`trip_stop_events` e `trip_delivery_proofs`), não as cinco que a spec descreve. Fechar esta task
-  > depende das Fases 1 (T1.3), 2 e 3, que não foram executadas.
+  > Fechada. O aviso "Não tique" valia enquanto as fontes de status, de ocorrência de parada e de
+  > ocorrência de nota devolviam `...NO_EVENT_LOCATION`; a Fase 3 passou a gravar as colunas e
+  > `trip-timeline-status.query.ts`, `trip-timeline-stop.query.ts` (ocorrência) e
+  > `trip-timeline-document.query.ts` (ocorrência de nota) passaram a lê-las. Seguem `null`/`null`, por
+  > não terem coluna: `trip.dispatched` (`trip_dispatch_snapshots` — o ponto do despacho está na troca
+  > de status que ele grava) e `document.status_changed` (`trip_document_events`). Evidência em
+  > `evidence.md` § T4.2 (leitura).
 
 - [ ] **T4.3** Push 2 e a sonda (`plan.md` § Ordem de deploy): gates da API e do worker, rebase limpo,
       push; conferir a migration aplicada e o ciclo do expurgo sem erro; rodar a sonda de `dispatch` e
