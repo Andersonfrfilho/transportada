@@ -18,6 +18,7 @@ import {
   API_OPERATIONS_JOBS_PATH,
   API_OPERATIONS_SUMMARY_PATH,
   API_OPERATIONS_TIMELINE_PATH,
+  API_TRIPS_PATH,
   PATH_PARAMETER_SEGMENT_PATTERN,
   UNMATCHED_LOG_PATHNAME,
 } from '../shared/api.constant'
@@ -57,7 +58,19 @@ export function isNoStorePath(pathname: string): boolean {
     pathname === API_NFE_IMPORTS_PATH ||
     pathname.startsWith(`${API_NFE_IMPORTS_PATH}/`) ||
     pathname === API_NFE_DOCUMENTS_PATH ||
-    pathname.startsWith(`${API_NFE_DOCUMENTS_PATH}/`)
+    pathname.startsWith(`${API_NFE_DOCUMENTS_PATH}/`) ||
+    isTripTimelinePath(pathname)
+  )
+}
+
+/** Spec 196: a linha do tempo da viagem devolve a coordenada de cada evento. */
+function isTripTimelinePath(pathname: string): boolean {
+  const segments = pathname.split('/')
+  return (
+    segments.length === 4 &&
+    `/${segments[1]}` === API_TRIPS_PATH &&
+    segments[2] !== '' &&
+    segments[3] === 'timeline'
   )
 }
 
