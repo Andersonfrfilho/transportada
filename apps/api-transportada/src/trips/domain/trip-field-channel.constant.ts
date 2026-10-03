@@ -11,3 +11,12 @@ export { TRIP_FIELD_CHANNELS, type TripFieldChannel }
 
 /** O canal padrão de todo registro de campo até aqui — a migration de autoria descreve o histórico. */
 export const DEFAULT_TRIP_FIELD_CHANNEL: TripFieldChannel = TRIP_FIELD_CHANNELS.driverApp
+
+/**
+ * Spec 234 D4c: os canais em que o próprio motorista registra o evento — o app e o WhatsApp. O
+ * escritório (em nome dele) e o backoffice ficam de fora.
+ */
+export const DRIVER_FIELD_CHANNELS: ReadonlySet<TripFieldChannel> = new Set([
+  TRIP_FIELD_CHANNELS.driverApp,
+  TRIP_FIELD_CHANNELS.whatsapp,
+])

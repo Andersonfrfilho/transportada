@@ -42,6 +42,7 @@ import {
   type DeliveryProofPunctualitySettings,
 } from '../domain/delivery-proof-settings.policy.js'
 import { TRIP_DISPATCHED_STATUSES } from '../domain/trip-state.policy.js'
+import { DRIVER_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
@@ -209,7 +210,8 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
    * ADR-0070 §5-6, spec 159 RF5/RF6: quando e onde a entrega aconteceu — o evento já resolvido por
    * `findDeliveryEventId`, nunca a nota (uma nota pode ter mais de uma entrega ao longo do tempo,
    * ainda que rara). A posição é a do evento, nunca o pino da parada (emenda 2026-09-25 da ADR-0070).
-   * O quando é `deliveredMomentSql` (spec 234 D3), o mesmo instante que a nota lê.
+   * O quando é `deliveredMomentSql` (spec 234 D3), o mesmo instante que a nota lê. O canal diz se a
+   * entrega é do motorista (spec 234 D4c).
    */
   public async findDeliveryContext(input: {
     readonly companyId: string
@@ -217,11 +219,13 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
   }): Promise<{
     readonly deliveredAt: Date
     readonly deliveryEventPosition: Coordinate | undefined
+    readonly isDeliveryRecordedByDriver: boolean
     readonly isEventClockCorrected: boolean
     readonly lateRegistration: boolean
   }> {
     const [record] = await this.database
       .select({
+        channel: tripStopEvents.channel,
         deliveredAt: deliveredMomentSql(tripStopEvents),
         eventLatitude: tripStopEvents.latitude,
         eventLongitude: tripStopEvents.longitude,
@@ -239,6 +243,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
     return {
       deliveredAt: record.deliveredAt,
       deliveryEventPosition: toCoordinate(record.eventLatitude, record.eventLongitude),
+      isDeliveryRecordedByDriver: DRIVER_FIELD_CHANNELS.has(record.channel),
       isEventClockCorrected: record.isEventClockCorrected,
       lateRegistration: record.lateRegistration,
     }

@@ -134,6 +134,11 @@ export type DeliveryProofPort = {
      * atraso.
      */
     readonly isEventClockCorrected?: boolean
+    /**
+     * Spec 234 D4c: o evento de entrega veio do motorista (`trip_stop_events.channel`), não do
+     * escritório — sem posição, só a entrega do motorista conta como longe.
+     */
+    readonly isDeliveryRecordedByDriver?: boolean
   }>
   /** `null` quando nenhum comprovante daquele evento+tipo foi gravado com esta chave. */
   findProofIdByAttachmentKey(input: {
@@ -481,6 +486,9 @@ async function classifyPhotoPunctuality(params: {
     deliveredAt: context.deliveredAt,
     deliveryEventPosition: context.deliveryEventPosition,
     hasCorrectedClock,
+    ...(context.isDeliveryRecordedByDriver === undefined
+      ? {}
+      : { isDeliveryRecordedByDriver: context.isDeliveryRecordedByDriver }),
     lateRegistration: input.upload.lateRegistration === true || context.lateRegistration === true,
     missingAfterHours: punctualitySettings.missingAfterHours,
     photoMode: input.upload.kind === CARGO_PROOF_KIND ? settings.cargo : settings.photo,
