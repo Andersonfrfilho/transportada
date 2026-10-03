@@ -10,6 +10,15 @@ import type { DriverFieldReport } from './driverTrip.types'
 /** O que o item da fila entrega ao envio: a hora do toque (crua, do aparelho) e o desvio daquele instante. */
 export type EventClockStamp = Readonly<{ clockOffsetMs: number; tappedAt: string }>
 
+/** Um relato indo para o envio, com o carimbo do item da fila — `stamp` obrigatório: esquecê-lo é erro de tipo. */
+export type StampedReport<TReport extends DriverFieldReport = DriverFieldReport> = Readonly<{
+  report: TReport
+  stamp: EventClockStamp | undefined
+}>
+
+/** Ida e volta acima disto: o ponto médio deixa de valer (upload lento é assimétrico) e a medição é descartada. */
+export const MAX_CLOCK_SAMPLE_ROUND_TRIP_MS = 5_000
+
 /**
  * ⚠️ Os esquemas da API são `.strict()`: só estes aceitam `tappedAt`/`clockOffsetMs`, e mandá-los em
  * outro `kind` dá `400` e derruba o item. `depart`/`cancelDeparture` já levam `tappedAt` próprio
@@ -57,7 +66,7 @@ export function computeClockOffsetMs(input: {
 }): number | undefined {
   if (input.serverDateHeader === null) return undefined
   const serverMs = Date.parse(input.serverDateHeader)
-  if (!Number.isFinite(serverMs) || !Number.isFinite(input.deviceNowMs)) return undefined
+  if (!Number.isFinite(serverMs)) return undefined
   return Math.round(serverMs - input.deviceNowMs)
 }
 

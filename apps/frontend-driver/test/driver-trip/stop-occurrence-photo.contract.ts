@@ -141,7 +141,7 @@ describe('a foto sobe pela rota da parada e completa a ocorrência (spec 209 RF1
     const { client, seen } = buildClient()
     const [occurrence] = buildReports(PHOTO)
 
-    await client.send(occurrence as DriverFieldReport)
+    await client.send({ report: occurrence as DriverFieldReport, stamp: undefined })
 
     expect(seen.map((request) => `${request.method} ${new URL(request.url).pathname}`)).toEqual([
       `POST /me/trips/current/stops/${STOP_ID}/occurrences`,
@@ -157,7 +157,7 @@ describe('a foto sobe pela rota da parada e completa a ocorrência (spec 209 RF1
     const { client, seen } = buildClient()
     const [, photo] = buildReports(PHOTO)
 
-    await client.send(photo as DriverFieldReport)
+    await client.send({ report: photo as DriverFieldReport, stamp: undefined })
 
     expect(seen.map((request) => `${request.method} ${new URL(request.url).pathname}`)).toEqual([
       `POST /me/trips/current/stops/${STOP_ID}/occurrence-uploads`,
@@ -178,7 +178,7 @@ describe('a foto sobe pela rota da parada e completa a ocorrência (spec 209 RF1
   it('nada do "Deu problema" passa pela rota de comprovante da nota', async () => {
     const { client, seen } = buildClient()
 
-    for (const report of buildReports(PHOTO)) await client.send(report)
+    for (const report of buildReports(PHOTO)) await client.send({ report, stamp: undefined })
 
     expect(seen.some((request) => request.url.includes('/proof'))).toBe(false)
     expect(seen.some((request) => request.url.includes('/documents/'))).toBe(false)

@@ -284,7 +284,7 @@ describe('o anexo de antes da entrega espera a entrega na fila (spec 218 RF-A3)'
     const order: string[] = []
     await drainQueueWithAttachments({
       attachmentStore,
-      send: (report) => {
+      send: ({ report }) => {
         order.push(report.kind)
         return Promise.resolve({ kind: 'sent' })
       },

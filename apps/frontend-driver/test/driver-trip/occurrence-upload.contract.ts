@@ -69,7 +69,7 @@ describe('a ocorrência com foto sobe inteira pelo send (spec 179 T303)', () => 
   it('pede a URL, sobe ao storage, confirma e só então registra com o anexo', async () => {
     const { client, seen } = buildClient(happyPath)
 
-    await client.send(buildReport())
+    await client.send({ report: buildReport(), stamp: undefined })
 
     expect(seen.map((request) => `${request.method} ${new URL(request.url).pathname}`)).toEqual([
       'POST /me/trips/current/documents/document-1/occurrence-uploads',
@@ -91,7 +91,7 @@ describe('a ocorrência com foto sobe inteira pelo send (spec 179 T303)', () => 
   it('o registro leva a chave do item da fila', async () => {
     const { client, seen } = buildClient(happyPath)
 
-    await client.send(buildReport())
+    await client.send({ report: buildReport(), stamp: undefined })
 
     expect(seen[3]?.headers.get('idempotency-key')).toBe('chave-da-ocorrencia')
   })
@@ -100,7 +100,7 @@ describe('a ocorrência com foto sobe inteira pelo send (spec 179 T303)', () => 
   it('o PUT ao storage não leva o token', async () => {
     const { client, seen } = buildClient(happyPath)
 
-    await client.send(buildReport())
+    await client.send({ report: buildReport(), stamp: undefined })
 
     expect(seen[1]?.headers.get('authorization')).toBeNull()
     expect(seen[1]?.headers.get('content-type')).toBe('image/jpeg')
@@ -110,7 +110,7 @@ describe('a ocorrência com foto sobe inteira pelo send (spec 179 T303)', () => 
   it('sem foto, só o registro — sem anexo no corpo', async () => {
     const { client, seen } = buildClient(happyPath)
 
-    await client.send(buildReport({ photo: null }))
+    await client.send({ report: buildReport({ photo: null }), stamp: undefined })
 
     expect(seen).toHaveLength(1)
     expect(await seen[0]?.json()).toEqual({
@@ -128,7 +128,9 @@ describe('a ocorrência com foto sobe inteira pelo send (spec 179 T303)', () => 
         : happyPath(request),
     )
 
-    const error = await client.send(buildReport()).catch((caught: unknown) => caught)
+    const error = await client
+      .send({ report: buildReport(), stamp: undefined })
+      .catch((caught: unknown) => caught)
 
     expect(error).toBeInstanceOf(DriverTripRequestError)
     expect((error as DriverTripRequestError).isOffline).toBe(true)
@@ -144,7 +146,7 @@ describe('a ocorrência com foto sobe inteira pelo send (spec 179 T303)', () => 
     )
 
     const error = (await client
-      .send(buildReport())
+      .send({ report: buildReport(), stamp: undefined })
       .catch((caught: unknown) => caught)) as DriverTripRequestError
 
     expect(error.isOffline).toBe(false)
@@ -162,7 +164,7 @@ describe('a ocorrência com foto sobe inteira pelo send (spec 179 T303)', () => 
       )
 
       const error = (await client
-        .send(buildReport())
+        .send({ report: buildReport(), stamp: undefined })
         .catch((caught: unknown) => caught)) as DriverTripRequestError
 
       expect(error.code).toBe(DRIVER_TRIP_ERROR.RESPONSE_INVALID)
@@ -184,7 +186,7 @@ describe('a ocorrência com foto sobe inteira pelo send (spec 179 T303)', () => 
       return happyPath(request)
     })
 
-    await client.send(buildReport())
+    await client.send({ report: buildReport(), stamp: undefined })
 
     expect(seen).toHaveLength(4)
   })
@@ -200,7 +202,7 @@ describe('a ocorrência com foto sobe inteira pelo send (spec 179 T303)', () => 
     )
 
     const error = (await client
-      .send(buildReport({ note: '' }))
+      .send({ report: buildReport({ note: '' }), stamp: undefined })
       .catch((caught: unknown) => caught)) as DriverTripRequestError
 
     expect(error.code).toBe('TRIP_OCCURRENCE_NOTE_REQUIRED')

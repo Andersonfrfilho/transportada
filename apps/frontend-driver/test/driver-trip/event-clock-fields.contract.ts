@@ -155,7 +155,7 @@ async function sendAndCollect(
   clockOffset?: ReturnType<typeof createClockOffsetStore>,
 ): Promise<readonly SeenRequest[]> {
   const seen: SeenRequest[] = []
-  await buildRecordingClient(seen, clockOffset).send(report, stamp)
+  await buildRecordingClient(seen, clockOffset).send({ report, stamp })
   return seen
 }
 
@@ -275,8 +275,23 @@ describe('o corpo vem do carimbo do item, não do último desvio medido (spec 23
 })
 
 describe('reportBody com o carimbo (spec 234 D2)', () => {
+  /** O carimbo nunca chega aos relatos que não o aceitam, e o `tappedAt` da spec 206 nunca é trocado. */
+  it('depart e cancelDeparture mantêm o tappedAt próprio e nenhum clockOffsetMs', () => {
+    for (const kind of ['cancelDeparture', 'depart'] as const) {
+      const body = reportBody({ report: REPORT_BY_KIND[kind], stamp: STAMP })
+
+      expect(JSON.parse(body)).toEqual({ location: null, tappedAt: OWN_TAPPED_AT })
+    }
+  })
+
+  it('dispatch continua só com o tripId', () => {
+    const body = reportBody({ report: REPORT_BY_KIND.dispatch, stamp: STAMP })
+
+    expect(JSON.parse(body)).toEqual({ tripId: 'trip-1' })
+  })
+
   it('deliver leva tappedAt e clockOffsetMs ao lado da posição', () => {
-    const body = reportBody(REPORT_BY_KIND.deliver, STAMP)
+    const body = reportBody({ report: REPORT_BY_KIND.deliver, stamp: STAMP })
 
     expect(JSON.parse(body)).toEqual({
       clockOffsetMs: OFFSET_AT_TAP_MS,
@@ -286,14 +301,19 @@ describe('reportBody com o carimbo (spec 234 D2)', () => {
   })
 
   it('desvio zero é desvio medido: o campo vai com 0, não some', () => {
-    const body = reportBody(REPORT_BY_KIND.arrive, { clockOffsetMs: 0, tappedAt: CREATED_AT })
+    const body = reportBody({
+      report: REPORT_BY_KIND.arrive,
+      stamp: { clockOffsetMs: 0, tappedAt: CREATED_AT },
+    })
 
     expect(JSON.parse(body)).toEqual({ clockOffsetMs: 0, location: null, tappedAt: CREATED_AT })
   })
 
   it('sem carimbo o corpo é o de hoje', () => {
-    expect(JSON.parse(reportBody(REPORT_BY_KIND.deliver))).toEqual({ location: null })
-    expect(JSON.parse(reportBody(REPORT_BY_KIND.return))).toEqual({
+    expect(JSON.parse(reportBody({ report: REPORT_BY_KIND.deliver, stamp: undefined }))).toEqual({
+      location: null,
+    })
+    expect(JSON.parse(reportBody({ report: REPORT_BY_KIND.return, stamp: undefined }))).toEqual({
       location: null,
       reason: 'recipient_absent',
     })
@@ -439,8 +459,8 @@ describe('a fila carimba o desvio na criação do item (spec 234 D2)', () => {
     const client = buildRecordingClient(seen)
     await drainQueueWithAttachments({
       attachmentStore: createEmptyAttachmentStore(),
-      send: async (report, stamp) => {
-        await client.send(report, stamp)
+      send: async (stamped) => {
+        await client.send(stamped)
         return { kind: 'sent' }
       },
       sendAttachment: () => Promise.resolve({ kind: 'sent' }),
@@ -472,7 +492,7 @@ describe('a drenagem entrega o carimbo do item ao envio (spec 234 D2)', () => {
 
     await drainQueueWithAttachments({
       attachmentStore: createEmptyAttachmentStore(),
-      send: (_report, stamp) => {
+      send: ({ stamp }) => {
         stamps.push(stamp)
         return Promise.resolve({ kind: 'sent' })
       },
@@ -489,7 +509,7 @@ describe('a drenagem entrega o carimbo do item ao envio (spec 234 D2)', () => {
 
     await drainQueueWithAttachments({
       attachmentStore: createEmptyAttachmentStore(),
-      send: (_report, stamp) => {
+      send: ({ stamp }) => {
         stamps.push(stamp)
         return Promise.resolve({ kind: 'sent' })
       },
@@ -505,7 +525,7 @@ describe('a drenagem entrega o carimbo do item ao envio (spec 234 D2)', () => {
     const { store } = createMemoryStore([stampedItem, legacyItem])
 
     await drainQueue({
-      send: (_report, stamp) => {
+      send: ({ stamp }) => {
         stamps.push(stamp)
         return Promise.resolve('sent')
       },

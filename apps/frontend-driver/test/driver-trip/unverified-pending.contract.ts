@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'bun:test'
 
+import type { StampedReport } from '../../src/modules/driver-trip/shared/clockOffset.service'
+
 import { buildEventQueueView } from '@/modules/driver-trip/shared/eventQueueView.service'
 import {
   drainQueueWithAttachments,
@@ -71,7 +73,7 @@ function sendingEverything() {
   const sentReports: string[] = []
   const sentAttachments: string[] = []
   return {
-    send: (report: QueuedReport['report']) => {
+    send: ({ report }: StampedReport) => {
       sentReports.push(report.idempotencyKey)
       return Promise.resolve({ kind: 'sent' as const })
     },

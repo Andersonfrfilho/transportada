@@ -33,11 +33,14 @@ function createStore(): OfflineQueueStore {
 describe('o corpo e o caminho de depart/cancel-departure (spec 206)', () => {
   it('depart manda { location, tappedAt } — o mesmo corpo que a API espera', () => {
     const body = reportBody({
-      idempotencyKey: 'key-1',
-      kind: 'depart',
-      location: null,
-      stopId: 'stop-1',
-      tappedAt: TAPPED_AT,
+      report: {
+        idempotencyKey: 'key-1',
+        kind: 'depart',
+        location: null,
+        stopId: 'stop-1',
+        tappedAt: TAPPED_AT,
+      },
+      stamp: undefined,
     })
 
     expect(JSON.parse(body)).toEqual({ location: null, tappedAt: TAPPED_AT })
@@ -45,11 +48,14 @@ describe('o corpo e o caminho de depart/cancel-departure (spec 206)', () => {
 
   it('cancelDeparture manda o mesmo corpo — { location, tappedAt }', () => {
     const body = reportBody({
-      idempotencyKey: 'key-1',
-      kind: 'cancelDeparture',
-      location: null,
-      stopId: 'stop-1',
-      tappedAt: TAPPED_AT,
+      report: {
+        idempotencyKey: 'key-1',
+        kind: 'cancelDeparture',
+        location: null,
+        stopId: 'stop-1',
+        tappedAt: TAPPED_AT,
+      },
+      stamp: undefined,
     })
 
     expect(JSON.parse(body)).toEqual({ location: null, tappedAt: TAPPED_AT })
@@ -141,11 +147,14 @@ describe('o 409 TRIP_HAS_STOP_EN_ROUTE carrega error.details (spec 206 D9)', () 
     let caught: unknown
     try {
       await client.send({
-        idempotencyKey: 'key-1',
-        kind: 'depart',
-        location: null,
-        stopId: 'stop-2',
-        tappedAt: TAPPED_AT,
+        report: {
+          idempotencyKey: 'key-1',
+          kind: 'depart',
+          location: null,
+          stopId: 'stop-2',
+          tappedAt: TAPPED_AT,
+        },
+        stamp: undefined,
       })
     } catch (error) {
       caught = error
@@ -166,11 +175,14 @@ describe('o 409 TRIP_HAS_STOP_EN_ROUTE carrega error.details (spec 206 D9)', () 
     let caught: unknown
     try {
       await client.send({
-        idempotencyKey: 'key-1',
-        kind: 'depart',
-        location: null,
-        stopId: 'stop-2',
-        tappedAt: TAPPED_AT,
+        report: {
+          idempotencyKey: 'key-1',
+          kind: 'depart',
+          location: null,
+          stopId: 'stop-2',
+          tappedAt: TAPPED_AT,
+        },
+        stamp: undefined,
       })
     } catch (error) {
       caught = error
@@ -202,11 +214,14 @@ describe('o 409 TRIP_HAS_STOP_EN_ROUTE carrega error.details (spec 206 D9)', () 
     let caught: unknown
     try {
       await client.send({
-        idempotencyKey: 'key-1',
-        kind: 'depart',
-        location: null,
-        stopId: 'stop-2',
-        tappedAt: TAPPED_AT,
+        report: {
+          idempotencyKey: 'key-1',
+          kind: 'depart',
+          location: null,
+          stopId: 'stop-2',
+          tappedAt: TAPPED_AT,
+        },
+        stamp: undefined,
       })
     } catch (error) {
       caught = error

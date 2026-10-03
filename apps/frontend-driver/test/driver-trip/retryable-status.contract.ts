@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { StampedReport } from '../../src/modules/driver-trip/shared/clockOffset.service'
 import { describe, expect, it } from 'bun:test'
 
 import {
@@ -48,7 +49,7 @@ function createMemoryStore(): OfflineQueueStore & {
 async function outcomeOf(response: Response): Promise<string> {
   const client = buildClient(() => response)
   try {
-    await client.send(arrival('chave-1'))
+    await client.send({ report: arrival('chave-1'), stamp: undefined })
     return 'sent'
   } catch (error) {
     return toAttachmentSendOutcome(error).kind
@@ -101,9 +102,9 @@ describe('indisponibilidade do servidor não recusa o item da fila', () => {
     })
 
     const result = await drainQueue({
-      send: async (report) => {
+      send: async ({ report }) => {
         try {
-          await client.send(report)
+          await client.send({ report, stamp: undefined })
           return 'sent'
         } catch (error) {
           return toAttachmentSendOutcome(error).kind
@@ -129,9 +130,9 @@ describe('indisponibilidade do servidor não recusa o item da fila', () => {
         ? Response.json({ data: {} }, { status: 201 })
         : new Response('<html>Service Unavailable</html>', { status: 503 })
     })
-    const send = async (report: DriverFieldReport) => {
+    const send = async ({ report }: StampedReport) => {
       try {
-        await client.send(report)
+        await client.send({ report, stamp: undefined })
         return 'sent' as const
       } catch (error) {
         return toAttachmentSendOutcome(error).kind
@@ -175,7 +176,7 @@ describe('indisponibilidade do servidor não recusa o item da fila', () => {
     const outcomes = await Promise.all(
       [503, 403].map(async (status) => {
         try {
-          await buildClient(respondWithStorage(status)).send(report)
+          await buildClient(respondWithStorage(status)).send({ report, stamp: undefined })
           return 'sent'
         } catch (error) {
           return toAttachmentSendOutcome(error).kind
@@ -190,7 +191,9 @@ describe('indisponibilidade do servidor não recusa o item da fila', () => {
   it('um 200 com corpo ilegível continua recusado, sem status na causa', async () => {
     const client = buildClient(() => new Response('<html>ok?</html>', { status: 200 }))
 
-    const error = await client.send(arrival('chave-1')).catch((caught: unknown) => caught)
+    const error = await client
+      .send({ report: arrival('chave-1'), stamp: undefined })
+      .catch((caught: unknown) => caught)
 
     expect(error).toBeInstanceOf(DriverTripRequestError)
     expect(toAttachmentSendOutcome(error)).toEqual({ cause: 'RESPONSE_INVALID', kind: 'rejected' })

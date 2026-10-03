@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, it } from 'bun:test'
 
+import type { StampedReport } from '../../src/modules/driver-trip/shared/clockOffset.service'
+
 import type { DriverFieldReport } from '@/modules/driver-trip/shared/driverTrip.types'
 import {
   applyAttachmentLocation,
@@ -282,7 +284,7 @@ describe('a fila offline com anexos (D6)', () => {
 
     const first = await drainQueueWithAttachments({
       attachmentStore,
-      send: (report) => {
+      send: ({ report }) => {
         eventSends.push(report.idempotencyKey)
         return Promise.resolve({ kind: 'sent' })
       },
@@ -302,7 +304,7 @@ describe('a fila offline com anexos (D6)', () => {
 
     const second = await drainQueueWithAttachments({
       attachmentStore,
-      send: (report) => {
+      send: ({ report }) => {
         eventSends.push(report.idempotencyKey)
         return Promise.resolve({ kind: 'sent' })
       },
@@ -325,7 +327,7 @@ describe('a fila offline com anexos (D6)', () => {
 
     const first = await drainQueueWithAttachments({
       attachmentStore,
-      send: (report) => {
+      send: ({ report }) => {
         eventSends.push(report.idempotencyKey)
         return Promise.resolve({ kind: 'sent' })
       },
@@ -398,7 +400,7 @@ describe('a fila offline com anexos (D6)', () => {
     const store = createMemoryQueue([rejectedItem, queuedDelivery('chave-2', 'document-2')])
     const attachmentStore = createMemoryAttachments()
     const sent: string[] = []
-    const send = (report: DriverFieldReport) => {
+    const send = ({ report }: StampedReport) => {
       sent.push(report.idempotencyKey)
       return Promise.resolve({ kind: 'sent' } as const)
     }
@@ -438,7 +440,7 @@ describe('a fila offline com anexos (D6)', () => {
 
     const result = await drainQueueWithAttachments({
       attachmentStore,
-      send: (report) => {
+      send: ({ report }) => {
         attempted.push(report.idempotencyKey)
         return Promise.resolve({ kind: 'failed-network' })
       },

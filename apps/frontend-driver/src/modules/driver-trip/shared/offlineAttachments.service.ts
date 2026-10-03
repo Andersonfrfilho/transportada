@@ -1,8 +1,8 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/offlineAttachments.service.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { toEventClockStamp, type EventClockStamp } from './clockOffset.service'
+import { toEventClockStamp, type StampedReport } from './clockOffset.service'
 import type { DriverReportedLocation, ProofPunctuality } from './driverTrip.types'
-import type { DriverTripErrorDetail, OfflineQueueStore, QueuedReport } from './offlineQueue.service'
+import type { DriverTripErrorDetail, OfflineQueueStore } from './offlineQueue.service'
 
 /**
  * Spec 082 D6: o comprovante entra na fila quando a entrega ainda não subiu. O blob mora numa store
@@ -346,10 +346,7 @@ export async function drainQueueWithAttachments(input: {
    * conta. Sem dono, a drenagem é a de sempre.
    */
   readonly ownerSubHash?: string
-  readonly send: (
-    report: QueuedReport['report'],
-    stamp: EventClockStamp | undefined,
-  ) => Promise<AttachmentSendOutcome>
+  readonly send: (stamped: StampedReport) => Promise<AttachmentSendOutcome>
   readonly sendAttachment: (attachment: QueuedAttachment) => Promise<AttachmentSendOutcome>
   readonly store: OfflineQueueStore
 }): Promise<AttachmentDrainResult> {
@@ -377,7 +374,7 @@ export async function drainQueueWithAttachments(input: {
     if (item.isUnverified === true) blockedByUnverified = true
     if (networkDown || blockedByUnverified || !isTargeted || skipRejected) continue
 
-    const outcome = await input.send(item.report, toEventClockStamp(item))
+    const outcome = await input.send({ report: item.report, stamp: toEventClockStamp(item) })
     if (outcome.kind === 'sent') {
       sentKeys.add(key)
       sent += 1

@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { StampedReport } from '../../src/modules/driver-trip/shared/clockOffset.service'
 import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'bun:test'
@@ -62,7 +63,7 @@ function buildClient(respond: (request: Request) => Response) {
 
 async function outcomeKind(client: ReturnType<typeof buildClient>['client']): Promise<string> {
   try {
-    await client.send(DISPATCH)
+    await client.send({ report: DISPATCH, stamp: undefined })
     return 'sent'
   } catch (error) {
     return toAttachmentSendOutcome(error).kind
@@ -77,10 +78,12 @@ async function outcomeKind(client: ReturnType<typeof buildClient>['client']): Pr
 describe('o despacho da viagem vai pela fila (spec 230)', () => {
   it('é um POST de /dispatch com a viagem no corpo', async () => {
     expect(reportPath(DISPATCH)).toBe('/me/trips/current/dispatch')
-    expect(JSON.parse(reportBody(DISPATCH))).toEqual({ tripId: 'trip-1' })
+    expect(JSON.parse(reportBody({ report: DISPATCH, stamp: undefined }))).toEqual({
+      tripId: 'trip-1',
+    })
 
     const { client, seen } = buildClient(() => Response.json({ data: { status: 'dispatched' } }))
-    await client.send(DISPATCH)
+    await client.send({ report: DISPATCH, stamp: undefined })
 
     expect(seen[0]?.method).toBe('POST')
     expect(new URL(seen[0]?.url ?? '').pathname).toBe('/me/trips/current/dispatch')
@@ -116,9 +119,9 @@ describe('o despacho da viagem vai pela fila (spec 230)', () => {
       },
       getAccessToken: () => Promise.resolve('token-de-mentira'),
     })
-    const send = async (report: DriverFieldReport) => {
+    const send = async ({ report }: StampedReport) => {
       try {
-        await client.send(report)
+        await client.send({ report, stamp: undefined })
         return 'sent' as const
       } catch (error) {
         return toAttachmentSendOutcome(error).kind

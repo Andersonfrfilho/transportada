@@ -45,9 +45,12 @@ describe('iniciar trajeto (route_planned)', () => {
   it('o despacho sai por POST /me/trips/current/dispatch, pela fila (spec 230)', async () => {
     const requests: Request[] = []
     await createCapturingClient(requests).send({
-      idempotencyKey: 'chave-1',
-      kind: 'dispatch',
-      tripId: 'trip-1',
+      report: {
+        idempotencyKey: 'chave-1',
+        kind: 'dispatch',
+        tripId: 'trip-1',
+      },
+      stamp: undefined,
     })
 
     expect(requests[0]?.url).toBe('https://api.test/me/trips/current/dispatch')

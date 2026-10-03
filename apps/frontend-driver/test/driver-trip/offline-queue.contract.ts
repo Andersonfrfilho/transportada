@@ -85,7 +85,7 @@ describe('a fila offline', () => {
     const sentKeys: string[] = []
 
     const result = await drainQueue({
-      send: (report) => {
+      send: ({ report }) => {
         sentKeys.push(report.idempotencyKey)
         return Promise.resolve('sent')
       },
@@ -109,7 +109,7 @@ describe('a fila offline', () => {
     const attempted: string[] = []
 
     const result = await drainQueue({
-      send: (report): Promise<DrainOutcome> => {
+      send: ({ report }): Promise<DrainOutcome> => {
         attempted.push(report.idempotencyKey)
         return Promise.resolve(report.idempotencyKey === 'chave-2' ? 'failed-network' : 'sent')
       },
@@ -141,7 +141,7 @@ describe('a fila offline', () => {
     await enqueueReport({ now: NOW, report: arrival('chave-1'), store })
 
     const result = await drainQueue({
-      send: async (report) => {
+      send: async ({ report }) => {
         if (report.idempotencyKey === 'chave-1') {
           await enqueueReport({ now: NOW, report: delivery('chave-2'), store })
         }
@@ -164,7 +164,8 @@ describe('a fila offline', () => {
     await enqueueReport({ now: NOW, report: delivery('chave-2'), store })
 
     const result = await drainQueue({
-      send: (report) => Promise.resolve(report.idempotencyKey === 'chave-2' ? 'rejected' : 'sent'),
+      send: ({ report }) =>
+        Promise.resolve(report.idempotencyKey === 'chave-2' ? 'rejected' : 'sent'),
       store,
     })
 

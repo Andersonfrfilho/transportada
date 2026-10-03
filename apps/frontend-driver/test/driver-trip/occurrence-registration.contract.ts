@@ -323,7 +323,7 @@ describe('a ocorrência de parada vai com o tipo do catálogo, não com o kind (
       },
       getAccessToken: () => Promise.resolve('token-de-mentira'),
     })
-    await client.send(report)
+    await client.send({ report, stamp: undefined })
     return seen[0]?.json()
   }
 

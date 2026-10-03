@@ -10,8 +10,10 @@ import {
   buildClockFields,
   computeClockOffsetMs,
   driverClockOffset,
+  MAX_CLOCK_SAMPLE_ROUND_TRIP_MS,
   type ClockOffsetStore,
   type EventClockStamp,
+  type StampedReport,
 } from './clockOffset.service'
 import {
   isDriverOccurrenceType,
@@ -221,7 +223,7 @@ export type DriverTripClient = Readonly<{
   /** Spec 189 T7.5: o consentimento de posição — `null` é "nunca consentiu" ou "retirou". */
   readLocationConsent: () => Promise<LocationConsent>
   /** `stamp` é o carimbo do item da fila (spec 234 D2); só os `kind` de `CLOCK_FIELD_REPORT_KINDS` o levam. */
-  send: (report: DriverFieldReport, stamp?: EventClockStamp) => Promise<void>
+  send: (stamped: StampedReport) => Promise<void>
   /** A posição ao vivo. Sem id de viagem: o servidor resolve a viagem do motorista (ADR-0050 §5). */
   sendLocation: (
     position: Readonly<{ latitude: string; longitude: string }>,
@@ -275,20 +277,16 @@ export function reportPath(report: JsonFieldReport): string {
  * a chave (schemas `.strict()`, 400). Exportada para o contrato provar que o corpo sai igual ao de
  * hoje enquanto a constante estiver desligada.
  */
-export function reportBody(report: JsonFieldReport, stamp?: EventClockStamp): string {
+export function reportBody({ report, stamp }: StampedReport<JsonFieldReport>): string {
   const clockFields = buildClockFields({ kind: report.kind, stamp })
   switch (report.kind) {
     case 'arrive':
       return JSON.stringify({ location: report.location, ...clockFields })
     case 'depart':
     case 'cancelDeparture':
-      return JSON.stringify({
-        location: report.location,
-        tappedAt: report.tappedAt,
-        ...clockFields,
-      })
+      return JSON.stringify({ location: report.location, tappedAt: report.tappedAt })
     case 'dispatch':
-      return JSON.stringify({ tripId: report.tripId, ...clockFields })
+      return JSON.stringify({ tripId: report.tripId })
     case 'deliver':
       return JSON.stringify({
         ...clockFields,
@@ -439,7 +437,7 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       })
       return toLocationConsent(payload)
     },
-    async send(report, stamp) {
+    async send({ report, stamp }) {
       if (report.kind === 'documentOccurrence') {
         await sendDocumentOccurrence({ dependencies, report })
         return
@@ -459,7 +457,7 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         return
       }
       await request({
-        body: reportBody(report, stamp),
+        body: reportBody({ report, stamp }),
         dependencies,
         idempotencyKey: report.idempotencyKey,
         method: 'POST',
@@ -923,6 +921,7 @@ function recordClockOffset(
 ): void {
   const { clockOffset } = input.dependencies
   if (clockOffset === undefined) return
+  if (input.receivedAtMs - input.sentAtMs > MAX_CLOCK_SAMPLE_ROUND_TRIP_MS) return
   const offsetMs = computeClockOffsetMs({
     deviceNowMs: (input.sentAtMs + input.receivedAtMs) / 2,
     serverDateHeader: input.response.headers.get('date'),

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test'
 import {
   computeClockOffsetMs,
   createClockOffsetStore,
+  MAX_CLOCK_SAMPLE_ROUND_TRIP_MS,
 } from '../../src/modules/driver-trip/shared/clockOffset.service'
 import { createDriverTripClient } from '../../src/modules/driver-trip/shared/driverTripClient.service'
 
@@ -171,6 +172,39 @@ describe('o cliente mede o desvio na resposta da API (spec 234 D1)', () => {
     await client.readLocationConsent()
 
     expect(store.read()).toBe(777)
+  })
+
+  /** Upload lento: a ida e a volta não são simétricas e o ponto médio mente — a amostra é descartada. */
+  it('pedido que levou até 5 s ainda mede (o limite é inclusivo)', async () => {
+    const store = createClockOffsetStore()
+    store.write(777)
+    const client = buildMeasuringClient({
+      deviceTimes: [DEVICE_NOW_MS, DEVICE_NOW_MS + MAX_CLOCK_SAMPLE_ROUND_TRIP_MS],
+      respond: () => okResponse('Sat, 03 Oct 2026 12:00:03 GMT'),
+      store,
+    })
+
+    await client.readLocationConsent()
+
+    expect(store.read()).toBe(500)
+  })
+
+  it('pedido que levou mais de 5 s não substitui a medição anterior', async () => {
+    const store = createClockOffsetStore()
+    store.write(777)
+    const client = buildMeasuringClient({
+      deviceTimes: [DEVICE_NOW_MS, DEVICE_NOW_MS + MAX_CLOCK_SAMPLE_ROUND_TRIP_MS + 1],
+      respond: () => okResponse('Sat, 03 Oct 2026 12:00:03 GMT'),
+      store,
+    })
+
+    await client.readLocationConsent()
+
+    expect(store.read()).toBe(777)
+  })
+
+  it('o teto de 5 s é o declarado', () => {
+    expect(MAX_CLOCK_SAMPLE_ROUND_TRIP_MS).toBe(5_000)
   })
 
   it('rede que não respondeu não mede', async () => {

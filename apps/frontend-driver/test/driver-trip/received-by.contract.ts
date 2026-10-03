@@ -248,13 +248,14 @@ describe('quem recebeu depois da captura (spec 193 D7, CA12)', () => {
       getAccessToken: () => Promise.resolve('token'),
     })
 
-    await client.send(
-      buildProofReceiverReport({
+    await client.send({
+      report: buildProofReceiverReport({
         documentId: 'doc-1',
         fields: { receivedBy: 'neighbor', receivedByDetail: 'casa 12', receiverName: 'Maria' },
         idempotencyKey: 'toque-1',
       }),
-    )
+      stamp: undefined,
+    })
 
     expect(seen).toHaveLength(1)
     expect(seen[0]?.method).toBe('PATCH')

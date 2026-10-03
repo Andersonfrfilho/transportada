@@ -207,7 +207,7 @@ describe('a ocorrência de nota sem foto vai pela fila (spec 226)', () => {
   it('o send leva a chave do item e nenhum anexo', async () => {
     const { client, seen } = buildClient(new Response('{"data":{}}', { status: 201 }))
 
-    await client.send(buildReport())
+    await client.send({ report: buildReport(), stamp: undefined })
 
     expect(seen).toHaveLength(1)
     expect(new URL(seen[0]?.url ?? '').pathname).toBe(
@@ -233,8 +233,8 @@ describe('a ocorrência de nota sem foto vai pela fila (spec 226)', () => {
       getAccessToken: () => Promise.resolve('token-de-mentira'),
     })
 
-    await client.send(buildReport())
-    await client.send(buildReport())
+    await client.send({ report: buildReport(), stamp: undefined })
+    await client.send({ report: buildReport(), stamp: undefined })
 
     expect(keys).toEqual(['chave-do-toque', 'chave-do-toque'])
   })
@@ -256,9 +256,9 @@ describe('a ocorrência de nota sem foto vai pela fila (spec 226)', () => {
     await enqueueReport({ now: new Date(), report: buildReport(), store })
 
     const result = await drainQueue({
-      send: async (report) => {
+      send: async ({ report }) => {
         try {
-          await client.send(report)
+          await client.send({ report, stamp: undefined })
           return 'sent'
         } catch (error) {
           return toAttachmentSendOutcome(error).kind

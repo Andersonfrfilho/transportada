@@ -124,7 +124,7 @@ describe('a fila tem dono (plan D5, ADR-0075 §8)', () => {
     const result = await drainQueueWithAttachments({
       attachmentStore,
       ownerSubHash: OWNER,
-      send: (report): Promise<AttachmentSendOutcome> => {
+      send: ({ report }): Promise<AttachmentSendOutcome> => {
         sentReports.push(report.idempotencyKey)
         return Promise.resolve({ kind: 'sent' })
       },

@@ -1,6 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/offlineQueue.service.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { toEventClockStamp, type EventClockStamp } from './clockOffset.service'
+import { toEventClockStamp, type StampedReport } from './clockOffset.service'
 import type {
   DriverFieldReport,
   DriverOccurrencePhoto,
@@ -197,10 +197,7 @@ function reportPhoto(report: DriverFieldReport): DriverOccurrencePhoto | null {
  * ele já disse que não aceita repetiria a recusa para sempre.
  */
 export async function drainQueue(input: {
-  readonly send: (
-    report: DriverFieldReport,
-    stamp: EventClockStamp | undefined,
-  ) => Promise<DrainOutcome>
+  readonly send: (stamped: StampedReport) => Promise<DrainOutcome>
   readonly store: OfflineQueueStore
 }): Promise<DrainResult> {
   const queued = await input.store.read()
@@ -210,7 +207,7 @@ export async function drainQueue(input: {
   let sent = 0
 
   for (const item of queued) {
-    const outcome = await input.send(item.report, toEventClockStamp(item))
+    const outcome = await input.send({ report: item.report, stamp: toEventClockStamp(item) })
     if (outcome === 'failed-network') {
       // Só o item que a rede recusou conta uma tentativa: os de trás nem chegaram a ser enviados.
       failedKey = item.report.idempotencyKey

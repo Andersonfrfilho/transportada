@@ -386,10 +386,10 @@ export function useDriverTrip(
         attachmentStore,
         ...(only === undefined ? {} : { only }),
         ownerSubHash: session.subHash,
-        send: async (report, stamp): Promise<AttachmentSendOutcome> => {
+        send: async (stamped): Promise<AttachmentSendOutcome> => {
           try {
-            await client.send(report, stamp)
-            sentKeys.push(report.idempotencyKey)
+            await client.send(stamped)
+            sentKeys.push(stamped.report.idempotencyKey)
             return { kind: 'sent' }
           } catch (error) {
             return toAttachmentSendOutcome(error)
