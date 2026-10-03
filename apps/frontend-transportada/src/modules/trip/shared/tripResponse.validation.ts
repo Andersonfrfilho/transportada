@@ -1350,7 +1350,7 @@ export function isOccurrenceCorrection(value: unknown): value is OccurrenceCorre
   return (
     hasExactKeys(value, ['correctedAt', 'correctedByName', 'previousItems'] as const) &&
     isString(value.correctedAt) &&
-    isString(value.correctedByName) &&
+    isNullableString(value.correctedByName) &&
     isEveryItem(value.previousItems, isOccurrenceProduct)
   )
 }

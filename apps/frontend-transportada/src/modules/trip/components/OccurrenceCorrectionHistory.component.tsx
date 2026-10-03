@@ -33,10 +33,14 @@ export function OccurrenceCorrectionHistory({ occurrence }: OccurrenceCorrection
         {history.map((entry) => (
           <li key={entry.correctedAt}>
             <p>
-              {t('occurrenceDetail.corrections.entry', {
-                moment: formatMoment(entry.correctedAt),
-                name: entry.correctedByName,
-              })}
+              {entry.correctedByName === null
+                ? t('occurrenceDetail.corrections.entryUnknown', {
+                    moment: formatMoment(entry.correctedAt),
+                  })
+                : t('occurrenceDetail.corrections.entry', {
+                    moment: formatMoment(entry.correctedAt),
+                    name: entry.correctedByName,
+                  })}
             </p>
             <p className={styles.hint}>
               {t('occurrenceDetail.corrections.nowValid')}{' '}

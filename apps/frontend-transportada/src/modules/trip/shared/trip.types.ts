@@ -231,7 +231,8 @@ export type OccurrenceProduct = Readonly<{
 /** Spec 167 RF1: o que a ocorrência dizia antes de uma correção, com quem corrigiu e quando. */
 export type OccurrenceCorrection = Readonly<{
   correctedAt: string
-  correctedByName: string
+  /** `null` quando o vínculo de quem corrigiu já não está ativo — a API publica o que lê. */
+  correctedByName: null | string
   previousItems: readonly OccurrenceProduct[]
 }>
 

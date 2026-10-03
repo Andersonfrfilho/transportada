@@ -80,7 +80,7 @@ export function formatOccurrenceQuantity(value: string): string {
 
 export type OccurrenceCorrectionHistoryEntry = Readonly<{
   correctedAt: string
-  correctedByName: string
+  correctedByName: null | string
   items: readonly Pick<TripOccurrenceDetailItem, 'code' | 'quantity' | 'unit'>[]
 }>
 
