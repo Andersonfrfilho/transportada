@@ -2,7 +2,7 @@ import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-q
 
 import { TRIP_TIMELINE_QUERY_KEY } from '../hooks/useTripTimeline.hook'
 import { getTripClient } from '../hooks/useTripWorkspace.hook'
-import { TRIP_QUERY_KEY } from '../shared/trip.constant'
+import { TRIP_OCCURRENCES_KEY_SEGMENT, TRIP_QUERY_KEY } from '../shared/trip.constant'
 import type {
   CancelTripOccurrenceInput,
   CorrectTripOccurrenceItemsInput,
@@ -18,7 +18,9 @@ export type CancelOccurrenceVariables = Omit<CancelTripOccurrenceInput, 'idempot
 
 /**
  * Spec 235 RF8: detalhe, feed e linha do tempo da ocorrência moram sob a chave do feed; a linha do
- * tempo da viagem (e a de cada nota, que mora debaixo dela) sob `[trips, tripId, 'timeline']`.
+ * tempo da viagem (e a de cada nota, que mora debaixo dela) sob `[trips, tripId, 'timeline']`; a lista de
+ * ocorrências da nota, sob `[trips, companyId, tripId, 'occurrences', …]` — a mutação não conhece a
+ * empresa, então o predicado casa pela viagem.
  */
 async function invalidateOccurrenceCorrection(
   queryClient: QueryClient,
@@ -27,6 +29,12 @@ async function invalidateOccurrenceCorrection(
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY] }),
     queryClient.invalidateQueries({ queryKey: [TRIP_QUERY_KEY, tripId, TRIP_TIMELINE_QUERY_KEY] }),
+    queryClient.invalidateQueries({
+      predicate: ({ queryKey }) =>
+        queryKey[0] === TRIP_QUERY_KEY &&
+        queryKey[2] === tripId &&
+        queryKey[3] === TRIP_OCCURRENCES_KEY_SEGMENT,
+    }),
   ])
 }
 

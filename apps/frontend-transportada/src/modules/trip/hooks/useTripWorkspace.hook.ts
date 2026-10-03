@@ -57,6 +57,7 @@ import {
   NFSE_ISSUE_PERMISSION,
   TRIP_MANAGE_PERMISSION,
   TRIP_ON_THE_ROAD_REFETCH_MS,
+  TRIP_OCCURRENCES_KEY_SEGMENT,
   TRIP_QUERY_KEY,
   TRIP_READ_PERMISSION,
   TRIP_REPORT_ON_BEHALF_PERMISSION,
@@ -506,7 +507,7 @@ export function useTripWorkspace(
         documentId: activeOccurrenceDocumentId ?? '',
         tripId: input.tripId ?? '',
       }),
-    queryKey: [...tripKey, 'occurrences', activeOccurrenceDocumentId] as const,
+    queryKey: [...tripKey, TRIP_OCCURRENCES_KEY_SEGMENT, activeOccurrenceDocumentId] as const,
   })
 
   const fiscalReadinessQuery = useQuery({
@@ -573,7 +574,7 @@ export function useTripWorkspace(
     return Promise.all([
       invalidate(),
       queryClient.invalidateQueries({ queryKey: ['trips', input.tripId, 'allowed-actions'] }),
-      queryClient.invalidateQueries({ queryKey: [...tripKey, 'occurrences'] }),
+      queryClient.invalidateQueries({ queryKey: [...tripKey, TRIP_OCCURRENCES_KEY_SEGMENT] }),
     ]).then(() => undefined)
   }
 
@@ -720,7 +721,7 @@ export function useTripWorkspace(
     }
 
     void queryClient.invalidateQueries({
-      queryKey: [...tripKey, 'occurrences', activeOccurrenceDocumentId],
+      queryKey: [...tripKey, TRIP_OCCURRENCES_KEY_SEGMENT, activeOccurrenceDocumentId],
     })
     void queryClient.invalidateQueries({ queryKey: [TRIP_QUERY_KEY, 'occurrence-feed'] })
     /** Spec 185 T6.1: o gatilho automático pode ter despachado a viagem — a viagem invalida também. */
@@ -848,7 +849,7 @@ export function useTripWorkspace(
       }),
     onSuccess: (_result, variables) => {
       clearFieldReportKey(`field-occurrence:${[...variables.documentIds].toSorted().join(',')}`)
-      void queryClient.invalidateQueries({ queryKey: [...tripKey, 'occurrences'] })
+      void queryClient.invalidateQueries({ queryKey: [...tripKey, TRIP_OCCURRENCES_KEY_SEGMENT] })
       void queryClient.invalidateQueries({ queryKey: [TRIP_QUERY_KEY, 'occurrence-feed'] })
     },
   })
