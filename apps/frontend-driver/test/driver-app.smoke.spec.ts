@@ -18,6 +18,7 @@ import { loginAsLocalUser } from './authenticated-smoke.helper'
 import {
   ageQueuedItems,
   DRIVER_ACCESS_KEY,
+  DRIVER_DOCUMENT_ID,
   DRIVER_STOP_ID,
   mockDriverTripApi,
   SMOKE_OCCURRENCE_TYPE_IDS,
@@ -979,9 +980,11 @@ test('ocorrência de parada com foto obrigatória: habilita ao capturar, e nunca
   expect(api.storageUploads()).toHaveLength(1)
   expect(api.storageUploads()[0]?.contentType).toBe('image/jpeg')
   const confirmedId = /occurrence-uploads\/([^/]+)\/confirm$/u.exec(api.reports()[2]?.path ?? '')
-  expect(api.reports()[0]?.body).toEqual({
+  /** Spec 196: a ocorrência leva o ponto; o reenvio da foto repete o corpo sem ele (a API guarda o primeiro). */
+  expect(api.reports()[0]?.body).toMatchObject({
     description: '',
     documentId: null,
+    location: { latitude: -23.5505, longitude: -46.6333 },
     occurrenceTypeId: SMOKE_OCCURRENCE_TYPE_IDS.unexpectedCharge,
   })
   expect(api.reports()[3]?.body).toEqual({
@@ -1478,4 +1481,121 @@ test('localização liberada: nenhum aviso antes do Entreguei', async ({ page })
   await page.getByRole('button', { name: 'Cheguei' }).click()
   await expect(page.getByRole('button', { exact: true, name: 'Entreguei' })).toBeVisible()
   await expect(page.getByRole('status').filter({ hasText: LOCATION_OFF_WARNING })).toHaveCount(0)
+})
+
+/**
+ * Spec 196 (T5.4): todo toque de campo leva o ponto. Com o GPS permitido o corpo sai com a posição
+ * do aparelho; negado, sai com `location: null` — a recusa nunca bloqueia o toque.
+ */
+const SMOKE_POSITION = { latitude: -23.5505, longitude: -46.6333 } as const
+
+async function openPlannedTrip(page: Page): Promise<DriverTripApiMock> {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  const api = await mockDriverTripApi({
+    page,
+    scenario: { startsPlanned: true, tracksEnRoute: true },
+  })
+  await loginAsLocalUser(page)
+  await expect(page.getByRole('button', { name: 'Despachar viagem' })).toBeVisible()
+  return api
+}
+
+test('GPS permitido: despacho, ocorrência da parada e ocorrência da nota levam o ponto', async ({
+  page,
+}) => {
+  await grantLocation(page)
+  const api = await openPlannedTrip(page)
+
+  await page.getByRole('button', { name: 'Despachar viagem' }).click()
+  await expect.poll(() => findReport(api, '/dispatch')).toBeDefined()
+  expect(findReport(api, '/dispatch')?.body).toMatchObject({ location: SMOKE_POSITION })
+
+  await page.getByRole('button', { exact: true, name: 'Ocorrência' }).first().click()
+  const types = page.getByRole('radiogroup', { name: 'Qual ocorrência?' })
+  await types.getByRole('radio', { name: /Doca interditada/u }).click()
+  await page
+    .getByRole('group', { name: 'Registrar ocorrência' })
+    .getByRole('button', { exact: true, name: 'Registrar' })
+    .click()
+  await expect.poll(() => findReport(api, `/stops/${DRIVER_STOP_ID}/occurrences`)).toBeDefined()
+  expect(findReport(api, `/stops/${DRIVER_STOP_ID}/occurrences`)?.body).toMatchObject({
+    location: SMOKE_POSITION,
+  })
+
+  await page.getByRole('button', { exact: true, name: 'Ocorrência' }).first().click()
+  await page
+    .getByRole('radiogroup', { name: 'Qual ocorrência?' })
+    .getByRole('radio', { name: /Cliente ausente/u })
+    .click()
+  await page
+    .getByRole('group', { name: 'Registrar ocorrência' })
+    .getByRole('button', { exact: true, name: 'Registrar' })
+    .click()
+  await expect
+    .poll(() => findReport(api, `/documents/${DRIVER_DOCUMENT_ID}/occurrences`))
+    .toBeDefined()
+  expect(findReport(api, `/documents/${DRIVER_DOCUMENT_ID}/occurrences`)?.body).toMatchObject({
+    location: SMOKE_POSITION,
+  })
+})
+
+test('GPS negado: os mesmos toques saem com `location: null`, sem travar', async ({ page }) => {
+  const api = await openPlannedTrip(page)
+
+  await page.getByRole('button', { name: 'Despachar viagem' }).click()
+  await expect.poll(() => findReport(api, '/dispatch')).toBeDefined()
+  expect(findReport(api, '/dispatch')?.body).toMatchObject({ location: null })
+
+  await page.getByRole('button', { exact: true, name: 'Ocorrência' }).first().click()
+  await page
+    .getByRole('radiogroup', { name: 'Qual ocorrência?' })
+    .getByRole('radio', { name: /Doca interditada/u })
+    .click()
+  await page
+    .getByRole('group', { name: 'Registrar ocorrência' })
+    .getByRole('button', { exact: true, name: 'Registrar' })
+    .click()
+  await expect.poll(() => findReport(api, `/stops/${DRIVER_STOP_ID}/occurrences`)).toBeDefined()
+  expect(findReport(api, `/stops/${DRIVER_STOP_ID}/occurrences`)?.body).toMatchObject({
+    location: null,
+  })
+})
+
+/**
+ * RF8: com o GPS mudo (o pedido de permissão aberto, que nunca chama de volta), "Despachar" e
+ * "Iniciar rota" saem em até 3,2 s do clique, com `location: null`. Mede o clique à requisição.
+ */
+test('GPS mudo: o despacho e o "Iniciar rota" saem em até 3,2 s', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: () => undefined,
+        watchPosition: () => 0,
+        clearWatch: () => undefined,
+      },
+    })
+  })
+  const api = await openPlannedTrip(page)
+
+  const dispatchRequest = page.waitForRequest(/\/me\/trips\/current\/dispatch$/u)
+  const dispatchClickedAt = Date.now()
+  await page.getByRole('button', { name: 'Despachar viagem' }).click()
+  await dispatchRequest
+  const dispatchElapsed = Date.now() - dispatchClickedAt
+  test.info().annotations.push({ type: 'dispatch-ms', description: String(dispatchElapsed) })
+  expect(dispatchElapsed).toBeLessThanOrEqual(3_200)
+  await expect.poll(() => findReport(api, '/dispatch')?.body).toMatchObject({ location: null })
+
+  const departRequest = page.waitForRequest(/\/stops\/[^/]+\/depart$/u)
+  const departClickedAt = Date.now()
+  await page
+    .getByRole('button', { name: /^Iniciar rota/u })
+    .first()
+    .click()
+  await departRequest
+  const departElapsed = Date.now() - departClickedAt
+  test.info().annotations.push({ type: 'depart-ms', description: String(departElapsed) })
+  expect(departElapsed).toBeLessThanOrEqual(3_200)
+  await expect.poll(() => findReport(api, '/depart')?.body).toMatchObject({ location: null })
 })

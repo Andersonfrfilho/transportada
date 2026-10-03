@@ -82,6 +82,8 @@ export type DriverTripProofScenario = Readonly<{
   /** Spec 230: a viagem nasce `route_planned` e só vira `dispatched` depois do `POST /dispatch`. */
   startsPlanned?: boolean
   stopDeliveryProof?: Readonly<Record<string, string>>
+  /** Spec 206: a API nova manda `enRouteSince`/`enRouteTappedAt` — sem eles a tela cai no modo legado (só "Cheguei"). */
+  tracksEnRoute?: boolean
 }>
 
 function isProofDelivered(item: unknown, provedDocumentIds: ReadonlySet<string>): boolean {
@@ -120,6 +122,9 @@ function buildSnapshot(input: {
               deliveryWindowEnd: null,
               deliveryWindowStart: null,
               deliveryProof: input.scenario?.stopDeliveryProof ?? null,
+              ...(input.scenario?.tracksEnRoute === true
+                ? { enRouteSince: null, enRouteTappedAt: null }
+                : {}),
               documents: [
                 {
                   accessKey: DRIVER_ACCESS_KEY,
@@ -245,10 +250,11 @@ export async function mockDriverTripApi(
       await route.abort('internetdisconnected')
       return
     }
+    const rawBody = route.request().postData()
     reports.push({
-      body: null,
+      body: rawBody === null || !rawBody.startsWith('{') ? null : JSON.parse(rawBody),
       formFields: null,
-      idempotencyKey: '',
+      idempotencyKey: route.request().headers()['idempotency-key'] ?? '',
       path: new URL(route.request().url()).pathname,
     })
     if (input.scenario?.dispatchRefusedWith !== undefined) {
