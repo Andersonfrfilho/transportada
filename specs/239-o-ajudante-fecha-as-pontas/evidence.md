@@ -337,3 +337,99 @@ de motorista; a de quem dirige, o contrário; texto nos dois idiomas. **Vermelho
 
 **Verificação:** prettier rodado nos .md tocados (`bunx prettier --write` e `bunx prettier --check`);
 todos os arquivos em compliance; nenhuma linha acima de 100 caracteres.
+
+## Correções da revisão final (spec 239)
+
+Nove itens da revisão final, um commit por item, contrato vermelho antes do código e prova por mutação
+(correção arrancada, vermelho visto, restaurada e conferida com `cmp`).
+
+| Item | O que                                                                                                      | Commit      |
+| ---- | ---------------------------------------------------------------------------------------------------------- | ----------- |
+| 1    | A3: a barra de papéis em lote mostra a falha de papéis e de grupos (`bulkAssignErrorCode`, `role="alert"`) | `ca4791153` |
+| 2    | `readCrewRole`: papel desconhecido vira `helper` (somente leitura), ausente segue `driver`                 | `7c12cf879` |
+| 3    | Paridade de `TRIP_CREW_ROLES` do app do motorista com o arquivo da API                                     | `4f11e68c8` |
+| 8    | `DEFAULT_TRIP_CREW_ROLE` no lugar do literal `'driver'` repetido                                           | `e32e12d19` |
+| 4    | `DocumentRow` com `isReadOnly` próprio: ajudante mantém selo e hora; espera do despacho volta para ele     | `34f117fee` |
+| 5    | Diária geral: "salvo" não fica preso, "Tentar de novo" na leitura, montagem testada                        | `c22fa437c` |
+| 6    | B1: endereço do ajudante; nota e regiões atendidas escondidas para o ajudante puro                         | `b78a5acae` |
+| 9    | B2: `.fuelPriceStatusError` com `overflow-wrap: anywhere`                                                  | `fac628a6a` |
+| 7    | Integração de `crewRole` afirma `expect(drivingTrip).toBeDefined()`                                        | `4b2c8b64a` |
+
+**Item 1.** O erro da atribuição em lote ficava em `assignRolesMutation.error` / `groups.assignMutation.error`,
+que nenhuma tela lia. O hook expõe `bulkAssignErrorCode` (papéis primeiro, depois grupos) e a barra o renderiza
+com a chave `users.errors.<código>` e o texto padrão como reserva. Contrato: o hook devolve o código na falha e
+`undefined` depois de uma nova tentativa que dá certo (papéis); a falha de grupos também chega ao código; a
+barra renderizada traz o alerta com a mensagem (conhecida e padrão) e não traz alerta sem erro. Mutação: hook
+sem o código, 2 fails; barra sem o bloco, 2 fails. **Limite:** a página não é montada nos contratos (ela cria o
+cliente HTTP real); o fio `screen.bulkAssignErrorCode` → barra é uma linha, coberta pelo typecheck.
+O comentário de `settleWithoutRejecting` agora diz a verdade (a falha fica em `mutation.error`).
+
+**Item 2.** A viagem com papel fora do vocabulário (`'observer'`, `7`, `null`) vira `helper`; as outras viagens
+da mesma resposta seguem válidas e a ausência continua valendo `driver`. Mutação (`?? 'driver'`): 2 fails.
+
+**Item 3.** `TRIP_CREW_ROLES` lido de `api-transportada/src/shared/trip-crew-role.constant.ts`. Mutação (papel
+extra no app): 3 fails.
+
+**Item 8.** `DEFAULT_TRIP_CREW_ROLE` em `tripCrewRole.service.ts`, usado por `resolveTripCrewRole`,
+`canReportOnTrip` e `readCrewRole`. Mutação (constante `'helper'`): 4 fails. O vermelho "antes" desta refatoração
+foi o import de um nome que ainda não existia na suíte; o que garante a regra é a mutação.
+
+**Item 4.** `isFieldWorkBlocked` (viagem sem despacho) e `isReadOnly` (ajudante) chegam separados a `DocumentRow`.
+O ajudante vê a nota entregue com o selo e a hora, a devolvida com o motivo, a pendente só com os dados, e sem
+nenhuma ação; a indicação `dispatch.waiting` aparece para ele quando a viagem não foi despachada. O rótulo do
+selo virou o componente `DocumentSettledState`, e o contrato de texto-fonte `delivery-single-button` passou a
+ler esse componente em vez do pedaço inline. Motorista: nada muda. Mutação: voltar o `&& !isReadOnly` da espera,
+1 fail; desligar o ramo de leitura, 4 fails. **Limite:** o contrato do motorista com nota entregue não renderiza
+(a `DeliveryProofSection` exige a sessão), então o "nada muda para o motorista" vale pelos contratos que já
+existiam.
+
+**Item 5.** A montagem saiu da página para `DriverCrewSettingsSection` (seam de teste: aceita `client`, como
+`useUserAdministration`). Contrato com DOM em `test/trip-hooks/crew-settings-section.contract.tsx`:
+com `fleet.read` e a aba de motoristas consulta e mostra o painel; sem permissão não consulta nem mostra;
+fora da aba não consulta; digitar de novo depois de salvar apaga o "salvo"; a falha de leitura mostra
+"Tentar de novo" (`crewSettings.retry`, nos dois idiomas) que consulta outra vez e mostra o campo. Mutações:
+sem `onEdit`, sem `isActive`, sem `canRead`, sem `onRetry`, 1 fail cada. O contrato antigo que lia o texto-fonte
+da página (`hookCall`) foi removido: a página agora só passa quatro props à seção. **Limite:** o fio página →
+seção não é exercitado (montar `FleetWorkspacePage` exige o provedor Keycloak e a dúzia de hooks da frota); os
+vizinhos (`fuel-tab`, `regions-tab`) só têm contrato de texto-fonte para a página, e aqui o comportamento ficou
+na seção.
+
+**Decisão conhecida: a diária zero (item 5c, não alterada).** O campo mostra zero como vazio
+(`toTypedAmount` devolve `''` para 0), então um valor gravado `0.0000` aparece vazio; digitar `0,00` envia
+`'0.0000'` à API (não `null`) e a API grava zero; só o campo realmente vazio envia `null`. Na leitura, "zero" e
+"sem valor padrão" parecem iguais na tela, embora a conta da viagem trate `null` (aponta a lacuna) e `0.0000`
+(valor zero) de forma diferente. Mesmo padrão da diária própria da ficha (`maskTypedAmount`/`toTypedAmount`).
+Mantido; permitir exibir `0,00` exigiria mexer em `toTypedAmount`, que a ficha também usa, então não é trivial.
+
+**Item 6 (B1), o que escondeu e o que renomeou.**
+
+- **Renomeado:** o endereço. A legenda é "Endereço do ajudante" (`driverAddressLegendHelper`, nos dois
+  idiomas), escolhida por `isHelperOnlyDriver`; o endereço serve ao ajudante do mesmo jeito (CEP, mapa do ponto).
+- **Escondido (não renomeado):** a **nota** ("Nota do motorista") e as **regiões atendidas**. A nota nasce das
+  fotos de comprovante de entrega dentro e fora do prazo (`driver-score.policy.ts`), e o ajudante não reporta
+  entrega (a API recusa `trip.report`, D4); a cobertura de zonas só decide o motorista da viagem
+  (`trip-driver-zone.policy.ts`). Nenhuma das duas se aplica ao ajudante puro, e o selo "Sem nota" só enganava.
+  O motorista que também ajuda (`canDrive` verdadeiro) mantém as duas. A cobertura some também no diálogo de
+  cadastro rápido, que usa o mesmo predicado. Coberturas já gravadas continuam no banco: o estado da ficha as
+  mantém, só a seção não é mostrada.
+- O contrato de texto-fonte `as duas fichas montam o mesmo controle` conta os blocos `{hasLicense ? (`; as
+  contagens subiram de 4 para 5 (ficha) e de 2 para 3 (diálogo). O diálogo rápido não tem render nos contratos
+  (é portal), então o que o prende é essa contagem.
+- Mutações: esconder para todos, 5 fails; legenda fixa, 2 fails.
+
+**Item 9 (B2).** `overflow-wrap: anywhere` em `.fuelPriceStatusError` (serve também o painel de combustível). O
+contrato lê as regras do CSS (seletores separados por vírgula, comentários removidos) e afirma a propriedade no
+bloco da classe. Mutação: a linha removida, 1 fail.
+
+**Item 7.** Postgres 18 nativo descartável (porta 65435, fora do repositório), sem Docker e sem o 65432:
+`me-trip.integration.ts` 20 pass / 0 fail / 0 skip. Mutação (`toBeUndefined`): 1 fail.
+
+**Pendências conhecidas, sem tocar no código:**
+
+- **Minor 5:** contrato do app do motorista que lê texto-fonte da página.
+- **Minor 6:** a pendência de foto de conta foi reclassificada.
+- **Minor 7:** o cartão de consentimento de localização responde 403 para o ajudante puro. Fica para o resto da
+  spec 235.
+
+**T7 (design) segue aberta:** depende do usuário. As mudanças visuais desta revisão (B1: ficha do ajudante sem
+nota e sem regiões; item 5: botão "Tentar de novo"; item 4: selo na nota do ajudante) precisam de prints novos.
