@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 235 RF9 (T0.3), contra Postgres real: as três leituras publicam o que a spec 167 grava. O
+ * Spec 240 RF9 (T0.3), contra Postgres real: as três leituras publicam o que a spec 167 grava. O
  * detalhe e a lista da nota devolvem `corrections` (mais antiga primeiro) e `cancellation`; o feed
  * devolve `cancellation`. A ocorrência cancelada continua nas três, marcada — nunca filtrada.
  */
@@ -174,7 +174,7 @@ async function seedScenario(database: TestDatabase): Promise<SeededScenario> {
   return { cancelledId, company, correctedId, plainId, trip }
 }
 
-describe('leituras publicam correção e cancelamento (spec 235 RF9)', () => {
+describe('leituras publicam correção e cancelamento (spec 240 RF9)', () => {
   testWithPostgres(
     'detalhe: duas correções, mais antiga primeiro, e cancellation nulo',
     async () => {
@@ -299,7 +299,7 @@ describe('leituras publicam correção e cancelamento (spec 235 RF9)', () => {
   )
 })
 
-describe('as linhas do tempo publicam o cancelamento (spec 235 RF9, T3.2a)', () => {
+describe('as linhas do tempo publicam o cancelamento (spec 240 RF9, T3.2a)', () => {
   testWithPostgres(
     'linha do tempo da viagem: document.occurrence leva cancellation na cancelada e nulo nas demais',
     async () => {

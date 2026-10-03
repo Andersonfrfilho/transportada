@@ -15,11 +15,11 @@ function ruleBody(selector: string): string {
 }
 
 /**
- * Spec 235 T5.1 (revisão de design): o fechar do diálogo de cancelamento é um `.iconAction` num
+ * Spec 240 T5.1 (revisão de design): o fechar do diálogo de cancelamento é um `.iconAction` num
  * cabeçalho flex; sem `flex-shrink: 0` o título comprimia o botão a 20px de largura no celular, e
  * sob toque ele não chegava aos 44px do alvo.
  */
-describe('o fechar do diálogo de cancelamento é alvo de toque (spec 235 T5.1)', () => {
+describe('o fechar do diálogo de cancelamento é alvo de toque (spec 240 T5.1)', () => {
   test('o botão de ícone não encolhe dentro do cabeçalho flex', () => {
     expect(ruleBody('.iconAction')).toContain('flex-shrink: 0')
   })

@@ -46,7 +46,7 @@ async function readError(promise: Promise<unknown>): Promise<unknown> {
   return undefined
 }
 
-describe('leituras publicam cancelamento e correções (spec 235 RF9, T2.1)', () => {
+describe('leituras publicam cancelamento e correções (spec 240 RF9, T2.1)', () => {
   test('o detalhe traz o cancelamento e as correções que a API publicou', async () => {
     const client = createClient({
       data: wire({ cancellation: CANCELLATION, corrections: CORRECTIONS }),

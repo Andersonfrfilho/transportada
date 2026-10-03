@@ -1,4 +1,4 @@
-# Feature 235 — A correção da ocorrência ganha tela
+# Feature 240 — A correção da ocorrência ganha tela
 
 ## Problema e resultado
 
@@ -22,7 +22,7 @@ sumir ou de continuar contando.
 Esta spec é **a tela, mais a leitura que faltava**. Nenhuma regra de negócio é reaberta: elas
 foram decididas na 167 e estão implementadas nas escritas. A Fase 0 provou que as leituras
 (detalhe, feed, lista da nota) não publicam `corrections` nem `cancellation`. Por decisão de
-2026-10-02, a 235 inclui essa leitura na API, sem migration, sem rota e sem regra nova (RF9).
+2026-10-02, a 240 inclui essa leitura na API, sem migration, sem rota e sem regra nova (RF9).
 
 ## Fora do escopo
 

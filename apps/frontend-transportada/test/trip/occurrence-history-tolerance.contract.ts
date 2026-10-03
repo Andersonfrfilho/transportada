@@ -68,7 +68,7 @@ describe('tolerância a correção e cancelamento na ocorrência (spec 167 CA10)
     expect(occurrence?.cancellation).toBeNull()
   })
 
-  /** Spec 235 T5.0: a API publica `null` quando o vínculo de quem corrigiu já não está ativo. */
+  /** Spec 240 T5.0: a API publica `null` quando o vínculo de quem corrigiu já não está ativo. */
   it('aceita a correção sem autor (`correctedByName` nulo)', () => {
     const [occurrence] = adapters.occurrencesFromApi([
       buildOccurrence({ corrections: [{ ...CORRECTION, correctedByName: null }] }),

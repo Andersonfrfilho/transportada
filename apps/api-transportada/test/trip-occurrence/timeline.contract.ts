@@ -149,7 +149,7 @@ describe('a linha do tempo da ocorrência (spec 183 RF19)', () => {
   })
 })
 
-describe('o cancelamento na linha do tempo da ocorrência (spec 235 RF9)', () => {
+describe('o cancelamento na linha do tempo da ocorrência (spec 240 RF9)', () => {
   const CANCELLED: OccurrenceTimelineSource = {
     actor: { kind: 'operation', name: 'Operadora Lima' },
     id: 'occurrence-1',
@@ -262,7 +262,7 @@ describe('os três tempos do topo (spec 183 RF19)', () => {
     expect(timeline.timings.openUntil).toBe('2026-09-24T10:30:00.000Z')
   })
 
-  test('o cancelamento da ocorrência fecha o relógio no instante dele (spec 235 T6.5)', () => {
+  test('o cancelamento da ocorrência fecha o relógio no instante dele (spec 240 T6.5)', () => {
     const timeline = buildOccurrenceTimeline({
       sources: [
         RECORDED,

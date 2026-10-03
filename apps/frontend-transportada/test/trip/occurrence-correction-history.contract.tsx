@@ -24,7 +24,7 @@ function textOf(occurrence: TripOccurrenceDetail): string {
     .replace(/\|+/gu, '|')
 }
 
-describe('histórico de correções no detalhe (spec 235 T4.1, RF5, P3)', () => {
+describe('histórico de correções no detalhe (spec 240 T4.1, RF5, P3)', () => {
   test('uma correção mostra autor, data/hora e o conjunto que passou a valer', () => {
     const text = textOf(
       buildOccurrenceDetailFixture({
@@ -104,7 +104,7 @@ describe('histórico de correções no detalhe (spec 235 T4.1, RF5, P3)', () => 
   })
 })
 
-describe('duas correções seguidas (spec 235 T4.2, P3)', () => {
+describe('duas correções seguidas (spec 240 T4.2, P3)', () => {
   const twice = buildOccurrenceDetailFixture({
     corrections: [
       {

@@ -132,7 +132,7 @@ describe('GET /trip-occurrences/:id (spec 183 T201)', () => {
     expect(fixture.calls).toEqual([{ context: fixture.context.scope, occurrenceId: OCCURRENCE_ID }])
   })
 
-  test('publica correções e cancelamento no mesmo formato das escritas (spec 235 RF9)', async () => {
+  test('publica correções e cancelamento no mesmo formato das escritas (spec 240 RF9)', async () => {
     const detail: TripOccurrenceDetail = {
       ...OCCURRENCE_DETAIL,
       cancellation: {

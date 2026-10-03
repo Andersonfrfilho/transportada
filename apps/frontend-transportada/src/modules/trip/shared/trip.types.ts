@@ -255,13 +255,13 @@ export type RegisteredOccurrence = Omit<TripOccurrence, 'attachments'> &
   }>
 
 /**
- * Spec 235: o que as duas escritas da 167 devolvem — a ocorrência com `corrections` e
+ * Spec 240: o que as duas escritas da 167 devolvem — a ocorrência com `corrections` e
  * `cancellation` já aplicados, o anexo no formato estreito e **sem** `email`/`autoDispatch`.
  */
 export type OccurrenceWriteResult = Omit<TripOccurrence, 'attachments'> &
   Readonly<{ attachments: readonly Readonly<{ id: string; position: number }>[] }>
 
-/** Spec 235 RF2: `quantity` e `unit` andam juntos; ausentes, o item vai sem contagem. */
+/** Spec 240 RF2: `quantity` e `unit` andam juntos; ausentes, o item vai sem contagem. */
 export type CorrectOccurrenceItemInput = Readonly<{
   code: string
   quantity?: string
@@ -351,7 +351,7 @@ export type TripTimelineDocumentReference = Readonly<{
 /** Spec 161 T24 (RF12): a contagem de fotos, sem URL nenhuma — quem quer ver abre a ocorrência. */
 export type TripTimelineOccurrenceReference = Readonly<{
   attachmentCount?: number
-  /** Spec 235 RF9: `null` é ativa; ausente é API anterior ao campo e o adaptador a lê como `null`. */
+  /** Spec 240 RF9: `null` é ativa; ausente é API anterior ao campo e o adaptador a lê como `null`. */
   cancellation?: null | OccurrenceCancellation
   note: string
   typeName: string

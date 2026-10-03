@@ -42,7 +42,7 @@ function readReasonText(markup: string): null | string {
   return reason?.[1] ?? null
 }
 
-describe('botão Corrigir no detalhe da ocorrência (spec 235 T2.1)', () => {
+describe('botão Corrigir no detalhe da ocorrência (spec 240 T2.1)', () => {
   test('CA02: sem trip.manage não existe botão nenhum na árvore', () => {
     const markup = render(buildOccurrenceDetailFixture(), ['fleet.read'])
     expect(markup).toBe('')

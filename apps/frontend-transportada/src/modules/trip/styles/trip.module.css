@@ -4560,7 +4560,7 @@ button.occurrenceCaseBadge {
   gap: var(--space-2);
 }
 
-/* Spec 235: o botão Corrigir e, quando desabilitado, o motivo logo abaixo dele. */
+/* Spec 240: o botão Corrigir e, quando desabilitado, o motivo logo abaixo dele. */
 .occurrenceCorrection {
   display: grid;
   gap: var(--space-2);

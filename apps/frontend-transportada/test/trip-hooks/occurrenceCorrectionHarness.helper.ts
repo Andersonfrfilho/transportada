@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 235: a tela de correção montada de verdade, com a API dublada — os contratos do formulário e
+ * Spec 240: a tela de correção montada de verdade, com a API dublada — os contratos do formulário e
  * dos erros dividem o detalhe dublado, o clique e a digitação. Dados sintéticos.
  */
 import { useQuery } from '@tanstack/react-query'

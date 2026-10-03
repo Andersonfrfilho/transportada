@@ -2356,7 +2356,7 @@ não reconciliam. Ver ADR-0093.
 - **N+1:** `test/integration/trip-timeline.integration.ts` conta as consultas de `listTripTimeline` com 1 nota e
   com 50 notas (todas com ponto): o número é o mesmo (9 em 2026-10-02).
 
-## Spec 235 — as leituras publicam a correção e o cancelamento (RF9)
+## Spec 240 — as leituras publicam a correção e o cancelamento (RF9)
 
 A spec 167 gravava correção (`trip_document_occurrence_corrections`) e cancelamento (três colunas de
 `trip_document_occurrences`), mas só as **respostas das escritas** os devolviam. Agora as leituras
@@ -2388,4 +2388,4 @@ Não é evento-chave. **Fecha `openUntil`** (decisão de 2026-10-03, T6.5): `res
 ocorrência — a cancelada deixa de aparecer "em andamento" para sempre; `driverReleasedAt` segue só da
 tratativa. Contrato `test/trip-occurrence/timeline.contract.ts` e integração
 `trip-occurrence-correction-read.integration.ts`. O painel precisa conhecer o kind novo antes de a API ir
-a produção (etapa 1 da ordem de publicação, `specs/235-…/evidence.md` T6.1).
+a produção (etapa 1 da ordem de publicação, `specs/240-…/evidence.md` T6.1).

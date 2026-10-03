@@ -115,7 +115,7 @@ export type OccurrenceQuantitiesByCode = ReadonlyMap<
 >
 
 /**
- * Spec 235 RF2: o formulário de correção reabre com o conjunto que a ocorrência tem hoje — os mesmos
+ * Spec 240 RF2: o formulário de correção reabre com o conjunto que a ocorrência tem hoje — os mesmos
  * itens, quantidades e unidades, inclusive a unidade legada que a nota gravou.
  */
 export function resolveOccurrenceItemSelectionFromDetail(
