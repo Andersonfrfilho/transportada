@@ -2343,3 +2343,10 @@ ocorrência — a cancelada deixa de aparecer "em andamento" para sempre; `drive
 tratativa. Contrato `test/trip-occurrence/timeline.contract.ts` e integração
 `trip-occurrence-correction-read.integration.ts`. O painel precisa conhecer o kind novo antes de a API ir
 a produção (etapa 1 da ordem de publicação, `specs/240-…/evidence.md` T6.1).
+
+**Política de reentrega no cadastro de tipos (spec 242, cumpre 164 RF1/T21).** `PUT`/`GET`
+`/company-settings/occurrence-types` passam a ler e gravar `redeliveryPolicy` (`unset | allowed | blocked`).
+Ausente no `PUT` não altera o valor guardado (o INSERT usa o padrão da coluna): `saveOccurrenceType` só
+grava o campo quando vem, no molde de `attachmentMode`. Antes, o schema estrito recusava o campo que o
+painel sempre manda (400) e o `GET` não o devolvia. Contrato `test/trip-occurrence/redelivery-policy-schema.contract.ts`
+e integração `occurrence-type-redelivery-policy.integration.ts`.
