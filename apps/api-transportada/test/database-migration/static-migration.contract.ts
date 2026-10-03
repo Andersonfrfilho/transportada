@@ -2111,4 +2111,31 @@ describe('o estado do ponto entra aditivo e o histórico sem coordenada fica NUL
     expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
     expect(rollbackSql).not.toContain('CASCADE')
   })
+
+  /**
+   * Spec 196 T1.4: a pasta roda numa transação e o DROP + ADD toma ACCESS EXCLUSIVE até o COMMIT.
+   * Sem `lock_timeout`, uma transação longa à frente enfileira o tráfego do motorista atrás da migration.
+   */
+  test('bounds the lock wait of the WhatsApp coordinate check migration and its rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) =>
+      name.endsWith('_event_location_whatsapp_coordinate'),
+    )
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const firstAlter = migrationSql.indexOf('ALTER TABLE')
+    const migrationTimeout = migrationSql.indexOf("SET LOCAL lock_timeout = '3s'")
+    expect(firstAlter).toBeGreaterThan(-1)
+    expect(migrationTimeout).toBeGreaterThan(-1)
+    expect(migrationTimeout).toBeLessThan(firstAlter)
+    expect(migrationSql.trimEnd()).toEndWith('SET LOCAL lock_timeout = DEFAULT;')
+
+    const rollbackBegin = rollbackSql.indexOf('BEGIN;')
+    const rollbackTimeout = rollbackSql.indexOf("SET LOCAL lock_timeout = '3s'")
+    expect(rollbackBegin).toBeGreaterThan(-1)
+    expect(rollbackTimeout).toBeGreaterThan(rollbackBegin)
+    expect(rollbackTimeout).toBeLessThan(rollbackSql.indexOf('ALTER TABLE'))
+  })
 })

@@ -17,6 +17,9 @@
 -- INSERT passa a falhar com 23514.
 BEGIN;
 
+-- Mesmo cuidado da migration: ACCESS EXCLUSIVE até o COMMIT; aborta em vez de enfileirar o tráfego.
+SET LOCAL lock_timeout = '3s';
+
 DO $$
 DECLARE
   offending integer;
