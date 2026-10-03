@@ -2852,3 +2852,11 @@ segurança. O correto, também em `plan.md` § Ordem de deploy:
   90 dias zera `captured_at` junto com a coordenada, e o momento do evento (`deliveredMomentSql`, pontualidade)
   lê essa coluna. Ao ligar `TRIP_LOCATION_PURGE_ENABLED`, a leitura histórica de mais de 90 dias muda.
   Decisão de produto pendente.
+
+## Rebase sobre a 235
+
+Rebase sobre `origin/staging` (spec 235, o ajudante é um perfil, migration `20261002230234_helper_role_and_can_drive`).
+
+- Conflitos fundidos, ambos os lados mantidos: `static-migration.contract.ts` (lista exaustiva ganhou as duas pastas, 235 antes da corretiva da 196) e as seções de spec 235 e spec 196 em `apps/api-transportada/CLAUDE.md`, `apps/frontend-transportada/CLAUDE.md`, `docs/ai-context/api-transportada.md` e `docs/ai-context/frontend-transportada.md`.
+- Snapshot da corretiva `20261003010806_event_location_whatsapp_coordinate` refeito a partir do da 235: `id` `eb960c28-…` mantido, `prevIds` = `0c09292d-a294-4743-92eb-60578a376866`, e só os três CHECKs `*_coordinates_channel_check` trocados para `in ('driver_app', 'whatsapp')`. `db:generate` devolve `no_changes`.
+- Gates: `format:check`, `lint` (0 erros), `typecheck`, `build`, `test` raiz (inclui contrato de shards e `static-migration`), `db:test` (118 pass) e integração dos 10 arquivos tocados pela 196 ou pela 235 (121 pass, 0 fail, 0 skip). A integração completa não foi reexecutada.

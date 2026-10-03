@@ -3,7 +3,7 @@
   "dialect": "postgres",
   "id": "eb960c28-e0b7-4bec-b4b7-ebd5278db0af",
   "prevIds": [
-    "b91168e2-3f91-4dcc-947e-b4e940dda6a4"
+    "0c09292d-a294-4743-92eb-60578a376866"
   ],
   "ddl": [
     {
@@ -13128,6 +13128,19 @@
       "generated": null,
       "identity": null,
       "name": "daily_allowance_amount",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "fleet_drivers"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "true",
+      "generated": null,
+      "identity": null,
+      "name": "can_drive",
       "entityType": "columns",
       "schema": "public",
       "table": "fleet_drivers"
@@ -54058,7 +54071,7 @@
       "table": "company_group_permissions"
     },
     {
-      "value": "\"role\" in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator', 'contractor', 'automation')",
+      "value": "\"role\" in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator', 'helper', 'contractor', 'automation')",
       "name": "company_group_roles_role_check",
       "entityType": "checks",
       "schema": "public",
@@ -54135,7 +54148,7 @@
       "table": "identity_users"
     },
     {
-      "value": "\"role\" in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator', 'contractor', 'automation')",
+      "value": "\"role\" in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator', 'helper', 'contractor', 'automation')",
       "name": "membership_roles_role_check",
       "entityType": "checks",
       "schema": "public",
@@ -56249,6 +56262,13 @@
       "table": "fleet_drivers"
     },
     {
+      "value": "\"can_drive\" or \"can_act_as_helper\"",
+      "name": "fleet_drivers_crew_capability_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "fleet_drivers"
+    },
+    {
       "value": "\"version\" > 0",
       "name": "fleet_drivers_version_check",
       "entityType": "checks",
@@ -57985,7 +58005,7 @@
       "table": "invitation_delivery_outbox"
     },
     {
-      "value": "\"role\" in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator', 'contractor')",
+      "value": "\"role\" in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator', 'helper', 'contractor')",
       "name": "user_invitation_roles_role_check",
       "entityType": "checks",
       "schema": "public",
