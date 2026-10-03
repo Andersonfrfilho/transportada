@@ -26,19 +26,49 @@ export const SMOKE_OCCURRENCE_TYPE_IDS = {
 /** Chave sintética de 44 dígitos — nenhuma nota real entra em fixture. */
 export const DRIVER_ACCESS_KEY = '35260712345678000195550010009001231000000017'
 
-async function fulfillJson(route: Route, body: unknown, status = 200): Promise<void> {
+async function fulfillJson(
+  route: Route,
+  body: unknown,
+  status = 200,
+  extraHeaders: Readonly<Record<string, string>> = {},
+): Promise<void> {
   await route.fulfill({
     body: JSON.stringify(body),
     contentType: 'application/json',
-    headers: { ...CORS_HEADERS, 'access-control-allow-origin': '*' },
+    headers: { ...CORS_HEADERS, 'access-control-allow-origin': '*', ...extraHeaders },
     status,
   })
+}
+
+/**
+ * Spec 234 D1: o `Date` do servidor, adiantado em `offsetMs` em relação ao relógio desta máquina.
+ * ⚠️ O navegador só deixa o JavaScript ler o `Date` de outra origem se a resposta o expõe — o dublê
+ * o expõe aqui, e **a API real precisa fazer o mesmo** (`access-control-expose-headers: Date`).
+ */
+function buildServerClockHeaders(offsetMs: number | undefined): Record<string, string> {
+  if (offsetMs === undefined) return {}
+  return {
+    'access-control-expose-headers': 'Date',
+    date: new Date(Date.now() + offsetMs).toUTCString(),
+  }
+}
+
+/** Os campos de texto de um multipart — a foto fica de fora (parte com `filename`). */
+function readMultipartTextFields(rawBody: string): Record<string, string> {
+  const fields: Record<string, string> = {}
+  for (const match of rawBody.matchAll(/name="([^"]+)"\r\n\r\n([^\r]*)\r\n/gu)) {
+    const [, name, value] = match
+    if (name !== undefined && value !== undefined) fields[name] = value
+  }
+  return fields
 }
 
 export type DriverTripProofScenario = Readonly<{
   /** Spec 189 T7.2: viagens além da de sempre, depois dela — a API ordena por `createdAt`. */
   additionalTrips?: readonly unknown[]
   pendingProofs?: readonly unknown[]
+  /** Spec 234 D1: o servidor responde com `Date` adiantado desta quantidade de ms; sem ele, sem `Date`. */
+  serverClockOffsetMs?: number
   /** O veredito que o `/proof` devolve por documento; sem entrada, `not_required`. */
   punctualityByDocumentId?: Readonly<Record<string, string>>
   score?: number | null
@@ -134,11 +164,19 @@ export type DriverTripApiMock = Readonly<{
    * O que o aparelho enviou: o caminho, a chave de idempotência e o corpo JSON (quando houver) —
    * a ocorrência com foto confere ali o `attachmentObjectId`.
    */
-  reports: () => readonly Readonly<{ body: unknown; idempotencyKey: string; path: string }>[]
+  reports: () => readonly Readonly<{
+    body: unknown
+    /** Spec 234: os campos de texto do multipart (o comprovante); `null` quando o corpo é JSON. */
+    formFields: Readonly<Record<string, string>> | null
+    idempotencyKey: string
+    path: string
+  }>[]
   /** Spec 179: cada `PUT` direto ao storage pela URL assinada — os bytes que chegaram lá. */
   storageUploads: () => readonly Readonly<{ bytes: number; contentType: string }>[]
   /** Liga e desliga o sinal no meio do teste — a fila offline é o que se quer fotografar. */
   setOffline: (isOffline: boolean) => void
+  /** Spec 234 D1: a partir de agora o servidor responde com `Date` adiantado em `offsetMs` (ou sem `Date`). */
+  setServerClockOffset: (offsetMs: number | undefined) => void
   /** Spec 189 T9.2 (A2): a leitura da viagem passa a responder 500 — a releitura de 30 s falha. */
   setTripReadFailing: (isFailing: boolean) => void
   /**
@@ -158,7 +196,12 @@ export async function mockDriverTripApi(
     scenario?: DriverTripProofScenario
   }>,
 ): Promise<DriverTripApiMock> {
-  const reports: Array<{ body: unknown; idempotencyKey: string; path: string }> = []
+  const reports: Array<{
+    body: unknown
+    formFields: Record<string, string> | null
+    idempotencyKey: string
+    path: string
+  }> = []
   const storageUploads: Array<{ bytes: number; contentType: string }> = []
   let arrived = false
   let isDispatched = input.scenario?.startsPlanned !== true
@@ -167,6 +210,7 @@ export async function mockDriverTripApi(
   const deliveredDocumentIds = new Set<string>()
   let occurrenceTypesFailing = input.occurrenceTypesFailing === true
   let tripReadFailing = false
+  let serverClockOffsetMs = input.scenario?.serverClockOffsetMs
 
   await input.page.route(/\/me\/trips\/current$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {
@@ -186,6 +230,8 @@ export async function mockDriverTripApi(
         provedDocumentIds,
         scenario: input.scenario,
       }),
+      200,
+      buildServerClockHeaders(serverClockOffsetMs),
     )
   })
 
@@ -199,7 +245,12 @@ export async function mockDriverTripApi(
       await route.abort('internetdisconnected')
       return
     }
-    reports.push({ body: null, idempotencyKey: '', path: new URL(route.request().url()).pathname })
+    reports.push({
+      body: null,
+      formFields: null,
+      idempotencyKey: '',
+      path: new URL(route.request().url()).pathname,
+    })
     if (input.scenario?.dispatchRefusedWith !== undefined) {
       await fulfillJson(
         route,
@@ -209,7 +260,12 @@ export async function mockDriverTripApi(
       return
     }
     isDispatched = true
-    await fulfillJson(route, { data: { status: 'dispatched' } })
+    await fulfillJson(
+      route,
+      { data: { status: 'dispatched' } },
+      200,
+      buildServerClockHeaders(serverClockOffsetMs),
+    )
   })
 
   /** A lista de tipos de rua do motorista — sem o dublê, o pedido escapa para a API real. */
@@ -227,32 +283,37 @@ export async function mockDriverTripApi(
      * foto. "Cliente ausente" fica como sempre foi (sem flow, a cópia antiga), para o "Não
      * entreguei" continuar medindo o mesmo que antes.
      */
-    await fulfillJson(route, {
-      data: [
-        { id: '00000000-0000-4000-8000-0000000000e1', name: 'Cliente ausente' },
-        {
-          attachmentMode: 'required',
-          flow: 'document',
-          id: SMOKE_OCCURRENCE_TYPE_IDS.damagedCargo,
-          name: 'Avaria na carga',
-          stopKind: null,
-        },
-        {
-          attachmentMode: 'optional',
-          flow: 'stop',
-          id: SMOKE_OCCURRENCE_TYPE_IDS.dockClosed,
-          name: 'Doca interditada',
-          stopKind: 'dock_closed',
-        },
-        {
-          attachmentMode: 'required',
-          flow: 'stop',
-          id: SMOKE_OCCURRENCE_TYPE_IDS.unexpectedCharge,
-          name: 'Cobrança inesperada',
-          stopKind: 'unexpected_charge',
-        },
-      ],
-    })
+    await fulfillJson(
+      route,
+      {
+        data: [
+          { id: '00000000-0000-4000-8000-0000000000e1', name: 'Cliente ausente' },
+          {
+            attachmentMode: 'required',
+            flow: 'document',
+            id: SMOKE_OCCURRENCE_TYPE_IDS.damagedCargo,
+            name: 'Avaria na carga',
+            stopKind: null,
+          },
+          {
+            attachmentMode: 'optional',
+            flow: 'stop',
+            id: SMOKE_OCCURRENCE_TYPE_IDS.dockClosed,
+            name: 'Doca interditada',
+            stopKind: 'dock_closed',
+          },
+          {
+            attachmentMode: 'required',
+            flow: 'stop',
+            id: SMOKE_OCCURRENCE_TYPE_IDS.unexpectedCharge,
+            name: 'Cobrança inesperada',
+            stopKind: 'unexpected_charge',
+          },
+        ],
+      },
+      200,
+      buildServerClockHeaders(serverClockOffsetMs),
+    )
   })
 
   await input.page.route(/\/me\/trips\/current\/(stops|documents)\//, async (route) => {
@@ -268,8 +329,10 @@ export async function mockDriverTripApi(
     const requestUrl = new URL(route.request().url())
     const path = requestUrl.pathname
     const rawBody = route.request().postData()
+    const isJson = rawBody !== null && rawBody.startsWith('{')
     reports.push({
-      body: rawBody === null || rawBody.startsWith('{') === false ? null : JSON.parse(rawBody),
+      body: isJson ? JSON.parse(rawBody) : null,
+      formFields: rawBody === null || isJson ? null : readMultipartTextFields(rawBody),
       idempotencyKey: route.request().headers()['idempotency-key'] ?? '',
       path,
     })
@@ -284,12 +347,18 @@ export async function mockDriverTripApi(
         route,
         { data: { id, uploadUrl: `${requestUrl.origin}${OBJECT_STORAGE_PATH}${id}` } },
         201,
+        buildServerClockHeaders(serverClockOffsetMs),
       )
       return
     }
     const uploadId = /\/occurrence-uploads\/([^/]+)\/confirm$/u.exec(path)?.[1]
     if (uploadId !== undefined) {
-      await fulfillJson(route, { data: { id: uploadId } })
+      await fulfillJson(
+        route,
+        { data: { id: uploadId } },
+        200,
+        buildServerClockHeaders(serverClockOffsetMs),
+      )
       return
     }
     const deliveredDocumentId = /\/documents\/([^/]+)\/deliver$/u.exec(path)?.[1]
@@ -306,7 +375,7 @@ export async function mockDriverTripApi(
             punctuality:
               input.scenario?.punctualityByDocumentId?.[proofDocumentId] ?? 'not_required',
           }
-    await fulfillJson(route, { data }, 201)
+    await fulfillJson(route, { data }, 201, buildServerClockHeaders(serverClockOffsetMs))
   })
 
   /** Spec 179: o bucket. Sem sinal ele também não responde — a foto fica na fila com a ocorrência. */
@@ -348,7 +417,12 @@ export async function mockDriverTripApi(
       consentWrites.push(accepted)
       consentAcceptedAt = accepted ? new Date().toISOString() : null
     }
-    await fulfillJson(route, { data: { acceptedAt: consentAcceptedAt } })
+    await fulfillJson(
+      route,
+      { data: { acceptedAt: consentAcceptedAt } },
+      200,
+      buildServerClockHeaders(serverClockOffsetMs),
+    )
   })
 
   await input.page.route(/\/me\/trips\/current\/location$/, async (route) => {
@@ -357,7 +431,12 @@ export async function mockDriverTripApi(
       return
     }
     locationPosts.push(route.request().postDataJSON() as { latitude: string; longitude: string })
-    await fulfillJson(route, { data: { outcome: 'recorded' } }, 201)
+    await fulfillJson(
+      route,
+      { data: { outcome: 'recorded' } },
+      201,
+      buildServerClockHeaders(serverClockOffsetMs),
+    )
   })
 
   return {
@@ -370,6 +449,9 @@ export async function mockDriverTripApi(
     },
     setOffline: (next) => {
       isOffline = next
+    },
+    setServerClockOffset: (next) => {
+      serverClockOffsetMs = next
     },
     setTripReadFailing: (next) => {
       tripReadFailing = next

@@ -1275,3 +1275,120 @@ test('o tema escolhido vai na URL de login, mesmo com o sistema em outro', async
 
   expect(new URL((await authRequest).url()).searchParams.get('transportada_theme')).toBe('light')
 })
+
+/**
+ * Spec 234 D1/D2: a nota mede o momento em que o evento nasceu, não o da chegada. O app lê o `Date`
+ * das respostas da API e manda `tappedAt` + `clockOffsetMs` em `arrive`/`deliver`/`return`, na
+ * ocorrência de parada e no multipart do comprovante. Aqui o servidor está 1 h à frente do aparelho.
+ */
+const SERVER_AHEAD_MS = 3_600_000
+const CLOCK_TOLERANCE_MS = 15_000
+
+function findReport(api: DriverTripApiMock, suffix: string) {
+  return api.reports().find((report) => report.path.endsWith(suffix))
+}
+
+function readReportBody(api: DriverTripApiMock, suffix: string): Record<string, unknown> {
+  const body: unknown = findReport(api, suffix)?.body
+  return typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {}
+}
+
+test('com resposta de Date, o corpo do deliver leva tappedAt e o desvio do relógio', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  const api = await mockDriverTripApi({ page, scenario: { serverClockOffsetMs: SERVER_AHEAD_MS } })
+  await loginAsLocalUser(page)
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await page.getByRole('button', { name: 'Entreguei' }).first().click()
+
+  await expect.poll(() => findReport(api, '/deliver') !== undefined, { timeout: 20_000 }).toBe(true)
+
+  for (const suffix of ['/arrive', '/deliver']) {
+    const fields = readReportBody(api, suffix)
+    expect(typeof fields.clockOffsetMs).toBe('number')
+    expect(Math.abs((fields.clockOffsetMs as number) - SERVER_AHEAD_MS)).toBeLessThan(
+      CLOCK_TOLERANCE_MS,
+    )
+    // A hora do toque é a do aparelho, crua e recente — o desvio é que a corrige no servidor.
+    expect(Math.abs(Date.now() - Date.parse(String(fields.tappedAt)))).toBeLessThan(60_000)
+  }
+})
+
+test('sem Date nas respostas, o corpo do deliver sai como sempre saiu', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  const api = await mockDriverTripApi({ page })
+  await loginAsLocalUser(page)
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await page.getByRole('button', { name: 'Entreguei' }).first().click()
+
+  await expect.poll(() => findReport(api, '/deliver') !== undefined, { timeout: 20_000 }).toBe(true)
+
+  for (const suffix of ['/arrive', '/deliver']) {
+    const body = readReportBody(api, suffix)
+    expect('clockOffsetMs' in body).toBe(false)
+    expect('tappedAt' in body).toBe(false)
+  }
+})
+
+/**
+ * O carimbo é o do toque, não o do envio: o toque nasce sem sinal, antes de qualquer resposta — e a
+ * resposta do `arrive`, na mesma drenagem, traz o primeiro `Date`. O `deliver` que vem logo atrás já
+ * está medido pelo app, mas o item foi criado sem desvio, e sai sem os dois campos.
+ */
+test('o desvio é o de quando o toque nasceu: medido durante a drenagem, não entra no item antigo', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  const api = await mockDriverTripApi({ page })
+  await loginAsLocalUser(page)
+  api.setOffline(true)
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await page.getByRole('button', { name: 'Entreguei' }).first().click()
+  await expect(page.getByText('2 confirmações aguardando envio')).toBeVisible()
+
+  api.setServerClockOffset(SERVER_AHEAD_MS)
+  api.setOffline(false)
+  await page.evaluate(() => window.dispatchEvent(new Event('online')))
+  await expect.poll(() => findReport(api, '/deliver') !== undefined, { timeout: 20_000 }).toBe(true)
+
+  for (const suffix of ['/arrive', '/deliver']) {
+    const body = readReportBody(api, suffix)
+    expect('clockOffsetMs' in body).toBe(false)
+    expect('tappedAt' in body).toBe(false)
+  }
+})
+
+test('o comprovante leva o desvio do relógio no multipart', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  const api = await mockDriverTripApi({
+    page,
+    scenario: {
+      serverClockOffsetMs: SERVER_AHEAD_MS,
+      settlesDeliveries: true,
+      stopDeliveryProof: {
+        photo: 'required',
+        receiverDocument: 'off',
+        receiverName: 'off',
+        signature: 'optional',
+      },
+    },
+  })
+  await loginAsLocalUser(page)
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  const cameraChooser = page.waitForEvent('filechooser')
+  await page.getByRole('button', { name: /^Tirar foto/u }).click()
+  await (await cameraChooser).setFiles(SMOKE_PHOTO)
+  await page.getByRole('button', { name: 'Usar sem recorte' }).click()
+  await page.getByRole('button', { exact: true, name: 'Confirmar entrega' }).click()
+
+  await expect.poll(() => findReport(api, '/proof') !== undefined, { timeout: 20_000 }).toBe(true)
+
+  const fields = findReport(api, '/proof')?.formFields ?? {}
+  expect(Math.abs(Number(fields.clockOffsetMs) - SERVER_AHEAD_MS)).toBeLessThan(CLOCK_TOLERANCE_MS)
+  expect(fields.capturedAt).toBeDefined()
+})
