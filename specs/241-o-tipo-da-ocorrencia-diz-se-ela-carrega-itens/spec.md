@@ -1,6 +1,6 @@
 # Feature 241 — O tipo da ocorrência diz se ela carrega itens
 
-Origem: pendência da spec 235 (`specs/235-a-correcao-da-ocorrencia-ganha-tela/evidence.md`, § T6.4 e
+Origem: pendência da spec 240 (`specs/240-a-correcao-da-ocorrencia-ganha-tela/evidence.md`, § T6.4 e
 § "Pendências depois da Fase 6"), mais o template de ocorrências do SAC
 (`Template de ocorrências.docx`: devolução parcial com itens e foto, devolução total e prorrogação
 de boleto).
@@ -27,7 +27,7 @@ A raiz é uma só: **o tipo não diz se carrega itens.** `company_occurrence_typ
 `attachment_mode` (foto), `leaves_document_behind` e `redelivery_policy`, e nenhuma coluna para isso.
 O detalhe, o feed e a lista da nota também não publicam o **id** do tipo, só `stage` e `typeName`.
 Pelo mesmo motivo, o formulário de correção não sabe o teto de um item e só descobre pelo `422
-OCCURRENCE_TYPE_SINGLE_ITEM` do servidor (item 4 da T6.6 da 235, não feito).
+OCCURRENCE_TYPE_SINGLE_ITEM` do servidor (item 4 da T6.6 da 240, não feito).
 
 Ao fim: o tipo declara se a ocorrência carrega produtos — **Desligado** ou **Opcional** —, o
 registro só mostra o seletor quando carrega, o detalhe mostra **Corrigir** por tipo, e o formulário
@@ -137,7 +137,7 @@ como segunda linha de defesa.
   em `no_changes`.
 - `companyId` do contexto em toda leitura e escrita. A junção com o tipo é por `(company_id, id)`
   (`company_occurrence_types_company_id_id_unique`).
-- Ordem de publicação: painel tolerante antes da API (ADR-0081 §9; 235 T6.1). Ver `plan.md`.
+- Ordem de publicação: painel tolerante antes da API (ADR-0081 §9; 240 T6.1). Ver `plan.md`.
 - Nenhum nome de produto, CNPJ ou motivo em log.
 
 ## Casos extremos e falhas

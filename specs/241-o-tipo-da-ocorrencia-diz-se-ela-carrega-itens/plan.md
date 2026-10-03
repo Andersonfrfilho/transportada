@@ -19,7 +19,7 @@ Conferido no código (`origin/staging`, 2026-10-03):
 - Teto de um item: `OccurrenceTypeSingleItemError` (`trips/domain/trip.error.ts:615`, `422`), em
   `register-trip-occurrence.use-case.ts` e `correct-occurrence-items.use-case.ts`.
 - Painel: `resolveOccurrenceCorrectionActions` (`trip/shared/tripOccurrenceDetail.service.ts:188`)
-  decide `hasItems || wasCorrected` (235 T6.4); o registro lê `allowsMultipleItems` do tipo
+  decide `hasItems || wasCorrected` (240 T6.4); o registro lê `allowsMultipleItems` do tipo
   (`TripOccurrences.component.tsx:150`); o cadastro é
   `company-settings/components/OccurrenceTypeCatalogPanel.component.tsx`.
 - `redelivery_policy = 'unset'` não abre tratativa (164 D1). Os tipos de boleto nascem `unset`.
@@ -40,7 +40,7 @@ Conferido no código (`origin/staging`, 2026-10-03):
   ("carrega?" e "exige?") que podem se contradizer (`false` + `required`). É a duplicação de decisão
   que a 179 produziu contra a 164 e a 161 (`specs/179-a-recusa-sai-com-foto/duplicacao.md`).
 - Tri-estado próprio `items | whole_document | none` — distingue "nota inteira" de "sem itens", mas
-  "nota inteira" já é **lista vazia por registro** (161, 166, 172, 235 decisão a), não propriedade do
+  "nota inteira" já é **lista vazia por registro** (161, 166, 172, 240 decisão a), não propriedade do
   tipo, e inventa vocabulário fora de `DELIVERY_PROOF_FIELD_MODES`.
 - Derivar do nome/etapa do tipo — nome é texto livre renomeável (208).
 
@@ -144,7 +144,7 @@ apaga (ocorrência pode já apontar para o tipo; FK `restrict`).
 Gates: `make migration-test`; depois do rebase em `origin/staging`, `db:generate` = `no_changes` e
 conferir que o timestamp não colide com migration de outra sessão.
 
-## Ordem de publicação (ADR-0081 §9, 235 T6.1)
+## Ordem de publicação (ADR-0081 §9, 240 T6.1)
 
 1. **Etapa 1 — painel tolerante:** aceita as chaves novas ausentes ou presentes (ausência =
    `optional`/`true`), RF7–RF10. Contra a API atual, nada some: Corrigir passa a aparecer para
