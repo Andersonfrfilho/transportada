@@ -10,7 +10,7 @@
 
 > 🤖 Modelo: `sonnet` (T1.1 é 🧠 — validar com `opus` antes)
 
-- [ ] **T1.1** 🧠 ADR-0094 (eixo do recebimento + perfil por contratante) e modelo de dados do perfil
+- [x] **T1.1** 🧠 ADR-0094 (eixo do recebimento + perfil por contratante) e modelo de dados do perfil
       (RF1) — revisão com `architect` em `opus`.
 - [ ] **T1.2** Migration aditiva `contractor_receiving_profiles` (FK composta, unique, CHECKs de faixa),
       `rollback.sql`, `make migration-test`, `db:generate` = `no_changes`.
