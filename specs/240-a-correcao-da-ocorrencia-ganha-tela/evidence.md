@@ -1,4 +1,4 @@
-# Evidência — spec 235, Fase 0
+# Evidência — spec 240, Fase 0
 
 ## Índice (task → commit → evidência)
 
@@ -289,7 +289,7 @@ Correção sem mudança real não grava nada e responde 200 (W5).
 
 - Requisição: `POST /trips/536b67aa-3409-4ec4-b086-ca5231063edf/documents/06a3f3ae-8f0c-401c-a77b-488175b1d0b3/occurrences/a4b6ef1d-0049-4814-9d39-47e21b264760/cancellation`
 - Idempotency-Key: 2FE2D462-F2EE-4A64-9D10-035AC3DA8CDD
-- Corpo enviado: `{"reason":"Lancada na nota errada (teste da spec 235)"}`
+- Corpo enviado: `{"reason":"Lancada na nota errada (teste da spec 240)"}`
 - Status: **200**
 - Resposta:
 
@@ -306,7 +306,7 @@ Correção sem mudança real não grava nada e responde 200 (W5).
     "cancellation": {
       "cancelledAt": "2026-10-03T00:39:36.091Z",
       "cancelledByName": "Operador local",
-      "reason": "Lancada na nota errada (teste da spec 235)"
+      "reason": "Lancada na nota errada (teste da spec 240)"
     },
     "channel": "driver_app",
     "corrections": [
@@ -372,7 +372,7 @@ Correção sem mudança real não grava nada e responde 200 (W5).
 
 - Requisição: `POST /trips/536b67aa-3409-4ec4-b086-ca5231063edf/documents/06a3f3ae-8f0c-401c-a77b-488175b1d0b3/occurrences/a4b6ef1d-0049-4814-9d39-47e21b264760/cancellation`
 - Idempotency-Key: 2FE2D462-F2EE-4A64-9D10-035AC3DA8CDD
-- Corpo enviado: `{"reason":"Lancada na nota errada (teste da spec 235)"}`
+- Corpo enviado: `{"reason":"Lancada na nota errada (teste da spec 240)"}`
 - Status: **200**
 - Resposta:
 
@@ -734,7 +734,7 @@ saindo na lista, sem nenhum marcador.
 - Nenhum item traz `cancellation` ou `corrections` (`ABSENT` nos cinco primeiros, incluindo A e B).
 - A ocorrência A (cancelada) **continua no feed** — a lista não filtra cancelada.
 - Confirmação por SELECT (banco local): `trip_document_occurrences.cancelled_at` de A está
-  preenchido e `cancellation_reason` = "Lancada na nota errada (teste da spec 235)".
+  preenchido e `cancellation_reason` = "Lancada na nota errada (teste da spec 240)".
 - Código: `cancelled_at` só é lido em `drizzle-occurrence-correction.repository.ts`; nenhuma
   query de feed, detalhe ou lista da nota o lê.
 
@@ -794,7 +794,7 @@ Rodado em `bun` (script fora do repositório) com a resposta real de W4:
     `TRIP_FIELD_REPORT_KEY_REUSED` (W3c) — código a mapear no painel; chave ausente é 400
     `INVALID_REQUEST` com `details[0].field = "idempotency-key"`.
 
-# Evidência — spec 235, Fase 0.5
+# Evidência — spec 240, Fase 0.5
 
 ## T0.3 — Testes primeiro, vermelhos
 
@@ -881,10 +881,10 @@ OpenAPI: **não existe geração** nesta API (`docs/ai-context/api-transportada.
 contractor-mail: "não existe geração desse tipo neste repo"; busca por `openapi` em `src/` sem
 resultado) — não há schema de resposta declarado a atualizar. O contrato publicado são os tipos
 `TripOccurrenceFeedItem`/`TripOccurrenceDetail`, provados pelos testes acima. Nota adicionada em
-`docs/ai-context/api-transportada.md` ("Spec 235 — as leituras publicam a correção e o
+`docs/ai-context/api-transportada.md` ("Spec 240 — as leituras publicam a correção e o
 cancelamento").
 
-# Evidência — spec 235, Fase 1
+# Evidência — spec 240, Fase 1
 
 ## T1.1 — O cliente das duas escritas
 
@@ -1141,7 +1141,7 @@ Expected: "A tratativa desta ocorrência já foi aberta, e ela não pode mais se
 Received: "O servidor recusou esta operação. Nada foi gravado — tente de novo e, se repetir, avise o suporte com o horário."
 
       at <anonymous> (.../test/trip-hooks/occurrence-correction-errors.contract.ts:99:21)
-(fail) mensagens de erro da correção, por código estável (spec 235 T2.3, CA05) > tratativa aberta (409): OCCURRENCE_CASE_ALREADY_OPEN mostra a mensagem própria, e não a genérica
+(fail) mensagens de erro da correção, por código estável (spec 240 T2.3, CA05) > tratativa aberta (409): OCCURRENCE_CASE_ALREADY_OPEN mostra a mensagem própria, e não a genérica
  344 pass
  1 fail
 ```
@@ -1313,7 +1313,7 @@ A API não publica a marca de cancelada na **linha do tempo**: nem a da nota/via
 `contractor.mail.*`). Nenhum dos dois lê `cancelled_at`/`cancellation`. Detalhe e feed já publicam
 `cancellation` (Fase 0.5) — só a linha do tempo falta. Task parada conforme a instrução; nada commitado.
 
-# Evidência — spec 235, Fase 5
+# Evidência — spec 240, Fase 5
 
 ## T5.0 — `correctedByName` nulo
 
@@ -1352,7 +1352,7 @@ no navegador embutido (detalhe de B: botões, histórico; C: `aria-disabled="tru
 o motivo) e, para os PNGs, Chromium do Playwright da própria app (o navegador embutido não grava arquivo)
 dirigindo o mesmo Vite, com medição no DOM por largura.
 
-Prints (`specs/235-a-correcao-da-ocorrencia-ganha-tela/prints/`, `NN-descricao-LARGURA.png`, larguras `desktop`
+Prints (`specs/240-a-correcao-da-ocorrencia-ganha-tela/prints/`, `NN-descricao-LARGURA.png`, larguras `desktop`
 1280, `tablet` 768, `mobile` 375): `01-detalhe-habilitado` · `02-dialogo-cancelamento` ·
 `03-formulario-correcao` · `04-desabilitado-motivo` · `05-cancelada-detalhe-topo` · `06-cancelada-historico` ·
 `07-feed-cancelada` — 21 arquivos.
@@ -1407,10 +1407,10 @@ contratos e a integração existentes.
 | T202, T203       | `occurrence-correction.policy.ts` e `occurrence-cancellation.policy.ts`; `test/trip-domain/occurrence-correction.contract.ts` e `occurrence-cancellation.contract.ts`                                                                                                                  |
 | T301, T302, T303 | os dois casos de uso reaproveitam `resolveOccurrenceItemQuantities`/`resolveOccurrenceProductSelection`; a leitura da tratativa mora na unidade de trabalho da escrita; os `409` e o `200` sem mudança estão em W1–W5 e C1–C4 da T0.1 e em `trip-occurrence-correction.integration.ts` |
 | T305             | as duas rotas respondem com `trip.manage` e `Idempotency-Key` (T0.1: E5 sem chave = 400), balde de taxa em `rate-limited-routes.contract.test.ts`                                                                                                                                      |
-| T306             | **só a partir da 235**: a T0.2 provou que nenhuma leitura publicava os campos; a Fase 0.5 (T0.3–T0.5) fez detalhe, lista da nota e feed publicarem, com `trip-occurrence-correction-read.integration.ts`                                                                               |
+| T306             | **só a partir da 240**: a T0.2 provou que nenhuma leitura publicava os campos; a Fase 0.5 (T0.3–T0.5) fez detalhe, lista da nota e feed publicarem, com `trip-occurrence-correction-read.integration.ts`                                                                               |
 | T309             | `test/integration/trip-occurrence-correction.integration.ts` e `-read.integration.ts`, ambos executados nas Fases 0.5 e 3 desta spec                                                                                                                                                   |
-| T401, T402, T404 | 235 T2.1/T2.2 (Corrigir reabre o formulário com o conjunto atual), T3.1 (diálogo com motivo obrigatório), T3.2 (marca de cancelada na lista)                                                                                                                                           |
-| T502             | 235 T5.1 (esta fase), com os prints                                                                                                                                                                                                                                                    |
+| T401, T402, T404 | 240 T2.1/T2.2 (Corrigir reabre o formulário com o conjunto atual), T3.1 (diálogo com motivo obrigatório), T3.2 (marca de cancelada na lista)                                                                                                                                           |
+| T502             | 240 T5.1 (esta fase), com os prints                                                                                                                                                                                                                                                    |
 
 **Deixadas desmarcadas (7), com o motivo:**
 
@@ -1418,10 +1418,10 @@ contratos e a integração existentes.
 | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | T103 | "confirmar o bundle servido" é um fato de publicação que não dá para provar daqui; só se sabe que o commit está em `origin/staging`                                                                                                                                                |
 | T304 | só a parte da tratativa tem prova (`hasOpenCase` trava correção e cancelamento, integração da 167); "fora de contagem, listagem de ativas e e-mail" não foi verificado — o painel não tem contador de ocorrências ativas e o marcador da 173 não filtra cancelada (não verificado) |
-| T307 | a 235 só acrescentou o `occurrence.cancelled`; não existe evento de **correção** em nenhuma das duas linhas do tempo                                                                                                                                                               |
+| T307 | a 240 só acrescentou o `occurrence.cancelled`; não existe evento de **correção** em nenhuma das duas linhas do tempo                                                                                                                                                               |
 | T308 | não há aviso de correção no código; a dúvida do e-mail continua aberta e fora de escopo                                                                                                                                                                                            |
 | T403 | a tela mostra o conjunto vigente em cada correção (derivado de `previousItems`), mas nunca o conjunto **original** (o `previousItems` da primeira correção), então "o que era" não aparece                                                                                         |
-| T501 | `make migration-test` não foi repetido na 235 e o carimbo provisório da migration foi tratado na T503; os gates da API e do painel foram, mas a task cobre mais                                                                                                                    |
+| T501 | `make migration-test` não foi repetido na 240 e o carimbo provisório da migration foi tratado na T503; os gates da API e do painel foram, mas a task cobre mais                                                                                                                    |
 | T503 | a migration foi renumerada depois do rebase (`1ef417b8c`) e está em `origin/staging`, mas o `db:generate` até `no_changes` não está registrado como execução                                                                                                                       |
 
 ## T5.3 — Gates (primeiro plano, worktree `work/spec-235`)
@@ -1596,7 +1596,7 @@ mais cedo entre o terminal da tratativa (`cancelled`/`closed`/`returned_to_wareh
   Postgres local em 65432 do `.env.test`, nenhum pulado): `trip-occurrence-correction-read` 7 pass,
   `trip-occurrence-correction` 7, `trip-occurrence-detail` 6, `trip-occurrence-timeline` 3,
   `trip-occurrence-feed-document` 6, `trip-occurrence-feed-case` 2, `trip-occurrence-case` 4 — todos 0 fail, 0 skip.
-- `docs/ai-context/api-transportada.md` § Spec 235 atualizada.
+- `docs/ai-context/api-transportada.md` § Spec 240 atualizada.
 
 ## T6.6 — Baixos da revisão
 
@@ -1674,7 +1674,7 @@ Postgres local do `.env.test`), todos os arquivos `*occurrence*` e `trip-timelin
 
 O único pulado é `testWithStorage` de `trip-occurrence-upload-confirm` (linha 73: pula quando o MinIO local não
 responde, e ele está fora do ar — a imagem é do GHCR privado). **Pulado não é verde**: esse teste não rodou; ele
-cobre a confirmação de upload de foto, que nenhuma task da 235 toca. `make migration-test` não se aplica
+cobre a confirmação de upload de foto, que nenhuma task da 240 toca. `make migration-test` não se aplica
 (nenhuma migration na Fase 6).
 
 ## Pendências depois da Fase 6 (corrige a T5.4)

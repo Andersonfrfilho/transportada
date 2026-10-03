@@ -16,7 +16,7 @@ export type OccurrenceCorrectionHistoryProps = Readonly<{
   occurrence: TripOccurrenceDetail
 }>
 
-/** Spec 235 RF5/P3: cada correção com autor, hora e o conjunto que passou a valer; sem correção, nada. */
+/** Spec 240 RF5/P3: cada correção com autor, hora e o conjunto que passou a valer; sem correção, nada. */
 export function OccurrenceCorrectionHistory({ occurrence }: OccurrenceCorrectionHistoryProps) {
   const { t } = useTranslation('trip')
   const titleId = useId()

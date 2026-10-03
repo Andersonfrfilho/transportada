@@ -12,7 +12,7 @@ function readComponent(name: string): string {
   return readFileSync(new URL(`../../src/modules/trip/components/${name}`, import.meta.url), 'utf8')
 }
 
-describe('o conjunto de itens da correção (spec 235 T2.2, RF2)', () => {
+describe('o conjunto de itens da correção (spec 240 T2.2, RF2)', () => {
   test('reabre com os itens, as quantidades e a unidade legada que a nota gravou', () => {
     const selection = resolveOccurrenceItemSelectionFromDetail([
       { code: '696', description: 'A', quantity: '3.000', unit: 'CX30' },

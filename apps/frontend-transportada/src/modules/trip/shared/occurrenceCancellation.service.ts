@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 235 RF6: a **única** conta de "esta ocorrência está cancelada, e o que dizer disso". Detalhe,
+ * Spec 240 RF6: a **única** conta de "esta ocorrência está cancelada, e o que dizer disso". Detalhe,
  * feed, lista da nota e as duas linhas do tempo leem por aqui — texto de cancelamento montado em
  * outro lugar diverge calado.
  */

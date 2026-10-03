@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 235 T3.1 (RF3, CA04): o diálogo de cancelamento montado de verdade, com a API dublada. Dados
+ * Spec 240 T3.1 (RF3, CA04): o diálogo de cancelamento montado de verdade, com a API dublada. Dados
  * sintéticos — o motivo digitado nunca pode aparecer em console.
  */
 import { act, createElement } from 'react'
@@ -87,7 +87,7 @@ function installCancelDouble(
   return calls
 }
 
-describe('diálogo de cancelamento da ocorrência (spec 235 T3.1)', () => {
+describe('diálogo de cancelamento da ocorrência (spec 240 T3.1)', () => {
   test('o motivo tem rótulo associado e o diálogo é modal e nomeado', async () => {
     installCancelDouble()
     await openDialog()

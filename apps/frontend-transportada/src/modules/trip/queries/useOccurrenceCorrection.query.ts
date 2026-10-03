@@ -18,7 +18,7 @@ export type CorrectOccurrenceItemsVariables = Omit<
 export type CancelOccurrenceVariables = Omit<CancelTripOccurrenceInput, 'idempotencyKey'>
 
 /**
- * Spec 235 RF8: detalhe, feed e linha do tempo da ocorrência moram sob a chave do feed; a linha do
+ * Spec 240 RF8: detalhe, feed e linha do tempo da ocorrência moram sob a chave do feed; a linha do
  * tempo da viagem (e a de cada nota, que mora debaixo dela) sob `[trips, tripId, 'timeline']`; a lista de
  * ocorrências da nota, sob `[trips, companyId, tripId, 'occurrences', …]` — a mutação não conhece a
  * empresa, então o predicado casa pela viagem.

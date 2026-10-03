@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 235 T2.3 (RF7, CA05): cada código estável da API vira a sua mensagem em português, afirmada
+ * Spec 240 T2.3 (RF7, CA05): cada código estável da API vira a sua mensagem em português, afirmada
  * pelo **texto renderizado** no alerta do formulário — nenhum cai no texto genérico. Dados sintéticos.
  */
 import { createElement } from 'react'
@@ -92,7 +92,7 @@ async function saveRejectingWith(
   return { alert, reads }
 }
 
-describe('mensagens de erro da correção, por código estável (spec 235 T2.3, CA05)', () => {
+describe('mensagens de erro da correção, por código estável (spec 240 T2.3, CA05)', () => {
   for (const [label, code, text] of MESSAGES) {
     test(`${label}: ${code} mostra a mensagem própria, e não a genérica`, async () => {
       const { alert } = await saveRejectingWith(code)

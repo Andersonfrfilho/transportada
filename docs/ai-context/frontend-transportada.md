@@ -984,7 +984,7 @@ inalterada (ambos filtram pela ficha). Erro de viagem `TRIP_DRIVER_CANNOT_DRIVE`
 - **Prints.** `test/spec-196-prints.smoke.spec.ts` (fora da CI, `PLAYWRIGHT_TEST_MATCH`), com API dublada e
   coordenada sintética; precisa de WebGL por software (`--use-angle=swiftshader`) para o MapLibre subir.
 
-## Spec 235 T3.2 — a marca de cancelada
+## Spec 240 T3.2 — a marca de cancelada
 
 A ocorrência cancelada continua listada e aparece marcada em **cinco** lugares, todos lendo a mesma
 conta pura `resolveOccurrenceCancellationMark` (`trip/shared/occurrenceCancellation.service.ts`) pelo

@@ -51,7 +51,7 @@ function withCase(
   }
 }
 
-describe('Corrigir e Cancelar: quando agem e o texto de quando não podem (spec 235 RF4, RF10)', () => {
+describe('Corrigir e Cancelar: quando agem e o texto de quando não podem (spec 240 RF4, RF10)', () => {
   test('sem tratativa, sem cancelamento e com trip.manage, os dois agem', () => {
     expect(resolveOccurrenceCorrectionActions(FREE, translate)).toEqual({
       cancel: { availability: 'enabled' },

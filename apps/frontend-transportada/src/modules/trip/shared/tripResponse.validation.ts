@@ -1082,7 +1082,7 @@ export function createTripResponseAdapters() {
       }
     },
     /**
-     * Spec 235 T1.1: `PATCH .../items` e `POST .../cancellation` devolvem a ocorrência sem o `email`
+     * Spec 240 T1.1: `PATCH .../items` e `POST .../cancellation` devolvem a ocorrência sem o `email`
      * e sem o `autoDispatch` do registro — `registeredOccurrenceFromApi` as recusaria por isso.
      */
     occurrenceWriteResultFromApi(input: unknown): OccurrenceWriteResult {
@@ -1485,7 +1485,7 @@ function isTimelineLocation(value: unknown): value is TripTimelineLocation {
   )
 }
 
-/** Spec 235: `cancellation` ausente (API anterior) lê como `null`; o item sem ocorrência passa como veio. */
+/** Spec 240: `cancellation` ausente (API anterior) lê como `null`; o item sem ocorrência passa como veio. */
 function withOccurrenceCancellation(item: TripTimelineItem): TripTimelineItem {
   if (item.occurrence === null || item.occurrence.cancellation !== undefined) return item
   return { ...item, occurrence: { ...item.occurrence, cancellation: null } }

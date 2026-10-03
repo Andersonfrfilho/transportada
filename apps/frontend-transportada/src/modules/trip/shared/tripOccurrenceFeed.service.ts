@@ -109,7 +109,7 @@ export type OccurrenceSettlementView = Readonly<{
 }>
 
 export type TripOccurrenceFeedItem = Readonly<{
-  /** Spec 235 RF9: `null` é "não foi cancelada"; a cancelada continua na leitura, marcada. */
+  /** Spec 240 RF9: `null` é "não foi cancelada"; a cancelada continua na leitura, marcada. */
   cancellation?: null | OccurrenceCancellation
   case: null | TripOccurrenceCaseView
   /** Spec 183 RF4: estado da conversa; ausente na API anterior vira `EMPTY_OCCURRENCE_CONVERSATION`. */
@@ -200,7 +200,7 @@ export type TripOccurrenceDetail = TripOccurrenceFeedItem &
     actorName: null | string
     channel: string
     driver: null | TripOccurrenceDetailDriver
-    /** Spec 235 RF9: mais antiga primeiro; `[]` quando a ocorrência nunca foi corrigida. */
+    /** Spec 240 RF9: mais antiga primeiro; `[]` quando a ocorrência nunca foi corrigida. */
     corrections?: readonly OccurrenceCorrection[]
     items: readonly TripOccurrenceDetailItem[]
     onBehalfOfDriverName: null | string

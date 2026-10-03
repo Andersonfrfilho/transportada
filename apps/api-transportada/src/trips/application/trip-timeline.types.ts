@@ -91,7 +91,7 @@ export type TripTimelineDocumentReference = {
  */
 export type TripTimelineOccurrenceReference = {
   readonly attachmentCount: number
-  /** Spec 235 RF9: `null` na ocorrência ativa (e sempre na de parada); a cancelada continua listada. */
+  /** Spec 240 RF9: `null` na ocorrência ativa (e sempre na de parada); a cancelada continua listada. */
   readonly cancellation: OccurrenceCancellationView | null
   readonly note: string
   readonly typeName: string

@@ -433,7 +433,7 @@ export async function listTripOccurrences(
     occurrenceIds: rows.map((row) => row.id),
   })
 
-  /** Spec 235 RF9: correções e cancelamento da nota inteira em uma leitura cada, nunca por linha. */
+  /** Spec 240 RF9: correções e cancelamento da nota inteira em uma leitura cada, nunca por linha. */
   const occurrenceIds = rows.map((row) => row.id)
   const [correctionsByOccurrence, cancellations] = await Promise.all([
     listOccurrenceCorrectionsByIds(queryable, { companyId: input.companyId, occurrenceIds }),
