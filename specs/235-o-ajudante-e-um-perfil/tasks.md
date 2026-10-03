@@ -54,8 +54,9 @@ da app. Cada task fecha com typecheck, testes da app, commit isolado e evidênci
 
 > 🤖 Modelo: `sonnet` (T12) · `haiku` (T13)
 
-- [ ] **T12** 🧠 Revisão de design e usabilidade: prints da ficha (três perfis), do convite em Acesso e
-      do seletor da viagem, 375 px, claro e escuro; com o usuário aprovando antes de ir a staging.
+- [x] **T12** 🧠 Revisão de design e usabilidade: prints da ficha (três perfis), do convite em Acesso e
+      do seletor da viagem, 375 px, claro e escuro; aprovada pelo usuário em 03/10/2026 depois das
+      correções A1, A2, A4 e A5 (A3, A6 e A7 ficam fora desta spec). Só o README dos prints é versionado.
 - [x] **T13** Documentação viva: ADR de "ajudante é perfil" (próximo número livre em `origin/staging`),
       `docs/ai-context/api-transportada.md`, `frontend-transportada.md` e os `CLAUDE.md` das duas apps;
       nota na spec 149 apontando que a D1 foi revisada aqui.
