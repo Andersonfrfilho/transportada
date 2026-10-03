@@ -86,6 +86,8 @@ export type CanhotoReviewNotice = (typeof CANHOTO_REVIEW_NOTICE)[keyof typeof CA
 
 /** Detalhe e lista compartilham o prefixo: invalidar a viagem precisa refazer a tabela também. */
 export const TRIP_QUERY_KEY = 'trips'
+/** O segmento da lista de ocorrências de uma nota: `[trips, companyId, tripId, 'occurrences', documentId]`. */
+export const TRIP_OCCURRENCES_KEY_SEGMENT = 'occurrences'
 export const TRIP_LIST_QUERY_KEY = [TRIP_QUERY_KEY, 'list'] as const
 
 /**

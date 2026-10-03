@@ -1507,3 +1507,17 @@ havia contrato para três dos quatro leitores e a T6.1 acrescentou o que faltava
 | chaves novas e `null` nos dois nomes                                  | `occurrence-history-tolerance.contract.ts`                                                              |
 
 Execução do contrato novo: `bun test ./test/trip/occurrence-old-api-tolerance.contract.tsx` → 2 pass, 0 fail.
+
+## T6.2 — Corrigir e cancelar invalidam também a lista de ocorrências da nota
+
+A lista da nota mora em `[trips, companyId, tripId, 'occurrences', documentId]`
+(`useTripWorkspace.hook.ts`); as mutações não conhecem a empresa, então a invalidação usa predicado pela
+viagem (`useOccurrenceCorrection.query.ts`). O segmento `'occurrences'` virou
+`TRIP_OCCURRENCES_KEY_SEGMENT` (`trip.constant.ts`), usado nas quatro chaves do hook e na invalidação.
+
+Contrato `test/trip-hooks/occurrence-correction-mutations.contract.ts`: a chave da lista da nota entra em
+`AFFECTED_KEYS`, e a lista de **outra viagem** entra nas não afetadas.
+
+- **Vermelho antes** (`bun test --preload ./test/trip-hooks/dom.preload.ts ./test/trip-hooks/occurrence-correction-mutations.contract.ts`):
+  `1 pass, 3 fail` (corrigir, cancelar e o 409).
+- **Verde depois:** `4 pass, 0 fail`; `bun run typecheck` limpo.

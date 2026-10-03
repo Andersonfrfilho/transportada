@@ -45,7 +45,22 @@ const DOCUMENT_TIMELINE_KEY = [
   'document',
   DOCUMENT_ID,
 ] as const
+const DOCUMENT_OCCURRENCES_KEY = [
+  TRIP_QUERY_KEY,
+  COMPANY_ID,
+  TRIP_ID,
+  'occurrences',
+  DOCUMENT_ID,
+] as const
+const OTHER_TRIP_OCCURRENCES_KEY = [
+  TRIP_QUERY_KEY,
+  COMPANY_ID,
+  'trip-2',
+  'occurrences',
+  DOCUMENT_ID,
+] as const
 const UNRELATED_KEY = [TRIP_QUERY_KEY, 'list'] as const
+const UNRELATED_KEYS = [UNRELATED_KEY, OTHER_TRIP_OCCURRENCES_KEY] as const
 
 const AFFECTED_KEYS = [
   DETAIL_KEY,
@@ -53,6 +68,7 @@ const AFFECTED_KEYS = [
   OCCURRENCE_TIMELINE_KEY,
   TRIP_TIMELINE_KEY,
   DOCUMENT_TIMELINE_KEY,
+  DOCUMENT_OCCURRENCES_KEY,
 ] as const
 
 const WRITE_RESULT: OccurrenceWriteResult = {
@@ -67,7 +83,7 @@ const WRITE_RESULT: OccurrenceWriteResult = {
 }
 
 function seed(queryClient: QueryClient): void {
-  for (const key of [...AFFECTED_KEYS, UNRELATED_KEY]) queryClient.setQueryData(key, {})
+  for (const key of [...AFFECTED_KEYS, ...UNRELATED_KEYS]) queryClient.setQueryData(key, {})
 }
 
 function isInvalidated(queryClient: QueryClient, key: readonly unknown[]): boolean {
@@ -75,7 +91,7 @@ function isInvalidated(queryClient: QueryClient, key: readonly unknown[]): boole
 }
 
 describe('mutações de correção e cancelamento da ocorrência (spec 235 T1.4)', () => {
-  test('corrigir invalida detalhe, feed e as linhas do tempo — e só elas', async () => {
+  test('corrigir invalida detalhe, feed, linhas do tempo e a lista de ocorrências da nota — e só elas', async () => {
     resetTripHookFakes([])
     fakes.tripClient = {
       ...fakes.tripClient,
@@ -92,11 +108,11 @@ describe('mutações de correção e cancelamento da ocorrência (spec 235 T1.4)
     })
 
     for (const key of AFFECTED_KEYS) expect(isInvalidated(rendered.queryClient, key)).toBe(true)
-    expect(isInvalidated(rendered.queryClient, UNRELATED_KEY)).toBe(false)
+    for (const key of UNRELATED_KEYS) expect(isInvalidated(rendered.queryClient, key)).toBe(false)
     rendered.unmount()
   })
 
-  test('cancelar invalida as mesmas três consultas', async () => {
+  test('cancelar invalida as mesmas consultas', async () => {
     resetTripHookFakes([])
     fakes.tripClient = {
       ...fakes.tripClient,
@@ -113,7 +129,7 @@ describe('mutações de correção e cancelamento da ocorrência (spec 235 T1.4)
     })
 
     for (const key of AFFECTED_KEYS) expect(isInvalidated(rendered.queryClient, key)).toBe(true)
-    expect(isInvalidated(rendered.queryClient, UNRELATED_KEY)).toBe(false)
+    for (const key of UNRELATED_KEYS) expect(isInvalidated(rendered.queryClient, key)).toBe(false)
     rendered.unmount()
   })
 
