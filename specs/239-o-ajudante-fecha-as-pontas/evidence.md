@@ -163,3 +163,30 @@ link sem `rel` → 1 fail; botão sempre renderizado → 2 fail; `main.tsx` com 
 
 **Gates:** `bun run test` do painel 6587 pass / 0 fail (+ hooks 359 / 0); `tsc --noEmit` limpo; eslint dos
 tocados limpo; prettier limpo.
+
+## T5 · A3 — Salvar não rejeita a promise (D8, RF-6)
+
+**Defeito:** as funções assíncronas de `useUserAdministration.hook.ts` faziam `await mutation.mutateAsync(...)`,
+que rejeita com o erro da API; a página as chama com `void`, e a rejeição virava `unhandledrejection`
+(`pageerror`). O erro já fica em `mutation.error` e a tela o mostra.
+
+**Conserto:** `settleWithoutRejecting(action)` (um `try/catch`, com o porquê numa linha) envolve o corpo de
+`submitInvite`, `submitEdit`, `confirmRemove`, `activateUser`, `resendInvitation`, `assignGroups` e
+`assignRoles`. O que vem depois do `await` (fechar diálogo, marcar aviso, limpar seleção) continua só no
+sucesso, porque está dentro do mesmo corpo.
+
+**Contrato** `test/trip-hooks/user-administration-failure.contract.ts` (hook montado com o `dom.preload` do
+repo, cliente falso que recusa ou aceita; entra em `test/trip-hooks.contract.test.ts`, rodado por
+`bun run test:hooks`): convidar, editar, remover, ativar, reenviar e papéis/grupos em lote — a função não
+rejeita; na falha o diálogo segue aberto (`removeTarget`, `editTarget`, `isInviteOpen`) e o aviso de
+sucesso não aparece; no sucesso o diálogo fecha e o aviso marca.
+
+**Vermelho antes do código:** `0 pass / 5 fail`, todos com `error: SAVE_REFUSED` saindo de `submitInvite`,
+`activateUser`, `assignRoles` etc. — a rejeição vazando.
+
+**Mutação** (restaurada e conferida com `cmp`): `catch` trocado por `finally` → 0 pass / 5 fail; `setRemoveTarget(null)`
+fora do corpo protegido → 1 fail (remover); `setActivatedUserId` fora → 1 fail (ativar); `setEditTarget(null)`
+fora → 1 fail (editar).
+
+**Gates:** `bun run test` do painel 6587 pass / 0 fail (+ hooks 364 / 0); `tsc --noEmit` limpo; eslint dos
+tocados limpo; prettier limpo.
