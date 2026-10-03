@@ -2256,5 +2256,12 @@ describe('o estado do ponto entra aditivo e o histórico sem coordenada fica NUL
     const rollbackTimeout = rollbackSql.indexOf("SET LOCAL lock_timeout = '3s'")
     expect(rollbackTimeout).toBeGreaterThan(rollbackSql.indexOf('BEGIN;'))
     expect(rollbackTimeout).toBeLessThan(rollbackSql.indexOf('DROP INDEX'))
+
+    // Sem o lock da tabela de configuração, um `PUT` entre a contagem e o `DROP TABLE` sumiria em silêncio.
+    const tableLock = rollbackSql.indexOf(
+      'LOCK TABLE "company_location_retention_settings" IN ACCESS EXCLUSIVE MODE;',
+    )
+    expect(tableLock).toBeGreaterThan(rollbackTimeout)
+    expect(tableLock).toBeLessThan(rollbackSql.indexOf('Rollback recusado'))
   })
 })

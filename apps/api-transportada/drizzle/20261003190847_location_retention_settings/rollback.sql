@@ -18,6 +18,10 @@ BEGIN;
 -- enfileirar o tráfego do motorista atrás de uma transação longa.
 SET LOCAL lock_timeout = '3s';
 
+-- Fecha a janela entre a contagem da recusa e o `DROP TABLE`: sem este lock, um `PUT` no meio
+-- gravaria a decisão de uma empresa e o `DROP` a apagaria em silêncio.
+LOCK TABLE "company_location_retention_settings" IN ACCESS EXCLUSIVE MODE;
+
 DO $$
 DECLARE
   recorded integer;

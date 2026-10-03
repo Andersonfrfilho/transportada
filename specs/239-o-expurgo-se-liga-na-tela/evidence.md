@@ -275,3 +275,15 @@ paralelo, prazos distintos). **Vermelho antes da correção**, saída literal: `
 `Received length: 8` (oito auditorias com `beforeSnapshot` nulo), 6 pass / 1 fail.
 Correção: `lockRow` toma `pg_advisory_xact_lock(hashtext(companyId))` antes do `select ... for update`
 (serializa por empresa, solta no COMMIT; vale para `save` e `clear`). Verde: 7 pass / 0 fail.
+
+### B3 — `rollback.sql` sem janela entre a recusa e o `DROP TABLE` (confirmado)
+
+Confirmado: a recusa contava as linhas e o `DROP TABLE` vinha depois, sem lock; um `PUT` no meio gravaria
+a decisão de uma empresa e o `DROP` a apagaria em silêncio (a estratégia "recusar, não apagar" furada).
+Editado **só** o `rollback.sql` da `20261003190847_location_retention_settings` (ainda não publicada):
+`LOCK TABLE "company_location_retention_settings" IN ACCESS EXCLUSIVE MODE;` logo depois do
+`SET LOCAL lock_timeout = '3s'` e antes do `DO $$` da recusa. O teste estático "bounds the lock wait..."
+passou a exigir o `LOCK TABLE` depois do `lock_timeout` e antes de `Rollback recusado`.
+Mutação (remover a linha do `rollback.sql`, rodar, restaurar regravando): 1 fail (esse teste).
+Verde: `test/database-migration.contract.test.ts` 85 pass / 0 fail; `bun run db:test` 122 pass / 0 fail
+(inclui o rollback real contra Postgres: recusa com linha, desfaz sem linha, reaplica limpo).
