@@ -3,6 +3,7 @@
  */
 import { z } from 'zod'
 
+import { REDELIVERY_POLICIES } from '../../database/trip.schema.js'
 import { parseBody } from '../../http/request-parsing.service.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
@@ -335,6 +336,11 @@ const occurrenceTypeSchema = z
     name: z.string().trim().min(1).max(60),
     notifies: z.boolean().default(false),
     occurrenceTypeId: z.string().uuid().nullable().default(null),
+    /**
+     * Spec 164 RF1/T21 (spec 242): a política de reentrega do tipo. Opcional sem `default`, pelo
+     * mesmo motivo de `attachmentMode`: ausente é "não mexa", nunca zerar a política guardada.
+     */
+    redeliveryPolicy: z.enum(REDELIVERY_POLICIES).optional(),
     stage: z.enum(['delivery', 'separation']),
   })
   .strict()
