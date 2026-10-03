@@ -568,3 +568,66 @@ ver T2.2). Nada da API foi tocado: os gates da API não se aplicam a esta task.
 
 `grep` por `TRIP_LOCATION_PURGE_ENABLED` em `apps/**/src|test`, `.env.example` e `docs/` só acha as frases
 que dizem que ela saiu; sobram as menções históricas em `specs/196-*` e o `dist/` ignorado pelo git.
+
+## Fase 3 — Painel
+
+### T3.1–T3.3 — Aba Localização, painel, confirmação e linha do tempo (CA10, CA11)
+
+Commit `ca0088f45`. **Ordem:** o contrato foi escrito **depois** do código desta vez (a tarefa pedia vermelho
+antes); a prova de que ele não é decoração é a tabela de mutações da T3.4, que reprova cada regra tirada.
+
+- **Endereço:** `locationRetention: { module: 'trip', source: 'locationRetentionSettings', tab: 'location' }` em
+  `SETTINGS_PANEL_PLACEMENT`; só a aba `location` liga a consulta (`tabs.contract.ts`: a aba `proof` e a `trips` não).
+  `TripWorkspace.page.tsx` ganhou a aba (`TRIP_TABS = ['trips', 'proof', 'location']`) e o corpo da lista de viagens
+  só aparece na aba `trips`.
+- **Peças:** `TripLocationRetentionPanel` + `LocationRetentionConfirmDialog` (portal e `useModalDialog`, como
+  `TripConfirmDialog`), `useLocationRetentionPanel` (todas as decisões), `useLocationRetention.query.ts`
+  (TanStack; a contagem de impacto com `gcTime`/`staleTime` 0 e `enabled` só com a confirmação aberta),
+  `locationRetentionClient.service.ts` (fetch injetado; `locationRetentionClient.provider.ts` o monta),
+  `locationRetention.validation.ts` (tolera campo novo, **recusa `kind` desconhecido** — subestimar o que cai é
+  pior; o vizinho, a diária, também não recusa chave a mais) e `locationRetention.service.ts` (regras puras).
+  Controle do prazo = `<input type="number" min=30 max=90>` com `aria-invalid` e mensagem de faixa, como os
+  parâmetros de pontualidade do Comprovante; `parseLocationRetentionDays` só aceita dígitos (nada de `45.5`).
+  Sem permissão: nem pede (`enabled` = `canManage && aba`), mostra o `role="alert"` e nenhum controle.
+- **Estilo:** classes do `trip.module.css` do vizinho (`.panel`, `.hint`, `.alert`, `.fieldGrid`,
+  `.actionActions`, `.settingsStatusOn`, `.mdfeGate*`) e duas novas (`.retentionImpactList`,
+  `.retentionDestructive`); `Button`, `Icon` e `Skeleton` do design system; nada de estilo inline, nada de
+  Tailwind/shadcn; `min-width` só.
+- **T3.3 (D8):** `eventTimeline.location.expired` e `eventTimeline.map.missingExpired_*` dizem "pelo prazo de
+  retenção" (pt-BR) e "after the retention period" (en). O `scoreHint` do motorista (90 dias da nota) não foi tocado.
+- **Contratos:** `test/trip-hooks/location-retention-panel.contract.ts` (18 testes, DOM montado, cliente trocado
+  por `locationRetentionClientMocks.helper.ts`), `test/trip/location-retention.contract.ts` (regras puras,
+  validação, cliente com `fetch` falso, D8 pelo i18n) e o caso novo de `test/company-settings/tabs.contract.ts`.
+  Estados cobertos no DOM: carregando (esqueleto), erro de leitura, padrão, ligado, em carência ("Começa a valer em
+  DD/MM HH:mm"), salvando, sem permissão (zero chamadas ao cliente), prazo inválido, a confirmação SÓ ao
+  ligar/encurtar (alongar, desligar, salvar prazo desligado e voltar ao padrão salvam direto e **não** chamam a
+  contagem), o botão "Ligar e apagar N pontos" (1.633, singular, "mais de 100 mil"), a contagem que falha, o texto
+  de LGPD no diálogo.
+
+### T3.4 — Mutações (editar e restaurar regravando; `git status` limpo depois)
+
+| Mutação                                                           | Reprova                                                 |
+| ----------------------------------------------------------------- | ------------------------------------------------------- |
+| M1 tirar a confirmação ao ligar                                   | 5 do painel (DOM) + 1 da tabela de regras               |
+| M2 tirar a confirmação ao encurtar                                | 1 do painel + 1 da tabela                               |
+| M3 alongar passa a pedir confirmação (`<` vira `!==`)             | 2 do painel + 1 da tabela                               |
+| M4 desligar passa a pedir confirmação                             | 1 do painel + 1 da tabela                               |
+| M5 **inverter a regra de carência na tela** (`>` vira `<`)        | 2 do painel ("ligado", "em carência") + 1 da tabela     |
+| M6 **tirar a permissão** da consulta (`enabled: input.isEnabled`) | "sem settings.manage: nem pede ao servidor" (DOM)       |
+| M7 tirar o aviso sem permissão                                    | o mesmo teste (DOM)                                     |
+| M8 contar o impacto sem a confirmação aberta (`enabled: true`)    | 4 do painel (sem permissão, ligar, alongar, desligar)   |
+| M9 botão destrutivo sem o número                                  | 4 do painel                                             |
+| M10 confirmar sem esperar a contagem                              | 2 do painel ("espera a contagem", "contagem que falha") |
+| M11 tirar o texto de LGPD do diálogo                              | "ligar abre o diálogo…"                                 |
+| M12 teto sem "mais de 100 mil"                                    | "acima do teto…" (DOM) + a soma por grupo               |
+| M13 aba no lugar errado (`tab: 'proof'`)                          | `tabs.contract` (nova) + o contrato do Comprovante      |
+| M14 devolver "após 90 dias" ao estado `expired`                   | 2 de D8 (texto e i18n)                                  |
+
+### Gates (apps/frontend-transportada)
+
+`bun run typecheck` limpo; `bun run lint` 0 erros / 16 avisos (todos `react-hooks/exhaustive-deps` pré-existentes);
+`bun run test` 6640 pass / 0 fail (contratos) + 403 pass / 0 fail (`test:hooks`, DOM). Smoke
+`test/spec-239-prints.smoke.spec.ts` (API dublada, `PLAYWRIGHT_FRONTEND_PORT=53231`, API de saúde falsa em 53232):
+4 passed — desligado → confirmação com 1.633 pontos → "aguardando a carência" com "Começa a valer em", e sem
+permissão (zero pedidos ao `location-retention`); sem rolagem horizontal em 1280 e 375. PNGs em `prints/`
+(1280 escuro e 375 claro). **A T4.5 (ok de design do usuário) continua aberta.**

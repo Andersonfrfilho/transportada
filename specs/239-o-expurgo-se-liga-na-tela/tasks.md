@@ -62,15 +62,15 @@ latitude IS NOT NULL`; `rollback.sql` que recusa com linha; asserção de rollba
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T3.1** Contrato **antes**: `tabs.contract.ts` com o endereço novo; `location-retention-panel.contract.ts`
+- [x] **T3.1** Contrato **antes**: `tabs.contract.ts` com o endereço novo; `location-retention-panel.contract.ts`
       com os estados (carregando, erro, padrão, ligado, carência, salvando, sem permissão), a
       confirmação só ao ligar/encurtar (RF9), o botão destrutivo com o número, e o texto de LGPD.
-- [ ] **T3.2** Aba `location` em `TripWorkspace.page.tsx`, `TripLocationRetentionPanel`, diálogo de
+- [x] **T3.2** Aba `location` em `TripWorkspace.page.tsx`, `TripLocationRetentionPanel`, diálogo de
       confirmação, query/cliente/validação, locales pt-BR e `en`. Design real do repo (tema escuro, cobre,
       cantos retos, rótulo mono) — ler `src/styles/index.css` e o `.module.css` do painel do Comprovante
       antes; nada de shadcn/Tailwind.
-- [ ] **T3.3** Linha do tempo sem "90 dias" no estado `expired` (D8, CA11), pt-BR e `en`.
-- [ ] **T3.4** Prova por mutação (tirar a confirmação, inverter a regra de carência na tela, tirar a
+- [x] **T3.3** Linha do tempo sem "90 dias" no estado `expired` (D8, CA11), pt-BR e `en`.
+- [x] **T3.4** Prova por mutação (tirar a confirmação, inverter a regra de carência na tela, tirar a
       permissão) e evidência.
 
 ## Fase 4 — Docs, revisão e publicação
