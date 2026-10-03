@@ -1118,3 +1118,9 @@ sinal ainda vai no deliver feito offline"); `driver-service-worker.smoke.spec.ts
 | P8b | escrita tolerante        | `setItem` sem `try`                               | `armazenamento que lança na escrita…`                            |
 | P9  | teto de 5 s              | amostra lenta volta a ser gravada                 | 2 (D1 e D7)                                                      |
 | S1  | liga o aparelho ao app   | o singleton `driverClockOffset` sem armazenamento | smoke `o desvio medido antes de recarregar…`                     |
+
+## T2.5 — app e `Date` exposto publicados em staging (2026-10-02)
+
+Run `37081892591`, commit `308588119`: `conclusion=success`; `deploy-api`, `deploy-driver`,
+`deploy-frontend` e `deploy-client` verdes (`deploy-landing` e `deploy-services` pulados por não terem
+mudança). A API subiu com o `access-control-expose-headers: Date` antes do app medir o relógio.

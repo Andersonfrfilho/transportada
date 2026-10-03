@@ -43,7 +43,7 @@
 - [x] **T2.3** Smoke: o corpo do `deliver` leva os dois campos; sem resposta ainda, vai sem eles.
 - [x] **T2.4** Prova por mutação (cada fase) — evidência em `evidence.md`.
 - [x] **T2.6** Guardar o último desvio no aparelho com validade de 24 h (D7) — contrato antes, mutação.
-- [ ] **T2.5** Publicar o app em staging depois da API (T1.7).
+- [x] **T2.5** Publicar o app em staging depois da API (T1.7).
 
 ## Prompt de execução
 
