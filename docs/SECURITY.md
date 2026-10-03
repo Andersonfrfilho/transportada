@@ -326,6 +326,9 @@ sinal de gestão, não prova (mesma premissa da spec 159).
   D2), e liberá-lo exige rever isto. **Pendência de decisão do usuário (2026-10-03, spec 196/ADR-0081 §3.1):**
   o ponto da mensagem de localização do WhatsApp pode ser um pino escolhido no mapa, não GPS; decidir se o ponto
   declarado entra na distância/pontualidade antes de subir os pacotes `meta-whatsapp-*`. Nada foi implementado.
+  **Resposta do usuário (2026-10-03):** o bot deve **pedir a geolocalização** ao motorista no WhatsApp e gravar o
+  ponto como `captured`; o pedido ainda não existe no fluxo e só funciona após subir os pacotes. A relação do ponto
+  declarado com a distância/pontualidade da nota segue sem decisão.
   A migration `20261002153258` (CHECK de coordenada) e a corretiva `20261003010806` tomam ACCESS EXCLUSIVE até
   o COMMIT; aplicar fora do horário de campo.
 - Cliente que **não** manda o desvio segue com o piso antigo de tempo.

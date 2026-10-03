@@ -105,6 +105,12 @@ pode ser um **pino escolhido no mapa**, não o GPS do aparelho — o motorista d
 distância/pontualidade da nota. Decidir antes de subir os pacotes: o ponto declarado entra na distância e na
 pontualidade, ou fica de fora delas como prova de lugar? Nenhum filtro foi implementado.
 
+**Resposta do usuário (2026-10-03):** o bot do WhatsApp **pede a geolocalização** ao motorista (mensagem
+pedindo que ele compartilhe a localização), e o ponto recebido grava `captured`. A resposta não separou o
+ponto declarado da distância/pontualidade: essa parte segue **sem filtro e sem decisão explícita**. O pedido
+em si (texto do fluxo do motorista, publicado por `whatsapp-flow-publish`) **não foi implementado** e só tem
+efeito depois que os pacotes `meta-whatsapp-*` subirem para a `0.4.0`.
+
 ### 4. Só o toque carimba
 
 Levam ponto os eventos que **são** o toque. A troca de status que a entrega deriva não leva: o ponto
