@@ -705,3 +705,12 @@ pede migration). Detalhe: docs/ai-context § "Spec 233 — a nota se abre inteir
 A 228 acrescenta à mesma linha do tempo `document.canhoto_photo` (prioridade 3, `trip-timeline-proof.query.ts`)
 e `stop.address_corrected` (prioridade 2, `trip-timeline-address.query.ts`, uma consulta só para o pool de 10),
 ambos derivados, sem migration; erro de fonte propaga. Detalhe: docs/ai-context § "Spec 228".
+
+## O ajudante é um perfil (spec 235)
+
+Papel `helper` em Acesso, terceira opção no cadastro de frota. Reconciliação papel → colunas
+(`can_drive`/`can_act_as_helper`) só quando a troca toca `driver`/`aggregate`/`helper` (transação,
+`FOR UPDATE`, `version + 1`, recusa `409 FLEET_DRIVER_PROFILE_EMPTY` sem alteração). Viagem e proposta
+recusam `can_drive = false` como motorista (`409 TRIP_DRIVER_CANNOT_DRIVE`); MDF-e avulso o mesmo.
+Permissão `trip.read`. Limite: atribuição em lote e papéis de grupo não reconciliam. Detalhe: docs/ai-context
+§ "Spec 235 — O ajudante é um perfil" e ADR-0093.

@@ -728,3 +728,29 @@ Data: 2026-10-02. Worktree sem `.env`/`.env.test`; integração da API **não** 
   `test/identity/helper-role.contract.ts` verdes.
 - Pendências para a T12: verificação visual (ficha nos três perfis, convite, seletor da viagem, 375 px, claro e escuro) e o
   painel geral "Diária do ajudante" da 149 T12, que não existe no painel.
+
+## T13 — Documentação viva: ADR, ai-context e CLAUDE.md
+
+Data: 2026-10-02. Branch `work/spec-235-ajudante`.
+
+### O que mudou
+
+- `docs/adr/0093-o-ajudante-e-um-perfil.md` (novo, 0092 é o último em origin/staging): decisão, contexto,
+  consequências, alternativas descartadas. Referencia spec 235 (D1 a D8) e ADR-0065.
+- `docs/ai-context/api-transportada.md`: seção "Spec 235 — O ajudante é um perfil" com arquivos-chave,
+  política de reconciliação, erros, restrições de viagem e MDF-e, limite de atribuição em lote.
+- `docs/ai-context/frontend-transportada.md`: seção "Spec 235 — O ajudante é um perfil" com seletor,
+  CNH oculta, campos de ajudante, permissão, seletores de viagem, mapeamento de erro.
+- `apps/api-transportada/CLAUDE.md`: parágrafo "O ajudante é um perfil (spec 235)" com reconciliação,
+  recusas em viagem e MDF-e, permissão, limite.
+- `apps/frontend-transportada/CLAUDE.md`: parágrafo "O ajudante é um perfil (spec 235)" com seletor,
+  profil oculto, "Pode atuar como ajudante", permissão, workspace vazio, referência a ADR-0093.
+- `specs/149-tripulacao-e-ajudantes/spec.md`: nota sob D1 "Revisada pela spec 235: ajudante também é
+  perfil/papel; ver ADR-0093."
+
+### Verificação
+
+- Prettier: `bunx prettier --write` em todos os `*.md` tocados → limpo.
+- Conteúdo: cada referência a arquivo-chave verifica nome real em `git ls-tree` ou `grep` (sem inventar
+  nomes); conteúdo das seções resume o evidence.md das Fases 1–3 e resolve em pouco mais que 6 linhas
+  por arquivo.

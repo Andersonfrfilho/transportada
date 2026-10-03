@@ -2309,3 +2309,16 @@ do último item da página mesclada, e omitir uma fonte faria o cursor pular ite
 ⚠️ **Limite conhecido.** A distância de cada evento é medida contra o ponto **vivo** do endereço. Uma correção
 de **outra empresa** muda essa distância sem gerar evento aqui, porque a geocodificação automática não deixa
 rastro por empresa. Incluí-la exigiria migration e foi recusada (spec 228, N1: "Só correção humana").
+
+## Spec 235 — O ajudante é um perfil
+
+**Arquivos-chave:** reconciliação em `identity/domain/fleet-role-reconciliation.policy.ts`, erros em
+`fleet.error.ts` e `trip.error.ts`, permissão em `identity/domain/authorization.policy.ts`, constante
+`fleet-linked-roles.constant.ts`, política de viagem em `trips/domain/trip.policy.ts`.
+
+Ajudante (perfil `helper`) é papel em Acesso e terceira opção no cadastro de frota. Duas colunas
+(`can_drive`, `can_act_as_helper` — a segunda já existia) carregam a capacidade; papel e colunas são
+reconciliados na transação de troca de papéis (só se a troca toca `driver`/`aggregate`/`helper`). A
+viagem e a proposta recusam quem não dirige (`409 TRIP_DRIVER_CANNOT_DRIVE`); MDF-e avulso aplica a
+mesma regra. Permissão `trip.read` — sem `trip.report`. Limite: atribuição em lote e papéis de grupo
+não reconciliam. Ver ADR-0093.

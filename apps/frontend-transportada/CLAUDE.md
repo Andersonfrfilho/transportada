@@ -317,3 +317,12 @@ Detalhe completo: docs/ai-context/frontend-transportada.md § "A nota se abre in
 A 228 põe nesses eventos a "Foto do canhoto" (`camera`, pino `delivered`) e o "Endereço da parada corrigido"
 (`edit`, pino `status`), com origem e deslocamento; "Ver no mapa" só com `location`. Detalhe:
 docs/ai-context/frontend-transportada.md § "Foto do canhoto e endereço corrigido na linha do tempo".
+
+## O ajudante é um perfil (spec 235)
+
+Seletor de perfil com opção `helper`, CNH oculta, "Pode atuar como ajudante" travado para ajudante-puro,
+"Diária própria" para quem pode ajudar. Papel na tabela de Acesso; convite com `helper` casa ficha pelo CPF.
+Seletor de motoristas da viagem exclui quem não dirige; lista de ajudantes segue inalterada (ambos filtram
+pela ficha). Permissão `trip.read` — sem `trip.report` — abre `NoWorkspaceAccess` no painel (decisão de
+produto fora da spec: qual app o ajudante usa). Detalhe: docs/ai-context/frontend-transportada.md
+§ "Spec 235 — O ajudante é um perfil" e ADR-0093.

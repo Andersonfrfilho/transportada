@@ -948,3 +948,16 @@ viagem e a _Eventos desta entrega_.
   aparece no mapa; sem `trip.event-location` a API devolve `location = null`.
 - ⚠️ Pendência de design (T4.2): o rótulo da legenda da categoria `status` é "Mudança de situação", impreciso
   para o endereço corrigido. Não foi renomeado porque muda o texto de outro evento.
+
+## Spec 235 — O ajudante é um perfil
+
+**Arquivos-chave:** tipos e constantes em `fleet/shared/fleet.types.ts`, validação em `fleetResponse.validation.ts`,
+seletor de perfil em `DriverForm.component.tsx` e `DriverQuickCreateDialog.component.tsx`, campos de ajudante em
+`DriverHelperFields.component.tsx`, permissão em `identity/shared/companyUsers.constant.ts` e `useAuthMe.query.ts`,
+seletores de viagem em `trip/shared/driverCrewRole.service.ts` e `tripCrewHelpers.service.ts`.
+
+Ajudante (perfil `helper`) — opção no seletor de perfil, CNH oculta, "Pode atuar como ajudante" travado e
+"Diária própria" para quem pode ajudar. Papel na tabela de Acesso e no convite de membros; lê viagem e nada
+mais (`trip.read`). Seletor de motoristas da viagem exclui quem não dirige; lista de ajudantes permanece
+inalterada (ambos filtram pela ficha). Erro de viagem `TRIP_DRIVER_CANNOT_DRIVE` mapeado em
+`feedback.driverCannotDrive`; `TRIP_CREW_HELPER_CANNOT_DRIVE` (403) não é mapeado separadamente. Ver ADR-0093.

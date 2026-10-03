@@ -56,7 +56,7 @@ da app. Cada task fecha com typecheck, testes da app, commit isolado e evidênci
 
 - [ ] **T12** 🧠 Revisão de design e usabilidade: prints da ficha (três perfis), do convite em Acesso e
       do seletor da viagem, 375 px, claro e escuro; com o usuário aprovando antes de ir a staging.
-- [ ] **T13** Documentação viva: ADR de "ajudante é perfil" (próximo número livre em `origin/staging`),
+- [x] **T13** Documentação viva: ADR de "ajudante é perfil" (próximo número livre em `origin/staging`),
       `docs/ai-context/api-transportada.md`, `frontend-transportada.md` e os `CLAUDE.md` das duas apps;
       nota na spec 149 apontando que a D1 foi revisada aqui.
 
