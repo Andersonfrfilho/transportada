@@ -2043,6 +2043,13 @@
     },
     "correction": {
       "correct": "Correct",
+      "form": {
+        "title": "Correct the occurrence items",
+        "hint": "The set below replaces the current one: whatever you remove here leaves the occurrence, and the correction is recorded under your name.",
+        "save": "Save correction",
+        "discard": "Discard",
+        "productsError": "The invoice items could not be loaded. Close and try again."
+      },
       "unavailable": {
         "occurrenceCancelled": "This occurrence was already cancelled and can no longer be corrected or cancelled.",
         "caseOpen": "The case is open: once it opens, the occurrence already carries money and can no longer be corrected or cancelled.",

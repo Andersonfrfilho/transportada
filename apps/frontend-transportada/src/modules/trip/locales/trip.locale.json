@@ -2043,6 +2043,13 @@
     },
     "correction": {
       "correct": "Corrigir",
+      "form": {
+        "title": "Corrigir os itens da ocorrência",
+        "hint": "O conjunto abaixo substitui o atual: o que você tirar daqui sai da ocorrência, e a correção fica registrada com o seu nome.",
+        "save": "Salvar correção",
+        "discard": "Descartar",
+        "productsError": "Não foi possível carregar os itens da nota. Feche e tente de novo."
+      },
       "unavailable": {
         "occurrenceCancelled": "Esta ocorrência já foi cancelada e não pode mais ser corrigida nem cancelada.",
         "caseOpen": "A tratativa está aberta: depois que ela abre, a ocorrência já vale dinheiro e não pode mais ser corrigida nem cancelada.",
