@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 235 T2.2 (RF2, CA01): o formulário de correção montado de verdade, com a API dublada. Reabre com
+ * Spec 240 T2.2 (RF2, CA01): o formulário de correção montado de verdade, com a API dublada. Reabre com
  * o conjunto atual, manda o conjunto inteiro e o detalhe passa a mostrar a correção. Dados sintéticos.
  */
 import { createElement } from 'react'
@@ -23,7 +23,7 @@ import {
 } from './occurrenceCorrectionHarness.helper'
 import { renderWithQueryClient, settle, waitFor } from './renderHook.helper'
 
-describe('formulário de correção da ocorrência (spec 235 T2.2, CA01)', () => {
+describe('formulário de correção da ocorrência (spec 240 T2.2, CA01)', () => {
   test('reabre com o conjunto atual, salva o conjunto inteiro e o detalhe mostra a correção', async () => {
     const { calls } = installServerDouble()
     const rendered = await renderWithQueryClient(createElement(DetailHarness))

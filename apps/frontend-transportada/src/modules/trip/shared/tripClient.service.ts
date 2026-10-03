@@ -342,11 +342,11 @@ export type TripClient = Readonly<{
       readonly thumbnail?: Blob
     },
   ) => Promise<RegisteredOccurrence>
-  /** Spec 235 RF1/RF2: `PATCH .../occurrences/:id/items` — substitui o conjunto inteiro de itens. */
+  /** Spec 240 RF1/RF2: `PATCH .../occurrences/:id/items` — substitui o conjunto inteiro de itens. */
   correctTripOccurrenceItems: (
     input: CorrectTripOccurrenceItemsInput,
   ) => Promise<OccurrenceWriteResult>
-  /** Spec 235 RF1/RF3: `POST .../occurrences/:id/cancellation` — cancela com motivo, nunca apaga. */
+  /** Spec 240 RF1/RF3: `POST .../occurrences/:id/cancellation` — cancela com motivo, nunca apaga. */
   cancelTripOccurrence: (input: CancelTripOccurrenceInput) => Promise<OccurrenceWriteResult>
   /** Spec 161 T7/T22 (RF6/RF31): a 2ª a 5ª foto de uma ocorrência já registrada. */
   attachOccurrencePhoto: (

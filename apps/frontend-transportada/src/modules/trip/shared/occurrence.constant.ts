@@ -97,10 +97,10 @@ export type OccurrenceAttachmentOverrides = Readonly<{
   recipientOverrides: readonly OccurrenceAttachmentRecipientOverride[]
 }>
 
-/** Spec 235: o teto do motivo é o do servidor (`OCCURRENCE_CANCELLATION_REASON_TOO_LONG`). */
+/** Spec 240: o teto do motivo é o do servidor (`OCCURRENCE_CANCELLATION_REASON_TOO_LONG`). */
 export const OCCURRENCE_CANCELLATION_REASON_MAX_LENGTH = 500
 
-/** Spec 235: os códigos estáveis que as duas escritas da 167 devolvem (evidence.md, Fase 0). */
+/** Spec 240: os códigos estáveis que as duas escritas da 167 devolvem (evidence.md, Fase 0). */
 export const OCCURRENCE_CORRECTION_ERROR = {
   ALREADY_CANCELLED: 'OCCURRENCE_ALREADY_CANCELLED',
   CANCELLATION_REASON_REQUIRED: 'OCCURRENCE_CANCELLATION_REASON_REQUIRED',

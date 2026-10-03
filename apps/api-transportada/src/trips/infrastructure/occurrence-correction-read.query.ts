@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 235 RF9: a leitura em lote do que a spec 167 grava — as correções e o cancelamento de cada
+ * Spec 240 RF9: a leitura em lote do que a spec 167 grava — as correções e o cancelamento de cada
  * ocorrência de nota. Uma consulta para todos os ids da página, agrupada em `Map`, nunca uma por
  * linha. É o único lugar que resolve o nome de quem corrigiu/cancelou (vínculo ativo na empresa):
  * a resposta das escritas e as três leituras publicam o mesmo formato porque leem por aqui.

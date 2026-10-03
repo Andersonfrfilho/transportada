@@ -29,7 +29,7 @@ export type TripOccurrenceCorrectionFormProps = Readonly<{
 }>
 
 /**
- * Spec 235 RF2: reabre com o conjunto que a ocorrência tem hoje e manda o conjunto **inteiro** — o
+ * Spec 240 RF2: reabre com o conjunto que a ocorrência tem hoje e manda o conjunto **inteiro** — o
  * servidor substitui, e a política dele decide se algo mudou; a tela não faz essa conta.
  */
 export function TripOccurrenceCorrectionForm({

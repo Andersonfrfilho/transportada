@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 235 T1.4 (RF8): corrigir ou cancelar a ocorrência invalida detalhe, feed e linha do tempo —
+ * Spec 240 T1.4 (RF8): corrigir ou cancelar a ocorrência invalida detalhe, feed e linha do tempo —
  * senão a tela mostra o estado velho ao lado do novo. Cada tentativa leva a própria `Idempotency-Key`.
  */
 import { describe, expect, test } from 'bun:test'
@@ -90,7 +90,7 @@ function isInvalidated(queryClient: QueryClient, key: readonly unknown[]): boole
   return queryClient.getQueryState(key)?.isInvalidated === true
 }
 
-describe('mutações de correção e cancelamento da ocorrência (spec 235 T1.4)', () => {
+describe('mutações de correção e cancelamento da ocorrência (spec 240 T1.4)', () => {
   test('corrigir invalida detalhe, feed, linhas do tempo e a lista de ocorrências da nota — e só elas', async () => {
     resetTripHookFakes([])
     fakes.tripClient = {

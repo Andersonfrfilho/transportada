@@ -15,7 +15,7 @@ export type OccurrenceCancellationMarkProps = Readonly<{
   variant: 'badge' | 'notice'
 }>
 
-/** Spec 235 RF6: a marca de cancelada é texto — a cor só reforça; a ocorrência nunca some. */
+/** Spec 240 RF6: a marca de cancelada é texto — a cor só reforça; a ocorrência nunca some. */
 export function OccurrenceCancellationMark({
   cancellation,
   variant,

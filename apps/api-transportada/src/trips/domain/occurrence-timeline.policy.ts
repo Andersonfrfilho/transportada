@@ -46,7 +46,7 @@ export type OccurrenceTimelineEvent = OccurrenceTimelineSource & {
 /**
  * Os três tempos do topo, como instantes — a tela conta a duração com o relógio dela, e o tempo de
  * ocorrência aberta segue correndo sem nova leitura. `openUntil` nulo é ocorrência ainda aberta;
- * terminal da tratativa e cancelamento da ocorrência (spec 235) fecham o relógio.
+ * terminal da tratativa e cancelamento da ocorrência (spec 240) fecham o relógio.
  */
 export type OccurrenceTimelineTimings = {
   readonly contractorAskedAt: null | string

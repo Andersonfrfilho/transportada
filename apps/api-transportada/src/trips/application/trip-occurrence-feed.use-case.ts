@@ -89,7 +89,7 @@ export type TripOccurrenceFeedItem = {
   readonly conversation: OccurrenceConversationSummary
   /** Spec 164 T8 (RF10): `null` quando a ocorrência não tem tratativa aberta. */
   readonly case: TripOccurrenceFeedCaseView | null
-  /** Spec 235 RF9: `null` quando não cancelada; a cancelada continua na lista, marcada. */
+  /** Spec 240 RF9: `null` quando não cancelada; a cancelada continua na lista, marcada. */
   readonly cancellation: OccurrenceCancellationView | null
   readonly channel: TripFieldChannel
   readonly createdAt: string

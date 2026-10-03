@@ -170,7 +170,7 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   /** Spec 164, achado 1: reentrega escolhida sobre política `blocked` da tratativa. */
   OCCURRENCE_CASE_REDELIVERY_NOT_ALLOWED: 'occurrenceCaseRedeliveryNotAllowed',
   OCCURRENCE_CASE_NOTE_REQUIRED: 'occurrenceCaseNoteRequired',
-  /** Spec 235 RF7: a correção e o cancelamento da ocorrência de nota (spec 167). */
+  /** Spec 240 RF7: a correção e o cancelamento da ocorrência de nota (spec 167). */
   [OCCURRENCE_CORRECTION_ERROR.CASE_ALREADY_OPEN]: 'occurrenceCaseAlreadyOpen',
   [OCCURRENCE_CORRECTION_ERROR.ALREADY_CANCELLED]: 'occurrenceAlreadyCancelled',
   [OCCURRENCE_CORRECTION_ERROR.CANCELLED]: 'occurrenceCancelled',
@@ -551,7 +551,7 @@ export const TRIP_TIMELINE_LOCATION_EVENT_PIN_KEY = 'timeline-event-location'
 export const TRIP_TIMELINE_STOP_REFERENCE_KEYS = ['id', 'sequence'] as const
 export const TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS = ['id', 'number', 'series'] as const
 export const TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS = ['note', 'typeName'] as const
-/** Spec 161 T24 (RF12): a contagem só existe quando a ocorrência tem foto; spec 235: `cancellation` vem sempre da API atual. */
+/** Spec 161 T24 (RF12): a contagem só existe quando a ocorrência tem foto; spec 240: `cancellation` vem sempre da API atual. */
 export const TRIP_TIMELINE_OCCURRENCE_REFERENCE_OPTIONAL_KEYS = [
   'attachmentCount',
   'cancellation',

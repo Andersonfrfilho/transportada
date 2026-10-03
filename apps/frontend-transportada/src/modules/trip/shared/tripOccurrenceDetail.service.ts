@@ -85,7 +85,7 @@ export type OccurrenceCorrectionHistoryEntry = Readonly<{
 }>
 
 /**
- * Spec 235 RF5: a API grava em cada correção o conjunto que valia **antes** dela (`previousItems`), e
+ * Spec 240 RF5: a API grava em cada correção o conjunto que valia **antes** dela (`previousItems`), e
  * entrega mais antiga primeiro. O conjunto que passou a valer numa correção é, então, o `previousItems`
  * da seguinte — e, na última, os itens atuais da ocorrência.
  */
@@ -159,7 +159,7 @@ const OPEN_CASE_STATUSES: readonly TripOccurrenceCaseStatus[] = [
 ]
 
 /**
- * Spec 235 RF4/RF10, espelho de `correct-occurrence-items.use-case.ts` e `cancel-occurrence.use-case.ts`:
+ * Spec 240 RF4/RF10, espelho de `correct-occurrence-items.use-case.ts` e `cancel-occurrence.use-case.ts`:
  * ocorrência cancelada vale antes de tudo; depois, **qualquer** tratativa gravada fecha a janela — o
  * servidor só pergunta se existe a linha, não em que estado ela está. Os estados só mudam o texto.
  */

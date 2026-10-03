@@ -44,7 +44,7 @@ function fakeTranslate(key: string, options?: Record<string, unknown>): string {
 
 const PARAMS = { formatMoment: (value: string) => `<${value}>`, translate: fakeTranslate }
 
-describe('a conta única da marca de cancelada (spec 235 T3.2, RF6)', () => {
+describe('a conta única da marca de cancelada (spec 240 T3.2, RF6)', () => {
   test('ativa e ausente leem igual: nenhuma marca', () => {
     expect(resolveOccurrenceCancellationMark(null, PARAMS)).toBeNull()
     expect(resolveOccurrenceCancellationMark(undefined, PARAMS)).toBeNull()
@@ -103,7 +103,7 @@ function readTimelineItem(occurrence: Record<string, unknown> | null): TripTimel
   return item
 }
 
-describe('a linha do tempo da viagem valida cancellation (spec 235 T3.2, RF9)', () => {
+describe('a linha do tempo da viagem valida cancellation (spec 240 T3.2, RF9)', () => {
   const BASE = { attachmentCount: 0, note: 'caixa avariada', typeName: 'Avaria' }
 
   test('presente e válido atravessa intacto', () => {
@@ -168,7 +168,7 @@ const TIMELINE: OccurrenceTimeline = {
   },
 }
 
-describe('a linha do tempo da ocorrência valida occurrence.cancelled (spec 235 T3.2)', () => {
+describe('a linha do tempo da ocorrência valida occurrence.cancelled (spec 240 T3.2)', () => {
   function readTimeline(events: readonly unknown[]): Promise<OccurrenceTimeline> {
     return createTripOccurrenceFeedClient({
       apiUrl: 'https://api.example.test',

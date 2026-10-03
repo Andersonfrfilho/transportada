@@ -14,7 +14,7 @@ que precise mexer na API além da leitura da Fase 0.5 é sinal de escopo escorre
 - [x] **T0.2** Conferir que a leitura do detalhe devolve `corrections` e `cancellation`
       preenchidos depois das escritas da T0.1, e que os tipos do painel batem com o que chega.
       **Resultado: não devolve.** Nenhuma leitura (detalhe, feed, lista da nota) publica os dois
-      campos; só as respostas das escritas. Decisão do usuário em 2026-10-02: a 235 ganha a Fase
+      campos; só as respostas das escritas. Decisão do usuário em 2026-10-02: a 240 ganha a Fase
       0.5, só de leitura na API.
 
 ## Fase 0.5 — A leitura passa a contar o que a 167 grava
@@ -122,7 +122,7 @@ itens ou tipo; relógio `openUntil` fecha no cancelamento.
 ## Prompt de execução
 
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/235-a-correcao-da-ocorrencia-ganha-tela/
+/oh-my-claudecode:autopilot Execute a spec specs/240-a-correcao-da-ocorrencia-ganha-tela/
 (leia spec.md e plan.md antes de começar). Uma task por vez, na ordem do tasks.md.
 Esta spec é só de frontend: nada muda na API da spec 167, e task que precise mexer no servidor
 para — é sinal de escopo escorregando, pergunte antes.

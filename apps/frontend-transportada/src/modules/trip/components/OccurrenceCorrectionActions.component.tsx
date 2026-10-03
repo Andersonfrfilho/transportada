@@ -19,7 +19,7 @@ export type OccurrenceCorrectionActionsProps = Readonly<{
 }>
 
 /**
- * Spec 235 T2.1: Corrigir mora aqui, autocontido. Desabilitado, o botão fica no foco com
+ * Spec 240 T2.1: Corrigir mora aqui, autocontido. Desabilitado, o botão fica no foco com
  * `aria-disabled` e o motivo ligado por `aria-describedby` — `disabled` tiraria o botão da ordem de
  * tabulação e o leitor de tela não leria o porquê.
  */

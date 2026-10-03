@@ -20,7 +20,7 @@ export type TripOccurrenceCancelDialogProps = Readonly<{
 }>
 
 /**
- * Spec 235 RF3/CA04: o motivo sai com `trim` e o botão só habilita com texto de verdade — o `400` do
+ * Spec 240 RF3/CA04: o motivo sai com `trim` e o botão só habilita com texto de verdade — o `400` do
  * servidor é a segunda linha de defesa. O foco volta ao botão que abriu pelo `useModalDialog`.
  */
 export function TripOccurrenceCancelDialog({

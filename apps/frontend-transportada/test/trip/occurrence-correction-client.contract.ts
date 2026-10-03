@@ -10,7 +10,7 @@ const DOCUMENT_ID = '06a3f3ae-8f0c-401c-a77b-488175b1d0b3'
 const OCCURRENCE_ID = 'a4b6ef1d-0049-4814-9d39-47e21b264760'
 const OCCURRENCE_PATH = `${API_URL}/trips/${TRIP_ID}/documents/${DOCUMENT_ID}/occurrences/${OCCURRENCE_ID}`
 
-/** Resposta real da escrita (spec 235, evidence.md W1): anexo estreito, sem `email` nem `autoDispatch`. */
+/** Resposta real da escrita (spec 240, evidence.md W1): anexo estreito, sem `email` nem `autoDispatch`. */
 const CORRECTED_RESPONSE = {
   data: {
     actorName: 'Operador local',
