@@ -245,3 +245,23 @@ antes; o `snapshot.json` da T1.2 partia do snapshot anterior a ela (5 reprovaç�
 (delta idêntico ao `migration.sql` da 239) e só o `snapshot.json` foi trocado (`prevIds` -> snapshot da 237).
 Depois: `db:generate` = `no_changes`; suíte da API 9311 pass / 24 skip / 0 fail, 198 arquivos; integração
 do arquivo novo 6 pass / 0 fail.
+
+## Correções da revisão opus da Fase 1
+
+Revisão opus aprovou a Fase 1 com pendências; cada achado foi conferido no código antes de corrigir.
+Um commit isolado por item.
+
+### M1 — a contagem de impacto prende o filtro de latitude e o prazo (confirmado)
+
+Confirmado: as duas mutações sobreviviam, porque o teste só tinha linhas posicionadas (vencida e dentro
+do prazo). `test/integration/location-retention-settings.integration.ts` agora semeia na empresa A, em
+cada uma das cinco tabelas: vencida (91 dias), de ~60 dias, dentro do prazo (3 dias) e uma **sem ponto**
+(latitude NULL, `location_state 'expired'`, data vencida). Asserção por tabela (`kind`, `count`,
+`capped`): prazo 90 -> 1 em cada; prazo 30 -> 2 em cada (a de 60 dias passa a contar, a sem ponto não).
+
+| Mutação (em `drizzle-location-retention-impact.query.ts`)  | Resultado                                |
+| ---------------------------------------------------------- | ---------------------------------------- |
+| M1a tira `isNotNull(latitude)` da consulta                 | 1 fail (a linha `expired` passa a contar) |
+| M1b troca `make_interval(days => N)` por `days => 90`      | 1 fail (prazo 30 não alcança a de 60 d)  |
+
+Fonte restaurada regravando o original; `git status` sem diff em `src/` depois.

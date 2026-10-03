@@ -42,6 +42,7 @@ const CLEARED_ACTION = 'company-location-retention.cleared'
 const FORBIDDEN_AUDIT_TOKENS = ['latitude', 'longitude', 'accuracy', '-23.55', 'eventId'] as const
 const EXPIRED_AT = '2026-05-01T09:00:00.000Z'
 const WITHIN_AT = '2026-09-30T09:00:00.000Z'
+const SIXTY_DAYS_AT = '2026-08-04T09:00:00.000Z'
 const IMPACT_NOW = NOW
 
 type Tenant = {
@@ -329,47 +330,31 @@ describe('location retention settings repository integration (spec 239 T1.4)', (
         (await readAudits(database, tenantB.companyId)).map((audit) => audit.correlationId),
       ).toEqual(['corr-b'])
 
-      // A: uma linha vencida (91 dias) e uma dentro do prazo em cada tabela; B: duas vencidas
+      // A: vencida (91 dias), de 60 dias, dentro do prazo e já apagada (sem ponto, `expired`) em cada
+      // tabela; B: duas vencidas
       await insertPositionedRows(database, tenantA, EXPIRED_AT)
+      await insertPositionedRows(database, tenantA, SIXTY_DAYS_AT)
       await insertPositionedRows(database, tenantA, WITHIN_AT)
+      await insertPositionedRows(database, tenantA, EXPIRED_AT, { isPositioned: false })
       await insertPositionedRows(database, tenantB, EXPIRED_AT)
       await insertPositionedRows(database, tenantB, EXPIRED_AT)
 
-      const impactA = await repository.countImpact({
-        companyId: tenantA.companyId,
-        now: IMPACT_NOW,
-        retentionDays: 90,
-      })
-      const impactB = await repository.countImpact({
-        companyId: tenantB.companyId,
-        now: IMPACT_NOW,
-        retentionDays: 90,
-      })
+      const countsOf = async (tenant: Tenant, retentionDays: number) => {
+        const entries = await repository.countImpact({
+          companyId: tenant.companyId,
+          now: IMPACT_NOW,
+          retentionDays,
+        })
+        return entries.map((entry) => [entry.kind, entry.count, entry.capped])
+      }
+      const everyKindWith = (count: number) =>
+        Object.values(LOCATION_RETENTION_IMPACT_KIND).map((kind) => [kind, count, false])
 
-      expect(impactA.map((entry) => entry.kind)).toEqual(
-        Object.values(LOCATION_RETENTION_IMPACT_KIND),
-      )
-      expect(impactA.map((entry) => [entry.count, entry.capped])).toEqual([
-        [1, false],
-        [1, false],
-        [1, false],
-        [1, false],
-        [1, false],
-      ])
-      expect(impactB.map((entry) => [entry.count, entry.capped])).toEqual([
-        [2, false],
-        [2, false],
-        [2, false],
-        [2, false],
-        [2, false],
-      ])
-      // o prazo de 30 dias alcança a linha de 3 dias atrás? não: só as de maio
-      const impactShort = await repository.countImpact({
-        companyId: tenantA.companyId,
-        now: IMPACT_NOW,
-        retentionDays: 30,
-      })
-      expect(impactShort.map((entry) => entry.count)).toEqual([1, 1, 1, 1, 1])
+      // prazo 90: só a de 91 dias; a de 60, a de 3 dias e a sem ponto não contam
+      expect(await countsOf(tenantA, 90)).toEqual(everyKindWith(1))
+      expect(await countsOf(tenantB, 90)).toEqual(everyKindWith(2))
+      // prazo 30: a de 60 dias passa a contar (o prazo entra na consulta); a sem ponto continua fora
+      expect(await countsOf(tenantA, 30)).toEqual(everyKindWith(2))
     })
   })
 
@@ -407,8 +392,13 @@ async function insertPositionedRows(
   database: TestDatabase,
   tenant: Tenant,
   createdAt: string,
+  options: { readonly isPositioned: boolean } = { isPositioned: true },
 ): Promise<void> {
-  const position = { accuracy: '9.00', latitude: '-23.5505199', longitude: '-46.6333094' }
+  const position = options.isPositioned
+    ? { accuracy: '9.00', latitude: '-23.5505199', longitude: '-46.6333094' }
+    : { accuracy: null, latitude: null, longitude: null }
+  const locationState = options.isPositioned ? 'captured' : 'expired'
+  const capturedAt = options.isPositioned ? createdAt : null
   const eventId = crypto.randomUUID()
   const objectId = crypto.randomUUID()
   const { db } = database
@@ -417,8 +407,8 @@ async function insertPositionedRows(
       (id, company_id, stop_id, kind, latitude, longitude, accuracy_meters, captured_at,
        actor_user_id, location_state, created_at)
     values (${eventId}, ${tenant.companyId}, ${tenant.stopId}, 'delivered', ${position.latitude},
-      ${position.longitude}, ${position.accuracy}, ${createdAt}, ${tenant.userId}, 'captured',
-      ${createdAt})
+      ${position.longitude}, ${position.accuracy}, ${capturedAt}, ${tenant.userId},
+      ${locationState}, ${createdAt})
   `)
   await db.execute(sql`
     insert into stored_objects
@@ -432,7 +422,7 @@ async function insertPositionedRows(
        accuracy_meters, captured_at, punctuality, location_state, created_at)
     values (${crypto.randomUUID()}, ${tenant.companyId}, ${eventId}, 'photo', ${objectId},
       ${tenant.userId}, ${position.latitude}, ${position.longitude}, ${position.accuracy},
-      ${createdAt}, 'on_time', 'captured', ${createdAt})
+      ${capturedAt}, 'on_time', ${locationState}, ${createdAt})
   `)
   await db.execute(sql`
     insert into trip_status_events
@@ -440,7 +430,7 @@ async function insertPositionedRows(
        latitude, longitude, accuracy_meters, captured_at, location_state)
     values (${crypto.randomUUID()}, ${tenant.companyId}, ${tenant.tripId}, 'draft', 'route_planned',
       ${tenant.userId}, ${createdAt}, ${createdAt}, ${position.latitude}, ${position.longitude},
-      ${position.accuracy}, ${createdAt}, 'captured')
+      ${position.accuracy}, ${capturedAt}, ${locationState})
   `)
   await db.execute(sql`
     insert into trip_stop_occurrences
@@ -448,7 +438,7 @@ async function insertPositionedRows(
        longitude, accuracy_meters, captured_at, location_state)
     values (${crypto.randomUUID()}, ${tenant.companyId}, ${tenant.stopId}, 'unexpected_charge',
       ${tenant.userId}, ${tenant.occurrenceTypeId}, ${createdAt}, ${position.latitude},
-      ${position.longitude}, ${position.accuracy}, ${createdAt}, 'captured')
+      ${position.longitude}, ${position.accuracy}, ${capturedAt}, ${locationState})
   `)
   await db.execute(sql`
     insert into trip_document_occurrences
@@ -456,7 +446,7 @@ async function insertPositionedRows(
        latitude, longitude, accuracy_meters, captured_at, location_state)
     values (${crypto.randomUUID()}, ${tenant.companyId}, ${tenant.tripDocumentId}, 'separation',
       ${tenant.occurrenceTypeId}, ${tenant.userId}, ${createdAt}, ${position.latitude},
-      ${position.longitude}, ${position.accuracy}, ${createdAt}, 'captured')
+      ${position.longitude}, ${position.accuracy}, ${capturedAt}, ${locationState})
   `)
 }
 
