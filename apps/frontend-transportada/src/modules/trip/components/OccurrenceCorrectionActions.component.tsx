@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import { TripOccurrenceCancelDialog } from './TripOccurrenceCancelDialog.compone
 import { TripOccurrenceCorrectionForm } from './TripOccurrenceCorrectionForm.component'
 
 export type OccurrenceCorrectionActionsProps = Readonly<{
+  companyId?: string
   occurrence: TripOccurrenceDetail
   permissions: readonly string[]
 }>
@@ -23,11 +24,14 @@ export type OccurrenceCorrectionActionsProps = Readonly<{
  * tabulação e o leitor de tela não leria o porquê.
  */
 export function OccurrenceCorrectionActions({
+  companyId,
   occurrence,
   permissions,
 }: OccurrenceCorrectionActionsProps) {
   const { t } = useTranslation('trip')
   const reasonId = useId()
+  const formId = useId()
+  const actionsRef = useRef<HTMLDivElement | null>(null)
   const [isCorrecting, setIsCorrecting] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const { cancel, correct } = resolveOccurrenceCorrectionActions(
@@ -65,13 +69,15 @@ export function OccurrenceCorrectionActions({
 
   function handleCorrectionClose(): void {
     setIsCorrecting(false)
+    actionsRef.current?.querySelector<HTMLButtonElement>('button[aria-expanded]')?.focus()
   }
 
   return (
     <div className={styles.occurrenceCorrection}>
-      <div className={styles.occurrenceActions}>
+      <div className={styles.occurrenceActions} ref={actionsRef}>
         {hasCorrect ? (
           <Button
+            aria-controls={isCorrecting ? formId : undefined}
             aria-describedby={isDisabled ? reasonId : undefined}
             aria-disabled={isDisabled}
             aria-expanded={isCorrecting}
@@ -114,7 +120,9 @@ export function OccurrenceCorrectionActions({
       ) : null}
       {isCorrecting ? (
         <TripOccurrenceCorrectionForm
+          {...(companyId === undefined ? {} : { companyId })}
           documentId={tripDocumentId}
+          id={formId}
           items={occurrence.items}
           occurrenceId={occurrence.id}
           onClose={handleCorrectionClose}

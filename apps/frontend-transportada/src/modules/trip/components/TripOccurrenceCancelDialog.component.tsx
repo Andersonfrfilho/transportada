@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -32,11 +32,23 @@ export function TripOccurrenceCancelDialog({
   const { t } = useTranslation('trip')
   const titleId = useId()
   const reasonId = useId()
-  const { dialogRef, handleKeyDown } = useModalDialog({ isOpen: true, onClose })
+  const reasonRef = useRef<HTMLTextAreaElement | null>(null)
   const [reason, setReason] = useState('')
   const cancellation = useCancelOccurrence()
+  const isPending = cancellation.isPending
+
+  function handleClose(): void {
+    if (isPending) return
+    onClose()
+  }
+
+  const { dialogRef, handleKeyDown } = useModalDialog({ isOpen: true, onClose: handleClose })
   const trimmedReason = reason.trim()
   const feedbackKey = resolveTripFeedbackKey(cancellation.error)
+
+  useEffect(() => {
+    reasonRef.current?.focus()
+  }, [])
 
   function handleConfirm(): void {
     if (trimmedReason.length === 0) return
@@ -66,7 +78,8 @@ export function TripOccurrenceCancelDialog({
           <button
             aria-label={t('occurrenceDetail.correction.cancel.close')}
             className={styles.iconAction}
-            onClick={onClose}
+            disabled={isPending}
+            onClick={handleClose}
             type="button"
           >
             <Icon name="close" />
@@ -79,6 +92,7 @@ export function TripOccurrenceCancelDialog({
           id={reasonId}
           maxLength={OCCURRENCE_CANCELLATION_REASON_MAX_LENGTH}
           onChange={(event) => setReason(event.target.value)}
+          ref={reasonRef}
           value={reason}
         />
 
@@ -90,8 +104,8 @@ export function TripOccurrenceCancelDialog({
 
         <footer className={styles.mdfeGateFooter}>
           <Button
-            disabled={cancellation.isPending}
-            onClick={onClose}
+            disabled={isPending}
+            onClick={handleClose}
             size="sm"
             type="button"
             variant="ghost"
@@ -100,7 +114,7 @@ export function TripOccurrenceCancelDialog({
             {t('occurrenceDetail.correction.cancel.dismiss')}
           </Button>
           <Button
-            disabled={trimmedReason.length === 0 || cancellation.isPending}
+            disabled={trimmedReason.length === 0 || isPending}
             onClick={handleConfirm}
             size="sm"
             type="button"

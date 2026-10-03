@@ -1565,17 +1565,17 @@ function hasAddressChangeForKind(value: Readonly<Record<string, unknown>>): bool
   return isTimelineAddressChange(value.addressChange)
 }
 
-/**
- * Spec 158 D6/aceite 8: chave desconhecida, `channel`/`kind` fora do vocabulário são recusados —
- * `actorUserId`, `receiverName`, `receiverDocumentMasked`, `objectKey` nunca fazem parte das chaves
- * do item, então uma chave a mais já reprova por si. A coordenada só entra em `location` (ADR-0081 §6).
- */
 /** Spec 235: `cancellation` ausente (API anterior) lê como `null`; o item sem ocorrência passa como veio. */
 function withOccurrenceCancellation(item: TripTimelineItem): TripTimelineItem {
   if (item.occurrence === null || item.occurrence.cancellation !== undefined) return item
   return { ...item, occurrence: { ...item.occurrence, cancellation: null } }
 }
 
+/**
+ * Spec 158 D6/aceite 8: chave desconhecida, `channel`/`kind` fora do vocabulário são recusados —
+ * `actorUserId`, `receiverName`, `receiverDocumentMasked`, `objectKey` nunca fazem parte das chaves
+ * do item, então uma chave a mais já reprova por si. A coordenada só entra em `location` (ADR-0081 §6).
+ */
 function isTimelineItem(value: unknown): value is TripTimelineItem {
   if (
     !hasKeys(value, {

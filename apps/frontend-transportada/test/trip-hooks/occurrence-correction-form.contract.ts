@@ -9,10 +9,13 @@ import { describe, expect, test } from 'bun:test'
 
 import '@/modules/shared/i18n/i18n.service'
 
+import { TRIP_QUERY_KEY } from '@/modules/trip/shared/trip.constant'
+
 import { DETAIL_FIXTURE_IDS } from '../fixtures/tripOccurrenceDetail.fixture'
 import {
   buttonByText,
   click,
+  COMPANY_ID,
   DetailHarness,
   installServerDouble,
   listedItems,
@@ -72,6 +75,52 @@ describe('formulário de correção da ocorrência (spec 235 T2.2, CA01)', () =>
     expect(calls[0]?.items).toEqual([])
     await waitFor(() => expect(listedItems()).toEqual([]))
     expect(buttonByText('Corrigir')).toBeDefined()
+    rendered.unmount()
+  })
+
+  test('abre com o foco no título, ligado ao botão por aria-controls, e a consulta leva a empresa', async () => {
+    installServerDouble()
+    const rendered = await renderWithQueryClient(createElement(DetailHarness))
+    await waitFor(() => expect(listedItems()).toHaveLength(2))
+
+    const trigger = buttonByText('Corrigir')
+    expect(trigger.getAttribute('aria-controls')).toBeNull()
+    await click(trigger)
+    const form = document.querySelector('section[aria-labelledby]')
+    const title = document.getElementById(form?.getAttribute('aria-labelledby') ?? '')
+    expect(title?.textContent).toBe('Corrigir os itens da ocorrência')
+    expect(document.activeElement === title).toBe(true)
+    expect(trigger.getAttribute('aria-controls')).toBe(form?.id ?? '')
+    expect(form?.id).not.toBe('')
+    await waitFor(() =>
+      expect(
+        rendered.queryClient.getQueryState([
+          TRIP_QUERY_KEY,
+          COMPANY_ID,
+          DETAIL_FIXTURE_IDS.tripId,
+          'document-products',
+          DETAIL_FIXTURE_IDS.documentId,
+        ]),
+      ).toBeDefined(),
+    )
+    rendered.unmount()
+  })
+
+  test('descartar e salvar devolvem o foco ao botão Corrigir', async () => {
+    installServerDouble()
+    const rendered = await renderWithQueryClient(createElement(DetailHarness))
+    await waitFor(() => expect(listedItems()).toHaveLength(2))
+
+    for (const closing of ['Descartar', 'Salvar correção']) {
+      await click(buttonByText('Corrigir'))
+      await waitFor(() =>
+        expect(document.querySelector('input[aria-label="696 — Quantidade"]')).not.toBeNull(),
+      )
+      await click(buttonByText(closing))
+      await settle()
+      expect(document.querySelector('section[aria-labelledby]')).toBeNull()
+      expect(document.activeElement === buttonByText('Corrigir')).toBe(true)
+    }
     rendered.unmount()
   })
 

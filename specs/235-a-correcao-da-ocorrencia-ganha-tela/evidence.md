@@ -1589,3 +1589,55 @@ mais cedo entre o terminal da tratativa (`cancelled`/`closed`/`returned_to_wareh
   `trip-occurrence-correction` 7, `trip-occurrence-detail` 6, `trip-occurrence-timeline` 3,
   `trip-occurrence-feed-document` 6, `trip-occurrence-feed-case` 2, `trip-occurrence-case` 4 — todos 0 fail, 0 skip.
 - `docs/ai-context/api-transportada.md` § Spec 235 atualizada.
+
+## T6.6 — Baixos da revisão
+
+Dois commits, não um, por causa da T6.1: os itens 6 e 10 são da API (`apps/api-transportada`, **etapa 2** —
+dependem do leitor em lote que só a etapa 2 traz) e o resto é do painel (**etapa 1**). Um commit só misturaria
+as etapas e quebraria o cherry-pick separado.
+
+| Item | O que foi feito                                                                                                                                                                                                                                                                                               | Prova                                                                            |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| 1    | `withOccurrenceCancellation` subiu para antes do JSDoc da 158 de `isTimelineItem` (`tripResponse.validation.ts`)                                                                                                                                                                                              | typecheck; `occurrence-cancellation.contract.tsx` verde                          |
+| 2    | `TripOccurrenceCorrectionForm`: `useId()` no lugar do id fixo, foco no título ao abrir, `id` recebido do botão; `OccurrenceCorrectionActions`: `aria-controls` no Corrigir (só com o formulário aberto) e foco devolvido ao botão ao descartar **e** ao salvar                                                | `occurrence-correction-form.contract.ts`: dois testes novos, **vermelhos antes** |
+| 3    | `TripOccurrenceCancelDialog`: com a mutação pendente Escape e X não fecham (o X fica `disabled`, e `handleClose` recusa); foco inicial no motivo por `useEffect` no próprio diálogo — `useModalDialog` é compartilhado e não ganhou `initialFocus` (o efeito do diálogo roda depois do dele)                  | `occurrence-cancel-dialog.contract.ts`: dois testes novos, **vermelhos antes**   |
+| 4    | **Não feito, relatado.** O detalhe não publica o id do tipo nem `allowsMultipleItems` (só `typeName` e `stage`); casar pelo nome seria inventar regra (nome é renomeável). O formulário segue com `allowsMultipleItems` fixo e a API responde `OCCURRENCE_TYPE_SINGLE_ITEM` (422), que já tem mensagem (T2.3) | —                                                                                |
+| 5    | aceito, sem ação                                                                                                                                                                                                                                                                                              | —                                                                                |
+| 6    | Prova por mutação do `companyId` dos leitores em lote (abaixo)                                                                                                                                                                                                                                                | `trip-occurrence-correction-read.integration.ts`, teste novo                     |
+| 7    | Cabeçalho de copyright em `useOccurrenceCorrection.query.ts` e `useOccurrenceDocumentProducts.query.ts`; `companyId` na chave (`[trips, companyId, tripId, 'document-products', documentId]`), passado do detalhe até o formulário                                                                            | `occurrence-correction-form.contract.ts` confere a chave no cache                |
+| 8    | `key` do histórico é `índice:hora` (duas correções no mesmo instante não colidem)                                                                                                                                                                                                                             | sem teste próprio: a renderização estática não avisa chave duplicada             |
+| 9    | Prova por leitura de código, abaixo                                                                                                                                                                                                                                                                           | —                                                                                |
+| 10   | `findTripOccurrenceDetail` só chama `listOccurrenceCorrectionsByIds` quando `source === 'document'` (`trip-occurrence-detail.query.ts`); a de parada devolve `corrections: []` sem consulta                                                                                                                   | `trip-occurrence-detail` e `-correction-read` integrações verdes (14 pass)       |
+
+**Vermelho dos itens 2 e 3** (componentes e consulta do painel revertidos para o HEAD, contratos novos mantidos;
+`bun test --timeout 5000 --preload ./test/trip-hooks/dom.preload.ts ./test/trip-hooks/occurrence-correction-form.contract.ts ./test/trip-hooks/occurrence-cancel-dialog.contract.ts`):
+`11 pass, 5 fail` — os quatro novos, mais o "Descartar fecha o formulário", arrastado pelo formulário que o
+teste anterior deixou aberto. **Verde depois:** hooks `359 pass, 0 fail`, lote `trip` `2421 pass, 0 fail`,
+typecheck limpo, lint 0 erros. (As primeiras tentativas de vermelho travaram: `expect(document.activeElement).toBe(...)`
+imprime o documento inteiro do happy-dom ao falhar; os contratos comparam `=== ` com `toBe(true)`.)
+
+**Item 6, mutação real** (`apps/api-transportada`, `occurrence-correction-read.query.ts`, teste
+`os leitores em lote respeitam a empresa`, com `companyId` aleatório e os ids da empresa verdadeira):
+
+| Mutação                                                                                            | Resultado                                              |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| nenhuma                                                                                            | `8 pass, 0 fail`                                       |
+| `eq(tripDocumentOccurrenceCorrections.companyId, …)` arrancado de `listOccurrenceCorrectionsByIds` | `7 pass, 1 fail`                                       |
+| `eq(tripDocumentOccurrences.companyId, …)` arrancado de `listOccurrenceCancellationsByIds`         | `7 pass, 1 fail`                                       |
+| fonte restaurada                                                                                   | `8 pass, 0 fail` (`git status`: só o teste modificado) |
+
+**Item 9 — a cancelada nunca entra no marcador da 173 nem na cobrança da 164.** A tratativa só nasce no registro
+da ocorrência e o cancelamento exige não haver nenhuma:
+
+- A tratativa é aberta em um único lugar: `openOccurrenceCase` (`apps/api-transportada/src/trips/infrastructure/drizzle-occurrence-case.repository.ts:66-84`),
+  chamada só de `saveTripOccurrence` (`delivery-proof-read.support.ts:547`), na transação do registro.
+- O cancelamento recusa se existir **qualquer** linha de tratativa, em qualquer estado:
+  `cancel-occurrence.use-case.ts:43-48` (`hasOpenCase` → `OccurrenceCaseAlreadyOpenError`), e
+  `hasOpenOccurrenceCase` (`drizzle-occurrence-correction.repository.ts:130-144`) só pergunta se a linha existe.
+- Logo, ocorrência cancelada **não tem linha em `trip_occurrence_cases`**. O marcador da 173
+  (`occurrence-case-marker.query.ts:33-45`) é um `innerJoin` com `tripOccurrenceCases`: sem linha, sem marcador.
+  A cobrança da 164 nasce do acerto da tratativa (`record-occurrence-settlement.use-case.ts:22-43`, chaveado por
+  `caseId`): sem tratativa, sem acerto e sem cobrança. A ordem inversa (cancelar e depois abrir tratativa) não
+  existe: a tratativa só abre no registro, e a cancelada já foi registrada.
+- Corrige a pendência 5 da T5.4 ("o marcador da 173 não filtra cancelada — não verificado"): **verificado**,
+  não precisa filtrar.

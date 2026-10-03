@@ -176,6 +176,45 @@ describe('diálogo de cancelamento da ocorrência (spec 235 T3.1)', () => {
     })
   }
 
+  test('abre com o foco no campo do motivo', async () => {
+    installCancelDouble()
+    await openDialog()
+    expect(document.activeElement === reasonField()).toBe(true)
+    await closeDialogIfOpen()
+  })
+
+  test('com o cancelamento em andamento, nem Escape nem o X fecham o diálogo', async () => {
+    let release: () => void = () => undefined
+    const calls = installCancelDouble(
+      () =>
+        new Promise<never>((resolve) => {
+          release = () => resolve({} as never)
+        }),
+    )
+    await openDialog()
+    await typeReason(SYNTHETIC_REASON)
+    await click(buttonByText(CONFIRM_BUTTON))
+    await settle()
+    expect(calls).toHaveLength(1)
+
+    await act(async () => {
+      document
+        .querySelector('[role="presentation"]')
+        ?.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }))
+      await Promise.resolve()
+    })
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+
+    const closeButton = document.querySelector<HTMLButtonElement>('button[aria-label="Fechar"]')
+    expect(closeButton?.disabled).toBe(true)
+    if (closeButton !== null) await click(closeButton)
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+
+    release()
+    await settle()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+
   test('Voltar fecha o diálogo e devolve o foco ao botão que abriu', async () => {
     installCancelDouble()
     const trigger = await openDialog()
