@@ -24,6 +24,7 @@ type SourceBase = {
 export type OccurrenceTimelineSource =
   | (SourceBase & { readonly kind: 'occurrence.recorded' })
   | (SourceBase & { readonly kind: 'occurrence.photo'; readonly photoCount: number })
+  | (SourceBase & { readonly kind: 'occurrence.cancelled'; readonly reason: string })
   | (SourceBase & {
       readonly fromStatus: null | string
       readonly kind: 'case.transition'
@@ -59,11 +60,12 @@ export type OccurrenceTimeline = {
   readonly timings: OccurrenceTimelineTimings
 }
 
-/** No mesmo instante o registro vem primeiro, depois as fotos, a tratativa e os e-mails. */
+/** No mesmo instante o registro vem primeiro, depois as fotos, a tratativa, os e-mails e o cancelamento. */
 const KIND_PRIORITY: Readonly<Record<OccurrenceTimelineSource['kind'], number>> = {
   'case.transition': 2,
   'contractor.mail.received': 4,
   'contractor.mail.sent': 3,
+  'occurrence.cancelled': 5,
   'occurrence.photo': 1,
   'occurrence.recorded': 0,
 }

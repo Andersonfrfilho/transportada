@@ -149,6 +149,48 @@ describe('a linha do tempo da ocorrência (spec 183 RF19)', () => {
   })
 })
 
+describe('o cancelamento na linha do tempo da ocorrência (spec 235 RF9)', () => {
+  const CANCELLED: OccurrenceTimelineSource = {
+    actor: { kind: 'operation', name: 'Operadora Lima' },
+    id: 'occurrence-1',
+    kind: 'occurrence.cancelled',
+    occurredAt: '2026-09-24T11:00:00.000Z',
+    reason: 'registrada na nota errada',
+  } as OccurrenceTimelineSource
+
+  test('entra depois do que aconteceu antes, com o motivo e o autor', () => {
+    const timeline = buildOccurrenceTimeline({
+      sources: [CANCELLED, photo('p1', '2026-09-24T10:00:00.000Z'), RECORDED],
+    })
+
+    expect(timeline.events.map((event) => event.id)).toEqual([
+      'occurrence.recorded:occurrence-1',
+      'occurrence.photo:p1',
+      'occurrence.cancelled:occurrence-1',
+    ])
+    const last = timeline.events.at(-1)
+    expect(last?.actor).toEqual({ kind: 'operation', name: 'Operadora Lima' })
+    expect(last).toMatchObject({ reason: 'registrada na nota errada', sincePreviousSeconds: 3600 })
+  })
+
+  test('no mesmo instante o cancelamento vem por último', () => {
+    const at = '2026-09-24T10:00:00.000Z'
+    const timeline = buildOccurrenceTimeline({
+      sources: [
+        { ...CANCELLED, occurredAt: at } as OccurrenceTimelineSource,
+        mail('m1', at, 'outbound'),
+        RECORDED,
+      ],
+    })
+
+    expect(timeline.events.map((event) => event.kind)).toEqual([
+      'occurrence.recorded',
+      'contractor.mail.sent',
+      'occurrence.cancelled',
+    ])
+  })
+})
+
 describe('os três tempos do topo (spec 183 RF19)', () => {
   test('ocorrência aberta: o tempo corre até agora, sem fechamento', () => {
     const timeline = buildOccurrenceTimeline({

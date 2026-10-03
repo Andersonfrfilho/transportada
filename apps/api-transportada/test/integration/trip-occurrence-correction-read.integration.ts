@@ -19,6 +19,8 @@ import { DrizzleSeparationOccurrenceUnitOfWork } from '../../src/trips/infrastru
 import { listTripOccurrences } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { findTripOccurrenceDetail } from '../../src/trips/infrastructure/trip-occurrence-detail.query.js'
 import { listTripOccurrenceFeed } from '../../src/trips/infrastructure/trip-occurrence-feed.query.js'
+import { findTripOccurrenceTimelineSources } from '../../src/trips/infrastructure/trip-occurrence-timeline.query.js'
+import { listDocumentOccurrenceRows } from '../../src/trips/infrastructure/trip-timeline-document.query.js'
 import {
   fakeAttachmentStorage,
   JPEG_BYTES,
@@ -286,6 +288,71 @@ describe('leituras publicam correção e cancelamento (spec 235 RF9)', () => {
           occurrenceId: correctedId,
         })
         expect(detail).toBeNull()
+      })
+    },
+    60_000,
+  )
+})
+
+describe('as linhas do tempo publicam o cancelamento (spec 235 RF9, T3.2a)', () => {
+  testWithPostgres(
+    'linha do tempo da viagem: document.occurrence leva cancellation na cancelada e nulo nas demais',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { cancelledId, company, correctedId, plainId, trip } = await seedScenario(database)
+
+        const rows = await listDocumentOccurrenceRows(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 25,
+          tripId: trip.tripId,
+        })
+
+        const byId = new Map(rows.map((row) => [row.id, row]))
+        expect([...byId.keys()].sort()).toEqual([cancelledId, correctedId, plainId].sort())
+        const cancellation = byId.get(cancelledId)?.occurrence?.cancellation
+        expect(cancellation?.reason).toBe(CANCELLATION_REASON)
+        expect(Object.keys(cancellation ?? {}).sort()).toEqual([
+          'cancelledAt',
+          'cancelledByName',
+          'reason',
+        ])
+        expect(byId.get(correctedId)?.occurrence?.cancellation).toBeNull()
+        expect(byId.get(plainId)?.occurrence?.cancellation).toBeNull()
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'linha do tempo da ocorrência: o evento occurrence.cancelled só existe na cancelada',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { cancelledId, company, plainId } = await seedScenario(database)
+        const detail = await findTripOccurrenceDetail(database.db, {
+          companyId: company.companyId,
+          occurrenceId: cancelledId,
+        })
+
+        const cancelledSources = await findTripOccurrenceTimelineSources(database.db, {
+          companyId: company.companyId,
+          occurrenceId: cancelledId,
+        })
+        const plainSources = await findTripOccurrenceTimelineSources(database.db, {
+          companyId: company.companyId,
+          occurrenceId: plainId,
+        })
+
+        const cancelled = cancelledSources?.filter(
+          (source) => source.kind === 'occurrence.cancelled',
+        )
+        expect(cancelled).toHaveLength(1)
+        expect(cancelled?.[0]).toMatchObject({
+          actor: { kind: 'operation' },
+          occurredAt: detail?.cancellation?.cancelledAt,
+          reason: CANCELLATION_REASON,
+        })
+        expect(plainSources?.some((source) => source.kind === 'occurrence.cancelled')).toBe(false)
       })
     },
     60_000,

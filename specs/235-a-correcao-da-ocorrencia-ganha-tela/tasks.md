@@ -66,7 +66,7 @@ já faz (`listOccurrenceCorrections`, o mapeamento de `cancellation`), em lote �
 
 - [x] **T3.1** `TripOccurrenceCancelDialog` com motivo obrigatório, confirmar desabilitado em
       branco e em espaços, foco preso e devolvido (RF3, CA04).
-- [ ] **T3.2a** (decisão do usuário, 2026-10-02: a leitura da Fase 0.5 se estende às duas linhas do
+- [x] **T3.2a** (decisão do usuário, 2026-10-02: a leitura da Fase 0.5 se estende às duas linhas do
       tempo; só leitura, sem migration nem regra) API: o item `document.occurrence` de
       `GET /trips/:id/timeline` (`trip-timeline-document.query.ts`) publica `cancellation`
       (`null` ou o mesmo formato das escritas), e a linha do tempo da ocorrência

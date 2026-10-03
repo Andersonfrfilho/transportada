@@ -1192,7 +1192,43 @@ bun run typecheck                               # limpo (raiz)
 cd apps/frontend-transportada && bun run lint   # 0 erros, 16 avisos preexistentes
 ```
 
-## T3.2 — PARADA (não implementada)
+## T3.2a — As duas linhas do tempo publicam o cancelamento
+
+Só leitura: nenhuma migration, rota, regra nova; escritas da 167 intactas; a cancelada continua
+listada. Testes entraram em arquivos já listados (`trip-occurrence-correction-read.integration.ts` no
+`test:integration`, `test/trip-occurrence/timeline.contract.ts` via `trip-occurrence.contract.test.ts`).
+
+Execução **vermelha** (antes da implementação), de dentro de `apps/api-transportada`:
+
+```bash
+bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-occurrence-correction-read.integration.ts ./test/trip-occurrence.contract.test.ts
+```
+
+```text
+(fail) ... linha do tempo da viagem: document.occurrence leva cancellation ...   Expected: "registrada na nota errada" Received: undefined
+(fail) ... linha do tempo da ocorrência: o evento occurrence.cancelled só existe na cancelada   Expected length: 1 Received length: 0
+(fail) o cancelamento na linha do tempo da ocorrência > no mesmo instante o cancelamento vem por último
+ 324 pass / 3 fail
+```
+
+Implementação: `TripTimelineOccurrenceReference.cancellation` (`trip-timeline.types.ts`);
+`listDocumentOccurrenceRows` chama `listOccurrenceCancellationsByIds` uma vez por página
+(`companyId` do contexto; sem N+1); `stop.occurrence` leva `cancellation: null`;
+`occurrence-timeline.policy.ts` ganha o kind `occurrence.cancelled` (`reason`, prioridade 5) e
+`trip-occurrence-timeline.query.ts` o monta a partir do `cancellation` do item do feed (ator
+`operation`, nome = `cancelledByName`, data = `cancelledAt`). Catálogo de kinds da 183 é a própria
+união `OccurrenceTimelineSource`/`KIND_PRIORITY` — o kind novo entrou nos dois.
+
+Gates (primeiro plano, `--env-file=../../.env.test`, Postgres 127.0.0.1:65432):
+
+| Gate                                                                                              | Resultado                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| alvo: correction-read + occurrence-timeline + trip-timeline integração + contrato trip-occurrence | **372 pass, 0 fail, 0 skip**                                                                                                                  |
+| `bun --env-file=../../.env.test test --timeout 120000` (contrato)                                 | **8899 pass, 23 skip, 0 fail** (193 arquivos)                                                                                                 |
+| `test:integration` em 6 fatias contíguas da lista (154 arquivos)                                  | 83 · 245 · 105 · 186 (7 skip) · 135 · 131 (1 skip) = **885 pass, 8 skip, 0 fail**; os 8 skips são os mesmos da T0.5 (migration e sonda de S3) |
+| `bun run typecheck` (app)                                                                         | limpo                                                                                                                                         |
+
+## T3.2 — PARADA anterior (histórico; resolvida pela T3.2a acima e pela T3.2 abaixo)
 
 A API não publica a marca de cancelada na **linha do tempo**: nem a da nota/viagem
 (`GET /trips/:id/timeline`, item `document.occurrence`, montado em `trip-timeline-document.query.ts` com
