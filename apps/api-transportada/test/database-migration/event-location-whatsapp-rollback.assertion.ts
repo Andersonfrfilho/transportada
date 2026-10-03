@@ -65,11 +65,11 @@ export async function assertEventLocationWhatsappRollbackRefusesRecordedPoints(
   expect(refusal.message).toContain('trip_status_events=1')
   expect(refusal.message).not.toContain('trip_stop_occurrences')
 
-  const [{ remaining }] = await database<{ remaining: number }[]>`
+  const [row] = await database<{ remaining: number }[]>`
     select count(*)::int as remaining from trip_status_events
     where company_id = ${companyId} and channel = 'whatsapp' and latitude is not null
   `
-  expect(remaining).toBe(1)
+  expect(row?.remaining).toBe(1)
 
   await database`delete from trip_status_events where company_id = ${companyId} and channel = 'whatsapp'`
 }
