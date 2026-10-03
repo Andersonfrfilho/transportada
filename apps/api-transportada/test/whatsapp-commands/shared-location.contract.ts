@@ -202,6 +202,21 @@ describe('o armazém do ponto: memória, um toque, cinco minutos', () => {
     expect(store.consume(KEY)).toEqual(LOCATION)
   })
 
+  test('os vencidos saem a cada remember e a cada consume, não só quando alguém os lê', () => {
+    const { clock, store } = createClockedStore()
+    store.remember({ ...KEY, location: LOCATION, whatsappNumber: '1' })
+    store.remember({ ...KEY, location: LOCATION, whatsappNumber: '2' })
+    clock.now += 5 * 60_000 + 1
+    expect(store.size()).toBe(2)
+
+    store.remember({ ...KEY, location: LOCATION, whatsappNumber: '3' })
+    expect(store.size()).toBe(1)
+
+    clock.now += 5 * 60_000 + 1
+    expect(store.consume({ ...KEY, whatsappNumber: '9' })).toBeNull()
+    expect(store.size()).toBe(0)
+  })
+
   test('no teto de entradas o mais antigo sai, e o armazém não cresce sem limite', () => {
     const { store } = createClockedStore({ maxEntries: 2 })
     store.remember({ ...KEY, location: LOCATION, whatsappNumber: '1' })

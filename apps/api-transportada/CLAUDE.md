@@ -691,7 +691,7 @@ fica na `0.1.0` dos pacotes por dívida de formato de migration do pacote, não 
   `location` é turno próprio; `acknowledgeSharedLocation` (despachante) a guarda em
   `WhatsAppSharedLocationStore` por `(empresa, número)` — 5 min, **um toque**, nunca no `context` da
   sessão nem em log — e só para quem tem `trip.report`. As três ações do motorista a consomem
-  (`consumeSharedLocation`); o operador **não recebe o armazém** e grava tudo `null`. ⚠️ Com os pacotes na
+  (`consumeSharedLocation`); o operador **não recebe o armazém** e grava tudo `null`. O armazém é **por processo** (1 réplica hoje) e o ponto é consumido **antes** de a ação dar certo; vencidos são varridos a cada `remember`/`consume`. ⚠️ Com os pacotes na
   `0.1.0` o webhook descarta `messages[].location` antes do gancho (o schema dos contracts `0.1.0` não a
   tem; o `0.4.0` tem): na prática o toque grava `unavailable` até a instalação subir os pacotes. Teste que
   prende o limite e deve virar ao subir: `test/integration/whatsapp-driver-flow-actions.integration.ts`.

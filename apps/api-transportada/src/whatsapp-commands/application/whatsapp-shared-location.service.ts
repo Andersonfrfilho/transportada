@@ -4,6 +4,10 @@
  * Spec 196 T3.6 (D3 revista): o motorista manda a localização numa mensagem própria, e o toque que a
  * usa (entregar, devolver, ocorrência) é outra mensagem. O ponto atravessa os dois turnos aqui,
  * só em memória e por um toque — nunca no contexto da sessão (PII) e nunca em log.
+ *
+ * ⚠️ Dois limites assumidos: o armazém é **por processo** (a API roda com 1 réplica; com mais de uma, a
+ * localização e o toque podem cair em réplicas diferentes e o toque grava `unavailable`), e o ponto é
+ * **consumido antes** de a ação dar certo — se ela falhar, o motorista manda a localização de novo.
  */
 import type { WhatsAppMessage } from '@adatechnology/meta-whatsapp-contracts'
 import { z } from 'zod'
@@ -27,6 +31,8 @@ export type WhatsAppSharedLocationStore = {
   /** Devolve o ponto lembrado e o esquece: um ponto vale para um toque só. `null` se vencido. */
   consume(key: WhatsAppSharedLocationKey): ReportedLocation | null
   remember(input: WhatsAppSharedLocationKey & { readonly location: ReportedLocation }): void
+  /** Quantos pontos estão guardados agora (vencidos e ainda não varridos incluídos). Sem coordenada. */
+  size(): number
 }
 
 type CreateWhatsAppSharedLocationStoreParams = {
@@ -51,11 +57,13 @@ export function createInMemoryWhatsAppSharedLocationStore(
   const maxEntries = params.maxEntries ?? WHATSAPP_SHARED_LOCATION_MAX_ENTRIES
   const remembered = new Map<string, RememberedLocation>()
 
-  function evictOverflow(nowMs: number): void {
-    if (remembered.size < maxEntries) return
+  function sweepExpired(nowMs: number): void {
     for (const [mapKey, entry] of remembered) {
       if (entry.expiresAtMs <= nowMs) remembered.delete(mapKey)
     }
+  }
+
+  function evictOverflow(): void {
     while (remembered.size >= maxEntries) {
       const oldest = remembered.keys().next()
       if (oldest.done === true) return
@@ -67,18 +75,22 @@ export function createInMemoryWhatsAppSharedLocationStore(
     consume(key) {
       const mapKey = toMapKey(key)
       const entry = remembered.get(mapKey)
-      if (entry === undefined) return null
       remembered.delete(mapKey)
+      sweepExpired(params.clock().getTime())
 
-      return entry.expiresAtMs > params.clock().getTime() ? entry.location : null
+      return entry !== undefined && entry.expiresAtMs > params.clock().getTime()
+        ? entry.location
+        : null
     },
     remember({ location, ...key }) {
       const nowMs = params.clock().getTime()
       const mapKey = toMapKey(key)
       remembered.delete(mapKey)
-      evictOverflow(nowMs)
+      sweepExpired(nowMs)
+      evictOverflow()
       remembered.set(mapKey, { expiresAtMs: nowMs + ttlMs, location })
     },
+    size: () => remembered.size,
   }
 }
 
