@@ -72,42 +72,69 @@ aparece nas informações adicionais, e se o e-mail chegou **antes** ou **depois
 produção bloqueada). Quem tiver acesso ao banco desejado a roda e traz o resultado: com ele a Fase 4 já nasce
 sabendo se a prévia chega **antes** (e a nota fica `awaiting_xml`) ou **depois** do XML (e nasce `matched`).
 
-## Comparação com os XMLs que existem localmente (2026-10-03)
+## Comparação com XMLs reais (2026-10-03)
 
-Corpus: **346 NF-e do emitente provável desse contratante** (`tmp/nfe-fixture/`, 1 série, emissão de **07/07 a
-28/08/2026**; mais 2 XMLs soltos de outros emitentes, ignorados). Script de comparação fora do repositório;
-os números abaixo reproduzem-se lendo o XML (`infNFe`) e as três planilhas.
+Dois corpos de XML do emitente desse contratante: **346 notas de 07/07 a 28/08** (`tmp/nfe-fixture/`, sem
+nenhuma nota das planilhas) e **277 notas de 23/09 e 25/09** (`ID1026570_procNFe_parte1`, a pasta que o
+usuário mandou, **parte 1** de uma exportação maior), séries e emitente iguais. Comparadas com `FR-24-09`
+(187 linhas, `RoutingDate` 23/09) e `FR-28-09` (107 linhas, e-mail de 25/09 16:33). As planilhas `FR-01-10` e
+`FR-05-10` não têm XML nessa pasta (os XMLs de 30/09 e 02/10 não foram enviados). Método reproduzível: ler
+`infNFe` de cada XML (`nNF`, `vNF`, `dest/CEP`, `dest/xNome`, `transp/vol/pesoB`, `infAdic/infCpl`) e cruzar com
+as linhas.
 
-**Limite do que isso prova:** os XMLs vão até 28/08 e as planilhas são de 25/09 a 02/10. **Nenhuma nota da
-planilha está nesse corpus**, então o vínculo linha → nota **não pôde ser testado de ponta a ponta**. O que deu
-para medir:
+### O que não está no XML
 
-| Pergunta                                                                         | Resultado                                                                                                                                              |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Text001` aparece **em algum lugar** dos 348 XMLs (texto bruto, qualquer campo)? | **Não — 0 ocorrências**                                                                                                                                |
-| `Text001` é igual ao `nNF` de alguma nota?                                       | **Não.** `nNF` do contratante vai de 852.674 a 883.677; `Text001` de 801.157 a 821.804 — **faixas que nem se tocam**, e o `nNF` só cresce com o tempo. |
-| `Text001` é o pedido de compra `xPed`?                                           | **Não nas amostras:** só 7 de 348 XMLs têm `xPed`, e é o pedido **do destinatário** (ex.: `14796`, `722676`), não um número de 80xxxx.                 |
-| Valor + CEP da planilha batem com algum XML?                                     | 0 (esperado: períodos diferentes)                                                                                                                      |
-| Escalas de valor e peso são compatíveis?                                         | **Sim:** mediana de `vNF` R$ 1.143 × `VALOR` R$ 1.113; mediana de `pesoB` 65 kg × `PESO TOTAL` 68 kg → `VALOR` ≈ `vNF` e `PESO TOTAL` ≈ `pesoB`.       |
-| Os destinatários da planilha já aparecem nos XMLs?                               | **192 das 492 linhas (39%)** têm destinatário (nome + CEP) idêntico ao de alguma nota de julho/agosto; 99 destinatários em comum.                      |
+- **`Text001` não aparece em nenhum XML** (0 de 187 e 0 de 107 linhas; texto bruto, atributos incluídos).
+- **O código do cliente (`Company`, coluna D) também não aparece** (0 ocorrências). O XML **não carrega** os
+  códigos do contratante; só `LACRE`, `NroCarga` e, em parte, o pedido do destinatário (`xPed`).
+- `Text001` (782.100–821.804) não é o `nNF` (852.674–899.884): faixas separadas.
 
-**O achado novo: `NroCarga` e `LACRE`.** Em **todas** as 346 notas as informações adicionais (`infCpl`) trazem
-`LACRE: <nº> - NroCarga: <nº>` (e, em parte, `B.Calc.ST`, `ICMS ST` e `Obs. Cliente` com horário de
-recebimento do destinatário). `NroCarga` (5 dígitos, 53.020 a 64.175) agrupa **~20 notas** (1 a 36) de ~7
-cidades, **emitidas no mesmo dia**: é a **carga que sai do contratante** — a carga em paletes que **chega** ao
-galpão. É o identificador natural da **chegada** (spec 237 RF6), sem ninguém digitar. O `RouteName` da
-planilha, ao contrário, agrupa o **roteiro de entrega** (cidade/região), por isso os dois agrupamentos
-convivem: carga (1 chegada) → várias notas → vários roteiros.
+### O que liga a linha à nota: o conteúdo (medido)
 
-**Conclusões para o desenho:**
+| Chave (linha × XML)                 | FR-24-09 (187) | FR-28-09 (107) |
+| ----------------------------------- | -------------- | -------------- |
+| valor + CEP → **uma** nota          | **139** (74%)  | **96** (90%)   |
+| valor + **peso** → **uma** nota     | **146** (78%)  | **91** (85%)   |
+| valor + CEP: mais de uma nota       | 0              | 2              |
+| valor + peso: mais de uma nota      | 4              | 6              |
+| sem nota (XML não está nessa pasta) | 37–48          | 9–10           |
 
-1. **`Text001` não é número de NF-e e não aparece nas notas**: é o número interno do contratante (pedido/ordem).
-   O vínculo **não pode** depender dele.
-2. **O vínculo é por conteúdo** (valor + CEP + destinatário, com peso e cidade de reforço), **dentro das notas
-   do contratante emitidas nos dias anteriores à prévia** — as escalas são compatíveis.
-3. **O destinatário se reconhece pelo histórico**: nome normalizado + CEP já identifica ~39% das linhas só com
-   julho/agosto; o histórico importado alimenta o `contractor_recipient_aliases` **sem esperar a confirmação
-   do operador** (a confirmação cobre os que faltam).
-4. **A chegada pode nascer do XML**: `NroCarga` + `LACRE` das informações adicionais identificam a carga (D9).
-5. **Para medir de verdade** (taxa de candidata única, ambiguidade, antes/depois do e-mail) faltam os **XMLs do
-   período 21/09–02/10** (ou o banco): ver `consulta-recebimento-vs-xml.sql`.
+- **O peso é exato:** `PESO TOTAL` da linha = `pesoB` do XML, **desvio 0** (mediana e p90); `VALOR` =
+  `vNF` ao centavo; a cidade bate em **100%** dos vínculos. O **nome** do destinatário bate só em 115 de 139 (a
+  razão social da planilha diverge): **não serve de chave obrigatória**, só de reforço.
+- Linhas sem candidata por valor + CEP (48) que têm **o mesmo valor e peso** num XML do mesmo destinatário, com
+  CEP diferente: o CEP da planilha pode ser o de entrega. Por isso **nenhuma chave isolada é obrigatória**:
+  vale o **conjunto** (valor + peso + CEP + cidade + destinatário) com escore.
+- Os XMLs não vinculados provavelmente estão nas outras partes da exportação (277 XMLs para 187 + 107 linhas
+  que cobrem dois dias); **a taxa real só sai com o conjunto completo.**
+
+### O que o XML tem de útil: `NroCarga` e `LACRE`
+
+- Todos os 277 XMLs trazem `LACRE` e `NroCarga` nas informações adicionais. **3 lacres e 18 cargas.**
+- **`NroCarga` ↔ `RouteName` é 1:1** (medido nas notas vinculadas): FR-24-09 → 10 cargas × 10 roteiros; FR-28-09
+  → 8 × 8; cada roteiro tem exatamente uma carga e vice-versa. **A carga do XML é o roteiro da planilha.**
+- O **lacre** reúne várias cargas (o caminhão): 3 lacres para 18 cargas, emitidas em 3 horários (19h, 20h e
+  23h). **Chegada da carga = lacre (o caminhão); carga = roteiro (o grupo de entrega); nota dentro.** [D9]
+
+### Tempo: a prévia chega **antes** do XML (item 7 do usuário)
+
+- FR-28-09: e-mail às **16:33** de 25/09; as **91 notas** vinculadas foram **emitidas 2,7 a 4,2 h depois**
+  (mediana 2,9 h) — **todas depois**, nenhuma antes. As emissões ocorrem à noite (19h, 20h, 23h).
+- Logo, no momento em que a prévia chega, **nenhuma nota tem XML**: todos os itens nascem `awaiting_xml` e o
+  vínculo acontece **quando cada XML é importado** (horas depois). **Esse é o fluxo principal, não a exceção.**
+- O instante em que o XML entra no **nosso** sistema (`created_at`) depende da importação (distribuição ou
+  upload) e é ainda mais tarde: a consulta SQL mede isso no banco.
+
+### O que o desenho tem de garantir
+
+1. Vínculo **por conteúdo com escore**, nunca por número do cliente (RF5a).
+2. **`Company` ↔ CNPJ do destinatário é 1:1** (212 códigos aprendidos pelo conteúdo, **0 conflitos**, nenhum
+   CNPJ com dois códigos): vale guardar o par e usá-lo dali em diante.
+3. **`RouteName` ↔ `NroCarga` é 1:1**: guardar o par e usá-lo para restringir os candidatos (só as notas
+   daquela carga).
+4. O vínculo é **assíncrono**: nasce quando o XML chega, e a tela mostra "esperando o XML" por item.
+
+## Pendente
+
+Rodar `consulta-recebimento-vs-xml.sql` no banco (somente leitura) para o **conjunto completo** de XMLs e
+confirmar a taxa e o `created_at` real; e os XMLs de 30/09 e 02/10 para `FR-01-10` e `FR-05-10`.
