@@ -36,7 +36,7 @@ da app. Cada task fecha com typecheck, testes da app, commit isolado e evidênci
       `findIneligibleHelperIds` para `can_drive` (409, ids em `details`).
 - [x] **T6b** MDF-e avulso (`POST /mdfe-manifests`) recusa `can_drive = false` como condutor, com o
       mesmo erro da viagem (`mdfe-manifest-crew.service.ts`, `drizzle-mdfe-manifest.repository.ts`).
-- [ ] **T7** Semente local: um ajudante-puro e um motorista que também ajuda, pelo use case real.
+- [x] **T7** Semente local: um ajudante-puro e um motorista que também ajuda, pelo use case real.
 
 ## Fase 3 — Painel
 

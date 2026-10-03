@@ -12,9 +12,12 @@ export type LocalFleetDriverSeed = {
 type SeedParams = {
   readonly anttCategory?: FleetDriverInput['anttCategory']
   readonly birthDate: string
+  /** Spec 234: motorista que também ajuda; o perfil `helper` já ajuda por definição. */
+  readonly canActAsHelper?: boolean
   readonly city: string
   readonly district: string
-  readonly licenseNumber: string
+  /** Ausente é "sem CNH": o ajudante puro não dirige, e a semente não inventa carteira para ele. */
+  readonly licenseNumber?: string
   readonly linkedLegalName?: string
   readonly linkedTaxId?: string
   readonly name: string
@@ -33,6 +36,37 @@ function buildSeedEmail(taxId: string): string {
   return `motorista.${taxId}@transportada.local`
 }
 
+function buildSeedLicense(
+  params: SeedParams,
+): Pick<
+  FleetDriverInput,
+  | 'firstLicenseAt'
+  | 'licenseCategory'
+  | 'licenseExpiresAt'
+  | 'licenseIssuedCity'
+  | 'licenseIssuedState'
+  | 'licenseNumber'
+> {
+  if (params.licenseNumber === undefined) {
+    return {
+      firstLicenseAt: null,
+      licenseCategory: '',
+      licenseExpiresAt: null,
+      licenseIssuedCity: '',
+      licenseIssuedState: '',
+      licenseNumber: '',
+    }
+  }
+  return {
+    firstLicenseAt: '2008-03-14',
+    licenseCategory: 'E',
+    licenseExpiresAt: '2029-12-31',
+    licenseIssuedCity: params.city,
+    licenseIssuedState: params.state,
+    licenseNumber: params.licenseNumber,
+  }
+}
+
 function buildSeed(params: SeedParams): LocalFleetDriverSeed {
   return {
     driver: {
@@ -46,8 +80,8 @@ function buildSeed(params: SeedParams): LocalFleetDriverSeed {
         street: params.street,
       },
       anttCategory: params.anttCategory ?? '',
-      /** Spec 149: a base de bancada nasce sem ninguém marcado como ajudante nem diária própria. */
-      canActAsHelper: false,
+      /** Spec 149/234: só o ajudante e o motorista que ajuda da semente trazem a marca; ninguém tem diária própria. */
+      canActAsHelper: params.canActAsHelper ?? params.profile === 'helper',
       helperDailyRate: null,
       /** Spec 100: quem amarra declara; a base de bancada nasce com ninguém amarrando. */
       securesCargo: false,
@@ -60,12 +94,7 @@ function buildSeed(params: SeedParams): LocalFleetDriverSeed {
       identityDocument: '',
       identityDocumentIssuer: '',
       identityDocumentState: '',
-      licenseCategory: 'E',
-      firstLicenseAt: '2008-03-14',
-      licenseExpiresAt: '2029-12-31',
-      licenseIssuedCity: params.city,
-      licenseIssuedState: params.state,
-      licenseNumber: params.licenseNumber,
+      ...buildSeedLicense(params),
       linkedAddress: {
         city: '',
         complement: '',
@@ -189,5 +218,35 @@ export const LOCAL_FLEET_DRIVER_SEEDS: readonly LocalFleetDriverSeed[] = [
     state: 'SP',
     street: 'Rua Sete de Setembro',
     taxId: '48136270935',
+  }),
+  // Spec 234: o motorista que também ajuda — dirige com CNH e aparece no seletor de ajudantes
+  buildSeed({
+    birthDate: '1983-08-21',
+    canActAsHelper: true,
+    city: 'Ribeirão Preto',
+    district: 'Campos Elíseos',
+    licenseNumber: '06193847520',
+    name: 'Jussara Almeida Nogueira',
+    number: '1260',
+    phone: '16991770326',
+    postalCode: '14085000',
+    profile: 'driver',
+    state: 'SP',
+    street: 'Rua Cerqueira César',
+    taxId: '52998224725',
+  }),
+  // Spec 234: o ajudante puro — não dirige, não tem CNH e só entra como ajudante da tripulação
+  buildSeed({
+    birthDate: '1996-03-09',
+    city: 'Sertãozinho',
+    district: 'Centro',
+    name: 'Reginaldo Pires Camargo',
+    number: '305',
+    phone: '16988450912',
+    postalCode: '14160000',
+    profile: 'helper',
+    state: 'SP',
+    street: 'Rua Coronel Joaquim Paulino',
+    taxId: '39053344705',
   }),
 ]

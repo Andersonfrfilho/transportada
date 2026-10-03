@@ -45,14 +45,44 @@ function createUseCaseStub(existing: readonly string[] = []): {
 }
 
 describe('local fleet seed contract', () => {
-  /** A seleção de proprietário só tem o que mostrar se a semente trouxer os dois perfis. */
-  test('a semente cobre os dois perfis do catálogo', () => {
+  /** A seleção de proprietário e a de ajudante só têm o que mostrar se a semente trouxer os três perfis. */
+  test('a semente cobre os três perfis do catálogo', () => {
     const profiles = new Set(LOCAL_FLEET_DRIVER_SEEDS.map((seed) => seed.profile))
 
-    expect([...profiles].sort()).toEqual(
-      FLEET_DRIVER_PROFILES.filter((profile) => profile !== 'helper').sort(),
-    )
+    expect([...profiles].sort()).toEqual([...FLEET_DRIVER_PROFILES].sort())
     expect(LOCAL_FLEET_DRIVER_SEEDS.length).toBeGreaterThanOrEqual(4)
+  })
+
+  /** Spec 234: o ajudante puro não dirige, então a semente não lhe inventa CNH. */
+  test('o ajudante da semente é perfil helper, sem CNH e com contato', () => {
+    const helpers = LOCAL_FLEET_DRIVER_SEEDS.filter((seed) => seed.profile === 'helper')
+
+    expect(helpers.length).toBeGreaterThan(0)
+    for (const { driver } of helpers) {
+      expect(driver.licenseNumber).toBe('')
+      expect(driver.licenseCategory).toBe('')
+      expect(driver.licenseExpiresAt).toBeNull()
+      expect(driver.firstLicenseAt).toBeNull()
+      expect(driver.email === '' && driver.phone === '').toBe(false)
+    }
+  })
+
+  /** O motorista que também ajuda existe como ficha de quem dirige com o switch ligado. */
+  test('há um motorista da semente que também ajuda, com CNH', () => {
+    const drivingHelpers = LOCAL_FLEET_DRIVER_SEEDS.filter(
+      (seed) => seed.profile !== 'helper' && seed.driver.canActAsHelper,
+    )
+
+    expect(drivingHelpers.length).toBeGreaterThan(0)
+    for (const { driver } of drivingHelpers) expect(driver.licenseNumber).not.toBe('')
+  })
+
+  /** Quem só dirige continua sem a marca: o ajudante é a exceção que a semente mostra. */
+  test('os outros motoristas da semente não ajudam', () => {
+    const helpingProfiles = LOCAL_FLEET_DRIVER_SEEDS.filter((seed) => seed.driver.canActAsHelper)
+
+    expect(helpingProfiles.length).toBe(2)
+    expect(helpingProfiles.map((seed) => seed.profile).sort()).toEqual(['driver', 'helper'])
   })
 
   /** Sem contato o convite é recusado na fronteira, e a semente morreria no primeiro motorista. */

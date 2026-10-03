@@ -487,3 +487,56 @@ Postgres 18.4 nativo descartável (65435), variáveis no shell.
   mixed-cargo-end-to-end (usa o repositório de MDF-e) 1/0.
 - `bun run typecheck` (raiz) exit 0 · `bun run lint` (cwd `apps/api-transportada`) exit 0 ·
   `prettier --check` limpo.
+
+## T7 — Semente local com ajudante puro e motorista que ajuda
+
+Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+
+### O que mudou
+
+- `LOCAL_FLEET_DRIVER_SEEDS` ganha **duas sementes novas** (e não altera as seis antigas, porque a
+  semente é idempotente por CPF — numa base local já semeada, mexer numa existente seria ignorado, e as
+  novas entram na próxima execução): `Jussara Almeida Nogueira` (perfil `driver`, `canActAsHelper = true`,
+  com CNH) e `Reginaldo Pires Camargo` (perfil `helper`, sem CNH). Nomes, CPFs (dígitos de teste) e
+  telefones fictícios de propósito.
+- `buildSeed` aceita `canActAsHelper` (padrão: `true` só para perfil `helper`) e `licenseNumber` opcional;
+  ausente ⇒ `buildSeedLicense` devolve CNH vazia (número, categoria, cidade e UF do DETRAN, 1ª habilitação
+  e validade nulos). O comentário "a base de bancada nasce sem ninguém marcado como ajudante" foi
+  reescrito.
+- O serviço `seedLocalFleetDrivers` **já** passava pelo `createFleetDriversUseCase` real; nenhuma mudança
+  nele. As colunas saem da tradução perfil → colunas da T4.
+- O contrato "a semente cobre os dois perfis" passou a "os três" (a exceção provisória da T4 saiu).
+- `package.json`: `test:integration` ganha `./test/integration/local-fleet-seed-crew.integration.ts`.
+
+### Contrato vermelho antes do código
+
+`fleet-application.contract.test.ts` → `109 pass · 4 fail` (três perfis, ajudante sem CNH, motorista que
+ajuda, só dois marcados). Integração nova → `0 pass · 1 fail` (sem a semente do ajudante a contagem de
+"só ajuda" é 0).
+
+A integração roda a **semente inteira** pelo caso de uso real e pelo repositório Drizzle real contra
+Postgres, trocando apenas o convite do Keycloak por um que abre o usuário no banco
+(`DrizzleCompanyUserRepository.createInvitedUser`): confere `can_drive`/`can_act_as_helper` de cada
+semente, CNH vazia no ajudante, exatamente um "só ajuda" e um "dirige e ajuda", e que a segunda execução
+pula todas.
+
+### Prova por mutação
+
+- Semente do ajudante com perfil `driver` → `110 pass · 3 fail`.
+- `canActAsHelper` tirado do motorista que ajuda → `111 pass · 2 fail`.
+- `buildSeedLicense` sempre com CNH → `112 pass · 1 fail`.
+- `canDrive: !isHelperProfile` → `true` no caso de uso → integração `0 pass · 1 fail`.
+- Sobrevivente conhecido: tirar `isHelperProfile ||` do caso de uso **não** derruba a integração da
+  semente, porque a semente do ajudante já traz `canActAsHelper = true`; quem mata essa mutação é o
+  contrato de tradução da T4 (`translates the profile into the crew columns on create`, com o corpo em
+  `false`).
+
+### Gates
+
+Postgres 18.4 nativo descartável (65435), variáveis no shell.
+
+- Contrato da API: `bun --env-file=../../.env.test test --timeout 120000` →
+  `8793 pass · 0 fail · Ran 8793 tests across 194 files` (0 skip; T6b: 8790).
+- Integração, 0 skip: local-fleet-seed-crew 1/0 · local-identity-seed 5/0 · fleet-driver-repository 3/0.
+- `bun run typecheck` (raiz) exit 0 · `bun run lint` (cwd `apps/api-transportada`) exit 0 ·
+  `prettier --check` limpo.
