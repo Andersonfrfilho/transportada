@@ -19,7 +19,7 @@ execução vermelha colada, não com a afirmação de que falharia.
       os itens faltantes"): D1 = (a) CHECK `off ⇒ unset`; D2 = (a) sem `INSERT` na migration, o
       operador cadastra. O usuário pode reverter antes da execução (custos em `spec.md` § Dúvidas).
       Nenhuma `[NEEDS CLARIFICATION]` aberta.
-- [ ] **T0.2** 🧠 Conferir em `origin/staging` se a 239 (exigência na rua; hoje só em `work/spec-239`,
+- [x] **T0.2** 🧠 Conferir em `origin/staging` se a 239 (exigência na rua; hoje só em `work/spec-239`,
       número em colisão com `239-o-expurgo-se-liga-na-tela`) já criou `items_mode`. Se não: a 241 vai
       primeiro e **registrar** (sem executar a 239) a mudança que a 239 precisa — tirar o `ADD COLUMN
 items_mode` da migration e o default `off` do plano. Se criou com default `off`: parar e
