@@ -60,11 +60,12 @@ const REPORT_BY_KIND = {
     tappedAt: OWN_TAPPED_AT,
   },
   deliver: { documentId: 'doc-1', idempotencyKey: 'k-deliver', kind: 'deliver', location: null },
-  dispatch: { idempotencyKey: 'k-dispatch', kind: 'dispatch', tripId: 'trip-1' },
+  dispatch: { idempotencyKey: 'k-dispatch', kind: 'dispatch', location: null, tripId: 'trip-1' },
   documentOccurrence: {
     documentId: 'doc-1',
     idempotencyKey: 'k-doc-occ',
     kind: 'documentOccurrence',
+    location: null,
     note: 'avaria',
     occurrenceTypeId: 'type-1',
     occurrenceTypeName: 'Avaria',
@@ -76,6 +77,7 @@ const REPORT_BY_KIND = {
     documentId: null,
     idempotencyKey: 'k-occ',
     kind: 'occurrence',
+    location: null,
     occurrenceTypeId: 'type-2',
     stopId: 'stop-1',
   },
@@ -284,10 +286,10 @@ describe('reportBody com o carimbo (spec 234 D2)', () => {
     }
   })
 
-  it('dispatch continua só com o tripId', () => {
+  it('dispatch não leva o relógio — só o tripId e o ponto (spec 196)', () => {
     const body = reportBody({ report: REPORT_BY_KIND.dispatch, stamp: STAMP })
 
-    expect(JSON.parse(body)).toEqual({ tripId: 'trip-1' })
+    expect(JSON.parse(body)).toEqual({ location: null, tripId: 'trip-1' })
   })
 
   it('deliver leva tappedAt e clockOffsetMs ao lado da posição', () => {

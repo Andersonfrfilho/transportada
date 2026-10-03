@@ -65,31 +65,40 @@ function buildClient() {
 describe('o corpo de cada toque leva o ponto (196 T5.1)', () => {
   it('occurrence, dispatch e documentOccurrence mandam `location`', async () => {
     const occurrence = reportBody({
-      description: 'doca fechada',
-      documentId: null,
-      idempotencyKey: 'chave-1',
-      kind: 'occurrence',
-      location: LOCATION,
-      occurrenceTypeId: 'type-1',
-      stopId: 'stop-1',
+      report: {
+        description: 'doca fechada',
+        documentId: null,
+        idempotencyKey: 'chave-1',
+        kind: 'occurrence',
+        location: LOCATION,
+        occurrenceTypeId: 'type-1',
+        stopId: 'stop-1',
+      },
+      stamp: undefined,
     })
     const dispatch = reportBody({
-      idempotencyKey: 'chave-2',
-      kind: 'dispatch',
-      location: LOCATION,
-      tripId: 'trip-1',
+      report: {
+        idempotencyKey: 'chave-2',
+        kind: 'dispatch',
+        location: LOCATION,
+        tripId: 'trip-1',
+      },
+      stamp: undefined,
     })
     const { client, seen } = buildClient()
     await client.send({
-      documentId: 'document-1',
-      idempotencyKey: 'chave-3',
-      kind: 'documentOccurrence',
-      location: LOCATION,
-      note: 'sem número',
-      occurrenceTypeId: 'type-1',
-      occurrenceTypeName: 'Endereço',
-      photo: null,
-      productCode: '',
+      report: {
+        documentId: 'document-1',
+        idempotencyKey: 'chave-3',
+        kind: 'documentOccurrence',
+        location: LOCATION,
+        note: 'sem número',
+        occurrenceTypeId: 'type-1',
+        occurrenceTypeName: 'Endereço',
+        photo: null,
+        productCode: '',
+      },
+      stamp: undefined,
     })
 
     expect(JSON.parse(occurrence)).toMatchObject({ location: LOCATION })
@@ -99,10 +108,13 @@ describe('o corpo de cada toque leva o ponto (196 T5.1)', () => {
 
   it('sem ponto, o corpo manda `location: null` — chave presente', () => {
     const dispatch = reportBody({
-      idempotencyKey: 'chave-2',
-      kind: 'dispatch',
-      location: null,
-      tripId: 'trip-1',
+      report: {
+        idempotencyKey: 'chave-2',
+        kind: 'dispatch',
+        location: null,
+        tripId: 'trip-1',
+      },
+      stamp: undefined,
     })
 
     expect(JSON.parse(dispatch)).toEqual({ location: null, tripId: 'trip-1' })
@@ -226,7 +238,7 @@ describe('item gravado por versão anterior, sem o campo, sai com `location: nul
   it('o `send` do item antigo manda `location: null` no corpo', async () => {
     const { client, seen } = buildClient()
 
-    await client.send(legacyOccurrence)
+    await client.send({ report: legacyOccurrence, stamp: undefined })
 
     expect(await seen[0]?.json()).toMatchObject({ location: null })
   })
