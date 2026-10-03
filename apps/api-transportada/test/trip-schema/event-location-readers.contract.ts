@@ -152,3 +152,85 @@ describe('respostas que não podem carregar posição de evento (196 RF12)', () 
     expect(offenders).toEqual([])
   })
 })
+
+/**
+ * A varredura por coluna qualificada não vê o que devolve a linha inteira sem citar coluna nenhuma:
+ * `select()` cru, `returning()` cru, `getTableColumns`, `alias` e a API relacional. Fora da lista de
+ * leitores, um arquivo que toca as cinco tabelas não pode usar nenhuma dessas formas.
+ */
+describe('formas que devolvem a linha inteira das cinco tabelas fora da lista (196 RF12)', () => {
+  const tableAlternation = EVENT_LOCATION_TABLE_IDENTIFIERS.join('|')
+  const GETTABLECOLUMNS_PATTERN = new RegExp(`getTableColumns\\(\\s*(${tableAlternation})\\b`)
+  const RELATIONAL_QUERY_PATTERN = new RegExp(`\\.query\\.(${tableAlternation})\\b`)
+  const ALIAS_DECLARATION_PATTERN = new RegExp(
+    `\\b(?:const|let)\\s+([\\w$]+)\\s*=\\s*alias\\(\\s*(?:${tableAlternation})\\b`,
+    'g',
+  )
+  const POSITION_COLUMN_ALTERNATION = EVENT_LOCATION_POSITION_COLUMNS.join('|')
+  const TOUCH_PATTERN = new RegExp(`\\b(${tableAlternation})\\b`)
+  const BARE_RETURNING_PATTERN = /\.returning\(\s*\)/
+
+  const outsideTheList = sourceFiles.filter(
+    (file) =>
+      !SWEEP_EXEMPT_PATHS.includes(file.path) &&
+      !allowedColumnsByPath.has(file.path) &&
+      !file.path.startsWith('database/'),
+  )
+
+  test('o recorte não está vazio: há arquivos fora da lista que tocam as tabelas', () => {
+    expect(
+      outsideTheList.filter((file) => TOUCH_PATTERN.test(file.content)).length,
+    ).toBeGreaterThan(0)
+  })
+
+  test('nenhum arquivo fora da lista usa getTableColumns ou a API relacional nelas', () => {
+    const offenders = outsideTheList
+      .filter(
+        (file) =>
+          GETTABLECOLUMNS_PATTERN.test(file.content) || RELATIONAL_QUERY_PATTERN.test(file.content),
+      )
+      .map((file) => file.path)
+      .toSorted((left, right) => left.localeCompare(right))
+
+    expect(offenders).toEqual([])
+  })
+
+  /** `alias` é legítimo (o portal o usa só para juntar por id); o que reprova é ler posição por ele. */
+  test('apelido de uma das cinco tabelas, fora da lista, nunca lê coluna de posição', () => {
+    const offenders: string[] = []
+    for (const file of outsideTheList) {
+      for (const match of file.content.matchAll(ALIAS_DECLARATION_PATTERN)) {
+        const aliasName = match[1] ?? ''
+        const positionPattern = new RegExp(
+          `\\b${aliasName.replaceAll('$', '\\$')}\\s*\\.\\s*(${POSITION_COLUMN_ALTERNATION})\\b`,
+        )
+        if (positionPattern.test(file.content)) offenders.push(`${file.path} -> ${aliasName}`)
+      }
+    }
+
+    expect(offenders).toEqual([])
+  })
+
+  test('o detector de apelido enxerga a declaração real do portal', () => {
+    const portal = sourceFiles.find(
+      (file) => file.path === 'contractor-portal/infrastructure/contractor-occurrence.query.ts',
+    )
+
+    expect([...(portal?.content.matchAll(ALIAS_DECLARATION_PATTERN) ?? [])].length).toBeGreaterThan(
+      0,
+    )
+  })
+
+  test('nenhum arquivo fora da lista que toca as tabelas usa `select()` ou `returning()` crus', () => {
+    const offenders = outsideTheList
+      .filter(
+        (file) =>
+          TOUCH_PATTERN.test(file.content) &&
+          (BARE_SELECT_PATTERN.test(file.content) || BARE_RETURNING_PATTERN.test(file.content)),
+      )
+      .map((file) => file.path)
+      .toSorted((left, right) => left.localeCompare(right))
+
+    expect(offenders).toEqual([])
+  })
+})
