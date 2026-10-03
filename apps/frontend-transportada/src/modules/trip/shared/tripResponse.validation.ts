@@ -14,6 +14,7 @@ import {
 import type {
   FieldOccurrenceType,
   RegisteredOccurrence,
+  OccurrenceWriteResult,
   TripDocumentProduct,
   OccurrenceCancellation,
   OccurrenceCorrection,
@@ -1079,6 +1080,22 @@ export function createTripResponseAdapters() {
         ...(autoDispatch === undefined ? {} : { autoDispatch }),
         email: email as RegisteredOccurrence['email'],
       }
+    },
+    /**
+     * Spec 235 T1.1: `PATCH .../items` e `POST .../cancellation` devolvem a ocorrência sem o `email`
+     * e sem o `autoDispatch` do registro — `registeredOccurrenceFromApi` as recusaria por isso.
+     */
+    occurrenceWriteResultFromApi(input: unknown): OccurrenceWriteResult {
+      if (!isRecord(input)) throw invalid()
+      const { attachments, ...occurrence } = input
+      if (!isTripOccurrence(occurrence)) throw invalid()
+      if (
+        attachments !== undefined &&
+        !(Array.isArray(attachments) && attachments.every(isOccurrenceAttachmentPosition))
+      ) {
+        throw invalid()
+      }
+      return { ...occurrence, attachments: attachments ?? [] }
     },
     /** Spec 161 T7/T22: `POST .../occurrences/:occurrenceId/attachments` — `{ id, position }`. */
     occurrenceAttachmentPositionFromApi(
