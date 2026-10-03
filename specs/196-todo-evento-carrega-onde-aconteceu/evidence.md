@@ -2209,3 +2209,95 @@ continua com os mesmos 58 testes.
 | `bun run typecheck`                       | exit 0                                                                 |
 | `bun run lint`                            | exit 0                                                                 |
 | `bun --env-file=../../.env.test test ...` | **8876 pass · 23 skip · 0 fail · 193 arquivos** (3 execuções seguidas) |
+
+## T3.5 — o ponto de cada toque contra o Postgres
+
+⚠️ **Divergência do plano:** a task previa `test/integration/event-location-stamp.integration.ts` como
+arquivo novo e uma linha nova em `test:integration`. O arquivo **já existia** (6 testes do estado de
+`trip_stop_events` e `trip_delivery_proofs`, escritos na primeira metade da Fase 1) e já está no script.
+Estendi o mesmo arquivo em vez de abrir um segundo com o mesmo assunto; não há linha nova em
+`package.json`.
+
+Dezessete testes novos, nos moldes da fixture `trip-field-office-database.fixture.ts` e com os casos de
+uso e repositórios **reais** (a composição de `dispatchCurrentTrip` de `main.ts` é reproduzida à mão):
+
+| Bloco                     | O que prova, contra o banco                                                                                                                                                                     |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CA01 — status             | despachar, conferir a carga e iniciar a rota: com ponto → `captured` e as quatro colunas; sem ponto → `unavailable`; o toque repetido sem efeito não grava segundo evento nem segundo ponto     |
+| CA01 — ocorrência e campo | ocorrência da parada, ocorrência da nota, chegada, saída e devolução, com e sem ponto                                                                                                           |
+| CA02 — derivada           | a chegada que leva a viagem a `in_transit` e a baixa que a conclui gravam a troca de status **sem** ponto, ao lado do evento da parada com ponto                                                |
+| CA03 — canais             | escritório `null` (mesmo com ponto na mão); WhatsApp do motorista `unavailable` nas três ações; WhatsApp do operador `null` no despacho e na ocorrência de separação                            |
+| CA04 — CHECKs             | nas **três** tabelas novas, ponto com canal `office` reprova em `<tabela>_coordinates_channel_check` e estado com canal `backoffice` em `<tabela>_location_state_channel_check`; nada é gravado |
+| isolamento                | o ponto gravado na empresa A não existe para a B, nem pela viagem de A                                                                                                                          |
+
+### A contagem subiu
+
+| Suíte                                                                    | Antes | Depois | Subiu em |
+| ------------------------------------------------------------------------ | ----- | ------ | -------- |
+| `test/integration/event-location-stamp.integration.ts`                   | 6     | 23     | **17**   |
+| `bun run test:integration` (152 arquivos; antes = depois − 17, inferido) | 865   | 882    | **17**   |
+
+### Provado por mutação (16 sondas; 14 reprovaram de primeira, 2 eram equivalentes)
+
+| Mutação                                                                                | Falhas | Primeiro teste que cai                                                     |
+| -------------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------- |
+| A1 o `dispatch` do repositório de rota não repassa o carimbo                           | 1      | CA01 `despachar com ponto grava captured`                                  |
+| A2 `updateStatus` não repassa o carimbo                                                | 3      | CA01 `conferir a carga ...`                                                |
+| A3 WhatsApp deixa de ser toque do motorista                                            | 1      | CA03 `o motorista pelo WhatsApp grava unavailable`                         |
+| A4 `recordEvent` nunca é toque                                                         | 5      | CA01 `chegada e saída com ponto ...`                                       |
+| A6 `saveTripOccurrence` não grava o carimbo                                            | 3      | CA01 `a ocorrência da nota ...`                                            |
+| A7 `recordOccurrence` não grava o carimbo                                              | 3      | CA01 `a ocorrência da parada ...`                                          |
+| A9 troca sem carimbo passa a gravar `unavailable`                                      | 4      | CA02 `a chegada leva a viagem a in_transit, e a troca fica null`           |
+| A10 as **duas** guardas do escritório removidas (serviço e política)                   | 1      | CA03 `o escritório não carimba ...`                                        |
+| C1 CHECK de coordenada de `trip_status_events` aceita `office`                         | 1      | CA04 `trip_status_events`                                                  |
+| C2 CHECK de estado de `trip_status_events` aceita `backoffice`                         | 1      | CA04 `trip_status_events`                                                  |
+| C3 CHECK de coordenada de `trip_stop_occurrences` aceita `office`                      | 1      | CA04 `trip_stop_occurrences`                                               |
+| C4 CHECK de estado de `trip_stop_occurrences` aceita `backoffice`                      | 1      | CA04 `trip_stop_occurrences`                                               |
+| C5 CHECK de coordenada de `trip_document_occurrences` aceita `office`                  | 1      | CA04 `trip_document_occurrences`                                           |
+| C6 CHECK de estado de `trip_document_occurrences` aceita `backoffice`                  | 1      | CA04 `trip_document_occurrences`                                           |
+| A8 `startFieldTrip` leva carimbo também ao escritório (guarda **do serviço** removida) | 0      | equivalente: a política ainda zera `office`                                |
+| A10' só a guarda do serviço removida (`isDriverTap: true`)                             | 0      | equivalente: a política ainda zera `office` — só as duas juntas caem (A10) |
+
+Duas guardas redundantes, de propósito: tirar uma não muda o resultado, tirar as duas faz o escritório
+tentar gravar coordenada e o CHECK recusar — e é isso que A10 prova. As mutações C1–C6 alteram o
+`migration.sql` da pasta `20261002153258_occurrence_location_stamp` (o banco descartável é migrado a
+partir dele) e o restauram.
+
+⚠️ **O isolamento por empresa não tem sonda de mutação.** O que ele afirma (a leitura filtrada por
+`company_id` não alcança a linha de outra empresa) é garantido pelo `where` de cada consulta e pela FK
+composta; não há mudança de uma linha em `src/` que o reprove sem reprovar antes outra suíte. Fica como
+guarda de regressão, dito como tal.
+
+### O que a integração achou e a task não pedia
+
+⚠️ **A linha do tempo ainda não lê o ponto de três das quatro fontes novas.** A primeira versão do teste
+de isolamento afirmava que a linha do tempo da empresa A devolve o despacho com `locationState:
+'captured'`. Reprovou: `trip-timeline-status.query.ts` e `trip-timeline-document.query.ts` ainda montam
+`...NO_EVENT_LOCATION`. É exatamente o resto da T4.2 ("parcial") — a escrita desta fase está pronta, a
+leitura das fontes de status, de ocorrência e de documento não. Troquei a asserção para a leitura direta
+da tabela (que é o que T3.5 prova) e deixo o achado aqui: **a T4.2 continua aberta, e agora por um motivo
+só — a leitura —, não mais pela falta das colunas e da escrita.**
+
+⚠️ **Não afirmado aqui:** coordenada com canal `whatsapp` (o CHECK ainda a recusa; é a T1.4, e a T3.6 só
+depois dela) e o contrato por rota do WhatsApp do operador (T3.6). O WhatsApp do operador está provado no
+nível das funções que a composição de `main.ts` chama, não da rota do webhook.
+
+### Portões (todos em primeiro plano, saídas literais)
+
+| Portão                                                               | Resultado                                                                                              |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `bun run typecheck` (API)                                            | exit 0                                                                                                 |
+| `bun run lint` (API)                                                 | exit 0                                                                                                 |
+| `bun --env-file=../../.env.test test --timeout 120000`               | **8876 pass · 23 skip · 0 fail · 193 arquivos**, em nove execuções seguidas (ver nota)                 |
+| `bun --env-file=../../.env.test run test:integration` — **completo** | **874 pass · 8 skip · 0 fail · 5275 expect() · 882 testes · 152 arquivos · [1269,14 s]** (21 min 09 s) |
+| `bun run typecheck` e `bun run test` (worker)                        | exit 0 · **1558 pass · 0 fail · 95 arquivos**                                                          |
+| `bun run format:check` (raiz)                                        | `All matched files use Prettier code style!`                                                           |
+
+O Postgres de `65432` respondeu a `pg_isready` antes da execução (`aceitando conexões`, container
+`transportada-test-postgres-1`, Postgres 18, saudável). Os 8 testes pulados são de infraestrutura que a
+máquina não tem (storage alcançável, recarga de pedágio) — nenhum é do arquivo desta task, cujos 23 rodaram.
+
+⚠️ **Uma falha avulsa, não reproduzida:** numa execução do `bun test` da API depois do commit da T3.4 saiu
+`8875 pass · 1 fail`. O nome do teste não foi capturado, e as nove execuções seguintes deram `8876 pass · 0
+fail`. Registro por honestidade: não consigo chamá-la de flake sem saber qual arquivo era, e também não
+tenho como atribuí-la a esta spec.

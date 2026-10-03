@@ -225,7 +225,7 @@ do usuário. A API não é revertida com a app nova no ar.
   Aceite: verde, e uma rota falsa sem `location` fora das duas listas reprova (provado no próprio
   teste); a contagem subiu em N.
 
-- [ ] **T3.5** Integração contra Postgres (`test/integration/event-location-stamp.integration.ts`,
+- [x] **T3.5** Integração contra Postgres (`test/integration/event-location-stamp.integration.ts`,
       **linha nova no script `test:integration`** do `package.json`):
   - CA01: cada rota de toque com e sem ponto;
   - CA02: troca derivada `null`;
