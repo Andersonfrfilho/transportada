@@ -25,7 +25,7 @@ export type DisposableDatabaseLifecycle<TResource extends ClosableResource | und
   readonly operation: (resource: TResource) => Promise<void>
   readonly drop: () => Promise<unknown>
   readonly closeAdmin: () => Promise<unknown>
-  readonly dependencies?: DisposableDatabaseDependencies
+  readonly dependencies?: DisposableDatabaseDependencies | undefined
 }
 
 export type WithDisposableDatabaseParams<TResource extends ClosableResource | undefined> = {
