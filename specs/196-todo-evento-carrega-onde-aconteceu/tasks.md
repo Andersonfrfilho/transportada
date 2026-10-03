@@ -496,7 +496,7 @@ do usuário. A API não é revertida com a app nova no ar.
       `&&`), migration renumerada se colidir com 192/193/195, `db:generate` = `no_changes` depois do
       rebase. O push 3 (app e tela) só sai com a sonda da T4.3 registrada e o ok do usuário nos
       prints. Aceite: gates verdes e a ordem dos três pushes em `evidence.md`.
-- [ ] **T7.5** Revisão final por `code-reviewer` (`opus`) sobre o diff inteiro da spec, com foco em
+- [ ] **T7.5** Revisão final por `code-reviewer` (`sonnet`) sobre o diff inteiro da spec, com foco em
       vazamento de posição, na permissão `trip.event-location` e no CHECK de canal. Achado bloqueante
       reabre a task de origem.
 - [ ] **T7.6** Medição do D5, uma semana depois do push 3: a consulta do `plan.md` § Observabilidade

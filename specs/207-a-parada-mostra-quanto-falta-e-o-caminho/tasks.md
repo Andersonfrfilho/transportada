@@ -9,7 +9,8 @@
 > - **T1.2:** entrega **só a trava** (criada por esta spec). O CAS é da 192.
 
 **👤 = ação humana.** O executor para, descreve o passo exato, espera o "feito" e confere o efeito.
-**🧠 = task que sobe para `opus`** dentro de uma fase mais barata.
+**⚙️ = task mecânica com aceite por comando, que desce para `haiku`** dentro de uma fase `sonnet`.
+Nenhuma task aberta exige `opus`. Escalada: gate falhou 2x em `haiku` → `sonnet`; em `sonnet` → só então `opus`, registrado em `evidence.md`.
 
 ## Base
 
@@ -72,7 +73,7 @@ API e depois app.
 
 ## Fase 0 — Base, ADR e medição
 
-> 🤖 Modelo: `opus` (fase inteira 🧠: arquitetura e ADR)
+> 🤖 Modelo: `sonnet` (T0.1 já fechada em `opus`; a T0.2 é revisão e aceite de ADR já escrita)
 
 - [x] **T0.1** 🧠 Base e premissas contra o código. Tudo vai para o `evidence.md` (§ `T0.1`, já
       escrita — é a fonte da verdade desta revisão).
@@ -106,14 +107,14 @@ API e depois app.
   - **Logger.** O logger da API redige um array de pares `[lat, lng]`? **Não** — a T1.4 entrega a
     redação.
 
-- [ ] **T0.2** 🧠 ADR-0087 passa a "aceita" depois da segunda rodada do `critic` (`opus`).
+- [ ] **T0.2** ADR-0087 passa a "aceita" depois da segunda rodada do `critic` (`sonnet`).
   - Se a revisão pedir a opção (b) do mapa, **pare e pergunte ao usuário** (Q1).
 
 ## Fase 1 — API
 
-> 🤖 Modelo: `sonnet` (T1.1 e T1.2 são 🧠 `opus`, validadas por `architect` antes de implementar)
+> 🤖 Modelo: `sonnet` (a assinatura de `lockTripForStopOrder` já está decidida no `plan.md` da 192, então a T1.2 é execução)
 
-- [ ] **T1.1** 🧠 Limites de perna no gateway (D3a, RF4).
+- [ ] **T1.1** Limites de perna no gateway (D3a, RF4).
   - Primeiro o contrato, em `test/trip-application/route-geometry.contract.ts`, que já existe:
     - `vertexCount` por perna, como `annotation.nodes.length − 1`, lido **do campo cru**;
     - **um caso que prova que a contagem deduplicada não é a usada**: com uma resposta que tenha
@@ -136,7 +137,7 @@ API e depois app.
   - A dedup em si **não** se mexe aqui: o achado de que ela pode subcontar praça de pedágio é da 090 e
     pede spec própria.
   - O painel continua desenhando com tolerância de 5 m, e o contrato compara o desvio.
-- [ ] **T1.2** 🧠 Perna por parada e escrita sob a trava que **esta spec cria** (D3, D4, RF3).
+- [ ] **T1.2** Perna por parada e escrita sob a trava que **esta spec cria** (D3, D4, RF3).
   - **Escopo medido na T0.1, e menor do que a revisão 2 dizia:**
     - `lockTripForStopOrder` **não existe** em `apps/`, nem nesta árvore nem em `origin/staging` — só
       em prosa da 192. A 207 o **cria**, com a assinatura de `specs/192-.../plan.md:74-79`, e a 192
@@ -226,7 +227,7 @@ API e depois app.
 
 ## Fase 2 — App do motorista
 
-> 🤖 Modelo: `sonnet` (T2.6 → `haiku`)
+> 🤖 Modelo: `sonnet` (T2.6 → `haiku`, marcada ⚙️)
 
 - [ ] **T2.1** Tipos e validação (RF9).
   - Os casos entram nas suítes de `toDriverTripSnapshot` que já existem: `schedule.contract.ts` para
@@ -293,7 +294,7 @@ API e depois app.
 
   Depois, `DriverApproachPreview.component.tsx`, com `role="img"` e `aria-label`, só com tokens.
 
-- [ ] **T2.6** Textos (RF13, RF17).
+- [ ] **T2.6** ⚙️ Textos (RF13, RF17).
   - Blocos em pt-BR e en.
   - "{{km}} km em linha reta" e "a distância usa sua posição só no aparelho".
   - "fora da área do desenho".
@@ -316,7 +317,7 @@ API e depois app.
 
 ## Fase 3 — Preview, design, docs e publicação
 
-> 🤖 Modelo: `sonnet` (T3.4 → `code-reviewer` `opus`)
+> 🤖 Modelo: `sonnet` (T3.4 → `code-reviewer` `sonnet`; T3.5 e T3.6 → `haiku`, marcadas ⚙️)
 
 - [ ] **T3.1** API de demonstração **versionada** em `apps/frontend-driver/scripts/driver-preview-api.ts`.
   - Se a T5.0 da 196 ainda não a versionou, esta task versiona e aponta o `.claude/launch.json`
@@ -341,19 +342,19 @@ API e depois app.
   - 375 px.
   - Leitor de tela no desenho e na faixa (o texto estável não se repete).
   - Achado é corrigido na mesma task ou vira pendência explícita.
-- [ ] **T3.4** Revisão final com `code-reviewer` (`opus`) e auditoria do §15:
+- [ ] **T3.4** Revisão final com `code-reviewer` (`sonnet`) e auditoria do §15:
   - N+1, pela contagem da T1.4;
   - logs sem coordenada;
   - 500 sem stack;
   - `Set`/`Map` nas junções em lote;
   - trava e CAS da T1.2.
-- [ ] **T3.5** Documentação viva, com prettier nos `.md`:
+- [ ] **T3.5** ⚙️ Documentação viva, com prettier nos `.md`:
   - `apps/frontend-driver/CLAUDE.md`: distância local e permissão, `leg`, desenho, selo, alerta,
     faixa, relógio e `--color-caution`;
   - `apps/api-transportada/CLAUDE.md` e `docs/ai-context/*.md`: `tracedStopIds`, `legPointStarts`,
     a escrita sob `lockTripForStopOrder`, `requiresScheduling`, `isDiverged`;
   - `docs/SECURITY.md`: `path` sem o barracão, e a posição que fica no aparelho.
-- [ ] **T3.6** Publicar a app em staging, **só depois da T3.2**. A sequência é `git fetch`, rebase
+- [ ] **T3.6** ⚙️ Publicar a app em staging, **só depois da T3.2**. A sequência é `git fetch`, rebase
       sobre `origin/staging`, `bun install --frozen-lockfile`, os gates e `push`.
 
 ## Prompt de execução
@@ -382,9 +383,10 @@ ciclo e o teste de duas conexões é rede de segurança, não correção; (4) o 
 logo a redação entra na T1.4 sem condicional; (5) a 206/spec.md:427 está desatualizada ao dizer que a
 207 recua por enRouteSince — vale a regra da 207 (hora local da fila), e quem executar a 206 tem de
 ser avisado.
-Modelos: T0.2 → opus (com critic opus) · Fase 1 → executor model=sonnet (T1.1 e T1.2 🧠 →
-opus, validadas por architect opus antes) · Fase 2 → executor model=sonnet (T2.6 → haiku) · Fase 3 →
-executor model=sonnet (T3.4 → code-reviewer opus).
+Modelos: T0.2 → sonnet (com critic sonnet) · Fase 1 → executor model=sonnet · Fase 2 → executor
+model=sonnet (T2.6 → haiku) · Fase 3 → executor model=sonnet (T3.4 → code-reviewer sonnet; T3.5 e
+T3.6 → haiku).
+Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
 Cada task: contrato/teste antes (visto vermelho), typecheck + lint + testes da app; na API os DOIS
 comandos (bun --env-file=../../.env.test test --timeout 120000 e
 bun --env-file=../../.env.test run test:integration); suíte nova no entrypoint nomeado; evidência em

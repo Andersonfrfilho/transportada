@@ -1,6 +1,6 @@
 # Tasks — Spec 200
 
-**👤 = ação humana. 🧠 = sobe para `opus`.**
+**👤 = ação humana. 🧠 = sobe para `opus` (nenhuma task aberta). Sem marca = modelo da fase; marca `haiku` = rebaixada.**
 
 Toda task:
 
@@ -15,7 +15,7 @@ Sem migration no servidor.
 
 ## Fase 0 — Pré-requisitos
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `haiku`
 
 - [ ] **T0** Confirmar que a 192 está em staging: cópia, matriz, `cargoBlockedBy` e
       `hasLoadedCargoPlan`. Se não estiver, **pare**.
@@ -24,18 +24,18 @@ Sem migration no servidor.
 
 ## Fase 1 — API
 
-> 🤖 Modelo: `opus`
+> 🤖 Modelo: `sonnet`
 
-- [ ] **T1.1** 🧠 `GET /me/trips/current/stops/:stopId/cargo-plan`, reusando a leitura da cópia da 192.
+- [ ] **T1.1** `GET /me/trips/current/stops/:stopId/cargo-plan`, reusando a leitura da cópia da 192.
   - Contrato de formato.
   - Negativos multiempresa e multimotorista.
   - Integração com a cópia filtrada e remapeada (CA01).
 
 ## Fase 2 — App do motorista
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `sonnet` (T2.1 e T2.4 → `haiku`)
 
-- [ ] **T2.1** Cópias por valor (RF3), com o cabeçalho e o mapa do `copy-by-value-header.contract.ts`.
+- [ ] **T2.1** `haiku` Cópias por valor (RF3), com o cabeçalho e o mapa do `copy-by-value-header.contract.ts`.
       Validador tolerante (RF2, CA02).
 - [ ] **T2.2** Página `/carga/:stopId`: camadas, lista em texto e o botão "Ver na carga" (RF4, RF5).
       Contrato do serviço das camadas (CA03).
@@ -43,11 +43,11 @@ Sem migration no servidor.
   - Se precisar de store novo, a migração v3→v4 é aditiva.
   - Contratos: CA04 e CA05.
   - Medir o tempo do desenho com a fixture Atego e anotar no `evidence.md`.
-- [ ] **T2.4** `bun run build` com o `dist.contract.test.ts` e o smoke em 375 px (CA06).
+- [ ] **T2.4** `haiku` `bun run build` com o `dist.contract.test.ts` e o smoke em 375 px (CA06).
 
 ## Fase 3 — Revisão e publicação
 
-> 🤖 Modelo: `sonnet` (T3.3 é `opus`)
+> 🤖 Modelo: `sonnet` (T3.2 → `haiku`)
 
 - [ ] **T3.1** 👤 Preview local.
   - Subir `motorista-api-demo` (53901) e `motorista-local` (53200).
@@ -55,9 +55,9 @@ Sem migration no servidor.
     T5.1 da 192.
   - Tirar prints em 375 e 768 e fazer a revisão de design.
   - O usuário vê e aprova (CA07).
-- [ ] **T3.2** Documentação: `apps/frontend-driver/CLAUDE.md` (mapa da carga, lista de cópias,
+- [ ] **T3.2** `haiku` Documentação: `apps/frontend-driver/CLAUDE.md` (mapa da carga, lista de cópias,
       versão do IndexedDB, se mudar) e `docs/ai-context/frontend-driver.md`. Rodar prettier.
-- [ ] **T3.3** Revisão final com `code-reviewer` (`opus`).
+- [ ] **T3.3** Revisão final com `code-reviewer` (`sonnet`).
   - Publicar na ordem **API → app, esta só depois da T3.1**.
 
 ## Prompt de execução
@@ -67,8 +67,9 @@ Sem migration no servidor.
 tasks.md, a ADR-0077 §7–§8 e apps/frontend-driver/CLAUDE.md antes). PRÉ-REQUISITO: spec 192 publicada em
 staging — se não estiver, pare e avise. Uma task por vez.
 Árvore própria (make worktree NAME=spec-200; em worktree do Claude, branch própria) — sem git stash.
-Modelos: T0 → sonnet · Fase 1 → opus · Fase 2 → executor model=sonnet · Fase 3 → sonnet
-(T3.3 → code-reviewer model=opus).
+Modelos: T0 → executor model=haiku · Fase 1 → executor model=sonnet · Fase 2 → executor model=sonnet
+(T2.1 e T2.4 → haiku) · Fase 3 → sonnet (T3.2 → haiku; T3.3 → code-reviewer model=sonnet).
+Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
 Cada task: teste antes (visto vermelho), typecheck + lint + testes; na API os DOIS comandos (contrato e
 test:integration com --env-file=../../.env.test); evidência em evidence.md; commit isolado com --no-verify
 e caminhos explícitos.

@@ -83,7 +83,7 @@ em `evidence.md`.
 
 ## Fase 4 — Revisão, documentação e portões
 
-> 🤖 Modelo: `opus` 🧠 na revisão; `sonnet` no resto.
+> 🤖 Modelo: `sonnet` (revisão e design com preview incluídos — T4.4, fechada, rodou em `opus`).
 
 - [ ] **T4.1** ⚠️ **Revisão de design com preview local e prints em 1280 e 375 px** (web.md §15),
       comparando a linha da nota com as vizinhas e conferindo contraste em estado normal **e**
@@ -139,7 +139,8 @@ com parada nem com nota. Parcela **nova** que apareça depois disso: **pergunte*
 /oh-my-claudecode:autopilot Execute a spec specs/232-cada-nota-diz-quanto-rendeu-e-quanto-gastou/
 (leia spec.md, plan.md e tasks.md antes de tocar em código). Uma task por vez, na ordem do tasks.md.
 Modelos: Fase 1 → opus 🧠 (é a regra de rateio) · Fase 2 → executor model=sonnet ·
-Fase 3 → executor model=sonnet · Fase 4 → code-reviewer model=opus na T4.4.
+Fase 3 → executor model=sonnet · Fase 4 → executor model=sonnet (revisão → code-reviewer model=sonnet).
+Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
 Cada task fecha com typecheck + lint + testes da app + commit isolado e evidência em evidence.md.
 Contrato antes da implementação, e toda asserção nova provada por mutação.
 PARE E PERGUNTE antes de: empurrar para staging, deploy, qualquer migration, qualquer

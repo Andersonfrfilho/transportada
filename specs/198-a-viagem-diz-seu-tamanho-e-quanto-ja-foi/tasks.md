@@ -1,7 +1,8 @@
 # Tasks — Spec 198
 
 **👤 = ação humana.** O executor para, descreve o passo exato, espera o "feito" e confere o efeito.
-**🧠 = task que sobe para `opus`** dentro de uma fase mais barata.
+**🧠 = task que sobe para `opus`** dentro de uma fase mais barata (nesta spec nenhuma task sobe: não há decisão nova que outras tasks herdem).
+**`haiku`** marcado na task = mecânica com aceite por comando; sem marca, vale o modelo da fase.
 
 **Base.** A 198 só começa depois de `work/driver-app` chegar a `origin/staging` (spec §
 Pré-requisito). A branch nasce na própria árvore, com `git switch -c work/spec-198 origin/staging`.
@@ -29,7 +30,7 @@ usuário. A ordem de deploy é API → app → painel.
 
 ## Fase 0 — Base, ADR e premissas
 
-> 🤖 Modelo: `opus`
+> 🤖 Modelo: `sonnet`
 
 - [ ] **T0.1** Conferir e aceitar, e parar se algo divergir.
   1. **Base:** `git fetch` e confirmar que o commit de `describeTripSelectorPath` está em
@@ -47,7 +48,7 @@ usuário. A ordem de deploy é API → app → painel.
 
 ## Fase 1 — API
 
-> 🤖 Modelo: `sonnet` (T1.2 e T1.5 são 🧠 `opus`)
+> 🤖 Modelo: `sonnet` (T1.7 é `haiku`)
 
 - [ ] **T1.1** Parsers e `toDriverTripRoute` (RF2–RF4, RF7).
   - Arquivos:
@@ -65,7 +66,7 @@ usuário. A ordem de deploy é API → app → painel.
       `last_stop`; `endKind` gravado → o gravado; ausente ou fora da lista → `unspecified`.
     - `excludedStopIds` presente → `excludedStopCount`; ausente → `null`.
     - Contrato negativo: sem pedágio, custo, coordenada, telefone, `points` nem `legs`.
-- [ ] **T1.2** 🧠 O congelamento grava `endKind` e `excludedStopIds` (RF5).
+- [ ] **T1.2** O congelamento grava `endKind` e `excludedStopIds` (RF5).
   - Anotar no `evidence.md` `main.ts:1921` e o grep das cinco ocorrências de
     `tripRouteTollFreezer`.
   - `route-depot.policy.ts` ganha `endSource` e `ROUTE_END_KINDS`; `route-depot.query.ts` passa a
@@ -106,7 +107,7 @@ usuário. A ordem de deploy é API → app → painel.
   Senão, anotar no `evidence.md`: "N/A — pendente; implementa quem chegar por último (spec 198
   RF9)". A 198 **não** edita os arquivos da 192.
 
-- [ ] **T1.5** 🧠 Tempo de parada: as duas políticas puras (D14, D15).
+- [ ] **T1.5** Tempo de parada: as duas políticas puras (D14, D15).
   - `stop-service-sample.policy.ts` (`toStopServiceSample`, `STOP_SERVICE_SAMPLE_BOUNDS`) e
     `trip-stop-time.policy.ts` (`estimateTripStopTime` sobre `resolveServiceTime`), com os tipos
     `*Params`/`*Result`.
@@ -123,7 +124,7 @@ usuário. A ordem de deploy é API → app → painel.
     - `stopCount` conta todas as paradas, inclusive as fora do traçado;
     - a escala é cliente → empresa → `measuring`, e a soma cobre todas as paradas;
     - 91 dias fica fora da janela; o mínimo vem da configuração, com 5 sem linha.
-  - Validar o desenho com `architect` (`opus`) antes de implementar.
+  - Validar o desenho com `code-reviewer` (`sonnet`) antes de implementar.
 - [ ] **T1.6** Tempo de parada: consulta, cache e snapshot (D16, D17, RF10).
   - `drizzle-stop-service-samples.query.ts`, `StopServiceTimeEstimatePort` e
     `cached-stop-service-time-estimate.adapter.ts`:
@@ -151,27 +152,27 @@ usuário. A ordem de deploy é API → app → painel.
     - outra empresa → `measuring`;
     - uma segunda leitura na mesma hora não consulta o banco.
   - Um `debug` do recálculo com os descartes por motivo, sem CNPJ.
-- [ ] **T1.7** Publicar a API em staging, no primeiro push da spec. O comando é
+- [ ] `sonnet` **T1.7** Publicar a API em staging, no primeiro push da spec. O comando é
       `git fetch && git rebase origin/staging && bun install --frozen-lockfile`, seguido dos gates e
       do push, tudo encadeado com `&&`. Antes, repetir o cruzamento da tabela da § Convivência e
       anotar.
 
 ## Fase 2 — App do motorista
 
-> 🤖 Modelo: `sonnet` (T2.2 é `haiku`)
+> 🤖 Modelo: `sonnet` (T2.2 e T2.3 são `haiku`)
 
 - [ ] **T2.1** Tipos e validador (RF11).
   - `route?` e `stopTime?`, com três estados cada.
   - Contrato antes, em `test/driver-trip/route-response.contract.ts` (novo, no entrypoint, CA05):
     ausente, `null`, objeto e malformado. Inclui um snapshot sem os campos relido pelo caminho do
     IndexedDB.
-- [ ] **T2.2** Formatadores (RF13).
+- [ ] `haiku` **T2.2** Formatadores (RF13).
   - `driverRouteFormat.service.ts`: `formatRouteDistance`, com a regra de
     `driverStopDistance.service.ts:59`, e `formatDuration`, **cópia por valor** da 138
     (`suggestionValuation.service.ts:149`) com o cabeçalho da ADR-0075 §7.
   - Acrescentar a entrada no mapa de `copy-by-value-header.contract.ts`.
   - Contrato CA07 em `route-summary.contract.ts` (novo).
-- [ ] **T2.3** Porcentagem por nota (RF12). `computeDocumentProgress`, com a tabela do CA06 em
+- [ ] `haiku` **T2.3** Porcentagem por nota (RF12). `computeDocumentProgress`, com a tabela do CA06 em
       `progress.contract.ts`. `computeTripProgress` não muda.
 - [ ] **T2.4** Visão, quadro e legenda (RF14, RF15, RF17, RF18).
   - `driverTripRouteView.service.ts` e `DriverTripRouteSummary.component.tsx`, montado em
@@ -196,7 +197,7 @@ usuário. A ordem de deploy é API → app → painel.
 
 ## Fase 3 — Preview, design, docs e publicação da app
 
-> 🤖 Modelo: `sonnet` (T3.5 é `opus`)
+> 🤖 Modelo: `sonnet` (T3.4 e T3.6 são `haiku`)
 
 - [ ] **T3.1** API de demonstração.
   - O arquivo é `apps/frontend-driver/scripts/driver-preview-api.ts`, **depois da T5.0 da 196**.
@@ -229,18 +230,18 @@ usuário. A ordem de deploy é API → app → painel.
 - [ ] **T3.3** Revisão de design (web.md §15), contra `DriverManifestCard`, os cartões e o botão
       atual do seletor. Conferir contraste nos dois estados, 44 px, quebra em 375 px, leitor de tela
       e tokens. Achado vai corrigido na mesma task ou vira pendência explícita.
-- [ ] **T3.4** Documentação viva, com prettier nos `.md`:
+- [ ] `haiku` **T3.4** Documentação viva, com prettier nos `.md`:
   - `apps/frontend-driver/CLAUDE.md`;
   - `apps/api-transportada/CLAUDE.md` e `docs/ai-context/*.md`: `route` e `stopTime`, `endKind` e
     `excludedStopIds` no jsonb, tempo de parada sem motorista;
   - `docs/SECURITY.md`: nome e endereço fiscal da empresa no snapshot, e a meia linha sobre ME.
-- [ ] **T3.5** Revisão final com `code-reviewer` (`opus`) e auditoria do `code-standart.md` §15: N+1,
+- [ ] **T3.5** Revisão final com `code-reviewer` (`sonnet`) e auditoria do `code-standart.md` §15: N+1,
       jsonb sem `points`, logs sem PII, 500 sem stack.
-- [ ] **T3.6** Publicar a app em staging, **só depois da T3.2**.
+- [ ] `sonnet` **T3.6** Publicar a app em staging, **só depois da T3.2**.
 
 ## Fase 4 — Painel: a porcentagem por nota (Q2)
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `sonnet` (T4.4 é `haiku`)
 
 - [ ] **T4.1** Emenda à 079 e contrato do painel (RF19, CA18).
   - Acrescentar a `specs/079-a-viagem-se-acompanha-pela-tela/spec.md` a nota "Emenda (spec 198,
@@ -259,7 +260,7 @@ usuário. A ordem de deploy é API → app → painel.
     do `.claude/launch.json`).
   - Revisão de design contra o `TripProcessFlow`.
   - O "pode subir" do usuário vai para o `evidence.md`.
-- [ ] **T4.4** Publicar o painel em staging, só depois da T4.3.
+- [ ] `haiku` **T4.4** Publicar o painel em staging, só depois da T4.3.
 
 ## Prompt de execução
 
@@ -270,9 +271,11 @@ começar; leia também apps/frontend-driver/CLAUDE.md e a seção "Viagem (trips
 apps/api-transportada/CLAUDE.md). Uma task por vez, na ordem do tasks.md.
 BASE: só comece se work/driver-app já estiver em origin/staging (T0.1); senão pare e avise. Branch
 na própria árvore: git switch -c work/spec-198 origin/staging. Nada de make worktree nem git stash.
-Modelos: Fase 0 → opus · Fase 1 → executor model=sonnet (T1.2 e T1.5 🧠 → opus, validadas por
-architect opus antes) · Fase 2 → executor model=sonnet (T2.2 → haiku) · Fase 3 → executor
-model=sonnet (T3.5 → code-reviewer opus) · Fase 4 → executor model=sonnet.
+Modelos: Fase 0 → executor model=sonnet · Fase 1 → executor model=sonnet (T1.5 validada por
+code-reviewer sonnet antes; T1.7 → haiku) · Fase 2 → executor model=sonnet (T2.2 e T2.3 → haiku) ·
+Fase 3 → executor model=sonnet (T3.4 e T3.6 → haiku; T3.5 → code-reviewer sonnet) · Fase 4 →
+executor model=sonnet (T4.4 → haiku). Escalada: gate falhou 2x em haiku → sonnet → só então opus,
+registrada em evidence.md.
 Cada task: contrato/teste antes (visto vermelho), typecheck + lint + testes da app; na API os DOIS
 comandos (bun --env-file=../../.env.test test --timeout 120000 e
 bun --env-file=../../.env.test run test:integration); suíte nova no entrypoint; evidência em
