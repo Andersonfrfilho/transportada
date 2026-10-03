@@ -1297,3 +1297,62 @@ Ajuste: tipo `OccurrenceCorrection` e `OccurrenceCorrectionHistoryEntry` com `nu
 `isNullableString`, `OccurrenceCorrectionHistory` com a chave `occurrenceDetail.corrections.entryUnknown`
 ("Corrigida em {{moment}}" / "Corrected on {{moment}}") quando nulo. Verde: `6517 pass, 0 fail` +
 lote DOM `354 pass, 0 fail`; `bun run typecheck` limpo.
+
+## T5.1 — Revisão de design e usabilidade (CA07)
+
+Ambiente: API deste worktree na porta 53091 (`APP_PORT=53091`, cwd `apps/api-transportada`, Postgres local
+55432), Vite da app (`apps/frontend-transportada/node_modules/.bin/vite`) na 53090 com
+`VITE_SMOKE_AUTH_BYPASS=true`, e um proxy descartável (fora do repositório) na 53092 que troca o
+`Authorization` pelo token real do usuário de seed `local-user` (authorization code + PKCE, como na Fase 0).
+Motivo: a 53000 é do Vite de **outra sessão** (`lsof`: cwd em
+`.claude/worktrees/…/reconcile-spec-145/apps/frontend-transportada`) e o client `transportada-spa` do Keycloak
+só aceita callback nas origens fixas do realm, então o login do painel numa porta alternativa não é possível sem
+alterar o realm — o bypass de smoke (`isSmokeAuthBypassEnabled`, só `localhost`/`127.0.0.1`) lê o `/auth/me` real
+da API do `sessionStorage`. Senha e token: `[REDACTED]`. Nada foi escrito no banco nesta task: o diálogo foi aberto
+e fechado sem confirmar e o formulário não foi salvo (conferido depois por SELECT: A segue cancelada com 2
+correções, B íntegra com 1). Vite, proxy e API foram derrubados ao fim (`lsof` nas três portas: vazio).
+
+Dados: A `a4b6ef1d-…` (cancelada, duas correções), B `8bf20b6b-…` (íntegra, sem tratativa, uma correção), C
+`feefbf9f-…` (tratativa aberta). Verificação por texto/geometria com `read_page`/`get_page_text`/`javascript_tool`
+no navegador embutido (detalhe de B: botões, histórico; C: `aria-disabled="true"` + `aria-describedby` apontando
+o motivo) e, para os PNGs, Chromium do Playwright da própria app (o navegador embutido não grava arquivo)
+dirigindo o mesmo Vite, com medição no DOM por largura.
+
+Prints (`specs/235-a-correcao-da-ocorrencia-ganha-tela/prints/`, `NN-descricao-LARGURA.png`, larguras `desktop`
+1280, `tablet` 768, `mobile` 375): `01-detalhe-habilitado` · `02-dialogo-cancelamento` ·
+`03-formulario-correcao` · `04-desabilitado-motivo` · `05-cancelada-detalhe-topo` · `06-cancelada-historico` ·
+`07-feed-cancelada` — 21 arquivos.
+
+| Verificação                                                      | desktop 1280        | tablet 768          | mobile 375                           |
+| ---------------------------------------------------------------- | ------------------- | ------------------- | ------------------------------------ |
+| Rolagem horizontal da página (detalhe, diálogo, formulário, feed) | nenhuma             | nenhuma             | nenhuma                              |
+| Altura dos botões Corrigir/Cancelar/Salvar/Confirmar             | 38px                | 38px                | **44px** (alvo de toque)             |
+| Largura do fechar do diálogo                                     | 28px → **38px**     | 28px → **38px**     | **20px → 44px**                      |
+| Foco por teclado em Corrigir                                     | contorno 2px cobre  | idem                | idem                                 |
+| Foco ao fechar o diálogo (Esc)                                   | volta ao botão      | idem                | idem                                 |
+| Confirmar cancelamento com motivo vazio                          | `disabled`          | idem                | idem                                 |
+| Motivo do estado desabilitado                                    | texto à vista + `aria-describedby`, 12,8px, contraste 5,7:1 | idem | idem |
+| Selo "Cancelada" no feed                                         | vermelho, contraste ≥ 4,5:1 (4,53 sobre a linha destacada, 5,08 sobre o fundo) | idem | idem |
+
+Console: só `404` de miniatura de foto — o MinIO local (`:59000`) não estava no ar (`compose.yaml` puxa imagem
+privada do GHCR); ruído de ambiente, nenhum erro de script. Rede: nenhuma chamada da tela com status de erro.
+
+Achados e destino:
+
+1. **Defeito desta spec, corrigido.** O botão fechar do `TripOccurrenceCancelDialog` (`.iconAction` num cabeçalho
+   flex) era comprimido pelo título: 28px de largura no desktop e **20px no celular**, abaixo do alvo de 44px.
+   `trip.module.css`: `.iconAction` ganhou `flex-shrink: 0` e, sob `@media (pointer: coarse)`,
+   `min-width`/`min-height: var(--touch-target)`. Contrato `test/trip/occurrence-dialog-touch-target.contract.ts`
+   (entrou em `test/trip.contract.test.ts`): **vermelho antes** (`2 fail`, na lista de 2413 do lote `trip`),
+   verde depois — app `6519 pass, 0 fail`, lote DOM `354 pass, 0 fail`, `typecheck` limpo, lint 0 erros
+   (16 avisos antigos). Medido de novo: fechar 38/38/44px.
+2. **Não é desta spec (registrado).** `"{{count}} itens escolhidos"` (`trip.locale.json:1127`,
+   `occurrence.productSummary`, spec 161) diz "1 itens escolhidos" no seletor do formulário de correção — vem do
+   formulário de registro reaproveitado, não ganhou plural.
+3. **Observações sem ação.** O diálogo abre com o foco no contêiner, não no campo do motivo (foco preso e devolvido
+   conforme RF/CA04; autofocus no campo seria melhoria de usabilidade, não defeito). O rótulo "Item da nota" do
+   formulário (16px) é mais pesado que o texto de ajuda acima dele (12,8px) — herdado do formulário de registro. No
+   feed, o motivo da cancelada só aparece na linha expandida e no resumo lido por leitor de tela; o selo "Cancelada"
+   fica sempre à vista (decisão da T3.2). Ao lado de "Cancelar ocorrência", a ocorrência com tratativa aberta mostra
+   também "Cancelar tratativa" (bloco da tratativa, outra ação, outra spec): nomes parecidos para coisas
+   diferentes; não alterado.
