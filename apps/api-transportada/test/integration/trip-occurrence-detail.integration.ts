@@ -150,8 +150,9 @@ describe('o detalhe da ocorrência (spec 183 T202)', () => {
         const feedItem = page.items.find((item) => item.id === occurrenceId)
         if (detail === null || feedItem === undefined) throw new Error('EXPECTED_DETAIL')
 
-        const { driver, items, ...line } = detail
+        const { corrections, driver, items, ...line } = detail
         expect(line).toEqual(feedItem)
+        expect(corrections).toEqual([])
         expect(items).toEqual([])
         expect(detail.source).toBe('document')
         expect(detail.case).toMatchObject({ status: 'recorded' })

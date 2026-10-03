@@ -6,6 +6,7 @@
  * pura**: nada aqui decide nem muda a tratativa (spec 183 D4).
  */
 import { TripOccurrenceNotFoundError } from '../domain/trip.error.js'
+import type { OccurrenceCorrectionEntry } from './occurrence-correction.port.js'
 import type { TripOccurrenceFeedItem } from './trip-occurrence-feed.use-case.js'
 
 /**
@@ -37,6 +38,8 @@ export type TripOccurrenceDetailItem = {
 }
 
 export type TripOccurrenceDetail = TripOccurrenceFeedItem & {
+  /** Spec 235 RF9: mais antiga primeiro; `[]` quando nunca foi corrigida. */
+  readonly corrections: readonly OccurrenceCorrectionEntry[]
   readonly driver: TripOccurrenceDetailDriver | null
   /** Vazia na ocorrência da nota inteira e na de parada, que não aponta item. */
   readonly items: readonly TripOccurrenceDetailItem[]
