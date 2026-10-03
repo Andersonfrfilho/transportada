@@ -19,10 +19,14 @@
 | ligado e `next.retentionDays < previous` (encurtar) | `now + 24 h` (reabre, mesmo com carência em curso) |
 | ligado e prazo maior ou igual (alongar / igual)     | mantém `previous.purgeEffectiveAt`                 |
 
-Desvio consciente da letra do D5 ("alongar grava sem carência"): gravar `now` ao alongar durante uma
-carência em curso (ligar e alongar em seguida) anularia os 24 h do ligar. Manter o valor anterior é
-idêntico ao `now` quando a carência já passou (o worker compara `<= now`) e preserva a que ainda corre.
-**Decisão a confirmar com o usuário.** Limites: `isValidRetentionDays` aceita só número inteiro 30..90.
+Desvio consciente da letra original do D5 ("alongar grava sem carência"): gravar `now` ao alongar
+durante uma carência em curso (ligar e alongar em seguida) anularia os 24 h do ligar. Manter o valor
+anterior é idêntico ao `now` quando a carência já passou (o worker compara `<= now`) e preserva a que
+ainda corre. **Decisão exposta ao usuário e aceita por omissão em chat (2026-10-03)**; o D5 do `spec.md`
+foi emendado para dizer exatamente isso. A escolha é **reversível em uma linha**: o último ramo de
+`resolvePurgeEffectiveAt` (`return previous.purgeEffectiveAt`) passaria a devolver `now`, e as linhas
+"alongar" da tabela do contrato mudariam de `PREVIOUS_EFFECTIVE_AT`/`PENDING_EFFECTIVE_AT` para `NOW`.
+Limites: `isValidRetentionDays` aceita só número inteiro 30..90.
 
 **Execução:** `bun --env-file=../../.env.test test ./test/companies.contract.test.ts --test-name-pattern retention`
 -> 33 pass / 0 fail (14 linhas da tabela de carência + 16 de limites + 3 de guarda: tabela não vazia x2 e
@@ -54,10 +58,12 @@ erro; `bun --env-file=../../.env.test test --timeout 120000` -> 9213 pass / 24 s
 não vai a staging sem outro ok.
 
 **Pasta:** `apps/api-transportada/drizzle/20261003190847_location_retention_settings/` (gerada por
-`db:generate`, depois comentada à mão). `snapshot.json` id `1c4bf6ed-1a95-4bc3-a000-023d9dd56cea`,
-`prevIds = ["eb960c28-e0b7-4bec-b4b7-ebd5278db0af"]` = id do snapshot de
-`20261003010806_event_location_whatsapp_coordinate`, a última de `origin/staging` (branch 0 atrás no
-`git fetch` desta task). Sem bifurcação.
+`db:generate`, depois comentada à mão). `snapshot.json` **final**: id `11c128c3-ec3c-438e-a4a1-975c6b5b9fcb`,
+`prevIds = ["43e75ad7-6425-471b-8e2a-3cf44c53e90d"]` = id do snapshot de
+`20261003170340_contractor_receiving_profiles` (spec 237, a última de `origin/staging` depois do
+rebase). Na task, o snapshot nasceu com id `1c4bf6ed…` e `prevIds` apontando para
+`20261003010806_event_location_whatsapp_coordinate` (`eb960c28…`); foi regerado no rebase (ver o
+fim da T1.4). Sem bifurcação.
 
 **Tabela** `company_location_retention_settings` (`src/database/company-location-retention-settings.schema.ts`,
 molde da diária): `company_id` PK + FK `companies` restrict/cascade com nome explícito
@@ -163,7 +169,7 @@ compartilhada com outras sessões; no lugar rodou o mesmo `db:test` que ele cham
 ## T1.3 — Contrato HTTP antes (vermelho registrado)
 
 `test/companies/location-retention-settings.contract.ts` (entrypoint `test/companies.contract.test.ts`),
-commit `5b970a406`, escrito **antes** de qualquer arquivo de `src/`. Saída literal do vermelho:
+commit `a8a73718b`, escrito **antes** de qualquer arquivo de `src/`. Saída literal do vermelho:
 
 ```text
 bun test v1.3.14 (0d9b296a)
@@ -259,10 +265,10 @@ cada uma das cinco tabelas: vencida (91 dias), de ~60 dias, dentro do prazo (3 d
 (latitude NULL, `location_state 'expired'`, data vencida). Asserção por tabela (`kind`, `count`,
 `capped`): prazo 90 -> 1 em cada; prazo 30 -> 2 em cada (a de 60 dias passa a contar, a sem ponto não).
 
-| Mutação (em `drizzle-location-retention-impact.query.ts`)  | Resultado                                |
-| ---------------------------------------------------------- | ---------------------------------------- |
-| M1a tira `isNotNull(latitude)` da consulta                 | 1 fail (a linha `expired` passa a contar) |
-| M1b troca `make_interval(days => N)` por `days => 90`      | 1 fail (prazo 30 não alcança a de 60 d)  |
+| Mutação (em `drizzle-location-retention-impact.query.ts`) | Resultado                                 |
+| --------------------------------------------------------- | ----------------------------------------- |
+| M1a tira `isNotNull(latitude)` da consulta                | 1 fail (a linha `expired` passa a contar) |
+| M1b troca `make_interval(days => N)` por `days => 90`     | 1 fail (prazo 30 não alcança a de 60 d)   |
 
 Fonte restaurada regravando o original; `git status` sem diff em `src/` depois.
 
@@ -302,11 +308,11 @@ Limite honesto: o `find` do use case e o `FOR UPDATE` do repositório são leitu
 a estimativa pode seguir a decisão da leitura anterior. É metadado de auditoria, não decide a carência
 (que é calculada dentro da transação).
 
-| Mutação                                                   | Resultado |
-| --------------------------------------------------------- | --------- |
-| M4a use case conta sempre que `purgeEnabled`              | 1 fail    |
-| M4b `opensPurgeGracePeriod` com `<=` (repetir abre)       | 3 fail    |
-| M4c `opensPurgeGracePeriod` sem o desvio de desligar      | 3 fail    |
+| Mutação                                              | Resultado |
+| ---------------------------------------------------- | --------- |
+| M4a use case conta sempre que `purgeEnabled`         | 1 fail    |
+| M4b `opensPurgeGracePeriod` com `<=` (repetir abre)  | 3 fail    |
+| M4c `opensPurgeGracePeriod` sem o desvio de desligar | 3 fail    |
 
 Verde: `test/companies.contract.test.ts --test-name-pattern retention` 71 pass / 0 fail.
 
@@ -329,3 +335,55 @@ e cada uma das quatro rotas, o `AuthorizationService` real (mesmo que o roteador
 permissões resolvidas por `resolveCompanyPermissions([papel])` — só `company-admin` passa; todos os
 outros recebem `ApiError` 403. Mutação (primeira rota passa a exigir `fleet.read`): 1 fail.
 Não é o `createRouter` completo (autenticação, tenant e rate limit ficam fora): é o ponto que decide o 403.
+
+### M2 — a regra da carência no `spec.md` (confirmado; só documentação)
+
+Confirmado: o D5 e a linha "Alongar de 30 para 90" da tabela de casos extremos ainda diziam que alongar
+"grava sem carência", enquanto o código (T1.1, aceito em chat em 2026-10-03) mantém o
+`purge_effective_at` anterior. Emendados no `spec.md`: D5 (regra gravada: desligar = `now`; ligar e
+encurtar = `now + 24 h`; alongar e repetir = mantém o anterior; o porquê — alongar logo após ligar não pode
+anular as 24 h) e a linha da tabela. O "a confirmar" da T1.1 saiu; a escolha é reversível em uma linha
+(ver T1.1). O D1 também foi emendado: a frase "só duas têm índice parcial" (B6) agora diz que as cinco têm
+índice parcial só por tempo e que os novos acrescentam `company_id`.
+
+### B7 — encurtar e voltar a alongar pausa o expurgo até acabar a carência (registrado; não é furo)
+
+Sequência: com o expurgo ligado e 90 dias, o admin encurta para 30 (`purge_effective_at = now + 24 h`) e,
+dez minutos depois, alonga para 60. Alongar mantém a data de início anterior, então o worker continua
+ignorando a empresa até `now + 24 h`, mesmo que o prazo novo apague **menos** do que o de 30. É excesso de
+cautela (pausa maior que o necessário), nunca apagamento a mais: o pior efeito é o expurgo atrasar até
+24 h. Aceito porque distinguir "alongar depois de encurtar" de "alongar" exigiria guardar o prazo
+anterior ao encurtamento, estado extra para um ganho de horas. Se virar queixa, o remédio é guardar o prazo vigente antes da carência (desligar e ligar de novo só abriria outra carência de 24 h).
+
+### M3 — risco de lock da migration em produção (registrado; nada foi executado em produção)
+
+O `CREATE INDEX` comum da `20261003190847_location_retention_settings` toma `SHARE` nas cinco tabelas de
+evento (`trip_stop_events`, `trip_delivery_proofs`, `trip_status_events`, `trip_stop_occurrences`,
+`trip_document_occurrences`) e o segura até o `COMMIT`: escrita do motorista espera, leitura segue. O
+migrador aplica **todas** as pendentes numa transação só. A produção está atrás do schema, então a mesma
+transação carregaria também as migrations da 196 — `20261001123700`, `20261002153258` e `20261003010806` —
+que tomam `ACCESS EXCLUSIVE` nas mesmas tabelas (informação da revisão; as notas da 196 em `specs/196-*/evidence.md` são a fonte a conferir). Somadas, as janelas de
+bloqueio se acumulam, e `lock_timeout = 3s` (que aborta tudo se o lock não vier) não limita o **tempo
+de construção** do índice, só a espera pelo lock.
+
+**Pré-condições de deploy em produção** (a migration não deve subir sem elas):
+
+1. Medir `pg_total_relation_size` das cinco tabelas **em produção** (o tamanho decide quanto dura o
+   `CREATE INDEX`; staging pode não ter o volume).
+2. Promover as migrations da 196 em **deploy separado, antes** da 239 — as janelas `ACCESS EXCLUSIVE` e
+   `SHARE` não podem cair na mesma transação.
+3. Aplicar **fora do horário de campo** (o motorista grava chegada, entrega, comprovante, status e
+   ocorrência nessas tabelas).
+4. Considerar `statement_timeout` por índice (um `SET LOCAL statement_timeout` antes de cada
+   `CREATE INDEX`) para que uma construção inesperadamente longa aborte a transação em vez de segurar a
+   escrita por minutos; exige editar a `migration.sql`, o que cabe antes da publicação.
+
+Repetido em `plan.md` § "Riscos de execução".
+
+### Pendências deliberadamente fora desta rodada
+
+| Achado | Estado                                                                                                                                                                                     |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| B2     | `countLocationRetentionImpact` usa `Promise.all` de cinco consultas (cinco conexões do pool por chamada); `allSettled`/sequencial fica para a Fase 2, junto da medição.                    |
+| B4     | O repositório lança `Error` cru (`..._UPSERT_RETURNED_NOTHING`) em vez de erro de domínio tipado; só dispara com `returning()` vazio, estado que não deve existir.                         |
+| B10    | Contratos de texto (`readFileSync` do fonte) em `location-retention-settings.contract.ts` seguem o padrão do repositório, mas não provam comportamento; trocar por comportamento onde der. |

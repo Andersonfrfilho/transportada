@@ -73,9 +73,9 @@ worker lê a configuração a cada ciclo e expurga cada empresa pelo prazo dela,
   **recusa** com `RAISE EXCEPTION` se a tabela tiver linha — derrubar a tabela com empresa ligada
   apagaria a decisão dela em silêncio.
   A mesma migration cria o índice parcial `(company_id, <coluna de tempo>) WHERE latitude IS NOT NULL`
-  nas cinco tabelas (hoje só duas têm índice parcial, e só por tempo:
-  `trip_stop_events_located_created_at_idx` e `trip_delivery_proofs_located_created_at_idx`,
-  `trip.schema.ts:1281-1283,1891-1893`).
+  nas cinco tabelas (desde a `20261002153258_occurrence_location_stamp` as **cinco** têm índice parcial, mas **só por
+  tempo**, `<tabela>_located_<tempo>_idx`; nenhuma tem `company_id` na frente, então os cinco novos
+  acrescentam a empresa e não duplicam nenhum existente).
 
 - **D2 — O worker lê a configuração na própria varredura, por junção, sem laço por empresa.** Cada lote
   de cada tabela vira uma consulta só:
@@ -147,8 +147,15 @@ id IN (...)` de hoje (`drizzle-trip-location.repository.ts:42-69`). O isolamento
     — não apaga nada.
   - **Carência de 24 h:** toda escrita que **amplia** o que será apagado (ligar; encurtar o prazo com o
     expurgo ligado) grava `purge_effective_at = now() + 24 h`; o worker ignora a empresa até lá (D2).
-    Desligar e alongar gravam `purge_effective_at` sem carência (desligado não lê o campo; alongar só
-    reduz o que cai). Desfazer dentro da carência é desligar — nada foi apagado. A tela mostra "começa a
+    **Regra gravada** (`resolvePurgeEffectiveAt`): desligar grava `now` (desligado não lê o campo);
+    ligar, e encurtar com o expurgo ligado, gravam `now + 24 h` (encurtar reabre a carência mesmo com
+    uma em curso); alongar e repetir o valor, com o expurgo já ligado, **mantêm** o
+    `purge_effective_at` anterior — não abrem carência nova e também não encurtam a que ainda corre.
+    Por que não gravar `now` ao alongar (a redação original deste item): ligar e alongar logo em seguida
+    anularia as 24 h do ligar, e a carência é justamente o que protege de um clique errado. Manter o
+    anterior é idêntico a `now` quando a carência já passou (o worker compara `<= now`). Decisão
+    exposta ao usuário e aceita por omissão em chat (2026-10-03); reverter é uma linha em
+    `location-retention.policy.ts` (devolver `now` no último ramo) e a tabela do contrato. Desfazer dentro da carência é desligar — nada foi apagado. A tela mostra "começa a
     valer em DD/MM HH:mm". Motivo: o ciclo é diário (`job-catalog.constant.ts:120-125`), mas a próxima
     batida pode ser em um minuto, e um clique errado não pode ter efeito antes de alguém perceber.
   - **Texto de LGPD** (pt-BR, com par `en`): _"A posição registrada nos eventos da viagem é dado pessoal
@@ -285,19 +292,19 @@ retentionDays: 90, purgeEffectiveAt: null, origin: 'default', updatedAt: null }`
 
 ## Casos extremos e falhas
 
-| Caso                                                            | Comportamento                                                                                          |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Empresa sem linha                                               | Desligada; o worker não a lê (junção interna).                                                         |
-| `retentionDays` 29, 91, `"90"`, `90.5`                          | `400` com todos os erros de validação; o CHECK do banco recusa se o Zod falhar.                        |
-| Ligar e desligar dentro de 24 h                                 | Nada apagado; duas linhas em `audit_logs`.                                                             |
-| Encurtar de 90 para 30 com o expurgo ligado                     | Confirmação com a contagem para 30; carência de 24 h; até lá o worker **pula a empresa** (não usa 90). |
-| Alongar de 30 para 90                                           | Sem confirmação nem carência; o próximo ciclo usa 90.                                                  |
-| Contagem acima de 100 000 numa tabela                           | `capped: true`; a tela diz "mais de 100 mil".                                                          |
-| Ciclo em andamento quando o admin desliga                       | O lote em voo termina (no máximo 500 linhas por tabela); o próximo lote relê a junção e para.          |
-| Coluna ausente (API sem a migration, `42703`)                   | Como hoje: a tabela falha sozinha, `failedTables`, as outras seguem (`routine.ts:222-258`).            |
-| Tabela de configuração ausente no worker (deploy fora de ordem) | Erro de relação (`42P01`) em todas as tabelas → nada apagado, `failedTables` com as cinco. Seguro.     |
-| `PUT` de outra empresa forjando `companyId` no corpo            | `400` (`.strict()`); a empresa é sempre a do token.                                                    |
-| Usuário sem `settings.manage`                                   | `403` nas quatro rotas; a aba segue a regra do vizinho (D7).                                           |
+| Caso                                                            | Comportamento                                                                                                                                           |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Empresa sem linha                                               | Desligada; o worker não a lê (junção interna).                                                                                                          |
+| `retentionDays` 29, 91, `"90"`, `90.5`                          | `400` com todos os erros de validação; o CHECK do banco recusa se o Zod falhar.                                                                         |
+| Ligar e desligar dentro de 24 h                                 | Nada apagado; duas linhas em `audit_logs`.                                                                                                              |
+| Encurtar de 90 para 30 com o expurgo ligado                     | Confirmação com a contagem para 30; carência de 24 h; até lá o worker **pula a empresa** (não usa 90).                                                  |
+| Alongar de 30 para 90                                           | Sem confirmação nem carência nova: mantém a data de início anterior (a carência em curso, se houver, continua; senão já valia); o próximo ciclo usa 90. |
+| Contagem acima de 100 000 numa tabela                           | `capped: true`; a tela diz "mais de 100 mil".                                                                                                           |
+| Ciclo em andamento quando o admin desliga                       | O lote em voo termina (no máximo 500 linhas por tabela); o próximo lote relê a junção e para.                                                           |
+| Coluna ausente (API sem a migration, `42703`)                   | Como hoje: a tabela falha sozinha, `failedTables`, as outras seguem (`routine.ts:222-258`).                                                             |
+| Tabela de configuração ausente no worker (deploy fora de ordem) | Erro de relação (`42P01`) em todas as tabelas → nada apagado, `failedTables` com as cinco. Seguro.                                                      |
+| `PUT` de outra empresa forjando `companyId` no corpo            | `400` (`.strict()`); a empresa é sempre a do token.                                                                                                     |
+| Usuário sem `settings.manage`                                   | `403` nas quatro rotas; a aba segue a regra do vizinho (D7).                                                                                            |
 
 ## Critérios de aceite
 

@@ -104,8 +104,14 @@ Em 375 px: campo e botões empilham, botões em largura total, alvo ≥ 44 px.
 
 ## Riscos de execução
 
-- **Migration com índices em transação** trava escrita nas cinco tabelas pelo tempo do `CREATE INDEX`:
-  aplicar fora do horário de campo e medir o tamanho das tabelas em staging antes.
+- **Migration com índices em transação** trava escrita nas cinco tabelas pelo tempo do `CREATE INDEX`
+  (`SHARE` até o `COMMIT`: leitura segue, escrita do motorista espera). A produção está atrás do schema, e
+  o migrador aplica todas as pendentes numa transação: as migrations da 196 (`20261001123700`,
+  `20261002153258`, `20261003010806`) tomam `ACCESS EXCLUSIVE` nas mesmas tabelas. **Pré-condições de
+  deploy em produção:** (1) medir `pg_total_relation_size` das cinco tabelas em produção; (2) promover as
+  migrations da 196 em deploy **separado, antes** da 239; (3) aplicar fora do horário de campo; (4)
+  considerar `statement_timeout` por índice. `lock_timeout` limita a espera pelo lock, não a construção.
+  Detalhe em `evidence.md` (M3).
 - **Snapshot do drizzle colide** com migration de outra sessão: conferir `origin/staging` e
   `db:generate` = `no_changes` antes do push (memória "numeração e migrations no rebase").
 - **`toEqual` exato do contrato de ambiente** do worker reprova a remoção da chave — é acerto; ajustar a
