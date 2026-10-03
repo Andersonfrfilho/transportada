@@ -515,6 +515,7 @@
     },
     "fleet": {
       "driver": "Ficha do motorista",
+      "helper": "Ficha de frota",
       "vehicle": "Veículo {{plate}}"
     },
     "resendHint": "Reenviar o código de ativação",

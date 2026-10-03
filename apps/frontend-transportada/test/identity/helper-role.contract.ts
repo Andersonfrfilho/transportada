@@ -122,3 +122,15 @@ describe('a recusa de papéis aparece junto dos papéis (spec 235 A4)', () => {
     expect(source.match(/role="alert"/g)).toHaveLength(1)
   })
 })
+
+describe('o link do ajudante para a ficha se chama ficha de frota (spec 235 A5)', () => {
+  const table = readSource('src/modules/identity/components/CompanyUserTable.component.tsx')
+
+  test('o papel helper usa o rótulo próprio; motorista e agregado mantêm o atual', () => {
+    expect(table).toContain("fleetRole === 'helper' ? 'users.fleet.helper' : 'users.fleet.driver'")
+    expect(ptLocale.users.fleet.helper).toBe('Ficha de frota')
+    expect(enLocale.users.fleet.helper).toBe('Fleet record')
+    expect(ptLocale.users.fleet.driver).toBe('Ficha do motorista')
+    expect(enLocale.users.fleet.driver).toBe('Driver record')
+  })
+})

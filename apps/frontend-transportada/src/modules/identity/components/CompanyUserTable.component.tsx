@@ -371,7 +371,7 @@ function FleetRoleBadge({ user }: Readonly<{ user: CompanyUser }>) {
       className={styles.roleLink}
       onClick={() => navigateToFleetDriver({ driverId: user.fleet?.driverId ?? '', navigator })}
       size="sm"
-      title={t('users.fleet.driver')}
+      title={t(fleetRole === 'helper' ? 'users.fleet.helper' : 'users.fleet.driver')}
       type="button"
       variant="ghost"
     >

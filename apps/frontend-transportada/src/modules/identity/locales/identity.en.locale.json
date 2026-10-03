@@ -515,6 +515,7 @@
     },
     "fleet": {
       "driver": "Driver record",
+      "helper": "Fleet record",
       "vehicle": "Vehicle {{plate}}"
     },
     "resendHint": "Resend the activation code",
