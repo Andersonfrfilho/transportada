@@ -2812,3 +2812,14 @@ posterior à da 234 — sem renomear. `bun run db:generate --name x` → `{"stat
 - Smoke Playwright do `frontend-driver` (os blocos fundidos de `driver-app.smoke.spec.ts`) não rodou.
 - `confirm-load`/`start-route` usam `parseFieldReportRequest`, que agora também aceita `tappedAt` e
   `clockOffsetMs` (da 234) e os descarta nessas rotas — aceito sem gravar, não `400`.
+
+### Segunda passada (staging andou durante os portões)
+
+`origin/staging` ganhou seis commits da 234 (T2.7/T2.8, D4d: aviso de localização negada antes do
+"Entreguei"; só `frontend-driver`, painel e specs — nenhum arquivo de API, worker, cron ou
+migration). Novo rebase: um conflito só, `driver-app.smoke.spec.ts`, fundido mantendo os dois
+blocos (aviso D4d da 234 e ponto da 196). A API não mudou entre as duas passadas
+(`git diff --stat` vazio em `apps/api-transportada`), então a integração e o `db:test` acima valem
+para ela. Portões refeitos: `format:check` ok; `lint` exit 0 (0 errors, 16 warnings); `typecheck`
+exit 0; `build` exit 0; `test` exit 0 — motorista 1165/0, resto igual ao acima;
+`db:generate` → `no_changes`.
