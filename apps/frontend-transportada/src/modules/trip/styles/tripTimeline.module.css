@@ -407,9 +407,15 @@
  */
 .detailMapToggle {
   justify-self: start;
-  min-height: var(--touch-target);
+  min-height: var(--control-height-compact);
   margin-inline-start: calc(-1 * var(--space-2));
   padding-inline: var(--space-2);
+}
+
+@media (pointer: coarse) {
+  .detailMapToggle {
+    min-height: var(--touch-target);
+  }
 }
 
 /* O painel fechado existe só para o `aria-controls` ter destino: vazio, não vira respiro na grade. */
@@ -464,6 +470,7 @@
   background: none;
   color: var(--color-slate-muted);
   cursor: help;
+  font: inherit;
 }
 
 /**

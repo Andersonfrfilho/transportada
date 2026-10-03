@@ -33,7 +33,13 @@ export function formatTripTimelineDistance(meters: number): TripTimelineDistance
       ? TRIP_TIMELINE_DISTANCE_PRECISE_FRACTION_DIGITS
       : TRIP_TIMELINE_DISTANCE_COARSE_FRACTION_DIGITS
   const kilometers = meters / TRIP_TIMELINE_METERS_PER_KILOMETER
-  return { unit: 'kilometers', value: kilometers.toFixed(fractionDigits) }
+  return {
+    unit: 'kilometers',
+    value: kilometers.toLocaleString('pt-BR', {
+      maximumFractionDigits: fractionDigits,
+      minimumFractionDigits: fractionDigits,
+    }),
+  }
 }
 
 export type TripTimelineLocationView = Readonly<{

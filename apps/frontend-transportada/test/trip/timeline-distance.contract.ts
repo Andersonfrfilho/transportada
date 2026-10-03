@@ -46,13 +46,13 @@ describe('formatTripTimelineDistance (spec 196)', () => {
   it('no limiar já vira quilômetro', () => {
     expect(formatTripTimelineDistance(TRIP_TIMELINE_DISTANCE_KILOMETER_THRESHOLD_METERS)).toEqual({
       unit: 'kilometers',
-      value: '1.0',
+      value: '1,0',
     })
   })
 
   it('até a faixa grossa mantém uma casa — 1,2 km é informação, 1 km perde a quadra', () => {
-    expect(formatTripTimelineDistance(1240)).toEqual({ unit: 'kilometers', value: '1.2' })
-    expect(formatTripTimelineDistance(9949)).toEqual({ unit: 'kilometers', value: '9.9' })
+    expect(formatTripTimelineDistance(1240)).toEqual({ unit: 'kilometers', value: '1,2' })
+    expect(formatTripTimelineDistance(9949)).toEqual({ unit: 'kilometers', value: '9,9' })
   })
 
   it('acima da faixa grossa a casa decimal vira ruído', () => {

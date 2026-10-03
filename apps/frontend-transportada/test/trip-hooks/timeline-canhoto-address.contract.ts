@@ -248,7 +248,7 @@ describe('linha do tempo da viagem: endereço corrigido (spec 228 T4.1)', () => 
   it('deslocamento grande sai em quilômetros, como a distância do resto do painel', () => {
     const dom = renderTimeline([ADDRESS_LONG_MOVE])
 
-    expect(dom.textContent).toContain('Corrigido pelo contratante · deslocado 1.5 km')
+    expect(dom.textContent).toContain('Corrigido pelo contratante · deslocado 1,5 km')
   })
 
   it('sem trip.event-location o deslocamento continua e nenhuma coordenada aparece', () => {
