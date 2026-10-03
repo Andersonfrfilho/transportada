@@ -55,6 +55,25 @@ describe('formulário de correção da ocorrência (spec 235 T2.2, CA01)', () =>
     rendered.unmount()
   })
 
+  test('nota inteira: limpar os itens e salvar manda a lista vazia, e a API a aceita', async () => {
+    const { calls } = installServerDouble()
+    const rendered = await renderWithQueryClient(createElement(DetailHarness))
+    await waitFor(() => expect(listedItems()).toHaveLength(2))
+
+    await click(buttonByText('Corrigir'))
+    await waitFor(() =>
+      expect(document.querySelector('input[aria-label="696 — Quantidade"]')).not.toBeNull(),
+    )
+    await click(buttonByText('Limpar itens escolhidos'))
+    await click(buttonByText('Salvar correção'))
+    await settle()
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0]?.items).toEqual([])
+    await waitFor(() => expect(listedItems()).toEqual([]))
+    rendered.unmount()
+  })
+
   test('Descartar fecha o formulário sem chamar a API', async () => {
     const { calls } = installServerDouble()
     const rendered = await renderWithQueryClient(createElement(DetailHarness))

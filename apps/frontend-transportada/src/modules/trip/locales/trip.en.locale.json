@@ -2036,7 +2036,8 @@
       "title": "Corrections",
       "entry": "Corrected by {{name}} on {{moment}}",
       "entryUnknown": "Corrected on {{moment}}",
-      "nowValid": "Now in effect:"
+      "nowValid": "Now in effect:",
+      "wholeDocument": "the whole invoice"
     },
     "items": {
       "title": "Affected items",
@@ -2070,7 +2071,7 @@
       "correct": "Correct",
       "form": {
         "title": "Correct the occurrence items",
-        "hint": "The set below replaces the current one: whatever you remove here leaves the occurrence, and the correction is recorded under your name.",
+        "hint": "The set below replaces the current one: whatever you remove here leaves the occurrence, and the correction is recorded under your name. With no items, the occurrence covers the whole invoice.",
         "save": "Save correction",
         "discard": "Discard",
         "productsError": "The invoice items could not be loaded. Close and try again."

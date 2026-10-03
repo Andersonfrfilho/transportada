@@ -73,6 +73,23 @@ describe('histórico de correções no detalhe (spec 235 T4.1, RF5, P3)', () => 
     expect(text).not.toContain('null')
   })
 
+  test('conjunto vigente vazio é a nota inteira, nunca "Passou a valer:" sem nada', () => {
+    const text = textOf(
+      buildOccurrenceDetailFixture({
+        corrections: [
+          {
+            correctedAt: FIRST_CORRECTION_AT,
+            correctedByName: 'Ana Operadora',
+            previousItems: [{ code: '696', quantity: '1.000', unit: 'box' }],
+          },
+        ],
+        items: [],
+      }),
+    )
+    expect(text).toContain('Passou a valer: a nota inteira')
+    expect(text).not.toContain('Passou a valer:|')
+  })
+
   test('sem correção, ou com a chave ausente, nada é renderizado', () => {
     expect(textOf(buildOccurrenceDetailFixture({ corrections: [] }))).toBe('')
     const withoutCorrections: Partial<Record<'corrections', unknown>> = {
