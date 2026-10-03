@@ -421,19 +421,6 @@ describe('caso de uso: foto julgada pelo relógio corrigido (spec 234 D4/D4b)', 
 
       expect(result.punctuality).toBe(PROOF_PUNCTUALITY.away)
     })
-
-    /** Espelho: contexto sem o canal da entrega e sem o desvio — a distância não pesa (regra anterior). */
-    it('sem desvio e sem o canal no contexto, recebida 30 min depois da entrega: on_time', async () => {
-      const world = buildRequiredWorld(undefined)
-
-      const result = await attach(
-        world,
-        { capturedAt: TRUE_PHOTO_AT, position: PHOTO_AT_DELIVERY_PLACE },
-        afterDelivery(30 * MILLISECONDS_PER_MINUTE),
-      )
-
-      expect(result.punctuality).toBe(PROOF_PUNCTUALITY.onTime)
-    })
   })
 
   /**

@@ -370,6 +370,7 @@ describe('o veredito alcança a foto da mercadoria (spec 220 RF10, RF12)', () =>
       findDeliveryContext: async () => ({
         deliveredAt: CARGO_DELIVERED_AT,
         deliveryEventPosition: DELIVERY_POSITION,
+        isDeliveryRecordedByDriver: true,
       }),
       findDeliveryEventId: async () => EVENT_ID,
       findProofIdByAttachmentKey: async () => null,
@@ -440,6 +441,7 @@ describe('cada foto da mercadoria guarda o próprio veredito (spec 220 RF10)', (
       findDeliveryContext: async () => ({
         deliveredAt: DELIVERED_AT,
         deliveryEventPosition: DELIVERY_POSITION,
+        isDeliveryRecordedByDriver: true,
       }),
       findDeliveryEventId: async () => '00000000-0000-4000-8000-000000000005',
       findProofIdByAttachmentKey: async () => null,
@@ -515,6 +517,7 @@ describe('o teto de cinco fotos da mercadoria vale para o motorista (spec 220 RF
       findDeliveryContext: async () => ({
         deliveredAt: new Date('2026-09-25T12:00:00.000Z'),
         deliveryEventPosition: undefined,
+        isDeliveryRecordedByDriver: true,
       }),
       findDeliveryEventId: async () => '00000000-0000-4000-8000-000000000005',
       findProofIdByAttachmentKey: async () => null,
