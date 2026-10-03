@@ -6,7 +6,7 @@ export const TRIP_LOCATION_PURGE_JOB = 'trip.location.purge'
 
 /**
  * A varredura anda em lotes porque a tabela é escrita o dia inteiro pela execução de campo: um
- * `UPDATE` único sobre noventa dias de eventos seguraria a escrita do motorista que está na rua.
+ * `UPDATE` único sobre toda a retenção vencida seguraria a escrita do motorista que está na rua.
  */
 export const TRIP_LOCATION_PURGE_BATCH_SIZE = 500
 
@@ -34,7 +34,7 @@ export const TRIP_DOCUMENT_OCCURRENCES_TABLE = 'trip_document_occurrences'
 
 /**
  * Spec 196 D8: as cinco tabelas de evento que carregam o ponto do toque, cada uma com a coluna de
- * tempo que o corte de noventa dias compara. ⚠️ Cópia por valor do que o worker enxerga — o
+ * tempo que o corte por empresa compara. ⚠️ Cópia por valor do que o worker enxerga — o
  * contrato de paridade lê o schema da API e reprova tabela com `latitude` fora desta lista e da
  * `TRIP_LOCATION_UNSTAMPED_TABLES`.
  */
@@ -49,7 +49,7 @@ export const TRIP_LOCATION_STAMPED_TABLES = [
 const ADDRESS_NOT_PERSON_POSITION_REASON =
   'endereço ou cadastro de lugar, não a posição de uma pessoa em um instante'
 
-/** Spec 196 D8: tabelas com coordenada que o expurgo de noventa dias **não** varre, e por quê. */
+/** Spec 196 D8: tabelas com coordenada que o expurgo da posição **não** varre, e por quê. */
 export const TRIP_LOCATION_UNSTAMPED_TABLES = [
   { table: 'trip_stops', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
   { table: 'client_delivery_addresses', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
@@ -75,7 +75,7 @@ const MILLISECONDS_PER_HOUR = 3_600_000
  * (`api-transportada/src/trips/domain/tracking-window.policy.ts`): o worker não importa código da
  * API. Mudou lá? mude aqui — e o contrato de paridade compara os dois números.
  *
- * O rastro ao vivo tem prazo muito mais curto que os noventa dias da coordenada de entrega, e é
+ * O rastro ao vivo tem prazo muito mais curto que o prazo por empresa da coordenada de entrega (90 dias por padrão), e é
  * de propósito: a coordenada carimba um fato que se audita depois, e o ping é o trajeto — que a
  * ADR-0050 §5 decidiu **não** guardar.
  */

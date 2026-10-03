@@ -108,9 +108,17 @@ worker lê a configuração a cada ciclo e expurga cada empresa pelo prazo dela,
     que varre a tabela inteira para achar zero linha; com ele usa índice. Efeito colateral bom: apaga o mais
     antigo primeiro.
   - O `LATERAL` faz o planejador entrar no índice `<tabela>_company_located_<tempo>_idx` uma vez por
-    empresa elegível, com `company_id` no `Index Cond`; o `LIMIT` interno impede que uma empresa com
-    backlog devore o lote das outras. O `t.latitude IS NOT NULL` fora da subconsulta repete o filtro por
-    idempotência.
+    empresa elegível, com `company_id` no `Index Cond` (em tese: ver a ressalva abaixo). O `LIMIT` interno
+    é **igual** ao externo (500), então **não há justiça entre empresas**: a fila drena empresa por
+    empresa, e a empresa B pode esperar dias sem perder ponto enquanto A tem backlog. O `t.latitude IS
+NOT NULL` fora da subconsulta repete o filtro por idempotência.
+  - **Ressalva medida (revisão da Fase 2, `evidence.md` ≈:527):** (a) enquanto o índice só por tempo
+    `<tabela>_located_<tempo>_idx` existir, o planejador **não escolhe** o composto; (b) as sondas por
+    consulta crescem com o número de empresas elegíveis, e o custo de cada sonda cresce com as linhas com
+    ponto, vencidas, das empresas **não** elegíveis; (c) **follow-up, fora desta spec (exige migration):**
+    `DROP INDEX` dos cinco `<tabela>_located_<tempo>_idx` com `SET LOCAL lock_timeout`, conferindo
+    `idx_scan` em produção antes e com `rollback.sql` que recria os índices; a justiça entre empresas
+    (`LIMIT` interno menor ou `ORDER BY` externo por idade) entra junto dele.
   - Coluna de tempo por tabela: `trip_stop_events.created_at`, `trip_status_events.recorded_at`,
     `trip_stop_occurrences.created_at`, `trip_document_occurrences.created_at`,
     `trip_delivery_proofs.created_at`. `captured_at` é zerado nas quatro tabelas de evento; **no
@@ -380,7 +388,11 @@ retentionDays: 90, purgeEffectiveAt: null, origin: 'default', updatedAt: null }`
   pretendido.
 - **Varredura com junção pode ficar lenta** em tabela grande. Mitigado pelo índice parcial
   `(company_id, tempo) WHERE latitude IS NOT NULL` nas cinco (D1) e pelo lote de 500 com teto por tabela
-  que já existe. Medir `EXPLAIN` na T2.2.
+  que já existe. Medido na T2.2: o planejador não escolhe o composto enquanto o índice só por tempo
+  existir; as sondas crescem com o número de empresas elegíveis e cada uma com o dado das não elegíveis;
+  e a fila drena empresa por empresa, sem justiça entre elas (D2). Follow-up com migration (`DROP INDEX`
+  dos cinco `<tabela>_located_<tempo>_idx` com `SET LOCAL lock_timeout`, `idx_scan` conferido em
+  produção, rollback que recria os índices, e a justiça entre empresas junto) — não é desta spec.
 - **Encurtar o prazo com o expurgo ligado suspende a empresa por 24 h** (a carência reabre e o prazo
   antigo também para de valer): é o efeito pretendido, mas quem encurta não vê o expurgo rodar no dia.
 - **Deploy fora de ordem.** O worker novo contra o banco sem a tabela falha seguro (nada apagado). A API

@@ -55,9 +55,11 @@ function identifier(column: AnyPgColumn): Name {
 
 /**
  * Spec 239 D2: um `UPDATE` só por lote, com `CROSS JOIN LATERAL` sobre as empresas elegíveis. O `LATERAL`
- * entra no índice `(company_id, tempo)` uma vez por empresa, e o `LIMIT` interno impede que uma empresa
- * com fila grande devore o lote das outras. Cada linha é comparada só com o prazo da própria empresa
- * (`x.company_id = s.company_id`); empresa sem linha de configuração, desligada ou em carência não entra.
+ * sonda o índice `(company_id, tempo)` uma vez por empresa. O `LIMIT` interno é igual ao externo, então
+ * NÃO há justiça entre empresas: a fila drena empresa por empresa, e uma empresa pode esperar ciclos
+ * enquanto outra com atraso é esvaziada (ela não perde ponto, só demora). Cada linha é comparada só com o
+ * prazo da própria empresa (`x.company_id = s.company_id`); empresa sem linha de configuração, desligada
+ * ou em carência não entra.
  *
  * ⚠️ Sem `FOR UPDATE SKIP LOCKED`; se um dia houver `FOR UPDATE` na subconsulta, tem de ser `FOR UPDATE
  * OF x` — sem o `OF` ele trava a linha de configuração e o `PUT` da tela espera.

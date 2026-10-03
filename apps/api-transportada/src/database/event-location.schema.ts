@@ -134,8 +134,8 @@ type BuildEventLocationIndexParams = {
 }
 
 /**
- * O índice parcial do expurgo dos 90 dias: ele varre por data e apaga só a coordenada, então sem
- * este índice varre a tabela inteira. A coluna de tempo é de cada tabela — `trip_status_events` não
+ * O índice parcial por data da coordenada: o expurgo apaga só a coordenada, então sem um índice
+ * parcial a varredura percorre a tabela inteira. A coluna de tempo é de cada tabela — `trip_status_events` não
  * tem `created_at`, as duas de ocorrência não têm `recorded_at` —, e o nome sai dela para que índice
  * e coluna nunca discordem.
  */
@@ -155,7 +155,8 @@ type BuildEventLocationCompanyIndexParams = BuildEventLocationIndexParams & {
 /**
  * Spec 239 D1/D2: com o prazo por empresa, o expurgo e a contagem de impacto da tela filtram por
  * `company_id` antes da data. O índice só por data não serve esse filtro; este serve, e fica ao lado
- * dele em vez de substituí-lo — a rotina de hoje ainda varre só por data até a junção por empresa.
+ * dele em vez de substituí-lo; a rotina por empresa já usa este, mas o planejador ainda não o escolhe
+ * enquanto o índice só por data existir (spec 239, `evidence.md` T2.2).
  */
 export const buildEventLocationCompanyIndex = ({
   companyId,
