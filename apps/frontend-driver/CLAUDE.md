@@ -108,8 +108,10 @@ depois anexos (`offlineAttachments.service.ts`) exigiria a ordem inversa, e a 17
 **O momento do evento é o do toque, corrigido pelo relógio** (spec 234, Fase 2). `request()` do cliente
 lê o `Date` de toda resposta `ok` e guarda em memória (`clockOffset.service.ts:driverClockOffset`) o desvio
 `servidor − aparelho`, contra o ponto médio do pedido; o `Date` tem resolução de 1 s e o erro de ±1 s é
-aceito. O item da fila (`QueuedReport`) e o anexo (`QueuedAttachment`) guardam o desvio **da criação**
-(`clockOffsetMs`); no envio a drenagem entrega `{ tappedAt: createdAt, clockOffsetMs }` ao `send`. Só
+aceito, e pedido com ida e volta acima de 5 s (`MAX_CLOCK_SAMPLE_ROUND_TRIP_MS`) não mede — upload lento é
+assimétrico. O item da fila (`QueuedReport`) e o anexo (`QueuedAttachment`) guardam o desvio **da criação**
+(`clockOffsetMs`); no envio a drenagem entrega `{ tappedAt: createdAt, clockOffsetMs }` ao `send` (`send({ report, stamp })`,
+`StampedReport`, com `stamp` obrigatório no objeto). Só
 `CLOCK_FIELD_REPORT_KINDS` (`arrive`, `deliver`, `return`, ocorrência de parada e a foto dela) levam os dois
 campos — os esquemas da API são `.strict()` e `depart`/`cancelDeparture` (já com `tappedAt` próprio),
 `dispatch`, ocorrência de nota e `proof/receiver` dariam `400`. O multipart do comprovante leva só

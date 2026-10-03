@@ -43,6 +43,11 @@ Fluxo de request: `src/main.ts` (composition root) → `server/server.service.ts
 `http/router.service.ts`: autentica → `matchRoute` → `tenantContext.resolveCompany` → `authorize` →
 `route.execute` → `parse` (Zod) → `handle` → use-case → repositório.
 
+O CORS (`applyCorsHeaders`) expõe `access-control-expose-headers: Date` (`CORS_EXPOSE_HEADERS` em
+`src/shared/api.constant.ts`) só à origem permitida: sem ele o navegador não deixa o app do motorista ler o
+`Date` da resposta, e o desvio do relógio (spec 234) nunca é medido — sem erro nenhum. Contrato em
+`test/cors.contract.test.ts`.
+
 **Multi-tenant:** Bearer JWT (Keycloak/JWKS) → identidade externa por issuer+subject →
 `tenantContext.resolveCompany` busca membership ativo; sem membership → 403. Todo repositório recebe
 `context.companyId` e filtra por ele. Testes de isolamento em

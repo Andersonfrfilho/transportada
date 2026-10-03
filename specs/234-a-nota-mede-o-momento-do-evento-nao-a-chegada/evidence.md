@@ -955,3 +955,32 @@ smoke emitia o cabeçalho e escondia isso.
 - Correção: `CORS_EXPOSE_HEADERS` em `api.constant.ts`, aplicada em `applyCorsHeaders` dentro da
   mesma condição que já devolve `allow-origin`.
 - Mutação: expor sem checar a origem derrubou 2 testes; restaurado, 96 pass / 0 fail.
+
+## Fase 2 — ajustes da revisão (opus)
+
+A API passou a expor o `Date` (`9bd3cfe67`, `CORS_EXPOSE_HEADERS`), o que fecha o achado da T2.3.
+
+- **Item 1 (§10):** `send`, `reportBody` e os callbacks de `drainQueue`/`drainQueueWithAttachments` recebem um
+  objeto `StampedReport` (`{ report, stamp }`), com `stamp: EventClockStamp | undefined` **obrigatório** — esquecê-lo
+  é erro de tipo. Todos os chamadores e testes foram atualizados (37 chamadas em 11 contratos, mais os callbacks de
+  drenagem). Mutante: o hook chamando `client.send({ report })` não compila
+  (`TS2345 … not assignable to … { report; stamp }`).
+- **Item 2 (L3):** `depart`, `cancelDeparture` e `dispatch` não espalham mais `clockFields` em `reportBody`; dois
+  testes novos provam que o corpo deles é só o de sempre mesmo com carimbo.
+- **Item 3 (L5):** `Number.isFinite(deviceNowMs)` saiu de `computeClockOffsetMs`; nenhum teste dependia dele.
+- **Item 4 (L1):** `MAX_CLOCK_SAMPLE_ROUND_TRIP_MS = 5000`; `recordClockOffset` descarta a amostra quando a ida e a
+  volta passam disso (3 testes novos: ≤ 5 s mede, > 5 s não substitui, o teto declarado).
+- **Item 5 (L7):** `apps/api-transportada/CLAUDE.md` cita `access-control-expose-headers: Date`.
+
+`bun run test` do frontend-driver: 1093 → **1098 pass**, 0 fail. Smoke: `driver-app.smoke.spec.ts` 37 passed,
+`driver-service-worker.smoke.spec.ts` 2 passed.
+
+| #   | Mutante                                                     | Resultado                                                                 |
+| --- | ----------------------------------------------------------- | ------------------------------------------------------------------------- |
+| N1  | sem o teto de ida e volta                                   | reprova `pedido que levou mais de 5 s não substitui a medição anterior`   |
+| N2  | teto exclusivo (`>=`)                                       | reprova `pedido que levou até 5 s ainda mede (o limite é inclusivo)`      |
+| N3  | teto virou 60 s                                             | reprova o limite inclusivo e `o teto de 5 s é o declarado`                |
+| N4  | `depart` no conjunto + spread de volta depois do `tappedAt` | 7 reprovam (conjunto exato, `depart` leva os campos, `tappedAt` próprio…) |
+| N5  | a drenagem de anexos não entrega o carimbo                  | 2 reprovam (carimbo do toque, `drainQueueWithAttachments`)                |
+| N6  | `drainQueue` não entrega o carimbo                          | reprova `drainQueue (a fila simples) também entrega o carimbo`            |
+| N7  | o hook manda `{ report }` sem `stamp`                       | `tsc` falha (TS2345), antes de qualquer teste                             |
