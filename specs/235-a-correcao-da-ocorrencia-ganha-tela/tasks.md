@@ -115,7 +115,7 @@ itens ou tipo; relógio `openUntil` fecha no cancelamento.
 - [x] **T6.6** BAIXOS da revisão, em dois commits (painel e API, por causa das etapas da T6.1): itens 1, 2, 3,
       6, 7, 8, 10; o 4 **não foi feito** (o detalhe não publica o tipo); o 5 é aceito; o 9 é prova por
       leitura de código, em `evidence.md`.
-- [ ] **T6.7** Gates finais e índice.
+- [x] **T6.7** Gates finais e índice.
 
 ⚠️ Todo arquivo de teste novo entra na lista do `package.json` da app — fora dela, não roda.
 

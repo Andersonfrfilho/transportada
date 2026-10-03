@@ -2,29 +2,37 @@
 
 ## Índice (task → commit → evidência)
 
-| Task       | Commit                              | Evidência (seção abaixo)                                                                         |
-| ---------- | ----------------------------------- | ------------------------------------------------------------------------------------------------ |
-| T0.1, T0.2 | `d653d1570`                         | T0.1 — Escritas / Recusas; T0.2 — Leitura depois das escritas (a leitura não devolvia os campos) |
-| T0.3       | `6952f9eda`                         | T0.3 — Testes primeiro, vermelhos                                                                |
-| T0.4       | `3a307bbf3`                         | T0.4 — Implementação                                                                             |
-| T0.5       | `d8d7b27a2`                         | T0.5 — Gates da API                                                                              |
-| T1.1       | `dc33d02a3`                         | T1.1 — O cliente das duas escritas                                                               |
-| T1.2       | `cda66c6db`                         | T1.2 — Quando Corrigir e Cancelar agem                                                           |
-| T1.3       | `449709816`                         | T1.2/T1.3 — mutação vermelha registrada                                                          |
-| T1.4       | `d9ff8b763`                         | T1.4 — As mutações de dados, com invalidação                                                     |
-| T2.1       | `9d3359924`                         | T2.1 — O botão Corrigir no detalhe                                                               |
-| T2.2       | `639e38e26`                         | T2.2 — O formulário de correção                                                                  |
-| T2.3       | `24977faa5`                         | T2.3 — As mensagens de erro por código estável                                                   |
-| T2.4       | `96626a4d5`                         | T2.3/T2.4 — mutação vermelha registrada                                                          |
-| T3.1       | `df8893cee`                         | T3.1 — O diálogo de cancelamento                                                                 |
-| T3.2a      | `9ca78e561` (spec), `93f260e4d`     | T3.2a — As duas linhas do tempo publicam o cancelamento                                          |
-| T3.2       | `c1eb0dc17`                         | T3.2 — A marca de cancelada                                                                      |
-| T4.1       | `4f774cdab`                         | T4.1 — A lista de correções no detalhe                                                           |
-| T4.2       | `c87378075`                         | T4.2 — Duas correções seguidas                                                                   |
-| T5.0       | `09d6be608`                         | Fase 5, T5.0 — `correctedByName` nulo                                                            |
-| T5.1       | `4953d4026`                         | Fase 5, T5.1 — Revisão de design e usabilidade, 21 prints em `prints/`                           |
-| T5.2       | `68319e473`                         | Fase 5, T5.2 — `tasks.md` da 167 conferido                                                       |
-| T5.3, T5.4 | commit de fechamento (este arquivo) | Fase 5, T5.3 — Gates; Fase 5, T5.4 — Pendências                                                  |
+| Task       | Commit                                  | Evidência (seção abaixo)                                                                         |
+| ---------- | --------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| T0.1, T0.2 | `d653d1570`                             | T0.1 — Escritas / Recusas; T0.2 — Leitura depois das escritas (a leitura não devolvia os campos) |
+| T0.3       | `6952f9eda`                             | T0.3 — Testes primeiro, vermelhos                                                                |
+| T0.4       | `3a307bbf3`                             | T0.4 — Implementação                                                                             |
+| T0.5       | `d8d7b27a2`                             | T0.5 — Gates da API                                                                              |
+| T1.1       | `dc33d02a3`                             | T1.1 — O cliente das duas escritas                                                               |
+| T1.2       | `cda66c6db`                             | T1.2 — Quando Corrigir e Cancelar agem                                                           |
+| T1.3       | `449709816`                             | T1.2/T1.3 — mutação vermelha registrada                                                          |
+| T1.4       | `d9ff8b763`                             | T1.4 — As mutações de dados, com invalidação                                                     |
+| T2.1       | `9d3359924`                             | T2.1 — O botão Corrigir no detalhe                                                               |
+| T2.2       | `639e38e26`                             | T2.2 — O formulário de correção                                                                  |
+| T2.3       | `24977faa5`                             | T2.3 — As mensagens de erro por código estável                                                   |
+| T2.4       | `96626a4d5`                             | T2.3/T2.4 — mutação vermelha registrada                                                          |
+| T3.1       | `df8893cee`                             | T3.1 — O diálogo de cancelamento                                                                 |
+| T3.2a      | `9ca78e561` (spec), `93f260e4d`         | T3.2a — As duas linhas do tempo publicam o cancelamento                                          |
+| T3.2       | `c1eb0dc17`                             | T3.2 — A marca de cancelada                                                                      |
+| T4.1       | `4f774cdab`                             | T4.1 — A lista de correções no detalhe                                                           |
+| T4.2       | `c87378075`                             | T4.2 — Duas correções seguidas                                                                   |
+| T5.0       | `09d6be608`                             | Fase 5, T5.0 — `correctedByName` nulo                                                            |
+| T5.1       | `4953d4026`                             | Fase 5, T5.1 — Revisão de design e usabilidade, 21 prints em `prints/`                           |
+| T5.2       | `68319e473`                             | Fase 5, T5.2 — `tasks.md` da 167 conferido                                                       |
+| T5.3, T5.4 | commit de fechamento (este arquivo)     | Fase 5, T5.3 — Gates; Fase 5, T5.4 — Pendências                                                  |
+| T6.1       | `8ac9b5caf`                             | T6.1 — Ordem de publicação (etapa: nenhuma, procedimento + contrato do painel)                   |
+| T6.2       | `e52eb1b9f`                             | T6.2 — Lista da nota invalidada (etapa 1, painel)                                                |
+| T6.3       | `0c4371283`                             | T6.3 — Nota inteira na correção (etapa 1, painel)                                                |
+| T6.4       | `0939db332`                             | T6.4 — Critério de Corrigir; **parte do tipo parada** (etapa 1, painel)                          |
+| T6.5       | `871188e8f`                             | T6.5 — `openUntil` fecha no cancelamento (etapa 2, API)                                          |
+| T6.6       | `41fd6c766` (painel), `711ec6a9d` (API) | T6.6 — Baixos da revisão (etapas 1 e 2)                                                          |
+| T6.7       | commit de fechamento da Fase 6          | T6.7 — Gates finais e pendências depois da Fase 6                                                |
+| Decisões   | `246f12a83`                             | `spec.md` § Decisões de 2026-10-03 e `tasks.md` Fase 6                                           |
 
 Ambiente: API deste worktree (`work/spec-235`) subida na porta 53091 contra o Postgres local
 (127.0.0.1:55432) e o Keycloak local; token do usuário de seed `local-user` (papéis
@@ -1486,13 +1494,13 @@ Não publicar nada nesta task. Como publicar por etapas (a branch mistura as dua
 
 Divisão (commits de código; os `docs(specs)` seguem a regra acima):
 
-| Etapa       | SHAs (ordem cronológica)                                                                                                                                                                                               | Onde mexem                                                                  |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| 1 — painel  | `dc33d02a3` T1.1, `cda66c6db` T1.2, `d9ff8b763` T1.4, `9d3359924` T2.1, `639e38e26` T2.2, `24977faa5` T2.3, `df8893cee` T3.1, `4f774cdab` T4.1, `c87378075` T4.2, `c1eb0dc17` T3.2, `09d6be608` T5.0, `4953d4026` T5.1 | `apps/frontend-transportada` (+ `docs/ai-context/frontend-transportada.md`) |
-| 2 — API     | `6952f9eda` T0.3, `3a307bbf3` T0.4, `d8d7b27a2` T0.5, `93f260e4d` T3.2a                                                                                                                                                | `apps/api-transportada` (+ `docs/ai-context/api-transportada.md`)           |
-| só `specs/` | `4e7f04184`, `d653d1570`, `fbb46f0f4`, `7df76a06d`, `449709816`, `96626a4d5`, `9ca78e561`, `68319e473`, `001bfe770`, `246f12a83`                                                                                       | evidência, spec 167                                                         |
+| Etapa       | SHAs (ordem cronológica)                                                                                                                                                                                                                                                                                   | Onde mexem                                                                  |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| 1 — painel  | `dc33d02a3` T1.1, `cda66c6db` T1.2, `d9ff8b763` T1.4, `9d3359924` T2.1, `639e38e26` T2.2, `24977faa5` T2.3, `df8893cee` T3.1, `4f774cdab` T4.1, `c87378075` T4.2, `c1eb0dc17` T3.2, `09d6be608` T5.0, `4953d4026` T5.1, **Fase 6:** `e52eb1b9f` T6.2, `0c4371283` T6.3, `0939db332` T6.4, `41fd6c766` T6.6 | `apps/frontend-transportada` (+ `docs/ai-context/frontend-transportada.md`) |
+| 2 — API     | `6952f9eda` T0.3, `3a307bbf3` T0.4, `d8d7b27a2` T0.5, `93f260e4d` T3.2a, **Fase 6:** `871188e8f` T6.5, `711ec6a9d` T6.6                                                                                                                                                                                    | `apps/api-transportada` (+ `docs/ai-context/api-transportada.md`)           |
+| só `specs/` | `4e7f04184`, `d653d1570`, `fbb46f0f4`, `7df76a06d`, `449709816`, `96626a4d5`, `9ca78e561`, `68319e473`, `001bfe770`, `246f12a83`                                                                                                                                                                           | evidência, spec 167                                                         |
 
-Os SHAs da Fase 6 (T6.2 a T6.7) estão no índice no topo deste arquivo, com a etapa de cada um.
+Os `docs(specs)` da Fase 6 (`246f12a83`, `8ac9b5caf` T6.1 e o de fechamento) vão na etapa 2.
 
 **O painel desta branch contra a API antiga** (campos ausentes → `null`/`[]`, nunca resposta inválida) — já
 havia contrato para três dos quatro leitores e a T6.1 acrescentou o que faltava:
@@ -1641,3 +1649,42 @@ da ocorrência e o cancelamento exige não haver nenhuma:
   existe: a tratativa só abre no registro, e a cancelada já foi registrada.
 - Corrige a pendência 5 da T5.4 ("o marcador da 173 não filtra cancelada — não verificado"): **verificado**,
   não precisa filtrar.
+
+## T6.7 — Gates finais (primeiro plano, worktree `work/spec-235`)
+
+| Comando                                                                            | Resultado                                                                    |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `bun install --frozen-lockfile`                                                    | `Checked 788 installs across 921 packages (no changes)`                      |
+| `bun run typecheck` (raiz)                                                         | limpo                                                                        |
+| `cd apps/frontend-transportada && bun run lint`                                    | 0 erros, 16 avisos `react-hooks/exhaustive-deps` já existentes               |
+| `bun run --cwd apps/frontend-transportada test`                                    | contratos **6525 pass, 0 fail** (32 arquivos); lote DOM **359 pass, 0 fail** |
+| `bun run format:check` (raiz), depois de `prettier --write` nos `.md` da spec      | `All matched files use Prettier code style!`                                 |
+| `cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000` | **8901 pass, 23 skip, 0 fail** (193 arquivos)                                |
+
+Integração da API, um arquivo por vez (`bun --env-file=../../.env.test test --timeout 120000 ./test/integration/<arquivo>`,
+Postgres local do `.env.test`), todos os arquivos `*occurrence*` e `trip-timeline`, **0 fail**:
+`occurrence-automatic-mail` 4, `occurrence-case-closure` 1, `occurrence-charge-report` 3, `occurrence-charge` 1,
+`occurrence-settlement-charge-bridge` 3, `occurrence-type-catalog-seed` 1, `occurrence-type-leaves-document-behind` 4,
+`stop-occurrence-photo` 8, `trip-detail-occurrence-marker` 1, `trip-occurrence-attachment` 6,
+`trip-occurrence-case-write-guard` 3, `trip-occurrence-case` 4, `trip-occurrence-correction-read` 8,
+`trip-occurrence-correction` 7, `trip-occurrence-detail` 6, `trip-occurrence-feed-case` 2,
+`trip-occurrence-feed-document` 6, `trip-occurrence-item-quantity` 5, `trip-occurrence-settlement` 7,
+`trip-occurrence-timeline` 3, `trip-occurrence-upload-confirm` 3 pass + **1 skip**, `trip-timeline` 42, e os nove
+`occurrence-conversation-*` (3, 2, 1, 3, 6, 2, 2, 2, 4).
+
+O único pulado é `testWithStorage` de `trip-occurrence-upload-confirm` (linha 73: pula quando o MinIO local não
+responde, e ele está fora do ar — a imagem é do GHCR privado). **Pulado não é verde**: esse teste não rodou; ele
+cobre a confirmação de upload de foto, que nenhuma task da 235 toca. `make migration-test` não se aplica
+(nenhuma migration na Fase 6).
+
+## Pendências depois da Fase 6 (corrige a T5.4)
+
+- **Pendência 3 da T5.4, revista:** Corrigir existe com itens **ou** se a ocorrência já foi corrigida (T6.4).
+  A ocorrência de nota **sem itens e nunca corrigida** (avaria sobre a nota inteira, a do WhatsApp) continua só
+  com Cancelar: o sinal de "tipo que carrega itens" **não existe** sem campo novo na API (T6.4). Decisão
+  pendente do usuário: autorizar um campo no detalhe (id do tipo, ou a flag no tipo) ou aceitar a regra por itens.
+- **Pendência 4 resolvida:** `occurrence.cancelled` fecha `openUntil` (T6.5). Continua não sendo evento-chave.
+- **Pendência 5 resolvida:** o marcador da 173 e a cobrança da 164 não precisam filtrar a cancelada (T6.6, item 9).
+- **Novas:** o item 4 da T6.6 (`allowsMultipleItems` do tipo no formulário de correção) não foi feito, pelo mesmo
+  motivo do tipo; "nota inteira" salva uma correção cujo "conjunto original" (167 T403) continua sem aparecer.
+- **Publicação:** nada foi publicado. Etapa 1 (painel) antes da etapa 2 (API); ver T6.1.
