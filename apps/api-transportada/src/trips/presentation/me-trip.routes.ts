@@ -136,6 +136,8 @@ export type OccurrenceUploadTarget = { readonly documentId: string } | { readonl
 
 export type MeTripDependencies = {
   readonly findCurrentTrip: (input: {
+    /** Spec 244 D2: o POST do comprovante pede `trip.report`; sem ela a conta não recebe a fila de fotos. */
+    readonly canReportProofs: boolean
     readonly companyId: string
     readonly membershipId: string
   }) => Promise<FindCurrentDriverTripResult>
@@ -290,6 +292,7 @@ export function createMeTripRoutes(
     defineRoute<Record<string, never>>({
       async handle({ context }): Promise<Response> {
         const result = await dependencies.findCurrentTrip({
+          canReportProofs: context.scope.permissions.has(DRIVER_REPORT_POLICY.permission),
           companyId: context.scope.companyId,
           membershipId: context.scope.membershipId,
         })

@@ -852,6 +852,65 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
   )
 
   /**
+   * Spec 244 D2: quem entregou como motorista e hoje só tem `trip.read` (ajudante) não recebe a fila
+   * de fotos — o POST do comprovante pede `trip.report`; a conta que pode reportar a recebe como antes.
+   */
+  testWithPostgres('a pendência de foto só chega a quem pode reportar (spec 244)', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedDispatchedTrip(database)
+      await database.db
+        .insert(companyDeliveryProofSettings)
+        .values({ companyId: world.companyId, photo: 'required' })
+      const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
+      const reads = new DrizzleCurrentDriverTripRepository(database.db)
+      const context = {
+        actorUserId: world.userId,
+        companyId: world.companyId,
+        driverId: world.driverId,
+      }
+      for (const [index, stopId] of world.stopIds.entries()) {
+        await reportStopArrival({
+          ...context,
+          idempotencyKey: `chegada-sem-resto-${String(index)}`,
+          location: null,
+          now: NOW,
+          stopId,
+          unitOfWork,
+        })
+      }
+      for (const [index, documentId] of world.documentIds.entries()) {
+        await reportDocumentDelivery({
+          ...context,
+          documentId,
+          idempotencyKey: `entrega-sem-resto-${String(index)}`,
+          location: null,
+          now: NOW,
+          unitOfWork,
+        })
+      }
+      const ask = (canReportProofs: boolean) =>
+        findCurrentDriverTrip({
+          canReportProofs,
+          companyId: world.companyId,
+          membershipId: world.membershipId,
+          now: new Date(),
+          repository: reads,
+          scores: new DrizzleDriverScoreRepository(database.db),
+        })
+
+      const withReport = await ask(true)
+      const withoutReport = await ask(false)
+
+      expect(withReport.pendingProofs.length).toBeGreaterThan(0)
+      expect(withoutReport.pendingProofs).toEqual([])
+      expect(withoutReport.trips.map((trip) => trip.id)).toEqual(
+        withReport.trips.map((trip) => trip.id),
+      )
+      expect(withoutReport.isRegisteredDriver).toBe(true)
+    })
+  })
+
+  /**
    * Spec 159 T11 (ALTO 1): a última entrega conclui a viagem, que sai de `trips` — e as fotos
    * obrigatórias que faltam continuam listadas em `pendingProofs`, e o `/proof` ainda as aceita.
    */

@@ -178,6 +178,44 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
     expect(repository.askedPending).toEqual([])
   })
 
+  /** Spec 244 D2: o POST do comprovante exige `trip.report`; listar o que a conta não pode enviar só a trava. */
+  it('sem permissão de reportar, não pergunta pelas fotos pendentes e devolve vazio', async () => {
+    const repository = buildRepository({
+      pendingProofs: [PENDING_PROOF],
+      trips: [buildTrip('trip-1')],
+    })
+
+    const result = await findCurrentDriverTrip({
+      canReportProofs: false,
+      companyId: COMPANY_ID,
+      membershipId: MEMBERSHIP_ID,
+      now: NOW,
+      repository,
+      scores: NO_SCORES,
+    })
+
+    expect(result.pendingProofs).toEqual([])
+    expect(result.trips.map((trip) => trip.id)).toEqual(['trip-1'])
+    expect(result.isRegisteredDriver).toBe(true)
+    expect(repository.askedPending).toEqual([])
+  })
+
+  it('com permissão de reportar, devolve as fotos pendentes como hoje', async () => {
+    const repository = buildRepository({ pendingProofs: [PENDING_PROOF] })
+
+    const result = await findCurrentDriverTrip({
+      canReportProofs: true,
+      companyId: COMPANY_ID,
+      membershipId: MEMBERSHIP_ID,
+      now: NOW,
+      repository,
+      scores: NO_SCORES,
+    })
+
+    expect(result.pendingProofs).toEqual([PENDING_PROOF])
+    expect(repository.askedPending).toHaveLength(1)
+  })
+
   /** Dois veículos, dois dias: a 056 não impede, e quem escolhe é o motorista. */
   it('devolve as duas viagens quando há duas despachadas', async () => {
     const result = await findCurrentDriverTrip({

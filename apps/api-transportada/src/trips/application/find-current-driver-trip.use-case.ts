@@ -174,6 +174,8 @@ export type CurrentDriverTripPort = {
 }
 
 export type FindCurrentDriverTripInput = {
+  /** Spec 244 D2: `false` não lista as fotos pendentes (a conta não pode enviá-las). Ausente = `true`. */
+  readonly canReportProofs?: boolean
   readonly companyId: string
   readonly membershipId: string
   /** O relógio da nota (RF9: penalidade vigente 90 dias) — injetado, nunca lido aqui. */
@@ -214,9 +216,12 @@ export async function findCurrentDriverTrip(
     return { isRegisteredDriver: false, pendingProofs: [], score: null, trips: [] }
   }
 
+  const shouldListPendingProofs = input.canReportProofs ?? true
   const [trips, pendingProofs, scores] = await Promise.all([
     input.repository.listActiveTrips({ companyId: input.companyId, driverId }),
-    input.repository.listPendingProofs({ companyId: input.companyId, driverId, now: input.now }),
+    shouldListPendingProofs
+      ? input.repository.listPendingProofs({ companyId: input.companyId, driverId, now: input.now })
+      : Promise.resolve([]),
     input.scores.readScores({ companyId: input.companyId, driverIds: [driverId], now: input.now }),
   ])
 
