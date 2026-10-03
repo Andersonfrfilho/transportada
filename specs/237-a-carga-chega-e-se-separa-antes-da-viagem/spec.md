@@ -120,6 +120,25 @@ conferência) **Then** o fluxo dele muda **só por dado**, sem código novo e se
   nomeado, nunca vínculo silencioso. Mais de uma nota com o mesmo número (séries diferentes) vira
   `ambiguous`. Estados: `matched`, `awaiting_xml`, `divergent`, `ambiguous`, `invalid`. Quando o XML chega
   depois, um passo no worker de importação vincula o item pendente.
+- **RF5a — Como cada linha vira uma nota** (`cargo-preview-matching.policy.ts`, função pura):
+  1. **Candidatas:** `nfe_documents` do emitente do perfil cujo `number` é igual a `Text001` (normalizado: só
+     dígitos, sem zeros à esquerda). Zero candidatas → `awaiting_xml`; mais de uma (séries diferentes) →
+     `ambiguous`, desempatado só pelas conferências abaixo.
+  2. **Conferência cruzada** da candidata com a linha: **valor** (`VALOR` × `total_value`, tolerância de 1
+     centavo), **CEP** (`PostalCode` × CEP do destinatário), **cidade/UF** (sem acento, caixa alta ×
+     `city_code`/nome do destinatário) e, como reforço, **peso** e **razão social** (aproximada).
+  3. **Veredito:** número + valor + CEP concordam → `matched`; número bate mas valor ou CEP não →
+     `divergent` com o campo nomeado (a tela mostra o que a planilha diz × o que o XML diz);
+     nenhuma candidata → `awaiting_xml`.
+  4. **Sem chave não há certeza:** `matched` é "vínculo conferido", nunca "garantido"; o operador pode
+     **desvincular e vincular à mão** uma linha, e toda ação fica na trilha (ator, canal, hora).
+  5. **Sugestão, nunca vínculo automático:** se o número não casa com ninguém mas existe, dentro do emitente,
+     uma única nota com o mesmo valor + CEP, ela aparece como **sugestão** a confirmar (cobre o caso de
+     `Text001` não ser o número da NF-e em alguma linha).
+  6. **Calibração antes de construir:** a consulta `consulta-recebimento-vs-xml.sql` mede, nas 492 linhas
+     reais, quantas têm nota com o mesmo número e quantas concordam em valor e CEP. Isso prova (ou refuta)
+     que `Text001` é o número da NF-e e **define o limite de confiança** do passo 3. **A Fase 4 não começa
+     antes dessa medição.**
 - **RF6 — Chegada** (`cargo_arrivals`): `contractor_id`, `arrived_at` (momento informado, corrigido como
   na 234 quando vier de app), `registered_by`, `channel`, `pallet_count` opcional, `separation_due_at`
   derivado do perfil. `cargo_arrival_documents`: nota na chegada com **eixo próprio**

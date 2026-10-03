@@ -45,6 +45,8 @@
 
 > 🤖 Modelo: `sonnet` (T4.1 é 🧠). **Bloqueada por D6.** Exemplo real disponível em `planilha-fr.md`.
 
+- [ ] **T4.0** Rodar `consulta-recebimento-vs-xml.sql` (somente leitura) e registrar o resultado em
+      `evidence.md`: prova que `Text001` é o número da NF-e e fixa o limite de confiança do vínculo (RF5a).
 - [ ] **T4.1** 🧠 Escolha e justificativa da biblioteca de planilha; limites de segurança (zip, linhas,
       tempo, fórmulas); ADR/plan atualizado.
 - [ ] **T4.2** Ramo "prévia" no worker de e-mail de entrada (conforme D6: token do perfil, DKIM,
