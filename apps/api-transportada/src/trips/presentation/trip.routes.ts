@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { ClientIpResolver } from '../../http/client-ip.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import type { OccurrenceTypeFlow } from '../../shared/trip-occurrence.constant.js'
@@ -305,6 +306,8 @@ type SaveOccurrenceTypeInput = {
   readonly name: string
   readonly notifies: boolean
   readonly occurrenceTypeId: null | string
+  /** Spec 164 RF1/T21: ausente é "não mexa" — ver `save-occurrence-type.use-case.ts`. */
+  readonly redeliveryPolicy?: RedeliveryPolicy | undefined
   readonly stage: 'delivery' | 'separation'
 }
 

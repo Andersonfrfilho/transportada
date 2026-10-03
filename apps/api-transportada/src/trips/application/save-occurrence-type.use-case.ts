@@ -55,8 +55,8 @@ export type SaveOccurrenceTypeValues = {
   readonly name: string
   readonly notifies: boolean
   readonly occurrenceTypeId: null | string
-  /** Ausente é `'unset'` — nenhum caso de tratativa abre para este tipo. */
-  readonly redeliveryPolicy?: RedeliveryPolicy
+  /** Ausente é "não mexa" (spec 164 RF1) — o valor guardado fica; na criação vale `'unset'`. */
+  readonly redeliveryPolicy?: RedeliveryPolicy | undefined
   readonly stage: TripOccurrenceStage
 }
 
