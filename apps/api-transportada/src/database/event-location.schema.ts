@@ -147,3 +147,22 @@ export const buildEventLocationIndex = ({
   index(`${tableName}_located_${timeColumn.name}_idx`)
     .on(timeColumn)
     .where(sql`${latitude} is not null`)
+
+type BuildEventLocationCompanyIndexParams = BuildEventLocationIndexParams & {
+  readonly companyId: AnyPgColumn
+}
+
+/**
+ * Spec 239 D1/D2: com o prazo por empresa, o expurgo e a contagem de impacto da tela filtram por
+ * `company_id` antes da data. O índice só por data não serve esse filtro; este serve, e fica ao lado
+ * dele em vez de substituí-lo — a rotina de hoje ainda varre só por data até a junção por empresa.
+ */
+export const buildEventLocationCompanyIndex = ({
+  companyId,
+  latitude,
+  tableName,
+  timeColumn,
+}: BuildEventLocationCompanyIndexParams): IndexBuilder =>
+  index(`${tableName}_company_located_${timeColumn.name}_idx`)
+    .on(companyId, timeColumn)
+    .where(sql`${latitude} is not null`)

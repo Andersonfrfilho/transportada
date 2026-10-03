@@ -47,3 +47,115 @@ relógio). 33 = 1+14+1+1+16: todas as linhas rodam.
 
 **Gates (apps/api-transportada):** `bun run typecheck` sem saída de erro; `bun run lint` sem saída de
 erro; `bun --env-file=../../.env.test test --timeout 120000` -> 9213 pass / 24 skip / 0 fail, 195 arquivos.
+
+## T1.2 — Tabela da configuração e índices por empresa (migration aditiva)
+
+**Autorização:** usuário, em chat, 2026-10-03 — migration aditiva com a tabela nova e os cinco índices;
+não vai a staging sem outro ok.
+
+**Pasta:** `apps/api-transportada/drizzle/20261003190847_location_retention_settings/` (gerada por
+`db:generate`, depois comentada à mão). `snapshot.json` id `1c4bf6ed-1a95-4bc3-a000-023d9dd56cea`,
+`prevIds = ["eb960c28-e0b7-4bec-b4b7-ebd5278db0af"]` = id do snapshot de
+`20261003010806_event_location_whatsapp_coordinate`, a última de `origin/staging` (branch 0 atrás no
+`git fetch` desta task). Sem bifurcação.
+
+**Tabela** `company_location_retention_settings` (`src/database/company-location-retention-settings.schema.ts`,
+molde da diária): `company_id` PK + FK `companies` restrict/cascade com nome explícito
+`company_location_retention_settings_company_id_companies_id_fk` (o gerado passava de 63 caracteres
+e o drizzle o trocava por hash); `purge_enabled boolean not null default false`;
+`retention_days integer not null default 90` com `CHECK (retention_days between 30 and 90)` (limites
+vindos de `location-retention.policy.ts`); `purge_effective_at timestamptz` anulável sem default;
+`updated_by_user_id uuid not null` sem FK (D1); `created_at`/`updated_at` timestamptz not null default
+now(). Sem ENUM.
+
+Acréscimo ao D1: `CHECK (not purge_enabled or purge_effective_at is not null)` — ligado sem data seria a
+tela dizendo "ligado" com o worker ignorando a empresa para sempre (`<= $now` com NULL é falso). É
+compatível com a regra da T1.1: ligar e encurtar gravam `now + 24 h`, alongar/repetir mantém o
+`previous.purgeEffectiveAt` de uma linha já ligada (portanto não nulo), desligar grava `now`.
+
+**Índices:** os cinco **novos**, todos parciais `WHERE latitude is not null`, com a coluna de tempo
+que o worker usa em cada tabela (`drizzle-trip-location.repository.ts`):
+
+| Tabela                      | Índice novo                                                | Colunas                     |
+| --------------------------- | ---------------------------------------------------------- | --------------------------- |
+| `trip_stop_events`          | `trip_stop_events_company_located_created_at_idx`          | `(company_id, created_at)`  |
+| `trip_delivery_proofs`      | `trip_delivery_proofs_company_located_created_at_idx`      | `(company_id, created_at)`  |
+| `trip_status_events`        | `trip_status_events_company_located_recorded_at_idx`       | `(company_id, recorded_at)` |
+| `trip_stop_occurrences`     | `trip_stop_occurrences_company_located_created_at_idx`     | `(company_id, created_at)`  |
+| `trip_document_occurrences` | `trip_document_occurrences_company_located_created_at_idx` | `(company_id, created_at)`  |
+
+Nenhum omitido: a frase do D1 ("só duas têm índice parcial") ficou velha — desde a
+`20261002153258_occurrence_location_stamp` as **cinco** têm índice parcial, mas **só por tempo**
+(`<tabela>_located_<tempo>_idx`); nenhuma tem `company_id` na frente, então nenhum novo duplica um
+existente. Os cinco só por tempo **ficam**: a rotina de hoje varre só por data até a T2.2, e um
+índice com `company_id` na frente não serve a ela. Depois da T2.2, os só-por-tempo viram candidatos a
+`DROP` numa migration futura (medir com `EXPLAIN` antes). Construtor: `buildEventLocationCompanyIndex`
+em `event-location.schema.ts`, usado nas cinco tabelas de `trip.schema.ts`.
+
+**Lock:** `SET LOCAL lock_timeout = '3s'` no topo e `SET LOCAL lock_timeout = DEFAULT` no fim; o
+cabeçalho do `migration.sql` registra o lock real — `CREATE INDEX` comum toma SHARE (escrita espera,
+leitura segue) nas cinco tabelas de evento até o COMMIT, porque a pasta roda numa transação só e
+`CONCURRENTLY` é impossível; a FK toma SHARE ROW EXCLUSIVE em `companies`. **Aplicar fora do horário de
+campo**, medindo o tamanho das cinco tabelas em staging antes. O `rollback.sql` também limita a espera.
+
+**Rollback:** recusa com `RAISE EXCEPTION 'Rollback recusado: ... tem % linha(s)'` antes de tocar em
+qualquer coisa; sem linha, tira os cinco índices novos (os só por tempo ficam), a tabela e a entrada do
+journal (`deleted_migrations <> 1` aborta).
+
+**Testes:**
+
+- `test/database-migration/static-migration.contract.ts`: pasta nova na lista exaustiva; teste que
+  prende a criação aditiva (texto da tabela, defaults, os dois CHECKs, a FK, os cinco `CREATE INDEX`
+  exatos e contagem = 5, sem `CONCURRENTLY`, rollback com recusa antes de todo `DROP`, sem `DELETE` da
+  tabela, journal); teste do `lock_timeout` na migration e no rollback (posição medida só sobre os
+  comandos, sem os comentários).
+- `test/trip-schema/location-retention-settings.contract.ts` (importado por
+  `test/trip-schema.contract.test.ts`): colunas e obrigatórias, tipos, defaults, data anulável sem
+  default, os dois CHECKs, FK única (autor sem FK), índice por empresa nas cinco tabelas (laço com
+  `toHaveLength(5)`) e o só-por-tempo ao lado.
+- `test/database-migration/location-retention-rollback.assertion.ts`, chamada por
+  `database-migration.integration.ts` contra Postgres: 29 e 91 recusados (23514), ligado sem data
+  recusado (23514), empresa inexistente (23503), defaults `false/90/null`, PK (23505); rollback com
+  linha recusa (conexão reservada, `ROLLBACK` na mesma, liberada em `finally`) e mantém tabela, linha,
+  índices e journal; sem linha desfaz tabela e os cinco índices, mantém os cinco só por tempo e sai do
+  journal; `runDatabaseMigrations` reaplica limpo. `support.ts`: tabela em `TRIP_TABLES`.
+
+**Mutações** (`mutate.py` no scratchpad: edita, roda, reprova, restaura regravando o original;
+`DRIZZLE_TEST_DATABASE_URL` = `DATABASE_URL` do `.env.test`):
+
+| Mutação                                            | Resultado                                |
+| -------------------------------------------------- | ---------------------------------------- |
+| M1 migration sem `lock_timeout`                    | 1 fail (lock)                            |
+| M2 CHECK `between 29 and 90` no SQL                | 2 fail (estático + integração)           |
+| M3 sem o índice de `trip_status_events` no SQL     | 2 fail (estático + integração)           |
+| M4 CHECK de carência fora do SQL                   | 2 fail (estático + integração)           |
+| M5 rollback recusa só com `> 1` linha              | 1 fail (integração, 2,5 s — sem travar)  |
+| M6 rollback com `RAISE NOTICE` no lugar da exceção | 1 fail (integração)                      |
+| M7 rollback esquece um `DROP INDEX`                | 2 fail (estático + integração)           |
+| M8 rollback derruba também um índice só por tempo  | 1 fail (integração: `TIME_ONLY_INDEXES`) |
+| M9 rollback sem `lock_timeout`                     | 1 fail (lock)                            |
+| M10 schema: padrão 60 dias                         | 1 fail                                   |
+| M11 schema: `purge_enabled` padrão `true`          | 1 fail                                   |
+| M12 schema: sem CHECK de carência                  | 1 fail                                   |
+| M13 schema: `purge_effective_at` NOT NULL          | 2 fail                                   |
+| M14 schema: FK no autor                            | 1 fail                                   |
+| M15 construtor: índice só por tempo                | 1 fail                                   |
+| M16 construtor: sem predicado parcial              | 1 fail                                   |
+
+M5/M6 travavam 30 s na primeira versão (a conexão reservada não voltava ao pool quando o script
+passava); corrigido com `finally`, e as duas reprovam em ~2,5 s.
+
+**Gates (apps/api-transportada, primeiro plano):**
+
+- `bun run db:generate --name x` -> `{"status":"no_changes","dialect":"postgresql"}` (nenhuma pasta gerada).
+- `bun run typecheck` -> sem saída de erro. `bun run lint` -> sem saída de erro.
+- `bun --env-file=../../.env.test test --timeout 120000` -> 9223 pass / 24 skip / 0 fail, 195 arquivos.
+- `DRIZZLE_TEST_DATABASE_URL=<DATABASE_URL do .env.test> bun run db:test` -> 121 pass / 0 fail, 8 arquivos
+  (Postgres 65432 aceitando conexões).
+- Raiz: `bun run format:check` -> "All matched files use Prettier code style!".
+- Worker: `bun test ./test/trip-location-purge/schema-parity.contract.ts ./test/trip-location-purge/stamped-tables.contract.ts` -> 10 pass / 0 fail.
+
+**Não verificado:** `make migration-test` (ele faz `postgres-up` no compose e lê `.env` — infra
+compartilhada com outras sessões; no lugar rodou o mesmo `db:test` que ele chama, contra o Postgres do
+`.env.test`). `test:integration` da API (a task não toca `test/integration/**`). Tempo real do
+`CREATE INDEX` em produção/staging (tamanho das tabelas não medido).

@@ -15,6 +15,13 @@ import {
   migrationsDirectory,
 } from './support.js'
 
+/** Só os comandos: o cabeçalho explica o lock citando `CREATE INDEX`/`DROP INDEX`, e posição em comentário não prova ordem. */
+const stripSqlComments = (sqlText: string): string =>
+  sqlText
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('--'))
+    .join('\n')
+
 const PRESERVED_MIGRATION_HASHES = {
   '20260718224814_baseline/migration.sql':
     '49a0fa6e06db91f39903f070ad7a4ae2760463f8710ee67ee5848275d3ed7d53',
@@ -329,6 +336,7 @@ describe('Drizzle migrations', () => {
       '20261002230234_helper_role_and_can_drive',
       '20261003010806_event_location_whatsapp_coordinate',
       '20261003170340_contractor_receiving_profiles',
+      '20261003190847_location_retention_settings',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -2161,5 +2169,92 @@ describe('o estado do ponto entra aditivo e o histórico sem coordenada fica NUL
     expect(rollbackSql).toContain('DROP TABLE IF EXISTS "contractor_receiving_profiles";')
     expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
     expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * Spec 239 D1: tabela nova e cinco índices parciais por empresa, nada mais. O CHECK do prazo é a
+   * última barreira da faixa 30–90, e o rollback recusa enquanto alguma empresa tiver decidido —
+   * apagar essa decisão é escolha humana, não do script.
+   */
+  test('creates the location retention settings additively, with one company index per event table', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_location_retention_settings'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const statements = stripSqlComments(migrationSql)
+
+    expect(statements).not.toMatch(DESTRUCTIVE_MIGRATION_PATTERN)
+    expect(statements).not.toMatch(
+      /\b(ALTER COLUMN|DROP COLUMN|DROP INDEX|DROP TABLE|CREATE TYPE)\b/u,
+    )
+    expect(statements).toContain('CREATE TABLE "company_location_retention_settings"')
+    expect(statements).toContain('"purge_enabled" boolean DEFAULT false NOT NULL')
+    expect(statements).toContain('"retention_days" integer DEFAULT 90 NOT NULL')
+    expect(statements).toContain('"purge_effective_at" timestamp with time zone,')
+    expect(statements).toContain(
+      'CONSTRAINT "company_location_retention_settings_retention_days_check" CHECK ("retention_days" between 30 and 90)',
+    )
+    expect(statements).toContain(
+      'CONSTRAINT "company_location_retention_settings_effective_at_check" CHECK (not "purge_enabled" or "purge_effective_at" is not null)',
+    )
+    expect(statements).toContain(
+      'ADD CONSTRAINT "company_location_retention_settings_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE RESTRICT ON UPDATE CASCADE;',
+    )
+
+    const companyIndexes = [
+      ['trip_delivery_proofs', 'created_at'],
+      ['trip_document_occurrences', 'created_at'],
+      ['trip_status_events', 'recorded_at'],
+      ['trip_stop_events', 'created_at'],
+      ['trip_stop_occurrences', 'created_at'],
+    ] as const
+    for (const [table, timeColumn] of companyIndexes) {
+      const index = `${table}_company_located_${timeColumn}_idx`
+      expect(statements).toContain(
+        `CREATE INDEX "${index}" ON "${table}" ("company_id","${timeColumn}") WHERE "latitude" is not null;`,
+      )
+      expect(rollbackSql).toContain(`DROP INDEX IF EXISTS "${index}";`)
+    }
+    expect([...statements.matchAll(/CREATE INDEX/gu)]).toHaveLength(companyIndexes.length)
+    expect(statements).not.toContain('CONCURRENTLY')
+
+    // O rollback aborta antes de derrubar qualquer coisa, e nunca apaga a configuração sozinho.
+    const rollbackStatements = stripSqlComments(rollbackSql)
+    const refusalPosition = rollbackStatements.indexOf('Rollback recusado')
+    expect(refusalPosition).toBeGreaterThan(-1)
+    expect(rollbackStatements.indexOf('DROP INDEX')).toBeGreaterThan(refusalPosition)
+    expect(rollbackStatements.indexOf('DROP TABLE')).toBeGreaterThan(refusalPosition)
+    expect(rollbackStatements).not.toMatch(
+      /\b(DELETE|TRUNCATE)\s+(FROM\s+)?"company_location_retention_settings"/iu,
+    )
+    expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * `CREATE INDEX` comum toma SHARE nas cinco tabelas de evento e o segura até o COMMIT. Sem
+   * `lock_timeout`, uma transação longa à frente enfileira toda escrita do motorista atrás dela.
+   */
+  test('bounds the lock wait of the location retention migration and its rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_location_retention_settings'))
+    expect(directory).toBeString()
+
+    const migrationSql = stripSqlComments(await readMigrationFile(directory ?? '', 'migration.sql'))
+    const rollbackSql = stripSqlComments(await readMigrationFile(directory ?? '', 'rollback.sql'))
+    const migrationTimeout = migrationSql.indexOf("SET LOCAL lock_timeout = '3s'")
+    expect(migrationTimeout).toBeGreaterThan(-1)
+    expect(migrationTimeout).toBeLessThan(migrationSql.indexOf('CREATE TABLE'))
+    expect(migrationTimeout).toBeLessThan(migrationSql.indexOf('CREATE INDEX'))
+    expect(migrationSql.trimEnd()).toEndWith('SET LOCAL lock_timeout = DEFAULT;')
+
+    const rollbackTimeout = rollbackSql.indexOf("SET LOCAL lock_timeout = '3s'")
+    expect(rollbackTimeout).toBeGreaterThan(rollbackSql.indexOf('BEGIN;'))
+    expect(rollbackTimeout).toBeLessThan(rollbackSql.indexOf('DROP INDEX'))
   })
 })

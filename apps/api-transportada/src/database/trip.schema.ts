@@ -42,6 +42,7 @@ import { inList } from './schema-check.constant.js'
 import {
   buildEventLocationChecks,
   buildEventLocationColumns,
+  buildEventLocationCompanyIndex,
   buildEventLocationIndex,
   EVENT_LOCATION_STATES,
   type EventLocationState,
@@ -586,6 +587,12 @@ export const tripStatusEvents = pgTable(
       tableName: 'trip_status_events',
     }),
     buildEventLocationIndex({
+      latitude: table.latitude,
+      tableName: 'trip_status_events',
+      timeColumn: table.recordedAt,
+    }),
+    buildEventLocationCompanyIndex({
+      companyId: table.companyId,
       latitude: table.latitude,
       tableName: 'trip_status_events',
       timeColumn: table.recordedAt,
@@ -1281,6 +1288,12 @@ export const tripStopEvents = pgTable(
     index('trip_stop_events_located_created_at_idx')
       .on(table.createdAt)
       .where(sql`${table.latitude} is not null`),
+    buildEventLocationCompanyIndex({
+      companyId: table.companyId,
+      latitude: table.latitude,
+      tableName: 'trip_stop_events',
+      timeColumn: table.createdAt,
+    }),
     check(
       'trip_stop_events_kind_check',
       sql`${table.kind} in (${raw(inList(TRIP_STOP_EVENT_KINDS))})`,
@@ -1497,6 +1510,12 @@ export const tripStopOccurrences = pgTable(
       tableName: 'trip_stop_occurrences',
     }),
     buildEventLocationIndex({
+      latitude: table.latitude,
+      tableName: 'trip_stop_occurrences',
+      timeColumn: table.createdAt,
+    }),
+    buildEventLocationCompanyIndex({
+      companyId: table.companyId,
       latitude: table.latitude,
       tableName: 'trip_stop_occurrences',
       timeColumn: table.createdAt,
@@ -1891,6 +1910,12 @@ export const tripDeliveryProofs = pgTable(
     index('trip_delivery_proofs_located_created_at_idx')
       .on(table.createdAt)
       .where(sql`${table.latitude} is not null`),
+    buildEventLocationCompanyIndex({
+      companyId: table.companyId,
+      latitude: table.latitude,
+      tableName: 'trip_delivery_proofs',
+      timeColumn: table.createdAt,
+    }),
     /**
      * Um comprovante de cada tipo por entrega: o segundo é correção, e correção substitui. A foto
      * da carga é a exceção (spec 184) — a segunda **soma** —, então o índice é parcial. Quem faz
@@ -2198,6 +2223,12 @@ export const tripDocumentOccurrences = pgTable(
       tableName: 'trip_document_occurrences',
     }),
     buildEventLocationIndex({
+      latitude: table.latitude,
+      tableName: 'trip_document_occurrences',
+      timeColumn: table.createdAt,
+    }),
+    buildEventLocationCompanyIndex({
+      companyId: table.companyId,
       latitude: table.latitude,
       tableName: 'trip_document_occurrences',
       timeColumn: table.createdAt,

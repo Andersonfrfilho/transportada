@@ -21,7 +21,7 @@
 - [x] **T1.1** Contrato **antes**: `resolvePurgeEffectiveAt` em tabela (ligar, encurtar ligado, alongar,
       desligar, igual) e limites 30–90 — `test/companies/location-retention-policy.contract.ts`.
       Mutação em cada ramo.
-- [ ] **T1.2** 🧠 **PARAR E PERGUNTAR ao usuário antes.** Migration aditiva
+- [x] **T1.2** 🧠 **PARAR E PERGUNTAR ao usuário antes.** (autorizado em 2026-10-03, aditiva) Migration aditiva
       `company_location_retention_settings` (D1) + cinco índices parciais `(company_id, tempo) WHERE
 latitude IS NOT NULL`; `rollback.sql` que recusa com linha; asserção de rollback;
       `make migration-test`; `db:generate` = `no_changes`. Conferir colisão de timestamp/snapshot com

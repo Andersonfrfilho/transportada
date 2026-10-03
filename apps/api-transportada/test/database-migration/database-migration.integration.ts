@@ -17,6 +17,7 @@ import { assertFreightRegionConstraints } from './freight-region-constraints.ass
 import { assertHelperRoleRollbackRefusesHelpers } from './helper-role-rollback.assertion.js'
 import { assertIdentityConstraints } from './identity-constraints.assertion.js'
 import { assertInvitationConstraints } from './invitation-constraints.assertion.js'
+import { assertLocationRetentionRollbackRefusesRecordedSettings } from './location-retention-rollback.assertion.js'
 import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
 import { assertNfeDocumentListingOrderIndex } from './nfe-document-listing-order-index.assertion.js'
 import { assertNfeDocumentProtocolPresence } from './nfe-document-protocol-presence.assertion.js'
@@ -238,6 +239,13 @@ describe('Drizzle migration integration', () => {
           directories: migrationDirectories,
           driverId: fleetFixture.driverId,
           membershipId: identityFixture.membershipId,
+          userId: identityFixture.userId,
+        })
+        await assertLocationRetentionRollbackRefusesRecordedSettings({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
           userId: identityFixture.userId,
         })
 
