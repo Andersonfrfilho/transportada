@@ -62,7 +62,8 @@
       "viewer": "Consulta",
       "driver": "Motorista",
       "aggregate": "Agregado",
-      "separator": "Separador"
+      "separator": "Separador",
+      "helper": "Ajudante"
     },
     "status": {
       "invited": "Convidado",
@@ -83,7 +84,7 @@
       "email": "E-mail",
       "phone": "Telefone",
       "taxId": "CPF",
-      "taxIdHint": "Opcional. Com papel de Motorista ou Agregado, é por ele que a ficha de frota é encontrada.",
+      "taxIdHint": "Opcional. Com papel de Motorista, Agregado ou Ajudante, é por ele que a ficha de frota é encontrada.",
       "channelHint": "Por onde o código de ativação chega.",
       "contactField": "É por aqui que o convite vai.",
       "pending": "Falta preencher:",

@@ -617,3 +617,54 @@ rótulo presente/ausente. Primeira execução: `Cannot find module DriverHelperF
 - `bun run typecheck` (app) exit 0 · `eslint` (cwd da app) 0 erros (16 warnings antigos) · `prettier --check` limpo.
 - `DriverForm.component.tsx` segue acima de 200 linhas (357; eram 345): dívida anterior, não extraída aqui porque
   vários contratos antigos leem os `label={t('…')}` desse arquivo.
+
+## T10 — Acesso: papel "Ajudante" no convite, na tabela e nas listas fechadas
+
+Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+
+### Todas as cópias da lista de papéis (grep `'separator'` em `src` e `test` da app)
+
+| Cópia                                                                                             | Situação                                                                                                           |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `identity/queries/useAuthMe.query.ts` (`COMPANY_ROLES`)                                           | já tinha `helper` (248e59e77); coberta pelo teste de sincronia com a API que já existia                            |
+| `identity/shared/companyUsers.constant.ts` (`COMPANY_ROLES`, convite, grupos, `buildRoleChoices`) | **ganhou `helper`**; antes não tinha contrato de sincronia                                                         |
+| `identity/components/CompanyUserTable.component.tsx` (`FLEET_ROLES`, local)                       | virou `FLEET_LINKED_ROLES` exportada de `companyUsers.constant.ts` (`driver`, `aggregate`, `helper`)               |
+| `shared/workspaceAccess.service.ts`                                                               | só cita `separator`/`OFFICE_ROLES` na preferência de aterrissagem; **nada a acrescentar** — acesso é por permissão |
+| `frontend-driver`, `frontend-client`, `frontend-landing`                                          | não têm lista de papéis (busca por `'aggregate'`/`'company-admin'` vazia)                                          |
+
+### O que mudou
+
+- `helper` no convite, nos grupos (mesma lista) e em `buildRoleChoices`; rótulo "Ajudante"/"Helper" em `users.role.helper`.
+- A dica do CPF do convite passa a dizer "Motorista, Agregado ou Ajudante" (e o equivalente em inglês): é a pista de que
+  o papel liga a ficha de frota pelo CPF. O aviso pós-convite (`fleetLink`: `linked` / `no-driver-record`) já era genérico
+  — a API devolve `no-driver-record` para `helper` (T5) e a tela o mostra pelo mesmo caminho do Motorista/Agregado.
+- Na tabela, quem tem papel `helper` e ficha vinculada ganha o link para a ficha, como Motorista/Agregado.
+- `test/identity/company-user-edit-dialog.contract.ts` afirmava o literal `['driver', 'aggregate']` no fonte da tabela;
+  passou a afirmar o import de `FLEET_LINKED_ROLES` (mesma intenção, sem congelar a lista errada).
+
+### Contrato (vermelho antes do código)
+
+`test/identity/helper-role.contract.ts` (importado por `identity.contract.test.ts`): primeira execução falhou com
+`Export named 'FLEET_LINKED_ROLES' not found`. Cobre: `helper` no convite e em `buildRoleChoices`; lista do convite
+**igual à da API** (`COMPANY_ROLES` de `identity.schema.ts`, menos `contractor` e `automation`, que não se convidam
+por aqui); `FLEET_LINKED_ROLES` igual ao da API (`fleet-linked-roles.constant.ts`); a tabela decide o link por ela;
+rótulo e dica nos dois idiomas; e a conta só com o papel (`trip.read`) → nenhuma entrada de menu e aterrissagem
+`no-access`.
+
+### Prova por mutação (arquivos restaurados e conferidos com `cmp`)
+
+`helper` fora do convite → 2 fail · `FLEET_LINKED_ROLES` sem `helper` → 1 · `helper` fora de `useAuthMe` → 1 (teste de
+sincronia pré-existente) · rótulo trocado → 1 · dica sem Ajudante → 1 · tabela com lista literal → 1.
+
+### ⚠️ Achado de produto (não decidido aqui)
+
+O papel `helper` tem só `trip.read` (D7), e **nenhum workspace do painel abre com `trip.read`** (`trip` exige `fleet.read`
+ou `trip.report-on-behalf`). Quem entra no painel só com esse papel cai em `NoWorkspaceAccess`. É coerente com "fora do
+escopo: aplicativo do ajudante", mas é o que a pessoa verá — decisão de produto, registrada no contrato acima.
+
+### Gates
+
+- `bun run test` (app): `6450 pass · 0 fail · 32 files` + hooks `327 pass · 0 fail`.
+- `bun run typecheck` (raiz) exit 0 · `eslint` (cwd da app) 0 erros (16 warnings antigos) · `prettier --check` limpo.
+- Sincronia de papéis com a API: `test/frontend-contract.test.ts` › `keeps the allowlist in sync with the API
+authorization policy` verde (e o contrato novo cobre a lista do convite e `FLEET_LINKED_ROLES`).

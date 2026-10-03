@@ -12,6 +12,7 @@ import {
 } from '../shared/fleetNavigation.service'
 import type { CompanyUserRevealState } from '../hooks/useCompanyUserReveal.hook'
 import type { CompanyUserSelectionState } from '../hooks/useCompanyUserSelection.hook'
+import { FLEET_LINKED_ROLES } from '../shared/companyUsers.constant'
 import type { CompanyUser } from '../shared/companyUsers.types'
 import styles from '../styles/userAdministration.module.css'
 
@@ -355,7 +356,7 @@ function revealedContactOf(
 function FleetRoleBadge({ user }: Readonly<{ user: CompanyUser }>) {
   const { t } = useTranslation('identity')
   const navigator = createBrowserWorkspaceNavigator()
-  const fleetRole = user.roles.find((role) => FLEET_ROLES.includes(role))
+  const fleetRole = user.roles.find((role) => FLEET_LINKED_ROLES.includes(role))
   const shown = fleetRole ?? user.roles[0]
 
   if (shown === undefined) return null
@@ -405,6 +406,3 @@ function FleetVehicleLinks({ user }: Readonly<{ user: CompanyUser }>) {
     </>
   )
 }
-
-/** Os papéis que têm ficha na frota. Fora deles, o vínculo existe e a palavra não é o caminho. */
-const FLEET_ROLES: readonly string[] = ['driver', 'aggregate']

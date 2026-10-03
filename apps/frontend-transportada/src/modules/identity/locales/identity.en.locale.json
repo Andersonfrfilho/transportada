@@ -62,7 +62,8 @@
       "viewer": "Viewer",
       "driver": "Driver",
       "aggregate": "Aggregate",
-      "separator": "Separator"
+      "separator": "Separator",
+      "helper": "Helper"
     },
     "status": {
       "invited": "Invited",
@@ -83,7 +84,7 @@
       "email": "Email",
       "phone": "Phone",
       "taxId": "Tax id",
-      "taxIdHint": "Optional. With a Driver or Aggregate role, it is what finds the fleet record.",
+      "taxIdHint": "Optional. With a Driver, Aggregate or Helper role, it is what finds the fleet record.",
       "channelHint": "How the activation code is delivered.",
       "contactField": "This is where the invitation goes.",
       "pending": "Still missing:",

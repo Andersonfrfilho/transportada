@@ -431,8 +431,8 @@ describe('a listagem liga o papel à ficha da frota', () => {
   )
 
   test('o papel da frota é o que vira link', () => {
-    expect(source).toContain('FLEET_ROLES')
-    expect(source).toContain("['driver', 'aggregate']")
+    expect(source).toContain('FLEET_LINKED_ROLES')
+    expect(source).toContain("import { FLEET_LINKED_ROLES } from '../shared/companyUsers.constant'")
   })
 
   test('sem ficha na frota o papel continua etiqueta', () => {

@@ -24,7 +24,15 @@ export const COMPANY_ROLES = [
   'driver',
   'aggregate',
   'separator',
+  /** Spec 234: o ajudante-puro — não dirige, tem ficha de frota própria e só lê a viagem em que está. */
+  'helper',
 ] as const
+
+/**
+ * Cópia por valor de `FLEET_LINKED_ROLES` da API: os papéis cuja pessoa tem ficha de frota, achada
+ * pelo CPF do convite. `test/identity/helper-role.contract.ts` os mantém em sintonia.
+ */
+export const FLEET_LINKED_ROLES: readonly string[] = ['driver', 'aggregate', 'helper']
 
 export const COMPANY_USER_STATUSES = ['invited', 'active', 'suspended'] as const
 
