@@ -41,7 +41,7 @@ latitude IS NOT NULL`; `rollback.sql` que recusa com linha; asserção de rollba
 > 🤖 Modelo: `sonnet` (T2.2 é 🧠 — validar o desenho da junção com `architect` em `opus` antes)
 
 - [x] **T2.0** Correções 1–10 do parecer do architect aplicadas à spec/plan/tasks (docs).
-- [ ] **T2.1** Contrato de paridade **antes** (CA7): a cópia do worker tem `company_id` nas cinco tabelas e
+- [x] **T2.1** Contrato de paridade **antes** (CA7): a cópia do worker tem `company_id` nas cinco tabelas e
       a tabela nova com as colunas que lê. `schema-parity.contract.ts`: estender a regex `COLUMN_LINE` a
       `boolean`/`integer`, contagem `toBe(24)` → 29, as três tabelas da 196 no segundo teste, parser por
       assinatura para a tabela nova (sem `updated_by_user_id`, sem `.default(...)`), mutação tirando

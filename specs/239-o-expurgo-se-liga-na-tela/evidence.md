@@ -399,3 +399,26 @@ empresas A–E nas cinco tabelas e cinco mutações; Gate A no D3, no plano e na
 plano e na T4.6; risco de encurtar suspender a empresa por 24 h; arquivo de integração
 `test/trip-location-purge.integration.test.ts`; lista de contratos do worker no plano; T2.1 detalhada.
 Prettier nos `.md`.
+
+### T2.1 — Contrato de paridade antes (CA7)
+
+Contrato em `apps/worker-transportada/test/trip-location-purge/schema-parity.contract.ts`
+(regex `COLUMN_LINE` com `boolean|integer`, contagem 24 → 29, colunas das três tabelas da 196 no segundo
+teste, `company_id` em todas, e dois testes novos da tabela de configuração por assinatura, ignorando
+`.default(...)`, sem `updated_by_user_id`) e `stamped-tables.contract.ts` (bloco de cada tabela carimbada na
+API tem `companyId: uuid('company_id').notNull()` e a chamada `buildEventLocationCompanyIndex` com a tabela e
+a coluna de tempo certas).
+
+**Vermelho registrado (antes da cópia):** `Cannot find module '../../src/database/company-location-retention-settings.schema.js'`
+→ 9 pass · 1 fail · 1 error (o teste do `stamped-tables` novo já nasce verde: o que ele vigia é a API, que a
+T1.2 entregou).
+
+**Verde depois** (cópia por valor: `companyId: uuid('company_id').notNull()` nas cinco tabelas de
+`trip-execution.schema.ts` e o arquivo `company-location-retention-settings.schema.ts` com
+`companyId` PK, `purgeEnabled`, `retentionDays`, `purgeEffectiveAt`): `bun run test` do worker, 1561 pass / 0 fail.
+
+| Mutação                                                                                   | Resultado                                                                       |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| tirar `companyId` de uma cópia do worker                                                  | 2 testes reprovam (contagem 28 ≠ 29; lista de colunas da tabela)                |
+| `.default(false)` na cópia da tabela de configuração                                      | reprova "the copy declares only the columns the worker reads, with no defaults" |
+| trocar `buildEventLocationCompanyIndex` por `buildEventLocationIndex` na API (uma tabela) | reprova "company_id e o índice composto por empresa"                            |

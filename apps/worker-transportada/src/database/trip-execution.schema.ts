@@ -9,6 +9,7 @@ import { numeric, pgTable, timestamp, uuid, varchar } from 'drizzle-orm/pg-core'
 
 export const tripStopEvents = pgTable('trip_stop_events', {
   id: uuid().primaryKey(),
+  companyId: uuid('company_id').notNull(),
   latitude: numeric({ precision: 10, scale: 7 }),
   longitude: numeric({ precision: 10, scale: 7 }),
   accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
@@ -25,6 +26,7 @@ export const tripStopEvents = pgTable('trip_stop_events', {
  */
 export const tripDeliveryProofs = pgTable('trip_delivery_proofs', {
   id: uuid().primaryKey(),
+  companyId: uuid('company_id').notNull(),
   latitude: numeric({ precision: 10, scale: 7 }),
   longitude: numeric({ precision: 10, scale: 7 }),
   accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
@@ -38,6 +40,7 @@ export const tripDeliveryProofs = pgTable('trip_delivery_proofs', {
  */
 export const tripStatusEvents = pgTable('trip_status_events', {
   id: uuid().primaryKey(),
+  companyId: uuid('company_id').notNull(),
   latitude: numeric({ precision: 10, scale: 7 }),
   longitude: numeric({ precision: 10, scale: 7 }),
   accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
@@ -48,6 +51,7 @@ export const tripStatusEvents = pgTable('trip_status_events', {
 
 export const tripStopOccurrences = pgTable('trip_stop_occurrences', {
   id: uuid().primaryKey(),
+  companyId: uuid('company_id').notNull(),
   latitude: numeric({ precision: 10, scale: 7 }),
   longitude: numeric({ precision: 10, scale: 7 }),
   accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
@@ -58,6 +62,7 @@ export const tripStopOccurrences = pgTable('trip_stop_occurrences', {
 
 export const tripDocumentOccurrences = pgTable('trip_document_occurrences', {
   id: uuid().primaryKey(),
+  companyId: uuid('company_id').notNull(),
   latitude: numeric({ precision: 10, scale: 7 }),
   longitude: numeric({ precision: 10, scale: 7 }),
   accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),

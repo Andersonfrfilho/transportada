@@ -178,6 +178,28 @@ describe('listas do expurgo de posição (spec 196 D8)', () => {
     expect(listed.filter((table) => !apiTables.includes(table))).toEqual([])
   })
 
+  /**
+   * Spec 239 D2: o `LATERAL` entra no índice por `(company_id, tempo)`. Tabela carimbada sem `company_id`
+   * ou sem esse índice na API é expurgo por empresa que cai em varredura da tabela inteira.
+   */
+  test('toda tabela carimbada tem na API o company_id e o índice composto por empresa', async () => {
+    const apiTables = await readApiTables()
+
+    for (const entry of readExportedList('TRIP_LOCATION_STAMPED_TABLES')) {
+      const apiTable = apiTables.find((candidate) => candidate.name === entry.table)
+      const timeProperty = String(entry.timeColumn).replace(/_([a-z])/g, (_, letter: string) =>
+        letter.toUpperCase(),
+      )
+
+      expect(apiTable?.block).toContain("companyId: uuid('company_id').notNull()")
+      expect(apiTable?.block).toMatch(
+        new RegExp(
+          `buildEventLocationCompanyIndex\\(\\{[^}]*companyId: table\\.companyId[^}]*tableName: '${String(entry.table)}'[^}]*timeColumn: table\\.${timeProperty}`,
+        ),
+      )
+    }
+  })
+
   test('toda tabela carimbada tem na API a coluna de tempo que o expurgo varre e a posição', async () => {
     const apiTables = await readApiTables()
 
