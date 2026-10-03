@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test'
 import {
   DRIVER_OCCURRENCE_KINDS,
   DRIVER_RETURN_REASONS,
+  TRIP_CREW_ROLES,
 } from '@/modules/driver-trip/shared/driverTrip.types'
 import {
   RECEIVED_BY_OPTIONS,
@@ -24,6 +25,10 @@ const API_SOURCE = new URL(
 )
 const API_SCHEMA_SOURCE = new URL(
   '../../../api-transportada/src/database/trip.schema.ts',
+  import.meta.url,
+)
+const API_CREW_ROLE_SOURCE = new URL(
+  '../../../api-transportada/src/shared/trip-crew-role.constant.ts',
   import.meta.url,
 )
 
@@ -56,6 +61,13 @@ describe('as listas fechadas do campo', () => {
     )
     expect<readonly string[]>([...RECEIVED_BY_OPTIONS_REQUIRING_DETAIL]).toEqual(
       await readStringList(API_SCHEMA_SOURCE, 'RECEIVED_BY_OPTIONS_REQUIRING_DETAIL'),
+    )
+  })
+
+  /** Spec 239 D4: papel novo na API sem o app saber vira `helper` (somente leitura) — melhor avisar aqui. */
+  it('os papéis da tripulação são os mesmos da API', async () => {
+    expect<readonly string[]>([...TRIP_CREW_ROLES]).toEqual(
+      await readStringList(API_CREW_ROLE_SOURCE, 'TRIP_CREW_ROLES'),
     )
   })
 })
