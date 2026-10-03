@@ -619,9 +619,22 @@
  * O papel que leva à ficha da frota. Ele é botão, mas se lê como a etiqueta ao lado: mudar a forma
  * faria a coluna ter dois vocabulários visuais para a mesma informação.
  */
-.roleLink {
-  padding-inline: var(--space-2);
-  font-size: 0.75rem;
+button.roleLink {
+  min-height: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  text-transform: uppercase;
+  background: none;
+}
+
+@media (pointer: coarse) {
+  button.roleLink {
+    min-height: var(--touch-target);
+  }
 }
 
 /* O campo, a marca e o botão de acrescentar na mesma fileira; em telas estreitas eles quebram. */

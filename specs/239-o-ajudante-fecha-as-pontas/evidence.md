@@ -190,3 +190,28 @@ fora → 1 fail (editar).
 
 **Gates:** `bun run test` do painel 6587 pass / 0 fail (+ hooks 364 / 0); `tsc --noEmit` limpo; eslint dos
 tocados limpo; prettier limpo.
+
+## T5 · A6 — O papel com ficha lê como a etiqueta (D7, RF-6)
+
+**Defeito:** `FleetRoleBadge` rende `<span class="badge">` (caixa alta, fonte utilitária, 0,72 rem) para quem
+não tem ficha e um `Button ghost` (`.roleLink`, sem caixa alta) para quem tem — "Ajudante" de um lado,
+"AJUDANTE" do outro.
+
+**Conserto (CSS puro, `userAdministration.module.css`):** `button.roleLink` (o seletor com elemento garante
+vencer `.ui-button-size-sm` sem depender da ordem das folhas) leva a mesma borda, cor, fonte, tamanho,
+`white-space`, `text-transform: uppercase` e `padding` do `.badge`, `min-height: 0` (a altura mínima do
+controle engordava a caixa) e `background: none`. Em `pointer: coarse` a altura volta a `--touch-target`.
+O componente não mudou.
+
+**Contrato** `test/identity/role-badge-parity.contract.ts` (entra em `test/identity.contract.test.ts`): lê os
+dois blocos da folha e afirma igualdade de `border`, `color`, `font-family`, `font-size`, `padding`,
+`text-transform` e `white-space`, `min-height: 0` no link, e que o componente usa as duas classes.
+
+**Vermelho antes do código:** `SELECTOR_NOT_FOUND: button.roleLink` (a folha só tinha `.roleLink` com
+`padding-inline` e `0,75 rem`).
+
+**Mutação** (restaurada e conferida com `cmp`): sem `text-transform` → 1 fail; `font-size: 0.75rem` → 1 fail;
+`min-height: 2rem` → 1 fail.
+
+**Gates:** `bun run test` do painel 6597 pass / 0 fail (+ hooks 364 / 0); `tsc --noEmit` limpo; eslint
+dos tocados limpo; prettier limpo. A conferência visual (375 px, claro e escuro) é da T7.
