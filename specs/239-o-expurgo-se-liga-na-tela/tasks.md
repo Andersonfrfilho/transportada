@@ -18,7 +18,7 @@
 
 > 🤖 Modelo: `sonnet` (T1.2 é 🧠 — `opus`, e só depois do "ok" do usuário)
 
-- [ ] **T1.1** Contrato **antes**: `resolvePurgeEffectiveAt` em tabela (ligar, encurtar ligado, alongar,
+- [x] **T1.1** Contrato **antes**: `resolvePurgeEffectiveAt` em tabela (ligar, encurtar ligado, alongar,
       desligar, igual) e limites 30–90 — `test/companies/location-retention-policy.contract.ts`.
       Mutação em cada ramo.
 - [ ] **T1.2** 🧠 **PARAR E PERGUNTAR ao usuário antes.** Migration aditiva
