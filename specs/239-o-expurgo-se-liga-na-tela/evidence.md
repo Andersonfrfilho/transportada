@@ -318,5 +318,5 @@ Movidos para `src/shared/location-retention.constant.ts`; o domínio (`policy`, 
 apresentação (Zod) e o schema do banco leem de lá, e a `policy` deixou de exportá-los. Teste novo em
 `test/trip-schema/location-retention-settings.contract.ts`: o schema do banco importa a constante neutra
 e o fonte não contém `/companies/`; o teste do CHECK passou a travar também o teto 90.
-Mutação (schema voltando a importar de `companies/domain`): 1 fail. Verde: `bun run typecheck` limpo;
+Mutação (schema ganha um `import type` de `companies/domain/...policy.js`): 1 fail (a asserção `not.toContain('/companies/')`); voltar ao import antigo da constante também reprova (SyntaxError de export ausente). Verde: `bun run typecheck` limpo;
 `test/trip-schema.contract.test.ts` + `test/companies.contract.test.ts` 476 pass / 0 fail.
