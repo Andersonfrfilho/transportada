@@ -819,3 +819,33 @@ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-occ
 ```
 
 Verde: **18 pass, 0 fail, 0 skip** (5 novos + 5 da 167 + 8 do detalhe). `bun run typecheck` da app limpo.
+
+## T0.5 — Gates da API
+
+Todos em primeiro plano, de dentro de `apps/api-transportada`, `--env-file=../../.env.test`
+(Postgres de teste em 127.0.0.1:65432).
+
+| Gate                                                   | Resultado                                                                                                                                                          |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bun --env-file=../../.env.test test --timeout 120000` | contrato: **8897 pass, 23 skip, 0 fail** (193 arquivos)                                                                                                            |
+| `bun --env-file=../../.env.test run test:integration`  | rodada em 5 blocos do mesmo arquivo da lista do `package.json` (10 min por chamada em primeiro plano): **883 pass, 8 skip, 0 fail**, 154 arquivos (detalhe abaixo) |
+| `bun run typecheck` (raiz, as 7 apps)                  | limpo                                                                                                                                                              |
+| `bun run lint` (raiz)                                  | **0 erros**, 16 avisos `react-hooks/exhaustive-deps` em `apps/frontend-transportada` (nenhum em arquivo tocado)                                                    |
+
+Blocos da integração (`bun test` sobre fatias contíguas da lista): 138/0 skip/0 fail ·
+244/0/0 · 189 pass, **7 skip**, 0 fail · 157 pass, **1 fail** · 154 pass, **1 skip**, 0 fail.
+O 1 fail do quarto bloco foi o timeout de 60 s de
+`camera-measurement-flag.integration.ts` ("sem linha em company_cargo_settings…"), sob carga da
+rodada longa; o arquivo sozinho passou **4/4, 0 fail**, e ele não toca ocorrência. Os **8 skips**
+são de `test/integration/migration-completeness.integration.ts` (3) e
+`test/database-migration.contract.test.ts` (4) — migration, coberta por `make migration-test`, não
+rodado aqui — e `trip-occurrence-upload-confirm.integration.ts` (1, sonda de S3). Nenhum dos três
+arquivos novos/tocados por esta fase pulou: os 3 de ocorrência (leitura nova, correção da 167,
+detalhe) deram **18 pass, 0 skip** na T0.4.
+
+OpenAPI: **não existe geração** nesta API (`docs/ai-context/api-transportada.md`, módulo
+contractor-mail: "não existe geração desse tipo neste repo"; busca por `openapi` em `src/` sem
+resultado) — não há schema de resposta declarado a atualizar. O contrato publicado são os tipos
+`TripOccurrenceFeedItem`/`TripOccurrenceDetail`, provados pelos testes acima. Nota adicionada em
+`docs/ai-context/api-transportada.md` ("Spec 235 — as leituras publicam a correção e o
+cancelamento").

@@ -33,7 +33,7 @@ já faz (`listOccurrenceCorrections`, o mapeamento de `cancellation`), em lote �
       nas três leituras — marcada, nunca filtrada.
 - [x] **T0.4** Implementação nas consultas de leitura, em lote por página (uma consulta de
       correções para o conjunto de ids, agrupada por `Map`), com `companyId` do contexto.
-- [ ] **T0.5** Gates da API: os dois comandos de teste da API (contrato **e** integração com
+- [x] **T0.5** Gates da API: os dois comandos de teste da API (contrato **e** integração com
       `--env-file=../../.env.test`), typecheck, documentação da API (OpenAPI gerado) e
       `docs/ai-context/api-transportada.md` atualizados.
 
