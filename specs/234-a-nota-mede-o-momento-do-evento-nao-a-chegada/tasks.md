@@ -44,9 +44,9 @@
 - [x] **T2.4** Prova por mutação (cada fase) — evidência em `evidence.md`.
 - [x] **T2.6** Guardar o último desvio no aparelho com validade de 24 h (D7) — contrato antes, mutação.
 - [x] **T2.5** Publicar o app em staging depois da API (T1.7).
-- [ ] **T2.7** Textos da D4d: o resultado da foto (`away`, `late_and_away`), a dica da nota e o selo "longe" do
+- [x] **T2.7** Textos da D4d: o resultado da foto (`away`, `late_and_away`), a dica da nota e o selo "longe" do
       painel passam a cobrir "sem a localização da entrega" — pt-BR e en; contrato por comportamento; print.
-- [ ] **T2.8** Aviso antes do "Entreguei" com a permissão de localização **negada** (D4d): hook
+- [x] **T2.8** Aviso antes do "Entreguei" com a permissão de localização **negada** (D4d): hook
       `useGeolocationPermission` (Permissions API, nunca bloqueia o toque), aviso no cartão da parada no
       padrão que ele já usa — contrato antes, mutação, print nos dois temas e revisão de design.
 

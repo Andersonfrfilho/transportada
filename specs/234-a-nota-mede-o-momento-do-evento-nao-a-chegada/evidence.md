@@ -1189,3 +1189,79 @@ sinal ainda vai no deliver feito offline"); `driver-service-worker.smoke.spec.ts
 Run `37081892591`, commit `308588119`: `conclusion=success`; `deploy-api`, `deploy-driver`,
 `deploy-frontend` e `deploy-client` verdes (`deploy-landing` e `deploy-services` pulados por não terem
 mudança). A API subiu com o `access-control-expose-headers: Date` antes do app medir o relógio.
+
+## T2.7/T2.8 — os textos da D4d e o aviso de localização desligada
+
+Contagem de `bun run test` do frontend-driver: 1127 → **1146 pass**, 0 fail (+5 em `location-off-texts`, +8 em
+`geolocation-permission`, +6 em `location-off-warning`). Smoke do driver: `driver-app.smoke.spec.ts` **40 passed**
+(38 + 2 novos), `driver-service-worker.smoke.spec.ts` 2 passed. Painel: `trip-hooks.contract.test.ts` 327 pass
+(com o preload `dom.preload.ts`, como o script do painel).
+
+### T2.7 — textos (commits `ac9a04942` contrato vermelho, `e14c7b2bb` textos)
+
+- Driver, pt-BR e en: `pendingProofs.outcome.away`, `pendingProofs.outcome.late_and_away` e `profile.scoreHint`
+  passam a cobrir "sem a localização da entrega". O contrato (`location-off-texts.contract.ts`) renderiza o
+  `DriverProofOutcomeNotice` e lê as chaves; vermelho primeiro (4 reprovações), verde depois.
+- Painel: o selo da pontualidade só dizia "Longe do ponto", sem distância — passou a "Longe do ponto ou sem
+  localização" e "Atrasada e longe do ponto ou sem localização" (en: "…or no location"). O contrato do selo
+  (`trip-document-proof-badges.contract.ts`) foi atualizado pelo texto novo: 6 reprovações antes, 31 pass depois.
+- Não toquei no módulo legado `/minha-viagem` do painel (tem as mesmas chaves `away`/`late_and_away` com o texto
+  antigo): está em extinção e fora de escopo.
+
+### T2.8 — aviso antes do "Entreguei" (commits `d1530ede1` contrato vermelho, `cb074eb45` implementação)
+
+- `shared/geolocationPermission.service.ts:watchGeolocationPermission` (Permissions API; `denied` avisa, `granted`/
+  `prompt` não; ausente, consulta que lança ou rejeita = nada; `change` atualiza; parar solta o ouvinte, inclusive
+  se a consulta responder depois), `hooks/useGeolocationPermission.hook.ts` (fina: `useState` + `useEffect`), e
+  `DriverStopCard` com a prop `isLocationDenied`, ligada pela página. O aviso reaproveita o estilo do aviso da foto
+  (`proofPendingWarning`, `role="status"`), fica antes do botão e nunca o bloqueia.
+- Contrato do cartão (`location-off-warning.contract.ts`) renderiza o `DriverStopCard` de verdade
+  (`renderToStaticMarkup`): negada + "Cheguei" mostra o aviso antes do "Entreguei" (que segue habilitado);
+  liberada não; negada sem "Cheguei" não; en diz o mesmo. Vermelho: módulo ausente, e 3 reprovações no cartão.
+- Smoke novo: negada avisa e o `deliver` ainda sai; liberada não avisa.
+
+Mutações (aplicadas, `test` rodado, restauradas):
+
+| #   | Mutante                                               | Reprova                                                                                                |
+| --- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Q1  | `prompt` também avisa (`state !== 'granted'`)         | `granted e prompt: nunca avisam`                                                                       |
+| Q2  | sem a guarda de API ausente                           | **equivalente**: o `try/catch` seguinte já trata o `undefined`, nada muda (guarda mantida por clareza) |
+| Q3  | consulta síncrona que lança sem tratamento            | `a consulta que lança… não derruba`                                                                    |
+| Q4  | consulta rejeitada sem `.catch`                       | o mesmo teste                                                                                          |
+| Q5  | sem o ouvinte de `change`                             | 2 (`change atualiza`, `parar remove o ouvinte`)                                                        |
+| Q6  | parar não solta o ouvinte                             | `parar remove o ouvinte…`                                                                              |
+| Q7  | parar antes da resposta ainda liga                    | `parar antes de a consulta responder…`                                                                 |
+| Q8  | aviso mesmo sem "Cheguei"                             | `negada, mas sem "Cheguei"…`                                                                           |
+| Q9  | aviso sempre (ignora a permissão)                     | `localização liberada… nenhum aviso`                                                                   |
+| Q10 | `role="note"` no lugar de `status`                    | `o aviso é um status anunciado…`                                                                       |
+| Q11 | "Entreguei" desabilitado com a localização negada     | `o aviso não bloqueia…`                                                                                |
+| Q12 | aviso depois do botão                                 | `o aviso aparece, antes do botão "Entreguei"`                                                          |
+| Q13 | texto pt trocado                                      | `o aviso aparece, antes do botão…`                                                                     |
+| S1  | a página não liga o hook (`isLocationDenied={false}`) | smoke `localização negada: o aviso aparece…`                                                           |
+
+Não há mutante que pegue a falta de limpeza **no hook** (`useEffect` sem retornar `stop`): o hook é fino e sem
+infraestrutura de render com efeitos nos contratos; a limpeza do serviço é provada (Q6/Q7).
+
+### Revisão de design (web.md §15) — `getComputedStyle` e prints em 375×812
+
+Prints em `specs/234-a-nota-mede-o-momento-do-evento-nao-a-chegada/prints/` (10 PNGs, claro e escuro), gerados por
+`test/spec-234-prints.smoke.spec.ts` (fora da CI: `PLAYWRIGHT_TEST_MATCH=spec-234-prints.smoke.spec.ts`).
+Estado conferido por localizador; screenshot só no fim de cada tela; sem rolagem horizontal em nenhuma.
+
+| Elemento                   | Tema           | Fundo      | Borda esq.                   | Raio | Fonte            | Padding / gap | Contraste do texto                                                                  |
+| -------------------------- | -------------- | ---------- | ---------------------------- | ---- | ---------------- | ------------- | ----------------------------------------------------------------------------------- |
+| aviso novo                 | claro          | cobre 14 % | 4px sólida `rgb(163,89,31)`  | 0    | Avenir Next 16px | 12px / 4px    | **8,06**                                                                            |
+| aviso da foto (vizinho)    | claro          | cobre 14 % | 4px sólida `rgb(163,89,31)`  | 0    | Avenir Next 16px | 12px / 4px    | texto do corpo = o do aviso novo (o 2,91 medido é o título cobre, que ele já tinha) |
+| aviso novo                 | escuro         | cobre 14 % | 4px sólida `rgb(213,138,71)` | 0    | Avenir Next 16px | 12px / 4px    | **14,5**                                                                            |
+| aviso da foto (vizinho)    | escuro         | cobre 14 % | 4px sólida `rgb(213,138,71)` | 0    | Avenir Next 16px | 12px / 4px    | título 5,88 (corpo igual ao novo)                                                   |
+| resultado da foto (`away`) | claro / escuro | cobre 18 % | 4px sólida cobre             | 0    | 16px             | 12px / 8px    | 8,35 / 15,42                                                                        |
+
+Mesma caixa, borda, raio, fonte, espaço e fundo do aviso vizinho (a diferença de 14 % × 18 % é do toast do
+resultado, que já era assim); contraste acima de 4,5:1 nos dois temas. Largura 283 px dentro do cartão de 375 px.
+
+Achados da revisão: (1) o aviso novo é **só uma frase**, sem o título com ícone que o aviso da foto tem — legível e
+coerente com a caixa, mas visualmente mais simples; fica como pendência se o usuário preferir título + ícone.
+(2) Com foto obrigatória não há "Entreguei" (a captura já está na tela, o primário é o "Confirmar entrega"): o
+aviso aparece acima da fileira de ações, empilhado com o aviso da foto — print
+`entreguei-sem-localizacao-foto-obrigatoria-*`. (3) O selo "longe" do painel não tem print: o painel não foi
+subido nesta rodada; a mudança é só de texto e está coberta pelo contrato do selo.
