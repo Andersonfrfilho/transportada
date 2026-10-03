@@ -340,7 +340,9 @@ export function DriverQuickCreateDialog({
             ownedVehicleIds={ownedVehicleIds}
             selectedVehicleIds={form.selectedVehicleIds}
           />
-          <DriverCoverageFields coverage={form.coverage} regions={regions.regions} />
+          {hasLicense ? (
+            <DriverCoverageFields coverage={form.coverage} regions={regions.regions} />
+          ) : null}
           {form.feedbackKey === null ? null : (
             <FleetFeedback
               isError={isFleetFeedbackError(form.feedbackKey)}

@@ -257,6 +257,7 @@
   "driverAddressDistrict": "District",
   "driverAddressHint": "Start with the postal code: it fills the address in and leaves only the number to type. Without one at hand, search by address in the field beside it and pick from the list.",
   "driverAddressLegend": "Driver address",
+  "driverAddressLegendHelper": "Helper address",
   "driverAddressNumber": "Number",
   "driverAddressPostalCode": "Postal code",
   "driverAddressPostalCodeHint": "Eight digits. The lookup fires on its own once complete.",

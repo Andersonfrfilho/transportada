@@ -260,6 +260,7 @@
   "driverAddressDistrict": "Bairro",
   "driverAddressHint": "Comece pelo CEP: com ele o endereço vem preenchido e sobra digitar o número. Sem CEP em mãos, busque pelo endereço no campo ao lado e escolha na lista.",
   "driverAddressLegend": "Endereço do motorista",
+  "driverAddressLegendHelper": "Endereço do ajudante",
   "driverAddressNumber": "Número",
   "driverAddressPostalCode": "CEP",
   "driverAddressPostalCodeHint": "Oito dígitos. A busca dispara sozinha ao completar.",

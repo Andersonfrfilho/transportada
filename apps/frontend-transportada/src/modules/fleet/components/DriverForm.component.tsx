@@ -123,7 +123,7 @@ export function DriverForm({
     <form className={styles.panel} onSubmit={handleSubmit} ref={panelRef}>
       <h2>{driver === undefined ? t('newDriver') : t('editDriver')}</h2>
 
-      {driver === undefined ? null : <DriverScoreSection driverId={driver.id} />}
+      {driver === undefined || !hasLicense ? null : <DriverScoreSection driverId={driver.id} />}
 
       <fieldset className={styles.fieldGroup}>
         <legend>{t(hasLicense ? 'driverIdentityLegend' : 'driverIdentityLegendHelper')}</legend>
@@ -339,7 +339,9 @@ export function DriverForm({
         ownedVehicleIds={ownedVehicleIds}
         selectedVehicleIds={form.selectedVehicleIds}
       />
-      <DriverCoverageFields coverage={form.coverage} regions={regions.regions} />
+      {hasLicense ? (
+        <DriverCoverageFields coverage={form.coverage} regions={regions.regions} />
+      ) : null}
       {form.feedbackKey === null ? null : (
         <FleetFeedback
           isError={isFleetFeedbackError(form.feedbackKey)}

@@ -258,8 +258,8 @@ describe('o ajudante não vê texto de motorista nem de agregado (spec 239 T5 A7
 describe('as duas fichas montam o mesmo controle (spec 235 T9)', () => {
   /** A aba esconde também a diária de motorista (A2); o diálogo rápido não a tem. */
   const FORMS = [
-    ['src/modules/fleet/components/DriverForm.component.tsx', 4],
-    ['src/modules/fleet/components/DriverQuickCreateDialog.component.tsx', 2],
+    ['src/modules/fleet/components/DriverForm.component.tsx', 5],
+    ['src/modules/fleet/components/DriverQuickCreateDialog.component.tsx', 3],
   ] as const
 
   it('a aba e o diálogo leem o perfil do mesmo estado e mostram os mesmos campos de ajuda', () => {
@@ -300,6 +300,37 @@ describe('a lista de motoristas marca quem só ajuda (spec 235 T9)', () => {
   it('o selo "Ajudante" aparece só com canDrive falso', () => {
     expect(renderList(driverDetail({ canDrive: false }))).toContain(ptLocale.helperBadge)
     expect(renderList(driverDetail({ canDrive: true }))).not.toContain(ptLocale.helperBadge)
+  })
+})
+
+describe('a ficha do ajudante puro fala dele e não traz o que é de motorista (spec 239 B1)', () => {
+  it('o endereço e a legenda da ficha são do ajudante, com a variante nos dois idiomas', () => {
+    const helperOnly = renderForm(driverDetail({ canDrive: false, canActAsHelper: true }))
+    const driving = renderForm(driverDetail({ canDrive: true }))
+
+    expect(helperOnly).toContain(`>${ptLocale.driverAddressLegendHelper}<`)
+    expect(helperOnly).not.toContain(`>${ptLocale.driverAddressLegend}<`)
+    expect(driving).toContain(`>${ptLocale.driverAddressLegend}<`)
+    expect(driving).not.toContain(`>${ptLocale.driverAddressLegendHelper}<`)
+    expect(ptLocale.driverAddressLegendHelper).toBe('Endereço do ajudante')
+    expect(enLocale.driverAddressLegendHelper).toBeString()
+  })
+
+  it('a nota (entregas com foto) e as regiões atendidas são do motorista: somem para o ajudante puro', () => {
+    const helperOnly = renderForm(driverDetail({ canDrive: false, canActAsHelper: true }))
+    const driving = renderForm(driverDetail({ canDrive: true }))
+
+    expect(helperOnly).not.toContain(ptLocale.driverScoreSectionTitle)
+    expect(helperOnly).not.toContain(ptLocale.driverCoverage.legend)
+    expect(driving).toContain(ptLocale.driverScoreSectionTitle)
+    expect(driving).toContain(ptLocale.driverCoverage.legend)
+  })
+
+  it('o motorista que também ajuda mantém a nota e as regiões', () => {
+    const html = renderForm(driverDetail({ canDrive: true, canActAsHelper: true }))
+
+    expect(html).toContain(ptLocale.driverScoreSectionTitle)
+    expect(html).toContain(ptLocale.driverCoverage.legend)
   })
 })
 
