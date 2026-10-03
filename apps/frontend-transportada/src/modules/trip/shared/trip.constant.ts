@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { OCCURRENCE_CORRECTION_ERROR } from './occurrence.constant'
+
 export const TRIPS_PATH = '/trips'
 
 /** A nota bipada é procurada na listagem de NF-e; a chave é única por empresa, então uma basta. */
@@ -166,6 +168,15 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   /** Spec 164, achado 1: reentrega escolhida sobre política `blocked` da tratativa. */
   OCCURRENCE_CASE_REDELIVERY_NOT_ALLOWED: 'occurrenceCaseRedeliveryNotAllowed',
   OCCURRENCE_CASE_NOTE_REQUIRED: 'occurrenceCaseNoteRequired',
+  /** Spec 235 RF7: a correção e o cancelamento da ocorrência de nota (spec 167). */
+  [OCCURRENCE_CORRECTION_ERROR.CASE_ALREADY_OPEN]: 'occurrenceCaseAlreadyOpen',
+  [OCCURRENCE_CORRECTION_ERROR.ALREADY_CANCELLED]: 'occurrenceAlreadyCancelled',
+  [OCCURRENCE_CORRECTION_ERROR.CANCELLED]: 'occurrenceCancelled',
+  [OCCURRENCE_CORRECTION_ERROR.TYPE_SINGLE_ITEM]: 'occurrenceTypeSingleItem',
+  [OCCURRENCE_CORRECTION_ERROR.ITEM_QUANTITY_NOT_POSITIVE]: 'occurrenceItemQuantityNotPositive',
+  [OCCURRENCE_CORRECTION_ERROR.ITEM_QUANTITY_UNIT_PAIRING]: 'occurrenceItemQuantityUnitPairing',
+  [OCCURRENCE_CORRECTION_ERROR.PRODUCT_NOT_IN_DOCUMENT]: 'occurrenceProductNotInDocument',
+  [OCCURRENCE_CORRECTION_ERROR.OCCURRENCE_NOT_FOUND]: 'occurrenceNotFound',
 }
 
 /** Spec 156 T6: `POST .../field-delivery` (T11 consome; T8 só mapeia o texto). */
