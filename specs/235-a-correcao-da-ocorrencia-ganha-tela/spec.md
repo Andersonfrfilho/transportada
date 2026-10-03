@@ -33,6 +33,9 @@ foram decididas na 167 e estão implementadas nas escritas. A Fase 0 provou que 
 - **O app do motorista.** Correção é trabalho de escritório, `trip.manage`.
 - **Reenviar o e-mail ao contratante depois da correção.** Continua a dúvida aberta da 167, e
   responder por conta própria aqui seria decidir negócio dentro de uma spec de tela.
+- **Criar o tipo "Prorrogação" no catálogo.** O template do SAC o traz e o catálogo
+  (`occurrence-type-catalog.constant.ts`) só tem "segunda via do boleto". Cadastro de tipo é da
+  234/208, não desta tela.
 - Tudo o que pertence à spec 234 — momentos, exigências por campo, aba Tipos, exceção por CNPJ.
 
 ## Histórias priorizadas
@@ -78,6 +81,13 @@ em toda lista onde ela já aparecia.
   à vista quando a ocorrência tem tratativa aberta ou já está cancelada.
 - **RF5** O histórico de correções (`corrections[]`) aparece no detalhe: autor, data e o conjunto
   que passou a valer. Não vinha na leitura (Fase 0); passa a vir pela RF9.
+- **RF10** **Nem toda ocorrência tem itens.** O template de ocorrências do SAC traz devolução
+  parcial (com itens e foto), devolução total e **prorrogação de boleto**, que não toca a
+  entrega. **Corrigir** só existe quando a ocorrência carrega itens; ocorrência sem itens
+  (prorrogação, segunda via do boleto) mostra só **Cancelar**. O texto do motivo desabilitado
+  distingue os estados da tratativa que a 164 já tem (aberta, decidida, fechada, cancelada) em
+  vez de um genérico "tratativa aberta": a tratativa se resolve de mais de um jeito
+  (`redelivery_authorized`, `goods_paid`, `other`) e cada um dispara a sua devolutiva ao caso.
 - **RF9** As leituras da API publicam o que a 167 grava: detalhe e lista da nota devolvem
   `corrections` e `cancellation`; o feed devolve `cancellation`. Mesmo formato da resposta das
   escritas, lido em lote, e a cancelada continua listada, marcada.
