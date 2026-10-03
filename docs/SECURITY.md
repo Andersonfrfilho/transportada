@@ -320,10 +320,14 @@ sinal de gestão, não prova (mesma premissa da spec 159).
   o furo de forjar `clockOffsetMs: 0` numa entrega sem prova de lugar.
 - **GPS desligado pune em todo cliente** (D4c, decisão do usuário em 2026-10-02): a entrega do app do
   motorista (`trip_stop_events.channel = 'driver_app'`) sem posição conta como "longe" mande ou não o
-  desvio. A baixa do escritório (`office`) e a entrega pelo WhatsApp (`whatsapp`, que não coleta posição)
+  desvio. A baixa do escritório (`office`) e a entrega pelo WhatsApp (`whatsapp`, hoje sem ponto: inalcançável com meta-whatsapp 0.1.0)
   não punem — o canal é gravado pelo servidor a partir da rota, o motorista não o escolhe. Limite: o
   WhatsApp é uma via de entrega sem prova de lugar e sem punição; hoje ele não entra na nota (spec 159 T11
-  D2), e liberá-lo exige rever isto.
+  D2), e liberá-lo exige rever isto. **Pendência de decisão do usuário (2026-10-03, spec 196/ADR-0081 §3.1):**
+  o ponto da mensagem de localização do WhatsApp pode ser um pino escolhido no mapa, não GPS; decidir se o ponto
+  declarado entra na distância/pontualidade antes de subir os pacotes `meta-whatsapp-*`. Nada foi implementado.
+  A migration `20261002153258` (CHECK de coordenada) e a corretiva `20261003010806` tomam ACCESS EXCLUSIVE até
+  o COMMIT; aplicar fora do horário de campo.
 - Cliente que **não** manda o desvio segue com o piso antigo de tempo.
 - Com posição na entrega, a foto corrigida só vale se o evento de entrega também foi corrigido (senão a
   entrega é hora crua e a comparação seria entre relógios diferentes); a foto segue a regra antiga.

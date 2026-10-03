@@ -2113,8 +2113,8 @@ entrega conta como longe (D4b). **GPS desligado pune em todo cliente (D4c, T1.8)
 entrega, a entrega **do app do motorista** conta como longe com ou sem o desvio — `findDeliveryContext` lê
 `trip_stop_events.channel` e devolve `isDeliveryRecordedByDriver` (`DRIVER_FIELD_CHANNELS` = só
 `driver_app`, em `trips/domain/trip-field-channel.constant.ts`); a baixa do escritório (`office`, spec 223)
-e a entrega pelo WhatsApp (que não coleta posição, `location: null` fixo — liberá-lo na nota exige rever
-isto) nunca têm posição e **não** são punidas por isso (a referência de tempo sem posição
+e a entrega pelo WhatsApp (hoje sem ponto: inalcançável com meta-whatsapp 0.1.0; decisão pendente do
+usuário — o ponto do WhatsApp pode ser pino de mapa, ver ADR-0081 §3.1) nunca têm posição e **não** são punidas por isso (a referência de tempo sem posição
 segue o recebimento quando o relógio é alegado). Sem o canal no contexto, vale a regra anterior (só a D4b
 pune). A pontualidade é gravada no anexo e a nota só lê `trip_delivery_proofs.punctuality` — nada já
 gravado é reclassificado; só a foto anexada depois da publicação (inclusive a substituta de entrega

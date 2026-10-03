@@ -14,7 +14,8 @@ export const DEFAULT_TRIP_FIELD_CHANNEL: TripFieldChannel = TRIP_FIELD_CHANNELS.
 
 /**
  * Spec 234 D4c: os canais do motorista em que "GPS desligado" pune — só o app, que coleta posição. O
- * WhatsApp fica de fora porque não coleta (`location: null` fixo); liberá-lo na nota exige rever isto.
+ * WhatsApp fica de fora: hoje inalcançável com meta-whatsapp 0.1.0 (descarta `messages[].location`);
+ * decisão pendente: ponto declarado (pode ser pino de mapa) fora da distância/pontualidade da nota.
  * Escritório e backoffice nunca têm posição.
  */
 export const DRIVER_FIELD_CHANNELS: ReadonlySet<TripFieldChannel> = new Set([

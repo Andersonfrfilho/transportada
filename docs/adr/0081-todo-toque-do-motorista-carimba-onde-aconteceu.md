@@ -85,6 +85,26 @@ tela teria de adivinhar pela idade e pelo tipo.
 - CHECKs nas três tabelas novas: `latitude is null or channel = 'driver_app'` e
   `location_state is null or channel in ('driver_app', 'whatsapp')`.
 
+#### 3.1 Emenda de 2026-10-02/03 — o WhatsApp passa a poder gravar o ponto
+
+A spec 196 T1.4 reabriu o segundo item: a mensagem de **localização** do WhatsApp do motorista (spec 196
+T3.6) vira o ponto do mesmo evento. A migration corretiva `20261003010806_event_location_whatsapp_coordinate`
+afrouxa o CHECK de coordenada das três tabelas para `latitude is null or channel in ('driver_app',
+'whatsapp')` (a `20261002153258` já estava publicada e não foi editada). Roda em transação com
+`lock_timeout = '3s'`; o DROP/ADD toma ACCESS EXCLUSIVE até o COMMIT e o VALIDATE varre a tabela sob esse
+lock, então a aplicação (e a da `20261002153258`, que tem a mesma forma) deve ser **fora do horário de campo**.
+O rollback recusa, sem apagar, enquanto houver ponto de WhatsApp gravado.
+
+**Limite dos pacotes:** com `@adatechnology/meta-whatsapp-*` na `0.1.0` o webhook descarta
+`messages[].location` antes do gancho; na prática o toque segue gravando `unavailable` até a instalação subir
+os pacotes (a `0.4.0` traz o tipo). A emenda é inalcançável em produção até lá.
+
+**Pendência de decisão do usuário (não implementada):** o ponto vindo da mensagem de localização do WhatsApp
+pode ser um **pino escolhido no mapa**, não o GPS do aparelho — o motorista declara um lugar. A spec 234
+(D4c) tratou o WhatsApp como canal que "não coleta" posição e o deixou fora da punição de "GPS desligado" e da
+distância/pontualidade da nota. Decidir antes de subir os pacotes: o ponto declarado entra na distância e na
+pontualidade, ou fica de fora delas como prova de lugar? Nenhum filtro foi implementado.
+
 ### 4. Só o toque carimba
 
 Levam ponto os eventos que **são** o toque. A troca de status que a entrega deriva não leva: o ponto
