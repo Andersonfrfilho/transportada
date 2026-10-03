@@ -9,7 +9,7 @@ calendário (238). Política pura, leitura no join que já existe, selo e filtro
 
 - **Derivado, nunca gravado:** muda com o perfil e o calendário; sem backfill.
 - **Política pura** `src/trips/domain/delivery-deadline.policy.ts`: relógio, fuso e calendário por parâmetro;
-  janela de separação em **horas corridas**, depois **dias úteis** (238).
+  `prazo = chegada + N dias úteis` (238); a janela de separação de 24 h não entra na conta.
 - **Âncora:** `cargo_arrivals.arrived_at` da chegada em que a nota está (237). Nota que não passou por
   chegada fica `not_applicable`.
 - **Entrega medida pelo momento da 234** (`deliveredMomentSql`).
@@ -24,7 +24,7 @@ calendário (238). Política pura, leitura no join que já existe, selo e filtro
 
 ## Riscos
 
-- Âncora/calendário errados = prazo errado em toda nota: por isso D6 e D7 são bloqueantes.
+- Âncora/calendário errados = prazo errado em toda nota: o teste de tabela cobre fim de semana, feriado e aniversário.
 - O contrato de "sem N+1" precisa existir (a política roda por nota; o calendário carrega por cidade).
 - A divergência dos três chamadores do comprovante (resolução em duas camadas) **não** é consertada aqui.
 - Numeração: reconferir spec/ADR em `origin/staging` e nos worktrees antes de publicar.

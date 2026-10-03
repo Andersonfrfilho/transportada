@@ -1,7 +1,7 @@
 # Tarefas — 236
 
-> Bloqueada por **D6 e D7** (têm recomendação) e pelas specs **238** (calendário) e **237 Fases 1–2**
-> (perfil e chegada). Sem prompt de execução até lá.
+> Sem dúvidas abertas. **Depende** das specs **238** (calendário) e **237 Fases 1–2** (perfil e chegada)
+> estarem publicadas. O prompt de execução sai quando a 237 Fase 2 estiver em staging.
 
 ## Fase 1 — API: política e leitura
 

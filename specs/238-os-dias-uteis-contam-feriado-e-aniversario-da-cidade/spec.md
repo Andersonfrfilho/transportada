@@ -1,8 +1,9 @@
 # Feature 238 — os dias úteis contam feriado e aniversário da cidade
 
-> **Estado:** rascunho com dúvidas abertas. **Primeira da fila** (236 e 237 dependem dela).
+> **Estado:** pronta para execução (sem dúvidas bloqueantes). **Primeira da fila** (236 e 237 dependem dela).
 > Decisão do usuário (2026-10-03): o prazo de entrega conta em **dias úteis, incluindo feriados e o
-> aniversário das cidades**.
+> aniversário das cidades**, e **já existe um calendário com feriados** no produto: esta spec o **reaproveita**
+> (hoje só no painel) e o leva ao backend.
 
 ## Problema e resultado
 
@@ -56,16 +57,18 @@ Importar uma lista de feriados municipais de um CSV (modelo baixável), revisand
 - **RF1 — Política pura** `business-calendar.policy.ts` (domínio, sem I/O): `isBusinessDay`,
   `addBusinessDays`, `countBusinessDays`, recebendo o conjunto de feriados e o fuso por parâmetro. Relógio
   nunca implícito.
-- **RF2 — Feriados nacionais no backend:** fixos + Sexta-feira Santa (por Páscoa). **Carnaval e Corpus
-  Christi não são feriado nacional por lei** (ponto facultativo): entram como feriado só quando cadastrados
-  pelo operador [D1].
+- **RF2 — Feriados nacionais no backend:** a mesma lista do calendário que o painel já usa
+  (`brazilianHoliday.service.ts`: fixos + Carnaval, Sexta-feira Santa, Corpus Christi por Páscoa), **sem
+  mudar o comportamento que a equipe já usa** (decisão do usuário: "temos um calendário já com feriados").
+  Um contrato de **paridade** garante que painel e backend dão o mesmo resultado para os mesmos anos.
 - **RF3 — Recorrência no município:** `municipal_holidays` ganha `recurrence` (`once` | `yearly`) e `kind`
   (`holiday` | `city_anniversary`); `yearly` guarda mês e dia. Migration **aditiva**, com `rollback.sql`; linhas
   atuais viram `once` sem mudar comportamento. A leitura expande `yearly` para o ano pedido (29/02 só em ano
   bissexto, regra registrada).
 - **RF4 — Feriado estadual:** `state_holidays` (`company_id`, `state_code`, data ou mês/dia, nome),
   cadastrável. Sem seed automático de estados.
-- **RF5 — Sábado:** configuração da empresa `saturday_is_business_day` (padrão `false`) [D2].
+- **RF5 — Sábado:** configuração da empresa `saturday_is_business_day` (padrão `false`: segunda a sexta);
+  premissa revogável pelo operador.
 - **RF6 — Resolução por cidade:** o calendário de uma cidade = nacionais ∪ estaduais (UF do IBGE) ∪
   municipais daquela cidade. A UF sai dos dois primeiros dígitos do código IBGE.
 - **RF7 — Tela** em Configurações: lista, cria, edita e remove feriado municipal/estadual e aniversário
@@ -101,13 +104,6 @@ Importar uma lista de feriados municipais de um CSV (modelo baixável), revisand
 
 ## Dúvidas
 
-**[NEEDS CLARIFICATION: D1 — Carnaval e Corpus Christi]** Hoje o painel os trata como feriado. Por lei são
-ponto facultativo. _Recomendo_ só contar quando a empresa os cadastrar (nacional = fixos + Sexta-feira
-Santa). Confirma?
-
-**[NEEDS CLARIFICATION: D2 — sábado é dia útil?]** _Recomendo não_ (segunda a sexta), configurável por
-empresa. Para esse contratante, sábado conta?
-
-**[NEEDS CLARIFICATION: D3 — de qual cidade é o feriado?]** _Recomendo a cidade do destinatário de cada
-nota_ (o prazo é para entregar lá). Se o contrato do contratante conta pelo município **onde a carga é
-recebida**, o calendário usado é o da cidade de recebimento.
+Nenhuma bloqueante. Premissas adotadas (revogáveis, sem travar a execução): **sábado não é dia útil**
+(configurável por empresa) e **a cidade do feriado é a do destinatário** (decidido pelo usuário na 236);
+Carnaval e Corpus Christi seguem como feriado, **como o calendário atual do painel já faz**.

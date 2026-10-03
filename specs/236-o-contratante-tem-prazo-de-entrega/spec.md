@@ -1,7 +1,7 @@
 # Feature 236 — o contratante tem prazo de entrega
 
-> **Estado:** decisões D1–D5 respondidas pelo usuário em 2026-10-03; **depende** das specs 238 (dias úteis)
-> e 237 (chegada da carga e perfil do contratante). Ordem: 238 → 237 → 236. Uma dúvida nova (D6) no fim.
+> **Estado:** todas as decisões respondidas pelo usuário em 2026-10-03; **sem dúvidas abertas**. **Depende**
+> das specs 238 (dias úteis) e 237 (chegada da carga e perfil do contratante). Ordem: 238 → 237 → 236.
 > **Número:** nasceu como 235; duas outras sessões usam 235 em worktrees sem push. Reconferir antes de publicar.
 
 ## Problema e resultado
@@ -11,18 +11,18 @@ tem prazo de entrega da mercadoria: a nota do motorista mede só a foto do compr
 `cte_emission_profiles.delivery_days` não é lido por regra nenhuma, e os 24 h de `missingAfterHours` são o
 prazo do **comprovante**, não da mercadoria.
 
-**Como o prazo funciona para esse CNPJ (palavras do usuário):** a carga chega, há 24 horas para fazer a
-primeira separação e abrir avarias, e **a partir daí há 3 dias úteis para entregar** — contando feriados e o
-aniversário das cidades. Outros contratantes têm outras regras.
+**Como o prazo funciona para esse CNPJ (palavras do usuário):** a carga chega; há 24 horas para fazer a
+primeira separação e abrir avarias; e **são 3 dias úteis desde a chegada para entregar** — contando
+feriados e o aniversário das cidades. As 24 h de separação **correm dentro** dos 3 dias, não se somam a
+eles. Outros contratantes têm outras regras.
 
 O resultado: **o painel mostra, em cada nota do contratante com prazo, até quando ela deve ser entregue e se
 está no prazo**, sem bloquear a entrega e sem mexer na nota do motorista.
 
 ## Decisões já tomadas
 
-- **D1 — Âncora = a chegada da carga** (spec 237), não a emissão da NF-e. O prazo conta **depois da janela
-  de separação**: `prazo = chegada + janela de separação (24 h do perfil) + N dias úteis`. [leitura a
-  confirmar em D6]
+- **D1 — Âncora = a chegada da carga** (spec 237), não a emissão da NF-e. `prazo = chegada + N dias úteis`
+  (3 dias **desde a chegada**; a janela de 24 h de separação é da 237 e não entra na conta do prazo).
 - **D2 — Dias úteis**, incluindo feriados nacionais, estaduais, municipais e o aniversário da cidade
   (spec 238). Sábado segue a configuração da empresa.
 - **D3 — O vencimento só informa:** selo e filtro no painel; **sem pontos na nota do motorista** e sem
@@ -72,7 +72,8 @@ now, recipientCityIbge, calendar })` → `{ dueAt, state, businessDaysLate? }`):
   `not_applicable` (sem chegada, sem perfil/prazo, devolvida, cancelada, sem cidade do destinatário).
 - **RF3 — Entrega medida pelo momento da 234** (`deliveredMomentSql`), nunca pela chegada ao servidor; sem
   entrega, o relógio do servidor.
-- **RF4 — Cidade do calendário:** a do **destinatário** da nota (`nfe_addresses.city_code`) [D7].
+- **RF4 — Cidade do calendário:** a do **destinatário** da nota (`nfe_addresses.city_code`) — decidido pelo
+  usuário.
 - **RF5 — Leitura por nota:** o detalhe da viagem recebe por documento `deliveryDeadline:
 { dueAt, state, businessDaysLate? } | null`, no join que já traz o `contractorId`, **sem** novo resolvedor
   paralelo e sem N+1 (o calendário das cidades da viagem em uma consulta).
@@ -88,9 +89,9 @@ now, recipientCityIbge, calendar })` → `{ dueAt, state, businessDaysLate? }`):
 
 ## Casos extremos e falhas
 
-- Janela de 24 h cruza fim de semana/feriado: a janela conta **horas corridas**; só os dias de entrega
-  são úteis.
-- Chegada em dia não útil: o prazo começa a contar no próximo dia útil depois da janela.
+- Chegada em dia não útil (sábado, feriado): o primeiro dia útil conta como o dia 0 e o prazo corre dali.
+- Chegada depois do expediente: vale o dia civil da chegada no fuso da empresa [premissa; ajustar se o
+  contrato do contratante disser outra coisa].
 - Entrega **no dia** do vencimento é no prazo.
 - Nota devolvida ou cancelada: `not_applicable`.
 - Perfil alterado depois da chegada: vale o perfil atual (D5).
@@ -98,22 +99,18 @@ now, recipientCityIbge, calendar })` → `{ dueAt, state, businessDaysLate? }`):
 
 ## Critérios de aceite
 
-- **CA1** Tabela de casos do domínio (chegada, janela, dias, calendário, agora, entrega) → estado, incluindo
+- **CA1** Tabela de casos do domínio (chegada, dias, calendário, agora, entrega) → estado, incluindo
   fim de semana, feriado municipal, aniversário da cidade, entrega no dia e devolvida.
 - **CA2** Integração contra Postgres: viagem com notas de dois contratantes (um com perfil e chegada, outro
   sem) devolve prazo só na primeira; nota sem chegada devolve `null`.
 - **CA3** O painel mostra o selo nos dois temas e filtra vencidas/vencem hoje; smoke cobre.
-- **CA4** Mutação: tirar a janela de 24 h, contar sábado, ignorar o aniversário da cidade, inverter
+- **CA4** Mutação: somar a janela de 24 h por engano, contar sábado, ignorar o aniversário da cidade, inverter
   `<`/`<=` no vencimento, medir a entrega pela chegada ao servidor — cada uma derruba um teste.
 - **CA5** Nenhuma query nova por nota (contrato de contagem de consultas).
 - **CA6** Não-regressão da nota do motorista, do comprovante e do CT-e.
 
 ## Dúvidas
 
-**[NEEDS CLARIFICATION: D6 — confirmar a leitura do relógio]** Entendi: o prazo é **chegada + 24 h de
-separação e, depois disso, 3 dias úteis** (as 24 h não gastam os 3 dias). É isso, ou os 3 dias úteis contam
-desde a chegada com as 24 h dentro deles? (a mesma pergunta está em D2 da 237.)
-
-**[NEEDS CLARIFICATION: D7 — de qual cidade é o feriado]** Recomendo a **cidade do destinatário** de cada
-nota (o prazo é para entregar lá). Se o contrato conta pelo município onde a carga é **recebida**, usa-se o
-da chegada. Confirma?
+Nenhuma aberta. Respondidas pelo usuário em 2026-10-03: **3 dias úteis desde a chegada** (as 24 h correm
+dentro), **cidade do destinatário**, **só informa**, **os 3 dias são de entrega (não do comprovante)** e
+**tudo é novo** (sem backfill).

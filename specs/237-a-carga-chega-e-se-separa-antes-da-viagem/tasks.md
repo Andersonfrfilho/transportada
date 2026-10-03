@@ -1,9 +1,8 @@
 # Tarefas — 237
 
-> Bloqueada por **[NEEDS CLARIFICATION] D1–D7** em `spec.md`. A Fase 1 pode começar com D2 e D5 respondidas;
-> a Fase 4 só com D1 (exemplo real da planilha). Sem prompt de execução até lá.
-> Pré-requisito de ordem: spec 238 (dias úteis) publicada antes da 236; a 237 não depende dela para as
-> Fases 1–3.
+> Restam **D4** (bloqueia só a Fase 3) e **D6** (bloqueia só a Fase 4) em `spec.md`; as **Fases 1–2 não
+> dependem delas**. Sem prompt de execução até D4 e D6 serem respondidas. O exemplo real da planilha já
+> está analisado em `planilha-fr.md`. A 237 não depende da 238 nas Fases 1–4; a 236 depende das duas.
 
 ## Fase 1 — Perfil do contratante e ficha
 
@@ -23,12 +22,12 @@
 
 > 🤖 Modelo: `sonnet` (T2.1 é 🧠)
 
-- [ ] **T2.1** 🧠 Eixo `expected/received/sorted_by_city/assigned_to_route` e a política pura de transição
+- [ ] **T2.1** 🧠 Eixo `expected/received/separated` por nota, com o agrupamento rota × cidade, e a política pura de transição
       (contrato em tabela antes; eventos append-only com ator e canal).
 - [ ] **T2.2** Migration `cargo_arrivals`, `cargo_arrival_documents`, `cargo_arrival_events` (+ rollback).
 - [ ] **T2.3** Casos de uso e rotas: registrar chegada (idempotente), organizar por cidade, atribuir rota;
       `separation_due_at` do perfil; integração contra Postgres.
-- [ ] **T2.4** Tela de Recebimento (chegada → cidade → rota), contratos antes; prova por mutação.
+- [ ] **T2.4** Tela de Recebimento no painel (chegada, grupos rota × cidade) e a **tela do celular do separador** (PWA, por nota, agrupada por rota e cidade, alvo ≥ 44 px), contratos antes; prova por mutação.
 - [ ] **T2.5** Revisão `opus`, print aprovado, publicar em staging e confirmar o deploy.
 
 ## Fase 3 — Avaria sem viagem
@@ -44,13 +43,16 @@
 
 ## Fase 4 — Prévia por e-mail
 
-> 🤖 Modelo: `sonnet` (T4.1 é 🧠). **Bloqueada por D1 (exemplo real) e D6.**
+> 🤖 Modelo: `sonnet` (T4.1 é 🧠). **Bloqueada por D6.** Exemplo real disponível em `planilha-fr.md`.
 
 - [ ] **T4.1** 🧠 Escolha e justificativa da biblioteca de planilha; limites de segurança (zip, linhas,
       tempo, fórmulas); ADR/plan atualizado.
-- [ ] **T4.2** Ramo "prévia" no worker de e-mail de entrada (token do perfil, DKIM, allow-list, MIME bruto);
-      migration `cargo_previews`/`cargo_preview_items`; contratos antes (CA1–CA4).
-- [ ] **T4.3** Leitura e validação por linha; casamento por chave; passo que casa quando o XML chega.
+- [ ] **T4.2** Ramo "prévia" no worker de e-mail de entrada (conforme D6: token do perfil, DKIM,
+      allow-list, MIME bruto); migration `cargo_previews`/`cargo_preview_items`; contratos antes
+      (CA1–CA4), usando as três planilhas `FR` (anonimizadas) como fixtures.
+- [ ] **T4.3** Leitura e validação por linha (aba `IMPORTAÇÃO`, cabeçalhos de rota ignorados); vínculo por
+      emitente + número e conferência por CEP/cidade/valor (`matched/divergent/ambiguous`); passo que
+      vincula quando o XML chega; registro do recebimento do e-mail e comparação com o do XML.
 - [ ] **T4.4** Tela de prévias (esperadas × com XML × erro).
 - [ ] **T4.5** Revisão `opus` + `security-reviewer`, print aprovado, publicar e confirmar.
 
@@ -58,8 +60,9 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T5.1** Ponte prévia/chegada → `POST /route-suggestions/multi-vehicle` (só notas `matched`),
-      contrato de que nenhuma viagem nasce sem o aceite (CA5).
-- [ ] **T5.2** Botão "Propor roteiros" na prévia/chegada, reaproveitando o diálogo multi-veículo.
+- [ ] **T5.1** Recomendação de viagens: rascunhos pelos grupos do contratante (`RouteName`) e ponte
+      prévia/chegada → `POST /route-suggestions/multi-vehicle` (só notas `matched`); contrato de que nenhuma
+      viagem nasce sem o aceite (CA5).
+- [ ] **T5.2** Botão "Recomendar viagens" na prévia/chegada, com as duas visões lado a lado, reaproveitando o diálogo multi-veículo.
 - [ ] **T5.3** **Revisão de design e usabilidade** de todo o módulo (web.md §15), prints nos dois temas e
       375/768/1280 px aprovados; publicar e confirmar.

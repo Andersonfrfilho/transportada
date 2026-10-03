@@ -10,7 +10,7 @@
 - **Frontend:** o cálculo de feriado nacional do painel (`brazilianHoliday.service.ts`) **não** vira a
   fonte da verdade; o backend o é. O painel pode passar a consumir a rota do calendário para o date-picker
   numa task posterior (não bloqueia).
-- **Riscos:** (1) Carnaval/Corpus Christi (D1) — divergência entre o painel de hoje e o backend; (2)
+- **Riscos:** (1) divergência entre o calendário do painel e o do backend — por isso o contrato de paridade; (2)
   29/02; (3) fuso na virada do dia; (4) o solver lê `municipal_holidays` — o teste de integração do solver
   roda depois da migration.
 - **Documentação viva:** `docs/spec/domain-model.md`, `docs/ai-context/api-transportada.md`,

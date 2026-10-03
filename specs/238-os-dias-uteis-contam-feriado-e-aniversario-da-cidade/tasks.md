@@ -1,6 +1,6 @@
 # Tarefas — 238
 
-> Bloqueada por **D1–D3** (têm recomendação). Sem prompt de execução até serem respondidas.
+> Sem dúvidas bloqueantes (premissas na spec). Prompt de execução ao fim de `tasks.md`.
 
 ## Fase 1 — Domínio e dado
 
@@ -24,3 +24,25 @@
 - [ ] **T2.3** Prova por mutação e evidência em `evidence.md`.
 - [ ] **T2.4** **Revisão de design e usabilidade** (web.md §15) com print enviado ao usuário e aprovado antes
       de publicar; publicar em staging.
+
+## Prompt de execução
+
+```text
+/oh-my-claudecode:autopilot Execute a spec specs/238-os-dias-uteis-contam-feriado-e-aniversario-da-cidade/
+(leia spec.md, plan.md e tasks.md inteiros antes de começar). Uma task por vez, na ordem do tasks.md, em
+worktree/branch próprios a partir de origin/staging (git fetch antes; confira que o número 238 e o próximo ADR
+continuam livres em origin/staging e nos outros worktrees).
+Modelos: Fase 1 → T1.1 🧠 model=opus (validar contrato com architect model=opus antes de implementar); T1.2 e
+T1.3 executor model=sonnet; revisão final de cada fase com code-reviewer model=opus em passada separada.
+Fase 2 → executor model=sonnet; o print da T2.4 é enviado ao usuário e só publica depois de aprovado.
+Reaproveite o calendário que já existe no painel (apps/frontend-transportada/src/components/ui/
+brazilianHoliday.service.ts) como fonte da lista nacional, com contrato de paridade painel × backend.
+Cada task fecha com: contrato antes (vermelho pelo motivo certo), typecheck, lint com cwd na app, teste pelo
+script do package.json (nunca bun test cru; API: contrato e integração são dois comandos), format:check na
+raiz, prova por mutação, commit isolado com caminhos explícitos (--no-verify, nunca git add -A), evidência em
+evidence.md. Migration aditiva com rollback.sql: make migration-test e db:generate = no_changes; integração
+contra um Postgres que responda (pular não é passar). Publicar em staging só com tudo verde (fetch + rebase
+limpo + bun install --frozen-lockfile + typecheck) e CONFIRMAR o deploy antes da Fase 2.
+Pare e pergunte antes de: produção, migration destrutiva, qualquer [NEEDS CLARIFICATION], mudar o contrato do
+solver que lê municipal_holidays, e qualquer mudança visível de tela sem print aprovado.
+```
