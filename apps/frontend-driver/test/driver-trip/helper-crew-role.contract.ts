@@ -57,11 +57,30 @@ describe('a viagem sabe o papel de quem a lê (spec 239 D4)', () => {
     expect(parseTrip(TRIP)?.crewRole).toBe('driver')
   })
 
-  it('papel fora do vocabulário é resposta inválida, nunca um papel presumido', () => {
-    expect(() => parseTrip({ ...TRIP, crewRole: 'observer' })).toThrow(
-      'DRIVER_TRIP_RESPONSE_INVALID',
-    )
-    expect(() => parseTrip({ ...TRIP, crewRole: 7 })).toThrow('DRIVER_TRIP_RESPONSE_INVALID')
+  it('papel fora do vocabulário degrada para somente leitura, nunca para motorista', () => {
+    for (const unknownRole of ['observer', 7, null]) {
+      const trip = parseTrip({ ...TRIP, crewRole: unknownRole })
+
+      expect(trip?.crewRole).toBe('helper')
+      expect(trip === undefined ? true : canReportOnTrip(trip)).toBe(false)
+    }
+  })
+
+  it('a viagem com papel desconhecido não derruba as outras da mesma resposta', () => {
+    const snapshot = toDriverTripSnapshot({
+      data: {
+        isRegisteredDriver: true,
+        pendingProofs: [],
+        score: null,
+        trips: [
+          { ...TRIP, crewRole: 'observer', id: 'trip-unknown' },
+          { ...TRIP, crewRole: 'driver', id: 'trip-driver' },
+          { ...TRIP, id: 'trip-legacy' },
+        ],
+      },
+    })
+
+    expect(snapshot.trips.map((trip) => trip.crewRole)).toEqual(['helper', 'driver', 'driver'])
   })
 
   it('só o ajudante não reporta; viagem de snapshot antigo (sem o campo) reporta como motorista', () => {

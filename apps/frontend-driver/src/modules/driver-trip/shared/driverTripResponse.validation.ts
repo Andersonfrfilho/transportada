@@ -245,12 +245,10 @@ function toPendingProofs(value: unknown): readonly PendingProofDocument[] {
   return value.map(toPendingProof).filter((item): item is PendingProofDocument => item !== null)
 }
 
-/** Spec 239 D4: ausente (API ou snapshot anterior) vale `driver`; fora do vocabulário é resposta inválida. */
+/** Spec 239 D4: ausente (snapshot anterior) vale `driver`; papel desconhecido degrada para leitura, nunca para `driver`. */
 function readCrewRole(value: unknown): TripCrewRole {
   if (value === undefined) return 'driver'
-  const role = TRIP_CREW_ROLES.find((known) => known === value)
-  if (role === undefined) throw new DriverTripResponseError()
-  return role
+  return TRIP_CREW_ROLES.find((known) => known === value) ?? 'helper'
 }
 
 function toTrip(value: unknown): DriverTrip {
