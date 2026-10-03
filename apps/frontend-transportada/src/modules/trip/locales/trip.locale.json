@@ -2122,8 +2122,16 @@
       "caseTransition": "Tratativa: {{status}}",
       "mailSent": "Enviou e-mail à contratante",
       "mailSentAutomatic": "Aviso automático enviado à contratante",
-      "mailReceived": "A contratante respondeu por e-mail"
+      "mailReceived": "A contratante respondeu por e-mail",
+      "cancelled": "Ocorrência cancelada"
     }
+  },
+  "occurrenceCancellation": {
+    "label": "Cancelada",
+    "authorship": "Cancelada por {{name}} em {{moment}}",
+    "authorshipUnknown": "Cancelada em {{moment}}",
+    "reason": "Motivo: {{reason}}",
+    "summary": "{{authorship}}. {{reason}}"
   },
   "closeBulkDialog": {
     "closing": "Encerrando…",
