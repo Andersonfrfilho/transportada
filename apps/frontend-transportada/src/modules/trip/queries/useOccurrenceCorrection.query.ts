@@ -1,3 +1,4 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 
 import { TRIP_TIMELINE_QUERY_KEY } from '../hooks/useTripTimeline.hook'

@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -19,7 +19,9 @@ import { OccurrenceItemQuantities } from './OccurrenceItemQuantities.component'
 import { OccurrenceProductSelect } from './OccurrenceProductSelect.component'
 
 export type TripOccurrenceCorrectionFormProps = Readonly<{
+  companyId?: string
   documentId: string
+  id: string
   items: readonly TripOccurrenceDetailItem[]
   occurrenceId: string
   onClose: () => void
@@ -31,20 +33,32 @@ export type TripOccurrenceCorrectionFormProps = Readonly<{
  * servidor substitui, e a política dele decide se algo mudou; a tela não faz essa conta.
  */
 export function TripOccurrenceCorrectionForm({
+  companyId,
   documentId,
+  id,
   items,
   occurrenceId,
   onClose,
   tripId,
 }: TripOccurrenceCorrectionFormProps) {
   const { t } = useTranslation('trip')
+  const titleId = useId()
+  const titleRef = useRef<HTMLHeadingElement | null>(null)
   const initialSelection = resolveOccurrenceItemSelectionFromDetail(items)
   const [productCodes, setProductCodes] = useState(initialSelection.productCodes)
   const [quantitiesByCode, setQuantitiesByCode] = useState(initialSelection.quantitiesByCode)
-  const productsQuery = useOccurrenceDocumentProducts({ documentId, tripId })
+  const productsQuery = useOccurrenceDocumentProducts({
+    ...(companyId === undefined ? {} : { companyId }),
+    documentId,
+    tripId,
+  })
   const correction = useCorrectOccurrenceItems()
   const products = productsQuery.data ?? []
   const feedbackKey = resolveTripFeedbackKey(correction.error)
+
+  useEffect(() => {
+    titleRef.current?.focus()
+  }, [])
 
   function handleSubmit(): void {
     correction.mutate(
@@ -59,8 +73,10 @@ export function TripOccurrenceCorrectionForm({
   }
 
   return (
-    <section aria-labelledby="occurrence-correction-title" className={styles.occurrenceForm}>
-      <h3 id="occurrence-correction-title">{t('occurrenceDetail.correction.form.title')}</h3>
+    <section aria-labelledby={titleId} className={styles.occurrenceForm} id={id}>
+      <h3 id={titleId} ref={titleRef} tabIndex={-1}>
+        {t('occurrenceDetail.correction.form.title')}
+      </h3>
       <p className={styles.hint}>{t('occurrenceDetail.correction.form.hint')}</p>
       {productsQuery.isPending ? <Skeleton height="2.5rem" width="100%" /> : null}
       {productsQuery.isError ? (
