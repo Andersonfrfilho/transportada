@@ -1152,3 +1152,27 @@ bun run --cwd apps/frontend-transportada test   # 6491 pass, 0 fail (lote princi
 bun run typecheck                               # limpo (raiz)
 cd apps/frontend-transportada && bun run lint   # 0 erros, 16 avisos preexistentes
 ```
+
+## T4.1 — A lista de correções no detalhe
+
+⚠️ **A correção não publica o conjunto que passou a valer.** `corrections[]` traz `previousItems` — o
+que valia **antes** de cada correção (formato real em W1/W2, Fase 0); não existe `nextItems`. O conjunto
+que passou a valer numa correção é derivado: o `previousItems` da correção seguinte (a API entrega mais
+antiga primeiro) ou, na última, os itens atuais do detalhe. A conta é uma função pura,
+`resolveOccurrenceCorrectionHistory` (`tripOccurrenceDetail.service.ts`); sem API nova.
+
+`OccurrenceCorrectionHistory.component.tsx`, no painel do detalhe logo abaixo de Corrigir/Cancelar: título
+"Correções"; por correção "Corrigida por {nome} em {data/hora}" (`useMomentFormatter`, a utilidade de data
+do detalhe) e "Passou a valer: 696 · 3 box, 697" (mesma formatação de quantidade dos itens atingidos —
+`formatOccurrenceQuantity` saiu da página para o service, para ter uma cópia só). Sem correção (lista vazia
+ou chave ausente), nada é renderizado — o detalhe não mostra seções vazias.
+
+Contrato `test/trip/occurrence-correction-history.contract.tsx` (importado por `test/trip.contract.test.ts`):
+afirma o texto renderizado (autor, data/hora formatada, conjunto vigente, e que o conjunto anterior não
+aparece), item sem quantidade só pelo código, e vazio/ausente sem markup.
+
+```bash
+bun run --cwd apps/frontend-transportada test   # 6495 pass, 0 fail (lote principal); test:hooks 354 pass, 0 fail
+bun run typecheck                               # limpo (raiz)
+cd apps/frontend-transportada && bun run lint   # 0 erros, 16 avisos preexistentes
+```

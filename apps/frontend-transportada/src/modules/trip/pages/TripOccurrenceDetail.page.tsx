@@ -18,12 +18,14 @@ import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import { OccurrenceCasePanel } from '../components/OccurrenceCasePanel.component'
 import { OccurrenceCorrectionActions } from '../components/OccurrenceCorrectionActions.component'
+import { OccurrenceCorrectionHistory } from '../components/OccurrenceCorrectionHistory.component'
 import { OccurrenceTimelinePanel } from '../components/OccurrenceTimeline.component'
 import { OccurrenceAttachments } from '../components/TripOccurrenceTable.component'
 import { useTripOccurrenceDetailQuery } from '../queries/tripOccurrenceFeed.query'
 import {
   buildOccurrenceDriverContact,
   formatOccurrenceItemQuantity,
+  formatOccurrenceQuantity,
   OCCURRENCE_DETAIL_PHONE_TABS,
   occurrenceDetailSectionsFor,
   type OccurrenceDetailPhoneTab,
@@ -249,13 +251,6 @@ function OccurrenceDriverPanel({ occurrence }: Readonly<{ occurrence: TripOccurr
   )
 }
 
-const quantityFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 })
-
-/** Quantidade é string decimal de três casas; a tela só a mostra, nunca faz conta com ela. */
-function formatQuantity(value: string): string {
-  return quantityFormatter.format(Number(value))
-}
-
 /** Spec 183 T207: os itens atingidos (specs 166/172). A nota inteira não lista item nenhum. */
 function OccurrenceItems({ occurrence }: Readonly<{ occurrence: TripOccurrenceDetail }>) {
   const { t } = useTranslation('trip')
@@ -266,7 +261,7 @@ function OccurrenceItems({ occurrence }: Readonly<{ occurrence: TripOccurrenceDe
       <h3 className={styles.occurrenceItemsTitle}>{t('occurrenceDetail.items.title')}</h3>
       <ul className={styles.occurrenceItems}>
         {occurrence.items.map((item) => {
-          const quantity = formatOccurrenceItemQuantity(item, formatQuantity)
+          const quantity = formatOccurrenceItemQuantity(item, formatOccurrenceQuantity)
           return (
             <li key={item.code}>
               <span className={styles.occurrenceItemCode}>{item.code}</span>
@@ -339,6 +334,7 @@ function OccurrenceSummaryPanel({ occurrence, permissions }: OccurrenceSummaryPa
       </dl>
       <OccurrenceItems occurrence={occurrence} />
       <OccurrenceCorrectionActions occurrence={occurrence} permissions={permissions} />
+      <OccurrenceCorrectionHistory occurrence={occurrence} />
       <OccurrenceAttachments item={occurrence} />
     </section>
   )
