@@ -399,3 +399,136 @@ format:check` na raiz ✓.
 - **Não rodou:** a suíte de integração inteira (`bun run test:integration`, ~17 min) — só os arquivos
   tocados; corrida real entre duas requisições concorrentes (a serialização por trava foi desenhada e
   revisada, não exercitada por teste de concorrência).
+
+## T2.4 — recebimento no painel e a primeira separação pelo celular (2026-10-03)
+
+- **Contrato antes** (`25e51e927`): 10 arquivos de contrato puro + 4 de DOM + fixture e servidor dublado, todos
+  vermelhos por `Cannot find module …/cargo-receiving/…` (o módulo não existia). Implementação em `c92e4adf0`
+  e refinamento em `7922063ab` + o commit dos prints. Os entrypoints novos entram na lista explícita:
+  `test/cargo-receiving.contract.test.ts` (no script `test` do `package.json`, única edição de lista) e os quatro
+  `test/trip-hooks/cargo-*.contract.ts` em `trip-hooks.contract.test.ts`.
+- **Contagem:** `bun run test` **6624 → 6759 pass / 0 fail** (+134 do módulo e +1 do mapa de acesso) e `test:hooks`
+  **385 → 454 pass / 0 fail** (+69). `tsc --noEmit` limpo; `eslint` 0 erros (16 avisos preexistentes, nenhum nos
+  arquivos novos); `format:check` na raiz ✓.
+- **O que existe** (`apps/frontend-transportada/src/modules/cargo-receiving/`, namespace `cargoReceiving`, pt-BR e
+  en): rota **`/recebimento`** no grupo Operações, visível só com `fleet.read` (mapa de permissão da spec 221,
+  contrato de menu/acesso/parede atualizado); **lista** de chegadas (ordenação por cabeçalho, contratante e situação
+  com seleção múltipla, "limpar filtros" só com critério, estado na URL, "carregar mais" por cursor); **registro**
+  (`/recebimento/nova`: só contratante com perfil ligado, data/hora no fuso do navegador, paletes e referência
+  opcionais, notas por checkbox com contador e limite 300, `Idempotency-Key` por tentativa); **detalhe do escritório**
+  (`/recebimento/:id/detalhe`: grupos rota × cidade com contagem por estado, selo "já em viagem", atribuir rota,
+  receber/separar em lote com o resultado de CADA nota, fechar com a lista das pendentes); e a **tela do celular**
+  (`/recebimento/:id`: grupos recolhíveis, o primeiro com pendência aberto, botão grande por nota com o próximo
+  passo em texto, "separar tudo deste grupo", busca por número e leitura da chave pela câmera, "sem conexão",
+  "tentar de novo").
+- **Nenhuma mudança de API foi necessária:** a API devolve nome da cidade (`cityName`), os três estados, as
+  contagens, `isSeparationOverdue`, `isInLiveTrip` e os `details` por nota/campo. Único dado que falta é o **peso**
+  da nota nas disponíveis (ver divergências).
+- **Mutações** (script, restauração automática, `git diff` limpo depois; "puro" = `bun test` dos contratos puros +
+  `shared`; "DOM" = a suíte completa de `test:hooks`):
+
+  | Mutação                                                        | Puro | DOM |
+  | -------------------------------------------------------------- | ---- | --- |
+  | próximo estado errado (esperada → separada, pula etapa)        | 2    | 4   |
+  | lote do grupo pula `received`                                  | 4    | 3   |
+  | recusa no recebimento não tira a nota do passo de separar      | 1    | 1   |
+  | recusa derruba o lote (nada é aplicado)                        | 1    | 1   |
+  | chave de idempotência nova a cada envio (serviço)              | 1    | 2   |
+  | idem, no hook (`previous: undefined`)                          | 0    | 2   |
+  | a ordem das notas entra na impressão do pedido                 | 1    | 0   |
+  | limite 300 → 301                                               | 3    | 2   |
+  | atualização otimista sem reversão em queda de rede (`onError`) | 0    | 1   |
+  | atualização otimista sem reversão em recusa                    | 0    | 1   |
+  | sem atualização otimista (`onMutate` não grava)                | 0    | 2   |
+  | menu e parede abrem também com `trip.report`                   | 5    | 0   |
+  | erros sem dedup (nota recusada repetida)                       | 1    | 0   |
+  | campo desconhecido some do aviso                               | 2    | 1   |
+  | "limpar filtros" sempre visível                                | 1    | 2   |
+  | ordenação sem neutro (asc → desc → asc)                        | 1    | 1   |
+  | URL não leva o estado da lista                                 | 0    | 3   |
+  | quem só lê ganha "Separar"                                     | 0    | 1   |
+  | guarda aceita chave a mais na chegada                          | 1    | 0   |
+  | rota de 400 caracteres passa                                   | 0    | 2   |
+  | chegada no futuro aceita                                       | 1    | 0   |
+  | motivo da recusa some da linha                                 | 0    | 1   |
+  | "tentar de novo" não refaz o toque                             | 0    | 1   |
+  | nota com toque em voo não trava o botão                        | 0    | 1   |
+  | grupo abre sempre o primeiro, mesmo concluído                  | 2    | 1   |
+  | atalho da nota não leva o foco                                 | 0    | 4   |
+  | `Idempotency-Key` some do cabeçalho                            | 1    | 0   |
+  | `companyId` vai no corpo do registro                           | 1    | 0   |
+  | resultado por nota só das recusadas                            | 0    | 1   |
+  | contagem por estado do grupo zerada                            | 0    | 1   |
+
+  A primeira rodada achou **quatro mutações que sobreviveram**: as duas "sem reversão" (a releitura que o
+  `onSettled` dispara devolvia o estado certo e escondia a falta da volta), "toque em voo não trava o botão" (sem
+  contrato) e "erros sem dedup" (mutação mal escrita, que só declarava uma variável). Corrigido com três
+  contratos novos — a releitura da chegada fica **pendurada** no dublê (`holdReads`), então a volta tem de
+  vir do cache, e o botão da nota em voo tem de estar travado — e a mutação do dedup foi refeita. Todas
+  derrubam teste agora.
+
+- **Defeitos que o próprio trabalho achou e consertou:** (1) o contrato do `MultiSelect`/`SearchableSelect` só
+  passa dentro da suíte completa do `test:hooks` — isolado, a lista de opções vem vazia (já era assim na T1.4;
+  anotado no CLAUDE.md da app); (2) o dublê do servidor reaproveitava `counts` antigo ao reconstruir a chegada
+  (bug do fixture, não do código); (3) `Separar` aparecia em chegada **fechada** — contrato novo e botão some.
+- **Divergências do pedido:**
+  1. **Peso da nota não aparece** na lista de notas disponíveis: `GET /cargo-arrivals/available-documents` devolve
+     valor, não peso. Não exigiu mudar a API para a tela funcionar; fica como follow-up de API.
+  2. **"Selecionar todos da página" é "selecionar todas as listadas"** (as que a busca deixou): a API pagina por
+     cursor de 100 e "página" não é um conceito estável na tela; a seleção acumula entre buscas e é cortada em 300.
+  3. **A paginação por cursor não vai na URL** (o cursor é opaco e acumula): na URL vão contratante, situação e
+     ordenação; "carregar mais" soma à lista. A ordenação é sobre o que já foi carregado (a API não ordena).
+  4. **Filtro múltiplo:** a API filtra por UM contratante e UMA situação; com um valor o filtro vai ao servidor, com
+     vários o cliente filtra o que veio.
+  5. **Rotas:** o pedido deu `/recebimento/:id` ao celular; o detalhe do escritório ficou em
+     `/recebimento/:id/detalhe`, e "Abrir a separação no celular"/"Abrir a visão do escritório" ligam os dois.
+  6. **"Toast de erro com o motivo"** virou aviso na linha da nota (`role="alert"`) e no painel do lote: o painel
+     não tem componente de toast, e a mensagem fica junto do que falhou, onde "tentar de novo" também mora.
+  7. **Contratante com perfil ligado** custa uma leitura de perfil por contratante (não há rota em lote — mesma
+     limitação da T1.4). Guardas de resposta e erro são **próprios** do módulo (nada importado de `delivery-clients`);
+     contratante e perfil são lidos por projeção mínima.
+  8. **Câmera reaproveitada:** o primitivo `@/components/ui/barcode-scanner` + `extractNfeAccessKey` (o mesmo da
+     viagem) — não acopla módulos. A nota achada vira a busca e abre o grupo dela.
+- **Revisão de design (web.md §15)** — `spec-237-recebimento-prints.smoke.spec.ts`, 1280 px escuro, estilo
+  calculado, contra a aba Contratantes (a mesma sessão, a mesma API dublada):
+
+  | Medida                    | Vizinho (Contratantes)                    | Novo                                      |
+  | ------------------------- | ----------------------------------------- | ----------------------------------------- |
+  | campo: altura/fonte/borda | 48px · Avenir 14,4px · 1px lousa · raio 0 | hora e referência: idêntico               |
+  | campo: padding            | 12px                                      | 12px                                      |
+  | botão: altura/padding     | 48px · 12×20px · raio 0                   | "Abrir" e "Registrar chegada": idêntico   |
+  | selo: mono/altura         | 11,52px · 24px · 1px                      | idêntico (cor própria: vencida em alerta) |
+  | cabeçalho de tabela       | 61px                                      | 61px                                      |
+  | célula de tabela          | 65px                                      | 67px (a barra de progresso é mais alta)   |
+
+  Contraste (WCAG, texto sobre o fundo opaco efetivo), escuro / claro: rótulo 14,48 / 12,66 · ajuda 6,22 / 4,83 ·
+  selo aberta 6,59 / 5,50 · selo vencida 5,46 / 4,69 · selo já em viagem 6,16 / 5,37 · aviso e erro de recusa 5,46 /
+  4,69 · indicador de ordenação 5,87 / 4,57 · contagem do grupo (celular) 6,35 / 5,65 · destinatário (celular) 6,95 /
+  5,27 · botão do passo 5,87 / 4,94 · nota separada 6,75–7,22 / 5,49–5,84. Nenhum abaixo de 4,5:1.
+  **Alvo de toque a 375 px, TODOS os 19 controles do celular** (botões, campo de busca, atalhos do resultado do lote,
+  "dispensar"): o menor tem **44 px** de altura e 59,6 px de largura. Nenhuma das 36 telas tem rolagem horizontal
+  (afirmado pelo próprio teste de print).
+
+  Defeitos achados nos prints e consertados: (a) o `h1` global limita a 12ch e quebrava "Chegada de Alfa Indústria
+  Fictícia" em três linhas — `max-width: none` no cabeçalho do módulo; (b) a barra de seleção do escritório
+  espalhava contador, rota e botões em três colunas — virou coluna, com a linha "rota + aplicar"; (c) as tabelas
+  dos grupos desalinhavam as colunas entre si — colunas fixas; (d) a lista a 375 px rolava de lado porque o texto
+  só-leitor da ordenação (`position: absolute`) escapava do quadro da tabela — o quadro passou a ser `position:
+relative`; (e) o atalho da nota recusada tinha 22 px no celular — virou alvo de toque (mobile-first, o desktop o
+  aperta); (f) "separar tudo deste grupo" competia com o botão da nota — virou secundário.
+
+- **Prints** (60 PNG no total, 36 novos, `specs/237-a-carga-chega-e-se-separa-antes-da-viagem/prints/`,
+  375/768/1280 × escuro/claro): `recebimento-lista-*`, `recebimento-registrar-chegada-*` (5 notas marcadas e o
+  contador), `recebimento-registrar-recusa-*` (3 notas e 1 campo recusados, com atalhos), `recebimento-detalhe-*`,
+  `recebimento-celular-separacao-*` (um grupo aberto, notas nos três estados, "separar tudo" e progresso) e
+  `recebimento-celular-lote-*` (resultado de um lote com uma nota recusada). Gerados por
+  `test/spec-237-recebimento-prints.smoke.spec.ts` (fora do smoke da CI; build com `VITE_SMOKE_AUTH_BYPASS=true`
+  em pasta temporária e preview na porta 53277; config do Playwright descartável, apagada no fim — a config da CI e
+  a porta reservada dela não foram tocadas). API 100% dublada, dados inventados. A recusa do lote é **simulada** no
+  dublê: a API real não recusa `expected → received`.
+- **Não rodou:** `make smoke`/smoke da CI, `make check` completo (o build de produção só foi feito para os prints,
+  sem os `assets:*` do `prebuild`), integração da API (nada da API mudou), teste em aparelho/câmera reais, teste de
+  concorrência de dois separadores na mesma chegada.
+- **Follow-ups:** fila offline do toque (hoje o toque que falha fica na tela com "tentar de novo", mas não
+  sobrevive a fechar o app); rota em lote de perfis para o selo; peso da nota em `available-documents`; o
+  `pointer: coarse`/desktop do atalho do resultado do lote; avaria na entrada (Fase 3, D4).

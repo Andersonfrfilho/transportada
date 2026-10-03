@@ -33,7 +33,7 @@ function DueCell({ arrival }: Readonly<{ arrival: CargoArrivalSummary }>): JSX.E
   )
 }
 
-/** "Abrir" leva ao detalhe do escritório; "Separar" leva à tela do celular, e só existe com `trip.manage`. */
+/** "Abrir" leva ao detalhe do escritório; "Separar" leva à tela do celular — só com `trip.manage` e chegada aberta. */
 export function CargoArrivalRow({
   arrival,
   canManage,
@@ -68,7 +68,7 @@ export function CargoArrivalRow({
             <Icon name="eye" />
             {t('table.open')}
           </Button>
-          {canManage ? (
+          {canManage && arrival.status === 'open' ? (
             <Button
               aria-label={t('table.separateLabel', { name: arrival.contractorName })}
               onClick={() => onSeparate(arrival.id)}

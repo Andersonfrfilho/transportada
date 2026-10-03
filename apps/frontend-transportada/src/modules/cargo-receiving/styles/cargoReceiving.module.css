@@ -2,6 +2,8 @@
 
 .shell {
   display: grid;
+  /* Sem isto a trilha cresce até o conteúdo da tabela e a página rola de lado (`min-content` de `auto`). */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-6);
   padding-block: var(--space-6);
   width: var(--layout-width);
@@ -23,6 +25,8 @@
 }
 
 .header h1 {
+  /* O h1 global limita a 12ch (título curto); aqui o nome do contratante cabe na linha. */
+  max-width: none;
   margin: 0;
   font-size: 1.75rem;
   font-weight: 800;
@@ -154,7 +158,9 @@
   color: var(--color-alert);
 }
 
+/* Mobile-first: o atalho é um alvo de toque (a separação roda no celular); só o desktop o aperta. */
 .refusalShortcut {
+  min-height: var(--touch-target);
   padding: 0;
   border: 0;
   background: none;
@@ -164,10 +170,10 @@
   cursor: pointer;
 }
 
-@media (pointer: coarse) {
+@media (min-width: 64rem) {
   .refusalShortcut {
-    min-height: var(--touch-target);
-    padding-inline: var(--space-1);
+    min-height: 0;
+    padding: 0;
   }
 }
 

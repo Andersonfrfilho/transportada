@@ -58,6 +58,7 @@ export function SeparationGroupCard(props: SeparationGroupCardProps): JSX.Elemen
               className={styles.groupAll}
               onClick={() => props.onSeparateGroup(group)}
               type="button"
+              variant="secondary"
             >
               <Icon name="check" />
               {t('separation.groupAll')}

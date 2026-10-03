@@ -151,6 +151,18 @@ describe('a lista de chegadas (spec 237 T2.4)', () => {
     rendered.unmount()
   })
 
+  test('chegada fechada não oferece "Separar": já não há o que separar', async () => {
+    const rendered = await mountList()
+
+    expect(
+      document.querySelector('[aria-label="Separar a chegada de Beta Comércio Fictício"]'),
+    ).toBeNull()
+    expect(
+      document.querySelector('[aria-label="Abrir a chegada de Beta Comércio Fictício"]'),
+    ).not.toBeNull()
+    rendered.unmount()
+  })
+
   test('"Registrar chegada" leva à tela de registro', async () => {
     const rendered = await mountList()
 

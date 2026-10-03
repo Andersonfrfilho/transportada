@@ -6,6 +6,7 @@
  */
 .screen {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
   padding-block: var(--space-4);
   width: var(--layout-width);
@@ -33,6 +34,8 @@
 }
 
 .title {
+  /* O h1 global limita a 12ch (título curto); o contratante pode ter nome comprido. */
+  max-width: none;
   margin: 0;
   font-size: 1.35rem;
   font-weight: 800;

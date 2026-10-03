@@ -42,7 +42,7 @@ export function CargoDetailActions({
   return (
     <section className={detailStyles.selectionBar}>
       <p className={styles.counter}>{t('detail.selected', { count: selectedCount })}</p>
-      <div className={styles.fields}>
+      <div className={detailStyles.routeRow}>
         <CargoTextField
           fieldName="routeName"
           hint={t('actions.routeHint')}

@@ -2,6 +2,8 @@
 
 /* A tabela rola no próprio quadro (`docs/frontend/responsive.md`): a página não rola de lado. */
 .tableScroll {
+  /* O texto só-leitor (`.srOnly`) é absoluto: sem este contêiner ele escapava do quadro e a página rolava de lado. */
+  position: relative;
   max-width: 100%;
   overflow-x: auto;
 }

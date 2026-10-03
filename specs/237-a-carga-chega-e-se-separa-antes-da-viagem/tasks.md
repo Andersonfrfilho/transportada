@@ -29,7 +29,7 @@
 - [x] **T2.2** Migration `cargo_arrivals`, `cargo_arrival_documents`, `cargo_arrival_events` (+ rollback).
 - [x] **T2.3** Casos de uso e rotas: registrar chegada (idempotente), agrupar por rota × cidade, separar;
       `separation_due_at` do perfil; integração contra Postgres.
-- [ ] **T2.4** Tela de Recebimento no painel (chegada, grupos rota × cidade) e a **tela do celular do
+- [x] **T2.4** Tela de Recebimento no painel (chegada, grupos rota × cidade) e a **tela do celular do
       separador** (PWA, por nota, agrupada por rota e cidade, alvo ≥ 44 px), contratos antes; prova por
       mutação.
 - [ ] **T2.5** Revisão `opus`, **print aprovado pelo usuário**, publicar em staging e confirmar o deploy.

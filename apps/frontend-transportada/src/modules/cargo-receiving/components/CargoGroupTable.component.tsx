@@ -3,6 +3,7 @@ import type { JSX } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox } from '@/components/ui/checkbox'
+import { cn } from '@/lib/utils'
 
 import { useCargoGroupTitle } from '../hooks/useCargoGroupTitle.hook'
 import type { CargoArrivalGroup } from '../shared/cargoArrival.types'
@@ -64,13 +65,17 @@ export function CargoGroupTable({
         })}
       </p>
       <div className={tableStyles.tableScroll}>
-        <table className={tableStyles.table}>
+        <table className={cn(tableStyles.table, detailStyles.groupTable)}>
           <thead>
             <tr>
-              {canSelect ? <th scope="col" /> : null}
-              <th scope="col">{t('detail.value')}</th>
+              {canSelect ? <th className={detailStyles.colSelect} scope="col" /> : null}
+              <th className={detailStyles.colNumber} scope="col">
+                {t('detail.value')}
+              </th>
               <th scope="col">{t('detail.recipient')}</th>
-              <th scope="col">{t('detail.state')}</th>
+              <th className={detailStyles.colState} scope="col">
+                {t('detail.state')}
+              </th>
             </tr>
           </thead>
           <tbody>
