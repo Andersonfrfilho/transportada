@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "1c4bf6ed-1a95-4bc3-a000-023d9dd56cea",
+  "id": "11c128c3-ec3c-438e-a4a1-975c6b5b9fcb",
   "prevIds": [
-    "eb960c28-e0b7-4bec-b4b7-ebd5278db0af"
+    "43e75ad7-6425-471b-8e2a-3cf44c53e90d"
   ],
   "ddl": [
     {
@@ -1161,6 +1161,12 @@
     {
       "isRlsEnabled": false,
       "name": "fleet_vehicle_axles",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "contractor_receiving_profiles",
       "entityType": "tables",
       "schema": "public"
     },
@@ -32574,6 +32580,201 @@
       "name": "id",
       "entityType": "columns",
       "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "contractor_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "is_enabled",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "type": "smallint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "separation_window_hours",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "type": "smallint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "delivery_deadline_business_days",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "type": "smallint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "15",
+      "generated": null,
+      "identity": null,
+      "name": "match_window_days",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "type": "numeric(5,2)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'0'",
+      "generated": null,
+      "identity": null,
+      "name": "weight_tolerance_percent",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "preview_enabled",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "preview_sheet_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "preview_column_map",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "arrival_reference_pattern",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "requires_damage_check",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
       "table": "trip_cargo_layouts"
     },
     {
@@ -48408,6 +48609,42 @@
       ],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
+      "name": "contractor_receiving_profiles_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "contractor_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "contractors",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "contractor_receiving_profiles_company_id_contractor_id_contractors_company_id_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
       "name": "trip_cargo_layouts_company_id_companies_id_fk",
       "entityType": "fks",
       "schema": "public",
@@ -51009,6 +51246,16 @@
       "name": "fleet_vehicle_axles_pkey",
       "schema": "public",
       "table": "fleet_vehicle_axles",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "contractor_receiving_profiles_pkey",
+      "schema": "public",
+      "table": "contractor_receiving_profiles",
       "entityType": "pks"
     },
     {
@@ -54120,6 +54367,18 @@
       "entityType": "uniques",
       "schema": "public",
       "table": "fleet_vehicle_axles"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "contractor_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "contractor_receiving_profiles_company_contractor_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
     },
     {
       "nameExplicit": true,
@@ -60710,6 +60969,62 @@
       "entityType": "checks",
       "schema": "public",
       "table": "fleet_vehicle_axles"
+    },
+    {
+      "value": "\"separation_window_hours\" between 1 and 168",
+      "name": "contractor_receiving_profiles_separation_window_hours_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "value": "\"delivery_deadline_business_days\" between 1 and 60",
+      "name": "contractor_receiving_profiles_delivery_deadline_business_days_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "value": "\"match_window_days\" between 1 and 60",
+      "name": "contractor_receiving_profiles_match_window_days_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "value": "\"weight_tolerance_percent\" between 0 and 100",
+      "name": "contractor_receiving_profiles_weight_tolerance_percent_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "value": "char_length(\"preview_sheet_name\") between 1 and 31",
+      "name": "contractor_receiving_profiles_preview_sheet_name_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "value": "jsonb_typeof(\"preview_column_map\") = 'object'",
+      "name": "contractor_receiving_profiles_preview_column_map_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "value": "not \"preview_enabled\" or \"preview_column_map\" is not null",
+      "name": "contractor_receiving_profiles_preview_requires_column_map_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
+    },
+    {
+      "value": "char_length(\"arrival_reference_pattern\") between 1 and 200",
+      "name": "contractor_receiving_profiles_arrival_reference_pattern_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_receiving_profiles"
     },
     {
       "value": "\"status\" in ('queued', 'running', 'ready', 'failed')",

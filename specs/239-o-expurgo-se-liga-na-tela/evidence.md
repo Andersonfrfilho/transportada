@@ -238,3 +238,10 @@ mora em arquivo próprio (`drizzle-location-retention-impact.query.ts`) porque o
 o roteador aplica; nenhuma rota de configuração tem teste de roteador completo); `EXPLAIN` da contagem
 (a T2.2 mede a junção do worker); integração completa da API (fica para o gate final da fase);
 `make migration-test`.
+
+**Rebase sobre `origin/staging` (2026-10-03):** a migration da spec 237 (`20261003170340`) entrou
+antes; o `snapshot.json` da T1.2 partia do snapshot anterior a ela (5 reprovações em
+`schema-snapshot.contract.ts` e na cadeia de snapshots). Regerado com `db:generate` sobre o schema atual
+(delta idêntico ao `migration.sql` da 239) e só o `snapshot.json` foi trocado (`prevIds` -> snapshot da 237).
+Depois: `db:generate` = `no_changes`; suíte da API 9311 pass / 24 skip / 0 fail, 198 arquivos; integração
+do arquivo novo 6 pass / 0 fail.
