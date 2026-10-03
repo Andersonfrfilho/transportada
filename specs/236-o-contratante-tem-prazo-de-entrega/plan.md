@@ -2,38 +2,34 @@
 
 ## Abordagem
 
-Dado mínimo (uma coluna), política pura de domínio, leitura derivada no join que já existe, e a primeira
-tela de contratante. Nada de nova tabela nem de novo resolvedor: o prazo é um atributo do contratante, não
-uma camada de configuração do comprovante (ADR-0057/0070 tratam `company_delivery_proof_settings` como do
-comprovante, e misturar prazo de mercadoria ali foi descartado).
+Esta spec é **só derivação e exibição**: não cria coluna nem tela de contratante (moram na 237) nem
+calendário (238). Política pura, leitura no join que já existe, selo e filtro.
 
 ## Decisões de desenho
 
-- **Coluna em `contractors`, não tabela filha.** É um atributo simples, sem herança (não há "padrão da
-  empresa"); a tabela filha serviria a precedência por camadas que esta feature não tem.
-- **Derivado na leitura.** `deliveryDueAt` não é gravado: muda com a ficha, sem backfill, sem reprocesso.
-- **Política pura** `src/trips/domain/delivery-deadline.policy.ts`: `resolveDeliveryDeadline({ anchorAt,
-deadlineDays, deliveredMomentAt, now, timeZone })` → `{ dueAt, state, daysLate? }`. Relógio e fuso entram
-  por parâmetro.
-- **Fuso:** o da empresa (verificar `companies`); se não existir, `America/Sao_Paulo` numa constante
-  (decidir na T1.1 e registrar).
-- **Âncora** segue a resposta de [D1]; o repositório a lê junto do `contractorId`.
-- **Entrega medida pelo momento da 234** (`deliveredMomentSql`), nunca por `recorded_at`.
-- **Painel:** aba "Contratantes" em `DeliveryClientWorkspace.page.tsx` (`DeliveryClientTabId`), ficha no
-  molde de `DeliveryClientForm`, hooks/queries no padrão do módulo; selo no padrão de
-  `tripDocumentProofBadges.service.ts`.
+- **Derivado, nunca gravado:** muda com o perfil e o calendário; sem backfill.
+- **Política pura** `src/trips/domain/delivery-deadline.policy.ts`: relógio, fuso e calendário por parâmetro;
+  janela de separação em **horas corridas**, depois **dias úteis** (238).
+- **Âncora:** `cargo_arrivals.arrived_at` da chegada em que a nota está (237). Nota que não passou por
+  chegada fica `not_applicable`.
+- **Entrega medida pelo momento da 234** (`deliveredMomentSql`).
+- **Fuso:** o da empresa (decidido na 238).
+- **Leitura:** o repositório do detalhe da viagem já faz o join emitente → `contractors`; acrescenta perfil
+  e chegada no mesmo caminho e passa a política pronta ao mapper — sem resolvedor paralelo.
+- **Painel:** selo no padrão dos selos de comprovante; filtro na lista de viagens/notas.
+
+## Dependências e ordem
+
+1. **238** publicada (calendário). 2. **237** Fases 1–2 publicadas (perfil e chegada). 3. **236**.
 
 ## Riscos
 
-- Guardas de chaves exatas do painel (RF3) rejeitam `GET /contractors` se esquecidas — contrato de
-  paridade das três cópias.
-- Âncora errada = prazo errado em toda nota: por isso [D1] é bloqueante.
-- Duas outras sessões já usam o número 235; conferir o próximo número livre e o próximo ADR (0093 tomado
-  em worktree; o seguro hoje é 0094) imediatamente antes de publicar.
-- A divergência de resolução em duas camadas (comprovante) **não** é consertada aqui; só registrada.
+- Âncora/calendário errados = prazo errado em toda nota: por isso D6 e D7 são bloqueantes.
+- O contrato de "sem N+1" precisa existir (a política roda por nota; o calendário carrega por cidade).
+- A divergência dos três chamadores do comprovante (resolução em duas camadas) **não** é consertada aqui.
+- Numeração: reconferir spec/ADR em `origin/staging` e nos worktrees antes de publicar.
 
 ## Documentação viva ao fechar
 
-`docs/spec/domain-model.md` (coluna nova), `docs/ai-context/api-transportada.md`,
-`docs/ai-context/frontend-transportada.md`, `apps/api-transportada/CLAUDE.md` e
-`apps/frontend-transportada/CLAUDE.md`.
+`docs/spec/domain-model.md`, `docs/ai-context/api-transportada.md`, `docs/ai-context/frontend-transportada.md`,
+`CLAUDE.md` das duas apps.
