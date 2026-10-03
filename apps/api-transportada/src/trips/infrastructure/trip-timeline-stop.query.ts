@@ -292,6 +292,7 @@ export async function listStopOccurrenceRows(
     ...NO_EVENT_LOCATION,
     occurrence: {
       attachmentCount: row.attachmentObjectId === null ? 0 : 1,
+      cancellation: null,
       note: row.description,
       typeName: row.kind,
     },
