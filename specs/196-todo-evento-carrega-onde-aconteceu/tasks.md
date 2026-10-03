@@ -236,7 +236,7 @@ do usuário. A API não é revertida com a app nova no ar.
 
   Aceite: **os dois comandos da API** verdes; a contagem da integração subiu em N.
 
-- [ ] **T3.6** 🔁 O webhook aceita a **mensagem de localização** do WhatsApp (D3 revisto). Hoje
+- [x] **T3.6** 🔁 O webhook aceita a **mensagem de localização** do WhatsApp (D3 revisto). Hoje
       `register-driver-flow-actions.ts` crava `location: null` nos quatro caminhos (`:98`, `:106`,
       `:301`, `:347`). A Cloud API entrega `messages[].location` com `latitude`/`longitude`; o fluxo do
       motorista passa a lê-la e a gravar `captured` com a coordenada, mantendo `unavailable` quando ela

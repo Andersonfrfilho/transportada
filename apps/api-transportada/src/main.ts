@@ -187,6 +187,7 @@ import { createNfseCredentialGapFinder } from './whatsapp-commands/application/p
 import { DrizzleDocumentSelectionRepository } from './whatsapp-commands/infrastructure/drizzle-document-selection.repository.js'
 import { DrizzleWhatsAppCommandRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-command.repository.js'
 import { createResolveWhatsAppActorUseCase } from './whatsapp-commands/application/resolve-whatsapp-actor.use-case.js'
+import { createInMemoryWhatsAppSharedLocationStore } from './whatsapp-commands/application/whatsapp-shared-location.service.js'
 import { createModuleWhatsAppFlowGraphProvider } from './whatsapp-commands/application/whatsapp-flow-graph.service.js'
 import { WHATSAPP_ROOT_FLOW_GRAPH_KEY } from './whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.js'
 import { DrizzleWhatsAppPhoneRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-phone.repository.js'
@@ -1007,7 +1008,12 @@ export function bootstrap(): Bun.Server<undefined> {
     settle: (input: Parameters<DriverFieldReportTransactionPort['settle']>[0]) =>
       whatsappDriverFieldReports.execute((transaction) => transaction.settle(input)),
   }
+  /** Spec 196 T3.6: o ponto que o motorista manda no WhatsApp espera o toque seguinte, só em memória. */
+  const whatsappSharedLocations = createInMemoryWhatsAppSharedLocationStore({
+    clock: () => new Date(),
+  })
   const driverWhatsAppFlowActions = createDriverWhatsAppFlowActions({
+    consumeSharedLocation: (key) => whatsappSharedLocations.consume(key),
     findCurrentTrip: (input) =>
       findCurrentDriverTrip({
         ...input,
@@ -1397,6 +1403,7 @@ export function bootstrap(): Bun.Server<undefined> {
     }),
     logger,
     rateLimiter: createRateLimiter(),
+    sharedLocations: whatsappSharedLocations,
     resolveActor: createResolveWhatsAppActorUseCase({
       memberships: new DrizzleMembershipRepository(database.db),
       phones: new DrizzleWhatsAppPhoneRepository(database.db),

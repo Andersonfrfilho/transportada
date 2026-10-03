@@ -2382,3 +2382,55 @@ Mutações (todas reprovaram e foram restauradas): lista de canais de coordenada
 `trip.schema.ts` (3 falhas no contrato de schema); `whatsapp` fora de `STATEFUL_CHANNELS` (1 falha);
 `migration.sql` com o texto antigo do CHECK (2 falhas: estática e de banco); `IF report <> ''` trocado por
 `IF false` no rollback (1 falha na integração de migration).
+
+## T3.6 — o WhatsApp do motorista carrega o ponto
+
+- **Desenho.** A mensagem `location` da Cloud API é um turno próprio; o toque que a usa (entregar,
+  devolver, ocorrência) é outro. `acknowledgeSharedLocation` (`whatsapp-command-driver.service.ts`), logo
+  depois de autorizado o ator e antes do fluxo, lê a mensagem com `extractWhatsAppIncomingLocation`,
+  guarda o ponto em `WhatsAppSharedLocationStore` por `(empresa, número)` e responde "Localização
+  recebida" **sem coordenada** — a mensagem não conta como resposta inválida nem mexe na posição do
+  fluxo. As três ações (`documentRouter`/entregar, `completeReturn`, `completeOccurrence`) chamam
+  `consumeSharedLocation` e passam o `ReportedLocation` ao caso de uso, que já o transforma em carimbo
+  (`resolveFieldTapLocationStamp`, T3.1/T3.3): ponto → `captured`; sem ponto → `null` → `unavailable`.
+- **Mesmo caminho de validação.** `extractWhatsAppIncomingLocation` monta o objeto e o passa por
+  `locationSchema` + `toReportedLocation` (`trips/presentation/reported-location.schema.ts`), os mesmos
+  das rotas HTTP: faixa do globo, 7 casas, teto de precisão. O WhatsApp não manda precisão
+  (`accuracyMeters = null`); `capturedAt` é o `timestamp` da mensagem (ilegível cai na hora do servidor).
+  Nome, endereço e url do pino (texto do motorista) são descartados.
+- **Decisões, e o porquê.** (1) **Memória, não `context` da sessão:** a regra do núcleo proíbe PII no
+  contexto, e posição de pessoa persistida sem prazo seria pior que perdê-la num reinício — o pior caso é
+  `unavailable`, nunca dado falso. (2) **Um toque e 5 min:** a posição de uma parada atrás não é a da
+  parada de agora; cada toque exige localização nova (a constante é `WHATSAPP_SHARED_LOCATION_TTL_MS`).
+  (3) **Só `trip.report`:** o operador compartilha o canal, mas nem o despachante lembra o ponto dele nem
+  as ações dele recebem o armazém. (4) Teto de 5 000 entradas, expulsa a mais antiga.
+- **Nunca em log.** Nenhum `log` novo; o contrato percorre logs e respostas do bot e exige ausência da
+  coordenada.
+
+### ⚠️ Limite que bloqueia a ponta a ponta — pacotes `0.1.0`
+
+O módulo `meta-whatsapp-module@0.1.0` valida o webhook com `whatsAppWebhookPayloadSchema` de
+`meta-whatsapp-contracts@0.1.0`, cujo schema de mensagem **não tem `location`**: o zod descarta a chave
+antes do gancho `onMessageReceived`. Provado por execução: o teste de integração pelo webhook real mostra
+a mensagem de localização caindo no fluxo como texto fora do menu ("Toque numa nota da lista acima.") e o
+toque seguinte gravando `unavailable`. O `contracts@0.4.0` já traz `whatsAppLocationSchema`; a saída é
+subir `meta-whatsapp-module`/`-contracts`/`-provider` (a instalação fica na `0.1.0` por dívida de formato
+de migration do pacote — decisão fora desta task). Enquanto isso, o código está pronto e provado por
+contrato e por integração com o ponto entregue ao armazém; o teste
+`com os pacotes 0.1.0 a mensagem de localização não chega ao gancho` **deve ficar vermelho** quando os
+pacotes subirem, e é o sinal para trocá-lo por um que mande a mensagem pelo webhook e espere `captured`.
+
+### Testes
+
+- `test/whatsapp-commands/shared-location.contract.ts`: extração (formato, campos descartados, 8 entradas
+  recusadas, só o tipo `location`, hora ilegível), armazém (um toque, substituição, vencimento em 5 min
+  com fronteira, isolamento por empresa/número, teto) e despachante (motorista lembra e confirma sem
+  coordenada, não mexe no fluxo, operador não lembra, sem armazém não intercepta, fora da faixa não
+  lembra, nenhuma coordenada em log nem resposta).
+- `driver-flow-actions.contract.ts`: as três ações levam o ponto e a chave `(empresa, número)`; sem ponto
+  mandam `null`; um toque só; ponto de outra empresa/número não vale.
+- `operator-flow-actions.contract.ts`: a fonte do operador não menciona ponto; despachar, separar,
+  carregar e ocorrência de separação entregam ao domínio entrada sem coordenada, com ponto à espera.
+- `integration/whatsapp-driver-flow-actions.integration.ts` (Postgres): ponto no armazém → linha
+  `trip_stop_events` do canal `whatsapp` com `captured`, coordenada e `captured_at`, e o armazém vazio
+  depois; sem ponto → `unavailable`; e o teste do limite dos pacotes acima.

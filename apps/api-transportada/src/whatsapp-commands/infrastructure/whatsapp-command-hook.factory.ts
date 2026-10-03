@@ -17,6 +17,7 @@ import {
   type WhatsAppMessageHandler,
 } from '../application/whatsapp-command-driver.service.js'
 import type { WhatsAppFlowGraphProviderPort } from '../application/whatsapp-command-driver.port.js'
+import type { WhatsAppSharedLocationStore } from '../application/whatsapp-shared-location.service.js'
 import {
   createWithAuthorizedActor,
   registerWhatsAppFlowActions,
@@ -44,6 +45,7 @@ export type CreateWhatsAppCommandHookFactoryParams = {
   readonly logger: ApiLogger
   readonly rateLimiter: RateLimiter
   readonly resolveActor: (params: ResolveWhatsAppActorParams) => Promise<ResolveWhatsAppActorResult>
+  readonly sharedLocations?: WhatsAppSharedLocationStore
   readonly verifyPhone?: VerifyWhatsAppPhone
 }
 
@@ -79,6 +81,7 @@ export function createWhatsAppCommandHookFactory(
       resolveActor: params.resolveActor,
       sender: createMetaWhatsAppMessageSender({ buttons, channel: module.channel }),
       sessions: module.conversations.repository,
+      ...(params.sharedLocations === undefined ? {} : { sharedLocations: params.sharedLocations }),
       ...(params.verifyPhone === undefined ? {} : { verifyPhone: params.verifyPhone }),
     })
   }
