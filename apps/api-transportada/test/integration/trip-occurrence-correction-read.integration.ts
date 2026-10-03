@@ -17,6 +17,10 @@ import { persistSeparationOccurrenceWithAttachment } from '../../src/trips/appli
 import { DrizzleOccurrenceCorrectionUnitOfWork } from '../../src/trips/infrastructure/drizzle-occurrence-correction.repository.js'
 import { DrizzleSeparationOccurrenceUnitOfWork } from '../../src/trips/infrastructure/drizzle-separation-occurrence.repository.js'
 import { buildOccurrenceTimeline } from '../../src/trips/domain/occurrence-timeline.policy.js'
+import {
+  listOccurrenceCancellationsByIds,
+  listOccurrenceCorrectionsByIds,
+} from '../../src/trips/infrastructure/occurrence-correction-read.query.js'
 import { listTripOccurrences } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { findTripOccurrenceDetail } from '../../src/trips/infrastructure/trip-occurrence-detail.query.js'
 import { listTripOccurrenceFeed } from '../../src/trips/infrastructure/trip-occurrence-feed.query.js'
@@ -360,6 +364,44 @@ describe('as linhas do tempo publicam o cancelamento (spec 235 RF9, T3.2a)', () 
         expect(
           buildOccurrenceTimeline({ sources: plainSources ?? [] }).timings.openUntil,
         ).toBeNull()
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'os leitores em lote respeitam a empresa: ids de uma, companyId de outra, mapas vazios',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { cancelledId, company, correctedId } = await seedScenario(database)
+        const occurrenceIds = [correctedId, cancelledId]
+
+        const own = {
+          cancellations: await listOccurrenceCancellationsByIds(database.db, {
+            companyId: company.companyId,
+            occurrenceIds,
+          }),
+          corrections: await listOccurrenceCorrectionsByIds(database.db, {
+            companyId: company.companyId,
+            occurrenceIds,
+          }),
+        }
+        expect(own.corrections.get(correctedId)).toHaveLength(2)
+        expect(own.cancellations.has(cancelledId)).toBe(true)
+
+        const otherCompanyId = crypto.randomUUID()
+        const foreign = {
+          cancellations: await listOccurrenceCancellationsByIds(database.db, {
+            companyId: otherCompanyId,
+            occurrenceIds,
+          }),
+          corrections: await listOccurrenceCorrectionsByIds(database.db, {
+            companyId: otherCompanyId,
+            occurrenceIds,
+          }),
+        }
+        expect(foreign.corrections.size).toBe(0)
+        expect(foreign.cancellations.size).toBe(0)
       })
     },
     60_000,
