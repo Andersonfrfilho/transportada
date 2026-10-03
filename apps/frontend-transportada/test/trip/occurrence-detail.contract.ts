@@ -120,7 +120,7 @@ describe('cliente: GET /trip-occurrences/:id', () => {
 
     const detail = await client.readOccurrence({ occurrenceId: OCCURRENCE_ID })
 
-    expect(detail).toEqual(DETAIL)
+    expect(detail).toEqual({ ...DETAIL, cancellation: null, corrections: [] })
     const [request] = requests
     expect(request?.url).toBe(`${API_URL}/trip-occurrences/${OCCURRENCE_ID}`)
     expect(request?.method).toBe('GET')

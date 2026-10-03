@@ -984,3 +984,32 @@ bun run test:hooks -t "mutações de correção"       # 4 pass, 0 fail
 bun run typecheck                                  # limpo
 cd apps/frontend-transportada && bun run lint      # 0 erros, 16 avisos preexistentes
 ```
+
+## T2.1 — O botão Corrigir no detalhe
+
+`OccurrenceCorrectionActions.component.tsx` (autocontido, recebe `occurrence` e `permissions`; a página
+já tinha as permissões de `useAuthMeQuery`) decide por `resolveOccurrenceCorrectionActions`. Habilitado:
+`aria-disabled="false"`. Desabilitado: o botão **não** usa `disabled` (sairia da ordem de tabulação sem
+explicar), leva `aria-disabled="true"` e `aria-describedby` apontando ao parágrafo com o motivo em
+texto. CSS: `.ui-button[aria-disabled='true']` entrou na regra de `.ui-button:disabled`
+(`src/styles/index.css`). Sem `trip.manage`, sem itens ou ocorrência de parada, o componente devolve
+`null` (nada na árvore). Cancelar **não** é renderizado aqui (T3.1, junto do diálogo). Nesta task o
+clique em Corrigir só alterna `aria-expanded`; o formulário chega na T2.2.
+
+Leitura (parte da T2.1): `TripOccurrenceFeedItem.cancellation?` e `TripOccurrenceDetail.corrections?`
+tipados; o cliente de leitura valida com os mesmos guards das escritas (`isOccurrenceCancellation`,
+`isOccurrenceCorrection`, agora exportados de `tripResponse.validation.ts`). Ausente vira
+`cancellation: null` / `corrections: []` (API anterior); presente e malformado reprova a leitura —
+tratar cancelamento torto como "não cancelada" habilitaria botões que o servidor recusa.
+
+Contratos: `test/trip/occurrence-correction-button.contract.tsx` (CA02: markup vazio sem `trip.manage`;
+CA03: texto renderizado do motivo ligado por `aria-describedby`, cancelada vence tratativa, sem itens e
+parada sem botão) e `test/trip/occurrence-read-correction.contract.ts` (as quatro leituras acima, e o
+feed marcando a cancelada). Ambos importados por `test/trip.contract.test.ts`. O contrato existente
+`occurrence-detail.contract.ts` passou a esperar `cancellation: null, corrections: []` na leitura.
+
+```bash
+bun run --cwd apps/frontend-transportada test   # 6486 pass, 0 fail (32 arquivos); test:hooks 331 pass, 0 fail
+bun run typecheck                               # limpo
+cd apps/frontend-transportada && bun run lint   # 0 erros, 16 avisos preexistentes
+```

@@ -17,6 +17,7 @@ import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavig
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import { OccurrenceCasePanel } from '../components/OccurrenceCasePanel.component'
+import { OccurrenceCorrectionActions } from '../components/OccurrenceCorrectionActions.component'
 import { OccurrenceTimelinePanel } from '../components/OccurrenceTimeline.component'
 import { OccurrenceAttachments } from '../components/TripOccurrenceTable.component'
 import { useTripOccurrenceDetailQuery } from '../queries/tripOccurrenceFeed.query'
@@ -285,7 +286,12 @@ function OccurrenceItems({ occurrence }: Readonly<{ occurrence: TripOccurrenceDe
   )
 }
 
-function OccurrenceSummaryPanel({ occurrence }: Readonly<{ occurrence: TripOccurrenceDetail }>) {
+type OccurrenceSummaryPanelProps = Readonly<{
+  occurrence: TripOccurrenceDetail
+  permissions: readonly string[]
+}>
+
+function OccurrenceSummaryPanel({ occurrence, permissions }: OccurrenceSummaryPanelProps) {
   const { t } = useTranslation('trip')
 
   return (
@@ -332,6 +338,7 @@ function OccurrenceSummaryPanel({ occurrence }: Readonly<{ occurrence: TripOccur
         </div>
       </dl>
       <OccurrenceItems occurrence={occurrence} />
+      <OccurrenceCorrectionActions occurrence={occurrence} permissions={permissions} />
       <OccurrenceAttachments item={occurrence} />
     </section>
   )
@@ -342,6 +349,7 @@ type OccurrenceDetailSectionsProps = Readonly<{
   canResolveOccurrenceCases: boolean
   companyId?: string
   occurrence: TripOccurrenceDetail
+  permissions: readonly string[]
 }>
 
 /**
@@ -354,6 +362,7 @@ function OccurrenceDetailSections({
   canResolveOccurrenceCases,
   companyId,
   occurrence,
+  permissions,
 }: OccurrenceDetailSectionsProps) {
   const { t } = useTranslation('trip')
   const isWide = useMinWidth('40rem')
@@ -415,7 +424,7 @@ function OccurrenceDetailSections({
     document: () => <OccurrenceDocumentPanel occurrence={occurrence} />,
     driverContact: () => <OccurrenceDriverPanel occurrence={occurrence} />,
     driverConversation: () => conversations('driver'),
-    summary: () => <OccurrenceSummaryPanel occurrence={occurrence} />,
+    summary: () => <OccurrenceSummaryPanel occurrence={occurrence} permissions={permissions} />,
     timeline: () => (
       <OccurrenceTimelinePanel
         {...(companyId === undefined ? {} : { companyId })}
@@ -506,6 +515,7 @@ export function TripOccurrenceDetailPage({ occurrenceId }: Readonly<{ occurrence
             canResolveOccurrenceCases={canResolveOccurrenceCases}
             {...(companyId === undefined ? {} : { companyId })}
             occurrence={occurrence}
+            permissions={permissions}
           />
         </>
       )}

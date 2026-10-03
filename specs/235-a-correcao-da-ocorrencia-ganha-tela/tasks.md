@@ -53,7 +53,7 @@ já faz (`listOccurrenceCorrections`, o mapeamento de `cancellation`), em lote �
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T2.1** Botão **Corrigir** no detalhe, com o estado desabilitado e o motivo em texto
+- [x] **T2.1** Botão **Corrigir** no detalhe, com o estado desabilitado e o motivo em texto
       (CA02, CA03).
 - [ ] **T2.2** `TripOccurrenceCorrectionForm`, reaproveitando o formulário de itens do registro,
       pré-preenchido com o conjunto atual e enviando o conjunto inteiro (RF2, CA01).
