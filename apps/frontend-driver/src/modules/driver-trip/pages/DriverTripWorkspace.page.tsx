@@ -25,6 +25,7 @@ import { DriverStalePendingNotice } from '../components/DriverStalePendingNotice
 import { DriverUnverifiedPendingNotice } from '../components/DriverUnverifiedPendingNotice.component'
 import { useDriverSession } from '../hooks/useDriverSession.hook'
 import { useDriverTrip } from '../hooks/useDriverTrip.hook'
+import { useGeolocationPermission } from '../hooks/useGeolocationPermission.hook'
 import { useLocationSharing } from '../hooks/useLocationSharing.hook'
 import { useSelectedDriverTrip } from '../hooks/useSelectedDriverTrip.hook'
 import { useStopExpansion } from '../hooks/useStopExpansion.hook'
@@ -202,6 +203,8 @@ export function DriverTripWorkspacePage() {
   const { autoSwitchedTripId, selectTrip, trip } = useSelectedDriverTrip(snapshot?.trips ?? [])
   /** RF15: roda em qualquer seção, porque o que conta é a app estar na tela, não a aba aberta. */
   const locationSharingStatus = useLocationSharing(snapshot?.trips ?? [])
+  /** Spec 234 D4d: o cartão da parada avisa antes do "Entreguei" quando a localização está negada. */
+  const isLocationDenied = useGeolocationPermission()
   /**
    * Spec 206 D9: a parada a caminho, aplicando por cima os toques ainda na fila — sempre local e
    * imediato, funciona sem sinal (`enRouteStop.service.ts`).
@@ -947,6 +950,7 @@ export function DriverTripWorkspacePage() {
                   isCurrent={stop.id === currentStopId}
                   isEnRoute={stop.id === enRouteStopId}
                   isFieldWorkBlocked={isTripAwaitingDispatch}
+                  isLocationDenied={isLocationDenied}
                   isOpen={stopExpansion.isOpen(stop.id)}
                   key={stop.id}
                   lastKnownLocation={lastKnownLocation}

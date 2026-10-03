@@ -352,6 +352,7 @@
   "proofPendingWarningTitle": "Foto do canhoto obrigatória",
   "proofPendingWarningLead": "Tire aqui, na hora da entrega. Foto enviada depois ou longe daqui tira pontos da sua nota.",
   "proofPendingWarningDetails": "Como a foto conta na nota",
+  "locationOffWarning": "Localização desligada: entregar assim conta como longe do local e pode tirar pontos da sua nota. Ligue a localização do aparelho para a entrega valer no local.",
   "offline": {
     "empty": "Sem viagem salva; conecte-se para carregar a sua viagem.",
     "emptyTitle": "Sem conexão",

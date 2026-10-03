@@ -175,6 +175,8 @@ type DriverStopCardProps = Readonly<{
    * acumular eventos condenados.
    */
   isFieldWorkBlocked: boolean
+  /** Spec 234 D4d: a permissão de localização do aparelho está negada — só avisa antes do "Entreguei". */
+  isLocationDenied: boolean
   /** Pedido do usuário (25/09): a atual abre sozinha e destacada; as outras ficam fechadas. */
   isOpen: boolean
   /** Spec 082 D2: a última posição conhecida — sem ela, a distância simplesmente não aparece. */
@@ -239,6 +241,7 @@ export function DriverStopCard({
   isCurrent,
   isEnRoute,
   isFieldWorkBlocked,
+  isLocationDenied,
   isOpen,
   lastKnownLocation,
   notDeliveredStatusByDocumentId,
@@ -581,6 +584,7 @@ export function DriverStopCard({
               deliverActivity={deliverActivityByDocumentId.get(document.id)}
               document={document}
               isFieldWorkBlocked={isFieldWorkBlocked}
+              isLocationDenied={isLocationDenied}
               isLateRegistration={isLateRegistration}
               key={document.id}
               notDeliveredStatus={notDeliveredStatusByDocumentId.get(document.id)}
@@ -650,6 +654,7 @@ type DocumentRowProps = Readonly<{
   deliverActivity: DocumentActivityView | undefined
   document: DriverTripDocument
   isFieldWorkBlocked: boolean
+  isLocationDenied: boolean
   /** Pedido do usuário (25/09): carimba `lateRegistration` no deliver/return/proof desta parada. */
   isLateRegistration: boolean
   notDeliveredStatus: NotDeliveredStatus | undefined
@@ -685,6 +690,7 @@ function DocumentRow({
   document,
   isFieldWorkBlocked,
   isLateRegistration,
+  isLocationDenied,
   notDeliveredStatus,
   occurrenceHandlers,
   occurrenceTypes,
@@ -834,6 +840,12 @@ function DocumentRow({
        * desabilitado e cinza: o aviso ocupa o lugar delas. Spec 218 (D4): "Ocorrência" fica fora
        * disso — doca fechada se relata antes de chegar.
        */}
+      {/* Spec 234 D4d: só avisa — sem localização a entrega conta como longe, e o botão abaixo segue tocável. */}
+      {canActOnDocuments && isLocationDenied ? (
+        <div className={styles.proofPendingWarning} role="status">
+          <p className={styles.proofPendingWarningLead}>{t('locationOffWarning')}</p>
+        </div>
+      ) : null}
       <div className={styles.actions}>
         {canActOnDocuments ? (
           <>

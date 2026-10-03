@@ -57,14 +57,14 @@ function renderCard(input: { readonly hasArrived: boolean; readonly isLocationDe
     createElement(DriverStopCard, {
       canReportArrival: true,
       canStartRoute: { enabled: true },
-      deliverActivityByDocumentId: new Map(),
+      deliverActivityByDocumentId: new Map<string, never>(),
       isCurrent: true,
       isEnRoute: false,
       isFieldWorkBlocked: false,
       isLocationDenied: input.isLocationDenied,
       isOpen: true,
       lastKnownLocation: null,
-      notDeliveredStatusByDocumentId: new Map(),
+      notDeliveredStatusByDocumentId: new Map<string, never>(),
       occurrenceTypes: { status: 'loading' },
       onArrive: noop,
       onCancelDeparture: noop,
@@ -75,13 +75,13 @@ function renderCard(input: { readonly hasArrived: boolean; readonly isLocationDe
       onHeaderRef: noop,
       onNotDelivered: noop,
       onProof: () => Promise.resolve(true),
-      onQueuedDocumentOccurrence: () => Promise.resolve('queued'),
+      onQueuedDocumentOccurrence: () => 'queued',
       onRetryOccurrenceTypes: noop,
-      onStopOccurrence: () => Promise.resolve('queued'),
+      onStopOccurrence: () => 'queued',
       onToggle: noop,
       queueView: [],
-      returnActivityByDocumentId: new Map(),
-      sentReportKeys: new Set(),
+      returnActivityByDocumentId: new Map<string, never>(),
+      sentReportKeys: new Set<string>(),
       stop: buildStop({ hasArrived: input.hasArrived }),
       stopOccurrenceActivity: undefined,
       tappedReports: [],
@@ -143,7 +143,7 @@ describe('o cartão da parada avisa antes do "Entreguei" com a localização neg
     await i18n.changeLanguage('pt-BR')
 
     expect(html).toContain(
-      "Location is off: delivering this way counts as away from the location and may cost points on your score. Turn on your device's location so the delivery counts on site.",
+      'Location is off: delivering this way counts as away from the location and may cost points on your score. Turn on the device location so the delivery counts on site.',
     )
   })
 })

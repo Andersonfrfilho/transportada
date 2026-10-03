@@ -345,6 +345,7 @@
   "proofPendingWarningTitle": "Proof photo required",
   "proofPendingWarningLead": "Take it here, at delivery time. A photo sent later or away from here costs points on your score.",
   "proofPendingWarningDetails": "How the photo counts toward your score",
+  "locationOffWarning": "Location is off: delivering this way counts as away from the location and may cost points on your score. Turn on the device location so the delivery counts on site.",
   "offline": {
     "empty": "No saved trip; connect to load your trip.",
     "emptyTitle": "Offline",

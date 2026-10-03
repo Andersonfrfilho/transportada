@@ -1433,3 +1433,49 @@ test('o desvio medido antes de recarregar sem sinal ainda vai no deliver feito o
     expect(typeof fields.tappedAt).toBe('string')
   }
 })
+
+/**
+ * Spec 234 D4d: com a permissão de localização negada, o cartão avisa antes do "Entreguei" — e só avisa:
+ * o toque continua valendo. O `denied` é simulado na Permissions API antes de a app abrir.
+ */
+const LOCATION_OFF_WARNING = /^Localização desligada: entregar assim conta como longe do local/u
+
+async function denyGeolocationPermission(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const status = new EventTarget() as EventTarget & { state: string }
+    status.state = 'denied'
+    Object.defineProperty(navigator, 'permissions', {
+      configurable: true,
+      value: { query: () => Promise.resolve(status) },
+    })
+  })
+}
+
+test('localização negada: o aviso aparece antes do Entreguei, e o Entreguei continua valendo', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await denyGeolocationPermission(page)
+  const api = await mockDriverTripApi({ page })
+  await loginAsLocalUser(page)
+  await expect(page.getByRole('status').filter({ hasText: LOCATION_OFF_WARNING })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await expect(page.getByRole('status').filter({ hasText: LOCATION_OFF_WARNING })).toBeVisible()
+  const deliver = page.getByRole('button', { exact: true, name: 'Entreguei' })
+  await expect(deliver).toBeEnabled()
+  await deliver.click()
+
+  await expect.poll(() => findReport(api, '/deliver') !== undefined, { timeout: 20_000 }).toBe(true)
+})
+
+test('localização liberada: nenhum aviso antes do Entreguei', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  await mockDriverTripApi({ page })
+  await loginAsLocalUser(page)
+
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await expect(page.getByRole('button', { exact: true, name: 'Entreguei' })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: LOCATION_OFF_WARNING })).toHaveCount(0)
+})
