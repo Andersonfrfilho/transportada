@@ -961,3 +961,25 @@ Ajudante (perfil `helper`) — opção no seletor de perfil, CNH oculta, "Pode a
 mais (`trip.read`). Seletor de motoristas da viagem exclui quem não dirige; lista de ajudantes permanece
 inalterada (ambos filtram pela ficha). Erro de viagem `TRIP_DRIVER_CANNOT_DRIVE` mapeado em
 `feedback.driverCannotDrive`; `TRIP_CREW_HELPER_CANNOT_DRIVE` (403) não é mapeado separadamente. Ver ADR-0093.
+
+## Spec 196 — a linha do tempo mostra onde o evento aconteceu (ADR-0081)
+
+- **Componentes.** `TripTimelineLocation.component.tsx` (botão com ícone, tooltip e nome acessível com o texto
+  inteiro) e `TripTimelineLocationMap.component.tsx` (lazy, mesmo mapa do roteiro, pino liso do evento mais o
+  da parada). `buildBasemapStyle` ganhou o modo quieto (sem `radar` e `cabine-de-pedagio`) só para os mapas da
+  linha do tempo.
+- **A regra mora no serviço**, `resolveTimelineLocationView` (`tripTimelineDetail.service.ts`): `captured` com
+  ponto (mapa), `captured` sem ponto (leitor sem `trip.event-location`: "Posição registrada", sem mapa),
+  `unavailable` (vermelho, o único com rótulo visível, porque tooltip não abre no dedo), `expired` (neutro) e
+  `null` (não desenha nada). O evento do **endereço corrigido** usa o pino próprio ("Novo ponto do endereço",
+  "Corrigido em"); status e ocorrência seguem o texto "Posição registrada".
+- **Validador.** `location` e `locationState` são exigidas no item (T6.4); chave desconhecida continua
+  recusando o item.
+- **Mapa e detalhe.** Quando a posição é o único detalhe, o botão se chama "Ver no mapa" (um gesto); com texto
+  junto (motivo da devolução, observação), o mapa abre num segundo gesto dentro do detalhe.
+- **Revisão de design (T7.1).** A linha de posição herda a fonte da linha de autoria (o botão usava a fonte
+  padrão do navegador); o botão do mapa do detalhe tem a altura do irmão (`--control-height-compact`, e
+  `--touch-target` sob `pointer: coarse`); a distância em km sai com vírgula (`1,2 km`). Medidas e prints:
+  `specs/196-todo-evento-carrega-onde-aconteceu/evidence.md` e `prints/`.
+- **Prints.** `test/spec-196-prints.smoke.spec.ts` (fora da CI, `PLAYWRIGHT_TEST_MATCH`), com API dublada e
+  coordenada sintética; precisa de WebGL por software (`--use-angle=swiftshader`) para o MapLibre subir.

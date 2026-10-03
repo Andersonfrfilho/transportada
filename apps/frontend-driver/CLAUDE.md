@@ -326,3 +326,11 @@ cópia daqui é vigiada pelo `catalog-parity`, contra a API.
 `frontend-transportada` (o mapa fixo `path → origem`, ~60 arquivos). Os vindos de `frontend-client`
 (auth, CSP, ambiente, `server.ts`) têm o comentário, mas não estão nesse mapa automatizado — a
 garantia ali é só a prosa do cabeçalho, não um teste dedicado.
+
+## Todo toque manda onde aconteceu (spec 196, ADR-0081)
+
+Despacho, "Iniciar rota", ocorrência da parada e da nota levam `location` na fila. Toque que vai para a fila
+grava a posição na hora (leitura de 8 s); toque direto (despacho e "Iniciar rota") espera a posição só
+**3 s** (`readDirectTapLocation`, relógio da própria app) e segue com `location: null` se ela não vier — GPS
+negado ou mudo nunca trava a entrega. O reenvio da foto da ocorrência da parada repete o corpo **sem**
+`location`. Detalhe: docs/ai-context/frontend-driver.md § "Spec 196".

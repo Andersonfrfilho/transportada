@@ -128,9 +128,17 @@ sem ninguém o ter olhado.
   - O banco garante, nas três tabelas novas:
     `latitude is null or channel in ('driver_app', 'whatsapp')` e
     `location_state is null or channel in ('driver_app', 'whatsapp')`. ⚠️ O primeiro CHECK **nasceu
-    restrito a `driver_app`** e está assim na migration `20261002153258_occurrence_location_stamp`, que
-    **ainda não foi publicada** — corrigir ali é de graça, e é o que a T1.4 faz. Publicar antes disso
-    custaria uma migration corretiva.
+    restrito a `driver_app`** na migration `20261002153258_occurrence_location_stamp`. Ela **já estava
+    publicada** em `origin/staging` quando a T1.4 foi executada, então não foi editada: o CHECK foi
+    corrigido pela migration corretiva aditiva `20261003010806_event_location_whatsapp_coordinate`
+    (`evidence.md` § T1.4).
+
+    ⚠️ **Limite conhecido (2026-10-02): a localização pelo WhatsApp só vale depois de subir os pacotes.**
+    `meta-whatsapp-module`/`-contracts`/`-provider` `0.1.0` descartam `messages[].location` antes do
+    gancho `onMessageReceived` (o schema de mensagem não tem a chave). O código da API está pronto e
+    provado por contrato e por integração com o ponto entregue ao armazém; ponta a ponta, o motorista que
+    manda a localização pelo WhatsApp hoje cai em `unavailable`. Subir os pacotes é **decisão pendente do
+    usuário** (a instalação fica na `0.1.0` por dívida de formato de migration do pacote).
 
 - **D4 — Só o toque carimba; a consequência não.** A entrega que deriva `on_delivery_route` ou
   `completed` grava um `trip_status_events` que **não** leva ponto (`null`): o ponto está no evento

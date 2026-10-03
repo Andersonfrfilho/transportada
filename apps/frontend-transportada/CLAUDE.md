@@ -326,3 +326,12 @@ Seletor de motoristas da viagem exclui quem não dirige; lista de ajudantes segu
 pela ficha). Permissão `trip.read` — sem `trip.report` — abre `NoWorkspaceAccess` no painel (decisão de
 produto fora da spec: qual app o ajudante usa). Detalhe: docs/ai-context/frontend-transportada.md
 § "Spec 235 — O ajudante é um perfil" e ADR-0093.
+
+## A linha do tempo mostra onde o evento aconteceu (spec 196, ADR-0081)
+
+`TripTimelineLocation` (ícone `map-pin`, tooltip com precisão, distância até a parada, coordenada e hora da
+leitura) e `TripTimelineLocationMap` (lazy, dois pinos, mapa quieto sem radar). A regra das cinco situações
+(`captured`, `restricted`, `unavailable`, `expired`, `null`) é `resolveTimelineLocationView`; só `unavailable`
+leva rótulo na tela. `location` e `locationState` chegam sempre (o validador as exige) e `location: null` com
+`captured` é o leitor sem `trip.event-location` — a tela não oferece mapa. Coordenada nunca em URL nem em
+log. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 196".

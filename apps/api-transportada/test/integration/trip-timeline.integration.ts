@@ -926,6 +926,48 @@ describe('trip-timeline.query (spec 158 T5) contra o Postgres', () => {
   )
 
   testWithPostgres(
+    '196 T7.3: o número de consultas da linha do tempo não cresce com notas e eventos com ponto',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const smallTripId = await seedTrip(database, company)
+        const smallStopId = await seedStop(database, company, smallTripId, 1)
+        const smallDocumentId = await seedTripDocument(database, company, smallTripId, smallStopId)
+        await insertLocatedStopEvents(database, company, smallStopId, [smallDocumentId])
+
+        const largeTripId = await seedTrip(database, company)
+        const largeStopId = await seedStop(database, company, largeTripId, 1)
+        const largeDocumentIds: string[] = []
+        for (let index = 0; index < 50; index += 1) {
+          largeDocumentIds.push(await seedTripDocument(database, company, largeTripId, largeStopId))
+        }
+        await insertLocatedStopEvents(database, company, largeStopId, largeDocumentIds)
+
+        const small = countingDatabase(database.db)
+        const smallResult = await listTripTimeline(small.database, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 100,
+          tripId: smallTripId,
+        })
+        const large = countingDatabase(database.db)
+        const largeResult = await listTripTimeline(large.database, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 100,
+          tripId: largeTripId,
+        })
+
+        console.log(
+          `trip-timeline consultas: 1 nota = ${small.queryCount()} · 50 notas = ${large.queryCount()} (itens: ${smallResult.items.length} / ${largeResult.items.length})`,
+        )
+        expect(largeResult.items.length).toBeGreaterThan(smallResult.items.length)
+        expect(large.queryCount()).toBe(small.queryCount())
+      })
+    },
+  )
+
+  testWithPostgres(
     'T12: encerramento manual (completed) traz closeReason de trips.close_reason',
     async () => {
       await withDisposableDatabase(async (database) => {
@@ -2816,6 +2858,65 @@ describe('trip-timeline.query com o endereço corrigido (spec 228 T3.1) contra o
     },
   )
 })
+
+/** Chegada na parada e entrega de cada nota, todas com ponto — o caso que mais lê coordenada. */
+async function insertLocatedStopEvents(
+  database: TestDatabase,
+  company: Company,
+  stopId: string,
+  documentIds: readonly string[],
+): Promise<void> {
+  const capturedAt = new Date('2026-09-18T10:00:00.000Z')
+  const location = {
+    accuracyMeters: '8.00',
+    capturedAt,
+    latitude: '-23.5505000',
+    locationState: 'captured' as const,
+    longitude: '-46.6333000',
+  }
+  await database.db.insert(tripStopEvents).values({
+    actorUserId: company.userId,
+    channel: 'driver_app',
+    companyId: company.companyId,
+    createdAt: capturedAt,
+    id: crypto.randomUUID(),
+    kind: 'arrived',
+    recordedAt: capturedAt,
+    stopId,
+    ...location,
+  })
+  await database.db.insert(tripStopEvents).values(
+    documentIds.map((tripDocumentId) => ({
+      actorUserId: company.userId,
+      channel: 'driver_app' as const,
+      companyId: company.companyId,
+      createdAt: capturedAt,
+      id: crypto.randomUUID(),
+      kind: 'delivered' as const,
+      recordedAt: capturedAt,
+      stopId,
+      tripDocumentId,
+      ...location,
+    })),
+  )
+}
+
+/** Conta cada `select` e cada `execute` que a leitura faz no queryable de topo (uma chamada = uma query). */
+function countingDatabase(db: TestDatabase['db']): {
+  readonly database: TestDatabase['db']
+  readonly queryCount: () => number
+} {
+  let count = 0
+  const database = new Proxy(db, {
+    get(target, property, receiver) {
+      if (property === 'select' || property === 'selectDistinct' || property === 'execute') {
+        count += 1
+      }
+      return Reflect.get(target, property, receiver)
+    },
+  })
+  return { database, queryCount: () => count }
+}
 
 async function withDisposableDatabase(
   operation: (database: TestDatabase) => Promise<void>,

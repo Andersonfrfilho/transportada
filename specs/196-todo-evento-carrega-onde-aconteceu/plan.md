@@ -250,6 +250,14 @@ três que não tinham nenhuma. Separadas de propósito: o sufixo `_event_locatio
 de `test/database-migration/static-migration.contract.ts`, e duas pastas com ele fariam cada
 asserção daquele bloco valer para a pasta errada.
 
+**Uma terceira, corretiva (T1.4, 2026-10-02):** `drizzle/20261003010806_event_location_whatsapp_coordinate/`.
+A segunda já estava em `origin/staging` quando se decidiu que o canal `whatsapp` também carrega ponto, e
+migration publicada não se edita: a nova só troca o CHECK `<tabela>_coordinates_channel_check` das três
+tabelas novas para `channel in ('driver_app', 'whatsapp')` (mais frouxo, nada que valia deixa de valer).
+O `rollback.sql` recusa, em vez de apagar, se houver coordenada gravada por `whatsapp`.
+⚠️ Os pacotes `meta-whatsapp-*` `0.1.0` descartam `messages[].location`: o carimbo pelo WhatsApp só chega
+ao banco depois que eles subirem (decisão pendente do usuário; `evidence.md` § T3.6).
+
 ```sql
 -- para cada <t> em trip_status_events, trip_stop_occurrences, trip_document_occurrences
 ALTER TABLE <t> ADD COLUMN latitude numeric(10,7), ADD COLUMN longitude numeric(10,7),

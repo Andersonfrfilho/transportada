@@ -146,3 +146,17 @@ compilador aponta onde falta.
 Contagens finais por task (comandos, pass/fail, tamanho do precache) vivem em
 `specs/189-o-motorista-tem-app-propria/evidence.md`, não aqui — este arquivo explica decisões, não
 substitui a evidência de execução.
+
+## Spec 196 — todo toque manda onde aconteceu (ADR-0081)
+
+- **Quatro toques levam `location`:** despacho, "Iniciar rota", ocorrência da parada e ocorrência da nota. A fila
+  (`offlineQueue.service.ts`) guarda o ponto no item, e o corpo do `POST` o leva.
+- **Dois relógios.** Toque que vai para a fila grava a posição na hora (`readCurrentLocation`, 8 s). Toque
+  direto (despacho e "Iniciar rota") usa `readDirectTapLocation`, com o relógio de **3 s** da própria app
+  (`DIRECT_TAP_POSITION_BUDGET_MS`, posição de até 5 min): se a posição não vier, o toque segue com
+  `location: null` — GPS negado ou mudo nunca trava. Medido no smoke: o `POST` sai ~3,03 s depois do clique.
+- **Limite conhecido.** O reenvio da foto da ocorrência da parada (`stopOccurrencePhoto`) repete o corpo
+  **sem** `location`; a fila manda a ocorrência antes e a foto atrás, então só afeta ocorrência recusada
+  cuja foto foi aceita.
+- **Preview.** `apps/frontend-driver/scripts/driver-preview-api.ts` (`motorista-api-demo` no `launch.json`)
+  guarda o ponto em memória, sem log de coordenada.

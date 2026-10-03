@@ -2322,3 +2322,28 @@ reconciliados na transação de troca de papéis (só se a troca toca `driver`/`
 viagem e a proposta recusam quem não dirige (`409 TRIP_DRIVER_CANNOT_DRIVE`); MDF-e avulso aplica a
 mesma regra. Permissão `trip.read` — sem `trip.report`. Limite: atribuição em lote e papéis de grupo
 não reconciliam. Ver ADR-0093.
+
+## Spec 196 — todo toque do motorista carimba onde aconteceu (ADR-0081)
+
+- **Cinco tabelas, um molde.** `event-location.schema.ts` dá a cada uma `latitude`, `longitude`,
+  `accuracy_meters`, `captured_at` e `location_state`, com CHECKs (par latitude/longitude, faixa, estado
+  `captured` ⇔ ponto, canal que pode gravar coordenada) e o índice parcial do expurgo
+  (`<tabela>_located_<coluna_de_tempo>_idx ... where latitude is not null`). `trip_stop_events` e
+  `trip_delivery_proofs` já tinham o ponto (ADR-0045/0070); `trip_status_events`, `trip_stop_occurrences` e
+  `trip_document_occurrences` ganharam na migration `20261002153258_occurrence_location_stamp`.
+- **O canal `whatsapp` carrega ponto** pela migration corretiva aditiva
+  `20261003010806_event_location_whatsapp_coordinate` (a anterior já estava em `origin/staging`, então não foi
+  editada). É a ação que decide: o WhatsApp do operador e o despacho automático gravam `null`.
+- **Uma política só** (`event-location-stamp.policy.ts`: `resolveEventLocationStamp`,
+  `NO_EVENT_LOCATION_STAMP`; `event-location-state.policy.ts`). As rotas de toque do motorista aceitam `location`
+  opcional; um contrato (`test/trip-http`) reprova rota `POST` nova do motorista sem ele.
+- **Leitura.** `GET /trips/:id/timeline` devolve `location` (só com `trip.event-location`) e `locationState`
+  nas **três** consultas (parada, status, documento) e na do comprovante; as demais respostas não carregam
+  posição. `event-location-readers.constant.ts` é a lista fechada de leitores por coluna, e
+  `EVENT_LOCATION_FORBIDDEN_RESPONSES` nomeia as respostas que nunca podem (portal, tratativa, demonstrativo,
+  acerto, reentrega, lote do escritório, anexo, prontidão do despacho).
+- **WhatsApp.** A mensagem de localização vira ponto (`shared-location`), mas os pacotes `meta-whatsapp-*`
+  `0.1.0` descartam `messages[].location` antes do gancho: ponta a ponta só depois de subir os pacotes
+  (decisão pendente do usuário). O teste que documenta o limite deve ficar vermelho quando subirem.
+- **N+1:** `test/integration/trip-timeline.integration.ts` conta as consultas de `listTripTimeline` com 1 nota e
+  com 50 notas (todas com ponto): o número é o mesmo (9 em 2026-10-02).

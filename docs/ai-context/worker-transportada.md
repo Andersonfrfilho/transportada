@@ -241,3 +241,21 @@ nunca recalculado no worker. 401/403 descartam o token em cache. 400/404/409 con
 ⚠️ O gateway não tem timeout de `fetch` — API pendurada poderia segurar um ciclo. Registrado,
 não corrigido aqui. `canhoto_review_by_user_id` fica nulo no caminho automático (CHECK o exige),
 e é no `audit_logs` que a identidade do serviço aparece como ator (ADR-0047 §6).
+
+## O expurgo de posição (spec 196, D8)
+
+`trip.location.purge` é um job só com **lista de tabelas**: `trip_stop_events`, `trip_delivery_proofs`,
+`trip_status_events`, `trip_stop_occurrences`, `trip_document_occurrences`. Para cada uma, em lotes de 500
+(`select id ... where latitude is not null and <tempo> < corte limit N`, depois `update ... where id in`), apaga as
+quatro colunas e marca `location_state = 'expired'`. Uma tabela por vez (não segura a escrita do motorista), teto de
+lotes e `exhausted` **por tabela**, falha isolada por tabela (`failedTables`). Os pings do rastro ao vivo têm corte
+próprio (horas, ADR-0056). A coluna de tempo é a de cada tabela (`created_at`, e `recorded_at` em
+`trip_status_events`), a mesma do índice parcial: `EXPLAIN` mostra `Index Scan` nos cinco índices
+(`evidence.md` T7.3).
+
+- ⚠️ **Desligado por padrão** (`TRIP_LOCATION_PURGE_ENABLED=false`): apagar coordenada é irreversível, e o
+  controle vai virar configuração. Enquanto estiver desligado, a retenção de 90 dias **não é cumprida**; o ciclo
+  fecha `succeeded` e o log diz que foi de propósito.
+- O log do ciclo conta linhas por tabela. Nunca coordenada, evento ou pessoa.
+- Um contrato da API reprova tabela com coluna `*latitude*` que não esteja na lista do worker nem na lista de
+  exclusões com motivo.

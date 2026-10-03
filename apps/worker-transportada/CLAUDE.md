@@ -92,3 +92,12 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
     179, com `skip locked`.
   - A política de anexo e a de status são cópias por valor da API, com contrato de paridade.
   - Detalhe: docs/ai-context § "A ocorrência tem duas conversas".
+
+## O expurgo de posição (spec 196, ADR-0081)
+
+`trip.location.purge` (`trip-location-purge/`) varre **as cinco tabelas** de evento com ponto, uma por vez e
+com teto de lotes por tabela, apaga `latitude`, `longitude`, `accuracy_meters` e `captured_at` com 90 dias e
+marca `location_state = 'expired'`, preservando o evento; os pings ao vivo têm corte próprio. ⚠️ Nasce
+**desligado** (`TRIP_LOCATION_PURGE_ENABLED=false`): enquanto não for ligado, a retenção de 90 dias não é
+cumprida. O log conta linhas por tabela, nunca coordenada, evento ou pessoa. Detalhe:
+docs/ai-context/worker-transportada.md § "O expurgo de posição".

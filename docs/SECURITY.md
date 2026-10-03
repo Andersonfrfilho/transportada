@@ -1228,7 +1228,7 @@ garantia" transforma comprovante em passivo.
 `location: null` com o estado ao lado, não um `403`: eles precisam da linha do tempo, não da posição.
 A coordenada aparece **em texto** no tooltip do ícone de GPS, com a precisão e a distância até a
 parada (emenda §6.1, de 2026-10-01). O que **não** mudou: coordenada nunca em query string, nunca em
-URL, nunca numa requisição a tile de terceiro — o mapa base é o PMTiles do próprio domínio — e nunca
+URL, nunca numa requisição a tile de terceiro — o mapa base é o PMTiles de um serviço nosso, que vê a região das telhas pedidas, não o ponto (ver abaixo) — e nunca
 em log, em nível nenhum, nem em `debug`. O que foi liberado é o que a tela mostra a quem tem a
 permissão, não o que sai da instalação.
 
@@ -1239,15 +1239,56 @@ naquele caminho). Sem o estado os quatro casos seriam o mesmo `null`, e a tela a
 onde não houve tentativa. O histórico sem coordenada fica `null`, não `unavailable`: o banco não sabe
 se o GPS falhou ou se o app daquela época nem pedia posição, e o palpite sairia em vermelho.
 
-**O que falta:** o `location_state` e o ponto existem hoje em `trip_stop_events` e
-`trip_delivery_proofs`. `trip_status_events`, `trip_stop_occurrences` e `trip_document_occurrences`
-ainda não carimbam — despachar, iniciar rota, conferir carga e as ocorrências aparecem como "não se
-aplica" até as Fases 1–3 e 5 da spec 196 rodarem, e o expurgo passa a varrer as cinco tabelas junto
-com elas. O contrato de cabeçalhos guarda os dois sentidos (falha se `geolocation` voltar a `()` e
+**Retenção, nas cinco tabelas (atualizado em 2026-10-02):** `trip_stop_events`, `trip_delivery_proofs`,
+`trip_status_events`, `trip_stop_occurrences` e `trip_document_occurrences` carregam ponto e
+`location_state`. O job `trip.location.purge` do worker varre as cinco, uma por vez, com teto de lotes por
+tabela, apaga `latitude`, `longitude`, `accuracy_meters` e `captured_at` com 90 dias e grava
+`location_state = 'expired'`, preservando o evento. O rastro ao vivo (`trip_location_pings`) tem expurgo
+próprio, de horas. ⚠️ **O job nasce desligado** (`TRIP_LOCATION_PURGE_ENABLED=false`): ver o achado de
+2026-10-02 abaixo. O contrato de cabeçalhos guarda os dois sentidos (falha se `geolocation` voltar a `()` e
 falha se `microphone` deixar de ser `()`), e o expurgo tem teste de integração com relógio injetado —
 retenção escrita e não implementada é retenção que não existe.
 
+**O que o host do mapa base vê (2026-10-02):** o mapa da linha do tempo lê o PMTiles do serviço
+`map-tiles` (`map-tiles-production` em produção), que é nosso (`deploy/map-tiles/server.ts`) — não um
+terceiro. Ele recebe, por requisição de faixa de bytes (`Range`) ao `area.pmtiles`, o IP de quem abriu o
+mapa, o `User-Agent`, a origem do painel e **quais telhas foram pedidas**; como o diretório do PMTiles é
+público, as faixas dizem a região (telha de até zoom 14, ~2 km de lado) que a pessoa estava olhando. Não
+recebe a coordenada do evento, o id da viagem, nem a identidade do usuário. O servidor não escreve log
+de aplicação; o log de acesso é o da plataforma (ver o achado de 2026-10-02).
+
 **Origem:** spec 057, T001/T005/T012; ADR-0081 e spec 196 para a leitura e o estado.
+
+### 2026-10-02 — auditoria da spec 196: o expurgo de posição nasce desligado, e o log de acesso do mapa não foi verificado
+
+**Onde:** `apps/worker-transportada` (`TRIP_LOCATION_PURGE_ENABLED`, padrão `false`);
+`.railway/railway.ts` (`VITE_MAP_TILES_URL: preserve()`); `deploy/map-tiles/server.ts`.
+
+**O que a auditoria (T7.3) encontrou:**
+
+1. **A retenção de 90 dias não está em vigor enquanto o job estiver desligado.** O padrão é `false` por
+   decisão de produto (apagar coordenada é irreversível; o controle vai virar configuração), mas o resultado é
+   que a coordenada das cinco tabelas **não expira** até alguém ligar `TRIP_LOCATION_PURGE_ENABLED=true` no
+   worker de cada ambiente. É dado pessoal (LGPD, art. 5º, I) retido além do prazo escrito. **Pendência:**
+   ligar em staging, medir um ciclo, ligar em produção — decisão do usuário.
+2. **Origem do mapa base não verificável pelo repositório.** `VITE_MAP_TILES_URL` é `preserve()` nos dois
+   ambientes: o valor vive no painel do Railway e entra no bundle em tempo de build. A intenção declarada é
+   um domínio nosso (`map-tiles` em staging, `map-tiles-production` em produção); o `.env.example` aponta o
+   desenvolvimento para o de staging. **Pendência:** conferir os dois valores no painel — não foi lido
+   (produção não foi acessada) — e confirmar que nenhum aponta para provedor de terceiro.
+3. **Log de acesso do host do mapa: não sei.** O servidor não loga; o log HTTP da plataforma Railway guarda
+   caminho e faixa de bytes por requisição, e a retenção dele não está no repositório. **Pendência:**
+   conferir a retenção do log HTTP do serviço `map-tiles-production`. Enquanto isso vale o pior caso: IP +
+   telhas pedidas ficam guardados pelo tempo da plataforma.
+4. **O que se confirmou limpo:** nenhuma coordenada em `logger.`/`console.` dos arquivos `.ts`/`.tsx` tocados pela
+   spec (124, testes incluídos) nem na API de demonstração do motorista; nenhuma resposta fora da tabela do D7 carrega posição
+   (contrato `event-location-readers`, 222 testes do schema da API verdes, e varredura independente por
+   referência qualificada às cinco tabelas); a leitura da linha do tempo faz o mesmo número de consultas
+   com 1 e com 50 notas (9 e 9); o `EXPLAIN` do expurgo usa `Index Scan` no índice parcial nas cinco tabelas
+   (Postgres 17.10, `enable_seqscan` e `enable_bitmapscan` desligados na sessão, tabelas vazias — mede que o
+   índice casa com a consulta, não o tempo).
+
+**Origem:** spec 196, T7.3, 2026-10-02.
 
 ### 2026-08-24 — a câmera passa a ser permitida à própria origem no `Permissions-Policy`
 

@@ -2576,3 +2576,182 @@ $ bun run format:check (raiz) → All matched files use Prettier code style!
   pela spec; anotado aqui.
 - A margem de ~110 ms do teste de 3,2 s pode ficar flaky em CI lenta.
 - `readDirectTapLocation` só tem consumidor via `usesDirectTapLocation` (despacho e "Iniciar rota").
+
+## T6.3 / T7.1 — preview refeito com a posição de todos os toques, e a revisão de design
+
+**Ambiente, dito sem rodeio.** A API é **dublê**: `mockTripWorkspaceApi` mais a rota da linha do tempo,
+dentro de `test/spec-196-prints.smoke.spec.ts` (fora da CI: `PLAYWRIGHT_TEST_MATCH`). Não é a API desta
+árvore com a viagem gravada pelas rotas do motorista, como a T6.3 descreve. O que impediu: o login real do
+painel monta o `redirectUri` do Keycloak a partir de `VITE_APP_URL=http://localhost:53000` (o `.env` da
+raiz é link simbólico compartilhado), e a 53000 é o dev server de **outra árvore** (PID 38348, `cwd` em
+`.../fervent-sutherland-937527-wt/reconcile-spec-145`, conferido com `lsof`); não digitei senha em
+formulário. A API desta árvore não estava no ar (53001 livre). Usei portas próprias, `53120` (painel de
+`vite preview` do Playwright, com `VITE_SMOKE_AUTH_BYPASS=true`) e `53141` (servidor mudo só para a
+prontidão da API do `webServer`). A metade "gravado pelas rotas do motorista, lido pela linha do tempo" está
+provada contra o Postgres pelas integrações da T3.5 e da T4.2, não aqui. Os pontos são **sintéticos** (praça
+da Sé), e os tiles vieram de `map-tiles-staging` — o serviço nosso (ver T7.3).
+
+**Estados mostrados** (um evento por estado, 9 eventos): `captured` com precisão e distância
+(chegada, entrega, devolução, ocorrência), `captured` **sem coordenada** (a visão do `finance`: "Posição
+registrada", sem "Ver no mapa"), `unavailable` (rótulo vermelho "Posição indisponível"), `expired`,
+`null` (despacho: nenhuma marca) e o **endereço corrigido** com pino próprio. Expandidos: devolução com
+motivo + mapa em segundo gesto, ocorrência com observação + mapa + foto, entrega só com mapa, endereço.
+
+**Prints** (`prints/196-linha-do-tempo-<estado>-<1280|375>-<dark|light>.png`, 20 arquivos):
+`fechada`, `devolucao-mapa-aberto`, `ocorrencia-foto-e-mapa`, `entrega-so-mapa`, `endereco-pino-proprio`.
+
+### O que a revisão achou (web.md §15) e consertou
+
+Medidas por `getBoundingClientRect` / `getComputedStyle` no smoke, antes → depois:
+
+| Medida                                                          | Antes                                                     | Depois                                                                 |
+| --------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Botão de posição, fonte (linha de autoria: Avenir Next 12,8 px) | Arial 13,33 px (padrão do navegador, `button` sem herdar) | Avenir Next 12,8 px                                                    |
+| Rótulo vermelho "Posição indisponível", fonte                   | Arial 13,33 px, ao lado de texto Avenir                   | Avenir Next 12,8 px                                                    |
+| "Ocultar mapa" (detalhe), altura em 1280                        | 44 px                                                     | 38,4 px (`--control-height-compact`), igual a "Ver no mapa"/"Recolher" |
+| "Ocultar mapa", altura em 375                                   | 44 px                                                     | 44 px (igual aos irmãos, que ali já são 44)                            |
+| Distância de 4,2 km                                             | "a 4.2 km do ponto"                                       | "a 4,2 km do ponto" (o resto do painel formata em pt-BR)               |
+
+Correções: `.locationButton { font: inherit }`; `.detailMapToggle` passa a `min-height:
+var(--control-height-compact)` com `var(--touch-target)` sob `pointer: coarse` (mesmo par do `.itemToggle`);
+`formatTripTimelineDistance` formata com `toLocaleString('pt-BR')` — o mesmo seam serve ao deslocamento do
+endereço corrigido (spec 228), cujo contrato de hook foi atualizado de "1.5 km" para "1,5 km".
+
+Conferido e **sem divergência**: alvo do pino `::after` 44×44 px nos dois tamanhos; cor secundária do pino =
+cor da autoria (`--color-slate-muted`); `gap` do rótulo vermelho 4 px; "Ver no mapa"/"Ocultar mapa" 44 px
+em 375; sem rolagem horizontal.
+
+Contraste (razão calculada sobre o fundo composto, `color-mix` normalizado por canvas), mínimo 4,5:
+
+| Elemento                               | escuro | claro |
+| -------------------------------------- | ------ | ----- |
+| título do evento                       | 14,48  | 12,66 |
+| hora / autoria / pino neutro           | 6,95   | 5,27  |
+| rótulo vermelho "Posição indisponível" | 5,46   | 4,69  |
+| texto do detalhe expandido             | 11,81  | 10,88 |
+| botão "Ocultar mapa" no detalhe        | 12,05  | 10,47 |
+
+375 px: `scrollWidth` = `innerWidth` = 375 e nenhum elemento da seção ultrapassa a borda direita, nos dois
+temas, fechada e expandida. (O estouro de 47 px da placa do veículo, anotado antes, não aparece neste recorte.)
+
+### O que vi nos prints
+
+- **fechada, 1280/375, escuro e claro:** a linha de posição é só o ícone ao fim da linha de meta ("5 min
+  após o evento anterior · 📍"); só "Posição indisponível" é vermelho e com palavra. Nada compete com o
+  título. No 375 o ícone cai numa linha própria sob o "após o evento anterior" — consistente com a
+  autoria, que também empilha, mas gasta uma linha por evento. **Não consertei** (decisão de design: o
+  ícone ao lado da frase exigiria mudar o `.itemMeta` do celular, que a spec 180 desenhou empilhado).
+- **devolução / ocorrência, mapa aberto:** o detalhe tem a moldura de cobre; "Ocultar mapa" fica entre o
+  texto e o mapa, o mapa mostra o pino liso no centro e a legenda "Pino liso: onde o motorista tocou. A
+  parada não tem coordenada cadastrada." (a parada do dublê não tem coordenada). A foto vem **depois** do
+  mapa, com a mesma largura de grade; não há duplo botão.
+- **endereço corrigido:** mesma moldura e mesmo pino liso, com a legenda "Pino liso: novo ponto do endereço
+  da parada." — o pino próprio do endereço é o **rótulo e a legenda**, não a cor (a cor é a mesma do pino do
+  toque). Compatível com a 233: o evento de status/ocorrência segue o texto "Posição registrada".
+- Artefato: no recorte de elemento do 375 o cabeçalho "HOJE · 9 eventos" (sticky) aparece sobreposto no
+  meio da lista; é a captura de um elemento rolado, não um defeito da tela.
+- **Não há mapa do evento da ocorrência da parada com a parada** nem o pino numerado: o dublê não manda
+  coordenada da parada. O pino numerado foi coberto nas fases anteriores.
+
+### Portões (apps/frontend-transportada, primeiro plano)
+
+```text
+$ bun run typecheck → tsc --noEmit (sem saída de erro)
+$ bun run lint      → ✖ 16 problems (0 errors, 16 warnings)   [os 16 avisos pré-existentes]
+$ bun run test      → 6431 pass / 0 fail  ·  hooks: 327 pass / 0 fail
+$ bun run format:check (raiz) → All matched files use Prettier code style!
+```
+
+`bun test ./test/trip.contract.test.ts` → 2327 pass / 0 fail; o contrato de distância ganhou a vírgula nos três valores (`1,0`, `1,2`, `9,9`).
+
+## T7.3 — auditoria (saídas literais)
+
+**1. Coordenada em log.** Varredura de `logger.` / `console.` / `safeLog*` com 6 linhas de contexto, nos
+arquivos `.ts`/`.tsx` tocados pela spec (124, testes incluídos; 4 não-teste têm chamada de log):
+
+```text
+apps/api-transportada/src/main.ts                      → só chaves de contagem/razão; "reason: 'missing_coordinate'" é texto
+apps/api-transportada/src/whatsapp-commands/.../whatsapp-command-driver.service.ts → phone: turn.maskedPhone (mascarado), companyId
+apps/worker-transportada/src/main.ts                   → sem coordenada
+apps/frontend-driver/scripts/driver-preview-api.ts     → um único console.log: "API de demonstração do motorista em http://localhost:PORT (repassa o resto para REAL_API)"
+worker trip-location-purge.routine.ts → metadata: batches, exhausted(Tables), failedTables, pingBatches, purgedPings, redacted(ByTable), redactedProofs, retentionDays, correlationId, executionId
+```
+
+Nenhuma ocorrência de `latitude|longitude|location|coordinate` como valor logado (a única linha que casa é
+`reason: 'missing_coordinate'`, que é o motivo, e `retentionDays`).
+
+**2. Respostas fora da tabela do D7.** `bun test ./test/trip-schema.contract.test.ts` → **222 pass / 0 fail**
+(inclui `event-location-readers.contract.ts`); `bun test ./test/trip-http/event-location-redaction.contract.ts`
+→ **7 pass / 0 fail**. Varredura independente por referência **qualificada** às colunas de posição das cinco
+tabelas, arquivos de `apps/api-transportada/src`:
+
+```text
+   2 src/fleet/infrastructure/drizzle-driver-score.repository.ts          (só capturedAt, em coalesce com recorded_at)
+   7 src/trips/infrastructure/delivery-proof-read.support.ts
+   2 src/trips/infrastructure/drizzle-current-driver-trip.repository.ts   (só capturedAt, em coalesce)
+   3 src/trips/infrastructure/drizzle-delivery-proof.repository.ts
+   1 src/trips/infrastructure/drizzle-driver-field-report.repository.ts   (só capturedAt, em coalesce)
+   5 src/trips/infrastructure/trip-timeline-document.query.ts
+   6 src/trips/infrastructure/trip-timeline-proof.query.ts
+  10 src/trips/infrastructure/trip-timeline-status.query.ts
+  10 src/trips/infrastructure/trip-timeline-stop.query.ts
+```
+
+Os nove arquivos são exatamente os de `EVENT_LOCATION_READERS` (mais o feed, que só lê `locationState` por
+outro caminho): nenhum leitor fora da lista, e os três não-painel leem só o **instante** (`capturedAt`).
+
+**3. N+1.** Teste novo `196 T7.3` em `test/integration/trip-timeline.integration.ts` (conta `select`,
+`selectDistinct` e `execute` de `listTripTimeline`, com 1 nota e com 50 notas, todas com ponto):
+
+```text
+trip-timeline consultas: 1 nota = 9 · 50 notas = 9 (itens: 2 / 51)
+ 45 pass / 0 fail  (arquivo inteiro, Postgres 65432)
+```
+
+Mesmo número nos dois tamanhos: sem N+1. (Não provei esse teste por mutação: não há como fabricar um N+1
+aqui sem reescrever a consulta; a contagem 9 > 0 mostra que o contador enxerga as consultas.)
+
+**4. `EXPLAIN` do expurgo, nas cinco tabelas.** Banco descartável migrado em `pg_isready -h 127.0.0.1 -p
+65432` → _aceitando conexões_; Postgres **17.10**; SQL gerado pelo Drizzle com o corte e o `limit 500` do
+worker; sessão com `SET enable_seqscan = off` e `SET enable_bitmapscan = off`. ⚠️ **Tabelas vazias**: prova
+que o índice parcial casa com a consulta, não o tempo nem o custo real (sem `bitmapscan` desligado o plano é
+`Bitmap Index Scan` no mesmo índice).
+
+```text
+
+```
+
+**5. Onde `VITE_MAP_TILES_URL` aponta.** `.railway/railway.ts:231` declara `VITE_MAP_TILES_URL: preserve()`
+nos dois ambientes — o valor vive no painel do Railway e entra no bundle no build. Intenção declarada em
+`.railway/railway.ts:223-228` e `:498-510`: serviço **nosso** (`map-tiles` em staging,
+`map-tiles-production` em produção, `deploy/map-tiles/server.ts`); `.env.example:274` aponta o
+desenvolvimento para `map-tiles-staging.up.railway.app`. **Não verificado:** o valor real nos dois painéis
+(produção não foi acessada) e se o log HTTP da plataforma guarda caminho/faixa e por quanto tempo.
+`server.ts` não escreve log de aplicação (nenhum `console`). Registrado como pendência explícita em
+`docs/SECURITY.md`.
+
+### Achados novos (todos em `docs/SECURITY.md`, 2026-10-02)
+
+1. **O expurgo de posição nasce desligado** (`TRIP_LOCATION_PURGE_ENABLED=false`) — a retenção de 90 dias
+   não está em vigor em ambiente nenhum até alguém ligar.
+2. Origem do mapa base e log de acesso do host: **pendência de conferência** no painel do Railway.
+3. O host do mapa vê as telhas pedidas (região de ~2 km), não o ponto — registrado na entrada de 2026-08-26.
+
+## T7.2 — documentação viva
+
+- `CLAUDE.md` da API, do worker, do painel e da app do motorista: um parágrafo curto cada, apontando
+  `docs/ai-context/*.md`; as quatro seções de `docs/ai-context` foram escritas.
+- `docs/SECURITY.md`: retenção nas cinco tabelas + `location_state`, permissão `trip.event-location`,
+  o que o host do mapa vê, e o achado novo.
+- Spec 158: a emenda para a ADR-0081 **já existia** (`spec.md` linhas 36 e 171) — nada a acrescentar.
+- `spec.md`/`plan.md` da 196: "migration ainda não publicada" substituído pela corretiva
+  `20261003010806_event_location_whatsapp_coordinate`; limitação dos pacotes `meta-whatsapp-*` `0.1.0`
+  (descartam `messages[].location`) registrada como **decisão pendente do usuário**.
+
+### Não verificado nesta rodada
+
+- Ok do usuário nos prints (T6.3, T7.1): **pendente**.
+- Viagem gravada pelas rotas do motorista lida pela tela real (login real bloqueado, ver acima).
+- Valor de `VITE_MAP_TILES_URL` em staging e produção, e a retenção do log HTTP do `map-tiles`.
+- `EXPLAIN` com volume real (tabelas vazias).
+- API: só o typecheck e a integração da linha do tempo (a API foi tocada apenas por um teste novo).

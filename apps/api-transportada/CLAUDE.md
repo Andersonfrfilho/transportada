@@ -722,3 +722,16 @@ Papel `helper` em Acesso, terceira opção no cadastro de frota. Reconciliação
 recusam `can_drive = false` como motorista (`409 TRIP_DRIVER_CANNOT_DRIVE`); MDF-e avulso o mesmo.
 Permissão `trip.read`. Limite: atribuição em lote e papéis de grupo não reconciliam. Detalhe: docs/ai-context
 § "Spec 235 — O ajudante é um perfil" e ADR-0093.
+
+## Todo toque do motorista carimba onde aconteceu (spec 196, ADR-0081)
+
+Cinco tabelas carregam ponto e `location_state` (`captured | unavailable | expired | null`, `VARCHAR` com CHECK):
+`trip_stop_events`, `trip_delivery_proofs`, `trip_status_events`, `trip_stop_occurrences`,
+`trip_document_occurrences` (`event-location.schema.ts`). Quem carimba é `resolveEventLocationStamp`
+(`trips/domain`), só no toque do motorista (`driver_app`, `whatsapp`); a coordenada só sai da API na linha do
+tempo, e só com `trip.event-location` (`company-admin`, `operator`, `fiscal`, `viewer`) — `finance` e `separator`
+recebem `location: null` e o estado. Quem pode ler as colunas é lista fechada
+(`event-location-readers.constant.ts`, cobrada por `test/trip-schema/event-location-readers.contract.ts`): leitor
+novo entra ali ou reprova. ⚠️ O localização-pelo-WhatsApp só chega ao banco depois de subir os pacotes
+`meta-whatsapp-*` (a `0.1.0` descarta `messages[].location`). Detalhe: docs/ai-context/api-transportada.md
+§ "Spec 196".

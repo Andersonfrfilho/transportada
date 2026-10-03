@@ -409,11 +409,18 @@ do usuário. A API não é revertida com a app nova no ar.
   > ⚠️ **O código está pronto e nada subiu.** O preview da T6.3 com coordenada sintética e o ok do
   > usuário são pré-requisito de push, pela regra do `web.md` §15.
 
-- [ ] **T6.3** Preview no painel local, com a API local desta árvore e uma viagem cujos eventos foram
+- [x] **T6.3** Preview no painel local, com a API local desta árvore e uma viagem cujos eventos foram
       gravados **pelas rotas do motorista** (curl com token de motorista, ou a app apontada para a API
       local) — nunca `INSERT` cru —, com **coordenadas sintéticas** (um ponto de teste, não uma
       posição real). Mostrar os estados do RF10, o mapa expandido e a visão do `finance` (estado sem
       coordenada). Aceite: prints em 1280 e 375 px em `prints/` e o **ok do usuário** antes de subir.
+
+  > Fechada em 2026-10-02 (`3630dccfd`), **com API dublada** — o login real do painel redireciona para a origem
+  > fixa do `.env` (53000, que é de outra árvore), então a viagem não foi gravada pelas rotas do motorista contra
+  > o banco; essa metade está nas integrações da T3.5 e T4.2. Prints em `prints/196-linha-do-tempo-*`
+  > (1280/375 × escuro/claro). ⚠️ **O ok do usuário nos prints continua pendente** e segue sendo pré-requisito
+  > do push 3. Detalhe: `evidence.md` § "T6.3 / T7.1".
+
 - [x] **T6.4** O validador do painel passa a **exigir** `location` e `locationState` (a API já as
       manda desde o push 2). Aceite: contrato da T4.0 ajustado (item sem as chaves falha); `check`
       verde.
@@ -431,7 +438,7 @@ do usuário. A API não é revertida com a app nova no ar.
 
 > 🤖 Modelo: `sonnet` (revisão final com `code-reviewer` em `opus`)
 
-- [ ] **T7.1** Revisão de design (`web.md` §15) contra a própria página:
+- [x] **T7.1** Revisão de design (`web.md` §15) contra a própria página:
   - a linha de posição comparada com a linha de autoria e com o "ver foto" da spec 180 (fonte, cor
     secundária, espaçamento, ícone);
   - o mapa expandido comparado com a foto expandida;
@@ -440,7 +447,11 @@ do usuário. A API não é revertida com a app nova no ar.
 
   Divergência consertada na mesma task. Aceite: prints finais em `prints/` e o ok do usuário.
 
-- [ ] **T7.2** Documentação viva:
+  > Fechada em `3630dccfd`: três divergências consertadas (fonte do botão de posição, altura do botão do
+  > mapa no detalhe, vírgula decimal no km), medidas por `getBoundingClientRect` e estilo computado.
+  > ⚠️ O ok do usuário nos prints segue pendente. Detalhe: `evidence.md`.
+
+- [x] **T7.2** Documentação viva:
   - `CLAUDE.md` da API, do worker, do painel e da app do motorista (parágrafo de posição de cada um);
   - `docs/SECURITY.md`: retenção lista as cinco tabelas e o `location_state`; a permissão
     `trip.event-location`; o que o host do mapa base vê;
@@ -450,7 +461,11 @@ do usuário. A API não é revertida com a app nova no ar.
 
   Aceite: `bun run format:check` verde.
 
-- [ ] **T7.3** Auditoria (`code-standart.md` §15 e `security.md`):
+  > Fechada. A nota de emenda na 158 já existia (`spec.md` linhas 36 e 171); o resto foi escrito. Os trechos
+  > "migration ainda não publicada" da 196 foram corrigidos e o limite dos pacotes `meta-whatsapp-*` `0.1.0`
+  > foi registrado como decisão pendente do usuário. `format:check` verde.
+
+- [x] **T7.3** Auditoria (`code-standart.md` §15 e `security.md`):
   - coordenada em nenhum log (grep em `logger.`/`console.` dos arquivos tocados, e na API de
     demonstração);
   - nenhuma resposta fora da tabela do D7 com posição;
@@ -460,6 +475,10 @@ do usuário. A API não é revertida com a app nova no ar.
   - onde `VITE_MAP_TILES_URL` aponta em staging e produção e se o host guarda log de acesso.
 
   Aceite: achados em `evidence.md` e, se houver, em `docs/SECURITY.md`.
+
+  > Fechada. Saídas literais em `evidence.md` § "T7.3". Achados em `docs/SECURITY.md` (2026-10-02): o expurgo
+  > nasce **desligado** e a retenção de 90 dias não está em vigor; a origem do mapa base e o log de acesso
+  > dele não são verificáveis pelo repositório (pendência explícita).
 
 - [ ] **T7.4** Gate completo e push 3: `make check`, `make migration-test`, os dois comandos da API,
       `make worker-integration`, `make smoke`. Publicação só com rebase limpo sobre `origin/staging`
