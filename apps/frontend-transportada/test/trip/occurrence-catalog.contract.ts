@@ -9,6 +9,10 @@ import trip from '../../src/modules/trip/locales/trip.locale.json'
 import { TRIP_OCCURRENCE_STAGE } from '../../src/modules/trip/shared/occurrence.constant'
 
 const CONSTANT = new URL('../../src/modules/trip/shared/occurrence.constant.ts', import.meta.url)
+const PRODUCT_SELECT = new URL(
+  '../../src/modules/trip/components/OccurrenceProductSelect.component.tsx',
+  import.meta.url,
+)
 const PANEL = new URL(
   '../../src/modules/trip/components/TripOccurrences.component.tsx',
   import.meta.url,
@@ -48,8 +52,8 @@ describe('os tipos de ocorrência vêm do cadastro (spec 079)', () => {
 
   /** O item é opcional, e "a nota inteira" é o padrão — recusa total não tem item a apontar. */
   it('a nota inteira é a primeira escolha do item', () => {
-    const panel = readFileSync(PANEL, 'utf8')
-    const opcoes = panel.slice(panel.indexOf("t('occurrence.product')"))
+    const panel = readFileSync(PRODUCT_SELECT, 'utf8')
+    const opcoes = panel.slice(panel.indexOf("t('occurrence.wholeDocument')"))
 
     expect(opcoes.indexOf('occurrence.wholeDocument')).toBeLessThan(opcoes.indexOf('products.map'))
     expect(trip.occurrence.wholeDocument.toLowerCase()).toInclude('nota inteira')

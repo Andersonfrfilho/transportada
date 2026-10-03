@@ -21,20 +21,37 @@ const COMPONENT = new URL(
   import.meta.url,
 )
 const SOURCE = readFileSync(COMPONENT, 'utf8')
+const QUANTITIES_SOURCE = readFileSync(
+  new URL(
+    '../../src/modules/trip/components/OccurrenceItemQuantities.component.tsx',
+    import.meta.url,
+  ),
+  'utf8',
+)
+const PRODUCT_SELECT_SOURCE = readFileSync(
+  new URL(
+    '../../src/modules/trip/components/OccurrenceProductSelect.component.tsx',
+    import.meta.url,
+  ),
+  'utf8',
+)
 
 describe('spec 166: campo de quantidade por item em TripOccurrences', () => {
   it('o número sai do primitivo Select para a unidade, nunca de um <select> cru', () => {
-    expect(SOURCE).not.toMatch(/<select[\s>]/u)
+    for (const source of [SOURCE, QUANTITIES_SOURCE, PRODUCT_SELECT_SOURCE]) {
+      expect(source).not.toMatch(/<select[\s>]/u)
+    }
     /**
      * Spec 172 RF2: as opções deixaram de ser a lista fixa `OCCURRENCE_QUANTITY_UNITS` — nascem
      * por item, com a unidade comercial da nota daquele item na frente do par unit/box.
      */
-    expect(SOURCE).toContain('resolveOccurrenceItemQuantityUnitOptions(commercialUnit).map')
+    expect(QUANTITIES_SOURCE).toContain('resolveOccurrenceItemQuantityUnitOptions(commercialUnit)')
+    expect(QUANTITIES_SOURCE).toContain('units.map')
   })
 
   it('o campo de item vira Select único quando o tipo não aceita vários (RF8)', () => {
     expect(SOURCE).toContain('allowsMultipleItems')
-    expect(SOURCE).toMatch(/allowsMultipleItems\s*\?\s*\(\s*<MultiSelect/u)
+    expect(PRODUCT_SELECT_SOURCE).toMatch(/allowsMultipleItems\s*\?\s*\(\s*<MultiSelect/u)
   })
 
   it('trocar de tipo para item único substitui a seleção em vez de somar', () => {
@@ -61,8 +78,8 @@ describe('spec 166: campo de quantidade por item em TripOccurrences', () => {
 
   /** Spec 172 RF2/CA02: o campo nasce marcado na unidade daquele item na nota, não numa escolha. */
   it('a unidade nasce na unidade comercial daquele item na nota', () => {
-    expect(SOURCE).toContain('resolveOccurrenceItemDefaultQuantityUnit')
-    expect(SOURCE).toContain('commercialUnitOf')
+    expect(QUANTITIES_SOURCE).toContain('resolveOccurrenceItemDefaultQuantityUnit')
+    expect(QUANTITIES_SOURCE).toContain('commercialUnitOf')
   })
 
   it('os textos novos existem nos dois locales', () => {
