@@ -1570,3 +1570,22 @@ sem campo novo.
   a lista vazia.
 - **Verde depois:** actions + botão `28 pass, 0 fail`; formulário/erros/diálogo `24 pass, 0 fail`;
   `bun run typecheck` limpo.
+
+## T6.5 — `occurrence.cancelled` fecha `openUntil` (decisão c; **etapa 2, API**)
+
+`resolveTimings` (`apps/api-transportada/src/trips/domain/occurrence-timeline.policy.ts`): `openUntil` é o
+mais cedo entre o terminal da tratativa (`cancelled`/`closed`/`returned_to_warehouse`) e o evento
+`occurrence.cancelled`. Só leitura; `driverReleasedAt` não muda.
+
+- **Vermelho antes** (`bun --env-file=../../.env.test test ./test/trip-occurrence/timeline.contract.ts`):
+  `13 pass, 1 fail` ("o cancelamento da ocorrência fecha o relógio no instante dele").
+- **Verde depois:** `14 pass, 0 fail`. Integração
+  (`trip-occurrence-correction-read.integration.ts`, o cenário da cancelada e o da ocorrência comum): o
+  `openUntil` da cancelada é o `cancelledAt` do detalhe e o da comum é `null`.
+- `cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000` (contrato completo):
+  **8901 pass, 23 skip, 0 fail** (193 arquivos).
+- Integração (`bun --env-file=../../.env.test test --timeout 120000 ./test/integration/<arquivo>`, um por vez,
+  Postgres local em 65432 do `.env.test`, nenhum pulado): `trip-occurrence-correction-read` 7 pass,
+  `trip-occurrence-correction` 7, `trip-occurrence-detail` 6, `trip-occurrence-timeline` 3,
+  `trip-occurrence-feed-document` 6, `trip-occurrence-feed-case` 2, `trip-occurrence-case` 4 — todos 0 fail, 0 skip.
+- `docs/ai-context/api-transportada.md` § Spec 235 atualizada.

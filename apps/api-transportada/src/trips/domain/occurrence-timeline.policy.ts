@@ -45,7 +45,8 @@ export type OccurrenceTimelineEvent = OccurrenceTimelineSource & {
 
 /**
  * Os três tempos do topo, como instantes — a tela conta a duração com o relógio dela, e o tempo de
- * ocorrência aberta segue correndo sem nova leitura. `openUntil` nulo é ocorrência ainda aberta.
+ * ocorrência aberta segue correndo sem nova leitura. `openUntil` nulo é ocorrência ainda aberta;
+ * terminal da tratativa e cancelamento da ocorrência (spec 235) fecham o relógio.
  */
 export type OccurrenceTimelineTimings = {
   readonly contractorAskedAt: null | string
@@ -137,14 +138,20 @@ function resolveTimings(sources: readonly OccurrenceTimelineSource[]): Occurrenc
             !NON_REPLY_INTERPRETATIONS.has(source.interpretation ?? ''),
         )
 
+  const closedAt = [
+    transitions.find((source) => CLOSING_STATUSES.has(source.toStatus)),
+    sources.find((source) => source.kind === 'occurrence.cancelled'),
+  ]
+    .flatMap((source) => (source === undefined ? [] : [source.occurredAt]))
+    .sort((left, right) => Date.parse(left) - Date.parse(right))[0]
+
   return {
     contractorAskedAt: asked?.occurredAt ?? null,
     contractorRepliedAt: replied?.occurredAt ?? null,
     driverReleasedAt:
       transitions.find((source) => RELEASING_STATUSES.has(source.toStatus))?.occurredAt ?? null,
     openSince: recorded?.occurredAt ?? null,
-    openUntil:
-      transitions.find((source) => CLOSING_STATUSES.has(source.toStatus))?.occurredAt ?? null,
+    openUntil: closedAt ?? null,
   }
 }
 

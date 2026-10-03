@@ -111,7 +111,7 @@ itens ou tipo; relógio `openUntil` fecha no cancelamento.
 - [x] **T6.3** (decisão a) O formulário aceita lista vazia; o histórico mostra "a nota inteira".
 - [x] **T6.4** (decisão b) Critério de Corrigir por itens ou tipo — **parte do tipo parada**: não há
       sinal de tipo sem campo novo na API (relato em `evidence.md`).
-- [ ] **T6.5** (decisão c) `occurrence.cancelled` fecha `openUntil` (API, entra na etapa 2).
+- [x] **T6.5** (decisão c) `occurrence.cancelled` fecha `openUntil` (API, entra na etapa 2).
 - [ ] **T6.6** BAIXOS da revisão, um commit (itens 1, 2, 3, 4, 6, 7, 8, 10; o 5 é aceito; o 9 é prova
       por leitura de código, em `evidence.md`).
 - [ ] **T6.7** Gates finais e índice.
