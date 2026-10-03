@@ -80,6 +80,23 @@ describe('botão Corrigir no detalhe da ocorrência (spec 235 T2.1)', () => {
     expect(markup).toContain('Cancelar ocorrência')
   })
 
+  test('sem itens, mas já corrigida (nota inteira), Corrigir segue e Cancelar também', () => {
+    const markup = render(
+      buildOccurrenceDetailFixture({
+        corrections: [
+          {
+            correctedAt: '2026-10-02T10:00:00.000Z',
+            correctedByName: 'Operador de teste',
+            previousItems: [{ code: '696', quantity: '1.000', unit: 'box' }],
+          },
+        ],
+        items: [],
+      }),
+    )
+    expect(markup).toContain('Corrigir')
+    expect(markup).toContain('Cancelar ocorrência')
+  })
+
   test('ocorrência de parada não tem Corrigir: as rotas da 167 são da ocorrência de nota', () => {
     expect(render(buildOccurrenceDetailFixture({ source: 'stop' }))).toBe('')
   })

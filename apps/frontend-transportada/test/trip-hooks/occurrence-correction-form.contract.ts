@@ -71,6 +71,7 @@ describe('formulário de correção da ocorrência (spec 235 T2.2, CA01)', () =>
     expect(calls).toHaveLength(1)
     expect(calls[0]?.items).toEqual([])
     await waitFor(() => expect(listedItems()).toEqual([]))
+    expect(buttonByText('Corrigir')).toBeDefined()
     rendered.unmount()
   })
 

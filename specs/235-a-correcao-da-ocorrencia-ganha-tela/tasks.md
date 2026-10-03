@@ -107,9 +107,9 @@ itens ou tipo; relógio `openUntil` fecha no cancelamento.
       `evidence.md`: 1º o painel (aceita as chaves novas e `null` em `cancelledByName`/
       `correctedByName`), esperar o deploy e o `autoUpdate` do PWA; 2º a API (ADR-0081 §9).
       Lista de commits por etapa e o contrato do painel contra a API anterior.
-- [ ] **T6.2** Corrigir e cancelar também invalidam a lista de ocorrências da nota.
-- [ ] **T6.3** (decisão a) O formulário aceita lista vazia; o histórico mostra "a nota inteira".
-- [ ] **T6.4** (decisão b) Critério de Corrigir por itens ou tipo — **parte do tipo parada**: não há
+- [x] **T6.2** Corrigir e cancelar também invalidam a lista de ocorrências da nota.
+- [x] **T6.3** (decisão a) O formulário aceita lista vazia; o histórico mostra "a nota inteira".
+- [x] **T6.4** (decisão b) Critério de Corrigir por itens ou tipo — **parte do tipo parada**: não há
       sinal de tipo sem campo novo na API (relato em `evidence.md`).
 - [ ] **T6.5** (decisão c) `occurrence.cancelled` fecha `openUntil` (API, entra na etapa 2).
 - [ ] **T6.6** BAIXOS da revisão, um commit (itens 1, 2, 3, 4, 6, 7, 8, 10; o 5 é aceito; o 9 é prova

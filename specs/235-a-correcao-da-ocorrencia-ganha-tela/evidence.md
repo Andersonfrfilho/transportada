@@ -1539,3 +1539,34 @@ vazia. O que faltava era (i) um contrato que prendesse isso e (ii) o histórico,
   manda `items: []` e o detalhe fica sem itens — `3 pass, 0 fail`. Esse teste **nunca esteve vermelho**
   para a parte do envio (o formulário já mandava `[]`); a parte que ficava vermelha — Corrigir sumir depois
   de salvar a nota inteira — é da T6.4.
+
+## T6.4 — Critério de Corrigir por itens ou tipo (decisão b)
+
+**Parte do tipo: parada, sem inventar regra.** A decisão pede "Corrigir existe quando a ocorrência tem itens
+OU quando o tipo carrega itens". Procurado o sinal de tipo que o detalhe/feed publicam ou que o registro usa:
+
+| Onde                                                             | O que existe                                                                                                   | Serve?                                                                                             |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Detalhe e feed (`TripOccurrenceDetail`/`TripOccurrenceFeedItem`) | só `stage` (`separation`/`delivery`) e `typeName` (texto renomeável); **nem o id do tipo**                     | não: grupo e nome não dizem se carrega itens                                                       |
+| `company_occurrence_types` (`trip.schema.ts`)                    | `allows_multiple_items`, `leaves_document_behind`, `attachment_mode`, `redelivery_policy`, `flow`, `stop_kind` | não: `allows_multiple_items` é "um ou vários", não "carrega itens"; nenhuma coluna diz "sem itens" |
+| Registro (`TripOccurrences.component.tsx`)                       | o seletor de produtos aparece para **todo** tipo de nota, com "A nota inteira" como escolha                    | não: o registro não distingue tipos com e sem itens                                                |
+| Catálogo (`occurrence-type-catalog.constant.ts`)                 | só "segunda via do boleto"; "prorrogação" não existe                                                           | não há tipo sem itens para testar                                                                  |
+
+Distinguir "avaria sem itens gravados (WhatsApp, nota inteira)" de "prorrogação/segunda via sem itens" exige
+um campo novo na API (flag no tipo e id do tipo no detalhe), o que a regra da spec proíbe (só leitura de coluna
+que já existe). **Parte parada; relatada ao usuário.** Efeito hoje: ocorrência de nota **sem itens gravados e
+nunca corrigida** (a avaria registrada sobre a nota inteira, a do WhatsApp) continua só com Cancelar.
+
+**O que a decisão (a) já obriga e foi feito:** "Corrigir continua disponível depois" de salvar a nota inteira.
+`resolveOccurrenceCorrectionActions` ganhou `wasCorrected` (`corrections.length > 0`): Corrigir existe com
+itens **ou** se a ocorrência já foi corrigida; some só sem itens e sem correção. Sinal já publicado (RF9),
+sem campo novo.
+
+- Contratos: `occurrence-correction-actions.contract.ts` (sem itens e corrigida: Corrigir segue; com itens,
+  com ou sem correção antes), `occurrence-correction-button.contract.tsx` (idem no botão) e
+  `occurrence-correction-form.contract.ts` (depois de salvar a nota inteira, o botão Corrigir continua;
+  o duplo do servidor passou a registrar a correção).
+- **Vermelho antes:** `actions` `18 pass, 1 fail`; formulário `BUTTON_NOT_FOUND:Corrigir` depois de salvar
+  a lista vazia.
+- **Verde depois:** actions + botão `28 pass, 0 fail`; formulário/erros/diálogo `24 pass, 0 fail`;
+  `bun run typecheck` limpo.

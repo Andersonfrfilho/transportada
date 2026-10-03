@@ -35,6 +35,7 @@ const FREE: OccurrenceCorrectionActionsInput = {
   hasItems: true,
   isCancelled: false,
   permissions: [TRIP_MANAGE_PERMISSION],
+  wasCorrected: false,
 }
 
 function withCase(
@@ -77,6 +78,27 @@ describe('Corrigir e Cancelar: quando agem e o texto de quando não podem (spec 
       cancel: { availability: 'enabled' },
       correct: { availability: 'hidden' },
     })
+  })
+
+  test('sem itens, mas já corrigida (nota inteira escolhida na correção): Corrigir continua', () => {
+    expect(
+      resolveOccurrenceCorrectionActions(
+        { ...FREE, hasItems: false, wasCorrected: true },
+        translate,
+      ),
+    ).toEqual({
+      cancel: { availability: 'enabled' },
+      correct: { availability: 'enabled' },
+    })
+  })
+
+  test('com itens, Corrigir existe haja ou não correção antes', () => {
+    for (const wasCorrected of [false, true]) {
+      expect(
+        resolveOccurrenceCorrectionActions({ ...FREE, hasItems: true, wasCorrected }, translate)
+          .correct,
+      ).toEqual({ availability: 'enabled' })
+    }
   })
 
   test('sem itens e com tratativa aberta: Corrigir segue ausente e Cancelar explica', () => {
