@@ -681,3 +681,88 @@ $ bunx prettier --check .
 Checking formatting...
 All matched files use Prettier code style!
 ```
+
+## T4.4 e a parte de design da T4.5 — aba Localização × painel do Comprovante
+
+Medido no navegador por `apps/frontend-transportada/test/spec-239-prints.smoke.spec.ts` (`getBoundingClientRect` e
+`getComputedStyle`, cor composta sobre o fundo, esperando a transição de 150 ms terminar), com a API dublada, nos
+quatro pares 1280 escuro, 1280 claro, 375 escuro, 375 claro (375 com ponteiro de toque). Comando:
+`PLAYWRIGHT_FRONTEND_PORT=53231 PLAYWRIGHT_API_PORT=53232 PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true PLAYWRIGHT_TEST_MATCH=spec-239-prints.smoke.spec.ts bun run smoke`
+→ `16 passed`. As 44 PNGs estão em `prints/` (`spec-239-<estado>-<largura>-<tema>.png`): desligado, confirmação
+contando, confirmação, aguardando carência, ligado, prazo inválido, gravando, erro de gravação, carregando, erro de
+leitura, sem permissão.
+
+### Elemento × equivalente do Comprovante (valor medido)
+
+| Elemento                   | Comprovante                                                    | Localização                                               | Resultado                    |
+| -------------------------- | -------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------- |
+| Campo, altura              | 48 px                                                          | 48 px                                                     | igual                        |
+| Campo, borda / raio        | 1 px, 32% do slate / 0                                         | 1 px, 32% do slate / 0                                    | igual                        |
+| Campo, fundo / cor / fonte | asfalto 62% / fog / Avenir Next 14,4 px                        | idem                                                      | igual                        |
+| Campo, padding             | 12 px                                                          | 12 px                                                     | igual                        |
+| Campo, foco                | contorno sólido 2 px cobre (global `:focus-visible`)           | idem                                                      | igual                        |
+| Rótulo do campo            | Avenir Next 12,8 px, 400, `slate-muted`, sem caixa alta        | idem                                                      | igual                        |
+| Título (`h3`) e dica       | 15,2 px 700 / 12,8 px 400, `slate-muted`                       | idem                                                      | igual                        |
+| Cartão (painel)            | borda 1 px 18%, fundo graphite 82%, padding 20, gap 16, raio 0 | idem                                                      | igual                        |
+| Botão primário `sm`        | 38,39 px (1280) / 44 px (375 toque), padding 8×12, 13,33 px    | "Ligar o apagamento": idem                                | igual                        |
+| Botão secundário `sm`      | (o Comprovante não tem secundário)                             | 38,39 px (1280) / 44 px (375 toque)                       | igual ao primário            |
+| Botão que apaga (diálogo)  | —                                                              | 44 px (o overlay do diálogo fixa `--touch-target`)        | igual aos diálogos do módulo |
+| Campo inválido             | borda **sem mudança** (antes)                                  | borda `--color-alert` (255,95,87 escuro; 194,56,47 claro) | **corrigido nos dois**       |
+| Campo desabilitado         | idêntico ao normal (antes)                                     | opacidade 0,5, cursor `not-allowed`                       | **corrigido nos dois**       |
+| Erro de campo              | `aria-describedby` ligado ao aviso                             | ligado (antes não estava)                                 | **corrigido**                |
+
+### Divergências achadas e corrigidas na tarefa
+
+1. **Diálogo sem descrição acessível** — `aria-describedby` ausente; leitor de tela anunciava só o título. Agora aponta
+   para o parágrafo "Com o prazo de N dias…". Contrato: `toHaveAccessibleDescription`. Mutação (tirar o atributo) reprova.
+2. **Dois botões "Cancelar" no diálogo** — o "X" e o rodapé tinham o mesmo nome acessível. O "X" agora é "Fechar"
+   (`locationRetention.confirm.close`, pt-BR e en). Contrato: ordem de tab `Fechar → Cancelar → Ligar e apagar N pontos →
+Fechar`. Mutação (voltar para `cancel`) reprova.
+3. **Campo inválido e campo desabilitado invisíveis** — `aria-invalid` e `disabled` renderizavam como o campo normal. Regras
+   novas em `.fieldGrid input[aria-invalid='true']` (borda de alerta) e `.fieldGrid input:disabled` (opacidade 0,5, igual
+   ao botão desabilitado). São seletores compartilhados: o painel do Comprovante também passou a pintar o estado
+   (efeito colateral deliberado, medido). Mutação de cada regra reprova o smoke.
+4. **Erro de faixa sem ligação com o campo** — o aviso agora tem `id` e o campo `aria-describedby` (como o Comprovante).
+5. **Esqueleto fora de forma** — o painel era três barras coladas, sem rótulo; o diálogo, duas barras coladas que liam
+   como uma lousa. Agora o painel repete a forma (estado, rótulo + campo de 48 px, fileira de dois botões compactos) e o
+   diálogo tem uma linha por grupo (4) com a altura da linha real (`min-height: var(--control-height-compact)` na linha da
+   contagem, o que a deixa uniforme). Contrato: alturas do esqueleto `[16, 16, 48, compacto, compacto]` e linhas do diálogo
+   iguais às reais. Mutação (tirar a barra do rótulo) reprova.
+
+### Contraste (razão mínima entre os quatro pares de viewport e tema; piso 4,5:1)
+
+| Estado                                                              | Elemento                                                                                | Mínimo medido                   |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------- |
+| Desligado                                                           | título, rótulo, dica, estado (`slate-muted`)                                            | 5,66 (claro)                    |
+| Desligado                                                           | campo (texto sobre fundo)                                                               | 13,01                           |
+| Desligado                                                           | "Ligar o apagamento" (cobre)                                                            | 4,94 (claro)                    |
+| Confirmação                                                         | título 12,92 · LGPD e carência 5,27 · linha e número da contagem 13,34 · Cancelar 11,92 | 5,27                            |
+| Confirmação                                                         | "Ligar e apagar N pontos" (alerta sobre secundário)                                     | 4,87 (escuro)                   |
+| Aguardando carência/ligado                                          | estado em verde (`--color-ready`)                                                       | 4,71 (claro)                    |
+| Aguardando carência/ligado                                          | "Desligar o apagamento" 12,96 · "Voltar ao padrão" 11,82                                | 11,82                           |
+| Prazo inválido / erro de gravação / erro de leitura / sem permissão | aviso em cobre (`--color-alert` do módulo)                                              | 4,91 (claro)                    |
+| Gravando                                                            | aviso "Gravando"                                                                        | 5,66                            |
+| Desabilitado                                                        | "Salvar prazo" 3,01 · "Ligar e apagar…" (contando) 2,13 · campo 2,92 · botão 3,01       | isento (WCAG 1.4.3), registrado |
+
+Todo estado habilitado ≥ 4,5. O desabilitado fica abaixo porque o primitivo `Button` usa `opacity: 0.5` em toda a
+aplicação; o campo agora segue o mesmo critério.
+
+### Pendências declaradas
+
+- **Desabilitado < 4,5:1** em botão (`.ui-button:disabled { opacity: 0.5 }`) e, agora, em campo: decisão do design system, não
+  deste painel; WCAG isenta controle inativo.
+- **Verde do estado "Ligado" a 4,71:1 no tema claro** passa, mas é o acento (`--color-ready`) usado como texto; o
+  `--color-ready-ink` (selo) é mais firme. `settingsStatusOn` é compartilhado com a leitura do canhoto — mudar é decisão do
+  módulo, não desta tarefa.
+- **"Aguardando a carência" usa o mesmo verde de "Ligado"**, embora nada seja apagado ainda — decisão de produto sobre tom
+  (neutro ou aviso) para o usuário.
+- **"Gravando" empurra o texto jurídico para baixo** (a linha nasce no fluxo). Sem reserva de altura, igual aos vizinhos.
+- **Folha do diálogo no celular** deixa vazio sob o rodapé (o rodapé é sticky no fim do conteúdo, não da janela), igual aos
+  demais diálogos do módulo.
+- **Rótulo em mono**: o rótulo do campo no Comprovante, e portanto aqui, é Avenir Next 12,8 px, não mono; o mono
+  (`--font-utility`) vive nos selos e cabeçalhos. Mantido em paridade.
+- **T4.5 segue aberta**: falta o ok do usuário sobre os prints e a revisão final do código com `code-reviewer` em `opus`.
+
+Gates (`apps/frontend-transportada`): `bun run typecheck` limpo; `bun run lint` 0 erros, 16 avisos pré-existentes
+(`react-hooks/exhaustive-deps` em outros módulos); `bun run test` 6682 pass / 0 fail + 415 pass / 0 fail (hooks); raiz
+`bun run format:check`: "All matched files use Prettier code style!".

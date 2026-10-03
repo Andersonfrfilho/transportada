@@ -87,7 +87,7 @@ latitude IS NOT NULL`; `rollback.sql` que recusa com linha; asserção de rollba
       `apps/frontend-transportada/CLAUDE.md` § "Configuração perto do efeito",
       `docs/ai-context/worker-transportada.md`.
 - [x] **T4.3** Prettier nos `.md` tocados (`format:check` da raiz cobre `specs/`).
-- [ ] **T4.4** Smoke de prints `test/spec-239-prints.smoke.spec.ts` (1280 e 375 px: desligado,
+- [x] **T4.4** Smoke de prints `test/spec-239-prints.smoke.spec.ts` (1280 e 375 px: desligado,
       confirmação, aguardando carência, sem permissão), com a API de demonstração.
 - [ ] **T4.5** **Revisão de design e usabilidade** (web.md §15): comparar com o painel do Comprovante
       (campo, botão, cartão, selo, estados de foco/desabilitado), contraste nos estados, print enviado ao
