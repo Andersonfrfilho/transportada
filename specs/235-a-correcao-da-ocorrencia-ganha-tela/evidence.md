@@ -1013,3 +1013,38 @@ bun run --cwd apps/frontend-transportada test   # 6486 pass, 0 fail (32 arquivos
 bun run typecheck                               # limpo
 cd apps/frontend-transportada && bun run lint   # 0 erros, 16 avisos preexistentes
 ```
+
+## T2.2 — O formulário de correção
+
+`TripOccurrenceCorrectionForm.component.tsx`, aberto por Corrigir (`OccurrenceCorrectionActions`).
+**Reaproveitamento sem duplicar:** o seletor de itens e o campo de quantidade/unidade que moravam
+dentro de `TripOccurrences` (o registro) foram extraídos para `OccurrenceProductSelect.component.tsx` e
+`OccurrenceItemQuantities.component.tsx`, e o registro passou a consumi-los — mesmas chaves de locale
+(`occurrence.*`), mesmo JSX, mesmo comportamento. O tipo `OccurrenceQuantitiesByCode` entrou em
+`occurrenceProductSelection.service.ts`. Única diferença de comportamento, aditiva: o campo de
+unidade acrescenta à frente a unidade que a ocorrência já gravou quando ela não está nas opções (a
+`CX30` legada da Fase 0, divergência 7) — no registro isso nunca acontece, porque a unidade sempre
+sai das opções.
+
+Pré-preenchimento e corpo em funções puras: `resolveOccurrenceItemSelectionFromDetail` (itens do
+detalhe → códigos + mapa de quantidade/unidade, unidade legada preservada) e
+`buildOccurrenceCorrectionItems` (`{ code }` sem contagem, `{ code, quantity, unit }` com — nunca
+`quantity` sem `unit`). A tela envia o **conjunto inteiro** por `useCorrectOccurrenceItems` e não
+decide se algo mudou. Os itens da nota vêm de `useOccurrenceDocumentProducts`
+(`readTripDocumentProducts`, a mesma leitura do registro). Sucesso fecha o formulário; a invalidação do
+`onSettled` (T1.4) recarrega o detalhe.
+
+Contratos: `test/trip-hooks/occurrence-correction-form.contract.ts` (DOM, API dublada, **CA01**:
+reabre com `3.000`, edita para `4`, salva e a chamada leva
+`[{ code: '696', quantity: '4', unit: 'box' }, { code: '697' }]` com `tripId`/`documentId`/`occurrenceId`;
+o detalhe da API dublada passa a listar `696:4`; Descartar fecha sem chamar a API) e
+`test/trip/occurrence-correction-items.contract.ts` (as duas funções puras, e que registro e correção
+usam os dois componentes sem `<MultiSelect` próprio). Os contratos de parede
+`occurrence-catalog.contract.ts` e `occurrence-item-quantity-field.contract.ts` liam o fonte de
+`TripOccurrences` e passaram a ler os componentes extraídos, com as mesmas asserções.
+
+```bash
+bun run --cwd apps/frontend-transportada test   # 6489 pass, 0 fail (32 arquivos); test:hooks 333 pass, 0 fail
+bun run typecheck                               # limpo (raiz, 7 apps)
+cd apps/frontend-transportada && bun run lint   # 0 erros, 16 avisos preexistentes
+```

@@ -9,6 +9,7 @@ import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelD
 import { resolveOccurrenceCorrectionActions } from '../shared/tripOccurrenceDetail.service'
 import type { TripOccurrenceDetail } from '../shared/tripOccurrenceFeed.service'
 import styles from '../styles/trip.module.css'
+import { TripOccurrenceCorrectionForm } from './TripOccurrenceCorrectionForm.component'
 
 export type OccurrenceCorrectionActionsProps = Readonly<{
   occurrence: TripOccurrenceDetail
@@ -36,13 +37,18 @@ export function OccurrenceCorrectionActions({
     },
     t as Translate,
   )
-  if (correct.availability === 'hidden') return null
+  const tripDocumentId = occurrence.document?.tripDocumentId ?? null
+  if (correct.availability === 'hidden' || tripDocumentId === null) return null
 
   const isDisabled = correct.availability === 'disabled'
 
   function handleCorrectClick(): void {
     if (isDisabled) return
     setIsCorrecting(true)
+  }
+
+  function handleCorrectionClose(): void {
+    setIsCorrecting(false)
   }
 
   return (
@@ -65,6 +71,15 @@ export function OccurrenceCorrectionActions({
         <p className={styles.hint} id={reasonId}>
           {correct.reason}
         </p>
+      ) : null}
+      {isCorrecting ? (
+        <TripOccurrenceCorrectionForm
+          documentId={tripDocumentId}
+          items={occurrence.items}
+          occurrenceId={occurrence.id}
+          onClose={handleCorrectionClose}
+          tripId={occurrence.tripId}
+        />
       ) : null}
     </div>
   )

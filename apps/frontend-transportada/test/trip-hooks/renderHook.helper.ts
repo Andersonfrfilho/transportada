@@ -7,6 +7,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, createElement } from 'react'
 import { createRoot } from 'react-dom/client'
+import type { ReactElement } from 'react'
 
 import { QUERY_CLIENT_DEFAULT_OPTIONS } from '@/modules/shared/queryClientDefaults.constant'
 
@@ -46,6 +47,30 @@ export async function renderHook<TResult>(useHook: () => TResult): Promise<Rende
       if (!('current' in rendered)) throw new Error('HOOK_NOT_RENDERED')
       return rendered.current
     },
+    unmount: () => {
+      act(() => root.unmount())
+      container.remove()
+      queryClient.clear()
+    },
+  }
+}
+
+export type RenderedComponent = Readonly<{ queryClient: QueryClient; unmount: () => void }>
+
+/** Monta um componente sob um `QueryClient` novo — para contratos que clicam, não só leem um hook. */
+export async function renderWithQueryClient(element: ReactElement): Promise<RenderedComponent> {
+  const queryClient = new QueryClient({
+    defaultOptions: { ...QUERY_CLIENT_DEFAULT_OPTIONS, mutations: { retry: false } },
+  })
+  const container = document.createElement('div')
+  document.body.append(container)
+  const root = createRoot(container)
+  await act(async () => {
+    root.render(createElement(QueryClientProvider, { client: queryClient }, element))
+    await Promise.resolve()
+  })
+  return {
+    queryClient,
     unmount: () => {
       act(() => root.unmount())
       container.remove()
