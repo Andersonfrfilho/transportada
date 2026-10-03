@@ -159,3 +159,82 @@ passava); corrigido com `finally`, e as duas reprovam em ~2,5 s.
 compartilhada com outras sessões; no lugar rodou o mesmo `db:test` que ele chama, contra o Postgres do
 `.env.test`). `test:integration` da API (a task não toca `test/integration/**`). Tempo real do
 `CREATE INDEX` em produção/staging (tamanho das tabelas não medido).
+
+## T1.3 — Contrato HTTP antes (vermelho registrado)
+
+`test/companies/location-retention-settings.contract.ts` (entrypoint `test/companies.contract.test.ts`),
+commit `5b970a406`, escrito **antes** de qualquer arquivo de `src/`. Saída literal do vermelho:
+
+```text
+bun test v1.3.14 (0d9b296a)
+test/companies.contract.test.ts:
+# Unhandled error between tests
+error: Cannot find module '../../src/companies/application/location-retention-settings.use-case.js' ...
+ 0 pass
+ 1 fail
+ 1 error
+```
+
+## T1.4 — Repositório, use cases, rotas e integração
+
+**Rotas** (todas `settings.manage`, escopo `company`; `companyId` só de `context.scope`):
+
+| Método | Caminho                                                       | Resposta                                                                             |
+| ------ | ------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| GET    | `/company-settings/location-retention`                        | `200 { data: { purgeEnabled, retentionDays, purgeEffectiveAt, origin, updatedAt } }` |
+| PUT    | `/company-settings/location-retention`                        | `200`, mesmo formato; corpo `{ purgeEnabled, retentionDays }` `.strict()`            |
+| DELETE | `/company-settings/location-retention`                        | `204`, idempotente                                                                   |
+| GET    | `/company-settings/location-retention/impact?retentionDays=N` | `200 { data: { byTable: [{ kind, count, capped }] } }`                               |
+
+Sem rate limit por rota: nenhuma rota de `company-settings` declara `rateLimit` (a convenção de
+`test/rate-limited-routes.contract.test.ts` cobre só rotas de e-mail e anônimas).
+
+**Decisões de implementação:** a carência é calculada **dentro** da transação, sobre a linha lida com
+`FOR UPDATE` (a política pura `resolvePurgeEffectiveAt` não muda). `metadata.affectedEstimate` é recontado
+no servidor ao ligar (o corpo do `PUT` é `.strict()` e não traz número do cliente). A contagem de impacto
+mora em arquivo próprio (`drizzle-location-retention-impact.query.ts`) porque o contrato
+`event-location-readers` proíbe `select()`/`returning()` crus em arquivo que toca as cinco tabelas.
+
+**Mutações (contrato unitário, `test/companies.contract.test.ts`):**
+
+| Mutação                                         | Resultado |
+| ----------------------------------------------- | --------- |
+| M1 schema sem `.strict()`                       | 2 fail    |
+| M2 piso do prazo 29                             | 2 fail    |
+| M3 padrão sem linha com 60 dias                 | 2 fail    |
+| M4 permissão `settings.read` nas rotas          | 1 fail    |
+| M5 `impact` com empresa fixa em vez do contexto | 2 fail    |
+| M6 IP lido de `x-forwarded-for` cru             | 2 fail    |
+| M7 `impact` espalha a entrada do repositório    | 1 fail    |
+| M8 `GET`/`PUT` espalham o objeto do repositório | 1 fail    |
+| M9 estimativa calculada também ao desligar      | 1 fail    |
+| M10 teto `>=` em vez de `>`                     | 1 fail    |
+| M11 query de impacto aceita chave desconhecida  | 1 fail    |
+| M12 `DELETE` responde 200                       | 2 fail    |
+| M13 contagem sem `LIMIT cap+1`                  | 1 fail    |
+| M14 auditoria fora da transação (fonte)         | 1 fail    |
+| M15 `PUT` com empresa que não é a do contexto   | 3 fail    |
+
+**Mutações (integração Postgres, `test/integration/location-retention-settings.integration.ts`):**
+
+| Mutação                                              | Resultado                                                                                                            |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| I1 `previous` sempre nulo (carência sempre reaberta) | 1 fail                                                                                                               |
+| I2 auditoria fora da transação                       | **sobreviveu** à falha no audit (a exceção desfaz tudo igual); morta pelo teste novo "falha depois do audit": 1 fail |
+| I3 contagem sem filtro de empresa                    | 1 fail                                                                                                               |
+| I4 `DELETE` sem auditoria                            | 2 fail                                                                                                               |
+| I5 auditoria sem IP                                  | 2 fail                                                                                                               |
+| I6 `DELETE` sem empresa no `where`                   | 2 fail                                                                                                               |
+| I7 corte de tempo ignorado na contagem               | 1 fail                                                                                                               |
+
+**Gates (apps/api-transportada, primeiro plano):**
+
+- `bun run typecheck` -> sem saída de erro. `bun run lint` -> sem saída de erro.
+- `bun run db:generate --name x` -> `{"status":"no_changes","dialect":"postgresql"}`.
+- `bun --env-file=../../.env.test test --timeout 120000` -> 9256 pass / 24 skip / 0 fail, 195 arquivos.
+- `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/location-retention-settings.integration.ts` -> 6 pass / 0 fail (Postgres 65432).
+
+**Não verificado:** `403` pelo roteador de verdade (provado pela política declarada nas quatro rotas, que
+o roteador aplica; nenhuma rota de configuração tem teste de roteador completo); `EXPLAIN` da contagem
+(a T2.2 mede a junção do worker); integração completa da API (fica para o gate final da fase);
+`make migration-test`.

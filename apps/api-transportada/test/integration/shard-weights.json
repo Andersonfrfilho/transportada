@@ -53,6 +53,7 @@
   "./test/integration/identity-subject-relink.integration.ts": 5,
   "./test/integration/invitation-status-join.integration.ts": 2,
   "./test/integration/local-identity-seed.integration.ts": 5,
+  "./test/integration/location-retention-settings.integration.ts": 14,
   "./test/integration/mdfe-document.integration.ts": 12,
   "./test/integration/me-location-consent.integration.ts": 13,
   "./test/integration/me-trip-departure.integration.ts": 31,

@@ -26,10 +26,10 @@
 latitude IS NOT NULL`; `rollback.sql` que recusa com linha; asserção de rollback;
       `make migration-test`; `db:generate` = `no_changes`. Conferir colisão de timestamp/snapshot com
       `origin/staging`.
-- [ ] **T1.3** Contrato HTTP **antes** (CA1–CA5): `GET` padrão, `PUT` válido/inválido (29, 91, string,
+- [x] **T1.3** Contrato HTTP **antes** (CA1–CA5): `GET` padrão, `PUT` válido/inválido (29, 91, string,
       decimal, chave a mais), `DELETE` 204, `impact` com teto, `403` sem `settings.manage`, nenhuma
       coordenada/id/data na resposta.
-- [ ] **T1.4** Repositório, use cases, rotas, Zod `.strict()`, montagem no `main.ts`; auditoria **na
+- [x] **T1.4** Repositório, use cases, rotas, Zod `.strict()`, montagem no `main.ts`; auditoria **na
       transação** (D4) com IP em `metadata`. Integração contra Postgres
       (`bun --env-file=../../.env.test run test:integration`, arquivo novo na lista do `package.json`):
       gravação + `audit_logs` na mesma transação (falha simulada no audit desfaz a gravação), isolamento

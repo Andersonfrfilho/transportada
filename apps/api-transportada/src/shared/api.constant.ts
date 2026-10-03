@@ -54,6 +54,9 @@ export const API_COMPANY_SETTINGS_ENERGY_PATH = '/company-settings/energy'
 export const API_COMPANY_SETTINGS_FEDERAL_TAXES_PATH = '/company-settings/federal-taxes'
 /** Spec 143 D3: o valor geral de diária que a empresa paga sem valor combinado com o motorista. */
 export const API_COMPANY_SETTINGS_DRIVER_ALLOWANCE_PATH = '/company-settings/driver-allowance'
+export const API_COMPANY_SETTINGS_LOCATION_RETENTION_PATH = '/company-settings/location-retention'
+export const API_COMPANY_SETTINGS_LOCATION_RETENTION_IMPACT_PATH =
+  '/company-settings/location-retention/impact'
 /** Spec 169 RF1: cadastro de espécie de lançamento (gasto/receita), por empresa. */
 export const API_COMPANY_SETTINGS_ENTRY_KINDS_PATH = '/company-settings/entry-kinds'
 /** Spec 149: a diária geral do ajudante — a própria da ficha do motorista vence quando existe. */

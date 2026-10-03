@@ -2438,3 +2438,24 @@ sem linha, ou com `is_enabled = false`, o contratante segue o fluxo de hoje.
   `value`, `weightKg` (Zod) e mapa não nulo (CHECK). O agregado `Contractor` não mudou.
 - Contratos: `test/cargo-receiving*.contract.test.ts`; integração
   `test/integration/contractor-receiving-profile.integration.ts`.
+
+## Spec 239 — a configuração do expurgo da posição (T1.3/T1.4)
+
+Quatro rotas sob `settings.manage` (nenhuma permissão nova), em `companies/{application,domain,infrastructure,presentation}`:
+
+- `GET /company-settings/location-retention` -> `{ data: { purgeEnabled, retentionDays, purgeEffectiveAt,
+origin, updatedAt } }`; sem linha é `200` com desligado, 90 dias, `origin: 'default'` (nunca `404`).
+- `PUT` (corpo `{ purgeEnabled, retentionDays }`, Zod `.strict()`, inteiro 30–90) e `DELETE` (`204`,
+  idempotente; sem linha não audita). A carência de 24 h é `resolvePurgeEffectiveAt` com o relógio
+  injetado no use case (`now: () => new Date()` em `main.ts`).
+- `GET .../impact?retentionDays=N` -> `{ data: { byTable: [{ kind, count, capped }] } }`, `kind` estável
+  (`stop_event`, `delivery_proof`, `status_event`, `stop_occurrence`, `document_occurrence`). Uma consulta
+  por tabela (`drizzle-location-retention-impact.query.ts`), só a empresa do contexto, `LIMIT 100001`
+  pelo índice parcial `(company_id, tempo) where latitude is not null`.
+
+Auditoria (D4): `drizzle-location-retention-settings.repository.ts` lê a linha com `FOR UPDATE`, calcula a
+carência, grava e insere em `audit_logs` na **mesma transação** (ator, empresa-alvo, antes/depois, IP e
+`affectedEstimate` em `metadata`; nenhuma coordenada). `affectedEstimate` é recontado no servidor ao
+ligar/alongar (não vem do cliente). Sem rate limit por rota: nenhuma rota de `company-settings` o tem.
+Provas: `test/companies/location-retention-settings.contract.ts` e
+`test/integration/location-retention-settings.integration.ts`.

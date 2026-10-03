@@ -629,6 +629,11 @@ state)`, nunca `(company_id, city)` — a mesma cidade pode estar em duas rotas.
   `federal-tax-settings`: sem linha é `200` com `rateOrigin: 'default'` e `R$200,00`, nunca `404`;
   `PUT` faz upsert por `companyId` (nunca insert-then-update) e audita em `auditLogs`; `DELETE` é
   idempotente. Mesma permissão `settings.manage`, nunca uma nova.
+- **`GET/PUT/DELETE /company-settings/location-retention` e `GET .../impact?retentionDays=N`** (spec 239)
+  ligam o expurgo da posição por empresa: mesmo molde da diária (sem linha é `200` desligado/90 dias,
+  `origin: 'default'`), `settings.manage`, Zod `.strict()` 30–90. `PUT`/`DELETE` gravam `audit_logs`
+  **na mesma transação** (IP pelo `resolveClientIp`); a carência de 24 h vem de `resolvePurgeEffectiveAt`.
+  `impact` é uma consulta por tabela com teto de 100 mil. Detalhe em `docs/ai-context/api-transportada.md`.
 - **O custo do motorista é `diária × dias`, não mais zona/rota/tabela** (spec 143, ADR-0066): a
   diária resolve em cascata `motorista → empresa → padrão`
   (`resolveDailyAllowance`, `DEFAULT_DAILY_ALLOWANCE_AMOUNT = '200.0000'`); `days` vem de

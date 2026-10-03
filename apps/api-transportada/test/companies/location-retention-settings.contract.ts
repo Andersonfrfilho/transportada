@@ -85,7 +85,11 @@ const LEAKY_STORED = {
 
 const IMPACT: readonly LocationRetentionImpactEntry[] = [
   { capped: false, count: 3, kind: LOCATION_RETENTION_IMPACT_KIND.stopEvent },
-  { capped: true, count: LOCATION_RETENTION_IMPACT_CAP, kind: LOCATION_RETENTION_IMPACT_KIND.deliveryProof },
+  {
+    capped: true,
+    count: LOCATION_RETENTION_IMPACT_CAP,
+    kind: LOCATION_RETENTION_IMPACT_KIND.deliveryProof,
+  },
   { capped: false, count: 0, kind: LOCATION_RETENTION_IMPACT_KIND.statusEvent },
   { capped: false, count: 5, kind: LOCATION_RETENTION_IMPACT_KIND.stopOccurrence },
   { capped: false, count: 1, kind: LOCATION_RETENTION_IMPACT_KIND.documentOccurrence },
@@ -387,7 +391,11 @@ describe('location retention settings: routes (spec 239 RF1-RF4, CA1-CA5)', () =
 
   test('PUT hands the audit the estimate the screen showed: server-side, summed, capped flag', async () => {
     const enabling = fakePort(null)
-    await callRoute({ body: { purgeEnabled: true, retentionDays: 30 }, method: 'PUT', port: enabling.port })
+    await callRoute({
+      body: { purgeEnabled: true, retentionDays: 30 },
+      method: 'PUT',
+      port: enabling.port,
+    })
     expect(enabling.calls.find((call) => call.name === 'countImpact')?.input).toEqual({
       companyId: COMPANY_ID,
       now: NOW,
@@ -398,7 +406,11 @@ describe('location retention settings: routes (spec 239 RF1-RF4, CA1-CA5)', () =
     })
 
     const disabling = fakePort(STORED)
-    await callRoute({ body: { purgeEnabled: false, retentionDays: 30 }, method: 'PUT', port: disabling.port })
+    await callRoute({
+      body: { purgeEnabled: false, retentionDays: 30 },
+      method: 'PUT',
+      port: disabling.port,
+    })
     expect(disabling.calls.some((call) => call.name === 'countImpact')).toBe(false)
     expect(disabling.calls.find((call) => call.name === 'save')?.input).toMatchObject({
       affectedEstimate: null,
@@ -443,7 +455,9 @@ describe('location retention settings: routes (spec 239 RF1-RF4, CA1-CA5)', () =
 
   test('impact refuses a bad retentionDays before touching the port', async () => {
     const { calls, port } = fakePort(null)
-    const failure = await rejection(() => callRoute({ method: 'GET', port, query: '?retentionDays=91' }))
+    const failure = await rejection(() =>
+      callRoute({ method: 'GET', port, query: '?retentionDays=91' }),
+    )
 
     expect(failure.status).toBe(400)
     expect(calls).toEqual([])
@@ -506,19 +520,30 @@ describe('location retention settings: wiring (spec 239 D4)', () => {
     expect(routes).not.toMatch(/x-forwarded-for|x-real-ip|cf-connecting-ip/i)
   })
 
-  test('every repository statement is scoped by company and the audit shares the transaction', () => {
-    const repository = readFileSync(
-      new URL(
-        '../../src/companies/infrastructure/drizzle-location-retention-settings.repository.ts',
-        import.meta.url,
-      ),
+  function readInfrastructure(file: string): string {
+    return readFileSync(
+      new URL(`../../src/companies/infrastructure/${file}`, import.meta.url),
       'utf8',
     )
-    const wheres = repository.match(/\.where\(\s*and\([^;]*?\)\s*\)|\.where\([^)]*\)/g) ?? []
+  }
+
+  test('every settings statement is scoped by company and the audit shares the transaction', () => {
+    const repository = readInfrastructure('drizzle-location-retention-settings.repository.ts')
+    const wheres = repository.match(/\.where\([^)]*\)/g) ?? []
 
     expect(wheres.length).toBeGreaterThanOrEqual(3)
-    for (const where of wheres) expect(where).toMatch(/\.companyId/)
+    for (const where of wheres)
+      expect(where).toContain('companyLocationRetentionSettings.companyId')
+    expect(repository).toContain('target: companyLocationRetentionSettings.companyId')
     expect(repository).toContain('transaction.insert(auditLogs)')
     expect(repository).not.toContain('this.database.insert(auditLogs)')
+  })
+
+  test('the impact query filters each of the five tables by the context company, with the cap', () => {
+    const query = readInfrastructure('drizzle-location-retention-impact.query.ts')
+
+    expect(query).toContain('eq(source.table.companyId, input.companyId)')
+    expect(query).toContain('.limit(LOCATION_RETENTION_IMPACT_CAP + 1)')
+    expect(query.match(/table: trip[A-Za-z]+,/g)?.length).toBe(5)
   })
 })

@@ -99,8 +99,16 @@ import {
   createGetDriverAllowanceSettingsUseCase,
   createSetDriverAllowanceSettingsUseCase,
 } from './companies/application/driver-allowance-settings.use-case.js'
+import {
+  createClearLocationRetentionSettingsUseCase,
+  createGetLocationRetentionSettingsUseCase,
+  createReadLocationRetentionImpactUseCase,
+  createSaveLocationRetentionSettingsUseCase,
+} from './companies/application/location-retention-settings.use-case.js'
 import { DrizzleDriverAllowanceSettingsRepository } from './companies/infrastructure/drizzle-driver-allowance-settings.repository.js'
+import { DrizzleLocationRetentionSettingsRepository } from './companies/infrastructure/drizzle-location-retention-settings.repository.js'
 import { createDriverAllowanceSettingsRoutes } from './companies/presentation/driver-allowance-settings.routes.js'
+import { createLocationRetentionSettingsRoutes } from './companies/presentation/location-retention-settings.routes.js'
 import { DrizzleCompanyFiscalEnvironmentRepository } from './companies/infrastructure/drizzle-company-fiscal-environment.repository.js'
 import { DrizzleScheduledDistributionRepository } from './companies/infrastructure/drizzle-scheduled-distribution.repository.js'
 import { DrizzleScheduledDistributionStatusRepository } from './companies/infrastructure/drizzle-scheduled-distribution-status.repository.js'
@@ -2028,6 +2036,10 @@ function createApplicationRoutes({
   const distributionCursorRepository = new DrizzleDistributionCursorRepository(database)
   const federalTaxSettingsRepository = new DrizzleFederalTaxSettingsRepository(database)
   const driverAllowanceSettingsRepository = new DrizzleDriverAllowanceSettingsRepository(database)
+  const locationRetentionDependencies = {
+    now: () => new Date(),
+    settings: new DrizzleLocationRetentionSettingsRepository(database),
+  }
   const cargoSettingsRepository = new DrizzleCargoSettingsRepository(database)
   const cargoVolumeFactorRepository = new DrizzleCargoVolumeFactorRepository(database)
   const fuelPriceRepository = new DrizzleFuelPriceRepository(database)
@@ -2861,6 +2873,13 @@ function createApplicationRoutes({
       }),
       get: createGetDriverAllowanceSettingsUseCase({ settings: driverAllowanceSettingsRepository }),
       set: createSetDriverAllowanceSettingsUseCase({ settings: driverAllowanceSettingsRepository }),
+    }),
+    ...createLocationRetentionSettingsRoutes({
+      clear: createClearLocationRetentionSettingsUseCase(locationRetentionDependencies),
+      get: createGetLocationRetentionSettingsUseCase(locationRetentionDependencies),
+      impact: createReadLocationRetentionImpactUseCase(locationRetentionDependencies),
+      resolveClientIp,
+      save: createSaveLocationRetentionSettingsUseCase(locationRetentionDependencies),
     }),
     ...createCompanyLogoRoutes({
       companyLogo: createCompanyLogoUseCase({ repository: companyLogoRepository }),
