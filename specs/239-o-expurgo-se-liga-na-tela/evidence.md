@@ -387,3 +387,15 @@ Repetido em `plan.md` § "Riscos de execução".
 | B2     | `countLocationRetentionImpact` usa `Promise.all` de cinco consultas (cinco conexões do pool por chamada); `allSettled`/sequencial fica para a Fase 2, junto da medição.                    |
 | B4     | O repositório lança `Error` cru (`..._UPSERT_RETURNED_NOTHING`) em vez de erro de domínio tipado; só dispara com `returning()` vazio, estado que não deve existir.                         |
 | B10    | Contratos de texto (`readFileSync` do fonte) em `location-retention-settings.contract.ts` seguem o padrão do repositório, mas não provam comportamento; trocar por comportamento onde der. |
+
+## Fase 2 — Worker
+
+### T2.0 — Parecer do architect aplicado (docs)
+
+Correções 1–10 do parecer (`arch-239-t22`) aplicadas: D2 na forma `UPDATE` único com `CROSS JOIN LATERAL`
+(sem `FOR UPDATE SKIP LOCKED`; `FOR UPDATE OF x` se um dia houver); D1 com os cinco índices
+`*_company_located_*` e os antigos só por tempo sem leitor; tabela ausente = ciclo falha inteiro; CA6 com as
+empresas A–E nas cinco tabelas e cinco mutações; Gate A no D3, no plano e na T4.6; Gate B nos riscos, no
+plano e na T4.6; risco de encurtar suspender a empresa por 24 h; arquivo de integração
+`test/trip-location-purge.integration.test.ts`; lista de contratos do worker no plano; T2.1 detalhada.
+Prettier nos `.md`.

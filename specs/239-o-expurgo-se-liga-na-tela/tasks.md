@@ -40,11 +40,18 @@ latitude IS NOT NULL`; `rollback.sql` que recusa com linha; asserção de rollba
 
 > 🤖 Modelo: `sonnet` (T2.2 é 🧠 — validar o desenho da junção com `architect` em `opus` antes)
 
+- [x] **T2.0** Correções 1–10 do parecer do architect aplicadas à spec/plan/tasks (docs).
 - [ ] **T2.1** Contrato de paridade **antes** (CA7): a cópia do worker tem `company_id` nas cinco tabelas e
-      a tabela nova com as colunas que lê.
-- [ ] **T2.2** 🧠 Redatores com `innerJoin` por empresa e corte por `retention_days` (D2); port
-      `{ now, limit }`; `CountEligibleCompanies`. Integração com três empresas (CA6: A ligada vencida,
-      B desligada, C em carência) e relógio injetado; `EXPLAIN` registrado em `evidence.md`.
+      a tabela nova com as colunas que lê. `schema-parity.contract.ts`: estender a regex `COLUMN_LINE` a
+      `boolean`/`integer`, contagem `toBe(24)` → 29, as três tabelas da 196 no segundo teste, parser por
+      assinatura para a tabela nova (sem `updated_by_user_id`, sem `.default(...)`), mutação tirando
+      `companyId` de uma cópia; `stamped-tables.contract.ts`: o bloco de cada tabela carimbada na API tem
+      `companyId: uuid('company_id').notNull()` e `buildEventLocationCompanyIndex`/`_company_located_`.
+- [ ] **T2.2** 🧠 Redatores com `UPDATE` único `CROSS JOIN LATERAL` por empresa e corte por
+      `retention_days` (D2); port `{ now, limit }`; `CountEligibleCompanies` no mesmo `now`. Integração com
+      cinco empresas A–E nas cinco tabelas (CA6) e relógio injetado, cinco mutações;
+      `EXPLAIN` (`SET LOCAL enable_seqscan = off`) conferindo o nome `*_company_located_*` e `company_id` no
+      `Index Cond`, e `EXPLAIN` sem toggle no volume possível, registrados em `evidence.md`.
       `make worker-integration`.
 - [ ] **T2.3** Remover `TRIP_LOCATION_PURGE_ENABLED` (D3, CA9): schema de ambiente, tipo, `main.ts`,
       `.env.example`, rotina; `disabled-switch.contract.ts` vira "sem empresa elegível" (CA8) contando
@@ -82,7 +89,9 @@ latitude IS NOT NULL`; `rollback.sql` que recusa com linha; asserção de rollba
       (campo, botão, cartão, selo, estados de foco/desabilitado), contraste nos estados, print enviado ao
       usuário e **ok dele** antes de publicar. Revisão final do código com `code-reviewer` em `opus`.
 - [ ] **T4.6** Publicar em staging na ordem do plano (API+migration → worker → painel), gates verdes,
-      deploy confirmado. Produção só com aprovação humana.
+      deploy confirmado. Produção só com aprovação humana. **Gate A:** `TRIP_LOCATION_PURGE_ENABLED` não é
+      `true` em nenhum worker. **Gate B:** pushes separados (worker antes do painel) ou worker confirmado
+      no ar antes de alguém ligar.
 
 ## Prompt de execução
 

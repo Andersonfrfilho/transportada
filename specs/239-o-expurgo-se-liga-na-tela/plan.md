@@ -4,10 +4,12 @@
 
 1. **Banco e API primeiro** (tabela, índices, rotas). Gravar configuração que ninguém lê é inócuo: o
    worker velho continua desligado pela variável.
-2. **Worker depois**, lendo a tabela pela junção. Contra o banco sem a tabela, ele falha seguro (`42P01`
-   em cada redator → `failedTables`, nada apagado).
+2. **Worker depois**, lendo a tabela pela junção. Contra o banco sem a tabela, ele falha seguro (a
+   contagem de elegíveis lança `42P01` e o ciclo falha inteiro, nada apagado).
 3. **Painel por último**, só com o worker novo no ar — senão a tela diria "ligado" para um worker que
-   ainda obedece à variável.
+   ainda obedece à variável. **Gate B:** o job do painel não espera o worker (`deploy.yml:266-289`);
+   pushes separados (worker antes do painel) ou confirmar o worker no ar antes de alguém ligar.
+   **Gate A:** antes do deploy, `TRIP_LOCATION_PURGE_ENABLED` não pode estar `true` em nenhum worker.
 
 ## API (`apps/api-transportada`)
 
@@ -45,20 +47,25 @@ Por tabela: `select count(*) from (select 1 from <t> where company_id = $c and l
 
 - `src/database/company-location-retention-settings.schema.ts` (cópia por valor) e `companyId` nas cinco
   tabelas de `src/database/trip-execution.schema.ts`; o contrato de paridade cobre as duas.
-- `drizzle-trip-location.repository.ts`: os cinco redatores passam a fazer a seleção com `innerJoin` na
-  tabela de configuração e o corte por `make_interval(days => retention_days)`, recebendo `now` em vez
-  de `before`. O `UPDATE ... WHERE id IN` não muda.
+- `drizzle-trip-location.repository.ts`: os cinco redatores viram um `UPDATE` único com
+  `CROSS JOIN LATERAL` (forma da spec D2) e o corte por `make_interval(days => s.retention_days)`,
+  recebendo `now` em vez de `before`, com `$now::timestamptz` (cópia worker de `timestamptzParameter`,
+  em `src/database/`). Sem `FOR UPDATE SKIP LOCKED`.
 - Port (`trip-location.port.ts`): `{ before, limit }` → `{ now, limit }`.
-- Novo port `CountEligibleCompanies` (uma consulta: `count(*)` de configurações ligadas e vigentes),
-  para o desvio `trip_location_purge_disabled` (RF6) e o contador `companies` do log (RF7).
+- Novo port `CountEligibleCompanies` (uma consulta: `count(*)::int` de configurações ligadas e vigentes,
+  com o **mesmo `now`** dos redatores), para o desvio `trip_location_purge_disabled` (RF6) e o contador
+  `companies` do log (RF7). Ordem do ciclo: `purgeStalePings` → contagem → redatores.
 - Rotina: sai `enabled`; o desvio passa a ser "elegíveis = 0". `resolveRetentionCutoff` e
   `TRIP_LOCATION_RETENTION_DAYS` saem (o prazo vem da linha); o limite 30–90 fica **só** no banco e na
   API — o worker obedece ao que está gravado, e o CHECK garante o intervalo.
 - `config/environment.schema.ts`, `shared/worker.types.ts`, `main.ts`, `.env.example`: sai
   `TRIP_LOCATION_PURGE_ENABLED`.
-- Testes: `test/trip-location-purge/*.contract.ts` (o `disabled-switch.contract.ts` vira
-  "sem empresa elegível"), `test/integration/trip-location-purge*.integration.ts` com três empresas
-  (CA6), `make worker-integration`.
+- Testes: `test/trip-location-purge/*.contract.ts` — `disabled-switch.contract.ts` (vira "sem empresa
+  elegível" contando chamadas e "chave sobrando é ignorada"), `purge.contract.ts` (sai
+  `resolveRetentionCutoff`/`before`), `stale-pings.contract.ts:60` (compara 36 h com o piso de 30 dias),
+  `batch-ceiling` e `table-isolation` (perdem `enabled: true`), `schema-parity` e `stamped-tables`;
+  integração em `test/trip-location-purge.integration.test.ts` (já está no `test:integration`) com cinco
+  empresas nas cinco tabelas (CA6) e `EXPLAIN`; `make worker-integration`.
 
 ## Painel (`apps/frontend-transportada`)
 

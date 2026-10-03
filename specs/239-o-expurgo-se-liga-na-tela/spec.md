@@ -75,24 +75,54 @@ worker lê a configuração a cada ciclo e expurga cada empresa pelo prazo dela,
   A mesma migration cria o índice parcial `(company_id, <coluna de tempo>) WHERE latitude IS NOT NULL`
   nas cinco tabelas (desde a `20261002153258_occurrence_location_stamp` as **cinco** têm índice parcial, mas **só por
   tempo**, `<tabela>_located_<tempo>_idx`; nenhuma tem `company_id` na frente, então os cinco novos
-  acrescentam a empresa e não duplicam nenhum existente).
+  — `<tabela>_company_located_<tempo>_idx`, via `buildEventLocationCompanyIndex` — acrescentam a empresa
+  e não duplicam nenhum existente). Depois da T2.2 os cinco índices antigos só por tempo ficam sem leitor
+  (candidatos a `DROP` em follow-up; **não** nesta spec).
 
-- **D2 — O worker lê a configuração na própria varredura, por junção, sem laço por empresa.** Cada lote
-  de cada tabela vira uma consulta só:
-  `SELECT t.id FROM <tabela> t JOIN company_location_retention_settings s ON s.company_id = t.company_id
-WHERE s.purge_enabled AND s.purge_effective_at <= $now AND t.latitude IS NOT NULL
-AND t.<tempo> < $now - make_interval(days => s.retention_days) LIMIT 500`, seguida do `UPDATE ... WHERE
-id IN (...)` de hoje (`drizzle-trip-location.repository.ts:42-69`). O isolamento de tenant é a própria
-  junção: cada linha só é comparada com o prazo **da sua** empresa, e empresa sem linha de configuração
-  não entra (junção interna). Sem N+1: o número de consultas por ciclo é o mesmo de hoje (lotes × cinco
-  tabelas), independente do número de empresas. `$now` continua injetado (`routine.ts:110`), para o teste
-  de relógio. O worker ganha cópia por valor da tabela nova e do `company_id` nas cinco cópias
-  (`src/database/trip-execution.schema.ts`), vigiadas pelo contrato de paridade que já existe
-  (`test/trip-location-purge/schema-parity.contract.ts`, citado em `trip-execution.schema.ts:4-6`).
-  Precedente de leitura de configuração por empresa numa varredura sem contexto de empresa: a
-  distribuição de NF-e junta `companies` com `company_fiscal_profiles` e `company_distribution_settings`
-  numa consulta só (`apps/worker-transportada/src/nfe-distribution-pull/infrastructure/drizzle-distribution-candidate.source.ts:82-120`).
-  Aqui a junção é com a tabela de evento, porque o filtro é por linha e não por empresa.
+- **D2 — O worker lê a configuração na própria varredura, por empresa elegível, sem laço no código.** Cada
+  lote de cada tabela é **um `UPDATE` só**, com `CROSS JOIN LATERAL` sobre as empresas elegíveis (parecer do
+  architect, 2026-10-03; substitui o `JOIN ... LIMIT` + `UPDATE ... WHERE id IN` anterior):
+
+  ```sql
+  UPDATE trip_stop_events t
+  SET latitude = NULL, longitude = NULL, accuracy_meters = NULL, captured_at = NULL, location_state = 'expired'
+  WHERE t.latitude IS NOT NULL
+    AND t.id IN (
+      SELECT e.id
+      FROM company_location_retention_settings s
+      CROSS JOIN LATERAL (
+        SELECT x.id FROM trip_stop_events x
+        WHERE x.company_id = s.company_id AND x.latitude IS NOT NULL
+          AND x.created_at < $now::timestamptz - make_interval(days => s.retention_days)
+        LIMIT $limit
+      ) e
+      WHERE s.purge_enabled AND s.purge_effective_at <= $now::timestamptz
+      LIMIT $limit
+    )
+  RETURNING t.id;
+  ```
+
+  - O `LATERAL` faz o planejador entrar no índice `<tabela>_company_located_<tempo>_idx` uma vez por
+    empresa elegível, com `company_id` no `Index Cond`; o `LIMIT` interno impede que uma empresa com
+    backlog devore o lote das outras. O `t.latitude IS NOT NULL` fora da subconsulta repete o filtro por
+    idempotência.
+  - Coluna de tempo por tabela: `trip_stop_events.created_at`, `trip_status_events.recorded_at`,
+    `trip_stop_occurrences.created_at`, `trip_document_occurrences.created_at`,
+    `trip_delivery_proofs.created_at`. `captured_at` é zerado nas quatro tabelas de evento; **no
+    comprovante `captured_at` não entra no `SET`** (como hoje). `location_state = 'expired'` é obrigatório
+    (CHECK de `event-location.schema.ts`).
+  - `$now` sempre com cast `::timestamptz` (cópia, no worker, de `timestamptzParameter`, que a API tem em
+    `src/database/sql-timestamptz-parameter.support.ts`; o worker não importa da API).
+  - **Proibido `FOR UPDATE SKIP LOCKED`.** Se algum dia houver `FOR UPDATE` na subconsulta com junção, tem
+    de ser `FOR UPDATE OF x` — sem o `OF`, trava a linha de configuração e o `PUT` da tela espera.
+  - O isolamento de tenant é a própria junção: cada linha só é comparada com o prazo **da sua** empresa
+    (`x.company_id = s.company_id`), e empresa sem linha de configuração não entra. O número de consultas
+    por ciclo é o mesmo de hoje (lotes × cinco tabelas), independente do número de empresas. `$now` segue
+    injetado (`routine.ts:110`), para o teste de relógio. O worker ganha cópia por valor da tabela nova e do
+    `company_id` nas cinco cópias (`src/database/trip-execution.schema.ts`), vigiadas pelo contrato de
+    paridade que já existe (`test/trip-location-purge/schema-parity.contract.ts`).
+  - Precedente de leitura de configuração por empresa numa varredura sem contexto de empresa: a
+    distribuição de NF-e (`nfe-distribution-pull/infrastructure/drizzle-distribution-candidate.source.ts:82-120`).
 
 - **D3 — A variável `TRIP_LOCATION_PURGE_ENABLED` some.** Recomendação, com justificativa:
   - a 196 D11 a declarou **provisória** ("o interruptor é de ambiente até virar tela",
@@ -110,6 +140,9 @@ id IN (...)` de hoje (`drizzle-trip-location.repository.ts:42-69`). O isolamento
     consulta de elegíveis volta vazia (para "o expurgo parou" continuar sendo resposta, não investigação).
     `.env.example:128-130`, `docs/SECURITY.md`, `docs/ai-context/worker-transportada.md:256` e o
     `apps/worker-transportada/CLAUDE.md` § "O expurgo de posição" são atualizados na mesma task.
+  - **Gate A (antes da T4.6 / do deploy):** conferir que `TRIP_LOCATION_PURGE_ENABLED` **não** está `true`
+    no worker de nenhum ambiente. O deploy que remove a variável para o expurgo daquele ambiente em
+    silêncio — quem ligou pela variável passa a depender da tela, sem aviso.
 
 - **D4 — Permissão e auditoria: `settings.manage`, nenhuma permissão nova.** Ler e gravar exigem
   `{ permission: 'settings.manage', scope: 'company' }`, como a diária
@@ -302,7 +335,7 @@ retentionDays: 90, purgeEffectiveAt: null, origin: 'default', updatedAt: null }`
 | Contagem acima de 100 000 numa tabela                           | `capped: true`; a tela diz "mais de 100 mil".                                                                                                           |
 | Ciclo em andamento quando o admin desliga                       | O lote em voo termina (no máximo 500 linhas por tabela); o próximo lote relê a junção e para.                                                           |
 | Coluna ausente (API sem a migration, `42703`)                   | Como hoje: a tabela falha sozinha, `failedTables`, as outras seguem (`routine.ts:222-258`).                                                             |
-| Tabela de configuração ausente no worker (deploy fora de ordem) | Erro de relação (`42P01`) em todas as tabelas → nada apagado, `failedTables` com as cinco. Seguro.                                                      |
+| Tabela de configuração ausente no worker (deploy fora de ordem) | A contagem de elegíveis lança (`42P01`) fora do `try/catch` por tabela → o **ciclo falha inteiro**, nenhum redator roda, nada apagado. Seguro.          |
 | `PUT` de outra empresa forjando `companyId` no corpo            | `400` (`.strict()`); a empresa é sempre a do token.                                                                                                     |
 | Usuário sem `settings.manage`                                   | `403` nas quatro rotas; a aba segue a regra do vizinho (D7).                                                                                            |
 
@@ -314,8 +347,14 @@ retentionDays: 90, purgeEffectiveAt: null, origin: 'default', updatedAt: null }`
 - **CA3** `DELETE` volta ao padrão, devolve `204` e audita `.cleared`; sem linha, não audita.
 - **CA4** Fora de 30–90 → `400`; sem `settings.manage` → `403`; corpo com chave a mais → `400`.
 - **CA5** `impact` conta só a empresa do contexto, respeita o teto e não devolve id/data/coordenada.
-- **CA6** Integração com duas empresas (A 30 dias ligada e vencida a carência; B desligada; C ligada em
-  carência): só A perde pontos, e só os com mais de 30 dias; `expired` só em A.
+- **CA6** Integração, **nas cinco tabelas**, com relógio injetado e cinco empresas: **A** ligada, 30 dias,
+  `effective_at = NOW-1h` (eventos de 31 d / 29 d / exatamente 30 d / sem ponto → só o de 31 d cai; limite
+  estrito); **B** desligada com `effective_at = NOW-10d`, 30 dias (evento de 100 d intacto); **C** ligada,
+  30 dias, `effective_at = NOW+1h` (100 d intacto); **D** sem linha (100 d intacto); **E** ligada, 90 dias,
+  efetiva (60 d / 91 d → só o de 91 d cai). `effective_at = NOW` é elegível; `expired` só nas linhas que
+  caíram; segunda execução devolve 0. Cinco mutações reprovam: tirar `s.company_id = x.company_id`
+  (B, C, D), tirar `purge_enabled` (B), tirar `purge_effective_at <= now` (C), trocar `s.retention_days`
+  por constante (A/E), trocar `<` por `<=` (exatamente 30 d).
 - **CA7** Contrato de paridade reprova cópia do worker sem `company_id` ou sem a tabela nova.
 - **CA8** Sem empresa elegível, a rotina não chama nenhum redator das cinco tabelas e registra
   `trip_location_purge_disabled`; os pings rodam (mutação no desvio reprova).
@@ -337,10 +376,16 @@ retentionDays: 90, purgeEffectiveAt: null, origin: 'default', updatedAt: null }`
 - **Varredura com junção pode ficar lenta** em tabela grande. Mitigado pelo índice parcial
   `(company_id, tempo) WHERE latitude IS NOT NULL` nas cinco (D1) e pelo lote de 500 com teto por tabela
   que já existe. Medir `EXPLAIN` na T2.2.
+- **Encurtar o prazo com o expurgo ligado suspende a empresa por 24 h** (a carência reabre e o prazo
+  antigo também para de valer): é o efeito pretendido, mas quem encurta não vê o expurgo rodar no dia.
 - **Deploy fora de ordem.** O worker novo contra o banco sem a tabela falha seguro (nada apagado). A API
   nova com o worker velho deixa a tela gravando uma configuração que ninguém lê — e o worker velho segue
   desligado pela variável. Ordem: migration + API → worker → painel; o painel só é publicado com o
   worker novo no ar (T4.4).
+  **Gate B:** o job do painel **não espera** o worker (`deploy.yml:266-289`); num push único o painel sobe
+  em paralelo ao worker, e se `deploy-services` falhar com o painel no ar, depois de 24 h a tela diz
+  "ligado" com um worker velho que ignora a tabela. Saída: pushes separados (worker antes do painel) ou
+  confirmar o worker no ar antes de alguém ligar.
 - **Retenção suspensa continua até alguém ligar.** É o padrão pedido pelo usuário; o `docs/SECURITY.md`
   troca o achado "ligar a variável" por "ligar na tela", com a mesma ressalva.
 - **Spec 195** lê o carimbo da ocorrência para a sugestão de endereço: com 30 dias, sugestão pendente
