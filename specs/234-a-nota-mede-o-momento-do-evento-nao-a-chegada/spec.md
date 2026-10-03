@@ -49,6 +49,16 @@ Medido no código de `origin/staging`:
   (recebimento) e a entrega conta como "longe" (uma penalidade por entrega, a mesma de sempre). Decisão
   do usuário: "tira ponto pelo GPS desligado e considera o horário que enviou". Fecha o furo de forjar
   `clockOffsetMs: 0` numa entrega sem prova de lugar.
+- **D4c — GPS desligado pune, qualquer que seja o cliente** (decisão do usuário, 2026-10-02: "assimetria da
+  punição por GPS desligado pune"). Entrega **do motorista** sem posição conta como "longe" mesmo sem o
+  campo de relógio — antes, só o cliente que alegava relógio corrigido (D4b) era punido, e o antigo ficava
+  isento ("sem posição na entrega a distância não pesa", RF6). Vale só para entrega registrada pelo
+  motorista; a baixa pelo escritório (spec 223) nunca tem posição e **não** é punida. Muda a nota de quem
+  já está no campo, só para provas anexadas depois da publicação (a pontualidade é gravada no anexo).
+- **D7 — O desvio sobrevive ao aparelho sem sinal** (decisão do usuário, 2026-10-02). O último desvio medido
+  é guardado no aparelho com `measuredAt` e vale por 24 h; passado disso vale "nunca medido" (sem
+  campos). O boot offline depois de a aba ser descartada ainda manda o relógio corrigido. A API segue
+  limitando o abuso (futuro +2 min, 30 dias, posição obrigatória).
 - **D5 — O prazo de "ausente" conta da chegada da entrega.** `horas desde a entrega` passa a ser contada a
   partir de `max(momento da entrega, quando o servidor recebeu a entrega)`: se a própria entrega chegou
   tarde, o motorista estava sem sinal, e a foto vem logo atrás dela na mesma drenagem.
