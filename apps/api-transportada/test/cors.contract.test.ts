@@ -369,6 +369,32 @@ describe('API CORS contract', () => {
     }
   })
 
+  // `Date` não é cabeçalho de resposta liberado entre origens: sem isto o app do motorista não lê o
+  // relógio do servidor e a nota volta a medir a chegada (spec 234).
+  test('exposes the Date header only to the allowed origin, on actual responses', async () => {
+    const fixture = createFixture()
+    const allowed = await fixture.handle(actualRequest('/health/live'), fixture.server)
+    const disallowed = await fixture.handle(
+      new Request('http://localhost/health/live', { headers: { origin: OTHER_ORIGIN } }),
+      fixture.server,
+    )
+    const noOrigin = await fixture.handle(
+      new Request('http://localhost/health/live'),
+      fixture.server,
+    )
+
+    expect(allowed.headers.get('access-control-expose-headers')).toBe('Date')
+    expect(disallowed.headers.has('access-control-expose-headers')).toBe(false)
+    expect(noOrigin.headers.has('access-control-expose-headers')).toBe(false)
+  })
+
+  test('does not add the expose header to a preflight answer', async () => {
+    const fixture = createFixture()
+    const response = await fixture.handle(preflightRequest(), fixture.server)
+
+    expect(response.headers.has('access-control-expose-headers')).toBe(false)
+  })
+
   test.each([
     [
       401,

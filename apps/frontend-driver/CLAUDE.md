@@ -114,7 +114,8 @@ aceito. O item da fila (`QueuedReport`) e o anexo (`QueuedAttachment`) guardam o
 campos — os esquemas da API são `.strict()` e `depart`/`cancelDeparture` (já com `tappedAt` próprio),
 `dispatch`, ocorrência de nota e `proof/receiver` dariam `400`. O multipart do comprovante leva só
 `clockOffsetMs` (o `capturedAt` já é a hora do toque). Sem desvio medido, nenhum campo vai. ⚠️ O `Date` de outra
-origem só chega ao JavaScript com `Access-Control-Expose-Headers: Date` na API.
+origem só chega ao JavaScript com `Access-Control-Expose-Headers: Date`, que a API emite em
+`applyCorsHeaders` (`CORS_EXPOSE_HEADERS`, `test/cors.contract.test.ts`); sem ele o app não mede nada e não há erro.
 `test/driver-trip/clock-offset.contract.ts`, `test/driver-trip/event-clock-fields.contract.ts`, smoke em
 `driver-app.smoke.spec.ts`.
 

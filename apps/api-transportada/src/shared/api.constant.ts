@@ -200,6 +200,8 @@ export const HTTP_GET_METHOD = 'GET'
 export const HTTP_OPTIONS_METHOD = 'OPTIONS'
 export const CORS_ALLOW_HEADERS = 'Authorization'
 export const CORS_MAX_AGE_SECONDS = 300
+/** `Date` não é seguro para leitura entre origens; o app do motorista mede o relógio por ele. */
+export const CORS_EXPOSE_HEADERS = 'Date'
 export const APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES = 1_048_576
 export const SERVER_MAX_REQUEST_BODY_SIZE_BYTES = 2_097_152
 /**

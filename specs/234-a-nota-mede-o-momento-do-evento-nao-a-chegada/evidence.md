@@ -941,3 +941,17 @@ A ligação do hook, que o contrato não alcança, é provada pelo smoke (mutant
 ```text
 raiz$ bun run format:check → exit 0
 ```
+
+## T2.4b — a API expõe o `Date` entre origens (achado do smoke da Fase 2)
+
+`Date` não é cabeçalho de resposta liberado entre origens (só os "CORS-safelisted": `Cache-Control`,
+`Content-Language`, `Content-Length`, `Content-Type`, `Expires`, `Last-Modified`, `Pragma`). Sem
+`Access-Control-Expose-Headers: Date` o JavaScript do `motorista.<zona>` não lê o relógio da API, o
+app nunca mede o desvio e a nota segue medindo a chegada — **sem nenhum erro visível**. O dublê do
+smoke emitia o cabeçalho e escondia isso.
+
+- Contrato `test/cors.contract.test.ts`: resposta real à origem confiada expõe `Date`; origem não
+  confiada, ausência de `Origin` e preflight não expõem. Vermelho: `Received: null`.
+- Correção: `CORS_EXPOSE_HEADERS` em `api.constant.ts`, aplicada em `applyCorsHeaders` dentro da
+  mesma condição que já devolve `allow-origin`.
+- Mutação: expor sem checar a origem derrubou 2 testes; restaurado, 96 pass / 0 fail.
