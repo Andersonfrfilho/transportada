@@ -1977,6 +1977,11 @@
     "case": {
       "title": "Tratativa"
     },
+    "corrections": {
+      "title": "Correções",
+      "entry": "Corrigida por {{name}} em {{moment}}",
+      "nowValid": "Passou a valer:"
+    },
     "items": {
       "title": "Itens atingidos",
       "noDescription": "Item fora do cadastro da nota"

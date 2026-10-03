@@ -4670,6 +4670,24 @@ button.occurrenceCaseBadge {
   align-items: baseline;
 }
 
+.occurrenceCorrectionHistory {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.occurrenceCorrectionList {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+}
+
+.occurrenceCorrectionList p {
+  margin: 0;
+}
+
 .occurrenceItemCode {
   color: var(--color-slate);
   font-family: var(--font-utility);
