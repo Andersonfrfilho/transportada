@@ -1085,3 +1085,34 @@ bun run --cwd apps/frontend-transportada test   # 6489 pass, 0 fail (32 arquivos
 bun run typecheck                               # limpo (raiz, 7 apps)
 cd apps/frontend-transportada && bun run lint   # 0 erros, 16 avisos preexistentes
 ```
+
+## T2.4 — Mutação: a mensagem do 409 de tratativa vira a genérica
+
+Mutação aplicada em `src/modules/trip/locales/trip.locale.json`: o texto de
+`feedback.occurrenceCaseAlreadyOpen` foi trocado, nada mais, pelo de `feedback.serverRefused`
+(`git diff --stat` = 1 linha). É o que "trocar a mensagem do 409 pela genérica" quer dizer na tela: o
+código continua mapeado, mas o operador lê o texto que não diz nada sobre a tratativa.
+
+```bash
+bun run --cwd apps/frontend-transportada test
+```
+
+Execução **vermelha**: lote principal `6489 pass, 0 fail`; lote de DOM (`test:hooks`) `344 pass, 1 fail`
+(`Ran 345 tests across 1 file`) e o script sai com código 1. Trecho real:
+
+```text
+error: expect(received).toBe(expected)
+
+Expected: "A tratativa desta ocorrência já foi aberta, e ela não pode mais ser corrigida nem cancelada. Nada foi gravado; a tela foi atualizada com o estado atual."
+Received: "O servidor recusou esta operação. Nada foi gravado — tente de novo e, se repetir, avise o suporte com o horário."
+
+      at <anonymous> (.../test/trip-hooks/occurrence-correction-errors.contract.ts:99:21)
+(fail) mensagens de erro da correção, por código estável (spec 235 T2.3, CA05) > tratativa aberta (409): OCCURRENCE_CASE_ALREADY_OPEN mostra a mensagem própria, e não a genérica
+ 344 pass
+ 1 fail
+```
+
+Só o caso do código mutado cai: os outros sete e o genérico seguem verdes, que é o que se espera de
+um contrato caso a caso. Restaurado com `git checkout` do arquivo; `bun run --cwd
+apps/frontend-transportada test` voltou a **6489 pass, 0 fail** (lote principal) e **345 pass, 0 fail**
+(`test:hooks`).
