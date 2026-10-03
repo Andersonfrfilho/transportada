@@ -61,6 +61,8 @@ describe('o resultado da foto cobre a entrega sem localização (spec 234 D4d)',
     expect(t('pendingProofs.outcome.late_and_away')).toBe(
       'Recorded past the deadline and far from the location (or without the delivery location) — may have cost points on your score.',
     )
-    expect(t('profile.scoreHint')).toContain('away from the delivery location, or without it')
+    expect(t('profile.scoreHint')).toContain(
+      'away from the delivery location or without its location',
+    )
   })
 })

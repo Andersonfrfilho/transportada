@@ -557,8 +557,8 @@
     "punctuality": {
       "on_time": "On time",
       "late": "Late",
-      "away": "Away from the stop",
-      "late_and_away": "Late and away from the stop"
+      "away": "Away from the stop or no location",
+      "late_and_away": "Late and away from the stop or no location"
     },
     "receivedByOptions": {
       "recipient": "The customer",

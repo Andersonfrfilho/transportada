@@ -557,8 +557,8 @@
     "punctuality": {
       "on_time": "No horário",
       "late": "Atrasada",
-      "away": "Longe do ponto",
-      "late_and_away": "Atrasada e longe do ponto"
+      "away": "Longe do ponto ou sem localização",
+      "late_and_away": "Atrasada e longe do ponto ou sem localização"
     },
     "receivedByOptions": {
       "recipient": "O próprio cliente",

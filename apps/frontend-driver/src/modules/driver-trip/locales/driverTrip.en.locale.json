@@ -144,7 +144,7 @@
     "score": "{{score}} of 100",
     "scoreNone": "No score yet — no delivery with a required photo in the last 90 days.",
     "scoreTitle": "Your score",
-    "scoreHint": "Starts at 100. Drops when a required photo arrives late, away from the delivery location, or never arrives. Each loss expires after 90 days.",
+    "scoreHint": "Starts at 100. Drops when a required photo arrives late, away from the delivery location or without its location, or never arrives. Each loss expires after 90 days.",
     "signOutPending": {
       "cancel": "Stay",
       "discard": "Discard and sign out",
@@ -330,9 +330,9 @@
     "empty": "No pending photos. You are all caught up.",
     "open": "Pending photos",
     "outcome": {
-      "away": "Recorded far from the location — may have cost points on your score.",
+      "away": "Recorded far from the location or without the delivery location — may have cost points on your score.",
       "late": "Recorded past the deadline — may have cost points on your score.",
-      "late_and_away": "Recorded past the deadline and far from the location — may have cost points on your score.",
+      "late_and_away": "Recorded past the deadline and far from the location (or without the delivery location) — may have cost points on your score.",
       "not_required": "Recorded.",
       "on_time": "Recorded on time and on site."
     },
