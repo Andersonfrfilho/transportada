@@ -2035,6 +2035,7 @@
     "corrections": {
       "title": "Correções",
       "entry": "Corrigida por {{name}} em {{moment}}",
+      "entryUnknown": "Corrigida em {{moment}}",
       "nowValid": "Passou a valer:"
     },
     "items": {
