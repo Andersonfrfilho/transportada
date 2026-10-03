@@ -941,6 +941,8 @@
     "occurrenceItemQuantityUnitPairing": "Quantity and unit go together: fill in both or neither. Fix it and save again.",
     "occurrenceProductNotInDocument": "One of the chosen items is not in this invoice. Choose only items from the invoice and save again.",
     "occurrenceNotFound": "This occurrence was not found. Go back to the occurrence list and try again.",
+    "occurrenceCancellationReasonRequired": "Write the reason for the cancellation to confirm.",
+    "occurrenceCancellationReasonTooLong": "The cancellation reason is over 500 characters. Shorten the text and confirm again.",
     "serverRefused": "The server refused this operation. Nothing was saved — try again and, if it repeats, tell support the time.",
     "responseInvalid": "The API responded in an unexpected format.",
     "routeUnavailable": "The route planner did not return a new route right now. The previous route still applies — try again shortly.",
@@ -2050,6 +2052,15 @@
       "driver": "Driver"
     },
     "correction": {
+      "cancel": {
+        "button": "Cancel occurrence",
+        "title": "Cancel this occurrence",
+        "hint": "The occurrence stays listed, marked as cancelled, with the reason and your name; it stops counting as active.",
+        "reasonLabel": "Cancellation reason",
+        "confirm": "Confirm cancellation",
+        "dismiss": "Back",
+        "close": "Close"
+      },
       "correct": "Correct",
       "form": {
         "title": "Correct the occurrence items",
