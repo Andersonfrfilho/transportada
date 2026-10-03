@@ -238,7 +238,8 @@ export type OccurrenceCorrection = Readonly<{
 /** Spec 167 RF6: a ocorrência cancelada continua visível — com motivo e autor, nunca apagada. */
 export type OccurrenceCancellation = Readonly<{
   cancelledAt: string
-  cancelledByName: string
+  /** `null` quando o vínculo de quem cancelou já não está ativo — a API publica o que lê. */
+  cancelledByName: null | string
   reason: string
 }>
 
@@ -346,6 +347,8 @@ export type TripTimelineDocumentReference = Readonly<{
 /** Spec 161 T24 (RF12): a contagem de fotos, sem URL nenhuma — quem quer ver abre a ocorrência. */
 export type TripTimelineOccurrenceReference = Readonly<{
   attachmentCount?: number
+  /** Spec 235 RF9: `null` é ativa; ausente é API anterior ao campo e o adaptador a lê como `null`. */
+  cancellation?: null | OccurrenceCancellation
   note: string
   typeName: string
 }>

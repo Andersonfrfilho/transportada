@@ -28,6 +28,7 @@ import {
 } from '../shared/occurrencePhotoSend.service'
 import type { TripDocumentProduct, TripOccurrence } from '../shared/trip.types'
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
+import { OccurrenceCancellationMark } from './OccurrenceCancellationMark.component'
 import { OccurrenceItemQuantities } from './OccurrenceItemQuantities.component'
 import { OccurrencePhotoPicker, type OccurrencePhoto } from './OccurrencePhotoPicker.component'
 import { OccurrenceProductSelect } from './OccurrenceProductSelect.component'
@@ -218,6 +219,10 @@ export function TripOccurrences({
                 <p className={styles.occurrenceEntryHeader}>
                   <span className={styles.occurrenceEntryType}>{occurrence.typeName}</span>
                   <span className={styles.hint}>{formatMoment(occurrence.createdAt)}</span>
+                  <OccurrenceCancellationMark
+                    cancellation={occurrence.cancellation}
+                    variant="badge"
+                  />
                 </p>
                 {/*
                  * Revisão de leitura (22/09): o código sozinho ("183") não diz o que foi avariado,

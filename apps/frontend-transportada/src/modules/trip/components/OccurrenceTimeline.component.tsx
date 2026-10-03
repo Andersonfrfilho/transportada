@@ -6,8 +6,10 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tabs } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
+import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
 import { useTripOccurrenceTimelineQuery } from '../queries/tripOccurrenceFeed.query'
+import { resolveOccurrenceCancellationMark } from '../shared/occurrenceCancellation.service'
 import {
   describeOccurrenceTimelineEvent,
   filterOccurrenceTimelineEvents,
@@ -16,6 +18,7 @@ import {
   OCCURRENCE_TIMELINE_ACTOR_TONE,
   OCCURRENCE_TIMELINE_FILTERS,
   resolveOccurrenceTimelineDurations,
+  toOccurrenceCancellation,
   type OccurrenceTimelineDuration,
   type OccurrenceTimelineEvent,
   type OccurrenceTimelineFilter,
@@ -76,6 +79,13 @@ function TimelineItem({ event }: Readonly<{ event: OccurrenceTimelineEvent }>) {
       : sentence.values
   const actor = event.actor.name ?? t(`occurrenceTimeline.actor.${event.actor.kind}`)
   const gap = formatOccurrenceGap(event.sincePreviousSeconds)
+  const cancellationMark =
+    event.kind === 'occurrence.cancelled'
+      ? resolveOccurrenceCancellationMark(toOccurrenceCancellation(event), {
+          formatMoment,
+          translate: t as Translate,
+        })
+      : null
 
   return (
     <li
@@ -106,6 +116,9 @@ function TimelineItem({ event }: Readonly<{ event: OccurrenceTimelineEvent }>) {
         {event.kind === 'case.transition' && event.note.trim() !== '' ? (
           <p className={styles.occurrenceTimelineNote}>{event.note}</p>
         ) : null}
+        {cancellationMark === null ? null : (
+          <p className={styles.occurrenceTimelineNote}>{cancellationMark.reason}</p>
+        )}
       </div>
     </li>
   )

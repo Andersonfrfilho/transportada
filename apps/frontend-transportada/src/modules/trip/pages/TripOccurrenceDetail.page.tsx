@@ -16,6 +16,7 @@ import { useMinWidth } from '@/modules/shared/useMinWidth.hook'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
+import { OccurrenceCancellationMark } from '../components/OccurrenceCancellationMark.component'
 import { OccurrenceCasePanel } from '../components/OccurrenceCasePanel.component'
 import { OccurrenceCorrectionActions } from '../components/OccurrenceCorrectionActions.component'
 import { OccurrenceCorrectionHistory } from '../components/OccurrenceCorrectionHistory.component'
@@ -505,6 +506,7 @@ export function TripOccurrenceDetailPage({ occurrenceId }: Readonly<{ occurrence
             </p>
             <OccurrenceTypeTitle occurrence={occurrence} />
             <OccurrenceAuthorship occurrence={occurrence} />
+            <OccurrenceCancellationMark cancellation={occurrence.cancellation} variant="notice" />
           </header>
           <OccurrenceDetailSections
             canManageContacts={canManageContacts}

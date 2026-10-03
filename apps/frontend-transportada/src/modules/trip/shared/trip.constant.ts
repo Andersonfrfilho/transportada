@@ -549,8 +549,11 @@ export const TRIP_TIMELINE_LOCATION_EVENT_PIN_KEY = 'timeline-event-location'
 export const TRIP_TIMELINE_STOP_REFERENCE_KEYS = ['id', 'sequence'] as const
 export const TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS = ['id', 'number', 'series'] as const
 export const TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS = ['note', 'typeName'] as const
-/** Spec 161 T24 (RF12): a contagem só existe quando a ocorrência tem foto. */
-export const TRIP_TIMELINE_OCCURRENCE_REFERENCE_OPTIONAL_KEYS = ['attachmentCount'] as const
+/** Spec 161 T24 (RF12): a contagem só existe quando a ocorrência tem foto; spec 235: `cancellation` vem sempre da API atual. */
+export const TRIP_TIMELINE_OCCURRENCE_REFERENCE_OPTIONAL_KEYS = [
+  'attachmentCount',
+  'cancellation',
+] as const
 
 export const TRIP_TIMELINE_DEFAULT_LIMIT = 100
 

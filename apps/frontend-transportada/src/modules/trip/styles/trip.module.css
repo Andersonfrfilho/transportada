@@ -4670,6 +4670,32 @@ button.occurrenceCaseBadge {
   align-items: baseline;
 }
 
+.occurrenceCancelledBadge {
+  margin-left: var(--space-2);
+  border-color: var(--color-alert);
+  color: var(--color-alert);
+}
+
+.occurrenceCancelledNotice {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-alert);
+  border-left-width: 4px;
+}
+
+.occurrenceCancelledNotice p {
+  margin: 0;
+}
+
+.occurrenceCancelledLabel {
+  color: var(--color-alert);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
 .occurrenceCorrectionHistory {
   display: grid;
   gap: var(--space-2);

@@ -2067,8 +2067,16 @@
       "caseTransition": "Case: {{status}}",
       "mailSent": "E-mailed the contracting party",
       "mailSentAutomatic": "Automatic notice sent to the contracting party",
-      "mailReceived": "The contracting party replied by e-mail"
+      "mailReceived": "The contracting party replied by e-mail",
+      "cancelled": "Occurrence cancelled"
     }
+  },
+  "occurrenceCancellation": {
+    "label": "Cancelled",
+    "authorship": "Cancelled by {{name}} on {{moment}}",
+    "authorshipUnknown": "Cancelled on {{moment}}",
+    "reason": "Reason: {{reason}}",
+    "summary": "{{authorship}}. {{reason}}"
   },
   "closeBulkDialog": {
     "closing": "Closing…",
