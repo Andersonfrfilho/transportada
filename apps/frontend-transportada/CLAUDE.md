@@ -8,7 +8,7 @@ navegação manual em `src/main.tsx` (`pushState` + `popstate` + `sessionStorage
 sem zod** — `tailwind-merge`/`clsx`/`cva` estão no `package.json` mas não são usados; `cn()` é
 reimplementado em `src/lib/utils.ts`; validação é type guard manual em `*.validation.ts`.
 
-Módulos em `src/modules/`: `billing`, `company-settings`, `cte-batch`, `cte-issuance`,
+Módulos em `src/modules/`: `billing`, `cargo-receiving`, `company-settings`, `cte-batch`, `cte-issuance`,
 `cte-profiles`, `fleet`, `foundation`, `freight`, `identity`, `mdfe-manifest`, `nfe-workspace`,
 `nfse-invoice`, `notification`, `operations`, `trip`, `shared`. `shared/` concentra client HTTP +
 validação + view-model. Um client HTTP **por módulo** (`shared/<modulo>Client.service.ts`), com
@@ -354,3 +354,35 @@ e sem workspace: texto "Sua conta acompanha viagens pelo app do motorista" + bot
 `VITE_DRIVER_APP_URL` existe). Contrato: `test/fleet/driver-crew-settings-panel.contract.tsx`,
 `test/identity/no-workspace-access-variant.contract.tsx`. Detalhe: docs/ai-context/frontend-transportada.md
 § "Spec 243 — O ajudante fecha as pontas" e ADR-0095.
+
+## Recebimento da carga e separação pelo celular (spec 237 T2.4)
+
+Módulo `cargo-receiving`, rota **`/recebimento`**, item "Recebimento" no grupo Operações — visível só com
+`fleet.read` (o mapa de `workspaceAccess.service.ts`); escrever é `trip.manage` e decide dentro da tela
+(`canManage`). Quatro telas, um módulo: `/recebimento` (lista), `/recebimento/nova` (registro),
+`/recebimento/:id/detalhe` (escritório) e **`/recebimento/:id` (o celular do separador)**. Namespace i18n
+`cargoReceiving`; guardas de resposta e erro **próprios** (nada importado de `delivery-clients`: contratante e
+perfil são lidos por projeção mínima — só `id/displayName/taxId` e `isEnabled`).
+
+- **A máquina do toque é pura** (`cargoSeparationTouch.service.ts`): esperada → recebida → separada, uma etapa
+  por vez. "Separar tudo do grupo" são **dois lotes em ordem** (`received` só para as esperadas, depois
+  `separated` para todas), porque a API só aceita `separated` a partir de `received`; a nota recusada no
+  primeiro não entra no segundo e **nunca derruba o lote**. O resultado traz o estado que cada nota tem DE FATO
+  (`TouchRun.states`) — é ele que a atualização otimista grava e que a volta restaura
+  (`useSeparationTouch.mutation.ts`: reverte só as notas do toque, e só relê a chegada quando nenhum toque está
+  em voo). O toque que cai por rede fica na linha com "Tentar de novo"; o botão de uma nota em voo fica travado.
+- **`Idempotency-Key` por tentativa** (`cargoIdempotencyKey.service.ts`): a mesma impressão do pedido (ordem das
+  notas não conta) reaproveita a chave; pedido diferente gera uma nova. Chave nova a cada render duplicaria a
+  chegada no duplo clique — é mutação provada.
+- **A recusa nomeia tudo** (`cargoReceivingRefusal.service.ts`, web.md §11): `documentIds.<n>` do 422 é a posição
+  da nota NO PEDIDO enviado (a ordem de marcação); o 409 do fechamento devolve o id de cada pendente na
+  mensagem. Cada nome é atalho (`focusCargoTarget.service.ts`, alvo por `data-field`/`data-document-id`).
+- **Seleção** limitada a 300 (`cargoDocumentSelection.service.ts`); "selecionar todas" é "as listadas" (o que a
+  busca deixou), porque a API pagina por cursor de 100.
+- **Contratos de DOM** em `test/trip-hooks/cargo-*.contract.ts` com o servidor dublado do
+  `cargoReceivingHarness.helper.ts` (aplica as MESMAS transições da API). ⚠️ O `MultiSelect`/`SearchableSelect`
+  só abrem opções dentro da suíte completa do `test:hooks` — isolados, a lista vem vazia (já era assim na T1.4).
+- O leitor de câmera é o primitivo `@/components/ui/barcode-scanner` + `extractNfeAccessKey` (o mesmo da
+  viagem): sem acoplar módulos. Fila offline do toque **não existe** (follow-up): falhou, fica na tela.
+
+Detalhe e decisões: docs/ai-context/frontend-transportada.md § "Spec 237 T2.4".

@@ -74,6 +74,24 @@ export function CargoBatchOutcomePanel({
           </ul>
         </>
       )}
+      <details>
+        <summary>{t('outcome.details')}</summary>
+        <ul className={styles.refusalList}>
+          {summary.entries.map((entry) => (
+            <li key={entry.documentId}>
+              {t('outcome.line', {
+                number: entry.number,
+                result: t(`outcome.result.${entry.outcome}`, {
+                  reason:
+                    entry.reason === undefined
+                      ? ''
+                      : t(`refusal.reasons.${entry.reason}`, { defaultValue: entry.reason }),
+                }),
+              })}
+            </li>
+          ))}
+        </ul>
+      </details>
     </section>
   )
 }

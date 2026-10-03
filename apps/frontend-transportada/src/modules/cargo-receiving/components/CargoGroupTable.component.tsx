@@ -56,6 +56,13 @@ export function CargoGroupTable({
           </span>
         </div>
       </div>
+      <p className={styles.resultCount}>
+        {t('group.stateCounts', {
+          expected: group.counts.expected,
+          received: group.counts.received,
+          separated: group.counts.separated,
+        })}
+      </p>
       <div className={tableStyles.tableScroll}>
         <table className={tableStyles.table}>
           <thead>

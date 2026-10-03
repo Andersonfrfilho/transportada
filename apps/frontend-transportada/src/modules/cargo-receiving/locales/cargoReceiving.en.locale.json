@@ -19,7 +19,8 @@
     "noRoute": "No route",
     "noCity": "No city",
     "title": "{{route}} · {{city}}",
-    "counts": "{{done}} of {{total}} separated"
+    "counts": "{{done}} of {{total}} separated",
+    "stateCounts": "Expected {{expected}} · Received {{received}} · Separated {{separated}}"
   },
   "document": {
     "number": "Invoice {{number}}",
@@ -209,7 +210,14 @@
     "refusedLead": "Refused:",
     "refusedShortcut": "Invoice {{number}}",
     "routeApplied": "Route applied to the selected invoices.",
-    "dismiss": "Dismiss the result"
+    "dismiss": "Dismiss the result",
+    "details": "See each invoice's result",
+    "line": "Invoice {{number}} — {{result}}",
+    "result": {
+      "changed": "changed",
+      "unchanged": "unchanged",
+      "refused": "refused: {{reason}}"
+    }
   },
   "separation": {
     "title": "Separation",

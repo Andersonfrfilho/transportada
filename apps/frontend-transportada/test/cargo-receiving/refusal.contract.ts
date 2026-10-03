@@ -129,6 +129,17 @@ describe('o resultado do lote mostra uma linha por nota', () => {
 
     expect(summary.changedCount).toBe(1)
     expect(summary.unchangedCount).toBe(1)
+    expect(summary.entries).toEqual([
+      { documentId: 'id-1001', number: '1001', outcome: 'changed', reason: undefined },
+      { documentId: 'id-1002', number: '1002', outcome: 'unchanged', reason: undefined },
+      {
+        documentId: 'id-1003',
+        number: '1003',
+        outcome: 'refused',
+        reason: 'CARGO_ARRIVAL_DOCUMENT_NOT_RECEIVED',
+      },
+      { documentId: 'id-1004', number: '1004', outcome: 'refused', reason: 'CARGO_ARRIVAL_CLOSED' },
+    ])
     expect(summary.refused).toEqual([
       { documentId: 'id-1003', number: '1003', reason: 'CARGO_ARRIVAL_DOCUMENT_NOT_RECEIVED' },
       { documentId: 'id-1004', number: '1004', reason: 'CARGO_ARRIVAL_CLOSED' },

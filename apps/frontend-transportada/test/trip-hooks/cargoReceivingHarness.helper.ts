@@ -63,6 +63,8 @@ export type CargoReceivingDouble = {
   readonly available: AvailableCargoDocument[]
   readonly calls: DoubleCalls
   closeFailure: Error | undefined
+  /** Releituras da chegada ficam penduradas: prova que a volta do otimista não depende delas. */
+  holdReads: boolean
   /** Fila de falhas: a próxima chamada de escrita rejeita com a primeira. */
   failures: Error[]
   /** Segura as respostas do lote até `release()`: é o que deixa o teste ver a tela otimista. */
@@ -136,7 +138,8 @@ function buildClient(double: CargoReceivingDouble): CargoReceivingClient {
       double.server = { ...double.server, status: 'closed' }
       return Promise.resolve({ arrivalId, outcome: 'changed' })
     },
-    getArrival: () => Promise.resolve(double.server),
+    getArrival: () =>
+      double.holdReads ? new Promise<never>(() => undefined) : Promise.resolve(double.server),
     listArrivals: (input) => {
       double.calls.listArrivals.push({ cursor: input.cursor, filters: { ...input.filters } })
       const isSecondPage = input.cursor !== null
@@ -169,6 +172,7 @@ export function installCargoReceivingDouble(
     calls: { assignRoute: [], batch: [], close: [], listArrivals: [], register: [] },
     closeFailure: undefined,
     failures: [],
+    holdReads: false,
     isGated: false,
     nextArrivalsCursor: null,
     pending: [],

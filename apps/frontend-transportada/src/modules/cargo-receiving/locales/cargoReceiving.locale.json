@@ -19,7 +19,8 @@
     "noRoute": "Sem rota",
     "noCity": "Sem cidade",
     "title": "{{route}} · {{city}}",
-    "counts": "{{done}} de {{total}} separadas"
+    "counts": "{{done}} de {{total}} separadas",
+    "stateCounts": "Esperadas {{expected}} · Recebidas {{received}} · Separadas {{separated}}"
   },
   "document": {
     "number": "NF {{number}}",
@@ -209,7 +210,14 @@
     "refusedLead": "Recusadas:",
     "refusedShortcut": "NF {{number}}",
     "routeApplied": "Rota aplicada às notas selecionadas.",
-    "dismiss": "Dispensar o resultado"
+    "dismiss": "Dispensar o resultado",
+    "details": "Ver o resultado de cada nota",
+    "line": "NF {{number}} — {{result}}",
+    "result": {
+      "changed": "alterada",
+      "unchanged": "sem mudança",
+      "refused": "recusada: {{reason}}"
+    }
   },
   "separation": {
     "title": "Separação",

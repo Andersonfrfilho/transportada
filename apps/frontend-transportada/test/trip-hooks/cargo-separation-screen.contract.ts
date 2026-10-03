@@ -180,6 +180,51 @@ describe('um toque avança a nota', () => {
   })
 })
 
+describe('a volta da atualização otimista não depende da releitura', () => {
+  test('recusada: a nota volta na hora, mesmo com a releitura da chegada pendurada', async () => {
+    const { double, rendered } = await mountSeparation({ isGated: true })
+    double.refusals.set(`received:${documentIdOf(1001)}`, 'CARGO_ARRIVAL_CLOSED')
+    double.holdReads = true
+
+    await click(step(1001, 'Marcar como recebida'))
+    expect(maybeStep(1001, 'Marcar como separada')).not.toBeNull()
+    await release(double)
+
+    expect(maybeStep(1001, 'Marcar como recebida')).not.toBeNull()
+    expect(groupToggle('FR.S.CAR · Piracicaba').textContent).toContain('1 de 3 separadas')
+    expect(text()).toContain('1 de 7 separadas')
+    rendered.unmount()
+  })
+
+  test('queda de rede: a nota volta na hora, mesmo com a releitura da chegada pendurada', async () => {
+    const { double, rendered } = await mountSeparation({ isGated: true })
+    double.failures.push(networkFailure())
+    double.holdReads = true
+
+    await click(step(1001, 'Marcar como recebida'))
+    expect(maybeStep(1001, 'Marcar como separada')).not.toBeNull()
+    await release(double)
+
+    expect(maybeStep(1001, 'Marcar como recebida')).not.toBeNull()
+    expect(groupToggle('FR.S.CAR · Piracicaba').textContent).toContain('1 de 3 separadas')
+    expect(text()).toContain('Não foi possível enviar')
+    rendered.unmount()
+  })
+
+  test('nota com toque em voo trava o botão: o segundo toque não envia outro lote', async () => {
+    const { double, rendered } = await mountSeparation({ isGated: true })
+
+    await click(step(1001, 'Marcar como recebida'))
+    const locked = byLabel('Marcar como separada — NF 1001') as HTMLButtonElement
+    await click(locked)
+
+    expect(locked.disabled).toBe(true)
+    expect(double.calls.batch).toHaveLength(1)
+    await release(double)
+    rendered.unmount()
+  })
+})
+
 describe('o toque que falha fica na tela', () => {
   test('sem conexão: a nota volta, o motivo aparece e "tentar de novo" refaz o mesmo toque', async () => {
     const { double, rendered } = await mountSeparation()

@@ -99,6 +99,18 @@ describe('o cabeçalho e os grupos (spec 237 T2.4)', () => {
     rendered.unmount()
   })
 
+  test('cada grupo mostra a contagem por estado, além de separadas sobre o total', async () => {
+    const { rendered } = await mountDetail()
+
+    expect(group('FR.S.CAR · Piracicaba').textContent).toContain(
+      'Esperadas 1 · Recebidas 1 · Separadas 1',
+    )
+    expect(group('FR.S.CAR · Limeira').textContent).toContain(
+      'Esperadas 2 · Recebidas 0 · Separadas 0',
+    )
+    rendered.unmount()
+  })
+
   test('só a nota que já está numa viagem leva o selo "Já em viagem"', async () => {
     const { rendered } = await mountDetail()
 
@@ -171,6 +183,29 @@ describe('receber e separar em lote', () => {
     expect(outcome.textContent).toContain('NF 1004')
     expect(outcome.textContent).toContain('precisa ser recebida antes de separar')
     expect(outcome.querySelectorAll('[data-refused-document] button')).toHaveLength(2)
+    rendered.unmount()
+  })
+
+  test('o resultado de CADA nota do lote está na tela: alterada, sem mudança ou recusada com o motivo', async () => {
+    const { rendered } = await mountDetail()
+    await click(documentBox(1001))
+    await click(documentBox(1003))
+    await click(documentBox(1004))
+
+    await click(buttonByText('Marcar como separadas'))
+    await settle()
+
+    const lines = [...document.querySelectorAll('[data-batch-outcome] details li')].map((item) =>
+      item.textContent?.trim(),
+    )
+    expect(document.querySelector('[data-batch-outcome] summary')?.textContent).toContain(
+      'Ver o resultado de cada nota',
+    )
+    expect(lines).toEqual([
+      'NF 1001 — recusada: precisa ser recebida antes de separar',
+      'NF 1003 — sem mudança',
+      'NF 1004 — recusada: precisa ser recebida antes de separar',
+    ])
     rendered.unmount()
   })
 

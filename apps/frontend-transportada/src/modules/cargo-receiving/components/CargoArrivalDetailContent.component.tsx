@@ -32,7 +32,7 @@ export function CargoArrivalDetailContent({
   const { selection } = detail
 
   return (
-    <section className={styles.shell} ref={panelRef}>
+    <main className={styles.shell} ref={panelRef}>
       <CargoArrivalDetailHeader
         arrival={arrival}
         onOpenList={detail.openList}
@@ -78,6 +78,6 @@ export function CargoArrivalDetailContent({
           pending={detail.pending}
         />
       ) : null}
-    </section>
+    </main>
   )
 }

@@ -1032,3 +1032,31 @@ para o app do motorista (quando `VITE_DRIVER_APP_URL` existe).
 agora solucionável. Variante de acompanhamento só aparece sem workspace visível (D5 lê `!userHasAccessToWorkspace`
 da sessão, não da resposta da API). Nenhuma rota nova de painel; tudo pelo cliente de `crewSettingsClient.service.ts`
 já existente.
+
+## Spec 237 T2.4 — recebimento da carga e a primeira separação pelo celular
+
+Módulo novo `src/modules/cargo-receiving/` (rota `/recebimento`, namespace `cargoReceiving`, ícone
+`workspace-cargo-receiving`). Consome as rotas da T2.3 (`apps/api-transportada/src/cargo-receiving/presentation`):
+`GET/POST /cargo-arrivals`, `GET /cargo-arrivals/:id`, `GET /cargo-arrivals/available-documents`,
+`POST …/documents/batch-status`, `POST …/route-assignment`, `POST …/close`. Leitura `fleet.read`, escrita
+`trip.manage` (as mesmas da API).
+
+**Telas.** `CargoArrivalListPanel` (tabela com ordenação por cabeçalho, filtros múltiplos de contratante e
+situação, "limpar filtros" só com critério, estado na URL, "carregar mais" por cursor);
+`CargoArrivalRegistration` (contratante só com perfil LIGADO — uma leitura de perfil por contratante, sem rota
+em lote —, data com `DatePicker` + hora mascarada, paletes e referência opcionais, notas por checkbox com
+contador/limite 300, `Idempotency-Key` por tentativa); `CargoArrivalDetailScreen` (grupos rota × cidade, atribuir
+rota, receber/separar em lote, fechar); `CargoSeparationScreen` (celular, `/recebimento/:id`: grupos
+recolhíveis, o primeiro com pendência aberto, botão grande por nota com o próximo passo em texto, "separar tudo
+deste grupo", busca por número e leitura da chave de acesso pela câmera, banner de "sem conexão").
+
+**Decisões que valem lembrar.**
+
+- Estado do servidor é TanStack Query; a lista de chegadas é `useInfiniteQuery` e o filtro de UM contratante/UMA
+  situação vai ao servidor (a API só filtra por um valor), com vários o cliente filtra o que veio.
+- A atualização otimista do toque cancela a leitura em voo ANTES de gravar (cancelar depois reverteria a gravação
+  ao estado do começo do fetch) e só relê a chegada quando `isMutating === 1`.
+- O nome da cidade é o que a API devolve (`cityName`, endereço do destinatário); sem nome, o código IBGE; sem
+  nada, "Sem cidade". O painel não tem tabela de municípios.
+- A API não devolve o peso da nota nas disponíveis: a tela mostra valor, não peso (follow-up de API).
+- Fora desta task: fila offline do toque, rota em lote por selo, avaria na entrada (Fase 3).

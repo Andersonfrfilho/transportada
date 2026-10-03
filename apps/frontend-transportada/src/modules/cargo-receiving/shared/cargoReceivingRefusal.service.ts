@@ -15,8 +15,17 @@ export type RegistrationRefusal = Readonly<{
   fields: readonly RefusedField[]
 }>
 
+export type BatchOutcomeEntry = Readonly<{
+  documentId: string
+  number: string
+  outcome: CargoDocumentOutcome['outcome']
+  reason: string | undefined
+}>
+
 export type BatchOutcomeSummary = Readonly<{
   changedCount: number
+  /** Uma entrada por nota pedida, na ordem do pedido: o resultado de CADA nota está na tela. */
+  entries: readonly BatchOutcomeEntry[]
   refused: readonly RefusedDocument[]
   unchangedCount: number
 }>
@@ -93,6 +102,12 @@ export function describeBatchOutcomes(
   )
   return {
     changedCount: input.results.filter((result) => result.outcome === 'changed').length,
+    entries: input.results.map((result) => ({
+      documentId: result.documentId,
+      number: labelOf(input.documents, result.documentId),
+      outcome: result.outcome,
+      reason: result.outcome === 'refused' ? result.reason : undefined,
+    })),
     refused,
     unchangedCount: input.results.filter((result) => result.outcome === 'unchanged').length,
   }

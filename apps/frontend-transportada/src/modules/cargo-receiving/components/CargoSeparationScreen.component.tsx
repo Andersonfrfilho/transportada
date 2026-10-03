@@ -49,7 +49,7 @@ export function CargoSeparationScreen({
   const isClosed = arrival.status === 'closed'
 
   return (
-    <section className={styles.screen} ref={panelRef}>
+    <main className={styles.screen} ref={panelRef}>
       <SeparationHeader
         arrival={arrival}
         onOpenList={screen.openList}
@@ -79,6 +79,6 @@ export function CargoSeparationScreen({
         />
       )}
       <SeparationGroupList canAct={canManage && !isClosed} groups={groups} touches={touches} />
-    </section>
+    </main>
   )
 }
