@@ -646,6 +646,14 @@ button.occurrenceCaseBadge {
   color: var(--color-fog);
   cursor: pointer;
   background: transparent;
+  flex-shrink: 0;
+}
+
+@media (pointer: coarse) {
+  .iconAction {
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+  }
 }
 
 .mdfeGateSubtitle {
