@@ -359,6 +359,7 @@
   "driverOwnedVehicle": "Do motorista",
   "driverPersonalHint": "Nacionalidade, naturalidade, filiação, documento de identidade e local de emissão da CNH ficam registrados na ficha para consulta — nenhum documento fiscal os transmite hoje.",
   "driverPersonalLegend": "Dados pessoais do motorista",
+  "driverPersonalLegendHelper": "Dados pessoais do ajudante",
   "driverPhone": "Telefone",
   "driverPixKey": "Chave Pix",
   "driverPixKeyType": "Tipo da chave Pix",

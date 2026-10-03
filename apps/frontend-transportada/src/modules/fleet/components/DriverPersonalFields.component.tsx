@@ -45,7 +45,7 @@ export function DriverPersonalFields({ fetch, onChange, state }: DriverPersonalF
 
   return (
     <fieldset className={styles.fieldGroup}>
-      <legend>{t('driverPersonalLegend')}</legend>
+      <legend>{t(hasLicense ? 'driverPersonalLegend' : 'driverPersonalLegendHelper')}</legend>
       <div className={styles.fieldGrid}>
         <FleetField
           label={t('driverNationality')}

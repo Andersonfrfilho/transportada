@@ -330,6 +330,7 @@
   "driverOwnedVehicle": "Driver owned",
   "driverPersonalHint": "Nationality, place of birth, parents, identity document and the licence issuing place are kept on the record for reference — no fiscal document carries them today.",
   "driverPersonalLegend": "Driver personal details",
+  "driverPersonalLegendHelper": "Helper personal data",
   "driverPhone": "Phone",
   "driverPixKey": "Pix key",
   "driverPixKeyType": "Pix key type",

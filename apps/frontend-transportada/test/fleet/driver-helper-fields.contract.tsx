@@ -229,6 +229,18 @@ describe('o ajudante não vê texto de motorista nem de agregado (spec 239 T5 A7
     expect(enLocale.driverIdentityLegendHelper).toBe('Helper identification')
   })
 
+  it('os dados pessoais do ajudante também não trazem a palavra motorista', () => {
+    const helperHtml = renderForm(driverDetail({ canDrive: false, canActAsHelper: true }))
+    const driverHtml = renderForm(driverDetail({ canDrive: true }))
+
+    expect(helperHtml).toContain(ptLocale.driverPersonalLegendHelper)
+    expect(helperHtml).not.toContain(ptLocale.driverPersonalLegend)
+    expect(driverHtml).toContain(ptLocale.driverPersonalLegend)
+    expect(driverHtml).not.toContain(ptLocale.driverPersonalLegendHelper)
+    expect(ptLocale.driverPersonalLegendHelper).toBe('Dados pessoais do ajudante')
+    expect(enLocale.driverPersonalLegendHelper).toBe('Helper personal data')
+  })
+
   it('o diálogo de criação rápida troca a mesma legenda pelo mesmo predicado e não monta o endereço', () => {
     const source = readFileSync(
       new URL(

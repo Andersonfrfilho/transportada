@@ -290,3 +290,16 @@ eslint dos tocados limpo; prettier limpo. Verificação visual (375 px, claro e 
 
 **Fora do escopo, não alterado:** o atalho "Fotos pendentes (N)" lê `pendingProofs` da raiz do snapshot sem
 filtrar por papel; se a API devolver pendência de viagem em que ele é ajudante, o atalho aparece. Conferir na T7.
+
+## T6b (extra) · "Dados pessoais do ajudante" na ficha do ajudante
+
+A observação deixada na T5 A7: a ficha do ajudante ainda trazia a legenda "Dados pessoais do motorista"
+(`driverPersonalLegend`, em `DriverPersonalFields`). Chave nova `driverPersonalLegendHelper` ("Dados pessoais do
+ajudante" / "Helper personal data"); `DriverPersonalFields` escolhe pela mesma `hasLicense`
+(`!isHelperOnlyDriver`) que já decide a CNH no componente.
+
+**Contrato** (`test/fleet/driver-helper-fields.contract.tsx`): a ficha do ajudante mostra a legenda nova e não a
+de motorista; a de quem dirige, o contrário; texto nos dois idiomas. **Vermelho antes do código:** 1 fail
+(`driverPersonalLegendHelper` inexistente). **Mutação** (restaurada, `cmp`): legenda fixa → 1 fail.
+
+**Gates:** `bun run test` do painel 6602 pass / 0 fail (+ hooks 364 / 0); `tsc --noEmit`, eslint e prettier limpos.
