@@ -26,7 +26,7 @@ import {
 } from '../fixtures/tripOccurrenceDetail.fixture'
 import { resetTripHookFakes, tripHookFakes as fakes } from './tripClientMocks.helper'
 
-const COMPANY_ID = 'company-1'
+export const COMPANY_ID = 'company-1'
 const DETAIL_KEY = [
   TRIP_OCCURRENCE_FEED_QUERY_KEY,
   'detail',
@@ -119,6 +119,7 @@ export function DetailHarness() {
       ),
     ),
     createElement(OccurrenceCorrectionActions, {
+      companyId: COMPANY_ID,
       occurrence: query.data,
       permissions: [TRIP_MANAGE_PERMISSION],
     }),

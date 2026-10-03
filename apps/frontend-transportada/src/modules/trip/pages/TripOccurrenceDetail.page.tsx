@@ -283,11 +283,16 @@ function OccurrenceItems({ occurrence }: Readonly<{ occurrence: TripOccurrenceDe
 }
 
 type OccurrenceSummaryPanelProps = Readonly<{
+  companyId?: string
   occurrence: TripOccurrenceDetail
   permissions: readonly string[]
 }>
 
-function OccurrenceSummaryPanel({ occurrence, permissions }: OccurrenceSummaryPanelProps) {
+function OccurrenceSummaryPanel({
+  companyId,
+  occurrence,
+  permissions,
+}: OccurrenceSummaryPanelProps) {
   const { t } = useTranslation('trip')
 
   return (
@@ -334,7 +339,11 @@ function OccurrenceSummaryPanel({ occurrence, permissions }: OccurrenceSummaryPa
         </div>
       </dl>
       <OccurrenceItems occurrence={occurrence} />
-      <OccurrenceCorrectionActions occurrence={occurrence} permissions={permissions} />
+      <OccurrenceCorrectionActions
+        {...(companyId === undefined ? {} : { companyId })}
+        occurrence={occurrence}
+        permissions={permissions}
+      />
       <OccurrenceCorrectionHistory occurrence={occurrence} />
       <OccurrenceAttachments item={occurrence} />
     </section>
@@ -421,7 +430,13 @@ function OccurrenceDetailSections({
     document: () => <OccurrenceDocumentPanel occurrence={occurrence} />,
     driverContact: () => <OccurrenceDriverPanel occurrence={occurrence} />,
     driverConversation: () => conversations('driver'),
-    summary: () => <OccurrenceSummaryPanel occurrence={occurrence} permissions={permissions} />,
+    summary: () => (
+      <OccurrenceSummaryPanel
+        {...(companyId === undefined ? {} : { companyId })}
+        occurrence={occurrence}
+        permissions={permissions}
+      />
+    ),
     timeline: () => (
       <OccurrenceTimelinePanel
         {...(companyId === undefined ? {} : { companyId })}

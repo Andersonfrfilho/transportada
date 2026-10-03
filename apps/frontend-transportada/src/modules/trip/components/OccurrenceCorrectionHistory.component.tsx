@@ -30,8 +30,8 @@ export function OccurrenceCorrectionHistory({ occurrence }: OccurrenceCorrection
         {t('occurrenceDetail.corrections.title')}
       </h3>
       <ol className={styles.occurrenceCorrectionList}>
-        {history.map((entry) => (
-          <li key={entry.correctedAt}>
+        {history.map((entry, index) => (
+          <li key={`${index}:${entry.correctedAt}`}>
             <p>
               {entry.correctedByName === null
                 ? t('occurrenceDetail.corrections.entryUnknown', {
