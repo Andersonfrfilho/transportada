@@ -1,6 +1,5 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/driverLocation.service.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { clampProofAccuracyMeters } from './driverTripClient.service'
 import type { DriverFieldReport, DriverReportedLocation } from './driverTrip.types'
 
 /**
@@ -14,21 +13,55 @@ import type { DriverFieldReport, DriverReportedLocation } from './driverTrip.typ
  */
 const POSITION_TIMEOUT_MS = 8_000
 
-export function readCurrentLocation(): Promise<DriverReportedLocation | null> {
-  if (typeof navigator === 'undefined' || navigator.geolocation === undefined) {
-    return Promise.resolve(null)
-  }
+/**
+ * O `timeout` da Geolocation API só conta depois da permissão: com o pedido aberto, a leitura de 8 s
+ * esperaria para sempre — e a drenagem da fila espera por ela. O relógio da app fecha a conta.
+ */
+export const CURRENT_LOCATION_APP_BUDGET_MS = 8_500
+
+type CancelTimer = () => void
+type StartTimer = (callback: () => void, milliseconds: number) => CancelTimer
+
+function startBrowserTimer(callback: () => void, milliseconds: number): CancelTimer {
+  const handle = setTimeout(callback, milliseconds)
+  return () => clearTimeout(handle)
+}
+
+/**
+ * A precisão segue crua: o servidor limita ao teto da coluna nos eventos JSON (`toReportedLocation`)
+ * e só o multipart do comprovante recusa acima de 10 km — esse clamp mora em `attachProof`.
+ */
+export function readCurrentLocation(
+  input: {
+    readonly geolocation?: Geolocation | undefined
+    readonly timer?: StartTimer
+  } = {},
+): Promise<DriverReportedLocation | null> {
+  const geolocation =
+    'geolocation' in input
+      ? input.geolocation
+      : typeof navigator === 'undefined'
+        ? undefined
+        : navigator.geolocation
+  if (geolocation === undefined) return Promise.resolve(null)
+  const startTimer = input.timer ?? startBrowserTimer
 
   return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      (position) =>
+    const cancelTimer = startTimer(() => resolve(null), CURRENT_LOCATION_APP_BUDGET_MS)
+    geolocation.getCurrentPosition(
+      (position) => {
+        cancelTimer()
         resolve({
           accuracyMeters: position.coords.accuracy,
           capturedAt: new Date(position.timestamp).toISOString(),
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
-        }),
-      () => resolve(null),
+        })
+      },
+      () => {
+        cancelTimer()
+        resolve(null)
+      },
       { enableHighAccuracy: true, maximumAge: 0, timeout: POSITION_TIMEOUT_MS },
     )
   })
@@ -55,14 +88,6 @@ export function usesDirectTapLocation(reports: readonly DriverFieldReport[]): bo
   )
 }
 
-type CancelTimer = () => void
-type StartTimer = (callback: () => void, milliseconds: number) => CancelTimer
-
-function startBrowserTimer(callback: () => void, milliseconds: number): CancelTimer {
-  const handle = setTimeout(callback, milliseconds)
-  return () => clearTimeout(handle)
-}
-
 export function readDirectTapLocation(
   input: {
     readonly geolocation?: Geolocation | undefined
@@ -83,9 +108,8 @@ export function readDirectTapLocation(
     geolocation.getCurrentPosition(
       (position) => {
         cancelTimer()
-        const accuracyMeters = clampProofAccuracyMeters(position.coords.accuracy)
         resolve({
-          ...(accuracyMeters === undefined ? {} : { accuracyMeters }),
+          accuracyMeters: position.coords.accuracy,
           capturedAt: new Date(position.timestamp).toISOString(),
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,

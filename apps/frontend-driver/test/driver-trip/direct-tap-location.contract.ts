@@ -4,8 +4,10 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'bun:test'
 
 import {
+  CURRENT_LOCATION_APP_BUDGET_MS,
   DIRECT_TAP_POSITION_BUDGET_MS,
   DIRECT_TAP_POSITION_MAX_AGE_MS,
+  readCurrentLocation,
   readDirectTapLocation,
   usesDirectTapLocation,
 } from '../../src/modules/driver-trip/shared/driverLocation.service'
@@ -86,15 +88,14 @@ describe('readDirectTapLocation (196 T5.3)', () => {
     expect(clock.scheduled[0]?.isCancelled).toBe(true)
   })
 
-  it('precisão acima do teto da API sai sem `accuracyMeters`, em vez de virar 400', async () => {
+  it('precisão acima de 10 km segue crua: o servidor limita ao teto, e o ponto não perde a precisão', async () => {
     const geolocation = {
       getCurrentPosition: (onSuccess: PositionCallback) => onSuccess(buildPosition(50_000)),
     } as unknown as Geolocation
 
     const location = await readDirectTapLocation({ geolocation, timer: createFakeTimer().timer })
 
-    expect(location).not.toBeNull()
-    expect(location).not.toHaveProperty('accuracyMeters')
+    expect(location?.accuracyMeters).toBe(50_000)
   })
 
   it('permissão negada resolve `null` na hora, sem esperar o relógio', async () => {
@@ -112,6 +113,49 @@ describe('readDirectTapLocation (196 T5.3)', () => {
 
     expect(await readDirectTapLocation({ geolocation: undefined, timer: clock.timer })).toBeNull()
     expect(clock.scheduled).toHaveLength(0)
+  })
+})
+
+/**
+ * A leitura de 8 s do hook também tem relógio da app: com o pedido de permissão aberto o `timeout` da
+ * Geolocation API não corre, e a drenagem da fila esperaria sem prazo.
+ */
+describe('readCurrentLocation (196 revisão)', () => {
+  it('uma Geolocation que nunca responde resolve `null` no prazo da app (~8 s)', async () => {
+    const clock = createFakeTimer()
+    const geolocation = { getCurrentPosition: () => undefined } as unknown as Geolocation
+
+    const pending = readCurrentLocation({ geolocation, timer: clock.timer })
+
+    expect(clock.scheduled.map((entry) => entry.milliseconds)).toEqual([8_500])
+    expect(CURRENT_LOCATION_APP_BUDGET_MS).toBe(8_500)
+    clock.fire()
+    expect(await pending).toBeNull()
+  })
+
+  it('uma que responde devolve a precisão crua, mesmo acima de 10 km, e cancela o relógio', async () => {
+    const clock = createFakeTimer()
+    const geolocation = {
+      getCurrentPosition: (onSuccess: PositionCallback) => onSuccess(buildPosition(50_000)),
+    } as unknown as Geolocation
+
+    const location = await readCurrentLocation({ geolocation, timer: clock.timer })
+
+    expect(location?.accuracyMeters).toBe(50_000)
+    expect(clock.scheduled[0]?.isCancelled).toBe(true)
+  })
+
+  it('permissão negada resolve `null` na hora; sem Geolocation, sem agendar nada', async () => {
+    const clock = createFakeTimer()
+    const denied = {
+      getCurrentPosition: (_onSuccess: unknown, onError: () => void) => onError(),
+    } as unknown as Geolocation
+
+    expect(await readCurrentLocation({ geolocation: denied, timer: clock.timer })).toBeNull()
+    expect(clock.scheduled[0]?.isCancelled).toBe(true)
+    const none = createFakeTimer()
+    expect(await readCurrentLocation({ geolocation: undefined, timer: none.timer })).toBeNull()
+    expect(none.scheduled).toHaveLength(0)
   })
 })
 
