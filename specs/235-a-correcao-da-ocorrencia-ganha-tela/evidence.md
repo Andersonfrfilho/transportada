@@ -1458,3 +1458,52 @@ apps/api-transportada/drizzle` sai vazio; as mudanças da API são só as leitur
 11. **Achados de design fora desta spec**, registrados na T5.1: "1 itens escolhidos" (plural do seletor de
     produtos da 161), foco inicial do diálogo no contêiner e não no campo do motivo, e os nomes parecidos
     "Cancelar ocorrência" / "Cancelar tratativa".
+
+## T6.1 — Ordem de publicação (ADR-0081 §9: painel tolerante primeiro)
+
+A API desta branch passa a publicar `corrections`, `cancellation` e o evento `occurrence.cancelled`, e
+`cancelledByName`/`correctedByName` podem ser `null`. Os guards do painel têm lista fechada de chaves:
+**API nova diante de um painel antigo derruba a resposta inteira** (a tela disse que a foto falhou sobre uma
+escrita que tinha acontecido — spec 166, medido em 22/09). Por isso a ordem é obrigatória:
+
+1. **Etapa 1 — painel** (`apps/frontend-transportada`): aceita as chaves novas, `null` nos dois nomes e a
+   ausência de tudo isso (API anterior). Publicar, **esperar o deploy e o `autoUpdate` do PWA** chegar às abas
+   abertas.
+2. **Etapa 2 — API** (`apps/api-transportada`): só depois. Inclui a T6.5 (`occurrence.cancelled` fecha
+   `openUntil`).
+
+Não publicar nada nesta task. Como publicar por etapas (a branch mistura as duas apps e mistura `specs/`):
+
+- **Staging:** `git fetch && git rebase origin/staging && git push origin HEAD:staging` só com gates verdes e
+  `bun install --frozen-lockfile` + typecheck depois do rebase. Para separar as etapas, uma branch por etapa a
+  partir de `origin/staging` com `git cherry-pick` dos SHAs da lista (ordem cronológica), gates, push; a
+  etapa 2 só depois do deploy da 1.
+- **Produção:** PR `staging` → `main` (`main` é protegida), conferindo no merge que a lista de commits é só
+  esta — e **cada etapa vira o seu PR**, porque o painel precisa estar em produção antes da API.
+- Commits que tocam as duas coisas (`specs/` + código) levam o `evidence.md`/`tasks.md` junto: no
+  cherry-pick, conflito em `evidence.md` se resolve ficando com a versão da branch inteira. Os commits só de
+  `specs/` podem ir em qualquer etapa; vão na 2.
+
+Divisão (commits de código; os `docs(specs)` seguem a regra acima):
+
+| Etapa       | SHAs (ordem cronológica)                                                                                                                                                                                               | Onde mexem                                                                  |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| 1 — painel  | `dc33d02a3` T1.1, `cda66c6db` T1.2, `d9ff8b763` T1.4, `9d3359924` T2.1, `639e38e26` T2.2, `24977faa5` T2.3, `df8893cee` T3.1, `4f774cdab` T4.1, `c87378075` T4.2, `c1eb0dc17` T3.2, `09d6be608` T5.0, `4953d4026` T5.1 | `apps/frontend-transportada` (+ `docs/ai-context/frontend-transportada.md`) |
+| 2 — API     | `6952f9eda` T0.3, `3a307bbf3` T0.4, `d8d7b27a2` T0.5, `93f260e4d` T3.2a                                                                                                                                                | `apps/api-transportada` (+ `docs/ai-context/api-transportada.md`)           |
+| só `specs/` | `4e7f04184`, `d653d1570`, `fbb46f0f4`, `7df76a06d`, `449709816`, `96626a4d5`, `9ca78e561`, `68319e473`, `001bfe770`, `246f12a83`                                                                                       | evidência, spec 167                                                         |
+
+Os SHAs da Fase 6 (T6.2 a T6.7) estão no índice no topo deste arquivo, com a etapa de cada um.
+
+**O painel desta branch contra a API antiga** (campos ausentes → `null`/`[]`, nunca resposta inválida) — já
+havia contrato para três dos quatro leitores e a T6.1 acrescentou o que faltava:
+
+| Leitor                                                                | Contrato                                                                                                |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| detalhe (cliente)                                                     | `occurrence-read-correction.contract.ts`: "API anterior, sem os campos: não cancelada e sem correções"  |
+| feed                                                                  | `occurrence-read-correction.contract.ts` (feed marca a cancelada, demais `null`)                        |
+| linha do tempo da viagem                                              | `occurrence-cancellation.contract.tsx`: "campo ausente (API anterior) lê como null"                     |
+| linha do tempo da ocorrência                                          | `occurrence-cancellation.contract.tsx`: sem o evento, nada de cancelamento                              |
+| lista da nota + **tela do detalhe renderizada** com a resposta antiga | **novo** `occurrence-old-api-tolerance.contract.tsx` (2 testes; entra por `test/trip.contract.test.ts`) |
+| chaves novas e `null` nos dois nomes                                  | `occurrence-history-tolerance.contract.ts`                                                              |
+
+Execução do contrato novo: `bun test ./test/trip/occurrence-old-api-tolerance.contract.tsx` → 2 pass, 0 fail.

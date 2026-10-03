@@ -103,7 +103,7 @@ já faz (`listOccurrenceCorrections`, o mapeamento de `cancellation`), em lote �
 Decisões do usuário em 2026-10-03 (ver `spec.md`): nota inteira permitida na correção; Corrigir por
 itens ou tipo; relógio `openUntil` fecha no cancelamento.
 
-- [ ] **T6.1** (ALTO, procedimento) A **ordem de publicação** obrigatória, registrada em
+- [x] **T6.1** (ALTO, procedimento) A **ordem de publicação** obrigatória, registrada em
       `evidence.md`: 1º o painel (aceita as chaves novas e `null` em `cancelledByName`/
       `correctedByName`), esperar o deploy e o `autoUpdate` do PWA; 2º a API (ADR-0081 §9).
       Lista de commits por etapa e o contrato do painel contra a API anterior.
