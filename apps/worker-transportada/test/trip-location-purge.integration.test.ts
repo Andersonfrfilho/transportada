@@ -44,6 +44,13 @@ const SILENT_LOGGER = {
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
+/** Sessão em UTC: nenhum literal de data da fixture depende do fuso da máquina ou do banco que roda. */
+function createUtcProvider() {
+  return createDrizzleProvider({
+    connection: { connection: { TimeZone: 'UTC' }, url: databaseUrl ?? 'postgres://unused' },
+  })
+}
+
 const DAY_IN_MILLISECONDS = 86_400_000
 
 /** Spec 239 D2: a empresa liga o expurgo na tela; o worker só lê a linha de configuração dela. */
@@ -109,7 +116,7 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
   const expiredProofId = crypto.randomUUID()
   const freshProofId = crypto.randomUUID()
 
-  const provider = createDrizzleProvider({ connection: databaseUrl ?? 'postgres://unused' })
+  const provider = createUtcProvider()
   const db = provider.db
 
   async function insertEvent(input: {
@@ -323,7 +330,7 @@ describeDatabase('expurgo da posição nas cinco tabelas de evento (spec 196 T2.
     within: Object.fromEntries(POSITIONED_TABLES.map((table) => [table, crypto.randomUUID()])),
   } as const
 
-  const provider = createDrizzleProvider({ connection: databaseUrl ?? 'postgres://unused' })
+  const provider = createUtcProvider()
   const db = provider.db
 
   async function insertObject(objectId: string, purpose: string, mimeType: string): Promise<void> {
@@ -728,7 +735,7 @@ type Expectation = 'expired' | 'intact' | 'unavailable'
  *  - F ligada, 30 dias, vigente exatamente em NOW: o limite da carência é elegível.
  */
 describeDatabase('expurgo por empresa, nas cinco tabelas (spec 239 CA6)', () => {
-  const provider = createDrizzleProvider({ connection: databaseUrl ?? 'postgres://unused' })
+  const provider = createUtcProvider()
   const db = provider.db
   const fixtures: CompanyFixture[] = []
   const rows: Record<
@@ -848,10 +855,12 @@ describeDatabase('expurgo por empresa, nas cinco tabelas (spec 239 CA6)', () => 
     )
     expect(JSON.stringify(infoLogs)).not.toContain('retentionDays')
 
-    for (const [name, companyRows] of Object.entries(rows)) {
+    let checkedRows = 0
+    for (const companyRows of Object.values(rows)) {
       for (const row of companyRows) {
         for (const table of POSITIONED_TABLES) {
           const state = await readState(table, row.ids[table])
+          checkedRows += 1
           const label = `${row.label} ${table}`
           if (row.expectation === 'expired') {
             expect({ label, state: state.location_state }).toEqual({ label, state: 'expired' })
@@ -873,8 +882,12 @@ describeDatabase('expurgo por empresa, nas cinco tabelas (spec 239 CA6)', () => 
           }
         }
       }
-      expect(name.length).toBe(1)
     }
+    // 6 empresas x as linhas semeadas x 5 tabelas: o laço não pode passar vazio
+    expect(checkedRows).toBe(
+      Object.values(rows).reduce((total, companyRows) => total + companyRows.length, 0) *
+        POSITIONED_TABLES.length,
+    )
   })
 
   test('a segunda execução não encontra mais nada para apagar', async () => {
@@ -891,6 +904,80 @@ describeDatabase('expurgo por empresa, nas cinco tabelas (spec 239 CA6)', () => 
     expect(infoLogs.find((metadata) => 'redactedByTable' in metadata)?.redactedByTable).toEqual(
       Object.fromEntries(POSITIONED_TABLES.map((table) => [table, 0])),
     )
+  })
+})
+
+/**
+ * Spec 239 D2 (revisão da Fase 2): o lote do `LATERAL` tem teto, e o teto não pode furar o isolamento nem
+ * deixar linha para trás. `limit: 2` com A (3 vencidas) e B (2 vencidas) precisa de três lotes — 2, 2, 1 — e
+ * o quarto acha zero; a empresa desligada (C) fica intacta do começo ao fim. A ordem entre A e B não é
+ * garantida (D2: sem justiça), então o teste confere o total por lote e o estado final, não quem cai antes.
+ */
+describeDatabase('lote pequeno do expurgo por empresa (spec 239 D2)', () => {
+  const provider = createUtcProvider()
+  const db = provider.db
+  const fixtures: CompanyFixture[] = []
+  const rowIds: Record<string, string[]> = { A: [], B: [], C: [] }
+  const BATCH_LIMIT = 2
+
+  async function seed(name: string, index: number, purgeEnabled: boolean, rowCount: number) {
+    const fixture = await createCompanyFixture(db, index)
+    fixtures.push(fixture)
+    await insertRetentionSettings(db, {
+      companyId: fixture.companyId,
+      effectiveAt: daysBefore(10),
+      purgeEnabled,
+      retentionDays: 30,
+      userId: fixture.userId,
+    })
+    for (let position = 0; position < rowCount; position += 1) {
+      const ids = await insertRowsAt(db, fixture, {
+        at: daysBefore(100 + position),
+        located: true,
+      })
+      rowIds[name]?.push(ids.trip_stop_events)
+    }
+  }
+
+  async function countLocated(ids: readonly string[]): Promise<number> {
+    const result = await db.execute(
+      sql`select count(*)::int as located from trip_stop_events
+          where latitude is not null and id in (${sql.join(
+            ids.map((id) => sql`${id}`),
+            sql`, `,
+          )})`,
+    )
+    return Number(result[0]?.located ?? -1)
+  }
+
+  beforeAll(async () => {
+    await seed('A', 8, true, 3)
+    await seed('B', 9, true, 2)
+    await seed('C', 0, false, 3)
+  })
+
+  afterAll(async () => {
+    for (const fixture of fixtures) await deleteCompanyFixture(db, fixture)
+    await provider.close()
+  })
+
+  test('a sessão do teste roda em UTC', async () => {
+    const result = await db.execute(sql`show timezone`)
+    expect(result[0]?.TimeZone ?? result[0]?.timezone).toBe('UTC')
+  })
+
+  test('com limit 2, A (3) e B (2) caem em três lotes e a empresa desligada fica intacta', async () => {
+    const batchSizes: number[] = []
+    for (let batch = 0; batch < 6; batch += 1) {
+      const redacted = await createDrizzleRedactTripLocations(db)({ limit: BATCH_LIMIT, now: NOW })
+      batchSizes.push(redacted)
+      if (redacted === 0) break
+    }
+
+    expect(batchSizes).toEqual([2, 2, 1, 0])
+    expect(await countLocated(rowIds.A ?? [])).toBe(0)
+    expect(await countLocated(rowIds.B ?? [])).toBe(0)
+    expect(await countLocated(rowIds.C ?? [])).toBe(3)
   })
 })
 
@@ -1016,6 +1103,12 @@ async function seedExplainVolume(
   }
 }
 
+class ExplainRollback extends Error {
+  constructor(readonly explained: Array<Record<string, unknown>>) {
+    super('rollback do EXPLAIN')
+  }
+}
+
 async function explainRedaction(
   db: Database,
   entry: (typeof STATEMENT_TABLES)[number],
@@ -1028,8 +1121,10 @@ async function explainRedaction(
     table: entry.table,
     timeColumn: entry.timeColumn,
   })
-  const plan = await db
+  const rollback = await db
     .transaction(async (transaction) => {
+      // Curto de propósito: o DROP INDEX pede lock exclusivo, e o teste nunca espera outra sessão
+      await transaction.execute(sql`set local lock_timeout = '2s'`)
       if (options.forceIndexes) await transaction.execute(sql`set local enable_seqscan = off`)
       if (options.withoutTimeOnlyIndex) {
         // Transacional: o índice só por tempo sai do caminho do planejador e volta com o rollback
@@ -1038,9 +1133,14 @@ async function explainRedaction(
         )
       }
       const explained = await transaction.execute(sql`explain (format json) ${statement}`)
-      throw Object.assign(new Error('rollback'), { explained })
+      throw new ExplainRollback(explained as unknown as Array<Record<string, unknown>>)
     })
-    .catch((error: unknown) => error as { explained: Array<Record<string, unknown>> })
+    .catch((error: unknown) => {
+      // Só o sentinela é rollback esperado; lock_timeout, índice ausente etc. têm de falhar o teste
+      if (error instanceof ExplainRollback) return error
+      throw error
+    })
+  const plan = rollback
 
   return (plan.explained[0]?.['QUERY PLAN'] as Array<{ Plan: PlanNode }>)[0]?.Plan as PlanNode
 }
@@ -1054,8 +1154,8 @@ async function explainRedaction(
  * parcial e a ordem das colunas casam com o comando —, não que o planejador o prefira. ⚠️ Isto prova que o índice **serve**, não o custo em produção: o volume de
  * staging/produção é outro, e a medição dele está em `evidence.md`.
  */
-describeDatabase('plano do expurgo por empresa usa o índice composto (spec 239 D2)', () => {
-  const provider = createDrizzleProvider({ connection: databaseUrl ?? 'postgres://unused' })
+describeDatabase('o índice composto serve à sonda do expurgo por empresa (spec 239 D2)', () => {
+  const provider = createUtcProvider()
   const db = provider.db
   let fixture: CompanyFixture | undefined
 
@@ -1077,7 +1177,7 @@ describeDatabase('plano do expurgo por empresa usa o índice composto (spec 239 
   })
 
   for (const entry of STATEMENT_TABLES) {
-    test(`${entry.index}: nome do índice e company_id na condição`, async () => {
+    test(`${entry.index}: o índice composto serve à sonda (nome do índice e company_id na condição)`, async () => {
       const root = await explainRedaction(db, entry, {
         forceIndexes: true,
         withoutTimeOnlyIndex: true,
