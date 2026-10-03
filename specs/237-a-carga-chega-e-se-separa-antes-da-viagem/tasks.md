@@ -16,7 +16,7 @@
       `rollback.sql`, `make migration-test`, `db:generate` = `no_changes`.
 - [x] **T1.3** Rotas do perfil (`settings.manage`, Zod `.strict()`) e contrato; atualizar as guardas de
       chave exata do agregado de contratante do painel (3 cópias).
-- [ ] **T1.4** Aba "Contratantes" em `/clientes` com a ficha (dados que o `PATCH /contractors` já aceita +
+- [x] **T1.4** Aba "Contratantes" em `/clientes` com a ficha (dados que o `PATCH /contractors` já aceita +
       perfil); locale pt-BR/en; contratos antes.
 - [ ] **T1.5** Revisão `opus`, **print aprovado pelo usuário**, publicar em staging e **confirmar o deploy**.
 

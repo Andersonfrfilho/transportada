@@ -133,3 +133,92 @@ resultado completo no banco sai de `consulta-recebimento-vs-xml.sql`.
 - **Não rodou:** a suíte de integração inteira (`bun run test:integration`, ~17 min) — só o arquivo novo e
   o `make migration-test` (T1.2).
 - Documentação viva: `docs/ai-context/api-transportada.md` § "Spec 237" e `apps/api-transportada/CLAUDE.md`.
+
+## T1.4 — aba "Contratantes" em `/clientes` (painel)
+
+- **Contrato antes** (`ac1cdfe91`): vermelho de asserção (51 fail em
+  `delivery-clients.contract.test.ts` sobre esqueleto que lança `NOT_IMPLEMENTED`/devolve valor neutro) e,
+  em `test:hooks`, 26 fail porque o painel ainda renderizava `null`. Implementação (`d27cd62df`) deixa
+  tudo verde. Os arquivos novos entram pelos entrypoints que o script `test` do `package.json` já lista
+  (`delivery-clients.contract.test.ts` e `trip-hooks.contract.test.ts`); nenhuma linha nova foi preciso.
+- **Contagem final:** `bun run test` **6624 pass / 0 fail** (antes 6569) + `test:hooks` **385 pass / 0 fail**
+  (antes 359). `tsc --noEmit` limpo; `eslint` 0 erros (16 avisos preexistentes, nenhum nos arquivos novos).
+- **O que a tela faz:** lista (nome, CNPJ formatado, situação, selo lido do perfil), busca por nome/CNPJ,
+  ordenação por cabeçalho (asc → desc → neutro), situação com seleção múltipla, "Limpar filtros" só com
+  critério, contador `{n} de {total}` com filtro, estado em `?tab=contractors&q&sort&dir&status`. Ficha
+  abaixo da lista (mesmo padrão do cliente, com `useRevealedPanel`): dados (`PATCH /contractors/:id`,
+  CNPJ só leitura) + perfil de recebimento (`PUT` com as 10 chaves, `null` onde não há regra), grupos
+  Recebimento / Prazos / Prévia da planilha / Avançado. Recusa do servidor: "Confira:" com TODOS os campos
+  pelo rótulo impresso, cada um é atalho que rola e foca (`data-field`), campo desconhecido sai com o nome
+  cru, falha sem campo só mostra o código; `aria-invalid` + `aria-describedby` por campo; editar limpa só o
+  erro dele.
+- **Mutações** (script em lote, restauração automática; `git status` limpo depois):
+
+  | Mutação                                                     | Vermelho |
+  | ----------------------------------------------------------- | -------- |
+  | PUT omite uma chave do perfil                               | 3 fail   |
+  | campo vazio vira zero em vez de `null`                      | 1 fail   |
+  | faixa da janela de separação 168 → 200                      | 1 fail   |
+  | ordenação asc → desc → asc (sem neutro)                     | 1 fail   |
+  | "Limpar filtros" sempre visível                             | 1 fail   |
+  | aviso repete campo (sem dedup)                              | 2 fail   |
+  | campo desconhecido some do aviso                            | 2 fail   |
+  | atalho do aviso não leva o foco                             | 2 fail   |
+  | editar um campo limpa o erro de todos                       | 1 fail   |
+  | cliente joga fora os `details` do 400                       | 3 fail   |
+  | guarda aceita chave a mais na resposta do perfil            | 1 fail   |
+  | URL não leva a situação                                     | 2 fail   |
+  | quem só lê ganha os campos editáveis (`isDisabled={false}`) | 1 fail   |
+  | coluna repetida deixa de ser recusada                       | 1 fail   |
+  | prévia ligada não exige roteiro/valor/peso                  | 1 fail   |
+  | busca ignora o CNPJ                                         | 2 fail   |
+  | e-mail do relatório sem forma passa                         | 1 fail   |
+  | PUT leva `companyId` no corpo                               | 1 fail   |
+  | aviso "Confira" sem lista vazia (sem o `return null`)       | 6 fail   |
+  | erro do campo sem `aria-invalid`                            | 4 fail   |
+
+  A primeira rodada achou **uma mutação que sobreviveu** (atalho sem foco): o teste clicava no atalho do
+  campo que já tinha o foco por ter sido o último digitado. Corrigido para provar o atalho de outro campo,
+  e a comparação passou a ser booleana (`activeElement === campo`) — `toBe` sobre nó do DOM não reprovou
+  no happy-dom.
+
+- **Defeito achado pelo próprio contrato:** `ContractorDetailsForm` e `ReceivingProfileForm` irmãos com a
+  mesma `key` (React avisava "two children with the same key"); chaves removidas, a ficha já é remontada por
+  contratante pelo painel.
+- **Divergências do pedido:** (1) o painel **não tem zod** (CLAUDE.md da app): a validação é `*.validation.ts`
+  manual com as mesmas faixas do servidor, copiadas por valor; (2) o selo "Recebimento ativo / Sem perfil"
+  custa **uma leitura de perfil por contratante** (`useQueries`, mesma chave da ficha) porque não existe rota
+  em lote — pedir uma é follow-up; (3) o mapa de colunas fica visível com a prévia ligada **ou** com alguma
+  coluna já preenchida, para um dado gravado nunca ficar escondido; (4) o "Recebimento" do selo distingue
+  "desligado" (perfil existe, `isEnabled=false`) de "sem perfil"; (5) a lista carrega todas as páginas
+  (cursor, limite 100) e filtra/ordena no cliente: a API só filtra por nome, não por CNPJ.
+- **Revisão de design (web.md §15)** — `spec-237-prints.smoke.spec.ts`, 1280 px escuro, estilo calculado:
+
+  | Medida                  | Vizinho `DeliveryClientForm` | Ficha nova                                             |
+  | ----------------------- | ---------------------------- | ------------------------------------------------------ |
+  | campo: fundo/borda/raio | asfalto 62% / slate 32% / 0  | idêntico                                               |
+  | campo: padding / fonte  | 12px / 14,4px                | 12px / 14,4px                                          |
+  | campo: altura           | 57px (esticado pelo grid)    | 48px = `--field-height`                                |
+  | ajuda (`.hint`)         | slate, 16px                  | idêntico                                               |
+  | botão salvar            | cobre, raio 0, 12×20px       | idêntico (48px; o vizinho estica a 65px)               |
+  | cantos do formulário    | 8px (`.form`)                | 8px (mesma classe, por `composes`)                     |
+  | legenda do grupo        | —                            | mono 12px, cobre-tinta, caixa alta (igual ao `kicker`) |
+  | selo                    | `statusBadge` da frota       | mono 11,5px, borda 1px, tinta do selo                  |
+
+  Dois defeitos achados nos prints e consertados: (a) a coluna "Dados" esticava até a altura do perfil e
+  espalhava a sobra entre os campos — `align-items/content: start`; (b) campos lado a lado com alturas
+  diferentes (54/58px) pelo mesmo motivo; e (c) o selo "ativo" no tema claro dava 4,38:1 — texto passou a
+  usar `--color-*-ink`. Contraste final (WCAG, texto sobre fundo opaco efetivo), escuro / claro: ajuda
+  6,22 / 4,83 · rótulo 14,48 / 12,66 · legenda 6,16 / 5,37 · aviso de recusa e erro 5,46 / 4,69 · selo ativo
+  6,59 / 5,50 · selo desligado 5,50 / 5,87 · selo sem perfil 6,30 / 5,36 · indicador de ordenação 5,87 / 4,57.
+  A 375 px: 10 controles da ficha medidos, o menor tem 44px (≥ 44); nenhuma das três larguras tem scroll
+  horizontal (afirmado pelo próprio teste de print).
+
+- **Prints** (24 PNG, `specs/237-a-carga-chega-e-se-separa-antes-da-viagem/prints/`, 375/768/1280 × escuro/claro):
+  `contratantes-lista-*`, `contratante-ficha-*` (Beta: dados + perfil preenchido), `contratante-ficha-previa-*`
+  (Alfa: prévia ligada com o mapa de colunas) e `contratante-ficha-recusa-*` (400 do servidor com 3 campos).
+  Gerados por `test/spec-237-prints.smoke.spec.ts` (fora do smoke da CI; build com
+  `VITE_SMOKE_AUTH_BYPASS=true` em pasta temporária e preview em porta própria, config do Playwright
+  descartável — a config da CI não foi tocada). API 100% dublada, dados inventados.
+- **Não rodou:** `make smoke`/smoke da CI, `make check` completo (build de produção do painel só foi
+  feito para os prints, sem os `assets:*` do `prebuild`), integração da API (nada da API mudou).

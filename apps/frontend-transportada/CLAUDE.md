@@ -335,3 +335,10 @@ leitura) e `TripTimelineLocationMap` (lazy, dois pinos, mapa quieto sem radar). 
 leva rótulo na tela. `location` e `locationState` chegam sempre (o validador as exige) e `location: null` com
 `captured` é o leitor sem `trip.event-location` — a tela não oferece mapa. Coordenada nunca em URL nem em
 log. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 196".
+
+## Contratantes e perfil de recebimento (spec 237 T1.4)
+
+Aba "Contratantes" de `/clientes` (`delivery-clients`): ficha com dados do contratante e perfil de
+recebimento. `PUT` do perfil sempre com as 10 chaves; recusa do servidor lista todos os campos com atalho
+(`data-field`). Em teste de DOM, compare foco com `activeElement === campo`, nunca `toBe` sobre nó. Detalhe:
+docs/ai-context/frontend-transportada.md § "Spec 237 T1.4".

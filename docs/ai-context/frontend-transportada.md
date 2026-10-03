@@ -1004,3 +1004,14 @@ frase: tela nova de cancelada entra pelo componente.
 - O kind `occurrence.cancelled` precisa estar no guard da linha do tempo da ocorrência
   (`tripOccurrenceTimeline.validation.ts`), que é estrito: kind desconhecido reprova a resposta.
 - Contrato: `test/trip/occurrence-cancellation.contract.tsx` (renderiza cada lugar e afirma o texto).
+
+## Spec 237 T1.4 — aba "Contratantes" em `/clientes`
+
+`delivery-clients` ganhou a primeira tela de contratante: lista (busca por nome/CNPJ, ordenação por
+cabeçalho, situação múltipla, estado na URL, selo lido do perfil) e ficha com os dados do `PATCH
+/contractors/:id` e o perfil de recebimento (`GET/PUT /contractors/:id/receiving-profile`, ADR-0094). Namespace
+i18n próprio `contractorDirectory`. O `PUT` leva sempre as 10 chaves (`null` = sem regra); as faixas são
+cópia por valor das do servidor (`receivingProfile.types.ts`), validadas em `receivingProfile.validation.ts`
+(o painel não tem zod). A recusa do servidor vira "Confira:" com atalhos (`receivingRefusal.service.ts` +
+`focusRefusedField.service.ts`, alvo por `data-field`). O selo da lista custa uma leitura de perfil por
+contratante (não há rota em lote). Evidência e prints: `specs/237-.../evidence.md`.

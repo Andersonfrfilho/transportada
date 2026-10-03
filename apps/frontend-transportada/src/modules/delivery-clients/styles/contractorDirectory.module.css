@@ -96,12 +96,15 @@
   margin: 0;
 }
 
-/* Selo no molde de `statusBadge` da frota: mono, caixa alta, borda fina, cor por situação. */
+/*
+ * Selo no molde de `statusBadge` da frota: mono, caixa alta, borda fina, cor por situação. O texto usa
+ * a tinta do selo (`--color-*-ink`): o acento puro sobre si mesmo reprova 4,5:1 no tema claro.
+ */
 .badge {
   display: inline-block;
   padding: var(--space-1) var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
-  color: var(--color-slate);
+  color: var(--color-slate-ink);
   font-family: var(--font-utility);
   font-size: 0.72rem;
   text-transform: uppercase;
@@ -110,12 +113,12 @@
 
 .badgeOn {
   border-color: color-mix(in srgb, var(--color-ready) 65%, transparent);
-  color: var(--color-ready);
+  color: var(--color-ready-ink);
 }
 
 .badgeOff {
   border-color: color-mix(in srgb, var(--color-copper) 55%, transparent);
-  color: var(--color-copper);
+  color: var(--color-copper-ink);
 }
 
 /* A ficha abre abaixo da lista, como a do cliente: duas colunas só onde cabe. */
@@ -137,6 +140,8 @@
 
 .fichaColumns {
   display: grid;
+  /* Coluna curta não estica até a altura da longa: esticada, ela distribuía a sobra entre os campos. */
+  align-items: start;
   gap: var(--space-6);
 }
 
@@ -148,10 +153,12 @@
 
 .form {
   composes: form from './deliveryClients.module.css';
+  align-content: start;
 }
 
 .group {
   display: grid;
+  align-content: start;
   gap: var(--space-3);
   margin: 0;
   min-width: 0;
@@ -161,7 +168,7 @@
 
 .group legend {
   padding-inline: var(--space-2);
-  color: var(--color-copper);
+  color: var(--color-copper-ink);
   font-family: var(--font-utility);
   font-size: 0.75rem;
   letter-spacing: 0.08em;
@@ -170,6 +177,7 @@
 
 .groupFields {
   display: grid;
+  align-items: start;
   gap: var(--space-3);
 }
 
@@ -181,6 +189,7 @@
 
 .fieldGroup {
   display: grid;
+  align-content: start;
   gap: var(--space-1);
   min-width: 0;
 }
