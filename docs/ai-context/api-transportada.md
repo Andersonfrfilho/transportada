@@ -2310,6 +2310,8 @@ do último item da página mesclada, e omitir uma fonte faria o cursor pular ite
 de **outra empresa** muda essa distância sem gerar evento aqui, porque a geocodificação automática não deixa
 rastro por empresa. Incluí-la exigiria migration e foi recusada (spec 228, N1: "Só correção humana").
 
+<<<<<<< HEAD
+
 ## Spec 235 — O ajudante é um perfil
 
 **Arquivos-chave:** reconciliação em `identity/domain/fleet-role-reconciliation.policy.ts`, erros em
@@ -2347,3 +2349,25 @@ não reconciliam. Ver ADR-0093.
   (decisão pendente do usuário). O teste que documenta o limite deve ficar vermelho quando subirem.
 - **N+1:** `test/integration/trip-timeline.integration.ts` conta as consultas de `listTripTimeline` com 1 nota e
   com 50 notas (todas com ponto): o número é o mesmo (9 em 2026-10-02).
+  =======
+
+## Spec 235 — as leituras publicam a correção e o cancelamento (RF9)
+
+A spec 167 gravava correção (`trip_document_occurrence_corrections`) e cancelamento (três colunas de
+`trip_document_occurrences`), mas só as **respostas das escritas** os devolviam. Agora as leituras
+também: `GET /trip-occurrences/:id` e `GET /trips/:tripId/documents/:documentId/occurrences` trazem
+`corrections` (`[]` sem correção, **mais antiga primeiro**) e `cancellation` (`null` ou
+`{ cancelledAt, cancelledByName, reason }`); `GET /trip-occurrences` (feed) traz `cancellation`.
+Mesmo formato da resposta das escritas, por construção: tudo lê por
+`trips/infrastructure/occurrence-correction-read.query.ts` (`listOccurrenceCorrectionsByIds`,
+`listOccurrenceCancellationsByIds`), em lote — uma consulta por página, agrupada em `Map`, `companyId`
+do contexto. `readOccurrenceView` (a resposta das escritas) passou a usar o mesmo leitor.
+
+- **A cancelada continua nas três listas**, marcada por `cancellation` preenchido; nenhuma consulta a
+  filtra. Tirá-la das contas é decisão da 167 e não mudou aqui.
+- Ocorrência de parada sai sempre com `cancellation: null` (a 167 não as cobre) e não consulta nada.
+- Sem migration, sem rota nova, escritas intactas. Não há OpenAPI gerado nesta API (confirmado por busca neste repo):
+  o contrato publicado é o dos tipos `TripOccurrenceFeedItem` / `TripOccurrenceDetail` e os testes
+  `test/integration/trip-occurrence-correction-read.integration.ts` e
+  `test/trip-http/occurrence-detail.contract.ts`.
+  > > > > > > > d8d7b27a2 (docs(trip-occurrence): gates da API da Fase 0.5 e nota da leitura de correção/cancelamento)
