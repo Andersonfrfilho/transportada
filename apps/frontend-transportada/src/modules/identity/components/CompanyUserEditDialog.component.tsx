@@ -32,6 +32,20 @@ import { CompanyUserStoredField } from './CompanyUserStoredField.component'
 const SECRET_FIELDS = ['contact', 'email', 'phone', 'taxId'] as const
 type SecretField = (typeof SECRET_FIELDS)[number]
 
+/** Recusas causadas pelos papéis marcados: aparecem junto do grupo, não no pé do diálogo. */
+const ROLE_ERROR_CODES: readonly string[] = ['FLEET_DRIVER_PROFILE_EMPTY']
+
+function DialogError({ code }: Readonly<{ code: string | undefined }>) {
+  const { t } = useTranslation('identity')
+  if (code === undefined) return null
+
+  return (
+    <p className={styles.feedback} role="alert">
+      {t(`users.errors.${code}`, { defaultValue: t('users.errors.default') })}
+    </p>
+  )
+}
+
 type CompanyUserEditDialogProps = Readonly<{
   form: CompanyUserEditForm
   isPending: boolean
@@ -55,6 +69,9 @@ export function CompanyUserEditDialog({
 }: CompanyUserEditDialogProps) {
   const { t } = useTranslation('identity')
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen: user !== null, onClose })
+  const isRoleError = errorCode !== undefined && ROLE_ERROR_CODES.includes(errorCode)
+  const roleErrorCode = isRoleError ? errorCode : undefined
+  const footerErrorCode = isRoleError ? undefined : errorCode
   /**
    * O que está à mostra é por campo e morre com o diálogo. A revelação em si é uma chamada só — a
    * API devolve a ficha inteira e grava uma linha de auditoria —, mas mostrar tudo de uma vez só
@@ -297,6 +314,8 @@ export function CompanyUserEditDialog({
           selected={form.roles}
         />
 
+        <DialogError code={roleErrorCode} />
+
         <CompanyUserPasswordPanel
           disabled={isPending}
           isInvited={user.status === 'invited'}
@@ -305,11 +324,7 @@ export function CompanyUserEditDialog({
           username={user.username}
         />
 
-        {errorCode === undefined ? null : (
-          <p className={styles.feedback} role="alert">
-            {t(`users.errors.${errorCode}`, { defaultValue: t('users.errors.default') })}
-          </p>
-        )}
+        <DialogError code={footerErrorCode} />
 
         <footer className={styles.dialogFooter}>
           <Button onClick={onClose} type="button" variant="ghost">

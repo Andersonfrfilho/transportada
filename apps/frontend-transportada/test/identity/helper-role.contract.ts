@@ -99,3 +99,26 @@ describe('o papel Ajudante em Acesso (spec 235 T10)', () => {
     expect(enErrors.FLEET_DRIVER_PROFILE_EMPTY).not.toBe(enErrors.default)
   })
 })
+
+describe('a recusa de papéis aparece junto dos papéis (spec 235 A4)', () => {
+  const source = readSource('src/modules/identity/components/CompanyUserEditDialog.component.tsx')
+
+  test('FLEET_DRIVER_PROFILE_EMPTY vem logo abaixo do grupo de papéis, antes da senha', () => {
+    const rolesAt = source.indexOf('<CompanyUserRoleField')
+    const roleAlertAt = source.indexOf('<DialogError code={roleErrorCode} />')
+    const passwordAt = source.indexOf('<CompanyUserPasswordPanel')
+
+    expect(rolesAt).toBeGreaterThan(-1)
+    expect(roleAlertAt).toBeGreaterThan(rolesAt)
+    expect(roleAlertAt).toBeLessThan(passwordAt)
+  })
+
+  test('o rodapé guarda os outros erros e nunca repete o dos papéis', () => {
+    expect(source).toContain(
+      "const ROLE_ERROR_CODES: readonly string[] = ['FLEET_DRIVER_PROFILE_EMPTY']",
+    )
+    expect(source).toContain('<DialogError code={footerErrorCode} />')
+    expect(source).toContain('const footerErrorCode = isRoleError ? undefined : errorCode')
+    expect(source.match(/role="alert"/g)).toHaveLength(1)
+  })
+})
