@@ -2,18 +2,21 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 196 T1.4: o CHECK de coordenada aceita `whatsapp`, continua recusando os outros canais, e o
- * rollback recusa (em vez de apagar) enquanto houver ponto de WhatsApp gravado.
+ * rollback recusa (em vez de apagar) enquanto houver ponto de WhatsApp gravado — e, sem ele, restaura o
+ * CHECK antigo e tira a migration do journal.
  */
 import type { SQL } from 'bun'
 import { expect } from 'bun:test'
 import { join } from 'node:path'
 
-import { migrationsDirectory } from './support.js'
+import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
+import { expectQueryToFail, migrationsDirectory, readMigrationNames } from './support.js'
 
 const MIGRATION_SUFFIX = '_event_location_whatsapp_coordinate'
 
 export type EventLocationWhatsappRollbackProbe = {
   readonly companyId: string
+  readonly connectionString: string
   readonly database: SQL
   readonly directories: readonly string[]
   readonly tripId: string
@@ -32,7 +35,7 @@ async function captureError(operation: () => Promise<unknown>): Promise<Error> {
 export async function assertEventLocationWhatsappRollbackRefusesRecordedPoints(
   probe: EventLocationWhatsappRollbackProbe,
 ): Promise<void> {
-  const { companyId, database, directories, tripId, userId } = probe
+  const { companyId, connectionString, database, directories, tripId, userId } = probe
   const directory = directories.find((name) => name.endsWith(MIGRATION_SUFFIX))
   if (directory === undefined) throw new Error('event_location_whatsapp_coordinate is required')
 
@@ -59,8 +62,11 @@ export async function assertEventLocationWhatsappRollbackRefusesRecordedPoints(
   )
   expect(backofficeWithPoint.message).toContain('trip_status_events_coordinates_channel_check')
 
-  const refusal = await captureError(() => database.unsafe(rollback))
-  await database.unsafe('ROLLBACK')
+  // O script abre `BEGIN` e a recusa deixa a transação abortada: o `ROLLBACK` tem de ir pela mesma conexão.
+  const reserved = await database.reserve()
+  const refusal = await captureError(() => reserved.unsafe(rollback))
+  await reserved.unsafe('ROLLBACK')
+  reserved.release()
   expect(refusal.message).toContain('Rollback recusado')
   expect(refusal.message).toContain('trip_status_events=1')
   expect(refusal.message).not.toContain('trip_stop_occurrences')
@@ -72,4 +78,44 @@ export async function assertEventLocationWhatsappRollbackRefusesRecordedPoints(
   expect(row?.remaining).toBe(1)
 
   await database`delete from trip_status_events where company_id = ${companyId} and channel = 'whatsapp'`
+
+  await assertRollbackRestoresTheOldCheck({
+    companyId,
+    connectionString,
+    database,
+    directory,
+    rollback,
+    tripId,
+    userId,
+  })
+}
+
+type RollbackSuccessParams = Omit<EventLocationWhatsappRollbackProbe, 'directories'> & {
+  readonly directory: string
+  readonly rollback: string
+}
+
+async function assertRollbackRestoresTheOldCheck(params: RollbackSuccessParams): Promise<void> {
+  const { companyId, connectionString, database, directory, rollback, tripId, userId } = params
+  expect(await readMigrationNames(database)).toContain(directory)
+
+  const reserved = await database.reserve()
+  await reserved.unsafe(rollback)
+  reserved.release()
+
+  expect(await readMigrationNames(database)).not.toContain(directory)
+  await expectQueryToFail(
+    database`
+      insert into trip_status_events
+        (company_id, trip_id, from_status, to_status, actor_user_id, channel,
+         latitude, longitude, captured_at, location_state)
+      values (${companyId}, ${tripId}, 'draft', 'route_planned', ${userId}, 'whatsapp',
+         -23.5505199, -46.6333094, now(), 'captured')
+    `,
+    '23514',
+    'trip_status_events_coordinates_channel_check',
+  )
+
+  await runDatabaseMigrations({ connectionString })
+  expect(await readMigrationNames(database)).toContain(directory)
 }

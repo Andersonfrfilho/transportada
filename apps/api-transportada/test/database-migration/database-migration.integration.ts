@@ -127,6 +127,7 @@ describe('Drizzle migration integration', () => {
 
         await assertEventLocationWhatsappRollbackRefusesRecordedPoints({
           companyId: identityFixture.companyId,
+          connectionString,
           database,
           directories: migrationDirectories,
           tripId: rollbackProbeTripId,
