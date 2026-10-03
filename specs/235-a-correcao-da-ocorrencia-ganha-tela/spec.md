@@ -83,11 +83,13 @@ em toda lista onde ela já aparecia.
   que passou a valer. Não vinha na leitura (Fase 0); passa a vir pela RF9.
 - **RF10** **Nem toda ocorrência tem itens.** O template de ocorrências do SAC traz devolução
   parcial (com itens e foto), devolução total e **prorrogação de boleto**, que não toca a
-  entrega. **Corrigir** só existe quando a ocorrência carrega itens; ocorrência sem itens
-  (prorrogação, segunda via do boleto) mostra só **Cancelar**. O texto do motivo desabilitado
-  distingue os estados da tratativa que a 164 já tem (aberta, decidida, fechada, cancelada) em
-  vez de um genérico "tratativa aberta": a tratativa se resolve de mais de um jeito
-  (`redelivery_authorized`, `goods_paid`, `other`) e cada um dispara a sua devolutiva ao caso.
+  entrega. **Corrigir** existe quando a ocorrência tem itens gravados **ou** quando o **tipo**
+  da ocorrência é de um tipo que carrega itens (decisão de 2026-10-03: "pode ser por itens
+  também"); some só em tipo sem itens **e** sem itens gravados (prorrogação, segunda via do
+  boleto), onde fica só **Cancelar**. O texto do motivo desabilitado distingue os estados da
+  tratativa que a 164 já tem (aberta, decidida, fechada, cancelada) em vez de um genérico
+  "tratativa aberta": a tratativa se resolve de mais de um jeito (`redelivery_authorized`,
+  `goods_paid`, `other`) e cada um dispara a sua devolutiva ao caso.
 - **RF9** As leituras da API publicam o que a 167 grava: detalhe e lista da nota devolvem
   `corrections` e `cancellation`; o feed devolve `cancellation`. Mesmo formato da resposta das
   escritas, lido em lote, e a cancelada continua listada, marcada. Inclui as duas linhas do tempo (decisão de 2026-10-02): o
@@ -99,6 +101,21 @@ em toda lista onde ela já aparecia.
   inválida. A tela não inventa código: usa `getApiErrorCode()`.
 - **RF8** Depois de corrigir ou cancelar, as consultas afetadas são invalidadas — detalhe, feed e
   linha do tempo —, para a tela não mostrar o estado velho ao lado do novo.
+
+## Decisões de 2026-10-03 (revisão final)
+
+- **Nota inteira é permitida na correção.** O formulário aceita a lista vazia: "sem itens" é a
+  ocorrência sobre a nota inteira (como a que nasce do WhatsApp), e salvar assim é uma correção
+  válida. O histórico diz "a nota inteira" quando o conjunto vigente vem vazio. Corrigir
+  **continua disponível** depois (uma ocorrência corrigida é, por isso, uma ocorrência que já
+  passou por Corrigir).
+- **Critério de Corrigir (RF10) por itens ou tipo.** O sinal de tipo que o detalhe e o feed
+  publicam hoje é só `stage` e `typeName`; a coluna `allows_multiple_items` diz "um ou vários",
+  não "carrega itens", e o registro mostra o seletor de produtos para todo tipo de nota. Não há,
+  portanto, sinal confiável de "tipo que carrega itens" sem campo novo na API — ver T6.4.
+- **O relógio `openUntil` fecha no cancelamento.** `occurrence.cancelled` passa a fechar o
+  relógio da linha do tempo da ocorrência (só leitura, T6.5); antes a cancelada seguia "em
+  andamento" indefinidamente.
 
 ## Requisitos não funcionais
 

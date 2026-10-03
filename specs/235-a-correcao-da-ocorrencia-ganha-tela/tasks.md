@@ -96,6 +96,26 @@ já faz (`listOccurrenceCorrections`, o mapeamento de `cancellation`), em lote �
       raiz.
 - [x] **T5.4** `evidence.md` consolidado.
 
+## Fase 6 — Correções da revisão
+
+> 🤖 Modelo: `sonnet`; T6.5 mexe na API (só leitura da linha do tempo)
+
+Decisões do usuário em 2026-10-03 (ver `spec.md`): nota inteira permitida na correção; Corrigir por
+itens ou tipo; relógio `openUntil` fecha no cancelamento.
+
+- [ ] **T6.1** (ALTO, procedimento) A **ordem de publicação** obrigatória, registrada em
+      `evidence.md`: 1º o painel (aceita as chaves novas e `null` em `cancelledByName`/
+      `correctedByName`), esperar o deploy e o `autoUpdate` do PWA; 2º a API (ADR-0081 §9).
+      Lista de commits por etapa e o contrato do painel contra a API anterior.
+- [ ] **T6.2** Corrigir e cancelar também invalidam a lista de ocorrências da nota.
+- [ ] **T6.3** (decisão a) O formulário aceita lista vazia; o histórico mostra "a nota inteira".
+- [ ] **T6.4** (decisão b) Critério de Corrigir por itens ou tipo — **parte do tipo parada**: não há
+      sinal de tipo sem campo novo na API (relato em `evidence.md`).
+- [ ] **T6.5** (decisão c) `occurrence.cancelled` fecha `openUntil` (API, entra na etapa 2).
+- [ ] **T6.6** BAIXOS da revisão, um commit (itens 1, 2, 3, 4, 6, 7, 8, 10; o 5 é aceito; o 9 é prova
+      por leitura de código, em `evidence.md`).
+- [ ] **T6.7** Gates finais e índice.
+
 ⚠️ Todo arquivo de teste novo entra na lista do `package.json` da app — fora dela, não roda.
 
 ## Prompt de execução
