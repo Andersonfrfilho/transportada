@@ -59,6 +59,12 @@ Medido no código de `origin/staging`:
   (`location: null` fixo no fluxo do motorista), então "GPS desligado" não se aplica — a entrega por ele
   segue a regra anterior (só a D4b, se o cliente alegar relógio). Hoje a nota nem lê entrega do WhatsApp
   (spec 159 T11 D2); liberá-lo na nota exige rever esta regra.
+- **D4d — O motorista é avisado antes, e o texto não mente** (pedido do usuário, 2026-10-03). Com a D4c, quem
+  toca "Entreguei" sem localização e fotografa no local lia "Registrada longe do local", o que é falso para
+  ele: os textos do resultado da foto, da dica da nota e do selo "longe" do painel passam a cobrir "sem a
+  localização da entrega". E, com a permissão de localização do aparelho **negada**, o cartão da parada avisa
+  antes do "Entreguei" que entregar assim conta como longe — só avisa, nunca bloqueia o toque; sem a Permissions
+  API, ou se ela falha, não mostra nada.
 - **D7 — O desvio sobrevive ao aparelho sem sinal** (decisão do usuário, 2026-10-02). O último desvio medido
   é guardado no aparelho com `measuredAt` e vale por 24 h; passado disso vale "nunca medido" (sem
   campos). O boot offline depois de a aba ser descartada ainda manda o relógio corrigido. A API segue

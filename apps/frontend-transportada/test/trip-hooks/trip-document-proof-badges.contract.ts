@@ -42,9 +42,9 @@ const REVIEW_LABEL = {
   rejected: 'Recusado',
 } as const satisfies Record<DeliveryProofCanhotoReview, string>
 const PUNCTUALITY_LABEL = {
-  away: 'Longe do ponto',
+  away: 'Longe do ponto ou sem localização',
   late: 'Atrasada',
-  late_and_away: 'Atrasada e longe do ponto',
+  late_and_away: 'Atrasada e longe do ponto ou sem localização',
   on_time: 'No horário',
 } as const
 const PROOF_PENDING_LABEL = 'Canhoto pendente'
