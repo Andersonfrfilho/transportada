@@ -888,6 +888,8 @@
     "occurrenceItemQuantityUnitPairing": "Quantidade e unidade andam juntas: informe as duas ou nenhuma. Corrija e salve de novo.",
     "occurrenceProductNotInDocument": "Um dos itens escolhidos não está nesta nota. Escolha só itens da nota e salve de novo.",
     "occurrenceNotFound": "Esta ocorrência não foi encontrada. Volte à lista de ocorrências e tente de novo.",
+    "occurrenceCancellationReasonRequired": "Escreva o motivo do cancelamento para confirmar.",
+    "occurrenceCancellationReasonTooLong": "O motivo do cancelamento passa de 500 caracteres. Encurte o texto e confirme de novo.",
     "serverRefused": "O servidor recusou esta operação. Nada foi gravado — tente de novo e, se repetir, avise o suporte com o horário.",
     "responseInvalid": "A API respondeu em um formato inesperado.",
     "routeUnavailable": "O roteirizador não devolveu uma rota nova agora. A rota anterior continua valendo — tente de novo em instantes.",
@@ -1995,6 +1997,15 @@
       "driver": "Motorista"
     },
     "correction": {
+      "cancel": {
+        "button": "Cancelar ocorrência",
+        "title": "Cancelar esta ocorrência",
+        "hint": "A ocorrência continua listada, marcada como cancelada, com o motivo e o seu nome; ela deixa de contar como ativa.",
+        "reasonLabel": "Motivo do cancelamento",
+        "confirm": "Confirmar cancelamento",
+        "dismiss": "Voltar",
+        "close": "Fechar"
+      },
       "correct": "Corrigir",
       "form": {
         "title": "Corrigir os itens da ocorrência",
