@@ -65,7 +65,7 @@ describe('tenant identity schema', () => {
       'driver',
       'aggregate',
       'separator',
-      // spec 234: o ajudante é perfil próprio — não dirige, só acompanha a viagem
+      // spec 235: o ajudante é perfil próprio — não dirige, só acompanha a viagem
       'helper',
       // ADR-0050: o contratante, que entra pelo mesmo Keycloak e só alcança os documentos dele
       'contractor',

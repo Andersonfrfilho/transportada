@@ -219,7 +219,7 @@ export type FleetDriverInput = {
 
 export type FleetDriver = FleetDriverInput & {
   /**
-   * Spec 234 D2: dirige. Só leitura — quem o decide é o perfil na criação e a troca de papéis
+   * Spec 235 D2: dirige. Só leitura — quem o decide é o perfil na criação e a troca de papéis
    * depois; o corpo de `PATCH` nunca o escreve.
    */
   readonly canDrive: boolean
@@ -347,7 +347,7 @@ export type FleetDriverContactDirectoryPort = {
 
 export type FleetDriverRepositoryPort = {
   create(input: {
-    /** Spec 234 D2: vai no `INSERT` porque a ficha e o convite não compartilham transação. */
+    /** Spec 235 D2: vai no `INSERT` porque a ficha e o convite não compartilham transação. */
     readonly canDrive: boolean
     readonly companyId: string
     readonly driver: FleetDriverInput

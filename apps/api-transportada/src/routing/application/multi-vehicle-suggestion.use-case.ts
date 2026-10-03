@@ -446,7 +446,7 @@ export function createMultiVehicleSuggestionUseCase(
           companyId: input.context.companyId,
           driverIds: [...new Set([...driverIds, ...uniqueHelperIds])],
         }),
-        /** Spec 234 D5: só a posição de motorista exige `can_drive`; o ajudante segue por `can_act_as_helper`. */
+        /** Spec 235 D5: só a posição de motorista exige `can_drive`; o ajudante segue por `can_act_as_helper`. */
         dependencies.multiVehicle.findIneligibleDriverIds({
           companyId: input.context.companyId,
           driverIds,
@@ -465,7 +465,7 @@ export function createMultiVehicleSuggestionUseCase(
       if (unavailableDrivers.length > 0) {
         throw new MultiVehicleSuggestionDriverUnavailableError(unavailableDrivers)
       }
-      /** Spec 234 D5: motorista de veículo sem `can_drive` na ficha, mesmo que ativo. */
+      /** Spec 235 D5: motorista de veículo sem `can_drive` na ficha, mesmo que ativo. */
       if (ineligibleDrivers.length > 0) {
         throw new MultiVehicleSuggestionDriverCannotDriveError(ineligibleDrivers)
       }

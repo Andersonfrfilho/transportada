@@ -208,7 +208,7 @@ export class FleetDriverContactRequiredError extends ApiError {
   }
 }
 
-/** Spec 234 D2/D4: ficha que nem dirige nem ajuda não existe — a troca que a esvaziaria é recusada. */
+/** Spec 235 D2/D4: ficha que nem dirige nem ajuda não existe — a troca que a esvaziaria é recusada. */
 export class FleetDriverProfileEmptyError extends ApiError {
   public constructor() {
     super({

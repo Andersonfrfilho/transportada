@@ -108,7 +108,7 @@ const EMPTY_DRIVER_FORM: FleetDriverFormState = {
   anttCategory: '',
   /** Spec 149 D1: ninguém ajuda por padrão. */
   canActAsHelper: false,
-  /** Spec 234 D2: o cadastro novo dirige até escolher o perfil Ajudante. */
+  /** Spec 235 D2: o cadastro novo dirige até escolher o perfil Ajudante. */
   canDrive: true,
   helperDailyRate: '',
   /** Spec 100: ninguém amarra por padrão — a planta limita a pilha por esbeltez. */

@@ -61,7 +61,7 @@ export async function resolveManifestCrew(input: {
     }
   })
 
-  // Spec 234 D5: o mesmo erro de `resolveTripCrew` — ajudante-puro não é condutor, nem aqui
+  // Spec 235 D5: o mesmo erro de `resolveTripCrew` — ajudante-puro não é condutor, nem aqui
   const nonDrivingIds = input.driverIds.filter((driverId) => !driverById.get(driverId)?.canDrive)
   if (nonDrivingIds.length > 0) throw new TripDriverCannotDriveError(nonDrivingIds)
 

@@ -585,7 +585,7 @@ describe('trip repository integration', () => {
           taxId: '22222222222',
         },
         {
-          // Spec 234 D2: o ajudante-puro — não dirige, só ajuda
+          // Spec 235 D2: o ajudante-puro — não dirige, só ajuda
           canActAsHelper: true,
           canDrive: false,
           companyId,
@@ -596,7 +596,7 @@ describe('trip repository integration', () => {
       ])
 
       const repository = new DrizzleTripRepository(database.db)
-      // Spec 234 D5: a política da viagem lê `can_drive` da ficha, não o papel
+      // Spec 235 D5: a política da viagem lê `can_drive` da ficha, não o papel
       const candidates = await repository.listDrivers({
         companyId,
         driverIds: [driverId, helperOneId, helperTwoId],

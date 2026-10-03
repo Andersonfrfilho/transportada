@@ -138,7 +138,7 @@ export class TripCrewHelperNotEligibleError extends ApiError {
 }
 
 /**
- * Spec 234 D5: a ficha não dirige (`can_drive = false`) e foi escalada como condutor — os ids vão em
+ * Spec 235 D5: a ficha não dirige (`can_drive = false`) e foi escalada como condutor — os ids vão em
  * `details`. Não confundir com `TRIP_CREW_HELPER_CANNOT_DRIVE` (403): aquele é o ajudante já na
  * viagem tentando despachar; este é a montagem da tripulação.
  */

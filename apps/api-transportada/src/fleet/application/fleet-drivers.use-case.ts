@@ -186,7 +186,7 @@ export function createFleetDriversUseCase(dependencies: {
         name: input.driver.name,
         roles: [input.profile],
       })
-      // Spec 234 D2: ajudante não dirige e sempre ajuda; os outros perfis dirigem e ajudam se marcado
+      // Spec 235 D2: ajudante não dirige e sempre ajuda; os outros perfis dirigem e ajudam se marcado
       const isHelperProfile = input.profile === HELPER_PROFILE
       const created = await repository.create({
         canDrive: !isHelperProfile,

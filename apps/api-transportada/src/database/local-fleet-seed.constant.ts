@@ -12,7 +12,7 @@ export type LocalFleetDriverSeed = {
 type SeedParams = {
   readonly anttCategory?: FleetDriverInput['anttCategory']
   readonly birthDate: string
-  /** Spec 234: motorista que também ajuda; o perfil `helper` já ajuda por definição. */
+  /** Spec 235: motorista que também ajuda; o perfil `helper` já ajuda por definição. */
   readonly canActAsHelper?: boolean
   readonly city: string
   readonly district: string
@@ -219,7 +219,7 @@ export const LOCAL_FLEET_DRIVER_SEEDS: readonly LocalFleetDriverSeed[] = [
     street: 'Rua Sete de Setembro',
     taxId: '48136270935',
   }),
-  // Spec 234: o motorista que também ajuda — dirige com CNH e aparece no seletor de ajudantes
+  // Spec 235: o motorista que também ajuda — dirige com CNH e aparece no seletor de ajudantes
   buildSeed({
     birthDate: '1983-08-21',
     canActAsHelper: true,
@@ -235,7 +235,7 @@ export const LOCAL_FLEET_DRIVER_SEEDS: readonly LocalFleetDriverSeed[] = [
     street: 'Rua Cerqueira César',
     taxId: '52998224725',
   }),
-  // Spec 234: o ajudante puro — não dirige, não tem CNH e só entra como ajudante da tripulação
+  // Spec 235: o ajudante puro — não dirige, não tem CNH e só entra como ajudante da tripulação
   buildSeed({
     birthDate: '1996-03-09',
     city: 'Sertãozinho',

@@ -17,8 +17,8 @@ const testWithPostgres = databaseUrl === undefined ? test.skip : test
 
 type TestDatabase = ReturnType<typeof createDrizzleProvider>
 
-/** Spec 234 D5: o candidato a condutor do MDF-e avulso diz se a ficha dirige. */
-describe('condutores do MDF-e avulso contra Postgres (spec 234)', () => {
+/** Spec 235 D5: o candidato a condutor do MDF-e avulso diz se a ficha dirige. */
+describe('condutores do MDF-e avulso contra Postgres (spec 235)', () => {
   testWithPostgres('lista canDrive de cada ficha e só as da empresa', async () => {
     await withDisposableDatabase(async (database) => {
       const companyId = crypto.randomUUID()

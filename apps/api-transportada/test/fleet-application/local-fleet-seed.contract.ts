@@ -53,7 +53,7 @@ describe('local fleet seed contract', () => {
     expect(LOCAL_FLEET_DRIVER_SEEDS.length).toBeGreaterThanOrEqual(4)
   })
 
-  /** Spec 234: o ajudante puro não dirige, então a semente não lhe inventa CNH. */
+  /** Spec 235: o ajudante puro não dirige, então a semente não lhe inventa CNH. */
   test('o ajudante da semente é perfil helper, sem CNH e com contato', () => {
     const helpers = LOCAL_FLEET_DRIVER_SEEDS.filter((seed) => seed.profile === 'helper')
 

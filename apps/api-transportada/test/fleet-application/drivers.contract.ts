@@ -60,7 +60,7 @@ describe('fleet drivers use case contract', () => {
     expect(stub.membershipCalls).toEqual([])
   })
 
-  // Spec 234 D2: o perfil vira colunas; `canDrive` vai no `create` porque a ficha e o convite não
+  // Spec 235 D2: o perfil vira colunas; `canDrive` vai no `create` porque a ficha e o convite não
   // compartilham transação, e uma ficha que nascesse `true` e fosse corrigida depois já teria dirigido
   test('translates the profile into the crew columns on create', async () => {
     const cases = [

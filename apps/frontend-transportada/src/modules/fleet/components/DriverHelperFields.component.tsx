@@ -15,7 +15,7 @@ type DriverHelperFieldsProps = Readonly<{
 }>
 
 /**
- * Spec 234 D2: o ajudante puro sempre ajuda, então o interruptor aparece ligado e travado — a API
+ * Spec 235 D2: o ajudante puro sempre ajuda, então o interruptor aparece ligado e travado — a API
  * recusa desligá-lo (`FLEET_DRIVER_PROFILE_EMPTY`), e a tela nem oferece o gesto.
  */
 export function DriverHelperFields({ onChange, state }: DriverHelperFieldsProps) {

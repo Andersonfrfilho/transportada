@@ -211,7 +211,7 @@ describe('trip crew policy', () => {
     expect(error?.details).toEqual([{ field: 'helperIds', message: 'helper-1' }])
   })
 
-  // Spec 234 D5: o ajudante-puro (`can_drive = false`) nunca entra como condutor.
+  // Spec 235 D5: o ajudante-puro (`can_drive = false`) nunca entra como condutor.
   test('rejects a helper-only record in the driver list, naming every one in details', () => {
     const drivers = [
       activeDriver({ id: 'driver-1' }),

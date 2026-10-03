@@ -147,7 +147,7 @@ describe('convite de usuário — vínculo com fleet_drivers', () => {
     })
   })
 
-  // Spec 234 D2/D8: o ajudante convidado casa a ficha órfã e ela passa a refletir o perfil
+  // Spec 235 D2/D8: o ajudante convidado casa a ficha órfã e ela passa a refletir o perfil
   testWithPostgres('convidar um ajudante deixa a ficha órfã só ajudando', async () => {
     await withDisposableDatabase(async ({ db }) => {
       const companyId = await seedCompany(db)
@@ -263,7 +263,7 @@ describe('convite de usuário — vínculo com fleet_drivers', () => {
 })
 
 /**
- * Spec 234 D4: trocar os papéis de quem tem ficha de frota reconcilia `can_drive` e
+ * Spec 235 D4: trocar os papéis de quem tem ficha de frota reconcilia `can_drive` e
  * `can_act_as_helper` na mesma transação, e só quando a troca toca `driver`, `aggregate` ou `helper`.
  */
 describe('troca de papéis — reconciliação com a ficha de frota', () => {

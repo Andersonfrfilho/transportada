@@ -35,7 +35,7 @@ export const COMPANY_ROLES = [
   'driver',
   'aggregate',
   'separator',
-  /** Spec 234: o ajudante-puro — não dirige, só acompanha a viagem em que está (`trip.read`). */
+  /** Spec 235: o ajudante-puro — não dirige, só acompanha a viagem em que está (`trip.read`). */
   'helper',
   /**
    * ADR-0050: o **contratante** — quem paga o frete — com conta própria. Ele não é gente da

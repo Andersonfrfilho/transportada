@@ -34,7 +34,7 @@ const EMPTY_LICENSE_BODY = {
   licenseNumber: '',
 } as const
 
-describe('ajudante é um perfil da ficha de frota (spec 234 T8)', () => {
+describe('ajudante é um perfil da ficha de frota (spec 235 T8)', () => {
   test('o catálogo de perfis tem os três, na ordem da API', () => {
     expect(FLEET_DRIVER_PROFILES).toEqual(['aggregate', 'driver', 'helper'])
   })

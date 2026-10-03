@@ -247,7 +247,7 @@ describe('authorization contract', () => {
     }
   })
 
-  // Spec 234 D7: o ajudante acompanha a viagem e não reporta entrega nem comprovante.
+  // Spec 235 D7: o ajudante acompanha a viagem e não reporta entrega nem comprovante.
   test('grants the helper role only the trip read', () => {
     expect([...resolveCompanyPermissions(['helper'])]).toEqual(['trip.read'])
   })

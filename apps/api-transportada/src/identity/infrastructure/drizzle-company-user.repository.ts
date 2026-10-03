@@ -1125,7 +1125,7 @@ async function linkFleetDriver(
 }
 
 /**
- * Spec 234 D4. A ficha é travada **antes** de ler os papéis antigos: duas trocas simultâneas da mesma
+ * Spec 235 D4. A ficha é travada **antes** de ler os papéis antigos: duas trocas simultâneas da mesma
  * pessoa ficam em fila na trava, e a segunda lê os papéis que a primeira gravou. A recusa
  * (`FleetDriverProfileEmptyError`) sai daqui de dentro, e a transação desfaz a troca inteira.
  */

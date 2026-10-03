@@ -1,4 +1,4 @@
-# Tasks — Spec 234
+# Tasks — Spec 235
 
 Uma task por vez, na ordem. Contrato vermelho **antes** do código; teste novo entra no `package.json`
 da app. Cada task fecha com typecheck, testes da app, commit isolado e evidência em `evidence.md`.
@@ -63,8 +63,8 @@ da app. Cada task fecha com typecheck, testes da app, commit isolado e evidênci
 ## Prompt de execução
 
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/234-o-ajudante-e-um-perfil/ (leia spec.md, plan.md e
-tasks.md antes de começar). Uma task por vez, na ordem do tasks.md, em branch work/spec-234-ajudante
+/oh-my-claudecode:autopilot Execute a spec specs/235-o-ajudante-e-um-perfil/ (leia spec.md, plan.md e
+tasks.md antes de começar). Uma task por vez, na ordem do tasks.md, em branch work/spec-235-ajudante
 a partir de origin/staging.
 Modelos: Fase 1 → T1, T2 e T3 🧠 opus (validar a migration e a reconciliação com architect antes de
 implementar) · Fases 2 e 3 → executor model=sonnet · T12 🧠 opus · T13 executor model=haiku ·

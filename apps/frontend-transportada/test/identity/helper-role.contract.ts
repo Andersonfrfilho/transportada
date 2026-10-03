@@ -30,7 +30,7 @@ function readLiterals(source: string, constantName: string): readonly string[] {
   return [...block.matchAll(/'([^']+)'/g)].map((match) => match[1] as string)
 }
 
-describe('o papel Ajudante em Acesso (spec 234 T10)', () => {
+describe('o papel Ajudante em Acesso (spec 235 T10)', () => {
   test('o convite oferece o ajudante', () => {
     expect(COMPANY_ROLES).toContain('helper')
     expect(buildRoleChoices(['operator'])).toContain('helper')

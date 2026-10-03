@@ -35,7 +35,7 @@ const CREW_DIALOG_ERROR_KEY_BY_CODE: Readonly<Record<string, CrewDialogErrorKey>
   TRIP_CREW_HELPER_NOT_ELIGIBLE: 'helperNotEligible',
   TRIP_CREW_HELPER_WITHOUT_DRIVER: 'helperWithoutDriver',
   /**
-   * Spec 234 D5: a ficha escolhida como motorista não dirige (409). Não é o `TRIP_CREW_HELPER_CANNOT_DRIVE`
+   * Spec 235 D5: a ficha escolhida como motorista não dirige (409). Não é o `TRIP_CREW_HELPER_CANNOT_DRIVE`
    * (403) do ajudante que tenta despachar: aquele não nasce na troca de tripulação e cai no genérico.
    */
   TRIP_DRIVER_CANNOT_DRIVE: 'driverCannotDrive',

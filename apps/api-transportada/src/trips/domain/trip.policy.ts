@@ -33,7 +33,7 @@ export type TripVehicleCandidate = {
 export type TripDriverCandidate = {
   /** Spec 149 (ADR-0065 D1): a ficha marca quem pode entrar na tripulação como ajudante. */
   readonly canActAsHelper: boolean
-  /** Spec 234 D5: o ajudante-puro não dirige — nunca entra na lista de condutores. */
+  /** Spec 235 D5: o ajudante-puro não dirige — nunca entra na lista de condutores. */
   readonly canDrive: boolean
   readonly id: string
   readonly name: string

@@ -14,7 +14,7 @@ import enLocale from '@/modules/trip/locales/trip.en.locale.json'
 import ptLocale from '@/modules/trip/locales/trip.locale.json'
 
 /**
- * Spec 234 T11 (D5): quem não dirige (`canDrive` falso) nunca é oferecido como motorista; quem pode
+ * Spec 235 T11 (D5): quem não dirige (`canDrive` falso) nunca é oferecido como motorista; quem pode
  * ajudar é oferecido como ajudante. A API é quem recusa de verdade (`TRIP_DRIVER_CANNOT_DRIVE`) — a
  * tela só deixa de oferecer o que ela recusaria.
  */
@@ -50,7 +50,7 @@ function readSource(path: string): string {
   return readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8')
 }
 
-describe('o seletor de motoristas exclui quem não dirige (spec 234 T11)', () => {
+describe('o seletor de motoristas exclui quem não dirige (spec 235 T11)', () => {
   it('criação e montagem: só ativo que dirige', () => {
     expect(ids(listActiveDrivingDrivers(FLEET))).toEqual(['only-drives', 'drives-and-helps'])
   })
@@ -107,7 +107,7 @@ describe('o seletor de motoristas exclui quem não dirige (spec 234 T11)', () =>
   })
 })
 
-describe('a recusa de condutor que não dirige chega legível (spec 234 T11)', () => {
+describe('a recusa de condutor que não dirige chega legível (spec 235 T11)', () => {
   const driverError = new Error('TRIP_DRIVER_CANNOT_DRIVE')
   const helperError = new Error('TRIP_CREW_HELPER_CANNOT_DRIVE')
 
@@ -131,7 +131,7 @@ describe('a recusa de condutor que não dirige chega legível (spec 234 T11)', (
   })
 })
 
-describe('a lista vazia de ajudantes diz onde marcar (spec 234 T11)', () => {
+describe('a lista vazia de ajudantes diz onde marcar (spec 235 T11)', () => {
   it('aponta Frota e Acesso, nos dois diálogos e nos dois idiomas', () => {
     expect(ptLocale.creation.helpersEmpty).toContain('Frota')
     expect(ptLocale.creation.helpersEmpty).toContain('Acesso')

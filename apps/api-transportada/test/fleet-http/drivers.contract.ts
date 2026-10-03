@@ -69,7 +69,7 @@ describe('fleet drivers http contract', () => {
     ])
   })
 
-  // Spec 234 D6: quem não dirige não tem CNH, e o corpo não a pede — nem número, nem categoria, nem validade
+  // Spec 235 D6: quem não dirige não tem CNH, e o corpo não a pede — nem número, nem categoria, nem validade
   test('accepts the helper profile without any licence field and forwards it', async () => {
     const fixture = await createFleetHttpFixture()
     const withoutLicense = {

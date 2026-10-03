@@ -26,7 +26,7 @@ function reconcile(
 }
 
 /**
- * Spec 234 D4: o papel e as colunas da ficha só conversam quando a troca toca a frota, e cada
+ * Spec 235 D4: o papel e as colunas da ficha só conversam quando a troca toca a frota, e cada
  * coluna só muda pelo papel que a ela corresponde — o switch da ficha sobrevive a troca alheia.
  */
 describe('reconciliação papel → colunas da ficha de frota', () => {
@@ -129,7 +129,7 @@ describe('reconciliação papel → colunas da ficha de frota', () => {
   })
 })
 
-/** Spec 234 D8: quem tem papel de frota procura a ficha pelo CPF, e o papel é o perfil da ficha. */
+/** Spec 235 D8: quem tem papel de frota procura a ficha pelo CPF, e o papel é o perfil da ficha. */
 describe('papéis que casam a ficha de frota no convite', () => {
   test('são exatamente os perfis do cadastro de frota', () => {
     expect([...FLEET_LINKED_ROLES].sort()).toEqual([...FLEET_DRIVER_PROFILES].sort())
@@ -137,7 +137,7 @@ describe('papéis que casam a ficha de frota no convite', () => {
 })
 
 /**
- * Spec 234 D2 no convite: a ficha órfã que o convite vincula ganha as colunas do perfil quando o papel
+ * Spec 235 D2 no convite: a ficha órfã que o convite vincula ganha as colunas do perfil quando o papel
  * é `helper`; convite sem `helper` mantém o comportamento de sempre e não toca as colunas.
  */
 describe('colunas da ficha órfã vinculada pelo convite', () => {

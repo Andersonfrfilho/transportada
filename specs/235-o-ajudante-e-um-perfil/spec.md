@@ -1,4 +1,4 @@
-# Spec 234 — O ajudante é um perfil: papel em Acesso e opção no cadastro da frota
+# Spec 235 — O ajudante é um perfil: papel em Acesso e opção no cadastro da frota
 
 > 🤖 Modelo: `opus` 🧠 (modelo de dados, política de viagem, reconciliação de papéis) · `sonnet`
 > (fiação API/painel, contratos) · `haiku` (documentação)

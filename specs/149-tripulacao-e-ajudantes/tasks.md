@@ -61,8 +61,8 @@ Toda task fecha com: contrato vermelho antes, `bun run typecheck`, testes da app
 > 🤖 Modelo: `sonnet`
 
 - [x] T12 — Ficha do motorista e painel "Diária do ajudante" perto do efeito.
-      **Ficha fechada pela spec 234 T9** (switch "Pode atuar como ajudante" e "Diária própria" na aba e na
-      criação rápida; ver `specs/234-o-ajudante-e-um-perfil/`). ⚠️ O painel geral "Diária do ajudante"
+      **Ficha fechada pela spec 235 T9** (switch "Pode atuar como ajudante" e "Diária própria" na aba e na
+      criação rápida; ver `specs/235-o-ajudante-e-um-perfil/`). ⚠️ O painel geral "Diária do ajudante"
       (`company_crew_settings`, aba da empresa) **não existe no painel** — a busca por ele em
       `apps/frontend-transportada/src` não acha nada; segue sem dono.
 - [ ] T13 — Montagem manda os pares do estado (D12); revisão com select de motorista (score + motivo) e

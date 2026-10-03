@@ -26,7 +26,7 @@ const HELPER_ONLY_FIELDS = {
   membershipId: null,
 } as const
 
-describe('fleet driver repository integration (spec 234)', () => {
+describe('fleet driver repository integration (spec 235)', () => {
   testWithPostgres('persists and reads the crew columns the profile chose', async () => {
     await withDisposableDatabase(async (database) => {
       const { companyId, repository } = await setUp(database)

@@ -1,8 +1,8 @@
-# Evidence — Spec 234
+# Evidence — Spec 235
 
 ## T1 — Papel `helper` e `fleet_drivers.can_drive`
 
-Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+Data: 2026-10-02. Branch `work/spec-235-ajudante`.
 
 ### O que mudou
 
@@ -79,7 +79,7 @@ Listas de papéis duplicadas no painel, que ainda não conhecem `helper`:
 
 ## T2 — `resolveTripCrew` recusa quem não dirige
 
-Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+Data: 2026-10-02. Branch `work/spec-235-ajudante`.
 
 ### O que mudou
 
@@ -140,7 +140,7 @@ Mesmo Postgres 18.4 nativo descartável da T1 (porta 65435; o `.env.test` aponta
 
 ## T3 — Reconciliação papel → colunas em `replaceRoles`
 
-Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+Data: 2026-10-02. Branch `work/spec-235-ajudante`.
 
 ### O que mudou
 
@@ -245,7 +245,7 @@ frontend em exit 0. O resto da T10 (rótulos, convite, tabela) segue na Fase 3.
 
 ## T4 — Perfil `helper` no cadastro de frota e `canDrive` na leitura
 
-Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+Data: 2026-10-02. Branch `work/spec-235-ajudante`.
 
 ### O que mudou
 
@@ -314,7 +314,7 @@ migrado; `.env.test` aponta para 65434, vazio), `DATABASE_URL`/`DRIZZLE_TEST_DAT
 
 ## T5 — `helper` no convite (`FLEET_LINKED_ROLES`) e contrato de permissão
 
-Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+Data: 2026-10-02. Branch `work/spec-235-ajudante`.
 
 ### O que mudou
 
@@ -380,7 +380,7 @@ Postgres 18.4 nativo descartável (porta 65435), `DATABASE_URL`/`DRIZZLE_TEST_DA
 
 ## T6 — A proposta multi-veículo recusa quem não dirige como motorista
 
-Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+Data: 2026-10-02. Branch `work/spec-235-ajudante`.
 
 ### O que mudou
 
@@ -440,7 +440,7 @@ Postgres 18.4 nativo descartável (65435), variáveis no shell.
 
 ## T6b — O MDF-e avulso recusa quem não dirige como condutor
 
-Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+Data: 2026-10-02. Branch `work/spec-235-ajudante`.
 
 ### O que mudou
 
@@ -490,7 +490,7 @@ Postgres 18.4 nativo descartável (65435), variáveis no shell.
 
 ## T7 — Semente local com ajudante puro e motorista que ajuda
 
-Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+Data: 2026-10-02. Branch `work/spec-235-ajudante`.
 
 ### O que mudou
 
@@ -543,7 +543,7 @@ Postgres 18.4 nativo descartável (65435), variáveis no shell.
 
 ## T8 — Tipos, constantes, validação de resposta e formulário com `helper` e `canDrive`
 
-Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+Data: 2026-10-02. Branch `work/spec-235-ajudante`.
 
 ### O que mudou
 
@@ -574,7 +574,7 @@ Data: 2026-10-02. Branch `work/spec-234-ajudante`.
 
 ## T9 — Ficha e criação rápida: opção "Ajudante", CNH oculta, "Pode atuar como ajudante" e "Diária própria"
 
-Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+Data: 2026-10-02. Branch `work/spec-235-ajudante`.
 
 ### O que mudou
 
@@ -620,7 +620,7 @@ rótulo presente/ausente. Primeira execução: `Cannot find module DriverHelperF
 
 ## T10 — Acesso: papel "Ajudante" no convite, na tabela e nas listas fechadas
 
-Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+Data: 2026-10-02. Branch `work/spec-235-ajudante`.
 
 ### Todas as cópias da lista de papéis (grep `'separator'` em `src` e `test` da app)
 
@@ -671,7 +671,7 @@ authorization policy` verde (e o contrato novo cobre a lista do convite e `FLEET
 
 ## T11 — Viagem: o seletor de motoristas exclui quem não dirige
 
-Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+Data: 2026-10-02. Branch `work/spec-235-ajudante`.
 
 ### Seletores de condutor achados no painel (e o que foi feito)
 

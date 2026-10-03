@@ -33,7 +33,7 @@ const COMPANY_ID = '00000000-0000-4000-8000-000000000002'
 const MEMBERSHIP_ID = '00000000-0000-4000-8000-000000000003'
 
 /**
- * Spec 234 D7: o ajudante acompanha a viagem e não reporta nada. A lista de rotas é a mesma do
+ * Spec 235 D7: o ajudante acompanha a viagem e não reporta nada. A lista de rotas é a mesma do
  * contrato do separador, com as do app do motorista (`/me`) — é nelas que `trip.read` e `trip.report`
  * se separam.
  *

@@ -17,8 +17,8 @@ const testWithPostgres = databaseUrl === undefined ? test.skip : test
 
 type TestDatabase = ReturnType<typeof createDrizzleProvider>
 
-/** Spec 234 D5: a proposta separa quem dirige de quem só ajuda, nas duas pontas da tripulação. */
-describe('elegibilidade de motorista e ajudante da multi-veículo contra Postgres (spec 234)', () => {
+/** Spec 235 D5: a proposta separa quem dirige de quem só ajuda, nas duas pontas da tripulação. */
+describe('elegibilidade de motorista e ajudante da multi-veículo contra Postgres (spec 235)', () => {
   testWithPostgres('só quem dirige é motorista, e só quem ajuda é ajudante', async () => {
     await withDisposableDatabase(async (database) => {
       const companyId = crypto.randomUUID()

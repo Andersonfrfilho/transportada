@@ -50,7 +50,7 @@ export function TripCrewDialog({
 }: TripCrewDialogProps) {
   const { t } = useTranslation('trip')
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen, onClose })
-  /** Spec 234 D5: quem não dirige não é oferecido; o motorista atual fica para poder ser retirado. */
+  /** Spec 235 D5: quem não dirige não é oferecido; o motorista atual fica para poder ser retirado. */
   const driverCandidates = listDriverCandidates({
     currentDriverIds: readTripDriverIds(trip),
     drivers,

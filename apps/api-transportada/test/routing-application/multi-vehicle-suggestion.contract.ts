@@ -102,7 +102,7 @@ function buildFixture(
     readonly groups?: readonly MultiVehicleSuggestionGroup[]
     /** Spec 149 (ADR-0065 D1): ids que existem mas não marcaram `can_act_as_helper` na ficha. */
     readonly ineligibleHelpers?: readonly string[]
-    /** Spec 234 D5: ids que existem mas têm `can_drive = false` na ficha (ajudante-puro). */
+    /** Spec 235 D5: ids que existem mas têm `can_drive = false` na ficha (ajudante-puro). */
     readonly ineligibleDrivers?: readonly string[]
     /** Spec 148 T7: a planta da prévia por id — as notas que ela desenhou e as que deixou de fora. */
     readonly releasePlans?: ReadonlyMap<
@@ -391,7 +391,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       expect(fixture.calls.create).toEqual([])
     })
 
-    /** Spec 234 D5: quem não dirige (ajudante-puro) não é motorista de veículo da proposta. */
+    /** Spec 235 D5: quem não dirige (ajudante-puro) não é motorista de veículo da proposta. */
     test('recusa como motorista quem não dirige, com os ids no detalhe', async () => {
       const fixture = buildFixture({ ineligibleDrivers: [FIRST_DRIVER] })
 

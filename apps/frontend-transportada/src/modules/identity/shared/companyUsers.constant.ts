@@ -24,7 +24,7 @@ export const COMPANY_ROLES = [
   'driver',
   'aggregate',
   'separator',
-  /** Spec 234: o ajudante-puro — não dirige, tem ficha de frota própria e só lê a viagem em que está. */
+  /** Spec 235: o ajudante-puro — não dirige, tem ficha de frota própria e só lê a viagem em que está. */
   'helper',
 ] as const
 

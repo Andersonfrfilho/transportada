@@ -4,7 +4,7 @@
 import type { CompanyRole } from '../../database/identity.schema.js'
 import { FleetDriverProfileEmptyError } from '../../fleet/domain/fleet.error.js'
 
-/** As duas colunas da ficha de frota que a política de viagem lê (spec 234 D2). */
+/** As duas colunas da ficha de frota que a política de viagem lê (spec 235 D2). */
 export type FleetCrewCapabilities = {
   readonly canActAsHelper: boolean
   readonly canDrive: boolean
@@ -24,7 +24,7 @@ const DRIVING_ROLES: readonly CompanyRole[] = ['driver', 'aggregate']
 const HELPER_ROLE: CompanyRole = 'helper'
 
 /**
- * Spec 234 D4: cada coluna só muda pela entrada ou saída do papel que lhe corresponde, então o switch
+ * Spec 235 D4: cada coluna só muda pela entrada ou saída do papel que lhe corresponde, então o switch
  * "Pode atuar como ajudante" de um motorista sobrevive a uma troca que não toca `helper`.
  */
 export function reconcileFleetCrewCapabilities({
@@ -53,7 +53,7 @@ export function reconcileFleetCrewCapabilities({
 }
 
 /**
- * Spec 234 D2 no convite: a ficha órfã que o convite vincula ganha as colunas do perfil quando o papel
+ * Spec 235 D2 no convite: a ficha órfã que o convite vincula ganha as colunas do perfil quando o papel
  * é `helper` — só ajuda se não houver papel de quem dirige. Convite sem `helper` mantém o comportamento
  * de sempre e não toca as colunas.
  */

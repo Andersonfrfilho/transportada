@@ -5,7 +5,7 @@ type HelperCandidate = Readonly<{ canActAsHelper: boolean; id: string; status: s
 type DriverCandidate = Readonly<{ canDrive: boolean; id: string }>
 
 /**
- * Spec 234 D5: motorista só entre quem dirige. O motorista **atual** da viagem fica na lista mesmo
+ * Spec 235 D5: motorista só entre quem dirige. O motorista **atual** da viagem fica na lista mesmo
  * que a ficha tenha deixado de dirigir depois: sem ele ali, não haveria como retirá-lo.
  */
 export function listDriverCandidates<TDriver extends DriverCandidate>(

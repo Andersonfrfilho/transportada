@@ -105,7 +105,7 @@ describe('convite de usuário — vínculo com a ficha de frota', () => {
     expect(result.fleetLink).toBe('linked')
   })
 
-  // Spec 234 D8: o ajudante entra pela mesma porta, e a ficha dele é a de frota
+  // Spec 235 D8: o ajudante entra pela mesma porta, e a ficha dele é a de frota
   test('o ajudante procura ficha pelo mesmo caminho do motorista', async () => {
     const { result } = await invite({
       input: {

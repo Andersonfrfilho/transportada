@@ -97,7 +97,7 @@ const LICENSE_LABELS = [
   ptLocale.driverLicenseExpiresAt,
 ] as const
 
-describe('a ficha do ajudante não pede CNH (spec 234 T9, D6)', () => {
+describe('a ficha do ajudante não pede CNH (spec 235 T9, D6)', () => {
   it('quem dirige mostra os quatro campos de CNH da ficha', () => {
     const html = renderForm(driverDetail({ canDrive: true }))
 
@@ -126,7 +126,7 @@ describe('a ficha do ajudante não pede CNH (spec 234 T9, D6)', () => {
   })
 })
 
-describe('"Pode atuar como ajudante" e "Diária própria" (spec 234 T9, fecha a T12 da 149)', () => {
+describe('"Pode atuar como ajudante" e "Diária própria" (spec 235 T9, fecha a T12 da 149)', () => {
   function renderFields(state: FleetDriverFormState): string {
     return renderToStaticMarkup(<DriverHelperFields state={state} onChange={NOOP} />)
   }
@@ -175,7 +175,7 @@ describe('"Pode atuar como ajudante" e "Diária própria" (spec 234 T9, fecha a 
   })
 })
 
-describe('as duas fichas montam o mesmo controle (spec 234 T9)', () => {
+describe('as duas fichas montam o mesmo controle (spec 235 T9)', () => {
   const FORMS = [
     'src/modules/fleet/components/DriverForm.component.tsx',
     'src/modules/fleet/components/DriverQuickCreateDialog.component.tsx',
@@ -192,7 +192,7 @@ describe('as duas fichas montam o mesmo controle (spec 234 T9)', () => {
   })
 })
 
-describe('a diária própria sai como decimal da API (spec 234 T9)', () => {
+describe('a diária própria sai como decimal da API (spec 235 T9)', () => {
   it('digitada vira decimal de quatro casas; vazia vira null, que devolve à geral', () => {
     const typed = toDriverBody({ ...createDriverDraft(), helperDailyRate: '180,00' })
     const blank = toDriverBody({ ...createDriverDraft(), helperDailyRate: '' })
@@ -202,7 +202,7 @@ describe('a diária própria sai como decimal da API (spec 234 T9)', () => {
   })
 })
 
-describe('a lista de motoristas marca quem só ajuda (spec 234 T9)', () => {
+describe('a lista de motoristas marca quem só ajuda (spec 235 T9)', () => {
   function renderList(driver: FleetDriverDetail): string {
     return renderToStaticMarkup(
       <DriverList
@@ -222,7 +222,7 @@ describe('a lista de motoristas marca quem só ajuda (spec 234 T9)', () => {
   })
 })
 
-describe('a recusa de ficha vazia chega legível (spec 234 T9)', () => {
+describe('a recusa de ficha vazia chega legível (spec 235 T9)', () => {
   it('FLEET_DRIVER_PROFILE_EMPTY tem texto próprio nos dois idiomas, nunca o genérico', () => {
     const key = FLEET_FEEDBACK_KEY_BY_ERROR.FLEET_DRIVER_PROFILE_EMPTY
 

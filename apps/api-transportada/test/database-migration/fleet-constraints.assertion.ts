@@ -201,7 +201,7 @@ export async function assertFleetConstraints(
     values (${secondDriverId}, ${companyId}, 'Motorista Sem Login', '98765432100')
   `
 
-  // Spec 234 D2: a ficha nasce dirigindo; o ajudante-puro não dirige, e ficha que não faz nada não existe
+  // Spec 235 D2: a ficha nasce dirigindo; o ajudante-puro não dirige, e ficha que não faz nada não existe
   const [driverDefaults] = await database<
     Array<{ readonly can_drive: boolean; readonly can_act_as_helper: boolean }>
   >`select can_drive, can_act_as_helper from fleet_drivers where id = ${driverId}`

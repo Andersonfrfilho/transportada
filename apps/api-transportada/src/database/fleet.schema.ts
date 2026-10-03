@@ -429,7 +429,7 @@ export const fleetDrivers = pgTable(
      * salário (D2), porque ela paga o dia fora, não a hora trabalhada.
      */
     dailyAllowanceAmount: numeric('daily_allowance_amount', { precision: 19, scale: 4 }),
-    /** Spec 234 D2: a ficha dirige. O ajudante-puro não; a política da viagem lê isto, não o papel. */
+    /** Spec 235 D2: a ficha dirige. O ajudante-puro não; a política da viagem lê isto, não o papel. */
     canDrive: boolean('can_drive').notNull().default(true),
     /** Spec 149 / ADR-0065: pode ir de ajudante; a diária própria vence a da empresa quando existe. */
     canActAsHelper: boolean('can_act_as_helper').notNull().default(false),
@@ -673,7 +673,7 @@ export const fleetDrivers = pgTable(
       'fleet_drivers_helper_daily_rate_check',
       sql`${table.helperDailyRate} is null or ${table.helperDailyRate} >= 0`,
     ),
-    // Spec 234 D2: ficha que não dirige nem ajuda não existe
+    // Spec 235 D2: ficha que não dirige nem ajuda não existe
     check('fleet_drivers_crew_capability_check', sql`${table.canDrive} or ${table.canActAsHelper}`),
     check('fleet_drivers_version_check', sql`${table.version} > 0`),
   ],

@@ -113,7 +113,7 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   TRIP_DOCUMENT_NOT_REACHABLE: 'documentNotReachable',
   TRIP_DOCUMENT_REFERENCE_INVALID: 'documentReferenceInvalid',
   TRIP_DOCUMENT_RETURN_REASON_REQUIRED: 'documentReturnReasonRequired',
-  /** Spec 234 D5: a ficha escolhida como motorista só ajuda (`can_drive` falso) — 409, ids em `details`. */
+  /** Spec 235 D5: a ficha escolhida como motorista só ajuda (`can_drive` falso) — 409, ids em `details`. */
   TRIP_DRIVER_CANNOT_DRIVE: 'driverCannotDrive',
   TRIP_DRIVER_DUPLICATED: 'driverDuplicated',
   TRIP_DRIVER_NOT_AVAILABLE: 'driverNotAvailable',

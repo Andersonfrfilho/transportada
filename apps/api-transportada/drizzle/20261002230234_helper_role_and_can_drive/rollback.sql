@@ -1,6 +1,6 @@
 -- Copyright (c) 2026 Ada Technology. MIT License.
 -- Manual rollback only. Do not run from application startup.
--- Desfaz a spec 234: tira o papel 'helper' dos três CHECKs de papel e apaga `fleet_drivers.can_drive`
+-- Desfaz a spec 235: tira o papel 'helper' dos três CHECKs de papel e apaga `fleet_drivers.can_drive`
 -- com o CHECK da D2.
 -- Recusa rodar enquanto existir vínculo, convite ou grupo com o papel 'helper', ou ficha que não
 -- dirige: estreitar o CHECK falharia com erro do Postgres, e apagar a coluna faria um ajudante-puro

@@ -161,7 +161,7 @@ export function createDrizzleMultiVehicleSuggestionRepository(
       return driverIds.filter((driverId) => !available.has(driverId))
     },
 
-    /** Spec 234 D5: o gêmeo de `findIneligibleHelperIds` — quem **dirige** fica, o resto é a resposta. */
+    /** Spec 235 D5: o gêmeo de `findIneligibleHelperIds` — quem **dirige** fica, o resto é a resposta. */
     async findIneligibleDriverIds({ companyId, driverIds }) {
       if (driverIds.length === 0) return []
 

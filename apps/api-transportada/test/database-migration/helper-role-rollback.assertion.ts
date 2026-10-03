@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 234: o rollback do papel `helper` e de `fleet_drivers.can_drive` recusa enquanto houver
+ * Spec 235: o rollback do papel `helper` e de `fleet_drivers.can_drive` recusa enquanto houver
  * vínculo, convite ou grupo com o papel, ou ficha que não dirige — estreitar o CHECK quebraria, e
  * apagar a linha para caber tiraria o acesso de alguém sem ninguém decidir. Cada sonda é desfeita
  * logo depois, porque a integração roda todos os rollbacks em ordem reversa ao fim.

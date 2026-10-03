@@ -182,7 +182,7 @@ export class MultiVehicleSuggestionDriverRepeatedError extends ApiError {
 }
 
 /**
- * Spec 234 D5: motorista de veículo escolhido com `can_drive = false` na ficha (ajudante-puro) — os
+ * Spec 235 D5: motorista de veículo escolhido com `can_drive = false` na ficha (ajudante-puro) — os
  * ids viajam em `details`, gêmeo de `MultiVehicleSuggestionHelperNotEligibleError` e do
  * `TripDriverCannotDriveError` da viagem.
  */

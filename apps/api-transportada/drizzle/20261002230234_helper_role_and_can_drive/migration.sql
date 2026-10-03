@@ -1,4 +1,4 @@
--- Spec 234: o ajudante é um perfil. Papel `helper` no catálogo de Acesso e `fleet_drivers.can_drive`.
+-- Spec 235: o ajudante é um perfil. Papel `helper` no catálogo de Acesso e `fleet_drivers.can_drive`.
 --
 -- Aditiva e reversível:
 --   * `can_drive` nasce `true` em toda ficha existente — ninguém que dirige hoje deixa de dirigir.

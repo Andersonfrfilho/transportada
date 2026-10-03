@@ -164,7 +164,7 @@ export type FleetDriverCreateBodyContract = Omit<FleetDriverBodyContract, 'membe
 
 export type FleetDriverDetailContract = FleetDriverBodyContract &
   Readonly<{
-    /** Spec 234 D2: falso é o ajudante puro — só a leitura o traz, nenhum corpo de escrita. */
+    /** Spec 235 D2: falso é o ajudante puro — só a leitura o traz, nenhum corpo de escrita. */
     canDrive: boolean
     createdAt: string
     /**

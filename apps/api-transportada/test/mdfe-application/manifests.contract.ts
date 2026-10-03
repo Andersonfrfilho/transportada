@@ -401,7 +401,7 @@ describe('create MDF-e manifest', () => {
     expect(repeated.createCalls).toEqual([])
   })
 
-  // Spec 234 D5: o manifesto avulso monta a lista de condutores por conta própria, e o ajudante-puro
+  // Spec 235 D5: o manifesto avulso monta a lista de condutores por conta própria, e o ajudante-puro
   // não entra nela — o mesmo erro (409, ids em `details`) de `resolveTripCrew`
   test('refuses a driver that cannot drive, naming every one, with the trip error', async () => {
     const helperOnly = { ...(DRIVERS[1] as MdfeManifestDriver), canDrive: false }

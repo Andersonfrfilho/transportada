@@ -25,11 +25,11 @@ type TestDatabase = ReturnType<typeof createDrizzleProvider>
 const ISSUER = 'https://keycloak.test/realms/transportada'
 
 /**
- * Spec 234 T7: a semente passa pelo caso de uso **de verdade** — só o convite do Keycloak é trocado
+ * Spec 235 T7: a semente passa pelo caso de uso **de verdade** — só o convite do Keycloak é trocado
  * por quem abre o usuário no banco —, então as colunas que a política de viagem lê saem da tradução
  * perfil → colunas, e não de um `INSERT` escrito à mão.
  */
-describe('semente local da frota contra Postgres (spec 234)', () => {
+describe('semente local da frota contra Postgres (spec 235)', () => {
   testWithPostgres(
     'grava o ajudante puro e o motorista que ajuda pelas colunas do perfil',
     async () => {

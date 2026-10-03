@@ -35,7 +35,7 @@ export type MdfeManifestVehicle = {
 }
 
 export type MdfeManifestDriver = {
-  /** Spec 234 D5: a ficha dirige — o ajudante-puro não pode ser condutor do manifesto. */
+  /** Spec 235 D5: a ficha dirige — o ajudante-puro não pode ser condutor do manifesto. */
   readonly canDrive: boolean
   readonly id: string
   readonly name: string
