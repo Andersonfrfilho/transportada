@@ -46,7 +46,7 @@ já faz (`listOccurrenceCorrections`, o mapeamento de `cancellation`), em lote �
       corrigir e cancelar podem agir, e **qual texto** explica quando não podem (RF4, RF10): sem itens, Corrigir não existe; o motivo distingue os estados da tratativa. Ler a regra da janela em `correct-occurrence-items.use-case.ts`/`cancel-occurrence.use-case.ts` e espelhar exatamente, sem inventar.
 - [x] **T1.3** Mutação: arrancar a condição de tratativa aberta deixa a T1.2 vermelha. Execução
       vermelha em `evidence.md`.
-- [ ] **T1.4** Mutações das mutações de dados com invalidação de detalhe, feed e linha do tempo
+- [x] **T1.4** Mutações das mutações de dados com invalidação de detalhe, feed e linha do tempo
       (RF8).
 
 ## Fase 2 — Corrigir

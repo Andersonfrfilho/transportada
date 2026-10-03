@@ -948,3 +948,39 @@ Os 12 que caem: o caso "sem itens e com tratativa aberta", os 9 estados da trata
 que cada estado tem texto próprio e o caso em inglês. Restaurado com `git checkout` do arquivo;
 `bun run --cwd apps/frontend-transportada test` voltou a **6475 pass, 0 fail** (lote restante 327
 pass, 0 fail).
+
+## T1.4 — As mutações de dados, com invalidação
+
+`src/modules/trip/queries/useOccurrenceCorrection.query.ts`: `useCorrectOccurrenceItems` e
+`useCancelOccurrence` (TanStack `useMutation` sobre `getTripClient()`), cada tentativa com a própria
+`Idempotency-Key` (`crypto.randomUUID()` dentro da `mutationFn`). `onSettled` invalida:
+
+- `[trip-occurrence-feed]` — prefixo do feed, do detalhe (`[…, 'detail', …]`) e da linha do tempo da
+  ocorrência (`[…, 'timeline', …]`);
+- `[trips, tripId, 'timeline']` — a linha do tempo da viagem e a de cada nota, que mora debaixo dela.
+
+`onSettled` e não `onSuccess`: o `409` de tratativa que abriu entre carregar a tela e clicar também
+pede o estado novo (spec.md, casos extremos). Contrato
+`test/trip-hooks/occurrence-correction-mutations.contract.ts` (importado por
+`test/trip-hooks.contract.test.ts`, que roda pelo `test:hooks` dentro do `test` da app): semeia
+detalhe, feed, linha do tempo da ocorrência, da viagem e da nota mais uma chave alheia e prova que as
+cinco caem e a alheia não, em corrigir, em cancelar e no `409`; e que quatro tentativas levam quatro
+chaves distintas. As duas chamadas do `FakeTripClient` (`test/fixtures/tripAssemblyHooks.fixture.ts`)
+entraram na fixture.
+
+Vermelho antes da implementação (módulo inexistente):
+
+```text
+error: Cannot find module '@/modules/trip/queries/useOccurrenceCorrection.query' from '.../test/trip-hooks/occurrence-correction-mutations.contract.ts'
+ 0 pass
+ 1 fail
+```
+
+Verde depois:
+
+```bash
+bun run --cwd apps/frontend-transportada test      # 6475 pass, 0 fail (32 arquivos); test:hooks 331 pass, 0 fail
+bun run test:hooks -t "mutações de correção"       # 4 pass, 0 fail
+bun run typecheck                                  # limpo
+cd apps/frontend-transportada && bun run lint      # 0 erros, 16 avisos preexistentes
+```
