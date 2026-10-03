@@ -206,10 +206,47 @@ describe('o ajudante puro tem uma diária só (spec 235 A2)', () => {
   })
 })
 
+describe('o ajudante não vê texto de motorista nem de agregado (spec 239 T5 A7)', () => {
+  it('a legenda diz "Identificação do ajudante" e o endereço da empresa do agregado some', () => {
+    const html = renderForm(driverDetail({ canDrive: false, canActAsHelper: true }))
+
+    expect(html).toContain(ptLocale.driverIdentityLegendHelper)
+    expect(html).not.toContain(ptLocale.driverIdentityLegend)
+    expect(html).not.toContain(ptLocale.driverLinkedAddressLegend)
+    expect(html).toContain(ptLocale.driverBirthDate)
+  })
+
+  it('quem dirige segue com a legenda de motorista e o endereço da empresa', () => {
+    const html = renderForm(driverDetail({ canDrive: true }))
+
+    expect(html).toContain(ptLocale.driverIdentityLegend)
+    expect(html).not.toContain(ptLocale.driverIdentityLegendHelper)
+    expect(html).toContain(ptLocale.driverLinkedAddressLegend)
+  })
+
+  it('a legenda do ajudante existe nos dois idiomas', () => {
+    expect(ptLocale.driverIdentityLegendHelper).toBe('Identificação do ajudante')
+    expect(enLocale.driverIdentityLegendHelper).toBe('Helper identification')
+  })
+
+  it('o diálogo de criação rápida troca a mesma legenda pelo mesmo predicado e não monta o endereço', () => {
+    const source = readFileSync(
+      new URL(
+        '../../src/modules/fleet/components/DriverQuickCreateDialog.component.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+
+    expect(source).toContain("hasLicense ? 'driverIdentityLegend' : 'driverIdentityLegendHelper'")
+    expect(source).not.toContain('DriverLinkedAddressFields')
+  })
+})
+
 describe('as duas fichas montam o mesmo controle (spec 235 T9)', () => {
   /** A aba esconde também a diária de motorista (A2); o diálogo rápido não a tem. */
   const FORMS = [
-    ['src/modules/fleet/components/DriverForm.component.tsx', 3],
+    ['src/modules/fleet/components/DriverForm.component.tsx', 4],
     ['src/modules/fleet/components/DriverQuickCreateDialog.component.tsx', 2],
   ] as const
 

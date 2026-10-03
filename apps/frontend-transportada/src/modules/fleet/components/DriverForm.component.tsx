@@ -126,7 +126,7 @@ export function DriverForm({
       {driver === undefined ? null : <DriverScoreSection driverId={driver.id} />}
 
       <fieldset className={styles.fieldGroup}>
-        <legend>{t('driverIdentityLegend')}</legend>
+        <legend>{t(hasLicense ? 'driverIdentityLegend' : 'driverIdentityLegendHelper')}</legend>
         <div className={styles.fieldGrid}>
           <FleetField
             label={t('driverName')}
@@ -311,7 +311,13 @@ export function DriverForm({
         {hasLicense ? <p className={styles.hint}>{t('driverDailyAllowanceAmountHint')}</p> : null}
         {driver === undefined ? <p className={styles.hint}>{t('driverProfileHint')}</p> : null}
       </fieldset>
-      <DriverLinkedAddressFields lookup={linkedAddress} state={form.state} onChange={form.patch} />
+      {hasLicense ? (
+        <DriverLinkedAddressFields
+          lookup={linkedAddress}
+          state={form.state}
+          onChange={form.patch}
+        />
+      ) : null}
       <DriverPersonalFields state={form.state} onChange={form.patch} />
       <DriverAddressFields
         {...(driver === undefined

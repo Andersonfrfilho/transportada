@@ -338,6 +338,7 @@
   "driverIdentityDocumentState": "UF do órgão emissor",
   "driverIdentityDocumentStateUnset": "Sem UF",
   "driverIdentityLegend": "Identificação do motorista",
+  "driverIdentityLegendHelper": "Identificação do ajudante",
   "driverLicense": "CNH",
   "driverLicenseCategory": "Categoria da CNH",
   "driverLicenseCategoryUnset": "Sem categoria",

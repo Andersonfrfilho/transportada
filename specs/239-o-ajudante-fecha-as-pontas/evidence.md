@@ -215,3 +215,34 @@ dois blocos da folha e afirma igualdade de `border`, `color`, `font-family`, `fo
 
 **Gates:** `bun run test` do painel 6597 pass / 0 fail (+ hooks 364 / 0); `tsc --noEmit` limpo; eslint
 dos tocados limpo; prettier limpo. A conferência visual (375 px, claro e escuro) é da T7.
+
+## T5 · A7 — O ajudante não vê texto de motorista nem de agregado (D6, RF-6)
+
+**Defeito:** o perfil Ajudante via "Identificação do motorista" (`driverIdentityLegend`, em `DriverForm` e
+`DriverQuickCreateDialog`) e "Endereço da empresa do agregado" (`DriverLinkedAddressFields`, montado sem
+condição em `DriverForm`).
+
+**Conserto:** o predicado que já existia, `isHelperOnlyDriver` (via `hasLicense`), decide as duas coisas. Nova
+chave `driverIdentityLegendHelper` ("Identificação do ajudante" / "Helper identification") nas duas legendas;
+`DriverLinkedAddressFields` só monta com `hasLicense`. O diálogo de criação rápida **não** monta o bloco de
+endereço (conferido: nenhuma referência), então só a legenda mudou. Na edição a decisão vem da ficha
+carregada (`canDrive`), como o resto da ficha — o estado do formulário já nasce dela.
+
+**Contrato** (`test/fleet/driver-helper-fields.contract.tsx`, bloco "spec 239 T5 A7"): ficha com `canDrive`
+falso mostra a legenda do ajudante e não mostra a de motorista nem a do agregado; ficha de quem dirige segue
+igual; legenda nos dois idiomas; o diálogo usa a mesma troca e não monta o endereço. Dois contratos
+existentes foram atualizados por mudança legítima de estrutura: `driver-form-parity.contract.ts` (o texto da
+legenda, agora com a troca) e `driver-helper-fields.contract.tsx` (o bloco condicional do `DriverForm`
+passou de 3 para 4).
+
+**Vermelho antes do código:** 4 fail (legenda do ajudante, ficha de quem dirige, locales, diálogo) com a chave
+`driverIdentityLegendHelper` inexistente.
+
+**Mutação** (restaurada e conferida com `cmp`): endereço montado sempre → 2 fail; legenda fixa na `DriverForm`
+→ 2 fail; legenda fixa no diálogo → 2 fail.
+
+**Observação fora do escopo (não alterada):** a ficha do ajudante ainda traz "Dados pessoais do motorista"
+(`driverPersonalLegend`), em `DriverPersonalFields`. Não estava nos achados A3/A6/A7.
+
+**Gates:** `bun run test` do painel 6601 pass / 0 fail (+ hooks 364 / 0); `tsc --noEmit` limpo; eslint dos
+tocados limpo; prettier limpo.

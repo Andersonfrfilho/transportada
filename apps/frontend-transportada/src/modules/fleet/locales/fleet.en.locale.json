@@ -309,6 +309,7 @@
   "driverIdentityDocumentState": "Issuing authority state",
   "driverIdentityDocumentStateUnset": "No state",
   "driverIdentityLegend": "Driver identification",
+  "driverIdentityLegendHelper": "Helper identification",
   "driverLicense": "License",
   "driverLicenseCategory": "License category",
   "driverLicenseCategoryUnset": "No category",

@@ -147,7 +147,7 @@ export function DriverQuickCreateDialog({
         </p>
         <form onSubmit={handleSubmit} ref={formRef}>
           <fieldset className={styles.fieldGroup}>
-            <legend>{t('driverIdentityLegend')}</legend>
+            <legend>{t(hasLicense ? 'driverIdentityLegend' : 'driverIdentityLegendHelper')}</legend>
             <div className={styles.fieldGrid}>
               <FleetField
                 inputRef={focus.bindInput('name')}
