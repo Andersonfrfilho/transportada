@@ -2755,3 +2755,60 @@ desenvolvimento para `map-tiles-staging.up.railway.app`. **Não verificado:** o 
 - Valor de `VITE_MAP_TILES_URL` em staging e produção, e a retenção do log HTTP do `map-tiles`.
 - `EXPLAIN` com volume real (tabelas vazias).
 - API: só o typecheck e a integração da linha do tempo (a API foi tocada apenas por um teste novo).
+
+## Rebase sobre a 234
+
+Data: 2026-10-03. Antes: 18 commits à frente e 43 atrás de `origin/staging` (topo
+`5cf6874a2`, spec 234 — o relógio do evento). Rebase commit a commit, sem `-X ours/theirs`.
+Backup local da ponta anterior: `backup/196-pre-rebase-234`.
+
+### Conflitos e como foram fundidos
+
+| Arquivo                                                                                       | Decisão                                                                                                                                                                                                                                                                                                                              |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/trips/presentation/me-trip.schema.ts`                                                    | Fica o `toEventClock` e o `eventClockFields` da 234; sai o `locationSchema`/`toReportedLocation` local sem teto — os dois vêm só de `reported-location.schema.ts` (196, com o teto de precisão). `occurrenceBodySchema` tem `...eventClockFields` **e** `location`; `StopOccurrenceRequest` tem `location` **e** `EventClockFields`. |
+| `src/trips/application/driver-field-report.port.ts`                                           | Os dois imports (`EventLocationStampColumns` da 196, `CorrectedClock` da 234).                                                                                                                                                                                                                                                       |
+| `src/trips/infrastructure/drizzle-driver-field-report.repository.ts`                          | `recordEvent` grava `...stamp` (política única da 196) **e** `occurredAt` da correção aceita (234).                                                                                                                                                                                                                                  |
+| `test/trip-schema.contract.test.ts`, `apps/frontend-driver/test/driver-trip.contract.test.ts` | União dos imports das duas specs.                                                                                                                                                                                                                                                                                                    |
+| `test/database-migration/static-migration.contract.ts`                                        | Lista exaustiva com `20261002213734_delivered_moment_clock` antes de `20261003010806_event_location_whatsapp_coordinate`.                                                                                                                                                                                                            |
+| `frontend-driver/.../driverTripClient.service.ts`                                             | `send({ report: queuedReport, stamp })` (234) seguido de `withLegacyLocation(queuedReport)` (196).                                                                                                                                                                                                                                   |
+| `frontend-driver/test/driver-trip/dispatch*.contract.ts`                                      | Envelope `{ report, stamp }` da 234 com `location: null` da 196 no relato e no corpo esperado.                                                                                                                                                                                                                                       |
+| `frontend-driver/test/driver-app.smoke.spec.ts`                                               | Os dois blocos de smoke (relógio da 234 e ponto da 196); o `findReport` duplicado da 196 saiu, fica o da 234.                                                                                                                                                                                                                        |
+| `frontend-driver/test/driver-trip-smoke.helper.ts`                                            | O despacho guarda o corpo (196) e `formFields: null` (234).                                                                                                                                                                                                                                                                          |
+
+Quebras semânticas sem conflito textual (só o typecheck as viu), corrigidas em
+`test(driver): funde os contratos do relógio (234) com o ponto em todo toque (196)`:
+`event-clock-fields.contract.ts` (fixtures sem `location`; o despacho continua sem relógio e agora
+leva o ponto) e `event-location-queue.contract.ts` (chamadas pelo envelope `{ report, stamp }`).
+
+### Snapshot
+
+`20261003010806_event_location_whatsapp_coordinate/snapshot.json`: id `eb960c28-…` (mantido),
+`prevIds` `["b91168e2-3f91-4dcc-947e-b4e940dda6a4"]` (a `20261002213734`, última de staging). O
+corpo é o snapshot da 234 com só os três CHECKs `*_coordinates_channel_check` trocados para
+`in ('driver_app', 'whatsapp')` (diferença de DDL contra o da 234: 3 entradas). A pasta já era
+posterior à da 234 — sem renomear. `bun run db:generate --name x` → `{"status":"no_changes","dialect":"postgresql"}`.
+
+### Gates
+
+- `bun run format:check` → `All matched files use Prettier code style!`
+- `bun run lint` → exit 0, `0 errors, 16 warnings` (avisos preexistentes do painel)
+- `bun run typecheck` → exit 0, sete apps
+- `bun run build` → exit 0
+- `bun run test` → exit 0; API 9098 pass / 0 fail (9130 testes, 193 arquivos); worker 1558/0; cron
+  101/0; painel 6441/0; 327/0; cliente 89/0; motorista 1146/0; landing 131/0
+- `bun run db:test` (`DRIZZLE_TEST_DATABASE_URL` = `DATABASE_URL` do `.env.test`) → 117 pass / 0 fail
+- `bun --env-file=../../.env.test run test:integration` → 905 pass / 8 skip / **1 fail**, 914 testes
+  em 154 arquivos, 1282 s. A falha: `event-location-stamp.integration.ts` CA01 "despachar com ponto"
+  estourou 120 s — é o primeiro teste do arquivo, que cria e migra o banco descartável. Havia outro
+  `bun --env-file=../../.env.test test` rodando na máquina no mesmo Postgres durante a execução.
+  Arquivo isolado, três vezes: 23 pass / 0 fail (≈39 s cada).
+
+### Não verificado
+
+- A integração completa não teve uma rodada inteira verde: o único vermelho foi o timeout acima,
+  verde isolado ×3, mas sob disputa de banco.
+- Os 8 `skip` da integração não foram listados um a um.
+- Smoke Playwright do `frontend-driver` (os blocos fundidos de `driver-app.smoke.spec.ts`) não rodou.
+- `confirm-load`/`start-route` usam `parseFieldReportRequest`, que agora também aceita `tappedAt` e
+  `clockOffsetMs` (da 234) e os descarta nessas rotas — aceito sem gravar, não `400`.
