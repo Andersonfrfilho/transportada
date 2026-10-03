@@ -9,6 +9,7 @@ import {
   COMPANY_ROLES,
   FLEET_LINKED_ROLES,
 } from '../../src/modules/identity/shared/companyUsers.constant'
+import { resolveNoWorkspaceAccessVariant } from '../../src/modules/identity/shared/noWorkspaceAccessVariant.service'
 import { buildRoleChoices } from '../../src/modules/identity/shared/companyUsersViewModel.service'
 import {
   resolveLandingWorkspace,
@@ -87,6 +88,10 @@ describe('o papel Ajudante em Acesso (spec 235 T10)', () => {
     expect(
       resolveLandingWorkspace({ ...helper, current: 'nfe', hasLanded: false, source: 'default' }),
     ).toEqual({ kind: 'no-access' })
+    // Spec 239 D5: o landing segue 'no-access'; a tela é que diz que a conta acompanha viagens.
+    expect(
+      resolveNoWorkspaceAccessVariant({ driverAppUrl: undefined, permissions: helper.permissions }),
+    ).toEqual({ kind: 'tracking' })
   })
 
   test('a recusa FLEET_DRIVER_PROFILE_EMPTY da troca de papéis tem mensagem própria nos dois idiomas', () => {

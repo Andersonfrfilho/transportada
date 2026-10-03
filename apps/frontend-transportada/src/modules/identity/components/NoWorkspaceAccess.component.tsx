@@ -4,10 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
+import type { NoWorkspaceAccessVariant } from '../shared/noWorkspaceAccessVariant.service'
 import styles from '../styles/identity.module.css'
 
 export type NoWorkspaceAccessProps = Readonly<{
   onSignOut: () => void
+  variant: NoWorkspaceAccessVariant
 }>
 
 /**
@@ -16,16 +18,32 @@ export type NoWorkspaceAccessProps = Readonly<{
  * por que a tela está vazia. Esta é tela de beco: diz o que aconteceu, a quem pedir, e oferece a
  * única ação que faz sentido.
  */
-export function NoWorkspaceAccess({ onSignOut }: NoWorkspaceAccessProps) {
+export function NoWorkspaceAccess({ onSignOut, variant }: NoWorkspaceAccessProps) {
   const { t } = useTranslation('identity')
+  const isTracking = variant.kind === 'tracking'
+  const driverAppUrl = variant.kind === 'tracking' ? variant.driverAppUrl : undefined
 
   return (
     <main className={styles.noAccessShell}>
       <section className={styles.noAccessPanel} role="alert">
         <Icon aria-hidden="true" name="alert" />
-        <h1 className={styles.noAccessTitle}>{t('noWorkspaceAccess.title')}</h1>
-        <p className={styles.noAccessBody}>{t('noWorkspaceAccess.body')}</p>
-        <p className={styles.noAccessHint}>{t('noWorkspaceAccess.askAdmin')}</p>
+        <h1 className={styles.noAccessTitle}>
+          {t(isTracking ? 'noWorkspaceAccess.trackingTitle' : 'noWorkspaceAccess.title')}
+        </h1>
+        <p className={styles.noAccessBody}>
+          {t(isTracking ? 'noWorkspaceAccess.trackingBody' : 'noWorkspaceAccess.body')}
+        </p>
+        {isTracking ? null : (
+          <p className={styles.noAccessHint}>{t('noWorkspaceAccess.askAdmin')}</p>
+        )}
+        {driverAppUrl === undefined ? null : (
+          <Button asChild>
+            <a href={driverAppUrl} rel="noopener noreferrer">
+              <Icon name="truck" />
+              {t('noWorkspaceAccess.openDriverApp')}
+            </a>
+          </Button>
+        )}
         <Button onClick={onSignOut} type="button" variant="secondary">
           <Icon name="power" />
           {t('noWorkspaceAccess.signOut')}

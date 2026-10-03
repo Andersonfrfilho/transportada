@@ -141,3 +141,25 @@ falha de leitura, erro com código, salvo); montagem na aba com a permissão cer
 
 **Gates:** `bun run test` do painel 6579 pass / 0 fail (+ hooks 359 / 0); `tsc --noEmit` limpo; eslint
 dos tocados 0 erros (3 avisos já existentes em arquivos não tocados); prettier limpo.
+
+## T4 — `NoWorkspaceAccess` com variante de acompanhamento (D5, RF-5)
+
+**O que entrou** (`apps/frontend-transportada/src/`): `modules/identity/shared/noWorkspaceAccessVariant.service.ts`
+(função pura `resolveNoWorkspaceAccessVariant({ driverAppUrl, permissions })` → `tracking` com `trip.read`,
+`default` sem ela), `NoWorkspaceAccess.component.tsx` recebe `variant`, `main.tsx` calcula a variante com
+`readDriverAppUrl()`, locales `noWorkspaceAccess.trackingTitle/trackingBody/openDriverApp` pt/en.
+O botão é `Button asChild` sobre `<a href rel="noopener noreferrer">`, mesma aba, ícone `truck`, só quando a
+URL existe; o "Sair" fica sempre. A variante de acompanhamento não mostra "peça ao administrador".
+
+**Contrato** `test/identity/no-workspace-access-variant.contract.tsx` (entra em `test/identity.contract.test.ts`):
+`['trip.read']` com e sem URL, `[]` com URL, `['trip.read','fleet.read']` não chega a `no-access`, HTML
+renderizado nas três situações, locales e a ligação no `main.tsx`. `helper-role.contract.ts` (:83-91) mantém
+`no-access` para o landing e ganhou a asserção da variante exibida.
+
+**Vermelho antes do código:** `0 pass / 1 fail / 1 error` (módulo `noWorkspaceAccessVariant.service` inexistente).
+
+**Mutação** (restaurada e conferida com `cmp`; base 266 pass): serviço sem a checagem de `trip.read` → 2 fail;
+link sem `rel` → 1 fail; botão sempre renderizado → 2 fail; `main.tsx` com `driverAppUrl: undefined` → 1 fail.
+
+**Gates:** `bun run test` do painel 6587 pass / 0 fail (+ hooks 359 / 0); `tsc --noEmit` limpo; eslint dos
+tocados limpo; prettier limpo.

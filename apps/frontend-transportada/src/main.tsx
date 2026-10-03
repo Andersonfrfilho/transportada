@@ -52,6 +52,7 @@ import { NOTIFICATION_THEME_CLASS } from '@/modules/notification/shared/notifica
 import notificationStyles from '@/modules/notification/styles/notification.module.css'
 import { QUERY_CLIENT_DEFAULT_OPTIONS } from '@/modules/shared/queryClientDefaults.constant'
 import { NoWorkspaceAccess } from '@/modules/identity/components/NoWorkspaceAccess.component'
+import { resolveNoWorkspaceAccessVariant } from '@/modules/identity/shared/noWorkspaceAccessVariant.service'
 import {
   resolveLandingWorkspace,
   resolveNavigationMenu,
@@ -587,7 +588,15 @@ function ApplicationShell(): ReactNode {
    * conta de campo nunca chega aqui — o efeito dela decidiu antes, e `landing` é `undefined` para ela.
    */
   if (landing?.kind === 'no-access') {
-    return <NoWorkspaceAccess onSignOut={() => void getKeycloakAuthProvider().logout()} />
+    return (
+      <NoWorkspaceAccess
+        variant={resolveNoWorkspaceAccessVariant({
+          driverAppUrl: readDriverAppUrl(),
+          permissions: permissions ?? [],
+        })}
+        onSignOut={() => void getKeycloakAuthProvider().logout()}
+      />
+    )
   }
 
   /**

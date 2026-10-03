@@ -651,6 +651,9 @@
   "noWorkspaceAccess": {
     "title": "Your account has no access to any panel area",
     "body": "Your user is active, but no permission was assigned to it — so there is nothing to open here.",
+    "trackingTitle": "Your account follows trips through the driver app",
+    "trackingBody": "You can follow your own trips, but the carrier panel has no area for this profile. Open the driver app.",
+    "openDriverApp": "Open the driver app",
     "askAdmin": "Ask your carrier's administrator to review the roles on your account.",
     "signOut": "Sign out"
   }

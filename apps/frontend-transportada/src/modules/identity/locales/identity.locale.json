@@ -651,6 +651,9 @@
   "noWorkspaceAccess": {
     "title": "Sua conta não tem acesso a nenhuma área do painel",
     "body": "O seu usuário está ativo, mas nenhuma permissão foi atribuída a ele — por isso não há nada para abrir aqui.",
+    "trackingTitle": "Sua conta acompanha viagens pelo app do motorista",
+    "trackingBody": "Você tem acesso para acompanhar as suas viagens, mas o painel da transportada não tem área para este perfil. Abra o app do motorista.",
+    "openDriverApp": "Abrir o app do motorista",
     "askAdmin": "Peça ao administrador da sua transportadora para revisar os papéis da sua conta.",
     "signOut": "Sair"
   }
