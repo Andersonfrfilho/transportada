@@ -69,6 +69,48 @@ junção com `company_occurrence_types` no momento da leitura. Alternativa desca
 dado que só decide a tela; a ocorrência antiga com itens num tipo que virou `off` é coberta pelo
 `hasItems || wasCorrected` do RF7.
 
+### D-E — Tipo `off` não abre tratativa: CHECK de coluna (D1, decidida por delegação)
+
+**Decidida por delegação em 2026-10-03 — o usuário pode reverter antes da execução.**
+
+**Escolhida:** `company_occurrence_types_items_off_shape_check`: `items_mode <> 'off' or
+redelivery_policy = 'unset'`. Mesmo molde — CHECK de forma por tipo, nome `<tabela>_<assunto>_shape_check`
+— do `company_occurrence_types_charge_shape_check` que a 204 planeja (`specs/204-…/plan.md:166`; ⚠️ a
+204 **ainda não está no código**: `TRIP_OCCURRENCE_STAGE` tem dois valores e não há `charge` no
+schema, então não há constraint pronta para copiar, só o padrão). As duas CHECKs são independentes e
+coexistem. Conferido no código: o catálogo de bootstrap nunca escreve `redelivery_policy` (a coluna
+nasce `unset`), e o seed local não inclui a segunda via — todo tipo semeado dela está `unset`, a menos
+que o operador tenha mudado. Por isso o `UPDATE` normaliza `redelivery_policy` **na mesma instrução**
+que põe `off`: a CHECK entra depois e nenhuma linha a viola. Linhas `optional` (todas as demais) passam
+pela cláusula `items_mode <> 'off'`.
+
+Servidor: `save-occurrence-type.use-case.ts` valida o estado resultante (campo ausente = valor gravado)
+e lança `OccurrenceTypeItemsOffRedeliveryPolicyError` (`422`, código
+`OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY`, declarado ao lado de `OccurrenceTypeSingleItemError` em
+`trips/domain/trip.error.ts` — os códigos deste domínio moram ali, não em `shared/errors/codes.ts`).
+Painel: esconde a política com Produtos = Desligado e envia `redeliveryPolicy: 'unset'` ao trocar.
+
+**Descartadas:** (b) livre — tratativa que não fecha por `goods_paid`; (c) regra no domínio da 164 —
+reabre 164, fora do escopo. **Custo de reverter:** `ALTER TABLE … DROP CONSTRAINT`, remover a guarda e
+o `if` do painel; a normalização para `unset` não se desfaz (era `unset` em tipo de catálogo).
+Tratativa **já aberta** em tipo que depois vira `off` não é tocada: a CHECK é do tipo, não do caso.
+
+### D-F — A prorrogação só entra por cadastro na empresa existente (D2, decidida por delegação)
+
+**Decidida por delegação em 2026-10-03 — o usuário pode reverter antes da execução.**
+
+**Escolhida:** manter a regra da 208 (catálogo só no bootstrap, `hasAnyOccurrenceType`). O tipo "Cliente
+pediu prorrogação do boleto" entra em `OCCURRENCE_TYPE_CATALOG` (empresa vazia, ambientes novos,
+`make bootstrap`), com `itemsMode: 'off'`; a transportada de produção o **cadastra pela tela** (passo
+operacional em `spec.md`). **A migration não insere esse tipo.** **Descartada:** (b) `INSERT … WHERE NOT
+EXISTS` por empresa na migration — exceção à 208, e o rollback não pode apagar a linha (FK `restrict`
+das ocorrências). **Custo de reverter:** acrescentar o `INSERT` e o teste de integração.
+
+Campos que a 208 usa e que o cadastro precisa permitir sem itens: `name`, `stage = 'delivery'`,
+`flow = 'document'`, `attachmentMode = 'off'`, `leavesDocumentBehind = false` (só `separation` pode
+ligá-la, CHECK `leaves_document_behind_check`), `redeliveryPolicy = 'unset'`, `notifies = false`. A T2.4
+prova isso pelo `PUT` e a T1.5 pelo painel.
+
 ## Arquitetura e arquivos afetados
 
 API (`apps/api-transportada`):
@@ -83,9 +125,12 @@ API (`apps/api-transportada`):
   — gravam `itemsMode`.
 - `src/trips/presentation/occurrence.schema.ts` — `itemsMode: z.enum(['off','optional']).optional()`
   no cadastro; campos novos nas respostas.
-- `src/trips/application/save-occurrence-type.use-case.ts` — persiste, ausente não mexe.
-- `src/trips/domain/trip.error.ts` — `OccurrenceTypeItemsNotAllowedError` (`422`, código em
-  `shared/errors/codes.ts` se o domínio já registrar lá).
+- `src/trips/application/save-occurrence-type.use-case.ts` — persiste, ausente não mexe; valida o
+  estado resultante `off` ⇒ política `unset` (D1).
+- `src/trips/domain/trip.error.ts` — `OccurrenceTypeItemsNotAllowedError` (`422`,
+  `OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED`) e `OccurrenceTypeItemsOffRedeliveryPolicyError` (`422`,
+  `OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY`, D1); códigos ao lado de
+  `OccurrenceTypeSingleItemError`, onde este domínio os declara.
 - `src/trips/application/register-trip-occurrence.use-case.ts`,
   `correct-occurrence-items.use-case.ts` e o registro do escritório em nome do motorista
   (`register-driver-occurrence.use-case.ts`/`office-occurrence-batch.service.ts`, se aceitarem
@@ -101,7 +146,8 @@ Painel (`apps/frontend-transportada`):
 - `trip/shared/tripOccurrenceDetail.service.ts` — RF7.
 - `trip/components/TripOccurrences.component.tsx`, `SeparationOccurrenceDialog.component.tsx` — RF8.
 - `trip/components/TripOccurrenceCorrectionForm.component.tsx` — RF9.
-- `company-settings/components/OccurrenceTypeCatalogPanel.component.tsx` (+ hook e tipos) — RF10.
+- `company-settings/components/OccurrenceTypeCatalogPanel.component.tsx` (+ hook e tipos) — RF10 e
+  RF12 (esconde a política de reentrega com Produtos = Desligado e envia `unset` ao trocar).
 - Locales pt-BR e en. `docs/ai-context/frontend-transportada.md`.
 
 App do motorista: nenhuma mudança de código. Confirmar que o guard de tipos tolera a chave nova.
@@ -119,27 +165,34 @@ OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED`.
 ## Migration e rollback
 
 ```sql
--- migration.sql
+-- migration.sql — a ORDEM importa: coluna, backfill (+ política), e só então a CHECK
 ALTER TABLE company_occurrence_types
   ADD COLUMN items_mode varchar(16) NOT NULL DEFAULT 'optional';
 ALTER TABLE company_occurrence_types
   ADD CONSTRAINT company_occurrence_types_items_mode_check
   CHECK (items_mode IN ('off', 'optional', 'required'));
 UPDATE company_occurrence_types
-   SET items_mode = 'off'
+   SET items_mode = 'off',
+       redelivery_policy = 'unset'
  WHERE name = 'Cliente pediu segunda via do boleto'
    AND stage = 'delivery'
    AND flow = 'document';
+ALTER TABLE company_occurrence_types
+  ADD CONSTRAINT company_occurrence_types_items_off_shape_check
+  CHECK (items_mode <> 'off' OR redelivery_policy = 'unset');
 
--- rollback.sql
+-- rollback.sql — ordem inversa: a CHECK da forma cai antes da coluna que ela lê
+ALTER TABLE company_occurrence_types DROP CONSTRAINT IF EXISTS company_occurrence_types_items_off_shape_check;
 ALTER TABLE company_occurrence_types DROP CONSTRAINT IF EXISTS company_occurrence_types_items_mode_check;
 ALTER TABLE company_occurrence_types DROP COLUMN IF EXISTS items_mode;
 ```
 
-Aditiva: `ADD COLUMN … DEFAULT` constante não reescreve a tabela no Postgres moderno. O rollback
-perde a escolha `off` feita no cadastro — preço aceito, registrado aqui. Se a D2 da spec for
-respondida com (b), o `INSERT` da prorrogação entra nesta mesma migration, e o rollback **não** o
-apaga (ocorrência pode já apontar para o tipo; FK `restrict`).
+Aditiva: `ADD COLUMN … DEFAULT` constante não reescreve a tabela no Postgres moderno. O `UPDATE` do
+backfill leva `redelivery_policy = 'unset'` **na mesma instrução** que `items_mode = 'off'`, antes de a
+CHECK da forma existir — numa só instrução não há instante com `off` + política ≠ `unset`, e a CHECK
+entra sobre dado já conforme (D-E). O rollback perde a escolha `off` feita no cadastro e **não** restaura
+a política anterior da segunda via (era `unset` em tipo de catálogo) — preço aceito, registrado aqui. A
+D2 foi decidida por (a): **nenhum `INSERT` do tipo da prorrogação entra nesta migration**.
 
 Gates: `make migration-test`; depois do rebase em `origin/staging`, `db:generate` = `no_changes` e
 conferir que o timestamp não colide com migration de outra sessão.
@@ -152,6 +205,9 @@ conferir que o timestamp não colide com migration de outra sessão.
    o deploy e o `autoUpdate` do PWA.
 2. **Etapa 2 — banco e API:** migration, leituras, cadastro e o `422` do RF6. Só depois da etapa 1:
    o painel antigo não conhece `OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED` e não esconde o seletor.
+
+**Passo 3 — produção (humano, depois da etapa 2):** o operador cadastra a prorrogação pela tela
+(`spec.md` § Passo operacional em produção). Não é deploy nem migration.
 
 O cadastro com Produtos (RF10) vai na etapa 1, mas o controle só aparece quando a listagem trouxer
 `itemsMode` — sem o campo, não oferece algo que a API antiga ignoraria. Uma branch por etapa a partir
@@ -184,19 +240,31 @@ aba aberta. Sem nome de produto.
   **antes** da coluna (rodar a migration anterior, inserir, aplicar a nova); CA02 seed; CA04 leituras
   com tipo de outra empresa; CA07 cadastro.
 - **Contrato (painel):** RF7 tabela de casos; tolerância à API anterior; RF8; RF9; RF10.
+- **D1:** integração da CHECK (inserir `off` + `blocked` → SQLSTATE 23514), da migration sobre a
+  segunda via semeada com política `blocked` (CA09) e contrato do `422
+OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY` no cadastro (estado resultante, campo ausente).
 - **Mutação (prova de que o teste prende comportamento):**
   - arrancar o `UPDATE` da migration → CA01 vermelho;
   - arrancar a guarda do RF6 em `correct-occurrence-items.use-case.ts` → CA03 vermelho;
   - trocar o RF7 de volta para `hasItems || wasCorrected` → CA05 vermelho;
-  - arrancar o filtro por `company_id` da junção → CA04 vermelho.
+  - arrancar o filtro por `company_id` da junção → CA04 vermelho;
+  - arrancar `redelivery_policy = 'unset'` do `UPDATE` da migration → CA09 vermelho (a CHECK recusa a
+    linha `off` + `blocked`);
+  - arrancar a validação `off` ⇒ `unset` do `save-occurrence-type.use-case.ts` → CA09 vermelho.
     Usar asserção de valor exato e `toHaveLength`, não `toEqual` sobre array com `undefined`.
 - Todo arquivo de teste novo entra na lista do `package.json` da app.
 
 ## Riscos
 
-- **Colisão com a 239.** Se a 239 for executada antes, ela cria `items_mode` com default `off` e
-  quebra o comportamento de hoje; se depois, precisa saber que a coluna existe. T0.2 registra a nota
-  na 239 assim que ela estiver em `staging`.
+- **Colisão com a 239.** Ordem decidida: **241 primeiro** (`spec.md` § Ordem de execução entre a 239
+  e a 241). Se a 239 fosse primeiro, criaria `items_mode` com default `off` e quebraria o
+  comportamento de hoje; a 241 então teria de reescrever o default e as linhas. A 239, quando for
+  executada, remove o `ADD COLUMN items_mode` da migration dela. Há também colisão de **número**:
+  `origin/staging` tem `239-o-expurgo-se-liga-na-tela` e a da exigência existe só em `work/spec-239`.
+- **Tipo da prorrogação ausente na produção até alguém cadastrar** — não há migration; o passo
+  operacional é humano e está na spec. Sem ele, o SAC não tem o tipo.
+- **Política da segunda via normalizada sem aviso** — se o operador a tinha posto em `allowed`/`blocked`,
+  a migration a zera. Medir antes (T0.3) e registrar em `evidence.md`.
 - **Nome da segunda via divergente em produção** (renomeado) — a migration não pega; o operador
   desliga no cadastro. Medir antes do deploy de produção com uma consulta só de leitura.
 - **Painel antigo em aba aberta** mandando produto para tipo `off` — mitigado pela ordem de

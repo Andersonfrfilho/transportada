@@ -99,12 +99,16 @@ como segunda linha de defesa.
   CHECK nos valores de `DELIVERY_PROOF_FIELD_MODES` (o mesmo CHECK de `attachment_mode`). Nada de
   ENUM nativo.
 - **RF2** A migration põe `off` nos tipos semeados sem itens que já existem: os que ainda têm o nome
-  exato do catálogo para a segunda via do boleto (etapa `delivery`, `flow = document`). Todo o resto
-  fica `optional` pelo default — comportamento de hoje.
+  exato do catálogo para a segunda via do boleto (etapa `delivery`, `flow = document`) — e, **na mesma
+  instrução**, normaliza `redelivery_policy` para `unset` nessas linhas (D1), antes de a CHECK do RF11
+  entrar. Todo o resto fica `optional` pelo default — comportamento de hoje.
 - **RF3** O catálogo de bootstrap ganha `itemsMode` por entrada: `off` para "Cliente pediu segunda
   via do boleto" e para o tipo novo **"Cliente pediu prorrogação do boleto"** (`delivery`, sem foto,
-  sem soltar a nota — os mesmos defaults de coluna que a 208 usou); `optional` para os derivados de
-  `TRIP_OCCURRENCE_TYPES`. O seed grava o `itemsMode` explicitamente.
+  sem soltar a nota — os mesmos defaults de coluna que a 208 usou: `attachment_mode = 'off'`,
+  `leaves_document_behind = false`, `redelivery_policy = 'unset'`, `flow = 'document'`);
+  `optional` para os derivados de `TRIP_OCCURRENCE_TYPES`. O seed grava o `itemsMode` explicitamente.
+  O tipo novo vale **só para empresa vazia** (regra de bootstrap da 208, D2): a empresa que já tem
+  tipos o cadastra pela tela (§ Passo operacional em produção).
 - **RF4** O cadastro (`PUT /company-settings/occurrence-types`, `save-occurrence-type.use-case.ts`)
   aceita `itemsMode` em `off | optional`, **opcional sem default** — ausente é "não mexa", como
   `attachmentMode` (`occurrence.schema.ts:298`). `required` volta `400` até a 239.
@@ -130,6 +134,15 @@ como segunda linha de defesa.
   system e o mesmo vocabulário de três palavras da 239 (RF1a); "um ou vários" só aparece com
   Opcional. Fica onde o cadastro estiver quando a task rodar (Configurações → Empresa hoje; aba
   Tipos depois da 239).
+
+- **RF11** (D1) Tipo `off` não abre tratativa: CHECK de coluna
+  `company_occurrence_types_items_off_shape_check` — `items_mode <> 'off' or redelivery_policy =
+'unset'` — na mesma migration, no molde do `company_occurrence_types_charge_shape_check` planejado
+  na 204. O servidor (`save-occurrence-type.use-case.ts`) valida o **estado resultante** (valor novo
+  ou o gravado, quando ausente) e recusa `off` + política diferente de `unset` com `422
+OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY`, antes do `UPDATE` — a CHECK é só a rede.
+- **RF12** (D1) O cadastro esconde a escolha de política de reentrega quando **Produtos = Desligado**
+  e, ao trocar para Desligado, envia `redeliveryPolicy: 'unset'` no mesmo `PUT`.
 
 ## Requisitos não funcionais
 
@@ -174,22 +187,73 @@ OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED` sem gravar nem chamar o notificador; com list
   integração.
 - **CA08** Revisão de design e usabilidade com print nas três larguras: cadastro com Produtos,
   registro com tipo `off` e detalhe com Corrigir por tipo.
+- **CA09** A CHECK do RF11 existe e recusa a inserção/atualização `off` + `allowed`/`blocked`
+  (SQLSTATE 23514) — integração. A
+  migration sobre um tipo da segunda via semeado com `redelivery_policy = 'blocked'` termina com
+  `off` + `unset` e **sem** violar a CHECK — integração, dado semeado **antes** da coluna. O cadastro
+  recusa `off` + política ≠ `unset` com `422 OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY` — contrato.
+- **CA10** A tela de cadastro permite criar o tipo da prorrogação já com Produtos = Desligado, sem
+  foto, sem soltar a nota e sem política de reentrega, e o registro dele não mostra seletor de
+  produtos — contrato do painel + integração do `PUT` com os campos que a 208 usa.
+
+## Passo operacional em produção (D2)
+
+A transportada de produção já tem tipos, então o catálogo de bootstrap **não** lhe entrega a
+prorrogação (regra da 208). Depois da etapa 2 publicada (a coluna e a tela de Produtos existem), o
+operador, com `settings.manage`, cadastra pela aba de tipos de ocorrência:
+
+1. Nome **Cliente pediu prorrogação do boleto**, etapa **Entrega** (rua), fluxo **Nota**.
+2. **Produtos: Desligado** · Foto: Desligada · "Deixa a nota para trás": desligado · Reentrega:
+   não decide (`unset`) · sem aviso ao contratante, até a escolha de modelo de e-mail.
+3. Conferir no registro que o tipo aparece na rua, não mostra seletor de produtos e não solta a nota
+   da viagem — os mesmos campos que a 208 usa para a segunda via.
+
+Nenhuma migration insere esse tipo. Verificação antes do passo: consulta só de leitura (T0.3) sobre
+`company_occurrence_types` para confirmar que o nome ainda não existe, e registro em `evidence.md`.
+
+## Ordem de execução entre a 239 e a 241
+
+As duas dão ao tipo a coluna `items_mode`; só uma pode criá-la. **A 241 executa primeiro** (é menor,
+sem exigência na rua, e é ela que corrige o default):
+
+1. **Migration da 241:** cria `items_mode varchar(16) NOT NULL DEFAULT 'optional'` com CHECK em
+   `off|optional|required`, a CHECK do RF11 e o backfill da segunda via.
+2. **A 239 então muda** (sem editar a spec aqui): a migration dela **não** faz `ADD COLUMN items_mode`
+   (o plano da 239, § "Produtos, quantidade mínima e anexos da rua", hoje faz, com default `off`);
+   fica só com `photo_minimum_count`, `items_minimum_count` e as colunas das três tabelas de
+   exceção. A 239 acrescenta ao CHECK de `items_minimum_count` a condição `items_mode = 'required'`
+   e passa a aceitar `required` na escrita. A frase "`items_mode` nasce `off` … nada muda" do plano
+   dela deixa de valer. Se a 239 sair antes, a 241 teria de trocar o default `off` por `optional`
+   com `UPDATE` em todas as linhas — apagando a escolha do operador; por isso a ordem não é
+   intercambiável.
+3. Vocabulário e nomes não mudam: coluna `items_mode`, campo `itemsMode`, valores `off` / `optional`
+   / `required` (`DELIVERY_PROOF_FIELD_MODES`).
+
+⚠️ Numeração: `origin/staging` já tem outra spec com o número 239
+(`specs/239-o-expurgo-se-liga-na-tela/`); a da exigência na rua só existe em `work/spec-239`
+(`specs/239-a-exigencia-da-ocorrencia-chega-na-rua/`, commit `91ceab2e3`). Quem a publicar renumera
+e atualiza as referências a "239" desta spec.
 
 ## Dúvidas
 
-- **[NEEDS CLARIFICATION] D1 — Tipo sem itens pode abrir tratativa?** `redelivery_policy` diferente
-  de `unset` abre tratativa (164 D1). A prorrogação "não interfere em nada na entrega", e as três
-  decisões da tratativa (`redelivery_authorized`, `goods_paid`, `other`) disparam cada uma a sua
-  devolutiva ao caso — `goods_paid` ainda exige item acertado para fechar (164
-  `occurrence-case-state.policy.ts:96`, `422 OCCURRENCE_CASE_SETTLEMENT_WITHOUT_ITEMS`). Um tipo
-  `off` com política `allowed`/`blocked` abre uma tratativa que talvez não se feche por `goods_paid`;
-  com `blocked`, o envio ao contratante sem item já é recusado
-  (`OCCURRENCE_CASE_REDELIVERY_BLOCKED_HAS_NO_QUESTION`, `occurrence-case-state.policy.ts:149-158`).
-  Opções: (a) CHECK de forma `items_mode = 'off' ⇒ redelivery_policy = 'unset'`, como o tipo `charge`
-  da 204; (b) deixar livre, cabendo ao operador; (c) outra regra. É regra da 164, não desta spec.
-- **[NEEDS CLARIFICATION] D2 — A prorrogação entra na empresa que já existe?** A 208 decidiu que o
-  catálogo é só de bootstrap: empresa com qualquer tipo não recebe tipo novo (208 § Fora do escopo,
-  CA3). Com instalação dedicada (ADR-0021), a transportada de produção já tem tipos, e o tipo novo do
-  catálogo **não chega a ela**. Opções: (a) manter a regra da 208 e o operador cadastra a
-  prorrogação pela tela; (b) a migration insere "Cliente pediu prorrogação do boleto" em toda empresa
-  que ainda não tem tipo com esse nome — exceção à regra da 208, que só o usuário pode abrir.
+Nenhuma `[NEEDS CLARIFICATION]` aberta. As duas dúvidas foram decididas **por delegação** — o
+usuário foi perguntado e respondeu "pode fazer os itens faltantes".
+
+- **D1 — Tipo sem itens pode abrir tratativa? Decidida por delegação em 2026-10-03 — o usuário pode
+  reverter antes da execução. Escolha: (a).** Tipo `off` não abre tratativa: CHECK de coluna
+  `items_mode = 'off' ⇒ redelivery_policy = 'unset'` (RF11), recusa estável no servidor e política
+  escondida no painel (RF12). Razão: uma tratativa sem itens não fecha por `goods_paid` (164
+  `occurrence-case-state.policy.ts:96`) e `blocked` sem item é recusado
+  (`occurrence-case-state.policy.ts:149-158`); é a opção recomendada pelo autor e a menos invasiva
+  (não toca regra da 164). **Descartadas:** (b) deixar livre, a cargo do operador — permite a
+  tratativa que não fecha; (c) outra regra — sem demanda. **Custo de reverter:** remover a CHECK e o
+  `422` (uma migration aditiva de `DROP CONSTRAINT`, mais a guarda e o `if` do painel); como a
+  migration normaliza a política da segunda via para `unset`, esse valor anterior não volta (era
+  `unset` em todo tipo semeado pelo catálogo, que nunca escreve política). Ver `plan.md` § D-E.
+- **D2 — A prorrogação entra na empresa que já existe? Decidida por delegação em 2026-10-03 — o
+  usuário pode reverter antes da execução. Escolha: (a).** Mantém a regra de bootstrap da 208; o
+  operador cadastra a prorrogação pela tela (§ Passo operacional em produção). **Descartada:** (b)
+  migration insere o tipo em toda empresa que não o tem — exceção à 208 que só o usuário abriria, e
+  que criaria linha que o rollback não pode apagar (FK `restrict` de ocorrência). **Custo de
+  reverter:** acrescentar um `INSERT … WHERE NOT EXISTS` à migration (ainda não publicada) ou numa
+  migration seguinte, mais o teste de integração; sem retrabalho de tela.
