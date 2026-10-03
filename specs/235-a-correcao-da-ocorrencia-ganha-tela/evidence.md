@@ -1228,6 +1228,48 @@ Gates (primeiro plano, `--env-file=../../.env.test`, Postgres 127.0.0.1:65432):
 | `test:integration` em 6 fatias contíguas da lista (154 arquivos)                                  | 83 · 245 · 105 · 186 (7 skip) · 135 · 131 (1 skip) = **885 pass, 8 skip, 0 fail**; os 8 skips são os mesmos da T0.5 (migration e sonda de S3) |
 | `bun run typecheck` (app)                                                                         | limpo                                                                                                                                         |
 
+## T3.2 — A marca de cancelada
+
+Uma função pura, `resolveOccurrenceCancellationMark` (`trip/shared/occurrenceCancellation.service.ts`),
+decide "cancelada + texto" a partir de `cancellation` (`null`/ausente → nenhuma marca); o componente
+`OccurrenceCancellationMark` a usa em todos os lugares. Lugares: detalhe (cabeçalho, `notice`), feed
+(selo na tabela e no cartão, `notice` na linha expandida), lista da nota (`TripOccurrences`, selo),
+linha do tempo da viagem (`TripTimelineEntry`, `notice` sempre à vista) e linha do tempo da
+ocorrência (evento `occurrence.cancelled`, lido pela mesma função via `toOccurrenceCancellation`).
+Marca com texto ("Cancelada"); motivo, autor e hora em texto, nunca só cor.
+
+Textos novos (pt-BR, com par em inglês): `occurrenceCancellation.label` "Cancelada",
+`.authorship` "Cancelada por {{name}} em {{moment}}", `.authorshipUnknown` "Cancelada em {{moment}}",
+`.reason` "Motivo: {{reason}}", `.summary` "{{authorship}}. {{reason}}" (texto lido por leitor de tela
+no selo), `occurrenceTimeline.event.cancelled` "Ocorrência cancelada".
+
+Validação: `cancellation` na linha do tempo da viagem — ausente → `null`, `null` e válido passam,
+malformado reprova a página; `cancelledByName` passou a `null | string` (a API publica `null`);
+`occurrence.cancelled` entrou no guard estrito da linha do tempo da ocorrência (exige `reason`).
+
+Contagens de ativas: busca ampla em `apps/frontend-transportada/src` por contagem de ocorrência
+(`occurrenceCount`, `occurrencesCount`, `openOccurrence`, `hasOccurrence`, `countDocumentsWith…`) —
+**não existe contador de ocorrências ativas** no painel. O marcador da spec 173
+(`occurrenceMarker.service.ts`, `countDocumentsWithOpenOccurrence`) conta notas com **tratativa
+aberta** a partir do `openOccurrenceCase` que a API publica por nota, não ocorrências; a conta é da API
+(`occurrence-case-marker.query.ts`, que não filtra cancelada) e o painel só lê o booleano. Nada a
+ajustar no painel; ver relatório.
+
+Contrato: `test/trip/occurrence-cancellation.contract.tsx` (entrou em `test/trip.contract.test.ts`),
+renderiza cada lugar com cancelada e com ativa e afirma o texto renderizado (autoria com a hora
+formatada pelo mesmo formatador, motivo, selo para leitor de tela).
+
+Mutação (execução vermelha, depois restaurado): remover a marca do detalhe, do selo do feed, da
+linha do tempo da viagem e do motivo da linha do tempo da ocorrência deixou **4 testes vermelhos**,
+um por lugar (`o detalhe…`, `o feed…`, `a linha do tempo da viagem…`, `a linha do tempo da ocorrência…`).
+
+| Gate                                            | Resultado                                                                                 |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `bun run --cwd apps/frontend-transportada test` | contratos **6515 pass, 0 fail**; lote DOM (`test:hooks`) **354 pass, 0 fail**; 0 skip     |
+| `bun run lint` (cwd da app)                     | 0 erros, 16 avisos `react-hooks/exhaustive-deps` já existentes (nenhum em arquivo tocado) |
+| `bun run typecheck` (raiz)                      | limpo                                                                                     |
+| `bun run format:check` (raiz)                   | limpo                                                                                     |
+
 ## T3.2 — PARADA anterior (histórico; resolvida pela T3.2a acima e pela T3.2 abaixo)
 
 A API não publica a marca de cancelada na **linha do tempo**: nem a da nota/viagem

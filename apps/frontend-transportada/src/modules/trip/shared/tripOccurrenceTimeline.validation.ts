@@ -39,6 +39,8 @@ function isEvent(value: unknown): value is OccurrenceTimelineEvent {
       return true
     case 'occurrence.photo':
       return typeof value.photoCount === 'number'
+    case 'occurrence.cancelled':
+      return isString(value.reason)
     case 'case.transition':
       return isNullableString(value.fromStatus) && isString(value.note) && isString(value.toStatus)
     case 'contractor.mail.received':

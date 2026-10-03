@@ -19,6 +19,7 @@ import {
   type TripOccurrenceFeedItem,
 } from '../shared/tripOccurrenceFeed.service'
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
+import { OccurrenceCancellationMark } from './OccurrenceCancellationMark.component'
 import { OccurrenceCasePanel } from './OccurrenceCasePanel.component'
 import {
   buildTripOccurrenceRoute,
@@ -122,6 +123,7 @@ function OccurrenceCell({
         >
           {label.labelKey === null ? label.value : t(label.labelKey)}
         </a>
+        <OccurrenceCancellationMark cancellation={item.cancellation} variant="badge" />
       </td>
     )
   }
@@ -189,6 +191,7 @@ function OccurrenceDetailRow({
             ? t('occurrenceFeed.detail.noDescription')
             : item.description}
         </p>
+        <OccurrenceCancellationMark cancellation={item.cancellation} variant="notice" />
         <OccurrenceAttachments item={item} />
         {item.source === 'document' ? (
           <OccurrenceCasePanel
@@ -262,6 +265,7 @@ function OccurrenceCard({ item }: Readonly<{ item: TripOccurrenceFeedItem }>) {
           <span className={styles.statusBadge}>
             {t(`occurrenceFeed.stage.${item.stage ?? 'stop'}`)}
           </span>
+          <OccurrenceCancellationMark cancellation={item.cancellation} variant="badge" />
         </span>
         <span className={styles.occurrenceCellNote}>
           {formatMoment(item.createdAt)} · {item.vehiclePlate}

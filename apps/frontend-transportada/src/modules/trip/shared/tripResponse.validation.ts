@@ -1096,7 +1096,7 @@ export function createTripResponseAdapters() {
       }
       const items = input.items.filter((item) => !hasUnknownTimelineKind(item))
       if (!items.every(isTimelineItem)) throw invalid()
-      return { items, nextCursor: input.nextCursor }
+      return { items: items.map(withOccurrenceCancellation), nextCursor: input.nextCursor }
     },
     /** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo do lote de ocorrência. */
     fieldOccurrenceTypesFromApi(input: unknown): readonly FieldOccurrenceType[] {
@@ -1426,7 +1426,7 @@ export function isOccurrenceCancellation(value: unknown): value is OccurrenceCan
   return (
     hasExactKeys(value, ['cancelledAt', 'cancelledByName', 'reason'] as const) &&
     isString(value.cancelledAt) &&
-    isString(value.cancelledByName) &&
+    isNullableString(value.cancelledByName) &&
     isString(value.reason)
   )
 }
@@ -1523,7 +1523,10 @@ function isTimelineOccurrenceReference(value: unknown): value is TripTimelineOcc
   return (
     isString(value.note) &&
     isString(value.typeName) &&
-    (value.attachmentCount === undefined || isUnsignedInteger(value.attachmentCount))
+    (value.attachmentCount === undefined || isUnsignedInteger(value.attachmentCount)) &&
+    (value.cancellation === undefined ||
+      value.cancellation === null ||
+      isOccurrenceCancellation(value.cancellation))
   )
 }
 
@@ -1567,6 +1570,12 @@ function hasAddressChangeForKind(value: Readonly<Record<string, unknown>>): bool
  * `actorUserId`, `receiverName`, `receiverDocumentMasked`, `objectKey` nunca fazem parte das chaves
  * do item, então uma chave a mais já reprova por si. A coordenada só entra em `location` (ADR-0081 §6).
  */
+/** Spec 235: `cancellation` ausente (API anterior) lê como `null`; o item sem ocorrência passa como veio. */
+function withOccurrenceCancellation(item: TripTimelineItem): TripTimelineItem {
+  if (item.occurrence === null || item.occurrence.cancellation !== undefined) return item
+  return { ...item, occurrence: { ...item.occurrence, cancellation: null } }
+}
+
 function isTimelineItem(value: unknown): value is TripTimelineItem {
   if (
     !hasKeys(value, {

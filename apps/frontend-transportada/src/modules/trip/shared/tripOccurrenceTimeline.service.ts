@@ -5,6 +5,7 @@
  * intervalo e os eventos-chave; aqui mora o que é de tela — o filtro por participante, a cor do ator
  * (a mesma dos balões, T704), a frase de cada evento e os três tempos contados com o relógio local.
  */
+import type { OccurrenceCancellation } from './trip.types'
 
 export type OccurrenceTimelineActorKind = 'contractor' | 'driver' | 'operation' | 'system'
 
@@ -26,6 +27,7 @@ type EventBase = Readonly<{
 export type OccurrenceTimelineEvent =
   | (EventBase & Readonly<{ kind: 'occurrence.recorded' }>)
   | (EventBase & Readonly<{ kind: 'occurrence.photo'; photoCount: number }>)
+  | (EventBase & Readonly<{ kind: 'occurrence.cancelled'; reason: string }>)
   | (EventBase &
       Readonly<{
         fromStatus: null | string
@@ -73,6 +75,17 @@ export const OCCURRENCE_TIMELINE_ACTOR_TONE: Readonly<
   system: 'system',
 }
 
+/** O evento de cancelamento é o mesmo fato do `cancellation` do detalhe — lê pela mesma conta pura. */
+export function toOccurrenceCancellation(
+  event: Extract<OccurrenceTimelineEvent, { kind: 'occurrence.cancelled' }>,
+): OccurrenceCancellation {
+  return {
+    cancelledAt: event.occurredAt,
+    cancelledByName: event.actor.name,
+    reason: event.reason,
+  }
+}
+
 function isContractorMail(event: OccurrenceTimelineEvent): boolean {
   return event.kind === 'contractor.mail.received' || event.kind === 'contractor.mail.sent'
 }
@@ -106,6 +119,8 @@ export function describeOccurrenceTimelineEvent(
       return { key: 'occurrenceTimeline.event.recorded', values: {} }
     case 'occurrence.photo':
       return { key: 'occurrenceTimeline.event.photos', values: { count: event.photoCount } }
+    case 'occurrence.cancelled':
+      return { key: 'occurrenceTimeline.event.cancelled', values: {} }
     case 'case.transition':
       return {
         key: 'occurrenceTimeline.event.caseTransition',

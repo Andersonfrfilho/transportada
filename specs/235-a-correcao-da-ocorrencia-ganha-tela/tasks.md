@@ -72,7 +72,7 @@ já faz (`listOccurrenceCorrections`, o mapeamento de `cancellation`), em lote �
       (`null` ou o mesmo formato das escritas), e a linha do tempo da ocorrência
       (`trip-occurrence-timeline.query.ts`) ganha o evento `occurrence.cancelled`. Contrato e
       integração primeiro, vermelhos; em lote, sem N+1; gates da API como na T0.5.
-- [ ] **T3.2** Marca de cancelada no detalhe, no feed e na linha do tempo, com motivo acessível,
+- [x] **T3.2** Marca de cancelada no detalhe, no feed e na linha do tempo, com motivo acessível,
       pela mesma função pura — nenhuma segunda cópia da conta (RF6, CA06).
 
 ## Fase 4 — O histórico

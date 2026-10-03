@@ -948,3 +948,24 @@ viagem e a _Eventos desta entrega_.
   aparece no mapa; sem `trip.event-location` a API devolve `location = null`.
 - ⚠️ Pendência de design (T4.2): o rótulo da legenda da categoria `status` é "Mudança de situação", impreciso
   para o endereço corrigido. Não foi renomeado porque muda o texto de outro evento.
+
+## Spec 235 T3.2 — a marca de cancelada
+
+A ocorrência cancelada continua listada e aparece marcada em **cinco** lugares, todos lendo a mesma
+conta pura `resolveOccurrenceCancellationMark` (`trip/shared/occurrenceCancellation.service.ts`) pelo
+componente `OccurrenceCancellationMark` (`variant="badge"` em célula/cartão/lista da nota, `"notice"`
+com autoria, hora e motivo à vista): detalhe (cabeçalho), feed (selo na tabela e no cartão, aviso na
+linha expandida), lista da nota (`TripOccurrences`), linha do tempo da viagem (`TripTimelineEntry`) e
+linha do tempo da ocorrência (evento `occurrence.cancelled`, que passa por `toOccurrenceCancellation`
+para ler pela mesma conta). Texto em `occurrenceCancellation.*` (trip.locale). Nenhuma segunda cópia da
+frase: tela nova de cancelada entra pelo componente.
+
+- `TripTimelineOccurrenceReference.cancellation` é opcional no tipo; `tripTimelineFromApi` lê ausente
+  como `null` e reprova o malformado (a chave `cancellation` entrou em
+  `TRIP_TIMELINE_OCCURRENCE_REFERENCE_OPTIONAL_KEYS`). A API atual manda sempre — o guard antigo, de
+  chaves fechadas, **reprovaria a página inteira** com a chave nova.
+- `OccurrenceCancellation.cancelledByName` é `null | string`: a API publica `null` quando o vínculo de
+  quem cancelou já não está ativo. O guard exigia `string`, e um cancelamento assim derrubava o feed.
+- O kind `occurrence.cancelled` precisa estar no guard da linha do tempo da ocorrência
+  (`tripOccurrenceTimeline.validation.ts`), que é estrito: kind desconhecido reprova a resposta.
+- Contrato: `test/trip/occurrence-cancellation.contract.tsx` (renderiza cada lugar e afirma o texto).
