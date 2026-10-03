@@ -46,15 +46,19 @@
 > 🤖 Modelo: `sonnet` (T4.1 é 🧠). **Bloqueada por D6.** Exemplo real disponível em `planilha-fr.md`.
 
 - [ ] **T4.0** Rodar `consulta-recebimento-vs-xml.sql` (somente leitura) e registrar o resultado em
-      `evidence.md`: prova que `Text001` é o número da NF-e e fixa o limite de confiança do vínculo (RF5a).
+      `evidence.md`: mede quantas linhas acham uma nota só por valor + CEP e fixa os limites de confiança do
+      vínculo (RF5a).
 - [ ] **T4.1** 🧠 Escolha e justificativa da biblioteca de planilha; limites de segurança (zip, linhas,
       tempo, fórmulas); ADR/plan atualizado.
 - [ ] **T4.2** Ramo "prévia" no worker de e-mail de entrada (conforme D6: token do perfil, DKIM,
       allow-list, MIME bruto); migration `cargo_previews`/`cargo_preview_items`; contratos antes
       (CA1–CA4), usando as três planilhas `FR` (anonimizadas) como fixtures.
 - [ ] **T4.3** Leitura e validação por linha (aba `IMPORTAÇÃO`, cabeçalhos de rota ignorados); vínculo por
-      emitente + número e conferência por CEP/cidade/valor (`matched/divergent/ambiguous`); passo que
-      vincula quando o XML chega; registro do recebimento do e-mail e comparação com o do XML.
+      por conteúdo dentro do universo do contratante (valor, CEP, destinatário, cidade, peso;
+      `matched/ambiguous/suggested`, 1:1), aprendizado `Company` ↔ CNPJ do destinatário e vínculo manual;
+      passo que vincula quando o XML chega; registro do recebimento do e-mail e comparação com o do XML.
+- [ ] **T4.3a** (depende de D8) Extrair o número do pedido (`xPed`) no importador de NF-e e usá-lo como
+      evidência forte no vínculo.
 - [ ] **T4.4** Tela de prévias (esperadas × com XML × erro).
 - [ ] **T4.5** Revisão `opus` + `security-reviewer`, print aprovado, publicar e confirmar.
 

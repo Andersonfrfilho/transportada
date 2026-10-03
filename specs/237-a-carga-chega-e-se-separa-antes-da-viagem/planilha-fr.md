@@ -13,24 +13,26 @@ aqui.** Os arquivos originais ficam fora do repositório; as fixtures de teste d
   última linha com dado). Algumas linhas trazem só `RouteName` + `RoutingDate`: **cabeçalho de rota, não
   nota** (um por rota).
 
-| Coluna | Cabeçalho     | Significado (leitura)                             | Exemplo (sem PII)                  |
-| ------ | ------------- | ------------------------------------------------- | ---------------------------------- |
-| A      | `RouteName`   | **roteiro do contratante** (`FR.<região>`)        | `FR.S.CAR`, `FR.R.PRE`, `FR.FRANC` |
-| B      | `RoutingDate` | data do roteiro, serial do Excel                  | `46297` = 02/10/2026               |
-| C      | `Text001`     | **número da nota** (6 dígitos, texto)             | `815358`                           |
-| D      | `Company`     | código do destinatário no contratante             | `42647`                            |
-| E      | `CompanyName` | razão social do destinatário                      | (omitido)                          |
-| F      | `PESO TOTAL`  | peso em kg                                        | `138.7`                            |
-| G      | `VOLUME(M3)`  | volume em m³                                      | `0.26`                             |
-| H      | `VALOR`       | valor da nota                                     | `1780.62`                          |
-| I      | `ENDEREÇO`    | logradouro + número (sem acento, caixa alta)      | (omitido)                          |
-| J      | `Comment16`   | bairro (pode faltar: 1 linha em 2 dos 3 arquivos) | (omitido)                          |
-| K      | `City`        | cidade (sem acento, caixa alta)                   | `SAO CARLOS`                       |
-| L      | `State`       | UF                                                | `SP`                               |
-| M      | `PostalCode`  | CEP, 8 dígitos                                    | (omitido)                          |
+| Coluna | Cabeçalho     | Significado (leitura)                                                                        | Exemplo (sem PII)                  |
+| ------ | ------------- | -------------------------------------------------------------------------------------------- | ---------------------------------- |
+| A      | `RouteName`   | **roteiro do contratante** (`FR.<região>`)                                                   | `FR.S.CAR`, `FR.R.PRE`, `FR.FRANC` |
+| B      | `RoutingDate` | data do roteiro, serial do Excel                                                             | `46297` = 02/10/2026               |
+| C      | `Text001`     | **identificador do contratante** (pedido/ordem dele, 6 dígitos) — **não é o número da NF-e** | `815358`                           |
+| D      | `Company`     | código do destinatário no contratante                                                        | `42647`                            |
+| E      | `CompanyName` | razão social do destinatário                                                                 | (omitido)                          |
+| F      | `PESO TOTAL`  | peso em kg                                                                                   | `138.7`                            |
+| G      | `VOLUME(M3)`  | volume em m³                                                                                 | `0.26`                             |
+| H      | `VALOR`       | valor da nota                                                                                | `1780.62`                          |
+| I      | `ENDEREÇO`    | logradouro + número (sem acento, caixa alta)                                                 | (omitido)                          |
+| J      | `Comment16`   | bairro (pode faltar: 1 linha em 2 dos 3 arquivos)                                            | (omitido)                          |
+| K      | `City`        | cidade (sem acento, caixa alta)                                                              | `SAO CARLOS`                       |
+| L      | `State`       | UF                                                                                           | `SP`                               |
+| M      | `PostalCode`  | CEP, 8 dígitos                                                                               | (omitido)                          |
 
-**Não há** chave de acesso (44 dígitos), série nem CNPJ do emitente. O vínculo é por **emitente (do perfil
-do contratante) + número**, conferido por CEP, cidade e valor contra o XML.
+**Não há** número de NF-e, chave de acesso (44 dígitos), série nem CNPJ do emitente. `Text001` é o número
+**do contratante** (correção do usuário em 2026-10-03: o número que a planilha traz é do cliente, não da nota).
+O vínculo é **por conteúdo**: entre as notas **do emitente do perfil**, valor + CEP + destinatário (+ cidade e
+peso); `Text001` só ajuda se aparecer na NF-e (informações adicionais ou pedido de compra `xPed`).
 
 ## Números medidos
 
@@ -40,7 +42,7 @@ do contratante) + número**, conferido por CEP, cidade e valor contra o XML.
 | `FR-01-10` | 30/09 14:54 | 30/09         | 191   | 12       | 56      | 20,6 t | R$ 321,4 mil |
 | `FR-05-10` | 02/10 14:06 | 02/10         | 194   | 11       | 59      | 22,0 t | R$ 360,8 mil |
 
-- Todas as notas são de **SP**; o número tem sempre **6 dígitos**; **nenhum número se repete** dentro de um
+- Todas as notas são de **SP**; `Text001` tem sempre **6 dígitos**; **nenhum valor se repete** dentro de um
   arquivo.
 - **Nenhuma nota aparece em dois arquivos** (interseção 0): cada planilha é um **lote novo**, não acumulativo.
   O mesmo número não precisa ser deduplicado entre prévias; a idempotência é pelo hash do anexo.
@@ -54,8 +56,8 @@ do contratante) + número**, conferido por CEP, cidade e valor contra o XML.
 ## O que isso decide no desenho (reflexo na spec 237)
 
 1. **Mapeamento por nome de coluna**, nunca por posição (o contratante pode reordenar; o perfil guarda o mapa).
-2. **Vínculo por emitente + número + conferência cruzada** (CEP/cidade/valor/peso); divergência é estado
-   explícito, nunca vínculo silencioso (RF5).
+2. **Vínculo por conteúdo** (valor, CEP, destinatário, cidade, peso) **dentro do universo de um contratante**,
+   com `ambiguous`/`suggested` explícitos e confirmação do operador; nunca vínculo silencioso (RF5/RF5a).
 3. **Os grupos do contratante (`RouteName`) são o ponto de partida da recomendação de viagens**, e a proposta
    do roteirizador é a segunda visão (RF7).
 4. **A separação no celular** agrupa por **rota × cidade**, que é como a planilha já vem (US P1).
@@ -64,7 +66,8 @@ do contratante) + número**, conferido por CEP, cidade e valor contra o XML.
 
 ## Pendente: comparar recebimento do e-mail × chegada do XML
 
-`consulta-recebimento-vs-xml.sql` (somente leitura, 492 números) responde, por planilha, quantas notas já
-tinham XML **antes** do e-mail, **depois**, ou não existem no banco. Não foi executada na sessão (leitura em
+`consulta-recebimento-vs-xml.sql` (somente leitura, 492 linhas com valor, CEP e peso) responde, por
+planilha: quantas linhas achariam **uma** nota só por valor + CEP, quantas ficariam ambíguas, se `Text001`
+aparece nas informações adicionais, e se o e-mail chegou **antes** ou **depois** do XML. Não foi executada na sessão (leitura em
 produção bloqueada). Quem tiver acesso ao banco desejado a roda e traz o resultado: com ele a Fase 4 já nasce
 sabendo se a prévia chega **antes** (e a nota fica `awaiting_xml`) ou **depois** do XML (e nasce `matched`).

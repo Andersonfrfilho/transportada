@@ -112,33 +112,40 @@ conferência) **Then** o fluxo dele muda **só por dado**, sem código novo e se
   linha validada por Zod (fronteira não confiável); erro por linha, nunca da planilha inteira. Biblioteca nova
   **justificada** (moderna, mantida, compatível com Bun, tipada — code-standart §13), em ADR/plan.
 - **RF5 — Prévia e itens** (`cargo_previews`, `cargo_preview_items`): idempotente pelo sha256 do anexo;
-  `received_at` = momento do e-mail. **A planilha não traz chave de acesso, série nem CNPJ do emitente**:
-  traz `Text001` (número da nota, 6 dígitos), `Company`/`CompanyName` (código e razão social do
-  destinatário), `PESO TOTAL` (kg), `VOLUME(M3)`, `VALOR`, `ENDEREÇO`, `Comment16` (bairro), `City`, `State`,
-  `PostalCode` e `RouteName`/`RoutingDate`. **Vínculo: emitente do perfil + número da nota**, **conferido**
-  contra o XML por CEP, cidade e valor (e peso, quando houver); divergência vira `divergent` com o campo
-  nomeado, nunca vínculo silencioso. Mais de uma nota com o mesmo número (séries diferentes) vira
-  `ambiguous`. Estados: `matched`, `awaiting_xml`, `divergent`, `ambiguous`, `invalid`. Quando o XML chega
-  depois, um passo no worker de importação vincula o item pendente.
-- **RF5a — Como cada linha vira uma nota** (`cargo-preview-matching.policy.ts`, função pura):
-  1. **Candidatas:** `nfe_documents` do emitente do perfil cujo `number` é igual a `Text001` (normalizado: só
-     dígitos, sem zeros à esquerda). Zero candidatas → `awaiting_xml`; mais de uma (séries diferentes) →
-     `ambiguous`, desempatado só pelas conferências abaixo.
-  2. **Conferência cruzada** da candidata com a linha: **valor** (`VALOR` × `total_value`, tolerância de 1
-     centavo), **CEP** (`PostalCode` × CEP do destinatário), **cidade/UF** (sem acento, caixa alta ×
-     `city_code`/nome do destinatário) e, como reforço, **peso** e **razão social** (aproximada).
-  3. **Veredito:** número + valor + CEP concordam → `matched`; número bate mas valor ou CEP não →
-     `divergent` com o campo nomeado (a tela mostra o que a planilha diz × o que o XML diz);
-     nenhuma candidata → `awaiting_xml`.
-  4. **Sem chave não há certeza:** `matched` é "vínculo conferido", nunca "garantido"; o operador pode
-     **desvincular e vincular à mão** uma linha, e toda ação fica na trilha (ator, canal, hora).
-  5. **Sugestão, nunca vínculo automático:** se o número não casa com ninguém mas existe, dentro do emitente,
-     uma única nota com o mesmo valor + CEP, ela aparece como **sugestão** a confirmar (cobre o caso de
-     `Text001` não ser o número da NF-e em alguma linha).
-  6. **Calibração antes de construir:** a consulta `consulta-recebimento-vs-xml.sql` mede, nas 492 linhas
-     reais, quantas têm nota com o mesmo número e quantas concordam em valor e CEP. Isso prova (ou refuta)
-     que `Text001` é o número da NF-e e **define o limite de confiança** do passo 3. **A Fase 4 não começa
-     antes dessa medição.**
+  `received_at` = momento do e-mail. **A planilha não traz o número da NF-e, nem chave de acesso, série ou
+  CNPJ do emitente.** `Text001` é o **identificador do próprio contratante** (provável pedido/ordem dele) e
+  fica guardado como `contractor_reference`; as demais colunas são `Company`/`CompanyName` (código e razão
+  social do destinatário), `PESO TOTAL` (kg), `VOLUME(M3)`, `VALOR`, `ENDEREÇO`, `Comment16` (bairro),
+  `City`, `State`, `PostalCode` e `RouteName`/`RoutingDate`. O vínculo com a nota é **por conteúdo**
+  (RF5a), nunca por número de nota. Estados do item: `matched`, `awaiting_xml`, `ambiguous`, `suggested`,
+  `invalid`.
+- **RF5a — Como cada linha vira uma nota** (`cargo-preview-matching.policy.ts`, função pura). O processo é
+  de **um contratante** (o do perfil), o que reduz muito o universo:
+  1. **Universo:** só notas **do emitente do perfil**, importadas na janela
+     `[recebimento do e-mail − match_window_days, hoje]` (parâmetro do perfil, padrão 15 dias) e ainda **não
+     vinculadas** a outro item de prévia.
+  2. **Chaves de conteúdo** da linha × nota: **valor** (`VALOR` × `total_value`, tolerância de 1 centavo),
+     **CEP** (`PostalCode` × CEP do destinatário), **cidade/UF** (sem acento, caixa alta), **razão social**
+     do destinatário (normalizada, aproximada) e, como reforço, **peso** (`PESO TOTAL` × soma dos volumes,
+     com tolerância percentual do perfil).
+  3. **Veredito:** **uma única** nota concordando em valor **e** CEP → `matched`; **várias** → `ambiguous`,
+     com as candidatas ordenadas por quantas chaves concordam, para o operador escolher; **nenhuma** →
+     `awaiting_xml`; concordância parcial (ex.: valor sem CEP) → `suggested`, que **só vale depois de o
+     operador confirmar**.
+     3a. **Matching 1:1:** uma nota só pode ser vinculada a **um** item. Duas linhas disputando a mesma nota
+     viram `ambiguous` as duas; resolve-se na ordem do melhor escore e pelo operador.
+  4. **Aprendizado do destinatário:** quando o operador confirma uma linha, o par **`Company` (código do
+     contratante) ↔ CNPJ do destinatário** é guardado (`contractor_recipient_aliases`, por contratante); nas
+     próximas prévias o código resolve o destinatário com exatidão e o vínculo passa a exigir só valor +
+     destinatário.
+  5. **Número do pedido nas notas (extra):** se `contractor_reference` aparecer nas informações adicionais da
+     NF-e (ou no pedido de compra `xPed` do XML, **hoje não extraído** pelo importador), conta como **evidência
+     forte** a mais. Extrair `xPed` no importador é a task T4.3a e depende da D8.
+  6. **Sem chave não há certeza:** `matched` é "vínculo conferido", nunca "garantido"; o operador **desvincula
+     e vincula à mão**, e toda ação fica na trilha (ator, canal, hora).
+  7. **Calibração antes de construir:** `consulta-recebimento-vs-xml.sql` mede, nas 492 linhas reais, quantas
+     achariam **uma** nota só por valor + CEP, quantas ficariam ambíguas e se `Text001` aparece nas informações
+     adicionais. Isso **fixa os limites de confiança** do passo 3. **A Fase 4 não começa antes dessa medição.**
 - **RF6 — Chegada** (`cargo_arrivals`): `contractor_id`, `arrived_at` (momento informado, corrigido como
   na 234 quando vier de app), `registered_by`, `channel`, `pallet_count` opcional, `separation_due_at`
   derivado do perfil. `cargo_arrival_documents`: nota na chegada com **eixo próprio**
@@ -217,12 +224,18 @@ caixa o contratante manda hoje (Gmail, Outlook, outra) e qual vocês aceitam? Op
 passa a mandar a um endereço novo do sistema (`previa-<token>@<domínio de entrada>`) — mantém DKIM e
 remetente originais, é o mais seguro; **(b)** uma **regra de encaminhamento automático** da caixa de vocês
 para esse endereço — funciona sem o contratante mudar nada, mas o remetente verificado passa a ser o de
-vocês e a conferência do contratante vira a conferência do número da nota + remetente original no
+vocês e a conferência do contratante vira a conferência do remetente original no
 cabeçalho; **(c)** o app **conecta na caixa** (IMAP/Gmail API, OAuth) — evita encaminhar, mas guarda uma
 credencial de e-mail e amplia a superfície de ataque. _Recomendo (a); se não for possível, (b)._ Bloqueia só a
 Fase 4.
 
+**[NEEDS CLARIFICATION: D8 — o que é `Text001` e onde ele aparece na nota]** É o número do **pedido/ordem do
+contratante**, de um romaneio, ou outro? Esse número vai no XML da NF-e (campo `xPed`/pedido de compra) ou nas
+informações adicionais? Um **XML real de uma nota dessa planilha** responde na hora. Se sim, o vínculo ganha
+uma chave forte (T4.3a); se não, ele fica só por valor + CEP + destinatário (RF5a). Bloqueia só a T4.3a.
+
 **Análise a rodar por quem tem acesso ao banco (item 7 do usuário):** comparar o recebimento do e-mail com a
-chegada do XML por nota — consulta pronta em `planilha-fr.md`. Não foi possível rodá-la na sessão (leitura em
+chegada do XML por nota e medir o vínculo por conteúdo — consulta pronta em
+`consulta-recebimento-vs-xml.sql` (ver `planilha-fr.md`). Não foi possível rodá-la na sessão (leitura em
 produção bloqueada). O desenho registra os dois instantes (`cargo_previews.received_at` e
 `nfe_documents.created_at`) para que a comparação passe a ser um relatório do sistema.

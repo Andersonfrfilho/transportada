@@ -1,10 +1,10 @@
--- Spec 237: (1) o número da planilha (Text001) é o número da NF-e? (2) o e-mail chegou antes ou depois do XML?
+-- Spec 237: como vincular cada linha da planilha FR a uma nota, SEM o número da NF-e?
 -- SOMENTE LEITURA. Rodar no banco do ambiente desejado por quem tem acesso (nada aqui altera dados).
--- As 492 linhas abaixo vêm das 3 planilhas FR: arquivo, número da nota (Text001), momento em que o e-mail
--- foi recebido (informado pelo usuário em 2026-10-03, horário de Brasília), VALOR, CEP e PESO TOTAL da linha.
--- Nenhum nome de destinatário ou endereço consta neste arquivo.
+-- A coluna Text001 é o número que o CONTRATANTE usa (pedido/ordem dele), não o da NF-e. As 492 linhas vêm das 3
+-- planilhas FR: arquivo, Text001, momento em que o e-mail foi recebido (informado em 2026-10-03, Brasília),
+-- VALOR, CEP e PESO TOTAL. Nenhum nome de destinatário ou endereço consta neste arquivo.
 
-with prev(file, note_number, email_received_at, sheet_value, sheet_cep, sheet_weight_kg) as (values
+with prev(file, contractor_ref, email_received_at, sheet_value, sheet_cep, sheet_weight_kg) as (values
   ('FR-28-09','803633'::text,'2026-09-25 16:33-03'::timestamptz,2158.75::numeric,'14850011'::text,143.40::numeric),
   ('FR-28-09','803628'::text,'2026-09-25 16:33-03'::timestamptz,1439.22::numeric,'14850000'::text,94.32::numeric),
   ('FR-28-09','802086'::text,'2026-09-25 16:33-03'::timestamptz,764.18::numeric,'14850000'::text,16.40::numeric),
@@ -499,40 +499,43 @@ with prev(file, note_number, email_received_at, sheet_value, sheet_cep, sheet_we
   ('FR-05-10','816857'::text,'2026-10-02 14:06-03'::timestamptz,1496.44::numeric,'14850000'::text,95.00::numeric)
 ),
 doc as (
-  select d.id, d.number, d.series, d.total_value, d.created_at, d.issued_at,
+  select d.id, d.number, d.total_value, d.created_at, d.additional_information,
          (select e.tax_id from nfe_participants e where e.document_id = d.id and e.role = 'emitter' limit 1) as emitter_tax_id,
-         (select a.postal_code from nfe_addresses a
-            join nfe_participants r on r.id = a.participant_id and r.document_id = d.id and r.role = 'recipient'
-           limit 1) as recipient_cep
+         (select regexp_replace(coalesce(a.postal_code,''), '\D', '', 'g')
+            from nfe_addresses a join nfe_participants r on r.id = a.participant_id and r.document_id = d.id and r.role = 'recipient'
+           limit 1) as recipient_cep,
+         (select sum(v.gross_weight) from nfe_volumes v where v.document_id = d.id) as volumes_weight
     from nfe_documents d
 ),
-matched as (
-  select p.*, d.id as document_id, d.series, d.total_value, d.created_at as xml_created_at, d.issued_at,
-         d.emitter_tax_id, d.recipient_cep,
-         abs(d.total_value - p.sheet_value) <= 0.01 as value_agrees,
-         regexp_replace(coalesce(d.recipient_cep,''), '\D', '', 'g') = p.sheet_cep as cep_agrees
+cand as (
+  select p.file, p.contractor_ref, p.email_received_at, p.sheet_weight_kg,
+         d.id as document_id, d.emitter_tax_id, d.created_at as xml_created_at, d.volumes_weight,
+         d.additional_information ilike '%' || p.contractor_ref || '%' as ref_in_additional_info
     from prev p
-    left join doc d on d.number = p.note_number
+    left join doc d on abs(d.total_value - p.sheet_value) <= 0.01 and d.recipient_cep = p.sheet_cep
+),
+per_row as (
+  select file, contractor_ref, email_received_at, count(document_id) as n_candidates,
+         min(emitter_tax_id) as one_emitter, min(xml_created_at) as xml_created_at,
+         bool_or(ref_in_additional_info) as ref_in_additional_info
+    from cand group by file, contractor_ref, email_received_at
 )
--- 1) O número é o da NF-e? Para cada planilha: quantas linhas têm uma nota com o mesmo número, e quantas
---    dessas concordam em VALOR e em CEP (se value_agrees e cep_agrees ~ com_xml, Text001 É o número da nota).
+-- 1) Valor + CEP bastam para achar UMA nota? (candidata única = vínculo; várias = ambígua; nenhuma = sem XML)
 select file,
-       count(*)                                                       as linhas,
-       count(document_id)                                             as com_xml_mesmo_numero,
-       count(*) filter (where value_agrees)                           as valor_concorda,
-       count(*) filter (where cep_agrees)                             as cep_concorda,
-       count(*) filter (where value_agrees and cep_agrees)            as valor_e_cep_concordam
-  from matched group by file order by file;
+       count(*)                                                    as linhas,
+       count(*) filter (where n_candidates = 1)                    as uma_candidata,
+       count(*) filter (where n_candidates > 1)                    as varias_candidatas,
+       count(*) filter (where n_candidates = 0)                    as sem_candidata,
+       count(*) filter (where ref_in_additional_info)              as ref_aparece_nas_infos_adicionais
+  from per_row group by file order by file;
 
--- 2) O e-mail chegou antes ou depois do XML? (folga = e-mail − XML; positiva = XML antes do e-mail)
+-- 2) O e-mail chegou antes ou depois do XML? (só linhas de candidata única; folga = e-mail − XML)
 select file,
-       count(*) filter (where xml_created_at <= email_received_at)    as xml_antes_do_email,
-       count(*) filter (where xml_created_at >  email_received_at)    as xml_depois_do_email,
-       count(*) filter (where document_id is null)                    as sem_xml,
-       min(email_received_at - xml_created_at)                        as menor_folga,
-       max(email_received_at - xml_created_at)                        as maior_folga
-  from matched group by file order by file;
+       count(*) filter (where xml_created_at <= email_received_at) as xml_antes_do_email,
+       count(*) filter (where xml_created_at >  email_received_at) as xml_depois_do_email,
+       min(email_received_at - xml_created_at)                     as menor_folga,
+       max(email_received_at - xml_created_at)                     as maior_folga
+  from per_row where n_candidates = 1 group by file order by file;
 
--- 3) Quais emitentes casam (o contratante deve dominar) e há número repetido em séries diferentes?
--- select emitter_tax_id, count(*) from matched where document_id is not null group by 1 order by 2 desc;
--- select note_number, count(*) from matched group by 1 having count(distinct document_id) > 1;
+-- 3) Qual emitente domina entre as candidatas únicas (deve ser o contratante)?
+select one_emitter, count(*) from per_row where n_candidates = 1 group by 1 order by 2 desc limit 5;
