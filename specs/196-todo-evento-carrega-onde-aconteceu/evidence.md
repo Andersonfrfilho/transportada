@@ -2434,3 +2434,145 @@ pacotes subirem, e é o sinal para trocá-lo por um que mande a mensagem pelo we
 - `integration/whatsapp-driver-flow-actions.integration.ts` (Postgres): ponto no armazém → linha
   `trip_stop_events` do canal `whatsapp` com `captured`, coordenada e `captured_at`, e o armazém vazio
   depois; sem ponto → `unavailable`; e o teste do limite dos pacotes acima.
+
+## Fase 5 (T5.0–T5.4) — a app do motorista manda o ponto de todo toque
+
+### T5.0 — a API de demonstração já estava versionada
+
+O caminho do scratchpad antigo (`.../pensive-borg-f59971/.../scratchpad/driver-preview-api.ts`) **não
+existe mais**. Não houve cópia a fazer: `apps/frontend-driver/scripts/driver-preview-api.ts` já está no
+repositório desde a spec 206 T4.5 (`7445f412e`), e é a versão que as portas e as origens parametrizam
+por `DRIVER_PREVIEW_*`. O que faltava era o `.claude/launch.json`: **nenhuma das duas entradas**
+(`motorista-local`, `motorista-api-demo`) existia nele, em nenhuma árvore. Entraram agora:
+`motorista-api-demo` roda `bun run apps/frontend-driver/scripts/driver-preview-api.ts` (53901) e
+`motorista-local` roda o `vite` da app (53200) com `VITE_API_URL=http://localhost:53901`.
+
+- A 53200 estava **ocupada por outra sessão** (um `vite` de `transportada-wt/fleet-route-fix`); não a
+  derrubei. A verificação foi na 53112 (a origem do smoke), com a demonstração subida com
+  `DRIVER_PREVIEW_ORIGIN=http://localhost:53112`.
+- Aceite "a tela da viagem abre contra ela": provado por `test/spec-196-prints.smoke.spec.ts` (login
+  real no Keycloak local pelo helper do projeto, **sem dublê de rota**, `VITE_API_URL` na demonstração):
+  a tela abre com duas viagens, "3 paradas" e "0 de 6 notas resolvidas". Prints em
+  `prints/viagem-demonstracao-gps-permitido-375.png` e `...-gps-negado-375.png` — abertos e conferidos:
+  são idênticos, tema claro, faixa "Ambiente de desenvolvimento", sem mudança visual nenhuma.
+- ⚠️ **Aviso às sessões da 192 e da 193: não enviado.** Nenhuma das sessões ativas tem esse nome; fica
+  para quem coordena avisar que o `launch.json` ganhou as duas entradas e que a demonstração agora
+  responde `GET/DELETE /__debug/locations`.
+
+### Divergências do plano (a spec andou antes da Fase 5)
+
+| O plano diz                                                  | O código já era                                                                                                  | O que fiz                                                                                                     |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| "Despachar" e "Iniciar rota" são toque direto                | spec 230 e 206: os dois são itens da **fila** (`dispatch`, `depart`); `startRoute` não existe mais no cliente    | `location` entrou no item `dispatch`; `depart` já tinha. `start-route` ficou **fora** do contrato             |
+| `registerDocumentOccurrence` sai do cliente                  | já tinha saído (spec 226); a tela já enfileira `documentOccurrence`                                              | só `location: null` no item e no corpo                                                                        |
+| `readDirectTapLocation({ now?, timer? })`                    | —                                                                                                                | `{ geolocation?, timer? }`: `now` não tinha uso; a Geolocation injetada é o que o contrato precisa            |
+| "a mesma função de `clampProofAccuracyMeters`, generalizada" | a função já é genérica (devolve `undefined` acima de 10 km)                                                      | reutilizada como está                                                                                         |
+| RF8 (≤ 3 s) vale para toque direto                           | a fila espera `readCurrentLocation` (8 s, **sem prazo nenhum** com o pedido de permissão aberto) antes de drenar | `usesDirectTapLocation`: `dispatch` e `depart` completam o ponto por `readDirectTapLocation` (relógio de 3 s) |
+
+O último é a única mudança de comportamento fora da letra da task, e o smoke "GPS mudo" a provou
+necessária: **sem ela** o POST do despacho nem sai (mutação: timeout de 30 s). Os demais toques da
+fila mantêm a leitura de 8 s.
+
+### T5.1 — contratos primeiro (vermelho, pelo motivo certo)
+
+`test/driver-trip/event-location-queue.contract.ts` (12 testes) e `direct-tap-location.contract.ts`
+(5 + 2 do RF8), ambos importados por `test/driver-trip.contract.test.ts`. Antes da implementação:
+
+```text
+SyntaxError: Export named 'readDirectTapLocation' not found in module '.../driverLocation.service.ts'.
+ 120 pass / 1 fail / 1 error   (a suíte nem carrega)
+```
+
+### T5.2 / T5.3 — implementação
+
+- `driverTrip.types.ts`: `location: DriverReportedLocation | null` em `occurrence`, `documentOccurrence` e
+  `dispatch`.
+- `offlineQueue.service.ts`: `applyReportLocation` sem a exceção (e sem o comentário que a dizia);
+  `completeReportLocations` (várias chaves, uma leitura), `listLocatedReportKeys` (a foto da ocorrência não
+  é evento), `withLegacyLocation` (item antigo sem o campo sai com `null`, aplicado no `send`).
+- `driverTripClient.service.ts`: o corpo de `occurrence`, `dispatch` e `documentOccurrence` leva `location`.
+- `useDriverTrip.hook.ts`: `completeLocations` — uma leitura completa **todas** as chaves do toque
+  ("Não entreguei" completa a ocorrência e a devolução; a ocorrência da parada completa a dela).
+- `DriverTripWorkspace.page.tsx`: o despacho passa por `reportWithLocation`; a ocorrência de nota nasce
+  `location: null`.
+- `driverLocation.service.ts`: `readDirectTapLocation` (`Promise.race` com o relógio de 3 s,
+  `enableHighAccuracy: false`, `maximumAge` de 300 000, precisão acima de 10 km sai sem
+  `accuracyMeters`) e `usesDirectTapLocation`.
+
+Coordenada em log/console/telemetria: nenhum `console.*` novo, e o contrato percorre os três arquivos.
+A demonstração só guarda em memória e não imprime (`grep -c latitude` no log dela: 0).
+
+### Provado por mutação (15 sondas, todas reprovadas)
+
+Editei e restaurei regravando o arquivo (nenhum `git checkout`). Número = testes que reprovaram.
+
+| Sonda                                                   | Falhas |
+| ------------------------------------------------------- | ------ |
+| M1 exceção da ocorrência volta em `applyReportLocation` | 2      |
+| M2 corpo da ocorrência da parada sem `location`         | 5      |
+| M3 corpo do `dispatch` sem `location`                   | 4      |
+| M4 corpo da ocorrência de nota sem `location`           | 4      |
+| M5 relógio de 3 s vira 5 s                              | 1      |
+| M6 relógio não é cancelado ao responder                 | 1      |
+| M7 sem o teto de precisão                               | 1      |
+| M8 `enableHighAccuracy: true`                           | 1      |
+| M9 `withLegacyLocation` devolve o item como veio        | 2      |
+| M10 "Não entreguei" completa só a devolução             | 1      |
+| M11 a ocorrência da parada não completa o ponto         | 1      |
+| M12 despacho sem `location` na tela                     | 1      |
+| M13 a ocorrência de nota perde a forma do item          | 1      |
+| M14 `usesDirectTapLocation` sem o `depart`              | 1      |
+| M15 `usesDirectTapLocation` aceita lista vazia          | 1      |
+
+Mais uma, no smoke: com o hook sempre pedindo a leitura de 8 s (`false && usesDirectTapLocation`), o
+teste "GPS mudo" reprova com `page.waitForRequest: Test timeout of 30000ms exceeded`.
+
+### T5.4 — smoke e preview
+
+`driver-app.smoke.spec.ts` ganhou três testes (`tracksEnRoute` no cenário do `mockDriverTripApi`, para a
+API nova mandar `enRouteSince` e a tela mostrar "Iniciar rota"; o mock do `/dispatch` passou a registrar o
+corpo):
+
+- **GPS permitido** (`grantPermissions` + `setGeolocation`): despacho, ocorrência da parada e ocorrência
+  da nota saem com `location: { latitude: -23.5505, longitude: -46.6333 }`.
+- **GPS negado** (sem a permissão): os mesmos saem com `location: null`, sem travar.
+- **GPS mudo** (`getCurrentPosition` que nunca chama de volta): o `POST` do despacho sai **3 033 ms** e o
+  de "Iniciar rota" **3 091 ms** depois do clique (limite 3 200), ambos com `location: null`. A folga é de
+  ~110 ms sobre o relógio de 3 s — apertada de propósito, é o que a spec pediu.
+- Um teste antigo (foto obrigatória da ocorrência da parada) comparava o corpo inteiro com `toEqual`; virou
+  `toMatchObject` com o ponto, e o **reenvio da foto continua sem `location`** (ver "Não verificado").
+
+Preview contra a demonstração (`test/spec-196-prints.smoke.spec.ts`, fora da CI): as quatro rotas
+(`dispatch`, `start-route`, ocorrência de nota, ocorrência de parada) gravam o `location` em memória;
+por `curl`, `dispatch` e a ocorrência da parada com ponto → `ponto`; `start-route` e a ocorrência de nota com
+`null` → `null`. Pelo Playwright, ocorrência de nota contra a demonstração: GPS permitido grava o ponto,
+GPS negado grava `null`.
+
+### A contagem subiu
+
+- Contratos da app: **1048 → 1067** (`bun run test`: 1067 pass / 0 fail / 2236 expect()). Subiu em 19:
+  5 de `readDirectTapLocation`, 2 do RF8, 12 da fila.
+- Smoke: **33 → 36** no `driver-app` (+ 2 do service worker): `bun run smoke` → `2 passed` e `36 passed`.
+
+### Portões (apps/frontend-driver, primeiro plano)
+
+```text
+$ bun run typecheck   → tsc --noEmit            (sem saída de erro)
+$ bun run lint        → eslint .                (sem saída de erro)
+$ bun run test        → 1067 pass / 0 fail
+$ bun run smoke       → 2 passed (8.7s) · 36 passed (43.4s)
+$ bun run format:check (raiz) → All matched files use Prettier code style!
+```
+
+### Não verificado
+
+- **Preview manual no navegador do painel** (`motorista-local` na 53200): a 53200 é de outra sessão e o
+  login do app é sempre o Keycloak real — não digitei senha em formulário; a verificação foi pelo
+  Playwright do projeto, que lê a conta local do `.env` por conta própria.
+- `build` do app (`bun run build`) só rodou como `webServer` do Playwright (passou: 6 testes do `dist`).
+- O reenvio da foto da ocorrência da parada (`stopOccurrencePhoto`) repete o corpo **sem** `location`:
+  se a ocorrência original nunca tiver chegado, a criada por esse reenvio fica sem ponto. A fila manda a
+  ocorrência antes e a foto atrás, então só acontece se a ocorrência for recusada e a foto, não. Não coberto
+  pela spec; anotado aqui.
+- A margem de ~110 ms do teste de 3,2 s pode ficar flaky em CI lenta.
+- `readDirectTapLocation` só tem consumidor via `usesDirectTapLocation` (despacho e "Iniciar rota").

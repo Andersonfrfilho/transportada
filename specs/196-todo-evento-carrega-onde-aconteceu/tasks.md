@@ -328,12 +328,12 @@ do usuário. A API não é revertida com a app nova no ar.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T5.0** Versionar a API de demonstração: copiar a versão atual do scratchpad para
+- [x] **T5.0** Versionar a API de demonstração: copiar a versão atual do scratchpad para
       `apps/frontend-driver/scripts/driver-preview-api.ts` (fora do `src/` e do bundle), apontar o
       `motorista-api-demo` do `.claude/launch.json` para ela e registrar em `evidence.md` a origem da
       cópia e o aviso às sessões da 192 e da 193. Aceite: `motorista-local` sobe contra ela e a tela da
       viagem abre.
-- [ ] **T5.1** Contratos primeiro (`apps/frontend-driver/test/driver-trip/event-location-queue.contract.ts`
+- [x] **T5.1** Contratos primeiro (`apps/frontend-driver/test/driver-trip/event-location-queue.contract.ts`
       e `.../direct-tap-location.contract.ts`, importados por `test/driver-trip.contract.test.ts`):
   - corpo de `occurrence`, `documentOccurrence`, `dispatch` e `start-route` com `location`;
   - o item da fila nasce `null` e é completado pela chave nas duas ocorrências;
@@ -347,11 +347,11 @@ do usuário. A API não é revertida com a app nova no ar.
 
   Aceite: falham pelo motivo certo; a contagem subiu em N.
 
-- [ ] **T5.2** Fila: tipos, `applyReportLocation` sem a exceção da ocorrência (e o comentário),
+- [x] **T5.2** Fila: tipos, `applyReportLocation` sem a exceção da ocorrência (e o comentário),
       `withLegacyLocation`, ocorrência da parada e ocorrência de nota direta por `reportWithLocation`,
       "Não entreguei" nas duas chaves, corpo do `send`, `registerDocumentOccurrence` removido do
       cliente. Aceite: contratos da fila verdes; o `check` de `apps/frontend-driver` verde.
-- [ ] **T5.3** Toque direto: `readDirectTapLocation` (`Promise.race` com o relógio da app de 3 s,
+- [x] **T5.3** Toque direto: `readDirectTapLocation` (`Promise.race` com o relógio da app de 3 s,
       `enableHighAccuracy: false`, `maximumAge` de 5 min) e "Despachar"/"Iniciar rota" com corpo.
       Aceite: contratos verdes; `check` verde.
 
@@ -367,7 +367,7 @@ do usuário. A API não é revertida com a app nova no ar.
   > - o `location` do Iniciar rota continua existindo, mas chega pelo corpo do item de fila, no caminho
   >   do "Cheguei", não pelo `readDirectTapLocation`.
 
-- [ ] **T5.4** Preview e smoke:
+- [x] **T5.4** Preview e smoke:
   - a API de demonstração aceita e guarda em memória, **sem imprimir**, o `location` das quatro rotas
     e o expõe numa rota de depuração local;
   - `motorista-local` na 53200, com GPS permitido e negado (emulação do navegador): o corpo sai com
