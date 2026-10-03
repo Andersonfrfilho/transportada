@@ -18,6 +18,7 @@ import type {
   DriverTripDocument,
   DriverTripStop,
 } from '../../src/modules/driver-trip/shared/driverTrip.types'
+import { resolveDispatchState } from '../../src/modules/driver-trip/shared/driverTripView.service'
 import { formatActivityTime } from '../../src/modules/driver-trip/shared/documentActivity.service'
 import {
   drainQueue,
@@ -270,6 +271,66 @@ describe('o ajudante vê o estado de cada nota, sem as ações (spec 239 revisã
   })
 })
 
+describe('a espera do despacho é fato da viagem; despachar é permissão do papel (spec 239 D1)', () => {
+  const planned = { status: 'route_planned' as const }
+
+  it('ajudante em viagem não despachada: aguardando sim, despachar não', () => {
+    expect(resolveDispatchState({ trip: { ...planned, crewRole: 'helper' } })).toEqual({
+      canDispatch: false,
+      isAwaiting: true,
+    })
+  })
+
+  it('motorista (e snapshot antigo sem papel): aguardando sim, despachar sim', () => {
+    const expected = { canDispatch: true, isAwaiting: true }
+
+    expect(resolveDispatchState({ trip: { ...planned, crewRole: 'driver' } })).toEqual(expected)
+    expect(resolveDispatchState({ trip: planned })).toEqual(expected)
+  })
+
+  it('papel desconhecido, já degradado para ajudante, se comporta como ajudante', () => {
+    const trip = parseTrip({ ...TRIP, crewRole: 'observer', status: 'route_planned' })
+
+    expect(trip === undefined ? undefined : resolveDispatchState({ trip })).toEqual({
+      canDispatch: false,
+      isAwaiting: true,
+    })
+  })
+
+  it('viagem em andamento: ninguém aguarda, ninguém despacha', () => {
+    for (const crewRole of ['helper', 'driver'] as const) {
+      expect(resolveDispatchState({ trip: { crewRole, status: 'in_transit' } })).toEqual({
+        canDispatch: false,
+        isAwaiting: false,
+      })
+    }
+  })
+
+  it('despacho já na fila: o motorista deixa de aguardar (o botão volta só se for recusado)', () => {
+    expect(
+      resolveDispatchState({
+        isDispatchQueued: true,
+        trip: { crewRole: 'driver', status: 'route_planned' },
+      }),
+    ).toEqual({ canDispatch: false, isAwaiting: false })
+  })
+
+  it('o cartão do ajudante em viagem não iniciada mostra a espera e nenhuma ação', async () => {
+    await i18n.changeLanguage('pt-BR')
+    const state = resolveDispatchState({ trip: { ...planned, crewRole: 'helper' } })
+
+    const html = renderCard({
+      hasArrived: false,
+      isFieldWorkBlocked: state.isAwaiting,
+      isReadOnly: true,
+    })
+
+    expect(html).toContain(driverTrip.dispatch.waiting)
+    expect(html).not.toMatch(/<button[^>]*>(?:(?!<\/button>).)*(Cheguei|Iniciar rota|Entreguei)/su)
+    expect(html).not.toContain(driverTrip.dispatch.start)
+  })
+})
+
 describe('o aviso fixo do ajudante (spec 239 RF-3)', () => {
   it('é um status anunciado e diz que ele acompanha como ajudante, nos dois idiomas', async () => {
     await i18n.changeLanguage('pt-BR')
@@ -295,12 +356,6 @@ describe('a tela da viagem não oferece nem enfileira nada ao ajudante (spec 239
   it('o aviso monta só para o ajudante, e o cartão recebe o modo de leitura', () => {
     expect(WORKSPACE).toContain('<DriverHelperNotice />')
     expect(WORKSPACE).toContain('isReadOnly={!canReportOnTrip(trip)}')
-  })
-
-  it('o despacho da viagem fica atrás do mesmo predicado', () => {
-    expect(WORKSPACE).toMatch(
-      /trip !== undefined\s*&&\s*canReportOnTrip\(trip\)\s*&&\s*isAwaitingDispatch\(trip\)/u,
-    )
   })
 
   it('a localização só é compartilhada por viagem em que ele reporta', () => {

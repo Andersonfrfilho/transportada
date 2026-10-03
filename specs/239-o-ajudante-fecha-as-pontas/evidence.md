@@ -433,3 +433,23 @@ bloco da classe. Mutação: a linha removida, 1 fail.
 
 **T7 (design) segue aberta:** depende do usuário. As mudanças visuais desta revisão (B1: ficha do ajudante sem
 nota e sem regiões; item 5: botão "Tentar de novo"; item 4: selo na nota do ajudante) precisam de prints novos.
+
+### D1 — o ajudante lê "Aguardando o despacho" (achado da revisão final)
+
+`isTripAwaitingDispatch` da página incluía `canReportOnTrip(trip)`, falso para o ajudante, e o valor ia ao
+cartão como `isFieldWorkBlocked`: o texto `dispatch.waiting` nunca aparecia para ele (o commit `34f117fee`
+só tinha corrigido o cartão). A decisão virou a função pura `resolveDispatchState({ trip, isDispatchQueued })`
+em `driverTripView.service.ts`: `isAwaiting` é fato da viagem (`route_planned` e despacho fora da fila, vale
+para todo papel) e `canDispatch` é a permissão (`isAwaiting` e `canReportOnTrip`). A página passa `isAwaiting`
+ao cartão e mostra o botão "Despachar viagem" só com `canDispatch`. Motorista: nada muda (texto do cartão e
+botão, como antes).
+
+Contrato de comportamento (`helper-crew-role.contract.ts`, vermelho antes: `resolveDispatchState` não existia):
+ajudante + `route_planned` → aguardando sim, despachar não; motorista (e snapshot sem papel) → sim e sim;
+papel desconhecido (degradado para ajudante) igual ao ajudante; viagem em andamento → nem um nem outro;
+despacho na fila → motorista deixa de aguardar; cartão renderizado com o estado do ajudante mostra a espera
+e nenhuma ação (sem Cheguei, Iniciar rota, Entreguei, nem "Iniciar viagem"). O contrato de texto-fonte
+"o despacho fica atrás do mesmo predicado" foi removido: afirmava o predicado antigo e é coberto pelo
+comportamento. Mutações: `isAwaiting` com `canReportOnTrip`, 3 fails; `canDispatch` sem o papel, 2 fails;
+restaurado e conferido com `cmp`. **Limite:** o fio página → função → cartão não é montado (a página exige
+sessão e dezenas de hooks); vale pelo typecheck e pela função pura.

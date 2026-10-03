@@ -78,6 +78,7 @@ import {
   findCurrentStop,
   findProofDocumentLabel,
   isAwaitingDispatch,
+  resolveDispatchState,
   listProofPendingDocuments,
   type ProofDocumentLabel,
 } from '../shared/driverTripView.service'
@@ -666,8 +667,9 @@ export function DriverTripWorkspacePage() {
   )
   const isDispatchQueued = dispatchItems.some((item) => item.status.state !== 'rejected')
   const isDispatchRejected = dispatchItems.some((item) => item.status.state === 'rejected')
-  const isTripAwaitingDispatch =
-    trip !== undefined && canReportOnTrip(trip) && isAwaitingDispatch(trip) && !isDispatchQueued
+  const dispatchState =
+    trip === undefined ? undefined : resolveDispatchState({ isDispatchQueued, trip })
+  const isTripAwaitingDispatch = dispatchState?.isAwaiting ?? false
   const proofPendingCount = listProofPendingDocuments(snapshot).length
   /** Spec 159 (T11): entradas ainda não dispensadas — computado no render, nunca em `useEffect`. */
   const visibleProofOutcomes = [...driverTrip.proofOutcomeByDocumentId].filter(
@@ -752,7 +754,7 @@ export function DriverTripWorkspacePage() {
         {trip === undefined ? null : <DriverTripProgress trip={trip} />}
 
         {/* Spec 082 (revisão): viagem `route_planned` só abre as ações depois de iniciar o trajeto */}
-        {isTripAwaitingDispatch && trip !== undefined ? (
+        {dispatchState?.canDispatch === true && trip !== undefined ? (
           <div className={styles.actions}>
             <Button onClick={() => dispatchTrip(trip.id)} type="button">
               <Icon name="check" />
