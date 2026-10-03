@@ -261,4 +261,26 @@ describe('os três tempos do topo (spec 183 RF19)', () => {
     expect(timeline.timings.driverReleasedAt).toBe('2026-09-24T10:30:00.000Z')
     expect(timeline.timings.openUntil).toBe('2026-09-24T10:30:00.000Z')
   })
+
+  test('o cancelamento da ocorrência fecha o relógio no instante dele (spec 235 T6.5)', () => {
+    const timeline = buildOccurrenceTimeline({
+      sources: [
+        RECORDED,
+        {
+          actor: { kind: 'operation', name: 'Operadora Lima' },
+          id: 'occurrence-1',
+          kind: 'occurrence.cancelled',
+          occurredAt: '2026-09-24T12:00:00.000Z',
+          reason: 'Lançada na nota errada',
+        },
+      ],
+    })
+
+    expect(timeline.timings.openUntil).toBe('2026-09-24T12:00:00.000Z')
+    expect(timeline.timings.driverReleasedAt).toBeNull()
+  })
+
+  test('sem cancelamento nem terminal da tratativa, o relógio segue aberto', () => {
+    expect(buildOccurrenceTimeline({ sources: [RECORDED] }).timings.openUntil).toBeNull()
+  })
 })
