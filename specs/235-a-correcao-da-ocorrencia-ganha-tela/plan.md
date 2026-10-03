@@ -2,6 +2,10 @@
 
 ## Contexto e premissas
 
+> **Revisado em 2026-10-02 pela Fase 0:** as leituras não publicam `corrections` nem
+> `cancellation`. A Fase 0.5 acrescenta essa leitura à API (só leitura, sem migration, em lote).
+> O texto abaixo é o plano original, válido para tudo o que não for a leitura.
+
 Spec de uma app só: **nada muda na API**. Tudo o que a tela precisa já está servido, e a primeira
 task é provar isso por chamada real antes de escrever componente — se algum detalhe do contrato não
 bater com o que a 167 escreveu, é melhor descobrir na task 1 que na task 9.

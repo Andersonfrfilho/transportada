@@ -19,8 +19,10 @@ Ao fim: no detalhe da ocorrência existem **Corrigir** e **Cancelar**, o histór
 aparece com autor e hora, e a ocorrência cancelada se mostra cancelada, com motivo, em vez de
 sumir ou de continuar contando.
 
-Esta spec é **só a tela**. Nenhuma regra de negócio é reaberta: elas foram decididas na 167 e
-estão implementadas.
+Esta spec é **a tela, mais a leitura que faltava**. Nenhuma regra de negócio é reaberta: elas
+foram decididas na 167 e estão implementadas nas escritas. A Fase 0 provou que as leituras
+(detalhe, feed, lista da nota) não publicam `corrections` nem `cancellation`. Por decisão de
+2026-10-02, a 235 inclui essa leitura na API, sem migration, sem rota e sem regra nova (RF9).
 
 ## Fora do escopo
 
@@ -75,7 +77,10 @@ em toda lista onde ela já aparecia.
 - **RF4** Os dois botões só aparecem para quem tem `trip.manage`, e ficam desabilitados com motivo
   à vista quando a ocorrência tem tratativa aberta ou já está cancelada.
 - **RF5** O histórico de correções (`corrections[]`) aparece no detalhe: autor, data e o conjunto
-  que passou a valer. Já vem na leitura; falta mostrar.
+  que passou a valer. Não vinha na leitura (Fase 0); passa a vir pela RF9.
+- **RF9** As leituras da API publicam o que a 167 grava: detalhe e lista da nota devolvem
+  `corrections` e `cancellation`; o feed devolve `cancellation`. Mesmo formato da resposta das
+  escritas, lido em lote, e a cancelada continua listada, marcada.
 - **RF6** A ocorrência cancelada é marcada como tal onde quer que apareça — detalhe, lista do feed
   e linha do tempo da nota —, com o motivo acessível, nunca escondida.
 - **RF7** Os erros da API viram mensagem em português por código estável, nunca texto cru:

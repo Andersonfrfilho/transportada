@@ -1,8 +1,8 @@
 # Tasks
 
 Uma task por vez, na ordem. Cada uma fecha com typecheck, teste e commit isolado, e registra a
-evidência em `evidence.md`. Só `apps/frontend-transportada` é tocada — task que precise mexer na
-API é sinal de escopo escorregando, e para.
+evidência em `evidence.md`. Fora da Fase 0.5, só `apps/frontend-transportada` é tocada — task
+que precise mexer na API além da leitura da Fase 0.5 é sinal de escopo escorregando, e para.
 
 ## Fase 0 — Provar o que o servidor já faz
 
@@ -13,6 +13,29 @@ API é sinal de escopo escorregando, e para.
       (tratativa aberta, já cancelada). Sem isto, o resto é escrito sobre suposição.
 - [x] **T0.2** Conferir que a leitura do detalhe devolve `corrections` e `cancellation`
       preenchidos depois das escritas da T0.1, e que os tipos do painel batem com o que chega.
+      **Resultado: não devolve.** Nenhuma leitura (detalhe, feed, lista da nota) publica os dois
+      campos; só as respostas das escritas. Decisão do usuário em 2026-10-02: a 235 ganha a Fase
+      0.5, só de leitura na API.
+
+## Fase 0.5 — A leitura passa a contar o que a 167 grava
+
+> 🤖 Modelo: `sonnet`
+
+Só leitura em `apps/api-transportada`: nenhuma migration, nenhuma rota nova, nenhuma regra nova,
+nenhuma mudança nas escritas da 167. Reaproveita a leitura que `drizzle-occurrence-correction.repository.ts`
+já faz (`listOccurrenceCorrections`, o mapeamento de `cancellation`), em lote — sem N+1.
+
+- [ ] **T0.3** Contrato e integração primeiro, vermelhos: `GET /trip-occurrences/:id` (detalhe) e
+      `GET /trips/:tripId/documents/:documentId/occurrences` (lista da nota) devolvem
+      `corrections` (`[]` quando não há, mais antiga primeiro) e `cancellation`
+      (`null` ou `{ cancelledAt, cancelledBy…, reason }`, mesmo formato da resposta das escritas);
+      `GET /trip-occurrences` (feed) devolve `cancellation`. A ocorrência cancelada **continua**
+      nas três leituras — marcada, nunca filtrada.
+- [ ] **T0.4** Implementação nas consultas de leitura, em lote por página (uma consulta de
+      correções para o conjunto de ids, agrupada por `Map`), com `companyId` do contexto.
+- [ ] **T0.5** Gates da API: os dois comandos de teste da API (contrato **e** integração com
+      `--env-file=../../.env.test`), typecheck, documentação da API (OpenAPI gerado) e
+      `docs/ai-context/api-transportada.md` atualizados.
 
 ## Fase 1 — O cliente e as regras puras
 
