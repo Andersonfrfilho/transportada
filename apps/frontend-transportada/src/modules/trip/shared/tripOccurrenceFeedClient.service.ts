@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { TRIP_ERROR } from './trip.constant'
 import { isOccurrenceAttachment, isRecord, isString } from './tripGuards.validation'
+import { isOccurrenceCancellation, isOccurrenceCorrection } from './tripResponse.validation'
 import {
   EMPTY_OCCURRENCE_CONVERSATION,
   OCCURRENCE_CONTRACTOR_CONVERSATION_STATES,
@@ -174,6 +175,9 @@ function toConversationSummary(value: unknown): TripOccurrenceConversationSummar
 function isFeedItem(value: unknown): value is RawFeedItem {
   if (!isRecord(value)) return false
   return (
+    (value.cancellation === undefined ||
+      value.cancellation === null ||
+      isOccurrenceCancellation(value.cancellation)) &&
     (value.case === undefined || value.case === null || isCaseView(value.case)) &&
     (value.document === undefined ||
       value.document === null ||
@@ -196,9 +200,10 @@ function isFeedItem(value: unknown): value is RawFeedItem {
 }
 
 function toFeedItem(raw: RawFeedItem): TripOccurrenceFeedItem {
-  const { case: rawCase, conversation, document, ...rest } = raw
+  const { cancellation, case: rawCase, conversation, document, ...rest } = raw
   return {
     ...rest,
+    cancellation: isOccurrenceCancellation(cancellation) ? cancellation : null,
     case: isRecord(rawCase) && isCaseView(rawCase) ? toCaseView(rawCase) : null,
     conversation: toConversationSummary(conversation),
     document: isOccurrenceDocument(document) ? document : null,
@@ -269,20 +274,32 @@ function readDetail(payload: unknown): TripOccurrenceDetail {
   const raw = payload.data
   /** Os campos do detalhe ficam fora do guard da linha (que é tolerante, B5/B6) — conferidos aqui. */
   const fields: Readonly<Record<string, unknown>> = raw
-  const { actorName, channel, document, driver, items, onBehalfOfDriverName } = fields
+  const { actorName, channel, corrections, document, driver, items, onBehalfOfDriverName } = fields
   /** O detalhe nasceu com a 183: aqui `document` ausente é resposta inválida, não API antiga. */
   if (
     document === undefined ||
     !(driver === null || isDetailDriver(driver)) ||
     !Array.isArray(items) ||
     !items.every(isDetailItem) ||
+    !(
+      corrections === undefined ||
+      (Array.isArray(corrections) && corrections.every(isOccurrenceCorrection))
+    ) ||
     !isNullableString(actorName) ||
     !isString(channel) ||
     !isNullableString(onBehalfOfDriverName)
   ) {
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
   }
-  return { ...toFeedItem(raw), actorName, channel, driver, items, onBehalfOfDriverName }
+  return {
+    ...toFeedItem(raw),
+    actorName,
+    channel,
+    corrections: corrections ?? [],
+    driver,
+    items,
+    onBehalfOfDriverName,
+  }
 }
 
 function readPage(payload: unknown): TripOccurrenceFeedPage {

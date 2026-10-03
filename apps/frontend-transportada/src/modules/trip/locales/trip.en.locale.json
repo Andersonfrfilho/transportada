@@ -1987,6 +1987,7 @@
       "driver": "Driver"
     },
     "correction": {
+      "correct": "Correct",
       "unavailable": {
         "occurrenceCancelled": "This occurrence was already cancelled and can no longer be corrected or cancelled.",
         "caseOpen": "The case is open: once it opens, the occurrence already carries money and can no longer be corrected or cancelled.",
