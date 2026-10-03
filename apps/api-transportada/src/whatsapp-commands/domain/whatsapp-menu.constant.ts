@@ -5,7 +5,7 @@
 /**
  * Tetos do Cloud API da Meta, medidos na doc oficial em 2026-09-11 (evidence.md § T007):
  * botões (`interactive-reply-buttons-messages`) e lista (`interactive-list-messages`).
- * O provider `@adatechnology/meta-whatsapp-provider@0.1.0` não valida nenhum deles — a Meta
+ * O provider `@adatechnology/meta-whatsapp-provider` só valida a contagem de botões/linhas, não o tamanho dos textos — a Meta
  * recusa a mensagem inteira, e o cliente vê silêncio.
  */
 export const WHATSAPP_CHOICE_LIMIT = {
@@ -17,7 +17,7 @@ export const WHATSAPP_CHOICE_LIMIT = {
   buttonTitle: 20,
   /** Texto do botão que abre a lista (`buttonText`/CTA). */
   listButtonText: 20,
-  /** Descrição de uma linha da lista. Não usado hoje — o `ChannelAdapterInterface` 0.1.0 não a expõe. */
+  /** Descrição de uma linha da lista. Não usado hoje — o `ChannelAdapterInterface` não a expõe. */
   listRowDescription: 72,
   /** Título de uma linha da lista. */
   listRowTitle: 24,

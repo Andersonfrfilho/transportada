@@ -1383,9 +1383,7 @@ export function bootstrap(): Bun.Server<undefined> {
    * instalação: a instância do módulo é refeita quando o token muda, e o teto não pode zerar junto.
    */
   const whatsappCommandHook = createWhatsAppCommandHookFactory({
-    apiVersion: config.whatsapp.apiVersion,
     authorization: new AuthorizationService(),
-    baseUrl: config.whatsapp.baseUrl,
     clock: () => new Date(),
     flowActions: [
       ...driverWhatsAppFlowActions,

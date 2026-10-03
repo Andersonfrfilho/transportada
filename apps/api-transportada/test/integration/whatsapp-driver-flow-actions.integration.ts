@@ -308,8 +308,8 @@ describe('a mensagem de localização do motorista chega ao evento (spec 196 T3.
 
   /**
    * O despachante guarda o ponto com `remember` quando a mensagem `location` chega; aqui o ponto é
-   * guardado direto, porque o webhook da instalação (pacotes `0.1.0`) nunca entrega essa mensagem —
-   * ver o teste seguinte. O que se prova é o caminho do toque até a linha do banco.
+   * guardado direto; o teste seguinte faz o mesmo caminho pelo webhook real. O que se prova aqui é o
+   * toque até a linha do banco, sem depender do pacote.
    */
   testWithPostgres(
     'o ponto guardado antes do toque vira captured com a coordenada, e vale para um toque só',
@@ -353,14 +353,12 @@ describe('a mensagem de localização do motorista chega ao evento (spec 196 T3.
   )
 
   /**
-   * ⚠️ LIMITE CONHECIDO, e este teste existe para ficar vermelho no dia em que cair: o módulo
-   * `meta-whatsapp-module@0.1.0` valida o webhook com `meta-whatsapp-contracts@0.1.0`, cujo schema de
-   * mensagem não tem `location` — o zod descarta a chave antes do gancho. O contrato `0.4.0` já a
-   * traz. Enquanto os pacotes ficarem na `0.1.0`, a mensagem de localização cai no fluxo como
-   * qualquer texto fora do menu e o toque grava `unavailable`.
+   * Ponta a ponta pelo webhook real: o `meta-whatsapp-contracts` a partir da `0.4.0` traz `location`
+   * no schema da mensagem, então ela chega ao gancho, o despachante guarda o ponto e o toque seguinte
+   * o grava. A coordenada nunca é logada.
    */
   testWithPostgres(
-    'com os pacotes 0.1.0 a mensagem de localização não chega ao gancho e o toque fica unavailable',
+    'a localização enviada pelo webhook vira captured com a coordenada no toque seguinte',
     async () => {
       const db = requireDatabase()
       const { scenario, world } = await seedScenario(db)
@@ -371,7 +369,7 @@ describe('a mensagem de localização do motorista chega ao evento (spec 196 T3.
         location: { latitude: -23.55052, longitude: -46.633308 },
         type: 'location',
       })
-      expect(scenario.sentMessages().at(-1)?.body).not.toMatchObject({
+      expect(scenario.sentMessages().at(-1)?.body).toMatchObject({
         text: { body: WHATSAPP_SHARED_LOCATION_REPLY },
       })
       await tapDocument(scenario, world)
@@ -380,7 +378,14 @@ describe('a mensagem de localização do motorista chega ao evento (spec 196 T3.
         .select()
         .from(tripStopEvents)
         .where(eq(tripStopEvents.tripDocumentId, world.documentId))
-      expect(event).toMatchObject({ latitude: null, locationState: 'unavailable' })
+      expect(event).toMatchObject({
+        channel: 'whatsapp',
+        latitude: '-23.5505200',
+        locationState: 'captured',
+        longitude: '-46.6333080',
+      })
+      expect(event?.capturedAt?.toISOString()).toBe('2025-09-11T12:00:00.000Z')
+      expect(JSON.stringify(scenario.logged)).not.toContain('23.55')
     },
   )
 
@@ -613,9 +618,7 @@ async function buildScenario(db: Database, companyId: string) {
     appSecret: APP_SECRET,
     baseUrl,
     buildMessageHook: createWhatsAppCommandHookFactory({
-      apiVersion: API_VERSION,
       authorization: new AuthorizationService(),
-      baseUrl,
       clock: () => new Date(),
       flowActions: driverFlowActions,
       graphs: createModuleWhatsAppFlowGraphProvider({

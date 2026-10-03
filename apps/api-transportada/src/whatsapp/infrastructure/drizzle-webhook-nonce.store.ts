@@ -38,5 +38,14 @@ export function createDrizzleWebhookNonceStore(database: Database): NonceStoreIn
 
       return claimed.length > 0
     },
+
+    /** SET sem NX: a chave já reivindicada passa a valer a janela cheia, e a ausente é criada. */
+    async confirm(key: string, ttlSeconds: number): Promise<void> {
+      const expiresAt = new Date(Date.now() + ttlSeconds * MILLISECONDS_PER_SECOND)
+      await database
+        .insert(whatsappWebhookNonces)
+        .values({ expiresAt, key })
+        .onConflictDoUpdate({ set: { expiresAt }, target: whatsappWebhookNonces.key })
+    },
   }
 }

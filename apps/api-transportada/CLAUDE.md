@@ -678,7 +678,8 @@ Uma mensagem recebida executa ação de negócio — separar, despachar, entrega
 emitir CT-e/NFS-e por seleção e faturar (spec 144, ADR-0063/ADR-0064). O despachante entra no hook
 `onMessageReceived` de `@adatechnology/meta-whatsapp-module`, construído **uma vez por empresa**;
 `createWhatsAppCommandHookFactory` separa o que é da instalação do que é da empresa. A instalação
-fica na `0.1.0` dos pacotes por dívida de formato de migration do pacote, não por falta de recurso.
+está nos pacotes `meta-whatsapp-module@0.7.0`, `-contracts@0.6.0` e `-provider@0.3.1`; as migrations do módulo viajam em
+pasta (formato do `drizzle-orm` 1.0) e rodam por `runMetaWhatsAppSchemaMigrations`, com o `migrate` injetado.
 
 - **Toda `FlowAction` de negócio passa por `withAuthorizedActor`**, que re-resolve o ator a cada
   chamada contra o mesmo `AuthorizationService` do HTTP; `registerWhatsAppFlowActions` é o único
@@ -732,6 +733,7 @@ Cinco tabelas carregam ponto e `location_state` (`captured | unavailable | expir
 tempo, e só com `trip.event-location` (`company-admin`, `operator`, `fiscal`, `viewer`) — `finance` e `separator`
 recebem `location: null` e o estado. Quem pode ler as colunas é lista fechada
 (`event-location-readers.constant.ts`, cobrada por `test/trip-schema/event-location-readers.contract.ts`): leitor
-novo entra ali ou reprova. ⚠️ O localização-pelo-WhatsApp só chega ao banco depois de subir os pacotes
-`meta-whatsapp-*` (a `0.1.0` descarta `messages[].location`). Detalhe: docs/ai-context/api-transportada.md
+novo entra ali ou reprova. ⚠️ A localização pelo WhatsApp chega ao banco (os pacotes entregam
+`messages[].location`); o pedido de geolocalização no fluxo do motorista **ainda não está implementado**
+(próxima task da spec 196). Detalhe: docs/ai-context/api-transportada.md
 § "Spec 196".

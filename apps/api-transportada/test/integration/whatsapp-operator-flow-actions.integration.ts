@@ -211,7 +211,7 @@ describe('o operador separa, carrega e despacha pelo WhatsApp (spec 144 T016)', 
       })
       /**
        * O menu de ações é dinâmico (`sendDynamicChoice`, mesma ressalva do ramo do motorista): sai
-       * sempre como lista, mesmo com ≤3 opções — a instalação não tem `sendInteractiveButtons`.
+       * sempre como lista, mesmo com ≤3 opções — decisão mantida na subida dos pacotes (o canal já sabe enviar botão).
        */
       const actionMenu = scenario.sentMessages().at(-2)
       expect(actionMenu?.body).toMatchObject({
@@ -766,9 +766,7 @@ async function buildScenario(db: Database, companyId: string) {
     appSecret: APP_SECRET,
     baseUrl,
     buildMessageHook: createWhatsAppCommandHookFactory({
-      apiVersion: API_VERSION,
       authorization: new AuthorizationService(),
-      baseUrl,
       clock: () => new Date(),
       flowActions: operatorFlowActions,
       graphs: createModuleWhatsAppFlowGraphProvider({
