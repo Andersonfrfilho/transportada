@@ -4,7 +4,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 
-import { createCrewSettingsClient } from '../shared/crewSettingsClient.service'
+import {
+  createCrewSettingsClient,
+  type CrewSettingsClient,
+} from '../shared/crewSettingsClient.service'
 
 const CREW_SETTINGS_QUERY_KEY = 'company-crew-settings'
 
@@ -16,9 +19,11 @@ function createClient() {
   })
 }
 
-export function useCrewSettings(input: Readonly<{ companyId?: string; enabled: boolean }>) {
+export function useCrewSettings(
+  input: Readonly<{ client?: CrewSettingsClient; companyId?: string; enabled: boolean }>,
+) {
   const queryClient = useQueryClient()
-  const client = createClient()
+  const client = input.client ?? createClient()
   const queryKey = [CREW_SETTINGS_QUERY_KEY, input.companyId] as const
   const query = useQuery({
     enabled: input.enabled && input.companyId !== undefined,

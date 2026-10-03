@@ -9,7 +9,7 @@ import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { AggregateApplicationsTab } from '../components/AggregateApplicationsTab.component'
 import { AggregateDocumentsTab } from '../components/AggregateDocumentsTab.component'
-import { DriverCrewSettingsPanel } from '../components/DriverCrewSettingsPanel.component'
+import { DriverCrewSettingsSection } from '../components/DriverCrewSettingsSection.component'
 import { DriverForm } from '../components/DriverForm.component'
 import { DriverPanel } from '../components/DriverPanel.component'
 import { EnergySettingsPanel } from '../components/EnergySettingsPanel.component'
@@ -22,7 +22,6 @@ import { VehiclePanel } from '../components/VehiclePanel.component'
 import type { VehicleStatusChange } from '../components/VehicleSelectionBar.component'
 import { useAggregateApplications } from '../hooks/useAggregateApplications.hook'
 import { useAggregateDocuments } from '../hooks/useAggregateDocuments.hook'
-import { useCrewSettings } from '../hooks/useCrewSettings.hook'
 import { useDriverRegions, type DriverRegionsController } from '../hooks/useDriverRegions.hook'
 import { useDriverVehicles, type DriverVehiclesController } from '../hooks/useDriverVehicles.hook'
 import { useDriverVehiclePairs } from '../hooks/useDriverVehiclePairs.hook'
@@ -255,12 +254,6 @@ export function FleetWorkspacePage() {
     permissions,
   })
   const { canManageFleet } = workspace.viewModel
-  /** Spec 239 D2: a permissão é a da API (`fleet.read` lê, `fleet.manage` grava), não `settings.manage`. */
-  const crewSettings = useCrewSettings({
-    ...(companyId === undefined ? {} : { companyId }),
-    enabled: workspace.viewModel.canReadFleet && activeTab === 'drivers',
-  })
-  const crewSettingsErrorCode = toErrorCode(crewSettings.saveMutation.error)
   const status: FleetViewStatus = authQuery.isPending
     ? 'loading'
     : authQuery.isError
@@ -420,17 +413,12 @@ export function FleetWorkspacePage() {
       label: t('tabs.drivers'),
       panel: (
         <>
-          {workspace.viewModel.canReadFleet ? (
-            <DriverCrewSettingsPanel
-              canManage={canManageFleet}
-              {...(crewSettingsErrorCode === undefined ? {} : { errorCode: crewSettingsErrorCode })}
-              isSaving={crewSettings.saveMutation.isPending}
-              loading={crewSettings.query.isLoading}
-              saved={crewSettings.saveMutation.isSuccess}
-              settings={crewSettings.query.data}
-              onSave={(helperDailyRate) => crewSettings.saveMutation.mutate(helperDailyRate)}
-            />
-          ) : null}
+          <DriverCrewSettingsSection
+            canManage={canManageFleet}
+            canRead={workspace.viewModel.canReadFleet}
+            {...(companyId === undefined ? {} : { companyId })}
+            isActive={activeTab === 'drivers'}
+          />
           <DriverPanel
             actions={{
               onEdit: (driver) => setEditor({ driver, kind: 'driver' }),

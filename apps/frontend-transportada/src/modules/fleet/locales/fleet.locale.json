@@ -184,6 +184,7 @@
     "hint": "Vale para quem não tem diária própria na ficha. Vazio: sem valor padrão — a conta da viagem aponta a lacuna.",
     "label": "Diária geral (R$/dia)",
     "loadError": "Não foi possível carregar a diária do ajudante.",
+    "retry": "Tentar de novo",
     "save": "Salvar diária",
     "saved": "Diária do ajudante salva.",
     "title": "Diária do ajudante"

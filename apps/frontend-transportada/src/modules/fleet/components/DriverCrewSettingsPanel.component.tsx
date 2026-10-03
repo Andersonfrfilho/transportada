@@ -15,6 +15,8 @@ export type DriverCrewSettingsPanelProps = Readonly<{
   errorCode?: string
   isSaving: boolean
   loading: boolean
+  onEdit?: () => void
+  onRetry?: () => void
   onSave: (helperDailyRate: null | string) => void
   saved: boolean
   settings: CrewSettings | undefined
@@ -35,6 +37,7 @@ function CrewSettingsForm(
   props: Readonly<{
     canManage: boolean
     isSaving: boolean
+    onEdit?: () => void
     onSave: (helperDailyRate: null | string) => void
     settings: CrewSettings
   }>,
@@ -59,9 +62,10 @@ function CrewSettingsForm(
           inputMode="numeric"
           type="text"
           value={draft}
-          onChange={(event) =>
+          onChange={(event) => {
+            props.onEdit?.()
             setDraft(maskTypedAmount({ scale: AMOUNT_DISPLAY_SCALE, value: event.target.value }))
-          }
+          }}
         />
       </span>
       <small className={styles.fieldHint}>{t('crewSettings.hint')}</small>
@@ -90,14 +94,25 @@ export function DriverCrewSettingsPanel(props: DriverCrewSettingsPanelProps) {
       {props.loading ? (
         <CrewSettingsSkeleton />
       ) : props.settings === undefined ? (
-        <p className={styles.fuelPriceStatusError} role="alert">
-          {t('crewSettings.loadError')}
-        </p>
+        <>
+          <p className={styles.fuelPriceStatusError} role="alert">
+            {t('crewSettings.loadError')}
+          </p>
+          {props.onRetry === undefined ? null : (
+            <div className={styles.fuelPriceActions}>
+              <button className={styles.primaryAction} type="button" onClick={props.onRetry}>
+                <Icon name="refresh" />
+                {t('crewSettings.retry')}
+              </button>
+            </div>
+          )}
+        </>
       ) : (
         <CrewSettingsForm
           key={props.settings.helperDailyRate ?? 'crew-rate-unset'}
           canManage={props.canManage}
           isSaving={props.isSaving}
+          {...(props.onEdit === undefined ? {} : { onEdit: props.onEdit })}
           settings={props.settings}
           onSave={props.onSave}
         />

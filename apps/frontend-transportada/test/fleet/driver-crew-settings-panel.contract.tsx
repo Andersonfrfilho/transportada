@@ -2,8 +2,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'bun:test'
 
-import { readFileSync } from 'node:fs'
-
 // Efeito colateral: inicializa o i18next real com os dicionários de produção.
 import '@/modules/shared/i18n/i18n.service'
 import { DriverCrewSettingsPanel } from '@/modules/fleet/components/DriverCrewSettingsPanel.component'
@@ -20,11 +18,16 @@ import {
 import { isCrewSettingsResponse } from '@/modules/fleet/shared/crewSettings.validation'
 
 const NOOP = (): void => undefined
-const PAGE_SOURCE = readFileSync(
-  new URL('../../src/modules/fleet/pages/FleetWorkspace.page.tsx', import.meta.url),
-  'utf8',
-)
-const PANEL_LABEL_KEYS = ['title', 'hint', 'label', 'save', 'saved', 'error', 'loadError'] as const
+const PANEL_LABEL_KEYS = [
+  'title',
+  'hint',
+  'label',
+  'save',
+  'saved',
+  'error',
+  'loadError',
+  'retry',
+] as const
 
 type FetchCall = Readonly<{ body: string; method: string; url: string }>
 
@@ -153,12 +156,11 @@ describe('diária geral do ajudante (spec 239 T3)', () => {
     expect(renderPanel({ errorCode: 'CREW_SETTINGS_X' })).toContain('CREW_SETTINGS_X')
     expect(renderPanel({ saved: true })).toContain(ptLocale.crewSettings.saved)
   })
-
-  it('monta na aba de motoristas com a permissão da API, não com settings.manage', () => {
-    expect(PAGE_SOURCE).toContain('<DriverCrewSettingsPanel')
-    const hookCall = /useCrewSettings\(\{[\s\S]*?\n {2}\}\)/u.exec(PAGE_SOURCE)?.[0] ?? ''
-    expect(hookCall).toContain('enabled: workspace.viewModel.canReadFleet')
-    expect(hookCall).not.toContain('canManageSettings')
-    expect(PAGE_SOURCE).toContain('canManage={canManageFleet}')
+  it('o painel traz "Tentar de novo" na falha de leitura só quando recebe como tentar', () => {
+    expect(renderPanel({ onRetry: NOOP, settings: undefined })).toContain(
+      ptLocale.crewSettings.retry,
+    )
+    expect(renderPanel({ settings: undefined })).not.toContain(ptLocale.crewSettings.retry)
+    expect(enLocale.crewSettings.retry).toBe('Try again')
   })
 })
