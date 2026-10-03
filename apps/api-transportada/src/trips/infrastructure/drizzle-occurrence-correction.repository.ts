@@ -36,26 +36,14 @@ import type {
   OccurrenceCorrectionTransactionPort,
   OccurrenceCorrectionUnitOfWork,
 } from '../application/occurrence-correction.port.js'
+import {
+  listOccurrenceCancellationsByIds,
+  listOccurrenceCorrectionsByIds,
+} from './occurrence-correction-read.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
-const correctedByProfile = alias(
-  identityUserProfiles,
-  'trip_occurrence_correction_corrected_by_profile',
-)
-const correctedByMembership = alias(
-  userCompanyMemberships,
-  'trip_occurrence_correction_corrected_by_membership',
-)
-const cancelledByProfile = alias(
-  identityUserProfiles,
-  'trip_document_occurrence_cancelled_by_profile',
-)
-const cancelledByMembership = alias(
-  userCompanyMemberships,
-  'trip_document_occurrence_cancelled_by_membership',
-)
 const occurrenceActorMembership = alias(
   userCompanyMemberships,
   'trip_occurrence_correction_actor_membership',
@@ -273,9 +261,6 @@ export async function readOccurrenceView(
   const [row] = await queryable
     .select({
       actorName: occurrenceActorProfile.name,
-      cancellationReason: tripDocumentOccurrences.cancellationReason,
-      cancelledAt: tripDocumentOccurrences.cancelledAt,
-      cancelledByName: cancelledByProfile.name,
       channel: tripDocumentOccurrences.channel,
       createdAt: tripDocumentOccurrences.createdAt,
       note: tripDocumentOccurrences.note,
@@ -312,15 +297,6 @@ export async function readOccurrenceView(
         eq(occurrenceOnBehalfDriver.id, tripDocumentOccurrences.onBehalfOfDriverId),
       ),
     )
-    .leftJoin(
-      cancelledByMembership,
-      and(
-        eq(cancelledByMembership.companyId, tripDocumentOccurrences.companyId),
-        eq(cancelledByMembership.userId, tripDocumentOccurrences.cancelledByUserId),
-        eq(cancelledByMembership.status, ACTIVE_MEMBERSHIP_STATUS),
-      ),
-    )
-    .leftJoin(cancelledByProfile, eq(cancelledByProfile.userId, cancelledByMembership.userId))
     .where(
       and(
         eq(tripDocumentOccurrences.companyId, input.companyId),
@@ -347,21 +323,18 @@ export async function readOccurrenceView(
     )
     .orderBy(asc(tripDocumentOccurrenceAttachments.position))
 
-  const corrections = await listOccurrenceCorrections(queryable, input)
+  const occurrenceIds = [input.occurrenceId]
+  const [correctionsByOccurrence, cancellations] = await Promise.all([
+    listOccurrenceCorrectionsByIds(queryable, { companyId: input.companyId, occurrenceIds }),
+    listOccurrenceCancellationsByIds(queryable, { companyId: input.companyId, occurrenceIds }),
+  ])
 
   return {
     actorName: row.actorName,
     attachments: attachmentRows,
-    cancellation:
-      row.cancelledAt === null
-        ? null
-        : {
-            cancelledAt: row.cancelledAt.toISOString(),
-            cancelledByName: row.cancelledByName,
-            reason: row.cancellationReason ?? '',
-          },
+    cancellation: cancellations.get(input.occurrenceId) ?? null,
     channel: row.channel,
-    corrections,
+    corrections: correctionsByOccurrence.get(input.occurrenceId) ?? [],
     createdAt: row.createdAt.toISOString(),
     id: input.occurrenceId,
     note: row.note,
@@ -373,45 +346,4 @@ export async function readOccurrenceView(
     stage: row.stage,
     typeName: row.typeName,
   }
-}
-
-async function listOccurrenceCorrections(
-  queryable: TripQueryable,
-  input: { readonly companyId: string; readonly occurrenceId: string },
-): Promise<
-  readonly {
-    readonly correctedAt: string
-    readonly correctedByName: null | string
-    readonly previousItems: readonly OccurrenceItemQuantity[]
-  }[]
-> {
-  const rows = await queryable
-    .select({
-      correctedAt: tripDocumentOccurrenceCorrections.createdAt,
-      correctedByName: correctedByProfile.name,
-      previousItems: tripDocumentOccurrenceCorrections.previousItems,
-    })
-    .from(tripDocumentOccurrenceCorrections)
-    .leftJoin(
-      correctedByMembership,
-      and(
-        eq(correctedByMembership.companyId, tripDocumentOccurrenceCorrections.companyId),
-        eq(correctedByMembership.userId, tripDocumentOccurrenceCorrections.correctedByUserId),
-        eq(correctedByMembership.status, ACTIVE_MEMBERSHIP_STATUS),
-      ),
-    )
-    .leftJoin(correctedByProfile, eq(correctedByProfile.userId, correctedByMembership.userId))
-    .where(
-      and(
-        eq(tripDocumentOccurrenceCorrections.companyId, input.companyId),
-        eq(tripDocumentOccurrenceCorrections.occurrenceId, input.occurrenceId),
-      ),
-    )
-    .orderBy(asc(tripDocumentOccurrenceCorrections.createdAt))
-
-  return rows.map((row) => ({
-    correctedAt: row.correctedAt.toISOString(),
-    correctedByName: row.correctedByName,
-    previousItems: row.previousItems as readonly OccurrenceItemQuantity[],
-  }))
 }

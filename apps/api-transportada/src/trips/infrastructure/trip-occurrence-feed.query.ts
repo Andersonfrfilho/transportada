@@ -52,6 +52,7 @@ import type {
   TripOccurrenceFeedQuery,
 } from '../application/trip-occurrence-feed.use-case.js'
 import type { OccurrenceAttachmentRecord } from '../application/occurrence-attachment.service.js'
+import { listOccurrenceCancellationsByIds } from './occurrence-correction-read.query.js'
 import { listStopAddresses } from './nfe-destination-address.support.js'
 import type { NfeDestinationAddress } from './nfe-destination-address.support.js'
 import type { TripQueryable } from './trip-queryable.type.js'
@@ -67,7 +68,10 @@ const EMITTER_ROLE = 'emitter'
  * A linha antes do enriquecimento: o bloco `document` (spec 183 RF2) nasce **depois** da fusão das
  * duas fontes, numa leitura em lote por página — nunca uma consulta por linha.
  */
-type FeedRow = Omit<TripOccurrenceFeedItem, 'conversation' | 'createdAt' | 'document'> & {
+type FeedRow = Omit<
+  TripOccurrenceFeedItem,
+  'cancellation' | 'conversation' | 'createdAt' | 'document'
+> & {
   readonly createdAt: Date
   readonly nfeDocumentId: null | string
   readonly totalValue: null | string
@@ -586,10 +590,17 @@ async function toFeedItems(
     ...(viewerUserId === undefined ? {} : { viewerUserId }),
   })
 
+  /** Spec 235 RF9: o cancelamento da página inteira numa leitura só; a parada nunca é cancelada. */
+  const cancellations = await listOccurrenceCancellationsByIds(queryable, {
+    companyId,
+    occurrenceIds: rows.filter((row) => row.source === 'document').map((row) => row.id),
+  })
+
   return rows.map(({ nfeDocumentId, totalValue, tripDocumentId, ...row }) => {
     const destination = nfeDocumentId === null ? undefined : destinations.get(nfeDocumentId)
     return {
       ...row,
+      cancellation: row.source === 'document' ? (cancellations.get(row.id) ?? null) : null,
       conversation: conversations.get(`${row.source}:${row.id}`) ?? EMPTY_CONVERSATION_SUMMARY,
       createdAt: row.createdAt.toISOString(),
       document:

@@ -59,7 +59,8 @@ async function seedDocumentProducts(
     .select({ nfeDocumentId: tripDocuments.nfeDocumentId })
     .from(tripDocuments)
     .where(eq(tripDocuments.id, trip.documentId))
-  if (document === undefined) throw new Error('EXPECTED_DOCUMENT')
+  const nfeDocumentId = document?.nfeDocumentId
+  if (nfeDocumentId === undefined || nfeDocumentId === null) throw new Error('EXPECTED_DOCUMENT')
   await database.db.insert(nfeProducts).values(
     ['ITEM-A', 'ITEM-B'].map((code, index) => ({
       cfop: '5102',
@@ -67,7 +68,7 @@ async function seedDocumentProducts(
       commercialUnit: 'CX',
       companyId: company.companyId,
       description: `Produto ${code}`,
-      documentId: document.nfeDocumentId,
+      documentId: nfeDocumentId,
       ncm: '69089000',
       ordinal: BigInt(index + 1),
       quantity: '10',

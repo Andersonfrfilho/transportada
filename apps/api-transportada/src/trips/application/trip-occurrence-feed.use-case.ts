@@ -14,6 +14,7 @@ import type {
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { OccurrenceFeedOrder } from '../domain/occurrence-feed.policy.js'
 import type { DeliveryProofDownloadPort } from './read-delivery-proof.use-case.js'
+import type { OccurrenceCancellationView } from './occurrence-correction.port.js'
 import { buildOccurrenceAttachmentViews } from './occurrence-attachment.service.js'
 import type {
   OccurrenceAttachmentRecord,
@@ -88,6 +89,8 @@ export type TripOccurrenceFeedItem = {
   readonly conversation: OccurrenceConversationSummary
   /** Spec 164 T8 (RF10): `null` quando a ocorrência não tem tratativa aberta. */
   readonly case: TripOccurrenceFeedCaseView | null
+  /** Spec 235 RF9: `null` quando não cancelada; a cancelada continua na lista, marcada. */
+  readonly cancellation: OccurrenceCancellationView | null
   readonly channel: TripFieldChannel
   readonly createdAt: string
   readonly description: string

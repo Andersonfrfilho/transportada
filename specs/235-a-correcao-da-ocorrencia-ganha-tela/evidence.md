@@ -795,3 +795,27 @@ expect(byId.get(cancelledId)?.cancellation?.reason).toBe(...)   Received: undefi
 
 Os campos chegam `undefined` e não `null`/`[]`: a falha é a divergência 1 da Fase 0, não defeito de
 semeadura (a lista e o feed achavam as três ocorrências).
+
+## T0.4 — Implementação
+
+Só leitura, sem migration, sem rota, sem mudança nas escritas da 167. O novo
+`src/trips/infrastructure/occurrence-correction-read.query.ts` concentra a leitura em lote
+(`listOccurrenceCorrectionsByIds`, `listOccurrenceCancellationsByIds`: uma consulta para todos os ids,
+agrupada em `Map`, `companyId` do contexto em toda condição, mais antiga primeiro com desempate por
+`id`). A conta que antes morava em `drizzle-occurrence-correction.repository.ts`
+(`listOccurrenceCorrections` e os joins de cancelamento de `readOccurrenceView`) foi **movida** para
+lá — a resposta das escritas e as três leituras agora leem pelo mesmo ponto, então o formato é o
+mesmo por construção. Consumidores: `listTripOccurrences` (lista da nota: `corrections` +
+`cancellation`), `findTripOccurrenceDetail` (`corrections`; `cancellation` herdado da linha do feed) e
+`toFeedItems` do feed (`cancellation`; parada sempre `null`). A cancelada continua nas três leituras.
+`test/integration/trip-occurrence-detail.integration.ts` ganhou a asserção de `corrections` (a linha
+do detalhe deixou de ser igual ao item do feed só nesse campo) e o contrato
+`test/trip-http/occurrence-detail.contract.ts` ganhou o caso de publicação com duas correções e
+cancelamento.
+
+```bash
+cd apps/api-transportada
+bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-occurrence-correction-read.integration.ts ./test/integration/trip-occurrence-correction.integration.ts ./test/integration/trip-occurrence-detail.integration.ts
+```
+
+Verde: **18 pass, 0 fail, 0 skip** (5 novos + 5 da 167 + 8 do detalhe). `bun run typecheck` da app limpo.

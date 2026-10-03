@@ -31,7 +31,7 @@ já faz (`listOccurrenceCorrections`, o mapeamento de `cancellation`), em lote �
       (`null` ou `{ cancelledAt, cancelledBy…, reason }`, mesmo formato da resposta das escritas);
       `GET /trip-occurrences` (feed) devolve `cancellation`. A ocorrência cancelada **continua**
       nas três leituras — marcada, nunca filtrada.
-- [ ] **T0.4** Implementação nas consultas de leitura, em lote por página (uma consulta de
+- [x] **T0.4** Implementação nas consultas de leitura, em lote por página (uma consulta de
       correções para o conjunto de ids, agrupada por `Map`), com `companyId` do contexto.
 - [ ] **T0.5** Gates da API: os dois comandos de teste da API (contrato **e** integração com
       `--env-file=../../.env.test`), typecheck, documentação da API (OpenAPI gerado) e
