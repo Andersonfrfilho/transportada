@@ -645,6 +645,14 @@ button.occurrenceCaseBadge {
   color: var(--color-fog);
   cursor: pointer;
   background: transparent;
+  flex-shrink: 0;
+}
+
+@media (pointer: coarse) {
+  .iconAction {
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+  }
 }
 
 .mdfeGateSubtitle {
@@ -4434,6 +4442,13 @@ button.occurrenceCaseBadge {
   gap: var(--space-2);
 }
 
+/* Spec 235: o botão Corrigir e, quando desabilitado, o motivo logo abaixo dele. */
+.occurrenceCorrection {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
 /* Spec 183 P1: a linha da ocorrência abre o detalhe. */
 .occurrenceRow {
   cursor: pointer;
@@ -4661,6 +4676,50 @@ button.occurrenceCaseBadge {
   flex-wrap: wrap;
   gap: var(--space-2);
   align-items: baseline;
+}
+
+.occurrenceCancelledBadge {
+  margin-left: var(--space-2);
+  border-color: var(--color-alert);
+  color: var(--color-alert);
+}
+
+.occurrenceCancelledNotice {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-alert);
+  border-left-width: 4px;
+}
+
+.occurrenceCancelledNotice p {
+  margin: 0;
+}
+
+.occurrenceCancelledLabel {
+  color: var(--color-alert);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.occurrenceCorrectionHistory {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.occurrenceCorrectionList {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+}
+
+.occurrenceCorrectionList p {
+  margin: 0;
 }
 
 .occurrenceItemCode {

@@ -862,3 +862,145 @@ porque a chave inteira some quando `trip.financials` está ausente (redação do
 Contratos: `test/trip/route-geometry-money-optional.contract.ts` (D2/D3/D10, dinheiro
 condicionalmente ausente e `choiceReproduced`) e `test/trip/route-geometry-options-validation.contract.ts`
 (spec 096 T1, opção malformada não derruba a principal).
+
+## Spec 232 — gasto e lucro por nota na tela da viagem
+
+Em `/trips/:id`, a linha de cada nota mostra, além de mercadoria e frete, o **gasto** (com "do trecho" e
+"rateio da viagem" separados), o **lucro**, a **margem** e o imposto. Os números vêm de
+`GET /trips/:id/valuation`, nos campos novos de `revenueLines` (spec 232 na API).
+
+A fiação é **contexto, não prop drilling**, e por regra: o caminho
+`TripDetail.page.tsx` → `TripDetail.component.tsx` → `TripStopList` → linha tem três níveis, e
+`TripStopList` já estava no teto de cinco props. `DocumentCostProvider` é provido pela página;
+`TripDocumentCost` consome por `tripDocumentId` e **só imprime** — quem formata é
+`shared/revenueLineCost.service.ts`.
+
+- **A guarda é escrita à mão** (`shared/revenueLineCostFigures.validation.ts`): esta app não usa `zod`.
+  Linha **sem nenhum** dos oito campos é válida — é a prévia e a sugestão multi-veículo. Linha com **só
+  parte** deles, dinheiro fora de `^-?\d+(\.\d{1,4})?$`, base desconhecida ou combinação incoerente é
+  **malformada**, e `toTripValuation` devolve `null`: falha em voz alta em vez de painel mostrando parte
+  do dinheiro, pelo mesmo caminho que `revenueSource` inválido já usava.
+- **Ausência reaproveita `gap.NO_PLANNED_DISTANCE`** ("roteiro ainda não calculado"), a chave que o razão
+  já usava, e um contrato proíbe rótulo novo que repita a frase. Duas frases para a mesma ausência é
+  como a tela passa a dizer coisas diferentes sobre o mesmo estado.
+- **Sem a permissão `trip.financials`** a valoração não vem, o contexto fica vazio e a linha da nota fica
+  **idêntica à de antes**: sem rótulo vazio, sem travessão, sem espaço reservado.
+- **Prejuízo não depende só de cor**: o rótulo vira "Prejuízo" e o valor sai negativo.
+- **Nota sem parada (RF7, T3.4)**: a linha de receita traz `hasStop` (booleano). `hasStop === false` faz o
+  critério (`TripDocumentCostCriterion`) imprimir "Sem parada: entra só no rateio de viagem, sem gasto de
+  trecho." (`documentCost.noStop`, pt-BR e en). Campo ausente (API anterior, prévia) ou não booleano é
+  **ignorado** e nada é impresso; a tela **nunca** infere por trecho zero. O validador de linha não é estrito
+  (lê chaves conhecidas), então tanto faz publicar painel ou API primeiro; sem o painel novo, a API nova só
+  manda um campo que o painel antigo ignora.
+
+## A nota se abre inteira (spec 233)
+
+Em `/trips/:id`, a linha da nota é um **acordeão de abertura exclusiva**: `useOpenTripDocument`
+guarda o id da nota aberta **na lista**, não em cada linha — é isso que fecha a anterior ao abrir outra
+e que deixa a âncora da linha do tempo (`#…`, `parseTripTimelineDocumentHref`) abrir a nota que ela
+aponta. O checkbox de seleção **não** abre nem fecha, e o cabeçalho não aninha checkbox em botão
+(`document-row-structure.contract.ts`, da 181, segue sem afrouxar).
+
+A nota aberta tem quatro seções, nesta ordem:
+
+- **Dados da nota** (`TripDocumentData`): série, CNPJ formatado, volumes e, com `trip.financials`, o
+  custo e o lucro da 232. Cada campo tem `CopyButton` com rótulo que diz **o que** copia. Sem
+  permissão, volume ou CNPJ não sobra rótulo vazio. **Ver cliente** é o `DeliveryClientLink`: `<a href>`
+  para `/clientes?name=<nome>` (`buildDeliveryClientSearchRoute`), e a lista de clientes lê o `name` da
+  URL como busca inicial (`readDeliveryClientSearchFromLocation`).
+- **Ocorrências** (`TripDocumentOccurrences`): seção própria, um link por ocorrência
+  (`navigateToTripOccurrence`), vazio dito.
+- **Comprovante**: dois selos independentes (`TripDocumentProofBadges`), o da **conferência** do
+  canhoto e o da **pontualidade** da baixa. Nenhum esconde o outro — recusado **e** longe do ponto diz as
+  duas coisas. Sem comprovante, ou sem nada a dizer, não há selo (nunca rótulo vazio). Os dados vêm de
+  `GET /trips/:id/delivery-proofs`.
+- **Eventos desta entrega** (`TripDocumentEvents`): lê `GET /trips/:id/timeline?documentId=` por
+  `useTripDocumentTimelineQuery`, na ordem cronológica. O `stop.departed` diz **"Saída para esta
+  parada"**. O raio ("Raio tolerado da parada: N m") só é escrito quando o comprovante o trouxe — nunca
+  um número suposto. O círculo **não** é desenhado no mapa (`AssemblyVectorMap` não tem camada de
+  círculo). "Foto do canhoto" e "Endereço geocodificado" como eventos são da spec 228.
+
+⚠️ **Armadilha de ordem de publicação.** `isDeliveryProof` (`tripResponse.validation.ts`) recusa chave
+desconhecida, e `tripDeliveryProofsFromApi` descarta o **item inteiro**: uma API que mande um campo
+novo para um painel que não o conhece faz **todo comprovante sumir da tela**, sem erro. O painel
+aceita `proofRadiusMeters` (`DELIVERY_PROOF_OPTIONAL_KEYS`, `trip.constant.ts`) **antes** de a API
+mandá-lo; campo novo no comprovante entra na lista **antes ou junto**.
+
+A seção da spec 232 (gasto e lucro por nota) está acima.
+
+## Foto do canhoto e endereço corrigido na linha do tempo (spec 228)
+
+A cópia do vocabulário da API entrou na mesma lista (`tripTimelineMap.constant.ts`, `tripTimelineRow.service.ts`,
+`trip.types.ts`, `tripResponse.validation.ts`). A mesma linha (`TripTimelineEntry`) serve à linha do tempo da
+viagem e a _Eventos desta entrega_.
+
+| `kind`                   | Ícone    | Título (locale `eventTimeline`)      | Categoria do pino |
+| ------------------------ | -------- | ------------------------------------ | ----------------- |
+| `document.canhoto_photo` | `camera` | "Foto do canhoto — NF-e {{invoice}}" | `delivered`       |
+| `stop.address_corrected` | `edit`   | "Endereço da parada corrigido"       | `status`          |
+
+- Nenhuma cor nova: a foto é parte da entrega (verde, check); o endereço é neutro (cinza, relógio).
+- **Origem e deslocamento** (`resolveTripTimelineAddressChange`, `tripTimelineAddressChange.service.ts`):
+  "Corrigido pelo contratante/motorista/escritório" ou "Refino de precisão", mais "deslocado N m" (ou km, a
+  mesma unidade de `formatTripTimelineDistance`). Sem ponto anterior, ou no refino, só a origem fala.
+- **"Ver no mapa" e o pino só aparecem com `location`**. O endereço chega com ponto e sem `locationState`;
+  com o ponto na mão ele é lido como `captured` (exceção só deste `kind`). O refino não tem ponto e não
+  aparece no mapa; sem `trip.event-location` a API devolve `location = null`.
+- ⚠️ Pendência de design (T4.2): o rótulo da legenda da categoria `status` é "Mudança de situação", impreciso
+  para o endereço corrigido. Não foi renomeado porque muda o texto de outro evento.
+
+## Spec 235 — O ajudante é um perfil
+
+**Arquivos-chave:** tipos e constantes em `fleet/shared/fleet.types.ts`, validação em `fleetResponse.validation.ts`,
+seletor de perfil em `DriverForm.component.tsx` e `DriverQuickCreateDialog.component.tsx`, campos de ajudante em
+`DriverHelperFields.component.tsx`, permissão em `identity/shared/companyUsers.constant.ts` e `useAuthMe.query.ts`,
+seletores de viagem em `trip/shared/driverCrewRole.service.ts` e `tripCrewHelpers.service.ts`.
+
+Ajudante (perfil `helper`) — opção no seletor de perfil, CNH oculta, "Pode atuar como ajudante" travado e
+"Diária própria" para quem pode ajudar. Papel na tabela de Acesso e no convite de membros; lê viagem e nada
+mais (`trip.read`). Seletor de motoristas da viagem exclui quem não dirige; lista de ajudantes permanece
+inalterada (ambos filtram pela ficha). Erro de viagem `TRIP_DRIVER_CANNOT_DRIVE` mapeado em
+`feedback.driverCannotDrive`; `TRIP_CREW_HELPER_CANNOT_DRIVE` (403) não é mapeado separadamente. Ver ADR-0093.
+
+## Spec 196 — a linha do tempo mostra onde o evento aconteceu (ADR-0081)
+
+- **Componentes.** `TripTimelineLocation.component.tsx` (botão com ícone, tooltip e nome acessível com o texto
+  inteiro) e `TripTimelineLocationMap.component.tsx` (lazy, mesmo mapa do roteiro, pino liso do evento mais o
+  da parada). `buildBasemapStyle` ganhou o modo quieto (sem `radar` e `cabine-de-pedagio`) só para os mapas da
+  linha do tempo.
+- **A regra mora no serviço**, `resolveTimelineLocationView` (`tripTimelineDetail.service.ts`): `captured` com
+  ponto (mapa), `captured` sem ponto (leitor sem `trip.event-location`: "Posição registrada", sem mapa),
+  `unavailable` (vermelho, o único com rótulo visível, porque tooltip não abre no dedo), `expired` (neutro) e
+  `null` (não desenha nada). O evento do **endereço corrigido** usa o pino próprio ("Novo ponto do endereço",
+  "Corrigido em"); status e ocorrência seguem o texto "Posição registrada".
+- **Validador.** `location` e `locationState` são exigidas no item (T6.4); chave desconhecida continua
+  recusando o item.
+- **Mapa e detalhe.** Quando a posição é o único detalhe, o botão se chama "Ver no mapa" (um gesto); com texto
+  junto (motivo da devolução, observação), o mapa abre num segundo gesto dentro do detalhe.
+- **Revisão de design (T7.1).** A linha de posição herda a fonte da linha de autoria (o botão usava a fonte
+  padrão do navegador); o botão do mapa do detalhe tem a altura do irmão (`--control-height-compact`, e
+  `--touch-target` sob `pointer: coarse`); a distância em km sai com vírgula (`1,2 km`). Medidas e prints:
+  `specs/196-todo-evento-carrega-onde-aconteceu/evidence.md` e `prints/`.
+- **Prints.** `test/spec-196-prints.smoke.spec.ts` (fora da CI, `PLAYWRIGHT_TEST_MATCH`), com API dublada e
+  coordenada sintética; precisa de WebGL por software (`--use-angle=swiftshader`) para o MapLibre subir.
+
+## Spec 235 T3.2 — a marca de cancelada
+
+A ocorrência cancelada continua listada e aparece marcada em **cinco** lugares, todos lendo a mesma
+conta pura `resolveOccurrenceCancellationMark` (`trip/shared/occurrenceCancellation.service.ts`) pelo
+componente `OccurrenceCancellationMark` (`variant="badge"` em célula/cartão/lista da nota, `"notice"`
+com autoria, hora e motivo à vista): detalhe (cabeçalho), feed (selo na tabela e no cartão, aviso na
+linha expandida), lista da nota (`TripOccurrences`), linha do tempo da viagem (`TripTimelineEntry`) e
+linha do tempo da ocorrência (evento `occurrence.cancelled`, que passa por `toOccurrenceCancellation`
+para ler pela mesma conta). Texto em `occurrenceCancellation.*` (trip.locale). Nenhuma segunda cópia da
+frase: tela nova de cancelada entra pelo componente.
+
+- `TripTimelineOccurrenceReference.cancellation` é opcional no tipo; `tripTimelineFromApi` lê ausente
+  como `null` e reprova o malformado (a chave `cancellation` entrou em
+  `TRIP_TIMELINE_OCCURRENCE_REFERENCE_OPTIONAL_KEYS`). A API atual manda sempre — o guard antigo, de
+  chaves fechadas, **reprovaria a página inteira** com a chave nova.
+- `OccurrenceCancellation.cancelledByName` é `null | string`: a API publica `null` quando o vínculo de
+  quem cancelou já não está ativo. O guard exigia `string`, e um cancelamento assim derrubava o feed.
+- O kind `occurrence.cancelled` precisa estar no guard da linha do tempo da ocorrência
+  (`tripOccurrenceTimeline.validation.ts`), que é estrito: kind desconhecido reprova a resposta.
+- Contrato: `test/trip/occurrence-cancellation.contract.tsx` (renderiza cada lugar e afirma o texto).

@@ -880,6 +880,16 @@
     "notFound": "Viagem não encontrada.",
     "readOnly": "Seu acesso atual não permite esta ação.",
     "requestFailed": "Sem conexão com o servidor. Confira a internet e tente de novo.",
+    "occurrenceCaseAlreadyOpen": "A tratativa desta ocorrência já foi aberta, e ela não pode mais ser corrigida nem cancelada. Nada foi gravado; a tela foi atualizada com o estado atual.",
+    "occurrenceAlreadyCancelled": "Esta ocorrência já foi cancelada e não pode ser cancelada de novo. Nada foi gravado; a tela foi atualizada com o estado atual.",
+    "occurrenceCancelled": "Esta ocorrência foi cancelada e não pode mais ser corrigida. Nada foi gravado; a tela foi atualizada com o estado atual.",
+    "occurrenceTypeSingleItem": "Este tipo de ocorrência aceita um item só. Deixe apenas um item e salve de novo.",
+    "occurrenceItemQuantityNotPositive": "A quantidade de cada item precisa ser maior que zero. Corrija e salve de novo.",
+    "occurrenceItemQuantityUnitPairing": "Quantidade e unidade andam juntas: informe as duas ou nenhuma. Corrija e salve de novo.",
+    "occurrenceProductNotInDocument": "Um dos itens escolhidos não está nesta nota. Escolha só itens da nota e salve de novo.",
+    "occurrenceNotFound": "Esta ocorrência não foi encontrada. Volte à lista de ocorrências e tente de novo.",
+    "occurrenceCancellationReasonRequired": "Escreva o motivo do cancelamento para confirmar.",
+    "occurrenceCancellationReasonTooLong": "O motivo do cancelamento passa de 500 caracteres. Encurte o texto e confirme de novo.",
     "serverRefused": "O servidor recusou esta operação. Nada foi gravado — tente de novo e, se repetir, avise o suporte com o horário.",
     "responseInvalid": "A API respondeu em um formato inesperado.",
     "routeUnavailable": "O roteirizador não devolveu uma rota nova agora. A rota anterior continua valendo — tente de novo em instantes.",
@@ -1967,6 +1977,13 @@
     "case": {
       "title": "Tratativa"
     },
+    "corrections": {
+      "title": "Correções",
+      "entry": "Corrigida por {{name}} em {{moment}}",
+      "entryUnknown": "Corrigida em {{moment}}",
+      "nowValid": "Passou a valer:",
+      "wholeDocument": "a nota inteira"
+    },
     "items": {
       "title": "Itens atingidos",
       "noDescription": "Item fora do cadastro da nota"
@@ -1985,6 +2002,37 @@
       "summary": "Resumo",
       "contractor": "Contratante",
       "driver": "Motorista"
+    },
+    "correction": {
+      "cancel": {
+        "button": "Cancelar ocorrência",
+        "title": "Cancelar esta ocorrência",
+        "hint": "A ocorrência continua listada, marcada como cancelada, com o motivo e o seu nome; ela deixa de contar como ativa.",
+        "reasonLabel": "Motivo do cancelamento",
+        "confirm": "Confirmar cancelamento",
+        "dismiss": "Voltar",
+        "close": "Fechar"
+      },
+      "correct": "Corrigir",
+      "form": {
+        "title": "Corrigir os itens da ocorrência",
+        "hint": "O conjunto abaixo substitui o atual: o que você tirar daqui sai da ocorrência, e a correção fica registrada com o seu nome. Sem itens, a ocorrência vale para a nota inteira.",
+        "save": "Salvar correção",
+        "discard": "Descartar",
+        "productsError": "Não foi possível carregar os itens da nota. Feche e tente de novo."
+      },
+      "unavailable": {
+        "occurrenceCancelled": "Esta ocorrência já foi cancelada e não pode mais ser corrigida nem cancelada.",
+        "caseOpen": "A tratativa está aberta: depois que ela abre, a ocorrência já vale dinheiro e não pode mais ser corrigida nem cancelada.",
+        "caseDecided": {
+          "redelivery_authorized": "A tratativa foi decidida com reentrega autorizada; a reentrega parte desta ocorrência e ela já não pode ser corrigida nem cancelada.",
+          "goods_paid": "A tratativa foi decidida com mercadoria paga; o acerto nasce desta ocorrência e ela já não pode ser corrigida nem cancelada.",
+          "other": "A tratativa foi decidida por outro caminho, com nota do escritório; a ocorrência já não pode ser corrigida nem cancelada."
+        },
+        "caseReturnedToWarehouse": "A mercadoria já voltou ao barracão por esta tratativa; a ocorrência já não pode ser corrigida nem cancelada.",
+        "caseClosed": "A tratativa foi fechada; a ocorrência virou histórico e já não pode ser corrigida nem cancelada.",
+        "caseCancelled": "A tratativa foi cancelada; a ocorrência segue com o histórico dela e já não pode ser corrigida nem cancelada."
+      }
     }
   },
   "occurrenceTimeline": {
@@ -2021,8 +2069,16 @@
       "caseTransition": "Tratativa: {{status}}",
       "mailSent": "Enviou e-mail à contratante",
       "mailSentAutomatic": "Aviso automático enviado à contratante",
-      "mailReceived": "A contratante respondeu por e-mail"
+      "mailReceived": "A contratante respondeu por e-mail",
+      "cancelled": "Ocorrência cancelada"
     }
+  },
+  "occurrenceCancellation": {
+    "label": "Cancelada",
+    "authorship": "Cancelada por {{name}} em {{moment}}",
+    "authorshipUnknown": "Cancelada em {{moment}}",
+    "reason": "Motivo: {{reason}}",
+    "summary": "{{authorship}}. {{reason}}"
   },
   "closeBulkDialog": {
     "closing": "Encerrando…",

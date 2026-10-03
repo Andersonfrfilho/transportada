@@ -9,7 +9,11 @@ import {
   writeTableColumnPreferences,
 } from '@/modules/shared/tableColumnPreferences.service'
 
-import type { OccurrenceAttachment } from './trip.types'
+import type {
+  OccurrenceAttachment,
+  OccurrenceCancellation,
+  OccurrenceCorrection,
+} from './trip.types'
 
 /**
  * A listagem de ocorrências do escritório (leitura pura): une o que houve com a nota e o que houve
@@ -105,6 +109,8 @@ export type OccurrenceSettlementView = Readonly<{
 }>
 
 export type TripOccurrenceFeedItem = Readonly<{
+  /** Spec 235 RF9: `null` é "não foi cancelada"; a cancelada continua na leitura, marcada. */
+  cancellation?: null | OccurrenceCancellation
   case: null | TripOccurrenceCaseView
   /** Spec 183 RF4: estado da conversa; ausente na API anterior vira `EMPTY_OCCURRENCE_CONVERSATION`. */
   conversation: TripOccurrenceConversationSummary
@@ -194,6 +200,8 @@ export type TripOccurrenceDetail = TripOccurrenceFeedItem &
     actorName: null | string
     channel: string
     driver: null | TripOccurrenceDetailDriver
+    /** Spec 235 RF9: mais antiga primeiro; `[]` quando a ocorrência nunca foi corrigida. */
+    corrections?: readonly OccurrenceCorrection[]
     items: readonly TripOccurrenceDetailItem[]
     onBehalfOfDriverName: null | string
   }>

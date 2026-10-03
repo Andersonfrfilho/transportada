@@ -14,6 +14,7 @@ import {
 import type {
   FieldOccurrenceType,
   RegisteredOccurrence,
+  OccurrenceWriteResult,
   TripDocumentProduct,
   OccurrenceCancellation,
   OccurrenceCorrection,
@@ -1030,7 +1031,7 @@ export function createTripResponseAdapters() {
       }
       const items = input.items.filter((item) => !hasUnknownTimelineKind(item))
       if (!items.every(isTimelineItem)) throw invalid()
-      return { items, nextCursor: input.nextCursor }
+      return { items: items.map(withOccurrenceCancellation), nextCursor: input.nextCursor }
     },
     /** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo do lote de ocorrência. */
     fieldOccurrenceTypesFromApi(input: unknown): readonly FieldOccurrenceType[] {
@@ -1079,6 +1080,22 @@ export function createTripResponseAdapters() {
         ...(autoDispatch === undefined ? {} : { autoDispatch }),
         email: email as RegisteredOccurrence['email'],
       }
+    },
+    /**
+     * Spec 235 T1.1: `PATCH .../items` e `POST .../cancellation` devolvem a ocorrência sem o `email`
+     * e sem o `autoDispatch` do registro — `registeredOccurrenceFromApi` as recusaria por isso.
+     */
+    occurrenceWriteResultFromApi(input: unknown): OccurrenceWriteResult {
+      if (!isRecord(input)) throw invalid()
+      const { attachments, ...occurrence } = input
+      if (!isTripOccurrence(occurrence)) throw invalid()
+      if (
+        attachments !== undefined &&
+        !(Array.isArray(attachments) && attachments.every(isOccurrenceAttachmentPosition))
+      ) {
+        throw invalid()
+      }
+      return { ...occurrence, attachments: attachments ?? [] }
     },
     /** Spec 161 T7/T22: `POST .../occurrences/:occurrenceId/attachments` — `{ id, position }`. */
     occurrenceAttachmentPositionFromApi(
@@ -1329,21 +1346,21 @@ function isOccurrenceProduct(value: unknown): value is OccurrenceProduct {
  * Spec 167 RF9: a correção sem o conjunto anterior chegaria à tela como histórico vazio — pior que
  * histórico ausente, porque parece que ninguém mexeu na ocorrência.
  */
-function isOccurrenceCorrection(value: unknown): value is OccurrenceCorrection {
+export function isOccurrenceCorrection(value: unknown): value is OccurrenceCorrection {
   return (
     hasExactKeys(value, ['correctedAt', 'correctedByName', 'previousItems'] as const) &&
     isString(value.correctedAt) &&
-    isString(value.correctedByName) &&
+    isNullableString(value.correctedByName) &&
     isEveryItem(value.previousItems, isOccurrenceProduct)
   )
 }
 
 /** O motivo é o que justifica o cancelamento: cancelamento sem ele não chega à tela. */
-function isOccurrenceCancellation(value: unknown): value is OccurrenceCancellation {
+export function isOccurrenceCancellation(value: unknown): value is OccurrenceCancellation {
   return (
     hasExactKeys(value, ['cancelledAt', 'cancelledByName', 'reason'] as const) &&
     isString(value.cancelledAt) &&
-    isString(value.cancelledByName) &&
+    isNullableString(value.cancelledByName) &&
     isString(value.reason)
   )
 }
@@ -1440,7 +1457,10 @@ function isTimelineOccurrenceReference(value: unknown): value is TripTimelineOcc
   return (
     isString(value.note) &&
     isString(value.typeName) &&
-    (value.attachmentCount === undefined || isUnsignedInteger(value.attachmentCount))
+    (value.attachmentCount === undefined || isUnsignedInteger(value.attachmentCount)) &&
+    (value.cancellation === undefined ||
+      value.cancellation === null ||
+      isOccurrenceCancellation(value.cancellation))
   )
 }
 
@@ -1463,6 +1483,12 @@ function isTimelineLocation(value: unknown): value is TripTimelineLocation {
     isFiniteNumber(value.latitude) &&
     isFiniteNumber(value.longitude)
   )
+}
+
+/** Spec 235: `cancellation` ausente (API anterior) lê como `null`; o item sem ocorrência passa como veio. */
+function withOccurrenceCancellation(item: TripTimelineItem): TripTimelineItem {
+  if (item.occurrence === null || item.occurrence.cancellation !== undefined) return item
+  return { ...item, occurrence: { ...item.occurrence, cancellation: null } }
 }
 
 /**

@@ -4,7 +4,8 @@ import {
   type OccurrenceFallbackQuantityUnit,
   type OccurrenceQuantityUnit,
 } from './trip.constant'
-import type { TripDocumentProduct, TripOccurrence } from './trip.types'
+import type { CorrectOccurrenceItemInput, TripDocumentProduct, TripOccurrence } from './trip.types'
+import type { TripOccurrenceDetailItem } from './tripOccurrenceFeed.service'
 
 /** A unidade padrão quando a quantidade foi digitada e a unidade ainda não foi escolhida. */
 export const OCCURRENCE_DEFAULT_QUANTITY_UNIT: OccurrenceQuantityUnit = OCCURRENCE_QUANTITY_UNITS[1]
@@ -89,13 +90,7 @@ export function formatOccurrenceProductLabel(
  * sem quantidade digitada viaja em branco (`null`): a contagem nunca é obrigatória.
  */
 export function resolveOccurrenceItemQuantityFields(
-  input: Readonly<{
-    codes: readonly string[]
-    quantitiesByCode: ReadonlyMap<
-      string,
-      Readonly<{ quantity: string; unit: OccurrenceQuantityUnit }>
-    >
-  }>,
+  input: Readonly<{ codes: readonly string[]; quantitiesByCode: OccurrenceQuantitiesByCode }>,
 ): Readonly<{
   productQuantities: readonly (null | string)[]
   productQuantityUnits: readonly (null | OccurrenceQuantityUnit)[]
@@ -111,6 +106,39 @@ export function resolveOccurrenceItemQuantityFields(
     )
   }
   return { productQuantities, productQuantityUnits }
+}
+
+/** Quantidade e unidade digitadas por código de item marcado (spec 166 RF7). */
+export type OccurrenceQuantitiesByCode = ReadonlyMap<
+  string,
+  Readonly<{ quantity: string; unit: OccurrenceQuantityUnit }>
+>
+
+/**
+ * Spec 235 RF2: o formulário de correção reabre com o conjunto que a ocorrência tem hoje — os mesmos
+ * itens, quantidades e unidades, inclusive a unidade legada que a nota gravou.
+ */
+export function resolveOccurrenceItemSelectionFromDetail(
+  items: readonly TripOccurrenceDetailItem[],
+): Readonly<{ productCodes: readonly string[]; quantitiesByCode: OccurrenceQuantitiesByCode }> {
+  const quantitiesByCode = new Map<string, { quantity: string; unit: OccurrenceQuantityUnit }>()
+  for (const item of items) {
+    if (item.quantity === null || item.unit === null) continue
+    quantitiesByCode.set(item.code, { quantity: item.quantity, unit: item.unit })
+  }
+  return { productCodes: items.map((item) => item.code), quantitiesByCode }
+}
+
+/** O corpo da correção: o conjunto inteiro, e `quantity`/`unit` só nos itens que têm contagem. */
+export function buildOccurrenceCorrectionItems(
+  input: Readonly<{ codes: readonly string[]; quantitiesByCode: OccurrenceQuantitiesByCode }>,
+): readonly CorrectOccurrenceItemInput[] {
+  const { productQuantities, productQuantityUnits } = resolveOccurrenceItemQuantityFields(input)
+  return input.codes.map((code, index) => {
+    const quantity = productQuantities[index] ?? null
+    const unit = productQuantityUnits[index] ?? null
+    return quantity === null || unit === null ? { code } : { code, quantity, unit }
+  })
 }
 
 /** Um item da ocorrência já gravada, com a contagem — ou sem ela (P3). */

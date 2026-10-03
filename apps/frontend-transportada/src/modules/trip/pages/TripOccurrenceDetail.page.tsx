@@ -16,13 +16,17 @@ import { useMinWidth } from '@/modules/shared/useMinWidth.hook'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
+import { OccurrenceCancellationMark } from '../components/OccurrenceCancellationMark.component'
 import { OccurrenceCasePanel } from '../components/OccurrenceCasePanel.component'
+import { OccurrenceCorrectionActions } from '../components/OccurrenceCorrectionActions.component'
+import { OccurrenceCorrectionHistory } from '../components/OccurrenceCorrectionHistory.component'
 import { OccurrenceTimelinePanel } from '../components/OccurrenceTimeline.component'
 import { OccurrenceAttachments } from '../components/TripOccurrenceTable.component'
 import { useTripOccurrenceDetailQuery } from '../queries/tripOccurrenceFeed.query'
 import {
   buildOccurrenceDriverContact,
   formatOccurrenceItemQuantity,
+  formatOccurrenceQuantity,
   OCCURRENCE_DETAIL_PHONE_TABS,
   occurrenceDetailSectionsFor,
   type OccurrenceDetailPhoneTab,
@@ -248,13 +252,6 @@ function OccurrenceDriverPanel({ occurrence }: Readonly<{ occurrence: TripOccurr
   )
 }
 
-const quantityFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 })
-
-/** Quantidade é string decimal de três casas; a tela só a mostra, nunca faz conta com ela. */
-function formatQuantity(value: string): string {
-  return quantityFormatter.format(Number(value))
-}
-
 /** Spec 183 T207: os itens atingidos (specs 166/172). A nota inteira não lista item nenhum. */
 function OccurrenceItems({ occurrence }: Readonly<{ occurrence: TripOccurrenceDetail }>) {
   const { t } = useTranslation('trip')
@@ -265,7 +262,7 @@ function OccurrenceItems({ occurrence }: Readonly<{ occurrence: TripOccurrenceDe
       <h3 className={styles.occurrenceItemsTitle}>{t('occurrenceDetail.items.title')}</h3>
       <ul className={styles.occurrenceItems}>
         {occurrence.items.map((item) => {
-          const quantity = formatOccurrenceItemQuantity(item, formatQuantity)
+          const quantity = formatOccurrenceItemQuantity(item, formatOccurrenceQuantity)
           return (
             <li key={item.code}>
               <span className={styles.occurrenceItemCode}>{item.code}</span>
@@ -285,7 +282,17 @@ function OccurrenceItems({ occurrence }: Readonly<{ occurrence: TripOccurrenceDe
   )
 }
 
-function OccurrenceSummaryPanel({ occurrence }: Readonly<{ occurrence: TripOccurrenceDetail }>) {
+type OccurrenceSummaryPanelProps = Readonly<{
+  companyId?: string
+  occurrence: TripOccurrenceDetail
+  permissions: readonly string[]
+}>
+
+function OccurrenceSummaryPanel({
+  companyId,
+  occurrence,
+  permissions,
+}: OccurrenceSummaryPanelProps) {
   const { t } = useTranslation('trip')
 
   return (
@@ -332,6 +339,12 @@ function OccurrenceSummaryPanel({ occurrence }: Readonly<{ occurrence: TripOccur
         </div>
       </dl>
       <OccurrenceItems occurrence={occurrence} />
+      <OccurrenceCorrectionActions
+        {...(companyId === undefined ? {} : { companyId })}
+        occurrence={occurrence}
+        permissions={permissions}
+      />
+      <OccurrenceCorrectionHistory occurrence={occurrence} />
       <OccurrenceAttachments item={occurrence} />
     </section>
   )
@@ -342,6 +355,7 @@ type OccurrenceDetailSectionsProps = Readonly<{
   canResolveOccurrenceCases: boolean
   companyId?: string
   occurrence: TripOccurrenceDetail
+  permissions: readonly string[]
 }>
 
 /**
@@ -354,6 +368,7 @@ function OccurrenceDetailSections({
   canResolveOccurrenceCases,
   companyId,
   occurrence,
+  permissions,
 }: OccurrenceDetailSectionsProps) {
   const { t } = useTranslation('trip')
   const isWide = useMinWidth('40rem')
@@ -415,7 +430,13 @@ function OccurrenceDetailSections({
     document: () => <OccurrenceDocumentPanel occurrence={occurrence} />,
     driverContact: () => <OccurrenceDriverPanel occurrence={occurrence} />,
     driverConversation: () => conversations('driver'),
-    summary: () => <OccurrenceSummaryPanel occurrence={occurrence} />,
+    summary: () => (
+      <OccurrenceSummaryPanel
+        {...(companyId === undefined ? {} : { companyId })}
+        occurrence={occurrence}
+        permissions={permissions}
+      />
+    ),
     timeline: () => (
       <OccurrenceTimelinePanel
         {...(companyId === undefined ? {} : { companyId })}
@@ -500,12 +521,14 @@ export function TripOccurrenceDetailPage({ occurrenceId }: Readonly<{ occurrence
             </p>
             <OccurrenceTypeTitle occurrence={occurrence} />
             <OccurrenceAuthorship occurrence={occurrence} />
+            <OccurrenceCancellationMark cancellation={occurrence.cancellation} variant="notice" />
           </header>
           <OccurrenceDetailSections
             canManageContacts={canManageContacts}
             canResolveOccurrenceCases={canResolveOccurrenceCases}
             {...(companyId === undefined ? {} : { companyId })}
             occurrence={occurrence}
+            permissions={permissions}
           />
         </>
       )}

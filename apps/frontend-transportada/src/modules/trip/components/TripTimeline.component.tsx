@@ -43,6 +43,7 @@ import {
 } from '../shared/tripTimelineRow.service'
 import styles from '../styles/tripTimeline.module.css'
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
+import { OccurrenceCancellationMark } from './OccurrenceCancellationMark.component'
 import { TripTimelineLocation } from './TripTimelineLocation.component'
 import {
   TripTimelineLocationMap,
@@ -332,7 +333,7 @@ export function TripTimeline({ openDocumentId, query, stops }: TripTimelineProps
   )
 }
 
-function TripTimelineEntry({
+export function TripTimelineEntry({
   elapsedMinutes,
   item,
   repeatsAuthorship,
@@ -485,6 +486,12 @@ function TripTimelineEntry({
               ))}
             </ul>
           )}
+          {isOccurrenceEvent ? (
+            <OccurrenceCancellationMark
+              cancellation={item.occurrence?.cancellation}
+              variant="notice"
+            />
+          ) : null}
           {authorship === null && elapsedMinutes === null && locationView === null ? null : (
             <div className={styles.itemMeta}>
               {authorship === null ? null : (

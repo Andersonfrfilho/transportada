@@ -231,14 +231,16 @@ export type OccurrenceProduct = Readonly<{
 /** Spec 167 RF1: o que a ocorrência dizia antes de uma correção, com quem corrigiu e quando. */
 export type OccurrenceCorrection = Readonly<{
   correctedAt: string
-  correctedByName: string
+  /** `null` quando o vínculo de quem corrigiu já não está ativo — a API publica o que lê. */
+  correctedByName: null | string
   previousItems: readonly OccurrenceProduct[]
 }>
 
 /** Spec 167 RF6: a ocorrência cancelada continua visível — com motivo e autor, nunca apagada. */
 export type OccurrenceCancellation = Readonly<{
   cancelledAt: string
-  cancelledByName: string
+  /** `null` quando o vínculo de quem cancelou já não está ativo — a API publica o que lê. */
+  cancelledByName: null | string
   reason: string
 }>
 
@@ -251,6 +253,31 @@ export type RegisteredOccurrence = Omit<TripOccurrence, 'attachments'> &
     autoDispatch?: AutoDispatchOutcome
     email: null | Readonly<{ body: string; subject: string }>
   }>
+
+/**
+ * Spec 235: o que as duas escritas da 167 devolvem — a ocorrência com `corrections` e
+ * `cancellation` já aplicados, o anexo no formato estreito e **sem** `email`/`autoDispatch`.
+ */
+export type OccurrenceWriteResult = Omit<TripOccurrence, 'attachments'> &
+  Readonly<{ attachments: readonly Readonly<{ id: string; position: number }>[] }>
+
+/** Spec 235 RF2: `quantity` e `unit` andam juntos; ausentes, o item vai sem contagem. */
+export type CorrectOccurrenceItemInput = Readonly<{
+  code: string
+  quantity?: string
+  unit?: OccurrenceQuantityUnit
+}>
+
+export type CorrectTripOccurrenceItemsInput = TripDocumentActionInput &
+  Readonly<{
+    idempotencyKey: string
+    /** Substitui o conjunto inteiro — não é edição item a item. */
+    items: readonly CorrectOccurrenceItemInput[]
+    occurrenceId: string
+  }>
+
+export type CancelTripOccurrenceInput = TripDocumentActionInput &
+  Readonly<{ idempotencyKey: string; occurrenceId: string; reason: string }>
 
 /**
  * Spec 185 (D4, ADR-0074 §1/§2): cópia por valor de `TryAutoDispatchTripResult`
@@ -321,6 +348,8 @@ export type TripTimelineDocumentReference = Readonly<{
 /** Spec 161 T24 (RF12): a contagem de fotos, sem URL nenhuma — quem quer ver abre a ocorrência. */
 export type TripTimelineOccurrenceReference = Readonly<{
   attachmentCount?: number
+  /** Spec 235 RF9: `null` é ativa; ausente é API anterior ao campo e o adaptador a lê como `null`. */
+  cancellation?: null | OccurrenceCancellation
   note: string
   typeName: string
 }>

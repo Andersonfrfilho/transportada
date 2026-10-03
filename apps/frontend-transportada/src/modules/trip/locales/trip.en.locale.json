@@ -880,6 +880,16 @@
     "notFound": "Trip not found.",
     "readOnly": "Your current access does not allow this action.",
     "requestFailed": "Could not reach the server. Check the connection and try again.",
+    "occurrenceCaseAlreadyOpen": "This occurrence's case is already open, and it can no longer be corrected or cancelled. Nothing was saved; the screen was refreshed with the current state.",
+    "occurrenceAlreadyCancelled": "This occurrence was already cancelled and cannot be cancelled again. Nothing was saved; the screen was refreshed with the current state.",
+    "occurrenceCancelled": "This occurrence was cancelled and can no longer be corrected. Nothing was saved; the screen was refreshed with the current state.",
+    "occurrenceTypeSingleItem": "This occurrence type accepts a single item. Keep only one item and save again.",
+    "occurrenceItemQuantityNotPositive": "The quantity of each item must be greater than zero. Fix it and save again.",
+    "occurrenceItemQuantityUnitPairing": "Quantity and unit go together: fill in both or neither. Fix it and save again.",
+    "occurrenceProductNotInDocument": "One of the chosen items is not in this invoice. Choose only items from the invoice and save again.",
+    "occurrenceNotFound": "This occurrence was not found. Go back to the occurrence list and try again.",
+    "occurrenceCancellationReasonRequired": "Write the reason for the cancellation to confirm.",
+    "occurrenceCancellationReasonTooLong": "The cancellation reason is over 500 characters. Shorten the text and confirm again.",
     "serverRefused": "The server refused this operation. Nothing was saved — try again and, if it repeats, tell support the time.",
     "responseInvalid": "The API responded in an unexpected format.",
     "routeUnavailable": "The route planner did not return a new route right now. The previous route still applies — try again shortly.",
@@ -1967,6 +1977,13 @@
     "case": {
       "title": "Case"
     },
+    "corrections": {
+      "title": "Corrections",
+      "entry": "Corrected by {{name}} on {{moment}}",
+      "entryUnknown": "Corrected on {{moment}}",
+      "nowValid": "Now in effect:",
+      "wholeDocument": "the whole invoice"
+    },
     "items": {
       "title": "Affected items",
       "noDescription": "Item not in the invoice"
@@ -1985,6 +2002,37 @@
       "summary": "Summary",
       "contractor": "Contractor",
       "driver": "Driver"
+    },
+    "correction": {
+      "cancel": {
+        "button": "Cancel occurrence",
+        "title": "Cancel this occurrence",
+        "hint": "The occurrence stays listed, marked as cancelled, with the reason and your name; it stops counting as active.",
+        "reasonLabel": "Cancellation reason",
+        "confirm": "Confirm cancellation",
+        "dismiss": "Back",
+        "close": "Close"
+      },
+      "correct": "Correct",
+      "form": {
+        "title": "Correct the occurrence items",
+        "hint": "The set below replaces the current one: whatever you remove here leaves the occurrence, and the correction is recorded under your name. With no items, the occurrence covers the whole invoice.",
+        "save": "Save correction",
+        "discard": "Discard",
+        "productsError": "The invoice items could not be loaded. Close and try again."
+      },
+      "unavailable": {
+        "occurrenceCancelled": "This occurrence was already cancelled and can no longer be corrected or cancelled.",
+        "caseOpen": "The case is open: once it opens, the occurrence already carries money and can no longer be corrected or cancelled.",
+        "caseDecided": {
+          "redelivery_authorized": "The case was decided with redelivery authorized; the redelivery starts from this occurrence, so it can no longer be corrected or cancelled.",
+          "goods_paid": "The case was decided with the goods paid; the settlement starts from this occurrence, so it can no longer be corrected or cancelled.",
+          "other": "The case was decided another way, with an office note; the occurrence can no longer be corrected or cancelled."
+        },
+        "caseReturnedToWarehouse": "The goods already went back to the warehouse through this case; the occurrence can no longer be corrected or cancelled.",
+        "caseClosed": "The case was closed; the occurrence became history and can no longer be corrected or cancelled.",
+        "caseCancelled": "The case was cancelled; the occurrence keeps its history and can no longer be corrected or cancelled."
+      }
     }
   },
   "occurrenceTimeline": {
@@ -2021,8 +2069,16 @@
       "caseTransition": "Case: {{status}}",
       "mailSent": "E-mailed the contracting party",
       "mailSentAutomatic": "Automatic notice sent to the contracting party",
-      "mailReceived": "The contracting party replied by e-mail"
+      "mailReceived": "The contracting party replied by e-mail",
+      "cancelled": "Occurrence cancelled"
     }
+  },
+  "occurrenceCancellation": {
+    "label": "Cancelled",
+    "authorship": "Cancelled by {{name}} on {{moment}}",
+    "authorshipUnknown": "Cancelled on {{moment}}",
+    "reason": "Reason: {{reason}}",
+    "summary": "{{authorship}}. {{reason}}"
   },
   "closeBulkDialog": {
     "closing": "Closing…",

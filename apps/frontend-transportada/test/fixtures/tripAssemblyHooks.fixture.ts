@@ -58,12 +58,15 @@ export function createDeferred<TValue>(): Deferred<TValue> {
 export type FakeTripClient = Pick<
   TripClient,
   | 'attachOccurrencePhoto'
+  | 'cancelTripOccurrence'
   | 'canhotoReviewProof'
+  | 'correctTripOccurrenceItems'
   | 'createMultiVehicleSuggestion'
   | 'fieldDeliverDocument'
   | 'readMultiVehicleProposal'
   | 'readMultiVehicleSuggestion'
   | 'readTripDeliveryProofs'
+  | 'readTripDocumentProducts'
   | 'readTripTimeline'
   | 'registerTripOccurrence'
 >
@@ -72,12 +75,17 @@ export type FakeTripClient = Pick<
 export function createUnexpectedTripClient(): FakeTripClient {
   return {
     attachOccurrencePhoto: () => Promise.reject(new Error('UNEXPECTED_ATTACH_OCCURRENCE_PHOTO')),
+    cancelTripOccurrence: () => Promise.reject(new Error('UNEXPECTED_CANCEL_TRIP_OCCURRENCE')),
     canhotoReviewProof: () => Promise.reject(new Error('UNEXPECTED_CANHOTO_REVIEW_PROOF')),
+    correctTripOccurrenceItems: () =>
+      Promise.reject(new Error('UNEXPECTED_CORRECT_TRIP_OCCURRENCE_ITEMS')),
     createMultiVehicleSuggestion: () => Promise.reject(new Error('UNEXPECTED_CREATE')),
     fieldDeliverDocument: () => Promise.reject(new Error('UNEXPECTED_FIELD_DELIVER_DOCUMENT')),
     readMultiVehicleProposal: () => Promise.reject(new Error('UNEXPECTED_PROPOSAL_READ')),
     readMultiVehicleSuggestion: () => Promise.reject(new Error('UNEXPECTED_SUGGESTION_READ')),
     readTripDeliveryProofs: () => Promise.reject(new Error('UNEXPECTED_READ_TRIP_DELIVERY_PROOFS')),
+    readTripDocumentProducts: () =>
+      Promise.reject(new Error('UNEXPECTED_READ_TRIP_DOCUMENT_PRODUCTS')),
     readTripTimeline: () => Promise.reject(new Error('UNEXPECTED_READ_TRIP_TIMELINE')),
     registerTripOccurrence: () => Promise.reject(new Error('UNEXPECTED_REGISTER_TRIP_OCCURRENCE')),
   }
