@@ -35,8 +35,9 @@ commit isolado e evidência em `evidence.md`. Tela só vai a staging depois de o
 
 > 🤖 Modelo: `opus` 🧠 (T7) · `haiku` (T8)
 
-- [ ] **T7** 🧠 Revisão de design e usabilidade com prints (diária geral, sem acesso, app do motorista com
-      o aviso, A6 e A7), 375 px, claro e escuro; o usuário aprova antes de ir a staging.
+- [x] **T7** 🧠 Revisão de design e usabilidade com prints (diária geral, sem acesso, app do motorista com
+      o aviso, A6 e A7), 375 px, claro e escuro; aprovada pelo usuário em 03/10/2026 depois das
+      correções da revisão final, de D1 e de N1. Só o README dos prints é versionado.
 - [x] **T8** Documentação viva: ADR (próximo número livre em `origin/staging`) registrando D1 e D2,
       `docs/ai-context/*`, `CLAUDE.md` das três apps, nota na 235.
 
