@@ -1981,7 +1981,8 @@
       "title": "Correções",
       "entry": "Corrigida por {{name}} em {{moment}}",
       "entryUnknown": "Corrigida em {{moment}}",
-      "nowValid": "Passou a valer:"
+      "nowValid": "Passou a valer:",
+      "wholeDocument": "a nota inteira"
     },
     "items": {
       "title": "Itens atingidos",
@@ -2015,7 +2016,7 @@
       "correct": "Corrigir",
       "form": {
         "title": "Corrigir os itens da ocorrência",
-        "hint": "O conjunto abaixo substitui o atual: o que você tirar daqui sai da ocorrência, e a correção fica registrada com o seu nome.",
+        "hint": "O conjunto abaixo substitui o atual: o que você tirar daqui sai da ocorrência, e a correção fica registrada com o seu nome. Sem itens, a ocorrência vale para a nota inteira.",
         "save": "Salvar correção",
         "discard": "Descartar",
         "productsError": "Não foi possível carregar os itens da nota. Feche e tente de novo."
