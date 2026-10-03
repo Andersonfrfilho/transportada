@@ -75,10 +75,23 @@ describe('botão Corrigir no detalhe da ocorrência (spec 235 T2.1)', () => {
   })
 
   test('ocorrência sem itens não tem Corrigir (RF10), mesmo com permissão e janela aberta', () => {
-    expect(render(buildOccurrenceDetailFixture({ items: [] }))).toBe('')
+    const markup = render(buildOccurrenceDetailFixture({ items: [] }))
+    expect(markup).not.toContain('Corrigir')
+    expect(markup).toContain('Cancelar ocorrência')
   })
 
   test('ocorrência de parada não tem Corrigir: as rotas da 167 são da ocorrência de nota', () => {
     expect(render(buildOccurrenceDetailFixture({ source: 'stop' }))).toBe('')
+  })
+
+  test('sem trip.manage o Cancelar também não existe (CA02)', () => {
+    expect(render(buildOccurrenceDetailFixture({ items: [] }), ['fleet.read'])).toBe('')
+  })
+
+  test('CA03: com tratativa, Cancelar fica aria-disabled e leva o mesmo motivo em texto', () => {
+    const markup = render(withOpenCase())
+    expect(markup.match(/aria-disabled="true"/gu)).toHaveLength(2)
+    expect(markup).toContain('Cancelar ocorrência')
+    expect(markup).toContain(CASE_OPEN_REASON)
   })
 })

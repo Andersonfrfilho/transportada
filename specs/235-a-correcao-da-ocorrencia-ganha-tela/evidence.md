@@ -1116,3 +1116,39 @@ Só o caso do código mutado cai: os outros sete e o genérico seguem verdes, qu
 um contrato caso a caso. Restaurado com `git checkout` do arquivo; `bun run --cwd
 apps/frontend-transportada test` voltou a **6489 pass, 0 fail** (lote principal) e **345 pass, 0 fail**
 (`test:hooks`).
+
+## T3.1 — O diálogo de cancelamento
+
+`TripOccurrenceCancelDialog.component.tsx`: o `Dialog` da app não é um primitivo de `components/ui`;
+o padrão em uso (`TripReasonDialog`, `TripCancelDialog`, `CanhotoRejectDialog`) é portal +
+`useModalDialog` (foco preso, Escape, foco devolvido ao elemento que o tinha ao abrir) +
+`mdfeGateOverlay`/`mdfeGateDialog`. Reaproveitado sem criar primitivo novo. O motivo é um `<textarea>`
+com `<label htmlFor>` associado, `maxLength` 500 (`OCCURRENCE_CANCELLATION_REASON_MAX_LENGTH`), confirmar
+`disabled` com motivo vazio ou só com espaços, e o motivo sai com `trim` por `useCancelOccurrence`.
+Os dois códigos novos (`OCCURRENCE_CANCELLATION_REASON_REQUIRED` / `..._TOO_LONG`) entraram em
+`TRIP_FEEDBACK_KEY_BY_ERROR` e em `feedback.*` (pt-BR e en); o alerta mostra a mensagem por código.
+
+`OccurrenceCorrectionActions` ganhou **Cancelar ocorrência** (`aria-disabled` + `aria-describedby` no
+mesmo parágrafo de motivo do Corrigir, `aria-haspopup="dialog"`), com a mesma guarda: parada ou sem
+`tripDocumentId` não renderiza nada; sem itens, só Cancelar aparece (RF10).
+
+Textos novos (pt-BR): botão "Cancelar ocorrência"; título "Cancelar esta ocorrência"; rótulo "Motivo do
+cancelamento"; confirmar "Confirmar cancelamento"; "Voltar"; erros "Escreva o motivo do cancelamento
+para confirmar." e "O motivo do cancelamento passa de 500 caracteres. Encurte o texto e confirme de
+novo."
+
+Contrato DOM `test/trip-hooks/occurrence-cancel-dialog.contract.ts` (via `test:hooks`, 9 casos): rótulo
+associado + modal nomeado + `maxlength=500`; CA04 vazio/espaços desabilitado e habilita com texto;
+chamada com motivo trimado e uma vez; nada de motivo em console (`debug/error/info/log/warn`); os dois
+códigos do servidor viram a mensagem própria e o diálogo segue aberto; Voltar e Escape devolvem o foco ao
+botão que abriu; Tab no último controle volta ao primeiro (foco preso). O happy-dom permitiu todos —
+nenhuma limitação. Único cuidado: o diálogo aberto precisa ser fechado dentro do teste (um `afterEach`
+fora do `act` derruba `removeChild`), então cada caso fecha o seu. O contrato do botão
+(`occurrence-correction-button.contract.tsx`) passou a afirmar que sem itens só há Cancelar, e ganhou
+CA02/CA03 do Cancelar.
+
+```bash
+bun run --cwd apps/frontend-transportada test   # 6491 pass, 0 fail (lote principal); test:hooks 354 pass, 0 fail
+bun run typecheck                               # limpo (raiz)
+cd apps/frontend-transportada && bun run lint   # 0 erros, 16 avisos preexistentes
+```

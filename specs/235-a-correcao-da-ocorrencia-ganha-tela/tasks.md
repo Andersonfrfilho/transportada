@@ -64,7 +64,7 @@ já faz (`listOccurrenceCorrections`, o mapeamento de `cancellation`), em lote �
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T3.1** `TripOccurrenceCancelDialog` com motivo obrigatório, confirmar desabilitado em
+- [x] **T3.1** `TripOccurrenceCancelDialog` com motivo obrigatório, confirmar desabilitado em
       branco e em espaços, foco preso e devolvido (RF3, CA04).
 - [ ] **T3.2** Marca de cancelada no detalhe, no feed e na linha do tempo, com motivo acessível,
       pela mesma função pura — nenhuma segunda cópia da conta (RF6, CA06).

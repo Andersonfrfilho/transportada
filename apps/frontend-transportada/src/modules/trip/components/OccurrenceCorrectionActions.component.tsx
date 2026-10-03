@@ -9,6 +9,7 @@ import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelD
 import { resolveOccurrenceCorrectionActions } from '../shared/tripOccurrenceDetail.service'
 import type { TripOccurrenceDetail } from '../shared/tripOccurrenceFeed.service'
 import styles from '../styles/trip.module.css'
+import { TripOccurrenceCancelDialog } from './TripOccurrenceCancelDialog.component'
 import { TripOccurrenceCorrectionForm } from './TripOccurrenceCorrectionForm.component'
 
 export type OccurrenceCorrectionActionsProps = Readonly<{
@@ -28,7 +29,8 @@ export function OccurrenceCorrectionActions({
   const { t } = useTranslation('trip')
   const reasonId = useId()
   const [isCorrecting, setIsCorrecting] = useState(false)
-  const { correct } = resolveOccurrenceCorrectionActions(
+  const [isCancelling, setIsCancelling] = useState(false)
+  const { cancel, correct } = resolveOccurrenceCorrectionActions(
     {
       caseView: occurrence.case,
       hasItems: occurrence.source === 'document' && occurrence.items.length > 0,
@@ -38,13 +40,26 @@ export function OccurrenceCorrectionActions({
     t as Translate,
   )
   const tripDocumentId = occurrence.document?.tripDocumentId ?? null
-  if (correct.availability === 'hidden' || tripDocumentId === null) return null
+  if (occurrence.source !== 'document' || tripDocumentId === null) return null
+  const reason = [correct, cancel].find((state) => state.availability === 'disabled')
+  const hasCorrect = correct.availability !== 'hidden'
+  const hasCancel = cancel.availability !== 'hidden'
+  if (!hasCorrect && !hasCancel) return null
 
-  const isDisabled = correct.availability === 'disabled'
+  const isDisabled = reason !== undefined
 
   function handleCorrectClick(): void {
     if (isDisabled) return
     setIsCorrecting(true)
+  }
+
+  function handleCancelClick(): void {
+    if (isDisabled) return
+    setIsCancelling(true)
+  }
+
+  function handleCancelClose(): void {
+    setIsCancelling(false)
   }
 
   function handleCorrectionClose(): void {
@@ -54,23 +69,47 @@ export function OccurrenceCorrectionActions({
   return (
     <div className={styles.occurrenceCorrection}>
       <div className={styles.occurrenceActions}>
-        <Button
-          aria-describedby={correct.availability === 'disabled' ? reasonId : undefined}
-          aria-disabled={isDisabled}
-          aria-expanded={isCorrecting}
-          onClick={handleCorrectClick}
-          size="sm"
-          type="button"
-          variant="secondary"
-        >
-          <Icon name="edit" />
-          {t('occurrenceDetail.correction.correct')}
-        </Button>
+        {hasCorrect ? (
+          <Button
+            aria-describedby={isDisabled ? reasonId : undefined}
+            aria-disabled={isDisabled}
+            aria-expanded={isCorrecting}
+            onClick={handleCorrectClick}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            <Icon name="edit" />
+            {t('occurrenceDetail.correction.correct')}
+          </Button>
+        ) : null}
+        {hasCancel ? (
+          <Button
+            aria-describedby={isDisabled ? reasonId : undefined}
+            aria-disabled={isDisabled}
+            aria-haspopup="dialog"
+            onClick={handleCancelClick}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            <Icon name="close" />
+            {t('occurrenceDetail.correction.cancel.button')}
+          </Button>
+        ) : null}
       </div>
-      {correct.availability === 'disabled' ? (
+      {reason?.availability === 'disabled' ? (
         <p className={styles.hint} id={reasonId}>
-          {correct.reason}
+          {reason.reason}
         </p>
+      ) : null}
+      {isCancelling ? (
+        <TripOccurrenceCancelDialog
+          documentId={tripDocumentId}
+          occurrenceId={occurrence.id}
+          onClose={handleCancelClose}
+          tripId={occurrence.tripId}
+        />
       ) : null}
       {isCorrecting ? (
         <TripOccurrenceCorrectionForm

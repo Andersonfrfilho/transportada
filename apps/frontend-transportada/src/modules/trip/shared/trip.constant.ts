@@ -177,6 +177,9 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   [OCCURRENCE_CORRECTION_ERROR.ITEM_QUANTITY_UNIT_PAIRING]: 'occurrenceItemQuantityUnitPairing',
   [OCCURRENCE_CORRECTION_ERROR.PRODUCT_NOT_IN_DOCUMENT]: 'occurrenceProductNotInDocument',
   [OCCURRENCE_CORRECTION_ERROR.OCCURRENCE_NOT_FOUND]: 'occurrenceNotFound',
+  [OCCURRENCE_CORRECTION_ERROR.CANCELLATION_REASON_REQUIRED]:
+    'occurrenceCancellationReasonRequired',
+  [OCCURRENCE_CORRECTION_ERROR.CANCELLATION_REASON_TOO_LONG]: 'occurrenceCancellationReasonTooLong',
 }
 
 /** Spec 156 T6: `POST .../field-delivery` (T11 consome; T8 só mapeia o texto). */
