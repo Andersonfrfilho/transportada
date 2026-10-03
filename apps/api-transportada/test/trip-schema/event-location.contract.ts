@@ -157,12 +157,12 @@ describe('as três tabelas que ganham posição agora (spec 196 T1.1)', () => {
    * produção que ainda não foi feita (staging deu zero) — o achado está em `evidence.md`.
    */
   test.each(NEWLY_LOCATED_EVENT_TABLES)(
-    '%s só aceita coordenada do app do motorista, e estado só de canal que pede posição',
+    '%s só aceita coordenada do motorista (app ou WhatsApp), e estado só de canal que pede posição',
     (tableName, table) => {
       const checkSql = unqualifiedCheckSqlByName(table)
 
       expect(checkSql[`${tableName}_coordinates_channel_check`]).toBe(
-        `"latitude" is null or "channel" = 'driver_app'`,
+        `"latitude" is null or "channel" in ('driver_app', 'whatsapp')`,
       )
       expect(checkSql[`${tableName}_location_state_channel_check`]).toBe(
         `"location_state" is null or "channel" in ('driver_app', 'whatsapp')`,

@@ -70,10 +70,15 @@ export const TRIP_FIELD_CHANNELS = {
 export type TripFieldChannel = (typeof TRIP_FIELD_CHANNELS)[keyof typeof TRIP_FIELD_CHANNELS]
 
 /**
- * Spec 196 D3: os canais em que o estado do ponto quer dizer alguma coisa — o app pede posição, e o
- * WhatsApp é toque do motorista por outro meio. Escritório e backoffice nunca têm ponto, então ali
- * o estado é `null` (não se aplica), e não `unavailable`.
+ * Spec 196 D3 (revista): os canais que podem gravar coordenada — o app do motorista e a mensagem de
+ * localização que o motorista manda pelo WhatsApp. Escritório e backoffice nunca têm ponto.
  */
+const EVENT_LOCATION_COORDINATE_CHANNELS = [
+  TRIP_FIELD_CHANNELS.driverApp,
+  TRIP_FIELD_CHANNELS.whatsapp,
+] as const
+
+/** Os canais em que o estado do ponto quer dizer alguma coisa; nos demais é `null` (não se aplica). */
 const EVENT_LOCATION_STATEFUL_CHANNELS = [
   TRIP_FIELD_CHANNELS.driverApp,
   TRIP_FIELD_CHANNELS.whatsapp,
@@ -576,7 +581,7 @@ export const tripStatusEvents = pgTable(
     ),
     ...buildEventLocationChecks({
       columns: table,
-      coordinateChannel: TRIP_FIELD_CHANNELS.driverApp,
+      coordinateChannels: EVENT_LOCATION_COORDINATE_CHANNELS,
       statefulChannels: EVENT_LOCATION_STATEFUL_CHANNELS,
       tableName: 'trip_status_events',
     }),
@@ -1487,7 +1492,7 @@ export const tripStopOccurrences = pgTable(
     ),
     ...buildEventLocationChecks({
       columns: table,
-      coordinateChannel: TRIP_FIELD_CHANNELS.driverApp,
+      coordinateChannels: EVENT_LOCATION_COORDINATE_CHANNELS,
       statefulChannels: EVENT_LOCATION_STATEFUL_CHANNELS,
       tableName: 'trip_stop_occurrences',
     }),
@@ -2188,7 +2193,7 @@ export const tripDocumentOccurrences = pgTable(
     ),
     ...buildEventLocationChecks({
       columns: table,
-      coordinateChannel: TRIP_FIELD_CHANNELS.driverApp,
+      coordinateChannels: EVENT_LOCATION_COORDINATE_CHANNELS,
       statefulChannels: EVENT_LOCATION_STATEFUL_CHANNELS,
       tableName: 'trip_document_occurrences',
     }),

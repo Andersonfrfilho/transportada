@@ -61,7 +61,7 @@ type EventLocationCheckColumns = {
 
 type BuildEventLocationChecksParams = {
   readonly columns: EventLocationCheckColumns
-  readonly coordinateChannel: string
+  readonly coordinateChannels: readonly string[]
   readonly statefulChannels: readonly string[]
   readonly tableName: string
 }
@@ -74,7 +74,7 @@ type BuildEventLocationChecksParams = {
  */
 export const buildEventLocationChecks = ({
   columns,
-  coordinateChannel,
+  coordinateChannels,
   statefulChannels,
   tableName,
 }: BuildEventLocationChecksParams): readonly CheckBuilder[] => [
@@ -112,13 +112,14 @@ export const buildEventLocationChecks = ({
     sql`(${columns.locationState} is not distinct from 'captured') = (${columns.latitude} is not null)`,
   ),
   /**
-   * Coordenada só nasce de toque do motorista no app; estado também vale para o canal que pede
-   * posição e não a recebe. Estes dois entram apenas nas tabelas que nascem sem nenhuma linha com
-   * coordenada — numa tabela antiga eles precisariam de contagem em produção antes.
+   * Coordenada só nasce de toque do motorista — no app ou na mensagem de localização do WhatsApp;
+   * estado também vale para o canal que pede posição e não a recebe. Estes dois entram apenas nas
+   * tabelas que nascem sem nenhuma linha com coordenada — numa tabela antiga eles precisariam de
+   * contagem em produção antes.
    */
   check(
     `${tableName}_coordinates_channel_check`,
-    sql`${columns.latitude} is null or ${columns.channel} = ${raw(inList([coordinateChannel]))}`,
+    sql`${columns.latitude} is null or ${columns.channel} in (${raw(inList(coordinateChannels))})`,
   ),
   check(
     `${tableName}_location_state_channel_check`,

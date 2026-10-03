@@ -126,9 +126,10 @@ do usuário. A API não é revertida com a app nova no ar.
 
   Aceite: contratos verdes, os dois comandos da API verdes, a contagem subiu em N.
 
-- [ ] **T1.4** 🔁 O canal `whatsapp` passa a carregar **ponto**, não só estado (D3 revisto em
-      2026-10-02). ⚠️ **Antes de qualquer publicação** — a migration `20261002033125` não está em
-      `origin/staging`, então corrigir ali é de graça; depois custa migration corretiva.
+- [x] **T1.4** 🔁 O canal `whatsapp` passa a carregar **ponto**, não só estado (D3 revisto em
+      2026-10-02). ⚠️ **Texto obsoleto:** a migration `20261002153258` já está em `origin/staging`
+      (decisão do usuário em 2026-10-02), então ela **não** é editada — a correção é a migration
+      corretiva `20261003010806_event_location_whatsapp_coordinate` (ver `evidence.md` § T1.4).
   - `event-location.schema.ts`: `buildEventLocationChecks` passa a receber **lista** de canais que podem
     gravar coordenada (`coordinateChannels`), não um canal só, e `trip.schema.ts` passa
     `[driverApp, whatsapp]` nas três tabelas;

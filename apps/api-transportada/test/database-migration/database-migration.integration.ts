@@ -9,6 +9,7 @@ import { assertCteProfileOutputConstraints } from './cte-profile-output-constrai
 import { assertDeliveryProofCargoSumsAndGuardsRollback } from './delivery-proof-cargo.assertion.js'
 import { assertDeliveryProofContractorOverridesBackfill } from './delivery-proof-contractor-overrides.assertion.js'
 import { assertDeliveryProofReceivedBy } from './delivery-proof-received-by.assertion.js'
+import { assertEventLocationWhatsappRollbackRefusesRecordedPoints } from './event-location-whatsapp-rollback.assertion.js'
 import { assertDriverAllowanceRollbackRefusesRecordedMoney } from './driver-allowance-rollback.assertion.js'
 import { assertFiscalConstraints } from './fiscal-constraints.assertion.js'
 import { assertFleetConstraints } from './fleet-constraints.assertion.js'
@@ -117,6 +118,14 @@ describe('Drizzle migration integration', () => {
           values (${rollbackProbeTripId}, ${identityFixture.companyId}, ${fleetFixture.vehicleId})
         `
         await assertTripStatusEventRollbackRefusesRecordedHistory({
+          companyId: identityFixture.companyId,
+          database,
+          directories: migrationDirectories,
+          tripId: rollbackProbeTripId,
+          userId: identityFixture.userId,
+        })
+
+        await assertEventLocationWhatsappRollbackRefusesRecordedPoints({
           companyId: identityFixture.companyId,
           database,
           directories: migrationDirectories,

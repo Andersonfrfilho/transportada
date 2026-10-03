@@ -327,6 +327,7 @@ describe('Drizzle migrations', () => {
       '20261002153258_occurrence_location_stamp',
       '20261002213734_delivered_moment_clock',
       '20261002230234_helper_role_and_can_drive',
+      '20261003010806_event_location_whatsapp_coordinate',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -1930,6 +1931,57 @@ describe('o estado do ponto entra aditivo e o histórico sem coordenada fica NUL
     expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
     expect(rollbackSql).not.toContain('CASCADE')
   })
+  /**
+   * A corretiva da T1.4: a migration anterior já está em staging e não se edita. O que ela precisa
+   * garantir é que só o CHECK de canal da coordenada muda — nada de coluna — e que o rollback
+   * recusa em vez de apagar posição de pessoa.
+   */
+  test('widens only the coordinate channel check and refuses a rollback that would drop whatsapp points', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) =>
+      name.endsWith('_event_location_whatsapp_coordinate'),
+    )
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const statements = migrationSql
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('--'))
+      .join('\n')
+
+    const tables = ['trip_status_events', 'trip_stop_occurrences', 'trip_document_occurrences']
+    for (const table of tables) {
+      const constraint = `${table}_coordinates_channel_check`
+      expect(statements).toContain(
+        `ALTER TABLE "${table}" DROP CONSTRAINT "${constraint}", ADD CONSTRAINT "${constraint}" CHECK ("latitude" is null or "channel" in ('driver_app', 'whatsapp')) NOT VALID;`,
+      )
+      expect(statements).toContain(`ALTER TABLE "${table}" VALIDATE CONSTRAINT "${constraint}";`)
+      expect(rollbackSql).toContain(
+        `ADD CONSTRAINT "${constraint}" CHECK ("latitude" is null or "channel" = 'driver_app');`,
+      )
+      expect(rollbackSql).toContain(`FROM "${table}"`)
+    }
+
+    // Só CHECK muda: nenhuma coluna, índice ou tabela entra ou sai.
+    expect(statements).not.toMatch(
+      /\b(ADD COLUMN|DROP COLUMN|CREATE INDEX|DROP INDEX|DROP TABLE)\b/u,
+    )
+    expect([...statements.matchAll(/ADD CONSTRAINT/gu)]).toHaveLength(3)
+    expect(statements).not.toContain('NOT NULL')
+
+    // O rollback aborta antes de alterar qualquer CHECK, e nunca anula a coordenada por conta própria.
+    const refusalPosition = rollbackSql.indexOf('Rollback recusado')
+    const firstAlterPosition = rollbackSql.indexOf('ALTER TABLE')
+    expect(refusalPosition).toBeGreaterThan(-1)
+    expect(firstAlterPosition).toBeGreaterThan(refusalPosition)
+    expect(rollbackSql).not.toMatch(/^\s*UPDATE\b/imu)
+    expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+  })
+
   /**
    * Três decisões da spec 222 que o teste de banco não protege, porque o plano de consulta só muda
    * com volume: o predicado do índice é literal, não carrega `kind` e a chave é só `created_at`.

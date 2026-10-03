@@ -2342,3 +2342,43 @@ Portões da T4.2 (leitura), todos em API, saídas literais:
 | `bun run format:check` (raiz)                                        | `All matched files use Prettier code style!`                                                                |
 
 Postgres de `65432` respondeu a `pg_isready -h 127.0.0.1` (aceitando conexões).
+
+## T1.4 — o canal `whatsapp` carrega ponto (migration corretiva)
+
+A `20261002153258_occurrence_location_stamp` já estava em `origin/staging`; por decisão do usuário
+(2026-10-02) ela não foi editada. A correção é aditiva e nova:
+`drizzle/20261003010806_event_location_whatsapp_coordinate/` (`migration.sql`, `rollback.sql`,
+`snapshot.json` com `prevIds = ['0447297e-…']`, o `id` da migration anterior; cadeia sem bifurcação).
+
+- **O que muda:** só o CHECK `<tabela>_coordinates_channel_check` de `trip_status_events`,
+  `trip_stop_occurrences` e `trip_document_occurrences`, de `"channel" = 'driver_app'` para
+  `"channel" in ('driver_app', 'whatsapp')`. `trip_stop_events` e `trip_delivery_proofs` nunca tiveram esse
+  CHECK. O de estado já aceitava `whatsapp`. Nenhuma coluna, índice ou tabela muda.
+- **Lock:** `DROP` + `ADD ... NOT VALID` num `ALTER` só (sem janela sem CHECK) e `VALIDATE CONSTRAINT` à
+  parte, no padrão da casa. O novo é mais frouxo, então todo valor aceito antes continua aceito.
+- **Estratégia do rollback: recusar, não apagar.** Antes de tocar em qualquer CHECK, um bloco `DO $$` conta
+  por tabela as linhas `channel <> 'driver_app'` com `latitude is not null` e, havendo qualquer uma, levanta
+  `Rollback recusado: existe coordenada fora do canal driver_app (trip_status_events=N ...)`. A alternativa
+  (anular a coordenada e voltar o estado a `unavailable`) foi descartada: é posição de pessoa (LGPD) e
+  perdê-la é irreversível, então destruir é decisão de quem opera — o `UPDATE` manual vem documentado no
+  cabeçalho do script. Linha `whatsapp` sem coordenada não bloqueia. Tem o mesmo molde de
+  `driver-allowance-rollback` e `trip-status-event-rollback`.
+- **Código:** `buildEventLocationChecks` recebe `coordinateChannels` (lista) em vez de `coordinateChannel`;
+  `trip.schema.ts` passa `[driverApp, whatsapp]` nas três tabelas; `STATEFUL_CHANNELS` de
+  `event-location-state.policy.ts` ganha `whatsapp`. O contrato `event-location-state.contract.ts`, que
+  proibia isto, foi **invertido**, não afrouxado: agora exige `unavailable` para o WhatsApp sem ponto.
+  O carimbo do operador não passa por essa função (sai de `resolveEventLocationStamp` com
+  `isDriverTap: false`, tudo `null`).
+- **Testes:** `test/trip-schema/event-location.contract.ts` prende o texto novo; `static-migration.contract.ts`
+  lista a pasta nova na ordem exaustiva e ganhou um teste da corretiva (só CHECK muda, `NOT VALID` +
+  `VALIDATE`, a recusa vem antes do primeiro `ALTER TABLE`, o rollback não tem `UPDATE`);
+  `event-location-whatsapp-rollback.assertion.ts` (no encadeamento de `database-migration.integration.ts`)
+  prova contra Postgres: ponto de WhatsApp entra, ponto de `backoffice` ainda cai em
+  `trip_status_events_coordinates_channel_check`, o rollback recusa com `trip_status_events=1` sem nomear as
+  outras tabelas e a linha continua lá. O encadeamento então aplica e desfaz a pasta nova junto com todas.
+- `bun run db:generate --name x` → `{"status":"no_changes"}` depois da pasta nova.
+
+Mutações (todas reprovaram e foram restauradas): lista de canais de coordenada sem `whatsapp` em
+`trip.schema.ts` (3 falhas no contrato de schema); `whatsapp` fora de `STATEFUL_CHANNELS` (1 falha);
+`migration.sql` com o texto antigo do CHECK (2 falhas: estática e de banco); `IF report <> ''` trocado por
+`IF false` no rollback (1 falha na integração de migration).
