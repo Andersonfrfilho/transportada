@@ -36,6 +36,7 @@ export function OccurrenceCorrectionActions({
       hasItems: occurrence.source === 'document' && occurrence.items.length > 0,
       isCancelled: occurrence.cancellation != null,
       permissions,
+      wasCorrected: (occurrence.corrections?.length ?? 0) > 0,
     },
     t as Translate,
   )

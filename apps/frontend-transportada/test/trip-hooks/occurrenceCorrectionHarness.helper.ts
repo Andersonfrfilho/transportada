@@ -15,7 +15,10 @@ import type {
   OccurrenceWriteResult,
   TripDocumentProduct,
 } from '@/modules/trip/shared/trip.types'
-import type { TripOccurrenceDetailItem } from '@/modules/trip/shared/tripOccurrenceFeed.service'
+import type {
+  TripOccurrenceDetail,
+  TripOccurrenceDetailItem,
+} from '@/modules/trip/shared/tripOccurrenceFeed.service'
 
 import {
   buildOccurrenceDetailFixture,
@@ -56,6 +59,7 @@ const WRITE_RESULT: OccurrenceWriteResult = {
 
 /** O conjunto que a API dublada devolve na próxima leitura do detalhe. */
 let currentItems: readonly TripOccurrenceDetailItem[] = []
+let currentCorrections: NonNullable<TripOccurrenceDetail['corrections']> = []
 let detailReadCount = 0
 
 /** A API dublada: guarda o conjunto vigente e o devolve na próxima leitura do detalhe. */
@@ -66,11 +70,20 @@ export function installServerDouble(): {
   const calls: CorrectTripOccurrenceItemsInput[] = []
   detailReadCount = 0
   currentItems = buildOccurrenceDetailFixture().items
+  currentCorrections = []
   resetTripHookFakes([])
   fakes.tripClient = {
     ...fakes.tripClient,
     correctTripOccurrenceItems: (input) => {
       calls.push(input)
+      currentCorrections = [
+        ...currentCorrections,
+        {
+          correctedAt: '2026-10-03T10:00:00.000Z',
+          correctedByName: 'Operador de teste',
+          previousItems: currentItems.map(({ code, quantity, unit }) => ({ code, quantity, unit })),
+        },
+      ]
       currentItems = input.items.map((item) => ({
         code: item.code,
         description: `Produto ${item.code}`,
@@ -88,7 +101,9 @@ export function DetailHarness() {
   const query = useQuery({
     queryFn: () => {
       detailReadCount += 1
-      return Promise.resolve(buildOccurrenceDetailFixture({ items: currentItems }))
+      return Promise.resolve(
+        buildOccurrenceDetailFixture({ corrections: currentCorrections, items: currentItems }),
+      )
     },
     queryKey: DETAIL_KEY,
   })
