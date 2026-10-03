@@ -303,3 +303,37 @@ de motorista; a de quem dirige, o contrário; texto nos dois idiomas. **Vermelho
 (`driverPersonalLegendHelper` inexistente). **Mutação** (restaurada, `cmp`): legenda fixa → 1 fail.
 
 **Gates:** `bun run test` do painel 6602 pass / 0 fail (+ hooks 364 / 0); `tsc --noEmit`, eslint e prettier limpos.
+
+## T8 — Documentação viva
+
+**O que entrou:**
+
+1. **ADR-0094** — "A cobrança é do escritório, e o ajudante acompanha" (próximo número livre em `origin/staging`
+   após o 0093). Contexto, decisões D1-D5, consequências, alternativas descartadas, e revisão da seção 5 do
+   ADR-0093 com nota apontando para o novo ADR.
+
+2. **docs/ai-context/api-transportada.md** — Seção "Spec 239 — O ajudante fecha as pontas: cobrança, diária geral
+   e papel na resposta" com arquivos-chave (rotas, casos de uso, repositórios, testes) e pegadinhas (permissão
+   `trip.financials` é nova, lacuna HELPER_DAILY_RATE_MISSING persiste).
+
+3. **docs/ai-context/frontend-transportada.md** — Seção "Spec 239 — O ajudante fecha as pontas" com painel de diária,
+   variante de sem acesso, validação, e conversão de escalas (180,00 ↔ 180.0000).
+
+4. **docs/ai-context/frontend-driver.md** — Seção "Spec 239 — O ajudante acompanha a viagem" com tipo `crewRole`,
+   aviso, ações escondidas, e pegadinha de fotos pendentes sem filtro de papel.
+
+5. **apps/api-transportada/CLAUDE.md** — Seção "O ajudante fecha as pontas (spec 239)" com as três decisões e
+   referências ao ADR-0094 e docs/ai-context.
+
+6. **apps/frontend-transportada/CLAUDE.md** — Seção "O ajudante fecha as pontas (spec 239)" com painel de diária,
+   variante de acompanhamento, contrato. Corrigida seção "O menu mostra só o que a pessoa pode abrir": cobrança
+   agora lê com `trip.financials` (era `trip.read`, achado BOLA).
+
+7. **apps/frontend-driver/CLAUDE.md** — Seção "O ajudante acompanha a viagem (spec 239)" com `crewRole`, aviso e
+   contrato, incluindo a pegadinha da fila offline.
+
+8. **specs/235-o-ajudante-e-um-perfil/spec.md** — Nota ao fim de "Fora do escopo": "Pontas abertas: cinco questões
+   deixadas em aberto aqui foram fechadas pela spec 239 e o ADR-0094."
+
+**Verificação:** prettier rodado nos .md tocados (`bunx prettier --write` e `bunx prettier --check`);
+todos os arquivos em compliance; nenhuma linha acima de 100 caracteres.

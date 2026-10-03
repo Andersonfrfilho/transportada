@@ -37,7 +37,7 @@ commit isolado e evidência em `evidence.md`. Tela só vai a staging depois de o
 
 - [ ] **T7** 🧠 Revisão de design e usabilidade com prints (diária geral, sem acesso, app do motorista com
       o aviso, A6 e A7), 375 px, claro e escuro; o usuário aprova antes de ir a staging.
-- [ ] **T8** Documentação viva: ADR (próximo número livre em `origin/staging`) registrando D1 e D2,
+- [x] **T8** Documentação viva: ADR (próximo número livre em `origin/staging`) registrando D1 e D2,
       `docs/ai-context/*`, `CLAUDE.md` das três apps, nota na 235.
 
 ## Prompt de execução

@@ -334,3 +334,12 @@ grava a posição na hora (leitura de 8 s); toque direto (despacho e "Iniciar ro
 **3 s** (`readDirectTapLocation`, relógio da própria app) e segue com `location: null` se ela não vier — GPS
 negado ou mudo nunca trava a entrega. O reenvio da foto da ocorrência da parada repete o corpo **sem**
 `location`. Detalhe: docs/ai-context/frontend-driver.md § "Spec 196".
+
+## O ajudante acompanha a viagem (spec 239)
+
+`crewRole` na resposta de `/me/trips/current` (`'driver'` | `'helper'`, campo opcional no tipo porque
+snapshot antigo no IndexedDB não traz — lê como `driver` por padrão). Com `helper`: aviso fixo
+"Você acompanha esta viagem como ajudante", sem botões de ação que exigem `trip.report`. Fila offline
+trata o 403 como recusado; com ajudante nenhum botão chama `report(...)`. Contrato:
+`test/driver-trip/helper-crew-role.contract.ts`. Detalhe: docs/ai-context/frontend-driver.md
+§ "Spec 239 — O ajudante acompanha a viagem" e ADR-0094.

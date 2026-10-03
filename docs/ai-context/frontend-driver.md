@@ -160,3 +160,20 @@ substitui a evidência de execução.
   cuja foto foi aceita.
 - **Preview.** `apps/frontend-driver/scripts/driver-preview-api.ts` (`motorista-api-demo` no `launch.json`)
   guarda o ponto em memória, sem log de coordenada.
+
+## Spec 239 — O ajudante acompanha a viagem
+
+**Arquivos-chave:** validação em `modules/driver-trip/shared/driverTripResponse.validation.ts` e
+`tripCrewRole.service.ts`, tipo em `modules/driver-trip/shared/driverTrip.types.ts`, aviso em
+`components/DriverHelperNotice.component.tsx`, cartão em `components/DriverStopCard.component.tsx`,
+tela em `pages/DriverTripWorkspace.page.tsx`.
+Testes: `test/driver-trip/helper-crew-role.contract.ts`.
+
+Uma decisão (ver ADR-0094): D3/D4 — `/me/trips/current` devolve `crewRole` por viagem (`'driver'` | `'helper'`);
+app recebe o papel, mostra aviso "Você acompanha esta viagem como ajudante" e esconde ações que exigem `trip.report`
+(Cheguei, Iniciar rota, Cancelar rota, Registrar entrega depois, nota, comprovante, ocorrência, despacho). Ficam
+leitura (paradas, navegação, manifesto, romaneio). Ausência de `crewRole` (snapshot antigo no IndexedDB) lê como `driver`.
+
+**Pegadinhas:** Fila offline — 403 em `trip.report` vira `rejected` (não retenteado), descartado do `drainQueue`;
+nenhum defeto, mas com ajudante nenhum botão chama `report(...)`. Atalho "Fotos pendentes (N)" lê sem filtro
+de papel; pode aparecer para ajudante se a API retornar pendência de viagem onde ele é ajudante.

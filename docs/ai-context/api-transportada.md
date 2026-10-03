@@ -2376,6 +2376,24 @@ do contexto. `readOccurrenceView` (a resposta das escritas) passou a usar o mesm
   `test/integration/trip-occurrence-correction-read.integration.ts` e
   `test/trip-http/occurrence-detail.contract.ts`.
 
+## Spec 239 — O ajudante fecha as pontas: cobrança, diária geral e papel na resposta
+
+**Arquivos-chave:** cobrança em `delivery-clients/presentation/delivery-charge.routes.ts`, resposta do motorista
+em `trips/presentation/me-trip.routes.ts` e `find-current-driver-trip.use-case.ts`, serializador
+em `trips/domain/trip-serializer.service.ts`, repositório em `drizzle-current-driver-trip.repository.ts`.
+Testes: `test/delivery-clients/charge-read-policy.contract.ts` (cobrança, 9 papéis × 2 rotas),
+`test/driver-trip/crew-role.contract.ts` (validação e papel), `test/integration/me-trip.integration.ts` (leitura).
+
+Três decisões (ver ADR-0094): D1 — Cobrança muda de `trip.read` para `trip.financials` (`company-admin`,
+`finance`, `operator` leem; `driver`, `aggregate`, `separator`, `helper` recebem `403`). Sem consumidor de
+campo; fechado `docs/SECURITY.md` 2026-09-18. D2 — Painel tem diária geral do ajudante (painel separado da
+configuração, permissão `fleet.read`/`fleet.manage` da API, não de settings). D3 — `/me/trips/current`
+devolve `crewRole` por viagem (`'driver'` | `'helper'`, do `trip_drivers.role`); falta de campo lê como `driver`.
+
+**Pegadinhas:** Cobrança pede `trip.financials` — papel novo exige atribuição manual; sem ele, acesso anterior
+era por equívoco (`trip.read` no driver que ela nunca deveria ter). Diária geral vazia + ajudante sem diária
+própria segue com a lacuna `HELPER_DAILY_RATE_MISSING`, agora com onde resolver (RF-2 da 149).
+
 **As duas linhas do tempo (T3.2a).** `GET /trips/:id/timeline`: o item `document.occurrence` ganhou
 `occurrence.cancellation` (`null` ou o mesmo `{ cancelledAt, cancelledByName, reason }`), lido por
 `listOccurrenceCancellationsByIds` em **uma consulta por página** (`trip-timeline-document.query.ts`);

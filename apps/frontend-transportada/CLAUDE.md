@@ -164,8 +164,8 @@ disparar o boot.
 - **Três telas ganharam a parede que não tinham** (Empresa, NFS-e e Repasses) e decidem **pelo mesmo
   mapa**, nunca por condição própria. Repasses fechou exposição real: não tinha checagem alguma e a
   consulta não tinha `enabled`. A entrada dela no mapa é a única que é **intenção de produto**
-  (`billing.create` ou `trip.financials`), não transcrição — a API lê com `trip.read`, achado
-  registrado em `docs/SECURITY.md:383`.
+  (`billing.create` ou `trip.financials`), não transcrição — a API lê com `trip.financials` desde a
+  spec 239 D1 (antes `trip.read`, achado BOLA registrado em `docs/SECURITY.md`).
 
 ⚠️ **Contrato de parede não se escreve procurando texto na fonte.** A primeira versão dos três
 contratos afirmava que o arquivo continha `isForbidden` e `t('forbidden')`, e passava verde com as
@@ -342,3 +342,12 @@ Aba "Contratantes" de `/clientes` (`delivery-clients`): ficha com dados do contr
 recebimento. `PUT` do perfil sempre com as 10 chaves; recusa do servidor lista todos os campos com atalho
 (`data-field`). Em teste de DOM, compare foco com `activeElement === campo`, nunca `toBe` sobre nó. Detalhe:
 docs/ai-context/frontend-transportada.md § "Spec 237 T1.4".
+
+## O ajudante fecha as pontas (spec 239)
+
+Painel "Diária do ajudante" na aba de motoristas (`DriverCrewSettingsPanel`, fora de `SETTINGS_PANEL_PLACEMENT`,
+permissão `fleet.read`/`fleet.manage` da API). Variante de `NoWorkspaceAccess` para conta com `trip.read`
+e sem workspace: texto "Sua conta acompanha viagens pelo app do motorista" + botão para abrir o app (quando
+`VITE_DRIVER_APP_URL` existe). Contrato: `test/fleet/driver-crew-settings-panel.contract.tsx`,
+`test/identity/no-workspace-access-variant.contract.tsx`. Detalhe: docs/ai-context/frontend-transportada.md
+§ "Spec 239 — O ajudante fecha as pontas" e ADR-0094.
