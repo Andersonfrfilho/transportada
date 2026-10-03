@@ -955,6 +955,7 @@ export async function listOccurrenceTypes(
       leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
       name: companyOccurrenceTypes.name,
       notifies: companyOccurrenceTypes.notifies,
+      redeliveryPolicy: companyOccurrenceTypes.redeliveryPolicy,
       stage: companyOccurrenceTypes.stage,
       stopKind: companyOccurrenceTypes.stopKind,
     })
@@ -994,11 +995,10 @@ export async function saveOccurrenceType(
     readonly notifies: boolean
     readonly occurrenceTypeId: null | string
     /**
-     * Spec 164 T1: ausente é `'unset'` — o padrão da coluna, e o que a rota HTTP grava hoje (o
-     * cadastro por API ainda não expõe este campo; só o seeder da bancada e futuros chamadores
-     * internos o definem).
+     * Spec 164 T1/RF1 (spec 242): ausente é "não mexa" — o INSERT usa o padrão da coluna
+     * (`'unset'`) e o UPDATE omite a coluna, como `attachmentMode`.
      */
-    readonly redeliveryPolicy?: RedeliveryPolicy
+    readonly redeliveryPolicy?: RedeliveryPolicy | undefined
     readonly stage: TripOccurrenceStage
   },
 ): Promise<OccurrenceTypeRecord> {
@@ -1018,7 +1018,6 @@ export async function saveOccurrenceType(
     emailTemplateKey: input.emailTemplateKey,
     name: input.name.trim(),
     notifies: input.notifies,
-    redeliveryPolicy: input.redeliveryPolicy ?? 'unset',
     stage: input.stage,
   }
 
@@ -1026,6 +1025,7 @@ export async function saveOccurrenceType(
     ...(input.attachmentMode === undefined ? {} : { attachmentMode: input.attachmentMode }),
     ...(input.emailsContractor === undefined ? {} : { emailsContractor: input.emailsContractor }),
     ...(input.flow === undefined ? {} : { flow: input.flow }),
+    ...(input.redeliveryPolicy === undefined ? {} : { redeliveryPolicy: input.redeliveryPolicy }),
   }
   /**
    * Tipo que não é de separação grava sempre `false`: mudar o estágio de um tipo marcado, sem mandar

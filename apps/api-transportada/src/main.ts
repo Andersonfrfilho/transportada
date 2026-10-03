@@ -3802,6 +3802,7 @@ function createApplicationRoutes({
               name: input.name,
               notifies: input.notifies,
               occurrenceTypeId: input.occurrenceTypeId,
+              redeliveryPolicy: input.redeliveryPolicy,
               stage: input.stage,
             },
           }),
