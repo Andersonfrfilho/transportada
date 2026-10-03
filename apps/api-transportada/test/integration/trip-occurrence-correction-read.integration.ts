@@ -16,6 +16,7 @@ import { correctOccurrenceItems } from '../../src/trips/application/correct-occu
 import { persistSeparationOccurrenceWithAttachment } from '../../src/trips/application/persist-separation-occurrence-attachment.service.js'
 import { DrizzleOccurrenceCorrectionUnitOfWork } from '../../src/trips/infrastructure/drizzle-occurrence-correction.repository.js'
 import { DrizzleSeparationOccurrenceUnitOfWork } from '../../src/trips/infrastructure/drizzle-separation-occurrence.repository.js'
+import { buildOccurrenceTimeline } from '../../src/trips/domain/occurrence-timeline.policy.js'
 import { listTripOccurrences } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { findTripOccurrenceDetail } from '../../src/trips/infrastructure/trip-occurrence-detail.query.js'
 import { listTripOccurrenceFeed } from '../../src/trips/infrastructure/trip-occurrence-feed.query.js'
@@ -353,6 +354,12 @@ describe('as linhas do tempo publicam o cancelamento (spec 235 RF9, T3.2a)', () 
           reason: CANCELLATION_REASON,
         })
         expect(plainSources?.some((source) => source.kind === 'occurrence.cancelled')).toBe(false)
+        expect(buildOccurrenceTimeline({ sources: cancelledSources ?? [] }).timings.openUntil).toBe(
+          detail?.cancellation?.cancelledAt ?? null,
+        )
+        expect(
+          buildOccurrenceTimeline({ sources: plainSources ?? [] }).timings.openUntil,
+        ).toBeNull()
       })
     },
     60_000,

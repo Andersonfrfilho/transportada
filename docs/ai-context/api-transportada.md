@@ -2380,7 +2380,16 @@ do contexto. `readOccurrenceView` (a resposta das escritas) passou a usar o mesm
 (`GET /trip-occurrences/:id/timeline`, spec 183) ganhou o evento `occurrence.cancelled`
 (`reason`; ator `operation` com `cancelledByName`; data = `cancelledAt`; prioridade 5, por último no
 mesmo instante), montado a partir do `cancellation` que o leitor do feed já traz — sem consulta nova.
+<<<<<<< HEAD
 Não é evento-chave nem fecha `openUntil`: a 183 define as duas coisas pela tratativa, e isso não foi
 reaberto. O painel precisa conhecer o kind novo antes de a API ir a produção.
 
-> > > > > > > 93f260e4d (feat(trip-timeline): as duas linhas do tempo publicam o cancelamento da ocorrência)
+> > > > > > > # 93f260e4d (feat(trip-timeline): as duas linhas do tempo publicam o cancelamento da ocorrência)
+> > > > > > >
+> > > > > > > Não é evento-chave. **Fecha `openUntil`** (decisão de 2026-10-03, T6.5): `resolveTimings`
+> > > > > > > (`occurrence-timeline.policy.ts`) toma o **mais cedo** entre o terminal da tratativa e o cancelamento da
+> > > > > > > ocorrência — a cancelada deixa de aparecer "em andamento" para sempre; `driverReleasedAt` segue só da
+> > > > > > > tratativa. Contrato `test/trip-occurrence/timeline.contract.ts` e integração
+> > > > > > > `trip-occurrence-correction-read.integration.ts`. O painel precisa conhecer o kind novo antes de a API ir
+> > > > > > > a produção (etapa 1 da ordem de publicação, `specs/235-…/evidence.md` T6.1).
+> > > > > > > 871188e8f (fix(trip-occurrence): o cancelamento da ocorrência fecha o relógio da linha do tempo)
