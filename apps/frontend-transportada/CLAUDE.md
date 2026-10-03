@@ -82,7 +82,10 @@ perto do efeito". Painel **"Medida pela câmera (experimental)"** (spec 152) mor
 do `nfe-workspace`, registrado como `cameraMeasurement` em `SETTINGS_PANEL_PLACEMENT` com
 `{ module: 'nfe-workspace', source: 'cameraMeasurementSettings', tab: 'boxes' }` — exige `settings.manage`
 e controla o interruptor `cameraMeasurementEnabled` por empresa (padrão desligado). Contrato em
-`test/company-settings/tabs.contract.ts`.
+`test/company-settings/tabs.contract.ts`. Aba **Localização** (spec 239) em `/trips` (`trip` module),
+`TripLocationRetentionPanel`, `locationRetention` em `SETTINGS_PANEL_PLACEMENT` com
+`{ module: 'trip', source: 'locationRetentionSettings', tab: 'location' }` — permite `company-admin`
+ligar/desligar e ajustar prazo (30–90 dias) do expurgo de coordenadas.
 
 ## Domínio de viagem, roteirização e proposta de carga — ver a referência
 

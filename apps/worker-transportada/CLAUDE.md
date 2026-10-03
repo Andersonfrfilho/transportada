@@ -93,13 +93,14 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   - A política de anexo e a de status são cópias por valor da API, com contrato de paridade.
   - Detalhe: docs/ai-context § "A ocorrência tem duas conversas".
 
-## O expurgo de posição (spec 196, ADR-0081)
+## O expurgo de posição (spec 196, ADR-0081; spec 239 emenda)
 
 `trip.location.purge` (`trip-location-purge/`) varre **as cinco tabelas** de evento com ponto, uma por vez e
 com teto de lotes por tabela, apaga `latitude`, `longitude`, `accuracy_meters` e `captured_at` pelo prazo da empresa e
-marca `location_state = 'expired'`, preservando o evento; os pings ao vivo têm corte próprio (36 h) e **rodam sempre**. ⚠️ Quem liga o expurgo das
-cinco tabelas é a **empresa, na tela** (spec 239): o worker lê `company_location_retention_settings` a cada ciclo, num
-`UPDATE` único com `CROSS JOIN LATERAL` por tabela, e cada empresa vale pelo próprio prazo (30–90 dias) depois da
-carência de 24 h. Sem linha ou desligada, nada é apagado; não existe variável de ambiente (`TRIP_LOCATION_PURGE_ENABLED`
-saiu e, se sobrar no Railway, é ignorada). O log conta linhas por tabela e `companies`, nunca coordenada, evento ou pessoa. Detalhe:
-docs/ai-context/worker-transportada.md § "O expurgo de posição".
+marca `location_state = 'expired'`, preservando o evento; os pings ao vivo têm corte próprio (36 h) e **rodam sempre**.
+
+**Spec 239 emenda:** configuração sai da variável de ambiente (`TRIP_LOCATION_PURGE_ENABLED`, removida) para tabela
+por empresa `company_location_retention_settings`: padrão desligado, `retention_days 30–90`, carência 24 h ao ligar/encurtar.
+Junção (`innerJoin`) por `company_id` numa consulta só (D2), sem N+1; cada empresa vale pelo prazo dela. O `docs/SECURITY.md`
+registra achado de 2026-10-02 sobre pendência do WhatsApp (D9, spec própria), e a ADR-0081 §3.1 é emendada.
+Log, isolamento de tenant, contrato de paridade: detalhe em docs/ai-context/worker-transportada.md § "O expurgo de posição".

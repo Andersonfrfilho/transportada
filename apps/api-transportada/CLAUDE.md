@@ -48,6 +48,10 @@ O CORS (`applyCorsHeaders`) expõe `access-control-expose-headers: Date` (`CORS_
 `Date` da resposta, e o desvio do relógio (spec 234) nunca é medido — sem erro nenhum. Contrato em
 `test/cors.contract.test.ts`.
 
+**Expurgo de posição por empresa** (spec 239): tabela `company_location_retention_settings`, rotas
+`GET`/`PUT /company-settings/location-retention` (`settings.manage`), carência 24 h, `retention_days 30–90`. Detalhe:
+docs/ai-context/api-transportada.md (quando criado) e `docs/SECURITY.md` § "2026-10-02".
+
 **Multi-tenant:** Bearer JWT (Keycloak/JWKS) → identidade externa por issuer+subject →
 `tenantContext.resolveCompany` busca membership ativo; sem membership → 403. Todo repositório recebe
 `context.companyId` e filtra por ele. Testes de isolamento em

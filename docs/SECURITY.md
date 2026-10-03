@@ -2041,4 +2041,63 @@ estado compartilhado" segue aberto para o resto da API.
 
 **Origem:** spec 150, RF18, revisão de segurança da Fase 4. T406, 2026-09-15.
 
+### 2026-10-02 — expurgo da posição passa de interruptor para configuração por empresa (spec 239, ADR-0081 emenda)
+
+**Onde:**
+
+- `api-transportada`: rotas `GET`/`PUT /company-settings/location-retention` (`settings.manage`), tabela
+  `company_location_retention_settings` com `purge_enabled BOOLEAN DEFAULT false`, `retention_days INTEGER
+  DEFAULT 90 CHECK (30–90)`, `purge_effective_at TIMESTAMPTZ` (carência), índices parciais
+  `(company_id, <coluna de tempo>) WHERE latitude IS NOT NULL` nas cinco tabelas; auditoria com IP em
+  `metadata.ipAddress` (adicionada por esta spec, junto com a tabela nova).
+- `worker-transportada`: redatores com junção (innerJoin) por `company_id` contra a tabela nova; pings do
+  rastro ao vivo (36 h) fora do interruptor.
+- `frontend-transportada`: aba **Localização** em `/trips` (`TripLocationRetentionPanel`, módulo `trip`);
+  campo `locationRetention` em `SETTINGS_PANEL_PLACEMENT`.
+
+**O que é:**
+
+- **Antes:** expurgo das cinco tabelas de evento com ponto (latitude, longitude, precisão) e timestamp
+  capturado estava **desligado** globalmente. Ligá-lo exigia variável de ambiente (`TRIP_LOCATION_PURGE_ENABLED`,
+  padrão `false`) — decisão de infraestrutura/deploy, não de quem controla o dado na LGPD. O prazo era
+  constante de código: 90 dias (ADR-0045 §3.3, `docs/SECURITY.md:1248-1257`). O expurgo **nunca** avançou
+  porque o interruptor nunca foi ligado — a coordenada sobreviveu além do prometido (achado registrado em
+  2026-09-18 § "posição da foto do comprovante" D19–D20).
+- **Agora:** `company-admin` liga, desliga e ajusta o prazo (30–90 dias, padrão 90, padrão do sistema é
+  desligado) do expurgo **da própria empresa** num painel sem redeploy. Ligar mostra, antes de confirmar,
+  quantos pontos cairão. Toda mudança entra em `audit_logs` com ator, alvo e IP na mesma transação da
+  gravação. O worker lê a configuração a cada ciclo (innerJoin por `company_id`) e expurga cada empresa
+  pelo prazo dela, sem cruzar tenants: a mesma empresa não vê a coordenada de outra. Carência de 24 h ao
+  ligar/encurtar evita apagar antes da confirmação chegar ao log (RF6).
+- **Pings do rastro ao vivo** (36 h, tabela `trip_location_pings`) saem do interruptor e fora da tela —
+  rodam sempre, pelo motivo citado em ADR-0081 §1 (frequência menor que log de aplicação, só geolocalização
+  necessária). O painel avisa ao usuário que o pings roda independente de `purge_enabled`.
+
+**O que continua aberto:**
+
+- **Coordenada do transcript do WhatsApp** (`meta_whatsapp.messages.payload.location` e rótulo em `content`,
+  achado de 196 T3.7). Fica para spec própria (D9: fora do escopo desta). O WhatsApp grava e **não** expira
+  pelo prazo de 90 dias — o achado é o mesmo registrado em 2026-09-25 § "Conversa de ocorrência" D9, que
+  aponta para a spec 239. Registrar aqui: **coordenada do WhatsApp + rótulo devem estar **fora** do expurgo
+  de 90 dias e devem ter prazo próprio (decisão em spec 240+).**
+
+**Pré-condições de deploy em produção (Gate A, Gate B, vistos em T2.3):**
+
+- Lock de migration de `company_location_retention_settings` sem rollback acidental: `rollback.sql` recusa
+  com `RAISE EXCEPTION` se há linha com `purge_enabled = true`.
+- Gate A (`pre-deploy`): `pre-deploy` confere número de empresas ligadas e conta pontos a apagar (CA6,
+  EXPLAIN na integração do worker); se vencer, avisar e deixar re-tender.
+- Gate B: promover migrations da spec 196 antes (if hadn't already) — índices da 196 são lidos pela 239.
+- `TRIP_LOCATION_PURGE_ENABLED` está removida do `.env.example`, do schema de ambiente e da rotina do
+  worker — herança de variável nula não causa silêncio (a rotina testa `!config.tripLocationPurgeEnabled`
+  e sai; removida, não existe para testar).
+
+**Emenda à ADR-0081:**
+
+Linha 97–100 (§3.1) citava `TRIP_LOCATION_PURGE_ENABLED` como interruptor provisório até virar tela.
+Atualizar para: _"Configuração por empresa, interruptor `purge_enabled` na tabela `company_location_retention_settings`,
+sem variável de ambiente. Carência de 24 h ao ligar/encurtar; prazo 30–90 dias."_
+
+**Origem:** spec 239 D3 (var some), D5 (carência 24 h), T4.1. Registrado em 2026-10-03.
+
 _Nenhum ainda._
