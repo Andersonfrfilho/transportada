@@ -90,7 +90,8 @@ em toda lista onde ela já aparecia.
   (`redelivery_authorized`, `goods_paid`, `other`) e cada um dispara a sua devolutiva ao caso.
 - **RF9** As leituras da API publicam o que a 167 grava: detalhe e lista da nota devolvem
   `corrections` e `cancellation`; o feed devolve `cancellation`. Mesmo formato da resposta das
-  escritas, lido em lote, e a cancelada continua listada, marcada.
+  escritas, lido em lote, e a cancelada continua listada, marcada. Inclui as duas linhas do tempo (decisão de 2026-10-02): o
+  item de ocorrência da linha do tempo da viagem e o evento `occurrence.cancelled` da ocorrência.
 - **RF6** A ocorrência cancelada é marcada como tal onde quer que apareça — detalhe, lista do feed
   e linha do tempo da nota —, com o motivo acessível, nunca escondida.
 - **RF7** Os erros da API viram mensagem em português por código estável, nunca texto cru:
