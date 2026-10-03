@@ -77,11 +77,12 @@ describe('ajudante é um perfil da ficha de frota (spec 235 T8)', () => {
     expect(body).toMatchObject(EMPTY_LICENSE_BODY)
   })
 
-  test('na edição, quem não dirige tem a CNH vazia no corpo e segue ajudando', () => {
+  test('na edição, quem não dirige mantém a CNH gravada no corpo e segue ajudando', () => {
     const state = { ...createDriverDraft(), ...LICENSE_FIELDS, canActAsHelper: false }
     const body = toDriverBody({ ...state, canDrive: false })
 
-    expect(body).toMatchObject(EMPTY_LICENSE_BODY)
+    expect(body.licenseNumber).toBe('12345678900')
+    expect(body.licenseCategory).toBe('E')
     expect(body.canActAsHelper).toBe(true)
   })
 

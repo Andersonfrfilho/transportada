@@ -80,7 +80,7 @@ function buildSeed(params: SeedParams): LocalFleetDriverSeed {
         street: params.street,
       },
       anttCategory: params.anttCategory ?? '',
-      /** Spec 149/234: só o ajudante e o motorista que ajuda da semente trazem a marca; ninguém tem diária própria. */
+      /** Spec 149/235: só o ajudante e o motorista que ajuda da semente trazem a marca; ninguém tem diária própria. */
       canActAsHelper: params.canActAsHelper ?? params.profile === 'helper',
       helperDailyRate: null,
       /** Spec 100: quem amarra declara; a base de bancada nasce com ninguém amarrando. */

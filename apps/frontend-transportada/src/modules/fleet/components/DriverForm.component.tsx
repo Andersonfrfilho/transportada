@@ -261,7 +261,10 @@ export function DriverForm({
               optionLabelKey="driverProfileOption"
               options={FLEET_DRIVER_PROFILES}
               value={form.state.profile}
-              onChange={(profile) => form.patch({ profile })}
+              onChange={(profile) => {
+                form.patch({ profile })
+                if (profile === 'helper') uniqueness.clear('licenseNumber')
+              }}
             />
           ) : null}
           <FleetDateField

@@ -423,7 +423,18 @@ export function isHelperOnlyDriver(state: FleetDriverFormState): boolean {
 
 /** O vínculo fica de fora: quem o reenvia na edição é a ficha carregada, não o formulário. */
 export function toDriverBody(state: FleetDriverFormState): Omit<FleetDriverBody, 'membershipId'> {
-  const hasLicense = !isHelperOnlyDriver(state)
+  return buildDriverBody({ dropsLicense: false, state })
+}
+
+/** Só a criação de ajudante dispensa a CNH; na edição os campos ocultos levam o que a ficha guarda. */
+function buildDriverBody({
+  dropsLicense,
+  state,
+}: {
+  readonly dropsLicense: boolean
+  readonly state: FleetDriverFormState
+}): Omit<FleetDriverBody, 'membershipId'> {
+  const hasLicense = !dropsLicense
   return {
     /**
      * ⚠️ **Só vai no corpo o que o operador moveu nesta sessão.** Reenviar a coordenada gravada a
@@ -443,7 +454,7 @@ export function toDriverBody(state: FleetDriverFormState): Omit<FleetDriverBody,
       street: state.addressStreet,
     },
     anttCategory: toAnttCategory(state.anttCategory),
-    canActAsHelper: !hasLicense || state.canActAsHelper,
+    canActAsHelper: isHelperOnlyDriver(state) || state.canActAsHelper,
     helperDailyRate:
       state.helperDailyRate.trim() === ''
         ? null
@@ -494,5 +505,8 @@ export function toDriverBody(state: FleetDriverFormState): Omit<FleetDriverBody,
 
 /** A criação abre o usuário do sistema, e o perfil é o papel que ela concede. */
 export function toDriverCreateBody(state: FleetDriverFormState): FleetDriverCreateBody {
-  return { ...toDriverBody(state), profile: state.profile }
+  return {
+    ...buildDriverBody({ dropsLicense: state.profile === 'helper', state }),
+    profile: state.profile,
+  }
 }

@@ -754,3 +754,33 @@ Data: 2026-10-02. Branch `work/spec-235-ajudante`.
 - Conteúdo: cada referência a arquivo-chave verifica nome real em `git ls-tree` ou `grep` (sem inventar
   nomes); conteúdo das seções resume o evidence.md das Fases 1–3 e resolve em pouco mais que 6 linhas
   por arquivo.
+
+## Revisão final e verificação pós-rebase
+
+A verificação depois do rebase em `origin/staging` achou um defeito real e a revisão (`code-reviewer`
+`opus`) três ressalvas. Todas corrigidas:
+
+- **Cadeia de snapshots quebrada.** O `snapshot.json` da migration do ajudante partia de
+  `occurrence_location_stamp` (`prevIds 0447297e`) em vez de `delivered_moment_clock` (`b91168e2`), que
+  entrou em staging durante o rebase: duas pontas filhas do mesmo pai e o snapshot sem as colunas do
+  momento da entrega. Regerado pelo `db:generate` e copiado para a pasta da migration; `prevIds` agora
+  `b91168e2`. Antes: 5 falhas no contrato da API e 2 no `db:test`. Depois: contrato `8966 pass · 0 fail`,
+  `db:test` `116 pass · 0 fail`, `db:generate` `no_changes`. O probe `no_changes` convive com a cadeia
+  quebrada — o sinal confiável é o contrato de snapshot.
+- **CNH apagada na edição.** `toDriverBody` zerava a CNH de quem tem `canDrive = false`; a D6 manda ocultar,
+  não apagar. Só a criação com perfil `helper` dispensa a CNH (`buildDriverBody({ dropsLicense })`); o
+  teste que fixava o comportamento errado passou a afirmar que a CNH gravada é mantida.
+- **`409 FLEET_DRIVER_PROFILE_EMPTY` em Acesso** mostrava "tente de novo". `users.errors.FLEET_DRIVER_PROFILE_EMPTY`
+  em pt e en, com contrato.
+- Menores: CNH duplicada deixa de esconder o banner quando o perfil vira Ajudante; comentário da migration
+  sem a promessa de ganho de trava; comentários trocados de lugar em `TripQuickCreateDialog`; número de
+  spec antigo no seed.
+- **Registrado, não corrigido:** o papel `helper` (`trip.read`) lê `GET /delivery-charges` e as regras de
+  cobrança da empresa inteira — ampliação do furo de 2026-09-18, anotada em `docs/SECURITY.md`. O recorte
+  pelo vínculo é decisão do usuário.
+- **Falha que não é do código:** `contractor-mail-template-repository.integration.ts:149` falha num banco
+  `LC_ALL=C` (o índice `lower(name)` não dobra `Ç`) e passa em `en_US.UTF-8`; a branch não toca mail.
+- **Integração:** suíte completa da API no banco descartável (902 pass · 1 skip · 3 fail antes da correção
+  de snapshot: 2 eram o defeito acima, 1 era o locale `C`; o skip é `trip-occurrence-upload-confirm` por
+  falta de MinIO, que a CI também não sobe).
+- Frontend: `6480 pass · 0 fail` e hooks `327 pass`; typecheck e lint (0 erros) em exit 0.

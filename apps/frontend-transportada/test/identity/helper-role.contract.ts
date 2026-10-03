@@ -88,4 +88,14 @@ describe('o papel Ajudante em Acesso (spec 235 T10)', () => {
       resolveLandingWorkspace({ ...helper, current: 'nfe', hasLanded: false, source: 'default' }),
     ).toEqual({ kind: 'no-access' })
   })
+
+  test('a recusa FLEET_DRIVER_PROFILE_EMPTY da troca de papéis tem mensagem própria nos dois idiomas', () => {
+    const { errors: ptErrors } = ptLocale.users
+    const { errors: enErrors } = enLocale.users
+
+    expect(ptErrors.FLEET_DRIVER_PROFILE_EMPTY).toContain('Pode atuar como ajudante')
+    expect(ptErrors.FLEET_DRIVER_PROFILE_EMPTY).not.toBe(ptErrors.default)
+    expect(enErrors.FLEET_DRIVER_PROFILE_EMPTY).toContain('Can act as a helper')
+    expect(enErrors.FLEET_DRIVER_PROFILE_EMPTY).not.toBe(enErrors.default)
+  })
 })

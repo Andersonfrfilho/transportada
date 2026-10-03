@@ -3,8 +3,9 @@
 -- Aditiva e reversível:
 --   * `can_drive` nasce `true` em toda ficha existente — ninguém que dirige hoje deixa de dirigir.
 --   * O CHECK da D2 (`can_drive or can_act_as_helper`) entra `NOT VALID` e é validado em statement à
---     parte: `VALIDATE CONSTRAINT` toma só SHARE UPDATE EXCLUSIVE, e a validação é trivialmente
---     verdadeira porque toda linha antiga tem `can_drive = true`.
+--     parte, no padrão da casa; a validação é trivialmente verdadeira porque toda linha antiga tem
+--     `can_drive = true`. O `ADD COLUMN` acima já segura ACCESS EXCLUSIVE até o commit, então o
+--     ganho de trava do `VALIDATE` é só formal — a tabela é pequena.
 --   * Os três CHECKs de papel (`membership_roles`, `user_invitation_roles`, `company_group_roles`)
 --     só alargam: acrescentam `helper` e mantêm todos os nomes anteriores. São tabelas pequenas, como
 --     na `20260824184702_separator_role`.

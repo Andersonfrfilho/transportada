@@ -475,6 +475,10 @@ leituras pedem `trip.read` e devolvem as cobranças e as regras da **empresa int
 ou agregado lê cobrança de viagem que não é dele (BOLA, API1:2023). As rotas `/me` que também pedem
 `trip.read` recortam pelo vínculo; estas não.
 
+**Ampliação (2026-10-03, spec 235):** o papel `helper` (ajudante) também tem só `trip.read` (D7) e,
+por isso, alcança as mesmas duas leituras — o público que lê cobrança de viagem alheia passou a incluir
+quem não dirige. A decisão pendente abaixo agora vale para os três papéis de campo.
+
 **O que limita o estrago:** só usuários da própria empresa; cobrança não carrega CPF nem endereço do
 cliente final. Não foi alterado na T15 (fora do escopo das rotas do escritório).
 

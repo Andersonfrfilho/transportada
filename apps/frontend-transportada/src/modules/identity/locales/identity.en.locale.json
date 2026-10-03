@@ -186,7 +186,8 @@
       "INTERNAL_ERROR": "The API failed to process the request. If it repeats, it is a defect on our side.",
       "USER_PICTURE_TOO_LARGE": "The image is over 256 KB. Reduce it and upload again.",
       "USER_PICTURE_UNSUPPORTED_FORMAT": "Unsupported format. The picture must be PNG, JPEG or WebP — the server checks the file itself, not the name.",
-      "COMPANY_USER_SUSPENDED": "This access is suspended. Reactivate it before resending the code."
+      "COMPANY_USER_SUSPENDED": "This access is suspended. Reactivate it before resending the code.",
+      "FLEET_DRIVER_PROFILE_EMPTY": "This change would leave the fleet record with no role: it would neither drive nor help. Keep a driving role (Driver or Aggregate) or turn on \"Can act as a helper\" on the record, then try again."
     },
     "fleetLink": {
       "linked": "Linked to the existing fleet record.",

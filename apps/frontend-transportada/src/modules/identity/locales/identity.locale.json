@@ -186,7 +186,8 @@
       "INTERNAL_ERROR": "A API falhou ao processar o pedido. Se repetir, é defeito nosso — não adianta tentar de novo.",
       "USER_PICTURE_TOO_LARGE": "A imagem passa de 256 KB. Reduza o tamanho e envie de novo.",
       "USER_PICTURE_UNSUPPORTED_FORMAT": "Formato não aceito. A foto precisa ser PNG, JPEG ou WebP — o servidor confere o arquivo, não a extensão do nome.",
-      "COMPANY_USER_SUSPENDED": "Este acesso está suspenso. Reative antes de reenviar o código."
+      "COMPANY_USER_SUSPENDED": "Este acesso está suspenso. Reative antes de reenviar o código.",
+      "FLEET_DRIVER_PROFILE_EMPTY": "Esta troca deixaria a ficha de frota sem função: ela não dirigiria nem ajudaria. Mantenha um papel que dirija (Motorista ou Agregado) ou ligue \"Pode atuar como ajudante\" na ficha, e tente de novo."
     },
     "fleetLink": {
       "linked": "Vinculado à ficha de frota existente.",

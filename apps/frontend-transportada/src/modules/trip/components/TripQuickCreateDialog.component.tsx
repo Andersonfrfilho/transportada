@@ -124,9 +124,9 @@ export function TripQuickCreateDialog({
   })
   /** Spec 159 RF11, ADR-0070 §7: ordenado por nota — o seletor recomenda quem entregou em dia. */
   const activeDrivers = sortDriversByScore(drivers.filter((driver) => driver.status === 'active'))
-  /** Spec 149 D1/D11: ajudante só entre quem pode ajudar, e nunca quem já está escolhido como motorista. */
   /** Spec 235 D5: o ajudante puro está em `activeDrivers` (ajudantes) e não entre os motoristas. */
   const drivingDrivers = listActiveDrivingDrivers(activeDrivers)
+  /** Spec 149 D1/D11: ajudante só entre quem pode ajudar, e nunca quem já está escolhido como motorista. */
   const helperCandidates = listHelperCandidates({
     currentHelperIds: quickCreate.helperIds,
     driverIds: quickCreate.driverIds,
