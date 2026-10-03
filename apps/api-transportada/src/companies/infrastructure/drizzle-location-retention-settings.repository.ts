@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 
 import { companyLocationRetentionSettings } from '../../database/company-location-retention-settings.schema.js'
 import { auditLogs } from '../../database/fiscal-operation.schema.js'
@@ -124,10 +124,13 @@ export class DrizzleLocationRetentionSettingsRepository implements LocationReten
   }
 }
 
-function lockRow(
+/** `FOR UPDATE` não trava linha que ainda não existe: o lock por empresa serializa a primeira escrita. */
+async function lockRow(
   transaction: CompanySettingsTransaction,
   companyId: string,
 ): Promise<SettingsRow | undefined> {
+  await transaction.execute(sql`select pg_advisory_xact_lock(hashtext(${companyId}))`)
+
   return transaction
     .select()
     .from(companyLocationRetentionSettings)

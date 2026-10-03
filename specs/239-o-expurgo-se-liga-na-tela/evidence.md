@@ -265,3 +265,13 @@ cada uma das cinco tabelas: vencida (91 dias), de ~60 dias, dentro do prazo (3 d
 | M1b troca `make_interval(days => N)` por `days => 90`      | 1 fail (prazo 30 não alcança a de 60 d)  |
 
 Fonte restaurada regravando o original; `git status` sem diff em `src/` depois.
+
+### B1 — dois `PUT` concorrentes sem linha (confirmado)
+
+Confirmado: `FOR UPDATE` não trava linha que ainda não existe, então duas primeiras escritas liam
+`previous = undefined` ao mesmo tempo (as duas "ligavam do zero", as duas auditadas com `before: null`).
+Teste novo "concurrent first writes keep one row and a coherent before/after chain" (8 `save` em
+paralelo, prazos distintos). **Vermelho antes da correção**, saída literal: `Expected length: 1` /
+`Received length: 8` (oito auditorias com `beforeSnapshot` nulo), 6 pass / 1 fail.
+Correção: `lockRow` toma `pg_advisory_xact_lock(hashtext(companyId))` antes do `select ... for update`
+(serializa por empresa, solta no COMMIT; vale para `save` e `clear`). Verde: 7 pass / 0 fail.

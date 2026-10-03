@@ -172,6 +172,41 @@ describe('location retention settings repository integration (spec 239 T1.4)', (
     },
   )
 
+  testWithPostgres(
+    'concurrent first writes keep one row and a coherent before/after chain',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const tenant = await seedTenant(database, 'A')
+        const repository = new DrizzleLocationRetentionSettingsRepository(database.db)
+        const writes = Array.from({ length: 8 }, (_, index) =>
+          repository.save({
+            ...actorOf(tenant, `corr-race-${index}`),
+            affectedEstimate: null,
+            next: { purgeEnabled: true, retentionDays: 30 + index },
+            now: at(index * HOUR_MS),
+          }),
+        )
+
+        await Promise.all(writes)
+
+        expect(await database.db.select().from(companyLocationRetentionSettings)).toHaveLength(1)
+        const audits = await readAudits(database, tenant.companyId)
+        expect(audits).toHaveLength(8)
+        // sem linha só existe um "antes" nulo: a serialização por empresa faz o resto ver a anterior
+        expect(audits.filter((audit) => audit.beforeSnapshot === null)).toHaveLength(1)
+        const afterDays = audits.map(
+          (audit) => (audit.afterSnapshot as { retentionDays: number }).retentionDays,
+        )
+        for (const audit of audits) {
+          if (audit.beforeSnapshot === null) continue
+          expect(afterDays).toContain(
+            (audit.beforeSnapshot as { retentionDays: number }).retentionDays,
+          )
+        }
+      })
+    },
+  )
+
   testWithPostgres('a failing audit rolls the write back, on insert and on update', async () => {
     await withDisposableDatabase(async (database) => {
       const tenant = await seedTenant(database, 'A')
