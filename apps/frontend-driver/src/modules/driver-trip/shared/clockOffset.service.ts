@@ -90,7 +90,7 @@ function isStoredClockOffset(value: unknown): value is StoredClockOffset {
     typeof candidate.measuredAt === 'number' &&
     Number.isFinite(candidate.measuredAt) &&
     typeof candidate.offsetMs === 'number' &&
-    Number.isInteger(candidate.offsetMs)
+    Number.isSafeInteger(candidate.offsetMs)
   )
 }
 

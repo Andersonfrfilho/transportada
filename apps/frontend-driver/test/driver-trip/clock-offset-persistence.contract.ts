@@ -144,7 +144,16 @@ describe('o registro guardado é entrada não confiável (spec 234 D7)', () => {
       'offsetMs fracionário (a API recusa)',
       JSON.stringify({ measuredAt: MEASURED_AT_MS, offsetMs: 1.5 }),
     ],
-    ['offsetMs infinito', '{"measuredAt":1788418800000,"offsetMs":1e999}'],
+    ['offsetMs infinito', `{"measuredAt":${MEASURED_AT_MS},"offsetMs":1e999}`],
+    /** A API só aceita inteiro seguro: além dele o valor já perdeu precisão e seria um 400 em todo relato. */
+    [
+      'offsetMs 1e300 (inteiro, mas não seguro)',
+      `{"measuredAt":${MEASURED_AT_MS},"offsetMs":1e300}`,
+    ],
+    [
+      'offsetMs MAX_SAFE_INTEGER + 2',
+      `{"measuredAt":${MEASURED_AT_MS},"offsetMs":9007199254740993}`,
+    ],
     ['lista', JSON.stringify([MEASURED_AT_MS, 5])],
   ]
 
@@ -155,6 +164,14 @@ describe('o registro guardado é entrada não confiável (spec 234 D7)', () => {
       expect(openSession({ nowMs: MEASURED_AT_MS, storage }).read()).toBe(undefined)
     })
   }
+
+  it('offsetMs no limite do inteiro seguro ainda vale', () => {
+    const storage = createFakeStorage(
+      storedRecord({ measuredAt: MEASURED_AT_MS, offsetMs: Number.MAX_SAFE_INTEGER }),
+    )
+
+    expect(openSession({ nowMs: MEASURED_AT_MS, storage }).read()).toBe(Number.MAX_SAFE_INTEGER)
+  })
 
   it('armazenamento que lança na leitura vale "nunca medido"', () => {
     const storage: ClockOffsetStorage = {
