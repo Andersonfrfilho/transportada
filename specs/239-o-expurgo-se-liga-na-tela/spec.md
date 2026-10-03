@@ -94,6 +94,7 @@ worker lê a configuração a cada ciclo e expurga cada empresa pelo prazo dela,
         SELECT x.id FROM trip_stop_events x
         WHERE x.company_id = s.company_id AND x.latitude IS NOT NULL
           AND x.created_at < $now::timestamptz - make_interval(days => s.retention_days)
+        ORDER BY x.created_at
         LIMIT $limit
       ) e
       WHERE s.purge_enabled AND s.purge_effective_at <= $now::timestamptz
@@ -102,6 +103,10 @@ worker lê a configuração a cada ciclo e expurga cada empresa pelo prazo dela,
   RETURNING t.id;
   ```
 
+  - **Emenda da T2.2 ao parecer:** o `ORDER BY x.<tempo>` do `LATERAL` não estava no parecer. Medido
+    (`evidence.md`, T2.2): sem ele, com a fila esvaziada, o planejador apostava num `Seq Scan` com `LIMIT`
+    que varre a tabela inteira para achar zero linha; com ele usa índice. Efeito colateral bom: apaga o mais
+    antigo primeiro.
   - O `LATERAL` faz o planejador entrar no índice `<tabela>_company_located_<tempo>_idx` uma vez por
     empresa elegível, com `company_id` no `Index Cond`; o `LIMIT` interno impede que uma empresa com
     backlog devore o lote das outras. O `t.latitude IS NOT NULL` fora da subconsulta repete o filtro por

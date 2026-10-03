@@ -9,12 +9,14 @@ import { readFile } from 'node:fs/promises'
 import type { JobRoutineContext } from '../../src/job-run/application/job-routine.port.js'
 import { createTripLocationPurgeRoutine } from '../../src/trip-location-purge/application/trip-location-purge.routine.js'
 import {
-  TRIP_LOCATION_RETENTION_DAYS,
   TRIP_TRACKING_MAX_AGE_HOURS,
   resolveTrackingPurgeCutoff,
 } from '../../src/trip-location-purge/domain/trip-location-purge.constant.js'
 
 const NOW = new Date('2026-09-03T18:00:00.000Z')
+
+/** Spec 239 D6: o piso do prazo que a empresa escolhe — o menor corte possível da coordenada de entrega. */
+const LOCATION_RETENTION_FLOOR_DAYS = 30
 
 function buildContext(): JobRoutineContext {
   return {
@@ -33,7 +35,7 @@ function buildRoutine(input: {
   }) => Promise<number>
 }) {
   return createTripLocationPurgeRoutine({
-    enabled: true,
+    countEligibleCompanies: async () => 1,
     logger: { error() {}, info() {}, warn() {} } as never,
     now: () => NOW,
     purgeStalePings: input.purgeStalePings,
@@ -54,10 +56,11 @@ describe('o expurgo do rastro ao vivo', () => {
 
   /**
    * O ping é o trajeto, que a ADR-0050 §5 decidiu não guardar; a coordenada de entrega é o carimbo
-   * de um fato que se audita depois. Prazos iguais confundiriam as duas coisas.
+   * de um fato que se audita depois. Prazos iguais confundiriam as duas coisas — nem com o menor
+   * prazo que a empresa pode escolher.
    */
-  test('o prazo do rastro é muito mais curto que o da coordenada de entrega', () => {
-    expect(TRIP_TRACKING_MAX_AGE_HOURS / 24).toBeLessThan(TRIP_LOCATION_RETENTION_DAYS)
+  test('o prazo do rastro é mais curto que o piso do prazo da coordenada de entrega', () => {
+    expect(TRIP_TRACKING_MAX_AGE_HOURS / 24).toBeLessThan(LOCATION_RETENTION_FLOOR_DAYS)
   })
 
   test('apaga em lotes até a tabela não ter mais ping vencido', async () => {

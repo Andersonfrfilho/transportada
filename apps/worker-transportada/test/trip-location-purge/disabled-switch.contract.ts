@@ -1,10 +1,7 @@
 /**
- * Copyright (c) 2026 Ada Technology. MIT License.
- *
- * Spec 196: o expurgo nasce **desligado**, por decisão de produto — o controle vai virar página de
- * configuração. Desligado tem de significar "não leu, não contou, não apagou": uma rotina que só
- * deixa de achar linha venceria este contrato sem estar desligada, e apagar coordenada é
- * irreversível.
+ * Spec 196 + 239: o expurgo nasce **desligado** — quem liga é a empresa, na tela. Sem empresa elegível
+ * tem de significar "não leu, não contou, não apagou": uma rotina que só deixa de achar linha venceria
+ * este contrato sem estar desligada, e apagar coordenada é irreversível. O contrato conta **chamadas**.
  */
 import { describe, expect, test } from 'bun:test'
 
@@ -34,13 +31,20 @@ const MINIMAL_ENVIRONMENT = {
   WORKER_PORT: '53002',
 }
 
-function buildRoutine(enabled: boolean) {
+type RoutineSetup = {
+  readonly companies: number | Error
+}
+
+function buildRoutine(setup: RoutineSetup) {
   const logs: Call[] = []
   const calls: string[] = []
+  const countedAt: Date[] = []
+  const redactedAt: Date[] = []
   const countingRedactor = (name: string) => {
     let isFirstCall = true
-    return async () => {
+    return async (input: { readonly now: Date }) => {
       calls.push(name)
+      if (name !== 'purgeStalePings') redactedAt.push(input.now)
       if (!isFirstCall) return 0
       isFirstCall = false
       return 1
@@ -48,7 +52,12 @@ function buildRoutine(enabled: boolean) {
   }
 
   const routine = createTripLocationPurgeRoutine({
-    enabled,
+    countEligibleCompanies: async ({ now }) => {
+      calls.push('countEligibleCompanies')
+      countedAt.push(now)
+      if (setup.companies instanceof Error) throw setup.companies
+      return setup.companies
+    },
     logger: {
       error: () => undefined,
       info: (message: string, metadata?: Record<string, unknown>) => {
@@ -57,7 +66,10 @@ function buildRoutine(enabled: boolean) {
       warn: () => undefined,
     },
     now: () => new Date('2026-09-30T09:00:00.000Z'),
-    purgeStalePings: countingRedactor('purgeStalePings'),
+    purgeStalePings: async () => {
+      calls.push('purgeStalePings')
+      return calls.filter((name) => name === 'purgeStalePings').length === 1 ? 1 : 0
+    },
     redact: countingRedactor('redact'),
     redactDocumentOccurrenceLocations: countingRedactor('redactDocumentOccurrenceLocations'),
     redactProofLocations: countingRedactor('redactProofLocations'),
@@ -65,20 +77,20 @@ function buildRoutine(enabled: boolean) {
     redactStopOccurrenceLocations: countingRedactor('redactStopOccurrenceLocations'),
   })
 
-  return { calls, logs, routine }
+  return { calls, countedAt, logs, redactedAt, routine }
 }
 
-describe('o expurgo de posição nasce desligado (spec 196)', () => {
-  test('desligado: nenhum redator das cinco tabelas é chamado; só o rastro ao vivo segue', async () => {
-    const { calls, routine } = buildRoutine(false)
+describe('sem empresa elegível o expurgo não toca as cinco tabelas (spec 239 D3)', () => {
+  test('nenhuma empresa elegível: nenhum redator é chamado; o rastro ao vivo e a contagem rodam', async () => {
+    const { calls, routine } = buildRoutine({ companies: 0 })
 
     await routine.run(CONTEXT)
 
-    expect([...new Set(calls)]).toEqual(['purgeStalePings'])
+    expect([...new Set(calls)]).toEqual(['purgeStalePings', 'countEligibleCompanies'])
   })
 
-  test('desligado: o ciclo fecha succeeded, sem redigir tabela de evento, e conta os pings expurgados', async () => {
-    const { routine } = buildRoutine(false)
+  test('nenhuma empresa elegível: o ciclo fecha succeeded, sem redigir tabela de evento, e conta os pings', async () => {
+    const { routine } = buildRoutine({ companies: 0 })
 
     const result = await routine.run(CONTEXT)
 
@@ -91,29 +103,55 @@ describe('o expurgo de posição nasce desligado (spec 196)', () => {
     })
   })
 
-  test('desligado: o log diz que foi de propósito, e não finge ciclo cumprido', async () => {
-    const { logs, routine } = buildRoutine(false)
+  test('nenhuma empresa elegível: o log diz que foi de propósito, com a contagem e sem prazo', async () => {
+    const { logs, routine } = buildRoutine({ companies: 0 })
 
     await routine.run(CONTEXT)
 
     expect(logs.map((entry) => entry.message)).toEqual([DISABLED_MESSAGE])
+    expect(logs[0]?.metadata.companies).toBe(0)
+    expect(logs[0]?.metadata).not.toHaveProperty('retentionDays')
   })
 
-  test('ligado: os cinco redatores e o rastro ao vivo rodam, e o log é o do ciclo', async () => {
-    const { calls, logs, routine } = buildRoutine(true)
+  test('com empresa elegível: pings, contagem e então os cinco redatores, todos no mesmo instante', async () => {
+    const { calls, countedAt, logs, redactedAt, routine } = buildRoutine({ companies: 2 })
 
     await routine.run(CONTEXT)
 
-    expect([...new Set(calls)].toSorted()).toEqual([
-      'purgeStalePings',
+    const order = [...new Set(calls)]
+    expect(order.slice(0, 2)).toEqual(['purgeStalePings', 'countEligibleCompanies'])
+    expect(order.slice(2).toSorted()).toEqual([
       'redact',
       'redactDocumentOccurrenceLocations',
       'redactProofLocations',
       'redactStatusEventLocations',
       'redactStopOccurrenceLocations',
     ])
+    expect(new Set([...countedAt, ...redactedAt].map((date) => date.toISOString()))).toEqual(
+      new Set(['2026-09-30T09:00:00.000Z']),
+    )
     expect(logs.map((entry) => entry.message)).toContain(CYCLE_FINISHED_MESSAGE)
     expect(logs.map((entry) => entry.message)).not.toContain(DISABLED_MESSAGE)
+  })
+
+  test('o log do ciclo conta as empresas e não carrega prazo nem id de empresa', async () => {
+    const { logs, routine } = buildRoutine({ companies: 3 })
+
+    await routine.run(CONTEXT)
+
+    const cycle = logs.find((entry) => entry.message === CYCLE_FINISHED_MESSAGE)
+    expect(cycle?.metadata.companies).toBe(3)
+    expect(cycle?.metadata).not.toHaveProperty('retentionDays')
+    expect(cycle?.metadata).not.toHaveProperty('companyId')
+  })
+
+  /** Tabela de configuração ausente (deploy fora de ordem): o ciclo falha inteiro, os pings já rodaram. */
+  test('a contagem que lança falha o ciclo: pings rodaram, nenhum redator foi chamado', async () => {
+    const { calls, routine } = buildRoutine({ companies: new Error('relation does not exist') })
+
+    await expect(routine.run(CONTEXT)).rejects.toThrow()
+
+    expect([...new Set(calls)]).toEqual(['purgeStalePings', 'countEligibleCompanies'])
   })
 
   /** Variável ausente tem de significar desligado: deploy que esquece a chave não pode apagar nada. */

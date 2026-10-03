@@ -3,10 +3,25 @@
  */
 
 export type RedactTripLocationsInput = {
-  /** Evento anterior a este instante perde a coordenada. */
+  /**
+   * O instante do ciclo. O corte de cada linha é `now - retention_days` **da empresa dela** (spec 239
+   * D2), então o redator recebe o relógio e não uma data de corte única.
+   */
+  readonly now: Date
+  readonly limit: number
+}
+
+export type PurgeStalePingsInput = {
+  /** Ping anterior a este instante é apagado. */
   readonly before: Date
   readonly limit: number
 }
+
+/**
+ * Spec 239 D3: quantas empresas estão com o expurgo ligado e com a carência vencida em `now`. É o mesmo
+ * `now` dos redatores — um instante por ciclo —, e zero dispensa as cinco varreduras.
+ */
+export type CountEligibleCompanies = (input: { readonly now: Date }) => Promise<number>
 
 /**
  * Apaga **a coordenada** — latitude, longitude, precisão e a hora da leitura do GPS, nunca o evento: a viagem continua auditável — quem chegou, quando entregou
@@ -20,7 +35,7 @@ export type RedactTripLocations = (input: RedactTripLocationsInput) => Promise<n
  * não dá — ele depende de alguém fechar a viagem, e é a viagem esquecida aberta que transforma o
  * rastro em histórico de deslocamento de uma pessoa.
  */
-export type PurgeStalePings = (input: RedactTripLocationsInput) => Promise<number>
+export type PurgeStalePings = (input: PurgeStalePingsInput) => Promise<number>
 
 /**
  * Spec 159 T11 (item 8): a posição da foto do comprovante cai no mesmo prazo da coordenada do evento

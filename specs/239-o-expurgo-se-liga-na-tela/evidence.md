@@ -422,3 +422,123 @@ T1.2 entregou).
 | tirar `companyId` de uma cópia do worker                                                  | 2 testes reprovam (contagem 28 ≠ 29; lista de colunas da tabela)                |
 | `.default(false)` na cópia da tabela de configuração                                      | reprova "the copy declares only the columns the worker reads, with no defaults" |
 | trocar `buildEventLocationCompanyIndex` por `buildEventLocationIndex` na API (uma tabela) | reprova "company_id e o índice composto por empresa"                            |
+
+### T2.2 — Redatores por empresa, `CountEligibleCompanies` e integração (🧠, desenho do parecer do architect)
+
+**O que entrou.** `drizzle-trip-location.repository.ts`: os cinco redatores viram um `UPDATE` único com
+`CROSS JOIN LATERAL` (`buildLocatedEventRedactionStatement`, exportado para o `EXPLAIN` do teste);
+`createDrizzleCountEligibleCompanies`; `src/database/sql-timestamptz-parameter.support.ts` (cópia worker de
+`timestamptzParameter`). Port: `{ now, limit }` nos redatores (`{ before, limit }` fica só no ping) e
+`CountEligibleCompanies`. Rotina: ordem pings → contagem (mesmo `now`) → redatores; sem empresa elegível
+vira o desvio `trip_location_purge_disabled` (com `companies: 0`); log do ciclo com `companies`, sem
+`retentionDays` nem `companyId`. A rotina perdeu `enabled`; o `TRIP_LOCATION_RETENTION_DAYS` e
+`resolveRetentionCutoff` saíram (o prazo vem da linha). `main.ts` liga a contagem; a variável de ambiente
+segue no schema até a T2.3.
+
+**SQL final** (`trip_stop_events`; as outras mudam só a tabela, a coluna de tempo e o `captured_at`):
+
+```sql
+update "trip_stop_events" as t
+set "latitude" = null, "longitude" = null, "accuracy_meters" = null, "captured_at" = null,
+    "location_state" = $1                                   -- 'expired'
+where t."latitude" is not null
+  and t."id" in (
+    select e.id
+    from "company_location_retention_settings" as s
+    cross join lateral (
+      select x."id" as id
+      from "trip_stop_events" as x
+      where x."company_id" = s."company_id"
+        and x."latitude" is not null
+        and x."created_at" < $2::timestamptz - make_interval(days => s."retention_days")
+      order by x."created_at"
+      limit $3
+    ) as e
+    where s."purge_enabled" and s."purge_effective_at" <= $4::timestamptz
+    limit $5
+  )
+returning t."id"
+```
+
+| Tabela                      | Coluna de tempo | `captured_at` no `SET` |
+| --------------------------- | --------------- | ---------------------- |
+| `trip_stop_events`          | `created_at`    | sim                    |
+| `trip_delivery_proofs`      | `created_at`    | **não** (fica)         |
+| `trip_status_events`        | `recorded_at`   | sim                    |
+| `trip_stop_occurrences`     | `created_at`    | sim                    |
+| `trip_document_occurrences` | `created_at`    | sim                    |
+
+Contagem: `select count(*)::int from company_location_retention_settings where purge_enabled and
+purge_effective_at <= $now::timestamptz`.
+
+**Testes.** `test/trip-location-purge.integration.test.ts`: os dois describes antigos ganharam a linha de
+configuração (90 d, vigente há 1 h); novo describe do CA6 com seis empresas (A–F, relógio injetado) nas
+cinco tabelas — A ligada 30 d (31 d cai; 29 d, exatamente 30 d e sem ponto ficam), B desligada, C em
+carência, D sem linha, E ligada 90 d (91 d cai, 60 d fica), F com `effective_at = NOW` (elegível); log com
+`companies = 3`, `redactedByTable` = 3 por tabela, segunda execução zera; describe do `EXPLAIN`.
+`test/trip-location-purge/statement-shape.contract.ts` (sem banco: `LATERAL`, `company_id`, dois
+`::timestamptz`, sem `FOR UPDATE`/`SKIP LOCKED`, `captured_at` só nas quatro tabelas, coluna de tempo certa).
+`disabled-switch.contract.ts` conta **chamadas** (zero elegíveis: `[purgeStalePings, countEligibleCompanies]`,
+nenhum redator; mesmo instante; contagem que lança falha o ciclo com os pings já rodados). `purge`,
+`stale-pings` (36 h contra o piso de 30 dias), `batch-ceiling` e `table-isolation` ajustados.
+
+**Mutações** (editar, rodar, regravar o original):
+
+| Mutação                                         | Reprova                                                                        |
+| ----------------------------------------------- | ------------------------------------------------------------------------------ |
+| M1 tirar `x.company_id = s.company_id`          | CA6 (B, C, D perdem ponto) + 5 testes de `EXPLAIN` (sem `company_id` na cond.) |
+| M2 tirar `s.purge_enabled`                      | CA6 (B)                                                                        |
+| M3 tirar `s.purge_effective_at <= now`          | CA6 (C)                                                                        |
+| M4 `s.retention_days` por constante 30          | CA6 (E) e o describe 90 d da 196                                               |
+| M5 `<` por `<=`                                 | CA6 (exatamente 30 d)                                                          |
+| M6 comprovante passa a zerar `captured_at`      | os 3 describes de integração                                                   |
+| M7 evento deixa de zerar `captured_at`          | os 2 describes de cinco tabelas                                                |
+| M8 sonda sem `x.latitude is not null`           | os 5 testes de `EXPLAIN` (o índice parcial deixa de servir)                    |
+| Contagem sem `purge_effective_at <= now`        | CA6 (`companies` 4 em vez de 3)                                                |
+| S1 `FOR UPDATE` na subconsulta                  | `statement-shape`                                                              |
+| S2 sem `::timestamptz`                          | `statement-shape`                                                              |
+| S3 sem `order by`                               | `statement-shape`                                                              |
+| S4 sem `x.company_id = s.company_id`            | `statement-shape`                                                              |
+| S5 sem o filtro de latitude do `UPDATE` externo | `statement-shape`                                                              |
+| R1 desvio `companies === 0` desligado           | 3 testes do `disabled-switch`                                                  |
+| R2 contagem com outro `now`                     | "todos no mesmo instante"                                                      |
+| R3 log do ciclo sem `companies`                 | "o log do ciclo conta as empresas"                                             |
+| R4 `retentionDays` de volta no log do desvio    | "o log diz que foi de propósito"                                               |
+
+**`EXPLAIN` com `SET LOCAL enable_seqscan = off`** (teste de integração, cinco tabelas, 5 000 linhas por tabela):
+o nome `<tabela>_company_located_<tempo>_idx` aparece no plano e a condição de índice da sonda do `LATERAL`
+tem `company_id`. ⚠️ **O teste derruba, dentro da transação (volta no rollback), o índice só por tempo
+da tabela.** Com ele no caminho o planejador o escolhe, não o composto, e sem derrubar nada o teste ficaria
+vermelho ou provaria o índice errado: o teste prova que o composto **serve** (predicado parcial e ordem de
+colunas casam com o comando), **não** que o planejador o prefira. Sem a derrubada, no banco pequeno de
+teste o planejador escolheu o `(company_id, id)` por empate de custo.
+
+**`EXPLAIN (ANALYZE)` sem toggle, volume sintético — NÃO é o volume de staging.** Banco descartável
+local (Postgres 17.10), 400 000 linhas por tabela, duas empresas: B desligada com 90 % das linhas e A ligada
+(30 d) com 10 %, linhas inseridas em ordem cronológica, `ANALYZE` feito; não há volume de staging medido.
+
+| Situação                                                                     | Plano da sonda do `LATERAL` (nas cinco tabelas)                                                                        | Tempo por tabela                      |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| Fila de A (500 linhas elegíveis)                                             | `Index Scan` em `<tabela>_located_<tempo>_idx` (**só por tempo**), filtro `company_id`; `Rows Removed by Filter` 4 500 | 12–170 ms                             |
+| Fila esvaziada (A purgada; B guarda 270 003 linhas com ponto e mais de 30 d) | idem, 0 linhas, `Rows Removed by Filter` ≈ 270 000                                                                     | 84–124 ms                             |
+| Fila esvaziada, **sem o `ORDER BY`**                                         | `Seq Scan` na tabela inteira (9 925 buffers, 400 000 linhas filtradas)                                                 | ≈ 50 ms (cresce com a tabela inteira) |
+| Fila esvaziada, índice só por tempo removido (transação, rollback)           | `Index Scan using <tabela>_company_located_<tempo>_idx`, `Index Cond: company_id = … AND created_at < …`               | **1–2 ms** (a primeira, fria, 58 ms)  |
+
+Leitura honesta: **o planejador não escolhe o índice composto** enquanto o índice só por tempo existir (a
+correlação física de `created_at` é ≈ 1 e a de `company_id` é baixa, então o custo do composto parece pior).
+O custo da sonda vazia passa a ser proporcional às linhas com ponto, vencidas, **de empresas não elegíveis**
+(aqui 270 mil → ≈ 90–120 ms por tabela por ciclo diário); numa instalação com uma empresa só é desprezível.
+**Recomendação (fora desta spec, é migration):** `DROP INDEX` dos cinco índices `<tabela>_located_<tempo>_idx`
+depois da T2.2 — com eles fora, o composto é escolhido e a sonda vazia cai a 1–2 ms.
+
+**Gates (worker):** `bun run typecheck` limpo; `bun run lint` limpo; `bun run test` 1568 pass / 0 fail;
+`bun run format:check` (raiz) limpo.
+
+**Integração do worker.** `make worker-integration` **não rodou até o fim**: o banco compartilhado
+`transportada_worker_integration` (provisionado pelo script e reaproveitado entre worktrees) está num estado
+que não migra — `column "latitude" of relation "trip_status_events" already exists` na migration da 196,
+sem relação com esta mudança. Em vez de tocar nele, a mesma receita rodou num banco descartável próprio
+(`transportada_s239_t22`, criado do zero e migrado com `db:migrate`): `bun run test:integration` do worker,
+**168 pass / 1 fail** — a falha é `osrm-routing-matrix.integration.test.ts` ("a matriz do OSRM contra o
+serviço de verdade", `Expected: 4511.2, Received: 1143650`), serviço OSRM local que responde com outro
+dataset, sem relação com o expurgo. `trip-location-purge.integration.test.ts` passou inteiro (10 testes).

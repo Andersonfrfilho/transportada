@@ -227,6 +227,7 @@ import { DrizzleSettlementCandidateRepository } from './whatsapp-command-settlem
 import { createWhatsAppCommandSettlementApiGateway } from './whatsapp-command-settlement/infrastructure/whatsapp-command-settlement-api.gateway.js'
 import { TRIP_LOCATION_PURGE_JOB } from './trip-location-purge/domain/trip-location-purge.constant.js'
 import {
+  createDrizzleCountEligibleCompanies,
   createDrizzlePurgeStalePings,
   createDrizzleRedactDeliveryProofLocations,
   createDrizzleRedactDocumentOccurrenceLocations,
@@ -1214,7 +1215,9 @@ export async function startWorkerRuntime(
                 }),
               }),
           [TRIP_LOCATION_PURGE_JOB]: createTripLocationPurgeRoutine({
-            enabled: config.tripLocationPurgeEnabled,
+            countEligibleCompanies: createDrizzleCountEligibleCompanies(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
             purgeStalePings: createDrizzlePurgeStalePings(
               database.db as ReturnType<typeof createDrizzleProvider>['db'],
             ),

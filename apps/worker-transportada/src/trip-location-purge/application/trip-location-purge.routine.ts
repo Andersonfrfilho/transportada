@@ -10,19 +10,18 @@ import { safeLogError, safeLogInfo } from '../../logging/safe-logger.service.js'
 import type { JobOutcome } from '../../shared/job-catalog.constant.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'
 import {
-  resolveRetentionCutoff,
   resolveTrackingPurgeCutoff,
   TRIP_DELIVERY_PROOFS_TABLE,
   TRIP_DOCUMENT_OCCURRENCES_TABLE,
   TRIP_LOCATION_PURGE_BATCH_SIZE,
   TRIP_LOCATION_PURGE_MAX_BATCHES,
-  TRIP_LOCATION_RETENTION_DAYS,
   TRIP_STATUS_EVENTS_TABLE,
   TRIP_STOP_EVENTS_TABLE,
   TRIP_STOP_OCCURRENCES_TABLE,
   TRIP_TRACKING_MAX_AGE_HOURS,
 } from '../domain/trip-location-purge.constant.js'
 import type {
+  CountEligibleCompanies,
   PurgeStalePings,
   RedactDeliveryProofLocations,
   RedactDocumentOccurrenceLocations,
@@ -37,23 +36,22 @@ const DISABLED_MESSAGE = 'trip_location_purge_disabled'
 
 export type TripLocationPurgeRoutineDependencies = {
   /**
-   * Spec 196: o expurgo de 90 dias das cinco tabelas nasce desligado (o rastro ao vivo, não) e o
-   * controle vai virar página de configuração. Obrigatório de
-   * propósito — opcional com padrão ligado faria uma fiação esquecida apagar coordenada em silêncio.
+   * Spec 239 D3: quem liga o expurgo é a empresa, na tela. Obrigatório de propósito — sem esta contagem a
+   * rotina não teria como saber que ninguém ligou, e uma fiação esquecida varreria as cinco tabelas à toa.
    */
-  readonly enabled: boolean
+  readonly countEligibleCompanies: CountEligibleCompanies
   readonly logger: WorkerLogger
   readonly now: () => Date
   /** ADR-0056 §2: o rastro ao vivo, com prazo próprio e muito mais curto que o da coordenada. */
   readonly purgeStalePings: PurgeStalePings
   readonly redact: RedactTripLocations
-  /** Spec 196 D8: o ponto da ocorrência de nota, no mesmo corte de 90 dias. */
+  /** Spec 196 D8: o ponto da ocorrência de nota, no prazo da empresa. */
   readonly redactDocumentOccurrenceLocations: RedactDocumentOccurrenceLocations
-  /** Spec 159 T11: a posição da foto do comprovante, no mesmo corte de 90 dias. */
+  /** Spec 159 T11: a posição da foto do comprovante, no prazo da empresa. */
   readonly redactProofLocations: RedactDeliveryProofLocations
-  /** Spec 196 D8: o ponto da mudança de status da viagem, no mesmo corte de 90 dias. */
+  /** Spec 196 D8: o ponto da mudança de status da viagem, no prazo da empresa. */
   readonly redactStatusEventLocations: RedactStatusEventLocations
-  /** Spec 196 D8: o ponto da ocorrência de parada, no mesmo corte de 90 dias. */
+  /** Spec 196 D8: o ponto da ocorrência de parada, no prazo da empresa. */
   readonly redactStopOccurrenceLocations: RedactStopOccurrenceLocations
 }
 
@@ -63,9 +61,9 @@ type TableRedactor = {
 }
 
 type RedactTableParams = {
-  readonly before: Date
   readonly context: JobRoutineContext
   readonly logger: WorkerLogger
+  readonly now: Date
   readonly redactor: TableRedactor
 }
 
@@ -110,10 +108,10 @@ async function runCycle(input: {
   const now = dependencies.now()
 
   /**
-   * ADR-0056 §2: o rastro ao vivo vence **antes** e **fora** do interruptor. O interruptor suspende só
-   * o expurgo de 90 dias das cinco tabelas de evento (decisão de 2026-10-03): ping vencido é posição
-   * contínua do motorista em casa e nunca esperou decisão de produto. Ele **não** depende de a viagem
-   * fechar — `purgeByTrip` já cobre o fechamento, e o que sobra é a viagem que ninguém fechou.
+   * ADR-0056 §2: o rastro ao vivo vence **antes** e **fora** do prazo da empresa. O expurgo das cinco
+   * tabelas de evento é decisão de cada empresa (spec 239): ping vencido é posição contínua do motorista
+   * em casa e nunca esperou configuração. Ele **não** depende de a viagem fechar — `purgeByTrip` já cobre
+   * o fechamento, e o que sobra é a viagem que ninguém fechou.
    */
   const { batches: pingBatches, purged: purgedPings } = await purgeStalePingsLoop({
     context,
@@ -122,21 +120,28 @@ async function runCycle(input: {
   })
 
   /**
-   * Desligado não é "rodou e não achou nada": nenhuma leitura, nenhum lote, nenhuma escrita nas cinco
-   * tabelas de evento. O ciclo fecha `succeeded` porque não houve falha — e o log diz por que não
+   * A contagem usa o mesmo `now` dos redatores: um instante por ciclo. Se ela lançar (tabela de
+   * configuração ausente, deploy fora de ordem), o ciclo falha inteiro e nada é apagado — os pings já
+   * rodaram, e eles não dependem da configuração.
+   */
+  const companies = await dependencies.countEligibleCompanies({ now })
+
+  /**
+   * Ninguém elegível não é "rodou e não achou nada": nenhuma leitura, nenhum lote, nenhuma escrita nas
+   * cinco tabelas de evento. O ciclo fecha `succeeded` porque não houve falha — e o log diz por que não
    * redigiu nada, senão a próxima pessoa a investigar "o expurgo parou" não tem como saber que foi de
    * propósito.
    */
-  if (!dependencies.enabled) {
+  if (companies === 0) {
     safeLogInfo({
       logger: dependencies.logger,
       message: DISABLED_MESSAGE,
       metadata: {
+        companies,
         correlationId: context.correlationId,
         executionId: context.executionId,
         pingBatches,
         purgedPings,
-        retentionDays: TRIP_LOCATION_RETENTION_DAYS,
       },
     })
 
@@ -146,7 +151,6 @@ async function runCycle(input: {
     }
   }
 
-  const before = resolveRetentionCutoff(now)
   const redactedByTable: Record<string, number> = {}
   const exhaustedTables: string[] = []
   const failedTables: string[] = []
@@ -154,7 +158,7 @@ async function runCycle(input: {
 
   // Uma tabela por vez, de propósito: cinco varreduras em paralelo segurariam a escrita do motorista.
   for (const redactor of listTableRedactors(dependencies)) {
-    const result = await redactTable({ before, context, logger: dependencies.logger, redactor })
+    const result = await redactTable({ context, logger: dependencies.logger, now, redactor })
     redactedByTable[redactor.table] = result.redacted
     if (result.exhausted) exhaustedTables.push(redactor.table)
     if (result.failed) failedTables.push(redactor.table)
@@ -170,6 +174,7 @@ async function runCycle(input: {
     message: 'trip_location_purge_cycle_finished',
     metadata: {
       batches: stopEventBatches,
+      companies,
       correlationId: context.correlationId,
       executionId: context.executionId,
       exhausted: exhaustedTables.length > 0,
@@ -180,7 +185,6 @@ async function runCycle(input: {
       redacted: redactedByTable[TRIP_STOP_EVENTS_TABLE] ?? 0,
       redactedByTable,
       redactedProofs: redactedByTable[TRIP_DELIVERY_PROOFS_TABLE] ?? 0,
-      retentionDays: TRIP_LOCATION_RETENTION_DAYS,
       trackingMaxAgeHours: TRIP_TRACKING_MAX_AGE_HOURS,
     },
   })
@@ -225,14 +229,14 @@ async function purgeStalePingsLoop(input: {
  * uma. Parada é lida no limite do lote: o que já foi apagado está apagado, e o resto espera a batida.
  */
 async function redactTable(params: RedactTableParams): Promise<RedactTableResult> {
-  const { before, context, logger, redactor } = params
+  const { context, logger, now, redactor } = params
   let redacted = 0
   let batches = 0
 
   try {
     while (batches < TRIP_LOCATION_PURGE_MAX_BATCHES && !context.isStopRequested()) {
       const redactedInBatch = await redactor.redact({
-        before,
+        now,
         limit: TRIP_LOCATION_PURGE_BATCH_SIZE,
       })
       if (redactedInBatch === 0) break

@@ -47,7 +47,7 @@ latitude IS NOT NULL`; `rollback.sql` que recusa com linha; asserção de rollba
       assinatura para a tabela nova (sem `updated_by_user_id`, sem `.default(...)`), mutação tirando
       `companyId` de uma cópia; `stamped-tables.contract.ts`: o bloco de cada tabela carimbada na API tem
       `companyId: uuid('company_id').notNull()` e `buildEventLocationCompanyIndex`/`_company_located_`.
-- [ ] **T2.2** 🧠 Redatores com `UPDATE` único `CROSS JOIN LATERAL` por empresa e corte por
+- [x] **T2.2** 🧠 Redatores com `UPDATE` único `CROSS JOIN LATERAL` por empresa e corte por
       `retention_days` (D2); port `{ now, limit }`; `CountEligibleCompanies` no mesmo `now`. Integração com
       cinco empresas A–E nas cinco tabelas (CA6) e relógio injetado, cinco mutações;
       `EXPLAIN` (`SET LOCAL enable_seqscan = off`) conferindo o nome `*_company_located_*` e `company_id` no

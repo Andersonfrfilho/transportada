@@ -39,7 +39,7 @@ function buildRoutineWithFailingStatusEvents() {
     }
 
   const routine = createTripLocationPurgeRoutine({
-    enabled: true,
+    countEligibleCompanies: async () => 1,
     logger: {
       error: (message, metadata) => logs.error.push({ message, metadata: metadata ?? {} }),
       info: (message, metadata) => logs.info.push({ message, metadata: metadata ?? {} }),
