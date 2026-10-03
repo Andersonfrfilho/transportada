@@ -41,11 +41,17 @@ gates, e verificação entre eles:
 2. **Banco, worker e API** (Fases 1–4). Depois do deploy, antes de qualquer app:
    - conferir que a migration aplicou (o pre-deploy reprova migration pendente) e que o ciclo do
      expurgo rodou sem `42703` nos logs do worker;
-   - **a sonda**, sem efeito colateral: `POST /me/trips/current/dispatch` com
-     `{ tripId: <uuid inexistente>, location: {...} }` e um token de motorista de teste. A API antiga
-     responde `400` (a chave `location` é desconhecida); a nova passa do parse e responde
-     `404`/`409`/`422`. Idem em `POST .../stops/<uuid>/occurrences`. Registrar as duas respostas em
-     `evidence.md`.
+   - **a sonda**, sem efeito colateral (roteiro corrigido na revisão final de 2026-10-03; **não executada**):
+     `POST /me/trips/current/stops/<uuid aleatório>/occurrences` com um token de motorista de teste,
+     `Content-Type: application/json`, `Idempotency-Key: <UUID canônico aleatório>` e corpo
+     `{ "kind": "other", "location": { "capturedAt": "<ISO>", "latitude": -23.55, "longitude": -46.63 } }`.
+     Aceitar `404`, `409` ou `422` como "a API nova passou do parse". Se vier `400`, ler
+     `details[].message` procurando a palavra `location` — **nunca** `field`, que o parse estrito não
+     preenche para chave desconhecida; `400` por outro motivo (corpo, chave de idempotência) não
+     prova API antiga. **Requisição de controle** (mesmo token e cabeçalhos, **sem** `location`, caminho
+     com `stopId` falso): tem de responder `404`; se o controle não der `404`, a sonda não vale. Idem para
+     `POST /me/trips/current/dispatch` com `{ tripId: <uuid inexistente>, location: {...} }`. Registrar as
+     respostas em `evidence.md`.
 3. **App do motorista e tela do painel** (Fases 5–6), só depois da sonda e do ok do usuário nos prints.
    Numa task final (T6.4), o validador do painel passa a **exigir** as duas chaves.
 

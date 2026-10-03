@@ -2827,3 +2827,28 @@ blocos (aviso D4d da 234 e ponto da 196). A API não mudou entre as duas passada
 para ela. Portões refeitos: `format:check` ok; `lint` exit 0 (0 errors, 16 warnings); `typecheck`
 exit 0; `build` exit 0; `test` exit 0 — motorista 1165/0, resto igual ao acima;
 `db:generate` → `no_changes`.
+
+## Revisão final opus (2026-10-03) — roteiro da sonda da T4.3 e observações
+
+### Sonda da T4.3: roteiro correto (não executada)
+
+O roteiro antigo (`dispatch` com `location` e leitura do `400`) não separava API antiga de API nova com
+segurança. O correto, também em `plan.md` § Ordem de deploy:
+
+1. Alvo: `POST /me/trips/current/stops/<uuid aleatório>/occurrences`, token de motorista de teste.
+2. Cabeçalhos: `Content-Type: application/json` e `Idempotency-Key: <UUID canônico aleatório>`.
+3. Corpo: `{ "kind": "other", "location": { "capturedAt": "<ISO>", "latitude": -23.55, "longitude": -46.63 } }`.
+4. Leitura: `404`/`409`/`422` = a API nova passou do parse. `400` = ler `details[].message` e procurar
+   `location` (chave desconhecida no parse estrito); **nunca** `field`.
+5. **Controle:** a mesma requisição **sem** `location`, com `stopId` falso, tem de dar `404`. Sem o
+   controle, um `400` por corpo ou cabeçalho torto seria lido como "API antiga".
+
+### Observações registradas, sem correção (decisão do usuário pendente)
+
+- **`confirm-load` e `start-route` aceitam e descartam `tappedAt`/`clockOffsetMs` da 234.** Achado da revisão
+  final; o esquema da 234 aceita os campos (`me-trip.schema.ts`) e o descarte no caso de uso não foi reverificado aqui. Decisão pendente: aceitar-sem-gravar
+  (como está) ou responder `400`.
+- **`captured_at` apagado pelo expurgo afeta métricas antigas quando o expurgo for ligado.** O expurgo de
+  90 dias zera `captured_at` junto com a coordenada, e o momento do evento (`deliveredMomentSql`, pontualidade)
+  lê essa coluna. Ao ligar `TRIP_LOCATION_PURGE_ENABLED`, a leitura histórica de mais de 90 dias muda.
+  Decisão de produto pendente.
