@@ -19,7 +19,7 @@ commit isolado e evidência em `evidence.md`. Tela só vai a staging depois de o
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T3** Diária geral do ajudante (D2, RF-2): cliente, hook, painel e montagem na aba de motoristas.
+- [x] **T3** Diária geral do ajudante (D2, RF-2): cliente, hook, painel e montagem na aba de motoristas.
 - [ ] **T4** `NoWorkspaceAccess` com variante de acompanhamento e botão para o app do motorista (D5).
 - [ ] **T5** A3, A6 e A7 (D6, D7, D8) — um commit por achado.
 

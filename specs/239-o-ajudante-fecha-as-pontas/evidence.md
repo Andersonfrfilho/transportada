@@ -110,3 +110,34 @@ lê `driver`.
 - `bun run typecheck` (raiz, as sete apps): exit 0. `eslint` dos tocados (cwd da API): exit 0.
   `prettier --check` dos tocados: limpo.
 - Sem migration.
+
+## T3 — Diária geral do ajudante no painel (D2, RF-2)
+
+**O que entrou** (`apps/frontend-transportada/src/modules/fleet/`): `shared/crewSettings.validation.ts`
+(chaves exatas), `shared/crewSettingsClient.service.ts` (`GET`/`PUT /company-crew-settings`, erro com o
+código da API), `shared/crewSettingsForm.service.ts` (`180,00` ↔ `180.0000`, vazio ↔ `null`),
+`hooks/useCrewSettings.hook.ts` (query `[chave, companyId]`, `setQueryData` no sucesso),
+`components/DriverCrewSettingsPanel.component.tsx` e locales `crewSettings.*` pt/en. Montado na aba
+`drivers` de `FleetWorkspace.page.tsx`, acima da lista.
+
+**Decisão D2, divergência deliberada:** consulta liga com `canReadFleet` (`fleet.read`) e aba aberta;
+campo editável e botão só com `canManageFleet` (`fleet.manage`) — a permissão da API, nunca
+`settings.manage`/`canManageSettings`. Não entra em `SETTINGS_PANEL_PLACEMENT`; `settingsTabsOf('fleet')`
+não mudou e os contratos fuel-tab, regions-tab e toll-booth-charge-tab seguem verdes.
+
+**Contrato** `test/fleet/driver-crew-settings-panel.contract.tsx` (entra em `test/fleet.contract.test.ts`):
+rótulos nos dois locales; cliente (caminho, método, corpo estrito, código de erro, resposta inválida);
+validação; conversão do campo; painel renderizado (com valor, vazio, sem `fleet.manage`, carregando,
+falha de leitura, erro com código, salvo); montagem na aba com a permissão certa.
+
+**Vermelho antes do código:** `Cannot find module '.../DriverCrewSettingsPanel.component'` (0 pass / 1 fail).
+
+**Mutação** (cada uma restaurada e conferida com `cmp`; base 653 pass):
+
+- painel mostra botão sem checar `canManage` → 1 fail (sem fleet.manage);
+- hook ligado por `canManageSettings` → 1 fail (montagem com a permissão da API);
+- conversão com escala 2 em vez de 4 → 1 fail (`180,00` ↔ `180.0000`);
+- cliente com `POST` no lugar de `PUT` → 1 fail (cliente).
+
+**Gates:** `bun run test` do painel 6579 pass / 0 fail (+ hooks 359 / 0); `tsc --noEmit` limpo; eslint
+dos tocados 0 erros (3 avisos já existentes em arquivos não tocados); prettier limpo.

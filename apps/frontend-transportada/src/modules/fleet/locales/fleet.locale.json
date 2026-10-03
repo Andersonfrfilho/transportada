@@ -179,6 +179,15 @@
   "costPerKilometer": "Custo por quilômetro",
   "costSummaryTitle": "Resumo dos custos",
   "costsUpdatedAt": "Custos atualizados em",
+  "crewSettings": {
+    "error": "Não foi possível salvar a diária do ajudante. Código: {{code}}.",
+    "hint": "Vale para quem não tem diária própria na ficha. Vazio: sem valor padrão — a conta da viagem aponta a lacuna.",
+    "label": "Diária geral (R$/dia)",
+    "loadError": "Não foi possível carregar a diária do ajudante.",
+    "save": "Salvar diária",
+    "saved": "Diária do ajudante salva.",
+    "title": "Diária do ajudante"
+  },
   "currencyPrefix": "R$",
   "dateField": {
     "chooseYear": "Escolher o ano",

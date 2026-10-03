@@ -176,6 +176,15 @@
   "costPerKilometer": "Cost per kilometre",
   "costSummaryTitle": "Cost summary",
   "costsUpdatedAt": "Costs updated on",
+  "crewSettings": {
+    "error": "Could not save the helper daily rate. Code: {{code}}.",
+    "hint": "Applies to anyone without their own daily rate on the profile. Empty: no default value — the trip account flags the gap.",
+    "label": "General daily rate (R$/day)",
+    "loadError": "Could not load the helper daily rate.",
+    "save": "Save daily rate",
+    "saved": "Helper daily rate saved.",
+    "title": "Helper daily rate"
+  },
   "currencyPrefix": "R$",
   "dateField": {
     "chooseYear": "Choose the year",

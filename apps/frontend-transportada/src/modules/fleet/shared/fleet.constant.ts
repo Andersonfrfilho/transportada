@@ -21,6 +21,8 @@ export const TOLL_BOOTH_CATALOG_PATH = '/toll-booths'
 /** Spec 154 RF3/RF4: extratos registrados e o botão que recarrega o catálogo a partir de um deles. */
 export const TOLL_BOOTH_EXTRACTS_PATH = '/toll-booths/extracts'
 export const TOLL_BOOTH_RELOAD_PATH = '/toll-booths/reload'
+/** Spec 149/239: a diária geral do ajudante; `fleet.read` lê e `fleet.manage` grava. */
+export const COMPANY_CREW_SETTINGS_PATH = '/company-crew-settings'
 export const FLEET_READ_PERMISSION = 'fleet.read'
 export const FLEET_MANAGE_PERMISSION = 'fleet.manage'
 
