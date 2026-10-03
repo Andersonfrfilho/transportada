@@ -6,7 +6,7 @@ import type {
   LeftoverStop,
 } from '@/modules/routing/shared/suggestionLeftover.service'
 
-import type { OccurrenceAttachmentMode } from './occurrence.constant'
+import type { OccurrenceAttachmentMode, OccurrenceItemsMode } from './occurrence.constant'
 import type { OccurrenceQuantityUnit, TripCrewRole } from './trip.constant'
 /**
  * ADR-0043 §1: `open`/`closed` migraram para os estados da viagem (`open → draft`,
@@ -196,6 +196,10 @@ export type TripOccurrence = Readonly<{
   /** Spec 167: `null` é "não foi cancelada" — ausente é "esta API ainda não publica o campo". */
   cancellation?: null | OccurrenceCancellation
   stage: 'delivery' | 'separation'
+  /** Spec 241 RF5: ausente é API anterior ao campo e lê `true`. */
+  typeAllowsMultipleItems?: boolean
+  /** Spec 241 RF5: o tipo **atual** carrega itens? Ausente é API anterior ao campo e lê `optional`. */
+  typeItemsMode?: OccurrenceItemsMode
   /** O nome que a empresa deu ao tipo — a tela imprime isto, nunca um id. */
   typeName: string
 }>

@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { OCCURRENCE_ITEMS_MODES } from './occurrence.constant'
 import { TRIP_ERROR } from './trip.constant'
-import { isOccurrenceAttachment, isRecord, isString } from './tripGuards.validation'
+import { isOccurrenceAttachment, isOneOf, isRecord, isString } from './tripGuards.validation'
 import { isOccurrenceCancellation, isOccurrenceCorrection } from './tripResponse.validation'
 import {
   EMPTY_OCCURRENCE_CONVERSATION,
@@ -190,10 +191,14 @@ function isFeedItem(value: unknown): value is RawFeedItem {
     isNullableString(value.invoiceNumber) &&
     isNullableString(value.invoiceSeries) &&
     typeof value.notifies === 'boolean' &&
+    (value.occurrenceTypeId === undefined || isString(value.occurrenceTypeId)) &&
     (value.source === 'document' || value.source === 'stop') &&
     (value.stage === null || value.stage === 'delivery' || value.stage === 'separation') &&
     isNullableString(value.stopLabel) &&
     isString(value.tripId) &&
+    (value.typeAllowsMultipleItems === undefined ||
+      typeof value.typeAllowsMultipleItems === 'boolean') &&
+    (value.typeItemsMode === undefined || isOneOf(value.typeItemsMode, OCCURRENCE_ITEMS_MODES)) &&
     isString(value.typeName) &&
     isString(value.vehiclePlate)
   )

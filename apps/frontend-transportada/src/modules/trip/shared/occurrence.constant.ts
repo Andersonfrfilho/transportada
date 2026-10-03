@@ -37,6 +37,23 @@ export const OCCURRENCE_ATTACHMENT_MODES = ['off', 'optional', 'required'] as co
 export type OccurrenceAttachmentMode = (typeof OCCURRENCE_ATTACHMENT_MODES)[number]
 
 /**
+ * Spec 241 RF1: se a ocorrência do tipo carrega produtos — o mesmo vocabulário do comprovante
+ * (`OCCURRENCE_ATTACHMENT_MODES`). `off` não mostra seletor nem aceita item; `optional` é o
+ * comportamento de hoje. `required` é da spec 239: o painel o lê, mas o cadastro só escreve os dois
+ * primeiros (`OCCURRENCE_ITEMS_WRITE_MODES`).
+ */
+export const OCCURRENCE_ITEMS_MODES = ['off', 'optional', 'required'] as const
+
+export type OccurrenceItemsMode = (typeof OCCURRENCE_ITEMS_MODES)[number]
+
+export const OCCURRENCE_ITEMS_WRITE_MODES = ['off', 'optional'] as const
+
+export type OccurrenceItemsWriteMode = (typeof OCCURRENCE_ITEMS_WRITE_MODES)[number]
+
+/** Spec 241: API anterior ao campo não diz nada — o tipo carrega itens, como sempre carregou. */
+export const DEFAULT_OCCURRENCE_ITEMS_MODE: OccurrenceItemsMode = 'optional'
+
+/**
  * Spec 218 (D1, RF-B5): qual dos dois caminhos de registro o tipo alimenta — ocorrência **de nota**
  * (`document`, sem fila, abre tratativa) ou ocorrência **de parada** (`stop`, fila offline, nunca
  * abre tratativa). Cópia por valor de `OCCURRENCE_TYPE_FLOWS` (`shared/trip-occurrence.constant.ts`
@@ -65,6 +82,11 @@ export type OccurrenceType = Readonly<{
   /** Spec 218 (D1, RF-B5): qual botão do motorista este tipo alimenta. Ausente na API é `document`. */
   flow: OccurrenceTypeFlow
   id: string
+  /**
+   * Spec 241 RF10: ausente é API anterior ao campo — o cadastro não oferece o controle e o registro
+   * lê `optional`. Por isso não ganha padrão em `toOccurrenceType`.
+   */
+  itemsMode?: OccurrenceItemsMode
   /**
    * Spec 185 T6.1 (D2, RF6): só para tipos de separação — ocorrência aberta desse tipo, sobre a
    * nota inteira, tira a nota da conta de "carga fechada" (`leavesBehindOnDispatch`) e o despacho a

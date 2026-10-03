@@ -35,7 +35,7 @@ items_mode` da migration e o default `off` do plano. Se criou com default `off`:
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T1.1** Contrato primeiro: os guards aceitam `occurrenceTypeId`, `typeItemsMode`,
+- [x] **T1.1** Contrato primeiro: os guards aceitam `occurrenceTypeId`, `typeItemsMode`,
       `typeAllowsMultipleItems` e `itemsMode` presentes ou ausentes; ausência lê `optional`/`true`
       (`tripResponse.validation.ts`, `TRIP_OCCURRENCE_OPTIONAL_KEYS`).
 - [ ] **T1.2** Contrato primeiro, depois RF7 em `resolveOccurrenceCorrectionActions` (CA05).

@@ -27,3 +27,30 @@ As três perguntas, só leitura, sobre `company_occurrence_types`:
 3. Quantos tipos renomeados ficariam de fora do `UPDATE` da migration?
 
 Status: **pendente, pede autorização.** Task T0.3 segue desmarcada.
+
+## Fase 1 — Painel tolerante (etapa 1)
+
+### T1.1 — guards tolerantes
+
+Contrato: `test/trip/occurrence-items-mode-tolerance.contract.ts` (importado por
+`test/trip.contract.test.ts`, que já está na lista do `package.json`).
+
+Vermelho, antes do código (mesmo contrato, `src/` intocado):
+
+```text
+(fail) tipo do cadastro: itemsMode > presente (off e optional) é lido como veio
+(fail) feed e detalhe: occurrenceTypeId, typeItemsMode, typeAllowsMultipleItems > forma errada em qualquer das três recusa o item
+(fail) lista da nota: typeItemsMode e typeAllowsMultipleItems > aceita e preserva as chaves presentes
+ 7 pass
+ 3 fail
+```
+
+Verde depois: `-t "itemsMode|feed e detalhe|lista da nota: typeItems"` → 10 pass, 0 fail.
+`bun run --cwd apps/frontend-transportada test` → 6676 pass + 397 pass (lote DOM), 0 fail;
+`bun run typecheck` → sem erros.
+
+Decisão: `itemsMode` do tipo do cadastro **não** ganha padrão no adaptador (ausente continua ausente) —
+é o que permite à T1.5 oferecer o controle só quando a API o trouxer. `typeItemsMode` e
+`typeAllowsMultipleItems` ausentes são lidos como `optional`/`true` por quem os usa
+(`DEFAULT_OCCURRENCE_ITEMS_MODE`). `required` é aceito na leitura (vocabulário da coluna) e tratado
+como "carrega itens"; a escrita só aceita `off | optional`.

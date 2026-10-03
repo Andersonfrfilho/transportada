@@ -454,6 +454,12 @@ export const TRIP_OCCURRENCE_OPTIONAL_KEYS = [
    */
   'corrections',
   'cancellation',
+  /**
+   * Spec 241 RF5: o que o tipo **atual** diz sobre itens. Ausente é API anterior ao campo e lê
+   * `optional`/`true` (o comportamento de hoje); `occurrenceTypeId` já é obrigatório aqui.
+   */
+  'typeAllowsMultipleItems',
+  'typeItemsMode',
 ] as const
 
 /**

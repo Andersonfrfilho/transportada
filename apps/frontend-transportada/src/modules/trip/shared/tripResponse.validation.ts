@@ -3,6 +3,7 @@ import type { TripDeliveryProof } from './canhotoBatchSelection.service'
 import type { DeliveryProof } from './deliveryProof.service'
 import {
   OCCURRENCE_ATTACHMENT_MODES,
+  OCCURRENCE_ITEMS_MODES,
   OCCURRENCE_TYPE_FLOWS,
   type OccurrenceType,
 } from './occurrence.constant'
@@ -1458,6 +1459,8 @@ export function isTripOccurrence(value: unknown): value is TripOccurrence {
       value.cancellation === null ||
       isOccurrenceCancellation(value.cancellation)) &&
     (value.stage === 'delivery' || value.stage === 'separation') &&
+    (value.typeAllowsMultipleItems === undefined || isBoolean(value.typeAllowsMultipleItems)) &&
+    (value.typeItemsMode === undefined || isOneOf(value.typeItemsMode, OCCURRENCE_ITEMS_MODES)) &&
     isString(value.typeName)
   )
 }
@@ -1783,12 +1786,18 @@ const OCCURRENCE_TYPE_REQUIRED_KEYS = [
  */
 type RawOccurrenceType = Omit<
   OccurrenceType,
-  'allowsMultipleItems' | 'attachmentMode' | 'flow' | 'leavesDocumentBehind' | 'redeliveryPolicy'
+  | 'allowsMultipleItems'
+  | 'attachmentMode'
+  | 'flow'
+  | 'itemsMode'
+  | 'leavesDocumentBehind'
+  | 'redeliveryPolicy'
 > &
   Readonly<{
     allowsMultipleItems?: unknown
     attachmentMode?: unknown
     flow?: unknown
+    itemsMode?: unknown
     leavesDocumentBehind?: unknown
     redeliveryPolicy?: unknown
   }>
@@ -1807,6 +1816,8 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         'attachmentMode',
         /** Spec 218 (RF-B5): mesma tolerância — ausente é API anterior ao campo, vira `document`. */
         'flow',
+        /** Spec 241 RF1: mesma tolerância — ausente é API anterior ao campo e continua ausente. */
+        'itemsMode',
         /** Spec 185 T6.1 (D2): mesma tolerância — ausente é API anterior ao campo. */
         'leavesDocumentBehind',
         'redeliveryPolicy',
@@ -1826,6 +1837,7 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
     (value.emailTemplateKey === null || isString(value.emailTemplateKey)) &&
     (value.flow === undefined || isOneOf(value.flow, OCCURRENCE_TYPE_FLOWS)) &&
     isString(value.id) &&
+    (value.itemsMode === undefined || isOneOf(value.itemsMode, OCCURRENCE_ITEMS_MODES)) &&
     (value.leavesDocumentBehind === undefined || isBoolean(value.leavesDocumentBehind)) &&
     isString(value.name) &&
     isBoolean(value.notifies) &&
@@ -1845,12 +1857,14 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     allowsMultipleItems,
     attachmentMode,
     flow,
+    itemsMode,
     leavesDocumentBehind,
     redeliveryPolicy,
     ...rest
   } = raw
   return {
     ...rest,
+    ...(isOneOf(itemsMode, OCCURRENCE_ITEMS_MODES) ? { itemsMode } : {}),
     allowsMultipleItems: isBoolean(allowsMultipleItems) ? allowsMultipleItems : true,
     attachmentMode: isOneOf(attachmentMode, OCCURRENCE_ATTACHMENT_MODES) ? attachmentMode : 'off',
     flow: isOneOf(flow, OCCURRENCE_TYPE_FLOWS) ? flow : 'document',
