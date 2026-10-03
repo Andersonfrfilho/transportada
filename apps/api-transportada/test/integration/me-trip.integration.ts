@@ -1267,6 +1267,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         .select({ vehicleId: trips.vehicleId })
         .from(trips)
         .where(eq(trips.id, world.tripId))
+      expect(drivingTrip).toBeDefined()
       const otherDriverId = crypto.randomUUID()
       const helpingTripId = crypto.randomUUID()
       await database.db.insert(fleetDrivers).values({
