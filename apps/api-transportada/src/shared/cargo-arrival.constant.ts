@@ -16,7 +16,7 @@ export type CargoArrivalDocumentState =
   (typeof CARGO_ARRIVAL_DOCUMENT_STATE)[keyof typeof CARGO_ARRIVAL_DOCUMENT_STATE]
 export const CARGO_ARRIVAL_DOCUMENT_STATES = Object.values(CARGO_ARRIVAL_DOCUMENT_STATE)
 
-export const CARGO_ARRIVAL_STATUS = { closed: 'closed', open: 'open' } as const
+export const CARGO_ARRIVAL_STATUS = { open: 'open', closed: 'closed' } as const
 export type CargoArrivalStatus = (typeof CARGO_ARRIVAL_STATUS)[keyof typeof CARGO_ARRIVAL_STATUS]
 export const CARGO_ARRIVAL_STATUSES = Object.values(CARGO_ARRIVAL_STATUS)
 

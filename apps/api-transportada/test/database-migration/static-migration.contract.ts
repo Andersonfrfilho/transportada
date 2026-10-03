@@ -337,6 +337,7 @@ describe('Drizzle migrations', () => {
       '20261003010806_event_location_whatsapp_coordinate',
       '20261003170340_contractor_receiving_profiles',
       '20261003190847_location_retention_settings',
+      '20261003204733_cargo_arrivals',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -2263,5 +2264,52 @@ describe('o estado do ponto entra aditivo e o histórico sem coordenada fica NUL
     )
     expect(tableLock).toBeGreaterThan(rollbackTimeout)
     expect(tableLock).toBeLessThan(rollbackSql.indexOf('Rollback recusado'))
+  })
+
+  /**
+   * Spec 237 T2.2 (ADR-0094 §6): a chegada, as notas e a trilha são tabelas novas; a única coisa
+   * existente que muda é um índice em `nfe_participants`, com espera de lock limitada. A trilha é
+   * append-only por trigger, e o rollback apaga na ordem inversa das FKs, sem CASCADE.
+   */
+  test('creates the cargo arrival tables, an append-only trail and one bounded index', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_cargo_arrivals'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    for (const table of ['cargo_arrivals', 'cargo_arrival_documents', 'cargo_arrival_events']) {
+      expect(migrationSql).toContain(`CREATE TABLE "${table}"`)
+    }
+    expect(
+      new Set([...migrationSql.matchAll(/ALTER TABLE "([a-z_]+)"/gu)].map((match) => match[1])),
+    ).toEqual(new Set(['cargo_arrivals', 'cargo_arrival_documents', 'cargo_arrival_events']))
+    expect(migrationSql).not.toMatch(/\bDROP\b/u)
+    expect(migrationSql).toMatch(
+      /create trigger\s+"cargo_arrival_events_append_only_trigger"[\s\S]*before update or delete on "cargo_arrival_events"[\s\S]*execute function "reject_cargo_arrival_events_mutation"\s*\(\)/iu,
+    )
+    const participantsIndex = migrationSql.indexOf('ON "nfe_participants"')
+    const lockTimeout = migrationSql.indexOf("SET LOCAL lock_timeout = '3s'")
+    expect(lockTimeout).toBeGreaterThan(-1)
+    expect(lockTimeout).toBeLessThan(participantsIndex)
+    expect(migrationSql.indexOf('SET LOCAL lock_timeout = DEFAULT')).toBeGreaterThan(
+      participantsIndex,
+    )
+
+    const dropOrder = ['cargo_arrival_events', 'cargo_arrival_documents', 'cargo_arrivals'].map(
+      (table) => rollbackSql.indexOf(`DROP TABLE IF EXISTS "${table}";`),
+    )
+    expect(dropOrder.every((position) => position > -1)).toBeTrue()
+    expect(dropOrder).toEqual(dropOrder.toSorted((left, right) => left - right))
+    expect(
+      rollbackSql.indexOf('DROP FUNCTION IF EXISTS "reject_cargo_arrival_events_mutation"'),
+    ).toBeGreaterThan(-1)
+    expect(rollbackSql).toContain(
+      'DROP INDEX IF EXISTS "nfe_participants_company_role_tax_id_idx";',
+    )
+    expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/u)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
   })
 })

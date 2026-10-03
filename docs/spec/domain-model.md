@@ -62,6 +62,16 @@ emitente da nota.
   entrega em dias úteis (lido pela 236), a prévia por planilha (aba e mapa **nome de coluna → campo**),
   o padrão que lê o `NroCarga` e os parâmetros do vínculo por conteúdo. Editar o perfil nunca age sobre
   chegada já registrada: a chegada copia as regras no momento do registro.
+- CargoArrival: **a carga de um contratante na doca, antes de existir viagem** (spec 237 Fase 2,
+  ADR-0094 §6). Só nasce com o perfil de recebimento ligado; **copia** a janela de separação e o prazo
+  em dias úteis do perfil no registro e guarda `separation_due_at = arrived_at + janela` (o banco prende
+  a igualdade por CHECK). `open → closed`, e fechar exige toda nota separada. Idempotente pela chave
+  `(company_id, idempotency_key)` com a impressão do pedido (`request_fingerprint`).
+- CargoArrivalDocument: a nota na chegada, com **eixo próprio** `expected → received → separated`
+  (nunca `trip_documents.separation_status`), agrupada por rota do contratante × cidade IBGE do
+  destinatário. Uma nota entra em no máximo uma chegada (`unique (company_id, nfe_document_id)`).
+- CargoArrivalEvent: a trilha append-only da chegada (trigger), com ator, canal, `occurred_at` e
+  `recorded_at`; o CHECK de forma repete a tabela de transições.
 - DeliveryClientWindow e DeliveryClientException: a hora em que o cliente recebe. A janela é lista
   (o almoço fechado é um buraco entre dois intervalos), e a exceção é a data que foge da semana.
 - MunicipalHoliday: `(company_id, city_ibge_code, holiday_on)`. O feriado é **da cidade**, não do
@@ -126,6 +136,9 @@ erDiagram
 - `numeric(19,4)` para valores; percentual `numeric(9,6)`.
 - `trip_stop(trip_id, sequence)` unique.
 - `contractor_receiving_profiles(company_id, contractor_id)` unique, com FK composta para `contractors`.
+- `cargo_arrivals(company_id, idempotency_key)` unique; `cargo_arrival_documents(company_id,
+nfe_document_id)` unique (uma nota, uma chegada); o evento aponta para a nota pela chegada
+  (`(company_id, arrival_id, arrival_document_id)`), nunca para nota de outra chegada.
 - índice unique parcial garante que uma NF-e viva esteja em no máximo uma viagem.
 - ordem das paradas imutável a partir de `dispatched` (ADR-0043 §2).
 

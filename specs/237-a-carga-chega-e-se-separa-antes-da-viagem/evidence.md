@@ -267,3 +267,60 @@ resultado completo no banco sai de `consulta-recebimento-vs-xml.sql`.
   `separator-role.contract.test.ts`. Limitação do unique simples (sem conserto para nota posta por engano,
   reentrega não entra em outra chegada) escrita no ADR-0094 §6.
 - **Gates:** `bun run typecheck` ✓ · `bun run lint` ✓. Contrato da suíte inteira no fecho da T2.3.
+
+## T2.2 — migration `cargo_arrivals`, `cargo_arrival_documents`, `cargo_arrival_events` (2026-10-03)
+
+- **Cadeia conferida antes:** `git fetch` → `origin/staging` sem commit novo à frente desta branch; o
+  último snapshot era o de `20261003170340_contractor_receiving_profiles` (`id 43e75ad7-…`). Gerada
+  `drizzle/20261003204733_cargo_arrivals/` com `prevIds = ["43e75ad7-…"]`, e é o único filho dele. Depois:
+  `bun run db:generate` → `{"status":"no_changes"}`.
+- **Contrato antes:** `test/cargo-receiving-schema/cargo-arrival.contract.ts` (no entrypoint
+  `cargo-receiving-schema.contract.test.ts`, já listado no `test`) vermelho por
+  `Export named 'cargoArrivalEvents' not found` → **18 pass** com o schema.
+- **Schema** (`src/database/cargo-arrival.schema.ts`, `cargo-arrival-event.schema.ts`; listas em
+  `src/shared/cargo-arrival.constant.ts`):
+  - `cargo_arrivals`: FK composta para `contractors` e para o vínculo de quem registrou
+    (`user_company_memberships`), janela/prazo copiados com as faixas do perfil, CHECK **exato**
+    `extract(epoch from separation_due_at - arrived_at) = separation_window_hours * 3600` (ou os dois
+    nulos), `reference` 1..120, `channel in ('backoffice')`, `idempotency_key` 16..256 com unique por
+    empresa, `request_fingerprint` sha256, `status in ('open','closed')`; índices por data e por
+    contratante + data.
+  - `cargo_arrival_documents`: FK composta para a chegada e para `nfe_documents`; `unique (company_id,
+nfe_document_id)` (uma nota, uma chegada — ADR-0094 §6) e `unique (company_id, arrival_id, id)` (alvo
+    da FK do evento e índice das notas por chegada); CHECK que amarra estado e datas
+    (`separated_at >= received_at`); `route_name` 1..40; `city_ibge_code ~ '^[0-9]{7}$'`.
+  - `cargo_arrival_events`: append-only por trigger (`reject_cargo_arrival_events_mutation`, 55000);
+    FK `(company_id, arrival_id, arrival_document_id)` → nota **desta** chegada; CHECK de escopo (evento
+    da chegada ⇔ sem nota) e de forma (`case kind …` repete a tabela de transições: `document_added`
+    `null → expected`, `document_received` `expected → received`, `document_separated`
+    `received → separated`, demais sem estado).
+  - Índice novo `nfe_participants (company_id, role, tax_id)` para achar as notas do emitente, entre
+    `SET LOCAL lock_timeout = '3s'` e `DEFAULT` (precedente da spec 196: a importação não fica na fila
+    atrás de uma transação longa).
+- **Divergências do pedido:** sem `unique (company_id, arrival_id, nfe_document_id)` (redundante com o
+  par `(company_id, nfe_document_id)`); sem índice `(rota, cidade)` — o agrupamento é feito em memória
+  sobre as ≤ 300 notas de uma chegada, lidas pelo unique `(company_id, arrival_id, id)`; colunas a mais
+  `request_fingerprint` (idempotência, revisão do architect) e `from_state`/`to_state` nos eventos; kind
+  a mais `arrival_closed`; canal só `backoffice` (ADR-0068 §3: tela que não age em nome de motorista —
+  `office` exige `on_behalf_of_driver_id`).
+- **`rollback.sql` à mão:** trigger e função, as três tabelas na ordem inversa das FKs, o índice (com
+  `lock_timeout`), a entrada do diário; sem `CASCADE`.
+- **`make migration-test`:** **121 pass, 0 fail** (8 arquivos; antes 120 — a pasta nova entrou na lista
+  fixa de `static-migration.contract.ts`, com teste próprio: só tabelas novas + um índice com espera
+  limitada, trigger presente, rollback em ordem e sem `CASCADE`).
+- **Mutações** (script, restauração automática):
+
+  | Mutação                                              | Vermelho                  |
+  | ---------------------------------------------------- | ------------------------- |
+  | sem `unique (company_id, nfe_document_id)`           | contrato do schema 1 fail |
+  | prazo solto (`> 0` no lugar da igualdade com janela) | contrato do schema 1 fail |
+  | FK do evento sem `arrival_id`                        | contrato do schema 1 fail |
+  | `document_received` sem `from_state = 'expected'`    | contrato do schema 1 fail |
+  | trilha sem o trigger append-only                     | estático 1 fail           |
+  | índice de `nfe_participants` sem `lock_timeout`      | estático 1 fail           |
+
+- **Gates:** `bun run typecheck` ✓ · `bun run lint` ✓ · contrato
+  `bun --env-file=../../.env.test test --timeout 120000`: **9243 → 9286 pass**, 24 skip, 0 fail (198
+  arquivos; a linha de base desta sessão era 9243, não 9259) · `bun run format:check` na raiz ✓.
+- `docs/spec/domain-model.md`: agregados `CargoArrival`, `CargoArrivalDocument`, `CargoArrivalEvent` e as
+  constraints únicas.
