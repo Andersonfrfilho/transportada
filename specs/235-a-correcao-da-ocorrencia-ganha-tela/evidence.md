@@ -1356,3 +1356,36 @@ Achados e destino:
    fica sempre à vista (decisão da T3.2). Ao lado de "Cancelar ocorrência", a ocorrência com tratativa aberta mostra
    também "Cancelar tratativa" (bloco da tratativa, outra ação, outra spec): nomes parecidos para coisas
    diferentes; não alterado.
+
+## T5.2 — `tasks.md` da spec 167 conferido contra o código
+
+Só marcação em `specs/167-correcao-da-ocorrencia-registrada/tasks.md` (a spec não foi reescrita). Cada task foi
+conferida contra o código deste worktree, contra o `evidence.md` da 167, contra a T0.1 desta spec e contra os
+contratos e a integração existentes.
+
+**Marcadas (15):**
+
+| Task | Prova |
+| ---- | ----- |
+| T101 | `apps/frontend-transportada/test/trip/occurrence-history-tolerance.contract.ts` (roda no lote `trip`); commit `7709ea673` em `origin/staging` |
+| T102 | `corrections` e `cancellation` em `TRIP_OCCURRENCE_OPTIONAL_KEYS` (`trip.constant.ts`), guards `isOccurrenceCorrection`/`isOccurrenceCancellation` |
+| T201 | `drizzle/20260928010022_occurrence_correction_and_cancellation/` com `migration.sql`, `rollback.sql`, `snapshot.json` e o CHECK `trip_document_occurrences_cancellation_presence_check`; `make migration-test` na evidência da 167 |
+| T202, T203 | `occurrence-correction.policy.ts` e `occurrence-cancellation.policy.ts`; `test/trip-domain/occurrence-correction.contract.ts` e `occurrence-cancellation.contract.ts` |
+| T301, T302, T303 | os dois casos de uso reaproveitam `resolveOccurrenceItemQuantities`/`resolveOccurrenceProductSelection`; a leitura da tratativa mora na unidade de trabalho da escrita; os `409` e o `200` sem mudança estão em W1–W5 e C1–C4 da T0.1 e em `trip-occurrence-correction.integration.ts` |
+| T305 | as duas rotas respondem com `trip.manage` e `Idempotency-Key` (T0.1: E5 sem chave = 400), balde de taxa em `rate-limited-routes.contract.test.ts` |
+| T306 | **só a partir da 235**: a T0.2 provou que nenhuma leitura publicava os campos; a Fase 0.5 (T0.3–T0.5) fez detalhe, lista da nota e feed publicarem, com `trip-occurrence-correction-read.integration.ts` |
+| T309 | `test/integration/trip-occurrence-correction.integration.ts` e `-read.integration.ts`, ambos executados nas Fases 0.5 e 3 desta spec |
+| T401, T402, T404 | 235 T2.1/T2.2 (Corrigir reabre o formulário com o conjunto atual), T3.1 (diálogo com motivo obrigatório), T3.2 (marca de cancelada na lista) |
+| T502 | 235 T5.1 (esta fase), com os prints |
+
+**Deixadas desmarcadas (7), com o motivo:**
+
+| Task | Motivo |
+| ---- | ------ |
+| T103 | "confirmar o bundle servido" é um fato de publicação que não dá para provar daqui; só se sabe que o commit está em `origin/staging` |
+| T304 | só a parte da tratativa tem prova (`hasOpenCase` trava correção e cancelamento, integração da 167); "fora de contagem, listagem de ativas e e-mail" não foi verificado — o painel não tem contador de ocorrências ativas e o marcador da 173 não filtra cancelada (não verificado) |
+| T307 | a 235 só acrescentou o `occurrence.cancelled`; não existe evento de **correção** em nenhuma das duas linhas do tempo |
+| T308 | não há aviso de correção no código; a dúvida do e-mail continua aberta e fora de escopo |
+| T403 | a tela mostra o conjunto vigente em cada correção (derivado de `previousItems`), mas nunca o conjunto **original** (o `previousItems` da primeira correção), então "o que era" não aparece |
+| T501 | `make migration-test` não foi repetido na 235 e o carimbo provisório da migration foi tratado na T503; os gates da API e do painel foram, mas a task cobre mais |
+| T503 | a migration foi renumerada depois do rebase (`1ef417b8c`) e está em `origin/staging`, mas o `db:generate` até `no_changes` não está registrado como execução |
