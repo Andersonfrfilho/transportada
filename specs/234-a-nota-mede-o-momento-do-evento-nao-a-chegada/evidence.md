@@ -845,7 +845,7 @@ nasce de **como** a viagem foi achada (`deriveFieldAuthorship`, `field-trip-targ
 `whatsapp`, quando o localizador do WhatsApp diz). O motorista não escolhe o canal. Histórico sem a coluna
 ficou `driver_app` pelo default, o que é verdade: antes da ADR-0067 não havia baixa do escritório.
 
-- Motorista = `DRIVER_FIELD_CHANNELS` = `driver_app` + `whatsapp` (`trips/domain/trip-field-channel.constant.ts`).
+- **(Superado pelo ajuste M1 abaixo: o WhatsApp saiu.)** Motorista = `DRIVER_FIELD_CHANNELS` = `driver_app` + `whatsapp` (`trips/domain/trip-field-channel.constant.ts`).
   O WhatsApp **nunca** manda posição (`register-driver-flow-actions.ts:316`, `location: null`), então a foto
   sobre entrega do WhatsApp passa a ser `away`. Efeito prático na nota: nenhum — a nota só lê entrega
   `channel = 'driver_app'` (`drizzle-driver-score.repository.ts:154`, spec 159 T11 D2); muda o veredito
@@ -923,6 +923,71 @@ Mutações (contrato `trip-delivery-proof` + `driver-trip`, e a integração nov
 
 M1, M5 e M6 só a integração pega — o contrato usa dublê do repositório; é por isso que ela existe. M7 só o
 contrato pega: o repositório real sempre informa o canal.
+
+## T1.8 — ajustes da revisão (opus): M1, L3, L5
+
+Commits: `6fb29c2aa` (M1) · `0feb4d3db` (L3) · `d9a502acd` (L5, app) · este (evidência).
+
+**M1 — o WhatsApp fica de fora da D4c** (decisão do coordenador). Ele não coleta posição (`location:
+null` fixo em `register-driver-flow-actions.ts`), então "GPS desligado" não se aplica: a entrega por ele
+segue a regra anterior (só a D4b). `DRIVER_FIELD_CHANNELS` passa a ser só `driver_app`. Spec (D4c),
+`docs/SECURITY.md`, `docs/ai-context/api-transportada.md` e `apps/api-transportada/CLAUDE.md` registram o
+porquê e que liberar o WhatsApp na nota exige rever a regra.
+
+```text
+VERMELHO (integração com a expectativa nova, código da T1.8)
+apps/api-transportada$ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/delivery-proof-gps-off.integration.ts
+  → 3 pass, 1 fail — "entrega pelo WhatsApp: a foto pontual continua on_time"
+    (recebido isDeliveryRecordedByDriver true / away)
+VERDE → 4 pass, 0 fail, 0 skip
+MUTAÇÃO M5' (WhatsApp de volta ao conjunto) → 3 pass, 1 fail (o mesmo caso); restaurada
+```
+
+**L3 — o canal é obrigatório na porta.** `DeliveryProofPort.findDeliveryContext` devolve
+`isDeliveryRecordedByDriver: boolean` (o opcional de `ClassifyProofPunctualityParams` fica). O caso de uso
+repassa direto. Vermelho do typecheck ao tornar obrigatório: **11 dublês em 8 arquivos** (não 7) —
+`office-field-delivery` (2), `field-trip-target/use-cases` (1), `delivery-proof-world.fixture` (1),
+`late-registration` (1), `proof-body-limit` (1), `proof-thumbnail` (1), `punctuality` (3),
+`receiver-document` (1), todos `TS2322`. Todos declaram `true` (entrega do app); o fixture usa
+`input.isDeliveryRecordedByDriver ?? true`, declarado. Dois testes mudaram por consequência:
+
+- `late-registration` "sem registro tardio nenhum, a mesma foto é on_time": o dublê tinha a entrega sem
+  posição (e um `stopPosition` antigo, o pino da parada que a emenda de 2026-09-25 da ADR-0070 tirou da
+  regra); com o canal do app ela virava `away`. O dublê passa a ter `deliveryEventPosition` no lugar da
+  foto, que é o que o teste quis dizer.
+- `delivery-proof-clock-corrected` "sem desvio e sem o canal no contexto: on_time" saiu: com o campo
+  obrigatório o cenário não existe no caso de uso; a ausência do canal segue coberta na política
+  (`punctuality-gps-off.contract.ts`, "sem o canal no contexto vale a regra anterior").
+
+Mutações (typecheck): tirar o canal do dublê de `proof-thumbnail` → `TS2322`; tirar do repositório
+(`drizzle-delivery-proof.repository.ts`) → `TS2741 Property 'isDeliveryRecordedByDriver' is missing`.
+Restauradas.
+
+**L5 — o app só aceita inteiro seguro no desvio guardado.** `clockOffset.service.ts` troca
+`Number.isInteger` por `Number.isSafeInteger` na leitura do registro persistido. Contratos em
+`test/driver-trip/clock-offset-persistence.contract.ts`: `offsetMs: 1e300` e `9007199254740993`
+(`MAX_SAFE_INTEGER + 2`) são recusados; `MAX_SAFE_INTEGER` ainda vale. De carona, o caso "offsetMs
+infinito" usava `measuredAt` literal `1788418800000`, que não é o `MEASURED_AT_MS` do teste — o registro
+caía por estar velho, não pelo infinito; agora usa `MEASURED_AT_MS` (os três casos crus também).
+
+```text
+VERMELHO   apps/frontend-driver$ bun run test → 1125 pass, 2 fail (1e300 e MAX_SAFE_INTEGER + 2 aceitos)
+VERDE      apps/frontend-driver$ bun run test → 1127 pass, 0 fail (antes 1124; +3)
+MUTAÇÃO    volta a isInteger            → 1125 pass, 2 fail
+MUTAÇÃO    aceita qualquer finito       → 1124 pass, 3 fail (também o fracionário)
+apps/frontend-driver$ bun run typecheck → exit 0 · bun run lint → exit 0
+```
+
+Gates da API depois dos três ajustes:
+
+```text
+apps/api-transportada$ bun --env-file=../../.env.test test --timeout 120000
+  → 8919 pass, 23 skip, 0 fail (8942 testes; antes 8920/23 em 8943 — saiu o teste do cenário impossível)
+apps/api-transportada$ bun --env-file=../../.env.test test --timeout 120000 <os 8 arquivos tocados da T1.8>
+  → 93 pass, 0 fail, 0 skip (161,4 s, Postgres 65432)
+apps/api-transportada$ bun run typecheck → exit 0 · bun run lint → exit 0
+raiz$ bun run format:check → exit 0
+```
 
 # Fase 2 — App: medir e mandar
 
