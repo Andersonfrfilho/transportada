@@ -333,7 +333,7 @@ export function TripTimeline({ openDocumentId, query, stops }: TripTimelineProps
   )
 }
 
-function TripTimelineEntry({
+export function TripTimelineEntry({
   elapsedMinutes,
   item,
   repeatsAuthorship,
