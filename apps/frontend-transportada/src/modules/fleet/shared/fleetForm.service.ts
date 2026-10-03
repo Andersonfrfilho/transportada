@@ -5,7 +5,7 @@ import {
   AMOUNT_DISPLAY_SCALE,
   AMOUNT_MAX_SCALE,
   parseTypedAmount,
-  toTypedAmount,
+  toTypedAmountKeepingZero,
 } from '@/modules/shared/decimalAmount.service'
 import { normalizeTaxId } from '@/modules/shared/taxId.service'
 
@@ -242,7 +242,7 @@ export function toDriverFormState(driver: FleetDriverDetail): FleetDriverFormSta
     helperDailyRate:
       driver.helperDailyRate === null
         ? ''
-        : toTypedAmount({ scale: AMOUNT_DISPLAY_SCALE, value: driver.helperDailyRate }),
+        : toTypedAmountKeepingZero({ scale: AMOUNT_DISPLAY_SCALE, value: driver.helperDailyRate }),
     securesCargo: driver.securesCargo,
     birthCity: driver.birthCity,
     birthDate: driver.birthDate ?? '',
@@ -250,7 +250,10 @@ export function toDriverFormState(driver: FleetDriverDetail): FleetDriverFormSta
     dailyAllowanceAmount:
       driver.dailyAllowanceAmount === null
         ? ''
-        : toTypedAmount({ scale: AMOUNT_DISPLAY_SCALE, value: driver.dailyAllowanceAmount }),
+        : toTypedAmountKeepingZero({
+            scale: AMOUNT_DISPLAY_SCALE,
+            value: driver.dailyAllowanceAmount,
+          }),
     email: driver.email,
     fatherName: driver.fatherName,
     firstLicenseAt: driver.firstLicenseAt ?? '',

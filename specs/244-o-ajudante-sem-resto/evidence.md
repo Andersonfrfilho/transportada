@@ -26,3 +26,15 @@
 - Mutação: `isApplicable = true` fixo → 2 falhas (cartão e hook); sem o `return null` do cartão → 1 falha; sem o
   `return` de `setConsent` → 1 falha. Restaurado, `cmp` idêntico.
 - `bun run test` da app: 1198 pass / 0 fail.
+
+## T3 — O zero vive nos três campos de diária (D3)
+
+- Conversor novo `toTypedAmountKeepingZero` em `apps/frontend-transportada/src/modules/shared/decimalAmount.service.ts`
+  (`0.0000` → `0,00`; o resto delega a `toTypedAmount`). Usado só em `helperDailyRate` e `dailyAllowanceAmount`
+  (`fleetForm.service.ts`) e na diária geral (`crewSettingsForm.service.ts`). `toTypedAmount` não mudou.
+- `parseTypedAmount` já aceitava zero: `0`, `0,0` e `0,00` → `0.0000`; vazio segue `null` (nenhuma correção no parse).
+- Contratos: `test/shared/decimal-amount.contract.ts` (conversor; `toTypedAmount` continua `''` para zero),
+  `test/fleet/driver-daily-allowance.contract.ts` (ficha: `0.0000` → `0,00` → corpo `0.0000`; `0`/`0,0`/`0,00`; vazio `null`;
+  positivo inalterado) e `test/fleet/driver-crew-settings-panel.contract.tsx` (diária geral). Vermelhos antes do código.
+- Mutação: conversor sem a linha do zero → 3 falhas; restaurado, `cmp` idêntico.
+- `bun run test` do painel: 6672 pass / 0 fail.

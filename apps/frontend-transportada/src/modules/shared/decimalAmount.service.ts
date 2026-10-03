@@ -99,6 +99,13 @@ export function toTypedAmount(input: ScaledAmountInput): string {
   return toDecimalString(rescaleHalfUp(amount, input.scale), input.scale).replace('.', ',')
 }
 
+/** Spec 244 D3: onde zero é um valor deliberado (diária), ele volta como `0,00` em vez de vazio. */
+export function toTypedAmountKeepingZero(input: ScaledAmountInput): string {
+  if (isZeroAmount(input.value)) return zeroAmount(input.scale).replace('.', ',')
+
+  return toTypedAmount(input)
+}
+
 /** O mesmo que `toTypedAmount`, com o milhar que a máscara de medida mostra enquanto se digita. */
 export function toTypedMeasure(input: ScaledAmountInput): string {
   const typed = toTypedAmount(input)

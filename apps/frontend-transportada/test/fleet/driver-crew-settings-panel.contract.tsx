@@ -127,6 +127,14 @@ describe('diária geral do ajudante (spec 243 T3)', () => {
     expect(toHelperDailyRateDraft(null)).toBe('')
   })
 
+  it('a diária geral zero aparece como 0,00 e é enviada como 0.0000 (spec 244 D3)', () => {
+    expect(toHelperDailyRateDraft('0.0000')).toBe('0,00')
+    expect(toHelperDailyRateBody(toHelperDailyRateDraft('0.0000'))).toBe('0.0000')
+    expect(toHelperDailyRateBody('0')).toBe('0.0000')
+    expect(toHelperDailyRateBody('0,0')).toBe('0.0000')
+    expect(toHelperDailyRateBody('')).toBeNull()
+  })
+
   it('o painel mostra o valor gravado, a dica e o botão de salvar', () => {
     const html = renderPanel({})
 
