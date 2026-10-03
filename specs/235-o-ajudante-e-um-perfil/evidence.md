@@ -784,3 +784,32 @@ A verificação depois do rebase em `origin/staging` achou um defeito real e a r
   de snapshot: 2 eram o defeito acima, 1 era o locale `C`; o skip é `trip-occurrence-upload-confirm` por
   falta de MinIO, que a CI também não sobe).
 - Frontend: `6480 pass · 0 fail` e hooks `327 pass`; typecheck e lint (0 erros) em exit 0.
+
+## Correções da revisão de design (A1, A2, A4, A5)
+
+Achados dos prints da T12 (`prints/README.md`), um commit por achado, contrato vermelho antes do código
+e mutação provada. A3, A6-A9 ficam fora deste lote; a T12 segue aberta.
+
+- **A1 — diária vazava da coluna a 1280 px.** Causa: a trilha `auto` do `label` do `.fieldGrid` crescia
+  até a largura intrínseca do `input`, e o interruptor (um bloco de uma linha) esticava o trilho do
+  rótulo da diária vizinha. `fleet.module.css`: `.fieldGrid label` ganha
+  `grid-template-columns: minmax(0, 1fr)`, `.moneyField` ganha `min-width: 0` e
+  `.fieldGrid > .driverSecuresCargo` ocupa `grid-row: span 3`. Prova por contrato de texto
+  (`vehicle-cost-fields.contract.ts`); mutação: sem o `minmax` o contrato cai (639 pass · 1 fail).
+  **Não medido em navegador** nesta rodada: a conferência a 1280 px (caixa "R$" dentro do fieldset,
+  "(opcional)" inteiro) fica para o reprint da T12.
+- **A2 — duas diárias para o ajudante puro.** `DriverForm` só mostra "Diária (R$/dia)" e a dica dela
+  com `hasLicense` (quem dirige); o ajudante puro vê só "Diária própria". Na edição o valor carregado
+  segue no corpo (o estado não muda); na criação com perfil `helper` o corpo leva `null`
+  (`buildDriverBody`). Dicas não colidem mais, então o texto da "Diária própria" ficou como está.
+  Três testes novos em `driver-helper-fields.contract.tsx`; mutação: sem o `|| profile === 'helper'`
+  o teste de criação cai (642 pass · 1 fail).
+- **A4 — 409 longe dos papéis.** `CompanyUserEditDialog`: `FLEET_DRIVER_PROFILE_EMPTY` (`ROLE_ERROR_CODES`)
+  renderiza logo abaixo do grupo de papéis, antes de Senha; o rodapé guarda os demais erros. Um erro
+  nunca aparece em dois lugares (um único `role="alert"` no componente `DialogError`). Mutação: com o
+  diálogo antigo, 2 falhas.
+- **A5 — "Ficha do motorista" para o ajudante.** `users.fleet.helper` = "Ficha de frota" / "Fleet record";
+  a tabela usa a chave nova só para o papel `helper`. O diálogo de permissões (`CompanyUserPermissionsDialog`)
+  continua com "Ficha do motorista" (não distingue papel).
+- Gates: `bun run test` na app 6487 pass · 0 fail (hooks 327 pass); typecheck e lint em exit 0
+  (0 erros).
