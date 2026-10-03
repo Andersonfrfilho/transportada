@@ -23,6 +23,7 @@ import { resolveRecordedAt } from '../application/trip-timeline-merge.service.js
 import type { TripTimelineRow } from '../application/trip-timeline-merge.service.js'
 import { NO_EVENT_LOCATION } from '../application/trip-timeline.types.js'
 import type { ReadTripTimelineParams } from '../application/trip-timeline.types.js'
+import { listOccurrenceCancellationsByIds } from './occurrence-correction-read.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 import { toTimelineLocation } from './trip-timeline-stop.query.js'
 import {
@@ -146,6 +147,11 @@ export async function listDocumentOccurrenceRows(
     )
     .limit(params.limit + 1)
 
+  const cancellations = await listOccurrenceCancellationsByIds(queryable, {
+    companyId: params.companyId,
+    occurrenceIds: rows.map((row) => row.id),
+  })
+
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
     channel: row.channel,
@@ -164,6 +170,7 @@ export async function listDocumentOccurrenceRows(
     locationState: row.locationState ?? null,
     occurrence: {
       attachmentCount: Number(row.attachmentCount),
+      cancellation: cancellations.get(row.id) ?? null,
       note: row.note,
       typeName: row.typeName,
     },

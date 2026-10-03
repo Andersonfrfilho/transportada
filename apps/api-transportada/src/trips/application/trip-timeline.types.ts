@@ -9,6 +9,7 @@
  */
 import type { EventLocationState } from '../../database/event-location.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
+import type { OccurrenceCancellationView } from './occurrence-correction.port.js'
 
 /**
  * Spec 158 D5. `TRIP_STOP_EVENT_KINDS.occurrence` nunca aparece aqui — não é escrito hoje.
@@ -101,6 +102,8 @@ export type TripTimelineDocumentReference = {
  */
 export type TripTimelineOccurrenceReference = {
   readonly attachmentCount: number
+  /** Spec 235 RF9: `null` na ocorrência ativa (e sempre na de parada); a cancelada continua listada. */
+  readonly cancellation: OccurrenceCancellationView | null
   readonly note: string
   readonly typeName: string
 }

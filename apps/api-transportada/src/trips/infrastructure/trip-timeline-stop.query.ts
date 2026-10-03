@@ -311,6 +311,7 @@ export async function listStopOccurrenceRows(
     locationState: row.locationState ?? null,
     occurrence: {
       attachmentCount: row.attachmentObjectId === null ? 0 : 1,
+      cancellation: null,
       note: row.description,
       typeName: row.kind,
     },

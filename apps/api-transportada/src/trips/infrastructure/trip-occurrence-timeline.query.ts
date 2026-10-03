@@ -215,5 +215,17 @@ export async function findTripOccurrenceTimelineSources(
     kind: 'occurrence.recorded',
     occurredAt: item.createdAt,
   }
-  return [recorded, ...photos, ...caseEvents, ...mails]
+  const cancelled: readonly OccurrenceTimelineSource[] =
+    item.cancellation === null
+      ? []
+      : [
+          {
+            actor: { kind: 'operation', name: item.cancellation.cancelledByName },
+            id: item.id,
+            kind: 'occurrence.cancelled',
+            occurredAt: item.cancellation.cancelledAt,
+            reason: item.cancellation.reason,
+          },
+        ]
+  return [recorded, ...photos, ...caseEvents, ...mails, ...cancelled]
 }

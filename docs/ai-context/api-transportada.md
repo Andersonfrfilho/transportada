@@ -2370,4 +2370,17 @@ do contexto. `readOccurrenceView` (a resposta das escritas) passou a usar o mesm
   o contrato publicado é o dos tipos `TripOccurrenceFeedItem` / `TripOccurrenceDetail` e os testes
   `test/integration/trip-occurrence-correction-read.integration.ts` e
   `test/trip-http/occurrence-detail.contract.ts`.
-  > > > > > > > d8d7b27a2 (docs(trip-occurrence): gates da API da Fase 0.5 e nota da leitura de correção/cancelamento)
+  <<<<<<< HEAD
+  > > > > > > > # d8d7b27a2 (docs(trip-occurrence): gates da API da Fase 0.5 e nota da leitura de correção/cancelamento)
+
+**As duas linhas do tempo (T3.2a).** `GET /trips/:id/timeline`: o item `document.occurrence` ganhou
+`occurrence.cancellation` (`null` ou o mesmo `{ cancelledAt, cancelledByName, reason }`), lido por
+`listOccurrenceCancellationsByIds` em **uma consulta por página** (`trip-timeline-document.query.ts`);
+`stop.occurrence` sai sempre com `cancellation: null`. A linha do tempo da ocorrência
+(`GET /trip-occurrences/:id/timeline`, spec 183) ganhou o evento `occurrence.cancelled`
+(`reason`; ator `operation` com `cancelledByName`; data = `cancelledAt`; prioridade 5, por último no
+mesmo instante), montado a partir do `cancellation` que o leitor do feed já traz — sem consulta nova.
+Não é evento-chave nem fecha `openUntil`: a 183 define as duas coisas pela tratativa, e isso não foi
+reaberto. O painel precisa conhecer o kind novo antes de a API ir a produção.
+
+> > > > > > > 93f260e4d (feat(trip-timeline): as duas linhas do tempo publicam o cancelamento da ocorrência)
