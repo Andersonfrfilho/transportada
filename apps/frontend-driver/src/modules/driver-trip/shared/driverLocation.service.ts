@@ -1,5 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/driverLocation.service.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { clampProofAccuracyMeters } from './driverTripClient.service'
 import type { DriverReportedLocation } from './driverTrip.types'
 
 /**
@@ -29,6 +30,60 @@ export function readCurrentLocation(): Promise<DriverReportedLocation | null> {
         }),
       () => resolve(null),
       { enableHighAccuracy: true, maximumAge: 0, timeout: POSITION_TIMEOUT_MS },
+    )
+  })
+}
+
+/**
+ * Spec 196 D5: o toque direto não tem gravação local para fazer antes — espera a posição, mas com
+ * um relógio da própria app. O `timeout` da Geolocation API só conta depois da permissão, e o
+ * primeiro pedido de permissão seguraria o botão indefinidamente. Rede e leitura de até 5 min
+ * bastam para "saiu do pátio"; esgotado o relógio, o `POST` sai com `location: null`.
+ */
+export const DIRECT_TAP_POSITION_BUDGET_MS = 3_000
+export const DIRECT_TAP_POSITION_MAX_AGE_MS = 300_000
+
+type CancelTimer = () => void
+type StartTimer = (callback: () => void, milliseconds: number) => CancelTimer
+
+function startBrowserTimer(callback: () => void, milliseconds: number): CancelTimer {
+  const handle = setTimeout(callback, milliseconds)
+  return () => clearTimeout(handle)
+}
+
+export function readDirectTapLocation(
+  input: {
+    readonly geolocation?: Geolocation | undefined
+    readonly timer?: StartTimer
+  } = {},
+): Promise<DriverReportedLocation | null> {
+  const geolocation =
+    'geolocation' in input
+      ? input.geolocation
+      : typeof navigator === 'undefined'
+        ? undefined
+        : navigator.geolocation
+  if (geolocation === undefined) return Promise.resolve(null)
+  const startTimer = input.timer ?? startBrowserTimer
+
+  return new Promise((resolve) => {
+    const cancelTimer = startTimer(() => resolve(null), DIRECT_TAP_POSITION_BUDGET_MS)
+    geolocation.getCurrentPosition(
+      (position) => {
+        cancelTimer()
+        const accuracyMeters = clampProofAccuracyMeters(position.coords.accuracy)
+        resolve({
+          ...(accuracyMeters === undefined ? {} : { accuracyMeters }),
+          capturedAt: new Date(position.timestamp).toISOString(),
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        })
+      },
+      () => {
+        cancelTimer()
+        resolve(null)
+      },
+      { enableHighAccuracy: false, maximumAge: DIRECT_TAP_POSITION_MAX_AGE_MS },
     )
   })
 }
