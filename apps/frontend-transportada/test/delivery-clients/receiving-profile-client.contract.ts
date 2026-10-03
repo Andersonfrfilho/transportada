@@ -46,6 +46,16 @@ const CONTRACTOR: Contractor = {
   taxId: '11222333000181',
 }
 
+/** `rejects` sem `await` não é observado pelo teste; devolver a mensagem da rejeição é. */
+async function failureMessage(promise: Promise<unknown>): Promise<string | undefined> {
+  try {
+    await promise
+    return undefined
+  } catch (error) {
+    return error instanceof Error ? error.message : undefined
+  }
+}
+
 type RecordedCall = { body: string; headers: Headers; method: string; url: string }
 
 function createFixture(respond: (call: RecordedCall) => { body: unknown; status?: number }) {
@@ -108,7 +118,7 @@ describe('o perfil de recebimento no transporte', () => {
       body: { data: { ...SAVED_PROFILE, companyId: 'c' } },
     }))
 
-    await expect(client.getReceivingProfile(CONTRACTOR_ID)).rejects.toThrow('RESPONSE_INVALID')
+    expect(await failureMessage(client.getReceivingProfile(CONTRACTOR_ID))).toBe('RESPONSE_INVALID')
   })
 
   test('resposta com mapa de colunas de campo desconhecido é recusada', async () => {
@@ -116,7 +126,7 @@ describe('o perfil de recebimento no transporte', () => {
       body: { data: { ...SAVED_PROFILE, previewColumnMap: { nfeNumber: 'NF' } } },
     }))
 
-    await expect(client.getReceivingProfile(CONTRACTOR_ID)).rejects.toThrow('RESPONSE_INVALID')
+    expect(await failureMessage(client.getReceivingProfile(CONTRACTOR_ID))).toBe('RESPONSE_INVALID')
   })
 })
 
@@ -139,7 +149,9 @@ describe('o cadastro do contratante no transporte', () => {
     const extra = createFixture(() => ({
       body: { data: [{ ...CONTRACTOR, internal: 1 }], page: { nextCursor: null } },
     }))
-    await expect(extra.client.listContractors({ cursor: null })).rejects.toThrow('RESPONSE_INVALID')
+    expect(await failureMessage(extra.client.listContractors({ cursor: null }))).toBe(
+      'RESPONSE_INVALID',
+    )
   })
 
   test('o PATCH leva só os campos do cadastro e devolve o contratante', async () => {
@@ -242,13 +254,15 @@ describe('a recusa do servidor nomeia o campo (web.md §11)', () => {
       fetch: () => Promise.reject(new Error('offline')),
       getAccessToken: () => Promise.resolve('t'),
     })
-    await expect(offline.getReceivingProfile(CONTRACTOR_ID)).rejects.toThrow('REQUEST_FAILED')
+    expect(await failureMessage(offline.getReceivingProfile(CONTRACTOR_ID))).toBe('REQUEST_FAILED')
 
     const garbled = createContractorDirectoryClient({
       apiUrl: 'http://api.test',
       fetch: () => Promise.resolve(new Response('<html>', { status: 200 })),
       getAccessToken: () => Promise.resolve('t'),
     })
-    await expect(garbled.getReceivingProfile(CONTRACTOR_ID)).rejects.toThrow('RESPONSE_INVALID')
+    expect(await failureMessage(garbled.getReceivingProfile(CONTRACTOR_ID))).toBe(
+      'RESPONSE_INVALID',
+    )
   })
 })

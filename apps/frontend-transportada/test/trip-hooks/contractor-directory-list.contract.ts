@@ -5,6 +5,8 @@
  * a busca, a ordenação por cabeçalho (asc → desc → neutro), o filtro de situação, o "limpar filtros"
  * que só existe com critério aplicado e o estado todo na URL. Dados sintéticos.
  */
+import { readFileSync } from 'node:fs'
+
 import { createElement } from 'react'
 import { beforeEach, describe, expect, test } from 'bun:test'
 
@@ -71,11 +73,21 @@ describe('a lista de contratantes (spec 237 T1.4)', () => {
     rendered.unmount()
   })
 
-  test('as linhas alternam por classe, nunca por estilo inline', async () => {
+  test('a zebra é regra de CSS por classe e token; nenhuma linha leva estilo inline', async () => {
     const rendered = await mountList()
+    const read = (path: string) =>
+      readFileSync(
+        new URL(`../../src/modules/delivery-clients/styles/${path}`, import.meta.url),
+        'utf8',
+      )
 
     expect(document.querySelectorAll('tbody tr[style]')).toHaveLength(0)
-    expect(document.querySelector('table')?.className).not.toBe('')
+    expect(read('deliveryClients.module.css')).toContain(
+      '.table tbody tr:nth-child(even) {\n  background: var(--color-graphite);',
+    )
+    expect(read('contractorDirectory.module.css')).toContain(
+      "composes: table from './deliveryClients.module.css'",
+    )
     rendered.unmount()
   })
 

@@ -12,6 +12,8 @@ import cteIssuanceLocale from '@/modules/cte-issuance/locales/cteIssuance.locale
 import cteIssuanceEnglishLocale from '@/modules/cte-issuance/locales/cteIssuance.en.locale.json'
 import cteProfilesLocale from '@/modules/cte-profiles/locales/cteProfiles.locale.json'
 import cteProfilesEnglishLocale from '@/modules/cte-profiles/locales/cteProfiles.en.locale.json'
+import contractorDirectoryLocale from '@/modules/delivery-clients/locales/contractorDirectory.locale.json'
+import contractorDirectoryEnglishLocale from '@/modules/delivery-clients/locales/contractorDirectory.en.locale.json'
 import deliveryClientsLocale from '@/modules/delivery-clients/locales/deliveryClients.locale.json'
 import deliveryClientsEnglishLocale from '@/modules/delivery-clients/locales/deliveryClients.en.locale.json'
 import documentIntakeLocale from '@/modules/document-intake/locales/documentIntake.locale.json'
@@ -60,6 +62,7 @@ void i18n.use(initReactI18next).init({
       cteBatch: cteBatchEnglishLocale,
       cteIssuance: cteIssuanceEnglishLocale,
       cteProfiles: cteProfilesEnglishLocale,
+      contractorDirectory: contractorDirectoryEnglishLocale,
       deliveryClients: deliveryClientsEnglishLocale,
       documentIntake: documentIntakeEnglishLocale,
       driverTrip: driverTripEnglishLocale,
@@ -85,6 +88,7 @@ void i18n.use(initReactI18next).init({
       cteBatch: cteBatchLocale,
       cteIssuance: cteIssuanceLocale,
       cteProfiles: cteProfilesLocale,
+      contractorDirectory: contractorDirectoryLocale,
       deliveryClients: deliveryClientsLocale,
       documentIntake: documentIntakeLocale,
       driverTrip: driverTripLocale,

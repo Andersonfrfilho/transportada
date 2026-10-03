@@ -1,7 +1,31 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { Contractor, ContractorPage, ContractorWrite } from './contractorDirectory.types'
-import type { ContractorDirectoryDependencies } from './contractorDirectoryRequest.service'
-import type { ReceivingProfile, ReceivingProfileRules } from './receivingProfile.types'
+import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
+import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
+
+import {
+  CONTRACTOR_DIRECTORY_PATH,
+  type Contractor,
+  type ContractorPage,
+  type ContractorWrite,
+} from './contractorDirectory.types'
+import {
+  requestContractorApi,
+  type ContractorDirectoryDependencies,
+} from './contractorDirectoryRequest.service'
+import {
+  toContractor,
+  toContractorPage,
+  toReceivingProfile,
+  toReceivingProfileOrNull,
+} from './contractorDirectoryResponse.validation'
+import {
+  buildReceivingProfilePath,
+  type ReceivingProfile,
+  type ReceivingProfileRules,
+} from './receivingProfile.types'
+
+/** O teto da página da API; a lista segue o cursor até o fim, porque a tela filtra e ordena aqui. */
+const CONTRACTOR_PAGE_SIZE = 100
 
 export type ContractorDirectoryClient = Readonly<{
   getReceivingProfile: (contractorId: string) => Promise<ReceivingProfile | null>
@@ -17,12 +41,54 @@ export type ContractorDirectoryClient = Readonly<{
 export function createContractorDirectoryClient(
   dependencies: ContractorDirectoryDependencies,
 ): ContractorDirectoryClient {
-  void dependencies
-  const notImplemented = (): Promise<never> => Promise.reject(new Error('NOT_IMPLEMENTED'))
   return {
-    getReceivingProfile: notImplemented,
-    listContractors: notImplemented,
-    saveReceivingProfile: notImplemented,
-    updateContractor: notImplemented,
+    async getReceivingProfile(contractorId) {
+      return toReceivingProfileOrNull(
+        await requestContractorApi({
+          dependencies,
+          method: 'GET',
+          path: buildReceivingProfilePath(contractorId),
+        }),
+      )
+    },
+    async listContractors({ cursor }) {
+      const parameters = new URLSearchParams({ limit: String(CONTRACTOR_PAGE_SIZE) })
+      if (cursor !== null) parameters.set('cursor', cursor)
+      return toContractorPage(
+        await requestContractorApi({
+          dependencies,
+          method: 'GET',
+          path: `${CONTRACTOR_DIRECTORY_PATH}?${parameters.toString()}`,
+        }),
+      )
+    },
+    async saveReceivingProfile({ contractorId, rules }) {
+      return toReceivingProfile(
+        await requestContractorApi({
+          body: JSON.stringify(rules),
+          dependencies,
+          method: 'PUT',
+          path: buildReceivingProfilePath(contractorId),
+        }),
+      )
+    },
+    async updateContractor({ id, values }) {
+      return toContractor(
+        await requestContractorApi({
+          body: JSON.stringify(values),
+          dependencies,
+          method: 'PATCH',
+          path: `${CONTRACTOR_DIRECTORY_PATH}/${id}`,
+        }),
+      )
+    },
   }
+}
+
+export function getContractorDirectoryClient(): ContractorDirectoryClient {
+  return createContractorDirectoryClient({
+    apiUrl: getIdentityEnvironment().apiBaseUrl,
+    fetch: (input, init) => fetch(input, init),
+    getAccessToken: () => getKeycloakAuthProvider().getAccessToken(),
+  })
 }

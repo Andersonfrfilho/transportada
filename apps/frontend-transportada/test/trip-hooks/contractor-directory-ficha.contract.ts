@@ -56,6 +56,11 @@ function checkboxByLabel(labelText: string): HTMLInputElement {
   return input
 }
 
+/** Comparação booleana: `toBe` sobre nó do DOM não reprovou aqui, e foco é exatamente o que se prova. */
+function isFocused(element: HTMLElement): boolean {
+  return document.activeElement === element
+}
+
 function refusalButtons(): string[] {
   const summary = [...document.querySelectorAll('[data-refusal-summary]')][0]
   return [...(summary?.querySelectorAll('button') ?? [])].map((button) => button.textContent ?? '')
@@ -218,12 +223,14 @@ describe('a recusa do servidor nomeia o campo, e o nome é um atalho (web.md §1
   test('clicar no nome leva o foco ao campo', async () => {
     const { rendered } = await saveRefused(REFUSAL)
 
+    /** O último campo digitado já tem o foco: o atalho a provar é o de outro campo. */
     const shortcut = [...document.querySelectorAll('[data-refusal-summary] button')].find(
-      (button) => button.textContent === 'Janela de separação (horas)',
+      (button) => button.textContent === 'Janela de vínculo (dias)',
     ) as HTMLElement
+    expect(isFocused(fieldByLabel('Janela de vínculo (dias)'))).toBe(false)
     await click(shortcut)
 
-    expect(document.activeElement).toBe(fieldByLabel('Janela de separação (horas)'))
+    expect(isFocused(fieldByLabel('Janela de vínculo (dias)'))).toBe(true)
     rendered.unmount()
   })
 
@@ -264,7 +271,7 @@ describe('a recusa do servidor nomeia o campo, e o nome é um atalho (web.md §1
 
     expect(refusalButtons()).toEqual(['Valor'])
     await click(document.querySelector('[data-refusal-summary] button') as HTMLElement)
-    expect(document.activeElement).toBe(fieldByLabel('Valor'))
+    expect(isFocused(fieldByLabel('Valor'))).toBe(true)
     context.rendered.unmount()
   })
 

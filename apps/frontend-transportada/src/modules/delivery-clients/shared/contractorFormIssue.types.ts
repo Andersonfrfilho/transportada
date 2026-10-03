@@ -6,6 +6,7 @@ export type FormIssueCode =
   | 'notAnInteger'
   | 'notANumber'
   | 'outOfRange'
+  | 'refusedByServer'
   | 'required'
   | 'requiredForPreview'
   | 'tooLong'

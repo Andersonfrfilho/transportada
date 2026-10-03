@@ -4,6 +4,7 @@
   "subtitle": "Todo destinatário vira cadastro sozinho quando a nota é importada. Aqui você preenche a regra de quem tem hora marcada ou cobra para receber — que é a minoria.",
   "tabs": {
     "clients": "Clientes",
+    "contractors": "Contratantes",
     "mail": "E-mail com contratantes"
   },
   "contractorMail": {

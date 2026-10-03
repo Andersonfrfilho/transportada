@@ -1,0 +1,221 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/* Busca, situação e "limpar filtros" na mesma linha a partir do tablet; empilham no celular. */
+.toolbar {
+  align-items: end;
+  display: grid;
+  gap: var(--space-3);
+}
+
+@media (min-width: 40rem) {
+  .toolbar {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+  }
+}
+
+/* A métrica de campo da casa (`docs/frontend/fields.md`), a mesma do vizinho `DeliveryClientForm`. */
+.field {
+  composes: field from './deliveryClients.module.css';
+}
+
+.field textarea {
+  min-height: 5rem;
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+  resize: vertical;
+}
+
+.field input:disabled,
+.field textarea:disabled {
+  opacity: 0.6;
+}
+
+.field input[aria-invalid='true'],
+.field textarea[aria-invalid='true'] {
+  border-color: var(--color-alert);
+}
+
+.hint {
+  composes: hint from './deliveryClients.module.css';
+}
+
+.error {
+  composes: error from './deliveryClients.module.css';
+}
+
+.tableScroll {
+  composes: tableScroll from './deliveryClients.module.css';
+}
+
+/* CNPJ é para conferir caractere a caractere: monoespaçado, como na lista de clientes. */
+.document {
+  composes: document from './deliveryClients.module.css';
+}
+
+/* A zebra vem da classe-base (`nth-child` + token): nunca estilo inline (`web.md` §7). */
+.table {
+  composes: table from './deliveryClients.module.css';
+}
+
+.sortButton {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  min-height: var(--touch-target);
+  padding: 0;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  background: none;
+  cursor: pointer;
+}
+
+.sortIndicator {
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.resultCount {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  margin: 0;
+}
+
+/* Selo no molde de `statusBadge` da frota: mono, caixa alta, borda fina, cor por situação. */
+.badge {
+  display: inline-block;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.badgeOn {
+  border-color: color-mix(in srgb, var(--color-ready) 65%, transparent);
+  color: var(--color-ready);
+}
+
+.badgeOff {
+  border-color: color-mix(in srgb, var(--color-copper) 55%, transparent);
+  color: var(--color-copper);
+}
+
+/* A ficha abre abaixo da lista, como a do cliente: duas colunas só onde cabe. */
+.ficha {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.fichaHeader {
+  align-items: start;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.fichaHeader h3 {
+  margin: 0;
+}
+
+.fichaColumns {
+  display: grid;
+  gap: var(--space-6);
+}
+
+@media (min-width: 64rem) {
+  .fichaColumns {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  }
+}
+
+.form {
+  composes: form from './deliveryClients.module.css';
+}
+
+.group {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.group legend {
+  padding-inline: var(--space-2);
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.groupFields {
+  display: grid;
+  gap: var(--space-3);
+}
+
+@media (min-width: 40rem) {
+  .groupFields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.fieldGroup {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* O aviso de recusa: cada nome é um botão de texto que leva o foco ao campo. */
+.refusal {
+  margin: 0;
+  color: var(--color-alert);
+}
+
+.refusalShortcut {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+@media (pointer: coarse) {
+  .refusalShortcut {
+    min-height: var(--touch-target);
+    padding-inline: var(--space-1);
+  }
+}
+
+.actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.saved {
+  color: var(--color-ready);
+  margin: 0;
+}
