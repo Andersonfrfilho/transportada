@@ -1048,3 +1048,40 @@ bun run --cwd apps/frontend-transportada test   # 6489 pass, 0 fail (32 arquivos
 bun run typecheck                               # limpo (raiz, 7 apps)
 cd apps/frontend-transportada && bun run lint   # 0 erros, 16 avisos preexistentes
 ```
+
+## T2.3 — As mensagens de erro por código estável
+
+O painel **não tem** `getApiErrorCode()`, mas já tem o equivalente: o cliente da viagem lança `Error`
+com `message` = código, e `resolveTripFeedbackKey` (`tripFeedback.service.ts`) o traduz por
+`TRIP_FEEDBACK_KEY_BY_ERROR` para uma chave de `feedback.*`, com `serverRefused` como genérico. Não
+criei helper novo: os oito códigos entraram nesse mapa (`trip.constant.ts`, chaves computadas a partir
+de `OCCURRENCE_CORRECTION_ERROR`) e o formulário mostra `t('feedback.<chave>')` num `role="alert"`.
+
+Textos exatos (pt-BR; os de inglês estão em `trip.en.locale.json`, `feedback.*`):
+
+| Código                                        | Chave                               | Texto                                                                                                                                                    |
+| --------------------------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OCCURRENCE_CASE_ALREADY_OPEN` (409)          | `occurrenceCaseAlreadyOpen`         | A tratativa desta ocorrência já foi aberta, e ela não pode mais ser corrigida nem cancelada. Nada foi gravado; a tela foi atualizada com o estado atual. |
+| `OCCURRENCE_ALREADY_CANCELLED` (409)          | `occurrenceAlreadyCancelled`        | Esta ocorrência já foi cancelada e não pode ser cancelada de novo. Nada foi gravado; a tela foi atualizada com o estado atual.                           |
+| `OCCURRENCE_CANCELLED` (409)                  | `occurrenceCancelled`               | Esta ocorrência foi cancelada e não pode mais ser corrigida. Nada foi gravado; a tela foi atualizada com o estado atual.                                 |
+| `OCCURRENCE_TYPE_SINGLE_ITEM` (422)           | `occurrenceTypeSingleItem`          | Este tipo de ocorrência aceita um item só. Deixe apenas um item e salve de novo.                                                                         |
+| `OCCURRENCE_ITEM_QUANTITY_NOT_POSITIVE` (400) | `occurrenceItemQuantityNotPositive` | A quantidade de cada item precisa ser maior que zero. Corrija e salve de novo.                                                                           |
+| `OCCURRENCE_ITEM_QUANTITY_UNIT_PAIRING` (400) | `occurrenceItemQuantityUnitPairing` | Quantidade e unidade andam juntas: informe as duas ou nenhuma. Corrija e salve de novo.                                                                  |
+| `OCCURRENCE_PRODUCT_NOT_IN_DOCUMENT` (422)    | `occurrenceProductNotInDocument`    | Um dos itens escolhidos não está nesta nota. Escolha só itens da nota e salve de novo.                                                                   |
+| `TRIP_OCCURRENCE_NOT_FOUND` (404)             | `occurrenceNotFound`                | Esta ocorrência não foi encontrada. Volte à lista de ocorrências e tente de novo.                                                                        |
+| qualquer outro                                | `serverRefused`                     | O servidor recusou esta operação. Nada foi gravado — tente de novo e, se repetir, avise o suporte com o horário.                                         |
+
+Recarga após o 409: o `onSettled` da mutação (T1.4) invalida detalhe, feed e linha do tempo mesmo no
+erro; o contrato conta as leituras do detalhe depois do `409` de tratativa e vê pelo menos uma nova.
+
+Contrato: `test/trip-hooks/occurrence-correction-errors.contract.ts` (DOM, API dublada rejeitando com
+cada código; afirma o **texto renderizado** do alerta, que não é o genérico; desconhecido cai no
+genérico; as oito mensagens são distintas; inglês existe e difere do português). O detalhe dublado, o
+clique e a digitação foram para `test/trip-hooks/occurrenceCorrectionHarness.helper.ts`, dividido com o
+contrato do formulário.
+
+```bash
+bun run --cwd apps/frontend-transportada test   # 6489 pass, 0 fail (32 arquivos); test:hooks 345 pass, 0 fail
+bun run typecheck                               # limpo (raiz, 7 apps)
+cd apps/frontend-transportada && bun run lint   # 0 erros, 16 avisos preexistentes
+```

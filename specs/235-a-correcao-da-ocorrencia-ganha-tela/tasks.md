@@ -57,7 +57,7 @@ já faz (`listOccurrenceCorrections`, o mapeamento de `cancellation`), em lote �
       (CA02, CA03).
 - [x] **T2.2** `TripOccurrenceCorrectionForm`, reaproveitando o formulário de itens do registro,
       pré-preenchido com o conjunto atual e enviando o conjunto inteiro (RF2, CA01).
-- [ ] **T2.3** As quatro mensagens de erro por código estável, via `getApiErrorCode()` (RF7, CA05).
+- [x] **T2.3** As quatro mensagens de erro por código estável, via `getApiErrorCode()` (RF7, CA05).
 - [ ] **T2.4** Mutação: trocar a mensagem de `409` pela genérica deixa a T2.3 vermelha.
 
 ## Fase 3 — Cancelar
