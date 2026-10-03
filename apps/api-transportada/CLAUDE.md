@@ -734,6 +734,9 @@ tempo, e só com `trip.event-location` (`company-admin`, `operator`, `fiscal`, `
 recebem `location: null` e o estado. Quem pode ler as colunas é lista fechada
 (`event-location-readers.constant.ts`, cobrada por `test/trip-schema/event-location-readers.contract.ts`): leitor
 novo entra ali ou reprova. ⚠️ A localização pelo WhatsApp chega ao banco (os pacotes entregam
-`messages[].location`); o pedido de geolocalização no fluxo do motorista **ainda não está implementado**
-(próxima task da spec 196). Detalhe: docs/ai-context/api-transportada.md
+`messages[].location`); o pedido de geolocalização é **texto nos nós do motorista** (`DRIVER_LOCATION_REQUEST_TEXT`, spec 196 T3.8):
+menu da viagem, motivo da devolução e observação da ocorrência; não bloqueia (sem toque, `unavailable`), o operador
+não recebe. ⚠️ **Passo manual do usuário: o texto só chega ao motorista depois de republicar o grafo**
+(`bun run scripts/whatsapp-flow-publish.ts --company <id> --confirm` em cada empresa; sem `--confirm` só imprime
+o diff) — o despachante lê a versão publicada no banco. Detalhe: docs/ai-context/api-transportada.md
 § "Spec 196".

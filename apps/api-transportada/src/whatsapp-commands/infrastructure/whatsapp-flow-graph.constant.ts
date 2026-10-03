@@ -8,6 +8,7 @@ import {
   DRIVER_FLOW_ACTION_KIND,
   DRIVER_FLOW_CONTEXT_KEY,
   DRIVER_FLOW_NODE,
+  DRIVER_LOCATION_REQUEST_TEXT,
   DRIVER_RETURN_REASON_LABELS,
 } from '../domain/whatsapp-driver-flow.constant.js'
 import {
@@ -157,7 +158,7 @@ function buildDriverTripFlowNodes(): FlowGraphData['nodes'] {
         ['return', '↩️ Devolver'],
         ['occurrence', '⚠️ Ocorrência'],
       ],
-      question: 'O que você quer fazer com esta viagem?',
+      question: `O que você quer fazer com esta viagem?\n\n${DRIVER_LOCATION_REQUEST_TEXT}`,
       type: 'menu',
     },
     [DRIVER_FLOW_NODE.listDocuments]: {
@@ -185,7 +186,7 @@ function buildDriverTripFlowNodes(): FlowGraphData['nodes'] {
       options: DRIVER_RETURN_REASONS.map(
         (reason) => [reason, DRIVER_RETURN_REASON_LABELS[reason] ?? reason] as [string, string],
       ),
-      question: 'Qual foi o motivo da devolução?',
+      question: `Qual foi o motivo da devolução?\n\n${DRIVER_LOCATION_REQUEST_TEXT}`,
       type: 'menu',
     },
     [DRIVER_FLOW_NODE.returnReasonRouter]: {
@@ -219,7 +220,7 @@ function buildDriverTripFlowNodes(): FlowGraphData['nodes'] {
       contextKey: DRIVER_FLOW_CONTEXT_KEY.noteAnswer,
       id: DRIVER_FLOW_NODE.noteEntry,
       next: DRIVER_FLOW_NODE.noteRouter,
-      question: 'Digite o texto, ou toque em Pular.',
+      question: `Digite o texto, ou toque em Pular.\n\n${DRIVER_LOCATION_REQUEST_TEXT}`,
       type: 'entrada_choice',
     },
     [DRIVER_FLOW_NODE.noteRouter]: {

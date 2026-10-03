@@ -255,9 +255,10 @@ do usuário. A API não é revertida com a app nova no ar.
       `MigratorInitFailResponse` em erro); `confirm` do nonce implementado; o teste que prendia o limite da
       `0.1.0` virou ponta a ponta pelo webhook real (`captured` com a coordenada; `unavailable` sem ela).
       Evidência: `evidence.md` § T3.7.
-- [ ] **T3.8** O bot **pede a geolocalização** no fluxo do motorista (decisão do usuário, 2026-10-03):
-      texto do nó publicado por `whatsapp-flow-publish`. **Não implementada.** A relação do ponto declarado
-      com a distância/pontualidade segue sem decisão.
+- [x] **T3.8** O bot **pede a geolocalização** no fluxo do motorista (decisão do usuário, 2026-10-03):
+      texto nos nós `driver_trip_menu`, `driver_return_reason_menu` e `driver_note_entry`, publicado por
+      `whatsapp-flow-publish`. Não bloqueia. A relação do ponto declarado com a distância/pontualidade segue
+      sem decisão (nenhum filtro implementado). Evidência: `evidence.md` § T3.8.
 
 ## Fase 4 — A linha do tempo devolve o ponto, para quem pode ver
 

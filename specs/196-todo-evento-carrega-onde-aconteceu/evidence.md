@@ -2874,3 +2874,19 @@ Rebase sobre `origin/staging` (spec 235, o ajudante é um perfil, migration `202
   `meta_whatsapp.messages.payload.location` e o rótulo em `content`.
 - `confirm` do nonce: mutação (no-op) reprova os 2 testes novos de `whatsapp-channel.integration.ts`; restaurado, 10/10.
 - Gates: format:check, lint (0 erros), typecheck (0), build, `bun run test` (9153 pass na API), `db:test` 119/0, integração WhatsApp 57/0.
+
+## T3.8 — o bot pede a geolocalização (2026-10-03)
+
+- **Texto, não mensagem interativa.** O `.d.ts` de `meta-whatsapp-contracts`/`-module`/`-provider` `0.7.0` não tem `location_request_message`; o provider só expõe `sendLocation` (enviar). Não inventei API.
+- `DRIVER_LOCATION_REQUEST_TEXT` (`whatsapp-driver-flow.constant.ts`) compõe a `question` de `driver_trip_menu`, `driver_return_reason_menu` e `driver_note_entry` (`whatsapp-flow-graph.constant.ts`). Sem coordenada nem dado pessoal; não bloqueia (sem toque, a baixa grava `unavailable`). Nenhum nó do operador/emissão.
+- Contrato: `test/whatsapp-commands/flow-graph.contract.ts` (grafo segue válido em `validateFlowGraphForWhatsApp`; 3 nós do motorista pedem; texto sem dígito; nenhum outro nó cita localização).
+- Mutação (restaurado após cada uma):
+
+| Mutação                              | Resultado                                                                                                                                                    |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| tirar o pedido de `driver_trip_menu` | reprova "driver_trip_menu carrega o pedido"                                                                                                                  |
+| tirar de `driver_return_reason_menu` | reprova o teste do nó                                                                                                                                        |
+| tirar de `driver_note_entry`         | reprova o teste do nó                                                                                                                                        |
+| pôr o pedido num nó do operador      | reprova "nenhum nó do operador nem da emissão pede localização" (esta pegou, de fato, um erro meu: a primeira substituição em lote atingiu o nó do operador) |
+
+- **Passo operacional manual do usuário (NÃO executado aqui):** o despachante lê a versão publicada no banco, então a mudança só tem efeito após, por empresa: `cd apps/api-transportada && bun run scripts/whatsapp-flow-publish.ts --company <id>` (diff) e depois com `--confirm`.

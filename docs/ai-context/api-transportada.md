@@ -2347,8 +2347,11 @@ não reconciliam. Ver ADR-0093.
   acerto, reentrega, lote do escritório, anexo, prontidão do despacho).
 - **WhatsApp.** A mensagem de localização vira ponto (`shared-location`), mas os pacotes `meta-whatsapp-*`
   `0.6.0`/`0.7.0` entregam `messages[].location` ao gancho: ponta a ponta provado em
-  `whatsapp-driver-flow-actions.integration.ts`. ⚠️ **Próxima task (não implementada):** o bot pedir a geolocalização
-  no fluxo do motorista (decisão do usuário, 2026-10-03); a relação do ponto declarado com a distância/pontualidade
+  `whatsapp-driver-flow-actions.integration.ts`. **T3.8 (feita):** o bot **pede** a geolocalização no fluxo do motorista
+  (decisão do usuário, 2026-10-03) por **texto** — o `.d.ts` dos pacotes `0.7.0` não expõe `location_request_message`;
+  só `sendLocation` (envio). `DRIVER_LOCATION_REQUEST_TEXT` (`whatsapp-driver-flow.constant.ts`) entra na `question`
+  dos nós `driver_trip_menu`, `driver_return_reason_menu` e `driver_note_entry`; nenhum nó do operador. Sem coordenada
+  nem dado pessoal no texto. ⚠️ Vale só após `whatsapp-flow-publish --company <id> --confirm` (ação do usuário). A relação do ponto declarado com a distância/pontualidade
   segue sem decisão.
 - **N+1:** `test/integration/trip-timeline.integration.ts` conta as consultas de `listTripTimeline` com 1 nota e
   com 50 notas (todas com ponto): o número é o mesmo (9 em 2026-10-02).

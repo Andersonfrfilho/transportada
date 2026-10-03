@@ -99,6 +99,8 @@ O rollback recusa, sem apagar, enquanto houver ponto de WhatsApp gravado.
 entrega `messages[].location` ao gancho e o toque seguinte grava `captured` (provado ponta a ponta em
 `whatsapp-driver-flow-actions.integration.ts`). O pacote persiste a mensagem crua em `meta_whatsapp.messages.payload`.
 
+**Pedido (T3.8, 2026-10-03):** o fluxo do motorista pede "compartilhe sua localização" por texto (a Cloud API dos pacotes `0.7.0` não expõe pedido interativo), sem bloquear; vale após republicar o grafo.
+
 **Pendência de decisão do usuário (não implementada):** o ponto vindo da mensagem de localização do WhatsApp
 pode ser um **pino escolhido no mapa**, não o GPS do aparelho — o motorista declara um lugar. A spec 234
 (D4c) tratou o WhatsApp como canal que "não coleta" posição e o deixou fora da punição de "GPS desligado" e da
