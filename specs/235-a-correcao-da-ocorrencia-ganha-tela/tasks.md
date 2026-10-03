@@ -25,7 +25,7 @@ Só leitura em `apps/api-transportada`: nenhuma migration, nenhuma rota nova, ne
 nenhuma mudança nas escritas da 167. Reaproveita a leitura que `drizzle-occurrence-correction.repository.ts`
 já faz (`listOccurrenceCorrections`, o mapeamento de `cancellation`), em lote — sem N+1.
 
-- [ ] **T0.3** Contrato e integração primeiro, vermelhos: `GET /trip-occurrences/:id` (detalhe) e
+- [x] **T0.3** Contrato e integração primeiro, vermelhos: `GET /trip-occurrences/:id` (detalhe) e
       `GET /trips/:tripId/documents/:documentId/occurrences` (lista da nota) devolvem
       `corrections` (`[]` quando não há, mais antiga primeiro) e `cancellation`
       (`null` ou `{ cancelledAt, cancelledBy…, reason }`, mesmo formato da resposta das escritas);

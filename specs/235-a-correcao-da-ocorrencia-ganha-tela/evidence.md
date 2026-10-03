@@ -759,3 +759,39 @@ Rodado em `bun` (script fora do repositório) com a resposta real de W4:
 10. **Erro de chave de idempotência reutilizada** com corpo diferente: 409
     `TRIP_FIELD_REPORT_KEY_REUSED` (W3c) — código a mapear no painel; chave ausente é 400
     `INVALID_REQUEST` com `details[0].field = "idempotency-key"`.
+
+# Evidência — spec 235, Fase 0.5
+
+## T0.3 — Testes primeiro, vermelhos
+
+Arquivo novo: `apps/api-transportada/test/integration/trip-occurrence-correction-read.integration.ts`
+(entrou na lista explícita do `test:integration` no `package.json`). Prova por **comportamento**,
+contra Postgres descartável: semeia, pelos próprios casos de uso da 167 (`correctOccurrenceItems`,
+`cancelOccurrence`), uma ocorrência corrigida duas vezes, uma cancelada e uma intocada na mesma nota,
+e lê pelas três consultas reais (`findTripOccurrenceDetail`, `listTripOccurrences`,
+`listTripOccurrenceFeed`). Cobre: `corrections` mais antiga primeiro, `cancellation` com as três
+chaves do formato das escritas, cancelada **continua listada** nas três, e outra empresa não lê nada.
+
+```bash
+cd apps/api-transportada
+bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-occurrence-correction-read.integration.ts
+```
+
+Execução vermelha (antes da implementação): **1 pass, 4 fail** — o único verde é o isolamento entre
+empresas. Trecho:
+
+```text
+expect(detail?.cancellation).toBeNull()      Received: undefined
+expect(detail?.corrections).toEqual([])      Received: undefined
+expect(byId.get(correctedId)?.corrections).toHaveLength(2)
+                                             Received value does not have a length property: undefined
+expect(byId.get(cancelledId)?.cancellation?.reason).toBe(...)   Received: undefined
+(fail) ... detalhe: duas correções, mais antiga primeiro, e cancellation nulo
+(fail) ... detalhe: a cancelada continua lida, com cancellation preenchido
+(fail) ... lista da nota: corrections e cancellation por ocorrência, cancelada incluída
+(fail) ... feed: cancellation na cancelada e nulo nas demais; a cancelada continua listada
+ 1 pass / 4 fail / 0 skip
+```
+
+Os campos chegam `undefined` e não `null`/`[]`: a falha é a divergência 1 da Fase 0, não defeito de
+semeadura (a lista e o feed achavam as três ocorrências).
