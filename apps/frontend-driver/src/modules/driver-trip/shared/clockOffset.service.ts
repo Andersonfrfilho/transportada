@@ -75,15 +75,82 @@ export type ClockOffsetStore = Readonly<{
   write: (offsetMs: number) => void
 }>
 
-export function createClockOffsetStore(): ClockOffsetStore {
-  let latest: number | undefined
+/** Spec 234 D7: o desvio guardado vale 24 h; passado disso vale "nunca medido". */
+export const CLOCK_OFFSET_MAX_AGE_MS = 24 * 60 * 60 * 1000
+export const CLOCK_OFFSET_STORAGE_KEY = 'transportada.driver.clock-offset.v1'
+
+export type ClockOffsetStorage = Pick<Storage, 'getItem' | 'setItem'>
+
+type StoredClockOffset = Readonly<{ measuredAt: number; offsetMs: number }>
+
+function isStoredClockOffset(value: unknown): value is StoredClockOffset {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as { readonly measuredAt?: unknown; readonly offsetMs?: unknown }
+  return (
+    typeof candidate.measuredAt === 'number' &&
+    Number.isFinite(candidate.measuredAt) &&
+    typeof candidate.offsetMs === 'number' &&
+    Number.isInteger(candidate.offsetMs)
+  )
+}
+
+function readStoredClockOffset(storage: ClockOffsetStorage | null): StoredClockOffset | undefined {
+  try {
+    const raw = storage?.getItem(CLOCK_OFFSET_STORAGE_KEY)
+    if (raw === null || raw === undefined) return undefined
+    const parsed: unknown = JSON.parse(raw)
+    return isStoredClockOffset(parsed) ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function isFresh(input: { readonly nowMs: number; readonly record: StoredClockOffset }): boolean {
+  const ageMs = input.nowMs - input.record.measuredAt
+  return ageMs >= 0 && ageMs <= CLOCK_OFFSET_MAX_AGE_MS
+}
+
+/**
+ * Spec 234 D7: a última medição vai ao `localStorage` com o instante dela, lida **de forma síncrona** — o
+ * hook lê o desvio ao enfileirar, e uma leitura assíncrona (IndexedDB) deixaria a primeira entrega do boot
+ * sem ele. A leitura devolve `undefined` com registro malformado, vencido ou com `measuredAt` no futuro
+ * do relógio atual (relógio mexido). Falha de armazenamento (cota, modo privado) deixa só a memória.
+ */
+export function createClockOffsetStore(
+  options: Readonly<{ now?: () => number; storage?: ClockOffsetStorage | null }> = {},
+): ClockOffsetStore {
+  const now = options.now ?? Date.now
+  const storage = options.storage ?? null
+  let latest: StoredClockOffset | undefined
   return {
-    read: () => latest,
+    read: () => {
+      const record = latest ?? readStoredClockOffset(storage)
+      if (record === undefined || !isFresh({ nowMs: now(), record })) return undefined
+      return record.offsetMs
+    },
     write: (offsetMs) => {
-      latest = offsetMs
+      latest = { measuredAt: now(), offsetMs }
+      try {
+        storage?.setItem(CLOCK_OFFSET_STORAGE_KEY, JSON.stringify(latest))
+      } catch {
+        // Falhar ao guardar só custa a próxima abertura sem rede; a medição desta sessão segue na memória.
+      }
     },
   }
 }
 
-/** Só em memória: um desvio velho não sobrevive à sessão, a primeira resposta do boot o refaz. */
-export const driverClockOffset: ClockOffsetStore = createClockOffsetStore()
+export function resolveClockOffsetStorage(): ClockOffsetStorage | null {
+  try {
+    return typeof window === 'undefined' ? null : window.localStorage
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Do aparelho, não da conta: o relógio é o mesmo para quem entrar depois, então não leva `subHash` e o
+ * "Sair" não o apaga (o desvio não identifica ninguém, e some sozinho em 24 h).
+ */
+export const driverClockOffset: ClockOffsetStore = createClockOffsetStore({
+  storage: resolveClockOffsetStorage(),
+})

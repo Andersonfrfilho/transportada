@@ -1392,3 +1392,44 @@ test('o comprovante leva o desvio do relógio no multipart', async ({ page }) =>
   expect(Math.abs(Number(fields.clockOffsetMs) - SERVER_AHEAD_MS)).toBeLessThan(CLOCK_TOLERANCE_MS)
   expect(fields.capturedAt).toBeDefined()
 })
+
+/**
+ * Spec 234 D7: o desvio medido com sinal sobrevive à aba descartada. O motorista abre com rede (o `Date`
+ * da API mede o relógio), o app recarrega com o Keycloak fora do ar (boot offline, sem nenhuma resposta
+ * da API nesta sessão) e a entrega tocada ali sai, depois de confirmada, com `tappedAt` e `clockOffsetMs`.
+ */
+test('o desvio medido antes de recarregar sem sinal ainda vai no deliver feito offline', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  const api = await mockDriverTripApi({ page, scenario: { serverClockOffsetMs: SERVER_AHEAD_MS } })
+  await loginAsLocalUser(page)
+  await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
+
+  await page.route('**/realms/**', async (route) => {
+    await route.abort()
+  })
+  await page.reload()
+  await expect(page.getByText(/Sem conexão — dados de \d/)).toBeVisible()
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await page.getByRole('button', { name: 'Entreguei' }).first().click()
+  await expect(page.getByText('2 confirmações aguardando envio')).toBeVisible()
+  expect(api.reports()).toEqual([])
+
+  await page.unroute('**/realms/**')
+  await page.evaluate(() => window.dispatchEvent(new Event('online')))
+  await expect(page.getByText(/2 registros feitos sem rede às \d.* — enviar\?/u)).toBeVisible({
+    timeout: 20_000,
+  })
+  await page.getByRole('button', { exact: true, name: 'Enviar' }).click()
+  await expect.poll(() => findReport(api, '/deliver') !== undefined, { timeout: 20_000 }).toBe(true)
+
+  for (const suffix of ['/arrive', '/deliver']) {
+    const fields = readReportBody(api, suffix)
+    expect(Math.abs(Number(fields.clockOffsetMs) - SERVER_AHEAD_MS)).toBeLessThan(
+      CLOCK_TOLERANCE_MS,
+    )
+    expect(typeof fields.tappedAt).toBe('string')
+  }
+})
