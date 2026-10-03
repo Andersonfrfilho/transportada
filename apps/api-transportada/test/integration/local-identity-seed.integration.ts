@@ -1,11 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { asc, eq } from 'drizzle-orm'
 
+import { withDisposableDatabase as withDisposableDatabaseLifecycle } from '../fixtures/disposable-database.fixture.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service'
 import {
   companies,
@@ -242,21 +242,11 @@ async function withDisposableDatabase(
     throw new Error('A PostgreSQL test database URL is required')
   }
 
-  const admin = new SQL(databaseUrl, { max: 1 })
-  const databaseName = `transportada_t014b_${suffix}_${crypto.randomUUID().replaceAll('-', '')}`
-  const disposableUrl = new URL(databaseUrl)
-  disposableUrl.pathname = `/${databaseName}`
-  disposableUrl.search = ''
-
-  try {
-    await admin.unsafe(`create database "${databaseName}"`)
-    await runDatabaseMigrations({ connectionString: disposableUrl.toString() })
-    await callback(disposableUrl.toString())
-  } finally {
-    try {
-      await admin.unsafe(`drop database if exists "${databaseName}" with (force)`)
-    } finally {
-      await admin.close({ timeout: 0 })
-    }
-  }
+  await withDisposableDatabaseLifecycle({
+    adminUrl: databaseUrl,
+    namePrefix: `transportada_t014b_${suffix}`,
+    migrate: (connectionString) => runDatabaseMigrations({ connectionString }),
+    open: () => undefined,
+    operation: (_resource, connectionString) => callback(connectionString),
+  })
 }
