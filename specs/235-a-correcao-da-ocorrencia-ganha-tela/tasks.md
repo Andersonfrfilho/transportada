@@ -8,10 +8,10 @@ API é sinal de escopo escorregando, e para.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T0.1** Exercitar as duas rotas contra a API local e colar em `evidence.md` o corpo enviado
+- [x] **T0.1** Exercitar as duas rotas contra a API local e colar em `evidence.md` o corpo enviado
       e a resposta: correção com dois itens, cancelamento com motivo, e os dois `409`
       (tratativa aberta, já cancelada). Sem isto, o resto é escrito sobre suposição.
-- [ ] **T0.2** Conferir que a leitura do detalhe devolve `corrections` e `cancellation`
+- [x] **T0.2** Conferir que a leitura do detalhe devolve `corrections` e `cancellation`
       preenchidos depois das escritas da T0.1, e que os tipos do painel batem com o que chega.
 
 ## Fase 1 — O cliente e as regras puras
