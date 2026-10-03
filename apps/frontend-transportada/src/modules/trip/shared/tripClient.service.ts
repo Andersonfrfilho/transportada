@@ -83,6 +83,9 @@ import type {
   TripDocument,
   TripDocumentActionInput,
   RegisteredOccurrence,
+  CancelTripOccurrenceInput,
+  CorrectTripOccurrenceItemsInput,
+  OccurrenceWriteResult,
   TripDocumentProduct,
   TripOccurrence,
   TripListInput,
@@ -345,6 +348,12 @@ export type TripClient = Readonly<{
       readonly thumbnail?: Blob
     },
   ) => Promise<RegisteredOccurrence>
+  /** Spec 235 RF1/RF2: `PATCH .../occurrences/:id/items` — substitui o conjunto inteiro de itens. */
+  correctTripOccurrenceItems: (
+    input: CorrectTripOccurrenceItemsInput,
+  ) => Promise<OccurrenceWriteResult>
+  /** Spec 235 RF1/RF3: `POST .../occurrences/:id/cancellation` — cancela com motivo, nunca apaga. */
+  cancelTripOccurrence: (input: CancelTripOccurrenceInput) => Promise<OccurrenceWriteResult>
   /** Spec 161 T7/T22 (RF6/RF31): a 2ª a 5ª foto de uma ocorrência já registrada. */
   attachOccurrencePhoto: (
     input: TripDocumentActionInput & {
@@ -1171,6 +1180,26 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${documentPath(input)}/occurrences`,
       })
       return adapters.registeredOccurrenceFromApi(readEnvelopeData(response))
+    },
+    async correctTripOccurrenceItems(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({ items: input.items }),
+        dependencies,
+        idempotencyKey: input.idempotencyKey,
+        method: 'PATCH',
+        path: `${documentPath(input)}/occurrences/${input.occurrenceId}/items`,
+      })
+      return adapters.occurrenceWriteResultFromApi(readEnvelopeData(response))
+    },
+    async cancelTripOccurrence(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({ reason: input.reason }),
+        dependencies,
+        idempotencyKey: input.idempotencyKey,
+        method: 'POST',
+        path: `${documentPath(input)}/occurrences/${input.occurrenceId}/cancellation`,
+      })
+      return adapters.occurrenceWriteResultFromApi(readEnvelopeData(response))
     },
     async attachOccurrencePhoto(input) {
       const form = new FormData()

@@ -849,3 +849,28 @@ resultado) — não há schema de resposta declarado a atualizar. O contrato pub
 `TripOccurrenceFeedItem`/`TripOccurrenceDetail`, provados pelos testes acima. Nota adicionada em
 `docs/ai-context/api-transportada.md` ("Spec 235 — as leituras publicam a correção e o
 cancelamento").
+
+# Evidência — spec 235, Fase 1
+
+## T1.1 — O cliente das duas escritas
+
+`tripClient.service.ts` ganhou `correctTripOccurrenceItems` (`PATCH .../occurrences/:id/items`, corpo
+`{ items }`, o conjunto inteiro) e `cancelTripOccurrence` (`POST .../occurrences/:id/cancellation`,
+corpo `{ reason }`), as duas com `Idempotency-Key` recebida do chamador (a mutação da T1.4 gera uma
+por tentativa). `registeredOccurrenceFromApi` **não** serve: exige `email`, que as escritas não
+devolvem. O adaptador novo, `occurrenceWriteResultFromApi` (`tripResponse.validation.ts`), valida o
+corpo com `isTripOccurrence` e aceita o anexo no formato estreito `{ id, position }`. Os códigos
+estáveis ficam em `OCCURRENCE_CORRECTION_ERROR` (`occurrence.constant.ts`). O painel não tem
+`getApiErrorCode()` — o cliente da viagem lança `Error` cujo `message` é o código e cujo `status` é
+o HTTP (`requestError`); é esse o contrato afirmado.
+
+Contrato: `test/trip/occurrence-correction-client.contract.ts` (importado por
+`test/trip.contract.test.ts`, que já está na lista do `package.json`). Usa a resposta **real** de W1
+e W3 da Fase 0, caminho/método/corpo/cabeçalho de cada chamada e os 11 códigos com o status real.
+
+```bash
+bun run --cwd apps/frontend-transportada test      # 6458 pass, 0 fail (32 arquivos); demais lotes do script 0 fail
+cd apps/frontend-transportada && bun test ./test/trip.contract.test.ts -t "cliente HTTP: corrigir|cliente HTTP: cancelar a ocorr|códigos de recusa"   # 17 pass, 0 fail
+bun run typecheck                                  # limpo
+bun run lint                                       # 0 erros, 16 avisos preexistentes
+```

@@ -253,6 +253,31 @@ export type RegisteredOccurrence = Omit<TripOccurrence, 'attachments'> &
   }>
 
 /**
+ * Spec 235: o que as duas escritas da 167 devolvem — a ocorrência com `corrections` e
+ * `cancellation` já aplicados, o anexo no formato estreito e **sem** `email`/`autoDispatch`.
+ */
+export type OccurrenceWriteResult = Omit<TripOccurrence, 'attachments'> &
+  Readonly<{ attachments: readonly Readonly<{ id: string; position: number }>[] }>
+
+/** Spec 235 RF2: `quantity` e `unit` andam juntos; ausentes, o item vai sem contagem. */
+export type CorrectOccurrenceItemInput = Readonly<{
+  code: string
+  quantity?: string
+  unit?: OccurrenceQuantityUnit
+}>
+
+export type CorrectTripOccurrenceItemsInput = TripDocumentActionInput &
+  Readonly<{
+    idempotencyKey: string
+    /** Substitui o conjunto inteiro — não é edição item a item. */
+    items: readonly CorrectOccurrenceItemInput[]
+    occurrenceId: string
+  }>
+
+export type CancelTripOccurrenceInput = TripDocumentActionInput &
+  Readonly<{ idempotencyKey: string; occurrenceId: string; reason: string }>
+
+/**
  * Spec 185 (D4, ADR-0074 §1/§2): cópia por valor de `TryAutoDispatchTripResult`
  * (`apps/api-transportada/src/trips/application/try-auto-dispatch-trip.use-case.ts`) — o gatilho
  * automático nunca usa `force`; um gate recusado não desfaz a escrita da nota, só deixa a viagem
