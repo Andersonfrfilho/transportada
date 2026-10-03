@@ -148,6 +148,8 @@ export type OccurrenceCorrectionActionsInput = Readonly<{
   hasItems: boolean
   isCancelled: boolean
   permissions: readonly string[]
+  /** Quem já passou por Corrigir (inclusive para "a nota inteira") continua podendo corrigir. */
+  wasCorrected: boolean
 }>
 
 const OPEN_CASE_STATUSES: readonly TripOccurrenceCaseStatus[] = [
@@ -194,5 +196,5 @@ export function resolveOccurrenceCorrectionActions(
   const reason = resolveUnavailableReason(input, t)
   const state: OccurrenceActionState =
     reason === null ? { availability: 'enabled' } : { availability: 'disabled', reason }
-  return { cancel: state, correct: input.hasItems ? state : hidden }
+  return { cancel: state, correct: input.hasItems || input.wasCorrected ? state : hidden }
 }
