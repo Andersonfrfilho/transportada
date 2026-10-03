@@ -2109,7 +2109,15 @@ seis consultas continuam em `captured_at ?? recorded_at` (fora de escopo).** A p
 `resolveOccurredAt(...).kind === 'corrected'` em `attach-delivery-proof.use-case.ts` (nunca de "o campo
 veio"; R1: com posição na entrega só vale se `findDeliveryContext.isEventClockCorrected`, senão `deliveredAt` é hora crua): com a flag e posição na entrega, a foto é julgada pela hora corrigida sem o piso de
 `recebimento − missingAfterHours` (D4); sem posição na entrega a flag é ignorada, vale o recebimento e a
-entrega conta como longe (D4b). O prazo de "foto ausente" (`fleet/domain/driver-score.policy.ts`) conta
+entrega conta como longe (D4b). **GPS desligado pune em todo cliente (D4c, T1.8):** sem posição na
+entrega, a entrega **do motorista** conta como longe com ou sem o desvio — `findDeliveryContext` lê
+`trip_stop_events.channel` e devolve `isDeliveryRecordedByDriver` (`DRIVER_FIELD_CHANNELS` =
+`driver_app`/`whatsapp`, em `trips/domain/trip-field-channel.constant.ts`); a baixa do escritório
+(`office`, spec 223) nunca tem posição e **não** é punida por isso (a referência de tempo sem posição
+segue o recebimento quando o relógio é alegado). Sem o canal no contexto, vale a regra anterior (só a D4b
+pune). A pontualidade é gravada no anexo e a nota só lê `trip_delivery_proofs.punctuality` — nada já
+gravado é reclassificado; só a foto anexada depois da publicação (inclusive a substituta de entrega
+antiga, pela fusão pior-de-duas) sente a regra. O prazo de "foto ausente" (`fleet/domain/driver-score.policy.ts`) conta
 de `max(momento da entrega, deliveryReceivedAt)`, e `deliveryReceivedAt` é `trip_stop_events.recorded_at`
 (D5). Limite antifraude e achado do `location.capturedAt` sem teto: `docs/SECURITY.md`, entrada de
 2026-10-03. Spec: `specs/234-a-nota-mede-o-momento-do-evento-nao-a-chegada/`.

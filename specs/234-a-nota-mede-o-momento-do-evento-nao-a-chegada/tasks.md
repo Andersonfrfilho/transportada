@@ -29,7 +29,7 @@
       aceitos (R4/R5).
 - [x] **T1.7** Publicar a API em staging e **confirmar o deploy** antes da Fase 2.
 
-- [ ] **T1.8** 🧠 GPS desligado pune em todo cliente (D4c): entrega do motorista sem posição conta como
+- [x] **T1.8** 🧠 GPS desligado pune em todo cliente (D4c): entrega do motorista sem posição conta como
       "longe"; baixa do escritório não. Contrato antes (inclui cliente antigo e baixa do escritório),
       mutação, evidência. Pontualidade já gravada não é reescrita.
 

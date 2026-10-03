@@ -318,7 +318,11 @@ sinal de gestão, não prova (mesma premissa da spec 159).
 - **Sem posição na entrega o relógio não vale** (D4b): vale o horário de envio e a entrega conta como
   "longe". O mesmo para o evento: relato sem posição não grava `occurred_at` nem `clock_offset_ms`. Fecha
   o furo de forjar `clockOffsetMs: 0` numa entrega sem prova de lugar.
-- Cliente que **não** manda o desvio segue com o piso antigo.
+- **GPS desligado pune em todo cliente** (D4c, decisão do usuário em 2026-10-02): a entrega do motorista
+  (`trip_stop_events.channel` `driver_app`/`whatsapp`) sem posição conta como "longe" mande ou não o
+  desvio. A baixa do escritório (`office`) nunca tem posição e não pune — o canal é gravado pelo servidor
+  a partir da rota, o motorista não o escolhe.
+- Cliente que **não** manda o desvio segue com o piso antigo de tempo.
 - Com posição na entrega, a foto corrigida só vale se o evento de entrega também foi corrigido (senão a
   entrega é hora crua e a comparação seria entre relógios diferentes); a foto segue a regra antiga.
 - A decisão é gravada (`trip_stop_events.occurred_at`/`clock_offset_ms`, `trip_delivery_proofs.clock_offset_ms`):
@@ -338,9 +342,11 @@ janela de 90 dias da nota. Pré-existente à spec 234 (a leitura anterior, `capt
 tinha o mesmo furo), mas a 234 dá mais motivo para fechar: aplicar a `resolveOccurredAt` (ou o mesmo
 teto de +2 min / 30 dias) ao `captured_at` da posição. Também não há atestado do aparelho.
 
-**Limites aceitos da revisão da Fase 1 (decisão pendente do usuário):**
+**Limites aceitos da revisão da Fase 1 (o item 2 segue com decisão pendente do usuário):**
 
-1. **Assimetria da D4b.** A punição por "sem posição = longe" só vale para quem manda `clockOffsetMs`.
+1. **Assimetria da D4b — DECIDIDA pela D4c (2026-10-02, spec 234 T1.8):** "sem posição na entrega =
+   longe" virou regra do canal do motorista para qualquer cliente; omitir `clockOffsetMs` não livra mais
+   da punição. Registro original, mantido para o histórico: a punição por "sem posição = longe" só vale para quem manda `clockOffsetMs`.
    Cenário: o motorista com o app novo e honesto, numa entrega sem GPS, recebe `away`; o que tira o campo
    do corpo (ou ainda usa o app antigo) cai no comportamento antigo, em que a distância sem posição na
    entrega não pesa, e não é punido. Há incentivo a omitir o campo. Opção futura: tornar "sem posição na

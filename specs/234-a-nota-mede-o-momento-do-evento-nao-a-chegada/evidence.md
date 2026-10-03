@@ -831,6 +831,99 @@ subiu pelo `preDeployCommand`); `deploy-client`, `deploy-frontend`, `deploy-driv
 `mark-deployed` também verdes. Gates `integration-api (1..4)`, `integration-migration` e
 `quality-app (api-transportada)` verdes na CI.
 
+## T1.8 — GPS desligado pune em todo cliente (D4c)
+
+Commits: `b6e43ce72` (contrato antes, vermelho) · `0234d784c` (implementação + integração) · este
+(documentação e evidência).
+
+**O sinal de canal.** `trip_stop_events.channel` (`src/database/trip.schema.ts:1175-1178`, `varchar(16)
+not null default 'driver_app'`, CHECK `trip_stop_events_channel_check` e `channel <> 'office' or
+on_behalf_of_driver_id is not null`, `:1317-1322`). Há um único escritor, `recordEvent`
+(`drizzle-driver-field-report.repository.ts:784`), que grava `input.authorship.channel` — e a autoria
+nasce de **como** a viagem foi achada (`deriveFieldAuthorship`, `field-trip-target.types.ts:78-90`):
+`{ target }` só existe nas rotas do escritório e dá `office`; `{ driverId }` dá `driver_app` (ou
+`whatsapp`, quando o localizador do WhatsApp diz). O motorista não escolhe o canal. Histórico sem a coluna
+ficou `driver_app` pelo default, o que é verdade: antes da ADR-0067 não havia baixa do escritório.
+
+- Motorista = `DRIVER_FIELD_CHANNELS` = `driver_app` + `whatsapp` (`trips/domain/trip-field-channel.constant.ts`).
+  O WhatsApp **nunca** manda posição (`register-driver-flow-actions.ts:316`, `location: null`), então a foto
+  sobre entrega do WhatsApp passa a ser `away`. Efeito prático na nota: nenhum — a nota só lê entrega
+  `channel = 'driver_app'` (`drizzle-driver-score.repository.ts:154`, spec 159 T11 D2); muda o veredito
+  gravado e exibido.
+- `office` e `backoffice` não punem por falta de posição.
+
+**Mudança.** `findDeliveryContext` seleciona `channel` e devolve `isDeliveryRecordedByDriver`; a porta e
+`ClassifyProofPunctualityParams` ganham o campo **opcional** (ausente = regra anterior: só a D4b pune). Na
+política, sem posição na entrega, `isAway` devolve `isDeliveryRecordedByDriver ?? hasCorrectedClock ===
+true`. A referência de tempo não mudou (relógio alegado sem posição continua valendo o recebimento, também
+na baixa do escritório). `lateRegistration` e `photoMode ≠ required` decidem antes da distância, como
+antes. A penalidade é uma só por entrega (`late_and_away` pesa o mesmo `latePenaltyPoints`), e a fusão
+`mergeProofPunctuality` segue pior-de-duas sem somar.
+
+**Retroatividade: zero reescrita.** `classifyProofPunctuality` tem um único chamador
+(`attach-delivery-proof.use-case.ts`), no anexo. A nota (`computeDriverScore` via
+`DrizzleDriverScoreRepository.listDeliveries`) lê `trip_delivery_proofs.punctuality` gravada e nunca relê
+posição para reclassificar. Nenhuma migration. Efeito só para frente: foto anexada depois da publicação
+sobre entrega do motorista sem posição — inclusive a **substituta** de uma entrega antiga, que pela fusão
+pior-de-duas leva o `away` para a linha (uma foto `on_time` antiga trocada depois vira `away`).
+
+```text
+ANTES
+apps/api-transportada$ bun --env-file=../../.env.test test --timeout 120000
+  → 8896 pass, 23 skip, 0 fail (8919 testes, 193 arquivos)
+
+VERMELHO (contratos novos, código anterior — commit b6e43ce72)
+apps/api-transportada$ bun test ./test/trip-delivery-proof.contract.test.ts ./test/driver-trip.contract.test.ts
+  → 582 pass, 9 fail
+    5× Expected "away"  Received "on_time"       (motorista sem posição, cliente antigo)
+    1× Expected "late_and_away" Received "late"  (idem, foto fora da janela)
+    2× Expected "on_time" Received "away"        (escritório + relógio corrigido)
+    1× Expected "late"  Received "late_and_away" (escritório + relógio corrigido, 61 min)
+
+VERDE
+apps/api-transportada$ bun test ./test/trip-delivery-proof.contract.test.ts ./test/driver-trip.contract.test.ts
+  → 591 pass, 0 fail
+apps/api-transportada$ bun --env-file=../../.env.test test --timeout 120000
+  → 8920 pass, 23 skip, 0 fail (8943 testes, 193 arquivos) — +24 (17 da política, 7 do caso de uso)
+apps/api-transportada$ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/delivery-proof-gps-off.integration.ts
+  → 4 pass, 0 fail, 0 skip (Postgres do .env.test, 65432)
+apps/api-transportada$ bun --env-file=../../.env.test test --timeout 120000 <8 arquivos tocados*>
+  → 93 pass, 0 fail, 0 skip (174,7 s)
+apps/api-transportada$ bun --env-file=../../.env.test run test:integration
+  → 882 pass, 8 skip, 0 fail (890 testes, 154 arquivos, 1406 s, exit 0) — os 8 pulos são condicionais
+    de arquivos que esta task não toca; a subsuíte tocada acima roda com 0 skip
+apps/api-transportada$ bun run typecheck → exit 0 · bun run lint → exit 0 (--max-warnings=0)
+raiz$ bun run format:check → exit 0
+```
+
+\* `delivery-proof-gps-off`, `delivered-moment`, `trip-field-office`, `me-trip`, `driver-score`,
+`driver-delivery-proof-read`, `delivery-proofs-by-trip`, `event-location-stamp`.
+
+Contratos: `test/trip-delivery-proof/punctuality-gps-off.contract.ts` (política: motorista sem posição com
+cliente antigo e com relógio corrigido, escritório com e sem relógio, com posição no raio, foto sem
+posição, `lateRegistration`, `photoMode` optional/off, e a regra anterior sem o canal);
+`test/driver-trip/delivery-proof-clock-corrected.contract.ts` (caso de uso: o canal chega à política,
+foto da mercadoria, substituta pontual de uma `away`); `test/integration/delivery-proof-gps-off.integration.ts`
+(Postgres: app sem posição → `away`; app com posição → `on_time`; WhatsApp → `away`; baixa do escritório
+sem canhoto, spec 223 → `on_time`). O fixture `delivery-proof-world.fixture.ts` só repassa o campo quando
+informado (espalhamento condicional, sem parâmetro default que engula `undefined`).
+
+Mutações (contrato `trip-delivery-proof` + `driver-trip`, e a integração nova), cada uma restaurada com
+`git checkout` e conferida com `git diff --quiet`:
+
+| #   | Mutação                                                         | Contrato | Integração |
+| --- | --------------------------------------------------------------- | -------- | ---------- |
+| M1  | inverte o canal no repositório (`!DRIVER_FIELD_CHANNELS.has`)   | 0 fail   | 4 fail     |
+| M2  | tira a punição do cliente antigo (`(canal ?? true) && relógio`) | 6 fail   | 2 fail     |
+| M3  | pune o escritório (`canal !== undefined \|\| relógio`)          | 6 fail   | 1 fail     |
+| M4  | caso de uso não repassa o canal                                 | 4 fail   | 2 fail     |
+| M5  | WhatsApp fora dos canais do motorista                           | 0 fail   | 1 fail     |
+| M6  | repositório não informa o canal (o código antes da T1.8)        | 0 fail   | 4 fail     |
+| M7  | sem o canal, a D4b some (`canal ?? false`)                      | 7 fail   | 0 fail     |
+
+M1, M5 e M6 só a integração pega — o contrato usa dublê do repositório; é por isso que ela existe. M7 só o
+contrato pega: o repositório real sempre informa o canal.
+
 # Fase 2 — App: medir e mandar
 
 Contagem de passes de `bun run --cwd apps/frontend-driver test` (script do package, nunca `bun test` cru):
