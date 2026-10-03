@@ -8,6 +8,7 @@ import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 import { useFleet } from '@/modules/fleet/hooks/useFleet.hook'
+import { listActiveDrivingDrivers } from '@/modules/fleet/shared/driverCrewRole.service'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { TripAssemblyDraftBanner } from '../components/TripAssemblyDraftBanner.component'
@@ -210,10 +211,7 @@ export function TripWorkspacePage() {
   const fleetDrivers = fleet.viewModel.drivers
   const fleetVehicles = fleet.viewModel.vehicles
   const selectableDriverIds = useMemo(
-    () =>
-      (fleetDrivers ?? [])
-        .filter((driver) => driver.status === 'active')
-        .map((driver) => driver.id),
+    () => listActiveDrivingDrivers(fleetDrivers ?? []).map((driver) => driver.id),
     [fleetDrivers],
   )
   /** Spec 149 D1: ajudante só entre as fichas ativas marcadas "pode atuar como ajudante". */

@@ -6,6 +6,7 @@ import { Icon } from '@/components/ui/icon'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useVehicleSelectOptions } from '@/modules/fleet/hooks/useVehicleSelectOptions.hook'
+import { listActiveDrivingDrivers } from '@/modules/fleet/shared/driverCrewRole.service'
 import { sortDriversByScore } from '@/modules/fleet/shared/driverRecommendation.service'
 import { resolveVehicleColorSwatch } from '@/modules/fleet/shared/vehicleOption.service'
 import { VEHICLE_TYPE_ICONS } from '@/modules/shared/vehicleTypeIcon.service'
@@ -46,7 +47,7 @@ export function TripRouteAssemblyPanel({
    */
   const { t: tRouting } = useTranslation('routing')
   /** Spec 159 RF11, ADR-0070 §7: ordenado por nota — o seletor recomenda quem entregou em dia. */
-  const activeDrivers = sortDriversByScore(drivers.filter((driver) => driver.status === 'active'))
+  const activeDrivers = sortDriversByScore(listActiveDrivingDrivers(drivers))
   const tractionVehicles = vehicles.filter(
     (vehicle) => vehicle.status === 'active' && vehicle.role === 'traction',
   )

@@ -47,7 +47,7 @@ da app. Cada task fecha com typecheck, testes da app, commit isolado e evidênci
       "Diária própria" (fecha a T12 da 149), textos em `fleet.locale.json`.
 - [x] **T10** Acesso: papel "Ajudante" no convite, na tabela, em `companyUsers.constant.ts` e na lista
       fechada de `useAuthMe.query.ts` (:162) e `workspaceAccess.service.ts`; sobe antes ou junto da API.
-- [ ] **T11** Viagem: o seletor de motoristas exclui quem não dirige; o de ajudantes inclui quem pode
+- [x] **T11** Viagem: o seletor de motoristas exclui quem não dirige; o de ajudantes inclui quem pode
       ajudar; o texto de lista vazia aponta onde marcar (`trip.locale.json`).
 
 ## Fase 4 — Fechamento

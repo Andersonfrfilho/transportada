@@ -668,3 +668,50 @@ escopo: aplicativo do ajudante", mas é o que a pessoa verá — decisão de pro
 - `bun run typecheck` (raiz) exit 0 · `eslint` (cwd da app) 0 erros (16 warnings antigos) · `prettier --check` limpo.
 - Sincronia de papéis com a API: `test/frontend-contract.test.ts` › `keeps the allowlist in sync with the API
 authorization policy` verde (e o contrato novo cobre a lista do convite e `FLEET_LINKED_ROLES`).
+
+## T11 — Viagem: o seletor de motoristas exclui quem não dirige
+
+Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+
+### Seletores de condutor achados no painel (e o que foi feito)
+
+| Seletor                                 | Arquivo                                                            | Antes                              | Agora                                                                                                                                             |
+| --------------------------------------- | ------------------------------------------------------------------ | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Criação rápida da viagem                | `trip/components/TripQuickCreateDialog.component.tsx`              | ativos                             | ativos **que dirigem** (`listActiveDrivingDrivers`); o pool de ajudantes continua partindo dos ativos                                             |
+| Montagem/proposta de rota               | `trip/components/TripRouteAssemblyPanel.component.tsx`             | ativos                             | ativos que dirigem                                                                                                                                |
+| Troca de tripulação                     | `trip/components/TripCrewDialog.component.tsx`                     | **todas** as fichas (até inativas) | `listDriverCandidates`: sai quem não dirige; o motorista atual fica para poder ser retirado. O filtro de status **não** foi alterado (não pedido) |
+| Restauração de rascunho                 | `trip/pages/TripWorkspace.page.tsx` (`selectableDriverIds`)        | ativos                             | ativos que dirigem (senão o rascunho restauraria um ajudante puro como motorista)                                                                 |
+| MDF-e avulso, condutores                | `mdfe-manifest/components/MdfeManifestCreationPanel.component.tsx` | ativos                             | ativos que dirigem (mesma regra que a API aplicou na T6b)                                                                                         |
+| Filtro da lista de viagens              | `trip/components/TripFilters.component.tsx`                        | todas                              | **inalterado**: é filtro por quem está na viagem (inclui ajudantes), não escolha de condutor                                                      |
+| Seletor de motorista em campo           | `TripHeaderActions` (`trip.drivers`)                               | quem está na viagem                | inalterado: não lista a frota                                                                                                                     |
+| Seletores de ajudante (criação e troca) | `listHelperCandidates`                                             | ativos com `canActAsHelper`        | inalterado — provado por teste: o ajudante puro está nele e não nos motoristas; o motorista que ajuda está nos dois                               |
+
+Predicado novo: `fleet/shared/driverCrewRole.service.ts` (`listActiveDrivingDrivers`); `readTripDriverIds` e
+`listDriverCandidates` em `trip/shared/tripCrewHelpers.service.ts`.
+
+### Erro e texto
+
+- `TRIP_DRIVER_CANNOT_DRIVE` → `driverCannotDrive` na troca de tripulação (`crewDialog.error.*`) e no mapa de feedback da
+  viagem (`feedback.driverCannotDrive`, usado pela criação/aceite), nos dois idiomas. `TRIP_CREW_HELPER_CANNOT_DRIVE`
+  (403, ajudante que tenta despachar) **não** é mapeado para a mesma chave: na troca cai no genérico e no mapa da
+  viagem segue sem entrada (contrato afirma os dois).
+- "Nenhum motorista ativo está marcado como ajudante na ficha." (criação e troca) virou "Nenhum ajudante ativo. Cadastre um em
+  Frota › Motoristas ou dê o papel Ajudante em Acesso." (pt-BR e o equivalente em inglês).
+
+### Contrato vermelho antes do código
+
+`test/trip/crew-drivers-can-drive.contract.ts` (importado por `trip.contract.test.ts`): primeira execução falhou com
+`Cannot find module driverCrewRole.service`. Cobre filtro de condutor, fiação nos cinco pontos, o pool de ajudantes da
+criação, o mapa de erro (sem confusão com o 403), textos nos dois idiomas e a lista vazia.
+
+### Prova por mutação (arquivos restaurados e conferidos com `cmp`)
+
+Filtro sem `canDrive` → 2 fail · candidatos da troca sem filtro → 1 · mapa da troca sem o código → 2 · mapa da viagem sem o
+código → 1 · `TRIP_CREW_HELPER_CANNOT_DRIVE` mapeado para a mesma chave → 1 · pool de ajudantes passando a partir de quem
+dirige → 1 · MDF-e sem o filtro → 1 · texto da lista vazia revertido → 1.
+
+### Gates
+
+- `bun run test` (app): `6460 pass · 0 fail · 32 files` + hooks `327 pass · 0 fail`.
+- `bun run typecheck` (raiz) exit 0 · `eslint` (cwd da app) 0 erros (16 warnings antigos) · `prettier --check` limpo nos
+  tocados.
