@@ -984,3 +984,44 @@ A API passou a expor o `Date` (`9bd3cfe67`, `CORS_EXPOSE_HEADERS`), o que fecha 
 | N5  | a drenagem de anexos não entrega o carimbo                  | 2 reprovam (carimbo do toque, `drainQueueWithAttachments`)                |
 | N6  | `drainQueue` não entrega o carimbo                          | reprova `drainQueue (a fila simples) também entrega o carimbo`            |
 | N7  | o hook manda `{ report }` sem `stamp`                       | `tsc` falha (TS2345), antes de qualquer teste                             |
+
+## T2.6 — o desvio guardado no aparelho por 24 h (D7)
+
+Caso-alvo: abre com sinal às 7h (o `Date` mede), a aba é descartada, reabre às 10h **sem sinal** e a entrega sai
+com `tappedAt`/`clockOffsetMs`.
+
+- **Onde:** `localStorage` (`transportada.driver.clock-offset.v1`, `{ offsetMs, measuredAt }`), no
+  `clockOffset.service.ts`. Escolhi `localStorage` e não IndexedDB porque a leitura é síncrona — o hook lê o
+  desvio ao enfileirar, e uma leitura assíncrona deixaria a primeira entrega do boot offline sem ele (precedente
+  do `occurrenceTypesCache`). Por isso o hook **não mudou**: `driverClockOffset.read()` já enxerga o valor
+  persistido no primeiro toque.
+- **Regras:** `createClockOffsetStore({ now, storage })`; `read()` devolve `undefined` se o registro é malformado
+  (forma, `offsetMs` não inteiro), se passou de `CLOCK_OFFSET_MAX_AGE_MS` (24 h, limite inclusivo) ou se
+  `measuredAt` está no futuro do relógio atual; `write()` substitui, persiste e tolera `localStorage` que lança
+  (cota, modo privado). Do aparelho, não da conta: sem `subHash`, e o "Sair" não o apaga (não identifica ninguém
+  e some sozinho em 24 h). O teto de 5 s de ida e volta continua: pedido lento não grava nem no aparelho.
+
+Contagem de `bun run test` do frontend-driver: 1098 → **1124 pass**, 0 fail (+26 em
+`clock-offset-persistence.contract.ts`).
+
+Vermelho (commit `2105f4d01`): sem as constantes, "Export named 'CLOCK_OFFSET_STORAGE_KEY' not found"; só com as
+constantes e sem comportamento, 995 pass / 9 fail (persistência entre sessões ×4, limite inclusivo, expiração da
+mesma sessão, futuro, medição do cliente gravada, boot offline com o desvio de antes).
+
+Smoke (`driver-app.smoke.spec.ts`, porta 53112): 38 passed (37 + o novo "o desvio medido antes de recarregar sem
+sinal ainda vai no deliver feito offline"); `driver-service-worker.smoke.spec.ts`: 2 passed.
+
+| #   | Regra                    | Mutante                                           | Reprova                                                          |
+| --- | ------------------------ | ------------------------------------------------- | ---------------------------------------------------------------- |
+| P1  | persiste                 | a medição não é gravada                           | 7 (sobrevive à sessão, instante guardado…)                       |
+| P2  | limite de 24 h inclusivo | `<` no lugar de `<=`                              | `com exatas 24 h ainda vale`                                     |
+| P3  | 24 h                     | validade de 48 h                                  | `o teto declarado é 24 h`                                        |
+| P4  | expira                   | sem expiração                                     | `1 ms além das 24 h…`, `a mesma sessão aberta por mais de 24 h…` |
+| P5  | futuro                   | aceita `measuredAt` no futuro                     | `…no futuro do relógio atual (relógio mexido), não`              |
+| P6a | forma                    | aceita `offsetMs` fracionário                     | `offsetMs fracionário (a API recusa)`                            |
+| P6b | forma                    | aceita qualquer registro                          | 3 (null, texto, fracionário)                                     |
+| P7  | lê do aparelho           | a leitura só olha a memória                       | 7                                                                |
+| P8a | leitura tolerante        | `getItem`/`JSON.parse` sem `try`                  | 2 (JSON inválido, armazenamento que lança)                       |
+| P8b | escrita tolerante        | `setItem` sem `try`                               | `armazenamento que lança na escrita…`                            |
+| P9  | teto de 5 s              | amostra lenta volta a ser gravada                 | 2 (D1 e D7)                                                      |
+| S1  | liga o aparelho ao app   | o singleton `driverClockOffset` sem armazenamento | smoke `o desvio medido antes de recarregar…`                     |

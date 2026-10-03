@@ -106,7 +106,7 @@ depois anexos (`offlineAttachments.service.ts`) exigiria a ordem inversa, e a 17
 `test/driver-trip/occurrence-upload.contract.ts`.
 
 **O momento do evento é o do toque, corrigido pelo relógio** (spec 234, Fase 2). `request()` do cliente
-lê o `Date` de toda resposta `ok` e guarda em memória (`clockOffset.service.ts:driverClockOffset`) o desvio
+lê o `Date` de toda resposta `ok` e guarda (`clockOffset.service.ts:driverClockOffset`) o desvio
 `servidor − aparelho`, contra o ponto médio do pedido; o `Date` tem resolução de 1 s e o erro de ±1 s é
 aceito, e pedido com ida e volta acima de 5 s (`MAX_CLOCK_SAMPLE_ROUND_TRIP_MS`) não mede — upload lento é
 assimétrico. O item da fila (`QueuedReport`) e o anexo (`QueuedAttachment`) guardam o desvio **da criação**
@@ -118,7 +118,14 @@ campos — os esquemas da API são `.strict()` e `depart`/`cancelDeparture` (já
 `clockOffsetMs` (o `capturedAt` já é a hora do toque). Sem desvio medido, nenhum campo vai. ⚠️ O `Date` de outra
 origem só chega ao JavaScript com `Access-Control-Expose-Headers: Date`, que a API emite em
 `applyCorsHeaders` (`CORS_EXPOSE_HEADERS`, `test/cors.contract.test.ts`); sem ele o app não mede nada e não há erro.
-`test/driver-trip/clock-offset.contract.ts`, `test/driver-trip/event-clock-fields.contract.ts`, smoke em
+
+**O desvio sobrevive ao aparelho sem sinal** (spec 234 D7/T2.6): a última medição vai ao `localStorage`
+(`transportada.driver.clock-offset.v1`, `{ offsetMs, measuredAt }`) e vale `CLOCK_OFFSET_MAX_AGE_MS` (24 h,
+limite inclusivo); a leitura devolve `undefined` com registro malformado, vencido ou com `measuredAt` no futuro
+do relógio atual. É `localStorage` e não IndexedDB porque a leitura é **síncrona**: o hook lê o desvio ao
+enfileirar, e uma leitura assíncrona deixaria a primeira entrega do boot offline sem ele (mesmo precedente do
+`occurrenceTypesCache`). O desvio é do aparelho, não da conta — sem `subHash`, e o "Sair" não o apaga.
+`test/driver-trip/clock-offset.contract.ts`, `test/driver-trip/clock-offset-persistence.contract.ts`, `test/driver-trip/event-clock-fields.contract.ts`, smoke em
 `driver-app.smoke.spec.ts`.
 
 **"Não entreguei" é ocorrência com foto e devolução** (spec 179, pedido do usuário de 25/09,
