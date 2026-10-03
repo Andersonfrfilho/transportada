@@ -58,7 +58,7 @@ async function mountList(options: { canManage?: boolean; search?: string } = {})
   const rendered = await renderWithQueryClient(
     createElement(CargoArrivalListPanel, { canManage: options.canManage ?? true }),
   )
-  await waitFor(() => expect(rowTexts().length).toBeGreaterThan(0))
+  await waitFor(() => expect(document.querySelector('[aria-busy="true"]')).toBeNull())
   return rendered
 }
 
@@ -122,7 +122,7 @@ describe('a lista de chegadas (spec 237 T2.4)', () => {
   test('a zebra é regra de CSS por classe e token; nenhuma linha leva estilo inline', async () => {
     const rendered = await mountList()
     const css = readFileSync(
-      new URL('../../src/modules/cargo-receiving/styles/cargoReceiving.module.css', import.meta.url),
+      new URL('../../src/modules/cargo-receiving/styles/cargoTable.module.css', import.meta.url),
       'utf8',
     )
 
@@ -288,7 +288,9 @@ describe('paginação por cursor', () => {
       createElement(CargoArrivalListPanel, { canManage: true }),
     )
 
-    await waitFor(() => expect(document.body.textContent).toContain('Nenhuma chegada registrada ainda.'))
+    await waitFor(() =>
+      expect(document.body.textContent).toContain('Nenhuma chegada registrada ainda.'),
+    )
     rendered.unmount()
   })
 })

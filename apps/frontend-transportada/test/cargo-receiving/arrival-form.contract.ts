@@ -92,7 +92,10 @@ describe('a validação com as faixas do servidor', () => {
   })
 
   test('devolve todos os problemas de uma vez, não só o primeiro', () => {
-    const all = issues({ contractorId: '', palletCount: 'x', reference: 'x'.repeat(200), time: '' }, 0)
+    const all = issues(
+      { contractorId: '', palletCount: 'x', reference: 'x'.repeat(200), time: '' },
+      0,
+    )
 
     expect(Object.keys(all).sort()).toEqual([
       'arrivedAt',

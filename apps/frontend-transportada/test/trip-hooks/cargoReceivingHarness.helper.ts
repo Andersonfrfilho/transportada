@@ -47,7 +47,11 @@ const NEXT_STATE: Readonly<Record<CargoDocumentState, CargoDocumentState | undef
 }
 
 export type DoubleCalls = {
-  readonly assignRoute: { arrivalId: string; documentIds: readonly string[]; routeName: string | null }[]
+  readonly assignRoute: {
+    arrivalId: string
+    documentIds: readonly string[]
+    routeName: string | null
+  }[]
   readonly batch: { documentIds: readonly string[]; to: string }[]
   readonly close: string[]
   readonly listArrivals: { cursor: string | null; filters: Record<string, string> }[]
@@ -149,7 +153,7 @@ function buildClient(double: CargoReceivingDouble): CargoReceivingClient {
       }),
     readReceivingEnabled: (contractorId) => Promise.resolve(ENABLED_CONTRACTORS.has(contractorId)),
     registerArrival: (input) => {
-      double.calls.register.push(structuredClone(input) as DoubleCalls['register'][number])
+      double.calls.register.push(structuredClone(input))
       if (double.registerFailure !== undefined) return Promise.reject(double.registerFailure)
       return Promise.resolve({ arrival: double.server, isReplay: false })
     },
@@ -182,7 +186,7 @@ export function installCargoReceivingDouble(
 export async function release(double: CargoReceivingDouble): Promise<void> {
   await act(async () => {
     for (const resolve of double.pending.splice(0)) resolve()
-    await Promise.resolve()
+    await new Promise((resolve) => setTimeout(resolve, 0))
   })
 }
 
@@ -223,10 +227,11 @@ export function maybeByLabel(label: string, root: ParentNode = document): HTMLEl
   return root.querySelector<HTMLElement>(`[aria-label="${label}"]`)
 }
 
+/** Um macrotask depois do clique: a atualização otimista passa por `await` antes de chegar à tela. */
 export async function click(element: HTMLElement): Promise<void> {
   await act(async () => {
     element.click()
-    await Promise.resolve()
+    await new Promise((resolve) => setTimeout(resolve, 0))
   })
 }
 

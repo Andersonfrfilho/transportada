@@ -1,0 +1,74 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/* Detalhe do escritório. */
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: var(--color-slate-muted);
+}
+
+.groupSection {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.groupHeader {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.groupHeader h3 {
+  margin: 0;
+}
+
+.groupSummary {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+}
+
+.selectionBar {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-copper);
+}
+
+@media (min-width: 64rem) {
+  .selectionBar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: end;
+  }
+}
+
+.outcome {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+}
+
+.outcomeHead {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.outcome h3 {
+  margin: 0;
+}
+
+.saved {
+  color: var(--color-ready);
+  margin: 0;
+}

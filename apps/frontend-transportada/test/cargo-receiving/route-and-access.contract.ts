@@ -74,8 +74,12 @@ describe('a permissão do recebimento', () => {
   })
 
   test('abre com fleet.read, a leitura que a API exige', () => {
-    expect(canOpenWorkspace({ permissions: ['fleet.read'], workspace: 'cargo-receiving' })).toBe(true)
-    expect(canOpenWorkspace({ permissions: ['trip.manage'], workspace: 'cargo-receiving' })).toBe(false)
+    expect(canOpenWorkspace({ permissions: ['fleet.read'], workspace: 'cargo-receiving' })).toBe(
+      true,
+    )
+    expect(canOpenWorkspace({ permissions: ['trip.manage'], workspace: 'cargo-receiving' })).toBe(
+      false,
+    )
   })
 
   test('o item de menu só aparece para quem pode abrir, no grupo de operações', () => {
@@ -87,16 +91,18 @@ describe('a permissão do recebimento', () => {
     )
     expect(operations?.items.map((item) => item.href)).toContain('/recebimento')
     expect(
-      resolveVisibleNavigationGroups(DRIVER).flatMap((group) => group.items.map((item) => item.key)),
+      resolveVisibleNavigationGroups(DRIVER).flatMap((group) =>
+        group.items.map((item) => item.key),
+      ),
     ).not.toContain('cargo-receiving')
   })
 
   test('a parede da página decide pelo mesmo mapa: sem permissão ou sem empresa, barrada', () => {
-    const wall = (permissions: readonly string[], companyId: string | undefined = COMPANY_ID) =>
+    const wall = (permissions: readonly string[], companyId: string | undefined) =>
       isWorkspaceForbidden({ companyId, permissions, workspace: 'cargo-receiving' })
 
-    expect(wall(SEPARATOR)).toBe(false)
-    expect(wall(DRIVER)).toBe(true)
+    expect(wall(SEPARATOR, COMPANY_ID)).toBe(false)
+    expect(wall(DRIVER, COMPANY_ID)).toBe(true)
     expect(wall(SEPARATOR, undefined)).toBe(true)
   })
 })

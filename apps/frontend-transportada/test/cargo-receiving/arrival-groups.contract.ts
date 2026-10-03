@@ -55,7 +55,10 @@ describe('os grupos do celular (spec 237 T2.4)', () => {
     const first = resolveGroupKey(GROUPS[0] as (typeof GROUPS)[number])
     const second = resolveGroupKey(GROUPS[1] as (typeof GROUPS)[number])
 
-    const open = resolveOpenGroupKeys({ groups: GROUPS, toggled: { [first]: false, [second]: true } })
+    const open = resolveOpenGroupKeys({
+      groups: GROUPS,
+      toggled: { [first]: false, [second]: true },
+    })
 
     expect([...open]).toEqual([second])
   })
@@ -82,7 +85,9 @@ describe('a busca por número da nota', () => {
     const found = filterGroupsByNumber({ groups: GROUPS, query: '100' })
 
     expect(found).toHaveLength(GROUPS.length)
-    expect(found[0]?.counts).toEqual(GROUPS[0]?.counts as NonNullable<(typeof GROUPS)[number]>['counts'])
+    expect(found[0]?.counts).toEqual(
+      GROUPS[0]?.counts as NonNullable<(typeof GROUPS)[number]>['counts'],
+    )
   })
 
   test('busca sem resposta devolve lista vazia', () => {

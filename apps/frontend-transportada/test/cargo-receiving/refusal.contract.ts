@@ -59,7 +59,10 @@ describe('a recusa da chegada nomeia todas as notas (spec 237 T2.4)', () => {
       { field: 'arrivedAt', message: 'Other' },
     ])
 
-    const { fields, documents } = describeRegistrationRefusal({ error, requestedDocuments: DOCUMENTS })
+    const { fields, documents } = describeRegistrationRefusal({
+      error,
+      requestedDocuments: DOCUMENTS,
+    })
 
     expect(fields).toEqual([
       { field: 'arrivedAt', labelKey: 'fields.arrivedAt' },
@@ -115,7 +118,11 @@ describe('o resultado do lote mostra uma linha por nota', () => {
       results: [
         { documentId: 'id-1001', outcome: 'changed' },
         { documentId: 'id-1002', outcome: 'unchanged' },
-        { documentId: 'id-1003', outcome: 'refused', reason: 'CARGO_ARRIVAL_DOCUMENT_NOT_RECEIVED' },
+        {
+          documentId: 'id-1003',
+          outcome: 'refused',
+          reason: 'CARGO_ARRIVAL_DOCUMENT_NOT_RECEIVED',
+        },
         { documentId: 'id-1004', outcome: 'refused', reason: 'CARGO_ARRIVAL_CLOSED' },
       ],
     })
@@ -131,7 +138,9 @@ describe('o resultado do lote mostra uma linha por nota', () => {
   test('nota fora da lista conhecida aparece com o id no lugar do número', () => {
     const summary = describeBatchOutcomes({
       documents: [],
-      results: [{ documentId: 'id-x', outcome: 'refused', reason: 'CARGO_ARRIVAL_DOCUMENT_NOT_FOUND' }],
+      results: [
+        { documentId: 'id-x', outcome: 'refused', reason: 'CARGO_ARRIVAL_DOCUMENT_NOT_FOUND' },
+      ],
     })
 
     expect(summary.refused).toEqual([

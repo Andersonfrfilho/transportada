@@ -145,13 +145,13 @@
     "integer": "Use um número inteiro de {{min}} a {{max}}.",
     "tooLong": "Use no máximo {{max}} caracteres.",
     "noDocuments": "Marque ao menos uma nota.",
+    "tooMany": "No máximo {{max}} notas por chegada.",
     "refusedByServer": "O servidor recusou este valor."
   },
   "refusal": {
     "lead": "Confira:",
     "documentsLead": "Notas recusadas:",
     "documentShortcut": "NF {{number}}",
-    "documentReason": "{{reason}}",
     "reasons": {
       "DOCUMENT_ALREADY_IN_ARRIVAL": "já está em outra chegada",
       "DOCUMENT_FROM_ANOTHER_ISSUER": "é de outro emitente",
@@ -182,7 +182,6 @@
     "loading": "Carregando a chegada",
     "error": "Não foi possível carregar a chegada ({{code}}).",
     "closedNotice": "Chegada fechada: só leitura.",
-    "groups": "Grupos de rota e cidade",
     "groupRegion": "Notas do grupo {{title}}",
     "selectGroup": "Selecionar o grupo {{title}}",
     "selectDocument": "Selecionar a nota {{number}}",
@@ -199,11 +198,8 @@
     "applyRoute": "Aplicar rota",
     "markReceived": "Marcar como recebidas",
     "markSeparated": "Marcar como separadas",
-    "working": "Enviando…",
     "close": "Fechar chegada",
     "closing": "Fechando…",
-    "closed": "Chegada fechada.",
-    "closeUnchanged": "A chegada já estava fechada.",
     "pendingLead": "Faltam separar:",
     "pendingShortcut": "NF {{number}}"
   },

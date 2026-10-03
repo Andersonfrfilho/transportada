@@ -52,7 +52,9 @@ async function chooseContractor(name: string): Promise<void> {
   )
   if (option === undefined) throw new Error(`OPTION_NOT_FOUND:${name}`)
   await click(option as HTMLElement)
-  await waitFor(() => expect(document.querySelector('[aria-label^="Selecionar a nota"]')).not.toBeNull())
+  await waitFor(() =>
+    expect(document.querySelector('[aria-label^="Selecionar a nota"]')).not.toBeNull(),
+  )
 }
 
 const checkbox = (number: number) =>
@@ -75,18 +77,21 @@ describe('registrar a chegada (spec 237 T2.4)', () => {
 
     await click(document.querySelector('button[aria-label="Contratante"]') as HTMLButtonElement)
 
-    expect([...document.querySelectorAll('[role="option"]')].map((item) => item.textContent?.trim())).toEqual([
-      'Alfa Indústria Fictícia',
-      'Beta Comércio Fictício',
-    ])
-    expect(document.body.textContent).toContain('Só aparecem contratantes com o recebimento ligado no perfil.')
+    expect(
+      [...document.querySelectorAll('[role="option"]')].map((item) => item.textContent?.trim()),
+    ).toEqual(['Alfa Indústria Fictícia', 'Beta Comércio Fictício'])
+    expect(document.body.textContent).toContain(
+      'Só aparecem contratantes com o recebimento ligado no perfil.',
+    )
     rendered.unmount()
   })
 
   test('sem contratante escolhido não há nota para marcar', async () => {
     const { rendered } = await mountRegistration()
 
-    expect(document.body.textContent).toContain('Escolha o contratante para listar as notas livres dele.')
+    expect(document.body.textContent).toContain(
+      'Escolha o contratante para listar as notas livres dele.',
+    )
     expect(document.querySelector('[aria-label^="Selecionar a nota"]')).toBeNull()
     rendered.unmount()
   })
@@ -187,7 +192,9 @@ describe('registrar a chegada (spec 237 T2.4)', () => {
     expect(sent?.input.documentIds).toEqual([buildAvailable(3).id, buildAvailable(1).id])
     expect(sent?.input.palletCount).toBe(12)
     expect(sent?.input.reference).toBe('Lacre 4471')
-    expect(new Date(String(sent?.input.arrivedAt)).getTime()).toBeLessThanOrEqual(Date.now() + 120_000)
+    expect(new Date(String(sent?.input.arrivedAt)).getTime()).toBeLessThanOrEqual(
+      Date.now() + 120_000,
+    )
     await waitFor(() => expect(window.location.pathname).toBe(`/recebimento/${ARRIVAL_ID}/detalhe`))
     rendered.unmount()
   })
@@ -211,7 +218,9 @@ describe('o Idempotency-Key por tentativa', () => {
     await click(buttonByText('Registrar chegada'))
     await waitFor(() => expect(double.calls.register).toHaveLength(3))
 
-    expect(double.calls.register[2]?.idempotencyKey).not.toBe(double.calls.register[0]?.idempotencyKey)
+    expect(double.calls.register[2]?.idempotencyKey).not.toBe(
+      double.calls.register[0]?.idempotencyKey,
+    )
     expect(double.calls.register[0]?.idempotencyKey).toMatch(/^[A-Za-z0-9._:-]{16,256}$/u)
     rendered.unmount()
   })
@@ -335,7 +344,9 @@ describe('a recusa do servidor nomeia tudo e cada nome é um atalho', () => {
     await click(buttonByText('Registrar chegada'))
     await settle()
 
-    expect(document.querySelector('[role="alert"]')?.textContent).toContain('Sem conexão com o servidor.')
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+      'Sem conexão com o servidor.',
+    )
     expect(checkbox(1).checked).toBe(true)
     expect(cargoReceivingFakes.double.calls.register).toHaveLength(1)
     rendered.unmount()

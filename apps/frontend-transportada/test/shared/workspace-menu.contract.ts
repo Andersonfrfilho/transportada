@@ -303,7 +303,7 @@ describe('o estado do menu enquanto as permissões chegam (RF-B3, RF-B4)', () =>
     expect(state.kind).toBe('ready')
     expect(
       state.kind === 'ready' ? state.groups.flatMap((group) => group.items.length) : [],
-    ).toEqual([2, 1, 3])
+    ).toEqual([2, 2, 3])
   })
 
   test('refetch com falha mantém o menu das permissões que já chegaram', () => {

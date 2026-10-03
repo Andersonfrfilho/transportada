@@ -1,0 +1,190 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/*
+ * A tela do celular do separador (spec 237 T2.4). Mobile-first: a coluna única é o padrão e o tablet só
+ * acrescenta respiro. Todo botão de toque nasce do token `--touch-target`; nada de medida solta.
+ */
+.screen {
+  display: grid;
+  gap: var(--space-4);
+  padding-block: var(--space-4);
+  width: var(--layout-width);
+  margin-inline: auto;
+}
+
+.top {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--color-graphite) 90%, transparent),
+    color-mix(in srgb, var(--color-asphalt) 82%, transparent)
+  );
+}
+
+.topRow {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.kicker {
+  margin: 0;
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.facts {
+  display: grid;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: var(--color-slate-muted);
+  font-size: 0.85rem;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.badge {
+  composes: badge from './cargoReceiving.module.css';
+}
+
+.badgeOn {
+  composes: badgeOn from './cargoReceiving.module.css';
+}
+
+.badgeAlert {
+  composes: badgeAlert from './cargoReceiving.module.css';
+}
+
+.searchRow {
+  align-items: end;
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.searchField {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.searchField input {
+  /* A altura de campo da casa, que já passa do alvo de toque mínimo. */
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+.scanButton {
+  min-height: var(--touch-target);
+  min-width: var(--touch-target);
+}
+
+.offline {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-copper);
+  color: var(--color-fog);
+  background: color-mix(in srgb, var(--color-copper) 14%, transparent);
+}
+
+.hint {
+  composes: hint from './cargoReceiving.module.css';
+}
+
+.error {
+  composes: error from './cargoReceiving.module.css';
+}
+
+.groupList {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.groupCard {
+  display: grid;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.groupToggle {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+  min-height: var(--touch-target);
+  padding: var(--space-3);
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: color-mix(in srgb, var(--color-graphite) 80%, transparent);
+  cursor: pointer;
+}
+
+.groupToggle:disabled {
+  cursor: default;
+}
+
+.groupTitle {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.groupName {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.groupCounts {
+  color: var(--color-slate-muted);
+  font-family: var(--font-utility);
+  font-size: 0.78rem;
+}
+
+.groupBody {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.groupAll {
+  min-height: var(--touch-target);
+  width: 100%;
+}
+
+.groupAllDone {
+  margin: 0;
+  color: var(--color-ready-ink);
+  font-family: var(--font-utility);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}

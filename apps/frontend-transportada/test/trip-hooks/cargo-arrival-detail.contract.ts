@@ -13,7 +13,12 @@ import '@/modules/shared/i18n/i18n.service'
 import { CargoArrivalDetailScreen } from '@/modules/cargo-receiving/components/CargoArrivalDetailScreen.component'
 import { CargoReceivingRequestError } from '@/modules/cargo-receiving/shared/cargoReceivingRequest.service'
 
-import { ARRIVAL_ID, buildDetail, buildDocument, documentIdOf } from '../fixtures/cargoReceiving.fixture'
+import {
+  ARRIVAL_ID,
+  buildDetail,
+  buildDocument,
+  documentIdOf,
+} from '../fixtures/cargoReceiving.fixture'
 import {
   buttonByText,
   byLabel,
@@ -28,16 +33,16 @@ import {
 } from './cargoReceivingHarness.helper'
 import { renderWithQueryClient, settle, waitFor } from './renderHook.helper'
 
-async function mountDetail(
-  options: { canManage?: boolean } & Partial<CargoReceivingDouble> = {},
-) {
+async function mountDetail(options: { canManage?: boolean } & Partial<CargoReceivingDouble> = {}) {
   const { canManage = true, ...overrides } = options
   resetLocation(`/recebimento/${ARRIVAL_ID}/detalhe`)
   const double = installCargoReceivingDouble(overrides)
   const rendered = await renderWithQueryClient(
     createElement(CargoArrivalDetailScreen, { arrivalId: ARRIVAL_ID, canManage }),
   )
-  await waitFor(() => expect(document.body.textContent).toContain('Chegada de Alfa Indústria Fictícia'))
+  await waitFor(() =>
+    expect(document.body.textContent).toContain('Chegada de Alfa Indústria Fictícia'),
+  )
   return { double, rendered }
 }
 
@@ -217,8 +222,16 @@ describe('atribuir rota', () => {
     await settle()
 
     expect(double.calls.assignRoute).toEqual([
-      { arrivalId: ARRIVAL_ID, documentIds: [documentIdOf(1004), documentIdOf(1005)], routeName: 'FR.S.NOVA' },
-      { arrivalId: ARRIVAL_ID, documentIds: [documentIdOf(1004), documentIdOf(1005)], routeName: null },
+      {
+        arrivalId: ARRIVAL_ID,
+        documentIds: [documentIdOf(1004), documentIdOf(1005)],
+        routeName: 'FR.S.NOVA',
+      },
+      {
+        arrivalId: ARRIVAL_ID,
+        documentIds: [documentIdOf(1004), documentIdOf(1005)],
+        routeName: null,
+      },
     ])
     rendered.unmount()
   })

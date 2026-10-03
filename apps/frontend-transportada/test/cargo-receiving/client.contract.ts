@@ -77,9 +77,7 @@ describe('o cliente da chegada (spec 237 T2.4)', () => {
   })
 
   test('lista as notas livres do contratante', async () => {
-    const { calls, client } = harness(() =>
-      json({ data: [buildAvailable(1)], nextCursor: 'next' }),
-    )
+    const { calls, client } = harness(() => json({ data: [buildAvailable(1)], nextCursor: 'next' }))
 
     const page = await client.listAvailableDocuments({ contractorId: ALFA_ID, cursor: null })
 

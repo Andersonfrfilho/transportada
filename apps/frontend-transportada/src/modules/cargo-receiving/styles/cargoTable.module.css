@@ -1,0 +1,73 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/* A tabela rola no próprio quadro (`docs/frontend/responsive.md`): a página não rola de lado. */
+.tableScroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.table th,
+.table td {
+  border-bottom: 1px solid var(--color-graphite);
+  padding: var(--space-2);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table tbody tr:nth-child(even) {
+  background: var(--color-graphite);
+}
+
+/* Número de nota é para conferir caractere a caractere: monoespaçado. */
+.mono {
+  font-family: var(--font-utility);
+}
+
+.sortButton {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  min-height: var(--touch-target);
+  padding: 0;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  background: none;
+  cursor: pointer;
+}
+
+.sortIndicator {
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.progressCell {
+  min-width: 10rem;
+}
+
+.dueCell {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

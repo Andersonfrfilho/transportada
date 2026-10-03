@@ -4,6 +4,8 @@ import { initReactI18next } from 'react-i18next'
 
 import billingWorkspaceLocale from '@/modules/billing/locales/billingWorkspace.locale.json'
 import billingWorkspaceEnglishLocale from '@/modules/billing/locales/billingWorkspace.en.locale.json'
+import cargoReceivingLocale from '@/modules/cargo-receiving/locales/cargoReceiving.locale.json'
+import cargoReceivingEnglishLocale from '@/modules/cargo-receiving/locales/cargoReceiving.en.locale.json'
 import companySettingsLocale from '@/modules/company-settings/locales/companySettings.locale.json'
 import companySettingsEnglishLocale from '@/modules/company-settings/locales/companySettings.en.locale.json'
 import cteBatchLocale from '@/modules/cte-batch/locales/cteBatch.locale.json'
@@ -58,6 +60,7 @@ void i18n.use(initReactI18next).init({
   resources: {
     en: {
       billingWorkspace: billingWorkspaceEnglishLocale,
+      cargoReceiving: cargoReceivingEnglishLocale,
       companySettings: companySettingsEnglishLocale,
       cteBatch: cteBatchEnglishLocale,
       cteIssuance: cteIssuanceEnglishLocale,
@@ -84,6 +87,7 @@ void i18n.use(initReactI18next).init({
     },
     'pt-BR': {
       billingWorkspace: billingWorkspaceLocale,
+      cargoReceiving: cargoReceivingLocale,
       companySettings: companySettingsLocale,
       cteBatch: cteBatchLocale,
       cteIssuance: cteIssuanceLocale,

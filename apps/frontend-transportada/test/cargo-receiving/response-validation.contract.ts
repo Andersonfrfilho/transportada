@@ -39,8 +39,12 @@ describe('a lista de chegadas (spec 237 T2.4)', () => {
   })
 
   test('recusa chave a mais ou a menos no resumo', () => {
-    expectInvalid(() => toArrivalPage({ data: [{ ...buildSummary(), companyId: 'x' }], nextCursor: null }))
-    const { counts: _counts, ...missing } = buildSummary()
+    expectInvalid(() =>
+      toArrivalPage({ data: [{ ...buildSummary(), companyId: 'x' }], nextCursor: null }),
+    )
+    const missing = Object.fromEntries(
+      Object.entries(buildSummary()).filter(([key]) => key !== 'counts'),
+    )
     expectInvalid(() => toArrivalPage({ data: [missing], nextCursor: null }))
   })
 
@@ -105,7 +109,9 @@ describe('o detalhe da chegada', () => {
       toArrivalDetail({
         data: {
           ...detail,
-          groups: [{ ...group, documents: [{ ...group?.documents[0], separationState: 'loaded' }] }],
+          groups: [
+            { ...group, documents: [{ ...group?.documents[0], separationState: 'loaded' }] },
+          ],
         },
       }),
     )
@@ -122,7 +128,10 @@ describe('o detalhe da chegada', () => {
 describe('as notas disponíveis', () => {
   test('aceita o formato real, com cidade e UF nulas', () => {
     const page = toAvailableDocumentPage({
-      data: [buildAvailable(1), buildAvailable(2, { cityIbgeCode: null, cityName: null, state: null })],
+      data: [
+        buildAvailable(1),
+        buildAvailable(2, { cityIbgeCode: null, cityName: null, state: null }),
+      ],
       nextCursor: null,
     })
 
@@ -131,10 +140,16 @@ describe('as notas disponíveis', () => {
 
   test('recusa chave a mais ou valor que não é texto', () => {
     expectInvalid(() =>
-      toAvailableDocumentPage({ data: [{ ...buildAvailable(1), weightKg: '10' }], nextCursor: null }),
+      toAvailableDocumentPage({
+        data: [{ ...buildAvailable(1), weightKg: '10' }],
+        nextCursor: null,
+      }),
     )
     expectInvalid(() =>
-      toAvailableDocumentPage({ data: [{ ...buildAvailable(1), totalValue: 10 }], nextCursor: null }),
+      toAvailableDocumentPage({
+        data: [{ ...buildAvailable(1), totalValue: 10 }],
+        nextCursor: null,
+      }),
     )
   })
 })
@@ -155,11 +170,17 @@ describe('o resultado do lote e do fechamento', () => {
   })
 
   test('recusa resultado sem motivo na recusada, com motivo na alterada ou de outro tipo', () => {
-    expectInvalid(() => toBatchOutcomes({ data: { results: [{ documentId: 'a', outcome: 'refused' }] } }))
     expectInvalid(() =>
-      toBatchOutcomes({ data: { results: [{ documentId: 'a', outcome: 'changed', reason: 'x' }] } }),
+      toBatchOutcomes({ data: { results: [{ documentId: 'a', outcome: 'refused' }] } }),
     )
-    expectInvalid(() => toBatchOutcomes({ data: { results: [{ documentId: 'a', outcome: 'lost' }] } }))
+    expectInvalid(() =>
+      toBatchOutcomes({
+        data: { results: [{ documentId: 'a', outcome: 'changed', reason: 'x' }] },
+      }),
+    )
+    expectInvalid(() =>
+      toBatchOutcomes({ data: { results: [{ documentId: 'a', outcome: 'lost' }] } }),
+    )
     expectInvalid(() => toBatchOutcomes({ data: { results: 'x' } }))
   })
 

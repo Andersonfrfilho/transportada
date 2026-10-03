@@ -44,6 +44,7 @@ import {
 } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 import { readDriverAppUrl } from '@/modules/identity/shared/identityEnvironment.config'
 import { isSmokeAuthBypassEnabled } from '@/modules/identity/shared/smokeAuthBypass.service'
+import { parseCargoReceivingRoute } from '@/modules/cargo-receiving/shared/cargoReceivingRoute.service'
 import { parseMdfeManifestTripParameter } from '@/modules/mdfe-manifest/shared/mdfeManifestRoute.service'
 import { parseNfseInvoiceParameter } from '@/modules/nfse-invoice/shared/nfseInvoiceRoute.service'
 import { NOTIFICATION_SETTINGS_HREF } from '@/modules/notification/shared/notificationCatalog.constant'
@@ -111,7 +112,9 @@ function resolveOpenGroups(
       'billing',
       'nfse-invoice',
     ].includes(workspace),
-    operations: ['operations', 'trip-occurrences', 'driver-trip'].includes(workspace),
+    operations: ['operations', 'trip-occurrences', 'cargo-receiving', 'driver-trip'].includes(
+      workspace,
+    ),
     registries: ['cte-profiles', 'fleet'].includes(workspace),
   }
 }
@@ -152,6 +155,8 @@ function resolveWorkspaceFromPath(): WorkspaceNavigationItem['key'] | undefined 
   if (window.location.pathname === '/ocorrencias') return 'trip-occurrences'
   /** Spec 183 P1: o detalhe da ocorrência é tela das ocorrências — o menu marca a mesma entrada. */
   if (parseTripOccurrenceRoute(window.location.pathname) !== null) return 'trip-occurrences'
+  /** Spec 237: a lista, o registro, o detalhe e a tela do celular são telas do recebimento. */
+  if (parseCargoReceivingRoute(window.location.pathname) !== null) return 'cargo-receiving'
   if (window.location.pathname === '/freight') return 'freight'
   if (window.location.pathname === '/usuarios') return 'users'
   if (window.location.pathname === '/papeis') return 'access-profiles'
@@ -169,6 +174,7 @@ function resolveCurrentWorkspaceWithSource(): Readonly<{
   const storedWorkspace = sessionStorage.getItem(WORKSPACE_STORAGE_KEY)
   if (
     storedWorkspace === 'billing' ||
+    storedWorkspace === 'cargo-receiving' ||
     storedWorkspace === 'company-settings' ||
     storedWorkspace === 'cte-batch' ||
     storedWorkspace === 'cte-profiles' ||
@@ -218,6 +224,9 @@ const BillingInvoiceDetailPage = lazy(async () => ({
 }))
 const BillingWorkspacePage = lazy(async () => ({
   default: (await import('@/modules/billing/pages/BillingWorkspace.page')).BillingWorkspacePage,
+}))
+const CargoReceivingPage = lazy(async () => ({
+  default: (await import('@/modules/cargo-receiving/pages/CargoReceiving.page')).CargoReceivingPage,
 }))
 const CompanySettingsPage = lazy(async () => ({
   default: (await import('@/modules/company-settings/pages/CompanySettings.page'))
@@ -320,6 +329,8 @@ function resolvePage(
         <BillingInvoiceDetailPage invoiceId={invoiceId} />
       )
     }
+    case 'cargo-receiving':
+      return <CargoReceivingPage path={input.path} />
     case 'company-settings':
       return <CompanySettingsPage />
     case 'cte-batch':

@@ -65,7 +65,11 @@ export function buildGroups(documents: readonly CargoArrivalDocument[]): CargoAr
 
 export const DEFAULT_DOCUMENTS: readonly CargoArrivalDocument[] = [
   buildDocument({ number: '1001' }),
-  buildDocument({ number: '1002', receivedAt: '2026-10-03T13:00:00.000Z', separationState: 'received' }),
+  buildDocument({
+    number: '1002',
+    receivedAt: '2026-10-03T13:00:00.000Z',
+    separationState: 'received',
+  }),
   buildDocument({
     number: '1003',
     receivedAt: '2026-10-03T13:00:00.000Z',
@@ -108,7 +112,7 @@ export function buildDetail(
 ): CargoArrivalDetail {
   const { documents = DEFAULT_DOCUMENTS, ...summary } = overrides
   return {
-    ...buildSummary({ counts: countStates(documents), ...summary }),
+    ...buildSummary({ ...summary, counts: countStates(documents) }),
     groups: buildGroups(documents),
   }
 }

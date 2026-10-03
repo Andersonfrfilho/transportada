@@ -95,7 +95,10 @@ describe('a ordenação por cabeçalho (spec 237 T2.4)', () => {
 
 describe('os filtros de seleção múltipla', () => {
   test('contratante aceita vários; seleção vazia é "sem filtro", nunca "esconder tudo"', () => {
-    expect(ids({ ...EMPTY_CARGO_ARRIVAL_TABLE_STATE, contractorIds: [ALFA_ID] })).toEqual(['a1', 'a2'])
+    expect(ids({ ...EMPTY_CARGO_ARRIVAL_TABLE_STATE, contractorIds: [ALFA_ID] })).toEqual([
+      'a1',
+      'a2',
+    ])
     expect(ids({ ...EMPTY_CARGO_ARRIVAL_TABLE_STATE, contractorIds: [ALFA_ID, BETA_ID] })).toEqual([
       'a1',
       'b1',
@@ -106,10 +109,10 @@ describe('os filtros de seleção múltipla', () => {
 
   test('situação também é de seleção múltipla e combina com o contratante', () => {
     expect(ids({ ...EMPTY_CARGO_ARRIVAL_TABLE_STATE, statuses: ['closed'] })).toEqual(['b1'])
-    expect(ids({ ...EMPTY_CARGO_ARRIVAL_TABLE_STATE, statuses: ['open', 'closed'] })).toHaveLength(3)
-    expect(
-      ids({ contractorIds: [ALFA_ID], sort: null, statuses: ['closed'] }),
-    ).toEqual([])
+    expect(ids({ ...EMPTY_CARGO_ARRIVAL_TABLE_STATE, statuses: ['open', 'closed'] })).toHaveLength(
+      3,
+    )
+    expect(ids({ contractorIds: [ALFA_ID], sort: null, statuses: ['closed'] })).toEqual([])
   })
 
   test('com um valor só o filtro vai ao servidor; com vários, o cliente filtra o que veio', () => {
@@ -174,7 +177,9 @@ describe('o estado vai para a URL e volta dela', () => {
 
   test('lê a URL de volta; valor inventado é ignorado, nunca recusado', () => {
     expect(
-      parseCargoArrivalTableState(`?contractor=${ALFA_ID},${ALFA_ID}&status=open,lost&sort=status&dir=desc`),
+      parseCargoArrivalTableState(
+        `?contractor=${ALFA_ID},${ALFA_ID}&status=open,lost&sort=status&dir=desc`,
+      ),
     ).toEqual({
       contractorIds: [ALFA_ID],
       sort: { column: 'status', direction: 'desc' },

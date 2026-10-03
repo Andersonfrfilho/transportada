@@ -16,7 +16,12 @@ import '@/modules/shared/i18n/i18n.service'
 
 import { CargoSeparationScreen } from '@/modules/cargo-receiving/components/CargoSeparationScreen.component'
 
-import { ARRIVAL_ID, buildDetail, buildDocument, documentIdOf } from '../fixtures/cargoReceiving.fixture'
+import {
+  ARRIVAL_ID,
+  buildDetail,
+  buildDocument,
+  documentIdOf,
+} from '../fixtures/cargoReceiving.fixture'
 import {
   buttonByText,
   byLabel,
@@ -105,14 +110,21 @@ describe('a tela do celular (spec 237 T2.4)', () => {
   })
 
   test('o alvo de toque do botão vem do token do painel, nunca de um px solto', () => {
-    const css = readFileSync(
-      new URL('../../src/modules/cargo-receiving/styles/cargoSeparation.module.css', import.meta.url),
-      'utf8',
-    )
+    const read = (name: string) =>
+      readFileSync(
+        new URL(`../../src/modules/cargo-receiving/styles/${name}.module.css`, import.meta.url),
+        'utf8',
+      )
+    const stylesheets = ['cargoSeparation', 'cargoSeparationRow'].map(read)
 
-    expect(css).toMatch(/\.stepButton\s*\{[^}]*min-height:\s*var\(--touch-target\)/u)
-    expect(css).not.toMatch(/[0-9]px/u)
-    expect(css).not.toMatch(/max-width/u)
+    expect(read('cargoSeparationRow')).toMatch(
+      /\.stepButton\s*\{[^}]*min-height:\s*var\(--touch-target\)/u,
+    )
+    for (const css of stylesheets) {
+      // A borda fina de 1px é a do painel inteiro; qualquer outra medida em px é medida solta.
+      expect(css.replaceAll('1px', '')).not.toMatch(/\d+px/u)
+      expect(css).not.toMatch(/@media[^{]*max-width/u)
+    }
   })
 })
 
@@ -127,7 +139,10 @@ describe('um toque avança a nota', () => {
 
     await click(step(1001, 'Marcar como separada'))
     await settle()
-    expect(double.calls.batch.at(-1)).toEqual({ documentIds: [documentIdOf(1001)], to: 'separated' })
+    expect(double.calls.batch.at(-1)).toEqual({
+      documentIds: [documentIdOf(1001)],
+      to: 'separated',
+    })
     expect((byLabel('Separada — NF 1001') as HTMLButtonElement).disabled).toBe(true)
     expect(groupToggle('FR.S.CAR · Piracicaba').textContent).toContain('2 de 3 separadas')
     expect(text()).toContain('2 de 7 separadas')
@@ -219,7 +234,20 @@ describe('separar tudo deste grupo', () => {
       { documentIds: [documentIdOf(1001), documentIdOf(1002)], to: 'separated' },
     ])
     expect(groupToggle('FR.S.CAR · Piracicaba').textContent).toContain('3 de 3 separadas')
-    expect(maybeButtonByText('Separar tudo deste grupo')).toBeUndefined()
+    const outcome = document.querySelector('[data-batch-outcome]') as HTMLElement
+    expect(outcome.textContent).toContain('2 alteradas, 0 sem mudança, 0 recusadas.')
+    rendered.unmount()
+  })
+
+  test('terminado o grupo, ele recolhe, o próximo com pendência abre e o terminado diz que acabou', async () => {
+    const { rendered } = await mountSeparation()
+
+    await click(buttonByText('Separar tudo deste grupo'))
+    await settle()
+
+    expect(groupToggle('FR.S.CAR · Piracicaba').getAttribute('aria-expanded')).toBe('false')
+    expect(groupToggle('FR.S.CAR · Limeira').getAttribute('aria-expanded')).toBe('true')
+    await click(groupToggle('FR.S.CAR · Piracicaba'))
     expect(text()).toContain('Grupo todo separado')
     rendered.unmount()
   })

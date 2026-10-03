@@ -145,13 +145,13 @@
     "integer": "Use a whole number from {{min}} to {{max}}.",
     "tooLong": "Use at most {{max}} characters.",
     "noDocuments": "Tick at least one invoice.",
+    "tooMany": "At most {{max}} invoices per arrival.",
     "refusedByServer": "The server refused this value."
   },
   "refusal": {
     "lead": "Check:",
     "documentsLead": "Refused invoices:",
     "documentShortcut": "Invoice {{number}}",
-    "documentReason": "{{reason}}",
     "reasons": {
       "DOCUMENT_ALREADY_IN_ARRIVAL": "is already in another arrival",
       "DOCUMENT_FROM_ANOTHER_ISSUER": "is from another issuer",
@@ -182,7 +182,6 @@
     "loading": "Loading the arrival",
     "error": "Could not load the arrival ({{code}}).",
     "closedNotice": "Arrival closed: read only.",
-    "groups": "Route and city groups",
     "groupRegion": "Invoices of group {{title}}",
     "selectGroup": "Select group {{title}}",
     "selectDocument": "Select invoice {{number}}",
@@ -199,11 +198,8 @@
     "applyRoute": "Apply route",
     "markReceived": "Mark as received",
     "markSeparated": "Mark as separated",
-    "working": "Sending…",
     "close": "Close arrival",
     "closing": "Closing…",
-    "closed": "Arrival closed.",
-    "closeUnchanged": "The arrival was already closed.",
     "pendingLead": "Still to separate:",
     "pendingShortcut": "Invoice {{number}}"
   },

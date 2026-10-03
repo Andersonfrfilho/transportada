@@ -1,0 +1,40 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/* Registro: dados da chegada em cima, as notas embaixo; duas colunas só onde cabe. */
+.form {
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
+.fieldsTitle {
+  margin: 0;
+  color: var(--color-copper-ink);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sectionTitle {
+  margin: 0;
+}
+
+.picker {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.pickerHead {
+  align-items: end;
+  display: grid;
+  gap: var(--space-3);
+}
+
+@media (min-width: 40rem) {
+  .pickerHead {
+    grid-template-columns: minmax(0, 2fr) auto;
+  }
+}

@@ -9,9 +9,11 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   applyDocumentStates,
+  readDocumentStates,
+} from '@/modules/cargo-receiving/shared/cargoDetailStates.service'
+import {
   planGroupSeparation,
   planOptimisticStates,
-  readDocumentStates,
   resolveNextTouchTarget,
   runGroupSeparation,
   runSingleTouch,

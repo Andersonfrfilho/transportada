@@ -178,6 +178,7 @@ describe('visibleWorkspaceKeys', () => {
       'nfe',
       'trip',
       'trip-occurrences',
+      'cargo-receiving',
       'fleet',
       'pendencias',
       'delivery-clients',
