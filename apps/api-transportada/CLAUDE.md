@@ -170,10 +170,11 @@ empresa já ajustou, mas que não tem (ou nunca teve) linha correspondente em `t
 - **O separador é papel próprio** (`trip.manage`, não `fleet.manage` de carona): quatro permissões —
   `invoices.read`, `fleet.read`, `trip.read`, `trip.manage`. Não cadastra frota, não fatura, não emite
   fiscal, não reporta entrega (`trip.report` é do campo). ⚠️ `trip.read` **é** pedido por rotas: as
-  leituras `/me` do motorista (`me-trip.routes.ts`, recortadas pelo vínculo), o fluxo de leitura do
-  motorista no WhatsApp e `GET /delivery-charges` + `GET /delivery-clients/:id/charge-rules` — estas
-  duas **não** recortam pelo vínculo, então motorista e agregado leem as cobranças da empresa inteira
-  (achado da spec 156 T15, `docs/SECURITY.md`). A leitura de viagem da empresa segue em `fleet.read`
+  leituras `/me` do motorista (`me-trip.routes.ts`, recortadas pelo vínculo) e o fluxo de leitura do
+  motorista no WhatsApp. `GET /delivery-charges` e `GET /delivery-clients/:id/charge-rules` **não**
+  recortam pelo vínculo e por isso são do escritório: `trip.financials` desde a spec 239 D1 (antes
+  `trip.read`, achado da spec 156 T15 em `docs/SECURITY.md`; contrato
+  `test/delivery-clients/charge-read-policy.contract.ts`). A leitura de viagem da empresa segue em `fleet.read`
   (ou `anyPermission`, abaixo); migrá-la para `trip.read` migra `driver`, `aggregate` e `separator`
   juntos. `test/separator-role.contract.test.ts` lista as rotas alcançáveis por
   extenso — rota nova de frota/faturamento/CT-e reprova ali até decisão por escrito.

@@ -122,11 +122,10 @@ describe('helper role contract', () => {
     expect([...resolveCompanyPermissions(['helper'])]).toEqual(['trip.read'])
   })
 
-  // `trip.read` abre a leitura do app do motorista; nenhuma rota de escrita, de frota ou de gestão
+  // `trip.read` abre a leitura do app do motorista; nenhuma rota de escrita, de frota ou de gestão.
+  // Spec 239 D1: a cobrança de entrega (`/delivery-charges`, `/charge-rules`) é `trip.financials`.
   test('reaches only read routes of the driver app', () => {
     expect(reachableRoutes(['helper'])).toEqual([
-      'GET /delivery-charges',
-      'GET /delivery-clients/:id/charge-rules',
       'GET /me/trips/current',
       'GET /me/trips/current/documents/:documentId/proof',
       'GET /me/trips/current/manifests/:manifestId',
@@ -151,6 +150,8 @@ describe('helper role contract', () => {
     expect(helper.has('POST /me/trips/current/documents/:documentId/proof')).toBe(false)
     expect(helper.has('POST /me/trips/current/documents/:documentId/occurrences')).toBe(false)
     for (const route of [
+      'GET /delivery-charges',
+      'GET /delivery-clients/:id/charge-rules',
       'GET /trips',
       'GET /trips/:id',
       'POST /trips',

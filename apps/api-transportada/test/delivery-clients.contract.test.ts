@@ -3,6 +3,7 @@
  */
 import './delivery-clients/charge-state.contract.js'
 import './delivery-clients/batches.contract.js'
+import './delivery-clients/charge-read-policy.contract.js'
 import './delivery-clients/charges.contract.js'
 import './delivery-clients/manual-charge-types.contract.js'
 import './delivery-clients/occurrence-statement.contract.js'

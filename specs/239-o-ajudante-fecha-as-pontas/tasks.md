@@ -7,7 +7,7 @@ commit isolado e evidência em `evidence.md`. Tela só vai a staging depois de o
 
 > 🤖 Modelo: `opus` 🧠 (T1) · `sonnet` (T2)
 
-- [ ] **T1** 🧠 Cobrança é do escritório (D1): `CHARGE_READ_POLICY = trip.financials`; contrato positivo
+- [x] **T1** 🧠 Cobrança é do escritório (D1): `CHARGE_READ_POLICY = trip.financials`; contrato positivo
       (company-admin, finance, operator) e negativo (driver, aggregate, separator, helper → 403) nas duas
       rotas; revisar o contrato do helper (:120-121); fechar a entrada de `docs/SECURITY.md`. Provar por
       mutação. Confirmar por busca que nenhum consumidor de campo perde acesso.

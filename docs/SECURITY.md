@@ -471,7 +471,7 @@ deploy/restart** — é contenção de abuso casual, não garantia; garantia exi
 
 **Origem:** spec 152, revisão de segurança T14, achado item 6. Registrado em 2026-09-16.
 
-### 2026-09-18 — `GET /delivery-charges` e as regras de cobrança não recortam pelo vínculo do motorista (pré-existente)
+### 2026-09-18 — `GET /delivery-charges` e as regras de cobrança não recortam pelo vínculo do motorista (pré-existente, fechado em 2026-10-03)
 
 **Onde:** `api-transportada`, `delivery-clients/presentation/delivery-charge.routes.ts`
 (`CHARGE_READ_POLICY = trip.read`) → `delivery-charges.use-case.ts` (`list` filtra só por
@@ -489,8 +489,18 @@ quem não dirige. A decisão pendente abaixo agora vale para os três papéis de
 **O que limita o estrago:** só usuários da própria empresa; cobrança não carrega CPF nem endereço do
 cliente final. Não foi alterado na T15 (fora do escopo das rotas do escritório).
 
-**O que falta:** decidir se estas leituras são do escritório (trocar para `fleet.read`/`trip.manage`)
-ou do campo (recortar pelo vínculo de motorista/agregado), com contrato negativo.
+**Fechado em 2026-10-03 (spec 239 T1, D1):** a leitura de cobrança é do **escritório**.
+`CHARGE_READ_POLICY` passou de `trip.read` para `trip.financials` nas duas rotas
+(`GET /delivery-charges` e `GET /delivery-clients/:id/charge-rules`); as escritas seguem
+`trip.manage`. Leem: `company-admin`, `finance` e `operator` — os mesmos que abrem o workspace
+`extra-charges` do painel (`billing.create` ou `trip.financials`), único consumidor das rotas. Nenhuma
+tela do campo, do portal do contratante, do worker ou do cron as chama (busca em todas as apps). Achado
+de passagem: antes da troca o próprio escritório recebia `403` nelas — nenhum dos três papéis tinha
+`trip.read`. Se um dia o campo precisar ler cobrança, nasce rota `/me` própria, recortada pelo
+vínculo. Contrato negativo, um caso por papel e por rota:
+`apps/api-transportada/test/delivery-clients/charge-read-policy.contract.ts` (`driver`, `aggregate`,
+`separator`, `helper`, `viewer`, `fiscal`, `contractor`, `automation` → `403`; a tabela cobre
+`COMPANY_ROLES` inteiro) e `test/helper-role.contract.test.ts` (o ajudante alcança 7 rotas, não 9).
 
 **Origem:** revisão de segurança da spec 156 (T15), ao corrigir a frase sobre `trip.read` no
 `CLAUDE.md` da API. Registrado em 2026-09-18.
