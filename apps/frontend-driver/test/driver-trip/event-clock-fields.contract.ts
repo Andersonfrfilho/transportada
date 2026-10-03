@@ -111,9 +111,13 @@ type SeenRequest = Readonly<{
 }>
 
 /** Responde o que cada passo do `send` espera — upload assinado, `PUT`, confirmação, relato. */
-function buildRecordingClient(seen: SeenRequest[]) {
+function buildRecordingClient(
+  seen: SeenRequest[],
+  clockOffset?: ReturnType<typeof createClockOffsetStore>,
+) {
   return createDriverTripClient({
     apiUrl: API,
+    ...(clockOffset === undefined ? {} : { clockOffset }),
     fetch: async (input) => {
       const request = input as Request
       const url = new URL(request.url)
@@ -148,9 +152,10 @@ const ACCEPTING_ROUTE_SUFFIX_BY_KIND: Readonly<Record<string, string>> = {
 async function sendAndCollect(
   report: DriverFieldReport,
   stamp: EventClockStamp | undefined,
+  clockOffset?: ReturnType<typeof createClockOffsetStore>,
 ): Promise<readonly SeenRequest[]> {
   const seen: SeenRequest[] = []
-  await buildRecordingClient(seen).send(report, stamp)
+  await buildRecordingClient(seen, clockOffset).send(report, stamp)
   return seen
 }
 
@@ -224,6 +229,43 @@ describe('quais relatos levam tappedAt e clockOffsetMs (spec 234, esquemas .stri
   it('sem desvio medido o corpo sai como sempre saiu, sem nenhum dos dois campos', async () => {
     for (const kind of CLOCK_FIELD_REPORT_KINDS) {
       const seen = await sendAndCollect(REPORT_BY_KIND[kind], undefined)
+      for (const request of seen) {
+        expect(request.body !== undefined && 'clockOffsetMs' in request.body).toBe(false)
+        expect(request.body !== undefined && 'tappedAt' in request.body).toBe(false)
+      }
+    }
+  })
+})
+
+/**
+ * O cliente já mediu um desvio **mais novo** (`OFFSET_AT_DRAIN_MS`) do que o do toque — o corpo sai
+ * com o carimbo do item, nunca com o último medido, e sem carimbo não sai campo nenhum.
+ */
+describe('o corpo vem do carimbo do item, não do último desvio medido (spec 234 D2)', () => {
+  function buildStoreMeasuredAfterTheTap() {
+    const store = createClockOffsetStore()
+    store.write(OFFSET_AT_DRAIN_MS)
+    return store
+  }
+
+  it('com carimbo, os campos são os do toque', async () => {
+    const [request] = await sendAndCollect(
+      REPORT_BY_KIND.deliver,
+      STAMP,
+      buildStoreMeasuredAfterTheTap(),
+    )
+
+    expect(request?.body?.clockOffsetMs).toBe(OFFSET_AT_TAP_MS)
+    expect(request?.body?.tappedAt).toBe(CREATED_AT)
+  })
+
+  it('sem carimbo (item criado sem desvio), o desvio medido depois não entra no corpo', async () => {
+    for (const kind of CLOCK_FIELD_REPORT_KINDS) {
+      const seen = await sendAndCollect(
+        REPORT_BY_KIND[kind],
+        undefined,
+        buildStoreMeasuredAfterTheTap(),
+      )
       for (const request of seen) {
         expect(request.body !== undefined && 'clockOffsetMs' in request.body).toBe(false)
         expect(request.body !== undefined && 'tappedAt' in request.body).toBe(false)
