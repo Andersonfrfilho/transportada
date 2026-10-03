@@ -6,10 +6,10 @@
  * 24 h sai das quatro transições, e a contagem de impacto lê só a empresa do contexto, com teto.
  */
 import { describe, expect, test } from 'bun:test'
-import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { asc, eq } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 
+import { createDatabaseProvider } from '../../src/database/database-client.service.js'
 import { withDisposableDatabase as withDisposableDatabaseLifecycle } from '../fixtures/disposable-database.fixture.js'
 import { DrizzleLocationRetentionSettingsRepository } from '../../src/companies/infrastructure/drizzle-location-retention-settings.repository.js'
 import {
@@ -32,7 +32,7 @@ const databaseUrl =
   process.env.DATABASE_URL
 const testWithPostgres = databaseUrl === undefined ? test.skip : test
 
-type TestDatabase = ReturnType<typeof createDrizzleProvider>
+type TestDatabase = ReturnType<typeof createDatabaseProvider>
 
 const NOW = new Date('2026-10-03T12:00:00.000Z')
 const HOUR_MS = 60 * 60 * 1000
@@ -539,7 +539,12 @@ async function withDisposableDatabase(
     adminUrl: databaseUrl,
     namePrefix: 'transportada_locret',
     migrate: (connectionString) => runDatabaseMigrations({ connectionString }),
-    open: (connectionString) => createDrizzleProvider({ connection: connectionString }),
+    // mesmo driver da produção (`prepare: false`), para `make_interval(days => $n)` rodar como lá
+    open: (connectionString) =>
+      createDatabaseProvider({
+        pool: { connectTimeoutSeconds: 10, max: 10, queryTimeoutMs: 20_000 },
+        url: connectionString,
+      }),
     operation,
   })
 }
