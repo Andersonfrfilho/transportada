@@ -24,7 +24,7 @@
 
 > 🤖 Modelo: `sonnet` (T2.1 é 🧠)
 
-- [ ] **T2.1** 🧠 Eixo `expected/received/separated` por nota, com o agrupamento rota × cidade, e a política
+- [x] **T2.1** 🧠 Eixo `expected/received/separated` por nota, com o agrupamento rota × cidade, e a política
       pura de transição (contrato em tabela antes; eventos append-only com ator e canal).
 - [ ] **T2.2** Migration `cargo_arrivals`, `cargo_arrival_documents`, `cargo_arrival_events` (+ rollback).
 - [ ] **T2.3** Casos de uso e rotas: registrar chegada (idempotente), agrupar por rota × cidade, separar;

@@ -222,3 +222,48 @@ resultado completo no banco sai de `consulta-recebimento-vs-xml.sql`.
   descartável — a config da CI não foi tocada). API 100% dublada, dados inventados.
 - **Não rodou:** `make smoke`/smoke da CI, `make check` completo (build de produção do painel só foi
   feito para os prints, sem os `assets:*` do `prebuild`), integração da API (nada da API mudou).
+
+## T2.1 — o eixo da nota na chegada e a política pura (2026-10-03)
+
+- **Estado inicial `expected`** (spec "esperada → recebida → separada", ADR-0094 §1): a nota entra na
+  chegada sem conferência. `separated` só a partir de `received`; repetir a etapa atual é `unchanged`
+  (sem evento); **sem volta** — nem a spec nem o ADR preveem desfazer, então nada foi inventado; chegada
+  `closed` recusa tudo. Registrado no ADR-0094 §6.
+- **Contrato antes** (`test/cargo-receiving/cargo-arrival-transition.contract.ts` e
+  `cargo-arrival-grouping.contract.ts`, no entrypoint `cargo-receiving.contract.test.ts` que o `test` do
+  `package.json` já lista): vermelho por `Cannot find module …/cargo-arrival-transition.policy.js`. A
+  primeira rodada com o código achou **um erro do próprio teste** (a entrada não tinha o grupo esperado
+  `FR.S.CAR × 3548906`), corrigido no teste; o código ficou como estava. Depois: **60 pass, 0 fail**
+  (tabela de 12 transições × estado da chegada, relógios, cópia do perfil, folga de 2 min, vencimento,
+  agrupamento estável).
+- **Código:** `src/cargo-receiving/domain/cargo-arrival-transition.policy.ts` (tabela, decisão,
+  `resolveSeparationDueAt`, `copyArrivalRulesFromProfile`, `isArrivedAtTooFarInFuture`,
+  `isSeparationOverdue`), `cargo-arrival-grouping.policy.ts` (`groupArrivalDocuments`: rota, cidade, nulos
+  por último, número em ordem numérica, empate pelo id) e `src/shared/cargo-arrival.constant.ts` (listas
+  lidas pelo domínio e pelos CHECKs, sem puxar `cargo-receiving/` para o pre-deploy).
+- **Mutações** (script, restauração automática, `src` limpo depois):
+
+  | Mutação                                        | Vermelho |
+  | ---------------------------------------------- | -------- |
+  | `expected → separated` permitido (pular etapa) | 2 fail   |
+  | sem o no-op (`from === to`)                    | 2 fail   |
+  | janela em minutos em vez de horas              | 3 fail   |
+  | perfil desligado copia regras                  | 1 fail   |
+  | vencida mesmo com tudo separado                | 1 fail   |
+  | número da nota comparado como texto            | 1 fail   |
+  | rota/cidade nulas no começo                    | 1 fail   |
+
+- **Revisão `architect` (opus), passada separada, sem editar arquivo:** **APROVADO COM AJUSTES**. Acolhidos
+  na T2.2/T2.3: (1) toda escrita trava primeiro a chegada (`for no key update`, confere `open`) e depois as
+  notas em ordem de id, `no key update`; (2) idempotência com `request_fingerprint` (sha256 do contratante,
+  notas ordenadas, `arrivedAt`, paletes, referência), procurada **depois** da trava do contratante e
+  **antes** de validar as notas, e `23505` da chave traduzido para 409; (3) CHECK exato
+  `extract(epoch from separation_due_at - arrived_at) = separation_window_hours * 3600`; (4) `from_state`/
+  `to_state` em coluna nos eventos, `separated_at >= received_at` na nota; (5) evento com FK
+  `(company_id, arrival_id, arrival_document_id)` → `unique (company_id, arrival_id, id)` das notas;
+  (6) índices: `nfe_participants (company_id, role, tax_id)`, chegada por contratante/data, eventos por
+  chegada e por nota; endereço do destinatário por `lateral … limit 1` (sem unique por participante);
+  (7) `:documentId` sempre resolvido dentro da chegada; (8) canal em constante própria; (9) rotas novas no
+  `separator-role.contract.test.ts`. Limitação do unique simples (sem conserto para nota posta por engano,
+  reentrega não entra em outra chegada) escrita no ADR-0094 §6.
+- **Gates:** `bun run typecheck` ✓ · `bun run lint` ✓. Contrato da suíte inteira no fecho da T2.3.

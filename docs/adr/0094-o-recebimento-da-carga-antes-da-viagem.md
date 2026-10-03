@@ -144,6 +144,26 @@ O módulo é novo, `src/cargo-receiving/` (as fases seguintes — chegada, prév
 confere a existência do contratante por consulta própria filtrada pela empresa, sem importar o repositório
 de `delivery-clients`.
 
+### 6. A chegada e a primeira separação (Fase 2, T2.1)
+
+- **A nota entra `expected`**, vai a `received` (conferida na doca) e a `separated`, uma etapa por vez
+  (`cargo-arrival-transition.policy.ts`). Repetir a etapa atual é no-op e não grava evento. **Não há
+  volta**: nem a spec nem este ADR preveem desfazer conferência ou separação, e nada foi inventado.
+  Chegada `closed` recusa toda transição; fechar exige todas as notas `separated`.
+- **O relógio é copiado no registro:** `separation_window_hours` e `delivery_deadline_business_days`
+  vêm do perfil ligado naquele instante; `separation_due_at = arrived_at + janela` em horas corridas
+  (nulo sem janela). Perfil ausente ou desligado não abre chegada (`CARGO_RECEIVING_NOT_ENABLED`).
+  "Vencida" é leitura: prazo passado **e** nota ainda não separada.
+- **O grupo é `(rota, cidade)`**, leitura e nunca estado: a rota é texto livre do operador (a prévia a
+  preencherá na Fase 4a) e a cidade é o código IBGE do endereço do **destinatário**.
+- **Uma nota entra em no máximo uma chegada, para sempre** (`unique (company_id, nfe_document_id)`).
+  Consequência aceita: nota posta por engano numa chegada não tem conserto nesta fase, e nota que
+  volta (reentrega) não entra em outra chegada. Se uma história pedir, a troca por índice parcial com
+  remoção lógica é aditiva. Na Fase 4 a nota esperada ainda sem XML vai exigir `nfe_document_id`
+  nulo e um vínculo com a linha da prévia — também aditivo.
+- **Canal:** só `backoffice` (a tela do painel e do separador, que não age em nome de motorista,
+  ADR-0068 §3); canal novo entra no CHECK de forma aditiva.
+
 ## Consequências
 
 - Contratante novo com regra diferente é cadastro, não deploy.
