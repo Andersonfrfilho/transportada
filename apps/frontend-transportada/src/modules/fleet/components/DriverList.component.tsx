@@ -78,13 +78,20 @@ export function DriverList({
         <tbody>
           {drivers.map((driver) => (
             <tr key={driver.id}>
-              <td>{driver.name}</td>
+              <td>
+                {driver.name}
+                {driver.canDrive ? null : (
+                  <span className={`${styles.statusBadge} ${styles.driverHelperBadge}`}>
+                    {t('helperBadge')}
+                  </span>
+                )}
+              </td>
               <td>
                 <DriverScoreBadge score={driver.score} />
               </td>
               <td>{driver.taxId}</td>
               <td>{driver.linkedTaxId === '' ? t('emptyValue') : driver.linkedTaxId}</td>
-              <td>{driver.licenseNumber}</td>
+              <td>{driver.licenseNumber === '' ? t('emptyValue') : driver.licenseNumber}</td>
               <td>{t(driver.membershipId === null ? 'appAccessOff' : 'appAccessOn')}</td>
               <td>
                 <DriverVehicleCell

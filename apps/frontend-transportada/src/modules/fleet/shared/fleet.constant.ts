@@ -98,6 +98,7 @@ export const FLEET_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   FLEET_DRIVER_EMAIL_TAKEN: 'emailTaken',
   FLEET_DRIVER_LICENSE_NUMBER_TAKEN: 'licenseNumberTaken',
   FLEET_DRIVER_NOT_FOUND: 'driverNotFound',
+  FLEET_DRIVER_PROFILE_EMPTY: 'profileEmpty',
   FLEET_DRIVER_MEMBERSHIP_NOT_FOUND: 'membershipNotFound',
   FLEET_DRIVER_MEMBERSHIP_TAKEN: 'membershipTaken',
   FLEET_DRIVER_TAX_ID_TAKEN: 'taxIdTaken',

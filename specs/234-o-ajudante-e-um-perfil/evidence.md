@@ -571,3 +571,49 @@ Data: 2026-10-02. Branch `work/spec-234-ajudante`.
 
 - `bun run test` (app): `6430 pass · 0 fail · 32 files` + hooks `327 pass · 0 fail`.
 - `bun run typecheck` (raiz) exit 0 · `eslint` (cwd da app) 0 erros (16 warnings antigos) · `prettier --check` limpo.
+
+## T9 — Ficha e criação rápida: opção "Ajudante", CNH oculta, "Pode atuar como ajudante" e "Diária própria"
+
+Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+
+### O que mudou
+
+- Seletor de perfil já lista `helper` (T8); rótulo "Ajudante"/"Helper" e a dica do perfil agora diz que ele não
+  dirige e não precisa de CNH.
+- **CNH oculta, não desabilitada**, na aba e no diálogo: número, categoria, primeira habilitação e validade
+  (`DriverForm`, `DriverQuickCreateDialog`) e UF/cidade de emissão (`DriverPersonalFields`) só renderizam com
+  `hasLicense = !isHelperOnlyDriver(state)`. Mesmo critério do corpo (T8): perfil `helper` na criação, ou ficha
+  carregada com `canDrive` falso na edição.
+- `DriverHelperFields` (novo): `Checkbox` "Pode atuar como ajudante" — não existe primitivo de switch no design
+  system, e o `Checkbox` é o obrigatório (`docs/frontend/checkboxes.md`); ligado e **travado** (com a dica de
+  perfil) para quem só ajuda, livre para motorista/agregado. "Diária própria (R$/dia)" aparece para quem pode
+  ajudar, com a dica "Vazio usa a diária geral da empresa." (`FleetMoneyField` ganhou `hint`, como os vizinhos).
+- `helperDailyRate` passa pela mesma conversão da diária do motorista: a ficha mostra `180,00`, o corpo sai
+  `180.0000` (antes da T9 o decimal cru da API iria à máscara).
+- `FLEET_DRIVER_PROFILE_EMPTY` → `profileEmpty` ("A ficha precisa dirigir ou atuar como ajudante…"), nos dois
+  idiomas; não cai no "Não foi possível salvar" genérico.
+- Lista de motoristas: selo discreto "Ajudante" (mesmo molde de `statusBadge`) quando `canDrive` é falso, e a
+  coluna CNH mostra "—" para ficha sem número.
+- Spec 149 T12 marcada, com a ressalva de que o painel geral "Diária do ajudante" não existe no painel.
+
+### Contrato vermelho antes do código
+
+`test/fleet/driver-helper-fields.contract.tsx` (importado por `fleet.contract.test.ts`): renderiza a ficha de
+verdade (`renderToStaticMarkup`, i18n real, `QueryClientProvider`, ambiente falso restaurado ao fim) e confere
+rótulo presente/ausente. Primeira execução: `Cannot find module DriverHelperFields.component` (0 pass · 1 fail).
+
+### Prova por mutação (arquivos restaurados e conferidos com `cmp`)
+
+- `hasLicense = true` na aba → 2 fail · `disabled={false}` no interruptor → 2 fail · diária sempre escondida → 3 fail
+  · selo sempre escondido → 1 fail · `hasLicense = true` em `DriverPersonalFields` → 1 fail · mapa de erro
+  `FLEET_DRIVER_PROFILE_EMPTY` removido → 1 fail.
+- Limite conhecido: o perfil `helper` **escolhido na criação** só é provado em `DriverPersonalFields` e no corpo
+  (a ficha estática não simula o clique); na aba/diálogo a prova é o render de `canDrive` falso mais o contrato de
+  fiação (`hasLicense` e `DriverHelperFields` nos dois arquivos).
+
+### Gates
+
+- `bun run test` (app): `6443 pass · 0 fail · 32 files` + hooks `327 pass · 0 fail`.
+- `bun run typecheck` (app) exit 0 · `eslint` (cwd da app) 0 erros (16 warnings antigos) · `prettier --check` limpo.
+- `DriverForm.component.tsx` segue acima de 200 linhas (357; eram 345): dívida anterior, não extraída aqui porque
+  vários contratos antigos leem os `label={t('…')}` desse arquivo.

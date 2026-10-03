@@ -286,7 +286,12 @@
     "zonePill": "Rota inteira"
   },
   "driverDailyAllowanceAmount": "Diária (R$/dia)",
+  "driverCanActAsHelper": "Pode atuar como ajudante",
+  "driverCanActAsHelperHint": "Aparece na lista de ajudantes da viagem: a mesma pessoa dirige numa viagem e ajuda em outra.",
   "driverDailyAllowanceAmountHint": "Vazio usa o valor geral da empresa.",
+  "driverHelperDailyRate": "Diária própria (R$/dia)",
+  "driverHelperDailyRateHint": "Vazio usa a diária geral da empresa.",
+  "driverHelperLockedHint": "O perfil Ajudante sempre atua como ajudante e não precisa de CNH.",
   "driverEmail": "E-mail",
   "driverEmailHint": "Endereço do motorista para o acesso ao aplicativo de entregas. O convite sai por e-mail ou por telefone: um dos dois basta.",
   "driverFatherName": "Nome do pai",
@@ -349,7 +354,7 @@
   "driverPixKeyType": "Tipo da chave Pix",
   "driverPixKeyTypeUnset": "Sem chave",
   "driverProfile": "Perfil de acesso",
-  "driverProfileHint": "O cadastro já cria o usuário do motorista para o aplicativo de entregas. O agregado costuma dirigir o veículo dele; o motorista dirige o próprio ou o da transportadora.",
+  "driverProfileHint": "O cadastro já cria o usuário do motorista para o aplicativo de entregas. O agregado costuma dirigir o veículo dele; o motorista dirige o próprio ou o da transportadora; o ajudante não dirige e não precisa de CNH.",
   "driverProfileOption": {
     "aggregate": "Agregado",
     "driver": "Motorista",
@@ -379,6 +384,7 @@
   "emailTaken": "Já existe um usuário com esse e-mail",
   "empty": "Nenhum veículo ou motorista cadastrado",
   "emptyValue": "—",
+  "helperBadge": "Ajudante",
   "energySettings": {
     "clear": "Limpar distribuidora",
     "distributorLabel": "Distribuidora",
@@ -700,6 +706,7 @@
     "trailer": "Reboque"
   },
   "save": "Salvar",
+  "profileEmpty": "A ficha precisa dirigir ou atuar como ajudante: não dá para desligar os dois.",
   "saveError": "Não foi possível salvar o cadastro",
   "saved": "Cadastro salvo",
   "secondaryFuelCostPerKilometer": "Segundo combustível por quilômetro",

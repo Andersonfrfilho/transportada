@@ -30,6 +30,7 @@ type FleetDateFieldProps = Readonly<{
 }>
 
 type FleetMoneyFieldProps = Readonly<{
+  hint?: string
   label: string
   onChange: (value: string) => void
   scale: number
@@ -166,6 +167,7 @@ export function FleetDateField({
  * máscara `120000` e `12000` são a mesma linha de pixels, e o zero a mais só aparece no relatório.
  */
 export function FleetMoneyField({
+  hint,
   label,
   onChange,
   optional = false,
@@ -190,6 +192,7 @@ export function FleetMoneyField({
           onChange={(event) => onChange(maskTypedAmount({ scale, value: event.target.value }))}
         />
       </span>
+      {hint === undefined ? null : <small className={styles.fieldHint}>{hint}</small>}
     </label>
   )
 }

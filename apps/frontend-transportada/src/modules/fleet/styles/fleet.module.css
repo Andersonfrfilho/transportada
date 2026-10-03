@@ -131,6 +131,12 @@
   text-transform: uppercase;
 }
 
+/* O selo "Ajudante" mora ao lado do nome: quem não dirige não tem CNH para o distinguir na linha. */
+.driverHelperBadge {
+  margin-left: var(--space-2);
+  white-space: nowrap;
+}
+
 .statusActive {
   border-color: color-mix(in srgb, var(--color-ready) 65%, transparent);
   color: var(--color-ready);

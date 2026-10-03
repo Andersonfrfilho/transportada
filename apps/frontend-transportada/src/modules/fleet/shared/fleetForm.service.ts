@@ -239,7 +239,10 @@ export function toDriverFormState(driver: FleetDriverDetail): FleetDriverFormSta
     anttCategory: driver.anttCategory,
     canActAsHelper: driver.canActAsHelper,
     canDrive: driver.canDrive,
-    helperDailyRate: driver.helperDailyRate ?? '',
+    helperDailyRate:
+      driver.helperDailyRate === null
+        ? ''
+        : toTypedAmount({ scale: AMOUNT_DISPLAY_SCALE, value: driver.helperDailyRate }),
     securesCargo: driver.securesCargo,
     birthCity: driver.birthCity,
     birthDate: driver.birthDate ?? '',
@@ -441,7 +444,10 @@ export function toDriverBody(state: FleetDriverFormState): Omit<FleetDriverBody,
     },
     anttCategory: toAnttCategory(state.anttCategory),
     canActAsHelper: !hasLicense || state.canActAsHelper,
-    helperDailyRate: state.helperDailyRate.trim() === '' ? null : state.helperDailyRate.trim(),
+    helperDailyRate:
+      state.helperDailyRate.trim() === ''
+        ? null
+        : parseTypedAmount({ scale: AMOUNT_MAX_SCALE, value: state.helperDailyRate }),
     securesCargo: state.securesCargo,
     birthCity: state.birthCity,
     birthDate: state.birthDate === '' ? null : state.birthDate,
