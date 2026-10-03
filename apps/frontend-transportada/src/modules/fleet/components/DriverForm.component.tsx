@@ -291,13 +291,15 @@ export function DriverForm({
               />
             </>
           ) : null}
-          <FleetMoneyField
-            optional
-            label={t('driverDailyAllowanceAmount')}
-            scale={AMOUNT_DISPLAY_SCALE}
-            value={form.state.dailyAllowanceAmount}
-            onChange={(dailyAllowanceAmount) => form.patch({ dailyAllowanceAmount })}
-          />
+          {hasLicense ? (
+            <FleetMoneyField
+              optional
+              label={t('driverDailyAllowanceAmount')}
+              scale={AMOUNT_DISPLAY_SCALE}
+              value={form.state.dailyAllowanceAmount}
+              onChange={(dailyAllowanceAmount) => form.patch({ dailyAllowanceAmount })}
+            />
+          ) : null}
           <DriverHelperFields state={form.state} onChange={form.patch} />
         </div>
         <p className={styles.hint}>{t('driverLinkedTaxIdHint')}</p>
@@ -306,7 +308,7 @@ export function DriverForm({
         )}
         <p className={styles.hint}>{t('driverEmailHint')}</p>
         <p className={styles.hint}>{t('driverAnttHint')}</p>
-        <p className={styles.hint}>{t('driverDailyAllowanceAmountHint')}</p>
+        {hasLicense ? <p className={styles.hint}>{t('driverDailyAllowanceAmountHint')}</p> : null}
         {driver === undefined ? <p className={styles.hint}>{t('driverProfileHint')}</p> : null}
       </fieldset>
       <DriverLinkedAddressFields lookup={linkedAddress} state={form.state} onChange={form.patch} />

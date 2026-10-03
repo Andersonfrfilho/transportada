@@ -175,19 +175,51 @@ describe('"Pode atuar como ajudante" e "Diária própria" (spec 235 T9, fecha a 
   })
 })
 
+describe('o ajudante puro tem uma diária só (spec 235 A2)', () => {
+  it('quem dirige mostra a diária de motorista; quem não dirige, só a própria', () => {
+    const driving = renderForm(driverDetail({ canDrive: true, canActAsHelper: true }))
+    const helperOnly = renderForm(driverDetail({ canDrive: false, canActAsHelper: true }))
+
+    expect(hasField(driving, ptLocale.driverDailyAllowanceAmount)).toBe(true)
+    expect(driving).toContain(ptLocale.driverDailyAllowanceAmountHint)
+    expect(hasField(helperOnly, ptLocale.driverDailyAllowanceAmount)).toBe(false)
+    expect(helperOnly).not.toContain(ptLocale.driverDailyAllowanceAmountHint)
+    expect(hasField(helperOnly, ptLocale.driverHelperDailyRate)).toBe(true)
+  })
+
+  it('na edição a diária de motorista carregada segue no corpo, como a CNH', () => {
+    const state = toDriverFormState(
+      driverDetail({ canDrive: false, dailyAllowanceAmount: '200.0000' }),
+    )
+
+    expect(toDriverBody(state).dailyAllowanceAmount).toBe('200.0000')
+  })
+
+  it('na criação com perfil ajudante a diária de motorista sai vazia, mesmo digitada antes', () => {
+    const body = toDriverBody({
+      ...createDriverDraft(),
+      dailyAllowanceAmount: '200,00',
+      profile: 'helper',
+    })
+
+    expect(body.dailyAllowanceAmount).toBeNull()
+  })
+})
+
 describe('as duas fichas montam o mesmo controle (spec 235 T9)', () => {
+  /** A aba esconde também a diária de motorista (A2); o diálogo rápido não a tem. */
   const FORMS = [
-    'src/modules/fleet/components/DriverForm.component.tsx',
-    'src/modules/fleet/components/DriverQuickCreateDialog.component.tsx',
+    ['src/modules/fleet/components/DriverForm.component.tsx', 3],
+    ['src/modules/fleet/components/DriverQuickCreateDialog.component.tsx', 2],
   ] as const
 
   it('a aba e o diálogo leem o perfil do mesmo estado e mostram os mesmos campos de ajuda', () => {
-    for (const path of FORMS) {
+    for (const [path, licenseBlocks] of FORMS) {
       const source = readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8')
 
       expect(source).toContain('const hasLicense = !isHelperOnlyDriver(form.state)')
       expect(source).toContain('<DriverHelperFields state={form.state} onChange={form.patch} />')
-      expect(source.match(/\{hasLicense \? \(/g)).toHaveLength(2)
+      expect(source.match(/\{hasLicense \? \(/g)).toHaveLength(licenseBlocks)
     }
   })
 })

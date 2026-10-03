@@ -464,7 +464,7 @@ function buildDriverBody({
     birthDate: state.birthDate === '' ? null : state.birthDate,
     birthState: state.birthState.toUpperCase(),
     dailyAllowanceAmount:
-      state.dailyAllowanceAmount.trim() === ''
+      state.profile === 'helper' || state.dailyAllowanceAmount.trim() === ''
         ? null
         : parseTypedAmount({ scale: AMOUNT_MAX_SCALE, value: state.dailyAllowanceAmount }),
     email: state.email.trim(),
