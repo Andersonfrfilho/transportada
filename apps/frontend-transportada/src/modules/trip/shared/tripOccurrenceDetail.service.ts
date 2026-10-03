@@ -2,10 +2,12 @@
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
 import { TRIP_MANAGE_PERMISSION } from './trip.constant'
+import type { OccurrenceCorrection } from './trip.types'
 import type {
   TripOccurrenceCaseStatus,
   TripOccurrenceCaseView,
   TripOccurrenceDetailDriver,
+  TripOccurrenceDetailItem,
 } from './tripOccurrenceFeed.service'
 
 export type OccurrenceDriverContact = Readonly<{
@@ -67,6 +69,35 @@ export function formatOccurrenceItemQuantity(
   if (item.quantity === null) return ''
   const quantity = formatNumber(item.quantity)
   return item.unit === null ? quantity : `${quantity} ${item.unit}`
+}
+
+const quantityFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 })
+
+/** Quantidade é string decimal de três casas; a tela só a mostra, nunca faz conta com ela. */
+export function formatOccurrenceQuantity(value: string): string {
+  return quantityFormatter.format(Number(value))
+}
+
+export type OccurrenceCorrectionHistoryEntry = Readonly<{
+  correctedAt: string
+  correctedByName: string
+  items: readonly Pick<TripOccurrenceDetailItem, 'code' | 'quantity' | 'unit'>[]
+}>
+
+/**
+ * Spec 235 RF5: a API grava em cada correção o conjunto que valia **antes** dela (`previousItems`), e
+ * entrega mais antiga primeiro. O conjunto que passou a valer numa correção é, então, o `previousItems`
+ * da seguinte — e, na última, os itens atuais da ocorrência.
+ */
+export function resolveOccurrenceCorrectionHistory(
+  corrections: readonly OccurrenceCorrection[],
+  currentItems: readonly TripOccurrenceDetailItem[],
+): readonly OccurrenceCorrectionHistoryEntry[] {
+  return corrections.map((correction, index) => ({
+    correctedAt: correction.correctedAt,
+    correctedByName: correction.correctedByName,
+    items: corrections[index + 1]?.previousItems ?? currentItems,
+  }))
 }
 
 /** Spec 183 T801 (P11): no celular, o detalhe vira três abas. */

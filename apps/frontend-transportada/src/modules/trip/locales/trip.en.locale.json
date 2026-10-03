@@ -2032,6 +2032,11 @@
     "case": {
       "title": "Case"
     },
+    "corrections": {
+      "title": "Corrections",
+      "entry": "Corrected by {{name}} on {{moment}}",
+      "nowValid": "Now in effect:"
+    },
     "items": {
       "title": "Affected items",
       "noDescription": "Item not in the invoice"
