@@ -20,6 +20,7 @@ function buildReport(
     documentId: 'document-1',
     idempotencyKey: 'chave-da-ocorrencia',
     kind: 'documentOccurrence',
+    location: null,
     note: 'Cliente recusou na porta',
     occurrenceTypeId: 'type-1',
     occurrenceTypeName: 'Recusa total',
@@ -81,6 +82,7 @@ describe('a ocorrência com foto sobe inteira pelo send (spec 179 T303)', () => 
     expect(new Uint8Array(await (seen[1] as Request).arrayBuffer())).toEqual(PHOTO_BYTES)
     expect(await seen[3]?.json()).toEqual({
       attachmentObjectId: UPLOAD_ID,
+      location: null,
       note: 'Cliente recusou na porta',
       occurrenceTypeId: 'type-1',
       productCode: '',
@@ -114,6 +116,7 @@ describe('a ocorrência com foto sobe inteira pelo send (spec 179 T303)', () => 
 
     expect(seen).toHaveLength(1)
     expect(await seen[0]?.json()).toEqual({
+      location: null,
       note: 'Cliente recusou na porta',
       occurrenceTypeId: 'type-1',
       productCode: '',

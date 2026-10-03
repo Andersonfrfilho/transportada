@@ -35,10 +35,11 @@ import {
   type QueuedAttachment,
 } from '../shared/offlineAttachments.service'
 import {
-  applyReportLocation,
+  completeReportLocations,
   createIdempotencyKey,
   enqueueReport,
   enqueueReports,
+  listLocatedReportKeys,
   sumReportPhotoBytes,
   type OfflineQueueStore,
 } from '../shared/offlineQueue.service'
@@ -613,21 +614,26 @@ export function useDriverTrip(
       }
       await refreshQueueView()
 
-      const location = await readCurrentLocation()
-      if (location !== null) {
-        await store.update((items) =>
-          applyReportLocation({ idempotencyKey: fieldReport.idempotencyKey, items, location }),
-        )
-      }
+      await completeLocations([fieldReport])
       requestDrain(undefined)
       return 'queued'
     })
   }
 
+  /** Spec 196 D5: uma leitura de 8 s completa, pelas chaves, todos os itens do toque que levam ponto. */
+  async function completeLocations(reports: readonly DriverFieldReport[]): Promise<void> {
+    const keys = listLocatedReportKeys(reports)
+    if (keys.length === 0) return
+    const location = await readCurrentLocation()
+    if (location === null) return
+    await store.update((items) => completeReportLocations({ items, keys, location }))
+  }
+
   /**
    * Spec 179 (T303): "Não entreguei" grava a ocorrência com foto e a devolução juntas, antes do GPS —
    * como o `reportWithLocation`. A foto conta no teto de bytes dos anexos: estourou, nada entra e a
-   * tela diz (nunca descarte calado). A posição completa só a devolução, que é quem a leva.
+   * tela diz (nunca descarte calado). Spec 196: uma leitura só completa as duas chaves — a ocorrência
+   * e a devolução levam o ponto do mesmo toque.
    */
   function reportNotDelivered(
     reports: readonly DriverFieldReport[],
@@ -662,12 +668,7 @@ export function useDriverTrip(
       }
       await refreshQueueView()
 
-      const location = returned === undefined ? null : await readCurrentLocation()
-      if (returned !== undefined && location !== null) {
-        await store.update((items) =>
-          applyReportLocation({ idempotencyKey: returned.idempotencyKey, items, location }),
-        )
-      }
+      await completeLocations(reports)
       requestDrain(undefined)
       return 'queued'
     })
@@ -709,6 +710,7 @@ export function useDriverTrip(
       }
       if (!result.accepted) return result.reason
       await refreshQueueView()
+      await completeLocations(fitted.reports)
       requestDrain(undefined)
       return isPhotoDropped ? 'photo-dropped' : 'queued'
     })

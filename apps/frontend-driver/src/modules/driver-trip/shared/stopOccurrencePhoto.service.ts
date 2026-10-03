@@ -21,6 +21,8 @@ export function buildStopOccurrenceReports(input: {
     documentId: null,
     idempotencyKey: input.createKey(),
     kind: 'occurrence',
+    /** Spec 196: nasce sem ponto; a leitura completa pela chave (`completeReportLocations`). */
+    location: null,
     occurrenceTypeId: input.occurrenceTypeId,
     stopId: input.stopId,
   } as const

@@ -48,6 +48,7 @@ describe('iniciar trajeto (route_planned)', () => {
       report: {
         idempotencyKey: 'chave-1',
         kind: 'dispatch',
+        location: null,
         tripId: 'trip-1',
       },
       stamp: undefined,
@@ -55,7 +56,7 @@ describe('iniciar trajeto (route_planned)', () => {
 
     expect(requests[0]?.url).toBe('https://api.test/me/trips/current/dispatch')
     expect(requests[0]?.method).toBe('POST')
-    expect(await requests[0]?.json()).toEqual({ tripId: 'trip-1' })
+    expect(await requests[0]?.json()).toEqual({ location: null, tripId: 'trip-1' })
   })
 
   it('só route_planned aguarda início', () => {

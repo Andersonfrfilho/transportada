@@ -29,7 +29,7 @@ import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripRespo
 import { LATE_REGISTRATION_FIELD_ENABLED } from './lateRegistration.constant'
 import { shouldSendLateRegistration } from './lateRegistration.service'
 import type { AttachmentSendOutcome } from './offlineAttachments.service'
-import type { DriverTripErrorDetail } from './offlineQueue.service'
+import { withLegacyLocation, type DriverTripErrorDetail } from './offlineQueue.service'
 
 const CURRENT_TRIP_PATH = '/me/trips/current'
 const LOCATION_CONSENT_PATH = '/me/location-consent'
@@ -286,7 +286,7 @@ export function reportBody({ report, stamp }: StampedReport<JsonFieldReport>): s
     case 'cancelDeparture':
       return JSON.stringify({ location: report.location, tappedAt: report.tappedAt })
     case 'dispatch':
-      return JSON.stringify({ tripId: report.tripId })
+      return JSON.stringify({ location: report.location, tripId: report.tripId })
     case 'deliver':
       return JSON.stringify({
         ...clockFields,
@@ -315,6 +315,7 @@ export function reportBody({ report, stamp }: StampedReport<JsonFieldReport>): s
         ...clockFields,
         description: report.description,
         documentId: report.documentId,
+        location: report.location,
         ...stopOccurrenceReference(report),
       })
   }
@@ -437,7 +438,8 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       })
       return toLocationConsent(payload)
     },
-    async send({ report, stamp }) {
+    async send({ report: queuedReport, stamp }) {
+      const report = withLegacyLocation(queuedReport)
       if (report.kind === 'documentOccurrence') {
         await sendDocumentOccurrence({ dependencies, report })
         return
@@ -489,6 +491,7 @@ async function sendDocumentOccurrence(input: {
   await request({
     body: JSON.stringify({
       ...(attachmentObjectId === undefined ? {} : { attachmentObjectId }),
+      location: report.location,
       note: report.note,
       occurrenceTypeId: report.occurrenceTypeId,
       productCode: report.productCode,

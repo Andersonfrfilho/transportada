@@ -233,8 +233,8 @@ export async function drainQueue(input: {
 
 /**
  * Spec 189 T9.2 (M1): o toque grava com `location: null` e a posição chega depois, no mesmo item
- * pela chave — o molde de `applyAttachmentLocation`. Ocorrência não leva posição, e o item que já
- * tem uma não é sobrescrito.
+ * pela chave — o molde de `applyAttachmentLocation`. Spec 196: vale para todo item que leva o
+ * campo, ocorrência incluída; o item que já tem uma posição não é sobrescrito.
  */
 export function applyReportLocation(input: {
   readonly idempotencyKey: string
@@ -247,6 +247,37 @@ export function applyReportLocation(input: {
     if (!('location' in report) || report.location !== null) return item
     return { ...item, report: { ...report, location: input.location } }
   })
+}
+
+/** Spec 196 D5: um toque pode gravar mais de um item ("Não entreguei"), e a mesma leitura vale para todos. */
+export function completeReportLocations(input: {
+  readonly items: readonly QueuedReport[]
+  readonly keys: readonly string[]
+  readonly location: DriverReportedLocation
+}): readonly QueuedReport[] {
+  return input.keys.reduce(
+    (items, idempotencyKey) =>
+      applyReportLocation({ idempotencyKey, items, location: input.location }),
+    input.items,
+  )
+}
+
+/** As chaves, entre os itens do toque, dos que levam ponto — a foto da ocorrência não é evento. */
+export function listLocatedReportKeys(reports: readonly DriverFieldReport[]): readonly string[] {
+  return reports.filter((report) => 'location' in report).map((report) => report.idempotencyKey)
+}
+
+/** Spec 196 RF7: item gravado antes do campo existir sai com `location: null`, nunca sem a chave. */
+export function withLegacyLocation(report: DriverFieldReport): DriverFieldReport {
+  if (
+    report.kind !== 'dispatch' &&
+    report.kind !== 'documentOccurrence' &&
+    report.kind !== 'occurrence'
+  ) {
+    return report
+  }
+  const fields: Readonly<Record<string, unknown>> = report
+  return 'location' in fields ? report : { ...report, location: null }
 }
 
 /** Chave do toque: opaca, gerada uma vez, e é o que o servidor casa no reenvio. */

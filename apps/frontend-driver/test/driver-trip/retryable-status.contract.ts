@@ -159,6 +159,7 @@ describe('indisponibilidade do servidor não recusa o item da fila', () => {
       documentId: 'document-1',
       idempotencyKey: 'chave-foto',
       kind: 'documentOccurrence',
+      location: null,
       note: '',
       occurrenceTypeId: 'type-1',
       occurrenceTypeName: 'Recusa',

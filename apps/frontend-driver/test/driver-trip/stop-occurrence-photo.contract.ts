@@ -79,6 +79,7 @@ describe('os itens do "Deu problema" na fila (spec 209 D2)', () => {
         documentId: null,
         idempotencyKey: 'chave-1',
         kind: 'occurrence',
+        location: null,
         occurrenceTypeId: OCCURRENCE_TYPE_ID,
         stopId: STOP_ID,
       },
@@ -149,6 +150,7 @@ describe('a foto sobe pela rota da parada e completa a ocorrência (spec 209 RF1
     expect(await seen[0]?.json()).toEqual({
       description: 'Doca fechada até as 14h',
       documentId: null,
+      location: null,
       occurrenceTypeId: OCCURRENCE_TYPE_ID,
     })
   })

@@ -196,6 +196,7 @@ describe('a ocorrência de nota sem foto vai pela fila (spec 226)', () => {
       documentId: 'document-1',
       idempotencyKey: 'chave-do-toque',
       kind: 'documentOccurrence',
+      location: null,
       note: 'Portão sem número',
       occurrenceTypeId: 'type-1',
       occurrenceTypeName: 'Endereço',
@@ -215,6 +216,7 @@ describe('a ocorrência de nota sem foto vai pela fila (spec 226)', () => {
     )
     expect(seen[0]?.headers.get('idempotency-key')).toBe('chave-do-toque')
     expect(await seen[0]?.json()).toEqual({
+      location: null,
       note: 'Portão sem número',
       occurrenceTypeId: 'type-1',
       productCode: '',

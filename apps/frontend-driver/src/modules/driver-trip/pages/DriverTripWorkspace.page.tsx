@@ -581,6 +581,7 @@ export function DriverTripWorkspacePage() {
       documentId: input.documentId,
       idempotencyKey: createIdempotencyKey(),
       kind: 'documentOccurrence',
+      location: null,
       note: input.note,
       occurrenceTypeId: input.occurrenceTypeId,
       occurrenceTypeName: input.occurrenceTypeName,
@@ -601,11 +602,12 @@ export function DriverTripWorkspacePage() {
    * envio e sobe sozinho (ou pelo envio manual). Quando sobe, o snapshot novo abre as ações de campo.
    */
   function dispatchTrip(tripId: string): void {
-    void driverTrip
-      .report({ idempotencyKey: createIdempotencyKey(), kind: 'dispatch', tripId })
-      .then((outcome) => {
-        if (outcome === 'count-limit') setEventLimitReached(true)
-      })
+    void report((location) => ({
+      idempotencyKey: createIdempotencyKey(),
+      kind: 'dispatch',
+      location,
+      tripId,
+    }))
   }
 
   function rememberTappedReport(tappedReport: TappedStopReport): void {

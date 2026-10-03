@@ -334,10 +334,16 @@ describe('a ocorrência de parada vai com o tipo do catálogo, não com o kind (
         documentId: null,
         idempotencyKey: 'chave-1',
         kind: 'occurrence',
+        location: null,
         occurrenceTypeId: STOP_OPTIONAL.id,
         stopId: STOP_ID,
       }),
-    ).toEqual({ description: 'Doca fechada', documentId: null, occurrenceTypeId: STOP_OPTIONAL.id })
+    ).toEqual({
+      description: 'Doca fechada',
+      documentId: null,
+      location: null,
+      occurrenceTypeId: STOP_OPTIONAL.id,
+    })
   })
 
   /** O item gravado antes da atualização do app ainda sai da fila — com o corpo que a API aceita. */
@@ -348,9 +354,15 @@ describe('a ocorrência de parada vai com o tipo do catálogo, não com o kind (
         documentId: null,
         idempotencyKey: 'chave-1',
         kind: 'occurrence',
+        location: null,
         occurrenceKind: 'dock_closed',
         stopId: STOP_ID,
       }),
-    ).toEqual({ description: 'Doca fechada', documentId: null, kind: 'dock_closed' })
+    ).toEqual({
+      description: 'Doca fechada',
+      documentId: null,
+      kind: 'dock_closed',
+      location: null,
+    })
   })
 })

@@ -26,6 +26,7 @@ const NOW = new Date('2026-10-03T12:00:00.000Z')
 const DISPATCH: Extract<DriverFieldReport, { kind: 'dispatch' }> = {
   idempotencyKey: 'chave-despacho',
   kind: 'dispatch',
+  location: null,
   tripId: 'trip-1',
 }
 
@@ -79,6 +80,7 @@ describe('o despacho da viagem vai pela fila (spec 230)', () => {
   it('é um POST de /dispatch com a viagem no corpo', async () => {
     expect(reportPath(DISPATCH)).toBe('/me/trips/current/dispatch')
     expect(JSON.parse(reportBody({ report: DISPATCH, stamp: undefined }))).toEqual({
+      location: null,
       tripId: 'trip-1',
     })
 
@@ -87,7 +89,7 @@ describe('o despacho da viagem vai pela fila (spec 230)', () => {
 
     expect(seen[0]?.method).toBe('POST')
     expect(new URL(seen[0]?.url ?? '').pathname).toBe('/me/trips/current/dispatch')
-    expect(await seen[0]?.json()).toEqual({ tripId: 'trip-1' })
+    expect(await seen[0]?.json()).toEqual({ location: null, tripId: 'trip-1' })
   })
 
   it('servidor fora do ar espera; recusa de negócio recusa; sucesso envia', async () => {

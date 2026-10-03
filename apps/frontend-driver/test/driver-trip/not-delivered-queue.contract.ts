@@ -29,6 +29,7 @@ function occurrence(key: string, bytes = 2048): DriverFieldReport {
     documentId: 'document-1',
     idempotencyKey: key,
     kind: 'documentOccurrence',
+    location: null,
     note: '',
     occurrenceTypeId: 'type-1',
     occurrenceTypeName: 'Recusa total',

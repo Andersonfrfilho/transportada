@@ -200,7 +200,8 @@ describe('a captura só fecha depois de gravar (spec 189 T9.2 A4)', () => {
 
     expect(body.indexOf('enqueueReport(')).toBeGreaterThan(-1)
     expect(body.indexOf('readCurrentLocation()')).toBeGreaterThan(body.indexOf('enqueueReport('))
-    expect(body).toContain('applyReportLocation(')
+    expect(body).toContain('completeLocations([fieldReport])')
+    expect(body).toContain('completeReportLocations(')
     expect(readFileSync(WORKSPACE, 'utf8')).not.toContain('await readCurrentLocation()')
   })
 

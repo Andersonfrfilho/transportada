@@ -258,11 +258,12 @@ export type DriverFieldReport =
   /**
    * Spec 230: "Despachar viagem" vai pela fila como qualquer toque de campo — sem sinal fica como
    * pendência de envio e sobe sozinho (ou pelo envio manual). O servidor trata o despacho repetido
-   * como `unchanged`, então reenviar é seguro. Sem posição: a 196 trata disso.
+   * como `unchanged`, então reenviar é seguro. O ponto (spec 196) entra depois, pela chave.
    */
   | Readonly<{
       idempotencyKey: string
       kind: 'dispatch'
+      location: DriverReportedLocation | null
       tripId: string
     }>
   /** Spec 206 D18: desfaz o "Iniciar rota" desta parada, a qualquer momento antes do "Cheguei". */
@@ -295,6 +296,7 @@ export type DriverFieldReport =
       documentId: string | null
       idempotencyKey: string
       kind: 'occurrence'
+      location: DriverReportedLocation | null
       stopId: string
     }> &
       StopOccurrenceReportReference)
@@ -307,6 +309,7 @@ export type DriverFieldReport =
       documentId: string
       idempotencyKey: string
       kind: 'documentOccurrence'
+      location: DriverReportedLocation | null
       note: string
       occurrenceTypeId: string
       /** Só para a tela de pendentes: quem decide pelo id é o servidor. */
