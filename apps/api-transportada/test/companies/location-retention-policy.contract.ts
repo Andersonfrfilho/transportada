@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   isValidRetentionDays,
+  opensPurgeGracePeriod,
   resolvePurgeEffectiveAt,
   type LocationRetentionChoice,
   type ResolvePurgeEffectiveAtParams,
@@ -116,6 +117,15 @@ describe('location retention policy contract (spec 239 D5)', () => {
 
     expect(result.toISOString()).toBe(expected.toISOString())
   })
+
+  test.each(EFFECTIVE_AT_CASES)(
+    'opensPurgeGracePeriod agrees with the grace: %s',
+    (_label, previousRow, next, expected) => {
+      const opens = opensPurgeGracePeriod({ next, previous: previousRow })
+
+      expect(opens).toBe(expected.getTime() === NOW_PLUS_24H.getTime())
+    },
+  )
 
   test('reads only the injected clock, so a different now moves the grace', () => {
     const later = new Date('2027-01-15T00:00:00.000Z')

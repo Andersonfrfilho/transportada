@@ -5,6 +5,7 @@
  * o que a empresa afirma; a carência de 24 h e a trilha de auditoria nascem na escrita.
  */
 import { sumImpactCounts } from '../domain/location-retention-impact.policy.js'
+import { opensPurgeGracePeriod } from '../domain/location-retention.policy.js'
 import type {
   LocationRetentionActor,
   LocationRetentionImpactEntry,
@@ -38,7 +39,10 @@ export function createSaveLocationRetentionSettingsUseCase(dependencies: Depende
   return {
     execute: async (input) => {
       const now = dependencies.now()
-      const affectedEstimate = input.purgeEnabled
+      const next = { purgeEnabled: input.purgeEnabled, retentionDays: input.retentionDays }
+      const previous = await dependencies.settings.find({ companyId: input.companyId })
+      // Só a escrita que abre carência apaga mais do que apagaria; é a que a auditoria precisa medir.
+      const affectedEstimate = opensPurgeGracePeriod({ next, previous })
         ? sumImpactCounts(
             await dependencies.settings.countImpact({
               companyId: input.companyId,
@@ -53,7 +57,7 @@ export function createSaveLocationRetentionSettingsUseCase(dependencies: Depende
         companyId: input.companyId,
         correlationId: input.correlationId,
         ipAddress: input.ipAddress,
-        next: { purgeEnabled: input.purgeEnabled, retentionDays: input.retentionDays },
+        next,
         now,
         userId: input.userId,
       })

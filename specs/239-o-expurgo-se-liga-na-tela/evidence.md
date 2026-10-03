@@ -287,3 +287,25 @@ passou a exigir o `LOCK TABLE` depois do `lock_timeout` e antes de `Rollback rec
 Mutação (remover a linha do `rollback.sql`, rodar, restaurar regravando): 1 fail (esse teste).
 Verde: `test/database-migration.contract.test.ts` 85 pass / 0 fail; `bun run db:test` 122 pass / 0 fail
 (inclui o rollback real contra Postgres: recusa com linha, desfaz sem linha, reaplica limpo).
+
+### M4 — `affectedEstimate` só quando a escrita abre carência (confirmado)
+
+Confirmado: o use case recontava sempre que `purgeEnabled` era verdadeiro, inclusive ao alongar e ao
+repetir o valor, gravando no `audit_logs` uma estimativa de algo que a escrita não amplia (e pagando
+cinco consultas à toa). Agora `opensPurgeGracePeriod({ next, previous })` (política pura, mesma pergunta
+de `resolvePurgeEffectiveAt`, que não mudou) decide; o use case lê a configuração atual com `find` e só
+conta quando abre carência; `null` nos demais. Teste de consistência: para cada uma das 14 linhas da
+tabela de carência, `opensPurgeGracePeriod` concorda com "a data gravada é `now + 24 h`". Teste novo de
+rota: ligar de desligado e encurtar contam; alongar e repetir não chamam `countImpact` e gravam `null`.
+A recontagem usa o `now` do servidor na escrita (D4 emendado no `spec.md`).
+Limite honesto: o `find` do use case e o `FOR UPDATE` do repositório são leituras separadas; numa corrida
+a estimativa pode seguir a decisão da leitura anterior. É metadado de auditoria, não decide a carência
+(que é calculada dentro da transação).
+
+| Mutação                                                   | Resultado |
+| --------------------------------------------------------- | --------- |
+| M4a use case conta sempre que `purgeEnabled`              | 1 fail    |
+| M4b `opensPurgeGracePeriod` com `<=` (repetir abre)       | 3 fail    |
+| M4c `opensPurgeGracePeriod` sem o desvio de desligar      | 3 fail    |
+
+Verde: `test/companies.contract.test.ts --test-name-pattern retention` 71 pass / 0 fail.

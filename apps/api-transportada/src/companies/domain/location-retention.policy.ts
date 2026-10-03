@@ -31,6 +31,20 @@ export function isValidRetentionDays(value: unknown): value is number {
   )
 }
 
+export type OpensPurgeGracePeriodParams = {
+  readonly next: LocationRetentionChoice
+  readonly previous: LocationRetentionChoice | null
+}
+
+/** A mesma pergunta de `resolvePurgeEffectiveAt`, sem relógio: esta escrita amplia o que será apagado? */
+export function opensPurgeGracePeriod(params: OpensPurgeGracePeriodParams): boolean {
+  const { next, previous } = params
+  if (!next.purgeEnabled) return false
+  if (previous === null || !previous.purgeEnabled) return true
+
+  return next.retentionDays < previous.retentionDays
+}
+
 export function resolvePurgeEffectiveAt(params: ResolvePurgeEffectiveAtParams): Date {
   const { next, now, previous } = params
   if (!next.purgeEnabled) return now

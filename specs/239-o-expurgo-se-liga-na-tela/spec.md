@@ -128,7 +128,9 @@ id IN (...)` de hoje (`drizzle-trip-location.repository.ts:42-69`). O isolamento
   `driver-allowance-settings.use-case.ts:13-14`), `permission = 'settings.manage'`, `correlationId`,
   `beforeSnapshot`/`afterSnapshot` com
   `{ purgeEnabled, retentionDays, purgeEffectiveAt }`, `metadata.ipAddress` e `metadata.affectedEstimate`
-  (a contagem que a tela mostrou, D5). `created_at` é o timestamp. **Nenhuma coordenada, nenhum id de
+  (D5: **recontagem do servidor** com o `now` da escrita, não o número que a tela mostrou — o corpo do `PUT`
+  é `.strict()` e não traz contagem do cliente; só quando a escrita **abre carência**, isto é, ligar ou
+  encurtar com o expurgo ligado; `null` ao alongar, repetir e desligar, que não ampliam o que cai). `created_at` é o timestamp. **Nenhuma coordenada, nenhum id de
   evento, nenhum nome** — a tabela `audit_logs` (`database/fiscal-operation.schema.ts:36-66`) não tem
   coluna de IP; o IP vai em `metadata`, como no molde.
 

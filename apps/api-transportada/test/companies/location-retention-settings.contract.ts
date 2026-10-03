@@ -417,6 +417,31 @@ describe('location retention settings: routes (spec 239 RF1-RF4, CA1-CA5)', () =
     })
   })
 
+  test('PUT recounts only when the write opens a grace; otherwise the estimate is null', async () => {
+    const wide: LocationRetentionSettings = { ...STORED, retentionDays: 90 }
+    const disabled: LocationRetentionSettings = { ...STORED, purgeEnabled: false }
+    const cases = [
+      ['turning on from a disabled row', disabled, 60, true],
+      ['shortening while enabled', wide, 45, true],
+      ['lengthening while enabled', STORED, 60, false],
+      ['repeating the same value while enabled', STORED, 30, false],
+    ] as const
+
+    for (const [label, stored, retentionDays, shouldCount] of cases) {
+      const { calls, port } = fakePort(stored)
+      await callRoute({ body: { purgeEnabled: true, retentionDays }, method: 'PUT', port })
+
+      expect(
+        calls.some((call) => call.name === 'countImpact'),
+        label,
+      ).toBe(shouldCount)
+      expect(
+        calls.find((call) => call.name === 'save')?.input.affectedEstimate !== null,
+        label,
+      ).toBe(shouldCount)
+    }
+  })
+
   test('DELETE answers 204, clears for the context company and GET falls back to the default (CA3)', async () => {
     const { calls, port } = fakePort(STORED)
     const response = await callRoute({ method: 'DELETE', port })
