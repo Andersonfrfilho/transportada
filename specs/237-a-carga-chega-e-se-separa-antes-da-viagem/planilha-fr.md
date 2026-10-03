@@ -114,7 +114,20 @@ as linhas.
 - **`NroCarga` ↔ `RouteName` é 1:1** (medido nas notas vinculadas): FR-24-09 → 10 cargas × 10 roteiros; FR-28-09
   → 8 × 8; cada roteiro tem exatamente uma carga e vice-versa. **A carga do XML é o roteiro da planilha.**
 - O **lacre** reúne várias cargas (o caminhão): 3 lacres para 18 cargas, emitidas em 3 horários (19h, 20h e
-  23h). **Chegada da carga = lacre (o caminhão); carga = roteiro (o grupo de entrega); nota dentro.** [D9]
+  23h). **Decisão do usuário: 1 prévia = 1 chegada;** o lacre é só informação de apoio.
+
+### Os totais fecham por roteiro e por carga, e uma NF junta vários pedidos
+
+- **Soma de valor e de peso por `RouteName` = soma por `NroCarga`, ao centavo**, em 8 de 10 roteiros
+  (`FR-24-09`) e 7 de 8 (`FR-28-09`); o nº de notas só difere quando há **mais linhas do que notas** (ex.:
+  `FR.BARRI`: 20 linhas, 16 notas, **mesmo valor e mesmo peso**).
+- **Explicação medida: uma NF pode juntar vários pedidos (`Text001`) do mesmo cliente.** Agrupando as linhas
+  por cliente e somando, o valor e o peso fecham numa nota em **13/14**, **22/24**, **23/25** e **10/10**
+  clientes dos roteiros testados (ex.: 2.664,00 + 1.243,56). O inverso também ocorre: o mesmo cliente com duas
+  NF separadas, cada uma fechando com **uma** linha. Logo o vínculo é **n linhas ↔ 1 nota** (RF5a, nível 3).
+- A planilha **não traz `NroCarga`** (nem o lacre) em nenhuma célula das duas abas; o `NroCarga` só existe no
+  XML. O par `RouteName` ↔ `NroCarga` vem do encaixe dos totais e vale **por prévia** (o `NroCarga` muda a
+  cada dia; o `RouteName` se repete).
 
 ### Tempo: a prévia chega **antes** do XML (item 7 do usuário)
 
@@ -127,11 +140,12 @@ as linhas.
 
 ### O que o desenho tem de garantir
 
-1. Vínculo **por conteúdo com escore**, nunca por número do cliente (RF5a).
+1. Vínculo **por grupo e por soma** (roteiro ↔ carga, depois cliente, depois n linhas ↔ 1 nota), nunca por
+   número do cliente (RF5a).
 2. **`Company` ↔ CNPJ do destinatário é 1:1** (212 códigos aprendidos pelo conteúdo, **0 conflitos**, nenhum
    CNPJ com dois códigos): vale guardar o par e usá-lo dali em diante.
-3. **`RouteName` ↔ `NroCarga` é 1:1**: guardar o par e usá-lo para restringir os candidatos (só as notas
-   daquela carga).
+3. **`RouteName` ↔ `NroCarga` é 1:1 e vale por prévia**: o par sai do encaixe dos totais e restringe os
+   candidatos (só as notas daquela carga).
 4. O vínculo é **assíncrono**: nasce quando o XML chega, e a tela mostra "esperando o XML" por item.
 
 ## Pendente

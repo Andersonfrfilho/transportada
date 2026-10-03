@@ -43,7 +43,7 @@
 
 ## Fase 4 — Prévia por e-mail
 
-> 🤖 Modelo: `sonnet` (T4.1 é 🧠). **Bloqueada por D6.** Exemplo real disponível em `planilha-fr.md`.
+> 🤖 Modelo: `sonnet` (T4.1 é 🧠). **Bloqueada por D6 (só o endereço de entrada).** Exemplo real disponível em `planilha-fr.md`.
 
 - [ ] **T4.0** Rodar `consulta-recebimento-vs-xml.sql` (somente leitura) e registrar o resultado em
       `evidence.md`: mede quantas linhas acham uma nota só por valor + CEP e fixa os limites de confiança do
@@ -53,10 +53,12 @@
 - [ ] **T4.2** Ramo "prévia" no worker de e-mail de entrada (conforme D6: token do perfil, DKIM,
       allow-list, MIME bruto); migration `cargo_previews`/`cargo_preview_items`; contratos antes
       (CA1–CA4), usando as três planilhas `FR` (anonimizadas) como fixtures.
-- [ ] **T4.3** Leitura e validação por linha (aba `IMPORTAÇÃO`, cabeçalhos de rota ignorados); vínculo por
-      por conteúdo dentro do universo do contratante (valor, CEP, destinatário, cidade, peso;
-      `matched/ambiguous/suggested`, 1:1), aprendizado `Company` ↔ CNPJ do destinatário e vínculo manual;
-      passo que vincula quando o XML chega; registro do recebimento do e-mail e comparação com o do XML.
+- [ ] **T4.3** Leitura e validação por linha (aba `IMPORTAÇÃO`, cabeçalhos de rota ignorados); vínculo em
+      três níveis (RF5a): roteiro ↔ carga pelos totais, cliente dentro do grupo, **n linhas ↔ 1 nota** por
+      soma exata de valor e peso (`matched/ambiguous/suggested/awaiting_xml`, 1:1 por nota); aprendizado
+      `Company` ↔ CNPJ do destinatário; vínculo manual; avaliação dos itens `awaiting_xml` **a cada XML
+      importado** (a prévia chega horas antes do XML); registro do recebimento do e-mail. Fixtures
+      **anonimizadas** das planilhas e dos XMLs reais (inclusive roteiro com 20 linhas para 16 notas).
 - [ ] **T4.3a** (depende de D8) Extrair o número do pedido (`xPed`) no importador de NF-e e usá-lo como
       evidência forte no vínculo.
 - [ ] **T4.4** Tela de prévias (esperadas × com XML × erro).

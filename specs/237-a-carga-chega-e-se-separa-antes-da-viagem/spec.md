@@ -120,37 +120,38 @@ conferência) **Then** o fluxo dele muda **só por dado**, sem código novo e se
   (RF5a), nunca por número de nota. Estados do item: `matched`, `awaiting_xml`, `ambiguous`, `suggested`,
   `invalid`.
 - **RF5a — Como cada linha vira uma nota** (`cargo-preview-matching.policy.ts`, função pura). Medido em XMLs
-  reais (`planilha-fr.md`): **o XML não traz `Text001` nem o código do cliente**; o vínculo é por **conteúdo**,
-  dentro do universo de **um contratante**:
-  1. **Universo:** notas **do emitente do perfil**, ainda **não vinculadas** a outro item, importadas depois do
-     recebimento do e-mail (a prévia **chega antes do XML** — medido: 2,7 a 4,2 h antes da emissão).
-  2. **Escore por linha × nota:** `VALOR` × `vNF` (**exigido**, ao centavo); `PESO TOTAL` × `pesoB` (exato nos
-     dados reais); `PostalCode` × CEP do destinatário; cidade/UF (sem acento, caixa alta); destinatário
-     (código `Company` aprendido, ou razão social aproximada, **só reforço**: bate em 83%). Nenhuma chave
-     isolada é obrigatória além do valor — o CEP da planilha pode ser o de entrega.
-  3. **Restrição pela carga:** quando já se sabe o par `RouteName` ↔ `NroCarga` (1:1, medido), só as notas
-     **daquela carga** concorrem.
-  4. **Veredito:** **uma única** candidata com escore acima do limite do perfil → `matched`; **várias** →
-     `ambiguous`, ordenadas por escore, para o operador escolher; **nenhuma** → `awaiting_xml`; escore abaixo
-     do limite → `suggested`, **só vale depois de o operador confirmar**. Taxa medida com os XMLs parciais:
-     **74–90% de candidata única** por valor + CEP, **78–85%** por valor + peso; as sem candidata são XMLs que
-     ainda não foram importados.
-  5. **Matching 1:1:** uma nota só pode ficar em **um** item; duas linhas disputando a mesma nota viram
-     `ambiguous`, na ordem do melhor escore e pelo operador.
-  6. **Aprendizado:** cada vínculo confirmado guarda `Company` ↔ CNPJ do destinatário
-     (`contractor_recipient_aliases`: medido **1:1, 212 códigos, 0 conflitos**) e `RouteName` ↔ `NroCarga`.
-     Nas próximas prévias o código resolve o destinatário e a rota resolve a carga com exatidão.
-  7. **Assíncrono:** o vínculo **nasce quando o XML é importado** (o passo do worker de importação avalia os
-     itens `awaiting_xml` do contratante), porque na hora do e-mail nenhuma nota tem XML. A tela mostra
-     "esperando o XML" por item e a hora em que o vínculo ocorreu.
-  8. **Sem chave não há certeza:** `matched` é "vínculo conferido", nunca "garantido"; o operador **desvincula
-     e vincula à mão**, e toda ação fica na trilha (ator, canal, hora).
-- **RF5b — A chegada se reconhece pelo lacre:** as informações adicionais das NF-e do contratante trazem
-  `LACRE` (o caminhão) e `NroCarga` (o roteiro dentro dele); medido: 277 de 277 notas, 3 lacres e 18 cargas, e
-  `NroCarga` ↔ `RouteName` é 1:1. Quando o perfil declara o padrão de leitura (`arrival_reference_pattern`, dado
-  do perfil, **nunca regex fixa no código**), a importação agrupa as notas por **lacre** e **propõe a chegada**
-  (lacre, cargas, notas) para o operador só **confirmar a hora em que o caminhão chegou**. Sem padrão no perfil,
-  a chegada é registrada à mão [D9].
+  reais (`planilha-fr.md`): **o XML não traz `Text001` nem o código do cliente**, e **a planilha não traz
+  `NroCarga`** (só `RouteName`). O vínculo desce em **três níveis**, dentro do universo de **um contratante**
+  (notas do emitente do perfil, ainda não vinculadas, importadas depois do recebimento do e-mail):
+  1. **Roteiro ↔ carga (grupo).** `RouteName` (planilha) ↔ `NroCarga` (XML, em `infCpl`, lido pelo padrão do
+     perfil). Medido: **1:1**, e a soma de **valor e peso por roteiro é igual, ao centavo, à da carga** em
+     8 de 10 roteiros (24/09) e 7 de 8 (28/09); a diferença é XML faltando. O par nasce pelo **melhor encaixe
+     de totais** (valor, peso, nº de notas) e é confirmado pelos vínculos de nota abaixo; `NroCarga` é novo a
+     cada dia e `RouteName` se repete, então o par vale **por prévia**, nunca para sempre.
+  2. **Cliente dentro do grupo.** Destinatário por `Company` (código aprendido) ou CEP/razão social
+     aproximada (só reforço: o nome bate em 83%).
+  3. **Linhas → notas, por soma.** **Uma NF pode juntar vários pedidos** (`Text001`) do mesmo cliente (medido:
+     clientes com 2 ou 3 linhas, p.ex. 2.664,00 + 1.243,56 → uma nota; e 20 linhas para 16 notas com o
+     mesmo valor total): resolve-se, por cliente, a partição das linhas em notas cujo **valor** e **peso**
+     (exatos, ao centavo e ao grama) fecham. É soma de subconjuntos sobre ≤ 3 linhas.
+  4. **Veredito por linha:** partição única que fecha valor **e** peso → `matched` (guarda `n` linhas ↔ 1
+     nota); mais de uma partição possível → `ambiguous` (as candidatas, para o operador escolher); nenhuma
+     nota → `awaiting_xml`; fecha só o valor → `suggested` (só vale depois de o operador confirmar).
+  5. **Matching 1:1 por nota:** uma nota nunca fica em dois grupos de linhas.
+  6. **Taxa medida (XMLs parciais, 2 dias):** por linha isolada, valor + CEP achou uma nota em 74–90% e valor
+     - peso em 78–85%; **agrupando por cliente a soma fecha em ~92–100% dos clientes** dos roteiros testados
+       (13/14, 22/24, 23/25, 10/10). As que sobram são XMLs ainda não importados.
+  7. **Aprendizado:** cada vínculo confirmado guarda `Company` ↔ CNPJ do destinatário
+     (`contractor_recipient_aliases`: **1:1, 212 códigos, 0 conflitos**).
+  8. **Assíncrono:** o vínculo **nasce quando o XML é importado**, porque a prévia chega 2,7 a 4,2 h **antes**
+     da emissão. O passo do worker de importação reavalia, a cada XML, os itens `awaiting_xml` do contratante;
+     a tela mostra "esperando o XML" por item e a hora do vínculo.
+  9. **Sem chave não há certeza:** `matched` é "vínculo conferido", nunca "garantido"; o operador
+     **desvincula e vincula à mão**, e toda ação fica na trilha (ator, canal, hora).
+- **RF5b — A prévia é a chegada** (decisão do usuário, 2026-10-03): **1 prévia = 1 chegada**. Ao ler a
+  prévia, o sistema **propõe a chegada** (contratante, data planejada, roteiros e notas esperadas) e o operador
+  só **confirma a hora em que o caminhão chegou**. O `LACRE` das notas (3 lacres para 18 cargas nos XMLs) fica
+  como **informação de apoio** na chegada, não como chave.
 - **RF6 — Chegada** (`cargo_arrivals`): `contractor_id`, `arrived_at` (momento informado, corrigido como
   na 234 quando vier de app), `registered_by`, `channel`, `pallet_count` opcional, `separation_due_at`
   derivado do perfil. `cargo_arrival_documents`: nota na chegada com **eixo próprio**
@@ -214,7 +215,8 @@ conferência) **Then** o fluxo dele muda **só por dado**, sem código novo e se
 
 ## Dúvidas
 
-**Respondidas pelo usuário (2026-10-03):** a planilha e os exemplos (`planilha-fr.md`); o prazo é **3 dias
+**Respondidas pelo usuário (2026-10-03):** **a prévia é a chegada** (1 prévia = 1 chegada); **seguir o `NroCarga`
+sempre que ele existir no XML e na prévia** (na planilha ele não existe: o par vem de `RouteName`, ver RF5a); a planilha e os exemplos (`planilha-fr.md`); o prazo é **3 dias
 úteis desde a chegada**; o feriado é da **cidade do destinatário**; a primeira separação é **por nota,
 agrupada por rota e cidade**; a operação é **pelo celular**; o e-mail deve ser **lido pelo app quando
 recebido**; a comparação com o XML usa a **data de recebimento da planilha**; o calendário de feriados **já
@@ -235,14 +237,10 @@ credencial de e-mail e amplia a superfície de ataque. _Recomendo (a); se não f
 Fase 4.
 
 **Resolvida pelos XMLs reais (D8):** `Text001` e o código do cliente (`Company`) **não estão no XML da
-NF-e** (0 ocorrências em 277 notas, texto bruto e atributos). O vínculo é por conteúdo (RF5a). **Pergunta que
-sobra:** o contratante consegue **colocar o número dele nas informações adicionais da NF-e** (como já faz com
-LACRE e NroCarga)? Se sim, a T4.3a dá uma chave forte; se não, ela é descartada.
-
-**[NEEDS CLARIFICATION: D9 — o que é uma chegada]** Medido: o **lacre** reúne várias cargas (3 lacres, 18
-cargas) e cada `NroCarga` é **um roteiro** da planilha. _Leio assim:_ **chegada = um caminhão (lacre)**, que traz
-vários roteiros; a primeira separação é por roteiro e cidade dentro dele. É isso? E um e-mail de prévia
-costuma cobrir **um** caminhão ou **vários**? Bloqueia só a RF5b.
+NF-e** (0 ocorrências em 277 notas, texto bruto e atributos), e a planilha **não traz `NroCarga`**. O vínculo é
+por **grupo (`RouteName` ↔ `NroCarga` pelos totais) e conteúdo** (RF5a). Opcional, se o contratante aceitar:
+colocar o número dele nas informações adicionais da NF-e (como já faz com `LACRE` e `NroCarga`) — a T4.3a daria
+uma chave exata; se não aceitar, ela é descartada.
 
 **Já medido com XMLs reais (item 7 do usuário):** o e-mail chega **antes** do XML (2,7 a 4,2 h antes da
 emissão; ver `planilha-fr.md`). **A rodar por quem tem acesso ao banco:** a mesma comparação no **conjunto
