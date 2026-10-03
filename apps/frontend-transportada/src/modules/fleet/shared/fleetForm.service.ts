@@ -108,6 +108,8 @@ const EMPTY_DRIVER_FORM: FleetDriverFormState = {
   anttCategory: '',
   /** Spec 149 D1: ninguém ajuda por padrão. */
   canActAsHelper: false,
+  /** Spec 234 D2: o cadastro novo dirige até escolher o perfil Ajudante. */
+  canDrive: true,
   helperDailyRate: '',
   /** Spec 100: ninguém amarra por padrão — a planta limita a pilha por esbeltez. */
   securesCargo: false,
@@ -236,6 +238,7 @@ export function toDriverFormState(driver: FleetDriverDetail): FleetDriverFormSta
     addressStreet: driver.address.street,
     anttCategory: driver.anttCategory,
     canActAsHelper: driver.canActAsHelper,
+    canDrive: driver.canDrive,
     helperDailyRate: driver.helperDailyRate ?? '',
     securesCargo: driver.securesCargo,
     birthCity: driver.birthCity,
@@ -407,8 +410,17 @@ function toIdentityDocumentIssuer(value: string): '' | IdentityDocumentIssuer {
   return IDENTITY_DOCUMENT_ISSUERS.find((issuer) => issuer === value) ?? ''
 }
 
+/**
+ * Quem não dirige não tem CNH nem escolhe se ajuda: ajudante é o perfil novo (criação) ou a ficha
+ * carregada com `canDrive` falso (edição, onde a API não devolve o papel).
+ */
+export function isHelperOnlyDriver(state: FleetDriverFormState): boolean {
+  return state.profile === 'helper' || !state.canDrive
+}
+
 /** O vínculo fica de fora: quem o reenvia na edição é a ficha carregada, não o formulário. */
 export function toDriverBody(state: FleetDriverFormState): Omit<FleetDriverBody, 'membershipId'> {
+  const hasLicense = !isHelperOnlyDriver(state)
   return {
     /**
      * ⚠️ **Só vai no corpo o que o operador moveu nesta sessão.** Reenviar a coordenada gravada a
@@ -428,7 +440,7 @@ export function toDriverBody(state: FleetDriverFormState): Omit<FleetDriverBody,
       street: state.addressStreet,
     },
     anttCategory: toAnttCategory(state.anttCategory),
-    canActAsHelper: state.canActAsHelper,
+    canActAsHelper: !hasLicense || state.canActAsHelper,
     helperDailyRate: state.helperDailyRate.trim() === '' ? null : state.helperDailyRate.trim(),
     securesCargo: state.securesCargo,
     birthCity: state.birthCity,
@@ -440,16 +452,16 @@ export function toDriverBody(state: FleetDriverFormState): Omit<FleetDriverBody,
         : parseTypedAmount({ scale: AMOUNT_MAX_SCALE, value: state.dailyAllowanceAmount }),
     email: state.email.trim(),
     fatherName: state.fatherName,
-    firstLicenseAt: state.firstLicenseAt === '' ? null : state.firstLicenseAt,
+    firstLicenseAt: hasLicense && state.firstLicenseAt !== '' ? state.firstLicenseAt : null,
     // O RG entra como o estado o imprime, com ponto e traço: não há formato nacional para normalizar
     identityDocument: state.identityDocument.trim(),
     identityDocumentIssuer: toIdentityDocumentIssuer(state.identityDocumentIssuer),
     identityDocumentState: state.identityDocumentState.toUpperCase(),
-    licenseCategory: toLicenseCategory(state.licenseCategory),
-    licenseExpiresAt: state.licenseExpiresAt === '' ? null : state.licenseExpiresAt,
-    licenseIssuedCity: state.licenseIssuedCity,
-    licenseIssuedState: state.licenseIssuedState.toUpperCase(),
-    licenseNumber: normalizeDigits(state.licenseNumber),
+    licenseCategory: hasLicense ? toLicenseCategory(state.licenseCategory) : '',
+    licenseExpiresAt: hasLicense && state.licenseExpiresAt !== '' ? state.licenseExpiresAt : null,
+    licenseIssuedCity: hasLicense ? state.licenseIssuedCity : '',
+    licenseIssuedState: hasLicense ? state.licenseIssuedState.toUpperCase() : '',
+    licenseNumber: hasLicense ? normalizeDigits(state.licenseNumber) : '',
     // O endereço da empresa acompanha o CNPJ: sem o vínculo ele não é endereço de ninguém
     linkedAddress: {
       city: state.linkedAddressCity,

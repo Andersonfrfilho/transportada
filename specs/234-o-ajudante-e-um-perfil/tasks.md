@@ -42,7 +42,7 @@ da app. Cada task fecha com typecheck, testes da app, commit isolado e evidênci
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T8** Tipos, constantes, validação de resposta e `fleetForm.service` com `helper` e `canDrive`.
+- [x] **T8** Tipos, constantes, validação de resposta e `fleetForm.service` com `helper` e `canDrive`.
 - [ ] **T9** Ficha e criação rápida: opção "Ajudante", CNH oculta, switch "Pode atuar como ajudante" e
       "Diária própria" (fecha a T12 da 149), textos em `fleet.locale.json`.
 - [ ] **T10** Acesso: papel "Ajudante" no convite, na tabela, em `companyUsers.constant.ts` e na lista

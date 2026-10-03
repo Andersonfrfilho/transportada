@@ -352,7 +352,8 @@
   "driverProfileHint": "O cadastro já cria o usuário do motorista para o aplicativo de entregas. O agregado costuma dirigir o veículo dele; o motorista dirige o próprio ou o da transportadora.",
   "driverProfileOption": {
     "aggregate": "Agregado",
-    "driver": "Motorista"
+    "driver": "Motorista",
+    "helper": "Ajudante"
   },
   "driverRntrc": "RNTRC do motorista",
   "driverSecuresCargo": "Amarra a carga com cinta",

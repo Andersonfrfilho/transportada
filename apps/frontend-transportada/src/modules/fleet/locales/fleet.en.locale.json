@@ -323,7 +323,8 @@
   "driverProfileHint": "Registering a driver already creates their user for the delivery app. An aggregate usually drives their own vehicle; a driver takes their own or the carrier's.",
   "driverProfileOption": {
     "aggregate": "Aggregate",
-    "driver": "Driver"
+    "driver": "Driver",
+    "helper": "Helper"
   },
   "driverRntrc": "Driver RNTRC",
   "driverTaxId": "Tax id",

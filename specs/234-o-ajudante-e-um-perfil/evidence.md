@@ -540,3 +540,34 @@ Postgres 18.4 nativo descartável (65435), variáveis no shell.
 - Integração, 0 skip: local-fleet-seed-crew 1/0 · local-identity-seed 5/0 · fleet-driver-repository 3/0.
 - `bun run typecheck` (raiz) exit 0 · `bun run lint` (cwd `apps/api-transportada`) exit 0 ·
   `prettier --check` limpo.
+
+## T8 — Tipos, constantes, validação de resposta e formulário com `helper` e `canDrive`
+
+Data: 2026-10-02. Branch `work/spec-234-ajudante`.
+
+### O que mudou
+
+- `FLEET_DRIVER_PROFILES` ganha `helper` (ordem da API: `aggregate`, `driver`, `helper`); `driverProfileOption.helper`
+  entra nos dois locales (o contrato de paridade do seletor itera os perfis).
+- `canDrive` entra **só na leitura**: `FleetDriverDetail`, `DRIVER_DETAIL_KEYS` e `isDriver` (`isBoolean`). Não está em
+  `DRIVER_BODY_KEYS` nem em `DRIVER_CREATE_BODY_KEYS` — o PATCH é strict e a API grava as colunas pelo perfil.
+  ⚠️ Como toda chave da lista de leitura, a API já sobe com ele (Fase 2); sem o campo, a linha seria recusada.
+- Estado do formulário ganha `canDrive` (abre `true`; a ficha carregada traz o gravado).
+- `isHelperOnlyDriver(state)` (`profile === 'helper'` na criação, `!canDrive` na edição, onde a API não devolve o
+  papel). Para ele `toDriverBody` zera os cinco campos de CNH e manda `canActAsHelper: true`, mesmo com CNH digitada
+  antes de trocar de perfil.
+
+### Contrato vermelho antes do código
+
+`test/fleet/driver-helper-profile.contract.ts` (entra por `fleet.contract.test.ts`, já na lista do `package.json`):
+`626 tests · 11 fail` antes do código (catálogo, chaves, validador, formulário, corpo).
+
+### Prova por mutação
+
+- `hasLicense = true` (CNH sempre no corpo) → 2 fail. Tirar `isBoolean(value.canDrive)` → 1 fail. Tirar `canDrive` de
+  `DRIVER_DETAIL_KEYS` → 5 fail. Cada arquivo restaurado e conferido com `cmp`.
+
+### Gates
+
+- `bun run test` (app): `6430 pass · 0 fail · 32 files` + hooks `327 pass · 0 fail`.
+- `bun run typecheck` (raiz) exit 0 · `eslint` (cwd da app) 0 erros (16 warnings antigos) · `prettier --check` limpo.

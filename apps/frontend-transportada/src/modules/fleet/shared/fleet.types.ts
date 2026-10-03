@@ -361,10 +361,11 @@ export type FleetDriverBody = Readonly<{
 }>
 
 /**
- * O agregado costuma dirigir o veículo dele; o motorista dirige o próprio ou o da empresa. Cópia por
+ * O agregado costuma dirigir o veículo dele; o motorista dirige o próprio ou o da empresa; o ajudante
+ * não dirige (spec 234 D2) e não tem CNH. Cópia por
  * valor do catálogo da API: o bundle não carrega código dela, e a paridade é contrato de teste.
  */
-export const FLEET_DRIVER_PROFILES = ['aggregate', 'driver'] as const
+export const FLEET_DRIVER_PROFILES = ['aggregate', 'driver', 'helper'] as const
 export type FleetDriverProfile = (typeof FLEET_DRIVER_PROFILES)[number]
 
 /**
@@ -396,6 +397,8 @@ export type DriverHomeReport = Readonly<{
 
 export type FleetDriverDetail = FleetDriverBody &
   Readonly<{
+    /** Spec 234 D2: falso é o ajudante puro. Só a leitura o traz — a API grava as colunas pelo perfil. */
+    canDrive: boolean
     createdAt: string
     /** Spec 097 D6: onde a casa fica, e por que ela pode não ter coordenada. */
     home: DriverHomeReport
@@ -541,8 +544,10 @@ export type FleetDriverFormState = Readonly<{
   addressState: string
   addressStreet: string
   anttCategory: string
-  /** Spec 149 D1: pode atuar como ajudante — sem controle próprio na tela ainda, só round-trip. */
+  /** Spec 149 D1: pode atuar como ajudante — a mesma pessoa dirige numa viagem e ajuda em outra. */
   canActAsHelper: boolean
+  /** Spec 234 D2: falso é o ajudante puro (sem CNH). Só lido da ficha; nunca sai no corpo. */
+  canDrive: boolean
   /** Spec 149 D2: a diária própria de ajudante — `''` é "usa a geral da empresa". */
   helperDailyRate: string
   /** Spec 100: amarra a carga com cinta — libera a planta a empilhar até o teto do baú. */

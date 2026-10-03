@@ -225,6 +225,7 @@ function isDriver(value: unknown): value is FleetDriverDetail {
     isDriverAddress(value.address) &&
     (value.anttCategory === '' || isOneOf(value.anttCategory, FLEET_ENUMS.taxRegime)) &&
     isBoolean(value.canActAsHelper) &&
+    isBoolean(value.canDrive) &&
     isNullableString(value.helperDailyRate) &&
     isNullableString(value.birthDate) &&
     (value.identityDocumentIssuer === '' ||

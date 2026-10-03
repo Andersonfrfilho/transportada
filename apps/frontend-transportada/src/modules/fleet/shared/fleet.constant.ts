@@ -430,6 +430,8 @@ export const DRIVER_FORM_KEYS = [
 
 export const DRIVER_DETAIL_KEYS = [
   ...DRIVER_BODY_KEYS,
+  /** Spec 234 D2: só leitura — nenhum corpo de escrita o carrega, o PATCH é strict. */
+  'canDrive',
   'createdAt',
   /**
    * ⚠️ Spec 097 D6. Como todo campo desta lista, **a API sobe antes do frontend**: com o corpo
