@@ -52,7 +52,11 @@ latitude IS NOT NULL`; `rollback.sql` que recusa com linha; asserção de rollba
       cinco empresas A–E nas cinco tabelas (CA6) e relógio injetado, cinco mutações;
       `EXPLAIN` (`SET LOCAL enable_seqscan = off`) conferindo o nome `*_company_located_*` e `company_id` no
       `Index Cond`, e `EXPLAIN` sem toggle no volume possível, registrados em `evidence.md`.
-      `make worker-integration`.
+      `make worker-integration`. ⚠️ **Não rodou como escrito:** a integração do worker rodou na mesma receita
+      do `make` (migrate + `test:integration`) num **banco descartável próprio**, não pelo alvo. Causa: o
+      banco compartilhado `transportada_worker_integration` tem o journal de uma pasta de migration renumerada
+      que não existe em nenhuma branch remota e não migra; precisa de `drop` + reprovisionamento por quem o
+      administra (não foi tocado).
 - [x] **T2.3** Remover `TRIP_LOCATION_PURGE_ENABLED` (D3, CA9): schema de ambiente, tipo, `main.ts`,
       `.env.example`, rotina; `disabled-switch.contract.ts` vira "sem empresa elegível" (CA8) contando
       **chamadas** (lista de redatores chamados = `[]`, pings chamados). Mutação no desvio.
@@ -90,7 +94,9 @@ latitude IS NOT NULL`; `rollback.sql` que recusa com linha; asserção de rollba
       usuário e **ok dele** antes de publicar. Revisão final do código com `code-reviewer` em `opus`.
 - [ ] **T4.6** Publicar em staging na ordem do plano (API+migration → worker → painel), gates verdes,
       deploy confirmado. Produção só com aprovação humana. **Gate A:** `TRIP_LOCATION_PURGE_ENABLED` não é
-      `true` em nenhum worker. **Gate B:** pushes separados (worker antes do painel) ou worker confirmado
+      `true` em nenhum worker — comando: `railway variables --service <worker> --environment <env>` (ou o painel),
+      conferindo só a chave; se estiver `true`, criar **antes do deploy do worker** a linha de configuração da
+      empresa (90 dias, já vigente) — escrita de dado, decisão do usuário. **Gate B:** pushes separados (worker antes do painel) ou worker confirmado
       no ar antes de alguém ligar.
 
 ## Prompt de execução

@@ -155,7 +155,12 @@ NOT NULL` fora da subconsulta repete o filtro por idempotência.
     `apps/worker-transportada/CLAUDE.md` § "O expurgo de posição" são atualizados na mesma task.
   - **Gate A (antes da T4.6 / do deploy):** conferir que `TRIP_LOCATION_PURGE_ENABLED` **não** está `true`
     no worker de nenhum ambiente. O deploy que remove a variável para o expurgo daquele ambiente em
-    silêncio — quem ligou pela variável passa a depender da tela, sem aviso.
+    silêncio — quem ligou pela variável passa a depender da tela, sem aviso. - **Comando** (só a chave, nunca o valor de segredo): `railway variables --service <worker> --environment
+<env>` e procurar `TRIP_LOCATION_PURGE_ENABLED`, ou o painel do Railway na aba Variables do worker. - **Plano de saída se estiver `true`:** antes do deploy do worker, criar a linha de configuração da
+    empresa (`company_location_retention_settings`: `purge_enabled = true`, `retention_days = 90`,
+    `purge_effective_at` no passado, ou seja, já vigente) para que o expurgo que já rodava pela variável
+    continue rodando com o mesmo prazo. É **escrita de dado em produção: decisão do usuário**, nunca do
+    executor.
 
 - **D4 — Permissão e auditoria: `settings.manage`, nenhuma permissão nova.** Ler e gravar exigem
   `{ permission: 'settings.manage', scope: 'company' }`, como a diária
