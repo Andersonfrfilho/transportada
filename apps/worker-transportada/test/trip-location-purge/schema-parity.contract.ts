@@ -15,8 +15,13 @@ import {
   tripStopEvents,
   tripStopOccurrences,
 } from '../../src/database/trip-execution.schema.js'
+import { parseApiTables } from './api-schema.support.js'
 
 const WORKER_SCHEMA = new URL('../../src/database/trip-execution.schema.ts', import.meta.url)
+const API_EVENT_LOCATION_SCHEMA = new URL(
+  '../../../api-transportada/src/database/event-location.schema.ts',
+  import.meta.url,
+)
 const API_SCHEMA = new URL('../../../api-transportada/src/database/trip.schema.ts', import.meta.url)
 const WORKER_SETTINGS_SCHEMA = new URL(
   '../../src/database/company-location-retention-settings.schema.ts',
@@ -26,6 +31,14 @@ const API_SETTINGS_SCHEMA = new URL(
   '../../../api-transportada/src/database/company-location-retention-settings.schema.ts',
   import.meta.url,
 )
+
+const MIRRORED_TABLES = [
+  'trip_stop_events',
+  'trip_delivery_proofs',
+  'trip_status_events',
+  'trip_stop_occurrences',
+  'trip_document_occurrences',
+]
 
 const COLUMN_LINE = /^\s+[a-zA-Z]+: (uuid|numeric|timestamp|varchar|boolean|integer)\(.*,$/
 
@@ -46,7 +59,13 @@ function extractColumnLines(source: string): string[] {
   return source
     .split('\n')
     .filter((line) => COLUMN_LINE.test(line))
-    .map((line) => line.trim().replace(/\.\$type<[^>]*>\(\)/, ''))
+    .map((line) =>
+      line
+        .trim()
+        .replace(/\.\$type<[^>]*>\(\)/, '')
+        // `numeric('latitude', ...)` e `numeric(...)` na chave `latitude` são a mesma coluna
+        .replace(/^(latitude|longitude): numeric\('\1', /, '$1: numeric('),
+    )
 }
 
 function extractPurgedColumnLines(source: string): string[] {
@@ -65,24 +84,53 @@ function extractPurgedColumnLines(source: string): string[] {
  * apaga a posição **tem** de carimbar `expired` no mesmo `UPDATE`, ou o lote inteiro cai com 23514.
  */
 describe('trip location mirror parity (spec 196 D2)', () => {
-  test('every column the purge touches reads exactly as the API declares it', async () => {
-    const [worker, api] = await Promise.all([
+  /**
+   * Por BLOCO da tabela, não pelo arquivo: toda tabela da API tem um `companyId` igual, então um conjunto
+   * de linhas do arquivo inteiro aprovaria a cópia mesmo com a coluna sumida da tabela certa.
+   */
+  test('every column the purge touches reads exactly as the API declares it, table by table', async () => {
+    const [worker, api, eventLocation] = await Promise.all([
       readFile(WORKER_SCHEMA, 'utf8'),
       readFile(API_SCHEMA, 'utf8'),
+      readFile(API_EVENT_LOCATION_SCHEMA, 'utf8'),
     ])
+    const spreadColumns = extractColumnLines(
+      eventLocation.slice(eventLocation.indexOf('export const buildEventLocationColumns')),
+    ).slice(0, 5)
+    expect(spreadColumns.length).toBe(5)
+    const workerTables = parseApiTables(worker)
+    const apiTables = parseApiTables(api)
+    let comparedColumns = 0
 
-    const workerColumns = extractPurgedColumnLines(worker)
-    const apiColumns = new Set(extractColumnLines(api))
+    for (const tableName of MIRRORED_TABLES) {
+      const workerBlock = workerTables.find((table) => table.name === tableName)?.block
+      const apiBlock = apiTables.find((table) => table.name === tableName)?.block
+      expect(workerBlock).toBeDefined()
+      expect(apiBlock).toBeDefined()
+
+      // As três tabelas da 196 declaram a posição pelo spread do builder; as outras duas, linha a linha
+      const apiColumns = new Set([
+        ...extractColumnLines(apiBlock ?? ''),
+        ...((apiBlock ?? '').includes('...buildEventLocationColumns()') ? spreadColumns : []),
+      ])
+      const workerColumns = extractPurgedColumnLines(workerBlock ?? '')
+      expect(workerColumns.length).toBeGreaterThan(0)
+      for (const line of workerColumns) {
+        expect({ line, table: tableName, inApiBlock: apiColumns.has(line) }).toEqual({
+          line,
+          table: tableName,
+          inApiBlock: true,
+        })
+      }
+      comparedColumns += workerColumns.length
+    }
 
     /**
      * Cinco do evento de parada, quatro do comprovante e cinco em cada uma das três tabelas da 196,
      * mais o `company_id` das cinco (spec 239 D2: a junção do expurgo por empresa) — o ping não tem
      * coluna de posição: a linha inteira cai.
      */
-    expect(workerColumns.length).toBe(29)
-    for (const line of workerColumns) {
-      expect(apiColumns.has(line)).toBeTrue()
-    }
+    expect(comparedColumns).toBe(29)
   })
 
   test('points at the tables the API migrates, with the columns the purge reads and writes', () => {

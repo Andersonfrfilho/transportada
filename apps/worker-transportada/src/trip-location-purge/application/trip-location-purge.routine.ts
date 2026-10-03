@@ -33,6 +33,7 @@ import type {
 const COMPLETED_OUTCOME: JobOutcome = 'succeeded'
 const TABLE_FAILED_MESSAGE = 'trip_location_purge_table_failed'
 const DISABLED_MESSAGE = 'trip_location_purge_disabled'
+const PINGS_FINISHED_MESSAGE = 'trip_location_purge_pings_finished'
 
 export type TripLocationPurgeRoutineDependencies = {
   /**
@@ -117,6 +118,18 @@ async function runCycle(input: {
     context,
     dependencies,
     now,
+  })
+
+  /** Fica registrado antes da contagem: se ela lançar, o ciclo falha mas os pings já apagados não somem do log. */
+  safeLogInfo({
+    logger: dependencies.logger,
+    message: PINGS_FINISHED_MESSAGE,
+    metadata: {
+      correlationId: context.correlationId,
+      executionId: context.executionId,
+      pingBatches,
+      purgedPings,
+    },
   })
 
   /**

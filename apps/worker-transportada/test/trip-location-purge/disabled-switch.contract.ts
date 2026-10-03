@@ -17,6 +17,7 @@ const CONTEXT = {
 }
 
 const DISABLED_MESSAGE = 'trip_location_purge_disabled'
+const PINGS_FINISHED_MESSAGE = 'trip_location_purge_pings_finished'
 const CYCLE_FINISHED_MESSAGE = 'trip_location_purge_cycle_finished'
 
 type Call = { readonly message: string; readonly metadata: Record<string, unknown> }
@@ -108,9 +109,10 @@ describe('sem empresa elegível o expurgo não toca as cinco tabelas (spec 239 D
 
     await routine.run(CONTEXT)
 
-    expect(logs.map((entry) => entry.message)).toEqual([DISABLED_MESSAGE])
-    expect(logs[0]?.metadata.companies).toBe(0)
-    expect(logs[0]?.metadata).not.toHaveProperty('retentionDays')
+    expect(logs.map((entry) => entry.message)).toEqual([PINGS_FINISHED_MESSAGE, DISABLED_MESSAGE])
+    const disabled = logs.find((entry) => entry.message === DISABLED_MESSAGE)
+    expect(disabled?.metadata.companies).toBe(0)
+    expect(disabled?.metadata).not.toHaveProperty('retentionDays')
   })
 
   test('com empresa elegível: pings, contagem e então os cinco redatores, todos no mesmo instante', async () => {
@@ -152,6 +154,24 @@ describe('sem empresa elegível o expurgo não toca as cinco tabelas (spec 239 D
     await expect(routine.run(CONTEXT)).rejects.toThrow()
 
     expect([...new Set(calls)]).toEqual(['purgeStalePings', 'countEligibleCompanies'])
+  })
+
+  test('a contagem que lança deixa no log os pings já apagados, sem dado pessoal', async () => {
+    const { logs, routine } = buildRoutine({ companies: new Error('relation does not exist') })
+
+    await expect(routine.run(CONTEXT)).rejects.toThrow()
+
+    expect(logs).toEqual([
+      {
+        message: PINGS_FINISHED_MESSAGE,
+        metadata: {
+          correlationId: CONTEXT.correlationId,
+          executionId: CONTEXT.executionId,
+          pingBatches: 1,
+          purgedPings: 1,
+        },
+      },
+    ])
   })
 
   /**
