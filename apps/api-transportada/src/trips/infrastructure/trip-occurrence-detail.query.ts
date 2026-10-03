@@ -14,12 +14,14 @@ import { userCompanyMemberships } from '../../database/identity.schema.js'
 import { tripDocumentOccurrences, tripDrivers } from '../../database/trip.schema.js'
 import { userWhatsAppPhones } from '../../database/user-whatsapp-phone.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
+import type { OccurrenceCorrectionEntry } from '../application/occurrence-correction.port.js'
 import type {
   TripOccurrenceDetail,
   TripOccurrenceDetailDriver,
   TripOccurrenceDetailItem,
 } from '../application/read-trip-occurrence-detail.use-case.js'
 import type { TripOccurrenceFeedItem } from '../application/trip-occurrence-feed.use-case.js'
+import { listOccurrenceCorrectionsByIds } from './occurrence-correction-read.query.js'
 import { resolveOccurrenceItems } from './occurrence-items.support.js'
 import { findTripOccurrenceFeedItem } from './trip-occurrence-feed.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
@@ -125,9 +127,15 @@ export async function findTripOccurrenceDetail(
 ): Promise<TripOccurrenceDetail | null> {
   const item = await findTripOccurrenceFeedItem(queryable, input)
   if (item === null) return null
-  const [driver, items] = await Promise.all([
+  const [driver, items, corrections] = await Promise.all([
     findTripDriver(queryable, { companyId: input.companyId, tripId: item.tripId }),
     findOccurrenceItems(queryable, { companyId: input.companyId, item }),
+    item.source === 'document'
+      ? listOccurrenceCorrectionsByIds(queryable, {
+          companyId: input.companyId,
+          occurrenceIds: [item.id],
+        })
+      : Promise.resolve(new Map<string, OccurrenceCorrectionEntry[]>()),
   ])
-  return { ...item, driver, items }
+  return { ...item, corrections: corrections.get(item.id) ?? [], driver, items }
 }

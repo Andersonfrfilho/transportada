@@ -2152,3 +2152,194 @@ congela. Toda mudança de parada antes do despacho recalcula: `linkDocument`, `u
 mesma transação, para uma falha do roteirizador não desfazer o vínculo ou a reordenação. Fila de
 revisão (`move`/`swap`) funciona por vinculação/desvinculação das duas viagens (origem e destino);
 ambas recalculam, em paralelo e cada uma isolada, antes do despacho (T206, RF12).
+
+## Spec 232 — o custo da viagem desce para a nota, por distância e tempo
+
+`GET /trips/:id/valuation` devolve, em cada item de `revenueLines`, oito campos além do frete
+(`amount`): `costAmount`, `legCostAmount`, `tripShareCostAmount`, `taxAmount`, `marginAmount`,
+`marginPercentage`, `costBasis` e `timeBasis`. **Nada é persistido** — o número é derivado na leitura
+sobre a avaliação que já existia, e o `totalCost` da viagem **não se move**: ele só se reparte.
+
+A regra vive em `trips/domain/document-cost-apportionment.policy.ts`, função pura. Quatro coisas dela
+que não se adivinham lendo o código rápido:
+
+1. **A classificação das nove parcelas é tabela exaustiva** (`COST_KIND_APPORTIONMENT`, tipada
+   `Record<TripCostKind, …>`), sem `default`. Estrada (`fuel`, `other_per_kilometer`, `toll`,
+   `delivery_charges`) reparte por **distância**; `driver` e `helper` por **tempo**; `icms` e
+   `pis_cofins` acompanham o **frete da própria nota**; `manual` é **rateio de viagem**, porque
+   `trip_cost_entries` tem só `trip_id` — não existe vínculo com parada nem nota a que amarrá-lo.
+   ⚠️ `delivery_charges` tem `trip_document_id` e **daria** para atribuir exato; vai por distância por
+   decisão de produto, registrada no D1 da spec.
+2. **A invariante inclui imposto**: `Σ (costAmount + taxAmount) == totalCost`. O `buildTripValuation`
+   final recebe `[...buildCostParcels(context), ...taxParcels]`, então o `totalCost` **já** o contém,
+   ainda que a tela separe as naturezas. Afirmar `Σ costAmount == totalCost` deixaria a conta fora por
+   todo o imposto, sem nada falhar.
+3. **A soma fecha por construção, não por tolerância**: toda divisão acontece em dois níveis — o balde
+   entre os trechos (e, no tempo, também entre as paradas), e cada trecho entre as notas a bordo —, com
+   piso e o resto inteiro para o de maior peso, desempate determinístico. Dinheiro é `bigint` escalado.
+4. **A espera na parada não é `departed − arrived`.** O `departed` da ADR-0088 é a saída **em direção**
+   à parada, com o `stopId` do destino: na mesma parada ele vem **antes** do `arrived`, e essa conta
+   sairia negativa. A espera vai da chegada até o que vier **primeiro** entre o `departed` de outra
+   parada e a chegada/entrega em outra parada (`trips/domain/stop-dwell.policy.ts`), e
+   `departure_cancelled` desfaz o `departed` anterior da mesma parada. Só é `measured` com os dois
+   extremos do `driver_app` no **mesmo relógio** (aparelho ou servidor) — senão `proxy`. O `proxy` da
+   **última** parada não rebaixa a viagem para `partial` (depois dela não existe saída); o de uma parada do
+   meio rebaixa.
+
+`trips/domain/apportionment-route-legs.policy.ts` normaliza `planned_route.legs`: tira o retorno (ele já
+vem em `planned_return_distance_meters` e entraria duas vezes) e, **sem barracão**, põe um trecho vazio
+na frente, porque o caminhão começa na primeira parada e nenhum trecho a alcança. Sem roteiro utilizável
+— ou com contagem de trechos que não casa com as paradas — a nota sai `costBasis: 'unavailable'` com os
+valores **nulos**, nunca zero.
+
+A leitura dos fatos custa **uma** consulta nova (`readStopDwells`, dentro do `Promise.all` que já
+existia): paradas e eventos da viagem inteira de uma vez. O teste de integração conta os `select` com um
+`Proxy` e **exige igualdade** entre viagem de 1 parada/1 nota e de 3 paradas/5 notas.
+
+⚠️ A prévia (`POST /trips/valuation-preview`) e a sugestão multi-veículo passam pelo mesmo
+`buildValuationFromContext` **sem** trechos e paradas: as linhas delas saem `unavailable`, com
+`taxAmount` calculado. É por isso que os oito campos são **opcionais** na resposta.
+
+- **`hasStop`** (T3.4, RF7) em cada `revenueLines[]`: `true` se a nota desce numa parada, `false` se
+  `trip_documents.stop_id` é nulo. Vem do dado real (`attachDocumentCostFigures`/`toStopFlag`); contexto
+  que não informou `stopId` (undefined) **não** manda o campo — nunca um `false` inventado. Não é dinheiro,
+  mas segue a rota de `trip.financials`. Aditivo: o painel antigo o ignora.
+
+## Spec 233 — a nota se abre inteira (o que a API devolveu ao painel)
+
+Três leituras ganharam campo ou filtro, todas aditivas:
+
+- **`GET /trips/:id/timeline?documentId=<uuid>`** filtra a linha do tempo **no servidor** pela nota
+  (`trip-timeline.schema.ts`; `documentId` que não é UUID dá 400, e a chave entra em `ALLOWED_KEYS`).
+  Mantém a permissão de leitura de localização do evento (`trip.event-location`) e o isolamento por
+  empresa. O teto de `limit` é o da rota (1..200, padrão 100), não o de `readPaging`.
+- **`volumeCount`** em cada nota do detalhe da viagem (`serializeTripDocumentDetail`), por uma consulta
+  só para a viagem inteira (`trip-document-volume.query.ts`) — sem N+1, com contrato de tenant.
+- **`proofRadiusMeters`** (metros, opcional) em cada item de `GET /trips/:id/delivery-proofs`. É o raio
+  **da empresa** (`company_delivery_proof_settings`, ou 300 m de fábrica), a mesma fonte que o juiz da
+  captura usa — **não** por contratante. A premissa da D6 ("resolvido por contratante, como a 218") não
+  se sustentou: a 218 só resolve por contratante os modos dos campos, e a tabela de exceção não tem a
+  coluna do raio (ADR-0070: a regra é da empresa). Raio por contratante exigiria migration. A rota segue
+  em `fleet.read`; o leitor **não** precisa de `settings.manage`. Sem número finito e positivo o campo
+  **não vai** (nunca zero), e viagem sem comprovante devolve `[]` sem consultar a configuração.
+
+⚠️ Campo novo no comprovante só pode ir para staging **depois** de o painel aceitá-lo: o validador do
+painel descarta o item inteiro que traga chave desconhecida (ver `frontend-transportada.md`, § "A nota
+se abre inteira"). O rateio de custo da 232 está acima, em "Spec 232".
+
+## Spec 228 — a foto do canhoto e o endereço corrigido viram evento da linha do tempo
+
+Dois `kind`s novos em `GET /trips/:id/timeline`, ambos **derivados na leitura** — sem tabela, coluna nem
+migration. Estão em `TRIP_TIMELINE_KINDS`; o painel recebe a cópia na mesma lista (ver `frontend-transportada.md`).
+
+| `kind`                   | Fonte                                                   | Prioridade |
+| ------------------------ | ------------------------------------------------------- | ---------- |
+| `document.canhoto_photo` | `trip-timeline-proof.query.ts` (`trip_delivery_proofs`) | 3          |
+| `stop.address_corrected` | `trip-timeline-address.query.ts` (duas trilhas, abaixo) | 2          |
+
+Nenhuma prioridade existente foi renumerada: o cursor compara a prioridade como `::int`.
+
+**Foto (`trip-timeline-proof.query.ts`).**
+
+- Só `kind = 'photo'` (literal na consulta), ligada à nota pela baixa (`stop_event_id`) e filtrada com
+  `documentStopScope`.
+- O instante é `coalesce(captured_at, created_at)`, **uma só expressão** (`PHOTO_INSTANT`) no filtro, na
+  ordem e na chave em texto: se divergirem, a página seguinte pula ou repete.
+- Prioridade 3, logo abaixo da baixa (4): foto e baixa saem da mesma transação e empatam no instante.
+- Lê posição do comprovante, então está na lista fechada `EVENT_LOCATION_READERS`
+  (`event-location-readers.constant.ts`); sem `trip.event-location` a rota devolve `location = null`.
+- O corpo não leva nome de quem recebeu nem referência de objeto.
+
+**Endereço (`trip-timeline-address.query.ts`).**
+
+- **Uma consulta só** (`union all`) sobre as duas trilhas de correção humana:
+  `geocoded_address_corrections` (origens `contractor`, `driver`, `operator`) e
+  `geocoding_refinement_requests` com `outcome = 'refined'` (origem `refinement`). O `Promise.all` da linha do
+  tempo já abre nove consultas e o pool é de 10 (`DATABASE_POOL_MAX`); uma consulta por trilha o esgotaria.
+- O evento é da **parada**: pertence a ela a correção da mesma empresa e da mesma `address_key`, com
+  `created_at >= trip_stops.created_at`. Um `distinct on (changes.id)` num subselect, com a menor `sequence`,
+  evita repetir a mesma correção em duas paradas de mesmo endereço.
+- O refino **não tem ponto guardado**: `location = null` e sem deslocamento. Não há `join` com
+  `geocoded_addresses` (tabela global, o ponto vivo pode ser de outra empresa).
+- Nunca saem `reason`, `requestedBy` nem `address_key`. Só origem, deslocamento (`addressChange`, só neste
+  `kind`) e o ponto novo.
+- Com `documentId`, entra só a parada da nota; nota sem parada não gera evento de endereço.
+
+**Falha de fonte.** Erro de qualquer das duas **propaga** (sem `catch`, sem `allSettled`): o `nextCursor` sai
+do último item da página mesclada, e omitir uma fonte faria o cursor pular itens sem aviso.
+
+⚠️ **Limite conhecido.** A distância de cada evento é medida contra o ponto **vivo** do endereço. Uma correção
+de **outra empresa** muda essa distância sem gerar evento aqui, porque a geocodificação automática não deixa
+rastro por empresa. Incluí-la exigiria migration e foi recusada (spec 228, N1: "Só correção humana").
+
+## Spec 235 — O ajudante é um perfil
+
+**Arquivos-chave:** reconciliação em `identity/domain/fleet-role-reconciliation.policy.ts`, erros em
+`fleet.error.ts` e `trip.error.ts`, permissão em `identity/domain/authorization.policy.ts`, constante
+`fleet-linked-roles.constant.ts`, política de viagem em `trips/domain/trip.policy.ts`.
+
+Ajudante (perfil `helper`) é papel em Acesso e terceira opção no cadastro de frota. Duas colunas
+(`can_drive`, `can_act_as_helper` — a segunda já existia) carregam a capacidade; papel e colunas são
+reconciliados na transação de troca de papéis (só se a troca toca `driver`/`aggregate`/`helper`). A
+viagem e a proposta recusam quem não dirige (`409 TRIP_DRIVER_CANNOT_DRIVE`); MDF-e avulso aplica a
+mesma regra. Permissão `trip.read` — sem `trip.report`. Limite: atribuição em lote e papéis de grupo
+não reconciliam. Ver ADR-0093.
+
+## Spec 196 — todo toque do motorista carimba onde aconteceu (ADR-0081)
+
+- **Cinco tabelas, um molde.** `event-location.schema.ts` dá a cada uma `latitude`, `longitude`,
+  `accuracy_meters`, `captured_at` e `location_state`, com CHECKs (par latitude/longitude, faixa, estado
+  `captured` ⇔ ponto, canal que pode gravar coordenada) e o índice parcial do expurgo
+  (`<tabela>_located_<coluna_de_tempo>_idx ... where latitude is not null`). `trip_stop_events` e
+  `trip_delivery_proofs` já tinham o ponto (ADR-0045/0070); `trip_status_events`, `trip_stop_occurrences` e
+  `trip_document_occurrences` ganharam na migration `20261002153258_occurrence_location_stamp`.
+- **O canal `whatsapp` carrega ponto** pela migration corretiva aditiva
+  `20261003010806_event_location_whatsapp_coordinate` (a anterior já estava em `origin/staging`, então não foi
+  editada). É a ação que decide: o WhatsApp do operador e o despacho automático gravam `null`.
+- **Uma política só** (`event-location-stamp.policy.ts`: `resolveEventLocationStamp`,
+  `NO_EVENT_LOCATION_STAMP`; `event-location-state.policy.ts`). As rotas de toque do motorista aceitam `location`
+  opcional; um contrato (`test/trip-http`) reprova rota `POST` nova do motorista sem ele.
+- **Leitura.** `GET /trips/:id/timeline` devolve `location` (só com `trip.event-location`) e `locationState`
+  nas **três** consultas (parada, status, documento) e na do comprovante; as demais respostas não carregam
+  posição. `event-location-readers.constant.ts` é a lista fechada de leitores por coluna, e
+  `EVENT_LOCATION_FORBIDDEN_RESPONSES` nomeia as respostas que nunca podem (portal, tratativa, demonstrativo,
+  acerto, reentrega, lote do escritório, anexo, prontidão do despacho).
+- **WhatsApp.** A mensagem de localização vira ponto (`shared-location`), mas os pacotes `meta-whatsapp-*`
+  `0.1.0` descartam `messages[].location` antes do gancho: ponta a ponta só depois de subir os pacotes
+  (decisão pendente do usuário). O teste que documenta o limite deve ficar vermelho quando subirem.
+- **N+1:** `test/integration/trip-timeline.integration.ts` conta as consultas de `listTripTimeline` com 1 nota e
+  com 50 notas (todas com ponto): o número é o mesmo (9 em 2026-10-02).
+
+## Spec 235 — as leituras publicam a correção e o cancelamento (RF9)
+
+A spec 167 gravava correção (`trip_document_occurrence_corrections`) e cancelamento (três colunas de
+`trip_document_occurrences`), mas só as **respostas das escritas** os devolviam. Agora as leituras
+também: `GET /trip-occurrences/:id` e `GET /trips/:tripId/documents/:documentId/occurrences` trazem
+`corrections` (`[]` sem correção, **mais antiga primeiro**) e `cancellation` (`null` ou
+`{ cancelledAt, cancelledByName, reason }`); `GET /trip-occurrences` (feed) traz `cancellation`.
+Mesmo formato da resposta das escritas, por construção: tudo lê por
+`trips/infrastructure/occurrence-correction-read.query.ts` (`listOccurrenceCorrectionsByIds`,
+`listOccurrenceCancellationsByIds`), em lote — uma consulta por página, agrupada em `Map`, `companyId`
+do contexto. `readOccurrenceView` (a resposta das escritas) passou a usar o mesmo leitor.
+
+- **A cancelada continua nas três listas**, marcada por `cancellation` preenchido; nenhuma consulta a
+  filtra. Tirá-la das contas é decisão da 167 e não mudou aqui.
+- Ocorrência de parada sai sempre com `cancellation: null` (a 167 não as cobre) e não consulta nada.
+- Sem migration, sem rota nova, escritas intactas. Não há OpenAPI gerado nesta API (confirmado por busca neste repo):
+  o contrato publicado é o dos tipos `TripOccurrenceFeedItem` / `TripOccurrenceDetail` e os testes
+  `test/integration/trip-occurrence-correction-read.integration.ts` e
+  `test/trip-http/occurrence-detail.contract.ts`.
+
+**As duas linhas do tempo (T3.2a).** `GET /trips/:id/timeline`: o item `document.occurrence` ganhou
+`occurrence.cancellation` (`null` ou o mesmo `{ cancelledAt, cancelledByName, reason }`), lido por
+`listOccurrenceCancellationsByIds` em **uma consulta por página** (`trip-timeline-document.query.ts`);
+`stop.occurrence` sai sempre com `cancellation: null`. A linha do tempo da ocorrência
+(`GET /trip-occurrences/:id/timeline`, spec 183) ganhou o evento `occurrence.cancelled`
+(`reason`; ator `operation` com `cancelledByName`; data = `cancelledAt`; prioridade 5, por último no
+mesmo instante), montado a partir do `cancellation` que o leitor do feed já traz — sem consulta nova.
+Não é evento-chave. **Fecha `openUntil`** (decisão de 2026-10-03, T6.5): `resolveTimings`
+(`occurrence-timeline.policy.ts`) toma o **mais cedo** entre o terminal da tratativa e o cancelamento da
+ocorrência — a cancelada deixa de aparecer "em andamento" para sempre; `driverReleasedAt` segue só da
+tratativa. Contrato `test/trip-occurrence/timeline.contract.ts` e integração
+`trip-occurrence-correction-read.integration.ts`. O painel precisa conhecer o kind novo antes de a API ir
+a produção (etapa 1 da ordem de publicação, `specs/235-…/evidence.md` T6.1).

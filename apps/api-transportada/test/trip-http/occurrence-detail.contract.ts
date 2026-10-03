@@ -54,6 +54,7 @@ const OCCURRENCE_TIMELINE: OccurrenceTimeline = {
 }
 
 function createFixture(params: {
+  readonly detail?: TripOccurrenceDetail
   readonly error?: Error
   readonly permissions?: CompanyContext['permissions']
 }) {
@@ -89,7 +90,7 @@ function createFixture(params: {
         async execute(input): Promise<TripOccurrenceDetail> {
           calls.push(input)
           if (params.error !== undefined) throw params.error
-          return OCCURRENCE_DETAIL
+          return params.detail ?? OCCURRENCE_DETAIL
         },
       },
       readTripOccurrenceTimeline: {
@@ -129,6 +130,38 @@ describe('GET /trip-occurrences/:id (spec 183 T201)', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ data: OCCURRENCE_DETAIL })
     expect(fixture.calls).toEqual([{ context: fixture.context.scope, occurrenceId: OCCURRENCE_ID }])
+  })
+
+  test('publica correções e cancelamento no mesmo formato das escritas (spec 235 RF9)', async () => {
+    const detail: TripOccurrenceDetail = {
+      ...OCCURRENCE_DETAIL,
+      cancellation: {
+        cancelledAt: '2026-10-03T00:39:36.091Z',
+        cancelledByName: 'Operador local',
+        reason: 'Lançada na nota errada',
+      },
+      corrections: [
+        {
+          correctedAt: '2026-10-03T00:39:17.391Z',
+          correctedByName: 'Operador local',
+          previousItems: [{ code: '696', quantity: '1.000', unit: 'box' }],
+        },
+        {
+          correctedAt: '2026-10-03T00:39:17.515Z',
+          correctedByName: null,
+          previousItems: [{ code: '696', quantity: '2.000', unit: 'box' }],
+        },
+      ],
+    }
+    const fixture = createFixture({ detail })
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: detailPath(OCCURRENCE_ID) }),
+    )
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { data: TripOccurrenceDetail }
+    expect(body.data.cancellation).toEqual(detail.cancellation)
+    expect(body.data.corrections).toEqual(detail.corrections)
   })
 
   test('só com trip.read (motorista, agregado) é 403 antes de tocar o caso de uso', async () => {

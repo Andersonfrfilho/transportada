@@ -24,6 +24,7 @@ type SourceBase = {
 export type OccurrenceTimelineSource =
   | (SourceBase & { readonly kind: 'occurrence.recorded' })
   | (SourceBase & { readonly kind: 'occurrence.photo'; readonly photoCount: number })
+  | (SourceBase & { readonly kind: 'occurrence.cancelled'; readonly reason: string })
   | (SourceBase & {
       readonly fromStatus: null | string
       readonly kind: 'case.transition'
@@ -44,7 +45,8 @@ export type OccurrenceTimelineEvent = OccurrenceTimelineSource & {
 
 /**
  * Os três tempos do topo, como instantes — a tela conta a duração com o relógio dela, e o tempo de
- * ocorrência aberta segue correndo sem nova leitura. `openUntil` nulo é ocorrência ainda aberta.
+ * ocorrência aberta segue correndo sem nova leitura. `openUntil` nulo é ocorrência ainda aberta;
+ * terminal da tratativa e cancelamento da ocorrência (spec 235) fecham o relógio.
  */
 export type OccurrenceTimelineTimings = {
   readonly contractorAskedAt: null | string
@@ -59,11 +61,12 @@ export type OccurrenceTimeline = {
   readonly timings: OccurrenceTimelineTimings
 }
 
-/** No mesmo instante o registro vem primeiro, depois as fotos, a tratativa e os e-mails. */
+/** No mesmo instante o registro vem primeiro, depois as fotos, a tratativa, os e-mails e o cancelamento. */
 const KIND_PRIORITY: Readonly<Record<OccurrenceTimelineSource['kind'], number>> = {
   'case.transition': 2,
   'contractor.mail.received': 4,
   'contractor.mail.sent': 3,
+  'occurrence.cancelled': 5,
   'occurrence.photo': 1,
   'occurrence.recorded': 0,
 }
@@ -135,14 +138,20 @@ function resolveTimings(sources: readonly OccurrenceTimelineSource[]): Occurrenc
             !NON_REPLY_INTERPRETATIONS.has(source.interpretation ?? ''),
         )
 
+  const closedAt = [
+    transitions.find((source) => CLOSING_STATUSES.has(source.toStatus)),
+    sources.find((source) => source.kind === 'occurrence.cancelled'),
+  ]
+    .flatMap((source) => (source === undefined ? [] : [source.occurredAt]))
+    .sort((left, right) => Date.parse(left) - Date.parse(right))[0]
+
   return {
     contractorAskedAt: asked?.occurredAt ?? null,
     contractorRepliedAt: replied?.occurredAt ?? null,
     driverReleasedAt:
       transitions.find((source) => RELEASING_STATUSES.has(source.toStatus))?.occurredAt ?? null,
     openSince: recorded?.occurredAt ?? null,
-    openUntil:
-      transitions.find((source) => CLOSING_STATUSES.has(source.toStatus))?.occurredAt ?? null,
+    openUntil: closedAt ?? null,
   }
 }
 

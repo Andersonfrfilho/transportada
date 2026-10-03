@@ -60,7 +60,15 @@ import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip
 import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
 import { resolveOccurrenceProductCodes } from '../domain/occurrence-scope.policy.js'
 import { buildOccurrenceItemValues } from '../domain/occurrence-template.policy.js'
+import type {
+  OccurrenceCancellationView,
+  OccurrenceCorrectionEntry,
+} from '../application/occurrence-correction.port.js'
 import { listOccurrenceProducts } from './drizzle-occurrence-product.repository.js'
+import {
+  listOccurrenceCancellationsByIds,
+  listOccurrenceCorrectionsByIds,
+} from './occurrence-correction-read.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 /**
@@ -351,6 +359,8 @@ export async function listTripOccurrences(
 ): Promise<
   readonly (TripOccurrence &
     TripOccurrenceAuthorship & {
+      readonly cancellation: OccurrenceCancellationView | null
+      readonly corrections: readonly OccurrenceCorrectionEntry[]
       readonly id: string
       readonly productCodes: readonly string[]
       /** Spec 166 (RF5): a mesma lista de `productCodes`, com quantidade/unidade por item. */
@@ -423,6 +433,13 @@ export async function listTripOccurrences(
     occurrenceIds: rows.map((row) => row.id),
   })
 
+  /** Spec 235 RF9: correções e cancelamento da nota inteira em uma leitura cada, nunca por linha. */
+  const occurrenceIds = rows.map((row) => row.id)
+  const [correctionsByOccurrence, cancellations] = await Promise.all([
+    listOccurrenceCorrectionsByIds(queryable, { companyId: input.companyId, occurrenceIds }),
+    listOccurrenceCancellationsByIds(queryable, { companyId: input.companyId, occurrenceIds }),
+  ])
+
   return rows.map((row) => {
     const storedProducts = productsByOccurrence.get(row.id) ?? []
     const productCodes = resolveOccurrenceProductCodes({
@@ -440,7 +457,9 @@ export async function listTripOccurrences(
 
     return {
       actorName: row.actorName ?? null,
+      cancellation: cancellations.get(row.id) ?? null,
       channel: row.channel,
+      corrections: correctionsByOccurrence.get(row.id) ?? [],
       createdAt: row.createdAt.toISOString(),
       id: row.id,
       note: row.note,
