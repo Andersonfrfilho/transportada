@@ -1746,6 +1746,10 @@ Pedido do usuário em 2026-10-02, no meio da execução: "o expurgo por enquanto
 para tudo, isso deve ficar em uma página de configuração". "Para tudo" inclui o rastro ao vivo da
 spec 158, que já rodava em produção.
 
+> **Emenda de 2026-10-03 (decisão do usuário):** o rastro ao vivo **saiu** do interruptor. Desligado
+> suspende só o expurgo de 90 dias das cinco tabelas; `purgeStalePings` (36 h) roda sempre, antes do
+> desvio, e o ciclo desligado conta `purgedPings`. O texto abaixo descreve a primeira versão.
+
 ⚠️ **Isto suspende a proteção de noventa dias que a LGPD motivou** (ADR-0045 §3.3). Está aqui por
 escrito porque é decisão de produto, não descuido de implementação, e porque quem auditar depois
 precisa achar a decisão e a data sem escavar histórico de conversa.

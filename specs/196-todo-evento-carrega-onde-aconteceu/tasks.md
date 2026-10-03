@@ -168,7 +168,7 @@ do usuário. A API não é revertida com a app nova no ar.
       perde as quatro colunas e fica `expired`, o de 89 fica intacto, o evento continua existindo; a
       contagem subiu em N.
 
-- [x] **T2.3** O expurgo nasce desligado (D11): `TRIP_LOCATION_PURGE_ENABLED` no schema de env do
+- [x] **T2.3** O expurgo nasce desligado (D11; emenda 2026-10-03: o rastro ao vivo de 36 h roda sempre, fora do interruptor): `TRIP_LOCATION_PURGE_ENABLED` no schema de env do
       worker (padrão `false`, ausente = desligada, só `true` liga), `enabled` **obrigatório** nas
       dependências da rotina — opcional com padrão ligado faria uma fiação esquecida apagar coordenada
       em silêncio —, saída antecipada antes de qualquer leitura, log `trip_location_purge_disabled`, e

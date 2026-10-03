@@ -254,8 +254,10 @@ próprio (horas, ADR-0056). A coluna de tempo é a de cada tabela (`created_at`,
 (`evidence.md` T7.3).
 
 - ⚠️ **Desligado por padrão** (`TRIP_LOCATION_PURGE_ENABLED=false`): apagar coordenada é irreversível, e o
-  controle vai virar configuração. Enquanto estiver desligado, a retenção de 90 dias **não é cumprida**; o ciclo
-  fecha `succeeded` e o log diz que foi de propósito.
+  controle vai virar configuração. Enquanto estiver desligado, a retenção de 90 dias das cinco tabelas de evento
+  **não é cumprida**; o ciclo fecha `succeeded` e o log diz que foi de propósito. **Decisão de 2026-10-03:** o
+  interruptor suspende só esse expurgo — o de 36 h dos pings do rastro ao vivo (`purgeStalePings`) roda sempre,
+  antes do desvio, e entra no contador `purgedPings` do ciclo desligado.
 - O log do ciclo conta linhas por tabela. Nunca coordenada, evento ou pessoa.
 - Um contrato da API reprova tabela com coluna `*latitude*` que não esteja na lista do worker nem na lista de
   exclusões com motivo.

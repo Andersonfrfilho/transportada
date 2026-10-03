@@ -37,7 +37,8 @@ const DISABLED_MESSAGE = 'trip_location_purge_disabled'
 
 export type TripLocationPurgeRoutineDependencies = {
   /**
-   * Spec 196: o expurgo nasce desligado e o controle vai virar página de configuração. Obrigatório de
+   * Spec 196: o expurgo de 90 dias das cinco tabelas nasce desligado (o rastro ao vivo, não) e o
+   * controle vai virar página de configuração. Obrigatório de
    * propósito — opcional com padrão ligado faria uma fiação esquecida apagar coordenada em silêncio.
    */
   readonly enabled: boolean
@@ -106,10 +107,25 @@ async function runCycle(input: {
 }): Promise<JobRoutineResult> {
   const { context, dependencies } = input
 
+  const now = dependencies.now()
+
   /**
-   * Desligado não é "rodou e não achou nada": nenhuma leitura, nenhum lote, nenhuma escrita. O ciclo
-   * fecha `succeeded` porque não houve falha — e o log diz por que não apagou nada, senão a próxima
-   * pessoa a investigar "o expurgo parou" não tem como saber que foi de propósito.
+   * ADR-0056 §2: o rastro ao vivo vence **antes** e **fora** do interruptor. O interruptor suspende só
+   * o expurgo de 90 dias das cinco tabelas de evento (decisão de 2026-10-03): ping vencido é posição
+   * contínua do motorista em casa e nunca esperou decisão de produto. Ele **não** depende de a viagem
+   * fechar — `purgeByTrip` já cobre o fechamento, e o que sobra é a viagem que ninguém fechou.
+   */
+  const { batches: pingBatches, purged: purgedPings } = await purgeStalePingsLoop({
+    context,
+    dependencies,
+    now,
+  })
+
+  /**
+   * Desligado não é "rodou e não achou nada": nenhuma leitura, nenhum lote, nenhuma escrita nas cinco
+   * tabelas de evento. O ciclo fecha `succeeded` porque não houve falha — e o log diz por que não
+   * redigiu nada, senão a próxima pessoa a investigar "o expurgo parou" não tem como saber que foi de
+   * propósito.
    */
   if (!dependencies.enabled) {
     safeLogInfo({
@@ -118,17 +134,18 @@ async function runCycle(input: {
       metadata: {
         correlationId: context.correlationId,
         executionId: context.executionId,
+        pingBatches,
+        purgedPings,
         retentionDays: TRIP_LOCATION_RETENTION_DAYS,
       },
     })
 
     return {
-      counters: { batches: 0, purgedPings: 0, redacted: 0, redactedProofs: 0 },
+      counters: { batches: 0, purgedPings, redacted: 0, redactedProofs: 0 },
       outcome: COMPLETED_OUTCOME,
     }
   }
 
-  const now = dependencies.now()
   const before = resolveRetentionCutoff(now)
   const redactedByTable: Record<string, number> = {}
   const exhaustedTables: string[] = []
@@ -142,25 +159,6 @@ async function runCycle(input: {
     if (result.exhausted) exhaustedTables.push(redactor.table)
     if (result.failed) failedTables.push(redactor.table)
     if (redactor.table === TRIP_STOP_EVENTS_TABLE) stopEventBatches = result.batches
-  }
-
-  /**
-   * ADR-0056 §2: o rastro ao vivo, no mesmo ciclo e com corte próprio. Ele **não** depende de a
-   * viagem fechar — `purgeByTrip` já cobre o fechamento, e o que sobra é justamente a viagem que
-   * ninguém fechou, que com o segundo plano do aplicativo acompanha o motorista em casa.
-   */
-  const pingCutoff = resolveTrackingPurgeCutoff(now)
-  let purgedPings = 0
-  let pingBatches = 0
-
-  while (pingBatches < TRIP_LOCATION_PURGE_MAX_BATCHES && !context.isStopRequested()) {
-    const purged = await dependencies.purgeStalePings({
-      before: pingCutoff,
-      limit: TRIP_LOCATION_PURGE_BATCH_SIZE,
-    })
-    if (purged === 0) break
-    purgedPings += purged
-    pingBatches += 1
   }
 
   /**
@@ -196,6 +194,29 @@ async function runCycle(input: {
     },
     outcome: COMPLETED_OUTCOME,
   }
+}
+
+async function purgeStalePingsLoop(input: {
+  readonly context: JobRoutineContext
+  readonly dependencies: TripLocationPurgeRoutineDependencies
+  readonly now: Date
+}): Promise<{ readonly batches: number; readonly purged: number }> {
+  const { context, dependencies, now } = input
+  const cutoff = resolveTrackingPurgeCutoff(now)
+  let purged = 0
+  let batches = 0
+
+  while (batches < TRIP_LOCATION_PURGE_MAX_BATCHES && !context.isStopRequested()) {
+    const purgedInBatch = await dependencies.purgeStalePings({
+      before: cutoff,
+      limit: TRIP_LOCATION_PURGE_BATCH_SIZE,
+    })
+    if (purgedInBatch === 0) break
+    purged += purgedInBatch
+    batches += 1
+  }
+
+  return { batches, purged }
 }
 
 /**

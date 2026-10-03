@@ -74,7 +74,7 @@ const workerEnvironmentSchema = z
       .default('false')
       .transform((value) => value === 'true'),
     // Spec 196: o expurgo de posição nasce **desligado**, por decisão de produto — o controle vai
-    // virar página de configuração. Padrão `false` porque apagar coordenada é irreversível: ligar
+    // virar página de configuração (só as cinco tabelas; o rastro ao vivo expurga sempre). Padrão `false` porque apagar coordenada é irreversível: ligar
     // por engano é pior do que guardar dado além do prazo até alguém ligar de propósito.
     TRIP_LOCATION_PURGE_ENABLED: z
       .enum(['true', 'false'])

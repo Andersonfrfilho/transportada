@@ -207,8 +207,9 @@ sem ninguém o ter olhado.
   coordenada é coordenada independentemente do nome da coluna, e guarda que reconhece um nome só não é
   guarda.
 - **D11 — O expurgo nasce desligado, e o interruptor é de ambiente até virar tela.** Decisão do
-  usuário em 2026-10-02: `trip.location.purge` **não roda** enquanto ninguém o ligar, e isso vale para
-  as cinco tabelas **e** para o rastro ao vivo da spec 158. O controle é
+  usuário em 2026-10-02: `trip.location.purge` **não redige** enquanto ninguém o ligar. **Emenda de
+  2026-10-03 (decisão do usuário):** isso vale só para as cinco tabelas; o expurgo de 36 h do rastro ao
+  vivo da spec 158 (`purgeStalePings`) saiu do interruptor e roda sempre. O controle é
   `TRIP_LOCATION_PURGE_ENABLED`, validada no boot, padrão `false`, e variável **ausente conta como
   desligada**: apagar coordenada é irreversível, então um deploy que esquece a chave tem de não apagar
   nada. Só `true` liga; qualquer outro valor derruba o boot em vez de adivinhar. Desligado significa

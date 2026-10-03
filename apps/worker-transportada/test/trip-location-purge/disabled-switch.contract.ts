@@ -37,9 +37,14 @@ const MINIMAL_ENVIRONMENT = {
 function buildRoutine(enabled: boolean) {
   const logs: Call[] = []
   const calls: string[] = []
-  const countingRedactor = (name: string) => async () => {
-    calls.push(name)
-    return 1
+  const countingRedactor = (name: string) => {
+    let isFirstCall = true
+    return async () => {
+      calls.push(name)
+      if (!isFirstCall) return 0
+      isFirstCall = false
+      return 1
+    }
   }
 
   const routine = createTripLocationPurgeRoutine({
@@ -64,15 +69,15 @@ function buildRoutine(enabled: boolean) {
 }
 
 describe('o expurgo de posição nasce desligado (spec 196)', () => {
-  test('desligado: nenhum redator é chamado, nem o do rastro ao vivo', async () => {
+  test('desligado: nenhum redator das cinco tabelas é chamado; só o rastro ao vivo segue', async () => {
     const { calls, routine } = buildRoutine(false)
 
     await routine.run(CONTEXT)
 
-    expect(calls).toEqual([])
+    expect([...new Set(calls)]).toEqual(['purgeStalePings'])
   })
 
-  test('desligado: o ciclo fecha succeeded com os contadores zerados', async () => {
+  test('desligado: o ciclo fecha succeeded, sem redigir tabela de evento, e conta os pings expurgados', async () => {
     const { routine } = buildRoutine(false)
 
     const result = await routine.run(CONTEXT)
@@ -80,7 +85,7 @@ describe('o expurgo de posição nasce desligado (spec 196)', () => {
     expect(result.outcome).toBe('succeeded')
     expect(result.counters).toEqual({
       batches: 0,
-      purgedPings: 0,
+      purgedPings: 1,
       redacted: 0,
       redactedProofs: 0,
     })
