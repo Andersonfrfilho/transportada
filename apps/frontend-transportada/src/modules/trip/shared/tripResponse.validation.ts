@@ -1412,7 +1412,7 @@ function isOccurrenceProduct(value: unknown): value is OccurrenceProduct {
  * Spec 167 RF9: a correção sem o conjunto anterior chegaria à tela como histórico vazio — pior que
  * histórico ausente, porque parece que ninguém mexeu na ocorrência.
  */
-function isOccurrenceCorrection(value: unknown): value is OccurrenceCorrection {
+export function isOccurrenceCorrection(value: unknown): value is OccurrenceCorrection {
   return (
     hasExactKeys(value, ['correctedAt', 'correctedByName', 'previousItems'] as const) &&
     isString(value.correctedAt) &&
@@ -1422,7 +1422,7 @@ function isOccurrenceCorrection(value: unknown): value is OccurrenceCorrection {
 }
 
 /** O motivo é o que justifica o cancelamento: cancelamento sem ele não chega à tela. */
-function isOccurrenceCancellation(value: unknown): value is OccurrenceCancellation {
+export function isOccurrenceCancellation(value: unknown): value is OccurrenceCancellation {
   return (
     hasExactKeys(value, ['cancelledAt', 'cancelledByName', 'reason'] as const) &&
     isString(value.cancelledAt) &&

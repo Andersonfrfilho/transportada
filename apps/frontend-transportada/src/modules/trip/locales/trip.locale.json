@@ -2042,6 +2042,7 @@
       "driver": "Motorista"
     },
     "correction": {
+      "correct": "Corrigir",
       "unavailable": {
         "occurrenceCancelled": "Esta ocorrência já foi cancelada e não pode mais ser corrigida nem cancelada.",
         "caseOpen": "A tratativa está aberta: depois que ela abre, a ocorrência já vale dinheiro e não pode mais ser corrigida nem cancelada.",
