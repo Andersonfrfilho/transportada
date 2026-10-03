@@ -84,7 +84,7 @@ do `nfe-workspace`, registrado como `cameraMeasurement` em `SETTINGS_PANEL_PLACE
 e controla o interruptor `cameraMeasurementEnabled` por empresa (padrão desligado). Contrato em
 `test/company-settings/tabs.contract.ts`. Aba **Localização** (spec 239) em `/trips` (`trip` module),
 `TripLocationRetentionPanel`, `locationRetention` em `SETTINGS_PANEL_PLACEMENT` com
-`{ module: 'trip', source: 'locationRetentionSettings', tab: 'location' }` — permite `company-admin`
+`{ module: 'trip', source: 'locationRetentionSettings', tab: 'location' }` — permite quem tem `settings.manage`
 ligar/desligar e ajustar prazo (30–90 dias) do expurgo de coordenadas.
 
 ## Domínio de viagem, roteirização e proposta de carga — ver a referência

@@ -658,3 +658,26 @@ recente de staging (`prevIds` = `43e75ad7…` da `contractor_receiving_profiles`
 integração do worker em banco descartável 170 pass / 1 fail (OSRM); API `typecheck` limpo, `lint` limpo,
 `bun --env-file=../../.env.test test --timeout 120000` 9356 pass / 24 skip / 0 fail; frontend `typecheck` limpo,
 `test` 6682 pass / 0 fail + 415 pass / 0 fail (hooks).
+
+## T4.1–T4.3
+
+Documentação conferida contra `spec.md`, `plan.md`, a migration `20261003190847_location_retention_settings` e o
+código. O commit `8deb398cd` trazia erros, corrigidos aqui:
+
+- `docs/SECURITY.md`: definições de Gate A e Gate B trocadas pelas da `spec.md` (D3, Riscos) e da T4.6; lock das
+  migrations da 196 separado como pré-condição própria; `innerJoin` trocado por `CROSS JOIN LATERAL`; "company-admin"
+  trocado por `settings.manage`; rollback recusa com qualquer linha (não só `purge_enabled = true`); emenda da ADR
+  removida do achado e escrita na ADR; linha solta `_Nenhum ainda._` removida.
+- `docs/adr/0081-...md`: emenda 7.1 de 2026-10-03 (interruptor substituído, variável removida, pendência do
+  transcript do WhatsApp).
+- `apps/worker-transportada/CLAUDE.md`: restaurado o texto anterior ao `8deb398cd` (o commit apagou o texto correto
+  e pôs `innerJoin`).
+- `apps/api-transportada/CLAUDE.md`, `apps/frontend-transportada/CLAUDE.md`: ponteiro e permissão corrigidos.
+- `docs/ai-context/worker-transportada.md` e `api-transportada.md` já descreviam a spec 239; sem mudança.
+  `bun run format:check` (raiz), saída literal:
+
+```text
+$ bunx prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+```

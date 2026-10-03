@@ -2047,7 +2047,7 @@ estado compartilhado" segue aberto para o resto da API.
 
 - `api-transportada`: rotas `GET`/`PUT /company-settings/location-retention` (`settings.manage`), tabela
   `company_location_retention_settings` com `purge_enabled BOOLEAN DEFAULT false`, `retention_days INTEGER
-  DEFAULT 90 CHECK (30–90)`, `purge_effective_at TIMESTAMPTZ` (carência), índices parciais
+DEFAULT 90 CHECK (30–90)`, `purge_effective_at TIMESTAMPTZ` (carência), índices parciais
   `(company_id, <coluna de tempo>) WHERE latitude IS NOT NULL` nas cinco tabelas; auditoria com IP em
   `metadata.ipAddress` (adicionada por esta spec, junto com a tabela nova).
 - `worker-transportada`: redatores com junção (innerJoin) por `company_id` contra a tabela nova; pings do
@@ -2057,47 +2057,43 @@ estado compartilhado" segue aberto para o resto da API.
 
 **O que é:**
 
-- **Antes:** expurgo das cinco tabelas de evento com ponto (latitude, longitude, precisão) e timestamp
-  capturado estava **desligado** globalmente. Ligá-lo exigia variável de ambiente (`TRIP_LOCATION_PURGE_ENABLED`,
-  padrão `false`) — decisão de infraestrutura/deploy, não de quem controla o dado na LGPD. O prazo era
-  constante de código: 90 dias (ADR-0045 §3.3, `docs/SECURITY.md:1248-1257`). O expurgo **nunca** avançou
-  porque o interruptor nunca foi ligado — a coordenada sobreviveu além do prometido (achado registrado em
-  2026-09-18 § "posição da foto do comprovante" D19–D20).
-- **Agora:** `company-admin` liga, desliga e ajusta o prazo (30–90 dias, padrão 90, padrão do sistema é
-  desligado) do expurgo **da própria empresa** num painel sem redeploy. Ligar mostra, antes de confirmar,
-  quantos pontos cairão. Toda mudança entra em `audit_logs` com ator, alvo e IP na mesma transação da
-  gravação. O worker lê a configuração a cada ciclo (innerJoin por `company_id`) e expurga cada empresa
-  pelo prazo dela, sem cruzar tenants: a mesma empresa não vê a coordenada de outra. Carência de 24 h ao
-  ligar/encurtar evita apagar antes da confirmação chegar ao log (RF6).
-- **Pings do rastro ao vivo** (36 h, tabela `trip_location_pings`) saem do interruptor e fora da tela —
-  rodam sempre, pelo motivo citado em ADR-0081 §1 (frequência menor que log de aplicação, só geolocalização
-  necessária). O painel avisa ao usuário que o pings roda independente de `purge_enabled`.
+- **Antes:** o expurgo das cinco tabelas de evento com ponto (latitude, longitude, precisão e timestamp
+  capturado) nascia **desligado** e só ligava por variável de ambiente (`TRIP_LOCATION_PURGE_ENABLED`, padrão
+  `false`, D11 da spec 196) — decisão de deploy, não de quem responde pelo dado. O prazo era constante de
+  código: 90 dias (ADR-0045 §3.3). Enquanto a variável não fosse ligada, a coordenada sobrevivia além do
+  prometido.
+- **Agora:** quem tem `settings.manage` liga, desliga e ajusta o prazo (30–90 dias, padrão 90) do expurgo
+  **da própria empresa**, na aba Localização, sem redeploy. Padrão do sistema: desligado (sem linha = desligado).
+  Ligar mostra, antes de confirmar, quantos pontos cairão. Toda mudança entra em `audit_logs` na mesma
+  transação da gravação (ator, empresa-alvo, antes/depois, IP e estimativa em `metadata`). O worker lê a
+  configuração a cada ciclo e apaga cada empresa pelo prazo dela (`CROSS JOIN LATERAL` por tabela, sem cruzar
+  empresas). Ligar ou encurtar o prazo abre uma carência de 24 h (D5) antes de a primeira linha ser apagada.
+- **Pings do rastro ao vivo** (36 h, `trip_location_pings`) ficam fora da configuração e **rodam sempre**; o
+  painel avisa isso na tela.
 
 **O que continua aberto:**
 
-- **Coordenada do transcript do WhatsApp** (`meta_whatsapp.messages.payload.location` e rótulo em `content`,
-  achado de 196 T3.7). Fica para spec própria (D9: fora do escopo desta). O WhatsApp grava e **não** expira
-  pelo prazo de 90 dias — o achado é o mesmo registrado em 2026-09-25 § "Conversa de ocorrência" D9, que
-  aponta para a spec 239. Registrar aqui: **coordenada do WhatsApp + rótulo devem estar **fora** do expurgo
-  de 90 dias e devem ter prazo próprio (decisão em spec 240+).**
+- **Coordenada do transcript do WhatsApp** (`meta_whatsapp.messages.payload.location` e o rótulo em `content`,
+  achado da 196 T3.7). Fica para **spec própria** (D9 da 239): o schema `meta_whatsapp` é do pacote, e o
+  expurgo desta spec não alcança. Até lá, essa coordenada **não expira** pelo prazo da empresa.
 
-**Pré-condições de deploy em produção (Gate A, Gate B, vistos em T2.3):**
+**Pré-condições de publicação (spec 239, T4.6):**
 
-- Lock de migration de `company_location_retention_settings` sem rollback acidental: `rollback.sql` recusa
-  com `RAISE EXCEPTION` se há linha com `purge_enabled = true`.
-- Gate A (`pre-deploy`): `pre-deploy` confere número de empresas ligadas e conta pontos a apagar (CA6,
-  EXPLAIN na integração do worker); se vencer, avisar e deixar re-tender.
-- Gate B: promover migrations da spec 196 antes (if hadn't already) — índices da 196 são lidos pela 239.
-- `TRIP_LOCATION_PURGE_ENABLED` está removida do `.env.example`, do schema de ambiente e da rotina do
-  worker — herança de variável nula não causa silêncio (a rotina testa `!config.tripLocationPurgeEnabled`
-  e sai; removida, não existe para testar).
+- **Gate A (antes do deploy do worker):** conferir que `TRIP_LOCATION_PURGE_ENABLED` **não** é `true` em
+  nenhum worker de nenhum ambiente — `railway variables --service <worker> --environment <env>`, olhando só a
+  chave. Se for `true`, o deploy desliga o expurgo daquele ambiente em silêncio (a variável deixa de existir e
+  a tabela não tem linha). Saída: criar **antes do deploy do worker** a linha de configuração da empresa (90
+  dias, já vigente) — escrita de dado, decisão do usuário.
+- **Gate B (painel não espera o worker):** o job do painel depende só de `deploy-api` (`deploy.yml`), então num
+  push único o painel pode subir antes do worker. Saída: pushes separados (worker antes do painel) ou worker
+  confirmado no ar antes de alguém ligar o expurgo na tela.
+- **Lock da migration em produção (outra pré-condição):** as migrations da spec 196 (`20261001123700`,
+  `20261002153258`, `20261003010806`) tomam `ACCESS EXCLUSIVE` nas mesmas cinco tabelas, e a migration da 239
+  cria um índice parcial em cada (`SHARE`: escrita do motorista espera). Promover a 196 em deploy **separado,
+  antes** da 239; medir `pg_total_relation_size` das cinco tabelas; aplicar fora do horário de campo.
+- **Follow-up (fora desta spec):** migration futura com `DROP INDEX` dos cinco índices só-por-tempo
+  (`<tabela>_located_<tempo>_idx`), depois de conferir `idx_scan` em produção.
+- Rollback da migration recusa (`RAISE EXCEPTION`) se `company_location_retention_settings` tiver qualquer
+  linha: apagar configuração de empresa é decisão humana.
 
-**Emenda à ADR-0081:**
-
-Linha 97–100 (§3.1) citava `TRIP_LOCATION_PURGE_ENABLED` como interruptor provisório até virar tela.
-Atualizar para: _"Configuração por empresa, interruptor `purge_enabled` na tabela `company_location_retention_settings`,
-sem variável de ambiente. Carência de 24 h ao ligar/encurtar; prazo 30–90 dias."_
-
-**Origem:** spec 239 D3 (var some), D5 (carência 24 h), T4.1. Registrado em 2026-10-03.
-
-_Nenhum ainda._
+**Origem:** spec 239 (D3, D5, D9), T4.1. Registrado em 2026-10-03. Emenda correspondente na ADR-0081 §3.2.

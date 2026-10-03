@@ -182,6 +182,17 @@ esteja na lista nem nas exclusões com motivo (endereço e cadastro — `trip_st
 reprova rota `POST` nova de `/me/trips/current/**` que não aceite `location` nem esteja na lista de
 exceções.
 
+#### 7.1 Emenda de 2026-10-03 — o interruptor vira configuração por empresa (spec 239)
+
+O interruptor provisório de ambiente do expurgo (D11 da spec 196, variável `TRIP_LOCATION_PURGE_ENABLED`) é
+**substituído** por configuração por empresa: tabela `company_location_retention_settings` (sem linha =
+desligado), prazo de 30 a 90 dias (padrão 90), carência de 24 h ao ligar ou encurtar, tela "Localização" em
+`/trips` e auditoria na mesma transação da gravação. A variável foi **removida** do schema de ambiente e do
+worker. Os pings do rastro ao vivo continuam com prazo próprio e fora da configuração.
+
+**Pendência:** a coordenada do transcript do WhatsApp (`meta_whatsapp.messages.payload.location` e o rótulo em
+`content`) segue fora do expurgo e fica para spec própria.
+
 ### 8. A reordenação da spec 192
 
 A reordenação do motorista é toque e entra nesta regra: `trip_stop_order_events` ganha as colunas e o

@@ -81,12 +81,12 @@ latitude IS NOT NULL`; `rollback.sql` que recusa com linha; asserção de rollba
 
 > 🤖 Modelo: `haiku` (T4.1–T4.3), `opus` (T4.5)
 
-- [ ] **T4.1** `docs/SECURITY.md` (achado de 2026-10-02 atualizado; pendência da coordenada do
+- [x] **T4.1** `docs/SECURITY.md` (achado de 2026-10-02 atualizado; pendência da coordenada do
       transcript do WhatsApp, D9) e emenda curta à ADR-0081.
-- [ ] **T4.2** `apps/worker-transportada/CLAUDE.md`, `apps/api-transportada/CLAUDE.md`,
+- [x] **T4.2** `apps/worker-transportada/CLAUDE.md`, `apps/api-transportada/CLAUDE.md`,
       `apps/frontend-transportada/CLAUDE.md` § "Configuração perto do efeito",
       `docs/ai-context/worker-transportada.md`.
-- [ ] **T4.3** Prettier nos `.md` tocados (`format:check` da raiz cobre `specs/`).
+- [x] **T4.3** Prettier nos `.md` tocados (`format:check` da raiz cobre `specs/`).
 - [ ] **T4.4** Smoke de prints `test/spec-239-prints.smoke.spec.ts` (1280 e 375 px: desligado,
       confirmação, aguardando carência, sem permissão), com a API de demonstração.
 - [ ] **T4.5** **Revisão de design e usabilidade** (web.md §15): comparar com o painel do Comprovante
