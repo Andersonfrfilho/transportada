@@ -105,6 +105,19 @@ depois anexos (`offlineAttachments.service.ts`) exigiria a ordem inversa, e a 17
 `test/driver-trip/offline-queue.contract.ts`, `test/driver-trip/offline-attachments.contract.ts`,
 `test/driver-trip/occurrence-upload.contract.ts`.
 
+**O momento do evento é o do toque, corrigido pelo relógio** (spec 234, Fase 2). `request()` do cliente
+lê o `Date` de toda resposta `ok` e guarda em memória (`clockOffset.service.ts:driverClockOffset`) o desvio
+`servidor − aparelho`, contra o ponto médio do pedido; o `Date` tem resolução de 1 s e o erro de ±1 s é
+aceito. O item da fila (`QueuedReport`) e o anexo (`QueuedAttachment`) guardam o desvio **da criação**
+(`clockOffsetMs`); no envio a drenagem entrega `{ tappedAt: createdAt, clockOffsetMs }` ao `send`. Só
+`CLOCK_FIELD_REPORT_KINDS` (`arrive`, `deliver`, `return`, ocorrência de parada e a foto dela) levam os dois
+campos — os esquemas da API são `.strict()` e `depart`/`cancelDeparture` (já com `tappedAt` próprio),
+`dispatch`, ocorrência de nota e `proof/receiver` dariam `400`. O multipart do comprovante leva só
+`clockOffsetMs` (o `capturedAt` já é a hora do toque). Sem desvio medido, nenhum campo vai. ⚠️ O `Date` de outra
+origem só chega ao JavaScript com `Access-Control-Expose-Headers: Date` na API.
+`test/driver-trip/clock-offset.contract.ts`, `test/driver-trip/event-clock-fields.contract.ts`, smoke em
+`driver-app.smoke.spec.ts`.
+
 **"Não entreguei" é ocorrência com foto e devolução** (spec 179, pedido do usuário de 25/09,
 `notDelivered.service.ts`). A devolução (`/return`, `DRIVER_RETURN_REASONS`) é o que fecha nota,
 parada e viagem; a ocorrência (tipo do cadastro, com a foto) é a prova e abre a tratativa da spec

@@ -830,3 +830,114 @@ Run `37078098052`, commit `2f70e2460`: `conclusion=success`. Job `deploy-api` ve
 subiu pelo `preDeployCommand`); `deploy-client`, `deploy-frontend`, `deploy-driver` e
 `mark-deployed` também verdes. Gates `integration-api (1..4)`, `integration-migration` e
 `quality-app (api-transportada)` verdes na CI.
+
+# Fase 2 — App: medir e mandar
+
+Contagem de passes de `bun run --cwd apps/frontend-driver test` (script do package, nunca `bun test` cru):
+**1048 pass / 0 fail antes** da fase, **1093 pass / 0 fail depois** (+45: 13 de `clock-offset.contract.ts`
+e 32 de `event-clock-fields.contract.ts`; nenhum teste a menos, nenhum skip).
+
+## T2.1 — contrato antes (commit `a220dc046`)
+
+`test/driver-trip/clock-offset.contract.ts` (o desvio, o armazenamento, a medição pelo cliente) e
+`test/driver-trip/event-clock-fields.contract.ts` (conjunto de `kind`, corpo, multipart, carimbo da fila,
+drenagem), os dois registrados em `test/driver-trip.contract.test.ts`. Os contratos chamam `send`/`reportBody`
+com um `fetch` capturado e leem o corpo (e o `FormData`); nenhum `toInclude` no texto-fonte.
+
+Vermelho, em duas etapas:
+
+```text
+sem clockOffset.service.ts → "Cannot find module '../../src/modules/driver-trip/shared/clockOffset.service'"
+                              120 pass, 1 fail, 1 error  (o módulo da feature não existe)
+com um esqueleto neutro (compute → undefined, conjunto vazio, sem carimbo), só para ver as asserções:
+                              948 pass, 23 fail — 16 × toBe, 7 × toEqual
+  computeClockOffsetMs (4 de sinal/zero/inteiro), armazenamento, medição pelo Date (4), multipart (2),
+  conjunto de kinds (2), reportBody com carimbo (2), fila (4), drenagem (3)
+```
+
+O esqueleto nunca foi commitado: o HEAD da T2.1 é vermelho por módulo ausente.
+
+## T2.2 — implementação (commit `26c212a85`)
+
+- `shared/clockOffset.service.ts` (novo): `computeClockOffsetMs` (servidor − aparelho, inteiro, `Date`
+  ausente/ilegível não mede), `createClockOffsetStore` + o singleton `driverClockOffset` (só em memória),
+  `CLOCK_FIELD_REPORT_KINDS` / `acceptsClockFields` / `buildClockFields` (a decisão de quais `kind` levam os
+  campos mora aqui) e `toEventClockStamp` (item → carimbo).
+- `driverTripClient.service.ts`: `request()` mede o `Date` de toda resposta `ok` contra o ponto médio do
+  pedido (`recordClockOffset`); `send(report, stamp?)` e `reportBody(report, stamp?)` espalham `buildClockFields`
+  em todo `case`, de modo que o conjunto é a única decisão; `attachProof` ganhou `clockOffsetMs` (texto no
+  multipart, junto do `capturedAt` que já era a hora do toque); `stopOccurrencePhoto` leva o carimbo no reenvio
+  da ocorrência (mesma rota `/stops/:id/occurrences`).
+- `offlineQueue.service.ts` / `offlineAttachments.service.ts`: `QueuedReport.clockOffsetMs?` e
+  `QueuedAttachment.clockOffsetMs?` carimbados na criação; a drenagem (`drainQueue`,
+  `drainQueueWithAttachments`) entrega `toEventClockStamp(item)` ao `send`; a reconciliação do item recusado
+  **mantém** o desvio (ela reconstrói o objeto campo a campo).
+- `useDriverTrip.hook.ts`: lê `driverClockOffset.read()` ao enfileirar (quatro pontos) e ao criar o anexo, e
+  repassa `stamp` e `clockOffsetMs` ao cliente.
+
+```text
+apps/frontend-driver$ bun run typecheck → exit 0 · bun run lint → exit 0
+apps/frontend-driver$ bun run test → 1091 pass, 0 fail (1093 com os dois testes da T2.4)
+```
+
+## T2.3 — smoke Playwright (commit `3fde70d0e`)
+
+Infra local presente (Keycloak em 58080, Chromium 1208, `.env` com a senha do `local-user`); rodou tudo, sem
+pular nada:
+
+```text
+driver-app.smoke.spec.ts (VITE_SMOKE_AUTH_BYPASS=true, porta 53112) → 37 passed (33 de antes + 4 novos)
+driver-service-worker.smoke.spec.ts → 2 passed
+```
+
+Os quatro testes novos: (1) com `Date` 1 h adiantado nas respostas, `arrive` e `deliver` levam `tappedAt`
+(recente) e `clockOffsetMs` ≈ 3 600 000 (±15 s); (2) sem `Date`, os dois saem sem os campos; (3) o toque nasce
+offline, antes de qualquer resposta, e o `Date` chega na mesma drenagem (resposta do `arrive`): o `deliver`
+**continua sem os campos** — o carimbo é o da criação; (4) o multipart do `/proof` leva `clockOffsetMs` e
+`capturedAt`. O dublê (`driver-trip-smoke.helper.ts`) ganhou `serverClockOffsetMs`/`setServerClockOffset` e
+`formFields` (campos de texto do multipart).
+
+⚠️ **Achado que o smoke provou: a API não expõe o `Date` ao navegador.** O `Date` não é um cabeçalho de
+resposta liberado em chamada entre origens (`motorista.<zona>` → `api.<zona>`): o JavaScript só o lê se a
+resposta trouxer `Access-Control-Expose-Headers: Date`. `apps/api-transportada/src/http/cors.service.ts`
+(`applyCorsHeaders`) não o emite. O dublê do smoke o emite — e, sem essa linha, o teste (1) reprova:
+
+```text
+(helper sem 'access-control-expose-headers') → ✘ com resposta de Date, o corpo do deliver leva tappedAt…
+    Expected: "number"  Received: "undefined"      (o app não mediu nada: o corpo sai sem os campos)
+```
+
+Em produção isso é **silencioso**: o app novo seguiria mandando o corpo sem os dois campos (comportamento de
+hoje) e a spec inteira não faria efeito. Correção fora do escopo desta fase (a API não foi tocada): uma linha em
+`applyCorsHeaders` + um caso em `test/cors.contract.test.ts`. **A T2.5 (publicar o app) não deve ir antes dela.**
+
+## T2.4 — prova por mutação (commit `8af9abdab` traz os 2 testes que o M2b exigiu)
+
+Cada mutante foi aplicado, o script `test` rodou, e o arquivo foi restaurado (`git status` limpo ao fim).
+
+| #   | Regra                     | Mutante                                        | Reprova                                                                                                      |
+| --- | ------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| M1  | sinal do desvio           | `aparelho − servidor`                          | 5: `computeClockOffsetMs` (atrasado, adiantado) e as 3 medições pelo cliente                                 |
+| M2a | carimbar na criação       | `enqueueReport` não grava o desvio             | 3: `enqueueReport guarda o desvio`, `desvio zero fica gravado`, `o desvio do envio nunca troca o da criação` |
+| M2b | …e não no envio           | `send` usa o último desvio medido pelo cliente | 2: `com carimbo, os campos são os do toque`, `sem carimbo… o desvio medido depois não entra`                 |
+| M3a | conjunto de kinds         | `depart` entra no conjunto                     | 6: conjunto exato, `depart` leva os campos, `depart` com `tappedAt` próprio, sem desvio…                     |
+| M3b | conjunto de kinds         | `return` sai do conjunto                       | 2: conjunto exato, kinds de fora                                                                             |
+| M4  | ausência sem desvio       | `toEventClockStamp` devolve 0 sem desvio       | 2: `item antigo… sai sem carimbo`, `drainQueue também entrega o carimbo`                                     |
+| M5  | só resposta `ok` mede     | mede também a recusada                         | 1: `resposta recusada pelo servidor não mede`                                                                |
+| M6  | ponto médio               | usa só o início do pedido                      | 2: `lê o cabeçalho Date… ponto médio`, `o comprovante também mede`                                           |
+| M7  | recusa não perde o desvio | a reconciliação do recusado o descarta         | 1: `o item recusado… guarda o desvio da criação`                                                             |
+| M8  | multipart                 | `attachProof` não manda `clockOffsetMs`        | 2: `manda clockOffsetMs como texto inteiro`, `mantém o sinal e o zero`                                       |
+
+A ligação do hook, que o contrato não alcança, é provada pelo smoke (mutante no hook, 3 testes novos rodados):
+
+| #   | Mutante no `useDriverTrip.hook.ts`                                        | Reprova (smoke)                                           |
+| --- | ------------------------------------------------------------------------- | --------------------------------------------------------- |
+| M9  | o relato não leva `clockOffsetMs: driverClockOffset.read()` ao enfileirar | `com resposta de Date, o corpo do deliver leva tappedAt…` |
+| M10 | o anexo nasce sem `clockOffsetMs`                                         | `o comprovante leva o desvio… no multipart`               |
+| M11 | a drenagem não repassa `stamp` a `client.send`                            | `com resposta de Date, o corpo do deliver leva tappedAt…` |
+| M12 | `sendAttachment` não repassa o desvio do anexo                            | `o comprovante leva o desvio… no multipart`               |
+| M13 | o hook carimba com o último desvio medido, no envio                       | `o desvio é o de quando o toque nasceu…`                  |
+
+```text
+raiz$ bun run format:check → exit 0
+```
