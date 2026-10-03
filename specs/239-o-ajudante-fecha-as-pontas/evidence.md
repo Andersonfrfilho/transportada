@@ -246,3 +246,47 @@ passou de 3 para 4).
 
 **Gates:** `bun run test` do painel 6601 pass / 0 fail (+ hooks 364 / 0); `tsc --noEmit` limpo; eslint dos
 tocados limpo; prettier limpo.
+
+## T6 · App do motorista conhece o papel e o ajudante acompanha (D3/D4, RF-3/RF-4)
+
+**O que mudou** (`apps/frontend-driver`): `DriverTrip` ganha `crewRole?: 'driver' | 'helper'` (opcional de
+propósito: o snapshot guardado no IndexedDB já é o objeto parseado e não passa de novo pela validação, então
+o de ontem não traz o campo — `resolveTripCrewRole` o lê como `driver`, o molde de `isLegacyEnRouteTracking`).
+A validação (`readCrewRole`) é fechada: ausente vale `driver`, valor fora do vocabulário é
+`DRIVER_TRIP_RESPONSE_INVALID`. Predicado puro `canReportOnTrip` em `shared/tripCrewRole.service.ts`, usado pela
+tela. Com `helper`: aviso fixo `DriverHelperNotice` (`role="status"`, texto `helperNotice.title/detail` em pt e
+en, mesmo tom dos avisos de estado — cobre a 12%, borda de cobre, tema claro/escuro herdados dos tokens) no topo
+da viagem; o `DriverStopCard` ganha `isReadOnly` e reaproveita o caminho que já existia para viagem não
+despachada (`isFieldWorkBlocked`): some Cheguei/Iniciar rota/Cancelar rota/atalho do bloqueio, "Registrar
+entrega depois", e a nota vira só leitura (sem Entreguei, Não entreguei, ocorrência, comprovante). Ficam a
+leitura (paradas, notas, "Navegar", manifesto/DAMDFE, romaneio). O botão "Despachar viagem" não é oferecido ao
+ajudante, e `useLocationSharing` só recebe as viagens em que ele reporta. Motorista: nada muda (prop default
+`false`; os 1180 contratos anteriores seguem verdes).
+
+**A fila offline com 403 (lido, não presumido)** — `useDriverTrip.hook.ts` envia por `client.send` e converte
+a exceção em `toAttachmentSendOutcome` (`driverTripClient.service.ts:127`): só rede caída
+(`isOffline`), `408/429/502/503/504` e erro de identidade viram `failed-network` (volta para a próxima
+tentativa). O **403** tem `status` e não está em `RETRYABLE_STATUSES`, logo vira `rejected` com a causa
+`"403 <código>"`; `drainQueue` (`offlineQueue.service.ts`) põe o item recusado em `settledKeys` e o tira da
+fila na mesma transação — **não é reenviado**, aparece como "recusado" na tela de eventos. Não há laço
+infinito: nenhum defeito. Contrato prova os dois elos (o 403 vira `rejected`; duas drenagens, um envio só). O
+que a T6 garante a mais é que, com `helper`, nenhum botão chama `report(...)`, então nada chega à fila.
+
+**Contrato** (`test/driver-trip/helper-crew-role.contract.ts`, importado em `driver-trip.contract.test.ts`):
+validação (helper, driver, ausente = driver, fora do vocabulário recusa), predicado, cartão renderizado em modo
+leitura (sem ação nenhuma, com leitura e "Navegar") e como motorista (com as ações), aviso nos dois idiomas, ligação da
+tela (aviso, `isReadOnly`, despacho, localização) e o 403. `stop-activity.contract.ts` ajustado só na string
+da condição renomeada (`areFieldActionsHidden`).
+
+**Vermelho antes do código:** `Cannot find module '.../DriverHelperNotice.component'` (suíte inteira não
+carregava; `tripCrewRole.service` também inexistente).
+
+**Mutação** (restaurada e conferida com `cmp`): cartão sem `|| isReadOnly` → 1 fail; predicado invertido →
+1 fail; papel desconhecido vira `driver` → 1 fail; ausente deixa de valer `driver` → 21 fail; localização com
+todas as viagens → 1 fail; despacho sem o predicado → 1 fail; aviso removido → 1 fail.
+
+**Gates:** `bun run test` do app do motorista 1182 pass / 0 fail; `bun run typecheck` da raiz limpo (7 apps);
+eslint dos tocados limpo; prettier limpo. Verificação visual (375 px, claro e escuro, alvo de toque) é da T7.
+
+**Fora do escopo, não alterado:** o atalho "Fotos pendentes (N)" lê `pendingProofs` da raiz do snapshot sem
+filtrar por papel; se a API devolver pendência de viagem em que ele é ajudante, o atalho aparece. Conferir na T7.

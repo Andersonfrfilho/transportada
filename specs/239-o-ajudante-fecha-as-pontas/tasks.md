@@ -27,7 +27,7 @@ commit isolado e evidência em `evidence.md`. Tela só vai a staging depois de o
 
 > 🤖 Modelo: `sonnet` (parar e perguntar se exigir reescrever a fila offline)
 
-- [ ] **T6** Tipo e cliente com `crewRole`; aviso "Você acompanha esta viagem como ajudante" e ações
+- [x] **T6** Tipo e cliente com `crewRole`; aviso "Você acompanha esta viagem como ajudante" e ações
       escondidas para o ajudante; contrato de componente (D4). Confirmar o comportamento da fila para 403.
 
 ## Fase 4 — Fechamento

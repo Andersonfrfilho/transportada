@@ -175,6 +175,11 @@ type DriverStopCardProps = Readonly<{
    * acumular eventos condenados.
    */
   isFieldWorkBlocked: boolean
+  /**
+   * Spec 239 RF-3: o ajudante acompanha a viagem, não reporta — a API recusa (`trip.report`) todo
+   * toque de campo dele, então o cartão fica só de leitura e nada chega à fila.
+   */
+  isReadOnly?: boolean
   /** Spec 234 D4d: a permissão de localização do aparelho está negada — só avisa antes do "Entreguei". */
   isLocationDenied: boolean
   /** Pedido do usuário (25/09): a atual abre sozinha e destacada; as outras ficam fechadas. */
@@ -243,6 +248,7 @@ export function DriverStopCard({
   isFieldWorkBlocked,
   isLocationDenied,
   isOpen,
+  isReadOnly = false,
   lastKnownLocation,
   notDeliveredStatusByDocumentId,
   onArrive,
@@ -280,6 +286,7 @@ export function DriverStopCard({
   const [isLateRegistration, setIsLateRegistration] = useState(false)
   const [isConfirmingLateRegistration, setIsConfirmingLateRegistration] = useState(false)
   const isCompleted = stop.completedAt !== null
+  const areFieldActionsHidden = isFieldWorkBlocked || isReadOnly
   /** Spec 206 D9: `enRouteTappedAt` (hora do toque) é a âncora; `enRouteSince` é a reserva. */
   const enRouteAnchor = stop.enRouteTappedAt ?? stop.enRouteSince ?? undefined
   const distanceLabel = formatStopDistance({ location: lastKnownLocation, stop })
@@ -480,7 +487,7 @@ export function DriverStopCard({
            * tocava de novo. `isArrivalRecorded` é a mesma chegada que já libera as ações da parada:
            * conta o "Cheguei" ainda na fila.
            */}
-          {isFieldWorkBlocked || isArrivalRecorded ? null : canReportArrival ? (
+          {areFieldActionsHidden || isArrivalRecorded ? null : canReportArrival ? (
             <Button onClick={() => onArrive(stop.id)} type="button">
               <Icon name="check" />
               {t('arrive')}
@@ -503,7 +510,7 @@ export function DriverStopCard({
          * com o motivo em texto (não só `title`) e o atalho que rola até o cartão da parada aberta.
          * O atalho não inicia nada: ele só leva até lá (D6, D18).
          */}
-        {!isFieldWorkBlocked && !canStartRoute.enabled ? (
+        {!areFieldActionsHidden && !canStartRoute.enabled ? (
           <p className={styles.departBlocked} role="status">
             <Icon aria-hidden="true" name="alert" size="sm" />
             <span>
@@ -522,7 +529,7 @@ export function DriverStopCard({
         ) : null}
 
         {/* Spec 206 D18: só existe na parada a caminho, e some assim que o "Cheguei" chega. */}
-        {!isFieldWorkBlocked && isEnRoute && stop.arrivedAt === null ? (
+        {!areFieldActionsHidden && isEnRoute && stop.arrivedAt === null ? (
           isConfirmingCancelDeparture ? (
             <div className={styles.cancelDepartureConfirm} role="alertdialog">
               <p>{t('cancelDeparture.confirmTitle', { sequence: stop.sequence })}</p>
@@ -561,7 +568,9 @@ export function DriverStopCard({
           )
         ) : null}
 
-        {isFieldWorkBlocked ? <p className={styles.stopMeta}>{t('dispatch.waiting')}</p> : null}
+        {isFieldWorkBlocked && !isReadOnly ? (
+          <p className={styles.stopMeta}>{t('dispatch.waiting')}</p>
+        ) : null}
 
         {stopOccurrenceActivity === undefined ? null : (
           <ActivityStatusLine
@@ -583,7 +592,7 @@ export function DriverStopCard({
               canActOnDocuments={canActOnDocuments}
               deliverActivity={deliverActivityByDocumentId.get(document.id)}
               document={document}
-              isFieldWorkBlocked={isFieldWorkBlocked}
+              isFieldWorkBlocked={areFieldActionsHidden}
               isLocationDenied={isLocationDenied}
               isLateRegistration={isLateRegistration}
               key={document.id}
@@ -610,7 +619,7 @@ export function DriverStopCard({
          * só na parada que ainda está travada e tem nota para agir. O aviso reduz a nota do
          * motorista de propósito: é o preço de pular a chegada, não um erro a esconder.
          */}
-        {isFieldWorkBlocked || !offersLateRegistration ? null : isConfirmingLateRegistration ? (
+        {areFieldActionsHidden || !offersLateRegistration ? null : isConfirmingLateRegistration ? (
           <div role="alertdialog">
             <p role="alert">{t('lateRegistration.warning')}</p>
             <div className={styles.actions}>

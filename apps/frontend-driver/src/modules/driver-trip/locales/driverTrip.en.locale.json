@@ -21,6 +21,10 @@
   },
   "deliver": "Delivered",
   "deliveredState": "Delivered",
+  "helperNotice": {
+    "detail": "Here you can see the stops, the invoices and the manifest. Arrival, delivery, return and occurrences are the driver's.",
+    "title": "You are following this trip as a helper"
+  },
   "dispatch": {
     "queued": "Trip start waiting to send — it goes up when the signal is back. You can already log the stops.",
     "failed": "The route could not be started. Tap again.",

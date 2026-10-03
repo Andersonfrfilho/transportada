@@ -107,7 +107,16 @@ export type DriverTripManifest = Readonly<{
   protocol: string
 }>
 
+/** Spec 239 D4: o papel de quem lê na viagem — `helper` acompanha, só `driver` reporta. */
+export const TRIP_CREW_ROLES = ['driver', 'helper'] as const
+export type TripCrewRole = (typeof TRIP_CREW_ROLES)[number]
+
 export type DriverTrip = Readonly<{
+  /**
+   * Spec 239 D4: opcional porque o snapshot guardado no aparelho antes do campo existir não o traz —
+   * ausente equivale a `driver` (`resolveTripCrewRole`).
+   */
+  crewRole?: TripCrewRole
   id: string
   /**
    * Spec 206 D17: `true` quando o snapshot não trouxe `enRouteSince`/`enRouteTappedAt` em NENHUMA

@@ -11,6 +11,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import { DriverBottomBar, type DriverSection } from '../components/DriverBottomBar.component'
 import { DriverForeignPendingNotice } from '../components/DriverForeignPendingNotice.component'
+import { DriverHelperNotice } from '../components/DriverHelperNotice.component'
 import { DriverLoadSheet } from '../components/DriverLoadSheet.component'
 import { DriverLocationSharingIndicator } from '../components/DriverLocationSharingIndicator.component'
 import { DriverManifestCard } from '../components/DriverManifestCard.component'
@@ -38,6 +39,7 @@ import {
   subscribeDriverRoute,
 } from '@/modules/shared/driverRoute.service'
 import { getDriverTripClient } from '../shared/driverTripClient.service'
+import { canReportOnTrip } from '../shared/tripCrewRole.service'
 import { resolveStalePending } from '../shared/stalePending.service'
 import { describeTripSelectorPath } from '../shared/driverTripSelection.service'
 import {
@@ -202,7 +204,9 @@ export function DriverTripWorkspacePage() {
   /** RF12: com duas viagens ativas, a da tela é a escolhida — nunca mais `trips[0]` às cegas. */
   const { autoSwitchedTripId, selectTrip, trip } = useSelectedDriverTrip(snapshot?.trips ?? [])
   /** RF15: roda em qualquer seção, porque o que conta é a app estar na tela, não a aba aberta. */
-  const locationSharingStatus = useLocationSharing(snapshot?.trips ?? [])
+  /** Spec 239 RF-3: o ajudante não reporta, então a posição dele nunca sobe — a API recusaria. */
+  const reportableTrips = (snapshot?.trips ?? []).filter(canReportOnTrip)
+  const locationSharingStatus = useLocationSharing(reportableTrips)
   /** Spec 234 D4d: o cartão da parada avisa antes do "Entreguei" quando a localização está negada. */
   const isLocationDenied = useGeolocationPermission()
   /**
@@ -662,7 +666,8 @@ export function DriverTripWorkspacePage() {
   )
   const isDispatchQueued = dispatchItems.some((item) => item.status.state !== 'rejected')
   const isDispatchRejected = dispatchItems.some((item) => item.status.state === 'rejected')
-  const isTripAwaitingDispatch = trip !== undefined && isAwaitingDispatch(trip) && !isDispatchQueued
+  const isTripAwaitingDispatch =
+    trip !== undefined && canReportOnTrip(trip) && isAwaitingDispatch(trip) && !isDispatchQueued
   const proofPendingCount = listProofPendingDocuments(snapshot).length
   /** Spec 159 (T11): entradas ainda não dispensadas — computado no render, nunca em `useEffect`. */
   const visibleProofOutcomes = [...driverTrip.proofOutcomeByDocumentId].filter(
@@ -741,6 +746,8 @@ export function DriverTripWorkspacePage() {
             })}
           </p>
         )}
+
+        {trip === undefined || canReportOnTrip(trip) ? null : <DriverHelperNotice />}
 
         {trip === undefined ? null : <DriverTripProgress trip={trip} />}
 
@@ -954,6 +961,7 @@ export function DriverTripWorkspacePage() {
                   isFieldWorkBlocked={isTripAwaitingDispatch}
                   isLocationDenied={isLocationDenied}
                   isOpen={stopExpansion.isOpen(stop.id)}
+                  isReadOnly={!canReportOnTrip(trip)}
                   key={stop.id}
                   lastKnownLocation={lastKnownLocation}
                   queueView={driverTrip.queueView}
