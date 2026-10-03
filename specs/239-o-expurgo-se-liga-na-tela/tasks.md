@@ -34,7 +34,7 @@ latitude IS NOT NULL`; `rollback.sql` que recusa com linha; asserção de rollba
       (`bun --env-file=../../.env.test run test:integration`, arquivo novo na lista do `package.json`):
       gravação + `audit_logs` na mesma transação (falha simulada no audit desfaz a gravação), isolamento
       entre duas empresas no `impact`.
-- [ ] **T1.5** Revisão da fase com `code-reviewer` em `opus` (passada separada).
+- [x] **T1.5** Revisão da fase com `code-reviewer` em `opus` (passada separada).
 
 ## Fase 2 — Worker
 
@@ -60,7 +60,7 @@ latitude IS NOT NULL`; `rollback.sql` que recusa com linha; asserção de rollba
 - [x] **T2.3** Remover `TRIP_LOCATION_PURGE_ENABLED` (D3, CA9): schema de ambiente, tipo, `main.ts`,
       `.env.example`, rotina; `disabled-switch.contract.ts` vira "sem empresa elegível" (CA8) contando
       **chamadas** (lista de redatores chamados = `[]`, pings chamados). Mutação no desvio.
-- [ ] **T2.4** Revisão da fase com `code-reviewer` em `opus`.
+- [x] **T2.4** Revisão da fase com `code-reviewer` em `opus`.
 
 ## Fase 3 — Painel
 
@@ -89,7 +89,7 @@ latitude IS NOT NULL`; `rollback.sql` que recusa com linha; asserção de rollba
 - [x] **T4.3** Prettier nos `.md` tocados (`format:check` da raiz cobre `specs/`).
 - [x] **T4.4** Smoke de prints `test/spec-239-prints.smoke.spec.ts` (1280 e 375 px: desligado,
       confirmação, aguardando carência, sem permissão), com a API de demonstração.
-- [ ] **T4.5** **Revisão de design e usabilidade** (web.md §15): comparar com o painel do Comprovante
+- [x] **T4.5** **Revisão de design e usabilidade** (web.md §15): comparar com o painel do Comprovante
       (campo, botão, cartão, selo, estados de foco/desabilitado), contraste nos estados, print enviado ao
       usuário e **ok dele** antes de publicar. Revisão final do código com `code-reviewer` em `opus`.
 - [ ] **T4.6** Publicar em staging na ordem do plano (API+migration → worker → painel), gates verdes,

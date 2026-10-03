@@ -766,3 +766,10 @@ aplicação; o campo agora segue o mesmo critério.
 Gates (`apps/frontend-transportada`): `bun run typecheck` limpo; `bun run lint` 0 erros, 16 avisos pré-existentes
 (`react-hooks/exhaustive-deps` em outros módulos); `bun run test` 6682 pass / 0 fail + 415 pass / 0 fail (hooks); raiz
 `bun run format:check`: "All matched files use Prettier code style!".
+
+## T4.5 e T4.6 — ok do usuário, Gate A e publicação (2026-10-03)
+
+- **Ok de design:** o usuário aprovou o visual da aba “Localização” nos prints (“visual está ótimo”) e autorizou a publicação em staging pela pipeline.
+- **Revisão final (opus):** aprovada com pendências; nada bloqueia o push. Achados 4–14 (rótulo “apagar N” com contagem de agora, advisory lock de 32 bits, `Error` cru, fuso da sessão do worker, rate limit do impact, risco de lock em produção, marcar T1.5/T2.4) ficam como pendências declaradas.
+- **Gate A (feito):** `railway variables --service worker --environment staging|production --kv`, contando só a chave `TRIP_LOCATION_PURGE_ENABLED`: ausente nos dois (58 e 57 variáveis lidas). O deploy não desliga o expurgo de nenhum ambiente.
+- **Gate B:** num push único o painel sobe em paralelo ao worker; o pior caso é a tela dizer “ligado” com o worker antigo (variável desligada) sem apagar nada. Ninguém liga o expurgo em staging antes de o `deploy-services (worker)` estar verde.
