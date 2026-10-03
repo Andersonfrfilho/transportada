@@ -74,7 +74,7 @@ já faz (`listOccurrenceCorrections`, o mapeamento de `cancellation`), em lote �
 > 🤖 Modelo: `sonnet`
 
 - [x] **T4.1** Lista de correções no detalhe: autor, data e o conjunto que passou a valer (RF5, P3).
-- [ ] **T4.2** Contrato de duas correções seguidas, provando que as duas aparecem na ordem certa.
+- [x] **T4.2** Contrato de duas correções seguidas, provando que as duas aparecem na ordem certa.
 
 ## Fase 5 — Fechamento
 

@@ -1176,3 +1176,27 @@ bun run --cwd apps/frontend-transportada test   # 6495 pass, 0 fail (lote princi
 bun run typecheck                               # limpo (raiz)
 cd apps/frontend-transportada && bun run lint   # 0 erros, 16 avisos preexistentes
 ```
+
+## T4.2 — Duas correções seguidas
+
+Mesmo arquivo do T4.1, `describe` próprio: duas correções (Ana às 09:15Z, Bruno às 14:40Z, a mais antiga
+primeiro como a API devolve; `previousItems` e itens atuais sintéticos). O contrato prova pelo texto
+renderizado que as duas aparecem na ordem certa (índice do autor/hora da primeira < o da segunda) e que
+cada uma leva o seu conjunto: a primeira "Passou a valer: 696 · 2 box, 697 · 5 unit" (o `previousItems` da
+segunda), a segunda "Passou a valer: 696 · 3 box, 697 · 5 unit" (os itens atuais). A função pura é afirmada
+em separado.
+
+```bash
+bun run --cwd apps/frontend-transportada test   # 6497 pass, 0 fail (lote principal); test:hooks 354 pass, 0 fail
+bun run typecheck                               # limpo (raiz)
+cd apps/frontend-transportada && bun run lint   # 0 erros, 16 avisos preexistentes
+```
+
+## T3.2 — PARADA (não implementada)
+
+A API não publica a marca de cancelada na **linha do tempo**: nem a da nota/viagem
+(`GET /trips/:id/timeline`, item `document.occurrence`, montado em `trip-timeline-document.query.ts` com
+`occurrence: { attachmentCount, note, typeName }`) nem a da ocorrência (spec 183,
+`trip-occurrence-timeline.query.ts`, eventos `occurrence.recorded|photo`, `case.transition`,
+`contractor.mail.*`). Nenhum dos dois lê `cancelled_at`/`cancellation`. Detalhe e feed já publicam
+`cancellation` (Fase 0.5) — só a linha do tempo falta. Task parada conforme a instrução; nada commitado.
