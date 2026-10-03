@@ -211,7 +211,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
    * `findDeliveryEventId`, nunca a nota (uma nota pode ter mais de uma entrega ao longo do tempo,
    * ainda que rara). A posição é a do evento, nunca o pino da parada (emenda 2026-09-25 da ADR-0070).
    * O quando é `deliveredMomentSql` (spec 234 D3), o mesmo instante que a nota lê. O canal diz se a
-   * entrega é do motorista (spec 234 D4c).
+   * entrega veio do app do motorista (spec 234 D4c).
    */
   public async findDeliveryContext(input: {
     readonly companyId: string

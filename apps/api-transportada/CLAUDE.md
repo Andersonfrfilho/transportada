@@ -518,9 +518,9 @@ foto nunca sai nessas respostas — só motivo, pontos e datas — e cai aos 90 
 ⚠️ **O momento do evento do motorista é `tappedAt + clockOffsetMs`, só com posição e só quando
 `resolveOccurredAt` devolve `corrected`** (spec 234). Relógio ruim (futuro, mais de 30 dias, campo
 faltando) **descarta a correção e NUNCA recusa o evento** — recusar vira `422` e o app deixa o motorista
-descartar a entrega. **Sem posição na entrega, só a entrega do motorista conta como longe, em todo
-cliente** (D4c: `findDeliveryContext.isDeliveryRecordedByDriver`, de `trip_stop_events.channel`
-`driver_app`/`whatsapp`); a baixa do escritório nunca tem posição e não pune. A nota e a pontualidade leem o momento por `deliveredMomentSql`
+descartar a entrega. **Sem posição na entrega, só a entrega do app do motorista conta como longe, em
+todo cliente** (D4c: `findDeliveryContext.isDeliveryRecordedByDriver`, de `trip_stop_events.channel =
+'driver_app'`); a baixa do escritório e a entrega pelo WhatsApp (que não coleta posição) não punem. A nota e a pontualidade leem o momento por `deliveredMomentSql`
 (`database/delivered-moment.support.ts`), nunca por `captured_at ?? recorded_at` solto, e a flag de
 pontualidade nasce de `kind === 'corrected'`, nunca de "o campo veio". Os esquemas `.strict()` exigem
 **API antes do app**: campo novo no app antes de a API aceitar dá `400` em todo relato. Limite antifraude

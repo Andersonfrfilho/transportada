@@ -13,10 +13,10 @@ export { TRIP_FIELD_CHANNELS, type TripFieldChannel }
 export const DEFAULT_TRIP_FIELD_CHANNEL: TripFieldChannel = TRIP_FIELD_CHANNELS.driverApp
 
 /**
- * Spec 234 D4c: os canais em que o próprio motorista registra o evento — o app e o WhatsApp. O
- * escritório (em nome dele) e o backoffice ficam de fora.
+ * Spec 234 D4c: os canais do motorista em que "GPS desligado" pune — só o app, que coleta posição. O
+ * WhatsApp fica de fora porque não coleta (`location: null` fixo); liberá-lo na nota exige rever isto.
+ * Escritório e backoffice nunca têm posição.
  */
 export const DRIVER_FIELD_CHANNELS: ReadonlySet<TripFieldChannel> = new Set([
   TRIP_FIELD_CHANNELS.driverApp,
-  TRIP_FIELD_CHANNELS.whatsapp,
 ])

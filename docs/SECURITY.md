@@ -318,10 +318,12 @@ sinal de gestão, não prova (mesma premissa da spec 159).
 - **Sem posição na entrega o relógio não vale** (D4b): vale o horário de envio e a entrega conta como
   "longe". O mesmo para o evento: relato sem posição não grava `occurred_at` nem `clock_offset_ms`. Fecha
   o furo de forjar `clockOffsetMs: 0` numa entrega sem prova de lugar.
-- **GPS desligado pune em todo cliente** (D4c, decisão do usuário em 2026-10-02): a entrega do motorista
-  (`trip_stop_events.channel` `driver_app`/`whatsapp`) sem posição conta como "longe" mande ou não o
-  desvio. A baixa do escritório (`office`) nunca tem posição e não pune — o canal é gravado pelo servidor
-  a partir da rota, o motorista não o escolhe.
+- **GPS desligado pune em todo cliente** (D4c, decisão do usuário em 2026-10-02): a entrega do app do
+  motorista (`trip_stop_events.channel = 'driver_app'`) sem posição conta como "longe" mande ou não o
+  desvio. A baixa do escritório (`office`) e a entrega pelo WhatsApp (`whatsapp`, que não coleta posição)
+  não punem — o canal é gravado pelo servidor a partir da rota, o motorista não o escolhe. Limite: o
+  WhatsApp é uma via de entrega sem prova de lugar e sem punição; hoje ele não entra na nota (spec 159 T11
+  D2), e liberá-lo exige rever isto.
 - Cliente que **não** manda o desvio segue com o piso antigo de tempo.
 - Com posição na entrega, a foto corrigida só vale se o evento de entrega também foi corrigido (senão a
   entrega é hora crua e a comparação seria entre relógios diferentes); a foto segue a regra antiga.

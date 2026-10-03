@@ -63,9 +63,9 @@ export type ClassifyProofPunctualityParams = {
    */
   readonly hasCorrectedClock?: boolean
   /**
-   * Spec 234 D4c: o evento de entrega foi registrado pelo motorista (app ou WhatsApp), não pelo
-   * escritório. Sem posição, a entrega do motorista conta como longe em todo cliente; a baixa do
-   * escritório nunca tem posição e não pune. Ausente, vale a regra anterior (só a D4b pune).
+   * Spec 234 D4c: o evento de entrega foi registrado pelo app do motorista (o canal que coleta posição).
+   * Sem posição, essa entrega conta como longe em todo cliente; a baixa do escritório e a entrega pelo
+   * WhatsApp nunca têm posição e não punem. Ausente, vale a regra anterior (só a D4b pune).
    */
   readonly isDeliveryRecordedByDriver?: boolean
 }
@@ -127,8 +127,8 @@ function isAway(params: ClassifyProofPunctualityParams): boolean {
 }
 
 /**
- * Spec 234 D4c: a entrega do motorista sem posição é longe (GPS desligado), alegue ou não o relógio
- * corrigido; a do escritório não. Sem o canal, vale a D4b: só o relógio corrigido sem posição pune.
+ * Spec 234 D4c: a entrega do app do motorista sem posição é longe (GPS desligado), alegue ou não o
+ * relógio corrigido; a do escritório e a do WhatsApp não. Sem o canal, vale a D4b: só o relógio corrigido sem posição pune.
  */
 function isDeliveryWithoutPositionAway(params: ClassifyProofPunctualityParams): boolean {
   return params.isDeliveryRecordedByDriver ?? params.hasCorrectedClock === true

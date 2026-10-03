@@ -55,6 +55,10 @@ Medido no código de `origin/staging`:
   isento ("sem posição na entrega a distância não pesa", RF6). Vale só para entrega registrada pelo
   motorista; a baixa pelo escritório (spec 223) nunca tem posição e **não** é punida. Muda a nota de quem
   já está no campo, só para provas anexadas depois da publicação (a pontualidade é gravada no anexo).
+  **O WhatsApp fica de fora** (decisão do coordenador na revisão da T1.8): ele não coleta posição
+  (`location: null` fixo no fluxo do motorista), então "GPS desligado" não se aplica — a entrega por ele
+  segue a regra anterior (só a D4b, se o cliente alegar relógio). Hoje a nota nem lê entrega do WhatsApp
+  (spec 159 T11 D2); liberá-lo na nota exige rever esta regra.
 - **D7 — O desvio sobrevive ao aparelho sem sinal** (decisão do usuário, 2026-10-02). O último desvio medido
   é guardado no aparelho com `measuredAt` e vale por 24 h; passado disso vale "nunca medido" (sem
   campos). O boot offline depois de a aba ser descartada ainda manda o relógio corrigido. A API segue

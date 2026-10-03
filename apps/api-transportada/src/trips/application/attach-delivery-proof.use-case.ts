@@ -135,8 +135,8 @@ export type DeliveryProofPort = {
      */
     readonly isEventClockCorrected?: boolean
     /**
-     * Spec 234 D4c: o evento de entrega veio do motorista (`trip_stop_events.channel`), não do
-     * escritório — sem posição, só a entrega do motorista conta como longe.
+     * Spec 234 D4c: o evento de entrega veio do app do motorista (`trip_stop_events.channel`), o único
+     * canal que coleta posição — sem posição, só essa entrega conta como longe.
      */
     readonly isDeliveryRecordedByDriver?: boolean
   }>

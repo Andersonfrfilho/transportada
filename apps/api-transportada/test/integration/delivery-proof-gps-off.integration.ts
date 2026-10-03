@@ -2,8 +2,8 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 234 D4c contra o Postgres de verdade: o canal gravado em `trip_stop_events.channel` é o que
- * separa a entrega do motorista sem GPS (conta como longe, em todo cliente) da baixa do escritório,
- * que nunca tem posição e não pune. A foto é do app do motorista nos três casos, sem relógio
+ * separa a entrega do app do motorista sem GPS (conta como longe, em todo cliente) da baixa do
+ * escritório e da entrega pelo WhatsApp, que nunca têm posição e não punem por isso. A foto é do app do motorista nos três casos, sem relógio
  * corrigido (cliente antigo), no lugar e 10 min depois do momento da entrega.
  */
 import { describe, expect } from 'bun:test'
@@ -183,17 +183,20 @@ describe('GPS desligado pune em todo cliente, a baixa do escritório não (spec 
     },
   )
 
-  /** O WhatsApp nunca manda posição: a entrega é do motorista, sem prova de lugar. */
-  testWithPostgres('entrega do motorista pelo WhatsApp: a foto pontual vira away', async () => {
+  /**
+   * O WhatsApp não coleta posição (`location: null` fixo): "GPS desligado" não se aplica, e a entrega
+   * por ele segue a regra anterior — a distância sem posição na entrega não pesa.
+   */
+  testWithPostgres('entrega pelo WhatsApp: a foto pontual continua on_time', async () => {
     await withDisposableDatabase(async (database) => {
       const world = await seedWorld(database, AN_HOUR_AGO())
       await deliverAsDriver(world, { channel: TRIP_FIELD_CHANNELS.whatsapp, location: null })
 
       expect(await attachDriverPhotoTenMinutesLater(world)).toEqual({
         channel: 'whatsapp',
-        isDeliveryRecordedByDriver: true,
-        punctuality: 'away',
-        stored: 'away',
+        isDeliveryRecordedByDriver: false,
+        punctuality: 'on_time',
+        stored: 'on_time',
       })
     })
   })
