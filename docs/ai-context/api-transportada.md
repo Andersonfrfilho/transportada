@@ -2376,7 +2376,7 @@ do contexto. `readOccurrenceView` (a resposta das escritas) passou a usar o mesm
   `test/integration/trip-occurrence-correction-read.integration.ts` e
   `test/trip-http/occurrence-detail.contract.ts`.
 
-## Spec 239 — O ajudante fecha as pontas: cobrança, diária geral e papel na resposta
+## Spec 243 — O ajudante fecha as pontas: cobrança, diária geral e papel na resposta
 
 **Arquivos-chave:** cobrança em `delivery-clients/presentation/delivery-charge.routes.ts`, resposta do motorista
 em `trips/presentation/me-trip.routes.ts` e `find-current-driver-trip.use-case.ts`, serializador
@@ -2384,7 +2384,7 @@ em `trips/domain/trip-serializer.service.ts`, repositório em `drizzle-current-d
 Testes: `test/delivery-clients/charge-read-policy.contract.ts` (cobrança, 9 papéis × 2 rotas),
 `test/driver-trip/crew-role.contract.ts` (validação e papel), `test/integration/me-trip.integration.ts` (leitura).
 
-Três decisões (ver ADR-0094): D1 — Cobrança muda de `trip.read` para `trip.financials` (`company-admin`,
+Três decisões (ver ADR-0095): D1 — Cobrança muda de `trip.read` para `trip.financials` (`company-admin`,
 `finance`, `operator` leem; `driver`, `aggregate`, `separator`, `helper` recebem `403`). Sem consumidor de
 campo; fechado `docs/SECURITY.md` 2026-09-18. D2 — Painel tem diária geral do ajudante (painel separado da
 configuração, permissão `fleet.read`/`fleet.manage` da API, não de settings). D3 — `/me/trips/current`

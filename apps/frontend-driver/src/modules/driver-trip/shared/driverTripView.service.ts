@@ -51,7 +51,7 @@ type DispatchStateInput = {
   readonly trip: Pick<DriverTrip, 'crewRole' | 'status'>
 }
 
-/** Spec 239 D1: a espera é fato da viagem (todo papel a vê); despachar é permissão de quem reporta. */
+/** Spec 243 D1: a espera é fato da viagem (todo papel a vê); despachar é permissão de quem reporta. */
 export function resolveDispatchState({ isDispatchQueued = false, trip }: DispatchStateInput): {
   readonly canDispatch: boolean
   readonly isAwaiting: boolean

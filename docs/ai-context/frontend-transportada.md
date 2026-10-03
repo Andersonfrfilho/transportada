@@ -1016,14 +1016,14 @@ cópia por valor das do servidor (`receivingProfile.types.ts`), validadas em `re
 `focusRefusedField.service.ts`, alvo por `data-field`). O selo da lista custa uma leitura de perfil por
 contratante (não há rota em lote). Evidência e prints: `specs/237-.../evidence.md`.
 
-## Spec 239 — O ajudante fecha as pontas
+## Spec 243 — O ajudante fecha as pontas
 
 **Arquivos-chave:** diária geral em `modules/fleet/components/DriverCrewSettingsPanel.component.tsx` e
 `hooks/useCrewSettings.hook.ts`, validação em `modules/fleet/shared/crewSettings.validation.ts`, sem acesso em
 `modules/identity/shared/noWorkspaceAccessVariant.service.ts` e `NoWorkspaceAccess.component.tsx`.
 Testes: `test/fleet/driver-crew-settings-panel.contract.tsx`, `test/identity/no-workspace-access-variant.contract.tsx`.
 
-Duas decisões do painel (ver ADR-0094): D2 — Diária geral do ajudante na aba de motoristas, sem entrada em
+Duas decisões do painel (ver ADR-0095): D2 — Diária geral do ajudante na aba de motoristas, sem entrada em
 `SETTINGS_PANEL_PLACEMENT` (permissão `fleet.read`/`fleet.manage` da API, não de settings, padrão do
 `EnergySettingsPanel`). D5 — Quem tem `trip.read` isolada vê no painel um texto de acompanhamento e botão
 para o app do motorista (quando `VITE_DRIVER_APP_URL` existe).

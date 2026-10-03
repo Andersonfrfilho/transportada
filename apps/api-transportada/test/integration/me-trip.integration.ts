@@ -1257,7 +1257,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
   })
 
   /**
-   * Spec 239 D3: o papel vem da linha de `trip_drivers` de **cada** viagem, na mesma consulta que
+   * Spec 243 D3: o papel vem da linha de `trip_drivers` de **cada** viagem, na mesma consulta que
    * lista as viagens. A mesma pessoa dirige a primeira e acompanha a segunda.
    */
   testWithPostgres('crewRole é o papel da linha da tripulação de cada viagem', async () => {

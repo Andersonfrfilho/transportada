@@ -205,7 +205,7 @@ export function DriverTripWorkspacePage() {
   /** RF12: com duas viagens ativas, a da tela é a escolhida — nunca mais `trips[0]` às cegas. */
   const { autoSwitchedTripId, selectTrip, trip } = useSelectedDriverTrip(snapshot?.trips ?? [])
   /** RF15: roda em qualquer seção, porque o que conta é a app estar na tela, não a aba aberta. */
-  /** Spec 239 RF-3: o ajudante não reporta, então a posição dele nunca sobe — a API recusaria. */
+  /** Spec 243 RF-3: o ajudante não reporta, então a posição dele nunca sobe — a API recusaria. */
   const reportableTrips = (snapshot?.trips ?? []).filter(canReportOnTrip)
   const locationSharingStatus = useLocationSharing(reportableTrips)
   /** Spec 234 D4d: o cartão da parada avisa antes do "Entreguei" quando a localização está negada. */

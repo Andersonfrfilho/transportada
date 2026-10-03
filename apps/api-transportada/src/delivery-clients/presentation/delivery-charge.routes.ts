@@ -37,7 +37,7 @@ const CLIENT_CHARGE_RULES_PATH = `${API_DELIVERY_CLIENTS_PATH}/:id/charge-rules`
 const CLIENT_CHARGE_RULE_PATH = `${CLIENT_CHARGE_RULES_PATH}/:ruleId`
 
 const CHARGE_MANAGE_POLICY = { permission: 'trip.manage', scope: 'company' } as const
-// Spec 239 D1: as leituras devolvem a empresa inteira, sem recorte pelo vínculo — são do escritório
+// Spec 243 D1: as leituras devolvem a empresa inteira, sem recorte pelo vínculo — são do escritório
 const CHARGE_READ_POLICY = { permission: 'trip.financials', scope: 'company' } as const
 
 const AMOUNT_PATTERN = /^[0-9]{1,10}(\.[0-9]{1,4})?$/u

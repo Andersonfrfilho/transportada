@@ -489,7 +489,7 @@ quem não dirige. A decisão pendente abaixo agora vale para os três papéis de
 **O que limita o estrago:** só usuários da própria empresa; cobrança não carrega CPF nem endereço do
 cliente final. Não foi alterado na T15 (fora do escopo das rotas do escritório).
 
-**Fechado em 2026-10-03 (spec 239 T1, D1):** a leitura de cobrança é do **escritório**.
+**Fechado em 2026-10-03 (spec 243 T1, D1):** a leitura de cobrança é do **escritório**.
 `CHARGE_READ_POLICY` passou de `trip.read` para `trip.financials` nas duas rotas
 (`GET /delivery-charges` e `GET /delivery-clients/:id/charge-rules`); as escritas seguem
 `trip.manage`. Leem: `company-admin`, `finance` e `operator` — os mesmos que abrem o workspace

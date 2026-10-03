@@ -97,7 +97,7 @@ async function readSerializedTrips(
   return body.data.trips
 }
 
-describe('a resposta do motorista diz o papel na tripulação, por viagem (spec 239 D3)', () => {
+describe('a resposta do motorista diz o papel na tripulação, por viagem (spec 243 D3)', () => {
   it('o ajudante recebe crewRole helper na viagem que acompanha', async () => {
     const [trip] = await readSerializedTrips([HELPING_TRIP])
 

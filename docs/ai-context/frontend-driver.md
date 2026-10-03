@@ -161,7 +161,7 @@ substitui a evidência de execução.
 - **Preview.** `apps/frontend-driver/scripts/driver-preview-api.ts` (`motorista-api-demo` no `launch.json`)
   guarda o ponto em memória, sem log de coordenada.
 
-## Spec 239 — O ajudante acompanha a viagem
+## Spec 243 — O ajudante acompanha a viagem
 
 **Arquivos-chave:** validação em `modules/driver-trip/shared/driverTripResponse.validation.ts` e
 `tripCrewRole.service.ts`, tipo em `modules/driver-trip/shared/driverTrip.types.ts`, aviso em
@@ -169,7 +169,7 @@ substitui a evidência de execução.
 tela em `pages/DriverTripWorkspace.page.tsx`.
 Testes: `test/driver-trip/helper-crew-role.contract.ts`.
 
-Uma decisão (ver ADR-0094): D3/D4 — `/me/trips/current` devolve `crewRole` por viagem (`'driver'` | `'helper'`);
+Uma decisão (ver ADR-0095): D3/D4 — `/me/trips/current` devolve `crewRole` por viagem (`'driver'` | `'helper'`);
 app recebe o papel, mostra aviso "Você acompanha esta viagem como ajudante" e esconde ações que exigem `trip.report`
 (Cheguei, Iniciar rota, Cancelar rota, Registrar entrega depois, nota, comprovante, ocorrência, despacho). Ficam
 leitura (paradas, navegação, manifesto, romaneio). Ausência de `crewRole` (snapshot antigo no IndexedDB) lê como `driver`.

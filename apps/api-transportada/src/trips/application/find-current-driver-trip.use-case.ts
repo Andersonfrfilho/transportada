@@ -117,7 +117,7 @@ export type DriverTrip = {
   /** Quando a viagem foi aberta — duas viagens do mesmo veículo só se distinguem por isto. */
   readonly createdAt: string
   /**
-   * Spec 239 D3: o papel da pessoa **nesta** viagem (`trip_drivers.role`). A mesma pessoa pode
+   * Spec 243 D3: o papel da pessoa **nesta** viagem (`trip_drivers.role`). A mesma pessoa pode
    * dirigir uma e acompanhar outra; o app esconde do ajudante as ações que a API recusaria.
    */
   readonly crewRole: TripCrewRole

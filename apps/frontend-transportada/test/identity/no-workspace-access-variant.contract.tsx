@@ -20,7 +20,7 @@ function renderScreen(input: Parameters<typeof resolveNoWorkspaceAccessVariant>[
   )
 }
 
-describe('sem acesso com destino (spec 239 T4, D5)', () => {
+describe('sem acesso com destino (spec 243 T4, D5)', () => {
   test('só trip.read vira a variante de acompanhamento, com e sem a URL do app do motorista', () => {
     expect(
       resolveNoWorkspaceAccessVariant({ driverAppUrl: DRIVER_APP_URL, permissions: ['trip.read'] }),

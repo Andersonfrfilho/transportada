@@ -1765,7 +1765,7 @@
   margin: 0;
 }
 
-/* Spec 239 RF-3: o ajudante acompanha — aviso fixo no topo, no tom dos avisos de estado da viagem. */
+/* Spec 243 RF-3: o ajudante acompanha — aviso fixo no topo, no tom dos avisos de estado da viagem. */
 .helperNotice {
   background: color-mix(in srgb, var(--color-copper) 12%, transparent);
   border-left: var(--space-1) solid var(--color-copper);

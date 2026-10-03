@@ -1,4 +1,4 @@
-# Tasks — Spec 239
+# Tasks — Spec 243
 
 Uma task por vez, na ordem. Contrato vermelho antes do código; teste novo entra no `package.json` da app;
 commit isolado e evidência em `evidence.md`. Tela só vai a staging depois de o usuário ver.
@@ -44,8 +44,8 @@ commit isolado e evidência em `evidence.md`. Tela só vai a staging depois de o
 ## Prompt de execução
 
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/239-o-ajudante-fecha-as-pontas/ (leia spec.md, plan.md e
-tasks.md antes de começar). Uma task por vez, na ordem do tasks.md, em branch work/spec-239-ajudante-pontas
+/oh-my-claudecode:autopilot Execute a spec specs/243-o-ajudante-fecha-as-pontas/ (leia spec.md, plan.md e
+tasks.md antes de começar). Uma task por vez, na ordem do tasks.md, em branch work/spec-243-ajudante-pontas
 a partir de origin/staging.
 Modelos: T1 🧠 opus (validar com architect antes) · T2 a T6 executor model=sonnet · T7 🧠 opus ·
 T8 executor model=haiku · revisão final → code-reviewer model=opus.

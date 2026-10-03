@@ -172,7 +172,7 @@ empresa já ajustou, mas que não tem (ou nunca teve) linha correspondente em `t
   fiscal, não reporta entrega (`trip.report` é do campo). ⚠️ `trip.read` **é** pedido por rotas: as
   leituras `/me` do motorista (`me-trip.routes.ts`, recortadas pelo vínculo) e o fluxo de leitura do
   motorista no WhatsApp. `GET /delivery-charges` e `GET /delivery-clients/:id/charge-rules` **não**
-  recortam pelo vínculo e por isso são do escritório: `trip.financials` desde a spec 239 D1 (antes
+  recortam pelo vínculo e por isso são do escritório: `trip.financials` desde a spec 243 D1 (antes
   `trip.read`, achado da spec 156 T15 em `docs/SECURITY.md`; contrato
   `test/delivery-clients/charge-read-policy.contract.ts`). A leitura de viagem da empresa segue em `fleet.read`
   (ou `anyPermission`, abaixo); migrá-la para `trip.read` migra `driver`, `aggregate` e `separator`
@@ -725,9 +725,9 @@ recusam `can_drive = false` como motorista (`409 TRIP_DRIVER_CANNOT_DRIVE`); MDF
 Permissão `trip.read`. Limite: atribuição em lote e papéis de grupo não reconciliam. Detalhe: docs/ai-context
 § "Spec 235 — O ajudante é um perfil" e ADR-0093.
 
-## O ajudante fecha as pontas (spec 239)
+## O ajudante fecha as pontas (spec 243)
 
-Três mudanças: D1 — Cobrança muda de `trip.read` para `trip.financials` (`company-admin`, `finance`, `operator` leem; `driver`, `aggregate`, `separator`, `helper` recebem `403`; achado BOLA fechado em `docs/SECURITY.md`). D2 — Painel tem diária geral (separado de settings, permissão `fleet.read`/`fleet.manage` da API). D3 — `/me/trips/current` devolve `crewRole` por viagem (`'driver'` | `'helper'`, do `trip_drivers.role`); ausência lê como `driver`. Detalhe: docs/ai-context § "Spec 239" e ADR-0094.
+Três mudanças: D1 — Cobrança muda de `trip.read` para `trip.financials` (`company-admin`, `finance`, `operator` leem; `driver`, `aggregate`, `separator`, `helper` recebem `403`; achado BOLA fechado em `docs/SECURITY.md`). D2 — Painel tem diária geral (separado de settings, permissão `fleet.read`/`fleet.manage` da API). D3 — `/me/trips/current` devolve `crewRole` por viagem (`'driver'` | `'helper'`, do `trip_drivers.role`); ausência lê como `driver`. Detalhe: docs/ai-context § "Spec 243" e ADR-0095.
 
 ## Todo toque do motorista carimba onde aconteceu (spec 196, ADR-0081)
 

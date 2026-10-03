@@ -123,7 +123,7 @@ describe('helper role contract', () => {
   })
 
   // `trip.read` abre a leitura do app do motorista; nenhuma rota de escrita, de frota ou de gestão.
-  // Spec 239 D1: a cobrança de entrega (`/delivery-charges`, `/charge-rules`) é `trip.financials`.
+  // Spec 243 D1: a cobrança de entrega (`/delivery-charges`, `/charge-rules`) é `trip.financials`.
   test('reaches only read routes of the driver app', () => {
     expect(reachableRoutes(['helper'])).toEqual([
       'GET /me/trips/current',

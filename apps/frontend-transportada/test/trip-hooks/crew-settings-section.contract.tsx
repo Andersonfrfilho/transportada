@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * A montagem da diária geral do ajudante na aba de motoristas (spec 239 T3 + revisão): a consulta só
+ * A montagem da diária geral do ajudante na aba de motoristas (spec 243 T3 + revisão): a consulta só
  * liga com `fleet.read` e na aba de motoristas, o "salvo" não fica preso depois de nova edição e a
  * falha de leitura se refaz sem recarregar a página. Roda com DOM (`test:hooks`).
  */
@@ -98,7 +98,7 @@ async function click(button: HTMLButtonElement): Promise<void> {
   await settle()
 }
 
-describe('a diária geral na aba de motoristas (spec 239)', () => {
+describe('a diária geral na aba de motoristas (spec 243)', () => {
   it('com fleet.read e a aba de motoristas ativa, consulta e mostra o painel', async () => {
     const client = createFakeClient()
     await mount({ canRead: true, client, isActive: true })

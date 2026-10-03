@@ -1,4 +1,4 @@
-# Evidence — Spec 239
+# Evidence — Spec 243
 
 ## T1 — Cobrança é do escritório (D1)
 
@@ -228,7 +228,7 @@ chave `driverIdentityLegendHelper` ("Identificação do ajudante" / "Helper iden
 endereço (conferido: nenhuma referência), então só a legenda mudou. Na edição a decisão vem da ficha
 carregada (`canDrive`), como o resto da ficha — o estado do formulário já nasce dela.
 
-**Contrato** (`test/fleet/driver-helper-fields.contract.tsx`, bloco "spec 239 T5 A7"): ficha com `canDrive`
+**Contrato** (`test/fleet/driver-helper-fields.contract.tsx`, bloco "spec 243 T5 A7"): ficha com `canDrive`
 falso mostra a legenda do ajudante e não mostra a de motorista nem a do agregado; ficha de quem dirige segue
 igual; legenda nos dois idiomas; o diálogo usa a mesma troca e não monta o endereço. Dois contratos
 existentes foram atualizados por mudança legítima de estrutura: `driver-form-parity.contract.ts` (o texto da
@@ -308,37 +308,37 @@ de motorista; a de quem dirige, o contrário; texto nos dois idiomas. **Vermelho
 
 **O que entrou:**
 
-1. **ADR-0094** — "A cobrança é do escritório, e o ajudante acompanha" (próximo número livre em `origin/staging`
+1. **ADR-0095** — "A cobrança é do escritório, e o ajudante acompanha" (próximo número livre em `origin/staging`
    após o 0093). Contexto, decisões D1-D5, consequências, alternativas descartadas, e revisão da seção 5 do
    ADR-0093 com nota apontando para o novo ADR.
 
-2. **docs/ai-context/api-transportada.md** — Seção "Spec 239 — O ajudante fecha as pontas: cobrança, diária geral
+2. **docs/ai-context/api-transportada.md** — Seção "Spec 243 — O ajudante fecha as pontas: cobrança, diária geral
    e papel na resposta" com arquivos-chave (rotas, casos de uso, repositórios, testes) e pegadinhas (permissão
    `trip.financials` é nova, lacuna HELPER_DAILY_RATE_MISSING persiste).
 
-3. **docs/ai-context/frontend-transportada.md** — Seção "Spec 239 — O ajudante fecha as pontas" com painel de diária,
+3. **docs/ai-context/frontend-transportada.md** — Seção "Spec 243 — O ajudante fecha as pontas" com painel de diária,
    variante de sem acesso, validação, e conversão de escalas (180,00 ↔ 180.0000).
 
-4. **docs/ai-context/frontend-driver.md** — Seção "Spec 239 — O ajudante acompanha a viagem" com tipo `crewRole`,
+4. **docs/ai-context/frontend-driver.md** — Seção "Spec 243 — O ajudante acompanha a viagem" com tipo `crewRole`,
    aviso, ações escondidas, e pegadinha de fotos pendentes sem filtro de papel.
 
-5. **apps/api-transportada/CLAUDE.md** — Seção "O ajudante fecha as pontas (spec 239)" com as três decisões e
-   referências ao ADR-0094 e docs/ai-context.
+5. **apps/api-transportada/CLAUDE.md** — Seção "O ajudante fecha as pontas (spec 243)" com as três decisões e
+   referências ao ADR-0095 e docs/ai-context.
 
-6. **apps/frontend-transportada/CLAUDE.md** — Seção "O ajudante fecha as pontas (spec 239)" com painel de diária,
+6. **apps/frontend-transportada/CLAUDE.md** — Seção "O ajudante fecha as pontas (spec 243)" com painel de diária,
    variante de acompanhamento, contrato. Corrigida seção "O menu mostra só o que a pessoa pode abrir": cobrança
    agora lê com `trip.financials` (era `trip.read`, achado BOLA).
 
-7. **apps/frontend-driver/CLAUDE.md** — Seção "O ajudante acompanha a viagem (spec 239)" com `crewRole`, aviso e
+7. **apps/frontend-driver/CLAUDE.md** — Seção "O ajudante acompanha a viagem (spec 243)" com `crewRole`, aviso e
    contrato, incluindo a pegadinha da fila offline.
 
 8. **specs/235-o-ajudante-e-um-perfil/spec.md** — Nota ao fim de "Fora do escopo": "Pontas abertas: cinco questões
-   deixadas em aberto aqui foram fechadas pela spec 239 e o ADR-0094."
+   deixadas em aberto aqui foram fechadas pela spec 243 e o ADR-0095."
 
 **Verificação:** prettier rodado nos .md tocados (`bunx prettier --write` e `bunx prettier --check`);
 todos os arquivos em compliance; nenhuma linha acima de 100 caracteres.
 
-## Correções da revisão final (spec 239)
+## Correções da revisão final (spec 243)
 
 Nove itens da revisão final, um commit por item, contrato vermelho antes do código e prova por mutação
 (correção arrancada, vermelho visto, restaurada e conferida com `cmp`).

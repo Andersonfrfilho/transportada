@@ -88,7 +88,7 @@ describe('o papel Ajudante em Acesso (spec 235 T10)', () => {
     expect(
       resolveLandingWorkspace({ ...helper, current: 'nfe', hasLanded: false, source: 'default' }),
     ).toEqual({ kind: 'no-access' })
-    // Spec 239 D5: o landing segue 'no-access'; a tela é que diz que a conta acompanha viagens.
+    // Spec 243 D5: o landing segue 'no-access'; a tela é que diz que a conta acompanha viagens.
     expect(
       resolveNoWorkspaceAccessVariant({ driverAppUrl: undefined, permissions: helper.permissions }),
     ).toEqual({ kind: 'tracking' })

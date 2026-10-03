@@ -21,7 +21,7 @@ const LIST_CHARGES = 'GET /delivery-charges'
 const LIST_CHARGE_RULES = 'GET /delivery-clients/:id/charge-rules'
 
 /**
- * Spec 239 D1: a cobrança de entrega é leitura do **escritório** (`trip.financials`). As duas rotas
+ * Spec 243 D1: a cobrança de entrega é leitura do **escritório** (`trip.financials`). As duas rotas
  * devolvem a empresa inteira, sem recorte pelo vínculo — com `trip.read`, motorista, agregado,
  * separador e ajudante liam as cobranças de todo mundo (`docs/SECURITY.md`, 2026-09-18).
  *
@@ -87,7 +87,7 @@ function authorizeRoute(input: {
   }
 }
 
-describe('leitura da cobrança de entrega é do escritório (spec 239 D1)', () => {
+describe('leitura da cobrança de entrega é do escritório (spec 243 D1)', () => {
   for (const route of [LIST_CHARGES, LIST_CHARGE_RULES]) {
     for (const role of OFFICE_READERS) {
       test(`${role} lê ${route}`, () => {

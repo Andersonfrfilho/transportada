@@ -70,7 +70,7 @@ de condutores **não** inclui quem não dirige (D5).
 O papel `helper` em `COMPANY_ROLE_PERMISSIONS` recebe só `['trip.read']` — menos que `driver`/`aggregate`
 que têm `trip.report` (D7). No app do motorista ele lê a viagem, mas não reporta entrega nem comprovante.
 Nenhum workspace do painel abre com `trip.read` isolada (decisão de produto fora da spec: qual app o
-ajudante usa). **Ver ADR-0094 D1: a leitura de cobrança mudou de `trip.read` para `trip.financials`**
+ajudante usa). **Ver ADR-0095 D1: a leitura de cobrança mudou de `trip.read` para `trip.financials`**
 — o ajudante recebe `403` em `GET /delivery-charges` e `GET /delivery-clients/:id/charge-rules`.
 
 ### 6. Convite com ajudante: ficha pelo CPF

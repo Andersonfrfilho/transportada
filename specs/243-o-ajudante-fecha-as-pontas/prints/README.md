@@ -1,6 +1,6 @@
-# Spec 239 — T7: prints da revisão de design (rodada 3, contra o HEAD `27064d544`)
+# Spec 243 — T7: prints da revisão de design (rodada 3, contra o HEAD `27064d544`)
 
-Refeitos em 2026-10-03 no worktree `busy-jang-2057c9` (branch `work/spec-239-ajudante-pontas`), depois das
+Refeitos em 2026-10-03 no worktree `busy-jang-2057c9` (branch `work/spec-243-ajudante-pontas`), depois das
 correções da revisão final. Na rodada 3 foram regenerados só as telas 15 a 18, 22 e 23 (correções D1 e N1). Todos os dados são fictícios. Substituem os 68 PNGs da rodada anterior.
 
 Cada tela tem quatro arquivos: `375` (celular, `deviceScaleFactor` 2) e `1280` (desktop), cada um em `escuro`

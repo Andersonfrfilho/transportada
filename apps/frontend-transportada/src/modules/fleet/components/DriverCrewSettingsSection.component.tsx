@@ -10,7 +10,7 @@ type DriverCrewSettingsSectionProps = Readonly<{
   companyId?: string
 }>
 
-/** Spec 239 D2: a permissão é a da API (`fleet.read` lê, `fleet.manage` grava) e a consulta só sobe na aba dela. */
+/** Spec 243 D2: a permissão é a da API (`fleet.read` lê, `fleet.manage` grava) e a consulta só sobe na aba dela. */
 export function DriverCrewSettingsSection(props: DriverCrewSettingsSectionProps) {
   const crewSettings = useCrewSettings({
     ...(props.client === undefined ? {} : { client: props.client }),

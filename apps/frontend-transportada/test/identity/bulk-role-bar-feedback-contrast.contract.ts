@@ -43,7 +43,7 @@ function resolveToken(name: string, tokens: ReadonlyMap<string, string>): string
   return value
 }
 
-describe('o alerta da barra de papéis em lote tem contraste de texto (spec 239 N1)', () => {
+describe('o alerta da barra de papéis em lote tem contraste de texto (spec 243 N1)', () => {
   test('texto 13,6 px sobre o fundo do `.feedback`: 4,5:1 ou mais nos dois temas', async () => {
     const styles = await readApplicationFile(
       'src/modules/identity/styles/userAdministration.module.css',

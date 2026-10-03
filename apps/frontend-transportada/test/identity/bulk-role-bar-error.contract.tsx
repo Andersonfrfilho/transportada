@@ -39,7 +39,7 @@ function renderBar(errorCode?: string): string {
   )
 }
 
-describe('barra de papéis em lote mostra a falha da atribuição (spec 239 A3)', () => {
+describe('barra de papéis em lote mostra a falha da atribuição (spec 243 A3)', () => {
   test('com código conhecido, o alerta traz a mensagem do código', () => {
     const html = renderBar('COMPANY_USER_NOT_FOUND')
 

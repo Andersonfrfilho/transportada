@@ -8,7 +8,7 @@ export type NoWorkspaceAccessVariant =
   | Readonly<{ kind: 'default' }>
 
 /**
- * Spec 239 D5: quem chega à tela de "sem acesso" com `trip.read` tem uma permissão, e a frase de
+ * Spec 243 D5: quem chega à tela de "sem acesso" com `trip.read` tem uma permissão, e a frase de
  * "nenhuma permissão foi atribuída" seria falsa. O destino é o app do motorista, quando existe.
  */
 export function resolveNoWorkspaceAccessVariant(

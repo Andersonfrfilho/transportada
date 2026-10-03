@@ -66,7 +66,7 @@ function renderPanel(overrides: Partial<Parameters<typeof DriverCrewSettingsPane
   )
 }
 
-describe('diária geral do ajudante (spec 239 T3)', () => {
+describe('diária geral do ajudante (spec 243 T3)', () => {
   it('traduz cada rótulo do painel nos dois catálogos', () => {
     for (const locale of [ptLocale, enLocale]) {
       const crewSettings = (locale as Record<string, unknown>)['crewSettings'] as Record<

@@ -206,7 +206,7 @@ describe('o ajudante puro tem uma diária só (spec 235 A2)', () => {
   })
 })
 
-describe('o ajudante não vê texto de motorista nem de agregado (spec 239 T5 A7)', () => {
+describe('o ajudante não vê texto de motorista nem de agregado (spec 243 T5 A7)', () => {
   it('a legenda diz "Identificação do ajudante" e o endereço da empresa do agregado some', () => {
     const html = renderForm(driverDetail({ canDrive: false, canActAsHelper: true }))
 
@@ -303,7 +303,7 @@ describe('a lista de motoristas marca quem só ajuda (spec 235 T9)', () => {
   })
 })
 
-describe('a ficha do ajudante puro fala dele e não traz o que é de motorista (spec 239 B1)', () => {
+describe('a ficha do ajudante puro fala dele e não traz o que é de motorista (spec 243 B1)', () => {
   it('o endereço e a legenda da ficha são do ajudante, com a variante nos dois idiomas', () => {
     const helperOnly = renderForm(driverDetail({ canDrive: false, canActAsHelper: true }))
     const driving = renderForm(driverDetail({ canDrive: true }))

@@ -5,7 +5,7 @@ import { Icon } from '@/components/ui/icon'
 
 import styles from '../styles/driverTrip.module.css'
 
-/** Spec 239 RF-3: o ajudante lê a viagem; o aviso diz por que as ações do motorista não estão ali. */
+/** Spec 243 RF-3: o ajudante lê a viagem; o aviso diz por que as ações do motorista não estão ali. */
 export function DriverHelperNotice() {
   const { t } = useTranslation('driverTrip')
 

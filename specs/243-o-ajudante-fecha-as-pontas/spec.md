@@ -1,4 +1,4 @@
-# Spec 239 — O ajudante fecha as pontas: cobrança fechada ao campo, diária geral na tela, login com destino
+# Spec 243 — O ajudante fecha as pontas: cobrança fechada ao campo, diária geral na tela, login com destino
 
 > 🤖 Modelo: `opus` 🧠 (autorização da cobrança, papel na resposta do motorista) · `sonnet` (painel, app do
 > motorista, correções) · `haiku` (documentação)

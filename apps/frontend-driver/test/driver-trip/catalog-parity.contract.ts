@@ -64,7 +64,7 @@ describe('as listas fechadas do campo', () => {
     )
   })
 
-  /** Spec 239 D4: papel novo na API sem o app saber vira `helper` (somente leitura) — melhor avisar aqui. */
+  /** Spec 243 D4: papel novo na API sem o app saber vira `helper` (somente leitura) — melhor avisar aqui. */
   it('os papéis da tripulação são os mesmos da API', async () => {
     expect<readonly string[]>([...TRIP_CREW_ROLES]).toEqual(
       await readStringList(API_CREW_ROLE_SOURCE, 'TRIP_CREW_ROLES'),

@@ -1,9 +1,9 @@
-# ADR 0094 — A cobrança é do escritório, e o ajudante acompanha
+# ADR 0095 — A cobrança é do escritório, e o ajudante acompanha
 
 - **Status:** aceita
 - **Data:** 2026-10-03
-- **Nasce da spec 239**
-- **Citações:** spec 239, ADR-0065, ADR-0093
+- **Nasce da spec 243**
+- **Citações:** spec 243, ADR-0065, ADR-0093
 
 ## Contexto
 
@@ -95,5 +95,5 @@ existe) abre o app. Sem `trip.read`, segue o texto atual ("Nenhuma permissão fo
 
 ## Revisão da seção 5 do ADR-0093
 
-Ver **ADR-0094 D1** para a política de cobrança: a leitura mudou de `trip.read` para `trip.financials`.
+Ver **ADR-0095 D1** para a política de cobrança: a leitura mudou de `trip.read` para `trip.financials`.
 O papel `helper` continua com permissão `['trip.read']` isolada — lê a viagem, não a cobrança ou relatório.

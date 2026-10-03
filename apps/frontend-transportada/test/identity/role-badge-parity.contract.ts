@@ -36,7 +36,7 @@ function readDeclarations(selector: string): ReadonlyMap<string, string> {
   )
 }
 
-describe('o papel com ficha lê como a etiqueta do papel (spec 239 T5 A6)', () => {
+describe('o papel com ficha lê como a etiqueta do papel (spec 243 T5 A6)', () => {
   const badge = readDeclarations('.badge')
   const link = readDeclarations('button.roleLink')
 

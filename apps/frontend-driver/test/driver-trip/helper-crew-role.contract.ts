@@ -53,7 +53,7 @@ function parseTrip(trip: Record<string, unknown>) {
   return snapshot.trips[0]
 }
 
-describe('a viagem sabe o papel de quem a lê (spec 239 D4)', () => {
+describe('a viagem sabe o papel de quem a lê (spec 243 D4)', () => {
   it('helper e driver atravessam a validação como vieram da API', () => {
     expect(parseTrip({ ...TRIP, crewRole: 'helper' })?.crewRole).toBe('helper')
     expect(parseTrip({ ...TRIP, crewRole: 'driver' })?.crewRole).toBe('driver')
@@ -181,7 +181,7 @@ function renderCard(input: {
   )
 }
 
-describe('o ajudante acompanha, não opera (spec 239 RF-3)', () => {
+describe('o ajudante acompanha, não opera (spec 243 RF-3)', () => {
   it('motorista: o cartão traz as ações de campo (Entreguei, Não entreguei, ocorrência)', async () => {
     await i18n.changeLanguage('pt-BR')
 
@@ -217,7 +217,7 @@ describe('o ajudante acompanha, não opera (spec 239 RF-3)', () => {
   })
 })
 
-describe('o ajudante vê o estado de cada nota, sem as ações (spec 239 revisão)', () => {
+describe('o ajudante vê o estado de cada nota, sem as ações (spec 243 revisão)', () => {
   const DELIVERED_AT = '2026-10-03T12:30:00.000Z'
   const delivered = buildDocument({
     deliveredAt: DELIVERED_AT,
@@ -271,7 +271,7 @@ describe('o ajudante vê o estado de cada nota, sem as ações (spec 239 revisã
   })
 })
 
-describe('a espera do despacho é fato da viagem; despachar é permissão do papel (spec 239 D1)', () => {
+describe('a espera do despacho é fato da viagem; despachar é permissão do papel (spec 243 D1)', () => {
   const planned = { status: 'route_planned' as const }
 
   it('ajudante em viagem não despachada: aguardando sim, despachar não', () => {
@@ -331,7 +331,7 @@ describe('a espera do despacho é fato da viagem; despachar é permissão do pap
   })
 })
 
-describe('o aviso fixo do ajudante (spec 239 RF-3)', () => {
+describe('o aviso fixo do ajudante (spec 243 RF-3)', () => {
   it('é um status anunciado e diz que ele acompanha como ajudante, nos dois idiomas', async () => {
     await i18n.changeLanguage('pt-BR')
     const pt = renderToStaticMarkup(createElement(DriverHelperNotice))
@@ -352,7 +352,7 @@ describe('o aviso fixo do ajudante (spec 239 RF-3)', () => {
   })
 })
 
-describe('a tela da viagem não oferece nem enfileira nada ao ajudante (spec 239 RF-3)', () => {
+describe('a tela da viagem não oferece nem enfileira nada ao ajudante (spec 243 RF-3)', () => {
   it('o aviso monta só para o ajudante, e o cartão recebe o modo de leitura', () => {
     expect(WORKSPACE).toContain('<DriverHelperNotice />')
     expect(WORKSPACE).toContain('isReadOnly={!canReportOnTrip(trip)}')
@@ -368,7 +368,7 @@ describe('a tela da viagem não oferece nem enfileira nada ao ajudante (spec 239
  * antiga, item gravado antes do papel mudar): o 403 é recusa do servidor — sai da fila como
  * "recusado", visível, e nunca é reenviado.
  */
-describe('um 403 na fila é recusa, nunca nova tentativa (spec 239 RF-3)', () => {
+describe('um 403 na fila é recusa, nunca nova tentativa (spec 243 RF-3)', () => {
   it('o 403 vira `rejected` com a causa, não `failed-network`', () => {
     const error = new DriverTripRequestError({
       code: 'FORBIDDEN',

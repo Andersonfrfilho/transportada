@@ -21,7 +21,7 @@ function readDeclarations(selector: string): ReadonlyMap<string, string> {
   return declarations
 }
 
-describe('a mensagem de erro do painel quebra o código comprido (spec 239 B2)', () => {
+describe('a mensagem de erro do painel quebra o código comprido (spec 243 B2)', () => {
   it('.fuelPriceStatusError aceita quebra em qualquer ponto, para o código da API não alargar a aba', () => {
     expect(readDeclarations('.fuelPriceStatusError').get('overflow-wrap')).toBe('anywhere')
   })

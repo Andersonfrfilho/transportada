@@ -176,7 +176,7 @@ type DriverStopCardProps = Readonly<{
    */
   isFieldWorkBlocked: boolean
   /**
-   * Spec 239 RF-3: o ajudante acompanha a viagem, não reporta — a API recusa (`trip.report`) todo
+   * Spec 243 RF-3: o ajudante acompanha a viagem, não reporta — a API recusa (`trip.report`) todo
    * toque de campo dele, então o cartão fica só de leitura e nada chega à fila.
    */
   isReadOnly?: boolean
@@ -663,7 +663,7 @@ type DocumentRowProps = Readonly<{
   document: DriverTripDocument
   isFieldWorkBlocked: boolean
   isLocationDenied: boolean
-  /** Spec 239: ajudante — mantém o estado e a hora da nota e esconde só as ações. */
+  /** Spec 243: ajudante — mantém o estado e a hora da nota e esconde só as ações. */
   isReadOnly: boolean
   /** Pedido do usuário (25/09): carimba `lateRegistration` no deliver/return/proof desta parada. */
   isLateRegistration: boolean

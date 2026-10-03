@@ -246,7 +246,7 @@ function toPendingProofs(value: unknown): readonly PendingProofDocument[] {
   return value.map(toPendingProof).filter((item): item is PendingProofDocument => item !== null)
 }
 
-/** Spec 239 D4: ausente (snapshot anterior) vale `driver`; papel desconhecido degrada para leitura, nunca para `driver`. */
+/** Spec 243 D4: ausente (snapshot anterior) vale `driver`; papel desconhecido degrada para leitura, nunca para `driver`. */
 function readCrewRole(value: unknown): TripCrewRole {
   if (value === undefined) return DEFAULT_TRIP_CREW_ROLE
   return TRIP_CREW_ROLES.find((known) => known === value) ?? 'helper'
