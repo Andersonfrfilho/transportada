@@ -568,9 +568,7 @@ export function DriverStopCard({
           )
         ) : null}
 
-        {isFieldWorkBlocked && !isReadOnly ? (
-          <p className={styles.stopMeta}>{t('dispatch.waiting')}</p>
-        ) : null}
+        {isFieldWorkBlocked ? <p className={styles.stopMeta}>{t('dispatch.waiting')}</p> : null}
 
         {stopOccurrenceActivity === undefined ? null : (
           <ActivityStatusLine
@@ -592,7 +590,8 @@ export function DriverStopCard({
               canActOnDocuments={canActOnDocuments}
               deliverActivity={deliverActivityByDocumentId.get(document.id)}
               document={document}
-              isFieldWorkBlocked={areFieldActionsHidden}
+              isFieldWorkBlocked={isFieldWorkBlocked}
+              isReadOnly={isReadOnly}
               isLocationDenied={isLocationDenied}
               isLateRegistration={isLateRegistration}
               key={document.id}
@@ -664,6 +663,8 @@ type DocumentRowProps = Readonly<{
   document: DriverTripDocument
   isFieldWorkBlocked: boolean
   isLocationDenied: boolean
+  /** Spec 239: ajudante — mantém o estado e a hora da nota e esconde só as ações. */
+  isReadOnly: boolean
   /** Pedido do usuário (25/09): carimba `lateRegistration` no deliver/return/proof desta parada. */
   isLateRegistration: boolean
   notDeliveredStatus: NotDeliveredStatus | undefined
@@ -693,6 +694,20 @@ type DocumentRowProps = Readonly<{
   stop: DriverTripStop
 }>
 
+function DocumentSettledState({ document }: Readonly<{ document: DriverTripDocument }>) {
+  const { t } = useTranslation('driverTrip')
+
+  return (
+    <span>
+      {document.separationStatus === 'delivered'
+        ? document.deliveredAt === null
+          ? t('deliveredState')
+          : t('activity.delivered', { time: formatActivityTime(document.deliveredAt) })
+        : t(`returnReason.${document.returnReason ?? 'recipient_absent'}`)}
+    </span>
+  )
+}
+
 function DocumentRow({
   canActOnDocuments,
   deliverActivity,
@@ -700,6 +715,7 @@ function DocumentRow({
   isFieldWorkBlocked,
   isLateRegistration,
   isLocationDenied,
+  isReadOnly,
   notDeliveredStatus,
   occurrenceHandlers,
   occurrenceTypes,
@@ -729,6 +745,20 @@ function DocumentRow({
     onDeliver({ documentId: document.id, lateRegistration: isLateRegistration })
   }
 
+  if (isReadOnly) {
+    return isDocumentSettled(document) ? (
+      <li className={`${styles.document} ${styles.documentSettled}`}>
+        <DocumentDetails document={document} />
+        <DocumentSettledState document={document} />
+        <DriverNotDeliveredStatus status={notDeliveredStatus} />
+      </li>
+    ) : (
+      <li className={styles.document}>
+        <DocumentDetails document={document} />
+      </li>
+    )
+  }
+
   if (isFieldWorkBlocked) {
     return (
       <li className={styles.document}>
@@ -753,13 +783,7 @@ function DocumentRow({
     return (
       <li className={`${styles.document} ${styles.documentSettled}`}>
         <DocumentDetails document={document} />
-        <span>
-          {document.separationStatus === 'delivered'
-            ? document.deliveredAt === null
-              ? t('deliveredState')
-              : t('activity.delivered', { time: formatActivityTime(document.deliveredAt) })
-            : t(`returnReason.${document.returnReason ?? 'recipient_absent'}`)}
-        </span>
+        <DocumentSettledState document={document} />
         <DriverNotDeliveredStatus status={notDeliveredStatus} />
         <div className={styles.actions}>
           <DocumentOccurrenceButton

@@ -18,6 +18,7 @@ import type {
   DriverTripDocument,
   DriverTripStop,
 } from '../../src/modules/driver-trip/shared/driverTrip.types'
+import { formatActivityTime } from '../../src/modules/driver-trip/shared/documentActivity.service'
 import {
   drainQueue,
   type OfflineQueueStore,
@@ -96,7 +97,7 @@ describe('a viagem sabe o papel de quem a lê (spec 239 D4)', () => {
   })
 })
 
-function buildDocument(): DriverTripDocument {
+function buildDocument(overrides: Partial<DriverTripDocument> = {}): DriverTripDocument {
   return {
     accessKey: '0'.repeat(44),
     deliveredAt: null,
@@ -114,17 +115,18 @@ function buildDocument(): DriverTripDocument {
     series: '1',
     totalAmount: '100.00',
     volumeCount: '1',
+    ...overrides,
   }
 }
 
-function buildStop(hasArrived: boolean): DriverTripStop {
+function buildStop(hasArrived: boolean, documents: readonly DriverTripDocument[]): DriverTripStop {
   return {
     arrivedAt: hasArrived ? '2026-10-03T10:00:00.000Z' : null,
     completedAt: null,
     deliveryProof: null,
     deliveryWindowEnd: null,
     deliveryWindowStart: null,
-    documents: [buildDocument()],
+    documents,
     id: 'stop-1',
     label: 'Rua das Entregas, 100',
     latitude: null,
@@ -134,7 +136,12 @@ function buildStop(hasArrived: boolean): DriverTripStop {
   }
 }
 
-function renderCard(input: { readonly hasArrived?: boolean; readonly isReadOnly?: boolean }) {
+function renderCard(input: {
+  readonly documents?: readonly DriverTripDocument[]
+  readonly hasArrived?: boolean
+  readonly isFieldWorkBlocked?: boolean
+  readonly isReadOnly?: boolean
+}) {
   const noop = () => undefined
   return renderToStaticMarkup(
     createElement(DriverStopCard, {
@@ -143,7 +150,7 @@ function renderCard(input: { readonly hasArrived?: boolean; readonly isReadOnly?
       deliverActivityByDocumentId: new Map<string, never>(),
       isCurrent: true,
       isEnRoute: false,
-      isFieldWorkBlocked: false,
+      isFieldWorkBlocked: input.isFieldWorkBlocked ?? false,
       isLocationDenied: false,
       ...(input.isReadOnly === undefined ? {} : { isReadOnly: input.isReadOnly }),
       isOpen: true,
@@ -166,7 +173,7 @@ function renderCard(input: { readonly hasArrived?: boolean; readonly isReadOnly?
       queueView: [],
       returnActivityByDocumentId: new Map<string, never>(),
       sentReportKeys: new Set<string>(),
-      stop: buildStop(input.hasArrived ?? true),
+      stop: buildStop(input.hasArrived ?? true, input.documents ?? [buildDocument()]),
       stopOccurrenceActivity: undefined,
       tappedReports: [],
     }),
@@ -206,6 +213,60 @@ describe('o ajudante acompanha, não opera (spec 239 RF-3)', () => {
     expect(html).toContain('Rua das Entregas, 100')
     expect(html).toContain('1001')
     expect(html).toContain('Navegar')
+  })
+})
+
+describe('o ajudante vê o estado de cada nota, sem as ações (spec 239 revisão)', () => {
+  const DELIVERED_AT = '2026-10-03T12:30:00.000Z'
+  const delivered = buildDocument({
+    deliveredAt: DELIVERED_AT,
+    id: 'document-delivered',
+    number: '2001',
+    separationStatus: 'delivered',
+  })
+  const returned = buildDocument({
+    id: 'document-returned',
+    number: '3001',
+    returnReason: 'recipient_absent',
+    separationStatus: 'returned',
+  })
+  const pending = buildDocument({ id: 'document-pending', number: '4001' })
+
+  it('nota entregue mostra o selo com a hora, e nota devolvida o motivo, sem nenhuma ação', async () => {
+    await i18n.changeLanguage('pt-BR')
+
+    const html = renderCard({ documents: [delivered, returned], isReadOnly: true })
+
+    expect(html).toContain(`Entregue às ${formatActivityTime(DELIVERED_AT)}`)
+    expect(html).toContain('Ausente')
+    expect(html).not.toMatch(/Ocorrência|Deu problema|Entreguei|Não entreguei/u)
+    expect(html).not.toContain('type="file"')
+  })
+
+  it('nota pendente mostra só os dados, sem botões de ação', async () => {
+    await i18n.changeLanguage('pt-BR')
+
+    const html = renderCard({ documents: [pending], isReadOnly: true })
+
+    expect(html).toContain('4001')
+    expect(html).not.toMatch(/Entreguei|Não entreguei|Ocorrência|Deu problema/u)
+  })
+
+  it('viagem ainda não despachada: o ajudante lê a indicação de espera, e o motorista também', async () => {
+    await i18n.changeLanguage('pt-BR')
+    const waiting = driverTrip.dispatch.waiting
+
+    expect(renderCard({ isFieldWorkBlocked: true, isReadOnly: true })).toContain(waiting)
+    expect(renderCard({ isFieldWorkBlocked: true })).toContain(waiting)
+    expect(renderCard({ isReadOnly: true })).not.toContain(waiting)
+  })
+
+  it('despachada ou não, o ajudante vê a nota entregue com o selo', async () => {
+    await i18n.changeLanguage('pt-BR')
+
+    const html = renderCard({ documents: [delivered], isFieldWorkBlocked: true, isReadOnly: true })
+
+    expect(html).toContain(`Entregue às ${formatActivityTime(DELIVERED_AT)}`)
   })
 })
 
