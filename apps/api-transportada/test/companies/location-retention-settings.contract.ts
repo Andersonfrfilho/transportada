@@ -30,6 +30,11 @@ import {
   API_COMPANY_SETTINGS_LOCATION_RETENTION_IMPACT_PATH,
   API_COMPANY_SETTINGS_LOCATION_RETENTION_PATH,
 } from '../../src/shared/api.constant.js'
+import { AuthorizationService } from '../../src/identity/application/authorization.service.js'
+import {
+  COMPANY_ROLE_PERMISSIONS,
+  resolveCompanyPermissions,
+} from '../../src/identity/domain/authorization.policy.js'
 import { ApiError } from '../../src/shared/api.error.js'
 
 /**
@@ -570,5 +575,55 @@ describe('location retention settings: wiring (spec 239 D4)', () => {
     expect(query).toContain('eq(source.table.companyId, input.companyId)')
     expect(query).toContain('.limit(LOCATION_RETENTION_IMPACT_CAP + 1)')
     expect(query.match(/table: trip[A-Za-z]+,/g)?.length).toBe(5)
+  })
+})
+
+describe('location retention settings: authorization by role (spec 239 D4, CA4)', () => {
+  const authorization = new AuthorizationService()
+  const roles = Object.keys(COMPANY_ROLE_PERMISSIONS) as (keyof typeof COMPANY_ROLE_PERMISSIONS)[]
+
+  function contextOf(role: keyof typeof COMPANY_ROLE_PERMISSIONS) {
+    return {
+      identity: {
+        companyIdClaim: COMPANY_ID,
+        externalIdentityId: '00000000-0000-4000-8000-000000000004',
+        issuer: 'https://issuer.test',
+        platformAdmin: false,
+        serviceAccount: false,
+        subject: role,
+        userId: USER_ID,
+      },
+      scope: {
+        ...MANAGER_CONTEXT,
+        permissions: resolveCompanyPermissions([role]),
+        roles: [role],
+      },
+    }
+  }
+
+  test('only company-admin reaches the four routes; every other role gets 403 from the real service', () => {
+    const { port } = fakePort(null)
+    const routes = routesFor(port)
+    expect(routes).toHaveLength(4)
+
+    for (const role of roles) {
+      for (const route of routes) {
+        const attempt = () => authorization.authorize(contextOf(role), route.policy)
+        if (role === 'company-admin') {
+          expect(attempt, `${role} ${route.method} ${route.pathname}`).not.toThrow()
+          continue
+        }
+        const failure = (() => {
+          try {
+            attempt()
+          } catch (error) {
+            return error
+          }
+          return undefined
+        })()
+        expect(failure, `${role} ${route.method} ${route.pathname}`).toBeInstanceOf(ApiError)
+        expect((failure as ApiError).status).toBe(403)
+      }
+    }
   })
 })

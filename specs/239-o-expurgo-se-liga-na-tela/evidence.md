@@ -320,3 +320,12 @@ apresentação (Zod) e o schema do banco leem de lá, e a `policy` deixou de exp
 e o fonte não contém `/companies/`; o teste do CHECK passou a travar também o teto 90.
 Mutação (schema ganha um `import type` de `companies/domain/...policy.js`): 1 fail (a asserção `not.toContain('/companies/')`); voltar ao import antigo da constante também reprova (SyntaxError de export ausente). Verde: `bun run typecheck` limpo;
 `test/trip-schema.contract.test.ts` + `test/companies.contract.test.ts` 476 pass / 0 fail.
+
+### B8 — `403` pelo serviço de autorização real (barato, feito)
+
+O evidence da T1.4 declarava o `403` "provado pela política declarada". Teste novo em
+`test/companies/location-retention-settings.contract.ts`: para cada papel de `COMPANY_ROLE_PERMISSIONS`
+e cada uma das quatro rotas, o `AuthorizationService` real (mesmo que o roteador chama) com as
+permissões resolvidas por `resolveCompanyPermissions([papel])` — só `company-admin` passa; todos os
+outros recebem `ApiError` 403. Mutação (primeira rota passa a exigir `fleet.read`): 1 fail.
+Não é o `createRouter` completo (autenticação, tenant e rate limit ficam fora): é o ponto que decide o 403.
