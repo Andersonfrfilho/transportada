@@ -130,6 +130,16 @@
   background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
 }
 
+/* Erro de faixa e leitura bloqueada têm de aparecer no campo, não só no `aria`. */
+.fieldGrid input[aria-invalid='true'] {
+  border-color: var(--color-alert);
+}
+
+.fieldGrid input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -5193,6 +5203,9 @@ button.occurrenceCaseBadge {
 
 .retentionImpactList li {
   display: flex;
+  align-items: center;
+  /* A linha tem a altura do controle compacto: o esqueleto que a antecede mede o mesmo. */
+  min-height: var(--control-height-compact);
   justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
@@ -5210,4 +5223,16 @@ button.occurrenceCaseBadge {
 .retentionDestructive:hover:not(:disabled) {
   border-color: var(--color-alert);
   background: color-mix(in srgb, var(--color-alert) 12%, transparent);
+}
+
+/* O esqueleto do painel repete a forma do conteúdo: linha de estado, rótulo + campo, fileira de ações. */
+.retentionSkeleton {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.retentionSkeletonField {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
 }

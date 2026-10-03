@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -21,12 +22,18 @@ type TripLocationRetentionPanelProps = Readonly<{
 function LocationRetentionSkeleton() {
   const { t } = useTranslation('trip')
   return (
-    <SkeletonGroup label={t('locationRetention.loading')}>
-      <Skeleton variant="text" width="14rem" />
+    <SkeletonGroup className={styles.retentionSkeleton} label={t('locationRetention.loading')}>
+      <Skeleton height="var(--space-4)" variant="text" width="14rem" />
       <div className={styles.fieldGrid}>
-        <Skeleton height="var(--field-height)" width="100%" />
+        <div className={styles.retentionSkeletonField}>
+          <Skeleton height="var(--space-4)" variant="text" width="9rem" />
+          <Skeleton height="var(--field-height)" width="100%" />
+        </div>
       </div>
-      <Skeleton height="var(--control-height-compact)" width="12rem" />
+      <div className={styles.actionActions}>
+        <Skeleton height="var(--control-height-compact)" width="11rem" />
+        <Skeleton height="var(--control-height-compact)" width="8rem" />
+      </div>
     </SkeletonGroup>
   )
 }
@@ -41,6 +48,7 @@ export function TripLocationRetentionPanel({
   isEnabled,
 }: TripLocationRetentionPanelProps) {
   const { t } = useTranslation('trip')
+  const daysErrorId = useId()
   const panel = useLocationRetentionPanel({ canManage, isEnabled })
   const { pending, settings, status } = panel
   const isInvalid = panel.isDaysInvalid
@@ -82,6 +90,7 @@ export function TripLocationRetentionPanel({
             <label>
               <span className={styles.hint}>{t('locationRetention.daysLabel')}</span>
               <input
+                {...(isInvalid ? { 'aria-describedby': daysErrorId } : {})}
                 aria-invalid={isInvalid}
                 disabled={panel.isSaving}
                 max={LOCATION_RETENTION_DAYS_RANGE.max}
@@ -91,7 +100,7 @@ export function TripLocationRetentionPanel({
                 onChange={(event) => panel.handleDaysChange(event.target.value)}
               />
               {isInvalid ? (
-                <span className={styles.alert} role="alert">
+                <span className={styles.alert} id={daysErrorId} role="alert">
                   {t('locationRetention.daysRangeError', LOCATION_RETENTION_DAYS_RANGE)}
                 </span>
               ) : null}

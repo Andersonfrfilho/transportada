@@ -24,6 +24,7 @@ export type LocationRetentionConfirmDialogProps = Readonly<{
 }>
 
 const NUMBER_FORMAT = new Intl.NumberFormat('pt-BR')
+const IMPACT_GROUP_COUNT = 4
 
 /**
  * Spec 239 D5: ligar (ou encurtar) apaga posição para sempre, então o botão destrutivo diz o
@@ -56,6 +57,7 @@ export function LocationRetentionConfirmDialog({
   return createPortal(
     <div className={styles.mdfeGateOverlay} onKeyDown={handleKeyDown} role="presentation">
       <div
+        aria-describedby="location-retention-confirm-intro"
         aria-labelledby="location-retention-confirm-title"
         aria-modal="true"
         className={styles.mdfeGateDialog}
@@ -68,7 +70,7 @@ export function LocationRetentionConfirmDialog({
             {t(`locationRetention.confirm.title.${confirmation}`)}
           </h2>
           <button
-            aria-label={t('locationRetention.confirm.cancel')}
+            aria-label={t('locationRetention.confirm.close')}
             className={styles.iconAction}
             onClick={onCancel}
             type="button"
@@ -78,14 +80,18 @@ export function LocationRetentionConfirmDialog({
         </header>
 
         <p className={styles.mdfeGateSubtitle}>{t('locationRetention.lgpd')}</p>
-        <p className={styles.mdfeGateSubtitle}>
+        <p className={styles.mdfeGateSubtitle} id="location-retention-confirm-intro">
           {t('locationRetention.confirm.intro', { days: retentionDays })}
         </p>
 
         {impactSummary === undefined && !isImpactError ? (
-          <SkeletonGroup label={t('locationRetention.confirm.loading')}>
-            <Skeleton height="var(--field-height-compact)" width="100%" />
-            <Skeleton height="var(--field-height-compact)" width="100%" />
+          <SkeletonGroup
+            className={styles.retentionImpactList}
+            label={t('locationRetention.confirm.loading')}
+          >
+            {Array.from({ length: IMPACT_GROUP_COUNT }, (_, index) => (
+              <Skeleton height="var(--control-height-compact)" key={index} width="100%" />
+            ))}
           </SkeletonGroup>
         ) : null}
         {isImpactError ? (

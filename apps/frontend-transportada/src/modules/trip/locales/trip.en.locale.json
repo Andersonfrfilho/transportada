@@ -1041,6 +1041,7 @@
       },
       "cancel": "Cancel",
       "cappedCount": "more than 100 thousand",
+      "close": "Close",
       "grace": "Erasing only starts 24 hours after you confirm. To undo within that window, turn it off: nothing will have been erased.",
       "groups": {
         "arrival": "Arrivals and deliveries",
