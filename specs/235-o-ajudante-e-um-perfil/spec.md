@@ -33,7 +33,7 @@ o seletor de ajudantes da viagem tem uma única fonte.
   `frontend-driver` mostra a ele é decisão de produto à parte.
 - Mudar a fórmula da diária (149 D7) ou o score (149 D8).
 - Reescrever a tripulação de viagens já gravadas: `trip_drivers.role` não muda.
-- **Pontas abertas:** cinco questões deixadas em aberto aqui foram fechadas pela spec 239 e o ADR-0094.
+- **Pontas abertas:** cinco questões deixadas em aberto aqui foram fechadas pela spec 243 e o ADR-0095.
 
 ## Decisões (padrões — o usuário pode mudar antes da Fase 1)
 
