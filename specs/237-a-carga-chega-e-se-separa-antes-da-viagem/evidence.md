@@ -81,3 +81,55 @@ resultado completo no banco sai de `consulta-recebimento-vs-xml.sql`.
   (4 pass, 1 fail); restaurado → 5 pass.
 - `docs/spec/domain-model.md`: agregado `ContractorReceivingProfile` e a constraint unique. O worker
   (`apps/worker-transportada/src/database/delivery-client.schema.ts`) não mudou.
+
+## T1.3 — Rotas do perfil e contrato (2026-10-03)
+
+- **Módulo novo** `apps/api-transportada/src/cargo-receiving/` (domain/application/presentation/
+  infrastructure), montado em `src/main.ts` ao lado das rotas do contratante; caminho
+  `API_CONTRACTOR_RECEIVING_PROFILE_PATH = '/contractors/:id/receiving-profile'` em
+  `src/shared/api.constant.ts`.
+  - `GET` (`fleet.read`): `{ data: null }` sem perfil; contratante inexistente ou de outra empresa →
+    `404 CONTRACTOR_NOT_FOUND` (reaproveita `ContractorNotFoundError`, o código estável que o
+    `/contractors/:id` já devolve).
+  - `PUT` (`settings.manage`): Zod `.strict()` com **todas as chaves obrigatórias**; todos os campos
+    inválidos voltam juntos em `error.details`; `companyId` e ator só do contexto; upsert idempotente
+    em transação, contratante travado com `for no key update`, auditoria em `audit_logs` só quando muda.
+- **Contrato antes:** os três entrypoints novos (`cargo-receiving`, `cargo-receiving-http`, mais
+  `tenant-safety` no `cargo-receiving-schema`) vermelhos por `Cannot find module …/cargo-receiving/…`
+  antes do código.
+- **Contrato depois** (`bun --env-file=../../.env.test test --timeout 120000`): **9173 → 9222 pass**, 24
+  skip, 0 fail, 195 → 197 arquivos (+26 padrão, +3 caso de uso, +18 HTTP, +2 isolamento). O script
+  `test` do `package.json` dá o mesmo total (9246 testes, 197 arquivos): os três entrypoints novos estão
+  na lista explícita.
+- **Integração** (`bun --env-file=../../.env.test test --timeout 120000
+./test/integration/contractor-receiving-profile.integration.ts`, Postgres do `.env.test` em 65432,
+  banco descartável migrado): **3 pass, 0 fail, 0 skip** — ausência = `null`; `PUT` cria, repetido
+  devolve o mesmo `updatedAt` e não audita, mudado audita (1 → 2 linhas); contratante de outra empresa
+  → 404 na leitura e na gravação, sem linha nem auditoria; 8 escritas por fora da API recusadas pelo
+  banco com `23514`. Registrado em `test:integration`; `integration-shard.contract.test.ts` 4 pass.
+- **Mutações** (aplicadas uma a uma por script, restauradas automaticamente; `git diff` limpo depois):
+
+  | Mutação                                                       | Vermelho                                                              |
+  | ------------------------------------------------------------- | --------------------------------------------------------------------- |
+  | tirar `contractors.company_id` do filtro do contratante       | isolamento (contrato) 1 fail; integração "outra empresa é 404" 1 fail |
+  | tirar o CHECK de `separation_window_hours` da `migration.sql` | integração "faixas valem no banco" 1 fail                             |
+  | alargar o CHECK no schema (T1.2)                              | contrato do schema 1 fail                                             |
+  | aceitar quantificador aninhado (`(a+)+`)                      | 6 fails no contrato do padrão; HTTP "padrão `(a+)+` é 400" 1 fail     |
+  | `PUT` com `fleet.read` no lugar de `settings.manage`          | HTTP "quem só lê a frota … não grava" 1 fail                          |
+  | tirar o `.strict()`                                           | HTTP "chave desconhecida e `companyId` no corpo são recusados" 1 fail |
+  | `PUT` repetido regrava (sem a comparação canônica)            | integração "repetido não audita" 1 fail                               |
+  | aceitar coluna repetida no mapa                               | HTTP "coluna repetida é 400" 1 fail                                   |
+
+- **Gates:** `bun run typecheck` ✓ · `bun run lint` ✓ · `bun run format:check` na raiz ✓.
+- **Não houve "toda rota aparece no documento":** esta API não gera OpenAPI (busca por `openapi`/`scalar`
+  no repositório; `docs/ai-context/api-transportada.md` já registrava isso). Nenhum teste a fazer passar.
+- **Guardas de chave exata do agregado `Contractor` (painel, 3 cópias):** **não mudam** — o agregado e o
+  `PATCH /contractors` não foram tocados; o perfil é recurso separado.
+- **"No máximo 20 entradas" no mapa:** coberto por construção — as chaves são fechadas em 13 campos, então
+  o limite nunca é alcançável e não ganhou checagem morta.
+- **Erro:** esta API não tem `shared/errors/codes.ts` nem `DomainError`; o padrão do repositório é
+  `ApiError` por domínio em `*/domain/*.error.ts`. Nenhum código novo foi preciso: 404 reaproveita
+  `CONTRACTOR_NOT_FOUND`, e validação é o `400` padrão de `parseBody` com os campos nomeados.
+- **Não rodou:** a suíte de integração inteira (`bun run test:integration`, ~17 min) — só o arquivo novo e
+  o `make migration-test` (T1.2).
+- Documentação viva: `docs/ai-context/api-transportada.md` § "Spec 237" e `apps/api-transportada/CLAUDE.md`.

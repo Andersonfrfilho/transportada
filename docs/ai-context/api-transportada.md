@@ -2396,3 +2396,27 @@ Ausente no `PUT` não altera o valor guardado (o INSERT usa o padrão da coluna)
 grava o campo quando vem, no molde de `attachmentMode`. Antes, o schema estrito recusava o campo que o
 painel sempre manda (400) e o `GET` não o devolvia. Contrato `test/trip-occurrence/redelivery-policy-schema.contract.ts`
 e integração `occurrence-type-redelivery-policy.integration.ts`.
+
+## Spec 237 — o perfil de recebimento do contratante (ADR-0094, Fase 1)
+
+`contractor_receiving_profiles` (módulo `src/cargo-receiving/`) guarda, por contratante, as regras do
+recebimento **antes da viagem** como dado — janela de separação, prazo em dias úteis (lido pela 236),
+prévia por planilha (aba e mapa **nome de coluna → campo**, nunca posição), o padrão que lê o `NroCarga`
+do `infCpl` e os parâmetros do vínculo por conteúdo (`match_window_days`, `weight_tolerance_percent`).
+FK composta `(company_id, contractor_id)` → `contractors`, unique por contratante. **Ausência é ausência**:
+sem linha, ou com `is_enabled = false`, o contratante segue o fluxo de hoje.
+
+- `GET /contractors/:id/receiving-profile` (`fleet.read`): `{ data: null }` sem perfil; 404
+  `CONTRACTOR_NOT_FOUND` para contratante de outra empresa (consulta pela empresa do contexto).
+- `PUT` (`settings.manage`): substitui o perfil **inteiro** e exige todas as chaves (`null` explícito) —
+  chave omitida é 400, para um painel em cache não apagar coluna futura sem erro. Idempotente: trava o
+  contratante (`for no key update`), compara a forma canônica (o `jsonb` não guarda ordem de chave) e só
+  grava e audita (`audit_logs`, `contractor-receiving-profile.saved`) quando algo mudou.
+- `arrivalReferencePattern` **nunca é executado** na gravação: compila com `u`, exatamente um grupo de
+  captura, sem quantificador aninhado, grupo repetido com alternação, referência para trás ou lookaround
+  (`arrival-reference-pattern.policy.ts`). A fase que o executar limita entrada e tempo.
+- `previewColumnMap`: chaves fechadas (`PREVIEW_ITEM_FIELDS`), coluna repetida comparada por
+  `normalizePreviewColumnName` (o leitor da planilha usa a mesma); prévia ligada exige `routeName`,
+  `value`, `weightKg` (Zod) e mapa não nulo (CHECK). O agregado `Contractor` não mudou.
+- Contratos: `test/cargo-receiving*.contract.test.ts`; integração
+  `test/integration/contractor-receiving-profile.integration.ts`.

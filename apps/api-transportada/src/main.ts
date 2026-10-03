@@ -609,6 +609,12 @@ import {
   DrizzleMunicipalHolidayRepository,
 } from './delivery-clients/infrastructure/drizzle-contractor.repository.js'
 import { createContractorRoutes } from './delivery-clients/presentation/contractor.routes.js'
+import {
+  createGetContractorReceivingProfileUseCase,
+  createSaveContractorReceivingProfileUseCase,
+} from './cargo-receiving/application/contractor-receiving-profile.use-case.js'
+import { DrizzleContractorReceivingProfileRepository } from './cargo-receiving/infrastructure/drizzle-contractor-receiving-profile.repository.js'
+import { createContractorReceivingProfileRoutes } from './cargo-receiving/presentation/contractor-receiving-profile.routes.js'
 import { createContractorContactsUseCase } from './contractor-mail/application/contractor-contacts.use-case.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
 import { createContractorMailSettingsUseCase } from './contractor-mail/application/contractor-mail-settings.use-case.js'
@@ -1927,6 +1933,7 @@ function createApplicationRoutes({
   const contractorRegistry = createContractorsUseCase({
     repository: new DrizzleContractorRepository(database),
   })
+  const receivingProfileRepository = new DrizzleContractorReceivingProfileRepository(database)
   const contractorPortalBindings = new DrizzleContractorPortalBindingRepository(database)
   const tripLocationRepository = new DrizzleTripLocationRepository(database)
   const recordTripLocation = createRecordTripLocationUseCase({ repository: tripLocationRepository })
@@ -3270,6 +3277,14 @@ function createApplicationRoutes({
       removeHoliday: { execute: (input) => municipalHolidays.remove(input) },
       saveHoliday: { execute: (input) => municipalHolidays.save(input) },
       updateContractor: { execute: (input) => contractorRegistry.update(input) },
+    }),
+    ...createContractorReceivingProfileRoutes({
+      getProfile: createGetContractorReceivingProfileUseCase({
+        repository: receivingProfileRepository,
+      }),
+      saveProfile: createSaveContractorReceivingProfileUseCase({
+        repository: receivingProfileRepository,
+      }),
     }),
     ...createContractorContactRoutes({
       createContact: { execute: (input) => contractorContacts.create(input) },

@@ -12,7 +12,7 @@ Módulo de domínio = até 4 camadas em `src/<modulo>/`:
 - `domain/` — regras puras, `*.error.ts`, `*.policy.ts`. Sem I/O.
 - `infrastructure/` — `drizzle-*.repository.ts`, `*.mapper.ts`, `*.gateway.ts`.
 
-Módulos: `addresses`, `address-correction`, `billing`, `companies`, `contractor-mail`,
+Módulos: `addresses`, `address-correction`, `billing`, `cargo-receiving`, `companies`, `contractor-mail`,
 `contractor-portal`, `cte-batches`, `cte-issuance`, `cte-profiles`, `fleet`, `freight`,
 `freight-calculations`, `freight-regions`, `freight-rules`, `identity`, `mdfe-manifests`,
 `nfe-documents`, `nfe-imports`, `nfse-callbacks`, `nfse-invoices`, `nfse-profiles`, `notification`,
@@ -740,3 +740,11 @@ não recebe. ⚠️ **Passo manual do usuário: o texto só chega ao motorista d
 (`bun run scripts/whatsapp-flow-publish.ts --company <id> --confirm` em cada empresa; sem `--confirm` só imprime
 o diff) — o despachante lê a versão publicada no banco. Detalhe: docs/ai-context/api-transportada.md
 § "Spec 196".
+
+## O recebimento da carga antes da viagem (spec 237, ADR-0094)
+
+`cargo-receiving/` guarda o perfil de recebimento por contratante (`contractor_receiving_profiles`):
+regras como dado, nunca CNPJ no código; sem perfil ou com `is_enabled = false`, fluxo de hoje.
+`GET`/`PUT /contractors/:id/receiving-profile` (`fleet.read`/`settings.manage`); o `PUT` exige todas as
+chaves, só audita quando muda, e o padrão do `NroCarga` é filtrado (nunca executado) na gravação. O eixo
+do recebimento é próprio e **não toca** `separation_status`. Detalhe: docs/ai-context § "Spec 237".

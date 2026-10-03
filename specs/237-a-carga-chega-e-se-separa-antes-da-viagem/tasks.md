@@ -14,7 +14,7 @@
       (RF1) — revisão com `architect` em `opus`.
 - [x] **T1.2** Migration aditiva `contractor_receiving_profiles` (FK composta, unique, CHECKs de faixa),
       `rollback.sql`, `make migration-test`, `db:generate` = `no_changes`.
-- [ ] **T1.3** Rotas do perfil (`settings.manage`, Zod `.strict()`) e contrato; atualizar as guardas de
+- [x] **T1.3** Rotas do perfil (`settings.manage`, Zod `.strict()`) e contrato; atualizar as guardas de
       chave exata do agregado de contratante do painel (3 cópias).
 - [ ] **T1.4** Aba "Contratantes" em `/clientes` com a ficha (dados que o `PATCH /contractors` já aceita +
       perfil); locale pt-BR/en; contratos antes.
