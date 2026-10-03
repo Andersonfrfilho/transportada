@@ -1,0 +1,86 @@
+# Tasks
+
+Uma task por vez, na ordem. Cada uma fecha com typecheck, teste e commit isolado, e registra a
+evidência em `evidence.md`. Só `apps/frontend-transportada` é tocada — task que precise mexer na
+API é sinal de escopo escorregando, e para.
+
+## Fase 0 — Provar o que o servidor já faz
+
+> 🤖 Modelo: `sonnet`
+
+- [ ] **T0.1** Exercitar as duas rotas contra a API local e colar em `evidence.md` o corpo enviado
+      e a resposta: correção com dois itens, cancelamento com motivo, e os dois `409`
+      (tratativa aberta, já cancelada). Sem isto, o resto é escrito sobre suposição.
+- [ ] **T0.2** Conferir que a leitura do detalhe devolve `corrections` e `cancellation`
+      preenchidos depois das escritas da T0.1, e que os tipos do painel batem com o que chega.
+
+## Fase 1 — O cliente e as regras puras
+
+> 🤖 Modelo: `sonnet`
+
+- [ ] **T1.1** As duas chamadas em `tripClient.service.ts`, com `Idempotency-Key` (RF1, RF2, RF3).
+- [ ] **T1.2** Contrato primeiro, depois a função pura em `tripOccurrenceDetail.service.ts`: quando
+      corrigir e cancelar podem agir, e **qual texto** explica quando não podem (RF4).
+- [ ] **T1.3** Mutação: arrancar a condição de tratativa aberta deixa a T1.2 vermelha. Execução
+      vermelha em `evidence.md`.
+- [ ] **T1.4** Mutações das mutações de dados com invalidação de detalhe, feed e linha do tempo
+      (RF8).
+
+## Fase 2 — Corrigir
+
+> 🤖 Modelo: `sonnet`
+
+- [ ] **T2.1** Botão **Corrigir** no detalhe, com o estado desabilitado e o motivo em texto
+      (CA02, CA03).
+- [ ] **T2.2** `TripOccurrenceCorrectionForm`, reaproveitando o formulário de itens do registro,
+      pré-preenchido com o conjunto atual e enviando o conjunto inteiro (RF2, CA01).
+- [ ] **T2.3** As quatro mensagens de erro por código estável, via `getApiErrorCode()` (RF7, CA05).
+- [ ] **T2.4** Mutação: trocar a mensagem de `409` pela genérica deixa a T2.3 vermelha.
+
+## Fase 3 — Cancelar
+
+> 🤖 Modelo: `sonnet`
+
+- [ ] **T3.1** `TripOccurrenceCancelDialog` com motivo obrigatório, confirmar desabilitado em
+      branco e em espaços, foco preso e devolvido (RF3, CA04).
+- [ ] **T3.2** Marca de cancelada no detalhe, no feed e na linha do tempo, com motivo acessível,
+      pela mesma função pura — nenhuma segunda cópia da conta (RF6, CA06).
+
+## Fase 4 — O histórico
+
+> 🤖 Modelo: `sonnet`
+
+- [ ] **T4.1** Lista de correções no detalhe: autor, data e o conjunto que passou a valer (RF5, P3).
+- [ ] **T4.2** Contrato de duas correções seguidas, provando que as duas aparecem na ordem certa.
+
+## Fase 5 — Fechamento
+
+> 🤖 Modelo: `sonnet`; revisão final com `code-reviewer` em `opus`
+
+- [ ] **T5.1** Revisão de design e usabilidade, com print nas três larguras, incluindo o diálogo
+      aberto e o estado desabilitado com motivo (CA07).
+- [ ] **T5.2** Marcar no `tasks.md` da spec 167 o que de fato está feito, com a evidência da T0.1 —
+      a lista de lá está inteiramente desmarcada e mente sobre o estado da API.
+- [ ] **T5.3** Gates: `bun run typecheck`, `bun run lint` com a app como cwd,
+      `bun run --cwd apps/frontend-transportada test` (nunca `bun test` cru) e `format:check` na
+      raiz.
+- [ ] **T5.4** `evidence.md` consolidado.
+
+⚠️ Todo arquivo de teste novo entra na lista do `package.json` da app — fora dela, não roda.
+
+## Prompt de execução
+
+```text
+/oh-my-claudecode:autopilot Execute a spec specs/235-a-correcao-da-ocorrencia-ganha-tela/
+(leia spec.md e plan.md antes de começar). Uma task por vez, na ordem do tasks.md.
+Esta spec é só de frontend: nada muda na API da spec 167, e task que precise mexer no servidor
+para — é sinal de escopo escorregando, pergunte antes.
+Modelos: todas as fases → executor model=sonnet · revisão final → code-reviewer model=opus.
+Comece pela Fase 0: sem o corpo e a resposta reais das duas rotas em evidence.md, não escreva
+componente. Cada task fecha com typecheck + teste + commit isolado.
+As tasks de mutação (T1.3, T2.4) só fecham com a execução vermelha registrada, não com a
+afirmação de que falharia. O teste da app é `bun run --cwd apps/frontend-transportada test`,
+nunca `bun test` cru, e teste novo precisa entrar na lista do package.json.
+Pare e pergunte antes de: deploy, qualquer mudança de regra de negócio da 167, qualquer
+[NEEDS CLARIFICATION].
+```
