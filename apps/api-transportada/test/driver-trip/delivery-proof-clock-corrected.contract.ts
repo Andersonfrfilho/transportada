@@ -52,13 +52,22 @@ function afterDelivery(milliseconds: number): Date {
 function buildRequiredWorld(
   ...args:
     | readonly []
-    | readonly [Coordinate | undefined, { deliveredAt?: Date; isEventClockCorrected?: boolean }?]
+    | readonly [
+        Coordinate | undefined,
+        {
+          deliveredAt?: Date
+          isDeliveryRecordedByDriver?: boolean
+          isEventClockCorrected?: boolean
+        }?,
+      ]
 ) {
   const deliveryEventPosition = args.length === 0 ? DELIVERY_POSITION : args[0]
   const isEventClockCorrected = args[1]?.isEventClockCorrected ?? true
+  const isDeliveryRecordedByDriver = args[1]?.isDeliveryRecordedByDriver
   const world = buildWorld({
     deliveredAt: args[1]?.deliveredAt ?? DELIVERED_AT,
     ...(deliveryEventPosition === undefined ? {} : { deliveryEventPosition }),
+    ...(isDeliveryRecordedByDriver === undefined ? {} : { isDeliveryRecordedByDriver }),
     isEventClockCorrected,
   })
   const resolve = world.repository.resolveProofFieldSettings
@@ -413,8 +422,8 @@ describe('caso de uso: foto julgada pelo relógio corrigido (spec 234 D4/D4b)', 
       expect(result.punctuality).toBe(PROOF_PUNCTUALITY.away)
     })
 
-    /** Espelho: sem o desvio (cliente antigo), a distância segue sem pesar — comportamento de hoje. */
-    it('sem desvio, recebida 30 min depois da entrega: on_time', async () => {
+    /** Espelho: contexto sem o canal da entrega e sem o desvio — a distância não pesa (regra anterior). */
+    it('sem desvio e sem o canal no contexto, recebida 30 min depois da entrega: on_time', async () => {
       const world = buildRequiredWorld(undefined)
 
       const result = await attach(
@@ -424,6 +433,85 @@ describe('caso de uso: foto julgada pelo relógio corrigido (spec 234 D4/D4b)', 
       )
 
       expect(result.punctuality).toBe(PROOF_PUNCTUALITY.onTime)
+    })
+  })
+
+  /**
+   * Spec 234 D4c: o caso de uso leva o canal do evento de entrega à política. Entrega do motorista sem
+   * posição é longe em todo cliente; a baixa do escritório (spec 223) nunca tem posição e não pune.
+   */
+  describe('GPS desligado pune em todo cliente (D4c): o canal da entrega chega à política', () => {
+    const OLD_CLIENT_PHOTO: Partial<DeliveryProofUpload> = {
+      capturedAt: TRUE_PHOTO_AT,
+      position: PHOTO_AT_DELIVERY_PLACE,
+    }
+    const THIRTY_MINUTES_LATER = afterDelivery(30 * MILLISECONDS_PER_MINUTE)
+
+    it('motorista sem posição, cliente antigo, recebida 30 min depois: away gravado', async () => {
+      const world = buildRequiredWorld(undefined, { isDeliveryRecordedByDriver: true })
+
+      const result = await attach(world, OLD_CLIENT_PHOTO, THIRTY_MINUTES_LATER)
+
+      expect(result.punctuality).toBe(PROOF_PUNCTUALITY.away)
+      expect(world.saved[0]?.punctuality).toBe(PROOF_PUNCTUALITY.away)
+    })
+
+    it('motorista sem posição, relógio corrigido, recebida 30 min depois: away (D4b)', async () => {
+      const world = buildRequiredWorld(undefined, { isDeliveryRecordedByDriver: true })
+
+      const result = await attach(world, correctedPhoto(), THIRTY_MINUTES_LATER)
+
+      expect(result.punctuality).toBe(PROOF_PUNCTUALITY.away)
+    })
+
+    it('motorista com posição e foto no raio: on_time', async () => {
+      const world = buildRequiredWorld(DELIVERY_POSITION, { isDeliveryRecordedByDriver: true })
+
+      const result = await attach(world, OLD_CLIENT_PHOTO, THIRTY_MINUTES_LATER)
+
+      expect(result.punctuality).toBe(PROOF_PUNCTUALITY.onTime)
+    })
+
+    it('foto da mercadoria do motorista sem posição na entrega também é away', async () => {
+      const world = buildRequiredWorld(undefined, { isDeliveryRecordedByDriver: true })
+
+      const result = await attach(
+        world,
+        { ...OLD_CLIENT_PHOTO, kind: 'cargo' },
+        THIRTY_MINUTES_LATER,
+      )
+
+      expect(result.punctuality).toBe(PROOF_PUNCTUALITY.away)
+    })
+
+    it('baixa do escritório, foto do motorista de cliente antigo: on_time', async () => {
+      const world = buildRequiredWorld(undefined, { isDeliveryRecordedByDriver: false })
+
+      const result = await attach(world, OLD_CLIENT_PHOTO, THIRTY_MINUTES_LATER)
+
+      expect(result.punctuality).toBe(PROOF_PUNCTUALITY.onTime)
+    })
+
+    it('baixa do escritório, foto do motorista com relógio corrigido: on_time, não away', async () => {
+      const world = buildRequiredWorld(undefined, { isDeliveryRecordedByDriver: false })
+
+      const result = await attach(world, correctedPhoto(), THIRTY_MINUTES_LATER)
+
+      expect(result.punctuality).toBe(PROOF_PUNCTUALITY.onTime)
+    })
+
+    /** Spec 159 T11 D3b: a foto pontual que substitui uma `away` gravada não a lava. */
+    it('a substituta pontual de uma away continua away, sem somar outra penalidade', async () => {
+      const world = buildRequiredWorld(undefined, { isDeliveryRecordedByDriver: true })
+
+      await attach(world, { ...OLD_CLIENT_PHOTO, attachmentKey: 'first' }, THIRTY_MINUTES_LATER)
+      const second = await attach(
+        world,
+        { ...OLD_CLIENT_PHOTO, attachmentKey: 'second' },
+        THIRTY_MINUTES_LATER,
+      )
+
+      expect(second.punctuality).toBe(PROOF_PUNCTUALITY.away)
     })
   })
 })

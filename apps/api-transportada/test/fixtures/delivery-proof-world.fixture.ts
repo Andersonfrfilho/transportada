@@ -32,6 +32,8 @@ export function buildWorld(
     readonly existingProofByKey?: Readonly<Record<string, ProofPunctuality>>
     /** Spec 234 R1: o evento de entrega gravou `occurred_at` (a correção do relógio foi aceita). */
     readonly isEventClockCorrected?: boolean
+    /** Spec 234 D4c: o canal do evento de entrega é do motorista. Ausente = o contexto não informa. */
+    readonly isDeliveryRecordedByDriver?: boolean
   } = {},
 ) {
   const saved: SavedProof[] = []
@@ -43,6 +45,9 @@ export function buildWorld(
         deliveredAt: input.deliveredAt ?? DELIVERED_AT,
         deliveryEventPosition: input.deliveryEventPosition,
         isEventClockCorrected: input.isEventClockCorrected ?? false,
+        ...(input.isDeliveryRecordedByDriver === undefined
+          ? {}
+          : { isDeliveryRecordedByDriver: input.isDeliveryRecordedByDriver }),
       }),
     findDeliveryEventId: () =>
       Promise.resolve(input.eventId === undefined ? EVENT_ID : input.eventId),
