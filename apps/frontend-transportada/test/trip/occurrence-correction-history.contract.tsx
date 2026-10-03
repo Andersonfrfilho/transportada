@@ -59,6 +59,20 @@ describe('histórico de correções no detalhe (spec 235 T4.1, RF5, P3)', () => 
     expect(text).toContain('Passou a valer: 696 · 3 box, 697|')
   })
 
+  test('correção sem autor (vínculo inativo) diz só quando foi corrigida', () => {
+    const text = textOf(
+      buildOccurrenceDetailFixture({
+        corrections: [
+          { correctedAt: FIRST_CORRECTION_AT, correctedByName: null, previousItems: [] },
+        ],
+        items: [{ code: '696', description: 'Produto A', quantity: '3.000', unit: 'box' }],
+      }),
+    )
+    expect(text).toContain(`Corrigida em ${formatMoment(FIRST_CORRECTION_AT)}`)
+    expect(text).not.toContain('Corrigida por')
+    expect(text).not.toContain('null')
+  })
+
   test('sem correção, ou com a chave ausente, nada é renderizado', () => {
     expect(textOf(buildOccurrenceDetailFixture({ corrections: [] }))).toBe('')
     const withoutCorrections: Partial<Record<'corrections', unknown>> = {

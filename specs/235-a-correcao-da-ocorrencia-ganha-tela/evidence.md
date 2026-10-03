@@ -1278,3 +1278,22 @@ A API não publica a marca de cancelada na **linha do tempo**: nem a da nota/via
 `trip-occurrence-timeline.query.ts`, eventos `occurrence.recorded|photo`, `case.transition`,
 `contractor.mail.*`). Nenhum dos dois lê `cancelled_at`/`cancellation`. Detalhe e feed já publicam
 `cancellation` (Fase 0.5) — só a linha do tempo falta. Task parada conforme a instrução; nada commitado.
+
+# Evidência — spec 235, Fase 5
+
+## T5.0 — `correctedByName` nulo
+
+A API publica `correctedByName` como `null | string` (`occurrence-correction.port.ts:28`; nulo quando o
+vínculo de quem corrigiu já não está ativo), mas o guard `isOccurrenceCorrection` e o tipo
+`OccurrenceCorrection` exigiam `string`: uma correção assim reprovaria a leitura do detalhe inteiro.
+Mesmo defeito, mesma correção que `cancelledByName` (T3.2).
+
+Execução **vermelha** (contratos escritos antes do ajuste), `bun run --cwd apps/frontend-transportada test`:
+`6515 pass / 2 fail` — `aceita a correção sem autor (correctedByName nulo)` (guard lança
+`TRIP_RESPONSE_INVALID`) e `correção sem autor (vínculo inativo) diz só quando foi corrigida` (o
+histórico renderizava "Corrigida por null").
+
+Ajuste: tipo `OccurrenceCorrection` e `OccurrenceCorrectionHistoryEntry` com `null | string`, guard com
+`isNullableString`, `OccurrenceCorrectionHistory` com a chave `occurrenceDetail.corrections.entryUnknown`
+("Corrigida em {{moment}}" / "Corrected on {{moment}}") quando nulo. Verde: `6517 pass, 0 fail` +
+lote DOM `354 pass, 0 fail`; `bun run typecheck` limpo.

@@ -68,6 +68,15 @@ describe('tolerância a correção e cancelamento na ocorrência (spec 167 CA10)
     expect(occurrence?.cancellation).toBeNull()
   })
 
+  /** Spec 235 T5.0: a API publica `null` quando o vínculo de quem corrigiu já não está ativo. */
+  it('aceita a correção sem autor (`correctedByName` nulo)', () => {
+    const [occurrence] = adapters.occurrencesFromApi([
+      buildOccurrence({ corrections: [{ ...CORRECTION, correctedByName: null }] }),
+    ])
+
+    expect(occurrence?.corrections?.[0]?.correctedByName).toBeNull()
+  })
+
   /**
    * Tolerar a chave não é aceitar qualquer coisa: cancelamento sem motivo ou correção sem o
    * conjunto anterior chegariam à tela como histórico vazio, que é pior que histórico ausente —
