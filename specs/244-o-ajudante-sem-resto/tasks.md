@@ -8,7 +8,7 @@ a staging depois de o usuário ver.
 > 🤖 Modelo: `sonnet`
 
 - [x] **T1** `pendingProofs` vazio sem `trip.report` em `GET /me/trips/current` (D2): contrato e integração.
-- [ ] **T2** O Perfil do app do motorista não monta o cartão de consentimento quando a leitura responde 403 (D1).
+- [x] **T2** O Perfil do app do motorista não monta o cartão de consentimento quando a leitura responde 403 (D1).
 - [ ] **T3** Zero preservado nos três campos de diária da ficha e na diária geral (D3).
 
 ## Fase 2 — Fechamento
