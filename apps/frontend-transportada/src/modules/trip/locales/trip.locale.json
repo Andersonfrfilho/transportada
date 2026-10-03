@@ -1985,6 +1985,20 @@
       "summary": "Resumo",
       "contractor": "Contratante",
       "driver": "Motorista"
+    },
+    "correction": {
+      "unavailable": {
+        "occurrenceCancelled": "Esta ocorrência já foi cancelada e não pode mais ser corrigida nem cancelada.",
+        "caseOpen": "A tratativa está aberta: depois que ela abre, a ocorrência já vale dinheiro e não pode mais ser corrigida nem cancelada.",
+        "caseDecided": {
+          "redelivery_authorized": "A tratativa foi decidida com reentrega autorizada; a reentrega parte desta ocorrência e ela já não pode ser corrigida nem cancelada.",
+          "goods_paid": "A tratativa foi decidida com mercadoria paga; o acerto nasce desta ocorrência e ela já não pode ser corrigida nem cancelada.",
+          "other": "A tratativa foi decidida por outro caminho, com nota do escritório; a ocorrência já não pode ser corrigida nem cancelada."
+        },
+        "caseReturnedToWarehouse": "A mercadoria já voltou ao barracão por esta tratativa; a ocorrência já não pode ser corrigida nem cancelada.",
+        "caseClosed": "A tratativa foi fechada; a ocorrência virou histórico e já não pode ser corrigida nem cancelada.",
+        "caseCancelled": "A tratativa foi cancelada; a ocorrência segue com o histórico dela e já não pode ser corrigida nem cancelada."
+      }
     }
   },
   "occurrenceTimeline": {
