@@ -11,7 +11,7 @@ commit isolado e evidência em `evidence.md`. Tela só vai a staging depois de o
       (company-admin, finance, operator) e negativo (driver, aggregate, separator, helper → 403) nas duas
       rotas; revisar o contrato do helper (:120-121); fechar a entrada de `docs/SECURITY.md`. Provar por
       mutação. Confirmar por busca que nenhum consumidor de campo perde acesso.
-- [ ] **T2** `crewRole` por viagem em `/me/trips/current` (D3): serializador, caso de uso e porta, com
+- [x] **T2** `crewRole` por viagem em `/me/trips/current` (D3): serializador, caso de uso e porta, com
       contrato (ajudante, motorista, mesma pessoa nos dois papéis em viagens diferentes) e integração
       contra Postgres.
 

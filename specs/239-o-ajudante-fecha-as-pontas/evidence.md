@@ -62,3 +62,51 @@ Ran 83 tests across 2 files.
 - `bun run typecheck` (raiz): exit 0. `eslint` dos arquivos tocados (cwd da API): exit 0.
   `prettier --check` dos tocados: limpo.
 - Sem migration.
+
+## T2 — `crewRole` por viagem em `GET /me/trips/current` (D3)
+
+**Mudança:** `DriverTrip.crewRole: TripCrewRole` (`find-current-driver-trip.use-case.ts`);
+`listActiveTrips` (`drizzle-current-driver-trip.repository.ts`) seleciona `tripDrivers.role` na mesma
+consulta que já recorta as viagens por `trip_drivers.driver_id` — uma linha de `trip_drivers` por
+(viagem, pessoa), garantida por `trip_drivers_company_trip_driver_unique`, então sem duplicar viagem e
+sem consulta por viagem (sem N+1); `serializeTrip` (`me-trip.routes.ts`) devolve `crewRole`. Nenhuma
+política nem regra de leitura mudou. O cliente do `frontend-driver` fica para a T6.
+
+**Contrato** `apps/api-transportada/test/driver-trip/crew-role.contract.ts` (entra por
+`test/driver-trip.contract.test.ts`, já na lista do `package.json`): ajudante → `helper`, motorista →
+`driver`, a mesma pessoa `driver` numa viagem e `helper` na outra (pela rota serializada), e o caso de
+uso repassando o papel. Fixtures de `current-trip.contract.ts` ganharam `crewRole: 'driver'`.
+
+**Integração** `test/integration/me-trip.integration.ts` — "crewRole é o papel da linha da tripulação
+de cada viagem": a pessoa do vínculo dirige a viagem A e é `helper` na viagem B; o outro motorista da B
+lê `driver`.
+
+**Vermelho antes do código:**
+
+```
+(fail) ... > o ajudante recebe crewRole helper na viagem que acompanha
+(fail) ... > o motorista recebe crewRole driver na viagem que dirige
+(fail) ... > a mesma pessoa é driver numa viagem e helper na outra
+ 258 pass
+ 3 fail
+(fail) a viagem no bolso do motorista (spec 057 T017) > crewRole é o papel da linha da tripulação de cada viagem
+ 0 pass
+ 1 fail
+```
+
+**Mutação:**
+
+- serializador sem `crewRole` → contrato `258 pass / 3 fail`; restaurado, `cmp` idêntico.
+- repositório com `crewRole: 'driver'` fixo → integração `0 pass / 1 fail`; restaurado, `cmp`
+  idêntico. Depois: contrato `261 pass / 0 fail`, integração `1 pass / 0 fail`.
+
+**Gates** (Postgres 18.4 nativo descartável em 127.0.0.1:65435, `DATABASE_URL` e
+`DRIZZLE_TEST_DATABASE_URL` exportados):
+
+- Contrato completo: `9219 pass / 0 fail`, `Ran 9219 tests across 194 files`.
+- Integração, arquivo por arquivo, nenhum pulado: `me-trip` 20/0, `current-driver-trip-concluded-window`
+  4/0, `whatsapp-driver-flow-actions` 4/0, `event-location-stamp` 23/0, `field-trip-target` 7/0,
+  `delivered-moment` 18/0, `mixed-cargo-end-to-end` 1/0, `me-location-consent` 5/0.
+- `bun run typecheck` (raiz, as sete apps): exit 0. `eslint` dos tocados (cwd da API): exit 0.
+  `prettier --check` dos tocados: limpo.
+- Sem migration.

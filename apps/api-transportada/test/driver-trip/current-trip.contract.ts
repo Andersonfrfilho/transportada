@@ -21,6 +21,7 @@ const NO_SCORES = { readScores: async () => new Map<string, number | null>() }
 function buildTrip(id: string): DriverTrip {
   return {
     createdAt: '2026-09-18T09:00:00.000Z',
+    crewRole: 'driver',
     id,
     manifest: null,
     status: 'dispatched',
@@ -200,6 +201,7 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
       trips: [
         {
           createdAt: '2026-09-18T09:00:00.000Z',
+          crewRole: 'driver',
           id: 'trip-1',
           manifest: null,
           status: 'dispatched',

@@ -261,6 +261,8 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     const tripRows = await this.database
       .select({
         createdAt: trips.createdAt,
+        // Spec 239 D3: o papel sai da mesma linha que recorta a viagem — sem consulta por viagem.
+        crewRole: tripDrivers.role,
         id: trips.id,
         plate: fleetVehicles.plate,
         status: trips.status,
@@ -347,6 +349,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
 
     return tripRows.map((trip) => ({
       createdAt: trip.createdAt.toISOString(),
+      crewRole: trip.crewRole,
       id: trip.id,
       manifest: manifestsByTrip.get(trip.id) ?? null,
       status: trip.status,

@@ -1256,6 +1256,76 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
     })
   })
 
+  /**
+   * Spec 239 D3: o papel vem da linha de `trip_drivers` de **cada** viagem, na mesma consulta que
+   * lista as viagens. A mesma pessoa dirige a primeira e acompanha a segunda.
+   */
+  testWithPostgres('crewRole é o papel da linha da tripulação de cada viagem', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedDispatchedTrip(database)
+      const [drivingTrip] = await database.db
+        .select({ vehicleId: trips.vehicleId })
+        .from(trips)
+        .where(eq(trips.id, world.tripId))
+      const otherDriverId = crypto.randomUUID()
+      const helpingTripId = crypto.randomUUID()
+      await database.db.insert(fleetDrivers).values({
+        companyId: world.companyId,
+        id: otherDriverId,
+        name: 'Outro Motorista',
+        taxId: '44444444444',
+      })
+      await database.db.insert(trips).values({
+        companyId: world.companyId,
+        id: helpingTripId,
+        status: 'dispatched',
+        vehicleId: drivingTrip?.vehicleId ?? '',
+      })
+      await database.db.insert(tripDrivers).values([
+        {
+          companyId: world.companyId,
+          driverId: otherDriverId,
+          driverName: 'Outro Motorista',
+          driverTaxId: '44444444444',
+          position: 1n,
+          role: 'driver',
+          tripId: helpingTripId,
+        },
+        {
+          companyId: world.companyId,
+          driverId: world.driverId,
+          driverName: 'Motorista de Campo',
+          driverTaxId: '11111111111',
+          position: 2n,
+          role: 'helper',
+          tripId: helpingTripId,
+        },
+      ])
+      const reads = new DrizzleCurrentDriverTripRepository(database.db)
+
+      const opened = await findCurrentDriverTrip({
+        companyId: world.companyId,
+        membershipId: world.membershipId,
+        now: NOW,
+        repository: reads,
+        scores: new DrizzleDriverScoreRepository(database.db),
+      })
+      const otherDriverTrips = await reads.listActiveTrips({
+        companyId: world.companyId,
+        driverId: otherDriverId,
+      })
+
+      expect(opened.trips).toHaveLength(2)
+      expect(Object.fromEntries(opened.trips.map((trip) => [trip.id, trip.crewRole]))).toEqual({
+        [helpingTripId]: 'helper',
+        [world.tripId]: 'driver',
+      })
+      expect(otherDriverTrips.map((trip) => [trip.id, trip.crewRole])).toEqual([
+        [helpingTripId, 'driver'],
+      ])
+    })
+  })
+
   /** Conta com papel de motorista e sem cadastro na frota: problema de configuração, não de viagem. */
   testWithPostgres('conta sem cadastro de motorista se anuncia como tal', async () => {
     await withDisposableDatabase(async (database) => {

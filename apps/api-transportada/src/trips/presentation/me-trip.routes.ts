@@ -262,6 +262,7 @@ function jsonResponse(input: { readonly body: object; readonly status: number })
 function serializeTrip(trip: DriverTrip) {
   return {
     createdAt: trip.createdAt,
+    crewRole: trip.crewRole,
     id: trip.id,
     // `null` é o caso normal: a carga urbana não exige MDF-e, e o intermunicipal só ganha manifesto
     // depois de o lote de CT-e autorizar. A tela mostra o romaneio enquanto isso.
