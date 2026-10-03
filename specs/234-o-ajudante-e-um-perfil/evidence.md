@@ -715,3 +715,16 @@ dirige → 1 · MDF-e sem o filtro → 1 · texto da lista vazia revertido → 1
 - `bun run test` (app): `6460 pass · 0 fail · 32 files` + hooks `327 pass · 0 fail`.
 - `bun run typecheck` (raiz) exit 0 · `eslint` (cwd da app) 0 erros (16 warnings antigos) · `prettier --check` limpo nos
   tocados.
+
+## Fim da Fase 3 (T8–T11) — gates na raiz
+
+Data: 2026-10-02. Worktree sem `.env`/`.env.test`; integração da API **não** foi rodada (a API não mudou nesta fase).
+
+- `bun run format:check` exit 0 · `bun run lint` exit 0 (0 erros, 16 warnings antigos) · `bun run build` exit 0.
+- `bun run test` (todas as apps) exit 0: API `8761 pass · 32 skip · 0 fail` (os 32 pulados são os que dependem de
+  `.env.test`; com ele a Fase 2 registrou 0 skip) · worker `1558/0` · cron `101/0` · painel `6460/0` + hooks `327/0` ·
+  frontend-client `89/0` · frontend-driver `1048/0` · frontend-landing `131/0`.
+- Sincronia de papéis com a API: `keeps the allowlist in sync with the API authorization policy` e
+  `test/identity/helper-role.contract.ts` verdes.
+- Pendências para a T12: verificação visual (ficha nos três perfis, convite, seletor da viagem, 375 px, claro e escuro) e o
+  painel geral "Diária do ajudante" da 149 T12, que não existe no painel.
