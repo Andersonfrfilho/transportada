@@ -1,0 +1,252 @@
+{
+  "eyebrow": "Cargo receiving",
+  "forbidden": "Your access does not include cargo receiving.",
+  "status": {
+    "open": "Open",
+    "closed": "Closed"
+  },
+  "state": {
+    "expected": "Expected",
+    "received": "Received",
+    "separated": "Separated"
+  },
+  "badge": {
+    "overdue": "Overdue",
+    "inLiveTrip": "Already on a trip",
+    "noDue": "No deadline"
+  },
+  "group": {
+    "noRoute": "No route",
+    "noCity": "No city",
+    "title": "{{route}} · {{city}}",
+    "counts": "{{done}} of {{total}} separated"
+  },
+  "document": {
+    "number": "Invoice {{number}}",
+    "unknownRecipient": "Recipient not provided"
+  },
+  "progress": {
+    "label": "Separation progress",
+    "value": "{{separated}} of {{total}} separated"
+  },
+  "facts": {
+    "arrivedAt": "Arrived: {{date}}",
+    "dueAt": "Separation deadline: {{date}}",
+    "noDueAt": "No separation deadline",
+    "reference": "Reference: {{reference}}",
+    "pallets": "Pallets: {{count}}"
+  },
+  "list": {
+    "title": "Arrivals",
+    "hint": "Each arrival is a contractor's cargo that reached the dock. Register the arrival, check the invoices and separate by route and city before building the trip.",
+    "register": "Register arrival",
+    "loading": "Loading the arrivals",
+    "error": "Could not load the arrivals ({{code}}).",
+    "empty": "No arrival registered yet.",
+    "emptyFiltered": "No arrival matches these filters.",
+    "loadMore": "Load more arrivals",
+    "count": "{{shown}} of {{total}} arrivals loaded"
+  },
+  "filters": {
+    "contractor": "Contractor",
+    "contractorPlaceholder": "All contractors",
+    "contractorSummary_one": "{{count}} contractor",
+    "contractorSummary_other": "{{count}} contractors",
+    "contractorSearch": "Search contractor",
+    "contractorEmpty": "No contractor found",
+    "contractorRemove": "Remove the contractor filter",
+    "status": "Status",
+    "statusPlaceholder": "All statuses",
+    "statusSummary_one": "{{count}} status",
+    "statusSummary_other": "{{count}} statuses",
+    "statusSearch": "Search status",
+    "statusEmpty": "No status found",
+    "statusRemove": "Remove the status filter",
+    "clear": "Clear filters",
+    "clearAll": "Clear all filters"
+  },
+  "table": {
+    "region": "List of arrivals",
+    "contractor": "Contractor",
+    "arrivedAt": "Arrival",
+    "documents": "Invoices",
+    "progress": "Separated",
+    "dueAt": "Separation deadline",
+    "status": "Status",
+    "actions": "Actions",
+    "open": "Open",
+    "openLabel": "Open the arrival of {{name}}",
+    "separate": "Separate",
+    "separateLabel": "Separate the arrival of {{name}}",
+    "sortAscending": "ascending order",
+    "sortDescending": "descending order",
+    "sortNone": "not sorted"
+  },
+  "register": {
+    "title": "Register arrival",
+    "hint": "Pick the contractor, say when the truck arrived and tick the invoices that came. The separation window starts at the arrival time.",
+    "back": "Back to arrivals",
+    "details": "Arrival details",
+    "contractor": "Contractor",
+    "contractorHint": "Only contractors with receiving turned on in their profile are listed.",
+    "contractorPlaceholder": "Pick the contractor",
+    "contractorSearch": "Search contractor",
+    "contractorEmpty": "No contractor with receiving turned on",
+    "contractorsLoading": "Loading the contractors",
+    "date": "Arrival date",
+    "time": "Arrival time",
+    "timePlaceholder": "HH:MM",
+    "timeHint": "Default: now, in your browser's time zone.",
+    "palletCount": "Pallets (optional)",
+    "reference": "Reference (optional)",
+    "referenceHint": "Seal or cargo number, up to {{max}} characters.",
+    "submit": "Register arrival",
+    "submitting": "Registering…",
+    "dateField": {
+      "chooseYear": "Choose the year",
+      "clear": "Clear date",
+      "nextMonth": "Next month",
+      "openCalendar": "Open calendar",
+      "placeholder": "dd/mm/yyyy",
+      "previousMonth": "Previous month"
+    }
+  },
+  "available": {
+    "title": "Cargo invoices",
+    "pickContractor": "Pick the contractor to list their free invoices.",
+    "loading": "Loading the invoices",
+    "error": "Could not load the invoices ({{code}}).",
+    "empty": "This contractor has no free invoices for an arrival.",
+    "emptyFiltered": "No invoice matches this search.",
+    "search": "Search invoice",
+    "searchPlaceholder": "Number, recipient or city",
+    "selectAll": "Select all listed",
+    "selectOne": "Select invoice {{number}}",
+    "counter": "{{count}} of {{max}} invoices selected",
+    "limitReached": "The limit of {{max}} invoices per arrival was reached.",
+    "loadMore": "Load more invoices",
+    "number": "Invoice",
+    "recipient": "Recipient",
+    "city": "City",
+    "value": "Amount",
+    "region": "Invoices available for the arrival"
+  },
+  "fields": {
+    "arrivedAt": "Arrival date and time",
+    "contractorId": "Contractor",
+    "palletCount": "Pallets",
+    "reference": "Reference",
+    "documentIds": "Invoices"
+  },
+  "issues": {
+    "required": "Required field.",
+    "invalidTime": "Use the time as HH:MM.",
+    "future": "The arrival cannot be in the future.",
+    "integer": "Use a whole number from {{min}} to {{max}}.",
+    "tooLong": "Use at most {{max}} characters.",
+    "noDocuments": "Tick at least one invoice.",
+    "refusedByServer": "The server refused this value."
+  },
+  "refusal": {
+    "lead": "Check:",
+    "documentsLead": "Refused invoices:",
+    "documentShortcut": "Invoice {{number}}",
+    "documentReason": "{{reason}}",
+    "reasons": {
+      "DOCUMENT_ALREADY_IN_ARRIVAL": "is already in another arrival",
+      "DOCUMENT_FROM_ANOTHER_ISSUER": "is from another issuer",
+      "DOCUMENT_IN_LIVE_TRIP": "is already on a trip",
+      "DOCUMENT_NOT_AUTHORIZED": "is not authorized",
+      "DOCUMENT_NOT_FOUND": "was not found",
+      "CARGO_ARRIVAL_CLOSED": "the arrival is closed",
+      "CARGO_ARRIVAL_DOCUMENT_NOT_RECEIVED": "must be received before separating",
+      "CARGO_ARRIVAL_TRANSITION_NOT_ALLOWED": "the step cannot go back",
+      "CARGO_ARRIVAL_DOCUMENT_NOT_FOUND": "is not in this arrival"
+    }
+  },
+  "errors": {
+    "CARGO_RECEIVING_NOT_ENABLED": "Cargo receiving is not turned on for this contractor. Turn it on in their profile, under Clients, Contractors tab.",
+    "CARGO_ARRIVAL_ARRIVED_AT_IN_FUTURE": "The arrival cannot be in the future. Check the date and time.",
+    "CARGO_ARRIVAL_KEY_REUSED": "This attempt was already used with other data. Check and register again.",
+    "CARGO_ARRIVAL_NOT_FOUND": "This arrival no longer exists.",
+    "CONTRACTOR_NOT_FOUND": "The contractor was not found.",
+    "CARGO_ARRIVAL_CLOSED": "The arrival is closed: read only.",
+    "REQUEST_FAILED": "No connection to the server.",
+    "RESPONSE_INVALID": "Unexpected response from the server.",
+    "unknown": "Could not complete ({{code}})."
+  },
+  "detail": {
+    "title": "Arrival of {{name}}",
+    "back": "Back to arrivals",
+    "openSeparation": "Open the separation on the phone",
+    "loading": "Loading the arrival",
+    "error": "Could not load the arrival ({{code}}).",
+    "closedNotice": "Arrival closed: read only.",
+    "groups": "Route and city groups",
+    "groupRegion": "Invoices of group {{title}}",
+    "selectGroup": "Select group {{title}}",
+    "selectDocument": "Select invoice {{number}}",
+    "recipient": "Recipient",
+    "state": "Status",
+    "value": "Invoice",
+    "selected_one": "{{count}} invoice selected",
+    "selected_other": "{{count}} invoices selected",
+    "clearSelection": "Clear selection"
+  },
+  "actions": {
+    "routeLabel": "Route (up to {{max}} characters)",
+    "routeHint": "Leave empty to clear the route of the selected invoices.",
+    "applyRoute": "Apply route",
+    "markReceived": "Mark as received",
+    "markSeparated": "Mark as separated",
+    "working": "Sending…",
+    "close": "Close arrival",
+    "closing": "Closing…",
+    "closed": "Arrival closed.",
+    "closeUnchanged": "The arrival was already closed.",
+    "pendingLead": "Still to separate:",
+    "pendingShortcut": "Invoice {{number}}"
+  },
+  "outcome": {
+    "title": "Batch result",
+    "summary": "{{changed}} changed, {{unchanged}} unchanged, {{refused}} refused.",
+    "refusedLead": "Refused:",
+    "refusedShortcut": "Invoice {{number}}",
+    "routeApplied": "Route applied to the selected invoices.",
+    "dismiss": "Dismiss the result"
+  },
+  "separation": {
+    "title": "Separation",
+    "back": "Arrivals",
+    "openOffice": "Open the office view",
+    "loading": "Loading the separation",
+    "error": "Could not load the separation ({{code}}).",
+    "search": "Search invoice",
+    "searchPlaceholder": "Invoice number",
+    "scan": "Read the access key",
+    "scanTitle": "Read the access key",
+    "scanClose": "Close the reader",
+    "scanDenied": "The camera was denied. Allow access in the browser settings.",
+    "scanReading": "Point the camera at the invoice barcode.",
+    "scanStarting": "Starting the camera…",
+    "scanUnavailable": "This device cannot read with the camera.",
+    "scanFound": "Invoice found: {{number}}.",
+    "scanNotFound": "This key does not belong to any invoice of this arrival.",
+    "noMatches": "No invoice with that number.",
+    "offline": "No connection. A tap that fails stays on screen to try again.",
+    "groupToggle": "Show or hide group {{title}}",
+    "groupAll": "Separate this whole group",
+    "groupAllDone": "Whole group separated",
+    "step": {
+      "expected": "Mark as received",
+      "received": "Mark as separated",
+      "separated": "Separated"
+    },
+    "stepLabel": "{{step}} — invoice {{number}}",
+    "failure": "Could not send: {{reason}}",
+    "retry": "Try again",
+    "retryLabel": "Try again — invoice {{number}}",
+    "refused": "Refused: {{reason}}",
+    "closedNotice": "Arrival closed: read only."
+  }
+}

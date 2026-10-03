@@ -151,16 +151,24 @@ function flatKeysOf(permissions: readonly string[]): readonly string[] {
 }
 
 describe('o menu filtra por permissão — separator (CA01, CA04)', () => {
-  test('tem exatamente NF-e, Viagens, Ocorrências, Frota e Pendências', () => {
+  test('tem exatamente NF-e, Viagens, Ocorrências, Recebimento, Frota e Pendências', () => {
     expect([...flatKeysOf(SEPARATOR_PERMISSIONS)].sort()).toEqual(
-      ['delivery-clients', 'fleet', 'nfe', 'pendencias', 'trip', 'trip-occurrences'].sort(),
+      [
+        'cargo-receiving',
+        'delivery-clients',
+        'fleet',
+        'nfe',
+        'pendencias',
+        'trip',
+        'trip-occurrences',
+      ].sort(),
     )
   })
 
   test('em três grupos: Fiscal, Operações e Cadastros', () => {
     expect(menuOf(SEPARATOR_PERMISSIONS)).toEqual({
       fiscal: ['nfe', 'trip'],
-      operations: ['trip-occurrences'],
+      operations: ['trip-occurrences', 'cargo-receiving'],
       registries: ['fleet', 'pendencias', 'delivery-clients'],
     })
   })
@@ -178,9 +186,9 @@ describe('o menu filtra por permissão — separator (CA01, CA04)', () => {
 })
 
 describe('o menu filtra por permissão — company-admin (CA02)', () => {
-  test('nenhum dos 19 itens de antes desaparece', () => {
+  test('nenhum dos 19 itens de antes desaparece, e o Recebimento (spec 237) entra', () => {
     expect([...flatKeysOf(COMPANY_ADMIN_PERMISSIONS)].sort()).toEqual(
-      [...MENU_BEFORE_SPEC_221].sort(),
+      [...MENU_BEFORE_SPEC_221, 'cargo-receiving'].sort(),
     )
   })
 
@@ -232,6 +240,7 @@ describe('o menu filtra por permissão — Repasses e Minha viagem (RF-E6, CA16,
   test('o motorista-separador tem os itens do separador, mais Minha viagem', () => {
     expect([...flatKeysOf(DRIVER_AND_SEPARATOR_PERMISSIONS)].sort()).toEqual(
       [
+        'cargo-receiving',
         'delivery-clients',
         'driver-trip',
         'fleet',
