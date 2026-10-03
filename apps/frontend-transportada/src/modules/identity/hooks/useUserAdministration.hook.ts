@@ -18,7 +18,7 @@ export function readErrorCode(error: unknown): string | undefined {
   return error instanceof Error ? error.message : undefined
 }
 
-/** O erro já está em `mutation.error` e a tela o mostra: rejeitar aqui só vira `unhandledrejection`. */
+/** A falha fica em `mutation.error`, onde a tela a lê; rejeitar aqui só vira `unhandledrejection`. */
 async function settleWithoutRejecting(action: () => Promise<void>): Promise<void> {
   try {
     await action()
@@ -198,6 +198,9 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
     toggleGroups: () => setGroupsOpen((open) => !open),
     toggleMatrix: () => setMatrixOpen((open) => !open),
     userPermissions,
+    bulkAssignErrorCode: readErrorCode(
+      users.assignRolesMutation.error ?? groups.assignMutation.error,
+    ),
     async assignGroups(groupIds: readonly string[]) {
       await settleWithoutRejecting(async () => {
         await groups.assignMutation.mutateAsync({ groupIds, userIds: selection.selectedIds })

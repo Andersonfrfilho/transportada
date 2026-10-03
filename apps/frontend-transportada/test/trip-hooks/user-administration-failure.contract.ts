@@ -192,4 +192,22 @@ describe('useUserAdministration — salvar não rejeita a promise (A3)', () => {
     await run(() => failing.result().assignGroups(['group-1']))
     expect(failing.result().users.assignRolesMutation.isError).toBe(true)
   })
+
+  test('papéis em lote: o código da falha chega à barra e some na nova tentativa que dá certo', async () => {
+    const mounted = await mountHook(true)
+    expect(mounted.result().bulkAssignErrorCode).toBeUndefined()
+    await run(() => mounted.result().assignRoles(['operator']))
+    expect(mounted.result().bulkAssignErrorCode).toBe('SAVE_REFUSED')
+
+    behavior.isFailing = false
+    await run(() => mounted.result().assignRoles(['operator']))
+    expect(mounted.result().bulkAssignErrorCode).toBeUndefined()
+  })
+
+  test('grupos em lote: a falha da atribuição também chega à barra', async () => {
+    const mounted = await mountHook(true)
+    await run(() => mounted.result().assignGroups(['group-1']))
+    expect(mounted.result().groups.assignMutation.isError).toBe(true)
+    expect(mounted.result().bulkAssignErrorCode).toBeDefined()
+  })
 })

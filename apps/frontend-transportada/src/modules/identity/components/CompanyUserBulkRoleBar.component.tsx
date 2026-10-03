@@ -10,6 +10,7 @@ import type { CompanyGroup, CompanyUser } from '../shared/companyUsers.types'
 import styles from '../styles/userAdministration.module.css'
 
 type CompanyUserBulkRoleBarProps = Readonly<{
+  errorCode?: string
   groups: readonly CompanyGroup[]
   onApply: (roles: readonly string[]) => void
   onApplyGroups: (groupIds: readonly string[]) => void
@@ -28,6 +29,7 @@ type CompanyUserBulkRoleBarProps = Readonly<{
  * de errar da tela, e a pill é o que deixa o erro visível **antes** do clique, não depois.
  */
 export function CompanyUserBulkRoleBar({
+  errorCode,
   groups,
   isPending = false,
   onApply,
@@ -133,6 +135,12 @@ export function CompanyUserBulkRoleBar({
       )}
 
       {/* Acrescentar, não trocar: dizer isso antes do clique evita a surpresa que não tem desfazer. */}
+      {errorCode === undefined ? null : (
+        <p className={styles.feedback} role="alert">
+          {t(`users.errors.${errorCode}`, { defaultValue: t('users.errors.default') })}
+        </p>
+      )}
+
       <p className={styles.hint}>{t('users.bulk.addsOnly')}</p>
     </div>
   )

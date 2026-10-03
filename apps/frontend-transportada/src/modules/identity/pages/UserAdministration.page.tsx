@@ -150,6 +150,7 @@ export function UserAdministrationPage() {
               </p>
             )}
             <CompanyUserBulkRoleBar
+              {...withErrorCode(screen.bulkAssignErrorCode)}
               groups={screen.groups.query.data ?? []}
               isPending={users.assignRolesMutation.isPending}
               onApplyGroups={(groupIds) => void screen.assignGroups(groupIds)}
