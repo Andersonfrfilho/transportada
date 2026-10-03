@@ -2860,3 +2860,17 @@ Rebase sobre `origin/staging` (spec 235, o ajudante é um perfil, migration `202
 - Conflitos fundidos, ambos os lados mantidos: `static-migration.contract.ts` (lista exaustiva ganhou as duas pastas, 235 antes da corretiva da 196) e as seções de spec 235 e spec 196 em `apps/api-transportada/CLAUDE.md`, `apps/frontend-transportada/CLAUDE.md`, `docs/ai-context/api-transportada.md` e `docs/ai-context/frontend-transportada.md`.
 - Snapshot da corretiva `20261003010806_event_location_whatsapp_coordinate` refeito a partir do da 235: `id` `eb960c28-…` mantido, `prevIds` = `0c09292d-a294-4743-92eb-60578a376866`, e só os três CHECKs `*_coordinates_channel_check` trocados para `in ('driver_app', 'whatsapp')`. `db:generate` devolve `no_changes`.
 - Gates: `format:check`, `lint` (0 erros), `typecheck`, `build`, `test` raiz (inclui contrato de shards e `static-migration`), `db:test` (118 pass) e integração dos 10 arquivos tocados pela 196 ou pela 235 (121 pass, 0 fail, 0 skip). A integração completa não foi reexecutada.
+
+## T3.7 — pacotes `meta-whatsapp-*` subidos (2026-10-03)
+
+- `module@0.7.0` (deps exatas: `contracts@0.6.0`, `provider@0.3.1`, `meta-graph-core@0.3.0`); `bun install --frozen-lockfile` verde.
+- **Só 0004–0010 rodam nos bancos existentes** (Postgres nativo descartável, porta 55999): migrations do tarball `0.1.0` (4 pastas) aplicadas
+  pelo runner antigo; depois `runMetaWhatsAppSchemaMigrations` novo. Journal `drizzle.meta_whatsapp_migrations`: 4 nomes antes, 11 depois (as 4
+  originais intactas, 7 aditivas acrescentadas, sem erro de "já existe"). Contrato permanente em `test/whatsapp/module-migration.contract.ts`
+  ("banco com as quatro originais aplicadas só roda as aditivas"). O `assertMigrationsAreComplete` do pre-deploy lê só o journal do `public`:
+  **não cobre** `meta_whatsapp`. Rollback `drizzle-meta-whatsapp/rollback.sql` continua válido (as 11 migrations só tocam o schema `meta_whatsapp`).
+- Ponta a ponta da localização: `whatsapp-driver-flow-actions.integration.ts` (webhook real → `captured` `-23.5505200`/`-46.6333080`, `capturedAt`
+  `2025-09-11T12:00:00Z`; sem localização → `unavailable`); nenhuma coordenada em log nosso. ⚠️ O pacote não loga, mas **persiste** a mensagem crua em
+  `meta_whatsapp.messages.payload.location` e o rótulo em `content`.
+- `confirm` do nonce: mutação (no-op) reprova os 2 testes novos de `whatsapp-channel.integration.ts`; restaurado, 10/10.
+- Gates: format:check, lint (0 erros), typecheck (0), build, `bun run test` (9153 pass na API), `db:test` 119/0, integração WhatsApp 57/0.

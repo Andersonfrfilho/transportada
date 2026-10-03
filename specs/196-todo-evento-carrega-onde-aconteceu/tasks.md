@@ -250,6 +250,15 @@ do usuário. A API não é revertida com a app nova no ar.
   Aceite: contrato por ação (as três do motorista e as do operador), os dois comandos da API verdes, e
   a contagem subiu em N.
 
+- [x] **T3.7** 🔁 Subir `meta-whatsapp-module@0.7.0`, `-contracts@0.6.0` e `-provider@0.3.1` (API; worker só o
+      provider). `runMetaWhatsAppSchemaMigrations` injeta o `migrate` (com invólucro que transforma o
+      `MigratorInitFailResponse` em erro); `confirm` do nonce implementado; o teste que prendia o limite da
+      `0.1.0` virou ponta a ponta pelo webhook real (`captured` com a coordenada; `unavailable` sem ela).
+      Evidência: `evidence.md` § T3.7.
+- [ ] **T3.8** O bot **pede a geolocalização** no fluxo do motorista (decisão do usuário, 2026-10-03):
+      texto do nó publicado por `whatsapp-flow-publish`. **Não implementada.** A relação do ponto declarado
+      com a distância/pontualidade segue sem decisão.
+
 ## Fase 4 — A linha do tempo devolve o ponto, para quem pode ver
 
 > 🤖 Modelo: `sonnet`

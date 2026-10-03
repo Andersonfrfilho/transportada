@@ -133,12 +133,11 @@ sem ninguém o ter olhado.
     corrigido pela migration corretiva aditiva `20261003010806_event_location_whatsapp_coordinate`
     (`evidence.md` § T1.4).
 
-    ⚠️ **Limite conhecido (2026-10-02): a localização pelo WhatsApp só vale depois de subir os pacotes.**
-    `meta-whatsapp-module`/`-contracts`/`-provider` `0.1.0` descartam `messages[].location` antes do
-    gancho `onMessageReceived` (o schema de mensagem não tem a chave). O código da API está pronto e
-    provado por contrato e por integração com o ponto entregue ao armazém; ponta a ponta, o motorista que
-    manda a localização pelo WhatsApp hoje cai em `unavailable`. Subir os pacotes é **decisão pendente do
-    usuário** (a instalação fica na `0.1.0` por dívida de formato de migration do pacote).
+    ✅ **Pacotes subidos (2026-10-03):** `meta-whatsapp-module@0.7.0`, `-contracts@0.6.0` e `-provider@0.3.1`
+    entregam `messages[].location` ao gancho `onMessageReceived`; a localização pelo WhatsApp é provada ponta a
+    ponta (webhook real → `captured` com a coordenada; sem localização → `unavailable`). ⚠️ **Não implementado:** o
+    bot pedir a geolocalização no fluxo do motorista (decisão do usuário, 2026-10-03) — próxima task; e a relação do
+    ponto declarado com a distância/pontualidade segue sem decisão.
 
 - **D4 — Só o toque carimba; a consequência não.** A entrega que deriva `on_delivery_route` ou
   `completed` grava um `trip_status_events` que **não** leva ponto (`null`): o ponto está no evento

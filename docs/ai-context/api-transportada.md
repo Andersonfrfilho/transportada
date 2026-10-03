@@ -1546,18 +1546,21 @@ e o preenche depois, porque o despachante precisa do `channel`/`flows.interprete
 `conversations.repository` **da própria instância** — sem `buildMessageHook` o módulo se comporta
 como na spec 062.
 
-**A instalação fica na `0.1.0` dos três pacotes, por dívida do pacote, não por falta de recurso.**
-A `0.2.x`/`0.3.0` do `meta-whatsapp-module` passou a publicar as próprias migrations no formato
-antigo "por journal" (`meta/_journal.json`), e o `drizzle-orm` `1.0.0-rc.4` já instalado **recusa** o
-formato de propósito (`"You must upgrade drizzle-kit and run drizzle-kit up"`) — comando de projeto,
-que não roda sobre `node_modules` de uma dependência. Medido com `make migration-test` real: 4 dos
-91 testes de migration falham em toda versão da linha 0.2.x/0.3.x testada (`npm pack` de
-0.2.0-rc.22, 0.2.0 e 0.3.0), voltando a 91/0 com a `0.1.0`. ⚠️ A dívida não bloqueia nada desta
-spec: a `0.1.0` já expõe `FlowInterpreter`, `registerFlowAction`, `MetaWhatsAppHooks.onMessageReceived`
-e `sendInteractiveList`/`sendInteractiveButtons` (provider), que é tudo que o módulo usa. Corrigir o
-formato de migration é changeset em `adatechnology-packages`, fora deste repositório.
+**A instalação está em `meta-whatsapp-module@0.7.0`, `-contracts@0.6.0` e `-provider@0.3.1`** (subida
+de 2026-10-03, spec 196 T3.6; antes ficava na `0.1.0` porque a linha 0.2.x/0.3.x publicava as migrations no
+formato antigo "por journal", que o `drizzle-orm` `1.0.0-rc.4` recusa de propósito). A `0.7.0` publica as migrations em
+**pasta** (`dist/migrations/<nome>/migration.sql`): as quatro originais mantêm o nome e as sete aditivas
+(`0004`–`0010`) entram por cima. ⚠️ O migrator decide pelo **nome**, então nos bancos existentes só as aditivas rodam
+(provado em `test/whatsapp/module-migration.contract.ts`). `runMetaWhatsAppMigrations({ db, migrate })` recebe o
+`migrate` injetado (`drizzle-orm/bun-sql/migrator`), como o `notification-module`; o runner do pacote **descarta o
+retorno** do `migrate`, que no rc.4 pode devolver `MigratorInitFailResponse` em vez de lançar — por isso o
+`meta-whatsapp-migration.service.ts` injeta um invólucro que transforma esse retorno em erro. O
+`assertMigrationsAreComplete` do pre-deploy lê só o journal do `public`: **não cobre** `meta_whatsapp`. O
+`NonceStoreInterface` ganhou `confirm?` (implementado no `drizzle-webhook-nonce.store.ts`: o claim curto vira a
+janela cheia). O pacote **persiste** `messages[].location` crua em `meta_whatsapp.messages.payload` (e o rótulo
+`name`/`address` em `content`); ele não loga.
 
-**O interpretador da `0.1.0` não valida a resposta nem envia mensagem — o driver faz as duas
+**O interpretador não valida a resposta nem envia mensagem — o driver faz as duas
 coisas.** `FlowInterpreter.run` trata qualquer texto de nó de escolha como o id de uma opção e cai no
 `byAnswer.default`, então texto livre avançaria sem essa guarda — `isOfferedOption`
 (`domain/whatsapp-answer.policy.ts`) é quem recusa resposta fora do menu antes de chamar o
@@ -2113,7 +2116,7 @@ entrega conta como longe (D4b). **GPS desligado pune em todo cliente (D4c, T1.8)
 entrega, a entrega **do app do motorista** conta como longe com ou sem o desvio — `findDeliveryContext` lê
 `trip_stop_events.channel` e devolve `isDeliveryRecordedByDriver` (`DRIVER_FIELD_CHANNELS` = só
 `driver_app`, em `trips/domain/trip-field-channel.constant.ts`); a baixa do escritório (`office`, spec 223)
-e a entrega pelo WhatsApp (hoje sem ponto: inalcançável com meta-whatsapp 0.1.0; decisão pendente do
+e a entrega pelo WhatsApp (com ponto quando o motorista compartilha a localização; decisão pendente do
 usuário — o ponto do WhatsApp pode ser pino de mapa, ver ADR-0081 §3.1) nunca têm posição e **não** são punidas por isso (a referência de tempo sem posição
 segue o recebimento quando o relógio é alegado). Sem o canal no contexto, vale a regra anterior (só a D4b
 pune). A pontualidade é gravada no anexo e a nota só lê `trip_delivery_proofs.punctuality` — nada já
@@ -2343,8 +2346,10 @@ não reconciliam. Ver ADR-0093.
   `EVENT_LOCATION_FORBIDDEN_RESPONSES` nomeia as respostas que nunca podem (portal, tratativa, demonstrativo,
   acerto, reentrega, lote do escritório, anexo, prontidão do despacho).
 - **WhatsApp.** A mensagem de localização vira ponto (`shared-location`), mas os pacotes `meta-whatsapp-*`
-  `0.1.0` descartam `messages[].location` antes do gancho: ponta a ponta só depois de subir os pacotes
-  (decisão pendente do usuário). O teste que documenta o limite deve ficar vermelho quando subirem.
+  `0.6.0`/`0.7.0` entregam `messages[].location` ao gancho: ponta a ponta provado em
+  `whatsapp-driver-flow-actions.integration.ts`. ⚠️ **Próxima task (não implementada):** o bot pedir a geolocalização
+  no fluxo do motorista (decisão do usuário, 2026-10-03); a relação do ponto declarado com a distância/pontualidade
+  segue sem decisão.
 - **N+1:** `test/integration/trip-timeline.integration.ts` conta as consultas de `listTripTimeline` com 1 nota e
   com 50 notas (todas com ponto): o número é o mesmo (9 em 2026-10-02).
 
