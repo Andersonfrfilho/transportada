@@ -23,7 +23,11 @@ import {
   type OfflineQueueStore,
   type QueuedReport,
 } from '../../src/modules/driver-trip/shared/offlineQueue.service'
-import { canReportOnTrip } from '../../src/modules/driver-trip/shared/tripCrewRole.service'
+import {
+  canReportOnTrip,
+  DEFAULT_TRIP_CREW_ROLE,
+  resolveTripCrewRole,
+} from '../../src/modules/driver-trip/shared/tripCrewRole.service'
 import { i18n } from '../../src/modules/shared/i18n/i18n.service'
 
 const WORKSPACE = readFileSync(
@@ -54,7 +58,9 @@ describe('a viagem sabe o papel de quem a lê (spec 239 D4)', () => {
   })
 
   it('resposta antiga, sem crewRole, vale driver — o cache de ontem não quebra', () => {
-    expect(parseTrip(TRIP)?.crewRole).toBe('driver')
+    expect(DEFAULT_TRIP_CREW_ROLE).toBe('driver')
+    expect(parseTrip(TRIP)?.crewRole).toBe(DEFAULT_TRIP_CREW_ROLE)
+    expect(resolveTripCrewRole({})).toBe(DEFAULT_TRIP_CREW_ROLE)
   })
 
   it('papel fora do vocabulário degrada para somente leitura, nunca para motorista', () => {

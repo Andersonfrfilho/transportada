@@ -18,6 +18,7 @@ import {
   type TripCrewRole,
 } from './driverTrip.types'
 import { PROOF_CARGO_PHOTO_LIMIT } from './proofCargo.constant'
+import { DEFAULT_TRIP_CREW_ROLE } from './tripCrewRole.service'
 import { DEFAULT_PROOF_SETTINGS } from './proofFormPlan.service'
 
 /**
@@ -247,7 +248,7 @@ function toPendingProofs(value: unknown): readonly PendingProofDocument[] {
 
 /** Spec 239 D4: ausente (snapshot anterior) vale `driver`; papel desconhecido degrada para leitura, nunca para `driver`. */
 function readCrewRole(value: unknown): TripCrewRole {
-  if (value === undefined) return 'driver'
+  if (value === undefined) return DEFAULT_TRIP_CREW_ROLE
   return TRIP_CREW_ROLES.find((known) => known === value) ?? 'helper'
 }
 
