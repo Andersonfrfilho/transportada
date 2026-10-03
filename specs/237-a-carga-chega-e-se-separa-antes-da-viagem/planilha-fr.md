@@ -71,3 +71,43 @@ planilha: quantas linhas achariam **uma** nota só por valor + CEP, quantas fica
 aparece nas informações adicionais, e se o e-mail chegou **antes** ou **depois** do XML. Não foi executada na sessão (leitura em
 produção bloqueada). Quem tiver acesso ao banco desejado a roda e traz o resultado: com ele a Fase 4 já nasce
 sabendo se a prévia chega **antes** (e a nota fica `awaiting_xml`) ou **depois** do XML (e nasce `matched`).
+
+## Comparação com os XMLs que existem localmente (2026-10-03)
+
+Corpus: **346 NF-e do emitente provável desse contratante** (`tmp/nfe-fixture/`, 1 série, emissão de **07/07 a
+28/08/2026**; mais 2 XMLs soltos de outros emitentes, ignorados). Script de comparação fora do repositório;
+os números abaixo reproduzem-se lendo o XML (`infNFe`) e as três planilhas.
+
+**Limite do que isso prova:** os XMLs vão até 28/08 e as planilhas são de 25/09 a 02/10. **Nenhuma nota da
+planilha está nesse corpus**, então o vínculo linha → nota **não pôde ser testado de ponta a ponta**. O que deu
+para medir:
+
+| Pergunta                                                                         | Resultado                                                                                                                                              |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Text001` aparece **em algum lugar** dos 348 XMLs (texto bruto, qualquer campo)? | **Não — 0 ocorrências**                                                                                                                                |
+| `Text001` é igual ao `nNF` de alguma nota?                                       | **Não.** `nNF` do contratante vai de 852.674 a 883.677; `Text001` de 801.157 a 821.804 — **faixas que nem se tocam**, e o `nNF` só cresce com o tempo. |
+| `Text001` é o pedido de compra `xPed`?                                           | **Não nas amostras:** só 7 de 348 XMLs têm `xPed`, e é o pedido **do destinatário** (ex.: `14796`, `722676`), não um número de 80xxxx.                 |
+| Valor + CEP da planilha batem com algum XML?                                     | 0 (esperado: períodos diferentes)                                                                                                                      |
+| Escalas de valor e peso são compatíveis?                                         | **Sim:** mediana de `vNF` R$ 1.143 × `VALOR` R$ 1.113; mediana de `pesoB` 65 kg × `PESO TOTAL` 68 kg → `VALOR` ≈ `vNF` e `PESO TOTAL` ≈ `pesoB`.       |
+| Os destinatários da planilha já aparecem nos XMLs?                               | **192 das 492 linhas (39%)** têm destinatário (nome + CEP) idêntico ao de alguma nota de julho/agosto; 99 destinatários em comum.                      |
+
+**O achado novo: `NroCarga` e `LACRE`.** Em **todas** as 346 notas as informações adicionais (`infCpl`) trazem
+`LACRE: <nº> - NroCarga: <nº>` (e, em parte, `B.Calc.ST`, `ICMS ST` e `Obs. Cliente` com horário de
+recebimento do destinatário). `NroCarga` (5 dígitos, 53.020 a 64.175) agrupa **~20 notas** (1 a 36) de ~7
+cidades, **emitidas no mesmo dia**: é a **carga que sai do contratante** — a carga em paletes que **chega** ao
+galpão. É o identificador natural da **chegada** (spec 237 RF6), sem ninguém digitar. O `RouteName` da
+planilha, ao contrário, agrupa o **roteiro de entrega** (cidade/região), por isso os dois agrupamentos
+convivem: carga (1 chegada) → várias notas → vários roteiros.
+
+**Conclusões para o desenho:**
+
+1. **`Text001` não é número de NF-e e não aparece nas notas**: é o número interno do contratante (pedido/ordem).
+   O vínculo **não pode** depender dele.
+2. **O vínculo é por conteúdo** (valor + CEP + destinatário, com peso e cidade de reforço), **dentro das notas
+   do contratante emitidas nos dias anteriores à prévia** — as escalas são compatíveis.
+3. **O destinatário se reconhece pelo histórico**: nome normalizado + CEP já identifica ~39% das linhas só com
+   julho/agosto; o histórico importado alimenta o `contractor_recipient_aliases` **sem esperar a confirmação
+   do operador** (a confirmação cobre os que faltam).
+4. **A chegada pode nascer do XML**: `NroCarga` + `LACRE` das informações adicionais identificam a carga (D9).
+5. **Para medir de verdade** (taxa de candidata única, ambiguidade, antes/depois do e-mail) faltam os **XMLs do
+   período 21/09–02/10** (ou o banco): ver `consulta-recebimento-vs-xml.sql`.

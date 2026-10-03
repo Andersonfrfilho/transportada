@@ -146,6 +146,11 @@ conferência) **Then** o fluxo dele muda **só por dado**, sem código novo e se
   7. **Calibração antes de construir:** `consulta-recebimento-vs-xml.sql` mede, nas 492 linhas reais, quantas
      achariam **uma** nota só por valor + CEP, quantas ficariam ambíguas e se `Text001` aparece nas informações
      adicionais. Isso **fixa os limites de confiança** do passo 3. **A Fase 4 não começa antes dessa medição.**
+- **RF5b — A chegada se reconhece pela carga:** as informações adicionais das NF-e do contratante trazem
+  `NroCarga` e `LACRE` (medido: 346 de 346 notas). Quando o perfil declara o padrão de leitura
+  (`arrival_reference_pattern`, dado do perfil, **nunca regex fixa no código**), a importação agrupa as notas
+  por `NroCarga` e **propõe a chegada** (carga, lacre, notas, cidades) para o operador só **confirmar a hora
+  em que o caminhão chegou**. Sem padrão no perfil, a chegada é registrada à mão como hoje [D9].
 - **RF6 — Chegada** (`cargo_arrivals`): `contractor_id`, `arrived_at` (momento informado, corrigido como
   na 234 quando vier de app), `registered_by`, `channel`, `pallet_count` opcional, `separation_due_at`
   derivado do perfil. `cargo_arrival_documents`: nota na chegada com **eixo próprio**
@@ -233,6 +238,11 @@ Fase 4.
 contratante**, de um romaneio, ou outro? Esse número vai no XML da NF-e (campo `xPed`/pedido de compra) ou nas
 informações adicionais? Um **XML real de uma nota dessa planilha** responde na hora. Se sim, o vínculo ganha
 uma chave forte (T4.3a); se não, ele fica só por valor + CEP + destinatário (RF5a). Bloqueia só a T4.3a.
+
+**[NEEDS CLARIFICATION: D9 — a carga é a chegada?]** Em todas as notas há `NroCarga` + `LACRE`, e uma carga
+agrupa ~20 notas de ~7 cidades emitidas no mesmo dia. A **chegada da carga** (o caminhão com os paletes) é a
+**carga** de um `NroCarga`? Uma planilha de prévia cobre uma carga ou várias? Se for 1 carga = 1 chegada, a
+chegada deixa de ser digitada. Bloqueia só a RF5b.
 
 **Análise a rodar por quem tem acesso ao banco (item 7 do usuário):** comparar o recebimento do e-mail com a
 chegada do XML por nota e medir o vínculo por conteúdo — consulta pronta em
