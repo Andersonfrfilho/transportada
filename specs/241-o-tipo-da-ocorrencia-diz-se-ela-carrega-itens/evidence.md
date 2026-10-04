@@ -82,3 +82,19 @@ Implementação: `canCorrect = typeItemsMode !== 'off' || hasItems || wasCorrect
 
 Verde: `bun run --cwd apps/frontend-transportada test` → 6685 pass + 397 pass (lote DOM), 0 fail;
 `bun run typecheck` sem erros; lint da app 0 erros (16 avisos já existentes).
+
+### T1.3 — mutação: voltar o RF7 para `hasItems || wasCorrected`
+
+Mutação em `tripOccurrenceDetail.service.ts` (`canCorrect = input.hasItems || input.wasCorrected`),
+`bun run --cwd apps/frontend-transportada test`:
+
+```text
+(fail) Corrigir e Cancelar: ... > Corrigir por tipo (spec 241 CA05) > optional, sem itens, nunca corrigida (a avaria da nota inteira): Corrigir aparece e Cancelar continua
+(fail) Corrigir e Cancelar: ... > Corrigir por tipo (spec 241 CA05) > required, sem itens: Corrigir aparece e Cancelar continua
+(fail) botão Corrigir no detalhe da ocorrência (spec 240 T2.1) > tipo optional sem itens (a avaria da nota inteira) tem Corrigir e Cancelar
+(fail) botão Corrigir no detalhe da ocorrência (spec 240 T2.1) > resposta sem typeItemsMode (API anterior) lê optional: Corrigir aparece sem itens
+ 6681 pass
+ 4 fail
+```
+
+Restaurado o arquivo (`git status` limpo na fonte): 6685 pass + 397 pass (lote DOM), 0 fail.
