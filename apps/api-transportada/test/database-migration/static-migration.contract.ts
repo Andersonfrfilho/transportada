@@ -2359,3 +2359,46 @@ describe('o estado do ponto entra aditivo e o histórico sem coordenada fica NUL
     expect(rollbackSql).not.toContain('CASCADE')
   })
 })
+
+describe('a segunda via sai sem itens antes da CHECK da forma (spec 241)', () => {
+  /**
+   * Spec 241 (RF2, RF11): a ordem é a decisão. A CHECK da forma só entra depois do `UPDATE` que põe
+   * a segunda via em `off` + `unset` na mesma instrução — antes dele, a linha `off` + `blocked`
+   * derrubaria a migration. O rollback derruba as duas CHECKs antes da coluna que elas leem.
+   */
+  test('orders the items_mode column, its backfill and the shape check, and reverses it', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_occurrence_type_items_mode'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const addColumn = migrationSql.indexOf(
+      `ALTER TABLE "company_occurrence_types" ADD COLUMN "items_mode" varchar(16) DEFAULT 'optional' NOT NULL;`,
+    )
+    const vocabularyCheck = migrationSql.indexOf(
+      `ADD CONSTRAINT "company_occurrence_types_items_mode_check" CHECK ("items_mode" in ('required', 'optional', 'off'))`,
+    )
+    const backfill = migrationSql.search(
+      /UPDATE "company_occurrence_types"\s+SET "items_mode" = 'off', "redelivery_policy" = 'unset'\s+WHERE "name" = 'Cliente pediu segunda via do boleto'\s+AND "stage" = 'delivery'\s+AND "flow" = 'document';/u,
+    )
+    const shapeCheck = migrationSql.indexOf(
+      `ADD CONSTRAINT "company_occurrence_types_items_off_shape_check" CHECK ("items_mode" <> 'off' or "redelivery_policy" = 'unset')`,
+    )
+    expect(addColumn).toBeGreaterThanOrEqual(0)
+    expect(vocabularyCheck).toBeGreaterThan(addColumn)
+    expect(backfill).toBeGreaterThan(vocabularyCheck)
+    expect(shapeCheck).toBeGreaterThan(backfill)
+    expect(migrationSql).not.toMatch(/\bDROP\b|\bINSERT\b/u)
+
+    const dropShape = rollbackSql.indexOf('"company_occurrence_types_items_off_shape_check"')
+    const dropVocabulary = rollbackSql.indexOf('"company_occurrence_types_items_mode_check"')
+    const dropColumn = rollbackSql.indexOf('DROP COLUMN IF EXISTS "items_mode"')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/u)
+    expect(dropShape).toBeGreaterThan(0)
+    expect(dropVocabulary).toBeGreaterThan(dropShape)
+    expect(dropColumn).toBeGreaterThan(dropVocabulary)
+    expect(rollbackSql).toContain(`WHERE "name" = '${directory ?? ''}'`)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+  })
+})

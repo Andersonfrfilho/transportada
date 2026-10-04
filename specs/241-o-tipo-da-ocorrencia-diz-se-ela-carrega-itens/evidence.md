@@ -571,3 +571,63 @@ outra constante), `tripClient.service.ts:558` e `tripResponse.validation.ts:1880
 `bun install --frozen-lockfile` (sem mudanças) · `bun run --cwd apps/frontend-transportada test`: **6708 pass, 0 fail** (32 arquivos) +
 lote DOM **419 pass, 0 fail** · `bun run typecheck` (raiz): sem erro · `bun run format:check`: limpo · lint da app: 0 erros, 16
 avisos (nenhum em arquivo tocado).
+
+# Evidência — etapa 2 (banco e API)
+
+## T0.3 — medição em produção (pendente)
+
+- **(i) pendente de produção.** Quantos tipos têm o nome exato "Cliente pediu segunda via do boleto"
+  (etapa `delivery`, fluxo `document`) e qual `redelivery_policy` cada um tem — a migration da T2.1
+  zera a política dessas linhas para `unset`. **Não medido**: a medição em produção (Postgres-Hqfu) é
+  só leitura e pede aprovação humana. Precisa ser feita antes da etapa 2; política ≠ `unset` avisa o
+  usuário antes do deploy.
+- (ii) e (iii) também pendentes, pelo mesmo motivo.
+
+Conferido para a T2.1 (2026-10-03): `origin/staging` em `83813b175` não tem `items_mode` nem
+`itemsMode` em `apps/api-transportada` (`git grep`), então a 241 cria a coluna.
+
+## T2.1 — teste vermelho antes da migration
+
+Testes escritos antes do schema e da migration:
+
+- `test/database-migration/occurrence-type-items-mode.assertion.ts` (CA01 + CA09), chamado de
+  `database-migration.integration.ts`: desfaz só a migration de `items_mode`, semeia seis tipos
+  **antes** da coluna (segunda via `unset`; segunda via `blocked`; "Recusa total" `blocked`; mesmo
+  nome em `separation`; mesmo nome em fluxo `stop`; nome renomeado), reaplica as migrations e confere
+  `off` + `unset` nas duas primeiras e `optional` com a política intocada nas outras quatro; depois,
+  a CHECK da forma recusa `off` + `blocked` no insert e `allowed` no update (23514), e a de
+  vocabulário recusa `always` (23514).
+- `test/database-migration/static-migration.contract.ts`: a ordem coluna → CHECK de vocabulário →
+  `UPDATE` com a política → CHECK da forma, e o rollback inverso.
+- `test/integration/occurrence-type-catalog-seed.integration.ts` (CA02): empresa vazia semeada →
+  os dois tipos de boleto `off`, os derivados `optional`.
+
+`make migration-test ENV_FILE=.env.test` (Postgres de teste 127.0.0.1:65432):
+
+```text
+test/database-migration.contract.test.ts:
+2174 |     expect(directory).toBeString()
+error: expect(received).toBeString()
+Received: undefined
+(fail) ... > orders the items_mode column, its backfill and the shape check, and reverses it
+158 |   if (directory === undefined) throw new Error('occurrence_type_items_mode migration is required')
+error: occurrence_type_items_mode migration is required
+(fail) Drizzle migration integration > applies, constrains, rolls back, and reapplies the fiscal migration [4425.49ms]
+
+ 119 pass
+ 2 fail
+Ran 121 tests across 8 files. [68.75s]
+make: *** [migration-test] Error 1
+```
+
+`bun --env-file=../../.env.test test --timeout 120000 ./test/integration/occurrence-type-catalog-seed.integration.ts`:
+
+```text
+PostgresError: column "items_mode" does not exist
+    errno: "42703",
+(fail) seed do catálogo de tipos de ocorrência contra Postgres real > semeia os tipos de boleto sem itens e os derivados com itens opcionais [1279.95ms]
+
+ 1 pass
+ 1 fail
+Ran 2 tests across 1 file. [2.77s]
+```

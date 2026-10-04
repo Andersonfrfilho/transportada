@@ -39,6 +39,9 @@ const DERIVED_OCCURRENCE_TYPE_CATALOG: readonly OccurrenceTypeCatalogEntry[] =
     return { name, stage: entry.stage }
   })
 
+/** A migration de `items_mode` casa o tipo da segunda via por este nome exato — renomeado, fica de fora. */
+export const SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME = 'Cliente pediu segunda via do boleto'
+
 /**
  * Pedido do usuário (spec 208, 25/09/2026): tipo de rua para o motorista registrar que o cliente
  * pediu a segunda via do boleto — sem exigir foto, sem soltar a nota da viagem.
@@ -53,5 +56,5 @@ const DERIVED_OCCURRENCE_TYPE_CATALOG: readonly OccurrenceTypeCatalogEntry[] =
  */
 export const OCCURRENCE_TYPE_CATALOG: readonly OccurrenceTypeCatalogEntry[] = [
   ...DERIVED_OCCURRENCE_TYPE_CATALOG,
-  { name: 'Cliente pediu segunda via do boleto', stage: TRIP_OCCURRENCE_STAGE.delivery },
+  { name: SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME, stage: TRIP_OCCURRENCE_STAGE.delivery },
 ]

@@ -14,7 +14,10 @@ import { eq } from 'drizzle-orm'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import { companies } from '../../src/database/identity.schema.js'
 import { companyOccurrenceTypes } from '../../src/database/trip.schema.js'
-import { OCCURRENCE_TYPE_CATALOG } from '../../src/shared/occurrence-type-catalog.constant.js'
+import {
+  OCCURRENCE_TYPE_CATALOG,
+  SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME,
+} from '../../src/shared/occurrence-type-catalog.constant.js'
 import { seedOccurrenceTypeCatalog } from '../../src/database/occurrence-type-catalog-seed.service.js'
 import { createDrizzleOccurrenceTypeCatalogSeedPort } from '../../src/database/occurrence-type-catalog-seed.repository.js'
 
@@ -23,6 +26,7 @@ const databaseUrl =
   process.env.API_TEST_DATABASE_URL ??
   process.env.DATABASE_URL
 const testWithPostgres = databaseUrl === undefined ? test.skip : test
+const BILL_EXTENSION_TYPE_NAME = 'Cliente pediu prorrogação do boleto'
 
 async function withDisposableDatabase(
   callback: (connectionString: string) => Promise<void>,
@@ -108,7 +112,7 @@ describe('seed do catálogo de tipos de ocorrência contra Postgres real', () =>
               stage: companyOccurrenceTypes.stage,
             })
             .from(companyOccurrenceTypes)
-            .where(eq(companyOccurrenceTypes.name, 'Cliente pediu segunda via do boleto'))
+            .where(eq(companyOccurrenceTypes.name, SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME))
 
           expect(boletoType).toBeDefined()
           expect(boletoType?.stage).toBe('delivery')
@@ -129,6 +133,49 @@ describe('seed do catálogo de tipos de ocorrência contra Postgres real', () =>
           // A empresa vazia é o que a primeira execução criou — não é zero.
           expect(firstRun).toBe(OCCURRENCE_TYPE_CATALOG.length)
         } finally {
+          await provider.close()
+        }
+      })
+    },
+  )
+
+  /**
+   * Spec 241 CA02: a empresa vazia recebe os dois tipos de boleto sem itens (`off`) e os derivados
+   * de `TRIP_OCCURRENCE_TYPES` com `optional`. Lido por SQL cru: o valor gravado é o que importa.
+   */
+  testWithPostgres(
+    'semeia os tipos de boleto sem itens e os derivados com itens opcionais',
+    async () => {
+      await withDisposableDatabase(async (connectionString) => {
+        const provider = createDrizzleProvider({
+          connection: { adapter: 'postgres', max: 1, url: connectionString },
+        })
+        const database = new SQL(connectionString, { max: 1 })
+
+        try {
+          const [company] = await provider.db
+            .insert(companies)
+            .values([{ status: 'active' }])
+            .returning({ id: companies.id })
+          if (company === undefined) throw new Error('Failed to seed company')
+
+          await seedOccurrenceTypeCatalog({
+            port: createDrizzleOccurrenceTypeCatalogSeedPort(provider.db),
+          })
+
+          const rows = (await database`
+          select name, items_mode from company_occurrence_types where company_id = ${company.id}
+        `) as { name: string; items_mode: string }[]
+          const itemsModeByName = new Map(rows.map((row) => [row.name, row.items_mode]))
+          const billTypeNames = [SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME, BILL_EXTENSION_TYPE_NAME]
+
+          expect(itemsModeByName.get(SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME)).toBe('off')
+          expect(itemsModeByName.get(BILL_EXTENSION_TYPE_NAME)).toBe('off')
+          const derived = rows.filter((row) => !billTypeNames.includes(row.name))
+          expect(derived).toHaveLength(OCCURRENCE_TYPE_CATALOG.length - 2)
+          for (const row of derived) expect(row.items_mode).toBe('optional')
+        } finally {
+          await database.close({ timeout: 0 })
           await provider.close()
         }
       })
