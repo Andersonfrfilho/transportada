@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 
 import { companyLocationRetentionSettings } from '../../database/company-location-retention-settings.schema.js'
 import { auditLogs } from '../../database/fiscal-operation.schema.js'
@@ -19,10 +19,15 @@ import {
   LOCATION_RETENTION_SAVED_ACTION,
 } from '../domain/location-retention.constant.js'
 import { resolvePurgeEffectiveAt } from '../domain/location-retention.policy.js'
+import {
+  COMPANY_SETTINGS_PERSISTENCE_FAILURE,
+  CompanySettingsPersistenceError,
+} from '../domain/company-settings-persistence.error.js'
 import type {
   CompanySettingsDatabase,
   CompanySettingsTransaction,
 } from './drizzle-company-settings.types.js'
+import { acquireLocationRetentionLock } from './drizzle-company-settings.support.js'
 import { countLocationRetentionImpact } from './drizzle-location-retention-impact.query.js'
 
 type SettingsRow = typeof companyLocationRetentionSettings.$inferSelect
@@ -83,7 +88,9 @@ export class DrizzleLocationRetentionSettingsRepository implements LocationReten
         .returning()
 
       if (row === undefined) {
-        throw new Error('COMPANY_LOCATION_RETENTION_SETTINGS_UPSERT_RETURNED_NOTHING')
+        throw new CompanySettingsPersistenceError(
+          COMPANY_SETTINGS_PERSISTENCE_FAILURE.locationRetentionNotPersisted,
+        )
       }
       await appendAudit(transaction, {
         action: LOCATION_RETENTION_SAVED_ACTION,
@@ -129,7 +136,7 @@ async function lockRow(
   transaction: CompanySettingsTransaction,
   companyId: string,
 ): Promise<SettingsRow | undefined> {
-  await transaction.execute(sql`select pg_advisory_xact_lock(hashtext(${companyId}))`)
+  await acquireLocationRetentionLock(transaction, companyId)
 
   return transaction
     .select()
