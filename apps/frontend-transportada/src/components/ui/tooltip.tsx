@@ -66,8 +66,17 @@ export function Tooltip({ children, label }: TooltipProps): JSX.Element {
         aria-describedby={isOpen ? describedById : undefined}
         className={styles.trigger}
         onBlur={close}
+        /**
+         * Ativar o gatilho dispensa a dica: um seletor que abre a lista por baixo dela fica com as
+         * opções cobertas (a dica pinta por cima, com `z-index` maior). Enter e Espaço já chegam
+         * como clique; as setas, que também abrem o seletor, não.
+         */
+        onClick={close}
         /** Foco de teclado abre **na hora**: quem chegou por Tab escolheu parar aqui. */
         onFocus={() => setIsOpen(true)}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') close()
+        }}
         onMouseEnter={open}
         onMouseLeave={close}
         ref={anchorRef}

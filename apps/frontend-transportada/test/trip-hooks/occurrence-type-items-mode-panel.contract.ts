@@ -184,6 +184,25 @@ describe('cadastro de tipos: Produtos (spec 241 RF10)', () => {
   )
 
   test(
+    'abrir o seletor de Produtos dispensa a dica, que cobriria as opções da lista',
+    scenario(async () => {
+      await mount([buildType({ itemsMode: 'optional' })])
+      const trigger = control(PRODUCTS_LABEL)
+      if (trigger === null) throw new Error('CONTROL_NOT_FOUND')
+      await act(async () => {
+        trigger.focus()
+        await Promise.resolve()
+      })
+      await waitFor(() => expect(document.body.textContent).toContain('Sem produtos: a ocorrência'))
+
+      await click(trigger)
+
+      await waitFor(() => expect(document.querySelector('[role="listbox"]') === null).toBe(false))
+      expect(document.body.textContent).not.toContain('Sem produtos: a ocorrência')
+    }),
+  )
+
+  test(
     'voltar para Opcional grava itemsMode optional e mantém a política já gravada',
     scenario(async () => {
       await mount([buildType({ itemsMode: 'off', redeliveryPolicy: 'unset' })])
