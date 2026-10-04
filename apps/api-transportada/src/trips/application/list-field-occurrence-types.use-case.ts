@@ -12,6 +12,7 @@
  * (`trip-field-office-occurrence.routes.ts`), então as duas rotas ganham a exceção de uma vez.
  */
 import {
+  OCCURRENCE_ATTACHMENT_MODE,
   OCCURRENCE_ITEMS_MODE,
   TRIP_OCCURRENCE_STAGE,
 } from '../../shared/trip-occurrence.constant.js'
@@ -132,7 +133,7 @@ export function resolveFieldOccurrenceTypes(
 
   if (!hasResolutionSubject || params.overrides === undefined) {
     return fieldTypes.map((type) => ({
-      attachmentMode: type.attachmentMode ?? 'off',
+      attachmentMode: type.attachmentMode ?? OCCURRENCE_ATTACHMENT_MODE.off,
       flow: type.flow ?? 'document',
       id: type.id,
       itemsMode: type.itemsMode ?? OCCURRENCE_ITEMS_MODE.optional,
@@ -158,7 +159,7 @@ export function resolveFieldOccurrenceTypes(
 
     return {
       attachmentMode: resolveOccurrenceAttachmentModeForRecipient({
-        attachmentMode: type.attachmentMode ?? 'off',
+        attachmentMode: type.attachmentMode ?? OCCURRENCE_ATTACHMENT_MODE.off,
         contractorId,
         lookup,
         recipientTaxId,

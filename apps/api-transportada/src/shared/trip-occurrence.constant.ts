@@ -89,6 +89,18 @@ export const OCCURRENCE_ITEMS_MODE = {
   optional: 'optional',
 } as const
 
+/** Política de reentrega do tipo; `unset` é o que o cadastro grava quando ninguém decidiu. */
+export const REDELIVERY_POLICY = {
+  allowed: 'allowed',
+  blocked: 'blocked',
+  unset: 'unset',
+} as const
+
+/** Exigência de foto do comprovante; `off` é o padrão do tipo legado sem a coluna preenchida. */
+export const OCCURRENCE_ATTACHMENT_MODE = {
+  off: 'off',
+} as const
+
 /** Spec 241 (RF11): a CHECK `off ⇒ unset`; o cadastro a traduz em 422 quando a corrida a atinge. */
 export const OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK =
   'company_occurrence_types_items_off_shape_check'
