@@ -1,15 +1,17 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 237 RF5a contra Postgres (correção da revisão da Fase 4a, M2 e L5): desvincular revoga o alias
- * `Company → CNPJ` que esta prévia aprendeu daquele vínculo — e só ele — e pede a reavaliação do
- * contratante, porque a nota solta pode servir a outra prévia.
+ * Spec 237 RF5a contra Postgres (correção da revisão da Fase 4a, M2, L5 e L6): desvincular revoga o
+ * alias `Company → CNPJ` que esta prévia aprendeu daquele vínculo — e só ele — e pede a reavaliação
+ * do contratante, porque a nota solta pode servir a outra prévia. E propor a chegada é idempotente
+ * na trilha: o evento só se repete quando o conjunto de notas muda.
  */
 import { describe, expect, test } from 'bun:test'
 import { and, eq } from 'drizzle-orm'
 
 import { createCargoPreviewHttpRoutes } from '../../src/cargo-receiving/cargo-preview.composition.js'
 import {
+  cargoPreviewEvents,
   cargoPreviewOutbox,
   contractorRecipientAliases,
 } from '../../src/database/database.schema.js'
@@ -124,6 +126,52 @@ describe('desvincular revoga o alias e pede a reavaliação (spec 237 M2/L5)', (
           { payload: { contractorId: tenants.contractorId }, previewId: null },
           { payload: { contractorId: tenants.contractorId }, previewId: null },
         ])
+      })
+    },
+  )
+
+  testWithPostgres(
+    'propor a chegada de novo com as mesmas notas não repete o evento; outro conjunto grava (L6)',
+    async () => {
+      await withCargoDatabase(async (database, tenants) => {
+        const call = createCall(database)
+        const previewId = await seedReadyPreview(database, { ...tenants, label: 'proposta' })
+        const [first, second] = [
+          await seedIssuedDocument(database, { number: '95' }),
+          await seedIssuedDocument(database, { number: '96' }),
+        ]
+        await seedPreviewItem(database, {
+          documentId: first,
+          previewId,
+          rowNumber: 5,
+          state: 'matched',
+        })
+        const secondItem = await seedPreviewItem(database, {
+          documentId: second,
+          previewId,
+          rowNumber: 6,
+          state: 'matched',
+        })
+        const proposals = async () =>
+          (
+            await database.db
+              .select({ id: cargoPreviewEvents.id })
+              .from(cargoPreviewEvents)
+              .where(
+                and(
+                  eq(cargoPreviewEvents.previewId, previewId),
+                  eq(cargoPreviewEvents.kind, 'arrival_proposed'),
+                ),
+              )
+          ).length
+
+        expect(await call(`/cargo-previews/${previewId}/propose-arrival`)).toBe(200)
+        expect(await call(`/cargo-previews/${previewId}/propose-arrival`)).toBe(200)
+        expect(await proposals()).toBe(1)
+
+        await call(`/cargo-previews/${previewId}/items/${secondItem}/unlink`)
+        expect(await call(`/cargo-previews/${previewId}/propose-arrival`)).toBe(200)
+        expect(await proposals()).toBe(2)
       })
     },
   )
