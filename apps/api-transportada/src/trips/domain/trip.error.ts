@@ -619,6 +619,28 @@ export class OccurrenceTypeSingleItemError extends ApiError {
   }
 }
 
+/** Spec 241 (RF6, CA03): tipo com Produtos desligado (`itemsMode = 'off'`) não aceita produto. */
+export class OccurrenceTypeItemsNotAllowedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED',
+      message: 'This occurrence type does not carry items.',
+      status: 422,
+    })
+  }
+}
+
+/** Spec 241 (RF11, CA09): tipo sem produto não abre tratativa — `off` pede política `unset`. */
+export class OccurrenceTypeItemsOffRedeliveryPolicyError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY',
+      message: 'An occurrence type without items cannot decide redelivery.',
+      status: 422,
+    })
+  }
+}
+
 /**
  * A conta autenticada tem o papel, mas nenhum cadastro de motorista aponta para ela. É configuração
  * pendente do escritório, não falha do motorista — e o código é estável para a tela dizer isso em
