@@ -248,3 +248,221 @@ ocorrência sem itens (lê `optional`) e a API atual aceita a correção como ho
 
 Não feito nesta sessão, por instrução: nenhum push, deploy ou mudança em `apps/api-transportada`.
 `docs/ai-context/frontend-transportada.md` é da T3.3. T1.5 e T0.3 não dependem uma da outra.
+
+## Fase 3 — Fechamento
+
+### T3.1 — Revisão de design e usabilidade (CA08)
+
+Árvore integrada `work/241-juntos` (`work/241-api` + os commits do painel por `cherry-pick`), `bun run typecheck`
+limpo nela. Ambiente, tudo descartável e fora do repositório, derrubado ao fim (`lsof` vazio nas portas 53090,
+53091, 53092 e 59093):
+
+- **Banco:** o Postgres local de dev (127.0.0.1:55432) é usado por APIs de outras sessões (53001, 53101, 53201…), então a
+  migration **não** foi aplicada no banco `transportada` dele. Foi criado nele um banco novo, `transportada_241_review`,
+  por `pg_dump | psql` do `transportada`, e a migration `20261004004602_occurrence_type_items_mode` aplicada **só nele**
+  (`db:migrate`: 268 → 277 registros no `__drizzle_migrations`; ele não é o `.env.test` de E2E nem staging/produção).
+  O banco foi apagado ao fim (`DROP DATABASE`). **O local não tinha o tipo "Cliente pediu segunda via do boleto"**
+  (`SELECT` de leitura por `name like '%boleto%'`: vazio) — a prova de que a migration o deixa `off` continua sendo a
+  integração CA01/CA09 da T2.1, sobre dado semeado antes da coluna; nada local a conferir.
+- **API** desta árvore na 53091 (cwd `apps/api-transportada`, `DATABASE_URL` do banco acima, `STORAGE_ENDPOINT`
+  apontado para um dublê S3 em memória na 59093 — o MinIO local depende de imagem privada do GHCR e não está no ar);
+  **Vite** da app com o binário da app (`apps/frontend-transportada/node_modules/.bin/vite`, nunca `bunx vite`) na 53090
+  com `VITE_SMOKE_AUTH_BYPASS=true`; **proxy** descartável na 53092 que troca o `Authorization` pelo token real do
+  usuário de seed `local-user` (authorization code + PKCE feito sem navegador, contra o Keycloak local, com a senha
+  de seed lida do `.env`; renovado a cada ~200 s). Senha, token e URLs assinadas: `[REDACTED]`. A 53000 era do Vite de
+  outra sessão (`lsof`) e não foi tocada.
+- **Medição** por Chromium do Playwright da própria app (`@playwright/test` 1.58.2) apontado para a 53090, no DOM
+  (`getComputedStyle`/`getBoundingClientRect`; contraste calculado contra o fundo efetivo, pelo `canvas`). Os PNGs são
+  desses mesmos Chromium. O navegador embutido foi usado só para ler o texto das telas. Larguras 1280 (`desktop`),
+  768 (`tablet`) e 375 (`mobile`, com toque). Os cenários de erro no celular (08–10) rodaram a 375 × 812 **sem** a
+  emulação de aparelho: a tela da viagem já transborda 76 px a 375 (achado 8) e, emulada, a janela de layout vira 451 px
+  e o rodapé fixo cobre o seletor.
+- **Dados** criados pela UI e pela API do ambiente, nunca `INSERT`: o tipo da prorrogação pela **UI** (cadastro, "Na
+  rua", Produtos = Sem produtos, Sem foto, De nota); "Conferência sem itens" (galpão, `off`) e "Avaria de um item só"
+  (galpão, `optional`, item único) pelo `PUT` do cadastro; as ocorrências de galpão pela **UI** do diálogo de registro
+  (foto de 1 px; o conjunto: "Conferência sem itens", "Item avariado" sem produtos e com tratativa, "Avaria de um item só"
+  com um produto e sem produto); a ocorrência da prorrogação (tipo de rua, que só o app do motorista e o lote do
+  escritório registram) pela rota do escritório `POST /trips/:id/documents/field-occurrences`.
+
+Prints (`specs/241-o-tipo-da-ocorrencia-diz-se-ela-carrega-itens/prints/`, `NN-descricao-LARGURA.png`, 31 arquivos):
+`01-cadastro-produtos-opcional` · `02-cadastro-produtos-desligado` (sem política, sem "vários itens") ·
+`03-registro-tipo-desligado` (sem seletor nem quantidade) · `04-registro-tipo-opcional` (com seletor) ·
+`05-detalhe-corrigir-tipo-opcional` · `06-detalhe-so-cancelar-tipo-desligado` (a prorrogação) ·
+`07-correcao-selecao-unica` · `08-erro-itens-nao-permitidos-registro` · `09-erro-itens-nao-permitidos-correcao` ·
+`10-erro-reentrega-tipo-desligado` (cada um nas três larguras) · `11-seletor-produtos-aberto-mobile` (prova do achado 3,
+só no celular).
+
+| Verificação                                                                           | desktop 1280                                                                            | tablet 768 | mobile 375                           |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------- | ------------------------------------ |
+| Rolagem horizontal (config., detalhe, diálogo de registro)                            | nenhuma                                                                                 | nenhuma    | nenhuma (a tela da viagem: achado 8) |
+| Select Produtos / Foto / Item da nota                                                 | 48 px de altura                                                                         | idem       | idem                                 |
+| Botões Registrar, Cancelar, Corrigir, Cancelar ocorrência, Salvar correção, Descartar | 38,4 px (ponteiro fino)                                                                 | idem       | **44 px** (alvo de toque)            |
+| Opção da lista do Select                                                              | 35 px                                                                                   | idem       | 35 px (abaixo de 44, achado 6)       |
+| Texto do Select Produtos                                                              | 14,4 px, contraste 12,86:1                                                              | idem       | idem                                 |
+| Dica de Produtos (no foco)                                                            | 12,48 px, contraste 13,81:1, 352 px                                                     | idem       | idem (cabe em 375)                   |
+| Ajuda "Este tipo aceita só um item"                                                   | 12,8 px, contraste 5,65:1                                                               | idem       | idem                                 |
+| "Adicione ao menos uma foto…" (rodapé do registro)                                    | 13,12 px, contraste 4,99:1                                                              | idem       | idem                                 |
+| Estado desabilitado: Select Produtos / botão Registrar                                | 3,03:1 / 4,94:1 (sem contar a opacidade 0,6 / 0,5)                                      | idem       | idem                                 |
+| Foco visível                                                                          | contorno sólido 2 px (cobre, 70 %), `:focus-visible` verdadeiro, no Select e nos botões | idem       | idem                                 |
+| Quebra de texto / corte                                                               | nenhum elemento com `overflow` cortando texto no diálogo                                | idem       | idem                                 |
+
+Ordem de tab, medida: cadastro novo — Nome do tipo → Onde acontece → Avisar → **Produtos** → Aceita vários itens →
+Admite reentrega → A viagem segue sem a nota → Modelo de e-mail → Cadastrar tipo → Editar modelos (o controle novo fica
+ao lado de quem ele governa, e com Sem produtos os dois seguintes saem da ordem). Diálogo de registro — Tipo → Item da
+nota → Tirar este item → Limpar itens → Enviar foto → Observação → Frases prontas → Cancelar → Fechar. Teclado no
+Produtos: Tab foca, Enter abre, ↑ + Enter escolhe, o foco volta ao gatilho. `aria` do Select novo: `aria-label`
+"Produtos", `aria-haspopup="listbox"`, `aria-expanded` falso/verdadeiro, lista com `aria-label` "Produtos", opções
+`role="option"` com `aria-selected`. O erro do registro chega em `role="status"` (fila de fotos) e o da correção e o
+do cadastro em `role="alert"`.
+
+Estados do detalhe (CA05 vista de verdade, contra a API nova): tipo `optional` sem itens e sem tratativa → **Corrigir** +
+Cancelar ocorrência; tipo `off` de galpão e a prorrogação de rua (`off`) → **só Cancelar ocorrência**; tipo de item único →
+a correção abre em escolha única (dica "Este tipo aceita só um item — escolher outro substitui o anterior"). O registro:
+tipo `optional` mostra "Item da nota"; trocar para `off` esconde o seletor e as quantidades; voltar a `optional` mostra
+o seletor **sem** a seleção anterior.
+
+Erros novos renderizados de verdade, provocados com a tela aberta e o tipo mudado por outra via (a aba velha):
+`422 OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED` no registro ("Foto 1: falhou — Este tipo de ocorrência não carrega produtos. Tire
+os itens escolhidos e tente de novo; … Nada foi gravado.") e na correção (mesmo texto, em `role="alert"`); `422
+OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY` no cadastro ("Tipo sem produtos não abre tratativa: deixe a reentrega como
+indefinida ou volte Produtos para Opcional. Nada foi gravado."). Depois da correção do achado 4, o registro refaz a
+tentativa sem produto e grava; o cadastro mostra o tipo já em Sem produtos.
+
+Console: sem erro de script. Ruído de ambiente, ignorado: `404` de `/public/landing-logo` e `/company-settings/logo`,
+miniaturas (o dublê S3 em 59093 não está no `img-src`; é o equivalente do MinIO fora do ar) e `WebGL2` do mapa no
+Chromium sem GPU. Rede: nenhuma resposta ≥ 400 da tela além dos três `422` provocados.
+
+Usabilidade ponta a ponta (o operador cria "prorrogação", registra, vê que não corrige):
+
+1. Cadastro: o operador abre Configurações → Tipos de ocorrência, preenche o nome, escolhe "Na rua", troca Produtos para
+   Sem produtos; a política e "vários itens" somem, Foto já nasce Sem foto, Fluxo De nota. O `PUT` sai com o corpo da
+   segunda via da 208 (`itemsMode: off`, `attachmentMode: off`, `leavesDocumentBehind: false`, `redeliveryPolicy:
+unset`, `flow: document`, `stage: delivery`) — CA10 provado também por este caminho.
+2. Registro: a prorrogação é de rua e **não aparece no diálogo de registro do painel** (ele só lista tipos de galpão); ela
+   sai do app do motorista ou do lote do escritório. Isso estava na spec (RF8), mas pega o operador de surpresa: ele
+   cria o tipo e não encontra onde registrá-lo no painel.
+3. Detalhe: a ocorrência da prorrogação mostra só Cancelar ocorrência; **nada diz por que Corrigir não existe**.
+
+O que ficou confuso ou ambíguo, e o destino de cada achado (commits no `work/241-painel`, trazidos à árvore integrada por
+`cherry-pick` e revalidados lá):
+
+1. **Defeito que anulava a spec, corrigido (`bf8eaefde`).** O guard de `OccurrenceType` é de chave exata, e a API já
+   manda `emailsContractor` (183) e `stopKind` (218) em **todo** tipo (resposta lida da API desta árvore): a lista
+   inteira era recusada e a aba "Tipos de ocorrência" mostrava "Nenhum tipo cadastrado ainda" com dez tipos no banco. Sem
+   isso o controle Produtos só existia no formulário de cadastro novo — nenhum tipo existente o mostrava. Não é da 241,
+   que criou o controle, mas é o que o torna alcançável; **vale o mesmo para staging e produção hoje** (a causa está na
+   API e no guard que já estão lá). Provado antes (sonda: `REJECT` com as duas chaves, `ok` sem elas) e depois
+   (`occurrence-type-tolerance.contract.ts`, 8 testes; a lista aparece na tela). Fora de escopo estrito; está num commit
+   isolado para o usuário poder dispensá-lo.
+2. **Produtos sem rótulo à vista, corrigido (`cd1b8208b`).** Na linha do tipo o controle aparecia só como "Opcional",
+   entre "Em uso" e "Aceita vários itens", enquanto Foto e reentrega se explicam ("Sem foto", "Admite reentrega"). Opções
+   agora "Sem produtos" / "Produtos opcionais", e a dica diz o que o Desligado faz: não mostra o seletor, **Corrigir
+   não aparece** e **a reentrega fica indefinida (não abre tratativa)** — a resposta à pergunta "o que acontece com a
+   reentrega ao desligar Produtos". Contrato do painel atualizado (`occurrence-type-items-mode-panel`).
+3. **A dica cobria as opções da lista, corrigido (`403beff91`, `42e57376f`).** O `Tooltip` abre no foco e pinta com
+   `z-index` 80; a lista do `Select`, 60, abre no mesmo ponto: ao abrir o Produtos as duas opções ficavam **sob** a dica
+   (medido nas três larguras, por teclado e por ponteiro; print `11`). Vale para Foto do comprovante e Fluxo de registro
+   também, que tinham o mesmo defeito. O `Tooltip` agora se fecha ao ativar o gatilho (clique, Enter, Espaço, setas).
+   Dois contratos (clique e Enter), cada um **vermelho sem a correção** (execução: `1 fail` com a linha removida) e
+   verde com ela.
+4. **422 com a tela aberta deixava o operador sem saída, corrigido (`e72f6c1c3`, `39b495181`).** O `plan.md` promete que
+   a tela recarrega o tipo; não recarregava. Pior: se os tipos fossem recarregados (a consulta é refeita ao voltar o foco
+   à janela) com o tipo já `off`, o seletor sumia **mas a seleção antiga seguia no estado e ia no envio** — `422` sem campo
+   para consertar. Agora o registro normaliza a seleção pelo tipo vigente (`resolveItemsOnTypeChange`), o `422
+OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED` recarrega os tipos, e o `PUT` do cadastro recarrega também no erro (`onSettled`);
+   a mensagem deixou de mandar "registrar" na tela de correção ("Tire os itens escolhidos e tente de novo"). Contrato do
+   cadastro: vermelho com `onSuccess` (mutação executada), verde com `onSettled`.
+5. **Registrado, não alterado:** (a) o erro do registro vem prefixado "Foto 1: falhou —" porque a primeira foto carrega o
+   registro (spec 161); a frase é verdadeira ("Nada foi gravado") mas o prefixo sugere defeito de foto; (b) o erro do
+   cadastro aparece no topo da seção, não na linha do tipo que falhou (padrão do cadastro desde a 218); (c) nenhum texto diz
+   por que Corrigir não existe num tipo `off`, nem por que o registro de galpão não oferece produtos nele — um aviso de
+   uma linha ajudaria; (d) a prorrogação (tipo de rua) não se registra pelo painel, só pelo app do motorista ou pelo lote
+   do escritório.
+6. **Fora de escopo, só registrado (componentes compartilhados):** opção da lista do `Select` com 35 px (< 44 px de alvo
+   de toque no celular); estado desabilitado do design system abaixo de 4,5:1 (3,03:1 no Select, e a opacidade ainda
+   desconta mais; isento pela WCAG para controle desabilitado); a dica do `Tooltip` liga ao controle por
+   `aria-describedby` no contêiner e só enquanto aberta.
+7. **Fora de escopo (spec 240, já registrado lá):** "1 itens escolhidos" sem plural no seletor, ao lado do selo
+   "A nota inteira".
+8. **Fora de escopo, achado novo:** a tela da viagem transborda na horizontal a 375 px (`scrollWidth` 451): o cartão da
+   placa (`.plate`, 160 px) passa da coluna; o diálogo de ocorrência herda e fica cortado à esquerda no celular. E o
+   console da tela da viagem registra "two children with the same key, `1`" (chave repetida numa lista de paradas) a
+   cada carregamento. Nenhum dos dois é da 241.
+
+### T3.2 — Ordem de publicação
+
+`origin/staging` conferido em **`11a78cb6e`** (2026-10-04). **Nada foi publicado nesta task.** `git fetch` + comparação de
+conteúdo antes de cada passo: a `work/241-api` está **0 atrás** de `origin/staging`; a **`work/241-painel` está 46
+atrás** (parte do `83813b175`) e **precisa de `git rebase origin/staging` + `bun install --frozen-lockfile` + typecheck e
+testes da app antes do push** (nenhum dos 46 toca os arquivos da 241 que o `cherry-pick` para a árvore integrada
+reaplicou sem conflito de código). Branches e SHAs reais, em ordem (`git log --reverse origin/staging..<branch>`):
+
+**Etapa 1 — painel tolerante** (`work/241-painel`, 14 commits; só `specs/` são marcados):
+
+| SHA         | Conteúdo                                                                                                   |
+| ----------- | ---------------------------------------------------------------------------------------------------------- |
+| `4947b91c3` | só `specs/`: T0.2 (a 239 ainda não criou `items_mode`) e T0.3 pendente                                     |
+| `f41e73634` | T1.1 — guards tolerantes                                                                                   |
+| `a1ead764f` | T1.2 — Corrigir por `typeItemsMode`                                                                        |
+| `0cdbe249a` | só `specs/`: T1.3 — a mutação do RF7, executada vermelha                                                   |
+| `80b532108` | T1.4 — registro e correção por tipo                                                                        |
+| `e22653cda` | T1.5 — Produtos no cadastro e mensagens                                                                    |
+| `aefd713bb` | só `specs/`: T1.6 — gates do painel                                                                        |
+| `bf8eaefde` | T3.1 achado 1 — o guard aceita `emailsContractor` e `stopKind` (**dispensável**, ver o achado)             |
+| `cd1b8208b` | T3.1 achado 2 — rótulos de Produtos e dica                                                                 |
+| `e72f6c1c3` | T3.1 achado 4 — recarga do tipo no `422` e seleção normalizada                                             |
+| `39b495181` | T3.1 achado 4 — o cliente falso de teste ganha `saveOccurrenceType`                                        |
+| `403beff91` | T3.1 achado 3 — `Tooltip` fecha ao ativar o gatilho                                                        |
+| `42e57376f` | T3.1 achado 3 — Enter e Espaço                                                                             |
+| (último)    | só `specs/` e `docs/`: T3.1–T3.3 (este arquivo, os 31 prints e `docs/ai-context/frontend-transportada.md`) |
+
+Gate de entrada da etapa 1: contra a **API atual** (sem os campos novos) o painel se comporta como antes, exceto Corrigir,
+que passa a aparecer para ocorrência sem itens (lê `optional`) e que a API atual aceita (T1.6). Depois do push:
+esperar o deploy e o `autoUpdate` do PWA **antes** da etapa 2.
+
+**Etapa 2 — banco e API** (`work/241-api`, 11 commits, sobre `origin/staging` `11a78cb6e`):
+
+| SHA         | Conteúdo                                                                                  |
+| ----------- | ----------------------------------------------------------------------------------------- |
+| `43e5137df` | T2.1 — integração vermelha da migration                                                   |
+| `f44f9a168` | T2.1 — schema, CHECKs, migration e rollback (`20261004004602_occurrence_type_items_mode`) |
+| `ba52bace5` | só `specs/`: T2.1/T2.2 — as duas mutações da migration, executadas vermelhas              |
+| `bf88566b2` | T2.3 — catálogo de bootstrap com `itemsMode` e a prorrogação                              |
+| `eeb4c15bd` | T2.4 — contrato do cadastro, vermelho                                                     |
+| `7eb7f6bd6` | T2.4 — cadastro grava `items_mode` e recusa `off` com política                            |
+| `0f5191ee2` | T2.5 — contrato da guarda de produto, vermelho                                            |
+| `4eb9e1e63` | T2.5 — registro e correção recusam produto em tipo `off`                                  |
+| `d72cbe043` | T2.7 — integração das leituras, vermelha                                                  |
+| `036a84692` | T2.7 — detalhe, feed, lista da nota e cadastros publicam o modo de itens                  |
+| `43519b44a` | T2.9 — migration regerada sobre `cargo_arrivals`; gates da API                            |
+
+Gate de entrada da etapa 2: a etapa 1 no ar. Antes do push: `git fetch` + `git rebase origin/staging`, `bun install
+--frozen-lockfile`, `bun run db:generate` = `no_changes` (o timestamp `20261004004602` colide com migration de outra
+sessão? conferir `ls apps/api-transportada/drizzle | tail`), `make migration-test`, contrato e integração da API
+(`--env-file=../../.env.test`). A API continua **sem alteração nesta task** (nenhum achado do T3.1 era dela).
+
+**Passo 3 — humano, depois da etapa 2: PENDENTE.** O operador, com `settings.manage`, cadastra "Cliente pediu prorrogação do
+boleto" em produção pela tela (`spec.md` § Passo operacional): Entrega · Nota · **Sem produtos** · Sem foto · "Deixa a
+nota para trás" desligado · reentrega indefinida. Nenhuma migration o insere. O cadastro já funciona nesta árvore
+exatamente assim (CA10, T3.1). Conferir antes que o nome ainda não existe (T0.3 abaixo).
+
+**T0.3 — medição em staging e produção: PENDENTE, exige a autorização do usuário.** Consulta só de leitura em
+`company_occurrence_types` (staging; produção é o `Postgres-Hqfu`): (i) quantos tipos têm o nome exato da segunda via e
+**qual `redelivery_policy` cada um tem**; (ii) se "Cliente pediu prorrogação do boleto" já existe; (iii) quantos tipos
+renomeados ficariam de fora. **Se (i) achar política ≠ `unset`, a migration a zera sem aviso (D1): a decisão é do usuário
+e tem de vir antes da etapa 2.** Nada foi consultado em produção ou staging nesta sessão.
+
+**`tasks.md` difere nos dois branches** (cada um marca as suas fases: `work/241-painel` T0.1, T0.2 e T1.1–T1.6;
+`work/241-api` T0.1 e T2.1–T2.9; nenhum marca a Fase 3). As linhas são disjuntas, então o `git rebase` junta sem
+conflito. O que **conflita** é o `evidence.md`, que os dois branches **criam** (add/add): na árvore integrada
+(`work/241-juntos`) o arquivo está unido — seções da API primeiro, as do painel e a Fase 3 depois. Procedimento: publicar a
+etapa 1 com o `evidence.md` do painel; na `work/241-api`, depois do rebase em `origin/staging`, resolver o add/add com
+`git checkout work/241-juntos -- specs/241-o-tipo-da-ocorrencia-diz-se-ela-carrega-itens/evidence.md` (traz as duas
+metades) e conferir a existência dos dois conjuntos de seções antes de seguir.
+
+### T3.3 — `docs/ai-context/frontend-transportada.md` (parte de documentação)
+
+Seção "Spec 241 — o tipo da ocorrência diz se ela carrega itens" no fim do arquivo: Produtos no cadastro, registro e
+correção por tipo, tolerância a API antiga e as três pegadinhas (o guard de chave exata e a lista vazia, os dois `422` e
+a recarga, o `Tooltip` sobre o `Select`). Sem marcadores de conflito. **A revisão final por `code-reviewer` (`opus`) fica
+pendente — é do usuário.**

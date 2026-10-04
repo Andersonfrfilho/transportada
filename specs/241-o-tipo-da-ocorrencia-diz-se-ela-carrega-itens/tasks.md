@@ -91,14 +91,15 @@ items_mode` da migration e o default `off` do plano. Se criou com default `off`:
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T3.1** Revisão de design e usabilidade com print nas três larguras (375, 768, 1280): cadastro
+- [x] **T3.1** Revisão de design e usabilidade com print nas três larguras (375, 768, 1280): cadastro
       com Produtos, registro com tipo `off`, detalhe de ocorrência sem itens com Corrigir (tipo
       `optional`) e só Cancelar (tipo `off`). Prints em `prints/`, achados em `evidence.md` (CA08).
-- [ ] **T3.2** Ordem de publicação em `evidence.md`: SHAs por etapa (1 painel, 2 API), conforme o
+- [x] **T3.2** Ordem de publicação em `evidence.md`: SHAs por etapa (1 painel, 2 API), conforme o
       `plan.md`, mais o **passo 3 operacional** (cadastrar a prorrogação em produção, `spec.md` §
-      Passo operacional) como pendente humano. Nada publicado nesta task.
-- [ ] **T3.3** Revisão final por `code-reviewer` (`opus`) e atualização de
-      `docs/ai-context/frontend-transportada.md`.
+      Passo operacional) como pendente humano. Nada publicado nesta task. A T0.3 (medição em
+      produção) segue pendente e exige autorização.
+- [x] **T3.3a** Atualização de `docs/ai-context/frontend-transportada.md`.
+- [ ] **T3.3b** Revisão final por `code-reviewer` (`opus`) — do usuário.
 
 ⚠️ Todo arquivo de teste novo entra na lista do `package.json` da app — fora dela, não roda.
 
