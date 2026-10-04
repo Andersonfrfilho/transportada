@@ -6,6 +6,9 @@ export const LOCATION_RETENTION_IMPACT_PATH = `${LOCATION_RETENTION_PATH}/impact
 /** Cópia por valor do intervalo da API (CHECK do banco e Zod da rota): 30 a 90 dias inteiros. */
 export const LOCATION_RETENTION_DAYS_RANGE = { max: 90, min: 30 } as const
 
+/** O `setTimeout` estoura em 2^31-1 ms e dispara na hora; acima disso reagenda a cada teto. */
+export const LOCATION_RETENTION_MAX_TIMER_DELAY_MS = 2_147_483_647
+
 export const LOCATION_RETENTION_ORIGINS = ['company', 'default'] as const
 
 /** Os nomes estáveis da resposta de impacto; o nome da tabela não sai da API. */

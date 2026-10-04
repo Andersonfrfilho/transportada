@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import {
   useClearLocationRetentionMutation,
@@ -7,7 +7,10 @@ import {
   useLocationRetentionQuery,
   useSaveLocationRetentionMutation,
 } from '../queries/useLocationRetention.query'
-import { LOCATION_RETENTION_DAYS_RANGE } from '../shared/locationRetention.constant'
+import {
+  LOCATION_RETENTION_DAYS_RANGE,
+  LOCATION_RETENTION_MAX_TIMER_DELAY_MS,
+} from '../shared/locationRetention.constant'
 import {
   parseLocationRetentionDays,
   resolveLocationRetentionConfirmation,
@@ -33,6 +36,7 @@ export function useLocationRetentionPanel(
   const saveMutation = useSaveLocationRetentionMutation()
   const clearMutation = useClearLocationRetentionMutation()
   const [typedDays, setTypedDays] = useState<string | undefined>(undefined)
+  const [clockTick, setClockTick] = useState(0)
   const [pending, setPending] = useState<PendingChange | undefined>(undefined)
   const impactQuery = useLocationRetentionImpactQuery({
     enabled: pending !== undefined,
@@ -46,11 +50,22 @@ export function useLocationRetentionPanel(
     settings === undefined
       ? undefined
       : resolveLocationRetentionStatus({ nowMs: Date.now(), settings })
+  const waitingUntil = status === 'waiting' ? settings?.purgeEffectiveAt : undefined
   const isSaving = saveMutation.isPending || clearMutation.isPending
   const hasDaysChange =
     settings !== undefined && parsedDays !== undefined && parsedDays !== settings.retentionDays
   const impactSummary =
     impactQuery.data === undefined ? undefined : summarizeLocationRetentionImpact(impactQuery.data)
+
+  useEffect(() => {
+    if (waitingUntil === undefined || waitingUntil === null) return
+    const remainingMs = Date.parse(waitingUntil) - Date.now()
+    const timer = setTimeout(
+      () => setClockTick((current) => current + 1),
+      Math.min(Math.max(remainingMs, 0), LOCATION_RETENTION_MAX_TIMER_DELAY_MS),
+    )
+    return () => clearTimeout(timer)
+  }, [waitingUntil, clockTick])
 
   function save(draft: LocationRetentionDraft): void {
     saveMutation.mutate(draft, { onSuccess: () => setTypedDays(undefined) })
