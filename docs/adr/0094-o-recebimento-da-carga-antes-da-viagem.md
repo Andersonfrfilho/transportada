@@ -56,7 +56,7 @@ opcionais, e nulo é "o contratante não definiu", nunca "zero". `match_window_d
 | `separation_window_hours`         | `smallint`     | nulo, `1..168`                           | janela de separação/avaria desde a chegada (Fase 2/3)             |
 | `delivery_deadline_business_days` | `smallint`     | nulo, `1..60`                            | prazo de entrega em dias úteis — **lido pela spec 236**           |
 | `match_window_days`               | `smallint`     | not null, default `15`, `1..60`          | até quantos dias depois da prévia um XML ainda é candidato (RF5a) |
-| `weight_tolerance_percent`        | `numeric(5,2)` | not null, default `0`, `0..100`          | tolerância do peso no vínculo; `0` porque o peso medido é exato   |
+| `weight_tolerance_percent`        | `numeric(5,2)` | not null, default `0`, `0..100`          | tolerância do peso **acima** do piso de 0,01 kg (§4)              |
 | `preview_enabled`                 | `boolean`      | not null, default `false`                | o contratante manda prévia                                        |
 | `preview_sheet_name`              | `text`         | nulo, 1..31 caracteres (limite do Excel) | aba que tem os dados (`IMPORTAÇÃO`); nula = a primeira aba        |
 | `preview_column_map`              | `jsonb`        | nulo, objeto; exigido com prévia ligada  | **nome de coluna → campo** da prévia, nunca posição               |
@@ -128,11 +128,12 @@ awaiting_xml | invalid`, sempre corrigível pelo operador. O vínculo é **assí
 
 **Medido na T4.3 (corpus real anonimizado), e o que isso corrige:**
 
-- **O peso não é exato ao grama.** `PESO TOTAL` e `pesoB` divergem em até **5 g** (arredondamento; pior
-  caso 0,0321%, em 15,6 kg). Com `weight_tolerance_percent = 0`, metade das linhas fecha só pelo valor e
-  vira `suggested`; com **0,05** fecham 180 de 187 (FR-24-09) e 97 de 107 (FR-28-09). A tabela do §2
-  ("`0` porque o peso medido é exato") estava errada para este contratante: o perfil FR leva `0.05`. Mudar
-  o padrão da coluna, ou trocar por tolerância absoluta em gramas, é migration — fica para a parte B.
+- **O peso não é exato ao grama: há diferença de até 5 g por arredondamento da planilha** (`PESO TOTAL`
+  com 2 casas, `pesoB` com 3; pior caso 0,0321%, em 15,6 kg). O peso concorda quando
+  `|Δ| ≤ max(0,01 kg, weight_tolerance_percent × peso da nota)`: o piso
+  (`PREVIEW_WEIGHT_ROUNDING_FLOOR_KG`) é do formato, não do contratante, e não depende de o perfil
+  lembrar de configurar; o percentual vale acima dele para divergência real. O padrão da coluna fica `0`
+  (sem migration). Com isso fecham 180 de 187 (FR-24-09) e 97 de 107 (FR-28-09) já com tolerância 0.
 - **O par roteiro ↔ carga também nasce pelos votos**, não só pelos totais: com o XML chegando aos
   poucos (o fluxo principal), os totais só fecham no fim, e as linhas que já fecham sozinhas numa nota da
   carga bastam para parear. Empate de escore não pareia.

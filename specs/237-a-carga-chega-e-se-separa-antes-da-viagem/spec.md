@@ -133,7 +133,9 @@ conferência) **Then** o fluxo dele muda **só por dado**, sem código novo e se
   3. **Linhas → notas, por soma.** **Uma NF pode juntar vários pedidos** (`Text001`) do mesmo cliente (medido:
      clientes com 2 ou 3 linhas, p.ex. 2.664,00 + 1.243,56 → uma nota; e 20 linhas para 16 notas com o
      mesmo valor total): resolve-se, por cliente, a partição das linhas em notas cujo **valor** e **peso**
-     (exatos, ao centavo e ao grama) fecham. É soma de subconjuntos sobre ≤ 3 linhas.
+     fecham — valor exato ao centavo; peso com diferença de até 5 g por arredondamento da planilha
+     (`PESO TOTAL` com 2 casas × `pesoB` com 3), coberta por um piso de 0,01 kg; o percentual do perfil vale
+     acima dele. É soma de subconjuntos sobre ≤ 3 linhas.
   4. **Veredito por linha:** partição única que fecha valor **e** peso → `matched` (guarda `n` linhas ↔ 1
      nota); mais de uma partição possível → `ambiguous` (as candidatas, para o operador escolher); nenhuma
      nota → `awaiting_xml`; fecha só o valor → `suggested` (só vale depois de o operador confirmar).

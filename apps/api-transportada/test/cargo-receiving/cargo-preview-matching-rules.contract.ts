@@ -10,6 +10,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   MAX_PARTITION_LINES,
   MAX_PARTITION_SEARCH_NODES,
+  PREVIEW_WEIGHT_ROUNDING_FLOOR_KG,
 } from '../../src/cargo-receiving/domain/cargo-preview-matching.constant.js'
 import { resolveCargoPreviewMatches } from '../../src/cargo-receiving/domain/cargo-preview-matching.policy.js'
 import {
@@ -45,7 +46,7 @@ describe('as regras do vínculo (spec 237 RF5a)', () => {
   test('só o valor fecha (peso diferente): sugestão, que o operador confirma', () => {
     const [item] = resolveCargoPreviewMatches(
       matchParams({
-        candidates: [candidate('d1', { grossWeightKg: '10.001' })],
+        candidates: [candidate('d1', { grossWeightKg: '10.011' })],
         items: [previewItem('a')],
       }),
     ).items
@@ -64,6 +65,44 @@ describe('as regras do vínculo (spec 237 RF5a)', () => {
       weightTolerancePercent: 1,
     })
     expect(resolveCargoPreviewMatches(params).items[0]?.state).toBe('matched')
+  })
+
+  test.each([
+    [
+      'Δ 0,005 kg com tolerância 0: o piso de arredondamento casa',
+      '10.005',
+      '10.000',
+      0,
+      'matched',
+    ],
+    ['Δ 0,010 kg com tolerância 0: no limite do piso', '10.010', '10.000', 0, 'matched'],
+    ['Δ 0,011 kg com tolerância 0: passa do piso, só valor', '10.011', '10.000', 0, 'suggested'],
+    [
+      'Δ 0,05 kg em 100 kg com 0,05%: o percentual vale acima do piso',
+      '100.050',
+      '100.000',
+      0.05,
+      'matched',
+    ],
+    [
+      'Δ 0,005 kg em 2 kg com 0,05%: o piso vale também com percentual',
+      '2.005',
+      '2.000',
+      0.05,
+      'matched',
+    ],
+    ['Δ 0,06 kg em 100 kg com 0,05%: passa dos dois', '100.060', '100.000', 0.05, 'suggested'],
+  ])('%s', (_label, documentWeight, lineWeight, weightTolerancePercent, state) => {
+    const params = matchParams({
+      candidates: [candidate('d1', { grossWeightKg: documentWeight })],
+      items: [previewItem('a', { weightKg: lineWeight })],
+      weightTolerancePercent,
+    })
+    expect(String(resolveCargoPreviewMatches(params).items[0]?.state)).toBe(state)
+  })
+
+  test('o piso é de 0,01 kg', () => {
+    expect(PREVIEW_WEIGHT_ROUNDING_FLOOR_KG).toBe(0.01)
   })
 
   test('nota sem peso no XML só sugere', () => {

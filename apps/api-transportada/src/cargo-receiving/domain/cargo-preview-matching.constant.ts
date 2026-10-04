@@ -36,6 +36,12 @@ export const MAX_PARTITION_SEARCH_NODES = 5_000
 /** O `infCpl` é texto de terceiro: o padrão do perfil só roda sobre os primeiros 2 000 caracteres. */
 export const LOAD_REFERENCE_INPUT_MAX_LENGTH = 2_000
 
+/**
+ * O `PESO TOTAL` da planilha vem com 2 casas e o `pesoB` do XML com 3: até 5 g de diferença é
+ * arredondamento do formato, não regra do contratante. O percentual do perfil vale acima deste piso.
+ */
+export const PREVIEW_WEIGHT_ROUNDING_FLOOR_KG = 0.01
+
 export const MONEY_DECIMALS = 2
 export const WEIGHT_DECIMALS = 3
 /** Tolerância em centésimos de ponto percentual: `numeric(5,2)` do perfil, sem float na conta. */

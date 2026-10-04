@@ -21,8 +21,8 @@ import {
   toMatchItem,
 } from '../fixtures/cargo-preview-corpus.fixture.js'
 
-/** O peso da planilha difere do `pesoB` em até 5 g (arredondamento): 0,05% fecha todos os medidos. */
-const FR_WEIGHT_TOLERANCE_PERCENT = 0.05
+/** O padrão do perfil: o arredondamento da planilha (até 5 g) fica com o piso de 10 g da política. */
+const PROFILE_DEFAULT_TOLERANCE_PERCENT = 0
 
 const documents = await loadCorpusDocuments()
 const sheets = await Promise.all(
@@ -45,7 +45,7 @@ function resolve(input: {
     items: input.items,
     knownAliases: input.knownAliases ?? [],
     knownRoutePairs: [],
-    weightTolerancePercent: input.tolerance ?? FR_WEIGHT_TOLERANCE_PERCENT,
+    weightTolerancePercent: input.tolerance ?? PROFILE_DEFAULT_TOLERANCE_PERCENT,
   })
 }
 
@@ -81,7 +81,7 @@ function customersOf(
 describe('o vínculo no corpus real anonimizado (spec 237 T4.3)', () => {
   if (first === undefined || second === undefined) throw new Error('CORPUS_SHEETS_MISSING')
 
-  test('o retrato medido: com a tolerância de 0,05%, ~96% e ~91% das linhas vinculam', () => {
+  test('o retrato medido: com a tolerância 0 do perfil, ~96% e ~91% das linhas vinculam', () => {
     expect(countStates(resolve(first))).toEqual({ awaiting_xml: 2, matched: 180, suggested: 5 })
     expect(countStates(resolve(second))).toEqual({
       ambiguous: 2,
@@ -91,18 +91,17 @@ describe('o vínculo no corpus real anonimizado (spec 237 T4.3)', () => {
     })
   })
 
-  test('com a tolerância 0 do perfil padrão, metade vira sugestão: o peso NÃO é exato ao grama', () => {
-    expect(countStates(resolve({ ...first, tolerance: 0 }))).toEqual({
-      awaiting_xml: 2,
-      matched: 89,
-      suggested: 96,
-    })
+  test('0,05% acima do piso não muda nada: o arredondamento (até 5 g) já cabe nos 10 g', () => {
+    expect(countStates(resolve({ ...first, tolerance: 0.05 }))).toEqual(countStates(resolve(first)))
+    expect(countStates(resolve({ ...second, tolerance: 0.05 }))).toEqual(
+      countStates(resolve(second)),
+    )
   })
 
-  test('por cliente a soma fecha em 158/165 e 94/104; nos roteiros de totais completos, 60/60 e 57/58', () => {
+  test('por cliente a soma fecha em 158/165 e 94/104; nos roteiros de totais completos, 47/47 e 40/40', () => {
     for (const [sheet, all, complete] of [
-      [first, [158, 165], [60, 60]],
-      [second, [94, 104], [57, 58]],
+      [first, [158, 165], [47, 47]],
+      [second, [94, 104], [40, 40]],
     ] as const) {
       const result = resolve(sheet)
       const totals = new Set(

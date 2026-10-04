@@ -55,8 +55,8 @@
       notas); mutação.
       _(Parte A feita em 2026-10-04: leitor `parseCargoPreviewWorkbook` e política
       `resolveCargoPreviewMatches`, domínio puro, com corpus anonimizado e mutação — `evidence.md`. Falta a
-      parte B: migration, rota, reavaliação a cada XML e vínculo manual. ⚠️ O perfil FR precisa de
-      `weight_tolerance_percent = 0.05`.)_
+      parte B: migration, rota, reavaliação a cada XML e vínculo manual. Peso com piso de 0,01 kg de
+      arredondamento.)_
 - [ ] **T4.3a** _(opcional)_ Se o contratante passar a escrever o número dele nas informações adicionais da
       NF-e, lê-lo no importador e usá-lo como chave exata.
 - [ ] **T4.4** Tela de prévias no painel: itens esperados × vinculados × ambíguos × com erro, "esperando o

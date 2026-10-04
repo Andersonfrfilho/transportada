@@ -6,6 +6,7 @@
  */
 import {
   MONEY_DECIMALS,
+  PREVIEW_WEIGHT_ROUNDING_FLOOR_KG,
   TOLERANCE_DENOMINATOR,
   TOLERANCE_HUNDREDTHS_PER_PERCENT,
   WEIGHT_DECIMALS,
@@ -20,6 +21,8 @@ import type {
 import { normalizePlaceName, readNonNegativeDecimal } from './cargo-preview-value.policy.js'
 
 const NOT_ALPHANUMERIC = /[^A-Z0-9]+/gu
+const GRAMS_PER_KG = 10 ** WEIGHT_DECIMALS
+const ROUNDING_FLOOR_GRAMS = BigInt(Math.round(PREVIEW_WEIGHT_ROUNDING_FLOOR_KG * GRAMS_PER_KG))
 
 function toScaledInteger(text: string | undefined, scale: number): bigint | undefined {
   if (text === undefined) return undefined
@@ -72,12 +75,14 @@ export function toMatchDocument(
   }
 }
 
+/** `|Δ| ≤ max(piso de arredondamento, tolerância do perfil × peso da nota)`. */
 export function createWeightCloses(weightTolerancePercent: number): WeightCloses {
   const tolerance = BigInt(Math.round(weightTolerancePercent * TOLERANCE_HUNDREDTHS_PER_PERCENT))
   return (lineGrams, documentGrams) => {
     if (documentGrams === undefined) return false
     const difference =
       lineGrams > documentGrams ? lineGrams - documentGrams : documentGrams - lineGrams
+    if (difference <= ROUNDING_FLOOR_GRAMS) return true
     return difference * TOLERANCE_DENOMINATOR <= tolerance * documentGrams
   }
 }

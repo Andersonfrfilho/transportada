@@ -99,7 +99,9 @@ as linhas.
 | valor + peso: mais de uma nota      | 4              | 6              |
 | sem nota (XML não está nessa pasta) | 37–48          | 9–10           |
 
-- **O peso é exato:** `PESO TOTAL` da linha = `pesoB` do XML, **desvio 0** (mediana e p90); `VALOR` =
+- **O peso quase bate:** `PESO TOTAL` da linha × `pesoB` do XML tem **diferença de até 5 g por
+  arredondamento da planilha** (2 casas × 3 no XML; medido na T4.3 — a "mediana e p90 = 0" daqui era o
+  desvio relativo arredondado, que escondia os gramas); `VALOR` =
   `vNF` ao centavo; a cidade bate em **100%** dos vínculos. O **nome** do destinatário bate só em 115 de 139 (a
   razão social da planilha diverge): **não serve de chave obrigatória**, só de reforço.
 - Linhas sem candidata por valor + CEP (48) que têm **o mesmo valor e peso** num XML do mesmo destinatário, com

@@ -780,5 +780,5 @@ Detalhe: docs/ai-context § "Spec 237" → "Fase 2".
 `parseCargoPreviewWorkbook` lê só workbook, rels, sharedStrings e a aba escolhida (macro e `RESULTADO`
 nunca), com tetos em `CARGO_PREVIEW_WORKBOOK_LIMITS` e erro tipado `PREVIEW_*`; coluna por NOME, erro
 por linha. `resolveCargoPreviewMatches` é determinística: roteiro ↔ carga, cliente, soma exata ao
-centavo; 1:1 por nota; só valor é `suggested`. ⚠️ O peso diverge até 5 g: o perfil FR precisa de
-`weight_tolerance_percent = 0.05`. Detalhe: docs/ai-context § "Spec 237 — Fase 4a, parte A".
+centavo; 1:1 por nota; só valor é `suggested`. ⚠️ Peso concorda com `|Δ| ≤ max(0,01 kg, tolerância do
+perfil × peso)`: a planilha arredonda a 2 casas e o `pesoB` tem 3. Detalhe: docs/ai-context § "Spec 237 — Fase 4a, parte A".

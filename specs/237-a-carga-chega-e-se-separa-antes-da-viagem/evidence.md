@@ -12,7 +12,7 @@ planilhas `FR-24-09` (187 linhas), `FR-28-09` (107), `FR-01-10` (191) e `FR-05-1
 | valor + CEP → 1 nota                                   | FR-24-09 **139/187**; FR-28-09 **96/107**   |
 | valor + peso → 1 nota                                  | FR-24-09 **146/187**; FR-28-09 **91/107**   |
 | ambíguas (valor + CEP)                                 | 0 e 2                                       |
-| desvio do peso (`PESO TOTAL` × `pesoB`)                | **0** (mediana e p90)                       |
+| desvio do peso (`PESO TOTAL` × `pesoB`)                | até **5 g** (arredondamento; ver T4.3)      |
 | cidade igual nos vínculos                              | 139/139                                     |
 | nome do destinatário igual                             | 115/139                                     |
 | `NroCarga` ↔ `RouteName`                              | **1:1** (10×10 e 8×8)                       |
@@ -614,7 +614,8 @@ a cada XML importado e o vínculo manual (parte B).
   → `Destinatário NNN`, CEP → `00NNNNNN` (faixa sem uso), CNPJ/CPF → `990000NNNNNNNN`, `Company` → `10NNN`,
   `Text001` → `50NNNN`, `nNF` → `1NNNNN`; endereço e bairro fora; igualdade preservada. Ficam roteiro,
   valor, peso, volume, cidade, `NroCarga` e datas.
-- **Taxas no corpus** (notas do mesmo dia do roteiro; tolerância de peso 0,05%):
+- **Taxas no corpus** (notas do mesmo dia do roteiro; tolerância de peso 0,05% — a mesma tabela vale
+  com a tolerância **0** depois do piso de 0,01 kg, salvo "roteiros cujos totais fecham", ver abaixo):
 
   | Medida                                                             | FR-24-09 (187)         | FR-28-09 (107)         |
   | ------------------------------------------------------------------ | ---------------------- | ---------------------- |
@@ -627,17 +628,16 @@ a cada XML importado e o vínculo manual (parte B).
   | clientes com 2–3 linhas numa nota                                  | 19/19                  | 3/3                    |
   | pares roteiro ↔ carga                                             | 10 (5 totais, 5 votos) | 8 (5 totais, 3 votos)  |
   | aliases aprendidos (0 conflito; 21 códigos voltam no dia seguinte) | 158                    | 94                     |
-  | tempo da política                                                  | 2–9 ms                 | 1–2 ms                 |
+  | tempo da política                                                  | 2–9 ms                 | 1–3 ms                 |
 
   FR.BARRI: **20 linhas → 16 notas**, mesmo valor total, todas vinculadas. Os `suggested` são peso
   realmente diferente (ex.: 47,610 × 27,212 kg) com valor, CEP e razão social iguais; os 2 `ambiguous` são
   dois clientes com 2.948,40 / 238,000 e duas notas idênticas na mesma carga (sem alias, empate de
   verdade); os `awaiting_xml` não têm nota com o mesmo valor.
 
-- ⚠️ **O peso não é exato** (contradiz a tabela do ADR-0094 §2 e o "ao grama" do RF5a): diferença de até
-  **5 g** (pior caso 0,0321%). Com a tolerância **0** (padrão do perfil): FR-24-09 **89** `matched` e 96
-  `suggested`; clientes 78/165. O perfil FR precisa de `weight_tolerance_percent = 0.05` (0,02 já fecha a
-  FR-24-09). Registrado no ADR-0094 §4.
+- ⚠️ **O peso não é exato ao grama**: diferença de até **5 g** por arredondamento da planilha (pior caso
+  0,0321%). Antes do piso, com a tolerância **0** (padrão do perfil): FR-24-09 **89** `matched` e 96
+  `suggested`; clientes 78/165. Decisão do coordenador: piso absoluto (ver a seção do piso abaixo).
 - **Escala:** 300 linhas × 300 notas em **17 ms** com carga e **15 ms** sem (teto do contrato: 1 s).
 - **Prova de ausência de PII:** a forma anonimizada é conferida sempre (CI). Contra os arquivos reais
   (`CARGO_PREVIEW_PII_WORKBOOK_DIR=~/Downloads CARGO_PREVIEW_PII_NFE_DIR=~/Downloads/ID1026570_procNFe_parte1`):
@@ -677,3 +677,20 @@ a cada XML importado e o vínculo manual (parte B).
   **9567 pass / 25 skip / 0 fail** (198 arquivos; o skip novo é a checagem de PII real) · `bun run
 format:check` na raiz ✓ · `bun install --frozen-lockfile` sem mudança. Integração não foi rodada:
   nada aqui toca banco.
+
+### T4.3 — o piso de arredondamento do peso (2026-10-04, decisão do coordenador)
+
+- **Regra:** o peso concorda quando `|Δ| ≤ max(0,01 kg, weight_tolerance_percent × peso da nota)`
+  (`PREVIEW_WEIGHT_ROUNDING_FLOOR_KG = 0.01` em `cargo-preview-matching.constant.ts`, aplicado em
+  `createWeightCloses`). A diferença de até 5 g é arredondamento da planilha (2 casas × 3 do `pesoB`), não
+  regra do contratante; o padrão do perfil fica `0`, sem migration.
+- **Contrato antes:** `Export named 'PREVIEW_WEIGHT_ROUNDING_FLOOR_KG' not found` e o corpus com tolerância 0
+  vermelho (6 fail). Casos: Δ 0,005 kg e 0,010 kg com tolerância 0 → `matched`; Δ 0,011 kg → `suggested`; Δ
+  0,05 kg em 100 kg com 0,05% → `matched`; Δ 0,005 kg em 2 kg com 0,05% → `matched` (piso também com
+  percentual); Δ 0,06 kg em 100 kg com 0,05% → `suggested`.
+- **Corpus com tolerância 0, depois do piso:** FR-24-09 **180** `matched` / 5 `suggested` / 2
+  `awaiting_xml`; FR-28-09 **97** / 6 / 2 `ambiguous` / 2 — iguais aos de 0,05%. Clientes 158/165 e 94/104.
+  Muda só a origem de um par por planilha (FR.ORLAN, FR.IGARA): a soma do roteiro inteiro acumula mais de
+  10 g, então o par sai por **votos** em vez de totais; nos roteiros cujos totais fecham, 47/47 e 40/40.
+- **Mutações:** tirar o piso **8 fail** · `max` → `min` (exigir piso e percentual) **10 fail** · piso só com
+  tolerância 0 **1 fail** (o primeiro rodou com 0 fail; o caso de 2 kg com 0,05% foi acrescentado).

@@ -2552,9 +2552,10 @@ parâmetro. Ainda **não há** migration, rota, fila nem worker (parte B).
   disputada por dois clientes na mesma passada fica `ambiguous` para os dois. Linha de roteiro pareado
   só pega, fora do grupo, nota **sem** carga. Alias aprendido só de `matched`, sem conflito, nunca o já
   conhecido. `extractLoadReference` refiltra o padrão, corta o `infCpl` em 2 000 e nunca lança.
-- ⚠️ **O peso NÃO é exato ao grama**: medido no corpus, `PESO TOTAL` × `pesoB` diverge em até 5 g
-  (arredondamento; 0,0321% no pior caso). Com `weight_tolerance_percent = 0` (padrão do perfil), metade
-  das linhas vira `suggested`; com **0,05** fecham 180/187 e 97/107. O perfil FR precisa de 0,05.
+- ⚠️ **O peso não é exato ao grama**: há diferença de até 5 g por arredondamento da planilha (2 casas
+  × 3 do `pesoB`). Concordância de peso: `|Δ| ≤ max(0,01 kg, weight_tolerance_percent × peso da nota)`
+  (`PREVIEW_WEIGHT_ROUNDING_FLOOR_KG`, em `createWeightCloses`); o padrão do perfil continua 0 e já fecha
+  180/187 e 97/107. Somas de roteiro inteiro acumulam mais que 10 g, então parte dos pares sai por votos.
 - Contratos: `test/cargo-receiving/cargo-preview-{workbook-safety,workbook-rows,matching-levels,
 matching-rules,matching-scale,corpus,corpus-pii}.contract.ts` no entrypoint
   `cargo-receiving.contract.test.ts`; construtor sintético em
