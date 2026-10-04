@@ -5,7 +5,7 @@
  * contratante. Só item em aberto **decidido pela máquina** é lido para reavaliar: o que o operador
  * confirmou, desvinculou ou vinculou à mão nunca volta para a política.
  */
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import {
@@ -19,7 +19,7 @@ import {
   CARGO_PREVIEW_CHANNEL,
   CARGO_PREVIEW_DECIDED_BY,
   CARGO_PREVIEW_ITEM_STATE,
-  type CargoPreviewRouteLoadOrigin,
+  CARGO_PREVIEW_ROUTE_LOAD_ORIGIN,
 } from '../../shared/cargo-preview.constant.js'
 import type { PreviewItemChange } from '../domain/cargo-preview-match-diff.policy.js'
 
@@ -66,6 +66,7 @@ export function selectOpenItems(tx: Transaction, scope: PreviewScope) {
     .orderBy(cargoPreviewItems.rowNumber)
 }
 
+/** O par por votos de uma versão anterior não é par firmado: nunca volta como conhecido. */
 export async function selectRoutePairs(tx: Transaction, scope: PreviewScope) {
   return tx
     .select({
@@ -77,25 +78,30 @@ export async function selectRoutePairs(tx: Transaction, scope: PreviewScope) {
       and(
         eq(cargoPreviewRouteLoads.companyId, scope.companyId),
         eq(cargoPreviewRouteLoads.previewId, scope.previewId),
+        ne(cargoPreviewRouteLoads.origin, CARGO_PREVIEW_ROUTE_LOAD_ORIGIN.votes),
       ),
     )
 }
 
 const LOAD_REFERENCE_MAX_LENGTH = 200
 
-/** Par já firmado não é regravado; carga com texto longo demais para a coluna não pareia. */
+/**
+ * Só o par pelos totais é gravado. O de votos vale na leitura em que nasceu: gravado, viraria par
+ * conhecido e venceria o roteiro verdadeiro quando o resto do XML chegasse. Já firmado não é regravado.
+ */
 export async function insertRoutePairs(
   tx: Transaction,
   input: PreviewScope & { readonly pairs: readonly CargoPreviewRoutePairing[] },
 ): Promise<void> {
   const rows = input.pairs.flatMap((pair) =>
-    pair.source === 'known' || pair.loadReference.length > LOAD_REFERENCE_MAX_LENGTH
+    pair.source !== CARGO_PREVIEW_ROUTE_LOAD_ORIGIN.totals ||
+    pair.loadReference.length > LOAD_REFERENCE_MAX_LENGTH
       ? []
       : [
           {
             companyId: input.companyId,
             loadReference: pair.loadReference,
-            origin: pair.source satisfies CargoPreviewRouteLoadOrigin,
+            origin: pair.source,
             previewId: input.previewId,
             routeName: pair.routeName,
           },

@@ -198,28 +198,24 @@ describeDatabase('a prévia no worker (integration, spec 237 T4.3)', () => {
 
     const outcome = await repository.reevaluate({ ...graph, now: new Date() })
     expect(outcome.changedItems).toBe(3)
+    // 10002 fecha só valor e peso, sem CEP nem par por totais: sugestão, e não ensina alias (M2).
     expect(await states(previewId)).toEqual([
       '6:matched:system',
-      '7:matched:system',
-      '8:matched:system',
+      '7:suggested:system',
+      '8:suggested:system',
       '9:awaiting_xml:-',
       '10:invalid:-',
     ])
     const links = await db.execute<{ document_id: string }>(
       sql`select document_id from cargo_preview_document_links where preview_id = ${previewId} order by document_id`,
     )
-    expect([...links].map((row) => row.document_id).sort()).toEqual([first, second].sort())
-    const pairs = await db.execute<{ load_reference: string; route_name: string }>(
-      sql`select route_name, load_reference from cargo_preview_route_loads where preview_id = ${previewId}`,
-    )
-    expect([...pairs]).toEqual([{ load_reference: '777', route_name: 'FR.S.CAR' }])
+    expect([...links].map((row) => row.document_id)).toEqual([first])
+    expect(second).toBeString()
+    expect(await count('cargo_preview_route_loads', graph.companyId)).toBe(0)
     const aliases = await db.execute<{ recipient_code: string; recipient_tax_id: string }>(
       sql`select recipient_code, recipient_tax_id from contractor_recipient_aliases where company_id = ${graph.companyId} order by recipient_code`,
     )
-    expect([...aliases]).toEqual([
-      { recipient_code: '10001', recipient_tax_id: '11111111000101' },
-      { recipient_code: '10002', recipient_tax_id: '22222222000102' },
-    ])
+    expect([...aliases]).toEqual([{ recipient_code: '10001', recipient_tax_id: '11111111000101' }])
 
     const events = await count('cargo_preview_events', graph.companyId)
     expect((await repository.reevaluate({ ...graph, now: new Date() })).changedItems).toBe(0)
