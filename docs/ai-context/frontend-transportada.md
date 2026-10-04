@@ -1061,6 +1061,41 @@ deste grupo", busca por número e leitura da chave de acesso pela câmera, banne
 - A API não devolve o peso da nota nas disponíveis: a tela mostra valor, não peso (follow-up de API).
 - Fora desta task: fila offline do toque, rota em lote por selo, avaria na entrada (Fase 3).
 
+## Spec 237 T4.4 — As prévias de carga em `/recebimento/previas`
+
+**Arquivos-chave** (`modules/cargo-receiving/`): `shared/cargoPreview*.ts` (constantes, tipos, guardas, cliente, tabela, detalhe,
+ações, proposta, prefill, polling), `queries/useCargoPreviews.query.ts`, `mutations/*CargoPreview*`, `hooks/useCargoPreview*.hook.ts`,
+`components/CargoPreview*.component.tsx`, `styles/cargoPreview*.module.css`, namespace `cargoReceiving.preview.*`.
+
+- **Duas visões, um item de menu.** `CargoReceivingNav` (Chegadas | Prévias) mora dentro do `CargoReceivingShell` (`section`).
+  Rotas: `/recebimento/previas` (lista + envio) e `/recebimento/previas/:id`; id que não é UUID ou subcaminho cai na lista.
+  Leitura `fleet.read`; envio e ações `trip.manage` (`canManage`).
+- **Cliente próprio** (`cargoPreviewClient.service.ts`, `getCargoPreviewClient`): reaproveita só o transporte
+  (`requestCargoReceivingApi`, que ganhou `formData` — o `content-type` do multipart nunca é fixado à mão). Guardas de resposta com
+  chaves EXATAS no formato real da API; o erro de linha (`rowErrors`, jsonb sem tipo) só exige `column/field/message`.
+- **Envio:** extensão `.xlsx/.xlsm` e teto de **960 KiB** conferidos no cliente (o servidor confere os bytes). `Idempotency-Key` por tentativa
+  (`buildPreviewUploadFingerprint` = contratante + nome + tamanho + `lastModified`; mesma impressão reaproveita a chave). 200 = "essa
+  planilha já foi enviada" (aviso + botão "Abrir a prévia", não navega sozinho); 201 abre a prévia criada. 413/422 e códigos `PREVIEW_*`
+  saem em português (`resolvePreviewErrorKeys`: `preview.errors` → `preview.failure` → `errors` → genérico); `CARGO_PREVIEW_NOT_ENABLED`
+  e "nenhum contratante elegível" levam a `/clientes?tab=contractors`. Elegível = recebimento E prévia ligados (uma leitura de perfil por
+  contratante, cache dividido).
+- **Lista:** ordenação/filtros múltiplos/URL como a de chegadas (`cargoTableSort.service.ts` é o par genérico; `CargoSortHeader` virou
+  genérico). **Repolling** só enquanto há prévia `queued|processing` (`resolveCargoPreviewRefetchInterval`, 3 s; vira `false` sozinho). A
+  API NÃO devolve contagem por estado na lista (só no detalhe): a lista mostra `rowCount` e a situação da leitura (follow-up de API).
+- **Detalhe:** `useInfiniteQuery` onde cada página é o detalhe inteiro com a próxima fatia de linhas (cursor `afterRow`); cabeçalho da
+  primeira página; `placeholderData: keepPreviousData` (sem ele trocar o filtro derrubava os próprios filtros). Grupos por `routeName` na
+  ordem da API, "sem roteiro" por último. **"Esperando o XML" é tom neutro** (`data-tone`), nunca alerta — é o estado normal. Ações
+  (`resolveCargoPreviewItemActions`): confirmar só a sugerida; desvincular só a vinculada, **com aviso do grupo antes** (age em todas as
+  linhas da nota); vincular à mão (a lista `available-documents` da Fase 2, candidatas primeiro) para esperando/ambígua/sugerida; inválida
+  nenhuma. A API só devolve os **ids** das candidatas de uma ambígua: a tela mostra a contagem e destaca as candidatas no seletor.
+- **Proposta de chegada** (`POST …/propose-arrival`, não cria nada): sem nota vinculada o botão é trocado por uma frase. "Registrar chegada
+  com estas notas" grava o rascunho em `history.state` (`cargoArrivalPrefill`: contratante, notas, prévia, dia planejado) e abre
+  `/recebimento/nova`. **A data e a hora começam VAZIAS** (o operador confirma a hora, RF5b) e o dia planejado só aparece como referência;
+  as notas são marcadas por `usePreselection` (busca as páginas até achar as propostas; o que não aparece é "não está mais livre").
+- **Mobile:** abaixo de 40rem cada linha das tabelas de prévias vira cartão (`data-label` + `.stacked` em `cargoTable.module.css`).
+- **Dado de terceiros:** nome/endereço do destinatário só na célula; nunca em URL, título, log nem `localStorage`.
+- Fora desta task: `previewId` no `POST /cargo-arrivals`, contagem por estado na lista (API), fila offline, e-mail (Fase 4b).
+
 ## Spec 244 — O ajudante sem resto
 
 **Arquivos-chave:** conversor em `modules/shared/decimalAmount.service.ts` (`toTypedAmountKeepingZero`), usado em

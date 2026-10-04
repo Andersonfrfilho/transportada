@@ -63,8 +63,9 @@
       paridade; a nota importada pede a reavaliação num savepoint, coalescida — `evidence.md`.)_
 - [ ] **T4.3a** _(opcional)_ Se o contratante passar a escrever o número dele nas informações adicionais da
       NF-e, lê-lo no importador e usá-lo como chave exata.
-- [ ] **T4.4** Tela de prévias no painel: itens esperados × vinculados × ambíguos × com erro, "esperando o
+- [x] **T4.4** Tela de prévias no painel: itens esperados × vinculados × ambíguos × com erro, "esperando o
       XML" por item, vínculo manual; a prévia **propõe a chegada** (RF5b) para o operador confirmar a hora.
+      _(2026-10-04: `/recebimento/previas` e `/recebimento/previas/:id`; prints a aprovar — `evidence.md`.)_
 - [ ] **T4.5** Revisão `opus` + `security-reviewer`, **print aprovado**, publicar em staging e confirmar.
 
 ## Fase 5 — Recomendação de viagens

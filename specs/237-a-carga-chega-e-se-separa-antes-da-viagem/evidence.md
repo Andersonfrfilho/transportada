@@ -770,3 +770,87 @@ também sobreviveu na primeira rodada (a política nunca propõe código já con
   (decisão do usuário, `docs/SECURITY.md`); aprender alias também do que o operador confirma; a leitura
   em `worker_thread` se a planilha hostil virar problema; rotina de varredura que reavalie prévias em
   aberto caso um pedido se perca (hoje o pedido é atômico com a importação, então não se perde).
+
+## T4.4 — as prévias de carga no painel (2026-10-04)
+
+Commits `cf2e4e8cc` (contrato vermelho), `bb1dcfdc3` (implementação), `f744b86dd` (achados da revisão de design) e o dos
+prints/evidência. **Nada da API nem do worker foi tocado.** Decisões em `docs/ai-context/frontend-transportada.md` § "Spec 237 T4.4".
+
+- **Contrato antes, vermelho pelo motivo certo:** `Cannot find module '@/modules/cargo-receiving/shared/cargoPreviewPolling.service'` (puros,
+  0 pass / 1 fail) e `Cannot find module …/components/CargoPreviewListPanel.component` (DOM, 0 pass / 1 fail).
+- **O que existe** (`modules/cargo-receiving/`, namespace `cargoReceiving.preview.*`, pt-BR e en): `/recebimento/previas` (lista + envio) e
+  `/recebimento/previas/:id` (detalhe), com `CargoReceivingNav` (Chegadas | Prévias) no shell; envio (tipo, teto de 960 KiB, `Idempotency-Key`
+  por tentativa, 200/413/422, recusa nomeando todos os campos); lista com ordenação, filtros múltiplos, URL e repolling que para sozinho;
+  detalhe com grupos por roteiro e carga ligada, selos por situação, "esperando o XML" neutro, erro de linha, confirmar/desvincular (com aviso
+  do grupo)/vincular à mão, filtros na URL, "carregar mais itens"; proposta de chegada e chegada pré-preenchida sem data nem hora.
+- **Contagem:** `bun run test` **6817 → 6896 pass / 0 fail** (+79, os 7 contratos puros novos) e `test:hooks` **489 → 550 pass / 0 fail** (+61,
+  quatro suítes de DOM novas). `bun run typecheck` limpo; `bun run lint` 0 erros (16 avisos antigos, nenhum em arquivo novo); `format:check`
+  na raiz ✓.
+- **Estabilidade do `test:hooks`:** **12/12 verdes** em sequência (550 pass, 12–13 s) e **4/4 verdes com a CPU saturada** (13 `yes` em 11 núcleos;
+  550 pass, 18,5 s). Nenhum `expect(nó).toBeNull()` dentro de `waitFor`: só contagens (`querySelectorAll(...).length`).
+- **Mutações** (script fora do repositório; arquivo restaurado por `git checkout` e `git diff --quiet` limpo no fim; "puro" = `bun test` de
+  `cargo-receiving.contract.test.ts`, "DOM" = `test:hooks` inteiro):
+
+  | Mutação                                           | Puro | DOM |
+  | ------------------------------------------------- | ---- | --- |
+  | `Idempotency-Key` nova a cada tentativa           | 0    | 2   |
+  | teto do arquivo de 960 KiB para 5 MiB             | 2    | 1   |
+  | repolling que nunca para                          | 1    | 2   |
+  | "esperando o XML" com tom de erro                 | 0    | 2   |
+  | desvincular sem avisar o grupo                    | 0    | 2   |
+  | ações visíveis sem `trip.manage`                  | 1    | 1   |
+  | pré-preenchimento assume a data e a hora          | 0    | 1   |
+  | 200 tratado como envio novo                       | 1    | 0   |
+  | botão de propor mesmo sem nota vinculada          | 1    | 1   |
+  | vincular à mão sem destacar as candidatas         | 0    | 1   |
+  | recado de pré-preenchimento aceita chave a mais   | 1    | 1   |
+  | filtro de roteiro de um valor não vai ao servidor | 1    | 0   |
+
+  Todas derrubam teste; nenhuma sobreviveu.
+
+- **Divergências do pedido:**
+  1. **A lista NÃO mostra a contagem por estado** (vinculadas/aguardando/…): `GET /cargo-previews` devolve só o resumo (sem `counts`); a
+     contagem existe no detalhe. A lista mostra `rowCount` e a situação da leitura. Follow-up de API: `counts` no resumo.
+  2. **Candidatas de uma ambígua:** a API devolve só `candidateDocumentIds` (sem número da NF): a tela diz "N notas candidatas" e o seletor
+     de vínculo à mão as destaca e põe primeiro ("Candidata"). Nada exigiu mudar a API.
+  3. **"Leve à ficha do contratante"** abre `/clientes?tab=contractors` (a aba), não a ficha daquele contratante: a ficha não tem rota por id.
+  4. **200 do reenvio:** a tela mostra "Essa planilha já foi enviada." e o botão "Abrir a prévia" (não navega sozinha, para a mensagem ser lida);
+     o 201 navega direto para a prévia criada.
+  5. **Pré-preenchimento por `history.state`** (sobrevive a recarregar, não vai na URL: seriam até 300 ids). A hora fica VAZIA — a tela de
+     registro sem prévia continua com "agora" (contrato de não-regressão).
+  6. **Filtros do detalhe:** um valor vai ao servidor (cursor por linha acompanha), vários o cliente filtra o que veio (como a lista de chegadas).
+  7. **Cartões no celular** (não pedido literalmente): abaixo de 40rem as tabelas de prévias viram cartões com o rótulo da coluna; a tabela
+     larga escondia a situação e as ações atrás da rolagem horizontal.
+  8. Primitivos tocados: `FileField` ganhou `describedBy`/`isInvalid` (aditivo, para o erro ser do próprio campo); `CargoSortHeader` e
+     `useCargoFieldFeedback` ficaram genéricos (comportamento igual).
+- **Prints** (60 PNG em `specs/237-.../prints/`, 375/768/1280 × escuro/claro, dados inventados, API 100% dublada): `previa-lista`,
+  `previa-enviar`, `previa-enviar-erro` (cliente: >960 KB), `previa-enviar-erro-413`, `previa-enviar-erro-422`, `previa-detalhe`,
+  `previa-detalhe-aguardando`, `previa-vincular-manual`, `previa-propor-chegada`, `previa-chegada-preenchida`. Gerados por
+  `test/spec-237-previas-prints.smoke.spec.ts` (fora do smoke da CI; build com `VITE_SMOKE_AUTH_BYPASS=true` em pasta temporária, preview na
+  porta 53279, config do Playwright descartável apagada no fim; a config da CI e a porta reservada dela não foram tocadas).
+- **Revisão de design (web.md §15)** — estilo calculado a 1280 px, escuro, contra a lista de chegadas e a aba Contratantes:
+
+  | Medida                      | Vizinho                                   | Novo                                                           |
+  | --------------------------- | ----------------------------------------- | -------------------------------------------------------------- |
+  | campo/seletor: altura/borda | 48 px · 1 px lousa · raio 0 · Avenir 14,4 | seletor do envio e campo de arquivo: idêntico                  |
+  | botão: altura/padding/raio  | 48 px · 12×20 px · raio 0                 | "Abrir", "Enviar planilha", "Propor chegada": idêntico         |
+  | selo: mono/altura           | 11,52 px · 24 px · 1 px                   | idêntico (cor por situação)                                    |
+  | aba: altura                 | —                                         | 44 px (`--touch-target`), no molde de `ui/tabs`                |
+  | célula de tabela            | 65 px                                     | 65 px (lista) · 83 px (linha do detalhe, tem 2 linhas)         |
+  | cabeçalho de tabela         | 61 px (com botão de ordenação)            | 61 px (lista) · 39 px (detalhe: sem ordenação, é de propósito) |
+
+  Contraste (WCAG, mínimo entre as telas), escuro / claro: aba inativa 6,22 / 4,83 · texto secundário 6,22 / 4,83 · dados do roteiro 6,22 /
+  4,83 · nota "esperando o XML" 6,22 / 4,83 · selo neutro 6,30 / 5,36 · selo vinculada/pronta 6,59 / 5,50 · selo sugerida/ambígua 6,16 / 5,37 ·
+  selo inválida/falhou 4,87 / 4,69 · erro de linha 4,87 / 4,69 · erro de campo 5,46 / 4,69 · motivo da falha 5,55 / 5,27 · indicador de ordenação
+  5,87 / 4,57. **Nenhum abaixo de 4,5:1.** **Alvo de toque a 375 px: 46 controles medidos (lista com envio preenchido; detalhe com proposta,
+  seletor de nota e aviso de desvincular abertos): o menor tem 44 px**; nenhuma das 62 telas rola de lado (afirmado pelo próprio teste).
+  Defeitos achados pelos prints e consertados: (a) seletor de contratante do envio com 38,4 px ao lado do campo de arquivo de 48 px (o
+  `SearchableSelect` é compacto por desenho) — tokens locais igualam a altura e o alvo de toque; (b) o rótulo do campo de arquivo era menor que
+  o do seletor vizinho; (c) a tabela de 70 rem escondia situação e ações atrás da rolagem a 375 px — virou cartão; (d) o cabeçalho do detalhe
+  colava na borda — ganhou painel; (e) parágrafos do rascunho com margem dupla.
+
+- **Não rodou:** `make check`/`make smoke`/smoke da CI, `make migration-test` (nada de banco mudou), teste em aparelho real, o `previewId` no
+  `POST /cargo-arrivals` (follow-up de API), integração da API/worker (nada mudou).
+- **Follow-ups:** `counts` no resumo da lista (API); número da NF das candidatas de uma ambígua (API); `previewId` opcional no `POST
+/cargo-arrivals` para preencher `cargo_previews.arrival_id` (e então "esta prévia já virou a chegada X" no detalhe); rota da ficha do contratante
+  por id; fila offline; e-mail (Fase 4b); T4.5 (revisão `opus` + `security-reviewer`, print aprovado).

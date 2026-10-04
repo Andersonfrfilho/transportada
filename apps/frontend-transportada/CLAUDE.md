@@ -392,6 +392,23 @@ perfil são lidos por projeção mínima — só `id/displayName/taxId` e `isEna
 
 Detalhe e decisões: docs/ai-context/frontend-transportada.md § "Spec 237 T2.4".
 
+## Prévias de carga (spec 237 T4.4)
+
+Segunda visão de Recebimento: **`/recebimento/previas`** (lista + envio da planilha) e **`/recebimento/previas/:id`** (detalhe), no mesmo
+módulo `cargo-receiving`, com `CargoReceivingNav` (Chegadas | Prévias) dentro do shell. Leitura `fleet.read`, envio e ações `trip.manage`.
+Cliente, guardas (chaves exatas) e refusal **próprios** (`shared/cargoPreview*`); `RegistrationRefusalSummary` é reaproveitado.
+
+- **Envio:** `.xlsx/.xlsm`, teto de **960 KiB** (o do servidor), `Idempotency-Key` por tentativa (mesmo arquivo + contratante = mesma chave),
+  200 = "já foi enviada" (aviso + botão), 413/422 em português, recusa nomeando todos os campos. Só contratante com recebimento E prévia ligados.
+- **Repolling só enquanto há prévia na fila/lendo** (`resolveCargoPreviewRefetchInterval`); para sozinho. Estado de lista e filtros do detalhe na URL.
+- **"Esperando o XML" é neutro** (`data-tone="neutral"`), nunca alerta. Desvincular **avisa que age no grupo inteiro** antes de sair. Sem
+  `trip.manage` nenhuma ação aparece.
+- **Proposta de chegada** leva a `/recebimento/nova` por `history.state` (`cargoArrivalPrefill`) e **nunca assume data nem hora**: os campos vêm
+  vazios. Contratos: `test/cargo-receiving/preview-*.contract.ts` e `test/trip-hooks/cargo-preview-*.contract.ts` (+ `cargoPreviewHarness.helper.ts`).
+- A lista de prévias não traz contagem por estado (a API só a dá no detalhe). Nome/endereço do destinatário nunca em URL, título ou `localStorage`.
+
+Detalhe e decisões: docs/ai-context/frontend-transportada.md § "Spec 237 T4.4".
+
 ## O ajudante sem resto (spec 244)
 
 **T3:** Conversor `toTypedAmountKeepingZero` (`modules/shared/decimalAmount.service.ts`) devolve `0,00` para
