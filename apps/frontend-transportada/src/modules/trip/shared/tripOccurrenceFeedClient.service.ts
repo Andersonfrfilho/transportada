@@ -191,14 +191,17 @@ function isFeedItem(value: unknown): value is RawFeedItem {
     isNullableString(value.invoiceNumber) &&
     isNullableString(value.invoiceSeries) &&
     typeof value.notifies === 'boolean' &&
-    (value.occurrenceTypeId === undefined || isString(value.occurrenceTypeId)) &&
+    (value.occurrenceTypeId === undefined || isNullableString(value.occurrenceTypeId)) &&
     (value.source === 'document' || value.source === 'stop') &&
     (value.stage === null || value.stage === 'delivery' || value.stage === 'separation') &&
     isNullableString(value.stopLabel) &&
     isString(value.tripId) &&
     (value.typeAllowsMultipleItems === undefined ||
+      value.typeAllowsMultipleItems === null ||
       typeof value.typeAllowsMultipleItems === 'boolean') &&
-    (value.typeItemsMode === undefined || isOneOf(value.typeItemsMode, OCCURRENCE_ITEMS_MODES)) &&
+    (value.typeItemsMode === undefined ||
+      value.typeItemsMode === null ||
+      isOneOf(value.typeItemsMode, OCCURRENCE_ITEMS_MODES)) &&
     isString(value.typeName) &&
     isString(value.vehiclePlate)
   )

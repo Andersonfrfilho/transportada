@@ -197,9 +197,9 @@ export type TripOccurrence = Readonly<{
   cancellation?: null | OccurrenceCancellation
   stage: 'delivery' | 'separation'
   /** Spec 241 RF5: ausente é API anterior ao campo e lê `true`. */
-  typeAllowsMultipleItems?: boolean
+  typeAllowsMultipleItems?: boolean | null
   /** Spec 241 RF5: o tipo **atual** carrega itens? Ausente é API anterior ao campo e lê `optional`. */
-  typeItemsMode?: OccurrenceItemsMode
+  typeItemsMode?: OccurrenceItemsMode | null
   /** O nome que a empresa deu ao tipo — a tela imprime isto, nunca um id. */
   typeName: string
 }>

@@ -1459,8 +1459,12 @@ export function isTripOccurrence(value: unknown): value is TripOccurrence {
       value.cancellation === null ||
       isOccurrenceCancellation(value.cancellation)) &&
     (value.stage === 'delivery' || value.stage === 'separation') &&
-    (value.typeAllowsMultipleItems === undefined || isBoolean(value.typeAllowsMultipleItems)) &&
-    (value.typeItemsMode === undefined || isOneOf(value.typeItemsMode, OCCURRENCE_ITEMS_MODES)) &&
+    (value.typeAllowsMultipleItems === undefined ||
+      value.typeAllowsMultipleItems === null ||
+      isBoolean(value.typeAllowsMultipleItems)) &&
+    (value.typeItemsMode === undefined ||
+      value.typeItemsMode === null ||
+      isOneOf(value.typeItemsMode, OCCURRENCE_ITEMS_MODES)) &&
     isString(value.typeName)
   )
 }

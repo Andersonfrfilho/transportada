@@ -126,15 +126,15 @@ export type TripOccurrenceFeedItem = Readonly<{
   invoiceSeries: null | string
   notifies: boolean
   /** Spec 241 RF5: ausente é API anterior ao campo. */
-  occurrenceTypeId?: string
+  occurrenceTypeId?: null | string
   source: 'document' | 'stop'
   stage: 'delivery' | 'separation' | null
   stopLabel: null | string
   tripId: string
   /** Spec 241 RF5: ausente é API anterior ao campo e lê `true`. */
-  typeAllowsMultipleItems?: boolean
+  typeAllowsMultipleItems?: boolean | null
   /** Spec 241 RF5: o tipo **atual** carrega itens? Ausente é API anterior ao campo e lê `optional`. */
-  typeItemsMode?: OccurrenceItemsMode
+  typeItemsMode?: OccurrenceItemsMode | null
   typeName: string
   vehiclePlate: string
 }>

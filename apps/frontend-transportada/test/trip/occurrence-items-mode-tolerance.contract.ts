@@ -193,3 +193,58 @@ describe('lista da nota: typeItemsMode e typeAllowsMultipleItems', () => {
     ).toThrow()
   })
 })
+
+describe('ocorrência de parada: a API nova publica os três campos como null', () => {
+  const STOP_NULLS = { occurrenceTypeId: null, typeAllowsMultipleItems: null, typeItemsMode: null }
+
+  test('o feed aceita o item de parada com os três campos null e os lê como ausentes', async () => {
+    const client = createClient(
+      Response.json({
+        data: [buildFeedItem({ ...STOP_NULLS, source: 'stop' })],
+        pagination: { nextCursor: null },
+      }),
+    )
+    const [item] = (await client.listOccurrences(LIST_INPUT)).items
+    expect(item?.source).toBe('stop')
+    expect(item?.typeItemsMode ?? undefined).toBeUndefined()
+    expect(item?.typeAllowsMultipleItems ?? undefined).toBeUndefined()
+  })
+
+  test('o detalhe da parada aceita os três campos null', async () => {
+    const detail = await createClient(
+      Response.json({ data: buildDetail({ ...STOP_NULLS, source: 'stop' }) }),
+    ).readOccurrence({ occurrenceId: 'x' })
+    expect(detail.source).toBe('stop')
+  })
+
+  test('a lista da nota aceita typeItemsMode e typeAllowsMultipleItems null', () => {
+    const [item] = adapters.occurrencesFromApi([
+      {
+        createdAt: '2026-10-03T12:00:00.000Z',
+        id: 'occurrence-1',
+        note: '',
+        occurrenceTypeId: TYPE_ID,
+        productCode: '',
+        stage: 'delivery',
+        typeAllowsMultipleItems: null,
+        typeItemsMode: null,
+        typeName: 'Avaria',
+      },
+    ])
+    expect(item).toBeDefined()
+  })
+
+  test('null não afrouxa a forma: vocabulário errado continua recusado', async () => {
+    const client = createClient(
+      Response.json({
+        data: [buildFeedItem({ ...STOP_NULLS, source: 'stop', typeItemsMode: 'banana' })],
+        pagination: { nextCursor: null },
+      }),
+    )
+    const outcome = await client.listOccurrences(LIST_INPUT).then(
+      () => 'resolved',
+      () => 'rejected',
+    )
+    expect(outcome).toBe('rejected')
+  })
+})
