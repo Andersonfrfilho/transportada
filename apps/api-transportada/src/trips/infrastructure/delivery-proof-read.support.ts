@@ -49,9 +49,14 @@ import type {
   OccurrenceTypeFlow,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
+import { OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK } from '../../shared/trip-occurrence.constant.js'
 import { openOccurrenceCase } from './drizzle-occurrence-case.repository.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
-import { TripDocumentNotFoundError } from '../domain/trip.error.js'
+import {
+  OccurrenceTypeItemsOffRedeliveryPolicyError,
+  TripDocumentNotFoundError,
+} from '../domain/trip.error.js'
+import { violatedCheckConstraint } from '../../database/postgres-error.support.js'
 import { contractors } from '../../database/delivery-client.schema.js'
 import { resolveDeliveryContact } from '../domain/delivery-contact.policy.js'
 import type { DeliveryContact } from '../domain/delivery-contact.policy.js'
@@ -985,6 +990,18 @@ export async function listOccurrenceTypes(
     .orderBy(asc(companyOccurrenceTypes.stage), asc(companyOccurrenceTypes.name))
 }
 
+/**
+ * Spec 241 (RF11): dois `PUT` concorrentes (um `off`, outro com política) passam a validação do caso
+ * de uso, que lê fora da transação do `UPDATE`, e só a CHECK os pega — 422 do domínio, não 500.
+ * Qualquer outra violação segue propagando.
+ */
+function rethrowItemsOffShapeViolation(error: unknown): never {
+  if (violatedCheckConstraint(error) === OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK) {
+    throw new OccurrenceTypeItemsOffRedeliveryPolicyError()
+  }
+  throw error
+}
+
 export async function saveOccurrenceType(
   queryable: TripQueryable,
   input: {
@@ -1062,9 +1079,9 @@ export async function saveOccurrenceType(
         ? {}
         : { leavesDocumentBehind: input.leavesDocumentBehind }
 
-  const [saved] =
+  const [saved] = await (
     input.occurrenceTypeId === null
-      ? await queryable
+      ? queryable
           .insert(companyOccurrenceTypes)
           .values({
             ...values,
@@ -1073,7 +1090,7 @@ export async function saveOccurrenceType(
             ...(input.flow === 'stop' ? { stopKind: 'other' as const } : {}),
           })
           .returning()
-      : await queryable
+      : queryable
           .update(companyOccurrenceTypes)
           .set({
             ...values,
@@ -1092,6 +1109,7 @@ export async function saveOccurrenceType(
             ),
           )
           .returning()
+  ).catch(rethrowItemsOffShapeViolation)
 
   if (saved === undefined) throw new TripDocumentNotFoundError()
 

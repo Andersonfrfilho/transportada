@@ -1,7 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { OCCURRENCE_TYPE_FLOWS, TRIP_OCCURRENCE_STAGE } from '../shared/trip-occurrence.constant.js'
+import {
+  OCCURRENCE_TYPE_FLOWS,
+  OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK,
+  TRIP_OCCURRENCE_STAGE,
+} from '../shared/trip-occurrence.constant.js'
 import type {
   OccurrenceItemQuantityUnit,
   OccurrenceTypeFlow,
@@ -2665,7 +2669,7 @@ export const companyOccurrenceTypes = pgTable(
      * com código próprio.
      */
     check(
-      'company_occurrence_types_items_off_shape_check',
+      OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK,
       sql`${table.itemsMode} <> 'off' or ${table.redeliveryPolicy} = 'unset'`,
     ),
     unique('company_occurrence_types_company_id_id_unique').on(table.companyId, table.id),

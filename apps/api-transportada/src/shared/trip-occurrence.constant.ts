@@ -79,3 +79,16 @@ export const OCCURRENCE_ITEM_QUANTITY_UNIT = {
  * (`occurrence-item-quantity.policy.ts`), não o tipo.
  */
 export type OccurrenceItemQuantityUnit = string
+
+/**
+ * Spec 241 (RF4): os dois valores de `items_mode` que o código nomeia — `off` o tipo não carrega
+ * itens, `optional` oferece. O vocabulário completo é `DELIVERY_PROOF_FIELD_MODES`.
+ */
+export const OCCURRENCE_ITEMS_MODE = {
+  off: 'off',
+  optional: 'optional',
+} as const
+
+/** Spec 241 (RF11): a CHECK `off ⇒ unset`; o cadastro a traduz em 422 quando a corrida a atinge. */
+export const OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK =
+  'company_occurrence_types_items_off_shape_check'

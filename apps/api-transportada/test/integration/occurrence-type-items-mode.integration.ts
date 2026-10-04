@@ -179,4 +179,37 @@ describe('"itemsMode" do tipo de ocorrência contra o Postgres (spec 241)', () =
       })
     },
   )
+
+  testWithPostgres(
+    'a gravação concorrente que fere a CHECK volta 422 do domínio, e outra CHECK segue propagando',
+    async () => {
+      await withCompany(async ({ companyId, provider }) => {
+        const blocked = await saveOccurrenceType(
+          provider.db,
+          baseValues(companyId, { itemsMode: 'optional', redeliveryPolicy: 'blocked' }),
+        )
+
+        // O `findCurrentType` do caso de uso já leu `unset` antes do outro PUT gravar `blocked`:
+        // a escrita chega ao banco sem a validação e só a CHECK segura.
+        const staleWrite = saveOccurrenceType(
+          provider.db,
+          baseValues(companyId, { itemsMode: 'off', occurrenceTypeId: blocked.id }),
+        )
+        await expect(staleWrite).rejects.toBeInstanceOf(OccurrenceTypeItemsOffRedeliveryPolicyError)
+        const otherCheck = saveOccurrenceType(
+          provider.db,
+          baseValues(companyId, {
+            occurrenceTypeId: blocked.id,
+            stage: 'not_a_stage' as SaveInput['stage'],
+          }),
+        )
+        const otherError = await otherCheck.then(
+          () => undefined,
+          (error: unknown) => error,
+        )
+        expect(otherError).toBeDefined()
+        expect(otherError).not.toBeInstanceOf(OccurrenceTypeItemsOffRedeliveryPolicyError)
+      })
+    },
+  )
 })

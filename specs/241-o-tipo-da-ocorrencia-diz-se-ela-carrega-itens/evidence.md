@@ -1043,3 +1043,25 @@ error: shapes down
 ```
 
 Mutação (tirar o `.catch`) → mesma saída vermelha (`1 fail`); com o `.catch`, `4 pass, 0 fail`.
+
+### 2. Corrida no cadastro: a CHECK `off ⇒ unset` vira 422, não 500
+
+`findCurrentType` lê fora da transação do `UPDATE`; dois `PUT` concorrentes passam a validação e só a CHECK
+`company_occurrence_types_items_off_shape_check` os pega (SQLSTATE `23514`). `saveOccurrenceType` (adaptador de
+persistência) agora traduz o `23514` **dessa** constraint, pelo nome (`violatedCheckConstraint`, que percorre o
+`cause` do `DrizzleQueryError` até o `PostgresError` com `constraint`), em
+`OccurrenceTypeItemsOffRedeliveryPolicyError`; outra CHECK (testada com `stage` inválido) segue propagando. O nome
+virou a constante `OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK` (schema e adaptador).
+
+Vermelho (teste antes; escrita direta no repositório, sem a validação do caso de uso):
+
+```text
+error: expect(received).toBeInstanceOf(expected)
+Expected constructor: [class OccurrenceTypeItemsOffRedeliveryPolicyError extends ApiError]
+Received value: ... DrizzleQueryError: Failed query: update "company_occurrence_types" set ...
+(fail) "itemsMode" do tipo de ocorrência contra o Postgres (spec 241) > a gravação concorrente que fere a CHECK volta 422 do domínio, e outra CHECK segue propagando
+ 4 pass
+ 1 fail
+```
+
+Verde: `5 pass, 0 fail`. Mutação (tirar o `.catch(rethrowItemsOffShapeViolation)`) → `4 pass, 1 fail`, mesma falha.
