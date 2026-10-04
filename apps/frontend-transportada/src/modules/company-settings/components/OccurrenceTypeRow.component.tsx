@@ -13,7 +13,10 @@ import type {
   OccurrenceType,
   OccurrenceTypeFlow,
 } from '@/modules/trip/shared/occurrence.constant'
-import { TRIP_OCCURRENCE_STAGE } from '@/modules/trip/shared/occurrence.constant'
+import {
+  OCCURRENCE_ITEMS_MODE,
+  TRIP_OCCURRENCE_STAGE,
+} from '@/modules/trip/shared/occurrence.constant'
 import type { ContractorSummary } from '@/modules/trip/shared/contractorSummary.service'
 import styles from '@/modules/trip/styles/trip.module.css'
 
@@ -63,14 +66,15 @@ export function OccurrenceTypeRow({
         label={t('occurrenceTypeCatalog.active')}
         onChange={(value) => onSave(buildOccurrenceTypeUpdate(type, { active: value }))}
       />
-      {type.itemsMode === 'off' || type.itemsMode === 'optional' ? (
+      {type.itemsMode === OCCURRENCE_ITEMS_MODE.off ||
+      type.itemsMode === OCCURRENCE_ITEMS_MODE.optional ? (
         <OccurrenceTypeItemsModeSelect
           disabled={isDisabled}
           onChange={(value) => onSave(buildOccurrenceTypeUpdate(type, { itemsMode: value }))}
           value={type.itemsMode}
         />
       ) : null}
-      {type.itemsMode === 'off' ? null : (
+      {type.itemsMode === OCCURRENCE_ITEMS_MODE.off ? null : (
         <Checkbox
           checked={type.allowsMultipleItems}
           disabled={isDisabled}
@@ -80,7 +84,7 @@ export function OccurrenceTypeRow({
           }
         />
       )}
-      {type.itemsMode === 'off' ? null : (
+      {type.itemsMode === OCCURRENCE_ITEMS_MODE.off ? null : (
         <Select
           ariaLabel={t('occurrenceTypeCatalog.redeliveryPolicy')}
           disabled={isDisabled}

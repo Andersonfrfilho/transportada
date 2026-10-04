@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
   DEFAULT_OCCURRENCE_ITEMS_MODE,
+  OCCURRENCE_ITEMS_MODE,
   type OccurrenceItemsMode,
   type OccurrenceType,
 } from './occurrence.constant'
@@ -14,7 +15,7 @@ export function resolveOccurrenceItemsMode(type: ItemsModeSource | undefined): O
 }
 
 export function carriesOccurrenceItems(mode: OccurrenceItemsMode): boolean {
-  return mode !== 'off'
+  return mode !== OCCURRENCE_ITEMS_MODE.off
 }
 
 export type OccurrenceItemsSelection = Readonly<{

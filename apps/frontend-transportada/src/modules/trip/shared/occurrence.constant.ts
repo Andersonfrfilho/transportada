@@ -35,7 +35,17 @@ export type OccurrenceRedeliveryPolicy =
  * Spec 179 RF1: se o tipo exige comprovante (foto) no registro do motorista — o mesmo vocabulário
  * do canhoto (`DELIVERY_PROOF_FIELD_MODES`). Nasce `off`; `required` exige foto e observação.
  */
-export const OCCURRENCE_ATTACHMENT_MODES = ['off', 'optional', 'required'] as const
+export const OCCURRENCE_ATTACHMENT_MODE = {
+  off: 'off',
+  optional: 'optional',
+  required: 'required',
+} as const
+
+export const OCCURRENCE_ATTACHMENT_MODES = [
+  OCCURRENCE_ATTACHMENT_MODE.off,
+  OCCURRENCE_ATTACHMENT_MODE.optional,
+  OCCURRENCE_ATTACHMENT_MODE.required,
+] as const
 
 export type OccurrenceAttachmentMode = (typeof OCCURRENCE_ATTACHMENT_MODES)[number]
 
@@ -45,16 +55,29 @@ export type OccurrenceAttachmentMode = (typeof OCCURRENCE_ATTACHMENT_MODES)[numb
  * comportamento de hoje. `required` é da spec 239: o painel o lê, mas o cadastro só escreve os dois
  * primeiros (`OCCURRENCE_ITEMS_WRITE_MODES`).
  */
-export const OCCURRENCE_ITEMS_MODES = ['off', 'optional', 'required'] as const
+export const OCCURRENCE_ITEMS_MODE = {
+  off: 'off',
+  optional: 'optional',
+  required: 'required',
+} as const
+
+export const OCCURRENCE_ITEMS_MODES = [
+  OCCURRENCE_ITEMS_MODE.off,
+  OCCURRENCE_ITEMS_MODE.optional,
+  OCCURRENCE_ITEMS_MODE.required,
+] as const
 
 export type OccurrenceItemsMode = (typeof OCCURRENCE_ITEMS_MODES)[number]
 
-export const OCCURRENCE_ITEMS_WRITE_MODES = ['off', 'optional'] as const
+export const OCCURRENCE_ITEMS_WRITE_MODES = [
+  OCCURRENCE_ITEMS_MODE.off,
+  OCCURRENCE_ITEMS_MODE.optional,
+] as const
 
 export type OccurrenceItemsWriteMode = (typeof OCCURRENCE_ITEMS_WRITE_MODES)[number]
 
 /** Spec 241: API anterior ao campo não diz nada — o tipo carrega itens, como sempre carregou. */
-export const DEFAULT_OCCURRENCE_ITEMS_MODE: OccurrenceItemsMode = 'optional'
+export const DEFAULT_OCCURRENCE_ITEMS_MODE: OccurrenceItemsMode = OCCURRENCE_ITEMS_MODE.optional
 
 /**
  * Spec 218 (D1, RF-B5): qual dos dois caminhos de registro o tipo alimenta — ocorrência **de nota**

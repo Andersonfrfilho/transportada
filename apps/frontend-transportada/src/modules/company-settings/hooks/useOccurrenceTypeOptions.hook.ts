@@ -4,6 +4,7 @@
 import { useTranslation } from 'react-i18next'
 
 import {
+  OCCURRENCE_ATTACHMENT_MODE,
   OCCURRENCE_REDELIVERY_POLICY,
   OCCURRENCE_TYPE_FLOWS,
 } from '@/modules/trip/shared/occurrence.constant'
@@ -21,9 +22,18 @@ export function useOccurrenceTypeOptions(): OccurrenceTypeOptions {
 
   return {
     attachmentModeOptions: [
-      { label: t('occurrenceTypeCatalog.attachmentModeOff'), value: 'off' },
-      { label: t('occurrenceTypeCatalog.attachmentModeOptional'), value: 'optional' },
-      { label: t('occurrenceTypeCatalog.attachmentModeRequired'), value: 'required' },
+      {
+        label: t('occurrenceTypeCatalog.attachmentModeOff'),
+        value: OCCURRENCE_ATTACHMENT_MODE.off,
+      },
+      {
+        label: t('occurrenceTypeCatalog.attachmentModeOptional'),
+        value: OCCURRENCE_ATTACHMENT_MODE.optional,
+      },
+      {
+        label: t('occurrenceTypeCatalog.attachmentModeRequired'),
+        value: OCCURRENCE_ATTACHMENT_MODE.required,
+      },
     ],
     flowOptions: OCCURRENCE_TYPE_FLOWS.map((value) => ({
       label: t(`occurrenceTypeCatalog.flow${value === 'document' ? 'Document' : 'Stop'}`),

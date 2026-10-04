@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import {
+  OCCURRENCE_ITEMS_MODE,
   OCCURRENCE_REDELIVERY_POLICY,
   type OccurrenceAttachmentMode,
   type OccurrenceItemsWriteMode,
@@ -54,7 +55,7 @@ export function buildOccurrenceTypeUpdate(
   edit: OccurrenceTypeEdit = {},
 ): OccurrenceTypeSaveInput {
   const redeliveryPolicy =
-    edit.itemsMode === 'off'
+    edit.itemsMode === OCCURRENCE_ITEMS_MODE.off
       ? OCCURRENCE_REDELIVERY_POLICY.unset
       : (edit.redeliveryPolicy ?? type.redeliveryPolicy)
   return {

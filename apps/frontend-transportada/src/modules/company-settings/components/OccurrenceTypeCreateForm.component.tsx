@@ -11,6 +11,8 @@ import { Select } from '@/components/ui/select'
 import { Tooltip } from '@/components/ui/tooltip'
 
 import {
+  OCCURRENCE_ATTACHMENT_MODE,
+  OCCURRENCE_ITEMS_MODE,
   OCCURRENCE_REDELIVERY_POLICY,
   OCCURRENCE_TYPE_FLOWS,
   TRIP_OCCURRENCE_STAGE,
@@ -63,12 +65,16 @@ export function OccurrenceTypeCreateForm({
   /** Spec 185 D2/RF6: padrão desligado — nenhum tipo novo tira nota da viagem sem decisão explícita. */
   const [leavesDocumentBehind, setLeavesDocumentBehind] = useState(false)
   /** Spec 179 RF1: nasce `off` — nenhum tipo novo passa a exigir foto sem decisão explícita. */
-  const [attachmentMode, setAttachmentMode] = useState<OccurrenceAttachmentMode>('off')
+  const [attachmentMode, setAttachmentMode] = useState<OccurrenceAttachmentMode>(
+    OCCURRENCE_ATTACHMENT_MODE.off,
+  )
   /** Spec 218 (D1, RF-B5): obrigatório na criação — nasce `document`, o comportamento de sempre. */
   const [flow, setFlow] = useState<OccurrenceTypeFlow>(OCCURRENCE_TYPE_FLOWS[0])
   /** Spec 241 RF10: nasce `optional`, o comportamento de hoje — Desligado é decisão explícita. */
-  const [itemsMode, setItemsMode] = useState<OccurrenceItemsWriteMode>('optional')
-  const isItemsOff = hasItemsModeSupport && itemsMode === 'off'
+  const [itemsMode, setItemsMode] = useState<OccurrenceItemsWriteMode>(
+    OCCURRENCE_ITEMS_MODE.optional,
+  )
+  const isItemsOff = hasItemsModeSupport && itemsMode === OCCURRENCE_ITEMS_MODE.off
 
   function handleAdd() {
     if (name.trim() === '') return
@@ -76,7 +82,8 @@ export function OccurrenceTypeCreateForm({
     onSave({
       active: true,
       allowsMultipleItems,
-      attachmentMode: stage === TRIP_OCCURRENCE_STAGE.delivery ? attachmentMode : 'off',
+      attachmentMode:
+        stage === TRIP_OCCURRENCE_STAGE.delivery ? attachmentMode : OCCURRENCE_ATTACHMENT_MODE.off,
       emailTemplateKey: emailTemplateKey === OCCURRENCE_TEMPLATE_NONE ? null : emailTemplateKey,
       /** Spec 218 RF-B5: obrigatório na criação — o servidor recusa `occurrenceTypeId: null` sem ele. */
       flow,
@@ -94,9 +101,9 @@ export function OccurrenceTypeCreateForm({
     setAllowsMultipleItems(true)
     setRedeliveryPolicy(OCCURRENCE_REDELIVERY_POLICY.unset)
     setLeavesDocumentBehind(false)
-    setAttachmentMode('off')
+    setAttachmentMode(OCCURRENCE_ATTACHMENT_MODE.off)
     setFlow(OCCURRENCE_TYPE_FLOWS[0])
-    setItemsMode('optional')
+    setItemsMode(OCCURRENCE_ITEMS_MODE.optional)
   }
 
   function handleEditTemplates() {

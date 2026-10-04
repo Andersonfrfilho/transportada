@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
-import type { OccurrenceItemsMode } from './occurrence.constant'
+import { OCCURRENCE_ITEMS_MODE, type OccurrenceItemsMode } from './occurrence.constant'
 import { TRIP_MANAGE_PERMISSION } from './trip.constant'
 import type { OccurrenceCorrection } from './trip.types'
 import type {
@@ -199,6 +199,7 @@ export function resolveOccurrenceCorrectionActions(
   const reason = resolveUnavailableReason(input, t)
   const state: OccurrenceActionState =
     reason === null ? { availability: 'enabled' } : { availability: 'disabled', reason }
-  const canCorrect = input.typeItemsMode !== 'off' || input.hasItems || input.wasCorrected
+  const canCorrect =
+    input.typeItemsMode !== OCCURRENCE_ITEMS_MODE.off || input.hasItems || input.wasCorrected
   return { cancel: state, correct: canCorrect ? state : hidden }
 }
