@@ -28,7 +28,7 @@ export function OccurrenceTypeItemsModeSelect({
   const { t } = useTranslation('companySettings')
 
   return (
-    <Tooltip label={t('occurrenceTypeCatalog.itemsModeHint')}>
+    <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.itemsModeHint')}>
       <Select
         ariaLabel={t('occurrenceTypeCatalog.itemsMode')}
         disabled={disabled}

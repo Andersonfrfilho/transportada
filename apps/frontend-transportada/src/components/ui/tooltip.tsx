@@ -18,6 +18,11 @@ const DISMISSING_KEYS = ['ArrowDown', 'ArrowUp', 'Enter', ' ']
 type TooltipProps = Readonly<{
   /** O elemento que hospeda a dica — botão, ícone, célula. */
   children: ReactNode
+  /**
+   * Ativar o gatilho (clique, Enter, Espaço, setas) dispensa a dica. Só o `Select` pede: a lista
+   * dele nasce sob a dica e ficaria coberta. Os gatilhos só-dica mantêm a dica aberta ao ativar.
+   */
+  dismissOnActivate?: boolean
   /** O texto da dica. Vazio desliga o tooltip, e o gatilho segue renderizando normalmente. */
   label: string
 }>
@@ -32,7 +37,7 @@ type TooltipProps = Readonly<{
  * O teclado abre a dica no `focus`, e não só no `hover`: uma dica que só existe para quem tem mouse
  * é informação que some para quem navega por Tab.
  */
-export function Tooltip({ children, label }: TooltipProps): JSX.Element {
+export function Tooltip({ children, dismissOnActivate = false, label }: TooltipProps): JSX.Element {
   const [isOpen, setIsOpen] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const describedById = useId()
@@ -69,15 +74,15 @@ export function Tooltip({ children, label }: TooltipProps): JSX.Element {
         className={styles.trigger}
         onBlur={close}
         /**
-         * Ativar o gatilho dispensa a dica: um seletor que abre a lista por baixo dela fica com as
-         * opções cobertas (a dica pinta por cima, com `z-index` maior). O seletor abre no `keydown`
-         * de Enter, Espaço e setas e cancela o clique do teclado, então as teclas fecham a dica aqui.
+         * Um seletor que abre a lista por baixo da dica fica com as opções cobertas (a dica pinta
+         * por cima, com `z-index` maior). Ele abre no `keydown` de Enter, Espaço e setas e cancela
+         * o clique do teclado, então as teclas fecham a dica aqui.
          */
-        onClick={close}
+        onClick={dismissOnActivate ? close : undefined}
         /** Foco de teclado abre **na hora**: quem chegou por Tab escolheu parar aqui. */
         onFocus={() => setIsOpen(true)}
         onKeyDown={(event) => {
-          if (DISMISSING_KEYS.includes(event.key)) close()
+          if (dismissOnActivate && DISMISSING_KEYS.includes(event.key)) close()
         }}
         onMouseEnter={open}
         onMouseLeave={close}

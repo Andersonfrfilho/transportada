@@ -329,7 +329,7 @@ export function OccurrenceTypeCatalogPanel({
                 )}
                 {/* Spec 179 T401: só em tipo de rua — é o motorista quem tira a foto na hora. */}
                 {type.stage === TRIP_OCCURRENCE_STAGE.delivery ? (
-                  <Tooltip label={t('occurrenceTypeCatalog.attachmentModeHint')}>
+                  <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.attachmentModeHint')}>
                     <Select
                       ariaLabel={t('occurrenceTypeCatalog.attachmentMode')}
                       disabled={!canManage || isSaving}
@@ -354,7 +354,7 @@ export function OccurrenceTypeCatalogPanel({
                 ) : null}
                 {/* Spec 218 (D1, RF-B5): mesmo gate do comprovante — só tipo de rua alimenta o botão único do motorista. */}
                 {type.stage === TRIP_OCCURRENCE_STAGE.delivery ? (
-                  <Tooltip label={t('occurrenceTypeCatalog.flowHint')}>
+                  <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.flowHint')}>
                     <Select
                       ariaLabel={t('occurrenceTypeCatalog.flow')}
                       disabled={!canManage || isSaving}
@@ -465,7 +465,7 @@ export function OccurrenceTypeCatalogPanel({
             />
           )}
           {stage === TRIP_OCCURRENCE_STAGE.delivery ? (
-            <Tooltip label={t('occurrenceTypeCatalog.attachmentModeHint')}>
+            <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.attachmentModeHint')}>
               <Select
                 ariaLabel={t('occurrenceTypeCatalog.attachmentMode')}
                 onChange={(value) => setAttachmentMode(value as OccurrenceAttachmentMode)}
@@ -476,7 +476,7 @@ export function OccurrenceTypeCatalogPanel({
           ) : null}
           {/* Spec 218 (D1, RF-B5): mesmo gate do `attachmentMode` — só tipo de rua tem fluxo de registro. */}
           {stage === TRIP_OCCURRENCE_STAGE.delivery ? (
-            <Tooltip label={t('occurrenceTypeCatalog.flowHint')}>
+            <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.flowHint')}>
               <Select
                 ariaLabel={t('occurrenceTypeCatalog.flow')}
                 onChange={(value) => setFlow(value as OccurrenceTypeFlow)}
