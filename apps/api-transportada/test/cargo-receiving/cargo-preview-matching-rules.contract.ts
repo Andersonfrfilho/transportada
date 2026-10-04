@@ -24,6 +24,10 @@ import {
 import { extractLoadReference } from '../../src/cargo-receiving/domain/load-reference.policy.js'
 import { candidate, matchParams, previewItem } from '../fixtures/cargo-preview-matching.fixture.js'
 
+/** O CEP igual é o reforço que faz valor e peso valerem fora de um par por totais (M2). */
+const CEP = { postalCode: '00000001' } as const
+const NOTE_CEP = { recipientPostalCode: '00000001' } as const
+
 describe('as regras do vínculo (spec 237 RF5a)', () => {
   test('valor é sempre exigido: peso, CEP e alias iguais não bastam', () => {
     const items = [
@@ -60,8 +64,8 @@ describe('as regras do vínculo (spec 237 RF5a)', () => {
 
   test('a tolerância de peso do perfil vale para o fechamento', () => {
     const params = matchParams({
-      candidates: [candidate('d1', { grossWeightKg: '10.050' })],
-      items: [previewItem('a')],
+      candidates: [candidate('d1', { ...NOTE_CEP, grossWeightKg: '10.050' })],
+      items: [previewItem('a', CEP)],
       weightTolerancePercent: 1,
     })
     expect(resolveCargoPreviewMatches(params).items[0]?.state).toBe('matched')
@@ -94,8 +98,8 @@ describe('as regras do vínculo (spec 237 RF5a)', () => {
     ['Δ 0,06 kg em 100 kg com 0,05%: passa dos dois', '100.060', '100.000', 0.05, 'suggested'],
   ])('%s', (_label, documentWeight, lineWeight, weightTolerancePercent, state) => {
     const params = matchParams({
-      candidates: [candidate('d1', { grossWeightKg: documentWeight })],
-      items: [previewItem('a', { weightKg: lineWeight })],
+      candidates: [candidate('d1', { ...NOTE_CEP, grossWeightKg: documentWeight })],
+      items: [previewItem('a', { ...CEP, weightKg: lineWeight })],
       weightTolerancePercent,
     })
     expect(String(resolveCargoPreviewMatches(params).items[0]?.state)).toBe(state)
@@ -163,7 +167,7 @@ describe('as regras do vínculo (spec 237 RF5a)', () => {
       }),
     )
     const candidates = [
-      candidate('d1', { grossWeightKg: '1.000', totalValue: '10.00' }),
+      candidate('d1', { ...NOTE_CEP, grossWeightKg: '1.000', totalValue: '10.00' }),
       candidate('d2', {
         grossWeightKg: '5.000',
         recipientPostalCode: '00000001',
@@ -189,7 +193,7 @@ describe('as regras do vínculo (spec 237 RF5a)', () => {
       documents,
       lines,
       requireWeight: true,
-      weightCloses: (left, right) => left === right,
+      weightCloses: ({ documentGrams, lineGrams }) => lineGrams === documentGrams,
     })
     const complete = searchPartitions({ options })
     expect(complete.kind === 'solutions' ? complete.solutions.length : 0).toBe(30)
@@ -217,16 +221,17 @@ describe('as regras do vínculo (spec 237 RF5a)', () => {
 
   test('o alias aprendido sai só do vínculo conferido, nunca repete o conhecido nem o conflito', () => {
     const items = [
-      previewItem('a', { recipientCode: '1' }),
-      previewItem('b', { recipientCode: '2', value: '20.00', weightKg: '2.000' }),
+      previewItem('a', { ...CEP, recipientCode: '1' }),
+      previewItem('b', { ...CEP, recipientCode: '2', value: '20.00', weightKg: '2.000' }),
       previewItem('c', { recipientCode: '3', value: '30.00', weightKg: '3.000' }),
       previewItem('s', { recipientCode: '4', value: '40.00', weightKg: '4.000' }),
-      previewItem('e1', { recipientCode: '5', value: '50.00', weightKg: '5.000' }),
-      previewItem('e2', { recipientCode: '5', value: '60.00', weightKg: '6.000' }),
+      previewItem('e1', { ...CEP, recipientCode: '5', value: '50.00', weightKg: '5.000' }),
+      previewItem('e2', { ...CEP, recipientCode: '5', value: '60.00', weightKg: '6.000' }),
     ]
     const candidates = [
-      candidate('d1', { recipientTaxId: '99000000000011' }),
+      candidate('d1', { ...NOTE_CEP, recipientTaxId: '99000000000011' }),
       candidate('d2', {
+        ...NOTE_CEP,
         grossWeightKg: '2.000',
         recipientTaxId: '99000000000022',
         totalValue: '20.00',
@@ -242,11 +247,13 @@ describe('as regras do vínculo (spec 237 RF5a)', () => {
         totalValue: '40.00',
       }),
       candidate('d5', {
+        ...NOTE_CEP,
         grossWeightKg: '5.000',
         recipientTaxId: '99000000000055',
         totalValue: '50.00',
       }),
       candidate('d6', {
+        ...NOTE_CEP,
         grossWeightKg: '6.000',
         recipientTaxId: '99000000000066',
         totalValue: '60.00',

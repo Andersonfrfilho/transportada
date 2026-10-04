@@ -42,6 +42,17 @@ export const LOAD_REFERENCE_INPUT_MAX_LENGTH = 2_000
  */
 export const PREVIEW_WEIGHT_ROUNDING_FLOOR_KG = 0.01
 
+/** Cada linha somada arredonda até 5 g: n linhas contra uma nota (ou um roteiro) somam até 5·n g. */
+export const PREVIEW_WEIGHT_ROUNDING_PER_LINE_KG = 0.005
+
+/**
+ * O par roteiro ↔ carga sem os totais fechando nasce dos votos (linhas que já fecham sozinhas numa
+ * nota da carga) só acima de um mínimo — um voto é coincidência de valor e peso. Esse par vale só na
+ * leitura em que nasceu: nunca é gravado nem vira par conhecido, e não confere vínculo sozinho.
+ */
+export const MIN_ROUTE_PAIR_VOTES = 2
+export const MIN_ROUTE_PAIR_VOTE_PERCENT = 25
+
 export const MONEY_DECIMALS = 2
 export const WEIGHT_DECIMALS = 3
 /** Tolerância em centésimos de ponto percentual: `numeric(5,2)` do perfil, sem float na conta. */

@@ -64,7 +64,12 @@ export function buildPartitionOptions(input: {
     const value = members.reduce((total, line) => total + line.valueCents, 0n)
     const weight = members.reduce((total, line) => total + line.weightGrams, 0n)
     for (const document of byValue.get(value) ?? []) {
-      if (input.requireWeight && !input.weightCloses(weight, document.weightGrams)) continue
+      const closes = input.weightCloses({
+        documentGrams: document.weightGrams,
+        lineCount: members.length,
+        lineGrams: weight,
+      })
+      if (input.requireWeight && !closes) continue
       if (!members.every((line) => input.allowsDocument(line, document))) continue
       options[subset[0] ?? 0]?.push({ documentId: document.id, lines: subset })
     }

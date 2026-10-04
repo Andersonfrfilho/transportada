@@ -83,8 +83,15 @@ export type MatchDocument = {
   readonly weightGrams: bigint | undefined
 }
 
-/** Fecha o peso: igual, ou dentro da tolerância do perfil (centésimos de ponto percentual). */
-export type WeightCloses = (lineGrams: bigint, documentGrams: bigint | undefined) => boolean
+/** `lineGrams` é a soma de `lineCount` linhas; `documentGrams` a da nota (ou das notas da carga). */
+export type WeightClosesParams = {
+  readonly documentGrams: bigint | undefined
+  readonly lineCount: number
+  readonly lineGrams: bigint
+}
+
+/** Fecha o peso: dentro do arredondamento das linhas somadas ou da tolerância do perfil. */
+export type WeightCloses = (params: WeightClosesParams) => boolean
 
 export type LineDecision = {
   readonly documentIds: readonly string[]

@@ -20,6 +20,7 @@ const COPIED_DOMAIN_FILES = [
   'cargo-preview-matching.constant.ts',
   'cargo-preview-matching.policy.ts',
   'cargo-preview-matching.types.ts',
+  'cargo-preview-partition-choice.policy.ts',
   'cargo-preview-partition.policy.ts',
   'cargo-preview-route-pairing.policy.ts',
   'cargo-preview-row.parser.ts',

@@ -3,9 +3,10 @@
  *
  * Spec 237 RF5a níveis 2 e 3: dentro de um escopo (o grupo roteiro ↔ carga, ou o resto), as linhas
  * de cada cliente procuram nota em passadas da evidência mais forte para a mais fraca — alias
- * `Company → CNPJ`, CEP ou razão social, qualquer nota, e por fim só o valor (sugestão). Numa mesma
- * passada, nota disputada por dois clientes é ambígua para os dois (1:1); entre passadas, a mais
- * forte já levou a nota.
+ * `Company → CNPJ`, CEP ou razão social, qualquer nota, e por fim só o valor (sugestão). Valor e peso
+ * sem reforço só são vínculo dentro de um par confirmado pelos totais; fora dele, sugestão. Numa
+ * mesma passada, nota disputada por dois clientes é ambígua para os dois (1:1); entre passadas, a
+ * mais forte já levou a nota.
  */
 import { compareText } from './cargo-preview-match-input.policy.js'
 import type { CargoPreviewMatchEvidence } from './cargo-preview-matching.constant.js'
@@ -15,12 +16,23 @@ import type {
   MatchLine,
   WeightCloses,
 } from './cargo-preview-matching.types.js'
-import { buildPartitionOptions, searchPartitions } from './cargo-preview-partition.policy.js'
+import {
+  buildPartitionOptions,
+  searchPartitions,
+  type PartitionOption,
+} from './cargo-preview-partition.policy.js'
+import {
+  distinctSolutions,
+  tentativeFromPicks,
+  type Tentative,
+} from './cargo-preview-partition-choice.policy.js'
 
 export type MatchingScope = {
   readonly aliases: ReadonlyMap<string, string>
   readonly allowsDocument: (line: MatchLine, document: MatchDocument) => boolean
   readonly documents: readonly MatchDocument[]
+  /** O par do grupo fecha pelos totais (ou já foi firmado): valor e peso bastam dentro dele. */
+  readonly isConfirmedGroup: boolean
   readonly isRouteGroup: boolean
   readonly weightCloses: WeightCloses
 }
@@ -31,11 +43,6 @@ export type MatchingState = {
 }
 
 type Pass = 'alias' | 'open' | 'reinforced' | 'value'
-type Tentative = {
-  readonly blockSize: number
-  readonly documentIds: readonly string[]
-  readonly isUnique: boolean
-}
 
 const PASSES: readonly Pass[] = ['alias', 'reinforced', 'open', 'value']
 
@@ -89,28 +96,28 @@ function tentativeFor(input: {
     weightCloses: input.scope.weightCloses,
   })
   const search = searchPartitions({ options })
+  const solutions =
+    search.kind === 'overflow'
+      ? []
+      : distinctSolutions({ lines: input.cluster, solutions: search.solutions })
   const tentative = new Map<number, Tentative>()
   input.cluster.forEach((line, position) => {
-    const lineOptions = options.flat().filter((option) => option.lines.includes(position))
+    const covers = (option: PartitionOption) => option.lines.includes(position)
     if (search.kind === 'overflow') {
-      const documentIds = [...new Set(lineOptions.map((option) => option.documentId))].sort(
-        compareText,
-      )
+      const documentIds = [
+        ...new Set(
+          options
+            .flat()
+            .filter(covers)
+            .map((option) => option.documentId),
+        ),
+      ].sort(compareText)
       if (documentIds.length > 0)
         tentative.set(line.index, { blockSize: 1, documentIds, isUnique: false })
       return
     }
-    const picks = search.solutions.map((solution) =>
-      solution.find((option) => option.lines.includes(position)),
-    )
-    if (picks.length === 0 || picks.every((pick) => pick === undefined)) return
-    const documentIds = [...new Set(picks.map((pick) => pick?.documentId ?? ''))]
-      .filter((id) => id !== '')
-      .sort(compareText)
-    const isUnique = picks.every(
-      (pick) => pick !== undefined && pick.documentId === picks[0]?.documentId,
-    )
-    tentative.set(line.index, { blockSize: picks[0]?.lines.length ?? 1, documentIds, isUnique })
+    const decided = tentativeFromPicks(solutions.map((solution) => solution.find(covers)))
+    if (decided !== undefined) tentative.set(line.index, decided)
   })
   return tentative
 }
@@ -160,7 +167,8 @@ function runPass(input: {
     const contested = tentative.documentIds.some((id) => (claims.get(id)?.size ?? 0) > 1)
     const decided = contested ? { ...tentative, isUnique: false } : tentative
     const document = decided.isUnique ? byId.get(decided.documentIds[0] ?? '') : undefined
-    const unique = input.pass === 'value' ? 'suggested' : 'matched'
+    const isBare = input.pass === 'open' && !input.scope.isConfirmedGroup
+    const unique = input.pass === 'value' || isBare ? 'suggested' : 'matched'
     const evidence = evidenceFor({
       document,
       line,

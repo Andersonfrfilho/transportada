@@ -68,7 +68,10 @@ function toItemMatch(
   }
 }
 
-type ScopeBase = Omit<MatchingScope, 'allowsDocument' | 'documents' | 'isRouteGroup'>
+type ScopeBase = Omit<
+  MatchingScope,
+  'allowsDocument' | 'documents' | 'isConfirmedGroup' | 'isRouteGroup'
+>
 
 type MatchAllScopesParams = {
   readonly base: ScopeBase
@@ -88,6 +91,7 @@ function matchAllScopes(params: MatchAllScopesParams): void {
         ...base,
         allowsDocument: () => true,
         documents: documents.filter((document) => document.loadReference === pair.loadReference),
+        isConfirmedGroup: pair.source !== 'votes',
         isRouteGroup: true,
       },
       state,
@@ -104,6 +108,7 @@ function matchAllScopes(params: MatchAllScopesParams): void {
       allowsDocument: (line, document) =>
         !pairedRoutes.has(line.routeName) || document.loadReference === undefined,
       documents: documents.filter(isLoose),
+      isConfirmedGroup: false,
       isRouteGroup: false,
     },
     state,

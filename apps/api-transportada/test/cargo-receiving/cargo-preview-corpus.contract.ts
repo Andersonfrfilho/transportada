@@ -81,13 +81,15 @@ function customersOf(
 describe('o vínculo no corpus real anonimizado (spec 237 T4.3)', () => {
   if (first === undefined || second === undefined) throw new Error('CORPUS_SHEETS_MISSING')
 
-  test('o retrato medido: com a tolerância 0 do perfil, ~96% e ~91% das linhas vinculam', () => {
-    expect(countStates(resolve(first))).toEqual({ awaiting_xml: 2, matched: 180, suggested: 5 })
+  // Revisão da Fase 4a: 180→177 e 97→96 são linhas de par por votos que fechavam só valor e peso,
+  // sem CEP, razão social nem alias — hoje sugestão, que o operador confirma (H1/M2).
+  test('o retrato medido: com a tolerância 0 do perfil, ~95% e ~90% das linhas vinculam', () => {
+    expect(countStates(resolve(first))).toEqual({ awaiting_xml: 2, matched: 177, suggested: 8 })
     expect(countStates(resolve(second))).toEqual({
       ambiguous: 2,
       awaiting_xml: 2,
-      matched: 97,
-      suggested: 6,
+      matched: 96,
+      suggested: 7,
     })
   })
 
@@ -98,10 +100,11 @@ describe('o vínculo no corpus real anonimizado (spec 237 T4.3)', () => {
     )
   })
 
-  test('por cliente a soma fecha em 158/165 e 94/104; nos roteiros de totais completos, 47/47 e 40/40', () => {
+  // FR.ORLAN passou de votos a totais com o arredondamento por linha somada (M5): 47/47 → 60/60.
+  test('por cliente a soma fecha em 155/165 e 93/104; nos roteiros de totais completos, 60/60 e 40/40', () => {
     for (const [sheet, all, complete] of [
-      [first, [158, 165], [47, 47]],
-      [second, [94, 104], [40, 40]],
+      [first, [155, 165], [60, 60]],
+      [second, [93, 104], [40, 40]],
     ] as const) {
       const result = resolve(sheet)
       const totals = new Set(

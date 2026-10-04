@@ -2,11 +2,15 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 237 RF5a nível 1: roteiro (`RouteName`) ↔ carga (`NroCarga`), 1:1 e só nesta prévia. Primeiro
- * os pares já firmados; depois o melhor encaixe — totais de valor (ao centavo) e de peso, votos das
- * linhas que já fecham sozinhas numa nota da carga, e a diferença de contagem como desempate. Empate
- * de verdade não pareia: as linhas caem no vínculo por linha.
+ * os pares já firmados; depois o melhor encaixe — totais de valor (ao centavo) e de peso, e então os
+ * votos das linhas que já fecham sozinhas numa nota da carga, acima de um mínimo. Empate não pareia
+ * (a diferença de contagem não desempata: com o XML parcial ela favorece o roteiro menor e errado).
  */
 import { compareText, indexByValue } from './cargo-preview-match-input.policy.js'
+import {
+  MIN_ROUTE_PAIR_VOTE_PERCENT,
+  MIN_ROUTE_PAIR_VOTES,
+} from './cargo-preview-matching.constant.js'
 import type {
   CargoPreviewRoutePairing,
   MatchDocument,
@@ -18,7 +22,7 @@ import type {
 type Scored = {
   readonly loadReference: string
   readonly routeName: string
-  readonly score: readonly [number, number, number]
+  readonly score: readonly [number, number]
 }
 
 type PairRoutesParams = {
@@ -60,20 +64,34 @@ function scorePair(input: {
   readonly documents: readonly MatchDocument[]
   readonly lines: readonly MatchLine[]
   readonly weightCloses: WeightCloses
-}): readonly [number, number, number] {
+}): readonly [number, number] {
   const { documents, lines, weightCloses } = input
   const index = indexByValue(documents)
   const votes = lines.filter((line) =>
     (index.get(line.valueCents) ?? []).some((document) =>
-      weightCloses(line.weightGrams, document.weightGrams),
+      weightCloses({
+        documentGrams: document.weightGrams,
+        lineCount: 1,
+        lineGrams: line.weightGrams,
+      }),
     ),
   ).length
   const valueCloses =
     sumOf(lines, (line) => line.valueCents) === sumOf(documents, (document) => document.valueCents)
-  const weightTotal = sumOf(documents, (document) => document.weightGrams)
   const totals =
-    valueCloses && weightCloses(sumOf(lines, (line) => line.weightGrams) ?? 0n, weightTotal)
-  return [totals ? 1 : 0, votes, -Math.abs(lines.length - documents.length)]
+    valueCloses &&
+    weightCloses({
+      documentGrams: sumOf(documents, (document) => document.weightGrams),
+      lineCount: lines.length,
+      lineGrams: sumOf(lines, (line) => line.weightGrams) ?? 0n,
+    })
+  return [totals ? 1 : 0, votes]
+}
+
+const PERCENT = 100
+
+function hasEnoughVotes(votes: number, lineCount: number): boolean {
+  return votes >= MIN_ROUTE_PAIR_VOTES && votes * PERCENT >= lineCount * MIN_ROUTE_PAIR_VOTE_PERCENT
 }
 
 function compareScored(left: Scored, right: Scored): number {
@@ -101,7 +119,8 @@ function scoreAll(
   for (const [routeName, lines] of input.routes) {
     for (const [loadReference, documents] of input.loads) {
       const score = scorePair({ documents, lines, weightCloses: input.weightCloses })
-      if (score[0] === 1 || score[1] > 0) scored.push({ loadReference, routeName, score })
+      if (score[0] === 1 || hasEnoughVotes(score[1], lines.length))
+        scored.push({ loadReference, routeName, score })
     }
   }
   return scored.sort(compareScored)
