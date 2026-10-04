@@ -299,7 +299,7 @@
     "withoutTemplate": "No email: this type is only logged on the trip.",
     "allowsMultipleItems": "Allows multiple items",
     "itemsMode": "Products",
-    "itemsModeHint": "No products: the occurrence carries no products — registration shows no selector, Correct does not appear on new occurrences and redelivery is left unset (no case opens). Optional products: whoever registers may point at products.",
+    "itemsModeHint": "No products: the occurrence carries no products — registration shows no selector, redelivery does not apply and Correct only appears on occurrences that already have products or were already corrected. Optional products: whoever registers may point at products.",
     "itemsModeOff": "No products",
     "itemsModeOptional": "Optional products",
     "redeliveryPolicy": "Allows redelivery",
