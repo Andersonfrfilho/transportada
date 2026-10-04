@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "58f8d1fb-f147-48b7-8042-f04346d86bda",
+  "id": "a60ccb0c-1c26-44ad-913c-2dd2eefd438d",
   "prevIds": [
-    "11c128c3-ec3c-438e-a4a1-975c6b5b9fcb"
+    "788af633-5542-422d-b415-1e7020b2472d"
   ],
   "ddl": [
     {
@@ -1167,6 +1167,24 @@
     {
       "isRlsEnabled": false,
       "name": "contractor_receiving_profiles",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "cargo_arrivals",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "cargo_arrival_documents",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "cargo_arrival_events",
       "entityType": "tables",
       "schema": "public"
     },
@@ -32788,6 +32806,513 @@
       "name": "id",
       "entityType": "columns",
       "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "contractor_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "arrived_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "pallet_count",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "type": "smallint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "separation_window_hours",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "type": "smallint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "delivery_deadline_business_days",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "separation_due_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reference",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "registered_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "channel",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "idempotency_key",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "request_fingerprint",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'open'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "arrival_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "nfe_document_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "route_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "city_ibge_code",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'expected'",
+      "generated": null,
+      "identity": null,
+      "name": "separation_state",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "received_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "separated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "arrival_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "arrival_document_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "kind",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "from_state",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "to_state",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "actor_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "channel",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "occurred_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "recorded_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "details",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
       "table": "trip_cargo_layouts"
     },
     {
@@ -35458,6 +35983,41 @@
       "entityType": "indexes",
       "schema": "public",
       "table": "nfe_package_boxes"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "role",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "tax_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "nfe_participants_company_role_tax_id_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "nfe_participants"
     },
     {
       "nameExplicit": true,
@@ -40575,6 +41135,153 @@
       "entityType": "indexes",
       "schema": "public",
       "table": "fleet_vehicle_axles"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "arrived_at",
+          "isExpression": false,
+          "asc": false,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "id",
+          "isExpression": false,
+          "asc": false,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "cargo_arrivals_company_arrived_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "contractor_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "arrived_at",
+          "isExpression": false,
+          "asc": false,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "id",
+          "isExpression": false,
+          "asc": false,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "cargo_arrivals_company_contractor_arrived_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "arrival_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "occurred_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "cargo_arrival_events_company_arrival_occurred_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "arrival_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "arrival_document_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"arrival_document_id\" is not null",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "cargo_arrival_events_company_arrival_document_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "cargo_arrival_events"
     },
     {
       "nameExplicit": true,
@@ -48658,6 +49365,192 @@
       ],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
+      "name": "cargo_arrivals_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "contractor_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "contractors",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "cargo_arrivals_company_contractor_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "registered_by_user_id",
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user_company_memberships",
+      "columnsTo": [
+        "user_id",
+        "company_id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "cargo_arrivals_registered_by_membership_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "cargo_arrival_documents_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "arrival_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "cargo_arrivals",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "cargo_arrival_documents_company_arrival_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "nfe_document_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "nfe_documents",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "cargo_arrival_documents_company_document_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "cargo_arrival_events_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "arrival_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "cargo_arrivals",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "cargo_arrival_events_company_arrival_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "arrival_id",
+        "arrival_document_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "cargo_arrival_documents",
+      "columnsTo": [
+        "company_id",
+        "arrival_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "cargo_arrival_events_arrival_document_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "actor_user_id",
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user_company_memberships",
+      "columnsTo": [
+        "user_id",
+        "company_id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "cargo_arrival_events_actor_membership_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
       "name": "trip_cargo_layouts_company_id_companies_id_fk",
       "entityType": "fks",
       "schema": "public",
@@ -51269,6 +52162,36 @@
       "name": "contractor_receiving_profiles_pkey",
       "schema": "public",
       "table": "contractor_receiving_profiles",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "cargo_arrivals_pkey",
+      "schema": "public",
+      "table": "cargo_arrivals",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "cargo_arrival_documents_pkey",
+      "schema": "public",
+      "table": "cargo_arrival_documents",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "cargo_arrival_events_pkey",
+      "schema": "public",
+      "table": "cargo_arrival_events",
       "entityType": "pks"
     },
     {
@@ -54392,6 +55315,55 @@
       "entityType": "uniques",
       "schema": "public",
       "table": "contractor_receiving_profiles"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "cargo_arrivals_company_id_id_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "idempotency_key"
+      ],
+      "nullsNotDistinct": false,
+      "name": "cargo_arrivals_company_idempotency_key_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "arrival_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "cargo_arrival_documents_company_arrival_id_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "nfe_document_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "cargo_arrival_documents_company_document_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
     },
     {
       "nameExplicit": true,
@@ -61052,6 +62024,132 @@
       "entityType": "checks",
       "schema": "public",
       "table": "contractor_receiving_profiles"
+    },
+    {
+      "value": "\"pallet_count\" >= 0",
+      "name": "cargo_arrivals_pallet_count_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "value": "\"separation_window_hours\" between 1 and 168",
+      "name": "cargo_arrivals_separation_window_hours_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "value": "\"delivery_deadline_business_days\" between 1 and 60",
+      "name": "cargo_arrivals_delivery_deadline_business_days_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "value": "(\"separation_window_hours\" is null and \"separation_due_at\" is null) or extract(epoch from \"separation_due_at\" - \"arrived_at\") = \"separation_window_hours\" * 3600",
+      "name": "cargo_arrivals_separation_due_at_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "value": "char_length(\"reference\") between 1 and 120",
+      "name": "cargo_arrivals_reference_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "value": "\"channel\" in ('backoffice')",
+      "name": "cargo_arrivals_channel_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "value": "char_length(\"idempotency_key\") between 16 and 256",
+      "name": "cargo_arrivals_idempotency_key_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "value": "\"request_fingerprint\" ~ '^[0-9a-f]{64}$'",
+      "name": "cargo_arrivals_request_fingerprint_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "value": "\"status\" in ('open', 'closed')",
+      "name": "cargo_arrivals_status_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "cargo_arrivals"
+    },
+    {
+      "value": "char_length(\"route_name\") between 1 and 40",
+      "name": "cargo_arrival_documents_route_name_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "value": "\"city_ibge_code\" ~ '^[0-9]{7}$'",
+      "name": "cargo_arrival_documents_city_ibge_code_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "value": "\"separation_state\" in ('expected', 'received', 'separated')",
+      "name": "cargo_arrival_documents_separation_state_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "value": "(\"separation_state\" = 'expected' and \"received_at\" is null and \"separated_at\" is null) or (\"separation_state\" = 'received' and \"received_at\" is not null and \"separated_at\" is null) or (\"separation_state\" = 'separated' and \"received_at\" is not null and \"separated_at\" >= \"received_at\")",
+      "name": "cargo_arrival_documents_state_dates_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "value": "\"kind\" in ('arrival_closed', 'arrival_registered', 'document_added', 'document_received', 'document_separated', 'route_assigned')",
+      "name": "cargo_arrival_events_kind_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "value": "(\"kind\" in ('arrival_registered', 'arrival_closed')) = (\"arrival_document_id\" is null)",
+      "name": "cargo_arrival_events_document_scope_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "value": "case \"kind\" when 'document_added' then \"from_state\" is null and \"to_state\" = 'expected' when 'document_received' then \"from_state\" = 'expected' and \"to_state\" = 'received' when 'document_separated' then \"from_state\" = 'received' and \"to_state\" = 'separated' else \"from_state\" is null and \"to_state\" is null end",
+      "name": "cargo_arrival_events_state_shape_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "value": "\"channel\" in ('backoffice')",
+      "name": "cargo_arrival_events_channel_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "cargo_arrival_events"
+    },
+    {
+      "value": "jsonb_typeof(\"details\") = 'object'",
+      "name": "cargo_arrival_events_details_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "cargo_arrival_events"
     },
     {
       "value": "\"status\" in ('queued', 'running', 'ready', 'failed')",

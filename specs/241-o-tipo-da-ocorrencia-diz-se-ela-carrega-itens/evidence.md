@@ -953,7 +953,47 @@ Received: 2
  1 fail
 ```
 
-Restaurado (cópia byte a byte) → 3 pass, 0 fail. Achado: `trip_document_occurrences.occurrence_type_id`
-tem FK composta com a empresa no banco de hoje (inserir ocorrência de uma empresa apontando para tipo de
-outra viola a FK), apesar do comentário antigo em `trip.schema.ts` ("continua sem FK") — por isso a
-barreira que a mutação prova é a do filtro do lote, e a ocorrência cruzada não é semeável.
+Restaurado (cópia byte a byte) → 3 pass, 0 fail. Achado: `trip_document_occurrences` tem FK composta
+`trip_document_occurrences_company_type_fk` `(company_id, occurrence_type_id)` — inserir ocorrência de uma
+empresa apontando para tipo de outra viola a FK —, por isso a barreira que a mutação prova é a do filtro
+do lote, e a ocorrência cruzada não é semeável.
+
+## T2.9 — gates da API
+
+**Rebase em `origin/staging`** (`git fetch` + `git rebase`): entrou `20261003204733_cargo_arrivals` (spec
+de chegada de carga), filha do mesmo `location_retention_settings` que a nossa — duas folhas no grafo de
+snapshots, e `db:generate` ainda dizia `no_changes`. A pasta `20261004001234_occurrence_type_items_mode`
+foi apagada e regerada por `bun run db:generate --name occurrence_type_items_mode` em cima do snapshot
+novo: **`20261004004602_occurrence_type_items_mode`**, `prevIds = ['788af633-…']` (o snapshot de
+`cargo_arrivals`); o SQL gerado é idêntico, o `UPDATE` da segunda via e o `rollback.sql` foram copiados
+com o nome novo, e o nome foi trocado em `static-migration.contract.ts` e em
+`docs/ai-context/api-transportada.md` (as menções a `20261004001234` acima, neste arquivo, são o
+histórico da primeira geração). Conflitos de rebase: `static-migration.contract.ts` (lista de
+migrations), `docs/ai-context/api-transportada.md` e as linhas únicas de `test:integration` no
+`package.json` (as duas listas foram reunidas; os três arquivos de integração novos desta spec
+conferidos na lista).
+
+- `bun install --frozen-lockfile` → "no changes"; `bun run db:generate` → `{"status":"no_changes"}`;
+  `bun run db:check` → "Everything's fine".
+- `make migration-test ENV_FILE=.env.test` (Postgres 127.0.0.1:65432) → `124 pass, 0 fail, 1912 expect()`
+  (aplica, restringe, reverte e reaplica; a CA01/CA09 sobre dado semeado antes da coluna).
+- Contrato da API, `bun --env-file=../../.env.test test --timeout 120000` → **9471 pass, 24 skip, 0
+  fail** (198 arquivos). Os 24 skips são os mesmos de antes (suítes sem infra opcional).
+- Integração, `bun --env-file=../../.env.test` sobre a lista inteira do `test:integration` (165
+  arquivos), em 8 blocos, um por vez, sem suíte concorrente no mesmo banco: 129 + 261 + 56 + 55 + 141 +
+  64 + 84 + 57 + 69 + 54 = **970 pass, 0 fail**. **Pulados, e por quê:**
+  - `database-migration.contract.test.ts`: 4 skip e `migration-completeness.integration.ts`: 3 skip
+    quando rodados só com o `--env-file` — pedem `DRIZZLE_TEST_DATABASE_URL`. Cobertos: o primeiro pelo
+    `make migration-test` (124 pass, 0 skip) e o segundo rodado com a variável
+    (`migration-completeness` + `fiscal-sequence`: 10 pass, 0 skip).
+  - `trip-occurrence-upload-confirm.integration.ts`: 1 skip (teste que sonda o endpoint S3; sem MinIO
+    local, como o CLAUDE.md da raiz descreve). **Não rodou; não é verde.**
+- `bun run typecheck` (raiz, as quatro apps com `tsc`) → sem erro; `bun run format:check` → limpo;
+  `bun run lint` → 0 erros, 16 avisos (todos em `apps/frontend-transportada`, nenhum em arquivo desta
+  spec); `bun run build` → verde (PWA gerado).
+- `make check` completo **não foi rodado**: ele também executa as suítes das apps de frontend e passa de
+  dez minutos em primeiro plano; o equivalente por partes acima cobre `format:check`, `lint`,
+  `typecheck`, `build` e o teste da API (contrato e integração). Suítes de `frontend-*` não foram
+  tocadas por esta branch.
+- **OpenAPI:** não há. Nenhum arquivo `openapi*` na API, nenhum gerador no `package.json`; o contrato é
+  o dos schemas Zod e o de `docs/ai-context/api-transportada.md` (seção da 241, completada).

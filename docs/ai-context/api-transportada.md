@@ -2660,7 +2660,7 @@ Detalhe, números e mutações em `specs/237-.../evidence.md` § "Correções da
 é o seletor de produtos de hoje; `off` é o tipo que vale para a nota inteira; `required` o banco aceita
 para a 239, o cadastro ainda recusa.
 
-A migration `20261004001234_occurrence_type_items_mode` tem ordem obrigatória: coluna → CHECK de
+A migration `20261004004602_occurrence_type_items_mode` tem ordem obrigatória: coluna → CHECK de
 vocabulário → **um** `UPDATE` que põe `items_mode = 'off'` **e** `redelivery_policy = 'unset'` na
 segunda via do boleto (nome exato `SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME`, `stage = 'delivery'`,
 `flow = 'document'`) → CHECK `company_occurrence_types_items_off_shape_check` (`items_mode <> 'off' or
@@ -2670,3 +2670,32 @@ ou tirar a política do `UPDATE`, derruba a migration numa segunda via que o ope
 (`company_occurrence_types_company_name_unique`, `lower(btrim(name))`), então o `UPDATE` pega no
 máximo uma linha por empresa; renomeado fica `optional`. O rollback derruba as duas CHECKs antes da
 coluna e não devolve a política zerada. Prova: `test/database-migration/occurrence-type-items-mode.assertion.ts`.
+
+**Catálogo e cadastro (T2.3–T2.4).** `OccurrenceTypeCatalogEntry` ganhou `itemsMode`: `optional` nos
+derivados de `TRIP_OCCURRENCE_TYPES`, `off` na segunda via e na **prorrogação do boleto**
+(`BILL_EXTENSION_OCCURRENCE_TYPE_NAME`, `delivery`, defaults da 208). A prorrogação só existe no catálogo
+de **bootstrap** (empresa sem nenhum tipo): nenhuma migration a insere (D2) e o seeder segue sem
+reconciliar tipo existente — o operador de produção a cadastra pela tela. O `PUT
+/company-settings/occurrence-types` aceita `itemsMode?: 'off' | 'optional'` **sem `default`** (ausente não
+mexe; `required` e o resto voltam 400 até a 239) e valida o estado **resultante** `off` ⇒
+`redeliveryPolicy 'unset'` lendo o tipo gravado quando um dos dois campos vem ausente
+(`findCurrentType`): `422 OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY` antes do `UPDATE`; a CHECK do banco é
+só a rede (sem a validação a resposta seria 500).
+
+**Registro e correção (T2.5).** `assertOccurrenceTypeAcceptsProducts`
+(`trips/domain/occurrence-items-mode.policy.ts`) recusa `productCode` não vazio ou `productCodes` não
+vazio em tipo `off` com `422 OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED`, **antes** de ler produtos, gravar, avisar
+ou substituir itens, em `registerTripOccurrence` (galpão e WhatsApp do operador),
+`registerDriverOccurrence` (app e WhatsApp do motorista) e `correctOccurrenceItems` (o tipo ATUAL manda:
+ocorrência antiga com item num tipo que virou `off` aceita esvaziar, não preencher). O lote do escritório
+em nome do motorista grava `productCode: ''` fixo e não tem guarda. Lista vazia vale em qualquer tipo.
+
+**Leituras (T2.7).** `listOccurrenceTypeItemsShapesByIds`
+(`trips/infrastructure/occurrence-type-items-read.query.ts`) lê `items_mode` e `allows_multiple_items` dos
+tipos da página numa consulta, `where company_id and id in (…)`. Feed e detalhe publicam
+`occurrenceTypeId`, `typeItemsMode`, `typeAllowsMultipleItems` (`null` na parada); a lista da nota, os
+dois últimos; o cadastro (`GET /company-settings/occurrence-types`), `/me/trips/current/occurrence-types`
+e o snapshot do motorista, `itemsMode`. O `frontend-driver` ignora a chave nova
+(`isDriverOccurrenceType` só lê o que conhece). Não há OpenAPI gerado nesta API (nenhum arquivo
+`openapi*` no repositório e nenhum gerador no `package.json`): o contrato vive nos schemas Zod e nesta
+nota. Publicação: etapa 2, **depois** do painel tolerante (ADR-0081 §9).

@@ -82,7 +82,7 @@ items_mode` da migration e o default `off` do plano. Se criou com default `off`:
 - [x] **T2.7** Leituras (RF5): detalhe, feed, lista da nota, cadastro e `/me/.../occurrence-types`,
       em lote, junção por `(company_id, id)` (CA04).
 - [x] **T2.8** Mutação: arrancar o filtro de empresa da junção deixa a CA04 vermelha.
-- [ ] **T2.9** Gates da API: contrato (`bun --env-file=../../.env.test test --timeout 120000`) **e**
+- [x] **T2.9** Gates da API: contrato (`bun --env-file=../../.env.test test --timeout 120000`) **e**
       integração (`bun --env-file=../../.env.test run test:integration`), typecheck,
       `make migration-test`, rebase em `origin/staging` + `bun install --frozen-lockfile` +
       `db:generate` = `no_changes`, OpenAPI gerado, `docs/ai-context/api-transportada.md`.
