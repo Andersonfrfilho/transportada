@@ -9,6 +9,7 @@ import type {
   CreateCargoPreviewRecord,
   CreateCargoPreviewResult,
   ListCargoPreviewsFilters,
+  ReopenCargoPreviewRecord,
 } from './cargo-preview-request.types.js'
 import type { Paging } from '../../http/request-parsing.service.js'
 import type { Page } from './cargo-arrival.types.js'
@@ -32,6 +33,8 @@ export type CargoPreviewUploadRepositoryPort = {
   ): Promise<CargoPreviewUploadGate>
   /** Uma transação: prévia, evento `uploaded` e o pedido ao worker — ou nada. */
   create(params: CreateCargoPreviewRecord): Promise<CreateCargoPreviewResult>
+  /** `false` quando, já travada, a prévia não pode mais reabrir (outro reenvio chegou antes). */
+  reopen(params: ReopenCargoPreviewRecord): Promise<boolean>
 }
 
 export type CargoPreviewObjectStoragePort = {

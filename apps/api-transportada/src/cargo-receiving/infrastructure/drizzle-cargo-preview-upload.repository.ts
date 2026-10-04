@@ -22,7 +22,10 @@ import type {
   CargoPreviewUploadGate,
   CreateCargoPreviewRecord,
   CreateCargoPreviewResult,
+  ReopenCargoPreviewRecord,
+  ReplayedCargoPreview,
 } from '../application/cargo-preview-request.types.js'
+import { reopenPreview } from './cargo-preview-reopen.writer.js'
 import type { Database, Transaction } from './cargo-arrival-persistence.support.js'
 import { insertOperatorEvents } from './cargo-preview-persistence.support.js'
 
@@ -30,9 +33,23 @@ const FILE_CONSTRAINT = 'cargo_previews_company_contractor_file_unique'
 const KEY_CONSTRAINT = 'cargo_previews_company_idempotency_key_unique'
 
 type GateParams = Parameters<CargoPreviewUploadRepositoryPort['checkGate']>[0]
-type ExistingPreview =
-  | { readonly kind: 'key_reused' }
-  | { readonly kind: 'replayed'; readonly previewId: string }
+type ExistingPreview = { readonly kind: 'key_reused' } | ReplayedCargoPreview
+
+const EXISTING_COLUMNS = {
+  fileObjectId: cargoPreviews.fileObjectId,
+  id: cargoPreviews.id,
+  status: cargoPreviews.status,
+  updatedAt: cargoPreviews.updatedAt,
+}
+
+function toReplayed(row: {
+  readonly fileObjectId: string
+  readonly id: string
+  readonly status: ReplayedCargoPreview['status']
+  readonly updatedAt: Date
+}): ReplayedCargoPreview {
+  return { ...row, kind: 'replayed', previewId: row.id }
+}
 
 export class DrizzleCargoPreviewUploadRepository implements CargoPreviewUploadRepositoryPort {
   public constructor(private readonly database: Database) {}
@@ -59,9 +76,13 @@ export class DrizzleCargoPreviewUploadRepository implements CargoPreviewUploadRe
       const constraint = findPostgresError({ error })?.constraint
       if (constraint !== FILE_CONSTRAINT && constraint !== KEY_CONSTRAINT) throw error
       const existing = await findExisting(this.database, record)
-      if (existing?.kind === 'replayed') return existing
+      if (existing?.kind === 'replayed') return { kind: 'replayed', previewId: existing.previewId }
       return { kind: 'key_reused' }
     }
+  }
+
+  public reopen(record: ReopenCargoPreviewRecord): Promise<boolean> {
+    return this.database.transaction((transaction) => reopenPreview(transaction, record))
   }
 }
 
@@ -71,7 +92,7 @@ async function findExisting(
   params: Omit<GateParams, 'requestFingerprint'> & { readonly requestFingerprint: string },
 ): Promise<ExistingPreview | undefined> {
   const [byKey] = await database
-    .select({ fingerprint: cargoPreviews.requestFingerprint, id: cargoPreviews.id })
+    .select({ ...EXISTING_COLUMNS, fingerprint: cargoPreviews.requestFingerprint })
     .from(cargoPreviews)
     .where(
       and(
@@ -81,11 +102,11 @@ async function findExisting(
     )
   if (byKey !== undefined) {
     return byKey.fingerprint === params.requestFingerprint
-      ? { kind: 'replayed', previewId: byKey.id }
+      ? toReplayed(byKey)
       : { kind: 'key_reused' }
   }
   const [byFile] = await database
-    .select({ id: cargoPreviews.id })
+    .select(EXISTING_COLUMNS)
     .from(cargoPreviews)
     .where(
       and(
@@ -94,7 +115,7 @@ async function findExisting(
         eq(cargoPreviews.fileSha256, params.fileSha256),
       ),
     )
-  return byFile === undefined ? undefined : { kind: 'replayed', previewId: byFile.id }
+  return byFile === undefined ? undefined : toReplayed(byFile)
 }
 
 /** Perfil ligado, com prévia ligada e mapa de colunas: sem isso o worker não teria como ler. */

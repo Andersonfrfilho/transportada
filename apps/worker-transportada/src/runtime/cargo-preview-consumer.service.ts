@@ -62,14 +62,40 @@ async function handleEnvelope(
   }
 }
 
-export async function startCargoPreviewConsumer(params: {
+type ConsumerParams = {
   readonly dependencies: ProcessCargoPreviewDependencies
   readonly logger: WorkerLogger
+  /** O `maxRetries` da topologia: na tentativa que o atinge, a mensagem vai para a fila morta. */
+  readonly maxRetries: number
   readonly provider: RabbitMqProvider
-}): Promise<RabbitMqConsumer> {
+}
+
+/**
+ * A leitura que esgotou a fila fecha a prévia como `failed`: sem isso ela ficaria `processing` para
+ * sempre, e o reenvio do mesmo arquivo seria só repetição. Se nem isso der (banco fora), o reenvio
+ * depois do prazo da leitura reabre a prévia na API.
+ */
+async function abandonPreview(envelope: CargoPreviewEnvelopeV1, params: ConsumerParams) {
+  if (envelope.type !== CARGO_PREVIEW_EVENT_TYPE.PROCESS) return
+  await params.dependencies.repository
+    .markFailed({
+      companyId: envelope.companyId,
+      errorCode: 'PREVIEW_PROCESSING_ABANDONED',
+      now: params.dependencies.now(),
+      previewId: envelope.payload.previewId,
+    })
+    .catch(() => undefined)
+  safeLogWarn({
+    logger: params.logger,
+    message: 'cargo_preview_abandoned',
+    metadata: metadataOf(envelope),
+  })
+}
+
+export async function startCargoPreviewConsumer(params: ConsumerParams): Promise<RabbitMqConsumer> {
   return params.provider.consume<CargoPreviewEnvelopeV1>({
     decode: (value) => cargoPreviewEnvelopeV1Schema.parse(value),
-    handler: async ({ payload }) => {
+    handler: async ({ payload, retryCount }) => {
       try {
         await handleEnvelope(payload, params)
         return { type: 'ack' }
@@ -82,7 +108,9 @@ export async function startCargoPreviewConsumer(params: {
             reason: error instanceof Error ? error.name : 'unknown',
           },
         })
-        return { type: 'retry' }
+        if (retryCount < params.maxRetries) return { type: 'retry' }
+        await abandonPreview(payload, params)
+        return { type: 'dead-letter' }
       }
     },
     prefetch: CARGO_PREVIEW_PREFETCH,

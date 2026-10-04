@@ -1043,6 +1043,7 @@ export async function startWorkerRuntime(
         ),
       },
       logger,
+      maxRetries: cargoPreviewTopology.retry?.maxRetries ?? 0,
       provider: cargoPreviewPublisher,
     })
     contractorMailOutboundConsumer = await contractorMailOutboundStarter({

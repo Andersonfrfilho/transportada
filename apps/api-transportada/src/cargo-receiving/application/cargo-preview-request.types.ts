@@ -82,10 +82,32 @@ export type CreateCargoPreviewResult =
   | { readonly kind: 'created' | 'replayed'; readonly previewId: string }
   | { readonly kind: 'key_reused' }
 
+/** A prévia que já existe para a chave ou o arquivo, com o que decide se ela reabre. */
+export type ReplayedCargoPreview = {
+  readonly fileObjectId: string
+  readonly kind: 'replayed'
+  readonly previewId: string
+  readonly status: CargoPreviewStatus
+  readonly updatedAt: Date
+}
+
 export type CargoPreviewUploadGate =
   | { readonly kind: 'contractor_not_found' | 'key_reused' | 'not_enabled' }
   | { readonly kind: 'open' }
-  | { readonly kind: 'replayed'; readonly previewId: string }
+  | ReplayedCargoPreview
+
+/** Reabrir: a mesma prévia volta à fila, com evento e pedido novo ao worker, numa transação. */
+export type ReopenCargoPreviewRecord = {
+  readonly actorUserId: string
+  readonly bucket: string
+  readonly companyId: string
+  readonly contractorId: string
+  readonly correlationId: string
+  readonly fileSizeBytes: number
+  readonly now: Date
+  readonly objectKey: string
+  readonly previewId: string
+}
 
 export type CargoPreviewItemActionResult =
   | { readonly kind: 'changed' | 'unchanged'; readonly itemIds: readonly string[] }

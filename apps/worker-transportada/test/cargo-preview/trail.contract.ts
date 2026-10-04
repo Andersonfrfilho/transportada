@@ -66,7 +66,10 @@ describe('o envelope e o trilho da prévia (spec 237 Fase 4a)', () => {
 describe('o consumidor da prévia (spec 237 T4.3)', () => {
   async function consume(reevaluate: () => Promise<never> | Promise<object>) {
     let handler:
-      | ((input: { payload: CargoPreviewEnvelopeV1 }) => Promise<RabbitMqDisposition>)
+      | ((input: {
+          payload: CargoPreviewEnvelopeV1
+          retryCount: number
+        }) => Promise<RabbitMqDisposition>)
       | undefined
     const logs: string[] = []
     const provider = {
@@ -87,9 +90,10 @@ describe('o consumidor da prévia (spec 237 T4.3)', () => {
         info: (message) => logs.push(message),
         warn: (message) => logs.push(message),
       },
+      maxRetries: 5,
       provider,
     })
-    const disposition = await handler?.({ payload: REEVALUATE })
+    const disposition = await handler?.({ payload: REEVALUATE, retryCount: 0 })
     return { disposition, logs }
   }
 
@@ -105,5 +109,71 @@ describe('o consumidor da prévia (spec 237 T4.3)', () => {
     })
     expect(result.disposition).toEqual({ type: 'retry' })
     expect(result.logs).toEqual(['cargo_preview_failed'])
+  })
+})
+
+describe('a leitura que esgota a fila não fica em processing para sempre (spec 237 M1)', () => {
+  const PROCESS: CargoPreviewEnvelopeV1 = {
+    ...REEVALUATE,
+    payload: {
+      bucket: 'private',
+      contractorId: CONTRACTOR_ID,
+      objectKey: 'k',
+      previewId: '00000000-0000-4000-8000-0000000000b4',
+    },
+    type: CARGO_PREVIEW_EVENT_TYPE.PROCESS,
+  }
+  const MAX_RETRIES = 5
+
+  async function deliver(retryCount: number) {
+    let handler:
+      | ((input: {
+          payload: CargoPreviewEnvelopeV1
+          retryCount: number
+        }) => Promise<RabbitMqDisposition>)
+      | undefined
+    const failed: string[] = []
+    const provider = {
+      consume: async (options: { handler: typeof handler }) => {
+        handler = options.handler
+        return { cancel: async () => undefined }
+      },
+    } as unknown as RabbitMqProvider
+    await startCargoPreviewConsumer({
+      dependencies: {
+        clock: () => 0,
+        now: () => new Date(),
+        reader: {
+          read: async () => {
+            throw new Error('bucket down')
+          },
+        },
+        repository: {
+          findPreview: async () => ({
+            contractorId: CONTRACTOR_ID,
+            fileSha256: 'x',
+            status: 'queued',
+          }),
+          findReadingProfile: async () => ({ columnMap: { routeName: 'R' }, sheetName: null }),
+          markFailed: async ({ errorCode }: { errorCode: string }) => void failed.push(errorCode),
+          markProcessing: async () => undefined,
+        } as never,
+      },
+      logger: { error: () => undefined, info: () => undefined, warn: () => undefined },
+      maxRetries: MAX_RETRIES,
+      provider,
+    })
+    return { disposition: await handler?.({ payload: PROCESS, retryCount }), failed }
+  }
+
+  test('antes da última tentativa é retry, e a prévia segue aberta', async () => {
+    expect(await deliver(MAX_RETRIES - 1)).toEqual({ disposition: { type: 'retry' }, failed: [] })
+  })
+
+  test('na última tentativa a prévia vira failed PREVIEW_PROCESSING_ABANDONED e a mensagem morre', async () => {
+    expect(await deliver(MAX_RETRIES)).toEqual({
+      disposition: { type: 'dead-letter' },
+      failed: ['PREVIEW_PROCESSING_ABANDONED'],
+    })
   })
 })

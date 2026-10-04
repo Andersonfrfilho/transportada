@@ -283,10 +283,12 @@
       "PREVIEW_NOT_A_WORKBOOK": "O arquivo não é uma planilha .xlsx ou .xlsm válida.",
       "PREVIEW_NOT_ENABLED": "A prévia não está ligada para este contratante.",
       "PREVIEW_PARSE_TIMEOUT": "A leitura da planilha demorou além do limite.",
+      "PREVIEW_PROCESSING_ABANDONED": "A leitura da planilha não terminou. Envie o mesmo arquivo de novo para tentar outra vez.",
       "PREVIEW_SHEET_NOT_FOUND": "A aba configurada no perfil não existe na planilha.",
       "PREVIEW_TOO_MANY_ENTRIES": "O arquivo tem entradas demais para ser uma planilha.",
       "PREVIEW_TOO_MANY_ROWS": "A planilha tem linhas demais.",
       "PREVIEW_TOO_MANY_STRINGS": "A planilha tem textos demais.",
+      "PREVIEW_VALUE_OUT_OF_RANGE": "Um número da planilha é grande demais para ser gravado. Confira os valores e pesos.",
       "PREVIEW_ZIP_BOMB": "O arquivo se expande além do limite de segurança.",
       "PREVIEW_ZIP_ENTRY_UNSAFE": "O arquivo tem uma entrada insegura e foi recusado.",
       "unknown": "A planilha não pôde ser lida. Confira o arquivo e envie de novo."

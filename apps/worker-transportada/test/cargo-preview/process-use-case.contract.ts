@@ -12,6 +12,7 @@ import type {
   CargoPreviewWorkerRepositoryPort,
   PreviewToProcess,
 } from '../../src/cargo-preview/application/cargo-preview-worker.port.js'
+import { CargoPreviewValueOutOfRangeError } from '../../src/cargo-preview/application/cargo-preview-value-out-of-range.error.js'
 import { processCargoPreview } from '../../src/cargo-preview/application/process-cargo-preview.use-case.js'
 import type { PreviewItemsPlan } from '../../src/cargo-preview/domain/cargo-preview-items.policy.js'
 import {
@@ -60,6 +61,7 @@ function createFixture(input: {
   readonly bytes?: Uint8Array | undefined
   readonly preview?: Partial<PreviewToProcess> | null
   readonly profile?: boolean
+  readonly storeError?: Error
 }) {
   const calls = { failed: [] as string[], processing: 0, stored: [] as PreviewItemsPlan[] }
   const bytes = 'bytes' in input ? input.bytes : WORKBOOK
@@ -83,6 +85,7 @@ function createFixture(input: {
     },
     reevaluate: async () => ({ aliasConflicts: 0, changedItems: 0, previews: 0 }),
     async storeParsed({ plan }) {
+      if (input.storeError !== undefined) throw input.storeError
       calls.stored.push(plan)
       return { aliasConflicts: 0, changedItems: 0, previews: 1 }
     },
@@ -148,5 +151,17 @@ describe('a leitura da prévia no worker (spec 237 T4.3)', () => {
       expect(calls).toEqual({ failed: [], processing: 0, stored: [] })
     }
     expect(await createFixture({ preview: null }).run()).toBe('missing')
+  })
+
+  test('número que estoura a coluna no banco: failed com código, nunca retry infinito (H2)', async () => {
+    const { calls, run } = createFixture({ storeError: new CargoPreviewValueOutOfRangeError() })
+    expect(await run()).toBe('failed')
+    expect(calls.failed).toEqual(['PREVIEW_VALUE_OUT_OF_RANGE'])
+  })
+
+  test('outro erro do banco ao gravar sobe para a fila', async () => {
+    const { calls, run } = createFixture({ storeError: new Error('connection reset') })
+    expect(await run().catch((error: Error) => error.message)).toBe('connection reset')
+    expect(calls.failed).toEqual([])
   })
 })

@@ -24,6 +24,7 @@ import type {
   CargoPreviewWorkerRepositoryPort,
   PreviewScope,
 } from '../application/cargo-preview-worker.port.js'
+import { CargoPreviewValueOutOfRangeError } from '../application/cargo-preview-value-out-of-range.error.js'
 import { readColumnMap } from '../domain/cargo-preview-items.policy.js'
 import { matchContractorPreviews } from './cargo-preview-matching.writer.js'
 import type { Transaction } from './cargo-preview-match.store.js'
@@ -33,6 +34,21 @@ type Port = CargoPreviewWorkerRepositoryPort
 
 const OPEN_STATUSES = [CARGO_PREVIEW_STATUS.queued, CARGO_PREVIEW_STATUS.processing]
 const ITEM_BATCH_SIZE = 500
+const NUMERIC_VALUE_OUT_OF_RANGE = '22003'
+const MAX_CAUSE_DEPTH = 5
+
+/** O SQLSTATE pode vir no `code` (postgres.js) ou no `errno` (Bun SQL), e embrulhado no `cause`. */
+function isNumericOverflow(error: unknown, depth = 0): boolean {
+  if (depth > MAX_CAUSE_DEPTH || typeof error !== 'object' || error === null) return false
+  const candidate = error as {
+    readonly cause?: unknown
+    readonly code?: unknown
+    readonly errno?: unknown
+  }
+  if (candidate.code === NUMERIC_VALUE_OUT_OF_RANGE) return true
+  if (candidate.errno === NUMERIC_VALUE_OUT_OF_RANGE) return true
+  return isNumericOverflow(candidate.cause, depth + 1)
+}
 
 function previewFilter(scope: PreviewScope) {
   return and(eq(cargoPreviews.companyId, scope.companyId), eq(cargoPreviews.id, scope.previewId))
@@ -146,6 +162,12 @@ export class DrizzleCargoPreviewWorkerRepository implements Port {
   }
 
   async storeParsed(input: Parameters<Port['storeParsed']>[0]): ReturnType<Port['storeParsed']> {
+    return this.#storeParsed(input).catch((error: unknown) => {
+      throw isNumericOverflow(error) ? new CargoPreviewValueOutOfRangeError() : error
+    })
+  }
+
+  #storeParsed(input: Parameters<Port['storeParsed']>[0]): ReturnType<Port['storeParsed']> {
     return this.#database.transaction(async (tx) => {
       if (!(await lockOpenPreview(tx, input))) return null
       await insertItems(tx, input)

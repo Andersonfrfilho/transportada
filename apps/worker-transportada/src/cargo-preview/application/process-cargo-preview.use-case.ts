@@ -18,6 +18,7 @@ import {
   type CargoPreviewFailureCode,
 } from '../../shared/cargo-preview.constant.js'
 import { planPreviewItems, type PreviewItemsPlan } from '../domain/cargo-preview-items.policy.js'
+import { CargoPreviewValueOutOfRangeError } from './cargo-preview-value-out-of-range.error.js'
 import type {
   CargoPreviewObjectReaderPort,
   CargoPreviewWorkerRepositoryPort,
@@ -102,12 +103,17 @@ export async function processCargoPreview(
   if (typeof bytes === 'string') return fail(bytes)
   const reading = readWorkbook({ bytes, clock: dependencies.clock, profile })
   if ('code' in reading) return fail(reading.code)
-  const stored = await dependencies.repository.storeParsed({
-    ...scope,
-    contractorId: preview.contractorId,
-    now: dependencies.now(),
-    plan: reading.plan,
-    sheetName: profile.sheetName,
-  })
-  return stored === null ? 'already_done' : 'ready'
+  try {
+    const stored = await dependencies.repository.storeParsed({
+      ...scope,
+      contractorId: preview.contractorId,
+      now: dependencies.now(),
+      plan: reading.plan,
+      sheetName: profile.sheetName,
+    })
+    return stored === null ? 'already_done' : 'ready'
+  } catch (error) {
+    if (error instanceof CargoPreviewValueOutOfRangeError) return fail(error.code)
+    throw error
+  }
 }

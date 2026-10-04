@@ -283,10 +283,12 @@
       "PREVIEW_NOT_A_WORKBOOK": "The file is not a valid .xlsx or .xlsm spreadsheet.",
       "PREVIEW_NOT_ENABLED": "Previews are not enabled for this contractor.",
       "PREVIEW_PARSE_TIMEOUT": "Reading the spreadsheet took longer than the limit.",
+      "PREVIEW_PROCESSING_ABANDONED": "Reading the spreadsheet did not finish. Send the same file again to retry.",
       "PREVIEW_SHEET_NOT_FOUND": "The sheet set in the profile does not exist in the spreadsheet.",
       "PREVIEW_TOO_MANY_ENTRIES": "The file has too many entries to be a spreadsheet.",
       "PREVIEW_TOO_MANY_ROWS": "The spreadsheet has too many rows.",
       "PREVIEW_TOO_MANY_STRINGS": "The spreadsheet has too many texts.",
+      "PREVIEW_VALUE_OUT_OF_RANGE": "A number in the spreadsheet is too large to be stored. Check the values and weights.",
       "PREVIEW_ZIP_BOMB": "The file expands beyond the safety limit.",
       "PREVIEW_ZIP_ENTRY_UNSAFE": "The file has an unsafe entry and was refused.",
       "unknown": "The spreadsheet could not be read. Check the file and upload it again."

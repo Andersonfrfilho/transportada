@@ -49,6 +49,9 @@ function createUseCase(input: {
         ? { kind: 'created', previewId: PREVIEW_ID }
         : input.create()
     },
+    reopen: async () => {
+      throw new Error('Only a failed or lost preview reopens')
+    },
   }
   const storage: CargoPreviewObjectStoragePort = {
     async deleteObject(location) {
@@ -140,7 +143,15 @@ describe('o envio da prévia (spec 237 T4.2)', () => {
   })
 
   test('o mesmo arquivo de novo devolve a prévia existente sem subir outro objeto', async () => {
-    const { fake, upload } = createUseCase({ gate: { kind: 'replayed', previewId: PREVIEW_ID } })
+    const { fake, upload } = createUseCase({
+      gate: {
+        fileObjectId: PREVIEW_ID,
+        kind: 'replayed',
+        previewId: PREVIEW_ID,
+        status: 'queued',
+        updatedAt: NOW,
+      },
+    })
     expect(await upload()).toEqual({ isReplay: true, preview: { id: PREVIEW_ID } as never })
     expect(fake.stores).toEqual([])
   })

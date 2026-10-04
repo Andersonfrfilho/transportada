@@ -76,8 +76,9 @@ export type CargoPreviewChannel = (typeof CARGO_PREVIEW_CHANNEL)[keyof typeof CA
 export const CARGO_PREVIEW_CHANNELS = Object.values(CARGO_PREVIEW_CHANNEL)
 
 /**
- * Os códigos da prévia que falhou: os do leitor (`CARGO_PREVIEW_ERROR_CODES`, ADR-0094 §7) e os três
- * do worker. Um contrato cobra que a lista do leitor esteja inteira aqui.
+ * Os códigos da prévia que falhou: os do leitor (`CARGO_PREVIEW_ERROR_CODES`, ADR-0094 §7) e os do
+ * worker — sem perfil, arquivo sumido ou trocado, número que não cabe na coluna e a leitura que
+ * esgotou a fila. Um contrato cobra que a lista do leitor esteja inteira aqui.
  */
 export const CARGO_PREVIEW_FAILURE_CODES = [
   'PREVIEW_CELL_TOO_LONG',
@@ -89,10 +90,12 @@ export const CARGO_PREVIEW_FAILURE_CODES = [
   'PREVIEW_NOT_A_WORKBOOK',
   'PREVIEW_NOT_ENABLED',
   'PREVIEW_PARSE_TIMEOUT',
+  'PREVIEW_PROCESSING_ABANDONED',
   'PREVIEW_SHEET_NOT_FOUND',
   'PREVIEW_TOO_MANY_ENTRIES',
   'PREVIEW_TOO_MANY_ROWS',
   'PREVIEW_TOO_MANY_STRINGS',
+  'PREVIEW_VALUE_OUT_OF_RANGE',
   'PREVIEW_ZIP_BOMB',
   'PREVIEW_ZIP_ENTRY_UNSAFE',
 ] as const

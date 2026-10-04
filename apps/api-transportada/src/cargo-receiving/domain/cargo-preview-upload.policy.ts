@@ -11,6 +11,8 @@ import { APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES } from '../../shared/api.consta
 import {
   CARGO_PREVIEW_LIMITS,
   CARGO_PREVIEW_MATCH_LOCK_PREFIX,
+  CARGO_PREVIEW_STATUS,
+  type CargoPreviewStatus,
 } from '../../shared/cargo-preview.constant.js'
 import { CARGO_PREVIEW_WORKBOOK_LIMITS } from './cargo-preview-workbook.constant.js'
 import { CargoPreviewWorkbookError } from './cargo-preview-workbook.error.js'
@@ -76,4 +78,23 @@ export function buildCargoPreviewMatchLockKey(input: {
   readonly contractorId: string
 }): string {
   return `${CARGO_PREVIEW_MATCH_LOCK_PREFIX}:${input.companyId}:${input.contractorId}`
+}
+
+/**
+ * A leitura que não dá notícia há mais que isto foi perdida (o worker caiu no meio, ou a fila esgotou
+ * sem marcar): a fila inteira — 6 tentativas com 10 s entre elas e até 5 s de leitura — cabe com folga.
+ */
+export const CARGO_PREVIEW_PROCESSING_LEASE_MS = 15 * 60_000
+
+/** O mesmo arquivo reenviado reabre a prévia que falhou ou cuja leitura se perdeu; o resto é repetição. */
+export function canReopenCargoPreview(input: {
+  readonly now: Date
+  readonly status: CargoPreviewStatus
+  readonly updatedAt: Date
+}): boolean {
+  if (input.status === CARGO_PREVIEW_STATUS.failed) return true
+  return (
+    input.status === CARGO_PREVIEW_STATUS.processing &&
+    input.now.getTime() - input.updatedAt.getTime() > CARGO_PREVIEW_PROCESSING_LEASE_MS
+  )
 }
