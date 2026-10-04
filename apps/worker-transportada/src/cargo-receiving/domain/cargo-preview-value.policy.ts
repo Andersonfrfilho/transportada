@@ -22,6 +22,8 @@ const NUMERIC_CELL = /^([-+]?)(\d+)(?:\.(\d+))?(?:[eE]([-+]?\d+))?$/u
 /** Texto aceita um separador decimal só — `1.780,62` é milhar e decimal, e adivinhar erra. */
 const TEXT_DECIMAL = /^([-+]?)(\d+)(?:[.,](\d+))?$/u
 const MAX_EXPONENT = 30
+/** O Excel guarda 15 dígitos significativos: decimal mais longo é lixo, e `BigInt` sobre ele custa ms. */
+const MAX_DECIMAL_TEXT_LENGTH = 40
 const DIACRITICS = /\p{M}/gu
 const CONTROL_CHARACTERS = /\p{Cc}/gu
 const WHITESPACE_RUN = /\s+/gu
@@ -57,7 +59,9 @@ function formatScaled(scaled: bigint, scale: number): string {
 /** Decimal não negativo e finito, com `scale` casas, arredondado meio para cima. */
 export function readNonNegativeDecimal(params: ReadDecimalParams): DecimalReading {
   const { cell, maxIntegerDigits, scale } = params
-  const match = (cell.isNumeric ? NUMERIC_CELL : TEXT_DECIMAL).exec(cell.text.trim())
+  const text = cell.text.trim()
+  if (text.length > MAX_DECIMAL_TEXT_LENGTH) return { kind: 'invalid' }
+  const match = (cell.isNumeric ? NUMERIC_CELL : TEXT_DECIMAL).exec(text)
   if (match === null) return { kind: 'invalid' }
   const [, sign = '', integer = '', fraction = '', exponentText = '0'] = match
   const exponent = Number(exponentText)

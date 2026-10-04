@@ -18,6 +18,7 @@ import { assertHelperRoleRollbackRefusesHelpers } from './helper-role-rollback.a
 import { assertIdentityConstraints } from './identity-constraints.assertion.js'
 import { assertInvitationConstraints } from './invitation-constraints.assertion.js'
 import { assertCargoPreviewFailureCodes } from './cargo-preview-failure-codes.assertion.js'
+import { assertCargoPreviewSecurityFailureCodes } from './cargo-preview-security-failure-codes.assertion.js'
 import { assertLocationRetentionRollbackRefusesRecordedSettings } from './location-retention-rollback.assertion.js'
 import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
 import { assertNfeDocumentListingOrderIndex } from './nfe-document-listing-order-index.assertion.js'
@@ -250,6 +251,13 @@ describe('Drizzle migration integration', () => {
           userId: identityFixture.userId,
         })
         await assertCargoPreviewFailureCodes({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          userId: identityFixture.userId,
+        })
+        await assertCargoPreviewSecurityFailureCodes({
           companyId: identityFixture.companyId,
           connectionString,
           database,

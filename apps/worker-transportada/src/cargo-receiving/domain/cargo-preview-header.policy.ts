@@ -7,7 +7,11 @@
  */
 import type { ApiErrorDetail } from '../../shared/api.types.js'
 import { CargoPreviewWorkbookError } from './cargo-preview-workbook.error.js'
-import type { CargoPreviewColumnMap, SheetRow } from './cargo-preview-workbook.types.js'
+import type {
+  CargoPreviewColumnMap,
+  ParseBudget,
+  SheetRow,
+} from './cargo-preview-workbook.types.js'
 import {
   PREVIEW_REQUIRED_FIELDS,
   type PreviewItemField,
@@ -40,7 +44,9 @@ function lettersByName(row: SheetRow): ReadonlyMap<string, readonly string[]> {
   const byName = new Map<string, string[]>()
   for (const [letter, cell] of row.cells) {
     const name = normalizePreviewColumnName(cell.text)
-    byName.set(name, [...(byName.get(name) ?? []), letter])
+    const letters = byName.get(name)
+    if (letters === undefined) byName.set(name, [letter])
+    else letters.push(letter)
   }
   return byName
 }
@@ -70,12 +76,14 @@ function refuseColumns(
 }
 
 function pickHeaderRow(input: {
+  readonly budget: ParseBudget
   readonly headerSearchRows: number
   readonly mapped: MappedColumns
   readonly rows: readonly SheetRow[]
 }): SheetRow | undefined {
   let best: SheetRow | undefined
   for (const row of input.rows.filter((item) => item.rowNumber <= input.headerSearchRows)) {
+    input.budget.check()
     if (best === undefined || countMatches(row, input.mapped) > countMatches(best, input.mapped)) {
       best = row
     }
@@ -84,6 +92,7 @@ function pickHeaderRow(input: {
 }
 
 export function resolvePreviewHeader(input: {
+  readonly budget: ParseBudget
   readonly columnMap: CargoPreviewColumnMap
   readonly headerSearchRows: number
   readonly rows: readonly SheetRow[]
@@ -98,7 +107,12 @@ export function resolvePreviewHeader(input: {
       unmappedRequired.map((field) => [field, field] as const),
     )
   }
-  const best = pickHeaderRow({ headerSearchRows: input.headerSearchRows, mapped, rows: input.rows })
+  const best = pickHeaderRow({
+    budget: input.budget,
+    headerSearchRows: input.headerSearchRows,
+    mapped,
+    rows: input.rows,
+  })
   if (best === undefined) return refuseColumns('PREVIEW_COLUMN_NOT_FOUND', mapped)
   const byName = lettersByName(best)
   const lettersOf = (column: string): readonly string[] =>

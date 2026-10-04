@@ -2,21 +2,25 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 237 T4.1 (ADR-0094 §7): os tetos da leitura da planilha de prévia, medidos contra as quatro
- * planilhas FR (a maior aba descomprimida tem 3,39 MB; a última linha com dado, 220).
+ * planilhas FR (a maior aba descomprimida tem 3,39 MB; a última linha com dado, 220; a linha mais
+ * larga, 14 células). A revisão de segurança (S1/S4) baixou bytes e linhas e pôs teto de células: o
+ * custo do parse cresce com elas, e 87 KiB comprimidos chegavam a 760 mil células numa linha.
  */
 
 const MEBIBYTE = 1024 * 1024
 
 export const CARGO_PREVIEW_WORKBOOK_LIMITS = {
   cellTextLength: 32_767,
-  entryBytes: 30 * MEBIBYTE,
+  entryBytes: 8 * MEBIBYTE,
   fileBytes: 5 * MEBIBYTE,
   headerSearchRows: 20,
-  lastDataRow: 20_000,
+  lastDataRow: 5_000,
   metadataEntryBytes: MEBIBYTE,
   parseBudgetMs: 5_000,
+  rowCells: 512,
   sharedStrings: 200_000,
-  totalBytes: 60 * MEBIBYTE,
+  totalBytes: 16 * MEBIBYTE,
+  totalCells: 120_000,
   zipEntries: 100,
 } as const
 
@@ -31,6 +35,7 @@ export const CARGO_PREVIEW_ERROR_CODES = [
   'PREVIEW_NOT_A_WORKBOOK',
   'PREVIEW_PARSE_TIMEOUT',
   'PREVIEW_SHEET_NOT_FOUND',
+  'PREVIEW_TOO_MANY_CELLS',
   'PREVIEW_TOO_MANY_ENTRIES',
   'PREVIEW_TOO_MANY_ROWS',
   'PREVIEW_TOO_MANY_STRINGS',
@@ -47,6 +52,7 @@ export const CARGO_PREVIEW_ERROR_MESSAGES: Readonly<Record<CargoPreviewErrorCode
   PREVIEW_NOT_A_WORKBOOK: 'The preview file is not a readable workbook',
   PREVIEW_PARSE_TIMEOUT: 'Reading the preview took longer than allowed',
   PREVIEW_SHEET_NOT_FOUND: 'The preview sheet was not found',
+  PREVIEW_TOO_MANY_CELLS: 'The preview has more cells than allowed',
   PREVIEW_TOO_MANY_ENTRIES: 'The preview file has too many entries',
   PREVIEW_TOO_MANY_ROWS: 'The preview has rows beyond the allowed limit',
   PREVIEW_TOO_MANY_STRINGS: 'The preview has too many shared strings',

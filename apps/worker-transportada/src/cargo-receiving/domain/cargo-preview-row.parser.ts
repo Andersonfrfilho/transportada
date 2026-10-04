@@ -12,6 +12,7 @@ import {
 import type {
   CargoPreviewRow,
   CargoPreviewRowError,
+  ParseBudget,
   SheetCell,
   SheetRow,
 } from './cargo-preview-workbook.types.js'
@@ -167,6 +168,7 @@ function readItem(
 }
 
 export function readPreviewItems(input: {
+  readonly budget: ParseBudget
   readonly header: ResolvedHeader
   readonly isDate1904: boolean
   readonly rows: readonly SheetRow[]
@@ -178,6 +180,7 @@ export function readPreviewItems(input: {
   const rowErrors: CargoPreviewRowError[] = []
   const readers = createFieldReaders(input.isDate1904)
   for (const row of input.rows) {
+    input.budget.check()
     if (row.rowNumber <= input.header.rowNumber) continue
     if (isIgnoredRow(presentCells(row, input.header.columns))) continue
     const item = readItem(row, { header: input.header, readers })

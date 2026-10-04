@@ -99,15 +99,20 @@ export function parseCargoPreviewWorkbook(
         })
   const sheetRows = readSheetRows({
     budget: archive.budget,
-    lastDataRow: limits.lastDataRow,
-    maxCellLength: limits.cellTextLength,
+    limits,
     sharedStrings,
     xml: readPart(archive, { entryName: parts.sheetEntry, maxBytes: limits.entryBytes }),
   })
   const header = resolvePreviewHeader({
+    budget: archive.budget,
     columnMap: params.columnMap,
     headerSearchRows: limits.headerSearchRows,
     rows: sheetRows,
   })
-  return readPreviewItems({ header, isDate1904: readsDate1904(workbookXml), rows: sheetRows })
+  return readPreviewItems({
+    budget: archive.budget,
+    header,
+    isDate1904: readsDate1904(workbookXml),
+    rows: sheetRows,
+  })
 }

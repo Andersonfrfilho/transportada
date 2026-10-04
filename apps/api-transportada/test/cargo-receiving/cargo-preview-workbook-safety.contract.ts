@@ -59,14 +59,16 @@ describe('os tetos da leitura da prévia (spec 237 T4.1, ADR-0094 §7)', () => {
   test('os tetos são os do ADR, medidos contra as planilhas FR', () => {
     expect(CARGO_PREVIEW_WORKBOOK_LIMITS).toEqual({
       cellTextLength: 32_767,
-      entryBytes: 30 * MEBIBYTE,
+      entryBytes: 8 * MEBIBYTE,
       fileBytes: 5 * MEBIBYTE,
       headerSearchRows: 20,
-      lastDataRow: 20_000,
+      lastDataRow: 5_000,
       metadataEntryBytes: MEBIBYTE,
       parseBudgetMs: 5_000,
+      rowCells: 512,
       sharedStrings: 200_000,
-      totalBytes: 60 * MEBIBYTE,
+      totalBytes: 16 * MEBIBYTE,
+      totalCells: 120_000,
       zipEntries: 100,
     })
   })
@@ -132,11 +134,11 @@ describe('os tetos da leitura da prévia (spec 237 T4.1, ADR-0094 §7)', () => {
     },
   )
 
-  test('aba declarada acima de 30 MiB é bomba, recusada antes de descomprimir', () => {
+  test('aba declarada acima de 8 MiB é bomba, recusada antes de descomprimir', () => {
     const bytes = buildCargoPreviewWorkbook({ rows: [ITEM] })
     const patched = patchCentralDirectory(bytes, {
       entryName: SHEET_ENTRY,
-      uncompressedSize: 30 * MEBIBYTE + 1,
+      uncompressedSize: 8 * MEBIBYTE + 1,
     })
     expect(codeOf(() => parse(patched))).toBe('PREVIEW_ZIP_BOMB')
   })
@@ -155,7 +157,7 @@ describe('os tetos da leitura da prévia (spec 237 T4.1, ADR-0094 §7)', () => {
 
   test('a soma das entradas lidas acima do teto total é bomba', () => {
     const bytes = buildCargoPreviewWorkbook({ reservedEmptyRows: 500, rows: [ITEM] })
-    const limits = withLimits({ entryBytes: 30 * MEBIBYTE, totalBytes: 20 * 1024 })
+    const limits = withLimits({ entryBytes: 8 * MEBIBYTE, totalBytes: 20 * 1024 })
     expect(codeOf(() => parse(bytes, { limits }))).toBe('PREVIEW_ZIP_BOMB')
   })
 
@@ -215,12 +217,17 @@ describe('os tetos da leitura da prévia (spec 237 T4.1, ADR-0094 §7)', () => {
     expect(codeOf(() => parse(bytes))).toBe('PREVIEW_SHEET_NOT_FOUND')
   })
 
-  test('linha com dado depois da 20 000ª é recusada; 13 792 linhas reservadas vazias não', () => {
+  test('linha com dado depois da 5 000ª é recusada; 13 792 linhas reservadas vazias não', () => {
     const reserved = buildCargoPreviewWorkbook({ reservedEmptyRows: 13_788, rows: [ITEM] })
     expect(parse(reserved).rows).toHaveLength(1)
+    const atLimit = buildCargoPreviewWorkbook({
+      rows: [ITEM],
+      rowsAt: [{ row: ITEM, rowNumber: 5_000 }],
+    })
+    expect(parse(atLimit).rows).toHaveLength(2)
     const far = buildCargoPreviewWorkbook({
       rows: [ITEM],
-      rowsAt: [{ row: ITEM, rowNumber: 20_001 }],
+      rowsAt: [{ row: ITEM, rowNumber: 5_001 }],
     })
     expect(codeOf(() => parse(far))).toBe('PREVIEW_TOO_MANY_ROWS')
   })
