@@ -997,3 +997,26 @@ conferidos na lista).
   tocadas por esta branch.
 - **OpenAPI:** não há. Nenhum arquivo `openapi*` na API, nenhum gerador no `package.json`; o contrato é
   o dos schemas Zod e o de `docs/ai-context/api-transportada.md` (seção da 241, completada).
+
+## T3.2 — Ordem de publicação (cópia da etapa 2; o texto completo está no `evidence.md` do painel)
+
+⚠️ **Nada daqui sobe antes da etapa 1.** Ordem (ADR-0081 §9): **etapa 1 = painel tolerante** (`work/241-painel`, Fase 1 e a
+revisão da Fase 3) publicada, com o deploy e o `autoUpdate` do PWA no ar; **depois a etapa 2 = esta branch** (migration
+
+- API); **depois o passo 3, humano**: o operador cadastra "Cliente pediu prorrogação do boleto" em produção pela tela
+  (`spec.md` § Passo operacional) — **PENDENTE**.
+
+**T0.3 — PENDENTE, exige a autorização do usuário:** medir em staging e produção quantos tipos têm o nome exato da segunda via
+e qual `redelivery_policy` cada um tem. Política ≠ `unset` em qualquer um: a migration a zera sem aviso (D1), e a decisão
+é do usuário **antes** desta etapa.
+
+`origin/staging` conferido em `11a78cb6e` (2026-10-04): esta branch está 0 atrás. Antes do push, `git fetch` + `git rebase
+origin/staging`, `bun install --frozen-lockfile`, `db:generate` = `no_changes`, timestamp `20261004004602` sem colisão
+com migration de outra sessão, `make migration-test`, contrato e integração da API. Commits desta etapa, em ordem:
+`43e5137df`, `f44f9a168`, `ba52bace5` (só `specs/`), `bf88566b2`, `eeb4c15bd`, `7eb7f6bd6`, `0f5191ee2`, `4eb9e1e63`,
+`d72cbe043`, `036a84692`, `43519b44a`.
+
+Este arquivo e o do painel são **add/add** no rebase. Na árvore integrada (`work/241-juntos`) os dois estão unidos: depois
+de a etapa 1 estar em `origin/staging` e do rebase desta branch, resolver com `git checkout work/241-juntos --
+specs/241-o-tipo-da-ocorrencia-diz-se-ela-carrega-itens/evidence.md` e conferir que as seções da API e as do painel
+existem. O `tasks.md` difere entre as branches em linhas disjuntas (esta marca T0.1 e T2.1–T2.9) e junta sem conflito.
