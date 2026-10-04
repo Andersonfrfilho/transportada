@@ -416,6 +416,11 @@ reaplicou sem conflito de código). Branches e SHAs reais, em ordem (`git log --
 | `42e57376f`   | T3.1 achado 3 — Enter e Espaço                                                                                                                              |
 | fim da branch | só `specs/` e `docs/`: `docs(specs)` (T3.1–T3.3 neste arquivo, os 31 prints e o `tasks.md`) e `docs(frontend)` (`docs/ai-context/frontend-transportada.md`) |
 
+Ensaio do rebase (worktree descartável sobre `origin/staging` `11a78cb6e`, abortado, nada mudou nas branches): o
+**único** conflito é o commit `docs(frontend)` em `docs/ai-context/frontend-transportada.md` — as duas pontas anexam no fim
+do arquivo (a de staging traz a seção "Spec 237 T2.4"); resolver mantendo as duas seções, a da 241 por último. Os 13
+commits de código e os de `specs/` reaplicam sem conflito.
+
 Gate de entrada da etapa 1: contra a **API atual** (sem os campos novos) o painel se comporta como antes, exceto Corrigir,
 que passa a aparecer para ocorrência sem itens (lê `optional`) e que a API atual aceita (T1.6). Depois do push:
 esperar o deploy e o `autoUpdate` do PWA **antes** da etapa 2.
