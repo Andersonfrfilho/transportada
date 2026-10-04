@@ -220,3 +220,31 @@ unset or switch Products back to Optional. Nothing was saved.").
 Limites conhecidos: com a lista de tipos **vazia** o cadastro novo não oferece Produtos (não há como
 saber se a API já conhece o campo); um tipo com `itemsMode: 'required'` (da 239) não ganha o controle
 de Produtos nem some a política — a 239 decide como o painel o trata.
+
+### T1.6 — gates do painel
+
+Comandos, com a árvore no HEAD da T1.5:
+
+```text
+$ bun run --cwd apps/frontend-transportada test
+ 6696 pass / 0 fail  (Ran 6696 tests across 32 files)
+ 413 pass / 0 fail   (lote DOM, Ran 413 tests across 1 file)
+$ bun run typecheck                      → 0 erros (TS)
+$ (apps/frontend-transportada) bun run lint → 0 erros, 16 avisos já existentes
+$ bun run format:check                   → All matched files use Prettier code style!
+```
+
+Contrato do painel contra a resposta da API **atual** (sem nenhum campo novo), onde cada caso já está
+provado: guards — `occurrence-items-mode-tolerance.contract.ts` (tipo sem `itemsMode`, feed/detalhe/
+lista da nota sem `occurrenceTypeId`/`typeItemsMode`/`typeAllowsMultipleItems`); Corrigir —
+`occurrence-correction-button.contract.tsx` ("resposta sem `typeItemsMode` lê `optional`") e a tabela
+CA05; registro — `occurrence-register-items-mode.contract.ts` ("tipo sem `itemsMode` mostra o
+seletor"); correção — `occurrence-correction-single-item.contract.ts` ("resposta sem o campo lê
+vários"); cadastro — `occurrence-type-items-mode-panel.contract.ts` ("listagem sem `itemsMode`: nada
+de Produtos, a política segue ali").
+
+Com a API atual, o que muda na tela é só o previsto no plano: Corrigir passa a aparecer para a
+ocorrência sem itens (lê `optional`) e a API atual aceita a correção como hoje.
+
+Não feito nesta sessão, por instrução: nenhum push, deploy ou mudança em `apps/api-transportada`.
+`docs/ai-context/frontend-transportada.md` é da T3.3. T1.5 e T0.3 não dependem uma da outra.

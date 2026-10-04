@@ -50,7 +50,7 @@ items_mode` da migration e o default `off` do plano. Se criou com default `off`:
       por `getApiErrorCode()`. Aceite (CA10, painel): com Produtos = Desligado, Foto desligada e
       "deixa a nota" desligado, o formulário monta o corpo que a 208 usa para a segunda via, sem itens
       e sem política; contrato verifica a política escondida e o `unset` enviado.
-- [ ] **T1.6** Gates do painel: `bun run --cwd apps/frontend-transportada test`, typecheck, lint,
+- [x] **T1.6** Gates do painel: `bun run --cwd apps/frontend-transportada test`, typecheck, lint,
       prettier; contrato do painel contra a resposta da API atual (sem os campos novos).
 
 ## Fase 2 — Banco e API (etapa 2)
