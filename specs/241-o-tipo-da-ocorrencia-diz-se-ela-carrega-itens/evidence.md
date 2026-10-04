@@ -425,6 +425,13 @@ Gate de entrada da etapa 1: contra a **API atual** (sem os campos novos) o paine
 que passa a aparecer para ocorrência sem itens (lê `optional`) e que a API atual aceita (T1.6). Depois do push:
 esperar o deploy e o `autoUpdate` do PWA **antes** da etapa 2.
 
+**Correções da revisão final entram na etapa 1** (`work/241-painel`, depois dos commits da tabela acima: `16d5c828d`,
+`0d796e90c`, `98e619db7`, `6d7ba0620`): o painel tolerante passa a aceitar `null` em `occurrenceTypeId`,
+`typeItemsMode` e `typeAllowsMultipleItems`, que a API da etapa 2 publica em toda ocorrência de parada. **Esse painel tem de
+estar no ar e com o `autoUpdate` do PWA propagado antes da etapa 2**; sem ele, a primeira ocorrência de parada derruba a
+lista inteira com `TRIP_RESPONSE_INVALID`. Contra a **API atual** (sem os campos) o painel segue como antes: os contratos de
+tolerância (`test/trip/occurrence-items-mode-tolerance.contract.ts`, blocos "ausentes") continuam verdes.
+
 **Etapa 2 — banco e API** (`work/241-api`, sobre `origin/staging` `11a78cb6e`; 11 commits de implementação, mais `fde805846` só de `specs/` com a ordem de publicação):
 
 | SHA         | Conteúdo                                                                                  |
@@ -471,3 +478,90 @@ Seção "Spec 241 — o tipo da ocorrência diz se ela carrega itens" no fim do 
 correção por tipo, tolerância a API antiga e as três pegadinhas (o guard de chave exata e a lista vazia, os dois `422` e
 a recarga, o `Tooltip` sobre o `Select`). Sem marcadores de conflito. **A revisão final por `code-reviewer` (`opus`) fica
 pendente — é do usuário.**
+
+## Correções da revisão final
+
+Cada correção: contrato vermelho primeiro, implementação, verde; um commit por correção na `work/241-painel`.
+
+### 1. Guards recusavam o `null` da API nova (`16d5c828d`) — bloqueante
+
+Contrato novo em `occurrence-items-mode-tolerance.contract.ts` (bloco "ocorrência de parada: a API nova publica os três
+campos como null"): item `source: 'stop'` com os três campos `null` pelo cliente real (`listOccurrences` e
+`readOccurrence`) e pelo guard da lista da nota (`occurrencesFromApi`); `typeItemsMode: 'banana'` continua reprovando.
+`isFeedItem` aceita `null` nos três, `isTripOccurrence` nos dois que a lista da nota tem (`occurrenceTypeId` ali segue
+obrigatório: ocorrência de nota sempre tem tipo). Nenhum outro guard do painel lê esses campos (`grep` em `src/`).
+
+Vermelho (`bun test test/trip.contract.test.ts`, antes da correção):
+
+```text
+error: TRIP_RESPONSE_INVALID
+      at readPage (.../tripOccurrenceFeedClient.service.ts:314:46)
+(fail) ocorrência de parada: a API nova publica os três campos como null > o feed aceita o item de parada com os três campos null e os lê como ausentes
+error: TRIP_RESPONSE_INVALID
+      at readDetail (.../tripOccurrenceFeedClient.service.ts:277:11)
+(fail) ... > o detalhe da parada aceita os três campos null
+error: TRIP_RESPONSE_INVALID
+      at occurrencesFromApi (.../tripResponse.validation.ts:1081:82)
+(fail) ... > a lista da nota aceita typeItemsMode e typeAllowsMultipleItems null
+ 2460 pass
+ 3 fail
+```
+
+Verde depois: `2463 pass, 0 fail`.
+
+### 2. `Tooltip` fechava em todo clique e tecla (`0d796e90c`) — médio
+
+Prop `dismissOnActivate` (padrão `false`, comportamento anterior à 241), usada só nos cinco seletores do cadastro de tipos
+(Produtos, Foto do comprovante e Fluxo de registro, na linha e no formulário de cadastro). Contrato novo
+`test/trip-hooks/tooltip-dismiss.contract.ts`: o padrão não fecha ao clicar nem ao apertar Enter; com a prop fecha nos dois.
+Os dois contratos da 241 sobre o `Select` (`occurrence-type-items-mode-panel`) seguem verdes.
+
+Vermelho (lote DOM, antes da prop):
+
+```text
+Expected to contain: "Dica de teste"
+Received: "Gatilho"
+(fail) Tooltip: dispensar a dica ao ativar o gatilho é opt-in > o padrão não fecha ao clicar nem ao apertar Enter
+ 418 pass
+ 1 fail
+```
+
+Mutação (tirar `dismissOnActivate` do `OccurrenceTypeItemsModeSelect`): `(fail)` nos dois contratos do cadastro — "abrir o
+seletor de Produtos dispensa a dica…" e "Enter no seletor de Produtos também dispensa a dica" (`417 pass, 2 fail`); restaurado,
+`419 pass, 0 fail`.
+
+### 3. `OccurrenceTypeCatalogPanel` repetia o corpo de `onSave` oito vezes (`98e619db7`) — médio
+
+`buildOccurrenceTypeUpdate(type, edit)` em `company-settings/shared/occurrenceTypeUpdate.service.ts` (função pura; o tipo
+`OccurrenceTypeSaveInput` mora ali). Contrato `test/company-settings/occurrence-type-update.contract.ts`: cada edição troca só
+o campo editado, mantém `redeliveryPolicy`, e nunca manda `itemsMode`; só o seletor Produtos o manda, e Desligado zera a
+política (RF4/242). A linha do tipo virou `OccurrenceTypeRow.component.tsx` (154 linhas), o formulário de cadastro
+`OccurrenceTypeCreateForm.component.tsx` (209 linhas) e as opções dos seletores o hook `useOccurrenceTypeOptions`; o painel
+foi de 522 para 123 linhas. **O formulário de cadastro ficou com 209 linhas, 9 acima de 200:** são 9 `useState` com o
+comentário de spec de cada um e a lista de campos; partir mais exigiria um reducer, que muda comportamento.
+
+Vermelho: `Cannot find module '@/modules/company-settings/shared/occurrenceTypeService...'` (módulo inexistente, `1 fail, 1 error`).
+Mutação (`edit.itemsMode === 'never'` no lugar de `'off'`): `(fail) buildOccurrenceTypeUpdate > Produtos Desligado manda
+itemsMode off e zera a política`.
+
+**Divergência a registrar:** cinco contratos de texto (`occurrence-type-attachment-mode`, `occurrence-type-catalog-panel`,
+`occurrence-type-catalog-template-select`, `trip/occurrence-catalog-leaves-behind`) liam o **arquivo do painel** com
+`toContain`/regex; com o código movido para a linha e o formulário, 11 reprovaram. Mudou só **de onde leem**
+(`test/company-settings/occurrenceTypePanelSource.helper.ts` concatena os três arquivos); nenhuma expectativa foi alterada.
+Os dois contratos "toda chamada a `onSave` carrega X" agora só enxergam a chamada de `handleAdd` (as demais passaram a ser
+`buildOccurrenceTypeUpdate`); quem prende as outras é o contrato novo acima.
+
+### 4. Dica de Produtos e literais (`6d7ba0620`) — baixo
+
+(a) `itemsModeHint`: "Corrigir não aparece nas novas ocorrências" (pt-BR) e "Correct does not appear on new occurrences" (en), pelo RF7. Contrato
+`occurrence-type-items-mode-hint.contract.ts`, vermelho antes (`Expected to contain: "Corrigir não aparece nas novas ocorrências"`,
+`2 fail`). (b) `OCCURRENCE_ITEMS_MODE` e `OCCURRENCE_ATTACHMENT_MODE` não existiam como objeto (só os arrays); criados em
+`occurrence.constant.ts` e usados no painel, na linha, no formulário, no seletor de Produtos, em `tripOccurrenceDetail.service.ts`
+e `occurrenceItemsMode.service.ts`. Fora do alvo e deixados: `deliveryProofSettings` e `driver-trip` (vocabulário do comprovante,
+outra constante), `tripClient.service.ts:558` e `tripResponse.validation.ts:1880`.
+
+### Gates (primeiro plano, `work/241-painel`)
+
+`bun install --frozen-lockfile` (sem mudanças) · `bun run --cwd apps/frontend-transportada test`: **6708 pass, 0 fail** (32 arquivos) +
+lote DOM **419 pass, 0 fail** · `bun run typecheck` (raiz): sem erro · `bun run format:check`: limpo · lint da app: 0 erros, 16
+avisos (nenhum em arquivo tocado).
