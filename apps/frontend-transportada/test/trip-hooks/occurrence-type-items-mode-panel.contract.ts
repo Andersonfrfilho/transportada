@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 241 RF10/RF12/CA10: o cadastro de tipos montado de verdade. Produtos (Desligado / Opcional)
+ * Spec 241 RF10/RF12/CA10: o cadastro de tipos montado de verdade. Produtos (Sem produtos / Produtos opcionais)
  * só aparece quando a listagem trouxe `itemsMode`; com Desligado a política de reentrega some e a
  * gravação leva `redeliveryPolicy: 'unset'`. Dados sintéticos.
  */
@@ -145,7 +145,7 @@ describe('cadastro de tipos: Produtos (spec 241 RF10)', () => {
     'listagem com itemsMode: Produtos aparece no tipo, com a escolha gravada',
     scenario(async () => {
       await mount([buildType({ itemsMode: 'optional' })])
-      expect(control(PRODUCTS_LABEL)?.textContent).toContain('Opcional')
+      expect(control(PRODUCTS_LABEL)?.textContent).toContain('Produtos opcionais')
       expect(checkboxLabelled(MULTIPLE_ITEMS_LABEL)).toBe(true)
     }),
   )
@@ -154,7 +154,7 @@ describe('cadastro de tipos: Produtos (spec 241 RF10)', () => {
     'tipo Desligado: a política de reentrega e o "um ou vários" somem',
     scenario(async () => {
       await mount([buildType({ itemsMode: 'off', redeliveryPolicy: 'unset' })])
-      expect(control(PRODUCTS_LABEL)?.textContent).toContain('Desligado')
+      expect(control(PRODUCTS_LABEL)?.textContent).toContain('Sem produtos')
       expect(control(POLICY_LABEL)).toBeNull()
       expect(checkboxLabelled(MULTIPLE_ITEMS_LABEL)).toBe(false)
     }),
@@ -164,7 +164,7 @@ describe('cadastro de tipos: Produtos (spec 241 RF10)', () => {
     'trocar para Desligado grava itemsMode off e redeliveryPolicy unset no mesmo PUT (RF12)',
     scenario(async () => {
       await mount([buildType({ itemsMode: 'optional', redeliveryPolicy: 'blocked' })])
-      await choose(PRODUCTS_LABEL, 'Desligado')
+      await choose(PRODUCTS_LABEL, 'Sem produtos')
       expect(saved).toEqual([
         {
           active: true,
@@ -187,7 +187,7 @@ describe('cadastro de tipos: Produtos (spec 241 RF10)', () => {
     'voltar para Opcional grava itemsMode optional e mantém a política já gravada',
     scenario(async () => {
       await mount([buildType({ itemsMode: 'off', redeliveryPolicy: 'unset' })])
-      await choose(PRODUCTS_LABEL, 'Opcional')
+      await choose(PRODUCTS_LABEL, 'Produtos opcionais')
       expect(saved).toHaveLength(1)
       expect(saved[0]?.itemsMode).toBe('optional')
       expect(saved[0]?.redeliveryPolicy).toBe('unset')
@@ -219,7 +219,7 @@ describe('cadastro de tipos: criar a prorrogação (spec 241 CA10)', () => {
       await typeName('Cliente pediu prorrogação do boleto')
       await choose('Onde acontece', 'Na rua', creationForm())
       expect(control(POLICY_LABEL, creationForm())).not.toBeNull()
-      await choose(PRODUCTS_LABEL, 'Desligado', creationForm())
+      await choose(PRODUCTS_LABEL, 'Sem produtos', creationForm())
       expect(control(POLICY_LABEL, creationForm())).toBeNull()
 
       await click(buttonByText('Cadastrar tipo'))
@@ -249,7 +249,7 @@ describe('cadastro de tipos: criar a prorrogação (spec 241 CA10)', () => {
       await mount([buildType({ id: 'existing', itemsMode: 'optional' })])
       await typeName('Prorrogação')
       await choose(POLICY_LABEL, 'Não admite reentrega', creationForm())
-      await choose(PRODUCTS_LABEL, 'Desligado', creationForm())
+      await choose(PRODUCTS_LABEL, 'Sem produtos', creationForm())
       await click(buttonByText('Cadastrar tipo'))
 
       expect(saved).toHaveLength(1)
