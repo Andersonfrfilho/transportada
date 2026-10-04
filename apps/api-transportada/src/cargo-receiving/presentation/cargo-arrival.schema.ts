@@ -75,7 +75,7 @@ export async function parseRegisterCargoArrivalRequest(
   }
 }
 
-function readIdempotencyKey(request: Request): {
+export function readIdempotencyKey(request: Request): {
   readonly issue: ApiErrorDetail | undefined
   readonly value: string
 } {

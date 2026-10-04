@@ -84,6 +84,12 @@ export const API_CARGO_ARRIVAL_DOCUMENT_SEPARATE_PATH =
 export const API_CARGO_ARRIVAL_BATCH_STATUS_PATH = '/cargo-arrivals/:id/documents/batch-status'
 export const API_CARGO_ARRIVAL_ROUTE_ASSIGNMENT_PATH = '/cargo-arrivals/:id/route-assignment'
 export const API_CARGO_ARRIVAL_CLOSE_PATH = '/cargo-arrivals/:id/close'
+export const API_CARGO_PREVIEWS_PATH = '/cargo-previews'
+export const API_CARGO_PREVIEW_PATH = '/cargo-previews/:id'
+export const API_CARGO_PREVIEW_ITEM_CONFIRM_PATH = '/cargo-previews/:id/items/:itemId/confirm'
+export const API_CARGO_PREVIEW_ITEM_UNLINK_PATH = '/cargo-previews/:id/items/:itemId/unlink'
+export const API_CARGO_PREVIEW_ITEM_LINK_PATH = '/cargo-previews/:id/items/:itemId/link'
+export const API_CARGO_PREVIEW_PROPOSE_ARRIVAL_PATH = '/cargo-previews/:id/propose-arrival'
 /** Spec 143 (ADR-0063): a chave do Resend, o segredo do webhook e o remetente, por empresa. */
 export const API_CONTRACTOR_MAIL_SETTINGS_PATH = '/contractor-mail-settings'
 export const API_CONTRACTOR_MAIL_SETTINGS_CHECKS_PATH = '/contractor-mail-settings/checks'

@@ -14,6 +14,11 @@ import {
 } from '../../src/cargo-receiving/infrastructure/cargo-arrival-document.query.js'
 import { buildArrivalFilters } from '../../src/cargo-receiving/infrastructure/cargo-arrival-persistence.support.js'
 import { buildArrivalListFilters } from '../../src/cargo-receiving/infrastructure/drizzle-cargo-arrival-read.repository.js'
+import { buildPreviewItemFilters } from '../../src/cargo-receiving/infrastructure/cargo-preview-item.query.js'
+import {
+  buildPreviewFilters,
+  buildPreviewListFilters,
+} from '../../src/cargo-receiving/infrastructure/cargo-preview-persistence.support.js'
 import { buildArrivalDocumentFilters } from '../../src/cargo-receiving/infrastructure/drizzle-cargo-arrival-separation.repository.js'
 import {
   buildReceivingProfileContractorFilters,
@@ -93,5 +98,44 @@ describe('isolamento da chegada (spec 237 T2.3)', () => {
     expect(available.sql).toContain('"cargo_emitter_participant"."tax_id" = $')
     expect(available.sql).toContain('"trip_documents"."released_at" is null')
     expect(available.params).toEqual(expect.arrayContaining([COMPANY_ID, '30290856000160']))
+  })
+})
+
+describe('isolamento da prévia (spec 237 T4.2)', () => {
+  const PREVIEW_ID = '00000000-0000-4000-8000-000000000c04'
+  const render = (filters: Parameters<typeof and>) => dialect.sqlToQuery(and(...filters)!)
+
+  test('a prévia é alcançada pela empresa e pelo id juntos', () => {
+    const query = render(buildPreviewFilters({ companyId: COMPANY_ID, previewId: PREVIEW_ID }))
+    expect(query.sql).toBe(
+      '(("cargo_previews"."company_id" = $1) and ("cargo_previews"."id" = $2))',
+    )
+    expect(query.params).toEqual([COMPANY_ID, PREVIEW_ID])
+  })
+
+  test('a lista começa pela empresa, mesmo sem filtro', () => {
+    const query = render(
+      buildPreviewListFilters({
+        companyId: COMPANY_ID,
+        filters: {},
+        paging: { cursor: null, limit: 25 },
+      }),
+    )
+    expect(query.sql).toBe('"cargo_previews"."company_id" = $1')
+  })
+
+  test('os itens são da empresa e da prévia, com qualquer filtro', () => {
+    const query = render(
+      buildPreviewItemFilters({
+        afterRow: 3,
+        companyId: COMPANY_ID,
+        limit: 10,
+        previewId: PREVIEW_ID,
+        state: 'matched',
+      }),
+    )
+    expect(query.sql).toContain('"cargo_preview_items"."company_id" = $1')
+    expect(query.sql).toContain('"cargo_preview_items"."preview_id" = $2')
+    expect(query.params.slice(0, 2)).toEqual([COMPANY_ID, PREVIEW_ID])
   })
 })

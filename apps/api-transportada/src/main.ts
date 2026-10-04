@@ -640,6 +640,7 @@ import { DrizzleCargoArrivalRegistrationRepository } from './cargo-receiving/inf
 import { DrizzleCargoArrivalSeparationRepository } from './cargo-receiving/infrastructure/drizzle-cargo-arrival-separation.repository.js'
 import { createCargoArrivalSeparationRoutes } from './cargo-receiving/presentation/cargo-arrival-separation.routes.js'
 import { createCargoArrivalRoutes } from './cargo-receiving/presentation/cargo-arrival.routes.js'
+import { createCargoPreviewHttpRoutes } from './cargo-receiving/cargo-preview.composition.js'
 import { CARGO_ARRIVAL_CHANNEL } from './shared/cargo-arrival.constant.js'
 import { createContractorContactsUseCase } from './contractor-mail/application/contractor-contacts.use-case.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
@@ -3354,6 +3355,16 @@ function createApplicationRoutes({
       batchStatus: createBatchCargoArrivalStatusUseCase(cargoArrivalWriting),
       changeDocumentState: createChangeCargoArrivalDocumentStateUseCase(cargoArrivalWriting),
       closeArrival: createCloseCargoArrivalUseCase(cargoArrivalWriting),
+    }),
+    // Spec 237 Fase 4a: a prévia por upload — a API guarda e enfileira, quem lê é o worker.
+    ...createCargoPreviewHttpRoutes({
+      bucket: resolveStorageBucket(environment),
+      database,
+      storage: createNfeStorageGatewayFromEnvironment({
+        environment,
+        finalBucket: resolveStorageBucket(environment),
+        stagingBucket: resolveStorageBucket(environment),
+      }),
     }),
     ...createContractorContactRoutes({
       createContact: { execute: (input) => contractorContacts.create(input) },

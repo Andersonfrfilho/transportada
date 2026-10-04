@@ -168,7 +168,7 @@ CREATE TABLE "contractor_recipient_aliases" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "contractor_recipient_aliases_contractor_code_unique" UNIQUE("company_id","contractor_id","recipient_code"),
 	CONSTRAINT "contractor_recipient_aliases_recipient_code_check" CHECK (char_length("recipient_code") between 1 and 40),
-	CONSTRAINT "contractor_recipient_aliases_recipient_tax_id_check" CHECK ("recipient_tax_id" ~ '^([0-9]{11}|[0-9]{14})$')
+	CONSTRAINT "contractor_recipient_aliases_recipient_tax_id_check" CHECK ("recipient_tax_id" ~ '^([0-9]{11}|[A-Z0-9]{12}[0-9]{2})$')
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX "cargo_previews_company_arrival_unique" ON "cargo_previews" ("company_id","arrival_id") WHERE "arrival_id" is not null;--> statement-breakpoint

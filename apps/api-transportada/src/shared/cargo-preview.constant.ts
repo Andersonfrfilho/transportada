@@ -113,8 +113,4 @@ export const CARGO_PREVIEW_OUTBOX_EVENTS = Object.values(CARGO_PREVIEW_OUTBOX_EV
  */
 export const CARGO_PREVIEW_MATCH_LOCK_PREFIX = 'cargo-preview-match'
 
-export const CARGO_PREVIEW_LIMITS = {
-  fileNameMaxLength: 180,
-  itemsPageMax: 100,
-  listPageMax: 100,
-} as const
+export const CARGO_PREVIEW_LIMITS = { fileNameMaxLength: 180 } as const

@@ -6,6 +6,8 @@ import { describe, expect, test } from 'bun:test'
 import { createBillingRoutes } from '../src/billing/presentation/billing.routes'
 import { createCargoArrivalSeparationRoutes } from '../src/cargo-receiving/presentation/cargo-arrival-separation.routes'
 import { createCargoArrivalRoutes } from '../src/cargo-receiving/presentation/cargo-arrival.routes'
+import { createCargoPreviewActionRoutes } from '../src/cargo-receiving/presentation/cargo-preview-action.routes'
+import { createCargoPreviewRoutes } from '../src/cargo-receiving/presentation/cargo-preview.routes'
 import { createCteIssuanceRoutes } from '../src/cte-issuance/presentation/cte-issuance.routes'
 import { createCompanyCrewSettingsRoutes } from '../src/fleet/presentation/crew-settings.routes'
 import { createFleetRoutes } from '../src/fleet/presentation/fleet.routes'
@@ -97,6 +99,10 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     // e separa no celular. Lê com `fleet.read` e escreve com `trip.manage`, as que já tinha.
     ...createCargoArrivalRoutes(dependencies),
     ...createCargoArrivalSeparationRoutes(dependencies),
+    // Spec 237 T4.2: a prévia vira a chegada (RF5b), e quem confere a chegada é o separador — ele
+    // envia a planilha e decide o vínculo com as mesmas `fleet.read`/`trip.manage`.
+    ...createCargoPreviewRoutes(dependencies),
+    ...createCargoPreviewActionRoutes(dependencies),
   ]
 
   return routes
@@ -133,6 +139,13 @@ describe('separator role contract', () => {
       'GET /cargo-arrivals',
       'GET /cargo-arrivals/:id',
       'GET /cargo-arrivals/available-documents',
+      /**
+       * Spec 237 T4.2: a prévia da carga é a chegada antes de chegar (RF5b). O separador lê, envia a
+       * planilha e confirma/desvincula/vincula a linha à nota — nada de frota, faturamento nem
+       * fiscal; propor a chegada não cria nada.
+       */
+      'GET /cargo-previews',
+      'GET /cargo-previews/:id',
       /**
        * Spec 149: a diária geral do ajudante entra na conta que o separador já monta ao escolher a
        * tripulação da viagem — mesma razão do vínculo motorista↔veículo logo abaixo. Ele lê o
@@ -306,6 +319,11 @@ describe('separator role contract', () => {
       'POST /cargo-arrivals/:id/documents/:documentId/separate',
       'POST /cargo-arrivals/:id/documents/batch-status',
       'POST /cargo-arrivals/:id/route-assignment',
+      'POST /cargo-previews',
+      'POST /cargo-previews/:id/items/:itemId/confirm',
+      'POST /cargo-previews/:id/items/:itemId/link',
+      'POST /cargo-previews/:id/items/:itemId/unlink',
+      'POST /cargo-previews/:id/propose-arrival',
       // Spec 155 (G004): a mesma cargo.measure de GET .../:id/siblings, acima.
       'POST /nfe-package-boxes/:id/replicate',
       // Spec 183 T404 (RF15): marcar a conversa como lida é registro do próprio usuário (`fleet.read`).

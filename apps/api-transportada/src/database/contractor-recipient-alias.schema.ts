@@ -59,7 +59,7 @@ export const contractorRecipientAliases = pgTable(
     ),
     check(
       'contractor_recipient_aliases_recipient_tax_id_check',
-      sql`${table.recipientTaxId} ~ '^([0-9]{11}|[0-9]{14})$'`,
+      sql`${table.recipientTaxId} ~ '^([0-9]{11}|[A-Z0-9]{12}[0-9]{2})$'`,
     ),
   ],
 )
