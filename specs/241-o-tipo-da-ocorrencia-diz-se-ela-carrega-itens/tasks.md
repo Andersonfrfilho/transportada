@@ -57,14 +57,14 @@ items_mode` da migration e o default `off` do plano. Se criou com default `off`:
 
 > 🤖 Modelo: `sonnet`; T2.1 é 🧠 (`opus`, ou validar com `architect` antes).
 
-- [ ] **T2.1** 🧠 Integração vermelha da CA01 e da CA09 (tipo da segunda via semeado **antes** da
+- [x] **T2.1** 🧠 Integração vermelha da CA01 e da CA09 (tipo da segunda via semeado **antes** da
       coluna, inclusive um com `redelivery_policy = 'blocked'`) e da CA02 (seed). Schema `itemsMode` +
       CHECKs + migration, nesta **ordem**: (1) `ADD COLUMN items_mode`; (2) CHECK de vocabulário;
       (3) `UPDATE` que põe `items_mode = 'off'` **e** `redelivery_policy = 'unset'` na mesma
       instrução; (4) CHECK `company_occurrence_types_items_off_shape_check` — só depois do (3), ou a
       migration falha em dado existente. `rollback.sql` em ordem inversa (derruba as duas CHECKs
       antes da coluna). Aceite: `make migration-test` aplica e reverte; `db:generate` = `no_changes`.
-- [ ] **T2.2** Mutação: arrancar o `UPDATE` deixa a CA01 vermelha; arrancar só o `redelivery_policy =
+- [x] **T2.2** Mutação: arrancar o `UPDATE` deixa a CA01 vermelha; arrancar só o `redelivery_policy =
 'unset'` do `UPDATE` deixa a CA09 vermelha (a CHECK recusa a linha). Colar as duas execuções.
 - [ ] **T2.3** Catálogo: `itemsMode` por entrada, o tipo da prorrogação (`delivery`, `off`, defaults da 208) **só no catálogo de bootstrap** — nenhuma migration o insere (D2) —, constante do nome da
       segunda via; seeders gravam `itemsMode` (CA02). Aceite: empresa que já tem qualquer tipo

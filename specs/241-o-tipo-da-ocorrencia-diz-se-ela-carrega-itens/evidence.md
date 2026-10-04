@@ -669,3 +669,68 @@ Gates:
   `occurrence-type-redelivery-policy` 2; `company-settings-repository` 3; `trip-occurrence-case` 4;
   `trip-occurrence-detail` 6; `trip-occurrence-correction` 7; `migration-completeness` 3 (com
   `DRIZZLE_TEST_DATABASE_URL` — sem ela, os 3 pulam).
+
+### Rebase em `origin/staging` (02cd5fe8b)
+
+`git fetch && git rebase origin/staging` conflitou em `static-migration.contract.ts` (lista de
+migrations) e em `docs/ai-context/api-transportada.md`: entrou de outra sessão
+`20261003190847_location_retention_settings` (spec 239 do expurgo — **não** cria `items_mode`; `git
+grep items_mode origin/staging` segue vazio). A primeira geração desta migration
+(`20261004000033_…`) tinha `prevIds` apontando para `contractor_receiving_profiles`, o mesmo pai da
+migration nova — duas folhas. A pasta foi apagada e regerada por `bun run db:generate --name
+occurrence_type_items_mode` em cima do snapshot novo: `20261004001234_occurrence_type_items_mode`,
+`prevIds = ['11c128c3-…']` (o snapshot de `location_retention_settings`), SQL gerado idêntico; o
+`UPDATE` e o `rollback.sql` foram copiados com o nome novo. Depois:
+
+- `bun install --frozen-lockfile` → sem mudanças; `bun run db:generate` → `{"status":"no_changes"}`.
+- `make migration-test ENV_FILE=.env.test` → `123 pass, 0 fail, 1894 expect() calls`.
+- `bun run typecheck` (raiz, todas as apps) → exit 0; `bun run format:check` → limpo.
+- Contrato da API → `9357 pass, 24 skip, 0 fail` (198 arquivos).
+- Integração, um arquivo por vez: seed 2, leaves-document-behind 4, redelivery-policy 2,
+  company-settings-repository 3, trip-occurrence-case 4, trip-occurrence-detail 6,
+  trip-occurrence-correction 7, migration-completeness 3 — todos `0 fail`, nenhum pulado.
+
+Nenhum arquivo de teste novo de entrada: a asserção entra por `database-migration.integration.ts`,
+importado por `test/database-migration.contract.test.ts`, que já está no `db:test` e no `test` do
+`package.json`.
+
+## T2.2 — mutações (depois do rebase, na `20261004001234_…`)
+
+**(a) Arrancar o `UPDATE` inteiro** → CA01 vermelha (`make migration-test ENV_FILE=.env.test`):
+
+```text
+error: expect(received).toEqual(expected)
+
+@@ -1,3 +1,3 @@
+  {
+-   "items_mode": "off",
++   "items_mode": "optional",
+    "redelivery_policy": "unset",
+
+(fail) a segunda via sai sem itens antes da CHECK da forma (spec 241) > orders the items_mode column, its backfill and the shape check, and reverses it [1.10ms]
+(fail) Drizzle migration integration > applies, constrains, rolls back, and reapplies the fiscal migration [2287.40ms]
+ 2 fail
+ 1672 expect() calls
+Ran 123 tests across 8 files. [44.33s]
+```
+
+Restaurado (`git checkout -- migration.sql`) → `123 pass, 0 fail`.
+
+**(b) Arrancar só `"redelivery_policy" = 'unset'` do `UPDATE`** → CA09 vermelha: a CHECK da forma
+recusa a segunda via semeada com `blocked` e a migration falha:
+
+```text
+DrizzleQueryError: Failed query:
+ALTER TABLE "company_occurrence_types" ADD CONSTRAINT "company_occurrence_types_items_off_shape_check" CHECK ("items_mode" <> 'off' or "redelivery_policy" = 'unset');
+PostgresError: check constraint "company_occurrence_types_items_off_shape_check" of relation "company_occurrence_types" is violated by some row
+      errno: "23514",
+ constraint: "company_occurrence_types_items_off_shape_check",
+(fail) a segunda via sai sem itens antes da CHECK da forma (spec 241) > orders the items_mode column, its backfill and the shape check, and reverses it [0.63ms]
+(fail) Drizzle migration integration > applies, constrains, rolls back, and reapplies the fiscal migration [2081.23ms]
+ 2 fail
+ 1671 expect() calls
+Ran 123 tests across 8 files. [35.97s]
+```
+
+Restaurado → `123 pass, 0 fail`. As mesmas duas mutações já tinham dado vermelho antes do rebase, na
+`20261004000033_…` (mesmo SQL), com o mesmo diff na CA01 e o mesmo `23514` na CA09.
