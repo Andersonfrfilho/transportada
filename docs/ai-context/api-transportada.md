@@ -2701,13 +2701,21 @@ e o snapshot do motorista, `itemsMode`. O `frontend-driver` ignora a chave nova
 nota. Publicação: etapa 2, **depois** do painel tolerante (ADR-0081 §9).
 
 **Revisão final (API).** (1) A leitura do modo de itens é refinamento e não derruba a lista:
-`listOccurrenceTypeItemsShapesOrEmpty` (`.catch(() => new Map())`) é a que a lista da nota e o feed usam, e
-no feed ela roda no `Promise.all` com os cancelamentos (continua uma consulta por página); sem logger,
-porque essas funções de leitura não recebem um. (2) A corrida entre dois `PUT` (o `findCurrentType` lê fora
+`listOccurrenceTypeItemsShapesOrEmpty` é a que a lista da nota e o feed usam, e no feed ela roda no
+`Promise.all` com os cancelamentos (continua uma consulta por página). Com `logger` (os dois recebem o de
+`main.ts`: `listTripOccurrences(db, { …, logger })` e `listTripOccurrenceFeed(db, query, { logger })`), a falha
+vira mapa vazio **e** um `warn` `occurrence_type_items_read_failed` com só o SQLSTATE (`metadata.code`; a
+mensagem do Drizzle traz os parâmetros e nunca vai ao log). Sem `logger` a falha propaga: é o caso de
+`findTripOccurrenceFeedItem`, chamado dentro de transação (`drizzle-driver-conversation`,
+`drizzle-contractor-portal-message`) e nas leituras de detalhe — o `.catch` ali esconderia a causa e o
+comando seguinte da transação morreria com `25P02`. Sem Sentry: o repo não tem padrão de captura em leitura
+degradada (o `errorTracker` só recebe o que o servidor propaga). (2) A corrida entre dois `PUT` (o `findCurrentType` lê fora
 da transação do `UPDATE`) cai na CHECK `OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK`: `saveOccurrenceType` traduz
 o `23514` **dessa** constraint, pelo nome, em `422 OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY`; outra CHECK
-segue propagando. (3) `OCCURRENCE_ITEMS_MODE` (`shared/trip-occurrence.constant.ts`) é o `off`/`optional`
-do modo de itens; os `?? optional` ficam onde `OccurrenceTypeRecord.itemsMode` é opcional por causa dos
-dublês. (4) ⚠️ O guard de chave exata do painel **atual** (`isTripOccurrence`) recusa `typeItemsMode` e
-`typeAllowsMultipleItems` na lista da nota: a etapa 2 só sobe depois do painel tolerante e do `autoUpdate`
-do PWA.
+segue propagando. (3) `OCCURRENCE_ITEMS_MODE`, `REDELIVERY_POLICY` e `OCCURRENCE_ATTACHMENT_MODE.off`
+(`shared/trip-occurrence.constant.ts`) nomeiam o `off`/`optional` do modo de itens, a política de reentrega e o
+padrão da foto; os `?? optional` ficam onde `OccurrenceTypeRecord.itemsMode` é opcional por causa dos
+dublês. (4) ⚠️ Dois guards de chave exata do painel **atual** de staging derrubam a tela contra esta API:
+`isTripOccurrence`/`TRIP_OCCURRENCE_OPTIONAL_KEYS` recusa `typeItemsMode` e `typeAllowsMultipleItems` na lista
+da nota, e `isOccurrenceType` recusa `itemsMode` no catálogo do cadastro. A etapa 2 só sobe depois do painel
+tolerante e do `autoUpdate` do PWA.
