@@ -80,6 +80,19 @@ export function buildCargoPreviewMatchLockKey(input: {
   return `${CARGO_PREVIEW_MATCH_LOCK_PREFIX}:${input.companyId}:${input.contractorId}`
 }
 
+/** Prévias de um contratante na fila ou em leitura ao mesmo tempo (revisão de segurança S5). */
+export const CARGO_PREVIEW_OPEN_LIMIT = 5
+
+const CARGO_PREVIEW_UPLOAD_LOCK_PREFIX = 'cargo-preview-upload'
+
+/** A trava do envio de um contratante: contar as abertas e gravar a nova sem outro envio no meio. */
+export function buildCargoPreviewUploadLockKey(input: {
+  readonly companyId: string
+  readonly contractorId: string
+}): string {
+  return `${CARGO_PREVIEW_UPLOAD_LOCK_PREFIX}:${input.companyId}:${input.contractorId}`
+}
+
 /**
  * A leitura que não dá notícia há mais que isto foi perdida (o worker caiu no meio, ou a fila esgotou
  * sem marcar): a fila inteira — 6 tentativas com 10 s entre elas e até 5 s de leitura — cabe com folga.

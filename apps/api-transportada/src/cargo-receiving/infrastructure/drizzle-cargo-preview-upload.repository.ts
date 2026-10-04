@@ -25,6 +25,7 @@ import type {
   ReopenCargoPreviewRecord,
   ReplayedCargoPreview,
 } from '../application/cargo-preview-request.types.js'
+import { assertCargoPreviewOpenLimit } from './cargo-preview-open-limit.support.js'
 import { reopenPreview } from './cargo-preview-reopen.writer.js'
 import type { Database, Transaction } from './cargo-arrival-persistence.support.js'
 import { insertOperatorEvents } from './cargo-preview-persistence.support.js'
@@ -139,6 +140,7 @@ async function insertPreview(
   transaction: Transaction,
   record: CreateCargoPreviewRecord,
 ): Promise<CreateCargoPreviewResult> {
+  await assertCargoPreviewOpenLimit(transaction, record)
   const [preview] = await transaction
     .insert(cargoPreviews)
     .values({

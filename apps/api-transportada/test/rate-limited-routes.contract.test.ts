@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { describe, expect, test } from 'bun:test'
 
 import { createAddressCorrectionRoutes } from '../src/address-correction/presentation/address-correction.routes'
+import { createCargoPreviewRoutes } from '../src/cargo-receiving/presentation/cargo-preview.routes'
 import { createContractorMailSettingsRoutes } from '../src/contractor-mail/presentation/contractor-mail-settings.routes'
 import { createClientOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/client-occurrence-conversation.routes'
 import { createMeOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/me-occurrence-conversation.routes'
@@ -455,6 +456,33 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
     ])
   })
 
+  /**
+   * Spec 237, revisão de segurança da Fase 4a (S5): cada envio de prévia é uma planilha que o worker
+   * abre — o balde por usuário segura a rajada; a fila do contratante tem teto próprio.
+   */
+  test('o envio da prévia de carga conta no Postgres, no balde dele', () => {
+    const routes = createCargoPreviewRoutes(unusedDependencies() as never)
+
+    expect(
+      routes
+        .filter((route) => route.rateLimit !== undefined)
+        .map((route) => ({
+          rateLimit: route.rateLimit,
+          signature: `${route.method} ${route.pathname}`,
+        })),
+    ).toEqual([
+      {
+        rateLimit: {
+          maxRequests: 20,
+          scope: 'cargo-preview-upload',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /cargo-previews',
+      },
+    ])
+  })
+
   test('nenhum outro arquivo da API declara teto no Postgres', async () => {
     const files = await listSourceFiles(SOURCE_DIRECTORY)
     const declaring: string[] = []
@@ -465,6 +493,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
 
     expect(declaring.sort()).toEqual([
       'address-correction/presentation/address-correction.routes.ts',
+      'cargo-receiving/presentation/cargo-preview.routes.ts',
       'companies/presentation/location-retention-settings.routes.ts',
       'contractor-mail/presentation/contractor-mail-settings.routes.ts',
       'contractor-portal/presentation/contractor-occurrence.routes.ts',

@@ -367,6 +367,7 @@
       "PREVIEW_FILE_TOO_LARGE": "A planilha passa do limite de 960 KB aceito pelo servidor.",
       "PREVIEW_NOT_A_WORKBOOK": "O arquivo não é uma planilha .xlsx ou .xlsm válida.",
       "CARGO_PREVIEW_NOT_ENABLED": "A prévia não está ligada para este contratante. Ligue no perfil dele, em Clientes, aba Contratantes.",
+      "CARGO_PREVIEW_TOO_MANY_OPEN": "Este contratante já tem 5 prévias esperando leitura. Aguarde a leitura delas terminar e envie de novo.",
       "CARGO_PREVIEW_KEY_REUSED": "Esta tentativa já foi usada com outra planilha. Escolha o arquivo de novo e envie.",
       "CARGO_PREVIEW_NOT_FOUND": "Esta prévia não existe mais.",
       "CARGO_PREVIEW_ITEM_NOT_FOUND": "Esta linha não faz mais parte da prévia.",

@@ -37,6 +37,17 @@ export type CargoPreviewRoutesDependencies = {
 
 type Dependencies = CargoPreviewRoutesDependencies
 
+/**
+ * Revisão de segurança da Fase 4a (S5): cada envio é uma planilha que o worker vai abrir. Folga para
+ * o dia cheio de um separador (as prévias reais são uma por dia por contratante).
+ */
+export const CARGO_PREVIEW_UPLOAD_RATE_LIMIT = {
+  maxRequests: 20,
+  scope: 'cargo-preview-upload',
+  store: 'postgres',
+  windowSeconds: 300,
+} as const
+
 export function createCargoPreviewRoutes(
   dependencies: Dependencies,
 ): readonly ReturnType<typeof defineRoute>[] {
@@ -56,6 +67,7 @@ function uploadRoute(dependencies: Dependencies): ReturnType<typeof defineRoute>
     }),
     pathname: API_CARGO_PREVIEWS_PATH,
     policy: CARGO_ARRIVAL_MANAGE_POLICY,
+    rateLimit: CARGO_PREVIEW_UPLOAD_RATE_LIMIT,
   })
 }
 

@@ -33,6 +33,20 @@ export class CargoPreviewNotEnabledError extends ApiError {
   }
 }
 
+/**
+ * Revisão de segurança da Fase 4a (S5): cada prévia aberta é uma planilha que o worker vai abrir. Com
+ * o teto de prévias na fila ou em leitura, a próxima espera as outras terminarem.
+ */
+export class CargoPreviewTooManyOpenError extends ApiError {
+  public constructor(limit: number) {
+    super({
+      code: 'CARGO_PREVIEW_TOO_MANY_OPEN',
+      message: `This contractor already has ${limit} cargo previews waiting to be read`,
+      status: 422,
+    })
+  }
+}
+
 export class CargoPreviewKeyReusedError extends ApiError {
   public constructor() {
     super({

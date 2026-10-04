@@ -18,6 +18,7 @@ import {
 import type { ReopenCargoPreviewRecord } from '../application/cargo-preview-request.types.js'
 import { canReopenCargoPreview } from '../domain/cargo-preview-upload.policy.js'
 import type { Transaction } from './cargo-arrival-persistence.support.js'
+import { assertCargoPreviewOpenLimit } from './cargo-preview-open-limit.support.js'
 import { insertOperatorEvents } from './cargo-preview-persistence.support.js'
 
 export async function reopenPreview(
@@ -34,6 +35,7 @@ export async function reopenPreview(
     .where(scope)
     .for('update')
   if (preview === undefined || !canReopenCargoPreview({ ...preview, now: record.now })) return false
+  await assertCargoPreviewOpenLimit(transaction, { ...record, exceptPreviewId: record.previewId })
   await transaction
     .update(cargoPreviews)
     .set({ errorCode: null, status: CARGO_PREVIEW_STATUS.queued, updatedAt: record.now })

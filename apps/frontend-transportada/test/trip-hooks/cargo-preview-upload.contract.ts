@@ -269,6 +269,14 @@ describe('os erros do servidor', () => {
     rendered.unmount()
   })
 
+  /** Revisão de segurança S5: a fila do contratante tem teto, e a tela diz o que fazer. */
+  test('fila do contratante cheia explica que é preciso esperar a leitura das outras', async () => {
+    const rendered = await failWith(new CargoReceivingRequestError('CARGO_PREVIEW_TOO_MANY_OPEN'))
+
+    expect(panelText()).toContain('Este contratante já tem 5 prévias esperando leitura.')
+    rendered.unmount()
+  })
+
   test('sem conexão diz isso, e o arquivo e o contratante escolhidos não se perdem', async () => {
     const { double, rendered } = await mountUpload({ uploadFailure: networkFailure() })
     await chooseContractor('Alfa Indústria Fictícia')

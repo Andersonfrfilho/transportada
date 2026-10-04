@@ -367,6 +367,7 @@
       "PREVIEW_FILE_TOO_LARGE": "The spreadsheet is over the 960 KB limit the server accepts.",
       "PREVIEW_NOT_A_WORKBOOK": "The file is not a valid .xlsx or .xlsm spreadsheet.",
       "CARGO_PREVIEW_NOT_ENABLED": "Previews are not enabled for this contractor. Turn them on in its profile, in Clients, Contractors tab.",
+      "CARGO_PREVIEW_TOO_MANY_OPEN": "This contractor already has 5 previews waiting to be read. Wait for them to finish and upload again.",
       "CARGO_PREVIEW_KEY_REUSED": "This attempt was already used with another spreadsheet. Choose the file again and upload.",
       "CARGO_PREVIEW_NOT_FOUND": "This preview no longer exists.",
       "CARGO_PREVIEW_ITEM_NOT_FOUND": "This row is no longer part of the preview.",
