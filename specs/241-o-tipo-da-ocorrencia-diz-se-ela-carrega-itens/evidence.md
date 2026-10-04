@@ -1065,3 +1065,22 @@ Received value: ... DrizzleQueryError: Failed query: update "company_occurrence_
 ```
 
 Verde: `5 pass, 0 fail`. Mutação (tirar o `.catch(rethrowItemsOffShapeViolation)`) → `4 pass, 1 fail`, mesma falha.
+
+### 3. Fallback para estado impossível (`itemsMode ?? 'optional'`)
+
+A coluna `items_mode` é `NOT NULL`, mas o tipo de aplicação `OccurrenceTypeRecord.itemsMode` é opcional para os
+dublês de teste. Tornar o campo obrigatório quebrou o typecheck em 24 pontos de 20 arquivos de teste (medido e
+revertido), diferença grande demais para uma correção de revisão e o mesmo desenho de `attachmentMode`. **Nada foi
+removido**; os três fallbacks existentes lidam com o `?` do tipo (e, no cadastro, com `stored === null` na
+criação, onde o padrão da coluna é `optional`) e o comentário de `FieldOccurrenceType.itemsMode`, que dizia "linha
+legada", agora diz a razão verdadeira.
+
+### 4. Literais repetidos viram `OCCURRENCE_ITEMS_MODE` (§16)
+
+`OCCURRENCE_ITEMS_MODE = { off, optional }` em `src/shared/trip-occurrence.constant.ts` (escopo entre módulos),
+importado por: `list-field-occurrence-types.use-case.ts`, `save-occurrence-type.use-case.ts`,
+`local-occurrence-type-seed.service.ts`, `occurrence-type-catalog.constant.ts`, `occurrence-items-mode.policy.ts`,
+`occurrence.schema.ts` (`WRITABLE_ITEMS_MODES`) e o `.default(...)` da coluna em `trip.schema.ts`. O vocabulário
+completo segue sendo `DELIVERY_PROOF_FIELD_MODES`. Fora: o literal dentro do `sql` da CHECK (`<> 'off'`), que é
+SQL do migration e não ganha nada interpolado. Sem mudança de comportamento: `bun run typecheck` limpo,
+`db:generate` = `no_changes`.

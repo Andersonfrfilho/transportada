@@ -12,6 +12,7 @@ import {
 } from '../domain/trip.error.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
+import { OCCURRENCE_ITEMS_MODE } from '../../shared/trip-occurrence.constant.js'
 import type {
   OccurrenceTypeFlow,
   TripOccurrenceStage,
@@ -124,9 +125,9 @@ async function assertItemsOffHasNoRedeliveryPolicy(
     ? await input.findCurrentType({ companyId: input.companyId, occurrenceTypeId })
     : null
 
-  const resultingItemsMode = itemsMode ?? stored?.itemsMode ?? 'optional'
+  const resultingItemsMode = itemsMode ?? stored?.itemsMode ?? OCCURRENCE_ITEMS_MODE.optional
   const resultingPolicy = redeliveryPolicy ?? stored?.redeliveryPolicy ?? 'unset'
-  if (resultingItemsMode === 'off' && resultingPolicy !== 'unset') {
+  if (resultingItemsMode === OCCURRENCE_ITEMS_MODE.off && resultingPolicy !== 'unset') {
     throw new OccurrenceTypeItemsOffRedeliveryPolicyError()
   }
 }

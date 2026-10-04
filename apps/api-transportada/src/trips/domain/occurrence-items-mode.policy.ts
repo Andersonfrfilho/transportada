@@ -5,6 +5,7 @@
  * da linha da empresa — nunca do que o cliente diz. Lista vazia vale em qualquer tipo.
  */
 import type { DeliveryProofFieldMode } from './delivery-proof-settings.policy.js'
+import { OCCURRENCE_ITEMS_MODE } from '../../shared/trip-occurrence.constant.js'
 import { OccurrenceTypeItemsNotAllowedError } from './trip.error.js'
 
 export type AssertOccurrenceTypeAcceptsProductsParams = {
@@ -17,7 +18,7 @@ export type AssertOccurrenceTypeAcceptsProductsParams = {
 export function assertOccurrenceTypeAcceptsProducts(
   params: AssertOccurrenceTypeAcceptsProductsParams,
 ): void {
-  if (params.itemsMode !== 'off') return
+  if (params.itemsMode !== OCCURRENCE_ITEMS_MODE.off) return
 
   const hasProduct = params.productCode.trim() !== '' || (params.productCodes ?? []).length > 0
   if (hasProduct) throw new OccurrenceTypeItemsNotAllowedError()

@@ -10,6 +10,7 @@
  */
 import type { DeliveryProofFieldMode } from '../database/company-delivery-proof-settings.schema.js'
 import {
+  OCCURRENCE_ITEMS_MODE,
   TRIP_OCCURRENCE_STAGE,
   TRIP_OCCURRENCE_TYPES,
   type TripOccurrenceStage,
@@ -38,7 +39,7 @@ const DERIVED_OCCURRENCE_TYPE_CATALOG: readonly OccurrenceTypeCatalogEntry[] =
       throw new Error(`Occurrence type catalog lacks a pt-BR label for ${entry.type}`)
     }
 
-    return { itemsMode: 'optional', name, stage: entry.stage }
+    return { itemsMode: OCCURRENCE_ITEMS_MODE.optional, name, stage: entry.stage }
   })
 
 /** A migration de `items_mode` casa o tipo da segunda via por este nome exato — renomeado, fica de fora. */
@@ -62,12 +63,12 @@ export const BILL_EXTENSION_OCCURRENCE_TYPE_NAME = 'Cliente pediu prorrogação 
 export const OCCURRENCE_TYPE_CATALOG: readonly OccurrenceTypeCatalogEntry[] = [
   ...DERIVED_OCCURRENCE_TYPE_CATALOG,
   {
-    itemsMode: 'off',
+    itemsMode: OCCURRENCE_ITEMS_MODE.off,
     name: SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME,
     stage: TRIP_OCCURRENCE_STAGE.delivery,
   },
   {
-    itemsMode: 'off',
+    itemsMode: OCCURRENCE_ITEMS_MODE.off,
     name: BILL_EXTENSION_OCCURRENCE_TYPE_NAME,
     stage: TRIP_OCCURRENCE_STAGE.delivery,
   },

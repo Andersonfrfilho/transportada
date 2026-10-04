@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import {
+  OCCURRENCE_ITEMS_MODE,
   OCCURRENCE_TYPE_FLOWS,
   OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK,
   TRIP_OCCURRENCE_STAGE,
@@ -2623,7 +2624,7 @@ export const companyOccurrenceTypes = pgTable(
     itemsMode: varchar('items_mode', { length: 16 })
       .$type<DeliveryProofFieldMode>()
       .notNull()
-      .default('optional'),
+      .default(OCCURRENCE_ITEMS_MODE.optional),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

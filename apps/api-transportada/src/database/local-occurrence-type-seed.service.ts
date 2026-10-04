@@ -17,6 +17,7 @@ import { companies } from './identity.schema.js'
 import { companyOccurrenceTypes } from './trip.schema.js'
 import type { RedeliveryPolicy } from './trip.schema.js'
 import { saveOccurrenceType } from '../trips/infrastructure/delivery-proof-read.support.js'
+import { OCCURRENCE_ITEMS_MODE } from '../shared/trip-occurrence.constant.js'
 import type { TripOccurrenceStage } from '../shared/trip-occurrence.constant.js'
 
 /**
@@ -73,7 +74,7 @@ async function seedOccurrenceTypes(): Promise<void> {
         emailSubject: '',
         emailTemplateKey: null,
         /** Spec 241: só na criação — reescrever o modo de um tipo que o operador mudou apagaria a escolha dele. */
-        itemsMode: existente === undefined ? 'optional' : undefined,
+        itemsMode: existente === undefined ? OCCURRENCE_ITEMS_MODE.optional : undefined,
         name: tipo.name,
         notifies: false,
         occurrenceTypeId: existente?.id ?? null,

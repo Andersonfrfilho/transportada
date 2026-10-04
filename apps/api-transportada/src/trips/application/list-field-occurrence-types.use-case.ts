@@ -11,7 +11,10 @@
  * único ponto de leitura, reaproveitado pelo motorista (`me-trip.routes.ts`) e pelo escritório
  * (`trip-field-office-occurrence.routes.ts`), então as duas rotas ganham a exceção de uma vez.
  */
-import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
+import {
+  OCCURRENCE_ITEMS_MODE,
+  TRIP_OCCURRENCE_STAGE,
+} from '../../shared/trip-occurrence.constant.js'
 import type { OccurrenceTypeFlow } from '../../shared/trip-occurrence.constant.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import { resolveOccurrenceAttachmentModeForRecipient } from '../domain/occurrence-attachment-overrides.policy.js'
@@ -39,8 +42,9 @@ export type FieldOccurrenceType = {
   readonly flow: OccurrenceTypeFlow
   readonly id: string
   /**
-   * Spec 241 (RF5): se o tipo carrega produtos. Ausente na linha legada lê `optional`, o
-   * comportamento de antes da coluna. O app do motorista ignora o campo (guard tolerante).
+   * Spec 241 (RF5): se o tipo carrega produtos. A coluna é `NOT NULL`; o `?? optional` abaixo
+   * só existe porque `OccurrenceTypeRecord.itemsMode` é opcional para os dublês de teste. O app do
+   * motorista ignora o campo (guard tolerante).
    */
   readonly itemsMode: DeliveryProofFieldMode
   readonly name: string
@@ -131,7 +135,7 @@ export function resolveFieldOccurrenceTypes(
       attachmentMode: type.attachmentMode ?? 'off',
       flow: type.flow ?? 'document',
       id: type.id,
-      itemsMode: type.itemsMode ?? 'optional',
+      itemsMode: type.itemsMode ?? OCCURRENCE_ITEMS_MODE.optional,
       name: type.name,
       stopKind: resolveFieldStopKind(type),
     }))
@@ -161,7 +165,7 @@ export function resolveFieldOccurrenceTypes(
       }),
       flow: type.flow ?? 'document',
       id: type.id,
-      itemsMode: type.itemsMode ?? 'optional',
+      itemsMode: type.itemsMode ?? OCCURRENCE_ITEMS_MODE.optional,
       name: type.name,
       stopKind: resolveFieldStopKind(type),
     }

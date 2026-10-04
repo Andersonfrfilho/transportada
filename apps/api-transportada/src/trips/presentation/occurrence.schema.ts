@@ -11,7 +11,10 @@ import { buildTaxIdSchema } from '../../shared/tax-id.schema.js'
 import type { ReportedLocation } from '../application/driver-field-report.port.js'
 import { locationSchema, toReportedLocation } from './reported-location.schema.js'
 import { TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
-import { OCCURRENCE_TYPE_FLOWS } from '../../shared/trip-occurrence.constant.js'
+import {
+  OCCURRENCE_ITEMS_MODE,
+  OCCURRENCE_TYPE_FLOWS,
+} from '../../shared/trip-occurrence.constant.js'
 import { DELIVERY_PROOF_FIELD_MODES } from '../domain/delivery-proof-settings.policy.js'
 import { unknownTemplatePlaceholders } from '../domain/occurrence-template.policy.js'
 import {
@@ -282,7 +285,7 @@ export async function parseAttachOccurrencePhotoRequest(
  * `companyId` vindo do cliente.
  */
 /** Spec 241 (RF4): `required` só entra com a 239 (`items_minimum_count`). */
-const WRITABLE_ITEMS_MODES = ['off', 'optional'] as const
+const WRITABLE_ITEMS_MODES = [OCCURRENCE_ITEMS_MODE.off, OCCURRENCE_ITEMS_MODE.optional] as const
 
 const occurrenceTypeSchema = z
   .object({
