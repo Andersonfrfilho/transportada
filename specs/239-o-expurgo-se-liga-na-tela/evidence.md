@@ -773,3 +773,25 @@ Gates (`apps/frontend-transportada`): `bun run typecheck` limpo; `bun run lint` 
 - **Revisão final (opus):** aprovada com pendências; nada bloqueia o push. Achados 4–14 (rótulo “apagar N” com contagem de agora, advisory lock de 32 bits, `Error` cru, fuso da sessão do worker, rate limit do impact, risco de lock em produção, marcar T1.5/T2.4) ficam como pendências declaradas.
 - **Gate A (feito):** `railway variables --service worker --environment staging|production --kv`, contando só a chave `TRIP_LOCATION_PURGE_ENABLED`: ausente nos dois (58 e 57 variáveis lidas). O deploy não desliga o expurgo de nenhum ambiente.
 - **Gate B:** num push único o painel sobe em paralelo ao worker; o pior caso é a tela dizer “ligado” com o worker antigo (variável desligada) sem apagar nada. Ninguém liga o expurgo em staging antes de o `deploy-services (worker)` estar verde.
+
+## Pendências baixas da revisão final (2026-10-03)
+
+Cada item foi conferido no código antes de corrigir; todos se sustentaram.
+
+| #   | Pendência                                               | Tratamento                                                                                                                                                                                                                                                                                         |
+| --- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 4   | Botão "apagar N" com a contagem de agora                | A contagem é piso (o primeiro ciclo roda após as 24 h e apaga o que vencer até lá). Botão: "Ligar e apagar ao menos N pontos" (`locationRetention.confirm.atLeastCount`, pt-BR e en); o "mais de 100 mil" já era piso. Intro do diálogo diz que o que vencer até lá soma. Contrato da API intacto. |
+| 5   | `Promise.all` das cinco contagens (impact)              | **Decisão registrada: fail-closed.** Ação destrutiva não se confirma às cegas: se uma contagem falha, o diálogo mostra o erro e o botão fica desabilitado (já coberto por "contagem que falha não deixa confirmar às cegas"). Não mudado; sequenciar só somaria latência.                          |
+| 6   | `hashtext(companyId)` (32 bits, sem prefixo)            | `acquireLocationRetentionLock` (chave SHA-256 de 64 bits de `['location-retention', companyId]`), no `drizzle-company-settings.support.ts`. Contrato prova chave de 64 bits, distinta por empresa e distinta do lock `company-settings` da mesma empresa.                                          |
+| 7   | `throw new Error('..._UPSERT_RETURNED_NOTHING')`        | `CompanySettingsPersistenceError` com `locationRetentionNotPersisted` (precedente do módulo; mensagem do catálogo, sem dado). Contrato do descritor de log.                                                                                                                                        |
+| 8   | `timestamptz - make_interval` depende do fuso da sessão | `main.ts` do worker abre a conexão com `TimeZone: 'UTC'` (o teste de integração já usava). Contrato captura as opções do `createDatabase`.                                                                                                                                                         |
+| 9   | `companies` igual a 3 no teste de integração            | Piso (`>= 3`) em `companies` e por tabela; o estado de cada linha semeada, conferido adiante, prova o corte exato destas empresas.                                                                                                                                                                 |
+| 11  | Rate limit da rota `impact`                             | `rateLimit` no Postgres, escopo `location-retention-impact`, 30 por 300 s (balde `companyId:userId`). Entrou na lista de `rate-limited-routes.contract.test.ts`.                                                                                                                                   |
+| 14  | Estado "aguardando" não virava "ligado" sozinho         | `useLocationRetentionPanel` agenda um `setTimeout` para `purgeEffectiveAt` (limpo no cleanup, teto de 2^31-1 ms que reagenda). Contrato do painel montado com o relógio avançado.                                                                                                                  |
+
+### Ficam como follow-up (não tratados aqui)
+
+- Migration `DROP INDEX` dos cinco `*_located_<tempo>_idx` (exige migration e plano de rollback).
+- Justiça entre empresas no `LIMIT` do ciclo do expurgo.
+- B10: contratos de texto da revisão.
+- #10 e #12 da revisão final.

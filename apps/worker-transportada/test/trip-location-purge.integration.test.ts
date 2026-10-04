@@ -848,11 +848,15 @@ describeDatabase('expurgo por empresa, nas cinco tabelas (spec 239 CA6)', () => 
 
     expect(result.outcome).toBe('succeeded')
     const cycle = infoLogs.find((metadata) => 'redactedByTable' in metadata)
-    expect(cycle?.companies).toBe(3)
-    // A (31 d), E (91 d) e F (100 d): uma linha por tabela cada
-    expect(cycle?.redactedByTable).toEqual(
-      Object.fromEntries(POSITIONED_TABLES.map((table) => [table, 3])),
-    )
+    // Piso, não igualdade: banco compartilhado pode ter outra empresa elegível. O estado de cada
+    // linha semeada, conferido abaixo, é o que prova o corte exato destas empresas.
+    expect(Number(cycle?.companies)).toBeGreaterThanOrEqual(3)
+    // A (31 d), E (91 d) e F (100 d): ao menos uma linha por tabela cada
+    for (const table of POSITIONED_TABLES) {
+      expect(
+        Number((cycle?.redactedByTable as Record<string, number>)[table]),
+      ).toBeGreaterThanOrEqual(3)
+    }
     expect(JSON.stringify(infoLogs)).not.toContain('retentionDays')
 
     let checkedRows = 0
