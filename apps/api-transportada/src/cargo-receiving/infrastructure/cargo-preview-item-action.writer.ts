@@ -26,6 +26,7 @@ import {
   releaseDocumentIfUnused,
 } from './cargo-preview-link.writer.js'
 import { insertOperatorEvents } from './cargo-preview-persistence.support.js'
+import { applyUnlinkSideEffects } from './cargo-preview-unlink.writer.js'
 
 export type LockedPreviewItem = {
   readonly id: string
@@ -39,6 +40,7 @@ export type ApplyItemActionInput = {
   readonly actorUserId: string
   readonly companyId: string
   readonly contractorId: string
+  readonly correlationId: string
   readonly documentId: string | null
   readonly item: LockedPreviewItem
   readonly now: Date
@@ -137,6 +139,7 @@ export async function applyDecidedItemAction(
   const released = isUnlink ? input.item.matchedDocumentId : null
   if (released !== null) {
     await releaseDocumentIfUnused(transaction, { ...input, documentId: released })
+    await applyUnlinkSideEffects(transaction, { ...input, documentId: released, itemIds: groupIds })
   }
   await insertOperatorEvents(
     transaction,

@@ -57,6 +57,7 @@ export async function seedReadyPreview(
 type SeedItem = {
   readonly documentId?: string
   readonly previewId: string
+  readonly recipientCode?: string
   readonly rowNumber: number
   readonly state: 'ambiguous' | 'awaiting_xml' | 'matched' | 'suggested'
   readonly suggestedDocumentId?: string
@@ -90,6 +91,7 @@ export async function seedPreviewItem(database: TestDatabase, item: SeedItem): P
     matchState: item.state,
     matchedDocumentId: item.state === 'matched' ? (item.documentId ?? null) : null,
     previewId: item.previewId,
+    recipientCode: item.recipientCode ?? null,
     routeName: 'FR.S.CAR',
     rowNumber: item.rowNumber,
     value: '100.00',

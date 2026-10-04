@@ -91,6 +91,7 @@ export type SeedDocumentParams = {
   readonly emitterTaxId?: string
   readonly issuedAt?: Date
   readonly number: string
+  readonly recipientTaxId?: string
 }
 
 /** Uma NF-e autorizada com emitente, destinatário e o endereço dele. */
@@ -148,7 +149,14 @@ export async function seedIssuedDocument(
   })
   await database.db.insert(nfeParticipants).values([
     { companyId, documentId, role: 'emitter', taxId: params.emitterTaxId ?? ISSUER_TAX_ID },
-    { companyId, documentId, id: recipientId, legalName: 'Destinatário Teste', role: 'recipient' },
+    {
+      companyId,
+      documentId,
+      id: recipientId,
+      legalName: 'Destinatário Teste',
+      role: 'recipient',
+      taxId: params.recipientTaxId ?? null,
+    },
   ])
   await database.db.insert(nfeAddresses).values({
     city: 'Cidade Teste',

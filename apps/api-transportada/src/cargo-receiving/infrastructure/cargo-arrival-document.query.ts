@@ -15,7 +15,7 @@ import { tripDocuments } from '../../database/trip.schema.js'
 import type { Database } from './cargo-arrival-persistence.support.js'
 
 const EMITTER_ROLE = 'emitter'
-const RECIPIENT_ROLE = 'recipient'
+export const RECIPIENT_ROLE = 'recipient'
 const AUTHORIZED_STATUS = 'authorized'
 const IBGE_CITY_CODE = /^[0-9]{7}$/
 
