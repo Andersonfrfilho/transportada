@@ -53,6 +53,10 @@
       `Company` ↔ CNPJ; vínculo manual; **reavaliação dos itens `awaiting_xml` a cada XML importado**.
       Contrato em tabela **antes**, com fixtures **anonimizadas** (inclusive roteiro de 20 linhas para 16
       notas); mutação.
+      _(Parte A feita em 2026-10-04: leitor `parseCargoPreviewWorkbook` e política
+      `resolveCargoPreviewMatches`, domínio puro, com corpus anonimizado e mutação — `evidence.md`. Falta a
+      parte B: migration, rota, reavaliação a cada XML e vínculo manual. ⚠️ O perfil FR precisa de
+      `weight_tolerance_percent = 0.05`.)_
 - [ ] **T4.3a** _(opcional)_ Se o contratante passar a escrever o número dele nas informações adicionais da
       NF-e, lê-lo no importador e usá-lo como chave exata.
 - [ ] **T4.4** Tela de prévias no painel: itens esperados × vinculados × ambíguos × com erro, "esperando o

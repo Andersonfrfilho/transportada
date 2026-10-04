@@ -126,6 +126,22 @@ NF junta vários pedidos do mesmo cliente). Veredito por linha `matched | ambigu
 awaiting_xml | invalid`, sempre corrigível pelo operador. O vínculo é **assíncrono**: nasce quando o XML
 é importado, porque a prévia chega antes da emissão.
 
+**Medido na T4.3 (corpus real anonimizado), e o que isso corrige:**
+
+- **O peso não é exato ao grama.** `PESO TOTAL` e `pesoB` divergem em até **5 g** (arredondamento; pior
+  caso 0,0321%, em 15,6 kg). Com `weight_tolerance_percent = 0`, metade das linhas fecha só pelo valor e
+  vira `suggested`; com **0,05** fecham 180 de 187 (FR-24-09) e 97 de 107 (FR-28-09). A tabela do §2
+  ("`0` porque o peso medido é exato") estava errada para este contratante: o perfil FR leva `0.05`. Mudar
+  o padrão da coluna, ou trocar por tolerância absoluta em gramas, é migration — fica para a parte B.
+- **O par roteiro ↔ carga também nasce pelos votos**, não só pelos totais: com o XML chegando aos
+  poucos (o fluxo principal), os totais só fecham no fim, e as linhas que já fecham sozinhas numa nota da
+  carga bastam para parear. Empate de escore não pareia.
+- **Nota disputada na mesma passada é ambígua para todos que a disputam** (1:1), e linha de roteiro
+  pareado só pega, fora do grupo, nota sem `NroCarga`.
+- **Acima de 6 linhas do mesmo cliente** (`MAX_PARTITION_LINES`; o medido é ≤ 3) não há partição: só 1
+  linha ↔ 1 nota; o que dependeria de soma fica esperando ou sugerido. A busca tem teto de 5 000 nós e
+  de 64 soluções ótimas: estourou, é `ambiguous` — nunca trava.
+
 ### 5. Ler e gravar o perfil
 
 `GET /contractors/:id/receiving-profile` devolve `{ data: null }` (200) para contratante sem perfil (e a
@@ -199,7 +215,7 @@ nova** entra no `bun.lock`.
 | strings compartilhadas               | 200 000                                              | 492–802                                 | `PREVIEW_TOO_MANY_STRINGS` |
 | texto de uma célula                  | 32 767 (o do Excel)                                  | ≤ 49                                    | `PREVIEW_CELL_TOO_LONG`    |
 | última linha com dado                | 20 000                                               | 127–220 (de 13 792 reservadas)          | `PREVIEW_TOO_MANY_ROWS`    |
-| orçamento de tempo                   | 5 000 ms                                             | ver `evidence.md` T4.3                  | `PREVIEW_PARSE_TIMEOUT`    |
+| orçamento de tempo                   | 5 000 ms                                             | 45–70 ms por planilha                   | `PREVIEW_PARSE_TIMEOUT`    |
 
 Falta de aba (`PREVIEW_SHEET_NOT_FOUND`) e de coluna mapeada (`PREVIEW_COLUMN_NOT_FOUND`, com o nome,
 todas de uma vez) recusam a planilha; coluna repetida no cabeçalho é `PREVIEW_COLUMN_DUPLICATED`,
@@ -217,7 +233,7 @@ porque escolher uma em silêncio é dado trocado. Erro de **linha** nunca recusa
 As duas bibliotecas estão nas versões que fecham os avisos publicados: `fflate` 0.8.3 corrige o laço
 infinito do `unzipSync` com ZIP64 malformado (GHSA-px8p-9vwx-vf98; o leitor nem usa `unzipSync` e
 recusa ZIP64) e `fast-xml-parser` 5.10.1 corrige a expansão de entidade com `DOCTYPE` repetido
-(GHSA-8r6m-32jq-jx6q; o leitor recusa `DOCTYPE` antes do parse). O custo aceito é manter ~400 linhas de leitor; o ganho é que cada teto é uma constante nomeada,
+(GHSA-8r6m-32jq-jx6q; o leitor recusa `DOCTYPE` antes do parse). O custo aceito é manter ~1 100 linhas de leitor; o ganho é que cada teto é uma constante nomeada,
 testada e provada por mutação, e que nada além das quatro entradas é sequer descomprimido.
 
 ## Consequências

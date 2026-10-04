@@ -2521,3 +2521,43 @@ CARGO_ARRIVAL_HAS_PENDING_DOCUMENTS` com a lista; fechar de novo é `unchanged`)
 - **Follow-ups:** a cidade do grupo vem do destinatário (`<enderDest>`), não do seam
   `resolvePhysicalDestination` (`<entrega>`); corrida aceita — a nota pode entrar numa viagem entre a
   checagem e o commit da chegada (a leitura mostra "já em viagem").
+
+## Spec 237 — Fase 4a, parte A: o leitor da planilha e a política de vínculo (T4.1, núcleo de T4.3)
+
+Tudo em `src/cargo-receiving/domain/`, **sem I/O**: bytes, relógio (`clock`) e tetos entram por
+parâmetro. Ainda **não há** migration, rota, fila nem worker (parte B).
+
+- **Leitor** `parseCargoPreviewWorkbook({ bytes, clock, columnMap, sheetName, limits? })` →
+  `{ rows, rowErrors }` (ADR-0094 §7). Sobre `fflate` + `fast-xml-parser`, já dependências da API. O
+  diretório central do zip é lido pelo leitor (`cargo-preview-zip.parser.ts`), não pelo `unzipSync`; só
+  `workbook.xml`, `_rels/workbook.xml.rels`, `sharedStrings.xml` e a aba escolhida são descomprimidos, em
+  fatias de 4 KiB contadas — **`vbaProject.bin` e a aba `RESULTADO` nunca**. `DOCTYPE`/`ENTITY` recusados
+  antes do parse; fórmula nunca avaliada (vale o `<v>`); célula `t="e"` (`#NAME?`) é ausência. A aba é
+  varrida por linha: só linha com `<v>`/`<is>` passa pelo parser (a aba inteira custaria 237 ms e 80 MB;
+  o leitor mede 45–70 ms nas quatro FR reais). Tetos em `CARGO_PREVIEW_WORKBOOK_LIMITS` e códigos
+  `PREVIEW_*` em `cargo-preview-workbook.constant.ts`; `CargoPreviewWorkbookError` (413 para arquivo
+  grande, 422 para o resto).
+- **Coluna por NOME** (`cargo-preview-header.policy.ts`, mesma normalização do perfil): cabeçalho = a
+  primeira linha entre as 20 primeiras com mais colunas mapeadas; toda coluna mapeada ausente sai junta
+  em `PREVIEW_COLUMN_NOT_FOUND`; repetida é `PREVIEW_COLUMN_DUPLICATED`. Linha vazia e cabeçalho de rota
+  (só rota e data) ignorados; erro de linha vira `rowErrors[{ rowNumber, field, column, message }]`.
+- **Normalização** (`cargo-preview-value.policy.ts`): decimal em `bigint` (`138.69999999999999` →
+  `138.700`; `value` 2 casas, `weightKg` 3, `volumeM3` 4), vírgula ou ponto em texto (os dois juntos é
+  erro), expoente só em célula numérica, negativo é erro; serial do Excel com o 29/02/1900 (60 é
+  inválido); CEP com 7–8 dígitos (o zero da frente volta); cidade/UF sem acento e caixa alta.
+- **Política** `resolveCargoPreviewMatches` (RF5a): nível 1 `pairRoutesWithLoads` (pares conhecidos,
+  depois totais + votos + contagem, guloso 1:1, empate não pareia); níveis 2–3 `matchScope` em passadas
+  alias → CEP/razão social → qualquer nota → só valor (`suggested`); partição de até 6 linhas por
+  cliente (`MAX_PARTITION_LINES`), busca com teto de nós e de soluções (estourou: `ambiguous`). Nota
+  disputada por dois clientes na mesma passada fica `ambiguous` para os dois. Linha de roteiro pareado
+  só pega, fora do grupo, nota **sem** carga. Alias aprendido só de `matched`, sem conflito, nunca o já
+  conhecido. `extractLoadReference` refiltra o padrão, corta o `infCpl` em 2 000 e nunca lança.
+- ⚠️ **O peso NÃO é exato ao grama**: medido no corpus, `PESO TOTAL` × `pesoB` diverge em até 5 g
+  (arredondamento; 0,0321% no pior caso). Com `weight_tolerance_percent = 0` (padrão do perfil), metade
+  das linhas vira `suggested`; com **0,05** fecham 180/187 e 97/107. O perfil FR precisa de 0,05.
+- Contratos: `test/cargo-receiving/cargo-preview-{workbook-safety,workbook-rows,matching-levels,
+matching-rules,matching-scale,corpus,corpus-pii}.contract.ts` no entrypoint
+  `cargo-receiving.contract.test.ts`; construtor sintético em
+  `test/fixtures/cargo-preview-{workbook,xml,zip}.fixture.ts`; corpus anonimizado em
+  `test/fixtures/cargo-preview-corpus/`. A checagem de PII contra os arquivos reais roda com
+  `CARGO_PREVIEW_PII_WORKBOOK_DIR` e `CARGO_PREVIEW_PII_NFE_DIR` (no CI, pulada de propósito).

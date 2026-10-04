@@ -594,3 +594,86 @@ maintainers dependencies`): `fflate` 0.8.3 (101arrowz, github.com/101arrowz/ffla
   80 MB de heap**; com 30 MiB seriam ~9×. Inflar 200 MiB de zeros em fatias de 4 KiB parou em 33,5 MB
   em 195 ms (o teto funciona sem decodificar o resto).
 - Tetos finais e erros tipados: tabela do ADR-0094 §7.
+
+## T4.3 (parte A, núcleo puro) — leitor da planilha e política de vínculo (2026-10-04)
+
+Só domínio puro em `apps/api-transportada/src/cargo-receiving/domain/` (sem I/O; relógio e tetos por
+parâmetro). **Não fecha a T4.3**: faltam a migration, a rota de upload, a reavaliação dos `awaiting_xml`
+a cada XML importado e o vínculo manual (parte B).
+
+- **Contrato antes, vermelho pelo motivo certo:** leitor — `Cannot find module
+'../../src/cargo-receiving/domain/cargo-preview-workbook.error.js'` (0 pass, 2 fail); política —
+  `Cannot find module '…/cargo-preview-matching.policy.js'` e `…/cargo-preview-matching.constant.js` (0 pass,
+  3 fail). Suítes no entrypoint `test/cargo-receiving.contract.test.ts`, que o `test` do `package.json` já
+  lista (o `package.json` não mudou).
+- **Leitor contra as quatro planilhas reais** (fora do repositório): FR-24-09 **187** linhas, FR-28-09
+  **107**, FR-01-10 **191**, FR-05-10 **194**, **0** `rowErrors`, 10/8/12/11 roteiros, datas
+  2026-09-23/25/30 e 2026-10-02; **45–70 ms** por planilha (5 rodadas). Valor, peso, volume, cidade, UF,
+  rota e data **iguais linha a linha** (294/294) ao leitor independente em Python com `Decimal`.
+- **Corpus anonimizado** (`test/fixtures/cargo-preview-corpus/`, gerado fora do repositório): razão social
+  → `Destinatário NNN`, CEP → `00NNNNNN` (faixa sem uso), CNPJ/CPF → `990000NNNNNNNN`, `Company` → `10NNN`,
+  `Text001` → `50NNNN`, `nNF` → `1NNNNN`; endereço e bairro fora; igualdade preservada. Ficam roteiro,
+  valor, peso, volume, cidade, `NroCarga` e datas.
+- **Taxas no corpus** (notas do mesmo dia do roteiro; tolerância de peso 0,05%):
+
+  | Medida                                                             | FR-24-09 (187)         | FR-28-09 (107)         |
+  | ------------------------------------------------------------------ | ---------------------- | ---------------------- |
+  | por linha isolada: valor + peso → 1 nota                           | 146 (78%)              | 91 (85%)               |
+  | por linha isolada: valor + CEP → 1 nota                            | 139 (74%)              | 96 (90%)               |
+  | **política: `matched`**                                            | **180 (96%)**          | **97 (91%)**           |
+  | `suggested` / `ambiguous` / `awaiting_xml`                         | 5 / 0 / 2              | 6 / 2 / 2              |
+  | clientes (rota × código) com todas as linhas fechadas              | 158/165 (96%)          | 94/104 (90%)           |
+  | idem, nos roteiros cujos totais fecham                             | **60/60** (5 roteiros) | **57/58** (5 roteiros) |
+  | clientes com 2–3 linhas numa nota                                  | 19/19                  | 3/3                    |
+  | pares roteiro ↔ carga                                             | 10 (5 totais, 5 votos) | 8 (5 totais, 3 votos)  |
+  | aliases aprendidos (0 conflito; 21 códigos voltam no dia seguinte) | 158                    | 94                     |
+  | tempo da política                                                  | 2–9 ms                 | 1–2 ms                 |
+
+  FR.BARRI: **20 linhas → 16 notas**, mesmo valor total, todas vinculadas. Os `suggested` são peso
+  realmente diferente (ex.: 47,610 × 27,212 kg) com valor, CEP e razão social iguais; os 2 `ambiguous` são
+  dois clientes com 2.948,40 / 238,000 e duas notas idênticas na mesma carga (sem alias, empate de
+  verdade); os `awaiting_xml` não têm nota com o mesmo valor.
+
+- ⚠️ **O peso não é exato** (contradiz a tabela do ADR-0094 §2 e o "ao grama" do RF5a): diferença de até
+  **5 g** (pior caso 0,0321%). Com a tolerância **0** (padrão do perfil): FR-24-09 **89** `matched` e 96
+  `suggested`; clientes 78/165. O perfil FR precisa de `weight_tolerance_percent = 0.05` (0,02 já fecha a
+  FR-24-09). Registrado no ADR-0094 §4.
+- **Escala:** 300 linhas × 300 notas em **17 ms** com carga e **15 ms** sem (teto do contrato: 1 s).
+- **Prova de ausência de PII:** a forma anonimizada é conferida sempre (CI). Contra os arquivos reais
+  (`CARGO_PREVIEW_PII_WORKBOOK_DIR=~/Downloads CARGO_PREVIEW_PII_NFE_DIR=~/Downloads/ID1026570_procNFe_parte1`):
+  **0** razão social/endereço, **0** CNPJ/CEP, **0** código/pedido/número reais nos arquivos novos (2 pass).
+  Sem as variáveis: 1 pass, 1 skip. Injetar um CNPJ, uma razão social ou um CEP real no corpus derruba o
+  teste (1 fail cada; restaurado).
+- **Mutações** (script fora do repositório, restauração automática; `src` limpo depois):
+
+  | Leitor                                    | Vermelho | Política                                   | Vermelho  |
+  | ----------------------------------------- | -------- | ------------------------------------------ | --------- |
+  | ignorar o teto contado da descompressão   | 1 fail   | tirar o 1:1 (nota disputada)               | 3 fail    |
+  | ignorar o teto declarado por entrada      | 3 fail   | nota em dois grupos (passada reusa a nota) | 3 fail    |
+  | ignorar o teto total                      | 1 fail   | soma aproximada (±1 centavo)               | 2 fail    |
+  | ler a macro (`vbaProject.bin`)            | 2 fail   | pular o alias                              | 1 fail    |
+  | sem conferir bytes mágicos (poliglota)    | 1 fail   | ordem instável dos ids candidatos          | 1 fail    |
+  | sem teto de entradas                      | 1 fail   | empate de roteiro pareia mesmo assim       | 1 fail    |
+  | aceitar caminho com `..` (zip-slip)       | 5 fail   | ignorar os pares já conhecidos             | 1 fail    |
+  | aceitar `DOCTYPE`                         | 1 fail   | peso não exigido para `matched`            | 6 fail    |
+  | sem teto de linhas                        | 1 fail   | só valor vira `matched`                    | 6 fail    |
+  | sem orçamento de tempo                    | 1 fail   | aprender alias de sugestão                 | 1 fail    |
+  | sem teto de strings compartilhadas        | 1 fail   | repetir alias já conhecido                 | 1 fail    |
+  | aceitar valor negativo                    | 4 fail   | sem teto da partição (> 6 linhas)          | 1 fail    |
+  | `#NAME?` como valor                       | 1 fail   | sem teto de nós da busca                   | 1 fail    |
+  | avaliar a fórmula (`<f>` em vez de `<v>`) | 1 fail   | padrão de `NroCarga` sem o filtro          | 4 fail    |
+  | coluna por posição                        | 48 fail  | `infCpl` sem o corte de 2 000              | 1 fail    |
+  | cabeçalho de rota vira item               | 1 fail   | PII: CNPJ / razão social / CEP real        | 1 / 1 / 1 |
+  | sem o 29/02/1900 do Excel                 | 2 fail   |                                            |           |
+
+  Dois mutantes sobreviveram na primeira rodada e mudaram o teste ou o código: `aceitar DOCTYPE` (o teste
+  trocava o `sharedStrings` inteiro e caía por índice fora da faixa — passou a inserir só o `DOCTYPE`) e
+  `sem teto de strings` (havia uma segunda conferência depois do parse; ficou uma só, antes, que também
+  conta `<x:si>`). `sem ordenar as notas de entrada` sobreviveu por ser equivalente (toda saída já é
+  ordenada) — a ordenação foi removida. O teto de nós ganhou parâmetro (`maxNodes`) para ser provado.
+
+- **Gates:** `bun run typecheck` ✓ · `bun run lint` ✓ (0 erro, 0 aviso) · contrato
+  `bun --env-file=../../.env.test test --timeout 120000`: antes **9447 pass / 24 skip / 0 fail**, depois
+  **9567 pass / 25 skip / 0 fail** (198 arquivos; o skip novo é a checagem de PII real) · `bun run
+format:check` na raiz ✓ · `bun install --frozen-lockfile` sem mudança. Integração não foi rodada:
+  nada aqui toca banco.
