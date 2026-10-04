@@ -74,9 +74,21 @@ describe('botão Corrigir no detalhe da ocorrência (spec 240 T2.1)', () => {
     expect(readReasonText(markup)).toBe(CANCELLED_REASON)
   })
 
-  test('ocorrência sem itens não tem Corrigir (RF10), mesmo com permissão e janela aberta', () => {
-    const markup = render(buildOccurrenceDetailFixture({ items: [] }))
+  test('tipo off sem itens não tem Corrigir (spec 241 RF7), mesmo com permissão e janela aberta', () => {
+    const markup = render(buildOccurrenceDetailFixture({ items: [], typeItemsMode: 'off' }))
     expect(markup).not.toContain('Corrigir')
+    expect(markup).toContain('Cancelar ocorrência')
+  })
+
+  test('tipo optional sem itens (a avaria da nota inteira) tem Corrigir e Cancelar', () => {
+    const markup = render(buildOccurrenceDetailFixture({ items: [], typeItemsMode: 'optional' }))
+    expect(markup).toContain('Corrigir')
+    expect(markup).toContain('Cancelar ocorrência')
+  })
+
+  test('resposta sem typeItemsMode (API anterior) lê optional: Corrigir aparece sem itens', () => {
+    const markup = render(buildOccurrenceDetailFixture({ items: [] }))
+    expect(markup).toContain('Corrigir')
     expect(markup).toContain('Cancelar ocorrência')
   })
 
@@ -91,6 +103,7 @@ describe('botão Corrigir no detalhe da ocorrência (spec 240 T2.1)', () => {
           },
         ],
         items: [],
+        typeItemsMode: 'off',
       }),
     )
     expect(markup).toContain('Corrigir')

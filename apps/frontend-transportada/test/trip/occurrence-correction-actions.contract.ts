@@ -35,6 +35,7 @@ const FREE: OccurrenceCorrectionActionsInput = {
   hasItems: true,
   isCancelled: false,
   permissions: [TRIP_MANAGE_PERMISSION],
+  typeItemsMode: 'optional',
   wasCorrected: false,
 }
 
@@ -60,11 +61,11 @@ describe('Corrigir e Cancelar: quando agem e o texto de quando não podem (spec 
   })
 
   test('sem trip.manage nenhum dos dois existe, nem com o motivo', () => {
-    const states = [
+    const states: readonly OccurrenceCorrectionActionsInput[] = [
       FREE,
       withCase('recorded'),
       { ...FREE, isCancelled: true },
-      { ...FREE, hasItems: false },
+      { ...FREE, hasItems: false, typeItemsMode: 'off' },
     ]
     for (const state of states) {
       expect(
@@ -73,8 +74,13 @@ describe('Corrigir e Cancelar: quando agem e o texto de quando não podem (spec 
     }
   })
 
-  test('ocorrência sem itens: Corrigir não existe, Cancelar continua', () => {
-    expect(resolveOccurrenceCorrectionActions({ ...FREE, hasItems: false }, translate)).toEqual({
+  test('tipo off e sem itens: Corrigir não existe, Cancelar continua', () => {
+    expect(
+      resolveOccurrenceCorrectionActions(
+        { ...FREE, hasItems: false, typeItemsMode: 'off' },
+        translate,
+      ),
+    ).toEqual({
       cancel: { availability: 'enabled' },
       correct: { availability: 'hidden' },
     })
@@ -83,7 +89,7 @@ describe('Corrigir e Cancelar: quando agem e o texto de quando não podem (spec 
   test('sem itens, mas já corrigida (nota inteira escolhida na correção): Corrigir continua', () => {
     expect(
       resolveOccurrenceCorrectionActions(
-        { ...FREE, hasItems: false, wasCorrected: true },
+        { ...FREE, hasItems: false, typeItemsMode: 'off', wasCorrected: true },
         translate,
       ),
     ).toEqual({
@@ -101,9 +107,45 @@ describe('Corrigir e Cancelar: quando agem e o texto de quando não podem (spec 
     }
   })
 
+  /** Spec 241 RF7/CA05: o tipo decide; os itens gravados e a correção são só o resto de antes. */
+  describe('Corrigir por tipo (spec 241 CA05)', () => {
+    const TABLE: readonly (readonly [
+      string,
+      OccurrenceCorrectionActionsInput['typeItemsMode'],
+      boolean,
+      boolean,
+      boolean,
+    ])[] = [
+      [
+        'optional, sem itens, nunca corrigida (a avaria da nota inteira)',
+        'optional',
+        false,
+        false,
+        true,
+      ],
+      ['optional, com itens', 'optional', true, false, true],
+      ['required, sem itens', 'required', false, false, true],
+      ['off, sem itens, nunca corrigida (a prorrogação)', 'off', false, false, false],
+      ['off, com itens gravados antes de o tipo virar off', 'off', true, false, true],
+      ['off, já corrigida', 'off', false, true, true],
+      ['off, com itens e já corrigida', 'off', true, true, true],
+    ]
+
+    for (const [label, typeItemsMode, hasItems, wasCorrected, isShown] of TABLE) {
+      test(`${label}: Corrigir ${isShown ? 'aparece' : 'some'} e Cancelar continua`, () => {
+        const actions = resolveOccurrenceCorrectionActions(
+          { ...FREE, hasItems, typeItemsMode, wasCorrected },
+          translate,
+        )
+        expect(actions.correct.availability).toBe(isShown ? 'enabled' : 'hidden')
+        expect(actions.cancel.availability).toBe('enabled')
+      })
+    }
+  })
+
   test('sem itens e com tratativa aberta: Corrigir segue ausente e Cancelar explica', () => {
     const actions = resolveOccurrenceCorrectionActions(
-      { ...withCase('under_review'), hasItems: false },
+      { ...withCase('under_review'), hasItems: false, typeItemsMode: 'off' },
       translate,
     )
     expect(actions.correct).toEqual({ availability: 'hidden' })

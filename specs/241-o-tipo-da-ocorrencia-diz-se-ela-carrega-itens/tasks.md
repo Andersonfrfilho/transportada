@@ -38,7 +38,7 @@ items_mode` da migration e o default `off` do plano. Se criou com default `off`:
 - [x] **T1.1** Contrato primeiro: os guards aceitam `occurrenceTypeId`, `typeItemsMode`,
       `typeAllowsMultipleItems` e `itemsMode` presentes ou ausentes; ausência lê `optional`/`true`
       (`tripResponse.validation.ts`, `TRIP_OCCURRENCE_OPTIONAL_KEYS`).
-- [ ] **T1.2** Contrato primeiro, depois RF7 em `resolveOccurrenceCorrectionActions` (CA05).
+- [x] **T1.2** Contrato primeiro, depois RF7 em `resolveOccurrenceCorrectionActions` (CA05).
 - [ ] **T1.3** Mutação: voltar o RF7 para `hasItems || wasCorrected` deixa o contrato da T1.2
       vermelho. Colar a execução.
 - [ ] **T1.4** RF8: registro esconde produtos e quantidades em tipo `off` e limpa a seleção ao trocar

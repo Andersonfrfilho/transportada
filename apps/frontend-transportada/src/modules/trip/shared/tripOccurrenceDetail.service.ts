@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
+import type { OccurrenceItemsMode } from './occurrence.constant'
 import { TRIP_MANAGE_PERMISSION } from './trip.constant'
 import type { OccurrenceCorrection } from './trip.types'
 import type {
@@ -144,10 +145,12 @@ export type OccurrenceCorrectionActionsInput = Readonly<{
     | (Pick<TripOccurrenceCaseView, 'status'> & {
         readonly decision: null | Pick<NonNullable<TripOccurrenceCaseView['decision']>, 'kind'>
       })
-  /** Prorrogação de boleto e afins não tocam a entrega: sem itens, não há o que corrigir. */
+  /** Os itens gravados valem para a ocorrência antiga de um tipo que depois virou `off`. */
   hasItems: boolean
   isCancelled: boolean
   permissions: readonly string[]
+  /** Spec 241 RF7: o tipo diz se a ocorrência carrega itens; a avaria da nota inteira não tem nenhum. */
+  typeItemsMode: OccurrenceItemsMode
   /** Quem já passou por Corrigir (inclusive para "a nota inteira") continua podendo corrigir. */
   wasCorrected: boolean
 }>
@@ -196,5 +199,6 @@ export function resolveOccurrenceCorrectionActions(
   const reason = resolveUnavailableReason(input, t)
   const state: OccurrenceActionState =
     reason === null ? { availability: 'enabled' } : { availability: 'disabled', reason }
-  return { cancel: state, correct: input.hasItems || input.wasCorrected ? state : hidden }
+  const canCorrect = input.typeItemsMode !== 'off' || input.hasItems || input.wasCorrected
+  return { cancel: state, correct: canCorrect ? state : hidden }
 }

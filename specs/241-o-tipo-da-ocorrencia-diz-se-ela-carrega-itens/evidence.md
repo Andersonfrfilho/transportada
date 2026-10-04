@@ -54,3 +54,31 @@ Decisão: `itemsMode` do tipo do cadastro **não** ganha padrão no adaptador (a
 `typeAllowsMultipleItems` ausentes são lidos como `optional`/`true` por quem os usa
 (`DEFAULT_OCCURRENCE_ITEMS_MODE`). `required` é aceito na leitura (vocabulário da coluna) e tratado
 como "carrega itens"; a escrita só aceita `off | optional`.
+
+### T1.2 — RF7 em `resolveOccurrenceCorrectionActions` (CA05)
+
+Contrato primeiro: `test/trip/occurrence-correction-actions.contract.ts` ganhou `typeItemsMode` na
+entrada e o bloco "Corrigir por tipo (spec 241 CA05)" (tabela de sete casos); os testes da 240 que
+dependiam de "sem itens ⇒ sem Corrigir" passaram a declarar `typeItemsMode: 'off'`.
+`test/trip/occurrence-correction-button.contract.tsx` (DOM do componente) ganhou os casos `off`,
+`optional` e resposta sem o campo (API anterior lê `optional`).
+
+Vermelho, antes do código:
+
+```text
+Expected: "enabled"
+Received: "hidden"
+(fail) ... > Corrigir por tipo (spec 241 CA05) > optional, sem itens, nunca corrigida (a avaria da nota inteira): Corrigir aparece e Cancelar continua
+Expected: "enabled"
+Received: "hidden"
+(fail) ... > Corrigir por tipo (spec 241 CA05) > required, sem itens: Corrigir aparece e Cancelar continua
+ 33 pass
+ 2 fail
+```
+
+Implementação: `canCorrect = typeItemsMode !== 'off' || hasItems || wasCorrected`
+(`tripOccurrenceDetail.service.ts`); o componente passa
+`occurrence.typeItemsMode ?? DEFAULT_OCCURRENCE_ITEMS_MODE`.
+
+Verde: `bun run --cwd apps/frontend-transportada test` → 6685 pass + 397 pass (lote DOM), 0 fail;
+`bun run typecheck` sem erros; lint da app 0 erros (16 avisos já existentes).

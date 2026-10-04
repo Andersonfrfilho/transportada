@@ -152,7 +152,11 @@ describe('feed e detalhe: occurrenceTypeId, typeItemsMode, typeAllowsMultipleIte
       const client = createClient(
         Response.json({ data: [buildFeedItem(extra)], pagination: { nextCursor: null } }),
       )
-      await expect(client.listOccurrences(LIST_INPUT)).rejects.toThrow()
+      const outcome = await client.listOccurrences(LIST_INPUT).then(
+        () => 'resolved',
+        () => 'rejected',
+      )
+      expect(outcome).toBe('rejected')
     }
   })
 })
