@@ -1094,3 +1094,15 @@ Conferido no código do painel desta árvore (base `origin/staging` em `11a78cb6
 publicar os dois campos nesta etapa (`null` quando o tipo não é da empresa). Logo, o painel **atual** rejeita a resposta
 da API da etapa 2 na lista da nota. Ordem obrigatória: **etapa 1 (painel tolerante, incluindo `null`) → esperar o
 `autoUpdate` do PWA → etapa 2 (migration + API)**.
+
+### Gates das correções da revisão final (API)
+
+`origin/staging` sem commits novos (rebase sem efeito; sem migration nova, `20261004004602` sem colisão);
+`bun install --frozen-lockfile` sem mudanças. `bun run typecheck` limpo; `bun run format:check` limpo;
+`db:generate` → `no_changes`; contrato da API **9471 pass, 24 skip, 0 fail** (198 arquivos; os 24 skips são os
+mesmos de antes); `make migration-test ENV_FILE=.env.test` → 124 pass, 0 fail. Integração, um arquivo por vez,
+`--env-file=../../.env.test`: `trip-occurrence-type-items-read` 4, `occurrence-type-items-mode` 5,
+`occurrence-type-catalog-seed` 2, `trip-occurrence-correction` (+`-read`) 16, `me-trip` (+`-departure`) 32,
+`occurrence-type-redelivery-policy` 2, `occurrence-type-leaves-document-behind` 4, `trip-occurrence-feed-document` 6,
+`trip-occurrence-feed-case` 2, `trip-occurrence-detail` 6, `trip-occurrence-item-quantity` 5,
+`trip-occurrence-timeline` 3 — todos pass, 0 fail, 0 skip.
