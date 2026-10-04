@@ -15,6 +15,7 @@ const WORKER_DOMAIN = 'src/cargo-receiving/domain'
 const COPIED_DOMAIN_FILES = [
   'arrival-reference-pattern.policy.ts',
   'cargo-preview-cluster-matching.policy.ts',
+  'cargo-preview-free-documents.policy.ts',
   'cargo-preview-header.policy.ts',
   'cargo-preview-match-input.policy.ts',
   'cargo-preview-matching.constant.ts',

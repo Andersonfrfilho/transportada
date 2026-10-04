@@ -13,6 +13,7 @@ import type {
   PreviewToProcess,
 } from '../../src/cargo-preview/application/cargo-preview-worker.port.js'
 import { createInProcessCargoPreviewWorkbookReader } from '../../src/cargo-preview/application/read-cargo-preview-workbook.service.js'
+import { CargoPreviewMatchTimeoutError } from '../../src/cargo-preview/application/cargo-preview-match-timeout.error.js'
 import { CargoPreviewValueOutOfRangeError } from '../../src/cargo-preview/application/cargo-preview-value-out-of-range.error.js'
 import { processCargoPreview } from '../../src/cargo-preview/application/process-cargo-preview.use-case.js'
 import type { PreviewItemsPlan } from '../../src/cargo-preview/domain/cargo-preview-items.policy.js'
@@ -89,11 +90,11 @@ function createFixture(input: {
     async markProcessing() {
       calls.processing += 1
     },
-    reevaluate: async () => ({ aliasConflicts: 0, changedItems: 0, previews: 0 }),
+    reevaluate: async () => ({ aliasConflicts: 0, changedItems: 0, matchTimeouts: 0, previews: 0 }),
     async storeParsed({ plan }) {
       if (input.storeError !== undefined) throw input.storeError
       calls.stored.push(plan)
-      return { aliasConflicts: 0, changedItems: 0, previews: 1 }
+      return { aliasConflicts: 0, changedItems: 0, matchTimeouts: 0, previews: 1 }
     },
   }
   const run = (delivery?: { readonly redelivered: boolean }) =>
@@ -198,6 +199,12 @@ describe('a leitura da prévia no worker (spec 237 T4.3)', () => {
     const { calls, run } = createFixture({ storeError: new CargoPreviewValueOutOfRangeError() })
     expect(await run()).toBe('failed')
     expect(calls.failed).toEqual(['PREVIEW_VALUE_OUT_OF_RANGE'])
+  })
+
+  test('vínculo da prévia nova que passa do orçamento: failed PREVIEW_MATCH_TIMEOUT, sem retry (S2)', async () => {
+    const { calls, run } = createFixture({ storeError: new CargoPreviewMatchTimeoutError() })
+    expect(await run()).toBe('failed')
+    expect(calls.failed).toEqual(['PREVIEW_MATCH_TIMEOUT'])
   })
 
   test('outro erro do banco ao gravar sobe para a fila', async () => {

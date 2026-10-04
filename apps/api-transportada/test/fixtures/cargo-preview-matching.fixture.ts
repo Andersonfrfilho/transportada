@@ -50,6 +50,7 @@ export function matchParams(
   overrides: Partial<ResolveCargoPreviewMatchesParams>,
 ): ResolveCargoPreviewMatchesParams {
   return {
+    budget: { check: () => undefined },
     candidates: [],
     items: [],
     knownAliases: [],

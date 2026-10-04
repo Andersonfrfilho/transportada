@@ -123,6 +123,7 @@ export function resolveCargoPreviewMatches(
   const documents = params.candidates.flatMap((candidate) => toMatchDocument(candidate) ?? [])
   const weightCloses = createWeightCloses(params.weightTolerancePercent)
   const routePairs = pairRoutesWithLoads({
+    budget: params.budget,
     documents,
     knownRoutePairs: params.knownRoutePairs,
     lines,
@@ -132,7 +133,13 @@ export function resolveCargoPreviewMatches(
     params.knownAliases.map((alias) => [alias.recipientCode, alias.recipientTaxId]),
   )
   const state: MatchingState = { decisions: new Map(), takenDocuments: new Set() }
-  matchAllScopes({ base: { aliases, weightCloses }, documents, lines, routePairs, state })
+  matchAllScopes({
+    base: { aliases, budget: params.budget, weightCloses },
+    documents,
+    lines,
+    routePairs,
+    state,
+  })
   return {
     items: params.items.map((item, index) =>
       toItemMatch(item.itemKey, lineByPosition[index], state),

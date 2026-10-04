@@ -100,6 +100,7 @@ describeDatabase('o corpus FR-28-09 pelo banco (integration, spec 237 T4.3)', ()
     )
     const fromDatabase = Object.fromEntries([...rows].map((row) => [row.match_state, row.total]))
     const pure = resolveCargoPreviewMatches({
+      budget: { check: () => undefined },
       candidates: documents.map((document) => ({
         grossWeightKg: document.grossWeightKg ?? undefined,
         id: String(document.id),

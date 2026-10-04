@@ -58,6 +58,13 @@ async function handleEnvelope(
     message: 'cargo_preview_reevaluated',
     metadata: { ...metadata, changedItems: outcome.changedItems, previews: outcome.previews },
   })
+  if (outcome.matchTimeouts > 0) {
+    safeLogWarn({
+      logger: input.logger,
+      message: 'cargo_preview_match_timeout',
+      metadata: { ...metadata, previews: outcome.matchTimeouts },
+    })
+  }
   if (outcome.aliasConflicts > 0) {
     safeLogWarn({
       logger: input.logger,

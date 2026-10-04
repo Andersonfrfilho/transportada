@@ -8,16 +8,23 @@
  * mesma passada, nota disputada por dois clientes é ambígua para os dois (1:1); entre passadas, a
  * mais forte já levou a nota.
  */
-import { compareText } from './cargo-preview-match-input.policy.js'
+import {
+  indexFreeDocuments,
+  reinforcedDocuments,
+  type FreeDocuments,
+} from './cargo-preview-free-documents.policy.js'
+import { compareText, indexByValue } from './cargo-preview-match-input.policy.js'
 import type { CargoPreviewMatchEvidence } from './cargo-preview-matching.constant.js'
 import type {
   LineDecision,
   MatchDocument,
+  MatchingBudget,
   MatchLine,
   WeightCloses,
 } from './cargo-preview-matching.types.js'
 import {
   buildPartitionOptions,
+  documentsCovering,
   searchPartitions,
   type PartitionOption,
 } from './cargo-preview-partition.policy.js'
@@ -29,6 +36,7 @@ import {
 
 export type MatchingScope = {
   readonly aliases: ReadonlyMap<string, string>
+  readonly budget: MatchingBudget
   readonly allowsDocument: (line: MatchLine, document: MatchDocument) => boolean
   readonly documents: readonly MatchDocument[]
   /** O par do grupo fecha pelos totais (ou já foi firmado): valor e peso bastam dentro dele. */
@@ -57,65 +65,48 @@ function clustersOf(lines: readonly MatchLine[]): readonly (readonly MatchLine[]
   return [...clusters.values()]
 }
 
-function candidatesFor(input: {
+function candidatesByValue(input: {
   cluster: readonly MatchLine[]
+  free: FreeDocuments
   pass: Pass
   scope: MatchingScope
-  state: MatchingState
-}) {
-  const free = input.scope.documents.filter(
-    (document) => !input.state.takenDocuments.has(document.id),
-  )
-  if (input.pass === 'open' || input.pass === 'value') return free
-  if (input.pass === 'alias') {
-    const code = input.cluster[0]?.recipientCode
-    const taxId = code === undefined ? undefined : input.scope.aliases.get(code)
-    return taxId === undefined ? [] : free.filter((document) => document.taxId === taxId)
-  }
-  const postalCodes = new Set(input.cluster.flatMap((line) => line.postalCode ?? []))
-  const names = new Set(input.cluster.flatMap((line) => line.nameKey ?? []))
-  return free.filter(
-    (document) =>
-      (document.postalCode !== undefined && postalCodes.has(document.postalCode)) ||
-      (document.nameKey !== undefined && names.has(document.nameKey)),
-  )
+}): ReadonlyMap<bigint, readonly MatchDocument[]> {
+  if (input.pass === 'open' || input.pass === 'value') return input.free.byValue
+  if (input.pass === 'reinforced')
+    return indexByValue(reinforcedDocuments(input.cluster, input.free))
+  const code = input.cluster[0]?.recipientCode
+  const taxId = code === undefined ? undefined : input.scope.aliases.get(code)
+  return indexByValue(taxId === undefined ? [] : (input.free.byTaxId.get(taxId) ?? []))
 }
 
 /** Por linha: a nota em que todas as partições ótimas concordam, ou as candidatas, se discordam. */
 function tentativeFor(input: {
   cluster: readonly MatchLine[]
+  free: FreeDocuments
   pass: Pass
   scope: MatchingScope
-  state: MatchingState
 }) {
   const options = buildPartitionOptions({
     allowsDocument: input.scope.allowsDocument,
-    documents: candidatesFor(input),
+    byValue: candidatesByValue(input),
     lines: input.cluster,
     requireWeight: input.pass !== 'value',
     weightCloses: input.scope.weightCloses,
   })
   const search = searchPartitions({ options })
-  const solutions =
-    search.kind === 'overflow'
-      ? []
-      : distinctSolutions({ lines: input.cluster, solutions: search.solutions })
   const tentative = new Map<number, Tentative>()
-  input.cluster.forEach((line, position) => {
-    const covers = (option: PartitionOption) => option.lines.includes(position)
-    if (search.kind === 'overflow') {
-      const documentIds = [
-        ...new Set(
-          options
-            .flat()
-            .filter(covers)
-            .map((option) => option.documentId),
-        ),
-      ].sort(compareText)
+  if (search.kind === 'overflow') {
+    const covering = documentsCovering(options)
+    input.cluster.forEach((line, position) => {
+      const documentIds = [...(covering.get(position) ?? [])].sort(compareText)
       if (documentIds.length > 0)
         tentative.set(line.index, { blockSize: 1, documentIds, isUnique: false })
-      return
-    }
+    })
+    return tentative
+  }
+  const solutions = distinctSolutions({ lines: input.cluster, solutions: search.solutions })
+  input.cluster.forEach((line, position) => {
+    const covers = (option: PartitionOption) => option.lines.includes(position)
     const decided = tentativeFromPicks(solutions.map((solution) => solution.find(covers)))
     if (decided !== undefined) tentative.set(line.index, decided)
   })
@@ -152,9 +143,14 @@ function runPass(input: {
   const pending = input.lines.filter((line) => !input.state.decisions.has(line.index))
   const tentatives = new Map<number, Tentative>()
   const claims = new Map<string, Set<string>>()
+  const free = indexFreeDocuments({
+    documents: input.scope.documents,
+    takenDocuments: input.state.takenDocuments,
+  })
   for (const cluster of clustersOf(pending)) {
+    input.scope.budget.check()
     const clusterKey = String(cluster[0]?.index)
-    for (const [index, tentative] of tentativeFor({ ...input, cluster })) {
+    for (const [index, tentative] of tentativeFor({ ...input, cluster, free })) {
       tentatives.set(index, tentative)
       for (const id of tentative.documentIds)
         claims.set(id, (claims.get(id) ?? new Set()).add(clusterKey))

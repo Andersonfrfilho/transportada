@@ -99,9 +99,25 @@ describe('o consumidor da prévia (spec 237 T4.3)', () => {
   }
 
   test('reavaliação feita é ack, com contagens no log', async () => {
-    const result = await consume(async () => ({ aliasConflicts: 1, changedItems: 3, previews: 1 }))
+    const result = await consume(async () => ({
+      aliasConflicts: 1,
+      changedItems: 3,
+      matchTimeouts: 0,
+      previews: 1,
+    }))
     expect(result.disposition).toEqual({ type: 'ack' })
     expect(result.logs).toEqual(['cargo_preview_reevaluated', 'cargo_preview_alias_conflict'])
+  })
+
+  test('prévia pronta cujo vínculo estourou o orçamento é ack com aviso, nunca retry', async () => {
+    const result = await consume(async () => ({
+      aliasConflicts: 0,
+      changedItems: 0,
+      matchTimeouts: 1,
+      previews: 2,
+    }))
+    expect(result.disposition).toEqual({ type: 'ack' })
+    expect(result.logs).toEqual(['cargo_preview_reevaluated', 'cargo_preview_match_timeout'])
   })
 
   test('banco fora do ar é retry, nunca ack', async () => {

@@ -24,6 +24,8 @@ export type PreviewReadingProfile = {
 export type MatchingOutcome = {
   readonly aliasConflicts: number
   readonly changedItems: number
+  /** Prévias prontas cujo vínculo passou do orçamento: ficam como estavam, e o log as conta. */
+  readonly matchTimeouts: number
   readonly previews: number
 }
 

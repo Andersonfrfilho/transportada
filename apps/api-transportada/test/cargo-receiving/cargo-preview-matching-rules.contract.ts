@@ -14,6 +14,7 @@ import {
 } from '../../src/cargo-receiving/domain/cargo-preview-matching.constant.js'
 import { resolveCargoPreviewMatches } from '../../src/cargo-receiving/domain/cargo-preview-matching.policy.js'
 import {
+  indexByValue,
   toMatchDocument,
   toMatchLine,
 } from '../../src/cargo-receiving/domain/cargo-preview-match-input.policy.js'
@@ -190,7 +191,7 @@ describe('as regras do vínculo (spec 237 RF5a)', () => {
     const documents = ['d1', 'd2'].flatMap((id) => toMatchDocument(candidate(id)) ?? [])
     const options = buildPartitionOptions({
       allowsDocument: () => true,
-      documents,
+      byValue: indexByValue(documents),
       lines,
       requireWeight: true,
       weightCloses: ({ documentGrams, lineGrams }) => lineGrams === documentGrams,

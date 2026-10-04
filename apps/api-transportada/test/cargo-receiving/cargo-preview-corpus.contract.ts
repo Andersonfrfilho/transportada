@@ -41,6 +41,7 @@ function resolve(input: {
   readonly tolerance?: number
 }): ResolveCargoPreviewMatchesResult {
   return resolveCargoPreviewMatches({
+    budget: { check: () => undefined },
     candidates: input.candidates,
     items: input.items,
     knownAliases: input.knownAliases ?? [],

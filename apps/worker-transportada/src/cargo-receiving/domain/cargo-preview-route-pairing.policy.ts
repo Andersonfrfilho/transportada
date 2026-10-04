@@ -14,6 +14,7 @@ import {
 import type {
   CargoPreviewRoutePairing,
   MatchDocument,
+  MatchingBudget,
   MatchLine,
   RouteLoadPair,
   WeightCloses,
@@ -26,6 +27,7 @@ type Scored = {
 }
 
 type PairRoutesParams = {
+  readonly budget: MatchingBudget
   readonly documents: readonly MatchDocument[]
   readonly knownRoutePairs: readonly RouteLoadPair[]
   readonly lines: readonly MatchLine[]
@@ -117,6 +119,7 @@ function scoreAll(
 ): Scored[] {
   const scored: Scored[] = []
   for (const [routeName, lines] of input.routes) {
+    input.budget.check()
     for (const [loadReference, documents] of input.loads) {
       const score = scorePair({ documents, lines, weightCloses: input.weightCloses })
       if (score[0] === 1 || hasEnoughVotes(score[1], lines.length))
@@ -167,8 +170,13 @@ function applyKnownPairs(
 }
 
 /** Guloso pelo melhor escore; um rival livre com o mesmo escore no mesmo roteiro ou carga é empate. */
-function applyScoredPairs(state: PairingState, scored: readonly Scored[]): void {
+function applyScoredPairs(
+  state: PairingState,
+  input: { readonly budget: MatchingBudget; readonly scored: readonly Scored[] },
+): void {
+  const { scored } = input
   for (const candidate of scored) {
+    input.budget.check()
     if (!isFree(state, candidate)) continue
     const rivals = scored.filter(
       (other) =>
@@ -195,6 +203,6 @@ export function pairRoutesWithLoads(params: PairRoutesParams): readonly CargoPre
   const loads = groupBy(params.documents, (document) => document.loadReference)
   const state: PairingState = { pairs: [], usedLoads: new Set(), usedRoutes: new Set() }
   applyKnownPairs(state, { known: params.knownRoutePairs, loads, routes })
-  applyScoredPairs(state, scoreAll({ ...params, loads, routes }))
+  applyScoredPairs(state, { budget: params.budget, scored: scoreAll({ ...params, loads, routes }) })
   return state.pairs.sort((left, right) => compareText(left.routeName, right.routeName))
 }

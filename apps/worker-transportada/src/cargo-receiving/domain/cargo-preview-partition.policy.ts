@@ -10,7 +10,6 @@ import {
   MAX_PARTITION_LINES,
   MAX_PARTITION_SEARCH_NODES,
 } from './cargo-preview-matching.constant.js'
-import { indexByValue } from './cargo-preview-match-input.policy.js'
 import type { MatchDocument, MatchLine, WeightCloses } from './cargo-preview-matching.types.js'
 
 /** `lines`: posições dentro do cliente; o bloco inteiro fecha `documentId`. */
@@ -49,15 +48,15 @@ function subsetsOf(count: number): readonly (readonly number[])[] {
   return subsets
 }
 
-/** Por linha (a primeira do bloco), os blocos que fecham uma nota candidata. */
+/** Por linha (a primeira do bloco), os blocos que fecham uma nota candidata (`byValue`, por valor). */
 export function buildPartitionOptions(input: {
   readonly allowsDocument: (line: MatchLine, document: MatchDocument) => boolean
-  readonly documents: readonly MatchDocument[]
+  readonly byValue: ReadonlyMap<bigint, readonly MatchDocument[]>
   readonly lines: readonly MatchLine[]
   readonly requireWeight: boolean
   readonly weightCloses: WeightCloses
 }): readonly (readonly PartitionOption[])[] {
-  const byValue = indexByValue(input.documents)
+  const { byValue } = input
   const options: PartitionOption[][] = input.lines.map(() => [])
   for (const subset of subsetsOf(input.lines.length)) {
     const members = subset.flatMap((position) => input.lines[position] ?? [])
@@ -128,20 +127,27 @@ function explore(context: SearchContext, from: number): void {
   context.decided[first] = false
 }
 
+function coveredPositions(options: readonly (readonly PartitionOption[])[]): readonly boolean[] {
+  const covered = options.map(() => false)
+  for (const list of options) {
+    for (const option of list) for (const line of option.lines) covered[line] = true
+  }
+  return covered
+}
+
 export function searchPartitions(input: {
   readonly maxNodes?: number
   readonly options: readonly (readonly PartitionOption[])[]
 }): PartitionSearch {
   const { options } = input
+  const hasOption = coveredPositions(options)
   const context: SearchContext = {
     assignment: [],
     best: 1,
     covered: 0,
     decided: options.map(() => false),
+    hasOption,
     maxNodes: input.maxNodes ?? MAX_PARTITION_SEARCH_NODES,
-    hasOption: options.map((_unused, position) =>
-      options.some((list) => list.some((option) => option.lines.includes(position))),
-    ),
     nodes: 0,
     options,
     overflow: false,
@@ -152,4 +158,19 @@ export function searchPartitions(input: {
   return context.overflow
     ? { kind: 'overflow' }
     : { kind: 'solutions', solutions: context.solutions }
+}
+
+/** Por posição, as notas de toda opção que a cobre — montado uma vez, não por linha. */
+export function documentsCovering(
+  options: readonly (readonly PartitionOption[])[],
+): ReadonlyMap<number, Set<string>> {
+  const covering = new Map<number, Set<string>>()
+  for (const list of options) {
+    for (const option of list) {
+      for (const line of option.lines) {
+        covering.set(line, (covering.get(line) ?? new Set()).add(option.documentId))
+      }
+    }
+  }
+  return covering
 }

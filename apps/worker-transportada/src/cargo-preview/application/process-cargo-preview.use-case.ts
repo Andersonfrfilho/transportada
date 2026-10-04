@@ -13,6 +13,7 @@ import {
   CARGO_PREVIEW_STATUS,
   type CargoPreviewFailureCode,
 } from '../../shared/cargo-preview.constant.js'
+import { CargoPreviewMatchTimeoutError } from './cargo-preview-match-timeout.error.js'
 import { CargoPreviewValueOutOfRangeError } from './cargo-preview-value-out-of-range.error.js'
 import type {
   CargoPreviewObjectReaderPort,
@@ -92,6 +93,7 @@ export async function processCargoPreview(
     return stored === null ? 'already_done' : 'ready'
   } catch (error) {
     if (error instanceof CargoPreviewValueOutOfRangeError) return fail(error.code)
+    if (error instanceof CargoPreviewMatchTimeoutError) return fail(error.code)
     throw error
   }
 }

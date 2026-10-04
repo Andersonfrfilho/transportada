@@ -35,7 +35,11 @@ export type CargoPreviewCandidateDocument = {
 export type RecipientAlias = { readonly recipientCode: string; readonly recipientTaxId: string }
 export type RouteLoadPair = { readonly loadReference: string; readonly routeName: string }
 
+/** Orçamento cooperativo do vínculo: o chamador decide o prazo e o erro (ele roda sob a trava). */
+export type MatchingBudget = { readonly check: () => void }
+
 export type ResolveCargoPreviewMatchesParams = {
+  readonly budget: MatchingBudget
   readonly candidates: readonly CargoPreviewCandidateDocument[]
   readonly items: readonly CargoPreviewMatchItem[]
   readonly knownAliases: readonly RecipientAlias[]

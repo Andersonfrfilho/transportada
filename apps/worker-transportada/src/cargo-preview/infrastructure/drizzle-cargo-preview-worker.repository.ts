@@ -20,17 +20,37 @@ import {
   CARGO_PREVIEW_STATUS,
   type CargoPreviewEventKind,
 } from '../../shared/cargo-preview.constant.js'
+import type { MonotonicClock } from '../../cargo-receiving/domain/cargo-preview-workbook.types.js'
 import type {
   CargoPreviewWorkerRepositoryPort,
+  MatchingOutcome,
   PreviewScope,
 } from '../application/cargo-preview-worker.port.js'
+import { CargoPreviewMatchTimeoutError } from '../application/cargo-preview-match-timeout.error.js'
 import { CargoPreviewValueOutOfRangeError } from '../application/cargo-preview-value-out-of-range.error.js'
 import { readColumnMap } from '../domain/cargo-preview-items.policy.js'
-import { matchContractorPreviews } from './cargo-preview-matching.writer.js'
+import { CARGO_PREVIEW_MATCH_BUDGET_MS } from '../domain/cargo-preview-match-budget.constant.js'
+import {
+  createMatchBudget,
+  matchContractorPreviews,
+  type MatchContractorResult,
+} from './cargo-preview-matching.writer.js'
 import type { Transaction } from './cargo-preview-match.store.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Port = CargoPreviewWorkerRepositoryPort
+
+export type MatchBudgetOptions = { readonly budgetMs: number; readonly clock: MonotonicClock }
+
+const DEFAULT_MATCH_BUDGET: MatchBudgetOptions = {
+  budgetMs: CARGO_PREVIEW_MATCH_BUDGET_MS,
+  clock: () => performance.now(),
+}
+
+function toOutcome(result: MatchContractorResult): MatchingOutcome {
+  const { aliasConflicts, changedItems, matchTimeouts, previews } = result
+  return { aliasConflicts, changedItems, matchTimeouts, previews }
+}
 
 const OPEN_STATUSES = [CARGO_PREVIEW_STATUS.queued, CARGO_PREVIEW_STATUS.processing]
 const ITEM_BATCH_SIZE = 500
@@ -98,10 +118,14 @@ async function insertItems(
 
 export class DrizzleCargoPreviewWorkerRepository implements Port {
   readonly #database: Database
+  readonly #matchBudget: MatchBudgetOptions
 
-  constructor(database: Database) {
+  constructor(database: Database, matchBudget: MatchBudgetOptions = DEFAULT_MATCH_BUDGET) {
     this.#database = database
+    this.#matchBudget = matchBudget
   }
+
+  #createBudget = () => createMatchBudget(this.#matchBudget)
 
   async findPreview(scope: PreviewScope): ReturnType<Port['findPreview']> {
     const [row] = await this.#database
@@ -189,11 +213,22 @@ export class DrizzleCargoPreviewWorkerRepository implements Port {
         .insert(cargoPreviewEvents)
         .values(wideEvent({ ...input, details, kind: CARGO_PREVIEW_EVENT_KIND.parsed }))
       // Todas as prontas, da mais antiga para a nova: a nova não leva a nota que outra esperava.
-      return matchContractorPreviews(tx, input)
+      const result = await matchContractorPreviews(tx, {
+        ...input,
+        createBudget: this.#createBudget,
+      })
+      // A prévia nova que estoura volta inteira: `failed` nunca tem itens (o reenvio a relê).
+      if (result.timedOutPreviewIds.includes(input.previewId)) {
+        throw new CargoPreviewMatchTimeoutError()
+      }
+      return toOutcome(result)
     })
   }
 
   async reevaluate(params: Parameters<Port['reevaluate']>[0]): ReturnType<Port['reevaluate']> {
-    return this.#database.transaction((tx) => matchContractorPreviews(tx, params))
+    const result = await this.#database.transaction((tx) =>
+      matchContractorPreviews(tx, { ...params, createBudget: this.#createBudget }),
+    )
+    return toOutcome(result)
   }
 }
