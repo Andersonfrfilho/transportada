@@ -55,7 +55,7 @@ import type { OccurrenceAttachmentRecord } from '../application/occurrence-attac
 import { listOccurrenceCancellationsByIds } from './occurrence-correction-read.query.js'
 import {
   buildOccurrenceTypeItemsView,
-  listOccurrenceTypeItemsShapesByIds,
+  listOccurrenceTypeItemsShapesOrEmpty,
 } from './occurrence-type-items-read.query.js'
 import { listStopAddresses } from './nfe-destination-address.support.js'
 import type { NfeDestinationAddress } from './nfe-destination-address.support.js'
@@ -602,19 +602,22 @@ async function toFeedItems(
     ...(viewerUserId === undefined ? {} : { viewerUserId }),
   })
 
-  /** Spec 240 RF9: o cancelamento da página inteira numa leitura só; a parada nunca é cancelada. */
-  const cancellations = await listOccurrenceCancellationsByIds(queryable, {
-    companyId,
-    occurrenceIds: rows.filter((row) => row.source === 'document').map((row) => row.id),
-  })
-
-  /** Spec 241 RF5: o modo de itens dos tipos da página inteira numa leitura só, por `(company_id, id)`. */
-  const typeShapes = await listOccurrenceTypeItemsShapesByIds(queryable, {
-    companyId,
-    occurrenceTypeIds: rows.flatMap((row) =>
-      row.occurrenceTypeId === null ? [] : [row.occurrenceTypeId],
-    ),
-  })
+  /**
+   * Spec 240 RF9 e 241 RF5: o cancelamento (a parada nunca é cancelada) e o modo de itens dos tipos
+   * da página inteira, uma leitura cada, em paralelo — o modo de itens isolado de falha.
+   */
+  const [cancellations, typeShapes] = await Promise.all([
+    listOccurrenceCancellationsByIds(queryable, {
+      companyId,
+      occurrenceIds: rows.filter((row) => row.source === 'document').map((row) => row.id),
+    }),
+    listOccurrenceTypeItemsShapesOrEmpty(queryable, {
+      companyId,
+      occurrenceTypeIds: rows.flatMap((row) =>
+        row.occurrenceTypeId === null ? [] : [row.occurrenceTypeId],
+      ),
+    }),
+  ])
 
   return rows.map(({ nfeDocumentId, totalValue, tripDocumentId, ...row }) => {
     const destination = nfeDocumentId === null ? undefined : destinations.get(nfeDocumentId)

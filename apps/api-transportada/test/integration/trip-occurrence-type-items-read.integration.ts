@@ -236,4 +236,55 @@ describe('as leituras publicam o modo de itens do tipo (spec 241 RF5, CA04)', ()
       expect(selectCount).toBe(selectsWithOneOccurrence)
     })
   })
+
+  testWithPostgres(
+    'a leitura do modo de itens falhando não derruba a lista da nota nem o feed',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const typeId = await seedType(database, company, {
+          allowsMultipleItems: true,
+          itemsMode: 'off',
+          name: 'Avaria',
+        })
+        const occurrenceId = await seedOccurrence(database, company, {
+          occurrenceTypeId: typeId,
+          trip,
+        })
+        const failingShapes = new Proxy(database.db, {
+          get: (target, property, receiver) => {
+            if (property !== 'select') return Reflect.get(target, property, receiver) as unknown
+            return (...args: Parameters<typeof target.select>) => {
+              const fields = Object.keys(args[0] ?? {}).sort()
+              const isShapesRead = fields.join() === 'allowsMultipleItems,id,itemsMode'
+              if (!isShapesRead) return target.select(...args)
+              return { from: () => ({ where: () => Promise.reject(new Error('shapes down')) }) }
+            }
+          },
+        }) as unknown as typeof database.db
+
+        const noteList = await listTripOccurrences(failingShapes, {
+          companyId: company.companyId,
+          documentId: trip.documentId,
+          tripId: trip.tripId,
+        })
+        const feed = await listTripOccurrenceFeed(failingShapes, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 20,
+          order: 'desc',
+        })
+
+        expect(noteList).toHaveLength(1)
+        expect(noteList[0]?.id).toBe(occurrenceId)
+        expect(noteList[0]?.occurrenceTypeId).toBe(typeId)
+        expect(noteList[0]?.typeItemsMode).toBeNull()
+        expect(noteList[0]?.typeAllowsMultipleItems).toBeNull()
+        expect(feed.items).toHaveLength(1)
+        expect(feed.items[0]?.typeItemsMode).toBeNull()
+        expect(feed.items[0]?.typeAllowsMultipleItems).toBeNull()
+      })
+    },
+  )
 })

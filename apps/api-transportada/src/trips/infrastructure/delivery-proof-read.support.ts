@@ -72,7 +72,7 @@ import {
 } from './occurrence-correction-read.query.js'
 import {
   buildOccurrenceTypeItemsView,
-  listOccurrenceTypeItemsShapesByIds,
+  listOccurrenceTypeItemsShapesOrEmpty,
 } from './occurrence-type-items-read.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
@@ -446,7 +446,7 @@ export async function listTripOccurrences(
   const [correctionsByOccurrence, cancellations, typeShapes] = await Promise.all([
     listOccurrenceCorrectionsByIds(queryable, { companyId: input.companyId, occurrenceIds }),
     listOccurrenceCancellationsByIds(queryable, { companyId: input.companyId, occurrenceIds }),
-    listOccurrenceTypeItemsShapesByIds(queryable, {
+    listOccurrenceTypeItemsShapesOrEmpty(queryable, {
       companyId: input.companyId,
       occurrenceTypeIds: rows.map((row) => row.occurrenceTypeId),
     }),

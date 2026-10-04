@@ -1020,3 +1020,26 @@ Este arquivo e o do painel são **add/add** no rebase. Na árvore integrada (`wo
 de a etapa 1 estar em `origin/staging` e do rebase desta branch, resolver com `git checkout work/241-juntos --
 specs/241-o-tipo-da-ocorrencia-diz-se-ela-carrega-itens/evidence.md` e conferir que as seções da API e as do painel
 existem. O `tasks.md` difere entre as branches em linhas disjuntas (esta marca T0.1 e T2.1–T2.9) e junta sem conflito.
+
+## Correções da revisão final (API)
+
+### 1. `Promise.all` da lista da nota e do feed isolam a leitura do modo de itens
+
+`listOccurrenceTypeItemsShapesByIds` é refinamento (o painel tolera `typeItemsMode: null`), mas uma falha nele
+derrubava a lista inteira. Nova `listOccurrenceTypeItemsShapesOrEmpty` (`.catch(() => new Map())`), usada na lista
+da nota e no feed; no feed a leitura saiu da série e foi para o `Promise.all` com os cancelamentos (continua uma
+consulta por página — o teste que conta os `select` segue verde). Sem logger: essas funções de leitura não recebem
+`ApiLogger` e não há padrão de log nelas; a falha some em silêncio (divergência relatada).
+
+Vermelho (teste escrito antes; `trip-occurrence-type-items-read.integration.ts`, leitor falhando por proxy):
+
+```text
+error: shapes down
+      at listOccurrenceTypeItemsShapesByIds (.../occurrence-type-items-read.query.ts:45:6)
+      at listTripOccurrences (.../delivery-proof-read.support.ts:1129:1)
+(fail) ... > a leitura do modo de itens falhando não derruba a lista da nota nem o feed
+ 3 pass
+ 1 fail
+```
+
+Mutação (tirar o `.catch`) → mesma saída vermelha (`1 fail`); com o `.catch`, `4 pass, 0 fail`.

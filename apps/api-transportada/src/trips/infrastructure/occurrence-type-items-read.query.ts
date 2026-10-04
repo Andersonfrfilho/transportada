@@ -55,6 +55,18 @@ export async function listOccurrenceTypeItemsShapesByIds(
   return shapes
 }
 
+/**
+ * ⚠️ É refinamento: o painel tolera os campos ausentes (`null`), então a falha desta leitura vira
+ * mapa vazio em vez de derrubar a lista que já funcionava sem ela (`Promise.all` rejeita no primeiro
+ * erro e descarta o resto do lote).
+ */
+export function listOccurrenceTypeItemsShapesOrEmpty(
+  queryable: TripQueryable,
+  params: ListOccurrenceTypeItemsShapesParams,
+): Promise<Map<string, OccurrenceTypeItemsShape>> {
+  return listOccurrenceTypeItemsShapesByIds(queryable, params).catch(() => new Map())
+}
+
 export function buildOccurrenceTypeItemsView(params: {
   readonly occurrenceTypeId: null | string
   readonly shapes: ReadonlyMap<string, OccurrenceTypeItemsShape>
