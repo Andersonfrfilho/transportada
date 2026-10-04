@@ -1116,3 +1116,40 @@ muda — conversor dual permite a diária manter seu significado (zero = "não r
 - Recebimento › Prévias: textos para `CARGO_PREVIEW_TOO_MANY_OPEN` (envio recusado com 5 prévias na fila do
   contratante) e para as falhas novas `PREVIEW_TOO_MANY_CELLS`, `PREVIEW_PROCESSING_INTERRUPTED` e
   `PREVIEW_MATCH_TIMEOUT`.
+
+## Spec 241 — o tipo da ocorrência diz se ela carrega itens
+
+**Arquivos-chave:** `modules/trip/shared/occurrenceItemsMode.service.ts` (modo do tipo, `off` leva a seleção
+embora), `tripOccurrenceDetail.service.ts` (`resolveOccurrenceCorrectionActions`), `tripResponse.validation.ts`
+(guards tolerantes), `modules/trip/components/TripOccurrences.component.tsx` (registro),
+`TripOccurrenceCorrectionForm.component.tsx` (correção), `modules/company-settings/components/OccurrenceTypeItemsModeSelect.component.tsx`
+e `OccurrenceTypeCatalogPanel.component.tsx` (cadastro). Testes: `test/trip/occurrence-items-mode*.contract.ts`,
+`test/trip-hooks/occurrence-register-items-mode.contract.ts`, `occurrence-correction-single-item.contract.ts`,
+`occurrence-type-items-mode-panel.contract.ts`, `test/company-settings/occurrence-type-items-mode-body.contract.ts`.
+
+**Produtos no cadastro.** Cada tipo tem **Produtos**: `Sem produtos` (`off`) ou `Produtos opcionais` (`optional`) —
+as opções se explicam sozinhas, como `Sem foto` / `Foto opcional`, porque o controle não tem rótulo à vista.
+O controle só aparece quando a listagem traz `itemsMode`: sem o campo a API é anterior à 241 e não se oferece o que ela
+ignoraria. Com `Sem produtos` somem "Aceita vários itens" e a política de reentrega, e o `PUT` leva
+`redeliveryPolicy: 'unset'` no mesmo corpo (tipo sem itens não abre tratativa, CHECK do banco). `itemsMode` só vai no
+`PUT` quando o operador troca o seletor — ausente é "não mexe" na API. `required` é da 239 e o painel não o escreve.
+
+**Registro e correção por tipo.** O registro do galpão esconde o seletor de produtos e as quantidades quando o tipo é
+`off` e limpa a seleção ao trocar para ele; no envio a seleção é normalizada pelo tipo **vigente**, porque a recarga
+dos tipos pode escondê-lo com a tela aberta. O formulário de correção usa `typeAllowsMultipleItems` para a escolha
+única. **Corrigir** aparece por `typeItemsMode !== 'off' || hasItems || wasCorrected`: o primeiro termo traz de volta a
+avaria da nota inteira (WhatsApp e motorista gravam lista vazia); os outros dois cobrem a ocorrência antiga com itens
+num tipo que virou `off`.
+
+**Tolerância a API antiga.** `occurrenceTypeId`, `typeItemsMode`, `typeAllowsMultipleItems` (detalhe, feed, lista da
+nota) e `itemsMode` (cadastro) são opcionais nos guards; ausência lê `optional` / vários itens. Foi isso que permitiu
+publicar o painel (etapa 1) antes da API (etapa 2, ADR-0081 §9).
+
+**Pegadinhas.** (1) O guard de `OccurrenceType` é de chave exata: a API já manda `emailsContractor` (183) e `stopKind`
+(218) e o guard não os conhecia, então a lista inteira era recusada e a aba Tipos de ocorrência mostrava "Nenhum tipo
+cadastrado" com dados no banco — dois campos de tipo novos exigem a chave no guard antes da API. (2) Os dois `422`
+novos (`OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED`, `OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY`) viram texto por
+`TRIP_FEEDBACK_KEY_BY_ERROR`; o primeiro recarrega os tipos (`OCCURRENCE_TYPES_QUERY_KEY`) e o `PUT` do cadastro recarrega
+no erro também (`onSettled`). (3) O `Tooltip` da dica pinta por cima da lista do `Select` que ele envolve
+(`z-index` 80 contra 60); ele se fecha ao ativar o gatilho (clique, Enter, Espaço, setas) — não o reverta.
+Evidência e prints nas três larguras: `specs/241-o-tipo-da-ocorrencia-diz-se-ela-carrega-itens/evidence.md` e `prints/`.
