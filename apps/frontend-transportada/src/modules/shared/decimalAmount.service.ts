@@ -136,6 +136,16 @@ export function maskTypedAmount(input: ScaledAmountInput): string {
   return input.scale === 0 ? grouped : `${grouped},${fractionPart}`
 }
 
+/** Spec 244 D3: exibição da diária — zero já formatado continua `0,00`; o resto é a máscara comum. */
+export function maskTypedAmountKeepingZero(input: ScaledAmountInput): string {
+  const digits = input.value.replace(NON_DIGIT_PATTERN, '')
+  if (digits !== '' && digits.replace(LEADING_ZERO_PATTERN, '') === '') {
+    return zeroAmount(input.scale).replace('.', ',')
+  }
+
+  return maskTypedAmount(input)
+}
+
 /**
  * Máscara de digitação em medida: os dígitos entram pela **esquerda**, como se escreve peso, e o
  * milhar aparece enquanto se digita. Inverter o sentido, como faz o dinheiro, faria `2007` virar

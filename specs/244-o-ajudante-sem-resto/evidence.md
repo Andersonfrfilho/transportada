@@ -39,6 +39,22 @@
 - Mutação: conversor sem a linha do zero → 3 falhas; restaurado, `cmp` idêntico.
 - `bun run test` do painel: 6672 pass / 0 fail.
 
+## T3 — exibição do zero no input
+
+Achado dos prints 05/06 (README das prints, A1): o estado da ficha guardava `0,00`, mas o input mostrava vazio, porque
+`FleetMoneyField` exibia `maskTypedAmount`, que devolve `''` para zeros. Quem salvasse sem tocar gravava `0.0000` com o
+campo aparentando vazio.
+
+- `maskTypedAmountKeepingZero` (pura, em `decimalAmount.service.ts`): zero já formatado volta `0,00`; o resto delega a
+  `maskTypedAmount`, que **não mudou** (digitar `0` ou apagar de `0,00` para `0,0` continua dando vazio, então o operador limpa).
+- `FleetMoneyField` ganhou a opção `keepsZero` (só troca a máscara de **exibição**; `onChange` segue a máscara comum). Ligada em
+  `helperDailyRate` (`DriverHelperFields`) e `dailyAllowanceAmount` (`DriverForm`, `DriverQuickCreateDialog`). Os campos de custo
+  do veículo e do frete não a usam e continuam vazios para zero.
+- Contrato novo `test/fleet/money-field-zero.contract.tsx` (renderiza o campo e afirma o `value` do input): `0,00` + `keepsZero` →
+  `0,00`; `120,00` → `120,00`; vazio → vazio; campo de custo sem a opção → vazio. Vermelho antes do código (export inexistente).
+- Mutação: `displayMask = maskTypedAmount` fixo → 1 falha; restaurado, `cmp` idêntico.
+- `bun run test` do painel: 6679 pass / 0 fail (+397 / 0 fail do segundo estágio); typecheck limpo; lint 0 erros.
+
 ## T5 — Documentação viva
 
 Quatro arquivos atualizados para registrar o fechamento das três pendências da spec 243:

@@ -311,6 +311,7 @@ export function DriverQuickCreateDialog({
               ) : null}
               <FleetMoneyField
                 optional
+                keepsZero
                 label={t('driverDailyAllowanceAmount')}
                 scale={AMOUNT_DISPLAY_SCALE}
                 value={form.state.dailyAllowanceAmount}

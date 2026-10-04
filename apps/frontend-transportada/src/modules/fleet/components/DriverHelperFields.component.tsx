@@ -39,6 +39,7 @@ export function DriverHelperFields({ onChange, state }: DriverHelperFieldsProps)
       {canActAsHelper ? (
         <FleetMoneyField
           hint={t('driverHelperDailyRateHint')}
+          keepsZero
           label={t('driverHelperDailyRate')}
           optional
           scale={AMOUNT_DISPLAY_SCALE}
