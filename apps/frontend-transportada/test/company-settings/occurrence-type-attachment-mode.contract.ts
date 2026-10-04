@@ -7,14 +7,9 @@ import companySettingsEn from '../../src/modules/company-settings/locales/compan
 import companySettingsPt from '../../src/modules/company-settings/locales/companySettings.locale.json'
 import { OCCURRENCE_ATTACHMENT_MODES } from '../../src/modules/trip/shared/occurrence.constant'
 import { createTripResponseAdapters } from '../../src/modules/trip/shared/tripResponse.validation'
+import { readOccurrenceTypePanelSource } from './occurrenceTypePanelSource.helper'
 
-const PANEL = readFileSync(
-  new URL(
-    '../../src/modules/company-settings/components/OccurrenceTypeCatalogPanel.component.tsx',
-    import.meta.url,
-  ),
-  'utf8',
-)
+const PANEL = readOccurrenceTypePanelSource()
 const CLIENT = readFileSync(
   new URL('../../src/modules/trip/shared/tripClient.service.ts', import.meta.url),
   'utf8',

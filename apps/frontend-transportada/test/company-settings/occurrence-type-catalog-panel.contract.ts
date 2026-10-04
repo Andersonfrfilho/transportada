@@ -13,12 +13,9 @@ import {
   resolveSettingsDataScope,
   SETTINGS_PANEL_PLACEMENT,
 } from '../../src/modules/company-settings/shared/companySettingsTabs.service'
+import { readOccurrenceTypePanelSource } from './occurrenceTypePanelSource.helper'
 
 const MODULES = new URL('../../src/modules/', import.meta.url)
-const PANEL = new URL(
-  '../../src/modules/company-settings/components/OccurrenceTypeCatalogPanel.component.tsx',
-  import.meta.url,
-)
 const PAGE = new URL(
   '../../src/modules/company-settings/pages/CompanySettings.page.tsx',
   import.meta.url,
@@ -103,7 +100,7 @@ describe('catálogo de tipos de ocorrência em Configurações da empresa', () =
         'utf8',
       ),
     ).toThrow()
-    const panel = readFileSync(PANEL, 'utf8')
+    const panel = readOccurrenceTypePanelSource()
     expect(panel).toContain('canManage')
     expect(panel).toContain('emailTemplateKey')
   })
@@ -127,7 +124,7 @@ describe('catálogo de tipos de ocorrência em Configurações da empresa', () =
  */
 describe('spec 166: interruptor "aceita vários itens" no cadastro', () => {
   it('o painel usa o primitivo Checkbox, nunca o input cru', () => {
-    const panel = readFileSync(PANEL, 'utf8')
+    const panel = readOccurrenceTypePanelSource()
     expect(panel).toContain('allowsMultipleItems')
     expect(panel).toContain("t('occurrenceTypeCatalog.allowsMultipleItems')")
     expect(panel).toMatch(/<Checkbox[^>]*checked=\{allowsMultipleItems\}/u)
@@ -165,7 +162,7 @@ describe('spec 164: redeliveryPolicy no cadastro do tipo de ocorrência', () => 
   })
 
   it('toda chamada a onSave no painel carrega redeliveryPolicy — nenhuma escapa sem o campo', () => {
-    const panel = readFileSync(PANEL, 'utf8')
+    const panel = readOccurrenceTypePanelSource()
     const calls = panel.split('onSave({').slice(1)
     expect(calls.length).toBeGreaterThan(0)
     for (const call of calls) {
@@ -193,7 +190,7 @@ describe('spec 164: redeliveryPolicy no cadastro do tipo de ocorrência', () => 
   })
 
   it('o painel usa o Select do design system, nunca <select> cru, para a política', () => {
-    const panel = readFileSync(PANEL, 'utf8')
+    const panel = readOccurrenceTypePanelSource()
     expect(panel).toMatch(
       /<Select[^>]*ariaLabel=\{t\('occurrenceTypeCatalog\.redeliveryPolicy'\)\}/u,
     )
