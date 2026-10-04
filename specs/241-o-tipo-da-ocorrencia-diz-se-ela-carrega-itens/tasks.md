@@ -41,7 +41,7 @@ items_mode` da migration e o default `off` do plano. Se criou com default `off`:
 - [x] **T1.2** Contrato primeiro, depois RF7 em `resolveOccurrenceCorrectionActions` (CA05).
 - [x] **T1.3** Mutação: voltar o RF7 para `hasItems || wasCorrected` deixa o contrato da T1.2
       vermelho. Colar a execução.
-- [ ] **T1.4** RF8: registro esconde produtos e quantidades em tipo `off` e limpa a seleção ao trocar
+- [x] **T1.4** RF8: registro esconde produtos e quantidades em tipo `off` e limpa a seleção ao trocar
       (CA06). RF9: formulário de correção com seleção única por `typeAllowsMultipleItems`.
 - [ ] **T1.5** RF10 e RF12: Produtos (Desligado / Opcional) no cadastro de tipos, com `Select` do
       design system, só quando a listagem trouxer `itemsMode`; "um ou vários" só com Opcional; com

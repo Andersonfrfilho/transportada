@@ -122,6 +122,7 @@ export function OccurrenceCorrectionActions({
       ) : null}
       {isCorrecting ? (
         <TripOccurrenceCorrectionForm
+          allowsMultipleItems={occurrence.typeAllowsMultipleItems ?? true}
           {...(companyId === undefined ? {} : { companyId })}
           documentId={tripDocumentId}
           id={formId}

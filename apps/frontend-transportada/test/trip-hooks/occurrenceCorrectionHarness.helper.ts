@@ -61,13 +61,15 @@ const WRITE_RESULT: OccurrenceWriteResult = {
 let currentItems: readonly TripOccurrenceDetailItem[] = []
 let currentCorrections: NonNullable<TripOccurrenceDetail['corrections']> = []
 let detailReadCount = 0
+let detailOverrides: Partial<TripOccurrenceDetail> = {}
 
 /** A API dublada: guarda o conjunto vigente e o devolve na próxima leitura do detalhe. */
-export function installServerDouble(): {
+export function installServerDouble(overrides: Partial<TripOccurrenceDetail> = {}): {
   calls: CorrectTripOccurrenceItemsInput[]
   detailReads: () => number
 } {
   const calls: CorrectTripOccurrenceItemsInput[] = []
+  detailOverrides = overrides
   detailReadCount = 0
   currentItems = buildOccurrenceDetailFixture().items
   currentCorrections = []
@@ -102,7 +104,11 @@ export function DetailHarness() {
     queryFn: () => {
       detailReadCount += 1
       return Promise.resolve(
-        buildOccurrenceDetailFixture({ corrections: currentCorrections, items: currentItems }),
+        buildOccurrenceDetailFixture({
+          ...detailOverrides,
+          corrections: currentCorrections,
+          items: currentItems,
+        }),
       )
     },
     queryKey: DETAIL_KEY,

@@ -22,6 +22,11 @@ import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
 import type { OccurrenceQuantityUnit } from '../shared/trip.constant'
 import { TRIP_OCCURRENCE_STAGE } from '../shared/occurrence.constant'
 import type { OccurrenceType } from '../shared/occurrence.constant'
+import {
+  carriesOccurrenceItems,
+  resolveItemsOnTypeChange,
+  resolveOccurrenceItemsMode,
+} from '../shared/occurrenceItemsMode.service'
 import { canSubmitOccurrenceWithPhotos } from '../shared/occurrencePhotoPicker.service'
 import {
   hasOccurrencePhotoSendFailure,
@@ -148,18 +153,18 @@ export function TripOccurrences({
   const selectedType = disponiveis.find((type) => type.id === occurrenceTypeId)
   /** RF8: sem tipo escolhido ainda, o campo segue no comportamento de hoje (vários itens). */
   const allowsMultipleItems = selectedType?.allowsMultipleItems ?? true
+  const carriesItems = carriesOccurrenceItems(resolveOccurrenceItemsMode(selectedType))
 
   function handleOccurrenceTypeChange(nextTypeId: string): void {
     setOccurrenceTypeId(nextTypeId)
     const nextType = disponiveis.find((type) => type.id === nextTypeId)
     /**
-     * RF8: trocar para um tipo de item único com mais de um item marcado substitui pela primeira
-     * escolha — nunca soma. Sem isto, um `MultiSelect` que já tinha dois itens continuaria
-     * mandando os dois para um tipo que a API vai recusar com `422`.
+     * RF8 (166): tipo de item único com mais de um item marcado fica com a primeira escolha — nunca
+     * soma. Spec 241 RF8: tipo `off` leva a seleção toda embora, ou a API o recusaria com `422`.
      */
-    if (nextType?.allowsMultipleItems === false && productCodes.length > 1) {
-      setProductCodes(productCodes.slice(0, 1))
-    }
+    const next = resolveItemsOnTypeChange({ nextType, productCodes, quantitiesByCode })
+    setProductCodes(next.productCodes)
+    setQuantitiesByCode(next.quantitiesByCode)
   }
 
   useEffect(() => {
@@ -362,23 +367,27 @@ export function TripOccurrences({
              * `Select` já é exclusivo por natureza, então escolher outro item substitui em vez de
              * somar, sem precisar de `resolveOccurrenceProductSelection`.
              */}
-            <OccurrenceProductSelect
-              allowsMultipleItems={allowsMultipleItems}
-              onChange={setProductCodes}
-              productCodes={productCodes}
-              products={products}
-            />
+            {carriesItems ? (
+              <OccurrenceProductSelect
+                allowsMultipleItems={allowsMultipleItems}
+                onChange={setProductCodes}
+                productCodes={productCodes}
+                products={products}
+              />
+            ) : null}
           </div>
           {/*
            * Spec 166 RF7: um campo de quantidade + unidade por item marcado. "A nota inteira"
            * (lista vazia) não tem item a contar — o bloco só nasce com item escolhido.
            */}
-          <OccurrenceItemQuantities
-            onChange={setQuantitiesByCode}
-            productCodes={productCodes}
-            products={products}
-            quantitiesByCode={quantitiesByCode}
-          />
+          {carriesItems ? (
+            <OccurrenceItemQuantities
+              onChange={setQuantitiesByCode}
+              productCodes={productCodes}
+              products={products}
+              quantitiesByCode={quantitiesByCode}
+            />
+          ) : null}
           {/* Marcador de obrigatório (item 7 da revisão): a única seção que de fato trava o envio
               (CA17) ganha o mesmo `*` que o resto do produto usa para campo obrigatório. */}
           <p className={styles.occurrencePhotoSectionLabel}>
