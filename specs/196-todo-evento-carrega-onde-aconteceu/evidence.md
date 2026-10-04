@@ -2890,3 +2890,9 @@ Rebase sobre `origin/staging` (spec 235, o ajudante é um perfil, migration `202
 | pôr o pedido num nó do operador      | reprova "nenhum nó do operador nem da emissão pede localização" (esta pegou, de fato, um erro meu: a primeira substituição em lote atingiu o nó do operador) |
 
 - **Passo operacional manual do usuário (NÃO executado aqui):** o despachante lê a versão publicada no banco, então a mudança só tem efeito após, por empresa: `cd apps/api-transportada && bun run scripts/whatsapp-flow-publish.ts --company <id>` (diff) e depois com `--confirm`.
+
+## Decisões do usuário (2026-10-04)
+
+- **Ponto do WhatsApp × distância/pontualidade:** entra nos dois, como o do app; nenhum filtro por canal.
+- **`confirm-load` e `start-route`:** aceitam e descartam `tappedAt`/`clockOffsetMs` (comportamento atual mantido).
+- **Bancos órfãos:** 96 bancos `transportada_*` com mais de 24 h e sem conexão foram dropados do Postgres de integração (65432); restaram 6, todos do dia.

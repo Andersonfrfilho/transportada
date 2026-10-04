@@ -326,6 +326,7 @@ sinal de gestão, não prova (mesma premissa da spec 159).
   D2), e liberá-lo exige rever isto. **Pendência de decisão do usuário (2026-10-03, spec 196/ADR-0081 §3.1):**
   o ponto da mensagem de localização do WhatsApp pode ser um pino escolhido no mapa, não GPS; decidir se o ponto
   declarado entra na distância/pontualidade antes de subir os pacotes `meta-whatsapp-*`. Nada foi implementado.
+  **Decisão do usuário (2026-10-04):** o ponto do WhatsApp entra na distância e na pontualidade do canhoto, como o do app, sem filtro por canal (risco do pino escolhido no mapa aceito). `confirm-load` e `start-route` continuam aceitando e descartando `tappedAt`/`clockOffsetMs` (decisão do usuário, mesma data).
   **Resposta do usuário (2026-10-03):** o bot deve **pedir a geolocalização** ao motorista no WhatsApp e gravar o
   ponto como `captured`; o pedido ainda não existe no fluxo e só funciona após subir os pacotes. A relação do ponto
   declarado com a distância/pontualidade da nota segue sem decisão.

@@ -107,6 +107,8 @@ pode ser um **pino escolhido no mapa**, não o GPS do aparelho — o motorista d
 distância/pontualidade da nota. Decidir: o ponto declarado entra na distância e na
 pontualidade, ou fica de fora delas como prova de lugar? Nenhum filtro foi implementado.
 
+**Decisão do usuário (2026-10-04):** o ponto vindo do WhatsApp entra **na distância e na pontualidade** do canhoto, como o do app (nenhum filtro por canal). A pendência abaixo fica resolvida nesse sentido; o risco de o pino ser escolhido no mapa e não ser GPS é aceito pelo usuário.
+
 **Resposta do usuário (2026-10-03):** o bot do WhatsApp **pede a geolocalização** ao motorista (mensagem
 pedindo que ele compartilhe a localização), e o ponto recebido grava `captured`. A resposta não separou o
 ponto declarado da distância/pontualidade: essa parte segue **sem filtro e sem decisão explícita**. O pedido
