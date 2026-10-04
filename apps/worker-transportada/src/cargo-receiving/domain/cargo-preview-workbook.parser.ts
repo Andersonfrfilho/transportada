@@ -23,6 +23,7 @@ import type {
 import {
   decodeXmlPart,
   readSharedStrings,
+  readsDate1904,
   resolveWorkbookParts,
 } from './cargo-preview-xml.parser.js'
 import { extractZipEntry, readZipDirectory, type ZipEntry } from './cargo-preview-zip.parser.js'
@@ -79,10 +80,11 @@ export function parseCargoPreviewWorkbook(
   const archive = openArchive(params)
   const { limits } = archive
   const metadata = { maxBytes: limits.metadataEntryBytes }
+  const workbookXml = readPart(archive, { ...metadata, entryName: WORKBOOK_ENTRY })
   const parts = resolveWorkbookParts({
     relsXml: readPart(archive, { ...metadata, entryName: WORKBOOK_RELS_ENTRY }),
     sheetName: params.sheetName,
-    workbookXml: readPart(archive, { ...metadata, entryName: WORKBOOK_ENTRY }),
+    workbookXml,
   })
   const sharedStrings =
     parts.sharedStringsEntry === undefined || !archive.entries.has(parts.sharedStringsEntry)
@@ -107,5 +109,5 @@ export function parseCargoPreviewWorkbook(
     headerSearchRows: limits.headerSearchRows,
     rows: sheetRows,
   })
-  return readPreviewItems({ header, rows: sheetRows })
+  return readPreviewItems({ header, isDate1904: readsDate1904(workbookXml), rows: sheetRows })
 }

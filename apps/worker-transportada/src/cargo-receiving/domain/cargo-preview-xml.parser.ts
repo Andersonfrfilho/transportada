@@ -125,6 +125,14 @@ function findSheetRelationshipId(input: { sheetName: string | null; workbookXml:
   return relationshipId
 }
 
+const DATE_1904_FLAGS: ReadonlySet<string> = new Set(['1', 'true'])
+
+/** `workbookPr date1904`: o Excel antigo do Mac conta o serial de data a partir de 1904. */
+export function readsDate1904(workbookXml: string): boolean {
+  const workbook = asRecord(parseXmlPart(workbookXml)['workbook'])
+  return DATE_1904_FLAGS.has(String(asRecord(workbook?.['workbookPr'])?.['@date1904'] ?? ''))
+}
+
 /** A aba (pelo nome do perfil, ou a primeira) e as strings compartilhadas, pelos relacionamentos. */
 export function resolveWorkbookParts(input: {
   readonly relsXml: string

@@ -71,26 +71,34 @@ function optionalFormat(
   }
 }
 
-const FIELD_READERS: Readonly<Record<PreviewItemField, FieldReader>> = {
-  address: limited((cell) => normalizeText(cell.text), PREVIEW_TEXT_FIELD_MAX_LENGTH.address),
-  city: limited((cell) => normalizePlaceName(cell.text), PREVIEW_TEXT_FIELD_MAX_LENGTH.city),
-  contractorReference: limited(readCode, PREVIEW_TEXT_FIELD_MAX_LENGTH.contractorReference),
-  neighborhood: limited(
-    (cell) => normalizeText(cell.text),
-    PREVIEW_TEXT_FIELD_MAX_LENGTH.neighborhood,
-  ),
-  postalCode: optionalFormat(readPostalCode, 'Must be a postal code with 8 digits'),
-  recipientCode: limited(readCode, PREVIEW_TEXT_FIELD_MAX_LENGTH.recipientCode),
-  recipientName: limited(
-    (cell) => normalizeText(cell.text),
-    PREVIEW_TEXT_FIELD_MAX_LENGTH.recipientName,
-  ),
-  routeName: limited((cell) => normalizeText(cell.text), PREVIEW_TEXT_FIELD_MAX_LENGTH.routeName),
-  routingDate: optionalFormat(readExcelDate, 'Must be an Excel date'),
-  state: optionalFormat(readStateCode, 'Must be a two-letter state code'),
-  value: decimal('value'),
-  volumeM3: decimal('volumeM3'),
-  weightKg: decimal('weightKg'),
+type FieldReaders = Readonly<Record<PreviewItemField, FieldReader>>
+
+/** O sistema de data (1900 ou 1904) é do arquivo: muda o dia que o mesmo serial representa. */
+function createFieldReaders(isDate1904: boolean): FieldReaders {
+  return {
+    address: limited((cell) => normalizeText(cell.text), PREVIEW_TEXT_FIELD_MAX_LENGTH.address),
+    city: limited((cell) => normalizePlaceName(cell.text), PREVIEW_TEXT_FIELD_MAX_LENGTH.city),
+    contractorReference: limited(readCode, PREVIEW_TEXT_FIELD_MAX_LENGTH.contractorReference),
+    neighborhood: limited(
+      (cell) => normalizeText(cell.text),
+      PREVIEW_TEXT_FIELD_MAX_LENGTH.neighborhood,
+    ),
+    postalCode: optionalFormat(readPostalCode, 'Must be a postal code with 8 digits'),
+    recipientCode: limited(readCode, PREVIEW_TEXT_FIELD_MAX_LENGTH.recipientCode),
+    recipientName: limited(
+      (cell) => normalizeText(cell.text),
+      PREVIEW_TEXT_FIELD_MAX_LENGTH.recipientName,
+    ),
+    routeName: limited((cell) => normalizeText(cell.text), PREVIEW_TEXT_FIELD_MAX_LENGTH.routeName),
+    routingDate: optionalFormat(
+      (cell) => readExcelDate({ cell, isDate1904 }),
+      'Must be an Excel date',
+    ),
+    state: optionalFormat(readStateCode, 'Must be a two-letter state code'),
+    value: decimal('value'),
+    volumeM3: decimal('volumeM3'),
+    weightKg: decimal('weightKg'),
+  }
 }
 
 function presentCells(
@@ -109,18 +117,26 @@ function isIgnoredRow(present: ReadonlyMap<PreviewItemField, SheetCell>): boolea
   return [...present.keys()].every((field) => ROUTE_HEADER_FIELDS.has(field))
 }
 
-function readField(field: PreviewItemField, cell: SheetCell | undefined): FieldReading | undefined {
-  if (cell !== undefined) return FIELD_READERS[field](cell)
+function readField(
+  readers: FieldReaders,
+  input: { readonly cell: SheetCell | undefined; readonly field: PreviewItemField },
+): FieldReading | undefined {
+  const { cell, field } = input
+  if (cell !== undefined) return readers[field](cell)
   return REQUIRED_ITEM_FIELDS.has(field) ? { error: REQUIRED_MESSAGE } : undefined
 }
 
-function readItem(row: SheetRow, header: ResolvedHeader): CargoPreviewRow | CargoPreviewRowError[] {
+function readItem(
+  row: SheetRow,
+  input: { readonly header: ResolvedHeader; readonly readers: FieldReaders },
+): CargoPreviewRow | CargoPreviewRowError[] {
+  const { header } = input
   const present = presentCells(row, header.columns)
   const values = new Map<PreviewItemField, string>()
   const errors: CargoPreviewRowError[] = []
   for (const field of PREVIEW_ITEM_FIELDS) {
     const column = header.columns.find((item) => item.field === field)
-    const reading = readField(field, present.get(field))
+    const reading = readField(input.readers, { cell: present.get(field), field })
     if (reading === undefined) continue
     if ('value' in reading) values.set(field, reading.value)
     else
@@ -152,6 +168,7 @@ function readItem(row: SheetRow, header: ResolvedHeader): CargoPreviewRow | Carg
 
 export function readPreviewItems(input: {
   readonly header: ResolvedHeader
+  readonly isDate1904: boolean
   readonly rows: readonly SheetRow[]
 }): {
   readonly rowErrors: readonly CargoPreviewRowError[]
@@ -159,10 +176,11 @@ export function readPreviewItems(input: {
 } {
   const rows: CargoPreviewRow[] = []
   const rowErrors: CargoPreviewRowError[] = []
+  const readers = createFieldReaders(input.isDate1904)
   for (const row of input.rows) {
     if (row.rowNumber <= input.header.rowNumber) continue
     if (isIgnoredRow(presentCells(row, input.header.columns))) continue
-    const item = readItem(row, input.header)
+    const item = readItem(row, { header: input.header, readers })
     if (Array.isArray(item)) rowErrors.push(...item)
     else rows.push(item)
   }

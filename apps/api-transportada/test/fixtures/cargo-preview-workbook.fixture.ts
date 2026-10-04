@@ -61,10 +61,13 @@ export type FixtureCell =
   | { readonly raw: string }
   | { readonly formula: string; readonly cached: number | string }
   | { readonly inline: string }
+  | { readonly date: string }
 
 export type FixtureRow = Readonly<Record<string, FixtureCell | undefined>>
 
 export type BuildWorkbookOptions = {
+  /** `<workbookPr date1904="1"/>`: o serial de data conta a partir de 01/01/1904 (Excel antigo do Mac). */
+  readonly date1904?: boolean
   readonly entries?: Readonly<Record<string, Uint8Array>>
   readonly header?: readonly string[]
   readonly headerRowNumber?: number
@@ -92,6 +95,7 @@ function cellXml(input: { cell: FixtureCell; reference: string; strings: SharedS
   if ('inline' in cell) {
     return `<c r="${reference}" t="inlineStr"><is><t>${escapeXml(cell.inline)}</t></is></c>`
   }
+  if ('date' in cell) return `<c r="${reference}" t="d"><v>${escapeXml(cell.date)}</v></c>`
   const type = typeof cell.cached === 'string' ? ' t="str"' : ''
   return `<c r="${reference}"${type}><f>${escapeXml(cell.formula)}</f><v>${escapeXml(String(cell.cached))}</v></c>`
 }
@@ -138,8 +142,9 @@ function sheetXml(options: BuildWorkbookOptions, strings: SharedStrings): string
 
 const RESULT_SHEET_XML = `${XML_DECLARATION}<worksheet xmlns="${MAIN_NS}"><sheetData><row r="3"><c r="A3" t="e"><v>#NAME?</v></c><c r="B3" t="e"><v>#NAME?</v></c></row></sheetData></worksheet>`
 
-function workbookEntries(sheetName: string): Zippable {
-  const workbook = `${XML_DECLARATION}<workbook xmlns="${MAIN_NS}" xmlns:r="${REL_NS}"><sheets><sheet name="${escapeXml(sheetName)}" sheetId="1" r:id="rId1"/><sheet name="${RESULT_SHEET_NAME}" sheetId="4" r:id="rId2"/></sheets></workbook>`
+function workbookEntries(sheetName: string, date1904: boolean): Zippable {
+  const properties = date1904 ? '<workbookPr date1904="1"/>' : '<workbookPr codeName="EstaPasta"/>'
+  const workbook = `${XML_DECLARATION}<workbook xmlns="${MAIN_NS}" xmlns:r="${REL_NS}">${properties}<sheets><sheet name="${escapeXml(sheetName)}" sheetId="1" r:id="rId1"/><sheet name="${RESULT_SHEET_NAME}" sheetId="4" r:id="rId2"/></sheets></workbook>`
   const relationship = (id: string, type: string, target: string): string =>
     `<Relationship Id="${id}" Type="${type}" Target="${target}"/>`
   const rels = `${XML_DECLARATION}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${[
@@ -164,7 +169,7 @@ export function buildCargoPreviewWorkbook(options: BuildWorkbookOptions = {}): U
   const strings = new SharedStrings()
   const sheet = sheetXml(options, strings)
   const files: Zippable = {
-    ...workbookEntries(options.sheetName ?? IMPORT_SHEET_NAME),
+    ...workbookEntries(options.sheetName ?? IMPORT_SHEET_NAME, options.date1904 === true),
     [SHARED_STRINGS_ENTRY]: strToU8(
       strings
         .toXml()

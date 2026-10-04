@@ -29,9 +29,14 @@ const STATE_CODE = /^[A-Z]{2}$/u
 const POSTAL_CODE_SEPARATORS = /[.\-\s]/gu
 const POSTAL_CODE = /^\d{7,8}$/u
 const POSTAL_CODE_LENGTH = 8
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/u
+/** `t="d"` do Excel é ISO 8601: a data, e talvez a hora (que o dia do roteiro não usa). */
+const ISO_DATE_TIME =
+  /^(\d{4}-\d{2}-\d{2})(?:T([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/u
 const NUMERIC_TEXT = /^\d+(?:\.\d+)?$/u
 const EXCEL_EPOCH_MS = Date.UTC(1899, 11, 30)
+/** No sistema 1904 (`workbookPr date1904`) o serial 0 é 01/01/1904, sem o 29/02/1900 fantasma. */
+const EXCEL_1904_EPOCH_MS = Date.UTC(1904, 0, 1)
+const EXCEL_1904_OFFSET_DAYS = 1462
 const DAY_MS = 86_400_000
 /** O Excel herdou do Lotus o 29/02/1900, que não existe: o serial 60 é inválido, e antes dele o dia é +1. */
 const EXCEL_PHANTOM_LEAP_DAY = 60
@@ -64,17 +69,33 @@ export function readNonNegativeDecimal(params: ReadDecimalParams): DecimalReadin
   return { kind: 'value', text: formatScaled(scaled, scale) }
 }
 
-/** Data do roteiro: serial do Excel (sistema 1900) ou `AAAA-MM-DD`. */
-export function readExcelDate(cell: SheetCell): string | undefined {
-  const text = cell.text.trim()
-  if (!cell.isNumeric && ISO_DATE.test(text)) {
-    const parsed = new Date(`${text}T00:00:00Z`)
-    return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== text
-      ? undefined
-      : text
+function readIsoDate(text: string): string | undefined {
+  const date = ISO_DATE_TIME.exec(text)?.[1]
+  if (date === undefined) return undefined
+  const parsed = new Date(`${date}T00:00:00Z`)
+  return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date
+    ? undefined
+    : date
+}
+
+function readSerial1904(serial: number): string | undefined {
+  if (serial < 0 || serial > EXCEL_LAST_SERIAL - EXCEL_1904_OFFSET_DAYS) return undefined
+  return new Date(EXCEL_1904_EPOCH_MS + serial * DAY_MS).toISOString().slice(0, 10)
+}
+
+/** Data do roteiro: serial do Excel (sistema 1900 ou 1904, do arquivo) ou ISO `AAAA-MM-DD[Thh:mm…]`. */
+export function readExcelDate(input: {
+  readonly cell: SheetCell
+  readonly isDate1904: boolean
+}): string | undefined {
+  const text = input.cell.text.trim()
+  if (!input.cell.isNumeric) {
+    const date = readIsoDate(text)
+    if (date !== undefined) return date
   }
   if (!NUMERIC_TEXT.test(text)) return undefined
   const serial = Math.floor(Number(text))
+  if (input.isDate1904) return readSerial1904(serial)
   if (serial < 1 || serial === EXCEL_PHANTOM_LEAP_DAY || serial > EXCEL_LAST_SERIAL)
     return undefined
   const days = serial < EXCEL_PHANTOM_LEAP_DAY ? serial + 1 : serial
