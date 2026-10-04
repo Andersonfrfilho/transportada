@@ -223,7 +223,8 @@ describeDatabase('a prévia no worker (integration, spec 237 T4.3)', () => {
     expect(await count('cargo_preview_events', graph.companyId)).toBe(events)
   })
 
-  test('o que o operador decidiu a máquina não toca, e alias em conflito não é sobrescrito', async () => {
+  /** Revisão de segurança S6: vínculo reforçado que contradiz o alias o invalida (nunca o troca). */
+  test('o que o operador decidiu a máquina não toca, e alias em conflito é invalidado', async () => {
     const { bytes, graph, previewId } = await readyGraph()
     await process(graph, bytes, previewId)
     await db.execute(sql`
@@ -251,12 +252,10 @@ describeDatabase('a prévia no worker (integration, spec 237 T4.3)', () => {
     expect(outcome.aliasConflicts).toBe(1)
     const current = await states(previewId)
     expect(current[1]).toBe('7:awaiting_xml:user')
-    const [alias] = [
-      ...(await db.execute<{ recipient_tax_id: string }>(
-        sql`select recipient_tax_id from contractor_recipient_aliases where company_id = ${graph.companyId} and recipient_code = '10001'`,
-      )),
-    ]
-    expect(alias?.recipient_tax_id).toBe('99999999000199')
+    const aliases = await db.execute<{ recipient_tax_id: string }>(
+      sql`select recipient_tax_id from contractor_recipient_aliases where company_id = ${graph.companyId} and recipient_code = '10001'`,
+    )
+    expect([...aliases]).toEqual([])
   })
 
   test('duas reavaliações ao mesmo tempo não ligam a mesma nota duas vezes', async () => {

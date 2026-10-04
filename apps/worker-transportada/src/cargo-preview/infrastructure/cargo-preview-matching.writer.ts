@@ -14,7 +14,6 @@ import type {
   MatchingBudget,
   RecipientAlias,
 } from '../../cargo-receiving/domain/cargo-preview-matching.types.js'
-import type { MonotonicClock } from '../../cargo-receiving/domain/cargo-preview-workbook.types.js'
 import { CargoPreviewMatchTimeoutError } from '../application/cargo-preview-match-timeout.error.js'
 import { buildCargoPreviewMatchLockKey } from '../domain/cargo-preview-lock.policy.js'
 import { CARGO_PREVIEW_MATCH_STATEMENT_TIMEOUT_MS } from '../domain/cargo-preview-match-budget.constant.js'
@@ -53,23 +52,11 @@ export type MatchContractorResult = {
   readonly timedOutPreviewIds: readonly string[]
 }
 
-/** O prazo corre a partir da primeira consulta ao orçamento de cada prévia. */
-export function createMatchBudget(input: {
-  readonly budgetMs: number
-  readonly clock: MonotonicClock
-}): MatchingBudget {
-  const startedAt = input.clock()
-  return {
-    check: () => {
-      if (input.clock() - startedAt > input.budgetMs) throw new CargoPreviewMatchTimeoutError()
-    },
-  }
-}
-
 type PreviewOutcome = {
   readonly aliasConflicts: number
   readonly changedItems: number
   readonly learned: readonly RecipientAlias[]
+  readonly revoked: readonly RecipientAlias[]
 }
 
 const EMPTY_RESULT: MatchContractorResult = {
@@ -113,7 +100,7 @@ async function matchPreview(
 ): Promise<PreviewOutcome> {
   const scope = { companyId: input.companyId, previewId: input.preview.id }
   const items = await selectOpenItems(tx, scope)
-  if (items.length === 0) return { aliasConflicts: 0, changedItems: 0, learned: [] }
+  if (items.length === 0) return { aliasConflicts: 0, changedItems: 0, learned: [], revoked: [] }
   const windowMs = input.context.matchWindowDays * DAY_MS
   const receivedMs = input.preview.receivedAt.getTime()
   const candidates = await selectCandidateDocuments(tx, {
@@ -145,6 +132,7 @@ async function matchPreview(
     aliasConflicts: aliases.conflicts,
     changedItems: changes.length,
     learned: aliases.learned,
+    revoked: aliases.revoked,
   }
 }
 
@@ -186,6 +174,13 @@ export async function matchContractorPreviews(
     }
     changedItems += outcome.changedItems
     aliasConflicts += outcome.aliasConflicts
+    // O par invalidado sai também da memória: a prévia seguinte não o usa como reforço.
+    const revoked = new Set(outcome.revoked.map((alias) => alias.recipientCode))
+    aliases.splice(
+      0,
+      aliases.length,
+      ...aliases.filter((alias) => !revoked.has(alias.recipientCode)),
+    )
     aliases.push(...outcome.learned)
   }
   return {

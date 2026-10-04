@@ -13,10 +13,8 @@ import { sql } from 'drizzle-orm'
 import { createInProcessCargoPreviewWorkbookReader } from '../../src/cargo-preview/application/read-cargo-preview-workbook.service.js'
 import { processCargoPreview } from '../../src/cargo-preview/application/process-cargo-preview.use-case.js'
 import { CARGO_PREVIEW_MATCH_STATEMENT_TIMEOUT_MS } from '../../src/cargo-preview/domain/cargo-preview-match-budget.constant.js'
-import {
-  createMatchBudget,
-  matchContractorPreviews,
-} from '../../src/cargo-preview/infrastructure/cargo-preview-matching.writer.js'
+import { createMatchBudget } from '../../src/cargo-preview/application/cargo-preview-match-budget.service.js'
+import { matchContractorPreviews } from '../../src/cargo-preview/infrastructure/cargo-preview-matching.writer.js'
 import { DrizzleCargoPreviewWorkerRepository } from '../../src/cargo-preview/infrastructure/drizzle-cargo-preview-worker.repository.js'
 import { CARGO_PREVIEW_EVENT_TYPE } from '../../src/messaging/cargo-preview-envelope.schema.js'
 import {
