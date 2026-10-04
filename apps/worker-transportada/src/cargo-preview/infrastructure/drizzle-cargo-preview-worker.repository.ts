@@ -188,7 +188,8 @@ export class DrizzleCargoPreviewWorkerRepository implements Port {
       await tx
         .insert(cargoPreviewEvents)
         .values(wideEvent({ ...input, details, kind: CARGO_PREVIEW_EVENT_KIND.parsed }))
-      return matchContractorPreviews(tx, { ...input, previewIds: [input.previewId] })
+      // Todas as prontas, da mais antiga para a nova: a nova não leva a nota que outra esperava.
+      return matchContractorPreviews(tx, input)
     })
   }
 

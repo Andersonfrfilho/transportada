@@ -6,7 +6,7 @@
  * se enfileiram na trava e a segunda já encontra as notas ligadas: nenhuma nota vai a dois grupos, e
  * o resultado não depende da ordem. As prévias são vinculadas da mais antiga para a mais nova.
  */
-import { and, asc, eq, gte, inArray, isNotNull } from 'drizzle-orm'
+import { and, asc, eq, gte } from 'drizzle-orm'
 
 import { resolveCargoPreviewMatches } from '../../cargo-receiving/domain/cargo-preview-matching.policy.js'
 import type { RecipientAlias } from '../../cargo-receiving/domain/cargo-preview-matching.types.js'
@@ -36,8 +36,6 @@ export type MatchContractorParams = {
   readonly companyId: string
   readonly contractorId: string
   readonly now: Date
-  /** Só estas prévias (a leitura de uma); ausente, todas as prontas ainda dentro da janela. */
-  readonly previewIds?: readonly string[]
 }
 
 export type MatchContractorResult = {
@@ -104,9 +102,6 @@ function selectPreviews(
         eq(cargoPreviews.contractorId, input.contractorId),
         eq(cargoPreviews.status, CARGO_PREVIEW_STATUS.ready),
         gte(cargoPreviews.receivedAt, new Date(input.now.getTime() - input.windowDays * DAY_MS)),
-        input.previewIds === undefined
-          ? isNotNull(cargoPreviews.id)
-          : inArray(cargoPreviews.id, [...input.previewIds]),
       ),
     )
     .orderBy(asc(cargoPreviews.receivedAt), asc(cargoPreviews.id))
