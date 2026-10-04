@@ -31,6 +31,7 @@ import {
   trips,
 } from '../../database/trip.schema.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
+import type { ApiLogger } from '../../shared/api.types.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
@@ -364,6 +365,7 @@ export async function listTripOccurrences(
   input: {
     readonly companyId: string
     readonly documentId: string
+    readonly logger?: ApiLogger
     readonly tripId: string
   },
 ): Promise<
@@ -453,6 +455,7 @@ export async function listTripOccurrences(
     listOccurrenceCancellationsByIds(queryable, { companyId: input.companyId, occurrenceIds }),
     listOccurrenceTypeItemsShapesOrEmpty(queryable, {
       companyId: input.companyId,
+      ...(input.logger === undefined ? {} : { logger: input.logger }),
       occurrenceTypeIds: rows.map((row) => row.occurrenceTypeId),
     }),
   ])

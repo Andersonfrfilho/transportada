@@ -40,6 +40,7 @@ import type {
   TripStopOccurrenceKind,
 } from '../../database/trip.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
+import type { ApiLogger } from '../../shared/api.types.js'
 import { decodeKeysetCursor, encodeKeysetCursor } from '../../shared/keyset-cursor.support.js'
 import type { KeysetCursor } from '../../shared/keyset-cursor.support.js'
 import { mergeOccurrenceFeed } from '../domain/occurrence-feed.policy.js'
@@ -544,6 +545,7 @@ async function toFeedItems(
   companyId: string,
   rows: readonly FeedRow[],
   viewerUserId?: string,
+  logger?: ApiLogger,
 ): Promise<TripOccurrenceFeedItem[]> {
   const nfeDocumentIds = [
     ...new Set(rows.flatMap((row) => (row.nfeDocumentId === null ? [] : [row.nfeDocumentId]))),
@@ -613,6 +615,7 @@ async function toFeedItems(
     }),
     listOccurrenceTypeItemsShapesOrEmpty(queryable, {
       companyId,
+      ...(logger === undefined ? {} : { logger }),
       occurrenceTypeIds: rows.flatMap((row) =>
         row.occurrenceTypeId === null ? [] : [row.occurrenceTypeId],
       ),
@@ -659,6 +662,7 @@ async function toFeedItems(
 export async function listTripOccurrenceFeed(
   queryable: TripQueryable,
   query: TripOccurrenceFeedQuery,
+  dependencies: { readonly logger?: ApiLogger } = {},
 ): Promise<TripOccurrenceFeedPage> {
   const cursor = decodeKeysetCursor(query.cursor)
   const { documentStages, includeDocuments, includeStops } = stageSelects(query.filters)
@@ -680,7 +684,13 @@ export async function listTripOccurrenceFeed(
   const last = merged.items[merged.items.length - 1]
 
   return {
-    items: await toFeedItems(queryable, query.companyId, merged.items, query.viewerUserId),
+    items: await toFeedItems(
+      queryable,
+      query.companyId,
+      merged.items,
+      query.viewerUserId,
+      dependencies.logger,
+    ),
     nextCursor:
       merged.hasMore && last !== undefined
         ? encodeKeysetCursor({ createdAt: last.createdAt, id: last.id })

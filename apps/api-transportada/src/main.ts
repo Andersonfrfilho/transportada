@@ -1231,7 +1231,7 @@ export function bootstrap(): Bun.Server<undefined> {
           repository: {
             findOccurrenceType: (query) => findOccurrenceType(database.db, query),
             listDocumentProducts: (query) => listDocumentProducts(database.db, query),
-            listOccurrences: (query) => listTripOccurrences(database.db, query),
+            listOccurrences: (query) => listTripOccurrences(database.db, { ...query, logger }),
             readTemplateValues: (query) => readOccurrenceTemplateValues(database.db, query),
             saveOccurrence: (query) =>
               persistSeparationOccurrenceWithAttachment({
@@ -3920,6 +3920,7 @@ function createApplicationRoutes({
           const occurrences = await listTripOccurrences(database, {
             companyId: input.context.companyId,
             documentId: input.documentId,
+            logger,
             tripId: input.tripId,
           })
           const downloads = createDeliveryProofDownloadGateway({ storage: storageGateway })
@@ -3942,7 +3943,7 @@ function createApplicationRoutes({
         reader: {
           listAttachmentLocations: (query) =>
             listTripOccurrenceAttachmentLocations(database, query),
-          listFeed: (query) => listTripOccurrenceFeed(database, query),
+          listFeed: (query) => listTripOccurrenceFeed(database, query, { logger }),
         },
       }),
       readTripOccurrenceAttachments: createReadTripOccurrenceAttachmentsUseCase({
@@ -3950,7 +3951,7 @@ function createApplicationRoutes({
         reader: {
           listAttachmentLocations: (query) =>
             listTripOccurrenceAttachmentLocations(database, query),
-          listFeed: (query) => listTripOccurrenceFeed(database, query),
+          listFeed: (query) => listTripOccurrenceFeed(database, query, { logger }),
         },
       }),
       /**
@@ -4026,7 +4027,7 @@ function createApplicationRoutes({
                   repository: {
                     findOccurrenceType: (query) => findOccurrenceType(database, query),
                     listDocumentProducts: (query) => listDocumentProducts(database, query),
-                    listOccurrences: (query) => listTripOccurrences(database, query),
+                    listOccurrences: (query) => listTripOccurrences(database, { ...query, logger }),
                     readTemplateValues: (query) => readOccurrenceTemplateValues(database, query),
                     /**
                      * Spec 161 T6: já validado (teto/tipo/assinatura) pelo caso de uso — aqui sobem

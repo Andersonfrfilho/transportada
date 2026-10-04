@@ -9,6 +9,8 @@ import { and, eq, inArray } from 'drizzle-orm'
 
 import type { DeliveryProofFieldMode } from '../../database/company-delivery-proof-settings.schema.js'
 import { companyOccurrenceTypes } from '../../database/trip.schema.js'
+import { safeLogWarn } from '../../logging/safe-logger.service.js'
+import type { ApiLogger } from '../../shared/api.types.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 export type OccurrenceTypeItemsShape = {
@@ -27,6 +29,10 @@ export type ListOccurrenceTypeItemsShapesParams = {
   readonly companyId: string
   readonly occurrenceTypeIds: readonly string[]
 }
+
+export const OCCURRENCE_TYPE_ITEMS_READ_FAILED_MESSAGE = 'occurrence_type_items_read_failed'
+
+const UNKNOWN_FAILURE_CODE = 'unknown'
 
 export async function listOccurrenceTypeItemsShapesByIds(
   queryable: TripQueryable,
@@ -55,16 +61,39 @@ export async function listOccurrenceTypeItemsShapesByIds(
   return shapes
 }
 
+/** SQLSTATE do Postgres: o `DrizzleQueryError` o carrega na causa, e a mensagem dele traz os parâmetros. */
+function readFailureCode(error: unknown): string {
+  const cause = error instanceof Error ? error.cause : undefined
+  for (const candidate of [cause, error]) {
+    if (typeof candidate !== 'object' || candidate === null) continue
+    const code: unknown = Reflect.get(candidate, 'code')
+    if (typeof code === 'string') return code
+  }
+  return UNKNOWN_FAILURE_CODE
+}
+
 /**
  * ⚠️ É refinamento: o painel tolera os campos ausentes (`null`), então a falha desta leitura vira
- * mapa vazio em vez de derrubar a lista que já funcionava sem ela (`Promise.all` rejeita no primeiro
- * erro e descarta o resto do lote).
+ * mapa vazio — registrada, sem parâmetro nem dado — em vez de derrubar a lista que já funcionava sem
+ * ela (`Promise.all` rejeita no primeiro erro e descarta o resto do lote).
+ * Sem `logger` a falha propaga: dentro de transação o `.catch` esconderia a causa e o próximo
+ * comando morreria com `25P02`.
  */
 export function listOccurrenceTypeItemsShapesOrEmpty(
   queryable: TripQueryable,
-  params: ListOccurrenceTypeItemsShapesParams,
+  params: ListOccurrenceTypeItemsShapesParams & { readonly logger?: ApiLogger },
 ): Promise<Map<string, OccurrenceTypeItemsShape>> {
-  return listOccurrenceTypeItemsShapesByIds(queryable, params).catch(() => new Map())
+  const { logger, ...readParams } = params
+  const read = listOccurrenceTypeItemsShapesByIds(queryable, readParams)
+  if (logger === undefined) return read
+  return read.catch((error: unknown) => {
+    safeLogWarn({
+      logger,
+      message: OCCURRENCE_TYPE_ITEMS_READ_FAILED_MESSAGE,
+      metadata: { code: readFailureCode(error) },
+    })
+    return new Map()
+  })
 }
 
 export function buildOccurrenceTypeItemsView(params: {

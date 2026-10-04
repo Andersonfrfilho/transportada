@@ -16,7 +16,10 @@ import {
   listOccurrenceTypes,
   listTripOccurrences,
 } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
-import { listOccurrenceTypeItemsShapesByIds } from '../../src/trips/infrastructure/occurrence-type-items-read.query.js'
+import {
+  listOccurrenceTypeItemsShapesByIds,
+  OCCURRENCE_TYPE_ITEMS_READ_FAILED_MESSAGE,
+} from '../../src/trips/infrastructure/occurrence-type-items-read.query.js'
 import { findTripOccurrenceDetail } from '../../src/trips/infrastructure/trip-occurrence-detail.query.js'
 import { listTripOccurrenceFeed } from '../../src/trips/infrastructure/trip-occurrence-feed.query.js'
 import {
@@ -264,17 +267,30 @@ describe('as leituras publicam o modo de itens do tipo (spec 241 RF5, CA04)', ()
           },
         }) as unknown as typeof database.db
 
+        const warnings: { message: string; metadata: unknown }[] = []
+        const logger = {
+          error: () => undefined,
+          info: () => undefined,
+          warn: (message: string, metadata?: Record<string, unknown>) => {
+            warnings.push({ message, metadata })
+          },
+        }
         const noteList = await listTripOccurrences(failingShapes, {
           companyId: company.companyId,
           documentId: trip.documentId,
+          logger,
           tripId: trip.tripId,
         })
-        const feed = await listTripOccurrenceFeed(failingShapes, {
-          companyId: company.companyId,
-          cursor: null,
-          limit: 20,
-          order: 'desc',
-        })
+        const feed = await listTripOccurrenceFeed(
+          failingShapes,
+          { companyId: company.companyId, cursor: null, limit: 20, order: 'desc' },
+          { logger },
+        )
+
+        expect(warnings.map((warning) => warning.message)).toEqual([
+          OCCURRENCE_TYPE_ITEMS_READ_FAILED_MESSAGE,
+          OCCURRENCE_TYPE_ITEMS_READ_FAILED_MESSAGE,
+        ])
 
         expect(noteList).toHaveLength(1)
         expect(noteList[0]?.id).toBe(occurrenceId)
