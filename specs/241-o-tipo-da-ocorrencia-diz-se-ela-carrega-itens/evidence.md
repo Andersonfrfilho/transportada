@@ -432,6 +432,12 @@ estar no ar e com o `autoUpdate` do PWA propagado antes da etapa 2**; sem ele, a
 lista inteira com `TRIP_RESPONSE_INVALID`. Contra a **API atual** (sem os campos) o painel segue como antes: os contratos de
 tolerância (`test/trip/occurrence-items-mode-tolerance.contract.ts`, blocos "ausentes") continuam verdes.
 
+**Por que o painel sobe primeiro (dois guards de chave exata).** Com a API nova e o painel **atual de staging**, dois guards
+derrubam a tela, porque recusam chave que não conhecem: (i) `isTripOccurrence` / `TRIP_OCCURRENCE_OPTIONAL_KEYS`
+(`tripResponse.validation.ts`, `trip.constant.ts`) recusa `typeItemsMode` e `typeAllowsMultipleItems` na lista de
+ocorrências da nota, e (ii) `isOccurrenceType` recusa `itemsMode` no catálogo do cadastro de tipos. Logo o painel
+(etapa 1) sobe primeiro e o PWA precisa ter atualizado antes da API (etapa 2).
+
 **Etapa 2 — banco e API** (`work/241-api`, sobre `origin/staging` `11a78cb6e`; 11 commits de implementação, mais `fde805846` só de `specs/` com a ordem de publicação):
 
 | SHA         | Conteúdo                                                                                  |

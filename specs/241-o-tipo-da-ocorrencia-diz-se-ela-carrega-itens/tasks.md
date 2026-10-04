@@ -98,6 +98,10 @@ items_mode` da migration e o default `off` do plano. Se criou com default `off`:
       `plan.md`, mais o **passo 3 operacional** (cadastrar a prorrogação em produção, `spec.md` §
       Passo operacional) como pendente humano. Nada publicado nesta task. A T0.3 (medição em
       produção) segue pendente e exige autorização.
+      O painel sobe primeiro porque, com a API nova e o painel atual de staging, dois guards de chave
+      exata derrubam a tela: `isTripOccurrence`/`TRIP_OCCURRENCE_OPTIONAL_KEYS` recusa
+      `typeItemsMode`/`typeAllowsMultipleItems` na lista da nota, e `isOccurrenceType` recusa
+      `itemsMode` no catálogo do cadastro; o PWA precisa atualizar antes da API.
 - [x] **T3.3a** Atualização de `docs/ai-context/frontend-transportada.md`.
 - [ ] **T3.3b** Revisão final por `code-reviewer` (`opus`) — do usuário.
 
@@ -115,7 +119,7 @@ Modelos: Fase 0 → opus (T0.1–T0.3 🧠, decisões; T0.3 só leitura) · Fase
 architect antes: ordem coluna → UPDATE com política → CHECK, e rollback inverso) · Fase 3 → executor
 model=sonnet, revisão final → code-reviewer model=opus.
 Ordem de publicação (ADR-0081 §9): etapa 1 = painel tolerante (Fase 1) publicada e com o autoUpdate do
-PWA no ar ANTES da etapa 2 = migration + API (Fase 2). Nunca a API/banco primeiro. Depois da etapa 2, o
+PWA no ar ANTES da etapa 2 = migration + API (Fase 2). Nunca a API/banco primeiro. (Com a API nova e o painel atual, `isTripOccurrence`/`TRIP_OCCURRENCE_OPTIONAL_KEYS` e `isOccurrenceType` recusam as chaves novas.) Depois da etapa 2, o
 passo 3 é humano: o operador cadastra "Cliente pediu prorrogação do boleto" em produção pela tela, com
 Produtos = Desligado (spec.md § Passo operacional); nenhuma migration insere esse tipo.
 A 241 vai antes da 239: ela cria items_mode (default optional); não edite a 239.
