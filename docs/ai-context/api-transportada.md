@@ -2592,8 +2592,12 @@ Migration aditiva `20261004140624_cargo_previews` (ADR-0094 §8): `cargo_preview
   deixa o item `matched_by = user`.
 - **Propor a chegada** `POST /cargo-previews/:id/propose-arrival`: contratante, `plannedDate` e as notas
   `matched` distintas julgadas por `findArrivalCandidateRefusals` (a mesma política do registro da Fase
-  2); as recusadas voltam com o motivo. Não cria nada; grava `arrival_proposed`. O `previewId` no
-  `POST /cargo-arrivals` (preencher `cargo_previews.arrival_id`) ficou para a T4.4.
+  2); as recusadas voltam com o motivo. Não cria nada; grava `arrival_proposed` uma vez por conjunto
+  de notas (impressão sha256 nos `details`; repetir a proposta sem mudança não grava). ⚠️ **Pendente,
+  follow-up real:** nada preenche `cargo_previews.arrival_id` hoje — o `POST /cargo-arrivals` não
+  recebe `previewId`, e a T4.4 entregou a tela sem essa ponte. A chegada registrada a partir da
+  proposta não fica ligada à prévia até esse campo entrar (aditivo, com o índice parcial que já
+  existe).
 - Testes: `test/cargo-receiving-http/cargo-preview-routes.contract.ts`,
   `test/cargo-receiving/cargo-preview-{upload,item-action}.contract.ts`,
   `test/cargo-receiving-schema/cargo-preview.contract.ts` (+ isolamento em `tenant-safety`), e
