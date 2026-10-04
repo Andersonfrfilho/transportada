@@ -8,6 +8,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { RabbitMqDisposition, RabbitMqProvider } from '@adatechnology/rabbitmq-provider'
 
+import { createInProcessCargoPreviewWorkbookReader } from '../../src/cargo-preview/application/read-cargo-preview-workbook.service.js'
 import { CargoPreviewOutboxRelayService } from '../../src/cargo-preview/application/cargo-preview-outbox-relay.service.js'
 import {
   CARGO_PREVIEW_EVENT_TYPE,
@@ -80,7 +81,7 @@ describe('o consumidor da prévia (spec 237 T4.3)', () => {
     } as unknown as RabbitMqProvider
     await startCargoPreviewConsumer({
       dependencies: {
-        clock: () => 0,
+        workbook: createInProcessCargoPreviewWorkbookReader({ clock: () => 0 }),
         now: () => new Date(),
         reader: { read: async () => undefined },
         repository: { reevaluate } as never,
@@ -125,10 +126,14 @@ describe('a leitura que esgota a fila não fica em processing para sempre (spec 
   }
   const MAX_RETRIES = 5
 
-  async function deliver(retryCount: number) {
+  async function deliver(
+    retryCount: number,
+    options: { readonly redelivered?: boolean; readonly status?: string } = {},
+  ) {
     let handler:
       | ((input: {
           payload: CargoPreviewEnvelopeV1
+          redelivered?: boolean
           retryCount: number
         }) => Promise<RabbitMqDisposition>)
       | undefined
@@ -141,7 +146,7 @@ describe('a leitura que esgota a fila não fica em processing para sempre (spec 
     } as unknown as RabbitMqProvider
     await startCargoPreviewConsumer({
       dependencies: {
-        clock: () => 0,
+        workbook: createInProcessCargoPreviewWorkbookReader({ clock: () => 0 }),
         now: () => new Date(),
         reader: {
           read: async () => {
@@ -152,7 +157,7 @@ describe('a leitura que esgota a fila não fica em processing para sempre (spec 
           findPreview: async () => ({
             contractorId: CONTRACTOR_ID,
             fileSha256: 'x',
-            status: 'queued',
+            status: options.status ?? 'queued',
           }),
           findReadingProfile: async () => ({ columnMap: { routeName: 'R' }, sheetName: null }),
           markFailed: async ({ errorCode }: { errorCode: string }) => void failed.push(errorCode),
@@ -163,11 +168,19 @@ describe('a leitura que esgota a fila não fica em processing para sempre (spec 
       maxRetries: MAX_RETRIES,
       provider,
     })
-    return { disposition: await handler?.({ payload: PROCESS, retryCount }), failed }
+    const redelivered = options.redelivered === true
+    return { disposition: await handler?.({ payload: PROCESS, redelivered, retryCount }), failed }
   }
 
   test('antes da última tentativa é retry, e a prévia segue aberta', async () => {
     expect(await deliver(MAX_RETRIES - 1)).toEqual({ disposition: { type: 'retry' }, failed: [] })
+  })
+
+  test('reentrega do broker com a leitura começada: failed interrompida, sem reler, ack', async () => {
+    expect(await deliver(0, { redelivered: true, status: 'processing' })).toEqual({
+      disposition: { type: 'ack' },
+      failed: ['PREVIEW_PROCESSING_INTERRUPTED'],
+    })
   })
 
   test('na última tentativa a prévia vira failed PREVIEW_PROCESSING_ABANDONED e a mensagem morre', async () => {

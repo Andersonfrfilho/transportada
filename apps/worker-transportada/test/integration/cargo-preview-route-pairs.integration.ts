@@ -9,6 +9,7 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { afterAll, describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 
+import { createInProcessCargoPreviewWorkbookReader } from '../../src/cargo-preview/application/read-cargo-preview-workbook.service.js'
 import { processCargoPreview } from '../../src/cargo-preview/application/process-cargo-preview.use-case.js'
 import { DrizzleCargoPreviewWorkerRepository } from '../../src/cargo-preview/infrastructure/drizzle-cargo-preview-worker.repository.js'
 import { CARGO_PREVIEW_EVENT_TYPE } from '../../src/messaging/cargo-preview-envelope.schema.js'
@@ -63,7 +64,7 @@ describeDatabase('o par roteiro ↔ carga no banco (integration, spec 237 H1)', 
         version: 1,
       },
       {
-        clock: () => performance.now(),
+        workbook: createInProcessCargoPreviewWorkbookReader({ clock: () => performance.now() }),
         now: () => new Date(),
         reader: { read: async () => bytes },
         repository,

@@ -9,6 +9,7 @@ import type { RabbitMqConsumer, RabbitMqProvider } from '@adatechnology/rabbitmq
 
 import {
   processCargoPreview,
+  type CargoPreviewDelivery,
   type ProcessCargoPreviewDependencies,
 } from '../cargo-preview/application/process-cargo-preview.use-case.js'
 import { reevaluateCargoPreviews } from '../cargo-preview/application/reevaluate-cargo-previews.use-case.js'
@@ -21,9 +22,9 @@ import {
 import type { WorkerLogger } from '../shared/worker.types.js'
 
 /**
- * ⚠️ `prefetch` 1: a leitura da planilha é CPU no event loop (45–70 ms medidos, teto de 5 s pelo
- * orçamento do leitor) e a reavaliação segura a trava do contratante; uma por vez não deixa uma
- * rajada de envios parar os outros trilhos do worker.
+ * ⚠️ `prefetch` 1: a leitura da planilha roda numa thread terminada em 10 s (45–70 ms medidos) e a
+ * reavaliação segura a trava do contratante; uma por vez não deixa uma rajada de envios empilhar
+ * threads nem parar os outros trilhos do worker.
  */
 const CARGO_PREVIEW_PREFETCH = 1
 
@@ -39,11 +40,15 @@ function metadataOf(envelope: CargoPreviewEnvelopeV1): Record<string, unknown> {
 
 async function handleEnvelope(
   envelope: CargoPreviewEnvelopeV1,
-  input: { readonly dependencies: ProcessCargoPreviewDependencies; readonly logger: WorkerLogger },
+  input: {
+    readonly delivery: CargoPreviewDelivery
+    readonly dependencies: ProcessCargoPreviewDependencies
+    readonly logger: WorkerLogger
+  },
 ): Promise<void> {
   const metadata = metadataOf(envelope)
   if (envelope.type === CARGO_PREVIEW_EVENT_TYPE.PROCESS) {
-    const outcome = await processCargoPreview(envelope, input.dependencies)
+    const outcome = await processCargoPreview(envelope, input.dependencies, input.delivery)
     safeLogInfo({ logger: input.logger, message: `cargo_preview_process_${outcome}`, metadata })
     return
   }
@@ -95,9 +100,12 @@ async function abandonPreview(envelope: CargoPreviewEnvelopeV1, params: Consumer
 export async function startCargoPreviewConsumer(params: ConsumerParams): Promise<RabbitMqConsumer> {
   return params.provider.consume<CargoPreviewEnvelopeV1>({
     decode: (value) => cargoPreviewEnvelopeV1Schema.parse(value),
-    handler: async ({ payload, retryCount }) => {
+    handler: async ({ payload, redelivered, retryCount }) => {
       try {
-        await handleEnvelope(payload, params)
+        await handleEnvelope(payload, {
+          ...params,
+          delivery: { redelivered: redelivered === true },
+        })
         return { type: 'ack' }
       } catch (error) {
         safeLogError({

@@ -10,6 +10,7 @@ import type { NfeXmlDocument } from '@adatechnology/fiscal-provider'
 import { afterAll, describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 
+import { createInProcessCargoPreviewWorkbookReader } from '../../src/cargo-preview/application/read-cargo-preview-workbook.service.js'
 import { processCargoPreview } from '../../src/cargo-preview/application/process-cargo-preview.use-case.js'
 import { reevaluateCargoPreviews } from '../../src/cargo-preview/application/reevaluate-cargo-previews.use-case.js'
 import { DrizzleCargoPreviewOutboxRepository } from '../../src/cargo-preview/infrastructure/drizzle-cargo-preview-outbox.repository.js'
@@ -113,7 +114,7 @@ describeDatabase('a reavaliação pela importação (integration, spec 237 T4.3)
         version: 1,
       },
       {
-        clock: () => performance.now(),
+        workbook: createInProcessCargoPreviewWorkbookReader({ clock: () => performance.now() }),
         now: () => new Date(),
         reader: { read: async () => bytes },
         repository,

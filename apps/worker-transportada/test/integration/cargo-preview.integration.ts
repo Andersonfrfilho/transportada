@@ -10,6 +10,7 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { afterAll, describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 
+import { createThreadedCargoPreviewWorkbookReader } from '../../src/cargo-preview/infrastructure/threaded-cargo-preview-workbook.gateway.js'
 import type { CargoPreviewProcessEnvelope } from '../../src/messaging/cargo-preview-envelope.schema.js'
 import { CARGO_PREVIEW_EVENT_TYPE } from '../../src/messaging/cargo-preview-envelope.schema.js'
 import { processCargoPreview } from '../../src/cargo-preview/application/process-cargo-preview.use-case.js'
@@ -88,7 +89,7 @@ describeDatabase('a prévia no worker (integration, spec 237 T4.3)', () => {
 
   async function process(graph: CargoPreviewGraph, bytes: Uint8Array, previewId: string) {
     return processCargoPreview(envelopeOf(graph, previewId), {
-      clock: () => performance.now(),
+      workbook: createThreadedCargoPreviewWorkbookReader(),
       now: () => new Date(),
       reader: { read: async () => bytes },
       repository,

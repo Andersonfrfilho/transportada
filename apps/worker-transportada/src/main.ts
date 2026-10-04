@@ -143,6 +143,7 @@ import {
 import { DrizzleCargoPreviewOutboxRepository } from './cargo-preview/infrastructure/drizzle-cargo-preview-outbox.repository.js'
 import { DrizzleCargoPreviewWorkerRepository } from './cargo-preview/infrastructure/drizzle-cargo-preview-worker.repository.js'
 import { createStorageCargoPreviewReader } from './cargo-preview/infrastructure/storage-cargo-preview-reader.gateway.js'
+import { createThreadedCargoPreviewWorkbookReader } from './cargo-preview/infrastructure/threaded-cargo-preview-workbook.gateway.js'
 import type { ExtractAttachmentFieldsDependencies } from './aggregate-attachment/application/extract-attachment-fields.use-case.js'
 import { buildContractorMailOutboundRabbitMqTopology } from './messaging/contractor-mail-outbound-rabbitmq-topology.js'
 import { buildContractorMailInboundRabbitMqTopology } from './messaging/contractor-mail-inbound-rabbitmq-topology.js'
@@ -1035,12 +1036,12 @@ export async function startWorkerRuntime(
     })
     cargoPreviewConsumer = await cargoPreviewStarter({
       dependencies: {
-        clock: () => performance.now(),
         now: () => new Date(),
         reader: createStorageCargoPreviewReader({ storage: storageGateway }),
         repository: new DrizzleCargoPreviewWorkerRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
         ),
+        workbook: createThreadedCargoPreviewWorkbookReader(),
       },
       logger,
       maxRetries: cargoPreviewTopology.retry?.maxRetries ?? 0,

@@ -55,6 +55,19 @@ export type CargoPreviewWorkerRepositoryPort = {
   }): Promise<MatchingOutcome>
 }
 
+/** O leitor só recusa com código estável; o plano é o que a prévia grava. */
+export type PreviewWorkbookReading =
+  | { readonly code: CargoPreviewFailureCode }
+  | { readonly plan: PreviewItemsPlan }
+
+export type CargoPreviewWorkbookReaderPort = {
+  /** Passou do teto de tempo, é `PREVIEW_PARSE_TIMEOUT` — resultado, nunca exceção. */
+  read(input: {
+    readonly bytes: Uint8Array
+    readonly profile: PreviewReadingProfile
+  }): Promise<PreviewWorkbookReading>
+}
+
 export type CargoPreviewObjectReaderPort = {
   /** Objeto ausente é `undefined`: fato do mundo, não falha de infraestrutura. */
   read(location: { readonly bucket: string; readonly key: string }): Promise<Uint8Array | undefined>

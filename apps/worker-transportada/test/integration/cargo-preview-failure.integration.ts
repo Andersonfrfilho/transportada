@@ -9,6 +9,7 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { afterAll, describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 
+import { createInProcessCargoPreviewWorkbookReader } from '../../src/cargo-preview/application/read-cargo-preview-workbook.service.js'
 import { CargoPreviewValueOutOfRangeError } from '../../src/cargo-preview/application/cargo-preview-value-out-of-range.error.js'
 import { processCargoPreview } from '../../src/cargo-preview/application/process-cargo-preview.use-case.js'
 import type { NewPreviewItem } from '../../src/cargo-preview/domain/cargo-preview-items.policy.js'
@@ -81,7 +82,7 @@ describeDatabase('a prévia que falha no banco ou no perfil (integration, spec 2
         version: 1,
       },
       {
-        clock: () => performance.now(),
+        workbook: createInProcessCargoPreviewWorkbookReader({ clock: () => performance.now() }),
         now: () => new Date(),
         reader: { read: async () => input.bytes },
         repository,

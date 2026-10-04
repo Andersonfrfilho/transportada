@@ -12,6 +12,7 @@ import type {
   CargoPreviewWorkerRepositoryPort,
   PreviewToProcess,
 } from '../../src/cargo-preview/application/cargo-preview-worker.port.js'
+import { createInProcessCargoPreviewWorkbookReader } from '../../src/cargo-preview/application/read-cargo-preview-workbook.service.js'
 import { CargoPreviewValueOutOfRangeError } from '../../src/cargo-preview/application/cargo-preview-value-out-of-range.error.js'
 import { processCargoPreview } from '../../src/cargo-preview/application/process-cargo-preview.use-case.js'
 import type { PreviewItemsPlan } from '../../src/cargo-preview/domain/cargo-preview-items.policy.js'
@@ -63,7 +64,12 @@ function createFixture(input: {
   readonly profile?: boolean
   readonly storeError?: Error
 }) {
-  const calls = { failed: [] as string[], processing: 0, stored: [] as PreviewItemsPlan[] }
+  const calls = {
+    failed: [] as string[],
+    processing: 0,
+    reads: 0,
+    stored: [] as PreviewItemsPlan[],
+  }
   const bytes = 'bytes' in input ? input.bytes : WORKBOOK
   const repository: CargoPreviewWorkerRepositoryPort = {
     findPreview: async () =>
@@ -90,15 +96,50 @@ function createFixture(input: {
       return { aliasConflicts: 0, changedItems: 0, previews: 1 }
     },
   }
-  const run = () =>
-    processCargoPreview(ENVELOPE, {
-      clock: () => 0,
-      now: () => new Date('2026-10-04T12:00:00.000Z'),
-      reader: { read: async () => bytes },
-      repository,
-    })
+  const run = (delivery?: { readonly redelivered: boolean }) =>
+    processCargoPreview(
+      ENVELOPE,
+      {
+        now: () => new Date('2026-10-04T12:00:00.000Z'),
+        reader: {
+          read: async () => {
+            calls.reads += 1
+            return bytes
+          },
+        },
+        repository,
+        workbook: createInProcessCargoPreviewWorkbookReader({ clock: () => 0 }),
+      },
+      delivery,
+    )
   return { calls, run }
 }
+
+/**
+ * Revisão de segurança da Fase 4a (S1): a reentrega do broker (o processo caiu sem confirmar) de uma
+ * leitura que já começou não relê o arquivo — reler o que derrubou o processo é laço de queda.
+ */
+describe('a leitura interrompida não é relida (spec 237, segurança S1)', () => {
+  test('reentrega com a prévia em processing ⇒ failed PREVIEW_PROCESSING_INTERRUPTED, sem ler', async () => {
+    const { calls, run } = createFixture({ preview: { status: 'processing' } })
+    expect(await run({ redelivered: true })).toBe('failed')
+    expect(calls.failed).toEqual(['PREVIEW_PROCESSING_INTERRUPTED'])
+    expect(calls.reads).toBe(0)
+    expect(calls.stored).toEqual([])
+  })
+
+  test('reentrega de prévia que nem começou (queued) é lida normalmente', async () => {
+    const { calls, run } = createFixture({ preview: { status: 'queued' } })
+    expect(await run({ redelivered: true })).toBe('ready')
+    expect(calls.failed).toEqual([])
+  })
+
+  test('nova tentativa da fila (não é reentrega) relê a prévia em processing', async () => {
+    const { calls, run } = createFixture({ preview: { status: 'processing' } })
+    expect(await run({ redelivered: false })).toBe('ready')
+    expect(calls.reads).toBe(1)
+  })
+})
 
 describe('a leitura da prévia no worker (spec 237 T4.3)', () => {
   test('arquivo bom vira itens; a linha recusada é invalid com a coluna, sem o valor', async () => {
@@ -148,7 +189,7 @@ describe('a leitura da prévia no worker (spec 237 T4.3)', () => {
     for (const status of ['ready', 'failed'] as const) {
       const { calls, run } = createFixture({ preview: { status } })
       expect(await run()).toBe('already_done')
-      expect(calls).toEqual({ failed: [], processing: 0, stored: [] })
+      expect(calls).toEqual({ failed: [], processing: 0, reads: 0, stored: [] })
     }
     expect(await createFixture({ preview: null }).run()).toBe('missing')
   })
