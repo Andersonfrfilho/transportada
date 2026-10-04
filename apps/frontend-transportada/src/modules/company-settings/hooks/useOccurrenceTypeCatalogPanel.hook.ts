@@ -4,8 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { getTripClient } from '@/modules/trip/hooks/useTripWorkspace.hook'
-
-const OCCURRENCE_TYPE_CATALOG_QUERY_KEY = ['trip', 'occurrence-types'] as const
+import { OCCURRENCE_TYPES_QUERY_KEY } from '@/modules/trip/shared/occurrence.constant'
 
 /**
  * Mesmo cliente e mutação de quando o catálogo morava em Viagens: só o endereço da aba mudou. A
@@ -19,7 +18,7 @@ export function useOccurrenceTypeCatalogPanel(input: Readonly<{ enabled: boolean
   const query = useQuery({
     enabled: input.enabled,
     queryFn: () => client.listOccurrenceTypes(),
-    queryKey: OCCURRENCE_TYPE_CATALOG_QUERY_KEY,
+    queryKey: OCCURRENCE_TYPES_QUERY_KEY,
   })
 
   /**
@@ -28,8 +27,9 @@ export function useOccurrenceTypeCatalogPanel(input: Readonly<{ enabled: boolean
    */
   const saveMutation = useMutation({
     mutationFn: client.saveOccurrenceType,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: OCCURRENCE_TYPE_CATALOG_QUERY_KEY })
+    /** Também no erro: um `422` de tipo que mudou em outra aba pede o cadastro como está agora. */
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: OCCURRENCE_TYPES_QUERY_KEY })
     },
   })
 

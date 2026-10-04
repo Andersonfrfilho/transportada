@@ -10,10 +10,12 @@ import { approveCanhotoBatch } from '../shared/canhotoBatchApproval.service'
 import { applyCanhotoReviewResult } from '../shared/canhotoReviewCache.service'
 import type { DeliveryProof } from '../shared/deliveryProof.service'
 import type { RouteChoice, RouteGeometry } from '../shared/routeGeometry.service'
-import type {
-  OccurrenceAttachmentMode,
-  OccurrenceRedeliveryPolicy,
-  OccurrenceType,
+import {
+  OCCURRENCE_CORRECTION_ERROR,
+  OCCURRENCE_TYPES_QUERY_KEY,
+  type OccurrenceAttachmentMode,
+  type OccurrenceRedeliveryPolicy,
+  type OccurrenceType,
 } from '../shared/occurrence.constant'
 import type { CanhotoReviewOutcome, OccurrenceQuantityUnit } from '../shared/trip.constant'
 import type {
@@ -496,7 +498,7 @@ export function useTripWorkspace(
   const occurrenceTypesQuery = useQuery({
     enabled: controller.canReadTrips,
     queryFn: () => controller.listOccurrenceTypes(),
-    queryKey: ['trip', 'occurrence-types'] as const,
+    queryKey: OCCURRENCE_TYPES_QUERY_KEY,
   })
 
   const occurrencesQuery = useQuery({
@@ -660,6 +662,13 @@ export function useTripWorkspace(
       await sendOccurrencePhotosSequentially({
         occurrenceId: occurrencePhotoOccurrenceIdRef.current,
         onFailed: (photoId, error) => {
+          /** Tipo que virou `off` com a tela aberta: recarrega os tipos para o seletor sair. */
+          if (
+            error instanceof Error &&
+            error.message === OCCURRENCE_CORRECTION_ERROR.TYPE_ITEMS_NOT_ALLOWED
+          ) {
+            void queryClient.invalidateQueries({ queryKey: OCCURRENCE_TYPES_QUERY_KEY })
+          }
           state = markOccurrencePhotoFailed(
             state,
             photoId,

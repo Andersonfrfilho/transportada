@@ -199,11 +199,24 @@ export function TripOccurrences({
    * hook retomar a mesma fila pelo que ainda não foi `sent`.
    */
   function buildRegisterInput() {
-    const { productQuantities, productQuantityUnits } = resolveOccurrenceItemQuantityFields({
-      codes: productCodes,
+    /** O tipo pode ter virado `off` com a tela aberta: o que ele não carrega não vai, mesmo escondido. */
+    const selection = resolveItemsOnTypeChange({
+      nextType: selectedType,
+      productCodes,
       quantitiesByCode,
     })
-    return { note, occurrenceTypeId, photos, productCodes, productQuantities, productQuantityUnits }
+    const { productQuantities, productQuantityUnits } = resolveOccurrenceItemQuantityFields({
+      codes: selection.productCodes,
+      quantitiesByCode: selection.quantitiesByCode,
+    })
+    return {
+      note,
+      occurrenceTypeId,
+      photos,
+      productCodes: selection.productCodes,
+      productQuantities,
+      productQuantityUnits,
+    }
   }
 
   async function handleSubmit() {

@@ -8,6 +8,9 @@
  * porque é ele que decide quem registra, e isso é regra do produto, não escolha de quem cadastra.
  */
 
+/** Os tipos cadastrados: o cadastro, o registro e a recarga depois de um `422` leem a mesma consulta. */
+export const OCCURRENCE_TYPES_QUERY_KEY = ['trip', 'occurrence-types'] as const
+
 export const TRIP_OCCURRENCE_STAGE = {
   delivery: 'delivery',
   separation: 'separation',

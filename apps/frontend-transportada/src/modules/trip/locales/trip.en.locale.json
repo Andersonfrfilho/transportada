@@ -937,7 +937,7 @@
     "occurrenceAlreadyCancelled": "This occurrence was already cancelled and cannot be cancelled again. Nothing was saved; the screen was refreshed with the current state.",
     "occurrenceCancelled": "This occurrence was cancelled and can no longer be corrected. Nothing was saved; the screen was refreshed with the current state.",
     "occurrenceTypeSingleItem": "This occurrence type accepts a single item. Keep only one item and save again.",
-    "occurrenceTypeItemsNotAllowed": "This occurrence type does not carry products. Register it without choosing items; if it needs products, turn Products on in the type setup. Nothing was saved.",
+    "occurrenceTypeItemsNotAllowed": "This occurrence type does not carry products. Remove the chosen items and try again; if it needs products, turn Products on in the type setup. Nothing was saved.",
     "occurrenceTypeItemsOffRedeliveryPolicy": "A type without products does not open a case: leave redelivery unset or switch Products back to Optional. Nothing was saved.",
     "occurrenceItemQuantityNotPositive": "The quantity of each item must be greater than zero. Fix it and save again.",
     "occurrenceItemQuantityUnitPairing": "Quantity and unit go together: fill in both or neither. Fix it and save again.",
