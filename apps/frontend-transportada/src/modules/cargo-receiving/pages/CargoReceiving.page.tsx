@@ -10,6 +10,8 @@ import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavig
 import { CargoArrivalDetailScreen } from '../components/CargoArrivalDetailScreen.component'
 import { CargoArrivalListPanel } from '../components/CargoArrivalListPanel.component'
 import { CargoArrivalRegistration } from '../components/CargoArrivalRegistration.component'
+import { CargoPreviewDetailScreen } from '../components/CargoPreviewDetailScreen.component'
+import { CargoPreviewListPanel } from '../components/CargoPreviewListPanel.component'
 import { CargoReceivingShell } from '../components/CargoReceivingShell.component'
 import { CargoSeparationScreen } from '../components/CargoSeparationScreen.component'
 import { useCargoReceivingAccess } from '../hooks/useCargoReceivingAccess.hook'
@@ -55,7 +57,8 @@ function RegisterPage(): JSX.Element {
 }
 
 /**
- * `/recebimento`: a lista do escritório, o registro da chegada, o detalhe e a tela do celular do separador.
+ * `/recebimento`: a lista do escritório, o registro da chegada, o detalhe, a tela do celular do separador e
+ * as prévias de carga (`/recebimento/previas`).
  * A parede decide pelo mesmo mapa de permissão do menu (spec 221); escrever (`trip.manage`) é da tela.
  */
 export function CargoReceivingPage({ path }: CargoReceivingPageProps): JSX.Element {
@@ -82,9 +85,21 @@ export function CargoReceivingPage({ path }: CargoReceivingPageProps): JSX.Eleme
       return <CargoArrivalDetailScreen arrivalId={route.arrivalId} canManage={access.canManage} />
     case 'separation':
       return <CargoSeparationScreen arrivalId={route.arrivalId} canManage={access.canManage} />
+    case 'previews':
+      return (
+        <CargoReceivingShell
+          hint={t('preview.list.hint')}
+          section="previews"
+          title={t('preview.list.title')}
+        >
+          <CargoPreviewListPanel canManage={access.canManage} />
+        </CargoReceivingShell>
+      )
+    case 'preview-detail':
+      return <CargoPreviewDetailScreen canManage={access.canManage} previewId={route.previewId} />
     case 'list':
       return (
-        <CargoReceivingShell hint={t('list.hint')} title={t('list.title')}>
+        <CargoReceivingShell hint={t('list.hint')} section="arrivals" title={t('list.title')}>
           <CargoArrivalListPanel canManage={access.canManage} />
         </CargoReceivingShell>
       )

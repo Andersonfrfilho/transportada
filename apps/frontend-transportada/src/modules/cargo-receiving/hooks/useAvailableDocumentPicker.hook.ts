@@ -13,8 +13,10 @@ import {
   type SelectAllState,
 } from '../shared/cargoDocumentSelection.service'
 import { filterAvailableDocuments } from '../shared/availableDocumentSearch.service'
+import { usePreselection } from './usePreselection.hook'
 
 const NO_DOCUMENTS: readonly AvailableCargoDocument[] = []
+const NO_PRESELECTED_IDS: readonly string[] = []
 
 export type AvailableDocumentPickerController = Readonly<{
   clearSelection: () => void
@@ -25,6 +27,8 @@ export type AvailableDocumentPickerController = Readonly<{
   isLoadingMore: boolean
   listed: readonly AvailableCargoDocument[]
   loadMore: () => void
+  /** Notas que a prévia propôs e que já não estão livres: ficaram de fora da seleção. */
+  missingPreselectedCount: number
   query: string
   selectAllState: SelectAllState
   selection: DocumentSelection
@@ -37,6 +41,7 @@ export type AvailableDocumentPickerController = Readonly<{
 /** Seleção, busca e páginas das notas livres de um contratante. Trocar de contratante recomeça a seleção. */
 export function useAvailableDocumentPicker(
   contractorId: string,
+  preselectedIds: readonly string[] = NO_PRESELECTED_IDS,
 ): AvailableDocumentPickerController {
   const documentsQuery = useAvailableDocumentsQuery(contractorId)
   const [selectionState, setSelectionState] = useState<{
@@ -45,6 +50,7 @@ export function useAvailableDocumentPicker(
     selection: DocumentSelection
   }>({ contractorId, isLimited: false, selection: EMPTY_DOCUMENT_SELECTION })
   const [query, setQuery] = useState('')
+  const [preselection, setPreselection] = useState({ isDone: false, missingCount: 0 })
 
   const loaded = useMemo(
     () => documentsQuery.data?.pages.flatMap((page) => page.items) ?? NO_DOCUMENTS,
@@ -54,6 +60,16 @@ export function useAvailableDocumentPicker(
     () => filterAvailableDocuments({ documents: loaded, query }),
     [loaded, query],
   )
+  usePreselection({
+    documentsQuery,
+    loaded,
+    onResolved: (resolved) => {
+      setSelectionState({ contractorId, ...resolved.change })
+      setPreselection({ isDone: true, missingCount: resolved.missingCount })
+    },
+    preselectedIds,
+    preselection,
+  })
   const isCurrent = selectionState.contractorId === contractorId
   const selection = isCurrent ? selectionState.selection : EMPTY_DOCUMENT_SELECTION
   const selectAllState = resolveSelectAllState({ documents: listed, selection })
@@ -71,6 +87,7 @@ export function useAvailableDocumentPicker(
     isLoadingMore: documentsQuery.isFetchingNextPage,
     listed,
     loadMore: () => void documentsQuery.fetchNextPage(),
+    missingPreselectedCount: preselection.missingCount,
     query,
     selectAllState,
     selection,

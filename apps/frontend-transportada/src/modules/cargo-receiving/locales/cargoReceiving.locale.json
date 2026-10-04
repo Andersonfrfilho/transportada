@@ -252,5 +252,229 @@
     "retryLabel": "Tentar de novo — NF {{number}}",
     "refused": "Recusada: {{reason}}",
     "closedNotice": "Chegada fechada: só leitura."
+  },
+  "preview": {
+    "unknownContractor": "Contratante não identificado",
+    "nav": {
+      "label": "Seções do recebimento",
+      "arrivals": "Chegadas",
+      "previews": "Prévias"
+    },
+    "status": {
+      "queued": "Na fila",
+      "processing": "Lendo",
+      "ready": "Pronta",
+      "failed": "Falhou"
+    },
+    "itemState": {
+      "matched": "Vinculada",
+      "awaiting_xml": "Esperando o XML",
+      "suggested": "Sugerida",
+      "ambiguous": "Ambígua",
+      "invalid": "Inválida"
+    },
+    "failure": {
+      "PREVIEW_CELL_TOO_LONG": "Uma célula da planilha passa do tamanho aceito.",
+      "PREVIEW_COLUMN_DUPLICATED": "Há colunas repetidas no cabeçalho da planilha.",
+      "PREVIEW_COLUMN_NOT_FOUND": "Falta uma coluna que o perfil do contratante espera na planilha.",
+      "PREVIEW_FILE_CORRUPTED": "O arquivo está corrompido e não pôde ser lido.",
+      "PREVIEW_FILE_MISSING": "O arquivo enviado não foi encontrado para a leitura.",
+      "PREVIEW_FILE_TOO_LARGE": "A planilha passa do tamanho aceito.",
+      "PREVIEW_NOT_A_WORKBOOK": "O arquivo não é uma planilha .xlsx ou .xlsm válida.",
+      "PREVIEW_NOT_ENABLED": "A prévia não está ligada para este contratante.",
+      "PREVIEW_PARSE_TIMEOUT": "A leitura da planilha demorou além do limite.",
+      "PREVIEW_SHEET_NOT_FOUND": "A aba configurada no perfil não existe na planilha.",
+      "PREVIEW_TOO_MANY_ENTRIES": "O arquivo tem entradas demais para ser uma planilha.",
+      "PREVIEW_TOO_MANY_ROWS": "A planilha tem linhas demais.",
+      "PREVIEW_TOO_MANY_STRINGS": "A planilha tem textos demais.",
+      "PREVIEW_ZIP_BOMB": "O arquivo se expande além do limite de segurança.",
+      "PREVIEW_ZIP_ENTRY_UNSAFE": "O arquivo tem uma entrada insegura e foi recusado.",
+      "unknown": "A planilha não pôde ser lida. Confira o arquivo e envie de novo."
+    },
+    "fields": {
+      "contractorId": "Contratante",
+      "file": "Planilha da prévia"
+    },
+    "list": {
+      "title": "Prévias",
+      "hint": "Cada prévia é a planilha que o contratante manda antes de a carga chegar. Envie, confira o que já tem nota e proponha a chegada.",
+      "loading": "Carregando as prévias",
+      "error": "Não foi possível carregar as prévias ({{code}}).",
+      "empty": "Nenhuma prévia enviada ainda.",
+      "emptyFiltered": "Nenhuma prévia com esses filtros.",
+      "loadMore": "Carregar mais prévias",
+      "count": "{{shown}} de {{total}} prévias carregadas"
+    },
+    "table": {
+      "region": "Lista de prévias",
+      "contractor": "Contratante",
+      "fileName": "Arquivo",
+      "receivedAt": "Recebida em",
+      "plannedDate": "Dia planejado",
+      "rowCount": "Linhas",
+      "status": "Situação",
+      "openLabel": "Abrir a prévia de {{name}}"
+    },
+    "filters": {
+      "itemState": "Situação do item",
+      "itemStatePlaceholder": "Todas as situações",
+      "itemStateSummary_one": "{{count}} situação",
+      "itemStateSummary_other": "{{count}} situações",
+      "itemStateRemove": "Remover o filtro de situação do item",
+      "route": "Roteiro",
+      "routePlaceholder": "Todos os roteiros",
+      "routeSummary_one": "{{count}} roteiro",
+      "routeSummary_other": "{{count}} roteiros",
+      "routeRemove": "Remover o filtro de roteiro",
+      "routeSearch": "Buscar roteiro",
+      "routeEmpty": "Nenhum roteiro encontrado"
+    },
+    "upload": {
+      "title": "Enviar planilha",
+      "contractor": "Contratante da planilha",
+      "contractorHint": "Só aparecem contratantes com o recebimento e a prévia ligados no perfil.",
+      "contractorPlaceholder": "Escolha o contratante",
+      "contractorSearch": "Buscar contratante",
+      "contractorEmpty": "Nenhum contratante com recebimento e prévia ligados",
+      "contractorsLoading": "Carregando os contratantes",
+      "chooseFile": "Escolher arquivo",
+      "noFile": "Nenhum arquivo escolhido",
+      "fileHint": "Aceita .xlsx e .xlsm de até {{max}} KB. A leitura acontece em segundo plano.",
+      "submit": "Enviar planilha",
+      "submitting": "Enviando…",
+      "alreadySent": "Essa planilha já foi enviada.",
+      "openExisting": "Abrir a prévia",
+      "noEligibleContractor": "Nenhum contratante com a prévia ligada. Ligue o recebimento e a prévia no perfil do contratante, em Clientes, aba Contratantes.",
+      "openContractors": "Abrir contratantes"
+    },
+    "issues": {
+      "contractorId": {
+        "required": "Escolha o contratante."
+      },
+      "file": {
+        "required": "Escolha a planilha.",
+        "extension": "Use um arquivo .xlsx ou .xlsm.",
+        "empty": "O arquivo está vazio.",
+        "tooLarge": "A planilha tem mais de {{max}} KB. Envie uma de até {{max}} KB."
+      }
+    },
+    "errors": {
+      "PREVIEW_FILE_TOO_LARGE": "A planilha passa do limite de 960 KB aceito pelo servidor.",
+      "PREVIEW_NOT_A_WORKBOOK": "O arquivo não é uma planilha .xlsx ou .xlsm válida.",
+      "CARGO_PREVIEW_NOT_ENABLED": "A prévia não está ligada para este contratante. Ligue no perfil dele, em Clientes, aba Contratantes.",
+      "CARGO_PREVIEW_KEY_REUSED": "Esta tentativa já foi usada com outra planilha. Escolha o arquivo de novo e envie.",
+      "CARGO_PREVIEW_NOT_FOUND": "Esta prévia não existe mais.",
+      "CARGO_PREVIEW_ITEM_NOT_FOUND": "Esta linha não faz mais parte da prévia.",
+      "CARGO_PREVIEW_NOT_READY": "A prévia ainda não foi lida. Aguarde a leitura terminar.",
+      "CARGO_PREVIEW_DOCUMENT_ALREADY_LINKED": "Essa nota já está ligada a outra prévia.",
+      "CARGO_PREVIEW_DOCUMENT_NOT_CANDIDATE": "Essa nota não pode ser vinculada a esta prévia: é de outro emitente ou não está autorizada.",
+      "CARGO_PREVIEW_ITEM_ALREADY_LINKED": "Esta linha já está ligada a outra nota. Desvincule antes de vincular de novo.",
+      "CARGO_PREVIEW_ITEM_NOT_SUGGESTED": "Só uma linha com sugestão pode ser confirmada.",
+      "CARGO_PREVIEW_ITEM_INVALID": "Esta linha é inválida na planilha: não há o que vincular. Corrija a planilha e envie de novo."
+    },
+    "facts": {
+      "file": "Arquivo: {{name}}",
+      "receivedAt": "Recebida em: {{date}}",
+      "plannedDate": "Dia planejado: {{date}}",
+      "rows_one": "{{count}} linha",
+      "rows_other": "{{count}} linhas"
+    },
+    "summary": {
+      "label": "Resumo por situação"
+    },
+    "detail": {
+      "title": "Prévia de {{name}}",
+      "back": "Voltar às prévias",
+      "loading": "Carregando a prévia",
+      "error": "Não foi possível carregar a prévia.",
+      "empty": "Esta prévia não tem linhas.",
+      "emptyFiltered": "Nenhuma linha com esses filtros.",
+      "loadMore": "Carregar mais itens",
+      "awaitingNote": "Esperando o XML é normal: a prévia chega horas antes das notas. O vínculo nasce quando cada XML é importado."
+    },
+    "route": {
+      "none": "Sem roteiro",
+      "noLoad": "Carga ainda não pareada",
+      "load": "Carga {{reference}} · pareada {{origin}}",
+      "origin": {
+        "totals": "pelos totais",
+        "votes": "pelos votos",
+        "user": "pelo operador"
+      },
+      "counts": "{{matched}} de {{total}} vinculadas",
+      "region": "Linhas do roteiro {{title}}"
+    },
+    "item": {
+      "columns": {
+        "row": "Linha",
+        "recipient": "Destinatário",
+        "city": "Cidade",
+        "value": "Valor",
+        "weight": "Peso",
+        "state": "Situação",
+        "actions": "Ações"
+      },
+      "linked": "NF {{number}} · {{value}}",
+      "decidedBy": {
+        "system": "automático",
+        "user": "pelo operador"
+      },
+      "candidates": {
+        "suggested_one": "{{count}} nota candidata: confirme para vincular.",
+        "suggested_other": "{{count}} notas candidatas: confirme para vincular.",
+        "ambiguous_one": "{{count}} nota candidata: escolha uma.",
+        "ambiguous_other": "{{count}} notas candidatas: escolha uma."
+      },
+      "rowError": "Coluna {{column}}: {{reason}}",
+      "actions": {
+        "confirm": "Confirmar",
+        "confirmLabel": "Confirmar a linha {{row}}",
+        "unlink": "Desvincular",
+        "unlinkLabel": "Desvincular a linha {{row}}",
+        "link": "Vincular à mão",
+        "linkLabel": "Vincular à mão a linha {{row}}"
+      }
+    },
+    "rowErrors": {
+      "required": "o valor é obrigatório",
+      "decimal": "o valor deve ser um número decimal, sem sinal negativo"
+    },
+    "unlink": {
+      "warning": "Desvincular solta a NF {{number}} de todas as linhas que a fecham ({{count}} nesta lista).",
+      "confirm": "Desvincular mesmo",
+      "cancel": "Cancelar"
+    },
+    "manual": {
+      "title": "Vincular a linha {{row}} a uma nota",
+      "search": "Buscar nota",
+      "candidate": "Candidata",
+      "choose": "Escolher",
+      "chooseLabel": "Escolher a NF {{number}}",
+      "confirm": "Vincular a NF {{number}}",
+      "cancel": "Cancelar",
+      "empty": "Nenhuma nota livre deste contratante com essa busca."
+    },
+    "proposal": {
+      "propose": "Propor chegada",
+      "proposing": "Propondo…",
+      "title": "Rascunho da chegada",
+      "facts": "Contratante: {{contractor}}. Dia planejado: {{date}}.",
+      "entering_one": "{{count}} nota entra na chegada.",
+      "entering_other": "{{count}} notas entram na chegada.",
+      "none": "Nenhuma nota pode entrar na chegada agora.",
+      "refusedLead": "Ficaram de fora:",
+      "unknownDocument": "Uma nota",
+      "register": "Registrar chegada com estas notas",
+      "noMatched": "Nenhuma nota vinculada ainda: as notas entram quando o XML chegar.",
+      "notReady": "A prévia ainda está sendo lida.",
+      "failed": "A leitura da prévia falhou: corrija a planilha e envie de novo."
+    },
+    "prefill": {
+      "notice_one": "{{count}} nota veio da prévia. Confira a data e a hora da chegada: elas não são assumidas.",
+      "notice_other": "{{count}} notas vieram da prévia. Confira a data e a hora da chegada: elas não são assumidas.",
+      "plannedDate": "Dia planejado na prévia: {{date}}.",
+      "missing_one": "{{count}} nota proposta não está mais livre e ficou de fora.",
+      "missing_other": "{{count}} notas propostas não estão mais livres e ficaram de fora."
+    }
   }
 }

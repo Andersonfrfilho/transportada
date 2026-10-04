@@ -27,6 +27,8 @@ export type CargoReceivingDependencies = Readonly<{
 type RequestInput = Readonly<{
   body?: unknown
   dependencies: CargoReceivingDependencies
+  /** Multipart: o navegador escolhe o `content-type` com o boundary, nunca se fixa à mão. */
+  formData?: FormData
   idempotencyKey?: string
   method: 'GET' | 'POST'
   path: string
@@ -64,12 +66,17 @@ function buildHeaders(input: RequestInput, accessToken: string): Record<string, 
   return headers
 }
 
+function buildRequestBody(input: RequestInput): Readonly<{ body?: BodyInit }> {
+  if (input.formData !== undefined) return { body: input.formData }
+  return input.body === undefined ? {} : { body: JSON.stringify(input.body) }
+}
+
 async function send(input: RequestInput): Promise<Response> {
   const accessToken = await input.dependencies.getAccessToken()
   try {
     return await input.dependencies.fetch(
       new Request(`${input.dependencies.apiUrl}${input.path}`, {
-        ...(input.body === undefined ? {} : { body: JSON.stringify(input.body) }),
+        ...buildRequestBody(input),
         cache: 'no-store',
         headers: buildHeaders(input, accessToken),
         method: input.method,

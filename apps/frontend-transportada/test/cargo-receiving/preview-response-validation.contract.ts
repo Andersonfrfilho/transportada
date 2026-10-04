@@ -41,7 +41,9 @@ describe('a lista de prévias', () => {
 
   test('recusa chave a mais, chave a menos e situação desconhecida', () => {
     const summary = buildPreviewSummary()
-    const { fileName: _removed, ...withoutFileName } = summary
+    const withoutFileName = Object.fromEntries(
+      Object.entries(summary).filter(([key]) => key !== 'fileName'),
+    )
 
     expect(
       isInvalid(() => toPreviewPage({ data: [{ ...summary, extra: 1 }], nextCursor: null })),
@@ -78,7 +80,9 @@ describe('o detalhe da prévia', () => {
 
   test('recusa contagem sem uma das cinco situações ou sem o total', () => {
     const detail = buildPreviewDetail()
-    const { ambiguous: _removed, ...partialCounts } = detail.counts
+    const partialCounts = Object.fromEntries(
+      Object.entries(detail.counts).filter(([key]) => key !== 'ambiguous'),
+    )
 
     expect(isInvalid(() => toPreviewDetail({ data: { ...detail, counts: partialCounts } }))).toBe(
       true,
@@ -119,7 +123,9 @@ describe('o detalhe da prévia', () => {
     expect(
       isInvalid(() =>
         toPreviewDetail({
-          data: buildPreviewDetail({ items: [{ ...invalid, rowErrors: [{ column: 'VALOR' }] }] }),
+          data: buildPreviewDetail({
+            items: [{ ...invalid, rowErrors: [{ column: 'VALOR' }] as never }],
+          }),
         }),
       ),
     ).toBe(true)

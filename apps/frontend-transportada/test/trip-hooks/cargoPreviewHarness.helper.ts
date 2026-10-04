@@ -156,11 +156,10 @@ function buildClient(double: CargoPreviewDouble): CargoPreviewClient {
       double.calls.itemAction.push({ ...input })
       const failure = double.actionFailures.shift()
       if (failure !== undefined) return Promise.reject(failure)
-      try {
-        return Promise.resolve({ itemIds: applyAction(double, input), outcome: 'changed' })
-      } catch (error) {
-        return Promise.reject(error as Error)
-      }
+      return Promise.resolve().then(() => ({
+        itemIds: applyAction(double, input),
+        outcome: 'changed' as const,
+      }))
     },
     listPreviews: ({ cursor, filters }) => {
       double.calls.listPreviews.push({ cursor, filters: { ...filters } })

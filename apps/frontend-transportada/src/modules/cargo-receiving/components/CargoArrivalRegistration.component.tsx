@@ -9,6 +9,7 @@ import { useCargoArrivalRegistration } from '../hooks/useCargoArrivalRegistratio
 import styles from '../styles/cargoReceiving.module.css'
 import registrationStyles from '../styles/cargoRegistration.module.css'
 import { AvailableDocumentPicker } from './AvailableDocumentPicker.component'
+import { CargoArrivalPrefillNotice } from './CargoArrivalPrefillNotice.component'
 import { CargoArrivalFormFields } from './CargoArrivalFormFields.component'
 import { RegistrationRefusalSummary } from './RegistrationRefusalSummary.component'
 
@@ -35,6 +36,12 @@ export function CargoArrivalRegistration(): JSX.Element {
       }}
       ref={panelRef}
     >
+      {form.prefill === undefined ? null : (
+        <CargoArrivalPrefillNotice
+          missingCount={form.picker.missingPreselectedCount}
+          prefill={form.prefill}
+        />
+      )}
       <CargoArrivalFormFields form={form} />
       <AvailableDocumentPicker
         contractorId={form.draft.contractorId}

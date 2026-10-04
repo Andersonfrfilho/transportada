@@ -252,5 +252,229 @@
     "retryLabel": "Try again — invoice {{number}}",
     "refused": "Refused: {{reason}}",
     "closedNotice": "Arrival closed: read only."
+  },
+  "preview": {
+    "unknownContractor": "Unidentified contractor",
+    "nav": {
+      "label": "Receiving sections",
+      "arrivals": "Arrivals",
+      "previews": "Previews"
+    },
+    "status": {
+      "queued": "Queued",
+      "processing": "Reading",
+      "ready": "Ready",
+      "failed": "Failed"
+    },
+    "itemState": {
+      "matched": "Linked",
+      "awaiting_xml": "Waiting for the XML",
+      "suggested": "Suggested",
+      "ambiguous": "Ambiguous",
+      "invalid": "Invalid"
+    },
+    "failure": {
+      "PREVIEW_CELL_TOO_LONG": "A spreadsheet cell is longer than allowed.",
+      "PREVIEW_COLUMN_DUPLICATED": "The spreadsheet header repeats a column.",
+      "PREVIEW_COLUMN_NOT_FOUND": "A column the contractor profile expects is missing from the spreadsheet.",
+      "PREVIEW_FILE_CORRUPTED": "The file is corrupted and could not be read.",
+      "PREVIEW_FILE_MISSING": "The uploaded file was not found for reading.",
+      "PREVIEW_FILE_TOO_LARGE": "The spreadsheet is larger than allowed.",
+      "PREVIEW_NOT_A_WORKBOOK": "The file is not a valid .xlsx or .xlsm spreadsheet.",
+      "PREVIEW_NOT_ENABLED": "Previews are not enabled for this contractor.",
+      "PREVIEW_PARSE_TIMEOUT": "Reading the spreadsheet took longer than the limit.",
+      "PREVIEW_SHEET_NOT_FOUND": "The sheet set in the profile does not exist in the spreadsheet.",
+      "PREVIEW_TOO_MANY_ENTRIES": "The file has too many entries to be a spreadsheet.",
+      "PREVIEW_TOO_MANY_ROWS": "The spreadsheet has too many rows.",
+      "PREVIEW_TOO_MANY_STRINGS": "The spreadsheet has too many texts.",
+      "PREVIEW_ZIP_BOMB": "The file expands beyond the safety limit.",
+      "PREVIEW_ZIP_ENTRY_UNSAFE": "The file has an unsafe entry and was refused.",
+      "unknown": "The spreadsheet could not be read. Check the file and upload it again."
+    },
+    "fields": {
+      "contractorId": "Contractor",
+      "file": "Preview spreadsheet"
+    },
+    "list": {
+      "title": "Previews",
+      "hint": "Each preview is the spreadsheet the contractor sends before the cargo arrives. Upload it, check what already has an invoice and propose the arrival.",
+      "loading": "Loading the previews",
+      "error": "Could not load the previews ({{code}}).",
+      "empty": "No preview uploaded yet.",
+      "emptyFiltered": "No preview matches these filters.",
+      "loadMore": "Load more previews",
+      "count": "{{shown}} of {{total}} previews loaded"
+    },
+    "table": {
+      "region": "Previews list",
+      "contractor": "Contractor",
+      "fileName": "File",
+      "receivedAt": "Received at",
+      "plannedDate": "Planned day",
+      "rowCount": "Rows",
+      "status": "Status",
+      "openLabel": "Open the preview of {{name}}"
+    },
+    "filters": {
+      "itemState": "Item status",
+      "itemStatePlaceholder": "All statuses",
+      "itemStateSummary_one": "{{count}} status",
+      "itemStateSummary_other": "{{count}} statuses",
+      "itemStateRemove": "Remove the item status filter",
+      "route": "Route",
+      "routePlaceholder": "All routes",
+      "routeSummary_one": "{{count}} route",
+      "routeSummary_other": "{{count}} routes",
+      "routeRemove": "Remove the route filter",
+      "routeSearch": "Search route",
+      "routeEmpty": "No route found"
+    },
+    "upload": {
+      "title": "Upload spreadsheet",
+      "contractor": "Spreadsheet contractor",
+      "contractorHint": "Only contractors with receiving and previews turned on in the profile appear.",
+      "contractorPlaceholder": "Choose the contractor",
+      "contractorSearch": "Search contractor",
+      "contractorEmpty": "No contractor with receiving and previews turned on",
+      "contractorsLoading": "Loading the contractors",
+      "chooseFile": "Choose file",
+      "noFile": "No file chosen",
+      "fileHint": "Accepts .xlsx and .xlsm up to {{max}} KB. Reading happens in the background.",
+      "submit": "Upload spreadsheet",
+      "submitting": "Uploading…",
+      "alreadySent": "This spreadsheet was already uploaded.",
+      "openExisting": "Open the preview",
+      "noEligibleContractor": "No contractor with previews turned on. Turn on receiving and previews in the contractor profile, in Clients, Contractors tab.",
+      "openContractors": "Open contractors"
+    },
+    "issues": {
+      "contractorId": {
+        "required": "Choose the contractor."
+      },
+      "file": {
+        "required": "Choose the spreadsheet.",
+        "extension": "Use an .xlsx or .xlsm file.",
+        "empty": "The file is empty.",
+        "tooLarge": "The spreadsheet is over {{max}} KB. Upload one up to {{max}} KB."
+      }
+    },
+    "errors": {
+      "PREVIEW_FILE_TOO_LARGE": "The spreadsheet is over the 960 KB limit the server accepts.",
+      "PREVIEW_NOT_A_WORKBOOK": "The file is not a valid .xlsx or .xlsm spreadsheet.",
+      "CARGO_PREVIEW_NOT_ENABLED": "Previews are not enabled for this contractor. Turn them on in its profile, in Clients, Contractors tab.",
+      "CARGO_PREVIEW_KEY_REUSED": "This attempt was already used with another spreadsheet. Choose the file again and upload.",
+      "CARGO_PREVIEW_NOT_FOUND": "This preview no longer exists.",
+      "CARGO_PREVIEW_ITEM_NOT_FOUND": "This row is no longer part of the preview.",
+      "CARGO_PREVIEW_NOT_READY": "The preview was not read yet. Wait for the reading to finish.",
+      "CARGO_PREVIEW_DOCUMENT_ALREADY_LINKED": "This invoice is already linked to another preview.",
+      "CARGO_PREVIEW_DOCUMENT_NOT_CANDIDATE": "This invoice cannot be linked to this preview: it is from another issuer or not authorized.",
+      "CARGO_PREVIEW_ITEM_ALREADY_LINKED": "This row is already linked to another invoice. Unlink it before linking again.",
+      "CARGO_PREVIEW_ITEM_NOT_SUGGESTED": "Only a row with a suggestion can be confirmed.",
+      "CARGO_PREVIEW_ITEM_INVALID": "This row is invalid in the spreadsheet: there is nothing to link. Fix the spreadsheet and upload it again."
+    },
+    "facts": {
+      "file": "File: {{name}}",
+      "receivedAt": "Received at: {{date}}",
+      "plannedDate": "Planned day: {{date}}",
+      "rows_one": "{{count}} row",
+      "rows_other": "{{count}} rows"
+    },
+    "summary": {
+      "label": "Summary by status"
+    },
+    "detail": {
+      "title": "Preview of {{name}}",
+      "back": "Back to previews",
+      "loading": "Loading the preview",
+      "error": "Could not load the preview.",
+      "empty": "This preview has no rows.",
+      "emptyFiltered": "No row matches these filters.",
+      "loadMore": "Load more items",
+      "awaitingNote": "Waiting for the XML is normal: the preview arrives hours before the invoices. The link is made when each XML is imported."
+    },
+    "route": {
+      "none": "No route",
+      "noLoad": "Load not paired yet",
+      "load": "Load {{reference}} · paired {{origin}}",
+      "origin": {
+        "totals": "by the totals",
+        "votes": "by the votes",
+        "user": "by the operator"
+      },
+      "counts": "{{matched}} of {{total}} linked",
+      "region": "Rows of route {{title}}"
+    },
+    "item": {
+      "columns": {
+        "row": "Row",
+        "recipient": "Recipient",
+        "city": "City",
+        "value": "Amount",
+        "weight": "Weight",
+        "state": "Status",
+        "actions": "Actions"
+      },
+      "linked": "Invoice {{number}} · {{value}}",
+      "decidedBy": {
+        "system": "automatic",
+        "user": "by the operator"
+      },
+      "candidates": {
+        "suggested_one": "{{count}} candidate invoice: confirm to link.",
+        "suggested_other": "{{count}} candidate invoices: confirm to link.",
+        "ambiguous_one": "{{count}} candidate invoice: choose one.",
+        "ambiguous_other": "{{count}} candidate invoices: choose one."
+      },
+      "rowError": "Column {{column}}: {{reason}}",
+      "actions": {
+        "confirm": "Confirm",
+        "confirmLabel": "Confirm row {{row}}",
+        "unlink": "Unlink",
+        "unlinkLabel": "Unlink row {{row}}",
+        "link": "Link by hand",
+        "linkLabel": "Link row {{row}} by hand"
+      }
+    },
+    "rowErrors": {
+      "required": "a value is required",
+      "decimal": "the value must be a decimal number, not negative"
+    },
+    "unlink": {
+      "warning": "Unlinking releases invoice {{number}} from every row that closes it ({{count}} in this list).",
+      "confirm": "Unlink anyway",
+      "cancel": "Cancel"
+    },
+    "manual": {
+      "title": "Link row {{row}} to an invoice",
+      "search": "Search invoice",
+      "candidate": "Candidate",
+      "choose": "Choose",
+      "chooseLabel": "Choose invoice {{number}}",
+      "confirm": "Link to invoice {{number}}",
+      "cancel": "Cancel",
+      "empty": "No free invoice from this contractor matches the search."
+    },
+    "proposal": {
+      "propose": "Propose arrival",
+      "proposing": "Proposing…",
+      "title": "Arrival draft",
+      "facts": "Contractor: {{contractor}}. Planned day: {{date}}.",
+      "entering_one": "{{count}} invoice goes into the arrival.",
+      "entering_other": "{{count}} invoices go into the arrival.",
+      "none": "No invoice can go into the arrival right now.",
+      "refusedLead": "Left out:",
+      "unknownDocument": "An invoice",
+      "register": "Register the arrival with these invoices",
+      "noMatched": "No invoice linked yet: invoices come in when the XML arrives.",
+      "notReady": "The preview is still being read.",
+      "failed": "Reading the preview failed: fix the spreadsheet and upload it again."
+    },
+    "prefill": {
+      "notice_one": "{{count}} invoice came from the preview. Check the arrival date and time: they are not assumed.",
+      "notice_other": "{{count}} invoices came from the preview. Check the arrival date and time: they are not assumed.",
+      "plannedDate": "Planned day in the preview: {{date}}.",
+      "missing_one": "{{count}} proposed invoice is no longer free and was left out.",
+      "missing_other": "{{count}} proposed invoices are no longer free and were left out."
+    }
   }
 }

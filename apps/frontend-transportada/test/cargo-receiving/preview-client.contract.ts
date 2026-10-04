@@ -51,6 +51,13 @@ function harness(respond: (captured: Captured) => Response | Promise<Response>) 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' }, status })
 
+/** O erro que a chamada lançou, ou `undefined` se ela não lançou: o teste afirma sobre ele. */
+const failureOf = (call: Promise<unknown>): Promise<unknown> =>
+  call.then(
+    () => undefined,
+    (error: unknown) => error,
+  )
+
 const sheet = new File([new Uint8Array(1_000)], 'FR-05-10.xlsm')
 
 describe('as leituras da prévia (spec 237 T4.4)', () => {
@@ -175,10 +182,10 @@ describe('o envio multipart', () => {
       input: { contractorId: ALFA_ID, file: sheet },
     }
 
-    await expect(tooLarge.client.uploadPreview(request)).rejects.toMatchObject({
+    expect(await failureOf(tooLarge.client.uploadPreview(request))).toMatchObject({
       message: 'PREVIEW_FILE_TOO_LARGE',
     })
-    await expect(notEnabled.client.uploadPreview(request)).rejects.toMatchObject({
+    expect(await failureOf(notEnabled.client.uploadPreview(request))).toMatchObject({
       message: 'CARGO_PREVIEW_NOT_ENABLED',
     })
   })
@@ -263,11 +270,13 @@ describe('as ações sobre o item e a proposta', () => {
   test('resposta fora do formato é recusada, nunca passada adiante', async () => {
     const { client } = harness(() => json({ data: { qualquer: 'coisa' } }))
 
-    await expect(client.proposeArrival(PREVIEW_ID)).rejects.toMatchObject({
+    expect(await failureOf(client.proposeArrival(PREVIEW_ID))).toMatchObject({
       message: 'RESPONSE_INVALID',
     })
-    await expect(
-      client.itemAction({ action: 'confirm', itemId: itemIdOf(1), previewId: PREVIEW_ID }),
-    ).rejects.toMatchObject({ message: 'RESPONSE_INVALID' })
+    expect(
+      await failureOf(
+        client.itemAction({ action: 'confirm', itemId: itemIdOf(1), previewId: PREVIEW_ID }),
+      ),
+    ).toMatchObject({ message: 'RESPONSE_INVALID' })
   })
 })

@@ -1,15 +1,17 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useState } from 'react'
 
-import type { ArrivalFormIssues, CargoFormIssue } from '../shared/cargoArrivalForm.validation'
+import type { CargoFormIssue } from '../shared/cargoArrivalForm.validation'
 
 const REFUSED_BY_SERVER: CargoFormIssue = { code: 'refusedByServer' }
+
+type FieldIssues = Readonly<Record<string, CargoFormIssue | undefined>>
 
 export type CargoFieldFeedback = Readonly<{
   clearField: (field: string) => void
   issueFor: (field: string) => CargoFormIssue | undefined
   markRefused: (fields: readonly string[]) => void
-  setIssues: (issues: ArrivalFormIssues) => void
+  setIssues: (issues: FieldIssues) => void
 }>
 
 /**
@@ -17,7 +19,7 @@ export type CargoFieldFeedback = Readonly<{
  * mesmo jeito: editar o campo limpa o erro dele, e só o dele (`web.md` §11).
  */
 export function useCargoFieldFeedback(): CargoFieldFeedback {
-  const [issues, setIssues] = useState<ArrivalFormIssues>({})
+  const [issues, setIssues] = useState<FieldIssues>({})
   const [refused, setRefused] = useState<readonly string[]>([])
 
   return {
@@ -27,9 +29,7 @@ export function useCargoFieldFeedback(): CargoFieldFeedback {
       )
       setRefused((current) => current.filter((key) => key !== field))
     },
-    issueFor: (field) =>
-      (issues as Readonly<Record<string, CargoFormIssue | undefined>>)[field] ??
-      (refused.includes(field) ? REFUSED_BY_SERVER : undefined),
+    issueFor: (field) => issues[field] ?? (refused.includes(field) ? REFUSED_BY_SERVER : undefined),
     markRefused: setRefused,
     setIssues,
   }

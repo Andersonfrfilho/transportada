@@ -14,7 +14,7 @@ import type {
   CargoPreviewSummary,
 } from '@/modules/cargo-receiving/shared/cargoPreview.types'
 
-import { ALFA_ID, BETA_ID, documentIdOf } from './cargoReceiving.fixture'
+import { ALFA_ID, documentIdOf } from './cargoReceiving.fixture'
 
 export const PREVIEW_ID = '00000000-0000-4000-8000-0000002374a1'
 export const PREVIEW_SECOND_ID = '00000000-0000-4000-8000-0000002374a2'

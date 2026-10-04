@@ -2,25 +2,25 @@
 import type { JSX } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { CargoArrivalSort, CargoArrivalSortColumn } from '../shared/cargoArrivalTable.service'
+import type { CargoSort } from '../shared/cargoTableSort.service'
 import tableStyles from '../styles/cargoTable.module.css'
 
 const SORT_INDICATOR = { ascending: '▲', descending: '▼', none: '' } as const
 
-type CargoSortHeaderProps = Readonly<{
-  column: CargoArrivalSortColumn
+type CargoSortHeaderProps<TColumn extends string> = Readonly<{
+  column: TColumn
   label: string
-  onToggle: (column: CargoArrivalSortColumn) => void
-  sort: CargoArrivalSort | null
+  onToggle: (column: TColumn) => void
+  sort: CargoSort<TColumn> | null
 }>
 
 /** Cabeçalho clicável asc → desc → neutro, com a direção ativa dita em texto e no `aria-sort`. */
-export function CargoSortHeader({
+export function CargoSortHeader<TColumn extends string>({
   column,
   label,
   onToggle,
   sort,
-}: CargoSortHeaderProps): JSX.Element {
+}: CargoSortHeaderProps<TColumn>): JSX.Element {
   const { t } = useTranslation('cargoReceiving')
   const sortState =
     sort?.column !== column ? 'none' : sort.direction === 'asc' ? 'ascending' : 'descending'

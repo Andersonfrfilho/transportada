@@ -19,6 +19,8 @@ import {
   resolveIdempotencyAttempt,
   type IdempotencyAttempt,
 } from '../shared/cargoIdempotencyKey.service'
+import type { CargoArrivalPrefill } from '../shared/cargoPreview.types'
+import { readCargoArrivalPrefill } from '../shared/cargoPreviewProposal.service'
 import {
   describeRegistrationRefusal,
   type RegistrationRefusal,
@@ -39,6 +41,8 @@ const FIELD_OF_DRAFT: Readonly<Record<keyof ArrivalDraft, string>> = {
   time: 'arrivedAt',
 }
 
+const NO_PRESELECTED_IDS: readonly string[] = []
+
 export type CargoArrivalRegistrationController = Readonly<{
   contractors: EnabledContractors
   draft: ArrivalDraft
@@ -46,18 +50,34 @@ export type CargoArrivalRegistrationController = Readonly<{
   feedback: CargoFieldFeedback
   isSubmitting: boolean
   picker: AvailableDocumentPickerController
+  /** O rascunho que a prévia propôs: contratante e notas preenchidos, a data e a hora do operador. */
+  prefill: CargoArrivalPrefill | undefined
   refusal: RegistrationRefusal | undefined
   setDraftField: (field: keyof ArrivalDraft, value: string) => void
   submit: () => void
 }>
 
+/**
+ * Com o rascunho de uma prévia, a data e a hora começam VAZIAS: a hora em que o caminhão chegou é o
+ * operador quem confirma (RF5b) — "agora" só vale para quem registra a chegada que está acontecendo.
+ */
+function createInitialDraft(prefill: CargoArrivalPrefill | undefined): ArrivalDraft {
+  const draft = createArrivalDraft(new Date())
+  if (prefill === undefined) return draft
+  return { ...draft, contractorId: prefill.contractorId, date: '', time: '' }
+}
+
 export function useCargoArrivalRegistration(): CargoArrivalRegistrationController {
-  const [draft, setDraft] = useState<ArrivalDraft>(() => createArrivalDraft(new Date()))
+  const [prefill] = useState(() => readCargoArrivalPrefill(window.history.state))
+  const [draft, setDraft] = useState<ArrivalDraft>(() => createInitialDraft(prefill))
   const [refusal, setRefusal] = useState<RegistrationRefusal | undefined>(undefined)
   const attempt = useRef<IdempotencyAttempt | undefined>(undefined)
   const feedback = useCargoFieldFeedback()
   const contractors = useEnabledContractors()
-  const picker = useAvailableDocumentPicker(draft.contractorId)
+  const picker = useAvailableDocumentPicker(
+    draft.contractorId,
+    prefill?.contractorId === draft.contractorId ? prefill.documentIds : NO_PRESELECTED_IDS,
+  )
   const mutation = useRegisterCargoArrivalMutation()
   const navigator = useMemo(createBrowserWorkspaceNavigator, [])
 
@@ -109,6 +129,7 @@ export function useCargoArrivalRegistration(): CargoArrivalRegistrationControlle
     feedback,
     isSubmitting: mutation.isPending,
     picker,
+    prefill,
     refusal,
     setDraftField,
     submit,
