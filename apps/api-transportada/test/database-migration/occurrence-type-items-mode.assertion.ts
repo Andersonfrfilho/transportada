@@ -28,6 +28,7 @@ export type OccurrenceTypeItemsModeProbe = Readonly<{
 
 type SeededType = Readonly<{
   id: string
+  companyId: string
   name: string
   stage: string
   flow: string
@@ -37,9 +38,14 @@ type SeededType = Readonly<{
 
 type StoredType = Readonly<{ items_mode: string; redelivery_policy: string }>
 
-function buildSeededTypes(): readonly SeededType[] {
-  const seed = (fields: Omit<SeededType, 'id'>): SeededType => ({
+/**
+ * O nome é único por empresa (`company_occurrence_types_company_name_unique`), então cada variante
+ * da segunda via mora numa empresa própria — como em instalações diferentes.
+ */
+function buildSeededTypes(companyId: string): readonly SeededType[] {
+  const seed = (fields: Omit<SeededType, 'id' | 'companyId'>, ownCompany = true): SeededType => ({
     id: crypto.randomUUID(),
+    companyId: ownCompany ? crypto.randomUUID() : companyId,
     ...fields,
   })
 
@@ -58,13 +64,16 @@ function buildSeededTypes(): readonly SeededType[] {
       redeliveryPolicy: 'blocked',
       stopKind: null,
     }),
-    seed({
-      name: 'Recusa total',
-      stage: 'delivery',
-      flow: 'document',
-      redeliveryPolicy: 'blocked',
-      stopKind: null,
-    }),
+    seed(
+      {
+        name: 'Recusa total',
+        stage: 'delivery',
+        flow: 'document',
+        redeliveryPolicy: 'blocked',
+        stopKind: null,
+      },
+      false,
+    ),
     seed({
       name: SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME,
       stage: 'separation',
@@ -79,13 +88,16 @@ function buildSeededTypes(): readonly SeededType[] {
       redeliveryPolicy: 'allowed',
       stopKind: 'other',
     }),
-    seed({
-      name: 'Cliente pediu segunda via do boleto (renomeado)',
-      stage: 'delivery',
-      flow: 'document',
-      redeliveryPolicy: 'blocked',
-      stopKind: null,
-    }),
+    seed(
+      {
+        name: 'Cliente pediu segunda via do boleto (renomeado)',
+        stage: 'delivery',
+        flow: 'document',
+        redeliveryPolicy: 'blocked',
+        stopKind: null,
+      },
+      false,
+    ),
   ]
 }
 
@@ -163,12 +175,18 @@ export async function assertOccurrenceTypeItemsModeBackfill(
   // Desfaz só esta migration: `items_mode` e as duas CHECKs somem, como antes de ela existir.
   await database.unsafe(rollback)
 
-  const seeded = buildSeededTypes()
+  const seeded = buildSeededTypes(companyId)
+  const ownCompanyIds = seeded
+    .map((type) => type.companyId)
+    .filter((seededCompanyId) => seededCompanyId !== companyId)
+  for (const ownCompanyId of ownCompanyIds) {
+    await database`insert into companies (id, status) values (${ownCompanyId}, 'active')`
+  }
   for (const type of seeded) {
     await database`
       insert into company_occurrence_types
         (id, company_id, name, stage, flow, redelivery_policy, stop_kind)
-      values (${type.id}, ${companyId}, ${type.name}, ${type.stage}, ${type.flow},
+      values (${type.id}, ${type.companyId}, ${type.name}, ${type.stage}, ${type.flow},
         ${type.redeliveryPolicy}, ${type.stopKind})
     `
   }
@@ -180,4 +198,5 @@ export async function assertOccurrenceTypeItemsModeBackfill(
 
   const seededIds = seeded.map((type) => type.id)
   await database`delete from company_occurrence_types where id in ${database(seededIds)}`
+  await database`delete from companies where id in ${database(ownCompanyIds)}`
 }

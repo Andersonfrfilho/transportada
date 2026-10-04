@@ -631,3 +631,41 @@ PostgresError: column "items_mode" does not exist
  1 fail
 Ran 2 tests across 1 file. [2.77s]
 ```
+
+## T2.1 — schema, migration e rollback (verde)
+
+- Schema: `itemsMode` em `companyOccurrenceTypes` (`src/database/trip.schema.ts`), com
+  `company_occurrence_types_items_mode_check` (`inList(DELIVERY_PROOF_FIELD_MODES)`) e
+  `company_occurrence_types_items_off_shape_check`.
+- `bun run db:generate --name occurrence_type_items_mode` gerou
+  `drizzle/20261004001234_occurrence_type_items_mode/{migration.sql,snapshot.json}` com
+  `ADD COLUMN` + as duas CHECKs; o `UPDATE` da segunda via entrou à mão entre as duas, e o
+  `rollback.sql` foi escrito no molde da `20260929144801_occurrence_type_stop_kind`. Depois da edição,
+  `bun run db:generate` → `{"status":"no_changes"}`.
+- **Achado ao implementar:** `company_occurrence_types_company_name_unique` (`company_id`,
+  `lower(btrim(name))`) impede dois tipos com o mesmo nome na mesma empresa. O primeiro verde falhou
+  com `23505` porque o teste semeava as variantes da segunda via numa empresa só; agora cada variante
+  mora numa empresa própria. Consequência para a migration: o `UPDATE` pega no máximo uma linha por
+  empresa. Não muda a ordem nem o plano.
+- CA02 fica `test.failing` (vermelho conhecido) até a T2.3: o seed ainda não grava `itemsMode` nem a
+  prorrogação. Rodado como `test` depois da migration, falha pelo motivo certo:
+
+```text
+175 |           expect(itemsModeByName.get(SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME)).toBe('off')
+error: expect(received).toBe(expected)
+Expected: "off"
+Received: "optional"
+```
+
+Gates:
+
+- `make migration-test ENV_FILE=.env.test` → `121 pass, 0 fail, 1824 expect() calls` (a integração
+  de migration rodou até o fim: 1824 asserções, contra 1639 na execução que parou no `23505`).
+- `bun run typecheck` (API) → sem erro; `bun run format:check` → limpo.
+- Contrato da API, `bun --env-file=../../.env.test test --timeout 120000` → `9272 pass, 24 skip,
+0 fail` (198 arquivos).
+- Integração, `--env-file=../../.env.test`, um arquivo por vez: `occurrence-type-catalog-seed` 2 pass
+  (um é o `test.failing` da CA02); `occurrence-type-leaves-document-behind` 4;
+  `occurrence-type-redelivery-policy` 2; `company-settings-repository` 3; `trip-occurrence-case` 4;
+  `trip-occurrence-detail` 6; `trip-occurrence-correction` 7; `migration-completeness` 3 (com
+  `DRIZZLE_TEST_DATABASE_URL` — sem ela, os 3 pulam).

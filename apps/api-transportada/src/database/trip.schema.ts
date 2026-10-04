@@ -2610,6 +2610,16 @@ export const companyOccurrenceTypes = pgTable(
      * `other` quando um tipo passa a `flow: stop` sem valor. Nunca derivado do nome (renomeável).
      */
     stopKind: text('stop_kind').$type<TripStopOccurrenceKind>(),
+    /**
+     * Spec 241 (RF1, D-A): se a ocorrência deste tipo carrega produtos — o vocabulário de
+     * `DELIVERY_PROOF_FIELD_MODES`. Padrão `'optional'` é o seletor de hoje; `'off'` é o tipo que
+     * vale para a nota inteira (a segunda via do boleto). `'required'` fica aceito no banco para a
+     * 239, e recusado pelo cadastro até lá.
+     */
+    itemsMode: varchar('items_mode', { length: 16 })
+      .$type<DeliveryProofFieldMode>()
+      .notNull()
+      .default('optional'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2645,6 +2655,18 @@ export const companyOccurrenceTypes = pgTable(
     check(
       'company_occurrence_types_stop_kind_check',
       sql`${table.stopKind} in (${raw(inList(TRIP_STOP_OCCURRENCE_KINDS))})`,
+    ),
+    check(
+      'company_occurrence_types_items_mode_check',
+      sql`${table.itemsMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+    /**
+     * Spec 241 RF11 (D-E): tipo sem itens não abre tratativa. É a rede; o cadastro recusa antes,
+     * com código próprio.
+     */
+    check(
+      'company_occurrence_types_items_off_shape_check',
+      sql`${table.itemsMode} <> 'off' or ${table.redeliveryPolicy} = 'unset'`,
     ),
     unique('company_occurrence_types_company_id_id_unique').on(table.companyId, table.id),
   ],

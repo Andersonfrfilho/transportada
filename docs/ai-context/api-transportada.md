@@ -2652,3 +2652,21 @@ Detalhe, números e mutações em `specs/237-.../evidence.md` § "Correções da
   no `create` e no `reopen`) → 422 `CARGO_PREVIEW_TOO_MANY_OPEN`.
 - Códigos novos de falha (`PREVIEW_TOO_MANY_CELLS`, `PREVIEW_PROCESSING_INTERRUPTED`, `PREVIEW_MATCH_TIMEOUT`):
   migration aditiva `20261004174001_cargo_preview_security_failure_codes`.
+
+## Spec 241 — o tipo da ocorrência diz se ela carrega itens (T2.1)
+
+`company_occurrence_types.items_mode varchar(16) NOT NULL DEFAULT 'optional'`, no vocabulário de
+`DELIVERY_PROOF_FIELD_MODES` (CHECK `company_occurrence_types_items_mode_check`, sem ENUM). `optional`
+é o seletor de produtos de hoje; `off` é o tipo que vale para a nota inteira; `required` o banco aceita
+para a 239, o cadastro ainda recusa.
+
+A migration `20261004001234_occurrence_type_items_mode` tem ordem obrigatória: coluna → CHECK de
+vocabulário → **um** `UPDATE` que põe `items_mode = 'off'` **e** `redelivery_policy = 'unset'` na
+segunda via do boleto (nome exato `SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME`, `stage = 'delivery'`,
+`flow = 'document'`) → CHECK `company_occurrence_types_items_off_shape_check` (`items_mode <> 'off' or
+redelivery_policy = 'unset'`, D-E: tipo sem itens não abre tratativa). Inverter os dois últimos passos,
+ou tirar a política do `UPDATE`, derruba a migration numa segunda via que o operador pôs em `blocked`
+(mutação provada em `specs/241-…/evidence.md`). O nome é único por empresa
+(`company_occurrence_types_company_name_unique`, `lower(btrim(name))`), então o `UPDATE` pega no
+máximo uma linha por empresa; renomeado fica `optional`. O rollback derruba as duas CHECKs antes da
+coluna e não devolve a política zerada. Prova: `test/database-migration/occurrence-type-items-mode.assertion.ts`.
