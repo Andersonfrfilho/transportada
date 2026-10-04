@@ -694,3 +694,79 @@ format:check` na raiz ✓ · `bun install --frozen-lockfile` sem mudança. Integ
   10 g, então o par sai por **votos** em vez de totais; nos roteiros cujos totais fecham, 47/47 e 40/40.
 - **Mutações:** tirar o piso **8 fail** · `max` → `min` (exigir piso e percentual) **10 fail** · piso só com
   tolerância 0 **1 fail** (o primeiro rodou com 0 fail; o caso de 2 kg com 0,05% foi acrescentado).
+
+## T4.2 + T4.3 (parte B) — envio, leitura, vínculo e reavaliação (2026-10-04)
+
+Commits `ca809b880` (migration), `c7a042556` (rotas da API), `50228c83e` (worker: leitura e vínculo),
+`5e2cab03e` (worker: reavaliação pela importação). Desenho e decisões: ADR-0094 §8.
+
+- **Migration aditiva** `20261004140624_cargo_previews` (7 tabelas novas, nenhuma existente alterada;
+  `cargo_preview_events` append-only por trigger; `rollback.sql` na ordem inversa das FKs, sem CASCADE).
+  O snapshot encadeia no de `20261003204733_cargo_arrivals` (conferido em `origin/staging` depois de
+  `git fetch`: nenhuma migration nova lá). `make migration-test`: **124 pass / 0 fail**. `bun run
+db:generate`: **`no_changes`**. O CHECK do alias foi ajustado para CNPJ alfanumérico (o contrato
+  `tax-id-pattern` reprovou o `[0-9]{14}` da primeira versão) antes de qualquer publicação.
+- **1:1 da nota no banco:** `cargo_preview_document_links unique (company_id, document_id)`; o item
+  vinculado aponta para o vínculo da prévia dele por FK composta `(company_id, preview_id,
+matched_document_id)`. Provado por inserção direta (unique violada) e por dois operadores
+  concorrentes ligando a mesma nota a prévias diferentes (um 200, um 422, um vínculo só).
+- **Contrato antes, vermelho pelo motivo certo:** schema — `Export named 'cargoPreviewRouteLoads' not
+found` (0 pass, 1 fail); rotas e políticas — `Cannot find module …/cargo-preview-action.routes.js` e
+  `…/cargo-preview-item-action.policy.js` (0 pass, 2 fail). No worker o contrato de runtime reprovou
+  pelo motivo certo ao entrar o trilho novo (`Runtime contract should inject consumers directly`, 2
+  fail) e foi atualizado com o consumidor e o fechamento do publisher novo; os contratos do domínio do
+  worker foram escritos junto com o código, e o vermelho deles foi provado por mutação (tabela abaixo).
+- **Gates — API:** `bun run typecheck` ✓ · `bun run lint` (eslint `src test`) ✓ · contrato
+  `bun --env-file=../../.env.test test --timeout 120000`: antes **9574 pass / 25 skip / 0 fail**, depois
+  **9633 pass / 25 skip / 0 fail** (198 arquivos) · integração tocada (`cargo-preview`, `cargo-arrival`,
+  `contractor-receiving-profile`, Postgres do `.env.test`): antes 9, depois **15 pass / 0 fail**.
+- **Gates — worker:** `bun run typecheck` ✓ · `bun run lint` ✓ · `bun run test`: antes **1569** (1611 −
+  os 42 novos), depois **1611 pass / 0 fail**. Integração: `make worker-integration` **não rodou** — o
+  alvo reusa `transportada_worker_integration`, e o banco local estava com o diário divergente
+  (`column "latitude" of relation "trip_status_events" already exists` no `db:migrate`, de outra
+  branch). Os mesmos passos (banco novo `transportada_worker_integration_spec237`, `db:migrate` da API,
+  `bun run test:integration` com `RABBITMQ_TEST_URL`) deram **181 pass / 1 fail**; o que reprova é
+  `osrm-routing-matrix` (o OSRM local tem outro mapa: `Expected 4511.2, Received 1143650`), que não toca
+  nada desta mudança. Os 11 novos (`cargo-preview`, `cargo-preview-corpus`, `cargo-preview-reevaluation`)
+  passam.
+- **Corpus de ponta a ponta (FR-28-09, anonimizado):** planilha montada das 107 linhas, as notas de
+  25/09 gravadas com `NroCarga` no `infCpl`, leitura e vínculo pelo banco = política pura: **97 matched
+  / 6 suggested / 2 ambiguous / 2 awaiting_xml** (os números da parte A com tolerância 0), 8 pares
+  roteiro ↔ carga (4 por totais, 4 por votos), 94 aliases.
+- **Lote:** 300 XMLs importados em 300 transações (uma por nota, como a importação) → **1** pedido de
+  reavaliação pendente; o lote inteiro em ~1,6 s.
+- `bun run format:check` (raiz) ✓ · `bun install --frozen-lockfile` sem mudança depois de acrescentar
+  `fast-xml-parser` ao worker (o `bun.lock` ganhou a linha da dependência do workspace, mesma versão).
+
+**Mutações** (script fora do repositório, arquivo restaurado e conferido por sha256 a cada uma):
+
+| Regra (API)                                    | Vermelho | Regra (worker)                                       | Vermelho |
+| ---------------------------------------------- | -------- | ---------------------------------------------------- | -------- |
+| tirar o filtro de empresa da prévia            | 1 fail   | tirar o filtro de emitente das candidatas            | 1 fail   |
+| aceitar tipo pela extensão (sem bytes mágicos) | 1 fail   | tirar o filtro de empresa das candidatas             | 3 fail   |
+| sem teto de tamanho na rota                    | 1 fail   | tirar a janela do perfil                             | 1 fail   |
+| formulário aceita `companyId`                  | 2 fail   | sobrescrever alias em conflito                       | 1 fail   |
+| perfil sem prévia ligada aceita envio          | 1 fail¹  | reavaliar item decidido pelo operador                | 1 fail   |
+| nota de outra prévia vira vínculo (sem 1:1)    | 2 fail   | sem a trava do contratante (nota em dois grupos)     | 1 fail   |
+| vínculo manual sem conferir o emitente         | 1 fail   | sem conferir o sha256 do objeto                      | 1 fail   |
+| desvincular só a linha (sem o grupo)           | 1 fail   | ler de novo prévia já lida                           | 1 fail   |
+| objeto fica no bucket quando a transação falha | 1 fail   | falha do leitor vira item parcial                    | 1 fail   |
+| propor a chegada sem a política de candidatas  | 1 fail   | vincular a prévia mais nova primeiro                 | 1 fail   |
+| —                                              | —        | reavaliação que derruba a importação (sem savepoint) | 1 fail   |
+| —                                              | —        | sem coalescência (um pedido por XML)                 | 1 fail   |
+| —                                              | —        | pedido sem o filtro do emitente                      | 2 fail   |
+| —                                              | —        | pedido sem adiamento                                 | 1 fail   |
+
+¹ Sobreviveu na primeira rodada (o perfil de teste não tinha mapa, e o filtro do mapa recusava
+sozinho); o teste passou a gravar o mapa com a prévia desligada. `sobrescrever alias em conflito`
+também sobreviveu na primeira rodada (a política nunca propõe código já conhecido, então o
+`onConflictDoNothing` não era exercitado): entrou o teste que chama o escritor de alias direto.
+
+- **Não rodou:** `make worker-integration` como está (banco compartilhado divergente — ver acima); a
+  integração completa da API (só as tocadas); smoke e `make check`; leitura em `worker_thread`; teste
+  em produção ou staging (nada foi publicado).
+- **Follow-ups:** `previewId` opcional no `POST /cargo-arrivals` para preencher `cargo_previews.arrival_id`
+  (fica com a T4.4, que é quem cria a chegada a partir da prévia); retenção dos itens e do arquivo
+  (decisão do usuário, `docs/SECURITY.md`); aprender alias também do que o operador confirma; a leitura
+  em `worker_thread` se a planilha hostil virar problema; rotina de varredura que reavalie prévias em
+  aberto caso um pedido se perca (hoje o pedido é atômico com a importação, então não se perde).

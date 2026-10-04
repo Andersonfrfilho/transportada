@@ -93,6 +93,14 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   - A política de anexo e a de status são cópias por valor da API, com contrato de paridade.
   - Detalhe: docs/ai-context § "A ocorrência tem duas conversas".
 
+- **A prévia da carga é lida e vinculada aqui** (spec 237, ADR-0094 §8) — trilho `cargo-preview.v1`,
+  prefetch 1. O leitor e a política de vínculo da API estão em `src/cargo-receiving/domain/` por
+  **cópia por valor idêntica** (contrato de paridade byte a byte): mudou lá, copie aqui. O vínculo toma a
+  trava advisory do contratante (a mesma da API) e grava só o que mudou; item decidido pelo operador
+  nunca é relido. **Toda nota nova pede a reavaliação** em `writeDocumentChildren`, num `SAVEPOINT` que
+  nunca derruba nem espera a importação, coalescida e adiada 30 s. Detalhe: docs/ai-context § "A prévia
+  da carga é lida e vinculada aqui".
+
 ## O expurgo de posição (spec 196, ADR-0081)
 
 `trip.location.purge` (`trip-location-purge/`) varre **as cinco tabelas** de evento com ponto, uma por vez e

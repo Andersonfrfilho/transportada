@@ -45,9 +45,12 @@
 - [x] **T4.1** 🧠 Escolha e justificativa da biblioteca de planilha (XLSX/XLSM, só leitura, sem avaliar
       fórmula nem macro); limites de segurança (zip, linhas, tempo); ADR/plan atualizado. _(ADR-0094 §7:
       leitor próprio sobre `fflate` + `fast-xml-parser`, já dependências da API.)_
-- [ ] **T4.2** Migration `cargo_previews`/`cargo_preview_items` (+ rollback) e a rota de **upload** da
+- [x] **T4.2** Migration `cargo_previews`/`cargo_preview_items` (+ rollback) e a rota de **upload** da
       planilha (`trip.manage`, tipo por bytes, tamanho limitado, idempotente pelo sha256).
-- [ ] **T4.3** 🧠 Leitura e validação por linha (aba `IMPORTAÇÃO`, cabeçalhos de rota ignorados, aba
+      _(2026-10-04: migration `20261004140624_cargo_previews` com vínculo 1:1, pares, aliases, trilha e
+      outbox próprio; envio, leitura, confirmar/desvincular/vincular e propor a chegada — `evidence.md`.
+      Teto do arquivo 960 KiB, não 5 MiB: ADR-0094 §8.)_
+- [x] **T4.3** 🧠 Leitura e validação por linha (aba `IMPORTAÇÃO`, cabeçalhos de rota ignorados, aba
       `RESULTADO` ignorada) e `cargo-preview-matching.policy.ts` (RF5a): roteiro ↔ carga pelos totais, cliente
       dentro do grupo, **n linhas ↔ 1 nota** por soma exata de valor e peso, 1:1 por nota; aprendizado
       `Company` ↔ CNPJ; vínculo manual; **reavaliação dos itens `awaiting_xml` a cada XML importado**.
@@ -56,7 +59,8 @@
       _(Parte A feita em 2026-10-04: leitor `parseCargoPreviewWorkbook` e política
       `resolveCargoPreviewMatches`, domínio puro, com corpus anonimizado e mutação — `evidence.md`. Falta a
       parte B: migration, rota, reavaliação a cada XML e vínculo manual. Peso com piso de 0,01 kg de
-      arredondamento.)_
+      arredondamento.)_ _(Parte B em 2026-10-04: worker lê e vincula por cópia por valor do domínio, com
+      paridade; a nota importada pede a reavaliação num savepoint, coalescida — `evidence.md`.)_
 - [ ] **T4.3a** _(opcional)_ Se o contratante passar a escrever o número dele nas informações adicionais da
       NF-e, lê-lo no importador e usá-lo como chave exata.
 - [ ] **T4.4** Tela de prévias no painel: itens esperados × vinculados × ambíguos × com erro, "esperando o

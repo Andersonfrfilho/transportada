@@ -782,3 +782,12 @@ nunca), com tetos em `CARGO_PREVIEW_WORKBOOK_LIMITS` e erro tipado `PREVIEW_*`; 
 por linha. `resolveCargoPreviewMatches` é determinística: roteiro ↔ carga, cliente, soma exata ao
 centavo; 1:1 por nota; só valor é `suggested`. ⚠️ Peso concorda com `|Δ| ≤ max(0,01 kg, tolerância do
 perfil × peso)`: a planilha arredonda a 2 casas e o `pesoB` tem 3. Detalhe: docs/ai-context § "Spec 237 — Fase 4a, parte A".
+
+**A prévia por upload** (Fase 4a, parte B, ADR-0094 §8): `POST /cargo-previews` (multipart, `trip.manage`)
+guarda o arquivo no bucket privado com chave opaca e grava prévia + evento + `cargo_preview_outbox` numa
+transação; **a API nunca abre a planilha** — quem lê e vincula é o worker. Tipo pelos bytes, teto de 960 KiB
+(o corpo da API para em 1 MiB), o mesmo arquivo do contratante devolve a existente com 200. Leitura com
+`fleet.read`; `confirm`/`unlink`/`link` e `propose-arrival` com `trip.manage`, sob a mesma trava advisory do
+worker (`buildCargoPreviewMatchLockKey`). ⚠️ Uma nota, uma prévia é o unique de
+`cargo_preview_document_links`, não do item; item decidido pelo operador (`matched_by = user`) a máquina
+nunca reavalia. Detalhe: docs/ai-context § "Spec 237 — Fase 4a, parte B".

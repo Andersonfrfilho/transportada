@@ -264,3 +264,46 @@ próprio (horas, ADR-0056). A coluna de tempo é a de cada tabela (`created_at`,
 - O log do ciclo conta linhas por tabela. Nunca coordenada, evento ou pessoa.
 - Um contrato da API reprova tabela com coluna `*latitude*` que não esteja na lista do worker nem na lista de
   exclusões com motivo.
+
+## A prévia da carga é lida e vinculada aqui (spec 237 Fase 4a, ADR-0094 §7/§8)
+
+Trilho `cargo-preview.v1` (main/retry/dead, retry 10 s × 5) com relay próprio sobre
+`cargo_preview_outbox` e consumidor `startCargoPreviewConsumer` com **prefetch 1** (a leitura é CPU no
+event loop: 45–70 ms medidos, teto de 5 s do orçamento do leitor). Duas mensagens:
+
+- **`cargo-preview.process`** (gravada pela API no envio): `processCargoPreview` baixa o objeto (ausente
+  = `PREVIEW_FILE_MISSING`), confere o sha256 (`PREVIEW_FILE_CORRUPTED`), lê com o perfil (mapa e aba;
+  sem perfil ligado = `PREVIEW_NOT_ENABLED`) e grava os itens — linha boa `awaiting_xml`, linha recusada
+  `invalid` com coluna e motivo — e o dia planejado (`RoutingDate` mais frequente). Erro do leitor é
+  prévia `failed` com o código e **ack**; banco ou bucket fora do ar é **retry**. A prévia é travada
+  `FOR UPDATE` e só a primeira entrega grava (reentrega é no-op).
+- **`cargo-preview.reevaluate`** (por contratante): `matchContractorPreviews` vincula de novo os itens em
+  aberto **decididos pela máquina** (`awaiting_xml`/`suggested`/`ambiguous`, `matched_by` nulo ou
+  `system`) das prévias prontas ainda na janela, da mais antiga para a mais nova.
+
+**O vínculo** (`cargo-preview/infrastructure/cargo-preview-matching.writer.ts`) toma a trava advisory do
+contratante (a mesma das ações do operador na API), lê as notas candidatas (`cargo-preview-candidate.query.ts`:
+empresa, `authorized`, emitente = CNPJ do contratante em `nfe_participants`, `created_at` em
+`[received_at − janela, min(agora, received_at + janela)]`, sem vínculo), extrai o `NroCarga` do
+`additional_information` pelo padrão do perfil, roda `resolveCargoPreviewMatches` e grava **só o que
+mudou** (`diffPreviewMatches`): vínculo novo é `insert` puro (o unique da nota desfaz tudo se algo
+furou), evento por item mudado, pares roteiro ↔ carga, aliases aprendidos (`onConflictDoNothing`; o
+conflito é contado e vai ao log `cargo_preview_alias_conflict`, nunca sobrescreve).
+
+**A reavaliação nasce na importação.** `writeDocumentChildren` (upload e distribuição) chama
+`requestCargoPreviewReevaluation` num `SAVEPOINT` (molde de `delivery-registry.writer.ts`): grava um
+pedido só se o emitente é contratante com perfil e prévia ligados e há prévia na fila ou pronta com item
+em aberto, só se não há pedido pendente dele, e adiado 30 s — um lote de 300 XMLs vira um pedido
+(medido na integração). Sem unique, de propósito: o conflito esperaria a transação de outra importação.
+Falha do pedido volta só o savepoint e vira o aviso `cargo_preview_reevaluation_request_failed`; a nota
+entra. Importação e distribuição passaram a mandar o logger que já tinham a `writeDocumentChildren`.
+
+**Cópia por valor:** o leitor e a política da API (21 arquivos de `cargo-receiving/domain/`) estão em
+`src/cargo-receiving/domain/` **idênticos**, com `src/shared/api.error.ts` e `api.types.ts` mínimos para
+os imports deles; `test/cargo-preview/domain-parity.contract.ts` compara byte a byte (e a lista, e a chave
+da trava, e `shared/cargo-preview.constant.ts`). Mudou na API, copie aqui. `fast-xml-parser` entrou como
+dependência do worker na mesma versão da API.
+
+⚠️ **`make worker-integration` reusa o banco `<db>_worker_integration`** e não o recria: em 2026-10-04 o
+local estava com o diário de migrations divergente (`column "latitude" ... already exists`). Os passos do
+alvo rodaram num banco novo de nome próprio (ver `specs/237-.../evidence.md`).

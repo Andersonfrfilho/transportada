@@ -2562,3 +2562,41 @@ matching-rules,matching-scale,corpus,corpus-pii}.contract.ts` no entrypoint
   `test/fixtures/cargo-preview-{workbook,xml,zip}.fixture.ts`; corpus anonimizado em
   `test/fixtures/cargo-preview-corpus/`. A checagem de PII contra os arquivos reais roda com
   `CARGO_PREVIEW_PII_WORKBOOK_DIR` e `CARGO_PREVIEW_PII_NFE_DIR` (no CI, pulada de propósito).
+
+## Spec 237 — Fase 4a, parte B: envio, leitura, vínculo e reavaliação (T4.2, T4.3)
+
+Migration aditiva `20261004140624_cargo_previews` (ADR-0094 §8): `cargo_previews`, `cargo_preview_items`,
+`cargo_preview_document_links`, `cargo_preview_route_loads`, `contractor_recipient_aliases`,
+`cargo_preview_events` (append-only por trigger) e `cargo_preview_outbox` (trilho próprio — o
+`processing_outbox` é preso a `nfe_import`). Valores das listas em `shared/cargo-preview.constant.ts`
+(cópia idêntica no worker, com contrato de paridade).
+
+- **Envio** `POST /cargo-previews` (multipart `contractorId` + `file`, `Idempotency-Key`, `trip.manage`):
+  `parseUploadCargoPreviewRequest` recusa campo desconhecido (inclusive `companyId`) e devolve todos os
+  problemas juntos; arquivo acima de `CARGO_PREVIEW_UPLOAD_MAX_BYTES` (960 KiB — o menor entre o leitor e o
+  corpo de 1 MiB) é 413 `PREVIEW_FILE_TOO_LARGE`; tipo pelos bytes (`assertPreviewWorkbookBytes`). Portão
+  na ordem contratante (404) → chave (mesma impressão = 200, outra = 409 `CARGO_PREVIEW_KEY_REUSED`) →
+  arquivo do contratante já enviado (200 com a existente) → perfil ligado com prévia e mapa (422
+  `CARGO_PREVIEW_NOT_ENABLED`). O objeto sobe antes da transação e sai do bucket se ela não criar a
+  prévia (corrida, falha). `received_at` = hora do servidor.
+- **Leitura** `GET /cargo-previews` (contratante, situação, cursor `<iso>::<uuid>`) e
+  `GET /cargo-previews/:id?state=&routeName=&afterRow=&limit=` (`fleet.read`): contagens por estado, grupos
+  por roteiro com a carga ligada, itens pela linha (o cursor é o número da última linha) com a nota
+  vinculada (número, série, destinatário, valor, importada em).
+- **Ações** (`trip.manage`, sob `lockContractorMatching` — a trava advisory do worker):
+  `…/items/:itemId/confirm|unlink|link` decididas por `decideCargoPreviewItemAction` (repetir é no-op sem
+  evento). Confirmar e desvincular agem no grupo (as linhas da mesma nota ou da mesma sugestão);
+  desvincular solta a nota quando nenhuma linha da prévia aponta mais para ela. Vincular à mão exige nota
+  da empresa, autorizada, do CNPJ do contratante (422 `CARGO_PREVIEW_DOCUMENT_NOT_CANDIDATE`); nota de
+  outra prévia é 422 `CARGO_PREVIEW_DOCUMENT_ALREADY_LINKED` (o unique do vínculo decide). Toda ação
+  deixa o item `matched_by = user`.
+- **Propor a chegada** `POST /cargo-previews/:id/propose-arrival`: contratante, `plannedDate` e as notas
+  `matched` distintas julgadas por `findArrivalCandidateRefusals` (a mesma política do registro da Fase
+  2); as recusadas voltam com o motivo. Não cria nada; grava `arrival_proposed`. O `previewId` no
+  `POST /cargo-arrivals` (preencher `cargo_previews.arrival_id`) ficou para a T4.4.
+- Testes: `test/cargo-receiving-http/cargo-preview-routes.contract.ts`,
+  `test/cargo-receiving/cargo-preview-{upload,item-action}.contract.ts`,
+  `test/cargo-receiving-schema/cargo-preview.contract.ts` (+ isolamento em `tenant-safety`), e
+  `test/integration/cargo-preview.integration.ts` (transação com falha injetada no outbox, isolamento,
+  ações, 1:1 com dois operadores concorrentes, proposta). As rotas estão em
+  `test/separator-role.contract.test.ts`.

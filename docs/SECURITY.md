@@ -287,6 +287,47 @@ desbloqueado). Se o produto passar a guardar mais do que a viagem corrente, revi
 
 **Origem:** spec 189 T3.3a (boot sem rede, snapshot e fila com dono). Registrado em 2026-09-25.
 
+### 2026-10-04 — spec 237 Fase 4a — a planilha de prévia entra por upload e é lida pelo worker
+
+**Onde:** `api-transportada`, `POST /cargo-previews` (`cargo-receiving/presentation/cargo-preview.schema.ts`,
+`domain/cargo-preview-upload.policy.ts`, `infrastructure/drizzle-cargo-preview-upload.repository.ts`);
+`worker-transportada`, `cargo-preview/` e o leitor copiado em `cargo-receiving/domain/` (ADR-0094 §7 e §8).
+
+**O que é:** um arquivo de terceiro (o `.xlsm` do contratante, com macro) entra pelo painel, fica no
+bucket e é aberto por código nosso no worker. É entrada hostil, e os itens guardam dado de pessoa
+(razão social do destinatário, endereço, CEP, valor por linha).
+
+**O que segura:**
+
+- **Quem envia é autenticado** (`trip.manage`, o separador tem); a empresa vem do contexto, e o
+  formulário é estrito (`companyId` no formulário é 400). Leitura com `fleet.read`; outra empresa é 404.
+- **Tamanho e tipo antes de tudo:** 960 KiB (o corpo da API para em 1 MiB) e `PK\x03\x04` nos bytes —
+  nunca `Content-Type` nem extensão. A API **não abre** o zip; quem abre é o worker, com os tetos do
+  leitor (zip, descompressão contada, entradas, `DOCTYPE`, linhas, tempo; ADR-0094 §7), macro e aba
+  `RESULTADO` nunca descomprimidas, fórmula nunca avaliada. Arquivo ruim vira prévia `failed` com o
+  código, nada parcial.
+- **Bucket privado, chave opaca:** `tenants/<empresa>/cargo-previews/<uuid>` — o nome do arquivo não
+  entra na chave; o nome guardado é só a base, sem caminho nem controle. O worker confere o sha256 do
+  objeto antes de ler (`PREVIEW_FILE_CORRUPTED`).
+- **Fila com referência, nunca bytes:** o envelope é estrito (`bucket`, `objectKey`, `previewId`).
+- **Sem PII em log:** API e worker logam ids, códigos e contagens; a linha recusada guarda coluna e
+  motivo, nunca o valor da célula; o evento de vínculo guarda ids de nota e evidências.
+- **Uma nota, uma prévia** e o operador acima da máquina: unique no vínculo e trava advisory comum.
+
+**Riscos aceitos / pendências:**
+
+1. **A leitura roda no event loop do worker** (45–70 ms medidos; teto de 5 s pelo orçamento do leitor)
+   com `prefetch 1` — não em `worker_thread` como o anexo anônimo do agregado (ADR-0053). Quem envia é
+   autenticado; uma rajada de prévias hostis seguraria o trilho por até 5 s cada. Se virar problema,
+   a leitura vai para thread como o pdf.js.
+2. **Retenção dos itens e do arquivo — decisão pendente do usuário.** Os itens guardam razão social,
+   endereço, CEP e valor por linha, e o arquivo fica no bucket, ambos **sem prazo de descarte**.
+   Recomendação: descartar o arquivo e anonimizar as colunas de pessoa dos itens (nome, endereço,
+   bairro, CEP) 90 dias depois de a prévia ficar sem item em aberto, mantendo valor, peso, roteiro,
+   vínculo e trilha (o que a comparação prévia × XML e a cobrança precisam). Nada foi implementado.
+3. O teto de 960 KiB é do transporte: planilha maior que isso é recusada (413) mesmo dentro dos 5 MiB
+   do leitor. As medidas reais estão em 0,80–0,82 MB.
+
 ### 2026-10-03 — spec 234 — o relógio do aparelho vale mais para a nota
 
 **Onde:** `api-transportada`, `src/trips/domain/occurred-at.policy.ts` (`resolveOccurredAt`,

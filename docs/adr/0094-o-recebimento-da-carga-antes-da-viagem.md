@@ -237,6 +237,34 @@ recusa ZIP64) e `fast-xml-parser` 5.10.1 corrige a expansão de entidade com `DO
 (GHSA-8r6m-32jq-jx6q; o leitor recusa `DOCTYPE` antes do parse). O custo aceito é manter ~1 100 linhas de leitor; o ganho é que cada teto é uma constante nomeada,
 testada e provada por mutação, e que nada além das quatro entradas é sequer descomprimido.
 
+### 8. A prévia por upload, o vínculo e a reavaliação (Fase 4a, T4.2 e T4.3 parte B)
+
+- **A API guarda e enfileira; o worker lê e vincula.** `POST /cargo-previews` confere o tipo pelos
+  bytes, guarda o arquivo no bucket privado com chave opaca e grava prévia, evento e pedido ao worker
+  numa transação. O pedido vai a `cargo_preview_outbox`, **trilho próprio**: `processing_outbox` é
+  preso a `nfe_import` por CHECK e FK. O teto do arquivo é **960 KiB**, e não os 5 MiB do leitor:
+  o corpo da API para em 1 MiB antes da rota (o servidor, em 2 MiB), e subir esse teto para todas
+  as rotas (inclusive as anônimas) por uma planilha de 0,8 MB não se paga. O leitor continua com
+  5 MiB como defesa em profundidade.
+- **Uma nota, uma prévia, é do banco.** `cargo_preview_document_links` tem `unique (company_id,
+document_id)`; as N linhas que fecham a mesma nota apontam para o vínculo **da prévia delas** por
+  FK composta. Um unique no item não serviria, porque N linhas ↔ 1 nota é permitido.
+- **Uma trava por contratante, advisory.** Worker (leitura e reavaliação) e operador (confirmar,
+  desvincular, vincular) tomam `pg_advisory_xact_lock` da mesma chave antes de ler as notas livres.
+  Não é a linha de `contractors` porque a importação de NF-e a regrava, e a importação não espera
+  vínculo. As prévias são vinculadas da mais antiga para a mais nova: o resultado não depende da
+  ordem de chegada das reavaliações.
+- **A reavaliação nasce na importação, num savepoint, coalescida.** Toda nota nova pede a reavaliação
+  do contratante do emitente (só com prévia em aberto), num `SAVEPOINT` que nunca derruba nem atrasa a
+  importação; com um pedido pendente, a nota seguinte não grava outro, e ele nasce adiado 30 s — um
+  lote de 300 XMLs vira uma reavaliação. Sem unique, de propósito: decidir o conflito esperaria a
+  transação de outra importação.
+- **O operador manda.** Item confirmado, desvinculado ou vinculado à mão fica `matched_by = user` e a
+  reavaliação nunca mais o lê. Desvincular age no grupo inteiro (soltar uma linha de uma soma deixaria
+  as outras apontando para uma nota que não fecha).
+- **Janela das candidatas:** notas importadas (`created_at`) entre `received_at − match_window_days` e
+  o menor de `agora` e `received_at + match_window_days` — o envio manual pode chegar depois do XML.
+
 ## Consequências
 
 - Contratante novo com regra diferente é cadastro, não deploy.
