@@ -3,8 +3,7 @@
  *
  * Spec 241 (RF5, CA04), contra Postgres real: o detalhe, o feed, a lista da nota e o cadastro
  * publicam o `itemsMode` do tipo ATUAL da empresa do token. A ocorrência de parada sai com `null`,
- * e tipo de outra empresa nunca entra na leitura — `trip_document_occurrences.occurrence_type_id`
- * não tem FK, então a junção por `(company_id, id)` é a única barreira.
+ * e tipo de outra empresa nunca entra na leitura em lote (`(company_id, id)`).
  */
 import { describe, expect } from 'bun:test'
 
@@ -168,7 +167,6 @@ describe('as leituras publicam o modo de itens do tipo (spec 241 RF5, CA04)', ()
       await withDisposableDatabase(async (database) => {
         const company = await seedCompany(database)
         const otherCompany = await seedCompany(database)
-        const trip = await seedTrip(database, company, 'in_transit')
         const foreignTypeId = await seedType(database, otherCompany, {
           allowsMultipleItems: true,
           itemsMode: 'off',
@@ -193,21 +191,49 @@ describe('as leituras publicam o modo de itens do tipo (spec 241 RF5, CA04)', ()
         expect(crossRead.get(ownTypeId)?.itemsMode).toBe('optional')
         expect(crossRead.has(foreignTypeId)).toBe(false)
         expect(emptyRead.size).toBe(0)
+      })
+    },
+  )
 
-        /** Sem FK na ocorrência de nota, a linha pode apontar para o tipo alheio: nunca vaza o modo. */
-        const strayOccurrenceId = await seedOccurrence(database, company, {
-          occurrenceTypeId: foreignTypeId,
-          trip,
-        })
-        const noteList = await listTripOccurrences(database.db, {
+  testWithPostgres('uma consulta de tipos por página, não uma por ocorrência', async () => {
+    await withDisposableDatabase(async (database) => {
+      const company = await seedCompany(database)
+      const trip = await seedTrip(database, company, 'in_transit')
+      const typeIds = await Promise.all(
+        ['A', 'B', 'C'].map((name) =>
+          seedType(database, company, { allowsMultipleItems: true, itemsMode: 'optional', name }),
+        ),
+      )
+      let selectCount = 0
+      const counting = new Proxy(database.db, {
+        get: (target, property, receiver) => {
+          if (property !== 'select') return Reflect.get(target, property, receiver) as unknown
+          return (...args: Parameters<typeof target.select>) => {
+            selectCount += 1
+            return target.select(...args)
+          }
+        },
+      })
+      const readNoteList = () =>
+        listTripOccurrences(counting, {
           companyId: company.companyId,
           documentId: trip.documentId,
           tripId: trip.tripId,
         })
-        expect(
-          noteList.find((item) => item.id === strayOccurrenceId)?.typeItemsMode ?? null,
-        ).toBeNull()
-      })
-    },
-  )
+
+      await seedOccurrence(database, company, { occurrenceTypeId: typeIds[0] ?? '', trip })
+      selectCount = 0
+      await readNoteList()
+      const selectsWithOneOccurrence = selectCount
+
+      await seedOccurrence(database, company, { occurrenceTypeId: typeIds[1] ?? '', trip })
+      await seedOccurrence(database, company, { occurrenceTypeId: typeIds[2] ?? '', trip })
+      selectCount = 0
+      const noteList = await readNoteList()
+
+      expect(selectsWithOneOccurrence).toBeGreaterThan(0)
+      expect(noteList).toHaveLength(3)
+      expect(selectCount).toBe(selectsWithOneOccurrence)
+    })
+  })
 })

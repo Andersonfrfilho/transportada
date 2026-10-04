@@ -897,3 +897,63 @@ Expected constructor: [class OccurrenceTypeItemsNotAllowedError extends ApiError
 ```
 
 Restaurado → contrato 9 pass.
+
+## T2.7 — leituras publicam o modo de itens do tipo (RF5, CA04)
+
+Integração antes da implementação (commit `05f3628d6`), `test/integration/trip-occurrence-type-items-read.integration.ts`
+(novo, na lista `test:integration`): vermelha por módulo ausente
+(`Cannot find module '.../occurrence-type-items-read.query.js'`, 0 pass, 1 fail, 1 error).
+
+Implementação: `trips/infrastructure/occurrence-type-items-read.query.ts` —
+`listOccurrenceTypeItemsShapesByIds` lê `allows_multiple_items` e `items_mode` dos tipos da página
+**numa consulta só**, `where company_id = $1 and id in (…)` (junção por `(company_id, id)`); lista vazia
+não consulta. Usada pelo feed (`listTripOccurrenceFeed`, que também alimenta o detalhe) e pela lista da
+nota (`listTripOccurrences`). Os campos publicados:
+
+| Leitura                                                                               | Campos novos                                                                                                    |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Feed (`GET /trip-occurrences`), item de nota                                          | `occurrenceTypeId` (string), `typeItemsMode` (`off`/`optional`/`required`), `typeAllowsMultipleItems` (boolean) |
+| Feed, item de **parada**                                                              | `occurrenceTypeId: null`, `typeItemsMode: null`, `typeAllowsMultipleItems: null`                                |
+| Detalhe (`GET /trip-occurrences/:id`) — é o item do feed mais motorista e correções   | os mesmos três (nota com valor; parada com `null`)                                                              |
+| Lista da nota (`GET /trips/:tripId/documents/:documentId/occurrences`)                | `typeItemsMode`, `typeAllowsMultipleItems` (`occurrenceTypeId` já era publicado desde a 079)                    |
+| Cadastro (`GET /company-settings/occurrence-types`)                                   | `itemsMode` (`off`/`optional`/`required`)                                                                       |
+| `GET /me/trips/current/occurrence-types` e `occurrenceTypes` do snapshot do motorista | `itemsMode` (linha legada sem a coluna lê `optional`)                                                           |
+
+Tipo não achado na empresa (ou ausente do lote) sai `null` nos campos de tipo, nunca o modo de outra empresa.
+
+Sem N+1: o teste "uma consulta de tipos por página" conta os `select` do `listTripOccurrences` com 1 e
+com 3 ocorrências de 3 tipos diferentes e exige o mesmo número. Cobertura dos três casos de uso
+(detalhe, feed, lista da nota, cadastro) com tipo `off` e `optional` e uma empresa vizinha com tipo de
+mesmo nome: `trip-occurrence-type-items-read.integration.ts` → 3 pass, 0 fail, 0 skip.
+
+Efeito nos testes antigos: `FieldOccurrenceType` ganhou `itemsMode` obrigatório, então os dublês e as
+expectativas exatas de `me-routes`, `office-field-occurrences`, `me-trip.integration`,
+`occurrences-route`, `field-catalog` e o `OCCURRENCE_DETAIL` ganharam o campo.
+
+Clientes: `apps/frontend-driver` valida o tipo por `isDriverOccurrenceType`
+(`driverTrip.types.ts:402`), que lê só `id`, `name`, `attachmentMode`, `flow` e `stopKind` e ignora
+chave a mais — a `itemsMode` não o rejeita. `apps/frontend-client` fala com o portal do contratante, não
+com estas leituras. O painel é da outra branch (tolerante, T1.1).
+
+Contrato da API depois: `bun --env-file=../../.env.test test --timeout 120000` → 9380 pass, 24 skip,
+0 fail (198 arquivos); `bun run typecheck` limpo.
+
+## T2.8 — mutação: arrancar o filtro de empresa da junção
+
+Removido `eq(companyOccurrenceTypes.companyId, params.companyId)` de
+`listOccurrenceTypeItemsShapesByIds` (fica só `inArray` nos ids). O teste passa a ler ids reais de duas
+empresas com o `companyId` de uma e vê o tipo da outra:
+
+```text
+error: expect(received).toBe(expected)
+Expected: 1
+Received: 2
+(fail) as leituras publicam o modo de itens do tipo (spec 241 RF5, CA04) > tipo de outra empresa não entra: ids reais com o companyId alheio voltam vazios
+ 2 pass
+ 1 fail
+```
+
+Restaurado (cópia byte a byte) → 3 pass, 0 fail. Achado: `trip_document_occurrences.occurrence_type_id`
+tem FK composta com a empresa no banco de hoje (inserir ocorrência de uma empresa apontando para tipo de
+outra viola a FK), apesar do comentário antigo em `trip.schema.ts` ("continua sem FK") — por isso a
+barreira que a mutação prova é a do filtro do lote, e a ocorrência cruzada não é semeável.

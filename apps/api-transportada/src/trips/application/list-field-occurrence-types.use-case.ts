@@ -38,6 +38,11 @@ export type FieldOccurrenceType = {
    */
   readonly flow: OccurrenceTypeFlow
   readonly id: string
+  /**
+   * Spec 241 (RF5): se o tipo carrega produtos. Ausente na linha legada lê `optional`, o
+   * comportamento de antes da coluna. O app do motorista ignora o campo (guard tolerante).
+   */
+  readonly itemsMode: DeliveryProofFieldMode
   readonly name: string
   /**
    * Spec 218 D2: qual dos 5 valores fixos de parada o tipo representa — a prévia do aviso no app
@@ -126,6 +131,7 @@ export function resolveFieldOccurrenceTypes(
       attachmentMode: type.attachmentMode ?? 'off',
       flow: type.flow ?? 'document',
       id: type.id,
+      itemsMode: type.itemsMode ?? 'optional',
       name: type.name,
       stopKind: resolveFieldStopKind(type),
     }))
@@ -155,6 +161,7 @@ export function resolveFieldOccurrenceTypes(
       }),
       flow: type.flow ?? 'document',
       id: type.id,
+      itemsMode: type.itemsMode ?? 'optional',
       name: type.name,
       stopKind: resolveFieldStopKind(type),
     }

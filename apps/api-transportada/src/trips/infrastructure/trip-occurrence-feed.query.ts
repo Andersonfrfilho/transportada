@@ -53,6 +53,10 @@ import type {
 } from '../application/trip-occurrence-feed.use-case.js'
 import type { OccurrenceAttachmentRecord } from '../application/occurrence-attachment.service.js'
 import { listOccurrenceCancellationsByIds } from './occurrence-correction-read.query.js'
+import {
+  buildOccurrenceTypeItemsView,
+  listOccurrenceTypeItemsShapesByIds,
+} from './occurrence-type-items-read.query.js'
 import { listStopAddresses } from './nfe-destination-address.support.js'
 import type { NfeDestinationAddress } from './nfe-destination-address.support.js'
 import type { TripQueryable } from './trip-queryable.type.js'
@@ -70,7 +74,12 @@ const EMITTER_ROLE = 'emitter'
  */
 type FeedRow = Omit<
   TripOccurrenceFeedItem,
-  'cancellation' | 'conversation' | 'createdAt' | 'document'
+  | 'cancellation'
+  | 'conversation'
+  | 'createdAt'
+  | 'document'
+  | 'typeAllowsMultipleItems'
+  | 'typeItemsMode'
 > & {
   readonly createdAt: Date
   readonly nfeDocumentId: null | string
@@ -236,6 +245,7 @@ async function listDocumentOccurrenceRows(
       invoiceNumber: nfeDocuments.number,
       invoiceSeries: nfeDocuments.series,
       notifies: companyOccurrenceTypes.notifies,
+      occurrenceTypeId: tripDocumentOccurrences.occurrenceTypeId,
       onBehalfOfDriverName: feedOnBehalfDriver.name,
       stage: tripDocumentOccurrences.stage,
       stopLabel: tripStops.label,
@@ -334,6 +344,7 @@ async function listDocumentOccurrenceRows(
     invoiceNumber: row.invoiceNumber,
     invoiceSeries: row.invoiceSeries,
     notifies: row.notifies,
+    occurrenceTypeId: row.occurrenceTypeId,
     onBehalfOfDriverName: row.onBehalfOfDriverName ?? null,
     source: 'document' as const,
     stage: row.stage,
@@ -509,6 +520,7 @@ async function listStopOccurrenceRows(
     invoiceNumber: row.invoiceNumber,
     invoiceSeries: row.invoiceSeries,
     notifies: false,
+    occurrenceTypeId: null,
     onBehalfOfDriverName: row.onBehalfOfDriverName ?? null,
     source: 'stop' as const,
     stage: null,
@@ -596,10 +608,24 @@ async function toFeedItems(
     occurrenceIds: rows.filter((row) => row.source === 'document').map((row) => row.id),
   })
 
+  /** Spec 241 RF5: o modo de itens dos tipos da página inteira numa leitura só, por `(company_id, id)`. */
+  const typeShapes = await listOccurrenceTypeItemsShapesByIds(queryable, {
+    companyId,
+    occurrenceTypeIds: rows.flatMap((row) =>
+      row.occurrenceTypeId === null ? [] : [row.occurrenceTypeId],
+    ),
+  })
+
   return rows.map(({ nfeDocumentId, totalValue, tripDocumentId, ...row }) => {
     const destination = nfeDocumentId === null ? undefined : destinations.get(nfeDocumentId)
+    const { typeAllowsMultipleItems, typeItemsMode } = buildOccurrenceTypeItemsView({
+      occurrenceTypeId: row.occurrenceTypeId,
+      shapes: typeShapes,
+    })
     return {
       ...row,
+      typeAllowsMultipleItems,
+      typeItemsMode,
       cancellation: row.source === 'document' ? (cancellations.get(row.id) ?? null) : null,
       conversation: conversations.get(`${row.source}:${row.id}`) ?? EMPTY_CONVERSATION_SUMMARY,
       createdAt: row.createdAt.toISOString(),

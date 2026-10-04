@@ -719,6 +719,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
             flow: 'document',
             id: documentOccurrenceTypeId,
             name: 'Avaria parcial',
+            itemsMode: 'optional',
             stopKind: null,
           },
         ])
@@ -728,6 +729,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
             flow: 'document',
             id: documentOccurrenceTypeId,
             name: 'Avaria parcial',
+            itemsMode: 'optional',
             stopKind: null,
           },
         ])

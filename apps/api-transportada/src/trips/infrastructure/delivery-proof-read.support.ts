@@ -70,6 +70,10 @@ import {
   listOccurrenceCancellationsByIds,
   listOccurrenceCorrectionsByIds,
 } from './occurrence-correction-read.query.js'
+import {
+  buildOccurrenceTypeItemsView,
+  listOccurrenceTypeItemsShapesByIds,
+} from './occurrence-type-items-read.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 /**
@@ -366,6 +370,9 @@ export async function listTripOccurrences(
       readonly productCodes: readonly string[]
       /** Spec 166 (RF5): a mesma lista de `productCodes`, com quantidade/unidade por item. */
       readonly products: readonly OccurrenceItemQuantity[]
+      /** Spec 241 (RF5): o modo de itens e o teto de um item do tipo ATUAL, `null` se o tipo não for da empresa. */
+      readonly typeAllowsMultipleItems: boolean | null
+      readonly typeItemsMode: DeliveryProofFieldMode | null
     })[]
 > {
   const rows = await queryable
@@ -436,9 +443,13 @@ export async function listTripOccurrences(
 
   /** Spec 240 RF9: correções e cancelamento da nota inteira em uma leitura cada, nunca por linha. */
   const occurrenceIds = rows.map((row) => row.id)
-  const [correctionsByOccurrence, cancellations] = await Promise.all([
+  const [correctionsByOccurrence, cancellations, typeShapes] = await Promise.all([
     listOccurrenceCorrectionsByIds(queryable, { companyId: input.companyId, occurrenceIds }),
     listOccurrenceCancellationsByIds(queryable, { companyId: input.companyId, occurrenceIds }),
+    listOccurrenceTypeItemsShapesByIds(queryable, {
+      companyId: input.companyId,
+      occurrenceTypeIds: rows.map((row) => row.occurrenceTypeId),
+    }),
   ])
 
   return rows.map((row) => {
@@ -456,6 +467,11 @@ export async function listTripOccurrences(
         ? storedProducts
         : productCodes.map((code) => ({ code, quantity: null, unit: null }))
 
+    const typeView = buildOccurrenceTypeItemsView({
+      occurrenceTypeId: row.occurrenceTypeId,
+      shapes: typeShapes,
+    })
+
     return {
       actorName: row.actorName ?? null,
       cancellation: cancellations.get(row.id) ?? null,
@@ -470,6 +486,8 @@ export async function listTripOccurrences(
       productCodes,
       products,
       stage: row.stage,
+      typeAllowsMultipleItems: typeView.typeAllowsMultipleItems,
+      typeItemsMode: typeView.typeItemsMode,
       typeName: row.typeName,
     }
   })
@@ -954,6 +972,7 @@ export async function listOccurrenceTypes(
       emailsContractor: companyOccurrenceTypes.emailsContractor,
       flow: companyOccurrenceTypes.flow,
       id: companyOccurrenceTypes.id,
+      itemsMode: companyOccurrenceTypes.itemsMode,
       leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
       name: companyOccurrenceTypes.name,
       notifies: companyOccurrenceTypes.notifies,

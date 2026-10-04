@@ -79,9 +79,9 @@ items_mode` da migration e o default `off` do plano. Se criou com default `off`:
 - [x] **T2.5** Contrato primeiro, depois RF6 nos casos de uso de registro, registro em nome do
       motorista (se aceitar produto) e correção (CA03).
 - [x] **T2.6** Mutação: arrancar a guarda da correção deixa a CA03 vermelha.
-- [ ] **T2.7** Leituras (RF5): detalhe, feed, lista da nota, cadastro e `/me/.../occurrence-types`,
+- [x] **T2.7** Leituras (RF5): detalhe, feed, lista da nota, cadastro e `/me/.../occurrence-types`,
       em lote, junção por `(company_id, id)` (CA04).
-- [ ] **T2.8** Mutação: arrancar o filtro de empresa da junção deixa a CA04 vermelha.
+- [x] **T2.8** Mutação: arrancar o filtro de empresa da junção deixa a CA04 vermelha.
 - [ ] **T2.9** Gates da API: contrato (`bun --env-file=../../.env.test test --timeout 120000`) **e**
       integração (`bun --env-file=../../.env.test run test:integration`), typecheck,
       `make migration-test`, rebase em `origin/staging` + `bun install --frozen-lockfile` +

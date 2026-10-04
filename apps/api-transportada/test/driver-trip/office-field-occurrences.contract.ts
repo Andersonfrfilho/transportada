@@ -583,6 +583,7 @@ describe('os tipos de ocorrência do escritório (L2)', () => {
         flow: 'document',
         id: TYPE_ID,
         name: 'Cliente ausente',
+        itemsMode: 'optional',
         stopKind: null,
       },
     ])
