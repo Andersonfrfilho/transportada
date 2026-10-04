@@ -1707,9 +1707,11 @@ type RawOccurrenceType = Omit<
   Readonly<{
     allowsMultipleItems?: unknown
     attachmentMode?: unknown
+    emailsContractor?: unknown
     flow?: unknown
     leavesDocumentBehind?: unknown
     redeliveryPolicy?: unknown
+    stopKind?: unknown
   }>
 
 function isOccurrenceType(value: unknown): value is RawOccurrenceType {
@@ -1724,11 +1726,14 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         ...OCCURRENCE_TYPE_REQUIRED_KEYS,
         'allowsMultipleItems',
         'attachmentMode',
+        /** A API já manda `emailsContractor` (183) e `stopKind` (218); o painel os ignora, mas não reprova por eles. */
+        'emailsContractor',
         /** Spec 218 (RF-B5): mesma tolerância — ausente é API anterior ao campo, vira `document`. */
         'flow',
         /** Spec 185 T6.1 (D2): mesma tolerância — ausente é API anterior ao campo. */
         'leavesDocumentBehind',
         'redeliveryPolicy',
+        'stopKind',
       ],
       required: OCCURRENCE_TYPE_REQUIRED_KEYS,
     })
@@ -1740,6 +1745,8 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
     (value.allowsMultipleItems === undefined || isBoolean(value.allowsMultipleItems)) &&
     (value.attachmentMode === undefined ||
       isOneOf(value.attachmentMode, OCCURRENCE_ATTACHMENT_MODES)) &&
+    (value.emailsContractor === undefined || isBoolean(value.emailsContractor)) &&
+    (value.stopKind === undefined || value.stopKind === null || isString(value.stopKind)) &&
     isString(value.emailBody) &&
     isString(value.emailSubject) &&
     (value.emailTemplateKey === null || isString(value.emailTemplateKey)) &&
