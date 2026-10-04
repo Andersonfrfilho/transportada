@@ -134,11 +134,14 @@ conferência) **Then** o fluxo dele muda **só por dado**, sem código novo e se
      clientes com 2 ou 3 linhas, p.ex. 2.664,00 + 1.243,56 → uma nota; e 20 linhas para 16 notas com o
      mesmo valor total): resolve-se, por cliente, a partição das linhas em notas cujo **valor** e **peso**
      fecham — valor exato ao centavo; peso com diferença de até 5 g por arredondamento da planilha
-     (`PESO TOTAL` com 2 casas × `pesoB` com 3), coberta por um piso de 0,01 kg; o percentual do perfil vale
-     acima dele. É soma de subconjuntos sobre ≤ 3 linhas.
+     (`PESO TOTAL` com 2 casas × `pesoB` com 3), coberta por um piso de 0,01 kg — que cresce 0,005 kg por
+     linha somada (revisão da Fase 4a); o percentual do perfil vale acima dele. É soma de subconjuntos
+     sobre ≤ 3 linhas.
   4. **Veredito por linha:** partição única que fecha valor **e** peso → `matched` (guarda `n` linhas ↔ 1
      nota); mais de uma partição possível → `ambiguous` (as candidatas, para o operador escolher); nenhuma
      nota → `awaiting_xml`; fecha só o valor → `suggested` (só vale depois de o operador confirmar).
+     Valor e peso sem par roteiro ↔ carga pelos totais e sem CEP, razão social ou alias também são
+     `suggested` (revisão da Fase 4a, ADR-0094 §4).
   5. **Matching 1:1 por nota:** uma nota nunca fica em dois grupos de linhas.
   6. **Taxa medida (XMLs parciais, 2 dias):** por linha isolada, valor + CEP achou uma nota em 74–90% e valor
      - peso em 78–85%; **agrupando por cliente a soma fecha em ~92–100% dos clientes** dos roteiros testados

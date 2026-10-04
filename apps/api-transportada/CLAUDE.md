@@ -780,8 +780,10 @@ Detalhe: docs/ai-context § "Spec 237" → "Fase 2".
 `parseCargoPreviewWorkbook` lê só workbook, rels, sharedStrings e a aba escolhida (macro e `RESULTADO`
 nunca), com tetos em `CARGO_PREVIEW_WORKBOOK_LIMITS` e erro tipado `PREVIEW_*`; coluna por NOME, erro
 por linha. `resolveCargoPreviewMatches` é determinística: roteiro ↔ carga, cliente, soma exata ao
-centavo; 1:1 por nota; só valor é `suggested`. ⚠️ Peso concorda com `|Δ| ≤ max(0,01 kg, tolerância do
-perfil × peso)`: a planilha arredonda a 2 casas e o `pesoB` tem 3. Detalhe: docs/ai-context § "Spec 237 — Fase 4a, parte A".
+centavo; 1:1 por nota; só valor é `suggested`, e valor + peso sem par por totais nem CEP/nome/alias
+também. ⚠️ Peso concorda com `|Δ| ≤ max(0,01 kg, 0,005 kg × linhas somadas, tolerância do perfil ×
+peso)`: a planilha arredonda a 2 casas e o `pesoB` tem 3. Par roteiro ↔ carga por votos (≥ 2 e ≥ 25%)
+nunca é gravado. Detalhe: docs/ai-context § "Spec 237 — Fase 4a, parte A" e "correções da revisão".
 
 **A prévia por upload** (Fase 4a, parte B, ADR-0094 §8): `POST /cargo-previews` (multipart, `trip.manage`)
 guarda o arquivo no bucket privado com chave opaca e grava prévia + evento + `cargo_preview_outbox` numa

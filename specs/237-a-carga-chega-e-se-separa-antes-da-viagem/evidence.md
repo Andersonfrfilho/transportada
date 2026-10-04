@@ -854,3 +854,191 @@ prints/evidência. **Nada da API nem do worker foi tocado.** Decisões em `docs/
 - **Follow-ups:** `counts` no resumo da lista (API); número da NF das candidatas de uma ambígua (API); `previewId` opcional no `POST
 /cargo-arrivals` para preencher `cargo_previews.arrival_id` (e então "esta prévia já virou a chegada X" no detalhe); rota da ficha do contratante
   por id; fila offline; e-mail (Fase 4b); T4.5 (revisão `opus` + `security-reviewer`, print aprovado).
+
+## Correções da revisão da Fase 4a (2026-10-04)
+
+Revisão de código da Fase 4a (H1, H2, M1–M6, L1–L8 e a pergunta aberta da passada `open`). Commits, na ordem:
+`6f26cbf9a` (política: H1, M2, M5, M6, pergunta aberta), `f962ee44c` (worker grava só o par por totais),
+`95269f2b4` (desvincular revoga alias e pede reavaliação), `86854181e` (H2 no leitor), `db75b549c` (M1 + defesa do
+H2 + migration), `3705a5da7` (M3), `6984626fb` (M4, L2, constantes do L8), `168b41ecc` (L8, divisão do escritor),
+`a8c7f528c` (L3), `bb827ac85` (L6), `556c6cd81` (L7), `670f9ced0` (contrato que matou o mutante sobrevivente do
+M1) e o desta evidência (ADR, spec e contexto). Decisões no ADR-0094 §4, §7 e §8. A revisão de segurança corre à
+parte e não foi tocada aqui.
+
+### O que mudou, e o contrato que prende
+
+- **H1 — par roteiro ↔ carga com XML parcial.** Cenário do revisor (`pairing.ts`): R1 com 20 linhas, só 1 nota da
+  carga L1 importada, R2 com 5 linhas e uma coincidente em valor e peso → par `(R2, L1, votes)` pela diferença de
+  contagem, linha de R2 `matched` na nota errada, alias errado aprendido, e depois o `known (R2, L1)` deixava as 19
+  linhas de R1 em `awaiting_xml` para sempre. Agora: par por votos só com **2 votos e 25% das linhas do roteiro**
+  (`MIN_ROUTE_PAIR_VOTES`, `MIN_ROUTE_PAIR_VOTE_PERCENT`); a diferença de contagem saiu do escore (empate sem totais
+  não pareia); o worker **grava só o par `totals`** e `selectRoutePairs` ignora linha `votes` gravada por versão
+  anterior. Contratos: `cargo-preview-route-pairing-partial.contract.ts` (a carga chegando com 1, 2, 3, 4, 5, 10, 15
+  e 20 notas: nenhum passo pareia R2, vincula linha de R2 ou ensina o alias dela; o par certo emerge por votos em
+  5 e 10 e por totais em 20; mínimo de votos; contagem não desempata) e, contra Postgres,
+  `worker test/integration/cargo-preview-route-pairs.integration.ts` (votos não gravado; totais gravado; linha
+  `votes` antiga não volta como conhecida). Vermelho antes: **6 pass / 6 fail** (com só as constantes criadas).
+- **Pergunta aberta (passada `open`) e M2.** Valor e peso sem par pelos totais (ou firmado) e sem CEP, razão social
+  ou alias viram `suggested` — também dentro de um par por votos. Como `matched` agora sempre tem reforço, o alias
+  só é aprendido de vínculo reforçado (não há checagem extra: seria código morto; o mutante "valor e peso sozinhos
+  vinculam" derruba 9 testes, inclusive os de alias). Desvincular revoga o alias aprendido por esta prévia
+  (`learned_from_preview_id`) para os códigos do grupo desfeito e o CNPJ do destinatário da nota solta, **salvo** se
+  outro item `matched` da prévia, do mesmo código, aponta para nota do mesmo destinatário
+  (`cargo-preview-unlink.writer.ts`). Contratos: `cargo-preview-match-reinforcement.contract.ts` e
+  `api test/integration/cargo-preview-unlink.integration.ts`. Vermelho antes: integração 0 pass / 1 fail (o alias
+  `10001` ficava).
+- **H2 — número maior que a coluna.** `MAX_INTEGER_DIGITS = 13` valia para todo campo; agora o teto é o da coluna
+  (`PREVIEW_DECIMAL_FIELDS`: valor 12, peso 9, volume 8), medido **depois** do arredondamento, e vira `rowError` com
+  "Must have at most N digits before the decimal separator". Defesa em profundidade: 22003 no `storeParsed` vira
+  `CargoPreviewValueOutOfRangeError` no adaptador e a prévia `failed` `PREVIEW_VALUE_OUT_OF_RANGE`, sem retry. A
+  leitura do total da NF-e (`numeric(19,4)`) usa 15 dígitos. Contratos: `cargo-preview-workbook-overflow.contract.ts`
+  (EAN-13 em VALOR, 13 dígitos em VALOR, `11987654321` em PESO, 10 dígitos em PESO, 9 em VOLUME, VALOR em texto,
+  arredondamento que leva ao dígito a mais, e o limite exato aceito), `worker process-use-case.contract.ts` e
+  `worker test/integration/cargo-preview-failure.integration.ts` (22003 real no banco → erro tipado, nada gravado).
+  Vermelho antes (contrato contra o código antigo): **2 pass / 7 fail**.
+- **M1 — prévia sem estado final.** O consumidor, na tentativa que atinge o `maxRetries` da topologia, marca a prévia
+  `failed` `PREVIEW_PROCESSING_ABANDONED` e manda à fila morta. Reenviar o mesmo arquivo de prévia `failed`, ou
+  `processing` sem notícia há mais de `CARGO_PREVIEW_PROCESSING_LEASE_MS` (15 min), **reabre a mesma prévia**:
+  bytes de novo na chave dela, `queued`, código limpo, evento `uploaded` com `reopened: true` e pedido novo ao
+  worker, numa transação com a prévia travada e a situação reconferida; responde 201 (o painel abre o detalhe).
+  Pronta, `queued` ou `processing` recente seguem 200 sem pedido novo. Contratos: `cargo-preview-resend.contract.ts`,
+  `api test/integration/cargo-preview-resend.integration.ts` (perfil com coluna mal mapeada ⇒ `failed` ⇒ reenviar
+  o MESMO arquivo ⇒ reabre; pronta, recente ⇒ 200; parada há 1 h ⇒ 201; o repositório não reabre prévia pronta),
+  `worker trail.contract.ts` e `cargo-preview-failure.integration.ts` (coluna mal mapeada ⇒ `failed` ⇒ perfil
+  corrigido + reaberta ⇒ `ready`). Vermelho antes: integração 0 pass / 1 fail (`200`/`failed` em vez de
+  `201`/`queued`).
+- **M3 — a prévia nova roubava a nota.** O `storeParsed` agora vincula todas as prévias prontas da janela, da mais
+  antiga para a mais nova (o filtro `previewIds` ficou sem uso e saiu). Contrato:
+  `worker test/integration/cargo-preview-order.integration.ts` (pedido recorrente idêntico em duas prévias; a nota
+  chega com a reavaliação dela ainda adiada; a leitura da nova a deixa com a antiga). Vermelho antes: 0 pass / 1 fail
+  (o vínculo ia para a prévia nova).
+- **M4 — coalescência que perde reavaliação.** Só coalesce com pedido que ainda tem
+  `CARGO_PREVIEW_REEVALUATION_COALESCE_MARGIN_SECONDS` (10 s) de folga, medida por `clock_timestamp()` — o `now()` é
+  o começo da transação da importação. A alternativa de o consumidor reagendar por `created_at` posterior à leitura
+  foi descartada: `created_at` também é o `now()` da importação, anterior à leitura mesmo comitando depois.
+  Contrato: `worker test/integration/cargo-preview-reevaluation-race.integration.ts`, com a intercalação injetada
+  (pedido a 2 s de sair; a transação da importação fica aberta enquanto o pedido é publicado e a reavaliação roda;
+  depois o commit: tem de sobrar um pedido, e ele vincula a nota); o pedido com folga continua coalescendo; o lote
+  de 300 XMLs segue um pedido só. Vermelho antes: 1 pass / 2 fail.
+- **M5 — piso que não escalava.** `|Δ| ≤ max(0,01 kg, 0,005 kg × linhas somadas, tolerância × peso)` na partição e
+  nos totais do roteiro. Contrato: `cargo-preview-partition-sum.contract.ts` (3 × 1,01 kg contra 3,015 kg ⇒
+  `matched`; roteiro de 30 linhas fecha por totais).
+- **M6 — linha `matched` sozinha num bloco.** Linhas idênticas do cliente são intercambiáveis (forma canônica pela
+  ordem da linha, `cargo-preview-partition-choice.policy.ts`); fora disso, vínculo exige a mesma nota **e** o mesmo
+  bloco em toda partição ótima. Contrato: a=300/30, b=c=100/10 contra D=400/40 e E=100/10 ⇒ a e b em D, c em E;
+  e linhas não idênticas que trocam de bloco ⇒ ambíguas. Vermelho antes (M5 + M6): **0 pass / 5 fail**. O teste
+  antigo "duas partições possíveis: o que todas concordam vincula" afirmava exatamente o defeito e mudou.
+- **L2** (`exists` só conta prévia dentro de `match_window_days`), **L3** (sistema 1904 e `t="d"` com hora;
+  `cargo-preview-workbook-dates.contract.ts`, vermelho 5 pass / 3 fail), **L5** (desvincular grava pedido
+  `reevaluate`), **L6** (`arrival_proposed` uma vez por conjunto de notas, impressão sha256 nos `details`, prévia
+  travada na proposta; vermelho 1 pass / 1 fail), **L7** (texto do `arrival_id` corrigido), **L8**
+  (`cargo-preview-matching.writer.ts` 218 → 137 linhas, contexto em `cargo-preview-matching-context.query.ts`; o SQL
+  cru da reavaliação interpola evento, situações, estados abertos e `system`).
+
+### Migration (exigida pelo M1 e pelo H2)
+
+`20261004165112_cargo_preview_failure_codes`: **só alarga** o CHECK de `cargo_previews.error_code` com
+`PREVIEW_PROCESSING_ABANDONED` e `PREVIEW_VALUE_OUT_OF_RANGE` — o CHECK lista os códigos, e sem ela a prévia não
+poderia ficar `failed` com eles. Snapshot encadeado em `20261004140624_cargo_previews` (`prevIds` conferido);
+`rollback.sql` devolve o CHECK antigo com `NOT VALID` + `VALIDATE` e **recusa sem apagar** enquanto houver prévia com
+um código novo. Asserção nova `test/database-migration/cargo-preview-failure-codes.assertion.ts` (aceita os dois,
+recusa código inventado, rollback recusa, sem elas desfaz e sai do journal, migra de novo). `make migration-test`:
+**124 pass / 0 fail**. `bun run db:generate`: **`no_changes`**. Sem migration destrutiva; a importação de NF-e não
+mudou além do pedido de reavaliação (que segue no savepoint).
+
+### Corpus real anonimizado (tolerância 0)
+
+| Medida                                         | FR-24-09 antes  | FR-24-09 depois | FR-28-09 antes | FR-28-09 depois |
+| ---------------------------------------------- | --------------- | --------------- | -------------- | --------------- |
+| matched / suggested / ambiguous / awaiting_xml | 180 / 5 / 0 / 2 | 177 / 8 / 0 / 2 | 97 / 6 / 2 / 2 | 96 / 7 / 2 / 2  |
+| clientes com tudo vinculado                    | 158/165         | 155/165         | 94/104         | 93/104          |
+| idem, nos roteiros pareados por totais         | 47/47           | 60/60           | 40/40          | 40/40           |
+| pares (totais / votos)                         | 4 / 6           | 5 / 5           | 4 / 4          | 4 / 4           |
+| aliases aprendidos                             | 158             | 155             | 94             | 93              |
+| FR-28-09 com os aliases de FR-24-09 (matched)  | —               | —               | 99             | 98              |
+
+As 3 + 1 linhas que saíram de `matched` são de par por votos e fechavam só valor e peso, sem CEP, razão social nem
+alias — exatamente o que a pergunta aberta manda tornar sugestão. FR.ORLAN passou de votos a totais pelo piso por
+linha (M5). Com o XML chegando aos poucos (notas na ordem do número, 10/25/50/75%), `matched` foi 21/45/89/136 →
+21/45/88/134 (FR-24-09) e 8/22/46/72 → 8/22/46/71 (FR-28-09): sem piora material, então não houve parada.
+
+### Mutações (script fora do repositório; cada arquivo restaurado por `git checkout`, `git diff --quiet` limpo)
+
+| Regra                                           | Vermelho | Regra                                         | Vermelho |
+| ----------------------------------------------- | -------- | --------------------------------------------- | -------- |
+| votos sem mínimo (`score > 0`)                  | 3 fail   | M2 desvincular sem revogar o alias            | 1 fail   |
+| sem a fração mínima de 25%                      | 1 fail   | M2 revoga até o alias que outro item sustenta | 1 fail   |
+| sem o mínimo de 2 votos                         | 2 fail   | L5 desvincular sem pedir reavaliação          | 1 fail   |
+| diferença de contagem volta a desempatar        | 6 fail   | H2 teto único de 13 dígitos                   | 7 fail   |
+| valor e peso sozinhos vinculam (passada `open`) | 9 fail   | H2 teto medido antes do arredondamento        | 1 fail   |
+| par por votos confirma o grupo                  | 4 fail   | H2 22003 não vira erro tipado (adaptador)     | 1 fail   |
+| piso não escala com as linhas                   | 4 fail   | H2 caso de uso não mapeia o erro tipado       | 1 fail   |
+| totais do roteiro sem o piso por linha          | 2 fail   | M1 última tentativa não marca abandonada      | 1 fail   |
+| bloco pode diferir entre partições              | 1 fail   | M1 sempre retry (sem fila morta)              | 1 fail   |
+| sem forma canônica das linhas idênticas         | 2 fail   | M1 `failed` não reabre                        | 1 fail   |
+| worker grava par por votos                      | 1 fail   | M1 `processing` reabre sem prazo              | 1 fail   |
+| worker lê par por votos como conhecido          | 1 fail   | M1 reabrir sem pedido novo ao worker          | 1 fail   |
+| M3 leitura vincula só a prévia nova             | 1 fail   | M1 reabrir sem reconferir na transação        | 1 fail¹  |
+| M3 prévias da mais nova para a mais antiga      | 1 fail   | M4 coalesce sem a folga                       | 1 fail   |
+| L2 sem o filtro da janela                       | 1 fail   | M4 folga pelo `now()` do começo da transação  | 1 fail   |
+| L3 ignora o `date1904`                          | 1 fail   | L3 ISO só sem hora                            | 2 fail   |
+| L6 grava o evento a cada proposta               | 1 fail   | rollback da migration sem `VALIDATE`          | 1 fail   |
+
+¹ Sobreviveu na primeira rodada (o caso de uso já filtra antes de chamar o repositório); entrou o contrato que chama
+o repositório direto com a prévia pronta (`670f9ced0`).
+
+### Medições e riscos registrados
+
+- **L4 — horizonte do teto de 960 KiB** (as planilhas reais lidas só localmente, nada commitado): FR-24-09, FR-28-09,
+  FR-01-10 e FR-05-10 têm 811 818, 798 687, 814 325 e 815 020 bytes; a linha de dado custa ~73 bytes comprimidos na
+  aba e 103,6–108,1 contando as strings compartilhadas novas; sobram 168–184 KB, **~1 600–1 700 linhas a mais**
+  (≈ 8× o maior dia medido). Anotado no ADR §8.
+- **L1 — índice `(company_id, created_at)` em `nfe_documents`: NÃO criado** (tabela central). A consulta das
+  candidatas entra por `nfe_participants_company_role_tax_id_idx` (emitente) e filtra `created_at` depois: o custo
+  cresce com o histórico inteiro do emitente (277 notas em 2 dias ≈ 50 mil por ano), uma vez por prévia pronta a
+  cada reavaliação — e, com o M3, também a cada leitura de prévia (todas as prontas da janela). Não medido contra
+  volume real (leitura de produção é proibida; o banco local é pequeno demais para um `EXPLAIN` honesto).
+  Follow-up: medir em staging com o volume de um ano e decidir o índice (`CREATE INDEX CONCURRENTLY`, migration à
+  parte, custo de escrita na importação).
+
+### Gates
+
+- **API:** `bun run typecheck` ✓ · `bun run lint` ✓ · contrato `bun --env-file=../../.env.test test --timeout 120000`:
+  antes **9633 pass / 25 skip / 0 fail**, depois **9682 pass / 25 skip / 0 fail** (198 arquivos) · integração da
+  prévia, chegada e perfil (`cargo-preview`, `cargo-preview-resend`, `cargo-preview-unlink`, `cargo-arrival`,
+  `contractor-receiving-profile`, Postgres do `.env.test`): antes 15, depois **19 pass / 0 fail** ·
+  `make migration-test` **124 pass** · `db:generate` **`no_changes`**.
+- **Worker:** `bun run typecheck` ✓ · `bun run lint` ✓ · `bun run test`: antes **1611**, depois **1616 pass / 0 fail**
+  (paridade com o arquivo novo `cargo-preview-partition-choice.policy.ts`: 22 arquivos idênticos) · integração
+  completa `bun run test:integration` num banco **novo** `transportada_worker_integration_r4a` (Postgres local 55432,
+  dropado e recriado com `db:migrate` da API, RabbitMQ local): **189 pass / 1 fail** — o que reprova é
+  `osrm-routing-matrix` (o OSRM local tem outro mapa), o mesmo da rodada anterior, nada desta mudança; os 8 novos
+  (`route-pairs`, `failure`, `order`, `reevaluation-race`) passam.
+- **Painel:** os dois códigos novos ganharam texto (pt-BR e en); `bun run test` do `frontend-transportada`:
+  **7446 pass / 0 fail**.
+- `bun run format:check` na raiz ✓.
+
+### Decisões que divergiram do texto da revisão
+
+- O M1 **exigiu migration** (o CHECK de `error_code` lista os códigos); aditiva, com rollback que recusa sem apagar.
+  O evento da reabertura é `uploaded` com `reopened: true` (sem kind novo, o CHECK dos eventos não muda). A marcação
+  "fila morta" é feita pelo consumidor na última tentativa, não por um consumidor da fila morta.
+- M2: sem checagem extra no aprendizado — `matched` já implica reforço; aprender alias da **confirmação do operador**
+  continua follow-up (o texto permite, não exige).
+- M4: opção da folga, com `clock_timestamp()`; a do reagendamento pelo `created_at` não fecharia a corrida.
+- M6: as duas opções juntas (linhas idênticas intercambiáveis **e** o mesmo bloco em toda partição).
+- H2: a leitura do total da NF-e na política passou a aceitar 15 dígitos (`numeric(19,4)`), não 13.
+- Linhas `votes` já gravadas em staging não são apagadas (nenhuma mudança de dado): são ignoradas na leitura.
+
+### Não rodou
+
+`make worker-integration` como está (reusa o banco compartilhado com o diário divergente — rodou o mesmo passo em
+banco novo, acima); integração completa da API (só as tocadas); `make check`, smoke e teste em staging (nada
+publicado — sem push).
+
+### Follow-ups
+
+Índice das candidatas (L1, acima); `previewId` no `POST /cargo-arrivals` para preencher `cargo_previews.arrival_id`
+(L7, pendente de verdade); aprender alias da confirmação do operador; limpar as linhas `votes` antigas de
+`cargo_preview_route_loads` se a tela passar a mostrar a origem do par; a revisão de segurança em andamento (rodada
+separada).

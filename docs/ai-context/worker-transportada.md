@@ -276,7 +276,11 @@ event loop: 45–70 ms medidos, teto de 5 s do orçamento do leitor). Duas mensa
   sem perfil ligado = `PREVIEW_NOT_ENABLED`) e grava os itens — linha boa `awaiting_xml`, linha recusada
   `invalid` com coluna e motivo — e o dia planejado (`RoutingDate` mais frequente). Erro do leitor é
   prévia `failed` com o código e **ack**; banco ou bucket fora do ar é **retry**. A prévia é travada
-  `FOR UPDATE` e só a primeira entrega grava (reentrega é no-op).
+  `FOR UPDATE` e só a primeira entrega grava (reentrega é no-op). Estouro numérico no banco (22003)
+  vira `CargoPreviewValueOutOfRangeError` no adaptador e prévia `failed` `PREVIEW_VALUE_OUT_OF_RANGE`;
+  na **última tentativa** (`retryCount` = `maxRetries` da topologia) a prévia vira `failed`
+  `PREVIEW_PROCESSING_ABANDONED` antes da fila morta — nunca fica `processing` para sempre. Gravar os
+  itens vincula **todas** as prévias prontas do contratante, da mais antiga para a nova.
 - **`cargo-preview.reevaluate`** (por contratante): `matchContractorPreviews` vincula de novo os itens em
   aberto **decididos pela máquina** (`awaiting_xml`/`suggested`/`ambiguous`, `matched_by` nulo ou
   `system`) das prévias prontas ainda na janela, da mais antiga para a mais nova.
@@ -287,14 +291,17 @@ empresa, `authorized`, emitente = CNPJ do contratante em `nfe_participants`, `cr
 `[received_at − janela, min(agora, received_at + janela)]`, sem vínculo), extrai o `NroCarga` do
 `additional_information` pelo padrão do perfil, roda `resolveCargoPreviewMatches` e grava **só o que
 mudou** (`diffPreviewMatches`): vínculo novo é `insert` puro (o unique da nota desfaz tudo se algo
-furou), evento por item mudado, pares roteiro ↔ carga, aliases aprendidos (`onConflictDoNothing`; o
-conflito é contado e vai ao log `cargo_preview_alias_conflict`, nunca sobrescreve).
+furou), evento por item mudado, pares roteiro ↔ carga **só pelos totais** (o par por votos vale só na
+leitura em que nasceu; linha `votes` antiga não volta como conhecida), aliases aprendidos
+(`onConflictDoNothing`; o conflito é contado e vai ao log `cargo_preview_alias_conflict`, nunca
+sobrescreve). O contexto (perfil, prévias, aliases) é lido em `cargo-preview-matching-context.query.ts`.
 
 **A reavaliação nasce na importação.** `writeDocumentChildren` (upload e distribuição) chama
 `requestCargoPreviewReevaluation` num `SAVEPOINT` (molde de `delivery-registry.writer.ts`): grava um
 pedido só se o emitente é contratante com perfil e prévia ligados e há prévia na fila ou pronta com item
-em aberto, só se não há pedido pendente dele, e adiado 30 s — um lote de 300 XMLs vira um pedido
-(medido na integração). Sem unique, de propósito: o conflito esperaria a transação de outra importação.
+em aberto dentro de `match_window_days`, só se não há pedido pendente dele **com mais de 10 s de folga**
+(`clock_timestamp()`; o pedido prestes a sair pode ser lido antes de a importação comitar), e adiado
+30 s — um lote de 300 XMLs vira um pedido (medido na integração). Sem unique, de propósito: o conflito esperaria a transação de outra importação.
 Falha do pedido volta só o savepoint e vira o aviso `cargo_preview_reevaluation_request_failed`; a nota
 entra. Importação e distribuição passaram a mandar o logger que já tinham a `writeDocumentChildren`.
 

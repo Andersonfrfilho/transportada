@@ -134,9 +134,31 @@ awaiting_xml | invalid`, sempre corrigível pelo operador. O vínculo é **assí
   (`PREVIEW_WEIGHT_ROUNDING_FLOOR_KG`) é do formato, não do contratante, e não depende de o perfil
   lembrar de configurar; o percentual vale acima dele para divergência real. O padrão da coluna fica `0`
   (sem migration). Com isso fecham 180 de 187 (FR-24-09) e 97 de 107 (FR-28-09) já com tolerância 0.
+  _Revisão da Fase 4a (M5):_ cada linha somada arredonda até 5 g, então n linhas contra uma nota (ou um
+  roteiro inteiro contra a carga) somam até 5·n g. O piso passou a
+  `max(0,01 kg, 0,005 kg × linhas somadas)` (`PREVIEW_WEIGHT_ROUNDING_PER_LINE_KG`), na partição e nos
+  totais do roteiro; para uma linha continua 0,01 kg. FR.ORLAN (FR-24-09) passou de votos a totais.
 - **O par roteiro ↔ carga também nasce pelos votos**, não só pelos totais: com o XML chegando aos
   poucos (o fluxo principal), os totais só fecham no fim, e as linhas que já fecham sozinhas numa nota da
-  carga bastam para parear. Empate de escore não pareia.
+  carga bastam para parear. Empate de escore não pareia. _Revisão da Fase 4a (H1):_ um voto é
+  coincidência de valor e peso — com uma nota só da carga importada, a linha de outro roteiro que
+  coincidia pareava o roteiro errado (a diferença de contagem desempatava a favor do roteiro menor), o
+  par era gravado, voltava como "conhecido" e travava o verdadeiro. Agora o par por votos exige
+  **2 votos e 25% das linhas do roteiro** (`MIN_ROUTE_PAIR_VOTES`, `MIN_ROUTE_PAIR_VOTE_PERCENT`), a
+  diferença de contagem não desempata, e ele **vale só na leitura em que nasceu**: nunca é gravado em
+  `cargo_preview_route_loads` nem volta como par conhecido (linha `votes` de versão anterior é
+  ignorada). Só o par pelos totais é gravado.
+- **Valor e peso sozinhos são sugestão** (revisão da Fase 4a, M2 e a pergunta aberta da passada `open`):
+  sem par pelos totais (ou firmado) e sem reforço independente — CEP, razão social ou alias — a linha que
+  fecha valor e peso numa nota fica `suggested`, para o operador confirmar. Dentro de um par por votos
+  também. Com isso o alias `Company → CNPJ` só é aprendido de vínculo com reforço; e desvincular revoga
+  o alias que a prévia aprendeu daquele vínculo, salvo se outro item dela o sustenta. Medido no corpus:
+  FR-24-09 180 → 177 `matched` (5 → 8 `suggested`), FR-28-09 97 → 96 (6 → 7).
+- **A linha só vincula com o bloco inteiro** (revisão da Fase 4a, M6): a mesma nota em toda partição
+  ótima não basta — o bloco de linhas também tem de ser o mesmo, senão a linha vincularia sozinha a uma
+  nota que só fecha somada a outra que ninguém sabe qual é. Linhas idênticas do mesmo cliente (mesmo
+  valor e peso) são intercambiáveis: trocá-las não é outra partição, e vão aos blocos pela ordem da
+  linha.
 - **Nota disputada na mesma passada é ambígua para todos que a disputam** (1:1), e linha de roteiro
   pareado só pega, fora do grupo, nota sem `NroCarga`.
 - **Acima de 6 linhas do mesmo cliente** (`MAX_PARTITION_LINES`; o medido é ≤ 3) não há partição: só 1
@@ -218,6 +240,13 @@ nova** entra no `bun.lock`.
 | última linha com dado                | 20 000                                               | 127–220 (de 13 792 reservadas)          | `PREVIEW_TOO_MANY_ROWS`    |
 | orçamento de tempo                   | 5 000 ms                                             | 45–70 ms por planilha                   | `PREVIEW_PARSE_TIMEOUT`    |
 
+**Número e data** (revisão da Fase 4a, H2 e L3): o teto de dígitos inteiros é o da coluna de cada campo
+(`value numeric(14,2)` → 12, `weight_kg numeric(12,3)` → 9, `volume_m3 numeric(12,4)` → 8;
+`PREVIEW_DECIMAL_FIELDS`), medido depois do arredondamento, e passar dele é erro da linha — um EAN-13 em
+VALOR estourava o `numeric` no banco e a mensagem voltava à fila para sempre. A data do roteiro respeita
+o sistema do arquivo (`workbookPr date1904`, em que o mesmo serial é 1 462 dias depois) e a célula
+`t="d"` em ISO, com ou sem hora.
+
 Falta de aba (`PREVIEW_SHEET_NOT_FOUND`) e de coluna mapeada (`PREVIEW_COLUMN_NOT_FOUND`, com o nome,
 todas de uma vez) recusam a planilha; coluna repetida no cabeçalho é `PREVIEW_COLUMN_DUPLICATED`,
 porque escolher uma em silêncio é dado trocado. Erro de **linha** nunca recusa a planilha: vira
@@ -245,7 +274,12 @@ testada e provada por mutação, e que nada além das quatro entradas é sequer 
   preso a `nfe_import` por CHECK e FK. O teto do arquivo é **960 KiB**, e não os 5 MiB do leitor:
   o corpo da API para em 1 MiB antes da rota (o servidor, em 2 MiB), e subir esse teto para todas
   as rotas (inclusive as anônimas) por uma planilha de 0,8 MB não se paga. O leitor continua com
-  5 MiB como defesa em profundidade.
+  5 MiB como defesa em profundidade. **Horizonte** (medido nas planilhas reais, revisão da Fase 4a,
+  L4): o arquivo tem 0,80–0,82 MB, quase tudo parte fixa (macro, estilos, 13,8 mil linhas
+  reservadas); cada linha de dado custa ~73 bytes comprimidos na aba e ~104–108 contando as strings
+  novas. Sobram 168–184 KB até o teto: **~1 600 linhas a mais** (≈ 8× as 124–217 linhas com dado medidas). O que
+  ameaça o teto é o modelo do contratante crescer (mais linhas reservadas, outra macro), não o dia
+  cheio.
 - **Uma nota, uma prévia, é do banco.** `cargo_preview_document_links` tem `unique (company_id,
 document_id)`; as N linhas que fecham a mesma nota apontam para o vínculo **da prévia delas** por
   FK composta. Um unique no item não serviria, porque N linhas ↔ 1 nota é permitido.
@@ -253,12 +287,25 @@ document_id)`; as N linhas que fecham a mesma nota apontam para o vínculo **da 
   desvincular, vincular) tomam `pg_advisory_xact_lock` da mesma chave antes de ler as notas livres.
   Não é a linha de `contractors` porque a importação de NF-e a regrava, e a importação não espera
   vínculo. As prévias são vinculadas da mais antiga para a mais nova: o resultado não depende da
-  ordem de chegada das reavaliações.
+  ordem de chegada das reavaliações. Isso vale também na leitura de uma prévia nova, que reavalia
+  todas as prontas da janela (revisão da Fase 4a, M3) — antes ela vinculava só a si mesma e podia
+  levar a nota que a mais antiga esperava.
 - **A reavaliação nasce na importação, num savepoint, coalescida.** Toda nota nova pede a reavaliação
   do contratante do emitente (só com prévia em aberto), num `SAVEPOINT` que nunca derruba nem atrasa a
   importação; com um pedido pendente, a nota seguinte não grava outro, e ele nasce adiado 30 s — um
   lote de 300 XMLs vira uma reavaliação. Sem unique, de propósito: decidir o conflito esperaria a
-  transação de outra importação.
+  transação de outra importação. _Revisão da Fase 4a (M4, L2):_ só coalesce com pedido que ainda tem
+  10 s de folga (`CARGO_PREVIEW_REEVALUATION_COALESCE_MARGIN_SECONDS`, medida por `clock_timestamp()`):
+  o pedido prestes a sair pode ser lido antes de a importação comitar, e a nota dela ficaria sem
+  reavaliação. E só conta prévia dentro de `match_window_days`. Desvincular também pede a reavaliação
+  do contratante (a nota solta pode ser de outra prévia).
+- **A prévia sempre termina** (revisão da Fase 4a, M1 e H2): a leitura que esgota a fila marca a prévia
+  `failed` com `PREVIEW_PROCESSING_ABANDONED` antes da fila morta, e o estouro numérico no banco
+  (22003) vira `PREVIEW_VALUE_OUT_OF_RANGE` — nunca retry infinito. Reenviar o mesmo arquivo de uma
+  prévia `failed`, ou `processing` sem notícia há mais de 15 min (`CARGO_PREVIEW_PROCESSING_LEASE_MS`),
+  **reabre a mesma prévia** (`queued`, evento `uploaded` com `reopened`, pedido novo ao worker, 201);
+  pronta ou em leitura recente continua repetição (200). Os dois códigos entraram no CHECK de
+  `cargo_previews.error_code` pela migration aditiva `20261004165112_cargo_preview_failure_codes`.
 - **O operador manda.** Item confirmado, desvinculado ou vinculado à mão fica `matched_by = user` e a
   reavaliação nunca mais o lê. Desvincular age no grupo inteiro (soltar uma linha de uma soma deixaria
   as outras apontando para uma nota que não fecha).

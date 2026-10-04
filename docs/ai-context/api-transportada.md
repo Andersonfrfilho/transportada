@@ -2604,3 +2604,29 @@ Migration aditiva `20261004140624_cargo_previews` (ADR-0094 §8): `cargo_preview
   `test/integration/cargo-preview.integration.ts` (transação com falha injetada no outbox, isolamento,
   ações, 1:1 com dois operadores concorrentes, proposta). As rotas estão em
   `test/separator-role.contract.test.ts`.
+
+## Spec 237 — Fase 4a: correções da revisão de código (2026-10-04)
+
+Decisões no ADR-0094 §4, §7 e §8; evidência em `specs/237-…/evidence.md` § "Correções da revisão da
+Fase 4a".
+
+- **Par roteiro ↔ carga (H1):** por votos só com 2 votos e 25% das linhas do roteiro; a diferença de
+  contagem não desempata; o par por votos nunca é gravado (o worker grava só `totals`, e ignora linha
+  `votes` antiga ao montar os pares conhecidos).
+- **Valor e peso sozinhos (M2):** sem par pelos totais e sem CEP, razão social ou alias, é `suggested`.
+  Desvincular (`cargo-preview-unlink.writer.ts`) revoga o alias aprendido por esta prévia daquele
+  vínculo — salvo se outro item dela o sustenta — e grava um pedido `reevaluate` no outbox (L5).
+- **Piso de peso (M5):** `max(0,01 kg, 0,005 kg × linhas somadas)`; **bloco inteiro (M6):** linha só
+  vincula com o mesmo bloco em toda partição; linhas idênticas vão pela ordem
+  (`cargo-preview-partition-choice.policy.ts`, arquivo novo também na cópia do worker).
+- **Leitor (H2, L3):** teto de dígitos inteiros por campo (`PREVIEW_DECIMAL_FIELDS`) vira erro da linha;
+  data no sistema 1904 e célula `t="d"` com hora.
+- **Reenvio (M1):** o mesmo arquivo de prévia `failed`, ou `processing` além de 15 min, reabre a MESMA
+  prévia (`cargo-preview-reopen.writer.ts`, 201); pronta ou em leitura recente segue 200. Códigos novos
+  `PREVIEW_PROCESSING_ABANDONED` e `PREVIEW_VALUE_OUT_OF_RANGE` (migration aditiva
+  `20261004165112_cargo_preview_failure_codes`, só o CHECK).
+- **Proposta de chegada (L6):** o evento `arrival_proposed` é gravado uma vez por conjunto de notas.
+- Testes novos: `test/cargo-receiving/cargo-preview-{route-pairing-partial,match-reinforcement,
+partition-sum,workbook-overflow,workbook-dates,resend}.contract.ts`,
+  `test/integration/cargo-preview-{unlink,resend}.integration.ts` e a asserção
+  `test/database-migration/cargo-preview-failure-codes.assertion.ts`.
