@@ -58,7 +58,7 @@ async function mountList(options: { canManage?: boolean; search?: string } = {})
   const rendered = await renderWithQueryClient(
     createElement(CargoArrivalListPanel, { canManage: options.canManage ?? true }),
   )
-  await waitFor(() => expect(document.querySelector('[aria-busy="true"]')).toBeNull())
+  await waitFor(() => expect(document.querySelectorAll('[aria-busy="true"]').length).toBe(0))
   return rendered
 }
 

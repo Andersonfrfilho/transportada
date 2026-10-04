@@ -207,7 +207,7 @@ describe('painel da retenção da posição (spec 239 T3.1)', () => {
       finish({ ...ENABLED_SETTINGS, retentionDays: 90 })
       await Promise.resolve()
     })
-    await waitFor(() => expect(document.querySelector('[role="status"]')).toBe(null))
+    await waitFor(() => expect(document.querySelectorAll('[role="status"]').length).toBe(0))
   })
 
   it('sem settings.manage: nem pede ao servidor, mostra o aviso e nenhum controle', async () => {

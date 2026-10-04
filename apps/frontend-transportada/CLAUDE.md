@@ -301,6 +301,11 @@ storage) vai para `test/trip-hooks/*.contract.ts`, importado por `test/trip-hook
 e rodado por `bun run test:hooks` — que o `test` chama no fim, **em processo próprio**, com o
 `@happy-dom/global-registrator` do `test/trip-hooks/dom.preload.ts`.
 
+⚠️ **Contrato de DOM é determinístico sob carga** (spec 237): o prazo do `waitFor` conta tempo esperado, não o custo de uma
+asserção reprovada; `expect(nó).toBeNull()` formata o nó do happy-dom (0,5–1 s) — dentro de `waitFor` afirme
+`querySelectorAll(...).length`; o `afterEach` do `renderHook.helper.ts` desmonta toda raiz montada. Valide estabilidade
+com ≥10 execuções, também com CPU ocupada: uma rodada verde não prova nada. Contrato: `wait-for-budget.contract.ts`.
+
 ⚠️ Não registre o DOM no processo dos contratos nem mova a suíte para a lista principal: o
 `window` global muda o que eles medem (`resolveTripAssemblyDraftStorage` decide por `typeof
 window`), e o `mock.module` que troca os clientes (`getTripClient`, `getRouteSuggestionClient`,

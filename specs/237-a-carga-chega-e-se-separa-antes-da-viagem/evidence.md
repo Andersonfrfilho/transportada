@@ -532,3 +532,40 @@ relative`; (e) o atalho da nota recusada tinha 22 px no celular — virou alvo d
 - **Follow-ups:** fila offline do toque (hoje o toque que falha fica na tela com "tentar de novo", mas não
   sobrevive a fechar o app); rota em lote de perfis para o selo; peso da nota em `available-documents`; o
   `pointer: coarse`/desktop do atalho do resultado do lote; avaria na entrada (Fase 3, D4).
+
+### Estabilidade dos contratos de DOM (T2.4)
+
+O `test:hooks` reprovava de forma intermitente (CI: `a URL reabre a lista filtrada e ordenada`, 10518 ms; local:
+1 em 3 execuções). O "484 pass" reportado antes vinha de **uma** rodada — insuficiente.
+
+- **Reprodução.** Sem carga: 10/10 verdes (15–17 s). Com carga (12 processos `yes` ocupando os núcleos): **8/8
+  execuções reprovaram** (9 a 13 falhas, todas em `cargo-arrival-list.contract.ts`; os arquivos de registro,
+  detalhe, separação e Contratantes não reprovaram nenhuma vez). Cada teste da lista caía em ~10–15 s com
+  `expect(received).toBeNull()` em `mountList` (`cargo-arrival-list.contract.ts:61`), e o log chegava a 650 MB.
+- **Causa raiz — dois defeitos do arnês, nenhum do produto.**
+  1. `waitFor(() => expect(document.querySelector('[aria-busy="true"]')).toBeNull())`: logo após o `render` a lista
+     ainda mostra o esqueleto (a busca resolve no macrotask seguinte) — a primeira tentativa **reprova por
+     desenho**, é para isso que `waitFor` existe. Mas `expect(nó).toBeNull()` reprovado **formata o nó inteiro do
+     happy-dom** na mensagem. Sonda temporária no `waitFor`: 13 vezes por suíte, a primeira tentativa reprovava e
+     custava **~550 ms sem carga e 830–1080 ms com carga**.
+  2. O prazo do `waitFor` era de relógio (1000 ms desde o início): com a reprovação custando >1 s, a primeira
+     tentativa era também a **última** (`attempt=1` seguido do `throw`, sem nenhum `settle`). O teste falhava sem
+     nunca ter esperado; o `bun` ainda gastava ~10 s imprimindo o DOM. As reprovações em cascata vinham da raiz
+     React que ficava montada (o `unmount()` do fim do teste não roda quando a asserção cai antes), e os avisos de
+     `act` das execuções ruins eram dela.
+     As hipóteses (a) `QueryClient` global, (c) `window.location`, (d) retry do TanStack e (e) vazamento do fetch do
+     dublê foram descartadas por evidência: `QUERY_CLIENT_DEFAULT_OPTIONS` já tem `retry: false`, o cliente é novo por
+     montagem, e o `attempt` nunca passou de 1 antes do estouro.
+- **Correção** (só `test/`): `renderHook.helper.ts` — (i) `waitFor` conta o tempo **esperado** (soma dos `settle`),
+  não o que uma asserção reprovada custou; (ii) toda raiz montada é registrada e um `afterEach` do próprio arnês a
+  desmonta (`unmount` idempotente), mesmo quando a asserção falhou antes do `unmount()` do teste;
+  `cargo-arrival-list.contract.ts:61` e `location-retention-panel.contract.ts:194` passaram a afirmar a **contagem**
+  (`querySelectorAll(...).length`), que não formata nó. Contrato do arnês: `test/trip-hooks/wait-for-budget.contract.ts`
+  (+4 testes: 488 no total).
+- **Mutação.** Voltar o prazo para o relógio reprova `a primeira reprovação cara não esgota o prazo`; tirar o
+  `afterEach` reprova `…o afterEach do arnês a desmonta antes do teste seguinte`. (O `beforeEach` de outros
+  arquivos já esvazia o `body`, por isso a prova da desmontagem é o efeito de limpeza do React, não o nó solto.)
+- **Prova de estabilidade.** Antes: com carga 8/8 reprovadas; sem carga, 1 reprovação em 3 (relato da sessão) e 10/10
+  verdes nesta. Depois: **20/20 verdes sem carga** (488 pass, 0 fail; 9–11 s, antes 15–17 s) e **12/12 verdes com
+  carga** (12 processos `yes` + duas suítes concorrentes). `bun run test` 6817 pass; `bun run typecheck`, `bun run
+lint` (0 erros, 16 avisos antigos) e `format:check` na raiz limpos.
