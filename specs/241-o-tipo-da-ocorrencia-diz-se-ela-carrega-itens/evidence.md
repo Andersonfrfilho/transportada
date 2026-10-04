@@ -1084,3 +1084,13 @@ importado por: `list-field-occurrence-types.use-case.ts`, `save-occurrence-type.
 completo segue sendo `DELIVERY_PROOF_FIELD_MODES`. Fora: o literal dentro do `sql` da CHECK (`<> 'off'`), que é
 SQL do migration e não ganha nada interpolado. Sem mudança de comportamento: `bun run typecheck` limpo,
 `db:generate` = `no_changes`.
+
+### 5. A etapa 2 não pode sair junto com o painel atual (só nota, sem mudança de código)
+
+Conferido no código do painel desta árvore (base `origin/staging` em `11a78cb6e`): `isTripOccurrence`
+(`tripResponse.validation.ts:1435`) usa `hasKeys` com `allowed: [...TRIP_OCCURRENCE_KEYS,
+...TRIP_OCCURRENCE_OPTIONAL_KEYS]` (`trip.constant.ts:416-430`), e nenhuma das duas listas contém `typeItemsMode` nem
+`typeAllowsMultipleItems`. Chave fora de `allowed` reprova o guard, e a lista da nota (`listTripOccurrences`) passa a
+publicar os dois campos nesta etapa (`null` quando o tipo não é da empresa). Logo, o painel **atual** rejeita a resposta
+da API da etapa 2 na lista da nota. Ordem obrigatória: **etapa 1 (painel tolerante, incluindo `null`) → esperar o
+`autoUpdate` do PWA → etapa 2 (migration + API)**.
