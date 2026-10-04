@@ -540,11 +540,11 @@ política (RF4/242). A linha do tipo virou `OccurrenceTypeRow.component.tsx` (15
 foi de 522 para 123 linhas. **O formulário de cadastro ficou com 209 linhas, 9 acima de 200:** são 9 `useState` com o
 comentário de spec de cada um e a lista de campos; partir mais exigiria um reducer, que muda comportamento.
 
-Vermelho: `Cannot find module '@/modules/company-settings/shared/occurrenceTypeService...'` (módulo inexistente, `1 fail, 1 error`).
+Vermelho: `Cannot find module '@/modules/company-settings/shared/occurrenceTypeUpdate.service'` (módulo inexistente, `1 fail, 1 error`).
 Mutação (`edit.itemsMode === 'never'` no lugar de `'off'`): `(fail) buildOccurrenceTypeUpdate > Produtos Desligado manda
 itemsMode off e zera a política`.
 
-**Divergência a registrar:** cinco contratos de texto (`occurrence-type-attachment-mode`, `occurrence-type-catalog-panel`,
+**Divergência a registrar:** quatro arquivos de contrato de texto (`occurrence-type-attachment-mode`, `occurrence-type-catalog-panel`,
 `occurrence-type-catalog-template-select`, `trip/occurrence-catalog-leaves-behind`) liam o **arquivo do painel** com
 `toContain`/regex; com o código movido para a linha e o formulário, 11 reprovaram. Mudou só **de onde leem**
 (`test/company-settings/occurrenceTypePanelSource.helper.ts` concatena os três arquivos); nenhuma expectativa foi alterada.
