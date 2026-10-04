@@ -17,6 +17,8 @@ export const CONTRACTOR_TAX_ID = '30290856000160'
 export const LOAD_PATTERN = 'NroCarga[: ]*([0-9]+)'
 
 export type SeedDocumentInput = {
+  /** Só a nota, sem emitente, destinatário nem volumes: quem grava os filhos é a importação. */
+  readonly bare?: boolean
   readonly createdAt?: Date
   readonly emitterTaxId?: string
   readonly loadReference?: string
@@ -99,6 +101,7 @@ export async function createCargoPreviewGraph(database: Database): Promise<Cargo
         ${new Date('2026-10-02T22:00:00.000Z')}, 'Venda', '1', 'authorized', '135240000000001',
         'upload', ${input.value}, ${input.value}, ${info}, ${xmlObjectId}, ${hexOf(xmlObjectId)},
         ${importId}, ${userId}, ${input.createdAt ?? new Date()})`)
+    if (input.bare === true) return documentId
     await database.execute(sql`
       insert into nfe_participants (company_id, document_id, role, tax_id)
       values (${companyId}, ${documentId}, 'emitter', ${input.emitterTaxId ?? CONTRACTOR_TAX_ID})`)

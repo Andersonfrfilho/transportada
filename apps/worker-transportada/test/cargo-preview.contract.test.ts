@@ -4,4 +4,5 @@
 import './cargo-preview/domain-parity.contract.js'
 import './cargo-preview/match-diff.contract.js'
 import './cargo-preview/process-use-case.contract.js'
+import './cargo-preview/reevaluation-request.contract.js'
 import './cargo-preview/trail.contract.js'

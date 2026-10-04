@@ -407,7 +407,13 @@ export class DrizzleNfeDistributionRepository {
       tx,
       xmlStatus: document.status,
     })
-    await writeDocumentChildren({ companyId, document, documentId: created.id, tx })
+    await writeDocumentChildren({
+      companyId,
+      document,
+      documentId: created.id,
+      logger: this.#logger,
+      tx,
+    })
     return { change, warning: null }
   }
 }
