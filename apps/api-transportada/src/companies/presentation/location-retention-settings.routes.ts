@@ -28,6 +28,13 @@ import {
 } from './location-retention-settings.schema.js'
 
 const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
+/** A contagem varre cinco tabelas de evento: é a consulta cara da tela, então conta no Postgres. */
+const IMPACT_RATE_LIMIT = {
+  maxRequests: 30,
+  scope: 'location-retention-impact',
+  store: 'postgres',
+  windowSeconds: 300,
+} as const
 const NO_STORE_HEADERS = { 'cache-control': 'no-store', 'content-type': JSON_CONTENT_TYPE }
 
 type Dependencies = {
@@ -137,6 +144,7 @@ export function createLocationRetentionSettingsRoutes(
       parse: ({ request }) => parseLocationRetentionImpactQuery(request),
       pathname: API_COMPANY_SETTINGS_LOCATION_RETENTION_IMPACT_PATH,
       policy: SETTINGS_MANAGE_POLICY,
+      rateLimit: IMPACT_RATE_LIMIT,
     }),
   ]
 }
