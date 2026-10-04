@@ -1095,6 +1095,11 @@ publicar os dois campos nesta etapa (`null` quando o tipo não é da empresa). L
 da API da etapa 2 na lista da nota. Ordem obrigatória: **etapa 1 (painel tolerante, incluindo `null`) → esperar o
 `autoUpdate` do PWA → etapa 2 (migration + API)**.
 
+**Os dois guards de chave exata que derrubam.** Com a API nova e o painel **atual de staging**: (i)
+`isTripOccurrence`/`TRIP_OCCURRENCE_OPTIONAL_KEYS` recusa `typeItemsMode` e `typeAllowsMultipleItems` na lista da nota, e
+(ii) `isOccurrenceType` recusa `itemsMode` no catálogo do cadastro. Logo o painel (etapa 1) sobe primeiro e o PWA
+precisa atualizar antes da API (etapa 2).
+
 ### Gates das correções da revisão final (API)
 
 `origin/staging` sem commits novos (rebase sem efeito; sem migration nova, `20261004004602` sem colisão);
