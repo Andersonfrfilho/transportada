@@ -15,6 +15,7 @@ import {
   cargoPreviewOutbox,
   cargoPreviews,
 } from '../../src/database/database.schema.js'
+import { DrizzleCargoPreviewUploadRepository } from '../../src/cargo-receiving/infrastructure/drizzle-cargo-preview-upload.repository.js'
 import { createRequestHandler } from '../../src/http/request-handler.service.js'
 import type { CompanyContext } from '../../src/identity/domain/tenant-context.js'
 import {
@@ -28,6 +29,7 @@ import {
 } from '../fixtures/cargo-preview-database.fixture.js'
 import {
   authenticatedContext,
+  COMPANY_CONTEXT,
   CORRELATION_ID,
   createTestRouter,
   FRONTEND_ORIGIN,
@@ -131,4 +133,32 @@ describe('reenviar o mesmo arquivo da prévia (spec 237 M1)', () => {
       })
     },
   )
+
+  testWithPostgres('reabrir reconfere na transação: a prévia pronta não volta à fila', async () => {
+    await withCargoDatabase(async (database, tenants) => {
+      await enablePreviewProfile(database, tenants.contractorId)
+      const { upload } = createUpload(database)
+      const previewId = (await upload(tenants.contractorId)).id
+      await database.db.execute(
+        sql`update cargo_previews set status = 'ready', row_count = 0 where id = ${previewId}`,
+      )
+      const reopened = await new DrizzleCargoPreviewUploadRepository(database.db).reopen({
+        actorUserId: COMPANY_CONTEXT.userId,
+        bucket: 'private',
+        companyId: COMPANY_CONTEXT.companyId,
+        contractorId: tenants.contractorId,
+        correlationId: 'concurrent-resend',
+        fileSizeBytes: WORKBOOK.byteLength,
+        now: new Date(),
+        objectKey: 'unused',
+        previewId,
+      })
+      expect(reopened).toBeFalse()
+      const outbox = await database.db
+        .select({ id: cargoPreviewOutbox.id })
+        .from(cargoPreviewOutbox)
+        .where(eq(cargoPreviewOutbox.previewId, previewId))
+      expect(outbox).toHaveLength(1)
+    })
+  })
 })
