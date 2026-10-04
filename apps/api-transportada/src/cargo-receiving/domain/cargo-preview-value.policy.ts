@@ -8,13 +8,20 @@ import type { SheetCell } from './cargo-preview-workbook.types.js'
 
 export type DecimalReading =
   | { readonly kind: 'invalid' }
+  | { readonly kind: 'too_large' }
   | { readonly kind: 'value'; readonly text: string }
+
+export type ReadDecimalParams = {
+  readonly cell: SheetCell
+  /** Os dígitos inteiros que cabem na coluna de destino, depois do arredondamento. */
+  readonly maxIntegerDigits: number
+  readonly scale: number
+}
 
 const NUMERIC_CELL = /^([-+]?)(\d+)(?:\.(\d+))?(?:[eE]([-+]?\d+))?$/u
 /** Texto aceita um separador decimal só — `1.780,62` é milhar e decimal, e adivinhar erra. */
 const TEXT_DECIMAL = /^([-+]?)(\d+)(?:[.,](\d+))?$/u
 const MAX_EXPONENT = 30
-const MAX_INTEGER_DIGITS = 13
 const DIACRITICS = /\p{M}/gu
 const CONTROL_CHARACTERS = /\p{Cc}/gu
 const WHITESPACE_RUN = /\s+/gu
@@ -43,7 +50,8 @@ function formatScaled(scaled: bigint, scale: number): string {
 }
 
 /** Decimal não negativo e finito, com `scale` casas, arredondado meio para cima. */
-export function readNonNegativeDecimal(cell: SheetCell, scale: number): DecimalReading {
+export function readNonNegativeDecimal(params: ReadDecimalParams): DecimalReading {
+  const { cell, maxIntegerDigits, scale } = params
   const match = (cell.isNumeric ? NUMERIC_CELL : TEXT_DECIMAL).exec(cell.text.trim())
   if (match === null) return { kind: 'invalid' }
   const [, sign = '', integer = '', fraction = '', exponentText = '0'] = match
@@ -52,7 +60,7 @@ export function readNonNegativeDecimal(cell: SheetCell, scale: number): DecimalR
   const digits = BigInt(`${integer}${fraction}`)
   if (sign === '-' && digits !== 0n) return { kind: 'invalid' }
   const scaled = roundHalfUp({ digits, exponent: exponent - fraction.length, scale })
-  if (scaled >= 10n ** BigInt(MAX_INTEGER_DIGITS + scale)) return { kind: 'invalid' }
+  if (scaled >= 10n ** BigInt(maxIntegerDigits + scale)) return { kind: 'too_large' }
   return { kind: 'value', text: formatScaled(scaled, scale) }
 }
 

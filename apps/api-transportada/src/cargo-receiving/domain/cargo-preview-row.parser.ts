@@ -5,7 +5,10 @@
  * planilha. Linha vazia e cabeçalho de rota (só rota e data) são ignorados, não são erro.
  */
 import type { ResolvedColumn, ResolvedHeader } from './cargo-preview-header.policy.js'
-import { PREVIEW_TEXT_FIELD_MAX_LENGTH } from './cargo-preview-workbook.constant.js'
+import {
+  PREVIEW_DECIMAL_FIELDS,
+  PREVIEW_TEXT_FIELD_MAX_LENGTH,
+} from './cargo-preview-workbook.constant.js'
 import type {
   CargoPreviewRow,
   CargoPreviewRowError,
@@ -38,10 +41,14 @@ const REQUIRED_ITEM_FIELDS: ReadonlySet<PreviewItemField> = new Set([
 const REQUIRED_MESSAGE = 'A value is required'
 const DECIMAL_MESSAGE = 'Must be a non-negative decimal number'
 
-function decimal(scale: number): FieldReader {
+function decimal(field: keyof typeof PREVIEW_DECIMAL_FIELDS): FieldReader {
+  const { maxIntegerDigits, scale } = PREVIEW_DECIMAL_FIELDS[field]
   return (cell) => {
-    const reading = readNonNegativeDecimal(cell, scale)
-    return reading.kind === 'value' ? { value: reading.text } : { error: DECIMAL_MESSAGE }
+    const reading = readNonNegativeDecimal({ cell, maxIntegerDigits, scale })
+    if (reading.kind === 'value') return { value: reading.text }
+    return reading.kind === 'too_large'
+      ? { error: `Must have at most ${maxIntegerDigits} digits before the decimal separator` }
+      : { error: DECIMAL_MESSAGE }
   }
 }
 
@@ -81,9 +88,9 @@ const FIELD_READERS: Readonly<Record<PreviewItemField, FieldReader>> = {
   routeName: limited((cell) => normalizeText(cell.text), PREVIEW_TEXT_FIELD_MAX_LENGTH.routeName),
   routingDate: optionalFormat(readExcelDate, 'Must be an Excel date'),
   state: optionalFormat(readStateCode, 'Must be a two-letter state code'),
-  value: decimal(2),
-  volumeM3: decimal(4),
-  weightKg: decimal(3),
+  value: decimal('value'),
+  volumeM3: decimal('volumeM3'),
+  weightKg: decimal('weightKg'),
 }
 
 function presentCells(

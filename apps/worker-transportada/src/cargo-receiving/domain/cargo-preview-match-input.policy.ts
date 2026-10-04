@@ -22,6 +22,8 @@ import type {
 import { normalizePlaceName, readNonNegativeDecimal } from './cargo-preview-value.policy.js'
 
 const NOT_ALPHANUMERIC = /[^A-Z0-9]+/gu
+/** O maior inteiro que se lê aqui: `total_value numeric(19,4)` da nota. */
+const MAX_INTEGER_DIGITS = 15
 const GRAMS_PER_KG = 10 ** WEIGHT_DECIMALS
 const ROUNDING_FLOOR_GRAMS = BigInt(Math.round(PREVIEW_WEIGHT_ROUNDING_FLOOR_KG * GRAMS_PER_KG))
 const ROUNDING_PER_LINE_GRAMS = BigInt(
@@ -30,7 +32,11 @@ const ROUNDING_PER_LINE_GRAMS = BigInt(
 
 function toScaledInteger(text: string | undefined, scale: number): bigint | undefined {
   if (text === undefined) return undefined
-  const reading = readNonNegativeDecimal({ isNumeric: false, text }, scale)
+  const reading = readNonNegativeDecimal({
+    cell: { isNumeric: false, text },
+    maxIntegerDigits: MAX_INTEGER_DIGITS,
+    scale,
+  })
   return reading.kind === 'value' ? BigInt(reading.text.replace('.', '')) : undefined
 }
 

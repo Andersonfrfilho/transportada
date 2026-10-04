@@ -60,6 +60,16 @@ export const WORKBOOK_BASE_PATH = 'xl/'
 export const SHARED_STRINGS_RELATIONSHIP_SUFFIX = '/sharedStrings'
 export const WORKSHEET_RELATIONSHIP_SUFFIX = '/worksheet'
 
+/**
+ * Os campos decimais do item com a escala e os dígitos inteiros da coluna (`value numeric(14,2)`,
+ * `weight_kg numeric(12,3)`, `volume_m3 numeric(12,4)`): passou, é erro da linha, nunca do banco.
+ */
+export const PREVIEW_DECIMAL_FIELDS = {
+  value: { maxIntegerDigits: 12, scale: 2 },
+  volumeM3: { maxIntegerDigits: 8, scale: 4 },
+  weightKg: { maxIntegerDigits: 9, scale: 3 },
+} as const
+
 /** Os limites de texto por campo, depois de aparado. */
 export const PREVIEW_TEXT_FIELD_MAX_LENGTH = {
   address: 255,
