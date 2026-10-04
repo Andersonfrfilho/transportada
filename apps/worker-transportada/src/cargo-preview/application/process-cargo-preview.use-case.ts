@@ -13,15 +13,22 @@ import {
   CARGO_PREVIEW_STATUS,
   type CargoPreviewFailureCode,
 } from '../../shared/cargo-preview.constant.js'
+import {
+  buildCargoPreviewObjectKey,
+  CARGO_PREVIEW_OBJECT_MAX_BYTES,
+} from '../domain/cargo-preview-object.policy.js'
 import { CargoPreviewMatchTimeoutError } from './cargo-preview-match-timeout.error.js'
 import { CargoPreviewValueOutOfRangeError } from './cargo-preview-value-out-of-range.error.js'
 import type {
   CargoPreviewObjectReaderPort,
   CargoPreviewWorkbookReaderPort,
   CargoPreviewWorkerRepositoryPort,
+  PreviewToProcess,
 } from './cargo-preview-worker.port.js'
 
 export type ProcessCargoPreviewDependencies = {
+  /** O bucket privado da instalação, o mesmo em que a API grava. */
+  readonly bucket: string
   readonly now: () => Date
   readonly reader: CargoPreviewObjectReaderPort
   readonly repository: CargoPreviewWorkerRepositoryPort
@@ -38,15 +45,26 @@ const OPEN_STATUSES: ReadonlySet<string> = new Set([
   CARGO_PREVIEW_STATUS.processing,
 ])
 
-async function readVerifiedBytes(
-  envelope: CargoPreviewProcessEnvelope,
-  input: { readonly expectedSha256: string; readonly reader: CargoPreviewObjectReaderPort },
-): Promise<Uint8Array | CargoPreviewFailureCode> {
-  const { bucket, objectKey } = envelope.payload
-  const bytes = await input.reader.read({ bucket, key: objectKey })
+/** A mensagem diz qual prévia; onde está o arquivo, e de que tamanho, quem diz é a linha dela. */
+async function readVerifiedBytes(input: {
+  readonly bucket: string
+  readonly companyId: string
+  readonly preview: PreviewToProcess
+  readonly reader: CargoPreviewObjectReaderPort
+}): Promise<Uint8Array | CargoPreviewFailureCode> {
+  const key = buildCargoPreviewObjectKey({
+    companyId: input.companyId,
+    fileObjectId: input.preview.fileObjectId,
+  })
+  const bytes = await input.reader.read({
+    bucket: input.bucket,
+    key,
+    maxBytes: CARGO_PREVIEW_OBJECT_MAX_BYTES,
+  })
   if (bytes === undefined) return 'PREVIEW_FILE_MISSING'
+  if (typeof bytes === 'string') return bytes
   const sha256 = createHash('sha256').update(bytes).digest('hex')
-  return sha256 === input.expectedSha256 ? bytes : 'PREVIEW_FILE_CORRUPTED'
+  return sha256 === input.preview.fileSha256 ? bytes : 'PREVIEW_FILE_CORRUPTED'
 }
 
 /**
@@ -75,8 +93,10 @@ export async function processCargoPreview(
     contractorId: preview.contractorId,
   })
   if (profile === null) return fail('PREVIEW_NOT_ENABLED')
-  const bytes = await readVerifiedBytes(envelope, {
-    expectedSha256: preview.fileSha256,
+  const bytes = await readVerifiedBytes({
+    bucket: dependencies.bucket,
+    companyId: scope.companyId,
+    preview,
     reader: dependencies.reader,
   })
   if (typeof bytes === 'string') return fail(bytes)

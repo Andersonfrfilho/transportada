@@ -131,6 +131,7 @@ export class DrizzleCargoPreviewWorkerRepository implements Port {
     const [row] = await this.#database
       .select({
         contractorId: cargoPreviews.contractorId,
+        fileObjectId: cargoPreviews.fileObjectId,
         fileSha256: cargoPreviews.fileSha256,
         status: cargoPreviews.status,
       })

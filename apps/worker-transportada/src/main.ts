@@ -1036,6 +1036,7 @@ export async function startWorkerRuntime(
     })
     cargoPreviewConsumer = await cargoPreviewStarter({
       dependencies: {
+        bucket: storageBucket,
         now: () => new Date(),
         reader: createStorageCargoPreviewReader({ storage: storageGateway }),
         repository: new DrizzleCargoPreviewWorkerRepository(

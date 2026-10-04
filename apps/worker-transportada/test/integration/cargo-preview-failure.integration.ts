@@ -83,6 +83,7 @@ describeDatabase('a prévia que falha no banco ou no perfil (integration, spec 2
       },
       {
         workbook: createInProcessCargoPreviewWorkbookReader({ clock: () => performance.now() }),
+        bucket: 'integration',
         now: () => new Date(),
         reader: { read: async () => input.bytes },
         repository,

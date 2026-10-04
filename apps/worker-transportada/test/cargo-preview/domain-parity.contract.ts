@@ -8,6 +8,8 @@
 import { describe, expect, test } from 'bun:test'
 import { readdir, readFile } from 'node:fs/promises'
 
+import { CARGO_PREVIEW_OBJECT_MAX_BYTES } from '../../src/cargo-preview/domain/cargo-preview-object.policy.js'
+
 const API_DOMAIN = '../api-transportada/src/cargo-receiving/domain'
 const WORKER_DOMAIN = 'src/cargo-receiving/domain'
 
@@ -76,6 +78,23 @@ describe('o domínio da prévia no worker é cópia da API (spec 237 T4.3)', () 
     const lockBody = '`${CARGO_PREVIEW_MATCH_LOCK_PREFIX}:${input.companyId}:${input.contractorId}`'
     expect(lockCopy).toContain(lockBody)
     expect(lockOriginal).toContain(lockBody)
+  })
+
+  /** Revisão de segurança S7: o worker acha o objeto e o teto pela linha, com a regra da API. */
+  test('a chave do objeto e o teto do arquivo são os da API', async () => {
+    const [objectCopy, upload, apiConstants] = await Promise.all([
+      read('src/cargo-preview/domain/cargo-preview-object.policy.ts'),
+      read('../api-transportada/src/cargo-receiving/domain/cargo-preview-upload.policy.ts'),
+      read('../api-transportada/src/shared/api.constant.ts'),
+    ])
+    const keyBody = '`tenants/${input.companyId}/cargo-previews/${input.fileObjectId}`'
+    expect(objectCopy).toContain(keyBody)
+    expect(upload).toContain(keyBody)
+    expect(upload).toContain('const MULTIPART_ENVELOPE_BYTES = 64 * 1024')
+    expect(apiConstants).toContain(
+      'export const APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES = 1_048_576',
+    )
+    expect(CARGO_PREVIEW_OBJECT_MAX_BYTES).toBe(1_048_576 - 64 * 1024)
   })
 
   test('o erro e o detalhe que o domínio importa têm a forma dos da API', async () => {

@@ -65,6 +65,7 @@ describeDatabase('o par roteiro ↔ carga no banco (integration, spec 237 H1)', 
       },
       {
         workbook: createInProcessCargoPreviewWorkbookReader({ clock: () => performance.now() }),
+        bucket: 'integration',
         now: () => new Date(),
         reader: { read: async () => bytes },
         repository,

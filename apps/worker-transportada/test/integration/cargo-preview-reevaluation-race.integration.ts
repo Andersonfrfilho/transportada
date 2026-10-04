@@ -71,6 +71,7 @@ describeDatabase('a reavaliação não se perde na corrida (integration, spec 23
       },
       {
         workbook: createInProcessCargoPreviewWorkbookReader({ clock: () => performance.now() }),
+        bucket: 'integration',
         now: () => new Date(),
         reader: { read: async () => bytes },
         repository,

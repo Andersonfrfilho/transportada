@@ -12,6 +12,8 @@ export type PreviewScope = { readonly companyId: string; readonly previewId: str
 
 export type PreviewToProcess = {
   readonly contractorId: string
+  /** A chave do objeto sai daqui (revisão de segurança S7), nunca da mensagem. */
+  readonly fileObjectId: string
   readonly fileSha256: string
   readonly status: CargoPreviewStatus
 }
@@ -71,6 +73,10 @@ export type CargoPreviewWorkbookReaderPort = {
 }
 
 export type CargoPreviewObjectReaderPort = {
-  /** Objeto ausente é `undefined`: fato do mundo, não falha de infraestrutura. */
-  read(location: { readonly bucket: string; readonly key: string }): Promise<Uint8Array | undefined>
+  /** Ausente é `undefined` (fato do mundo); acima de `maxBytes` nem é baixado. */
+  read(location: {
+    readonly bucket: string
+    readonly key: string
+    readonly maxBytes: number
+  }): Promise<Uint8Array | 'PREVIEW_FILE_TOO_LARGE' | undefined>
 }

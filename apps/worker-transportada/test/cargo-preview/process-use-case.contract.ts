@@ -59,8 +59,10 @@ function sha(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex')
 }
 
+const FILE_OBJECT_ID = '00000000-0000-4000-8000-0000000000a9'
+
 function createFixture(input: {
-  readonly bytes?: Uint8Array | undefined
+  readonly bytes?: Uint8Array | 'PREVIEW_FILE_TOO_LARGE' | undefined
   readonly preview?: Partial<PreviewToProcess> | null
   readonly profile?: boolean
   readonly storeError?: Error
@@ -68,6 +70,7 @@ function createFixture(input: {
   const calls = {
     failed: [] as string[],
     processing: 0,
+    locations: [] as { readonly bucket: string; readonly key: string; readonly maxBytes: number }[],
     reads: 0,
     stored: [] as PreviewItemsPlan[],
   }
@@ -78,6 +81,7 @@ function createFixture(input: {
         ? null
         : {
             contractorId: CONTRACTOR_ID,
+            fileObjectId: FILE_OBJECT_ID,
             fileSha256: sha(WORKBOOK),
             status: 'queued',
             ...input.preview,
@@ -101,10 +105,12 @@ function createFixture(input: {
     processCargoPreview(
       ENVELOPE,
       {
+        bucket: 'row-bucket',
         now: () => new Date('2026-10-04T12:00:00.000Z'),
         reader: {
-          read: async () => {
+          read: async (location) => {
             calls.reads += 1
+            calls.locations.push(location)
             return bytes
           },
         },
@@ -115,6 +121,31 @@ function createFixture(input: {
     )
   return { calls, run }
 }
+
+/**
+ * Revisão de segurança da Fase 4a (S7): o objeto lido é o da LINHA da prévia (bucket do worker, chave
+ * pelo `file_object_id`), nunca o que a mensagem diz; e acima do teto do envio nem é baixado.
+ */
+describe('o objeto da prévia sai da linha, não da mensagem (spec 237, segurança S7)', () => {
+  test('bucket e chave vêm da prévia gravada, com o teto do envio', async () => {
+    const { calls, run } = createFixture({})
+    expect(await run()).toBe('ready')
+    expect(calls.locations).toEqual([
+      {
+        bucket: 'row-bucket',
+        key: `tenants/${COMPANY_ID}/cargo-previews/${FILE_OBJECT_ID}`,
+        maxBytes: 960 * 1024,
+      },
+    ])
+    expect(ENVELOPE.payload.bucket).not.toBe('row-bucket')
+  })
+
+  test('objeto acima do teto ⇒ failed PREVIEW_FILE_TOO_LARGE, sem ler a planilha', async () => {
+    const { calls, run } = createFixture({ bytes: 'PREVIEW_FILE_TOO_LARGE' })
+    expect(await run()).toBe('failed')
+    expect(calls.failed).toEqual(['PREVIEW_FILE_TOO_LARGE'])
+  })
+})
 
 /**
  * Revisão de segurança da Fase 4a (S1): a reentrega do broker (o processo caiu sem confirmar) de uma
@@ -190,7 +221,7 @@ describe('a leitura da prévia no worker (spec 237 T4.3)', () => {
     for (const status of ['ready', 'failed'] as const) {
       const { calls, run } = createFixture({ preview: { status } })
       expect(await run()).toBe('already_done')
-      expect(calls).toEqual({ failed: [], processing: 0, reads: 0, stored: [] })
+      expect(calls).toEqual({ failed: [], locations: [], processing: 0, reads: 0, stored: [] })
     }
     expect(await createFixture({ preview: null }).run()).toBe('missing')
   })

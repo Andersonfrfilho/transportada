@@ -82,6 +82,7 @@ describe('o consumidor da prévia (spec 237 T4.3)', () => {
     await startCargoPreviewConsumer({
       dependencies: {
         workbook: createInProcessCargoPreviewWorkbookReader({ clock: () => 0 }),
+        bucket: 'integration',
         now: () => new Date(),
         reader: { read: async () => undefined },
         repository: { reevaluate } as never,
@@ -163,6 +164,7 @@ describe('a leitura que esgota a fila não fica em processing para sempre (spec 
     await startCargoPreviewConsumer({
       dependencies: {
         workbook: createInProcessCargoPreviewWorkbookReader({ clock: () => 0 }),
+        bucket: 'integration',
         now: () => new Date(),
         reader: {
           read: async () => {

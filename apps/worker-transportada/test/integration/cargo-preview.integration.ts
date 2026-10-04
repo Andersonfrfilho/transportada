@@ -90,6 +90,7 @@ describeDatabase('a prévia no worker (integration, spec 237 T4.3)', () => {
   async function process(graph: CargoPreviewGraph, bytes: Uint8Array, previewId: string) {
     return processCargoPreview(envelopeOf(graph, previewId), {
       workbook: createThreadedCargoPreviewWorkbookReader(),
+      bucket: 'integration',
       now: () => new Date(),
       reader: { read: async () => bytes },
       repository,

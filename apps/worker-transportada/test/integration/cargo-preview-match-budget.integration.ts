@@ -63,6 +63,7 @@ describeDatabase('o orçamento do vínculo (integration, spec 237 segurança S2)
         version: 1,
       },
       {
+        bucket: 'integration',
         now: () => new Date(),
         reader: { read: async () => bytes },
         repository: input.repository,

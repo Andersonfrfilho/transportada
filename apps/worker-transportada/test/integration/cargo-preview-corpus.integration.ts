@@ -88,6 +88,7 @@ describeDatabase('o corpus FR-28-09 pelo banco (integration, spec 237 T4.3)', ()
       },
       {
         workbook: createInProcessCargoPreviewWorkbookReader({ clock: () => performance.now() }),
+        bucket: 'integration',
         now: () => new Date(),
         reader: { read: async () => bytes },
         repository: new DrizzleCargoPreviewWorkerRepository(provider.db),

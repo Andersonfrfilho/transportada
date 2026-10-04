@@ -62,6 +62,7 @@ describeDatabase('a ordem das prévias no vínculo (integration, spec 237 M3)', 
       },
       {
         workbook: createInProcessCargoPreviewWorkbookReader({ clock: () => performance.now() }),
+        bucket: 'integration',
         now: () => new Date(),
         reader: { read: async () => bytes },
         repository,
