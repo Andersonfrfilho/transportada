@@ -69,6 +69,7 @@ export type FakeTripClient = Pick<
   | 'readTripDocumentProducts'
   | 'readTripTimeline'
   | 'registerTripOccurrence'
+  | 'saveOccurrenceType'
 >
 
 /** Toda chamada não combinada falha alto: um teste que a dispara está medindo outra coisa. */
@@ -88,6 +89,7 @@ export function createUnexpectedTripClient(): FakeTripClient {
       Promise.reject(new Error('UNEXPECTED_READ_TRIP_DOCUMENT_PRODUCTS')),
     readTripTimeline: () => Promise.reject(new Error('UNEXPECTED_READ_TRIP_TIMELINE')),
     registerTripOccurrence: () => Promise.reject(new Error('UNEXPECTED_REGISTER_TRIP_OCCURRENCE')),
+    saveOccurrenceType: () => Promise.reject(new Error('UNEXPECTED_SAVE_OCCURRENCE_TYPE')),
   }
 }
 
