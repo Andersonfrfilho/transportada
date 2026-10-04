@@ -569,3 +569,28 @@ O `test:hooks` reprovava de forma intermitente (CI: `a URL reabre a lista filtra
   verdes nesta. Depois: **20/20 verdes sem carga** (488 pass, 0 fail; 9–11 s, antes 15–17 s) e **12/12 verdes com
   carga** (12 processos `yes` + duas suítes concorrentes). `bun run test` 6817 pass; `bun run typecheck`, `bun run
 lint` (0 erros, 16 avisos antigos) e `format:check` na raiz limpos.
+
+## T4.1 — a biblioteca e os limites da leitura da planilha (2026-10-04)
+
+- **Decisão (ADR-0094 §7):** leitor mínimo próprio sobre `fflate` 0.8.3 e `fast-xml-parser` 5.10.1,
+  as duas **já dependências diretas da API** (`apps/api-transportada/package.json`). Nenhuma dependência
+  nova; `bun install --frozen-lockfile` sem mudança no `bun.lock`.
+- **Pacotes conferidos no registro** (`npm view <pacote> name version time.modified repository.url
+maintainers dependencies`): `fflate` 0.8.3 (101arrowz, github.com/101arrowz/fflate, sem dependências);
+  `fast-xml-parser` 5.11.2 no registro, 5.10.1 instalada (NaturalIntelligence); `exceljs` 4.4.0 (último
+  publish 2024-12-20, depende de `jszip`, `unzipper`, `archiver`, `saxes`, `tmp`); `read-excel-file`
+  9.3.10 (2026-08-10, `fflate`, `saxen`, `unzipper-esm`, `worker-f`); `xlsx` 0.18.5 (a do npm; os avisos
+  GHSA-4r6h-8v6p-xvw6 `< 0.19.3` e GHSA-5pgg-2g8v-p4x9 `< 0.20.2` só têm correção fora do npm).
+- **Avisos das escolhidas** (`gh api /advisories?ecosystem=npm&affects=…`): `fflate` GHSA-px8p-9vwx-vf98
+  corrigido **em 0.8.3**; `fast-xml-parser` GHSA-8r6m-32jq-jx6q corrigido **em 5.10.1**. `bun audit` não
+  aponta nenhuma das duas na versão direta da API (o aviso `< 5.7.0` é de cópia transitiva do pacote
+  fiscal e do `mailauth`, e é do `XMLBuilder`, que o leitor não usa).
+- **Medido nas quatro planilhas FR** (zip lido por Python, sem macro nem fórmula): arquivo 0,80–0,82 MB;
+  25 entradas; `xl/worksheets/sheet1.xml` **3 359 396–3 387 795 bytes** descomprimidos (a maior);
+  `sharedStrings.xml` 16–27 KB, 492–802 strings, a maior com 49 caracteres; `workbook.xml` 1,2 KB;
+  13 792 linhas na aba, a última com dado entre 127 e 220; `vbaProject.bin` 19 968 bytes; nenhuma célula
+  com `<f>` ou `t="e"` na `IMPORTAÇÃO`; 378 `#NAME?` na `RESULTADO`.
+- **Por que varrer a aba por linha:** `fast-xml-parser` na aba inteira (`FR-05-10`) mediu **237 ms e
+  80 MB de heap**; com 30 MiB seriam ~9×. Inflar 200 MiB de zeros em fatias de 4 KiB parou em 33,5 MB
+  em 195 ms (o teto funciona sem decodificar o resto).
+- Tetos finais e erros tipados: tabela do ADR-0094 §7.

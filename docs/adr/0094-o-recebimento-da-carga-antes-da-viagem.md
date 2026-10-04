@@ -164,6 +164,62 @@ de `delivery-clients`.
 - **Canal:** só `backoffice` (a tela do painel e do separador, que não age em nome de motorista,
   ADR-0068 §3); canal novo entra no CHECK de forma aditiva.
 
+### 7. A leitura da planilha de prévia (Fase 4a, T4.1)
+
+A planilha é entrada hostil: um `.xlsm` é um zip OOXML com `xl/vbaProject.bin` (macro). A decisão é
+um **leitor mínimo próprio** sobre duas bibliotecas que a API **já tem** — `fflate` 0.8.3 (zip/deflate,
+sem dependências, fixada) e `fast-xml-parser` 5.10.1 (XML, já usada nos mapeadores de CT-e e MDF-e) —,
+em `src/cargo-receiving/domain/`, sem I/O, com relógio e limites por parâmetro. **Nenhuma dependência
+nova** entra no `bun.lock`.
+
+- **O que se lê:** só `xl/workbook.xml`, `xl/_rels/workbook.xml.rels`, `xl/sharedStrings.xml` (se
+  existir) e a aba escolhida (nome do perfil, ou a primeira). O diretório central do zip é lido pelo
+  próprio leitor (não pelo `unzipSync`, que confia no tamanho declarado e decodifica o fluxo inteiro
+  mesmo quando a saída estoura) e só essas entradas são descomprimidas. **`vbaProject.bin` nunca é
+  descomprimido**, `RESULTADO` (tabela dinâmica com `#NAME?`) nunca é aberta, nenhuma fórmula é
+  avaliada: a célula vale o `<v>` em cache, e célula de erro (`t="e"`) é ausente.
+- **Descompressão contada:** `Inflate` em fatias de 4 KiB do fluxo comprimido; a cada fatia a saída é
+  somada e, passado o teto, o leitor para (o excesso máximo de uma fatia é ~4 MiB, pela razão máxima
+  do deflate). O tamanho declarado no diretório é conferido antes (teto) e depois (igualdade).
+- **XML:** recusa `<!DOCTYPE`/`<!ENTITY` antes de qualquer parse (o OOXML não usa; é a porta do
+  "billion laughs"). A aba é varrida por linha: só linhas com `<v>` ou `<is>` passam pelo parser, e a
+  leitura termina na última linha com dado — a aba real reserva 13,8 mil linhas vazias, e o parse da
+  aba inteira mediu **237 ms e 80 MB de heap**, contra milissegundos por linha.
+
+| Limite                               | Teto                                                 | Medido nas quatro planilhas FR          | Erro                       |
+| ------------------------------------ | ---------------------------------------------------- | --------------------------------------- | -------------------------- |
+| tamanho do arquivo                   | 5 MiB                                                | 0,80–0,82 MB                            | `PREVIEW_FILE_TOO_LARGE`   |
+| bytes mágicos                        | `PK\x03\x04`                                         | —                                       | `PREVIEW_NOT_A_WORKBOOK`   |
+| entradas no zip                      | 100                                                  | 25                                      | `PREVIEW_TOO_MANY_ENTRIES` |
+| descompressão por entrada            | 30 MiB                                               | `sheet1.xml` 3,36–3,39 MB (a maior)     | `PREVIEW_ZIP_BOMB`         |
+| descompressão total (entradas lidas) | 60 MiB                                               | ~3,4 MB (arquivo inteiro: 5,65–5,73 MB) | `PREVIEW_ZIP_BOMB`         |
+| `workbook.xml` e `.rels`             | 1 MiB cada                                           | 1,2 KB e 1,4 KB                         | `PREVIEW_ZIP_BOMB`         |
+| nome de entrada                      | sem `..`, `/` inicial, `\`, `C:`, NUL; sem repetição | —                                       | `PREVIEW_ZIP_ENTRY_UNSAFE` |
+| zip64, cifra, método ≠ 0/8           | recusados                                            | nenhum                                  | `PREVIEW_NOT_A_WORKBOOK`   |
+| strings compartilhadas               | 200 000                                              | 492–802                                 | `PREVIEW_TOO_MANY_STRINGS` |
+| texto de uma célula                  | 32 767 (o do Excel)                                  | ≤ 49                                    | `PREVIEW_CELL_TOO_LONG`    |
+| última linha com dado                | 20 000                                               | 127–220 (de 13 792 reservadas)          | `PREVIEW_TOO_MANY_ROWS`    |
+| orçamento de tempo                   | 5 000 ms                                             | ver `evidence.md` T4.3                  | `PREVIEW_PARSE_TIMEOUT`    |
+
+Falta de aba (`PREVIEW_SHEET_NOT_FOUND`) e de coluna mapeada (`PREVIEW_COLUMN_NOT_FOUND`, com o nome,
+todas de uma vez) recusam a planilha; coluna repetida no cabeçalho é `PREVIEW_COLUMN_DUPLICATED`,
+porque escolher uma em silêncio é dado trocado. Erro de **linha** nunca recusa a planilha: vira
+`rowErrors` com `{ rowNumber, field, message }`.
+
+**Alternativas descartadas** (conferidas no registro do npm em 2026-10-04):
+
+| Biblioteca               | Situação                                                                | Por que não                                                                                                                                                          |
+| ------------------------ | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `exceljs` 4.4.0          | último publish 2024-12; `jszip`, `unzipper`, `archiver`, `saxes`, `tmp` | sem teto de descompressão controlável, lê o pacote inteiro (estilos, tabela dinâmica), dependência que escreve em disco temporário; 5 dependências novas no lockfile |
+| `read-excel-file` 9.3.10 | ativa (2026-08); `fflate`, `saxen`, `unzipper-esm`, `worker-f`          | só leitura e enxuta, mas os limites (tamanho descomprimido, linhas, tempo) não são expostos, e traz 3 dependências novas para fazer o que `fflate` já faz aqui       |
+| `xlsx` (SheetJS) 0.18.5  | a versão do npm é de 2022; o projeto saiu do npm                        | as correções de poluição de protótipo (GHSA-4r6h-8v6p-xvw6) e ReDoS (GHSA-5pgg-2g8v-p4x9) só existem fora do npm; superfície enorme (BIFF, CFB) para ler uma aba     |
+
+As duas bibliotecas estão nas versões que fecham os avisos publicados: `fflate` 0.8.3 corrige o laço
+infinito do `unzipSync` com ZIP64 malformado (GHSA-px8p-9vwx-vf98; o leitor nem usa `unzipSync` e
+recusa ZIP64) e `fast-xml-parser` 5.10.1 corrige a expansão de entidade com `DOCTYPE` repetido
+(GHSA-8r6m-32jq-jx6q; o leitor recusa `DOCTYPE` antes do parse). O custo aceito é manter ~400 linhas de leitor; o ganho é que cada teto é uma constante nomeada,
+testada e provada por mutação, e que nada além das quatro entradas é sequer descomprimido.
+
 ## Consequências
 
 - Contratante novo com regra diferente é cadastro, não deploy.

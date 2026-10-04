@@ -42,8 +42,9 @@
 - [x] **T4.0** _(parcial)_ Comparação com XMLs reais (277 notas, 2 planilhas): taxas, `NroCarga` ↔
       `RouteName`, soma por cliente e prévia 2,7–4,2 h antes do XML — em `evidence.md`. A medição no conjunto
       completo continua possível por `consulta-recebimento-vs-xml.sql`, **sem bloquear**.
-- [ ] **T4.1** 🧠 Escolha e justificativa da biblioteca de planilha (XLSX/XLSM, só leitura, sem avaliar
-      fórmula nem macro); limites de segurança (zip, linhas, tempo); ADR/plan atualizado.
+- [x] **T4.1** 🧠 Escolha e justificativa da biblioteca de planilha (XLSX/XLSM, só leitura, sem avaliar
+      fórmula nem macro); limites de segurança (zip, linhas, tempo); ADR/plan atualizado. _(ADR-0094 §7:
+      leitor próprio sobre `fflate` + `fast-xml-parser`, já dependências da API.)_
 - [ ] **T4.2** Migration `cargo_previews`/`cargo_preview_items` (+ rollback) e a rota de **upload** da
       planilha (`trip.manage`, tipo por bytes, tamanho limitado, idempotente pelo sha256).
 - [ ] **T4.3** 🧠 Leitura e validação por linha (aba `IMPORTAÇÃO`, cabeçalhos de rota ignorados, aba

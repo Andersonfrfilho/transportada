@@ -20,8 +20,8 @@ A ordem põe o que já entrega valor sem planilha (2 e 3) antes do que depende d
   `delivery_proof_setting_contractor_overrides`. Ausência = fluxo atual. Nenhum CNPJ em `src/`.
 - **E-mail:** reaproveitar webhook assinado, `contractor_inbound_email_outbox`, relay e worker; acrescentar o
   ramo "prévia" resolvido pelo token do perfil. **Não** relaxar a regra "sem token, descarta".
-- **Planilha:** worker, nunca a API; biblioteca escolhida e justificada no ADR (candidatas: as mantidas e
-  compatíveis com Bun; avaliar peso e superfície de ataque — XLSX é zip, limitar descompressão).
+- **Planilha:** worker, nunca a API; leitor próprio sobre `fflate` + `fast-xml-parser` (já na API),
+  com tetos de zip, descompressão, linhas e tempo — decisão e alternativas no ADR-0094 §7 (T4.1).
 - **Ocorrência sem viagem:** coluna `cargo_arrival_document_id` ao lado de `trip_document_id`, `CHECK`
   exatamente-um, em vez de relaxar `NOT NULL` e perder a garantia; ou tabela irmã — a escolha é 🧠 com
   `architect` (impacto em tratativa 164, portal 063/183, seed de tipos, `leaves_document_behind`).
