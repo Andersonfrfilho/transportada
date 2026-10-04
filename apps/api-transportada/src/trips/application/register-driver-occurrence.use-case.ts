@@ -18,6 +18,7 @@ import {
   TripOccurrenceAttachmentRequiredError,
   TripOccurrenceNoteRequiredError,
 } from '../domain/trip.error.js'
+import { assertOccurrenceTypeAcceptsProducts } from '../domain/occurrence-items-mode.policy.js'
 import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
 import type { DriverFieldReportUnitOfWork, ReportedLocation } from './driver-field-report.port.js'
 import { resolveFieldTapLocationStamp } from './field-tap-location-stamp.service.js'
@@ -109,6 +110,12 @@ export async function registerDriverOccurrence(
   ) {
     throw new TripDocumentNotReachableError()
   }
+
+  /** Spec 241 (RF6, CA03): o app manda `productCode: ''`; produto em tipo sem itens é cliente fora do contrato. */
+  assertOccurrenceTypeAcceptsProducts({
+    itemsMode: occurrenceType.itemsMode,
+    productCode: input.productCode,
+  })
 
   const reachable = await input.repository.findReachableDocument({
     companyId: input.companyId,

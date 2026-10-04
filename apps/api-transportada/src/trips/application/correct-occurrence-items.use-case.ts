@@ -5,6 +5,7 @@
  * política de itens da spec 166 (`occurrence-item-quantity.policy.ts`) — nunca reescrita, para não
  * divergir calada da validação do registro.
  */
+import { assertOccurrenceTypeAcceptsProducts } from '../domain/occurrence-items-mode.policy.js'
 import { resolveOccurrenceProductSelection } from '../domain/occurrence-scope.policy.js'
 import { resolveOccurrenceCorrectionChanged } from '../domain/occurrence-correction.policy.js'
 import { resolveOccurrenceItemQuantities } from '../domain/occurrence-item-quantity.policy.js'
@@ -62,6 +63,13 @@ export async function correctOccurrenceItems(
       occurrenceTypeId: occurrence.occurrenceTypeId,
     })
     if (occurrenceType === null) throw new TripDocumentNotFoundError()
+
+    /** Spec 241 (RF6, CA03): o tipo ATUAL manda — tipo que virou `off` aceita esvaziar, não preencher. */
+    assertOccurrenceTypeAcceptsProducts({
+      itemsMode: occurrenceType.itemsMode,
+      productCode: input.productCode,
+      productCodes: input.productCodes,
+    })
 
     /** RF3: mesma regra do registro — item fora da nota, repetido ou os dois campos juntos é recusado. */
     const scope = resolveOccurrenceProductSelection({

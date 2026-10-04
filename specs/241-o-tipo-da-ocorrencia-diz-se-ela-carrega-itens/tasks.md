@@ -76,9 +76,9 @@ items_mode` da migration e o default `off` do plano. Se criou com default `off`:
       (`off`, foto `off`, sem soltar a nota, `unset`) grava (CA10).
 - [x] **T2.4b** Mutação: arrancar a validação `off` ⇒ `unset` do cadastro deixa a CA09 vermelha (a
       CHECK do banco ainda segura, mas o código da resposta passa a ser 500). Colar a execução.
-- [ ] **T2.5** Contrato primeiro, depois RF6 nos casos de uso de registro, registro em nome do
+- [x] **T2.5** Contrato primeiro, depois RF6 nos casos de uso de registro, registro em nome do
       motorista (se aceitar produto) e correção (CA03).
-- [ ] **T2.6** Mutação: arrancar a guarda da correção deixa a CA03 vermelha.
+- [x] **T2.6** Mutação: arrancar a guarda da correção deixa a CA03 vermelha.
 - [ ] **T2.7** Leituras (RF5): detalhe, feed, lista da nota, cadastro e `/me/.../occurrence-types`,
       em lote, junção por `(company_id, id)` (CA04).
 - [ ] **T2.8** Mutação: arrancar o filtro de empresa da junção deixa a CA04 vermelha.

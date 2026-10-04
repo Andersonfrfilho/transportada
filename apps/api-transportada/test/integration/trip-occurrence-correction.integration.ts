@@ -18,6 +18,7 @@ import { TRIP_OCCURRENCE_STAGE } from '../../src/shared/trip-occurrence.constant
 import {
   OccurrenceAlreadyCancelledError,
   OccurrenceCaseAlreadyOpenError,
+  OccurrenceTypeItemsNotAllowedError,
   OccurrenceCancelledError,
 } from '../../src/trips/domain/trip.error.js'
 import { DrizzleSeparationOccurrenceUnitOfWork } from '../../src/trips/infrastructure/drizzle-separation-occurrence.repository.js'
@@ -127,6 +128,44 @@ describe('correção de itens da ocorrência (spec 167 T301/T309)', () => {
       expect(corrected.corrections[0]?.correctedByName).toBeNull()
     })
   })
+
+  testWithPostgres(
+    'tipo que virou off recusa produto e aceita esvaziar (spec 241 CA03)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const occurrenceTypeId = await seedSeparationOccurrenceType(database, company)
+
+        const saved = await register(database, company, trip, occurrenceTypeId, {
+          items: [{ code: 'ITEM-1', quantity: null, unit: null }],
+          productCode: 'ITEM-1',
+          productCodes: ['ITEM-1'],
+        })
+        if (saved === null) throw new Error('EXPECTED_OCCURRENCE')
+
+        await database.db
+          .update(companyOccurrenceTypes)
+          .set({ itemsMode: 'off' })
+          .where(eq(companyOccurrenceTypes.id, occurrenceTypeId))
+        const correct = (productCodes: readonly string[]) =>
+          correctOccurrenceItems({
+            actorUserId: company.userId,
+            companyId: company.companyId,
+            occurrenceId: saved.id,
+            productCode: '',
+            productCodes,
+            unitOfWork: new DrizzleOccurrenceCorrectionUnitOfWork(database.db),
+          })
+
+        await expect(correct(['ITEM-1'])).rejects.toBeInstanceOf(OccurrenceTypeItemsNotAllowedError)
+        const emptied = await correct([])
+
+        expect(emptied.productCodes).toEqual([])
+        expect(emptied.corrections).toHaveLength(1)
+      })
+    },
+  )
 
   testWithPostgres('sem mudança real não grava histórico e responde 200 (CA03)', async () => {
     await withDisposableDatabase(async (database) => {

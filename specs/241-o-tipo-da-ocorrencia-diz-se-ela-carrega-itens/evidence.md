@@ -840,3 +840,60 @@ PostgresError: new row for relation "company_occurrence_types" violates check co
 ```
 
 Restaurado (cópia byte a byte do arquivo) → contrato 12 pass, integração 4 pass.
+
+## T2.5 — RF6: tipo `off` recusa produto (registro do galpão, do motorista e correção)
+
+Pontos que gravam itens, conferidos por `grep` em `src/` (`saveOccurrence`, `saveDocumentOccurrence`,
+`replaceItems`, `registerTripOccurrence`, `registerDriverOccurrence`):
+
+| Ponto                                                                                                | Passa produto?                                            | Guarda                                                      |
+| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------- |
+| `registerTripOccurrence` (painel do galpão e WhatsApp do operador, `main.ts` 1196/3928)              | sim (`productCode`/`productCodes`; o WhatsApp manda `[]`) | sim, logo depois do tipo e do estágio                       |
+| `registerDriverOccurrence` (app do motorista e WhatsApp do motorista, `main.ts` 1041/3471)           | `productCode` (o app manda `''`)                          | sim, depois do tipo e antes de ler a nota alcançável        |
+| `register-office-document-occurrences` / `office-occurrence-batch.service.ts` (em nome do motorista) | **não**: `productCode: ''` fixo (linha 153)               | desnecessária, nunca grava produto                          |
+| `correctOccurrenceItems`                                                                             | sim                                                       | sim, logo depois de ler o tipo ATUAL por `(company_id, id)` |
+
+A guarda é `assertOccurrenceTypeAcceptsProducts` (`trips/domain/occurrence-items-mode.policy.ts`):
+`itemsMode === 'off'` com `productCode` não vazio ou `productCodes` não vazio lança
+`OccurrenceTypeItemsNotAllowedError` (`422 OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED`); ausente lê `optional`.
+Roda **antes** de ler produtos, de `saveOccurrence`/`saveDocumentOccurrence`/`replaceItems`, do
+notificador e da foto.
+
+Contrato antes da implementação (commit `4b48224a0`),
+`test/trip-occurrence/items-mode-guard.contract.ts` (entrou em `trip-occurrence.contract.test.ts`):
+
+```text
+(fail) o registro do galpão recusa produto em tipo sem itens (spec 241 RF6) > off com productCode: 422, sem gravar nem avisar
+(fail) ... > off com productCodes: 422, sem gravar nem avisar
+(fail) o registro do motorista recusa produto em tipo sem itens (spec 241 RF6) > off com produto: 422, sem gravar
+(fail) a correção recusa produto em tipo sem itens (spec 241 RF6, CA03) > off com produto: 422, sem substituir itens nem registrar correção
+ 5 pass
+ 4 fail
+```
+
+Verde depois: `items-mode-guard.contract.ts` 9 pass; `trip-occurrence.contract.test.ts` 353 pass, 0 fail;
+integração `trip-occurrence-correction.integration.ts` com o caso novo (ocorrência gravada com item num
+tipo `optional`, tipo posto em `off` por `UPDATE`, correção com produto → 422, correção para `[]` →
+aceita e grava o histórico): 8 pass, 0 fail, 0 skip. Lista vazia grava em `off`; `optional` com produto
+grava — nos três casos de uso.
+
+## T2.6 — mutação: arrancar a guarda da correção
+
+Removido o `assertOccurrenceTypeAcceptsProducts` de `correct-occurrence-items.use-case.ts`:
+
+```text
+error: expect(received).toBeInstanceOf(expected)
+Expected constructor: [class OccurrenceTypeItemsNotAllowedError extends ApiError]
+Received value: undefined
+(fail) a correção recusa produto em tipo sem itens (spec 241 RF6, CA03) > off com produto: 422, sem substituir itens nem registrar correção
+ 8 pass
+ 1 fail
+
+(integração, trip-occurrence-correction.integration.ts)
+Expected constructor: [class OccurrenceTypeItemsNotAllowedError extends ApiError]
+(fail) correção de itens da ocorrência (spec 167 T301/T309) > tipo que virou off recusa produto e aceita esvaziar (spec 241 CA03)
+ 7 pass
+ 1 fail
+```
+
+Restaurado → contrato 9 pass.

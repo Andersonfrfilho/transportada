@@ -14,6 +14,7 @@ import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { OccurrenceAttachmentView } from './occurrence-attachment.service.js'
 import { resolveOccurrenceItemQuantities } from '../domain/occurrence-item-quantity.policy.js'
 import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
+import { assertOccurrenceTypeAcceptsProducts } from '../domain/occurrence-items-mode.policy.js'
 import { resolveOccurrenceProductSelection } from '../domain/occurrence-scope.policy.js'
 import { renderOccurrenceTemplate } from '../domain/occurrence-template.policy.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
@@ -322,6 +323,13 @@ export async function registerTripOccurrence(
   if (occurrenceType.stage !== TRIP_OCCURRENCE_STAGE.separation) {
     throw new OccurrenceTypeNotSeparationError()
   }
+
+  /** Spec 241 (RF6, CA03): tipo sem itens recusa produto antes de qualquer leitura ou efeito. */
+  assertOccurrenceTypeAcceptsProducts({
+    itemsMode: occurrenceType.itemsMode,
+    productCode,
+    productCodes: input.productCodes,
+  })
 
   /**
    * ⚠️ Spec 161 D1/RF4: a foto passa a ser obrigatória **aqui**, no caso de uso, e não na rota
