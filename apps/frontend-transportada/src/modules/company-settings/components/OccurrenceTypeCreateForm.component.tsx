@@ -1,7 +1,6 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
@@ -12,14 +11,11 @@ import { Tooltip } from '@/components/ui/tooltip'
 
 import {
   OCCURRENCE_ATTACHMENT_MODE,
-  OCCURRENCE_ITEMS_MODE,
   OCCURRENCE_REDELIVERY_POLICY,
-  OCCURRENCE_TYPE_FLOWS,
   TRIP_OCCURRENCE_STAGE,
 } from '@/modules/trip/shared/occurrence.constant'
 import type {
   OccurrenceAttachmentMode,
-  OccurrenceItemsWriteMode,
   OccurrenceRedeliveryPolicy,
   OccurrenceTypeFlow,
   TripOccurrenceStage,
@@ -32,6 +28,7 @@ import { NOTIFICATION_SETTINGS_HREF } from '@/modules/notification/shared/notifi
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 import styles from '@/modules/trip/styles/trip.module.css'
 
+import { useOccurrenceTypeCreateDraft } from '../hooks/useOccurrenceTypeCreateDraft.hook'
 import { useOccurrenceTypeOptions } from '../hooks/useOccurrenceTypeOptions.hook'
 import type { OccurrenceTypeSaveInput } from '../shared/occurrenceTypeUpdate.service'
 import { OccurrenceTypeItemsModeSelect } from './OccurrenceTypeItemsModeSelect.component'
@@ -52,29 +49,20 @@ export function OccurrenceTypeCreateForm({
 }: OccurrenceTypeCreateFormProps) {
   const { t } = useTranslation('companySettings')
   const { attachmentModeOptions, flowOptions, redeliveryPolicyOptions } = useOccurrenceTypeOptions()
-  const [name, setName] = useState('')
-  const [stage, setStage] = useState<TripOccurrenceStage>(TRIP_OCCURRENCE_STAGE.separation)
-  const [notifies, setNotifies] = useState(false)
-  const [emailTemplateKey, setEmailTemplateKey] = useState<string>(OCCURRENCE_TEMPLATE_NONE)
-  /** RF3: o padrão é aceitar vários itens — preserva o comportamento de hoje. */
-  const [allowsMultipleItems, setAllowsMultipleItems] = useState(true)
-  /** Spec 164 D1: nasce `unset` — nenhum tipo novo escala para o contratante sem decisão explícita. */
-  const [redeliveryPolicy, setRedeliveryPolicy] = useState<OccurrenceRedeliveryPolicy>(
-    OCCURRENCE_REDELIVERY_POLICY.unset,
-  )
-  /** Spec 185 D2/RF6: padrão desligado — nenhum tipo novo tira nota da viagem sem decisão explícita. */
-  const [leavesDocumentBehind, setLeavesDocumentBehind] = useState(false)
-  /** Spec 179 RF1: nasce `off` — nenhum tipo novo passa a exigir foto sem decisão explícita. */
-  const [attachmentMode, setAttachmentMode] = useState<OccurrenceAttachmentMode>(
-    OCCURRENCE_ATTACHMENT_MODE.off,
-  )
-  /** Spec 218 (D1, RF-B5): obrigatório na criação — nasce `document`, o comportamento de sempre. */
-  const [flow, setFlow] = useState<OccurrenceTypeFlow>(OCCURRENCE_TYPE_FLOWS[0])
-  /** Spec 241 RF10: nasce `optional`, o comportamento de hoje — Desligado é decisão explícita. */
-  const [itemsMode, setItemsMode] = useState<OccurrenceItemsWriteMode>(
-    OCCURRENCE_ITEMS_MODE.optional,
-  )
-  const isItemsOff = hasItemsModeSupport && itemsMode === OCCURRENCE_ITEMS_MODE.off
+  const draft = useOccurrenceTypeCreateDraft(hasItemsModeSupport)
+  const {
+    allowsMultipleItems,
+    attachmentMode,
+    emailTemplateKey,
+    flow,
+    isItemsOff,
+    itemsMode,
+    leavesDocumentBehind,
+    name,
+    notifies,
+    redeliveryPolicy,
+    stage,
+  } = draft
 
   function handleAdd() {
     if (name.trim() === '') return
@@ -95,15 +83,7 @@ export function OccurrenceTypeCreateForm({
       redeliveryPolicy: isItemsOff ? OCCURRENCE_REDELIVERY_POLICY.unset : redeliveryPolicy,
       stage,
     })
-    setName('')
-    setNotifies(false)
-    setEmailTemplateKey(OCCURRENCE_TEMPLATE_NONE)
-    setAllowsMultipleItems(true)
-    setRedeliveryPolicy(OCCURRENCE_REDELIVERY_POLICY.unset)
-    setLeavesDocumentBehind(false)
-    setAttachmentMode(OCCURRENCE_ATTACHMENT_MODE.off)
-    setFlow(OCCURRENCE_TYPE_FLOWS[0])
-    setItemsMode(OCCURRENCE_ITEMS_MODE.optional)
+    draft.reset()
   }
 
   function handleEditTemplates() {
@@ -117,14 +97,14 @@ export function OccurrenceTypeCreateForm({
     <div className={styles.occurrenceForm}>
       <input
         aria-label={t('occurrenceTypeCatalog.name')}
-        onChange={(event) => setName(event.target.value)}
+        onChange={(event) => draft.setName(event.target.value)}
         placeholder={t('occurrenceTypeCatalog.name')}
         type="text"
         value={name}
       />
       <Select
         ariaLabel={t('occurrenceTypeCatalog.stage')}
-        onChange={(value) => setStage(value as TripOccurrenceStage)}
+        onChange={(value) => draft.setStage(value as TripOccurrenceStage)}
         options={[
           {
             label: t('occurrenceTypeCatalog.stageSeparation'),
@@ -140,22 +120,22 @@ export function OccurrenceTypeCreateForm({
       <Checkbox
         checked={notifies}
         label={t('occurrenceTypeCatalog.notifies')}
-        onChange={setNotifies}
+        onChange={draft.setNotifies}
       />
       {hasItemsModeSupport ? (
-        <OccurrenceTypeItemsModeSelect onChange={setItemsMode} value={itemsMode} />
+        <OccurrenceTypeItemsModeSelect onChange={draft.setItemsMode} value={itemsMode} />
       ) : null}
       {isItemsOff ? null : (
         <Checkbox
           checked={allowsMultipleItems}
           label={t('occurrenceTypeCatalog.allowsMultipleItems')}
-          onChange={setAllowsMultipleItems}
+          onChange={draft.setAllowsMultipleItems}
         />
       )}
       {isItemsOff ? null : (
         <Select
           ariaLabel={t('occurrenceTypeCatalog.redeliveryPolicy')}
-          onChange={(value) => setRedeliveryPolicy(value as OccurrenceRedeliveryPolicy)}
+          onChange={(value) => draft.setRedeliveryPolicy(value as OccurrenceRedeliveryPolicy)}
           options={redeliveryPolicyOptions}
           value={redeliveryPolicy}
         />
@@ -164,7 +144,7 @@ export function OccurrenceTypeCreateForm({
         <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.attachmentModeHint')}>
           <Select
             ariaLabel={t('occurrenceTypeCatalog.attachmentMode')}
-            onChange={(value) => setAttachmentMode(value as OccurrenceAttachmentMode)}
+            onChange={(value) => draft.setAttachmentMode(value as OccurrenceAttachmentMode)}
             options={attachmentModeOptions}
             value={attachmentMode}
           />
@@ -175,7 +155,7 @@ export function OccurrenceTypeCreateForm({
         <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.flowHint')}>
           <Select
             ariaLabel={t('occurrenceTypeCatalog.flow')}
-            onChange={(value) => setFlow(value as OccurrenceTypeFlow)}
+            onChange={(value) => draft.setFlow(value as OccurrenceTypeFlow)}
             options={flowOptions}
             value={flow}
           />
@@ -187,13 +167,13 @@ export function OccurrenceTypeCreateForm({
           <Checkbox
             checked={leavesDocumentBehind}
             label={t('occurrenceTypeCatalog.leavesDocumentBehind')}
-            onChange={setLeavesDocumentBehind}
+            onChange={draft.setLeavesDocumentBehind}
           />
         </Tooltip>
       ) : null}
       <Select
         ariaLabel={t('occurrenceTypeCatalog.emailTemplate')}
-        onChange={setEmailTemplateKey}
+        onChange={draft.setEmailTemplateKey}
         options={[
           {
             label: t('occurrenceTypeCatalog.emailTemplateNone'),
