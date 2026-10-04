@@ -82,4 +82,20 @@ describe('tolerância a allowsMultipleItems/redeliveryPolicy ausentes (achado B7
       adapters.occurrenceTypesFromApi([buildOccurrenceType({ unknownField: 'x' })]),
     ).toThrow()
   })
+
+  /** A API manda `emailsContractor` e `stopKind` em todo tipo: reprovar por eles esvazia o catálogo inteiro. */
+  it('aceita `emailsContractor` e `stopKind` da API atual', () => {
+    const [type] = adapters.occurrenceTypesFromApi([
+      buildOccurrenceType({ emailsContractor: false, stopKind: null }),
+    ])
+
+    expect(type?.id).toBe('54ed0225-f293-47c3-84fe-0b66eff68784')
+  })
+
+  it('recusa `emailsContractor` e `stopKind` com forma errada', () => {
+    expect(() =>
+      adapters.occurrenceTypesFromApi([buildOccurrenceType({ emailsContractor: 'yes' })]),
+    ).toThrow()
+    expect(() => adapters.occurrenceTypesFromApi([buildOccurrenceType({ stopKind: 7 })])).toThrow()
+  })
 })
