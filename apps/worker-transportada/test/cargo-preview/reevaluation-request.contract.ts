@@ -41,9 +41,11 @@ describe('a nota nova pede a reavaliação da prévia (spec 237 T4.3)', () => {
     const request = statements
       .map((statement) => new PgDialect().sqlToQuery(statement))
       .find((query) => query.sql.includes('cargo_preview_outbox'))
-    expect(request?.sql).toContain("'cargo-preview.reevaluate'")
     expect(request?.sql).toContain('pending.published_at is null')
-    expect(request?.params).toEqual(expect.arrayContaining([COMPANY_ID, EMITTER, 30]))
+    expect(request?.sql).toContain('pending.next_attempt_at > clock_timestamp()')
+    expect(request?.params).toEqual(
+      expect.arrayContaining([COMPANY_ID, EMITTER, 30, 10, 'cargo-preview.reevaluate']),
+    )
   })
 
   test('o pedido que falha vira aviso sem CNPJ e a importação segue', async () => {
