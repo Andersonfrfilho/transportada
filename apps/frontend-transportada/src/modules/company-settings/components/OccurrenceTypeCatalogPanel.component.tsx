@@ -17,6 +17,7 @@ import {
 } from '@/modules/trip/shared/occurrence.constant'
 import type {
   OccurrenceAttachmentMode,
+  OccurrenceItemsWriteMode,
   OccurrenceRedeliveryPolicy,
   OccurrenceType,
   OccurrenceTypeFlow,
@@ -33,6 +34,7 @@ import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavig
 import styles from '@/modules/trip/styles/trip.module.css'
 
 import { OccurrenceTypeExceptionsSection } from './OccurrenceTypeExceptionsSection.component'
+import { OccurrenceTypeItemsModeSelect } from './OccurrenceTypeItemsModeSelect.component'
 
 export type OccurrenceTypeCatalogPanelProps = Readonly<{
   canManage: boolean
@@ -46,6 +48,8 @@ export type OccurrenceTypeCatalogPanelProps = Readonly<{
     readonly emailTemplateKey: null | string
     /** Spec 218 (D1, RF-B5): `undefined` é "não mexe" — só a troca explícita do seletor manda o campo. */
     readonly flow?: OccurrenceTypeFlow | undefined
+    /** Spec 241 RF4: `undefined` é "não mexe" — só a troca do seletor Produtos manda o campo. */
+    readonly itemsMode?: OccurrenceItemsWriteMode | undefined
     /** Spec 185 T6.1 (D2, RF6): só vale para `stage: 'separation'` — o CHECK do banco recusa em `delivery`. */
     readonly leavesDocumentBehind: boolean
     readonly name: string
@@ -55,6 +59,8 @@ export type OccurrenceTypeCatalogPanelProps = Readonly<{
     readonly redeliveryPolicy: OccurrenceRedeliveryPolicy
     readonly stage: TripOccurrenceStage
   }) => void
+  /** Spec 241: a recusa da última gravação, já traduzida em chave de `trip.feedback`. */
+  saveFeedbackKey: null | string
   types: readonly OccurrenceType[]
 }>
 
@@ -78,9 +84,11 @@ export function OccurrenceTypeCatalogPanel({
   canManage,
   isSaving,
   onSave,
+  saveFeedbackKey,
   types,
 }: OccurrenceTypeCatalogPanelProps) {
   const { t } = useTranslation('companySettings')
+  const { t: tTrip } = useTranslation('trip')
   const [name, setName] = useState('')
   const [stage, setStage] = useState<TripOccurrenceStage>(TRIP_OCCURRENCE_STAGE.separation)
   const [notifies, setNotifies] = useState(false)
@@ -97,6 +105,11 @@ export function OccurrenceTypeCatalogPanel({
   const [attachmentMode, setAttachmentMode] = useState<OccurrenceAttachmentMode>('off')
   /** Spec 218 (D1, RF-B5): obrigatório na criação — nasce `document`, o comportamento de sempre. */
   const [flow, setFlow] = useState<OccurrenceTypeFlow>(OCCURRENCE_TYPE_FLOWS[0])
+  /** Spec 241 RF10: nasce `optional`, o comportamento de hoje — Desligado é decisão explícita. */
+  const [itemsMode, setItemsMode] = useState<OccurrenceItemsWriteMode>('optional')
+  /** Sem `itemsMode` em nenhum tipo da listagem a API é anterior ao campo: não se oferece o que ela ignoraria. */
+  const hasItemsModeSupport = types.some((type) => type.itemsMode !== undefined)
+  const isItemsOff = hasItemsModeSupport && itemsMode === 'off'
 
   const attachmentModeOptions = [
     { label: t('occurrenceTypeCatalog.attachmentModeOff'), value: 'off' },
@@ -145,6 +158,7 @@ export function OccurrenceTypeCatalogPanel({
 
   function handleAdd() {
     if (name.trim() === '') return
+    const itemsModeField = hasItemsModeSupport ? { itemsMode } : {}
     onSave({
       active: true,
       allowsMultipleItems,
@@ -152,11 +166,12 @@ export function OccurrenceTypeCatalogPanel({
       emailTemplateKey: emailTemplateKey === OCCURRENCE_TEMPLATE_NONE ? null : emailTemplateKey,
       /** Spec 218 RF-B5: obrigatório na criação — o servidor recusa `occurrenceTypeId: null` sem ele. */
       flow,
+      ...itemsModeField,
       leavesDocumentBehind: stage === TRIP_OCCURRENCE_STAGE.separation && leavesDocumentBehind,
       name,
       notifies,
       occurrenceTypeId: null,
-      redeliveryPolicy,
+      redeliveryPolicy: isItemsOff ? OCCURRENCE_REDELIVERY_POLICY.unset : redeliveryPolicy,
       stage,
     })
     setName('')
@@ -167,6 +182,7 @@ export function OccurrenceTypeCatalogPanel({
     setLeavesDocumentBehind(false)
     setAttachmentMode('off')
     setFlow(OCCURRENCE_TYPE_FLOWS[0])
+    setItemsMode('optional')
   }
 
   function handleEditTemplates() {
@@ -184,6 +200,12 @@ export function OccurrenceTypeCatalogPanel({
       {types.length === 0 ? (
         <p className={styles.hint}>{t('occurrenceTypeCatalog.empty')}</p>
       ) : null}
+
+      {saveFeedbackKey === null ? null : (
+        <p className={styles.alert} role="alert">
+          {tTrip(`feedback.${saveFeedbackKey}`)}
+        </p>
+      )}
 
       {[TRIP_OCCURRENCE_STAGE.separation, TRIP_OCCURRENCE_STAGE.delivery].map((group) => {
         const doGrupo = types.filter((type) => type.stage === group)
@@ -238,45 +260,73 @@ export function OccurrenceTypeCatalogPanel({
                     })
                   }
                 />
-                <Checkbox
-                  checked={type.allowsMultipleItems}
-                  disabled={!canManage || isSaving}
-                  label={t('occurrenceTypeCatalog.allowsMultipleItems')}
-                  onChange={(value) =>
-                    onSave({
-                      active: type.active,
-                      allowsMultipleItems: value,
-                      attachmentMode: type.attachmentMode,
-                      emailTemplateKey: type.emailTemplateKey,
-                      leavesDocumentBehind: type.leavesDocumentBehind,
-                      name: type.name,
-                      notifies: type.notifies,
-                      occurrenceTypeId: type.id,
-                      redeliveryPolicy: type.redeliveryPolicy,
-                      stage: type.stage,
-                    })
-                  }
-                />
-                <Select
-                  ariaLabel={t('occurrenceTypeCatalog.redeliveryPolicy')}
-                  disabled={!canManage || isSaving}
-                  onChange={(value) =>
-                    onSave({
-                      active: type.active,
-                      allowsMultipleItems: type.allowsMultipleItems,
-                      attachmentMode: type.attachmentMode,
-                      emailTemplateKey: type.emailTemplateKey,
-                      leavesDocumentBehind: type.leavesDocumentBehind,
-                      name: type.name,
-                      notifies: type.notifies,
-                      occurrenceTypeId: type.id,
-                      redeliveryPolicy: value as OccurrenceRedeliveryPolicy,
-                      stage: type.stage,
-                    })
-                  }
-                  options={redeliveryPolicyOptions}
-                  value={type.redeliveryPolicy}
-                />
+                {type.itemsMode === 'off' || type.itemsMode === 'optional' ? (
+                  <OccurrenceTypeItemsModeSelect
+                    disabled={!canManage || isSaving}
+                    onChange={(value) =>
+                      onSave({
+                        active: type.active,
+                        allowsMultipleItems: type.allowsMultipleItems,
+                        attachmentMode: type.attachmentMode,
+                        emailTemplateKey: type.emailTemplateKey,
+                        itemsMode: value,
+                        leavesDocumentBehind: type.leavesDocumentBehind,
+                        name: type.name,
+                        notifies: type.notifies,
+                        occurrenceTypeId: type.id,
+                        redeliveryPolicy:
+                          value === 'off'
+                            ? OCCURRENCE_REDELIVERY_POLICY.unset
+                            : type.redeliveryPolicy,
+                        stage: type.stage,
+                      })
+                    }
+                    value={type.itemsMode}
+                  />
+                ) : null}
+                {type.itemsMode === 'off' ? null : (
+                  <Checkbox
+                    checked={type.allowsMultipleItems}
+                    disabled={!canManage || isSaving}
+                    label={t('occurrenceTypeCatalog.allowsMultipleItems')}
+                    onChange={(value) =>
+                      onSave({
+                        active: type.active,
+                        allowsMultipleItems: value,
+                        attachmentMode: type.attachmentMode,
+                        emailTemplateKey: type.emailTemplateKey,
+                        leavesDocumentBehind: type.leavesDocumentBehind,
+                        name: type.name,
+                        notifies: type.notifies,
+                        occurrenceTypeId: type.id,
+                        redeliveryPolicy: type.redeliveryPolicy,
+                        stage: type.stage,
+                      })
+                    }
+                  />
+                )}
+                {type.itemsMode === 'off' ? null : (
+                  <Select
+                    ariaLabel={t('occurrenceTypeCatalog.redeliveryPolicy')}
+                    disabled={!canManage || isSaving}
+                    onChange={(value) =>
+                      onSave({
+                        active: type.active,
+                        allowsMultipleItems: type.allowsMultipleItems,
+                        attachmentMode: type.attachmentMode,
+                        emailTemplateKey: type.emailTemplateKey,
+                        leavesDocumentBehind: type.leavesDocumentBehind,
+                        name: type.name,
+                        notifies: type.notifies,
+                        occurrenceTypeId: type.id,
+                        redeliveryPolicy: value as OccurrenceRedeliveryPolicy,
+                        stage: type.stage,
+                      })
+                    }
+                    options={redeliveryPolicyOptions}
+                    value={type.redeliveryPolicy}
+                  />
+                )}
                 {/* Spec 179 T401: só em tipo de rua — é o motorista quem tira a foto na hora. */}
                 {type.stage === TRIP_OCCURRENCE_STAGE.delivery ? (
                   <Tooltip label={t('occurrenceTypeCatalog.attachmentModeHint')}>
@@ -396,17 +446,24 @@ export function OccurrenceTypeCatalogPanel({
             label={t('occurrenceTypeCatalog.notifies')}
             onChange={setNotifies}
           />
-          <Checkbox
-            checked={allowsMultipleItems}
-            label={t('occurrenceTypeCatalog.allowsMultipleItems')}
-            onChange={setAllowsMultipleItems}
-          />
-          <Select
-            ariaLabel={t('occurrenceTypeCatalog.redeliveryPolicy')}
-            onChange={(value) => setRedeliveryPolicy(value as OccurrenceRedeliveryPolicy)}
-            options={redeliveryPolicyOptions}
-            value={redeliveryPolicy}
-          />
+          {hasItemsModeSupport ? (
+            <OccurrenceTypeItemsModeSelect onChange={setItemsMode} value={itemsMode} />
+          ) : null}
+          {isItemsOff ? null : (
+            <Checkbox
+              checked={allowsMultipleItems}
+              label={t('occurrenceTypeCatalog.allowsMultipleItems')}
+              onChange={setAllowsMultipleItems}
+            />
+          )}
+          {isItemsOff ? null : (
+            <Select
+              ariaLabel={t('occurrenceTypeCatalog.redeliveryPolicy')}
+              onChange={(value) => setRedeliveryPolicy(value as OccurrenceRedeliveryPolicy)}
+              options={redeliveryPolicyOptions}
+              value={redeliveryPolicy}
+            />
+          )}
           {stage === TRIP_OCCURRENCE_STAGE.delivery ? (
             <Tooltip label={t('occurrenceTypeCatalog.attachmentModeHint')}>
               <Select

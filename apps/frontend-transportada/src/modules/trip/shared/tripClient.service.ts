@@ -120,6 +120,7 @@ import type {
   OccurrenceAttachmentOverrides,
   OccurrenceRedeliveryPolicy,
   OccurrenceType,
+  OccurrenceItemsWriteMode,
   OccurrenceTypeFlow,
 } from './occurrence.constant'
 import {
@@ -314,6 +315,8 @@ export type TripClient = Readonly<{
       emailTemplateKey: null | string
       /** Spec 218 (D1, RF-B5): obrigatório na criação, `undefined` na edição é "não mexe". */
       flow?: OccurrenceTypeFlow | undefined
+      /** Spec 241 RF4: `undefined` é "não mexe" — só vai quando a listagem trouxe `itemsMode`. */
+      itemsMode?: OccurrenceItemsWriteMode | undefined
       /** Spec 185 T6.1 (D2, RF6): só para tipos de separação — CHECK do banco recusa em `delivery`. */
       leavesDocumentBehind: boolean
       name: string
@@ -942,6 +945,8 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           emailTemplateKey: input.emailTemplateKey,
           /** Spec 218 (D1, RF-B5): ausente é "não mexe" — nunca manda `flow: undefined` no corpo. */
           ...(input.flow === undefined ? {} : { flow: input.flow }),
+          /** Spec 241 RF4: mesma regra do `flow` — ausente é "não mexe". */
+          ...(input.itemsMode === undefined ? {} : { itemsMode: input.itemsMode }),
           leavesDocumentBehind: input.leavesDocumentBehind,
           name: input.name,
           notifies: input.notifies,

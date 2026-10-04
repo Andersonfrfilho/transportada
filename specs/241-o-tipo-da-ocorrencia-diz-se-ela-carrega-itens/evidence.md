@@ -135,3 +135,88 @@ pelo contrato puro acima.
 
 Verde: `bun run --cwd apps/frontend-transportada test` → 6691 pass + 404 pass (lote DOM), 0 fail;
 `bun run typecheck` sem erros; lint da app 0 erros.
+
+### T1.5 — Produtos no cadastro de tipos (RF10, RF12) e mensagens por código (CA10, painel)
+
+Contratos primeiro:
+
+- `test/company-settings/occurrence-type-items-mode-body.contract.ts` — o corpo real do `PUT`
+  (`createTripClient` com `fetch` dublado): Produtos Desligado, foto desligada, sem soltar a nota →
+  `itemsMode: 'off'`, `redeliveryPolicy: 'unset'`, `flow: 'document'`, sem itens; sem `itemsMode` no
+  input a chave não vai no corpo ("não mexa").
+- `test/trip-hooks/occurrence-type-items-mode-panel.contract.ts` — `OccurrenceTypeCatalogPanel`
+  montado no DOM, com o `Select` de verdade: listagem sem `itemsMode` não mostra Produtos; com ele
+  mostra a escolha gravada; tipo Desligado esconde a política de reentrega e o "um ou vários";
+  trocar para Desligado grava `itemsMode: 'off'` + `redeliveryPolicy: 'unset'` no mesmo `PUT` (o tipo
+  tinha `blocked`); voltar a Opcional mantém a política gravada; as outras gravações não mandam
+  `itemsMode`; **CA10**: cadastro novo com Etapa "Na rua" e Produtos Desligado esconde a política e
+  grava o corpo exato da segunda via; política já escolhida na tela some e o corpo leva `unset`;
+  sem listagem com `itemsMode` o cadastro novo não oferece nem manda Produtos.
+- `test/trip/occurrence-items-mode-feedback.contract.ts` — `OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED` e
+  `OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY` resolvem para chave de `trip.feedback.*` (o mecanismo
+  da 240: `TRIP_FEEDBACK_KEY_BY_ERROR` + `resolveTripFeedbackKey`; não existe `getApiErrorCode()` nesta
+  app), com texto pt-BR e en.
+
+Vermelho, antes do código (`src/` revertido aos arquivos do HEAD, contratos novos mantidos):
+
+```text
+(fail) corpo do PUT de tipo de ocorrência (spec 241) > Produtos Desligado, foto desligada, sem soltar a nota: itemsMode off e política unset
+(fail) mensagens dos códigos de itens por tipo (spec 241) > OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED vira occurrenceTypeItemsNotAllowed, com texto nos dois idiomas
+(fail) mensagens dos códigos de itens por tipo (spec 241) > OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY vira occurrenceTypeItemsOffRedeliveryPolicy, com texto nos dois idiomas
+(fail) mensagens dos códigos de itens por tipo (spec 241) > o texto do registro manda ligar Produtos no cadastro; o do cadastro manda desligar a política
+ 6692 pass
+ 4 fail
+--- lote DOM (bun run test:hooks) ---
+(fail) cadastro de tipos: Produtos (spec 241 RF10) > listagem com itemsMode: Produtos aparece no tipo, com a escolha gravada
+(fail) cadastro de tipos: Produtos (spec 241 RF10) > tipo Desligado: a política de reentrega e o "um ou vários" somem
+(fail) cadastro de tipos: Produtos (spec 241 RF10) > trocar para Desligado grava itemsMode off e redeliveryPolicy unset no mesmo PUT (RF12)
+(fail) cadastro de tipos: Produtos (spec 241 RF10) > voltar para Opcional grava itemsMode optional e mantém a política já gravada
+(fail) cadastro de tipos: criar a prorrogação (spec 241 CA10) > Produtos Desligado, sem foto, sem soltar a nota: o corpo é o da segunda via, sem política
+ 407 pass
+ 5 fail
+```
+
+Mutação da política escondida (CA10), depois do código: tirar do painel as duas trocas
+`value === 'off' ? unset : …` (edição) e `isItemsOff ? unset : redeliveryPolicy` (cadastro novo) deixa
+o contrato vermelho; restaurado, verde:
+
+```text
+(fail) cadastro de tipos: Produtos (spec 241 RF10) > trocar para Desligado grava itemsMode off e redeliveryPolicy unset no mesmo PUT (RF12)
+  Expected: "unset"
+  Received: "blocked"
+(fail) cadastro de tipos: criar a prorrogação (spec 241 CA10) > política já escolhida some com Produtos Desligado: o corpo leva unset, não o que estava na tela
+ 7 pass
+ 2 fail
+--- restaurado ---
+ 9 pass
+ 0 fail
+```
+
+Implementação: `OccurrenceTypeItemsModeSelect` (`Select` do design system com a dica, Desligado /
+Opcional); `OccurrenceTypeCatalogPanel` mostra Produtos só quando a listagem trouxe `itemsMode`
+(`hasItemsModeSupport`), esconde política de reentrega e "um ou vários" com Desligado, troca para
+Desligado envia `redeliveryPolicy: 'unset'` no mesmo `PUT`, e mostra a recusa do servidor
+(`saveFeedbackKey`, via `resolveTripFeedbackKey`) num alerta — antes o painel engolia o erro de
+gravação. O `PUT` (`tripClient.service.ts`) manda `itemsMode` só quando presente. As demais gravações
+do painel continuam sem `itemsMode` (ausente é "não mexa", RF4) e mandam `redeliveryPolicy` como a
+242 corrigiu. Os testes de DOM do lote dependem de `stubVisibleLayout()` (o `Select` fecha a camada de
+gatilho com retângulo zerado) e não registram `beforeEach`/`afterEach` próprios, que no lote viram
+globais.
+
+Textos novos — `companySettings.occurrenceTypeCatalog.*`:
+`itemsMode` "Produtos" / "Products"; `itemsModeOff` "Desligado" / "Off"; `itemsModeOptional`
+"Opcional" / "Optional"; `itemsModeHint` "Desligado: a ocorrência não carrega produtos — o registro
+não mostra o seletor e a reentrega não se aplica. Opcional: quem registra pode apontar os produtos."
+(en: "Off: the occurrence carries no products — registration shows no selector and redelivery does
+not apply. Optional: whoever registers may point at products."). `trip.feedback.*`:
+`occurrenceTypeItemsNotAllowed` "Este tipo de ocorrência não carrega produtos. Registre sem escolher
+itens; se ele precisa de produtos, ligue Produtos no cadastro do tipo. Nada foi gravado." (en: "This
+occurrence type does not carry products. Register it without choosing items; if it needs products,
+turn Products on in the type setup. Nothing was saved."); `occurrenceTypeItemsOffRedeliveryPolicy`
+"Tipo sem produtos não abre tratativa: deixe a reentrega como indefinida ou volte Produtos para
+Opcional. Nada foi gravado." (en: "A type without products does not open a case: leave redelivery
+unset or switch Products back to Optional. Nothing was saved.").
+
+Limites conhecidos: com a lista de tipos **vazia** o cadastro novo não oferece Produtos (não há como
+saber se a API já conhece o campo); um tipo com `itemsMode: 'required'` (da 239) não ganha o controle
+de Produtos nem some a política — a 239 decide como o painel o trata.

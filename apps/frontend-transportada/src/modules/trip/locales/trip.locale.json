@@ -937,6 +937,8 @@
     "occurrenceAlreadyCancelled": "Esta ocorrência já foi cancelada e não pode ser cancelada de novo. Nada foi gravado; a tela foi atualizada com o estado atual.",
     "occurrenceCancelled": "Esta ocorrência foi cancelada e não pode mais ser corrigida. Nada foi gravado; a tela foi atualizada com o estado atual.",
     "occurrenceTypeSingleItem": "Este tipo de ocorrência aceita um item só. Deixe apenas um item e salve de novo.",
+    "occurrenceTypeItemsNotAllowed": "Este tipo de ocorrência não carrega produtos. Registre sem escolher itens; se ele precisa de produtos, ligue Produtos no cadastro do tipo. Nada foi gravado.",
+    "occurrenceTypeItemsOffRedeliveryPolicy": "Tipo sem produtos não abre tratativa: deixe a reentrega como indefinida ou volte Produtos para Opcional. Nada foi gravado.",
     "occurrenceItemQuantityNotPositive": "A quantidade de cada item precisa ser maior que zero. Corrija e salve de novo.",
     "occurrenceItemQuantityUnitPairing": "Quantidade e unidade andam juntas: informe as duas ou nenhuma. Corrija e salve de novo.",
     "occurrenceProductNotInDocument": "Um dos itens escolhidos não está nesta nota. Escolha só itens da nota e salve de novo.",

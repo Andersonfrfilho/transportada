@@ -25,6 +25,7 @@ import {
   type OccurrenceTypeCatalogPanelProps,
 } from '../components/OccurrenceTypeCatalogPanel.component'
 import { useOccurrenceTypeCatalogPanel } from '../hooks/useOccurrenceTypeCatalogPanel.hook'
+import { resolveTripFeedbackKey } from '@/modules/trip/shared/tripFeedback.service'
 import {
   CompanyEntryKindCatalogPanel,
   type CompanyEntryKindCatalogPanelProps,
@@ -466,6 +467,7 @@ export function CompanySettingsPage() {
           canManage: canManageSettings,
           isSaving: occurrenceTypeCatalogPanel.saveMutation.isPending,
           onSave: (type) => occurrenceTypeCatalogPanel.saveMutation.mutate(type),
+          saveFeedbackKey: resolveTripFeedbackKey(occurrenceTypeCatalogPanel.saveMutation.error),
           types: occurrenceTypeCatalogPanel.query.data ?? [],
         }}
         entryKindCatalog={{

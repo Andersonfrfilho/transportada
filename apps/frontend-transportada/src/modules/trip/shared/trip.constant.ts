@@ -177,6 +177,10 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   [OCCURRENCE_CORRECTION_ERROR.ALREADY_CANCELLED]: 'occurrenceAlreadyCancelled',
   [OCCURRENCE_CORRECTION_ERROR.CANCELLED]: 'occurrenceCancelled',
   [OCCURRENCE_CORRECTION_ERROR.TYPE_SINGLE_ITEM]: 'occurrenceTypeSingleItem',
+  /** Spec 241 RF6/RF11: tipo sem produtos recusa item e não abre tratativa. */
+  [OCCURRENCE_CORRECTION_ERROR.TYPE_ITEMS_NOT_ALLOWED]: 'occurrenceTypeItemsNotAllowed',
+  [OCCURRENCE_CORRECTION_ERROR.TYPE_ITEMS_OFF_REDELIVERY_POLICY]:
+    'occurrenceTypeItemsOffRedeliveryPolicy',
   [OCCURRENCE_CORRECTION_ERROR.ITEM_QUANTITY_NOT_POSITIVE]: 'occurrenceItemQuantityNotPositive',
   [OCCURRENCE_CORRECTION_ERROR.ITEM_QUANTITY_UNIT_PAIRING]: 'occurrenceItemQuantityUnitPairing',
   [OCCURRENCE_CORRECTION_ERROR.PRODUCT_NOT_IN_DOCUMENT]: 'occurrenceProductNotInDocument',

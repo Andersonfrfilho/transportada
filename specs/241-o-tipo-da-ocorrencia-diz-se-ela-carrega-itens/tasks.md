@@ -43,7 +43,7 @@ items_mode` da migration e o default `off` do plano. Se criou com default `off`:
       vermelho. Colar a execução.
 - [x] **T1.4** RF8: registro esconde produtos e quantidades em tipo `off` e limpa a seleção ao trocar
       (CA06). RF9: formulário de correção com seleção única por `typeAllowsMultipleItems`.
-- [ ] **T1.5** RF10 e RF12: Produtos (Desligado / Opcional) no cadastro de tipos, com `Select` do
+- [x] **T1.5** RF10 e RF12: Produtos (Desligado / Opcional) no cadastro de tipos, com `Select` do
       design system, só quando a listagem trouxer `itemsMode`; "um ou vários" só com Opcional; com
       Desligado a política de reentrega some e o `PUT` leva `redeliveryPolicy: 'unset'`. Mensagens
       pt-BR/en para `OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED` e `OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY`

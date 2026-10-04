@@ -163,3 +163,31 @@ export function listedItems(): string[] {
     (item) => item.textContent ?? '',
   )
 }
+
+/**
+ * O DOM do teste devolve retângulos zerados, e o `Select` fecha na hora uma camada cujo gatilho
+ * "está fora da janela" (`useFloatingLayer`). Devolve a função que desfaz o remendo.
+ */
+export function stubVisibleLayout(): () => void {
+  const original = Object.getOwnPropertyDescriptor(Element.prototype, 'getBoundingClientRect')
+  const visibleRect: DOMRect = {
+    bottom: 130,
+    height: 30,
+    left: 100,
+    right: 300,
+    toJSON: () => ({}),
+    top: 100,
+    width: 200,
+    x: 100,
+    y: 100,
+  }
+  Object.defineProperty(Element.prototype, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => visibleRect,
+    writable: true,
+  })
+  return () => {
+    if (original !== undefined)
+      Object.defineProperty(Element.prototype, 'getBoundingClientRect', original)
+  }
+}
