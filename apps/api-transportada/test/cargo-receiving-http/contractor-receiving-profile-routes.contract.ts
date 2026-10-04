@@ -26,7 +26,7 @@ const CONTRACTOR_ID = '00000000-0000-4000-8000-000000000b01'
 const PROFILE_PATH = `/contractors/${CONTRACTOR_ID}/receiving-profile`
 
 const RULES: ContractorReceivingProfileRules = {
-  arrivalReferencePattern: 'NroCarga\\s*[:=]?\\s*(\\d+)',
+  arrivalReferenceLabel: 'NroCarga:',
   deliveryDeadlineBusinessDays: 3,
   isEnabled: true,
   matchWindowDays: 15,
@@ -164,12 +164,12 @@ describe('as rotas do perfil de recebimento (spec 237 T1.3)', () => {
 
   /** Painel em cache que omite uma chave nova apagaria o valor sem erro (ADR-0094 §5). */
   test('chave omitida é 400, não volta ao padrão', async () => {
-    const withoutPattern = Object.fromEntries(
-      Object.entries(RULES).filter(([key]) => key !== 'arrivalReferencePattern'),
+    const withoutLabel = Object.fromEntries(
+      Object.entries(RULES).filter(([key]) => key !== 'arrivalReferenceLabel'),
     )
 
-    expect(await putFields(withoutPattern)).toEqual({
-      fields: ['arrivalReferencePattern'],
+    expect(await putFields(withoutLabel)).toEqual({
+      fields: ['arrivalReferenceLabel'],
       status: 400,
     })
   })
@@ -181,18 +181,31 @@ describe('as rotas do perfil de recebimento (spec 237 T1.3)', () => {
     ).toBe(400)
   })
 
-  test.each([
-    ['(a+)+'],
-    ['(\\d+'],
-    ['NroCarga'],
-    ['(\\d)\\1'],
-    ['(?<=Carga)(\\d+)'],
-    ['x'.repeat(201)],
-  ])('padrão de carga %p é 400 no campo, sem executar', async (pattern) => {
-    expect(await putFields({ ...RULES, arrivalReferencePattern: pattern })).toEqual({
-      fields: ['arrivalReferencePattern'],
-      status: 400,
-    })
+  test.each([['   '], ['x'.repeat(61)], ['Nro\nCarga:'], ['Nro\u0000Carga:'], ['Nro\tCarga']])(
+    'texto antes da carga %p é 400 no campo',
+    async (label) => {
+      expect(await putFields({ ...RULES, arrivalReferenceLabel: label })).toEqual({
+        fields: ['arrivalReferenceLabel'],
+        status: 400,
+      })
+    },
+  )
+
+  /** Revisão de segurança da Fase 4a (S3): expressão do usuário não entra mais, nem como chave. */
+  test('a chave antiga do padrão (expressão regular) é desconhecida: 400', async () => {
+    const withoutLabel = Object.fromEntries(
+      Object.entries(RULES).filter(([key]) => key !== 'arrivalReferenceLabel'),
+    )
+    const legacy = { ...withoutLabel, arrivalReferencePattern: 'NroCarga:(\\d*)\\d*\\d*X' }
+    expect((await putFields(legacy)).status).toBe(400)
+  })
+
+  test('o texto é gravado aparado, com espaço no meio e caractere especial literal', async () => {
+    const fixture = createFixture({})
+    const body = { ...RULES, arrivalReferenceLabel: '  Carga (n.º):  ' }
+    const response = await fixture.handle(jsonRequest({ body, method: 'PUT', path: PROFILE_PATH }))
+    expect(response.status).toBe(200)
+    expect(fixture.calls.save).toMatchObject([{ rules: { arrivalReferenceLabel: 'Carga (n.º):' } }])
   })
 
   test('mapa de colunas com campo desconhecido ou coluna repetida é 400', async () => {
@@ -233,7 +246,7 @@ describe('as rotas do perfil de recebimento (spec 237 T1.3)', () => {
     const fixture = createFixture({})
     const body = {
       ...RULES,
-      arrivalReferencePattern: null,
+      arrivalReferenceLabel: null,
       previewColumnMap: null,
       previewEnabled: false,
       previewSheetName: null,

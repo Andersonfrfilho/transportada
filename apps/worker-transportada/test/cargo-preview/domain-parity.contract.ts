@@ -13,7 +13,7 @@ const WORKER_DOMAIN = 'src/cargo-receiving/domain'
 
 /** O que o leitor e a política importam; tudo mais do domínio da API é da API. */
 const COPIED_DOMAIN_FILES = [
-  'arrival-reference-pattern.policy.ts',
+  'arrival-reference-label.policy.ts',
   'cargo-preview-cluster-matching.policy.ts',
   'cargo-preview-free-documents.policy.ts',
   'cargo-preview-header.policy.ts',

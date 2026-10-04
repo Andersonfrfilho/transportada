@@ -341,6 +341,7 @@ describe('Drizzle migrations', () => {
       '20261004140624_cargo_previews',
       '20261004165112_cargo_preview_failure_codes',
       '20261004174001_cargo_preview_security_failure_codes',
+      '20261004180153_contractor_receiving_arrival_reference_label',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

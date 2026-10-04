@@ -77,5 +77,5 @@ export const contractorReceivingProfiles = pgTable('contractor_receiving_profile
   previewEnabled: boolean('preview_enabled').notNull(),
   previewSheetName: text('preview_sheet_name'),
   previewColumnMap: jsonb('preview_column_map'),
-  arrivalReferencePattern: text('arrival_reference_pattern'),
+  arrivalReferenceLabel: text('arrival_reference_label'),
 })

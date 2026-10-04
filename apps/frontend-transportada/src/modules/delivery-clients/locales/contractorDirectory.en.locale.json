@@ -89,7 +89,7 @@
     "previewSheetNameHint": "Spreadsheet tab that holds the data, up to 31 characters. Empty means the first tab.",
     "columnMapHint": "For each field, the exact column name in the contractor's spreadsheet. Leave blank what the spreadsheet does not carry. Route, value and weight are required to read the preview.",
     "columnMapTitle": "Spreadsheet columns",
-    "arrivalReferencePatternHint": "Regular expression that reads the cargo number in the invoice text; it needs exactly one parenthesized group. The server checks the pattern on save. Empty means no reading.",
+    "arrivalReferenceLabelHint": "In the invoice additional information, what is written right before the cargo number, such as NroCarga: (copy it exactly, with the colon). Empty means the cargo number is not read.",
     "save": "Save profile",
     "saving": "Saving…",
     "saved": "Profile saved.",
@@ -105,7 +105,7 @@
     "previewEnabled": "Receive spreadsheet preview",
     "previewSheetName": "Tab name",
     "previewColumnMap": "Spreadsheet columns",
-    "arrivalReferencePattern": "Cargo number pattern"
+    "arrivalReferenceLabel": "Text before the cargo number"
   },
   "columns": {
     "contractorReference": "Contractor reference",
@@ -129,6 +129,7 @@
     "tooManyDecimals": "Use at most two decimal places.",
     "outOfRange": "Use a value from {{min}} to {{max}}.",
     "tooLong": "Use at most {{max}} characters.",
+    "controlCharacter": "Use a single line, without tabs or line breaks.",
     "duplicateColumn": "This column is already in another field.",
     "requiredForPreview": "Required to read the preview.",
     "invalidEmail": "Enter a valid e-mail.",

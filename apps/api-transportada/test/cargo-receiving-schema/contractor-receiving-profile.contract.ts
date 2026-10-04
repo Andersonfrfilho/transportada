@@ -67,6 +67,7 @@ describe('o perfil de recebimento do contratante (spec 237 T1.2)', () => {
 
   test('tipos: inteiro pequeno para horas e dias, decimal para tolerância, objeto para o mapa', () => {
     expect(columnSqlTypes(contractorReceivingProfiles)).toMatchObject({
+      arrival_reference_label: 'text',
       arrival_reference_pattern: 'text',
       delivery_deadline_business_days: 'smallint',
       match_window_days: 'smallint',
@@ -79,6 +80,8 @@ describe('o perfil de recebimento do contratante (spec 237 T1.2)', () => {
 
   test('as faixas e a coerência da prévia são do banco, não só da tela', () => {
     expect(unqualifiedCheckSqlByName(contractorReceivingProfiles)).toEqual({
+      [`${TABLE}_arrival_reference_label_check`]:
+        'char_length("arrival_reference_label") between 1 and 60 and "arrival_reference_label" !~ \'[[:cntrl:]]\'',
       [`${TABLE}_arrival_reference_pattern_check`]:
         'char_length("arrival_reference_pattern") between 1 and 200',
       [`${TABLE}_delivery_deadline_business_days_check`]:

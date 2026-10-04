@@ -64,7 +64,7 @@ function isPreviewColumnMap(value: unknown): value is PreviewColumnMap | null {
 function isReceivingProfile(value: unknown): value is ReceivingProfile {
   if (!hasExactKeys(value, RECEIVING_PROFILE_KEYS)) return false
   return (
-    (value.arrivalReferencePattern === null || typeof value.arrivalReferencePattern === 'string') &&
+    (value.arrivalReferenceLabel === null || typeof value.arrivalReferenceLabel === 'string') &&
     (value.previewSheetName === null || typeof value.previewSheetName === 'string') &&
     isNullableInteger(value.deliveryDeadlineBusinessDays) &&
     isNullableInteger(value.separationWindowHours) &&

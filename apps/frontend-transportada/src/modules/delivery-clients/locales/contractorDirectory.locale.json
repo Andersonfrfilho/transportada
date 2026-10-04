@@ -89,7 +89,7 @@
     "previewSheetNameHint": "Aba da planilha que tem os dados, com até 31 caracteres. Em branco, vale a primeira aba.",
     "columnMapHint": "Para cada campo, o nome exato da coluna na planilha do contratante. Deixe em branco o que a planilha não traz. Roteiro, valor e peso são obrigatórios para ler a prévia.",
     "columnMapTitle": "Colunas da planilha",
-    "arrivalReferencePatternHint": "Expressão regular que lê o número da carga no texto da nota; precisa de exatamente um grupo entre parênteses. O servidor confere o padrão ao salvar. Em branco, sem leitura.",
+    "arrivalReferenceLabelHint": "No texto das informações adicionais da nota, o que vem escrito logo antes do número da carga, como NroCarga: (copie igual, com os dois-pontos). Em branco, o número da carga não é lido.",
     "save": "Salvar perfil",
     "saving": "Salvando…",
     "saved": "Perfil salvo.",
@@ -105,7 +105,7 @@
     "previewEnabled": "Receber prévia da planilha",
     "previewSheetName": "Nome da aba",
     "previewColumnMap": "Colunas da planilha",
-    "arrivalReferencePattern": "Padrão do número da carga"
+    "arrivalReferenceLabel": "Texto que antecede o número da carga"
   },
   "columns": {
     "contractorReference": "Referência do contratante",
@@ -129,6 +129,7 @@
     "tooManyDecimals": "Use no máximo duas casas decimais.",
     "outOfRange": "Use um valor de {{min}} a {{max}}.",
     "tooLong": "Use no máximo {{max}} caracteres.",
+    "controlCharacter": "Use uma linha só, sem tabulação nem quebra de linha.",
     "duplicateColumn": "Esta coluna já está em outro campo.",
     "requiredForPreview": "Obrigatório para ler a prévia.",
     "invalidEmail": "Informe um e-mail válido.",

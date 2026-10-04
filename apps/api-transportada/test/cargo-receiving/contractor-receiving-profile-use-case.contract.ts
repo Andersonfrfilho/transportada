@@ -25,7 +25,7 @@ const CONTEXT: CompanyContext = {
 const CONTRACTOR_ID = '00000000-0000-4000-8000-000000000a04'
 
 const RULES: ContractorReceivingProfileRules = {
-  arrivalReferencePattern: null,
+  arrivalReferenceLabel: null,
   deliveryDeadlineBusinessDays: 3,
   isEnabled: true,
   matchWindowDays: 15,

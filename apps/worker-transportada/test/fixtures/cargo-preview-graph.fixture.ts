@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 237 T4.3: o grafo da prévia contra o Postgres de integração — empresa, contratante com o
- * perfil ligado (mapa FR, padrão do `NroCarga`), a prévia na fila e as notas do emitente dele.
+ * perfil ligado (mapa FR, texto que antecede o `NroCarga`), a prévia na fila e as notas do emitente dele.
  * Dados inventados; cada teste usa uma empresa nova (a trilha é append-only e não se apaga).
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
@@ -14,7 +14,7 @@ import { FR_COLUMN_MAP } from './cargo-preview-workbook.fixture.js'
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 export const CONTRACTOR_TAX_ID = '30290856000160'
-export const LOAD_PATTERN = 'NroCarga[: ]*([0-9]+)'
+export const LOAD_LABEL = 'NroCarga:'
 
 export type SeedDocumentInput = {
   /** Só a nota, sem emitente, destinatário nem volumes: quem grava os filhos é a importação. */
@@ -60,9 +60,9 @@ export async function createCargoPreviewGraph(database: Database): Promise<Cargo
   await database.execute(sql`
     insert into contractor_receiving_profiles
       (company_id, contractor_id, is_enabled, preview_enabled, preview_column_map,
-       preview_sheet_name, arrival_reference_pattern)
+       preview_sheet_name, arrival_reference_label)
     values (${companyId}, ${contractorId}, true, true, ${JSON.stringify(FR_COLUMN_MAP)}::text::jsonb,
-      'IMPORTAÇÃO', ${LOAD_PATTERN})`)
+      'IMPORTAÇÃO', ${LOAD_LABEL})`)
   await database.execute(sql`
     insert into stored_objects (id, company_id, provider, bucket, object_key, purpose, mime_type,
       sha256, size_bytes, status)

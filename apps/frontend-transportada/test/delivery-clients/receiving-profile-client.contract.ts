@@ -18,7 +18,7 @@ import { describeRefusedFields } from '../../src/modules/delivery-clients/shared
 const CONTRACTOR_ID = '00000000-0000-4000-8000-000000237001'
 
 const RULES: ReceivingProfileRules = {
-  arrivalReferencePattern: null,
+  arrivalReferenceLabel: null,
   deliveryDeadlineBusinessDays: 3,
   isEnabled: true,
   matchWindowDays: 15,
@@ -109,7 +109,7 @@ describe('o perfil de recebimento no transporte', () => {
     const sent = JSON.parse(call?.body ?? '{}') as Record<string, unknown>
     expect(Object.keys(sent).sort()).toEqual([...RECEIVING_PROFILE_RULE_KEYS].sort())
     expect(sent.separationWindowHours).toBeNull()
-    expect(sent.arrivalReferencePattern).toBeNull()
+    expect(sent.arrivalReferenceLabel).toBeNull()
     expect(sent.previewColumnMap).toBeNull()
   })
 

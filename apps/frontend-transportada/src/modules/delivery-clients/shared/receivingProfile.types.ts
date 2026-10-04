@@ -34,7 +34,8 @@ export const PREVIEW_REQUIRED_FIELDS: readonly PreviewItemField[] = [
 export type PreviewColumnMap = Readonly<Partial<Record<PreviewItemField, string>>>
 
 export type ReceivingProfileRules = Readonly<{
-  arrivalReferencePattern: string | null
+  /** O texto literal antes do número da carga no `infCpl`, nunca expressão regular. */
+  arrivalReferenceLabel: string | null
   deliveryDeadlineBusinessDays: number | null
   isEnabled: boolean
   matchWindowDays: number
@@ -53,7 +54,7 @@ export type ReceivingProfile = ReceivingProfileRules &
   }>
 
 export const RECEIVING_PROFILE_RULE_KEYS = [
-  'arrivalReferencePattern',
+  'arrivalReferenceLabel',
   'deliveryDeadlineBusinessDays',
   'isEnabled',
   'matchWindowDays',
@@ -72,7 +73,7 @@ export const RECEIVING_PROFILE_KEYS = [
 ] as const
 
 export const RECEIVING_PROFILE_LIMITS = {
-  arrivalReferencePatternMaxLength: 200,
+  arrivalReferenceLabelMaxLength: 60,
   deliveryDeadlineBusinessDays: { max: 60, min: 1 },
   matchWindowDays: { max: 60, min: 1 },
   previewColumnNameMaxLength: 80,

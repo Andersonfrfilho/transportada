@@ -123,13 +123,13 @@ export function ReceivingProfileGroups({
           />
         </div>
         <ReceivingFormField
-          fieldName="arrivalReferencePattern"
-          hint={t('profile.arrivalReferencePatternHint')}
+          fieldName="arrivalReferenceLabel"
+          hint={t('profile.arrivalReferenceLabelHint')}
           isDisabled={isDisabled}
-          issue={feedback.issueFor('arrivalReferencePattern')}
-          label={t('fields.arrivalReferencePattern')}
-          onChange={(value) => form.setField('arrivalReferencePattern', value)}
-          value={draft.arrivalReferencePattern}
+          issue={feedback.issueFor('arrivalReferenceLabel')}
+          label={t('fields.arrivalReferenceLabel')}
+          onChange={(value) => form.setField('arrivalReferenceLabel', value)}
+          value={draft.arrivalReferenceLabel}
         />
       </fieldset>
     </>

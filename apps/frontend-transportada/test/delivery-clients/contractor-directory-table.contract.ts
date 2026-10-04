@@ -240,7 +240,7 @@ describe('o estado da lista na URL (web.md §7)', () => {
 
 describe('selo de recebimento lido do perfil', () => {
   const PROFILE: ReceivingProfile = {
-    arrivalReferencePattern: null,
+    arrivalReferenceLabel: null,
     contractorId: 'c-1',
     deliveryDeadlineBusinessDays: 3,
     isEnabled: true,

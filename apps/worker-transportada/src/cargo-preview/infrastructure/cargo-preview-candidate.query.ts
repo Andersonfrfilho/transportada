@@ -46,7 +46,7 @@ export type CandidateWindow = {
   readonly companyId: string
   readonly emitterTaxId: string
   readonly from: Date
-  readonly loadReferencePattern: string | null
+  readonly loadReferenceLabel: string | null
   readonly to: Date
 }
 
@@ -112,7 +112,7 @@ export async function selectCandidateDocuments(
     issuedAt: row.issuedAt.toISOString(),
     loadReference: extractLoadReference({
       additionalInfo: row.additionalInformation ?? undefined,
-      pattern: window.loadReferencePattern,
+      label: window.loadReferenceLabel,
     }),
     number: row.number,
     recipientCity: row.recipientCity ?? undefined,

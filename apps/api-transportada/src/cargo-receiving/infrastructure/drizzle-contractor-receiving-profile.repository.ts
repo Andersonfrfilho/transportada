@@ -132,7 +132,7 @@ function toColumns(rules: ContractorReceivingProfileRules) {
 
 function toRules(row: ProfileRow): ContractorReceivingProfileRules {
   return {
-    arrivalReferencePattern: row.arrivalReferencePattern,
+    arrivalReferenceLabel: row.arrivalReferenceLabel,
     deliveryDeadlineBusinessDays: row.deliveryDeadlineBusinessDays,
     isEnabled: row.isEnabled,
     matchWindowDays: row.matchWindowDays,

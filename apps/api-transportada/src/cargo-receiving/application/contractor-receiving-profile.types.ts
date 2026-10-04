@@ -8,7 +8,8 @@ export type PreviewColumnMap = Readonly<Partial<Record<PreviewItemField, string>
 
 /** ADR-0094 §2: o que o `PUT` grava — sempre o perfil inteiro, `null` onde não há regra. */
 export type ContractorReceivingProfileRules = {
-  readonly arrivalReferencePattern: string | null
+  /** O texto que antecede o número da carga no `infCpl` (ex.: `NroCarga:`), literal. */
+  readonly arrivalReferenceLabel: string | null
   readonly deliveryDeadlineBusinessDays: number | null
   readonly isEnabled: boolean
   readonly matchWindowDays: number

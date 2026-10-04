@@ -47,7 +47,7 @@ const testWithPostgres = databaseUrl === undefined ? test.skip : test
 type TestDatabase = ReturnType<typeof createDatabaseProvider>
 
 const RULES = {
-  arrivalReferencePattern: 'NroCarga\\s*[:=]?\\s*(\\d+)',
+  arrivalReferenceLabel: 'NroCarga:',
   deliveryDeadlineBusinessDays: 3,
   isEnabled: true,
   matchWindowDays: 15,
@@ -118,7 +118,8 @@ describe('o perfil de recebimento contra Postgres (spec 237 T1.3)', () => {
           { ...base, weightTolerancePercent: '100.01' },
           { ...base, previewEnabled: true },
           { ...base, previewSheetName: 'x'.repeat(32) },
-          { ...base, arrivalReferencePattern: '' },
+          { ...base, arrivalReferenceLabel: '' },
+          { ...base, arrivalReferenceLabel: 'Nro\nCarga:' },
         ]
 
         for (const values of violations) {

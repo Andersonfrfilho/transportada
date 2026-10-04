@@ -76,7 +76,7 @@ const [ALFA, BETA, GAMA, , EPSILON] = CONTRACTORS as readonly [
 
 function profileOf(owner: SyntheticContractor, overrides: Record<string, unknown>) {
   return {
-    arrivalReferencePattern: null,
+    arrivalReferenceLabel: null,
     contractorId: owner.id,
     deliveryDeadlineBusinessDays: 3,
     isEnabled: true,
@@ -94,7 +94,7 @@ function profileOf(owner: SyntheticContractor, overrides: Record<string, unknown
 
 const PROFILES: Readonly<Record<string, unknown>> = {
   [ALFA.id]: profileOf(ALFA, {
-    arrivalReferencePattern: 'Carga\\s*(\\d+)',
+    arrivalReferenceLabel: 'NroCarga:',
     previewColumnMap: {
       city: 'Coluna Cidade',
       contractorReference: 'Coluna Pedido',

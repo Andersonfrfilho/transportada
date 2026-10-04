@@ -122,6 +122,17 @@ describe('a ficha do contratante: dados e perfil', () => {
     expect(text).toContain('painel de prazos quando ele estiver disponível')
     rendered.unmount()
   })
+
+  /** Revisão de segurança S3: texto literal em português simples, nunca expressão regular. */
+  test('o número da carga é lido pelo texto que vem antes dele, sem expressão regular', async () => {
+    const { rendered } = await openFicha('Alfa Indústria Fictícia')
+    const text = document.body.textContent ?? ''
+
+    expect(fieldByLabel('Texto que antecede o número da carga').value).toBe('')
+    expect(text).toContain('o que vem escrito logo antes do número da carga, como NroCarga:')
+    expect(text).not.toContain('Expressão regular')
+    rendered.unmount()
+  })
 })
 
 describe('salvar o perfil: o PUT leva todas as chaves', () => {
@@ -137,7 +148,7 @@ describe('salvar o perfil: o PUT leva todas as chaves', () => {
     expect(saved?.contractorId).toBe(CONTRACTOR_IDS.gama)
     expect(Object.keys(saved?.rules ?? {}).sort()).toEqual([...RECEIVING_PROFILE_RULE_KEYS].sort())
     expect(saved?.rules).toEqual({
-      arrivalReferencePattern: null,
+      arrivalReferenceLabel: null,
       deliveryDeadlineBusinessDays: null,
       isEnabled: false,
       matchWindowDays: 15,

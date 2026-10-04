@@ -21,7 +21,7 @@ import {
 } from '../../src/modules/delivery-clients/shared/receivingProfile.types'
 
 const SAVED_PROFILE: ReceivingProfile = {
-  arrivalReferencePattern: 'Carga\\s*(\\d+)',
+  arrivalReferenceLabel: 'NroCarga:',
   contractorId: '00000000-0000-4000-8000-000000237001',
   deliveryDeadlineBusinessDays: 3,
   isEnabled: true,
@@ -57,7 +57,7 @@ describe('o rascunho nasce do perfil, ou dos padrões quando ele não existe', (
     expect(draft.separationWindowHours).toBe('')
     expect(draft.deliveryDeadlineBusinessDays).toBe('')
     expect(draft.previewSheetName).toBe('')
-    expect(draft.arrivalReferencePattern).toBe('')
+    expect(draft.arrivalReferenceLabel).toBe('')
   })
 
   test('o mapa de colunas tem os 13 campos fixos, todos vazios', () => {
@@ -75,7 +75,7 @@ describe('o rascunho nasce do perfil, ou dos padrões quando ele não existe', (
     expect(draft.matchWindowDays).toBe('20')
     expect(draft.weightTolerancePercent).toBe('2,5')
     expect(draft.previewSheetName).toBe('Aba Sintética')
-    expect(draft.arrivalReferencePattern).toBe('Carga\\s*(\\d+)')
+    expect(draft.arrivalReferenceLabel).toBe('NroCarga:')
     expect(draft.previewColumnMap.routeName).toBe('Coluna Roteiro')
     expect(draft.previewColumnMap.city).toBe('')
   })
@@ -87,7 +87,7 @@ describe('o PUT leva todas as chaves, com null onde não há regra (ADR-0094 §5
 
     expect(Object.keys(rules).sort()).toEqual([...RECEIVING_PROFILE_RULE_KEYS].sort())
     expect(rules).toEqual({
-      arrivalReferencePattern: null,
+      arrivalReferenceLabel: null,
       deliveryDeadlineBusinessDays: null,
       isEnabled: false,
       matchWindowDays: 15,
@@ -111,13 +111,13 @@ describe('o PUT leva todas as chaves, com null onde não há regra (ADR-0094 §5
   test('texto só com espaços é null, e as pontas são aparadas', () => {
     const rules = toReceivingProfileRules(
       draftWith({
-        arrivalReferencePattern: '   ',
+        arrivalReferenceLabel: '   ',
         previewSheetName: '  Minha aba  ',
         separationWindowHours: ' 48 ',
       }),
     )
 
-    expect(rules.arrivalReferencePattern).toBeNull()
+    expect(rules.arrivalReferenceLabel).toBeNull()
     expect(rules.previewSheetName).toBe('Minha aba')
     expect(rules.separationWindowHours).toBe(48)
   })
@@ -205,24 +205,34 @@ describe('as faixas são as do servidor', () => {
     expect(issueFor('-1')).toEqual({ code: 'notANumber' })
   })
 
-  test('aba até 31 caracteres, padrão até 200 e coluna até 80', () => {
+  test('aba até 31 caracteres, texto da carga até 60 e coluna até 80', () => {
     const issues = validateReceivingProfileDraft(
       draftWith({
-        arrivalReferencePattern: 'x'.repeat(201),
+        arrivalReferenceLabel: 'x'.repeat(61),
         previewColumnMap: columnMapWith({ city: 'c'.repeat(81) }),
         previewSheetName: 's'.repeat(32),
       }),
     )
 
     expect(issues.previewSheetName).toEqual({ code: 'tooLong', max: 31 })
-    expect(issues.arrivalReferencePattern).toEqual({ code: 'tooLong', max: 200 })
+    expect(issues.arrivalReferenceLabel).toEqual({ code: 'tooLong', max: 60 })
     expect(issues['previewColumnMap.city']).toEqual({ code: 'tooLong', max: 80 })
     expect(
       validateReceivingProfileDraft(
-        draftWith({ previewSheetName: 's'.repeat(31), arrivalReferencePattern: 'x'.repeat(200) }),
+        draftWith({ previewSheetName: 's'.repeat(31), arrivalReferenceLabel: 'x'.repeat(60) }),
       ),
     ).toEqual({})
   })
+
+  /** Revisão de segurança S3: o texto é literal e de uma linha, o mesmo que o servidor aceita. */
+  test.each(['Nro\nCarga:', 'Nro\tCarga:', 'Nro\u0000Carga:'])(
+    'texto da carga com caractere de controle (%p) é recusado no campo',
+    (label) => {
+      expect(validateReceivingProfileDraft(draftWith({ arrivalReferenceLabel: label }))).toEqual({
+        arrivalReferenceLabel: { code: 'controlCharacter' },
+      })
+    },
+  )
 })
 
 describe('o mapa de colunas', () => {

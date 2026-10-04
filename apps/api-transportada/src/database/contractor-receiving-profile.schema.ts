@@ -43,8 +43,10 @@ export const contractorReceivingProfiles = pgTable(
     previewSheetName: text('preview_sheet_name'),
     /** Nome de coluna da planilha → campo do item; o formato é validado na fronteira (Zod). */
     previewColumnMap: jsonb('preview_column_map').$type<Readonly<Record<string, string>>>(),
-    /** Dado, nunca executado na gravação (ADR-0094 §2): a fase que o roda limita entrada e tempo. */
+    /** Deprecada pela revisão de segurança S3 (expressão do usuário); sem leitor nem escritor. */
     arrivalReferencePattern: text('arrival_reference_pattern'),
+    /** O texto literal que antecede o número da carga no `infCpl` (ex.: `NroCarga:`). */
+    arrivalReferenceLabel: text('arrival_reference_label'),
     requiresDamageCheck: boolean('requires_damage_check').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -100,6 +102,10 @@ export const contractorReceivingProfiles = pgTable(
     check(
       'contractor_receiving_profiles_arrival_reference_pattern_check',
       sql`char_length(${table.arrivalReferencePattern}) between 1 and 200`,
+    ),
+    check(
+      'contractor_receiving_profiles_arrival_reference_label_check',
+      sql`char_length(${table.arrivalReferenceLabel}) between 1 and 60 and ${table.arrivalReferenceLabel} !~ '[[:cntrl:]]'`,
     ),
   ],
 )

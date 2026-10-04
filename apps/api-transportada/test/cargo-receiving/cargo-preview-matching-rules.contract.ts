@@ -277,38 +277,57 @@ describe('as regras do vínculo (spec 237 RF5a)', () => {
   })
 })
 
-describe('o NroCarga lido do infCpl (spec 237 RF5a, ADR-0094 §2)', () => {
-  const PATTERN = 'NroCarga:\\s*(\\d+)'
+describe('o NroCarga lido do infCpl (spec 237 RF5a, ADR-0094 §2, segurança S3)', () => {
+  const LABEL = 'NroCarga:'
 
+  /** O formato real do `infCpl` (anonimizado): o número no meio, ou no fim do texto. */
   test.each([
-    ['LACRE: 1020275  - NroCarga: 69380', '69380'],
-    ['NroCarga:69381 LACRE: 1', '69381'],
+    ['LACRE: 1020275  - NroCarga: 69380 B.Calc.ST: 123.45', '69380'],
+    ['123456 / 1020275  - NroCarga: 69381', '69381'],
+    ['NroCarga:69382 LACRE: 1', '69382'],
+    ['nrocarga: 69383', '69383'],
+    ['NroCarga:      69384', undefined],
+    ['NroCarga: - 69385', undefined],
     ['sem carga', undefined],
     [undefined, undefined],
   ])('%p → %p', (additionalInfo, expected) => {
-    expect(extractLoadReference({ additionalInfo, pattern: PATTERN })).toBe(expected)
+    expect(extractLoadReference({ additionalInfo, label: LABEL })).toBe(expected)
+  })
+
+  test('a referência tem até 30 letras ou dígitos', () => {
+    const additionalInfo = `NroCarga: ${'A1'.repeat(20)}`
+    expect(extractLoadReference({ additionalInfo, label: LABEL })).toBe('A1'.repeat(15))
   })
 
   test('só os primeiros 2 000 caracteres são lidos', () => {
     const additionalInfo = `${'x'.repeat(2_000)} NroCarga: 69380`
-    expect(extractLoadReference({ additionalInfo, pattern: PATTERN })).toBeUndefined()
+    expect(extractLoadReference({ additionalInfo, label: LABEL })).toBeUndefined()
   })
 
-  // Cada entrada CASA com o padrão: sem o filtro, o padrão perigoso devolveria algo.
-  test.each([
-    ['(', 'NroCarga: 1'],
-    ['NroCarga: (\\d+) (\\d+)', 'NroCarga: 1 2'],
-    ['(a+)+$', 'aaa'],
-    ['Nro(?=Carga)(\\w+)', 'NroCarga'],
-    ['(\\d+)\\1', '1212'],
-  ])(
-    'padrão inválido ou perigoso (%p) devolve undefined e nunca lança',
-    (pattern, additionalInfo) => {
-      expect(extractLoadReference({ additionalInfo, pattern })).toBeUndefined()
-    },
-  )
+  test('o texto do perfil é literal, nunca expressão', () => {
+    expect(extractLoadReference({ additionalInfo: 'Carga (n.): 7', label: 'Carga (n.):' })).toBe(
+      '7',
+    )
+    expect(extractLoadReference({ additionalInfo: 'NroCargaX: 7', label: 'NroCarga.:' })).toBe(
+      undefined,
+    )
+  })
 
-  test('sem padrão no perfil, não há carga', () => {
-    expect(extractLoadReference({ additionalInfo: 'NroCarga: 1', pattern: null })).toBeUndefined()
+  /** Os ataques do revisor: antes 2,7 s e 23,6 s; agora o texto é literal e a leitura, linear. */
+  test.each([
+    ['NroCarga:(\\d*)\\d*\\d*\\d*\\d*X', `NroCarga:${'1'.repeat(200)}`],
+    ['(\\d+)\\s*\\d*\\s*\\d*\\s*\\d*\\s*\\d*\\s*\\d*Z', '1'.repeat(1_990)],
+    ['a', 'a'.repeat(2_000)],
+  ])('texto hostil %p não retrocede', (label, additionalInfo) => {
+    const startedAt = performance.now()
+    for (let index = 0; index < 100; index += 1) extractLoadReference({ additionalInfo, label })
+    expect(performance.now() - startedAt).toBeLessThan(1_000)
+  })
+
+  test('sem texto no perfil, ou texto inválido gravado antes, não há carga', () => {
+    expect(extractLoadReference({ additionalInfo: 'NroCarga: 1', label: null })).toBeUndefined()
+    expect(
+      extractLoadReference({ additionalInfo: 'Nro\nCarga: 1', label: 'Nro\nCarga:' }),
+    ).toBeUndefined()
   })
 })

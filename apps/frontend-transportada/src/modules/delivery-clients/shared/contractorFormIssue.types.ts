@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
 export type FormIssueCode =
+  | 'controlCharacter'
   | 'duplicateColumn'
   | 'invalidEmail'
   | 'notAnInteger'

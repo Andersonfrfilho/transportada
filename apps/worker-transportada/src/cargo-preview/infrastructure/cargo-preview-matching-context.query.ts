@@ -21,7 +21,7 @@ import type { MatchContractorParams } from './cargo-preview-matching.writer.js'
 const DAY_MS = 86_400_000
 
 export type MatchingContext = {
-  readonly arrivalReferencePattern: string | null
+  readonly arrivalReferenceLabel: string | null
   readonly matchWindowDays: number
   readonly taxId: string
   readonly weightTolerancePercent: number
@@ -33,7 +33,7 @@ export async function loadContext(
 ): Promise<MatchingContext | undefined> {
   const [row] = await tx
     .select({
-      arrivalReferencePattern: contractorReceivingProfiles.arrivalReferencePattern,
+      arrivalReferenceLabel: contractorReceivingProfiles.arrivalReferenceLabel,
       matchWindowDays: contractorReceivingProfiles.matchWindowDays,
       taxId: contractors.taxId,
       weightTolerancePercent: contractorReceivingProfiles.weightTolerancePercent,

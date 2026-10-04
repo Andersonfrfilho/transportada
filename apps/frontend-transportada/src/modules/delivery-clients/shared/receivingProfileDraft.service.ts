@@ -11,7 +11,7 @@ import {
 
 /** O formulário trabalha com texto: campo em branco é "sem regra", e só a hora de gravar vira número ou null. */
 export type ReceivingProfileDraft = Readonly<{
-  arrivalReferencePattern: string
+  arrivalReferenceLabel: string
   deliveryDeadlineBusinessDays: string
   isEnabled: boolean
   matchWindowDays: string
@@ -48,7 +48,7 @@ export function createReceivingProfileDraft(
   profile: ReceivingProfile | null,
 ): ReceivingProfileDraft {
   return {
-    arrivalReferencePattern: profile?.arrivalReferencePattern ?? '',
+    arrivalReferenceLabel: profile?.arrivalReferenceLabel ?? '',
     deliveryDeadlineBusinessDays: optionalNumberText(profile?.deliveryDeadlineBusinessDays ?? null),
     isEnabled: profile?.isEnabled ?? false,
     matchWindowDays: String(
@@ -86,7 +86,7 @@ function toColumnMap(draft: ReceivingProfileDraft): PreviewColumnMap | null {
 /** As 10 chaves, sempre: campo omitido o servidor recusa, e `null` é o jeito de dizer "sem regra". */
 export function toReceivingProfileRules(draft: ReceivingProfileDraft): ReceivingProfileRules {
   return {
-    arrivalReferencePattern: toOptionalText(draft.arrivalReferencePattern),
+    arrivalReferenceLabel: toOptionalText(draft.arrivalReferenceLabel),
     deliveryDeadlineBusinessDays: toOptionalNumber(draft.deliveryDeadlineBusinessDays),
     isEnabled: draft.isEnabled,
     matchWindowDays: Number(draft.matchWindowDays.trim()),

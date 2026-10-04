@@ -120,7 +120,7 @@ async function matchPreview(
     companyId: input.companyId,
     emitterTaxId: input.context.taxId,
     from: new Date(receivedMs - windowMs),
-    loadReferencePattern: input.context.arrivalReferencePattern,
+    loadReferenceLabel: input.context.arrivalReferenceLabel,
     to: new Date(Math.min(input.now.getTime(), receivedMs + windowMs)),
   })
   const result = resolveCargoPreviewMatches({

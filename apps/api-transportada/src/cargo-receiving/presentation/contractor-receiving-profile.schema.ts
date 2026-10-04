@@ -7,9 +7,9 @@
 import { z } from 'zod'
 
 import {
-  ARRIVAL_REFERENCE_PATTERN_ISSUE_MESSAGES,
-  findArrivalReferencePatternIssue,
-} from '../domain/arrival-reference-pattern.policy.js'
+  ARRIVAL_REFERENCE_LABEL_ISSUE_MESSAGES,
+  findArrivalReferenceLabelIssue,
+} from '../domain/arrival-reference-label.policy.js'
 import {
   PREVIEW_ITEM_FIELDS,
   PREVIEW_REQUIRED_FIELDS,
@@ -22,15 +22,14 @@ const HUNDREDTHS = 100
 const boundedInteger = (range: { readonly max: number; readonly min: number }) =>
   z.number().int().min(range.min).max(range.max)
 
-const arrivalReferencePatternSchema = z
+/** Revisão de segurança S3: texto literal, aparado; nunca expressão regular do usuário. */
+const arrivalReferenceLabelSchema = z
   .string()
-  .min(1)
-  .max(LIMITS.arrivalReferencePatternMaxLength)
-  .superRefine((pattern, context) => {
-    if (pattern.length > LIMITS.arrivalReferencePatternMaxLength) return
-    const issue = findArrivalReferencePatternIssue(pattern)
+  .trim()
+  .superRefine((label, context) => {
+    const issue = findArrivalReferenceLabelIssue(label)
     if (issue !== undefined) {
-      context.addIssue({ code: 'custom', message: ARRIVAL_REFERENCE_PATTERN_ISSUE_MESSAGES[issue] })
+      context.addIssue({ code: 'custom', message: ARRIVAL_REFERENCE_LABEL_ISSUE_MESSAGES[issue] })
     }
   })
 
@@ -60,7 +59,7 @@ const weightTolerancePercentSchema = z
 
 export const contractorReceivingProfileSchema = z
   .object({
-    arrivalReferencePattern: arrivalReferencePatternSchema.nullable(),
+    arrivalReferenceLabel: arrivalReferenceLabelSchema.nullable(),
     deliveryDeadlineBusinessDays: boundedInteger(LIMITS.deliveryDeadlineBusinessDays).nullable(),
     isEnabled: z.boolean(),
     matchWindowDays: boundedInteger(LIMITS.matchWindowDays),

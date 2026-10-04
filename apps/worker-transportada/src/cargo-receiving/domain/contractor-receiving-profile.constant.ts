@@ -31,7 +31,7 @@ export const PREVIEW_REQUIRED_FIELDS: readonly PreviewItemField[] = [
 ]
 
 export const RECEIVING_PROFILE_LIMITS = {
-  arrivalReferencePatternMaxLength: 200,
+  arrivalReferenceLabelMaxLength: 60,
   deliveryDeadlineBusinessDays: { max: 60, min: 1 },
   matchWindowDays: { max: 60, min: 1 },
   previewColumnNameMaxLength: 80,

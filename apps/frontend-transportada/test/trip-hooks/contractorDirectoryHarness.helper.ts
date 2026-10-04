@@ -65,7 +65,7 @@ export const CONTRACTORS: readonly Contractor[] = [
 ]
 
 export const ALFA_PROFILE: ReceivingProfile = {
-  arrivalReferencePattern: null,
+  arrivalReferenceLabel: null,
   contractorId: CONTRACTOR_IDS.alfa,
   deliveryDeadlineBusinessDays: 3,
   isEnabled: true,

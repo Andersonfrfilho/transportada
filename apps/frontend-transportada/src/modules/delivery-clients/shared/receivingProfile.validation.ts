@@ -12,6 +12,7 @@ type Range = Readonly<{ max: number; min: number }>
 const INTEGER_PATTERN = /^\d+$/u
 const DECIMAL_PATTERN = /^\d+(?:[.,]\d+)?$/u
 const MAX_DECIMAL_PLACES = 2
+const CONTROL_CHARACTER = /\p{Cc}/u
 
 function validateInteger(
   input: Readonly<{ isRequired: boolean; range: Range; value: string }>,
@@ -39,6 +40,13 @@ function validateTolerance(value: string): FormIssue | undefined {
 
 function validateLength(input: Readonly<{ max: number; value: string }>): FormIssue | undefined {
   return input.value.trim().length > input.max ? { code: 'tooLong', max: input.max } : undefined
+}
+
+/** O mesmo texto que o servidor aceita: literal, de uma linha, aparado. */
+function validateArrivalReferenceLabel(value: string): FormIssue | undefined {
+  const tooLong = validateLength({ max: LIMITS.arrivalReferenceLabelMaxLength, value })
+  if (tooLong !== undefined) return tooLong
+  return CONTROL_CHARACTER.test(value.trim()) ? { code: 'controlCharacter' } : undefined
 }
 
 function normalizeColumnName(columnName: string): string {
@@ -69,10 +77,7 @@ function validateColumnMap(draft: ReceivingProfileDraft): FormIssues {
 /** As mesmas faixas que o servidor aplica: o erro aparece no campo, antes de ir à rede. */
 export function validateReceivingProfileDraft(draft: ReceivingProfileDraft): FormIssues {
   const issues: Record<string, FormIssue | undefined> = {
-    arrivalReferencePattern: validateLength({
-      max: LIMITS.arrivalReferencePatternMaxLength,
-      value: draft.arrivalReferencePattern,
-    }),
+    arrivalReferenceLabel: validateArrivalReferenceLabel(draft.arrivalReferenceLabel),
     deliveryDeadlineBusinessDays: validateInteger({
       isRequired: false,
       range: LIMITS.deliveryDeadlineBusinessDays,

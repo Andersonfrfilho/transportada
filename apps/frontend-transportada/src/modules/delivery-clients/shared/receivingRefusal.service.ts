@@ -12,7 +12,7 @@ const PREVIEW_COLUMN_PREFIX = 'previewColumnMap.'
  * esconder o desconhecido devolveria o aviso genérico que esta regra conserta.
  */
 const FIELD_LABEL_KEYS: Readonly<Record<string, string>> = {
-  arrivalReferencePattern: 'fields.arrivalReferencePattern',
+  arrivalReferenceLabel: 'fields.arrivalReferenceLabel',
   closingPeriod: 'details.closingPeriod',
   deliveryDeadlineBusinessDays: 'fields.deliveryDeadlineBusinessDays',
   displayName: 'details.displayName',
