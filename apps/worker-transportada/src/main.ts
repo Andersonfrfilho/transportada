@@ -313,7 +313,9 @@ type RuntimeLoggerFactory = (input: {
   readonly version: string
 }) => RuntimeLogger
 
-type RuntimeDatabaseFactory = (input: { readonly connection: string }) => RuntimeDatabasePort
+type RuntimeDatabaseFactory = (input: {
+  readonly connection: Parameters<typeof createDrizzleProvider>[0]['connection']
+}) => RuntimeDatabasePort
 
 type RuntimeRabbitMqProviderFactory = (input: {
   readonly connection: string
@@ -554,7 +556,10 @@ export async function startWorkerRuntime(
   const digitalCertificateSecretService = createDigitalCertificateSecretService({
     envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
   })
-  const database = databaseFactory({ connection: config.databaseUrl })
+  // O corte do expurgo faz `timestamptz - make_interval(days => N)`, que depende do fuso da sessão.
+  const database = databaseFactory({
+    connection: { connection: { TimeZone: 'UTC' }, url: config.databaseUrl },
+  })
   const storageGateway = storageGatewayFactory({ environment })
   const storageBucket =
     environment.OBJECT_STORAGE_BUCKET ?? environment.STORAGE_BUCKET ?? 'transportada-private'
