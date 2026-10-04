@@ -203,6 +203,27 @@ describe('cadastro de tipos: Produtos (spec 241 RF10)', () => {
   )
 
   test(
+    'Enter no seletor de Produtos também dispensa a dica',
+    scenario(async () => {
+      await mount([buildType({ itemsMode: 'optional' })])
+      const trigger = control(PRODUCTS_LABEL)
+      if (trigger === null) throw new Error('CONTROL_NOT_FOUND')
+      await act(async () => {
+        trigger.focus()
+        await Promise.resolve()
+      })
+      await waitFor(() => expect(document.body.textContent).toContain('Sem produtos: a ocorrência'))
+
+      await act(async () => {
+        trigger.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }))
+        await Promise.resolve()
+      })
+
+      expect(document.body.textContent).not.toContain('Sem produtos: a ocorrência')
+    }),
+  )
+
+  test(
     'voltar para Opcional grava itemsMode optional e mantém a política já gravada',
     scenario(async () => {
       await mount([buildType({ itemsMode: 'off', redeliveryPolicy: 'unset' })])

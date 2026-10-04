@@ -13,6 +13,8 @@ import styles from './tooltip.module.css'
  */
 export const TOOLTIP_OPEN_DELAY_MS = 150
 
+const DISMISSING_KEYS = ['ArrowDown', 'ArrowUp', 'Enter', ' ']
+
 type TooltipProps = Readonly<{
   /** O elemento que hospeda a dica — botão, ícone, célula. */
   children: ReactNode
@@ -68,14 +70,14 @@ export function Tooltip({ children, label }: TooltipProps): JSX.Element {
         onBlur={close}
         /**
          * Ativar o gatilho dispensa a dica: um seletor que abre a lista por baixo dela fica com as
-         * opções cobertas (a dica pinta por cima, com `z-index` maior). Enter e Espaço já chegam
-         * como clique; as setas, que também abrem o seletor, não.
+         * opções cobertas (a dica pinta por cima, com `z-index` maior). O seletor abre no `keydown`
+         * de Enter, Espaço e setas e cancela o clique do teclado, então as teclas fecham a dica aqui.
          */
         onClick={close}
         /** Foco de teclado abre **na hora**: quem chegou por Tab escolheu parar aqui. */
         onFocus={() => setIsOpen(true)}
         onKeyDown={(event) => {
-          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') close()
+          if (DISMISSING_KEYS.includes(event.key)) close()
         }}
         onMouseEnter={open}
         onMouseLeave={close}
