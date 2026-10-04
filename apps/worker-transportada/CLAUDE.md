@@ -94,7 +94,10 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   - Detalhe: docs/ai-context § "A ocorrência tem duas conversas".
 
 - **A prévia da carga é lida e vinculada aqui** (spec 237, ADR-0094 §8) — trilho `cargo-preview.v1`,
-  prefetch 1. O leitor e a política de vínculo da API estão em `src/cargo-receiving/domain/` por
+  prefetch 1. A leitura roda numa `worker_thread` terminada em 10 s (`PREVIEW_PARSE_TIMEOUT`; o Bun
+  ignora `resourceLimits`, o teto de memória são os tetos do leitor); reentrega de prévia já `processing`
+  não relê; o vínculo tem 5 s por prévia e `statement_timeout` de 30 s; o objeto é achado pela linha,
+  nunca pela mensagem, e acima de 960 KiB nem é baixado (revisão de segurança, ADR-0094 §8). O leitor e a política de vínculo da API estão em `src/cargo-receiving/domain/` por
   **cópia por valor idêntica** (contrato de paridade byte a byte): mudou lá, copie aqui. O vínculo toma a
   trava advisory do contratante (a mesma da API) e grava só o que mudou; item decidido pelo operador
   nunca é relido. **Toda nota nova pede a reavaliação** em `writeDocumentChildren`, num `SAVEPOINT` que

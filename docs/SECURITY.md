@@ -314,12 +314,39 @@ bucket e é aberto por código nosso no worker. É entrada hostil, e os itens gu
   motivo, nunca o valor da célula; o evento de vínculo guarda ids de nota e evidências.
 - **Uma nota, uma prévia** e o operador acima da máquina: unique no vínculo e trava advisory comum.
 
+**Revisão de segurança da Fase 4a (2026-10-04) — o que passou a ser limitado, e como** (medições e
+contratos em `specs/237-…/evidence.md` § "Correções da revisão de segurança da Fase 4a"):
+
+- **S1/S4 — o "teto de 5 s" não existia.** O orçamento do leitor é cooperativo e o parse é síncrono:
+  87 KiB comprimidos (uma linha de ~760 mil células) travaram o event loop por 7,8–8,3 min e subiram a
+  2,27 GB; 123 KiB, 1,36 GB; 2 000 linhas apontando para um decimal de 32,7 mil dígitos, 22,9–23,7 s.
+  Agora: o cabeçalho é linear; decimal em texto acima de 40 caracteres é inválido antes do regex e do
+  `BigInt`; teto de **512 células por linha e 120 000 no total**, contado no texto antes do parser
+  (`PREVIEW_TOO_MANY_CELLS`); o orçamento é conferido por linha também no cabeçalho e nos itens; aba
+  até **8 MiB**, total lido **16 MiB**, última linha com dado **5 000** (a real: 3,39 MB, 3 036
+  células, linha 233). E **a leitura roda numa `worker_thread` terminada em 10 s**
+  (`PREVIEW_PARSE_TIMEOUT`, sem voltar à fila): o event loop do worker segue livre. ⚠️ O Bun 1.3.14
+  **ignora** `resourceLimits` (medido: thread com 64 MB de teto alocou ~500 MB): o teto de memória
+  real são os tetos acima, não a thread. A reentrega do broker de uma leitura já começada não relê
+  (`PREVIEW_PROCESSING_INTERRUPTED`).
+- **S2 — o vínculo sob a trava do contratante era quadrático.** 19 900 linhas num cliente: 9,9 s →
+  0,17 s. Orçamento cooperativo de 5 s por prévia e `statement_timeout` de 30 s na transação; a prévia
+  nova que estoura fica `PREVIEW_MATCH_TIMEOUT` sem itens, a pronta fica como estava.
+- **S3 — a expressão regular do usuário saiu.** O perfil guarda o TEXTO que antecede o número da
+  carga (`arrival_reference_label`, literal, 1..60, sem controle) e o motor monta
+  `literal + \s{0,5}([A-Za-z0-9]{1,30})`; nada do usuário vira expressão (antes: 2,7 s e 23,6 s com
+  padrões que passavam no filtro). `arrival_reference_pattern` fica no banco, sem leitor nem escritor.
+- **S5 — envio com teto:** 20 por 300 s por usuário (Postgres, `cargo-preview-upload`) e no máximo
+  5 prévias `queued`/`processing` por contratante (`CARGO_PREVIEW_TOO_MANY_OPEN`, sob trava advisory).
+- **S6 —** o vínculo reforçado que contradiz um alias o **invalida** (nunca o troca).
+- **S7 —** o worker monta a chave do objeto pela linha da prévia (nunca pela mensagem) e recusa acima
+  de 960 KiB pelo `Content-Length` antes de baixar, contando os bytes enquanto baixa.
+- **S9 —** `fflate` 0.8.3 e `fast-xml-parser` 5.10.1 fixados em versão exata nas duas apps.
+
 **Riscos aceitos / pendências:**
 
-1. **A leitura roda no event loop do worker** (45–70 ms medidos; teto de 5 s pelo orçamento do leitor)
-   com `prefetch 1` — não em `worker_thread` como o anexo anônimo do agregado (ADR-0053). Quem envia é
-   autenticado; uma rajada de prévias hostis seguraria o trilho por até 5 s cada. Se virar problema,
-   a leitura vai para thread como o pdf.js.
+1. **A memória da thread não tem teto do runtime** (o Bun ignora `resourceLimits`): o limite são os
+   tetos do leitor. Se o Bun passar a honrar a opção, ela já está passada (256 MiB).
 2. **Retenção dos itens e do arquivo — decisão pendente do usuário.** Os itens guardam razão social,
    endereço, CEP e valor por linha, e o arquivo fica no bucket, ambos **sem prazo de descarte**.
    Recomendação: descartar o arquivo e anonimizar as colunas de pessoa dos itens (nome, endereço,

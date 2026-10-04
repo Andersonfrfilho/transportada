@@ -347,7 +347,8 @@ log. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 196".
 ## Contratantes e perfil de recebimento (spec 237 T1.4)
 
 Aba "Contratantes" de `/clientes` (`delivery-clients`): ficha com dados do contratante e perfil de
-recebimento. `PUT` do perfil sempre com as 10 chaves; recusa do servidor lista todos os campos com atalho
+recebimento. O número da carga é lido pelo **texto que o antecede** (`arrivalReferenceLabel`, literal, uma
+linha), nunca por expressão regular (revisão de segurança S3). `PUT` do perfil sempre com as 10 chaves; recusa do servidor lista todos os campos com atalho
 (`data-field`). Em teste de DOM, compare foco com `activeElement === campo`, nunca `toBe` sobre nó. Detalhe:
 docs/ai-context/frontend-transportada.md § "Spec 237 T1.4".
 

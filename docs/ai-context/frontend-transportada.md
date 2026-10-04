@@ -1106,3 +1106,13 @@ ações, proposta, prefill, polling), `queries/useCargoPreviews.query.ts`, `muta
 da ficha, e `dailyAllowanceAmount` da diária geral. Exibição: `0.0000` → `0,00`; vazio segue `null`. Pegadinha: `toTypedAmount`
 (**não** tocado) continua devolvendo `''` para zero, então zero em custos de veículo, tabela de frete e outras telas não
 muda — conversor dual permite a diária manter seu significado (zero = "não recebe") sem impactar outras escalas.
+
+## Spec 237 — revisão de segurança da Fase 4a (2026-10-04)
+
+- A ficha do contratante (`delivery-clients`, seção "Avançado") trocou "Padrão do número da carga" (expressão
+  regular) por **"Texto que antecede o número da carga"** (`arrivalReferenceLabel`, até 60 caracteres, uma
+  linha só — `controlCharacter` é o código de campo novo), com ajuda em português simples. O `PUT` segue com
+  as 10 chaves. Prints da ficha refeitos (`specs/237-.../prints/contratante-ficha*`).
+- Recebimento › Prévias: textos para `CARGO_PREVIEW_TOO_MANY_OPEN` (envio recusado com 5 prévias na fila do
+  contratante) e para as falhas novas `PREVIEW_TOO_MANY_CELLS`, `PREVIEW_PROCESSING_INTERRUPTED` e
+  `PREVIEW_MATCH_TIMEOUT`.

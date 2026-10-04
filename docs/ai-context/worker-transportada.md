@@ -268,8 +268,8 @@ próprio (horas, ADR-0056). A coluna de tempo é a de cada tabela (`created_at`,
 ## A prévia da carga é lida e vinculada aqui (spec 237 Fase 4a, ADR-0094 §7/§8)
 
 Trilho `cargo-preview.v1` (main/retry/dead, retry 10 s × 5) com relay próprio sobre
-`cargo_preview_outbox` e consumidor `startCargoPreviewConsumer` com **prefetch 1** (a leitura é CPU no
-event loop: 45–70 ms medidos, teto de 5 s do orçamento do leitor). Duas mensagens:
+`cargo_preview_outbox` e consumidor `startCargoPreviewConsumer` com **prefetch 1** (a leitura roda numa
+`worker_thread` terminada em 10 s — revisão de segurança S1, abaixo). Duas mensagens:
 
 - **`cargo-preview.process`** (gravada pela API no envio): `processCargoPreview` baixa o objeto (ausente
   = `PREVIEW_FILE_MISSING`), confere o sha256 (`PREVIEW_FILE_CORRUPTED`), lê com o perfil (mapa e aba;
@@ -310,6 +310,29 @@ entra. Importação e distribuição passaram a mandar o logger que já tinham a
 os imports deles; `test/cargo-preview/domain-parity.contract.ts` compara byte a byte (e a lista, e a chave
 da trava, e `shared/cargo-preview.constant.ts`). Mudou na API, copie aqui. `fast-xml-parser` entrou como
 dependência do worker na mesma versão da API.
+
+**Revisão de segurança da Fase 4a (2026-10-04).**
+
+- **S1 — a leitura numa thread terminável.** `createThreadedCargoPreviewWorkbookReader`
+  (`cargo-preview/infrastructure/threaded-cargo-preview-workbook.gateway.ts` + `cargo-preview-workbook.worker.ts`,
+  molde do canhoto) roda parse + plano dos itens fora do event loop; passou de
+  `CARGO_PREVIEW_READ_THREAD_CEILING_MS` (10 s), `terminate()` e `PREVIEW_PARSE_TIMEOUT` (resultado, ack).
+  ⚠️ O Bun 1.3.14 **ignora** `resourceLimits` (medido): a opção vai passada (256 MiB), mas o teto real de
+  memória são os tetos do leitor (8 MiB por aba, 512 células por linha, 120 mil no total). A dependência do
+  caso de uso é `workbook: CargoPreviewWorkbookReaderPort` (em teste, `createInProcessCargoPreviewWorkbookReader`).
+  Reentrega do broker (`redelivered`) de prévia já `processing` falha com `PREVIEW_PROCESSING_INTERRUPTED`
+  sem reler — reler o que derrubou o processo é laço de queda; o reenvio do arquivo a reabre na API.
+- **S2 — o vínculo tem prazo sob a trava.** `SET LOCAL statement_timeout` de 30 s na transação do vínculo
+  e orçamento cooperativo de 5 s por prévia (`createMatchBudget`, `CargoPreviewMatchTimeoutError`): a prévia
+  nova que estoura volta inteira (`storeParsed` desfaz) e fica `failed` `PREVIEW_MATCH_TIMEOUT` sem itens; a
+  pronta que estoura numa reavaliação fica como estava e o log conta (`cargo_preview_match_timeout`).
+- **S3 — o `NroCarga` pelo texto literal** do perfil (`arrival_reference_label`), gramática fechada em
+  `load-reference.policy.ts`; nenhuma expressão do usuário roda aqui.
+- **S6 — alias contrariado é apagado** (banco e lista da passada), nunca trocado.
+- **S7 — o objeto pela linha.** A chave é `buildCargoPreviewObjectKey({ companyId, fileObjectId })` da linha
+  (cópia da API, `cargo-preview-object.policy.ts`, paridade) no bucket do worker; a mensagem não decide. O
+  leitor confere o `Content-Length` (`headObject`) e conta os bytes ao baixar: acima de 960 KiB, `failed`
+  `PREVIEW_FILE_TOO_LARGE`.
 
 ⚠️ **`make worker-integration` reusa o banco `<db>_worker_integration`** e não o recria: em 2026-10-04 o
 local estava com o diário de migrations divergente (`column "latitude" ... already exists`). Os passos do

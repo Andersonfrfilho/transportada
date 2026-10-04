@@ -60,7 +60,8 @@ opcionais, e nulo é "o contratante não definiu", nunca "zero". `match_window_d
 | `preview_enabled`                 | `boolean`      | not null, default `false`                | o contratante manda prévia                                        |
 | `preview_sheet_name`              | `text`         | nulo, 1..31 caracteres (limite do Excel) | aba que tem os dados (`IMPORTAÇÃO`); nula = a primeira aba        |
 | `preview_column_map`              | `jsonb`        | nulo, objeto; exigido com prévia ligada  | **nome de coluna → campo** da prévia, nunca posição               |
-| `arrival_reference_pattern`       | `text`         | nulo, 1..200 caracteres                  | expressão que lê `NroCarga` do `infCpl` (fase futura)             |
+| `arrival_reference_pattern`       | `text`         | nulo, 1..200 caracteres                  | **deprecada** (revisão de segurança S3): sem leitor nem escritor  |
+| `arrival_reference_label`         | `text`         | nulo, 1..60, sem caractere de controle   | texto literal que antecede o `NroCarga` no `infCpl`               |
 | `requires_damage_check`           | `boolean`      | not null, default `false`                | conferência de avaria na entrada (Fase 3, D4 aberta: só dado)     |
 
 Mais `id`, `company_id`, `contractor_id`, `created_at`, `updated_at`. CHECK de consistência:
@@ -74,6 +75,16 @@ coluna (1..80 caracteres), no máximo 20 entradas, sem coluna repetida **depois 
 das pontas e caixa — a mesma normalização que o leitor da planilha vai usar). Com `preview_enabled`, o
 mapa precisa ter pelo menos `routeName`, `value` e `weightKg`, que são o mínimo do vínculo (RF5a). O banco
 só garante que é objeto.
+
+_Revisão de segurança da Fase 4a (S3), 2026-10-04 — substitui o parágrafo abaixo:_ o filtro de padrão
+não bastou (`NroCarga:(\d*)\d*\d*\d*\d*X` passava e levava 2,7 s sobre 200 dígitos;
+`(\d+)\s*\d*…Z`, 23,6 s sobre 100). O perfil passou a guardar só o **texto** que antecede o número
+(`arrival_reference_label`, ex.: `NroCarga:`), e o motor monta a gramática fechada
+`literal + \s{0,5}([A-Za-z0-9]{1,30})` sobre os primeiros 2 000 caracteres, sem flag de usuário —
+nenhuma expressão do usuário roda. Conferido contra 277 `infCpl` reais: 277 leituras iguais às do
+padrão antigo. O `PUT` exige `arrivalReferenceLabel` e recusa a chave antiga; a coluna antiga fica,
+sem uso, até uma limpeza decidida à parte. A alternativa "guardar só o rótulo" (tabela abaixo) virou a
+decisão; o formato `CARGA N. 123/A` de outro emitente leria `123`.
 
 `arrival_reference_pattern` é **dado**, nunca executado nesta fase. Na gravação: ≤ 200 caracteres,
 compila com a flag `u` (em `try/catch`, erro vira 400 do campo), tem **exatamente um grupo de captura** (o
@@ -225,20 +236,32 @@ nova** entra no `bun.lock`.
   leitura termina na última linha com dado — a aba real reserva 13,8 mil linhas vazias, e o parse da
   aba inteira mediu **237 ms e 80 MB de heap**, contra milissegundos por linha.
 
-| Limite                               | Teto                                                 | Medido nas quatro planilhas FR          | Erro                       |
-| ------------------------------------ | ---------------------------------------------------- | --------------------------------------- | -------------------------- |
-| tamanho do arquivo                   | 5 MiB                                                | 0,80–0,82 MB                            | `PREVIEW_FILE_TOO_LARGE`   |
-| bytes mágicos                        | `PK\x03\x04`                                         | —                                       | `PREVIEW_NOT_A_WORKBOOK`   |
-| entradas no zip                      | 100                                                  | 25                                      | `PREVIEW_TOO_MANY_ENTRIES` |
-| descompressão por entrada            | 30 MiB                                               | `sheet1.xml` 3,36–3,39 MB (a maior)     | `PREVIEW_ZIP_BOMB`         |
-| descompressão total (entradas lidas) | 60 MiB                                               | ~3,4 MB (arquivo inteiro: 5,65–5,73 MB) | `PREVIEW_ZIP_BOMB`         |
-| `workbook.xml` e `.rels`             | 1 MiB cada                                           | 1,2 KB e 1,4 KB                         | `PREVIEW_ZIP_BOMB`         |
-| nome de entrada                      | sem `..`, `/` inicial, `\`, `C:`, NUL; sem repetição | —                                       | `PREVIEW_ZIP_ENTRY_UNSAFE` |
-| zip64, cifra, método ≠ 0/8           | recusados                                            | nenhum                                  | `PREVIEW_NOT_A_WORKBOOK`   |
-| strings compartilhadas               | 200 000                                              | 492–802                                 | `PREVIEW_TOO_MANY_STRINGS` |
-| texto de uma célula                  | 32 767 (o do Excel)                                  | ≤ 49                                    | `PREVIEW_CELL_TOO_LONG`    |
-| última linha com dado                | 20 000                                               | 127–220 (de 13 792 reservadas)          | `PREVIEW_TOO_MANY_ROWS`    |
-| orçamento de tempo                   | 5 000 ms                                             | 45–70 ms por planilha                   | `PREVIEW_PARSE_TIMEOUT`    |
+| Limite                                | Teto                                                         | Medido nas quatro planilhas FR          | Erro                       |
+| ------------------------------------- | ------------------------------------------------------------ | --------------------------------------- | -------------------------- |
+| tamanho do arquivo                    | 5 MiB                                                        | 0,80–0,82 MB                            | `PREVIEW_FILE_TOO_LARGE`   |
+| bytes mágicos                         | `PK\x03\x04`                                                 | —                                       | `PREVIEW_NOT_A_WORKBOOK`   |
+| entradas no zip                       | 100                                                          | 25                                      | `PREVIEW_TOO_MANY_ENTRIES` |
+| descompressão por entrada             | 8 MiB (era 30)                                               | `sheet1.xml` 3,36–3,39 MB (a maior)     | `PREVIEW_ZIP_BOMB`         |
+| descompressão total (entradas lidas)  | 16 MiB (era 60)                                              | ~3,4 MB (arquivo inteiro: 5,65–5,73 MB) | `PREVIEW_ZIP_BOMB`         |
+| `workbook.xml` e `.rels`              | 1 MiB cada                                                   | 1,2 KB e 1,4 KB                         | `PREVIEW_ZIP_BOMB`         |
+| nome de entrada                       | sem `..`, `/` inicial, `\`, `C:`, NUL; sem repetição         | —                                       | `PREVIEW_ZIP_ENTRY_UNSAFE` |
+| zip64, cifra, método ≠ 0/8            | recusados                                                    | nenhum                                  | `PREVIEW_NOT_A_WORKBOOK`   |
+| strings compartilhadas                | 200 000                                                      | 492–802                                 | `PREVIEW_TOO_MANY_STRINGS` |
+| texto de uma célula                   | 32 767 (o do Excel)                                          | ≤ 49                                    | `PREVIEW_CELL_TOO_LONG`    |
+| última linha com dado                 | 5 000 (era 20 000)                                           | 127–233 (de 13 792 reservadas)          | `PREVIEW_TOO_MANY_ROWS`    |
+| células por linha (contadas no texto) | 512                                                          | 14                                      | `PREVIEW_TOO_MANY_CELLS`   |
+| células no total                      | 120 000                                                      | 1 658–3 036                             | `PREVIEW_TOO_MANY_CELLS`   |
+| decimal em texto                      | 40 caracteres (antes do regex e do `BigInt`)                 | ≤ 18                                    | erro da linha              |
+| orçamento cooperativo                 | 5 000 ms, conferido no zip, na aba, no cabeçalho e nos itens | 45–74 ms por planilha                   | `PREVIEW_PARSE_TIMEOUT`    |
+| teto da thread do worker              | 10 000 ms, `terminate()`                                     | —                                       | `PREVIEW_PARSE_TIMEOUT`    |
+
+**A promessa dos 5 s era falsa** (revisão de segurança da Fase 4a, S1/S4): o orçamento só era conferido
+no zip e na varredura da aba, e o parse de uma linha é síncrono. 87 KiB comprimidos (uma linha com ~760
+mil células) prenderam o event loop por 7,8–8,3 min e 2,27 GB; 123 KiB, 1,36 GB; 2 000 linhas com VALOR e
+PESO num decimal de 32,7 mil dígitos, 22,9 s **com sucesso**. Os tetos acima (bytes menores, células,
+decimal) cortam o custo na entrada; o orçamento passou a cobrir cabeçalho e itens; e o único teto real
+para código síncrono é a **thread** do worker (§8). O Bun 1.3.14 ignora `resourceLimits` (medido), então
+a memória fica limitada pelos tetos, não pela thread.
 
 **Número e data** (revisão da Fase 4a, H2 e L3): o teto de dígitos inteiros é o da coluna de cada campo
 (`value numeric(14,2)` → 12, `weight_kg numeric(12,3)` → 9, `volume_m3 numeric(12,4)` → 8;
@@ -306,6 +329,18 @@ document_id)`; as N linhas que fecham a mesma nota apontam para o vínculo **da 
   **reabre a mesma prévia** (`queued`, evento `uploaded` com `reopened`, pedido novo ao worker, 201);
   pronta ou em leitura recente continua repetição (200). Os dois códigos entraram no CHECK de
   `cargo_previews.error_code` pela migration aditiva `20261004165112_cargo_preview_failure_codes`.
+- **Revisão de segurança da Fase 4a (2026-10-04).** _S1:_ a leitura (parse + plano dos itens) roda numa
+  `worker_thread` (`threaded-cargo-preview-workbook.gateway.ts`, molde do canhoto), terminada em 10 s:
+  `PREVIEW_PARSE_TIMEOUT`, sem retentativa. A reentrega do broker (`redelivered`) de uma prévia já em
+  `processing` não relê: `PREVIEW_PROCESSING_INTERRUPTED` (o reenvio do arquivo a reabre). _S2:_ o vínculo
+  é linear no cliente grande (19 900 linhas: 9,9 s → 0,17 s, resultado idêntico em 3 400 cenários
+  sorteados), consulta um orçamento cooperativo de 5 s por prévia, e a transação tem `statement_timeout`
+  de 30 s; a prévia nova que estoura volta inteira (`PREVIEW_MATCH_TIMEOUT`, sem itens), a pronta fica como
+  estava. _S5:_ 20 envios por 300 s por usuário e no máximo 5 prévias `queued`/`processing` por
+  contratante (422 `CARGO_PREVIEW_TOO_MANY_OPEN`, sob trava advisory do envio). _S6:_ alias contrariado
+  por vínculo reforçado é apagado. _S7:_ o worker monta a chave pela linha (nunca pela mensagem) e recusa
+  acima de 960 KiB pelo `Content-Length`. Os três códigos novos entraram no CHECK pela migration aditiva
+  `20261004174001_cargo_preview_security_failure_codes`.
 - **O operador manda.** Item confirmado, desvinculado ou vinculado à mão fica `matched_by = user` e a
   reavaliação nunca mais o lê. Desvincular age no grupo inteiro (soltar uma linha de uma soma deixaria
   as outras apontando para uma nota que não fecha).

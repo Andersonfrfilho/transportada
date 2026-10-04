@@ -2430,9 +2430,11 @@ sem linha, ou com `is_enabled = false`, o contratante segue o fluxo de hoje.
   chave omitida é 400, para um painel em cache não apagar coluna futura sem erro. Idempotente: trava o
   contratante (`for no key update`), compara a forma canônica (o `jsonb` não guarda ordem de chave) e só
   grava e audita (`audit_logs`, `contractor-receiving-profile.saved`) quando algo mudou.
-- `arrivalReferencePattern` **nunca é executado** na gravação: compila com `u`, exatamente um grupo de
-  captura, sem quantificador aninhado, grupo repetido com alternação, referência para trás ou lookaround
-  (`arrival-reference-pattern.policy.ts`). A fase que o executar limita entrada e tempo.
+- ~~`arrivalReferencePattern`~~ saiu na revisão de segurança S3 (2026-10-04): o filtro deixava passar
+  padrões que retrocediam por segundos. Hoje é `arrivalReferenceLabel` — o **texto literal** que antecede o
+  número da carga (1..60, sem controle, aparado; `arrival-reference-label.policy.ts`); a extração é a
+  gramática fechada `literal + \s{0,5}([A-Za-z0-9]{1,30})` (`load-reference.policy.ts`). O `PUT` exige a
+  chave nova e recusa a antiga; a coluna `arrival_reference_pattern` fica no banco, sem uso.
 - `previewColumnMap`: chaves fechadas (`PREVIEW_ITEM_FIELDS`), coluna repetida comparada por
   `normalizePreviewColumnName` (o leitor da planilha usa a mesma); prévia ligada exige `routeName`,
   `value`, `weightKg` (Zod) e mapa não nulo (CHECK). O agregado `Contractor` não mudou.
@@ -2630,3 +2632,23 @@ Fase 4a".
 partition-sum,workbook-overflow,workbook-dates,resend}.contract.ts`,
   `test/integration/cargo-preview-{unlink,resend}.integration.ts` e a asserção
   `test/database-migration/cargo-preview-failure-codes.assertion.ts`.
+
+## Spec 237 — Fase 4a: correções da revisão de segurança (2026-10-04)
+
+Detalhe, números e mutações em `specs/237-.../evidence.md` § "Correções da revisão de segurança da Fase 4a".
+
+- **Leitor (S1/S4):** a promessa dos 5 s era falsa (87 KiB → 7,8 min e 2,27 GB). Tetos novos em
+  `CARGO_PREVIEW_WORKBOOK_LIMITS`: aba 8 MiB, total 16 MiB, última linha 5 000, **512 células por linha e
+  120 000 no total** contadas no texto antes do parser (`PREVIEW_TOO_MANY_CELLS`); decimal em texto acima de
+  40 caracteres é inválido antes do regex e do `BigInt`; o cabeçalho é linear e cabeçalho e itens recebem
+  o `budget`. A thread que termina o parse é do worker.
+- **Vínculo (S2):** `resolveCargoPreviewMatches` exige `budget: MatchingBudget` (`check` por cliente, por
+  roteiro e por par pontuado) e é linear no cliente grande (`cargo-preview-free-documents.policy.ts` indexa
+  as notas livres uma vez por passada). Testes passam `{ check: () => undefined }`.
+- **Perfil (S3):** `arrivalReferenceLabel` (acima). Migration `20261004180153_contractor_receiving_arrival_reference_label`
+  (aditiva; rollback recusa sem apagar se houver texto gravado).
+- **Envio (S5):** `rateLimit` `cargo-preview-upload` 20/300 s no Postgres e teto de 5 prévias
+  `queued`/`processing` por contratante (`assertCargoPreviewOpenLimit`, sob `pg_advisory_xact_lock` do envio,
+  no `create` e no `reopen`) → 422 `CARGO_PREVIEW_TOO_MANY_OPEN`.
+- Códigos novos de falha (`PREVIEW_TOO_MANY_CELLS`, `PREVIEW_PROCESSING_INTERRUPTED`, `PREVIEW_MATCH_TIMEOUT`):
+  migration aditiva `20261004174001_cargo_preview_security_failure_codes`.

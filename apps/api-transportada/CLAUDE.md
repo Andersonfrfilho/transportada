@@ -764,7 +764,8 @@ o diff) — o despachante lê a versão publicada no banco. Detalhe: docs/ai-con
 `cargo-receiving/` guarda o perfil de recebimento por contratante (`contractor_receiving_profiles`):
 regras como dado, nunca CNPJ no código; sem perfil ou com `is_enabled = false`, fluxo de hoje.
 `GET`/`PUT /contractors/:id/receiving-profile` (`fleet.read`/`settings.manage`); o `PUT` exige todas as
-chaves, só audita quando muda, e o padrão do `NroCarga` é filtrado (nunca executado) na gravação. O eixo
+chaves, só audita quando muda, e o `NroCarga` é lido pelo **texto literal** que o antecede
+(`arrivalReferenceLabel`, gramática fechada; a expressão do usuário saiu na revisão de segurança S3). O eixo
 do recebimento é próprio e **não toca** `separation_status`. Detalhe: docs/ai-context § "Spec 237".
 
 **A chegada e a primeira separação** (Fase 2): `cargo_arrivals` / `cargo_arrival_documents` /
@@ -790,6 +791,8 @@ guarda o arquivo no bucket privado com chave opaca e grava prévia + evento + `c
 transação; **a API nunca abre a planilha** — quem lê e vincula é o worker. Tipo pelos bytes, teto de 960 KiB
 (o corpo da API para em 1 MiB), o mesmo arquivo do contratante devolve a existente com 200. Leitura com
 `fleet.read`; `confirm`/`unlink`/`link` e `propose-arrival` com `trip.manage`, sob a mesma trava advisory do
-worker (`buildCargoPreviewMatchLockKey`). ⚠️ Uma nota, uma prévia é o unique de
+worker (`buildCargoPreviewMatchLockKey`). O envio tem `rateLimit` (20/300 s, Postgres) e teto de 5 prévias
+`queued`/`processing` por contratante (422 `CARGO_PREVIEW_TOO_MANY_OPEN`). ⚠️ O leitor tem tetos de bytes,
+linhas e **células** (revisão de segurança S1, ADR-0094 §7); `resolveCargoPreviewMatches` exige `budget`. ⚠️ Uma nota, uma prévia é o unique de
 `cargo_preview_document_links`, não do item; item decidido pelo operador (`matched_by = user`) a máquina
 nunca reavalia. Detalhe: docs/ai-context § "Spec 237 — Fase 4a, parte B".

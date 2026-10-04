@@ -1042,3 +1042,172 @@ publicado — sem push).
 (L7, pendente de verdade); aprender alias da confirmação do operador; limpar as linhas `votes` antigas de
 `cargo_preview_route_loads` se a tela passar a mostrar a origem do par; a revisão de segurança em andamento (rodada
 separada).
+
+## Correções da revisão de segurança da Fase 4a (2026-10-04)
+
+Revisão de segurança da Fase 4a (S1–S9). Commits, na ordem: `d0364d338` (S1/S4 no leitor + migration dos códigos),
+`0cc8e7427` (S1 thread e reentrega), `188520c54` (S2), `508cce42d` (S3), `151f420c4` (S5), `4453ebdb9` (S6),
+`0431f3956` (S7), `09ae30058` (S9), `c2fa7ab68` (contrato que matou o mutante sobrevivente do S6) e o desta evidência.
+Decisões no ADR-0094 §2, §7 e §8 e no `docs/SECURITY.md`. Os ataques foram reproduzidos com os scripts do revisor
+(`bench*.ts`, fora do repositório) e viraram contratos com teto de tempo e de memória afirmado — folgados para a CI,
+finitos, e todos estourados pelo código antigo.
+
+### O que mudou, e o contrato que prende
+
+- **S1/S4 — o "teto de 5 s" não existia.** `test/cargo-receiving/cargo-preview-workbook-dos.contract.ts` (API),
+  fixture `cargo-preview-attack.fixture.ts`. Vermelho contra o código antigo: **0 pass / 9 fail**, e o primeiro caso
+  levou **468,9 s** (o `--timeout` do Bun não interrompe código síncrono). Números (o mesmo arquivo, antes → depois;
+  "RSS" é o crescimento medido em volta da chamada):
+
+  | Ataque (comprimido)                                               | Antes (revisor / medido)        | Depois                                        |
+  | ----------------------------------------------------------------- | ------------------------------- | --------------------------------------------- |
+  | 1 linha, ~760 mil células iguais (83–87 KiB)                      | 8,3 min e 2,27 GB / 468,9 s     | 3 ms, RSS +0, `PREVIEW_ZIP_BOMB` (aba 29 MiB) |
+  | 1 linha, 80 mil células (9 KiB)                                   | 4,5 s e 530 MB / 4,6 s          | 23 ms, RSS +3 MiB, `PREVIEW_TOO_MANY_CELLS`   |
+  | 20 000 linhas × 90 células (120–123 KiB)                          | 1,36 GB / 2,1 s (código errado) | 0 ms, `PREVIEW_ZIP_BOMB` (aba 27 MiB)         |
+  | 5 000 linhas × 90 células, dentro dos 8 MiB                       | —                               | 221 ms, RSS +78 MiB, `PREVIEW_TOO_MANY_CELLS` |
+  | 2 000 linhas, VALOR/PESO num decimal de 32,7 mil dígitos (20 KiB) | 22,9 s com SUCESSO / 23,7 s     | 375 ms, 0 itens, 4 000 erros de linha         |
+  | cabeçalho com 100 mil nomes iguais (direto na política)           | — / 6,7 s                       | < 3 s (ms)                                    |
+
+  Correções, na ordem pedida: `push` no mesmo array no cabeçalho; decimal em texto acima de **40** caracteres é
+  inválido antes do regex e do `BigInt`; teto de **512 células por linha** e **120 000 no total**, contado no texto
+  (`<c`) antes do `fast-xml-parser`; `budget` passado ao cabeçalho e aos itens, com `check()` por linha; aba
+  **8 MiB**, total **16 MiB**, última linha **5 000**. No worker, a leitura (parse + plano) roda numa
+  **`worker_thread`** (`threaded-cargo-preview-workbook.gateway.ts`, molde do canhoto) terminada em **10 s**
+  (`PREVIEW_PARSE_TIMEOUT`, ack): `test/cargo-preview/threaded-workbook-reader.contract.ts` (worker) prova que o event
+  loop roda timers enquanto a planilha pesada é lida e que o teto termina a thread em < 1 s. A reentrega do broker
+  (`redelivered`) de prévia já `processing` falha `PREVIEW_PROCESSING_INTERRUPTED` sem reler
+  (`process-use-case.contract.ts`, `trail.contract.ts`). Promessa dos 5 s corrigida em `docs/SECURITY.md`, no
+  comentário do consumidor e na tabela do ADR §7.
+
+- **Tetos contra as planilhas reais** (cinco `.xlsm` FR, lidas só localmente): aba 3 359 396–3 393 364 bytes (teto
+  8 388 608: folga 2,47×), linha mais larga **14** células (teto 512: 36×), células nas linhas com dado 1 658–3 036
+  (teto 120 000: 39×), última linha com dado 127–233 (teto 5 000: 21×). As cinco leem como antes (107–215 linhas, 0
+  erros), 50–74 ms. Nenhum teto reprovou planilha real.
+- **S2 — vínculo quadrático sob a trava.** `test/cargo-receiving/cargo-preview-matching-dos.contract.ts` (API):
+  vermelho **2 pass / 3 fail** (8 000 linhas 1 779 ms, 16 000 linhas 6 951 ms; orçamento não consultado). Antes →
+  depois (mesmo roteiro e código, 300 notas): 4 000 linhas 443 → 45 ms, 8 000 1 833 → 64 ms, 16 000 7 003 → 133 ms,
+  **19 900 9 908 → 165 ms**; 5 000 clientes × 5 000 notas 389 → 42 ms. As notas livres são indexadas uma vez por
+  passada (`cargo-preview-free-documents.policy.ts`), `hasOption` e as candidatas do estouro são montados uma vez.
+  **Resultado idêntico ao antigo** em 3 000 cenários sorteados pequenos e 400 com clientes de até 300 linhas (script
+  diferencial fora do repositório, contra a cópia do domínio do commit anterior). `MatchingBudget` (`check` por
+  cliente, por roteiro e por par pontuado). No worker: 5 s por prévia, `SET LOCAL statement_timeout` de 30 s, prévia
+  nova que estoura volta inteira e fica `failed` `PREVIEW_MATCH_TIMEOUT` sem itens, a pronta fica como estava
+  (`test/integration/cargo-preview-match-budget.integration.ts`, 3 casos).
+- **S3 — ReDoS no padrão.** Gramática fechada: `arrival_reference_label` (texto literal, 1..60, sem controle) e
+  `literal + \s{0,5}([A-Za-z0-9]{1,30})` em `load-reference.policy.ts`. Contratos: `arrival-reference-label.contract.ts`,
+  o bloco "o NroCarga lido do infCpl" de `cargo-preview-matching-rules.contract.ts` (formato real, número no meio e no
+  fim, 30 caracteres, 2 000 caracteres, literal, e os dois padrões do revisor como texto: 100 leituras < 1 s), rotas
+  do perfil (chave nova obrigatória, chave antiga 400, controle 400, aparado), schema e integração do perfil.
+  **Conferido contra 277 `infCpl` reais** (`ID1026570_procNFe_parte1`): 277/277 leituras iguais às do padrão antigo
+  `NroCarga[: ]*([0-9]+)`; depois do número vem espaço ou o fim do texto. Migration aditiva
+  `20261004180153_contractor_receiving_arrival_reference_label` (rollback recusa sem apagar com texto gravado;
+  asserção `contractor-receiving-arrival-reference-label.assertion.ts`). Painel: "Texto que antecede o número da
+  carga", ajuda em português, código de campo `controlCharacter`; prints da ficha refeitos (18, os três estados × 3
+  larguras × 2 temas; a revisão de contraste do spec passou, 7/7).
+- **S5 — envio sem teto.** `rateLimit` 20/300 s `cargo-preview-upload` no Postgres
+  (`test/rate-limited-routes.contract.test.ts`) e teto de 5 prévias `queued`/`processing` por contratante, contado e
+  gravado sob trava advisory do envio (`test/integration/cargo-preview-upload-limit.integration.ts`: vermelho 0/2; a
+  sexta é 422 `CARGO_PREVIEW_TOO_MANY_OPEN` sem objeto nem linha, a repetida é 200, a que terminou não conta, reabrir
+  respeita o teto). Painel com o texto do código.
+- **S6 —** alias contrariado por vínculo reforçado é apagado (banco e lista da passada):
+  `cargo-preview.integration.ts` (worker; vermelho 5/1) e `cargo-preview-alias-conflict.integration.ts`.
+- **S7 —** chave do objeto pela linha (`cargo-preview-object.policy.ts`, paridade com a API), `Content-Length` antes
+  de baixar e bytes contados ao baixar: `process-use-case.contract.ts`, `storage-reader.contract.ts` (vermelho com
+  os demais: 59 pass / 5 fail).
+- **S8 —** retenção de PII sem prazo: **decisão pendente do usuário**, registrada no `docs/SECURITY.md` (risco 2 da
+  entrada de 2026-10-04). Nada implementado.
+- **S9 —** `fflate` 0.8.3 e `fast-xml-parser` 5.10.1 exatos nas duas apps; o lockfile só mudou o especificador e
+  `bun install --frozen-lockfile` passa.
+
+### Migrations
+
+`20261004174001_cargo_preview_security_failure_codes` (CHECK de `error_code` alargado com `PREVIEW_TOO_MANY_CELLS`,
+`PREVIEW_PROCESSING_INTERRUPTED`, `PREVIEW_MATCH_TIMEOUT`; snapshot encadeado em `a2ffbbfc…`, o da
+`20261004165112`) e `20261004180153_contractor_receiving_arrival_reference_label` (encadeada na anterior). As duas
+aditivas, com `rollback.sql` que recusa sem apagar. `make migration-test` **124 pass / 0 fail**; `bun run db:generate`
+**`no_changes`**.
+
+### Mutações (script fora do repositório; cada arquivo restaurado por `git checkout`, `git diff --quiet` limpo nos fontes)
+
+| Regra                                       | Vermelho | Regra                                           | Vermelho     |
+| ------------------------------------------- | -------- | ----------------------------------------------- | ------------ |
+| S1 cabeçalho volta a copiar o array         | 1 fail   | S2 hasOption volta a O(n²)                      | 1 fail       |
+| S1 cabeçalho sem orçamento                  | 1 fail   | S2 estouro filtra todas as opções por linha     | 1 fail       |
+| S1 itens sem orçamento                      | 1 fail   | S2 índice das notas livres refeito por cliente  | 1 fail       |
+| S1 decimal sem teto de texto                | 2 fail   | S2 vínculo sem orçamento por cliente            | 1 fail       |
+| S1 sem teto de células por linha            | 2 fail   | S2 roteiro sem orçamento                        | 2 fail       |
+| S1 sem teto total de células                | 2 fail   | S2 par pontuado sem orçamento                   | 1 fail       |
+| S1 aba volta a 30 MiB                       | 2 fail   | S2 worker: estouro derruba a reavaliação        | 1 fail       |
+| S1 total volta a 60 MiB                     | 1 fail   | S2 worker: prévia nova que estoura fica pronta  | 1 fail       |
+| S1 última linha volta a 20 000              | 2 fail   | S2 worker: sem statement_timeout                | 1 fail       |
+| S1 leitura volta ao event loop (sem thread) | 2 fail   | S2 worker: caso de uso não mapeia o estouro     | 2 fail       |
+| S1 teto da thread vira exceção              | 1 fail   | S2 worker: orçamento nunca estoura              | 2 fail       |
+| S1 reentrega relê a prévia em processing    | 2 fail   | S3 texto do perfil vira expressão (sem escapar) | não termina¹ |
+| S1 consumidor não repassa `redelivered`     | 1 fail   | S3 valor da carga sem gramática fechada         | 3 fail       |
+| S5 criar sem teto de abertas                | 1 fail   | S3 texto inválido gravado ainda é usado         | 1 fail       |
+| S5 reabrir sem teto de abertas              | 1 fail   | S3 sem o corte de 2 000 caracteres              | 1 fail       |
+| S5 rota sem rate limit                      | 1 fail   | S3 texto com caractere de controle aceito       | 7 fail       |
+| S5 teto 6 em vez de 5                       | 2 fail   | S3 texto não é aparado no PUT                   | 1 fail       |
+| S6 conflito não invalida o alias            | 1 fail   | S7 chave volta a vir da mensagem                | 1 fail       |
+| S6 alias invalidado segue na memória        | 1 fail²  | S7 sem conferir o Content-Length                | 1 fail       |
+|                                             |          | S7 baixa sem contar                             | 1 fail       |
+
+¹ O padrão hostil do contrato volta a retroceder e o processo de teste não termina (morto à mão) — é o ReDoS
+reaparecendo. ² Sobreviveu na primeira rodada (só o banco era afirmado); entrou
+`cargo-preview-alias-conflict.integration.ts` (`c2fa7ab68`). Duas otimizações sem guarda mensurável (teto da poda
+por contador e escolha por partição em mapa) **saíram** antes do commit do S2: o teto de 5 000 nós já as limita.
+
+### Gates
+
+- **API:** `bun run typecheck` ✓ · `bun run lint` ✓ · contrato `bun --env-file=../../.env.test test --timeout 120000`:
+  antes **9682 pass / 25 skip**, depois **9690 pass / 25 skip / 0 fail** (198 arquivos) · integração da prévia,
+  perfil e chegada (`cargo-preview`, `-resend`, `-unlink`, `-upload-limit`, `cargo-arrival`,
+  `contractor-receiving-profile`): antes 19, depois **21 pass / 0 fail** · `make migration-test` **124 pass** ·
+  `db:generate` **`no_changes`**.
+- **Worker:** `bun run typecheck` ✓ · `bun run lint` ✓ · `bun run test`: antes **1616**, depois **1634 pass / 0 fail**
+  (paridade com 23 arquivos idênticos: entrou `cargo-preview-free-documents.policy.ts` e
+  `arrival-reference-label.policy.ts`, saiu `arrival-reference-pattern.policy.ts`; chave do objeto e teto conferidos
+  contra a API) · integração completa `bun run test:integration` num banco **novo**
+  `transportada_worker_integration_s237` (Postgres local 55432, criado e migrado com `db:migrate` da API, RabbitMQ
+  local): **193 pass / 1 fail** — o que reprova é `osrm-routing-matrix` (o OSRM local tem outro mapa), o mesmo das
+  rodadas anteriores. `bun run build` empacota a thread nova (`dist/cargo-preview/infrastructure/cargo-preview-workbook.worker.js`).
+- **Painel:** `bun run typecheck` ✓ · `bun run lint` 0 erros (16 avisos pré-existentes, nenhum nos arquivos tocados) ·
+  `bun run test` **6899 + 552 = 7451 pass / 0 fail** (antes ~7446) · `bun run test:hooks` **5 execuções**, 552 pass
+  em todas · prints da spec (`spec-237-prints.smoke.spec.ts`, preview próprio na porta 53917) **7/7**.
+- `bun run format:check` na raiz ✓.
+
+### Decisões que divergiram do texto da revisão
+
+- **`resourceLimits` não limita nada no Bun 1.3.14** (medido: thread com `maxOldGenerationSizeMb: 64` alocou ~500 MB
+  e terminou). A opção vai passada (256 MiB) para quando o runtime a honrar; o teto real de memória são os tetos do
+  leitor. O contrato de memória mede o RSS em volta da chamada (< 256 MiB), não a thread.
+- **Os dois ataques do revisor que expandem acima de 8 MiB** (760 mil células, 20 000 × 90) agora param no teto de
+  bytes (`PREVIEW_ZIP_BOMB`) antes do de células; o teto de células tem contratos próprios dentro dos 8 MiB.
+- **Só a leitura vai à thread.** O vínculo intercala consultas ao banco e não cabe numa thread sem banco; ficou com o
+  orçamento cooperativo por prévia + `statement_timeout`, a alternativa que o texto admite. A extração do `NroCarga`
+  também fica fora: com a gramática fechada ela é linear.
+- **Reentrega:** a condição é `redelivered && status = processing`, **sem** "por mais que o lease" — a reentrega após
+  uma queda chega em segundos, bem dentro dos 15 min, e o laço de queda continuaria.
+- **Prévia pronta que estoura o orçamento numa reavaliação não vira `failed`:** ela tem itens e vínculos, e o reenvio
+  que reabre uma `failed` relê o arquivo e regravaria os itens (unique de linha). Fica como estava, a reavaliação das
+  outras segue, e o log conta. A prévia NOVA que estoura fica `failed` sem itens.
+- **S5:** 422 (não 429) para a fila cheia, para distinguir do rate limit; a contagem é feita sob trava advisory no
+  `create` e no `reopen`, não só na checagem prévia.
+- **S6:** invalidar = apagar o par (sem evento novo: o CHECK dos eventos não tem kind para isso; o conflito vai ao log
+  como antes). A rota `settings.manage` de revogação manual **não** foi feita (follow-up).
+- **S3:** busca sem diferenciar maiúsculas (`iu`). Nenhum texto foi copiado do padrão antigo para o novo (a expressão
+  não vira texto com segurança): perfil de staging com padrão fica sem leitura do `NroCarga` até alguém preencher o
+  texto — o vínculo por conteúdo continua sem ele.
+
+### Não rodou
+
+`make worker-integration` como está (o banco compartilhado tem o diário divergente; o mesmo passo rodou em banco
+novo); integração completa da API (só as tocadas); `make check`, smoke da CI e staging (nada publicado — sem push).
+O script do revisor `bench3.ts` com 200 dígitos no segundo padrão foi interrompido sem terminar (o revisor mediu 23,6
+s com 100).
+
+### Follow-ups
+
+Rota `settings.manage` para revogar alias à mão; preencher `arrival_reference_label` dos perfis de staging que tinham
+padrão; limpar a coluna `arrival_reference_pattern` numa migration própria (contração, com aprovação); reavaliar o
+`resourceLimits` quando o Bun o implementar; S8 (retenção) aguardando decisão do usuário.
