@@ -2437,6 +2437,21 @@ sem linha, ou com `is_enabled = false`, o contratante segue o fluxo de hoje.
   `normalizePreviewColumnName` (o leitor da planilha usa a mesma); prévia ligada exige `routeName`,
   `value`, `weightKg` (Zod) e mapa não nulo (CHECK). O agregado `Contractor` não mudou.
 - Contratos: `test/cargo-receiving*.contract.test.ts`; integração
+
+## Spec 244 — O ajudante sem resto: consentimento, foto pendente e diária zero
+
+**Arquivos-chave:** pendências em `find-current-driver-trip.use-case.ts` e `drizzle-current-driver-trip.repository.ts`,
+rotas em `me-trip.routes.ts` (aplicação de `canReportProofs`), consentimento em `me-location.routes.ts` (permanece
+`trip.report`), conversor em `src/modules/shared/decimalAmount.service.ts` (frontend-transportada).
+
+Três correções mínimas (T1–T3) das pendências deixadas pela spec 243:
+
+- **T1:** `GET /me/trips/current` devolve `pendingProofs: []` quando o contexto sem `trip.report`;
+  `findCurrentDriverTrip` recebe `canReportProofs` (padrão `true` para os chamadores existentes).
+- **T2:** `useLocationConsent` (frontend-driver) trata `403` na leitura como inaplicável à conta;
+  o cartão não renderiza (sem alerta). Qualquer outro erro segue como antes.
+- **T3:** Conversor `toTypedAmountKeepingZero` preserva zero (`0.0000` → `0,00`) nos campos
+  `helperDailyRate`, `dailyAllowanceAmount` (ficha) e diária geral; `toTypedAmount` inalterada.
   `test/integration/contractor-receiving-profile.integration.ts`.
 
 ## Spec 239 — a configuração do expurgo da posição (T1.3/T1.4)

@@ -38,3 +38,19 @@
   positivo inalterado) e `test/fleet/driver-crew-settings-panel.contract.tsx` (diária geral). Vermelhos antes do código.
 - Mutação: conversor sem a linha do zero → 3 falhas; restaurado, `cmp` idêntico.
 - `bun run test` do painel: 6672 pass / 0 fail.
+
+## T5 — Documentação viva
+
+Quatro arquivos atualizados para registrar o fechamento das três pendências da spec 243:
+
+1. **ADR-0095** — Seção nova "Resto fechado pela spec 244": consentimento 403, `pendingProofs` vazio sem `trip.report`,
+   e diária zero preservada (conversor dual, sem mexer em `toTypedAmount`).
+
+2. **specs/243-o-ajudante-fecha-as-pontas/evidence.md** — Minor 6 e Minor 7 marcadas "Fechada pela spec 244 T1" e
+   "Fechada pela spec 244 T2"; "Decisão conhecida: a diária zero" marcada "Fechada pela spec 244 T3".
+
+3. **docs/ai-context/{api-transportada,frontend-driver,frontend-transportada}.md** — Seção nova "Spec 244" em cada:
+   arquivos-chave, três decisões (D1/D2/D3) e pegadinhas.
+
+4. **apps/{api-transportada,frontend-driver,frontend-transportada}/CLAUDE.md** — Seção nova "O ajudante sem resto (spec 244)"
+   (2-3 linhas, referência à spec e testes).

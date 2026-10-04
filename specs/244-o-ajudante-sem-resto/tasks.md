@@ -17,4 +17,4 @@ a staging depois de o usuário ver.
 
 - [ ] **T4** Revisão de design com prints: Perfil do ajudante sem o cartão, e os campos de diária com `0,00`
       (ficha e painel da diária geral), 375 px, claro e escuro; o usuário aprova antes de ir a staging.
-- [ ] **T5** Documentação viva: tirar as três pendências do `docs/SECURITY.md`/`evidence` da 243 e uma nota no ADR-0095.
+- [x] **T5** Documentação viva: tirar as três pendências do `docs/SECURITY.md`/`evidence` da 243 e uma nota no ADR-0095.

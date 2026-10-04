@@ -97,3 +97,21 @@ existe) abre o app. Sem `trip.read`, segue o texto atual ("Nenhuma permissão fo
 
 Ver **ADR-0095 D1** para a política de cobrança: a leitura mudou de `trip.read` para `trip.financials`.
 O papel `helper` continua com permissão `['trip.read']` isolada — lê a viagem, não a cobrança ou relatório.
+
+## Resto fechado pela spec 244
+
+Spec 244 (T1–T3) fechou três pontas registradas como pendências nesta spec:
+
+1. **Consentimento de localização some para conta sem `trip.report`** (D1 desta spec). A rota
+   `me-location.routes.ts` pede `trip.report`, inclusive o `GET`. `useLocationConsent` (frontend-driver)
+   trata 403 na leitura como "não se aplica"; a conta que não pode reportar nunca monta o cartão.
+   Qualquer outro erro continua como antes.
+2. **`pendingProofs` vazio sem `trip.report` em `GET /me/trips/current`** (D2 desta spec).
+   `findCurrentDriverTrip` recebe `canReportProofs` ausente = `true`; com `false` (quando a permissão
+   falta) o repositório não consulta provas. A rota calcula o booleano do contexto: sem `trip.report`
+   → `canReportProofs: false` → `pendingProofs: []`.
+3. **Diária zero preservada nos campos de diária da ficha e na diária geral** (D3 desta spec).
+   Conversor novo `toTypedAmountKeepingZero` em frontend-transportada (`decimalAmount.service.ts`)
+   devolve `0,00` para `0.0000`, usado só em `helperDailyRate`, `dailyAllowanceAmount` (ficha) e
+   diária geral (crewSettingsForm.service.ts). `toTypedAmount` inalterada, para não afetar outros
+   campos (custos de veículo, tabela de frete, diária em outras telas).

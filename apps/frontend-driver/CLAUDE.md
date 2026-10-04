@@ -343,3 +343,8 @@ snapshot antigo no IndexedDB não traz — lê como `driver` por padrão). Com `
 trata o 403 como recusado; com ajudante nenhum botão chama `report(...)`. Contrato:
 `test/driver-trip/helper-crew-role.contract.ts`. Detalhe: docs/ai-context/frontend-driver.md
 § "Spec 243 — O ajudante acompanha a viagem" e ADR-0095.
+
+## O ajudante sem resto (spec 244)
+
+**T2:** `useLocationConsent` trata 403 em leitura como inaplicável; cartão some. Testes:
+`test/driver-trip/location-consent-applicability.contract.tsx`.

@@ -1060,3 +1060,14 @@ deste grupo", busca por número e leitura da chave de acesso pela câmera, banne
   nada, "Sem cidade". O painel não tem tabela de municípios.
 - A API não devolve o peso da nota nas disponíveis: a tela mostra valor, não peso (follow-up de API).
 - Fora desta task: fila offline do toque, rota em lote por selo, avaria na entrada (Fase 3).
+
+## Spec 244 — O ajudante sem resto
+
+**Arquivos-chave:** conversor em `modules/shared/decimalAmount.service.ts` (`toTypedAmountKeepingZero`), usado em
+`modules/fleet/shared/fleetForm.service.ts` (ficha, campos `helperDailyRate`/`dailyAllowanceAmount`) e
+`crewSettingsForm.service.ts` (diária geral).
+
+**T3:** Conversor novo `toTypedAmountKeepingZero` preserva zero em três campos: `helperDailyRate` e `dailyAllowanceAmount`
+da ficha, e `dailyAllowanceAmount` da diária geral. Exibição: `0.0000` → `0,00`; vazio segue `null`. Pegadinha: `toTypedAmount`
+(**não** tocado) continua devolvendo `''` para zero, então zero em custos de veículo, tabela de frete e outras telas não
+muda — conversor dual permite a diária manter seu significado (zero = "não recebe") sem impactar outras escalas.

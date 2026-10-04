@@ -738,6 +738,10 @@ Permissão `trip.read`. Limite: atribuição em lote e papéis de grupo não rec
 
 Três mudanças: D1 — Cobrança muda de `trip.read` para `trip.financials` (`company-admin`, `finance`, `operator` leem; `driver`, `aggregate`, `separator`, `helper` recebem `403`; achado BOLA fechado em `docs/SECURITY.md`). D2 — Painel tem diária geral (separado de settings, permissão `fleet.read`/`fleet.manage` da API). D3 — `/me/trips/current` devolve `crewRole` por viagem (`'driver'` | `'helper'`, do `trip_drivers.role`); ausência lê como `driver`. Detalhe: docs/ai-context § "Spec 243" e ADR-0095.
 
+## O ajudante sem resto (spec 244)
+
+Três correções mínimas das pendências da 243: T1 — `GET /me/trips/current` devolve `pendingProofs: []` sem `trip.report` (`canReportProofs` padrão `true`). T2 — Consentimento de localização escondido quando a API responde 403 (frontend). T3 — Zero preservado na diária (novo conversor, frontend).
+
 ## Todo toque do motorista carimba onde aconteceu (spec 196, ADR-0081)
 
 Cinco tabelas carregam ponto e `location_state` (`captured | unavailable | expired | null`, `VARCHAR` com CHECK):

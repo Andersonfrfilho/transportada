@@ -391,3 +391,10 @@ perfil são lidos por projeção mínima — só `id/displayName/taxId` e `isEna
   viagem): sem acoplar módulos. Fila offline do toque **não existe** (follow-up): falhou, fica na tela.
 
 Detalhe e decisões: docs/ai-context/frontend-transportada.md § "Spec 237 T2.4".
+
+## O ajudante sem resto (spec 244)
+
+**T3:** Conversor `toTypedAmountKeepingZero` (`modules/shared/decimalAmount.service.ts`) devolve `0,00` para
+`0.0000` nos campos `helperDailyRate`, `dailyAllowanceAmount` (ficha) e diária geral. Testes:
+`test/fleet/driver-daily-allowance.contract.ts`, `test/fleet/driver-crew-settings-panel.contract.tsx`,
+`test/shared/decimal-amount.contract.ts`.

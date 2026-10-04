@@ -177,3 +177,14 @@ leitura (paradas, navegação, manifesto, romaneio). Ausência de `crewRole` (sn
 **Pegadinhas:** Fila offline — 403 em `trip.report` vira `rejected` (não retenteado), descartado do `drainQueue`;
 nenhum defeto, mas com ajudante nenhum botão chama `report(...)`. Atalho "Fotos pendentes (N)" lê sem filtro
 de papel; pode aparecer para ajudante se a API retornar pendência de viagem onde ele é ajudante.
+
+## Spec 244 — O ajudante sem resto
+
+**Arquivos-chave:** hook em `modules/driver-trip/hooks/useLocationConsent.hook.ts`, cartão em
+`components/DriverLocationConsentCard.component.tsx`, contrato em
+`test/driver-trip/location-consent-applicability.contract.tsx`.
+
+**T2:** `useLocationConsent` expõe `isApplicable: false` quando a leitura do `GET /me/location-consent` responde
+403 (sem retry). Cartão devolve `null`. Qualquer outro erro (5xx, rede) segue como antes, renderizando alerta.
+Decisão: API recusa consentimento para conta sem `trip.report`, app o respeita sem oferecer o cartão —
+a regra fica num lugar só.

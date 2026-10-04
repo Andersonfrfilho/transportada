@@ -400,6 +400,7 @@ na seção.
 "sem valor padrão" parecem iguais na tela, embora a conta da viagem trate `null` (aponta a lacuna) e `0.0000`
 (valor zero) de forma diferente. Mesmo padrão da diária própria da ficha (`maskTypedAmount`/`toTypedAmount`).
 Mantido; permitir exibir `0,00` exigiria mexer em `toTypedAmount`, que a ficha também usa, então não é trivial.
+(Fechada pela spec 244 T3)
 
 **Item 6 (B1), o que escondeu e o que renomeou.**
 
@@ -427,9 +428,9 @@ bloco da classe. Mutação: a linha removida, 1 fail.
 **Pendências conhecidas, sem tocar no código:**
 
 - **Minor 5:** contrato do app do motorista que lê texto-fonte da página.
-- **Minor 6:** a pendência de foto de conta foi reclassificada.
+- **Minor 6:** a pendência de foto de conta foi reclassificada. (Fechada pela spec 244 T1)
 - **Minor 7:** o cartão de consentimento de localização responde 403 para o ajudante puro. Fica para o resto da
-  spec 235.
+  spec 235. (Fechada pela spec 244 T2)
 
 **T7 (design) segue aberta:** depende do usuário. As mudanças visuais desta revisão (B1: ficha do ajudante sem
 nota e sem regiões; item 5: botão "Tentar de novo"; item 4: selo na nota do ajudante) precisam de prints novos.
