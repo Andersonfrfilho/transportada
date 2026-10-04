@@ -66,7 +66,7 @@ items_mode` da migration e o default `off` do plano. Se criou com default `off`:
       antes da coluna). Aceite: `make migration-test` aplica e reverte; `db:generate` = `no_changes`.
 - [x] **T2.2** Mutação: arrancar o `UPDATE` deixa a CA01 vermelha; arrancar só o `redelivery_policy =
 'unset'` do `UPDATE` deixa a CA09 vermelha (a CHECK recusa a linha). Colar as duas execuções.
-- [ ] **T2.3** Catálogo: `itemsMode` por entrada, o tipo da prorrogação (`delivery`, `off`, defaults da 208) **só no catálogo de bootstrap** — nenhuma migration o insere (D2) —, constante do nome da
+- [x] **T2.3** Catálogo: `itemsMode` por entrada, o tipo da prorrogação (`delivery`, `off`, defaults da 208) **só no catálogo de bootstrap** — nenhuma migration o insere (D2) —, constante do nome da
       segunda via; seeders gravam `itemsMode` (CA02). Aceite: empresa que já tem qualquer tipo
       continua sem receber a prorrogação (teste existente da 208/CA3 segue verde).
 - [ ] **T2.4** Contrato primeiro, depois o cadastro: `itemsMode` opcional sem default, `required` →

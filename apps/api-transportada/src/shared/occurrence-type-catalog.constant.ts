@@ -8,6 +8,7 @@
  * catálogo é o texto de **bootstrap** que `occurrence-type-catalog-seed.service.ts` grava só para
  * empresa sem nenhum tipo cadastrado (ver o porquê no comentário de `seedOccurrenceTypeCatalog`).
  */
+import type { DeliveryProofFieldMode } from '../database/company-delivery-proof-settings.schema.js'
 import {
   TRIP_OCCURRENCE_STAGE,
   TRIP_OCCURRENCE_TYPES,
@@ -15,6 +16,7 @@ import {
 } from './trip-occurrence.constant.js'
 
 export type OccurrenceTypeCatalogEntry = {
+  readonly itemsMode: DeliveryProofFieldMode
   readonly name: string
   readonly stage: TripOccurrenceStage
 }
@@ -36,11 +38,14 @@ const DERIVED_OCCURRENCE_TYPE_CATALOG: readonly OccurrenceTypeCatalogEntry[] =
       throw new Error(`Occurrence type catalog lacks a pt-BR label for ${entry.type}`)
     }
 
-    return { name, stage: entry.stage }
+    return { itemsMode: 'optional', name, stage: entry.stage }
   })
 
 /** A migration de `items_mode` casa o tipo da segunda via por este nome exato — renomeado, fica de fora. */
 export const SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME = 'Cliente pediu segunda via do boleto'
+
+/** Spec 241: o SAC pede a prorrogação do boleto; só o catálogo de bootstrap a leva, nenhuma migration. */
+export const BILL_EXTENSION_OCCURRENCE_TYPE_NAME = 'Cliente pediu prorrogação do boleto'
 
 /**
  * Pedido do usuário (spec 208, 25/09/2026): tipo de rua para o motorista registrar que o cliente
@@ -56,5 +61,14 @@ export const SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME = 'Cliente pediu segunda via 
  */
 export const OCCURRENCE_TYPE_CATALOG: readonly OccurrenceTypeCatalogEntry[] = [
   ...DERIVED_OCCURRENCE_TYPE_CATALOG,
-  { name: SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME, stage: TRIP_OCCURRENCE_STAGE.delivery },
+  {
+    itemsMode: 'off',
+    name: SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME,
+    stage: TRIP_OCCURRENCE_STAGE.delivery,
+  },
+  {
+    itemsMode: 'off',
+    name: BILL_EXTENSION_OCCURRENCE_TYPE_NAME,
+    stage: TRIP_OCCURRENCE_STAGE.delivery,
+  },
 ]

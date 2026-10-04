@@ -15,6 +15,7 @@ import { runDatabaseMigrations } from '../../src/database/database-migration.ser
 import { companies } from '../../src/database/identity.schema.js'
 import { companyOccurrenceTypes } from '../../src/database/trip.schema.js'
 import {
+  BILL_EXTENSION_OCCURRENCE_TYPE_NAME,
   OCCURRENCE_TYPE_CATALOG,
   SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME,
 } from '../../src/shared/occurrence-type-catalog.constant.js'
@@ -26,10 +27,6 @@ const databaseUrl =
   process.env.API_TEST_DATABASE_URL ??
   process.env.DATABASE_URL
 const testWithPostgres = databaseUrl === undefined ? test.skip : test
-// Vermelho conhecido: o seed ainda não grava `itemsMode` nem o tipo da prorrogação. Volta a `test`
-// quando gravar — `test.failing` reprova no dia em que o teste passar.
-const knownRedWithPostgres = databaseUrl === undefined ? test.skip : test.failing
-const BILL_EXTENSION_TYPE_NAME = 'Cliente pediu prorrogação do boleto'
 
 async function withDisposableDatabase(
   callback: (connectionString: string) => Promise<void>,
@@ -146,7 +143,7 @@ describe('seed do catálogo de tipos de ocorrência contra Postgres real', () =>
    * Spec 241 CA02: a empresa vazia recebe os dois tipos de boleto sem itens (`off`) e os derivados
    * de `TRIP_OCCURRENCE_TYPES` com `optional`. Lido por SQL cru: o valor gravado é o que importa.
    */
-  knownRedWithPostgres(
+  testWithPostgres(
     'semeia os tipos de boleto sem itens e os derivados com itens opcionais',
     async () => {
       await withDisposableDatabase(async (connectionString) => {
@@ -170,10 +167,13 @@ describe('seed do catálogo de tipos de ocorrência contra Postgres real', () =>
           select name, items_mode from company_occurrence_types where company_id = ${company.id}
         `) as { name: string; items_mode: string }[]
           const itemsModeByName = new Map(rows.map((row) => [row.name, row.items_mode]))
-          const billTypeNames = [SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME, BILL_EXTENSION_TYPE_NAME]
+          const billTypeNames = [
+            SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME,
+            BILL_EXTENSION_OCCURRENCE_TYPE_NAME,
+          ]
 
           expect(itemsModeByName.get(SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME)).toBe('off')
-          expect(itemsModeByName.get(BILL_EXTENSION_TYPE_NAME)).toBe('off')
+          expect(itemsModeByName.get(BILL_EXTENSION_OCCURRENCE_TYPE_NAME)).toBe('off')
           const derived = rows.filter((row) => !billTypeNames.includes(row.name))
           expect(derived).toHaveLength(OCCURRENCE_TYPE_CATALOG.length - 2)
           for (const row of derived) expect(row.items_mode).toBe('optional')

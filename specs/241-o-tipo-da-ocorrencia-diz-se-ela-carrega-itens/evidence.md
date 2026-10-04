@@ -734,3 +734,31 @@ Ran 123 tests across 8 files. [35.97s]
 
 Restaurado → `123 pass, 0 fail`. As mesmas duas mutações já tinham dado vermelho antes do rebase, na
 `20261004000033_…` (mesmo SQL), com o mesmo diff na CA01 e o mesmo `23514` na CA09.
+
+## T2.3 — catálogo com `itemsMode` e a prorrogação (só bootstrap)
+
+Teste antes da implementação. O contrato novo em `test/trip-occurrence/catalog-seed.contract.ts`
+(importado por `test/trip-occurrence.contract.test.ts`) saiu vermelho:
+
+```text
+test/trip-occurrence/catalog-seed.contract.ts:
+
+# Unhandled error between tests
+SyntaxError: Export named 'BILL_EXTENSION_OCCURRENCE_TYPE_NAME' not found in module
+'.../src/shared/occurrence-type-catalog.constant.ts'.
+
+ 0 pass
+ 1 fail
+ 1 error
+```
+
+Implementação: `itemsMode` em `OccurrenceTypeCatalogEntry` (`optional` nos derivados, `off` nas duas
+de boleto), `BILL_EXTENSION_OCCURRENCE_TYPE_NAME`, e `insertOccurrenceTypes` grava `itemsMode`
+explícito. **Nenhuma migration insere a prorrogação** (D2) e o seeder segue só-bootstrap
+(`hasAnyOccurrenceType`): nada reconcilia tipo existente. Resultado:
+
+- `catalog-seed.contract.ts` → 9 pass, 0 fail (o teste da 208, "empresa com um tipo qualquer não
+  recebe os outros", segue verde — empresa que já tem tipo não recebe a prorrogação).
+- CA02: o `test.failing` de `occurrence-type-catalog-seed.integration.ts` virou `test` e passa:
+  2 pass, 0 fail, 0 skip contra o Postgres de teste.
+- `bun run typecheck` → sem erro.

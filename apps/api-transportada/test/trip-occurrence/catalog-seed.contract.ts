@@ -3,7 +3,11 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { OCCURRENCE_TYPE_CATALOG } from '../../src/shared/occurrence-type-catalog.constant.js'
+import {
+  BILL_EXTENSION_OCCURRENCE_TYPE_NAME,
+  OCCURRENCE_TYPE_CATALOG,
+  SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME,
+} from '../../src/shared/occurrence-type-catalog.constant.js'
 import {
   seedOccurrenceTypeCatalog,
   type OccurrenceTypeCatalogSeedPort,
@@ -12,7 +16,12 @@ import {
 const COMPANY_A = '00000000-0000-4000-8000-000000000a01'
 const COMPANY_B = '00000000-0000-4000-8000-000000000a02'
 
-type StoredType = { readonly companyId: string; readonly name: string; readonly stage: string }
+type StoredType = {
+  readonly companyId: string
+  readonly itemsMode?: string
+  readonly name: string
+  readonly stage: string
+}
 
 function createFakePort(companyIds: readonly string[], existing: readonly StoredType[] = []) {
   const inserted: StoredType[] = []
@@ -27,7 +36,7 @@ function createFakePort(companyIds: readonly string[], existing: readonly Stored
       Promise.resolve((byCompany.get(companyId) ?? []).length > 0),
     insertOccurrenceTypes: ({ companyId, types }) => {
       for (const type of types) {
-        const record = { companyId, name: type.name, stage: type.stage }
+        const record = { companyId, itemsMode: type.itemsMode, name: type.name, stage: type.stage }
         inserted.push(record)
         byCompany.set(companyId, [...(byCompany.get(companyId) ?? []), record])
       }
@@ -136,5 +145,34 @@ describe('o seed do catálogo de tipos de ocorrência só semeia empresa vazia',
 
     expect(entry).toBeDefined()
     expect(entry?.stage).toBe('delivery')
+  })
+
+  /** Spec 241 CA02: o seed grava `itemsMode` explícito, e só os dois tipos de boleto saem sem itens. */
+  test('os tipos de boleto saem com itens desligados e os demais com itens opcionais', async () => {
+    const { inserted, port } = createFakePort([COMPANY_A])
+
+    await seedOccurrenceTypeCatalog({ port })
+
+    const billTypeNames = [
+      SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME,
+      BILL_EXTENSION_OCCURRENCE_TYPE_NAME,
+    ]
+    const offTypes = inserted.filter((type) => type.itemsMode === 'off')
+    const optionalTypes = inserted.filter((type) => type.itemsMode === 'optional')
+
+    expect(offTypes.map((type) => type.name).sort()).toEqual([...billTypeNames].sort())
+    expect(optionalTypes).toHaveLength(OCCURRENCE_TYPE_CATALOG.length - billTypeNames.length)
+    expect(inserted).toHaveLength(offTypes.length + optionalTypes.length)
+  })
+
+  /** Spec 241 D2: a prorrogação é entrada de bootstrap, na rua, com os defaults da 208. */
+  test('o catálogo inclui "Cliente pediu prorrogação do boleto" na etapa de entrega', () => {
+    const entry = OCCURRENCE_TYPE_CATALOG.find(
+      (type) => type.name === BILL_EXTENSION_OCCURRENCE_TYPE_NAME,
+    )
+
+    expect(BILL_EXTENSION_OCCURRENCE_TYPE_NAME).toBe('Cliente pediu prorrogação do boleto')
+    expect(entry?.stage).toBe('delivery')
+    expect(entry?.itemsMode).toBe('off')
   })
 })

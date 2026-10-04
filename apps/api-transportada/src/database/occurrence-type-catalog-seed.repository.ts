@@ -34,9 +34,14 @@ export function createDrizzleOccurrenceTypeCatalogSeedPort(
       return row !== undefined
     },
     async insertOccurrenceTypes({ companyId, types }) {
-      await queryable
-        .insert(companyOccurrenceTypes)
-        .values(types.map((type) => ({ companyId, name: type.name, stage: type.stage })))
+      await queryable.insert(companyOccurrenceTypes).values(
+        types.map((type) => ({
+          companyId,
+          itemsMode: type.itemsMode,
+          name: type.name,
+          stage: type.stage,
+        })),
+      )
     },
   }
 }
