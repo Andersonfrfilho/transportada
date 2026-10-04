@@ -762,3 +762,81 @@ explícito. **Nenhuma migration insere a prorrogação** (D2) e o seeder segue s
 - CA02: o `test.failing` de `occurrence-type-catalog-seed.integration.ts` virou `test` e passa:
   2 pass, 0 fail, 0 skip contra o Postgres de teste.
 - `bun run typecheck` → sem erro.
+
+## T2.4 — cadastro com `itemsMode` e a regra `off` ⇒ `unset`
+
+Contrato antes da implementação (commit `692dfe4b3`, só com os testes e as classes de erro).
+`test/trip-occurrence/items-mode-type-write.contract.ts` (importado por
+`test/trip-occurrence.contract.test.ts`), vermelho contra o código sem `itemsMode`:
+
+```text
+(fail) o cadastro do tipo aceita "itemsMode" (spec 241 RF4, CA07) > off é aceito e chega ao resultado
+(fail) o cadastro do tipo aceita "itemsMode" (spec 241 RF4, CA07) > optional é aceito e chega ao resultado
+(fail) o estado resultante "off" exige política "unset" (spec 241 RF11, CA09) > off com política blocked no corpo: 422 ...
+(fail) ... > off com política allowed no corpo: 422 ...
+(fail) ... > off no corpo e política gravada blocked (campo ausente lê o gravado): 422 ...
+(fail) ... > política allowed no corpo e tipo gravado off (itemsMode ausente lê o gravado): 422 ...
+(fail) ... > off com unset grava; optional com política de reentrega grava
+(fail) o PUT que cria a prorrogação do boleto (spec 241 CA10) > off, sem foto, sem soltar a nota e sem política: grava com o corpo da 208
+ 4 pass
+ 8 fail
+Ran 12 tests across 1 file.
+```
+
+Implementação:
+
+- `occurrence.schema.ts`: `itemsMode: z.enum(['off', 'optional']).optional()` — sem `default`, ausente
+  fica ausente; `required` e qualquer outro valor voltam 400 (`INVALID_REQUEST`).
+- `save-occurrence-type.use-case.ts`: `assertItemsOffHasNoRedeliveryPolicy` valida o estado
+  **resultante** (valor novo ou o gravado, lido por `findCurrentType` só quando um dos dois campos vem
+  ausente) e lança `OccurrenceTypeItemsOffRedeliveryPolicyError` (`422
+OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY`, em `trips/domain/trip.error.ts` ao lado do
+  `OccurrenceTypeSingleItemError`) antes do `save`. O novo `OccurrenceTypeItemsNotAllowedError` (`422
+OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED`) é usado na T2.5.
+- `delivery-proof-read.support.ts`: `saveOccurrenceType` grava `itemsMode` só quando presente (INSERT
+  usa o default da coluna `optional`; UPDATE omite a coluna, sem `?? 'x'`); `findOccurrenceType`
+  seleciona `itemsMode`; `OccurrenceTypeRecord.itemsMode` (opcional no tipo, como as demais colunas
+  novas, para os dublês; a implementação real sempre grava). `main.ts` liga `findCurrentType` a
+  `findOccurrenceType`.
+- Semente local (`local-occurrence-type-seed.service.ts`): grava `optional` **só na criação** (não
+  reescreve o modo de um tipo que o operador mudou).
+- Os dois contratos antigos que chamam `saveOccurrenceTypeWithTemplate` ganharam
+  `findCurrentType: async () => null`.
+- `test/integration/occurrence-type-items-mode.integration.ts` (novo, entrou na lista
+  `test:integration` do `package.json`): grava e ausente não altera; criação usa `optional`; o PUT da
+  prorrogação com os campos da 208 grava (`off`, foto `off`, `leavesDocumentBehind false`, `unset`,
+  `document`); `off` sobre tipo gravado `blocked` é o erro do caso de uso e a linha não muda.
+
+Verde:
+
+```text
+items-mode-type-write.contract.ts: 12 pass, 0 fail
+test/trip-occurrence.contract.test.ts: 344 pass, 0 fail
+occurrence-type-items-mode.integration.ts (Postgres de teste): 4 pass, 0 fail, 0 skip
+bun run typecheck (API): sem erro
+```
+
+## T2.4b — mutação: arrancar a validação `off` ⇒ `unset`
+
+Removida a chamada `await assertItemsOffHasNoRedeliveryPolicy(input)` de
+`saveOccurrenceTypeWithTemplate`. Contrato (4 casos de 422) e integração (CA09) ficam vermelhos, e a
+integração mostra a CHECK do banco segurando a linha — o que na API seria 500 em vez de 422:
+
+```text
+error: A rejeição era esperada
+(fail) o estado resultante "off" exige política "unset" (spec 241 RF11, CA09) > off com política blocked no corpo: 422 com código estável e nada gravado
+(fail) ... > off com política allowed no corpo: 422 com código estável e nada gravado
+(fail) ... > off no corpo e política gravada blocked (campo ausente lê o gravado): 422 ...
+(fail) ... > política allowed no corpo e tipo gravado off (itemsMode ausente lê o gravado): 422 ...
+ 8 pass
+ 4 fail
+
+PostgresError: new row for relation "company_occurrence_types" violates check constraint "company_occurrence_types_items_off_shape_check"
+      errno: "23514",
+ constraint: "company_occurrence_types_items_off_shape_check",
+(fail) "itemsMode" do tipo de ocorrência contra o Postgres (spec 241) > off com política gravada blocked é 422 do caso de uso, nunca 500 da CHECK (CA09)
+ 3 pass
+ 1 fail
+```
+
+Restaurado (cópia byte a byte do arquivo) → contrato 12 pass, integração 4 pass.

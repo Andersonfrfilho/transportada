@@ -3869,6 +3869,8 @@ function createApplicationRoutes({
         execute: (input) =>
           saveOccurrenceTypeWithTemplate({
             companyId: input.context.companyId,
+            findCurrentType: ({ companyId, occurrenceTypeId }) =>
+              findOccurrenceType(database, { companyId, occurrenceTypeId }),
             save: (values) =>
               saveOccurrenceType(database, { ...values, companyId: input.context.companyId }),
             templates: {
@@ -3893,6 +3895,7 @@ function createApplicationRoutes({
               emailsContractor: input.emailsContractor,
               emailTemplateKey: input.emailTemplateKey,
               flow: input.flow,
+              itemsMode: input.itemsMode,
               leavesDocumentBehind: input.leavesDocumentBehind,
               name: input.name,
               notifies: input.notifies,

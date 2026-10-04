@@ -116,6 +116,7 @@ describe('gravação do tipo com template do módulo', () => {
     let savedValues: Record<string, unknown> = {}
     const saved = await saveOccurrenceTypeWithTemplate({
       companyId: COMPANY,
+      findCurrentType: async () => null,
       save: async (values) => {
         savedValues = values
         return buildType({ emailTemplateKey: 'billing.invoice-due' })
@@ -134,6 +135,7 @@ describe('gravação do tipo com template do módulo', () => {
     expect(
       saveOccurrenceTypeWithTemplate({
         companyId: COMPANY,
+        findCurrentType: async () => null,
         save: async () => buildType({}),
         templates: { hasActiveEmailTemplate: async () => false },
         values: { ...BASE_VALUES, emailTemplateKey: 'key.inexistente' },
@@ -150,6 +152,7 @@ describe('gravação do tipo com template do módulo', () => {
     let consulted = false
     await saveOccurrenceTypeWithTemplate({
       companyId: COMPANY,
+      findCurrentType: async () => null,
       save: async (values) => {
         savedValues = values
         return buildType({ emailBody: 'corpo digitado', emailSubject: 'assunto digitado' })

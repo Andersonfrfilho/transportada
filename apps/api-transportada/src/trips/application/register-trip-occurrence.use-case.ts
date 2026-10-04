@@ -132,6 +132,12 @@ export type OccurrenceTypeRecord = {
   readonly flow?: OccurrenceTypeFlow
   readonly id: string
   /**
+   * Spec 241 (RF1): se o tipo carrega produtos. Ausente é tratado como `'optional'` — existe como
+   * opcional só para os dublês de teste; a implementação real (`findOccurrenceType`,
+   * `listOccurrenceTypes`) sempre grava.
+   */
+  readonly itemsMode?: DeliveryProofFieldMode
+  /**
    * Spec 185 (RF6, ADR-0074 §4): "a viagem segue sem a nota", só para tipo de separação. Ausente é
    * tratado como `false` — existe como opcional só para os dublês de teste que ainda não conhecem
    * a marca; a implementação real (`listOccurrenceTypes`) sempre grava.

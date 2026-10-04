@@ -72,6 +72,8 @@ async function seedOccurrenceTypes(): Promise<void> {
         emailBody: '',
         emailSubject: '',
         emailTemplateKey: null,
+        /** Spec 241: só na criação — reescrever o modo de um tipo que o operador mudou apagaria a escolha dele. */
+        itemsMode: existente === undefined ? 'optional' : undefined,
         name: tipo.name,
         notifies: false,
         occurrenceTypeId: existente?.id ?? null,

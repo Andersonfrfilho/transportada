@@ -7,7 +7,6 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import type { RedeliveryPolicy } from '../../src/database/trip.schema.js'
 import type { AuthenticatedIdentity } from '../../src/identity/domain/authenticated-identity.js'
 import type {
   AuthenticatedContext,
@@ -141,9 +140,7 @@ async function expectRejection(
 
 describe('o cadastro do tipo aceita "itemsMode" (spec 241 RF4, CA07)', () => {
   test.each(['off', 'optional'] as const)('%s é aceito e chega ao resultado', async (mode) => {
-    const parsed = await parseOccurrenceTypeRequest(
-      putRequest({ ...baseBody(), itemsMode: mode }),
-    )
+    const parsed = await parseOccurrenceTypeRequest(putRequest({ ...baseBody(), itemsMode: mode }))
     expect(parsed.itemsMode).toBe(mode)
   })
 
@@ -163,34 +160,29 @@ describe('o cadastro do tipo aceita "itemsMode" (spec 241 RF4, CA07)', () => {
 })
 
 describe('o estado resultante "off" exige política "unset" (spec 241 RF11, CA09)', () => {
-  const cases: readonly {
-    readonly label: string
-    readonly stored: null | StoredShape
-    readonly body: Record<string, unknown>
-    readonly policy: RedeliveryPolicy
+  const cases: {
+    body: Record<string, unknown>
+    label: string
+    stored: null | StoredShape
   }[] = [
     {
       body: { itemsMode: 'off', redeliveryPolicy: 'blocked' },
       label: 'off com política blocked no corpo',
-      policy: 'blocked',
       stored: null,
     },
     {
       body: { itemsMode: 'off', redeliveryPolicy: 'allowed' },
       label: 'off com política allowed no corpo',
-      policy: 'allowed',
       stored: { itemsMode: 'optional', redeliveryPolicy: 'unset' },
     },
     {
       body: { itemsMode: 'off' },
       label: 'off no corpo e política gravada blocked (campo ausente lê o gravado)',
-      policy: 'blocked',
       stored: { itemsMode: 'optional', redeliveryPolicy: 'blocked' },
     },
     {
       body: { redeliveryPolicy: 'allowed' },
       label: 'política allowed no corpo e tipo gravado off (itemsMode ausente lê o gravado)',
-      policy: 'allowed',
       stored: { itemsMode: 'off', redeliveryPolicy: 'unset' },
     },
   ]

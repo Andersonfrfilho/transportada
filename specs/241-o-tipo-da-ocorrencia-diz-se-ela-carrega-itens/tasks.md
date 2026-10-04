@@ -69,12 +69,12 @@ items_mode` da migration e o default `off` do plano. Se criou com default `off`:
 - [x] **T2.3** Catálogo: `itemsMode` por entrada, o tipo da prorrogação (`delivery`, `off`, defaults da 208) **só no catálogo de bootstrap** — nenhuma migration o insere (D2) —, constante do nome da
       segunda via; seeders gravam `itemsMode` (CA02). Aceite: empresa que já tem qualquer tipo
       continua sem receber a prorrogação (teste existente da 208/CA3 segue verde).
-- [ ] **T2.4** Contrato primeiro, depois o cadastro: `itemsMode` opcional sem default, `required` →
+- [x] **T2.4** Contrato primeiro, depois o cadastro: `itemsMode` opcional sem default, `required` →
       400 (CA07); validação do estado resultante `off` ⇒ `unset` com
       `OccurrenceTypeItemsOffRedeliveryPolicyError` (`422 OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY`)
       antes de gravar, campo ausente lendo o valor gravado (CA09); e `PUT` que cria a prorrogação
       (`off`, foto `off`, sem soltar a nota, `unset`) grava (CA10).
-- [ ] **T2.4b** Mutação: arrancar a validação `off` ⇒ `unset` do cadastro deixa a CA09 vermelha (a
+- [x] **T2.4b** Mutação: arrancar a validação `off` ⇒ `unset` do cadastro deixa a CA09 vermelha (a
       CHECK do banco ainda segura, mas o código da resposta passa a ser 500). Colar a execução.
 - [ ] **T2.5** Contrato primeiro, depois RF6 nos casos de uso de registro, registro em nome do
       motorista (se aceitar produto) e correção (CA03).

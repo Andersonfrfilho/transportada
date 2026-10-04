@@ -298,6 +298,8 @@ type SaveOccurrenceTypeInput = {
    * `occurrence.schema.ts` (`FLOW_REQUIRED_ON_CREATE`) e `save-occurrence-type.use-case.ts`.
    */
   readonly flow?: OccurrenceTypeFlow | undefined
+  /** Spec 241 (RF4): ausente é "não mexa" — ver `save-occurrence-type.use-case.ts`. */
+  readonly itemsMode?: Exclude<DeliveryProofFieldMode, 'required'> | undefined
   /**
    * Spec 185 (RF6): "a viagem segue sem a nota". Ausente é "não mexa" — ver
    * `save-occurrence-type.use-case.ts`.

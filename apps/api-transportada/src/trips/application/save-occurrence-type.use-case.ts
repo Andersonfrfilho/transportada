@@ -7,6 +7,7 @@
  */
 import {
   OccurrenceEmailTemplateNotFoundError,
+  OccurrenceTypeItemsOffRedeliveryPolicyError,
   OccurrenceTypeLeavesDocumentBehindRequiresSeparationError,
 } from '../domain/trip.error.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
@@ -47,6 +48,11 @@ export type SaveOccurrenceTypeValues = {
    */
   readonly flow?: OccurrenceTypeFlow | undefined
   /**
+   * Spec 241 (RF4): se o tipo carrega produtos (`off`/`optional`; `required` é da 239). Ausente é
+   * "não mexa", como `attachmentMode` — nunca `'optional'`, que religaria um tipo `off`.
+   */
+  readonly itemsMode?: Exclude<DeliveryProofFieldMode, 'required'> | undefined
+  /**
    * Spec 185 (RF6, ADR-0074 §4): só tipo de separação pode "deixar a nota para trás" —
    * `saveOccurrenceTypeWithTemplate` recusa `true` com `stage !== 'separation'` antes de gravar.
    * Ausente é "não mexa", nunca `false` — mesmo motivo de `attachmentMode` acima.
@@ -60,8 +66,18 @@ export type SaveOccurrenceTypeValues = {
   readonly stage: TripOccurrenceStage
 }
 
+/** O que o cadastro lê do tipo já gravado para validar o estado resultante (spec 241 RF11). */
+export type CurrentOccurrenceTypeShape = Pick<
+  OccurrenceTypeRecord,
+  'itemsMode' | 'redeliveryPolicy'
+>
+
 export type SaveOccurrenceTypeWithTemplateInput = {
   readonly companyId: string
+  readonly findCurrentType: (input: {
+    readonly companyId: string
+    readonly occurrenceTypeId: string
+  }) => Promise<CurrentOccurrenceTypeShape | null>
   readonly save: (values: SaveOccurrenceTypeValues) => Promise<OccurrenceTypeRecord>
   readonly templates: OccurrenceEmailTemplateCatalogPort
   readonly values: SaveOccurrenceTypeValues
@@ -80,6 +96,8 @@ export async function saveOccurrenceTypeWithTemplate(
     throw new OccurrenceTypeLeavesDocumentBehindRequiresSeparationError()
   }
 
+  await assertItemsOffHasNoRedeliveryPolicy(input)
+
   const { emailTemplateKey } = input.values
   if (emailTemplateKey === null) return input.save(input.values)
 
@@ -90,4 +108,25 @@ export async function saveOccurrenceTypeWithTemplate(
   if (!exists) throw new OccurrenceEmailTemplateNotFoundError()
 
   return input.save({ ...input.values, emailBody: '', emailSubject: '' })
+}
+
+/**
+ * Spec 241 (RF11, D1): valida o estado **resultante** — campo ausente lê o valor gravado, porque
+ * `off` + política diferente de `unset` é tratativa que não fecha. A CHECK do banco é só a rede.
+ */
+async function assertItemsOffHasNoRedeliveryPolicy(
+  input: SaveOccurrenceTypeWithTemplateInput,
+): Promise<void> {
+  const { itemsMode, occurrenceTypeId, redeliveryPolicy } = input.values
+  const isStoredStateNeeded =
+    occurrenceTypeId !== null && (itemsMode === undefined || redeliveryPolicy === undefined)
+  const stored = isStoredStateNeeded
+    ? await input.findCurrentType({ companyId: input.companyId, occurrenceTypeId })
+    : null
+
+  const resultingItemsMode = itemsMode ?? stored?.itemsMode ?? 'optional'
+  const resultingPolicy = redeliveryPolicy ?? stored?.redeliveryPolicy ?? 'unset'
+  if (resultingItemsMode === 'off' && resultingPolicy !== 'unset') {
+    throw new OccurrenceTypeItemsOffRedeliveryPolicyError()
+  }
 }

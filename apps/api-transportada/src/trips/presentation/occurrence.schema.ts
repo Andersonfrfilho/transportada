@@ -281,6 +281,9 @@ export async function parseAttachOccurrencePhotoRequest(
  * escondido aqui daria permissão por omissão. O `strict()` recusa campo a mais — inclusive
  * `companyId` vindo do cliente.
  */
+/** Spec 241 (RF4): `required` só entra com a 239 (`items_minimum_count`). */
+const WRITABLE_ITEMS_MODES = ['off', 'optional'] as const
+
 const occurrenceTypeSchema = z
   .object({
     active: z.boolean().default(true),
@@ -297,6 +300,12 @@ const occurrenceTypeSchema = z
      * ele. Ausente significa "não mexa", e quem grava resolve mantendo o valor atual.
      */
     attachmentMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
+    /**
+     * Spec 241 (RF4): se o tipo carrega produtos. Na escrita só `off`/`optional` — `required` é da
+     * 239 e volta 400. ⚠️ **Opcional sem `default`, pelo mesmo motivo de `attachmentMode`**: ausente
+     * é "não mexa"; um `default('optional')` religaria o seletor de um tipo `off` a cada edição.
+     */
+    itemsMode: z.enum(WRITABLE_ITEMS_MODES).optional(),
     /**
      * Spec 183 T802: o tipo avisa a contratante sozinho no registro. Opcional sem `default` pelo
      * mesmo motivo do `attachmentMode`: ausente é "não mexa", nunca desligar o aviso de carona.

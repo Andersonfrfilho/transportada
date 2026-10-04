@@ -821,6 +821,8 @@ export async function findOccurrenceType(
       /** Spec 218 D2: qual dos 5 valores fixos de parada o tipo representa. */
       stopKind: companyOccurrenceTypes.stopKind,
       id: companyOccurrenceTypes.id,
+      /** Spec 241 (RF1): se o tipo carrega produtos — a guarda do registro e da correção lê daqui. */
+      itemsMode: companyOccurrenceTypes.itemsMode,
       /** Spec 185 (revisão, RF2): só a ocorrência que deixa a nota para trás tenta o despacho. */
       leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
       name: companyOccurrenceTypes.name,
@@ -985,6 +987,8 @@ export async function saveOccurrenceType(
      * `occurrenceTypeId: null`); ausente na edição é "não mexa", mesmo motivo de `attachmentMode`.
      */
     readonly flow?: OccurrenceTypeFlow | undefined
+    /** Spec 241 (RF4): ausente é "não mexa" — o INSERT usa o padrão da coluna (`'optional'`). */
+    readonly itemsMode?: DeliveryProofFieldMode | undefined
     /**
      * Spec 185 (RF6, ADR-0074 §4): ausente é `false` — o padrão da coluna. Opcional pelo mesmo
      * motivo de `attachmentMode` acima: o UPDATE sobrescreve o registro inteiro e o editor do
@@ -1025,6 +1029,7 @@ export async function saveOccurrenceType(
     ...(input.attachmentMode === undefined ? {} : { attachmentMode: input.attachmentMode }),
     ...(input.emailsContractor === undefined ? {} : { emailsContractor: input.emailsContractor }),
     ...(input.flow === undefined ? {} : { flow: input.flow }),
+    ...(input.itemsMode === undefined ? {} : { itemsMode: input.itemsMode }),
     ...(input.redeliveryPolicy === undefined ? {} : { redeliveryPolicy: input.redeliveryPolicy }),
   }
   /**
@@ -1081,6 +1086,7 @@ export async function saveOccurrenceType(
     emailsContractor: saved.emailsContractor,
     flow: saved.flow,
     id: saved.id,
+    itemsMode: saved.itemsMode,
     leavesDocumentBehind: saved.leavesDocumentBehind,
     name: saved.name,
     notifies: saved.notifies,
