@@ -1039,6 +1039,7 @@
           "ready_other": "Shorten and erase {{amount}} points"
         }
       },
+      "atLeastCount": "at least {{formatted}}",
       "cancel": "Cancel",
       "cappedCount": "more than 100 thousand",
       "close": "Close",
@@ -1049,7 +1050,7 @@
         "occurrence": "Occurrences",
         "statusChange": "Status changes"
       },
-      "intro": "With a {{days}}-day retention, these events lose their point in the first cycle:",
+      "intro": "With a {{days}}-day retention, these events already lose their point in the first cycle, and those that expire by then add to this count:",
       "loadError": "Could not count what would be erased. Close and try again.",
       "loading": "Counting events",
       "title": {

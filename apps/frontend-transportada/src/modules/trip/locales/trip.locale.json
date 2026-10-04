@@ -1039,6 +1039,7 @@
           "ready_other": "Encurtar e apagar {{amount}} pontos"
         }
       },
+      "atLeastCount": "ao menos {{formatted}}",
       "cancel": "Cancelar",
       "cappedCount": "mais de 100 mil",
       "close": "Fechar",
@@ -1049,7 +1050,7 @@
         "occurrence": "Ocorrências",
         "statusChange": "Mudanças de status"
       },
-      "intro": "Com o prazo de {{days}} dias, estes eventos perdem o ponto no primeiro ciclo:",
+      "intro": "Com o prazo de {{days}} dias, estes eventos já perdem o ponto no primeiro ciclo, e os que vencerem até lá somam a esta contagem:",
       "loadError": "Não foi possível contar o que seria apagado. Feche e tente de novo.",
       "loading": "Contando os eventos",
       "title": {

@@ -218,7 +218,7 @@ for (const viewport of VIEWPORTS) {
       )
       impact.release()
 
-      const confirm = dialog.getByRole('button', { name: 'Ligar e apagar 1.633 pontos' })
+      const confirm = dialog.getByRole('button', { name: 'Ligar e apagar ao menos 1.633 pontos' })
       await expect(confirm).toBeEnabled()
       expect(skeletonRows, 'o esqueleto tem uma linha por grupo e a altura da linha real').toEqual(
         await rowHeights(dialog.locator('ul'), 'li'),
@@ -250,7 +250,7 @@ for (const viewport of VIEWPORTS) {
       await trigger.click()
       await page
         .getByRole('dialog')
-        .getByRole('button', { name: /^Ligar e apagar 1\.633/u })
+        .getByRole('button', { name: /^Ligar e apagar ao menos 1\.633/u })
         .click()
       await expect(page.getByRole('dialog')).toHaveCount(0)
       await expect(panel(page).getByText(/aguardando a carência de 24 horas/u)).toBeVisible()
@@ -497,12 +497,14 @@ async function expectDialogContract(page: Page, viewport: Viewport): Promise<voi
   expect(visited, 'ordem de tab: fechar, cancelar, confirmar e volta ao início').toEqual([
     'Fechar',
     'Cancelar',
-    'Ligar e apagar 1.633 pontos',
+    'Ligar e apagar ao menos 1.633 pontos',
     'Fechar',
   ])
 
   const cancel = await dialog.getByRole('button', { name: 'Cancelar', exact: true }).boundingBox()
-  const confirm = await dialog.getByRole('button', { name: /^Ligar e apagar 1/u }).boundingBox()
+  const confirm = await dialog
+    .getByRole('button', { name: /^Ligar e apagar ao menos 1/u })
+    .boundingBox()
   const frame = await dialog.boundingBox()
   expect(cancel).not.toBeNull()
   expect(confirm).not.toBeNull()

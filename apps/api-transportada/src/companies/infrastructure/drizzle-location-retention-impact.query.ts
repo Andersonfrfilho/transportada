@@ -65,7 +65,8 @@ const IMPACT_SOURCES: readonly ImpactSource[] = [
 /**
  * Uma consulta por tabela (sem N+1), lendo no máximo `CAP + 1` linhas da empresa do contexto pelo
  * índice parcial `(company_id, tempo) where latitude is not null`. Só `count`: nenhum id, data ou
- * coordenada de evento sai daqui.
+ * coordenada de evento sai daqui. O número é piso: o primeiro ciclo roda após a carência de 24 h e apaga
+ * também o que vencer até lá.
  */
 export function countLocationRetentionImpact(
   database: CompanySettingsDatabase,

@@ -52,7 +52,9 @@ export function LocationRetentionConfirmDialog({
       ? ''
       : impactSummary.isCapped
         ? t('locationRetention.confirm.cappedCount')
-        : NUMBER_FORMAT.format(impactSummary.total)
+        : t('locationRetention.confirm.atLeastCount', {
+            formatted: NUMBER_FORMAT.format(impactSummary.total),
+          })
 
   return createPortal(
     <div className={styles.mdfeGateOverlay} onKeyDown={handleKeyDown} role="presentation">

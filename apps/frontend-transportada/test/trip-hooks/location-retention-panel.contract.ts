@@ -174,6 +174,22 @@ describe('painel da retenção da posição (spec 239 T3.1)', () => {
     expect(text()).not.toContain('Ligado: a posição é apagada depois de')
   })
 
+  it('em carência: vira "ligado" sozinho no instante em que a carência vence', async () => {
+    const effective = new Date(NOW.getTime() + 300)
+    locationRetentionFakes.get = () =>
+      Promise.resolve({ ...ENABLED_SETTINGS, purgeEffectiveAt: effective.toISOString() })
+    await mountPanel()
+    expect(text()).toContain('aguardando a carência de 24 horas')
+
+    setSystemTime(new Date(effective.getTime() + 1))
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 450))
+    })
+
+    expect(text()).toContain('Ligado: a posição é apagada depois de 60 dias.')
+    expect(text()).not.toContain('Começa a valer em')
+  })
+
   it('salvando: o painel avisa e trava as ações até a resposta', async () => {
     locationRetentionFakes.get = () => Promise.resolve(ENABLED_SETTINGS)
     let finish: (settings: LocationRetentionSettings) => void = () => undefined
@@ -240,12 +256,13 @@ describe('painel da retenção da posição (spec 239 T3.1)', () => {
       expect(dialogText).toContain('LGPD, art. 5º, I')
       expect(dialogText).toContain('Apagar é definitivo')
       expect(dialogText).toContain('Com o prazo de 45 dias')
+      expect(dialogText).toContain('os que vencerem até lá somam a esta contagem')
       expect(dialogText).toContain('24 horas depois da confirmação')
       expect(dialogText).toContain('Chegadas e entregas')
       expect(dialogText).toContain('1.000')
       expect(dialogText).toContain('Ocorrências')
 
-      await click(button('Ligar e apagar 1.234 pontos'))
+      await click(button('Ligar e apagar ao menos 1.234 pontos'))
       expect(savedCalls()).toEqual(['save:{"purgeEnabled":true,"retentionDays":45}'])
       await waitFor(() => expect(dialog()).toBe(null))
     })
@@ -263,7 +280,7 @@ describe('painel da retenção da posição (spec 239 T3.1)', () => {
         finish(impactOf([1, 0, 0, 0, 0]))
         await Promise.resolve()
       })
-      await waitFor(() => expect(button('Ligar e apagar 1 ponto').disabled).toBe(false))
+      await waitFor(() => expect(button('Ligar e apagar ao menos 1 ponto').disabled).toBe(false))
       expect(hasButton('OK')).toBe(false)
     })
 
@@ -311,7 +328,7 @@ describe('painel da retenção da posição (spec 239 T3.1)', () => {
       expect(dialog()?.textContent).toContain('Encurtar o prazo de retenção?')
       expect(locationRetentionFakes.calls).toContain('impact:30')
       expect(savedCalls()).toEqual([])
-      await click(button('Encurtar e apagar 5 pontos'))
+      await click(button('Encurtar e apagar ao menos 5 pontos'))
       expect(savedCalls()).toEqual(['save:{"purgeEnabled":true,"retentionDays":30}'])
     })
 
