@@ -397,30 +397,30 @@ atrás** (parte do `83813b175`) e **precisa de `git rebase origin/staging` + `bu
 testes da app antes do push** (nenhum dos 46 toca os arquivos da 241 que o `cherry-pick` para a árvore integrada
 reaplicou sem conflito de código). Branches e SHAs reais, em ordem (`git log --reverse origin/staging..<branch>`):
 
-**Etapa 1 — painel tolerante** (`work/241-painel`, 14 commits; só `specs/` são marcados):
+**Etapa 1 — painel tolerante** (`work/241-painel`; os commits só de `specs/` estão marcados):
 
-| SHA         | Conteúdo                                                                                                   |
-| ----------- | ---------------------------------------------------------------------------------------------------------- |
-| `4947b91c3` | só `specs/`: T0.2 (a 239 ainda não criou `items_mode`) e T0.3 pendente                                     |
-| `f41e73634` | T1.1 — guards tolerantes                                                                                   |
-| `a1ead764f` | T1.2 — Corrigir por `typeItemsMode`                                                                        |
-| `0cdbe249a` | só `specs/`: T1.3 — a mutação do RF7, executada vermelha                                                   |
-| `80b532108` | T1.4 — registro e correção por tipo                                                                        |
-| `e22653cda` | T1.5 — Produtos no cadastro e mensagens                                                                    |
-| `aefd713bb` | só `specs/`: T1.6 — gates do painel                                                                        |
-| `bf8eaefde` | T3.1 achado 1 — o guard aceita `emailsContractor` e `stopKind` (**dispensável**, ver o achado)             |
-| `cd1b8208b` | T3.1 achado 2 — rótulos de Produtos e dica                                                                 |
-| `e72f6c1c3` | T3.1 achado 4 — recarga do tipo no `422` e seleção normalizada                                             |
-| `39b495181` | T3.1 achado 4 — o cliente falso de teste ganha `saveOccurrenceType`                                        |
-| `403beff91` | T3.1 achado 3 — `Tooltip` fecha ao ativar o gatilho                                                        |
-| `42e57376f` | T3.1 achado 3 — Enter e Espaço                                                                             |
-| (último)    | só `specs/` e `docs/`: T3.1–T3.3 (este arquivo, os 31 prints e `docs/ai-context/frontend-transportada.md`) |
+| SHA           | Conteúdo                                                                                                                                                    |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `4947b91c3`   | só `specs/`: T0.2 (a 239 ainda não criou `items_mode`) e T0.3 pendente                                                                                      |
+| `f41e73634`   | T1.1 — guards tolerantes                                                                                                                                    |
+| `a1ead764f`   | T1.2 — Corrigir por `typeItemsMode`                                                                                                                         |
+| `0cdbe249a`   | só `specs/`: T1.3 — a mutação do RF7, executada vermelha                                                                                                    |
+| `80b532108`   | T1.4 — registro e correção por tipo                                                                                                                         |
+| `e22653cda`   | T1.5 — Produtos no cadastro e mensagens                                                                                                                     |
+| `aefd713bb`   | só `specs/`: T1.6 — gates do painel                                                                                                                         |
+| `bf8eaefde`   | T3.1 achado 1 — o guard aceita `emailsContractor` e `stopKind` (**dispensável**, ver o achado)                                                              |
+| `cd1b8208b`   | T3.1 achado 2 — rótulos de Produtos e dica                                                                                                                  |
+| `e72f6c1c3`   | T3.1 achado 4 — recarga do tipo no `422` e seleção normalizada                                                                                              |
+| `39b495181`   | T3.1 achado 4 — o cliente falso de teste ganha `saveOccurrenceType`                                                                                         |
+| `403beff91`   | T3.1 achado 3 — `Tooltip` fecha ao ativar o gatilho                                                                                                         |
+| `42e57376f`   | T3.1 achado 3 — Enter e Espaço                                                                                                                              |
+| fim da branch | só `specs/` e `docs/`: `docs(specs)` (T3.1–T3.3 neste arquivo, os 31 prints e o `tasks.md`) e `docs(frontend)` (`docs/ai-context/frontend-transportada.md`) |
 
 Gate de entrada da etapa 1: contra a **API atual** (sem os campos novos) o painel se comporta como antes, exceto Corrigir,
 que passa a aparecer para ocorrência sem itens (lê `optional`) e que a API atual aceita (T1.6). Depois do push:
 esperar o deploy e o `autoUpdate` do PWA **antes** da etapa 2.
 
-**Etapa 2 — banco e API** (`work/241-api`, 11 commits, sobre `origin/staging` `11a78cb6e`):
+**Etapa 2 — banco e API** (`work/241-api`, sobre `origin/staging` `11a78cb6e`; 11 commits de implementação, mais `fde805846` só de `specs/` com a ordem de publicação):
 
 | SHA         | Conteúdo                                                                                  |
 | ----------- | ----------------------------------------------------------------------------------------- |
