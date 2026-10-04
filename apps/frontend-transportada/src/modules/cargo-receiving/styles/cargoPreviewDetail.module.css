@@ -1,6 +1,13 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
 /* Detalhe da prévia: cabeçalho, resumo por situação, grupos por roteiro e as linhas de cada um. */
+.headerPanel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
 .summary {
   display: flex;
   flex-wrap: wrap;
@@ -57,7 +64,7 @@
 
 /* Colunas fixas: as linhas de roteiros diferentes alinham entre si, e a tabela rola no próprio quadro. */
 .itemTable {
-  min-width: 70rem;
+  --stacked-min-width: 70rem;
   table-layout: fixed;
 }
 
@@ -169,7 +176,9 @@
   border: 1px solid var(--color-copper);
 }
 
-.proposal h2 {
+.proposal h2,
+.proposal p,
+.expansion p {
   margin: 0;
 }
 

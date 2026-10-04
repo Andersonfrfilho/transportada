@@ -51,7 +51,7 @@ export function CargoPreviewUploadFields({ upload }: CargoPreviewUploadFieldsPro
         data-field={CARGO_PREVIEW_FORM_FIELDS.contractorId}
         tabIndex={-1}
       >
-        <span>{t('preview.upload.contractor')}</span>
+        <span className={previewStyles.fieldLabel}>{t('preview.upload.contractor')}</span>
         <SearchableSelect
           ariaLabel={t('preview.upload.contractor')}
           disabled={contractors.isLoading}

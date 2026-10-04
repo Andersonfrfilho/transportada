@@ -40,7 +40,9 @@ export function CargoPreviewTable({
       role="region"
       tabIndex={0}
     >
-      <table className={`${tableStyles.table} ${previewStyles.previewTable}`}>
+      <table
+        className={`${tableStyles.table} ${tableStyles.stacked} ${previewStyles.previewTable}`}
+      >
         <colgroup>
           {COLUMN_CLASSES.map((className, index) => (
             <col className={className} key={index} />

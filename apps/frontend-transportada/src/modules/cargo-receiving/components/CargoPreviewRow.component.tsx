@@ -36,21 +36,25 @@ export function CargoPreviewRow({ onOpen, preview }: CargoPreviewRowProps): JSX.
 
   return (
     <tr>
-      <td>{contractorName}</td>
-      <td className={previewStyles.fileName}>{preview.fileName}</td>
-      <td>{formatMoment(preview.receivedAt)}</td>
-      <td>
+      <td data-label={t('preview.table.contractor')}>{contractorName}</td>
+      <td data-label={t('preview.table.fileName')} className={previewStyles.fileName}>
+        {preview.fileName}
+      </td>
+      <td data-label={t('preview.table.receivedAt')}>{formatMoment(preview.receivedAt)}</td>
+      <td data-label={t('preview.table.plannedDate')}>
         {formatPlannedDate({
           locale: i18n.resolvedLanguage ?? CARGO_PREVIEW_DEFAULT_LOCALE,
           value: preview.plannedDate,
         })}
       </td>
-      <td>{preview.rowCount === null ? formatOptionalText(null) : preview.rowCount}</td>
-      <td>
+      <td data-label={t('preview.table.rowCount')}>
+        {preview.rowCount === null ? formatOptionalText(null) : preview.rowCount}
+      </td>
+      <td data-label={t('preview.table.status')}>
         <CargoPreviewStatusBadge status={preview.status} />
         {preview.status === 'failed' ? <FailureReason errorCode={preview.errorCode} /> : null}
       </td>
-      <td>
+      <td data-label={t('table.actions')}>
         <div className={tableStyles.rowActions}>
           <Button
             aria-label={t('preview.table.openLabel', { name: contractorName })}

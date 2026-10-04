@@ -42,8 +42,10 @@ export function CargoPreviewItemRow({
   return (
     <Fragment>
       <tr data-item-id={item.id} data-row-number={item.rowNumber} data-state={item.matchState}>
-        <td className={tableStyles.mono}>{item.rowNumber}</td>
-        <td>
+        <td data-label={t('preview.item.columns.row')} className={tableStyles.mono}>
+          {item.rowNumber}
+        </td>
+        <td data-label={t('preview.item.columns.recipient')}>
           <span className={styles.recipient}>
             <span>{item.recipientName ?? t('document.unknownRecipient')}</span>
             {item.address === null ? null : (
@@ -51,13 +53,17 @@ export function CargoPreviewItemRow({
             )}
           </span>
         </td>
-        <td>{formatOptionalText(item.city)}</td>
-        <td>{item.value === null ? formatOptionalText(null) : formatAmount(item.value)}</td>
-        <td>{formatKilograms({ locale, value: item.weightKg })}</td>
-        <td>
+        <td data-label={t('preview.item.columns.city')}>{formatOptionalText(item.city)}</td>
+        <td data-label={t('preview.item.columns.value')}>
+          {item.value === null ? formatOptionalText(null) : formatAmount(item.value)}
+        </td>
+        <td data-label={t('preview.item.columns.weight')}>
+          {formatKilograms({ locale, value: item.weightKg })}
+        </td>
+        <td data-label={t('preview.item.columns.state')}>
           <CargoPreviewItemState item={item} />
         </td>
-        <td>
+        <td data-label={t('preview.item.columns.actions')}>
           <CargoPreviewItemActions actions={actions} canManage={canManage} item={item} />
         </td>
       </tr>

@@ -49,7 +49,17 @@
   text-transform: uppercase;
 }
 
+.fieldLabel {
+  /* O mesmo corpo do rótulo do campo de arquivo (`ui/file-field`), que está ao lado dele. */
+  font-size: var(--field-font-size);
+}
+
 .uploadFields {
+  /* O seletor de contratante, ao lado do campo de arquivo, tem a mesma altura dele (e o alvo de toque). */
+  --field-height-compact: var(--field-height);
+  --field-padding-compact: var(--field-padding);
+  --field-font-size-compact: var(--field-font-size);
+
   display: grid;
   align-items: start;
   gap: var(--space-3);
@@ -86,7 +96,7 @@
 
 /* Colunas fixas: as linhas de prévias diferentes alinham entre si, e a tabela rola no próprio quadro. */
 .previewTable {
-  min-width: 56rem;
+  --stacked-min-width: 56rem;
   table-layout: fixed;
 }
 

@@ -37,7 +37,7 @@ export function CargoPreviewDetailHeader({ header }: CargoPreviewDetailHeaderPro
   const hasAwaiting = header.status === 'ready' && header.counts.awaiting_xml > 0
 
   return (
-    <section className={styles.fieldGroup}>
+    <section className={previewDetailStyles.headerPanel}>
       <ul className={detailStyles.facts}>
         <li className={previewStyles.fileName}>
           {t('preview.facts.file', { name: header.fileName })}

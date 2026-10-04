@@ -65,7 +65,7 @@ function RouteTable({
       role="region"
       tabIndex={0}
     >
-      <table className={`${tableStyles.table} ${detailStyles.itemTable}`}>
+      <table className={`${tableStyles.table} ${tableStyles.stacked} ${detailStyles.itemTable}`}>
         <colgroup>
           {COLUMN_CLASSES.map((className, index) => (
             <col className={className} key={COLUMNS[index]} />

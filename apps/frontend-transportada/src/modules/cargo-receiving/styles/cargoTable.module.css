@@ -73,3 +73,94 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+/*
+ * Mobile-first: abaixo de 40rem cada linha vira um cartão com o rótulo da coluna (`data-label`) ao lado do
+ * valor — a tabela larga escondia situação e ações atrás da rolagem, que é onde o operador mais as quer.
+ * A partir de 40rem volta a ser tabela.
+ */
+.table.stacked thead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.table.stacked,
+.table.stacked tbody,
+.table.stacked tr,
+.table.stacked td {
+  display: block;
+}
+
+.table.stacked tr {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-graphite);
+}
+
+.table.stacked td {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: start;
+  padding: 0;
+  border: 0;
+}
+
+.table.stacked td::before {
+  content: attr(data-label);
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.table.stacked td:not([data-label]) {
+  display: block;
+}
+
+/* A célula de ações da linha que não tem ação (a inválida) some em vez de mostrar só o rótulo. */
+.table.stacked td:empty {
+  display: none;
+}
+
+.table.stacked td:not([data-label])::before {
+  content: none;
+}
+
+@media (min-width: 40rem) {
+  .table.stacked {
+    display: table;
+    min-width: var(--stacked-min-width, 0);
+  }
+
+  .table.stacked thead {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+
+  .table.stacked tbody {
+    display: table-row-group;
+  }
+
+  .table.stacked tr {
+    display: table-row;
+    padding: 0;
+  }
+
+  .table.stacked td {
+    display: table-cell;
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--color-graphite);
+  }
+
+  .table.stacked td::before {
+    content: none;
+  }
+}
