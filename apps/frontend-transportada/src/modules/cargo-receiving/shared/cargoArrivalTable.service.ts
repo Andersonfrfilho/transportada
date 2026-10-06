@@ -1,18 +1,13 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type {
   CargoArrivalFilters,
+  CargoArrivalOrder,
   CargoArrivalStatus,
-  CargoArrivalSummary,
 } from './cargoArrival.types'
 import { CARGO_ARRIVAL_STATUSES } from './cargoReceiving.constant'
 
-export type CargoArrivalSortColumn =
-  | 'arrivedAt'
-  | 'contractor'
-  | 'documents'
-  | 'dueAt'
-  | 'progress'
-  | 'status'
+/** As quatro colunas que o servidor ordena; notas e progresso são contagens que ele não indexa. */
+export type CargoArrivalSortColumn = 'arrivedAt' | 'contractor' | 'dueAt' | 'status'
 export type CargoArrivalSortDirection = 'asc' | 'desc'
 export type CargoArrivalSort = Readonly<{
   column: CargoArrivalSortColumn
@@ -31,16 +26,13 @@ export const EMPTY_CARGO_ARRIVAL_TABLE_STATE: CargoArrivalTableState = {
   statuses: [],
 }
 
-const SORT_COLUMNS: readonly CargoArrivalSortColumn[] = [
-  'arrivedAt',
-  'contractor',
-  'documents',
-  'dueAt',
-  'progress',
-  'status',
-]
+const SERVER_SORT: Readonly<Record<CargoArrivalSortColumn, CargoArrivalOrder['sort']>> = {
+  arrivedAt: 'arrivedAt',
+  contractor: 'contractorName',
+  dueAt: 'separationDueAt',
+  status: 'status',
+}
 const LIST_SEPARATOR = ','
-const STATUS_ORDER: Readonly<Record<CargoArrivalStatus, number>> = { open: 0, closed: 1 }
 
 /** asc → desc → neutro no mesmo cabeçalho; outro cabeçalho recomeça em asc (`web.md` §7). */
 export function toggleCargoArrivalSort(
@@ -56,74 +48,18 @@ export function hasCargoArrivalTableCriteria(state: CargoArrivalTableState): boo
 }
 
 /**
- * A API filtra por UM contratante e UMA situação. Com um valor só o filtro vai ao servidor (a lista
- * carregada já vem certa); com vários, o servidor devolve tudo e o cliente filtra o que veio.
+ * Filtro e ordem vão inteiros ao servidor: ele é quem enxerga a lista toda, e o cliente só tem as páginas
+ * já carregadas (`web.md` §7). Sem ordenação não vai `order`, e o servidor responde `arrivedAt desc`.
  */
 export function resolveServerFilters(state: CargoArrivalTableState): CargoArrivalFilters {
-  const [contractorId] = state.contractorIds
-  const [status] = state.statuses
   return {
-    ...(state.contractorIds.length === 1 && contractorId !== undefined ? { contractorId } : {}),
-    ...(state.statuses.length === 1 && status !== undefined ? { status } : {}),
+    contractorIds: state.contractorIds,
+    order:
+      state.sort === null
+        ? undefined
+        : { direction: state.sort.direction, sort: SERVER_SORT[state.sort.column] },
+    statuses: state.statuses,
   }
-}
-
-function ratioOf(arrival: CargoArrivalSummary): number {
-  return arrival.counts.total === 0 ? 0 : arrival.counts.separated / arrival.counts.total
-}
-
-function compareValues(left: number | string, right: number | string): number {
-  if (typeof left === 'number' && typeof right === 'number') return left - right
-  return String(left).localeCompare(String(right), 'pt-BR', { sensitivity: 'base' })
-}
-
-function readSortValue(
-  input: Readonly<{ arrival: CargoArrivalSummary; column: CargoArrivalSortColumn }>,
-): number | string | null {
-  const { arrival } = input
-  switch (input.column) {
-    case 'arrivedAt':
-      return new Date(arrival.arrivedAt).getTime()
-    case 'contractor':
-      return arrival.contractorName
-    case 'documents':
-      return arrival.counts.total
-    case 'dueAt':
-      return arrival.separationDueAt === null ? null : new Date(arrival.separationDueAt).getTime()
-    case 'progress':
-      return ratioOf(arrival)
-    case 'status':
-      return STATUS_ORDER[arrival.status]
-  }
-}
-
-/** Sem prazo vai por último nos dois sentidos: "sem prazo" não é o prazo mais curto nem o mais longo. */
-function compareArrivals(
-  input: Readonly<{
-    left: CargoArrivalSummary
-    right: CargoArrivalSummary
-    sort: CargoArrivalSort
-  }>,
-): number {
-  const left = readSortValue({ arrival: input.left, column: input.sort.column })
-  const right = readSortValue({ arrival: input.right, column: input.sort.column })
-  if (left === null || right === null) return left === right ? 0 : left === null ? 1 : -1
-  const order = compareValues(left, right)
-  return input.sort.direction === 'asc' ? order : -order
-}
-
-/** Seleção vazia é "sem filtro": esconder tudo por não ter marcado nada seria o defeito. */
-export function applyCargoArrivalTable(
-  input: Readonly<{ arrivals: readonly CargoArrivalSummary[]; state: CargoArrivalTableState }>,
-): readonly CargoArrivalSummary[] {
-  const { contractorIds, sort, statuses } = input.state
-  const filtered = input.arrivals.filter(
-    (arrival) =>
-      (contractorIds.length === 0 || contractorIds.includes(arrival.contractorId)) &&
-      (statuses.length === 0 || statuses.includes(arrival.status)),
-  )
-  if (sort === null) return filtered
-  return [...filtered].sort((left, right) => compareArrivals({ left, right, sort }))
 }
 
 function isStatus(value: string): value is CargoArrivalStatus {
@@ -131,7 +67,7 @@ function isStatus(value: string): value is CargoArrivalStatus {
 }
 
 function isSortColumn(value: string | null): value is CargoArrivalSortColumn {
-  return SORT_COLUMNS.some((column) => column === value)
+  return value !== null && Object.hasOwn(SERVER_SORT, value)
 }
 
 function readList(value: string | null): string[] {

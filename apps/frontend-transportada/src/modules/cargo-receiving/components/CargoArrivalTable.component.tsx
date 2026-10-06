@@ -17,14 +17,15 @@ type CargoArrivalTableProps = Readonly<{
   table: CargoArrivalTableController
 }>
 
-const SORTABLE_COLUMNS: readonly CargoArrivalSortColumn[] = [
-  'contractor',
-  'arrivedAt',
-  'documents',
-  'progress',
-  'dueAt',
-  'status',
-]
+/** Notas e progresso são contagens que o servidor não ordena: cabeçalho sem botão, nunca ordem só das páginas carregadas. */
+const COLUMNS = [
+  { key: 'contractor', sortColumn: 'contractor' },
+  { key: 'arrivedAt', sortColumn: 'arrivedAt' },
+  { key: 'documents' },
+  { key: 'progress' },
+  { key: 'dueAt', sortColumn: 'dueAt' },
+  { key: 'status', sortColumn: 'status' },
+] as const satisfies readonly Readonly<{ key: string; sortColumn?: CargoArrivalSortColumn }>[]
 
 export function CargoArrivalTable({
   arrivals,
@@ -45,15 +46,21 @@ export function CargoArrivalTable({
       <table className={tableStyles.table}>
         <thead>
           <tr>
-            {SORTABLE_COLUMNS.map((column) => (
-              <CargoSortHeader
-                column={column}
-                key={column}
-                label={t(`table.${column}`)}
-                onToggle={table.toggleSort}
-                sort={table.state.sort}
-              />
-            ))}
+            {COLUMNS.map((column) =>
+              'sortColumn' in column ? (
+                <CargoSortHeader
+                  column={column.sortColumn}
+                  key={column.key}
+                  label={t(`table.${column.key}`)}
+                  onToggle={table.toggleSort}
+                  sort={table.state.sort}
+                />
+              ) : (
+                <th key={column.key} scope="col">
+                  {t(`table.${column.key}`)}
+                </th>
+              ),
+            )}
             <th scope="col">{t('table.actions')}</th>
           </tr>
         </thead>

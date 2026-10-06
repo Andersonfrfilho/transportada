@@ -15,7 +15,6 @@ import styles from '../styles/cargoReceiving.module.css'
 type CargoArrivalFilterBarProps = Readonly<{
   contractors: readonly CargoContractor[]
   loadedCount: number
-  shownCount: number
   table: CargoArrivalTableController
 }>
 
@@ -27,7 +26,6 @@ function isStatus(value: string): value is CargoArrivalStatus {
 export function CargoArrivalFilterBar({
   contractors,
   loadedCount,
-  shownCount,
   table,
 }: CargoArrivalFilterBarProps): JSX.Element {
   const { t } = useTranslation('cargoReceiving')
@@ -81,9 +79,7 @@ export function CargoArrivalFilterBar({
         ) : null}
       </section>
       {hasFilter ? (
-        <p className={styles.resultCount}>
-          {t('list.count', { shown: shownCount, total: loadedCount })}
-        </p>
+        <p className={styles.resultCount}>{t('list.count', { count: loadedCount })}</p>
       ) : null}
     </>
   )

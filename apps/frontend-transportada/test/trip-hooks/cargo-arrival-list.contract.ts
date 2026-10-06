@@ -32,6 +32,7 @@ import {
 } from './cargoReceivingHarness.helper'
 import { renderWithQueryClient, settle, waitFor } from './renderHook.helper'
 
+const GAMA_ID = '00000000-0000-4000-8000-000000237a03'
 const OVERDUE = buildSummary({
   counts: { expected: 2, received: 0, separated: 2, total: 4 },
   isSeparationOverdue: true,
@@ -51,6 +52,13 @@ const OTHER = buildSummary({
   counts: { expected: 5, received: 0, separated: 0, total: 5 },
   id: '00000000-0000-4000-8000-0000002372a3',
 })
+const GAMA = (index: number) =>
+  buildSummary({
+    arrivedAt: `2026-10-0${String(4 + index)}T09:00:00.000Z`,
+    contractorId: GAMA_ID,
+    contractorName: 'Gama Distribuidora Fictícia',
+    id: `00000000-0000-4000-8000-0000002372b${String(index)}`,
+  })
 
 async function mountList(options: { canManage?: boolean; search?: string } = {}) {
   resetLocation(`/recebimento${options.search ?? ''}`)
@@ -81,6 +89,23 @@ function headerOf(label: string): HTMLTableCellElement {
 }
 
 const parameters = () => new URLSearchParams(window.location.search)
+const lastFilters = () => cargoReceivingFakes.double.calls.listArrivals.at(-1)?.filters
+const lastCall = () => cargoReceivingFakes.double.calls.listArrivals.at(-1)
+async function mountWith(overrides: Parameters<typeof installCargoReceivingDouble>[0]) {
+  resetLocation('/recebimento')
+  installCargoReceivingDouble(overrides)
+  const rendered = await renderWithQueryClient(
+    createElement(CargoArrivalListPanel, { canManage: true }),
+  )
+  await waitFor(() => expect(document.querySelectorAll('[aria-busy="true"]').length).toBe(0))
+  return rendered
+}
+
+async function pickOptions(label: string, indexes: readonly number[]): Promise<void> {
+  await click(document.querySelector(`button[aria-label="${label}"]`) as HTMLButtonElement)
+  const options = [...document.querySelectorAll('[role="option"]')]
+  for (const index of indexes) await click(options[index] as HTMLElement)
+}
 
 beforeEach(() => {
   document.body.innerHTML = ''
@@ -181,17 +206,24 @@ describe('ordenação, filtros e URL', () => {
 
     await click(sortButton())
     expect(headerOf('Contratante').getAttribute('aria-sort')).toBe('ascending')
-    expect(rowContractors()[2]).toBe('Beta Comércio Fictício')
+    await waitFor(() => expect(rowContractors()[2]).toBe('Beta Comércio Fictício'))
     expect(parameters().get('sort')).toBe('contractor')
     expect(parameters().get('dir')).toBe('asc')
 
     await click(sortButton())
     expect(headerOf('Contratante').getAttribute('aria-sort')).toBe('descending')
-    expect(rowContractors()[0]).toBe('Beta Comércio Fictício')
+    await waitFor(() => expect(rowContractors()[0]).toBe('Beta Comércio Fictício'))
 
     await click(sortButton())
     expect(headerOf('Contratante').getAttribute('aria-sort')).toBe('none')
     expect(parameters().has('sort')).toBe(false)
+    await waitFor(() =>
+      expect(rowContractors()).toEqual([
+        'Alfa Indústria Fictícia',
+        'Beta Comércio Fictício',
+        'Alfa Indústria Fictícia',
+      ]),
+    )
     rendered.unmount()
   })
 
@@ -203,16 +235,18 @@ describe('ordenação, filtros e URL', () => {
     expect(options.map((option) => option.textContent?.trim())).toEqual(['Aberta', 'Fechada'])
 
     await click(options[1] as HTMLElement)
-    expect(rowContractors()).toEqual(['Beta Comércio Fictício'])
+    await waitFor(() => expect(rowContractors()).toEqual(['Beta Comércio Fictício']))
+    expect(lastFilters()?.statuses).toEqual(['closed'])
     expect(parameters().get('status')).toBe('closed')
 
     await click(options[0] as HTMLElement)
-    expect(rowContractors()).toHaveLength(3)
+    await waitFor(() => expect(rowContractors()).toHaveLength(3))
+    expect(lastFilters()?.statuses).toEqual(['closed', 'open'])
     expect(parameters().get('status')).toBe('closed,open')
     rendered.unmount()
   })
 
-  test('o filtro de contratante aceita vários, usa os nomes do cadastro e filtra no servidor com um só', async () => {
+  test('o filtro de contratante aceita vários, usa os nomes do cadastro e manda todos ao servidor', async () => {
     const rendered = await mountList()
 
     await click(document.querySelector('button[aria-label="Contratante"]') as HTMLButtonElement)
@@ -224,14 +258,11 @@ describe('ordenação, filtros e URL', () => {
     ])
 
     await click(options[0] as HTMLElement)
-    await waitFor(() =>
-      expect(cargoReceivingFakes.double.calls.listArrivals.at(-1)?.filters).toEqual({
-        contractorId: ALFA_ID,
-      }),
-    )
+    await waitFor(() => expect(lastFilters()?.contractorIds).toEqual([ALFA_ID]))
     expect(parameters().get('contractor')).toBe(ALFA_ID)
 
     await click(options[1] as HTMLElement)
+    await waitFor(() => expect(lastFilters()?.contractorIds).toEqual([ALFA_ID, BETA_ID]))
     expect(parameters().get('contractor')).toBe(`${ALFA_ID},${BETA_ID}`)
     rendered.unmount()
   })
@@ -245,6 +276,7 @@ describe('ordenação, filtros e URL', () => {
 
     await click(buttonByText('Limpar filtros'))
     expect(maybeButtonByText('Limpar filtros')).toBeUndefined()
+    await waitFor(() => expect(rowContractors()).toHaveLength(3))
     expect(rowContractors()).toEqual([
       'Alfa Indústria Fictícia',
       'Beta Comércio Fictício',
@@ -257,6 +289,11 @@ describe('ordenação, filtros e URL', () => {
   test('a URL reabre a lista filtrada e ordenada', async () => {
     const rendered = await mountList({ search: '?status=closed&sort=arrivedAt&dir=desc' })
 
+    expect(cargoReceivingFakes.double.calls.listArrivals[0]?.filters).toEqual({
+      contractorIds: [],
+      order: { direction: 'desc', sort: 'arrivedAt' },
+      statuses: ['closed'],
+    })
     expect(rowContractors()).toEqual(['Beta Comércio Fictício'])
     expect(headerOf('Chegada').getAttribute('aria-sort')).toBe('descending')
     expect(maybeButtonByText('Limpar filtros')).toBeDefined()
@@ -274,21 +311,14 @@ describe('ordenação, filtros e URL', () => {
 
 describe('paginação por cursor', () => {
   test('"Carregar mais chegadas" só existe com próxima página e acumula sem trocar a lista', async () => {
-    resetLocation('/recebimento')
-    const double = installCargoReceivingDouble({
-      arrivals: [OVERDUE],
-      nextArrivalsCursor: 'proxima',
-    })
-    const rendered = await renderWithQueryClient(
-      createElement(CargoArrivalListPanel, { canManage: true }),
-    )
+    const rendered = await mountWith({ arrivals: [OVERDUE, CLOSED], arrivalsPageSize: 1 })
     await waitFor(() => expect(rowTexts()).toHaveLength(1))
 
     await click(buttonByText('Carregar mais chegadas'))
     await settle()
 
-    expect(double.calls.listArrivals.at(-1)?.cursor).toBe('proxima')
-    expect(rowTexts()).toHaveLength(1)
+    expect(lastCall()?.cursor).not.toBeNull()
+    expect(rowContractors()).toEqual(['Alfa Indústria Fictícia', 'Beta Comércio Fictício'])
     expect(maybeButtonByText('Carregar mais chegadas')).toBeUndefined()
     rendered.unmount()
   })
@@ -303,6 +333,143 @@ describe('paginação por cursor', () => {
     await waitFor(() =>
       expect(document.body.textContent).toContain('Nenhuma chegada registrada ainda.'),
     )
+    rendered.unmount()
+  })
+})
+
+describe('filtro e ordenação valem para a lista inteira, não só para as páginas carregadas (revisão M3)', () => {
+  const NEWER_GAMAS = [GAMA(1), GAMA(2), GAMA(3)]
+
+  test('dois contratantes que estão além da primeira página aparecem sem "carregar mais"', async () => {
+    const rendered = await mountWith({
+      arrivals: [...NEWER_GAMAS, OVERDUE, CLOSED],
+      arrivalsPageSize: 2,
+    })
+    await waitFor(() => expect(rowContractors()).toHaveLength(2))
+
+    await pickOptions('Contratante', [0, 1])
+    await waitFor(() =>
+      expect(rowContractors()).toEqual(['Alfa Indústria Fictícia', 'Beta Comércio Fictício']),
+    )
+
+    expect(lastFilters()?.contractorIds).toEqual([ALFA_ID, BETA_ID])
+    expect(maybeButtonByText('Carregar mais chegadas')).toBeUndefined()
+    rendered.unmount()
+  })
+
+  test('as duas situações vão ao servidor, e o resultado é a lista dele', async () => {
+    const rendered = await mountWith({ arrivals: [OVERDUE, CLOSED, OTHER], arrivalsPageSize: 2 })
+
+    await pickOptions('Situação', [0, 1])
+    await waitFor(() => expect(lastFilters()?.statuses).toEqual(['open', 'closed']))
+
+    expect(rowContractors()).toHaveLength(2)
+    expect(maybeButtonByText('Carregar mais chegadas')).toBeDefined()
+    rendered.unmount()
+  })
+
+  test.each([
+    ['Contratante', 'contractorName'],
+    ['Chegada', 'arrivedAt'],
+    ['Prazo de separação', 'separationDueAt'],
+    ['Situação', 'status'],
+  ] as const)('o cabeçalho %s manda sort=%s e a direção ao servidor', async (label, sort) => {
+    const rendered = await mountWith({ arrivals: [OVERDUE, CLOSED, OTHER] })
+
+    await click(headerOf(label).querySelector('button') as HTMLButtonElement)
+    await waitFor(() => expect(lastFilters()?.order).toEqual({ direction: 'asc', sort }))
+    await click(headerOf(label).querySelector('button') as HTMLButtonElement)
+    await waitFor(() => expect(lastFilters()?.order).toEqual({ direction: 'desc', sort }))
+    rendered.unmount()
+  })
+
+  test('o prazo ordena no servidor com "sem prazo" por último nos dois sentidos', async () => {
+    const rendered = await mountWith({ arrivals: [OVERDUE, CLOSED, OTHER] })
+    const dueButton = () => headerOf('Prazo de separação').querySelector('button') as HTMLElement
+
+    await click(dueButton())
+    await waitFor(() => expect(rowContractors().at(-1)).toBe('Beta Comércio Fictício'))
+    await click(dueButton())
+    await waitFor(() => expect(lastFilters()?.order?.direction).toBe('desc'))
+
+    expect(rowContractors().at(-1)).toBe('Beta Comércio Fictício')
+    rendered.unmount()
+  })
+
+  test('notas e progresso não ordenam: o servidor não tem essas colunas', async () => {
+    const rendered = await mountWith({ arrivals: [OVERDUE, CLOSED, OTHER] })
+
+    expect(headerOf('Notas').querySelectorAll('button')).toHaveLength(0)
+    expect(headerOf('Separadas').querySelectorAll('button')).toHaveLength(0)
+    expect(headerOf('Notas').hasAttribute('aria-sort')).toBe(false)
+    rendered.unmount()
+  })
+
+  test('"Carregar mais" leva a mesma ordem e os mesmos filtros, e a lista segue a ordem do servidor', async () => {
+    const rendered = await mountWith({
+      arrivals: [OVERDUE, CLOSED, OTHER],
+      arrivalsPageSize: 1,
+    })
+    await click(headerOf('Contratante').querySelector('button') as HTMLButtonElement)
+    await pickOptions('Situação', [0, 1])
+    await waitFor(() => expect(rowContractors()).toHaveLength(1))
+
+    await click(buttonByText('Carregar mais chegadas'))
+    await click(buttonByText('Carregar mais chegadas'))
+    await waitFor(() => expect(rowContractors()).toHaveLength(3))
+
+    expect(lastCall()?.cursor).not.toBeNull()
+    expect(lastFilters()).toEqual({
+      contractorIds: [],
+      order: { direction: 'asc', sort: 'contractorName' },
+      statuses: ['open', 'closed'],
+    })
+    expect(rowContractors()).toEqual([
+      'Alfa Indústria Fictícia',
+      'Alfa Indústria Fictícia',
+      'Beta Comércio Fictício',
+    ])
+    rendered.unmount()
+  })
+
+  test('trocar a ordenação recomeça a paginação do início', async () => {
+    const rendered = await mountWith({ arrivals: [OVERDUE, CLOSED, OTHER], arrivalsPageSize: 1 })
+    await click(buttonByText('Carregar mais chegadas'))
+    await waitFor(() => expect(rowContractors()).toHaveLength(2))
+
+    await click(headerOf('Situação').querySelector('button') as HTMLButtonElement)
+
+    await waitFor(() => expect(lastFilters()?.order?.sort).toBe('status'))
+    await waitFor(() => expect(rowContractors()).toHaveLength(1))
+    expect(lastCall()?.cursor).toBeNull()
+    rendered.unmount()
+  })
+
+  test('cursor de outra ordem recarrega do início com aviso neutro, nunca tela vazia', async () => {
+    const rendered = await mountWith({ arrivals: [OVERDUE, CLOSED, OTHER], arrivalsPageSize: 2 })
+    cargoReceivingFakes.double.isNextCursorRefused = true
+
+    await click(buttonByText('Carregar mais chegadas'))
+    await waitFor(() => expect(document.querySelectorAll('[data-order-notice]').length).toBe(1))
+
+    expect(document.querySelector('[data-order-notice]')?.textContent).toContain(
+      'A ordem da lista mudou',
+    )
+    expect(document.querySelectorAll('[role="alert"]')).toHaveLength(0)
+    expect(lastCall()?.cursor).toBeNull()
+    await waitFor(() => expect(rowContractors()).toHaveLength(2))
+    rendered.unmount()
+  })
+
+  test('o aviso de ordem some quando o operador muda o critério', async () => {
+    const rendered = await mountWith({ arrivals: [OVERDUE, CLOSED, OTHER], arrivalsPageSize: 2 })
+    cargoReceivingFakes.double.isNextCursorRefused = true
+    await click(buttonByText('Carregar mais chegadas'))
+    await waitFor(() => expect(document.querySelectorAll('[data-order-notice]').length).toBe(1))
+
+    await click(headerOf('Situação').querySelector('button') as HTMLButtonElement)
+
+    await waitFor(() => expect(document.querySelectorAll('[data-order-notice]').length).toBe(0))
     rendered.unmount()
   })
 })

@@ -13,12 +13,14 @@ import type { CargoReceivingClient } from '@/modules/cargo-receiving/shared/carg
 import type {
   AvailableCargoDocument,
   CargoArrivalDetail,
+  CargoArrivalFilters,
   CargoArrivalSummary,
   CargoDocumentOutcome,
   CargoDocumentState,
 } from '@/modules/cargo-receiving/shared/cargoArrival.types'
 import { CargoReceivingRequestError } from '@/modules/cargo-receiving/shared/cargoReceivingRequest.service'
 
+import { ORDER_MISMATCH_CODE, pageArrivals } from './cargoArrivalListDouble.helper'
 import {
   ALFA_ID,
   ARRIVAL_ID,
@@ -54,12 +56,15 @@ export type DoubleCalls = {
   }[]
   readonly batch: { documentIds: readonly string[]; to: string }[]
   readonly close: string[]
-  readonly listArrivals: { cursor: string | null; filters: Record<string, string> }[]
+  readonly listArrivals: { cursor: string | null; filters: CargoArrivalFilters }[]
   readonly register: { idempotencyKey: string; input: Record<string, unknown> }[]
 }
 
 export type CargoReceivingDouble = {
+  /** O que o servidor tem; a lista filtra, ordena e pagina como a API (`cargo-arrival-list.query.ts`). */
   arrivals: readonly CargoArrivalSummary[]
+  /** Tamanho da página do dublê: com poucas chegadas, ainda dá para provar o que vem depois da primeira. */
+  arrivalsPageSize: number
   readonly available: AvailableCargoDocument[]
   readonly calls: DoubleCalls
   closeFailure: Error | undefined
@@ -69,13 +74,14 @@ export type CargoReceivingDouble = {
   failures: Error[]
   /** Segura as respostas do lote até `release()`: é o que deixa o teste ver a tela otimista. */
   isGated: boolean
+  /** O próximo "carregar mais" responde `400 CARGO_ARRIVAL_CURSOR_ORDER_MISMATCH`, uma vez só. */
+  isNextCursorRefused: boolean
   readonly pending: (() => void)[]
   readonly refusals: Map<string, string>
   registerFailure: Error | undefined
   /** A próxima aplicação de rota rejeita com ele (`409 CARGO_ARRIVAL_CLOSED`, `422`, rede). */
   routeFailure: Error | undefined
   server: CargoArrivalDetail
-  nextArrivalsCursor: string | null
 }
 
 export const cargoReceivingFakes: { client: CargoReceivingClient; double: CargoReceivingDouble } = {
@@ -144,12 +150,26 @@ function buildClient(double: CargoReceivingDouble): CargoReceivingClient {
     getArrival: () =>
       double.holdReads ? new Promise<never>(() => undefined) : Promise.resolve(double.server),
     listArrivals: (input) => {
-      double.calls.listArrivals.push({ cursor: input.cursor, filters: { ...input.filters } })
-      const isSecondPage = input.cursor !== null
-      return Promise.resolve({
-        items: isSecondPage ? [] : double.arrivals,
-        nextCursor: isSecondPage ? null : double.nextArrivalsCursor,
+      double.calls.listArrivals.push({
+        cursor: input.cursor,
+        filters: structuredClone(input.filters),
       })
+      if (input.cursor !== null && double.isNextCursorRefused) {
+        double.isNextCursorRefused = false
+        return Promise.reject(new CargoReceivingRequestError(ORDER_MISMATCH_CODE))
+      }
+      try {
+        return Promise.resolve(
+          pageArrivals({
+            arrivals: double.arrivals,
+            cursor: input.cursor,
+            filters: input.filters,
+            pageSize: double.arrivalsPageSize,
+          }),
+        )
+      } catch (error) {
+        return Promise.reject(error instanceof Error ? error : new Error('LIST_DOUBLE_FAILED'))
+      }
     },
     listAvailableDocuments: () => Promise.resolve({ items: double.available, nextCursor: null }),
     listContractors: () =>
@@ -171,13 +191,14 @@ export function installCargoReceivingDouble(
 ): CargoReceivingDouble {
   const double: CargoReceivingDouble = {
     arrivals: [buildSummary()],
+    arrivalsPageSize: 100,
     available: [],
     calls: { assignRoute: [], batch: [], close: [], listArrivals: [], register: [] },
     closeFailure: undefined,
     failures: [],
     holdReads: false,
     isGated: false,
-    nextArrivalsCursor: null,
+    isNextCursorRefused: false,
     pending: [],
     refusals: new Map(),
     registerFailure: undefined,

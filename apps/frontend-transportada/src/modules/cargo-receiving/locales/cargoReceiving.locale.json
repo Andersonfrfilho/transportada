@@ -46,7 +46,9 @@
     "empty": "Nenhuma chegada registrada ainda.",
     "emptyFiltered": "Nenhuma chegada com esses filtros.",
     "loadMore": "Carregar mais chegadas",
-    "count": "{{shown}} de {{total}} chegadas carregadas"
+    "count_one": "{{count}} chegada carregada",
+    "count_other": "{{count}} chegadas carregadas",
+    "orderChanged": "A ordem da lista mudou enquanto você navegava. Recarregamos do começo."
   },
   "filters": {
     "contractor": "Contratante",

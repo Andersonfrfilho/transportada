@@ -46,7 +46,9 @@
     "empty": "No arrival registered yet.",
     "emptyFiltered": "No arrival matches these filters.",
     "loadMore": "Load more arrivals",
-    "count": "{{shown}} of {{total}} arrivals loaded"
+    "count_one": "{{count}} arrival loaded",
+    "count_other": "{{count}} arrivals loaded",
+    "orderChanged": "The list order changed while you were browsing. We reloaded from the start."
   },
   "filters": {
     "contractor": "Contractor",

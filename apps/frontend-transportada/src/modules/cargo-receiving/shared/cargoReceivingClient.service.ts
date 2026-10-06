@@ -71,6 +71,22 @@ function buildQuery(entries: Readonly<Record<string, string | null | undefined>>
   return parameters.toString()
 }
 
+/** `contractorId` e `status` repetem (`?status=open&status=closed`); `sort` e `direction` andam sempre com o cursor. */
+function buildArrivalListQuery(
+  input: Readonly<{ cursor: string | null; filters: CargoArrivalFilters }>,
+): string {
+  const { contractorIds, order, statuses } = input.filters
+  const parameters = new URLSearchParams({ limit: String(CARGO_ARRIVAL_LIMITS.pageSize) })
+  for (const contractorId of contractorIds) parameters.append('contractorId', contractorId)
+  for (const status of statuses) parameters.append('status', status)
+  if (order !== undefined) {
+    parameters.set('sort', order.sort)
+    parameters.set('direction', order.direction)
+  }
+  if (input.cursor !== null) parameters.set('cursor', input.cursor)
+  return parameters.toString()
+}
+
 const arrivalPath = (arrivalId: string): string =>
   `${CARGO_RECEIVING_PATHS.arrivals}/${encodeURIComponent(arrivalId)}`
 
@@ -95,11 +111,10 @@ function createReadMethods(dependencies: CargoReceivingDependencies): ReadMethod
       return toArrivalDetail(body)
     },
     async listArrivals({ cursor, filters }) {
-      const query = buildQuery({ ...filters, cursor })
       const { body } = await requestCargoReceivingApi({
         dependencies,
         method: 'GET',
-        path: `${CARGO_RECEIVING_PATHS.arrivals}?${query}`,
+        path: `${CARGO_RECEIVING_PATHS.arrivals}?${buildArrivalListQuery({ cursor, filters })}`,
       })
       return toArrivalPage(body)
     },

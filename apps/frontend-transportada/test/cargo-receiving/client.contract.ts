@@ -12,6 +12,7 @@ import { CargoReceivingRequestError } from '@/modules/cargo-receiving/shared/car
 import {
   ALFA_ID,
   ARRIVAL_ID,
+  BETA_ID,
   buildAvailable,
   buildDetail,
   buildSummary,
@@ -43,26 +44,54 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' }, status })
 
 describe('o cliente da chegada (spec 237 T2.4)', () => {
-  test('lista as chegadas com limite 100, o cursor e os filtros do servidor', async () => {
+  test('lista as chegadas com limite 100, o cursor, os filtros repetidos e a ordem do servidor', async () => {
     const { calls, client } = harness(() => json({ data: [buildSummary()], nextCursor: null }))
 
-    await client.listArrivals({ cursor: 'c-1', filters: { contractorId: ALFA_ID, status: 'open' } })
+    await client.listArrivals({
+      cursor: 'c-1',
+      filters: {
+        contractorIds: [ALFA_ID, BETA_ID],
+        order: { direction: 'desc', sort: 'contractorName' },
+        statuses: ['open', 'closed'],
+      },
+    })
 
+    const search = calls[0]?.url.searchParams
     expect(calls[0]?.method).toBe('GET')
     expect(calls[0]?.url.pathname).toBe('/cargo-arrivals')
-    expect(Object.fromEntries(calls[0]?.url.searchParams ?? [])).toEqual({
-      contractorId: ALFA_ID,
-      cursor: 'c-1',
-      limit: '100',
-      status: 'open',
-    })
+    expect(search?.getAll('contractorId')).toEqual([ALFA_ID, BETA_ID])
+    expect(search?.getAll('status')).toEqual(['open', 'closed'])
+    expect(search?.get('sort')).toBe('contractorName')
+    expect(search?.get('direction')).toBe('desc')
+    expect(search?.get('cursor')).toBe('c-1')
+    expect(search?.get('limit')).toBe('100')
     expect(calls[0]?.headers.get('authorization')).toBe('Bearer token-sintetico')
   })
 
-  test('sem filtro nem cursor só vai o limite', async () => {
+  test('o cursor sai junto com a mesma ordem da página que o gerou', async () => {
+    const { calls, client } = harness(() => json({ data: [], nextCursor: null }))
+    const filters = {
+      contractorIds: [],
+      order: { direction: 'asc', sort: 'separationDueAt' },
+      statuses: [],
+    } as const
+
+    await client.listArrivals({ cursor: null, filters })
+    await client.listArrivals({ cursor: 'proximo', filters })
+
+    const second = calls[1]?.url.searchParams
+    expect(second?.get('cursor')).toBe('proximo')
+    expect(second?.get('sort')).toBe('separationDueAt')
+    expect(second?.get('direction')).toBe('asc')
+  })
+
+  test('sem filtro, ordem nem cursor só vai o limite: o servidor usa a ordem padrão', async () => {
     const { calls, client } = harness(() => json({ data: [], nextCursor: null }))
 
-    await client.listArrivals({ cursor: null, filters: {} })
+    await client.listArrivals({
+      cursor: null,
+      filters: { contractorIds: [], order: undefined, statuses: [] },
+    })
 
     expect([...(calls[0]?.url.searchParams.keys() ?? [])]).toEqual(['limit'])
   })

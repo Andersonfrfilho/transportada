@@ -27,6 +27,8 @@ export const CARGO_RECEIVING_PATHS = {
 } as const
 
 export const CARGO_RECEIVING_ERROR = {
+  /** O cursor da página seguinte nasceu noutra ordem: a lista recomeça do início. */
+  CURSOR_ORDER_MISMATCH: 'CARGO_ARRIVAL_CURSOR_ORDER_MISMATCH',
   REQUEST_FAILED: 'REQUEST_FAILED',
   RESPONSE_INVALID: 'RESPONSE_INVALID',
 } as const

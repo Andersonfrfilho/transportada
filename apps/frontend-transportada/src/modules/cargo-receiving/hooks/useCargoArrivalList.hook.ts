@@ -1,12 +1,13 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 
-import { useCargoArrivalsQuery } from '../queries/useCargoArrivals.query'
+import { useCargoArrivalsQuery, useReloadCargoArrivals } from '../queries/useCargoArrivals.query'
 import { useCargoContractorsQuery } from '../queries/useCargoContractors.query'
 import type { CargoArrivalSummary, CargoContractor } from '../shared/cargoArrival.types'
-import { applyCargoArrivalTable, resolveServerFilters } from '../shared/cargoArrivalTable.service'
+import { resolveServerFilters } from '../shared/cargoArrivalTable.service'
+import { CARGO_RECEIVING_ERROR } from '../shared/cargoReceiving.constant'
 import {
   navigateToCargoArrivalDetail,
   navigateToCargoArrivalRegister,
@@ -21,9 +22,11 @@ export type CargoArrivalListController = Readonly<{
   contractors: readonly CargoContractor[]
   errorCode: string | undefined
   hasNextPage: boolean
+  /** O cursor era de outra ordem e a lista recomeçou: aviso neutro, vale até o critério mudar. */
+  hasOrderNotice: boolean
   isLoading: boolean
   isLoadingMore: boolean
-  loadMore: () => void
+  loadMore: () => Promise<void>
   loadedCount: number
   openDetail: (arrivalId: string) => void
   openRegister: () => void
@@ -32,11 +35,24 @@ export type CargoArrivalListController = Readonly<{
   visible: readonly CargoArrivalSummary[]
 }>
 
+function isOrderMismatch(error: unknown): boolean {
+  return error instanceof Error && error.message === CARGO_RECEIVING_ERROR.CURSOR_ORDER_MISMATCH
+}
+
+/** O erro de cursor tem aviso próprio e a lista recarrega: ele não vira o alerta de falha de carga. */
+function readListErrorCode(error: unknown): string | undefined {
+  return error instanceof Error && !isOrderMismatch(error) ? error.message : undefined
+}
+
 /** Lista, estado da tabela e navegação juntos; o que se vê é derivado no render, nunca guardado. */
 export function useCargoArrivalList(): CargoArrivalListController {
   const table = useCargoArrivalTable()
-  const arrivalsQuery = useCargoArrivalsQuery(resolveServerFilters(table.state))
+  const filters = resolveServerFilters(table.state)
+  const arrivalsQuery = useCargoArrivalsQuery(filters)
+  const reload = useReloadCargoArrivals(filters)
   const contractorsQuery = useCargoContractorsQuery()
+  const [orderNoticeKey, setOrderNoticeKey] = useState<string | undefined>(undefined)
+  const criteriaKey = JSON.stringify(filters)
   const navigator = useMemo(createBrowserWorkspaceNavigator, [])
 
   const loaded = useMemo(
@@ -44,18 +60,26 @@ export function useCargoArrivalList(): CargoArrivalListController {
     [arrivalsQuery.data],
   )
 
+  async function loadMore(): Promise<void> {
+    const { error } = await arrivalsQuery.fetchNextPage()
+    if (!isOrderMismatch(error)) return
+    setOrderNoticeKey(criteriaKey)
+    await reload()
+  }
+
   return {
     contractors: contractorsQuery.data ?? NO_CONTRACTORS,
-    errorCode: arrivalsQuery.error instanceof Error ? arrivalsQuery.error.message : undefined,
+    errorCode: readListErrorCode(arrivalsQuery.error),
     hasNextPage: arrivalsQuery.hasNextPage,
+    hasOrderNotice: orderNoticeKey === criteriaKey,
     isLoading: arrivalsQuery.isLoading,
     isLoadingMore: arrivalsQuery.isFetchingNextPage,
-    loadMore: () => void arrivalsQuery.fetchNextPage(),
+    loadMore,
     loadedCount: loaded.length,
     openDetail: (arrivalId) => navigateToCargoArrivalDetail({ arrivalId, navigator }),
     openRegister: () => navigateToCargoArrivalRegister(navigator),
     openSeparation: (arrivalId) => navigateToCargoArrivalSeparation({ arrivalId, navigator }),
     table,
-    visible: applyCargoArrivalTable({ arrivals: loaded, state: table.state }),
+    visible: loaded,
   }
 }

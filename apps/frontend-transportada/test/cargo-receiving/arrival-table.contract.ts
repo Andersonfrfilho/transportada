@@ -1,13 +1,13 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 237 T2.4 (RF9, `web.md` §7): a lista de chegadas — ordenação por cabeçalho (asc → desc →
- * neutro), filtros de seleção múltipla, "limpar filtros" só com critério e o estado todo na URL.
+ * Spec 237 T2.4 (RF9, `web.md` §7) e revisão das Fases 1–2 (M3): a lista de chegadas — ordenação por
+ * cabeçalho (asc → desc → neutro), filtros de seleção múltipla, "limpar filtros" só com critério e o
+ * estado todo na URL. Filtro e ordem vão inteiros ao servidor: o cliente não filtra nem ordena.
  */
 import { describe, expect, test } from 'bun:test'
 
 import {
-  applyCargoArrivalTable,
   EMPTY_CARGO_ARRIVAL_TABLE_STATE,
   hasCargoArrivalTableCriteria,
   parseCargoArrivalTableState,
@@ -16,40 +16,9 @@ import {
   toggleCargoArrivalSort,
 } from '@/modules/cargo-receiving/shared/cargoArrivalTable.service'
 
-import { ALFA_ID, BETA_ID, buildSummary } from '../fixtures/cargoReceiving.fixture'
+import { ALFA_ID, BETA_ID } from '../fixtures/cargoReceiving.fixture'
 
-const ARRIVALS = [
-  buildSummary({
-    arrivedAt: '2026-10-03T12:00:00.000Z',
-    contractorId: ALFA_ID,
-    contractorName: 'Alfa Indústria Fictícia',
-    counts: { expected: 2, received: 0, separated: 2, total: 4 },
-    id: 'a1',
-    separationDueAt: '2026-10-04T12:00:00.000Z',
-    status: 'open',
-  }),
-  buildSummary({
-    arrivedAt: '2026-10-02T09:00:00.000Z',
-    contractorId: BETA_ID,
-    contractorName: 'Beta Comércio Fictício',
-    counts: { expected: 0, received: 0, separated: 10, total: 10 },
-    id: 'b1',
-    separationDueAt: null,
-    status: 'closed',
-  }),
-  buildSummary({
-    arrivedAt: '2026-10-01T09:00:00.000Z',
-    contractorId: ALFA_ID,
-    contractorName: 'Alfa Indústria Fictícia',
-    counts: { expected: 5, received: 0, separated: 0, total: 5 },
-    id: 'a2',
-    separationDueAt: '2026-10-02T09:00:00.000Z',
-    status: 'open',
-  }),
-]
-
-const ids = (state: Parameters<typeof applyCargoArrivalTable>[0]['state']) =>
-  applyCargoArrivalTable({ arrivals: ARRIVALS, state }).map((arrival) => arrival.id)
+const GAMA_ID = '00000000-0000-4000-8000-000000237a03'
 
 describe('a ordenação por cabeçalho (spec 237 T2.4)', () => {
   test('alterna ascendente, descendente e neutro; outra coluna recomeça em ascendente', () => {
@@ -65,68 +34,48 @@ describe('a ordenação por cabeçalho (spec 237 T2.4)', () => {
       direction: 'asc',
     })
   })
+})
 
-  test('sem ordenação a lista mantém a ordem do servidor (chegada mais nova primeiro)', () => {
-    expect(ids(EMPTY_CARGO_ARRIVAL_TABLE_STATE)).toEqual(['a1', 'b1', 'a2'])
+describe('filtro e ordem vão inteiros ao servidor (revisão M3)', () => {
+  test('vários contratantes e várias situações seguem todos, na ordem em que foram marcados', () => {
+    expect(
+      resolveServerFilters({
+        contractorIds: [ALFA_ID, BETA_ID, GAMA_ID],
+        sort: null,
+        statuses: ['closed', 'open'],
+      }),
+    ).toEqual({
+      contractorIds: [ALFA_ID, BETA_ID, GAMA_ID],
+      order: undefined,
+      statuses: ['closed', 'open'],
+    })
+  })
+
+  test('um valor só também vai: não existe mais "um filtra no servidor, vários no cliente"', () => {
+    expect(
+      resolveServerFilters({ ...EMPTY_CARGO_ARRIVAL_TABLE_STATE, contractorIds: [ALFA_ID] }),
+    ).toEqual({ contractorIds: [ALFA_ID], order: undefined, statuses: [] })
+  })
+
+  test('sem critério nada vai: o servidor responde na ordem padrão (chegada mais nova primeiro)', () => {
+    expect(resolveServerFilters(EMPTY_CARGO_ARRIVAL_TABLE_STATE)).toEqual({
+      contractorIds: [],
+      order: undefined,
+      statuses: [],
+    })
   })
 
   test.each([
-    ['contractor', 'asc', ['a1', 'a2', 'b1']],
-    ['arrivedAt', 'asc', ['a2', 'b1', 'a1']],
-    ['arrivedAt', 'desc', ['a1', 'b1', 'a2']],
-    ['documents', 'desc', ['b1', 'a2', 'a1']],
-    ['progress', 'desc', ['b1', 'a1', 'a2']],
-    ['status', 'asc', ['a1', 'a2', 'b1']],
-  ] as const)('ordena por %s %s', (column, direction, expected) => {
-    expect(ids({ ...EMPTY_CARGO_ARRIVAL_TABLE_STATE, sort: { column, direction } })).toEqual([
-      ...expected,
-    ])
-  })
-
-  test('o prazo ordena do mais próximo ao mais distante, e sem prazo vai por último nos dois sentidos', () => {
+    ['arrivedAt', 'asc', 'arrivedAt'],
+    ['arrivedAt', 'desc', 'arrivedAt'],
+    ['contractor', 'asc', 'contractorName'],
+    ['dueAt', 'desc', 'separationDueAt'],
+    ['status', 'asc', 'status'],
+  ] as const)('a coluna %s %s vira sort=%s no servidor', (column, direction, sort) => {
     expect(
-      ids({ ...EMPTY_CARGO_ARRIVAL_TABLE_STATE, sort: { column: 'dueAt', direction: 'asc' } }),
-    ).toEqual(['a2', 'a1', 'b1'])
-    expect(
-      ids({ ...EMPTY_CARGO_ARRIVAL_TABLE_STATE, sort: { column: 'dueAt', direction: 'desc' } }),
-    ).toEqual(['a1', 'a2', 'b1'])
-  })
-})
-
-describe('os filtros de seleção múltipla', () => {
-  test('contratante aceita vários; seleção vazia é "sem filtro", nunca "esconder tudo"', () => {
-    expect(ids({ ...EMPTY_CARGO_ARRIVAL_TABLE_STATE, contractorIds: [ALFA_ID] })).toEqual([
-      'a1',
-      'a2',
-    ])
-    expect(ids({ ...EMPTY_CARGO_ARRIVAL_TABLE_STATE, contractorIds: [ALFA_ID, BETA_ID] })).toEqual([
-      'a1',
-      'b1',
-      'a2',
-    ])
-    expect(ids({ ...EMPTY_CARGO_ARRIVAL_TABLE_STATE, contractorIds: [] })).toHaveLength(3)
-  })
-
-  test('situação também é de seleção múltipla e combina com o contratante', () => {
-    expect(ids({ ...EMPTY_CARGO_ARRIVAL_TABLE_STATE, statuses: ['closed'] })).toEqual(['b1'])
-    expect(ids({ ...EMPTY_CARGO_ARRIVAL_TABLE_STATE, statuses: ['open', 'closed'] })).toHaveLength(
-      3,
-    )
-    expect(ids({ contractorIds: [ALFA_ID], sort: null, statuses: ['closed'] })).toEqual([])
-  })
-
-  test('com um valor só o filtro vai ao servidor; com vários, o cliente filtra o que veio', () => {
-    expect(
-      resolveServerFilters({ ...EMPTY_CARGO_ARRIVAL_TABLE_STATE, contractorIds: [ALFA_ID] }),
-    ).toEqual({ contractorId: ALFA_ID })
-    expect(
-      resolveServerFilters({
-        contractorIds: [ALFA_ID, BETA_ID],
-        sort: null,
-        statuses: ['open'],
-      }),
-    ).toEqual({ status: 'open' })
-    expect(resolveServerFilters(EMPTY_CARGO_ARRIVAL_TABLE_STATE)).toEqual({})
+      resolveServerFilters({ ...EMPTY_CARGO_ARRIVAL_TABLE_STATE, sort: { column, direction } })
+        .order,
+    ).toEqual({ direction, sort })
   })
 })
 
@@ -188,6 +137,11 @@ describe('o estado vai para a URL e volta dela', () => {
     expect(parseCargoArrivalTableState('?sort=inexistente&dir=up')).toEqual(
       EMPTY_CARGO_ARRIVAL_TABLE_STATE,
     )
+    // O servidor não ordena por notas nem por progresso: link antigo cai na ordem padrão.
+    expect(parseCargoArrivalTableState('?sort=documents&dir=desc')).toEqual(
+      EMPTY_CARGO_ARRIVAL_TABLE_STATE,
+    )
+    expect(parseCargoArrivalTableState('?sort=progress')).toEqual(EMPTY_CARGO_ARRIVAL_TABLE_STATE)
     expect(parseCargoArrivalTableState('')).toEqual(EMPTY_CARGO_ARRIVAL_TABLE_STATE)
   })
 })

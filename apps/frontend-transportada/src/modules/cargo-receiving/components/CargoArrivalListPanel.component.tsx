@@ -36,9 +36,13 @@ export function CargoArrivalListPanel({ canManage }: CargoArrivalListPanelProps)
       <CargoArrivalFilterBar
         contractors={list.contractors}
         loadedCount={list.loadedCount}
-        shownCount={list.visible.length}
         table={list.table}
       />
+      {list.hasOrderNotice ? (
+        <p className={styles.notice} data-order-notice="" role="status">
+          {t('list.orderChanged')}
+        </p>
+      ) : null}
 
       {list.isLoading ? (
         <SkeletonGroup label={t('list.loading')}>
@@ -65,7 +69,12 @@ export function CargoArrivalListPanel({ canManage }: CargoArrivalListPanelProps)
       )}
 
       {list.hasNextPage ? (
-        <Button disabled={list.isLoadingMore} onClick={list.loadMore} type="button" variant="ghost">
+        <Button
+          disabled={list.isLoadingMore}
+          onClick={() => void list.loadMore()}
+          type="button"
+          variant="ghost"
+        >
           <Icon name="page-next" />
           {t('list.loadMore')}
         </Button>

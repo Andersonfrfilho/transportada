@@ -97,7 +97,15 @@ export type CloseCargoArrivalResult = Readonly<{
   outcome: 'changed' | 'unchanged'
 }>
 
+/** As colunas que o servidor ordena (`cargo-arrival-list-query.schema.ts`); cópia por valor. */
+export type CargoArrivalOrder = Readonly<{
+  direction: 'asc' | 'desc'
+  sort: 'arrivedAt' | 'contractorName' | 'separationDueAt' | 'status'
+}>
+
+/** Tudo o que a lista pede ao servidor; sem `order` ele responde `arrivedAt desc`. */
 export type CargoArrivalFilters = Readonly<{
-  contractorId?: string
-  status?: CargoArrivalStatus
+  contractorIds: readonly string[]
+  order: CargoArrivalOrder | undefined
+  statuses: readonly CargoArrivalStatus[]
 }>
