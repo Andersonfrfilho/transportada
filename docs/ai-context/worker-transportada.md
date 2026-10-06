@@ -337,3 +337,11 @@ dependência do worker na mesma versão da API.
 ⚠️ **`make worker-integration` reusa o banco `<db>_worker_integration`** e não o recria: em 2026-10-04 o
 local estava com o diário de migrations divergente (`column "latitude" ... already exists`). Os passos do
 alvo rodaram num banco novo de nome próprio (ver `specs/237-.../evidence.md`).
+
+⚠️ **Dezenas de consultas concorrentes no pool do Bun SQL 1.3.14 podem travar para sempre** (2026-10-06,
+`cargo-preview-corpus.integration.ts` estourou 120 s na CI, e o `afterAll` também). Com ~70+ cadeias de
+`INSERT` num `Promise.all`, a fila às vezes para de andar com as 10 conexões **ociosas**
+(`pg_stat_activity`: `idle`/`ClientRead`, nenhum lock, nada preso no banco); reproduzido sem Drizzle nem
+código da aplicação, e a taxa sobe quando o Postgres tem pouca CPU (a CI). A fixture
+`graph.seedDocuments` semeia em série; **não** abra uma cadeia por linha no pool. Dentro de uma transação
+(conexão reservada, caso do `writeItemChanges`) o mesmo fan-out de 106 consultas não travou em 60 rodadas.
