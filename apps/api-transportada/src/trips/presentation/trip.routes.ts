@@ -26,6 +26,7 @@ import {
   parseRegisterOccurrenceMultipartRequest,
 } from './occurrence.schema.js'
 import type { OccurrenceAttachmentOverridesBody } from './occurrence.schema.js'
+import type { ListOccurrenceAttachmentOverridesResult } from '../application/list-occurrence-attachment-overrides.use-case.js'
 import type { OccurrenceAttachmentOverridesResult } from '../application/occurrence-attachment-overrides.use-case.js'
 import type { CorrectedOccurrenceView } from '../application/occurrence-correction.port.js'
 import { parseIdempotencyKey } from './me-trip.schema.js'
@@ -187,6 +188,7 @@ const OCCURRENCE_TYPES_PATH = '/company-settings/occurrence-types'
  * Spec 218 RF-B3: a exceção do `attachmentMode` deste tipo, por contratante e por destinatário —
  * mesmo padrão de `deliveryProofOverridesSchema`, substituição total, nunca PATCH incremental.
  */
+const OCCURRENCE_TYPES_ATTACHMENT_OVERRIDES_PATH = `${OCCURRENCE_TYPES_PATH}/attachment-overrides`
 const OCCURRENCE_TYPE_ATTACHMENT_OVERRIDES_PATH = `${OCCURRENCE_TYPES_PATH}/:occurrenceTypeId/attachment-overrides`
 
 type RegisterOccurrenceRouteInput = {
@@ -546,6 +548,11 @@ type Dependencies = {
   }
   readonly saveOccurrenceType: {
     execute(input: TenantInput<SaveOccurrenceTypeInput>): Promise<OccurrenceTypeRecord>
+  }
+  readonly listOccurrenceAttachmentOverrides: {
+    execute(input: {
+      readonly context: CompanyContext
+    }): Promise<ListOccurrenceAttachmentOverridesResult>
   }
   readonly readOccurrenceAttachmentOverrides: {
     execute(
@@ -1802,6 +1809,18 @@ export function createTripRoutes(
         return parseOccurrenceTypeRequest(request)
       },
       pathname: OCCURRENCE_TYPES_PATH,
+      policy: SETTINGS_MANAGE_POLICY,
+    }),
+    defineRoute<undefined>({
+      async handle({ context }): Promise<Response> {
+        const result = await dependencies.listOccurrenceAttachmentOverrides.execute({
+          context: context.scope,
+        })
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'GET',
+      parse: () => undefined,
+      pathname: OCCURRENCE_TYPES_ATTACHMENT_OVERRIDES_PATH,
       policy: SETTINGS_MANAGE_POLICY,
     }),
     defineRoute<{ readonly occurrenceTypeId: string }>({

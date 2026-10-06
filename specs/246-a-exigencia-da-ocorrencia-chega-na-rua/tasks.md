@@ -246,6 +246,11 @@ o.attachment_mode <> 'required'`. Registrar os números em `evidence.md`. **A Fa
 - [ ] **T5.3** Exceções à vista (RF11, RF11c): contagem e lista sem acordeão, **uma consulta em
       lote por tela**. Os quatro modos e as quantidades mínimas editáveis por exceção, **com a
       quarta opção Igual ao tipo** (nulo, herda) — estado inicial de exceção nova.
+- [x] **T5.3-api** A rota em lote que a RF11c exige: `GET /company-settings/occurrence-types/attachment-overrides`
+      (`settings.manage`, só leitura, sem migration), exceções de TODOS os tipos da empresa agrupadas por tipo,
+      três consultas fixas. Contrato HTTP (roteador real, sem colisão com `/:occurrenceTypeId/...`),
+      integração com duas empresas e contagem de `select`, mutação do filtro de empresa vermelha. Evidência em
+      `evidence.md` § "T5.3-api". A tela (T5.3) consome esta rota.
 - [ ] **T5.3b** Seletor múltiplo de momentos por tipo (`MultiSelect`), recusando o conjunto vazio
       (T1b.6), recusando `document + stop` juntos, com a nota de que os campos valem só nos momentos
       de rua (RF1h).

@@ -2877,3 +2877,24 @@ ordinal (number), quantity, totalValue, unitValue (texto decimal) }] }` ordenada
   `data: []`. ⚠️ Id que não é UUID nem chega à rota: o roteador responde 404 `NOT_FOUND` (formato `canonicalUuid`), o 400
   do `parseUuidPathIdentifier` só vale para query. Integração:
   `test/integration/cargo-arrival-document-products.integration.ts`.
+
+## Spec 246 T5.3-api — as exceções de todos os tipos numa resposta (RF11c)
+
+`GET /company-settings/occurrence-types/attachment-overrides` (`settings.manage`, só leitura, sem migration)
+devolve as exceções de contratante e de destinatário de **todos** os tipos da empresa do token, agrupadas por
+tipo, para a tela mostrar contagem e lista sem uma requisição por linha. Resposta:
+`{ data: { overridesByType: [{ occurrenceTypeId, contractorOverrides: [...], recipientOverrides: [...] }] } }`.
+Cada item tem o formato da rota por tipo (`attachmentMode` sempre; `noteMode`/`signatureMode`/`itemsMode`/
+`photoMinimumCount`/`itemsMinimumCount` modo-ou-nulo, nulo herda do tipo; `contractorId` ou `taxId`), sem o
+`occurrenceTypeId`, que é a chave do grupo. Tipo aposentado também entra (a tela filtra); tipo sem exceção devolve as
+duas listas vazias; ordem dos tipos = a de `GET /company-settings/occurrence-types`, das exceções = `contractorId`/`taxId`.
+
+- **Três consultas, sempre**: os ids dos tipos (`occurrence-type-ids-read.query.ts`) e as duas tabelas de exceção
+  (`listOverridesForTypes`, já usado por `list-field-occurrence-types`). Não cresce com o número de tipos
+  (`test/integration/occurrence-attachment-overrides-batch.integration.ts` conta `select` com 1 e com 4 tipos).
+- `companyId` só do contexto autenticado; a `?companyId=` da query é ignorada. A lista de ids filtra por empresa, e
+  as exceções são lidas só para esses ids com `company_id` no `where`.
+- ⚠️ Roteamento: o endereço tem três segmentos e a rota por tipo quatro (`/:occurrenceTypeId/attachment-overrides`),
+  então `attachment-overrides` nunca é lido como `occurrenceTypeId`. Provado pelo roteador real em
+  `test/trip-occurrence/attachment-overrides-batch-route.contract.ts`.
+- Código: `list-occurrence-attachment-overrides.use-case.ts`, rota em `trip.routes.ts`, fiação em `main.ts`.

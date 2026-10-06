@@ -1869,3 +1869,35 @@ arquivo vermelho (3 falhas cada — ver acima). Gates ao fechar a Fase 4 (primei
 **Não coube:** apontar produto **por item** (precisa de snapshot com itens e de rota com lista — ver T4.1b); o smoke
 Playwright do app não foi rodado nem estendido; a revisão visual do formulário novo (print, tema claro/escuro) fica para
 a T6.1; `CLAUDE.md` e `docs/ai-context/frontend-driver.md` ficam para a T6.2.
+
+## T5.3-api — a rota em lote das exceções (RF11c, 2026-10-06)
+
+`GET /company-settings/occurrence-types/attachment-overrides` (`settings.manage`): `{ data: { overridesByType: [{ occurrenceTypeId, contractorOverrides, recipientOverrides }] } }`.
+Cada item tem o formato da rota por tipo (`attachmentMode` obrigatório; os outros quatro campos modo-ou-nulo/contagem-ou-nulo herdam), sem o `occurrenceTypeId`.
+
+**Contrato vermelho antes da implementação** (`bun --env-file=../../.env.test test ./test/trip-occurrence.contract.test.ts`):
+
+```text
+error: Cannot find module '../../src/trips/application/list-occurrence-attachment-overrides.use-case.js' from '.../test/trip-occurrence/attachment-overrides-batch-route.contract.ts'
+ 0 pass
+ 1 fail
+ 1 error
+```
+
+Verde depois: `480 pass, 0 fail` (4 testes novos: formato agrupado e tipo sem exceção com listas vazias; `companyId` do contexto e `?companyId=` forjado ignorado; `settings.manage`; o endereço fixo, pelo `createRouter` real, não é lido como `:occurrenceTypeId` e a rota por tipo segue servindo o seu).
+
+**Integração** (`occurrence-attachment-overrides-batch.integration.ts`, 2 pass): duas empresas, a de A vê só os seus três tipos (um aposentado, um sem exceção) e a de B só o dela; `select` contados: **3 com 1 tipo e 3 com 4 tipos**.
+
+**Mutação** (tirar o filtro `where company_id` de `listOccurrenceTypeIds`) deixa a integração vermelha:
+
+```text
+- Expected  - 0
++ Received  + 1
+(fail) exceções de exigência em lote (spec 246 T5.3-api, RF11c) > agrupa por tipo, inclui o inativo e o tipo sem exceção, e não vaza para outra empresa
+ 1 pass
+ 1 fail
+```
+
+Revertida; volta a `2 pass, 0 fail`.
+
+Gates (primeiro plano): `bun install --frozen-lockfile` sem mudanças · `bun run typecheck` saída 0 · contrato da API `9926 pass, 25 skip, 0 fail` (199 arquivos) · integração, um arquivo por vez: `occurrence-attachment-overrides-batch` 2/0, `occurrence-requirement-modes-write` 5/0, `occurrence-type-*` (11 arquivos) todos 0 falhas, nenhum pulado · `db:generate` = `no_changes` · `bun run build` ok. `prettier --check .`/`format:check` na raiz: só 2 arquivos do painel (`TripOccurrencesWorkspace.page.tsx`, `occurrenceTypePanelSource.helper.ts`), anteriores a este lote e fora do escopo.

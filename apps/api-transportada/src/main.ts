@@ -304,6 +304,8 @@ import {
   replaceOccurrenceAttachmentOverrides,
 } from './trips/application/occurrence-attachment-overrides.use-case.js'
 import { DrizzleOccurrenceAttachmentOverridesRepository } from './trips/infrastructure/drizzle-occurrence-attachment-overrides.repository.js'
+import { listOccurrenceTypeIds } from './trips/infrastructure/occurrence-type-ids-read.query.js'
+import { listOccurrenceAttachmentOverridesByType } from './trips/application/list-occurrence-attachment-overrides.use-case.js'
 import {
   createListTripOccurrenceFeedUseCase,
   createReadTripOccurrenceAttachmentsUseCase,
@@ -3859,6 +3861,17 @@ function createApplicationRoutes({
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
       listOccurrenceTypes: {
         execute: (input) => listOccurrenceTypes(database, { companyId: input.context.companyId }),
+      },
+      listOccurrenceAttachmentOverrides: {
+        execute: (input) =>
+          listOccurrenceAttachmentOverridesByType({
+            companyId: input.context.companyId,
+            port: {
+              listOccurrenceTypeIds: (query) => listOccurrenceTypeIds(database, query),
+              listOverridesForTypes: (query) =>
+                occurrenceAttachmentOverridesRepository.listOverridesForTypes(query),
+            },
+          }),
       },
       readOccurrenceAttachmentOverrides: {
         execute: (input) =>
