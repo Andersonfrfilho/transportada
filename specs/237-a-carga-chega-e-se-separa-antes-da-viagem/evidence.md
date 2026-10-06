@@ -1876,3 +1876,105 @@ string, totalValue: string, unitValue: string }] }`, por `ordinal`; decimais em 
 Push e deploy (proibidos nesta rodada); a suíte de integração inteira da API (só a nova e as três de ocorrência/devolução
 da chegada); `make check` completo, `make migration-test` (sem schema nem migration) e `db:generate` (idem); smoke; o
 painel (T3.3 é do executor do painel); nenhuma leitura de staging nem de produção.
+
+## T3.3 — a avaria na entrada e "devolver ao contratante" no painel (2026-10-06)
+
+Commits: `9185335f8` (contrato vermelho), `0ac7ec739` (implementação), o do teste de invalidação, e o desta seção (prints, evidência,
+docs). **Sem push** (tela nova: só depois do "pode publicar"). Nada mudou na API; o painel a consome em staging
+(`101ecb3e6..0e31a602b`).
+
+- **O que foi construído** (módulo `cargo-receiving`; detalhe em `docs/ai-context/frontend-transportada.md` § "Spec 237 T3.3"):
+  celular do separador — botão **Avaria** por nota (recebida/separada), formulário em tela cheia (tipo, itens com contagem e unidade,
+  observação, foto reduzida no aparelho, `Idempotency-Key` por tentativa), selos "Avaria aberta/A devolver/Devolvida", "Devolver ao
+  contratante" (avaria de origem + observação), "Concluir devolução" e "Desfazer devolução" (só `occurrences.resolve`); detalhe do
+  escritório — coluna "Avaria e devolução", contagens, lista das avarias, "Fechar chegada" travado com o motivo e a lista; prévia —
+  texto próprio para `DOCUMENT_RETURN_TO_CONTRACTOR` na lista "notas que ficam de fora".
+- **Contrato antes do código, vermelho pelo motivo certo** (`9185335f8`): 7 arquivos puros + 3 de DOM + harness, todos com `Cannot find
+module …/cargoOccurrence*` (cliente, validação, formulário, máquina da nota, textos). ⚠️ `occurrence-trip-draft.contract.ts` já
+  passava (cobre o comportamento que a API já tem; a prova dele é a mutação 14).
+- **Chaves exatas:** `cargoOccurrenceGuards.validation.ts` confere as chaves do formato REAL (tipos, itens, anexo, ocorrência, marcação,
+  contagens, resultado); o anexo aceita as três opcionais da API (`downloadUrl`, `expiresAt`, `thumbnailUrl`) e nada além.
+
+### Gates (rodados nesta sessão, em primeiro plano)
+
+- `bun run typecheck` e `bun run lint` (painel): limpos; lint **0 erros** (16 avisos antigos, os mesmos de antes). `bun run format:check` na
+  raiz: limpo.
+- `bun run test` (painel), referência do pedido ~6985 / 662: **7057 pass / 0 fail** (processo dos contratos) e **716 pass / 0 fail**
+  (`test:hooks`, 54 contratos de DOM novos). Dois contratos antigos mudaram de propósito (`cargo-arrival-detail`: a tabela ganhou a quarta
+  coluna) e `modal-dialog-fullscreen` registrou o diálogo novo.
+- **Estabilidade do DOM:** `bun run test:hooks` **10 execuções limpas, todas 716 pass / 0 fail**, e **3 com a CPU ocupada** (11 processos
+  `yes`, um por núcleo): 3 de 3 verdes. Os três arquivos de DOM rodam também **isolados** (22, 17 e 14 pass). Sem `expect(nó).toBeNull()` dentro
+  de `waitFor` (ausência é `querySelectorAll(...).length`). Achado: o `Select` só abria dentro da suíte completa (o `getBoundingClientRect`
+  zerado do happy-dom o fecha na hora, e outra suíte instalava o remendo) — o contrato dependia da ordem; agora `stubVisibleLayout()` é
+  instalado por cada arquivo.
+
+### Mutações (script fora do repositório; cada arquivo restaurado por `git checkout --`; `git diff --quiet` limpo depois)
+
+| #   | Regra                                  | Mutação                                                                                                                                       | Vermelho (contrato puro / DOM)                   |
+| --- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| 1   | desfazer só com `occurrences.resolve`  | `canUnmark` usa `canManage`                                                                                                                   | 1 / 2                                            |
+| 2   | a janela vale para abrir               | `isOccurrenceWindowOpen` devolve `true`                                                                                                       | 2 / 1                                            |
+| 3   | idempotência por tentativa             | `previous: undefined` (chave nova a cada envio)                                                                                               | 0 / 2                                            |
+| 4   | fechar trava com nota marcada          | botão sem `blockers.length > 0`                                                                                                               | 0 / 2                                            |
+| 5   | devolvida é terminal                   | `isEditable` ignora `returned`                                                                                                                | 2 / 1                                            |
+| 6   | erro nunca mudo                        | `catch` não grava o código                                                                                                                    | 0 / 3                                            |
+| 7   | cartão com rótulo por célula           | sem `data-label` na coluna nova                                                                                                               | 0 / 3                                            |
+| 8   | foto até 512 KiB                       | a checagem de tamanho vira `false`                                                                                                            | 1 / 1                                            |
+| 9   | item obrigatório                       | `itemsRequired` removido                                                                                                                      | 1 / 1                                            |
+| 10  | recusa nomeia cada campo uma vez       | sem `Set`                                                                                                                                     | 2 / 1                                            |
+| 11  | chave de idempotência vai ao servidor  | cliente sem `idempotencyKey`                                                                                                                  | 1 / 0                                            |
+| 12  | "Separar tudo" não leva a nota marcada | `separable = group.documents`                                                                                                                 | 0 / 1                                            |
+| 13  | resposta de chaves exatas              | tipo aceita chave a mais (1ª tentativa **sobreviveu**: a chave da mutação era `extra` e o teste usava `active`; mutação refeita com `active`) | 1 / 0                                            |
+| 14  | recomendação não oferece nota marcada  | criação de viagem leva todas as notas do rascunho                                                                                             | 3 / 1                                            |
+| 15  | a devolução relê as prévias            | sem a invalidação das prévias                                                                                                                 | 0 / 1                                            |
+| 16  | nota marcada não tem passo de separar  | passo oferecido de novo                                                                                                                       | 0 / 2                                            |
+| 17  | concluir espera a tratativa            | `isCaseDecided` sempre `true`                                                                                                                 | 1 / 2                                            |
+| 18  | nota em viagem viva não marca          | sem `!isInLiveTrip`                                                                                                                           | 1 / 1                                            |
+| G   | **coluna cortada** (geometria real)    | `.colReturn { width: 60rem }`                                                                                                                 | Playwright: `expectNoClipping` vermelho a 768 px |
+
+### Revisão de design (prints, `getComputedStyle`, geometria)
+
+36 PNGs em `specs/237-.../prints/` (`avaria-{formulario,nota-com-avaria,devolver,a-devolver,detalhe-escritorio,janela-vencida}-{375,768,1280}-{dark,light}.png`),
+gerados por `test/spec-237-avaria-prints.smoke.spec.ts` (fora da CI): build com `VITE_SMOKE_AUTH_BYPASS=true` em pasta temporária, `vite preview`
+na porta 53321, config do Playwright descartável apagada, API 100% dublada, dados e foto sintéticos. 38 testes, todos verdes.
+
+- **Geometria real:** `expectNoClipping` (main) em **todos** os 3 larguras, o diálogo sem elemento além da borda dele e sem rolagem lateral,
+  nenhuma célula invadindo a vizinha, rolagem horizontal da página ≤ 0. ⚠️ A primeira passada visual achou dois defeitos que o teste não
+  pegava: a 768 px a coluna nova (18 rem) fazia "Destinatário" e "Situação" se sobreporem (larguras agora 7/8/14 rem; o teste ganhou a conferência
+  de sobreposição) e o "." do aviso de fechamento caía numa linha própria (`display: grid` no parágrafo). Também saiu o teto de altura da lista de itens
+  (cortava o 3º item dentro do diálogo).
+- **Vizinhos (375, escuro):** "Avaria" e "Devolver ao contratante" medem **44 px**, Arial 13,33 px, borda 1 px — idênticos ao "Marcar como
+  separada" da mesma linha. No formulário, quantidade, unidade (`Select`) e tipo (`Select`) medem **48 px**, mesma fonte e tamanho; a observação 64 px.
+- **Contraste (WCAG, nos dois temas, todos os selos, avisos, botões, rótulos e erros medidos):** mínimo **4,87:1 no escuro** e **4,83:1 no claro**
+  (limite do teste 4,5).
+- **Alvo de toque a 375 px:** lista vazia de problemas em todas as telas e nos dois temas (todo botão da nota e do diálogo ≥ 44 px).
+- Olhado nos PNGs: formulário 375 escuro, nota "a devolver" 375 escuro, detalhe 768 claro/escuro e 375 escuro (cartões). Pendência de design
+  registrada, não consertada: a nota "A devolver" ainda oferece "Avaria" (a API aceita outra avaria em nota marcada).
+
+### Decisões que divergiram do texto do pedido
+
+1. **Sem link para a tratativa.** O detalhe `/ocorrencias/:id` e o feed exigem viagem (ADR-0094 §9.1/§9.6): linkar levaria a "não encontrada". A
+   lista mostra só a situação (`occurrence.case.*`). **Consequência real:** o escritório ainda não consegue conduzir a tratativa da avaria de
+   recebimento pelo painel (as seis ações de `/trip-occurrences/:id/case/*` existem na API, mas não há tela) — concluir a devolução depende de
+   o contratante decidir pelo portal. Follow-up.
+2. **Janela vencida:** aviso neutro UMA vez no topo da tela (`data-window-closed`) + linha curta "Prazo de avaria encerrado." em cada nota; nada de
+   botão desabilitado.
+3. **"Fechar chegada" fica desabilitado** com a nota marcada (o pedido dizia só "mostrar o motivo"): botão vivo que a API recusa seria o botão morto
+   que o módulo evita.
+4. **`allowsMultipleItems = false`** troca o item marcado em vez de recusar o segundo; `itemsMode = off` esconde os itens e não os exige.
+5. **Fingerprint da chave inclui a ordem dos itens** (o servidor imprime a lista na ordem enviada; mesma chave com outra ordem seria 409).
+6. **Só o celular abre a avaria**; o escritório marca/desfaz/conclui (como o pedido listava).
+7. **Funções/arquivos:** nenhum arquivo novo passa de 200 linhas; ficaram 5 componentes JSX-densos entre 47 e 56 linhas (o módulo já tem vizinhos de 60–80).
+8. Teste de foto: `cargoOccurrencePhoto.service.ts` embrulha `buildOccurrencePhotoAttachment` (serviço puro de `trip/shared`; nenhum componente nem hook do
+   `trip` foi importado) para o happy-dom, que não tem canvas.
+
+### Follow-ups
+
+Tratativa da avaria de recebimento no painel (ações do escritório); fila offline do toque e da avaria (a rede que cai fica na tela com "tentar de
+novo"); o portal do contratante ainda mostra a etapa `receiving` crua; esconder "Avaria" na nota já marcada se o produto preferir.
+
+### Não rodou
+
+Push/deploy; `make check` completo, `make smoke`/smoke da CI, `make migration-test` (nada de schema); a API (nada mudou) e suas suítes; teste em
+aparelho/câmera reais (a câmera é o `capture="environment"` do `FileField`); leitura de staging ou produção. Observação: um `pkill -f "vite preview"`
+ao encerrar os prints pode ter derrubado um preview de OUTRA sessão que estivesse rodando na máquina.

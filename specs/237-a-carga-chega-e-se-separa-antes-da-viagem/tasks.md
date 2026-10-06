@@ -111,9 +111,9 @@
 - [x] **T3.2b** Complemento da API: `GET /cargo-arrivals/:id/documents/:documentId/products` (`fleet.read`) — os itens
       da nota da chegada (sem NCM e CFOP) para o formulário de avaria da T3.3 escolher os "itens afetados".
       _(2026-10-06: `evidence.md` § T3.2b.)_
-- [ ] **T3.3** Tela (painel e celular): abrir avaria na nota da chegada (item, quantidade, foto) e a
+- [x] **T3.3** Tela (painel e celular): abrir avaria na nota da chegada (item, quantidade, foto) e a
       marcação "devolver ao contratante"; nota marcada sai da recomendação e da proposta de chegada; mutação;
-      evidência.
+      evidência. _(2026-10-06: `evidence.md` § T3.3; 36 prints a aprovar; **sem push** até o "pode publicar".)_
 - [ ] **T3.4** Revisão `opus`, print aprovado, publicar e confirmar.
 
 ## Fase 4b — Prévia por e-mail encaminhada _(D6 respondida: vocês encaminham)_

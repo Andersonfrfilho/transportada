@@ -1276,3 +1276,39 @@ previewEnabled }], nextCursor }`), uma guarda por módulo. Registro de chegada: 
 - **Geometria (varredura contra a staging, 33 telas × 4 larguras × 2 temas):** o painel só passou a corrigir o que estourava na
   staging (placa da viagem, texto só-leitor da frota, `/recebimento` e `/ressarcimentos` a 320 px). **Medições pendentes:** nenhuma de
   front; o smoke Playwright da 185 (`spec-185-prints`) segue sem execução. Evidência: `specs/246-…/evidence.md` § "T6.1" e § "Varredura".
+
+## Spec 237 T3.3 — a avaria na entrada e "devolver ao contratante" (2026-10-06)
+
+Mesmo módulo `cargo-receiving`, consumindo a API de staging (ADR-0094 §9; nada mudou nela). Textos em
+`locales/cargoOccurrence{,.en}.locale.json` (chave de topo `occurrence`, mesmo namespace `cargoReceiving`, juntados em
+`i18n.service.ts`); os três motivos novos de recusa (`DOCUMENT_RETURN_TO_CONTRACTOR`, `CARGO_ARRIVAL_DOCUMENT_MARKED_FOR_RETURN`,
+`CARGO_ARRIVAL_DOCUMENT_RETURNED`) entraram em `refusal.reasons`.
+
+- **Leitura.** A marcação por nota, as ocorrências e `returnCounts` vêm SÓ de `GET /cargo-arrivals/:id/occurrences`
+  (`useCargoOccurrencesQuery`, chave debaixo da do detalhe — toda ação que relê a chegada relê a marcação). A leitura da
+  chegada **não ganhou chave** (as guardas exatas do painel publicado). Tipos: `GET /cargo-arrivals/occurrence-types`; itens da
+  nota: `GET …/documents/:documentId/products`. Cliente próprio (`cargoOccurrenceClient.service.ts`), guardas de chaves
+  exatas (`cargoOccurrenceGuards.validation.ts`; o anexo é a única exceção, com `hasKeys`: três chaves opcionais).
+- **Máquina da nota pura** (`cargoNoteActions.service.ts`, espelha `cargo-arrival-occurrence.policy` e
+  `cargo-arrival-return.policy`): `trip.manage` abre/marca/conclui; **só `occurrences.resolve` desfaz** (a rota `…/return-unmark`
+  é dele — `canResolve` vem de `useCargoReceivingAccess`); concluir só com a tratativa da origem `decided|closed` (ou ocorrência
+  sem tratativa); a janela vale **só para abrir** (marcar/desfazer/concluir seguem depois dela); `returned` é terminal.
+  `listCloseBlockers` = notas `marked`.
+- **Estado por contexto.** `CargoOccurrenceProvider` (um por tela) monta `useCargoOccurrenceController` (leitura +
+  `useCargoReturnActions` + formulário aberto) e renderiza o diálogo uma vez. Cada nota lê `useCargoOccurrence().noteOf(doc)`.
+  O escritório mostra marcar/desfazer/concluir (`showOpen={false}`); só o celular abre a avaria.
+- **Formulário** (`CargoOccurrenceDialog`, tela cheia no celular, `useModalDialog`): tipo (`Select`), itens (checkbox por item,
+  quantidade opcional com vírgula, unidade comercial do item vem escolhida), observação até 500, foto (câmera traseira e
+  galeria; reduzida por `buildOccurrencePhotoAttachment`, **serviço puro importado de `trip/shared`**, atrás de
+  `cargoOccurrencePhoto.service.ts` para o teste trocá-lo; teto 512 KiB também validado no cliente). `Idempotency-Key`
+  **por tentativa** (`useOccurrenceSubmission`): mesmo envio → mesma chave; outro conteúdo (inclusive a ordem dos itens, que o
+  servidor imprime) → chave nova. Recusa nomeia TODOS os campos (`describeOccurrenceRefusal`, também pelo código sem `details`).
+- **Efeitos.** Nota `marked`/`returned` não oferece "Marcar como recebida/separada", o "Separar tudo do grupo" não a leva, e
+  "Fechar chegada" fica desabilitado com o motivo neutro (`data-close-blockers`) antes do clique. Abrir/marcar/desfazer/concluir
+  invalidam o detalhe (e a marcação debaixo dele), a lista e as prévias (`useRefreshCargoOccurrenceEffects`).
+- **Detalhe do escritório:** coluna "Avaria e devolução" (`data-label`, cartão abaixo de 40 rem; larguras 7/8/14 rem — a 768 px
+  18 rem fazia as colunas se sobreporem), contagens "Notas a devolver/devolvidas", lista das avarias (tipo, nota, itens, foto,
+  situação da tratativa). **Sem link para a tratativa**: o detalhe `/ocorrencias/:id` e o feed exigem viagem (ADR §9.6).
+- Contratos: `test/cargo-receiving/occurrence-*.contract.ts` e `test/trip-hooks/cargo-occurrence-*.contract.ts`
+  (+ `cargoOccurrenceHarness.helper.ts`, servidor dublado com as mesmas recusas da API; `stubVisibleLayout` — sem ele o `Select`
+  só abre quando outra suíte já instalou o remendo). Prints: `test/spec-237-avaria-prints.smoke.spec.ts` (fora da CI).
