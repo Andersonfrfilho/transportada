@@ -27,12 +27,16 @@ import {
   installCargoReceivingDouble,
   networkFailure,
   resetLocation,
+  type CargoReceivingDouble,
 } from './cargoReceivingHarness.helper'
 import { renderWithQueryClient, settle, waitFor } from './renderHook.helper'
 
-async function mountUpload(options: Partial<CargoPreviewDouble> = {}) {
+async function mountUpload(
+  options: Partial<CargoPreviewDouble> = {},
+  receiving: Partial<CargoReceivingDouble> = {},
+) {
   resetLocation('/recebimento/previas')
-  installCargoReceivingDouble()
+  installCargoReceivingDouble(receiving)
   const double = installCargoPreviewDouble(options)
   const rendered = await renderWithQueryClient(
     createElement(CargoPreviewListPanel, { canManage: true }),
@@ -76,7 +80,7 @@ describe('quem pode receber a planilha', () => {
   })
 
   test('sem nenhum contratante elegível explica o motivo e leva à ficha dos contratantes', async () => {
-    const { rendered } = await mountUpload({ profiles: new Map() })
+    const { rendered } = await mountUpload({}, { profiles: [] })
     await waitFor(() => expect(panelText()).toContain('Nenhum contratante com a prévia ligada'))
 
     await click(buttonByText('Abrir contratantes'))

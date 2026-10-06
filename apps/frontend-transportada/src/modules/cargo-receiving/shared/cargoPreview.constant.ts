@@ -17,7 +17,6 @@ export const CARGO_PREVIEW_SOURCES = ['upload'] as const
 export const CARGO_PREVIEW_PENDING_STATUSES = ['queued', 'processing'] as const
 
 export const CARGO_PREVIEW_PATHS = {
-  contractors: '/contractors',
   previews: '/cargo-previews',
 } as const
 

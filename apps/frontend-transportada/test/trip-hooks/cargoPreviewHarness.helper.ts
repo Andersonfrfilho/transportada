@@ -16,7 +16,6 @@ import type {
   CargoPreviewArrivalProposal,
   CargoPreviewDetail,
   CargoPreviewItem,
-  CargoPreviewProfileFlags,
   CargoPreviewSummary,
 } from '@/modules/cargo-receiving/shared/cargoPreview.types'
 import { CargoReceivingRequestError } from '@/modules/cargo-receiving/shared/cargoReceivingRequest.service'
@@ -29,9 +28,7 @@ import {
   PREVIEW_ID,
 } from '../fixtures/cargoPreview.fixture'
 import { DEFAULT_TRIP_DRAFTS } from '../fixtures/cargoPreviewTripDraft.fixture'
-import { ALFA_ID, BETA_ID, documentIdOf } from '../fixtures/cargoReceiving.fixture'
-
-const GAMA_ID = '00000000-0000-4000-8000-000000237a03'
+import { ALFA_ID, documentIdOf } from '../fixtures/cargoReceiving.fixture'
 
 export type PreviewDoubleCalls = {
   readonly getPreview: { afterRow: string | null; routeName?: string; state?: string }[]
@@ -55,7 +52,6 @@ export type CargoPreviewDouble = {
   /** Fila de falhas: a próxima ação sobre o item rejeita com a primeira. */
   actionFailures: Error[]
   previews: CargoPreviewSummary[]
-  profiles: Map<string, CargoPreviewProfileFlags>
   proposal: CargoPreviewArrivalProposal
   proposeFailure: Error | undefined
   summary: CargoPreviewSummary
@@ -186,10 +182,6 @@ function buildClient(double: CargoPreviewDouble): CargoPreviewClient {
       if (double.proposeFailure !== undefined) return Promise.reject(double.proposeFailure)
       return Promise.resolve(double.proposal)
     },
-    readProfileFlags: (contractorId) =>
-      Promise.resolve(
-        double.profiles.get(contractorId) ?? { isEnabled: false, previewEnabled: false },
-      ),
     uploadPreview: ({ idempotencyKey, input }) => {
       double.calls.upload.push({
         contractorId: input.contractorId,
@@ -227,11 +219,6 @@ export function installCargoPreviewDouble(
     items,
     itemsPageSize: 100,
     previews: [buildPreviewSummary()],
-    profiles: new Map([
-      [ALFA_ID, { isEnabled: true, previewEnabled: true }],
-      [BETA_ID, { isEnabled: true, previewEnabled: false }],
-      [GAMA_ID, { isEnabled: false, previewEnabled: true }],
-    ]),
     proposal: {
       contractorId: ALFA_ID,
       documentIds: [documentIdOf(52_001), documentIdOf(52_006)],

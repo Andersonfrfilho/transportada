@@ -15,6 +15,7 @@ import { useSaveReceivingProfileMutation } from '@/modules/delivery-clients/muta
 import { useReceivingProfileSummaries } from '@/modules/delivery-clients/queries/useReceivingProfile.query'
 import type { Contractor } from '@/modules/delivery-clients/shared/contractorDirectory.types'
 import type { ReceivingProfile } from '@/modules/delivery-clients/shared/receivingProfile.types'
+import { usePreviewContractors } from '@/modules/cargo-receiving/queries/useCargoPreviewContractors.query'
 import { useEnabledContractors } from '@/modules/cargo-receiving/queries/useCargoContractors.query'
 import type {
   CargoContractor,
@@ -127,6 +128,22 @@ describe('registro de chegada: quem tem o recebimento ligado (revisão M4)', () 
 
     expect(rendered.result().contractors).toHaveLength(0)
     expect(double.calls.listProfiles).toHaveLength(1)
+    rendered.unmount()
+  })
+})
+
+describe('envio da planilha: quem tem o recebimento E a prévia ligados (revisão M4)', () => {
+  test('150 contratantes custam as páginas de perfil, e só os com prévia ligada entram', async () => {
+    const double = installCargo()
+    const rendered = await renderHook(usePreviewContractors)
+
+    await waitFor(() => expect(rendered.result().isLoading).toBe(false))
+
+    expect(double.calls.listProfiles.length).toBeLessThanOrEqual(MAX_PAGES)
+    const ids = rendered.result().contractors.map((contractor) => contractor.id)
+    expect(ids).toHaveLength(ENABLED_TOTAL / 2)
+    expect(ids).toContain(idOf(0))
+    expect(ids).not.toContain(idOf(1))
     rendered.unmount()
   })
 })

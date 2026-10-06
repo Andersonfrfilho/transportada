@@ -15,7 +15,6 @@ import type {
   CargoPreviewItemOutcome,
   CargoPreviewListFilters,
   CargoPreviewPage,
-  CargoPreviewProfileFlags,
   CargoPreviewSummary,
   UploadCargoPreviewInput,
   UploadCargoPreviewResult,
@@ -25,7 +24,6 @@ import {
   toItemOutcome,
   toPreviewDetail,
   toPreviewPage,
-  toProfileFlags,
   toProposal,
   toTripDrafts,
   toUploadResult,
@@ -53,7 +51,6 @@ export type CargoPreviewClient = Readonly<{
   /** Os rascunhos de viagem por roteiro (RF7). Só lê: criar viagem é do fluxo de viagem. */
   getTripDrafts: (previewId: string) => Promise<CargoPreviewTripDrafts>
   proposeArrival: (previewId: string) => Promise<CargoPreviewArrivalProposal>
-  readProfileFlags: (contractorId: string) => Promise<CargoPreviewProfileFlags>
   uploadPreview: (
     input: Readonly<{ idempotencyKey: string; input: UploadCargoPreviewInput }>,
   ) => Promise<UploadCargoPreviewResult>
@@ -131,14 +128,6 @@ export function createCargoPreviewClient(
         path: `${previewPath(previewId)}/propose-arrival`,
       })
       return toProposal(body)
-    },
-    async readProfileFlags(contractorId) {
-      const { body } = await requestCargoReceivingApi({
-        dependencies,
-        method: 'GET',
-        path: `${CARGO_PREVIEW_PATHS.contractors}/${encodeURIComponent(contractorId)}/receiving-profile`,
-      })
-      return toProfileFlags(body)
     },
     async uploadPreview({ idempotencyKey, input }) {
       const { body, status } = await requestCargoReceivingApi({

@@ -132,9 +132,6 @@ export type UploadCargoPreviewResult = Readonly<{
   preview: CargoPreviewSummary
 }>
 
-/** O que a tela precisa do perfil para oferecer o envio: o recebimento e a prévia ligados. */
-export type CargoPreviewProfileFlags = Readonly<{ isEnabled: boolean; previewEnabled: boolean }>
-
 /** A chegada que a prévia propõe, levada à tela de registro; a hora, o operador confirma. */
 export type CargoArrivalPrefill = Readonly<{
   contractorId: string

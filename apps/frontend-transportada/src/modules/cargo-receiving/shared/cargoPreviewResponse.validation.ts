@@ -4,7 +4,6 @@ import type {
   CargoPreviewDetail,
   CargoPreviewItemOutcome,
   CargoPreviewPage,
-  CargoPreviewProfileFlags,
   CargoPreviewSummary,
   UploadCargoPreviewResult,
 } from './cargoPreview.types'
@@ -67,21 +66,4 @@ export function toTripDrafts(payload: unknown): CargoPreviewTripDrafts {
   const data = readData(payload)
   if (!isTripDrafts(data)) throw invalidResponse()
   return data
-}
-
-/**
- * Projeção: só os dois interruptores. O perfil inteiro é do módulo que o possui (`delivery-clients`, com a
- * guarda de chaves exatas dele). `{ data: null }` é contratante sem perfil — ausência de regra, não erro.
- */
-export function toProfileFlags(payload: unknown): CargoPreviewProfileFlags {
-  const data = readData(payload)
-  if (data === null) return { isEnabled: false, previewEnabled: false }
-  if (
-    !isRecord(data) ||
-    typeof data.isEnabled !== 'boolean' ||
-    typeof data.previewEnabled !== 'boolean'
-  ) {
-    throw invalidResponse()
-  }
-  return { isEnabled: data.isEnabled, previewEnabled: data.previewEnabled }
 }

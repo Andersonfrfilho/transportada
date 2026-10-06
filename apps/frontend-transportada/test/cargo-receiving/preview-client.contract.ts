@@ -109,24 +109,6 @@ describe('as leituras da prévia (spec 237 T4.4)', () => {
 
     expect([...(calls[0]?.url.searchParams.keys() ?? [])]).toEqual(['limit'])
   })
-
-  test('o perfil devolve só os dois interruptores; sem perfil ambos desligados', async () => {
-    const { calls, client } = harness((captured) =>
-      captured.url.pathname.includes(ALFA_ID)
-        ? json({ data: { isEnabled: true, matchWindowDays: 15, previewEnabled: true } })
-        : json({ data: null }),
-    )
-
-    expect(await client.readProfileFlags(ALFA_ID)).toEqual({
-      isEnabled: true,
-      previewEnabled: true,
-    })
-    expect(await client.readProfileFlags('outro')).toEqual({
-      isEnabled: false,
-      previewEnabled: false,
-    })
-    expect(calls[0]?.url.pathname).toBe(`/contractors/${ALFA_ID}/receiving-profile`)
-  })
 })
 
 describe('o envio multipart', () => {
