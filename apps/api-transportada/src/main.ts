@@ -1068,6 +1068,12 @@ export function bootstrap(): Bun.Server<undefined> {
           findConfirmedUpload: (query) =>
             whatsappOccurrenceUploadRepository.findConfirmedUpload(query),
           findOccurrenceType: (query) => findOccurrenceType(database.db, query),
+          /** Spec 246 (RF6): a exceção do tipo vale no WhatsApp como em qualquer canal. */
+          findOccurrenceTypeOverrides: (query) =>
+            new DrizzleOccurrenceAttachmentOverridesRepository(database.db).listOverridesForTypes({
+              companyId: query.companyId,
+              occurrenceTypeIds: [query.occurrenceTypeId],
+            }),
           findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
           listDocumentProducts: (query) => listDocumentProducts(database.db, query),
         },
@@ -3553,6 +3559,12 @@ function createApplicationRoutes({
           repository: {
             findConfirmedUpload: (query) => occurrenceUploadRepository.findConfirmedUpload(query),
             findOccurrenceType: (query) => findOccurrenceType(database, query),
+            /** Spec 246 (RF6): a exceção do contratante/destinatário da nota vale no registro. */
+            findOccurrenceTypeOverrides: (query) =>
+              occurrenceAttachmentOverridesRepository.listOverridesForTypes({
+                companyId: query.companyId,
+                occurrenceTypeIds: [query.occurrenceTypeId],
+              }),
             findReachableDocument: (query) => findDriverReachableDocument(database, query),
             listDocumentProducts: (query) => listDocumentProducts(database, query),
           },

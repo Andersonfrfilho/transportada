@@ -1207,6 +1207,21 @@ export class TripOccurrenceNoteRequiredError extends ApiError {
 }
 
 /**
+ * Spec 246 (RF8, CA06): o tipo efetivo da nota exige a assinatura de quem recusou e o registro chegou
+ * sem ela. Código estável próprio — a tela diz qual dos campos falta. O WhatsApp do motorista não
+ * colhe assinatura e devolve este mesmo erro (RF13).
+ */
+export class TripOccurrenceSignatureRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_SIGNATURE_REQUIRED',
+      message: 'This occurrence type requires a signature.',
+      status: 422,
+    })
+  }
+}
+
+/**
  * Spec 246 (RF1c, RF8): a foto é obrigatória e veio, mas abaixo de `photo_minimum_count`. Código
  * próprio, distinto de `TRIP_OCCURRENCE_ATTACHMENT_REQUIRED` (nenhuma foto): a tela diz quantas faltam.
  */

@@ -13,7 +13,7 @@ import { OCCURRENCE_MOMENT, TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occu
 import { TripDocumentNotReachableError } from '../domain/trip.error.js'
 import { assertOccurrenceTypeAcceptsProducts } from '../domain/occurrence-items-mode.policy.js'
 import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
-import { assertDriverOccurrencePhotoRequirement } from '../domain/occurrence-photo-requirement.policy.js'
+import { assertDriverOccurrenceRequirements } from '../domain/occurrence-requirement-guard.policy.js'
 import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
 import type { DriverFieldReportUnitOfWork, ReportedLocation } from './driver-field-report.port.js'
 import { resolveFieldTapLocationStamp } from './field-tap-location-stamp.service.js'
@@ -26,6 +26,10 @@ import {
 import type { OccurrenceTypeRecord, TripOccurrence } from './register-trip-occurrence.use-case.js'
 import type { OccurrenceUploadAttachmentPort } from './resolve-occurrence-upload-attachment.use-case.js'
 import { resolveOccurrenceUploadAttachment } from './resolve-occurrence-upload-attachment.use-case.js'
+import {
+  resolveDocumentOccurrenceRequirements,
+  type OccurrenceTypeOverridesReadPort,
+} from './resolve-document-occurrence-requirements.service.js'
 import { resolveFieldReportOperation, withFieldReport } from './trip-field-report.port.js'
 
 /**
@@ -33,23 +37,33 @@ import { resolveFieldReportOperation, withFieldReport } from './trip-field-repor
  * `findConfirmedUpload` (T203/RF2b) entrou na mesma leitura: confere o anexo referenciado antes de
  * abrir a transação, exatamente como as outras três já conferem tipo, nota e produto.
  */
-export type DriverOccurrenceReadPort = OccurrenceUploadAttachmentPort & {
-  findOccurrenceType(input: {
-    readonly companyId: string
-    readonly occurrenceTypeId: string
-  }): Promise<null | OccurrenceTypeRecord>
-  /** `null` quando a nota não é de uma viagem ativa do alvo — inalcançável, não proibida. */
-  findReachableDocument(input: {
-    readonly companyId: string
-    readonly documentId: string
-    readonly target: FieldTripTarget
-  }): Promise<null | { readonly tripId: string }>
-  listDocumentProducts(input: {
-    readonly companyId: string
-    readonly documentId: string
-    readonly tripId: string
-  }): Promise<readonly { readonly code: string; readonly description: string }[]>
-}
+export type DriverOccurrenceReadPort = OccurrenceTypeOverridesReadPort &
+  OccurrenceUploadAttachmentPort & {
+    findOccurrenceType(input: {
+      readonly companyId: string
+      readonly occurrenceTypeId: string
+    }): Promise<null | OccurrenceTypeRecord>
+    /**
+     * `null` quando a nota não é de uma viagem ativa do alvo — inalcançável, não proibida. Spec 246
+     * (RF6): o contratante (emitente cadastrado) e o CNPJ do destinatário saem **da nota**, no
+     * servidor — é com eles que a exceção do tipo é resolvida, nunca com o que o cliente mandar.
+     * Opcionais só para os dublês de teste: ausente é "sem contratante/destinatário resolvido".
+     */
+    findReachableDocument(input: {
+      readonly companyId: string
+      readonly documentId: string
+      readonly target: FieldTripTarget
+    }): Promise<null | {
+      readonly contractorId?: null | string | undefined
+      readonly recipientTaxId?: null | string | undefined
+      readonly tripId: string
+    }>
+    listDocumentProducts(input: {
+      readonly companyId: string
+      readonly documentId: string
+      readonly tripId: string
+    }): Promise<readonly { readonly code: string; readonly description: string }[]>
+  }
 
 const DOCUMENT_OCCURRENCE_OPERATION = 'document.occurrence'
 
@@ -72,6 +86,11 @@ export type RegisterDriverOccurrenceInput = FieldTripLocator & {
   /** Vazio é a nota inteira: o motorista aponta o item quando o cliente recusou só parte. */
   readonly productCode: string
   readonly repository: DriverOccurrenceReadPort
+  /**
+   * Spec 246 (RF9): a referência à assinatura já confirmada — nunca o arquivo, e nunca uma linha de
+   * anexo de foto. Ausente é "sem assinatura", válido para todo tipo cuja assinatura não seja `required`.
+   */
+  readonly signatureObjectId?: string | null | undefined
   readonly unitOfWork: DriverFieldReportUnitOfWork
 }
 
@@ -132,13 +151,23 @@ export async function registerDriverOccurrence(
   const authorship = deriveFieldAuthorship(input)
   const tripId = reachable.tripId
 
-  /** Spec 179 T203 (RF3) e 246 (RF8): a exigência é do **tipo**; a rota leva um anexo só. */
+  /**
+   * Spec 179 T203 (RF3) e 246 (RF6, RF8): a exigência é a **efetiva da nota** — tipo, exceção do
+   * contratante e do destinatário, lidos da nota no servidor —, e cada campo é cobrado pelo seu modo.
+   * A rota leva um anexo só.
+   */
   const hasAttachment = input.attachmentObjectId !== undefined && input.attachmentObjectId !== null
-  assertDriverOccurrencePhotoRequirement({
+  const requirements = await resolveDocumentOccurrenceRequirements({
+    companyId: input.companyId,
+    document: reachable,
+    occurrenceType,
+    repository: input.repository,
+  })
+  assertDriverOccurrenceRequirements({
     attachmentCount: hasAttachment ? 1 : 0,
-    attachmentMode: occurrenceType.attachmentMode,
+    hasSignature: input.signatureObjectId !== undefined && input.signatureObjectId !== null,
     note: input.note,
-    photoMinimumCount: occurrenceType.photoMinimumCount,
+    requirements,
   })
 
   /**

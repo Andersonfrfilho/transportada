@@ -253,6 +253,8 @@ describe('a exigência de comprovante no registro do motorista contra o Postgres
           companyId: company.companyId,
           id: occurrenceTypeId,
           name: 'Recusa total',
+          /** Spec 246 (RF3): a observação obrigatória é dado — a migration a grava onde a foto é `required`. */
+          noteMode: 'required',
           stage: 'delivery',
         })
 

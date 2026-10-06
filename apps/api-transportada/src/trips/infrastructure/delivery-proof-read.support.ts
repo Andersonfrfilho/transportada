@@ -7,7 +7,7 @@
  * aparece na tela de outra.
  */
 import { alias } from 'drizzle-orm/pg-core'
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 
 import { distanceInMetres } from '../../addresses/domain/coordinate-distance.js'
 import { fleetDrivers } from '../../database/fleet.schema.js'
@@ -28,7 +28,6 @@ import {
   tripDrivers,
   tripStopEvents,
   tripStops,
-  trips,
 } from '../../database/trip.schema.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { ApiLogger } from '../../shared/api.types.js'
@@ -67,10 +66,8 @@ import { violatedCheckConstraint } from '../../database/postgres-error.support.j
 import { contractors } from '../../database/delivery-client.schema.js'
 import { resolveDeliveryContact } from '../domain/delivery-contact.policy.js'
 import type { DeliveryContact } from '../domain/delivery-contact.policy.js'
-import { PROOF_REACHABLE_TRIP_STATUSES } from './drizzle-delivery-proof.repository.js'
-import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import { mirrorStreetOccurrenceAttachment } from './street-occurrence-attachment.persistence.js'
-import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
+import type { FieldAuthorship } from '../application/field-trip-target.types.js'
 import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
 import { resolveOccurrenceProductCodes } from '../domain/occurrence-scope.policy.js'
 import { buildOccurrenceItemValues } from '../domain/occurrence-template.policy.js'
@@ -801,50 +798,7 @@ export async function readOccurrenceLabels(
   }
 }
 
-/**
- * Spec 079: a nota que **este motorista** está levando agora — ou, pelo escritório (spec 156), a
- * nota da viagem que ele resolveu.
- *
- * ⚠️ O recorte é o mesmo de `findReachableDocumentIds`: o alvo (`fieldTripTargetCondition`), viagem
- * em estado ativo e **só as vivas** — nota liberada (`released_at`) não está mais na viagem, mesmo
- * que a viagem continue ativa (spec 156 T8b.1). Nota de outra viagem, de viagem que já fechou, ou já
- * liberada desta mesma viagem, responde `null`, e o caso de uso a trata como inalcançável. É a
- * consulta que estreita o `trip.report` da empresa inteira para a carga que ele tem nas mãos; a
- * permissão sozinha não estreita nada.
- *
- * ⚠️ `findDeliveryEventId` (`drizzle-delivery-proof.repository.ts`) **não** filtra `released_at` —
- * ela busca o evento de uma entrega que já aconteceu, e o comprovante continua válido mesmo que a
- * nota seja liberada depois. Os dois têm o mesmo alvo e o mesmo recorte de viagem ativa, mas não o
- * mesmo recorte de `released_at`; o comentário anterior os igualava por engano.
- */
-export async function findDriverReachableDocument(
-  queryable: TripQueryable,
-  input: {
-    readonly companyId: string
-    readonly documentId: string
-    readonly target: FieldTripTarget
-  },
-): Promise<null | { readonly tripId: string }> {
-  const [row] = await queryable
-    .select({ tripId: tripDocuments.tripId })
-    .from(tripDocuments)
-    .innerJoin(
-      trips,
-      and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
-    )
-    .where(
-      and(
-        eq(tripDocuments.companyId, input.companyId),
-        eq(tripDocuments.id, input.documentId),
-        isNull(tripDocuments.releasedAt),
-        fieldTripTargetCondition(input.target),
-        inArray(trips.status, [...PROOF_REACHABLE_TRIP_STATUSES]),
-      ),
-    )
-    .limit(1)
-
-  return row === undefined ? null : { tripId: row.tripId }
-}
+export { findDriverReachableDocument } from './driver-reachable-document.query.js'
 
 /**
  * O tipo cadastrado, conferido contra a empresa. ⚠️ `active` **não** entra no `where`: o caso de

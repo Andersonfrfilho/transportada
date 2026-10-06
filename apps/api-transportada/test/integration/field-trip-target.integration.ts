@@ -271,7 +271,7 @@ describe('o alvo trip do escritório contra o Postgres (spec 156 T3)', () => {
           documentId: targetTrip.documentId,
           target: tripTarget,
         }),
-      ).toEqual({ tripId: targetTrip.tripId })
+      ).toMatchObject({ tripId: targetTrip.tripId })
       expect(
         await findDriverReachableDocument(database.db, {
           companyId: company.companyId,
