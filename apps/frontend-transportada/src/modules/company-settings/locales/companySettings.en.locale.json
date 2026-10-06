@@ -427,6 +427,49 @@
       "loading": "Loading the e-mail templates…",
       "failed": "Could not load the e-mail templates. The current template still applies; reload the page to try again.",
       "missing": "The template \"{{key}}\" is no longer active, so no e-mail goes out through it. Choose another template."
+    },
+    "filters": {
+      "title": "Type filters",
+      "searchLabel": "Search types",
+      "searchPlaceholder": "Search by type name, or by name / tax ID of whoever has an exception",
+      "clear": "Clear",
+      "clearAll": "Clear filters",
+      "counter": "{{shown}} of {{total}} types",
+      "exceptionUnavailable": "The Has exception filter is unavailable until the exceptions load.",
+      "emptyTitle": "No type matches",
+      "emptyReasonQuery": "No type has that name, and nobody with an exception has that name or tax ID: \"{{query}}\".",
+      "emptyReasonPills_one": "1 filter is on and no type meets it.",
+      "emptyReasonPills_other": "{{count}} filters are on and no type meets them together.",
+      "groups": {
+        "moment": "Moment",
+        "requirement": "Requires",
+        "other": "And also"
+      },
+      "chips": {
+        "moment": {
+          "separation": "Warehouse picking",
+          "document": "Delivery of the invoice",
+          "stop": "Arrival at the stop",
+          "office": "Office"
+        },
+        "requirement": {
+          "photo": "Photo",
+          "note": "Note",
+          "signature": "Signature",
+          "items": "Products"
+        },
+        "activity": {
+          "active": "Active",
+          "inactive": "Inactive"
+        },
+        "notification": {
+          "notifies": "Notifies contractor",
+          "silent": "Does not notify"
+        },
+        "exception": {
+          "has": "Has exception"
+        }
+      }
     }
   },
   "settingsResolution": {
