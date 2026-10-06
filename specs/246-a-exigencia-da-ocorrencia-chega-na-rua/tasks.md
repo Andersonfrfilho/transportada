@@ -300,18 +300,19 @@ o.attachment_mode <> 'required'`. Registrar os números em `evidence.md`. **A Fa
       desabilitado, espaçamento, contraste, foco). Toda diferença é defeito da implementação, a
       menos que o `evidence.md` registre por que o protótipo estava errado; corrigir e refazer o
       print. Verificação por texto primeiro (`read_page`, geometria, contraste); print só como prova.
-- [ ] **T6.1b** Revisão independente de funcionalidade, usabilidade e design por `code-reviewer`
+- [x] **T6.1b** Revisão independente de funcionalidade, usabilidade e design por `code-reviewer`
       (`opus`), numa passada separada da autoria: fluxo ponta a ponta no navegador (criar tipo,
       exceção por CNPJ, registrar na rua com a exigência, ver o que a conferência mostra), mais a
       leitura do código. Achados por severidade; reprovado se houver bloqueante ou alto, e então
       corrige e repete a passada. O veredito entra em `evidence.md`.
-- [ ] **T6.2** Atualizar `CLAUDE.md` da raiz e `apps/*/CLAUDE.md` tocados, e
+      _Três passadas, as três reprovadas e corrigidas; vereditos em `evidence.md` § "Veredito das passadas"._
+- [x] **T6.2** Atualizar `CLAUDE.md` da raiz e `apps/*/CLAUDE.md` tocados, e
       `docs/ai-context/` das apps afetadas.
 - [x] **T6.3** Gates completos: `bun run typecheck`, `make check`, `make migration-test`, e a
       integração da API em primeiro plano com `--env-file=../../.env.test` (contrato e integração
       são dois comandos; nenhum cobre o outro).
       _Evidência: `evidence.md` § "T6.3"._
-- [ ] **T6.4** `evidence.md` consolidado.
+- [x] **T6.4** `evidence.md` consolidado.
 
 ## Prompt de execução
 
@@ -347,3 +348,9 @@ PARADAS OBRIGATÓRIAS (pedem autorização do usuário; as medições são só l
    required — a Fase 3 só ativa em produção depois dessa medição registrada em evidence.md.
 Pare e pergunte antes de: deploy, migration destrutiva, produção, qualquer [NEEDS CLARIFICATION].
 ```
+
+## Prompt de execução restante
+
+Nenhum. Não sobra task de código: só **T1d.0** e **T3.0** seguem `[ ]` (medições do usuário) e a publicação em etapas
+(`evidence.md` § "Ordem de publicação em etapas"), que é do orquestrador. Pare e pergunte antes de deploy, migration em
+produção e a etapa 3.

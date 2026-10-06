@@ -1,5 +1,137 @@
 # Evidência — spec 246
 
+## Índice
+
+Estado em 2026-10-06, branch `work/spec-239` sobre `origin/staging` `0e31a602b` (107 commits à frente). Tabela **task → commit → onde está a evidência**; os SHAs são os
+**atuais** (depois dos rebases), e quando uma seção antiga cita outro hash, ele é o de antes do rebase. Pendentes do usuário: **T1d.0** e **T3.0**.
+
+| task                                                 | commit(s)                                                                                                                                                                                                                                | evidência (seção deste arquivo)                                        |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| spec, plan, tasks, correções do architect e D-a..D-d | `54e9daa7a`, `4f04b2e07`, `67ebc1791`, `1f9eaac86`, `d5d6ffd24`                                                                                                                                                                          | "Correções da spec antes de implementar"                               |
+| T1.1 schema                                          | `9fdcf20c2`                                                                                                                                                                                                                              | "T1.1"                                                                 |
+| T1.2 migration 🧠                                    | `3dbd7865e`                                                                                                                                                                                                                              | "T1.2"                                                                 |
+| T1.3 valor da coluna                                 | `d23abd845`                                                                                                                                                                                                                              | "T1.3"                                                                 |
+| T1.4 mutações                                        | `4d699fa1d` (gates `ad6f2779a`)                                                                                                                                                                                                          | "T1.4", "Gates ao fechar a Fase 1"                                     |
+| T1b.1b painel tolerante                              | `c3cb65c5f`                                                                                                                                                                                                                              | "T1b.1b (painel)"                                                      |
+| T1b.1 tabela e backfill de momentos                  | `482a8cd2f`                                                                                                                                                                                                                              | "T1b.1"                                                                |
+| T1b.1b API (derivação, leitura tolerante, `PUT`)     | `5ee5c4102`                                                                                                                                                                                                                              | "T1b.1b (API)"                                                         |
+| T1b.2 🧠 momento fixo por caso de uso                | `31e18617e`                                                                                                                                                                                                                              | "T1b.2"                                                                |
+| T1b.3 CA00 contra o banco                            | `88062484c`                                                                                                                                                                                                                              | "T1b.3"                                                                |
+| T1b.4 CA00b nas linhas                               | `62d3cbb48`                                                                                                                                                                                                                              | "T1b.4"                                                                |
+| T1b.5 mutações                                       | `05164673c`                                                                                                                                                                                                                              | "T1b.5"                                                                |
+| T1b.6 tipo sem momento recusado                      | `5b788f5c4` (gates `02df1291a`)                                                                                                                                                                                                          | "T1b.6"                                                                |
+| T1c.0 pré-condição da 241                            | `d5d6ffd24`                                                                                                                                                                                                                              | "Conferência da pré-condição (T1c.0)"                                  |
+| T1c.1 colunas e CHECKs                               | `714fae9a8`                                                                                                                                                                                                                              | "T1c.1"                                                                |
+| T1c.2 backfill do mínimo de foto                     | `ca6d208e0`                                                                                                                                                                                                                              | "T1c.2"                                                                |
+| T1c.4 painel tolerante                               | `f268acecc`                                                                                                                                                                                                                              | "T1c.4 (painel)"                                                       |
+| T1c.3 `allowsMultipleItems`                          | `3880456da`                                                                                                                                                                                                                              | "T1c.3"                                                                |
+| T1c.4 API (Produtos obrigatório e mínimos)           | `7ce12752d` (gates `8e9d7df17`)                                                                                                                                                                                                          | "T1c.4 (API)"                                                          |
+| **T1d.0** medição em produção                        | — **pendente do usuário**                                                                                                                                                                                                                | "T1d.0"                                                                |
+| T1d.1 leitura existente presa                        | `cf8fbb0e5`                                                                                                                                                                                                                              | "T1d.1"                                                                |
+| T1d.2 🧠 backfill dos anexos                         | `f59b03f5d`                                                                                                                                                                                                                              | "T1d.2"                                                                |
+| T1d.3 backfill nas linhas                            | `69c85a8ce`                                                                                                                                                                                                                              | "T1d.3"                                                                |
+| T1d.4 mutações                                       | `58ea3f2ed`                                                                                                                                                                                                                              | "T1d.4"                                                                |
+| T1d.5 escrita dupla e mínimo de fotos                | `32287fa91`                                                                                                                                                                                                                              | "T1d.5"                                                                |
+| T1d.6 demonstrativo e correção                       | `9bd5922de` (gates `780278f70`)                                                                                                                                                                                                          | "T1d.6"                                                                |
+| Fase 2: painel e app tolerantes                      | `24312a31a`, `d01333eab`                                                                                                                                                                                                                 | "Painel e app tolerantes antes da API"                                 |
+| T2.1 + T2.2 projeção e verificação                   | `a89bf4345`                                                                                                                                                                                                                              | "T2.1 + T2.2"                                                          |
+| T2.3 registro cobra o efetivo                        | `0429b965c`                                                                                                                                                                                                                              | "T2.3"                                                                 |
+| T2.3b CA04 no comportamento                          | `be17c2276`                                                                                                                                                                                                                              | "T2.3b"                                                                |
+| T2.4 `PUT` e assinatura                              | `c853ac78f`                                                                                                                                                                                                                              | "T2.4"                                                                 |
+| T2.4b produtos e mínimos                             | `83eaa3aa7`                                                                                                                                                                                                                              | "T2.4b"                                                                |
+| T2.5 assinatura isolada                              | `7d023f044`                                                                                                                                                                                                                              | "T2.5"                                                                 |
+| T2.6 WhatsApp                                        | `56e443c34`                                                                                                                                                                                                                              | "T2.6"                                                                 |
+| T2.7 lista de anexos                                 | `34cc8b821` (gates `b37805fbc`)                                                                                                                                                                                                          | "T2.7"                                                                 |
+| **T3.0** medição staging e produção                  | — **pendente do usuário**                                                                                                                                                                                                                | "Medições pendentes"                                                   |
+| T3.1, T3.2 o servidor cobra a exceção                | `a89bf4345`, `0429b965c`, `83eaa3aa7`                                                                                                                                                                                                    | "T3.1 e T3.2"                                                          |
+| T3.3 paridade snapshot × registro                    | `ec8b57da1`                                                                                                                                                                                                                              | "T3.3"                                                                 |
+| T4.1, T4.1b formulário do motorista                  | `5b5014c17`                                                                                                                                                                                                                              | "T4.1 e T4.1b"                                                         |
+| T4.2 assinatura na fila                              | `ece2cb069`                                                                                                                                                                                                                              | "T4.2"                                                                 |
+| T4.3 gate offline                                    | `d9556c082`                                                                                                                                                                                                                              | "T4.3"                                                                 |
+| T5.1 aba Tipos                                       | `5d410d135`, `dcecf81ad`                                                                                                                                                                                                                 | "T5.3 (1ª metade)", "M8"                                               |
+| T5.2 mover o painel                                  | `1b380de0c`, `f17ac8f56`, `01616cc76`                                                                                                                                                                                                    | "T5.3 (1ª metade)"                                                     |
+| T5.3-api rota em lote                                | `d0845fa73`                                                                                                                                                                                                                              | "T5.3-api"                                                             |
+| T5.3 (1ª e 2ª metade), T5.3c                         | `338e7e31b`, `76a170f83`, `86c7ab009`, `9257165f7`, `f657922b0`                                                                                                                                                                          | "T5.3 (1ª metade)", "T5.3 (2ª metade) e T5.3c"                         |
+| T5.3b momentos                                       | `74196c68d`                                                                                                                                                                                                                              | "T5.3b"                                                                |
+| T5.3d aviso ao contratante                           | `ff90da272`                                                                                                                                                                                                                              | "T5.3d"                                                                |
+| T5.3e busca e filtros                                | `f62bbe59d`                                                                                                                                                                                                                              | "T5.3e"                                                                |
+| T5.4 endereço antigo                                 | `94fda003d`                                                                                                                                                                                                                              | "T5.4"                                                                 |
+| T6.1 revisão de design                               | `509ccc332`, `54810e1dd`, `f3d7adcdc`, `eebfc36fa`, `65bf777d0`, `65418e9b6`, `b6747863c`                                                                                                                                                | "T6.1"                                                                 |
+| T6.1b, 1ª passada (API)                              | `f955b2d07`, `6aaca67a1`, `2f5eaa756`, `ab94009d3`, `bf64705ff`, `43eece3a9`, `195c38fad`, `f99a683c5`, `bffb9c381`, `21952498c`, `71b642f4f`                                                                                            | "Correções da revisão final (API)", "Veredito das passadas"            |
+| T6.1b, 2ª passada (painel)                           | `f127b2ca9`, `278c2beb8`, `87b81a3c9`, `ae66bb535`, `197eca323`, `1eddeb95c`, `0138cbbac`, `88a5fe260`, `ec9949728`, `5058dd35f`, `695f58cf7`, `4a2c8435c`, `57b817e60`, `1f9b20e47`, `650049d4a`, `17df7010d`, `5600185f0`, `aff8a08ba` | "Correções da revisão final (painel)", "Varredura de regressão visual" |
+| T6.1b, 3ª passada                                    | `b046107f2`, `0eb4a8655`, `d12a13f73`, `826e93330`, `89444abef`, `2f939d0cf`, `c71b0b130`, `2de9b6d8b`                                                                                                                                   | "Correções da terceira revisão"                                        |
+| T6.2 contexto vivo                                   | `2b943d116`                                                                                                                                                                                                                              | "T6.2" (abaixo)                                                        |
+| T6.3 gates, conferência, mutações                    | `e98f0d5a5`                                                                                                                                                                                                                              | "T6.3"                                                                 |
+| T6.4 este consolidado                                | o commit que traz esta seção                                                                                                                                                                                                             | "Ordem de publicação em etapas", "Fechamento"                          |
+
+## Ordem de publicação em etapas
+
+**Pré-requisitos de produção (valem para as três etapas e para o PR `staging` → `main`):**
+
+- **T1d.0 e T3.0 estão pendentes de autorização do usuário** (leituras em produção, e a T3.0 também em staging). **A 246 não vai a `main` sem as duas medições registradas aqui.**
+- ⚠️ **O afrouxamento das exceções passa a valer no deploy da API** (etapa 2): uma exceção `optional` sobre tipo `required` deixa de ser ignorada pelo servidor assim que a API sobe, e não há
+  variável de ambiente que ligue ou desligue isso. Staging pode receber as três etapas sem as medições; produção, não.
+- A T1d.0 é parada obrigatória **antes da etapa 3**; a T3.0, antes de a etapa 2 chegar a produção.
+
+**Por que o histórico não sobe commit a commit nas etapas 2 e 3.** As quatro migrations foram renomeadas duas vezes (`…112823…` → `…1848xx` → `…2051xx`) e, nos commits intermediários,
+o `snapshot.json` tem `prevIds` que não existem na cadeia atual da staging (p.ex. `482a8cd2f`: `ba78d050` ← `9cd11178`): `drizzle-kit check` só passa no estado final. Por isso as etapas 2 e 3 se
+montam **por arquivo, a partir do tip**: os commits de código entram em ordem e as pastas de migration entram uma vez, na forma final. Os commits que tocam `apps/api-transportada/drizzle/`
+são `9fdcf20c2`, `3dbd7865e`, `482a8cd2f`, `714fae9a8`, `ca6d208e0`, `f59b03f5d`, `f99a683c5`, `21952498c` e `b046107f2`.
+
+### Etapa 1 — painel e apps tolerantes (sem migration, sem API)
+
+Guards e telas que aceitam os campos novos, a rota em lote e o endereço novo **ainda inexistentes** na API: ausente lê como hoje, 404 da rota em lote vira `[]`, `moments` ausente esconde o seletor.
+
+Commits, em ordem: `c3cb65c5f`, `f268acecc`, `24312a31a`, `d01333eab`, `5b5014c17`, `ece2cb069`, `d9556c082`, `5d410d135`, `1b380de0c`, `f17ac8f56`, `dcecf81ad`, `01616cc76`, `86c7ab009`,
+`338e7e31b`, `76a170f83`, `9257165f7`, `74196c68d`, `ff90da272`, `f62bbe59d`, `94fda003d`, `509ccc332`, `54810e1dd`, `f3d7adcdc`, `eebfc36fa`, `65bf777d0`, `65418e9b6`, `f127b2ca9`, `278c2beb8`, `87b81a3c9`,
+`ae66bb535`, `197eca323`, `1eddeb95c`, `0138cbbac`, `88a5fe260`, `ec9949728`, `5058dd35f`, `695f58cf7`, `4a2c8435c`, `57b817e60`, `1f9b20e47`, `650049d4a`, `17df7010d`, `d12a13f73`, `826e93330`,
+`89444abef`, `2f939d0cf`. Apps: `apps/frontend-transportada` e `apps/frontend-driver`; nenhum arquivo de `apps/api-transportada`.
+
+`specs/` que vão nesta etapa (só documentação): `specs/246-a-exigencia-da-ocorrencia-chega-na-rua/` inteira, na versão final (`spec.md`, `plan.md`, `tasks.md`, `evidence.md`, `preview.html`, `prints/`) —
+commits só de spec: `54e9daa7a`, `4f04b2e07`, `67ebc1791`, `1f9eaac86`, `d5d6ffd24`, `4d699fa1d`, `ad6f2779a`, `05164673c`, `02df1291a`, `8e9d7df17`, `58ea3f2ed`, `780278f70`, `b37805fbc`, `f657922b0`,
+`b6747863c`, `43eece3a9`, `195c38fad`, `bffb9c381`, `71b642f4f`, `5600185f0`, `aff8a08ba`, `e98f0d5a5` e o commit da T6.4 — e a renumeração "239 → 246" em `specs/241-…/{spec,plan,tasks,evidence}.md` (vem em `2b943d116`).
+Os `docs/ai-context/frontend-*.md` e os `CLAUDE.md` das apps seguem em `2b943d116` (etapa 2, abaixo).
+
+Verificação: `bun run --cwd apps/frontend-transportada test` (7064 + 727), `bun run --cwd apps/frontend-driver test` (1242), typecheck, lint, build, e o painel contra a API **anterior**
+(a tela de tipos continua funcionando sem os campos novos).
+
+### Etapa 2 — API e as migrations `…205139`, `…205158`, `…205209`
+
+Só depois de a etapa 1 estar em staging. Commits de código, em ordem: `9fdcf20c2`, `3dbd7865e`, `d23abd845`, `482a8cd2f`, `5ee5c4102`, `31e18617e`, `88062484c`, `62d3cbb48`, `5b788f5c4`, `714fae9a8`, `ca6d208e0`,
+`3880456da`, `7ce12752d`, `cf8fbb0e5`, `32287fa91`, `9bd5922de`, `a89bf4345`, `0429b965c`, `be17c2276`, `c853ac78f`, `83eaa3aa7`, `7d023f044`, `56e443c34`, `34cc8b821`, `ec8b57da1`, `d0845fa73`, `f955b2d07`, `6aaca67a1`,
+`2f5eaa756`, `ab94009d3`, `bf64705ff`, `f99a683c5`, `21952498c`, `b046107f2`, `0eb4a8655`, `c71b0b130`, `2de9b6d8b`, `2b943d116` (contexto vivo: `CLAUDE.md`, `docs/ai-context/`, numeração da 241).
+
+Migrations (pastas finais, uma vez): `20261006205139_occurrence_type_requirement_modes`, `20261006205158_occurrence_type_moments`, `20261006205209_occurrence_type_quantity_minimums`, cada uma com
+`migration.sql`, `rollback.sql` e `snapshot.json`; cadeia `ed7fba64` (a `20261006180700` da 237) → `1bd14adf` → `03ada616` → `f738435d`.
+
+**O que a etapa 2 deve tirar do tip** (pertence à etapa 3): a pasta `…205232_street_occurrence_attachment_backfill`; `test/database-migration/street-occurrence-attachment-backfill.static.contract.ts`
+e seu `import` em `test/database-migration.contract.test.ts`; a linha `'20261006205232_street_occurrence_attachment_backfill'` em `test/database-migration/static-migration.contract.ts` (linha ~354);
+`test/integration/street-occurrence-attachment-backfill.integration.ts` e sua entrada em `test:integration` do `package.json` da API. Sem a quarta pasta, o `db:generate` segue `no_changes`
+(a quarta é `--custom`, não muda o esquema) e o `db:check` fica limpo.
+
+Verificação: contrato da API, `db:test` (esta etapa roda com 3 migrations em vez de 4), `db:generate` = `no_changes`, `db:check`, **a integração completa em blocos**, e `make migration-test`. A etapa 2 **ativa o
+afrouxamento das exceções** (RF6) e a escrita dupla da foto de rua.
+
+### Etapa 3 — o backfill dos anexos da rua
+
+**Só depois de a `…205139` estar aplicada no ambiente e da medição T1d.0** (parada obrigatória, pede autorização do usuário; esperado 0 ocorrências com as duas fontes). Entra, em um commit:
+`apps/api-transportada/drizzle/20261006205232_street_occurrence_attachment_backfill/` (`migration.sql`, `rollback.sql`, `snapshot.json`, prev `f738435d`), seu contrato estático
+(`test/database-migration/street-occurrence-attachment-backfill.static.contract.ts` + o `import` em `database-migration.contract.test.ts` + a linha da lista em `static-migration.contract.ts`), a integração
+`street-occurrence-attachment-backfill` (+ entrada em `test:integration`). Commits de origem: `f59b03f5d` (migration), `69c85a8ce` (integração), e a parte da `b046107f2`/`21952498c`/`f99a683c5` que tocou esta pasta.
+O backfill é deploy **separado** porque o migrador roda tudo numa transação e o `ADD COLUMN signature_object_id` da `…205139` segura `ACCESS EXCLUSIVE` enquanto o `INSERT` correria.
+
+### O que exige rebase e regeração
+
+- **Se a staging ganhar migration nova entre etapas**, a cadeia bifurca (duas folhas, `db:check` em conflito): é o que aconteceu duas vezes. As migrations ainda **não publicadas** são apagadas e
+  regeradas em ordem, com `db:generate` e o esquema de cada passo, o SQL idêntico reaplicado e só o nome trocado (comentário e `DELETE` do journal do `rollback.sql`). Atualizar o nome em
+  `test/database-migration/static-migration.contract.ts`, nos cinco testes que leem o `migration.sql`/`rollback.sql` pelo caminho
+  (`occurrence-type-requirement-modes`, `occurrence-requirement-modes-registration`, `occurrence-type-moments-backfill`, `occurrence-type-quantity-minimums`, `street-occurrence-attachment-backfill`),
+  no `plan.md`, em `docs/ai-context/api-transportada.md` e neste arquivo. Provar: `db:generate` = `no_changes`, `db:check`, `db:test`.
+- Migration **já aplicada** em algum ambiente não se renomeia: se isso acontecer, é decisão do orquestrador (a que cede é a mais nova), e esta seção deve ser reescrita.
+- Conflito esperado a cada rebase: as duas listas de teste do `package.json` da API (uma linha cada; mesclar por token, conferir duplicados e que todo arquivo do disco está na lista) e
+  `docs/ai-context/api-transportada.md` (as seções ficam todas).
+- Depois de todo rebase: `bun install --frozen-lockfile`, `bun run typecheck` (props que outra spec tornou obrigatórios só aparecem como TS2739) e os gates da seção "T6.3".
+
 ## Pré-requisitos de produção
 
 **A 246 não vai a `main` sem estas duas medições registradas aqui; as duas são pendentes do usuário** (leitura em produção pede autorização dele).
@@ -2990,3 +3122,72 @@ Received value: undefined
 ```
 
 Restaurados byte a byte (`cp` do backup e `git status` sem diferença): `occurrence-moment.policy.ts` e `migration.sql`.
+
+## T6.2 — Contexto vivo (2026-10-06)
+
+Commit `2b943d116`. Núcleo normativo (um bloco por arquivo, no tamanho dos vizinhos, uma pegadinha por parágrafo): `CLAUDE.md` da raiz, `apps/api-transportada/CLAUDE.md`,
+`apps/frontend-transportada/CLAUDE.md` e `apps/frontend-driver/CLAUDE.md` — a exceção nula que herda campo a campo; o momento como conjunto com a permissão fixa por caso de uso; o servidor aplicando a exceção
+por nota; a assinatura em `signature_object_id`, nunca como anexo; a foto de rua só de nota, com escrita dupla; a aba Tipos em `/ocorrencias`; `receiving` sem momento de rua; a publicação em etapas.
+Histórico e formatos de resposta: `docs/ai-context/api-transportada.md`, `frontend-transportada.md` e `frontend-driver.md` (seções "Spec 246 — …"). `apps/worker-transportada` e `apps/cron-transportada`
+não mudaram. Numeração: a 241 citava a exigência como "239" em `spec.md`, `plan.md`, `tasks.md` e `evidence.md`; passou a "246" (a `239-o-expurgo-se-liga-na-tela` continua 239; o `evidence.md` da 241 manteve
+a linha 404, que cita o título literal de um commit, e a 677, que é a do expurgo). Sem marcador de conflito em nenhum arquivo tocado; `prettier --check .` limpo.
+
+## Fechamento (T6.4)
+
+### Veredito das passadas de revisão independente (T6.1b)
+
+`code-reviewer` em `opus`, numa passada separada da autoria, três vezes; cada uma reprovou e exigiu correção, e a seguinte conferiu.
+
+| passada                     | escopo                | veredito e o que exigiu                                                                                                                                                                                                                                                                                                                                                                                                     | onde está                                                              |
+| --------------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| 1ª — revisão final (API)    | API e banco           | **Reprovada**: M1 (assinatura repetida como anexo), M2 (`PUT` da exceção estourava a CHECK do par produtos, 500), M5 (porta das exceções opcional), B1 (filtro de empresa dos momentos sem teste com duas empresas), B4 (expurgo × assinatura, conferido), B5, B7, B11, M3 (pré-requisitos de produção à vista) e M4 (rebase). Tudo corrigido, com contrato vermelho e mutação                                              | "Correções da revisão final (API)"                                     |
+| 2ª — revisão final (painel) | painel, app e design  | **Reprovada**: A1 (exceção nova herdava por padrão), A2 (escopo por momentos), A3 (verificação com os seis campos), A4 (Tooltip esticava o filho), M1–M8, B1–B11; mais o relato de elementos fora dos limites, que virou a varredura de geometria contra a staging (33 telas × 4 larguras × 2 temas). Tudo corrigido, **exceto** o B3 dos seletores da exceção com o cliente no nome acessível, registrado como "não coube" | "Correções da revisão final (painel)", "Varredura de regressão visual" |
+| 3ª — terceira revisão       | o que sobrou das duas | **Reprovada**: A-1 (a staging ganhou a `20261006180700`, com o mesmo pai da primeira migration; e `receiving` vazava para a rua), M-1/M-2 (cabeçalho e título regrediam a staging), M-3 (Tooltip no DOM), M-4 e B-2 (decisão do `Select` global e hint da verificação), B-3 (`.catch` → `try/catch`). **B-1, B-4 e B-5 ficam como estão** (o texto desses três achados não foi guardado no repositório; só o veredito)      | "Correções da terceira revisão"                                        |
+
+⚠️ Os oito commits da 3ª passada (`b046107f2` … `2de9b6d8b`) **não tiveram quarta passada independente**: a conferência da seção "T6.3" é do autor (leitura por `git show`, as migrations comparadas ao backup,
+o gate completo e duas mutações) e não substitui uma revisão separada.
+
+### Decisões do usuário (fechadas; não reabrir)
+
+- **2026-10-02:** conjunto de exigências (foto, observação, assinatura, produtos); o momento de galpão continua com a regra da 161.
+- **D-a** (2026-10-06): as colunas novas das duas tabelas de exceção são nulas e sem default; nulo herda do tipo, campo a campo.
+- **D-b**: o servidor cobra a exigência efetiva da nota (tipo + exceção de contratante + exceção de destinatário, lidos da nota no servidor, nunca do payload nem da URL).
+- **D-c**: `separation + stop` vira `stop` no backfill de momentos (preserva todo leitor; fechar o furo é outra spec).
+- **D-d**: só a ocorrência de nota (`document`) guarda N fotos; a assinatura mora em `signature_object_id`, nunca como linha de anexo; o demonstrativo ao cliente mostra a foto de rua e a resposta da correção.
+
+### Decisões dos executores que o usuário pode vetar
+
+- RF13: o WhatsApp do motorista **não filtra** a lista por exigência; tipo com assinatura `required` volta o erro estável e a conversa o traduz na frase do que falta.
+- O par `items_mode` + `items_minimum_count` vai junto na exceção (nulo em `items_mode` herda o par); sem CHECK `off ⇒ unset` nas exceções.
+- `signature_object_id` também em `trip_stop_occurrences`, **sem escritor nem leitor**, para não exigir segunda migration.
+- `findConfirmedUpload` passou a exigir que o upload (foto e assinatura) seja **do motorista**: aperta o anexo único, que antes só conferia empresa e viagem; o escritório segue sem esse filtro.
+- `photoMode` é cópia de `attachmentMode` por um ciclo; a rota do motorista aceita `attachmentObjectIds` (1–5) retrocompatível com o campo único.
+- O `PUT` de tipo de um painel anterior à 246 que passe a foto para `required` sem mandar `noteMode` **não arrasta mais a observação** (a regra saiu do código); só vale na janela entre API e painel.
+- Escopo dos campos pelo conjunto de momentos na tela: `stop` só pede a foto, `office` só Produtos; conjunto vazio e `document + stop` juntos são recusados.
+- `PUT` com `moments` sobre tipo `receiving` segue 404 (a da 237), sem erro novo.
+- A assinatura tem a mesma retenção de cinco anos da foto; o expurgo da 161 só a apaga no prazo.
+- Aparência global que mudou: `Select` (desligado sem `opacity`, opção ativa a 10%, texto que quebra, alvo de 44 px no toque) e `Tooltip` só estica o filho com `fill`; "Por decidir" da T6.1 segue aberto (5 itens).
+
+### O que ficou fora
+
+- **B-1, B-4, B-5** da terceira revisão (texto não guardado) e o **B3** da revisão do painel.
+- `trip_stop_occurrences.signature_object_id`: coluna sem uso.
+- **"Ao menos N"** produtos não muda o que o app do motorista cobra: o snapshot não traz os itens, e o app só marca "A nota inteira" (o servidor cobra o N).
+- **Lacuna do app com produtos item a item**: apontar itens da nota no app exige o snapshot trazer a lista.
+- **Fase 3 por nota só no servidor**: o app não manda `contractorId`/`recipientTaxId` (security.md §3); lê o resolvido do snapshot.
+- **WhatsApp sem assinatura nem foto**; **fila offline do app antigo** com item gravado sob tipo que depois endurece recebe 422 permanente.
+- Exigência no momento de galpão e na parada, fechar o furo `separation + stop`, fundir os dois "Avaria", nome e documento de quem deu a negativa, retroatividade, o comprovante de entrega, a rota do escritório e
+  o tipo `flow: stop` recusado na rota de nota (todos em `spec.md` § "Fora do escopo").
+- O smoke Playwright da 185 (`spec-185-prints`) segue sem execução; `make migration-test` como alvo não rodou (rodou o `db:test`); `trip-occurrence-upload-confirm` pulou (sem MinIO).
+- **T1d.0 e T3.0**: pendentes do usuário.
+
+### Contagens finais (árvore final, seção "T6.3")
+
+Contrato da API 10042 pass / 25 skip / 0 fail (199 arquivos) · integração da API 1073 pass / 8 skip / 0 fail (199 arquivos em 10 blocos; os 8 skips explicados: 7 cobertos pelo re-run com `DRIZZLE_TEST_DATABASE_URL` e pelo `db:test`, 1 não exercitado por falta de MinIO) · `db:test` 138 pass ·
+`db:generate` `no_changes` · `db:check` limpo · painel 7064 + 727 pass · app do motorista 1242 pass · worker 1640 pass · cron 101 pass · `make check` pass · lint 0 erros nas sete apps · build ok.
+
+### Prompt de execução restante
+
+**Nenhuma task de código sobra.** `[ ]` ficam só **T1d.0** e **T3.0** (medições em produção e staging, do usuário). O que resta não é execução da spec: é a **publicação em etapas**
+(seção "Ordem de publicação em etapas", a cargo do orquestrador, com gates por etapa) e, antes do PR `staging` → `main`, as duas medições registradas aqui. Não há prompt de autopilot a rodar; pare e pergunte
+antes de: deploy, migration em produção, a etapa 3 (T1d.0), e qualquer ativação da etapa 2 em produção (T3.0).
