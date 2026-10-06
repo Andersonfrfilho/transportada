@@ -1674,3 +1674,41 @@ Notas/Separadas sem botão de ordenação, contador "N chegadas carregadas", car
 662 / 0. `bun run test`: 6985 pass + 662 (antes desta correção: 6985 + 658). Typecheck, lint (0 erros) e `format:check` limpos.
 Os specs de prévias e de recebimento ganharam o mock de `/contractor-receiving-profiles`: sem ele, depois do M4, as telas de
 envio ficavam sem contratante e o smoke estourava o prazo.
+
+## T3.1 — o desenho da avaria na entrada e da marcação "devolver ao contratante" (2026-10-06)
+
+Desenho completo em `docs/adr/0094-o-recebimento-da-carga-antes-da-viagem.md` §9 (9.1–9.6). Resumo e medidas:
+
+- **Medido antes de decidir:** `trip_document_occurrences` tem 35 leitores em `src/` e é alvo de cinco FKs de outras specs
+  (tratativa 164, fotos 161, itens 166/172, correções 167/240, cobrança 164 T17) e da conversa 183 por `occurrence_id`.
+  Experimento de tipo (revertido por `git checkout`, árvore limpa): com `trip_document_id` anulável e `receiving` em
+  `TRIP_OCCURRENCE_STAGE`, `bun run typecheck` deu **7 erros em 6 arquivos**; com uma etapa só no tipo da coluna, **16 em 8**.
+- **(a) Dono da ocorrência:** coluna irmã `cargo_arrival_document_id` + `trip_document_id` sem `NOT NULL` + CHECK
+  `num_nonnulls(...) = 1` + CHECK etapa ⇔ dono, FK para `cargo_arrival_documents (company_id, id)`. Descartada a tabela
+  irmã: duplicaria 164/161/166/167 ou exigiria FK polimórfica em cinco tabelas, e o portal uniria duas fontes. Seguro nos
+  dados por construção (o `NOT NULL` vigente garante os CHECKs novos), sem leitura de staging/produção.
+- **(b) Etapa:** `receiving` em `TRIP_OCCURRENCE_STAGE` (gera os dois CHECKs). Descartado reaproveitar `separation` (vazaria o
+  tipo para a viagem, `leaves_document_behind` e `dispatch-readiness` leem `separation`). Catálogo de recebimento semeado por
+  bootstrap (três tipos, `blocked`, `items_mode optional`).
+- **(c) Marcação:** coluna ortogonal `return_to_contractor none|marked|returned` + `return_occurrence_id` com FK para a
+  ocorrência **desta** nota. Descartado estado novo no eixo (reescreveria a política de transição, o CHECK de datas e o de forma
+  dos eventos, e perderia o "separada" da nota marcada depois de separada).
+- **(d) Por nota inteira**, com os itens na ocorrência de origem. Descartado por item: nenhum fluxo de viagem/CT-e divide a NF-e.
+- **(e)** leitura `fleet.read`; abrir/marcar/concluir `trip.manage`; desfazer `occurrences.resolve`; concluir só com a
+  tratativa `decided|closed`; `Idempotency-Key` em `idempotency_records`; trava chegada → nota; janela só para abrir.
+- **(f)** a decisão do portal não mexe na marcação (follow-up).
+
+**Revisão `oh-my-claudecode:architect` (opus), passada separada, só leitura: APROVADO COM AJUSTES.** Todos os oito obrigatórios
+acolhidos e escritos no ADR §9.5: (1) `listOccurrenceTypes` filtra `delivery|separation` e o `UPDATE` de `saveOccurrenceType`
+não alcança tipo `receiving` — sem isso a semente derrubava a tela de tipos do painel (guarda `every(isOccurrenceType)`);
+rota própria para os tipos de recebimento; (2) rota `GET /cargo-arrivals/:id/occurrences` com `caseId`/`caseStatus` (o feed do
+escritório exige viagem, e a tratativa ficaria inalcançável); (3) pelo menos um item (`blocked` sem item trava no envio ao
+contratante); (4) ordem da abertura com o reenvio idempotente antes da janela, e `23505` da chave → 409; (5) pendente contado
+pronto; (6) **a leitura `GET /cargo-arrivals/:id` não ganha chave** — as guardas de chave exata do painel derrubariam
+`/recebimento`; a marcação sai na rota própria; (7) `rollback.sql` declarado destrutivo, com guarda; (8) desfazer com
+`occurrences.resolve`. Recomendados acolhidos: R1 (abre só em nota `received|separated`), R2, R3, R4, R5, R6.
+
+**Divergências do texto do pedido (decididas aqui, com o porquê):** a leitura da chegada **não** passa a trazer
+`returnToContractor`/ocorrências/contagens (ajuste 6: quebraria o painel publicado; vão na rota de ocorrências); desfazer **não**
+é do separador (ajuste 8); o feed `GET /trip-occurrences` não mostra a ocorrência de recebimento (contrato dele exige viagem e
+placa; a tratativa é conduzida pela rota nova + ações existentes).

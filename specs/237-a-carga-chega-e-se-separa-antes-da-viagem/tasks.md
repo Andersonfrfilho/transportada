@@ -97,10 +97,11 @@
 > 🤖 Modelo: `sonnet` (T3.1 é 🧠). **D4 respondida (2026-10-06):** a mercadoria avariada pode ser devolvida ao
 > contratante e precisa de uma marcação (RF8a).
 
-- [ ] **T3.1** 🧠 Modelo da ocorrência de recebimento (coluna com `CHECK` exatamente-um × tabela irmã) **e da
+- [x] **T3.1** 🧠 Modelo da ocorrência de recebimento (coluna com `CHECK` exatamente-um × tabela irmã) **e da
       marcação "devolver ao contratante"** (RF8a: estado novo no eixo × coluna ortogonal; efeito em fechar
       chegada, recomendação e proposta), validado com `architect` em `opus` contra as specs
-      157/164/166/172/183/185.
+      157/164/166/172/183/185. _(2026-10-06: ADR-0094 §9; `architect` opus APROVADO COM AJUSTES, os oito acolhidos
+      — `evidence.md` § T3.1.)_
 - [ ] **T3.2** Migration aditiva + etapa `receiving` nos tipos; rota que recusa fora da janela (código
       estável); marcar/desmarcar/concluir a devolução (eventos append-only, ator, motivo); tratativa e portal
       enxergam a ocorrência nova.

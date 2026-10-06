@@ -364,6 +364,197 @@ document_id)`; as N linhas que fecham a mesma nota apontam para o vínculo **da 
 - **Janela das candidatas:** notas importadas (`created_at`) entre `received_at − match_window_days` e
   o menor de `agora` e `received_at + match_window_days` — o envio manual pode chegar depois do XML.
 
+### 9. A avaria na entrada e a marcação "devolver ao contratante" (Fase 3, T3.1)
+
+Decisão do usuário de 2026-10-06 (D4 da spec): a mercadoria avariada pode ser devolvida ao contratante,
+e isso precisa de uma marcação. Este parágrafo decide **onde** a ocorrência sem viagem mora e **como** a
+marcação entra no eixo da nota. Medido antes de decidir: `trip_document_occurrences` tem **35 leitores**
+em `src/`; cinco tabelas a referenciam por `(company_id, id)` — tratativa (`trip_occurrence_cases`, 164),
+fotos (`trip_document_occurrence_attachments`, 161), itens (`trip_document_occurrence_products`,
+166/172), correções (`trip_document_occurrence_corrections`, 167/240) e cobrança
+(`delivery_charges.occurrence_id`, 164 T17); a conversa (183) a referencia por `occurrence_id` com
+`occurrence_kind = 'document'`.
+
+#### 9.1 A ocorrência de recebimento é linha de `trip_document_occurrences`, dona por coluna irmã
+
+- Coluna nova `cargo_arrival_document_id uuid` ao lado de `trip_document_id`, que **perde o `NOT NULL`**
+  e ganha no lugar o CHECK `trip_document_occurrences_owner_check`:
+  `num_nonnulls(trip_document_id, cargo_arrival_document_id) = 1`. A garantia antiga ("toda ocorrência
+  pertence a uma nota de viagem") vira "toda ocorrência pertence a **exatamente uma** nota — da viagem
+  ou da chegada"; nenhuma linha pode nascer sem dono nem com dois.
+- CHECK `trip_document_occurrences_receiving_owner_check`: `(stage = 'receiving') =
+(cargo_arrival_document_id is not null)` — a etapa e o dono andam juntos, então o leitor que filtra
+  `stage in ('separation','delivery')` nunca vê linha de recebimento, e linha de recebimento nunca se
+  pendura numa nota de viagem.
+- FK `(company_id, cargo_arrival_document_id)` → `cargo_arrival_documents (company_id, id)`, `restrict`
+  (a nota da chegada nunca é apagada; a ocorrência não some em cascata), e unique
+  `(company_id, cargo_arrival_document_id, id)` — índice de leitura por nota da chegada e alvo da FK
+  de volta (§9.3). `cargo_arrival_documents` ganha `unique (company_id, id)` para ser alvo.
+- **Por que é seguro nos dados:** hoje `trip_document_id` é `NOT NULL` em toda linha e a coluna nova
+  nasce nula, então os três CHECKs novos valem para todas as linhas existentes **por construção** — não
+  depende de ler staging nem produção. `DROP NOT NULL` e `ADD COLUMN` sem default são só catálogo. A
+  migration roda com `SET LOCAL lock_timeout = '3s'`, CHECK/FK com `NOT VALID` + `VALIDATE`, e o unique
+  novo varre a tabela uma vez (pendência operacional antes de produção: medir
+  `count(*)`/`pg_total_relation_size('trip_document_occurrences')`, como o §6 M5).
+- **O que muda nos leitores (medido no typecheck com a coluna anulável):** sete erros em seis arquivos,
+  todos de tipo — o leitor que junta `trip_documents` por `inner join` continua igual e simplesmente não
+  vê a ocorrência de recebimento (feed, linha do tempo, detalhe, prontidão do despacho, conversa, e-mail
+  — é o comportamento certo: não há viagem). Os que leem por id passam a tratar `trip_document_id` nulo
+  como "não é ocorrência de viagem": correção/cancelamento (rota presa à viagem) → não encontrada;
+  cobrança do acerto (164 T17) → `OccurrenceChargePartiesUnresolvedError` (422); marcador da viagem e
+  lote do escritório filtram o nulo. A foto adicional da 161 já recusa por etapa (422).
+- **Tratativa (164):** `openOccurrenceCase` é chamada na mesma transação do registro, como no galpão.
+  As seis ações (`/trip-occurrences/:id/case/*`) leem só `trip_occurrence_cases` e funcionam sem
+  mudança. **Portal:** as quatro leituras de `contractor-occurrence.query.ts` passam a resolver a NF-e
+  por `coalesce(trip_documents.nfe_document_id, cargo_arrival_documents.nfe_document_id)` (duas junções
+  à esquerda, cada uma filtrada pela empresa); a projeção — o contrato do portal — não muda.
+  **Conversa (183) não é estendida nesta fase:** `ensureConversationRefs` e o e-mail da ocorrência juntam
+  `trip_documents` e não criam conversa para a ocorrência de recebimento (o portal mostra a ocorrência,
+  sem conversa) — follow-up.
+
+**Alternativa descartada — tabela irmã** (`cargo_arrival_document_occurrences`, reaproveitando só os
+tipos e os anexos): as cinco FKs acima e a conversa apontam para `trip_document_occurrences`. A tabela
+irmã exigiria duplicar tratativa, eventos da tratativa, itens, fotos e correções (ou FKs polimórficas em
+cinco tabelas de outras specs), e o portal teria de unir duas fontes — reescrever 164/161/166/183 para
+a ocorrência aparecer onde a spec pede. A coluna irmã preserva todas as FKs e paga com o `NOT NULL`
+trocado por um CHECK mais forte e sete ajustes de tipo.
+
+#### 9.2 A etapa `receiving` nos tipos
+
+- `receiving` entra em `TRIP_OCCURRENCE_STAGE`, a lista única que gera os CHECKs de etapa das duas
+  tabelas (`trip_document_occurrences_stage_check` e `company_occurrence_types_stage_check`, que a
+  migration troca por versões mais largas). **Não** se reaproveita `separation`: tipo de separação é
+  oferecido na viagem (`registerTripOccurrence` exige `separation`), `leaves_document_behind` só vale
+  para `separation` e solta nota no despacho, e `dispatch-readiness` lê `stage = 'separation'`. Tipo de
+  recebimento com a mesma etapa vazaria para a viagem, e o da viagem para a chegada. Conferido: nenhum
+  `Record<TripOccurrenceStage, …>` exaustivo; quem compara `=== delivery`/`=== separation` continua certo;
+  o cadastro (`PUT /company-settings/occurrence-types`) segue com `z.enum(['delivery','separation'])` —
+  tipo de recebimento não é criado nem editado pelo painel nesta fase (follow-up da T3.3).
+- **Catálogo de recebimento** (`seedReceivingOccurrenceTypeCatalog`, no pre-deploy depois do catálogo
+  geral): por empresa, **se não existe nenhum tipo `receiving` (ativo ou aposentado)**, grava "Item
+  avariado", "Divergência de quantidade" e "Item faltante", uma vez — a mesma regra de bootstrap, nunca
+  sincronização, da 21/09. Os três nascem com `redelivery_policy = 'blocked'`: é o único valor que abre a
+  tratativa (com `unset` a ocorrência nunca apareceria na 164 nem no portal) sem oferecer a reentrega —
+  a nota da chegada nunca foi entregue, e a proposta de reentrega da 164 T14 lê a viagem.
+
+#### 9.3 A marcação é coluna ortogonal da nota da chegada, por nota inteira
+
+- `cargo_arrival_documents.return_to_contractor varchar(16) not null default 'none'`, CHECK em
+  `none | marked | returned`, e `return_occurrence_id uuid` — a ocorrência de recebimento que motivou
+  a marcação. CHECK `(return_to_contractor = 'none') = (return_occurrence_id is null)`; FK
+  `(company_id, id, return_occurrence_id)` → `trip_document_occurrences (company_id,
+cargo_arrival_document_id, id)`: **o banco** garante que o motivo é ocorrência **desta** nota.
+- **Ortogonal, não estado novo no eixo:** `expected → received → separated` continua com a tabela de
+  transições, o CHECK de datas e o CHECK de forma dos eventos intactos. Um `returned` no eixo exigiria
+  transições de qualquer estado para ele, CHECK de datas novo e reescrever `decideCargoArrivalTransition`;
+  e a nota pode ser marcada **depois** de separada (a avaria aparece ao embalar) sem perder o que já
+  aconteceu nela. O custo é uma regra de leitura a mais, escrita em lugar único:
+  - **separar/conferir** nota `marked` ou `returned` é recusado no lote (`CARGO_ARRIVAL_DOCUMENT_MARKED_FOR_RETURN`,
+    `CARGO_ARRIVAL_DOCUMENT_RETURNED`), antes da política de transição — que não muda;
+  - **fechar a chegada** exige, por nota, `returned` **ou** (`none` **e** `separated`); nota `marked` bloqueia
+    (fechada, ela ficaria presa para sempre, porque chegada fechada recusa tudo);
+  - **vencida** passa a contar como pendente só a nota `none` não separada (a marcada está fora da
+    separação, esperando o contratante);
+  - contagens: `returnCounts: { marked, returned }` ao lado de `counts` (o eixo de estados não muda de
+    sentido).
+- **Transições da marcação** (`cargo-arrival-return.policy.ts`, pura): `none → marked` (exige ocorrência
+  de recebimento desta nota, não cancelada), `marked → none` (desfazer), `marked → returned` (concluir).
+  `returned` é terminal. Repetir o estado atual é no-op sem evento (marcar de novo com **outra**
+  ocorrência é 409 `CARGO_ARRIVAL_RETURN_ALREADY_MARKED`). Chegada `closed` recusa tudo. Nota em viagem
+  viva não é marcada (409 `CARGO_ARRIVAL_DOCUMENT_IN_LIVE_TRIP`): a devolução de nota em viagem é
+  ocorrência de rua.
+- **Por nota inteira**, com os itens na ocorrência de origem: a chegada, a viagem e o CT-e tratam a NF-e
+  inteira; marcar item a item exigiria dividir a nota entre "vai" e "volta", que nenhum fluxo de viagem
+  sabe fazer. A lista de itens avariados é a da ocorrência (166/172).
+- **Efeitos:** `findExcludedTripDraftDocumentIds` (o gancho da Fase 5) devolve as notas da prévia com
+  marcação `marked`/`returned`; a proposta de chegada as recusa com o motivo `DOCUMENT_RETURN_TO_CONTRACTOR`
+  (antes do "já em chegada"). Nada apaga a ocorrência nem a nota.
+- **Trilha:** `cargo_arrival_events` ganha os kinds `occurrence_registered`, `return_marked`,
+  `return_unmarked`, `return_completed` (da nota, sem estado do eixo; `details` com a ocorrência, o
+  antes/depois da marcação e a observação), e cada um vai a `audit_logs`.
+
+#### 9.4 Permissões, idempotência, travas e janela
+
+- Leitura `fleet.read`; abrir a ocorrência, marcar, desfazer e concluir `trip.manage` — o separador e
+  o escritório. Marcar não decide a tratativa: a decisão continua de `occurrences.resolve` e do
+  contratante (164); a marcação é o destino físico da caixa no galpão.
+- Abrir a ocorrência exige `Idempotency-Key` (o celular reenvia em rede ruim); a chave e a impressão
+  do pedido (nota, tipo, texto, itens, quantidades, sha256 da foto) vão a `idempotency_records`
+  (operação `cargo-arrival-occurrence`): mesma chave e mesmo pedido devolve a ocorrência gravada (200),
+  outro pedido é 409 `CARGO_ARRIVAL_OCCURRENCE_KEY_REUSED`. A foto é obrigatória, como no galpão (161 D1).
+  Marcar/desfazer/concluir são idempotentes pelo estado.
+- Toda escrita trava a chegada (`for no key update`) e depois a nota, a mesma ordem da Fase 2: duas
+  marcações simultâneas serializam na chegada, a segunda lê o estado novo — sem deadlock.
+- **Janela:** abrir a ocorrência exige `agora ≤ separation_due_at`; fora, 422
+  `CARGO_ARRIVAL_OCCURRENCE_WINDOW_CLOSED` (a ocorrência de campo da viagem continua aberta, 157/182).
+  Chegada **sem** janela (`separation_window_hours` nulo, ausência é ausência) aceita enquanto aberta.
+  A janela vale **só** para abrir a ocorrência: marcar, desfazer e concluir dependem da decisão do
+  contratante, que costuma passar das 24 h.
+
+#### 9.5 Revisão `architect` (opus, 2026-10-06): APROVADO COM AJUSTES — o que mudou acima
+
+Os ajustes obrigatórios valem sobre o texto de §9.1–9.4 onde divergirem:
+
+1. **A semente não chega ao cadastro do painel.** `listOccurrenceTypes` (o `GET
+/company-settings/occurrence-types`) passa a filtrar `stage in ('delivery','separation')` — o painel
+   recusa a lista inteira com um tipo de etapa desconhecida (`tripResponse.validation.ts`, viva desde a 242) — e o `UPDATE` por id de `saveOccurrenceType` não alcança tipo `receiving` (404): sem isso ele
+   convertia o tipo de recebimento em separação. Os tipos de recebimento saem por rota própria,
+   `GET /cargo-arrivals/occurrence-types` (`fleet.read`). A semente geral só olha `delivery|separation`
+   para decidir "catálogo vazio" (R2), assim a ordem do pre-deploy não importa.
+2. **A tratativa precisa de onde ser conduzida.** A lista e o detalhe do escritório
+   (`GET /trip-occurrences`) exigem viagem. Rota própria `GET /cargo-arrivals/:id/occurrences`, com tipo,
+   itens, fotos assinadas, `caseId` e `caseStatus` — a T3.3 liga ali as seis ações existentes de
+   `/trip-occurrences/:id/case/*`, sem mudança nelas.
+3. **Com `blocked`, a ocorrência sem item trava** (`contractor_submission` recusa `blocked` sem itens):
+   abrir a ocorrência de recebimento exige **pelo menos um item**, e os tipos semeados nascem com
+   `items_mode = 'optional'` (o CHECK da 241 já recusa `off` com política). `blocked` deriva da P2
+   ("aparece na tratativa"), não é regra nova.
+4. **Ordem da abertura:** trava da chegada → chave de idempotência → (reenvio devolve a gravada, 200,
+   mesmo com a janela vencida ou a chegada fechada) → nota, estado e janela → foto → linhas. A mesma
+   chave usada noutra chegada não serializa na trava desta: o `23505` de `idempotency_records` vira 409
+   `CARGO_ARRIVAL_OCCURRENCE_KEY_REUSED`.
+5. **"Pendente" é contado pronto,** nunca derivado de duas contagens (a nota pode ser separada **e**
+   marcada): pendente = `none` e não separada. O fechamento procura `(none e não separada) ou marked`, e
+   o 409 diz por nota, na mensagem do item de `details[]`, se ela está marcada ou só não foi separada.
+6. **A leitura da chegada não ganha chave nesta task.** As guardas do painel conferem chave **exata** no
+   resumo, no grupo e na nota (`cargoArrivalGuards.validation.ts`), e o PWA guarda o bundle antigo: mandar
+   chave nova antes de o painel publicado aceitá-la derruba `/recebimento`. A marcação por nota e
+   `returnCounts` saem em `GET /cargo-arrivals/:id/occurrences`; incorporá-los a `GET /cargo-arrivals/:id`
+   é um segundo passo, **depois** de o painel aceitar as chaves como opcionais. A regra nova de "vencida"
+   e de fechamento muda só valores, não chaves.
+7. **O `rollback.sql` é destrutivo depois do primeiro deploy** (a semente grava tipos `receiving`): ele
+   aborta se existir ocorrência de recebimento, apaga só os tipos `receiving` sem ocorrência, e desfaz na
+   ordem FK da nota da chegada → colunas → FK/CHECKs/unique da ocorrência → `SET NOT NULL`. Aprovação
+   humana para rodar.
+8. **Desfazer a marcação é `occurrences.resolve`** (`company-admin`/`operator`/`finance`), nunca
+   `trip.manage`: o separador que registrou a avaria não pode, sozinho, mandar a caixa de volta para a
+   rota sem a decisão do contratante (ADR-0067, 164). **Concluir** continua `trip.manage` (é o gesto
+   físico), mas só com a tratativa da ocorrência de origem em `decided|closed` (409
+   `CARGO_ARRIVAL_RETURN_DECISION_PENDING`); marcar continua `trip.manage`.
+
+Acolhidos também (recomendados): a ocorrência só abre em nota `received|separated` (a avaria se vê na
+doca), então o lote só precisa recusar `separate` de nota marcada/devolvida (R1); uma expressão única da
+NF-e da ocorrência nas quatro leituras do portal, com contrato negativo de tenant (R3); valores
+explícitos — linha `channel = 'backoffice'`, `on_behalf_of_driver_id` e posição nulos; tipo semeado
+`flow = 'document'`, `emails_contractor = false`, `notifies = false`, `leaves_document_behind = false`
+(R4); `rateLimit` no Postgres e foto até 960 KiB com `runWithStoredObjectCleanup` (R5);
+`findExcludedTripDraftDocumentIds` assíncrona, por prévia, e o motivo da proposta é rótulo (o unique da
+nota já impede outra chegada; o efeito real é nos rascunhos de viagem) (R6). A exceção de foto por
+contratante da 218 não vale para o recebimento: a foto é sempre exigida.
+
+#### 9.6 Fora desta fase (follow-ups registrados)
+
+A decisão do contratante no portal **não** desfaz nem conclui a marcação sozinha (acoplar a 164 à
+marcação é decisão de produto); conversa (183) e e-mail automático da ocorrência de recebimento;
+correção/cancelamento (167/240) e foto adicional (161 T7) da ocorrência de recebimento; cadastro de tipo
+`receiving` pelo painel; o feed `GET /trip-occurrences` (o contrato dele exige viagem e placa); cobrança
+do acerto (164 T17) de ocorrência sem viagem; travar o vínculo de nota marcada a uma viagem pelo fluxo
+de viagem (hoje ela só sai da recomendação). Riscos residuais aceitos: o reembolso do acerto dá 422 (o
+acerto por item funciona, então `goods_paid` fecha, sem cobrança); a ação `returned_to_warehouse` da
+tratativa soa estranha para mercadoria que nunca saiu; o portal mostra a etapa `receiving` crua até o
+`frontend-client` ganhar o rótulo; lista, linha do tempo e estatísticas de ocorrência da viagem omitem
+as de recebimento.
+
 ## Consequências
 
 - Contratante novo com regra diferente é cadastro, não deploy.
@@ -377,12 +568,12 @@ document_id)`; as N linhas que fecham a mesma nota apontam para o vínculo **da 
 
 ## Alternativas descartadas
 
-| Alternativa                                                             | Por que não                                                                                                                                                                                                                                                       |
-| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Regra por CNPJ no código (`if (taxId === …)`)                           | Produto genérico (ADR-0021): outra transportadora, outro contratante, e o código vira uma lista de clientes. O usuário já avisou que outros contratantes terão outra regra                                                                                        |
-| Colunas novas em `company_delivery_proof_settings` (ou na exceção)      | Aquela tabela é o **formulário do comprovante** de entrega; recebimento é outro momento e outro dono. Misturar faz o `PUT` de um sobrescrever a regra do outro                                                                                                    |
-| Colunas novas em `contractors`                                          | Muda o agregado `Contractor` (três guardas de chave exata no painel, `PATCH /contractors`) por um dado que só um contratante em dez terá; ausência fica difícil de ler                                                                                            |
-| Relaxar o `NOT NULL` de `trip_document_occurrences.trip_document_id`    | Perde a garantia de que toda ocorrência pertence a algo; a avaria sem viagem (Fase 3) usa coluna irmã com `CHECK` de exatamente-um, decisão própria da T3.1                                                                                                       |
-| Reaproveitar `separation_status` para a primeira separação              | A nota não está em viagem; o despacho derivado (ADR-0074) passaria a reagir a uma separação de galpão                                                                                                                                                             |
-| Guardar só o rótulo (`NroCarga`) e extrair com expressão fixa do código | Mais seguro, e foi sugerido na revisão; ficou a expressão porque a análise só viu um contratante, e o formato do `infCpl` de outro emitente (`Carga: 123`, `CARGA N. 123/A`) não é conhecido. Fica como alternativa se o filtro de padrão se mostrar insuficiente |
-| Mapa de colunas por posição (`A`, `B`, …)                               | O contratante reordena colunas; por nome, a mudança vira erro de coluna faltando, não dado trocado em silêncio                                                                                                                                                    |
+| Alternativa                                                                                   | Por que não                                                                                                                                                                                                                                                       |
+| --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Regra por CNPJ no código (`if (taxId === …)`)                                                 | Produto genérico (ADR-0021): outra transportadora, outro contratante, e o código vira uma lista de clientes. O usuário já avisou que outros contratantes terão outra regra                                                                                        |
+| Colunas novas em `company_delivery_proof_settings` (ou na exceção)                            | Aquela tabela é o **formulário do comprovante** de entrega; recebimento é outro momento e outro dono. Misturar faz o `PUT` de um sobrescrever a regra do outro                                                                                                    |
+| Colunas novas em `contractors`                                                                | Muda o agregado `Contractor` (três guardas de chave exata no painel, `PATCH /contractors`) por um dado que só um contratante em dez terá; ausência fica difícil de ler                                                                                            |
+| Relaxar o `NOT NULL` de `trip_document_occurrences.trip_document_id` **sem CHECK substituto** | Perde a garantia de que toda ocorrência pertence a algo; a avaria sem viagem (Fase 3) troca o `NOT NULL` pelo `CHECK` de exatamente-um com a coluna irmã (§9.1)                                                                                                   |
+| Reaproveitar `separation_status` para a primeira separação                                    | A nota não está em viagem; o despacho derivado (ADR-0074) passaria a reagir a uma separação de galpão                                                                                                                                                             |
+| Guardar só o rótulo (`NroCarga`) e extrair com expressão fixa do código                       | Mais seguro, e foi sugerido na revisão; ficou a expressão porque a análise só viu um contratante, e o formato do `infCpl` de outro emitente (`Carga: 123`, `CARGA N. 123/A`) não é conhecido. Fica como alternativa se o filtro de padrão se mostrar insuficiente |
+| Mapa de colunas por posição (`A`, `B`, …)                                                     | O contratante reordena colunas; por nome, a mudança vira erro de coluna faltando, não dado trocado em silêncio                                                                                                                                                    |
