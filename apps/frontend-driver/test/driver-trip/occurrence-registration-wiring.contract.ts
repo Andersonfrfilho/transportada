@@ -18,8 +18,10 @@ function source(path: string): string {
 
 const CARD_PATH = 'components/DriverStopCard.component.tsx'
 const FORM_PATH = 'components/DriverOccurrenceRegistrationForm.component.tsx'
+const PHOTO_FIELD_PATH = 'components/OccurrencePhotoField.component.tsx'
 const HOOK_PATH = 'hooks/useOccurrenceRegistrationForm.hook.ts'
 const SERVICE_PATH = 'shared/occurrenceRegistration.service.ts'
+const ACTION_PATH = 'components/OccurrenceRegisterAction.component.tsx'
 const PAGE_PATH = 'pages/DriverTripWorkspace.page.tsx'
 
 function exists(path: string): boolean {
@@ -74,24 +76,31 @@ describe('o formulário único', () => {
   })
 
   it('a foto é da ocorrência — nunca a captura nem a fila do canhoto', () => {
-    const form = source(FORM_PATH)
+    const form = source(FORM_PATH) + source(PHOTO_FIELD_PATH)
     expect(form).not.toInclude('ProofCaptureFields')
     expect(form).not.toInclude('onProof')
     expect(form).toInclude('FilePickerButton')
     expect(form).toInclude('capture="environment"')
-    expect(form.match(/useCameraCaptureFieldRef\(\)/gu)?.length).toBe(2)
+    expect(source(PHOTO_FIELD_PATH).match(/useCameraCaptureFieldRef\(\)/gu)?.length).toBe(2)
+    expect(source(FORM_PATH)).toInclude('<OccurrencePhotoField')
   })
 
-  /** web.md §4: estado e submit no hook; o componente só renderiza o que ele expõe. */
-  it('o gate e a rota vêm do serviço, que reaproveita a regra do comprovante', () => {
+  /**
+   * web.md §4: estado e submit no hook; o componente só renderiza o que ele expõe. Spec 246: o gate é
+   * um só (`occurrenceRequirements.service`), com um plano por campo — não há mais o plano de um campo
+   * emprestado do comprovante, mas continua não havendo a captura do canhoto.
+   */
+  it('o gate e a rota vêm do serviço, numa regra só de "obrigatório falta"', () => {
     const hook = source(HOOK_PATH)
     expect(hook).toInclude('canRegisterOccurrence(')
     expect(hook).toInclude('listMissingOccurrenceFields(')
     expect(hook).toInclude('dispatchOccurrenceRegistration(')
-    expect(source(FORM_PATH)).toInclude('disabled={!form.canRegister}')
+    expect(source(ACTION_PATH)).toInclude('disabled={!canRegister}')
+    expect(source(FORM_PATH)).toInclude('form.canRegister')
     const service = source(SERVICE_PATH)
-    expect(service).toInclude('listMissingProofFields')
-    expect(service).toInclude('resolveProofFormPlan')
+    expect(service).toInclude('listMissingOccurrenceRequirements')
+    expect(service).toInclude('resolveOccurrenceRequirements')
+    expect(service).not.toInclude('ProofCaptureFields')
   })
 
   /** A prévia do aviso é da parada: só o tipo de parada tem o stopKind que escolhe o template. */

@@ -362,6 +362,9 @@ export type DriverFieldReport =
 /** A foto já reencodada (JPEG, sem EXIF) — o `Blob` vai inteiro para o IndexedDB. */
 export type DriverOccurrencePhoto = Readonly<{ blob: Blob; fileName: string }>
 
+/** Spec 246: o PNG que o `SignaturePad` exporta, com a mesma forma da foto — vai inteiro para a fila. */
+export type DriverOccurrenceSignature = DriverOccurrencePhoto
+
 /**
  * Spec 079: o tipo de ocorrência que a empresa cadastrou, como o motorista o vê.
  *
@@ -375,6 +378,18 @@ export type DriverOccurrenceType = Readonly<{
    * devolve — ausente, a tela não antecipa a observação obrigatória, e quem decide é o servidor.
    */
   attachmentMode?: ProofFieldRequirement
+  /**
+   * Spec 246 (RF1, RF1c2): os quatro modos e os mínimos, **já resolvidos para a nota** pelo servidor
+   * (tipo + exceção de contratante + exceção de destinatário). Todos opcionais: API anterior não os
+   * manda, e ausente lê como hoje — observação opcional, assinatura desligada, produtos opcionais,
+   * foto pelo `attachmentMode` e mínimo 1.
+   */
+  itemsMinimumCount?: number | null
+  itemsMode?: ProofFieldRequirement
+  noteMode?: ProofFieldRequirement
+  photoMinimumCount?: number
+  photoMode?: ProofFieldRequirement
+  signatureMode?: ProofFieldRequirement
   /**
    * Spec 218 (D1): para qual das duas rotas o registro vai — nota (`document`) ou parada (`stop`).
    * Ausente é a cópia guardada antes da spec, quando todo tipo era de nota.
@@ -402,12 +417,23 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     readonly attachmentMode?: unknown
     readonly flow?: unknown
     readonly id?: unknown
+    readonly itemsMode?: unknown
     readonly name?: unknown
+    readonly noteMode?: unknown
+    readonly photoMode?: unknown
+    readonly signatureMode?: unknown
     readonly stopKind?: unknown
   }
-  const hasKnownMode =
-    candidate.attachmentMode === undefined ||
-    (PROOF_FIELD_REQUIREMENTS as readonly unknown[]).includes(candidate.attachmentMode)
+  /** Ausente é a API anterior; presente, só no vocabulário — valor desconhecido não vira "sem exigência". */
+  const hasKnownMode = [
+    candidate.attachmentMode,
+    candidate.itemsMode,
+    candidate.noteMode,
+    candidate.photoMode,
+    candidate.signatureMode,
+  ].every(
+    (mode) => mode === undefined || (PROOF_FIELD_REQUIREMENTS as readonly unknown[]).includes(mode),
+  )
   /** Spec 218: ausentes são a cópia guardada antes da spec; presentes, só no vocabulário. */
   const hasKnownFlow =
     candidate.flow === undefined ||
@@ -435,5 +461,4 @@ export type DriverOccurrenceTypesResult =
   | Readonly<{ status: 'loaded'; types: readonly DriverOccurrenceType[] }>
 
 export type DriverOccurrenceTypesState =
-  | Readonly<{ status: 'loading' }>
-  | DriverOccurrenceTypesResult
+  Readonly<{ status: 'loading' }> | DriverOccurrenceTypesResult

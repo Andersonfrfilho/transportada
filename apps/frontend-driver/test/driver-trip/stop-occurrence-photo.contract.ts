@@ -225,6 +225,13 @@ describe('a tela do "Deu problema" (spec 209 RF4)', () => {
     ),
     'utf8',
   )
+  const photoField = readFileSync(
+    new URL(
+      '../../src/modules/driver-trip/components/OccurrencePhotoField.component.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  )
   const formHook = readFileSync(
     new URL(
       '../../src/modules/driver-trip/hooks/useOccurrenceRegistrationForm.hook.ts',
@@ -249,9 +256,11 @@ describe('a tela do "Deu problema" (spec 209 RF4)', () => {
   })
 
   it('uma foto por ocorrência, com câmera, galeria e "Refazer" (D1)', () => {
-    expect(form).toInclude('FilePickerButton')
-    expect(form).toInclude('capture="environment"')
-    expect(form).toInclude('proofCapture.retake')
+    expect(photoField).toInclude('FilePickerButton')
+    expect(photoField).toInclude('capture="environment"')
+    expect(photoField).toInclude('proofCapture.retake')
+    expect(photoField).not.toInclude('<FileField')
+    expect(form).toInclude('<OccurrencePhotoField')
     expect(form).not.toInclude('<FileField')
   })
 

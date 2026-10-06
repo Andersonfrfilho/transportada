@@ -19,9 +19,9 @@ const DRIVER_STOP_CARD = new URL(
   '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
   import.meta.url,
 )
-/** Spec 218 (RF-A5): o "Deu problema" virou o formulário único de ocorrência, com hook próprio. */
-const STOP_OCCURRENCE_FORM = new URL(
-  '../../src/modules/driver-trip/components/DriverOccurrenceRegistrationForm.component.tsx',
+/** Spec 246: o bloco da foto saiu do formulário para o próprio componente — os dois seletores moram nele. */
+const OCCURRENCE_PHOTO_FIELD = new URL(
+  '../../src/modules/driver-trip/components/OccurrencePhotoField.component.tsx',
   import.meta.url,
 )
 const STOP_OCCURRENCE_FORM_HOOK = new URL(
@@ -283,7 +283,7 @@ describe('as quatro capturas registram no capture registry (leitura de fonte, AD
    */
   it('o canhoto e o "Deu problema" usam o hook da câmera nos seus seletores de foto', () => {
     const card = readFileSync(DRIVER_STOP_CARD, 'utf8')
-    const occurrenceForm = readFileSync(STOP_OCCURRENCE_FORM, 'utf8')
+    const occurrenceForm = readFileSync(OCCURRENCE_PHOTO_FIELD, 'utf8')
 
     expect(card.match(/useCameraCaptureFieldRef\(\)/gu)?.length).toBe(2)
     expect(occurrenceForm.match(/useCameraCaptureFieldRef\(\)/gu)?.length).toBe(2)

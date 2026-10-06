@@ -10,12 +10,14 @@ import {
 } from '../../src/modules/driver-trip/shared/driverTrip.types'
 import { listAvailableOccurrenceTypes } from '../../src/modules/driver-trip/shared/notDelivered.service'
 import {
-  canRegisterOccurrence,
   dispatchOccurrenceRegistration,
+  type OccurrenceRegistrationHandlers,
+} from '../../src/modules/driver-trip/shared/occurrenceDispatch.service'
+import {
+  canRegisterOccurrence,
   listMissingOccurrenceFields,
   resolveOccurrenceAttachmentMode,
   resolveOccurrenceTypesForDocument,
-  type OccurrenceRegistrationHandlers,
 } from '../../src/modules/driver-trip/shared/occurrenceRegistration.service'
 import { buildStopOccurrenceReports } from '../../src/modules/driver-trip/shared/stopOccurrencePhoto.service'
 

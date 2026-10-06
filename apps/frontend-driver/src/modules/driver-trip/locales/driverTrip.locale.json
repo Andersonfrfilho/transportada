@@ -507,9 +507,28 @@
     },
     "cancel": "Cancelar",
     "legend": "Qual ocorrência?",
+    "missing": {
+      "note": "a observação",
+      "photo": "a foto",
+      "photoMinimum": "mais fotos (mínimo de {{count}})",
+      "products": "a marcação dos produtos",
+      "signature": "a assinatura"
+    },
     "missingLead": "Para registrar, falta: {{fields}}.",
+    "noteRequired": "O que aconteceu (obrigatório)",
     "open": "Ocorrência",
     "openHint": "Registrar um problema desta nota ou da parada",
+    "photoAnother": "Tirar outra foto",
+    "photoCount": "Fotos: {{count}} de {{limit}}",
+    "photoRemoveLast": "Remover a última foto",
+    "products": {
+      "title": "Produtos da nota (obrigatório)"
+    },
+    "signature": {
+      "redo": "Colher a assinatura de novo",
+      "title": "Assinatura (opcional)",
+      "titleRequired": "Assinatura (obrigatória)"
+    },
     "title": "Registrar ocorrência"
   }
 }

@@ -496,9 +496,28 @@
     },
     "cancel": "Cancel",
     "legend": "Which occurrence?",
+    "missing": {
+      "note": "the note",
+      "photo": "the photo",
+      "photoMinimum": "more photos (at least {{count}})",
+      "products": "the products",
+      "signature": "the signature"
+    },
     "missingLead": "To register, still missing: {{fields}}.",
+    "noteRequired": "What happened (required)",
     "open": "Occurrence",
     "openHint": "Report a problem with this invoice or the stop",
+    "photoAnother": "Take another photo",
+    "photoCount": "Photos: {{count}} of {{limit}}",
+    "photoRemoveLast": "Remove the last photo",
+    "products": {
+      "title": "Invoice products (required)"
+    },
+    "signature": {
+      "redo": "Collect the signature again",
+      "title": "Signature (optional)",
+      "titleRequired": "Signature (required)"
+    },
     "title": "Report an occurrence"
   }
 }
