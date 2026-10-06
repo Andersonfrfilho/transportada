@@ -307,9 +307,10 @@ o.attachment_mode <> 'required'`. Registrar os números em `evidence.md`. **A Fa
       corrige e repete a passada. O veredito entra em `evidence.md`.
 - [ ] **T6.2** Atualizar `CLAUDE.md` da raiz e `apps/*/CLAUDE.md` tocados, e
       `docs/ai-context/` das apps afetadas.
-- [ ] **T6.3** Gates completos: `bun run typecheck`, `make check`, `make migration-test`, e a
+- [x] **T6.3** Gates completos: `bun run typecheck`, `make check`, `make migration-test`, e a
       integração da API em primeiro plano com `--env-file=../../.env.test` (contrato e integração
       são dois comandos; nenhum cobre o outro).
+      _Evidência: `evidence.md` § "T6.3"._
 - [ ] **T6.4** `evidence.md` consolidado.
 
 ## Prompt de execução

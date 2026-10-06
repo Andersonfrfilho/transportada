@@ -2849,3 +2849,144 @@ verificação lista foto, observação, assinatura, produtos e os mínimos, pt-B
 | M-1, M-2 (cabeçalho e título)             | `828e40b60`, `d089e5fe0` |
 | B-2, M-4 (hint, decisão do Select)        | `4683ffd8c`              |
 | B-3 (try/catch)                           | `e5a822ed0`              |
+
+## T6.3 — Gates finais e conferência dos oito commits da terceira revisão (2026-10-06)
+
+Rodado em `work/spec-239` depois de `git fetch` e `git rebase origin/staging` (a staging avançou 3 commits, spec 237 T3.2b, **sem migration**:
+`0c7339576`, `83ddb4ce7`, `0e31a602b`). O rebase só conflitou em `apps/api-transportada/package.json` (as duas listas de teste de uma linha, mescladas
+token a token) e em `docs/ai-context/api-transportada.md` (as duas seções ficam). Depois dele: `test` 201 e `test:integration` 199 arquivos, sem
+duplicado, nenhum que a staging ou o backup `backup/pre-rebase-246` tivesse deixa de estar na lista, e todo `test/integration/*.integration.ts`
+do disco está nela. Todos os gates abaixo rodaram em primeiro plano, na árvore final (HEAD `2b943d116` mais esta evidência).
+
+### Gates
+
+| comando                                                                                                                                                                    | resultado                                                                                                                                                                  |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun install --frozen-lockfile`                                                                                                                                            | sem mudanças                                                                                                                                                               |
+| `bun run typecheck` (sete apps)                                                                                                                                            | pass                                                                                                                                                                       |
+| `./node_modules/.bin/prettier --check .` e `bun run format:check`                                                                                                          | pass                                                                                                                                                                       |
+| `bun run lint` (raiz) e `bun run lint` com cada uma das sete apps como cwd                                                                                                 | pass, 0 erros (16 avisos antigos de `exhaustive-deps` no painel)                                                                                                           |
+| `bun run build` (todas as apps)                                                                                                                                            | pass                                                                                                                                                                       |
+| contrato da API (`cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000`)                                                                       | **10042 pass, 25 skip, 0 fail** (199 arquivos) — os 25 skips são `testWithPostgres` que as suítes de contrato importam e que rodam nas listas de integração e do `db:test` |
+| integração da API completa, lista inteira do `test:integration`, **199 arquivos em 10 blocos contíguos**, um bloco por vez, sem concorrência, `--env-file=../../.env.test` | **1073 pass, 8 skip, 0 fail** (detalhe abaixo)                                                                                                                             |
+| `DRIZZLE_TEST_DATABASE_URL=$DATABASE_URL bun run db:test` (o que o `make migration-test` roda, sem o `postgres-up`)                                                        | **138 pass, 0 skip, 0 fail** (8 arquivos)                                                                                                                                  |
+| `bun run db:generate`                                                                                                                                                      | `{"status":"no_changes","dialect":"postgresql"}`                                                                                                                           |
+| `bun run db:check`                                                                                                                                                         | Everything's fine                                                                                                                                                          |
+| `bun run --cwd apps/frontend-transportada test`                                                                                                                            | **7064 pass** (contrato, 34 arquivos) + **727 pass** (lote DOM), 0 fail                                                                                                    |
+| `bun run --cwd apps/frontend-driver test`                                                                                                                                  | 1242 pass, 0 fail                                                                                                                                                          |
+| `bun run --cwd apps/worker-transportada test`                                                                                                                              | 1640 pass, 0 fail (96 arquivos)                                                                                                                                            |
+| `bun run --cwd apps/cron-transportada test`                                                                                                                                | 101 pass, 0 fail (8 arquivos)                                                                                                                                              |
+| `make check` (alvo inteiro, 4 min 19 s)                                                                                                                                    | **pass** (format, lint, typecheck, `bun run test` de cada app — a da API sem `--env-file`: 10033 pass, 34 skip, 0 fail —, build)                                           |
+
+`make migration-test` **não rodou como alvo** (ele sobe o Postgres do Docker por `postgres-up`); rodou o comando que ele executa, `db:test`, no Postgres de teste
+127.0.0.1:65432 com `DRIZZLE_TEST_DATABASE_URL=$DATABASE_URL` do `.env.test`.
+
+### Integração, bloco a bloco (ordem do `package.json`)
+
+| bloco | do arquivo → ao arquivo                                                          | arquivos | pass | skip  | fail |
+| ----- | -------------------------------------------------------------------------------- | -------- | ---- | ----- | ---- |
+| 00    | `server` → `identity-subject-relink`                                             | 20       | 77   | 0     | 0    |
+| 01    | `invitation-status-join` → `trip-field-office-review`                            | 20       | 201  | 0     | 0    |
+| 02    | `trip-field-office-router` → `contractor-mail-settings-repository`               | 20       | 134  | 0     | 0    |
+| 03    | `location-retention-settings` → `contractor-contact-channels`                    | 20       | 72   | 0     | 0    |
+| 04    | `occurrence-conversation-schema` → `migration-completeness`                      | 20       | 160  | **7** | 0    |
+| 05    | `fiscal-schema.contract.test` → `address-correction-repository`                  | 20       | 88   | 0     | 0    |
+| 06    | `address-correction-mail-repository` → `package-box-unit-estimate`               | 20       | 114  | 0     | 0    |
+| 07    | `trip-occurrence-attachment` → `occurrence-type-leaves-document-behind`          | 20       | 78   | **1** | 0    |
+| 08    | `occurrence-type-redelivery-policy` → `local-fleet-seed-crew`                    | 20       | 110  | 0     | 0    |
+| 09    | `occurrence-type-requirement-modes` → `occurrence-effective-requirements-parity` | 19       | 39   | 0     | 0    |
+
+**O que pulou e por quê (pulado não é verde):**
+
+- Bloco 04, 7 skips, achados rodando cada arquivo sozinho: `migration-completeness.integration.ts` (3) e `database-migration.contract.test.ts` (4), os dois guardados por
+  `DRIZZLE_TEST_DATABASE_URL`, que o `.env.test` não define. **Rodados de novo com a variável:** `migration-completeness` 3 pass, 0 skip; o contrato de migration
+  roda inteiro dentro do `db:test` (138 pass, 0 skip).
+- Bloco 07, 1 skip: `trip-occurrence-upload-confirm.integration.ts`, o `testWithStorage` (MinIO inalcançável nesta máquina; a imagem é privada no GHCR e a CI também não a sobe).
+  **Não foi exercitado aqui.** O arquivo não é da 246 (`git diff origin/staging` vazio).
+
+### Conferência dos oito commits sem revisão independente
+
+Lidos por `git show`, procurando regressão (hashes de antes do rebase `dacb06250`, `3dfd8cb38`, `e969e3666`, `828e40b60`, `d089e5fe0`, `4683ffd8c`, `e5a822ed0`, `000da603f`;
+depois do rebase `b046107f2`, `0eb4a8655`, `d12a13f73`, `826e93330`, `89444abef`, `2f939d0cf`, `c71b0b130`, `2de9b6d8b`). **Nenhuma regressão achada.**
+
+- `b046107f2` (migrations): ver a próxima subseção.
+- `0eb4a8655` (`receiving`): uma linha de guarda em `deriveOccurrenceMomentsFromStageAndFlow`; o resto é teste. A semente `receiving` do backfill espera 0 linhas e o
+  `expect` de contagem agora filtra `moments.length > 0`, sem afrouxar os outros tipos (cada um segue comparado ao conjunto esperado, `?? []` só para o tipo vazio).
+- `d12a13f73` (Tooltip): só teste novo, com `mock.module` do CSS por espelho de identidade; entrou na lista do lote DOM (`trip-hooks.contract.test.ts`).
+- `826e93330` e `89444abef` (cabeçalho): `.application-wordmark` volta a `2rem` (identidade da staging) com `min-width: 0` no contêiner; o `h1` só muda em `.longTitle`
+  (nos dois `<header>` de ressarcimentos), base abaixo de `40rem` e a staging de volta por `min-width`. `/repasses` não usa a classe. O contrato lê os valores do `index.css`.
+- `2f939d0cf` (hint da verificação): só locale pt/en, contrato por palavra.
+- `c71b0b130` (try/catch): `rethrowOverrideShapeViolation` devolve `never` e **sempre** lança (a CHECK conhecida vira 422, qualquer outra propaga), então o `catch` não engole erro;
+  a transação é a mesma. `occurrence-override-minimum-shape` verde no bloco 09.
+- `2de9b6d8b`: evidência, contexto da API e um ajuste de lint no contrato do Tooltip.
+
+### Migrations: cadeia linear e SQL idêntico
+
+Cadeia de `prevIds` lida dos `snapshot.json`: `20261006180700` (237, `ed7fba64`) → `…205139` (`1bd14adf`, prev `ed7fba64`) → `…205158` (`03ada616`, prev `1bd14adf`) →
+`…205209` (`f738435d`, prev `03ada616`) → `…205232` (`4aafa5e2`, prev `f738435d`). Uma folha só; `db:check` limpo.
+
+SQL contra `backup/pre-rebase-246` (nomes antigos `…184835/184901/184909/184921`, mapeados para os novos):
+
+| migration                                       | `migration.sql`                | `rollback.sql`                   |
+| ----------------------------------------------- | ------------------------------ | -------------------------------- |
+| `…205139_occurrence_type_requirement_modes`     | idêntico                       | só o nome no `DELETE` do journal |
+| `…205158_occurrence_type_moments`               | idêntico                       | só o nome no `DELETE` do journal |
+| `…205209_occurrence_type_quantity_minimums`     | idêntico                       | só o nome no `DELETE` do journal |
+| `…205232_street_occurrence_attachment_backfill` | só o nome citado no comentário | só o nome no `DELETE` do journal |
+
+O backfill de momentos (`…205158`) tem cinco `INSERT` e todos filtram por `stage = 'separation'` ou `stage = 'delivery'`: **não gera linha para `stage = 'receiving'`**
+(preso por `occurrence-type-moments-backfill`, com semente `receiving` esperando 0 linhas).
+
+### Duas mutações minhas (restauradas; `git status` limpo depois)
+
+**1. `deriveOccurrenceMomentsFromStageAndFlow` volta a tratar `receiving` como rua** (apaguei a linha `if (params.stage === TRIP_OCCURRENCE_STAGE.receiving) return []`).
+Integração `occurrence-type-receiving-moments`:
+
+```text
+error: expect(received).toEqual(expected)
+- {
+-   "code": "TRIP_DOCUMENT_NOT_REACHABLE",
+-   "status": 409,
+- }
++ "ACCEPTED"
+- Expected  - 4
++ Received  + 1
+(fail) o tipo de recebimento não é de rua (spec 246 A-1, spec 237) > fica fora da lista do motorista e do cadastro, e o motorista e o escritório não o registram [1809.61ms]
+ 1 pass
+ 1 fail
+Ran 2 tests across 1 file. [3.82s]
+```
+
+Contrato `trip-occurrence.contract.test.ts`:
+
+```text
+- Expected  - 1
++ Received  + 4
+(fail) tipo de recebimento não tem momento de rua (spec 246, terceira revisão A-1; spec 237) > nenhum par stage receiving deriva momento, com flow de nota ou de parada [0.14ms]
+- Expected  - 1
++ Received  + 4
+(fail) tipo de recebimento não tem momento de rua (spec 246, terceira revisão A-1; spec 237) > sem linha de momento a leitura tolerante continua vazia, e nenhuma guarda o aceita [0.05ms]
+ 492 pass
+ 2 fail
+```
+
+**2. Tirar o `UPDATE ... SET "note_mode" = 'required'` de `…205139_occurrence_type_requirement_modes/migration.sql`** (linha 19):
+
+```text
+### occurrence-type-requirement-modes
+error: expect(received).toEqual(expected)
+- Expected  - 1
++ Received  + 1
+(fail) a exigência vira dado sem mudar o que já está gravado (spec 246 T1.3) > tipo e exceções antigos saem com observação e assinatura conforme a regra da 179 [1599.10ms]
+ 0 pass
+ 1 fail
+### occurrence-requirement-modes-registration
+error: expect(received).toBeInstanceOf(expected)
+Expected constructor: [class TripOccurrenceNoteRequiredError extends ApiError]
+Received value: undefined
+(fail) a observação obrigatória sobrevive à migration (spec 246 T2.3b, CA04) > tipo com foto required gravado antes das colunas novas: sem nota, NOTE_REQUIRED [1681.25ms]
+ 2 pass
+ 1 fail
+```
+
+Restaurados byte a byte (`cp` do backup e `git status` sem diferença): `occurrence-moment.policy.ts` e `migration.sql`.
