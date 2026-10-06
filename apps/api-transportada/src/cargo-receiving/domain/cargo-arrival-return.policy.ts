@@ -24,6 +24,7 @@ export type CargoArrivalReturnAction =
 
 export const CARGO_ARRIVAL_RETURN_REFUSAL = {
   alreadyMarked: 'CARGO_ARRIVAL_RETURN_ALREADY_MARKED',
+  caseCancelled: 'CARGO_ARRIVAL_RETURN_CASE_CANCELLED',
   closed: 'CARGO_ARRIVAL_CLOSED',
   decisionPending: 'CARGO_ARRIVAL_RETURN_DECISION_PENDING',
   inLiveTrip: 'CARGO_ARRIVAL_DOCUMENT_IN_LIVE_TRIP',
@@ -36,6 +37,7 @@ export type CargoArrivalReturnRefusal =
 
 /** Concluir a devolução é gesto físico: só depois de a tratativa da origem ter decisão (ajuste 8). */
 const DECIDED_CASE_STATUSES: readonly TripOccurrenceCaseStatus[] = ['decided', 'closed']
+const CANCELLED_CASE_STATUS: TripOccurrenceCaseStatus = 'cancelled'
 
 export type CargoArrivalReturnMark = {
   readonly occurrenceId: string | null
@@ -45,7 +47,7 @@ export type CargoArrivalReturnMark = {
 export type DecideCargoArrivalReturnParams = {
   readonly action: CargoArrivalReturnAction
   readonly arrivalStatus: CargoArrivalStatus
-  /** A tratativa da ocorrência que motivou a marcação; `null` quando o tipo não abre tratativa. */
+  /** A tratativa da ocorrência de origem (a pedida, ao marcar); `null` quando o tipo não abre tratativa. */
   readonly caseStatus: TripOccurrenceCaseStatus | null
   readonly current: CargoArrivalReturnMark
   readonly isInLiveTrip: boolean
@@ -75,6 +77,9 @@ function decideMark(params: DecideCargoArrivalReturnParams): CargoArrivalReturnD
       : refused(CARGO_ARRIVAL_RETURN_REFUSAL.alreadyMarked)
   }
   if (params.isInLiveTrip) return refused(CARGO_ARRIVAL_RETURN_REFUSAL.inLiveTrip)
+  if (params.caseStatus === CANCELLED_CASE_STATUS) {
+    return refused(CARGO_ARRIVAL_RETURN_REFUSAL.caseCancelled)
+  }
   return { next: { occurrenceId: occurrence.id, state: RETURN.marked }, outcome: 'changed' }
 }
 
@@ -88,7 +93,11 @@ function decideComplete(params: DecideCargoArrivalReturnParams): CargoArrivalRet
   const { caseStatus, current } = params
   if (current.state === RETURN.returned) return { outcome: 'unchanged' }
   if (current.state === RETURN.none) return refused(CARGO_ARRIVAL_RETURN_REFUSAL.notMarked)
-  if (caseStatus !== null && !DECIDED_CASE_STATUSES.includes(caseStatus)) {
+  if (params.isInLiveTrip) return refused(CARGO_ARRIVAL_RETURN_REFUSAL.inLiveTrip)
+  if (caseStatus === CANCELLED_CASE_STATUS) {
+    return refused(CARGO_ARRIVAL_RETURN_REFUSAL.caseCancelled)
+  }
+  if (caseStatus === null || !DECIDED_CASE_STATUSES.includes(caseStatus)) {
     return refused(CARGO_ARRIVAL_RETURN_REFUSAL.decisionPending)
   }
   return {

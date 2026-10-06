@@ -75,3 +75,14 @@ export class CargoArrivalReturnOccurrenceInvalidError extends ApiError {
     })
   }
 }
+
+/** A tratativa da origem foi encerrada sem decisão: devolver a nota seria agir sem o contratante. */
+export class CargoArrivalReturnCaseCancelledError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CARGO_ARRIVAL_RETURN_CASE_CANCELLED',
+      message: 'The treatment of the source occurrence was cancelled',
+      status: 409,
+    })
+  }
+}

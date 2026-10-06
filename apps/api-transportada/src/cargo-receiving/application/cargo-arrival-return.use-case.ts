@@ -17,7 +17,10 @@ import {
   CargoArrivalNotFoundError,
   CargoArrivalTransitionRefusedError,
 } from '../domain/cargo-arrival.error.js'
-import { CargoArrivalReturnOccurrenceInvalidError } from '../domain/cargo-arrival-occurrence.error.js'
+import {
+  CargoArrivalReturnCaseCancelledError,
+  CargoArrivalReturnOccurrenceInvalidError,
+} from '../domain/cargo-arrival-occurrence.error.js'
 import type {
   CargoArrivalReturnTransactionPort,
   CargoArrivalReturnUnitOfWork,
@@ -34,7 +37,7 @@ type Dependencies = {
   readonly unitOfWork: CargoArrivalReturnUnitOfWork
 }
 
-/** Só marcar lê a ocorrência pedida; só concluir lê a tratativa da ocorrência de origem. */
+/** Marcar lê a ocorrência pedida e a tratativa dela; concluir, a tratativa da ocorrência de origem. */
 async function readDecisionInputs(params: {
   readonly document: LockedOccurrenceDocument
   readonly input: ChangeCargoArrivalReturnParams
@@ -48,10 +51,14 @@ async function readDecisionInputs(params: {
           occurrenceId: input.occurrenceId,
         })
       : null
+  const caseOccurrenceId =
+    input.action === CARGO_ARRIVAL_RETURN_ACTION.mark
+      ? (occurrence?.id ?? null)
+      : input.action === CARGO_ARRIVAL_RETURN_ACTION.complete
+        ? document.returnOccurrenceId
+        : null
   const caseStatus =
-    input.action === CARGO_ARRIVAL_RETURN_ACTION.complete && document.returnOccurrenceId !== null
-      ? await transaction.findCaseStatus(document.returnOccurrenceId)
-      : null
+    caseOccurrenceId === null ? null : await transaction.findCaseStatus(caseOccurrenceId)
   return { caseStatus, occurrence }
 }
 
@@ -89,6 +96,9 @@ async function changeWithinLock(params: {
   if (decision.outcome === 'refused') {
     if (decision.reason === CARGO_ARRIVAL_RETURN_REFUSAL.occurrenceInvalid) {
       throw new CargoArrivalReturnOccurrenceInvalidError()
+    }
+    if (decision.reason === CARGO_ARRIVAL_RETURN_REFUSAL.caseCancelled) {
+      throw new CargoArrivalReturnCaseCancelledError()
     }
     throw new CargoArrivalTransitionRefusedError(decision.reason)
   }
