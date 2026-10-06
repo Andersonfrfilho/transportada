@@ -1,47 +1,32 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 246 T5.1: TripOccurrencesWorkspace ganha Tabs com Feed e Tipos.
- * - Aba Feed existe (conteúdo anterior)
- * - Aba Tipos existe e é visível apenas com permissão companies.settings
+ * Spec 246 T5.1/T5.3: TripOccurrencesWorkspace ganha Tabs com Feed e Tipos, e a aba Tipos monta o
+ * painel do catálogo (só com `companies.settings`) no lugar do placeholder.
  */
-import { describe, it, expect, beforeEach } from 'bun:test'
-import { QueryClient } from '@tanstack/react-query'
+import { readFileSync } from 'node:fs'
+
+import { describe, expect, it } from 'bun:test'
+
 import { TripOccurrencesWorkspacePage } from '@/modules/trip/pages/TripOccurrencesWorkspace.page'
 
-// Mock do useAuthMeQuery
-const mockAuthMe = (permissions: string[]) => ({
-  data: {
-    data: {
-      permissions,
-      company: { id: 'test-company-id' },
-      identity: { userId: 'test-user-id' },
-    },
-  },
-  isLoading: false,
-  isError: false,
-  isSuccess: true,
-})
+const PAGE_SOURCE = readFileSync(
+  new URL('../src/modules/trip/pages/TripOccurrencesWorkspace.page.tsx', import.meta.url),
+  'utf8',
+)
 
 describe('TripOccurrencesWorkspacePage tabs (T5.1)', () => {
-  let queryClient: QueryClient
-
-  beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-      },
-    })
-  })
-
-  it('renders Feed tab always', async () => {
-    // Render would need full mock setup, but we can at least verify the component structure
+  it('exporta a página', () => {
     expect(TripOccurrencesWorkspacePage).toBeDefined()
   })
 
-  it('renders Types tab when permitted', async () => {
-    // The actual permission checking is done at runtime
-    // Component definition includes the conditional rendering logic
-    expect(TripOccurrencesWorkspacePage).toBeDefined()
+  it('declara as abas Feed e Tipos', () => {
+    expect(PAGE_SOURCE).toContain("'feed', 'types'")
+  })
+
+  it('monta o painel de tipos na aba Tipos, só com companies.settings, sem o placeholder', () => {
+    expect(PAGE_SOURCE).toContain('<TripOccurrenceTypesTab canManage={canManageSettings} />')
+    expect(PAGE_SOURCE).toContain('canManageSettings ?')
+    expect(PAGE_SOURCE).not.toContain('em construção')
   })
 })

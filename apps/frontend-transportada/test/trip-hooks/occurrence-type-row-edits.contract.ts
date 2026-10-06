@@ -15,6 +15,7 @@ import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
 
 import { click, stubVisibleLayout } from './occurrenceCorrectionHarness.helper'
 import { renderWithQueryClient, waitFor } from './renderHook.helper'
+import { OCCURRENCE_REQUIREMENT_DEFAULTS } from '../fixtures/occurrenceRequirementDefaults.fixture'
 
 const saved: OccurrenceTypeSaveInput[] = []
 const mounted: { unmount: () => void }[] = []
@@ -23,6 +24,7 @@ function buildType(overrides: Partial<OccurrenceType> = {}): OccurrenceType {
   return {
     active: true,
     allowsMultipleItems: true,
+    ...OCCURRENCE_REQUIREMENT_DEFAULTS,
     attachmentMode: 'off',
     emailBody: '',
     emailSubject: '',
@@ -136,10 +138,10 @@ describe('linha do tipo de ocorrência: cada controle grava a sua edição', () 
   )
 
   test(
-    'Produtos: Sem produtos leva a política para unset',
+    'Produtos: Desligado leva a política para unset',
     scenario(async () => {
       await mount(buildType())
-      await choose('Produtos', 'Sem produtos')
+      await choose('Produtos', 'Desligado')
       expect(saved).toEqual([expectedBase({ itemsMode: 'off', redeliveryPolicy: 'unset' })])
     }),
   )
@@ -154,10 +156,10 @@ describe('linha do tipo de ocorrência: cada controle grava a sua edição', () 
   )
 
   test(
-    'Foto do comprovante',
+    'Foto',
     scenario(async () => {
       await mount(buildType())
-      await choose('Foto do comprovante', 'Foto obrigatória')
+      await choose('Foto', 'Obrigatório')
       expect(saved).toEqual([expectedBase({ attachmentMode: 'required' })])
     }),
   )

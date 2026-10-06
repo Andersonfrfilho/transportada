@@ -330,6 +330,38 @@
       "remove": "Remover",
       "emptyContractor": "Nenhuma exceção por contratante cadastrada.",
       "emptyRecipient": "Nenhuma exceção por destinatário cadastrada."
+    },
+    "requirements": {
+      "title": "O que exige",
+      "legend": "Obrigatório quer dizer: a ocorrência não é registrada sem aquilo. Foto é a imagem capturada no aparelho; Observação é o texto do motorista; Assinatura é a de quem deu a negativa; Produtos é ao menos um item da nota marcado.",
+      "fields": {
+        "photo": "Foto",
+        "note": "Observação",
+        "signature": "Assinatura",
+        "items": "Produtos"
+      },
+      "modes": {
+        "off": "Desligado",
+        "optional": "Opcional",
+        "required": "Obrigatório"
+      },
+      "hints": {
+        "photo": "Vale para o registro do motorista na rua. Desligado: não pede foto. Opcional: ele pode anexar. Obrigatório: a ocorrência só sai com a quantidade mínima de fotos.",
+        "note": "Desligado: o campo de observação não aparece. Opcional: o motorista pode escrever. Obrigatório: a ocorrência só sai com o texto preenchido.",
+        "signature": "Desligado: não pede assinatura. Opcional: o motorista pode colher a de quem deu a negativa. Obrigatório: a ocorrência só sai com a assinatura desenhada.",
+        "items": "Desligado: a ocorrência não carrega produtos — o registro não mostra o seletor, a reentrega não se aplica e Corrigir só aparece nas ocorrências que já têm produtos ou já foram corrigidas. Opcional: quem registra pode apontar os produtos. Obrigatório: a ocorrência só sai com produto apontado."
+      },
+      "photoMinimum": {
+        "label": "Quantidade mínima de fotos",
+        "hint": "Só vale quando a foto é obrigatória. De 1 a 5."
+      },
+      "itemsMinimum": {
+        "label": "Produtos exigidos",
+        "all": "Todos os itens da nota",
+        "atLeast": "Ao menos",
+        "count": "Quantidade mínima de produtos",
+        "hint": "Só vale quando Produtos é obrigatório. Todos os itens da nota serve à recusa total."
+      }
     }
   },
   "settingsResolution": {
