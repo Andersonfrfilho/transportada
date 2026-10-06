@@ -6,8 +6,6 @@
 import { defineRoute } from '../../http/router.service.js'
 import {
   invalidRequest,
-  optionalFilter,
-  parseOption,
   parseUuidFilter,
   parseUuidPathIdentifier,
   readListQuery,
@@ -19,11 +17,9 @@ import {
   API_CARGO_ARRIVAL_PATH,
   API_CARGO_ARRIVALS_PATH,
 } from '../../shared/api.constant.js'
-import { CARGO_ARRIVAL_STATUSES } from '../../shared/cargo-arrival.constant.js'
 import type {
   GetCargoArrivalParams,
   ListAvailableArrivalDocumentsParams,
-  ListCargoArrivalsFilters,
   ListCargoArrivalsParams,
   RegisterCargoArrivalParams,
 } from '../application/cargo-arrival-request.types.js'
@@ -40,13 +36,16 @@ import {
   jsonResponse,
 } from './cargo-arrival-http.support.js'
 import {
+  parseCargoArrivalListQuery,
+  type CargoArrivalListQuery,
+} from './cargo-arrival-list-query.schema.js'
+import {
   parseRegisterCargoArrivalRequest,
   type RegisterCargoArrivalRequest,
 } from './cargo-arrival.schema.js'
 
 const PAGING_KEYS = ['cursor', 'limit'] as const
 const AVAILABLE_QUERY_KEYS = new Set<string>(['contractorId', ...PAGING_KEYS])
-const LIST_QUERY_KEYS = new Set<string>(['contractorId', 'status', ...PAGING_KEYS])
 
 type UseCase<TParams, TResult> = { execute(params: TParams): Promise<TResult> }
 
@@ -61,7 +60,6 @@ export type CargoArrivalRoutesDependencies = {
 }
 
 type AvailableInput = { readonly contractorId: string; readonly paging: Paging }
-type ListInput = { readonly filters: ListCargoArrivalsFilters; readonly paging: Paging }
 type RegisterInput = RegisterCargoArrivalRequest & { readonly correlationId: string }
 
 type Dependencies = CargoArrivalRoutesDependencies
@@ -94,13 +92,13 @@ function availableDocumentsRoute(dependencies: Dependencies): ReturnType<typeof 
 }
 
 function listRoute(dependencies: Dependencies): ReturnType<typeof defineRoute> {
-  return defineRoute<ListInput>({
+  return defineRoute<CargoArrivalListQuery>({
     async handle({ context, input }): Promise<Response> {
       const page = await dependencies.listArrivals.execute({ context: context.scope, ...input })
       return jsonResponse({ body: { data: page.items, nextCursor: page.nextCursor }, status: 200 })
     },
     method: 'GET',
-    parse: ({ request }) => parseListQuery(new URL(request.url)),
+    parse: ({ request }) => parseCargoArrivalListQuery(new URL(request.url)),
     pathname: API_CARGO_ARRIVALS_PATH,
     policy: CARGO_ARRIVAL_READ_POLICY,
   })
@@ -148,15 +146,4 @@ function parseAvailableQuery(url: URL): AvailableInput {
     throw invalidRequest([{ field: 'contractorId', message: 'The contractor is required' }])
   }
   return { contractorId, paging: readPaging(query) }
-}
-
-function parseListQuery(url: URL): ListInput {
-  const query = readListQuery(url, LIST_QUERY_KEYS)
-  return {
-    filters: {
-      ...optionalFilter('contractorId', parseUuidFilter(query.get('contractorId'))),
-      ...optionalFilter('status', parseOption(query.get('status'), CARGO_ARRIVAL_STATUSES)),
-    },
-    paging: readPaging(query),
-  }
 }

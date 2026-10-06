@@ -109,3 +109,15 @@ export class CargoArrivalHasPendingDocumentsError extends ApiError {
     })
   }
 }
+
+/** O cursor nasceu noutra ordem (coluna ou sentido): andar com ele pularia ou repetiria chegadas. */
+export class CargoArrivalCursorOrderMismatchError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CARGO_ARRIVAL_CURSOR_ORDER_MISMATCH',
+      details: [{ field: 'cursor', message: 'The cursor belongs to another sort or direction' }],
+      message: 'The cursor belongs to another sort or direction',
+      status: 400,
+    })
+  }
+}

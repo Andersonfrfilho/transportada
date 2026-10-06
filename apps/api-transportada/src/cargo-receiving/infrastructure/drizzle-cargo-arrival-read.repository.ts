@@ -4,7 +4,7 @@
  * Spec 237 T2.3: as leituras da chegada, sempre filtradas pela empresa do contexto na própria
  * consulta. As contagens da página vêm numa consulta só, agrupada — nunca uma por chegada.
  */
-import { and, count, desc, eq, inArray, type SQL } from 'drizzle-orm'
+import { and, count, eq, inArray } from 'drizzle-orm'
 
 import { cargoArrivalDocuments } from '../../database/cargo-arrival-document.schema.js'
 import { cargoArrivals } from '../../database/cargo-arrival.schema.js'
@@ -34,11 +34,11 @@ import {
   recipientParticipant,
 } from './cargo-arrival-document.query.js'
 import {
-  buildArrivalFilters,
-  buildDescendingCursorFilter,
-  toPage,
-  type Database,
-} from './cargo-arrival-persistence.support.js'
+  buildArrivalListFilters,
+  buildArrivalListOrderBy,
+  toArrivalListPage,
+} from './cargo-arrival-list.query.js'
+import { buildArrivalFilters, type Database } from './cargo-arrival-persistence.support.js'
 
 const ARRIVAL_COLUMNS = {
   arrivedAt: cargoArrivals.arrivedAt,
@@ -61,24 +61,6 @@ const CONTRACTOR_JOIN = and(
   eq(contractors.id, cargoArrivals.contractorId),
 )
 
-export function buildArrivalListFilters(params: ListCargoArrivalsRecordParams): SQL[] {
-  const filters: (SQL | undefined)[] = [
-    eq(cargoArrivals.companyId, params.companyId),
-    params.filters.contractorId === undefined
-      ? undefined
-      : eq(cargoArrivals.contractorId, params.filters.contractorId),
-    params.filters.status === undefined
-      ? undefined
-      : eq(cargoArrivals.status, params.filters.status),
-    buildDescendingCursorFilter({
-      cursor: params.paging.cursor,
-      dateColumn: cargoArrivals.arrivedAt,
-      idColumn: cargoArrivals.id,
-    }),
-  ]
-  return filters.filter((filter): filter is SQL => filter !== undefined)
-}
-
 export class DrizzleCargoArrivalReadRepository implements CargoArrivalReadRepositoryPort {
   public constructor(private readonly database: Database) {}
 
@@ -94,19 +76,19 @@ export class DrizzleCargoArrivalReadRepository implements CargoArrivalReadReposi
       .from(cargoArrivals)
       .innerJoin(contractors, CONTRACTOR_JOIN)
       .where(and(...buildArrivalListFilters(params)))
-      .orderBy(desc(cargoArrivals.arrivedAt), desc(cargoArrivals.id))
+      .orderBy(...buildArrivalListOrderBy(params.order))
       .limit(params.paging.limit + 1)
     const counts = await this.countStates({
       arrivalIds: rows.map((row) => row.id),
       companyId: params.companyId,
     })
-    return toPage({
-      dateOf: (row) => row.arrivedAt,
+    return toArrivalListPage({
       limit: params.paging.limit,
       map: (row): CargoArrivalListRecord => ({
         ...row,
         counts: counts.get(row.id) ?? EMPTY_COUNTS,
       }),
+      order: params.order,
       rows,
     })
   }

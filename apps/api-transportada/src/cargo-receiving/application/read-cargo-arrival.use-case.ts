@@ -44,10 +44,11 @@ export function createListCargoArrivalsUseCase(dependencies: Dependencies): {
   readonly execute: (params: ListCargoArrivalsParams) => Promise<Page<CargoArrivalSummary>>
 } {
   return {
-    async execute({ context, filters, paging }) {
+    async execute({ context, filters, order, paging }) {
       const page = await dependencies.readRepository.list({
         companyId: context.companyId,
         filters,
+        order,
         paging,
       })
       const now = dependencies.now()

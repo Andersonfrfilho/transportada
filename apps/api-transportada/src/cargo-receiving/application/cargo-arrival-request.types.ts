@@ -11,6 +11,10 @@ import type {
   CargoArrivalStatus,
 } from '../../shared/cargo-arrival.constant.js'
 import type { ArrivalCandidateRefusal } from '../domain/cargo-arrival-candidate.policy.js'
+import type {
+  CargoArrivalListCursor,
+  CargoArrivalListOrder,
+} from '../domain/cargo-arrival-list-order.policy.js'
 import type { CargoArrivalTransitionTarget } from '../domain/cargo-arrival-transition.policy.js'
 import type { CargoArrivalDocumentOutcome } from './cargo-arrival.types.js'
 
@@ -79,15 +83,22 @@ export type ListAvailableArrivalDocumentsRecordParams = {
   readonly paging: Paging
 }
 
+/** Lista vazia é "sem filtro"; vários valores são OU entre si (spec 237, M3). */
 export type ListCargoArrivalsFilters = {
-  readonly contractorId?: string
-  readonly status?: CargoArrivalStatus
+  readonly contractorIds: readonly string[]
+  readonly statuses: readonly CargoArrivalStatus[]
+}
+
+export type CargoArrivalListPaging = {
+  readonly cursor: CargoArrivalListCursor | null
+  readonly limit: number
 }
 
 export type ListCargoArrivalsRecordParams = {
   readonly companyId: string
   readonly filters: ListCargoArrivalsFilters
-  readonly paging: Paging
+  readonly order: CargoArrivalListOrder
+  readonly paging: CargoArrivalListPaging
 }
 
 export type FindCargoArrivalRecordParams = {
@@ -107,7 +118,8 @@ export type GetCargoArrivalParams = ContextParams & { readonly arrivalId: string
 
 export type ListCargoArrivalsParams = ContextParams & {
   readonly filters: ListCargoArrivalsFilters
-  readonly paging: Paging
+  readonly order: CargoArrivalListOrder
+  readonly paging: CargoArrivalListPaging
 }
 
 export type ListAvailableArrivalDocumentsParams = ContextParams & {

@@ -13,7 +13,7 @@ import {
   buildCandidateDocumentFilters,
 } from '../../src/cargo-receiving/infrastructure/cargo-arrival-document.query.js'
 import { buildArrivalFilters } from '../../src/cargo-receiving/infrastructure/cargo-arrival-persistence.support.js'
-import { buildArrivalListFilters } from '../../src/cargo-receiving/infrastructure/drizzle-cargo-arrival-read.repository.js'
+import { buildArrivalListFilters } from '../../src/cargo-receiving/infrastructure/cargo-arrival-list.query.js'
 import { buildPreviewItemFilters } from '../../src/cargo-receiving/infrastructure/cargo-preview-item.query.js'
 import {
   buildPreviewFilters,
@@ -78,12 +78,27 @@ describe('isolamento da chegada (spec 237 T2.3)', () => {
     const query = render(
       buildArrivalListFilters({
         companyId: COMPANY_ID,
-        filters: {},
+        filters: { contractorIds: [], statuses: [] },
+        order: { direction: 'desc', sort: 'arrivedAt' },
         paging: { cursor: null, limit: 25 },
       }),
     )
     expect(query.sql).toBe('"cargo_arrivals"."company_id" = $1')
     expect(query.params).toEqual([COMPANY_ID])
+  })
+
+  test('vários contratantes, situação e cursor continuam presos à empresa (spec 237, M3)', () => {
+    const query = render(
+      buildArrivalListFilters({
+        companyId: COMPANY_ID,
+        filters: { contractorIds: [CONTRACTOR_ID, ARRIVAL_ID], statuses: ['open'] },
+        order: { direction: 'asc', sort: 'contractorName' },
+        paging: { cursor: { id: ARRIVAL_ID, value: 'Nome' }, limit: 25 },
+      }),
+    )
+    expect(query.sql).toMatch(/^\(+"cargo_arrivals"\."company_id" = \$1\)? and /u)
+    expect(query.sql).toContain('"cargo_arrivals"."contractor_id" in ($2, $3)')
+    expect(query.params[0]).toBe(COMPANY_ID)
   })
 
   test('candidatas e disponíveis filtram a nota pela empresa e o emitente pelo CNPJ', () => {
