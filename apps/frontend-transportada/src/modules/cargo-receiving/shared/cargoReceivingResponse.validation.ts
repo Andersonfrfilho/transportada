@@ -12,9 +12,12 @@ import type {
   CargoContractor,
   CargoDocumentOutcome,
   CargoPage,
+  CargoReceivingProfile,
   CloseCargoArrivalResult,
   RegisterCargoArrivalResult,
 } from './cargoArrival.types'
+import { hasExactKeys } from '@/modules/shared/objectKeys.service'
+
 import { CARGO_RECEIVING_ERROR } from './cargoReceiving.constant'
 import { CargoReceivingRequestError } from './cargoReceivingRequest.service'
 
@@ -99,12 +102,18 @@ export function toContractorPage(payload: unknown): CargoPage<CargoContractor> {
   return { items, nextCursor }
 }
 
-/** `{ data: null }` é contratante sem perfil — ausência de regra, nunca erro (ADR-0048). */
-export function toReceivingEnabled(payload: unknown): boolean {
-  if (!isRecord(payload) || !('data' in payload)) throw invalidResponse()
-  if (payload.data === null) return false
-  if (!isRecord(payload.data) || typeof payload.data.isEnabled !== 'boolean') {
-    throw invalidResponse()
-  }
-  return payload.data.isEnabled
+const PROFILE_KEYS = ['contractorId', 'isEnabled', 'previewEnabled'] as const
+
+function isReceivingProfile(value: unknown): value is CargoReceivingProfile {
+  return (
+    hasExactKeys(value, PROFILE_KEYS) &&
+    typeof value.contractorId === 'string' &&
+    typeof value.isEnabled === 'boolean' &&
+    typeof value.previewEnabled === 'boolean'
+  )
+}
+
+/** `GET /contractor-receiving-profiles`: `{ data, nextCursor }` no topo; contratante sem perfil não aparece. */
+export function toReceivingProfilePage(payload: unknown): CargoPage<CargoReceivingProfile> {
+  return toPage({ isItem: isReceivingProfile, payload })
 }

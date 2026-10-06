@@ -13,8 +13,10 @@ import { ContractorDirectoryRequestError } from './contractorDirectoryRequest.se
 import {
   PREVIEW_ITEM_FIELDS,
   RECEIVING_PROFILE_KEYS,
+  RECEIVING_PROFILE_LIST_ITEM_KEYS,
   type PreviewColumnMap,
   type ReceivingProfile,
+  type ReceivingProfileListItem,
 } from './receivingProfile.types'
 
 /**
@@ -106,4 +108,27 @@ export function toReceivingProfile(payload: unknown): ReceivingProfile {
   const profile = toReceivingProfileOrNull(payload)
   if (profile === null) throw invalidResponse()
   return profile
+}
+
+export type ReceivingProfileListPage = Readonly<{
+  items: readonly ReceivingProfileListItem[]
+  nextCursor: string | null
+}>
+
+function isReceivingProfileListItem(value: unknown): value is ReceivingProfileListItem {
+  return (
+    hasExactKeys(value, RECEIVING_PROFILE_LIST_ITEM_KEYS) &&
+    typeof value.contractorId === 'string' &&
+    typeof value.isEnabled === 'boolean' &&
+    typeof value.previewEnabled === 'boolean'
+  )
+}
+
+/** `{ data, nextCursor }` no topo; contratante sem perfil não aparece (ADR-0094 §5). */
+export function toReceivingProfileListPage(payload: unknown): ReceivingProfileListPage {
+  if (!isRecord(payload) || !Array.isArray(payload.data)) throw invalidResponse()
+  const { nextCursor } = payload
+  if (nextCursor !== null && typeof nextCursor !== 'string') throw invalidResponse()
+  if (!payload.data.every(isReceivingProfileListItem)) throw invalidResponse()
+  return { items: payload.data, nextCursor }
 }

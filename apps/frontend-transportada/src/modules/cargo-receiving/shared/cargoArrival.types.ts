@@ -79,6 +79,13 @@ export type CargoContractor = Readonly<{
   taxId: string
 }>
 
+/** O resumo do perfil de recebimento que a lista traz: só os dois interruptores, nunca as regras. */
+export type CargoReceivingProfile = Readonly<{
+  contractorId: string
+  isEnabled: boolean
+  previewEnabled: boolean
+}>
+
 export type RegisterCargoArrivalInput = Readonly<{
   arrivedAt: string
   contractorId: string

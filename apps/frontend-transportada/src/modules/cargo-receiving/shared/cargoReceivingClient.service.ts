@@ -10,6 +10,7 @@ import type {
   CargoContractor,
   CargoDocumentOutcome,
   CargoPage,
+  CargoReceivingProfile,
   CargoTransitionTarget,
   CloseCargoArrivalResult,
   RegisterCargoArrivalInput,
@@ -27,7 +28,7 @@ import {
   toBatchOutcomes,
   toCloseResult,
   toContractorPage,
-  toReceivingEnabled,
+  toReceivingProfilePage,
   toRegisterResult,
 } from './cargoReceivingResponse.validation'
 
@@ -57,7 +58,10 @@ export type CargoReceivingClient = Readonly<{
     input: Cursor & Readonly<{ contractorId: string }>,
   ) => Promise<CargoPage<AvailableCargoDocument>>
   listContractors: (input: Cursor) => Promise<CargoPage<CargoContractor>>
-  readReceivingEnabled: (contractorId: string) => Promise<boolean>
+  /** `enabled: true` só os com o recebimento ligado; sem ele, todos os perfis que existem. */
+  listReceivingProfiles: (
+    input: Cursor & Readonly<{ enabled: boolean | undefined }>,
+  ) => Promise<CargoPage<CargoReceivingProfile>>
   registerArrival: (
     input: Readonly<{ idempotencyKey: string; input: RegisterCargoArrivalInput }>,
   ) => Promise<RegisterCargoArrivalResult>
@@ -96,7 +100,7 @@ type ReadMethods = Pick<
   | 'listArrivals'
   | 'listAvailableDocuments'
   | 'listContractors'
-  | 'readReceivingEnabled'
+  | 'listReceivingProfiles'
 >
 type WriteMethods = Omit<CargoReceivingClient, keyof ReadMethods>
 
@@ -135,13 +139,17 @@ function createReadMethods(dependencies: CargoReceivingDependencies): ReadMethod
       })
       return toContractorPage(body)
     },
-    async readReceivingEnabled(contractorId) {
+    async listReceivingProfiles({ cursor, enabled }) {
+      const query = buildQuery({
+        cursor,
+        enabled: enabled === undefined ? undefined : String(enabled),
+      })
       const { body } = await requestCargoReceivingApi({
         dependencies,
         method: 'GET',
-        path: `${CARGO_RECEIVING_PATHS.contractors}/${encodeURIComponent(contractorId)}/receiving-profile`,
+        path: `${CARGO_RECEIVING_PATHS.receivingProfiles}?${query}`,
       })
-      return toReceivingEnabled(body)
+      return toReceivingProfilePage(body)
     },
   }
 }

@@ -142,7 +142,9 @@ function writeOptional(
 export type ReceivingBadge = 'disabled' | 'enabled' | 'none'
 
 /** Ausência é ausência (ADR-0048): sem perfil não é "desligado", é "ainda sem regra". */
-export function resolveReceivingBadge(profile: ReceivingProfile | null): ReceivingBadge {
+export function resolveReceivingBadge(
+  profile: Pick<ReceivingProfile, 'isEnabled'> | null,
+): ReceivingBadge {
   if (profile === null) return 'none'
   return profile.isEnabled ? 'enabled' : 'disabled'
 }

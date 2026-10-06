@@ -89,6 +89,10 @@ export const BETA_PROFILE: ReceivingProfile = {
 }
 
 export type DoubleCalls = {
+  /** Quantas vezes a ficha ou o selo leu UM perfil: a lista nunca deve ler contratante por contratante. */
+  readonly profileReads: string[]
+  readonly profileLists: (string | null)[]
+  readonly contractorLists: (string | null)[]
   readonly profileSaves: { contractorId: string; rules: ReceivingProfileRules }[]
   readonly contractorUpdates: { id: string; values: ContractorWrite }[]
 }
@@ -101,18 +105,57 @@ export const contractorDirectoryFakes: {
   saveFailure: undefined,
 }
 
+const PAGE_SIZE = 100
+
 /** Instala a API dublada: perfis por contratante e o registro de tudo que a tela gravou. */
 export function installContractorDirectoryDouble(
   profiles: Readonly<Record<string, ReceivingProfile | null>> = {
     [CONTRACTOR_IDS.alfa]: ALFA_PROFILE,
     [CONTRACTOR_IDS.beta]: BETA_PROFILE,
   },
+  contractors: readonly Contractor[] = CONTRACTORS,
 ): DoubleCalls {
-  const calls: DoubleCalls = { contractorUpdates: [], profileSaves: [] }
+  const calls: DoubleCalls = {
+    contractorLists: [],
+    contractorUpdates: [],
+    profileLists: [],
+    profileReads: [],
+    profileSaves: [],
+  }
   contractorDirectoryFakes.saveFailure = undefined
   contractorDirectoryFakes.client = {
-    getReceivingProfile: (contractorId) => Promise.resolve(profiles[contractorId] ?? null),
-    listContractors: () => Promise.resolve({ items: CONTRACTORS, nextCursor: null }),
+    getReceivingProfile: (contractorId) => {
+      calls.profileReads.push(contractorId)
+      return Promise.resolve(profiles[contractorId] ?? null)
+    },
+    listContractors: ({ cursor }) => {
+      calls.contractorLists.push(cursor)
+      const start = cursor === null ? 0 : Number(cursor)
+      const end = start + PAGE_SIZE
+      return Promise.resolve({
+        items: contractors.slice(start, end),
+        nextCursor: end < contractors.length ? String(end) : null,
+      })
+    },
+    listReceivingProfiles: ({ cursor }) => {
+      calls.profileLists.push(cursor)
+      const sorted = Object.values(profiles)
+        .flatMap((profile) => (profile === null ? [] : [profile]))
+        .sort((left, right) => left.contractorId.localeCompare(right.contractorId))
+      const start =
+        cursor === null ? 0 : sorted.findIndex((item) => item.contractorId === cursor) + 1
+      const items = sorted.slice(start, start + PAGE_SIZE).map((profile) => ({
+        contractorId: profile.contractorId,
+        isEnabled: profile.isEnabled,
+        previewEnabled: profile.previewEnabled,
+      }))
+      const last = items.at(-1)
+      return Promise.resolve({
+        items,
+        nextCursor:
+          start + items.length < sorted.length && last !== undefined ? last.contractorId : null,
+      })
+    },
     saveReceivingProfile: (input) => {
       calls.profileSaves.push(structuredClone(input))
       if (contractorDirectoryFakes.saveFailure !== undefined) {

@@ -130,6 +130,42 @@ describe('o perfil de recebimento no transporte', () => {
   })
 })
 
+describe('a lista dos perfis no transporte (revisão M4)', () => {
+  test('o selo da lista sai de uma consulta paginada, não de uma leitura por contratante', async () => {
+    const { calls, client } = createFixture(() => ({
+      body: {
+        data: [{ contractorId: CONTRACTOR_ID, isEnabled: false, previewEnabled: true }],
+        nextCursor: CONTRACTOR_ID,
+      },
+    }))
+
+    const page = await client.listReceivingProfiles({ cursor: 'atual' })
+
+    expect(page).toEqual({
+      items: [{ contractorId: CONTRACTOR_ID, isEnabled: false, previewEnabled: true }],
+      nextCursor: CONTRACTOR_ID,
+    })
+    const url = new URL(calls[0]?.url ?? '')
+    expect(url.pathname).toBe('/contractor-receiving-profiles')
+    expect(url.searchParams.get('limit')).toBe('100')
+    expect(url.searchParams.get('cursor')).toBe('atual')
+    expect(url.searchParams.has('enabled')).toBe(false)
+  })
+
+  test('item com chave a mais ou faltando é recusado', async () => {
+    for (const item of [
+      { contractorId: CONTRACTOR_ID, extra: 1, isEnabled: true, previewEnabled: true },
+      { contractorId: CONTRACTOR_ID, isEnabled: true },
+    ]) {
+      const { client } = createFixture(() => ({ body: { data: [item], nextCursor: null } }))
+
+      expect(await failureMessage(client.listReceivingProfiles({ cursor: null }))).toBe(
+        'RESPONSE_INVALID',
+      )
+    }
+  })
+})
+
 describe('o cadastro do contratante no transporte', () => {
   test('a lista segue o cursor e valida o agregado inteiro', async () => {
     const { calls, client } = createFixture(() => ({

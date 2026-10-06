@@ -16,10 +16,13 @@ import {
   toContractor,
   toContractorPage,
   toReceivingProfile,
+  toReceivingProfileListPage,
   toReceivingProfileOrNull,
+  type ReceivingProfileListPage,
 } from './contractorDirectoryResponse.validation'
 import {
   buildReceivingProfilePath,
+  RECEIVING_PROFILE_LIST_PATH,
   type ReceivingProfile,
   type ReceivingProfileRules,
 } from './receivingProfile.types'
@@ -30,6 +33,10 @@ const CONTRACTOR_PAGE_SIZE = 100
 export type ContractorDirectoryClient = Readonly<{
   getReceivingProfile: (contractorId: string) => Promise<ReceivingProfile | null>
   listContractors: (input: Readonly<{ cursor: string | null }>) => Promise<ContractorPage>
+  /** Todos os perfis que existem, paginados: o selo da lista não lê contratante por contratante. */
+  listReceivingProfiles: (
+    input: Readonly<{ cursor: string | null }>,
+  ) => Promise<ReceivingProfileListPage>
   saveReceivingProfile: (
     input: Readonly<{ contractorId: string; rules: ReceivingProfileRules }>,
   ) => Promise<ReceivingProfile>
@@ -59,6 +66,17 @@ export function createContractorDirectoryClient(
           dependencies,
           method: 'GET',
           path: `${CONTRACTOR_DIRECTORY_PATH}?${parameters.toString()}`,
+        }),
+      )
+    },
+    async listReceivingProfiles({ cursor }) {
+      const parameters = new URLSearchParams({ limit: String(CONTRACTOR_PAGE_SIZE) })
+      if (cursor !== null) parameters.set('cursor', cursor)
+      return toReceivingProfileListPage(
+        await requestContractorApi({
+          dependencies,
+          method: 'GET',
+          path: `${RECEIVING_PROFILE_LIST_PATH}?${parameters.toString()}`,
         }),
       )
     },

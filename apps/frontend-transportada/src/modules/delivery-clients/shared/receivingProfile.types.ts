@@ -53,6 +53,19 @@ export type ReceivingProfile = ReceivingProfileRules &
     updatedAt: string
   }>
 
+/** O resumo que a lista de perfis traz por contratante: dá o selo da lista sem abrir cada ficha. */
+export type ReceivingProfileListItem = Readonly<{
+  contractorId: string
+  isEnabled: boolean
+  previewEnabled: boolean
+}>
+
+export const RECEIVING_PROFILE_LIST_ITEM_KEYS = [
+  'contractorId',
+  'isEnabled',
+  'previewEnabled',
+] as const
+
 export const RECEIVING_PROFILE_RULE_KEYS = [
   'arrivalReferenceLabel',
   'deliveryDeadlineBusinessDays',
@@ -85,6 +98,8 @@ export const RECEIVING_PROFILE_LIMITS = {
 /** Os padrões de um perfil que ainda não existe: ligar a prévia e o recebimento é decisão da pessoa. */
 export const RECEIVING_PROFILE_DEFAULT_MATCH_WINDOW_DAYS = 15
 export const RECEIVING_PROFILE_DEFAULT_WEIGHT_TOLERANCE_PERCENT = 0
+
+export const RECEIVING_PROFILE_LIST_PATH = '/contractor-receiving-profiles'
 
 export function buildReceivingProfilePath(contractorId: string): string {
   return `/contractors/${contractorId}/receiving-profile`

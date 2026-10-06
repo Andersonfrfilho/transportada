@@ -15,8 +15,10 @@ import type {
   CargoArrivalDetail,
   CargoArrivalFilters,
   CargoArrivalSummary,
+  CargoContractor,
   CargoDocumentOutcome,
   CargoDocumentState,
+  CargoReceivingProfile,
 } from '@/modules/cargo-receiving/shared/cargoArrival.types'
 import { CargoReceivingRequestError } from '@/modules/cargo-receiving/shared/cargoReceivingRequest.service'
 
@@ -40,7 +42,12 @@ export const CONTRACTORS = [
   },
 ] as const
 
-const ENABLED_CONTRACTORS: ReadonlySet<string> = new Set([ALFA_ID, BETA_ID])
+/** Quem tem perfil: Alfa e Beta com o recebimento ligado; a Gama não tem perfil (ausente da lista). */
+const DEFAULT_PROFILES: readonly CargoReceivingProfile[] = [
+  { contractorId: ALFA_ID, isEnabled: true, previewEnabled: true },
+  { contractorId: BETA_ID, isEnabled: true, previewEnabled: false },
+]
+const CONTRACTOR_PAGE_SIZE = 100
 
 const NEXT_STATE: Readonly<Record<CargoDocumentState, CargoDocumentState | undefined>> = {
   expected: 'received',
@@ -57,6 +64,8 @@ export type DoubleCalls = {
   readonly batch: { documentIds: readonly string[]; to: string }[]
   readonly close: string[]
   readonly listArrivals: { cursor: string | null; filters: CargoArrivalFilters }[]
+  readonly listContractors: (string | null)[]
+  readonly listProfiles: { cursor: string | null; enabled: boolean | undefined }[]
   readonly register: { idempotencyKey: string; input: Record<string, unknown> }[]
 }
 
@@ -68,6 +77,8 @@ export type CargoReceivingDouble = {
   readonly available: AvailableCargoDocument[]
   readonly calls: DoubleCalls
   closeFailure: Error | undefined
+  /** O cadastro de contratantes; a lista pagina de 100 em 100, como a API. */
+  contractors: readonly CargoContractor[]
   /** Releituras da chegada ficam penduradas: prova que a volta do otimista não depende delas. */
   holdReads: boolean
   /** Fila de falhas: a próxima chamada de escrita rejeita com a primeira. */
@@ -77,6 +88,8 @@ export type CargoReceivingDouble = {
   /** O próximo "carregar mais" responde `400 CARGO_ARRIVAL_CURSOR_ORDER_MISMATCH`, uma vez só. */
   isNextCursorRefused: boolean
   readonly pending: (() => void)[]
+  /** Os perfis de recebimento por contratante; quem não está aqui não tem perfil. */
+  profiles: readonly CargoReceivingProfile[]
   readonly refusals: Map<string, string>
   registerFailure: Error | undefined
   /** A próxima aplicação de rota rejeita com ele (`409 CARGO_ARRIVAL_CLOSED`, `422`, rede). */
@@ -172,12 +185,30 @@ function buildClient(double: CargoReceivingDouble): CargoReceivingClient {
       }
     },
     listAvailableDocuments: () => Promise.resolve({ items: double.available, nextCursor: null }),
-    listContractors: () =>
-      Promise.resolve({
-        items: CONTRACTORS.map((contractor) => ({ ...contractor })),
-        nextCursor: null,
-      }),
-    readReceivingEnabled: (contractorId) => Promise.resolve(ENABLED_CONTRACTORS.has(contractorId)),
+    listContractors: ({ cursor }) => {
+      double.calls.listContractors.push(cursor)
+      const start = cursor === null ? 0 : Number(cursor)
+      const end = start + CONTRACTOR_PAGE_SIZE
+      return Promise.resolve({
+        items: double.contractors.slice(start, end).map((contractor) => ({ ...contractor })),
+        nextCursor: end < double.contractors.length ? String(end) : null,
+      })
+    },
+    listReceivingProfiles: ({ cursor, enabled }) => {
+      double.calls.listProfiles.push({ cursor, enabled })
+      const sorted = double.profiles
+        .filter((profile) => enabled === undefined || profile.isEnabled === enabled)
+        .sort((left, right) => left.contractorId.localeCompare(right.contractorId))
+      const start =
+        cursor === null ? 0 : sorted.findIndex((item) => item.contractorId === cursor) + 1
+      const items = sorted.slice(start, start + CONTRACTOR_PAGE_SIZE)
+      const last = items.at(-1)
+      return Promise.resolve({
+        items,
+        nextCursor:
+          start + items.length < sorted.length && last !== undefined ? last.contractorId : null,
+      })
+    },
     registerArrival: (input) => {
       double.calls.register.push(structuredClone(input))
       if (double.registerFailure !== undefined) return Promise.reject(double.registerFailure)
@@ -193,13 +224,23 @@ export function installCargoReceivingDouble(
     arrivals: [buildSummary()],
     arrivalsPageSize: 100,
     available: [],
-    calls: { assignRoute: [], batch: [], close: [], listArrivals: [], register: [] },
+    calls: {
+      assignRoute: [],
+      batch: [],
+      close: [],
+      listArrivals: [],
+      listContractors: [],
+      listProfiles: [],
+      register: [],
+    },
     closeFailure: undefined,
+    contractors: CONTRACTORS.map((contractor) => ({ ...contractor })),
     failures: [],
     holdReads: false,
     isGated: false,
     isNextCursorRefused: false,
     pending: [],
+    profiles: DEFAULT_PROFILES,
     refusals: new Map(),
     registerFailure: undefined,
     routeFailure: undefined,

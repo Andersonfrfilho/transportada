@@ -24,6 +24,7 @@ export const CARGO_RECEIVING_PATHS = {
   arrivals: '/cargo-arrivals',
   availableDocuments: '/cargo-arrivals/available-documents',
   contractors: '/contractors',
+  receivingProfiles: '/contractor-receiving-profiles',
 } as const
 
 export const CARGO_RECEIVING_ERROR = {

@@ -269,40 +269,85 @@ describe('o cliente da chegada (spec 237 T2.4)', () => {
     expect((error as CargoReceivingRequestError).message).toBe('RESPONSE_INVALID')
   })
 
-  test('os contratantes e o perfil são lidos pela projeção mínima: só o que a tela usa', async () => {
-    const { calls, client } = harness((captured) =>
-      captured.url.pathname === '/contractors'
-        ? json({
-            data: [
-              {
-                closingPeriod: 'monthly',
-                displayName: 'Alfa Indústria Fictícia',
-                id: ALFA_ID,
-                notes: '',
-                reportEmail: '',
-                status: 'active',
-                taxId: '11222333000181',
-              },
-            ],
-            page: { nextCursor: null },
-          })
-        : json({ data: { contractorId: ALFA_ID, isEnabled: true, separationWindowHours: 24 } }),
+  test('os contratantes são lidos pela projeção mínima: só o que a tela usa', async () => {
+    const { calls, client } = harness(() =>
+      json({
+        data: [
+          {
+            closingPeriod: 'monthly',
+            displayName: 'Alfa Indústria Fictícia',
+            id: ALFA_ID,
+            notes: '',
+            reportEmail: '',
+            status: 'active',
+            taxId: '11222333000181',
+          },
+        ],
+        page: { nextCursor: null },
+      }),
     )
 
     const contractors = await client.listContractors({ cursor: null })
-    const isEnabled = await client.readReceivingEnabled(ALFA_ID)
 
     expect(contractors.items).toEqual([
       { displayName: 'Alfa Indústria Fictícia', id: ALFA_ID, taxId: '11222333000181' },
     ])
     expect(calls[0]?.url.searchParams.get('limit')).toBe('100')
-    expect(calls[1]?.url.pathname).toBe(`/contractors/${ALFA_ID}/receiving-profile`)
-    expect(isEnabled).toBe(true)
+  })
+})
+
+describe('a lista dos perfis de recebimento (revisão M4)', () => {
+  test('uma consulta paginada: só os ligados, limite 100 e o cursor', async () => {
+    const { calls, client } = harness(() =>
+      json({
+        data: [
+          { contractorId: ALFA_ID, isEnabled: true, previewEnabled: false },
+          { contractorId: BETA_ID, isEnabled: true, previewEnabled: true },
+        ],
+        nextCursor: BETA_ID,
+      }),
+    )
+
+    const page = await client.listReceivingProfiles({ cursor: ALFA_ID, enabled: true })
+
+    expect(calls[0]?.method).toBe('GET')
+    expect(calls[0]?.url.pathname).toBe('/contractor-receiving-profiles')
+    expect(Object.fromEntries(calls[0]?.url.searchParams ?? [])).toEqual({
+      cursor: ALFA_ID,
+      enabled: 'true',
+      limit: '100',
+    })
+    expect(page).toEqual({
+      items: [
+        { contractorId: ALFA_ID, isEnabled: true, previewEnabled: false },
+        { contractorId: BETA_ID, isEnabled: true, previewEnabled: true },
+      ],
+      nextCursor: BETA_ID,
+    })
   })
 
-  test('contratante sem perfil não tem recebimento ligado', async () => {
-    const { client } = harness(() => json({ data: null }))
+  test('sem filtro o parâmetro enabled não vai', async () => {
+    const { calls, client } = harness(() => json({ data: [], nextCursor: null }))
 
-    expect(await client.readReceivingEnabled(ALFA_ID)).toBe(false)
+    await client.listReceivingProfiles({ cursor: null, enabled: undefined })
+
+    expect([...(calls[0]?.url.searchParams.keys() ?? [])]).toEqual(['limit'])
+  })
+
+  test('chave a mais, chave a menos ou tipo errado é recusado: resposta de API é entrada não confiável', async () => {
+    const invalid = [
+      { contractorId: ALFA_ID, internal: 1, isEnabled: true, previewEnabled: true },
+      { contractorId: ALFA_ID, isEnabled: true },
+      { contractorId: ALFA_ID, isEnabled: 'sim', previewEnabled: true },
+    ]
+    for (const item of invalid) {
+      const { client } = harness(() => json({ data: [item], nextCursor: null }))
+
+      const error = await client
+        .listReceivingProfiles({ cursor: null, enabled: true })
+        .catch((caught: unknown) => caught)
+
+      expect((error as CargoReceivingRequestError).message).toBe('RESPONSE_INVALID')
+    }
   })
 })
