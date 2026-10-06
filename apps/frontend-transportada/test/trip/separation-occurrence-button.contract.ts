@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { resolveSeparationOccurrenceButtonVisibility } from '../../src/modules/trip/shared/separationOccurrenceButton.service'
 import type { OccurrenceType } from '../../src/modules/trip/shared/occurrence.constant'
+import { OCCURRENCE_REQUIREMENT_DEFAULTS } from '../fixtures/occurrenceRequirementDefaults.fixture'
 
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
 
@@ -14,6 +15,7 @@ function buildType(overrides: Partial<OccurrenceType> = {}): OccurrenceType {
   return {
     active: true,
     allowsMultipleItems: true,
+    ...OCCURRENCE_REQUIREMENT_DEFAULTS,
     attachmentMode: 'off',
     emailBody: '',
     emailSubject: '',

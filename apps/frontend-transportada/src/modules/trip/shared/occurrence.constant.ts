@@ -52,8 +52,7 @@ export type OccurrenceAttachmentMode = (typeof OCCURRENCE_ATTACHMENT_MODES)[numb
 /**
  * Spec 241 RF1: se a ocorrência do tipo carrega produtos — o mesmo vocabulário do comprovante
  * (`OCCURRENCE_ATTACHMENT_MODES`). `off` não mostra seletor nem aceita item; `optional` é o
- * comportamento de hoje. `required` é da spec 239: o painel o lê, mas o cadastro só escreve os dois
- * primeiros (`OCCURRENCE_ITEMS_WRITE_MODES`).
+ * comportamento de hoje; `required` (spec 246 RF1b) exige ao menos um produto, ou o mínimo do tipo.
  */
 export const OCCURRENCE_ITEMS_MODE = {
   off: 'off',
@@ -72,6 +71,7 @@ export type OccurrenceItemsMode = (typeof OCCURRENCE_ITEMS_MODES)[number]
 export const OCCURRENCE_ITEMS_WRITE_MODES = [
   OCCURRENCE_ITEMS_MODE.off,
   OCCURRENCE_ITEMS_MODE.optional,
+  OCCURRENCE_ITEMS_MODE.required,
 ] as const
 
 export type OccurrenceItemsWriteMode = (typeof OCCURRENCE_ITEMS_WRITE_MODES)[number]
@@ -96,6 +96,14 @@ export type OccurrenceTypeFlow = (typeof OCCURRENCE_TYPE_FLOWS)[number]
  */
 export const OCCURRENCE_MOMENTS = ['separation', 'document', 'stop', 'office'] as const
 
+export type OccurrenceMoment = (typeof OCCURRENCE_MOMENTS)[number]
+
+/** Spec 246 RF1/RF3: a API anterior aos campos novos não os manda — o painel lê o valor de hoje. */
+export const DEFAULT_OCCURRENCE_NOTE_MODE: OccurrenceAttachmentMode =
+  OCCURRENCE_ATTACHMENT_MODE.optional
+export const DEFAULT_OCCURRENCE_SIGNATURE_MODE: OccurrenceAttachmentMode =
+  OCCURRENCE_ATTACHMENT_MODE.off
+
 /**
  * Spec 246 (RF1c): a faixa da quantidade mínima de fotos. Cópia por valor de
  * `OCCURRENCE_PHOTO_MINIMUM_COUNT` da API — mudou lá, muda aqui. O painel só tolera o campo até a
@@ -103,61 +111,13 @@ export const OCCURRENCE_MOMENTS = ['separation', 'document', 'stop', 'office'] a
  */
 export const OCCURRENCE_PHOTO_MINIMUM_COUNT = { max: 5, min: 1 } as const
 
-/** O tipo como o servidor o devolve. `active` aposentado aparece apagado, nunca some da lista. */
-export type OccurrenceType = Readonly<{
-  active: boolean
-  /**
-   * Spec 166 RF3/RF8/RF9: tipo com o interruptor desligado só aceita **um** item por ocorrência —
-   * o campo de item vira seleção única, e trocar a escolha substitui em vez de somar. Padrão
-   * `true` preserva o comportamento de hoje.
-   */
-  allowsMultipleItems: boolean
-  /** Spec 179 RF1: a exigência de comprovante no registro do motorista. Ausente na API é `off`. */
-  attachmentMode: OccurrenceAttachmentMode
-  /** Legado: o e-mail digitado no próprio tipo, antes de o texto morar no módulo de notificações. */
-  emailBody: string
-  emailSubject: string
-  /** A chave do template do módulo de notificações que o tipo seleciona; nula é o legado. */
-  emailTemplateKey: null | string
-  /** Spec 218 (D1, RF-B5): qual botão do motorista este tipo alimenta. Ausente na API é `document`. */
-  flow: OccurrenceTypeFlow
-  id: string
-  /**
-   * Spec 241 RF10: ausente é API anterior ao campo — o cadastro não oferece o controle e o registro
-   * lê `optional`. Por isso não ganha padrão em `toOccurrenceType`.
-   */
-  itemsMode?: OccurrenceItemsMode
-  /**
-   * Spec 185 T6.1 (D2, RF6): só para tipos de separação — ocorrência aberta desse tipo, sobre a
-   * nota inteira, tira a nota da conta de "carga fechada" (`leavesBehindOnDispatch`) e o despacho a
-   * libera da viagem. Padrão `false`: nenhum tipo novo tira nota da viagem sem decisão explícita.
-   */
-  leavesDocumentBehind: boolean
-  name: string
-  notifies: boolean
-  /** Spec 164 D1/RF1: se aquele fato admite reentrega. Nasce `unset`, CHECK no banco. */
-  redeliveryPolicy: OccurrenceRedeliveryPolicy
-  stage: TripOccurrenceStage
-}>
-
-/**
- * Spec 218 RF-B1/RF-B3: as duas listas de exceção do `attachmentMode` de um tipo, por contratante e
- * por destinatário — mesmo par que a tela de comprovante já tem, um `attachmentMode` por chave.
- */
-export type OccurrenceAttachmentContractorOverride = Readonly<{
-  attachmentMode: OccurrenceAttachmentMode
-  contractorId: string
-}>
-
-export type OccurrenceAttachmentRecipientOverride = Readonly<{
-  attachmentMode: OccurrenceAttachmentMode
-  taxId: string
-}>
-
-export type OccurrenceAttachmentOverrides = Readonly<{
-  contractorOverrides: readonly OccurrenceAttachmentContractorOverride[]
-  recipientOverrides: readonly OccurrenceAttachmentRecipientOverride[]
-}>
+export type {
+  OccurrenceAttachmentContractorOverride,
+  OccurrenceAttachmentOverrides,
+  OccurrenceAttachmentOverridesByType,
+  OccurrenceAttachmentRecipientOverride,
+  OccurrenceType,
+} from './occurrenceType.types'
 
 /** Spec 240: o teto do motivo é o do servidor (`OCCURRENCE_CANCELLATION_REASON_TOO_LONG`). */
 export const OCCURRENCE_CANCELLATION_REASON_MAX_LENGTH = 500

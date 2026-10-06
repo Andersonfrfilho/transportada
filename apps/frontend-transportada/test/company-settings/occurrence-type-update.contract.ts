@@ -22,13 +22,25 @@ const TYPE: OccurrenceType = {
   emailTemplateKey: 'trip.occurrence',
   flow: 'stop',
   id: 'type-1',
+  itemsMinimumCount: null,
   itemsMode: 'optional',
   leavesDocumentBehind: true,
   name: 'Avaria',
+  noteMode: 'required',
   notifies: true,
+  photoMinimumCount: 2,
   redeliveryPolicy: 'blocked',
+  signatureMode: 'off',
   stage: 'delivery',
 }
+
+const NEW_FIELD_KEYS = [
+  'itemsMinimumCount',
+  'moments',
+  'noteMode',
+  'photoMinimumCount',
+  'signatureMode',
+] as const
 
 const EDITS: readonly OccurrenceTypeEdit[] = [
   { active: false },
@@ -78,5 +90,60 @@ describe('buildOccurrenceTypeUpdate', () => {
     const update = buildOccurrenceTypeUpdate(TYPE, { itemsMode: 'off' })
     expect(update.itemsMode).toBe('off')
     expect(update.redeliveryPolicy).toBe('unset')
+  })
+
+  test('os cinco campos novos só vão quando a edição os muda (RF4: ausente é "não mexe")', () => {
+    for (const edit of EDITS) {
+      const update = buildOccurrenceTypeUpdate(TYPE, edit)
+      for (const key of NEW_FIELD_KEYS) expect(update).not.toHaveProperty(key)
+    }
+    const edits: readonly OccurrenceTypeEdit[] = [
+      { noteMode: 'off' },
+      { signatureMode: 'required' },
+      { photoMinimumCount: 4 },
+      { moments: ['document', 'stop'] },
+    ]
+    for (const edit of edits) {
+      const update = buildOccurrenceTypeUpdate(TYPE, edit)
+      const [changedKey] = Object.keys(edit)
+      expect(update).toMatchObject(edit)
+      for (const key of NEW_FIELD_KEYS.filter((candidate) => candidate !== changedKey)) {
+        expect(update).not.toHaveProperty(key)
+      }
+    }
+  })
+
+  test('Produtos obrigatório manda itemsMode e, só se a edição trouxe, o mínimo', () => {
+    const withoutMinimum = buildOccurrenceTypeUpdate(TYPE, { itemsMode: 'required' })
+    expect(withoutMinimum.itemsMode).toBe('required')
+    expect(withoutMinimum).not.toHaveProperty('itemsMinimumCount')
+    expect(withoutMinimum.redeliveryPolicy).toBe('blocked')
+
+    const withMinimum = buildOccurrenceTypeUpdate(TYPE, {
+      itemsMinimumCount: 3,
+      itemsMode: 'required',
+    })
+    expect(withMinimum.itemsMinimumCount).toBe(3)
+  })
+
+  test('sair de Produtos obrigatório manda itemsMinimumCount nulo explícito', () => {
+    const required: OccurrenceType = { ...TYPE, itemsMinimumCount: 2, itemsMode: 'required' }
+    for (const itemsMode of ['optional', 'off'] as const) {
+      const update = buildOccurrenceTypeUpdate(required, { itemsMode })
+      expect(update).toHaveProperty('itemsMinimumCount')
+      expect(update.itemsMinimumCount).toBeNull()
+    }
+    expect(buildOccurrenceTypeUpdate(required, { itemsMode: 'off' }).redeliveryPolicy).toBe('unset')
+  })
+
+  test('o mínimo de produtos só vai com o tipo (já ou agora) obrigatório', () => {
+    const required: OccurrenceType = { ...TYPE, itemsMinimumCount: 2, itemsMode: 'required' }
+    expect(
+      buildOccurrenceTypeUpdate(required, { itemsMinimumCount: null }).itemsMinimumCount,
+    ).toBeNull()
+    expect(buildOccurrenceTypeUpdate(required, { itemsMinimumCount: 4 }).itemsMinimumCount).toBe(4)
+    expect(buildOccurrenceTypeUpdate(TYPE, { itemsMinimumCount: 4 })).not.toHaveProperty(
+      'itemsMinimumCount',
+    )
   })
 })

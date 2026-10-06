@@ -63,6 +63,8 @@ export type FakeTripClient = Pick<
   | 'correctTripOccurrenceItems'
   | 'createMultiVehicleSuggestion'
   | 'fieldDeliverDocument'
+  | 'listOccurrenceAttachmentOverridesBatch'
+  | 'listOccurrenceTypes'
   | 'readMultiVehicleProposal'
   | 'readMultiVehicleSuggestion'
   | 'readTripDeliveryProofs'
@@ -82,6 +84,9 @@ export function createUnexpectedTripClient(): FakeTripClient {
       Promise.reject(new Error('UNEXPECTED_CORRECT_TRIP_OCCURRENCE_ITEMS')),
     createMultiVehicleSuggestion: () => Promise.reject(new Error('UNEXPECTED_CREATE')),
     fieldDeliverDocument: () => Promise.reject(new Error('UNEXPECTED_FIELD_DELIVER_DOCUMENT')),
+    listOccurrenceAttachmentOverridesBatch: () =>
+      Promise.reject(new Error('UNEXPECTED_LIST_OCCURRENCE_OVERRIDES_BATCH')),
+    listOccurrenceTypes: () => Promise.reject(new Error('UNEXPECTED_LIST_OCCURRENCE_TYPES')),
     readMultiVehicleProposal: () => Promise.reject(new Error('UNEXPECTED_PROPOSAL_READ')),
     readMultiVehicleSuggestion: () => Promise.reject(new Error('UNEXPECTED_SUGGESTION_READ')),
     readTripDeliveryProofs: () => Promise.reject(new Error('UNEXPECTED_READ_TRIP_DELIVERY_PROOFS')),

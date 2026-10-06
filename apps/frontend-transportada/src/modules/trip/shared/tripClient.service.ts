@@ -118,6 +118,8 @@ import type { RouteChoice, RouteGeometry } from './routeGeometry.service'
 import type {
   OccurrenceAttachmentMode,
   OccurrenceAttachmentOverrides,
+  OccurrenceAttachmentOverridesByType,
+  OccurrenceMoment,
   OccurrenceRedeliveryPolicy,
   OccurrenceType,
   OccurrenceItemsWriteMode,
@@ -128,11 +130,16 @@ import {
   SETTINGS_RESOLUTION_PATH,
   type SettingsResolutionView,
 } from './settingsResolution.service'
+import {
+  readOccurrenceAttachmentOverrides,
+  readOccurrenceAttachmentOverridesBatch,
+} from './occurrenceAttachmentOverrides.validation'
 import { isRecord, isString } from './tripGuards.validation'
 
 /** Spec 079: a configuração é da empresa, não da viagem — ligar vale para toda viagem. */
 const OCCURRENCE_TYPES_PATH = '/company-settings/occurrence-types'
 /** Spec 218 RF-B3: exceções do `attachmentMode` de um tipo, por contratante e por destinatário. */
+const OCCURRENCE_TYPE_ATTACHMENT_OVERRIDES_BATCH_PATH = `${OCCURRENCE_TYPES_PATH}/attachment-overrides`
 const occurrenceTypeAttachmentOverridesPath = (occurrenceTypeId: string): string =>
   `${OCCURRENCE_TYPES_PATH}/${occurrenceTypeId}/attachment-overrides`
 /** Spec 218 T10/T11: o mesmo seletor de contratante do painel de contatos, sem importar o módulo. */
@@ -302,6 +309,11 @@ export type TripClient = Readonly<{
   listOccurrenceAttachmentOverrides: (
     input: Readonly<{ occurrenceTypeId: string }>,
   ) => Promise<OccurrenceAttachmentOverrides>
+  /**
+   * Spec 246 RF11c: as exceções de TODOS os tipos numa consulta só. API anterior à rota (404) é
+   * lista vazia, nunca erro — o catálogo segue editável.
+   */
+  listOccurrenceAttachmentOverridesBatch: () => Promise<OccurrenceAttachmentOverridesByType>
   replaceOccurrenceAttachmentOverrides: (
     input: OccurrenceAttachmentOverrides & Readonly<{ occurrenceTypeId: string }>,
   ) => Promise<OccurrenceAttachmentOverrides>
@@ -317,13 +329,21 @@ export type TripClient = Readonly<{
       flow?: OccurrenceTypeFlow | undefined
       /** Spec 241 RF4: `undefined` é "não mexe" — só vai quando a listagem trouxe `itemsMode`. */
       itemsMode?: OccurrenceItemsWriteMode | undefined
+      /** Spec 246 RF4: `undefined` é "não mexe"; `null` é "todos os itens" (só com Produtos obrigatório). */
+      itemsMinimumCount?: null | number | undefined
       /** Spec 185 T6.1 (D2, RF6): só para tipos de separação — CHECK do banco recusa em `delivery`. */
       leavesDocumentBehind: boolean
+      /** Spec 246 RF0: `undefined` é "não mexe". */
+      moments?: readonly OccurrenceMoment[] | undefined
       name: string
+      /** Spec 246 RF1/RF4: observação e assinatura — `undefined` é "não mexe". */
+      noteMode?: OccurrenceAttachmentMode | undefined
       notifies: boolean
       occurrenceTypeId: null | string
+      photoMinimumCount?: number | undefined
       /** Spec 164 RF1: conjunto completo — ausente aqui é a própria chamada regravando `unset`. */
       redeliveryPolicy: OccurrenceRedeliveryPolicy
+      signatureMode?: OccurrenceAttachmentMode | undefined
       stage: 'delivery' | 'separation'
     }>,
   ) => Promise<OccurrenceType>
@@ -554,43 +574,10 @@ function readDeliveryProofContractorOverrides(
   return input.overrides.map(normalizeDeliveryProofFieldSettings)
 }
 
-function isOccurrenceAttachmentMode(value: unknown): value is OccurrenceAttachmentMode {
-  return value === 'off' || value === 'optional' || value === 'required'
-}
-
-function isOccurrenceAttachmentContractorOverride(
-  value: unknown,
-): value is OccurrenceAttachmentOverrides['contractorOverrides'][number] {
-  return (
-    isRecord(value) &&
-    isOccurrenceAttachmentMode(value.attachmentMode) &&
-    isString(value.contractorId)
-  )
-}
-
-function isOccurrenceAttachmentRecipientOverride(
-  value: unknown,
-): value is OccurrenceAttachmentOverrides['recipientOverrides'][number] {
-  return (
-    isRecord(value) && isOccurrenceAttachmentMode(value.attachmentMode) && isString(value.taxId)
-  )
-}
-
-/** Spec 218 RF-B3: `{ contractorOverrides, recipientOverrides }`, mesmo molde do par de comprovante. */
-function readOccurrenceAttachmentOverrides(input: unknown): OccurrenceAttachmentOverrides {
-  if (
-    !isRecord(input) ||
-    !Array.isArray(input.contractorOverrides) ||
-    !Array.isArray(input.recipientOverrides) ||
-    !input.contractorOverrides.every(isOccurrenceAttachmentContractorOverride) ||
-    !input.recipientOverrides.every(isOccurrenceAttachmentRecipientOverride)
-  ) {
-    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
-  }
-  return {
-    contractorOverrides: input.contractorOverrides,
-    recipientOverrides: input.recipientOverrides,
-  }
+function readOccurrenceAttachmentOverridesOrThrow(input: unknown): OccurrenceAttachmentOverrides {
+  const overrides = readOccurrenceAttachmentOverrides(input)
+  if (overrides === undefined) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  return overrides
 }
 
 function readEnvelopeData(input: unknown): unknown {
@@ -947,11 +934,21 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           ...(input.flow === undefined ? {} : { flow: input.flow }),
           /** Spec 241 RF4: mesma regra do `flow` — ausente é "não mexe". */
           ...(input.itemsMode === undefined ? {} : { itemsMode: input.itemsMode }),
+          /** Spec 246 RF4: os cinco campos novos seguem a mesma regra — só vão quando a edição os muda. */
+          ...(input.itemsMinimumCount === undefined
+            ? {}
+            : { itemsMinimumCount: input.itemsMinimumCount }),
           leavesDocumentBehind: input.leavesDocumentBehind,
+          ...(input.moments === undefined ? {} : { moments: input.moments }),
           name: input.name,
+          ...(input.noteMode === undefined ? {} : { noteMode: input.noteMode }),
           notifies: input.notifies,
           occurrenceTypeId: input.occurrenceTypeId,
+          ...(input.photoMinimumCount === undefined
+            ? {}
+            : { photoMinimumCount: input.photoMinimumCount }),
           redeliveryPolicy: input.redeliveryPolicy,
+          ...(input.signatureMode === undefined ? {} : { signatureMode: input.signatureMode }),
           stage: input.stage,
         }),
         dependencies,
@@ -966,7 +963,22 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         method: 'GET',
         path: occurrenceTypeAttachmentOverridesPath(input.occurrenceTypeId),
       })
-      return readOccurrenceAttachmentOverrides(readEnvelopeData(response))
+      return readOccurrenceAttachmentOverridesOrThrow(readEnvelopeData(response))
+    },
+    async listOccurrenceAttachmentOverridesBatch() {
+      try {
+        const response = await authorizedRequest({
+          dependencies,
+          method: 'GET',
+          path: OCCURRENCE_TYPE_ATTACHMENT_OVERRIDES_BATCH_PATH,
+        })
+        const overrides = readOccurrenceAttachmentOverridesBatch(readEnvelopeData(response))
+        if (overrides === undefined) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+        return overrides
+      } catch (error) {
+        if (readTripRequestErrorStatus(error) === 404) return []
+        throw error
+      }
     },
     /** O corpo do `PUT` é o conjunto inteiro das duas listas — o que não veio sai. */
     async replaceOccurrenceAttachmentOverrides(input) {
@@ -979,7 +991,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         method: 'PUT',
         path: occurrenceTypeAttachmentOverridesPath(input.occurrenceTypeId),
       })
-      return readOccurrenceAttachmentOverrides(readEnvelopeData(response))
+      return readOccurrenceAttachmentOverridesOrThrow(readEnvelopeData(response))
     },
     async listContractors() {
       const response = await authorizedRequest({

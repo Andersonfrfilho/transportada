@@ -2,11 +2,14 @@
 import type { TripDeliveryProof } from './canhotoBatchSelection.service'
 import type { DeliveryProof } from './deliveryProof.service'
 import {
+  DEFAULT_OCCURRENCE_NOTE_MODE,
+  DEFAULT_OCCURRENCE_SIGNATURE_MODE,
   OCCURRENCE_ATTACHMENT_MODES,
   OCCURRENCE_ITEMS_MODES,
   OCCURRENCE_MOMENTS,
   OCCURRENCE_PHOTO_MINIMUM_COUNT,
   OCCURRENCE_TYPE_FLOWS,
+  type OccurrenceMoment,
   type OccurrenceType,
 } from './occurrence.constant'
 import {
@@ -1818,9 +1821,14 @@ type RawOccurrenceType = Omit<
   | 'allowsMultipleItems'
   | 'attachmentMode'
   | 'flow'
+  | 'itemsMinimumCount'
   | 'itemsMode'
   | 'leavesDocumentBehind'
+  | 'moments'
+  | 'noteMode'
+  | 'photoMinimumCount'
   | 'redeliveryPolicy'
+  | 'signatureMode'
 > &
   Readonly<{
     allowsMultipleItems?: unknown
@@ -1928,14 +1936,30 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     allowsMultipleItems,
     attachmentMode,
     flow,
+    itemsMinimumCount,
     itemsMode,
     leavesDocumentBehind,
+    moments,
+    noteMode,
+    photoMinimumCount,
     redeliveryPolicy,
+    signatureMode,
     ...rest
   } = raw
   return {
     ...rest,
     ...(isOneOf(itemsMode, OCCURRENCE_ITEMS_MODES) ? { itemsMode } : {}),
+    ...(Array.isArray(moments) ? { moments: moments as readonly OccurrenceMoment[] } : {}),
+    itemsMinimumCount: typeof itemsMinimumCount === 'number' ? itemsMinimumCount : null,
+    noteMode: isOneOf(noteMode, OCCURRENCE_ATTACHMENT_MODES)
+      ? noteMode
+      : DEFAULT_OCCURRENCE_NOTE_MODE,
+    photoMinimumCount: isPhotoMinimumCount(photoMinimumCount)
+      ? (photoMinimumCount as number)
+      : OCCURRENCE_PHOTO_MINIMUM_COUNT.min,
+    signatureMode: isOneOf(signatureMode, OCCURRENCE_ATTACHMENT_MODES)
+      ? signatureMode
+      : DEFAULT_OCCURRENCE_SIGNATURE_MODE,
     allowsMultipleItems: isBoolean(allowsMultipleItems) ? allowsMultipleItems : true,
     attachmentMode: isOneOf(attachmentMode, OCCURRENCE_ATTACHMENT_MODES) ? attachmentMode : 'off',
     flow: isOneOf(flow, OCCURRENCE_TYPE_FLOWS) ? flow : 'document',
