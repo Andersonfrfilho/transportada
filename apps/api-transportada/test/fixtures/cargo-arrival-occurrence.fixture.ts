@@ -23,6 +23,8 @@ import type {
   CompanyContext,
 } from '../../src/identity/domain/tenant-context.js'
 import type { TripOccurrenceStage } from '../../src/shared/trip-occurrence.constant.js'
+import type { OccurrenceAttachmentDownloadPort } from '../../src/trips/application/occurrence-attachment.service.js'
+import type { ApiLogger } from '../../src/shared/api.types.js'
 import { createOccurrenceCaseUseCase } from '../../src/trips/application/occurrence-case.use-case.js'
 import { createOccurrenceCaseRoutes } from '../../src/trips/presentation/occurrence-case.routes.js'
 import { DrizzleOccurrenceAttachmentRepository } from '../../src/trips/infrastructure/drizzle-occurrence-attachment.repository.js'
@@ -57,6 +59,9 @@ export function createOccurrenceHandler(params: {
   readonly bucket?: MemoryBucket
   readonly context?: AuthenticatedContext<CompanyContext>
   readonly database: TestDatabase
+  /** Troca a URL assinada por um dublê que falha: a foto é dado secundário da leitura. */
+  readonly downloads?: OccurrenceAttachmentDownloadPort
+  readonly logger?: ApiLogger
   readonly now?: () => Date
 }): (request: Request) => Promise<Response> {
   const db = params.database.db
@@ -65,12 +70,13 @@ export function createOccurrenceHandler(params: {
   const reads = new DrizzleCargoArrivalOccurrenceReadRepository({
     attachments: new DrizzleOccurrenceAttachmentRepository(db),
     database: db,
-    downloads: {
+    downloads: params.downloads ?? {
       createDownloadUrl: async ({ objectKey }) => ({
         expiresAt: '2099-01-01T00:00:00.000Z',
         url: `memory://${objectKey}`,
       }),
     },
+    logger: params.logger ?? { error() {}, info() {}, warn() {} },
   })
   const routes = createCargoArrivalOccurrenceRoutes({
     changeReturn: createChangeCargoArrivalReturnUseCase({
