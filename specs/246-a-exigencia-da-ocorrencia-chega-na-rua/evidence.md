@@ -283,3 +283,16 @@ error: expect(received).toEqual(expected)
 
 Restaurado: `1 pass, 0 fail`. A prova de **comportamento** da CA04 (`TRIP_OCCURRENCE_NOTE_REQUIRED`)
 é a T2.3b, depois da T2.3.
+
+### Gates ao fechar a Fase 1 (2026-10-06, primeiro plano)
+
+| Gate                                                                         | Resultado                                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun install --frozen-lockfile`                                              | sem mudanças                                                                                                                                                                                                                        |
+| `bun run typecheck`                                                          | saída 0, 0 erros                                                                                                                                                                                                                    |
+| `./node_modules/.bin/prettier --check .` e `bun run format:check`            | "All matched files use Prettier code style!"                                                                                                                                                                                        |
+| contrato da API (`bun --env-file=../../.env.test test --timeout 120000`)     | `9727 pass, 25 skip, 0 fail` (199 arquivos); antes da fase, em `f86a9e8c2`: `9717 pass, 25 skip, 0 fail` — os 25 pulados são anteriores                                                                                             |
+| integração, um arquivo por vez com `--env-file=../../.env.test`              | `occurrence-type-requirement-modes` 1/0 · `occurrence-type-items-mode` 5/0 · `occurrence-type-catalog-seed` 2/0 · `occurrence-type-redelivery-policy` 2/0 · `occurrence-type-leaves-document-behind` 4/0 (pass/fail, nenhum pulado) |
+| `make migration-test ENV_FILE=.env.test` (Postgres de teste 127.0.0.1:65432) | `127 pass, 0 fail, 0 skip`                                                                                                                                                                                                          |
+| `bun run db:generate`                                                        | `no_changes`                                                                                                                                                                                                                        |
+| `bun run --cwd apps/api-transportada build`                                  | saída 0                                                                                                                                                                                                                             |
