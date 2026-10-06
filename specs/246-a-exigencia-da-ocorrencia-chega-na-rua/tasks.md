@@ -232,7 +232,7 @@ o.attachment_mode <> 'required'`. Registrar os números em `evidence.md`. **A Fa
 - [x] **T4.1b** O formulário também bloqueia por `itemsMode` (produtos marcados, ou todos os itens
       da nota) e por `photoMinimumCount` (fotos capturadas ≥ mínimo) — RF7, RF1c, RF1c2.
 - [x] **T4.2** A assinatura entra no item de fila que já existe, nunca num item novo (209 D1).
-- [ ] **T4.3** Contrato do app cobrindo CA05, e o caminho offline.
+- [x] **T4.3** Contrato do app cobrindo CA05, e o caminho offline.
 
 ## Fase 5 — O cadastro muda de endereço
 

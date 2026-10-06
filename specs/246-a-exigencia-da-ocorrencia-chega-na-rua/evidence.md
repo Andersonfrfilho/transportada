@@ -1838,3 +1838,34 @@ verde — o envio deixa de mandar `signatureObjectId`:
 
 A paridade com a API é a da T2.7 (`attachmentObjectIds`, 1–5) e da T2.4 (`signatureObjectId`), com integração verde
 (`driver-occurrence-attachment-list` 2/0, `occurrence-requirement-modes-write` 5/0, `occurrence-signature-isolation` 1/0).
+
+### T4.3 — O contrato do app: CA05 e o caminho offline
+
+`occurrence-offline-gate.contract.ts` (6 testes). `globalThis.fetch` é trocado por um que conta a chamada e rejeita
+(`Failed to fetch`); todo o gate e o despacho rodam com ele e o contador termina em **0**:
+
+- seis passos de captura (observação → produtos → foto → segunda foto → assinatura) tiram um motivo da lista por vez
+  e o último libera o botão (CA05); a foto ainda sendo reduzida segura o botão mesmo com tudo capturado;
+- tudo exigido capturado: o registro entra na fila (memória) como **um** item com a observação, as duas fotos e a
+  assinatura;
+- sem a assinatura, ou tirando cada campo obrigatório sozinho (observação, produtos, foto, segunda foto,
+  assinatura): `blocked`, o handler não é chamado e a fila segue **vazia**;
+- o botão é `disabled={!canRegister}` e quem chama só fecha o formulário quando registrou.
+
+Vermelho de comportamento: as mutações M1 (gate sem a assinatura) e M3 (despacho sem bloquear) da T4.1 deixam este
+arquivo vermelho (3 falhas cada — ver acima). Gates ao fechar a Fase 4 (primeiro plano, 2026-10-06):
+
+| Gate                                                                 | Resultado                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun install --frozen-lockfile`                                      | sem mudanças                                                                                                                                                                                                                                                                                                                     |
+| `bun run typecheck` (raiz)                                           | saída 0, sete apps                                                                                                                                                                                                                                                                                                               |
+| `./node_modules/.bin/prettier --check .` e `bun run format:check`    | "All matched files use Prettier code style!"                                                                                                                                                                                                                                                                                     |
+| `bun run --cwd apps/frontend-driver test`                            | `1242 pass, 0 fail` (eram 1199)                                                                                                                                                                                                                                                                                                  |
+| `bun run lint` (app como cwd) e `bun run typecheck` da app           | 0 erros, 0 avisos                                                                                                                                                                                                                                                                                                                |
+| `bun run --cwd apps/frontend-driver build`                           | saída 0 (precache 14 arquivos, `dist.contract` 6 pass)                                                                                                                                                                                                                                                                           |
+| contrato da API (`--env-file=../../.env.test test --timeout 120000`) | `9876 pass, 25 skip, 0 fail` (199 arquivos; os 25 pulados são anteriores)                                                                                                                                                                                                                                                        |
+| integração da API, um arquivo por vez, `--env-file=../../.env.test`  | `occurrence-effective-requirements-parity` 2/0 · `occurrence-requirement-modes-registration` 3/0 · `occurrence-requirement-modes-write` 5/0 · `occurrence-signature-isolation` 1/0 · `driver-occurrence-attachment-list` 2/0 · `me-trip` 21/0 · `whatsapp-driver-flow-actions` 4/0 · `trip-field-authorship` 5/0 — nenhum pulado |
+
+**Não coube:** apontar produto **por item** (precisa de snapshot com itens e de rota com lista — ver T4.1b); o smoke
+Playwright do app não foi rodado nem estendido; a revisão visual do formulário novo (print, tema claro/escuro) fica para
+a T6.1; `CLAUDE.md` e `docs/ai-context/frontend-driver.md` ficam para a T6.2.
