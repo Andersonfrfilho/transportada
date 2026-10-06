@@ -7,6 +7,7 @@ import { createBillingRoutes } from '../src/billing/presentation/billing.routes'
 import { createCargoArrivalSeparationRoutes } from '../src/cargo-receiving/presentation/cargo-arrival-separation.routes'
 import { createCargoArrivalRoutes } from '../src/cargo-receiving/presentation/cargo-arrival.routes'
 import { createCargoPreviewActionRoutes } from '../src/cargo-receiving/presentation/cargo-preview-action.routes'
+import { createCargoPreviewTripDraftRoutes } from '../src/cargo-receiving/presentation/cargo-preview-trip-draft.routes'
 import { createCargoPreviewRoutes } from '../src/cargo-receiving/presentation/cargo-preview.routes'
 import { createCteIssuanceRoutes } from '../src/cte-issuance/presentation/cte-issuance.routes'
 import { createCompanyCrewSettingsRoutes } from '../src/fleet/presentation/crew-settings.routes'
@@ -103,6 +104,7 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     // envia a planilha e decide o vínculo com as mesmas `fleet.read`/`trip.manage`.
     ...createCargoPreviewRoutes(dependencies),
     ...createCargoPreviewActionRoutes(dependencies),
+    ...createCargoPreviewTripDraftRoutes(dependencies),
   ]
 
   return routes

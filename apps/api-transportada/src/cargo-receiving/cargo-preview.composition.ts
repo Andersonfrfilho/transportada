@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 237 T4.2: as rotas da prévia montadas num lugar só, para o `main.ts` só espalhá-las. O
+ * Spec 237 T4.2 e T5.1: as rotas da prévia montadas num lugar só, para o `main.ts` só espalhá-las. O
  * arquivo vai ao bucket privado da instalação, o mesmo das notas.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
@@ -16,11 +16,14 @@ import {
   createGetCargoPreviewUseCase,
   createListCargoPreviewsUseCase,
 } from './application/read-cargo-preview.use-case.js'
+import { createGetCargoPreviewTripDraftsUseCase } from './application/read-cargo-preview-trip-drafts.use-case.js'
 import { createUploadCargoPreviewUseCase } from './application/upload-cargo-preview.use-case.js'
 import { DrizzleCargoPreviewActionRepository } from './infrastructure/drizzle-cargo-preview-action.repository.js'
 import { DrizzleCargoPreviewReadRepository } from './infrastructure/drizzle-cargo-preview-read.repository.js'
+import { DrizzleCargoPreviewTripDraftRepository } from './infrastructure/drizzle-cargo-preview-trip-draft.repository.js'
 import { DrizzleCargoPreviewUploadRepository } from './infrastructure/drizzle-cargo-preview-upload.repository.js'
 import { createCargoPreviewActionRoutes } from './presentation/cargo-preview-action.routes.js'
+import { createCargoPreviewTripDraftRoutes } from './presentation/cargo-preview-trip-draft.routes.js'
 import { createCargoPreviewRoutes } from './presentation/cargo-preview.routes.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -49,6 +52,11 @@ export function createCargoPreviewHttpRoutes(input: {
     ...createCargoPreviewActionRoutes({
       itemAction: createCargoPreviewItemActionUseCase(actions),
       proposeArrival: createProposeCargoPreviewArrivalUseCase(actions),
+    }),
+    ...createCargoPreviewTripDraftRoutes({
+      getTripDrafts: createGetCargoPreviewTripDraftsUseCase({
+        repository: new DrizzleCargoPreviewTripDraftRepository(input.database),
+      }),
     }),
   ]
 }

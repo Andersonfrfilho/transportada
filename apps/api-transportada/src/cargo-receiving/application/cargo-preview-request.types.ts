@@ -48,6 +48,10 @@ export type GetCargoPreviewParams = ContextParams & {
   readonly previewId: string
 }
 
+export type GetCargoPreviewTripDraftsParams = ContextParams & {
+  readonly previewId: string
+}
+
 export type CargoPreviewItemActionParams = ContextParams & {
   readonly action: CargoPreviewItemAction
   readonly correlationId: string

@@ -29,7 +29,10 @@ import {
   withCargoDatabase,
   type TestDatabase,
 } from '../fixtures/cargo-arrival-database.fixture.js'
-import { createPreviewStorage, seedReadyPreview } from '../fixtures/cargo-preview-database.fixture.js'
+import {
+  createPreviewStorage,
+  seedReadyPreview,
+} from '../fixtures/cargo-preview-database.fixture.js'
 import {
   authenticatedContext,
   COMPANY_CONTEXT,
@@ -48,7 +51,7 @@ type TripDraftsBody = {
     readonly routes: readonly {
       readonly canPropose: boolean
       readonly cannotProposeReason: string | null
-      readonly cities: readonly { readonly cityName: string | null; readonly documentCount: number }[]
+      readonly cities: readonly Readonly<Record<string, unknown>>[]
       readonly counts: Record<string, number>
       readonly documents: readonly {
         readonly documentId: string
@@ -62,7 +65,11 @@ type TripDraftsBody = {
       readonly missingCount: number
       readonly routableDocumentIds: readonly string[]
       readonly routeName: string | null
-      readonly totals: { readonly value: string; readonly volumeM3: string | null; readonly weightKg: string }
+      readonly totals: {
+        readonly value: string
+        readonly volumeM3: string | null
+        readonly weightKg: string
+      }
     }[]
     readonly summary: Record<string, unknown>
   }
@@ -88,7 +95,10 @@ function createGet(database: TestDatabase) {
       jsonRequest({ method: 'GET', path: `/cargo-previews/${previewId}/trip-drafts` }),
       { timeout() {} },
     )
-    return { body: response.status === 200 ? ((await response.json()) as TripDraftsBody) : null, status: response.status }
+    return {
+      body: response.status === 200 ? ((await response.json()) as TripDraftsBody) : null,
+      status: response.status,
+    }
   }
 }
 
@@ -109,7 +119,9 @@ async function seedItems(
 ): Promise<void> {
   const companyId = COMPANY_CONTEXT.companyId
   const links = new Set(
-    input.items.flatMap((item) => (item.state === 'matched' && item.documentId ? [item.documentId] : [])),
+    input.items.flatMap((item) =>
+      item.state === 'matched' && item.documentId ? [item.documentId] : [],
+    ),
   )
   for (const documentId of links) {
     await database.db
@@ -122,10 +134,12 @@ async function seedItems(
       companyId,
       matchState: item.state,
       matchedAt: item.state === 'awaiting_xml' || item.state === 'invalid' ? null : new Date(),
-      matchedBy: item.state === 'awaiting_xml' || item.state === 'invalid' ? null : ('system' as const),
+      matchedBy:
+        item.state === 'awaiting_xml' || item.state === 'invalid' ? null : ('system' as const),
       matchedDocumentId: item.state === 'matched' ? (item.documentId ?? null) : null,
       previewId: input.previewId,
-      rowError: item.state === 'invalid' ? [{ column: 'VALOR', field: 'value', message: 'x' }] : null,
+      rowError:
+        item.state === 'invalid' ? [{ column: 'VALOR', field: 'value', message: 'x' }] : null,
       routeName: item.routeName,
       rowNumber: item.rowNumber,
       state: 'SP',
@@ -209,13 +223,43 @@ describe('os rascunhos de viagem da prévia contra o banco (spec 237 T5.1)', () 
         await seedLiveTrip(database, live)
         await seedItems(database, {
           items: [
-            { documentId: free, rowNumber: 1, routeName: 'FR.B', state: 'matched', value: '100.00', volumeM3: '0.2000' },
-            { documentId: free, rowNumber: 2, routeName: 'FR.B', state: 'matched', value: '200.00', volumeM3: '0.1000', weightKg: '6.500' },
+            {
+              documentId: free,
+              rowNumber: 1,
+              routeName: 'FR.B',
+              state: 'matched',
+              value: '100.00',
+              volumeM3: '0.2000',
+            },
+            {
+              documentId: free,
+              rowNumber: 2,
+              routeName: 'FR.B',
+              state: 'matched',
+              value: '200.00',
+              volumeM3: '0.1000',
+              weightKg: '6.500',
+            },
             { documentId: twin, rowNumber: 3, routeName: 'FR.B', state: 'matched', value: '50.00' },
             { rowNumber: 4, routeName: 'FR.B', state: 'awaiting_xml' },
             { rowNumber: 5, routeName: 'FR.B', state: 'suggested' },
-            { city: 'ARARAQUARA', documentId: live, rowNumber: 6, routeName: 'FR.A', state: 'matched', value: '80.00' },
-            { city: 'ARARAQUARA', documentId: araraquara, rowNumber: 7, routeName: 'FR.A', state: 'matched', value: '70.00', weightKg: '7.000' },
+            {
+              city: 'ARARAQUARA',
+              documentId: live,
+              rowNumber: 6,
+              routeName: 'FR.A',
+              state: 'matched',
+              value: '80.00',
+            },
+            {
+              city: 'ARARAQUARA',
+              documentId: araraquara,
+              rowNumber: 7,
+              routeName: 'FR.A',
+              state: 'matched',
+              value: '70.00',
+              weightKg: '7.000',
+            },
             { rowNumber: 8, routeName: 'FR.A', state: 'ambiguous' },
             { rowNumber: 9, routeName: null, state: 'invalid' },
           ],
@@ -257,7 +301,12 @@ describe('os rascunhos de viagem da prévia contra o banco (spec 237 T5.1)', () 
         expect(routeB?.routableDocumentIds).toEqual([twin, free])
         expect(routeB?.canPropose).toBe(true)
         expect(routeB?.cities).toEqual([
-          { cityIbgeCode: SAO_CARLOS, cityName: 'São Carlos', documentCount: 2, pendingLineCount: 2 },
+          {
+            cityIbgeCode: SAO_CARLOS,
+            cityName: 'São Carlos',
+            documentCount: 2,
+            pendingLineCount: 2,
+          },
         ])
 
         expect(routeA?.documents.map((entry) => [entry.number, entry.isInLiveTrip])).toEqual([
@@ -284,26 +333,29 @@ describe('os rascunhos de viagem da prévia contra o banco (spec 237 T5.1)', () 
     },
   )
 
-  testWithPostgres('prévia sem nenhum vínculo: todos os roteiros com `canPropose=false`', async () => {
-    await withCargoDatabase(async (database, tenants) => {
-      const get = createGet(database)
-      const previewId = await seedReadyPreview(database, { ...tenants, label: 'sem-vinculo' })
-      await seedItems(database, {
-        items: [
-          { rowNumber: 1, routeName: 'FR.A', state: 'awaiting_xml' },
-          { rowNumber: 2, routeName: 'FR.B', state: 'awaiting_xml' },
-          { rowNumber: 3, routeName: 'FR.B', state: 'suggested' },
-        ],
-        previewId,
+  testWithPostgres(
+    'prévia sem nenhum vínculo: todos os roteiros com `canPropose=false`',
+    async () => {
+      await withCargoDatabase(async (database, tenants) => {
+        const get = createGet(database)
+        const previewId = await seedReadyPreview(database, { ...tenants, label: 'sem-vinculo' })
+        await seedItems(database, {
+          items: [
+            { rowNumber: 1, routeName: 'FR.A', state: 'awaiting_xml' },
+            { rowNumber: 2, routeName: 'FR.B', state: 'awaiting_xml' },
+            { rowNumber: 3, routeName: 'FR.B', state: 'suggested' },
+          ],
+          previewId,
+        })
+
+        const { body } = await get(previewId)
+
+        expect(body?.data.routes.map((route) => route.canPropose)).toEqual([false, false])
+        expect(body?.data.routableDocumentIds).toEqual([])
+        expect(body?.data.summary).toMatchObject({ canPropose: false, missingCount: 2 })
       })
-
-      const { body } = await get(previewId)
-
-      expect(body?.data.routes.map((route) => route.canPropose)).toEqual([false, false])
-      expect(body?.data.routableDocumentIds).toEqual([])
-      expect(body?.data.summary).toMatchObject({ canPropose: false, missingCount: 2 })
-    })
-  })
+    },
+  )
 
   testWithPostgres('a prévia de outra empresa, ou que não existe, é 404', async () => {
     await withCargoDatabase(async (database, tenants) => {

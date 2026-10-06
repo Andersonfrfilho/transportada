@@ -12,6 +12,7 @@ import type {
   ReopenCargoPreviewRecord,
 } from './cargo-preview-request.types.js'
 import type { Paging } from '../../http/request-parsing.service.js'
+import type { TripDraftInput } from '../domain/cargo-preview-trip-draft.types.js'
 import type { Page } from './cargo-arrival.types.js'
 import type {
   CargoPreviewArrivalProposal,
@@ -75,4 +76,9 @@ export type CargoPreviewActionRepositoryPort = {
       readonly previewId: string
     },
   ): Promise<CargoPreviewArrivalProposal | 'not_found' | 'not_ready'>
+}
+
+export type CargoPreviewTripDraftRepositoryPort = {
+  /** As linhas que a política dos rascunhos julga; `null` para a prévia de outra empresa ou inexistente. */
+  findInput(params: Scope & { readonly previewId: string }): Promise<TripDraftInput | null>
 }

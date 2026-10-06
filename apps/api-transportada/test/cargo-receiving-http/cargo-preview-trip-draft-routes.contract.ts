@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 237 T5.1: `GET /cargo-previews/:id/trip-drafts` é leitura (`fleet.read`, que o separador tem), não
- * aceita query nem corpo, e o `:id` é UUID. Nada vira viagem aqui: a rota só lê.
+ * aceita query nem corpo, e o `:id` canônico é UUID (outro formato nem casa a rota). Nada vira viagem aqui: a rota só lê.
  */
 import { describe, expect, test } from 'bun:test'
 
@@ -68,12 +68,12 @@ describe('os rascunhos de viagem da prévia por HTTP (spec 237 T5.1)', () => {
     expect(fixture.calls).toEqual([])
   })
 
-  test('id que não é UUID é 400', async () => {
+  test('id que não é UUID não casa a rota: 404, e o caso de uso nem roda', async () => {
     const fixture = createFixture(READER)
 
     const response = await fixture.handle(get('/cargo-previews/nao-e-uuid/trip-drafts'))
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(404)
     expect(fixture.calls).toEqual([])
   })
 

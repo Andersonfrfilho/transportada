@@ -86,6 +86,7 @@ export const API_CARGO_ARRIVAL_ROUTE_ASSIGNMENT_PATH = '/cargo-arrivals/:id/rout
 export const API_CARGO_ARRIVAL_CLOSE_PATH = '/cargo-arrivals/:id/close'
 export const API_CARGO_PREVIEWS_PATH = '/cargo-previews'
 export const API_CARGO_PREVIEW_PATH = '/cargo-previews/:id'
+export const API_CARGO_PREVIEW_TRIP_DRAFTS_PATH = '/cargo-previews/:id/trip-drafts'
 export const API_CARGO_PREVIEW_ITEM_CONFIRM_PATH = '/cargo-previews/:id/items/:itemId/confirm'
 export const API_CARGO_PREVIEW_ITEM_UNLINK_PATH = '/cargo-previews/:id/items/:itemId/unlink'
 export const API_CARGO_PREVIEW_ITEM_LINK_PATH = '/cargo-previews/:id/items/:itemId/link'

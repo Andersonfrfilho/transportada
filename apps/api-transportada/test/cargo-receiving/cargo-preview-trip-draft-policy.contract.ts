@@ -256,9 +256,9 @@ describe('os rascunhos de viagem da prévia (spec 237 T5.1)', () => {
     expect(drafts.routes.map((route) => route.canPropose)).toEqual([false, false])
     expect(drafts.routableDocumentIds).toEqual([])
     expect(drafts.summary.canPropose).toBe(false)
-    expect(drafts.routes.every((route) => route.cannotProposeReason === 'no_linked_documents')).toBe(
-      true,
-    )
+    expect(
+      drafts.routes.every((route) => route.cannotProposeReason === 'no_linked_documents'),
+    ).toBe(true)
   })
 
   test('com nota utilizável o rascunho propõe, sem motivo de recusa', () => {
@@ -309,9 +309,9 @@ describe('os rascunhos de viagem da prévia (spec 237 T5.1)', () => {
       ],
     })
 
-    expect(drafts.routes[0]?.cities.map((city) => city.documentCount + city.pendingLineCount)).toEqual(
-      [1, 1],
-    )
+    expect(
+      drafts.routes[0]?.cities.map((city) => city.documentCount + city.pendingLineCount),
+    ).toEqual([1, 1])
   })
 
   test('os totais do roteiro somam a planilha inteira; os da nota somam só as vinculadas, uma vez cada', () => {
