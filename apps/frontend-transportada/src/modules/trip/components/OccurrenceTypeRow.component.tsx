@@ -17,6 +17,7 @@ import {
   TRIP_OCCURRENCE_STAGE,
 } from '@/modules/trip/shared/occurrence.constant'
 import type { OccurrenceTypeExceptionsState } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
+import type { OccurrenceEmailTemplatesState } from '@/modules/trip/shared/occurrenceTemplate.service'
 import styles from '@/modules/trip/styles/trip.module.css'
 
 import { useOccurrenceTypeOptions } from '../hooks/useOccurrenceTypeOptions.hook'
@@ -25,6 +26,7 @@ import {
   type OccurrenceTypeSaveInput,
 } from '../shared/occurrenceTypeUpdate.service'
 import { OccurrenceTypeExceptions } from './OccurrenceTypeExceptions.component'
+import { OccurrenceTypeNotification } from './OccurrenceTypeNotification.component'
 import { OccurrenceTypeMoments } from './OccurrenceTypeMoments.component'
 import { OccurrenceTypeRequirementFields } from './OccurrenceTypeRequirementFields.component'
 
@@ -33,7 +35,7 @@ type OccurrenceTypeRowProps = Readonly<{
   exceptions: OccurrenceTypeExceptionsState
   isSaving: boolean
   onSave: (input: OccurrenceTypeSaveInput) => void
-  templateLabel: string
+  templates: OccurrenceEmailTemplatesState
   type: OccurrenceType
 }>
 
@@ -42,7 +44,7 @@ export function OccurrenceTypeRow({
   exceptions,
   isSaving,
   onSave,
-  templateLabel,
+  templates,
   type,
 }: OccurrenceTypeRowProps) {
   const { t } = useTranslation('companySettings')
@@ -52,12 +54,11 @@ export function OccurrenceTypeRow({
 
   return (
     <div className={styles.occurrenceForm}>
-      <span className={styles.hint}>{templateLabel}</span>
-      <Checkbox
-        checked={type.notifies}
+      <OccurrenceTypeNotification
         disabled={isDisabled}
-        label={t('occurrenceTypeCatalog.notifies')}
-        onChange={(value) => onSave(buildOccurrenceTypeUpdate(type, { notifies: value }))}
+        onEdit={(edit) => onSave(buildOccurrenceTypeUpdate(type, edit))}
+        templates={templates}
+        type={type}
       />
       <Checkbox
         checked={type.active}

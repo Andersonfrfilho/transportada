@@ -417,6 +417,16 @@
         "empty": "Escolha ao menos um momento: sem nenhum o tipo não aparece para ninguém, então nada foi gravado.",
         "documentAndStop": "Entrega da nota e Chegada à parada não podem estar juntas no mesmo tipo: o aplicativo do motorista mostraria o tipo duas vezes. Nada foi gravado."
       }
+    },
+    "notification": {
+      "title": "Notificação",
+      "template": "Modelo da notificação",
+      "templateHint": "O e-mail que o contratante recebe quando este tipo é registrado. O texto se edita em Notificações; aqui só se escolhe qual modelo vale.",
+      "subject": "Assunto:",
+      "disabledReason": "O modelo só vale quando o tipo avisa o contratante. Ligue \"Avisar quando acontecer\" para escolher.",
+      "loading": "Carregando os modelos de e-mail…",
+      "failed": "Não foi possível carregar os modelos de e-mail. O modelo atual segue valendo; recarregue a página para tentar de novo.",
+      "missing": "O modelo \"{{key}}\" não está mais ativo, então nenhum e-mail sai por ele. Escolha outro modelo."
     }
   },
   "settingsResolution": {

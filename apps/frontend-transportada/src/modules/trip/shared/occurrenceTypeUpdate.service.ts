@@ -53,6 +53,7 @@ export type OccurrenceTypeEdit = Readonly<
       | 'active'
       | 'allowsMultipleItems'
       | 'attachmentMode'
+      | 'emailTemplateKey'
       | 'flow'
       | 'itemsMinimumCount'
       | 'itemsMode'

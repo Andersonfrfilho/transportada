@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs'
 const PANEL_FILES = [
   'OccurrenceTypeCatalogPanel.component.tsx',
   'OccurrenceTypeRow.component.tsx',
+  'OccurrenceTypeNotification.component.tsx',
   'OccurrenceTypeCreateForm.component.tsx',
 ] as const
 

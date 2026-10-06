@@ -80,7 +80,7 @@ async function mount(type: OccurrenceType): Promise<void> {
         exceptions: EMPTY_EXCEPTIONS_STATE,
         isSaving: false,
         onSave: (input) => saved.push(input),
-        templateLabel: 'Sem e-mail',
+        templates: { options: [], status: 'ready' },
         type,
       }),
     ),
