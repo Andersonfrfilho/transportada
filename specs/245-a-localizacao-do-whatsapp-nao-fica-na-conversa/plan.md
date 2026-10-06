@@ -13,10 +13,11 @@ O worker **não** muda (D3).
 
 ## Pacote
 
-1. **Sincronizar antes de tudo.** `git fetch` no repositório de pacotes; o `package.json` local do módulo
-   diz `0.6.0` e o npm tem `0.7.0`. Conferir que `src/channel/ReceiveWebhook.use-case.ts` (`extractContent`
-   `:63-78`, `extractPayload` `:80-92`) corresponde ao `dist/index.js:2580-2602` do tarball `0.7.0`. Se não
-   corresponder, parar: o changeset nasce da fonte publicada.
+1. **Worktree a partir de `origin/main`.** O checkout principal do repositório de pacotes tem branch de
+   feature e árvore suja de outra sessão: **não usar**. `git fetch` e
+   `git worktree add ../adatechnology-packages-wt/<nome> -b <branch> origin/main`. T1.1 conferiu fonte ==
+   tarball `0.7.0` (37/37 arquivos, 11/11 migrations, 73/73 exports; `extractContent` `:64-78`,
+   `extractPayload` `:80-92`).
 2. **Constante** `INBOUND_LOCATION_CONTENT = '📍 Localização'` (a string já existe em `extractContent`); usada
    pelo ingest com a opção ligada e pelo caso de uso de redação.
 3. **Opção** em `MetaWhatsAppModuleFeatures` (`createMetaWhatsAppModule.ts:72-95`):
@@ -24,13 +25,14 @@ O worker **não** muda (D3).
    compatibilidade). Passa ao `ReceiveWebhookUseCase` por parâmetro; `extractContent`/`extractPayload`
    recebem a decisão (função pura, parâmetro único em objeto se passar de um).
 4. **Caso de uso** `RedactInboundLocationsUseCase` (`use-cases/RedactInboundLocations.use-case.ts`), com
-   `MessageRepository.redactInboundLocations({ companyId, receivedBefore, limit })` executando o `UPDATE` do
-   D2 (subconsulta com `ORDER BY created_at LIMIT`, `payload - 'location'`, `NULL` quando vazio, `content`
-   só quando `type = 'location'`, `RETURNING id`). Exposto em `conversations.redactInboundLocations`, ao
-   lado de `purgeExpiredDocuments` (`createMetaWhatsAppModule.ts:350`). Devolve `{ redacted }`.
+   `MessageRepository.redactInboundLocations({ companyId, receivedBefore: Date, batchSize? })` executando o
+   SQL do D2 (CTE com `FOR UPDATE SKIP LOCKED`, sem `ORDER BY`, guard `jsonb_typeof`, `NULLIF`, `content`
+   só quando `type = 'location'`). Mais `countInboundLocations` → `{ counted, unreachable }`. Expostos em
+   `conversations.redactInboundLocations`/`countInboundLocations`, ao lado de `purgeExpiredDocuments`
+   (`createMetaWhatsAppModule.ts:350`); `index.ts` exporta os casos de uso e `INBOUND_LOCATION_CONTENT`.
 5. **Testes** (padrão do pacote: `*.test.ts` e `*.integration.test.ts` ao lado da fonte):
    - `ReceiveWebhook.location.test.ts` (existe) ganha os casos com a opção ligada/desligada (CA1).
-   - `MessageRepository.redactInboundLocations.integration.test.ts` (novo), no molde de
+   - `MessageRepository.redactInboundLocations.integration.test.ts` (novo; padrão `*.integration.test.ts`), no molde de
      `MessageRepository.deliveryError.integration.test.ts`, contra Postgres descartável com as migrations
      do pacote (CA2).
 6. **Changeset** `minor` para `@adatechnology/meta-whatsapp-module`; os contratos e o provider não mudam.
@@ -51,9 +53,7 @@ O worker **não** muda (D3).
    igual ao rótulo sem nome (CA3). A asserção vem **antes** do bump (teste vermelho com a `0.7.0`).
 4. `scripts/whatsapp-location-redact.ts`: argumentos validados com Zod; abre o banco pela config validada
    do script de publicação de fluxo; chama `conversations.redactInboundLocations` em laço até `redacted =
-0` (com `--confirm`) ou conta com `SELECT count(*)` equivalente ao filtro (sem `--confirm`) — a contagem
-   vem do pacote se ele expuser, senão de consulta parametrizada no script, comentada como leitura do
-   schema do pacote. Log `whatsapp.location.redacted` com `companyId` e totais. Contrato em
+0` (com `--confirm`) ou `countInboundLocations` (sem `--confirm`) — a contagem vem do pacote. Log `whatsapp.location.redacted` com `companyId` e totais. Contrato em
    `test/whatsapp/location-redact-script.contract.ts`, entrada na lista explícita do `package.json`.
    ⚠️ Para o script não precisar de token da Meta para construir o módulo, instanciar só o
    `MessageRepository` (já exportado, `src/index.ts:103`) e o caso de uso novo, que a T1.4 exporta do
