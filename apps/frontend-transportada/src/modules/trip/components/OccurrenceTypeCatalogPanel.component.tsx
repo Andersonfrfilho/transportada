@@ -3,9 +3,11 @@
  */
 import { useTranslation } from 'react-i18next'
 
-import { TRIP_OCCURRENCE_STAGE } from '@/modules/trip/shared/occurrence.constant'
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
-import { buildOccurrenceEmailTemplateOptions } from '@/modules/trip/shared/occurrenceTemplate.service'
+import {
+  buildOccurrenceEmailTemplateOptions,
+  type OccurrenceEmailTemplatesState,
+} from '@/modules/trip/shared/occurrenceTemplate.service'
 import { useEmailTemplatesQuery } from '@/modules/notification/queries/useEmailTemplates.query'
 import { useOccurrenceAttachmentOverridesBatchQuery } from '@/modules/trip/queries/useOccurrenceAttachmentOverridesBatch.query'
 import type { OccurrenceTypeExceptionsState } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
@@ -14,7 +16,12 @@ import styles from '@/modules/trip/styles/trip.module.css'
 import { useOccurrenceExceptionPeople } from '../hooks/useOccurrenceExceptionPeople.hook'
 import type { OccurrenceTypeSaveInput } from '../shared/occurrenceTypeUpdate.service'
 import { OccurrenceTypeCreateForm } from './OccurrenceTypeCreateForm.component'
-import { OccurrenceTypeItem } from './OccurrenceTypeItem.component'
+import { OccurrenceTypeList } from './OccurrenceTypeList.component'
+
+function toLoadStatus(query: Readonly<{ isError: boolean; isSuccess: boolean }>) {
+  if (query.isError) return 'error' as const
+  return query.isSuccess ? ('ready' as const) : ('loading' as const)
+}
 
 export type OccurrenceTypeCatalogPanelProps = Readonly<{
   canManage: boolean
@@ -26,7 +33,7 @@ export type OccurrenceTypeCatalogPanelProps = Readonly<{
 }>
 
 /**
- * Spec 079, movido para Configurações → "Tipos de ocorrência": esta tela é o **cadastro** do
+ * Spec 079, hoje a aba Tipos de `/ocorrencias` (spec 246): esta tela é o **cadastro** do
  * catálogo (nome, etapa, interruptor de aviso, modelo de e-mail), não uma tela de avisos — morar em
  * Viagens → "Avisos" escondia o cadastro atrás do nome do efeito colateral dele.
  *
@@ -68,18 +75,9 @@ export function OccurrenceTypeCatalogPanel({
   }
 
   const emailTemplates = useEmailTemplatesQuery({ enabled: canManage })
-  const templateOptions = buildOccurrenceEmailTemplateOptions(emailTemplates.data ?? [])
-
-  function templateLabelOf(type: OccurrenceType): string {
-    if (type.emailTemplateKey !== null) {
-      const option = templateOptions.find((candidate) => candidate.key === type.emailTemplateKey)
-      /** Sem a lista carregada (ou modelo desativado depois), a chave crua ainda diz qual é. */
-      return option?.label ?? type.emailTemplateKey
-    }
-    if (type.emailSubject !== '') {
-      return t('occurrenceTypeCatalog.legacyTemplate', { subject: type.emailSubject })
-    }
-    return t('occurrenceTypeCatalog.withoutTemplate')
+  const templates: OccurrenceEmailTemplatesState = {
+    options: buildOccurrenceEmailTemplateOptions(emailTemplates.data ?? []),
+    status: toLoadStatus(emailTemplates),
   }
 
   return (
@@ -97,38 +95,21 @@ export function OccurrenceTypeCatalogPanel({
         </p>
       )}
 
-      {[TRIP_OCCURRENCE_STAGE.separation, TRIP_OCCURRENCE_STAGE.delivery].map((group) => {
-        const doGrupo = types.filter((type) => type.stage === group)
-        if (doGrupo.length === 0) return null
-
-        return (
-          <fieldset className={styles.occurrenceStage} key={group}>
-            <legend className={styles.hint}>
-              {group === TRIP_OCCURRENCE_STAGE.separation
-                ? t('occurrenceTypeCatalog.stageSeparation')
-                : t('occurrenceTypeCatalog.stageDelivery')}
-            </legend>
-            {doGrupo.map((type) => (
-              <OccurrenceTypeItem
-                canManage={canManage}
-                exceptions={exceptionsOf(type)}
-                isSaving={isSaving}
-                key={type.id}
-                onSave={onSave}
-                templateLabel={templateLabelOf(type)}
-                type={type}
-              />
-            ))}
-          </fieldset>
-        )
-      })}
+      <OccurrenceTypeList
+        canManage={canManage}
+        exceptionsOf={exceptionsOf}
+        isSaving={isSaving}
+        onSave={onSave}
+        templates={templates}
+        types={types}
+      />
 
       {canManage ? (
         <OccurrenceTypeCreateForm
           hasItemsModeSupport={hasItemsModeSupport}
           isSaving={isSaving}
           onSave={onSave}
-          templateOptions={templateOptions}
+          templateOptions={templates.options}
         />
       ) : null}
     </section>

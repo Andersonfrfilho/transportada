@@ -5,6 +5,7 @@ import { useId, useState } from 'react'
 
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
 import type { OccurrenceTypeExceptionsState } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
+import type { OccurrenceEmailTemplatesState } from '@/modules/trip/shared/occurrenceTemplate.service'
 import styles from '@/modules/trip/styles/occurrenceTypeItem.module.css'
 
 import type { OccurrenceTypeSaveInput } from '../shared/occurrenceTypeUpdate.service'
@@ -16,7 +17,7 @@ type OccurrenceTypeItemProps = Readonly<{
   exceptions: OccurrenceTypeExceptionsState
   isSaving: boolean
   onSave: (input: OccurrenceTypeSaveInput) => void
-  templateLabel: string
+  templates: OccurrenceEmailTemplatesState
   type: OccurrenceType
 }>
 
@@ -26,7 +27,7 @@ export function OccurrenceTypeItem({
   exceptions,
   isSaving,
   onSave,
-  templateLabel,
+  templates,
   type,
 }: OccurrenceTypeItemProps) {
   const [isExpanded, setIsExpanded] = useState(false)
@@ -48,7 +49,7 @@ export function OccurrenceTypeItem({
             exceptions={exceptions}
             isSaving={isSaving}
             onSave={onSave}
-            templateLabel={templateLabel}
+            templates={templates}
             type={type}
           />
         </div>

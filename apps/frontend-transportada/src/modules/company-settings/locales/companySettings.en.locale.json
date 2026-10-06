@@ -417,6 +417,16 @@
         "empty": "Choose at least one moment: with none the type is shown to nobody, so nothing was saved.",
         "documentAndStop": "Document delivery and Arrival at the stop cannot share one type: the driver app would show the type twice. Nothing was saved."
       }
+    },
+    "notification": {
+      "title": "Notification",
+      "template": "Notification template",
+      "templateHint": "The e-mail the contractor receives when this type is registered. The text is edited under Notifications; here you only pick which template applies.",
+      "subject": "Subject:",
+      "disabledReason": "The template only applies when the type notifies the contractor. Turn on \"Notify when it happens\" to choose one.",
+      "loading": "Loading the e-mail templates…",
+      "failed": "Could not load the e-mail templates. The current template still applies; reload the page to try again.",
+      "missing": "The template \"{{key}}\" is no longer active, so no e-mail goes out through it. Choose another template."
     }
   },
   "settingsResolution": {
