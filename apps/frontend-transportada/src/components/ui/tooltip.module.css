@@ -11,6 +11,8 @@
  */
 .trigger {
   display: inline-flex;
+  /* Sem o teto, um gatilho de uma linha só (Select com descrição) pedia a largura do texto e passava da tela. */
+  max-width: 100%;
 }
 
 /**

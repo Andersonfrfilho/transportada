@@ -222,12 +222,17 @@ export function Select({
       >
         <span className={styles.selection}>
           {selected?.swatch === undefined ? null : <Swatch swatch={selected.swatch} />}
-          <span className={selected === undefined ? styles.placeholder : styles.value}>
+          <span
+            className={selected === undefined ? styles.placeholder : styles.value}
+            title={selected?.label}
+          >
             {selected?.label ?? placeholder}
           </span>
           {/* O detalhe escolhido continua à vista: fechado o painel, o gatilho é a única prova. */}
           {selected?.description === undefined ? null : (
-            <span className={styles.triggerDescription}>{selected.description}</span>
+            <span className={styles.triggerDescription} title={selected.description}>
+              {selected.description}
+            </span>
           )}
         </span>
         <Icon
