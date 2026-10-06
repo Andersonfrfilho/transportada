@@ -1,3 +1,5 @@
+-- Copyright (c) 2026 Ada Technology. MIT License.
+--
 -- Spec 246 (RF1, RF3, RF4, RF9, D-a): a exigência da ocorrência vira dado. A ORDEM é a decisão:
 -- 1. no tipo, `note_mode` e `signature_mode` com padrão CONSTANTE (não reescreve a tabela);
 -- 2. nas duas exceções, as mesmas colunas NULAS e sem padrão — nulo herda do tipo, campo a campo;

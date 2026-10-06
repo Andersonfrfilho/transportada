@@ -2511,3 +2511,7 @@ Lido: `apps/worker-transportada/src/trip-occurrence-attachment-purge/` (`drizzle
 - O expurgo escolhe candidatos por `purpose in (trip_occurrence_attachment)`, `status <> 'deleted'` **e `retention_until < agora`** — nunca por falta de linha de anexo. A assinatura confirmada tem a finalidade `trip_occurrence_attachment` e `retention_until` de **cinco anos** (`resolveOccurrenceAttachmentRetentionUntil`, a mesma da foto), gravados na confirmação do upload.
 - Sem linha em `trip_document_occurrence_attachments`, a unidade a trata como "objeto órfão" (`purgeOrphanObject`) — mas só **depois** de o prazo vencer. Portanto a assinatura **não é apagada antes da hora**: sai no mesmo dia da foto do mesmo registro, cinco anos depois.
 - A retenção de cinco anos para a assinatura é a decisão já escrita no `plan.md` ("Segurança e tenant"); não há decisão de produto pendente nem desvio a corrigir. Fica como está.
+
+### B5 — cabeçalho de copyright nas migrations
+
+As migrations `…112823`, `…115725` e `…123712` ganharam o mesmo cabeçalho (`-- Copyright (c) 2026 Ada Technology. MIT License.` + `--`) que a `…131040` já tinha e que a regra 17 do `code-standart` pede de todo arquivo-fonte. Só o `migration.sql` mudou (comentário): `bun run db:generate` → `{"status":"no_changes","dialect":"postgresql"}` e o snapshot ficou intocado; `database-migration.contract` 92 pass.

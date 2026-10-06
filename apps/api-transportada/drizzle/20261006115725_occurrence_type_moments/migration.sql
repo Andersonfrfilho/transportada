@@ -1,3 +1,5 @@
+-- Copyright (c) 2026 Ada Technology. MIT License.
+--
 -- Spec 246 T1b.1 (RF0, D-c): o momento do tipo de ocorrência vira conjunto, numa tabela filha no
 -- padrão de tenant. A CHECK é gerada de `OCCURRENCE_MOMENTS`. O backfill é fiel a todo leitor de
 -- hoje, uma regra por instrução, tipos inativos inclusive, `ON CONFLICT DO NOTHING`:

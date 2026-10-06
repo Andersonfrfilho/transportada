@@ -1,3 +1,5 @@
+-- Copyright (c) 2026 Ada Technology. MIT License.
+--
 -- Spec 246 T1c.1 (RF1c, RF1c2, D-a): a quantidade mínima de fotos e de produtos vira dado. A ORDEM:
 -- 1. nas duas exceções, `items_mode`, `photo_minimum_count` e `items_minimum_count` NULAS e sem
 --    padrão — nulo herda do tipo, campo a campo; `items_mode` + `items_minimum_count` herdam como par;
