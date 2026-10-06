@@ -1239,3 +1239,81 @@ evento de foto da linha do tempo da ocorrência.
 Pendente: **T1d.0** (medição em produção, pede autorização) e a **ordem de publicação** — a T1.2
 aplicada em staging e produção antes de a pasta `20261006131040_street_occurrence_attachment_backfill`
 entrar em qualquer push (plan § T1d.2).
+
+## Fase 2 — A API resolve e cobra os campos do tipo
+
+### Painel e app tolerantes antes da API (ADR-0081 §9, 2026-10-06)
+
+Commits separados e **anteriores** a qualquer mudança de formato da API.
+
+- **Painel** (`e06efb55a`): o guard de `GET /trips/occurrence-types/field` (`isFieldOccurrenceType`,
+  `hasKeys`) aceitava só `id`, `name` e `attachmentMode` — e a API **já mandava** `flow`, `itemsMode` e
+  `stopKind`: o diálogo de ocorrência de nota do escritório já recusava a resposta inteira
+  (`TRIP_RESPONSE_INVALID`), defeito anterior a esta spec. Agora aceita, ausentes ou presentes, `flow`,
+  `itemsMode`, `stopKind`, `photoMode`, `noteMode`, `signatureMode`, `photoMinimumCount` e
+  `itemsMinimumCount`; o catálogo aceita `noteMode`/`signatureMode`; a verificação aceita os campos
+  resolvidos e `sources` (`hasKeys` no lugar de `hasExactKeys`). Valor fora do vocabulário continua
+  reprovando. Contrato: `test/trip/occurrence-requirement-modes-tolerance.contract.ts`. Vermelho antes
+  do guard (`git checkout` do `src`):
+
+```text
+$ bun test ./test/trip/occurrence-requirement-modes-tolerance.contract.ts
+error: TRIP_RESPONSE_INVALID
+      at occurrenceTypesFromApi (.../tripResponse.validation.ts:1075:82)
+(fail) o catálogo tolera noteMode e signatureMode (spec 246 T2.4) > aceita presentes ou ausentes
+(fail) a verificação tolera os campos resolvidos e as camadas (spec 246 RF12) > aceita a forma anterior e a nova, com a camada de cada campo
+ 4 pass
+ 3 fail
+```
+
+Depois: `7 pass, 0 fail`; `bun run test` do painel `582 pass, 0 fail`; `bun run typecheck` e
+`bun run lint` (0 erros; 16 avisos anteriores).
+
+- **App do motorista** (`b1f8b22e3`): `isDriverOccurrenceType` já ignora chave a mais; o contrato
+  passou a prender isso para os campos novos (`bun test test/driver-trip.contract.test.ts` → `1079 pass,
+0 fail`). Nenhuma mudança de código.
+
+### T2.1 + T2.2 — A projeção resolve os seis campos, campo a campo (2026-10-06)
+
+Um commit só para as duas (o contrato da T2.1 só passa com a implementação da T2.2; o vermelho está
+registrado abaixo). `resolveOccurrenceRequirements`
+(`src/trips/domain/occurrence-requirements.policy.ts`) aplica `resolveWithOverrides` a cada campo e
+marca a camada de onde veio; é a **única** resolução — `resolveFieldOccurrenceTypes` (snapshot,
+`drizzle-current-driver-trip.repository.ts`), `listFieldOccurrenceTypes` (rota do motorista e do
+escritório) e `readSettingsResolution` (verificação, RF12) chamam o mesmo. O par `itemsMode` +
+`itemsMinimumCount` herda junto.
+
+**Formato novo.** Em `GET /me/trips/current/occurrence-types`, `GET /trips/occurrence-types/field`
+e em `document.occurrenceTypes` do snapshot (`GET /me/trips/current`), cada tipo passa a trazer, além de
+`attachmentMode`/`flow`/`id`/`itemsMode`/`name`/`stopKind`: `photoMode` (igual a `attachmentMode`, que
+fica por um ciclo), `noteMode`, `signatureMode`, `photoMinimumCount` (1..5) e `itemsMinimumCount`
+(número ou `null` = todos os itens). Em `GET /company-settings/settings-resolution`, cada tipo traz os
+mesmos seis campos e `sources` (`photoMode`, `noteMode`, `signatureMode`, `itemsMode`, `itemsMinimumCount`,
+`photoMinimumCount` → `type | contractor | recipient | default`).
+
+Contrato primeiro (`test/trip-occurrence/requirement-modes-resolution.contract.ts`,
+`.../settings-resolution-requirements.contract.ts`, registrados em `test/trip-occurrence.contract.test.ts`):
+
+```text
+$ bun --env-file=../../.env.test test ./test/trip-occurrence/requirement-modes-resolution.contract.ts
+SyntaxError: Export named 'listFieldOccurrenceTypeResolutions' not found in module '.../list-field-occurrence-types.use-case.ts'.
+ 0 pass
+ 1 fail
+ 1 error
+$ bun --env-file=../../.env.test test ./test/trip-occurrence/settings-resolution-requirements.contract.ts
+(fail) a verificação devolve os campos resolvidos e a camada de cada um (spec 246 RF12) > sem exceção, tudo vem do tipo
+(fail) a verificação devolve os campos resolvidos e a camada de cada um (spec 246 RF12) > exceção do destinatário e do contratante: cada campo diz quem o decidiu
+ 0 pass
+ 2 fail
+```
+
+Depois: `requirement-modes-resolution` `11 pass, 0 fail`; `settings-resolution-requirements` `2 pass`;
+`settings-resolution.contract.test.ts` `8 pass`; contrato da API inteiro `9830 pass, 25 skip, 0 fail`
+(199 arquivos); `bun run typecheck` 0 erros; `bun run lint` (`--max-warnings=0`) 0; integração
+`me-trip` `21 pass, 0 fail` (exceção por contratante no snapshot) e
+`test/driver-trip/office-field-occurrences.contract.ts` `24 pass`. Os literais de tipo resolvido dos
+contratos antigos passaram a usar `test/fixtures/field-occurrence-type.fixture.ts`.
+
+⚠️ **A foto da exceção segue declarada.** `attachment_mode` das duas tabelas de exceção é `NOT NULL`
+(spec 218) e nenhuma fase anterior o afrouxou; a resolução já trata `null`/ausente como herda, mas a
+tela da Fase 5 ("Igual ao tipo" também para a foto) pede uma migration que **não** está nesta fase.

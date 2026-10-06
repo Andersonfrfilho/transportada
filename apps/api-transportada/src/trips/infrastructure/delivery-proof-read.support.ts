@@ -876,11 +876,15 @@ export async function findOccurrenceType(
       /** Spec 185 (revisão, RF2): só a ocorrência que deixa a nota para trás tenta o despacho. */
       leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
       name: companyOccurrenceTypes.name,
+      /** Spec 246 (RF1, RF3): a exigência da observação, separada da foto. */
+      noteMode: companyOccurrenceTypes.noteMode,
       notifies: companyOccurrenceTypes.notifies,
       /** Spec 246 (RF1c): a quantidade mínima de fotos, lida só com a foto `required`. */
       photoMinimumCount: companyOccurrenceTypes.photoMinimumCount,
       /** Spec 164 T4 (RF3): copiada para a tratativa no registro — `openOccurrenceCase` decide por ela. */
       redeliveryPolicy: companyOccurrenceTypes.redeliveryPolicy,
+      /** Spec 246 (RF1): a exigência da assinatura de quem recusou. */
+      signatureMode: companyOccurrenceTypes.signatureMode,
       stage: companyOccurrenceTypes.stage,
     })
     .from(companyOccurrenceTypes)
@@ -1016,9 +1020,11 @@ export async function listOccurrenceTypes(
       itemsMode: companyOccurrenceTypes.itemsMode,
       leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
       name: companyOccurrenceTypes.name,
+      noteMode: companyOccurrenceTypes.noteMode,
       notifies: companyOccurrenceTypes.notifies,
       photoMinimumCount: companyOccurrenceTypes.photoMinimumCount,
       redeliveryPolicy: companyOccurrenceTypes.redeliveryPolicy,
+      signatureMode: companyOccurrenceTypes.signatureMode,
       stage: companyOccurrenceTypes.stage,
       stopKind: companyOccurrenceTypes.stopKind,
     })
@@ -1222,9 +1228,11 @@ async function writeOccurrenceTypeRow(
     itemsMode: saved.itemsMode,
     leavesDocumentBehind: saved.leavesDocumentBehind,
     name: saved.name,
+    noteMode: saved.noteMode,
     notifies: saved.notifies,
     photoMinimumCount: saved.photoMinimumCount,
     redeliveryPolicy: saved.redeliveryPolicy,
+    signatureMode: saved.signatureMode,
     stage: saved.stage,
     stopKind: saved.stopKind,
   }

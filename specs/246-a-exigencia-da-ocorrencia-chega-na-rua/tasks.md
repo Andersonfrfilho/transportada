@@ -166,10 +166,10 @@ trip_document_occurrence_attachments_unique_position DO NOTHING`. **`created_at 
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T2.1** Contrato primeiro: `listFieldOccurrenceTypes` devolve os quatro modos resolvidos em
+- [x] **T2.1** Contrato primeiro: `listFieldOccurrenceTypes` devolve os quatro modos resolvidos em
       três camadas, **campo a campo, com nulo da exceção herdando**, por `resolveWithOverrides` —
       teste antes da implementação.
-- [ ] **T2.2** Implementar a projeção (inclusive `document.occurrenceTypes` do snapshot, mesma
+- [x] **T2.2** Implementar a projeção (inclusive `document.occurrenceTypes` do snapshot, mesma
       função) e a leitura de `read-settings-resolution.use-case.ts` (RF12).
 - [ ] **T2.3** `register-driver-occurrence.use-case.ts` (a regra está em `:146-152`): a exigência
       vira leitura dos modos **do tipo**; sai o `if (attachmentMode === 'required')` com a nota

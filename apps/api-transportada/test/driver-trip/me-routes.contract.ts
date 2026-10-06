@@ -12,6 +12,7 @@ import type {
 import { DriverNotRegisteredError } from '../../src/trips/domain/trip.error.js'
 import { createMeTripRoutes } from '../../src/trips/presentation/me-trip.routes.js'
 import { createTripRoutes } from '../../src/trips/presentation/trip.routes.js'
+import { buildFieldOccurrenceType } from '../fixtures/field-occurrence-type.fixture.js'
 
 const NOT_CALLED = () => {
   throw new Error('ROUTE_DEPENDENCY_NOT_EXPECTED')
@@ -179,14 +180,11 @@ describe('os tipos de ocorrência do motorista (spec 157)', () => {
         asked.push(companyId)
         askedMoments.push(moment)
         return [
-          {
+          buildFieldOccurrenceType({
             attachmentMode: 'off',
-            flow: 'document',
             id: '00000000-0000-4000-8000-0000000000e1',
             name: 'Cliente ausente',
-            itemsMode: 'optional',
-            stopKind: null,
-          },
+          }),
         ]
       },
       readDeliveryProofs: NOT_CALLED,
@@ -242,14 +240,11 @@ describe('os tipos de ocorrência do motorista (spec 157)', () => {
     expect(response?.status).toBe(200)
     expect(await response?.json()).toEqual({
       data: [
-        {
+        buildFieldOccurrenceType({
           attachmentMode: 'off',
-          flow: 'document',
           id: '00000000-0000-4000-8000-0000000000e1',
           name: 'Cliente ausente',
-          itemsMode: 'optional',
-          stopKind: null,
-        },
+        }),
       ],
     })
     expect(asked).toEqual([COMPANY_ID])

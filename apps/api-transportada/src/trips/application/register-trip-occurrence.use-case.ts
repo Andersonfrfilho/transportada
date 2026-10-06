@@ -158,6 +158,11 @@ export type OccurrenceTypeRecord = {
    */
   readonly moments?: readonly OccurrenceMoment[]
   readonly name: string
+  /**
+   * Spec 246 (RF1, RF3): a exigência da observação, separada da foto. Ausente é `'optional'` — a
+   * observação de hoje — e existe como opcional só para os dublês de teste; a leitura real sempre grava.
+   */
+  readonly noteMode?: DeliveryProofFieldMode
   readonly notifies: boolean
   /**
    * Spec 246 (RF1c): a quantidade mínima de fotos (1..5), lida só com a foto `required`. Opcional só
@@ -172,6 +177,8 @@ export type OccurrenceTypeRecord = {
    * que ainda não conhecem a tratativa (`findOccurrenceType`, a implementação real, sempre grava).
    */
   readonly redeliveryPolicy?: RedeliveryPolicy
+  /** Spec 246 (RF1): a exigência da assinatura. Ausente é `'off'`; só os dublês de teste a omitem. */
+  readonly signatureMode?: DeliveryProofFieldMode
   readonly stage: TripOccurrenceStage
   /**
    * Spec 218 D2: qual dos 5 valores fixos de parada o tipo representa — nulo em tipo de nota.

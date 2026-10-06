@@ -1,0 +1,63 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * Spec 246 (D-a, T2.4): as colunas de exigência das duas tabelas de exceção — `note_mode`,
+ * `signature_mode`, `items_mode`, `photo_minimum_count` e `items_minimum_count`, todas **nulas e sem
+ * padrão** (nulo herda do tipo). A leitura devolve o que está gravado; a escrita distingue três
+ * estados: **ausente** (não mexa), **nulo** (herda) e **valor**.
+ */
+import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
+
+export type OccurrenceOverrideRequirementFields = {
+  readonly itemsMinimumCount?: null | number | undefined
+  readonly itemsMode?: DeliveryProofFieldMode | null | undefined
+  readonly noteMode?: DeliveryProofFieldMode | null | undefined
+  readonly photoMinimumCount?: null | number | undefined
+  readonly signatureMode?: DeliveryProofFieldMode | null | undefined
+}
+
+type OverrideWriteInput = OccurrenceOverrideRequirementFields & {
+  readonly attachmentMode: DeliveryProofFieldMode
+}
+
+/**
+ * ⚠️ Linha **nova** sem `noteMode` (o painel anterior à 246 adiciona exceção sem conhecer o campo):
+ * a observação segue a foto da exceção — a regra da 179 que a migration tirou do código e pôs no
+ * dado. Nulo explícito é "herda do tipo" e nunca passa por aqui.
+ */
+function resolveNewRowNoteMode(input: OverrideWriteInput): DeliveryProofFieldMode | null {
+  if (input.noteMode !== undefined) return input.noteMode
+  return input.attachmentMode === 'required' ? 'required' : 'optional'
+}
+
+/** Os valores do `INSERT`: ausente vira nulo (herda), salvo a observação, que segue a foto. */
+export function toOverrideRequirementInsert(input: OverrideWriteInput) {
+  return {
+    attachmentMode: input.attachmentMode,
+    itemsMinimumCount: input.itemsMinimumCount ?? null,
+    itemsMode: input.itemsMode ?? null,
+    noteMode: resolveNewRowNoteMode(input),
+    photoMinimumCount: input.photoMinimumCount ?? null,
+    signatureMode: input.signatureMode ?? null,
+  }
+}
+
+/**
+ * O `SET` do conflito: só o que veio — ausente deixa a coluna como está, de propósito. Reescrever
+ * tudo com `?? 'x'` apagaria, num `PUT` de painel antigo, o que a transportadora configurou depois.
+ */
+export function toOverrideRequirementUpdate(input: OverrideWriteInput) {
+  return {
+    attachmentMode: input.attachmentMode,
+    ...(input.itemsMinimumCount === undefined
+      ? {}
+      : { itemsMinimumCount: input.itemsMinimumCount }),
+    ...(input.itemsMode === undefined ? {} : { itemsMode: input.itemsMode }),
+    ...(input.noteMode === undefined ? {} : { noteMode: input.noteMode }),
+    ...(input.photoMinimumCount === undefined
+      ? {}
+      : { photoMinimumCount: input.photoMinimumCount }),
+    ...(input.signatureMode === undefined ? {} : { signatureMode: input.signatureMode }),
+    updatedAt: new Date(),
+  }
+}

@@ -123,7 +123,7 @@ describe('a resolução das 3 camadas para a tela de verificação (spec 218 RF-
     })
 
     expect(result.deliveryProof).toEqual(GENERAL)
-    expect(result.occurrenceTypes).toEqual([
+    expect(result.occurrenceTypes).toMatchObject([
       {
         attachmentMode: 'off',
         flow: 'document',

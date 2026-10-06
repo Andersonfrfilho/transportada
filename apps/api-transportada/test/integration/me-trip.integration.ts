@@ -76,6 +76,7 @@ import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructu
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
 import { listDeliveryProofs } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { listTripTimeline } from '../../src/trips/infrastructure/trip-timeline.query.js'
+import { buildFieldOccurrenceType } from '../fixtures/field-occurrence-type.fixture.js'
 
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
@@ -714,24 +715,18 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         // A nota do contratante Alfa resolve `required`; a nota irmã, sem contratante, segue a
         // geral do tipo (`optional`) — e nenhum dos dois traz o tipo de parada na lista.
         expect(overriddenDocument?.occurrenceTypes).toEqual([
-          {
+          buildFieldOccurrenceType({
             attachmentMode: 'required',
-            flow: 'document',
             id: documentOccurrenceTypeId,
             name: 'Avaria parcial',
-            itemsMode: 'optional',
-            stopKind: null,
-          },
+          }),
         ])
         expect(plainDocument?.occurrenceTypes).toEqual([
-          {
+          buildFieldOccurrenceType({
             attachmentMode: 'optional',
-            flow: 'document',
             id: documentOccurrenceTypeId,
             name: 'Avaria parcial',
-            itemsMode: 'optional',
-            stopKind: null,
-          },
+          }),
         ])
       })
     },

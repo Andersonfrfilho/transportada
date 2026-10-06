@@ -23,6 +23,7 @@ import {
   createTripFieldOfficeOccurrenceRoutes,
   type TripFieldOfficeOccurrenceDependencies,
 } from '../../src/trips/presentation/trip-field-office-occurrence.routes.js'
+import { buildFieldOccurrenceType } from '../fixtures/field-occurrence-type.fixture.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const ACTOR_USER_ID = '00000000-0000-4000-8000-000000000002'
@@ -80,14 +81,7 @@ function buildDependencies() {
   const registered: unknown[] = []
   const dependencies: TripFieldOfficeOccurrenceDependencies = {
     listFieldOccurrenceTypes: async () => [
-      {
-        attachmentMode: 'off',
-        flow: 'document',
-        id: TYPE_ID,
-        name: 'Cliente ausente',
-        itemsMode: 'optional',
-        stopKind: null,
-      },
+      buildFieldOccurrenceType({ attachmentMode: 'off', id: TYPE_ID, name: 'Cliente ausente' }),
     ],
     registerOccurrences: async (input) => {
       registered.push(input)
@@ -160,14 +154,7 @@ describe('as rotas da ocorrência do escritório (spec 156 T7.3)', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
       data: [
-        {
-          attachmentMode: 'off',
-          flow: 'document',
-          id: TYPE_ID,
-          name: 'Cliente ausente',
-          itemsMode: 'optional',
-          stopKind: null,
-        },
+        buildFieldOccurrenceType({ attachmentMode: 'off', id: TYPE_ID, name: 'Cliente ausente' }),
       ],
     })
   })

@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { listFieldOccurrenceTypes } from '../../src/trips/application/list-field-occurrence-types.use-case.js'
 import type { OccurrenceTypeRecord } from '../../src/trips/application/register-trip-occurrence.use-case.js'
+import { buildFieldOccurrenceType } from '../fixtures/field-occurrence-type.fixture.js'
 
 const COMPANY = '00000000-0000-4000-8000-000000000001'
 
@@ -40,14 +41,11 @@ describe('o catálogo do motorista informa se o tipo exige comprovante (spec 179
     })
 
     expect(types).toEqual([
-      {
+      buildFieldOccurrenceType({
         attachmentMode: 'required',
-        flow: 'document',
         id: '00000000-0000-4000-8000-0000000000e1',
         name: 'Cliente ausente',
-        itemsMode: 'optional',
-        stopKind: null,
-      },
+      }),
     ])
   })
 
@@ -63,14 +61,11 @@ describe('o catálogo do motorista informa se o tipo exige comprovante (spec 179
     })
 
     expect(types).toEqual([
-      {
+      buildFieldOccurrenceType({
         attachmentMode: 'off',
-        flow: 'document',
         id: '00000000-0000-4000-8000-0000000000e1',
         name: 'Cliente ausente',
-        itemsMode: 'optional',
-        stopKind: null,
-      },
+      }),
     ])
   })
 })
@@ -97,14 +92,11 @@ describe('a resolução de 3 camadas do attachmentMode (spec 218 RF-B2, T9)', ()
     })
 
     expect(types).toEqual([
-      {
+      buildFieldOccurrenceType({
         attachmentMode: 'optional',
-        flow: 'document',
         id: '00000000-0000-4000-8000-0000000000e1',
         name: 'Cliente ausente',
-        itemsMode: 'optional',
-        stopKind: null,
-      },
+      }),
     ])
   })
 
