@@ -6,6 +6,8 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import tripEn from '@/modules/trip/locales/trip.en.locale.json'
+import trip from '@/modules/trip/locales/trip.locale.json'
 import type { OccurrenceAttachmentOverrides } from '@/modules/trip/shared/occurrence.constant'
 import {
   addException,
@@ -14,6 +16,12 @@ import {
   editException,
   removeException,
 } from '@/modules/trip/shared/occurrenceException.service'
+import { OCCURRENCE_TYPE_MOMENTS_ERROR } from '@/modules/trip/shared/occurrenceMoment.constant'
+import {
+  readOccurrenceMomentsProblem,
+  toOccurrenceMoments,
+} from '@/modules/trip/shared/occurrenceMoments.service'
+import { resolveTripFeedbackKey } from '@/modules/trip/shared/tripFeedback.service'
 
 const BASE: OccurrenceAttachmentOverrides = {
   contractorOverrides: [
@@ -77,5 +85,35 @@ describe('exceções: edição devolve as duas listas inteiras (RF4)', () => {
       attachmentMode: 'required',
       taxId: '98765432000110',
     })
+  })
+})
+
+describe('momentos do tipo (T5.3b, RF0)', () => {
+  test('conjunto vazio é recusado, nota e parada juntas também, o resto passa', () => {
+    expect(readOccurrenceMomentsProblem([])).toBe('empty')
+    expect(readOccurrenceMomentsProblem(['document', 'stop'])).toBe('documentAndStop')
+    expect(readOccurrenceMomentsProblem(['separation', 'document'])).toBeNull()
+    expect(readOccurrenceMomentsProblem(['office'])).toBeNull()
+  })
+
+  test('texto desconhecido do seletor não vira momento, e a ordem é a canônica', () => {
+    expect(toOccurrenceMoments(['stop', 'invented', 'separation'])).toEqual(['separation', 'stop'])
+  })
+})
+
+describe('recusas dos momentos pela API: um texto por código estável (T5.3b)', () => {
+  const CODES = Object.values(OCCURRENCE_TYPE_MOMENTS_ERROR)
+
+  test('cada código resolve a uma chave própria, com texto em pt-BR e em inglês', () => {
+    const keys = CODES.map((code) => resolveTripFeedbackKey(new Error(code)))
+    expect(new Set(keys).size).toBe(CODES.length)
+    for (const key of keys) {
+      expect(key).not.toBe('serverRefused')
+      const feedback = trip.feedback as Readonly<Record<string, string>>
+      const feedbackEn = tripEn.feedback as Readonly<Record<string, string>>
+      expect(typeof feedback[key ?? '']).toBe('string')
+      expect(typeof feedbackEn[key ?? '']).toBe('string')
+      expect(feedback[key ?? '']).not.toBe(feedbackEn[key ?? ''])
+    }
   })
 })
