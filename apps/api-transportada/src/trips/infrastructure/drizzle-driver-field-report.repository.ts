@@ -42,7 +42,9 @@ import {
   DRIVER_RECEIVER_PROOF_KINDS,
   RETURNED_DOCUMENT_STATUS,
 } from '../domain/delivery-event.constant.js'
-import { OCCURRENCE_TYPE_FLOWS } from '../../shared/trip-occurrence.constant.js'
+import { OCCURRENCE_MOMENT } from '../../shared/trip-occurrence.constant.js'
+import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
+import { withOccurrenceTypeMoments } from './occurrence-type-moments.query.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import {
@@ -1043,20 +1045,30 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
   public async findStopOccurrenceType(
     input: Parameters<DriverFieldReportTransactionPort['findStopOccurrenceType']>[0],
   ) {
-    const [type] = await this.transaction
-      .select({ stopKind: companyOccurrenceTypes.stopKind })
+    const rows = await this.transaction
+      .select({
+        flow: companyOccurrenceTypes.flow,
+        id: companyOccurrenceTypes.id,
+        stage: companyOccurrenceTypes.stage,
+        stopKind: companyOccurrenceTypes.stopKind,
+      })
       .from(companyOccurrenceTypes)
       .where(
         and(
           eq(companyOccurrenceTypes.companyId, input.companyId),
           eq(companyOccurrenceTypes.id, input.occurrenceTypeId),
-          eq(companyOccurrenceTypes.flow, OCCURRENCE_TYPE_FLOWS.stop),
           eq(companyOccurrenceTypes.active, true),
         ),
       )
       .limit(1)
-
-    return type ?? null
+    /** Spec 246 (RF0b): o momento da parada é fixo, `stop`, conferido no conjunto do tipo. */
+    const [type] = await withOccurrenceTypeMoments(this.transaction, {
+      companyId: input.companyId,
+      records: rows,
+    })
+    if (type === undefined) return null
+    if (!occurrenceTypeAcceptsMoment({ moment: OCCURRENCE_MOMENT.stop, type })) return null
+    return { stopKind: type.stopKind }
   }
 
   public async recordOccurrence(
@@ -1141,6 +1153,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
   public async saveDocumentOccurrence(input: {
     readonly actorUserId: string
     readonly attachmentObjectId: string | null
+    readonly attachmentObjectIds?: readonly string[]
     readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly documentId: string
@@ -1148,6 +1161,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
+    readonly signatureObjectId?: string | null
     readonly stage: 'delivery'
     readonly tripId: string
     readonly typeName: string
@@ -1155,6 +1169,9 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     return saveTripOccurrence(this.transaction, {
       actorUserId: input.actorUserId,
       attachmentObjectId: input.attachmentObjectId,
+      ...(input.attachmentObjectIds === undefined
+        ? {}
+        : { attachmentObjectIds: input.attachmentObjectIds }),
       authorship: input.authorship,
       companyId: input.companyId,
       documentId: input.documentId,
@@ -1162,6 +1179,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       note: input.note,
       occurrenceTypeId: input.occurrenceTypeId,
       productCode: input.productCode,
+      signatureObjectId: input.signatureObjectId ?? null,
       stage: input.stage,
       tripId: input.tripId,
       typeName: input.typeName,

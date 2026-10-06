@@ -12,7 +12,9 @@ import type { ReportedLocation } from '../application/driver-field-report.port.j
 import { locationSchema, toReportedLocation } from './reported-location.schema.js'
 import { TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 import {
-  OCCURRENCE_ITEMS_MODE,
+  OCCURRENCE_ITEMS_MINIMUM_COUNT_MAX,
+  OCCURRENCE_MOMENTS,
+  OCCURRENCE_PHOTO_MINIMUM_COUNT,
   OCCURRENCE_TYPE_FLOWS,
 } from '../../shared/trip-occurrence.constant.js'
 import { DELIVERY_PROOF_FIELD_MODES } from '../domain/delivery-proof-settings.policy.js'
@@ -37,6 +39,22 @@ const registerOccurrenceSchema = z
      * "sem anexo", recusado pelo caso de uso quando o tipo exige (`attachmentMode = 'required'`).
      */
     attachmentObjectId: z.string().uuid().optional(),
+    /**
+     * Spec 246 (T2.7): a **lista** de uploads confirmados (1 a 5, sem repetir), para o tipo que exige mais
+     * de uma foto. Retrocompatível: o app antigo manda só o campo único acima, e mandar os dois juntos é
+     * 400 — escolher um em silêncio gravaria o anexo que ninguém marcou.
+     */
+    attachmentObjectIds: z
+      .array(z.string().uuid())
+      .min(1)
+      .max(OCCURRENCE_PHOTO_MINIMUM_COUNT.max)
+      .optional(),
+    /**
+     * Spec 246 (RF9): a referência à assinatura já confirmada, pelo mesmo par `occurrence-uploads` +
+     * `confirm` da 179 — nunca o arquivo. Ausente ou nula é "sem assinatura"; o tipo efetivo da nota
+     * decide se isso é recusado (`TRIP_OCCURRENCE_SIGNATURE_REQUIRED`).
+     */
+    signatureObjectId: z.string().uuid().nullish(),
     /** Spec 196 T3.2: o ponto do toque; só a rota do motorista usa este schema. */
     location: locationSchema.nullish(),
     note: z.string().trim().max(500).default(''),
@@ -46,6 +64,43 @@ const registerOccurrenceSchema = z
     productCode: z.string().trim().max(60).default(''),
   })
   .strict()
+  .superRefine(refineAttachmentSelection)
+
+function refineAttachmentSelection(
+  body: {
+    readonly attachmentObjectId?: string | undefined
+    readonly attachmentObjectIds?: readonly string[] | undefined
+    readonly signatureObjectId?: null | string | undefined
+  },
+  context: z.RefinementCtx,
+): void {
+  const { attachmentObjectId, attachmentObjectIds, signatureObjectId } = body
+  const sentAttachmentIds = [
+    ...(attachmentObjectId === undefined ? [] : [attachmentObjectId]),
+    ...(attachmentObjectIds ?? []),
+  ]
+  if (
+    signatureObjectId !== undefined &&
+    signatureObjectId !== null &&
+    sentAttachmentIds.includes(signatureObjectId)
+  ) {
+    context.addIssue({
+      code: 'custom',
+      message: 'SIGNATURE_IS_ATTACHMENT',
+      path: ['signatureObjectId'],
+    })
+  }
+  if (attachmentObjectIds === undefined) return
+  const hasBoth = attachmentObjectId !== undefined
+  const hasDuplicate = new Set(attachmentObjectIds).size !== attachmentObjectIds.length
+  if (hasBoth || hasDuplicate) {
+    context.addIssue({
+      code: 'custom',
+      message: hasBoth ? 'ATTACHMENT_SELECTION_CONFLICT' : 'ATTACHMENT_DUPLICATED',
+      path: ['attachmentObjectIds'],
+    })
+  }
+}
 
 export type RegisterOccurrenceBody = Omit<z.infer<typeof registerOccurrenceSchema>, 'location'> & {
   readonly location: ReportedLocation | null
@@ -284,14 +339,16 @@ export async function parseAttachOccurrencePhotoRequest(
  * escondido aqui daria permissão por omissão. O `strict()` recusa campo a mais — inclusive
  * `companyId` vindo do cliente.
  */
-/** Spec 241 (RF4): `required` só entra com a 239 (`items_minimum_count`). */
-const WRITABLE_ITEMS_MODES = [OCCURRENCE_ITEMS_MODE.off, OCCURRENCE_ITEMS_MODE.optional] as const
-
 const occurrenceTypeSchema = z
   .object({
     active: z.boolean().default(true),
-    /** Spec 166 (RF3/RF9): padrão `true` preserva o comportamento de hoje. */
-    allowsMultipleItems: z.boolean().default(true),
+    /**
+     * Spec 166 (RF3/RF9), spec 246 T1c.3 (RF1b): um produto ou vários. ⚠️ **Opcional sem `default`,
+     * pelo mesmo motivo de `attachmentMode`**: ausente é "não mexa" — um `default(true)` religaria
+     * "vários" num tipo de produto único a cada edição que não toca o campo. A criação sem o campo
+     * usa o padrão `true` da coluna.
+     */
+    allowsMultipleItems: z.boolean().optional(),
     /**
      * Spec 179 (RF1): se o registro do motorista exige comprovante — o mesmo vocabulário do
      * comprovante de entrega.
@@ -304,11 +361,41 @@ const occurrenceTypeSchema = z
      */
     attachmentMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
     /**
-     * Spec 241 (RF4): se o tipo carrega produtos. Na escrita só `off`/`optional` — `required` é da
-     * 239 e volta 400. ⚠️ **Opcional sem `default`, pelo mesmo motivo de `attachmentMode`**: ausente
-     * é "não mexa"; um `default('optional')` religaria o seletor de um tipo `off` a cada edição.
+     * Spec 241 (RF4), spec 246 (RF1b): se o tipo carrega produtos — `off`, `optional` ou `required`
+     * (ao menos um produto, ou o mínimo abaixo). ⚠️ **Opcional sem `default`, pelo mesmo motivo de
+     * `attachmentMode`**: ausente é "não mexa"; um `default('optional')` religaria o seletor de um
+     * tipo `off` a cada edição.
      */
-    itemsMode: z.enum(WRITABLE_ITEMS_MODES).optional(),
+    itemsMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
+    /**
+     * Spec 246 (RF1, RF3): a exigência da observação e da assinatura, no vocabulário do comprovante.
+     * ⚠️ **Opcionais sem `default`, pelo mesmo motivo de `attachmentMode`**: ausente é "não mexa" — um
+     * padrão escondido reescreveria, a cada edição de e-mail, o que a transportadora configurou.
+     */
+    noteMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
+    signatureMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
+    /**
+     * Spec 246 (RF1c2): a quantidade mínima de produtos, lida só com `itemsMode = 'required'`. Nulo
+     * é "todos os itens da nota" (a recusa total); ausente é "não mexa". Com outro modo o caso de
+     * uso recusa (422).
+     */
+    itemsMinimumCount: z
+      .number()
+      .int()
+      .min(1)
+      .max(OCCURRENCE_ITEMS_MINIMUM_COUNT_MAX)
+      .nullable()
+      .optional(),
+    /**
+     * Spec 246 (RF1c): a quantidade mínima de fotos, de 1 a 5, lida só com a foto `required`. Sem
+     * `null` (o tipo nunca tem mínimo nulo); ausente é "não mexa".
+     */
+    photoMinimumCount: z
+      .number()
+      .int()
+      .min(OCCURRENCE_PHOTO_MINIMUM_COUNT.min)
+      .max(OCCURRENCE_PHOTO_MINIMUM_COUNT.max)
+      .optional(),
     /**
      * Spec 183 T802: o tipo avisa a contratante sozinho no registro. Opcional sem `default` pelo
      * mesmo motivo do `attachmentMode`: ausente é "não mexa", nunca desligar o aviso de carona.
@@ -353,6 +440,11 @@ const occurrenceTypeSchema = z
      * sobrescreve o registro inteiro, e o editor do painel ainda não manda este campo.
      */
     flow: z.enum(OCCURRENCE_TYPE_FLOWS).optional(),
+    /**
+     * Spec 246 (RF0, T1b.1b): o conjunto de momentos do tipo. Presente, `stage`/`flow` gravados são
+     * os derivados dele (o caso de uso os calcula); ausente é "não mexa" — o painel de hoje não manda.
+     */
+    moments: z.array(z.enum(OCCURRENCE_MOMENTS)).max(OCCURRENCE_MOMENTS.length).optional(),
     name: z.string().trim().min(1).max(60),
     notifies: z.boolean().default(false),
     occurrenceTypeId: z.string().uuid().nullable().default(null),
@@ -382,13 +474,63 @@ export async function parseOccurrenceTypeRequest(
  */
 const attachmentOverrideModeSchema = z.enum(DELIVERY_PROOF_FIELD_MODES)
 
+/**
+ * Spec 246 (D-a, T2.4): na exceção, os cinco campos novos são **nulos e sem padrão** — nulo herda do
+ * tipo, ausente é "não mexa" (nunca `?? 'x'` no `UPDATE`). `items_mode` e `items_minimum_count` vão
+ * como par: mínimo só com `items_mode = 'required'` declarado ali mesmo, a mesma CHECK do banco —
+ * recusada aqui com 400 em vez de virar 500.
+ */
+const overrideModeSchema = z.enum(DELIVERY_PROOF_FIELD_MODES).nullable().optional()
+
+const overrideRequirementFields = {
+  itemsMinimumCount: z
+    .number()
+    .int()
+    .min(1)
+    .max(OCCURRENCE_ITEMS_MINIMUM_COUNT_MAX)
+    .nullable()
+    .optional(),
+  itemsMode: overrideModeSchema,
+  noteMode: overrideModeSchema,
+  photoMinimumCount: z
+    .number()
+    .int()
+    .min(OCCURRENCE_PHOTO_MINIMUM_COUNT.min)
+    .max(OCCURRENCE_PHOTO_MINIMUM_COUNT.max)
+    .nullable()
+    .optional(),
+  signatureMode: overrideModeSchema,
+}
+
+function refineItemsMinimumPair(
+  override: {
+    readonly itemsMinimumCount?: null | number | undefined
+    readonly itemsMode?: null | string | undefined
+  },
+  context: z.RefinementCtx,
+): void {
+  const hasMinimum = override.itemsMinimumCount !== null && override.itemsMinimumCount !== undefined
+  if (hasMinimum && override.itemsMode !== 'required') {
+    context.addIssue({
+      code: 'custom',
+      message: 'ITEMS_MINIMUM_REQUIRES_REQUIRED',
+      path: ['itemsMinimumCount'],
+    })
+  }
+}
+
 export const occurrenceAttachmentOverridesSchema = z
   .object({
     contractorOverrides: z
       .array(
         z
-          .object({ attachmentMode: attachmentOverrideModeSchema, contractorId: z.string().uuid() })
-          .strict(),
+          .object({
+            attachmentMode: attachmentOverrideModeSchema,
+            contractorId: z.string().uuid(),
+            ...overrideRequirementFields,
+          })
+          .strict()
+          .superRefine(refineItemsMinimumPair),
       )
       .max(200),
     recipientOverrides: z
@@ -397,8 +539,10 @@ export const occurrenceAttachmentOverridesSchema = z
           .object({
             attachmentMode: attachmentOverrideModeSchema,
             taxId: buildTaxIdSchema(TAX_ID_PATTERN),
+            ...overrideRequirementFields,
           })
-          .strict(),
+          .strict()
+          .superRefine(refineItemsMinimumPair),
       )
       .max(200),
   })

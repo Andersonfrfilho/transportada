@@ -7,7 +7,6 @@
  * em vez de devolver (ou aceitar) exceção de um tipo que não existe nesta empresa.
  */
 import { OccurrenceTypeNotFoundError } from '../domain/trip.error.js'
-import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type {
   OccurrenceAttachmentContractorOverride,
   OccurrenceAttachmentRecipientOverride,
@@ -72,16 +71,10 @@ export async function readOccurrenceAttachmentOverrides(input: {
 
 export async function replaceOccurrenceAttachmentOverrides(input: {
   readonly companyId: string
-  readonly contractorOverrides: readonly {
-    readonly attachmentMode: DeliveryProofFieldMode
-    readonly contractorId: string
-  }[]
+  readonly contractorOverrides: readonly OccurrenceAttachmentContractorOverride[]
   readonly occurrenceTypeId: string
   readonly port: OccurrenceAttachmentOverridesPort
-  readonly recipientOverrides: readonly {
-    readonly attachmentMode: DeliveryProofFieldMode
-    readonly taxId: string
-  }[]
+  readonly recipientOverrides: readonly OccurrenceAttachmentRecipientOverride[]
 }): Promise<OccurrenceAttachmentOverridesResult> {
   await assertOccurrenceTypeInTenant(input)
 

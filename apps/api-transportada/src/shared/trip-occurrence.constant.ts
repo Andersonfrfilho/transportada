@@ -45,6 +45,41 @@ export const OCCURRENCE_TYPE_FLOWS = {
 export type OccurrenceTypeFlow = (typeof OCCURRENCE_TYPE_FLOWS)[keyof typeof OCCURRENCE_TYPE_FLOWS]
 
 /**
+ * Spec 246 (RF0): os momentos em que um tipo pode ser registrado — um conjunto, nunca menos de um,
+ * guardado em `company_occurrence_type_moments` (a CHECK é gerada desta lista). `separation` é o
+ * galpão, `document` a entrega da nota, `stop` a chegada à parada e `office` o escritório em nome do
+ * motorista. A ordem é a do fluxo e é a canônica de toda lista de momentos. Cópia por valor no
+ * frontend (`trip/shared/occurrence.constant.ts`).
+ */
+export const OCCURRENCE_MOMENT = {
+  separation: 'separation',
+  document: 'document',
+  stop: 'stop',
+  office: 'office',
+} as const
+
+export const OCCURRENCE_MOMENTS = [
+  OCCURRENCE_MOMENT.separation,
+  OCCURRENCE_MOMENT.document,
+  OCCURRENCE_MOMENT.stop,
+  OCCURRENCE_MOMENT.office,
+] as const
+
+export type OccurrenceMoment = (typeof OCCURRENCE_MOMENTS)[number]
+
+/**
+ * Spec 246 (RF0b, T1b.2): a guarda de todo caso de uso que registra ocorrência. O momento é o **do
+ * registro**, fixo por caso de uso, e a permissão continua sendo a da rota — é proibido decidir
+ * permissão a partir dos momentos do tipo ("o tipo tem algum momento que o papel cobre").
+ */
+export function acceptsOccurrenceMoment(params: {
+  readonly moments: readonly OccurrenceMoment[]
+  readonly moment: OccurrenceMoment
+}): boolean {
+  return params.moments.includes(params.moment)
+}
+
+/**
  * A ordem é a do fluxo — o que acontece no galpão vem antes do que acontece na rua —, e ela faz
  * parte do contrato: a tela lista nesta ordem, e trocá-la muda o que aparece primeiro para quem
  * está com a caixa na mão.
@@ -89,12 +124,25 @@ export const OCCURRENCE_ITEM_QUANTITY_UNIT = {
 export type OccurrenceItemQuantityUnit = string
 
 /**
- * Spec 241 (RF4): os dois valores de `items_mode` que o código nomeia — `off` o tipo não carrega
- * itens, `optional` oferece. O vocabulário completo é `DELIVERY_PROOF_FIELD_MODES`.
+ * Spec 241 (RF4): os valores de `items_mode` que o código nomeia — `off` o tipo não carrega itens,
+ * `optional` oferece. Spec 246 (RF1b): `required` exige produtos. O vocabulário completo é
+ * `DELIVERY_PROOF_FIELD_MODES`.
  */
 export const OCCURRENCE_ITEMS_MODE = {
   off: 'off',
   optional: 'optional',
+  required: 'required',
+} as const
+
+/**
+ * Spec 246 (RF1c): a quantidade mínima de fotos do tipo com foto `required`, de 1 a 5 — o molde do
+ * `cargoMinimumCount` da entrega. Lida só quando a foto é obrigatória; 1 é o que preserva o
+ * comportamento de hoje.
+ */
+export const OCCURRENCE_PHOTO_MINIMUM_COUNT = {
+  default: 1,
+  max: 5,
+  min: 1,
 } as const
 
 /** Política de reentrega do tipo; `unset` é o que o cadastro grava quando ninguém decidiu. */
@@ -109,6 +157,39 @@ export const OCCURRENCE_ATTACHMENT_MODE = {
   off: 'off',
 } as const
 
+/**
+ * Spec 246 (RF1, RF3): o padrão de `note_mode` e `signature_mode` no tipo — a observação hoje é
+ * sempre opcional (`off` a esconderia) e a assinatura não existia. Nas exceções as colunas são
+ * nulas, sem padrão: nulo herda do tipo (D-a).
+ */
+export const OCCURRENCE_TYPE_REQUIREMENT_DEFAULTS = {
+  noteMode: 'optional',
+  signatureMode: 'off',
+} as const
+
+/**
+ * Spec 246 (RF1c2): o teto da quantidade mínima de produtos no cadastro — a coluna é `smallint`, e
+ * nota com mais itens do que isso é caso extremo que o "todos os itens" (nulo) já cobre.
+ */
+export const OCCURRENCE_ITEMS_MINIMUM_COUNT_MAX = 999
+
+/**
+ * Spec 246 (RF1c2): a CHECK `items_minimum_count` só com `required`; o cadastro a traduz em 422
+ * quando a corrida a atinge, como a `off ⇒ unset` da 241.
+ */
+export const OCCURRENCE_TYPE_ITEMS_MINIMUM_SHAPE_CHECK =
+  'company_occurrence_types_items_minimum_shape_check'
+
 /** Spec 241 (RF11): a CHECK `off ⇒ unset`; o cadastro a traduz em 422 quando a corrida a atinge. */
 export const OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK =
   'company_occurrence_types_items_off_shape_check'
+
+/**
+ * Spec 246 (RF1c2, revisão final M2): a mesma CHECK de forma nas duas tabelas de exceção — nulas, o
+ * par é `items_minimum_count` nulo ou `items_mode = 'required'`. A escrita da exceção a traduz em 422
+ * quando um mínimo chega sem `required` no estado resultante.
+ */
+export const OCCURRENCE_OVERRIDE_ITEMS_MINIMUM_SHAPE_CHECKS: readonly string[] = [
+  'occurrence_type_contractor_overrides_items_minimum_shape_check',
+  'occurrence_type_recipient_overrides_items_minimum_shape_check',
+]

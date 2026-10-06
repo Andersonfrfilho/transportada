@@ -642,6 +642,20 @@ export class OccurrenceTypeItemsOffRedeliveryPolicyError extends ApiError {
 }
 
 /**
+ * Spec 246 (RF1c2): a quantidade mínima de produtos só existe com Produtos obrigatório — com outro
+ * modo ela seria dado morto que um `PUT` futuro religaria sem ninguém ver.
+ */
+export class OccurrenceTypeItemsMinimumRequiresRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_ITEMS_MINIMUM_REQUIRES_REQUIRED',
+      message: 'The items minimum count only applies when items are required.',
+      status: 422,
+    })
+  }
+}
+
+/**
  * A conta autenticada tem o papel, mas nenhum cadastro de motorista aponta para ela. É configuração
  * pendente do escritório, não falha do motorista — e o código é estável para a tela dizer isso em
  * vez de "nada para hoje", que esconderia o problema até alguém reclamar.
@@ -1187,6 +1201,79 @@ export class TripOccurrenceNoteRequiredError extends ApiError {
     super({
       code: 'TRIP_OCCURRENCE_NOTE_REQUIRED',
       message: 'This occurrence type requires a written note.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 246 (RF8, CA06): o tipo efetivo da nota exige a assinatura de quem recusou e o registro chegou
+ * sem ela. Código estável próprio — a tela diz qual dos campos falta. O WhatsApp do motorista não
+ * colhe assinatura e devolve este mesmo erro (RF13).
+ */
+export class TripOccurrenceSignatureRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_SIGNATURE_REQUIRED',
+      message: 'This occurrence type requires a signature.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 246 (revisão final, M1): o mesmo upload mandado como assinatura e como anexo. A assinatura mora
+ * só em `signature_object_id` (RF9); virar também linha de anexo a contaria no mínimo de fotos, no
+ * demonstrativo e no expurgo. 400, como o conflito entre os dois campos de anexo no schema.
+ */
+export class TripOccurrenceSignatureIsAttachmentError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_SIGNATURE_IS_ATTACHMENT',
+      message: 'The signature cannot also be sent as an attachment.',
+      status: 400,
+    })
+  }
+}
+
+/**
+ * Spec 246 (RF1b, RF8): o tipo efetivo da nota exige produtos (`items_mode = 'required'`) e o registro
+ * não apontou nenhum — nem a nota inteira, que numa nota sem item algum não cobre nada. Código estável
+ * próprio por campo: a tela diz que faltam produtos.
+ */
+export class TripOccurrenceItemsRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_ITEMS_REQUIRED',
+      message: 'This occurrence type requires at least one item of the document.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 246 (RF1c2, RF8): produtos obrigatórios e a seleção ficou abaixo do exigido — "todos os itens da
+ * nota" (mínimo nulo) recusa a seleção parcial, e o mínimo numérico recusa o que fica abaixo dele.
+ */
+export class TripOccurrenceItemsMinimumNotMetError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_ITEMS_MINIMUM_NOT_MET',
+      message: 'This occurrence type requires more items of the document than were selected.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 246 (RF1c, RF8): a foto é obrigatória e veio, mas abaixo de `photo_minimum_count`. Código
+ * próprio, distinto de `TRIP_OCCURRENCE_ATTACHMENT_REQUIRED` (nenhuma foto): a tela diz quantas faltam.
+ */
+export class TripOccurrencePhotoMinimumNotMetError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_PHOTO_MINIMUM_NOT_MET',
+      message: 'This occurrence type requires more photos than were attached.',
       status: 422,
     })
   }

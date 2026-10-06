@@ -4,7 +4,7 @@
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { ClientIpResolver } from '../../http/client-ip.service.js'
 import { defineRoute } from '../../http/router.service.js'
-import type { OccurrenceTypeFlow } from '../../shared/trip-occurrence.constant.js'
+import type { OccurrenceMoment, OccurrenceTypeFlow } from '../../shared/trip-occurrence.constant.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type {
   DeliveryProofView,
@@ -26,6 +26,7 @@ import {
   parseRegisterOccurrenceMultipartRequest,
 } from './occurrence.schema.js'
 import type { OccurrenceAttachmentOverridesBody } from './occurrence.schema.js'
+import type { ListOccurrenceAttachmentOverridesResult } from '../application/list-occurrence-attachment-overrides.use-case.js'
 import type { OccurrenceAttachmentOverridesResult } from '../application/occurrence-attachment-overrides.use-case.js'
 import type { CorrectedOccurrenceView } from '../application/occurrence-correction.port.js'
 import { parseIdempotencyKey } from './me-trip.schema.js'
@@ -187,6 +188,7 @@ const OCCURRENCE_TYPES_PATH = '/company-settings/occurrence-types'
  * Spec 218 RF-B3: a exceção do `attachmentMode` deste tipo, por contratante e por destinatário —
  * mesmo padrão de `deliveryProofOverridesSchema`, substituição total, nunca PATCH incremental.
  */
+const OCCURRENCE_TYPES_ATTACHMENT_OVERRIDES_PATH = `${OCCURRENCE_TYPES_PATH}/attachment-overrides`
 const OCCURRENCE_TYPE_ATTACHMENT_OVERRIDES_PATH = `${OCCURRENCE_TYPES_PATH}/:occurrenceTypeId/attachment-overrides`
 
 type RegisterOccurrenceRouteInput = {
@@ -280,8 +282,8 @@ type CancelOccurrenceRouteInput = {
 
 type SaveOccurrenceTypeInput = {
   readonly active: boolean
-  /** Spec 166 (RF3/RF9): se este tipo aceita mais de um item marcado. */
-  readonly allowsMultipleItems: boolean
+  /** Spec 166 (RF3/RF9): se este tipo aceita mais de um item marcado. Ausente é "não mexa". */
+  readonly allowsMultipleItems?: boolean | undefined
   /**
    * Spec 179 (RF1): se o registro do motorista exige comprovante. Ausente é "não mexa", nunca
    * `'off'` — ver `save-occurrence-type.use-case.ts`.
@@ -298,18 +300,28 @@ type SaveOccurrenceTypeInput = {
    * `occurrence.schema.ts` (`FLOW_REQUIRED_ON_CREATE`) e `save-occurrence-type.use-case.ts`.
    */
   readonly flow?: OccurrenceTypeFlow | undefined
-  /** Spec 241 (RF4): ausente é "não mexa" — ver `save-occurrence-type.use-case.ts`. */
-  readonly itemsMode?: Exclude<DeliveryProofFieldMode, 'required'> | undefined
+  /** Spec 246 (RF1c2): ausente é "não mexa", nulo é "todos os itens" — ver o caso de uso. */
+  readonly itemsMinimumCount?: null | number | undefined
+  /** Spec 241 (RF4), spec 246 (RF1b): ausente é "não mexa" — ver `save-occurrence-type.use-case.ts`. */
+  readonly itemsMode?: DeliveryProofFieldMode | undefined
   /**
    * Spec 185 (RF6): "a viagem segue sem a nota". Ausente é "não mexa" — ver
    * `save-occurrence-type.use-case.ts`.
    */
   readonly leavesDocumentBehind?: boolean | undefined
+  /** Spec 246 (T1b.1b): o conjunto de momentos; ausente é "não mexa" — ver o caso de uso. */
+  readonly moments?: readonly OccurrenceMoment[] | undefined
   readonly name: string
+  /** Spec 246 (RF1, RF3): ausente é "não mexa" — ver o caso de uso. */
+  readonly noteMode?: DeliveryProofFieldMode | undefined
   readonly notifies: boolean
   readonly occurrenceTypeId: null | string
+  /** Spec 246 (RF1c): ausente é "não mexa" — ver o caso de uso. */
+  readonly photoMinimumCount?: number | undefined
   /** Spec 164 RF1/T21: ausente é "não mexa" — ver `save-occurrence-type.use-case.ts`. */
   readonly redeliveryPolicy?: RedeliveryPolicy | undefined
+  /** Spec 246 (RF1): ausente é "não mexa" — ver o caso de uso. */
+  readonly signatureMode?: DeliveryProofFieldMode | undefined
   readonly stage: 'delivery' | 'separation'
 }
 
@@ -536,6 +548,11 @@ type Dependencies = {
   }
   readonly saveOccurrenceType: {
     execute(input: TenantInput<SaveOccurrenceTypeInput>): Promise<OccurrenceTypeRecord>
+  }
+  readonly listOccurrenceAttachmentOverrides: {
+    execute(input: {
+      readonly context: CompanyContext
+    }): Promise<ListOccurrenceAttachmentOverridesResult>
   }
   readonly readOccurrenceAttachmentOverrides: {
     execute(
@@ -1792,6 +1809,18 @@ export function createTripRoutes(
         return parseOccurrenceTypeRequest(request)
       },
       pathname: OCCURRENCE_TYPES_PATH,
+      policy: SETTINGS_MANAGE_POLICY,
+    }),
+    defineRoute<undefined>({
+      async handle({ context }): Promise<Response> {
+        const result = await dependencies.listOccurrenceAttachmentOverrides.execute({
+          context: context.scope,
+        })
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'GET',
+      parse: () => undefined,
+      pathname: OCCURRENCE_TYPES_ATTACHMENT_OVERRIDES_PATH,
       policy: SETTINGS_MANAGE_POLICY,
     }),
     defineRoute<{ readonly occurrenceTypeId: string }>({

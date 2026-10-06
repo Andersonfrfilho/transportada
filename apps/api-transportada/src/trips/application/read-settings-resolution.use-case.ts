@@ -21,20 +21,31 @@ import type {
   DeliveryProofSettingsOverride,
 } from '../infrastructure/drizzle-delivery-proof-settings.repository.js'
 import {
-  listFieldOccurrenceTypes,
+  listFieldOccurrenceTypeResolutions,
+  type FieldOccurrenceType,
   type FieldOccurrenceTypeOverridesPort,
   type FieldOccurrenceTypesPort,
 } from './list-field-occurrence-types.use-case.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
+import type {
+  OccurrenceRequirements,
+  OccurrenceRequirementSources,
+} from '../domain/occurrence-requirements.policy.js'
 
-export type SettingsResolutionOccurrenceType = Readonly<{
-  attachmentMode: DeliveryProofFieldMode
-  flow: OccurrenceTypeFlow
-  id: string
-  name: string
-  /** Todo item vem de `listFieldOccurrenceTypes`, que já filtra `stage: 'delivery'` — nunca outra. */
-  stage: typeof TRIP_OCCURRENCE_STAGE.delivery
-}>
+/**
+ * Spec 246 (RF12, P5): os seis campos resolvidos de cada tipo e a camada (`type`, `contractor`,
+ * `recipient` ou `default`) que decidiu cada um — o mesmo resolvedor do snapshot e do registro.
+ */
+export type SettingsResolutionOccurrenceType = OccurrenceRequirements &
+  Readonly<{
+    attachmentMode: DeliveryProofFieldMode
+    flow: OccurrenceTypeFlow
+    id: string
+    name: string
+    sources: OccurrenceRequirementSources
+    /** Todo item vem de `listFieldOccurrenceTypes`, que já filtra `stage: 'delivery'` — nunca outra. */
+    stage: typeof TRIP_OCCURRENCE_STAGE.delivery
+  }>
 
 export type SettingsResolutionResult = Readonly<{
   deliveryProof: DeliveryProofFieldSettings
@@ -82,6 +93,17 @@ function toFieldSettings(input: DeliveryProofFieldSettings): DeliveryProofFieldS
   }
 }
 
+function pickRequirements(type: FieldOccurrenceType): OccurrenceRequirements {
+  return {
+    itemsMinimumCount: type.itemsMinimumCount,
+    itemsMode: type.itemsMode,
+    noteMode: type.noteMode,
+    photoMinimumCount: type.photoMinimumCount,
+    photoMode: type.photoMode,
+    signatureMode: type.signatureMode,
+  }
+}
+
 export async function readSettingsResolution(
   params: ReadSettingsResolutionParams,
 ): Promise<SettingsResolutionResult> {
@@ -92,7 +114,7 @@ export async function readSettingsResolution(
       port.deliveryProof.readSettings({ companyId }),
       port.deliveryProof.listOverrides({ companyId }),
       port.deliveryProof.listContractorOverrides({ companyId }),
-      listFieldOccurrenceTypes({
+      listFieldOccurrenceTypeResolutions({
         companyId,
         contractorId,
         overrides: port.occurrenceTypeOverrides,
@@ -117,11 +139,13 @@ export async function readSettingsResolution(
 
   return {
     deliveryProof,
-    occurrenceTypes: occurrenceTypes.map((type) => ({
+    occurrenceTypes: occurrenceTypes.map(({ sources, type }) => ({
+      ...pickRequirements(type),
       attachmentMode: type.attachmentMode,
       flow: type.flow,
       id: type.id,
       name: type.name,
+      sources,
       stage: TRIP_OCCURRENCE_STAGE.delivery,
     })),
   }

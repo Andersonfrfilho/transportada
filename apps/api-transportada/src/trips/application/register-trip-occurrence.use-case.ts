@@ -3,8 +3,9 @@
  *
  * Spec 079 T020: registrar o que houve com um item da carga.
  */
-import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
+import { OCCURRENCE_MOMENT, TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import type {
+  OccurrenceMoment,
   OccurrenceTypeFlow,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
@@ -15,6 +16,7 @@ import type { OccurrenceAttachmentView } from './occurrence-attachment.service.j
 import { resolveOccurrenceItemQuantities } from '../domain/occurrence-item-quantity.policy.js'
 import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
 import { assertOccurrenceTypeAcceptsProducts } from '../domain/occurrence-items-mode.policy.js'
+import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
 import { resolveOccurrenceProductSelection } from '../domain/occurrence-scope.policy.js'
 import { renderOccurrenceTemplate } from '../domain/occurrence-template.policy.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
@@ -139,13 +141,34 @@ export type OccurrenceTypeRecord = {
    */
   readonly itemsMode?: DeliveryProofFieldMode
   /**
+   * Spec 246 (RF1c2): a quantidade mínima de produtos, lida só com `itemsMode = 'required'`; nulo é
+   * "todos os itens da nota". Opcional só para os dublês de teste; a leitura real sempre grava.
+   */
+  readonly itemsMinimumCount?: null | number
+  /**
    * Spec 185 (RF6, ADR-0074 §4): "a viagem segue sem a nota", só para tipo de separação. Ausente é
    * tratado como `false` — existe como opcional só para os dublês de teste que ainda não conhecem
    * a marca; a implementação real (`listOccurrenceTypes`) sempre grava.
    */
   readonly leavesDocumentBehind?: boolean
+  /**
+   * Spec 246 (RF0): os momentos em que o tipo pode ser registrado, já resolvidos pela leitura
+   * tolerante (`resolveOccurrenceTypeMoments`). Opcional só para os dublês de teste — ausente cai nos
+   * derivados de `stage`/`flow`, e é por isso que toda guarda passa pelo resolvedor.
+   */
+  readonly moments?: readonly OccurrenceMoment[]
   readonly name: string
+  /**
+   * Spec 246 (RF1, RF3): a exigência da observação, separada da foto. Ausente é `'optional'` — a
+   * observação de hoje — e existe como opcional só para os dublês de teste; a leitura real sempre grava.
+   */
+  readonly noteMode?: DeliveryProofFieldMode
   readonly notifies: boolean
+  /**
+   * Spec 246 (RF1c): a quantidade mínima de fotos (1..5), lida só com a foto `required`. Opcional só
+   * para os dublês de teste; a leitura real sempre grava.
+   */
+  readonly photoMinimumCount?: number
   /** Spec 183 T802: o registro avisa a contratante sozinho (o envio é do gancho, depois do commit). */
   readonly emailsContractor?: boolean
   /**
@@ -154,6 +177,8 @@ export type OccurrenceTypeRecord = {
    * que ainda não conhecem a tratativa (`findOccurrenceType`, a implementação real, sempre grava).
    */
   readonly redeliveryPolicy?: RedeliveryPolicy
+  /** Spec 246 (RF1): a exigência da assinatura. Ausente é `'off'`; só os dublês de teste a omitem. */
+  readonly signatureMode?: DeliveryProofFieldMode
   readonly stage: TripOccurrenceStage
   /**
    * Spec 218 D2: qual dos 5 valores fixos de parada o tipo representa — nulo em tipo de nota.
@@ -319,8 +344,14 @@ export async function registerTripOccurrence(
   })
   if (occurrenceType === null || !occurrenceType.active) throw new TripDocumentNotFoundError()
 
-  /** Spec 157: a ocorrência de rua tem rota própria — a do motorista e a do escritório em nome dele. */
-  if (occurrenceType.stage !== TRIP_OCCURRENCE_STAGE.separation) {
+  /**
+   * Spec 157: a ocorrência de rua tem rota própria — a do motorista e a do escritório em nome dele.
+   * Spec 246 (RF0b): o momento deste caso de uso é fixo, `separation`, conferido contra o conjunto do
+   * tipo — nunca pelo `stage`, e nunca por "algum momento que o papel cobre".
+   */
+  if (
+    !occurrenceTypeAcceptsMoment({ moment: OCCURRENCE_MOMENT.separation, type: occurrenceType })
+  ) {
     throw new OccurrenceTypeNotSeparationError()
   }
 
@@ -387,7 +418,8 @@ export async function registerTripOccurrence(
     ...(occurrenceType.redeliveryPolicy === undefined
       ? {}
       : { redeliveryPolicy: occurrenceType.redeliveryPolicy }),
-    stage: occurrenceType.stage,
+    /** Spec 246: a ocorrência grava onde aconteceu — o momento deste caso de uso, não o par do tipo. */
+    stage: TRIP_OCCURRENCE_STAGE.separation,
     tripId,
     typeName: occurrenceType.name,
   })

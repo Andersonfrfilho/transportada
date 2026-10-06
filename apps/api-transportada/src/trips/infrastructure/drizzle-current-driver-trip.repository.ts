@@ -38,7 +38,10 @@ import type {
   DriverTripDocument,
   DriverTripStop,
 } from '../application/find-current-driver-trip.use-case.js'
-import { resolveFieldOccurrenceTypes } from '../application/list-field-occurrence-types.use-case.js'
+import {
+  resolveFieldOccurrenceTypes,
+  selectFieldOccurrenceTypes,
+} from '../application/list-field-occurrence-types.use-case.js'
 import {
   type CanhotoRecaptureState,
   isDeliveryProofSettled,
@@ -49,7 +52,7 @@ import {
   resolveProofSettingsForRecipient,
   type ProofSettingsLookup,
 } from '../domain/delivery-proof-settings.policy.js'
-import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
+import { OCCURRENCE_MOMENT } from '../../shared/trip-occurrence.constant.js'
 import {
   DrizzleOccurrenceAttachmentOverridesRepository,
   type OccurrenceTypeOverridesByType,
@@ -67,6 +70,7 @@ import {
 import {
   DELIVERED_DOCUMENT_STATUS,
   DELIVERED_EVENT_KIND,
+  EMITTER_PARTICIPANT_ROLE,
   PHOTO_PROOF_KIND,
   RECIPIENT_PARTICIPANT_ROLE,
   REQUIRED_PROOF_FIELD_MODE,
@@ -106,7 +110,7 @@ const RECENTLY_CONCLUDED_TRIP_WINDOW_MINUTES = 15
 /** A nota do destinatário é o que o motorista entrega; a do emitente não lhe diz nada. */
 const RECIPIENT_ROLE = RECIPIENT_PARTICIPANT_ROLE
 /** Spec 218 RF-C3: o emitente da nota é o contratante (ADR-0048 §1) — resolvido para a exceção. */
-const EMITTER_ROLE = 'emitter'
+const EMITTER_ROLE = EMITTER_PARTICIPANT_ROLE
 /** O emitente entra pela segunda vez em `nfeParticipants`: sem alias, a junção casaria com o destinatário. */
 const emitterParticipants = alias(nfeParticipants, 'emitter_participants')
 
@@ -777,9 +781,11 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     readonly companyId: string
   }): Promise<FieldOccurrenceTypesLookup> {
     const types = await listOccurrenceTypes(this.database, { companyId: input.companyId })
-    const deliveryTypeIds = types
-      .filter((type) => type.active && type.stage === TRIP_OCCURRENCE_STAGE.delivery)
-      .map((type) => type.id)
+    /** Spec 246 (RF0): as exceções só importam aos tipos do momento `document` — os do snapshot. */
+    const deliveryTypeIds = selectFieldOccurrenceTypes({
+      moment: OCCURRENCE_MOMENT.document,
+      types,
+    }).map((type) => type.id)
     const overrides = await new DrizzleOccurrenceAttachmentOverridesRepository(
       this.database,
     ).listOverridesForTypes({ companyId: input.companyId, occurrenceTypeIds: deliveryTypeIds })
@@ -1039,10 +1045,11 @@ function toDriverDocument(
       ? null
       : resolveFieldOccurrenceTypes({
           contractorId: row.contractorId,
+          moment: OCCURRENCE_MOMENT.document,
           overrides: occurrenceTypes.overrides,
           recipientTaxId: row.recipientTaxId ?? '',
           types: occurrenceTypes.types,
-        }).filter((type) => type.flow === 'document')
+        })
 
   return {
     accessKey: row.accessKey ?? '',

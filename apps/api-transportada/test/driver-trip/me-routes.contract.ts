@@ -12,6 +12,7 @@ import type {
 import { DriverNotRegisteredError } from '../../src/trips/domain/trip.error.js'
 import { createMeTripRoutes } from '../../src/trips/presentation/me-trip.routes.js'
 import { createTripRoutes } from '../../src/trips/presentation/trip.routes.js'
+import { buildFieldOccurrenceType } from '../fixtures/field-occurrence-type.fixture.js'
 
 const NOT_CALLED = () => {
   throw new Error('ROUTE_DEPENDENCY_NOT_EXPECTED')
@@ -157,34 +158,33 @@ describe('os tipos de ocorrência do motorista (spec 157)', () => {
   const PATH = '/me/trips/current/occurrence-types'
   const COMPANY_ID = '00000000-0000-4000-8000-000000000002'
 
-  function request() {
+  function request(query = '') {
     return {
       context: companyContext(['driver']),
       correlationId: 'c-1',
       pathParameters: {},
-      request: new Request(`http://localhost${PATH}`),
+      request: new Request(`http://localhost${PATH}${query}`),
     }
   }
 
   function buildRoutes(input: { readonly driverId: string | null }) {
     const asked: string[] = []
+    const askedMoments: (string | undefined)[] = []
     const routes = createMeTripRoutes({
       attachProof: NOT_CALLED,
       confirmOccurrenceUpload: NOT_CALLED,
       createOccurrenceUpload: NOT_CALLED,
       dispatchCurrentTrip: NOT_CALLED,
       findCurrentTrip: NOT_CALLED,
-      listFieldOccurrenceTypes: async ({ companyId }) => {
+      listFieldOccurrenceTypes: async ({ companyId, moment }) => {
         asked.push(companyId)
+        askedMoments.push(moment)
         return [
-          {
+          buildFieldOccurrenceType({
             attachmentMode: 'off',
-            flow: 'document',
             id: '00000000-0000-4000-8000-0000000000e1',
             name: 'Cliente ausente',
-            itemsMode: 'optional',
-            stopKind: null,
-          },
+          }),
         ]
       },
       readDeliveryProofs: NOT_CALLED,
@@ -203,8 +203,25 @@ describe('os tipos de ocorrência do motorista (spec 157)', () => {
     const route = routes.find(
       (candidate) => candidate.method === 'GET' && candidate.pathname === PATH,
     )
-    return { asked, route }
+    return { asked, askedMoments, route }
   }
+
+  /**
+   * Spec 246 T1b.2: `moment` filtra a lista do motorista pelo momento — só os dele (nota, parada).
+   * Ausente é a lista de hoje (nota e parada); momento de outro papel é 400, nunca a lista dele.
+   */
+  it('repassa moment de rua, ausente é undefined, e recusa momento de outro papel', async () => {
+    const { askedMoments, route } = buildRoutes({ driverId: 'driver' })
+
+    expect((await route?.execute(request('?moment=stop')))?.status).toBe(200)
+    expect((await route?.execute(request()))?.status).toBe(200)
+    const refused = await Promise.resolve(route?.execute(request('?moment=separation'))).catch(
+      (caught: unknown) => caught,
+    )
+
+    expect(refused).toMatchObject({ status: 400 })
+    expect(askedMoments).toEqual(['stop', undefined])
+  })
 
   it('existe na árvore do motorista, pede trip.report, e o papel driver a alcança', () => {
     const { route } = buildRoutes({ driverId: 'driver' })
@@ -223,14 +240,11 @@ describe('os tipos de ocorrência do motorista (spec 157)', () => {
     expect(response?.status).toBe(200)
     expect(await response?.json()).toEqual({
       data: [
-        {
+        buildFieldOccurrenceType({
           attachmentMode: 'off',
-          flow: 'document',
           id: '00000000-0000-4000-8000-0000000000e1',
           name: 'Cliente ausente',
-          itemsMode: 'optional',
-          stopKind: null,
-        },
+        }),
       ],
     })
     expect(asked).toEqual([COMPANY_ID])

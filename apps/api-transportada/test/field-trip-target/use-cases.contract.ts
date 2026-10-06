@@ -306,6 +306,10 @@ describe('o alvo que chega às portas de campo (spec 156 T3)', () => {
           notifies: false,
           stage: 'delivery',
         }),
+        findOccurrenceTypeOverrides: async () => ({
+          contractorOverrides: [],
+          recipientOverrides: [],
+        }),
         findReachableDocument: async (input) => {
           lookups.push(input)
           return { tripId: TRIP_ID }

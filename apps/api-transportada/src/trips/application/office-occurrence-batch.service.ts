@@ -4,12 +4,13 @@
  * Spec 156 T7.3/T7b (D7): os passos do lote de ocorrências dentro da transação — conferir tipo e
  * alcance, gravar a foto uma vez, uma ocorrência por nota com a própria reserva, e a trilha.
  */
-import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
+import { OCCURRENCE_MOMENT, TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import {
   buildOccurrenceBatchAttachmentObjectKey,
   buildOccurrenceBatchItemKey,
   OFFICE_OCCURRENCE_BATCH_ITEM_OPERATION,
 } from '../domain/occurrence-batch.policy.js'
+import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
 import { OccurrenceTypeNotFieldError, TripDocumentNotReachableError } from '../domain/trip.error.js'
 import { toFieldTripTarget } from './field-trip-target.types.js'
 import type {
@@ -32,10 +33,11 @@ export async function performBatch(context: BatchContext): Promise<BatchOutcome>
     companyId: context.companyId,
     occurrenceTypeId: context.occurrenceTypeId,
   })
+  /** Spec 246 (RF0b): o momento do lote do escritório é fixo, `office`, conferido no conjunto. */
   if (
     occurrenceType === null ||
     !occurrenceType.active ||
-    occurrenceType.stage !== TRIP_OCCURRENCE_STAGE.delivery
+    !occurrenceTypeAcceptsMoment({ moment: OCCURRENCE_MOMENT.office, type: occurrenceType })
   ) {
     throw new OccurrenceTypeNotFieldError()
   }

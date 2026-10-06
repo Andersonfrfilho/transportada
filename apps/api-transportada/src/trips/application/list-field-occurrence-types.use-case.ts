@@ -10,26 +10,30 @@
  * `recipientTaxId` ausentes preservam o comportamento de hoje byte a byte (regressão zero). É o
  * único ponto de leitura, reaproveitado pelo motorista (`me-trip.routes.ts`) e pelo escritório
  * (`trip-field-office-occurrence.routes.ts`), então as duas rotas ganham a exceção de uma vez.
+ *
+ * Spec 246 (RF5, T2.1): a resolução cobre os **seis** campos (foto, observação, assinatura,
+ * produtos e os dois mínimos), campo a campo, por `resolveOccurrenceRequirements` — nulo na exceção
+ * herda do tipo. `attachmentMode` segue no corpo, igual a `photoMode`, para o app que não o conhece.
  */
-import {
-  OCCURRENCE_ATTACHMENT_MODE,
-  OCCURRENCE_ITEMS_MODE,
-  TRIP_OCCURRENCE_STAGE,
-} from '../../shared/trip-occurrence.constant.js'
-import type { OccurrenceTypeFlow } from '../../shared/trip-occurrence.constant.js'
+import { OCCURRENCE_MOMENT } from '../../shared/trip-occurrence.constant.js'
+import type { OccurrenceMoment, OccurrenceTypeFlow } from '../../shared/trip-occurrence.constant.js'
+import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
-import { resolveOccurrenceAttachmentModeForRecipient } from '../domain/occurrence-attachment-overrides.policy.js'
-import type { OccurrenceAttachmentOverridesLookup } from '../domain/occurrence-attachment-overrides.policy.js'
+import { resolveOccurrenceRequirements } from '../domain/occurrence-requirements.policy.js'
+import type {
+  OccurrenceRequirementDeclaration,
+  OccurrenceRequirements,
+  OccurrenceRequirementSources,
+} from '../domain/occurrence-requirements.policy.js'
 import type { OccurrenceTypeRecord } from './register-trip-occurrence.use-case.js'
 import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
 import { resolveStopOccurrenceKind } from '../domain/stop-occurrence-kind.policy.js'
 
-export type FieldOccurrenceType = {
+export type FieldOccurrenceType = OccurrenceRequirements & {
   /**
-   * Spec 179 T304: se o registro do motorista exige comprovante. `type.attachmentMode` é
-   * ausente só para dado legado sem a coluna preenchida — aqui vira `'off'`, nunca fica
-   * indefinido, porque a app do motorista já decide se antecipa a observação obrigatória a
-   * partir deste campo.
+   * Spec 179 T304: se o registro do motorista exige comprovante. Igual a `photoMode`, mantido no
+   * corpo por um ciclo para o app anterior à spec 246. `type.attachmentMode` é ausente só para dado
+   * legado sem a coluna preenchida — aqui vira `'off'`, nunca fica indefinido.
    *
    * Spec 218 RF-B2: já vem resolvido em 3 camadas quando `contractorId`/`recipientTaxId` foram
    * informados — nenhuma lógica de precedência entra no app do motorista, só leitura do valor
@@ -42,12 +46,6 @@ export type FieldOccurrenceType = {
    */
   readonly flow: OccurrenceTypeFlow
   readonly id: string
-  /**
-   * Spec 241 (RF5): se o tipo carrega produtos. A coluna é `NOT NULL`; o `?? optional` abaixo
-   * só existe porque `OccurrenceTypeRecord.itemsMode` é opcional para os dublês de teste. O app do
-   * motorista ignora o campo (guard tolerante).
-   */
-  readonly itemsMode: DeliveryProofFieldMode
   readonly name: string
   /**
    * Spec 218 D2: qual dos 5 valores fixos de parada o tipo representa — a prévia do aviso no app
@@ -57,10 +55,35 @@ export type FieldOccurrenceType = {
   readonly stopKind: TripStopOccurrenceKind | null
 }
 
+/** Spec 246 (RF12): o tipo resolvido e a camada que decidiu cada campo — a verificação mostra as duas. */
+export type FieldOccurrenceTypeResolution = {
+  readonly sources: OccurrenceRequirementSources
+  readonly type: FieldOccurrenceType
+}
+
 export type FieldOccurrenceTypesPort = {
   listOccurrenceTypes(input: {
     readonly companyId: string
   }): Promise<readonly OccurrenceTypeRecord[]>
+}
+
+/**
+ * Spec 246 (D-a): o que cada tabela de exceção devolve — os seis campos, nulos herdando do tipo.
+ * `attachmentMode` é a foto (`NOT NULL` na tabela); os outros são nulos e sem padrão.
+ */
+export type FieldOccurrenceTypeContractorOverride = OccurrenceRequirementDeclaration & {
+  readonly contractorId: string
+  readonly occurrenceTypeId: string
+}
+
+export type FieldOccurrenceTypeRecipientOverride = OccurrenceRequirementDeclaration & {
+  readonly occurrenceTypeId: string
+  readonly taxId: string
+}
+
+export type FieldOccurrenceTypeOverrides = {
+  readonly contractorOverrides: readonly FieldOccurrenceTypeContractorOverride[]
+  readonly recipientOverrides: readonly FieldOccurrenceTypeRecipientOverride[]
 }
 
 /**
@@ -71,23 +94,23 @@ export type FieldOccurrenceTypeOverridesPort = {
   listOverridesForTypes(input: {
     readonly companyId: string
     readonly occurrenceTypeIds: readonly string[]
-  }): Promise<{
-    readonly contractorOverrides: readonly {
-      readonly attachmentMode: DeliveryProofFieldMode
-      readonly contractorId: string
-      readonly occurrenceTypeId: string
-    }[]
-    readonly recipientOverrides: readonly {
-      readonly attachmentMode: DeliveryProofFieldMode
-      readonly occurrenceTypeId: string
-      readonly taxId: string
-    }[]
-  }>
+  }): Promise<FieldOccurrenceTypeOverrides>
 }
 
-export type ListFieldOccurrenceTypesParams = {
+/**
+ * Spec 246 (RF0, T1b.2): o momento que a lista serve — `office` no lote do escritório, `document` no
+ * snapshot da nota. Ausente é a lista do motorista: nota **e** parada, cada tipo roteado pelo `flow`.
+ */
+type FieldOccurrenceMomentFilter = {
+  readonly moment?: OccurrenceMoment | undefined
+}
+
+/** Os momentos da rua que o motorista registra: a lista dele, quando nenhum momento é pedido. */
+export const DRIVER_FIELD_MOMENTS = [OCCURRENCE_MOMENT.document, OCCURRENCE_MOMENT.stop] as const
+
+export type ListFieldOccurrenceTypesParams = FieldOccurrenceMomentFilter & {
   readonly companyId: string
-  /** Spec 218 RF-B2: ausente é "sem contratante resolvido" — cai no `attachmentMode` do tipo. */
+  /** Spec 218 RF-B2: ausente é "sem contratante resolvido" — cai nos modos do tipo. */
   readonly contractorId?: string | null
   /** Só é consultado quando ao menos um dos dois vier informado — regressão zero sem eles. */
   readonly overrides?: FieldOccurrenceTypeOverridesPort
@@ -96,124 +119,146 @@ export type ListFieldOccurrenceTypesParams = {
   readonly repository: FieldOccurrenceTypesPort
 }
 
-export type ResolveFieldOccurrenceTypesParams = {
+export type ResolveFieldOccurrenceTypesParams = FieldOccurrenceMomentFilter & {
   readonly contractorId?: string | null
-  readonly overrides?: {
-    readonly contractorOverrides: readonly {
-      readonly attachmentMode: DeliveryProofFieldMode
-      readonly contractorId: string
-      readonly occurrenceTypeId: string
-    }[]
-    readonly recipientOverrides: readonly {
-      readonly attachmentMode: DeliveryProofFieldMode
-      readonly occurrenceTypeId: string
-      readonly taxId: string
-    }[]
-  }
+  readonly overrides?: FieldOccurrenceTypeOverrides
   readonly recipientTaxId?: string | null
   readonly types: readonly OccurrenceTypeRecord[]
+}
+
+type OverridesByKey<TOverride> = ReadonlyMap<string, ReadonlyMap<string, TOverride>>
+
+/** Agrupa uma lista de exceções (já lidas em uma consulta só) por tipo e, dentro dele, pela chave. */
+function indexOverrides<TOverride extends { readonly occurrenceTypeId: string }>(
+  overrides: readonly TOverride[],
+  keyOf: (override: TOverride) => string,
+): OverridesByKey<TOverride> {
+  const byType = new Map<string, Map<string, TOverride>>()
+  for (const override of overrides) {
+    const byKey = byType.get(override.occurrenceTypeId) ?? new Map<string, TOverride>()
+    byKey.set(keyOf(override), override)
+    byType.set(override.occurrenceTypeId, byKey)
+  }
+  return byType
+}
+
+function findOverride<TOverride>(params: {
+  readonly byType: OverridesByKey<TOverride>
+  readonly key: null | string
+  readonly occurrenceTypeId: string
+}): null | TOverride {
+  if (params.key === null || params.key.length === 0) return null
+  return params.byType.get(params.occurrenceTypeId)?.get(params.key) ?? null
+}
+
+function toFieldOccurrenceType(params: {
+  readonly requirements: OccurrenceRequirements
+  readonly type: OccurrenceTypeRecord
+}): FieldOccurrenceType {
+  const { requirements, type } = params
+  return {
+    ...requirements,
+    attachmentMode: requirements.photoMode,
+    flow: type.flow ?? 'document',
+    id: type.id,
+    name: type.name,
+    stopKind: resolveFieldStopKind(type),
+  }
 }
 
 /**
  * Spec 218 RF-C3 (follow-up, snapshot do motorista): a parte pura de `listFieldOccurrenceTypes` —
  * filtra, resolve e devolve, sem tocar em banco. Extraída para quem já carregou tipos/exceções uma
  * vez (o snapshot resolve N notas da viagem com essa carga única, em vez de uma consulta por nota).
+ *
+ * Spec 246: sem contratante nem destinatário (ou sem exceções lidas) os dois lados ficam nulos e
+ * cada campo cai no tipo — o mesmo resultado de hoje, pelo mesmo caminho.
  */
+export function resolveFieldOccurrenceTypeResolutions(
+  params: ResolveFieldOccurrenceTypesParams,
+): readonly FieldOccurrenceTypeResolution[] {
+  const contractorsByType = indexOverrides(
+    params.overrides?.contractorOverrides ?? [],
+    (override) => override.contractorId,
+  )
+  const recipientsByType = indexOverrides(
+    params.overrides?.recipientOverrides ?? [],
+    (override) => override.taxId,
+  )
+
+  return selectFieldOccurrenceTypes({ moment: params.moment, types: params.types }).map((type) => {
+    const { requirements, sources } = resolveOccurrenceRequirements({
+      contractorOverride: findOverride({
+        byType: contractorsByType,
+        key: params.contractorId ?? null,
+        occurrenceTypeId: type.id,
+      }),
+      recipientOverride: findOverride({
+        byType: recipientsByType,
+        key: params.recipientTaxId ?? null,
+        occurrenceTypeId: type.id,
+      }),
+      type,
+    })
+    return { sources, type: toFieldOccurrenceType({ requirements, type }) }
+  })
+}
+
 export function resolveFieldOccurrenceTypes(
   params: ResolveFieldOccurrenceTypesParams,
 ): readonly FieldOccurrenceType[] {
-  const fieldTypes = params.types.filter(
-    (type) => type.active && type.stage === TRIP_OCCURRENCE_STAGE.delivery,
-  )
+  return resolveFieldOccurrenceTypeResolutions(params).map((resolution) => resolution.type)
+}
 
+/** Spec 246 (RF12): a mesma leitura, devolvendo também a camada de cada campo. */
+export async function listFieldOccurrenceTypeResolutions(
+  params: ListFieldOccurrenceTypesParams,
+): Promise<readonly FieldOccurrenceTypeResolution[]> {
+  const types = await params.repository.listOccurrenceTypes({ companyId: params.companyId })
   const contractorId = params.contractorId ?? null
   const recipientTaxId = params.recipientTaxId ?? null
   const hasResolutionSubject =
     contractorId !== null || (recipientTaxId !== null && recipientTaxId.length > 0)
+  const { moment } = params
 
   if (!hasResolutionSubject || params.overrides === undefined) {
-    return fieldTypes.map((type) => ({
-      attachmentMode: type.attachmentMode ?? OCCURRENCE_ATTACHMENT_MODE.off,
-      flow: type.flow ?? 'document',
-      id: type.id,
-      itemsMode: type.itemsMode ?? OCCURRENCE_ITEMS_MODE.optional,
-      name: type.name,
-      stopKind: resolveFieldStopKind(type),
-    }))
+    return resolveFieldOccurrenceTypeResolutions({ contractorId, moment, recipientTaxId, types })
   }
 
-  const overridesByContractorIdByType = groupOverridesByType(
-    params.overrides.contractorOverrides,
-    (override) => override.contractorId,
-  )
-  const overridesByTaxIdByType = groupOverridesByType(
-    params.overrides.recipientOverrides,
-    (override) => override.taxId,
-  )
+  const overrides = await params.overrides.listOverridesForTypes({
+    companyId: params.companyId,
+    occurrenceTypeIds: selectFieldOccurrenceTypes({ moment, types }).map((type) => type.id),
+  })
 
-  return fieldTypes.map((type) => {
-    const lookup: OccurrenceAttachmentOverridesLookup = {
-      overridesByContractorId: overridesByContractorIdByType.get(type.id) ?? new Map(),
-      overridesByTaxId: overridesByTaxIdByType.get(type.id) ?? new Map(),
-    }
-
-    return {
-      attachmentMode: resolveOccurrenceAttachmentModeForRecipient({
-        attachmentMode: type.attachmentMode ?? OCCURRENCE_ATTACHMENT_MODE.off,
-        contractorId,
-        lookup,
-        recipientTaxId,
-      }),
-      flow: type.flow ?? 'document',
-      id: type.id,
-      itemsMode: type.itemsMode ?? OCCURRENCE_ITEMS_MODE.optional,
-      name: type.name,
-      stopKind: resolveFieldStopKind(type),
-    }
+  return resolveFieldOccurrenceTypeResolutions({
+    contractorId,
+    moment,
+    overrides,
+    recipientTaxId,
+    types,
   })
 }
 
 export async function listFieldOccurrenceTypes(
   params: ListFieldOccurrenceTypesParams,
 ): Promise<readonly FieldOccurrenceType[]> {
-  const types = await params.repository.listOccurrenceTypes({ companyId: params.companyId })
-  const contractorId = params.contractorId ?? null
-  const recipientTaxId = params.recipientTaxId ?? null
-  const hasResolutionSubject =
-    contractorId !== null || (recipientTaxId !== null && recipientTaxId.length > 0)
-  const overridesPort = params.overrides
-
-  if (!hasResolutionSubject || overridesPort === undefined) {
-    return resolveFieldOccurrenceTypes({ contractorId, recipientTaxId, types })
-  }
-
-  const overrides = await overridesPort.listOverridesForTypes({
-    companyId: params.companyId,
-    occurrenceTypeIds: types
-      .filter((type) => type.active && type.stage === TRIP_OCCURRENCE_STAGE.delivery)
-      .map((type) => type.id),
-  })
-
-  return resolveFieldOccurrenceTypes({ contractorId, overrides, recipientTaxId, types })
+  const resolutions = await listFieldOccurrenceTypeResolutions(params)
+  return resolutions.map((resolution) => resolution.type)
 }
 
-type OccurrenceTypeOverride = {
-  readonly attachmentMode: DeliveryProofFieldMode
-  readonly occurrenceTypeId: string
+type SelectFieldOccurrenceTypesParams = FieldOccurrenceMomentFilter & {
+  readonly types: readonly OccurrenceTypeRecord[]
 }
 
-/** Agrupa uma lista de exceções (já lidas em uma consulta só) por `occurrenceTypeId`. */
-function groupOverridesByType<TOverride extends OccurrenceTypeOverride>(
-  overrides: readonly TOverride[],
-  keyOf: (override: TOverride) => string,
-): ReadonlyMap<string, ReadonlyMap<string, DeliveryProofFieldMode>> {
-  const byType = new Map<string, Map<string, DeliveryProofFieldMode>>()
-  for (const override of overrides) {
-    const byKey = byType.get(override.occurrenceTypeId) ?? new Map<string, DeliveryProofFieldMode>()
-    byKey.set(keyOf(override), override.attachmentMode)
-    byType.set(override.occurrenceTypeId, byKey)
-  }
-  return byType
+/** Spec 246 (RF0): os tipos ativos do momento pedido — pelo conjunto, nunca pelo `stage`. */
+export function selectFieldOccurrenceTypes(
+  params: SelectFieldOccurrenceTypesParams,
+): readonly OccurrenceTypeRecord[] {
+  const moments = params.moment === undefined ? DRIVER_FIELD_MOMENTS : [params.moment]
+  return params.types.filter(
+    (type) =>
+      type.active && moments.some((moment) => occurrenceTypeAcceptsMoment({ moment, type })),
+  )
 }
 
 function resolveFieldStopKind(type: OccurrenceTypeRecord): TripStopOccurrenceKind | null {

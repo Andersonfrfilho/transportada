@@ -28,6 +28,9 @@ import { assertNfeEventHistory } from './nfe-event-history.assertion.js'
 import { assertOccurrenceStopFlowBackfill } from './occurrence-stop-flow.assertion.js'
 import { assertOccurrenceStopKindBackfill } from './occurrence-stop-kind.assertion.js'
 import { assertOccurrenceTypeItemsModeBackfill } from './occurrence-type-items-mode.assertion.js'
+import { assertOccurrenceTypeRequirementModesRollback } from './occurrence-type-requirement-modes.assertion.js'
+import { assertOccurrenceTypeQuantityMinimumsRollback } from './occurrence-type-quantity-minimums.assertion.js'
+import { assertOccurrenceTypeMomentsRollback } from './occurrence-type-moments.assertion.js'
 import { assertRntrcRollbackRefusesNinePositions } from './rntrc-rollback.assertion.js'
 import { assertStopDepartureRollback } from './stop-departure-rollback.assertion.js'
 import { assertTollBoothExtractConstraints } from './toll-booth-extract-constraints.assertion.js'
@@ -182,8 +185,27 @@ describe('Drizzle migration integration', () => {
           userId: identityFixture.userId,
         })
 
+        // Ordem inversa do histórico: a 241 derruba `items_mode` e, com ele, a CHECK que o lê.
+        await assertOccurrenceTypeQuantityMinimumsRollback({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+
         await assertOccurrenceTypeItemsModeBackfill({
           companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+
+        await assertOccurrenceTypeRequirementModesRollback({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+
+        await assertOccurrenceTypeMomentsRollback({
           connectionString,
           database,
           directories: migrationDirectories,

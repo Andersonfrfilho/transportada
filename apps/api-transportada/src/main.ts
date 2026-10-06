@@ -298,11 +298,14 @@ import {
   OCCURRENCE_CORRECTION_OPERATION,
 } from './trips/domain/occurrence-correction.policy.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
+import { toSaveOccurrenceTypeValues } from './trips/application/save-occurrence-type-values.mapper.js'
 import {
   readOccurrenceAttachmentOverrides,
   replaceOccurrenceAttachmentOverrides,
 } from './trips/application/occurrence-attachment-overrides.use-case.js'
 import { DrizzleOccurrenceAttachmentOverridesRepository } from './trips/infrastructure/drizzle-occurrence-attachment-overrides.repository.js'
+import { listOccurrenceTypeIds } from './trips/infrastructure/occurrence-type-ids-read.query.js'
+import { listOccurrenceAttachmentOverridesByType } from './trips/application/list-occurrence-attachment-overrides.use-case.js'
 import {
   createListTripOccurrenceFeedUseCase,
   createReadTripOccurrenceAttachmentsUseCase,
@@ -1067,6 +1070,12 @@ export function bootstrap(): Bun.Server<undefined> {
           findConfirmedUpload: (query) =>
             whatsappOccurrenceUploadRepository.findConfirmedUpload(query),
           findOccurrenceType: (query) => findOccurrenceType(database.db, query),
+          /** Spec 246 (RF6): a exceção do tipo vale no WhatsApp como em qualquer canal. */
+          findOccurrenceTypeOverrides: (query) =>
+            new DrizzleOccurrenceAttachmentOverridesRepository(database.db).listOverridesForTypes({
+              companyId: query.companyId,
+              occurrenceTypeIds: [query.occurrenceTypeId],
+            }),
           findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
           listDocumentProducts: (query) => listDocumentProducts(database.db, query),
         },
@@ -3552,6 +3561,12 @@ function createApplicationRoutes({
           repository: {
             findConfirmedUpload: (query) => occurrenceUploadRepository.findConfirmedUpload(query),
             findOccurrenceType: (query) => findOccurrenceType(database, query),
+            /** Spec 246 (RF6): a exceção do contratante/destinatário da nota vale no registro. */
+            findOccurrenceTypeOverrides: (query) =>
+              occurrenceAttachmentOverridesRepository.listOverridesForTypes({
+                companyId: query.companyId,
+                occurrenceTypeIds: [query.occurrenceTypeId],
+              }),
             findReachableDocument: (query) => findDriverReachableDocument(database, query),
             listDocumentProducts: (query) => listDocumentProducts(database, query),
           },
@@ -3666,6 +3681,7 @@ function createApplicationRoutes({
         listFieldOccurrenceTypes({
           companyId: input.companyId,
           contractorId: input.contractorId ?? null,
+          moment: input.moment,
           overrides: {
             listOverridesForTypes: (query) =>
               occurrenceAttachmentOverridesRepository.listOverridesForTypes(query),
@@ -3801,6 +3817,7 @@ function createApplicationRoutes({
         listFieldOccurrenceTypes({
           companyId: input.companyId,
           contractorId: input.contractorId ?? null,
+          moment: input.moment,
           overrides: {
             listOverridesForTypes: (query) =>
               occurrenceAttachmentOverridesRepository.listOverridesForTypes(query),
@@ -3844,6 +3861,17 @@ function createApplicationRoutes({
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
       listOccurrenceTypes: {
         execute: (input) => listOccurrenceTypes(database, { companyId: input.context.companyId }),
+      },
+      listOccurrenceAttachmentOverrides: {
+        execute: (input) =>
+          listOccurrenceAttachmentOverridesByType({
+            companyId: input.context.companyId,
+            port: {
+              listOccurrenceTypeIds: (query) => listOccurrenceTypeIds(database, query),
+              listOverridesForTypes: (query) =>
+                occurrenceAttachmentOverridesRepository.listOverridesForTypes(query),
+            },
+          }),
       },
       readOccurrenceAttachmentOverrides: {
         execute: (input) =>
@@ -3904,23 +3932,7 @@ function createApplicationRoutes({
                 )
               },
             },
-            values: {
-              active: input.active,
-              allowsMultipleItems: input.allowsMultipleItems,
-              attachmentMode: input.attachmentMode,
-              emailBody: input.emailBody,
-              emailSubject: input.emailSubject,
-              emailsContractor: input.emailsContractor,
-              emailTemplateKey: input.emailTemplateKey,
-              flow: input.flow,
-              itemsMode: input.itemsMode,
-              leavesDocumentBehind: input.leavesDocumentBehind,
-              name: input.name,
-              notifies: input.notifies,
-              occurrenceTypeId: input.occurrenceTypeId,
-              redeliveryPolicy: input.redeliveryPolicy,
-              stage: input.stage,
-            },
+            values: toSaveOccurrenceTypeValues(input),
           }),
       },
       /**

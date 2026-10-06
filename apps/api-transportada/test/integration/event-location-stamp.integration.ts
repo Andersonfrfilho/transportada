@@ -534,6 +534,10 @@ function registerDocumentOccurrenceAs(
     repository: {
       findConfirmedUpload: async () => null,
       findOccurrenceType: (query) => findOccurrenceType(world.database.db, query),
+      findOccurrenceTypeOverrides: async () => ({
+        contractorOverrides: [],
+        recipientOverrides: [],
+      }),
       findReachableDocument: (query) => findDriverReachableDocument(world.database.db, query),
       listDocumentProducts: (query) => listDocumentProducts(world.database.db, query),
     },

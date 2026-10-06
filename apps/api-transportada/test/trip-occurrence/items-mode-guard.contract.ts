@@ -177,6 +177,10 @@ describe('o registro do motorista recusa produto em tipo sem itens (spec 241 RF6
         findConfirmedUpload: async () => null,
         findOccurrenceType: async () =>
           buildType({ itemsMode: input.itemsMode, stage: 'delivery' }),
+        findOccurrenceTypeOverrides: async () => ({
+          contractorOverrides: [],
+          recipientOverrides: [],
+        }),
         findReachableDocument: async () => ({ tripId: TRIP }),
         listDocumentProducts: async () => PRODUCTS,
       },

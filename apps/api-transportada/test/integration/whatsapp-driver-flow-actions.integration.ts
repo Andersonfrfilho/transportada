@@ -613,6 +613,10 @@ async function buildScenario(db: Database, companyId: string) {
         repository: {
           findConfirmedUpload: async () => null,
           findOccurrenceType: (query) => findOccurrenceType(db, query),
+          findOccurrenceTypeOverrides: async () => ({
+            contractorOverrides: [],
+            recipientOverrides: [],
+          }),
           findReachableDocument: (query) => findDriverReachableDocument(db, query),
           listDocumentProducts: (query) => listDocumentProducts(db, query),
         },

@@ -7,7 +7,7 @@
  * aparece na tela de outra.
  */
 import { alias } from 'drizzle-orm/pg-core'
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 
 import { distanceInMetres } from '../../addresses/domain/coordinate-distance.js'
 import { fleetDrivers } from '../../database/fleet.schema.js'
@@ -28,7 +28,6 @@ import {
   tripDrivers,
   tripStopEvents,
   tripStops,
-  trips,
 } from '../../database/trip.schema.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { ApiLogger } from '../../shared/api.types.js'
@@ -47,16 +46,19 @@ import type {
   TripOccurrenceAuthorship,
 } from '../application/register-trip-occurrence.use-case.js'
 import type {
+  OccurrenceMoment,
   OccurrenceTypeFlow,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
 import {
+  OCCURRENCE_TYPE_ITEMS_MINIMUM_SHAPE_CHECK,
   OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK,
   TRIP_BOUND_OCCURRENCE_STAGES,
 } from '../../shared/trip-occurrence.constant.js'
 import { openOccurrenceCase } from './drizzle-occurrence-case.repository.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
 import {
+  OccurrenceTypeItemsMinimumRequiresRequiredError,
   OccurrenceTypeItemsOffRedeliveryPolicyError,
   TripDocumentNotFoundError,
 } from '../domain/trip.error.js'
@@ -64,9 +66,8 @@ import { violatedCheckConstraint } from '../../database/postgres-error.support.j
 import { contractors } from '../../database/delivery-client.schema.js'
 import { resolveDeliveryContact } from '../domain/delivery-contact.policy.js'
 import type { DeliveryContact } from '../domain/delivery-contact.policy.js'
-import { PROOF_REACHABLE_TRIP_STATUSES } from './drizzle-delivery-proof.repository.js'
-import { fieldTripTargetCondition } from './field-trip-target.query.js'
-import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
+import { mirrorStreetOccurrenceAttachments } from './street-occurrence-attachment.persistence.js'
+import type { FieldAuthorship } from '../application/field-trip-target.types.js'
 import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
 import { resolveOccurrenceProductCodes } from '../domain/occurrence-scope.policy.js'
 import { buildOccurrenceItemValues } from '../domain/occurrence-template.policy.js'
@@ -84,6 +85,11 @@ import {
   listOccurrenceTypeItemsShapesOrEmpty,
 } from './occurrence-type-items-read.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
+import {
+  replaceOccurrenceTypeMoments,
+  withOccurrenceTypeMoments,
+} from './occurrence-type-moments.query.js'
+import { deriveOccurrenceMomentsFromStageAndFlow } from '../domain/occurrence-moment.policy.js'
 
 /**
  * Spec 156 T9 (D3): resolve o nome de quem gravou pela mesma janela do padrão já em produção
@@ -520,6 +526,11 @@ export async function saveTripOccurrence(
     readonly authorship?: FieldAuthorship
     /** Spec 156 T7b: o objeto único da foto do lote, referenciado por cada nota. */
     readonly attachmentObjectId?: string | null
+    /**
+     * Spec 246 (T2.7): todas as fotos da ocorrência de nota do motorista, na ordem — posições 1..N da
+     * tabela de anexos. Ausente é o objeto único acima (posição 1). A coluna leva sempre a primeira.
+     */
+    readonly attachmentObjectIds?: readonly string[]
     readonly companyId: string
     readonly documentId: string
     /**
@@ -535,6 +546,8 @@ export async function saveTripOccurrence(
      * `'unset'`) é o produto de hoje — nenhuma tratativa nasce, nenhum caminho muda.
      */
     readonly redeliveryPolicy?: RedeliveryPolicy
+    /** Spec 246 (RF9): a assinatura, na coluna própria — nunca linha de anexo de foto. */
+    readonly signatureObjectId?: string | null
     readonly stage: TripOccurrence['stage']
     readonly tripId: string
     readonly typeName: string
@@ -557,12 +570,13 @@ export async function saveTripOccurrence(
     .insert(tripDocumentOccurrences)
     .values({
       actorUserId: input.actorUserId,
-      attachmentObjectId: input.attachmentObjectId ?? null,
+      attachmentObjectId: input.attachmentObjectIds?.[0] ?? input.attachmentObjectId ?? null,
       companyId: input.companyId,
       ...input.locationStamp,
       note: input.note,
       occurrenceTypeId: input.occurrenceTypeId,
       productCode: input.productCode,
+      signatureObjectId: input.signatureObjectId ?? null,
       stage: input.stage,
       tripDocumentId: input.documentId,
       ...(input.authorship === undefined
@@ -574,6 +588,19 @@ export async function saveTripOccurrence(
     })
     .returning()
   if (saved === undefined) return null
+
+  /** Spec 246 T1d.5, T2.7: a foto de rua ganha também as linhas da 161, na mesma transação. */
+  const storedObjectIds =
+    input.attachmentObjectIds ??
+    (saved.attachmentObjectId === null ? [] : [saved.attachmentObjectId])
+  if (storedObjectIds.length > 0) {
+    await mirrorStreetOccurrenceAttachments(queryable, {
+      companyId: saved.companyId,
+      createdAt: saved.createdAt,
+      occurrenceId: saved.id,
+      storedObjectIds,
+    })
+  }
 
   /**
    * Spec 164 T4 (RF3): a abertura mora na **mesma transação** desta escrita — `unset` (ou
@@ -782,50 +809,7 @@ export async function readOccurrenceLabels(
   }
 }
 
-/**
- * Spec 079: a nota que **este motorista** está levando agora — ou, pelo escritório (spec 156), a
- * nota da viagem que ele resolveu.
- *
- * ⚠️ O recorte é o mesmo de `findReachableDocumentIds`: o alvo (`fieldTripTargetCondition`), viagem
- * em estado ativo e **só as vivas** — nota liberada (`released_at`) não está mais na viagem, mesmo
- * que a viagem continue ativa (spec 156 T8b.1). Nota de outra viagem, de viagem que já fechou, ou já
- * liberada desta mesma viagem, responde `null`, e o caso de uso a trata como inalcançável. É a
- * consulta que estreita o `trip.report` da empresa inteira para a carga que ele tem nas mãos; a
- * permissão sozinha não estreita nada.
- *
- * ⚠️ `findDeliveryEventId` (`drizzle-delivery-proof.repository.ts`) **não** filtra `released_at` —
- * ela busca o evento de uma entrega que já aconteceu, e o comprovante continua válido mesmo que a
- * nota seja liberada depois. Os dois têm o mesmo alvo e o mesmo recorte de viagem ativa, mas não o
- * mesmo recorte de `released_at`; o comentário anterior os igualava por engano.
- */
-export async function findDriverReachableDocument(
-  queryable: TripQueryable,
-  input: {
-    readonly companyId: string
-    readonly documentId: string
-    readonly target: FieldTripTarget
-  },
-): Promise<null | { readonly tripId: string }> {
-  const [row] = await queryable
-    .select({ tripId: tripDocuments.tripId })
-    .from(tripDocuments)
-    .innerJoin(
-      trips,
-      and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
-    )
-    .where(
-      and(
-        eq(tripDocuments.companyId, input.companyId),
-        eq(tripDocuments.id, input.documentId),
-        isNull(tripDocuments.releasedAt),
-        fieldTripTargetCondition(input.target),
-        inArray(trips.status, [...PROOF_REACHABLE_TRIP_STATUSES]),
-      ),
-    )
-    .limit(1)
-
-  return row === undefined ? null : { tripId: row.tripId }
-}
+export { findDriverReachableDocument } from './driver-reachable-document.query.js'
 
 /**
  * O tipo cadastrado, conferido contra a empresa. ⚠️ `active` **não** entra no `where`: o caso de
@@ -852,12 +836,20 @@ export async function findOccurrenceType(
       id: companyOccurrenceTypes.id,
       /** Spec 241 (RF1): se o tipo carrega produtos — a guarda do registro e da correção lê daqui. */
       itemsMode: companyOccurrenceTypes.itemsMode,
+      /** Spec 246 (RF1c2): nulo é "todos os itens da nota"; só vale com `itemsMode = 'required'`. */
+      itemsMinimumCount: companyOccurrenceTypes.itemsMinimumCount,
       /** Spec 185 (revisão, RF2): só a ocorrência que deixa a nota para trás tenta o despacho. */
       leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
       name: companyOccurrenceTypes.name,
+      /** Spec 246 (RF1, RF3): a exigência da observação, separada da foto. */
+      noteMode: companyOccurrenceTypes.noteMode,
       notifies: companyOccurrenceTypes.notifies,
+      /** Spec 246 (RF1c): a quantidade mínima de fotos, lida só com a foto `required`. */
+      photoMinimumCount: companyOccurrenceTypes.photoMinimumCount,
       /** Spec 164 T4 (RF3): copiada para a tratativa no registro — `openOccurrenceCase` decide por ela. */
       redeliveryPolicy: companyOccurrenceTypes.redeliveryPolicy,
+      /** Spec 246 (RF1): a exigência da assinatura de quem recusou. */
+      signatureMode: companyOccurrenceTypes.signatureMode,
       stage: companyOccurrenceTypes.stage,
     })
     .from(companyOccurrenceTypes)
@@ -869,7 +861,13 @@ export async function findOccurrenceType(
     )
     .limit(1)
 
-  return row ?? null
+  if (row === undefined) return null
+  /** Spec 246 (RF0): a guarda de cada caso de uso decide pelo conjunto, resolvido na leitura. */
+  const [withMoments] = await withOccurrenceTypeMoments(queryable, {
+    companyId: input.companyId,
+    records: [row],
+  })
+  return withMoments ?? null
 }
 
 /**
@@ -972,7 +970,7 @@ export async function listOccurrenceTypes(
   queryable: TripQueryable,
   input: { readonly companyId: string },
 ): Promise<readonly OccurrenceTypeRecord[]> {
-  return queryable
+  const records = await queryable
     .select({
       active: companyOccurrenceTypes.active,
       allowsMultipleItems: companyOccurrenceTypes.allowsMultipleItems,
@@ -983,11 +981,15 @@ export async function listOccurrenceTypes(
       emailsContractor: companyOccurrenceTypes.emailsContractor,
       flow: companyOccurrenceTypes.flow,
       id: companyOccurrenceTypes.id,
+      itemsMinimumCount: companyOccurrenceTypes.itemsMinimumCount,
       itemsMode: companyOccurrenceTypes.itemsMode,
       leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
       name: companyOccurrenceTypes.name,
+      noteMode: companyOccurrenceTypes.noteMode,
       notifies: companyOccurrenceTypes.notifies,
+      photoMinimumCount: companyOccurrenceTypes.photoMinimumCount,
       redeliveryPolicy: companyOccurrenceTypes.redeliveryPolicy,
+      signatureMode: companyOccurrenceTypes.signatureMode,
       stage: companyOccurrenceTypes.stage,
       stopKind: companyOccurrenceTypes.stopKind,
     })
@@ -1000,6 +1002,8 @@ export async function listOccurrenceTypes(
       ),
     )
     .orderBy(asc(companyOccurrenceTypes.stage), asc(companyOccurrenceTypes.name))
+  /** Spec 246 (RF0): o conjunto de cada tipo, numa consulta só para a lista inteira. */
+  return withOccurrenceTypeMoments(queryable, { companyId: input.companyId, records })
 }
 
 /**
@@ -1008,17 +1012,53 @@ export async function listOccurrenceTypes(
  * Qualquer outra violação segue propagando.
  */
 function rethrowItemsOffShapeViolation(error: unknown): never {
-  if (violatedCheckConstraint(error) === OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK) {
+  const violated = violatedCheckConstraint(error)
+  if (violated === OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK) {
     throw new OccurrenceTypeItemsOffRedeliveryPolicyError()
+  }
+  if (violated === OCCURRENCE_TYPE_ITEMS_MINIMUM_SHAPE_CHECK) {
+    throw new OccurrenceTypeItemsMinimumRequiresRequiredError()
   }
   throw error
 }
 
+/**
+ * Spec 246 (T1b.1b): o tipo e o conjunto de momentos numa transação só. `moments` ausente na edição é
+ * "não mexa" (o caso de uso já re-derivou quando o par mudou); na criação vale o derivado de
+ * `stage`/`flow`, para todo tipo novo nascer com linha. A resposta traz o conjunto resolvido.
+ */
 export async function saveOccurrenceType(
+  queryable: TripQueryable,
+  input: Parameters<typeof writeOccurrenceTypeRow>[1] & {
+    readonly moments?: readonly OccurrenceMoment[] | undefined
+  },
+): Promise<OccurrenceTypeRecord> {
+  return queryable.transaction(async (transaction) => {
+    const saved = await writeOccurrenceTypeRow(transaction, input)
+    const moments =
+      input.moments ??
+      (input.occurrenceTypeId === null ? deriveOccurrenceMomentsFromStageAndFlow(saved) : undefined)
+    if (moments !== undefined) {
+      await replaceOccurrenceTypeMoments(transaction, {
+        companyId: input.companyId,
+        moments,
+        occurrenceTypeId: saved.id,
+      })
+    }
+    const [withMoments] = await withOccurrenceTypeMoments(transaction, {
+      companyId: input.companyId,
+      records: [saved],
+    })
+    return withMoments ?? saved
+  })
+}
+
+async function writeOccurrenceTypeRow(
   queryable: TripQueryable,
   input: {
     readonly active: boolean
-    readonly allowsMultipleItems: boolean
+    /** Spec 246 T1c.3: ausente é "não mexa" — o INSERT usa o padrão da coluna (`true`). */
+    readonly allowsMultipleItems?: boolean | undefined
     /**
      * Spec 179 (RF1): ausente é `'off'` — o padrão da coluna. Opcional só para os chamadores que
      * ainda não conhecem a exigência (seeder da bancada, dublês de teste); a rota HTTP sempre grava.
@@ -1035,6 +1075,8 @@ export async function saveOccurrenceType(
      * `occurrenceTypeId: null`); ausente na edição é "não mexa", mesmo motivo de `attachmentMode`.
      */
     readonly flow?: OccurrenceTypeFlow | undefined
+    /** Spec 246 (RF1c2): ausente é "não mexa"; nulo grava "todos os itens da nota". */
+    readonly itemsMinimumCount?: null | number | undefined
     /** Spec 241 (RF4): ausente é "não mexa" — o INSERT usa o padrão da coluna (`'optional'`). */
     readonly itemsMode?: DeliveryProofFieldMode | undefined
     /**
@@ -1044,13 +1086,19 @@ export async function saveOccurrenceType(
      */
     readonly leavesDocumentBehind?: boolean | undefined
     readonly name: string
+    /** Spec 246 (RF1, RF3): ausente é "não mexa" — o INSERT usa o padrão da coluna (`'optional'`). */
+    readonly noteMode?: DeliveryProofFieldMode | undefined
     readonly notifies: boolean
     readonly occurrenceTypeId: null | string
+    /** Spec 246 (RF1c): ausente é "não mexa" — o INSERT usa o padrão da coluna (1). */
+    readonly photoMinimumCount?: number | undefined
     /**
      * Spec 164 T1/RF1 (spec 242): ausente é "não mexa" — o INSERT usa o padrão da coluna
      * (`'unset'`) e o UPDATE omite a coluna, como `attachmentMode`.
      */
     readonly redeliveryPolicy?: RedeliveryPolicy | undefined
+    /** Spec 246 (RF1): ausente é "não mexa" — o INSERT usa o padrão da coluna (`'off'`). */
+    readonly signatureMode?: DeliveryProofFieldMode | undefined
     readonly stage: TripOccurrenceStage
   },
 ): Promise<OccurrenceTypeRecord> {
@@ -1063,7 +1111,6 @@ export async function saveOccurrenceType(
    */
   const values = {
     active: input.active,
-    allowsMultipleItems: input.allowsMultipleItems,
     companyId: input.companyId,
     emailBody: input.emailBody,
     emailSubject: input.emailSubject,
@@ -1074,11 +1121,22 @@ export async function saveOccurrenceType(
   }
 
   const attachmentModeChange = {
+    ...(input.allowsMultipleItems === undefined
+      ? {}
+      : { allowsMultipleItems: input.allowsMultipleItems }),
     ...(input.attachmentMode === undefined ? {} : { attachmentMode: input.attachmentMode }),
     ...(input.emailsContractor === undefined ? {} : { emailsContractor: input.emailsContractor }),
     ...(input.flow === undefined ? {} : { flow: input.flow }),
     ...(input.itemsMode === undefined ? {} : { itemsMode: input.itemsMode }),
+    ...(input.itemsMinimumCount === undefined
+      ? {}
+      : { itemsMinimumCount: input.itemsMinimumCount }),
+    ...(input.photoMinimumCount === undefined
+      ? {}
+      : { photoMinimumCount: input.photoMinimumCount }),
+    ...(input.noteMode === undefined ? {} : { noteMode: input.noteMode }),
     ...(input.redeliveryPolicy === undefined ? {} : { redeliveryPolicy: input.redeliveryPolicy }),
+    ...(input.signatureMode === undefined ? {} : { signatureMode: input.signatureMode }),
   }
   /**
    * Tipo que não é de separação grava sempre `false`: mudar o estágio de um tipo marcado, sem mandar
@@ -1137,11 +1195,15 @@ export async function saveOccurrenceType(
     emailsContractor: saved.emailsContractor,
     flow: saved.flow,
     id: saved.id,
+    itemsMinimumCount: saved.itemsMinimumCount,
     itemsMode: saved.itemsMode,
     leavesDocumentBehind: saved.leavesDocumentBehind,
     name: saved.name,
+    noteMode: saved.noteMode,
     notifies: saved.notifies,
+    photoMinimumCount: saved.photoMinimumCount,
     redeliveryPolicy: saved.redeliveryPolicy,
+    signatureMode: saved.signatureMode,
     stage: saved.stage,
     stopKind: saved.stopKind,
   }

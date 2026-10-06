@@ -19,6 +19,7 @@ import {
 } from '../../src/trips/application/register-office-document-occurrences.use-case.js'
 import { resolveFieldTripTarget } from '../../src/trips/application/resolve-field-trip-target.use-case.js'
 import { listFieldOccurrenceTypes } from '../../src/trips/application/list-field-occurrence-types.use-case.js'
+import { buildFieldOccurrenceType } from '../fixtures/field-occurrence-type.fixture.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const ACTOR_USER_ID = '00000000-0000-4000-8000-000000000002'
@@ -578,14 +579,7 @@ describe('os tipos de ocorrência do escritório (L2)', () => {
     })
 
     expect(types).toEqual([
-      {
-        attachmentMode: 'off',
-        flow: 'document',
-        id: TYPE_ID,
-        name: 'Cliente ausente',
-        itemsMode: 'optional',
-        stopKind: null,
-      },
+      buildFieldOccurrenceType({ attachmentMode: 'off', id: TYPE_ID, name: 'Cliente ausente' }),
     ])
   })
 })

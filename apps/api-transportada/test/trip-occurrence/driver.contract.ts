@@ -33,6 +33,8 @@ function readPort(
     readonly attachmentMode?: 'off' | 'optional' | 'required'
     /** Spec 218 D1: ausente é `undefined`, o mesmo "sem a coluna" — tratado como `document`. */
     readonly flow?: 'document' | 'stop'
+    /** Spec 246 (RF3): a observação é dado, não consequência da foto; ausente é `optional`. */
+    readonly noteMode?: 'off' | 'optional' | 'required'
     readonly reachable?: boolean
     readonly stage?: 'delivery' | 'separation'
     readonly typeFound?: boolean
@@ -58,9 +60,13 @@ function readPort(
         ...(overrides.flow === undefined ? {} : { flow: overrides.flow }),
         id: TIPO,
         name: 'Recusa parcial',
+        ...(overrides.noteMode === undefined ? {} : { noteMode: overrides.noteMode }),
         notifies: false,
         stage: overrides.stage ?? ('delivery' as const),
       }
+    },
+    async findOccurrenceTypeOverrides() {
+      return { contractorOverrides: [], recipientOverrides: [] }
     },
     async findReachableDocument() {
       return overrides.reachable === false
@@ -245,9 +251,10 @@ describe('a recusa não sai sem prova quando o tipo exige (spec 179 T203)', () =
 
   test('tipo required sem motivo escrito é recusado, mesmo com o anexo', async () => {
     expect(
-      await registrar({ attachmentMode: 'required' }, { attachmentObjectId: UPLOAD }).result.catch(
-        (e: unknown) => e,
-      ),
+      await registrar(
+        { attachmentMode: 'required', noteMode: 'required' },
+        { attachmentObjectId: UPLOAD },
+      ).result.catch((e: unknown) => e),
     ).toBeInstanceOf(TripOccurrenceNoteRequiredError)
   })
 
