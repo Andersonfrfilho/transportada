@@ -329,3 +329,53 @@ error: TRIP_RESPONSE_INVALID
 ```
 
 Depois: `10 pass, 0 fail`; `bun run typecheck` (app) saída 0; `eslint` nos três arquivos sem achado.
+
+### T1b.1 — A tabela de momentos e o backfill (2026-10-06)
+
+`OCCURRENCE_MOMENT`/`OCCURRENCE_MOMENTS` (`separation`, `document`, `stop`, `office`, nesta ordem
+canônica) e a guarda `acceptsOccurrenceMoment({ moments, moment })` em
+`src/shared/trip-occurrence.constant.ts`. A tabela mora em arquivo próprio,
+`src/database/occurrence-type-moment.schema.ts` (exportado por `database.schema.ts`), no padrão de
+tenant: `company_occurrence_type_moments_company_id_companies_id_fk` (restrict/cascade),
+`company_occurrence_type_moments_type_fk` `(company_id, occurrence_type_id) →
+company_occurrence_types(company_id, id) ON DELETE CASCADE`, `company_occurrence_type_moments_unique
+(company_id, occurrence_type_id, moment)` e `company_occurrence_type_moments_moment_check` gerada de
+`inList(OCCURRENCE_MOMENTS)`.
+
+Migration `drizzle/20261006115725_occurrence_type_moments/` (`db:generate --name
+occurrence_type_moments`, depois o backfill à mão): `CREATE TABLE` → as duas FKs → cinco `INSERT …
+SELECT … ON CONFLICT ON CONSTRAINT "company_occurrence_type_moments_unique" DO NOTHING`, uma regra da
+tabela do plan por instrução (a de `stop` são duas: `delivery + stop` e `separation + stop`, D-c), sem
+filtro de `active` — tipo inativo entra. O cabeçalho registra que `separation + document` nunca sai do
+backfill e que os dois "Avaria" existentes continuam dois tipos. `rollback.sql`: `BEGIN` → `DROP
+TABLE` → `DELETE` do journal com `ROW_COUNT <> 1 → RAISE` → `COMMIT`; não toca `stage` nem `flow`, e
+o cabeçalho diz o preço (tipo com mais momentos do que o par `stage`/`flow` diz perde o conjunto; um
+`separation + document` volta a ser só de galpão).
+
+Contratos primeiro, vermelhos:
+
+```text
+$ bun test ./test/trip-schema/tenant-safety.contract.ts
+SyntaxError: Export named 'companyOccurrenceTypeMoments' not found in module '.../src/database/database.schema.ts'.
+ 0 pass
+ 1 fail
+ 1 error
+
+$ bun test ./test/database-migration/occurrence-type-moments.static.contract.ts
+error: occurrence_type_moments is required
+(fail) o momento vira conjunto (spec 246 T1b.1) > o rollback derruba só a tabela e o journal, e não toca stage nem flow [1.65ms]
+ 0 pass
+ 2 fail
+```
+
+Depois: `tenant-safety.contract.ts` → `18 pass, 0 fail` (a tabela entrou em `TRIP_TABLES` e ganhou o
+caso de FK composta, unicidade e CHECK igual a `inList(OCCURRENCE_MOMENTS)`);
+`bun test ./test/trip-schema.contract.test.ts` → `250 pass, 0 fail`; os contratos estáticos de
+migration (`occurrence-type-moments.static`, `static-migration` — a lista de diretórios ganhou a
+pasta —, `schema-snapshot`, `migration-readiness`, `pre-deploy`, `migration-chain`,
+`occurrence-type-requirement-modes.static`) → `88 pass, 0 fail`; `bun run db:generate` →
+`no_changes`; `bun run typecheck` → saída 0. Rollback no `make migration-test`:
+`test/database-migration/occurrence-type-moments.assertion.ts` (chamado logo depois do da T1.2)
+derruba a tabela pelo `rollback.sql`, confere que `stage` e `flow` do tipo seguem de pé e que o
+migrador a reaplica — `make migration-test ENV_FILE=.env.test` → `129 pass, 0 fail, 0 skip` em 8
+arquivos. As **linhas** do backfill sobre dado semeado são a T1b.4.

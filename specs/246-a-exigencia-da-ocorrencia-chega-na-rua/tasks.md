@@ -44,7 +44,7 @@ THEN 'required' ELSE 'optional' END` em **toda** linha existente; `signature_mod
 
 > 🤖 Modelo: `sonnet` (T1b.2 é 🧠 — é onde um papel pode ganhar momento que não é dele)
 
-- [ ] **T1b.1** Constante `OCCURRENCE_MOMENTS` (`separation`, `document`, `stop`, `office`) e tabela
+- [x] **T1b.1** Constante `OCCURRENCE_MOMENTS` (`separation`, `document`, `stop`, `office`) e tabela
       `company_occurrence_type_moments` no padrão de tenant: `company_id → companies`, FK composta
       `(company_id, occurrence_type_id) → company_occurrence_types(company_id, id) ON DELETE
 CASCADE`, `UNIQUE (company_id, occurrence_type_id, moment)`, CHECK

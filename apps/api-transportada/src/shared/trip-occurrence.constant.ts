@@ -45,6 +45,41 @@ export const OCCURRENCE_TYPE_FLOWS = {
 export type OccurrenceTypeFlow = (typeof OCCURRENCE_TYPE_FLOWS)[keyof typeof OCCURRENCE_TYPE_FLOWS]
 
 /**
+ * Spec 246 (RF0): os momentos em que um tipo pode ser registrado — um conjunto, nunca menos de um,
+ * guardado em `company_occurrence_type_moments` (a CHECK é gerada desta lista). `separation` é o
+ * galpão, `document` a entrega da nota, `stop` a chegada à parada e `office` o escritório em nome do
+ * motorista. A ordem é a do fluxo e é a canônica de toda lista de momentos. Cópia por valor no
+ * frontend (`trip/shared/occurrence.constant.ts`).
+ */
+export const OCCURRENCE_MOMENT = {
+  separation: 'separation',
+  document: 'document',
+  stop: 'stop',
+  office: 'office',
+} as const
+
+export const OCCURRENCE_MOMENTS = [
+  OCCURRENCE_MOMENT.separation,
+  OCCURRENCE_MOMENT.document,
+  OCCURRENCE_MOMENT.stop,
+  OCCURRENCE_MOMENT.office,
+] as const
+
+export type OccurrenceMoment = (typeof OCCURRENCE_MOMENTS)[number]
+
+/**
+ * Spec 246 (RF0b, T1b.2): a guarda de todo caso de uso que registra ocorrência. O momento é o **do
+ * registro**, fixo por caso de uso, e a permissão continua sendo a da rota — é proibido decidir
+ * permissão a partir dos momentos do tipo ("o tipo tem algum momento que o papel cobre").
+ */
+export function acceptsOccurrenceMoment(params: {
+  readonly moments: readonly OccurrenceMoment[]
+  readonly moment: OccurrenceMoment
+}): boolean {
+  return params.moments.includes(params.moment)
+}
+
+/**
  * A ordem é a do fluxo — o que acontece no galpão vem antes do que acontece na rua —, e ela faz
  * parte do contrato: a tela lista nesta ordem, e trocá-la muda o que aparece primeiro para quem
  * está com a caixa na mão.

@@ -6,6 +6,7 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 
 import {
+  companyOccurrenceTypeMoments,
   mdfeManifests,
   tripCargoLayouts,
   tripDeliveryProofs,
@@ -21,7 +22,14 @@ import {
   tripStops,
   trips,
 } from '../../src/database/database.schema.js'
-import { columnNames, foreignKeys } from '../fiscal-schema/support.js'
+import { inList } from '../../src/database/schema-check.constant.js'
+import { OCCURRENCE_MOMENTS } from '../../src/shared/trip-occurrence.constant.js'
+import {
+  columnNames,
+  foreignKeys,
+  uniqueColumnsByName,
+  unqualifiedCheckSqlByName,
+} from '../fiscal-schema/support.js'
 
 const TRIP_TABLES = [
   { name: 'trips', table: trips },
@@ -47,6 +55,8 @@ const TRIP_TABLES = [
   /** Spec 164 T1/T4: a tratativa da ocorrência e sua trilha append-only. */
   { name: 'trip_occurrence_cases', table: tripOccurrenceCases },
   { name: 'trip_occurrence_case_events', table: tripOccurrenceCaseEvents },
+  /** Spec 246 T1b.1: os momentos do tipo — quem registra o quê sai daqui, nunca de outra empresa. */
+  { name: 'company_occurrence_type_moments', table: companyOccurrenceTypeMoments },
 ] as const
 
 describe('trip tenant safety', () => {
@@ -232,6 +242,28 @@ describe('trip tenant safety', () => {
       name: 'trip_document_occurrence_attachments_company_thumbnail_fk',
       onDelete: 'restrict',
       onUpdate: 'cascade',
+    })
+  })
+
+  /**
+   * Spec 246 T1b.1: o momento alcança o tipo por `(company_id, id)` e morre com ele; um tipo tem cada
+   * momento uma vez só, dentro da empresa; e o vocabulário da CHECK é a constante, nunca uma lista à
+   * mão que esquece o momento novo.
+   */
+  test('reaches the occurrence type of a moment through the tenant, once per moment', () => {
+    expect(foreignKeys(companyOccurrenceTypeMoments)).toContainEqual({
+      columns: ['company_id', 'occurrence_type_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'company_occurrence_types',
+      name: 'company_occurrence_type_moments_type_fk',
+      onDelete: 'cascade',
+      onUpdate: 'cascade',
+    })
+    expect(uniqueColumnsByName(companyOccurrenceTypeMoments)).toEqual({
+      company_occurrence_type_moments_unique: ['company_id', 'occurrence_type_id', 'moment'],
+    })
+    expect(unqualifiedCheckSqlByName(companyOccurrenceTypeMoments)).toEqual({
+      company_occurrence_type_moments_moment_check: `"moment" in (${inList(OCCURRENCE_MOMENTS)})`,
     })
   })
 
