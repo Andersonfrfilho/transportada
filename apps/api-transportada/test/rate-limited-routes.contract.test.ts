@@ -512,7 +512,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
         rateLimit: {
           maxRequests: 120,
           scope: 'cargo-arrival-return',
-          store: 'postgres',
+          store: 'postgres' as const,
           windowSeconds: 300,
         },
         signature: `POST /cargo-arrivals/:id/documents/:documentId/${action}`,
