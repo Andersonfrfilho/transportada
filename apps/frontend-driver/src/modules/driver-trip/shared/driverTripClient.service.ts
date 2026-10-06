@@ -20,6 +20,7 @@ import {
   PROOF_PUNCTUALITY_VALUES,
   type DriverFieldReport,
   type DriverOccurrenceKind,
+  type DriverOccurrencePhoto,
   type DriverOccurrenceTypesResult,
   type DriverTripSnapshot,
   type ProofPunctuality,
@@ -479,28 +480,54 @@ async function sendDocumentOccurrence(input: {
   readonly report: DocumentOccurrenceReport
 }): Promise<void> {
   const { dependencies, report } = input
-  const attachmentObjectId =
-    report.photo === null
-      ? undefined
-      : await uploadOccurrencePhoto({
-          dependencies,
-          photo: report.photo.blob,
-          uploadsPath: `${CURRENT_TRIP_PATH}/documents/${report.documentId}/occurrence-uploads`,
-        })
+  const uploadsPath = `${CURRENT_TRIP_PATH}/documents/${report.documentId}/occurrence-uploads`
+  const photos = listDocumentOccurrencePhotos(report)
+  /** Spec 246: fotos e assinatura sobem pelo mesmo par de upload, em paralelo — a ordem das fotos é a da lista. */
+  const [attachmentObjectIds, signatureObjectId] = await Promise.all([
+    Promise.all(
+      photos.map((photo) =>
+        uploadOccurrencePhoto({ dependencies, photo: photo.blob, uploadsPath }),
+      ),
+    ),
+    report.signature === undefined
+      ? Promise.resolve(undefined)
+      : uploadOccurrencePhoto({ dependencies, photo: report.signature.blob, uploadsPath }),
+  ])
 
   await request({
     body: JSON.stringify({
-      ...(attachmentObjectId === undefined ? {} : { attachmentObjectId }),
+      ...buildAttachmentFields(attachmentObjectIds),
       location: report.location,
       note: report.note,
       occurrenceTypeId: report.occurrenceTypeId,
       productCode: report.productCode,
+      ...(signatureObjectId === undefined ? {} : { signatureObjectId }),
     }),
     dependencies,
     idempotencyKey: report.idempotencyKey,
     method: 'POST',
     path: `${CURRENT_TRIP_PATH}/documents/${report.documentId}/occurrences`,
   })
+}
+
+/** As fotos do item, na ordem: a primeira (`photo`) e as demais (`extraPhotos`, spec 246). */
+function listDocumentOccurrencePhotos(
+  report: DocumentOccurrenceReport,
+): readonly DriverOccurrencePhoto[] {
+  return [...(report.photo === null ? [] : [report.photo]), ...(report.extraPhotos ?? [])]
+}
+
+/**
+ * Spec 246 (T2.7): uma foto sai como o campo único de sempre — a API antiga e o item gravado antes
+ * continuam valendo —, e mais de uma como a lista. A API recusa mandar os dois juntos.
+ */
+function buildAttachmentFields(
+  attachmentObjectIds: readonly string[],
+): Record<string, string | readonly string[]> {
+  if (attachmentObjectIds.length === 0) return {}
+  const [first] = attachmentObjectIds
+  if (attachmentObjectIds.length === 1 && first !== undefined) return { attachmentObjectId: first }
+  return { attachmentObjectIds }
 }
 
 /**

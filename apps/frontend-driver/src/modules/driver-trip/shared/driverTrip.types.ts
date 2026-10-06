@@ -324,8 +324,19 @@ export type DriverFieldReport =
       /** Só para a tela de pendentes: quem decide pelo id é o servidor. */
       occurrenceTypeName: string
       photo: DriverOccurrencePhoto | null
+      /**
+       * Spec 246 (RF1c): as demais fotos, quando o tipo pede mais de uma — a primeira continua em
+       * `photo`, então o item gravado antes da spec segue valendo. Ausente é "só a primeira".
+       */
+      extraPhotos?: readonly DriverOccurrencePhoto[]
       /** Vazio é a nota inteira. */
       productCode: string
+      /**
+       * Spec 246 (RF9, 209 D1): a assinatura mora **no mesmo item** da foto — item novo multiplicaria
+       * o aviso para um fato só. Sobe pelo mesmo par de upload e vira `signatureObjectId`; nunca
+       * passa pelo comprovante da nota.
+       */
+      signature?: DriverOccurrenceSignature
     }>
   /**
    * Spec 209 (D2): a foto do "Deu problema", **atrás** da ocorrência de parada e nunca junto dela —

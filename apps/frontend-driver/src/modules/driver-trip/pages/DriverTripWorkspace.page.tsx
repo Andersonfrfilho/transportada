@@ -51,7 +51,6 @@ import {
 import { readCurrentLocation } from '../shared/driverLocation.service'
 import { saveDriverFile } from '../shared/driverFileSave.service'
 import type {
-  DriverFieldReport,
   DriverOccurrenceTypesState,
   DriverReportedLocation,
   DriverReturnReason,
@@ -63,6 +62,7 @@ import {
   type NotDeliveredDraft,
   type NotDeliveredStatus,
 } from '../shared/notDelivered.service'
+import { buildDocumentOccurrenceReport } from '../shared/documentOccurrenceReport.service'
 import type { OccurrenceRegistrationHandlers } from '../shared/occurrenceDispatch.service'
 import {
   readCachedOccurrenceTypes,
@@ -582,17 +582,10 @@ export function DriverTripWorkspacePage() {
     input: Parameters<OccurrenceRegistrationHandlers['enqueueDocumentOccurrence']>[0],
   ): Promise<void> {
     setAttachmentLimit(undefined)
-    const report: DriverFieldReport = {
-      documentId: input.documentId,
+    const report = buildDocumentOccurrenceReport({
       idempotencyKey: createIdempotencyKey(),
-      kind: 'documentOccurrence',
-      location: null,
-      note: input.note,
-      occurrenceTypeId: input.occurrenceTypeId,
-      occurrenceTypeName: input.occurrenceTypeName,
-      photo: input.photo,
-      productCode: '',
-    }
+      occurrence: input,
+    })
     const outcome = await driverTrip.reportAllOrNothing([report])
     if (outcome === 'count-limit') setEventLimitReached(true)
     if (outcome === 'size-limit') setAttachmentLimit('size-limit')

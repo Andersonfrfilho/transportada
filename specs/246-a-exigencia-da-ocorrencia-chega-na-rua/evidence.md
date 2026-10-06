@@ -1805,3 +1805,36 @@ M4 — campo ausente deixa de ler como hoje (`noteMode ?? 'required'`)
 ```
 
 Verde restaurado: `bun run --cwd apps/frontend-driver test` → `1242 pass, 0 fail` (eram 1199: +43 testes novos).
+
+### T4.2 — A assinatura entra no item de fila que já existe (209 D1)
+
+Molde: a foto da ocorrência de nota (179 T303), que mora no próprio item `documentOccurrence` e sobe **dentro do
+`send`**, antes do `POST`. A assinatura e as demais fotos seguem o mesmo caminho:
+
+- O item ganhou dois campos **opcionais**: `extraPhotos` (as fotos além da primeira, que continua em `photo`) e
+  `signature` (o PNG do `SignaturePad`). Item gravado antes da spec segue valendo sem migração do IndexedDB.
+  `buildDocumentOccurrenceReport` (`documentOccurrenceReport.service.ts`) monta o **único** item do toque.
+- `sendDocumentOccurrence` sobe fotos e assinatura pelo mesmo par `occurrence-uploads` + `confirm` (em
+  paralelo, `Promise.all`), e manda `signatureObjectId` no corpo do mesmo `POST`. Uma foto sai como o campo único de
+  sempre (`attachmentObjectId`); mais de uma sai como `attachmentObjectIds` na ordem, e nunca os dois juntos (a API
+  recusa). Nada vai a `/proof`.
+- `listReportPhotos` (`offlineQueue.service.ts`) faz fotos e assinatura contarem na cota de bytes da fila
+  (`sumReportPhotoBytes`) e nos anexos do item na tela de pendentes (`attachmentCount`), como a foto já contava.
+  Fila cheia recusa o toque inteiro (`reportAllOrNothing`, que a ocorrência de nota já usava) — nunca perde a
+  assinatura e grava o relato.
+
+Contrato (`occurrence-signature-queue.contract.ts`, 9 testes): um item só com fotos e assinatura dentro; a forma antiga
+do item não ganha chave; cota e contagem; o corpo (`attachmentObjectId` + `signatureObjectId`, só a assinatura, só a lista
+de fotos na ordem, e o item antigo exatamente como saía); nenhum pedido vai a `/proof`; formulário, hook e construtor não
+usam `ProofCaptureFields` nem `attachProof`. **Vermelho** sem a implementação: `Cannot find module
+'../../src/modules/driver-trip/shared/documentOccurrenceReport.service'` (0 pass, 1 fail, 1 error). Mutação sobre o
+verde — o envio deixa de mandar `signatureObjectId`:
+
+```text
+(fail) o envio sobe pelo mesmo par de upload e manda signatureObjectId (T4.2, RF9) > uma foto e a assinatura: dois uploads, e o corpo leva attachmentObjectId e signatureObjectId
+(fail) o envio sobe pelo mesmo par de upload e manda signatureObjectId (T4.2, RF9) > só a assinatura, sem foto: o corpo leva signatureObjectId e nenhum campo de anexo
+ 1240 pass / 2 fail
+```
+
+A paridade com a API é a da T2.7 (`attachmentObjectIds`, 1–5) e da T2.4 (`signatureObjectId`), com integração verde
+(`driver-occurrence-attachment-list` 2/0, `occurrence-requirement-modes-write` 5/0, `occurrence-signature-isolation` 1/0).
