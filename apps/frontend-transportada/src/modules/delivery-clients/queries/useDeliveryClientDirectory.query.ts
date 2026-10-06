@@ -9,6 +9,8 @@ export const DELIVERY_CLIENT_DIRECTORY_QUERY_KEY = ['delivery-clients', 'directo
 const PAGE_SIZE = 100
 /** Rede de segurança contra cursor que não termina: 30 páginas de 100 são três mil destinatários. */
 const MAX_PAGES = 30
+/** Chegar a este total é o sinal de que a lista pode ter sido cortada: a tela avisa. */
+export const DELIVERY_CLIENT_DIRECTORY_LIMIT = PAGE_SIZE * MAX_PAGES
 
 async function loadAllActiveClients(): Promise<readonly DeliveryClient[]> {
   const client = getDeliveryClientsClient()

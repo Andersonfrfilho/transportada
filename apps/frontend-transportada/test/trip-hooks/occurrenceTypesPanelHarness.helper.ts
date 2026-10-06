@@ -23,10 +23,11 @@ type ReplaceCall = Readonly<OccurrenceAttachmentOverrides & { occurrenceTypeId: 
 
 export const exceptionDouble: {
   batchCalls: number
+  contractorListCalls: number
   clientListCalls: number
   clients: readonly DeliveryClient[] | 'failure'
   replaceCalls: ReplaceCall[]
-} = { batchCalls: 0, clientListCalls: 0, clients: [], replaceCalls: [] }
+} = { batchCalls: 0, clientListCalls: 0, contractorListCalls: 0, clients: [], replaceCalls: [] }
 
 export function buildDeliveryClient(
   overrides: Partial<DeliveryClient> & Pick<DeliveryClient, 'displayName' | 'taxId'>,
@@ -52,13 +53,17 @@ export function installExceptionsDouble(
 ): void {
   exceptionDouble.batchCalls = 0
   exceptionDouble.clientListCalls = 0
+  exceptionDouble.contractorListCalls = 0
   exceptionDouble.clients = input.clients ?? []
   exceptionDouble.replaceCalls = []
   /** Como o servidor: o que o `PUT` gravou é o que a próxima leitura devolve. */
   let stored: OccurrenceAttachmentOverridesByType = input.byType ?? []
   tripHookFakes.tripClient = {
     ...createUnexpectedTripClient(),
-    listContractors: () => Promise.resolve(input.contractors ?? []),
+    listContractors: () => {
+      exceptionDouble.contractorListCalls += 1
+      return Promise.resolve(input.contractors ?? [])
+    },
     listOccurrenceAttachmentOverridesBatch: () => {
       exceptionDouble.batchCalls += 1
       if (input.failBatch === true) return Promise.reject(new Error('REQUEST_FAILED'))

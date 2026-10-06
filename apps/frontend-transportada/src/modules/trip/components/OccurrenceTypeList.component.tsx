@@ -1,7 +1,6 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TRIP_OCCURRENCE_STAGE } from '@/modules/trip/shared/occurrence.constant'
@@ -16,8 +15,10 @@ import { OccurrenceTypeItem } from './OccurrenceTypeItem.component'
 type OccurrenceTypeListProps = Readonly<{
   canManage: boolean
   exceptionsOf: (type: OccurrenceType) => OccurrenceTypeExceptionsState
+  expandedIds: ReadonlySet<string>
   isSaving: boolean
   onSave: (input: OccurrenceTypeSaveInput) => void
+  onToggle: (typeId: string) => void
   templates: OccurrenceEmailTemplatesState
   types: readonly OccurrenceType[]
 }>
@@ -26,21 +27,14 @@ type OccurrenceTypeListProps = Readonly<{
 export function OccurrenceTypeList({
   canManage,
   exceptionsOf,
+  expandedIds,
   isSaving,
   onSave,
+  onToggle,
   templates,
   types,
 }: OccurrenceTypeListProps) {
   const { t } = useTranslation('companySettings')
-  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(new Set())
-
-  function handleToggle(typeId: string) {
-    setExpandedIds((current) => {
-      const next = new Set(current)
-      if (!next.delete(typeId)) next.add(typeId)
-      return next
-    })
-  }
 
   return (
     <>
@@ -63,7 +57,7 @@ export function OccurrenceTypeList({
                 isSaving={isSaving}
                 key={type.id}
                 onSave={onSave}
-                onToggle={handleToggle}
+                onToggle={onToggle}
                 templates={templates}
                 type={type}
               />

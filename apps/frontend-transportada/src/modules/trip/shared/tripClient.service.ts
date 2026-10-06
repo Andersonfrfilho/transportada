@@ -113,17 +113,22 @@ import {
   type DeliveryProofSettingsOverride,
   type FieldDeliverySettings,
 } from './deliveryProofSettings.service'
-import { contractorSummariesFromApi, type ContractorSummary } from './contractorSummary.service'
+import {
+  contractorSummariesFromApi,
+  readContractorNextCursor,
+  type ContractorSummary,
+} from './contractorSummary.service'
 import type { RouteChoice, RouteGeometry } from './routeGeometry.service'
-import type {
-  OccurrenceAttachmentMode,
-  OccurrenceAttachmentOverrides,
-  OccurrenceAttachmentOverridesByType,
-  OccurrenceMoment,
-  OccurrenceRedeliveryPolicy,
-  OccurrenceType,
-  OccurrenceItemsWriteMode,
-  OccurrenceTypeFlow,
+import {
+  CONTRACTOR_DIRECTORY_MAX_PAGES,
+  type OccurrenceAttachmentMode,
+  type OccurrenceAttachmentOverrides,
+  type OccurrenceAttachmentOverridesByType,
+  type OccurrenceMoment,
+  type OccurrenceRedeliveryPolicy,
+  type OccurrenceType,
+  type OccurrenceItemsWriteMode,
+  type OccurrenceTypeFlow,
 } from './occurrence.constant'
 import {
   isSettingsResolutionView,
@@ -144,6 +149,7 @@ const occurrenceTypeAttachmentOverridesPath = (occurrenceTypeId: string): string
   `${OCCURRENCE_TYPES_PATH}/${occurrenceTypeId}/attachment-overrides`
 /** Spec 218 T10/T11: o mesmo seletor de contratante do painel de contatos, sem importar o módulo. */
 const CONTRACTORS_PATH = '/contractors'
+const CONTRACTOR_DIRECTORY_PAGE_SIZE = 100
 import { createTripResponseAdapters } from './tripResponse.validation'
 
 type ClientDependencies = Readonly<{
@@ -293,7 +299,7 @@ export type TripClient = Readonly<{
     input: Readonly<{ overrides: readonly DeliveryProofSettingsContractorOverride[] }>,
   ) => Promise<readonly DeliveryProofSettingsContractorOverride[]>
   /**
-   * Spec 218 T10/T11/T14: `GET /contractors?limit=100` — mesmo seletor de
+   * Spec 218 T10/T11/T14: `GET /contractors` (seguindo o cursor até o teto) — mesmo seletor de
    * `delivery-clients/shared/contractorContactsClient.service.ts`, aqui para não cruzar módulo
    * (`web.md` §1).
    */
@@ -994,12 +1000,20 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       return readOccurrenceAttachmentOverridesOrThrow(readEnvelopeData(response))
     },
     async listContractors() {
-      const response = await authorizedRequest({
-        dependencies,
-        method: 'GET',
-        path: `${CONTRACTORS_PATH}?limit=100`,
-      })
-      return contractorSummariesFromApi(response)
+      const contractors: ContractorSummary[] = []
+      let cursor: null | string = null
+      for (let page = 0; page < CONTRACTOR_DIRECTORY_MAX_PAGES; page += 1) {
+        // O cursor da próxima página só existe depois da resposta desta: não há o que paralelizar.
+        const response: unknown = await authorizedRequest({
+          dependencies,
+          method: 'GET',
+          path: `${CONTRACTORS_PATH}?limit=${String(CONTRACTOR_DIRECTORY_PAGE_SIZE)}${cursor === null ? '' : `&cursor=${encodeURIComponent(cursor)}`}`,
+        })
+        contractors.push(...contractorSummariesFromApi(response))
+        cursor = readContractorNextCursor(response)
+        if (cursor === null) break
+      }
+      return contractors
     },
     async readSettingsResolution(input) {
       const search = new URLSearchParams()

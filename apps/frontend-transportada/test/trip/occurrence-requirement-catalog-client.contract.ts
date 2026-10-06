@@ -212,3 +212,37 @@ describe('cliente: PUT do cadastro só manda o que a edição mudou (spec 246 RF
     })
   })
 })
+
+describe('cliente: contratantes do seletor de exceção (revisão do painel M7)', () => {
+  const FULL = { closingPeriod: 'monthly', notes: '', reportEmail: '', status: 'active' }
+  const PAGES = [
+    {
+      data: [{ ...FULL, displayName: 'Aurora', id: 'c-1', taxId: '11222333000144' }],
+      page: { nextCursor: 'proxima' },
+    },
+    {
+      data: [{ ...FULL, displayName: 'Boreal', id: 'c-2', taxId: '99888777000166' }],
+      page: { nextCursor: null },
+    },
+  ]
+
+  test('segue o cursor até o fim, em vez de parar nos primeiros 100', async () => {
+    const urls: string[] = []
+    const client = createTripClient({
+      apiUrl: API_URL,
+      fetch: (resource) => {
+        urls.push(new Request(resource).url)
+        return Promise.resolve(Response.json(PAGES[urls.length - 1]))
+      },
+      getAccessToken: () => Promise.resolve('synthetic-token'),
+    })
+
+    const contractors = await client.listContractors()
+
+    expect(urls).toEqual([
+      `${API_URL}/contractors?limit=100`,
+      `${API_URL}/contractors?limit=100&cursor=proxima`,
+    ])
+    expect(contractors.map((contractor) => contractor.id)).toEqual(['c-1', 'c-2'])
+  })
+})

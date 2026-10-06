@@ -11,8 +11,10 @@ export const EMPTY_EXCEPTIONS_STATE: OccurrenceTypeExceptionsState = {
   people: {
     contractors: [],
     contractorsStatus: 'ready',
+    contractorsTruncated: false,
     recipients: [],
     recipientsStatus: 'ready',
+    recipientsTruncated: false,
   },
   status: 'ready',
 }

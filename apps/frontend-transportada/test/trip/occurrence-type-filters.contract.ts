@@ -63,8 +63,10 @@ const TYPES = [REFUSAL, DAMAGE, SHORTAGE, NO_MOMENTS_STOP] as const
 const PEOPLE: OccurrenceExceptionPeople = {
   contractors: [{ displayName: 'Indústria Aurora', id: 'contractor-1', taxId: '98765432000110' }],
   contractorsStatus: 'ready',
+  contractorsTruncated: false,
   recipients: [{ displayName: 'Supermercados Ponto Certo', taxId: '12345678000190' }],
   recipientsStatus: 'ready',
+  recipientsTruncated: false,
 }
 
 const EXCEPTIONS = new Map<string, OccurrenceAttachmentOverrides>([

@@ -281,13 +281,52 @@ describe('exceções: cada campo editável, nulo herda (RF11, RF4)', () => {
       installExceptionsDouble({ byType: BATCH, clients: CLIENTS, contractors: [CONTRACTOR] })
       await mount([buildType()])
       await expandAllTypes()
-      const remove = document.querySelector<HTMLElement>(
-        'button[aria-label="Remover exceção de Supermercados Ponto Certo · 12.345.678/0001-90"]',
-      )
+      const removeSelector =
+        'button[aria-label="Remover exceção de Supermercados Ponto Certo · 12.345.678/0001-90"]'
+      /** O nome vem do diretório de clientes, que só carrega com o tipo aberto. */
+      await waitFor(() => expect(document.querySelector(removeSelector) !== null).toBe(true))
+      const remove = document.querySelector<HTMLElement>(removeSelector)
       if (remove === null) throw new Error('REMOVE_NOT_FOUND')
       await click(remove)
       expect(exceptionDouble.replaceCalls[0]?.recipientOverrides).toHaveLength(0)
       expect(exceptionDouble.replaceCalls[0]?.contractorOverrides).toHaveLength(1)
+    }),
+  )
+})
+
+describe('os diretórios de clientes e contratantes (revisão do painel M7)', () => {
+  test(
+    'nada é carregado ao abrir a aba; as listas só vêm quando um tipo é aberto',
+    scenario(async () => {
+      installExceptionsDouble({ byType: BATCH, clients: CLIENTS, contractors: [CONTRACTOR] })
+      await mount([buildType()])
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 30))
+      })
+      expect(exceptionDouble.clientListCalls).toBe(0)
+      expect(exceptionDouble.contractorListCalls).toBe(0)
+
+      await expandAllTypes()
+      await waitFor(() => expect(exceptionDouble.clientListCalls).toBeGreaterThan(0))
+      expect(exceptionDouble.contractorListCalls).toBeGreaterThan(0)
+    }),
+  )
+
+  test(
+    'lista de clientes cortada no teto avisa na tela que pode estar incompleta',
+    scenario(async () => {
+      const many = Array.from({ length: 3000 }, (_, index) =>
+        buildDeliveryClient({
+          displayName: `Cliente ${String(index)}`,
+          taxId: String(10_000_000_000_000 + index),
+        }),
+      )
+      installExceptionsDouble({ byType: BATCH, clients: many, contractors: [CONTRACTOR] })
+      await mount([buildType()])
+      await expandAllTypes()
+      await waitFor(() =>
+        expect(pageText().includes('A lista de clientes pode estar incompleta')).toBe(true),
+      )
     }),
   )
 })
