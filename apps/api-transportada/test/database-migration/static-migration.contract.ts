@@ -343,6 +343,7 @@ describe('Drizzle migrations', () => {
       '20261004174001_cargo_preview_security_failure_codes',
       '20261004180153_contractor_receiving_arrival_reference_label',
       '20261006033752_occurrence_type_items_mode',
+      '20261006144825_cargo_arrival_check_null_holes',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -2358,6 +2359,57 @@ describe('o estado do ponto entra aditivo e o histórico sem coordenada fica NUL
     expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/u)
     expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
     expect(rollbackSql).not.toContain('CASCADE')
+  })
+})
+
+describe('os CHECKs da chegada tratam NULL (spec 237, revisão das Fases 1–2, M1)', () => {
+  /**
+   * A correção troca só os três CHECKs que viravam NULL, com `lock_timeout` antes do primeiro lock e
+   * de volta ao padrão no fim; o rollback devolve as formas antigas sem apagar nada.
+   */
+  test('swaps the three null-blind checks under a bounded lock and restores them on rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_cargo_arrival_check_null_holes'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const constraints = [
+      'cargo_arrivals_separation_due_at_check',
+      'cargo_arrival_documents_state_dates_check',
+      'cargo_arrival_events_state_shape_check',
+    ]
+    const statements = stripSqlComments(migrationSql)
+    expect(
+      [...statements.matchAll(/ADD CONSTRAINT "([a-z_]+)"/gu)].map((match) => match[1]),
+    ).toEqual(constraints)
+    expect(
+      [...statements.matchAll(/VALIDATE CONSTRAINT "([a-z_]+)"/gu)].map((match) => match[1]),
+    ).toEqual(constraints)
+    expect(statements).not.toMatch(
+      /\bDROP (TABLE|COLUMN|INDEX)\b|\bCREATE\b|\bINSERT\b|\bUPDATE\b/u,
+    )
+    const timeout = migrationSql.indexOf("SET LOCAL lock_timeout = '3s'")
+    expect(timeout).toBeGreaterThan(-1)
+    expect(timeout).toBeLessThan(migrationSql.indexOf('ALTER TABLE'))
+    expect(migrationSql.trimEnd()).toEndWith('SET LOCAL lock_timeout = DEFAULT;')
+    expect(migrationSql).toContain('"separated_at" is not null and "separated_at" >= "received_at"')
+    expect(migrationSql).toContain(
+      '("separation_window_hours" is null) = ("separation_due_at" is null)',
+    )
+
+    const rollbackTimeout = rollbackSql.indexOf("SET LOCAL lock_timeout = '3s'")
+    expect(rollbackTimeout).toBeGreaterThan(rollbackSql.indexOf('BEGIN;'))
+    expect(rollbackTimeout).toBeLessThan(rollbackSql.indexOf('ALTER TABLE'))
+    for (const constraint of constraints) {
+      expect(rollbackSql).toContain(`DROP CONSTRAINT IF EXISTS "${constraint}"`)
+    }
+    expect(rollbackSql).toContain(
+      '"separation_state" = \'separated\' and "received_at" is not null and "separated_at" >= "received_at"',
+    )
+    expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
+    expect(rollbackSql).not.toMatch(/\bDROP (TABLE|COLUMN)\b|CASCADE/u)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
   })
 })
 

@@ -93,9 +93,10 @@ export const cargoArrivalDocuments = pgTable(
       'cargo_arrival_documents_separation_state_check',
       sql`${table.separationState} in (${raw(inList(CARGO_ARRIVAL_DOCUMENT_STATES))})`,
     ),
+    /** `is not null` explícito: `separated_at >= received_at` com NULL vira NULL, e NULL passa. */
     check(
       'cargo_arrival_documents_state_dates_check',
-      sql`(${table.separationState} = ${raw(`'${expected}'`)} and ${table.receivedAt} is null and ${table.separatedAt} is null) or (${table.separationState} = ${raw(`'${received}'`)} and ${table.receivedAt} is not null and ${table.separatedAt} is null) or (${table.separationState} = ${raw(`'${separated}'`)} and ${table.receivedAt} is not null and ${table.separatedAt} >= ${table.receivedAt})`,
+      sql`(${table.separationState} = ${raw(`'${expected}'`)} and ${table.receivedAt} is null and ${table.separatedAt} is null) or (${table.separationState} = ${raw(`'${received}'`)} and ${table.receivedAt} is not null and ${table.separatedAt} is null) or (${table.separationState} = ${raw(`'${separated}'`)} and ${table.receivedAt} is not null and ${table.separatedAt} is not null and ${table.separatedAt} >= ${table.receivedAt})`,
     ),
   ],
 )

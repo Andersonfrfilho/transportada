@@ -2488,7 +2488,11 @@ viagem pelo fluxo de sempre, e a leitura da chegada só a marca `isInLiveTrip`.
 - **Relógio copiado:** a chegada só nasce com o perfil ligado (`422 CARGO_RECEIVING_NOT_ENABLED`) e copia
   `separation_window_hours`/`delivery_deadline_business_days` naquele instante; `separation_due_at =
 arrived_at + janela` em horas corridas, preso por CHECK exato
-  (`extract(epoch from separation_due_at - arrived_at) = separation_window_hours * 3600`). Editar o
+  (`extract(epoch from separation_due_at - arrived_at) = separation_window_hours * 3600`, e janela e prazo
+  nulos **juntos**). ⚠️ Até `20261006144825_cargo_arrival_check_null_holes` (revisão das Fases 1–2, M1) três
+  CHECKs viravam NULL com coluna nula e deixavam a linha passar: janela sem prazo, nota `separated` sem
+  `separated_at` e evento de nota sem `from_state`/`to_state`. CHECK novo que compara coluna anulável
+  exige `is not null` antes — `test/integration/cargo-arrival-null-checks.integration.ts`. Editar o
   perfil depois não muda chegada nenhuma. `isSeparationOverdue` é leitura (prazo passado e nota pendente).
 - **Uma nota, uma chegada, para sempre** (`unique (company_id, nfe_document_id)`, ADR-0094 §6): nota
   posta por engano não tem conserto nesta fase. Candidata = emitente com o CNPJ do contratante

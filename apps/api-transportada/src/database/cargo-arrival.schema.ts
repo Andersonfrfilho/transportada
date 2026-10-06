@@ -107,10 +107,13 @@ export const cargoArrivals = pgTable(
       'cargo_arrivals_delivery_deadline_business_days_check',
       sql`${table.deliveryDeadlineBusinessDays} between 1 and 60`,
     ),
-    /** `timestamptz - timestamptz` é imutável: o prazo é exatamente a janela copiada, nunca outra. */
+    /**
+     * `timestamptz - timestamptz` é imutável: o prazo é exatamente a janela copiada, nunca outra. Os
+     * dois nulos andam juntos — sem isso, janela com prazo nulo dava NULL e o CHECK deixava passar.
+     */
     check(
       'cargo_arrivals_separation_due_at_check',
-      sql`(${table.separationWindowHours} is null and ${table.separationDueAt} is null) or extract(epoch from ${table.separationDueAt} - ${table.arrivedAt}) = ${table.separationWindowHours} * 3600`,
+      sql`(${table.separationWindowHours} is null) = (${table.separationDueAt} is null) and (${table.separationDueAt} is null or extract(epoch from ${table.separationDueAt} - ${table.arrivedAt}) = ${table.separationWindowHours} * 3600)`,
     ),
     check('cargo_arrivals_reference_check', sql`char_length(${table.reference}) between 1 and 120`),
     check(

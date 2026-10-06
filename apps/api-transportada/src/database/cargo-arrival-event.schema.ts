@@ -106,9 +106,10 @@ export const cargoArrivalEvents = pgTable(
       'cargo_arrival_events_document_scope_check',
       sql`(${table.kind} in (${raw(inList(CARGO_ARRIVAL_WIDE_EVENT_KINDS))})) = (${table.arrivalDocumentId} is null)`,
     ),
+    /** Cada ramo exige o estado presente antes de compará-lo: comparação com NULL é NULL, e NULL passa. */
     check(
       'cargo_arrival_events_state_shape_check',
-      sql`case ${table.kind} when ${quoted(documentAdded)} then ${table.fromState} is null and ${table.toState} = ${quoted(expected)} when ${quoted(documentReceived)} then ${table.fromState} = ${quoted(expected)} and ${table.toState} = ${quoted(received)} when ${quoted(documentSeparated)} then ${table.fromState} = ${quoted(received)} and ${table.toState} = ${quoted(separated)} else ${table.fromState} is null and ${table.toState} is null end`,
+      sql`case ${table.kind} when ${quoted(documentAdded)} then ${table.fromState} is null and ${table.toState} is not null and ${table.toState} = ${quoted(expected)} when ${quoted(documentReceived)} then ${table.fromState} is not null and ${table.toState} is not null and ${table.fromState} = ${quoted(expected)} and ${table.toState} = ${quoted(received)} when ${quoted(documentSeparated)} then ${table.fromState} is not null and ${table.toState} is not null and ${table.fromState} = ${quoted(received)} and ${table.toState} = ${quoted(separated)} else ${table.fromState} is null and ${table.toState} is null end`,
     ),
     check(
       'cargo_arrival_events_channel_check',

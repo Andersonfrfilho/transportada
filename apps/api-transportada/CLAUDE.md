@@ -779,7 +779,8 @@ do recebimento é próprio e **não toca** `separation_status`. Detalhe: docs/ai
 **A chegada e a primeira separação** (Fase 2): `cargo_arrivals` / `cargo_arrival_documents` /
 `cargo_arrival_events` (append-only). Eixo `expected → received → separated`, sem volta, no-op sem evento,
 chegada `closed` recusa tudo (`cargo-arrival-transition.policy.ts`). A chegada só nasce com perfil ligado e
-**copia** janela e prazo; `separation_due_at` preso por CHECK exato. Uma nota entra em no máximo uma
+**copia** janela e prazo; `separation_due_at` preso por CHECK exato, que trata NULL (janela e prazo nulos
+juntos — `20261006144825_cargo_arrival_check_null_holes`). Uma nota entra em no máximo uma
 chegada. Rotas `/cargo-arrivals…` com `fleet.read` (leitura) e `trip.manage` (escrita), as duas do
 `separator` — e todas listadas em `test/separator-role.contract.test.ts`. ⚠️ Escrita nova trava a chegada
 primeiro e as notas depois (ordem de id), e o registro trava o contratante antes de procurar a chave.
