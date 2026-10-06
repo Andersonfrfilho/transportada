@@ -8,6 +8,28 @@
 Decisão do usuário (2026-10-06): promover **tudo** o que está em `staging`, inclusive o trabalho de
 outras sessões já verde nos gates de staging.
 
+## 0. ⚠️ Staging andou durante a preparação — decisão pendente
+
+Esta árvore é `staging@54c97d5e5`. Enquanto os gates rodavam, `origin/staging` foi a `81cd849b6`:
+**+78 commits**, quase todos da spec 241 (`items_mode` do tipo de ocorrência), com **4 migrations
+novas** (`20261004165112_cargo_preview_failure_codes`,
+`20261004174001_cargo_preview_security_failure_codes`,
+`20261004180153_contractor_receiving_arrival_reference_label`,
+`20261006033752_occurrence_type_items_mode`). Eles **não** estão neste PR, de propósito:
+
+- A 241 exige ordem de publicação (ADR-0081 §9, `tasks.md` da 241): **painel tolerante primeiro, com
+  o autoUpdate do PWA no ar, e só depois migration + API**. "Nunca a API/banco primeiro." Com a API
+  nova e o painel atual de produção, `isTripOccurrence` e `isOccurrenceType` recusam as chaves novas
+  e derrubam a lista da nota e o catálogo de tipos. O merge único na `main` sobe a API **antes** do
+  painel (§ 6) — exatamente a ordem proibida.
+- Depois da etapa 2 há um passo humano (cadastrar "Cliente pediu prorrogação do boleto" com Produtos
+  = Desligado) e a T0.3 da 241 (medição em produção) segue pendente.
+
+Caminhos: (1) promover este PR como está e levar a 241 depois, em dois PRs (painel, depois API); ou
+(2) refazer a árvore sobre a staging nova, mas aí em dois PRs também (o primeiro só com o painel).
+A escolha é humana. Staging nova já contém a tolerância a `emailsContractor`/`stopKind`; no caminho
+(2) o hotfix `95f13de1f` deixa de ser diferença.
+
 ## 1. Como a árvore foi montada
 
 | Ref                                 | SHA         | O que é                                                         |
