@@ -39,6 +39,12 @@ const registerOccurrenceSchema = z
      * "sem anexo", recusado pelo caso de uso quando o tipo exige (`attachmentMode = 'required'`).
      */
     attachmentObjectId: z.string().uuid().optional(),
+    /**
+     * Spec 246 (RF9): a referência à assinatura já confirmada, pelo mesmo par `occurrence-uploads` +
+     * `confirm` da 179 — nunca o arquivo. Ausente ou nula é "sem assinatura"; o tipo efetivo da nota
+     * decide se isso é recusado (`TRIP_OCCURRENCE_SIGNATURE_REQUIRED`).
+     */
+    signatureObjectId: z.string().uuid().nullish(),
     /** Spec 196 T3.2: o ponto do toque; só a rota do motorista usa este schema. */
     location: locationSchema.nullish(),
     note: z.string().trim().max(500).default(''),
@@ -315,6 +321,13 @@ const occurrenceTypeSchema = z
      */
     itemsMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
     /**
+     * Spec 246 (RF1, RF3): a exigência da observação e da assinatura, no vocabulário do comprovante.
+     * ⚠️ **Opcionais sem `default`, pelo mesmo motivo de `attachmentMode`**: ausente é "não mexa" — um
+     * padrão escondido reescreveria, a cada edição de e-mail, o que a transportadora configurou.
+     */
+    noteMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
+    signatureMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
+    /**
      * Spec 246 (RF1c2): a quantidade mínima de produtos, lida só com `itemsMode = 'required'`. Nulo
      * é "todos os itens da nota" (a recusa total); ausente é "não mexa". Com outro modo o caso de
      * uso recusa (422).
@@ -414,13 +427,63 @@ export async function parseOccurrenceTypeRequest(
  */
 const attachmentOverrideModeSchema = z.enum(DELIVERY_PROOF_FIELD_MODES)
 
+/**
+ * Spec 246 (D-a, T2.4): na exceção, os cinco campos novos são **nulos e sem padrão** — nulo herda do
+ * tipo, ausente é "não mexa" (nunca `?? 'x'` no `UPDATE`). `items_mode` e `items_minimum_count` vão
+ * como par: mínimo só com `items_mode = 'required'` declarado ali mesmo, a mesma CHECK do banco —
+ * recusada aqui com 400 em vez de virar 500.
+ */
+const overrideModeSchema = z.enum(DELIVERY_PROOF_FIELD_MODES).nullable().optional()
+
+const overrideRequirementFields = {
+  itemsMinimumCount: z
+    .number()
+    .int()
+    .min(1)
+    .max(OCCURRENCE_ITEMS_MINIMUM_COUNT_MAX)
+    .nullable()
+    .optional(),
+  itemsMode: overrideModeSchema,
+  noteMode: overrideModeSchema,
+  photoMinimumCount: z
+    .number()
+    .int()
+    .min(OCCURRENCE_PHOTO_MINIMUM_COUNT.min)
+    .max(OCCURRENCE_PHOTO_MINIMUM_COUNT.max)
+    .nullable()
+    .optional(),
+  signatureMode: overrideModeSchema,
+}
+
+function refineItemsMinimumPair(
+  override: {
+    readonly itemsMinimumCount?: null | number | undefined
+    readonly itemsMode?: null | string | undefined
+  },
+  context: z.RefinementCtx,
+): void {
+  const hasMinimum = override.itemsMinimumCount !== null && override.itemsMinimumCount !== undefined
+  if (hasMinimum && override.itemsMode !== 'required') {
+    context.addIssue({
+      code: 'custom',
+      message: 'ITEMS_MINIMUM_REQUIRES_REQUIRED',
+      path: ['itemsMinimumCount'],
+    })
+  }
+}
+
 export const occurrenceAttachmentOverridesSchema = z
   .object({
     contractorOverrides: z
       .array(
         z
-          .object({ attachmentMode: attachmentOverrideModeSchema, contractorId: z.string().uuid() })
-          .strict(),
+          .object({
+            attachmentMode: attachmentOverrideModeSchema,
+            contractorId: z.string().uuid(),
+            ...overrideRequirementFields,
+          })
+          .strict()
+          .superRefine(refineItemsMinimumPair),
       )
       .max(200),
     recipientOverrides: z
@@ -429,8 +492,10 @@ export const occurrenceAttachmentOverridesSchema = z
           .object({
             attachmentMode: attachmentOverrideModeSchema,
             taxId: buildTaxIdSchema(TAX_ID_PATTERN),
+            ...overrideRequirementFields,
           })
-          .strict(),
+          .strict()
+          .superRefine(refineItemsMinimumPair),
       )
       .max(200),
   })

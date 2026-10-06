@@ -83,12 +83,16 @@ export type SaveOccurrenceTypeValues = {
    */
   readonly moments?: readonly OccurrenceMoment[] | undefined
   readonly name: string
+  /** Spec 246 (RF1, RF3): a exigência da observação. Ausente é "não mexa" — nunca `'optional'`. */
+  readonly noteMode?: DeliveryProofFieldMode | undefined
   readonly notifies: boolean
   readonly occurrenceTypeId: null | string
   /** Spec 246 (RF1c): a quantidade mínima de fotos (1..5), lida só com a foto `required`. Ausente é "não mexa". */
   readonly photoMinimumCount?: number | undefined
   /** Ausente é "não mexa" (spec 164 RF1) — o valor guardado fica; na criação vale `'unset'`. */
   readonly redeliveryPolicy?: RedeliveryPolicy | undefined
+  /** Spec 246 (RF1): a exigência da assinatura. Ausente é "não mexa" — nunca `'off'`. */
+  readonly signatureMode?: DeliveryProofFieldMode | undefined
   readonly stage: TripOccurrenceStage
 }
 

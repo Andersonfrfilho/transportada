@@ -24,10 +24,12 @@ export function toSaveOccurrenceTypeValues(
     leavesDocumentBehind: input.leavesDocumentBehind,
     moments: input.moments,
     name: input.name,
+    noteMode: input.noteMode,
     notifies: input.notifies,
     occurrenceTypeId: input.occurrenceTypeId,
     photoMinimumCount: input.photoMinimumCount,
     redeliveryPolicy: input.redeliveryPolicy,
+    signatureMode: input.signatureMode,
     stage: input.stage,
   }
 }

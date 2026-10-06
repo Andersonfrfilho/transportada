@@ -16,7 +16,11 @@ import {
 import { contractors } from '../../database/delivery-client.schema.js'
 import { ContractorNotFoundError } from '../../delivery-clients/domain/delivery-client.error.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
-import type { OccurrenceOverrideRequirementFields } from './occurrence-override-requirement-columns.support.js'
+import {
+  toOverrideRequirementInsert,
+  toOverrideRequirementUpdate,
+  type OccurrenceOverrideRequirementFields,
+} from './occurrence-override-requirement-columns.support.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -140,13 +144,13 @@ export class DrizzleOccurrenceAttachmentOverridesRepository {
         await transaction
           .insert(companyOccurrenceTypeContractorOverrides)
           .values({
-            attachmentMode: override.attachmentMode,
+            ...toOverrideRequirementInsert(override),
             companyId: input.companyId,
             contractorId: override.contractorId,
             occurrenceTypeId: input.occurrenceTypeId,
           })
           .onConflictDoUpdate({
-            set: { attachmentMode: override.attachmentMode, updatedAt: new Date() },
+            set: toOverrideRequirementUpdate(override),
             target: [
               companyOccurrenceTypeContractorOverrides.companyId,
               companyOccurrenceTypeContractorOverrides.occurrenceTypeId,
@@ -181,13 +185,13 @@ export class DrizzleOccurrenceAttachmentOverridesRepository {
         await transaction
           .insert(companyOccurrenceTypeRecipientOverrides)
           .values({
-            attachmentMode: override.attachmentMode,
+            ...toOverrideRequirementInsert(override),
             companyId: input.companyId,
             occurrenceTypeId: input.occurrenceTypeId,
             taxId: override.taxId,
           })
           .onConflictDoUpdate({
-            set: { attachmentMode: override.attachmentMode, updatedAt: new Date() },
+            set: toOverrideRequirementUpdate(override),
             target: [
               companyOccurrenceTypeRecipientOverrides.companyId,
               companyOccurrenceTypeRecipientOverrides.occurrenceTypeId,

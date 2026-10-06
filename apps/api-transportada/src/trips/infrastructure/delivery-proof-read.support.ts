@@ -541,6 +541,8 @@ export async function saveTripOccurrence(
      * `'unset'`) é o produto de hoje — nenhuma tratativa nasce, nenhum caminho muda.
      */
     readonly redeliveryPolicy?: RedeliveryPolicy
+    /** Spec 246 (RF9): a assinatura, na coluna própria — nunca linha de anexo de foto. */
+    readonly signatureObjectId?: string | null
     readonly stage: TripOccurrence['stage']
     readonly tripId: string
     readonly typeName: string
@@ -569,6 +571,7 @@ export async function saveTripOccurrence(
       note: input.note,
       occurrenceTypeId: input.occurrenceTypeId,
       productCode: input.productCode,
+      signatureObjectId: input.signatureObjectId ?? null,
       stage: input.stage,
       tripDocumentId: input.documentId,
       ...(input.authorship === undefined
@@ -1075,6 +1078,8 @@ async function writeOccurrenceTypeRow(
      */
     readonly leavesDocumentBehind?: boolean | undefined
     readonly name: string
+    /** Spec 246 (RF1, RF3): ausente é "não mexa" — o INSERT usa o padrão da coluna (`'optional'`). */
+    readonly noteMode?: DeliveryProofFieldMode | undefined
     readonly notifies: boolean
     readonly occurrenceTypeId: null | string
     /** Spec 246 (RF1c): ausente é "não mexa" — o INSERT usa o padrão da coluna (1). */
@@ -1084,6 +1089,8 @@ async function writeOccurrenceTypeRow(
      * (`'unset'`) e o UPDATE omite a coluna, como `attachmentMode`.
      */
     readonly redeliveryPolicy?: RedeliveryPolicy | undefined
+    /** Spec 246 (RF1): ausente é "não mexa" — o INSERT usa o padrão da coluna (`'off'`). */
+    readonly signatureMode?: DeliveryProofFieldMode | undefined
     readonly stage: TripOccurrenceStage
   },
 ): Promise<OccurrenceTypeRecord> {
@@ -1119,7 +1126,9 @@ async function writeOccurrenceTypeRow(
     ...(input.photoMinimumCount === undefined
       ? {}
       : { photoMinimumCount: input.photoMinimumCount }),
+    ...(input.noteMode === undefined ? {} : { noteMode: input.noteMode }),
     ...(input.redeliveryPolicy === undefined ? {} : { redeliveryPolicy: input.redeliveryPolicy }),
+    ...(input.signatureMode === undefined ? {} : { signatureMode: input.signatureMode }),
   }
   /**
    * Tipo que não é de separação grava sempre `false`: mudar o estágio de um tipo marcado, sem mandar

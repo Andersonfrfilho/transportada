@@ -1160,6 +1160,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
+    readonly signatureObjectId?: string | null
     readonly stage: 'delivery'
     readonly tripId: string
     readonly typeName: string
@@ -1174,6 +1175,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       note: input.note,
       occurrenceTypeId: input.occurrenceTypeId,
       productCode: input.productCode,
+      signatureObjectId: input.signatureObjectId ?? null,
       stage: input.stage,
       tripId: input.tripId,
       typeName: input.typeName,

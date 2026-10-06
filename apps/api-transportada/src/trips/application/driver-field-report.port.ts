@@ -427,6 +427,11 @@ export type DriverFieldReportTransactionPort = {
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
+    /**
+     * Spec 246 (RF9): o objeto da assinatura, já conferido — gravado em `signature_object_id`, nunca
+     * como linha de anexo de foto. Ausente é "sem assinatura".
+     */
+    readonly signatureObjectId?: string | null
     readonly stage: 'delivery'
     readonly tripId: string
     readonly typeName: string

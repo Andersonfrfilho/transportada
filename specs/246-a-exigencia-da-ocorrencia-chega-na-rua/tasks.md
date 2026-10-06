@@ -178,7 +178,7 @@ trip_document_occurrence_attachments_unique_position DO NOTHING`. **`created_at 
       `required` **antes** das colunas novas, rodar a migration, e o registro sem nota volta
       `TRIP_OCCURRENCE_NOTE_REQUIRED`. Mutação: tirar o `UPDATE` da T1.2 deixa este teste vermelho —
       execução vermelha registrada em `evidence.md`.
-- [ ] **T2.4** `PUT` do catálogo e das exceções aceita os quatro modos (nulo = herda nas exceções);
+- [x] **T2.4** `PUT` do catálogo e das exceções aceita os quatro modos (nulo = herda nas exceções);
       `signatureObjectId` aceito e conferido contra empresa/viagem/motorista (RF2b da 179).
 - [ ] **T2.4b** A projeção, a cobrança (RF8) e a verificação (RF12) incluem `itemsMode`,
       `photoMinimumCount` e `itemsMinimumCount`; erro estável por campo em `trip.error.ts`.

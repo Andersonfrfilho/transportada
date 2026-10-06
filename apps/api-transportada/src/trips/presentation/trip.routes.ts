@@ -310,12 +310,16 @@ type SaveOccurrenceTypeInput = {
   /** Spec 246 (T1b.1b): o conjunto de momentos; ausente é "não mexa" — ver o caso de uso. */
   readonly moments?: readonly OccurrenceMoment[] | undefined
   readonly name: string
+  /** Spec 246 (RF1, RF3): ausente é "não mexa" — ver o caso de uso. */
+  readonly noteMode?: DeliveryProofFieldMode | undefined
   readonly notifies: boolean
   readonly occurrenceTypeId: null | string
   /** Spec 246 (RF1c): ausente é "não mexa" — ver o caso de uso. */
   readonly photoMinimumCount?: number | undefined
   /** Spec 164 RF1/T21: ausente é "não mexa" — ver `save-occurrence-type.use-case.ts`. */
   readonly redeliveryPolicy?: RedeliveryPolicy | undefined
+  /** Spec 246 (RF1): ausente é "não mexa" — ver o caso de uso. */
+  readonly signatureMode?: DeliveryProofFieldMode | undefined
   readonly stage: 'delivery' | 'separation'
 }
 

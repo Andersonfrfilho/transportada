@@ -1402,3 +1402,60 @@ uma por vez: `field-trip-target` 7/0 · `trip-field-authorship` 5/0 · `event-lo
 `whatsapp-driver-flow-actions` 4/0 · `occurrence-type-moments-registration` 2/0 ·
 `street-occurrence-attachment-write` 2/0 · `street-occurrence-photo-statement` 1/0 · `me-trip` 21/0 ·
 `trip-field-office` 25/0.
+
+### T2.4 — O PUT do catálogo e das exceções aceita os modos; a assinatura é conferida e gravada (2026-10-06)
+
+**Catálogo** (`PUT /company-settings/occurrence-types`): `noteMode` e `signatureMode` (`off | optional |
+required`), **opcionais sem `default`** — ausente é "não mexa" (o `UPDATE` omite a coluna; o `INSERT` usa o
+padrão da coluna: `optional` e `off`). O mapper (`save-occurrence-type-values.mapper.ts`) os repassa.
+`GET` devolve os dois campos, e o `PUT` devolve o registro gravado com eles.
+
+**Exceções** (`PUT .../occurrence-types/:id/attachment-overrides`): cada item das duas listas aceita, além
+de `attachmentMode`, `noteMode`, `signatureMode`, `itemsMode` (nulo = herda), `photoMinimumCount` (1..5
+ou nulo) e `itemsMinimumCount` (nulo = todos os itens). Três estados por campo, em
+`occurrence-override-requirement-columns.support.ts`: **ausente** não toca a coluna; **nulo** herda do
+tipo; **valor** grava. `itemsMinimumCount` não nulo sem `itemsMode = 'required'` **no mesmo item** é
+`400` (a CHECK do banco, antes de virar 500). Sem `?? 'x'` no `UPDATE`.
+
+⚠️ **Compatibilidade do painel anterior à Fase 5** (que reenvia a lista inteira, sem conhecer os campos
+novos): (1) o item **ecoado** do `GET` leva os campos novos de volta e nada se perde; (2) o item que o
+painel antigo **só com a foto** reenvia não apaga nenhum campo novo (ausente = não mexa); (3) a linha
+**nova** sem `noteMode` (o painel antigo adicionando uma exceção) recebe a observação que **segue a
+foto da exceção** — a mesma regra do `CASE` da migration T1.2 —, e não nulo: nulo herdaria a do tipo e
+mudaria o que o painel antigo fazia. Nulo **explícito** continua sendo "herda".
+
+**Assinatura** (RF9): `POST .../documents/:documentId/occurrences` aceita `signatureObjectId` (uuid ou
+`null`). `registerDriverOccurrence` o confere como o anexo (RF2b da 179: existe, é desta empresa e desta
+viagem) **e é do motorista** — `findConfirmedUpload` recebe o `driverId` quando o localizador é o do
+motorista —, e `saveTripOccurrence` o grava em `trip_document_occurrences.signature_object_id`. **Nunca**
+vira linha de `trip_document_occurrence_attachments`.
+
+Contrato primeiro (`test/trip-occurrence/requirement-modes-write.contract.ts`):
+
+```text
+$ bun --env-file=../../.env.test test ./test/trip-occurrence/requirement-modes-write.contract.ts
+(fail) o PUT do catálogo aceita os modos da observação e da assinatura (spec 246 T2.4) > aceita noteMode e signatureMode, e o mapper os repassa ao caso de uso
+(fail) o PUT das exceções aceita os seis campos, nulo herda (spec 246 T2.4, D-a) > aceita os campos novos, nulos incluídos, nas duas listas
+(fail) a rota do motorista aceita a assinatura (spec 246 T2.4, RF9) > signatureObjectId é um uuid; ausente e nulo valem
+(fail) o caso de uso confere a assinatura e a grava na coluna própria (spec 246 T2.4, RF9) > assinatura confirmada, da viagem e do motorista: grava, sem virar anexo de foto
+(fail) o caso de uso confere a assinatura e a grava na coluna própria (spec 246 T2.4, RF9) > assinatura que não é desta empresa/viagem/motorista: inalcançável, nada gravado
+ 6 pass
+ 5 fail
+```
+
+Depois: `11 pass, 0 fail`. Integração `occurrence-requirement-modes-write` (na lista `test:integration`):
+`5 pass, 0 fail` — tipo grava e regrava sem os modos; exceção com os três estados; linha nova sem
+`noteMode` segue a foto; assinatura na coluna e nenhuma linha de anexo. Mutação (trocar a omissão de
+`noteMode` no `SET` do conflito por `noteMode: input.noteMode ?? 'optional'`, o `?? 'x'` proibido):
+
+```text
+(fail) a exceção distingue ausente, nulo e valor (spec 246 T2.4, D-a) > substituição total: o que não veio fica; nulo herda; valor grava
+ 4 pass
+ 1 fail
+```
+
+Contrato da API inteiro: `9854 pass, 25 skip, 0 fail`; `bun run typecheck` 0; `bun run lint` 0.
+
+⚠️ **Divergência registrada.** O `PUT` de tipo de um painel anterior à 246 que passe a foto para `required`
+sem mandar `noteMode` **não** arrasta mais a observação (a regra saiu do código — RF3). Só importa na janela
+entre a API e o painel da Fase 5; o painel novo manda `noteMode`. Cadastro existente não muda (CA04).

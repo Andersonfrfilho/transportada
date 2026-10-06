@@ -187,6 +187,7 @@ export async function registerDriverOccurrence(
             tripId,
           })
         ).id
+  const signatureObjectId = await resolveSignatureObjectId({ input, tripId })
 
   /**
    * Spec 179 T200: a chave de idempotência que esta rota não tinha (ADR-0045 §5, revisão de
@@ -220,6 +221,7 @@ export async function registerDriverOccurrence(
           note: input.note,
           occurrenceTypeId: occurrenceType.id,
           productCode: scope.productCode,
+          signatureObjectId,
           stage: TRIP_OCCURRENCE_STAGE.delivery,
           tripId,
           typeName: occurrenceType.name,
@@ -234,4 +236,26 @@ export async function registerDriverOccurrence(
   )
 
   return saved
+}
+
+/**
+ * Spec 246 (RF9, T2.4): a assinatura é conferida como o anexo (RF2b da 179) — existe, é desta empresa e
+ * desta viagem — e, vindo do motorista, **é dele**: a referência de outro motorista da mesma viagem não
+ * serve. Resolve para o id que a coluna `signature_object_id` guarda; nunca vira linha de anexo.
+ */
+async function resolveSignatureObjectId(params: {
+  readonly input: RegisterDriverOccurrenceInput
+  readonly tripId: string
+}): Promise<null | string> {
+  const { input, tripId } = params
+  if (input.signatureObjectId === undefined || input.signatureObjectId === null) return null
+
+  const upload = await resolveOccurrenceUploadAttachment({
+    companyId: input.companyId,
+    ...(input.driverId === undefined ? {} : { driverId: input.driverId }),
+    objectId: input.signatureObjectId,
+    repository: input.repository,
+    tripId,
+  })
+  return upload.id
 }
