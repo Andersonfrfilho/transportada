@@ -183,7 +183,7 @@ trip_document_occurrence_attachments_unique_position DO NOTHING`. **`created_at 
 - [x] **T2.4b** A projeção, a cobrança (RF8) e a verificação (RF12) incluem `itemsMode`,
       `photoMinimumCount` e `itemsMinimumCount`; erro estável por campo em `trip.error.ts`.
       `itemsMode = required` recusa registro sem produto, e "todos os itens" recusa seleção parcial.
-- [ ] **T2.5** Prova de que a assinatura da ocorrência não aparece em `trip_delivery_proofs`, na
+- [x] **T2.5** Prova de que a assinatura da ocorrência não aparece em `trip_delivery_proofs`, na
       pontualidade, na nota do motorista **nem como linha de anexo de foto** (CA06, RF9, regra da 209).
 - [ ] **T2.6** Contrato do WhatsApp do motorista (RF13): tipo com assinatura `required` registrado
       por esse canal devolve o erro estável da assinatura; a lista **não** é filtrada por exigência.

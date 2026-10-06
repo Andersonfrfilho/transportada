@@ -1496,3 +1496,29 @@ pelo caminho real → `TRIP_OCCURRENCE_ITEMS_REQUIRED`); integrações vizinhas,
 `occurrence-type-minimum-counts` 4/0 · `trip-field-authorship` 5/0. `bun run typecheck` 0; `bun run lint` 0.
 O registro do **galpão** e o lote do escritório não leem `required` de produtos nesta spec (a exigência de
 rua é só da nota do motorista — spec.md "Fora do escopo").
+
+### T2.5 — A assinatura da ocorrência não vira comprovante, nota nem foto (2026-10-06)
+
+`test/integration/occurrence-signature-isolation.integration.ts` (na lista `test:integration`), contra
+Postgres, pelo caminho real do motorista, com um tipo de assinatura `required`:
+
+- sem assinatura → `TripOccurrenceSignatureRequiredError` (`TRIP_OCCURRENCE_SIGNATURE_REQUIRED`) e **nenhuma**
+  ocorrência gravada;
+- com a assinatura (upload confirmado desta viagem e deste motorista) → `signature_object_id` preenchido,
+  `attachment_object_id` nulo; **nenhuma** linha em `trip_delivery_proofs` (de onde a pontualidade e a nota do
+  motorista leem), `listDeliveryProofs` da nota vazio, `DrizzleDriverScoreRepository.readPenalties` igual ao
+  de antes do registro, e **nenhuma** linha em `trip_document_occurrence_attachments`.
+
+Mutação — gravar a assinatura também como linha de anexo (`mirrorStreetOccurrenceAttachment` com o
+`signatureObjectId`, restaurado em seguida):
+
+```text
+Expected length: 0
+Received length: 1
+(fail) a assinatura da ocorrência não vira comprovante, nota nem foto (spec 246 T2.5, CA06) > sem assinatura: erro estável e nada gravado; com assinatura: só a coluna própria muda
+ 0 pass
+ 1 fail
+```
+
+Verde sem mutação: `1 pass, 0 fail`. O demonstrativo e a resposta da correção, que leem só a tabela de
+anexos, já foram provados sem a assinatura na T1d.6 (CA09).
