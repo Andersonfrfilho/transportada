@@ -9,23 +9,6 @@ import { describe, expect, test } from 'bun:test'
 import { and, eq, sql } from 'drizzle-orm'
 
 import {
-  createGetCargoArrivalUseCase,
-  createListAvailableArrivalDocumentsUseCase,
-  createListCargoArrivalsUseCase,
-} from '../../src/cargo-receiving/application/read-cargo-arrival.use-case.js'
-import { createRegisterCargoArrivalUseCase } from '../../src/cargo-receiving/application/register-cargo-arrival.use-case.js'
-import {
-  createAssignCargoArrivalRouteUseCase,
-  createBatchCargoArrivalStatusUseCase,
-  createChangeCargoArrivalDocumentStateUseCase,
-  createCloseCargoArrivalUseCase,
-} from '../../src/cargo-receiving/application/separate-cargo-arrival.use-case.js'
-import { DrizzleCargoArrivalReadRepository } from '../../src/cargo-receiving/infrastructure/drizzle-cargo-arrival-read.repository.js'
-import { DrizzleCargoArrivalRegistrationRepository } from '../../src/cargo-receiving/infrastructure/drizzle-cargo-arrival-registration.repository.js'
-import { DrizzleCargoArrivalSeparationRepository } from '../../src/cargo-receiving/infrastructure/drizzle-cargo-arrival-separation.repository.js'
-import { createCargoArrivalSeparationRoutes } from '../../src/cargo-receiving/presentation/cargo-arrival-separation.routes.js'
-import { createCargoArrivalRoutes } from '../../src/cargo-receiving/presentation/cargo-arrival.routes.js'
-import {
   auditLogs,
   cargoArrivalDocuments,
   cargoArrivalEvents,
@@ -33,7 +16,6 @@ import {
   contractorReceivingProfiles,
 } from '../../src/database/database.schema.js'
 import { findPostgresError } from '../../src/database/postgres-error.support.js'
-import { createRequestHandler } from '../../src/http/request-handler.service.js'
 import type {
   AuthenticatedContext,
   CompanyContext,
@@ -50,71 +32,27 @@ import {
   type TestDatabase,
 } from '../fixtures/cargo-arrival-database.fixture.js'
 import {
-  authenticatedContext,
-  CORRELATION_ID,
-  createTestRouter,
-  FRONTEND_ORIGIN,
-  jsonRequest,
-} from '../fixtures/freight-region-http.fixture.js'
+  buildPostRequest,
+  callCargoArrival as call,
+  createCargoArrivalHandler,
+  SEPARATOR_PERMISSIONS as SEPARATOR,
+  type CargoArrivalHandle as Handle,
+} from '../fixtures/cargo-arrival-http.fixture.js'
+import { authenticatedContext, jsonRequest } from '../fixtures/freight-region-http.fixture.js'
 
 const testWithPostgres = hasTestDatabase ? test : test.skip
-const SEPARATOR: CompanyContext['permissions'] = new Set(['fleet.read', 'trip.manage'])
 const HOUR_MS = 3_600_000
 const ARRIVED_AT = new Date(Date.now() - 2 * HOUR_MS)
-
-type Handle = (request: Request) => Promise<Response>
-type Body = { readonly data?: Record<string, unknown>; readonly error?: Record<string, unknown> }
 
 function createHandler(
   database: TestDatabase,
   context: AuthenticatedContext<CompanyContext> = authenticatedContext(SEPARATOR),
 ): Handle {
-  const reads = new DrizzleCargoArrivalReadRepository(database.db)
-  const writing = {
-    channel: 'backoffice' as const,
-    now: () => new Date(),
-    repository: new DrizzleCargoArrivalSeparationRepository(database.db),
-  }
-  const routes = [
-    ...createCargoArrivalRoutes({
-      getArrival: createGetCargoArrivalUseCase({ now: writing.now, readRepository: reads }),
-      listArrivals: createListCargoArrivalsUseCase({ now: writing.now, readRepository: reads }),
-      listAvailableDocuments: createListAvailableArrivalDocumentsUseCase({ readRepository: reads }),
-      registerArrival: createRegisterCargoArrivalUseCase({
-        channel: writing.channel,
-        now: writing.now,
-        readRepository: reads,
-        registrationRepository: new DrizzleCargoArrivalRegistrationRepository(database.db),
-      }),
-    }),
-    ...createCargoArrivalSeparationRoutes({
-      assignRoute: createAssignCargoArrivalRouteUseCase(writing),
-      batchStatus: createBatchCargoArrivalStatusUseCase(writing),
-      changeDocumentState: createChangeCargoArrivalDocumentStateUseCase(writing),
-      closeArrival: createCloseCargoArrivalUseCase(writing),
-    }),
-  ]
-  const handleRequest = createRequestHandler({
-    createCorrelationId: () => CORRELATION_ID,
-    frontendOrigins: [FRONTEND_ORIGIN],
-    logger: { error() {}, info() {}, warn() {} },
-    requestTimeoutSeconds: 30,
-    router: createTestRouter({ context, routes }),
-  })
-  return (request) => handleRequest(request, { timeout() {} })
+  return createCargoArrivalHandler({ context, database })
 }
 
 function post(path: string, body?: unknown, key?: string): Request {
-  const request = jsonRequest({ body, method: 'POST', path })
-  if (key === undefined) return request
-  const headers = new Headers(request.headers)
-  headers.set('idempotency-key', key)
-  return new Request(request, { headers })
-}
-
-async function call(handle: Handle, request: Request): Promise<{ body: Body; status: number }> {
-  const response = await handle(request)
-  return { body: (await response.json()) as Body, status: response.status }
+  return buildPostRequest({ body, path, ...(key === undefined ? {} : { key }) })
 }
 
 function register(
