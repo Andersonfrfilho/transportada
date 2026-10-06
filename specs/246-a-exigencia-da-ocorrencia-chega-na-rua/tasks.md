@@ -133,7 +133,7 @@ items_mode = 'required'`); nas duas tabelas de exceção, `items_mode`, `photo_m
       `trip-occurrence-feed.query.ts` ~781-877, `occurrence-attachment.service.ts` ~118): a leitura da
       ocorrência de rua devolve as fotos de `trip_document_occurrence_attachments` e, na ausência, a
       `attachment_object_id` antiga.
-- [ ] **T1d.2** 🧠 Migration própria (`db:generate --custom`): `INSERT INTO
+- [x] **T1d.2** 🧠 Migration própria (`db:generate --custom`): `INSERT INTO
 trip_document_occurrence_attachments ... SELECT o.company_id, o.id, o.attachment_object_id,
 NULL, 1, o.created_at FROM trip_document_occurrences o WHERE o.attachment_object_id IS NOT NULL
 AND NOT EXISTS (SELECT 1 FROM trip_document_occurrence_attachments a WHERE a.company_id =

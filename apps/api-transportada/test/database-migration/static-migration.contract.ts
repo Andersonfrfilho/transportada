@@ -349,6 +349,7 @@ describe('Drizzle migrations', () => {
       '20261006112823_occurrence_type_requirement_modes',
       '20261006115725_occurrence_type_moments',
       '20261006123712_occurrence_type_quantity_minimums',
+      '20261006131040_street_occurrence_attachment_backfill',
       '20261006144825_cargo_arrival_check_null_holes',
       '20261006180700_cargo_arrival_receiving_occurrence',
     ])

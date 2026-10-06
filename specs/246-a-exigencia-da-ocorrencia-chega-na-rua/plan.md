@@ -322,6 +322,24 @@ ON CONFLICT ON CONSTRAINT trip_document_occurrence_attachments_unique_position D
 - `rollback.sql` **não apaga as linhas** (não há como distinguir o que o backfill criou do que a
   escrita nova criou depois); só remove o registro do journal, com essa justificativa.
 - `attachment_object_id` permanece gravada até a leitura nova estar em produção.
+- **Implementado** em `drizzle/20261006131040_street_occurrence_attachment_backfill/` (T1d.2), SQL
+  igual ao acima. O **expurgo** confirmado está em
+  `apps/worker-transportada/src/trip-occurrence-attachment-purge/infrastructure/drizzle-occurrence-attachment-purge-gateway.ts`
+  (`findAttachmentByObjectId`, `limit(1)` sem ordem, ~24-36) — o caminho da spec estava sem o prefixo
+  do worker. Ele só varre objetos `trip_occurrence_attachment`/`trip_occurrence_thumbnail` com
+  `retention_until` vencida, então o objeto do **lote** (`delivery_proof`, sem retenção) nunca é
+  candidato. O mesmo upload do motorista **pode** servir duas ocorrências (`findConfirmedUpload` não o
+  consome): vira duas linhas, o expurgo apaga os bytes, uma linha e marca o objeto `deleted`, e a outra
+  linha fica apontando para objeto `deleted`, lida como `expired` — o mesmo que a coluna já mostrava;
+  não é regressão, só uma linha morta. Documentado, não resolvido aqui.
+- **Ordem de publicação obrigatória (deploy separado):** o migrador do drizzle aplica todas as
+  pendentes numa transação só. A T1.2 (`20261006112823_…requirement_modes`) tem de estar aplicada em
+  staging e produção (`drizzle.__drizzle_migrations`) **antes** de esta pasta entrar em qualquer push;
+  senão as duas rodam juntas e o `ADD COLUMN signature_object_id` segura `ACCESS EXCLUSIVE` durante o
+  `INSERT`. Nenhum gate verifica isso: é processo. Antes de produção, também a medição da T1d.0.
+- **Janela entre o backfill e a escrita dupla:** ocorrência gravada por código anterior à T1d.5 depois
+  do snapshot do backfill fica só com a coluna (a leitura antiga a cobre). Antes de **remover** a
+  leitura da coluna, reaplicar o mesmo SQL numa migration nova — ele é idempotente.
 
 ### Resumo do que cada rollback preserva
 

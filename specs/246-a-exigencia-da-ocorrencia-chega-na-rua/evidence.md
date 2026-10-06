@@ -994,3 +994,78 @@ restauradas em seguida (`git status` só com os arquivos novos):
 (fail) ... > coluna e linha: só a linha, uma vez — o id e a hora passam a ser os da linha
  2 pass / 1 fail
 ```
+
+### T1d.2 🧠 — Migration própria do backfill (2026-10-06)
+
+`bun run db:generate --custom --name street_occurrence_attachment_backfill` →
+`drizzle/20261006131040_street_occurrence_attachment_backfill/` (migration vazia + `snapshot.json`).
+`migration.sql`, sob um cabeçalho que diz o porquê de cada cláusula e o deploy separado:
+
+```sql
+INSERT INTO "trip_document_occurrence_attachments"
+  ("company_id", "occurrence_id", "stored_object_id", "thumbnail_object_id", "position", "created_at")
+SELECT o."company_id", o."id", o."attachment_object_id", NULL, 1, o."created_at"
+FROM "trip_document_occurrences" o
+WHERE o."attachment_object_id" IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM "trip_document_occurrence_attachments" a
+    WHERE a."company_id" = o."company_id" AND a."occurrence_id" = o."id"
+  )
+ON CONFLICT ON CONSTRAINT "trip_document_occurrence_attachments_unique_position" DO NOTHING;
+```
+
+Nomes conferidos no schema: `trip_document_occurrence_attachments_unique_position` é o `UNIQUE
+(company_id, occurrence_id, position)` (`trip.schema.ts:2414`); a tabela não tem `retention_until`
+(está em `stored_objects`). `attachment_object_id` não é tocada. `rollback.sql`: `BEGIN` → `DELETE`
+do journal pelo nome, `ROW_COUNT <> 1 → RAISE` → `COMMIT`; **não apaga linha**, com a justificativa no
+cabeçalho (não se distingue a linha do backfill da escrita dupla; ficar não muda a leitura; reaplicar
+não duplica).
+
+Contrato primeiro — `test/database-migration/street-occurrence-attachment-backfill.static.contract.ts`
+(registrado em `test/database-migration.contract.test.ts`; a pasta entrou na lista de
+`static-migration.contract.ts`), contra a migration vazia do `--custom`:
+
+```text
+$ bun test ./test/database-migration/street-occurrence-attachment-backfill.static.contract.ts
+error: expect(received).toContain(expected)
+(fail) ... > um INSERT ... SELECT só, com a hora da ocorrência, sem duplicar e sem tocar a coluna
+ENOENT: no such file or directory, open '.../20261006131040_street_occurrence_attachment_backfill/rollback.sql'
+(fail) ... > o rollback só tira o registro do journal, conferindo que tirou um
+ 0 pass
+ 2 fail
+```
+
+Depois: `bun --env-file=../../.env.test test ./test/database-migration.contract.test.ts` → `92 pass, 4
+skip, 0 fail` (os 4 pulados são anteriores, de banco, cobertos no `migration-test`); `bun run
+db:generate` → `no_changes`; `make migration-test ENV_FILE=.env.test` → `133 pass, 0 fail` em 8
+arquivos.
+
+**Expurgo — caminho confirmado.** A spec citava `drizzle-occurrence-attachment-purge-gateway.ts` sem
+pasta: ele está no **worker**,
+`apps/worker-transportada/src/trip-occurrence-attachment-purge/infrastructure/drizzle-occurrence-attachment-purge-gateway.ts:24-36`
+(`findAttachmentByObjectId`, `or(stored_object_id, thumbnail_object_id)`, `limit(1)`). Os candidatos
+(`drizzle-trip-occurrence-attachment-purge.repository.ts:23-34`) são só objetos
+`trip_occurrence_attachment`/`trip_occurrence_thumbnail` com `retention_until` vencida.
+
+**Um objeto servindo N ocorrências** (documentado em `plan.md` § T1d.2, não resolvido aqui):
+
+- Lote do escritório: o objeto é `delivery_proof` **sem** `retention_until`
+  (`drizzle-office-occurrence-batch.repository.ts:120-131`) — nunca é candidato do expurgo. Vira N
+  linhas com o mesmo `stored_object_id`, inofensivas para o expurgo.
+- Achado do architect: o mesmo **upload do motorista** (`trip_occurrence_attachment`) pode ser
+  referenciado por duas ocorrências — `findConfirmedUpload` (`drizzle-occurrence-upload.repository.ts:133-157`)
+  não o consome. Vira duas linhas; o expurgo apaga os bytes, **uma** linha e marca o objeto
+  `deleted`; a outra fica apontando para objeto `deleted`, lida como `expired` — o que a coluna já
+  mostrava. Não é regressão; é uma linha morta por ocorrência extra. Coberto na T1d.3 (semente f).
+
+**Validação por `architect` (opus, só leitura) sobre o SQL final: APROVADO.** Nenhum caminho para FK,
+CHECK ou unique falharem (a FK de origem `trip_document_occurrences_company_object_fk` foi criada
+validada; a miniatura vai nula; a posição é a constante 1; o `NOT EXISTS` usa
+`..._company_occurrence_idx`); rollback seguro, reaplicação converge; o lock é `ROW EXCLUSIVE` nos
+anexos e `ACCESS SHARE` nas ocorrências, conflito real só com o `FOR UPDATE SKIP LOCKED` do expurgo
+(converge). **Condição de publicação obrigatória**, registrada no `plan.md`: a T1.2 ainda não está em
+`origin/staging` nem em `origin/main`; o migrador aplica as pendentes numa transação só, então a
+T1.2 tem de estar aplicada (journal de staging e produção) **antes** de esta pasta entrar em qualquer
+push. Nada no código garante isso. Recomendações acatadas: semente (f) na T1d.3; a janela entre o
+backfill e a escrita dupla documentada no `plan.md` (reaplicar o mesmo SQL antes de remover a leitura
+da coluna).
