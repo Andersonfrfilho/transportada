@@ -34,6 +34,8 @@ export type CargoPreviewGraph = {
   readonly companyId: string
   readonly contractorId: string
   readonly seedDocument: (input: SeedDocumentInput) => Promise<string>
+  /** Em série de propósito: o pool do Bun SQL 1.3.14 trava com ~70+ cadeias de INSERT concorrentes. */
+  readonly seedDocuments: (inputs: readonly SeedDocumentInput[]) => Promise<readonly string[]>
   readonly seedPreview: (input: {
     readonly bytes: Uint8Array
     readonly receivedAt: Date
@@ -120,5 +122,11 @@ export async function createCargoPreviewGraph(database: Database): Promise<Cargo
     return documentId
   }
 
-  return { companyId, contractorId, seedDocument, seedPreview }
+  async function seedDocuments(inputs: readonly SeedDocumentInput[]): Promise<readonly string[]> {
+    const documentIds: string[] = []
+    for (const input of inputs) documentIds.push(await seedDocument(input))
+    return documentIds
+  }
+
+  return { companyId, contractorId, seedDocument, seedDocuments, seedPreview }
 }

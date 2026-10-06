@@ -55,20 +55,18 @@ describeDatabase('o corpus FR-28-09 pelo banco (integration, spec 237 T4.3)', ()
       (await Bun.file(`${CORPUS}/documents.json`).json()) as CorpusDocument[]
     ).filter((document) => String(document.issuedAt).startsWith('2026-09-25'))
     const graph = await createCargoPreviewGraph(provider.db)
-    await Promise.all(
-      documents.map((document) =>
-        graph.seedDocument({
-          ...(document.loadReference === null ? {} : { loadReference: document.loadReference }),
-          number: String(document.number),
-          ...(document.recipientPostalCode === null
-            ? {}
-            : { postalCode: document.recipientPostalCode }),
-          ...(document.recipientName === null ? {} : { recipientName: document.recipientName }),
-          recipientTaxId: String(document.recipientTaxId),
-          value: String(document.totalValue),
-          weightKg: document.grossWeightKg ?? null,
-        }),
-      ),
+    await graph.seedDocuments(
+      documents.map((document) => ({
+        ...(document.loadReference === null ? {} : { loadReference: document.loadReference }),
+        number: String(document.number),
+        ...(document.recipientPostalCode === null
+          ? {}
+          : { postalCode: document.recipientPostalCode }),
+        ...(document.recipientName === null ? {} : { recipientName: document.recipientName }),
+        recipientTaxId: String(document.recipientTaxId),
+        value: String(document.totalValue),
+        weightKg: document.grossWeightKg ?? null,
+      })),
     )
     const bytes = buildCargoPreviewWorkbook({ rows: items.map(toRow) })
     const previewId = await graph.seedPreview({
