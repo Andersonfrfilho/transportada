@@ -818,7 +818,9 @@
               <p class="hint">
                 <strong>Obrigatório</strong> quer dizer: a ocorrência não é registrada sem aquilo.
                 Foto é a imagem capturada no aparelho; Observação é o texto do motorista; Assinatura
-                é a de quem deu a negativa; Produtos é ao menos um item da nota marcado.
+                é a de quem deu a negativa; Produtos é ao menos um item da nota marcado. Na exceção
+                por CNPJ, <strong>Igual ao tipo</strong>
+                herda o que o tipo declara naquele campo.
               </p>
               <div class="subField">
                 <span>Quantidade mínima de fotos</span>
@@ -892,6 +894,7 @@
                     </td>
                     <td>
                       <select aria-label="Foto">
+                        <option>Igual ao tipo</option>
                         <option>Desligado</option>
                         <option>Opcional</option>
                         <option selected>Obrigatório</option>
@@ -899,6 +902,7 @@
                     </td>
                     <td>
                       <select aria-label="Observação">
+                        <option>Igual ao tipo</option>
                         <option>Desligado</option>
                         <option>Opcional</option>
                         <option selected>Obrigatório</option>
@@ -906,6 +910,7 @@
                     </td>
                     <td>
                       <select aria-label="Assinatura">
+                        <option>Igual ao tipo</option>
                         <option>Desligado</option>
                         <option>Opcional</option>
                         <option selected>Obrigatório</option>
@@ -913,6 +918,7 @@
                     </td>
                     <td>
                       <select aria-label="Produtos">
+                        <option>Igual ao tipo</option>
                         <option>Desligado</option>
                         <option>Opcional</option>
                         <option selected>Obrigatório</option>
@@ -929,6 +935,7 @@
                     </td>
                     <td>
                       <select aria-label="Foto">
+                        <option>Igual ao tipo</option>
                         <option>Desligado</option>
                         <option>Opcional</option>
                         <option selected>Obrigatório</option>
@@ -936,6 +943,7 @@
                     </td>
                     <td>
                       <select aria-label="Observação">
+                        <option>Igual ao tipo</option>
                         <option>Desligado</option>
                         <option selected>Opcional</option>
                         <option>Obrigatório</option>
@@ -943,6 +951,7 @@
                     </td>
                     <td>
                       <select aria-label="Assinatura">
+                        <option>Igual ao tipo</option>
                         <option selected>Desligado</option>
                         <option>Opcional</option>
                         <option>Obrigatório</option>
@@ -950,6 +959,7 @@
                     </td>
                     <td>
                       <select aria-label="Produtos">
+                        <option>Igual ao tipo</option>
                         <option>Desligado</option>
                         <option selected>Opcional</option>
                         <option>Obrigatório</option>
@@ -966,6 +976,7 @@
                     </td>
                     <td>
                       <select aria-label="Foto">
+                        <option>Igual ao tipo</option>
                         <option>Desligado</option>
                         <option selected>Opcional</option>
                         <option>Obrigatório</option>
@@ -973,6 +984,7 @@
                     </td>
                     <td>
                       <select aria-label="Observação">
+                        <option>Igual ao tipo</option>
                         <option>Desligado</option>
                         <option>Opcional</option>
                         <option selected>Obrigatório</option>
@@ -980,6 +992,7 @@
                     </td>
                     <td>
                       <select aria-label="Assinatura">
+                        <option>Igual ao tipo</option>
                         <option selected>Desligado</option>
                         <option>Opcional</option>
                         <option>Obrigatório</option>
@@ -987,6 +1000,7 @@
                     </td>
                     <td>
                       <select aria-label="Produtos">
+                        <option>Igual ao tipo</option>
                         <option>Desligado</option>
                         <option selected>Opcional</option>
                         <option>Obrigatório</option>
@@ -1001,7 +1015,7 @@
                 <label class="fieldLabel">
                   Quem
                   <select>
-                    <option selected>Destinatário</option>
+                    <option>Destinatário</option>
                     <option>Contratante</option>
                   </select>
                 </label>
@@ -1014,32 +1028,36 @@
                 <label class="fieldLabel">
                   Foto
                   <select>
+                    <option selected>Igual ao tipo</option>
                     <option>Desligado</option>
                     <option>Opcional</option>
-                    <option selected>Obrigatório</option>
+                    <option>Obrigatório</option>
                   </select>
                 </label>
                 <label class="fieldLabel">
                   Observação
                   <select>
+                    <option selected>Igual ao tipo</option>
                     <option>Desligado</option>
                     <option>Opcional</option>
-                    <option selected>Obrigatório</option>
+                    <option>Obrigatório</option>
                   </select>
                 </label>
                 <label class="fieldLabel">
                   Assinatura
                   <select>
+                    <option selected>Igual ao tipo</option>
                     <option>Desligado</option>
-                    <option selected>Opcional</option>
+                    <option>Opcional</option>
                     <option>Obrigatório</option>
                   </select>
                 </label>
                 <label class="fieldLabel">
                   Produtos
                   <select>
+                    <option selected>Igual ao tipo</option>
                     <option>Desligado</option>
-                    <option selected>Opcional</option>
+                    <option>Opcional</option>
                     <option>Obrigatório</option>
                   </select>
                 </label>
