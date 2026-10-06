@@ -1749,7 +1749,10 @@ documentação desta seção. Sem push.
   escritório e despacho automático (`cargo-*`, `contractor-portal*`, `contractor-receiving*`, `occurrence-*`,
   `trip-occurrence-*`, `stop-occurrence-photo`, `trip-detail-occurrence-marker`, `trip-redelivery-application`,
   `extra-charge-batch-statement`, `trip-field-office*`, `trip-auto-dispatch`): **antes 53 arquivos, 225 pass / 1 skip /
-  0 fail; depois 56 arquivos, 238 pass / 1 skip / 0 fail** (o skip é o mesmo, anterior a esta task).
+  0 fail; depois 56 arquivos, 239 pass / 1 skip / 0 fail** (o skip é o mesmo, anterior a esta task), rodados em
+  duas metades de 28 arquivos (84 + 155). Uma rodada única anterior caiu em prazos de 30 s nas suítes da conversa
+  (183) e de 120 s num anexo, com a máquina a carga média 46 por um Playwright de outra sessão: não é evidência, e a
+  mesma suíte isolada passou em 6 s logo depois; as metades acima rodaram com a carga já em ~15.
 
 ### Mutações (script fora do repositório; cada arquivo restaurado; `git diff --quiet` limpo depois)
 
