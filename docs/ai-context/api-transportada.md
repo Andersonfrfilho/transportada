@@ -2738,3 +2738,35 @@ tolerante e do `autoUpdate` do PWA.
   localização vai só para o evento e segue o prazo dele.
 - **Legado não redigido:** o que chegou antes do deploy segue gravado até a Fase 3 (script com dry-run,
   `--confirm`, aprovação por ambiente e empresa).
+
+## Spec 237 — Fase 5, T5.1: os rascunhos de viagem da prévia (RF7)
+
+`GET /cargo-previews/:id/trip-drafts` (`fleet.read`, `companyId` do contexto, prévia de outra empresa ⇒ 404, **sem
+query nem corpo**: `?companyId=` é 400). Só lê: **nenhuma viagem nasce aqui** (ADR-0044 §5) — o painel leva as notas
+ao fluxo de criação de viagem ou ao `POST /route-suggestions/multi-vehicle`, e o aceite é o de sempre.
+
+- **Camadas.** `domain/cargo-preview-trip-draft*.policy.ts` (pura: agrupamento, contagens, totais, cidades, ordem),
+  `application/read-cargo-preview-trip-drafts.use-case.ts`, `infrastructure/cargo-preview-trip-draft.query.ts`
+  (uma consulta por tabela: prévia, itens, pares roteiro↔carga, notas pelo vínculo **desta** prévia) e
+  `presentation/cargo-preview-trip-draft.routes.ts`. Sem N+1; o peso da NF é `round(sum(nfe_volumes.gross_weight), 3)`.
+- **Só `matched` é nota do rascunho.** O **estado** manda, não a coluna `matched_document_id` (contrato com
+  `suggested` carregando id). `suggested`, `ambiguous`, `awaiting_xml` e `invalid` ficam só nas contagens.
+- **Nota roteável** = `authorized` **e** fora de viagem viva (a conta de `findUnavailableDocumentIds` do multi-veículo)
+  **e** fora de `excludedDocumentIds`. Esse é o **único portão**: `isCargoPreviewDocumentRoutable`. O gancho da
+  **RF8a** (Fase 3, "devolver ao contratante") é `findExcludedTripDraftDocumentIds()` — hoje devolve vazio; a Fase 3
+  só preenche essa função, sem tocar a política. Nota em viagem viva aparece com `isInLiveTrip` e fora dos
+  `routableDocumentIds`. O roteirizador aceita até 500 notas por proposta (`MAX_STOPS_PER_SUGGESTION`).
+- **Formato** (chaves exatas, o painel as confere): topo `contractorId, plannedDate, previewId, routableDocumentIds,
+routes, status, summary`; `summary` `canPropose, counts, inLiveTripDocumentCount, linkedDocumentCount, missingCount,
+routableDocumentCount, routeCount`; roteiro `canPropose, cannotProposeReason (no_linked_documents|none_routable|null),
+cities, counts, documents, linkedTotals, loadOrigin, loadReference, missingCount, plannedDate, routableDocumentIds,
+routeName (null = "sem roteiro", sempre por último), totals`; nota `cityIbgeCode, cityName, documentId, isInLiveTrip,
+isRoutable, lineCount, number, recipientName, series, status, totalValue, weightKg`; cidade `cityIbgeCode, cityName,
+documentCount, pendingLineCount` (casada por nome sem acento + UF: a nota traz o IBGE do XML, a linha que espera o XML
+  só o texto da planilha). `missingCount` é só `awaiting_xml` (linhas, não notas: n linhas podem fechar 1 nota).
+  `totals` é a planilha inteira do roteiro; `linkedTotals`, as notas vinculadas uma vez cada. Decimais em texto, somados
+  em `bigint`. Ordem estável: roteiro, cidade, número da NF (numérico), id.
+- Prévia não lida (`queued|processing|failed`) devolve `routes: []` com a situação, não erro.
+- Contratos: `test/cargo-receiving/cargo-preview-trip-draft-{policy,use-case}.contract.ts`,
+  `test/cargo-receiving-http/cargo-preview-trip-draft-routes.contract.ts`, `separator-role.contract.test.ts` (rota
+  alcançada pelo separador), integração `test/integration/cargo-preview-trip-draft.integration.ts` (Postgres).

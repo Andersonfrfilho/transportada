@@ -804,3 +804,11 @@ worker (`buildCargoPreviewMatchLockKey`). O envio tem `rateLimit` (20/300 s, Pos
 linhas e **células** (revisão de segurança S1, ADR-0094 §7); `resolveCargoPreviewMatches` exige `budget`. ⚠️ Uma nota, uma prévia é o unique de
 `cargo_preview_document_links`, não do item; item decidido pelo operador (`matched_by = user`) a máquina
 nunca reavalia. Detalhe: docs/ai-context § "Spec 237 — Fase 4a, parte B".
+
+## Rascunhos de viagem da prévia (spec 237 T5.1)
+
+`GET /cargo-previews/:id/trip-drafts` (`fleet.read`, sem query): um rascunho por `RouteName`, só leitura — nada vira
+viagem aqui (ADR-0044 §5). Só `matched` é nota (o **estado** manda, não a coluna); roteável = autorizada, fora de viagem
+viva e fora de `excludedDocumentIds`, num portão só (`isCargoPreviewDocumentRoutable`) — a Fase 3 (RF8a, "devolver ao
+contratante") preenche `findExcludedTripDraftDocumentIds()`. `missingCount` conta só `awaiting_xml`. Detalhe:
+docs/ai-context/api-transportada.md § "Spec 237 — Fase 5, T5.1".

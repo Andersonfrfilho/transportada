@@ -1153,3 +1153,33 @@ novos (`OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED`, `OCCURRENCE_TYPE_ITEMS_OFF_REDELIVER
 no erro também (`onSettled`). (3) O `Tooltip` da dica pinta por cima da lista do `Select` que ele envolve
 (`z-index` 80 contra 60); ele se fecha ao ativar o gatilho (clique, Enter, Espaço, setas) — não o reverta.
 Evidência e prints nas três larguras: `specs/241-o-tipo-da-ocorrencia-diz-se-ela-carrega-itens/evidence.md` e `prints/`.
+
+## Spec 237 T5.2 — "Recomendar viagens" na prévia (RF7)
+
+No detalhe da prévia (`/recebimento/previas/:id`), `CargoPreviewTripDraftsSection` (botão **"Recomendar viagens"**, de quem
+lê; prévia não lida explica em vez de oferecer o botão). Aberta, mostra `CargoTripDraftBoard`: o aviso das **notas de
+fora** (`CargoTripDraftOutside`, atalho que filtra o detalhe pelo estado), a visão 1 — um **cartão por roteiro**
+(`CargoTripDraftRouteCard`) — e a visão 2 — `CargoTripDraftSolver`, a proposta do roteirizador. Lado a lado a partir de
+64 rem, empilhadas abaixo disso. Dados de `GET /cargo-previews/:id/trip-drafts` (guarda de chaves exatas em
+`cargoPreviewTripDraftGuards.validation.ts`), lidos **só com a recomendação aberta**; a chave mora debaixo da do detalhe,
+então confirmar/desvincular uma linha relê os rascunhos. Estado na URL: `recommend=1` e `draftRoute=<roteiro>` (ao lado
+de `state`/`route` do detalhe).
+
+- **Nada vira viagem sem o aceite.** "Montar viagem com estas notas" é **navegação** para `/trips?createFromDocuments=…`
+  (o `navigateToTripCreation` que a tela de NF-e já usa e que o `useTripQuickCreate` já consome), só com as notas
+  **roteáveis** do roteiro; veículo e motorista continuam sendo escolhidos dentro daquele fluxo. "Gerar proposta" é o
+  `MultiVehicleSuggestionAction` existente (diálogo `MultiVehicleSuggestionDialog`, valuation, aceite) com as notas
+  roteáveis do escopo (todos os roteiros ou o escolhido). **A única mudança no módulo `routing` é a prop opcional
+  `label`** do `MultiVehicleSuggestionAction` (sem ela o texto é "Sugerir viagens"; contrato
+  `multi-vehicle-action-label.contract.ts`). O roteirizador tem teto de 500 notas: acima dele o botão fica desligado e a
+  tela pede um roteiro (`CARGO_TRIP_DRAFT_SOLVER_DOCUMENT_LIMIT`, cópia por valor da API).
+- **"Faltam N notas — esperando o XML" é informação** (`data-tone="neutral"`, borda tracejada, sem `role=alert`): é o
+  estado normal logo após o envio. Ação sem nota roteável fica `disabled`, com o motivo escrito e ligado por
+  `aria-describedby`. Quem só lê (sem `trip.manage`) vê as duas visões e nenhuma ação que crie viagem.
+- `CargoPreviewDetailScreen` ganhou `companyId`/`permissions` opcionais (a frota do roteirizador só é lida com a empresa);
+  `useCargoReceivingAccess` os expõe. Contratos: `test/cargo-receiving/preview-trip-draft-*.contract.ts` (puros) e
+  `test/trip-hooks/cargo-preview-trip-drafts*.contract.ts` (DOM). `tripClientMocks.helper.ts` ganhou, de forma aditiva,
+  `createMultiVehicle`/frota dublados (`tripHookFakes.multiVehicleRequests` é o que o roteirizador recebeu).
+- **Duas portas do roteirizador** (spec 110): usada a do módulo `routing` (a da seleção de NF-e), como pedido; a de
+  "Montar roteiro" (`TripRouteAssemblyDialog`) segue sendo da tela de Viagens.
+- Prints/medidas: `specs/237-.../prints/recomendar-viagens*` e `evidence.md` § "T5.3".

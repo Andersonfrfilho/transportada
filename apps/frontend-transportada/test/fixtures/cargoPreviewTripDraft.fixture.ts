@@ -138,12 +138,20 @@ const SAO_CARLOS_DOCUMENTS = [
 
 /** Quatro roteiros em situações variadas e um grupo "sem roteiro" só com linha inválida. */
 export const DEFAULT_TRIP_DRAFTS = buildTripDrafts([
-  buildDraftRoute('FR.FRANC', { counts: buildCounts({ awaiting_xml: 4 }), missingCount: 4 }),
+  buildDraftRoute('FR.FRANC', {
+    cities: [{ cityIbgeCode: null, cityName: 'FRANCA', documentCount: 0, pendingLineCount: 4 }],
+    counts: buildCounts({ awaiting_xml: 4 }),
+    missingCount: 4,
+    totals: { value: '7210.40', volumeM3: null, weightKg: '512.300' },
+  }),
   buildDraftRoute('FR.MATAO', {
+    cities: [{ cityIbgeCode: '3529401', cityName: 'Matão', documentCount: 1, pendingLineCount: 1 }],
     counts: buildCounts({ ambiguous: 1, matched: 1 }),
     documents: [
       buildDraftDocument(53_010, { cityName: 'Matão', isInLiveTrip: true, isRoutable: false }),
     ],
+    linkedTotals: { value: '1500.0000', weightKg: '120.000' },
+    totals: { value: '2940.00', volumeM3: '0.4000', weightKg: '233.500' },
   }),
   buildDraftRoute('FR.R.PRE', {
     cities: [

@@ -1211,3 +1211,120 @@ s com 100).
 Rota `settings.manage` para revogar alias à mão; preencher `arrival_reference_label` dos perfis de staging que tinham
 padrão; limpar a coluna `arrival_reference_pattern` numa migration própria (contração, com aprovação); reavaliar o
 `resourceLimits` quando o Bun o implementar; S8 (retenção) aguardando decisão do usuário.
+
+## T5.1 — `GET /cargo-previews/:id/trip-drafts` (2026-10-06)
+
+Commits: `b5e548c0b` (contrato vermelho), `bec9217ac` (implementação), `7b5cd3d76` (contratos que mataram mutantes
+sobreviventes). Desenho: `docs/ai-context/api-transportada.md` § "Spec 237 — Fase 5, T5.1". **Nenhuma migration** (`db:generate`
+= `no_changes`); o módulo é só leitura.
+
+- **Contrato antes, vermelho pelo motivo certo:** `Cannot find module …/read-cargo-preview-trip-drafts.use-case.js` e
+  `…/cargo-preview-trip-draft.routes.js` (0 pass / 2 fail). Registrados nos entrypoints existentes
+  (`cargo-receiving.contract.test.ts`, `cargo-receiving-http.contract.test.ts`); no `package.json` só se **acrescentou** o
+  arquivo de integração em `test:integration` (o `test` não mudou).
+- **Gates:** `bun run typecheck` ✓ · `bun run lint` ✓ · contrato `bun --env-file=../../.env.test test --timeout 120000`: antes
+  **9690 pass / 25 skip / 0 fail**, depois **9723 pass / 25 skip / 0 fail** · integração (Postgres do `.env.test`, 65432,
+  arquivos passados um a um): `cargo-preview-trip-draft` **5 pass** (não pulou) + `cargo-preview`, `-unlink`, `-resend`,
+  `-upload-limit`, `cargo-arrival` → **23 pass / 0 fail** no conjunto · `bun run db:generate` **`no_changes`**.
+- **Mutações** (script fora do repositório; cada arquivo restaurado por `git checkout`, `git diff --quiet` limpo):
+
+  | Regra                                                           | Vermelho | Regra                                           | Vermelho |
+  | --------------------------------------------------------------- | -------- | ----------------------------------------------- | -------- |
+  | tirar o filtro de empresa da prévia                             | 1 fail   | totais do roteiro somam a prévia inteira        | 2 fail   |
+  | nota em viagem viva entra nos roteáveis                         | 3 fail   | totais da NF repetem a nota de cada linha       | 1 fail   |
+  | nota não autorizada é roteável                                  | 1 fail   | "faltam" conta a sugerida                       | 1 fail   |
+  | o gancho de excluídas (RF8a) é ignorado                         | 1 fail   | `canPropose` sem exigir nota roteável           | 2 fail   |
+  | `suggested` conta como vinculada (a coluna manda, não o estado) | 1 fail¹  | o resumo repete a nota de dois roteiros         | 1 fail   |
+  | ordem instável (notas sem ordenar)                              | 1 fail   | cidade sem normalizar acento e caixa / sem a UF | 1 / 1    |
+  | ordem instável (roteiros na ordem de chegada)                   | 1 fail   | soma decimal em ponto flutuante                 | 3 fail   |
+  | número da NF comparado como texto                               | 1 fail   | volume ausente vira zero                        | 1 fail   |
+  | linha inválida entra nos totais                                 | 1 fail   | "sem roteiro" não vai por último                | 1 fail   |
+  | rota de leitura exige `trip.manage`                             | 7 fail   | rota aceita query livre                         | 3 fail   |
+  | caso de uso consulta sem a empresa do contexto                  | 1 fail   | prévia ausente não vira 404                     | 1 fail   |
+  | notas de qualquer prévia / de qualquer empresa                  | 1 / 1²   | itens ou cargas de qualquer empresa             | 1 / 1²   |
+  | nota em viagem viva não é marcada                               | 1 fail   |                                                 |          |
+
+  ¹ o contrato passou a incluir a linha `suggested` com `matched_document_id` gravado. ² sobreviveram na primeira rodada
+  (o filtro extra só é visível por consulta, não pela resposta): entrou o contrato de integração que chama as consultas
+  com a chave do outro lado e exige vazio.
+
+- **Decisões que divergiram do texto:** (1) `missingCount` é só `awaiting_xml` (o texto diz "esperando o XML"; `suggested` e
+  `ambiguous` têm candidata e aparecem nas contagens e no aviso de fora). (2) É **linhas**, não notas: n linhas podem fechar 1 nota.
+  (3) `plannedDate` por roteiro é a da prévia (a `RoutingDate` da planilha é o dia do e-mail, não o planejado). (4) Nota
+  roteável exige também `status = authorized` (o roteirizador recusa as outras com 409); o texto só falava de viagem viva.
+  (5) `:id` que não é UUID canônico nem casa a rota (404, regra do roteador), não é 400. (6) Cidades juntam nota vinculada e
+  linha pendente por nome normalizado + UF, com `pendingLineCount`. (7) Prévia não lida devolve `routes: []` com a situação.
+  (8) O peso da NF sai de `round(sum(nfe_volumes.gross_weight), 3)`.
+- **Não rodou:** integração completa da API (só as tocadas); medição de custo com volume real (sem leitura de produção); teste de
+  N+1 por contador de consultas (a estrutura tem uma consulta por tabela, mas nenhum teste conta consultas).
+
+## T5.2 — "Recomendar viagens" no painel (2026-10-06)
+
+Commits: `b94e9778d` (contrato vermelho), `cac45b20d` (implementação). Desenho: `docs/ai-context/frontend-transportada.md` § "Spec 237 T5.2".
+
+- **Como as notas chegam aos fluxos (nada foi duplicado nem alterado neles):**
+  - **Criação de viagem:** `navigateToTripCreation` (`trip/shared/tripRoute.service.ts`, o mesmo que a barra de seleção de NF-e já usa) →
+    `/trips?createFromDocuments=<ids>`, que o `useTripQuickCreate` já consome (`initialDocumentIds`). O fluxo **já aceitava
+    pré-seleção**; nenhuma mudança em `trip`. Vão **só** as `routableDocumentIds` do roteiro.
+  - **Roteirizador:** o `MultiVehicleSuggestionAction` existente, com `documentIds` = roteáveis do escopo (todos ou o roteiro escolhido) →
+    `POST /route-suggestions/multi-vehicle`. **Única mudança em `routing`: a prop opcional `label`** (padrão "Sugerir viagens"; contrato de
+    não-regressão `multi-vehicle-action-label.contract.ts`). Acima de 500 notas o botão desliga e a tela pede um roteiro.
+- **Contrato antes, vermelho pelo motivo certo:** `Cannot find module '@/modules/cargo-receiving/hooks/useCargoPreviewTripDrafts.hook'` (DOM, 0 pass / 1 fail) e
+  `…/shared/cargoPreviewTripDraftView.service` (puros, 0 pass / 1 fail).
+- **Contagem:** `bun run test` **6899 → 6930 pass / 0 fail** (+31) e `test:hooks` **552 → 582 pass / 0 fail** (+30). `tsc --noEmit` limpo; `eslint` 0 erros
+  (16 avisos antigos, nenhum em arquivo novo); `format:check` na raiz ✓.
+- **Estabilidade do DOM:** nenhum `expect(nó).toBeNull()` dentro de `waitFor` (contagens por `querySelectorAll(...).length`). `test:hooks` **12/12 verdes** em
+  sequência (582 pass) e **3/3 verdes com a CPU saturada** (13 `yes` + 4 suítes concorrentes; as 4 concorrentes também 582 pass). O aviso de `act` do
+  `HookProbe` (554 ocorrências) é anterior e idêntico com e sem os contratos novos.
+- **Mutações** (script fora do repositório; "puro" = `cargo-receiving.contract.test.ts`, "DOM" = `test:hooks`; arquivos restaurados, `git diff` limpo):
+
+  | Mutação                                                      | Puro | DOM |
+  | ------------------------------------------------------------ | ---- | --- |
+  | roteirizador recebe nota em viagem viva                      | 2    | 5   |
+  | criação de viagem recebe também a nota em viagem viva        | 2    | 1   |
+  | criação de viagem navega sem as notas (não passa pelo fluxo) | 0    | 1   |
+  | "faltam N notas" com tom de erro (`alert` + `role=alert`)    | 0    | 1   |
+  | ação visível sem `trip.manage`                               | 1    | 1   |
+  | aviso de só leitura some                                     | 0    | 1   |
+  | sem teto de 500 / teto 501                                   | 1/1  | 1/1 |
+  | aceitar a proposta não relê os rascunhos                     | 0    | 1   |
+  | lê os rascunhos antes de abrir                               | 0    | 3   |
+  | roteiro escolhido ignorado no escopo / não vai à URL         | 1/0  | 4/2 |
+  | botão desabilitado sem o motivo ligado (`aria-describedby`)  | 0    | 1   |
+  | motivo desabilitado trocado                                  | 1    | 1   |
+  | recomendação oferecida com a prévia ainda sendo lida         | 0    | 1   |
+  | "Recomendar viagens" só para quem gerencia                   | 0    | 2   |
+  | guarda aceita chave a mais / não confere a nota              | 2/1  | 0   |
+  | atalho "ver as linhas" não filtra pelo estado                | 0    | 1   |
+  | contagem de "fora" por linha                                 | 2    | 2   |
+  | `label` ignorado / texto de sempre trocado                   | 0/0  | 7/3 |
+  | cliente manda `companyId` na query                           | 1    | 0   |
+  | cartão perde as cidades / "sem roteiro" habilitado           | 0/0  | 1/1 |
+
+  Todas derrubam teste; nenhuma sobreviveu (a primeira rodada falhou em achar um trecho porque o prettier reformatou a linha; refeita).
+
+- **Divergências do pedido:** (1) as visões ficam lado a lado a partir de **64 rem**; no tablet (768) empilham — duas colunas legíveis não cabem. (2) Leitores veem
+  as duas visões e uma frase de só leitura; o botão "Usar só este roteiro" também some para eles. (3) O aviso de "notas de fora" fica **acima** das duas visões.
+  (4) `CargoPreviewDetailScreen` ganhou `companyId`/`permissions` opcionais (a frota do roteirizador só é lida com a empresa). (5) Usada a porta do roteirizador do
+  módulo `routing` (a da seleção de NF-e), como pedido; a de "Montar roteiro" fica como estava (divergência registrada na spec 110).
+- **Não rodou:** `make check`/smoke da CI, aceite real de proposta (o dublê do roteirizador nunca responde), teste em aparelho.
+
+## T5.3 — revisão de design (2026-10-06)
+
+`test/spec-237-recomendar-viagens-prints.smoke.spec.ts` (fora da CI; build com `VITE_SMOKE_AUTH_BYPASS=true` em pasta temporária, `vite preview` na porta **53281**, config
+descartável do Playwright apagada; config da CI e porta reservada intactas; API 100% dublada, dados inventados). 24 PNG em `prints/`:
+`recomendar-viagens`, `recomendar-viagens-aguardando` (caso comum: quase tudo esperando o XML), `recomendar-viagens-sem-notas` e `recomendar-viagens-fora`
+× 375/768/1280 × escuro/claro. Nenhuma tela rola de lado (afirmado pelo teste).
+
+| Medida (1280, escuro) | Vizinho                                                  | Novo                                                                              |
+| --------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| painel/cartão         | painel do roteiro: 1 px sólida, raio 0, 12 px            | cartão: 1 px sólida, raio 0, 12 px (seção: 16 px, borda de cobre como a proposta) |
+| botão                 | "Propor chegada": 48 px · 12×20 px · raio 0 · Arial 13,3 | "Montar viagem", "Usar só este roteiro", "Gerar proposta", "Fechar": idêntico     |
+| selo                  | 24 px · mono 11,52 px · 1 px · 4×8 px                    | idêntico (`CargoPreviewItemStateBadge` reaproveitado)                             |
+| "faltam N notas"      | —                                                        | 37 px · borda **tracejada** 1 px · 14,4 px (informação, não alerta)               |
+
+Contraste (WCAG, mínimo entre as quatro telas), escuro / claro: "faltam N notas" 6,22 / 4,83 · motivo da ação desligada 6,22 / 4,83 · dados do roteiro 6,22 / 4,83 ·
+rótulo dos totais 6,22 / 4,83 · contagem da cidade 6,22 / 4,83 · dica das colunas 6,22 / 4,83 · selo neutro 6,30 / 5,36 · selo vinculada 6,59 / 5,50 · selo
+sugerida/ambígua 6,16 / 5,37 · selo inválida 5,46 / 4,69 · cidade, escopo, aviso de fora e valores 14,48 / 12,66. **Nenhum abaixo de 4,5:1** (o menor: 4,69).
+**Alvo de toque a 375 px: 12 controles da recomendação medidos; o menor tem 48 px de altura e 157,3 px de largura.** Defeito achado pelo olhar nos prints e
+consertado: roteiros sem totais no dado de teste mostravam "0 kg / R$ 0,00" (o fixture, não a tela) — o fixture ganhou totais e cidades.

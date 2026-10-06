@@ -416,3 +416,11 @@ Detalhe e decisões: docs/ai-context/frontend-transportada.md § "Spec 237 T4.4"
 `0.0000` nos campos `helperDailyRate`, `dailyAllowanceAmount` (ficha) e diária geral. Testes:
 `test/fleet/driver-daily-allowance.contract.ts`, `test/fleet/driver-crew-settings-panel.contract.tsx`,
 `test/shared/decimal-amount.contract.ts`.
+
+## Recomendar viagens na prévia (spec 237 T5.2)
+
+Botão no detalhe da prévia; duas visões (roteiros do contratante × proposta do roteirizador). **Nada vira viagem sem o
+fluxo existente**: "Montar viagem" navega a `/trips?createFromDocuments=` só com as notas roteáveis, e "Gerar proposta" é o
+`MultiVehicleSuggestionAction` com a prop opcional `label` (única mudança em `routing`). "Faltam N notas — esperando o
+XML" é neutro (nunca alerta); ação sem nota roteável fica desabilitada com o motivo; sem `trip.manage` nenhuma ação
+aparece. Estado na URL (`recommend`, `draftRoute`). Detalhe: docs/ai-context/frontend-transportada.md § "Spec 237 T5.2".

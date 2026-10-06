@@ -72,12 +72,12 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T5.1** Rascunhos de viagem pelos grupos do contratante (`RouteName`) e ponte prévia/chegada →
+- [x] **T5.1** Rascunhos de viagem pelos grupos do contratante (`RouteName`) e ponte prévia/chegada →
       `POST /route-suggestions/multi-vehicle` (só notas vinculadas); contrato de que nenhuma viagem nasce sem
       o aceite (CA5).
-- [ ] **T5.2** Botão "Recomendar viagens" na prévia/chegada, com as duas visões lado a lado,
+- [x] **T5.2** Botão "Recomendar viagens" na prévia/chegada, com as duas visões lado a lado,
       reaproveitando o diálogo multi-veículo.
-- [ ] **T5.3** **Revisão de design e usabilidade** de todo o módulo (web.md §15), prints nos dois temas e
+- [x] **T5.3** **Revisão de design e usabilidade** de todo o módulo (web.md §15), prints nos dois temas e
       375/768/1280 px **aprovados**; publicar e confirmar.
 
 ## Fase 3 — Avaria sem viagem e "devolver ao contratante"
