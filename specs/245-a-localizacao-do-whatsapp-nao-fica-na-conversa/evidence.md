@@ -154,3 +154,9 @@ contado e não é tocado. Nota: o filtro de empresa vive no SQL do pacote; a mut
   `986 pass / 8 skip / 0 fail`, `Ran 994 tests across 169 files [1707.45s]` (os 8 skips não foram
   classificados um a um: são `testWithPostgres`/guards de ambiente de outras specs; os 11 arquivos `whatsapp-*`
   rodaram sem pular, `53 pass`).
+
+## Deploy em staging e legado (2026-10-06)
+
+- Publicado em staging pela pipeline (run 37463454623, commit `7253f55d4`): todos os jobs de deploy em sucesso. A API roda com `meta-whatsapp-module` 0.8.0, provider 0.4.0 e `redactInboundLocation` ligada.
+- **Legado:** o usuário informou que ainda não há conversas e que o fluxo nem entrou em uso; por isso a T3.3 (contagem e redação do legado) foi dispensada. Isso é declaração do usuário, não medição. O script `whatsapp-location-redact.ts` fica disponível, seco por padrão.
+- Pendente: revisão de código das Fases 1–2 (T3.1) e verificação com uma localização real em staging (T3.2).

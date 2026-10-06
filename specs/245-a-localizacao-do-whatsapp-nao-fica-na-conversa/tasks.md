@@ -62,18 +62,18 @@
 
 > 🤖 Modelo: `sonnet` (T3.4 → `haiku`)
 
-- [ ] **T3.1** Revisão de código das Fases 1–2 (`code-reviewer`, `sonnet`): PII em log, tenant no
-      `UPDATE`, idempotência. Depois, publicar em staging (push com rebase limpo, gates verdes).
-      **Produção só com aprovação humana.** Painel no mesmo deploy da API ou depois, nunca antes.
-- [ ] **T3.2** Verificação em staging: uma localização de teste grava `captured` no evento e a linha do
-      transcript sai sem `payload.location` e sem rótulo (consulta só de `payload ? 'location'` e
-      `content`). Registrar em `evidence.md`.
-- [ ] **T3.3** Redação do legado, por ambiente e por empresa: dry-run com contagem → **PARAR E
+- [~] **T3.1** (publicado em staging em 2026-10-06, run 37463454623, verde; a revisão de código das Fases 1–2 segue pendente) Revisão de código das Fases 1–2 (`code-reviewer`, `sonnet`): PII em log, tenant no
+  `UPDATE`, idempotência. Depois, publicar em staging (push com rebase limpo, gates verdes).
+  **Produção só com aprovação humana.** Painel no mesmo deploy da API ou depois, nunca antes.
+- [~] **T3.2** (a integração do motorista já prova o par captured/transcript no banco de teste; falta a verificação com uma localização real em staging) Verificação em staging: uma localização de teste grava `captured` no evento e a linha do
+  transcript sai sem `payload.location` e sem rótulo (consulta só de `payload ? 'location'` e
+  `content`). Registrar em `evidence.md`.
+- [x] **T3.3** (**dispensada por decisão do usuário em 2026-10-06:** “não temos conversas ainda, isso nem entrou ainda” — o legado é vazio; o número NÃO foi medido por mim em nenhum ambiente, é a informação do usuário; o script continua disponível, seco por padrão, para o caso de aparecer legado) Redação do legado, por ambiente e por empresa: dry-run com contagem → **PARAR E
       PERGUNTAR ao usuário** com o número → `--confirm` → segunda execução = 0. `EXPLAIN` da consulta com
       o volume real em `evidence.md`. Produção: mesma sequência, aprovação separada.
-- [~] **T3.4** (feito junto da Fase 2, a pedido: CLAUDE.md, ai-context, SECURITY, ADR-0081 7.2 — falta só atualizar com as contagens do legado após a T3.3) (`haiku`) `docs/SECURITY.md` (pendência resolvida com data, versão e contagens; entrada
-  aberta "retenção do transcript inteiro"), ADR-0081 emenda 7.2, `apps/api-transportada/CLAUDE.md`
-  § WhatsApp, `docs/ai-context/api-transportada.md`. Prettier nos `.md`.
+- [x] **T3.4** (feito junto da Fase 2; sem contagens de legado a registrar, ver T3.3) (`haiku`) `docs/SECURITY.md` (pendência resolvida com data, versão e contagens; entrada
+      aberta "retenção do transcript inteiro"), ADR-0081 emenda 7.2, `apps/api-transportada/CLAUDE.md`
+      § WhatsApp, `docs/ai-context/api-transportada.md`. Prettier nos `.md`.
 
 ## Prompt de execução
 
