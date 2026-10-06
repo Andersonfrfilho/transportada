@@ -1472,3 +1472,142 @@ separated_at >= received_at` e `received` com `received_at is not null` — o `r
 Push e deploy (proibidos nesta rodada); smoke e `make check` completo; integração inteira da API (só os 12
 arquivos tocados); o painel (fora do escopo — o formato novo do 409 e as rotas novas ainda não são consumidos);
 nenhuma leitura de staging nem de produção (a checagem do M5 é do usuário).
+
+## Correções da revisão das Fases 1–2 — painel (2026-10-06)
+
+Branch `work/spec-232-momento-do-evento`, sem push. Consome a API corrigida (`71c2cb06d..b1d6b538e`); nada da API foi
+tocado. Commits do painel: `b91e4ad20` (M2 + L7), `6e028f3df` (M3), `d5e01e575` (M4 + L4), `22f2b6001` (L1–L3),
+`c3b3a6367` (L6), `87bee4210` (L9 + L14), `8e58e03f8` (lote também nomeia as notas), `5cc1fdfe1` (M4 na terceira tela) e o
+commit de documentação e prints desta seção. A API respondeu como descrito: formato lido dos schemas
+(`cargo-arrival-list-query.schema.ts`, `contractor-receiving-profile-list.routes.ts`, `cargo-arrival.error.ts`).
+
+### O que mudou, e o contrato que prende
+
+- **M2 — erro de rota e de lote.** Antes `route.mutate`/`batch.mutate` não tinham erro: a chegada fechada por outra pessoa,
+  o 422 e a queda de rede sumiam calados. `CargoActionFailure` mostra o aviso (`errors.<code>`), nomeia TODAS as notas
+  recusadas pela posição na seleção **enviada** (`documentIds.<n>`), deduplica, dá atalho que rola e foca, mostra o campo
+  desconhecido com o nome cru e fica em silêncio sem campo; editar a seleção limpa o aviso. Contrato de DOM
+  `trip-hooks/cargo-arrival-detail-errors.contract.ts` (409 `CARGO_ARRIVAL_CLOSED`, 422, `REQUEST_FAILED`, código
+  desconhecido, retentativa que dá certo, lote com 422 por nota). Vermelho antes: 16 de 16 (ver "Mutações").
+- **L7 (painel).** O leitor do 409 do fechamento lê `details[].documentId` (`pendingDocumentIds.<n>`); nunca o texto da
+  mensagem. Contratos: `cargo-receiving/refusal.contract.ts`, `client.contract.ts` (o `documentId` atravessa o cliente) e o
+  DOM do fechamento.
+- **M3 — filtro e ordenação no servidor.** Todos os contratantes e situações vão repetidos, `sort`/`direction` vão com o
+  cursor, trocar o critério recomeça a paginação, e `CARGO_ARRIVAL_CURSOR_ORDER_MISMATCH` recarrega do início com aviso
+  neutro. O filtro/ordenação no cliente **saiu** (sem rede de segurança: ela mascararia o defeito). Contratos:
+  `cargo-receiving/arrival-table.contract.ts`, `client.contract.ts` e o DOM `cargo-arrival-list.contract.ts` sobre
+  `cargoArrivalListDouble.helper.ts` (servidor dublado que filtra, ordena e pagina como a API — sem ele o painel "passava"
+  filtrando sozinho). Prova de "além da primeira página": 3 chegadas novas de outro contratante na frente, página de 2,
+  filtro Alfa + Beta — as duas aparecem sem "carregar mais".
+- **M4 — uma consulta de perfis.** Registro de chegada, envio da planilha e selo da aba Contratantes usam
+  `GET /contractor-receiving-profiles`. Contrato `trip-hooks/receiving-profile-requests.contract.ts`: com **150 contratantes**
+  o painel faz ≤ ⌈150/100⌉ = 2 chamadas de perfil e 2 de contratantes, e **zero** leituras de perfil por contratante na aba
+  (`profileReads` do dublê = 0).
+- **L4.** `RECEIVING_PROFILES_QUERY_KEY` (`modules/shared`) é a raiz das duas listas; o PUT invalida a raiz. Contrato: os dois
+  módulos relêem a lista depois do `PUT` (mesmo `QueryClient`, dois dublês).
+- **L1** "Separar tudo do grupo" desabilitado com toque do mesmo grupo em voo; **L2** `isSeparationOverdue` zera quando
+  `separated === total`; **L3** leitura periódica de 20 s (`CARGO_ARRIVAL_LIMITS.detailRefetchIntervalMs`) só com chegada
+  aberta, aba visível e sem toque em voo, e a recusa por transição diz "a nota já avançou". Contratos:
+  `trip-hooks/cargo-separation-concurrency.contract.ts` e `cargo-receiving/arrival-polling-and-overdue.contract.ts`. O
+  intervalo é provado avaliando a opção `refetchInterval` que a tela deu ao TanStack Query contra a consulta viva, sem
+  esperar 20 s de relógio.
+- **L6.** Piso de 30 dias no formulário (`arrivedAtMaxAgeDays/Ms`, cópia por valor da API) e o 422
+  `CARGO_ARRIVAL_ARRIVED_AT_TOO_OLD` dito no campo da data, pt-BR e en.
+- **L9/L14.** Seis funções passaram a receber objeto (mais a interna `outcomeOf`); `CONTRACTOR_MANAGE_PERMISSION`.
+
+### Mutações (cada arquivo restaurado depois de cada rodada; a coluna é o número de testes que reprovaram)
+
+| Regra                   | Mutação                                                  | Reprovados |
+| ----------------------- | -------------------------------------------------------- | ---------- |
+| M2 erro de rota mudo    | `routeErrorCode: undefined`                              | 12         |
+| M2 erro de lote mudo    | `batchErrorCode: undefined`                              | 3          |
+| M2 editar a seleção     | `toggleDocument` não limpa o aviso                       | 2          |
+| L7 leitor do fechamento | lê `detail.message` em vez de `documentId`               | 3          |
+| M3 vários contratantes  | só vai o filtro quando é um valor                        | 3          |
+| M3 ordem                | `order` nunca vai ao servidor                            | 15         |
+| M3 cursor com a ordem   | `sort`/`direction` só na primeira página                 | 2          |
+| M3 aviso de ordem       | mismatch sem recarregar do início                        | 1          |
+| M3 situações            | `status` repetido some da query                          | 1          |
+| M4 filtro `enabled`     | consulta sem `enabled=true`                              | 2          |
+| M4 paginação            | só a primeira página de perfis                           | 1          |
+| M4 cruzamento           | todos os contratantes entram                             | 3          |
+| M4 N requisições (aba)  | uma leitura de perfil por contratante dentro da consulta | 1          |
+| M4 selo                 | selo ignora a lista                                      | 2          |
+| M4 prévia               | elegível sem exigir `previewEnabled`                     | 2          |
+| L4 invalidação          | `PUT` não invalida a raiz                                | 1          |
+| L1 separar tudo         | tira o `disabled`                                        | 2          |
+| L2 vencida              | `isSeparationOverdue` sem recálculo                      | 2          |
+| L3 polling que não para | tira a parada por chegada fechada                        | 3          |
+| L3 toque em voo         | relê com toque em voo                                    | 2          |
+| L3 aba escondida        | relê com a aba escondida                                 | 2          |
+| L3 sem polling          | a consulta nunca recebe o status                         | 2          |
+| L3 texto                | volta "a etapa não pode voltar"                          | 1          |
+| L6 piso                 | validação sem o piso de 30 dias                          | 2          |
+| L6 motivo do servidor   | 422 sem texto próprio no campo                           | 1          |
+| L6 constante            | piso de 31 dias                                          | 3          |
+
+⚠️ Uma mutação inicial de M4 ("N leituras") passou verde por ser inócua — a chave da consulta não incluía os ids, e o
+corpo nunca viu a lista. Refeita com os ids na chave (como seria uma regressão de verdade), reprovou. Registro honesto:
+uma mutação que não reprova é mutação mal feita, não regra provada.
+
+### Estabilidade do DOM
+
+`bun run test:hooks`: **10 execuções seguidas, todas 658 pass / 0 fail**, e mais 6 com a CPU ocupada por processos `yes`
+em paralelo (3 com 11 e 3 com 22, isto é, 1× e 2× os núcleos): 6 de 6 verdes. Sem `expect(nó).toBeNull()` dentro de
+`waitFor` (as ausências afirmam `querySelectorAll(...).length`). Ocorrência a registrar: numa primeira tentativa com 22
+processos de carga, duas das quatro execuções não deixaram o resumo de `pass`/`fail` na saída que eu filtrava (o log não
+foi guardado, causa não apurada); repetidas, as mesmas seis execuções com carga passaram com o log salvo.
+
+### Revisão de design (prints, `getComputedStyle`)
+
+Prints: `prints/recebimento-erro-rota-{375,1280}-{dark,light}.png` e `recebimento-erro-lote-…` (oito PNGs, dados fictícios),
+gerados por `test/spec-237-recebimento-erros-prints.smoke.spec.ts` (fora da CI): build com `VITE_SMOKE_AUTH_BYPASS=true` em
+pasta temporária, `vite preview` em porta própria (53311), API dublada, config do Playwright descartável apagada.
+
+- **Vizinho:** o aviso novo (`[data-action-failure] p[role=alert]`) tem estilo calculado **idêntico** ao aviso do fechamento
+  (mesma tela): `color rgb(255, 95, 87)`, `font-size 16px`, `font-family "Avenir Next"`, margem e padding 0; o rótulo "Notas
+  recusadas" também. É a mesma classe (`.error`/`.refusal`) que o registro de chegada já usa.
+- **Contraste (WCAG):** escuro **5,46:1**, claro **4,69:1** — aviso, rótulo, atalho e motivo, todos ≥ 4,5:1 (o teste reprova
+  abaixo disso).
+- **Alvo de toque a 375 px:** os atalhos das notas medem **44 px** de altura (`--touch-target`); o teste reprova abaixo de 44.
+- **Rolagem horizontal:** nenhuma, nos oito prints (o teste reprova com `scrollWidth > clientWidth`).
+- Olhado nos PNGs de 375 escuro e 1280 claro: o bloco do erro fica entre a barra de ações e os grupos, sem competir com a
+  barra de seleção (que leva a borda de cobre). Pendência de design registrada, não consertada: o aviso é texto vermelho
+  sem superfície, igual ao do fechamento e do registro — consistente com os vizinhos, mas um cartão de erro único para as
+  três telas seria decisão de design própria.
+- A tela da lista mudou de forma visível em dois pontos, sem print novo (fora do pedido): **Notas e Separadas deixaram de ser
+  clicáveis** e o contador diz "N chegadas carregadas".
+
+### Gates (rodados nesta sessão, em primeiro plano)
+
+- `bun run typecheck` (painel): limpo. `bun run lint` (painel): 0 erros (16 avisos antigos). `bun run format:check` (raiz):
+  limpo.
+- `bun run test` (painel): **antes 6972 pass + 612 (test:hooks) / depois 6985 pass + 658**, 0 fail nos dois.
+
+### Decisões que divergiram do texto
+
+- **Notas e Separadas deixaram de ordenar.** O servidor ordena por 4 colunas; as outras duas (contagens) não existem lá, e
+  mantê-las só sobre as páginas carregadas era exatamente o defeito do M3. Alternativa (follow-up da API): `sort` por
+  `documentsTotal`/`separatedRatio`.
+- **Sem rede de segurança no cliente** (o texto admitia mantê-la com comentário): ela esconderia justamente a regressão que o
+  contrato precisa ver.
+- **M4 também na tela de envio da planilha** (`usePreviewContractors`), que o texto não nomeava: era o mesmo N+1 e a rota
+  nova traz `previewEnabled`. `readProfileFlags` saiu do cliente da prévia.
+- **Lote também nomeia as notas** (`actionRefusal`), como pedido em "e os `details` por nota". ⚠️ A API não devolve `details`
+  por nota no batch (o resultado por nota vem no 200); o print `recebimento-erro-lote` usa um 422 sintético só para mostrar o
+  desenho, e o DOM prova o caminho — o cenário de rede caída está no contrato.
+- **L6:** o motivo vai ao campo da data (`describeServerFieldIssues`), e o aviso genérico continua suprimido quando há campo
+  nomeado (comportamento existente); o texto `errors.CARGO_ARRIVAL_ARRIVED_AT_TOO_OLD` cobre o 422 sem `details`.
+- O contador "N de M chegadas carregadas" virou "N chegadas carregadas": com o filtro no servidor, "de M" não existe.
+
+### Follow-ups
+
+- API: ordenar por contagens (notas, separadas) para devolver as duas colunas à tabela.
+- Os dois prints novos mostram o erro; o print `recebimento-lista-*` (spec 237 T2.4) não foi refeito com os cabeçalhos sem botão.
+- `test/spec-237-recebimento-prints.smoke.spec.ts` ganhou o mock de `/contractor-receiving-profiles` (sem ele o registro ficava
+  sem contratante); não foi rodado de novo.
+
+### Não rodou
+
+Push e publicação (esperam o "pode publicar"); smoke da CI e `make check` completo; `bun run test:integration`/API (não
+mexi); prints refeitos das demais telas; nenhuma leitura de banco, staging ou produção.

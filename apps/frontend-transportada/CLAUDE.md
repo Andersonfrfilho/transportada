@@ -381,8 +381,8 @@ perfil são lidos por projeção mínima — só `id/displayName/taxId` e `isEna
   notas não conta) reaproveita a chave; pedido diferente gera uma nova. Chave nova a cada render duplicaria a
   chegada no duplo clique — é mutação provada.
 - **A recusa nomeia tudo** (`cargoReceivingRefusal.service.ts`, web.md §11): `documentIds.<n>` do 422 é a posição
-  da nota NO PEDIDO enviado (a ordem de marcação); o 409 do fechamento devolve o id de cada pendente na
-  mensagem. Cada nome é atalho (`focusCargoTarget.service.ts`, alvo por `data-field`/`data-document-id`).
+  da nota NO PEDIDO enviado (a ordem de marcação); o 409 do fechamento devolve o id de cada pendente em
+  `details[].documentId` (campo `pendingDocumentIds.<n>`). Cada nome é atalho (`focusCargoTarget.service.ts`, alvo por `data-field`/`data-document-id`).
 - **Seleção** limitada a 300 (`cargoDocumentSelection.service.ts`); "selecionar todas" é "as listadas" (o que a
   busca deixou), porque a API pagina por cursor de 100.
 - **Contratos de DOM** em `test/trip-hooks/cargo-*.contract.ts` com o servidor dublado do
@@ -392,6 +392,21 @@ perfil são lidos por projeção mínima — só `id/displayName/taxId` e `isEna
   viagem): sem acoplar módulos. Fila offline do toque **não existe** (follow-up): falhou, fica na tela.
 
 Detalhe e decisões: docs/ai-context/frontend-transportada.md § "Spec 237 T2.4".
+
+**Revisão das Fases 1–2 (2026-10-06), o que mudou no painel** — detalhe em docs/ai-context § "Spec 237 — correções da revisão
+das Fases 1–2, parte do painel":
+
+- **Filtro e ordenação da lista de chegadas vão inteiros ao servidor** (`resolveServerFilters`: vários contratantes e situações,
+  `sort`/`direction`), e **`sort`/`direction` viajam junto com o cursor** — cursor de outra ordem é `400
+CARGO_ARRIVAL_CURSOR_ORDER_MISMATCH` e a lista recarrega do início com aviso neutro. Notas e Separadas **não ordenam** (o
+  servidor não tem a coluna); nunca reintroduzir ordenação só sobre as páginas carregadas.
+- **Quem tem o recebimento ligado é UMA consulta paginada** (`GET /contractor-receiving-profiles`), nas três telas (registro,
+  envio da planilha e selo da aba Contratantes). Leitura de perfil por contratante só na ficha. As listas vivem sob
+  `RECEIVING_PROFILES_QUERY_KEY` (`modules/shared`) e salvar o perfil invalida a raiz.
+- **Rota e lote mostram o erro** (`CargoActionFailure`, recusa nomeando as notas pela seleção ENVIADA); o 409 do fechamento é
+  lido por `details[].documentId`. A chegada aberta é relida a cada 20 s (aba visível, sem toque em voo); "Separar tudo do
+  grupo" trava com toque do mesmo grupo em voo.
+- Funções com mais de um parâmetro recebem objeto — inclusive as internas.
 
 ## Prévias de carga (spec 237 T4.4)
 

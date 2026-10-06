@@ -247,6 +247,16 @@ async function mockApi(page: Page, state: ApiState): Promise<void> {
   await page.route(/\/contractors(?:\?.*)?$/, (route) =>
     fulfillJson(route, { data: CONTRACTORS, page: { nextCursor: null } }),
   )
+  await page.route(/\/contractor-receiving-profiles(?:\?.*)?$/, (route) =>
+    fulfillJson(route, {
+      data: CONTRACTORS.filter((contractor) => contractor.id !== GAMA_ID).map((contractor) => ({
+        contractorId: contractor.id,
+        isEnabled: true,
+        previewEnabled: false,
+      })),
+      nextCursor: null,
+    }),
+  )
   await page.route(/\/contractors\/[^/]+\/receiving-profile$/, (route) => {
     const id = route.request().url().split('/').at(-2) ?? ''
     return fulfillJson(route, {

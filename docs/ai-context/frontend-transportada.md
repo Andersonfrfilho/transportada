@@ -1183,3 +1183,50 @@ de `state`/`route` do detalhe).
 - **Duas portas do roteirizador** (spec 110): usada a do módulo `routing` (a da seleção de NF-e), como pedido; a de
   "Montar roteiro" (`TripRouteAssemblyDialog`) segue sendo da tela de Viagens.
 - Prints/medidas: `specs/237-.../prints/recomendar-viagens*` e `evidence.md` § "T5.3".
+
+## Spec 237 — correções da revisão das Fases 1–2, parte do painel (2026-10-06)
+
+Consome a API já corrigida (`71c2cb06d..b1d6b538e`): rotas e formatos novos entram no painel, sem tocar na API. Contratos
+novos em `test/trip-hooks/` (`cargo-arrival-detail-errors`, `cargo-separation-concurrency`, `receiving-profile-requests`) e
+em `test/cargo-receiving/` (`arrival-polling-and-overdue`); `cargoArrivalListDouble.helper.ts` é o servidor dublado de
+`GET /cargo-arrivals` (filtra, ordena e pagina com cursor que carrega a ordem, como a API).
+
+- **M2 — erro de rota e de lote no detalhe do escritório.** `useCargoArrivalDetail` expõe `routeErrorCode`,
+  `batchErrorCode` e `actionRefusal` (as notas/campos que o 422 nomeia, lidos pela SELEÇÃO ENVIADA — `documentIds.<n>` é a
+  posição no pedido, nunca na tela). `CargoActionFailure` renderiza o aviso traduzido (`errors.<code>` com `errors.unknown`)
+  e reaproveita `RegistrationRefusalSummary` (todas as notas de uma vez, deduplicadas, atalho que rola e foca; campo
+  desconhecido com o nome cru; silêncio sem campo). Editar a seleção (`toggleDocument`/`toggleGroup`/`clear`) limpa o
+  aviso; começar o lote limpa o da rota e vice-versa.
+- **L7 (lado do painel).** O 409 de fechamento põe o id em `details[].documentId` (`field: pendingDocumentIds.<n>`):
+  `CargoApiErrorDetail` ganhou `documentId?` e `describePendingDocuments` lê SÓ ele (nunca o texto da mensagem, nunca o
+  campo antigo `documentIds.<n>`).
+- **M3 — filtro e ordenação no servidor.** `resolveServerFilters` devolve `{ contractorIds, statuses, order }` inteiros
+  (mapa coluna→`sort`: `contractor`→`contractorName`, `dueAt`→`separationDueAt`); o cliente HTTP repete `contractorId` e
+  `status` e **repassa `sort`/`direction` junto com o cursor** (cursor de outra ordem é 400). A lista deixou de filtrar e
+  ordenar no cliente (`applyCargoArrivalTable` saiu). ⚠️ **Notas e Separadas deixaram de ser ordenáveis**: o servidor
+  não tem essas colunas, e ordenar só as páginas carregadas era o defeito; link antigo com `sort=documents|progress` cai
+  na ordem padrão. `CARGO_ARRIVAL_CURSOR_ORDER_MISMATCH` no "carregar mais" recarrega do início (`resetQueries`) com
+  `data-order-notice` (aviso neutro, `role=status`) que some quando o critério muda. O contador virou "N chegadas
+  carregadas" (com filtro no servidor "N de M" não diz nada).
+- **M4 — uma consulta de perfis.** `GET /contractor-receiving-profiles` (`{ data: [{ contractorId, isEnabled,
+previewEnabled }], nextCursor }`), uma guarda por módulo. Registro de chegada: `useEnabledContractors` cruza a lista
+  `enabled=true` com a de contratantes por `contractorId`. Envio da planilha: `usePreviewContractors` faz o mesmo exigindo
+  `previewEnabled` (`readProfileFlags` saiu do cliente da prévia). Aba Contratantes: `useReceivingProfileSummaries` lê a
+  lista inteira (sem `enabled`) e monta os selos; a ficha segue lendo o perfil COMPLETO de `GET
+/contractors/:id/receiving-profile`. O número de requisições segue as páginas, nunca o número de contratantes.
+- **L4 — uma raiz de chave.** `modules/shared/receivingProfileQueryKey.constant.ts` (`RECEIVING_PROFILES_QUERY_KEY`): as
+  duas listas vivem sob ela e `useSaveReceivingProfileMutation` invalida a raiz. Nenhum módulo conhece o cache do outro.
+- **L1/L2/L3 — separação com mais de uma pessoa.** "Separar tudo do grupo" desabilita com toque individual do mesmo grupo
+  em voo; a atualização otimista zera `isSeparationOverdue` quando `separated === total` (como a API); a chegada aberta é
+  relida a cada `CARGO_ARRIVAL_LIMITS.detailRefetchIntervalMs` (20 s) com a aba visível e sem toque em voo, e para ao fechar
+  (`resolveCargoArrivalRefetchInterval`; a chave do toque é `cargoArrivalTouchMutationKey`). A recusa
+  `CARGO_ARRIVAL_TRANSITION_NOT_ALLOWED` diz "a nota já avançou — outra pessoa pode ter separado". Limite conhecido: se o
+  servidor recusa um toque que zerou "Vencida", o rótulo só volta na releitura que o `onSettled` dispara.
+- **L6 — chegada com mais de 30 dias.** `CARGO_ARRIVAL_LIMITS.arrivedAtMaxAgeDays/Ms` (cópia por valor do piso da API): o
+  formulário recusa antes de enviar (`issues.tooOld`) e o 422 `CARGO_ARRIVAL_ARRIVED_AT_TOO_OLD` põe o motivo no campo da data
+  (`describeServerFieldIssues`).
+- **L9/L14.** `toRegisterResult`, `buildHeaders`, `withoutKeys`, `mergeOutcome`, `labelOf`, `applyToGroup` e o auxiliar de
+  resultado do grupo recebem objeto; `CONTRACTOR_MAIL_SETTINGS_MANAGE_PERMISSION` virou `CONTRACTOR_MANAGE_PERMISSION`.
+- Prints do erro de rota e de lote: `specs/237-.../prints/recebimento-erro-{rota,lote}-{375,1280}-{dark,light}.png`, gerados
+  por `test/spec-237-recebimento-erros-prints.smoke.spec.ts` (fora da CI; `PLAYWRIGHT_TEST_MATCH`). Detalhe e mutações:
+  `evidence.md` § "Correções da revisão das Fases 1–2 — painel".
