@@ -14,7 +14,10 @@ import { OccurrenceTypeCatalogPanel } from '@/modules/trip/components/Occurrence
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
 import type { OccurrenceTypeSaveInput } from '@/modules/trip/shared/occurrenceTypeUpdate.service'
 
-import { OCCURRENCE_REQUIREMENT_DEFAULTS } from '../fixtures/occurrenceRequirementDefaults.fixture'
+import {
+  OCCURRENCE_REQUIREMENT_DEFAULTS,
+  withoutFields,
+} from '../fixtures/occurrenceRequirementDefaults.fixture'
 import { click, stubVisibleLayout } from './occurrenceCorrectionHarness.helper'
 import { chooseFrom, installExceptionsDouble } from './occurrenceTypesPanelHarness.helper'
 import { renderWithQueryClient, waitFor } from './renderHook.helper'
@@ -97,10 +100,10 @@ async function toggleMoment(text: string): Promise<void> {
 async function fillNameAndAdd(name: string): Promise<void> {
   const input = form().querySelector<HTMLInputElement>('input[type="text"]')
   if (input === null) throw new Error('NAME_NOT_FOUND')
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+  const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
   const { act } = await import('react')
   await act(async () => {
-    setter?.call(input, name)
+    descriptor?.set?.call(input, name)
     input.dispatchEvent(new Event('input', { bubbles: true }))
     await Promise.resolve()
   })
@@ -183,13 +186,12 @@ describe('cadastro do tipo novo: o vocabulário da RF1a (M4)', () => {
   test(
     'API anterior aos campos: o cadastro não oferece Observação nem Assinatura e não manda moments',
     scenario(async () => {
-      const {
-        moments: _m,
-        noteMode: _n,
-        signatureMode: _s,
-        photoMinimumCount: _p,
-        ...old
-      } = buildType()
+      const old = withoutFields(buildType(), [
+        'moments',
+        'noteMode',
+        'photoMinimumCount',
+        'signatureMode',
+      ])
       await mount([old])
       expect(control('Observação') === null).toBe(true)
       expect(control('Assinatura') === null).toBe(true)

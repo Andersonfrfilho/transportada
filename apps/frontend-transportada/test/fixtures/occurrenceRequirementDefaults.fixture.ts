@@ -15,3 +15,13 @@ export const OCCURRENCE_REQUIREMENT_DEFAULTS = {
   OccurrenceType,
   'itemsMinimumCount' | 'noteMode' | 'photoMinimumCount' | 'signatureMode'
 >
+
+/** O tipo como a API anterior o devolve: sem as chaves que ela ainda não conhece. */
+export function withoutFields(
+  type: OccurrenceType,
+  keys: readonly (keyof OccurrenceType)[],
+): OccurrenceType {
+  return Object.fromEntries(
+    Object.entries(type).filter(([key]) => !keys.includes(key as keyof OccurrenceType)),
+  ) as OccurrenceType
+}

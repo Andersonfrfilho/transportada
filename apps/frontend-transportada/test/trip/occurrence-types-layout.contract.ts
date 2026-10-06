@@ -92,4 +92,13 @@ describe('aba Tipos: nada passa da largura da tela (T6.1, CA08)', () => {
     expect(addButton).toInclude('opacity: 1')
     expect(addButton).toInclude('border-style: dashed')
   })
+
+  /** Medido a 320px no detalhe da viagem: o `fieldset` dos motoristas nasce com `min-inline-size: min-content` e o e-mail longo o levava a 357px. */
+  test('os motoristas da viagem encolhem e o contato longo quebra dentro da caixa', async () => {
+    const trip = await readStylesheet(`${STYLES}/trip.module.css`)
+
+    expect(readCssBlock(trip, '.driverChecklist')).toInclude('min-width: 0')
+    expect(readCssBlock(trip, '.driverLine')).toInclude('min-width: 0')
+    expect(readCssBlock(trip, '.driverLine a')).toInclude('overflow-wrap: anywhere')
+  })
 })

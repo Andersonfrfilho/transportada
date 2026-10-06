@@ -9,7 +9,10 @@ import { describe, expect, test } from 'bun:test'
 import type { OccurrenceMoment, OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
 import { readOccurrenceRequirementScope } from '@/modules/trip/shared/occurrenceRequirementScope.service'
 
-import { OCCURRENCE_REQUIREMENT_DEFAULTS } from '../fixtures/occurrenceRequirementDefaults.fixture'
+import {
+  OCCURRENCE_REQUIREMENT_DEFAULTS,
+  withoutFields,
+} from '../fixtures/occurrenceRequirementDefaults.fixture'
 
 function buildType(
   moments: readonly OccurrenceMoment[],
@@ -71,12 +74,11 @@ describe('escopo das exigências pelo conjunto de momentos', () => {
   })
 
   test('API anterior aos campos: Observação, Assinatura e o mínimo de fotos não existem na tela', () => {
-    const {
-      noteMode: _note,
-      photoMinimumCount: _photo,
-      signatureMode: _signature,
-      ...old
-    } = buildType(['document', 'office'])
+    const old = withoutFields(buildType(['document', 'office']), [
+      'noteMode',
+      'photoMinimumCount',
+      'signatureMode',
+    ])
     const scope = readOccurrenceRequirementScope(old)
     expect(scope.typeFields).toEqual(['photo', 'items'])
     expect(scope.exceptionFields).toEqual(['photo', 'note', 'signature', 'items'])
@@ -84,7 +86,7 @@ describe('escopo das exigências pelo conjunto de momentos', () => {
   })
 
   test('sem moments (API anterior): segue o grupo e o fluxo de hoje', () => {
-    const { moments: _moments, ...legacy } = buildType(['document'])
+    const legacy = withoutFields(buildType(['document']), ['moments'])
     expect(readOccurrenceRequirementScope(legacy).typeFields).toEqual([
       'photo',
       'note',

@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 
 import {
   OCCURRENCE_ATTACHMENT_MODE,
-  TRIP_OCCURRENCE_STAGE,
   type OccurrenceAttachmentMode,
   type OccurrenceType,
 } from '@/modules/trip/shared/occurrence.constant'
@@ -90,9 +89,7 @@ export function OccurrenceTypeSummary({
       <span className={styles.needs}>
         {readNeeds(type).map(([field, mode]) => (
           <span className={`${styles.need ?? ''} ${NEED_CLASS_NAME[mode] ?? ''}`} key={field}>
-            {field === 'photo' &&
-            mode === OCCURRENCE_ATTACHMENT_MODE.required &&
-            photoCount > 1
+            {field === 'photo' && mode === OCCURRENCE_ATTACHMENT_MODE.required && photoCount > 1
               ? t('occurrenceTypeCatalog.summary.needs.photoCount', { count: photoCount })
               : t(`occurrenceTypeCatalog.summary.needs.${field}`)}
             <span className={styles.srOnly}>

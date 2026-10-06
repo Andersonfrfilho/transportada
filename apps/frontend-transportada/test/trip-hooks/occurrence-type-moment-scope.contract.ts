@@ -17,7 +17,10 @@ import type {
 } from '@/modules/trip/shared/occurrence.constant'
 import type { OccurrenceTypeSaveInput } from '@/modules/trip/shared/occurrenceTypeUpdate.service'
 
-import { OCCURRENCE_REQUIREMENT_DEFAULTS } from '../fixtures/occurrenceRequirementDefaults.fixture'
+import {
+  OCCURRENCE_REQUIREMENT_DEFAULTS,
+  withoutFields,
+} from '../fixtures/occurrenceRequirementDefaults.fixture'
 import { click, stubVisibleLayout } from './occurrenceCorrectionHarness.helper'
 import {
   chooseFrom,
@@ -185,13 +188,12 @@ describe('API anterior aos campos: o painel não oferece o que ela recusaria (M5
   test(
     'sem noteMode, signatureMode e photoMinimumCount, esses controles não aparecem e o PUT não os leva',
     scenario(async () => {
-      const {
-        itemsMinimumCount: _items,
-        noteMode: _note,
-        photoMinimumCount: _photo,
-        signatureMode: _signature,
-        ...old
-      } = buildType(['document', 'office'])
+      const old = withoutFields(buildType(['document', 'office']), [
+        'itemsMinimumCount',
+        'noteMode',
+        'photoMinimumCount',
+        'signatureMode',
+      ])
       await mount(old)
       expect(control('Foto') !== null).toBe(true)
       expect(control('Produtos') !== null).toBe(true)
