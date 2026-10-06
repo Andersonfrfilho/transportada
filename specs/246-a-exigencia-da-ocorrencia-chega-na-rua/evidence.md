@@ -2076,3 +2076,57 @@ linha-resumo): "Separação no galpão", "Entrega da nota", "Chegada à parada",
 em 375); a busca do seletor casa o rótulo formatado, então digitar o CNPJ só com dígitos não casa (digitar com a máscara,
 ou o nome, casa); lista de clientes carrega até 3000 ativos (30 páginas de 100); o `preview.html` não foi aberto no
 navegador embutido nesta rodada (a comparação lado a lado é da T6.1).
+
+## T5.3b — o seletor de momentos do tipo (2026-10-06)
+
+`OccurrenceTypeMoments` (um `MultiSelect` do design system, dentro de `Tooltip dismissOnActivate`) entra no bloco do tipo
+aberto **só quando a listagem traz `moments`** (API anterior não mostra o seletor). Os rótulos são os do `preview.html`:
+"Separação no galpão", "Entrega da nota", "Chegada à parada", "Escritório, pelo motorista". Embaixo, a nota da RF1h:
+"Observação, assinatura, produtos e fotos valem só nos momentos de rua (Entrega da nota e Chegada à parada). Nos outros
+momentos a regra é fixa."
+
+**Recusa na tela, com o motivo à vista** (`role="alert"`; nada é gravado): conjunto vazio ("Escolha ao menos um
+momento: sem nenhum o tipo não aparece para ninguém, então nada foi gravado.") e Entrega da nota + Chegada à parada
+juntas ("… não podem estar juntas no mesmo tipo: o aplicativo do motorista mostraria o tipo duas vezes. Nada foi
+gravado."). O seletor mostra o conjunto recusado enquanto o motivo está na tela; ao entrar um conjunto válido a edição
+sai por `buildOccurrenceTypeUpdate(type, { moments })` — só `moments` vai no corpo, nenhum outro campo novo.
+`readOccurrenceMomentsProblem` e `toOccurrenceMoments` (ordem canônica, descarta texto desconhecido) moram em
+`shared/occurrenceMoments.service.ts`.
+
+**As três recusas da API, cada uma com texto próprio** (`TRIP_FEEDBACK_KEY_BY_ERROR` via `resolveTripFeedbackKey`, em
+`trip.feedback`; os códigos em `shared/occurrenceMoment.constant.ts`):
+
+| Código                                         | Chave                                  | pt-BR                                                                                                                                             |
+| ---------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OCCURRENCE_TYPE_MOMENTS_REQUIRED`             | `occurrenceTypeMomentsRequired`        | O tipo precisa de ao menos um momento: sem nenhum ele não apareceria para ninguém. Nada foi gravado.                                              |
+| `OCCURRENCE_TYPE_MOMENTS_DOCUMENT_AND_STOP`    | `occurrenceTypeMomentsDocumentAndStop` | Entrega da nota e Chegada à parada não podem estar juntas no mesmo tipo: o aplicativo do motorista mostraria o tipo duas vezes. Nada foi gravado. |
+| `OCCURRENCE_TYPE_MOMENTS_STAGE_CONFLICT` (409) | `occurrenceTypeMomentsStageConflict`   | Este tipo tem vários momentos e o grupo (galpão ou rua) não pode ser trocado sem eles. Ajuste os momentos e salve de novo; nada foi gravado.      |
+
+(en espelhado; o contrato prova que cada código vira uma chave distinta de `serverRefused`, com texto nos dois idiomas
+e diferentes entre si.)
+
+Contrato primeiro, vermelho (antes da implementação):
+
+```text
+error: Cannot find module '@/modules/trip/shared/occurrenceMoment.constant' from '.../test/trip/occurrence-exception-service.contract.ts'
+(fail) momentos do tipo (RF0, RF1h, T5.3b) > tirar o último momento é recusado na tela, com o motivo à vista, e nada é gravado
+error: MOMENTS_NOT_FOUND
+```
+
+Mutação pedida — aceitar conjunto vazio de momentos (`readOccurrenceMomentsProblem` sem a linha do vazio):
+
+```text
+Expected length: 0
+Received length: 1
+(fail) momentos do tipo (RF0, RF1h, T5.3b) > tirar o último momento é recusado na tela, com o motivo à vista, e nada é gravado [37.52ms]
+ 11 pass
+ 1 fail
+(fail) momentos do tipo (T5.3b, RF0) > conjunto vazio é recusado, nota e parada juntas também, o resto passa [0.15ms]
+ 2503 pass
+ 1 fail
+```
+
+**Gates das três tasks (primeiro plano, árvore final, 2026-10-06):** `bun install --frozen-lockfile` sem mudanças ·
+`bun run typecheck` (raiz) saída 0 · `prettier --check .` e `bun run format:check` verdes ·
+`bun run --cwd apps/frontend-transportada test`: `7005 pass, 0 fail` (contratos) e `634 pass, 0 fail` (lote DOM) ·
+lint com a app como cwd: 0 erros (16 avisos anteriores) · `bun run --cwd apps/frontend-transportada build` ok.

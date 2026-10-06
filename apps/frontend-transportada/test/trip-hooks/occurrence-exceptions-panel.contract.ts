@@ -313,3 +313,77 @@ describe('destinatário da exceção: escolhido, nunca digitado (RF1f, T5.3c)', 
     }),
   )
 })
+
+describe('momentos do tipo (RF0, RF1h, T5.3b)', () => {
+  const MOMENTS_LABEL = 'Em que momento pode acontecer'
+
+  async function toggleOption(text: string): Promise<void> {
+    const option = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((item) =>
+      item.textContent?.includes(text),
+    )
+    if (option === undefined) throw new Error(`OPTION_NOT_FOUND:${text}`)
+    await click(option)
+  }
+
+  async function openMoments(): Promise<void> {
+    const trigger = control(MOMENTS_LABEL)
+    if (trigger === null) throw new Error('MOMENTS_NOT_FOUND')
+    await click(trigger)
+  }
+
+  test(
+    'sem moments na listagem (API antiga) o seletor não aparece; com moments mostra a nota de rua',
+    scenario(async () => {
+      installExceptionsDouble({ byType: BATCH })
+      const { moments, ...withoutMoments } = buildType()
+      void moments
+      await mount([withoutMoments])
+      await expandAllTypes()
+      expect(control(MOMENTS_LABEL)).toBeNull()
+      mounted.splice(0).forEach((rendered) => rendered.unmount())
+
+      installExceptionsDouble({ byType: BATCH })
+      await mount([buildType()])
+      await expandAllTypes()
+      expect(control(MOMENTS_LABEL)?.textContent).toContain('1 momentos')
+      expect(pageText()).toContain('só nos momentos de rua')
+    }),
+  )
+
+  test(
+    'tirar o último momento é recusado na tela, com o motivo à vista, e nada é gravado',
+    scenario(async () => {
+      installExceptionsDouble({ byType: BATCH })
+      await mount([buildType({ moments: ['document'] })])
+      await expandAllTypes()
+      await openMoments()
+      await toggleOption('Entrega da nota')
+
+      expect(saved).toHaveLength(0)
+      expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+        'Escolha ao menos um momento',
+      )
+    }),
+  )
+
+  test(
+    'nota e parada juntas são recusadas na tela; o conjunto válido grava só moments',
+    scenario(async () => {
+      installExceptionsDouble({ byType: BATCH })
+      await mount([buildType({ moments: ['document'] })])
+      await expandAllTypes()
+      await openMoments()
+
+      await toggleOption('Chegada à parada')
+      expect(saved).toHaveLength(0)
+      expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+        'não podem estar juntas',
+      )
+
+      await toggleOption('Entrega da nota')
+      expect(saved).toHaveLength(1)
+      expect(saved[0]?.moments).toEqual(['stop'])
+      expect(saved[0]).not.toHaveProperty('noteMode')
+    }),
+  )
+})

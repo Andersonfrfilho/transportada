@@ -25,6 +25,7 @@ import {
   type OccurrenceTypeSaveInput,
 } from '../shared/occurrenceTypeUpdate.service'
 import { OccurrenceTypeExceptions } from './OccurrenceTypeExceptions.component'
+import { OccurrenceTypeMoments } from './OccurrenceTypeMoments.component'
 import { OccurrenceTypeRequirementFields } from './OccurrenceTypeRequirementFields.component'
 
 type OccurrenceTypeRowProps = Readonly<{
@@ -64,6 +65,14 @@ export function OccurrenceTypeRow({
         label={t('occurrenceTypeCatalog.active')}
         onChange={(value) => onSave(buildOccurrenceTypeUpdate(type, { active: value }))}
       />
+      {type.moments === undefined ? null : (
+        <OccurrenceTypeMoments
+          disabled={isDisabled}
+          key={type.moments.join(',')}
+          moments={type.moments}
+          onEdit={(edit) => onSave(buildOccurrenceTypeUpdate(type, edit))}
+        />
+      )}
       <OccurrenceTypeRequirementFields
         disabled={isDisabled}
         onEdit={(edit) => onSave(buildOccurrenceTypeUpdate(type, edit))}

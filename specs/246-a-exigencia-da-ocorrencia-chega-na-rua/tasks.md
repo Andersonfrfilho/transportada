@@ -255,7 +255,7 @@ o.attachment_mode <> 'required'`. Registrar os números em `evidence.md`. **A Fa
       três consultas fixas. Contrato HTTP (roteador real, sem colisão com `/:occurrenceTypeId/...`),
       integração com duas empresas e contagem de `select`, mutação do filtro de empresa vermelha. Evidência em
       `evidence.md` § "T5.3-api". A tela (T5.3) consome esta rota.
-- [ ] **T5.3b** Seletor múltiplo de momentos por tipo (`MultiSelect`), recusando o conjunto vazio
+- [x] **T5.3b** Seletor múltiplo de momentos por tipo (`MultiSelect`), recusando o conjunto vazio
       (T1b.6), recusando `document + stop` juntos, com a nota de que os campos valem só nos momentos
       de rua (RF1h).
 - [x] **T5.3c** Destinatário da exceção escolhido em `SearchableSelect` por nome ou CNPJ entre os

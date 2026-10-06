@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { OCCURRENCE_CORRECTION_ERROR } from './occurrence.constant'
+import { OCCURRENCE_TYPE_MOMENTS_ERROR } from './occurrenceMoment.constant'
 
 export const TRIPS_PATH = '/trips'
 
@@ -188,6 +189,10 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   [OCCURRENCE_CORRECTION_ERROR.CANCELLATION_REASON_REQUIRED]:
     'occurrenceCancellationReasonRequired',
   [OCCURRENCE_CORRECTION_ERROR.CANCELLATION_REASON_TOO_LONG]: 'occurrenceCancellationReasonTooLong',
+  /** Spec 246 RF0/T1b.6: as três recusas do conjunto de momentos do tipo, cada uma com texto próprio. */
+  [OCCURRENCE_TYPE_MOMENTS_ERROR.REQUIRED]: 'occurrenceTypeMomentsRequired',
+  [OCCURRENCE_TYPE_MOMENTS_ERROR.DOCUMENT_AND_STOP]: 'occurrenceTypeMomentsDocumentAndStop',
+  [OCCURRENCE_TYPE_MOMENTS_ERROR.STAGE_CONFLICT]: 'occurrenceTypeMomentsStageConflict',
 }
 
 /** Spec 156 T6: `POST .../field-delivery` (T11 consome; T8 só mapeia o texto). */
