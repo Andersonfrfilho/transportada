@@ -1111,3 +1111,14 @@ mesmos de antes); `make migration-test ENV_FILE=.env.test` → 124 pass, 0 fail.
 `occurrence-type-redelivery-policy` 2, `occurrence-type-leaves-document-behind` 4, `trip-occurrence-feed-document` 6,
 `trip-occurrence-feed-case` 2, `trip-occurrence-detail` 6, `trip-occurrence-item-quantity` 5,
 `trip-occurrence-timeline` 3 — todos pass, 0 fail, 0 skip.
+
+### Rebase sobre `origin/staging` (2026-10-06) e migration regerada
+
+Rebase de `work/241-api` sobre `origin/staging` (74 commits novos, incluindo o painel da 241 e as migrations
+`20261004140624_cargo_previews`, `20261004165112_cargo_preview_failure_codes`,
+`20261004174001_cargo_preview_security_failure_codes` e `20261004180153_contractor_receiving_arrival_reference_label`).
+A pasta `20261004004602_occurrence_type_items_mode` (**histórica**; o `prevIds` do snapshot apontava para
+`cargo_arrivals`) foi apagada e regerada com `bun run db:generate` sobre a última da staging: **timestamp final
+`20261006033752_occurrence_type_items_mode`**. `migration.sql` e `rollback.sql` idênticos aos anteriores (só o nome do
+diário do Drizzle muda no rollback); `bun run db:generate` → `{"status":"no_changes"}` depois. Se outra migration
+entrar na staging com timestamp posterior a `20261006033752`, regerar de novo.

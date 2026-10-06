@@ -2660,7 +2660,7 @@ Detalhe, números e mutações em `specs/237-.../evidence.md` § "Correções da
 é o seletor de produtos de hoje; `off` é o tipo que vale para a nota inteira; `required` o banco aceita
 para a 239, o cadastro ainda recusa.
 
-A migration `20261004004602_occurrence_type_items_mode` tem ordem obrigatória: coluna → CHECK de
+A migration `20261006033752_occurrence_type_items_mode` tem ordem obrigatória: coluna → CHECK de
 vocabulário → **um** `UPDATE` que põe `items_mode = 'off'` **e** `redelivery_policy = 'unset'` na
 segunda via do boleto (nome exato `SECOND_COPY_BILL_OCCURRENCE_TYPE_NAME`, `stage = 'delivery'`,
 `flow = 'document'`) → CHECK `company_occurrence_types_items_off_shape_check` (`items_mode <> 'off' or
