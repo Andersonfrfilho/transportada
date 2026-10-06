@@ -20,7 +20,7 @@ describe('a foto que não assina não derruba a leitura (spec 237 T3.4a)', () =>
     async () => {
       await withCargoDatabase(async (database, tenants) => {
         const damaged = await seedDamaged(database, tenants)
-        const logged: { message: string; metadata?: Record<string, unknown> }[] = []
+        const logged: { message: string; metadata?: Record<string, unknown> | undefined }[] = []
         const handle = createOccurrenceHandler({
           database,
           downloads: {
