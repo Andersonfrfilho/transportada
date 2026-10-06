@@ -100,7 +100,7 @@ describe('settings panel placement contract', () => {
       tab: 'location',
     })
     expect(settingsPanelsOf('trip', 'location')).toEqual(['locationRetention'])
-    expect(settingsTabsOf('trip')).toEqual(['proof', 'location'])
+    expect(settingsTabsOf('trip')).toEqual(['proof', 'location', 'types'])
     expect(resolveSettingsDataScope('trip', 'location').locationRetentionSettings).toBe(true)
     expect(resolveSettingsDataScope('trip', 'location').deliveryProofSettings).toBe(false)
     expect(resolveSettingsDataScope('trip', 'proof').locationRetentionSettings).toBe(false)

@@ -58,30 +58,30 @@ async function findOccurrences(needle: string): Promise<readonly string[]> {
  * reescrito.
  */
 describe('catálogo de tipos de ocorrência em Configurações da empresa', () => {
-  it('o painel tem endereço em company-settings, aba própria', () => {
+  it('o painel mudou de endereço: tem exatamente um, em Viagens → Tipos (spec 246 CA01)', () => {
     expect(SETTINGS_PANEL_PLACEMENT.occurrenceTypeCatalog).toEqual({
-      module: 'company-settings',
+      module: 'trip',
       source: 'occurrenceTypeCatalog',
-      tab: 'occurrenceTypes',
+      tab: 'types',
     })
+    const addresses = Object.values(SETTINGS_PANEL_PLACEMENT).filter(
+      (placement) => placement.source === 'occurrenceTypeCatalog',
+    )
+    expect(addresses).toHaveLength(1)
   })
 
-  it('a aba liga a consulta só dela, e só com settings.manage e a aba ativa', () => {
-    expect(
-      resolveSettingsDataScope('company-settings', 'occurrenceTypes').occurrenceTypeCatalog,
-    ).toBe(true)
+  it('a aba liga a consulta só dela', () => {
+    expect(resolveSettingsDataScope('trip', 'types').occurrenceTypeCatalog).toBe(true)
+    expect(resolveSettingsDataScope('trip', 'proof').occurrenceTypeCatalog).toBe(false)
     expect(resolveSettingsDataScope('company-settings', 'company').occurrenceTypeCatalog).toBe(
       false,
     )
-
-    const page = readFileSync(PAGE, 'utf8')
-    expect(page).toMatch(/canManageSettings\s*&&\s*activeTab === 'occurrenceTypes'/u)
   })
 
-  it('a página de Configurações hospeda o painel na própria aba', () => {
+  it('a página de Configurações já não hospeda o painel', () => {
     const page = readFileSync(PAGE, 'utf8')
-    expect(page).toContain('<OccurrenceTypeCatalogPanel')
-    expect(page).toContain("tab === 'occurrenceTypes'")
+    expect(page).not.toContain('<OccurrenceTypeCatalogPanel')
+    expect(page).not.toContain("tab === 'occurrenceTypes'")
   })
 
   it('o rótulo da aba fala do catálogo, não de avisos', () => {

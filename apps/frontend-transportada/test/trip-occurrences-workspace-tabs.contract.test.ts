@@ -5,10 +5,9 @@
  * - Aba Feed existe (conteúdo anterior)
  * - Aba Tipos existe e é visível apenas com permissão companies.settings
  */
-import { render, screen } from '@testing-library/react'
 import { describe, it, expect, beforeEach } from 'bun:test'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { TripOccurrencesWorkspacePage } from '@/modules/trip/pages/TripOccurrencesWorkspace.page.tsx'
+import { QueryClient } from '@tanstack/react-query'
+import { TripOccurrencesWorkspacePage } from '@/modules/trip/pages/TripOccurrencesWorkspace.page'
 
 // Mock do useAuthMeQuery
 const mockAuthMe = (permissions: string[]) => ({
