@@ -16,6 +16,19 @@ export type CargoArrivalDocumentState =
   (typeof CARGO_ARRIVAL_DOCUMENT_STATE)[keyof typeof CARGO_ARRIVAL_DOCUMENT_STATE]
 export const CARGO_ARRIVAL_DOCUMENT_STATES = Object.values(CARGO_ARRIVAL_DOCUMENT_STATE)
 
+/**
+ * Spec 237 RF8a (ADR-0094 §9.3): o destino da nota, ortogonal ao eixo acima. `returned` é terminal;
+ * `marked` sai da recomendação de viagens e bloqueia o fechamento até alguém decidir.
+ */
+export const CARGO_ARRIVAL_RETURN_STATE = {
+  marked: 'marked',
+  none: 'none',
+  returned: 'returned',
+} as const
+export type CargoArrivalReturnState =
+  (typeof CARGO_ARRIVAL_RETURN_STATE)[keyof typeof CARGO_ARRIVAL_RETURN_STATE]
+export const CARGO_ARRIVAL_RETURN_STATES = Object.values(CARGO_ARRIVAL_RETURN_STATE)
+
 export const CARGO_ARRIVAL_STATUS = { open: 'open', closed: 'closed' } as const
 export type CargoArrivalStatus = (typeof CARGO_ARRIVAL_STATUS)[keyof typeof CARGO_ARRIVAL_STATUS]
 export const CARGO_ARRIVAL_STATUSES = Object.values(CARGO_ARRIVAL_STATUS)
@@ -26,6 +39,10 @@ export const CARGO_ARRIVAL_EVENT_KIND = {
   documentAdded: 'document_added',
   documentReceived: 'document_received',
   documentSeparated: 'document_separated',
+  occurrenceRegistered: 'occurrence_registered',
+  returnCompleted: 'return_completed',
+  returnMarked: 'return_marked',
+  returnUnmarked: 'return_unmarked',
   routeAssigned: 'route_assigned',
 } as const
 export type CargoArrivalEventKind =

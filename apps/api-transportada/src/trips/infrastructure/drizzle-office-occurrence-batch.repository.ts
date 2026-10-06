@@ -97,7 +97,9 @@ export async function findDocumentOccurrence(
     )
     .limit(1)
 
-  return row ?? null
+  /** Spec 237: a ocorrência de recebimento não tem nota de viagem — ausente para este fluxo. */
+  if (row === undefined || row.documentId === null) return null
+  return { documentId: row.documentId, id: row.id }
 }
 
 /**

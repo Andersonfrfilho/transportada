@@ -18,7 +18,15 @@ export const TRIP_OCCURRENCE_STAGE = {
   delivery: 'delivery',
   /** No galpão, antes de a carga sair: quem responde é quem separa. */
   separation: 'separation',
+  /** Spec 237 Fase 3: na doca, antes de existir viagem — a ocorrência pertence à nota da chegada. */
+  receiving: 'receiving',
 } as const
+
+/** As etapas que a viagem conhece; `receiving` é da chegada (ADR-0094 §9) e nunca entra nelas. */
+export const TRIP_BOUND_OCCURRENCE_STAGES = [
+  TRIP_OCCURRENCE_STAGE.delivery,
+  TRIP_OCCURRENCE_STAGE.separation,
+] as const
 
 export type TripOccurrenceStage = (typeof TRIP_OCCURRENCE_STAGE)[keyof typeof TRIP_OCCURRENCE_STAGE]
 

@@ -107,7 +107,8 @@ async function lockOccurrenceForWrite(
     )
     .for('no key update')
     .limit(1)
-  if (row === undefined) return null
+  /** Spec 237 (ADR-0094 §9.6): a ocorrência de recebimento não tem viagem — não é desta rota. */
+  if (row === undefined || row.tripDocumentId === null) return null
 
   const [document] = await queryable
     .select({ tripId: tripDocuments.tripId })

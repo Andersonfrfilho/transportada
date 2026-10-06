@@ -6,6 +6,7 @@ import {
   check,
   foreignKey,
   pgTable,
+  type PgTableExtraConfigValue,
   text,
   timestamp,
   unique,
@@ -16,11 +17,15 @@ import {
 import {
   CARGO_ARRIVAL_DOCUMENT_STATE,
   CARGO_ARRIVAL_DOCUMENT_STATES,
+  CARGO_ARRIVAL_RETURN_STATE,
+  CARGO_ARRIVAL_RETURN_STATES,
   type CargoArrivalDocumentState,
+  type CargoArrivalReturnState,
 } from '../shared/cargo-arrival.constant.js'
 import { cargoArrivals } from './cargo-arrival.schema.js'
 import { companies } from './identity.schema.js'
 import { nfeDocuments } from './nfe.schema.js'
+import { tripDocumentOccurrences } from './trip.schema.js'
 import { inList } from './schema-check.constant.js'
 
 const raw = (value: string): ReturnType<typeof sql.raw> => sql.raw(value)
@@ -47,10 +52,18 @@ export const cargoArrivalDocuments = pgTable(
       .default(expected),
     receivedAt: timestamp('received_at', withTimezone),
     separatedAt: timestamp('separated_at', withTimezone),
+    /** Spec 237 RF8a (ADR-0094 §9.3): o destino da nota, ortogonal ao eixo acima. */
+    returnToContractor: varchar('return_to_contractor', { length: 16 })
+      .$type<CargoArrivalReturnState>()
+      .notNull()
+      .default(CARGO_ARRIVAL_RETURN_STATE.none),
+    /** A ocorrência de recebimento desta nota que motivou a marcação; nula em `none`. */
+    returnOccurrenceId: uuid('return_occurrence_id'),
     createdAt: timestamp('created_at', withTimezone).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', withTimezone).notNull().defaultNow(),
   },
-  (table) => [
+  /** Tipo explícito: as duas tabelas se referenciam por FK e a inferência entraria em ciclo. */
+  (table): PgTableExtraConfigValue[] => [
     foreignKey({
       columns: [table.companyId],
       foreignColumns: [companies.id],
@@ -76,6 +89,28 @@ export const cargoArrivalDocuments = pgTable(
       table.companyId,
       table.arrivalId,
       table.id,
+    ),
+    /** Alvo da FK da ocorrência de recebimento (`trip_document_occurrences`). */
+    unique('cargo_arrival_documents_company_id_id_unique').on(table.companyId, table.id),
+    /** O motivo é ocorrência DESTA nota: a chave alvo inclui a nota dona da ocorrência. */
+    foreignKey({
+      columns: [table.companyId, table.id, table.returnOccurrenceId],
+      foreignColumns: [
+        tripDocumentOccurrences.companyId,
+        tripDocumentOccurrences.cargoArrivalDocumentId,
+        tripDocumentOccurrences.id,
+      ],
+      name: 'cargo_arrival_documents_return_occurrence_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check(
+      'cargo_arrival_documents_return_to_contractor_check',
+      sql`${table.returnToContractor} in (${raw(inList(CARGO_ARRIVAL_RETURN_STATES))})`,
+    ),
+    check(
+      'cargo_arrival_documents_return_occurrence_check',
+      sql`(${table.returnToContractor} = ${raw(`'${CARGO_ARRIVAL_RETURN_STATE.none}'`)}) = (${table.returnOccurrenceId} is null)`,
     ),
     unique('cargo_arrival_documents_company_document_unique').on(
       table.companyId,

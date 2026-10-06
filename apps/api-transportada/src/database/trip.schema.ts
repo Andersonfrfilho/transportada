@@ -42,6 +42,7 @@ import { contractors, deliveryClients } from './delivery-client.schema.js'
 import { fleetDrivers, fleetVehicles } from './fleet.schema.js'
 import { freightCalculations } from './freight.schema.js'
 import { nfeDocuments } from './nfe.schema.js'
+import { cargoArrivalDocuments } from './cargo-arrival-document.schema.js'
 import { storedObjects } from './storage.schema.js'
 import { inList } from './schema-check.constant.js'
 import {
@@ -2113,7 +2114,10 @@ export const tripDocumentOccurrences = pgTable(
   {
     id: uuid().defaultRandom().primaryKey(),
     companyId: uuid('company_id').notNull(),
-    tripDocumentId: uuid('trip_document_id').notNull(),
+    /** Spec 237 (ADR-0094 §9.1): nulo na ocorrência de recebimento — o CHECK de dono exige exatamente um. */
+    tripDocumentId: uuid('trip_document_id'),
+    /** Spec 237: a nota da chegada, antes de existir viagem. Etapa `receiving` ⇔ preenchida. */
+    cargoArrivalDocumentId: uuid('cargo_arrival_document_id'),
     /** O código do item em `nfe_products`. Vazio na ocorrência da nota inteira — recusa total não tem item. */
     productCode: text('product_code').notNull().default(''),
     stage: text().notNull().$type<TripOccurrenceStage>(),
@@ -2195,6 +2199,27 @@ export const tripDocumentOccurrences = pgTable(
     check(
       'trip_document_occurrences_stage_check',
       sql`${table.stage} in (${raw(inList(Object.values(TRIP_OCCURRENCE_STAGE)))})`,
+    ),
+    check(
+      'trip_document_occurrences_owner_check',
+      sql`num_nonnulls(${table.tripDocumentId}, ${table.cargoArrivalDocumentId}) = 1`,
+    ),
+    check(
+      'trip_document_occurrences_receiving_owner_check',
+      sql`(${table.stage} = ${raw(`'${TRIP_OCCURRENCE_STAGE.receiving}'`)}) = (${table.cargoArrivalDocumentId} is not null)`,
+    ),
+    foreignKey({
+      columns: [table.companyId, table.cargoArrivalDocumentId],
+      foreignColumns: [cargoArrivalDocuments.companyId, cargoArrivalDocuments.id],
+      name: 'trip_document_occurrences_company_arrival_document_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /** Leitura por nota da chegada e alvo da FK do motivo da devolução (`cargo_arrival_documents`). */
+    unique('trip_document_occurrences_company_arrival_document_id_unique').on(
+      table.companyId,
+      table.cargoArrivalDocumentId,
+      table.id,
     ),
     check(
       'trip_document_occurrences_channel_check',

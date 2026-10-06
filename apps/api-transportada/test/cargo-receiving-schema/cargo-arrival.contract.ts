@@ -137,6 +137,7 @@ describe('a nota na chegada (spec 237 T2.2)', () => {
   test('uma nota, uma chegada', () => {
     expect(uniqueColumnsByName(cargoArrivalDocuments)).toEqual({
       cargo_arrival_documents_company_arrival_id_unique: ['company_id', 'arrival_id', 'id'],
+      cargo_arrival_documents_company_id_id_unique: ['company_id', 'id'],
       cargo_arrival_documents_company_document_unique: ['company_id', 'nfe_document_id'],
     })
     expectGeneratedUuidPrimaryKey(cargoArrivalDocuments)
@@ -145,6 +146,8 @@ describe('a nota na chegada (spec 237 T2.2)', () => {
   test('o estado e as datas andam juntos, e rota e cidade têm forma', () => {
     expect(unqualifiedCheckSqlByName(cargoArrivalDocuments)).toEqual({
       cargo_arrival_documents_city_ibge_code_check: `"city_ibge_code" ~ '^[0-9]{7}$'`,
+      cargo_arrival_documents_return_occurrence_check: `("return_to_contractor" = 'none') = ("return_occurrence_id" is null)`,
+      cargo_arrival_documents_return_to_contractor_check: `"return_to_contractor" in ('marked', 'none', 'returned')`,
       cargo_arrival_documents_route_name_check: 'char_length("route_name") between 1 and 40',
       cargo_arrival_documents_separation_state_check: `"separation_state" in ('expected', 'received', 'separated')`,
       cargo_arrival_documents_state_dates_check: `("separation_state" = 'expected' and "received_at" is null and "separated_at" is null) or ("separation_state" = 'received' and "received_at" is not null and "separated_at" is null) or ("separation_state" = 'separated' and "received_at" is not null and "separated_at" is not null and "separated_at" >= "received_at")`,
@@ -156,6 +159,7 @@ describe('a nota na chegada (spec 237 T2.2)', () => {
         'created_at',
         'id',
         'nfe_document_id',
+        'return_to_contractor',
         'separation_state',
         'updated_at',
       ].sort(),
@@ -186,7 +190,7 @@ describe('a trilha da chegada (spec 237 T2.2, ADR-0067)', () => {
   test('o tipo decide a nota e a transição gravada', () => {
     const checks = unqualifiedCheckSqlByName(cargoArrivalEvents)
     expect(checks.cargo_arrival_events_kind_check).toBe(
-      `"kind" in ('arrival_closed', 'arrival_registered', 'document_added', 'document_received', 'document_separated', 'route_assigned')`,
+      `"kind" in ('arrival_closed', 'arrival_registered', 'document_added', 'document_received', 'document_separated', 'occurrence_registered', 'return_completed', 'return_marked', 'return_unmarked', 'route_assigned')`,
     )
     expect(checks.cargo_arrival_events_document_scope_check).toBe(
       `("kind" in ('arrival_registered', 'arrival_closed')) = ("arrival_document_id" is null)`,

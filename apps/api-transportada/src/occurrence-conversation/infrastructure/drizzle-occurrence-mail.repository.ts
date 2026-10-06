@@ -28,6 +28,7 @@ import {
   userCompanyMemberships,
 } from '../../database/database.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
+import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import { renderOccurrenceTemplate } from '../../trips/domain/occurrence-template.policy.js'
 import { resolveOccurrenceProductCodes } from '../../trips/domain/occurrence-scope.policy.js'
 import { readOccurrenceTemplateValues } from '../../trips/infrastructure/delivery-proof-read.support.js'
@@ -76,6 +77,8 @@ async function findOccurrenceTarget(
 ): Promise<OccurrenceMailTarget | null> {
   const item = await findTripOccurrenceFeedItem(queryable, params)
   if (item === null) return null
+  /** Spec 237 (ADR-0094 §9.6): a ocorrência de recebimento ainda não tem conversa nem e-mail. */
+  if (item.stage === TRIP_OCCURRENCE_STAGE.receiving) return null
   return {
     contractorId: item.document?.contractor?.contractorId ?? null,
     contractorName: item.document?.contractor?.name ?? '',
@@ -178,7 +181,7 @@ export function createOccurrenceSuggestedMailReader(
           emailSubject: companyOccurrenceTypes.emailSubject,
           note: tripDocumentOccurrences.note,
           productCode: tripDocumentOccurrences.productCode,
-          tripDocumentId: tripDocumentOccurrences.tripDocumentId,
+          tripDocumentId: tripDocuments.id,
           tripId: tripDocuments.tripId,
         })
         .from(tripDocumentOccurrences)
