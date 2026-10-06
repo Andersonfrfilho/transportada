@@ -7,21 +7,26 @@ import {
   OCCURRENCE_ATTACHMENT_MODE,
   OCCURRENCE_ITEMS_MODE,
   OCCURRENCE_REDELIVERY_POLICY,
-  OCCURRENCE_TYPE_FLOWS,
-  TRIP_OCCURRENCE_STAGE,
 } from '@/modules/trip/shared/occurrence.constant'
 import type {
   OccurrenceAttachmentMode,
   OccurrenceItemsWriteMode,
+  OccurrenceMoment,
   OccurrenceRedeliveryPolicy,
-  OccurrenceTypeFlow,
-  TripOccurrenceStage,
 } from '@/modules/trip/shared/occurrence.constant'
 import { OCCURRENCE_TEMPLATE_NONE } from '@/modules/trip/shared/occurrenceTemplate.service'
 
 export function useOccurrenceTypeCreateDraft(hasItemsModeSupport: boolean) {
   const [name, setName] = useState('')
-  const [stage, setStage] = useState<TripOccurrenceStage>(TRIP_OCCURRENCE_STAGE.separation)
+  /** Nasce no galpão, o grupo que o cadastro sempre ofereceu primeiro; o grupo e o fluxo saem dos momentos. */
+  const [moments, setMoments] = useState<readonly OccurrenceMoment[]>(['separation'])
+  /** Spec 246 RF3: a observação nasce `optional`, como todo tipo de hoje; a assinatura nasce `off`. */
+  const [noteMode, setNoteMode] = useState<OccurrenceAttachmentMode>(
+    OCCURRENCE_ATTACHMENT_MODE.optional,
+  )
+  const [signatureMode, setSignatureMode] = useState<OccurrenceAttachmentMode>(
+    OCCURRENCE_ATTACHMENT_MODE.off,
+  )
   const [notifies, setNotifies] = useState(false)
   const [emailTemplateKey, setEmailTemplateKey] = useState<string>(OCCURRENCE_TEMPLATE_NONE)
   /** RF3: o padrão é aceitar vários itens — preserva o comportamento de hoje. */
@@ -36,8 +41,6 @@ export function useOccurrenceTypeCreateDraft(hasItemsModeSupport: boolean) {
   const [attachmentMode, setAttachmentMode] = useState<OccurrenceAttachmentMode>(
     OCCURRENCE_ATTACHMENT_MODE.off,
   )
-  /** Spec 218 (D1, RF-B5): obrigatório na criação — nasce `document`, o comportamento de sempre. */
-  const [flow, setFlow] = useState<OccurrenceTypeFlow>(OCCURRENCE_TYPE_FLOWS[0])
   /** Spec 241 RF10: nasce `optional`, o comportamento de hoje — Desligado é decisão explícita. */
   const [itemsMode, setItemsMode] = useState<OccurrenceItemsWriteMode>(
     OCCURRENCE_ITEMS_MODE.optional,
@@ -52,7 +55,9 @@ export function useOccurrenceTypeCreateDraft(hasItemsModeSupport: boolean) {
     setRedeliveryPolicy(OCCURRENCE_REDELIVERY_POLICY.unset)
     setLeavesDocumentBehind(false)
     setAttachmentMode(OCCURRENCE_ATTACHMENT_MODE.off)
-    setFlow(OCCURRENCE_TYPE_FLOWS[0])
+    setMoments(['separation'])
+    setNoteMode(OCCURRENCE_ATTACHMENT_MODE.optional)
+    setSignatureMode(OCCURRENCE_ATTACHMENT_MODE.off)
     setItemsMode(OCCURRENCE_ITEMS_MODE.optional)
   }
 
@@ -60,24 +65,26 @@ export function useOccurrenceTypeCreateDraft(hasItemsModeSupport: boolean) {
     allowsMultipleItems,
     attachmentMode,
     emailTemplateKey,
-    flow,
     isItemsOff,
     itemsMode,
     leavesDocumentBehind,
+    moments,
     name,
+    noteMode,
     notifies,
     redeliveryPolicy,
     reset,
     setAllowsMultipleItems,
     setAttachmentMode,
     setEmailTemplateKey,
-    setFlow,
     setItemsMode,
     setLeavesDocumentBehind,
+    setMoments,
     setName,
+    setNoteMode,
     setNotifies,
     setRedeliveryPolicy,
-    setStage,
-    stage,
+    setSignatureMode,
+    signatureMode,
   }
 }

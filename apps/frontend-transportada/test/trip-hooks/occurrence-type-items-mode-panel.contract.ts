@@ -261,9 +261,8 @@ describe('cadastro de tipos: criar a prorrogação (spec 241 CA10)', () => {
       expect(control(POLICY_LABEL, creationForm())).not.toBeNull()
 
       await typeName('Cliente pediu prorrogação do boleto')
-      await choose('Onde acontece', 'Na rua', creationForm())
       expect(control(POLICY_LABEL, creationForm())).not.toBeNull()
-      await choose(PRODUCTS_LABEL, 'Sem produtos', creationForm())
+      await choose(PRODUCTS_LABEL, 'Desligado', creationForm())
       expect(control(POLICY_LABEL, creationForm())).toBeNull()
 
       await click(buttonByText('Cadastrar tipo'))
@@ -293,7 +292,7 @@ describe('cadastro de tipos: criar a prorrogação (spec 241 CA10)', () => {
       await mount([buildType({ id: 'existing', itemsMode: 'optional' })])
       await typeName('Prorrogação')
       await choose(POLICY_LABEL, 'Não admite reentrega', creationForm())
-      await choose(PRODUCTS_LABEL, 'Sem produtos', creationForm())
+      await choose(PRODUCTS_LABEL, 'Desligado', creationForm())
       await click(buttonByText('Cadastrar tipo'))
 
       expect(saved).toHaveLength(1)
