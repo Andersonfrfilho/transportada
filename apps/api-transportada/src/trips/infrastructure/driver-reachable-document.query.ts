@@ -7,14 +7,18 @@ import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { contractors } from '../../database/delivery-client.schema.js'
 import { nfeParticipants } from '../../database/nfe.schema.js'
 import { tripDocuments, trips } from '../../database/trip.schema.js'
+import {
+  EMITTER_PARTICIPANT_ROLE,
+  RECIPIENT_PARTICIPANT_ROLE,
+} from '../domain/delivery-event.constant.js'
 import type { FieldTripTarget } from '../application/field-trip-target.types.js'
 import { PROOF_REACHABLE_TRIP_STATUSES } from './drizzle-delivery-proof.repository.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 /** O papel do destinatário e do emitente em `nfe_participants` — os mesmos literais do snapshot. */
-const RECIPIENT_ROLE = 'recipient'
-const EMITTER_ROLE = 'emitter'
+const RECIPIENT_ROLE = RECIPIENT_PARTICIPANT_ROLE
+const EMITTER_ROLE = EMITTER_PARTICIPANT_ROLE
 const emitterParticipants = alias(nfeParticipants, 'reachable_document_emitter')
 
 /**

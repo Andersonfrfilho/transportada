@@ -11,6 +11,7 @@
  *
  * `off` e `optional` nunca recusam: o que a tela esconde ou oferece não é cobrança do servidor.
  */
+import { REQUIRED_PROOF_FIELD_MODE } from './delivery-event.constant.js'
 import type { OccurrenceRequirements } from './occurrence-requirements.policy.js'
 import {
   TripOccurrenceAttachmentRequiredError,
@@ -30,16 +31,16 @@ export function assertDriverOccurrenceRequirements(
   params: AssertDriverOccurrenceRequirementsParams,
 ): void {
   const { requirements } = params
-  if (requirements.noteMode === 'required' && params.note.trim() === '') {
+  if (requirements.noteMode === REQUIRED_PROOF_FIELD_MODE && params.note.trim() === '') {
     throw new TripOccurrenceNoteRequiredError()
   }
-  if (requirements.photoMode === 'required') {
+  if (requirements.photoMode === REQUIRED_PROOF_FIELD_MODE) {
     if (params.attachmentCount === 0) throw new TripOccurrenceAttachmentRequiredError()
     if (params.attachmentCount < requirements.photoMinimumCount) {
       throw new TripOccurrencePhotoMinimumNotMetError()
     }
   }
-  if (requirements.signatureMode === 'required' && !params.hasSignature) {
+  if (requirements.signatureMode === REQUIRED_PROOF_FIELD_MODE && !params.hasSignature) {
     throw new TripOccurrenceSignatureRequiredError()
   }
 }

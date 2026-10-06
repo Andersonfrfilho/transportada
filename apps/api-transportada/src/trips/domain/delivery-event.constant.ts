@@ -46,5 +46,9 @@ export type DriverReceiverProofKind = (typeof DRIVER_RECEIVER_PROOF_KINDS)[numbe
 export const TRIP_DELIVERY_PROOF_CARGO_LIMIT = 5
 /** A parte da NF-e que recebe a entrega — é o CNPJ dela que resolve a exceção do comprovante. */
 export const RECIPIENT_PARTICIPANT_ROLE = 'recipient'
+/** O emitente da NF-e é o contratante (ADR-0048 §1) — é o id dele que resolve a exceção do contratante. */
+export const EMITTER_PARTICIPANT_ROLE = 'emitter'
 /** ADR-0057 §1: o modo do campo do comprovante que a nota do motorista cobra. */
 export const REQUIRED_PROOF_FIELD_MODE = 'required' satisfies DeliveryProofFieldMode
+/** O modo que oferece o campo sem cobrá-lo (spec 246: a observação da exceção sem foto obrigatória). */
+export const OPTIONAL_PROOF_FIELD_MODE = 'optional' satisfies DeliveryProofFieldMode

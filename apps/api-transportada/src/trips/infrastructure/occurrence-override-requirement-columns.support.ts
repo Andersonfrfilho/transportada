@@ -8,6 +8,10 @@
  */
 import { violatedCheckConstraint } from '../../database/postgres-error.support.js'
 import { OCCURRENCE_OVERRIDE_ITEMS_MINIMUM_SHAPE_CHECKS } from '../../shared/trip-occurrence.constant.js'
+import {
+  OPTIONAL_PROOF_FIELD_MODE,
+  REQUIRED_PROOF_FIELD_MODE,
+} from '../domain/delivery-event.constant.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import { OccurrenceTypeItemsMinimumRequiresRequiredError } from '../domain/trip.error.js'
 
@@ -30,7 +34,9 @@ type OverrideWriteInput = OccurrenceOverrideRequirementFields & {
  */
 function resolveNewRowNoteMode(input: OverrideWriteInput): DeliveryProofFieldMode | null {
   if (input.noteMode !== undefined) return input.noteMode
-  return input.attachmentMode === 'required' ? 'required' : 'optional'
+  return input.attachmentMode === REQUIRED_PROOF_FIELD_MODE
+    ? REQUIRED_PROOF_FIELD_MODE
+    : OPTIONAL_PROOF_FIELD_MODE
 }
 
 /** Os valores do `INSERT`: ausente vira nulo (herda), salvo a observação, que segue a foto. */
@@ -72,7 +78,8 @@ function toItemsMinimumCountUpdate(input: OverrideWriteInput): {
   readonly itemsMinimumCount?: null | number
 } {
   if (input.itemsMinimumCount !== undefined) return { itemsMinimumCount: input.itemsMinimumCount }
-  const isLeavingRequired = input.itemsMode !== undefined && input.itemsMode !== 'required'
+  const isLeavingRequired =
+    input.itemsMode !== undefined && input.itemsMode !== REQUIRED_PROOF_FIELD_MODE
   return isLeavingRequired ? { itemsMinimumCount: null } : {}
 }
 

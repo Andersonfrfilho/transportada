@@ -2495,3 +2495,7 @@ Received: true
  0 pass
  1 fail
 ```
+
+### B7 — strings repetidas viram constante
+
+Sem mudança de comportamento (refactor coberto pelos contratos e integrações existentes): `'recipient'`/`'emitter'` em `driver-reachable-document.query.ts` e `drizzle-current-driver-trip.repository.ts` passam a `RECIPIENT_PARTICIPANT_ROLE` (já existia) e `EMITTER_PARTICIPANT_ROLE` (nova), e `'required'`/`'optional'` em `occurrence-override-requirement-columns.support.ts` e `occurrence-requirement-guard.policy.ts` a `REQUIRED_PROOF_FIELD_MODE` (já existia) e `OPTIONAL_PROOF_FIELD_MODE` (nova) — todas em `trips/domain/delivery-event.constant.ts`, o `.constant.ts` do escopo que já guardava as irmãs. `bun run typecheck` limpo; `trip-occurrence` + `driver-trip` (contratos) 755 pass, 0 fail.

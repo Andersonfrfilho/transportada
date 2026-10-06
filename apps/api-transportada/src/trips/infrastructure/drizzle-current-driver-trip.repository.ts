@@ -70,6 +70,7 @@ import {
 import {
   DELIVERED_DOCUMENT_STATUS,
   DELIVERED_EVENT_KIND,
+  EMITTER_PARTICIPANT_ROLE,
   PHOTO_PROOF_KIND,
   RECIPIENT_PARTICIPANT_ROLE,
   REQUIRED_PROOF_FIELD_MODE,
@@ -109,7 +110,7 @@ const RECENTLY_CONCLUDED_TRIP_WINDOW_MINUTES = 15
 /** A nota do destinatário é o que o motorista entrega; a do emitente não lhe diz nada. */
 const RECIPIENT_ROLE = RECIPIENT_PARTICIPANT_ROLE
 /** Spec 218 RF-C3: o emitente da nota é o contratante (ADR-0048 §1) — resolvido para a exceção. */
-const EMITTER_ROLE = 'emitter'
+const EMITTER_ROLE = EMITTER_PARTICIPANT_ROLE
 /** O emitente entra pela segunda vez em `nfeParticipants`: sem alias, a junção casaria com o destinatário. */
 const emitterParticipants = alias(nfeParticipants, 'emitter_participants')
 
