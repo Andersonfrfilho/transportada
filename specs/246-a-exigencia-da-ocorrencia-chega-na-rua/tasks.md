@@ -246,6 +246,9 @@ o.attachment_mode <> 'required'`. Registrar os números em `evidence.md`. **A Fa
 - [ ] **T5.3** Exceções à vista (RF11, RF11c): contagem e lista sem acordeão, **uma consulta em
       lote por tela**. Os quatro modos e as quantidades mínimas editáveis por exceção, **com a
       quarta opção Igual ao tipo** (nulo, herda) — estado inicial de exceção nova.
+      _1ª metade feita (2026-10-06, `evidence.md` § "T5.3 (1ª metade)"):_ tipos/guard/cliente tolerantes,
+      consulta e cliente em lote, `buildOccurrenceTypeUpdate`, seletores de três estados e mínimos na linha do
+      tipo, painel montado na aba Tipos. **Falta:** a lista de exceções à vista com "Igual ao tipo" e os mínimos.
 - [x] **T5.3-api** A rota em lote que a RF11c exige: `GET /company-settings/occurrence-types/attachment-overrides`
       (`settings.manage`, só leitura, sem migration), exceções de TODOS os tipos da empresa agrupadas por tipo,
       três consultas fixas. Contrato HTTP (roteador real, sem colisão com `/:occurrenceTypeId/...`),

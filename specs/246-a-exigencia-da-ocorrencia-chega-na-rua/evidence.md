@@ -1901,3 +1901,99 @@ Verde depois: `480 pass, 0 fail` (4 testes novos: formato agrupado e tipo sem ex
 Revertida; volta a `2 pass, 0 fail`.
 
 Gates (primeiro plano): `bun install --frozen-lockfile` sem mudanças · `bun run typecheck` saída 0 · contrato da API `9926 pass, 25 skip, 0 fail` (199 arquivos) · integração, um arquivo por vez: `occurrence-attachment-overrides-batch` 2/0, `occurrence-requirement-modes-write` 5/0, `occurrence-type-*` (11 arquivos) todos 0 falhas, nenhum pulado · `db:generate` = `no_changes` · `bun run build` ok. `prettier --check .`/`format:check` na raiz: só 2 arquivos do painel (`TripOccurrencesWorkspace.page.tsx`, `occurrenceTypePanelSource.helper.ts`), anteriores a este lote e fora do escopo.
+
+## T5.3 (1ª metade) — a camada de dados do painel e a linha do tipo (2026-10-06)
+
+Passo 0 (commit próprio, `06af4be0c`): `prettier --write` nos dois arquivos que deixavam o `format:check` da raiz
+vermelho (`TripOccurrencesWorkspace.page.tsx` e `occurrenceTypePanelSource.helper.ts`); `bun run format:check` verde.
+
+**Tolerância (ADR-0081 §9): API antiga sem os campos novos → o painel lê como hoje.**
+
+- `OccurrenceType` e as exceções (`OccurrenceAttachmentOverrides`, mais `OccurrenceAttachmentOverridesByType`) foram
+  para `shared/occurrenceType.types.ts` e são reexportados por `occurrence.constant.ts` (os importadores não mudam).
+  Campos novos no tipo: `noteMode`, `signatureMode`, `photoMinimumCount`, `itemsMinimumCount`, `moments?`. Na exceção,
+  os cinco campos são modo-ou-nulo e **opcionais**: ausente é "herda" e nunca é mandado de volta no `PUT`.
+- `toOccurrenceType` (`tripResponse.validation.ts`): ausente vira `noteMode: 'optional'`, `signatureMode: 'off'`,
+  `photoMinimumCount: 1`, `itemsMinimumCount: null`; `moments` ausente continua ausente. ⚠️ Com API anterior e foto
+  `required`, a observação aparece `Opcional` aqui (o servidor antigo a exigia pela regra fixa da 179): o painel só lê
+  esses campos, e `buildOccurrenceTypeUpdate` não os manda sem edição, então nenhum dado é reescrito.
+- `readOccurrenceAttachmentOverrides` e o novo `readOccurrenceAttachmentOverridesBatch` moraram para
+  `shared/occurrenceAttachmentOverrides.validation.ts` (o `tripClient.service.ts` tem 1570 linhas).
+- `OCCURRENCE_ITEMS_WRITE_MODES` ganhou `required`. O cadastro **novo** (`OccurrenceTypeItemsModeSelect`) segue em
+  Desligado/Opcional (não tem campo de mínimo); o tipo já cadastrado usa o seletor de três estados.
+- Cliente: `listOccurrenceAttachmentOverridesBatch` (GET `/company-settings/occurrence-types/attachment-overrides`);
+  404 (API anterior à rota) devolve `[]` sem erro. Consulta `useOccurrenceAttachmentOverridesBatchQuery`, chave
+  `['trip', 'occurrence-attachment-overrides', 'batch']`, invalidada por `useReplaceOccurrenceAttachmentOverridesMutation`.
+  **A consulta ainda não é lida por nenhuma tela** (a lista de exceções nova é a etapa seguinte).
+
+**`buildOccurrenceTypeUpdate` (RF4).** `noteMode`, `signatureMode`, `photoMinimumCount` e `moments` só vão quando a
+edição os muda; `redeliveryPolicy` continua indo sempre; `itemsMode` só quando o seletor Produtos o muda e `off` zera a
+política. `itemsMinimumCount`: só com o tipo (já ou agora) `required`, e **sair de `required` manda `null` explícito**.
+
+Contrato primeiro, vermelho (`bun test ./test/company-settings.contract.test.ts`, antes de implementar):
+
+```text
+error: expect(received).toHaveProperty(path)
+(fail) buildOccurrenceTypeUpdate > sair de Produtos obrigatório manda itemsMinimumCount nulo explícito [0.10ms]
+error: expect(received).not.toHaveProperty(path)
+(fail) buildOccurrenceTypeUpdate > o mínimo de produtos só vai com o tipo (já ou agora) obrigatório [0.05ms]
+ 252 pass
+ 3 fail   (o terceiro: o contrato da 164 que lia o tipo em occurrence.constant.ts; ele passou a ler occurrenceType.types.ts)
+```
+
+Mutação pedida (arrancar o envio de `itemsMinimumCount: null` ao sair de `required`), contra a versão final:
+
+```text
+$ bun test ./test/company-settings.contract.test.ts
+Expected path: "itemsMinimumCount"
+(fail) buildOccurrenceTypeUpdate > sair de Produtos obrigatório manda itemsMinimumCount nulo explícito [0.17ms]
+ 254 pass
+ 1 fail
+$ bun run test:hooks
+(fail) linha do tipo: os mínimos (spec 246 RF1c, RF1c2) > tornar Produtos obrigatório não manda mínimo; sair de obrigatório manda o mínimo nulo [19.60ms]
+ 621 pass
+ 1 fail
+```
+
+Outras mutações, todas vermelhas e revertidas: o `404` do cliente em lote deixando de ser lista vazia
+(`(fail) cliente: exceções em lote (spec 246 RF11c) > API anterior à rota (404): lista vazia, sem erro` → `2495 pass, 1 fail`);
+o `TripOccurrenceTypesTab` trocado de volta pelo placeholder (`(fail) TripOccurrencesWorkspacePage tabs (T5.1) > monta o painel
+de tipos na aba Tipos, só com companies.settings, sem o placeholder` → `2 pass, 1 fail`).
+
+**Tela.** A aba Tipos de `/ocorrencias` monta `TripOccurrenceTypesTab` → `OccurrenceTypeCatalogPanel` (só com
+`companies.settings`, a consulta só liga com a permissão). A linha do tipo ganhou o bloco "O que exige"
+(`OccurrenceTypeRequirementFields`): Foto, Observação, Assinatura e Produtos no mesmo seletor `Select` de três estados
+(`OccurrenceRequirementModeSelect`, `Tooltip dismissOnActivate` com a dica de cada campo), e os mínimos
+(`OccurrenceTypeMinimums`): fotos de 1 a 5 quando Foto é Obrigatório; "Todos os itens da nota" ou "Ao menos N" quando
+Produtos é Obrigatório (campo numérico que grava ao sair, 1–999, valor inválido volta ao gravado). Tipo de galpão só
+mostra Produtos; API sem `itemsMode` não oferece Produtos (regras da 241 preservadas: `off` esconde reentrega e
+"vários itens", e zera a política). O seletor antigo "Foto do comprovante" (Sem foto/Foto opcional/Foto obrigatória)
+saiu da linha: a foto é o `attachmentMode` já existente, agora rotulada "Foto" com as três palavras comuns. A seção de
+exceções antiga continua como estava (acordeão).
+
+**Textos pt-BR novos** (`companySettings.occurrenceTypeCatalog.requirements`, en espelhado): "O que exige"; campos
+"Foto", "Observação", "Assinatura", "Produtos"; modos "Desligado", "Opcional", "Obrigatório"; "Quantidade mínima de
+fotos" ("Só vale quando a foto é obrigatória. De 1 a 5."); "Produtos exigidos" com "Todos os itens da nota" e "Ao menos",
+"Quantidade mínima de produtos" ("Só vale quando Produtos é obrigatório. Todos os itens da nota serve à recusa total.");
+a legenda "Obrigatório quer dizer: a ocorrência não é registrada sem aquilo. …" e uma dica por campo.
+
+Testes novos: `test/trip/occurrence-requirement-catalog-client.contract.ts` (mapeamento com/sem os campos novos, lote,
+404, corpo do `PUT` sem os campos quando a edição não os muda), `test/trip-hooks/occurrence-type-requirement-fields.contract.ts`
+(DOM: os quatro seletores, galpão, mínimos, nulo explícito, campo numérico, aba monta o painel e não consulta sem a
+permissão), casos novos em `occurrence-type-update.contract.ts`, e `test/fixtures/occurrenceRequirementDefaults.fixture.ts`.
+Os testes da 241 (`occurrence-type-items-mode-panel`, `occurrence-type-row-edits`) trocaram os textos para as três
+palavras comuns (Desligado/Opcional/Obrigatório; "Foto").
+
+Gates (primeiro plano, 2026-10-06): `bun install --frozen-lockfile` sem mudanças · `bun run typecheck` (raiz) saída 0 ·
+`prettier --check .` e `bun run format:check` verdes · `bun run --cwd apps/frontend-transportada test`: `6997 pass, 0 fail`
+(contratos) e `622 pass, 0 fail` (lote DOM) · lint com a app como cwd: 0 erros (16 avisos anteriores) — removido o
+`import` morto de `resolveTripFeedbackKey` em `CompanySettings.page.tsx` (sobra da T5.2) e limpo o contrato da T5.1 que
+tinha variáveis sem uso · `bun run --cwd apps/frontend-transportada build` ok.
+
+**Falta para a etapa seguinte:** lista de exceções à vista (sem acordeão) lendo a consulta em lote, com os quatro modos
+
+- "Igual ao tipo" e os mínimos por exceção (RF11, RF11c, RF1f/T5.3c); seletor múltiplo de momentos (T5.3b); aviso ao
+  contratante (T5.3d); busca e filtros (T5.3e); tipos recolhidos com a linha-resumo do `preview.html` (RF11); T5.4 (os
+  contratos que afirmam o endereço antigo). Ordem dos campos e rótulos já seguem o `preview.html` (Foto, Observação,
+  Assinatura, Produtos); diferenças conhecidas a tratar na T6.1: o protótipo mostra a assinatura como "Assinatura de quem
+  recusou" e "Produtos da nota", e o mínimo de produtos como número + "Esse mínimo/Todos os itens da nota".
