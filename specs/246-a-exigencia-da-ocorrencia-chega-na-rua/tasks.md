@@ -253,11 +253,13 @@ o.attachment_mode <> 'required'`. Registrar os números em `evidence.md`. **A Fa
 
 > 🤖 Modelo: `haiku` para a mudança mecânica, `sonnet` para T5.3
 
-- [ ] **T5.1** `<Tabs>` em `TripOccurrencesWorkspace.page.tsx`, no molde de `TripWorkspace`.
-- [ ] **T5.2** Reler a árvore (a 241 já está publicada; os subcomponentes que ela deixou são os que
+- [x] **T5.1** `<Tabs>` em `TripOccurrencesWorkspace.page.tsx`, no molde de `TripWorkspace`.
+      _Feita; evidência em `evidence.md` § "T5.3 (1ª metade)" (a aba monta o painel) e § "Correções da revisão final (painel)" M8 (a aba some sem permissão e vai para a URL)._
+- [x] **T5.2** Reler a árvore (a 241 já está publicada; os subcomponentes que ela deixou são os que
       existem agora) e mover, sem reescrever, o painel que a 241 já alterou, a seção de exceções, o
       hook, as consultas e as traduções de `modules/company-settings` para `modules/trip`; atualizar
       `SETTINGS_PANEL_PLACEMENT`, `SETTINGS_PANEL_MODULES` e `COMPANY_SETTINGS_TAB_IDS`.
+      _Feita; evidência em `evidence.md` § "T5.3 (1ª metade)" e na limpeza da sobra de `CompanySettings.page.tsx` (§ "T5.3 (2ª metade)"); o contrato de posicionamento do painel está em `test/company-settings`._
 - [x] **T5.3** Exceções à vista (RF11, RF11c): contagem e lista sem acordeão, **uma consulta em
       lote por tela**. Os quatro modos e as quantidades mínimas editáveis por exceção, **com a
       quarta opção Igual ao tipo** (nulo, herda) — estado inicial de exceção nova.

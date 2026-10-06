@@ -1,6 +1,12 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useState } from 'react'
 
+import { buildOccurrencePreview } from '../shared/occurrencePreview.service'
+import type {
+  OccurrencePhotoState,
+  OccurrenceRegistrationForm,
+  OccurrenceRegistrationFormParams,
+} from '../shared/occurrenceRegistrationForm.types'
 import { useCaptureRegistration } from './useCaptureRegistration.hook'
 import {
   useOccurrenceSignature,
@@ -37,66 +43,11 @@ import {
   type OccurrenceMissingField,
 } from '../shared/occurrenceRequirements.service'
 
-/** O que acontece com a foto escolhida antes de ela entrar na fila. */
-export type OccurrencePhotoState = 'failed' | 'idle' | 'reading' | 'too-large'
-
-export type OccurrenceRegistrationFormParams = Readonly<{
-  document: DriverTripDocument
-  handlers: OccurrenceRegistrationHandlers
-  occurrenceTypes: DriverOccurrenceTypesState
-  stop: DriverTripStop
-}>
-
-export type OccurrenceRegistrationForm = Readonly<{
-  canRegister: boolean
-  description: string
-  handleDescriptionChange: (description: string) => void
-  handlePhotoRemove: () => void
-  handlePhotoSelect: (file: File) => void
-  /**
-   * Registra pela rota do `flow` e diz se registrou: `false` é rascunho a que falta um campo
-   * obrigatório — nada entrou na fila, e quem chamou não deve fechar o formulário.
-   */
-  handleRegister: () => boolean
-  handleProductsToggle: () => void
-  handleTypeSelect: (occurrenceTypeId: string) => void
-  /** Spec 246: a nota inteira apontada — o snapshot não traz a lista de itens para apontar um. */
-  hasProducts: boolean
-  missingFields: readonly OccurrenceMissingField[]
-  /** As fotos capturadas, na ordem; a primeira é a que a coluna antiga da API leva. */
-  photos: readonly DriverOccurrencePhoto[]
-  photoPreviewUrl: string | undefined
-  photoState: OccurrencePhotoState
-  /**
-   * A prévia do aviso da parada — ausente quando o tipo não é de parada (o aviso da nota é outro).
-   * `null` dentro dela é "este motivo não gera aviso", e a tela diz isso.
-   */
-  preview: Readonly<{ notice: OccurrenceNoticePreview | null }> | undefined
-  selectedType: DriverOccurrenceType | undefined
-  signature: OccurrenceSignatureState
-  types: readonly DriverOccurrenceType[]
-  /** O que o tipo escolhido mostra: `off` não aparece, e só o que é pedido ocupa a tela. */
-  visibility: OccurrenceFieldVisibility | undefined
-}>
-
-function buildPreview(input: {
-  readonly document: DriverTripDocument
-  readonly stop: DriverTripStop
-  readonly type: DriverOccurrenceType | undefined
-}): OccurrenceRegistrationForm['preview'] {
-  const { type } = input
-  if (type === undefined || resolveOccurrenceFlow(type) !== 'stop' || type.stopKind == null) {
-    return undefined
-  }
-  return {
-    notice: renderOccurrenceNoticePreview({
-      documentLabel: input.document.number,
-      kind: type.stopKind,
-      occurredAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      stopLabel: input.stop.label,
-    }),
-  }
-}
+export type {
+  OccurrenceRegistrationForm,
+  OccurrenceRegistrationFormParams,
+  OccurrencePhotoState,
+} from '../shared/occurrenceRegistrationForm.types'
 
 /**
  * Spec 218 (RF-A5): o estado do formulário único — o tipo, a descrição e a(s) foto(s) da ocorrência
@@ -205,7 +156,11 @@ export function useOccurrenceRegistrationForm(
     photoPreviewUrl: photoPreview.previewUrl,
     photos: effectivePhotos,
     photoState,
-    preview: buildPreview({ document: params.document, stop: params.stop, type: selectedType }),
+    preview: buildOccurrencePreview({
+      document: params.document,
+      stop: params.stop,
+      type: selectedType,
+    }),
     selectedType,
     signature,
     types,
