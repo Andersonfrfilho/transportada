@@ -628,6 +628,61 @@ describe('Nota RP v2 client — falhas de transporte', () => {
     expect(unexpectedShape).toMatchObject({ status: 'error', cause: 'malformed_response' })
   })
 
+  test('a emissão recusada com 4xx devolve a mensagem do provedor, redigida', async () => {
+    const { fetch } = recordingFetch(() =>
+      jsonResponse({ success: false, message: `CodigoCnae invalido (token ${API_TOKEN})` }, 422),
+    )
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.issue({ rps: RPS })
+
+    expect(outcome.status).toBe('rejected')
+    expect(outcome.rejection?.code).toBe('NOTA_RP_HTTP_422')
+    expect(outcome.rejection?.message).toContain('CodigoCnae invalido')
+    expect(JSON.stringify(outcome)).not.toContain(API_TOKEN)
+  })
+
+  test('4xx de pressão do servidor e 5xx continuam sendo nova tentativa', async () => {
+    const tooMany = await createNotaRpV2ClientFixture({
+      fetch: recordingFetch(() => jsonResponse({ message: 'slow down' }, 429)).fetch,
+    })
+    const serverError = await createNotaRpV2ClientFixture({
+      fetch: recordingFetch(() => jsonResponse({ message: 'boom' }, 500)).fetch,
+    })
+
+    expect(await tooMany.issue({ rps: RPS })).toMatchObject({
+      cause: 'unexpected_status',
+      status: 'error',
+    })
+    expect(await serverError.issue({ rps: RPS })).toMatchObject({
+      cause: 'unexpected_status',
+      status: 'error',
+    })
+  })
+
+  test('4xx na consulta nunca vira recusa da nota', async () => {
+    const { fetch } = recordingFetch(() => jsonResponse({ message: 'nao autorizado' }, 401))
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.fetchStatus({ providerDocumentId: PROVIDER_DOCUMENT_ID })
+
+    expect(outcome).toMatchObject({ cause: 'unexpected_status', status: 'error' })
+  })
+
+  test('corpo ilegível no 4xx da emissão ainda gera recusa com o status', async () => {
+    const { fetch } = recordingFetch(
+      () => new Response('<html>bad request</html>', { status: 400 }),
+    )
+    const client = await createNotaRpV2ClientFixture({ fetch })
+
+    const outcome = await client.issue({ rps: RPS })
+
+    expect(outcome).toMatchObject({
+      rejection: { code: 'NOTA_RP_HTTP_400', message: 'HTTP 400' },
+      status: 'rejected',
+    })
+  })
+
   test('nenhuma operação deixa exceção escapar', async () => {
     const failure = new Error('connection reset by peer')
     const client = await createNotaRpV2ClientFixture({ fetch: throwingFetch(failure) })

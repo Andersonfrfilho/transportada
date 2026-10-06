@@ -3,6 +3,7 @@
  */
 import type { RabbitMqDisposition } from '@adatechnology/rabbitmq-provider'
 
+import { NFSE_ISSUANCE_RETRY_MAX_RETRIES } from '../../messaging/nfse-rabbitmq-topology.js'
 import type { NfseProcessingEnvelopeV1 } from '../../messaging/nfse-processing-envelope.schema.js'
 import {
   calculateNfseRetryNextAttemptAt,
@@ -95,7 +96,10 @@ export class NfseIssuanceWorkerMessageHandler {
     const policy = await this.#retryPolicyResolver.resolve({ companyId: input.key.companyId })
     const attemptsMade = input.attempt + 1
 
-    if (isNfseRetryExhausted({ attemptsMade, policy })) {
+    /** Na última entrega o provider descarta a mensagem sem chamar o handler: a nota precisa fechar aqui. */
+    const isLastDelivery = input.attempt >= NFSE_ISSUANCE_RETRY_MAX_RETRIES
+
+    if (isLastDelivery || isNfseRetryExhausted({ attemptsMade, policy })) {
       await this.#repository.markDeadLettered({ ...input.key, reason: input.error.message })
       return { type: 'dead-letter' }
     }
