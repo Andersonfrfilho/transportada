@@ -96,7 +96,14 @@ export function CargoReceivingPage({ path }: CargoReceivingPageProps): JSX.Eleme
         </CargoReceivingShell>
       )
     case 'preview-detail':
-      return <CargoPreviewDetailScreen canManage={access.canManage} previewId={route.previewId} />
+      return (
+        <CargoPreviewDetailScreen
+          canManage={access.canManage}
+          companyId={access.companyId}
+          permissions={access.permissions}
+          previewId={route.previewId}
+        />
+      )
     case 'list':
       return (
         <CargoReceivingShell hint={t('list.hint')} section="arrivals" title={t('list.title')}>

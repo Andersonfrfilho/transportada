@@ -23,11 +23,13 @@ function isInvalid(call: () => unknown): boolean {
 type Json = Record<string, unknown>
 
 function clone(): Json {
-  return structuredClone(DEFAULT_TRIP_DRAFTS) as unknown as Json
+  return structuredClone(DEFAULT_TRIP_DRAFTS)
 }
 
 function route(drafts: Json, index: number): Json {
-  return (drafts.routes as Json[])[index] as Json
+  const found = (drafts.routes as Json[])[index]
+  if (found === undefined) throw new Error(`ROUTE_NOT_FOUND:${String(index)}`)
+  return found
 }
 
 function without(value: Json, key: string): Json {

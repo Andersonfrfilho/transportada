@@ -481,6 +481,79 @@
       "plannedDate": "Planned day in the preview: {{date}}.",
       "missing_one": "{{count}} proposed invoice is no longer free and was left out.",
       "missing_other": "{{count}} proposed invoices are no longer free and were left out."
+    },
+    "drafts": {
+      "open": "Recommend trips",
+      "close": "Close the recommendation",
+      "title": "Trip recommendation",
+      "hint": "The contractor's routes become draft trips and the route optimizer makes its own proposal. Nothing becomes a trip without your approval.",
+      "loading": "Loading the recommendation",
+      "error": "The trip recommendation could not be loaded.",
+      "notReady": "The recommendation shows up once the preview has been read.",
+      "failed": "Reading the preview failed: there is nothing to recommend.",
+      "empty": "This preview has no routes to recommend.",
+      "readOnly": "You can see the recommendation; building trips needs the trips permission.",
+      "routes": {
+        "title": "Contractor routes",
+        "hint": "Each route in the spreadsheet is a draft trip with the invoices already linked."
+      },
+      "card": {
+        "cities": "Route cities",
+        "cityDocuments_one": "{{count}} invoice",
+        "cityDocuments_other": "{{count}} invoices",
+        "cityPending": "+{{count}} waiting",
+        "cityUnknown": "City not informed",
+        "lines": "{{matched}} of {{total}} lines linked",
+        "documents_one": "{{count}} invoice linked",
+        "documents_other": "{{count}} invoices linked",
+        "weight": "Weight",
+        "value": "Value",
+        "volume": "Volume",
+        "missing_one": "{{count}} invoice missing — waiting for the XML",
+        "missing_other": "{{count}} invoices missing — waiting for the XML",
+        "inLiveTrip_one": "{{count}} invoice is already on a trip",
+        "inLiveTrip_other": "{{count}} invoices are already on a trip",
+        "create": "Build a trip with these invoices",
+        "chooseRoute": "Use only this route in the proposal",
+        "routeChosen": "Only this route in the proposal",
+        "reason": {
+          "no_linked_documents": "No invoice linked yet: the trip can be built once the XML arrives.",
+          "none_routable": "The linked invoices are already on a trip or cannot be routed."
+        }
+      },
+      "solver": {
+        "title": "Route optimizer proposal",
+        "hint": "The route optimizer spreads the linked invoices across vehicles. You review and accept through the usual flow.",
+        "action": "Generate proposal",
+        "scopeAll_one": "All routes: {{count}} invoice",
+        "scopeAll_other": "All routes: {{count}} invoices",
+        "scopeRoute_one": "Route {{route}}: {{count}} invoice",
+        "scopeRoute_other": "Route {{route}}: {{count}} invoices",
+        "backToAll": "Use all routes",
+        "empty": "No invoice can go to the route optimizer right now: the linked ones are already on a trip, or none is linked yet.",
+        "overLimit": "The route optimizer accepts up to {{limit}} invoices per proposal. Pick a route."
+      },
+      "outside": {
+        "title": "Invoices left out",
+        "hint": "These lines are not part of the recommendation right now.",
+        "in_live_trip_one": "{{count}} invoice is already on a trip",
+        "in_live_trip_other": "{{count}} invoices are already on a trip",
+        "awaiting_xml_one": "{{count}} line waiting for the XML",
+        "awaiting_xml_other": "{{count}} lines waiting for the XML",
+        "suggested_one": "{{count}} suggested line waiting for your approval",
+        "suggested_other": "{{count}} suggested lines waiting for your approval",
+        "ambiguous_one": "{{count}} ambiguous line, for you to pick the invoice",
+        "ambiguous_other": "{{count}} ambiguous lines, for you to pick the invoice",
+        "invalid_one": "{{count}} invalid line in the spreadsheet",
+        "invalid_other": "{{count}} invalid lines in the spreadsheet",
+        "show": {
+          "in_live_trip": "Show the linked invoices",
+          "awaiting_xml": "Show the lines waiting for the XML",
+          "suggested": "Show the suggested lines",
+          "ambiguous": "Show the ambiguous lines",
+          "invalid": "Show the invalid lines"
+        }
+      }
     }
   }
 }

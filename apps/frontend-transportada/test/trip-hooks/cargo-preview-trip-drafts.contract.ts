@@ -124,7 +124,7 @@ describe('abrir a recomendação (spec 237 T5.2)', () => {
 
   test('o cartão mostra carga, notas vinculadas × linhas, cidades com contagem, peso e valor', async () => {
     const { rendered } = await openRecommendation()
-    const text = card('FR.S.CAR').textContent ?? ''
+    const text = (card('FR.S.CAR').textContent ?? '').replaceAll('\u00a0', ' ')
 
     expect(text).toContain('Carga CARGA-9001')
     expect(text).toContain('4 de 7 linhas vinculadas')

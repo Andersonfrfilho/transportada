@@ -14,8 +14,8 @@ import {
   resolveTripDraftCreationIds,
   resolveTripDraftSolverScope,
   serializeTripDraftView,
-  TRIP_DRAFT_SOLVER_DOCUMENT_LIMIT,
 } from '@/modules/cargo-receiving/shared/cargoPreviewTripDraftView.service'
+import { CARGO_TRIP_DRAFT_SOLVER_DOCUMENT_LIMIT } from '@/modules/cargo-receiving/shared/cargoPreviewTripDraft.constant'
 
 import { documentIdOf } from '../fixtures/cargoReceiving.fixture'
 import {
@@ -82,7 +82,7 @@ describe('o que vai ao roteirizador', () => {
   })
 
   test('acima do teto do roteirizador o escopo avisa, e o teto é o da API (500)', () => {
-    expect(TRIP_DRAFT_SOLVER_DOCUMENT_LIMIT).toBe(500)
+    expect(CARGO_TRIP_DRAFT_SOLVER_DOCUMENT_LIMIT).toBe(500)
     const documents = Array.from({ length: 501 }, (_, index) => buildDraftDocument(60_000 + index))
     const drafts = buildTripDrafts([buildDraftRoute('FR.GRANDE', { documents })])
 

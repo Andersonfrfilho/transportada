@@ -28,4 +28,23 @@ export function formatKilograms(input: Readonly<{ locale: string; value: string 
   return `${new Intl.NumberFormat(input.locale, { maximumFractionDigits: 2 }).format(amount)} kg`
 }
 
+/** A planilha e a NF-e falam em reais: a moeda é fixa, só a grafia segue o idioma. */
+export function formatBrazilianReais(
+  input: Readonly<{ locale: string; value: string | null }>,
+): string {
+  if (input.value === null) return NO_VALUE
+  const amount = Number(input.value)
+  if (!Number.isFinite(amount)) return input.value
+  return new Intl.NumberFormat(input.locale, { currency: 'BRL', style: 'currency' }).format(amount)
+}
+
+export function formatCubicMeters(
+  input: Readonly<{ locale: string; value: string | null }>,
+): string {
+  if (input.value === null) return NO_VALUE
+  const amount = Number(input.value)
+  if (!Number.isFinite(amount)) return input.value
+  return `${new Intl.NumberFormat(input.locale, { maximumFractionDigits: 3 }).format(amount)} m³`
+}
+
 export const formatOptionalText = (value: string | null): string => value ?? NO_VALUE

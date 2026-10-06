@@ -5,6 +5,7 @@
  * roteirizador muda o que está "em viagem viva", então os rascunhos são relidos no servidor — nunca remendados na
  * tela. A escolha de roteiro mora na URL e só vale se o roteiro existe na prévia.
  */
+import { act } from 'react'
 import { beforeEach, describe, expect, test } from 'bun:test'
 
 import '@/modules/shared/i18n/i18n.service'
@@ -15,7 +16,14 @@ import { PREVIEW_ID } from '../fixtures/cargoPreview.fixture'
 import { installCargoPreviewDouble } from './cargoPreviewHarness.helper'
 import { installCargoReceivingDouble, resetLocation } from './cargoReceivingHarness.helper'
 import { renderHook, settle, waitFor } from './renderHook.helper'
-import { act } from 'react'
+
+/** Um gesto do operador: o estado muda dentro de `act`, e a renderização assenta antes da asserção. */
+async function run(gesture: () => void): Promise<void> {
+  await act(async () => {
+    gesture()
+    await Promise.resolve()
+  })
+}
 
 beforeEach(() => {
   document.body.innerHTML = ''
@@ -36,7 +44,7 @@ describe('o controlador dos rascunhos de viagem (spec 237 T5.2)', () => {
     expect(double.calls.getTripDrafts).toEqual([])
     expect(hook.result().isOpen).toBe(false)
 
-    await act(async () => hook.result().open())
+    await run(() => hook.result().open())
     await waitFor(() => expect(hook.result().drafts).toBeDefined())
 
     expect(double.calls.getTripDrafts).toEqual([PREVIEW_ID])
@@ -48,7 +56,7 @@ describe('o controlador dos rascunhos de viagem (spec 237 T5.2)', () => {
     await waitFor(() => expect(hook.result().drafts).toBeDefined())
     expect(double.calls.getTripDrafts).toHaveLength(1)
 
-    await act(async () => hook.result().handleAccepted())
+    await run(() => hook.result().handleAccepted())
     await waitFor(() => expect(double.calls.getTripDrafts).toHaveLength(2))
 
     hook.unmount()
@@ -67,11 +75,11 @@ describe('o controlador dos rascunhos de viagem (spec 237 T5.2)', () => {
     const { hook } = await mountController('?recommend=1')
     await waitFor(() => expect(hook.result().drafts).toBeDefined())
 
-    await act(async () => hook.result().toggleRoute('FR.R.PRE'))
+    await run(() => hook.result().toggleRoute('FR.R.PRE'))
     expect(hook.result().selectedRouteName).toBe('FR.R.PRE')
     expect(new URLSearchParams(window.location.search).get('draftRoute')).toBe('FR.R.PRE')
 
-    await act(async () => hook.result().toggleRoute('FR.R.PRE'))
+    await run(() => hook.result().toggleRoute('FR.R.PRE'))
     expect(hook.result().selectedRouteName).toBeUndefined()
     expect(new URLSearchParams(window.location.search).has('draftRoute')).toBe(false)
     hook.unmount()

@@ -17,12 +17,19 @@ import { CargoReceivingShell } from './CargoReceivingShell.component'
 
 type CargoPreviewDetailScreenProps = Readonly<{
   canManage: boolean
+  /** A empresa e as permissões da sessão: o roteirizador de "Recomendar viagens" lê a frota com elas. */
+  companyId?: string | undefined
+  permissions?: readonly string[]
   previewId: string
 }>
+
+const NO_PERMISSIONS: readonly string[] = []
 
 /** O detalhe de uma prévia: o que chegou, o que já tem nota, o que espera o XML e o que a planilha errou. */
 export function CargoPreviewDetailScreen({
   canManage,
+  companyId,
+  permissions = NO_PERMISSIONS,
   previewId,
 }: CargoPreviewDetailScreenProps): JSX.Element {
   const { t } = useTranslation('cargoReceiving')
@@ -31,6 +38,10 @@ export function CargoPreviewDetailScreen({
   const actions = useCargoPreviewItemActions(previewId)
   const proposal = useCargoPreviewProposal({ items: detail.loadedItems, previewId })
   const { header } = detail
+  const session = useMemo(
+    () => ({ canManage, companyId, permissions }),
+    [canManage, companyId, permissions],
+  )
 
   return (
     <CargoReceivingShell
@@ -62,10 +73,10 @@ export function CargoPreviewDetailScreen({
       ) : (
         <CargoPreviewDetailContent
           actions={actions}
-          canManage={canManage}
           detail={detail}
           header={header}
           proposal={proposal}
+          session={session}
         />
       )}
     </CargoReceivingShell>

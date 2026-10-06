@@ -481,6 +481,79 @@
       "plannedDate": "Dia planejado na prévia: {{date}}.",
       "missing_one": "{{count}} nota proposta não está mais livre e ficou de fora.",
       "missing_other": "{{count}} notas propostas não estão mais livres e ficaram de fora."
+    },
+    "drafts": {
+      "open": "Recomendar viagens",
+      "close": "Fechar a recomendação",
+      "title": "Recomendação de viagens",
+      "hint": "Os roteiros do contratante viram rascunhos de viagem e o roteirizador faz a própria proposta. Nada vira viagem sem o seu aceite.",
+      "loading": "Carregando a recomendação",
+      "error": "Não foi possível carregar a recomendação de viagens.",
+      "notReady": "A recomendação aparece quando a prévia terminar de ser lida.",
+      "failed": "A leitura da prévia falhou: não há o que recomendar.",
+      "empty": "Esta prévia não tem roteiros para recomendar.",
+      "readOnly": "Você vê a recomendação; montar viagens exige a permissão de viagens.",
+      "routes": {
+        "title": "Roteiros do contratante",
+        "hint": "Cada roteiro da planilha é um rascunho de viagem com as notas já vinculadas."
+      },
+      "card": {
+        "cities": "Cidades do roteiro",
+        "cityDocuments_one": "{{count}} nota",
+        "cityDocuments_other": "{{count}} notas",
+        "cityPending": "+{{count}} esperando",
+        "cityUnknown": "Cidade não informada",
+        "lines": "{{matched}} de {{total}} linhas vinculadas",
+        "documents_one": "{{count}} nota vinculada",
+        "documents_other": "{{count}} notas vinculadas",
+        "weight": "Peso",
+        "value": "Valor",
+        "volume": "Volume",
+        "missing_one": "Falta {{count}} nota — esperando o XML",
+        "missing_other": "Faltam {{count}} notas — esperando o XML",
+        "inLiveTrip_one": "{{count}} nota já está em viagem",
+        "inLiveTrip_other": "{{count}} notas já estão em viagem",
+        "create": "Montar viagem com estas notas",
+        "chooseRoute": "Usar só este roteiro na proposta",
+        "routeChosen": "Só este roteiro na proposta",
+        "reason": {
+          "no_linked_documents": "Nenhuma nota vinculada ainda: a viagem pode ser montada quando o XML chegar.",
+          "none_routable": "As notas vinculadas já estão em viagem ou não podem ser roteadas."
+        }
+      },
+      "solver": {
+        "title": "Proposta do roteirizador",
+        "hint": "O roteirizador distribui as notas já vinculadas entre os veículos. Você revisa e aceita pelo fluxo de sempre.",
+        "action": "Gerar proposta",
+        "scopeAll_one": "Todos os roteiros: {{count}} nota",
+        "scopeAll_other": "Todos os roteiros: {{count}} notas",
+        "scopeRoute_one": "Roteiro {{route}}: {{count}} nota",
+        "scopeRoute_other": "Roteiro {{route}}: {{count}} notas",
+        "backToAll": "Usar todos os roteiros",
+        "empty": "Nenhuma nota pode ir ao roteirizador agora: as vinculadas já estão em viagem, ou ainda não há nota vinculada.",
+        "overLimit": "O roteirizador aceita até {{limit}} notas por proposta. Escolha um roteiro."
+      },
+      "outside": {
+        "title": "Notas que ficam de fora",
+        "hint": "Estas linhas não entram na recomendação agora.",
+        "in_live_trip_one": "{{count}} nota já está em viagem",
+        "in_live_trip_other": "{{count}} notas já estão em viagem",
+        "awaiting_xml_one": "{{count}} linha esperando o XML",
+        "awaiting_xml_other": "{{count}} linhas esperando o XML",
+        "suggested_one": "{{count}} linha sugerida esperando o seu aceite",
+        "suggested_other": "{{count}} linhas sugeridas esperando o seu aceite",
+        "ambiguous_one": "{{count}} linha ambígua, para você escolher a nota",
+        "ambiguous_other": "{{count}} linhas ambíguas, para você escolher a nota",
+        "invalid_one": "{{count}} linha inválida na planilha",
+        "invalid_other": "{{count}} linhas inválidas na planilha",
+        "show": {
+          "in_live_trip": "Ver as notas vinculadas",
+          "awaiting_xml": "Ver as linhas esperando o XML",
+          "suggested": "Ver as linhas sugeridas",
+          "ambiguous": "Ver as linhas ambíguas",
+          "invalid": "Ver as linhas inválidas"
+        }
+      }
     }
   }
 }

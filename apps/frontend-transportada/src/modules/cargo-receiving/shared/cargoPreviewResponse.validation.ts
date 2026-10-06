@@ -8,7 +8,9 @@ import type {
   CargoPreviewSummary,
   UploadCargoPreviewResult,
 } from './cargoPreview.types'
+import type { CargoPreviewTripDrafts } from './cargoPreviewTripDraft.types'
 import { isArrivalProposal, isItemOutcome, isPreviewSummary } from './cargoPreviewGuards.validation'
+import { isTripDrafts } from './cargoPreviewTripDraftGuards.validation'
 import { isPreviewDetail } from './cargoPreviewItemGuards.validation'
 import { CARGO_RECEIVING_ERROR } from './cargoReceiving.constant'
 import { CargoReceivingRequestError } from './cargoReceivingRequest.service'
@@ -57,6 +59,13 @@ export function toItemOutcome(payload: unknown): CargoPreviewItemOutcome {
 export function toProposal(payload: unknown): CargoPreviewArrivalProposal {
   const data = readData(payload)
   if (!isArrivalProposal(data)) throw invalidResponse()
+  return data
+}
+
+/** Os rascunhos de viagem (RF7): o envelope `{ data }` e as chaves exatas em cada nível. */
+export function toTripDrafts(payload: unknown): CargoPreviewTripDrafts {
+  const data = readData(payload)
+  if (!isTripDrafts(data)) throw invalidResponse()
   return data
 }
 

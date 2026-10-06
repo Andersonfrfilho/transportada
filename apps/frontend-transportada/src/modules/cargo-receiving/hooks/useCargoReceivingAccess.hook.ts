@@ -10,9 +10,12 @@ import {
 export type CargoReceivingAccess = Readonly<{
   /** Escrever é `trip.manage`: quem só lê vê tudo e não age. */
   canManage: boolean
+  /** A empresa do contexto: a frota que o roteirizador oferece só é lida com ela. */
+  companyId: string | undefined
   hasFailed: boolean
   isForbidden: boolean
   isLoading: boolean
+  permissions: readonly string[]
 }>
 
 /** A parede decide pelo mesmo mapa do menu (spec 221): leitura é `fleet.read`, como na API. */
@@ -23,6 +26,7 @@ export function useCargoReceivingAccess(): CargoReceivingAccess {
 
   return {
     canManage: permissions.includes(CARGO_RECEIVING_WRITE_PERMISSION),
+    companyId,
     hasFailed: authQuery.isError,
     isForbidden: isWorkspaceForbidden({
       companyId,
@@ -30,5 +34,6 @@ export function useCargoReceivingAccess(): CargoReceivingAccess {
       workspace: CARGO_RECEIVING_WORKSPACE,
     }),
     isLoading: authQuery.isLoading,
+    permissions,
   }
 }
