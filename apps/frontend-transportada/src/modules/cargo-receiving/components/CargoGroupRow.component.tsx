@@ -36,9 +36,13 @@ export function CargoGroupRow({
           />
         </td>
       ) : null}
-      <td className={tableStyles.mono}>{t('document.number', { number: document.number })}</td>
-      <td>{document.recipientName ?? t('document.unknownRecipient')}</td>
-      <td>
+      <td className={tableStyles.mono} data-label={t('detail.value')}>
+        {t('document.number', { number: document.number })}
+      </td>
+      <td data-label={t('detail.recipient')}>
+        {document.recipientName ?? t('document.unknownRecipient')}
+      </td>
+      <td data-label={t('detail.state')}>
         <span className={detailStyles.groupSummary}>
           {t(`state.${document.separationState}`)}
           {document.isInLiveTrip ? <CargoLiveTripBadge /> : null}

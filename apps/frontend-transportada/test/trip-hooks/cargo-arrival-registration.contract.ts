@@ -23,6 +23,7 @@ import {
   installCargoReceivingDouble,
   maybeByLabel,
   networkFailure,
+  readCardLabels,
   resetLocation,
   typeInto,
   type CargoReceivingDouble,
@@ -56,6 +57,22 @@ async function chooseContractor(name: string): Promise<void> {
     expect(document.querySelector('[aria-label^="Selecionar a nota"]')).not.toBeNull(),
   )
 }
+
+describe('as notas livres viram cartões no celular (web.md §10)', () => {
+  test('número, destinatário, cidade e valor de cada nota levam o rótulo da coluna', async () => {
+    const { rendered } = await mountRegistration()
+    await chooseContractor('Alfa Indústria Fictícia')
+
+    const { headers, unlabeled, wrong } = readCardLabels(
+      document.querySelector('table') as HTMLTableElement,
+    )
+
+    expect(headers).toEqual(['', 'Nota', 'Destinatário', 'Cidade', 'Valor'])
+    expect(unlabeled).toEqual([])
+    expect(wrong).toEqual([])
+    rendered.unmount()
+  })
+})
 
 const checkbox = (number: number) =>
   byLabel(`Selecionar a nota ${String(number)}`) as HTMLInputElement

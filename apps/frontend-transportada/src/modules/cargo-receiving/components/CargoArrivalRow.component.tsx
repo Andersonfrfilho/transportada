@@ -45,19 +45,19 @@ export function CargoArrivalRow({
 
   return (
     <tr>
-      <td>{arrival.contractorName}</td>
-      <td>{formatMoment(arrival.arrivedAt)}</td>
-      <td>{arrival.counts.total}</td>
-      <td className={tableStyles.progressCell}>
+      <td data-label={t('table.contractor')}>{arrival.contractorName}</td>
+      <td data-label={t('table.arrivedAt')}>{formatMoment(arrival.arrivedAt)}</td>
+      <td data-label={t('table.documents')}>{arrival.counts.total}</td>
+      <td className={tableStyles.progressCell} data-label={t('table.progress')}>
         <CargoArrivalProgress counts={arrival.counts} />
       </td>
-      <td>
+      <td data-label={t('table.dueAt')}>
         <DueCell arrival={arrival} />
       </td>
-      <td>
+      <td data-label={t('table.status')}>
         <CargoStatusBadge status={arrival.status} />
       </td>
-      <td>
+      <td data-label={t('table.actions')}>
         <div className={tableStyles.rowActions}>
           <Button
             aria-label={t('table.openLabel', { name: arrival.contractorName })}

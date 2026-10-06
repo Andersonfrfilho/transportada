@@ -27,6 +27,7 @@ import {
   installCargoReceivingDouble,
   maybeButtonByText,
   maybeByLabel,
+  readCardLabels,
   resetLocation,
   typeInto,
   type CargoReceivingDouble,
@@ -128,6 +129,36 @@ describe('o cabeçalho e os grupos (spec 237 T2.4)', () => {
     const { rendered } = await mountDetail()
 
     expect(document.querySelectorAll('tbody tr[style]')).toHaveLength(0)
+    rendered.unmount()
+  })
+})
+
+describe('os grupos viram cartões no celular (web.md §10)', () => {
+  test('a situação de CADA nota, o destinatário e a nota levam o rótulo da coluna; o selo "já em viagem" fica com a situação', async () => {
+    const { rendered } = await mountDetail()
+
+    const tables = [...document.querySelectorAll('table')]
+    const checked = tables.map((table) => readCardLabels(table))
+
+    expect(tables).toHaveLength(4)
+    for (const result of checked) {
+      expect(result.headers).toEqual(['', 'Nota', 'Destinatário', 'Situação'])
+      expect(result.unlabeled).toEqual([])
+      expect(result.wrong).toEqual([])
+    }
+    expect(document.querySelectorAll('tbody td[data-label="Situação"]')).toHaveLength(7)
+    const live = group('FR.N.SOR · Sorocaba').querySelector('td[data-label="Situação"]')
+    expect(live?.textContent).toContain('Já em viagem')
+    rendered.unmount()
+  })
+
+  test('quem só lê vê as mesmas três colunas rotuladas, sem a caixa de seleção', async () => {
+    const { rendered } = await mountDetail({ canManage: false })
+
+    const result = readCardLabels(document.querySelector('table') as HTMLTableElement)
+
+    expect(result.headers).toEqual(['Nota', 'Destinatário', 'Situação'])
+    expect(result.unlabeled).toEqual([])
     rendered.unmount()
   })
 })

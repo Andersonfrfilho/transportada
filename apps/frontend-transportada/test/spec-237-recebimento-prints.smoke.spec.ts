@@ -18,6 +18,11 @@ import { expect, test, type Locator, type Page, type Route } from '@playwright/t
 
 import { loginAsLocalUser } from './authenticated-smoke.helper'
 import {
+  expectEveryNoteStateVisible,
+  expectNoClipping,
+  isPrintWanted,
+} from './cargo-clipping-smoke.helper'
+import {
   ALFA_ID,
   ARRIVAL_ID,
   BETA_ID,
@@ -321,6 +326,8 @@ async function expectNoHorizontalScroll(page: Page): Promise<void> {
 
 async function shoot(page: Page, name: string, width: number, theme: string): Promise<void> {
   await expectNoHorizontalScroll(page)
+  if (width === 375) await expectNoClipping(page)
+  if (!isPrintWanted(name)) return
   await page.locator('main').screenshot({ path: printPath(name, width, theme) })
 }
 
@@ -443,6 +450,7 @@ const SCREENS: readonly Screen[] = [
     open: async (page) => {
       await openScreen(page, `/recebimento/${ARRIVAL_ID}/detalhe`)
       await expect(page.getByText('FR.S.CAR · Piracicaba').first()).toBeVisible()
+      await expectEveryNoteStateVisible(page)
       await page.getByLabel('Selecionar a nota 40121').check({ force: true })
       await page.getByLabel('Selecionar a nota 40126').check({ force: true })
     },

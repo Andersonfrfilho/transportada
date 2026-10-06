@@ -28,6 +28,7 @@ import {
   click,
   installCargoReceivingDouble,
   maybeButtonByText,
+  readCardLabels,
   resetLocation,
 } from './cargoReceivingHarness.helper'
 import { renderWithQueryClient, settle, waitFor } from './renderHook.helper'
@@ -194,6 +195,22 @@ describe('a lista de chegadas (spec 237 T2.4)', () => {
     await click(buttonByText('Registrar chegada'))
 
     expect(window.location.pathname).toBe('/recebimento/nova')
+    rendered.unmount()
+  })
+})
+
+describe('a lista vira cartões no celular (web.md §10)', () => {
+  test('cada célula leva o rótulo da coluna dela: situação, prazo e ações nunca aparecem sem nome', async () => {
+    const rendered = await mountList()
+
+    const { headers, unlabeled, wrong } = readCardLabels(
+      document.querySelector('table') as HTMLTableElement,
+    )
+
+    expect(headers).toHaveLength(7)
+    expect(unlabeled).toEqual([])
+    expect(wrong).toEqual([])
+    expect(document.querySelectorAll('tbody td[data-label]')).toHaveLength(7 * 3)
     rendered.unmount()
   })
 })

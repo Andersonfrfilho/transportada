@@ -2,6 +2,8 @@
 import type { JSX } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { cn } from '@/lib/utils'
+
 import type { CargoArrivalTableController } from '../hooks/useCargoArrivalTable.hook'
 import type { CargoArrivalSummary } from '../shared/cargoArrival.types'
 import type { CargoArrivalSortColumn } from '../shared/cargoArrivalTable.service'
@@ -43,7 +45,7 @@ export function CargoArrivalTable({
       role="region"
       tabIndex={0}
     >
-      <table className={tableStyles.table}>
+      <table className={cn(tableStyles.table, tableStyles.stacked)}>
         <thead>
           <tr>
             {COLUMNS.map((column) =>

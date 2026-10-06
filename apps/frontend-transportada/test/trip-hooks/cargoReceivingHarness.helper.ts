@@ -322,3 +322,31 @@ export function fieldByLabel(labelText: string): HTMLInputElement {
   if (field === undefined || field === null) throw new Error(`FIELD_NOT_FOUND:${labelText}`)
   return field
 }
+
+/**
+ * Abaixo de 40rem a tabela vira cartões e o rótulo da coluna sai do `data-label` da célula (`.stacked`): sem
+ * ele o valor aparece sozinho, sem dizer o que é. Cada célula com conteúdo tem o rótulo da SUA coluna, e a
+ * coluna só de caixa de seleção (cabeçalho vazio) fica sem rótulo. Devolve o que a tela dá a quem lê o cartão.
+ */
+export function readCardLabels(table: Element): {
+  headers: string[]
+  unlabeled: string[]
+  wrong: string[]
+} {
+  const headers = [...table.querySelectorAll('thead th')].map((cell) =>
+    (cell.textContent ?? '').trim(),
+  )
+  const unlabeled: string[] = []
+  const wrong: string[] = []
+  for (const row of table.querySelectorAll('tbody tr')) {
+    ;[...row.querySelectorAll('td')].forEach((cell, index) => {
+      const header = headers[index] ?? ''
+      const label = cell.getAttribute('data-label')
+      const content = (cell.textContent ?? '').trim()
+      if (header === '') return
+      if (label === null) unlabeled.push(`${header}: ${content}`)
+      else if (!header.startsWith(label)) wrong.push(`${header} != ${label}`)
+    })
+  }
+  return { headers, unlabeled, wrong }
+}

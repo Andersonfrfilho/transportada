@@ -65,7 +65,7 @@ export function CargoGroupTable({
         })}
       </p>
       <div className={tableStyles.tableScroll}>
-        <table className={cn(tableStyles.table, detailStyles.groupTable)}>
+        <table className={cn(tableStyles.table, tableStyles.stacked, detailStyles.groupTable)}>
           <thead>
             <tr>
               {canSelect ? <th className={detailStyles.colSelect} scope="col" /> : null}

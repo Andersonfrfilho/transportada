@@ -16,6 +16,7 @@ import { dirname, resolve } from 'node:path'
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test'
 
 import { loginAsLocalUser } from './authenticated-smoke.helper'
+import { expectNoClipping } from './cargo-clipping-smoke.helper'
 import { ARRIVAL_ID, buildDetail, buildDocument } from './fixtures/cargoReceiving.fixture'
 import { mockTripWorkspaceApi } from './trip-smoke.helper'
 
@@ -246,6 +247,7 @@ for (const theme of THEMES) {
         await provokeFailure(page, screen.mode)
 
         expect(await readOverflow(page)).toBeLessThanOrEqual(0)
+        if (width === 375) await expectNoClipping(page)
         await page.locator('main').screenshot({ path: printPath(screen.name, width, theme) })
 
         const contrast = await measureContrast(page)

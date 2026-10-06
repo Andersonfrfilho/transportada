@@ -19,6 +19,7 @@ import { dirname, resolve } from 'node:path'
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test'
 
 import { loginAsLocalUser } from './authenticated-smoke.helper'
+import { expectNoClipping, isPrintWanted } from './cargo-clipping-smoke.helper'
 import {
   buildPreviewItem,
   buildPreviewDetail,
@@ -260,6 +261,16 @@ async function mockApi(page: Page, state: ApiState): Promise<void> {
   await page.route(/\/contractors(?:\?.*)?$/, (route) =>
     fulfillJson(route, { data: CONTRACTORS, page: { nextCursor: null } }),
   )
+  await page.route(/\/contractor-receiving-profiles(?:\?.*)?$/, (route) =>
+    fulfillJson(route, {
+      data: CONTRACTORS.filter((contractor) => contractor.id !== GAMA_ID).map((contractor) => ({
+        contractorId: contractor.id,
+        isEnabled: true,
+        previewEnabled: contractor.id === ALFA_ID,
+      })),
+      nextCursor: null,
+    }),
+  )
   await page.route(/\/contractors\/[^/]+\/receiving-profile$/, (route) => {
     const id = route.request().url().split('/').at(-2) ?? ''
     return fulfillJson(route, {
@@ -349,6 +360,8 @@ async function expectNoHorizontalScroll(page: Page): Promise<void> {
 
 async function shoot(page: Page, name: string, width: number, theme: string): Promise<void> {
   await expectNoHorizontalScroll(page)
+  if (width === 375) await expectNoClipping(page)
+  if (!isPrintWanted(name)) return
   await page.locator('main').screenshot({ path: printPath(name, width, theme) })
 }
 

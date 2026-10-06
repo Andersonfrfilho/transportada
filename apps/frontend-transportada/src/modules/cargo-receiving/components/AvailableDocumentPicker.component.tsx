@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 
 import type { AvailableDocumentPickerController } from '../hooks/useAvailableDocumentPicker.hook'
@@ -58,7 +59,7 @@ function DocumentRows({
       role="region"
       tabIndex={0}
     >
-      <table className={tableStyles.table}>
+      <table className={cn(tableStyles.table, tableStyles.stacked)}>
         <thead>
           <tr>
             <th scope="col">
@@ -85,10 +86,14 @@ function DocumentRows({
                   onChange={() => picker.toggleDocument(document)}
                 />
               </td>
-              <td className={tableStyles.mono}>{document.number}</td>
-              <td>{document.recipientName ?? t('document.unknownRecipient')}</td>
-              <td>{document.cityName ?? '—'}</td>
-              <td>{formatAmount(document.totalValue)}</td>
+              <td className={tableStyles.mono} data-label={t('available.number')}>
+                {document.number}
+              </td>
+              <td data-label={t('available.recipient')}>
+                {document.recipientName ?? t('document.unknownRecipient')}
+              </td>
+              <td data-label={t('available.city')}>{document.cityName ?? '—'}</td>
+              <td data-label={t('available.value')}>{formatAmount(document.totalValue)}</td>
             </tr>
           ))}
         </tbody>

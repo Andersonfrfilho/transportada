@@ -56,9 +56,15 @@
 }
 
 /* Colunas fixas: as notas de grupos diferentes alinham entre si, e a tabela rola no próprio quadro. */
+/* Abaixo de 40rem a tabela vira cartões (`.stacked`); a largura mínima e as colunas fixas são só da tabela larga. */
 .groupTable {
-  min-width: 40rem;
-  table-layout: fixed;
+  --stacked-min-width: 40rem;
+}
+
+@media (min-width: 40rem) {
+  .groupTable {
+    table-layout: fixed;
+  }
 }
 
 .colSelect {
