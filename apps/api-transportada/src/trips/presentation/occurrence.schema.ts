@@ -40,6 +40,16 @@ const registerOccurrenceSchema = z
      */
     attachmentObjectId: z.string().uuid().optional(),
     /**
+     * Spec 246 (T2.7): a **lista** de uploads confirmados (1 a 5, sem repetir), para o tipo que exige mais
+     * de uma foto. Retrocompatível: o app antigo manda só o campo único acima, e mandar os dois juntos é
+     * 400 — escolher um em silêncio gravaria o anexo que ninguém marcou.
+     */
+    attachmentObjectIds: z
+      .array(z.string().uuid())
+      .min(1)
+      .max(OCCURRENCE_PHOTO_MINIMUM_COUNT.max)
+      .optional(),
+    /**
      * Spec 246 (RF9): a referência à assinatura já confirmada, pelo mesmo par `occurrence-uploads` +
      * `confirm` da 179 — nunca o arquivo. Ausente ou nula é "sem assinatura"; o tipo efetivo da nota
      * decide se isso é recusado (`TRIP_OCCURRENCE_SIGNATURE_REQUIRED`).
@@ -54,6 +64,27 @@ const registerOccurrenceSchema = z
     productCode: z.string().trim().max(60).default(''),
   })
   .strict()
+  .superRefine(refineAttachmentSelection)
+
+function refineAttachmentSelection(
+  body: {
+    readonly attachmentObjectId?: string | undefined
+    readonly attachmentObjectIds?: readonly string[] | undefined
+  },
+  context: z.RefinementCtx,
+): void {
+  const { attachmentObjectId, attachmentObjectIds } = body
+  if (attachmentObjectIds === undefined) return
+  const hasBoth = attachmentObjectId !== undefined
+  const hasDuplicate = new Set(attachmentObjectIds).size !== attachmentObjectIds.length
+  if (hasBoth || hasDuplicate) {
+    context.addIssue({
+      code: 'custom',
+      message: hasBoth ? 'ATTACHMENT_SELECTION_CONFLICT' : 'ATTACHMENT_DUPLICATED',
+      path: ['attachmentObjectIds'],
+    })
+  }
+}
 
 export type RegisterOccurrenceBody = Omit<z.infer<typeof registerOccurrenceSchema>, 'location'> & {
   readonly location: ReportedLocation | null

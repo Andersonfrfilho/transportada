@@ -44,6 +44,8 @@ export async function seedConfirmedUpload(database: TestDatabase, scope: Scope):
 
 export type StreetOccurrenceRegistration = Scope & {
   readonly attachmentObjectId: string | null
+  /** Spec 246 (T2.7): a lista de fotos; quando presente vale no lugar do campo único. */
+  readonly attachmentObjectIds?: readonly string[]
   /** Spec 246: a nota a registrar; ausente é a da viagem semeada. */
   readonly documentId?: string
   /** Spec 246: ausente é `cliente ausente`; vazio exercita a observação obrigatória. */
@@ -66,6 +68,9 @@ export function registerStreetOccurrence(
   return registerDriverOccurrence({
     actorUserId: input.company.userId,
     attachmentObjectId: input.attachmentObjectId,
+    ...(input.attachmentObjectIds === undefined
+      ? {}
+      : { attachmentObjectIds: input.attachmentObjectIds }),
     companyId: input.company.companyId,
     documentId: input.documentId ?? input.trip.documentId,
     driverId: input.company.firstDriverId,

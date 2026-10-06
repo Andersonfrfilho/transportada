@@ -1553,3 +1553,73 @@ $ bun --env-file=../../.env.test test ./test/whatsapp-commands/driver-flow-actio
 Depois: `40 pass, 0 fail` — o erro estável da assinatura sem gravar; a frase da assinatura e a volta ao menu; a
 observação obrigatória com "Pular" volta ao prompt; tipo sem exigência segue registrando; a lista com o tipo
 de assinatura obrigatória continua oferecendo o tipo.
+
+### T2.7 (lacuna achada na 1d) — A rota do motorista aceita a lista de anexos (2026-10-06)
+
+A T1d.5 registrou, e nenhuma task cobria: a rota do motorista levava **um** anexo (`attachmentObjectId`), então
+um tipo com `photo_minimum_count > 1` ficava irregistrável. Agora `POST /me/trips/current/documents/:documentId/occurrences`
+aceita `attachmentObjectIds` (1 a 5 uuids, sem repetir), **retrocompatível** com o campo único — o app antigo
+segue registrando como sempre. Mandar os dois juntos, repetir um id, lista vazia ou com seis é `400`
+(escolher um em silêncio gravaria o anexo que ninguém marcou).
+
+- **Conferência.** Cada objeto é conferido como o único sempre foi (existe, confirmado, desta empresa e desta
+  viagem) **e é do motorista**: `findConfirmedUpload` recebe o `driverId` quando o localizador é o dele, para
+  as fotos e para a assinatura. ⚠️ Isto **aperta** o anexo único (antes só empresa/viagem); o escritório
+  (`target`) continua sem filtro de motorista.
+- **Mínimo.** `photo_minimum_count` efetivo da nota é conferido contra a quantidade de anexos recebidos
+  (`TRIP_OCCURRENCE_PHOTO_MINIMUM_NOT_MET`, já existente).
+- **Gravação.** `saveTripOccurrence` grava a coluna `attachment_object_id` com a **primeira** (escrita dupla da
+  T1d.5) e as linhas 1..N de `trip_document_occurrence_attachments` (`mirrorStreetOccurrenceAttachments`,
+  posições na ordem, `created_at` da ocorrência) na mesma transação. A assinatura segue só em
+  `signature_object_id`.
+- **Estrutura.** `register-driver-occurrence.use-case.ts` passou de 261 linhas para 85: as portas foram para
+  `register-driver-occurrence.types.ts` e tudo o que se confere antes de gravar para
+  `driver-occurrence-assessment.service.ts`; o comportamento é o mesmo, com os mesmos erros e a mesma ordem.
+
+⚠️ **Defeito achado e corrigido aqui, da T2.4.** A rota aceitava `signatureObjectId` no corpo (schema) mas **não o
+entregava** ao caso de uso — a assinatura era jogada fora sem erro. A T2.4 provou o schema e o caso de uso, não a
+passagem da rota. O contrato novo exercita a rota de ponta a ponta (`createMeTripRoutes` com o caso de uso
+capturando a entrada); sem o repasse na rota ele fica vermelho:
+
+```text
+$ git checkout -- src/trips/presentation/me-trip.routes.ts   # sem o repasse
+$ bun --env-file=../../.env.test test ./test/trip-occurrence/driver-attachment-list.contract.ts
+- Expected  - 5
++ Received  + 10
+(fail) a rota entrega a assinatura e a lista de anexos ao caso de uso (spec 246 T2.4, T2.7) > lista de anexos e assinatura chegam ao caso de uso
+ 7 pass
+ 1 fail
+```
+
+Contrato primeiro (`test/trip-occurrence/driver-attachment-list.contract.ts`), antes da implementação:
+
+```text
+$ bun --env-file=../../.env.test test ./test/trip-occurrence/driver-attachment-list.contract.ts
+(fail) a rota do motorista aceita a lista de anexos (spec 246 T2.7) > de 1 a 5 uuids distintos valem; o campo único antigo segue valendo
+(fail) o caso de uso confere cada anexo e o mínimo de fotos (spec 246 T2.7) > três fotos num tipo que exige três: grava as três e a coluna antiga leva a primeira
+(fail) o caso de uso confere cada anexo e o mínimo de fotos (spec 246 T2.7) > duas fotos num tipo que exige três: 422 PHOTO_MINIMUM_NOT_MET, nada gravado
+(fail) o caso de uso confere cada anexo e o mínimo de fotos (spec 246 T2.7) > um anexo da lista que não é confirmado, desta viagem e deste motorista: inalcançável
+(fail) o caso de uso confere cada anexo e o mínimo de fotos (spec 246 T2.7) > o app antigo, com o campo único, segue registrando
+ 1 pass
+ 5 fail
+```
+
+Depois: `8 pass, 0 fail`. Integração `driver-occurrence-attachment-list` (na lista `test:integration`):
+`2 pass, 0 fail` — três fotos num tipo que exige três viram as linhas 1..3 na ordem com a hora da ocorrência e a
+coluna leva a primeira; duas fotos são recusadas sem gravar; objeto de outro motorista da mesma viagem é
+inalcançável. Mutação (gravar só a primeira linha, `storedObjectIds.slice(0, 1)`):
+
+```text
+- Expected  - 8
++ Received  + 0
+(fail) a ocorrência de nota guarda N fotos (spec 246 T2.7) > três fotos num tipo que exige três: linhas 1..3 na ordem, coluna com a primeira
+ 1 pass
+ 1 fail
+```
+
+Contrato da API inteiro: `9876 pass, 25 skip, 0 fail`. Integrações vizinhas, uma por vez, verdes:
+`trip-field-authorship` 5 · `street-occurrence-attachment-write` 2 · `street-occurrence-photo-statement` 1 ·
+`event-location-stamp` 23 · `whatsapp-driver-flow-actions` 4 · `occurrence-requirement-modes-registration` 3 ·
+`occurrence-requirement-modes-write` 5 · `occurrence-signature-isolation` 1 ·
+`occurrence-type-moments-registration` 2 · `trip-occurrence-attachment` 6 · `stop-occurrence-photo` 8.
+O app do motorista (`apps/frontend-driver`) ainda manda o campo único: **enviar a lista** é a T4.1b/T4.2.

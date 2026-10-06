@@ -66,7 +66,7 @@ import { violatedCheckConstraint } from '../../database/postgres-error.support.j
 import { contractors } from '../../database/delivery-client.schema.js'
 import { resolveDeliveryContact } from '../domain/delivery-contact.policy.js'
 import type { DeliveryContact } from '../domain/delivery-contact.policy.js'
-import { mirrorStreetOccurrenceAttachment } from './street-occurrence-attachment.persistence.js'
+import { mirrorStreetOccurrenceAttachments } from './street-occurrence-attachment.persistence.js'
 import type { FieldAuthorship } from '../application/field-trip-target.types.js'
 import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
 import { resolveOccurrenceProductCodes } from '../domain/occurrence-scope.policy.js'
@@ -526,6 +526,11 @@ export async function saveTripOccurrence(
     readonly authorship?: FieldAuthorship
     /** Spec 156 T7b: o objeto único da foto do lote, referenciado por cada nota. */
     readonly attachmentObjectId?: string | null
+    /**
+     * Spec 246 (T2.7): todas as fotos da ocorrência de nota do motorista, na ordem — posições 1..N da
+     * tabela de anexos. Ausente é o objeto único acima (posição 1). A coluna leva sempre a primeira.
+     */
+    readonly attachmentObjectIds?: readonly string[]
     readonly companyId: string
     readonly documentId: string
     /**
@@ -565,7 +570,7 @@ export async function saveTripOccurrence(
     .insert(tripDocumentOccurrences)
     .values({
       actorUserId: input.actorUserId,
-      attachmentObjectId: input.attachmentObjectId ?? null,
+      attachmentObjectId: input.attachmentObjectIds?.[0] ?? input.attachmentObjectId ?? null,
       companyId: input.companyId,
       ...input.locationStamp,
       note: input.note,
@@ -584,13 +589,16 @@ export async function saveTripOccurrence(
     .returning()
   if (saved === undefined) return null
 
-  /** Spec 246 T1d.5: a foto de rua ganha também a linha da 161, na mesma transação. */
-  if (saved.attachmentObjectId !== null) {
-    await mirrorStreetOccurrenceAttachment(queryable, {
+  /** Spec 246 T1d.5, T2.7: a foto de rua ganha também as linhas da 161, na mesma transação. */
+  const storedObjectIds =
+    input.attachmentObjectIds ??
+    (saved.attachmentObjectId === null ? [] : [saved.attachmentObjectId])
+  if (storedObjectIds.length > 0) {
+    await mirrorStreetOccurrenceAttachments(queryable, {
       companyId: saved.companyId,
       createdAt: saved.createdAt,
       occurrenceId: saved.id,
-      storedObjectId: saved.attachmentObjectId,
+      storedObjectIds,
     })
   }
 

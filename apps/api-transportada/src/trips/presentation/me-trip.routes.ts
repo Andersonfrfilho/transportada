@@ -203,6 +203,8 @@ export type MeTripDependencies = {
     readonly actorUserId: string
     /** Spec 179 T203 (RF2/RF2b): a referência ao upload já confirmado — nunca o arquivo. */
     readonly attachmentObjectId?: string | undefined
+    /** Spec 246 (T2.7): a lista de uploads confirmados (1 a 5); a rota recusa a lista junto do campo único. */
+    readonly attachmentObjectIds?: readonly string[] | undefined
     readonly companyId: string
     readonly documentId: string
     readonly driverId: string
@@ -211,6 +213,8 @@ export type MeTripDependencies = {
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
+    /** Spec 246 (RF9): a assinatura já confirmada — nunca o arquivo. */
+    readonly signatureObjectId?: string | null | undefined
   }) => Promise<TripOccurrence>
   /** Spec 179 T202 (RF2): a URL assinada — o arquivo nunca passa por aqui. */
   readonly createOccurrenceUpload: (input: {
@@ -634,18 +638,21 @@ export function createMeTripRoutes(
     }),
     defineRoute<{
       readonly attachmentObjectId?: string | undefined
+      readonly attachmentObjectIds?: readonly string[] | undefined
       readonly documentId: string
       readonly idempotencyKey: string
       readonly location: ReportedLocation | null
       readonly note: string
       readonly occurrenceTypeId: string
       readonly productCode: string
+      readonly signatureObjectId?: string | null | undefined
     }>({
       async handle({ context, input }): Promise<Response> {
         const driverId = await resolveDriver(context.scope)
         const occurrence = await dependencies.registerDriverOccurrence({
           actorUserId: context.scope.userId,
           attachmentObjectId: input.attachmentObjectId,
+          attachmentObjectIds: input.attachmentObjectIds,
           companyId: context.scope.companyId,
           documentId: input.documentId,
           driverId,
@@ -654,6 +661,7 @@ export function createMeTripRoutes(
           note: input.note,
           occurrenceTypeId: input.occurrenceTypeId,
           productCode: input.productCode,
+          signatureObjectId: input.signatureObjectId,
         })
 
         return jsonResponse({ body: { data: occurrence }, status: 201 })
@@ -663,12 +671,14 @@ export function createMeTripRoutes(
         const body = await parseRegisterOccurrenceRequest(request)
         return {
           attachmentObjectId: body.attachmentObjectId,
+          attachmentObjectIds: body.attachmentObjectIds,
           documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
           idempotencyKey: parseIdempotencyKey(request),
           location: body.location,
           note: body.note,
           occurrenceTypeId: body.occurrenceTypeId,
           productCode: body.productCode,
+          signatureObjectId: body.signatureObjectId,
         }
       },
       pathname: DOCUMENT_OCCURRENCE_PATH,

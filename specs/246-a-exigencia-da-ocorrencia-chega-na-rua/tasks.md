@@ -187,6 +187,12 @@ trip_document_occurrence_attachments_unique_position DO NOTHING`. **`created_at 
       pontualidade, na nota do motorista **nem como linha de anexo de foto** (CA06, RF9, regra da 209).
 - [x] **T2.6** Contrato do WhatsApp do motorista (RF13): tipo com assinatura `required` registrado
       por esse canal devolve o erro estável da assinatura; a lista **não** é filtrada por exigência.
+- [x] **T2.7** (lacuna achada na 1d) A rota do motorista aceita uma **lista** de anexos
+      (`attachmentObjectIds`, 1–5), retrocompatível com o campo único: cada objeto é conferido contra
+      empresa/viagem/motorista, grava as linhas 1..N de `trip_document_occurrence_attachments` e a
+      coluna antiga leva a primeira, e `photo_minimum_count` é conferido contra a quantidade. Contrato
+      primeiro e vermelho; integração `driver-occurrence-attachment-list`. Evidência em
+      `evidence.md` § "T2.7 (lacuna achada na 1d)".
 
 ## Fase 3 — O servidor cobra a exceção (RF6, CA02, CA03)
 

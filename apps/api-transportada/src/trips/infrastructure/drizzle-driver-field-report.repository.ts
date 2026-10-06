@@ -1153,6 +1153,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
   public async saveDocumentOccurrence(input: {
     readonly actorUserId: string
     readonly attachmentObjectId: string | null
+    readonly attachmentObjectIds?: readonly string[]
     readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly documentId: string
@@ -1168,6 +1169,9 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     return saveTripOccurrence(this.transaction, {
       actorUserId: input.actorUserId,
       attachmentObjectId: input.attachmentObjectId,
+      ...(input.attachmentObjectIds === undefined
+        ? {}
+        : { attachmentObjectIds: input.attachmentObjectIds }),
       authorship: input.authorship,
       companyId: input.companyId,
       documentId: input.documentId,

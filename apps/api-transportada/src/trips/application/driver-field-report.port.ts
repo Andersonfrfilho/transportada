@@ -419,6 +419,12 @@ export type DriverFieldReportTransactionPort = {
   saveDocumentOccurrence(input: {
     readonly actorUserId: string
     readonly attachmentObjectId: string | null
+    /**
+     * Spec 246 (T2.7): todas as fotos já conferidas, na ordem — uma linha em
+     * `trip_document_occurrence_attachments` por posição (1..N). `attachmentObjectId` leva a primeira
+     * (a coluna antiga, escrita dupla da T1d.5). Ausente é a escrita do único.
+     */
+    readonly attachmentObjectIds?: readonly string[]
     readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly documentId: string
