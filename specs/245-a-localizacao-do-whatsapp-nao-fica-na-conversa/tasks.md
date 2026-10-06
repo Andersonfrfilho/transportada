@@ -23,20 +23,20 @@
       Fonte do módulo == tarball `0.7.0` (37/37 arquivos, 11/11 migrations, 73/73 exports). Registrado em
       `evidence.md` com o SHA. Desenho validado por `architect` (opus); 14 correções aplicadas aos três
       documentos.
-- [ ] **T1.2** Testes **antes** (vermelhos): `ReceiveWebhook.location.test.ts` com a opção ligada (sem
+- [x] **T1.2** Testes **antes** (vermelhos): `ReceiveWebhook.location.test.ts` com a opção ligada (sem
       `payload.location`, `content = '📍 Localização'`, `type = 'location'`, gancho recebe `location`
       inteira) e desligada (igual à `0.7.0`) — CA1.
-- [ ] **T1.3** Implementar a opção, a ligação no `ReceiveWebhookUseCase` e a constante
+- [x] **T1.3** Implementar a opção, a ligação no `ReceiveWebhookUseCase` e a constante
       `INBOUND_LOCATION_CONTENT`. Mutações: ignorar a opção no caso de uso e ignorar a opção na fábrica
       reprovam o T1.2; restaurar.
-- [ ] **T1.4** Teste de integração **antes**, depois o caso de uso `RedactInboundLocationsUseCase` +
+- [x] **T1.4** Teste de integração **antes**, depois o caso de uso `RedactInboundLocationsUseCase` +
       `MessageRepository.redactInboundLocations`/`countInboundLocations` (`batchSize`, `receivedBefore: Date`;
       contagem e `INBOUND_LOCATION_CONTENT` exportados em `index.ts`; expostos em `conversations`) — CA2,
       com as cinco mutações (empresa, corte, `payload - 'location'` → `NULL`, `NULLIF`, `direction`).
       Postgres descartável com as migrations do pacote; teste no padrão `*.integration.test.ts`; a suíte
       **não pode pular** (registrar que rodou).
-- [ ] **T1.5** Changeset `minor` só do módulo; testes e build do repositório de pacotes verdes.
-      **PARAR E PERGUNTAR ao usuário antes de publicar.** Publicado, conferir a versão pelo tarball no npm.
+- [~] **T1.5** (changeset, gates e PR rascunho #126 prontos; **publicação no npm pendente: decisão do usuário**) Changeset `minor` só do módulo; testes e build do repositório de pacotes verdes.
+  **PARAR E PERGUNTAR ao usuário antes de publicar.** Publicado, conferir a versão pelo tarball no npm.
 
 ## Fase 2 — API e painel
 
