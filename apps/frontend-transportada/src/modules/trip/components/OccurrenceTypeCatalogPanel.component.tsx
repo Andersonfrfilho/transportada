@@ -62,7 +62,11 @@ export function OccurrenceTypeCatalogPanel({
 }: OccurrenceTypeCatalogPanelProps) {
   const { t } = useTranslation('companySettings')
   const { t: tTrip } = useTranslation('trip')
-  const hasItemsModeSupport = types.some((type) => type.itemsMode !== undefined)
+  const createSupport = {
+    hasItemsMode: types.some((type) => type.itemsMode !== undefined),
+    hasMoments: types.some((type) => type.moments !== undefined),
+    hasRequirementModes: types.some((type) => type.noteMode !== undefined),
+  }
 
   /** Spec 246 RF11c: uma consulta de exceções por tela, e uma de contratantes e de clientes — nunca por tipo. */
   const overridesQuery = useOccurrenceAttachmentOverridesBatchQuery({ enabled: canManage })
@@ -136,9 +140,9 @@ export function OccurrenceTypeCatalogPanel({
 
       {canManage ? (
         <OccurrenceTypeCreateForm
-          hasItemsModeSupport={hasItemsModeSupport}
           isSaving={isSaving}
           onSave={onSave}
+          support={createSupport}
           templateOptions={templates.options}
         />
       ) : null}
