@@ -80,7 +80,10 @@ export function Tooltip({ children, dismissOnActivate = false, label }: TooltipP
          */
         onClick={dismissOnActivate ? close : undefined}
         /** Foco de teclado abre **na hora**: quem chegou por Tab escolheu parar aqui. */
-        onFocus={() => setIsOpen(true)}
+        onFocus={(event) => {
+          /** O painel do `Select` vive em portal, mas o foco dele sobe pela árvore do React: sem este filtro a dica reabria por cima das opções. */
+          if (anchorRef.current?.contains(event.target) === true) setIsOpen(true)
+        }}
         onKeyDown={(event) => {
           if (dismissOnActivate && DISMISSING_KEYS.includes(event.key)) close()
         }}

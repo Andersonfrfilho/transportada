@@ -160,6 +160,8 @@
 .list {
   flex: 1 1 auto;
   display: grid;
+  /* Sem a coluna que encolhe, o detalhe de uma linha só alarga o item e a opção sai cortada no painel. */
+  grid-template-columns: minmax(0, 1fr);
   min-height: 0;
   margin: 0;
   padding: var(--space-1);
