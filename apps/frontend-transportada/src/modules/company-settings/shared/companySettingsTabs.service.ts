@@ -130,15 +130,15 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
   /** Spec 095 item 4 — o painel gêmeo de combustível: aba própria, ao lado dela. */
   tollBoothCharges: { module: 'fleet', source: 'tollBoothCharges', tab: 'tolls' },
   /**
-   * O catálogo morava na tela de viagens, numa aba chamada "Avisos" — nome que descrevia só o
-   * efeito colateral (o e-mail) e escondia o que a tela realmente é: o **cadastro** do catálogo
-   * (nome, etapa, interruptor de aviso, modelo de e-mail). Isto não é "configuração perto do
-   * efeito": é cadastro da empresa, e mora em Configurações como os demais.
+   * Spec 246: o catálogo mudou de endereço de Configurações para Ocorrências. O painel que a 241 já
+   * alterou (com o campo Produtos) foi movido de company-settings para trip, e a aba "Tipos" agora
+   * mora em /ocorrencias, acessível com a mesma permissão (`companies.settings`). A `SettingsResolutionPanel`
+   * continua em Configurações e continua lendo o catálogo pelo hook que agora vem de trip.
    */
   occurrenceTypeCatalog: {
-    module: 'company-settings',
+    module: 'trip',
     source: 'occurrenceTypeCatalog',
-    tab: 'occurrenceTypes',
+    tab: 'types',
   },
   /**
    * Spec 169 RF7: o cadastro mora perto do efeito — a mesma aba financeira de Configurações onde
@@ -256,7 +256,6 @@ export const COMPANY_SETTINGS_TAB_IDS = [
   'certificates',
   'taxes',
   'driverAllowance',
-  'occurrenceTypes',
   'entryKinds',
   'quickReplies',
   'settingsResolution',

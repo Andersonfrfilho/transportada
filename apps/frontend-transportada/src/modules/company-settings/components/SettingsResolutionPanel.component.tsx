@@ -30,7 +30,7 @@ import { TRIP_OCCURRENCE_STAGE } from '@/modules/trip/shared/occurrence.constant
 import type { SettingsResolutionOccurrenceType } from '@/modules/trip/shared/settingsResolution.service'
 import styles from '@/modules/trip/styles/trip.module.css'
 
-import { useOccurrenceTypeCatalogPanel } from '../hooks/useOccurrenceTypeCatalogPanel.hook'
+import { useOccurrenceTypeCatalogPanel } from '@/modules/trip/hooks/useOccurrenceTypeCatalogPanel.hook'
 
 export type SettingsResolutionPanelProps = Readonly<{ canManage: boolean }>
 
