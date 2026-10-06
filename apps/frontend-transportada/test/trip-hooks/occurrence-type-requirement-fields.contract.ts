@@ -18,6 +18,7 @@ import type { OccurrenceTypeSaveInput } from '@/modules/trip/shared/occurrenceTy
 import { createUnexpectedTripClient } from '../fixtures/tripAssemblyHooks.fixture'
 import { OCCURRENCE_REQUIREMENT_DEFAULTS } from '../fixtures/occurrenceRequirementDefaults.fixture'
 import { click, stubVisibleLayout } from './occurrenceCorrectionHarness.helper'
+import { expandAllTypes } from './occurrenceTypesPanelHarness.helper'
 import { renderWithQueryClient, waitFor } from './renderHook.helper'
 import { tripHookFakes } from './tripClientMocks.helper'
 
@@ -70,6 +71,7 @@ async function mount(type: OccurrenceType): Promise<void> {
       }),
     ),
   )
+  await expandAllTypes()
 }
 
 function control(label: string): HTMLElement | null {
@@ -250,6 +252,7 @@ describe('a aba Tipos monta o painel com a lista da API (spec 246 RF10)', () => 
       )
 
       await waitFor(() => expect(document.body.textContent?.includes('Avaria na rua')).toBe(true))
+      await expandAllTypes()
       expect(control('Foto') !== null && control('Produtos') !== null).toBe(true)
     }),
   )

@@ -243,12 +243,13 @@ o.attachment_mode <> 'required'`. Registrar os números em `evidence.md`. **A Fa
       existem agora) e mover, sem reescrever, o painel que a 241 já alterou, a seção de exceções, o
       hook, as consultas e as traduções de `modules/company-settings` para `modules/trip`; atualizar
       `SETTINGS_PANEL_PLACEMENT`, `SETTINGS_PANEL_MODULES` e `COMPANY_SETTINGS_TAB_IDS`.
-- [ ] **T5.3** Exceções à vista (RF11, RF11c): contagem e lista sem acordeão, **uma consulta em
+- [x] **T5.3** Exceções à vista (RF11, RF11c): contagem e lista sem acordeão, **uma consulta em
       lote por tela**. Os quatro modos e as quantidades mínimas editáveis por exceção, **com a
       quarta opção Igual ao tipo** (nulo, herda) — estado inicial de exceção nova.
       _1ª metade feita (2026-10-06, `evidence.md` § "T5.3 (1ª metade)"):_ tipos/guard/cliente tolerantes,
       consulta e cliente em lote, `buildOccurrenceTypeUpdate`, seletores de três estados e mínimos na linha do
-      tipo, painel montado na aba Tipos. **Falta:** a lista de exceções à vista com "Igual ao tipo" e os mínimos.
+      tipo, painel montado na aba Tipos. **2ª metade feita (2026-10-06, `evidence.md` § "T5.3 (2ª metade) e T5.3c"):** tipos recolhidos com a
+      linha-resumo, lista de exceções à vista lida da consulta em lote, "Igual ao tipo" e os dois mínimos por exceção.
 - [x] **T5.3-api** A rota em lote que a RF11c exige: `GET /company-settings/occurrence-types/attachment-overrides`
       (`settings.manage`, só leitura, sem migration), exceções de TODOS os tipos da empresa agrupadas por tipo,
       três consultas fixas. Contrato HTTP (roteador real, sem colisão com `/:occurrenceTypeId/...`),
@@ -257,7 +258,7 @@ o.attachment_mode <> 'required'`. Registrar os números em `evidence.md`. **A Fa
 - [ ] **T5.3b** Seletor múltiplo de momentos por tipo (`MultiSelect`), recusando o conjunto vazio
       (T1b.6), recusando `document + stop` juntos, com a nota de que os campos valem só nos momentos
       de rua (RF1h).
-- [ ] **T5.3c** Destinatário da exceção escolhido em `SearchableSelect` por nome ou CNPJ entre os
+- [x] **T5.3c** Destinatário da exceção escolhido em `SearchableSelect` por nome ou CNPJ entre os
       clientes cadastrados, nunca digitado (RF1f).
 - [ ] **T5.3d** Aviso ao contratante na aba: `notifies`, seleção do modelo de e-mail com o conteúdo
       visível, `redeliveryPolicy` (RF1e).

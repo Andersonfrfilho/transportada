@@ -318,18 +318,32 @@
     "flowDocument": "De nota",
     "flowStop": "De parada",
     "exceptions": {
-      "title": "Exceções",
-      "show": "Ver exceções",
-      "hide": "Esconder exceções",
-      "contractorTitle": "Por contratante",
-      "recipientTitle": "Por destinatário",
-      "contractor": "Contratante",
-      "contractorPlaceholder": "Buscar por nome ou CNPJ",
-      "recipientTaxId": "CNPJ ou CPF do destinatário",
+      "title": "Exceções por cliente",
+      "titleCount": "Exceções por cliente · {{count}}",
+      "intro": "A exceção vence a regra geral do tipo. Em cada campo, Igual ao tipo herda o que o tipo declara; a foto da exceção é sempre declarada.",
+      "empty": "Nenhuma exceção neste tipo.",
+      "loading": "Carregando as exceções…",
+      "failed": "Não foi possível carregar as exceções dos tipos. A regra geral de cada tipo segue valendo; recarregue a página para tentar de novo.",
+      "kindContractor": "Contratante",
+      "kindRecipient": "Destinatário",
+      "kind": "Quem",
+      "client": "Cliente",
+      "clientPlaceholder": "Buscar por nome ou CNPJ…",
+      "clientSearch": "Buscar cliente por nome ou CNPJ",
+      "clientEmpty": "Nenhum cliente encontrado.",
+      "clientsLoading": "Carregando os clientes cadastrados…",
+      "clientsFailed": "Não foi possível carregar os clientes cadastrados, então a exceção por destinatário não pode ser criada agora. A exceção só aceita cliente cadastrado; recarregue a página para tentar de novo.",
+      "contractorsFailed": "Não foi possível carregar os contratantes, então a exceção por contratante não pode ser criada agora. Recarregue a página para tentar de novo.",
+      "allClientsUsed": "Não há cliente cadastrado sem exceção neste tipo.",
+      "inheritMode": "Igual ao tipo",
+      "photo": "Foto",
+      "photoMinimum": "Mínimo de fotos",
+      "itemsMinimum": "Produtos exigidos",
+      "itemsMinimumBlocked": "O mínimo de produtos só vale quando Produtos é Obrigatório nesta exceção.",
+      "readOnly": "Sem permissão para alterar as exceções.",
       "add": "Adicionar exceção",
       "remove": "Remover",
-      "emptyContractor": "Nenhuma exceção por contratante cadastrada.",
-      "emptyRecipient": "Nenhuma exceção por destinatário cadastrada."
+      "removeOf": "Remover exceção de {{name}}"
     },
     "requirements": {
       "title": "O que exige",
@@ -361,6 +375,47 @@
         "atLeast": "Ao menos",
         "count": "Quantidade mínima de produtos",
         "hint": "Só vale quando Produtos é obrigatório. Todos os itens da nota serve à recusa total."
+      }
+    },
+    "summary": {
+      "exceptionOne": "1 exceção",
+      "exceptionMany": "{{count}} exceções",
+      "noExceptions": "sem exceção",
+      "exceptionsLoading": "carregando exceções",
+      "exceptionsUnavailable": "exceções indisponíveis",
+      "inactive": "Inativo",
+      "notifies": "Avisa o contratante",
+      "needs": {
+        "photo": "Foto",
+        "note": "Obs",
+        "signature": "Assin",
+        "items": "Produtos",
+        "photoCount": "Foto ×{{count}}"
+      },
+      "needState": {
+        "off": "{{field}}: desligado",
+        "optional": "{{field}}: opcional",
+        "required": "{{field}}: obrigatório"
+      }
+    },
+    "moments": {
+      "title": "Em que momento pode acontecer",
+      "placeholder": "Escolha os momentos",
+      "searchPlaceholder": "Buscar momento",
+      "empty": "Nenhum momento encontrado.",
+      "clearAll": "Limpar momentos",
+      "remove": "Tirar momento",
+      "summary": "{{count}} momentos",
+      "labels": {
+        "separation": "Separação no galpão",
+        "document": "Entrega da nota",
+        "stop": "Chegada à parada",
+        "office": "Escritório, pelo motorista"
+      },
+      "note": "Observação, assinatura, produtos e fotos valem só nos momentos de rua (Entrega da nota e Chegada à parada). Nos outros momentos a regra é fixa.",
+      "problem": {
+        "empty": "Escolha ao menos um momento: sem nenhum o tipo não aparece para ninguém, então nada foi gravado.",
+        "documentAndStop": "Entrega da nota e Chegada à parada não podem estar juntas no mesmo tipo: o aplicativo do motorista mostraria o tipo duas vezes. Nada foi gravado."
       }
     }
   },

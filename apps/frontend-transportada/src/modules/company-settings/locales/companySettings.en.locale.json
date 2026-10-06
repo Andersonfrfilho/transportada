@@ -318,18 +318,32 @@
     "flowDocument": "By document",
     "flowStop": "By stop",
     "exceptions": {
-      "title": "Exceptions",
-      "show": "Show exceptions",
-      "hide": "Hide exceptions",
-      "contractorTitle": "By contractor",
-      "recipientTitle": "By recipient",
-      "contractor": "Contractor",
-      "contractorPlaceholder": "Search by name or tax id",
-      "recipientTaxId": "Recipient CNPJ or CPF",
+      "title": "Exceptions by client",
+      "titleCount": "Exceptions by client · {{count}}",
+      "intro": "The exception overrides the type's general rule. On each field, Same as the type inherits what the type declares; the exception's photo is always declared.",
+      "empty": "No exceptions on this type.",
+      "loading": "Loading the exceptions…",
+      "failed": "The exceptions of the types could not be loaded. Each type's general rule still applies; reload the page to try again.",
+      "kindContractor": "Contractor",
+      "kindRecipient": "Recipient",
+      "kind": "Who",
+      "client": "Client",
+      "clientPlaceholder": "Search by name or tax ID…",
+      "clientSearch": "Search client by name or tax ID",
+      "clientEmpty": "No client found.",
+      "clientsLoading": "Loading the registered clients…",
+      "clientsFailed": "The registered clients could not be loaded, so a recipient exception cannot be created now. An exception only accepts a registered client; reload the page to try again.",
+      "contractorsFailed": "The contractors could not be loaded, so a contractor exception cannot be created now. Reload the page to try again.",
+      "allClientsUsed": "There is no registered client without an exception on this type.",
+      "inheritMode": "Same as the type",
+      "photo": "Photo",
+      "photoMinimum": "Minimum photos",
+      "itemsMinimum": "Products required",
+      "itemsMinimumBlocked": "The minimum number of products only applies when Products is Required on this exception.",
+      "readOnly": "No permission to change the exceptions.",
       "add": "Add exception",
       "remove": "Remove",
-      "emptyContractor": "No exceptions by contractor registered.",
-      "emptyRecipient": "No exceptions by recipient registered."
+      "removeOf": "Remove the exception of {{name}}"
     },
     "requirements": {
       "title": "What it requires",
@@ -361,6 +375,47 @@
         "atLeast": "At least",
         "count": "Minimum number of products",
         "hint": "Only applies when Products is required. All invoice items suits a total refusal."
+      }
+    },
+    "summary": {
+      "exceptionOne": "1 exception",
+      "exceptionMany": "{{count}} exceptions",
+      "noExceptions": "no exceptions",
+      "exceptionsLoading": "loading exceptions",
+      "exceptionsUnavailable": "exceptions unavailable",
+      "inactive": "Inactive",
+      "notifies": "Notifies the contractor",
+      "needs": {
+        "photo": "Photo",
+        "note": "Note",
+        "signature": "Sign",
+        "items": "Products",
+        "photoCount": "Photo ×{{count}}"
+      },
+      "needState": {
+        "off": "{{field}}: off",
+        "optional": "{{field}}: optional",
+        "required": "{{field}}: required"
+      }
+    },
+    "moments": {
+      "title": "When it can happen",
+      "placeholder": "Choose the moments",
+      "searchPlaceholder": "Search moment",
+      "empty": "No moment found.",
+      "clearAll": "Clear moments",
+      "remove": "Remove moment",
+      "summary": "{{count}} moments",
+      "labels": {
+        "separation": "Warehouse separation",
+        "document": "Document delivery",
+        "stop": "Arrival at the stop",
+        "office": "Office, by the driver"
+      },
+      "note": "Note, signature, products and photos only apply at the street moments (Document delivery and Arrival at the stop). The other moments have a fixed rule.",
+      "problem": {
+        "empty": "Choose at least one moment: with none the type is shown to nobody, so nothing was saved.",
+        "documentAndStop": "Document delivery and Arrival at the stop cannot share one type: the driver app would show the type twice. Nothing was saved."
       }
     }
   },

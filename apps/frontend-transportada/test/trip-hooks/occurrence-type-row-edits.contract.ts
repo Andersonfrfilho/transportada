@@ -15,6 +15,7 @@ import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
 
 import { click, stubVisibleLayout } from './occurrenceCorrectionHarness.helper'
 import { renderWithQueryClient, waitFor } from './renderHook.helper'
+import { EMPTY_EXCEPTIONS_STATE } from '../fixtures/occurrenceExceptionsState.fixture'
 import { OCCURRENCE_REQUIREMENT_DEFAULTS } from '../fixtures/occurrenceRequirementDefaults.fixture'
 
 const saved: OccurrenceTypeSaveInput[] = []
@@ -76,7 +77,7 @@ async function mount(type: OccurrenceType): Promise<void> {
     await renderWithQueryClient(
       createElement(OccurrenceTypeRow, {
         canManage: true,
-        contractors: [],
+        exceptions: EMPTY_EXCEPTIONS_STATE,
         isSaving: false,
         onSave: (input) => saved.push(input),
         templateLabel: 'Sem e-mail',

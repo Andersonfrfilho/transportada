@@ -1997,3 +1997,82 @@ tinha variáveis sem uso · `bun run --cwd apps/frontend-transportada build` ok.
   contratos que afirmam o endereço antigo). Ordem dos campos e rótulos já seguem o `preview.html` (Foto, Observação,
   Assinatura, Produtos); diferenças conhecidas a tratar na T6.1: o protótipo mostra a assinatura como "Assinatura de quem
   recusou" e "Produtos da nota", e o mínimo de produtos como número + "Esse mínimo/Todos os itens da nota".
+
+## T5.3 (2ª metade) e T5.3c — exceções à vista, tipos recolhidos, cliente escolhido (2026-10-06)
+
+**Tipos recolhidos (RF11).** `OccurrenceTypeItem` envolve a linha: `OccurrenceTypeSummary` é o botão com
+`aria-expanded`/`aria-controls` (nome, momentos, as exigências em forma curta — Foto, Obs, Assin, Produtos, com
+"Foto ×N" quando o mínimo passa de 1 —, ✉ quando avisa, e a contagem de exceções: "N exceções", "1 exceção", "sem
+exceção", "carregando exceções" ou "exceções indisponíveis"); tipo inativo ganha a etiqueta "Inativo". Aberto, o tipo
+mostra a linha de antes (`OccurrenceTypeRow`) e, sem segundo nível de recolhimento, a lista de exceções.
+
+**Exceções à vista (RF11, RF11c).** `OccurrenceTypeCatalogPanel` lê a consulta **em lote** uma vez
+(`useOccurrenceAttachmentOverridesBatchQuery`) e entrega a cada tipo a sua fatia; contratantes
+(`useContractorsQuery`) e clientes (`useDeliveryClientDirectoryQuery`, nova, em
+`delivery-clients/queries`) também uma vez por tela. A lista (`OccurrenceTypeExceptions` → `OccurrenceExceptionItem`)
+mostra, por exceção, Foto, Observação, Assinatura e Produtos em `Select` com **Igual ao tipo** (nulo herda; a Foto
+não tem essa opção — coluna `NOT NULL`, nasce igual à do tipo), mais "Mínimo de fotos" (Igual ao tipo, 1–5) e
+"Produtos exigidos" (Todos os itens da nota / Ao menos N). O mínimo de produtos só edita com Produtos **obrigatório na
+própria exceção**; fora disso o controle fica desligado com o motivo em texto, ligado por `aria-describedby`. Toda
+edição manda as duas listas inteiras pelo `PUT`
+(`shared/occurrenceException.service.ts`: `editException`/`addException`/`removeException`), e **sair de `required` ou
+voltar a Igual ao tipo manda `itemsMinimumCount: null` explícito**. A gravação invalida só a chave do lote. A seção antiga
+(`OccurrenceTypeExceptionsSection`, acordeão, consulta por tipo ligada a `isExpanded`, CNPJ digitado) foi removida,
+com o hook `useOccurrenceAttachmentOverridesQuery` (nada mais o usava); o cliente `listOccurrenceAttachmentOverrides`
+fica, e o contrato dele também.
+
+**T5.3c (RF1f).** O cliente da exceção é escolhido em `SearchableSelect` (busca por nome ou CNPJ formatado, rótulo
+"Nome · 12.345.678/0001-90") entre os contratantes ou entre os clientes cadastrados ativos; quem já tem exceção neste
+tipo não repete na lista; o corpo leva o CNPJ só com dígitos. Não há campo de CNPJ digitado. Consulta de clientes
+falhando: o seletor e o botão ficam desligados e a mensagem diz o motivo ("Não foi possível carregar os clientes
+cadastrados, …"); o mesmo para contratantes; sem cliente livre sobrando: "Não há cliente cadastrado sem exceção neste tipo."
+
+**Contratos (primeiro plano).** `test/trip-hooks/occurrence-exceptions-panel.contract.ts` (DOM, 9 casos: contagem de
+chamadas do cliente com 1 e com 3 tipos = 1; linha-resumo e inativo; lista com nome e CNPJ formatado; edição manda as
+duas listas inteiras com o resto como estava; mínimo desligado com motivo; sair de obrigatório manda nulo; remover;
+cliente escolhido, sem repetir e só dígitos; consulta de clientes falhando) e
+`test/trip/occurrence-exception-service.contract.ts` (as edições puras). Dublê: `occurrenceTypesPanelHarness.helper.ts`
+(cliente de destinatários dublado por `mock.module` **sem** `await import` no topo — a versão com
+`await import` do módulo real travou o carregamento do arquivo de teste por TLA). Os contratos que liam a linha
+dentro do painel (`occurrence-type-items-mode-panel`, `occurrence-type-requirement-fields`) passaram a abrir o tipo antes
+(`expandAllTypes`); nenhuma asserção foi afrouxada.
+
+Mutações (execuções vermelhas, cada uma revertida):
+
+```text
+# sair de required na exceção sem mandar o nulo explícito
+(fail) exceções: cada campo editável, nulo herda (RF11, RF4) > sair de Produtos obrigatório na exceção manda itemsMinimumCount nulo explícito [56.24ms]
+Received: 2
+ 11 pass
+ 1 fail
+
+# uma consulta por tipo no lugar da consulta em lote
+Expected: 1
+Received: 2
+(fail) exceções à vista: uma consulta por tela (RF11c) > com 1 tipo e com 3 tipos o cliente recebe uma chamada em lote só [220.16ms]
+ 11 pass
+ 1 fail
+```
+
+Também vermelho no contrato puro (`bun test ./test/trip.contract.test.ts`), com `isLeavingRequired` forçado a falso:
+`(fail) exceções: edição devolve as duas listas inteiras (RF4) > sair de Produtos obrigatório manda o mínimo nulo explícito`
+e `> voltar Produtos a "igual ao tipo" também zera o mínimo` (`2501 pass, 2 fail`).
+
+**Dois contratos do design system pegaram o que escrevi, e foram corrigidos na fonte** (`7003 pass, 2 fail` na primeira
+rodada): `muted-text-contrast` (um `color-mix` de `--color-slate` para pintar texto → `var(--color-slate-muted)`) e `skeleton`
+(parágrafo único "carregando" → `SkeletonGroup`).
+
+**Textos pt-BR novos** (`companySettings.occurrenceTypeCatalog`, en espelhado): `summary` ("1 exceção", "N exceções",
+"sem exceção", "carregando exceções", "exceções indisponíveis", "Inativo", "Avisa o contratante", Foto/Obs/Assin/Produtos,
+"Foto ×N", "{{campo}}: desligado|opcional|obrigatório"); `exceptions` ("Exceções por cliente · N", a introdução "A exceção
+vence a regra geral do tipo. …", "Nenhuma exceção neste tipo.", "Quem" Destinatário/Contratante, "Cliente", "Buscar por nome ou
+CNPJ…", "Nenhum cliente encontrado.", as quatro mensagens de falha/estado, "Igual ao tipo", "Mínimo de fotos",
+"Produtos exigidos", "O mínimo de produtos só vale quando Produtos é Obrigatório nesta exceção.", "Sem permissão para
+alterar as exceções.", "Adicionar exceção", "Remover", "Remover exceção de {{name}}") e os rótulos de momento (usados já na
+linha-resumo): "Separação no galpão", "Entrega da nota", "Chegada à parada", "Escritório, pelo motorista".
+
+**Não coube / diferenças para a T6.1:** o formulário de adicionar tem Quem, Cliente e Foto (os outros quatro campos nascem
+"Igual ao tipo" e se editam na linha, não no formulário, como o protótipo mostra); a lista é de cartões, não tabela (cabe
+em 375); a busca do seletor casa o rótulo formatado, então digitar o CNPJ só com dígitos não casa (digitar com a máscara,
+ou o nome, casa); lista de clientes carrega até 3000 ativos (30 páginas de 100); o `preview.html` não foi aberto no
+navegador embutido nesta rodada (a comparação lado a lado é da T6.1).
