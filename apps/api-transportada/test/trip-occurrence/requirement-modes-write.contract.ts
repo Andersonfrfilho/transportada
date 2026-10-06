@@ -242,6 +242,10 @@ describe('o caso de uso confere a assinatura e a grava na coluna própria (spec 
           signatureMode: 'required',
           stage: 'delivery',
         }),
+        findOccurrenceTypeOverrides: async () => ({
+          contractorOverrides: [],
+          recipientOverrides: [],
+        }),
         findReachableDocument: async () => ({ tripId: TRIP }),
         listDocumentProducts: async () => [],
       },

@@ -298,6 +298,7 @@ describe('a ocorrência da nota leva o carimbo (T3.3)', () => {
       notifies: false,
       stage: 'delivery' as const,
     }),
+    findOccurrenceTypeOverrides: async () => ({ contractorOverrides: [], recipientOverrides: [] }),
     findReachableDocument: async () => ({ tripId: TRIP_ID }),
     listDocumentProducts: async () => [{ code: 'ZG-4410', description: 'CAIXA' }],
   }

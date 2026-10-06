@@ -144,6 +144,10 @@ function register(input: Registration) {
         photoMinimumCount: input.photoMinimumCount ?? 1,
         stage: 'delivery',
       }),
+      findOccurrenceTypeOverrides: async () => ({
+        contractorOverrides: [],
+        recipientOverrides: [],
+      }),
       findReachableDocument: async () => ({ tripId: TRIP }),
       listDocumentProducts: async () => [],
     },

@@ -60,6 +60,10 @@ function register(input: PhotoRequirement & { readonly attachmentObjectId: strin
         photoMinimumCount: input.photoMinimumCount,
         stage: 'delivery',
       }),
+      findOccurrenceTypeOverrides: async () => ({
+        contractorOverrides: [],
+        recipientOverrides: [],
+      }),
       findReachableDocument: async () => ({ tripId: TRIP }),
       listDocumentProducts: async () => [],
     },

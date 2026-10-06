@@ -216,6 +216,10 @@ describe('a autoria do registro de campo contra o Postgres (spec 156 T4, ADR-006
           repository: {
             findConfirmedUpload: async () => null,
             findOccurrenceType: (query) => findOccurrenceType(database.db, query),
+            findOccurrenceTypeOverrides: async () => ({
+              contractorOverrides: [],
+              recipientOverrides: [],
+            }),
             findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
             listDocumentProducts: (query) => listDocumentProducts(database.db, query),
           },
@@ -262,6 +266,10 @@ describe('a exigência de comprovante no registro do motorista contra o Postgres
         const repository: DriverOccurrenceReadPort = {
           findConfirmedUpload: (query) => occurrenceUploadRepository.findConfirmedUpload(query),
           findOccurrenceType: (query) => findOccurrenceType(database.db, query),
+          findOccurrenceTypeOverrides: async () => ({
+            contractorOverrides: [],
+            recipientOverrides: [],
+          }),
           findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
           listDocumentProducts: (query) => listDocumentProducts(database.db, query),
         }

@@ -99,6 +99,10 @@ function registerAsDriver(type: OccurrenceTypeRecord): Promise<unknown> {
       repository: {
         findConfirmedUpload: async () => null,
         findOccurrenceType: async () => type,
+        findOccurrenceTypeOverrides: async () => ({
+          contractorOverrides: [],
+          recipientOverrides: [],
+        }),
         findReachableDocument: async () => passedGuard(),
         listDocumentProducts: async () => passedGuard(),
       },

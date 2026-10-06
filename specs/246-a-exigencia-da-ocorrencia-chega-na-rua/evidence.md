@@ -2451,3 +2451,31 @@ Correção: `toOverrideRequirementUpdate` grava `itemsMinimumCount: null` quando
 Verde: 2 pass (modos `optional`, `off` e nulo, contratante e destinatário; quatro recusas 422 — mínimo com `off`, com o modo ausente sobre linha `optional`, com nulo, e destinatário —, linha intacta depois).
 
 Mutações: (1) sem o zeramento do mínimo, o teste 1 fica vermelho (`23514`); (2) sem o `.catch(rethrowOverrideShapeViolation)`, o teste 2 fica vermelho (`PostgresError` cru em vez do erro de domínio).
+
+### M5 — a porta das exceções do tipo passa a ser obrigatória
+
+Defeito: `findOccurrenceTypeOverrides?` era opcional em `OccurrenceTypeOverridesReadPort`. Esquecê-la na composição ou num dublê não dava erro de tipo, e a exceção do contratante/destinatário deixava de valer em silêncio. O contrato de parede (`test/composition/occurrence-overrides-wiring.contract.ts`, varredura do texto de `main.ts`) tentava cobrir só a composição.
+
+Vermelho (`overrides-port-required.contract.ts`, antes de tornar a porta obrigatória):
+
+```text
+$ bun run typecheck
+test/trip-occurrence/overrides-port-required.contract.ts(42,7): error TS2578: Unused '@ts-expect-error' directive.
+(fail) a porta das exceções do tipo é obrigatória (spec 246, revisão final M5) > omitir a porta não compila
+ 2 pass
+ 1 fail
+```
+
+Correção: a porta é obrigatória (`resolve-document-occurrence-requirements.service.ts`); os 16 dublês e fixtures de teste que montavam o `repository` sem ela ganharam o stub explícito (`async () => ({ contractorOverrides: [], recipientOverrides: [] })`); o contrato de parede foi apagado — o tipo vigia as duas composições de `main.ts` (app e WhatsApp), e o comportamento (a exceção da nota vale, a porta recebe empresa e tipo, nota sem contratante/destinatário não a consulta) fica no caso de uso, mais a integração `occurrence-effective-requirements-parity` pelo caminho real contra o banco.
+
+Mutações, todas vermelhas no `bun run typecheck`:
+
+```text
+(a) esquecer a porta no ponto do WhatsApp em main.ts:
+src/main.ts(1066,9): error TS2322: Type '{ findConfirmedUpload: ...
+(b) voltar a porta a opcional:
+src/trips/application/resolve-document-occurrence-requirements.service.ts(52,13): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+test/trip-occurrence/overrides-port-required.contract.ts(42,7): error TS2578: Unused '@ts-expect-error' directive.
+```
+
+Verde: `bun run typecheck` sem erros; `trip-occurrence`, `composition`, `driver-trip`, `field-trip-target` e `whatsapp-commands` (contratos) sem falha.

@@ -16,11 +16,12 @@ import {
 import type { OccurrenceTypeRecord } from './register-trip-occurrence.use-case.js'
 
 /**
- * As exceções de **um** tipo, numa consulta só. Opcional só para os dublês de teste que não as
- * exercitam — a composição (`main.ts`) sempre a injeta, e a integração prova o efeito no banco.
+ * As exceções de **um** tipo, numa consulta só. ⚠️ **Obrigatória**: opcional, esquecê-la na
+ * composição ou num dublê não dava erro de tipo e a exceção deixava de valer em silêncio. Quem não
+ * exercita as exceções injeta um stub explícito que devolve listas vazias.
  */
 export type OccurrenceTypeOverridesReadPort = {
-  findOccurrenceTypeOverrides?(input: {
+  findOccurrenceTypeOverrides(input: {
     readonly companyId: string
     readonly occurrenceTypeId: string
   }): Promise<FieldOccurrenceTypeOverrides>
@@ -47,13 +48,12 @@ export async function resolveDocumentOccurrenceRequirements(
   const contractorId = params.document.contractorId ?? null
   const recipientTaxId = params.document.recipientTaxId ?? null
   const hasSubject = contractorId !== null || (recipientTaxId !== null && recipientTaxId !== '')
-  const overrides =
-    hasSubject && params.repository.findOccurrenceTypeOverrides !== undefined
-      ? await params.repository.findOccurrenceTypeOverrides({
-          companyId: params.companyId,
-          occurrenceTypeId: params.occurrenceType.id,
-        })
-      : NO_OVERRIDES
+  const overrides = hasSubject
+    ? await params.repository.findOccurrenceTypeOverrides({
+        companyId: params.companyId,
+        occurrenceTypeId: params.occurrenceType.id,
+      })
+    : NO_OVERRIDES
 
   const [resolution] = resolveFieldOccurrenceTypeResolutions({
     contractorId,

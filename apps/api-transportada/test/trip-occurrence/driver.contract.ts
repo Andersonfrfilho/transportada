@@ -65,6 +65,9 @@ function readPort(
         stage: overrides.stage ?? ('delivery' as const),
       }
     },
+    async findOccurrenceTypeOverrides() {
+      return { contractorOverrides: [], recipientOverrides: [] }
+    },
     async findReachableDocument() {
       return overrides.reachable === false
         ? null

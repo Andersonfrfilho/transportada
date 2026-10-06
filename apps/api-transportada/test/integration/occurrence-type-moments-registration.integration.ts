@@ -100,6 +100,10 @@ function registerAsDriver(world: World, input: { actorUserId: string; typeId: st
     repository: {
       findConfirmedUpload: async () => null,
       findOccurrenceType: (query) => findOccurrenceType(database.db, query),
+      findOccurrenceTypeOverrides: async () => ({
+        contractorOverrides: [],
+        recipientOverrides: [],
+      }),
       findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
       listDocumentProducts: (query) => listDocumentProducts(database.db, query),
     },

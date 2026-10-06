@@ -1013,6 +1013,10 @@ describe('o WhatsApp não colhe assinatura: o erro diz o campo que falta (spec 2
           repository: {
             findConfirmedUpload: async () => null,
             findOccurrenceType: async () => buildOccurrenceType(type),
+            findOccurrenceTypeOverrides: async () => ({
+              contractorOverrides: [],
+              recipientOverrides: [],
+            }),
             findReachableDocument: async () => ({ tripId: TRIP_ID }),
             listDocumentProducts: async () => [],
           },
