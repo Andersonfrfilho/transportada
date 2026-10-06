@@ -290,3 +290,21 @@ describe('design system select contract', () => {
     expect(projectContext).toContain('docs/frontend/selects.md')
   })
 })
+
+describe('texto do gatilho do Select (revisão do painel B1)', () => {
+  /** Reticências escondem o valor no toque, onde `title` não existe: o rótulo quebra linha e o gatilho cresce. */
+  test('o valor e o placeholder quebram linha em vez de cortar com reticências', async () => {
+    const styles = await Bun.file(
+      new URL('../../src/components/ui/select.module.css', import.meta.url),
+    ).text()
+    const block = styles.slice(
+      styles.indexOf('.value,\n.placeholder'),
+      styles.indexOf('}', styles.indexOf('.value,\n.placeholder')),
+    )
+
+    expect(block.includes('.triggerDescription')).toBe(false)
+    expect(block).toContain('overflow-wrap: anywhere')
+    expect(block.includes('text-overflow: ellipsis')).toBe(false)
+    expect(block.includes('white-space: nowrap')).toBe(false)
+  })
+})

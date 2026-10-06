@@ -74,21 +74,23 @@
   background: var(--select-swatch);
 }
 
+/* O rótulo escolhido quebra linha: com reticências ele sumia no toque, onde `title` não existe. O gatilho cresce só quando o texto não cabe. */
 .value,
-.placeholder,
-.triggerDescription {
+.placeholder {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
-/* O detalhe da opção escolhida, ao lado do rótulo: o gatilho tem uma linha só. */
+/* O detalhe da opção escolhida, ao lado do rótulo: uma linha só, com reticências e `title`. */
 .triggerDescription {
   /* O rótulo é o que identifica a escolha: o detalhe só ocupa a sobra, sem tirar largura dele. */
   flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
   color: var(--color-slate-muted);
   font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .placeholder {
