@@ -6,6 +6,7 @@
  * `CargoArrivalTransitionRefusedError`, com o motivo da política como código.
  */
 import { ApiError } from '../../shared/api.error.js'
+import { DiagnosableError } from '../../shared/diagnosable.error.js'
 
 /** Tipo de outra empresa, aposentado ou inexistente: igual, para não dizer qual existe. */
 export class CargoArrivalOccurrenceTypeNotFoundError extends ApiError {
@@ -84,5 +85,32 @@ export class CargoArrivalReturnCaseCancelledError extends ApiError {
       message: 'The treatment of the source occurrence was cancelled',
       status: 409,
     })
+  }
+}
+
+/** O `INSERT … RETURNING` da ocorrência sempre devolve a linha; `new Error` cru perderia o motivo no log. */
+export class CargoArrivalOccurrenceNotSavedError extends DiagnosableError {
+  public override readonly name = 'CargoArrivalOccurrenceNotSavedError'
+
+  public constructor() {
+    super('The cargo arrival occurrence insert returned no row')
+  }
+}
+
+/** A ocorrência recém-gravada ou reenviada não voltou na leitura da própria chegada. */
+export class CargoArrivalOccurrenceNotReadBackError extends DiagnosableError {
+  public override readonly name = 'CargoArrivalOccurrenceNotReadBackError'
+
+  public constructor() {
+    super('The cargo arrival occurrence could not be read back')
+  }
+}
+
+/** A resposta guardada da chave de idempotência não traz o id da ocorrência. */
+export class CargoArrivalOccurrenceReplayUnreadableError extends DiagnosableError {
+  public override readonly name = 'CargoArrivalOccurrenceReplayUnreadableError'
+
+  public constructor() {
+    super('The stored idempotency response of the cargo arrival occurrence is unreadable')
   }
 }

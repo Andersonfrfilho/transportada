@@ -17,6 +17,7 @@ import type {
   LockedOccurrenceDocument,
   ReceivingOccurrenceType,
 } from '../../src/cargo-receiving/application/cargo-arrival-occurrence.types.js'
+import { isDiagnosableError } from '../../src/shared/diagnosable.error.js'
 import { createRegisterCargoArrivalOccurrenceUseCase } from '../../src/cargo-receiving/application/register-cargo-arrival-occurrence.use-case.js'
 import {
   ARRIVAL,
@@ -48,6 +49,8 @@ type Overrides = Partial<{
   arrival: LockedOccurrenceArrival | null
   attachmentFails: boolean
   document: LockedOccurrenceDocument | null
+  readBackMissing: boolean
+  earlyReplay: { fingerprint: string; occurrenceId: string } | null
   replay: { fingerprint: string; occurrenceId: string } | null
   type: ReceivingOccurrenceType | null
 }>
@@ -56,6 +59,7 @@ function setup(overrides: Overrides = {}) {
   const calls: string[] = []
   const stored: string[] = []
   const removed: string[] = []
+  const savedIds: string[] = []
   const transaction: CargoArrivalOccurrenceTransactionPort = {
     findOccurrenceType: async () => ('type' in overrides ? (overrides.type ?? null) : TYPE),
     findReplay: async () => overrides.replay ?? null,
@@ -75,48 +79,89 @@ function setup(overrides: Overrides = {}) {
     },
     saveOccurrence: async (input) => {
       calls.push(`save:${input.items.map((item) => `${item.code}=${item.quantity}`).join(',')}`)
-      return { id: 'occurrence-1' }
+      savedIds.push(input.occurrenceId)
+      return { id: input.occurrenceId }
     },
   }
   const reads: CargoArrivalOccurrenceReadPort = {
-    findOccurrence: async () => VIEW,
+    findOccurrence: async () => (overrides.readBackMissing === true ? null : VIEW),
+    findReplay: async () => {
+      calls.push('early-replay')
+      return overrides.earlyReplay ?? null
+    },
     listOccurrences: async () => null,
     listReceivingTypes: async () => [],
   }
   const useCase = createRegisterCargoArrivalOccurrenceUseCase({
     channel: 'backoffice',
     newObjectId: () => `object-${stored.length + 1}`,
+    newOccurrenceId: () => 'occurrence-1',
     now: () => NOW,
     reads,
     storage: {
       remove: async ({ objectKey }) => void removed.push(objectKey),
       store: async ({ objectKey }) => {
+        calls.push('upload')
         stored.push(objectKey)
         return { sha256: 'a'.repeat(64) }
       },
     },
     unitOfWork: { execute: ({ operation }) => operation(transaction) },
   })
-  return { calls, execute: useCase.execute, removed, stored }
+  return { calls, execute: useCase.execute, removed, savedIds, stored }
 }
 
 describe('abrir a ocorrência de recebimento (spec 237 T3.2)', () => {
   test('trava a chegada antes da nota, grava itens e foto, e devolve a ocorrência', async () => {
-    const { calls, execute, stored } = setup()
+    const { calls, execute, savedIds, stored } = setup()
     const result = await execute(INPUT)
 
     expect(result).toEqual({ isReplay: false, occurrence: VIEW })
     expect(calls).toEqual([
+      'early-replay',
+      'upload',
       'lock-arrival',
       'lock-document',
       'save:P1=2',
       'stored-object',
       'attachment',
     ])
+    expect(savedIds).toEqual(['occurrence-1'])
     expect(stored).toHaveLength(1)
+    expect(stored[0]).toContain('occurrence-1')
   })
 
-  test('o reenvio com a mesma chave devolve a gravada, mesmo com a chegada fechada, sem tocar a nota', async () => {
+  test('a foto sobe antes de a trava da chegada: o bucket lento nunca segura os outros separadores', async () => {
+    const { calls, execute } = setup()
+    await execute(INPUT)
+
+    expect(calls.indexOf('upload')).toBeLessThan(calls.indexOf('lock-arrival'))
+  })
+
+  test('o reenvio já gravado volta antes de subir a foto e de abrir a transação', async () => {
+    const early = setup({
+      earlyReplay: { fingerprint: await fingerprintOf(), occurrenceId: 'occurrence-1' },
+    })
+
+    expect(await early.execute(INPUT)).toEqual({ isReplay: true, occurrence: VIEW })
+    expect(early.calls).toEqual(['early-replay'])
+    expect(early.stored).toEqual([])
+  })
+
+  test('o reenvio já gravado com outro pedido é 409 sem subir a foto', async () => {
+    const early = setup({
+      earlyReplay: { fingerprint: 'f'.repeat(64), occurrenceId: 'occurrence-1' },
+    })
+
+    await expect(early.execute(INPUT)).rejects.toMatchObject({
+      code: 'CARGO_ARRIVAL_OCCURRENCE_KEY_REUSED',
+      status: 409,
+    })
+    expect(early.calls).toEqual(['early-replay'])
+    expect(early.stored).toEqual([])
+  })
+
+  test('a corrida do reenvio: a chave gravada durante o upload devolve a gravada e apaga a foto subida', async () => {
     const replayed = setup({
       arrival: {
         ...ARRIVAL,
@@ -127,8 +172,9 @@ describe('abrir a ocorrência de recebimento (spec 237 T3.2)', () => {
     })
 
     expect(await replayed.execute(INPUT)).toEqual({ isReplay: true, occurrence: VIEW })
-    expect(replayed.calls).toEqual(['lock-arrival'])
-    expect(replayed.stored).toEqual([])
+    expect(replayed.calls).toEqual(['early-replay', 'upload', 'lock-arrival'])
+    expect(replayed.stored).toHaveLength(1)
+    expect(replayed.removed).toEqual(replayed.stored)
   })
 
   test('a mesma chave com outro pedido é 409, sem gravar', async () => {
@@ -138,7 +184,8 @@ describe('abrir a ocorrência de recebimento (spec 237 T3.2)', () => {
       code: 'CARGO_ARRIVAL_OCCURRENCE_KEY_REUSED',
       status: 409,
     })
-    expect(reused.calls).toEqual(['lock-arrival'])
+    expect(reused.calls).toEqual(['early-replay', 'upload', 'lock-arrival'])
+    expect(reused.removed).toEqual(reused.stored)
   })
 
   test.each([
@@ -182,23 +229,23 @@ describe('abrir a ocorrência de recebimento (spec 237 T3.2)', () => {
     ],
     ['chegada fechada', { arrival: { ...ARRIVAL, status: 'closed' } }, 409, 'CARGO_ARRIVAL_CLOSED'],
   ] as const)(
-    '%s é recusada sem subir foto nem gravar',
+    '%s é recusada sem gravar, e a foto subida é apagada',
     async (_label, overrides, status, code) => {
-      const { calls, execute, stored } = setup(overrides)
+      const { calls, execute, removed, stored } = setup(overrides)
 
       await expect(execute(INPUT)).rejects.toMatchObject({ code, status })
-      expect(stored).toEqual([])
+      expect(removed).toEqual(stored)
       expect(calls.some((call) => call.startsWith('save'))).toBeFalse()
     },
   )
 
   test('sem item é recusado: com a tratativa bloqueada, ela nunca chegaria ao contratante', async () => {
-    const { execute, stored } = setup()
+    const { execute, removed, stored } = setup()
 
     await expect(
       execute({ ...INPUT, productCodes: [], productQuantities: [], productQuantityUnits: [] }),
     ).rejects.toMatchObject({ code: 'CARGO_ARRIVAL_OCCURRENCE_ITEMS_REQUIRED', status: 422 })
-    expect(stored).toEqual([])
+    expect(removed).toEqual(stored)
   })
 
   test('foto que não é imagem é recusada antes de abrir a transação', async () => {
@@ -211,6 +258,14 @@ describe('abrir a ocorrência de recebimento (spec 237 T3.2)', () => {
       }),
     ).rejects.toMatchObject({ status: 422 })
     expect(calls).toEqual([])
+  })
+
+  test('ocorrência que não volta na leitura é erro diagnosticável, nunca um Error cru', async () => {
+    const missing = setup({ readBackMissing: true })
+
+    const error = await missing.execute(INPUT).catch((thrown: unknown) => thrown)
+
+    expect(isDiagnosableError(error)).toBeTrue()
   })
 
   test('falha depois de subir a foto apaga o objeto do bucket', async () => {

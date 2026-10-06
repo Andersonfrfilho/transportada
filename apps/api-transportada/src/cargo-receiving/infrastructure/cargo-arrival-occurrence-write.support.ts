@@ -19,7 +19,10 @@ import type {
   SaveCargoArrivalOccurrenceInput,
   StoreOccurrenceObjectInput,
 } from '../application/cargo-arrival-occurrence.port.js'
-import { CargoArrivalOccurrenceKeyReusedError } from '../domain/cargo-arrival-occurrence.error.js'
+import {
+  CargoArrivalOccurrenceKeyReusedError,
+  CargoArrivalOccurrenceNotSavedError,
+} from '../domain/cargo-arrival-occurrence.error.js'
 import { insertArrivalAudit, type Transaction } from './cargo-arrival-persistence.support.js'
 
 export const CARGO_ARRIVAL_OCCURRENCE_OPERATION = 'cargo-arrival-occurrence'
@@ -93,7 +96,7 @@ export async function saveCargoArrivalOccurrence(
       stage: TRIP_OCCURRENCE_STAGE.receiving,
     })
     .returning({ id: tripDocumentOccurrences.id })
-  if (saved === undefined) throw new Error('CARGO_ARRIVAL_OCCURRENCE_NOT_SAVED')
+  if (saved === undefined) throw new CargoArrivalOccurrenceNotSavedError()
   const occurrenceId = saved.id
   await insertOccurrenceProductRows(transaction, {
     companyId: input.companyId,

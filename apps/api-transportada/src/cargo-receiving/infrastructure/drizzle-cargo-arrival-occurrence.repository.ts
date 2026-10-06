@@ -18,6 +18,7 @@ import type {
   DocumentProduct,
 } from '../application/cargo-arrival-occurrence.port.js'
 import type { ReceivingOccurrenceType } from '../application/cargo-arrival-occurrence.types.js'
+import { CargoArrivalOccurrenceReplayUnreadableError } from '../domain/cargo-arrival-occurrence.error.js'
 import {
   lockOccurrenceArrival,
   lockOccurrenceDocument,
@@ -62,7 +63,7 @@ async function findReplay({
     )
   if (row === undefined) return null
   const occurrenceId = readStoredOccurrenceId(row.response)
-  if (occurrenceId === null) throw new Error('CARGO_ARRIVAL_OCCURRENCE_REPLAY_UNREADABLE')
+  if (occurrenceId === null) throw new CargoArrivalOccurrenceReplayUnreadableError()
   return { fingerprint: row.fingerprint, occurrenceId }
 }
 

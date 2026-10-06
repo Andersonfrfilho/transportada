@@ -52,6 +52,8 @@ export const OFFICE_PERMISSIONS: CompanyContext['permissions'] = new Set([
 export type MemoryBucket = { readonly objects: Map<string, Uint8Array>; readonly removed: string[] }
 
 export function createOccurrenceHandler(params: {
+  /** Segura cada gravação no bucket: o teste prova o que a transação faz enquanto o bucket demora. */
+  readonly beforeStore?: () => Promise<void>
   readonly bucket?: MemoryBucket
   readonly context?: AuthenticatedContext<CompanyContext>
   readonly database: TestDatabase
@@ -89,6 +91,7 @@ export function createOccurrenceHandler(params: {
           bucket.objects.delete(objectKey)
         },
         store: async ({ bytes, objectKey }) => {
+          await params.beforeStore?.()
           bucket.objects.set(objectKey, bytes)
           return { sha256: new Bun.CryptoHasher('sha256').update(bytes).digest('hex') }
         },

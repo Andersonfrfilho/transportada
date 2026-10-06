@@ -22,6 +22,7 @@ import { resolveOccurrenceProductSelection } from '../../trips/domain/occurrence
 import { OccurrenceTypeSingleItemError } from '../../trips/domain/trip.error.js'
 import {
   CargoArrivalOccurrenceItemsRequiredError,
+  CargoArrivalOccurrenceNotReadBackError,
   CargoArrivalOccurrenceTypeNotFoundError,
   CargoArrivalOccurrenceTypeNotReceivingError,
 } from '../domain/cargo-arrival-occurrence.error.js'
@@ -181,7 +182,7 @@ export function createRegisterCargoArrivalOccurrenceUseCase(dependencies: Depend
         ...scope,
         occurrenceId: outcome.occurrenceId,
       })
-      if (occurrence === null) throw new Error('CARGO_ARRIVAL_OCCURRENCE_NOT_READ_BACK')
+      if (occurrence === null) throw new CargoArrivalOccurrenceNotReadBackError()
       return { isReplay: outcome.isReplay, occurrence }
     },
   }
