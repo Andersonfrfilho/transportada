@@ -75,9 +75,9 @@ function nameInput(): HTMLInputElement {
 
 async function typeName(value: string): Promise<void> {
   const input = nameInput()
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+  const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
   await act(async () => {
-    setter?.call(input, value)
+    descriptor?.set?.call(input, value)
     input.dispatchEvent(new Event('input', { bubbles: true }))
     input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
     input.dispatchEvent(new FocusEvent('blur'))
@@ -89,6 +89,7 @@ describe('o tipo aberto segue o preview (T6.1, CA08)', () => {
   test(
     'os blocos vêm na ordem Identificação, momentos, o que exige, notificação',
     scenario(async () => {
+      await Promise.resolve()
       const titles = [...document.querySelectorAll('section[aria-label]')].map((section) =>
         section.getAttribute('aria-label'),
       )
