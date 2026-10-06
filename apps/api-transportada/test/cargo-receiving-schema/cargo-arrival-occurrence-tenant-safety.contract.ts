@@ -46,7 +46,9 @@ describe('isolamento da ocorrência de recebimento (spec 237 T3.2)', () => {
       expect(wheres.length, file).toBeGreaterThan(0)
       for (const where of wheres) {
         expect(
-          /companyId|build(Arrival|Preview)\w*Filters|occurrenceConditions/u.test(where.slice(0, 240)),
+          /companyId|build(Arrival|Preview)\w*Filters|occurrenceConditions/u.test(
+            where.slice(0, 240),
+          ),
           file,
         ).toBeTrue()
       }

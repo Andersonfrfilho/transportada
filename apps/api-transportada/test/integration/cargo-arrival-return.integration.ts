@@ -323,57 +323,60 @@ describe('a marcação "devolver ao contratante" (spec 237 RF8a)', () => {
 })
 
 describe('a outra empresa não alcança a nota nem a ocorrência (spec 237 T3.2, isolamento)', () => {
-  testWithPostgres('ler, abrir, marcar e desfazer pela outra empresa é 404, sem gravar', async () => {
-    await withCargoDatabase(async (database, tenants) => {
-      const damaged = await seedDamaged(database, tenants)
-      const own = authenticatedContext(OFFICE_PERMISSIONS)
-      const foreign = createOccurrenceHandler({
-        context: {
-          identity: { ...own.identity, companyIdClaim: tenants.foreignCompanyId },
-          scope: {
-            ...own.scope,
-            companyId: tenants.foreignCompanyId,
-            membershipId: tenants.foreignMembershipId,
+  testWithPostgres(
+    'ler, abrir, marcar e desfazer pela outra empresa é 404, sem gravar',
+    async () => {
+      await withCargoDatabase(async (database, tenants) => {
+        const damaged = await seedDamaged(database, tenants)
+        const own = authenticatedContext(OFFICE_PERMISSIONS)
+        const foreign = createOccurrenceHandler({
+          context: {
+            identity: { ...own.identity, companyIdClaim: tenants.foreignCompanyId },
+            scope: {
+              ...own.scope,
+              companyId: tenants.foreignCompanyId,
+              membershipId: tenants.foreignMembershipId,
+            },
           },
-        },
-        database,
-      })
-      const typeId = await seedOccurrenceType(database, {
-        companyId: tenants.foreignCompanyId,
-        stage: 'receiving',
-      })
-      const before = await returnKinds(database)
+          database,
+        })
+        const typeId = await seedOccurrenceType(database, {
+          companyId: tenants.foreignCompanyId,
+          stage: 'receiving',
+        })
+        const before = await returnKinds(database)
 
-      const read = await foreign(
-        jsonRequest({ method: 'GET', path: `/cargo-arrivals/${damaged.arrivalId}/occurrences` }),
-      )
-      const opened = await foreign(
-        occurrenceRequest({
-          arrivalId: damaged.arrivalId,
-          documentId: damaged.documentIds[1],
-          fields: { occurrenceTypeId: typeId, productCodes: ['P1'] },
-          key: `foreign-${crypto.randomUUID()}`,
-        }),
-      )
-      const marked = await foreign(
-        returnAction({
-          action: 'return-mark',
-          arrivalId: damaged.arrivalId,
-          body: { occurrenceId: damaged.occurrenceId },
-          documentId: damaged.documentIds[0],
-        }),
-      )
-
-      expect([read.status, opened.status, marked.status]).toEqual([404, 404, 404])
-      /** A chegada alheia é recusada na própria trava da chegada, antes de olhar a nota. */
-      for (const response of [opened, marked]) {
-        expect(((await response.json()) as { error: { code: string } }).error.code).toBe(
-          'CARGO_ARRIVAL_NOT_FOUND',
+        const read = await foreign(
+          jsonRequest({ method: 'GET', path: `/cargo-arrivals/${damaged.arrivalId}/occurrences` }),
         )
-      }
-      expect(await returnKinds(database)).toEqual(before)
-    })
-  })
+        const opened = await foreign(
+          occurrenceRequest({
+            arrivalId: damaged.arrivalId,
+            documentId: damaged.documentIds[1],
+            fields: { occurrenceTypeId: typeId, productCodes: ['P1'] },
+            key: `foreign-${crypto.randomUUID()}`,
+          }),
+        )
+        const marked = await foreign(
+          returnAction({
+            action: 'return-mark',
+            arrivalId: damaged.arrivalId,
+            body: { occurrenceId: damaged.occurrenceId },
+            documentId: damaged.documentIds[0],
+          }),
+        )
+
+        expect([read.status, opened.status, marked.status]).toEqual([404, 404, 404])
+        /** A chegada alheia é recusada na própria trava da chegada, antes de olhar a nota. */
+        for (const response of [opened, marked]) {
+          expect(((await response.json()) as { error: { code: string } }).error.code).toBe(
+            'CARGO_ARRIVAL_NOT_FOUND',
+          )
+        }
+        expect(await returnKinds(database)).toEqual(before)
+      })
+    },
+  )
 })
 
 describe('duas marcações ao mesmo tempo (spec 237 T3.2, concorrência)', () => {
