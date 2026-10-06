@@ -42,7 +42,8 @@ import {
   TripStateTransitionNotAllowedError,
 } from '../../trips/domain/trip.error.js'
 import { TRIP_TERMINAL_STATUSES } from '../../database/trip.schema.js'
-import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
+import { OCCURRENCE_MOMENT } from '../../shared/trip-occurrence.constant.js'
+import { occurrenceTypeAcceptsMoment } from '../../trips/domain/occurrence-moment.policy.js'
 import {
   DRIVER_FLOW_ACTION_KIND,
   DRIVER_FLOW_CONTEXT_KEY,
@@ -395,9 +396,7 @@ export function createDriverWhatsAppFlowActions(
     session,
   }) => {
     const catalog = await deps.listOccurrenceTypes({ companyId: actor.scope.companyId })
-    const options = catalog.filter(
-      (type) => type.active && type.stage === TRIP_OCCURRENCE_STAGE.delivery,
-    )
+    const options = catalog.filter(isOfferedToDriver)
     if (options.length === 0) {
       await channel.sendText(
         session.whatsappNumber,
@@ -441,9 +440,7 @@ export function createDriverWhatsAppFlowActions(
     }
 
     const catalog = await deps.listOccurrenceTypes({ companyId: actor.scope.companyId })
-    const offered = catalog.some(
-      (type) => type.id === answer && type.active && type.stage === TRIP_OCCURRENCE_STAGE.delivery,
-    )
+    const offered = catalog.some((type) => type.id === answer && isOfferedToDriver(type))
     if (!offered) {
       return rejectListAnswer({
         channel,
@@ -583,4 +580,13 @@ function describeDocumentError(error: unknown): string {
     return 'Essa nota não está mais disponível na sua viagem.'
   }
   throw error
+}
+
+/**
+ * Spec 246 (RF0b, T1b.2): o WhatsApp do motorista registra pela rota de nota
+ * (`registerDriverOccurrence`), momento `document` — a lista perde os tipos de parada, que o canal
+ * nunca conseguiu registrar.
+ */
+function isOfferedToDriver(type: OccurrenceTypeRecord): boolean {
+  return type.active && occurrenceTypeAcceptsMoment({ moment: OCCURRENCE_MOMENT.document, type })
 }

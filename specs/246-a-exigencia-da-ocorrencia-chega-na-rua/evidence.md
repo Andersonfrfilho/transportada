@@ -436,3 +436,79 @@ Depois: `21 pass, 0 fail`; `bun test ./test/trip-occurrence.contract.test.ts` �
 `occurrence-type-redelivery-policy` 2/0 · `occurrence-type-catalog-seed` 2/0 ·
 `occurrence-type-requirement-modes` 1/0 (pass/fail, nenhum pulado). A escrita e a leitura do
 conjunto contra o banco são provadas na T1b.3.
+
+### T1b.2 🧠 — A guarda é o momento fixo de cada caso de uso (2026-10-06)
+
+Desenho validado por `architect` antes desta fase (ver "Correções da spec"). A guarda é
+`acceptsOccurrenceMoment({ moments, moment })` (`shared/trip-occurrence.constant.ts`), chamada sempre
+por `occurrenceTypeAcceptsMoment({ moment, type })` (`trips/domain/occurrence-moment.policy.ts`), que
+passa o conjunto pela leitura tolerante. A política de cada rota **não mudou**;
+`resolveOccurrencePermission` (`occurrence.policy.ts`) não entra em nenhum caminho novo — nenhuma
+permissão é calculada a partir dos momentos do tipo.
+
+Pontos de código, reconferidos nesta árvore (os números mudaram desde o plan):
+
+| Ponto (plan)                                                                                                                                                                                                                  | Linha hoje                                                        | O que mudou                                                                                                                                                                                                                                               |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `register-trip-occurrence.use-case.ts:323`                                                                                                                                                                                    | ~330                                                              | `separation` no conjunto, senão `422 OCCURRENCE_TYPE_NOT_SEPARATION`; a ocorrência grava `stage: separation` (o momento do registro), não o par do tipo                                                                                                   |
+| `register-driver-occurrence.use-case.ts:105-112`                                                                                                                                                                              | ~105                                                              | `document` no conjunto, senão `409 TRIP_DOCUMENT_NOT_REACHABLE` (cobre tipo de galpão e de parada; o `flow` sai da conta)                                                                                                                                 |
+| `office-occurrence-batch.service.ts:35-40`                                                                                                                                                                                    | ~36                                                               | `office` no conjunto, senão `422 OCCURRENCE_TYPE_NOT_FIELD`                                                                                                                                                                                               |
+| `drizzle-driver-field-report.repository.ts:1053` (parada)                                                                                                                                                                     | ~1045                                                             | `findStopOccurrenceType` deixou o `where flow = 'stop'`: lê o tipo ativo, resolve o conjunto (`withOccurrenceTypeMoments`) e só devolve com `stop` nele — mesma resposta `null` → `422 OCCURRENCE_TYPE_NOT_STOP`                                          |
+| `register-driver-flow-actions.ts:399,445` (WhatsApp do motorista)                                                                                                                                                             | 397, 443 + `isOfferedToDriver`                                    | lista e conferência da resposta pelo momento `document`: **a lista perde os tipos de parada**                                                                                                                                                             |
+| `register-operator-trip-flow-actions.ts:583,628` (WhatsApp do operador)                                                                                                                                                       | 583, 626 + `isOfferedToOperator`                                  | momento `separation`, pelo conjunto                                                                                                                                                                                                                       |
+| `list-field-occurrence-types.use-case.ts:126,193`                                                                                                                                                                             | `selectFieldOccurrenceTypes`                                      | ganha o parâmetro `moment`; ausente é a lista do motorista (`document` ou `stop`, `DRIVER_FIELD_MOMENTS`); as exceções em lote são lidas só para os tipos do momento                                                                                      |
+| `me-trip.routes.ts` (`GET /me/trips/current/occurrence-types`)                                                                                                                                                                | —                                                                 | aceita `?moment=` só dos momentos do motorista (`document`, `stop`); outro valor é `400`; ausente é a lista de hoje                                                                                                                                       |
+| `trip-field-office-occurrence.routes.ts` (`GET /trips/occurrence-types/field`)                                                                                                                                                | —                                                                 | pede a lista do momento `office`                                                                                                                                                                                                                          |
+| `drizzle-current-driver-trip.repository.ts:781,1045` (snapshot)                                                                                                                                                               | ~781, ~1043                                                       | tipos e exceções do snapshot pelo momento `document` (sai o `filter(flow === 'document')`)                                                                                                                                                                |
+| `read-settings-resolution.use-case.ts:125`                                                                                                                                                                                    | 125                                                               | **sem mudança**: a lista vem de `listFieldOccurrenceTypes` sem `moment` (a lista de rua do motorista); o `stage: delivery` da resposta é rótulo da tela, não decisão                                                                                      |
+| `save-occurrence-type.use-case.ts:96`                                                                                                                                                                                         | ~121                                                              | (T1b.1b) "deixa a nota para trás" confere o `stage` **derivado** do conjunto                                                                                                                                                                              |
+| `delivery-proof-read.support.ts:846-1110`                                                                                                                                                                                     | `findOccurrenceType`, `listOccurrenceTypes`, `saveOccurrenceType` | (T1b.1b) leitura com o conjunto resolvido; escrita do conjunto na transação do tipo                                                                                                                                                                       |
+| Painel (`TripOccurrences.component.tsx:136`, `separationOccurrenceButton.service.ts:28`, `SettingsResolutionPanel.component.tsx:61`, `OccurrenceTypeCatalogPanel.component.tsx:88`, `OccurrenceTypeRow.component.tsx:51,135`) | —                                                                 | **sem mudança nesta fase** (Fase 5): continuam lendo `stage`, que segue gravado e derivado do conjunto — um tipo `separation + document` tem `stage = 'separation'` e aparece no botão do separador. Guardas de chave exata: commit do painel `2cf84cb2f` |
+| App (`occurrenceRegistration.service.ts:48-51`)                                                                                                                                                                               | —                                                                 | **sem mudança**: a API recusa `document + stop`, então o `flow` de cada tipo continua único                                                                                                                                                               |
+
+⚠️ **Divergência registrada (consequência de D-c, não do código):** um tipo antigo `separation +
+stop` vira `{separation, stop}` no backfill (D-c, para preservar o registro de parada, que já o
+aceitava por ler só `flow`). Como a lista do motorista passa a ser "tipos com `document` ou `stop`",
+esse tipo **passa a aparecer** na lista do app (antes ficava fora por `stage = 'separation'`) — a
+CA00b ("nenhuma lista muda") não vale para esse caso de borda. O tipo só nasce por chamada direta à
+API (o painel esconde `flow` em tipo de galpão). Nenhuma regra consistente com o conjunto evita
+isso sem fechar o furo, que D-c mandou para spec à parte.
+
+Contratos primeiro, vermelhos antes da implementação (`test/trip-occurrence/occurrence-moment-guard.contract.ts`,
+casos novos em `test/driver-trip/me-routes.contract.ts`, `test/trip-field-office/occurrences-route.contract.ts`,
+`test/whatsapp-commands/driver-flow-actions.contract.ts` e `operator-flow-actions.contract.ts`). Os
+dublês gravam `stage` em desacordo com `moments` de propósito — a guarda que lê o par reprova. Os
+dois do WhatsApp rodaram contra os arquivos de `HEAD` (trocados só para a execução e restaurados):
+
+```text
+$ bun test ./test/trip-occurrence/occurrence-moment-guard.contract.ts
+(fail) o separador registra só no momento separation (spec 246 T1b.2) > tipo só de nota é recusado, mesmo com stage separation gravado [0.54ms]
+(fail) o motorista registra só no momento document (spec 246 T1b.2) > tipo separation + document passa, embora o stage gravado seja separation [0.35ms]
+(fail) o motorista registra só no momento document (spec 246 T1b.2) > tipo só de galpão é inalcançável, mesmo com stage delivery gravado [0.09ms]
+(fail) o motorista registra só no momento document (spec 246 T1b.2) > tipo de parada é inalcançável na rota de nota [0.07ms]
+(fail) o escritório registra só no momento office (spec 246 T1b.2) > tipo de nota sem office é recusado, mesmo com stage delivery [0.17ms]
+(fail) o escritório registra só no momento office (spec 246 T1b.2) > tipo com office passa, mesmo com stage separation gravado [0.08ms]
+(fail) as listas de rua seguem o momento, não o stage (spec 246 T1b.2) > o motorista (sem moment) vê nota e parada, inclusive o tipo de galpão + nota [0.17ms]
+(fail) as listas de rua seguem o momento, não o stage (spec 246 T1b.2) > com moment, só os tipos daquele momento [0.05ms]
+ 1 pass
+ 8 fail
+
+$ bun test ./test/driver-trip/me-routes.contract.ts ./test/trip-field-office/occurrences-route.contract.ts
+(fail) os tipos de ocorrência do motorista (spec 157) > repassa moment de rua, ausente é undefined, e recusa momento de outro papel [10.11ms]
+(fail) as rotas da ocorrência do escritório (spec 156 T7.3) > GET pede a lista do momento office [0.49ms]
+ 19 pass
+ 2 fail
+
+$ bun test ./test/whatsapp-commands/driver-flow-actions.contract.ts ./test/whatsapp-commands/operator-flow-actions.contract.ts   # flow actions de HEAD
+(fail) FlowActions do motorista — Minha viagem (spec 144 T015) > a lista é a do momento document: perde o tipo de parada, ganha o de galpão + nota [1.04ms]
+(fail) FlowActions do operador — Viagens do armazém (spec 144 T016) > a lista é a do momento separation, pelo conjunto e não pelo stage [0.41ms]
+ 90 pass
+ 2 fail
+```
+
+Depois: os cinco arquivos verdes; `bun test ./test/trip-occurrence.contract.test.ts
+./test/whatsapp-commands.contract.test.ts ./test/driver-trip.contract.test.ts` → `1117 pass, 0
+fail`; contrato completo da API → `9762 pass, 25 skip, 0 fail` (199 arquivos; os 25 pulados são
+anteriores); `typecheck` saída 0. Integração do WhatsApp, um por vez com `--env-file`:
+`whatsapp-driver-flow-actions` 4/0 · `whatsapp-operator-flow-actions` 7/0. A prova contra o banco,
+com os códigos reais, é a T1b.3.

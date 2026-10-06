@@ -9,16 +9,14 @@
  * viagem, ele alcançaria qualquer viagem. Aqui não há id de viagem no caminho: o escopo é a viagem
  * ativa dele, e quem o garante é a consulta, não a permissão.
  */
-import {
-  OCCURRENCE_TYPE_FLOWS,
-  TRIP_OCCURRENCE_STAGE,
-} from '../../shared/trip-occurrence.constant.js'
+import { OCCURRENCE_MOMENT, TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import {
   TripDocumentNotReachableError,
   TripOccurrenceAttachmentRequiredError,
   TripOccurrenceNoteRequiredError,
 } from '../domain/trip.error.js'
 import { assertOccurrenceTypeAcceptsProducts } from '../domain/occurrence-items-mode.policy.js'
+import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
 import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
 import type { DriverFieldReportUnitOfWork, ReportedLocation } from './driver-field-report.port.js'
 import { resolveFieldTapLocationStamp } from './field-tap-location-stamp.service.js'
@@ -100,13 +98,13 @@ export async function registerDriverOccurrence(
    * ⚠️ Tipo de galpão, tipo aposentado, tipo de outra empresa, tipo de parada (`flow: stop` — a
    * lista que a tela oferece aqui já filtra por `flow: document`, mas a API não confia só nisso,
    * spec 218 evidence.md "Limites que ficam") e nota fora da viagem dele respondem **igual**:
-   * inalcançável. Distinguir os cinco diria a quem tenta qual barreira encontrou.
+   * inalcançável. Distinguir os cinco diria a quem tenta qual barreira encontrou. Spec 246 (RF0b):
+   * "de rua e de nota" é o momento fixo `document` no conjunto do tipo, nunca o `stage`.
    */
   if (
     occurrenceType === null ||
     !occurrenceType.active ||
-    occurrenceType.stage !== TRIP_OCCURRENCE_STAGE.delivery ||
-    (occurrenceType.flow ?? OCCURRENCE_TYPE_FLOWS.document) !== OCCURRENCE_TYPE_FLOWS.document
+    !occurrenceTypeAcceptsMoment({ moment: OCCURRENCE_MOMENT.document, type: occurrenceType })
   ) {
     throw new TripDocumentNotReachableError()
   }

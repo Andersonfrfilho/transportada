@@ -7,6 +7,7 @@
  */
 import type { ClientIpResolver } from '../../http/client-ip.service.js'
 import { defineRoute } from '../../http/router.service.js'
+import { OCCURRENCE_MOMENT, type OccurrenceMoment } from '../../shared/trip-occurrence.constant.js'
 import { parseUuidFilter, parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import { API_TRIPS_PATH } from '../../shared/api.constant.js'
 import type { FieldTripTargetPort } from '../application/field-trip-target.port.js'
@@ -45,6 +46,8 @@ export type TripFieldOfficeOccurrenceDependencies = {
   readonly listFieldOccurrenceTypes: (input: {
     readonly companyId: string
     readonly contractorId?: string | null
+    /** Spec 246 T1b.2: o lote do escritório é o momento `office`. */
+    readonly moment: OccurrenceMoment
     readonly recipientTaxId?: string | null
   }) => Promise<readonly FieldOccurrenceType[]>
   readonly registerOccurrences: (input: {
@@ -71,6 +74,7 @@ export function createTripFieldOfficeOccurrenceRoutes(
         const types = await dependencies.listFieldOccurrenceTypes({
           companyId: context.scope.companyId,
           contractorId: input.contractorId,
+          moment: OCCURRENCE_MOMENT.office,
           recipientTaxId: input.recipientTaxId,
         })
         return officeJsonResponse({ body: { data: types }, status: 200 })

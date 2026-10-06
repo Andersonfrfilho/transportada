@@ -17,6 +17,8 @@
  * `checkTripTransition` — nunca uma tabela nova que possa discordar da máquina real.
  */
 
+import { OCCURRENCE_MOMENT } from '../../shared/trip-occurrence.constant.js'
+import { occurrenceTypeAcceptsMoment } from '../../trips/domain/occurrence-moment.policy.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { OFFICE_PROOF_MAX_BYTES } from '../../trips/domain/delivery-proof.policy.js'
 import type { DispatchTripResult } from '../../trips/application/dispatch-trip.use-case.js'
@@ -580,7 +582,7 @@ export function createOperatorWhatsAppFlowActions(
     session,
   }) => {
     const catalog = await deps.listOccurrenceTypes({ companyId: actor.scope.companyId })
-    const options = catalog.filter((type) => type.active && type.stage === 'separation')
+    const options = catalog.filter(isOfferedToOperator)
     if (options.length === 0) {
       await channel.sendText(
         session.whatsappNumber,
@@ -624,9 +626,7 @@ export function createOperatorWhatsAppFlowActions(
     }
 
     const catalog = await deps.listOccurrenceTypes({ companyId: actor.scope.companyId })
-    const offered = catalog.some(
-      (type) => type.id === answer && type.active && type.stage === 'separation',
-    )
+    const offered = catalog.some((type) => type.id === answer && isOfferedToOperator(type))
     if (!offered) {
       return rejectListAnswer({
         channel,
@@ -1020,4 +1020,12 @@ function describeTripError(error: unknown): string {
     return 'Essa foto já foi processada com outros dados. Envie a foto de novo.'
   }
   throw error
+}
+
+/**
+ * Spec 246 (RF0b, T1b.2): o WhatsApp do operador registra pela rota do galpão
+ * (`registerTripOccurrence`), momento `separation` — pelo conjunto do tipo, nunca pelo `stage`.
+ */
+function isOfferedToOperator(type: OccurrenceTypeRecord): boolean {
+  return type.active && occurrenceTypeAcceptsMoment({ moment: OCCURRENCE_MOMENT.separation, type })
 }

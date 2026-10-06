@@ -14,9 +14,10 @@
 import {
   OCCURRENCE_ATTACHMENT_MODE,
   OCCURRENCE_ITEMS_MODE,
-  TRIP_OCCURRENCE_STAGE,
+  OCCURRENCE_MOMENT,
 } from '../../shared/trip-occurrence.constant.js'
-import type { OccurrenceTypeFlow } from '../../shared/trip-occurrence.constant.js'
+import type { OccurrenceMoment, OccurrenceTypeFlow } from '../../shared/trip-occurrence.constant.js'
+import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import { resolveOccurrenceAttachmentModeForRecipient } from '../domain/occurrence-attachment-overrides.policy.js'
 import type { OccurrenceAttachmentOverridesLookup } from '../domain/occurrence-attachment-overrides.policy.js'
@@ -85,7 +86,18 @@ export type FieldOccurrenceTypeOverridesPort = {
   }>
 }
 
-export type ListFieldOccurrenceTypesParams = {
+/**
+ * Spec 246 (RF0, T1b.2): o momento que a lista serve — `office` no lote do escritório, `document` no
+ * snapshot da nota. Ausente é a lista do motorista: nota **e** parada, cada tipo roteado pelo `flow`.
+ */
+type FieldOccurrenceMomentFilter = {
+  readonly moment?: OccurrenceMoment | undefined
+}
+
+/** Os momentos da rua que o motorista registra: a lista dele, quando nenhum momento é pedido. */
+export const DRIVER_FIELD_MOMENTS = [OCCURRENCE_MOMENT.document, OCCURRENCE_MOMENT.stop] as const
+
+export type ListFieldOccurrenceTypesParams = FieldOccurrenceMomentFilter & {
   readonly companyId: string
   /** Spec 218 RF-B2: ausente é "sem contratante resolvido" — cai no `attachmentMode` do tipo. */
   readonly contractorId?: string | null
@@ -96,7 +108,7 @@ export type ListFieldOccurrenceTypesParams = {
   readonly repository: FieldOccurrenceTypesPort
 }
 
-export type ResolveFieldOccurrenceTypesParams = {
+export type ResolveFieldOccurrenceTypesParams = FieldOccurrenceMomentFilter & {
   readonly contractorId?: string | null
   readonly overrides?: {
     readonly contractorOverrides: readonly {
@@ -122,9 +134,7 @@ export type ResolveFieldOccurrenceTypesParams = {
 export function resolveFieldOccurrenceTypes(
   params: ResolveFieldOccurrenceTypesParams,
 ): readonly FieldOccurrenceType[] {
-  const fieldTypes = params.types.filter(
-    (type) => type.active && type.stage === TRIP_OCCURRENCE_STAGE.delivery,
-  )
+  const fieldTypes = selectFieldOccurrenceTypes({ moment: params.moment, types: params.types })
 
   const contractorId = params.contractorId ?? null
   const recipientTaxId = params.recipientTaxId ?? null
@@ -183,18 +193,33 @@ export async function listFieldOccurrenceTypes(
     contractorId !== null || (recipientTaxId !== null && recipientTaxId.length > 0)
   const overridesPort = params.overrides
 
+  const { moment } = params
+
   if (!hasResolutionSubject || overridesPort === undefined) {
-    return resolveFieldOccurrenceTypes({ contractorId, recipientTaxId, types })
+    return resolveFieldOccurrenceTypes({ contractorId, moment, recipientTaxId, types })
   }
 
   const overrides = await overridesPort.listOverridesForTypes({
     companyId: params.companyId,
-    occurrenceTypeIds: types
-      .filter((type) => type.active && type.stage === TRIP_OCCURRENCE_STAGE.delivery)
-      .map((type) => type.id),
+    occurrenceTypeIds: selectFieldOccurrenceTypes({ moment, types }).map((type) => type.id),
   })
 
-  return resolveFieldOccurrenceTypes({ contractorId, overrides, recipientTaxId, types })
+  return resolveFieldOccurrenceTypes({ contractorId, moment, overrides, recipientTaxId, types })
+}
+
+type SelectFieldOccurrenceTypesParams = FieldOccurrenceMomentFilter & {
+  readonly types: readonly OccurrenceTypeRecord[]
+}
+
+/** Spec 246 (RF0): os tipos ativos do momento pedido — pelo conjunto, nunca pelo `stage`. */
+export function selectFieldOccurrenceTypes(
+  params: SelectFieldOccurrenceTypesParams,
+): readonly OccurrenceTypeRecord[] {
+  const moments = params.moment === undefined ? DRIVER_FIELD_MOMENTS : [params.moment]
+  return params.types.filter(
+    (type) =>
+      type.active && moments.some((moment) => occurrenceTypeAcceptsMoment({ moment, type })),
+  )
 }
 
 type OccurrenceTypeOverride = {

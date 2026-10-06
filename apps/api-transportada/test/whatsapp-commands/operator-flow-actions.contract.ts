@@ -836,6 +836,34 @@ describe('FlowActions do operador — Viagens do armazém (spec 144 T016)', () =
     })
   })
 
+  /**
+   * Spec 246 T1b.2: o WhatsApp do operador registra pela rota do galpão (momento `separation`) — pelo
+   * conjunto, nunca pelo `stage`: tipo só de nota fica fora mesmo com `stage` separation gravado.
+   */
+  test('a lista é a do momento separation, pelo conjunto e não pelo stage', async () => {
+    const noteOnly = buildChannel()
+    await callAction({
+      channel: noteOnly.channel,
+      deps: buildDeps({
+        listOccurrenceTypes: async () => [buildOccurrenceType({ moments: ['document', 'office'] })],
+      }),
+      kind: OPERATOR_FLOW_ACTION_KIND.listOccurrenceTypes,
+    })
+    const warehouseAndNote = buildChannel()
+    await callAction({
+      channel: warehouseAndNote.channel,
+      deps: buildDeps({
+        listOccurrenceTypes: async () => [
+          buildOccurrenceType({ moments: ['separation', 'document'] }),
+        ],
+      }),
+      kind: OPERATOR_FLOW_ACTION_KIND.listOccurrenceTypes,
+    })
+
+    expect(noteOnly.sent[0]?.body).toContain('Ainda não há tipos de ocorrência')
+    expect(warehouseAndNote.sent[0]?.kind).toBe('list')
+  })
+
   test('catálogo de ocorrência vazio avisa e volta ao menu de ações', async () => {
     const { channel, sent } = buildChannel()
     const result = await callAction({

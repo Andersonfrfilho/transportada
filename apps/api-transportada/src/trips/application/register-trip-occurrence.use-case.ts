@@ -3,7 +3,7 @@
  *
  * Spec 079 T020: registrar o que houve com um item da carga.
  */
-import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
+import { OCCURRENCE_MOMENT, TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import type {
   OccurrenceMoment,
   OccurrenceTypeFlow,
@@ -16,6 +16,7 @@ import type { OccurrenceAttachmentView } from './occurrence-attachment.service.j
 import { resolveOccurrenceItemQuantities } from '../domain/occurrence-item-quantity.policy.js'
 import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
 import { assertOccurrenceTypeAcceptsProducts } from '../domain/occurrence-items-mode.policy.js'
+import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
 import { resolveOccurrenceProductSelection } from '../domain/occurrence-scope.policy.js'
 import { renderOccurrenceTemplate } from '../domain/occurrence-template.policy.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
@@ -326,8 +327,14 @@ export async function registerTripOccurrence(
   })
   if (occurrenceType === null || !occurrenceType.active) throw new TripDocumentNotFoundError()
 
-  /** Spec 157: a ocorrência de rua tem rota própria — a do motorista e a do escritório em nome dele. */
-  if (occurrenceType.stage !== TRIP_OCCURRENCE_STAGE.separation) {
+  /**
+   * Spec 157: a ocorrência de rua tem rota própria — a do motorista e a do escritório em nome dele.
+   * Spec 246 (RF0b): o momento deste caso de uso é fixo, `separation`, conferido contra o conjunto do
+   * tipo — nunca pelo `stage`, e nunca por "algum momento que o papel cobre".
+   */
+  if (
+    !occurrenceTypeAcceptsMoment({ moment: OCCURRENCE_MOMENT.separation, type: occurrenceType })
+  ) {
     throw new OccurrenceTypeNotSeparationError()
   }
 
@@ -394,7 +401,8 @@ export async function registerTripOccurrence(
     ...(occurrenceType.redeliveryPolicy === undefined
       ? {}
       : { redeliveryPolicy: occurrenceType.redeliveryPolicy }),
-    stage: occurrenceType.stage,
+    /** Spec 246: a ocorrência grava onde aconteceu — o momento deste caso de uso, não o par do tipo. */
+    stage: TRIP_OCCURRENCE_STAGE.separation,
     tripId,
     typeName: occurrenceType.name,
   })

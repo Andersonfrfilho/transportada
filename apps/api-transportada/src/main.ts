@@ -3666,6 +3666,7 @@ function createApplicationRoutes({
         listFieldOccurrenceTypes({
           companyId: input.companyId,
           contractorId: input.contractorId ?? null,
+          moment: input.moment,
           overrides: {
             listOverridesForTypes: (query) =>
               occurrenceAttachmentOverridesRepository.listOverridesForTypes(query),
@@ -3801,6 +3802,7 @@ function createApplicationRoutes({
         listFieldOccurrenceTypes({
           companyId: input.companyId,
           contractorId: input.contractorId ?? null,
+          moment: input.moment,
           overrides: {
             listOverridesForTypes: (query) =>
               occurrenceAttachmentOverridesRepository.listOverridesForTypes(query),

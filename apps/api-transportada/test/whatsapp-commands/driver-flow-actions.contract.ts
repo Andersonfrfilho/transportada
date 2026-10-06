@@ -674,6 +674,36 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     })
   })
 
+  /**
+   * Spec 246 T1b.2: o WhatsApp do motorista registra pela rota de nota (momento `document`) — tipo de
+   * parada sai da lista; tipo de galpão + nota entra, embora o `stage` gravado seja `separation`.
+   */
+  test('a lista é a do momento document: perde o tipo de parada, ganha o de galpão + nota', async () => {
+    const stopOnly = buildChannel()
+    await callAction({
+      channel: stopOnly.channel,
+      deps: buildDeps({
+        listOccurrenceTypes: async () => [
+          buildOccurrenceType({ flow: 'stop', moments: ['stop', 'office'] }),
+        ],
+      }),
+      kind: DRIVER_FLOW_ACTION_KIND.listOccurrenceTypes,
+    })
+    const warehouseAndNote = buildChannel()
+    await callAction({
+      channel: warehouseAndNote.channel,
+      deps: buildDeps({
+        listOccurrenceTypes: async () => [
+          buildOccurrenceType({ moments: ['separation', 'document'], stage: 'separation' }),
+        ],
+      }),
+      kind: DRIVER_FLOW_ACTION_KIND.listOccurrenceTypes,
+    })
+
+    expect(stopOnly.sent[0]?.body).toContain('Ainda não há tipos de ocorrência')
+    expect(warehouseAndNote.sent[0]?.kind).toBe('list')
+  })
+
   test('catálogo com tipo de entrega ativo vira lista dinâmica', async () => {
     const { channel, sent } = buildChannel()
     const result = await callAction({

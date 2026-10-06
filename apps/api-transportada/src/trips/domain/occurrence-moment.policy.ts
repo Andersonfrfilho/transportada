@@ -9,6 +9,7 @@
  * sem linha de momento (gravado por código antigo durante a janela de deploy).
  */
 import {
+  acceptsOccurrenceMoment,
   OCCURRENCE_MOMENT,
   OCCURRENCE_MOMENTS,
   OCCURRENCE_TYPE_FLOWS,
@@ -95,4 +96,20 @@ export function isExpressedByStageAndFlow(params: ResolveOccurrenceTypeMomentsPa
   return (
     stored.length === derived.length && stored.every((moment, index) => moment === derived[index])
   )
+}
+
+export type OccurrenceTypeAcceptsMomentParams = {
+  readonly moment: OccurrenceMoment
+  readonly type: ResolveOccurrenceTypeMomentsParams
+}
+
+/**
+ * Spec 246 (RF0b, T1b.2): a guarda de cada caso de uso, sobre o conjunto resolvido — o momento é o
+ * fixo do caso de uso, nunca "algum momento que o papel cobre".
+ */
+export function occurrenceTypeAcceptsMoment(params: OccurrenceTypeAcceptsMomentParams): boolean {
+  return acceptsOccurrenceMoment({
+    moment: params.moment,
+    moments: resolveOccurrenceTypeMoments(params.type),
+  })
 }

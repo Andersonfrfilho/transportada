@@ -64,7 +64,7 @@ flow='stop'` **e** onde `stage='separation' AND flow='stop'` (D-c: preserva o co
       sem linha de momento usa os derivados de `stage`/`flow`; `PUT` sem `moments` mantém os
       gravados; `PUT` que muda `stage`/`flow` de tipo com vários momentos → `409`; a API recusa
       `document + stop` juntos até o app deduplicar por id + momento.
-- [ ] **T1b.2** 🧠 Permissão do **momento do registro**, nunca "o tipo tem algum momento que o papel
+- [x] **T1b.2** 🧠 Permissão do **momento do registro**, nunca "o tipo tem algum momento que o papel
       cobre". Cada caso de uso tem o momento **fixo**: `registerTripOccurrence` → `separation`;
       `registerDriverOccurrence` e WhatsApp do motorista → `document`; parada → `stop`; lote do
       escritório → `office`; WhatsApp do operador → `separation`. A guarda é

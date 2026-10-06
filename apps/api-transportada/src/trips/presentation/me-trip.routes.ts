@@ -2,7 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { defineRoute } from '../../http/router.service.js'
-import { parseUuidFilter, parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
+import {
+  parseOption,
+  parseUuidFilter,
+  parseUuidPathIdentifier,
+} from '../../http/request-parsing.service.js'
 import {
   FIELD_TRIP_STEP,
   type FieldTripStep,
@@ -16,7 +20,10 @@ import {
 } from '../../mdfe-manifests/application/read-mdfe-document.port.js'
 import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
 import type { DriverDeliveryProofView } from '../application/read-driver-delivery-proof.use-case.js'
-import type { FieldOccurrenceType } from '../application/list-field-occurrence-types.use-case.js'
+import {
+  DRIVER_FIELD_MOMENTS,
+  type FieldOccurrenceType,
+} from '../application/list-field-occurrence-types.use-case.js'
 import type { ProofPunctuality } from '../domain/delivery-proof-punctuality.policy.js'
 import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
 import type { ReportedLocation } from '../application/driver-field-report.port.js'
@@ -149,6 +156,8 @@ export type MeTripDependencies = {
   readonly listFieldOccurrenceTypes: (input: {
     readonly companyId: string
     readonly contractorId?: string | null
+    /** Spec 246 T1b.2: só os momentos do motorista; ausente é nota e parada, como antes. */
+    readonly moment?: (typeof DRIVER_FIELD_MOMENTS)[number] | undefined
     readonly recipientTaxId?: string | null
   }) => Promise<readonly FieldOccurrenceType[]>
   readonly reportArrival: (
@@ -769,12 +778,17 @@ export function createMeTripRoutes(
       pathname: STOP_OCCURRENCE_UPLOAD_CONFIRM_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
-    defineRoute<{ readonly contractorId: string | null; readonly recipientTaxId: string | null }>({
+    defineRoute<{
+      readonly contractorId: string | null
+      readonly moment: (typeof DRIVER_FIELD_MOMENTS)[number] | undefined
+      readonly recipientTaxId: string | null
+    }>({
       async handle({ context, input }): Promise<Response> {
         await resolveDriver(context.scope)
         const types = await dependencies.listFieldOccurrenceTypes({
           companyId: context.scope.companyId,
           contractorId: input.contractorId,
+          moment: input.moment,
           recipientTaxId: input.recipientTaxId,
         })
 
@@ -785,6 +799,7 @@ export function createMeTripRoutes(
         const url = new URL(request.url)
         return {
           contractorId: parseUuidFilter(url.searchParams.get('contractorId')) ?? null,
+          moment: parseOption(url.searchParams.get('moment'), DRIVER_FIELD_MOMENTS),
           recipientTaxId: url.searchParams.get('recipientTaxId'),
         }
       },
