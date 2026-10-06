@@ -97,7 +97,7 @@ EXCLUSIVE` durante o `INSERT`). Medição em produção (T1d.0) só com autoriza
 ## Medições pendentes (pedem autorização do usuário; só leitura)
 
 - [ ] T1d.0 — produção: `count(*)` de `trip_document_occurrences.attachment_object_id IS NOT NULL`, e
-      quantas têm as duas fontes (esperado 0).
+      quantas têm as duas fontes (esperado 0). Consulta exata em "T1d.0" (Fase 1d).
 - [ ] T3.0 — staging e produção: exceções com `attachment_mode <> 'required'` sobre tipo `required`.
       A Fase 3 só ativa em produção depois deste registro.
 
@@ -928,3 +928,69 @@ integração: 4 pass / 0 fail (a CHECK do banco ainda segura e traduz) — o con
 | painel: `bun run --cwd apps/frontend-transportada test`                      | `6945 pass, 0 fail` (33 arquivos) + `test:hooks` `582 pass, 0 fail`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | painel: `eslint .` com a app como cwd                                        | `0 errors, 16 warnings` — todos `react-hooks/exhaustive-deps` em arquivos que esta fase não tocou                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | app do motorista: `bun run --cwd apps/frontend-driver test`                  | `1198 pass, 0 fail` (sem mudança de código nesta fase)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+
+## Fase 1d — A foto da rua guarda N anexos
+
+### T1d.0 — Medição em produção: **pendente, pede autorização do usuário** (2026-10-06)
+
+Não executada. É leitura em produção (banco Postgres-Hqfu) e exige autorização explícita do usuário;
+é a parada obrigatória antes de aplicar a T1d.2 em produção. A consulta que será rodada, só leitura:
+
+```sql
+SELECT
+  count(*) FILTER (WHERE o.attachment_object_id IS NOT NULL) AS with_column,
+  count(*) FILTER (
+    WHERE o.attachment_object_id IS NOT NULL
+      AND EXISTS (
+        SELECT 1 FROM trip_document_occurrence_attachments a
+        WHERE a.company_id = o.company_id AND a.occurrence_id = o.id)
+  ) AS with_both_sources,                                   -- esperado 0
+  count(DISTINCT o.attachment_object_id) AS distinct_objects -- < with_column = objeto do lote em N
+FROM trip_document_occurrences o;
+```
+
+### T1d.1 — A leitura existente presa por contrato (2026-10-06)
+
+A leitura "linha nova, senão coluna antiga" existe desde a 161 T10 e **não mudou**: o feed
+(`listDocumentOccurrenceAttachmentLocations`, `trip-occurrence-feed.query.ts:781-877`), o painel
+(`resolveOccurrenceAttachmentRecords`, `occurrence-attachment.service.ts:107-123`), a contagem da linha
+do tempo da viagem (`trip-timeline-document.query.ts:72-87`) e os eventos de foto da linha do tempo da
+ocorrência (`listPhotoSources`, `trip-occurrence-timeline.query.ts:52-93`). Os testes da 161 cobriam
+cada fonte sozinha, numa ocorrência de galpão; faltava a ocorrência de **rua** com **as duas fontes**
+— o estado que o backfill e a escrita dupla criam.
+
+`test/integration/street-occurrence-attachment-read.integration.ts` (na lista `test:integration`,
+sementes em `test/fixtures/street-occurrence-attachment.fixture.ts`), três casos sobre uma ocorrência
+`stage = 'delivery'`, cada um pelas quatro leituras:
+
+| Semente                     | Feed / painel                | Contagem da viagem | Evento de foto da ocorrência |
+| --------------------------- | ---------------------------- | ------------------ | ---------------------------- |
+| só a coluna                 | 1 item, **id da ocorrência** | 1                  | id e hora **da ocorrência**  |
+| coluna + linha na posição 1 | 1 item, **id da linha**      | 1                  | id e hora **da linha**       |
+| sem coluna e sem linha      | nenhum                       | 0                  | nenhum                       |
+
+**Mudança conhecida, registrada aqui e coberta pelo segundo caso:** quando a linha passa a existir, o
+id do anexo deixa de ser o id da ocorrência e passa a ser o id da linha, no feed, no painel e na linha
+do tempo da ocorrência; a hora do evento de foto passa a ser o `created_at` da linha — por isso o
+backfill copia `o.created_at` (T1d.2).
+
+```text
+$ cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000 ./test/integration/street-occurrence-attachment-read.integration.ts
+ 3 pass
+ 0 fail
+```
+
+O contrato prende o que existe, então nasce verde. Prova de que não é vazio — duas mutações,
+restauradas em seguida (`git status` só com os arquivos novos):
+
+```text
+(1) feed: `if (newRows.length > 0)` → `if (newRows.length > 99)` (a coluna vence a linha)
+-     "91cc9c31-01f4-404b-82ba-a503a944de0c",
++     "51b2930f-e182-4498-96b1-059f96b41667",
+(fail) ... > coluna e linha: só a linha, uma vez — o id e a hora passam a ser os da linha
+ 2 pass / 1 fail
+(2) painel: com linha, soma também a coluna antiga
++   "9fdfba6b-8205-4379-886b-ecb8b604c31c",
+(fail) ... > coluna e linha: só a linha, uma vez — o id e a hora passam a ser os da linha
+ 2 pass / 1 fail
+```

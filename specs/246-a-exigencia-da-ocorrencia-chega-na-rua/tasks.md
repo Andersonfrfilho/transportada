@@ -129,7 +129,7 @@ items_mode = 'required'`); nas duas tabelas de exceção, `items_mode`, `photo_m
       ela.** `count(*) FROM trip_document_occurrences WHERE attachment_object_id IS NOT NULL`, e
       quantas têm as duas fontes (linha em `trip_document_occurrence_attachments` **e** coluna;
       esperado 0). Registrar em `evidence.md`. Parada obrigatória antes da T1d.2 em produção.
-- [ ] **T1d.1** **Contrato que prende o que existe** (a leitura já existe desde a 161 T10:
+- [x] **T1d.1** **Contrato que prende o que existe** (a leitura já existe desde a 161 T10:
       `trip-occurrence-feed.query.ts` ~781-877, `occurrence-attachment.service.ts` ~118): a leitura da
       ocorrência de rua devolve as fotos de `trip_document_occurrence_attachments` e, na ausência, a
       `attachment_object_id` antiga.
