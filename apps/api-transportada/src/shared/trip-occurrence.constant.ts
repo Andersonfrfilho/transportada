@@ -183,3 +183,13 @@ export const OCCURRENCE_TYPE_ITEMS_MINIMUM_SHAPE_CHECK =
 /** Spec 241 (RF11): a CHECK `off ⇒ unset`; o cadastro a traduz em 422 quando a corrida a atinge. */
 export const OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK =
   'company_occurrence_types_items_off_shape_check'
+
+/**
+ * Spec 246 (RF1c2, revisão final M2): a mesma CHECK de forma nas duas tabelas de exceção — nulas, o
+ * par é `items_minimum_count` nulo ou `items_mode = 'required'`. A escrita da exceção a traduz em 422
+ * quando um mínimo chega sem `required` no estado resultante.
+ */
+export const OCCURRENCE_OVERRIDE_ITEMS_MINIMUM_SHAPE_CHECKS: readonly string[] = [
+  'occurrence_type_contractor_overrides_items_minimum_shape_check',
+  'occurrence_type_recipient_overrides_items_minimum_shape_check',
+]

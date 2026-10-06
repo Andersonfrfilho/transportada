@@ -17,6 +17,7 @@ import { contractors } from '../../database/delivery-client.schema.js'
 import { ContractorNotFoundError } from '../../delivery-clients/domain/delivery-client.error.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import {
+  rethrowOverrideShapeViolation,
   toOverrideRequirementInsert,
   toOverrideRequirementUpdate,
   type OccurrenceOverrideRequirementFields,
@@ -123,42 +124,44 @@ export class DrizzleOccurrenceAttachmentOverridesRepository {
       if (!isEveryContractorInTenant) throw new ContractorNotFoundError()
     }
 
-    await this.database.transaction(async (transaction) => {
-      const keptContractorIds = input.overrides.map((override) => override.contractorId)
-      await transaction
-        .delete(companyOccurrenceTypeContractorOverrides)
-        .where(
-          and(
-            eq(companyOccurrenceTypeContractorOverrides.companyId, input.companyId),
-            eq(companyOccurrenceTypeContractorOverrides.occurrenceTypeId, input.occurrenceTypeId),
-            keptContractorIds.length === 0
-              ? undefined
-              : notInArray(
-                  companyOccurrenceTypeContractorOverrides.contractorId,
-                  keptContractorIds,
-                ),
-          ),
-        )
-
-      for (const override of input.overrides) {
+    await this.database
+      .transaction(async (transaction) => {
+        const keptContractorIds = input.overrides.map((override) => override.contractorId)
         await transaction
-          .insert(companyOccurrenceTypeContractorOverrides)
-          .values({
-            ...toOverrideRequirementInsert(override),
-            companyId: input.companyId,
-            contractorId: override.contractorId,
-            occurrenceTypeId: input.occurrenceTypeId,
-          })
-          .onConflictDoUpdate({
-            set: toOverrideRequirementUpdate(override),
-            target: [
-              companyOccurrenceTypeContractorOverrides.companyId,
-              companyOccurrenceTypeContractorOverrides.occurrenceTypeId,
-              companyOccurrenceTypeContractorOverrides.contractorId,
-            ],
-          })
-      }
-    })
+          .delete(companyOccurrenceTypeContractorOverrides)
+          .where(
+            and(
+              eq(companyOccurrenceTypeContractorOverrides.companyId, input.companyId),
+              eq(companyOccurrenceTypeContractorOverrides.occurrenceTypeId, input.occurrenceTypeId),
+              keptContractorIds.length === 0
+                ? undefined
+                : notInArray(
+                    companyOccurrenceTypeContractorOverrides.contractorId,
+                    keptContractorIds,
+                  ),
+            ),
+          )
+
+        for (const override of input.overrides) {
+          await transaction
+            .insert(companyOccurrenceTypeContractorOverrides)
+            .values({
+              ...toOverrideRequirementInsert(override),
+              companyId: input.companyId,
+              contractorId: override.contractorId,
+              occurrenceTypeId: input.occurrenceTypeId,
+            })
+            .onConflictDoUpdate({
+              set: toOverrideRequirementUpdate(override),
+              target: [
+                companyOccurrenceTypeContractorOverrides.companyId,
+                companyOccurrenceTypeContractorOverrides.occurrenceTypeId,
+                companyOccurrenceTypeContractorOverrides.contractorId,
+              ],
+            })
+        }
+      })
+      .catch(rethrowOverrideShapeViolation)
   }
 
   /** Sem pré-validação do `taxId` — mesma assimetria da irmã de comprovante (`replaceOverrides`). */
@@ -167,39 +170,41 @@ export class DrizzleOccurrenceAttachmentOverridesRepository {
     readonly occurrenceTypeId: string
     readonly overrides: readonly OccurrenceAttachmentRecipientOverride[]
   }): Promise<void> {
-    await this.database.transaction(async (transaction) => {
-      const keptTaxIds = input.overrides.map((override) => override.taxId)
-      await transaction
-        .delete(companyOccurrenceTypeRecipientOverrides)
-        .where(
-          and(
-            eq(companyOccurrenceTypeRecipientOverrides.companyId, input.companyId),
-            eq(companyOccurrenceTypeRecipientOverrides.occurrenceTypeId, input.occurrenceTypeId),
-            keptTaxIds.length === 0
-              ? undefined
-              : notInArray(companyOccurrenceTypeRecipientOverrides.taxId, keptTaxIds),
-          ),
-        )
-
-      for (const override of input.overrides) {
+    await this.database
+      .transaction(async (transaction) => {
+        const keptTaxIds = input.overrides.map((override) => override.taxId)
         await transaction
-          .insert(companyOccurrenceTypeRecipientOverrides)
-          .values({
-            ...toOverrideRequirementInsert(override),
-            companyId: input.companyId,
-            occurrenceTypeId: input.occurrenceTypeId,
-            taxId: override.taxId,
-          })
-          .onConflictDoUpdate({
-            set: toOverrideRequirementUpdate(override),
-            target: [
-              companyOccurrenceTypeRecipientOverrides.companyId,
-              companyOccurrenceTypeRecipientOverrides.occurrenceTypeId,
-              companyOccurrenceTypeRecipientOverrides.taxId,
-            ],
-          })
-      }
-    })
+          .delete(companyOccurrenceTypeRecipientOverrides)
+          .where(
+            and(
+              eq(companyOccurrenceTypeRecipientOverrides.companyId, input.companyId),
+              eq(companyOccurrenceTypeRecipientOverrides.occurrenceTypeId, input.occurrenceTypeId),
+              keptTaxIds.length === 0
+                ? undefined
+                : notInArray(companyOccurrenceTypeRecipientOverrides.taxId, keptTaxIds),
+            ),
+          )
+
+        for (const override of input.overrides) {
+          await transaction
+            .insert(companyOccurrenceTypeRecipientOverrides)
+            .values({
+              ...toOverrideRequirementInsert(override),
+              companyId: input.companyId,
+              occurrenceTypeId: input.occurrenceTypeId,
+              taxId: override.taxId,
+            })
+            .onConflictDoUpdate({
+              set: toOverrideRequirementUpdate(override),
+              target: [
+                companyOccurrenceTypeRecipientOverrides.companyId,
+                companyOccurrenceTypeRecipientOverrides.occurrenceTypeId,
+                companyOccurrenceTypeRecipientOverrides.taxId,
+              ],
+            })
+        }
+      })
+      .catch(rethrowOverrideShapeViolation)
   }
 
   /**

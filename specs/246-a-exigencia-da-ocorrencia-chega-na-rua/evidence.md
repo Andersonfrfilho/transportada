@@ -2429,3 +2429,25 @@ Received value: undefined
  1 pass
  1 fail
 ```
+
+### M2 — o PUT da exceção estourava a CHECK do par produtos (500)
+
+Defeito: a exceção já gravada com `items_mode = 'required'` e `items_minimum_count = 3`, regravada com `itemsMode` diferente de `required` e **sem** o mínimo, deixava o mínimo antigo na linha (o `SET` do conflito só leva o que veio) e o banco recusava com `23514` — 500. E um mínimo chegando sem `required` no estado resultante (repositório chamado fora do schema da rota) também virava 500 cru.
+
+Vermelho (`occurrence-override-minimum-shape.integration.ts`, antes da correção):
+
+```text
+PostgresError: new row for relation "company_occurrence_type_contractor_overrides" violates check constraint "occurrence_type_contractor_overrides_items_minimum_shape_check"
+      errno: "23514",
+ constraint: "occurrence_type_contractor_overrides_items_minimum_shape_check",
+(fail) o PUT da exceção não estoura a CHECK do par produtos (spec 246, revisão final M2) > trocar o modo para outro que não required, ou para nulo, sem mínimo: o mínimo vai a nulo
+(fail) ... > mínimo sem required no estado resultante: 422 estável, e a linha fica como estava
+ 0 pass
+ 2 fail
+```
+
+Correção: `toOverrideRequirementUpdate` grava `itemsMinimumCount: null` quando `itemsMode` vem diferente de `required` (modo ou nulo) e o mínimo vem ausente; `rethrowOverrideShapeViolation` traduz, pelo nome da constraint (`OCCURRENCE_OVERRIDE_ITEMS_MINIMUM_SHAPE_CHECKS`, as duas tabelas), o `23514` em `OccurrenceTypeItemsMinimumRequiresRequiredError` (422), nos dois `replace*Overrides`. O schema da rota já recusava o mínimo sem `required` declarado no mesmo item (400, `refineItemsMinimumPair`); a CHECK é a rede para quem chama fora dele.
+
+Verde: 2 pass (modos `optional`, `off` e nulo, contratante e destinatário; quatro recusas 422 — mínimo com `off`, com o modo ausente sobre linha `optional`, com nulo, e destinatário —, linha intacta depois).
+
+Mutações: (1) sem o zeramento do mínimo, o teste 1 fica vermelho (`23514`); (2) sem o `.catch(rethrowOverrideShapeViolation)`, o teste 2 fica vermelho (`PostgresError` cru em vez do erro de domínio).

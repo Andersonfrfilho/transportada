@@ -6,7 +6,10 @@
  * padrão** (nulo herda do tipo). A leitura devolve o que está gravado; a escrita distingue três
  * estados: **ausente** (não mexa), **nulo** (herda) e **valor**.
  */
+import { violatedCheckConstraint } from '../../database/postgres-error.support.js'
+import { OCCURRENCE_OVERRIDE_ITEMS_MINIMUM_SHAPE_CHECKS } from '../../shared/trip-occurrence.constant.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
+import { OccurrenceTypeItemsMinimumRequiresRequiredError } from '../domain/trip.error.js'
 
 export type OccurrenceOverrideRequirementFields = {
   readonly itemsMinimumCount?: null | number | undefined
@@ -49,9 +52,7 @@ export function toOverrideRequirementInsert(input: OverrideWriteInput) {
 export function toOverrideRequirementUpdate(input: OverrideWriteInput) {
   return {
     attachmentMode: input.attachmentMode,
-    ...(input.itemsMinimumCount === undefined
-      ? {}
-      : { itemsMinimumCount: input.itemsMinimumCount }),
+    ...toItemsMinimumCountUpdate(input),
     ...(input.itemsMode === undefined ? {} : { itemsMode: input.itemsMode }),
     ...(input.noteMode === undefined ? {} : { noteMode: input.noteMode }),
     ...(input.photoMinimumCount === undefined
@@ -60,4 +61,26 @@ export function toOverrideRequirementUpdate(input: OverrideWriteInput) {
     ...(input.signatureMode === undefined ? {} : { signatureMode: input.signatureMode }),
     updatedAt: new Date(),
   }
+}
+
+/**
+ * ⚠️ Trocar o modo de produtos para outro que não `required` (ou para nulo) sem mandar o mínimo
+ * **zera o mínimo**: o mínimo gravado antes só vale com `required`, e deixá-lo estouraria a CHECK do
+ * par (500). Mínimo ausente com o modo ausente segue "não mexa".
+ */
+function toItemsMinimumCountUpdate(input: OverrideWriteInput): {
+  readonly itemsMinimumCount?: null | number
+} {
+  if (input.itemsMinimumCount !== undefined) return { itemsMinimumCount: input.itemsMinimumCount }
+  const isLeavingRequired = input.itemsMode !== undefined && input.itemsMode !== 'required'
+  return isLeavingRequired ? { itemsMinimumCount: null } : {}
+}
+
+/** Um mínimo sem `required` no estado resultante é 422 do domínio; qualquer outra violação propaga. */
+export function rethrowOverrideShapeViolation(error: unknown): never {
+  const violated = violatedCheckConstraint(error)
+  if (violated !== undefined && OCCURRENCE_OVERRIDE_ITEMS_MINIMUM_SHAPE_CHECKS.includes(violated)) {
+    throw new OccurrenceTypeItemsMinimumRequiresRequiredError()
+  }
+  throw error
 }
