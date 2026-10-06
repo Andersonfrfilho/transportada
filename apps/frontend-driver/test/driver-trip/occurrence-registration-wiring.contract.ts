@@ -106,9 +106,10 @@ describe('o formulário único', () => {
 
   /** A prévia do aviso é da parada: só o tipo de parada tem o stopKind que escolhe o template. */
   it('a prévia do aviso sai do stopKind do tipo, nunca do nome', () => {
-    const hook = source(HOOK_PATH)
-    expect(hook).toInclude('renderOccurrenceNoticePreview')
-    expect(hook).toInclude('stopKind')
+    const preview = source('shared/occurrencePreview.service.ts')
+    expect(preview).toInclude('renderOccurrenceNoticePreview')
+    expect(preview).toInclude('stopKind')
+    expect(source(HOOK_PATH)).toInclude('buildOccurrencePreview')
   })
 
   it('a foto é reduzida no aparelho, e o formulário aberto segura a atualização', () => {

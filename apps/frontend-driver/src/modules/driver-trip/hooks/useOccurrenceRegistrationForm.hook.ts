@@ -8,39 +8,20 @@ import type {
   OccurrenceRegistrationFormParams,
 } from '../shared/occurrenceRegistrationForm.types'
 import { useCaptureRegistration } from './useCaptureRegistration.hook'
-import {
-  useOccurrenceSignature,
-  type OccurrenceSignatureState,
-} from './useOccurrenceSignature.hook'
+import { useOccurrenceSignature } from './useOccurrenceSignature.hook'
 import { usePhotoPreviewUrl } from './usePhotoPreviewUrl.hook'
-import type {
-  DriverOccurrencePhoto,
-  DriverOccurrenceType,
-  DriverOccurrenceTypesState,
-  DriverTripDocument,
-  DriverTripStop,
-} from '../shared/driverTrip.types'
+import type { DriverOccurrencePhoto } from '../shared/driverTrip.types'
 import { isOccurrencePhotoWithinLimit } from '../shared/notDelivered.service'
-import {
-  renderOccurrenceNoticePreview,
-  type OccurrenceNoticePreview,
-} from '../shared/occurrenceNoticePreview.service'
-import {
-  dispatchOccurrenceRegistration,
-  type OccurrenceRegistrationHandlers,
-} from '../shared/occurrenceDispatch.service'
+import { dispatchOccurrenceRegistration } from '../shared/occurrenceDispatch.service'
 import {
   canRegisterOccurrence,
   listMissingOccurrenceFields,
-  resolveOccurrenceFlow,
   resolveOccurrenceTypesForDocument,
 } from '../shared/occurrenceRegistration.service'
 import { reduceOccurrencePhotoToJpeg } from '../shared/occurrencePhotoImage.service'
 import {
   addOccurrencePhoto,
   resolveOccurrenceFieldVisibility,
-  type OccurrenceFieldVisibility,
-  type OccurrenceMissingField,
 } from '../shared/occurrenceRequirements.service'
 
 export type {
