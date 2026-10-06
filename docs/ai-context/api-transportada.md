@@ -2877,3 +2877,71 @@ ordinal (number), quantity, totalValue, unitValue (texto decimal) }] }` ordenada
   `data: []`. ⚠️ Id que não é UUID nem chega à rota: o roteador responde 404 `NOT_FOUND` (formato `canonicalUuid`), o 400
   do `parseUuidPathIdentifier` só vale para query. Integração:
   `test/integration/cargo-arrival-document-products.integration.ts`.
+
+## Spec 246 T5.3-api — as exceções de todos os tipos numa resposta (RF11c)
+
+`GET /company-settings/occurrence-types/attachment-overrides` (`settings.manage`, só leitura, sem migration)
+devolve as exceções de contratante e de destinatário de **todos** os tipos da empresa do token, agrupadas por
+tipo, para a tela mostrar contagem e lista sem uma requisição por linha. Resposta:
+`{ data: { overridesByType: [{ occurrenceTypeId, contractorOverrides: [...], recipientOverrides: [...] }] } }`.
+Cada item tem o formato da rota por tipo (`attachmentMode` sempre; `noteMode`/`signatureMode`/`itemsMode`/
+`photoMinimumCount`/`itemsMinimumCount` modo-ou-nulo, nulo herda do tipo; `contractorId` ou `taxId`), sem o
+`occurrenceTypeId`, que é a chave do grupo. Tipo aposentado também entra (a tela filtra); tipo sem exceção devolve as
+duas listas vazias; ordem dos tipos = a de `GET /company-settings/occurrence-types`, das exceções = `contractorId`/`taxId`.
+
+- **Três consultas, sempre**: os ids dos tipos (`occurrence-type-ids-read.query.ts`) e as duas tabelas de exceção
+  (`listOverridesForTypes`, já usado por `list-field-occurrence-types`). Não cresce com o número de tipos
+  (`test/integration/occurrence-attachment-overrides-batch.integration.ts` conta `select` com 1 e com 4 tipos).
+- `companyId` só do contexto autenticado; a `?companyId=` da query é ignorada. A lista de ids filtra por empresa, e
+  as exceções são lidas só para esses ids com `company_id` no `where`.
+- ⚠️ Roteamento: o endereço tem três segmentos e a rota por tipo quatro (`/:occurrenceTypeId/attachment-overrides`),
+  então `attachment-overrides` nunca é lido como `occurrenceTypeId`. Provado pelo roteador real em
+  `test/trip-occurrence/attachment-overrides-batch-route.contract.ts`.
+- Código: `list-occurrence-attachment-overrides.use-case.ts`, rota em `trip.routes.ts`, fiação em `main.ts`.
+
+## Spec 246 — terceira revisão: `receiving` e as migrations (2026-10-06)
+
+- **O tipo `stage = 'receiving'` (spec 237) não tem momento de rua.** `deriveOccurrenceMomentsFromStageAndFlow` devolve `[]` para ele;
+  antes caía no ramo "não é separação" e virava `['document','office']`, e o motorista o registrava na nota e o escritório no lote.
+  Sem linha de momento e sem derivado, nenhuma guarda de rua o aceita. A escrita por momentos sobre ele é 404 (o `UPDATE` só alcança
+  as etapas da viagem) e o backfill de momentos só cobre `separation` e `delivery`. Prova: `occurrence-type-receiving-moments` e
+  `occurrence-type-moments-backfill`.
+- **As quatro migrations da 246 foram regeradas por cima da `20261006180700`** (a da 237 tem o mesmo pai da primeira): `20261006205139`,
+  `20261006205158`, `20261006205209`, `20261006205232`. Nome de migration que a 246 cita em teste ou doc é o novo.
+
+## Spec 246 — a exigência da ocorrência chega na rua (visão geral, T6.2)
+
+Decisões D-a a D-d e a ordem de publicação: `specs/246-a-exigencia-da-ocorrencia-chega-na-rua/` (`spec.md`, `evidence.md`).
+
+- **Colunas** (`trip.schema.ts`): no tipo, `note_mode` (`DEFAULT 'optional'`), `signature_mode` (`DEFAULT 'off'`),
+  `photo_minimum_count` (`DEFAULT 1`, 1–5) e `items_minimum_count` (nulo = todos os itens; CHECK só com `items_mode = 'required'`);
+  nas duas tabelas de exceção, `note_mode`, `signature_mode`, `items_mode`, `photo_minimum_count` e `items_minimum_count`,
+  **nulas e sem default**. `signature_object_id` (FK composta para `stored_objects`) nas duas tabelas de ocorrência — em
+  `trip_stop_occurrences` **sem escritor nem leitor** (existe para não exigir segunda migration). `attachment_mode` segue sendo a foto.
+- **Migrations (ordem, cada uma com `rollback.sql`):** `20261006205139_occurrence_type_requirement_modes` (modos; `UPDATE`
+  que leva a regra "foto `required` arrasta a observação" para o dado), `20261006205158_occurrence_type_moments` (tabela e
+  backfill), `20261006205209_occurrence_type_quantity_minimums`, e **separada** `20261006205232_street_occurrence_attachment_backfill`
+  (copia `attachment_object_id` para `trip_document_occurrence_attachments` com `created_at` da ocorrência e `NOT EXISTS`; o
+  rollback não apaga as linhas). ⚠️ Uma a uma regeradas por cima da última da staging: rebase que traga migration nova refaz as
+  quatro. Os nomes antigos `…184835/184901/184909/184921` e `…112823/115725/123712/131040` só aparecem em relatos antigos.
+- **Backfill de momentos:** `separation` onde `stage = 'separation'`; `document` onde `delivery + document`; `stop` onde
+  `delivery + stop` **e** `separation + stop` (D-c); `office` onde `stage = 'delivery'`. `separation + document` nunca sai do
+  backfill; os dois "Avaria" existentes continuam dois tipos. **Nenhuma linha para `receiving`.**
+- **Leitura tolerante na janela de deploy:** tipo sem linha de momento usa os derivados de `stage`/`flow`
+  (`deriveOccurrenceMomentsFromStageAndFlow`, que devolve `[]` para `receiving`); `PUT` sem `moments` mantém os gravados; `PUT`
+  que muda `stage`/`flow` de tipo com vários momentos é 409; `document + stop` juntos e conjunto vazio são recusados.
+- **Formatos de resposta:** `GET /me/trips/current/occurrence-types`, `GET /trips/occurrence-types/field` e
+  `document.occurrenceTypes` do snapshot trazem, além de `id/name/flow/stopKind/attachmentMode/itemsMode`, `photoMode`
+  (= `attachmentMode`, por um ciclo), `noteMode`, `signatureMode`, `photoMinimumCount` e `itemsMinimumCount` (`null` = todos).
+  `GET /company-settings/settings-resolution` devolve os seis campos e `sources` (`type | contractor | recipient | default`).
+  `PUT .../:id/attachment-overrides` distingue **ausente** (não mexe), **nulo** (herda) e **valor**; linha nova de painel antigo
+  sem `noteMode` recebe a observação que segue a foto da exceção, não nulo.
+- **Cobrança** (`assertDriverOccurrenceRequirements`, `register-driver-occurrence.use-case.ts` + `driver-occurrence-assessment.service.ts`):
+  observação `required` → texto; foto → `attachmentObjectIds` (1–5) e o mínimo efetivo; assinatura → `signatureObjectId`
+  conferido como o anexo (empresa, viagem **e motorista**); produtos → nota inteira (`productCode` vazio) ou um código.
+  `assertOccurrenceTypeAcceptsProducts` lê o modo efetivo e por isso roda depois do `404` da nota. WhatsApp usa o mesmo caso de
+  uso e **não filtra** a lista por exigência (RF13): tipo com assinatura `required` volta o erro estável, e a conversa traduz.
+- **Demonstrativo ao cliente** (`drizzle-occurrence-statement.repository.ts`) e a resposta da correção mostram a foto de rua e nunca a assinatura.
+- **Pendências declaradas:** "Ao menos N" produtos sem efeito no app do motorista (snapshot sem itens); Fase 3 por nota só no
+  servidor; assinatura inexistente no WhatsApp; `trip_stop_occurrences.signature_object_id` sem uso; a fila offline do app antigo
+  recebe 422 permanente quando o tipo endurece. **Medições T1d.0 e T3.0 pendentes do usuário** — a 246 não vai a `main` sem elas.

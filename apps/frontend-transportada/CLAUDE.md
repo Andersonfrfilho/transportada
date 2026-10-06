@@ -442,3 +442,18 @@ fluxo existente**: "Montar viagem" navega a `/trips?createFromDocuments=` só co
 `MultiVehicleSuggestionAction` com a prop opcional `label` (única mudança em `routing`). "Faltam N notas — esperando o
 XML" é neutro (nunca alerta); ação sem nota roteável fica desabilitada com o motivo; sem `trip.manage` nenhuma ação
 aparece. Estado na URL (`recommend`, `draftRoute`). Detalhe: docs/ai-context/frontend-transportada.md § "Spec 237 T5.2".
+
+## O cadastro de tipos de ocorrência mora em `/ocorrencias` (spec 246)
+
+A aba **Tipos** de `/ocorrencias` (só com `settings.manage`; aba ativa na URL) substitui "Tipos de ocorrência" de
+Configurações → Empresa: o `OccurrenceTypeCatalogPanel` **mudou de módulo** (`modules/trip`) e `SETTINGS_PANEL_PLACEMENT`
+segue com um endereço por painel. Tipos recolhidos, uma linha-resumo por tipo, exceções à vista lidas de **uma** consulta em
+lote (`GET /company-settings/occurrence-types/attachment-overrides`), clientes e contratantes só carregam quando um tipo abre.
+
+⚠️ O que cada campo mostra segue o **conjunto de momentos** (`readOccurrenceRequirementScope`), não o `stage`: `document`
+cobra os quatro campos e o mínimo de fotos, `stop` só a foto, `office` só Produtos. A exceção nasce com **nulo explícito**
+("Igual ao tipo") e guards e cliente toleram API anterior — `noteMode`, `signatureMode` e `moments` ausentes não viram padrão
+no `PUT`. Momentos são rascunho com Aplicar/Desfazer; conjunto vazio e `document + stop` juntos são recusados na tela.
+
+⚠️ O `Select` global mudou (contraste e alvo de 44px no toque; desligado sem `opacity`) e o `Tooltip` só estica o filho com
+`fill`. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 246".

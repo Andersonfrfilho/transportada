@@ -348,3 +348,16 @@ trata o 403 como recusado; com ajudante nenhum botão chama `report(...)`. Contr
 
 **T2:** `useLocationConsent` trata 403 em leitura como inaplicável; cartão some. Testes:
 `test/driver-trip/location-consent-applicability.contract.tsx`.
+
+## A exigência da ocorrência na rua (spec 246)
+
+O botão "Registrar" da ocorrência de **nota** só habilita com o que o tipo **já resolvido para aquela nota** pede
+(`document.occurrenceTypes` do snapshot, `occurrenceRequirements.service.ts`): observação, foto (até 5, com
+`photoMinimumCount`), assinatura (`SignaturePad` só monta quando pedida) e produtos. O app **nunca** manda
+`contractorId`/`recipientTaxId` (`security.md` §3); campo ausente lê como antes e a ocorrência de **parada** segue só com a foto.
+
+A assinatura e as fotos extras entram no **mesmo item de fila** `documentOccurrence` (`extraPhotos`, `signature`), sobem pelo par
+`occurrence-uploads` + `confirm` e vão no mesmo `POST` (`signatureObjectId`; uma foto = `attachmentObjectId`, mais de uma =
+`attachmentObjectIds`, nunca os dois) — nada vai a `/proof`. ⚠️ O snapshot não traz os itens: com Produtos obrigatório só existe
+"A nota inteira", e "Ao menos N" não muda o que o app cobra (o servidor cobra). Fila offline do app antigo recebe 422 permanente
+quando o tipo endurece. Detalhe: docs/ai-context/frontend-driver.md § "Spec 246".

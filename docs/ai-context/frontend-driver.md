@@ -188,3 +188,22 @@ de papel; pode aparecer para ajudante se a API retornar pendência de viagem ond
 403 (sem retry). Cartão devolve `null`. Qualquer outro erro (5xx, rede) segue como antes, renderizando alerta.
 Decisão: API recusa consentimento para conta sem `trip.report`, app o respeita sem oferecer o cartão —
 a regra fica num lugar só.
+
+## Spec 246 — A exigência da ocorrência na rua (T6.2)
+
+**Arquivos-chave:** `modules/driver-trip/shared/occurrenceRequirements.service.ts` (modos), `documentOccurrenceReport.service.ts`
+(monta o item de fila), `useOccurrenceRegistrationForm.hook.ts` (169 linhas), contratos `occurrence-requirements.contract.ts`,
+`occurrence-requirement-fields.contract.tsx`, `occurrence-signature-queue.contract.ts` e `occurrence-offline-gate.contract.ts`.
+
+- **Regra do gate:** lê os modos do tipo que o snapshot já trouxe resolvido para a nota; por campo, `off` não aparece, `optional`
+  aparece sem exigir, `required` desabilita "Registrar". Tolerância: `noteMode`, `signatureMode`, `itemsMode`, `photoMode` e
+  `photoMinimumCount` ausentes leem como antes (observação opcional, assinatura desligada, produtos opcional, foto pelo
+  `attachmentMode`, mínimo 1); valor fora do vocabulário reprova o guard. `dispatchOccurrenceRegistration` devolve `blocked` (segunda
+  trava): rascunho incompleto nunca entra na fila nem some. Nenhum caminho do gate chama `fetch` (funciona sem rede).
+- **Fila:** o item `documentOccurrence` ganhou `extraPhotos` e `signature` (opcionais; item antigo vale sem migrar o IndexedDB);
+  `sendDocumentOccurrence` sobe fotos e assinatura em paralelo e manda `signatureObjectId` no mesmo `POST`. Fotos e assinatura
+  contam na cota de bytes e em `attachmentCount`; fila cheia recusa o toque inteiro. Nada vai a `/proof` (regra da 209).
+- **Limitações declaradas:** o snapshot não traz os itens da nota, então com Produtos obrigatório só existe "A nota inteira"
+  (satisfaz "todos" e "ao menos N"; o servidor é quem cobra o N). Item de fila gravado por versão antiga, sob tipo que depois
+  endurece, recebe **422 permanente** da API (o app não reescreve o item; ver pendências em `evidence.md`). A lacuna do app com produtos item a item é pendência.
+- **Medições pendentes:** nenhuma no app; T1d.0 e T3.0 são da API (`docs/ai-context/api-transportada.md` § "Spec 246").
