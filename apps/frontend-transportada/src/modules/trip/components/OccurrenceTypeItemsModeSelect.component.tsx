@@ -5,7 +5,6 @@ import { Select } from '@/components/ui/select'
 import { Tooltip } from '@/components/ui/tooltip'
 import {
   OCCURRENCE_ITEMS_MODE,
-  OCCURRENCE_ITEMS_WRITE_MODES,
   type OccurrenceItemsWriteMode,
 } from '@/modules/trip/shared/occurrence.constant'
 
@@ -15,12 +14,17 @@ export type OccurrenceTypeItemsModeSelectProps = Readonly<{
   value: OccurrenceItemsWriteMode
 }>
 
+const CREATE_ITEMS_MODES = [OCCURRENCE_ITEMS_MODE.off, OCCURRENCE_ITEMS_MODE.optional] as const
+
 const LABEL_KEY_BY_MODE = {
   [OCCURRENCE_ITEMS_MODE.off]: 'occurrenceTypeCatalog.itemsModeOff',
   [OCCURRENCE_ITEMS_MODE.optional]: 'occurrenceTypeCatalog.itemsModeOptional',
-} as const satisfies Record<OccurrenceItemsWriteMode, string>
+} as const satisfies Record<(typeof CREATE_ITEMS_MODES)[number], string>
 
-/** Spec 241 RF10: Produtos do tipo — Desligado ou Opcional (`required` é da 239, não se escreve aqui). */
+/**
+ * Spec 241 RF10: Produtos do **cadastro novo** — Desligado ou Opcional. O tipo já cadastrado usa o
+ * seletor de três estados (`OccurrenceRequirementModeSelect`), que também escreve `required`.
+ */
 export function OccurrenceTypeItemsModeSelect({
   disabled = false,
   onChange,
@@ -34,7 +38,7 @@ export function OccurrenceTypeItemsModeSelect({
         ariaLabel={t('occurrenceTypeCatalog.itemsMode')}
         disabled={disabled}
         onChange={(next) => onChange(next as OccurrenceItemsWriteMode)}
-        options={OCCURRENCE_ITEMS_WRITE_MODES.map((mode) => ({
+        options={CREATE_ITEMS_MODES.map((mode) => ({
           label: t(LABEL_KEY_BY_MODE[mode]),
           value: mode,
         }))}

@@ -20,7 +20,6 @@ import {
   type DriverAllowancePanelProps,
 } from '../components/DriverAllowancePanel.component'
 import { useDriverAllowancePanel } from '../hooks/useDriverAllowancePanel.hook'
-import { resolveTripFeedbackKey } from '@/modules/trip/shared/tripFeedback.service'
 import {
   CompanyEntryKindCatalogPanel,
   type CompanyEntryKindCatalogPanelProps,

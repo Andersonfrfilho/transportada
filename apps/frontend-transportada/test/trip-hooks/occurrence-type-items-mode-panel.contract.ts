@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 241 RF10/RF12/CA10: o cadastro de tipos montado de verdade. Produtos (Sem produtos / Produtos opcionais)
+ * Spec 241 RF10/RF12/CA10: o cadastro de tipos montado de verdade. Produtos (Desligado / Opcional / Obrigatório)
  * só aparece quando a listagem trouxe `itemsMode`; com Desligado a política de reentrega some e a
  * gravação leva `redeliveryPolicy: 'unset'`. Dados sintéticos.
  */
@@ -18,6 +18,7 @@ import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
 
 import { buttonByText, click, stubVisibleLayout } from './occurrenceCorrectionHarness.helper'
 import { renderWithQueryClient, waitFor } from './renderHook.helper'
+import { OCCURRENCE_REQUIREMENT_DEFAULTS } from '../fixtures/occurrenceRequirementDefaults.fixture'
 
 type SavedType = Parameters<OccurrenceTypeCatalogPanelProps['onSave']>[0]
 
@@ -29,6 +30,7 @@ function buildType(overrides: Partial<OccurrenceType> = {}): OccurrenceType {
   return {
     active: true,
     allowsMultipleItems: true,
+    ...OCCURRENCE_REQUIREMENT_DEFAULTS,
     attachmentMode: 'off',
     emailBody: '',
     emailSubject: '',
@@ -145,7 +147,7 @@ describe('cadastro de tipos: Produtos (spec 241 RF10)', () => {
     'listagem com itemsMode: Produtos aparece no tipo, com a escolha gravada',
     scenario(async () => {
       await mount([buildType({ itemsMode: 'optional' })])
-      expect(control(PRODUCTS_LABEL)?.textContent).toContain('Produtos opcionais')
+      expect(control(PRODUCTS_LABEL)?.textContent).toContain('Opcional')
       expect(checkboxLabelled(MULTIPLE_ITEMS_LABEL)).toBe(true)
     }),
   )
@@ -154,7 +156,7 @@ describe('cadastro de tipos: Produtos (spec 241 RF10)', () => {
     'tipo Desligado: a política de reentrega e o "um ou vários" somem',
     scenario(async () => {
       await mount([buildType({ itemsMode: 'off', redeliveryPolicy: 'unset' })])
-      expect(control(PRODUCTS_LABEL)?.textContent).toContain('Sem produtos')
+      expect(control(PRODUCTS_LABEL)?.textContent).toContain('Desligado')
       expect(control(POLICY_LABEL)).toBeNull()
       expect(checkboxLabelled(MULTIPLE_ITEMS_LABEL)).toBe(false)
     }),
@@ -164,7 +166,7 @@ describe('cadastro de tipos: Produtos (spec 241 RF10)', () => {
     'trocar para Desligado grava itemsMode off e redeliveryPolicy unset no mesmo PUT (RF12)',
     scenario(async () => {
       await mount([buildType({ itemsMode: 'optional', redeliveryPolicy: 'blocked' })])
-      await choose(PRODUCTS_LABEL, 'Sem produtos')
+      await choose(PRODUCTS_LABEL, 'Desligado')
       expect(saved).toEqual([
         {
           active: true,
@@ -193,12 +195,12 @@ describe('cadastro de tipos: Produtos (spec 241 RF10)', () => {
         trigger.focus()
         await Promise.resolve()
       })
-      await waitFor(() => expect(document.body.textContent).toContain('Sem produtos: a ocorrência'))
+      await waitFor(() => expect(document.body.textContent).toContain('Desligado: a ocorrência'))
 
       await click(trigger)
 
       await waitFor(() => expect(document.querySelector('[role="listbox"]') === null).toBe(false))
-      expect(document.body.textContent).not.toContain('Sem produtos: a ocorrência')
+      expect(document.body.textContent).not.toContain('Desligado: a ocorrência')
     }),
   )
 
@@ -212,14 +214,14 @@ describe('cadastro de tipos: Produtos (spec 241 RF10)', () => {
         trigger.focus()
         await Promise.resolve()
       })
-      await waitFor(() => expect(document.body.textContent).toContain('Sem produtos: a ocorrência'))
+      await waitFor(() => expect(document.body.textContent).toContain('Desligado: a ocorrência'))
 
       await act(async () => {
         trigger.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }))
         await Promise.resolve()
       })
 
-      expect(document.body.textContent).not.toContain('Sem produtos: a ocorrência')
+      expect(document.body.textContent).not.toContain('Desligado: a ocorrência')
     }),
   )
 
@@ -227,7 +229,7 @@ describe('cadastro de tipos: Produtos (spec 241 RF10)', () => {
     'voltar para Opcional grava itemsMode optional e mantém a política já gravada',
     scenario(async () => {
       await mount([buildType({ itemsMode: 'off', redeliveryPolicy: 'unset' })])
-      await choose(PRODUCTS_LABEL, 'Produtos opcionais')
+      await choose(PRODUCTS_LABEL, 'Opcional')
       expect(saved).toHaveLength(1)
       expect(saved[0]?.itemsMode).toBe('optional')
       expect(saved[0]?.redeliveryPolicy).toBe('unset')

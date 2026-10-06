@@ -8,7 +8,6 @@ import { Select } from '@/components/ui/select'
 import { Tooltip } from '@/components/ui/tooltip'
 
 import type {
-  OccurrenceAttachmentMode,
   OccurrenceRedeliveryPolicy,
   OccurrenceType,
   OccurrenceTypeFlow,
@@ -26,7 +25,7 @@ import {
   type OccurrenceTypeSaveInput,
 } from '../shared/occurrenceTypeUpdate.service'
 import { OccurrenceTypeExceptionsSection } from './OccurrenceTypeExceptionsSection.component'
-import { OccurrenceTypeItemsModeSelect } from './OccurrenceTypeItemsModeSelect.component'
+import { OccurrenceTypeRequirementFields } from './OccurrenceTypeRequirementFields.component'
 
 type OccurrenceTypeRowProps = Readonly<{
   canManage: boolean
@@ -46,7 +45,7 @@ export function OccurrenceTypeRow({
   type,
 }: OccurrenceTypeRowProps) {
   const { t } = useTranslation('companySettings')
-  const { attachmentModeOptions, flowOptions, redeliveryPolicyOptions } = useOccurrenceTypeOptions()
+  const { flowOptions, redeliveryPolicyOptions } = useOccurrenceTypeOptions()
   const isDisabled = !canManage || isSaving
   const isDelivery = type.stage === TRIP_OCCURRENCE_STAGE.delivery
 
@@ -66,14 +65,11 @@ export function OccurrenceTypeRow({
         label={t('occurrenceTypeCatalog.active')}
         onChange={(value) => onSave(buildOccurrenceTypeUpdate(type, { active: value }))}
       />
-      {type.itemsMode === OCCURRENCE_ITEMS_MODE.off ||
-      type.itemsMode === OCCURRENCE_ITEMS_MODE.optional ? (
-        <OccurrenceTypeItemsModeSelect
-          disabled={isDisabled}
-          onChange={(value) => onSave(buildOccurrenceTypeUpdate(type, { itemsMode: value }))}
-          value={type.itemsMode}
-        />
-      ) : null}
+      <OccurrenceTypeRequirementFields
+        disabled={isDisabled}
+        onEdit={(edit) => onSave(buildOccurrenceTypeUpdate(type, edit))}
+        type={type}
+      />
       {type.itemsMode === OCCURRENCE_ITEMS_MODE.off ? null : (
         <Checkbox
           checked={type.allowsMultipleItems}
@@ -100,24 +96,6 @@ export function OccurrenceTypeRow({
         />
       )}
       {/* Spec 179 T401: só em tipo de rua — é o motorista quem tira a foto na hora. */}
-      {isDelivery ? (
-        <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.attachmentModeHint')}>
-          <Select
-            ariaLabel={t('occurrenceTypeCatalog.attachmentMode')}
-            disabled={isDisabled}
-            onChange={(value) =>
-              onSave(
-                buildOccurrenceTypeUpdate(type, {
-                  attachmentMode: value as OccurrenceAttachmentMode,
-                }),
-              )
-            }
-            options={attachmentModeOptions}
-            value={type.attachmentMode}
-          />
-        </Tooltip>
-      ) : null}
-      {/* Spec 218 (D1, RF-B5): mesmo gate do comprovante — só tipo de rua alimenta o botão único do motorista. */}
       {isDelivery ? (
         <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.flowHint')}>
           <Select

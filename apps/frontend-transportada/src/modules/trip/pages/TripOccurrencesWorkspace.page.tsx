@@ -16,6 +16,7 @@ import {
   TripOccurrenceTable,
   TripOccurrenceTableSkeleton,
 } from '../components/TripOccurrenceTable.component'
+import { TripOccurrenceTypesTab } from '../components/TripOccurrenceTypesTab.component'
 import { useTripOccurrenceTable } from '../hooks/useTripOccurrenceTable.hook'
 import styles from '../styles/trip.module.css'
 
@@ -151,7 +152,7 @@ export function TripOccurrencesWorkspacePage() {
                     table={table}
                   />
                 ) : canManageSettings ? (
-                  <div>Tipos de ocorrência — em construção</div>
+                  <TripOccurrenceTypesTab canManage={canManageSettings} />
                 ) : null,
             }))}
             onChange={(id) => setActiveTab(resolveTripOccurrencesTab(id))}

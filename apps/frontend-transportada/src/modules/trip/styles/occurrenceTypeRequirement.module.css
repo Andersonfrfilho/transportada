@@ -1,0 +1,80 @@
+/* Spec 246 RF1a: o bloco "O que exige" do tipo — rótulo mono, cantos retos, cobre no apoio. */
+.requirements {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 10%, transparent);
+}
+
+.title {
+  margin: 0;
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.grid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.field {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+}
+
+.fieldLabel {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.66rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.legend {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 0.82rem;
+}
+
+.minimum {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-left: 2px solid var(--color-copper);
+  font-size: 0.82rem;
+}
+
+.minimumControl {
+  min-width: 11rem;
+}
+
+.minimumInput {
+  width: 5rem;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+.minimumInput:disabled {
+  opacity: 0.6;
+}
+
+@media (pointer: coarse) {
+  .minimumInput {
+    min-height: var(--touch-target);
+  }
+}

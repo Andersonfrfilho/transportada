@@ -330,6 +330,38 @@
       "remove": "Remove",
       "emptyContractor": "No exceptions by contractor registered.",
       "emptyRecipient": "No exceptions by recipient registered."
+    },
+    "requirements": {
+      "title": "What it requires",
+      "legend": "Required means the occurrence is not registered without it. Photo is the image captured on the device; Note is the driver's text; Signature is the one from whoever refused; Products is at least one invoice item marked.",
+      "fields": {
+        "photo": "Photo",
+        "note": "Note",
+        "signature": "Signature",
+        "items": "Products"
+      },
+      "modes": {
+        "off": "Off",
+        "optional": "Optional",
+        "required": "Required"
+      },
+      "hints": {
+        "photo": "Applies to the driver's registration on the road. Off: no photo asked. Optional: the driver may attach one. Required: the occurrence is only sent with the minimum number of photos.",
+        "note": "Off: the note field is hidden. Optional: the driver may write. Required: the occurrence is only sent with the text filled in.",
+        "signature": "Off: no signature asked. Optional: the driver may collect the one from whoever refused. Required: the occurrence is only sent with the signature drawn.",
+        "items": "Off: the occurrence carries no products — registration hides the selector, redelivery does not apply and Correct only shows on occurrences that already have products or were already corrected. Optional: whoever registers may pick products. Required: the occurrence is only sent with a product picked."
+      },
+      "photoMinimum": {
+        "label": "Minimum number of photos",
+        "hint": "Only applies when the photo is required. From 1 to 5."
+      },
+      "itemsMinimum": {
+        "label": "Products required",
+        "all": "All invoice items",
+        "atLeast": "At least",
+        "count": "Minimum number of products",
+        "hint": "Only applies when Products is required. All invoice items suits a total refusal."
+      }
     }
   },
   "settingsResolution": {
