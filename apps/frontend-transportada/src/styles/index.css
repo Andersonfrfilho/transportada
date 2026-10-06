@@ -765,6 +765,8 @@ a {
 .application-header-card {
   position: relative;
   display: grid;
+  /* Sem a coluna que encolhe, o título do cabeçalho alargava o cartão e a página passava de 320px (Recebimento). */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   padding: var(--space-4);
   border: 1px solid color-mix(in srgb, var(--color-slate) 16%, transparent);
@@ -787,6 +789,7 @@ a {
 
 .ui-card-header.application-header-copy {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
 }
 
@@ -955,9 +958,11 @@ a {
 .application-wordmark {
   margin: 0;
   max-width: none;
-  font-size: 2rem;
+  /* A 320px o nome da tela ("Ressarcimentos") passava da caixa ao lado do botão do menu e alargava a página. */
+  font-size: clamp(1.25rem, 6.5vw, 2rem);
   line-height: 1;
   letter-spacing: 0;
+  overflow-wrap: anywhere;
   text-transform: none;
   color: color-mix(in srgb, var(--color-fog) 96%, white 4%);
   text-wrap: balance;
