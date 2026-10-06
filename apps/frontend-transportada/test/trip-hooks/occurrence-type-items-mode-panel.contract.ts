@@ -17,6 +17,7 @@ import {
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
 
 import { buttonByText, click, stubVisibleLayout } from './occurrenceCorrectionHarness.helper'
+import { expandAllTypes } from './occurrenceTypesPanelHarness.helper'
 import { renderWithQueryClient, waitFor } from './renderHook.helper'
 import { OCCURRENCE_REQUIREMENT_DEFAULTS } from '../fixtures/occurrenceRequirementDefaults.fixture'
 
@@ -81,6 +82,7 @@ async function mount(types: readonly OccurrenceType[]): Promise<void> {
     }),
   )
   mounted.push(rendered)
+  await expandAllTypes()
 }
 
 async function typeName(value: string): Promise<void> {

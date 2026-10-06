@@ -63,6 +63,7 @@ export type FakeTripClient = Pick<
   | 'correctTripOccurrenceItems'
   | 'createMultiVehicleSuggestion'
   | 'fieldDeliverDocument'
+  | 'listContractors'
   | 'listOccurrenceAttachmentOverridesBatch'
   | 'listOccurrenceTypes'
   | 'readMultiVehicleProposal'
@@ -71,6 +72,7 @@ export type FakeTripClient = Pick<
   | 'readTripDocumentProducts'
   | 'readTripTimeline'
   | 'registerTripOccurrence'
+  | 'replaceOccurrenceAttachmentOverrides'
   | 'saveOccurrenceType'
 >
 
@@ -84,6 +86,7 @@ export function createUnexpectedTripClient(): FakeTripClient {
       Promise.reject(new Error('UNEXPECTED_CORRECT_TRIP_OCCURRENCE_ITEMS')),
     createMultiVehicleSuggestion: () => Promise.reject(new Error('UNEXPECTED_CREATE')),
     fieldDeliverDocument: () => Promise.reject(new Error('UNEXPECTED_FIELD_DELIVER_DOCUMENT')),
+    listContractors: () => Promise.reject(new Error('UNEXPECTED_LIST_CONTRACTORS')),
     listOccurrenceAttachmentOverridesBatch: () =>
       Promise.reject(new Error('UNEXPECTED_LIST_OCCURRENCE_OVERRIDES_BATCH')),
     listOccurrenceTypes: () => Promise.reject(new Error('UNEXPECTED_LIST_OCCURRENCE_TYPES')),
@@ -94,6 +97,8 @@ export function createUnexpectedTripClient(): FakeTripClient {
       Promise.reject(new Error('UNEXPECTED_READ_TRIP_DOCUMENT_PRODUCTS')),
     readTripTimeline: () => Promise.reject(new Error('UNEXPECTED_READ_TRIP_TIMELINE')),
     registerTripOccurrence: () => Promise.reject(new Error('UNEXPECTED_REGISTER_TRIP_OCCURRENCE')),
+    replaceOccurrenceAttachmentOverrides: () =>
+      Promise.reject(new Error('UNEXPECTED_REPLACE_OCCURRENCE_OVERRIDES')),
     saveOccurrenceType: () => Promise.reject(new Error('UNEXPECTED_SAVE_OCCURRENCE_TYPE')),
   }
 }

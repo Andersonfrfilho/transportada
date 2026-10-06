@@ -16,7 +16,7 @@ import {
   OCCURRENCE_ITEMS_MODE,
   TRIP_OCCURRENCE_STAGE,
 } from '@/modules/trip/shared/occurrence.constant'
-import type { ContractorSummary } from '@/modules/trip/shared/contractorSummary.service'
+import type { OccurrenceTypeExceptionsState } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
 import styles from '@/modules/trip/styles/trip.module.css'
 
 import { useOccurrenceTypeOptions } from '../hooks/useOccurrenceTypeOptions.hook'
@@ -24,12 +24,12 @@ import {
   buildOccurrenceTypeUpdate,
   type OccurrenceTypeSaveInput,
 } from '../shared/occurrenceTypeUpdate.service'
-import { OccurrenceTypeExceptionsSection } from './OccurrenceTypeExceptionsSection.component'
+import { OccurrenceTypeExceptions } from './OccurrenceTypeExceptions.component'
 import { OccurrenceTypeRequirementFields } from './OccurrenceTypeRequirementFields.component'
 
 type OccurrenceTypeRowProps = Readonly<{
   canManage: boolean
-  contractors: readonly ContractorSummary[]
+  exceptions: OccurrenceTypeExceptionsState
   isSaving: boolean
   onSave: (input: OccurrenceTypeSaveInput) => void
   templateLabel: string
@@ -38,7 +38,7 @@ type OccurrenceTypeRowProps = Readonly<{
 
 export function OccurrenceTypeRow({
   canManage,
-  contractors,
+  exceptions,
   isSaving,
   onSave,
   templateLabel,
@@ -51,7 +51,6 @@ export function OccurrenceTypeRow({
 
   return (
     <div className={styles.occurrenceForm}>
-      <span>{type.name}</span>
       <span className={styles.hint}>{templateLabel}</span>
       <Checkbox
         checked={type.notifies}
@@ -122,13 +121,14 @@ export function OccurrenceTypeRow({
           />
         </Tooltip>
       ) : null}
-      {/* Spec 218 RF-B1/RF-B3/RF-B4: exceção do `attachmentMode`, mesmo gate do comprovante. */}
+      {/* Spec 246 RF11/RF11c: as exceções à vista, só em tipo de rua (mesmo gate do comprovante). */}
       {isDelivery ? (
-        <OccurrenceTypeExceptionsSection
+        <OccurrenceTypeExceptions
           canManage={canManage}
-          contractors={contractors}
+          exceptions={exceptions}
           isDisabled={isSaving}
           occurrenceTypeId={type.id}
+          typeAttachmentMode={type.attachmentMode}
         />
       ) : null}
     </div>

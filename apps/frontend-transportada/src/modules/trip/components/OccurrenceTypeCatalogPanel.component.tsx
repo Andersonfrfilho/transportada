@@ -7,12 +7,14 @@ import { TRIP_OCCURRENCE_STAGE } from '@/modules/trip/shared/occurrence.constant
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
 import { buildOccurrenceEmailTemplateOptions } from '@/modules/trip/shared/occurrenceTemplate.service'
 import { useEmailTemplatesQuery } from '@/modules/notification/queries/useEmailTemplates.query'
-import { useContractorsQuery } from '@/modules/trip/queries/useContractors.query'
+import { useOccurrenceAttachmentOverridesBatchQuery } from '@/modules/trip/queries/useOccurrenceAttachmentOverridesBatch.query'
+import type { OccurrenceTypeExceptionsState } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
 import styles from '@/modules/trip/styles/trip.module.css'
 
+import { useOccurrenceExceptionPeople } from '../hooks/useOccurrenceExceptionPeople.hook'
 import type { OccurrenceTypeSaveInput } from '../shared/occurrenceTypeUpdate.service'
 import { OccurrenceTypeCreateForm } from './OccurrenceTypeCreateForm.component'
-import { OccurrenceTypeRow } from './OccurrenceTypeRow.component'
+import { OccurrenceTypeItem } from './OccurrenceTypeItem.component'
 
 export type OccurrenceTypeCatalogPanelProps = Readonly<{
   canManage: boolean
@@ -50,9 +52,20 @@ export function OccurrenceTypeCatalogPanel({
   const { t: tTrip } = useTranslation('trip')
   const hasItemsModeSupport = types.some((type) => type.itemsMode !== undefined)
 
-  /** Spec 218 T10/T11: mesmo seletor de contratante da exceção de comprovante — busca uma vez só. */
-  const contractorsQuery = useContractorsQuery({ enabled: canManage })
-  const contractors = contractorsQuery.data ?? []
+  /** Spec 246 RF11c: uma consulta de exceções por tela, e uma de contratantes e de clientes — nunca por tipo. */
+  const overridesQuery = useOccurrenceAttachmentOverridesBatchQuery({ enabled: canManage })
+  const people = useOccurrenceExceptionPeople({ enabled: canManage })
+
+  function exceptionsOf(type: OccurrenceType): OccurrenceTypeExceptionsState {
+    if (overridesQuery.isError) return { overrides: undefined, people, status: 'error' }
+    if (!overridesQuery.isSuccess) return { overrides: undefined, people, status: 'loading' }
+    const found = overridesQuery.data.find((entry) => entry.occurrenceTypeId === type.id)
+    return {
+      overrides: found ?? { contractorOverrides: [], recipientOverrides: [] },
+      people,
+      status: 'ready',
+    }
+  }
 
   const emailTemplates = useEmailTemplatesQuery({ enabled: canManage })
   const templateOptions = buildOccurrenceEmailTemplateOptions(emailTemplates.data ?? [])
@@ -96,9 +109,9 @@ export function OccurrenceTypeCatalogPanel({
                 : t('occurrenceTypeCatalog.stageDelivery')}
             </legend>
             {doGrupo.map((type) => (
-              <OccurrenceTypeRow
+              <OccurrenceTypeItem
                 canManage={canManage}
-                contractors={contractors}
+                exceptions={exceptionsOf(type)}
                 isSaving={isSaving}
                 key={type.id}
                 onSave={onSave}
