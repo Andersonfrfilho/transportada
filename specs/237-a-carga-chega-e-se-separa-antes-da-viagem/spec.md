@@ -1,8 +1,8 @@
 # Feature 237 — a carga chega e se separa antes da viagem
 
 > **Estado:** a planilha real foi analisada (`planilha-fr.md`) e a maioria das dúvidas foi respondida pelo
-> usuário em 2026-10-03; **restam D4 (avaria) e D6 (como o e-mail chega)**. As Fases 1–2 não dependem
-> delas. Sem prompt de execução até D4 e D6 serem respondidas.
+> usuário em 2026-10-03/06; **D4 (avaria) e D6 (e-mail) foram respondidas em 2026-10-06** e a retenção de
+> dados da planilha foi decidida (90 dias). Não há `[NEEDS CLARIFICATION]` aberto.
 > **Depende de:** 238 (dias úteis). **Alimenta:** 236 (prazo de entrega). Ordem de entrega: 238 → 237 → 236.
 > **Número:** 237 conferido contra `origin/staging` e os worktrees em 2026-10-03; reconferir antes de publicar.
 > O próximo ADR livre é o **0094** (0093 está tomado em worktree) — a decisão do "eixo do recebimento" vira ADR.
@@ -78,12 +78,17 @@ agrupada por rota e por cidade** (a separação costuma ser por cidade, por ser 
 grupo (rota × cidade) mostra o que falta separar, e cada nota passa por `esperada → recebida → separada` com
 ator, canal e hora (append-only, ADR-0067). A nota entra na viagem já com a rota decidida.
 
-### P2 — Avaria na entrada
+### P2 — Avaria na entrada, com a marcação "devolver ao contratante"
 
 **Given** uma nota da chegada, dentro da janela **When** o separador abre "item avariado" (item, quantidade,
 foto) **Then** nasce a ocorrência **sem exigir viagem**, aparece na tratativa existente (spec 164) e no
-portal do contratante, e a nota pode ser marcada para ficar para trás (`leaves_document_behind`, spec 185).
-Passada a janela, a ocorrência de recebimento é recusada com mensagem clara (nunca perde a de campo).
+portal do contratante. **Decisão do usuário (2026-10-06): a mercadoria avariada pode ser devolvida ao
+contratante, e isso precisa de uma marcação:** o separador (ou o escritório) marca a nota/os itens como
+**"devolver ao contratante"**, com o motivo ligado à ocorrência. Nota marcada **sai da recomendação de viagens
+e da proposta de chegada**, fica visível como "a devolver" na chegada e no painel, e a marcação nunca apaga a
+ocorrência nem a nota (só muda o destino dela). Quando o contratante decidir (tratativa 164), a marcação pode
+ser desfeita (a nota volta ao fluxo normal) ou concluída (devolvida). Passada a janela, a ocorrência de
+recebimento é recusada com mensagem clara (nunca perde a de campo).
 
 ### P2 — Cada contratante com suas regras
 
@@ -167,6 +172,12 @@ conferência) **Then** o fluxo dele muda **só por dado**, sem código novo e se
   viagem com cidades, quantidade de notas, peso e volume totais, e a data planejada (a do nome do arquivo);
   (b) **proposta do roteirizador**: ponte para `POST /route-suggestions/multi-vehicle` com os `documentIds`
   das notas `matched`; **sem** mudar o roteirizador nem escrever viagem; o aceite é o do fluxo atual.
+- **RF8a — Marcação "devolver ao contratante"** (D4, decisão do usuário): `cargo_arrival_documents` ganha o
+  desvio de destino (`return_to_contractor`: `none | marked | returned`, com a ocorrência de origem e o
+  ator/hora no evento append-only); `marked` exclui a nota da recomendação de viagens (RF7), da proposta de
+  chegada e do "fechar chegada" (a chegada fecha com notas `separated` **ou** `returned`); desfazer a marcação
+  é permitido enquanto `marked`; `returned` é terminal. Decisão de modelo 🧠 (estado novo no eixo da nota ×
+  coluna ortogonal), validada com o arquiteto antes de implementar.
 - **RF8 — Avaria sem viagem:** `trip_document_occurrences.trip_document_id` deixa de ser exclusivo: a
   ocorrência passa a poder pertencer a `cargo_arrival_document_id`, com `CHECK` de **exatamente um** dos
   dois (decisão 🧠, migration aditiva e reversível); tipos de ocorrência ganham a etapa `receiving`;
@@ -227,19 +238,17 @@ agrupada por rota e cidade**; a operação é **pelo celular**; o e-mail deve se
 recebido**; a comparação com o XML usa a **data de recebimento da planilha**; o calendário de feriados **já
 existe** (238 o reaproveita).
 
-**[NEEDS CLARIFICATION: D4 — avaria na entrada]** A nota avariada **segue para a rota** ou **fica no
-galpão** até o contratante decidir? _Recomendo seguir a opção do tipo de ocorrência_ (`leaves_document_behind`,
-spec 185) por tipo, não por contratante. Bloqueia só a Fase 3.
-
-**[NEEDS CLARIFICATION: D6 — como o e-mail chega ao app]** "O app lê o e-mail quando for recebido". Em qual
-caixa o contratante manda hoje (Gmail, Outlook, outra) e qual vocês aceitam? Opções: **(a)** o contratante
-passa a mandar a um endereço novo do sistema (`previa-<token>@<domínio de entrada>`) — mantém DKIM e
-remetente originais, é o mais seguro; **(b)** uma **regra de encaminhamento automático** da caixa de vocês
-para esse endereço — funciona sem o contratante mudar nada, mas o remetente verificado passa a ser o de
-vocês e a conferência do contratante vira a conferência do remetente original no
-cabeçalho; **(c)** o app **conecta na caixa** (IMAP/Gmail API, OAuth) — evita encaminhar, mas guarda uma
-credencial de e-mail e amplia a superfície de ataque. _Recomendo (a); se não for possível, (b)._ Bloqueia só a
-Fase 4.
+**Respondidas em 2026-10-06:** **D4** — a nota avariada pode ser **devolvida ao contratante**, e para isso
+precisa de uma **marcação** (RF8a). **D6** — **os e-mails são encaminhados por vocês** para o endereço do
+sistema (opção b do rascunho): o remetente verificado é o do encaminhamento (a conta de vocês, na lista de
+remetentes permitidos do perfil), e a conferência de origem usa o remetente ORIGINAL do contratante lido do
+cabeçalho da mensagem encaminhada (`From`/`Reply-To`/`X-Forwarded-*`/`Received-SPF`/`Authentication-Results`
+do primeiro salto), com a prévia só aceita se o remetente original estiver na lista do perfil — o DKIM do
+contratante se perde no encaminhamento, e isso é um risco aceito e registrado no `SECURITY.md` (o vínculo
+continua exigindo valor + peso e passando por confirmação do operador nas sugestões). **Retenção dos dados da
+planilha:** **90 dias** depois de a prévia ficar sem item em aberto, o arquivo é apagado do bucket e as colunas
+de pessoa dos itens (nome, endereço, bairro, CEP) são anonimizadas; valor, peso, roteiro, vínculo e trilha
+ficam (T4.8).
 
 **Resolvida pelos XMLs reais (D8):** `Text001` e o código do cliente (`Company`) **não estão no XML da
 NF-e** (0 ocorrências em 277 notas, texto bruto e atributos), e a planilha **não traz `NroCarga`**. O vínculo é

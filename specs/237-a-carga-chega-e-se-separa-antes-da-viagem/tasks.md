@@ -80,31 +80,51 @@
 - [ ] **T5.3** **Revisão de design e usabilidade** de todo o módulo (web.md §15), prints nos dois temas e
       375/768/1280 px **aprovados**; publicar e confirmar.
 
-## Fase 3 — Avaria sem viagem _(bloqueada por D4)_
+## Fase 3 — Avaria sem viagem e "devolver ao contratante"
 
-> 🤖 Modelo: `sonnet` (T3.1 é 🧠)
+> 🤖 Modelo: `sonnet` (T3.1 é 🧠). **D4 respondida (2026-10-06):** a mercadoria avariada pode ser devolvida ao
+> contratante e precisa de uma marcação (RF8a).
 
-- [ ] **T3.1** 🧠 Modelo da ocorrência de recebimento (coluna com `CHECK` exatamente-um × tabela irmã),
-      validado com `architect` em `opus` contra as specs 157/164/166/172/183/185.
+- [ ] **T3.1** 🧠 Modelo da ocorrência de recebimento (coluna com `CHECK` exatamente-um × tabela irmã) **e da
+      marcação "devolver ao contratante"** (RF8a: estado novo no eixo × coluna ortogonal; efeito em fechar
+      chegada, recomendação e proposta), validado com `architect` em `opus` contra as specs
+      157/164/166/172/183/185.
 - [ ] **T3.2** Migration aditiva + etapa `receiving` nos tipos; rota que recusa fora da janela (código
-      estável); tratativa e portal enxergam a ocorrência nova.
-- [ ] **T3.3** Tela: abrir avaria na nota da chegada (item, quantidade, foto); mutação; evidência.
+      estável); marcar/desmarcar/concluir a devolução (eventos append-only, ator, motivo); tratativa e portal
+      enxergam a ocorrência nova.
+- [ ] **T3.3** Tela (painel e celular): abrir avaria na nota da chegada (item, quantidade, foto) e a
+      marcação "devolver ao contratante"; nota marcada sai da recomendação e da proposta de chegada; mutação;
+      evidência.
 - [ ] **T3.4** Revisão `opus`, print aprovado, publicar e confirmar.
 
-## Fase 4b — Prévia por e-mail _(bloqueada por D6)_
+## Fase 4b — Prévia por e-mail encaminhada _(D6 respondida: vocês encaminham)_
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T4.6** Ramo "prévia" no worker de e-mail de entrada (conforme D6: token do perfil, DKIM, allow-list,
-      MIME bruto); o anexo cai no mesmo caso de uso do upload; contratos (CA1, CA2); `security-reviewer`.
-- [ ] **T4.7** Revisão `opus`, publicar e confirmar.
+- [ ] **T4.6** Ramo "prévia" no worker de e-mail de entrada, **para mensagem ENCAMINHADA** (D6): token do
+      perfil no endereço, remetente do encaminhamento na allow-list do perfil, **remetente original** lido do
+      cabeçalho e também na allow-list, MIME bruto guardado, DKIM do encaminhador verificado e o do contratante
+      tratado como perdido (risco aceito no `SECURITY.md`); limite de tamanho do anexo igual ao do upload; o anexo cai no mesmo caso de uso do upload; contratos (CA1, CA2); `security-reviewer`.
+- [ ] **T4.7** Revisão `opus` + `security-reviewer` (e-mail é entrada hostil: falsificação do remetente
+      original, cabeçalhos forjados, anexo malicioso, reprocessamento), publicar e confirmar.
+
+## Fase 4c — Retenção dos dados da planilha (decisão do usuário: 90 dias)
+
+> 🤖 Modelo: `sonnet`
+
+- [ ] **T4.8** Rotina agendada (cron → fila → worker, no molde das rotinas existentes) que, 90 dias depois de
+      a prévia ficar sem item em aberto (`awaiting_xml`/`suggested`/`ambiguous`), **apaga o arquivo do
+      bucket** e **anonimiza** `recipient_name`, `address`, `neighborhood` e `postal_code` dos itens, mantendo
+      valor, peso, roteiro, vínculo, estado e trilha; idempotente, com evento append-only, sem PII em log,
+      prazo configurável por constante nomeada; contrato antes, integração contra Postgres, mutação; registrar
+      no `SECURITY.md` como decidido.
 
 ## Prompt de execução
 
 ```text
 /oh-my-claudecode:autopilot Execute a spec specs/237-a-carga-chega-e-se-separa-antes-da-viagem/ (leia
 spec.md, plan.md, tasks.md e planilha-fr.md inteiros antes de começar), SOMENTE as fases 1, 2, 4a e 5, nessa
-ordem, uma task por vez. NÃO execute a Fase 3 (D4 aberta) nem a Fase 4b (D6 aberta). Worktree/branch
+ordem, uma task por vez. As decisões D4 e D6 foram respondidas em 2026-10-06 (ver spec.md): as Fases 3, 4b e 4c entram na execução. Worktree/branch
 próprios a partir de origin/staging (git fetch antes; confirme que o número 237 e o próximo ADR (0094)
 continuam livres em origin/staging e nos outros worktrees).
 Modelos: tasks 🧠 (T1.1, T2.1, T4.1, T4.3) com model=opus e validação do desenho por architect model=opus

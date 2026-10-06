@@ -347,11 +347,11 @@ contratos em `specs/237-…/evidence.md` § "Correções da revisão de seguran�
 
 1. **A memória da thread não tem teto do runtime** (o Bun ignora `resourceLimits`): o limite são os
    tetos do leitor. Se o Bun passar a honrar a opção, ela já está passada (256 MiB).
-2. **Retenção dos itens e do arquivo — decisão pendente do usuário.** Os itens guardam razão social,
-   endereço, CEP e valor por linha, e o arquivo fica no bucket, ambos **sem prazo de descarte**.
-   Recomendação: descartar o arquivo e anonimizar as colunas de pessoa dos itens (nome, endereço,
-   bairro, CEP) 90 dias depois de a prévia ficar sem item em aberto, mantendo valor, peso, roteiro,
-   vínculo e trilha (o que a comparação prévia × XML e a cobrança precisam). Nada foi implementado.
+2. **Retenção dos itens e do arquivo — decidida pelo usuário em 2026-10-06: 90 dias.** Os itens guardam
+   razão social, endereço, CEP e valor por linha, e o arquivo fica no bucket. 90 dias depois de a prévia
+   ficar sem item em aberto, o arquivo é apagado e as colunas de pessoa (nome, endereço, bairro, CEP) dos
+   itens são anonimizadas, mantendo valor, peso, roteiro, vínculo e trilha. **Implementação pendente**
+   (T4.8 da spec 237): até lá, o prazo não é cumprido.
 3. O teto de 960 KiB é do transporte: planilha maior que isso é recusada (413) mesmo dentro dos 5 MiB
    do leitor. As medidas reais estão em 0,80–0,82 MB.
 
