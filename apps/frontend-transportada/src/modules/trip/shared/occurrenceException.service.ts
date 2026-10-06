@@ -90,7 +90,18 @@ export function removeException(
   }
 }
 
-/** A foto da exceção é declarada (coluna `NOT NULL`); os outros quatro campos nascem herdando do tipo. */
+const INHERITING_FIELDS = {
+  itemsMinimumCount: null,
+  itemsMode: null,
+  noteMode: null,
+  photoMinimumCount: null,
+  signatureMode: null,
+} as const
+
+/**
+ * A foto da exceção é declarada (coluna `NOT NULL`); os outros campos nascem herdando do tipo. O nulo é
+ * **explícito**: a API, para tolerar o painel antigo, grava a observação seguindo a foto quando a chave falta.
+ */
 export function addException(
   overrides: OccurrenceAttachmentOverrides,
   input: Readonly<{ attachmentMode: OccurrenceAttachmentMode; key: OccurrenceExceptionKey }>,
@@ -100,7 +111,11 @@ export function addException(
       ...overrides,
       contractorOverrides: [
         ...overrides.contractorOverrides,
-        { attachmentMode: input.attachmentMode, contractorId: input.key.contractorId },
+        {
+          attachmentMode: input.attachmentMode,
+          contractorId: input.key.contractorId,
+          ...INHERITING_FIELDS,
+        },
       ],
     }
   }
@@ -108,7 +123,7 @@ export function addException(
     ...overrides,
     recipientOverrides: [
       ...overrides.recipientOverrides,
-      { attachmentMode: input.attachmentMode, taxId: input.key.taxId },
+      { attachmentMode: input.attachmentMode, taxId: input.key.taxId, ...INHERITING_FIELDS },
     ],
   }
 }
