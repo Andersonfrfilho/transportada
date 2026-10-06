@@ -92,7 +92,7 @@ describe('a chegada da carga (spec 237 T2.2)', () => {
       cargo_arrivals_reference_check: 'char_length("reference") between 1 and 120',
       cargo_arrivals_request_fingerprint_check: `"request_fingerprint" ~ '^[0-9a-f]{64}$'`,
       cargo_arrivals_separation_due_at_check:
-        '("separation_window_hours" is null and "separation_due_at" is null) or extract(epoch from "separation_due_at" - "arrived_at") = "separation_window_hours" * 3600',
+        '("separation_window_hours" is null) = ("separation_due_at" is null) and ("separation_due_at" is null or extract(epoch from "separation_due_at" - "arrived_at") = "separation_window_hours" * 3600)',
       cargo_arrivals_separation_window_hours_check: '"separation_window_hours" between 1 and 168',
       cargo_arrivals_status_check: `"status" in ('open', 'closed')`,
     })
@@ -147,7 +147,7 @@ describe('a nota na chegada (spec 237 T2.2)', () => {
       cargo_arrival_documents_city_ibge_code_check: `"city_ibge_code" ~ '^[0-9]{7}$'`,
       cargo_arrival_documents_route_name_check: 'char_length("route_name") between 1 and 40',
       cargo_arrival_documents_separation_state_check: `"separation_state" in ('expected', 'received', 'separated')`,
-      cargo_arrival_documents_state_dates_check: `("separation_state" = 'expected' and "received_at" is null and "separated_at" is null) or ("separation_state" = 'received' and "received_at" is not null and "separated_at" is null) or ("separation_state" = 'separated' and "received_at" is not null and "separated_at" >= "received_at")`,
+      cargo_arrival_documents_state_dates_check: `("separation_state" = 'expected' and "received_at" is null and "separated_at" is null) or ("separation_state" = 'received' and "received_at" is not null and "separated_at" is null) or ("separation_state" = 'separated' and "received_at" is not null and "separated_at" is not null and "separated_at" >= "received_at")`,
     })
     expect([...requiredColumnNames(cargoArrivalDocuments)].sort()).toEqual(
       [
@@ -192,7 +192,7 @@ describe('a trilha da chegada (spec 237 T2.2, ADR-0067)', () => {
       `("kind" in ('arrival_registered', 'arrival_closed')) = ("arrival_document_id" is null)`,
     )
     expect(checks.cargo_arrival_events_state_shape_check).toBe(
-      `case "kind" when 'document_added' then "from_state" is null and "to_state" = 'expected' when 'document_received' then "from_state" = 'expected' and "to_state" = 'received' when 'document_separated' then "from_state" = 'received' and "to_state" = 'separated' else "from_state" is null and "to_state" is null end`,
+      `case "kind" when 'document_added' then "from_state" is null and "to_state" is not null and "to_state" = 'expected' when 'document_received' then "from_state" is not null and "to_state" is not null and "from_state" = 'expected' and "to_state" = 'received' when 'document_separated' then "from_state" is not null and "to_state" is not null and "from_state" = 'received' and "to_state" = 'separated' else "from_state" is null and "to_state" is null end`,
     )
     expect(checks.cargo_arrival_events_channel_check).toBe(`"channel" in ('backoffice')`)
     expect(checks.cargo_arrival_events_details_check).toBe(`jsonb_typeof("details") = 'object'`)
