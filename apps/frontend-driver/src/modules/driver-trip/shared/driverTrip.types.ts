@@ -472,4 +472,5 @@ export type DriverOccurrenceTypesResult =
   | Readonly<{ status: 'loaded'; types: readonly DriverOccurrenceType[] }>
 
 export type DriverOccurrenceTypesState =
-  Readonly<{ status: 'loading' }> | DriverOccurrenceTypesResult
+  | Readonly<{ status: 'loading' }>
+  | DriverOccurrenceTypesResult

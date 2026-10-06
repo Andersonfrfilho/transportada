@@ -27,7 +27,8 @@ export type OccurrenceExceptionEdit = Readonly<{
 }>
 
 export type OccurrenceExceptionEntry =
-  OccurrenceAttachmentContractorOverride | OccurrenceAttachmentRecipientOverride
+  | OccurrenceAttachmentContractorOverride
+  | OccurrenceAttachmentRecipientOverride
 
 type AnyOverride = OccurrenceExceptionEntry
 
