@@ -124,8 +124,8 @@ export class DrizzleOccurrenceAttachmentOverridesRepository {
       if (!isEveryContractorInTenant) throw new ContractorNotFoundError()
     }
 
-    await this.database
-      .transaction(async (transaction) => {
+    try {
+      await this.database.transaction(async (transaction) => {
         const keptContractorIds = input.overrides.map((override) => override.contractorId)
         await transaction
           .delete(companyOccurrenceTypeContractorOverrides)
@@ -161,7 +161,9 @@ export class DrizzleOccurrenceAttachmentOverridesRepository {
             })
         }
       })
-      .catch(rethrowOverrideShapeViolation)
+    } catch (error: unknown) {
+      rethrowOverrideShapeViolation(error)
+    }
   }
 
   /** Sem pré-validação do `taxId` — mesma assimetria da irmã de comprovante (`replaceOverrides`). */
@@ -170,8 +172,8 @@ export class DrizzleOccurrenceAttachmentOverridesRepository {
     readonly occurrenceTypeId: string
     readonly overrides: readonly OccurrenceAttachmentRecipientOverride[]
   }): Promise<void> {
-    await this.database
-      .transaction(async (transaction) => {
+    try {
+      await this.database.transaction(async (transaction) => {
         const keptTaxIds = input.overrides.map((override) => override.taxId)
         await transaction
           .delete(companyOccurrenceTypeRecipientOverrides)
@@ -204,7 +206,9 @@ export class DrizzleOccurrenceAttachmentOverridesRepository {
             })
         }
       })
-      .catch(rethrowOverrideShapeViolation)
+    } catch (error: unknown) {
+      rethrowOverrideShapeViolation(error)
+    }
   }
 
   /**
