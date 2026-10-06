@@ -148,3 +148,15 @@ describe('responsive contract', () => {
     expect(projectContext).toContain('docs/frontend/responsive.md')
   })
 })
+
+describe('cabeçalho da aplicação no celular (revisão do painel)', () => {
+  /** Medido a 320px em /ressarcimentos: a fonte fixa de 2rem fazia o nome da tela (241px) passar da caixa de 170px. */
+  test('o nome da tela encolhe com a largura e quebra em vez de alargar a página', async () => {
+    const styles = await Bun.file(new URL('../../src/styles/index.css', import.meta.url)).text()
+    const start = styles.indexOf('.application-wordmark {')
+    const rule = styles.slice(start, styles.indexOf('}', start))
+
+    expect(rule).toContain('font-size: clamp(')
+    expect(rule).toContain('overflow-wrap: anywhere')
+  })
+})

@@ -114,3 +114,23 @@ describe('o total selecionado usa plural', () => {
     expect(chargesEnLocale.reimbursements.totals.selectedTotal_other).toContain('rows)')
   })
 })
+
+describe('revisão do painel: a página não passa da largura da tela a 320px', () => {
+  /** Medido a 320px: a trilha implícita da grade crescia até o `Select` mais largo (326px), e a casca ia a 360px. */
+  it('a casca, o painel, o formulário e o campo usam uma coluna que encolhe', () => {
+    for (const selector of ['.shell {', '.panel {', '.batchForm {', '.field {']) {
+      const start = STYLES.indexOf(selector)
+      const rule = STYLES.slice(start, STYLES.indexOf('}', start))
+      expect(rule.includes('grid-template-columns: minmax(0, 1fr)')).toBe(true)
+    }
+  })
+
+  /** O `h1` global é de 3,5rem a 9rem em caixa alta: "RESSARCIMENTOS" tinha 360px e puxava a página a 369px. */
+  it('o título da página tem o corpo do cabeçalho dos outros módulos, não o do h1 global', () => {
+    const start = STYLES.indexOf('.header h1 {')
+    expect(start).toBeGreaterThan(-1)
+    const rule = STYLES.slice(start, STYLES.indexOf('}', start))
+    expect(rule).toContain('font-size: 1.75rem')
+    expect(rule).toContain('max-width: none')
+  })
+})
