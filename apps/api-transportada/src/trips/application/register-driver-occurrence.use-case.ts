@@ -10,13 +10,10 @@
  * ativa dele, e quem o garante é a consulta, não a permissão.
  */
 import { OCCURRENCE_MOMENT, TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
-import {
-  TripDocumentNotReachableError,
-  TripOccurrenceAttachmentRequiredError,
-  TripOccurrenceNoteRequiredError,
-} from '../domain/trip.error.js'
+import { TripDocumentNotReachableError } from '../domain/trip.error.js'
 import { assertOccurrenceTypeAcceptsProducts } from '../domain/occurrence-items-mode.policy.js'
 import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
+import { assertDriverOccurrencePhotoRequirement } from '../domain/occurrence-photo-requirement.policy.js'
 import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
 import type { DriverFieldReportUnitOfWork, ReportedLocation } from './driver-field-report.port.js'
 import { resolveFieldTapLocationStamp } from './field-tap-location-stamp.service.js'
@@ -135,19 +132,14 @@ export async function registerDriverOccurrence(
   const authorship = deriveFieldAuthorship(input)
   const tripId = reachable.tripId
 
-  /**
-   * Spec 179 T203 (RF3/CA02/CA03): a exigência é do **tipo**, nunca do nome que a empresa deu a ele
-   * (`duplicacao.md`) — `attachmentMode` vem do cadastro (T101/T103), não de "o tipo se chama
-   * recusa". Ausente (dado legado sem a coluna preenchida na leitura) é `'off'`, o comportamento de
-   * sempre (CA07/CA08).
-   */
-  const attachmentMode = occurrenceType.attachmentMode ?? 'off'
-  if (attachmentMode === 'required') {
-    if (input.note.trim() === '') throw new TripOccurrenceNoteRequiredError()
-    if (input.attachmentObjectId === undefined || input.attachmentObjectId === null) {
-      throw new TripOccurrenceAttachmentRequiredError()
-    }
-  }
+  /** Spec 179 T203 (RF3) e 246 (RF8): a exigência é do **tipo**; a rota leva um anexo só. */
+  const hasAttachment = input.attachmentObjectId !== undefined && input.attachmentObjectId !== null
+  assertDriverOccurrencePhotoRequirement({
+    attachmentCount: hasAttachment ? 1 : 0,
+    attachmentMode: occurrenceType.attachmentMode,
+    note: input.note,
+    photoMinimumCount: occurrenceType.photoMinimumCount,
+  })
 
   /**
    * Spec 179 T203 (RF2b): qualquer referência recebida é conferida — existe, é desta empresa e veio

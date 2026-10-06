@@ -1207,6 +1207,20 @@ export class TripOccurrenceNoteRequiredError extends ApiError {
 }
 
 /**
+ * Spec 246 (RF1c, RF8): a foto é obrigatória e veio, mas abaixo de `photo_minimum_count`. Código
+ * próprio, distinto de `TRIP_OCCURRENCE_ATTACHMENT_REQUIRED` (nenhuma foto): a tela diz quantas faltam.
+ */
+export class TripOccurrencePhotoMinimumNotMetError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_PHOTO_MINIMUM_NOT_MET',
+      message: 'This occurrence type requires more photos than were attached.',
+      status: 422,
+    })
+  }
+}
+
+/**
  * Spec 167 (RF4/RF8): a tratativa já abriu — o número já está valendo dinheiro e não muda por trás
  * da cobrança. 409, o mesmo padrão de `OccurrenceCaseTransitionNotAllowedError`.
  */

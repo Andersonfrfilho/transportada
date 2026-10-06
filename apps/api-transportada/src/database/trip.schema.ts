@@ -2404,8 +2404,9 @@ export const tripOccurrenceUploads = pgTable(
 /**
  * Spec 161 (D2/D12): as fotos da ocorrência de galpão — até cinco por ocorrência, cada uma com um
  * original (`stored_object_id`, prova) e uma miniatura opcional (`thumbnail_object_id`, o que as
- * listas carregam). `attachment_object_id` de `trip_document_occurrences` continua servindo a
- * ocorrência de rua (D6) — esta tabela nunca é escrita por aquele canal.
+ * listas carregam). Spec 246 (RF1d): a foto da ocorrência de rua também passa a ter linha aqui
+ * (posição 1, sem miniatura) — escrita dupla com `attachment_object_id` (T1d.5) e backfill próprio
+ * (T1d.2); o lote do escritório põe o mesmo objeto em N linhas.
  *
  * ⚠️ O teto de cinco está **duplicado no banco**: o CHECK de `position` (1 a 5) e a política de
  * aplicação (`OCCURRENCE_ATTACHMENT_LIMIT`, T2). Mudar o teto exige migration nos dois lugares.

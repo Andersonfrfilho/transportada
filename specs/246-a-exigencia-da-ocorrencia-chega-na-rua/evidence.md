@@ -1127,3 +1127,59 @@ seguida (`cmp` igual; a execução restaurada dá `1 pass, 0 fail`). Comando:
 (fail) ... > as cinco sementes saem com as linhas certas, a hora da ocorrência, e reexecutar não duplica
  0 pass / 1 fail
 ```
+
+### T1d.5 — Escrita dupla da foto de rua e o mínimo de fotos (2026-10-06)
+
+**Escrita dupla.** `saveTripOccurrence` (`delivery-proof-read.support.ts`), a escrita comum da nota do
+motorista (`saveDocumentOccurrence`) e do lote do escritório, grava a coluna `attachment_object_id`
+como antes e, quando ela vem preenchida, a linha de `trip_document_occurrence_attachments` na mesma
+transação (`mirrorStreetOccurrenceAttachment`, `street-occurrence-attachment.persistence.ts`): posição
+1, sem miniatura, `created_at` da ocorrência. O galpão passa `attachmentObjectId` ausente e segue
+gravando as próprias linhas (161). O **lote** usa o próprio objeto `delivery_proof`, o mesmo nas N
+notas — nenhum objeto `trip_occurrence_attachment` nasce por ele. A assinatura **não** passa por aqui:
+não há escritor de `signature_object_id` nesta fase (T2.4), e a T1d.6 prova que ela não aparece como
+foto. Comentário da tabela em `trip.schema.ts` corrigido ("nunca é escrita por aquele canal" deixou de
+valer).
+
+**Mínimo de fotos (RF8).** `assertDriverOccurrencePhotoRequirement`
+(`domain/occurrence-photo-requirement.policy.ts`) reúne a regra que estava inline no caso de uso
+(observação e anexo obrigatórios com foto `required`, 179) e acrescenta: com a foto `required`, a
+quantidade de anexos abaixo de `photoMinimumCount` é `TripOccurrencePhotoMinimumNotMetError` (`422
+TRIP_OCCURRENCE_PHOTO_MINIMUM_NOT_MET`, `trip.error.ts`). Com a foto opcional ou desligada o mínimo
+não é lido. `register-driver-occurrence.use-case.ts` caiu de 216 para 208 linhas.
+
+⚠️ **Lacuna registrada (não é divergência do plan, é algo que nenhuma task cobre):** a rota do
+motorista leva **um** anexo só (`attachmentObjectId`). Um tipo com `photo_minimum_count > 1` fica
+irregistrável pela rota até ela aceitar N anexos — nenhuma task da spec acrescenta isso (a T4.1b só
+bloqueia o botão no app). Hoje o mínimo só sobe acima de 1 pelo `PUT` da API (o painel não o expõe
+antes da Fase 5).
+
+Contrato primeiro — `test/trip-occurrence/photo-minimum-guard.contract.ts` (registrado em
+`test/trip-occurrence.contract.test.ts`) e a integração
+`test/integration/street-occurrence-attachment-write.integration.ts` (na lista `test:integration`;
+registro pelo caminho real em `test/fixtures/street-occurrence-registration.fixture.ts`), antes da
+implementação:
+
+```text
+$ bun --env-file=../../.env.test test ./test/trip-occurrence/photo-minimum-guard.contract.ts
+SyntaxError: Export named 'TripOccurrencePhotoMinimumNotMetError' not found in module '.../src/trips/domain/trip.error.ts'.
+ 0 pass
+ 1 fail
+$ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/street-occurrence-attachment-write.integration.ts
+- Expected  - 9
++ Received  + 1
+(fail) ... > motorista com upload: coluna e linha; sem foto, nenhuma linha
+Expected length: 2
+Received length: 0
+(fail) ... > lote do escritório: o mesmo objeto do lote, uma linha por nota
+ 0 pass
+ 2 fail
+```
+
+Depois: `bun --env-file=../../.env.test test ./test/trip-occurrence.contract.test.ts` → `425 pass, 0
+fail`; `street-occurrence-attachment-write` → `2 pass, 0 fail`; `bun run typecheck` 0 erros;
+`db:generate` → `no_changes`. Integrações tocadas, uma por vez: `trip-field-authorship` 5/0 ·
+`trip-field-office` 25/0 · `trip-occurrence-attachment` 6/0 · `trip-occurrence-timeline` 3/0 ·
+`trip-occurrence-feed-document` 6/0 · `trip-occurrence-feed-case` 2/0 · `trip-occurrence-correction`
+8/0 · `trip-occurrence-correction-read` 8/0 · `extra-charge-batch-statement` 2/0 · `trip-timeline` 45/0 ·
+`occurrence-type-moments-registration` 2/0 (pass/fail, nenhum pulado).

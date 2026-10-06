@@ -155,7 +155,7 @@ trip_document_occurrence_attachments_unique_position DO NOTHING`. **`created_at 
       (a) e (b), e que reexecutar dá a mesma contagem.
 - [x] **T1d.4** Mutações: (1) arrancar o `INSERT` (casos a e d vermelhos); (2) tirar o `NOT EXISTS`
       (b vira duas fotos); (3) tirar `o.created_at`. Execução vermelha registrada em `evidence.md`.
-- [ ] **T1d.5** A escrita da ocorrência de rua grava nas duas tabelas até a leitura nova estar em
+- [x] **T1d.5** A escrita da ocorrência de rua grava nas duas tabelas até a leitura nova estar em
       produção, **sem** usar `trip_occurrence_attachment` para o lote; `photo_minimum_count` é
       conferido contra a quantidade de anexos (RF8). A assinatura **não** vira linha de anexo (RF9).
 - [ ] **T1d.6** O demonstrativo de ocorrências ao cliente

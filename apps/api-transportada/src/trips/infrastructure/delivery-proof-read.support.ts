@@ -69,6 +69,7 @@ import { resolveDeliveryContact } from '../domain/delivery-contact.policy.js'
 import type { DeliveryContact } from '../domain/delivery-contact.policy.js'
 import { PROOF_REACHABLE_TRIP_STATUSES } from './drizzle-delivery-proof.repository.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
+import { mirrorStreetOccurrenceAttachment } from './street-occurrence-attachment.persistence.js'
 import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
 import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
 import { resolveOccurrenceProductCodes } from '../domain/occurrence-scope.policy.js'
@@ -582,6 +583,16 @@ export async function saveTripOccurrence(
     })
     .returning()
   if (saved === undefined) return null
+
+  /** Spec 246 T1d.5: a foto de rua ganha também a linha da 161, na mesma transação. */
+  if (saved.attachmentObjectId !== null) {
+    await mirrorStreetOccurrenceAttachment(queryable, {
+      companyId: saved.companyId,
+      createdAt: saved.createdAt,
+      occurrenceId: saved.id,
+      storedObjectId: saved.attachmentObjectId,
+    })
+  }
 
   /**
    * Spec 164 T4 (RF3): a abertura mora na **mesma transação** desta escrita — `unset` (ou
