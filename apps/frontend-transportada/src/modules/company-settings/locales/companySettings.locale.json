@@ -427,6 +427,49 @@
       "loading": "Carregando os modelos de e-mail…",
       "failed": "Não foi possível carregar os modelos de e-mail. O modelo atual segue valendo; recarregue a página para tentar de novo.",
       "missing": "O modelo \"{{key}}\" não está mais ativo, então nenhum e-mail sai por ele. Escolha outro modelo."
+    },
+    "filters": {
+      "title": "Filtros dos tipos",
+      "searchLabel": "Buscar tipos",
+      "searchPlaceholder": "Buscar por nome do tipo, ou por nome / CNPJ de quem tem exceção",
+      "clear": "Limpar",
+      "clearAll": "Limpar filtros",
+      "counter": "{{shown}} de {{total}} tipos",
+      "exceptionUnavailable": "O filtro Tem exceção fica indisponível enquanto as exceções não carregam.",
+      "emptyTitle": "Nenhum tipo corresponde",
+      "emptyReasonQuery": "Nenhum tipo tem esse nome, e ninguém com exceção tem esse nome ou CNPJ: \"{{query}}\".",
+      "emptyReasonPills_one": "Há 1 filtro ligado que nenhum tipo cumpre.",
+      "emptyReasonPills_other": "Há {{count}} filtros ligados que nenhum tipo cumpre juntos.",
+      "groups": {
+        "moment": "Momento",
+        "requirement": "Exige",
+        "other": "E ainda"
+      },
+      "chips": {
+        "moment": {
+          "separation": "Separação no galpão",
+          "document": "Entrega da nota",
+          "stop": "Chegada à parada",
+          "office": "Escritório"
+        },
+        "requirement": {
+          "photo": "Foto",
+          "note": "Observação",
+          "signature": "Assinatura",
+          "items": "Produtos"
+        },
+        "activity": {
+          "active": "Ativos",
+          "inactive": "Inativos"
+        },
+        "notification": {
+          "notifies": "Avisa contratante",
+          "silent": "Não avisa"
+        },
+        "exception": {
+          "has": "Tem exceção"
+        }
+      }
     }
   },
   "settingsResolution": {

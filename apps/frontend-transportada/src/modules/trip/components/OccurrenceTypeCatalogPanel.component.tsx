@@ -14,8 +14,13 @@ import type { OccurrenceTypeExceptionsState } from '@/modules/trip/shared/occurr
 import styles from '@/modules/trip/styles/trip.module.css'
 
 import { useOccurrenceExceptionPeople } from '../hooks/useOccurrenceExceptionPeople.hook'
+import { useOccurrenceTypeFilters } from '../hooks/useOccurrenceTypeFilters.hook'
+import { filterOccurrenceTypes } from '../shared/occurrenceTypeFilter.service'
+import { countActiveOccurrenceTypeFilters } from '../shared/occurrenceTypeFilterChips.service'
 import type { OccurrenceTypeSaveInput } from '../shared/occurrenceTypeUpdate.service'
 import { OccurrenceTypeCreateForm } from './OccurrenceTypeCreateForm.component'
+import { OccurrenceTypeFilterEmpty } from './OccurrenceTypeFilterEmpty.component'
+import { OccurrenceTypeFilters } from './OccurrenceTypeFilters.component'
 import { OccurrenceTypeList } from './OccurrenceTypeList.component'
 
 function toLoadStatus(query: Readonly<{ isError: boolean; isSuccess: boolean }>) {
@@ -80,6 +85,16 @@ export function OccurrenceTypeCatalogPanel({
     status: toLoadStatus(emailTemplates),
   }
 
+  const filtersController = useOccurrenceTypeFilters()
+  const exceptionsByTypeId = overridesQuery.isSuccess
+    ? new Map(overridesQuery.data.map((entry) => [entry.occurrenceTypeId, entry]))
+    : undefined
+  const visibleTypes = filterOccurrenceTypes({
+    context: { exceptionsByTypeId, people },
+    filters: filtersController.filters,
+    types,
+  })
+
   return (
     <section className={styles.panel}>
       <h3 className={styles.hint}>{t('occurrenceTypeCatalog.title')}</h3>
@@ -87,7 +102,14 @@ export function OccurrenceTypeCatalogPanel({
 
       {types.length === 0 ? (
         <p className={styles.hint}>{t('occurrenceTypeCatalog.empty')}</p>
-      ) : null}
+      ) : (
+        <OccurrenceTypeFilters
+          canFilterByException={overridesQuery.isSuccess}
+          controller={filtersController}
+          shownCount={visibleTypes.length}
+          totalCount={types.length}
+        />
+      )}
 
       {saveFeedbackKey === null ? null : (
         <p className={styles.alert} role="alert">
@@ -95,14 +117,22 @@ export function OccurrenceTypeCatalogPanel({
         </p>
       )}
 
-      <OccurrenceTypeList
-        canManage={canManage}
-        exceptionsOf={exceptionsOf}
-        isSaving={isSaving}
-        onSave={onSave}
-        templates={templates}
-        types={types}
-      />
+      {types.length > 0 && visibleTypes.length === 0 ? (
+        <OccurrenceTypeFilterEmpty
+          activeCount={countActiveOccurrenceTypeFilters(filtersController.filters)}
+          onClear={filtersController.clear}
+          query={filtersController.filters.query}
+        />
+      ) : (
+        <OccurrenceTypeList
+          canManage={canManage}
+          exceptionsOf={exceptionsOf}
+          isSaving={isSaving}
+          onSave={onSave}
+          templates={templates}
+          types={visibleTypes}
+        />
+      )}
 
       {canManage ? (
         <OccurrenceTypeCreateForm
