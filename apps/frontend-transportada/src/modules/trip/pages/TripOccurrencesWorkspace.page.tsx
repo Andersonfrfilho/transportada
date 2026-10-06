@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
-import { Tabs } from '@/components/ui/tabs'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { UnassignedMessages } from '@/modules/occurrence-conversation/components/UnassignedMessages.component'
 
@@ -16,7 +15,7 @@ import {
   TripOccurrenceTable,
   TripOccurrenceTableSkeleton,
 } from '../components/TripOccurrenceTable.component'
-import { TripOccurrenceTypesTab } from '../components/TripOccurrenceTypesTab.component'
+import { TripOccurrencesTabs } from '../components/TripOccurrencesTabs.component'
 import { useTripOccurrenceTable } from '../hooks/useTripOccurrenceTable.hook'
 import styles from '../styles/trip.module.css'
 
@@ -24,14 +23,6 @@ import styles from '../styles/trip.module.css'
 const TRIP_READ_PERMISSION = 'fleet.read'
 /** Spec 164 D7: validar a própria tratativa é `occurrences.resolve`, nunca `trip.manage`. */
 const OCCURRENCE_CASE_RESOLVE_PERMISSION = 'occurrences.resolve'
-
-type TripOccurrencesTabId = 'feed' | 'types'
-
-const TRIP_OCCURRENCES_TABS: readonly TripOccurrencesTabId[] = ['feed', 'types']
-
-function resolveTripOccurrencesTab(id: string): TripOccurrencesTabId {
-  return TRIP_OCCURRENCES_TABS.find((tab) => tab === id) ?? 'feed'
-}
 
 function TripOccurrencesPageSkeleton() {
   const { t } = useTranslation('trip')
@@ -102,7 +93,6 @@ export function TripOccurrencesWorkspacePage() {
   const { t } = useTranslation('trip')
   const authQuery = useAuthMeQuery()
   const [isColumnsMenuOpen, setColumnsMenuOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<TripOccurrencesTabId>('feed')
 
   const permissions = authQuery.data?.data.permissions ?? []
   const companyId = authQuery.data?.data.company.id
@@ -137,26 +127,16 @@ export function TripOccurrencesWorkspacePage() {
 
       {authQuery.isSuccess && canReadOccurrences ? (
         <div className={styles.deck}>
-          <Tabs
-            ariaLabel={t('occurrenceFeed.title')}
-            items={TRIP_OCCURRENCES_TABS.map((tab) => ({
-              id: tab,
-              label:
-                tab === 'feed' ? t('occurrenceFeed.tabs.feed') : t('occurrenceFeed.tabs.types'),
-              panel:
-                tab === 'feed' ? (
-                  <TripOccurrencesFeedContent
-                    canResolveOccurrenceCases={canResolveOccurrenceCases}
-                    isColumnsMenuOpen={isColumnsMenuOpen}
-                    onColumnsMenuToggle={setColumnsMenuOpen}
-                    table={table}
-                  />
-                ) : canManageSettings ? (
-                  <TripOccurrenceTypesTab canManage={canManageSettings} />
-                ) : null,
-            }))}
-            onChange={(id) => setActiveTab(resolveTripOccurrencesTab(id))}
-            value={activeTab}
+          <TripOccurrencesTabs
+            canManageSettings={canManageSettings}
+            feedPanel={
+              <TripOccurrencesFeedContent
+                canResolveOccurrenceCases={canResolveOccurrenceCases}
+                isColumnsMenuOpen={isColumnsMenuOpen}
+                onColumnsMenuToggle={setColumnsMenuOpen}
+                table={table}
+              />
+            }
           />
         </div>
       ) : null}

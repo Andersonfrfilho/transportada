@@ -20,13 +20,10 @@ describe('TripOccurrencesWorkspacePage tabs (T5.1)', () => {
     expect(TripOccurrencesWorkspacePage).toBeDefined()
   })
 
-  it('declara as abas Feed e Tipos', () => {
-    expect(PAGE_SOURCE).toContain("'feed', 'types'")
-  })
-
-  it('monta o painel de tipos na aba Tipos, só com companies.settings, sem o placeholder', () => {
-    expect(PAGE_SOURCE).toContain('<TripOccurrenceTypesTab canManage={canManageSettings} />')
-    expect(PAGE_SOURCE).toContain('canManageSettings ?')
+  /** O comportamento das abas (permissão e URL) é provado no DOM em `trip-hooks/occurrences-workspace-tabs.contract`. */
+  it('monta as abas pelo componente que decide por permissão', () => {
+    expect(PAGE_SOURCE).toContain('<TripOccurrencesTabs')
+    expect(PAGE_SOURCE).toContain('canManageSettings={canManageSettings}')
     expect(PAGE_SOURCE).not.toContain('em construção')
   })
 })
