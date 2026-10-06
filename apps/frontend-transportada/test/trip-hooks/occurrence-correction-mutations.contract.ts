@@ -22,7 +22,7 @@ const { useCancelOccurrence, useCorrectOccurrenceItems } = await import(
   '@/modules/trip/queries/useOccurrenceCorrection.query'
 )
 const { useOccurrenceTypeCatalogPanel } = await import(
-  '@/modules/company-settings/hooks/useOccurrenceTypeCatalogPanel.hook'
+  '@/modules/trip/hooks/useOccurrenceTypeCatalogPanel.hook'
 )
 const { TRIP_OCCURRENCE_FEED_QUERY_KEY } = await import(
   '@/modules/trip/queries/tripOccurrenceFeed.query'

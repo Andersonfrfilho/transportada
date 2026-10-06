@@ -13,7 +13,7 @@ import '@/modules/shared/i18n/i18n.service'
 import {
   OccurrenceTypeCatalogPanel,
   type OccurrenceTypeCatalogPanelProps,
-} from '@/modules/company-settings/components/OccurrenceTypeCatalogPanel.component'
+} from '@/modules/trip/components/OccurrenceTypeCatalogPanel.component'
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
 
 import { buttonByText, click, stubVisibleLayout } from './occurrenceCorrectionHarness.helper'

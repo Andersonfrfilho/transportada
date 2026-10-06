@@ -9,8 +9,8 @@ import { describe, expect, test } from 'bun:test'
 
 import '@/modules/shared/i18n/i18n.service'
 
-import { OccurrenceTypeRow } from '@/modules/company-settings/components/OccurrenceTypeRow.component'
-import type { OccurrenceTypeSaveInput } from '@/modules/company-settings/shared/occurrenceTypeUpdate.service'
+import { OccurrenceTypeRow } from '@/modules/trip/components/OccurrenceTypeRow.component'
+import type { OccurrenceTypeSaveInput } from '@/modules/trip/shared/occurrenceTypeUpdate.service'
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
 
 import { click, stubVisibleLayout } from './occurrenceCorrectionHarness.helper'

@@ -10,7 +10,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   buildOccurrenceTypeUpdate,
   type OccurrenceTypeEdit,
-} from '@/modules/company-settings/shared/occurrenceTypeUpdate.service'
+} from '@/modules/trip/shared/occurrenceTypeUpdate.service'
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
 
 const TYPE: OccurrenceType = {
