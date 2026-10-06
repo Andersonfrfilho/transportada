@@ -24,6 +24,7 @@ import {
   buildReceivingProfileContractorFilters,
   buildReceivingProfileFilters,
 } from '../../src/cargo-receiving/infrastructure/drizzle-contractor-receiving-profile.repository.js'
+import { buildReceivingProfileListFilters } from '../../src/cargo-receiving/infrastructure/contractor-receiving-profile-list.query.js'
 
 const dialect = new PgDialect()
 const COMPANY_ID = '00000000-0000-4000-8000-000000000c01'
@@ -53,6 +54,29 @@ describe('isolamento do perfil de recebimento (spec 237 T1.3)', () => {
     expect(query.sql).toContain('"contractor_receiving_profiles"."company_id" = $')
     expect(query.sql).toContain('"contractor_receiving_profiles"."contractor_id" = $')
     expect(query.params).toEqual([COMPANY_ID, CONTRACTOR_ID])
+  })
+
+  test('a lista dos perfis começa pela empresa, com ou sem filtro (revisão, M4)', () => {
+    const bare = dialect.sqlToQuery(
+      and(
+        ...buildReceivingProfileListFilters({
+          companyId: COMPANY_ID,
+          paging: { cursor: null, limit: 25 },
+        }),
+      )!,
+    )
+    expect(bare.sql).toBe('"contractor_receiving_profiles"."company_id" = $1')
+    const filtered = dialect.sqlToQuery(
+      and(
+        ...buildReceivingProfileListFilters({
+          companyId: COMPANY_ID,
+          enabled: true,
+          paging: { cursor: CONTRACTOR_ID, limit: 25 },
+        }),
+      )!,
+    )
+    expect(filtered.sql).toMatch(/^\(+"contractor_receiving_profiles"\."company_id" = \$1\)? and /u)
+    expect(filtered.params[0]).toBe(COMPANY_ID)
   })
 })
 

@@ -619,10 +619,12 @@ import {
 import { createContractorRoutes } from './delivery-clients/presentation/contractor.routes.js'
 import {
   createGetContractorReceivingProfileUseCase,
+  createListContractorReceivingProfilesUseCase,
   createSaveContractorReceivingProfileUseCase,
 } from './cargo-receiving/application/contractor-receiving-profile.use-case.js'
 import { DrizzleContractorReceivingProfileRepository } from './cargo-receiving/infrastructure/drizzle-contractor-receiving-profile.repository.js'
 import { createContractorReceivingProfileRoutes } from './cargo-receiving/presentation/contractor-receiving-profile.routes.js'
+import { createContractorReceivingProfileListRoutes } from './cargo-receiving/presentation/contractor-receiving-profile-list.routes.js'
 import {
   createGetCargoArrivalUseCase,
   createListAvailableArrivalDocumentsUseCase,
@@ -3328,6 +3330,11 @@ function createApplicationRoutes({
         repository: receivingProfileRepository,
       }),
       saveProfile: createSaveContractorReceivingProfileUseCase({
+        repository: receivingProfileRepository,
+      }),
+    }),
+    ...createContractorReceivingProfileListRoutes({
+      listProfiles: createListContractorReceivingProfilesUseCase({
         repository: receivingProfileRepository,
       }),
     }),

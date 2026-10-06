@@ -11,10 +11,13 @@ import type { ContractorReceivingProfileRepositoryPort } from '../application/co
 import type {
   ContractorReceivingProfile,
   ContractorReceivingProfileLookup,
+  ContractorReceivingProfilePage,
   ContractorReceivingProfileRules,
   FindContractorReceivingProfileParams,
+  ListContractorReceivingProfilesRecordParams,
   SaveContractorReceivingProfileRecordParams,
 } from '../application/contractor-receiving-profile.types.js'
+import { selectReceivingProfilePage } from './contractor-receiving-profile-list.query.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
@@ -43,6 +46,12 @@ export class DrizzleContractorReceivingProfileRepository
   implements ContractorReceivingProfileRepositoryPort
 {
   public constructor(private readonly database: Database) {}
+
+  public list(
+    params: ListContractorReceivingProfilesRecordParams,
+  ): Promise<ContractorReceivingProfilePage> {
+    return selectReceivingProfilePage(this.database, params)
+  }
 
   public async find(
     params: FindContractorReceivingProfileParams,

@@ -8,7 +8,9 @@ import { ContractorNotFoundError } from '../../delivery-clients/domain/delivery-
 import type { ContractorReceivingProfileRepositoryPort } from './contractor-receiving-profile.port.js'
 import type {
   ContractorReceivingProfile,
+  ContractorReceivingProfilePage,
   GetContractorReceivingProfileParams,
+  ListContractorReceivingProfilesParams,
   SaveContractorReceivingProfileParams,
 } from './contractor-receiving-profile.types.js'
 
@@ -47,6 +49,18 @@ export function createSaveContractorReceivingProfileUseCase(dependencies: Depend
       })
       if (saved === null) throw new ContractorNotFoundError()
       return saved
+    },
+  }
+}
+
+export function createListContractorReceivingProfilesUseCase(dependencies: Dependencies): {
+  readonly execute: (
+    params: ListContractorReceivingProfilesParams,
+  ) => Promise<ContractorReceivingProfilePage>
+} {
+  return {
+    execute({ context, ...filters }) {
+      return dependencies.repository.list({ ...filters, companyId: context.companyId })
     },
   }
 }

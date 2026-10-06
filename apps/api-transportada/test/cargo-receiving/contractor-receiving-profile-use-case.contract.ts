@@ -10,6 +10,7 @@ import type {
 } from '../../src/cargo-receiving/application/contractor-receiving-profile.types.js'
 import {
   createGetContractorReceivingProfileUseCase,
+  createListContractorReceivingProfilesUseCase,
   createSaveContractorReceivingProfileUseCase,
 } from '../../src/cargo-receiving/application/contractor-receiving-profile.use-case.js'
 import type { CompanyContext } from '../../src/identity/domain/tenant-context.js'
@@ -52,6 +53,10 @@ function createRepository(
       calls.push(params)
       return { isContractorFound: true, profile: null }
     },
+    async list(params) {
+      calls.push(params)
+      return { items: [], nextCursor: null }
+    },
     async save(params) {
       calls.push(params)
       return PROFILE
@@ -61,6 +66,20 @@ function createRepository(
 }
 
 describe('ler e gravar o perfil de recebimento (spec 237 T1.3)', () => {
+  test('a lista dos perfis vai ao repositório com a empresa do contexto (revisão, M4)', async () => {
+    const repository = createRepository({})
+    const listProfiles = createListContractorReceivingProfilesUseCase({ repository })
+
+    await listProfiles.execute({
+      context: CONTEXT,
+      enabled: true,
+      paging: { cursor: CONTRACTOR_ID, limit: 10 },
+    })
+    expect(repository.calls).toEqual([
+      { companyId: CONTEXT.companyId, enabled: true, paging: { cursor: CONTRACTOR_ID, limit: 10 } },
+    ])
+  })
+
   test('contratante sem perfil é ausência, não erro', async () => {
     const repository = createRepository({})
     const getProfile = createGetContractorReceivingProfileUseCase({ repository })

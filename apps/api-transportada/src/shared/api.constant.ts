@@ -73,6 +73,7 @@ export const API_CONTRACTOR_CONTACTS_PATH = '/contractors/:id/contacts'
 export const API_CONTRACTOR_CONTACT_PATH = '/contractors/:id/contacts/:contactId'
 /** Spec 237 (ADR-0094): as regras de recebimento do contratante, como dado. */
 export const API_CONTRACTOR_RECEIVING_PROFILE_PATH = '/contractors/:id/receiving-profile'
+export const API_CONTRACTOR_RECEIVING_PROFILES_PATH = '/contractor-receiving-profiles'
 /** Spec 237 Fase 2: a chegada da carga e a primeira separação, antes da viagem (ADR-0094 §6). */
 export const API_CARGO_ARRIVALS_PATH = '/cargo-arrivals'
 export const API_CARGO_ARRIVAL_AVAILABLE_DOCUMENTS_PATH = '/cargo-arrivals/available-documents'
