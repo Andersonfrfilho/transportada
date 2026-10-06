@@ -13,6 +13,7 @@ import {
   listDocumentProducts,
 } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
+import { DrizzleOccurrenceAttachmentOverridesRepository } from '../../src/trips/infrastructure/drizzle-occurrence-attachment-overrides.repository.js'
 import { DrizzleOccurrenceUploadRepository } from '../../src/trips/infrastructure/drizzle-occurrence-upload.repository.js'
 import { seedPhotoObject, STREET_PHOTO_PURPOSE } from './street-occurrence-attachment.fixture.js'
 import { seedDeliveryOccurrenceType } from './trip-field-office-database.fixture.js'
@@ -41,27 +42,49 @@ export async function seedConfirmedUpload(database: TestDatabase, scope: Scope):
   return objectId
 }
 
+export type StreetOccurrenceRegistration = Scope & {
+  readonly attachmentObjectId: string | null
+  /** Spec 246: a nota a registrar; ausente é a da viagem semeada. */
+  readonly documentId?: string
+  /** Spec 246: ausente é `cliente ausente`; vazio exercita a observação obrigatória. */
+  readonly note?: string
+  readonly productCode?: string
+  readonly signatureObjectId?: string | null
+  readonly typeId: string
+}
+
+/**
+ * ⚠️ A porta é a mesma que `main.ts` monta para o app (`findOccurrenceTypeOverrides` incluída): é o
+ * caminho real, com o contratante e o destinatário lidos **da nota** pelo banco.
+ */
 export function registerStreetOccurrence(
   database: TestDatabase,
-  input: Scope & { readonly attachmentObjectId: string | null; readonly typeId: string },
+  input: StreetOccurrenceRegistration,
 ): Promise<{ readonly id: string }> {
   const uploads = new DrizzleOccurrenceUploadRepository(database.db)
+  const overrides = new DrizzleOccurrenceAttachmentOverridesRepository(database.db)
   return registerDriverOccurrence({
     actorUserId: input.company.userId,
     attachmentObjectId: input.attachmentObjectId,
     companyId: input.company.companyId,
-    documentId: input.trip.documentId,
+    documentId: input.documentId ?? input.trip.documentId,
     driverId: input.company.firstDriverId,
     idempotencyKey: crypto.randomUUID(),
-    note: 'cliente ausente',
+    note: input.note ?? 'cliente ausente',
     occurrenceTypeId: input.typeId,
-    productCode: '',
+    productCode: input.productCode ?? '',
     repository: {
       findConfirmedUpload: (query) => uploads.findConfirmedUpload(query),
       findOccurrenceType: (query) => findOccurrenceType(database.db, query),
+      findOccurrenceTypeOverrides: (query) =>
+        overrides.listOverridesForTypes({
+          companyId: query.companyId,
+          occurrenceTypeIds: [query.occurrenceTypeId],
+        }),
       findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
       listDocumentProducts: (query) => listDocumentProducts(database.db, query),
     },
+    signatureObjectId: input.signatureObjectId ?? null,
     unitOfWork: new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket'),
   })
 }

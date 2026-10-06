@@ -171,10 +171,10 @@ trip_document_occurrence_attachments_unique_position DO NOTHING`. **`created_at 
       teste antes da implementação.
 - [x] **T2.2** Implementar a projeção (inclusive `document.occurrenceTypes` do snapshot, mesma
       função) e a leitura de `read-settings-resolution.use-case.ts` (RF12).
-- [ ] **T2.3** `register-driver-occurrence.use-case.ts` (a regra está em `:146-152`): a exigência
+- [x] **T2.3** `register-driver-occurrence.use-case.ts` (a regra está em `:146-152`): a exigência
       vira leitura dos modos **do tipo**; sai o `if (attachmentMode === 'required')` com a nota
       embutida. Erro estável da assinatura em `trip.error.ts`. (As exceções entram na Fase 3.)
-- [ ] **T2.3b** **Comportamento da CA04**, depois da T2.3: semear tipo sem exceção com foto
+- [x] **T2.3b** **Comportamento da CA04**, depois da T2.3: semear tipo sem exceção com foto
       `required` **antes** das colunas novas, rodar a migration, e o registro sem nota volta
       `TRIP_OCCURRENCE_NOTE_REQUIRED`. Mutação: tirar o `UPDATE` da T1.2 deixa este teste vermelho —
       execução vermelha registrada em `evidence.md`.

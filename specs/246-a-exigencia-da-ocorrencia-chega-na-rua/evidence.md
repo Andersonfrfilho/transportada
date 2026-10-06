@@ -1317,3 +1317,88 @@ contratos antigos passaram a usar `test/fixtures/field-occurrence-type.fixture.t
 ⚠️ **A foto da exceção segue declarada.** `attachment_mode` das duas tabelas de exceção é `NOT NULL`
 (spec 218) e nenhuma fase anterior o afrouxou; a resolução já trata `null`/ausente como herda, mas a
 tela da Fase 5 ("Igual ao tipo" também para a foto) pede uma migration que **não** está nesta fase.
+
+### T2.3 — O registro do motorista cobra os modos efetivos da nota (2026-10-06)
+
+`registerDriverOccurrence` deixou de ler o `attachmentMode` do tipo e de arrastar a observação junto
+com a foto. Agora:
+
+1. `findReachableDocument` devolve, além de `tripId`, o **contratante** (emitente cadastrado) e o
+   **CNPJ do destinatário da nota** (`driver-reachable-document.query.ts`, a consulta que já estreita a
+   nota à viagem do motorista, movida para arquivo próprio; mesma junção do snapshot). Nada vem do
+   corpo do pedido (D-b, `security.md` §3).
+2. `resolveDocumentOccurrenceRequirements` lê as exceções **do tipo** numa consulta só
+   (`findOccurrenceTypeOverrides`, injetada em `main.ts` nos dois pontos que montam o caso de uso: o
+   app e o WhatsApp) e chama `resolveFieldOccurrenceTypeResolutions` — a mesma função do snapshot.
+3. `assertDriverOccurrenceRequirements` (`occurrence-requirement-guard.policy.ts`, no lugar de
+   `occurrence-photo-requirement.policy.ts`) cobra cada campo pelo próprio modo: observação `required`
+   → texto; foto `required` → ao menos um anexo e `photoMinimumCount`; assinatura `required` → a
+   referência. Erro estável novo em `trip.error.ts`: `TripOccurrenceSignatureRequiredError`
+   (`422 TRIP_OCCURRENCE_SIGNATURE_REQUIRED`). O `if (attachmentMode === 'required')` com a nota
+   embutida sumiu.
+4. `signatureObjectId` entra no caso de uso (presença; a conferência contra empresa/viagem/motorista e a
+   gravação são a T2.4).
+
+Contrato primeiro (`test/trip-occurrence/requirement-modes-registration.contract.ts`, registrado em
+`trip-occurrence.contract.test.ts`):
+
+```text
+$ bun --env-file=../../.env.test test ./test/trip-occurrence/requirement-modes-registration.contract.ts
+SyntaxError: Export named 'TripOccurrenceSignatureRequiredError' not found in module '.../trips/domain/trip.error.ts'.
+ 0 pass
+ 1 fail
+```
+
+Depois: `10 pass, 0 fail` (observação sem foto, foto sem observação, assinatura obrigatória/opcional/
+desligada, exceção do destinatário mais estrita, outro destinatário, exceção do contratante que
+afrouxa, destinatário vence contratante, tipo sem exceção). Um contrato de composição prende a fiação
+(`test/composition/occurrence-overrides-wiring.contract.ts`): a porta é opcional para os dublês, então
+esquecê-la em `main.ts` não dá erro de tipo — os dois pontos do `registerDriverOccurrence` têm de
+injetá-la. Contratos antigos que dependiam da regra fixa (`driver.contract.ts`, e
+`trip-field-authorship.integration.ts`, que passou a gravar `noteMode: 'required'` no tipo) agora
+declaram o dado. Contrato da API inteiro: `9843 pass, 25 skip, 0 fail`.
+
+**Efeito declarado (RF6).** A partir daqui o servidor, no registro do motorista, cobra a exigência
+**efetiva da nota**: exceção menos estrita que o tipo afrouxa e mais estrita endurece. **A ativação em
+produção só depois da medição T3.0, que está PENDENTE** (pede autorização do usuário; não foi executada).
+
+### T2.3b — A observação obrigatória sobrevive à migration, no comportamento (2026-10-06)
+
+`test/integration/occurrence-requirement-modes-registration.integration.ts` (na lista
+`test:integration` do `package.json`), no molde da T1.3: o banco descartável nasce migrado, desfaz só a
+T1.2 pelo `rollback.sql`, recebe um tipo com foto `required` **sem** as colunas novas, e o migrador
+reaplica o `migration.sql` lido do disco. O registro sem nota, com o upload confirmado, volta
+`TRIP_OCCURRENCE_NOTE_REQUIRED`; com a nota, grava. O segundo caso do arquivo prova a exceção pelo
+caminho real (contratante e destinatário lidos da nota no banco): destinatário mais estrito endurece
+foto e observação, outro destinatário volta ao tipo, exceção do contratante afrouxa um tipo obrigatório,
+destinatário vence contratante **campo a campo** (a observação, nula no destinatário, herda a do
+contratante, não a do tipo).
+
+Mutação 1 — tirar o `UPDATE company_occurrence_types SET note_mode = 'required'` do `migration.sql`
+(restaurado em seguida):
+
+```text
+error: expect(received).toBeInstanceOf(expected)
+Expected constructor: [class TripOccurrenceNoteRequiredError extends ApiError]
+Received value: undefined
+(fail) a observação obrigatória sobrevive à migration (spec 246 T2.3b, CA04) > tipo com foto required gravado antes das colunas novas: sem nota, NOTE_REQUIRED
+ 1 pass
+ 1 fail
+```
+
+Mutação 2 — tirar `findOccurrenceTypeOverrides` do registro do fixture (a exceção deixa de chegar):
+
+```text
+error: expect(received).toBeInstanceOf(expected)
+Expected constructor: [class TripOccurrenceAttachmentRequiredError extends ApiError]
+Received value: undefined
+(fail) a exceção da nota vale no registro, pelo caminho real (spec 246 T2.3, CA03, RF6) > destinatário mais estrito endurece; outro destinatário volta ao tipo; contratante afrouxa
+ 1 pass
+ 1 fail
+```
+
+Verde sem mutação: `2 pass, 0 fail`. Integrações tocadas pela mudança de `findReachableDocument` e da regra,
+uma por vez: `field-trip-target` 7/0 · `trip-field-authorship` 5/0 · `event-location-stamp` 23/0 ·
+`whatsapp-driver-flow-actions` 4/0 · `occurrence-type-moments-registration` 2/0 ·
+`street-occurrence-attachment-write` 2/0 · `street-occurrence-photo-statement` 1/0 · `me-trip` 21/0 ·
+`trip-field-office` 25/0.
