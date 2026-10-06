@@ -113,7 +113,7 @@ items_mode = 'required'`); nas duas tabelas de exceção, `items_mode`, `photo_m
 - [x] **T1c.2** Backfill sem mudar comportamento: `photo_minimum_count = 1` é o default do tipo.
       `items_mode` do tipo **não é tocado**; as colunas novas das exceções ficam nulas (herdam).
       `make migration-test` roda com a 241 no histórico.
-- [ ] **T1c.3** `allows_multiple_items` entra no `PUT`/`GET` do catálogo (RF1b) — a coluna já existe.
+- [x] **T1c.3** `allows_multiple_items` entra no `PUT`/`GET` do catálogo (RF1b) — a coluna já existe.
 - [ ] **T1c.4** A escrita do catálogo (`save-occurrence-type.use-case.ts`, `occurrence.schema.ts`)
       passa a aceitar `itemsMode = 'required'` (a 241 devolve `400`), recusa `items_minimum_count`
       sem `required`, e mantém a recusa `off` + política ≠ `unset` da 241 — contrato primeiro.

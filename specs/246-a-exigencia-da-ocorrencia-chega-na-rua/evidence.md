@@ -794,3 +794,46 @@ error: TRIP_RESPONSE_INVALID
 ```
 
 Com o guard novo: `12 pass, 0 fail`; `bun run typecheck` da app → 0 erros.
+
+### T1c.3 — `allowsMultipleItems` no `PUT`/`GET` do catálogo (2026-10-06)
+
+A coluna e o `GET` já existiam (`listOccurrenceTypes` devolve `allowsMultipleItems`); o que faltava para
+o campo ser **do cadastro** (RF1b) era o `PUT` não o sobrescrever: `occurrence.schema.ts` tinha
+`z.boolean().default(true)`, e uma edição que não tocasse o campo religava "vários produtos" num tipo
+de produto único — a mesma armadilha que a 242 corrigiu em `redeliveryPolicy`. Agora é `optional()`
+sem `default`: ausente é "não mexa" (o `UPDATE` omite a coluna) e a criação sem o campo usa o padrão
+`true` da coluna. Escrita: `SaveOccurrenceTypeValues`, `SaveOccurrenceTypeInput` e `writeOccurrenceTypeRow`
+passam a `allowsMultipleItems?: boolean | undefined`.
+
+Contrato primeiro (`test/trip-occurrence/allows-multiple-items-write.contract.ts`), com o schema antigo:
+
+```text
+$ bun --env-file=../../.env.test test test/trip-occurrence.contract.test.ts
+(fail) o cadastro do tipo grava "allowsMultipleItems" só quando ele vem (spec 246 T1c.3) > ausente fica ausente — nunca vira `true`
+ 388 pass
+ 1 fail
+```
+
+Com a mudança: `389 pass, 0 fail`. Dois testes anteriores dependiam do padrão antigo:
+`item-quantity-schema.contract.ts` ("sem o campo, o padrão é true") passou a afirmar que fica ausente —
+o padrão `true` é da coluna, provado no banco abaixo.
+
+Contra o Postgres (`test/integration/occurrence-type-allows-multiple-items.integration.ts`, na lista
+`test:integration`): cria com `false`, o `listOccurrenceTypes` (o `GET`) devolve `false`, regravar só o
+nome preserva `false`, regravar com `true` grava, e a criação sem o campo sai `true`:
+
+```text
+$ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/occurrence-type-allows-multiple-items.integration.ts
+ 2 pass
+ 0 fail
+```
+
+Mutação — o `UPDATE` volta a gravar `allowsMultipleItems: input.allowsMultipleItems ?? true`
+(restaurado em seguida):
+
+```text
+Expected: false
+Received: true
+(fail) "allowsMultipleItems" do tipo de ocorrência contra o Postgres (spec 246 T1c.3) > grava, o GET devolve, e ausente não altera
+ 1 pass / 1 fail
+```

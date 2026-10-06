@@ -291,8 +291,13 @@ const WRITABLE_ITEMS_MODES = [OCCURRENCE_ITEMS_MODE.off, OCCURRENCE_ITEMS_MODE.o
 const occurrenceTypeSchema = z
   .object({
     active: z.boolean().default(true),
-    /** Spec 166 (RF3/RF9): padrão `true` preserva o comportamento de hoje. */
-    allowsMultipleItems: z.boolean().default(true),
+    /**
+     * Spec 166 (RF3/RF9), spec 246 T1c.3 (RF1b): um produto ou vários. ⚠️ **Opcional sem `default`,
+     * pelo mesmo motivo de `attachmentMode`**: ausente é "não mexa" — um `default(true)` religaria
+     * "vários" num tipo de produto único a cada edição que não toca o campo. A criação sem o campo
+     * usa o padrão `true` da coluna.
+     */
+    allowsMultipleItems: z.boolean().optional(),
     /**
      * Spec 179 (RF1): se o registro do motorista exige comprovante — o mesmo vocabulário do
      * comprovante de entrega.

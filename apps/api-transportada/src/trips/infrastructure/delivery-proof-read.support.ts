@@ -1063,7 +1063,8 @@ async function writeOccurrenceTypeRow(
   queryable: TripQueryable,
   input: {
     readonly active: boolean
-    readonly allowsMultipleItems: boolean
+    /** Spec 246 T1c.3: ausente é "não mexa" — o INSERT usa o padrão da coluna (`true`). */
+    readonly allowsMultipleItems?: boolean | undefined
     /**
      * Spec 179 (RF1): ausente é `'off'` — o padrão da coluna. Opcional só para os chamadores que
      * ainda não conhecem a exigência (seeder da bancada, dublês de teste); a rota HTTP sempre grava.
@@ -1108,7 +1109,6 @@ async function writeOccurrenceTypeRow(
    */
   const values = {
     active: input.active,
-    allowsMultipleItems: input.allowsMultipleItems,
     companyId: input.companyId,
     emailBody: input.emailBody,
     emailSubject: input.emailSubject,
@@ -1119,6 +1119,9 @@ async function writeOccurrenceTypeRow(
   }
 
   const attachmentModeChange = {
+    ...(input.allowsMultipleItems === undefined
+      ? {}
+      : { allowsMultipleItems: input.allowsMultipleItems }),
     ...(input.attachmentMode === undefined ? {} : { attachmentMode: input.attachmentMode }),
     ...(input.emailsContractor === undefined ? {} : { emailsContractor: input.emailsContractor }),
     ...(input.flow === undefined ? {} : { flow: input.flow }),

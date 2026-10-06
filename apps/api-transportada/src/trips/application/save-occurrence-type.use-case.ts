@@ -42,8 +42,8 @@ export type OccurrenceEmailTemplateCatalogPort = {
 
 export type SaveOccurrenceTypeValues = {
   readonly active: boolean
-  /** Spec 166 (RF3/RF9): se este tipo aceita mais de um item marcado. */
-  readonly allowsMultipleItems: boolean
+  /** Spec 166 (RF3/RF9): se este tipo aceita mais de um item marcado. Ausente é "não mexa". */
+  readonly allowsMultipleItems?: boolean | undefined
   /**
    * Spec 179 (RF1): se o registro do motorista exige comprovante. **Opcional de propósito**:
    * ausente quer dizer "não mexa", e não `'off'` — o editor do painel ainda não manda o campo, e
