@@ -3,6 +3,7 @@
  */
 import './cargo-receiving/arrival-reference-label.contract.js'
 import './cargo-receiving/cargo-arrival-candidate.contract.js'
+import './cargo-receiving/cargo-arrival-document-products-use-case.contract.js'
 import './cargo-receiving/cargo-arrival-grouping.contract.js'
 import './cargo-receiving/cargo-arrival-occurrence-use-case.contract.js'
 import './cargo-receiving/cargo-arrival-return-use-case.contract.js'

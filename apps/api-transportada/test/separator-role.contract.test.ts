@@ -142,6 +142,8 @@ describe('separator role contract', () => {
        */
       'GET /cargo-arrivals',
       'GET /cargo-arrivals/:id',
+      /** Spec 237 T3.2b (ADR-0094 §9): os itens da nota da chegada para a avaria, `fleet.read`. */
+      'GET /cargo-arrivals/:id/documents/:documentId/products',
       /** Spec 237 T3.2 (ADR-0094 §9): a ocorrência de recebimento e os tipos dela, `fleet.read`. */
       'GET /cargo-arrivals/:id/occurrences',
       'GET /cargo-arrivals/available-documents',
