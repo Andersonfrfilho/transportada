@@ -365,6 +365,12 @@ describe('a outra empresa não alcança a nota nem a ocorrência (spec 237 T3.2,
       )
 
       expect([read.status, opened.status, marked.status]).toEqual([404, 404, 404])
+      /** A chegada alheia é recusada na própria trava da chegada, antes de olhar a nota. */
+      for (const response of [opened, marked]) {
+        expect(((await response.json()) as { error: { code: string } }).error.code).toBe(
+          'CARGO_ARRIVAL_NOT_FOUND',
+        )
+      }
       expect(await returnKinds(database)).toEqual(before)
     })
   })
