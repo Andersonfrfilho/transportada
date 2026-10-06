@@ -146,6 +146,17 @@ evidência em `evidence.md`.
 > 🤖 Modelo: `sonnet`; revisão final com `code-reviewer` em `opus`
 
 - [ ] **T6.1** Revisão de design e usabilidade da aba nova, com print nas três larguras (CA08).
+      **Comparar o `preview.html` com a tela real, lado a lado**, em 375, 768 e 1280: abrir o
+      protótipo e a tela implementada com os mesmos dados, e registrar em `evidence.md` uma tabela
+      "elemento → preview → tela real → veredito" (rótulos, ordem dos campos, estados vazio, erro e
+      desabilitado, espaçamento, contraste, foco). Toda diferença é defeito da implementação, a
+      menos que o `evidence.md` registre por que o protótipo estava errado; corrigir e refazer o
+      print. Verificação por texto primeiro (`read_page`, geometria, contraste); print só como prova.
+- [ ] **T6.1b** Revisão independente de funcionalidade, usabilidade e design por `code-reviewer`
+      (`opus`), numa passada separada da autoria: fluxo ponta a ponta no navegador (criar tipo,
+      exceção por CNPJ, registrar na rua com a exigência, ver o que a conferência mostra), mais a
+      leitura do código. Achados por severidade; reprovado se houver bloqueante ou alto, e então
+      corrige e repete a passada. O veredito entra em `evidence.md`.
 - [ ] **T6.2** Atualizar `CLAUDE.md` da raiz e `apps/*/CLAUDE.md` tocados, e
       `docs/ai-context/` das apps afetadas.
 - [ ] **T6.3** Gates completos: `bun run typecheck`, `make check`, `make migration-test`, e a
@@ -171,5 +182,10 @@ e integração são dois comandos e nenhum cobre o outro; a integração exige -
 Ao fechar a spec: make check, make migration-test (há migration com rollback.sql) e, depois de
 git fetch + rebase + bun install --frozen-lockfile, db:generate = no_changes.
 T1.4, T1b.5, T1d.4 e as demais tasks de mutação só fecham com a execução vermelha registrada.
+Antes de fechar (T6.1): compare o preview.html com a tela real, lado a lado, em 375, 768 e 1280, e
+registre a tabela de diferenças em evidence.md; corrija o que divergir. Depois (T6.1b): passada
+independente de funcionalidade, usabilidade e design com code-reviewer model=opus, fluxo ponta a
+ponta no navegador; reprovou, corrige e repete. Só então T6.2–T6.4.
+Rode TODAS as tasks, das Fases 1 a 6, sem parar entre fases; só interrompa nas condições abaixo.
 Pare e pergunte antes de: deploy, migration destrutiva, produção, qualquer [NEEDS CLARIFICATION].
 ```
