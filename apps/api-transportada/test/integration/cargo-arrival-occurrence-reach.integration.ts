@@ -47,6 +47,7 @@ import {
 } from '../fixtures/cargo-arrival-occurrence.fixture.js'
 import { COMPANY_CONTEXT, jsonRequest } from '../fixtures/freight-region-http.fixture.js'
 
+const SILENT_LOGGER = { warn() {} }
 const testWithPostgres = hasTestDatabase ? test : test.skip
 
 async function seedReceivingOccurrence(
@@ -240,8 +241,8 @@ describe('o tipo de recebimento é da chegada (ADR-0094 §9.5, ajuste 1)', () =>
         const port = createDrizzleOccurrenceTypeCatalogSeedPort(database.db)
 
         expect(await seedOccurrenceTypeCatalog({ port })).toBe(OCCURRENCE_TYPE_CATALOG.length * 2)
-        expect(await seedReceivingOccurrenceTypeCatalog({ port })).toBe(6)
-        expect(await seedReceivingOccurrenceTypeCatalog({ port })).toBe(0)
+        expect(await seedReceivingOccurrenceTypeCatalog({ logger: SILENT_LOGGER, port })).toBe(6)
+        expect(await seedReceivingOccurrenceTypeCatalog({ logger: SILENT_LOGGER, port })).toBe(0)
         expect(await seedOccurrenceTypeCatalog({ port })).toBe(0)
         const seeded = await database.db
           .select({

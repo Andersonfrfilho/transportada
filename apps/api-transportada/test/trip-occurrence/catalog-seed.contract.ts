@@ -14,6 +14,7 @@ import {
   type OccurrenceTypeCatalogSeedPort,
 } from '../../src/database/occurrence-type-catalog-seed.service.js'
 
+const SILENT_LOGGER = { warn() {} }
 const COMPANY_A = '00000000-0000-4000-8000-000000000a01'
 const COMPANY_B = '00000000-0000-4000-8000-000000000a02'
 
@@ -205,7 +206,7 @@ describe('o seed do catálogo de recebimento (spec 237 T3.2)', () => {
       [{ companyId: COMPANY_A, name: firstEntry.name, stage: firstEntry.stage }],
     )
 
-    expect(await seedReceivingOccurrenceTypeCatalog({ port })).toBe(3)
+    expect(await seedReceivingOccurrenceTypeCatalog({ logger: SILENT_LOGGER, port })).toBe(3)
     expect(inserted).toEqual([
       {
         companyId: COMPANY_A,
@@ -237,7 +238,7 @@ describe('o seed do catálogo de recebimento (spec 237 T3.2)', () => {
       [{ companyId: COMPANY_A, name: 'Avaria na doca', stage: 'receiving' }],
     )
 
-    expect(await seedReceivingOccurrenceTypeCatalog({ port })).toBe(0)
+    expect(await seedReceivingOccurrenceTypeCatalog({ logger: SILENT_LOGGER, port })).toBe(0)
     expect(inserted).toEqual([])
   })
 
