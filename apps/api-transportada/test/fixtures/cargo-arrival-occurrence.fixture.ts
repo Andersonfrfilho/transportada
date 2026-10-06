@@ -23,7 +23,16 @@ import type {
   CompanyContext,
 } from '../../src/identity/domain/tenant-context.js'
 import type { TripOccurrenceStage } from '../../src/shared/trip-occurrence.constant.js'
+import { createOccurrenceCaseUseCase } from '../../src/trips/application/occurrence-case.use-case.js'
+import { createOccurrenceCaseRoutes } from '../../src/trips/presentation/occurrence-case.routes.js'
 import { DrizzleOccurrenceAttachmentRepository } from '../../src/trips/infrastructure/drizzle-occurrence-attachment.repository.js'
+import { DrizzleOccurrenceCaseRepository } from '../../src/trips/infrastructure/drizzle-occurrence-case.repository.js'
+import { createFindOccurrenceSettlementUseCase } from '../../src/trips/application/find-occurrence-settlement.use-case.js'
+import { createRecordOccurrenceSettlementUseCase } from '../../src/trips/application/record-occurrence-settlement.use-case.js'
+import { createReimburseOccurrenceSettlementUseCase } from '../../src/trips/application/reimburse-occurrence-settlement.use-case.js'
+import { DrizzleOccurrenceSettlementChargeRepository } from '../../src/trips/infrastructure/drizzle-occurrence-settlement-charge.repository.js'
+import { DrizzleOccurrenceSettlementRepository } from '../../src/trips/infrastructure/drizzle-occurrence-settlement.repository.js'
+import { createOccurrenceSettlementRoutes } from '../../src/trips/presentation/occurrence-settlement.routes.js'
 import type { TestDatabase } from './cargo-arrival-database.fixture.js'
 import {
   authenticatedContext,
@@ -87,6 +96,23 @@ export function createOccurrenceHandler(params: {
       unitOfWork: new DrizzleCargoArrivalOccurrenceUnitOfWork(db, 'integration'),
     }),
   })
+  const caseRepository = new DrizzleOccurrenceCaseRepository(db)
+  const caseRoutes = createOccurrenceCaseRoutes({
+    findCaseIdByOccurrenceId: (input) => caseRepository.findIdByOccurrenceId(input),
+    occurrenceCase: createOccurrenceCaseUseCase({ repository: caseRepository }),
+  })
+  const settlementRepository = new DrizzleOccurrenceSettlementRepository(
+    db,
+    new DrizzleOccurrenceSettlementChargeRepository(async () => null),
+  )
+  const settlementRoutes = createOccurrenceSettlementRoutes({
+    findCaseIdByOccurrenceId: (input) => caseRepository.findIdByOccurrenceId(input),
+    settlement: createRecordOccurrenceSettlementUseCase({ repository: settlementRepository }),
+    settlementFind: createFindOccurrenceSettlementUseCase({ repository: settlementRepository }),
+    settlementReimbursement: createReimburseOccurrenceSettlementUseCase({
+      repository: settlementRepository,
+    }),
+  })
   const handleRequest = createRequestHandler({
     createCorrelationId: () => CORRELATION_ID,
     frontendOrigins: [FRONTEND_ORIGIN],
@@ -94,7 +120,7 @@ export function createOccurrenceHandler(params: {
     requestTimeoutSeconds: 30,
     router: createTestRouter({
       context: params.context ?? authenticatedContext(OFFICE_PERMISSIONS),
-      routes,
+      routes: [...routes, ...caseRoutes, ...settlementRoutes],
     }),
   })
   return (request) => handleRequest(request, { timeout() {} })

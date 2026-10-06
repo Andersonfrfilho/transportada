@@ -76,6 +76,11 @@ describe('a marcação "devolver ao contratante" (spec 237 RF8a)', () => {
       { outcome: 'refused', reason: 'CARGO_ARRIVAL_DOCUMENT_IN_LIVE_TRIP' },
     ],
     [
+      'marcar com a tratativa da origem cancelada',
+      { caseStatus: 'cancelled' },
+      { outcome: 'refused', reason: 'CARGO_ARRIVAL_RETURN_CASE_CANCELLED' },
+    ],
+    [
       'marcar em chegada fechada',
       { arrivalStatus: 'closed' },
       { outcome: 'refused', reason: 'CARGO_ARRIVAL_CLOSED' },
@@ -115,11 +120,18 @@ describe('a marcação "devolver ao contratante" (spec 237 RF8a)', () => {
       { next: { occurrenceId: OCCURRENCE, state: 'returned' }, outcome: 'changed' },
     ],
     [
-      'concluir a marcada sem tratativa',
+      'concluir a marcada sem tratativa (o ADR pede decidida ou fechada)',
       'complete',
       'marked',
       null,
-      { next: { occurrenceId: OCCURRENCE, state: 'returned' }, outcome: 'changed' },
+      { outcome: 'refused', reason: 'CARGO_ARRIVAL_RETURN_DECISION_PENDING' },
+    ],
+    [
+      'concluir com a tratativa cancelada depois da marcação',
+      'complete',
+      'marked',
+      'cancelled',
+      { outcome: 'refused', reason: 'CARGO_ARRIVAL_RETURN_CASE_CANCELLED' },
     ],
     [
       'concluir com a tratativa ainda no escritório',
@@ -154,6 +166,18 @@ describe('a marcação "devolver ao contratante" (spec 237 RF8a)', () => {
     expect(
       decide({ action, caseStatus, current: { occurrenceId, state }, occurrence: null }),
     ).toEqual(expected)
+  })
+
+  test('concluir a marcada em viagem viva é recusado, como marcar: a viagem despacharia nota devolvida', () => {
+    expect(
+      decide({
+        action: 'complete',
+        caseStatus: 'decided',
+        current: { occurrenceId: OCCURRENCE, state: 'marked' },
+        isInLiveTrip: true,
+        occurrence: null,
+      }),
+    ).toEqual({ outcome: 'refused', reason: 'CARGO_ARRIVAL_DOCUMENT_IN_LIVE_TRIP' })
   })
 
   test('chegada fechada recusa desfazer e concluir', () => {

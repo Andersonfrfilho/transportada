@@ -21,7 +21,7 @@ import {
 
 type ReturnOverrides = Partial<{
   arrival: LockedOccurrenceArrival | null
-  caseStatus: 'awaiting_contractor' | 'decided' | null
+  caseStatus: 'awaiting_contractor' | 'cancelled' | 'decided' | null
   document: LockedOccurrenceDocument | null
   occurrence: { id: string; isCancelled: boolean } | null
 }>
@@ -105,6 +105,28 @@ describe('marcar, desfazer e concluir a devolução (spec 237 RF8a)', () => {
     ],
     ['chegada de outra empresa', { arrival: null }, 'mark', 404, 'CARGO_ARRIVAL_NOT_FOUND'],
     ['nota fora da chegada', { document: null }, 'mark', 404, 'CARGO_ARRIVAL_DOCUMENT_NOT_FOUND'],
+    [
+      'marcar com a tratativa da origem cancelada',
+      { caseStatus: 'cancelled' },
+      'mark',
+      409,
+      'CARGO_ARRIVAL_RETURN_CASE_CANCELLED',
+    ],
+    [
+      'concluir a marcada em viagem viva',
+      {
+        caseStatus: 'decided',
+        document: {
+          ...DOCUMENT,
+          isInLiveTrip: true,
+          returnOccurrenceId: 'occurrence-1',
+          returnToContractor: 'marked',
+        },
+      },
+      'complete',
+      409,
+      'CARGO_ARRIVAL_DOCUMENT_IN_LIVE_TRIP',
+    ],
     [
       'concluir sem decisão do contratante',
       {

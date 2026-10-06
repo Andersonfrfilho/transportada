@@ -12,18 +12,25 @@ import { eq, sql } from 'drizzle-orm'
 import {
   cargoArrivalDocuments,
   cargoArrivalEvents,
+  tripDocuments,
   tripOccurrenceCases,
 } from '../../src/database/database.schema.js'
 import { findPostgresError } from '../../src/database/postgres-error.support.js'
 import { proposeArrivalFromPreview } from '../../src/cargo-receiving/infrastructure/cargo-preview-proposal.query.js'
 import { findExcludedTripDraftDocumentIds } from '../../src/cargo-receiving/infrastructure/cargo-preview-trip-draft.query.js'
 import {
-  hasTestDatabase,
-  seedIssuedDocument,
+  seedLiveTrip,
   withCargoDatabase,
-  type CargoTenants,
   type TestDatabase,
 } from '../fixtures/cargo-arrival-database.fixture.js'
+import {
+  caseStep,
+  hasTestDatabase,
+  openDamage,
+  returnAction,
+  seedDamaged,
+  statusAndCode,
+} from '../fixtures/cargo-arrival-damaged.fixture.js'
 import {
   buildPostRequest,
   callCargoArrival as call,
@@ -35,7 +42,6 @@ import {
   OFFICE_PERMISSIONS,
   occurrenceRequest,
   seedOccurrenceType,
-  seedProduct,
 } from '../fixtures/cargo-arrival-occurrence.fixture.js'
 import { seedPreviewItem, seedReadyPreview } from '../fixtures/cargo-preview-database.fixture.js'
 import { withCargoRaceDatabase, raceUnderBlocker } from '../fixtures/cargo-arrival-race.fixture.js'
@@ -46,71 +52,6 @@ import {
 } from '../fixtures/freight-region-http.fixture.js'
 
 const testWithPostgres = hasTestDatabase ? test : test.skip
-const ARRIVED_AT = new Date(Date.now() - 2 * 3_600_000)
-
-type Damaged = {
-  readonly arrivalId: string
-  readonly documentIds: readonly [string, string]
-  readonly occurrenceId: string
-}
-
-/** Chegada de duas notas conferidas; a primeira com avaria aberta. */
-async function seedDamaged(database: TestDatabase, tenants: CargoTenants): Promise<Damaged> {
-  const documentIds = [
-    await seedIssuedDocument(database, { number: '31' }),
-    await seedIssuedDocument(database, { number: '32' }),
-  ] as const
-  await seedProduct(database, { code: 'P1', documentId: documentIds[0], unit: 'CX' })
-  const arrivals = createCargoArrivalHandler({ database })
-  const registered = await call(
-    arrivals,
-    buildPostRequest({
-      body: {
-        arrivedAt: ARRIVED_AT.toISOString(),
-        contractorId: tenants.contractorId,
-        documentIds,
-      },
-      key: `arrival-${crypto.randomUUID()}`,
-      path: '/cargo-arrivals',
-    }),
-  )
-  const arrivalId = String(registered.body.data?.id)
-  await call(
-    arrivals,
-    buildPostRequest({
-      body: { documentIds, to: 'received' },
-      path: `/cargo-arrivals/${arrivalId}/documents/batch-status`,
-    }),
-  )
-  const typeId = await seedOccurrenceType(database, { stage: 'receiving' })
-  const created = await createOccurrenceHandler({ database })(
-    occurrenceRequest({
-      arrivalId,
-      documentId: documentIds[0],
-      fields: { occurrenceTypeId: typeId, productCodes: ['P1'] },
-      key: `damage-${crypto.randomUUID()}`,
-    }),
-  )
-  const occurrenceId = ((await created.json()) as { data: { id: string } }).data.id
-  return { arrivalId, documentIds, occurrenceId }
-}
-
-function returnAction(input: {
-  readonly action: 'return-complete' | 'return-mark' | 'return-unmark'
-  readonly arrivalId: string
-  readonly body?: unknown
-  readonly documentId: string
-}): Request {
-  return buildPostRequest({
-    body: input.body ?? {},
-    path: `/cargo-arrivals/${input.arrivalId}/documents/${input.documentId}/${input.action}`,
-  })
-}
-
-async function statusAndCode(response: Response): Promise<readonly [number, unknown]> {
-  const body = (await response.json()) as { data?: unknown; error?: { code?: string } }
-  return [response.status, body.error?.code ?? (body.data as { outcome?: string }).outcome]
-}
 
 async function returnKinds(database: TestDatabase): Promise<readonly string[]> {
   const rows = await database.db
@@ -284,6 +225,113 @@ describe('a marcação "devolver ao contratante" (spec 237 RF8a)', () => {
           violation = findPostgresError({ error })?.sqlState
         }
         expect(violation).toBe('55000')
+      })
+    },
+  )
+
+  testWithPostgres(
+    'concluir a nota marcada que entrou numa viagem viva é recusado; liberada, conclui',
+    async () => {
+      await withCargoDatabase(async (database, tenants) => {
+        const damaged = await seedDamaged(database, tenants)
+        const [marked] = damaged.documentIds
+        const office = createOccurrenceHandler({ database })
+        const { occurrenceId } = damaged
+        const act = (action: 'return-complete' | 'return-mark', body?: unknown) =>
+          office(returnAction({ action, arrivalId: damaged.arrivalId, body, documentId: marked }))
+
+        await act('return-mark', { occurrenceId })
+        await caseStep(office, { action: 'review', occurrenceId })
+        await caseStep(office, { action: 'contractor-submission', occurrenceId })
+        await caseStep(office, {
+          action: 'decision',
+          body: { kind: 'other', note: 'devolver' },
+          occurrenceId,
+        })
+        await seedLiveTrip(database, marked)
+
+        expect(await statusAndCode(await act('return-complete'))).toEqual([
+          409,
+          'CARGO_ARRIVAL_DOCUMENT_IN_LIVE_TRIP',
+        ])
+        const [stillMarked] = await database.db
+          .select({ state: cargoArrivalDocuments.returnToContractor })
+          .from(cargoArrivalDocuments)
+          .where(eq(cargoArrivalDocuments.nfeDocumentId, marked))
+        expect(stillMarked?.state).toBe('marked')
+
+        await database.db.update(tripDocuments).set({ releasedAt: new Date() })
+        expect(await statusAndCode(await act('return-complete'))).toEqual([200, 'changed'])
+      })
+    },
+  )
+
+  testWithPostgres(
+    'a tratativa cancelada impede marcar, e concluir se foi cancelada depois da marcação',
+    async () => {
+      await withCargoDatabase(async (database, tenants) => {
+        const damaged = await seedDamaged(database, tenants)
+        const [marked] = damaged.documentIds
+        const office = createOccurrenceHandler({ database })
+        const typeId = await seedOccurrenceType(database, { name: 'Outra', stage: 'receiving' })
+        const second = await openDamage({
+          arrivalId: damaged.arrivalId,
+          database,
+          documentId: marked,
+          typeId,
+        })
+        const act = (action: 'return-complete' | 'return-mark', body?: unknown) =>
+          office(returnAction({ action, arrivalId: damaged.arrivalId, body, documentId: marked }))
+
+        await caseStep(office, { action: 'cancel', body: { note: 'engano' }, occurrenceId: second })
+        expect(await statusAndCode(await act('return-mark', { occurrenceId: second }))).toEqual([
+          409,
+          'CARGO_ARRIVAL_RETURN_CASE_CANCELLED',
+        ])
+
+        await act('return-mark', { occurrenceId: damaged.occurrenceId })
+        await caseStep(office, {
+          action: 'cancel',
+          body: { note: 'cancelada depois de marcar' },
+          occurrenceId: damaged.occurrenceId,
+        })
+        expect(await statusAndCode(await act('return-complete'))).toEqual([
+          409,
+          'CARGO_ARRIVAL_RETURN_CASE_CANCELLED',
+        ])
+      })
+    },
+  )
+
+  testWithPostgres(
+    'sem tratativa (tipo sem política de reentrega) a devolução não conclui',
+    async () => {
+      await withCargoDatabase(async (database, tenants) => {
+        const damaged = await seedDamaged(database, tenants)
+        const [marked] = damaged.documentIds
+        const office = createOccurrenceHandler({ database })
+        const typeId = await seedOccurrenceType(database, {
+          name: 'Sem tratativa',
+          redeliveryPolicy: 'unset',
+          stage: 'receiving',
+        })
+        const bare = await openDamage({
+          arrivalId: damaged.arrivalId,
+          database,
+          documentId: marked,
+          typeId,
+        })
+        const act = (action: 'return-complete' | 'return-mark', body?: unknown) =>
+          office(returnAction({ action, arrivalId: damaged.arrivalId, body, documentId: marked }))
+
+        expect(await statusAndCode(await act('return-mark', { occurrenceId: bare }))).toEqual([
+          200,
+          'changed',
+        ])
+        expect(await statusAndCode(await act('return-complete'))).toEqual([
+          409,
+          'CARGO_ARRIVAL_RETURN_DECISION_PENDING',
+        ])
       })
     },
   )
