@@ -12,11 +12,11 @@ import { alias, type AnyPgColumn } from 'drizzle-orm/pg-core'
 import { cargoArrivalDocuments } from '../../database/cargo-arrival-document.schema.js'
 import { nfeAddresses, nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
 import { tripDocuments } from '../../database/trip.schema.js'
+import { NFE_DOCUMENT_AUTHORIZED_STATUS } from '../../nfe-documents/domain/nfe-document-status.constant.js'
 import type { Database } from './cargo-arrival-persistence.support.js'
 
 const EMITTER_ROLE = 'emitter'
 export const RECIPIENT_ROLE = 'recipient'
-const AUTHORIZED_STATUS = 'authorized'
 const IBGE_CITY_CODE = /^[0-9]{7}$/
 
 export const emitterParticipant = alias(nfeParticipants, 'cargo_emitter_participant')
@@ -61,7 +61,7 @@ export function buildAvailableDocumentFilters(params: {
 }): SQL[] {
   return [
     eq(nfeDocuments.companyId, params.companyId),
-    eq(nfeDocuments.status, AUTHORIZED_STATUS),
+    eq(nfeDocuments.status, NFE_DOCUMENT_AUTHORIZED_STATUS),
     eq(emitterParticipant.taxId, params.emitterTaxId),
     sql`not ${isInLiveTripSql(nfeDocuments.id)}`,
     sql`not ${isInArrivalSql(nfeDocuments.id)}`,

@@ -89,7 +89,10 @@ export class DrizzleContractorReceivingProfileRepository
         .select()
         .from(contractorReceivingProfiles)
         .where(and(...buildReceivingProfileFilters(params)))
-      if (existing !== undefined && isSameRules(toRules(existing), params.rules)) {
+      if (
+        existing !== undefined &&
+        isSameRules({ requested: params.rules, stored: toRules(existing) })
+      ) {
         return toProfile(existing)
       }
 
@@ -159,11 +162,11 @@ function toProfile(row: ProfileRow): ContractorReceivingProfile {
 }
 
 /** O `jsonb` não guarda a ordem das chaves: compara-se a forma canônica, não o objeto. */
-function isSameRules(
-  stored: ContractorReceivingProfileRules,
-  requested: ContractorReceivingProfileRules,
-): boolean {
-  return canonicalize(stored) === canonicalize(requested)
+function isSameRules(params: {
+  readonly requested: ContractorReceivingProfileRules
+  readonly stored: ContractorReceivingProfileRules
+}): boolean {
+  return canonicalize(params.stored) === canonicalize(params.requested)
 }
 
 function canonicalize(rules: ContractorReceivingProfileRules): string {

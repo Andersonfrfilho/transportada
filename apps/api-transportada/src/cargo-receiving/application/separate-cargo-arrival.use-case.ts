@@ -17,6 +17,7 @@ import {
   CargoArrivalNotFoundError,
   CargoArrivalTransitionRefusedError,
   toDocumentDetails,
+  toPendingDocumentDetails,
 } from '../domain/cargo-arrival.error.js'
 import type { CargoArrivalSeparationRepositoryPort } from './cargo-arrival.port.js'
 import type {
@@ -102,7 +103,7 @@ export function createAssignCargoArrivalRouteUseCase(dependencies: Dependencies)
       }
       if (result.kind === 'missing') {
         throw new CargoArrivalDocumentsNotInArrivalError(
-          toDocumentDetails(indexesOf(documentIds, result.documentIds)),
+          toDocumentDetails(indexesOf({ missing: result.documentIds, requested: documentIds })),
         )
       }
       return { results: result.results }
@@ -130,21 +131,19 @@ export function createCloseCargoArrivalUseCase(dependencies: Dependencies): {
       })
       if (result.kind === 'arrival_not_found') throw new CargoArrivalNotFoundError()
       if (result.kind === 'pending') {
-        throw new CargoArrivalHasPendingDocumentsError(
-          toDocumentDetails(result.documentIds.map((message, index) => ({ index, message }))),
-        )
+        throw new CargoArrivalHasPendingDocumentsError(toPendingDocumentDetails(result.documentIds))
       }
       return { arrivalId, outcome: result.kind === 'closed' ? 'changed' : 'unchanged' }
     },
   }
 }
 
-function indexesOf(
-  requested: readonly string[],
-  missing: readonly string[],
-): readonly { readonly index: number; readonly message: string }[] {
-  const missingSet = new Set(missing)
-  return requested.flatMap((documentId, index) =>
+function indexesOf(params: {
+  readonly missing: readonly string[]
+  readonly requested: readonly string[]
+}): readonly { readonly index: number; readonly message: string }[] {
+  const missingSet = new Set(params.missing)
+  return params.requested.flatMap((documentId, index) =>
     missingSet.has(documentId) ? [{ index, message: CARGO_ARRIVAL_DOCUMENT_NOT_FOUND }] : [],
   )
 }

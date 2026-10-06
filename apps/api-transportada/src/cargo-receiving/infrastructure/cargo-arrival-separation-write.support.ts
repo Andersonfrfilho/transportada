@@ -4,7 +4,7 @@
  * Spec 237 T2.3: as escritas da separação, sempre dentro da transação que já travou a chegada e as
  * notas. Só o que mudou é gravado, e cada mudança deixa um evento (ADR-0067).
  */
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import { cargoArrivalEvents } from '../../database/cargo-arrival-event.schema.js'
 import { cargoArrivalDocuments } from '../../database/cargo-arrival-document.schema.js'
@@ -20,19 +20,16 @@ import type {
   TransitionCargoArrivalRecordParams,
 } from '../application/cargo-arrival-request.types.js'
 import type { CargoArrivalBatchRow } from '../domain/cargo-arrival-transition.policy.js'
-import { insertArrivalAudit, type Transaction } from './cargo-arrival-persistence.support.js'
+import {
+  buildArrivalDocumentFilters,
+  insertArrivalAudit,
+  type Transaction,
+} from './cargo-arrival-persistence.support.js'
 
 const CLOSED_AUDIT_ACTION = 'cargo-arrival.closed'
-
-function documentScope(params: {
-  readonly arrivalId: string
-  readonly companyId: string
-}): ReturnType<typeof and> {
-  return and(
-    eq(cargoArrivalDocuments.companyId, params.companyId),
-    eq(cargoArrivalDocuments.arrivalId, params.arrivalId),
-  )
-}
+/** Relógio do banco, nunca o do processo: réplicas defasadas não gravam a separação antes da conferência. */
+const DATABASE_NOW = sql`now()`
+const SEPARATED_NOT_BEFORE_RECEIVED = sql`greatest(${cargoArrivalDocuments.receivedAt}, now())`
 
 export async function applyTransition(
   transaction: Transaction,
@@ -47,13 +44,15 @@ export async function applyTransition(
   await transaction
     .update(cargoArrivalDocuments)
     .set({
-      ...(isReceiving ? { receivedAt: params.now } : { separatedAt: params.now }),
+      ...(isReceiving
+        ? { receivedAt: DATABASE_NOW }
+        : { separatedAt: SEPARATED_NOT_BEFORE_RECEIVED }),
       separationState: params.to,
       updatedAt: params.now,
     })
     .where(
       and(
-        documentScope(params),
+        ...buildArrivalDocumentFilters(params),
         inArray(
           cargoArrivalDocuments.id,
           changed.map((row) => row.id),
@@ -91,7 +90,7 @@ export async function applyRoute(
     .set({ routeName: params.routeName, updatedAt: params.now })
     .where(
       and(
-        documentScope(params),
+        ...buildArrivalDocumentFilters(params),
         inArray(
           cargoArrivalDocuments.id,
           changed.map((row) => row.id),

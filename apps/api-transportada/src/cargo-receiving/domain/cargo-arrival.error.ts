@@ -12,6 +12,22 @@ const DOCUMENT_IDS_FIELD = 'documentIds'
 /** O motivo do lote quando a nota pedida não está nesta chegada. */
 export const CARGO_ARRIVAL_DOCUMENT_NOT_FOUND = 'CARGO_ARRIVAL_DOCUMENT_NOT_FOUND'
 
+const PENDING_DOCUMENT_IDS_FIELD = 'pendingDocumentIds'
+const PENDING_DOCUMENT_MESSAGE = 'The document is not separated yet'
+
+/** O id da nota vai no próprio campo, nunca no texto: `message` é para gente ler (revisão, L7). */
+export type PendingDocumentDetail = ApiErrorDetail & { readonly documentId: string }
+
+export function toPendingDocumentDetails(
+  documentIds: readonly string[],
+): readonly PendingDocumentDetail[] {
+  return documentIds.map((documentId, index) => ({
+    documentId,
+    field: `${PENDING_DOCUMENT_IDS_FIELD}.${index}`,
+    message: PENDING_DOCUMENT_MESSAGE,
+  }))
+}
+
 export function toDocumentDetails(
   items: readonly { readonly index: number; readonly message: string }[],
 ): readonly ApiErrorDetail[] {
@@ -54,6 +70,17 @@ export class CargoArrivalArrivedAtInFutureError extends ApiError {
       code: 'CARGO_ARRIVAL_ARRIVED_AT_IN_FUTURE',
       details: [{ field: 'arrivedAt', message: 'The arrival cannot be in the future' }],
       message: 'The arrival cannot be in the future',
+      status: 422,
+    })
+  }
+}
+
+export class CargoArrivalArrivedAtTooOldError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CARGO_ARRIVAL_ARRIVED_AT_TOO_OLD',
+      details: [{ field: 'arrivedAt', message: 'The arrival cannot be more than 30 days ago' }],
+      message: 'The arrival cannot be more than 30 days ago',
       status: 422,
     })
   }

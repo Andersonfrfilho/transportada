@@ -12,14 +12,16 @@ import {
   buildAvailableDocumentFilters,
   buildCandidateDocumentFilters,
 } from '../../src/cargo-receiving/infrastructure/cargo-arrival-document.query.js'
-import { buildArrivalFilters } from '../../src/cargo-receiving/infrastructure/cargo-arrival-persistence.support.js'
+import {
+  buildArrivalDocumentFilters,
+  buildArrivalFilters,
+} from '../../src/cargo-receiving/infrastructure/cargo-arrival-persistence.support.js'
 import { buildArrivalListFilters } from '../../src/cargo-receiving/infrastructure/cargo-arrival-list.query.js'
 import { buildPreviewItemFilters } from '../../src/cargo-receiving/infrastructure/cargo-preview-item.query.js'
 import {
   buildPreviewFilters,
   buildPreviewListFilters,
 } from '../../src/cargo-receiving/infrastructure/cargo-preview-persistence.support.js'
-import { buildArrivalDocumentFilters } from '../../src/cargo-receiving/infrastructure/drizzle-cargo-arrival-separation.repository.js'
 import {
   buildReceivingProfileContractorFilters,
   buildReceivingProfileFilters,

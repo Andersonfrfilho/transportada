@@ -6,7 +6,7 @@
  */
 import { createHash } from 'node:crypto'
 
-const AUTHORIZED_STATUS = 'authorized'
+import { NFE_DOCUMENT_AUTHORIZED_STATUS } from '../../nfe-documents/domain/nfe-document-status.constant.js'
 
 export const CARGO_ARRIVAL_DOCUMENT_REFUSAL = {
   alreadyInArrival: 'DOCUMENT_ALREADY_IN_ARRIVAL',
@@ -33,13 +33,17 @@ export type ArrivalCandidateRefusal = {
 }
 
 /** O emitente errado vem primeiro: da nota alheia não se diz mais nada. */
-function classifyArrivalCandidate(
-  row: ArrivalCandidateRow | undefined,
-  contractorTaxId: string,
-): CargoArrivalDocumentRefusal | null {
+function classifyArrivalCandidate({
+  contractorTaxId,
+  row,
+}: {
+  readonly contractorTaxId: string
+  readonly row: ArrivalCandidateRow | undefined
+}): CargoArrivalDocumentRefusal | null {
   if (row === undefined) return CARGO_ARRIVAL_DOCUMENT_REFUSAL.notFound
   if (row.emitterTaxId !== contractorTaxId) return CARGO_ARRIVAL_DOCUMENT_REFUSAL.anotherIssuer
-  if (row.status !== AUTHORIZED_STATUS) return CARGO_ARRIVAL_DOCUMENT_REFUSAL.notAuthorized
+  if (row.status !== NFE_DOCUMENT_AUTHORIZED_STATUS)
+    return CARGO_ARRIVAL_DOCUMENT_REFUSAL.notAuthorized
   if (row.isInArrival) return CARGO_ARRIVAL_DOCUMENT_REFUSAL.alreadyInArrival
   if (row.isInLiveTrip) return CARGO_ARRIVAL_DOCUMENT_REFUSAL.inLiveTrip
   return null
@@ -59,7 +63,7 @@ export function findArrivalCandidateRefusals({
 }: FindArrivalCandidateRefusalsParams): readonly ArrivalCandidateRefusal[] {
   const rowsById = new Map(rows.map((row) => [row.id, row]))
   return documentIds.flatMap((documentId, index) => {
-    const reason = classifyArrivalCandidate(rowsById.get(documentId), contractorTaxId)
+    const reason = classifyArrivalCandidate({ contractorTaxId, row: rowsById.get(documentId) })
     return reason === null ? [] : [{ documentId, index, reason }]
   })
 }

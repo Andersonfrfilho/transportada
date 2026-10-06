@@ -10,11 +10,10 @@ import { and, eq, sql } from 'drizzle-orm'
 import { cargoPreviewDocumentLinks } from '../../database/cargo-preview-link.schema.js'
 import { contractors } from '../../database/delivery-client.schema.js'
 import { nfeDocuments } from '../../database/nfe.schema.js'
+import { NFE_DOCUMENT_AUTHORIZED_STATUS } from '../../nfe-documents/domain/nfe-document-status.constant.js'
 import { CARGO_PREVIEW_DECIDED_BY } from '../../shared/cargo-preview.constant.js'
 import type { Transaction } from './cargo-arrival-persistence.support.js'
 import { emitterJoin, emitterParticipant } from './cargo-arrival-document.query.js'
-
-const AUTHORIZED_STATUS = 'authorized'
 
 type LinkScope = {
   readonly companyId: string
@@ -44,7 +43,7 @@ export async function isCandidateDocument(
       and(
         eq(nfeDocuments.companyId, scope.companyId),
         eq(nfeDocuments.id, scope.documentId),
-        eq(nfeDocuments.status, AUTHORIZED_STATUS),
+        eq(nfeDocuments.status, NFE_DOCUMENT_AUTHORIZED_STATUS),
       ),
     )
   return row !== undefined

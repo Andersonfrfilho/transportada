@@ -6,6 +6,7 @@
  * A nota roteável é a que o roteirizador aceita: autorizada e fora de viagem viva (a mesma conta de
  * `findUnavailableDocumentIds`), e fora do que outra regra tirou (`excludedDocumentIds`).
  */
+import { NFE_DOCUMENT_AUTHORIZED_STATUS } from '../../nfe-documents/domain/nfe-document-status.constant.js'
 import { CARGO_PREVIEW_ITEM_STATE } from '../../shared/cargo-preview.constant.js'
 import { buildTripDraftCities } from './cargo-preview-trip-draft-city.policy.js'
 import { compareDocuments, sortRouteNames } from './cargo-preview-trip-draft-order.policy.js'
@@ -25,7 +26,6 @@ import {
   type TripDraftItemRow,
 } from './cargo-preview-trip-draft.types.js'
 
-const AUTHORIZED_STATUS = 'authorized'
 const { awaitingXml, invalid, matched } = CARGO_PREVIEW_ITEM_STATE
 
 export type IsDocumentRoutableParams = {
@@ -36,7 +36,7 @@ export type IsDocumentRoutableParams = {
 /** O único portão: a nota marcada "devolver ao contratante" (RF8a) entra em `excludedDocumentIds`. */
 export function isCargoPreviewDocumentRoutable(params: IsDocumentRoutableParams): boolean {
   if (params.excludedDocumentIds.has(params.document.id)) return false
-  return params.document.status === AUTHORIZED_STATUS && !params.document.isInLiveTrip
+  return params.document.status === NFE_DOCUMENT_AUTHORIZED_STATUS && !params.document.isInLiveTrip
 }
 
 function groupByRoute(items: readonly TripDraftItemRow[]): Map<string | null, TripDraftItemRow[]> {

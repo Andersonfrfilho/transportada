@@ -14,6 +14,7 @@ import {
   decideCargoArrivalBatch,
   decideCargoArrivalTransition,
   isArrivedAtTooFarInFuture,
+  isArrivedAtTooFarInPast,
   isSeparationOverdue,
   resolveSeparationDueAt,
 } from '../../src/cargo-receiving/domain/cargo-arrival-transition.policy.js'
@@ -111,6 +112,16 @@ describe('os relógios da chegada (spec 237 T2.1, ADR-0094 §2)', () => {
     const when = new Date(arrivedAt.getTime() + offsetMs)
 
     expect(isArrivedAtTooFarInFuture({ arrivedAt: when, now: arrivedAt })).toBe(isFuture)
+  })
+
+  test.each([
+    ['agora', 0, false],
+    ['30 dias no passado, no piso', -30 * 24 * HOUR_MS, false],
+    ['30 dias e 1 ms no passado', -30 * 24 * HOUR_MS - 1, true],
+  ] as const)('chegada %s → antiga demais: %p (revisão, L6)', (_label, offsetMs, isTooOld) => {
+    const when = new Date(arrivedAt.getTime() + offsetMs)
+
+    expect(isArrivedAtTooFarInPast({ arrivedAt: when, now: arrivedAt })).toBe(isTooOld)
   })
 
   test.each([

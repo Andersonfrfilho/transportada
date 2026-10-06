@@ -51,6 +51,8 @@ export const CARGO_ARRIVAL_READ_PERMISSION = 'fleet.read'
 export const CARGO_ARRIVAL_WRITE_PERMISSION = 'trip.manage'
 
 export const CARGO_ARRIVAL_LIMITS = {
+  /** O piso da hora digitada: além disso é engano de data, e o prazo nasceria vencido há semanas. */
+  arrivedAtMaxAgeMs: 30 * 24 * 60 * 60_000,
   documentsPerRequest: 300,
   /** A folga do relógio de quem digita a hora: além disso a chegada está no futuro. */
   futureToleranceMs: 2 * 60_000,

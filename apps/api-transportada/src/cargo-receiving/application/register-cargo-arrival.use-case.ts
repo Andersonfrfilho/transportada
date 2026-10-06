@@ -7,9 +7,13 @@
 import { ContractorNotFoundError } from '../../delivery-clients/domain/delivery-client.error.js'
 import type { CargoArrivalChannel } from '../../shared/cargo-arrival.constant.js'
 import { buildArrivalRequestFingerprint } from '../domain/cargo-arrival-candidate.policy.js'
-import { isArrivedAtTooFarInFuture } from '../domain/cargo-arrival-transition.policy.js'
+import {
+  isArrivedAtTooFarInFuture,
+  isArrivedAtTooFarInPast,
+} from '../domain/cargo-arrival-transition.policy.js'
 import {
   CargoArrivalArrivedAtInFutureError,
+  CargoArrivalArrivedAtTooOldError,
   CargoArrivalDocumentsRefusedError,
   CargoArrivalKeyReusedError,
   CargoArrivalNotFoundError,
@@ -44,9 +48,9 @@ export function createRegisterCargoArrivalUseCase(dependencies: Dependencies): {
 } {
   return {
     async execute({ context, correlationId, idempotencyKey, input }) {
-      if (isArrivedAtTooFarInFuture({ arrivedAt: input.arrivedAt, now: dependencies.now() })) {
-        throw new CargoArrivalArrivedAtInFutureError()
-      }
+      const clock = { arrivedAt: input.arrivedAt, now: dependencies.now() }
+      if (isArrivedAtTooFarInFuture(clock)) throw new CargoArrivalArrivedAtInFutureError()
+      if (isArrivedAtTooFarInPast(clock)) throw new CargoArrivalArrivedAtTooOldError()
       const result = await dependencies.registrationRepository.register({
         ...input,
         actorUserId: context.userId,

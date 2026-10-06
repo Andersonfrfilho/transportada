@@ -8,6 +8,7 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq, lt, or, type SQL } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 
+import { cargoArrivalDocuments } from '../../database/cargo-arrival-document.schema.js'
 import { cargoArrivals } from '../../database/cargo-arrival.schema.js'
 import { contractorReceivingProfiles } from '../../database/contractor-receiving-profile.schema.js'
 import { auditLogs } from '../../database/fiscal-operation.schema.js'
@@ -24,6 +25,17 @@ export type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 
 const AUDIT_ENTITY_TYPE = 'cargo-arrival'
 const AUDIT_TARGET_TYPE = 'contractor'
+
+/** As notas da chegada, sempre pela empresa e pela chegada juntas — leitura e escrita. */
+export function buildArrivalDocumentFilters(params: {
+  readonly arrivalId: string
+  readonly companyId: string
+}): SQL[] {
+  return [
+    eq(cargoArrivalDocuments.companyId, params.companyId),
+    eq(cargoArrivalDocuments.arrivalId, params.arrivalId),
+  ]
+}
 
 export function buildArrivalFilters(params: {
   readonly arrivalId: string

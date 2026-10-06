@@ -5,7 +5,7 @@
  * ordem de id; o lote é decidido em memória e gravado com um UPDATE e um INSERT — nenhuma nota
  * recusada derruba as outras, e o no-op não gera evento.
  */
-import { and, eq, inArray, ne } from 'drizzle-orm'
+import { and, inArray, ne } from 'drizzle-orm'
 
 import { cargoArrivalDocuments } from '../../database/cargo-arrival-document.schema.js'
 import {
@@ -23,6 +23,7 @@ import type {
 } from '../application/cargo-arrival-request.types.js'
 import { decideCargoArrivalBatch } from '../domain/cargo-arrival-transition.policy.js'
 import {
+  buildArrivalDocumentFilters,
   lockArrival,
   type Database,
   type Transaction,
@@ -36,13 +37,6 @@ import {
 type ArrivalScope = {
   readonly arrivalId: string
   readonly companyId: string
-}
-
-export function buildArrivalDocumentFilters(params: ArrivalScope): ReturnType<typeof eq>[] {
-  return [
-    eq(cargoArrivalDocuments.companyId, params.companyId),
-    eq(cargoArrivalDocuments.arrivalId, params.arrivalId),
-  ]
 }
 
 function lockDocuments(

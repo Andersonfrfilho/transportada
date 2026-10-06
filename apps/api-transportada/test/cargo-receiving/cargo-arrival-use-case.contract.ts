@@ -162,6 +162,19 @@ describe('registrar a chegada (spec 237 T2.3)', () => {
     ).rejects.toMatchObject({ code: 'CARGO_ARRIVAL_ARRIVED_AT_IN_FUTURE', status: 422 })
     expect(calls).toEqual([])
   })
+
+  test('chegada de mais de 30 dias atrás é recusada antes de tocar o banco (revisão, L6)', async () => {
+    const { calls, execute } = register({ arrivalId: ARRIVAL_ID, kind: 'created' })
+
+    await expect(
+      execute({ ...INPUT, arrivedAt: new Date(NOW.getTime() - 30 * 24 * 3_600_000 - 1) }),
+    ).rejects.toMatchObject({
+      code: 'CARGO_ARRIVAL_ARRIVED_AT_TOO_OLD',
+      details: [{ field: 'arrivedAt' }],
+      status: 422,
+    })
+    expect(calls).toEqual([])
+  })
 })
 
 describe('ler a chegada (spec 237 T2.3)', () => {
@@ -281,8 +294,16 @@ describe('fechar a chegada (spec 237 T2.3)', () => {
     ).rejects.toMatchObject({
       code: 'CARGO_ARRIVAL_HAS_PENDING_DOCUMENTS',
       details: [
-        { field: 'documentIds.0', message: 'a' },
-        { field: 'documentIds.1', message: 'b' },
+        {
+          documentId: 'a',
+          field: 'pendingDocumentIds.0',
+          message: 'The document is not separated yet',
+        },
+        {
+          documentId: 'b',
+          field: 'pendingDocumentIds.1',
+          message: 'The document is not separated yet',
+        },
       ],
       status: 409,
     })

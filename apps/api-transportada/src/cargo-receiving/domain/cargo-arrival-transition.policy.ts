@@ -111,6 +111,13 @@ export function isArrivedAtTooFarInFuture(params: {
   return params.arrivedAt.getTime() - params.now.getTime() > CARGO_ARRIVAL_LIMITS.futureToleranceMs
 }
 
+export function isArrivedAtTooFarInPast(params: {
+  readonly arrivedAt: Date
+  readonly now: Date
+}): boolean {
+  return params.now.getTime() - params.arrivedAt.getTime() > CARGO_ARRIVAL_LIMITS.arrivedAtMaxAgeMs
+}
+
 export type IsSeparationOverdueParams = {
   readonly now: Date
   readonly pendingDocumentCount: number

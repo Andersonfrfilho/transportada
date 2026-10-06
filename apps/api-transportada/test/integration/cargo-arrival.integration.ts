@@ -359,7 +359,10 @@ describe('a chegada contra Postgres (spec 237 T2.3)', () => {
         const pending = await call(handle, post(`${arrivalPath}/close`))
         expect(pending).toMatchObject({
           body: {
-            error: { code: 'CARGO_ARRIVAL_HAS_PENDING_DOCUMENTS', details: [{ message: second }] },
+            error: {
+              code: 'CARGO_ARRIVAL_HAS_PENDING_DOCUMENTS',
+              details: [{ documentId: second, field: 'pendingDocumentIds.0' }],
+            },
           },
           status: 409,
         })
