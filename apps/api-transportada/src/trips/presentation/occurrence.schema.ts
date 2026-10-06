@@ -70,10 +70,26 @@ function refineAttachmentSelection(
   body: {
     readonly attachmentObjectId?: string | undefined
     readonly attachmentObjectIds?: readonly string[] | undefined
+    readonly signatureObjectId?: null | string | undefined
   },
   context: z.RefinementCtx,
 ): void {
-  const { attachmentObjectId, attachmentObjectIds } = body
+  const { attachmentObjectId, attachmentObjectIds, signatureObjectId } = body
+  const sentAttachmentIds = [
+    ...(attachmentObjectId === undefined ? [] : [attachmentObjectId]),
+    ...(attachmentObjectIds ?? []),
+  ]
+  if (
+    signatureObjectId !== undefined &&
+    signatureObjectId !== null &&
+    sentAttachmentIds.includes(signatureObjectId)
+  ) {
+    context.addIssue({
+      code: 'custom',
+      message: 'SIGNATURE_IS_ATTACHMENT',
+      path: ['signatureObjectId'],
+    })
+  }
   if (attachmentObjectIds === undefined) return
   const hasBoth = attachmentObjectId !== undefined
   const hasDuplicate = new Set(attachmentObjectIds).size !== attachmentObjectIds.length

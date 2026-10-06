@@ -2398,3 +2398,34 @@ texto na aba: **5,54:1 no tema escuro, 4,57:1 no claro** (o menor é o kicker "O
 
 Vite (53090), proxy (53092), API (53091) e servidor do preview (53093) derrubados (`lsof` vazio nas quatro portas); banco `transportada_246_review` apagado.
 O smoke Playwright da 185 (`spec-185-prints`) segue sem execução.
+
+## Correções da revisão final (API) (2026-10-06)
+
+Revisão independente (`code-reviewer`, opus) da parte API/banco. Cada achado: contrato vermelho primeiro, implementação, verde, mutação.
+
+### M1 — a assinatura não pode ser também um anexo
+
+Vermelho (contrato, antes da recusa; o schema deixava passar e o caso de uso não conferia):
+
+```text
+(fail) a assinatura não é também um anexo (spec 246, revisão final M1) > o schema da rota recusa o mesmo uuid na assinatura e no anexo único, com 400
+(fail) a assinatura não é também um anexo (spec 246, revisão final M1) > o schema da rota recusa o uuid da assinatura dentro da lista de anexos, com 400
+(fail) ... > o caso de uso recusa a assinatura repetida no anexo único, antes de gravar   (expect(received).toBeInstanceOf(expected))
+(fail) ... > o caso de uso recusa a assinatura repetida na lista de anexos, antes de gravar
+ 2 pass
+ 4 fail
+```
+
+Verde: `signature-not-attachment.contract.ts` 6 pass. `refineAttachmentSelection` (`occurrence.schema.ts`) recusa com 400 a `signatureObjectId` igual a qualquer id de `attachmentObjectId`/`attachmentObjectIds`; `assessDriverOccurrence` repete a recusa no caso de uso (`TripOccurrenceSignatureIsAttachmentError`, 400, `TRIP_OCCURRENCE_SIGNATURE_IS_ATTACHMENT`), antes de qualquer conferência de mínimo de fotos — o WhatsApp e os testes chamam o caso de uso sem passar pelo schema.
+
+Integração (`occurrence-signature-isolation`, 2 pass): com o tipo exigindo foto e assinatura, o mesmo upload nos dois campos (anexo único e lista) responde o erro, e `trip_document_occurrences` e `trip_document_occurrence_attachments` ficam com 0 linhas — logo o upload nem conta no mínimo de fotos nem aparece no demonstrativo.
+
+Mutação (a recusa trocada por `void`): a integração fica vermelha.
+
+```text
+Expected constructor: [class TripOccurrenceSignatureIsAttachmentError extends ApiError]
+Received value: undefined
+(fail) a assinatura repetida como anexo é recusada e não vira foto ... > o mesmo upload como assinatura e como anexo: 400 estável, nenhuma ocorrência e nenhuma linha de anexo
+ 1 pass
+ 1 fail
+```

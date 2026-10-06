@@ -11,7 +11,10 @@
  * nota" é o momento fixo `document` do conjunto do tipo (RF0b), nunca o `stage`.
  */
 import { OCCURRENCE_MOMENT } from '../../shared/trip-occurrence.constant.js'
-import { TripDocumentNotReachableError } from '../domain/trip.error.js'
+import {
+  TripDocumentNotReachableError,
+  TripOccurrenceSignatureIsAttachmentError,
+} from '../domain/trip.error.js'
 import {
   assertOccurrenceItemsRequirement,
   assertOccurrenceTypeAcceptsProducts,
@@ -149,6 +152,9 @@ export async function assessDriverOccurrence(
 
   const requestedIds = requestedAttachmentIds(input)
   const requestedSignature = requestedSignatureIds(input)
+  if (requestedSignature.some((objectId) => requestedIds.includes(objectId))) {
+    throw new TripOccurrenceSignatureIsAttachmentError()
+  }
   assertDriverOccurrenceRequirements({
     attachmentCount: requestedIds.length,
     hasSignature: requestedSignature.length > 0,

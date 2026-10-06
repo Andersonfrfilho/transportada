@@ -17,7 +17,10 @@ import {
   tripDocumentOccurrences,
 } from '../../src/database/trip.schema.js'
 import { DrizzleDriverScoreRepository } from '../../src/fleet/infrastructure/drizzle-driver-score.repository.js'
-import { TripOccurrenceSignatureRequiredError } from '../../src/trips/domain/trip.error.js'
+import {
+  TripOccurrenceSignatureIsAttachmentError,
+  TripOccurrenceSignatureRequiredError,
+} from '../../src/trips/domain/trip.error.js'
 import {
   listDeliveryProofs,
   saveOccurrenceType,
@@ -119,6 +122,69 @@ describe('a assinatura da ocorrência não vira comprovante, nota nem foto (spec
         expect(await readScore()).toEqual(scoreBefore)
 
         // E nenhuma linha de anexo de foto referencia a assinatura nem a ocorrência.
+        expect(
+          await database.db
+            .select({ id: tripDocumentOccurrenceAttachments.id })
+            .from(tripDocumentOccurrenceAttachments)
+            .where(eq(tripDocumentOccurrenceAttachments.companyId, company.companyId)),
+        ).toHaveLength(0)
+      })
+    },
+    60_000,
+  )
+})
+
+describe('a assinatura repetida como anexo é recusada e não vira foto (spec 246, revisão final M1)', () => {
+  testWithPostgres(
+    'o mesmo upload como assinatura e como anexo: 400 estável, nenhuma ocorrência e nenhuma linha de anexo',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const type = await saveOccurrenceType(database.db, {
+          active: true,
+          attachmentMode: 'required',
+          companyId: company.companyId,
+          emailBody: '',
+          emailSubject: '',
+          emailTemplateKey: null,
+          flow: 'document',
+          name: 'Recusa total',
+          notifies: false,
+          occurrenceTypeId: null,
+          photoMinimumCount: 1,
+          signatureMode: 'required',
+          stage: 'delivery',
+        })
+        const reusedId = await seedConfirmedUpload(database, { company, trip })
+
+        for (const attachment of [
+          { attachmentObjectId: reusedId, attachmentObjectIds: undefined },
+          { attachmentObjectId: null, attachmentObjectIds: [reusedId] },
+        ]) {
+          const refused = await registerStreetOccurrence(database, {
+            company,
+            signatureObjectId: reusedId,
+            trip,
+            typeId: type.id,
+            attachmentObjectId: attachment.attachmentObjectId,
+            ...(attachment.attachmentObjectIds === undefined
+              ? {}
+              : { attachmentObjectIds: attachment.attachmentObjectIds }),
+          }).then(
+            () => undefined,
+            (reason: unknown) => reason,
+          )
+          expect(refused).toBeInstanceOf(TripOccurrenceSignatureIsAttachmentError)
+          expect((refused as TripOccurrenceSignatureIsAttachmentError).status).toBe(400)
+        }
+
+        expect(
+          await database.db
+            .select({ id: tripDocumentOccurrences.id })
+            .from(tripDocumentOccurrences)
+            .where(eq(tripDocumentOccurrences.companyId, company.companyId)),
+        ).toHaveLength(0)
         expect(
           await database.db
             .select({ id: tripDocumentOccurrenceAttachments.id })

@@ -1222,6 +1222,21 @@ export class TripOccurrenceSignatureRequiredError extends ApiError {
 }
 
 /**
+ * Spec 246 (revisão final, M1): o mesmo upload mandado como assinatura e como anexo. A assinatura mora
+ * só em `signature_object_id` (RF9); virar também linha de anexo a contaria no mínimo de fotos, no
+ * demonstrativo e no expurgo. 400, como o conflito entre os dois campos de anexo no schema.
+ */
+export class TripOccurrenceSignatureIsAttachmentError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_SIGNATURE_IS_ATTACHMENT',
+      message: 'The signature cannot also be sent as an attachment.',
+      status: 400,
+    })
+  }
+}
+
+/**
  * Spec 246 (RF1b, RF8): o tipo efetivo da nota exige produtos (`items_mode = 'required'`) e o registro
  * não apontou nenhum — nem a nota inteira, que numa nota sem item algum não cobre nada. Código estável
  * próprio por campo: a tela diz que faltam produtos.
