@@ -2898,3 +2898,13 @@ duas listas vazias; ordem dos tipos = a de `GET /company-settings/occurrence-typ
   então `attachment-overrides` nunca é lido como `occurrenceTypeId`. Provado pelo roteador real em
   `test/trip-occurrence/attachment-overrides-batch-route.contract.ts`.
 - Código: `list-occurrence-attachment-overrides.use-case.ts`, rota em `trip.routes.ts`, fiação em `main.ts`.
+
+## Spec 246 — terceira revisão: `receiving` e as migrations (2026-10-06)
+
+- **O tipo `stage = 'receiving'` (spec 237) não tem momento de rua.** `deriveOccurrenceMomentsFromStageAndFlow` devolve `[]` para ele;
+  antes caía no ramo "não é separação" e virava `['document','office']`, e o motorista o registrava na nota e o escritório no lote.
+  Sem linha de momento e sem derivado, nenhuma guarda de rua o aceita. A escrita por momentos sobre ele é 404 (o `UPDATE` só alcança
+  as etapas da viagem) e o backfill de momentos só cobre `separation` e `delivery`. Prova: `occurrence-type-receiving-moments` e
+  `occurrence-type-moments-backfill`.
+- **As quatro migrations da 246 foram regeradas por cima da `20261006180700`** (a da 237 tem o mesmo pai da primeira): `20261006205139`,
+  `20261006205158`, `20261006205209`, `20261006205232`. Nome de migration que a 246 cita em teste ou doc é o novo.

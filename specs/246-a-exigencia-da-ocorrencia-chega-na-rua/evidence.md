@@ -2705,3 +2705,147 @@ Sem nenhuma outra diferença de largura ou altura de controle nas 33 telas; **0 
 
 Vite (53090, 53092, 53094, 53095), proxy (53093) e API (53091) derrubados (`lsof` vazio nas seis portas); banco `transportada_246_pano`
 apagado; os worktrees descartáveis (`origin/staging`, HEAD anterior, commit anterior ao Tooltip) removidos.
+
+## Correções da terceira revisão (2026-10-06)
+
+Revisor: code-reviewer (opus), terceira rodada. Corrigidos A-1, M-1, M-2, M-3, M-4, B-2 e B-3; **B-1, B-4 e B-5 ficam como estão**
+(registrados). Um commit por achado (SHAs no fim).
+
+### A-1 — rebase sobre a staging e as quatro migrations refeitas
+
+A staging ganhou 7 commits (spec 237 T3.2), entre eles a `20261006180700_cargo_arrival_receiving_occurrence`, com o **mesmo pai**
+(`d59e8b1f`) da primeira migration da 246: duas folhas, `drizzle-kit check` em conflito. `git rebase origin/staging` (98 commits;
+backup em `backup/pre-rebase-246`). Conflitos de texto resolvidos: as listas de teste do `package.json` da API (mescla de três vias,
+token a token; conferido por script: **199** arquivos em `test`, **197** em `test:integration`, 0 ausentes, 0 duplicados, todo
+`*.contract.test.ts`/`*.integration.ts` do disco está na lista), `delivery-proof-read.support.ts` (imports; `listOccurrenceTypes`
+já combinava o `inArray(stage, TRIP_BOUND_OCCURRENCE_STAGES)` da 237 com o `withOccurrenceTypeMoments` da 246),
+`database-migration.contract.test.ts`, `static-migration.contract.ts` e `docs/ai-context/api-transportada.md` (as duas seções).
+Nenhum conflito de código sem saída.
+
+As quatro foram apagadas e regeradas **uma a uma, na ordem**, com `db:generate` e o esquema do commit que a introduziu, e o SQL
+**idêntico** reaplicado (os `.sql` copiados byte a byte das versões anteriores; `rollback.sql` com o nome novo no `DELETE` do journal):
+
+| antes                                                  | depois                                                 |
+| ------------------------------------------------------ | ------------------------------------------------------ |
+| `20261006184835_occurrence_type_requirement_modes`     | `20261006205139_occurrence_type_requirement_modes`     |
+| `20261006184901_occurrence_type_moments`               | `20261006205158_occurrence_type_moments`               |
+| `20261006184909_occurrence_type_quantity_minimums`     | `20261006205209_occurrence_type_quantity_minimums`     |
+| `20261006184921_street_occurrence_attachment_backfill` | `20261006205232_street_occurrence_attachment_backfill` |
+
+(a quarta com `drizzle-kit generate --custom`). Os nomes foram atualizados em `static-migration.contract.ts`, nos cinco testes de
+integração que leem o `migration.sql`/`rollback.sql` pelo caminho e no `plan.md`; as menções acima neste `evidence.md` falam das
+migrations pelos nomes do tempo em que foram escritas.
+
+```text
+bun run db:generate  -> {"status":"no_changes","dialect":"postgresql"}
+bun run db:check     -> Everything's fine
+DRIZZLE_TEST_DATABASE_URL=$DATABASE_URL bun run db:test -> 138 pass, 0 fail (8 arquivos, 2075 expect)
+```
+
+### A-1 (3) — o tipo `receiving` não tem momento de rua
+
+`deriveOccurrenceMomentsFromStageAndFlow` tratava todo `stage` que não era `separation` como rua: o tipo de recebimento da 237, sem
+linha de momento, era lido como `['document','office']`. Vazamento **real** (integração contra Postgres, derivação antiga):
+
+```text
+fica fora da lista do motorista e do cadastro, e o motorista e o escritório não o registram
+- { "code": "TRIP_DOCUMENT_NOT_REACHABLE", "status": 409 }
++ "ACCEPTED"
+contrato: (fail) tipo de recebimento não tem momento de rua > nenhum par stage receiving deriva momento ...
+          (fail) ... > sem linha de momento a leitura tolerante continua vazia, e nenhuma guarda o aceita
+```
+
+Correção: a derivação devolve `[]` para `receiving` (uma linha em `occurrence-moment.policy.ts`). Verde: contrato `trip-occurrence`
+(494 pass), integração nova `occurrence-type-receiving-moments` (2 pass): o tipo fica fora das duas listas, o motorista recebe
+`409 TRIP_DOCUMENT_NOT_REACHABLE`, o escritório `422 OCCURRENCE_TYPE_NOT_FIELD`, nenhuma ocorrência gravada. Mutação (voltar à
+derivação antiga): integração 1 fail (o trecho acima) e contrato 2 fail; restaurada.
+
+- **Escrita por momentos:** `PUT` com `moments` sobre um tipo `receiving` já era recusado — o `UPDATE` é restrito às etapas da
+  viagem (`TRIP_BOUND_OCCURRENCE_STAGES`, spec 237) e a transação aborta antes de `replaceOccurrenceTypeMoments`: **404
+  `TRIP_DOCUMENT_NOT_FOUND`**, sem linha de momento, `stage` intacto (provado no mesmo arquivo). Mantido o 404 da 237 em vez de um
+  erro novo (o cadastro "não converte tipo de recebimento em tipo de viagem"). `deriveStageAndFlowFromMoments` nunca devolve
+  `receiving`, e o corpo do `POST`/`PUT` só aceita `delivery|separation` (`z.enum`).
+- **Backfill:** a migration de momentos filtra `stage = 'separation'` e `stage = 'delivery'` explicitamente: não gera linha para
+  `receiving`. Preso em `occurrence-type-moments-backfill` com uma semente `receiving` (0 linhas), 1 pass.
+- **Onde mais a 246 decide por `stage`:** `occurrence.policy.ts` (permissão por `separation`), `attach-occurrence-photo` e
+  `dispatch-readiness` (leem a ocorrência, não o tipo). As guardas de tipo (`occurrenceTypeAcceptsMoment`: motorista, WhatsApp,
+  escritório, parada, lista de campo) decidem pelo conjunto, agora vazio. No painel, a lista do cadastro vem filtrada pela API; o
+  tipo `TripOccurrenceStage` do painel só conhece `delivery|separation` e `resolveOccurrenceMoments` é só o recuo para API sem
+  `moments`. Sem mudança no painel.
+
+### M-3 — o contrato do `Tooltip` prende o `className`, não o texto do CSS
+
+`test/trip-hooks/tooltip-fill.contract.ts` (lote DOM) renderiza `<Tooltip>` com e sem `fill` e afirma a classe do invólucro (o bun
+não gera nomes para CSS module: `mock.module` com espelho de identidade). Mutação, `className={styles.triggerFill}` fixo em
+`tooltip.tsx` — o contrato de texto antigo segue verde (425 pass) e o novo reprova:
+
+```text
+Expected to not contain: "triggerFill"
+Received: "triggerFill"
+(fail) Tooltip: a classe do invólucro segue o modificador fill > sem fill o invólucro encolhe ao conteúdo; com fill ele estica o filho
+```
+
+### M-1 e M-2 — o cabeçalho e o título voltam à identidade da staging
+
+Medido no navegador (Chromium do painel; `h1` em `Impact`), Vite da branch em 53090 e da `origin/staging` num worktree descartável em
+53092, navegação do SPA entre as duas rotas, 320/375/768/1280, sem API (o `h1` e o nome da tela não dependem dela; autenticação por
+`VITE_SMOKE_AUTH_BYPASS`). Corpo do `h1` / largura da caixa / rolagem do documento:
+
+| rota, largura           | staging                                           | branch antes (3ª revisão)              | branch depois                                                                                                   |
+| ----------------------- | ------------------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `/ressarcimentos` 320   | 56px, texto 369px em caixa de 360, **página 369** | 28px, peso 800, sem caixa alta         | **41,6px**, caixa alta, 288/288, página 320                                                                     |
+| `/ressarcimentos` 375   | 56,25px, texto 370 em caixa de 362 (vaza)         | 28px                                   | **48,75px**, 343/343, página 375                                                                                |
+| `/ressarcimentos` 768   | 115,2px, caixa 741                                | 28px                                   | **115,2px, caixa 741** (= staging)                                                                              |
+| `/ressarcimentos` 1280  | 140,8px, caixa 906                                | 28px                                   | **140,8px, caixa 906** (= staging)                                                                              |
+| `/repasses` 320 / 375   | 56px / 56,25px, caixa 288 / 343                   | 28px                                   | **56px / 56,25px, 288 / 343** (= staging)                                                                       |
+| `/repasses` 768 / 1280  | 115,2px / 140,8px, caixa 709 / 906                | 28px                                   | **= staging**                                                                                                   |
+| nome da tela 320 / 375  | 32px (`Ressarcimentos`, 241px na caixa de 170)    | 20,8px / 24,4px, **em todas as telas** | **32px**; "Ressarcimentos" quebra em duas linhas (64px de altura), as outras telas ficam em uma, página 320/375 |
+| nome da tela 768 / 1280 | 32px                                              | 32px                                   | 32px                                                                                                            |
+
+(O primeiro retrato depois da correção do `h1` por `max-width` teve 144px a 1280 contra 140,8px da staging: o `index.css` tem um
+`h1 { font-size: clamp(5rem, 11vw, 9rem) }` a partir de `64rem` que o espelho não repetia; corrigido e remedido.) Mudança: `.application-wordmark`
+volta a `2rem` com `overflow-wrap: anywhere` e `min-width: 0` no contêiner; o `h1` do módulo só difere do global abaixo de `40rem` e
+só na página de ressarcimentos (`.longTitle`, nos dois `<header>` dela); de `40rem` em diante repete o global nos dois pontos em que
+ele muda, e o contrato lê os valores do `index.css`. O projeto só aceita `min-width` e três pontos (`responsive.contract.ts`), por
+isso a faixa estreita é a base e a staging volta por `min-width`. Vite (53090, 53092) derrubados por PID (`lsof` vazio), worktree
+descartável removido; nenhum banco nem API foi criado (nada a apagar).
+
+### M-4 e B-2
+
+M-4: o antes/depois do CSS global do `Select` (desligado sem `opacity`, véu da opção ativa de 16% para 10%, valor que quebra linha,
+gatilho e busca de 44px no toque, painel com teto de largura) e o motivo (contraste 4,5:1 e alvo de toque) estão em
+`docs/ai-context/frontend-transportada.md` § "Spec 246 — terceira revisão (painel)" e na varredura acima. B-2: o texto de apoio da
+verificação lista foto, observação, assinatura, produtos e os mínimos, pt-BR e en; contrato reprovou antes (`Expected to contain: "observação"`,
+`"note"`) e passa depois (5 pass).
+
+### B-3
+
+`drizzle-occurrence-attachment-overrides.repository.ts`: as duas `.transaction(...).catch(rethrowOverrideShapeViolation)` viraram
+`try { await ... } catch (error: unknown) { rethrowOverrideShapeViolation(error) }`; `occurrence-override-minimum-shape` 2 pass.
+
+### Gates (primeiro plano, depois do rebase)
+
+- `bun install --frozen-lockfile` sem mudanças; `bun run typecheck` (7 apps) limpo; `prettier --check .` e `bun run format:check` limpos
+  (um `api-transportada.md` da mescla foi formatado).
+- Contrato da API: **10034 pass, 25 skip, 0 fail** (199 arquivos). Os 25 `skip` são `testWithPostgres` guardados por
+  `API_TEST_DATABASE_URL` dentro dos arquivos de integração que as suítes de contrato importam; eles rodam na lista de integração abaixo.
+- Integração, um arquivo por vez com `--env-file=../../.env.test`, 0 fail e 0 skip em todos: os 18 da 246 (`occurrence-type-requirement-modes`,
+  `-moments-registration`, `-moments-backfill`, `-moments-tenant`, `-quantity-minimums`, `-minimum-counts`, `-allows-multiple-items`,
+  `street-occurrence-attachment-read|backfill|write`, `street-occurrence-photo-statement`, `occurrence-requirement-modes-registration|write`,
+  `occurrence-effective-requirements-parity`, `occurrence-signature-isolation`, `occurrence-override-minimum-shape`,
+  `driver-occurrence-attachment-list`, `occurrence-attachment-overrides-batch`) mais `occurrence-type-receiving-moments`, os da 241
+  (`items-mode`, `leaves-document-behind`, `redelivery-policy`, `catalog-seed`, `trip-occurrence-type-items-read`, `pending-items`) e os
+  8 `cargo-arrival*` da 237. `db:test` 138 pass; `db:generate` `no_changes`; `db:check` limpo; `bun run build` ok.
+- Painel: `bun run --cwd apps/frontend-transportada test` **7064 pass** (contrato, 34 arquivos) + **727 pass** (lote DOM); lint com a app como cwd
+  **0 erros** (16 avisos antigos); typecheck e build ok. `bun run --cwd apps/frontend-driver test`: **1242 pass**, 0 fail.
+
+### Commits
+
+| achado                                    | SHA                      |
+| ----------------------------------------- | ------------------------ |
+| A-1 (rebase + quatro migrations refeitas) | `dacb06250`              |
+| A-1 (3) (`receiving` sem momento de rua)  | `3dfd8cb38`              |
+| M-3 (Tooltip no DOM)                      | `e969e3666`              |
+| M-1, M-2 (cabeçalho e título)             | `828e40b60`, `d089e5fe0` |
+| B-2, M-4 (hint, decisão do Select)        | `4683ffd8c`              |
+| B-3 (try/catch)                           | `e5a822ed0`              |
