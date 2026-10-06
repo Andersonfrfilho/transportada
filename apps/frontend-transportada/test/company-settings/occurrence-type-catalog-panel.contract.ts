@@ -58,7 +58,7 @@ async function findOccurrences(needle: string): Promise<readonly string[]> {
  * reescrito.
  */
 describe('catálogo de tipos de ocorrência em Configurações da empresa', () => {
-  it('o painel mudou de endereço: tem exatamente um, em Viagens → Tipos (spec 246 CA01)', () => {
+  it('o painel mudou de endereço: tem exatamente um, em Ocorrências → Tipos (spec 246 CA01)', () => {
     expect(SETTINGS_PANEL_PLACEMENT.occurrenceTypeCatalog).toEqual({
       module: 'trip',
       source: 'occurrenceTypeCatalog',
@@ -84,10 +84,11 @@ describe('catálogo de tipos de ocorrência em Configurações da empresa', () =
     expect(page).not.toContain("tab === 'occurrenceTypes'")
   })
 
-  it('o rótulo da aba fala do catálogo, não de avisos', () => {
-    expect(companySettingsPt.tabs.occurrenceTypes).toBeString()
-    expect(companySettingsPt.tabs.occurrenceTypes.toLowerCase()).not.toInclude('aviso')
-    expect(companySettingsEn.tabs.occurrenceTypes).toBeString()
+  it('o rótulo da aba antiga saiu de Configurações e o da nova fala do catálogo, não de avisos', () => {
+    expect(companySettingsPt.tabs).not.toHaveProperty('occurrenceTypes')
+    expect(companySettingsEn.tabs).not.toHaveProperty('occurrenceTypes')
+    expect(tripLocale.occurrenceFeed.tabs.types).toBeString()
+    expect(tripLocale.occurrenceFeed.tabs.types.toLowerCase()).not.toInclude('aviso')
   })
 
   it('o componente é reaproveitado, não duplicado: o antigo não existe mais', () => {
