@@ -19,7 +19,7 @@ evidência em `evidence.md`. **Tasks com `--env-file`:** a integração da API e
 ON DELETE RESTRICT` (molde de `trip_document_occurrences_company_object_fk`) —
       `apps/api-transportada/src/database/trip.schema.ts`; corrigir o comentário de `itemsMode`
       (~2621) que cita "spec 239": é a 246. `db:generate` gera a migration.
-- [ ] **T1.2** 🧠 Migration, **nesta ordem**: `ADD COLUMN` no tipo (default constante) → `ADD
+- [x] **T1.2** 🧠 Migration, **nesta ordem**: `ADD COLUMN` no tipo (default constante) → `ADD
 COLUMN` nas exceções sem default → os `UPDATE`s (tipo: `note_mode = 'required'` onde
       `attachment_mode = 'required'`; exceção: `note_mode = CASE WHEN attachment_mode = 'required'
 THEN 'required' ELSE 'optional' END` em **toda** linha existente; `signature_mode` das exceções

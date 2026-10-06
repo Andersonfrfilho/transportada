@@ -146,3 +146,42 @@ Com o schema novo: `8 pass, 0 fail`; `bun test ./test/trip-schema.contract.test.
 fail`; `bun run typecheck` → 0 erros. `bun run db:generate --name occurrence_type_requirement_modes`
 → `drizzle/20261006112823_occurrence_type_requirement_modes/migration.sql` (DDL na ordem do
 drizzle-kit; a ordem do plan, os `UPDATE`s e o `rollback.sql` são a T1.2).
+
+### T1.2 🧠 — Migration na ordem do plan (2026-10-06)
+
+`drizzle/20261006112823_occurrence_type_requirement_modes/`: o DDL do `db:generate` foi reordenado à
+mão e ganhou os três `UPDATE`s e o `rollback.sql` no padrão da casa. Ordem: `ADD COLUMN` do tipo
+(padrão constante) → `ADD COLUMN` das exceções (nulas) → `UPDATE company_occurrence_types SET
+note_mode = 'required' WHERE attachment_mode = 'required'` → `UPDATE <exceção> SET note_mode = CASE
+WHEN attachment_mode = 'required' THEN 'required' ELSE 'optional' END` (sem `WHERE`, toda linha; nas
+duas exceções) → as seis CHECKs → `signature_object_id` nas duas ocorrências → as duas FKs.
+`signature_mode` das exceções fica nulo. `rollback.sql`: `BEGIN` → FKs → `signature_object_id` →
+CHECKs → colunas → `DELETE` do journal com `ROW_COUNT <> 1 → RAISE` → `COMMIT`; não toca
+`items_mode` nem as CHECKs da 241; o cabeçalho diz o que se perde.
+
+Contrato primeiro — `test/database-migration/occurrence-type-requirement-modes.static.contract.ts`
+(registrado em `test/database-migration.contract.test.ts`; a lista de diretórios de
+`static-migration.contract.ts` ganhou a migration), contra o `migration.sql` como o drizzle-kit
+gerou e sem `rollback.sql`:
+
+```text
+$ bun test ./test/database-migration/occurrence-type-requirement-modes.static.contract.ts
+error: Missing fragment: UPDATE "company_occurrence_types" SET "note_mode" = 'required' WHERE "attachment_mode" = 'required';
+(fail) a exigência vira dado na ordem do plan (spec 246 T1.2) > colunas do tipo → das exceções → UPDATEs → CHECKs → signature_object_id
+ENOENT: no such file or directory, open '.../drizzle/20261006112823_occurrence_type_requirement_modes/rollback.sql'
+(fail) a exigência vira dado na ordem do plan (spec 246 T1.2) > o rollback desfaz só a 246, em ordem inversa, e não toca a 241
+ 0 pass
+ 2 fail
+```
+
+Depois: os contratos estáticos de migration (`occurrence-type-requirement-modes.static`,
+`static-migration`, `schema-snapshot`, `migration-readiness`, `pre-deploy`, `migration-chain`) →
+`86 pass, 0 fail`; `bun run db:generate` → `{"status":"no_changes"}`; `make migration-test
+ENV_FILE=.env.test` (Postgres de teste 127.0.0.1:65432) → `127 pass, 0 fail, 0 skip` em 8 arquivos.
+
+Validação por `architect` (opus, só leitura) sobre o SQL final: **APROVADO**, sem bloqueios — as
+CHECKs só leem valores que a própria migration gravou ou nulo; as FKs caem sobre coluna nova toda
+nula (nenhuma linha verificável), sem precisar de `NOT VALID`; `ADD COLUMN` com padrão constante não
+reescreve a tabela; rollback em ordem inversa, sem tocar a 241. Diferenças de forma apontadas, sem
+efeito: um `ALTER` por coluna (formato do drizzle-kit) em vez de um por tabela; `migration.sql` sem
+cabeçalho de copyright, como o molde da 241.
