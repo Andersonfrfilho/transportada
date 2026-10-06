@@ -769,3 +769,28 @@ O contrato estático (`occurrence-type-quantity-minimums.static.contract.ts`) ag
 `ADD COLUMN` nula → `UPDATE` → `SET DEFAULT` → `SET NOT NULL` → CHECKs e exige um único `UPDATE`:
 `bun test ./test/database-migration.contract.test.ts` → `90 pass, 4 skip, 0 fail` (os 4 pulados são
 anteriores: os de banco desse arquivo, cobertos no `make migration-test`).
+
+### T1c.4 (painel) — O catálogo tolera os mínimos antes de a API mandá-los (2026-10-06)
+
+`isOccurrenceType` (`tripResponse.validation.ts`) reprovaria a lista inteira quando o `GET` do
+catálogo passar a trazer `photoMinimumCount` e `itemsMinimumCount` (guarda de chave exata).
+Ausente é API anterior; `photoMinimumCount` presente só passa inteiro de 1 a 5
+(`OCCURRENCE_PHOTO_MINIMUM_COUNT`, cópia por valor da API em `occurrence.constant.ts`);
+`itemsMinimumCount` passa `null` (todos os itens da nota) ou inteiro `>= 1`. `itemsMode = 'required'`
+já era aceito pelo vocabulário do painel (`OCCURRENCE_ITEMS_MODES`); `allowsMultipleItems` já estava
+nas chaves permitidas. Conferidos e **sem mudança**: os guards da nota (`typeItemsMode`,
+`typeAllowsMultipleItems`, `tripResponse.validation.ts`) e do feed (`tripOccurrenceFeedClient.service.ts`)
+só dependem de `OCCURRENCE_ITEMS_MODES`, que já inclui `required`, e a T1c não acrescenta campo a essas
+respostas; `apps/frontend-driver` e `apps/frontend-client` não têm guard do catálogo.
+
+Contrato primeiro (`test/trip/occurrence-type-tolerance.contract.ts`), com o guard antigo:
+
+```text
+$ bun test ./test/trip/occurrence-type-tolerance.contract.ts
+error: TRIP_RESPONSE_INVALID
+(fail) tolerância ... > aceita `photoMinimumCount` e `itemsMinimumCount` da API nova, presentes ou ausentes
+ 11 pass
+ 1 fail
+```
+
+Com o guard novo: `12 pass, 0 fail`; `bun run typecheck` da app → 0 erros.

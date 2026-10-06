@@ -96,6 +96,13 @@ export type OccurrenceTypeFlow = (typeof OCCURRENCE_TYPE_FLOWS)[number]
  */
 export const OCCURRENCE_MOMENTS = ['separation', 'document', 'stop', 'office'] as const
 
+/**
+ * Spec 246 (RF1c): a faixa da quantidade mínima de fotos. Cópia por valor de
+ * `OCCURRENCE_PHOTO_MINIMUM_COUNT` da API — mudou lá, muda aqui. O painel só tolera o campo até a
+ * aba Tipos (Fase 5) passar a editá-lo.
+ */
+export const OCCURRENCE_PHOTO_MINIMUM_COUNT = { max: 5, min: 1 } as const
+
 /** O tipo como o servidor o devolve. `active` aposentado aparece apagado, nunca some da lista. */
 export type OccurrenceType = Readonly<{
   active: boolean
