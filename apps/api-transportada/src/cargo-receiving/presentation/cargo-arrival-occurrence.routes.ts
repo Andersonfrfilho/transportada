@@ -70,6 +70,14 @@ const REGISTER_OCCURRENCE_RATE_LIMIT = {
   windowSeconds: 300,
 } as const
 
+/** Marcar, desfazer e concluir são transições do escritório, como a tratativa (`occurrence-case.routes.ts`). */
+const RETURN_RATE_LIMIT = {
+  maxRequests: 120,
+  scope: 'cargo-arrival-return',
+  store: 'postgres',
+  windowSeconds: 300,
+} as const
+
 const documentPathOf = (pathParameters: PathParameters) => ({
   arrivalId: parseUuidPathIdentifier(pathParameters.id ?? ''),
   documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
@@ -122,6 +130,7 @@ function returnRoute(
     },
     pathname: target.pathname,
     policy: target.policy,
+    rateLimit: RETURN_RATE_LIMIT,
   })
 }
 

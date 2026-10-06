@@ -484,8 +484,11 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
     ])
   })
 
-  /** Spec 237 T3.2: a avaria sem viagem sobe foto — o mesmo teto da ocorrência de galpão, balde próprio. */
-  test('a ocorrência de recebimento conta no Postgres, no balde dela', () => {
+  /**
+   * Spec 237 T3.2: a avaria sem viagem sobe foto — o mesmo teto da ocorrência de galpão, balde próprio.
+   * T3.4a: marcar, desfazer e concluir a devolução são transições do escritório, como a tratativa.
+   */
+  test('a ocorrência de recebimento e a devolução contam no Postgres, cada uma no seu balde', () => {
     const routes = createCargoArrivalOccurrenceRoutes(unusedDependencies() as never)
 
     expect(
@@ -505,6 +508,15 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
         },
         signature: 'POST /cargo-arrivals/:id/documents/:documentId/occurrences',
       },
+      ...['return-mark', 'return-unmark', 'return-complete'].map((action) => ({
+        rateLimit: {
+          maxRequests: 120,
+          scope: 'cargo-arrival-return',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: `POST /cargo-arrivals/:id/documents/:documentId/${action}`,
+      })),
     ])
   })
 
