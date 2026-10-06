@@ -180,7 +180,7 @@ trip_document_occurrence_attachments_unique_position DO NOTHING`. **`created_at 
       execução vermelha registrada em `evidence.md`.
 - [x] **T2.4** `PUT` do catálogo e das exceções aceita os quatro modos (nulo = herda nas exceções);
       `signatureObjectId` aceito e conferido contra empresa/viagem/motorista (RF2b da 179).
-- [ ] **T2.4b** A projeção, a cobrança (RF8) e a verificação (RF12) incluem `itemsMode`,
+- [x] **T2.4b** A projeção, a cobrança (RF8) e a verificação (RF12) incluem `itemsMode`,
       `photoMinimumCount` e `itemsMinimumCount`; erro estável por campo em `trip.error.ts`.
       `itemsMode = required` recusa registro sem produto, e "todos os itens" recusa seleção parcial.
 - [ ] **T2.5** Prova de que a assinatura da ocorrência não aparece em `trip_delivery_proofs`, na

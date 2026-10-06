@@ -1222,6 +1222,35 @@ export class TripOccurrenceSignatureRequiredError extends ApiError {
 }
 
 /**
+ * Spec 246 (RF1b, RF8): o tipo efetivo da nota exige produtos (`items_mode = 'required'`) e o registro
+ * não apontou nenhum — nem a nota inteira, que numa nota sem item algum não cobre nada. Código estável
+ * próprio por campo: a tela diz que faltam produtos.
+ */
+export class TripOccurrenceItemsRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_ITEMS_REQUIRED',
+      message: 'This occurrence type requires at least one item of the document.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 246 (RF1c2, RF8): produtos obrigatórios e a seleção ficou abaixo do exigido — "todos os itens da
+ * nota" (mínimo nulo) recusa a seleção parcial, e o mínimo numérico recusa o que fica abaixo dele.
+ */
+export class TripOccurrenceItemsMinimumNotMetError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_ITEMS_MINIMUM_NOT_MET',
+      message: 'This occurrence type requires more items of the document than were selected.',
+      status: 422,
+    })
+  }
+}
+
+/**
  * Spec 246 (RF1c, RF8): a foto é obrigatória e veio, mas abaixo de `photo_minimum_count`. Código
  * próprio, distinto de `TRIP_OCCURRENCE_ATTACHMENT_REQUIRED` (nenhuma foto): a tela diz quantas faltam.
  */

@@ -1459,3 +1459,40 @@ Contrato da API inteiro: `9854 pass, 25 skip, 0 fail`; `bun run typecheck` 0; `b
 ⚠️ **Divergência registrada.** O `PUT` de tipo de um painel anterior à 246 que passe a foto para `required`
 sem mandar `noteMode` **não** arrasta mais a observação (a regra saiu do código — RF3). Só importa na janela
 entre a API e o painel da Fase 5; o painel novo manda `noteMode`. Cadastro existente não muda (CA04).
+
+### T2.4b — Produtos obrigatórios e os mínimos, cobrados pelo modo efetivo (2026-10-06)
+
+A projeção (T2.1) e a verificação (T2.2) já trazem `itemsMode`, `photoMinimumCount` e
+`itemsMinimumCount`. A **cobrança** (RF8) entra no registro do motorista, com dois erros estáveis novos em
+`trip.error.ts` (`422`):
+
+- `TRIP_OCCURRENCE_ITEMS_REQUIRED` — produtos obrigatórios e a ocorrência não aponta nenhum (nota sem
+  item algum incluída: a nota inteira de uma nota vazia não cobre nada);
+- `TRIP_OCCURRENCE_ITEMS_MINIMUM_NOT_MET` — "todos os itens" (mínimo nulo) recusa a seleção parcial, e o
+  mínimo numérico recusa o que fica abaixo dele. O mínimo nunca passa do total da nota (dois itens
+  exigidos numa nota de um item tornariam a ocorrência irregistrável).
+
+`photoMinimumCount` já era cobrado desde a T1d.5 (`TRIP_OCCURRENCE_PHOTO_MINIMUM_NOT_MET`), agora sobre o
+valor **efetivo** da nota (exceção herda ou declara). A regra: `productCode` vazio é a nota inteira (aponta
+todos os itens da nota); um código aponta um.
+
+`assertOccurrenceTypeAcceptsProducts` passou a ler o **modo efetivo** (a exceção da nota pode desligar ou
+exigir produtos sobre o tipo) e, por isso, roda depois da leitura da nota e da resolução — o `422`
+`OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED` de um tipo `off` agora vem depois do `404` de nota inalcançável.
+
+Contrato primeiro (`test/trip-occurrence/items-requirement.contract.ts`):
+
+```text
+$ bun --env-file=../../.env.test test ./test/trip-occurrence/items-requirement.contract.ts
+SyntaxError: Export named 'TripOccurrenceItemsMinimumNotMetError' not found in module '.../trips/domain/trip.error.ts'.
+ 0 pass
+ 1 fail
+```
+
+Depois: contrato da API inteiro `9863 pass, 25 skip, 0 fail`; integração
+`occurrence-requirement-modes-registration` `3 pass, 0 fail` (inclui nota sem item + produtos obrigatórios
+pelo caminho real → `TRIP_OCCURRENCE_ITEMS_REQUIRED`); integrações vizinhas, uma por vez:
+`occurrence-type-items-mode` 5/0 · `occurrence-type-quantity-minimums` 1/0 ·
+`occurrence-type-minimum-counts` 4/0 · `trip-field-authorship` 5/0. `bun run typecheck` 0; `bun run lint` 0.
+O registro do **galpão** e o lote do escritório não leem `required` de produtos nesta spec (a exigência de
+rua é só da nota do motorista — spec.md "Fora do escopo").

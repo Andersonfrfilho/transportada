@@ -11,7 +11,10 @@
  */
 import { OCCURRENCE_MOMENT, TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import { TripDocumentNotReachableError } from '../domain/trip.error.js'
-import { assertOccurrenceTypeAcceptsProducts } from '../domain/occurrence-items-mode.policy.js'
+import {
+  assertOccurrenceItemsRequirement,
+  assertOccurrenceTypeAcceptsProducts,
+} from '../domain/occurrence-items-mode.policy.js'
 import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
 import { assertDriverOccurrenceRequirements } from '../domain/occurrence-requirement-guard.policy.js'
 import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
@@ -125,12 +128,6 @@ export async function registerDriverOccurrence(
     throw new TripDocumentNotReachableError()
   }
 
-  /** Spec 241 (RF6, CA03): o app manda `productCode: ''`; produto em tipo sem itens é cliente fora do contrato. */
-  assertOccurrenceTypeAcceptsProducts({
-    itemsMode: occurrenceType.itemsMode,
-    productCode: input.productCode,
-  })
-
   const reachable = await input.repository.findReachableDocument({
     companyId: input.companyId,
     documentId: input.documentId,
@@ -138,31 +135,43 @@ export async function registerDriverOccurrence(
   })
   if (reachable === null) throw new TripDocumentNotReachableError()
 
-  const scope = resolveOccurrenceProductScope({
-    productCode: input.productCode,
-    products: await input.repository.listDocumentProducts({
-      companyId: input.companyId,
-      documentId: input.documentId,
-      tripId: reachable.tripId,
-    }),
-  })
-  if (scope === null) throw new TripDocumentNotReachableError()
-
-  const authorship = deriveFieldAuthorship(input)
-  const tripId = reachable.tripId
-
   /**
    * Spec 179 T203 (RF3) e 246 (RF6, RF8): a exigência é a **efetiva da nota** — tipo, exceção do
    * contratante e do destinatário, lidos da nota no servidor —, e cada campo é cobrado pelo seu modo.
    * A rota leva um anexo só.
    */
-  const hasAttachment = input.attachmentObjectId !== undefined && input.attachmentObjectId !== null
   const requirements = await resolveDocumentOccurrenceRequirements({
     companyId: input.companyId,
     document: reachable,
     occurrenceType,
     repository: input.repository,
   })
+
+  /** Spec 241 (RF6, CA03): o app manda `productCode: ''`; produto em tipo sem itens é cliente fora do contrato. */
+  assertOccurrenceTypeAcceptsProducts({
+    itemsMode: requirements.itemsMode,
+    productCode: input.productCode,
+  })
+
+  const products = await input.repository.listDocumentProducts({
+    companyId: input.companyId,
+    documentId: input.documentId,
+    tripId: reachable.tripId,
+  })
+  const scope = resolveOccurrenceProductScope({ productCode: input.productCode, products })
+  if (scope === null) throw new TripDocumentNotReachableError()
+  /** Spec 246 (RF1b, RF1c2): a nota inteira aponta todos os itens; um código aponta um. */
+  assertOccurrenceItemsRequirement({
+    itemsMinimumCount: requirements.itemsMinimumCount,
+    itemsMode: requirements.itemsMode,
+    selectedCount: scope.scope === 'document' ? products.length : 1,
+    totalCount: products.length,
+  })
+
+  const authorship = deriveFieldAuthorship(input)
+  const tripId = reachable.tripId
+
+  const hasAttachment = input.attachmentObjectId !== undefined && input.attachmentObjectId !== null
   assertDriverOccurrenceRequirements({
     attachmentCount: hasAttachment ? 1 : 0,
     hasSignature: input.signatureObjectId !== undefined && input.signatureObjectId !== null,

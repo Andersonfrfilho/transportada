@@ -28,6 +28,7 @@ import {
 } from '../../src/database/trip.schema.js'
 import {
   TripOccurrenceAttachmentRequiredError,
+  TripOccurrenceItemsRequiredError,
   TripOccurrenceNoteRequiredError,
 } from '../../src/trips/domain/trip.error.js'
 import { withDisposableDatabase as withDisposableDatabaseLifecycle } from '../fixtures/disposable-database.fixture.js'
@@ -333,4 +334,31 @@ describe('a exceção da nota vale no registro, pelo caminho real (spec 246 T2.3
     },
     60_000,
   )
+})
+
+describe('produtos obrigatórios pelo caminho real (spec 246 T2.4b)', () => {
+  testWithPostgres('nota sem item algum não satisfaz produtos obrigatórios', async () => {
+    await withDisposableDatabase(async (database) => {
+      const company = await seedCompany(database)
+      const trip = await seedTrip(database, company, 'in_transit')
+      const typeId = crypto.randomUUID()
+      await database.db.insert(companyOccurrenceTypes).values({
+        companyId: company.companyId,
+        id: typeId,
+        itemsMinimumCount: null,
+        itemsMode: 'required',
+        name: 'Recusa total',
+        stage: 'delivery',
+      })
+
+      const error = await rejection(
+        registerStreetOccurrence(database, { attachmentObjectId: null, company, trip, typeId }),
+      )
+
+      expect(error).toBeInstanceOf(TripOccurrenceItemsRequiredError)
+      expect((error as TripOccurrenceItemsRequiredError).code).toBe(
+        'TRIP_OCCURRENCE_ITEMS_REQUIRED',
+      )
+    })
+  })
 })
