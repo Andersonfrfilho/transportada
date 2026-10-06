@@ -509,7 +509,7 @@
     "photoCount_other": "{{count}} fotos",
     "notApplicable": "Não se aplica",
     "title": "Verificar configuração efetiva",
-    "hint": "Escolha um contratante e/ou um destinatário para ver o comprovante e a exigência de foto de ocorrência que valem para essa combinação — a mesma conta que o app do motorista faria.",
+    "hint": "Escolha um contratante e/ou um destinatário para ver o comprovante e, em cada tipo de ocorrência, a foto, a observação, a assinatura, os produtos e os mínimos de fotos e de produtos que valem para essa combinação, com a camada que decidiu cada um — a mesma conta que o app do motorista faria.",
     "contractor": "Contratante",
     "contractorPlaceholder": "Buscar por nome ou CNPJ",
     "contractorSelected": "Contratante escolhido: {{contractor}}",

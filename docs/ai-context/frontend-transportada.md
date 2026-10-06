@@ -1234,3 +1234,22 @@ previewEnabled }], nextCursor }`), uma guarda por módulo. Registro de chegada: 
   `.stacked` com `data-label`; o `min-width: 40rem` do detalhe só vale a partir de 40 rem. A conferência de "sem rolagem" por
   `scrollWidth` passava com o conteúdo recortado: `expectNoClipping` (`test/cargo-clipping-smoke.helper.ts`) mede
   `getBoundingClientRect` contra o ancestral que recorta. A 768 px a lista e as prévias rolam dentro da região rotulada.
+
+## Spec 246 — terceira revisão (painel, 2026-10-06)
+
+- **`Select` (CSS global, `components/ui/select.module.css`) mudou para todas as telas, por contraste e alvo de toque.**
+  Antes (staging) → depois: (1) **desligado** apagava com `opacity: 0.6` e cor a 75%, o que levava o motivo ao lado abaixo de
+  4,5:1; agora é `border-style: dashed` + `--color-slate-muted`, sem `opacity`. (2) **Opção ativa** com véu de cobre de **16%**
+  → **10%**, e **escolhida + ativa** a **5%**: cobre sobre cobre translúcido media 4,4:1. (3) **Valor e placeholder** cortavam
+  com reticências (`nowrap`) e sumiam no toque, onde `title` não existe → `overflow-wrap: anywhere`, o gatilho cresce só quando
+  o texto não cabe; o detalhe (`triggerDescription`) segue em uma linha, com reticências e `title`. (4) **Gatilho compacto,
+  opção e busca** a 38 px → `min-height: var(--touch-target)` (44 px) só em `pointer: coarse`; o desktop não muda. (5) O painel
+  ganhou `max-width: calc(100vw - var(--space-4))` e a lista uma coluna `minmax(0, 1fr)`: uma opção de uma linha só abria o painel
+  além da borda. Medido: 0 painel fora da viewport (a staging tinha 4 a 320 px). Evidência: `specs/246-.../evidence.md`
+  § "Correções da terceira revisão" (M-4) e § "Varredura de regressão visual contra a staging".
+- **Cabeçalho da aplicação e título de `/ressarcimentos` (M-1, M-2).** `.application-wordmark` voltou a `2rem` em toda tela; o
+  nome comprido quebra (`min-width: 0` no contêiner, `overflow-wrap: anywhere`) em vez de encolher o de todas as telas. O `h1`
+  do módulo só difere do global abaixo de `40rem` e só na página de ressarcimentos (`.longTitle`); de `40rem` em diante repete o
+  `h1` global nos dois pontos em que ele muda (`clamp(3.5rem, 15vw, 9rem)` e, de `64rem`, `clamp(5rem, 11vw, 9rem)`), e o
+  contrato lê os valores do `index.css`. O projeto só aceita consulta `min-width` nos três pontos (`responsive.contract.ts`).
+- **Não corrigidos de propósito (registrados):** B-1, B-4 e B-5 da terceira revisão ficam como estão.

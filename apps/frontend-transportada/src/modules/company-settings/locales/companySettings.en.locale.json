@@ -509,7 +509,7 @@
     "photoCount_other": "{{count}} photos",
     "notApplicable": "Not applicable",
     "title": "Check effective configuration",
-    "hint": "Pick a contractor and/or a recipient to see the delivery proof and the occurrence photo requirement that apply to that combination — the same computation the driver app would make.",
+    "hint": "Pick a contractor and/or a recipient to see the delivery proof and, for each occurrence type, the photo, the note, the signature, the products and the minimum photos and products that apply to that combination, with the layer that decided each one — the same computation the driver app would make.",
     "contractor": "Contractor",
     "contractorPlaceholder": "Search by name or tax id",
     "contractorSelected": "Contractor chosen: {{contractor}}",
