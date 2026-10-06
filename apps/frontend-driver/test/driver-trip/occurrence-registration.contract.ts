@@ -91,6 +91,32 @@ describe('a lista única traz os dois fluxos, cada tipo com o seu attachmentMode
     expect(isDriverOccurrenceType({ id: 'legado', name: 'Legado' })).toBe(true)
   })
 
+  /**
+   * Spec 246 (ADR-0081 §9, app tolerante antes da API): o servidor passa a mandar os modos
+   * resolvidos da nota (`photoMode`, `noteMode`, `signatureMode`) e os mínimos em cada tipo — o
+   * guard tolera chave a mais, e a cópia guardada antes continua valendo.
+   */
+  it('tolera os modos resolvidos e os mínimos que a API passa a mandar', () => {
+    expect(
+      isDriverOccurrenceType({
+        attachmentMode: 'required',
+        flow: 'document',
+        id: 'novo',
+        itemsMinimumCount: null,
+        itemsMode: 'required',
+        name: 'Recusa total',
+        noteMode: 'required',
+        photoMinimumCount: 2,
+        photoMode: 'required',
+        signatureMode: 'optional',
+        stopKind: null,
+      }),
+    ).toBe(true)
+    expect(
+      isDriverOccurrenceType({ attachmentMode: 'required', id: 'antigo', name: 'Antigo' }),
+    ).toBe(true)
+  })
+
   /** "Não entreguei" é devolução de nota: tipo de parada ali abriria ocorrência de nota errada. */
   it('"Não entreguei" oferece só os tipos de nota', () => {
     const types = listAvailableOccurrenceTypes({
