@@ -70,8 +70,6 @@
 }
 
 .blockers {
-  display: grid;
-  gap: var(--space-1);
   margin: 0;
   padding: var(--space-3);
   border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);

@@ -457,3 +457,14 @@ no `PUT`. Momentos são rascunho com Aplicar/Desfazer; conjunto vazio e `documen
 
 ⚠️ O `Select` global mudou (contraste e alvo de 44px no toque; desligado sem `opacity`) e o `Tooltip` só estica o filho com
 `fill`. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 246".
+
+## A avaria na entrada e "devolver ao contratante" (spec 237 T3.3)
+
+No módulo `cargo-receiving`: botão **Avaria** na nota (celular do separador), selos "Avaria aberta / A devolver / Devolvida",
+marcar, desfazer e concluir a devolução. Marcação e ocorrências vêm só de `GET /cargo-arrivals/:id/occurrences`; a leitura da
+chegada **não ganhou chave** (guardas exatas). **Desfazer é só `occurrences.resolve`** (`canResolve`), abrir/marcar/concluir é
+`trip.manage`; a janela vale só para abrir; concluir espera a tratativa `decided|closed`; `returned` é terminal — tudo em
+`cargoNoteActions.service.ts` (puro). A foto reduz por `buildOccurrencePhotoAttachment` (serviço de `trip/shared`, nunca componente
+nem hook do `trip`); `Idempotency-Key` por tentativa. Nota marcada sai do passo de separar, do "Separar tudo" e trava "Fechar
+chegada" (motivo antes do clique). ⚠️ O `Select` não abre em teste de DOM sem `stubVisibleLayout()`. Detalhe: docs/ai-context §
+"Spec 237 T3.3".

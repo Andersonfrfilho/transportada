@@ -37,7 +37,9 @@ describe('a recusa da avaria nomeia todos os campos (spec 237 T3.3)', () => {
   })
 
   test('código sem `details` aponta o campo que ele implica, e junta com os que vieram nomeados', () => {
-    const photo = describeOccurrenceRefusal(new CargoReceivingRequestError('OCCURRENCE_PHOTO_REQUIRED'))
+    const photo = describeOccurrenceRefusal(
+      new CargoReceivingRequestError('OCCURRENCE_PHOTO_REQUIRED'),
+    )
     expect(photo.fields.map((item) => item.field)).toEqual(['file'])
 
     const items = describeOccurrenceRefusal(
@@ -60,10 +62,13 @@ describe('a recusa da avaria nomeia todos os campos (spec 237 T3.3)', () => {
   })
 
   test('silêncio: falha de rede ou código que não aponta campo não inventa campo', () => {
-    expect(describeOccurrenceRefusal(new CargoReceivingRequestError('REQUEST_FAILED')).fields).toEqual([])
     expect(
-      describeOccurrenceRefusal(new CargoReceivingRequestError('CARGO_ARRIVAL_OCCURRENCE_WINDOW_CLOSED'))
-        .fields,
+      describeOccurrenceRefusal(new CargoReceivingRequestError('REQUEST_FAILED')).fields,
+    ).toEqual([])
+    expect(
+      describeOccurrenceRefusal(
+        new CargoReceivingRequestError('CARGO_ARRIVAL_OCCURRENCE_WINDOW_CLOSED'),
+      ).fields,
     ).toEqual([])
     expect(describeOccurrenceRefusal(new Error('boom'))).toEqual({
       code: undefined,
@@ -96,7 +101,9 @@ describe('o texto do código', () => {
   })
 
   test('um código do recebimento sem texto da avaria cai no dicionário da chegada, e por fim no genérico', () => {
-    expect(resolveOccurrenceErrorKeys('CARGO_ARRIVAL_CLOSED')).toContain('errors.CARGO_ARRIVAL_CLOSED')
+    expect(resolveOccurrenceErrorKeys('CARGO_ARRIVAL_CLOSED')).toContain(
+      'errors.CARGO_ARRIVAL_CLOSED',
+    )
     expect(resolveOccurrenceErrorKeys('QUALQUER_OUTRO')).toEqual([
       'occurrence.errors.QUALQUER_OUTRO',
       'errors.QUALQUER_OUTRO',

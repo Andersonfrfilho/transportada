@@ -18,7 +18,12 @@ export const SHORTAGE_TYPE_ID = '00000000-0000-4000-8000-0000002373a2'
 export const SINGLE_ITEM_TYPE_ID = '00000000-0000-4000-8000-0000002373a3'
 
 export const RECEIVING_TYPES: readonly ReceivingOccurrenceType[] = [
-  { allowsMultipleItems: true, id: DAMAGE_TYPE_ID, itemsMode: 'optional', name: 'Item avariado na chegada' },
+  {
+    allowsMultipleItems: true,
+    id: DAMAGE_TYPE_ID,
+    itemsMode: 'optional',
+    name: 'Item avariado na chegada',
+  },
   {
     allowsMultipleItems: true,
     id: SHORTAGE_TYPE_ID,
@@ -48,8 +53,18 @@ export function buildProduct(
 }
 
 export const DEFAULT_PRODUCTS: readonly CargoDocumentProduct[] = [
-  buildProduct({ code: 'P-100', commercialUnit: 'CX', description: 'Biscoito de leite 200 g', ordinal: 1 }),
-  buildProduct({ code: 'P-200', commercialUnit: 'KG', description: 'Farinha de trigo', ordinal: 2 }),
+  buildProduct({
+    code: 'P-100',
+    commercialUnit: 'CX',
+    description: 'Biscoito de leite 200 g',
+    ordinal: 1,
+  }),
+  buildProduct({
+    code: 'P-200',
+    commercialUnit: 'KG',
+    description: 'Farinha de trigo',
+    ordinal: 2,
+  }),
   buildProduct({ code: 'P-300', commercialUnit: '', description: 'Sabonete em barra', ordinal: 3 }),
 ]
 
@@ -58,12 +73,16 @@ export function buildOccurrence(
 ): CargoOccurrenceView {
   return {
     actorName: 'Separador Fictício',
-    attachments: [{ expired: false, id: `${overrides.id}-photo`, mimeType: 'image/jpeg', position: 1 }],
+    attachments: [
+      { expired: false, id: `${overrides.id}-photo`, mimeType: 'image/jpeg', position: 1 },
+    ],
     cancelledAt: null,
     case: { id: `${overrides.id}-case`, status: 'recorded' },
     channel: 'backoffice',
     createdAt: '2026-10-03T13:10:00.000Z',
-    items: [{ code: 'P-100', description: 'Biscoito de leite 200 g', quantity: '2.000', unit: 'CX' }],
+    items: [
+      { code: 'P-100', description: 'Biscoito de leite 200 g', quantity: '2.000', unit: 'CX' },
+    ],
     note: 'Caixa amassada',
     occurrenceTypeId: DAMAGE_TYPE_ID,
     typeName: 'Item avariado na chegada',

@@ -35,10 +35,9 @@ describe('os textos da avaria nos dois idiomas (spec 237 T3.3)', () => {
   test('nenhum texto fica vazio', () => {
     for (const locale of [portuguese, english]) {
       const empty = flatten(locale).filter((path) => {
-        const text = path.split('.').reduce<unknown>(
-          (node, key) => (node as Record<string, unknown>)[key],
-          locale,
-        )
+        const text = path
+          .split('.')
+          .reduce<unknown>((node, key) => (node as Record<string, unknown>)[key], locale)
         return typeof text !== 'string' || text.trim() === ''
       })
       expect(empty).toEqual([])
@@ -48,7 +47,9 @@ describe('os textos da avaria nos dois idiomas (spec 237 T3.3)', () => {
   test('as chaves novas não escondem as da chegada: nenhuma colide com o dicionário de antes', () => {
     const core = new Set(Object.keys(portugueseCore))
     expect(Object.keys(portuguese).filter((key) => core.has(key))).toEqual([])
-    expect(Object.keys(english).filter((key) => new Set(Object.keys(englishCore)).has(key))).toEqual([])
+    expect(
+      Object.keys(english).filter((key) => new Set(Object.keys(englishCore)).has(key)),
+    ).toEqual([])
   })
 
   test('o i18n junta os dois arquivos no mesmo namespace `cargoReceiving`', () => {

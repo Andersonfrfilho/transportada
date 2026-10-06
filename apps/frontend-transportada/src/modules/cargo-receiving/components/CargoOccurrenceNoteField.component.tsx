@@ -15,7 +15,7 @@ export function CargoOccurrenceNoteField({
 
   return (
     <label data-field={CARGO_OCCURRENCE_FIELD.note}>
-      {t('occurrence.dialog.noteLabel')}
+      <span className={styles.fieldTitle}>{t('occurrence.dialog.noteLabel')}</span>
       <textarea
         aria-invalid={issue === undefined ? undefined : true}
         disabled={form.isSubmitting}

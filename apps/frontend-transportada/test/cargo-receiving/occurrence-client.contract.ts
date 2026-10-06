@@ -20,7 +20,13 @@ import {
 } from '../fixtures/cargoOccurrence.fixture'
 import { ARRIVAL_ID, documentIdOf } from '../fixtures/cargoReceiving.fixture'
 
-type Captured = { form: FormData | undefined; headers: Headers; json: unknown; method: string; url: URL }
+type Captured = {
+  form: FormData | undefined
+  headers: Headers
+  json: unknown
+  method: string
+  url: URL
+}
 
 function harness(respond: (captured: Captured) => Response | Promise<Response>) {
   const calls: Captured[] = []
@@ -94,7 +100,10 @@ describe('as leituras', () => {
   test('os itens da nota vêm da rota própria, pelo id da NF-e', async () => {
     const { calls, client } = harness(() => json({ data: [buildProduct({ code: 'P-1' })] }))
 
-    const products = await client.listDocumentProducts({ arrivalId: ARRIVAL_ID, documentId: DOCUMENT })
+    const products = await client.listDocumentProducts({
+      arrivalId: ARRIVAL_ID,
+      documentId: DOCUMENT,
+    })
 
     expect(calls[0]?.url.pathname).toBe(`${BASE}/documents/${DOCUMENT}/products`)
     expect(products[0]?.code).toBe('P-1')
@@ -214,13 +223,21 @@ describe('abrir a avaria', () => {
       })
       .catch((error: unknown) => error)) as CargoReceivingRequestError
 
-    expect(failure.details.map((detail) => detail.field)).toEqual(['occurrenceTypeId', 'productCodes'])
+    expect(failure.details.map((detail) => detail.field)).toEqual([
+      'occurrenceTypeId',
+      'productCodes',
+    ])
   })
 })
 
 describe('marcar, desfazer e concluir a devolução', () => {
   const result = (state: string, occurrenceId: string | null) => ({
-    data: { documentId: DOCUMENT, outcome: 'changed', returnOccurrenceId: occurrenceId, returnToContractor: state },
+    data: {
+      documentId: DOCUMENT,
+      outcome: 'changed',
+      returnOccurrenceId: occurrenceId,
+      returnToContractor: state,
+    },
   })
 
   test('marcar manda a ocorrência de origem e a observação em JSON', async () => {
@@ -243,8 +260,18 @@ describe('marcar, desfazer e concluir a devolução', () => {
   test('desfazer e concluir mandam só a observação, e cada um vai na sua rota', async () => {
     const { calls, client } = harness(() => json(result('none', null)))
 
-    await client.changeReturn({ action: 'unmark', arrivalId: ARRIVAL_ID, documentId: DOCUMENT, note: '' })
-    await client.changeReturn({ action: 'complete', arrivalId: ARRIVAL_ID, documentId: DOCUMENT, note: 'Saiu' })
+    await client.changeReturn({
+      action: 'unmark',
+      arrivalId: ARRIVAL_ID,
+      documentId: DOCUMENT,
+      note: '',
+    })
+    await client.changeReturn({
+      action: 'complete',
+      arrivalId: ARRIVAL_ID,
+      documentId: DOCUMENT,
+      note: 'Saiu',
+    })
 
     expect(calls[0]?.url.pathname).toBe(`${BASE}/documents/${DOCUMENT}/return-unmark`)
     expect(calls[0]?.json).toEqual({ note: '' })

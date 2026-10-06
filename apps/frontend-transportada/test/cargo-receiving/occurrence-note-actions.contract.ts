@@ -45,13 +45,22 @@ function context(overrides: Partial<CargoNoteContext> = {}): CargoNoteContext {
 }
 
 const marked = (overrides: Partial<CargoNoteContext> = {}) =>
-  context({ occurrences: [OCCURRENCE], returnOccurrenceId: 'occ-1', returnState: 'marked', ...overrides })
+  context({
+    occurrences: [OCCURRENCE],
+    returnOccurrenceId: 'occ-1',
+    returnState: 'marked',
+    ...overrides,
+  })
 
 describe('a janela de separação', () => {
   test('aberta até o instante limite; vencida depois; sem janela, sempre aberta', () => {
     expect(isOccurrenceWindowOpen({ now: NOW, separationDueAt: OPEN_DUE })).toBe(true)
-    expect(isOccurrenceWindowOpen({ now: Date.parse(OPEN_DUE), separationDueAt: OPEN_DUE })).toBe(true)
-    expect(isOccurrenceWindowOpen({ now: Date.parse(OPEN_DUE) + 1, separationDueAt: OPEN_DUE })).toBe(false)
+    expect(isOccurrenceWindowOpen({ now: Date.parse(OPEN_DUE), separationDueAt: OPEN_DUE })).toBe(
+      true,
+    )
+    expect(
+      isOccurrenceWindowOpen({ now: Date.parse(OPEN_DUE) + 1, separationDueAt: OPEN_DUE }),
+    ).toBe(false)
     expect(isOccurrenceWindowOpen({ now: NOW, separationDueAt: CLOSED_DUE })).toBe(false)
     expect(isOccurrenceWindowOpen({ now: NOW, separationDueAt: null })).toBe(true)
   })
@@ -85,26 +94,32 @@ describe('abrir a avaria', () => {
   })
 
   test('sem `trip.manage` nada de abrir, nem a explicação da janela', () => {
-    const actions = resolveCargoNoteActions(context({ canManage: false, separationDueAt: CLOSED_DUE }))
+    const actions = resolveCargoNoteActions(
+      context({ canManage: false, separationDueAt: CLOSED_DUE }),
+    )
 
     expect(actions.canOpenOccurrence).toBe(false)
     expect(actions.isWindowClosed).toBe(false)
   })
 
   test('chegada fechada e nota devolvida recusam, como a API', () => {
-    expect(resolveCargoNoteActions(context({ arrivalStatus: 'closed' })).canOpenOccurrence).toBe(false)
-    expect(resolveCargoNoteActions(context({ returnState: 'returned' })).canOpenOccurrence).toBe(false)
+    expect(resolveCargoNoteActions(context({ arrivalStatus: 'closed' })).canOpenOccurrence).toBe(
+      false,
+    )
+    expect(resolveCargoNoteActions(context({ returnState: 'returned' })).canOpenOccurrence).toBe(
+      false,
+    )
   })
 })
 
 describe('os selos da nota', () => {
   test('nenhuma → avaria aberta → a devolver → devolvida', () => {
     expect(resolveCargoNoteActions(context()).badge).toBe('none')
-    expect(resolveCargoNoteActions(context({ occurrences: [OCCURRENCE] })).badge).toBe('occurrenceOpen')
+    expect(resolveCargoNoteActions(context({ occurrences: [OCCURRENCE] })).badge).toBe(
+      'occurrenceOpen',
+    )
     expect(resolveCargoNoteActions(marked()).badge).toBe('toReturn')
-    expect(
-      resolveCargoNoteActions(marked({ returnState: 'returned' })).badge,
-    ).toBe('returned')
+    expect(resolveCargoNoteActions(marked({ returnState: 'returned' })).badge).toBe('returned')
   })
 
   test('ocorrência cancelada não conta como avaria aberta', () => {
@@ -144,7 +159,9 @@ describe('devolver ao contratante', () => {
         context({ ...base, document: { isInLiveTrip: true, separationState: 'received' } }),
       ).canMark,
     ).toBe(false)
-    expect(resolveCargoNoteActions(context({ ...base, arrivalStatus: 'closed' })).canMark).toBe(false)
+    expect(resolveCargoNoteActions(context({ ...base, arrivalStatus: 'closed' })).canMark).toBe(
+      false,
+    )
     expect(resolveCargoNoteActions(marked()).canMark).toBe(false)
   })
 
@@ -160,27 +177,34 @@ describe('devolver ao contratante', () => {
 describe('desfazer a devolução é de quem decide a tratativa', () => {
   test('só `occurrences.resolve` desfaz, e só a nota marcada', () => {
     expect(resolveCargoNoteActions(marked({ canResolve: true })).canUnmark).toBe(true)
-    expect(resolveCargoNoteActions(marked({ canManage: true, canResolve: false })).canUnmark).toBe(false)
+    expect(resolveCargoNoteActions(marked({ canManage: true, canResolve: false })).canUnmark).toBe(
+      false,
+    )
     expect(resolveCargoNoteActions(context({ canResolve: true })).canUnmark).toBe(false)
   })
 
   test('o desfazer volta a nota ao fluxo normal: de novo pode marcar', () => {
-    const afterUnmark = context({ occurrences: [OCCURRENCE], returnOccurrenceId: null, returnState: 'none' })
+    const afterUnmark = context({
+      occurrences: [OCCURRENCE],
+      returnOccurrenceId: null,
+      returnState: 'none',
+    })
 
     expect(resolveCargoNoteActions(afterUnmark).canMark).toBe(true)
     expect(resolveCargoNoteActions(afterUnmark).badge).toBe('occurrenceOpen')
   })
 
   test('chegada fechada recusa o desfazer', () => {
-    expect(resolveCargoNoteActions(marked({ arrivalStatus: 'closed', canResolve: true })).canUnmark).toBe(
-      false,
-    )
+    expect(
+      resolveCargoNoteActions(marked({ arrivalStatus: 'closed', canResolve: true })).canUnmark,
+    ).toBe(false)
   })
 })
 
 describe('concluir a devolução espera a decisão do contratante', () => {
-  const withCase = (status: 'awaiting_contractor' | 'closed' | 'decided' | 'recorded' | 'under_review') =>
-    marked({ occurrences: [{ ...OCCURRENCE, case: { id: 'case-1', status } }] })
+  const withCase = (
+    status: 'awaiting_contractor' | 'closed' | 'decided' | 'recorded' | 'under_review',
+  ) => marked({ occurrences: [{ ...OCCURRENCE, case: { id: 'case-1', status } }] })
 
   test('com a tratativa `decided` ou `closed` conclui; antes disso diz que espera', () => {
     for (const status of ['decided', 'closed'] as const) {
@@ -203,9 +227,15 @@ describe('concluir a devolução espera a decisão do contratante', () => {
   })
 
   test('concluir é de `trip.manage`, não de quem só lê, e a chegada fechada recusa', () => {
-    const decided = { occurrences: [{ ...OCCURRENCE, case: { id: 'case-1', status: 'decided' as const } }] }
-    expect(resolveCargoNoteActions(marked({ ...decided, canManage: false })).canComplete).toBe(false)
-    expect(resolveCargoNoteActions(marked({ ...decided, arrivalStatus: 'closed' })).canComplete).toBe(false)
+    const decided = {
+      occurrences: [{ ...OCCURRENCE, case: { id: 'case-1', status: 'decided' as const } }],
+    }
+    expect(resolveCargoNoteActions(marked({ ...decided, canManage: false })).canComplete).toBe(
+      false,
+    )
+    expect(
+      resolveCargoNoteActions(marked({ ...decided, arrivalStatus: 'closed' })).canComplete,
+    ).toBe(false)
   })
 
   test('origem que a leitura não trouxe não deixa concluir às cegas', () => {

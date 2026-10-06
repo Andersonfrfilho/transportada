@@ -68,9 +68,9 @@ describe('a validação antes do envio', () => {
     }
     for (const quantity of ['0', '0,0', '-1', 'dois', '1.2.3', '1e3', '1,2345']) {
       const invalid = draft({ itemsByCode: new Map([['P-100', { quantity, unit: 'CX' }]]) })
-      expect(validateOccurrenceDraft({ draft: invalid, type: damage }).productQuantities?.code).toBe(
-        'quantityInvalid',
-      )
+      expect(
+        validateOccurrenceDraft({ draft: invalid, type: damage }).productQuantities?.code,
+      ).toBe('quantityInvalid')
     }
   })
 
@@ -79,7 +79,10 @@ describe('a validação antes do envio', () => {
     const overLimit = new Blob([new Uint8Array(CARGO_OCCURRENCE_LIMITS.photoMaxBytes + 1)])
 
     expect(
-      validateOccurrenceDraft({ draft: draft({ photo: { ...PHOTO, original: atLimit } }), type: damage }),
+      validateOccurrenceDraft({
+        draft: draft({ photo: { ...PHOTO, original: atLimit } }),
+        type: damage,
+      }),
     ).toEqual({})
     const issues = validateOccurrenceDraft({
       draft: draft({ photo: { ...PHOTO, original: overLimit } }),
@@ -93,7 +96,9 @@ describe('a validação antes do envio', () => {
     const overLimit = 'a'.repeat(CARGO_OCCURRENCE_LIMITS.noteMaxLength + 1)
 
     expect(validateOccurrenceDraft({ draft: draft({ note: atLimit }), type: damage })).toEqual({})
-    expect(validateOccurrenceDraft({ draft: draft({ note: overLimit }), type: damage }).note).toEqual({
+    expect(
+      validateOccurrenceDraft({ draft: draft({ note: overLimit }), type: damage }).note,
+    ).toEqual({
       code: 'tooLong',
       max: 500,
     })
@@ -108,14 +113,18 @@ describe('a validação antes do envio', () => {
       typeId: SINGLE_ITEM_TYPE_ID,
     })
 
-    expect(validateOccurrenceDraft({ draft: two, type: singleItem }).productCodes?.code).toBe('singleItem')
+    expect(validateOccurrenceDraft({ draft: two, type: singleItem }).productCodes?.code).toBe(
+      'singleItem',
+    )
     expect(validateOccurrenceDraft({ draft: two, type: damage })).toEqual({})
   })
 
   test('tipo sem itens (`off`) não exige nem oferece item', () => {
     const off = { ...(damage as NonNullable<typeof damage>), itemsMode: 'off' as const }
 
-    expect(validateOccurrenceDraft({ draft: draft({ itemsByCode: new Map() }), type: off })).toEqual({})
+    expect(
+      validateOccurrenceDraft({ draft: draft({ itemsByCode: new Map() }), type: off }),
+    ).toEqual({})
   })
 })
 
@@ -125,14 +134,16 @@ describe('marcar itens', () => {
   test('marcar põe o item com a unidade comercial dele e desmarcar o tira', () => {
     const marked = toggleOccurrenceItem({ allowsMultipleItems: true, items: new Map(), product })
     expect([...marked]).toEqual([['P-100', { quantity: '', unit: 'CX' }]])
-    expect(
-      toggleOccurrenceItem({ allowsMultipleItems: true, items: marked, product }).size,
-    ).toBe(0)
+    expect(toggleOccurrenceItem({ allowsMultipleItems: true, items: marked, product }).size).toBe(0)
   })
 
   test('item sem unidade comercial nasce em "unit"; tipo de um item só troca o marcado', () => {
     const loose = buildProduct({ code: 'P-300', commercialUnit: '' })
-    const first = toggleOccurrenceItem({ allowsMultipleItems: false, items: new Map(), product: loose })
+    const first = toggleOccurrenceItem({
+      allowsMultipleItems: false,
+      items: new Map(),
+      product: loose,
+    })
     expect(first.get('P-300')?.unit).toBe('unit')
 
     const swapped = toggleOccurrenceItem({ allowsMultipleItems: false, items: first, product })
@@ -187,10 +198,13 @@ describe('a chave de idempotência (uma por tentativa)', () => {
     expect(again.key).toBe(first.key)
     expect(generated).toHaveLength(1)
 
-    const changed = buildOccurrenceFingerprint({ documentId: 'doc-1', draft: draft({ note: 'outra' }) })
-    expect(resolveIdempotencyAttempt({ fingerprint: changed, generateKey, previous: first }).key).not.toBe(
-      first.key,
-    )
+    const changed = buildOccurrenceFingerprint({
+      documentId: 'doc-1',
+      draft: draft({ note: 'outra' }),
+    })
+    expect(
+      resolveIdempotencyAttempt({ fingerprint: changed, generateKey, previous: first }).key,
+    ).not.toBe(first.key)
   })
 
   test('trocar a foto, a nota, a nota fiscal ou a ordem dos itens muda a impressão', () => {
