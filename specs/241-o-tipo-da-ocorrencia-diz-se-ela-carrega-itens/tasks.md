@@ -19,9 +19,9 @@ execução vermelha colada, não com a afirmação de que falharia.
       os itens faltantes"): D1 = (a) CHECK `off ⇒ unset`; D2 = (a) sem `INSERT` na migration, o
       operador cadastra. O usuário pode reverter antes da execução (custos em `spec.md` § Dúvidas).
       Nenhuma `[NEEDS CLARIFICATION]` aberta.
-- [x] **T0.2** 🧠 Conferir em `origin/staging` se a 239 (exigência na rua; hoje só em `work/spec-239`,
+- [x] **T0.2** 🧠 Conferir em `origin/staging` se a 246 (exigência na rua; hoje só em `work/spec-239`,
       número em colisão com `239-o-expurgo-se-liga-na-tela`) já criou `items_mode`. Se não: a 241 vai
-      primeiro e **registrar** (sem executar a 239) a mudança que a 239 precisa — tirar o `ADD COLUMN
+      primeiro e **registrar** (sem executar a 246) a mudança que a 246 precisa — tirar o `ADD COLUMN
 items_mode` da migration e o default `off` do plano. Se criou com default `off`: parar e
       perguntar (a 241 teria de reescrever linhas). Critério: nota em `evidence.md` com o SHA do
       `origin/staging` conferido.
@@ -122,7 +122,7 @@ Ordem de publicação (ADR-0081 §9): etapa 1 = painel tolerante (Fase 1) public
 PWA no ar ANTES da etapa 2 = migration + API (Fase 2). Nunca a API/banco primeiro. (Com a API nova e o painel atual, `isTripOccurrence`/`TRIP_OCCURRENCE_OPTIONAL_KEYS` e `isOccurrenceType` recusam as chaves novas.) Depois da etapa 2, o
 passo 3 é humano: o operador cadastra "Cliente pediu prorrogação do boleto" em produção pela tela, com
 Produtos = Desligado (spec.md § Passo operacional); nenhuma migration insere esse tipo.
-A 241 vai antes da 239: ela cria items_mode (default optional); não edite a 239.
+A 241 vai antes da 246: ela cria items_mode (default optional); não edite a 246.
 Cada task fecha com: typecheck (bun run typecheck) + testes da app tocada + commit isolado com caminhos
 explícitos, e evidência em evidence.md (mutações com a execução vermelha colada). Fase 2 ainda exige
 make check, make migration-test (há migration, com rollback.sql), db:generate = no_changes depois de

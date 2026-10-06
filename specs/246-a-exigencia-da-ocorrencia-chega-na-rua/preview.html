@@ -1,0 +1,1204 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ocorrências — Tipos</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --color-asphalt: #10222c;
+        --color-copper: #d58a47;
+        --color-fog: #f0f2ee;
+        --color-graphite: #1c2b33;
+        --color-ready: #6aae8c;
+        --color-slate: #8fa3ad;
+        --color-slate-muted: #9aacb5;
+        --color-alert: #ff5f57;
+        --color-ink-on-accent: #10222c;
+        --font-body: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
+        --font-utility: 'SFMono-Regular', Consolas, monospace;
+        --space-1: 0.25rem;
+        --space-2: 0.5rem;
+        --space-3: 0.75rem;
+        --space-4: 1rem;
+        --space-5: 1.25rem;
+        --space-6: 1.5rem;
+        --space-8: 2rem;
+        --field-height-compact: 2.4rem;
+        --field-font-size-compact: 0.82rem;
+        --layout-max-width: 78rem;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        background: var(--color-asphalt);
+      }
+
+      body {
+        margin: 0;
+        min-width: 20rem;
+        color: var(--color-fog);
+        font-family: var(--font-body);
+        background: linear-gradient(125deg, var(--color-asphalt), var(--color-graphite));
+      }
+
+      .shell {
+        width: min(100% - var(--space-8), var(--layout-max-width));
+        margin-inline: auto;
+        padding-block: var(--space-6) var(--space-8);
+      }
+
+      .mockNotice {
+        margin-bottom: var(--space-5);
+        padding: var(--space-2) var(--space-3);
+        border: 1px dashed color-mix(in srgb, var(--color-copper) 55%, transparent);
+        color: var(--color-copper);
+        font-family: var(--font-utility);
+        font-size: 0.72rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-2);
+        margin-bottom: var(--space-5);
+        padding: var(--space-4);
+        border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+        background: linear-gradient(
+          145deg,
+          color-mix(in srgb, var(--color-graphite) 90%, transparent),
+          color-mix(in srgb, var(--color-asphalt) 82%, transparent)
+        );
+      }
+
+      .kicker {
+        margin: 0;
+        color: var(--color-copper);
+        font-family: var(--font-utility);
+        font-size: 0.75rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .header h1 {
+        margin: 0;
+        font-size: 1.75rem;
+        font-weight: 800;
+        line-height: 1.15;
+      }
+
+      .intro {
+        max-width: 46rem;
+        margin: 0;
+        color: var(--color-slate-muted);
+        font-size: 0.9rem;
+      }
+
+      .tabList {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-1);
+        margin-bottom: var(--space-6);
+        border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+      }
+
+      .tab {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-2);
+        padding: var(--space-3) var(--space-4);
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        color: var(--color-slate);
+        font: inherit;
+        font-weight: 700;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      .tab[aria-selected='true'] {
+        color: var(--color-fog);
+        border-bottom-color: var(--color-copper);
+      }
+
+      .panel {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-4);
+        padding: var(--space-5);
+        border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+        background: color-mix(in srgb, var(--color-graphite) 82%, transparent);
+      }
+
+      .panel h2 {
+        margin: 0;
+        font-size: 1.1rem;
+      }
+
+      .hint {
+        margin: 0;
+        color: var(--color-slate-muted);
+        font-size: 0.82rem;
+      }
+
+      .searchRow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+        align-items: center;
+      }
+
+      .search {
+        flex: 1 1 18rem;
+        height: var(--field-height-compact);
+        padding-inline: var(--space-3);
+        border: 1px solid color-mix(in srgb, var(--color-slate) 28%, transparent);
+        color: var(--color-fog);
+        font: inherit;
+        font-size: var(--field-font-size-compact);
+        background: color-mix(in srgb, var(--color-asphalt) 70%, transparent);
+      }
+
+      .filterRow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+        align-items: center;
+        padding-bottom: var(--space-2);
+        border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 14%, transparent);
+      }
+
+      .filterLabel {
+        color: var(--color-slate);
+        font-family: var(--font-utility);
+        font-size: 0.66rem;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-2);
+        padding: var(--space-2) var(--space-3);
+        border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+        color: var(--color-slate-muted);
+        font: inherit;
+        font-size: 0.8rem;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      .chip[aria-pressed='true'] {
+        border-color: var(--color-copper);
+        color: var(--color-ink-on-accent);
+        background: var(--color-copper);
+        font-weight: 700;
+      }
+
+      .chip .mark {
+        font-family: var(--font-utility);
+        font-size: 0.7rem;
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+      }
+
+      .type {
+        border: 1px solid color-mix(in srgb, var(--color-slate) 16%, transparent);
+        background: color-mix(in srgb, var(--color-asphalt) 45%, transparent);
+      }
+
+      .summary {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--space-3);
+        width: 100%;
+        padding: var(--space-3) var(--space-4);
+        border: none;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      .summary:focus-visible {
+        outline: 2px solid var(--color-copper);
+        outline-offset: -2px;
+      }
+
+      .caret {
+        color: var(--color-copper);
+        font-family: var(--font-utility);
+        font-size: 0.8rem;
+      }
+
+      .summaryName {
+        flex: 1 1 11rem;
+        font-weight: 700;
+      }
+
+      .summaryMoments {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-1);
+      }
+
+      .momentTag {
+        padding: 0 var(--space-2);
+        border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+        color: var(--color-slate-muted);
+        font-family: var(--font-utility);
+        font-size: 0.64rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .summaryNeeds {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-1);
+      }
+
+      .need {
+        padding: 0 var(--space-2);
+        border: 1px solid currentColor;
+        font-family: var(--font-utility);
+        font-size: 0.64rem;
+        font-weight: 700;
+      }
+
+      .need.on {
+        color: var(--color-copper);
+      }
+
+      .need.maybe {
+        color: var(--color-slate-muted);
+      }
+
+      .need.offNeed {
+        color: color-mix(in srgb, var(--color-slate) 55%, transparent);
+      }
+
+      .summaryCount {
+        color: var(--color-slate-muted);
+        font-family: var(--font-utility);
+        font-size: 0.7rem;
+      }
+
+      .bell {
+        color: var(--color-ready);
+        font-size: 0.8rem;
+      }
+
+      .details {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-3);
+        padding: 0 var(--space-4) var(--space-4);
+        border-top: 1px solid color-mix(in srgb, var(--color-slate) 14%, transparent);
+      }
+
+      .details[hidden] {
+        display: none;
+      }
+
+      .block {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-2);
+        padding-top: var(--space-3);
+      }
+
+      .block + .block {
+        border-top: 1px solid color-mix(in srgb, var(--color-slate) 10%, transparent);
+      }
+
+      .blockTitle {
+        display: flex;
+        align-items: baseline;
+        gap: var(--space-2);
+        margin: 0;
+        color: var(--color-slate);
+        font-family: var(--font-utility);
+        font-size: 0.7rem;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+      }
+
+      .fieldLabel {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-1);
+        color: var(--color-slate);
+        font-family: var(--font-utility);
+        font-size: 0.66rem;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+      }
+
+      /* Gatilho do Select/MultiSelect/SearchableSelect da aplicação: botão com chevron,
+         sem canto arredondado, borda que esquenta no hover. */
+      select,
+      .trigger,
+      input[type='text'],
+      input[type='number'] {
+        display: inline-flex;
+        gap: var(--space-3);
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        min-height: var(--field-height-compact);
+        padding: var(--space-2) var(--space-3);
+        appearance: none;
+        border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+        border-radius: 0;
+        color: var(--color-fog);
+        font: inherit;
+        font-size: var(--field-font-size-compact);
+        text-align: left;
+        background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+        transition: border-color 0.14s ease;
+      }
+
+      select,
+      .trigger {
+        cursor: pointer;
+        padding-right: var(--space-6);
+        background-image:
+          linear-gradient(45deg, transparent 50%, var(--color-slate) 50%),
+          linear-gradient(135deg, var(--color-slate) 50%, transparent 50%);
+        background-position:
+          right 0.95rem center,
+          right 0.6rem center;
+        background-size:
+          0.35rem 0.35rem,
+          0.35rem 0.35rem;
+        background-repeat: no-repeat;
+      }
+
+      select:hover,
+      .trigger:hover {
+        border-color: color-mix(in srgb, var(--color-copper) 45%, transparent);
+      }
+
+      select:focus-visible,
+      .trigger:focus-visible,
+      input:focus-visible {
+        outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+        outline-offset: 2px;
+      }
+
+      .trigger[aria-expanded='true'] {
+        border-color: color-mix(in srgb, var(--color-copper) 60%, transparent);
+      }
+
+      .triggerValue {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .triggerPlaceholder {
+        color: var(--color-slate-muted);
+      }
+
+      /* O painel do MultiSelect, desenhado aberto para o protótipo mostrar o padrão. */
+      .floatPanel {
+        display: flex;
+        flex-direction: column;
+        max-width: 22rem;
+        border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+        background: var(--color-graphite);
+        box-shadow: 0 var(--space-2) var(--space-5)
+          color-mix(in srgb, var(--color-asphalt) 72%, transparent);
+      }
+
+      .floatSearch {
+        display: flex;
+        gap: var(--space-2);
+        align-items: center;
+        padding: var(--space-2) var(--space-3);
+        border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+        color: var(--color-slate-muted);
+        font-size: var(--field-font-size-compact);
+      }
+
+      .optionRow {
+        display: flex;
+        gap: var(--space-3);
+        align-items: center;
+        width: 100%;
+        padding: var(--space-2) var(--space-3);
+        border: none;
+        color: inherit;
+        font: inherit;
+        font-size: var(--field-font-size-compact);
+        text-align: left;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      .optionRow:hover {
+        background: color-mix(in srgb, var(--color-copper) 14%, transparent);
+      }
+
+      .box {
+        flex: 0 0 auto;
+        width: 0.95rem;
+        height: 0.95rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid color-mix(in srgb, var(--color-slate) 55%, transparent);
+        font-family: var(--font-utility);
+        font-size: 0.7rem;
+      }
+
+      .optionRow[aria-checked='true'] .box {
+        border-color: var(--color-copper);
+        color: var(--color-ink-on-accent);
+        background: var(--color-copper);
+      }
+
+      input[type='number'] {
+        width: 5rem;
+      }
+
+      .grid {
+        display: grid;
+        gap: var(--space-3);
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+      }
+
+      .subField {
+        padding: var(--space-2) var(--space-3);
+        border-left: 2px solid var(--color-copper);
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--space-3);
+        font-size: 0.82rem;
+      }
+
+      .subField input[type='number'] {
+        width: 4.5rem;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+      }
+
+      th {
+        padding: var(--space-2);
+        border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+        color: var(--color-slate);
+        font-family: var(--font-utility);
+        font-size: 0.66rem;
+        font-weight: 400;
+        letter-spacing: 0.06em;
+        text-align: left;
+        text-transform: uppercase;
+      }
+
+      td {
+        padding: var(--space-2);
+        border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 12%, transparent);
+        vertical-align: middle;
+      }
+
+      td select {
+        width: 100%;
+      }
+
+      .who {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 2px;
+      }
+
+      .taxId {
+        color: var(--color-slate-muted);
+        font-family: var(--font-utility);
+        font-size: 0.74rem;
+      }
+
+      .linkButton {
+        padding: var(--space-1) var(--space-2);
+        border: none;
+        color: var(--color-slate);
+        font: inherit;
+        font-size: 0.8rem;
+        text-decoration: underline;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      .addRow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+        align-items: end;
+        padding-top: var(--space-2);
+      }
+
+      .addRow label {
+        flex: 1 1 9rem;
+      }
+
+      .button {
+        height: var(--field-height-compact);
+        padding-inline: var(--space-4);
+        border: 1px solid var(--color-copper);
+        color: var(--color-ink-on-accent);
+        font: inherit;
+        font-size: 0.82rem;
+        font-weight: 700;
+        background: var(--color-copper);
+        cursor: pointer;
+      }
+
+      .buttonGhost {
+        height: var(--field-height-compact);
+        padding-inline: var(--space-4);
+        border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+        color: var(--color-fog);
+        font: inherit;
+        font-size: 0.82rem;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      .locked {
+        padding: var(--space-2) var(--space-3);
+        border-left: 2px solid var(--color-slate);
+        color: var(--color-slate-muted);
+        font-size: 0.82rem;
+      }
+
+      .empty {
+        color: var(--color-slate-muted);
+        font-size: 0.82rem;
+        font-style: italic;
+      }
+
+      .templatePreview {
+        padding: var(--space-3);
+        border: 1px solid color-mix(in srgb, var(--color-slate) 16%, transparent);
+        color: var(--color-slate-muted);
+        font-size: 0.8rem;
+        line-height: 1.5;
+        background: color-mix(in srgb, var(--color-asphalt) 60%, transparent);
+      }
+
+      .sectionNote {
+        margin-top: var(--space-6);
+      }
+
+      @media (max-width: 680px) {
+        .shell {
+          width: 100%;
+          padding-inline: var(--space-4);
+        }
+
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        .summaryNeeds,
+        .summaryCount {
+          width: 100%;
+        }
+
+        table,
+        thead,
+        tbody,
+        tr,
+        th,
+        td {
+          display: block;
+        }
+
+        thead {
+          display: none;
+        }
+
+        tr {
+          padding-block: var(--space-2);
+          border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 14%, transparent);
+        }
+
+        td {
+          padding-block: var(--space-1);
+          border: none;
+        }
+      }
+
+      @media (pointer: coarse) {
+        .search,
+        .chip,
+        .buttonGhost,
+        .summary,
+        .trigger,
+        select,
+        input {
+          min-height: 2.75rem;
+        }
+
+        .chip,
+        .buttonGhost {
+          min-width: 2.75rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <p class="mockNotice">Protótipo da spec 246 — nenhum dado é real</p>
+
+      <header class="header">
+        <p class="kicker">Operação</p>
+        <h1>Ocorrências</h1>
+        <p class="intro">
+          O que deu errado na separação e na rua, e o que cada tipo de ocorrência precisa trazer
+          como prova.
+        </p>
+      </header>
+
+      <div class="tabList" role="tablist">
+        <button class="tab" role="tab" aria-selected="false" type="button">Ocorrências</button>
+        <button class="tab" role="tab" aria-selected="true" type="button">Tipos</button>
+      </div>
+
+      <section class="panel">
+        <h2>Tipos de ocorrência</h2>
+        <p class="hint">
+          Cada tipo declara <strong>em que momentos</strong> pode ser registrado e
+          <strong>o que exige</strong> de prova. A exceção por CNPJ vence a regra geral:
+          destinatário primeiro, depois contratante.
+        </p>
+
+        <div class="searchRow">
+          <input
+            class="search"
+            type="text"
+            placeholder="Buscar por nome do tipo, ou por nome / CNPJ de quem tem exceção"
+            aria-label="Buscar tipos"
+          />
+          <button class="buttonGhost" type="button">Limpar</button>
+        </div>
+
+        <div class="filterRow">
+          <span class="filterLabel">Momento</span>
+          <button class="chip" type="button" aria-pressed="false">
+            <span class="mark">+</span> Galpão
+          </button>
+          <button class="chip" type="button" aria-pressed="true">
+            <span class="mark">✓</span> Rua
+          </button>
+          <span class="filterLabel">Exige</span>
+          <button class="chip" type="button" aria-pressed="false">
+            <span class="mark">+</span> Foto
+          </button>
+          <button class="chip" type="button" aria-pressed="false">
+            <span class="mark">+</span> Assinatura
+          </button>
+          <button class="chip" type="button" aria-pressed="false">
+            <span class="mark">+</span> Produtos
+          </button>
+          <span class="filterLabel">E ainda</span>
+          <button class="chip" type="button" aria-pressed="false">
+            <span class="mark">+</span> Avisa contratante
+          </button>
+          <button class="chip" type="button" aria-pressed="false">
+            <span class="mark">+</span> Tem exceção
+          </button>
+          <button class="chip" type="button" aria-pressed="false">
+            <span class="mark">+</span> Inativos
+          </button>
+        </div>
+
+        <!-- Tipo aberto -->
+        <article class="type">
+          <button class="summary" type="button" aria-expanded="true">
+            <span class="caret">▾</span>
+            <span class="summaryName">Recusa total</span>
+            <span class="summaryMoments">
+              <span class="momentTag">Entrega da nota</span>
+              <span class="momentTag">Escritório, pelo motorista</span>
+            </span>
+            <span class="summaryNeeds">
+              <span class="need maybe">Foto</span>
+              <span class="need on">Observação</span>
+              <span class="need maybe">Assinatura</span>
+              <span class="need on">Produtos</span>
+            </span>
+            <span class="bell" title="Avisa o contratante">✉</span>
+            <span class="summaryCount">3 exceções</span>
+          </button>
+
+          <div class="details">
+            <div class="block">
+              <p class="blockTitle">Identificação</p>
+              <div class="grid">
+                <label class="fieldLabel">
+                  Nome
+                  <input type="text" value="Recusa total" />
+                </label>
+                <label class="fieldLabel">
+                  Situação
+                  <select>
+                    <option selected>Ativo</option>
+                    <option>Inativo</option>
+                  </select>
+                </label>
+                <label class="fieldLabel">
+                  Devolução
+                  <select>
+                    <option selected>Volta ao barracão</option>
+                    <option>Reentrega no mesmo roteiro</option>
+                    <option>Não volta</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div class="block">
+              <p class="blockTitle">Em que momento pode acontecer</p>
+              <button class="trigger" type="button" aria-expanded="true">
+                <span class="triggerValue">2 momentos — Entrega da nota, Chegada à parada</span>
+              </button>
+              <div class="floatPanel">
+                <div class="floatSearch">⌕ Buscar momento</div>
+                <button class="optionRow" type="button" role="checkbox" aria-checked="false">
+                  <span class="box"></span> Separação no galpão
+                </button>
+                <button class="optionRow" type="button" role="checkbox" aria-checked="true">
+                  <span class="box">✓</span> Entrega da nota
+                </button>
+                <button class="optionRow" type="button" role="checkbox" aria-checked="true">
+                  <span class="box">✓</span> Chegada à parada
+                </button>
+                <button class="optionRow" type="button" role="checkbox" aria-checked="false">
+                  <span class="box"></span> Escritório, pelo motorista
+                </button>
+              </div>
+              <p class="hint">
+                Sem nenhum momento marcado o tipo não aparece para ninguém — o cadastro é recusado.
+              </p>
+            </div>
+
+            <div class="block">
+              <p class="blockTitle">O que exige <span class="hint">· regra geral</span></p>
+              <div class="grid">
+                <label class="fieldLabel">
+                  Foto
+                  <select>
+                    <option>Desligado</option>
+                    <option selected>Opcional</option>
+                    <option>Obrigatório</option>
+                  </select>
+                </label>
+                <label class="fieldLabel">
+                  Observação
+                  <select>
+                    <option>Desligado</option>
+                    <option>Opcional</option>
+                    <option selected>Obrigatório</option>
+                  </select>
+                </label>
+                <label class="fieldLabel">
+                  Assinatura de quem recusou
+                  <select>
+                    <option>Desligado</option>
+                    <option selected>Opcional</option>
+                    <option>Obrigatório</option>
+                  </select>
+                </label>
+                <label class="fieldLabel">
+                  Produtos da nota
+                  <select>
+                    <option>Desligado</option>
+                    <option>Opcional</option>
+                    <option selected>Obrigatório</option>
+                  </select>
+                </label>
+              </div>
+              <p class="hint">
+                <strong>Obrigatório</strong> quer dizer: a ocorrência não é registrada sem aquilo.
+                Foto é a imagem capturada no aparelho; Observação é o texto do motorista; Assinatura
+                é a de quem deu a negativa; Produtos é ao menos um item da nota marcado. Na exceção
+                por CNPJ, <strong>Igual ao tipo</strong>
+                herda o que o tipo declara naquele campo.
+              </p>
+              <div class="subField">
+                <span>Quantidade mínima de fotos</span>
+                <input type="number" min="1" max="5" value="1" aria-label="Mínimo de fotos" />
+                <span class="hint">Só vale quando a foto é obrigatória. Teto de 5.</span>
+              </div>
+              <div class="subField">
+                <span>Produtos por ocorrência</span>
+                <select aria-label="Produtos por ocorrência">
+                  <option selected>Vários produtos</option>
+                  <option>Um produto só</option>
+                </select>
+                <span>Quantidade mínima</span>
+                <input type="number" min="1" value="1" aria-label="Mínimo de produtos" />
+                <select aria-label="Total exigido">
+                  <option selected>Esse mínimo</option>
+                  <option>Todos os itens da nota</option>
+                </select>
+                <span class="hint">Só vale quando Produtos é obrigatório.</span>
+              </div>
+            </div>
+
+            <div class="block">
+              <p class="blockTitle">Notificação</p>
+              <div class="grid">
+                <label class="fieldLabel">
+                  Avisar o contratante
+                  <select>
+                    <option selected>Sim, por e-mail</option>
+                    <option>Não avisar</option>
+                  </select>
+                </label>
+                <label class="fieldLabel">
+                  Modelo da notificação
+                  <select>
+                    <option selected>Recusa — carga devolvida</option>
+                    <option>Recusa — aguardando instrução</option>
+                    <option>Avaria — com foto</option>
+                    <option>Genérico de ocorrência</option>
+                  </select>
+                </label>
+              </div>
+              <p class="templatePreview">
+                <strong>Assunto:</strong> Carga recusada — NF-e {{numeroNota}}<br />
+                Olá, {{contratante}}. A entrega da NF-e {{numeroNota}} para {{destinatario}} foi
+                recusada em {{data}}. Motivo registrado pelo motorista: {{observacao}}. A carga
+                retorna ao barracão.
+              </p>
+            </div>
+
+            <div class="block">
+              <p class="blockTitle">Exceções por CNPJ <span class="hint">· 3</span></p>
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Quem</th>
+                    <th scope="col">Foto</th>
+                    <th scope="col">Observação</th>
+                    <th scope="col">Assinatura</th>
+                    <th scope="col">Produtos</th>
+                    <th scope="col"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <div class="who">
+                        <span>Destinatário · Supermercados Ponto Certo</span>
+                        <span class="taxId">12.345.678/0001-90</span>
+                      </div>
+                    </td>
+                    <td>
+                      <select aria-label="Foto">
+                        <option>Igual ao tipo</option>
+                        <option>Desligado</option>
+                        <option>Opcional</option>
+                        <option selected>Obrigatório</option>
+                      </select>
+                    </td>
+                    <td>
+                      <select aria-label="Observação">
+                        <option>Igual ao tipo</option>
+                        <option>Desligado</option>
+                        <option>Opcional</option>
+                        <option selected>Obrigatório</option>
+                      </select>
+                    </td>
+                    <td>
+                      <select aria-label="Assinatura">
+                        <option>Igual ao tipo</option>
+                        <option>Desligado</option>
+                        <option>Opcional</option>
+                        <option selected>Obrigatório</option>
+                      </select>
+                    </td>
+                    <td>
+                      <select aria-label="Produtos">
+                        <option>Igual ao tipo</option>
+                        <option>Desligado</option>
+                        <option>Opcional</option>
+                        <option selected>Obrigatório</option>
+                      </select>
+                    </td>
+                    <td><button class="linkButton" type="button">Remover</button></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="who">
+                        <span>Destinatário · Farmácia Vida Nova</span>
+                        <span class="taxId">98.765.432/0001-10</span>
+                      </div>
+                    </td>
+                    <td>
+                      <select aria-label="Foto">
+                        <option>Igual ao tipo</option>
+                        <option>Desligado</option>
+                        <option>Opcional</option>
+                        <option selected>Obrigatório</option>
+                      </select>
+                    </td>
+                    <td>
+                      <select aria-label="Observação">
+                        <option>Igual ao tipo</option>
+                        <option>Desligado</option>
+                        <option selected>Opcional</option>
+                        <option>Obrigatório</option>
+                      </select>
+                    </td>
+                    <td>
+                      <select aria-label="Assinatura">
+                        <option>Igual ao tipo</option>
+                        <option selected>Desligado</option>
+                        <option>Opcional</option>
+                        <option>Obrigatório</option>
+                      </select>
+                    </td>
+                    <td>
+                      <select aria-label="Produtos">
+                        <option>Igual ao tipo</option>
+                        <option>Desligado</option>
+                        <option selected>Opcional</option>
+                        <option>Obrigatório</option>
+                      </select>
+                    </td>
+                    <td><button class="linkButton" type="button">Remover</button></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="who">
+                        <span>Contratante · Distribuidora Aurora</span>
+                        <span class="taxId">11.222.333/0001-44</span>
+                      </div>
+                    </td>
+                    <td>
+                      <select aria-label="Foto">
+                        <option>Igual ao tipo</option>
+                        <option>Desligado</option>
+                        <option selected>Opcional</option>
+                        <option>Obrigatório</option>
+                      </select>
+                    </td>
+                    <td>
+                      <select aria-label="Observação">
+                        <option>Igual ao tipo</option>
+                        <option>Desligado</option>
+                        <option>Opcional</option>
+                        <option selected>Obrigatório</option>
+                      </select>
+                    </td>
+                    <td>
+                      <select aria-label="Assinatura">
+                        <option>Igual ao tipo</option>
+                        <option selected>Desligado</option>
+                        <option>Opcional</option>
+                        <option>Obrigatório</option>
+                      </select>
+                    </td>
+                    <td>
+                      <select aria-label="Produtos">
+                        <option>Igual ao tipo</option>
+                        <option>Desligado</option>
+                        <option selected>Opcional</option>
+                        <option>Obrigatório</option>
+                      </select>
+                    </td>
+                    <td><button class="linkButton" type="button">Remover</button></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div class="addRow">
+                <label class="fieldLabel">
+                  Quem
+                  <select>
+                    <option>Destinatário</option>
+                    <option>Contratante</option>
+                  </select>
+                </label>
+                <label class="fieldLabel">
+                  Cliente
+                  <button class="trigger" type="button" aria-expanded="false">
+                    <span class="triggerValue triggerPlaceholder">Buscar por nome ou CNPJ…</span>
+                  </button>
+                </label>
+                <label class="fieldLabel">
+                  Foto
+                  <select>
+                    <option selected>Igual ao tipo</option>
+                    <option>Desligado</option>
+                    <option>Opcional</option>
+                    <option>Obrigatório</option>
+                  </select>
+                </label>
+                <label class="fieldLabel">
+                  Observação
+                  <select>
+                    <option selected>Igual ao tipo</option>
+                    <option>Desligado</option>
+                    <option>Opcional</option>
+                    <option>Obrigatório</option>
+                  </select>
+                </label>
+                <label class="fieldLabel">
+                  Assinatura
+                  <select>
+                    <option selected>Igual ao tipo</option>
+                    <option>Desligado</option>
+                    <option>Opcional</option>
+                    <option>Obrigatório</option>
+                  </select>
+                </label>
+                <label class="fieldLabel">
+                  Produtos
+                  <select>
+                    <option selected>Igual ao tipo</option>
+                    <option>Desligado</option>
+                    <option>Opcional</option>
+                    <option>Obrigatório</option>
+                  </select>
+                </label>
+                <button class="button" type="button">Adicionar exceção</button>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Tipos recolhidos -->
+        <article class="type">
+          <button class="summary" type="button" aria-expanded="false">
+            <span class="caret">▸</span>
+            <span class="summaryName">Avaria no transporte</span>
+            <span class="summaryMoments">
+              <span class="momentTag">Separação no galpão</span>
+              <span class="momentTag">Entrega da nota</span>
+            </span>
+            <span class="summaryNeeds">
+              <span class="need on">Foto ×3</span>
+              <span class="need on">Obs</span>
+              <span class="need offNeed">Assin</span>
+              <span class="need on">Produtos</span>
+            </span>
+            <span class="bell" title="Avisa o contratante">✉</span>
+            <span class="summaryCount">sem exceção</span>
+          </button>
+          <div class="details" hidden>
+            <div class="block">
+              <p class="locked">
+                No momento “Separação no galpão” a exigência é fixa: de 1 a 5 fotos, sempre. Os
+                campos de exigência valem para os momentos de rua.
+              </p>
+            </div>
+          </div>
+        </article>
+
+        <article class="type">
+          <button class="summary" type="button" aria-expanded="false">
+            <span class="caret">▸</span>
+            <span class="summaryName">Destinatário ausente</span>
+            <span class="summaryMoments">
+              <span class="momentTag">Entrega da nota</span>
+            </span>
+            <span class="summaryNeeds">
+              <span class="need on">Foto</span>
+              <span class="need maybe">Obs</span>
+              <span class="need offNeed">Assin</span>
+              <span class="need offNeed">Produtos</span>
+            </span>
+            <span class="summaryCount">1 exceção</span>
+          </button>
+          <div class="details" hidden></div>
+        </article>
+
+        <article class="type">
+          <button class="summary" type="button" aria-expanded="false">
+            <span class="caret">▸</span>
+            <span class="summaryName">Item faltante</span>
+            <span class="summaryMoments">
+              <span class="momentTag">Separação no galpão</span>
+            </span>
+            <span class="summaryNeeds">
+              <span class="need on">Foto 1–5</span>
+              <span class="need maybe">Obs</span>
+              <span class="need offNeed">Assin</span>
+              <span class="need on">Produtos</span>
+            </span>
+            <span class="summaryCount">só galpão</span>
+          </button>
+          <div class="details" hidden></div>
+        </article>
+
+        <div class="addRow">
+          <label class="fieldLabel">
+            Novo tipo
+            <input type="text" placeholder="Nome do tipo de ocorrência" />
+          </label>
+          <button class="button" type="button">Cadastrar tipo</button>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      for (const chip of document.querySelectorAll('.chip')) {
+        chip.addEventListener('click', () => {
+          const pressed = chip.getAttribute('aria-pressed') === 'true'
+          chip.setAttribute('aria-pressed', String(!pressed))
+          const mark = chip.querySelector('.mark')
+          if (mark) mark.textContent = pressed ? '+' : '✓'
+        })
+      }
+
+      for (const row of document.querySelectorAll('.optionRow')) {
+        row.addEventListener('click', () => {
+          const checked = row.getAttribute('aria-checked') === 'true'
+          row.setAttribute('aria-checked', String(!checked))
+          const box = row.querySelector('.box')
+          if (box) box.textContent = checked ? '' : '✓'
+        })
+      }
+
+      for (const summary of document.querySelectorAll('.summary')) {
+        summary.addEventListener('click', () => {
+          const open = summary.getAttribute('aria-expanded') === 'true'
+          summary.setAttribute('aria-expanded', String(!open))
+          const caret = summary.querySelector('.caret')
+          if (caret) caret.textContent = open ? '▸' : '▾'
+          const details = summary.nextElementSibling
+          if (details) details.hidden = open
+        })
+      }
+
+      for (const tab of document.querySelectorAll('.tab')) {
+        tab.addEventListener('click', () => {
+          for (const other of document.querySelectorAll('.tab'))
+            other.setAttribute('aria-selected', String(other === tab))
+        })
+      }
+    </script>
+  </body>
+</html>
