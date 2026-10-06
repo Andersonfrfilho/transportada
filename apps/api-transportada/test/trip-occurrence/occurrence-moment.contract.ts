@@ -14,6 +14,7 @@ import {
   deriveOccurrenceMomentsFromStageAndFlow,
   deriveStageAndFlowFromMoments,
   normalizeOccurrenceMoments,
+  occurrenceTypeAcceptsMoment,
   resolveOccurrenceTypeMoments,
 } from '../../src/trips/domain/occurrence-moment.policy.js'
 
@@ -36,6 +37,26 @@ describe('momentos derivados de stage/flow — a gêmea do backfill (spec 246 T1
       'document',
       'office',
     ])
+  })
+})
+
+describe('tipo de recebimento não tem momento de rua (spec 246, terceira revisão A-1; spec 237)', () => {
+  test('nenhum par stage receiving deriva momento, com flow de nota ou de parada', () => {
+    expect(
+      deriveOccurrenceMomentsFromStageAndFlow({ flow: 'document', stage: 'receiving' }),
+    ).toEqual([])
+    expect(deriveOccurrenceMomentsFromStageAndFlow({ flow: 'stop', stage: 'receiving' })).toEqual(
+      [],
+    )
+    expect(deriveOccurrenceMomentsFromStageAndFlow({ stage: 'receiving' })).toEqual([])
+  })
+
+  test('sem linha de momento a leitura tolerante continua vazia, e nenhuma guarda o aceita', () => {
+    const type = { flow: 'document', moments: [], stage: 'receiving' } as const
+    expect(resolveOccurrenceTypeMoments(type)).toEqual([])
+    for (const moment of ['separation', 'document', 'stop', 'office'] as const) {
+      expect(occurrenceTypeAcceptsMoment({ moment, type })).toBe(false)
+    }
   })
 })
 

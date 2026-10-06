@@ -58,6 +58,8 @@ const SEEDS = [
     moments: ['document', 'office'],
     stage: 'delivery',
   },
+  /** Spec 237: o tipo de recebimento é da chegada e não ganha linha de momento (terceira revisão A-1). */
+  { active: true, flow: 'document', key: 'receiving', moments: [], stage: 'receiving' },
 ] as const
 
 type MomentRow = Readonly<{ moment: string; occurrence_type_id: string }>
@@ -116,11 +118,11 @@ describe('o backfill dos momentos sobre tipos antigos (spec 246 T1b.4, CA00b)', 
           await runDatabaseMigrations({ connectionString })
 
           const momentsByType = await readMomentsByType(database)
-          expect(momentsByType.size).toBe(SEEDS.length)
+          expect(momentsByType.size).toBe(SEEDS.filter((seed) => seed.moments.length > 0).length)
           for (const seed of SEEDS) {
             expect({
               key: seed.key,
-              moments: momentsByType.get(idByKey.get(seed.key) ?? ''),
+              moments: momentsByType.get(idByKey.get(seed.key) ?? '') ?? [],
             }).toEqual({
               key: seed.key,
               moments: [...seed.moments].toSorted(),

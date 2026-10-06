@@ -45,6 +45,8 @@ export function normalizeOccurrenceMoments(
 export function deriveOccurrenceMomentsFromStageAndFlow(
   params: OccurrenceStageAndFlow,
 ): readonly OccurrenceMoment[] {
+  /** O tipo de recebimento (spec 237) é da chegada: nenhuma guarda de rua o aceita. */
+  if (params.stage === TRIP_OCCURRENCE_STAGE.receiving) return []
   const isStop = params.flow === OCCURRENCE_TYPE_FLOWS.stop
   if (params.stage === TRIP_OCCURRENCE_STAGE.separation) {
     return isStop
