@@ -9,8 +9,8 @@ import { createHmac } from 'node:crypto'
 import { SQL } from 'bun'
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { FlowGraphRepository } from '@adatechnology/meta-whatsapp-module'
-import { eq } from 'drizzle-orm'
+import { FlowGraphRepository, INBOUND_LOCATION_CONTENT } from '@adatechnology/meta-whatsapp-module'
+import { eq, sql } from 'drizzle-orm'
 
 import { runAllDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
@@ -366,7 +366,13 @@ describe('a mensagem de localização do motorista chega ao evento (spec 196 T3.
       await openDeliveryList(scenario, world)
       await scenario.receive({
         from: world.phone,
-        location: { latitude: -23.55052, longitude: -46.633308 },
+        location: {
+          address: 'Rua Sigilosa, 100',
+          latitude: -23.55052,
+          longitude: -46.633308,
+          name: 'Casa do Cliente',
+          url: 'https://maps.example/?q=-23.55052,-46.633308',
+        },
         type: 'location',
       })
       expect(scenario.sentMessages().at(-1)?.body).toMatchObject({
@@ -386,6 +392,22 @@ describe('a mensagem de localização do motorista chega ao evento (spec 196 T3.
       })
       expect(event?.capturedAt?.toISOString()).toBe('2025-09-11T12:00:00.000Z')
       expect(JSON.stringify(scenario.logged)).not.toContain('23.55')
+
+      const transcriptRows = await db.execute(sql`
+        select content,
+               type,
+               payload is null or not (payload ? 'location') as has_no_location,
+               jsonb_typeof(payload) is distinct from 'string' as is_not_scalar_string
+        from meta_whatsapp.messages
+        where company_id = ${world.companyId} and direction = 'inbound' and type = 'location'
+      `)
+      expect(transcriptRows).toHaveLength(1)
+      expect(transcriptRows[0]).toMatchObject({
+        content: INBOUND_LOCATION_CONTENT,
+        has_no_location: true,
+        is_not_scalar_string: true,
+        type: 'location',
+      })
     },
   )
 
