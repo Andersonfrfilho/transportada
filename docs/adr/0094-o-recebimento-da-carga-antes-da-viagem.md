@@ -511,7 +511,10 @@ Os ajustes obrigatórios valem sobre o texto de §9.1–9.4 onde divergirem:
 2. **A tratativa precisa de onde ser conduzida.** A lista e o detalhe do escritório
    (`GET /trip-occurrences`) exigem viagem. Rota própria `GET /cargo-arrivals/:id/occurrences`, com tipo,
    itens, fotos assinadas, `caseId` e `caseStatus` — a T3.3 liga ali as seis ações existentes de
-   `/trip-occurrences/:id/case/*`, sem mudança nelas.
+   `/trip-occurrences/:id/case/*`, sem mudança nelas. **Emenda T3.4a:** conferido por integração — `review`,
+   `contractor-submission`, `decision`, `closure`, `warehouse-return` e `cancel` funcionam sobre a ocorrência de
+   recebimento; o acerto (`PUT …/case/settlement`) **não** funcionava (a ponte para a cobrança exige viagem) e foi
+   ajustado para gravar o acerto sem cobrança, de modo que `goods_paid` feche.
 3. **Com `blocked`, a ocorrência sem item trava** (`contractor_submission` recusa `blocked` sem itens):
    abrir a ocorrência de recebimento exige **pelo menos um item**, e os tipos semeados nascem com
    `items_mode = 'optional'` (o CHECK da 241 já recusa `off` com política). `blocked` deriva da P2
@@ -519,7 +522,11 @@ Os ajustes obrigatórios valem sobre o texto de §9.1–9.4 onde divergirem:
 4. **Ordem da abertura:** trava da chegada → chave de idempotência → (reenvio devolve a gravada, 200,
    mesmo com a janela vencida ou a chegada fechada) → nota, estado e janela → foto → linhas. A mesma
    chave usada noutra chegada não serializa na trava desta: o `23505` de `idempotency_records` vira 409
-   `CARGO_ARRIVAL_OCCURRENCE_KEY_REUSED`.
+   `CARGO_ARRIVAL_OCCURRENCE_KEY_REUSED`. **Emenda T3.4a:** a foto (≤ 512 KiB e miniatura) sobe ao bucket **antes**
+   da trava — o armazenamento lento prendia todos os separadores da chegada e contava contra o prazo do banco (503).
+   O reenvio já gravado é lido fora da trava (atalho barato: devolve a gravada sem subir nada) e relido dentro dela
+   (a corrida); o id da ocorrência é gerado antes, porque a chave do objeto o leva; a foto que sobra — recusa, falha ou
+   reenvio que a corrida resolveu — é apagada em todo caminho.
 5. **"Pendente" é contado pronto,** nunca derivado de duas contagens (a nota pode ser separada **e**
    marcada): pendente = `none` e não separada. O fechamento procura `(none e não separada) ou marked`, e
    o 409 diz por nota, na mensagem do item de `details[]`, se ela está marcada ou só não foi separada.
@@ -537,7 +544,10 @@ Os ajustes obrigatórios valem sobre o texto de §9.1–9.4 onde divergirem:
    `trip.manage`: o separador que registrou a avaria não pode, sozinho, mandar a caixa de volta para a
    rota sem a decisão do contratante (ADR-0067, 164). **Concluir** continua `trip.manage` (é o gesto
    físico), mas só com a tratativa da ocorrência de origem em `decided|closed` (409
-   `CARGO_ARRIVAL_RETURN_DECISION_PENDING`); marcar continua `trip.manage`.
+   `CARGO_ARRIVAL_RETURN_DECISION_PENDING`); marcar continua `trip.manage`. **Emenda T3.4a:** sem tratativa
+   (`null`) concluir também é recusado (a divergência do primeiro texto, que o aceitava, fechou a favor do ADR);
+   concluir recusa nota em viagem viva (`CARGO_ARRIVAL_DOCUMENT_IN_LIVE_TRIP`), e marcar e concluir recusam a origem
+   com a tratativa cancelada (409 `CARGO_ARRIVAL_RETURN_CASE_CANCELLED`).
 
 Acolhidos também (recomendados): a ocorrência só abre em nota `received|separated` (a avaria se vê na
 doca), então o lote só precisa recusar `separate` de nota marcada/devolvida (R1); uma expressão única da
@@ -566,8 +576,7 @@ marcação é decisão de produto); conversa (183) e e-mail automático da ocorr
 correção/cancelamento (167/240) e foto adicional (161 T7) da ocorrência de recebimento; cadastro de tipo
 `receiving` pelo painel; o feed `GET /trip-occurrences` (o contrato dele exige viagem e placa); cobrança
 do acerto (164 T17) de ocorrência sem viagem; travar o vínculo de nota marcada a uma viagem pelo fluxo
-de viagem (hoje ela só sai da recomendação). Riscos residuais aceitos: o reembolso do acerto dá 422 (o
-acerto por item funciona, então `goods_paid` fecha, sem cobrança); a ação `returned_to_warehouse` da
+de viagem (hoje ela só sai da recomendação). Riscos residuais aceitos: o acerto por item é gravado sem cobrança (T3.4a: antes o `PUT` dava 422 `DELIVERY_CLIENT_NOT_RESOLVED` e `goods_paid` não fechava) e o reembolso do acerto segue não exercitado sobre ocorrência de recebimento; a ação `returned_to_warehouse` da
 tratativa soa estranha para mercadoria que nunca saiu; o portal mostra a etapa `receiving` crua até o
 `frontend-client` ganhar o rótulo; lista, linha do tempo e estatísticas de ocorrência da viagem omitem
 as de recebimento.

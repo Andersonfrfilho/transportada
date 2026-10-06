@@ -822,7 +822,8 @@ em `TRIP_OCCURRENCE_STAGE`; o painel de tipos só vê `TRIP_BOUND_OCCURRENCE_STA
 empresa **em qualquer etapa** (índice só na migration de 03/09). A marcação é
 `cargo_arrival_documents.return_to_contractor` (ortogonal ao eixo): nota marcada não separa, segura o fechamento e sai
 dos rascunhos de viagem e da proposta de chegada. Desfazer é `occurrences.resolve`; concluir exige a tratativa
-decidida. ⚠️ A leitura da chegada **não** ganhou chave (guardas exatas do painel) — a marcação sai em
+decidida (e recusa viagem viva e tratativa cancelada). A foto da avaria sobe **antes** da trava da chegada, e a tratativa
+da avaria de recebimento corre pelas rotas existentes de `/trip-occurrences/:id/case/*` — o acerto vale sem cobrança. ⚠️ A leitura da chegada **não** ganhou chave (guardas exatas do painel) — a marcação sai em
 `GET /cargo-arrivals/:id/occurrences`. Detalhe: docs/ai-context § "Spec 237 — Fase 3".
 
 ## Rascunhos de viagem da prévia (spec 237 T5.1)

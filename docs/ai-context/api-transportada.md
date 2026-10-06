@@ -2820,8 +2820,8 @@ itens (166/172) e cobrança continuam apontando para a mesma tabela — nada del
 
 - ⚠️ **`trip_document_id` é anulável no TS.** Leitor que junta `trip_documents` por `inner join` não vê a
   ocorrência de recebimento (é o certo: não há viagem). Leitor por id trata o nulo como "não é desta rota":
-  correção/cancelamento → não encontrada; cobrança do acerto → `OccurrenceChargePartiesUnresolvedError` (422);
-  lote do escritório e marcador da viagem filtram o nulo; e-mail/conversa da ocorrência devolvem "sem alvo".
+  correção/cancelamento → não encontrada; cobrança do acerto → **não cobra** (T3.4a: `recordSettlement` só chama a ponte
+  com viagem; antes o `PUT` do acerto dava 422 `DELIVERY_CLIENT_NOT_RESOLVED`); lote do escritório e marcador da viagem filtram o nulo; e-mail/conversa da ocorrência devolvem "sem alvo".
 - **Etapa `receiving`** em `TRIP_OCCURRENCE_STAGE` (gera os CHECKs das duas tabelas). `TRIP_BOUND_OCCURRENCE_STAGES`
   é a lista da viagem: `listOccurrenceTypes` (o `GET /company-settings/occurrence-types` do painel, que recusa a
   lista inteira com etapa desconhecida) filtra por ela, e o `UPDATE` de `saveOccurrenceType` não alcança tipo
@@ -2849,10 +2849,12 @@ previewId})` devolve as notas da prévia `marked|returned`; a proposta de chegad
   (422), `…_ITEMS_REQUIRED` (422), `…_KEY_REUSED` (409), `CARGO_ARRIVAL_RETURN_OCCURRENCE_INVALID` (422) e, em 409, o
   motivo da política (`CARGO_ARRIVAL_CLOSED`, `…_DOCUMENT_NOT_RECEIVED`, `…_DOCUMENT_RETURNED`,
   `…_RETURN_ALREADY_MARKED`, `…_DOCUMENT_IN_LIVE_TRIP`, `…_RETURN_NOT_MARKED`, `…_RETURN_DECISION_PENDING`).
-- **Ordem da abertura** (`application/cargo-arrival-occurrence-guard.service.ts`): trava da chegada → chave (o
-  reenvio devolve a gravada, 200, mesmo com janela vencida ou chegada fechada) → nota (`for no key update`) →
-  estado e janela → tipo e itens → linhas (ocorrência, itens, tratativa, evento `occurrence_registered`, auditoria,
-  chave) → foto (`runWithStoredObjectCleanup`). Marcar/desfazer/concluir: trava chegada → nota → política pura
+- **Ordem da abertura** (T3.4a: a foto sobe ANTES da trava — ver "Fase 3, T3.4a" abaixo; use case
+  `register-cargo-arrival-occurrence.use-case.ts`, dentro da trava `…-lock.service.ts` e
+  `application/cargo-arrival-occurrence-guard.service.ts`): reenvio já gravado (consulta fora da trava) → foto no bucket →
+  trava da chegada → chave (o reenvio devolve a gravada, 200, mesmo com janela vencida ou chegada fechada) → nota
+  (`for no key update`) → estado e janela → tipo e itens → linhas (ocorrência, itens, tratativa, evento
+  `occurrence_registered`, auditoria, chave, objetos e anexo). Marcar/desfazer/concluir: trava chegada → nota → política pura
   (`domain/cargo-arrival-return.policy.ts`) → `UPDATE` + evento `return_*` + auditoria `cargo-arrival.return-*`.
 - ⚠️ **A leitura `GET /cargo-arrivals[/:id]` NÃO ganhou chave** (o painel confere chave exata no resumo, grupo e
   nota): a marcação sai só na rota de ocorrências. Incorporá-la à leitura da chegada é passo seguinte, depois de o
@@ -2945,3 +2947,35 @@ Decisões D-a a D-d e a ordem de publicação: `specs/246-a-exigencia-da-ocorren
 - **Pendências declaradas:** "Ao menos N" produtos sem efeito no app do motorista (snapshot sem itens); Fase 3 por nota só no
   servidor; assinatura inexistente no WhatsApp; `trip_stop_occurrences.signature_object_id` sem uso; a fila offline do app antigo
   recebe 422 permanente quando o tipo endurece. **Medições T1d.0 e T3.0 pendentes do usuário** — a 246 não vai a `main` sem elas.
+
+## Spec 237 — Fase 3, T3.4a: correções da revisão `opus` da avaria e da devolução (API)
+
+- **A tratativa da avaria de recebimento funciona pelas rotas existentes** (`/trip-occurrences/:id/case/*`: `review`,
+  `contractor-submission`, `decision`, `closure`, `warehouse-return`, `cancel`), porque elas leem só
+  `trip_occurrence_cases`. Prova: `test/integration/cargo-arrival-occurrence-case.integration.ts` (HTTP, sem `UPDATE`
+  direto). ⚠️ **O acerto `PUT …/case/settlement` não funcionava** (a ponte acerto → cobrança lançava
+  `DELIVERY_CLIENT_NOT_RESOLVED` sem viagem) e a decisão `goods_paid` não fechava; hoje o acerto é gravado **sem
+  cobrança** quando a ocorrência não tem viagem (`DrizzleOccurrenceSettlementRepository.lockWritableCase` devolve
+  `hasTrip`). `redelivery-*`, `reimbursement` e o detalhe/feed `GET /trip-occurrences…` não foram exercitados sobre
+  ocorrência de recebimento (o detalhe/feed exigem viagem). A tela do escritório lê `GET /cargo-arrivals/:id/occurrences`.
+- **Concluir a devolução** (`decideCargoArrivalReturn`) recusa, nesta ordem: nota em viagem viva
+  (`CARGO_ARRIVAL_DOCUMENT_IN_LIVE_TRIP`), tratativa da origem cancelada (`CARGO_ARRIVAL_RETURN_CASE_CANCELLED`, 409,
+  `CargoArrivalReturnCaseCancelledError`, mensagem própria) e tratativa ausente ou não `decided|closed`
+  (`CARGO_ARRIVAL_RETURN_DECISION_PENDING`). **Marcar** também recusa a origem com tratativa cancelada; o caso de uso lê a
+  tratativa da ocorrência pedida ao marcar e da `return_occurrence_id` ao concluir. Teto `cargo-arrival-return`
+  (120/300 s, Postgres) nas três rotas da devolução.
+- **A foto sobe antes da trava da chegada.** `execute` do caso de uso: valida a foto → `reads.findReplay` (a chave, fora da
+  trava; outro pedido = 409, o mesmo = devolve a gravada sem tocar o bucket) → `uploadCargoArrivalOccurrencePhoto` (o id da
+  ocorrência vem de `newOccurrenceId`, gerado antes: a chave do objeto leva o id) → transação (`registerWithinLock`:
+  trava, chave de novo, linhas via `persistCargoArrivalOccurrencePhoto`). Foto subida é apagada na recusa, na falha (por
+  `runWithStoredObjectCleanup`) e no reenvio que a corrida resolveu dentro da trava (`discardUploadedPhoto`). Preço: recusa
+  depois do upload sobe e apaga ≤ 512 KiB; a rota tem teto. Provas: `…-occurrence-upload.integration.ts` (a trava da
+  chegada livre durante o upload, a corrida da mesma chave, o reenvio sem bucket, a recusa sem órfão).
+- **A foto não derruba a leitura:** `readAttachmentsSafely` (repositório de leitura) isola a assinatura por ocorrência e
+  loga `cargo_arrival_occurrence.attachments_unavailable` (`errorName`, `occurrenceId`). ⚠️ O N+1 de anexos (uma consulta por
+  ocorrência) segue: agrupar exige método novo em `DrizzleOccurrenceAttachmentRepository` (da viagem) — follow-up.
+- **Nome de tipo:** criar/renomear um tipo de viagem com o nome de um tipo de recebimento escondido (ou qualquer nome já
+  usado: o índice é por empresa em qualquer etapa) é 409 `OCCURRENCE_TYPE_NAME_TAKEN` (`rethrowOccurrenceTypeViolation`).
+- **Erros do módulo:** `CargoArrivalOccurrence{NotReadBack,ReplayUnreadable,NotSaved}Error` são `DiagnosableError`.
+  A semente de recebimento avisa `occurrence_type_seed.receiving_none_created` (`{ companyId }`, stderr do pre-deploy) quando
+  grava 0 numa empresa sem tipo `receiving`.

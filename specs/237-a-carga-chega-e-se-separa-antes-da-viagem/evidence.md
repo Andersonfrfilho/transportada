@@ -1978,3 +1978,101 @@ novo"); o portal do contratante ainda mostra a etapa `receiving` crua; esconder 
 Push/deploy; `make check` completo, `make smoke`/smoke da CI, `make migration-test` (nada de schema); a API (nada mudou) e suas suítes; teste em
 aparelho/câmera reais (a câmera é o `capture="environment"` do `FileField`); leitura de staging ou produção. Observação: um `pkill -f "vite preview"`
 ao encerrar os prints pode ter derrubado um preview de OUTRA sessão que estivesse rodando na máquina.
+
+## T3.4a — correções da revisão `opus` da Fase 3, lado API (2026-10-06)
+
+Commits (todos em `apps/api-transportada`, **sem push**): `4d967ceea` (contrato e integração vermelhos da devolução e da tratativa),
+`f1a473eb6` (política da devolução + acerto sem cobrança), `4ac9cb226` (erros tipados), `0785dce93` (foto antes da trava),
+`1849be0b9`/`94ea6329d`/`c267231d8` (foto que não assina), `aaf1dfbf9`/`81e3a1c74` (nome do tipo), `2fa457f9c`/`479932115` (aviso da
+semente), `e88e41ad9` (teto de requisições), `742f2f8f2` (tipo do contrato de tetos). O painel não foi tocado.
+
+### A verificação obrigatória — o mapa das seis ações sobre a ocorrência de RECEBIMENTO
+
+Prova: `test/integration/cargo-arrival-occurrence-case.integration.ts` (3 testes, na lista explícita do `package.json`), contra Postgres,
+tudo por HTTP — uma ocorrência com `cargo_arrival_document_id`, sem `trip_document_id`, aberta pela rota real, conduzida pelas rotas reais
+de `/trip-occurrences/:id/case/*`. Nenhum `UPDATE` direto.
+
+| Ação (`POST /trip-occurrences/:id/case/…`) | Funciona?                      | Efeito observado                                                                                                          |
+| ------------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `review`                                   | sim, sem mudança               | `recorded → under_review`                                                                                                 |
+| `contractor-submission`                    | sim, sem mudança               | `under_review → awaiting_contractor` (a avaria nasce com item, então a política `blocked` aceita)                         |
+| `decision` (escritório decide por ele)     | sim, sem mudança               | `awaiting_contractor → decided` com `kind: 'other'` ou `goods_paid`; `redelivery_authorized` é 422 (política `blocked`)   |
+| `closure`                                  | **não, para `goods_paid`**     | `decided → closed` com `other` funciona; com `goods_paid` é 422 `OCCURRENCE_CASE_SETTLEMENT_WITHOUT_ITEMS` e **não saía** |
+| `warehouse-return`                         | sim, sem mudança               | `under_review → returned_to_warehouse` (nota obrigatória)                                                                 |
+| `cancel`                                   | sim, sem mudança               | `recorded → cancelled` (nota obrigatória)                                                                                 |
+| `return-complete` (da devolução)           | sim                            | depois de `decided`, `marked → returned`; agora também recusa viagem viva, tratativa cancelada e ausente                  |
+| `PUT …/case/settlement` (o acerto)         | **não funcionava → corrigido** | 422 `DELIVERY_CLIENT_NOT_RESOLVED` para qualquer item                                                                     |
+
+- **A causa do acerto:** `DrizzleOccurrenceSettlementChargeRepository.applyOccurrenceSettlementCharge` (a ponte acerto → cobrança, 164 T17)
+  lançava `OccurrenceChargePartiesUnresolvedError` quando `trip_document_id` era nulo — e o `PUT` do acerto chama a ponte para **todo**
+  item. Sem acerto, `closure` com decisão `goods_paid` é recusado, e a decisão `goods_paid` (a de avaria que interessa: "a transportadora
+  paga") **nunca fechava**. O texto do ADR §9.6 ("o acerto por item funciona, então `goods_paid` fecha, sem cobrança") descrevia o que o
+  código **não** fazia. Provado vermelho (`422 DELIVERY_CLIENT_NOT_RESOLVED`) antes da correção.
+- **A correção (menor lugar):** `DrizzleOccurrenceSettlementRepository.lockWritableCase` passou a devolver `hasTrip` (a mesma linha de
+  ocorrência que já lia, mais `trip_document_id`), e `recordSettlement` só chama a ponte quando a ocorrência tem viagem. Ocorrência de
+  viagem: caminho idêntico (as integrações `trip-occurrence-settlement`, `occurrence-settlement-charge-bridge`, `occurrence-charge` e
+  `occurrence-charge-report` continuam verdes). Ocorrência de recebimento: o acerto é gravado **sem cobrança**.
+- ⚠️ **Decisão de produto embutida:** o acerto de avaria de recebimento fica sem linha em `delivery_charges` (não há viagem nem cliente de
+  entrega a quem cobrar). A cobrança do acerto da ocorrência sem viagem segue follow-up (ADR §9.6). Se a transportadora precisar cobrar o
+  contratante por avaria de recebimento, isso é spec nova.
+- **Não testado por integração nesta task:** `reimbursement` do acerto, `redelivery-proposal`/`redelivery-application` (a política `blocked`
+  nunca oferece reentrega) e o detalhe/feed `GET /trip-occurrences…` (exigem viagem — ADR §9.1; por leitura do código, não por teste).
+
+### Os nove achados
+
+| #   | Achado                                                   | Contrato/integração vermelho (motivo)                                                                                 | Correção                                                                                                                                                                                      |
+| --- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | concluir não conferia nota em viagem viva                | `decideComplete` devolvia `changed`; integração: a nota vinculada a viagem concluía (200)                             | `decideComplete` recusa `isInLiveTrip` com `CARGO_ARRIVAL_DOCUMENT_IN_LIVE_TRIP`                                                                                                              |
+| 2   | upload da foto sob a trava da chegada                    | contrato: `upload` depois de `lock-arrival`; integração: `for no key update nowait` na chegada falha durante o upload | reenvio já gravado lido fora da trava; foto sobe antes da transação, com o id da ocorrência gerado antes; dentro, só chave e linhas; foto apagada no reenvio da corrida, na recusa e na falha |
+| 3   | `Promise.all` derrubava a marcação por foto              | integração: assinatura falhando dava 500 na lista                                                                     | `readAttachmentsSafely`: `try/catch` por ocorrência, `[]` e log `cargo_arrival_occurrence.attachments_unavailable` (`errorName` + id)                                                         |
+| 4   | marcar aceitava origem com tratativa `cancelled`         | contrato e integração: marcar e concluir com a tratativa cancelada davam `changed`/200                                | `CARGO_ARRIVAL_RETURN_CASE_CANCELLED` (409, mensagem própria) em marcar e em concluir; o caso de uso agora lê a tratativa também ao marcar                                                    |
+| 5   | concluir aceito sem tratativa                            | contrato e integração (tipo `unset`): concluía sem tratativa                                                          | `caseStatus === null` recusa com `CARGO_ARRIVAL_RETURN_DECISION_PENDING` — **divergência do texto fechada a favor do ADR §9.5 ajuste 8**                                                      |
+| 6   | nome do tipo colidindo com tipo de recebimento escondido | integração: o `PUT`/criar e renomear davam o erro cru do Postgres (500)                                               | `OCCURRENCE_TYPE_NAME_TAKEN` (409), criar e renomear (`rethrowOccurrenceTypeViolation`)                                                                                                       |
+| 7   | `new Error` cru                                          | contrato e integração: o erro não era `DiagnosableError`                                                              | `CargoArrivalOccurrence{NotReadBack,ReplayUnreadable,NotSaved}Error` (`DiagnosableError`); 500 genérico ao cliente                                                                            |
+| 8   | semente que grava 0 tipos em silêncio                    | contrato: nenhum aviso quando nada é gravado                                                                          | `occurrence_type_seed.receiving_none_created` (`warn`, `{ companyId }`), no stderr do pre-deploy em JSON                                                                                      |
+| 9   | sem `rateLimit` em marcar/desfazer/concluir              | contrato `rate-limited-routes`: as três rotas sem teto                                                                | balde `cargo-arrival-return`, 120/300 s, Postgres (as transições do escritório da tratativa usam o mesmo teto)                                                                                |
+
+- **N+1 de anexos (achado 3, segunda metade): não feito.** Uma consulta de anexos por ocorrência (e, sem anexo, a consulta da coluna
+  antiga) mora em `DrizzleOccurrenceAttachmentRepository.listOccurrenceAttachments`, repositório compartilhado com a viagem; agrupar exige
+  um método novo ali. Follow-up registrado (a lista da chegada é pequena e a foto agora não derruba nada).
+- **Achado 5 / nulo:** `caseStatus === null` só ocorre com tipo `unset`; os três tipos semeados são `blocked`, então o caminho é inalcançável pelo
+  painel. Marcar com uma ocorrência sem tratativa continua aceito (e a nota só volta pelo "desfazer").
+- **Achado 2 / o que NÃO mudou do §9.5 ajuste 4:** ordem trava → chave → reenvio, reenvio devolve o mesmo resultado com a chegada fechada ou a
+  janela vencida, `23505` de `idempotency_records` = 409. A consulta de fora é só um atalho barato: sem ela e sem a releitura dentro da trava,
+  nada se perderia, só a foto subiria de novo. O preço aceito: recusa depois do upload (janela vencida, nota errada) sobe e apaga ≤ 512 KiB +
+  miniatura; a rota tem teto de requisições.
+
+### Gates (rodados nesta sessão)
+
+- `bun run typecheck`: limpo. `bun run lint` (API): **0 erros, 0 avisos** (`--max-warnings=0`).
+- Contratos da API (`bun --env-file=../../.env.test test --timeout 120000`): **9882 pass / 25 skip / 0 fail** (antes: 9871 / 25 / 0; +11).
+- Integrações (um arquivo por vez, banco `65432`): `cargo-arrival` 6, `…-null-checks` 3, `…-concurrency` 3, `…-list` 1, `…-clock` 1,
+  `…-occurrence` 6, `…-return` 8 (era 5), `…-occurrence-reach` 3, `…-occurrence-case` 3 (nova), `…-occurrence-upload` 5 (nova),
+  `…-occurrence-read` 1 (nova), `…-document-products` 5, `occurrence-type-name-taken` 2 (nova), `occurrence-type-items-mode` 5,
+  `…-redelivery-policy` 2, `…-leaves-document-behind` 4, `…-catalog-seed` 2, `trip-occurrence-case` 4, `…-case-write-guard` 3,
+  `occurrence-case-closure` 1, `trip-occurrence-settlement` 7, `occurrence-settlement-charge-bridge`, `occurrence-charge`,
+  `occurrence-charge-report` — todas 0 fail, nenhuma pulada.
+- `bun run format:check` na raiz: limpo.
+
+### Mutações (script fora do repositório; cada arquivo restaurado por `git checkout --`; `git diff --quiet` limpo depois)
+
+| #   | Regra                                      | Mutação                                                                                                                                              | Vermelho                                                         |
+| --- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| M1  | concluir recusa viagem viva                | sem a checagem em `decideComplete`                                                                                                                   | contrato 2 + integração 1                                        |
+| M2  | tratativa cancelada recusa marcar/concluir | sem as duas checagens                                                                                                                                | contrato 3 + integração 1                                        |
+| M3  | concluir exige tratativa decidida          | `caseStatus !== null &&` (de volta ao texto antigo)                                                                                                  | contrato 1 + integração 1                                        |
+| M4  | acerto sem viagem não cobra                | `if (true)` no lugar de `if (locked.hasTrip)`                                                                                                        | integração da tratativa 1 (o 422 `DELIVERY_CLIENT_NOT_RESOLVED`) |
+| M5a | foto da corrida do reenvio é apagada       | sem `discardUploadedPhoto`                                                                                                                           | contrato 1 + integração 1 (objeto órfão)                         |
+| M5b | reenvio já gravado nem sobe a foto         | sem a consulta de fora da trava                                                                                                                      | contrato 2 + integração 1                                        |
+| M5c | a foto sobe antes da trava                 | `lockArrival()` antes do upload, dentro da transação (a 1ª versão da mutação subia dentro da transação mas antes da trava e **sobreviveu**; refeita) | integração 2                                                     |
+| M6  | foto não derruba a leitura                 | o `catch` relança                                                                                                                                    | integração 1                                                     |
+| M7  | nome colidindo é 409                       | o ramo do índice único desligado                                                                                                                     | integração 2                                                     |
+| M8  | erro tipado                                | `new Error` cru nos dois lugares                                                                                                                     | contrato 1 + integração 1                                        |
+| M9  | aviso da semente                           | sem `onNoneCreated`                                                                                                                                  | contrato 1                                                       |
+| M10 | teto nas três rotas da devolução           | sem `rateLimit`                                                                                                                                      | contrato 1                                                       |
+
+### Não rodou
+
+Push/deploy; `make check` completo; `make migration-test`/`db:generate` (nada de schema nem migration); a integração inteira da API (só as listadas);
+o painel e o `frontend-client` (nada mudou); `reimbursement`, `redelivery-*` e o feed `GET /trip-occurrences` sobre ocorrência de recebimento;
+leitura de staging ou de produção.

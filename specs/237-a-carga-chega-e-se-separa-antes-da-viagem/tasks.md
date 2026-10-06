@@ -114,6 +114,13 @@
 - [x] **T3.3** Tela (painel e celular): abrir avaria na nota da chegada (item, quantidade, foto) e a
       marcação "devolver ao contratante"; nota marcada sai da recomendação e da proposta de chegada; mutação;
       evidência. _(2026-10-06: `evidence.md` § T3.3; 36 prints a aprovar; **sem push** até o "pode publicar".)_
+- [x] **T3.4a** Correções da revisão `opus` da Fase 3, lado API: concluir a devolução confere viagem viva, tratativa
+      cancelada e ausente; a foto sobe ao bucket antes da trava da chegada; a leitura da avaria não cai por foto que não
+      assina; nome de tipo colidindo é 409; erros tipados, aviso da semente e teto de requisições nas três rotas da
+      devolução; **a tratativa da avaria de recebimento conduzida pelas rotas reais (o acerto `goods_paid` não fechava)**.
+      _(2026-10-06: `evidence.md` § T3.4a; **sem push**.)_
+- [ ] **T3.4b** Painel: conduzir a tratativa da avaria de recebimento (ações do escritório) + correções do painel da
+      revisão.
 - [ ] **T3.4** Revisão `opus`, print aprovado, publicar e confirmar.
 
 ## Fase 4b — Prévia por e-mail encaminhada _(D6 respondida: vocês encaminham)_
