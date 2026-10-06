@@ -89,6 +89,13 @@ export const OCCURRENCE_TYPE_FLOWS = ['document', 'stop'] as const
 
 export type OccurrenceTypeFlow = (typeof OCCURRENCE_TYPE_FLOWS)[number]
 
+/**
+ * Spec 246 (RF0): os momentos em que o tipo pode ser registrado. Cópia por valor de
+ * `OCCURRENCE_MOMENTS` (`shared/trip-occurrence.constant.ts` da API) — mudou lá, muda aqui. O painel
+ * só tolera o campo até a aba Tipos (Fase 5) passar a editá-lo.
+ */
+export const OCCURRENCE_MOMENTS = ['separation', 'document', 'stop', 'office'] as const
+
 /** O tipo como o servidor o devolve. `active` aposentado aparece apagado, nunca some da lista. */
 export type OccurrenceType = Readonly<{
   active: boolean

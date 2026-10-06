@@ -4,6 +4,7 @@ import type { DeliveryProof } from './deliveryProof.service'
 import {
   OCCURRENCE_ATTACHMENT_MODES,
   OCCURRENCE_ITEMS_MODES,
+  OCCURRENCE_MOMENTS,
   OCCURRENCE_TYPE_FLOWS,
   type OccurrenceType,
 } from './occurrence.constant'
@@ -1804,6 +1805,7 @@ type RawOccurrenceType = Omit<
     flow?: unknown
     itemsMode?: unknown
     leavesDocumentBehind?: unknown
+    moments?: unknown
     redeliveryPolicy?: unknown
     stopKind?: unknown
   }>
@@ -1828,6 +1830,8 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         'itemsMode',
         /** Spec 185 T6.1 (D2): mesma tolerância — ausente é API anterior ao campo. */
         'leavesDocumentBehind',
+        /** Spec 246 T1b.1b: o painel tolera os momentos antes de a API mandá-los; a Fase 5 os edita. */
+        'moments',
         'redeliveryPolicy',
         'stopKind',
       ],
@@ -1850,6 +1854,8 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
     isString(value.id) &&
     (value.itemsMode === undefined || isOneOf(value.itemsMode, OCCURRENCE_ITEMS_MODES)) &&
     (value.leavesDocumentBehind === undefined || isBoolean(value.leavesDocumentBehind)) &&
+    (value.moments === undefined ||
+      isEveryItem(value.moments, (moment) => isOneOf(moment, OCCURRENCE_MOMENTS))) &&
     isString(value.name) &&
     isBoolean(value.notifies) &&
     (value.redeliveryPolicy === undefined ||

@@ -296,3 +296,36 @@ Restaurado: `1 pass, 0 fail`. A prova de **comportamento** da CA04 (`TRIP_OCCURR
 | `make migration-test ENV_FILE=.env.test` (Postgres de teste 127.0.0.1:65432) | `127 pass, 0 fail, 0 skip`                                                                                                                                                                                                          |
 | `bun run db:generate`                                                        | `no_changes`                                                                                                                                                                                                                        |
 | `bun run --cwd apps/api-transportada build`                                  | saída 0                                                                                                                                                                                                                             |
+
+## Fase 1b — O momento vira conjunto
+
+### T1b.1b (painel) — a guarda do catálogo tolera `moments` antes da API (2026-10-06)
+
+Ordem de publicação (ADR-0081 §9): o `GET`/`PUT /company-settings/occurrence-types` passa a mandar
+`moments` na T1b.1b da API, e a guarda de chave exata do painel (`isOccurrenceType`,
+`apps/frontend-transportada/src/modules/trip/shared/tripResponse.validation.ts`) reprovaria a lista
+inteira. Este commit é **separado** dos da API para poder subir antes. `moments` entra na lista de
+chaves permitidas, presente só passa com o vocabulário de `OCCURRENCE_MOMENTS` (cópia por valor em
+`trip/shared/occurrence.constant.ts`), ausente é API anterior. O `PUT` do painel
+(`buildOccurrenceTypeUpdate`) monta o corpo campo a campo e não manda `moments` — a API mantém o
+gravado (T1b.1b).
+
+Conferidos os outros leitores das respostas que a Fase 1b toca: `frontend-driver` e
+`frontend-client` **não** leem o catálogo (`/company-settings/occurrence-types`); a lista do
+motorista (`/me/trips/current/occurrence-types`), o snapshot (`document.occurrenceTypes`), a lista do
+escritório (`/trips/occurrence-types/field`) e a verificação (`settings-resolution`) **não mudam de
+forma** nesta fase — nenhum campo novo sai neles. A guarda `isTripOccurrence` (~1461) lê ocorrências,
+não tipos, e também não muda.
+
+Contrato primeiro — `test/trip/occurrence-type-tolerance.contract.ts`, vermelho antes da guarda:
+
+```text
+$ bun test ./test/trip/occurrence-type-tolerance.contract.ts
+error: TRIP_RESPONSE_INVALID
+      at occurrenceTypesFromApi (.../src/modules/trip/shared/tripResponse.validation.ts:1073:82)
+(fail) tolerância a allowsMultipleItems/redeliveryPolicy ausentes (achado B7) > aceita `moments` da API nova, e a lista sem ele da API anterior [2.12ms]
+ 9 pass
+ 1 fail
+```
+
+Depois: `10 pass, 0 fail`; `bun run typecheck` (app) saída 0; `eslint` nos três arquivos sem achado.

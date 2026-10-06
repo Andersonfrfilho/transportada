@@ -92,6 +92,32 @@ describe('tolerância a allowsMultipleItems/redeliveryPolicy ausentes (achado B7
     expect(type?.id).toBe('54ed0225-f293-47c3-84fe-0b66eff68784')
   })
 
+  /**
+   * Spec 246 T1b.1b (ADR-0081 §9, painel antes da API): o catálogo passa a mandar `moments`. A guarda
+   * de chave exata reprovaria a lista inteira; ausente é API anterior ao campo.
+   */
+  it('aceita `moments` da API nova, e a lista sem ele da API anterior', () => {
+    const [withMoments] = adapters.occurrenceTypesFromApi([
+      buildOccurrenceType({ moments: ['separation', 'document'] }),
+    ])
+    const [withoutMoments] = adapters.occurrenceTypesFromApi([buildOccurrenceType()])
+
+    expect(withMoments?.id).toBe('54ed0225-f293-47c3-84fe-0b66eff68784')
+    expect(withoutMoments?.id).toBe('54ed0225-f293-47c3-84fe-0b66eff68784')
+    expect(adapters.occurrenceTypeFromApi(buildOccurrenceType({ moments: ['office'] })).id).toBe(
+      '54ed0225-f293-47c3-84fe-0b66eff68784',
+    )
+  })
+
+  it('recusa `moments` com forma errada ou momento fora do vocabulário', () => {
+    expect(() =>
+      adapters.occurrenceTypesFromApi([buildOccurrenceType({ moments: 'separation' })]),
+    ).toThrow()
+    expect(() =>
+      adapters.occurrenceTypesFromApi([buildOccurrenceType({ moments: ['warehouse'] })]),
+    ).toThrow()
+  })
+
   it('recusa `emailsContractor` e `stopKind` com forma errada', () => {
     expect(() =>
       adapters.occurrenceTypesFromApi([buildOccurrenceType({ emailsContractor: 'yes' })]),
