@@ -4,6 +4,8 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Tooltip } from '@/components/ui/tooltip'
 import {
@@ -13,7 +15,6 @@ import {
 import {
   readOccurrenceMomentsProblem,
   toOccurrenceMoments,
-  type OccurrenceMomentsProblem,
 } from '@/modules/trip/shared/occurrenceMoments.service'
 import type { OccurrenceTypeEdit } from '@/modules/trip/shared/occurrenceTypeUpdate.service'
 import styles from '@/modules/trip/styles/occurrenceException.module.css'
@@ -24,29 +25,37 @@ type OccurrenceTypeMomentsProps = Readonly<{
   onEdit: (edit: OccurrenceTypeEdit) => void
 }>
 
-type RejectedDraft = Readonly<{
-  moments: readonly OccurrenceMoment[]
-  problem: OccurrenceMomentsProblem
-}>
+function isSameMoments(
+  left: readonly OccurrenceMoment[],
+  right: readonly OccurrenceMoment[],
+): boolean {
+  return left.length === right.length && left.every((moment, index) => moment === right[index])
+}
 
 /**
- * Spec 246 RF0/RF1h/T5.3b: o conjunto de momentos do tipo. Conjunto vazio (ou nota e parada juntas) é
- * recusado aqui, com o motivo à vista — a API recusa o mesmo e a tela não precisa esperar por ela.
+ * Spec 246 RF0/RF1h/T5.3b: o conjunto de momentos do tipo, editado como **rascunho**: cada toque
+ * muda só a seleção, e o "Aplicar" grava uma vez — sem fechar o seletor a cada toque nem mover o
+ * tipo de grupo no meio da escolha. Conjunto vazio (ou nota e parada juntas) é recusado aqui, com o
+ * motivo à vista; "Desfazer" volta ao gravado.
  */
 export function OccurrenceTypeMoments({ disabled, moments, onEdit }: OccurrenceTypeMomentsProps) {
   const { t } = useTranslation('companySettings')
-  const [rejected, setRejected] = useState<null | RejectedDraft>(null)
-  const shown = rejected?.moments ?? moments
+  const [draft, setDraft] = useState<null | readonly OccurrenceMoment[]>(null)
+  const pending = draft !== null && !isSameMoments(draft, moments) ? draft : null
+  const shown = pending ?? moments
+  const problem = pending === null ? null : readOccurrenceMomentsProblem(pending)
 
   function handleChange(values: readonly string[]) {
-    const next = toOccurrenceMoments(values)
-    const problem = readOccurrenceMomentsProblem(next)
-    if (problem !== null) {
-      setRejected({ moments: next, problem })
-      return
-    }
-    setRejected(null)
-    onEdit({ moments: next })
+    setDraft(toOccurrenceMoments(values))
+  }
+
+  function handleApply() {
+    if (pending === null || problem !== null) return
+    onEdit({ moments: pending })
+  }
+
+  function handleUndo() {
+    setDraft(null)
   }
 
   return (
@@ -64,16 +73,33 @@ export function OccurrenceTypeMoments({ disabled, moments, onEdit }: OccurrenceT
             value: moment,
           }))}
           placeholder={t('occurrenceTypeCatalog.moments.placeholder')}
-          removeLabel={t('occurrenceTypeCatalog.moments.remove')}
+          removeLabel={(label) => t('occurrenceTypeCatalog.moments.remove', { label })}
           searchPlaceholder={t('occurrenceTypeCatalog.moments.searchPlaceholder')}
           summaryLabel={(count) => t('occurrenceTypeCatalog.moments.summary', { count })}
           values={shown}
         />
       </Tooltip>
-      {rejected === null ? null : (
+      {problem === null ? null : (
         <p className={styles.alert} role="alert">
-          {t(`occurrenceTypeCatalog.moments.problem.${rejected.problem}`)}
+          {t(`occurrenceTypeCatalog.moments.problem.${problem}`)}
         </p>
+      )}
+      {pending === null ? null : (
+        <div className={styles.momentActions}>
+          <Button
+            disabled={disabled || problem !== null}
+            onClick={handleApply}
+            size="sm"
+            type="button"
+          >
+            <Icon name="check" />
+            {t('occurrenceTypeCatalog.moments.apply')}
+          </Button>
+          <Button onClick={handleUndo} size="sm" type="button" variant="ghost">
+            <Icon name="close" />
+            {t('occurrenceTypeCatalog.moments.undo')}
+          </Button>
+        </div>
       )}
       <p className={styles.legend}>{t('occurrenceTypeCatalog.moments.note')}</p>
     </section>

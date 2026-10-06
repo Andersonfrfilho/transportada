@@ -142,3 +142,10 @@
     gap: var(--space-1);
   }
 }
+
+/* Spec 246 M1: Aplicar e Desfazer do rascunho dos momentos. */
+.momentActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

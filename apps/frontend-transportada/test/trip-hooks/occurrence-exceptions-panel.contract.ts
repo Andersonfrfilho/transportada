@@ -5,7 +5,7 @@
  * exceções à vista lidas numa consulta só, cada campo da exceção editável com "Igual ao tipo", o cliente
  * escolhido entre os cadastrados, e o conjunto de momentos. Dados sintéticos.
  */
-import { createElement } from 'react'
+import { act, createElement, useState } from 'react'
 import { describe, expect, test } from 'bun:test'
 
 import '@/modules/shared/i18n/i18n.service'
@@ -126,6 +126,34 @@ async function mount(types: readonly OccurrenceType[]): Promise<void> {
   )
   await waitFor(() => expect(exceptionDouble.batchCalls).toBeGreaterThan(0))
   await waitFor(() => expect(document.body.textContent?.includes('carregando')).toBe(false))
+}
+
+/** O painel com a lista de tipos trocável: a gravação devolve o mesmo tipo com outro grupo. */
+async function mountReplaceable(
+  initial: readonly OccurrenceType[],
+): Promise<Readonly<{ rerender: (types: readonly OccurrenceType[]) => Promise<void> }>> {
+  let replaceTypes: (types: readonly OccurrenceType[]) => void = () => undefined
+  function Harness() {
+    const [types, setTypes] = useState(initial)
+    replaceTypes = setTypes
+    return createElement(OccurrenceTypeCatalogPanel, {
+      canManage: true,
+      isSaving: false,
+      onSave: (input) => saved.push(input),
+      saveFeedbackKey: null,
+      types,
+    })
+  }
+  mounted.push(await renderWithQueryClient(createElement(Harness)))
+  await waitFor(() => expect(exceptionDouble.batchCalls).toBeGreaterThan(0))
+  return {
+    rerender: async (types) => {
+      await act(async () => {
+        replaceTypes(types)
+        await Promise.resolve()
+      })
+    },
+  }
 }
 
 function summaries(): readonly HTMLElement[] {
@@ -345,6 +373,14 @@ describe('destinatário da exceção: escolhido, nunca digitado (RF1f, T5.3c)', 
   )
 })
 
+async function pressButton(text: string): Promise<void> {
+  const found = [...document.querySelectorAll<HTMLElement>('button')].find(
+    (button) => button.textContent?.trim() === text,
+  )
+  if (found === undefined) throw new Error(`BUTTON_NOT_FOUND:${text}`)
+  await click(found)
+}
+
 describe('momentos do tipo (RF0, RF1h, T5.3b)', () => {
   const MOMENTS_LABEL = 'Em que momento pode acontecer'
 
@@ -412,9 +448,71 @@ describe('momentos do tipo (RF0, RF1h, T5.3b)', () => {
       )
 
       await toggleOption('Entrega da nota')
+      expect(saved).toHaveLength(0)
+      await pressButton('Aplicar momentos')
       expect(saved).toHaveLength(1)
       expect(saved[0]?.moments).toEqual(['stop'])
       expect(saved[0]).not.toHaveProperty('noteMode')
+    }),
+  )
+
+  test(
+    'cada toque só muda o rascunho: nada grava, o seletor segue aberto, e o Aplicar grava uma vez (M1)',
+    scenario(async () => {
+      installExceptionsDouble({ byType: BATCH })
+      await mount([buildType({ moments: ['document'] })])
+      await expandAllTypes()
+      await openMoments()
+      await toggleOption('Escritório')
+      await toggleOption('Separação')
+
+      expect(saved).toHaveLength(0)
+      expect(document.querySelectorAll('[role="option"]').length).toBeGreaterThan(0)
+      await pressButton('Aplicar momentos')
+      expect(saved).toHaveLength(1)
+      expect(saved[0]?.moments).toEqual(['separation', 'document', 'office'])
+    }),
+  )
+
+  test(
+    'o rascunho recusado volta ao gravado com Desfazer, e o aviso some (M1)',
+    scenario(async () => {
+      installExceptionsDouble({ byType: BATCH })
+      await mount([buildType({ moments: ['document'] })])
+      await expandAllTypes()
+      await openMoments()
+      await toggleOption('Entrega da nota')
+      expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+        'Escolha ao menos um momento',
+      )
+
+      await pressButton('Desfazer')
+      expect(document.querySelector('[role="alert"]')).toBeNull()
+      expect(control(MOMENTS_LABEL)?.textContent).toContain('1 momentos')
+      expect(saved).toHaveLength(0)
+    }),
+  )
+
+  test(
+    'o botão de tirar cada momento diz qual momento é (B3)',
+    scenario(async () => {
+      installExceptionsDouble({ byType: BATCH })
+      await mount([buildType({ moments: ['document'] })])
+      await expandAllTypes()
+      expect(control('Tirar momento Entrega da nota') !== null).toBe(true)
+    }),
+  )
+
+  test(
+    'o tipo continua aberto quando a gravação o muda de grupo (M1)',
+    scenario(async () => {
+      installExceptionsDouble({ byType: BATCH })
+      const view = await mountReplaceable([buildType({ moments: ['document'] })])
+      await expandAllTypes()
+      expect(control(MOMENTS_LABEL) !== null).toBe(true)
+
+      await view.rerender([buildType({ moments: ['separation'], stage: 'separation' })])
+      expect(control(MOMENTS_LABEL) !== null).toBe(true)
     }),
   )
 })
