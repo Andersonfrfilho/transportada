@@ -489,6 +489,25 @@
     }
   },
   "settingsResolution": {
+    "typeFields": {
+      "photoMode": "Photo",
+      "noteMode": "Note",
+      "signatureMode": "Signature",
+      "itemsMode": "Products",
+      "photoMinimumCount": "Minimum photos",
+      "itemsMinimumCount": "Minimum products"
+    },
+    "layers": {
+      "type": "Type",
+      "contractor": "Contractor",
+      "recipient": "Recipient",
+      "default": "Default"
+    },
+    "itemsAll": "All invoice items",
+    "itemsAtLeast": "At least {{count}}",
+    "photoCount_one": "{{count}} photo",
+    "photoCount_other": "{{count}} photos",
+    "notApplicable": "Not applicable",
     "title": "Check effective configuration",
     "hint": "Pick a contractor and/or a recipient to see the delivery proof and the occurrence photo requirement that apply to that combination — the same computation the driver app would make.",
     "contractor": "Contractor",
