@@ -706,6 +706,11 @@ pasta (formato do `drizzle-orm` 1.0) e rodam por `runMetaWhatsAppSchemaMigration
   `0.1.0` o webhook descarta `messages[].location` antes do gancho (o schema dos contracts `0.1.0` não a
   tem; o `0.4.0` tem): na prática o toque grava `unavailable` até a instalação subir os pacotes. Teste que
   prende o limite e deve virar ao subir: `test/integration/whatsapp-driver-flow-actions.integration.ts`.
+- **O transcript não guarda o ponto** (spec 245): o resolver cria o módulo com
+  `features: { redactInboundLocation: true }` (`meta-whatsapp-module@0.8.0`). A linha de entrada `location`
+  em `meta_whatsapp.messages` sai sem `payload.location` e com `content = INBOUND_LOCATION_CONTENT`; o gancho
+  recebe a mensagem **crua**, então o `captured` da 196 não muda. Vale só para o que chega depois do deploy:
+  o legado **não** foi redigido (Fase 3 da 245, escrita irreversível, aprovação por ambiente).
 - **`MembershipAuthorizationPolicy`** ("qualquer membership ativa") só existe sob `/me/` —
   `assertMembershipRoutesUnderMe` derruba o boot fora dali.
 - Rotas (`cache-control: no-store`): `GET`/`DELETE /me/whatsapp-phone`,

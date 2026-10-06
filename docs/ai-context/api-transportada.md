@@ -2719,3 +2719,22 @@ dublês. (4) ⚠️ Dois guards de chave exata do painel **atual** de staging de
 `isTripOccurrence`/`TRIP_OCCURRENCE_OPTIONAL_KEYS` recusa `typeItemsMode` e `typeAllowsMultipleItems` na lista
 da nota, e `isOccurrenceType` recusa `itemsMode` no catálogo do cadastro. A etapa 2 só sobe depois do painel
 tolerante e do `autoUpdate` do PWA.
+
+## Spec 245 — a localização do WhatsApp não fica na conversa (Fase 2)
+
+- **Pacotes:** `@adatechnology/meta-whatsapp-module@0.8.0` e `@adatechnology/meta-whatsapp-provider@0.4.0`
+  (API e worker; contratos seguem `0.6.0`). As 11 migrations do `meta_whatsapp` são as mesmas: **sem migration**.
+- **Opção ligada no resolver** (`src/whatsapp/application/meta-whatsapp-module.resolver.ts`):
+  `features: { redactInboundLocation: true }`. A linha de entrada `location` grava sem `payload.location`
+  (`payload` fica `NULL` se não sobrar chave) e com `content = INBOUND_LOCATION_CONTENT` (`'📍 Localização'`),
+  sem `name`/`address`/`url`. O gancho `onMessageReceived` recebe a mensagem crua; o armazém
+  `whatsapp-shared-location.service.ts` e o carimbo `captured` da 196 não mudam.
+- **Provas:** `test/whatsapp/meta-whatsapp-module-features.contract.ts` prende a opção na chamada da fábrica
+  (texto-fonte; some em silêncio sem ela) e `test/integration/whatsapp-driver-flow-actions.integration.ts`
+  prova pelo webhook real: a linha da empresa do teste sem `payload.location`, `content` igual à constante, e o
+  toque seguinte ainda grava `captured` com a coordenada. A fixture manda `name`, `address` e `url`: sem eles o
+  rótulo já saía neutro na `0.7.0` e a asserção não ficaria vermelha.
+- **Painel:** o texto do `whatsapp` em `trip.locale.json`/`trip.en.locale.json` (aba da 239) diz que a
+  localização vai só para o evento e segue o prazo dele.
+- **Legado não redigido:** o que chegou antes do deploy segue gravado até a Fase 3 (script com dry-run,
+  `--confirm`, aprovação por ambiente e empresa).

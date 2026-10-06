@@ -2143,8 +2143,10 @@ DEFAULT 90 CHECK (30–90)`, `purge_effective_at TIMESTAMPTZ` (carência), índi
 **O que continua aberto:**
 
 - **Coordenada do transcript do WhatsApp** (`meta_whatsapp.messages.payload.location` e o rótulo em `content`,
-  achado da 196 T3.7). Fica para **spec própria** (D9 da 239): o schema `meta_whatsapp` é do pacote, e o
-  expurgo desta spec não alcança. Até lá, essa coordenada **não expira** pelo prazo da empresa.
+  achado da 196 T3.7). **Redigida na origem desde 2026-10-06 (spec 245, `meta-whatsapp-module@0.8.0`)** para
+  o que chegar **depois do deploy** da API com a opção ligada; o ponto vai só para o evento da viagem e segue o
+  prazo dele. ⚠️ **O legado ainda NÃO foi redigido** (Fase 3 da 245: dry-run com contagem, aprovação do usuário
+  e `--confirm`, por ambiente e por empresa) — até lá, a coordenada gravada antes do deploy **não expira**.
 
 **Pré-condições de publicação (spec 239, T4.6):**
 

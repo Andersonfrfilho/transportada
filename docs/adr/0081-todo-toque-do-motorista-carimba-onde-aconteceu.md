@@ -195,6 +195,14 @@ worker. Os pings do rastro ao vivo continuam com prazo próprio e fora da config
 **Pendência:** a coordenada do transcript do WhatsApp (`meta_whatsapp.messages.payload.location` e o rótulo em
 `content`) segue fora do expurgo e fica para spec própria.
 
+#### 7.2 Emenda de 2026-10-06 — o transcript não guarda o ponto (spec 245)
+
+Com `meta-whatsapp-module@0.8.0` e `features.redactInboundLocation` ligada no resolver, a linha de entrada do
+tipo `location` em `meta_whatsapp.messages` é gravada sem `payload.location` e com o rótulo neutro; o ponto
+existe só no evento da viagem, sob o prazo do §7. O gancho continua recebendo a mensagem crua (o carimbo
+`captured` do §3 não muda). A pendência acima vale **apenas para o legado gravado antes do deploy**, que só
+é redigido por script, com contagem e aprovação por ambiente (Fase 3 da 245).
+
 ### 8. A reordenação da spec 192
 
 A reordenação do motorista é toque e entra nesta regra: `trip_stop_order_events` ganha as colunas e o
