@@ -147,13 +147,14 @@ describe('trip mobile-first contract', () => {
   /**
    * Revisão de design (spec 161): o formulário virou grid de uma coluna — cada campo (os dois
    * `Select`, o textarea, o seletor de foto) ocupa a largura inteira, sem depender de `flex-wrap`
-   * para não empurrar a tela em 375px. `display: grid` sem `grid-template-columns` já garante isso.
+   * para não empurrar a tela em 375px. A única coluna declarada é `minmax(0, 1fr)`: sem o zero, o
+   * `min-content` do nome mais largo de tipo vira o piso da coluna e alarga a página (T6.1 da 246).
    */
   test('o formulário de ocorrência quebra linha', async () => {
     const stylesheet = await readApplicationFile(TRIP_STYLESHEET_PATH)
     const rule = findRule(listRules(stylesheet), '.occurrenceForm')
 
     expect(rule?.body).toInclude('display: grid')
-    expect(rule?.body).not.toMatch(/grid-template-columns:\s*(?!none)/)
+    expect(rule?.body).not.toMatch(/grid-template-columns:\s+(?!none|minmax\(0, 1fr\);)/)
   })
 })

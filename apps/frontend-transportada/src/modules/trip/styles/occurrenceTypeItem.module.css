@@ -5,6 +5,30 @@
   background: color-mix(in srgb, var(--color-asphalt) 45%, transparent);
 }
 
+/* O grupo (galpão ou rua) do cadastro: `fieldset` nasce com `min-inline-size: min-content`, e um nome de tipo sem espaço alargava a página. */
+.group {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  border: none;
+}
+
+/* No celular a moldura do grupo só gasta largura: cada tipo já tem a sua. */
+@media (min-width: 40rem) {
+  .group {
+    padding: var(--space-3);
+    border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  }
+}
+
+.groupTitle {
+  padding: 0;
+  color: var(--color-slate-muted);
+  font-size: 0.8rem;
+}
+
 .itemInactive .name {
   color: var(--color-slate);
 }
@@ -39,7 +63,9 @@
 
 .name {
   flex: 1 1 11rem;
+  min-width: 0;
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .tags,
@@ -52,7 +78,7 @@
 .tag {
   padding: 0 var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
-  color: var(--color-slate);
+  color: var(--color-slate-muted);
   font-family: var(--font-utility);
   font-size: 0.64rem;
   letter-spacing: 0.04em;
@@ -92,7 +118,9 @@
 }
 
 .details {
+  min-width: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4) var(--space-4);
   border-top: 1px solid color-mix(in srgb, var(--color-slate) 14%, transparent);
@@ -101,6 +129,7 @@
 /* Spec 246 RF1e: o bloco de notificação — o modelo escolhido com o texto à vista. */
 .notification {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   min-width: 0;
 }
@@ -123,12 +152,14 @@
   color: var(--color-slate-muted);
   font-size: 0.8rem;
   line-height: 1.5;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
   background: color-mix(in srgb, var(--color-asphalt) 60%, transparent);
 }
 
 .templateNote {
   margin: 0;
+  overflow-wrap: anywhere;
   color: var(--color-slate-muted);
   font-size: 0.8rem;
 }

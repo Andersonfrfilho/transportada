@@ -7,7 +7,7 @@ import { TRIP_OCCURRENCE_STAGE } from '@/modules/trip/shared/occurrence.constant
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
 import type { OccurrenceTypeExceptionsState } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
 import type { OccurrenceEmailTemplatesState } from '@/modules/trip/shared/occurrenceTemplate.service'
-import styles from '@/modules/trip/styles/trip.module.css'
+import styles from '@/modules/trip/styles/occurrenceTypeItem.module.css'
 
 import type { OccurrenceTypeSaveInput } from '../shared/occurrenceTypeUpdate.service'
 import { OccurrenceTypeItem } from './OccurrenceTypeItem.component'
@@ -39,8 +39,8 @@ export function OccurrenceTypeList({
         if (groupTypes.length === 0) return null
 
         return (
-          <fieldset className={styles.occurrenceStage} key={group}>
-            <legend className={styles.hint}>
+          <fieldset className={styles.group} key={group}>
+            <legend className={styles.groupTitle}>
               {group === TRIP_OCCURRENCE_STAGE.separation
                 ? t('occurrenceTypeCatalog.stageSeparation')
                 : t('occurrenceTypeCatalog.stageDelivery')}
