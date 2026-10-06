@@ -950,6 +950,8 @@
 
 .srOnly {
   position: absolute;
+  /* Sem o `left`, o texto oculto de um cabeçalho dentro da tabela rolável nascia na posição estática e alargava a página até 886px. */
+  left: 0;
   width: 1px;
   height: 1px;
   overflow: hidden;
@@ -1402,7 +1404,7 @@
   display: grid;
   gap: var(--space-3);
   align-items: center;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   padding: var(--space-3);
   border: 1px solid color-mix(in srgb, var(--color-copper) 28%, transparent);
   background: color-mix(in srgb, var(--color-asphalt) 50%, transparent);
