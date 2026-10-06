@@ -109,6 +109,16 @@ export const OCCURRENCE_ATTACHMENT_MODE = {
   off: 'off',
 } as const
 
+/**
+ * Spec 246 (RF1, RF3): o padrão de `note_mode` e `signature_mode` no tipo — a observação hoje é
+ * sempre opcional (`off` a esconderia) e a assinatura não existia. Nas exceções as colunas são
+ * nulas, sem padrão: nulo herda do tipo (D-a).
+ */
+export const OCCURRENCE_TYPE_REQUIREMENT_DEFAULTS = {
+  noteMode: 'optional',
+  signatureMode: 'off',
+} as const
+
 /** Spec 241 (RF11): a CHECK `off ⇒ unset`; o cadastro a traduz em 422 quando a corrida a atinge. */
 export const OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK =
   'company_occurrence_types_items_off_shape_check'

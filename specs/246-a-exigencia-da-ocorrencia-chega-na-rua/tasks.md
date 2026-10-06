@@ -12,7 +12,7 @@ evidência em `evidence.md`. **Tasks com `--env-file`:** a integração da API e
 
 > 🤖 Modelo: `sonnet` (T1.2 é 🧠 — o backfill é o ponto onde se perde comportamento calado)
 
-- [ ] **T1.1** Schema: em `companyOccurrenceTypes`, `note_mode` (`NOT NULL DEFAULT 'optional'`) e
+- [x] **T1.1** Schema: em `companyOccurrenceTypes`, `note_mode` (`NOT NULL DEFAULT 'optional'`) e
       `signature_mode` (`NOT NULL DEFAULT 'off'`); nas duas tabelas de exceção, `note_mode` e
       `signature_mode` **nulos, sem default** (D-a); `signature_object_id` nas duas tabelas de
       ocorrência, com FK composta `(company_id, signature_object_id) → stored_objects(company_id, id)

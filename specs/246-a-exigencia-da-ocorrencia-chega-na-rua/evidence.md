@@ -100,3 +100,49 @@ EXCLUSIVE` durante o `INSERT`). Medição em produção (T1d.0) só com autoriza
       quantas têm as duas fontes (esperado 0).
 - [ ] T3.0 — staging e produção: exceções com `attachment_mode <> 'required'` sobre tipo `required`.
       A Fase 3 só ativa em produção depois deste registro.
+
+## Fase 1 — O dado passa a carregar a exigência
+
+### T1.1 — Schema (2026-10-06)
+
+`trip.schema.ts`: no tipo, `note_mode varchar(16) NOT NULL DEFAULT 'optional'` e `signature_mode
+varchar(16) NOT NULL DEFAULT 'off'` (padrões em `OCCURRENCE_TYPE_REQUIREMENT_DEFAULTS`,
+`trip-occurrence.constant.ts`), com `company_occurrence_types_note_mode_check` e
+`company_occurrence_types_signature_mode_check` sobre `DELIVERY_PROOF_FIELD_MODES`. Nas duas exceções,
+`note_mode` e `signature_mode` **nulas, sem padrão** (D-a). `signature_object_id` em
+`trip_document_occurrences` e `trip_stop_occurrences`, com `<tabela>_company_signature_object_fk`
+(`(company_id, signature_object_id) → stored_objects(company_id, id) ON DELETE RESTRICT ON UPDATE
+CASCADE`, molde de `trip_document_occurrences_company_object_fk`). Comentário de `itemsMode` corrigido
+("239" → "246").
+
+**Decisão — nomes das CHECKs das exceções.** `<tabela>_signature_mode_check` passaria de 63
+caracteres nas duas exceções (65 e 64); as quatro CHECKs das exceções perdem o prefixo `company_`:
+`occurrence_type_contractor_overrides_note_mode_check` (52),
+`occurrence_type_contractor_overrides_signature_mode_check` (57),
+`occurrence_type_recipient_overrides_note_mode_check` (51),
+`occurrence_type_recipient_overrides_signature_mode_check` (56). Uma regra só para as quatro, em vez
+de encurtar só a que estoura.
+
+Contrato primeiro — `test/trip-schema/occurrence-type-requirement-modes.contract.ts` (registrado em
+`test/trip-schema.contract.test.ts`), rodado contra o `trip.schema.ts` de `HEAD` (o arquivo foi
+trocado pelo de `HEAD` só para a execução e restaurado em seguida):
+
+```text
+$ bun test ./test/trip-schema/occurrence-type-requirement-modes.contract.ts   # schema de HEAD
+(fail) ... > o tipo nasce com observação optional e assinatura off, nunca nulas
+(fail) ... > o vocabulário do tipo é preso por CHECK nomeada
+(fail) ... > company_occurrence_type_contractor_overrides: as colunas novas são nulas e sem padrão (D-a, nulo herda)
+(fail) ... > company_occurrence_type_contractor_overrides: CHECKs de vocabulário com nome dentro de 63 caracteres
+       Expected length: 2 / Received length: 0
+(fail) ... > company_occurrence_type_recipient_overrides: as colunas novas são nulas e sem padrão (D-a, nulo herda)
+(fail) ... > company_occurrence_type_recipient_overrides: CHECKs de vocabulário com nome dentro de 63 caracteres
+(fail) ... > trip_document_occurrences: signature_object_id nula, presa ao objeto da mesma empresa
+(fail) ... > trip_stop_occurrences: signature_object_id nula, presa ao objeto da mesma empresa
+ 0 pass
+ 8 fail
+```
+
+Com o schema novo: `8 pass, 0 fail`; `bun test ./test/trip-schema.contract.test.ts` → `249 pass, 0
+fail`; `bun run typecheck` → 0 erros. `bun run db:generate --name occurrence_type_requirement_modes`
+→ `drizzle/20261006112823_occurrence_type_requirement_modes/migration.sql` (DDL na ordem do
+drizzle-kit; a ordem do plan, os `UPDATE`s e o `rollback.sql` são a T1.2).

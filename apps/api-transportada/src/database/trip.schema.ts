@@ -5,6 +5,7 @@ import {
   OCCURRENCE_ITEMS_MODE,
   OCCURRENCE_TYPE_FLOWS,
   OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK,
+  OCCURRENCE_TYPE_REQUIREMENT_DEFAULTS,
   TRIP_OCCURRENCE_STAGE,
 } from '../shared/trip-occurrence.constant.js'
 import type {
@@ -1410,6 +1411,11 @@ export const tripStopOccurrences = pgTable(
      */
     reportedDistanceMeters: integer('reported_distance_meters'),
     attachmentObjectId: uuid('attachment_object_id'),
+    /**
+     * Spec 246 (RF9, D-d): a assinatura, ao lado da foto, nunca como linha de anexo. Na parada a
+     * coluna existe só para não pedir segunda migration — sem escritor nem leitor nesta spec.
+     */
+    signatureObjectId: uuid('signature_object_id'),
     actorUserId: uuid('actor_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     /**
@@ -1454,6 +1460,13 @@ export const tripStopOccurrences = pgTable(
       columns: [table.companyId, table.attachmentObjectId],
       foreignColumns: [storedObjects.companyId, storedObjects.id],
       name: 'trip_stop_occurrences_company_object_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.signatureObjectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'trip_stop_occurrences_company_signature_object_fk',
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
@@ -2144,6 +2157,12 @@ export const tripDocumentOccurrences = pgTable(
      */
     attachmentObjectId: uuid('attachment_object_id'),
     /**
+     * Spec 246 (RF9, D-d): a assinatura de quem recusou. Coluna, nunca linha de
+     * `trip_document_occurrence_attachments` — como linha contaria como foto no mínimo, no expurgo e
+     * no demonstrativo.
+     */
+    signatureObjectId: uuid('signature_object_id'),
+    /**
      * Spec 167 (RF6): cancelamento é três colunas, não tabela nova — no máximo uma linha por
      * ocorrência, e uma tabela 1-para-0..1 pagaria join em toda leitura para representar isto. O
      * CHECK abaixo casa a presença dos três: existem juntos ou nenhum existe.
@@ -2193,6 +2212,13 @@ export const tripDocumentOccurrences = pgTable(
       columns: [table.companyId, table.attachmentObjectId],
       foreignColumns: [storedObjects.companyId, storedObjects.id],
       name: 'trip_document_occurrences_company_object_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.signatureObjectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'trip_document_occurrences_company_signature_object_fk',
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
@@ -2644,12 +2670,26 @@ export const companyOccurrenceTypes = pgTable(
      * Spec 241 (RF1, D-A): se a ocorrência deste tipo carrega produtos — o vocabulário de
      * `DELIVERY_PROOF_FIELD_MODES`. Padrão `'optional'` é o seletor de hoje; `'off'` é o tipo que
      * vale para a nota inteira (a segunda via do boleto). `'required'` fica aceito no banco para a
-     * 239, e recusado pelo cadastro até lá.
+     * 246, e recusado pelo cadastro até lá.
      */
     itemsMode: varchar('items_mode', { length: 16 })
       .$type<DeliveryProofFieldMode>()
       .notNull()
       .default(OCCURRENCE_ITEMS_MODE.optional),
+    /**
+     * Spec 246 (RF1, RF3): a exigência da observação, separada da foto (`attachment_mode`). Padrão
+     * `'optional'` — a observação hoje é sempre opcional; a migration sobe para `'required'` onde a
+     * foto é `required`, a regra fixa da 179 que sai do caso de uso e vira dado.
+     */
+    noteMode: varchar('note_mode', { length: 16 })
+      .$type<DeliveryProofFieldMode>()
+      .notNull()
+      .default(OCCURRENCE_TYPE_REQUIREMENT_DEFAULTS.noteMode),
+    /** Spec 246 (RF1): a exigência da assinatura de quem recusou. Padrão `'off'`: não existia. */
+    signatureMode: varchar('signature_mode', { length: 16 })
+      .$type<DeliveryProofFieldMode>()
+      .notNull()
+      .default(OCCURRENCE_TYPE_REQUIREMENT_DEFAULTS.signatureMode),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2690,6 +2730,14 @@ export const companyOccurrenceTypes = pgTable(
       'company_occurrence_types_items_mode_check',
       sql`${table.itemsMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
     ),
+    check(
+      'company_occurrence_types_note_mode_check',
+      sql`${table.noteMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+    check(
+      'company_occurrence_types_signature_mode_check',
+      sql`${table.signatureMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
     /**
      * Spec 241 RF11 (D-E): tipo sem itens não abre tratativa. É a rede; o cadastro recusa antes,
      * com código próprio.
@@ -2718,6 +2766,9 @@ export const companyOccurrenceTypeContractorOverrides = pgTable(
       .$type<DeliveryProofFieldMode>()
       .notNull()
       .default('optional'),
+    /** Spec 246 (D-a): nulo herda o `note_mode` do tipo, campo a campo — sem padrão de propósito. */
+    noteMode: varchar('note_mode', { length: 16 }).$type<DeliveryProofFieldMode>(),
+    signatureMode: varchar('signature_mode', { length: 16 }).$type<DeliveryProofFieldMode>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2752,6 +2803,15 @@ export const companyOccurrenceTypeContractorOverrides = pgTable(
       'company_occurrence_type_contractor_overrides_attachment_mode_check',
       sql`${table.attachmentMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
     ),
+    /** Spec 246: sem o prefixo `company_` — com ele o nome passaria de 63 caracteres. */
+    check(
+      'occurrence_type_contractor_overrides_note_mode_check',
+      sql`${table.noteMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+    check(
+      'occurrence_type_contractor_overrides_signature_mode_check',
+      sql`${table.signatureMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
   ],
 )
 
@@ -2771,6 +2831,9 @@ export const companyOccurrenceTypeRecipientOverrides = pgTable(
       .$type<DeliveryProofFieldMode>()
       .notNull()
       .default('optional'),
+    /** Spec 246 (D-a): nulo herda o `note_mode` do tipo, campo a campo — sem padrão de propósito. */
+    noteMode: varchar('note_mode', { length: 16 }).$type<DeliveryProofFieldMode>(),
+    signatureMode: varchar('signature_mode', { length: 16 }).$type<DeliveryProofFieldMode>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2804,6 +2867,15 @@ export const companyOccurrenceTypeRecipientOverrides = pgTable(
     check(
       'company_occurrence_type_recipient_overrides_attachment_mode_check',
       sql`${table.attachmentMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+    /** Spec 246: sem o prefixo `company_` — com ele o nome passaria de 63 caracteres. */
+    check(
+      'occurrence_type_recipient_overrides_note_mode_check',
+      sql`${table.noteMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+    check(
+      'occurrence_type_recipient_overrides_signature_mode_check',
+      sql`${table.signatureMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
     ),
   ],
 )
