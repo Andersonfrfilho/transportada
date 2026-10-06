@@ -91,10 +91,7 @@ function TripOccurrencesFeedContent({
           </Button>
         </div>
         {isColumnsMenuOpen ? <TripOccurrenceColumnsMenu table={table} /> : null}
-        <TripOccurrenceTable
-          canResolveOccurrenceCases={canResolveOccurrenceCases}
-          table={table}
-        />
+        <TripOccurrenceTable canResolveOccurrenceCases={canResolveOccurrenceCases} table={table} />
       </section>
     </>
   )
@@ -144,9 +141,7 @@ export function TripOccurrencesWorkspacePage() {
             items={TRIP_OCCURRENCES_TABS.map((tab) => ({
               id: tab,
               label:
-                tab === 'feed'
-                  ? t('occurrenceFeed.tabs.feed')
-                  : t('occurrenceFeed.tabs.types'),
+                tab === 'feed' ? t('occurrenceFeed.tabs.feed') : t('occurrenceFeed.tabs.types'),
               panel:
                 tab === 'feed' ? (
                   <TripOccurrencesFeedContent
