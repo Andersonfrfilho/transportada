@@ -282,7 +282,7 @@
   },
   "occurrenceTypeCatalog": {
     "title": "Occurrence types",
-    "hint": "Register the types the operation uses. The alert goes to whoever dispatched the trip, and only for checked types — the default is not to notify.",
+    "hint": "Each type declares in which moments it can be logged and what proof it requires. The tax-ID exception overrides the general rule: recipient first, then contractor. The contractor alert only goes out for checked types.",
     "empty": "No type registered yet. Register the first one to be able to log occurrences.",
     "add": "Register type",
     "name": "Type name",
@@ -344,7 +344,17 @@
       "remove": "Remove",
       "removeOf": "Remove the exception of {{name}}"
     },
+    "identity": {
+      "title": "Identification",
+      "name": "Name",
+      "redelivery": "Return",
+      "flow": "Logging"
+    },
+    "create": {
+      "title": "New type"
+    },
     "requirements": {
+      "scope": "general rule",
       "title": "What it requires",
       "legend": "Required means the occurrence is not registered without it. Photo is the image captured on the device; Note is the driver's text; Signature is the one from whoever refused; Products is at least one invoice item marked.",
       "fields": {

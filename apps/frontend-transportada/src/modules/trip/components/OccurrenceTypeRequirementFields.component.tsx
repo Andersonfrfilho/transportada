@@ -60,7 +60,10 @@ export function OccurrenceTypeRequirementFields({
       aria-label={t('occurrenceTypeCatalog.requirements.title')}
       className={styles.requirements}
     >
-      <p className={styles.title}>{t('occurrenceTypeCatalog.requirements.title')}</p>
+      <p className={styles.title}>
+        {t('occurrenceTypeCatalog.requirements.title')}{' '}
+        <span className={styles.scope}>· {t('occurrenceTypeCatalog.requirements.scope')}</span>
+      </p>
       <div className={styles.grid}>
         {fields.map((field) => (
           <OccurrenceRequirementModeSelect

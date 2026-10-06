@@ -15,6 +15,12 @@
   max-width: 100%;
 }
 
+/* Num item de grade esticado o campo de dentro ocupa a largura toda, em vez de encolher ao próprio texto. */
+.trigger > * {
+  flex-grow: 1;
+  min-width: 0;
+}
+
 /**
  * A aparência é a **mesma** do tooltip do menu lateral recolhido (`[data-tooltip]::after` em
  * `index.css`): borda de cobre, fundo grafite, corpo curto e sem canto arredondado. Dois tooltips

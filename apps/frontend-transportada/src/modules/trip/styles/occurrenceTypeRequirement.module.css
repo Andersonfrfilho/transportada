@@ -16,6 +16,10 @@
   text-transform: uppercase;
 }
 
+.scope {
+  color: var(--color-slate-muted);
+}
+
 .grid {
   display: grid;
   gap: var(--space-3);

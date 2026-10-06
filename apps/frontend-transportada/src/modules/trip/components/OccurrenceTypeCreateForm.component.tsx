@@ -26,6 +26,7 @@ import {
 } from '@/modules/trip/shared/occurrenceTemplate.service'
 import { NOTIFICATION_SETTINGS_HREF } from '@/modules/notification/shared/notificationCatalog.constant'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
+import itemStyles from '@/modules/trip/styles/occurrenceTypeItem.module.css'
 import styles from '@/modules/trip/styles/trip.module.css'
 
 import { useOccurrenceTypeCreateDraft } from '../hooks/useOccurrenceTypeCreateDraft.hook'
@@ -94,103 +95,108 @@ export function OccurrenceTypeCreateForm({
   }
 
   return (
-    <div className={styles.occurrenceForm}>
-      <input
-        aria-label={t('occurrenceTypeCatalog.name')}
-        onChange={(event) => draft.setName(event.target.value)}
-        placeholder={t('occurrenceTypeCatalog.name')}
-        type="text"
-        value={name}
-      />
-      <Select
-        ariaLabel={t('occurrenceTypeCatalog.stage')}
-        onChange={(value) => draft.setStage(value as TripOccurrenceStage)}
-        options={[
-          {
-            label: t('occurrenceTypeCatalog.stageSeparation'),
-            value: TRIP_OCCURRENCE_STAGE.separation,
-          },
-          {
-            label: t('occurrenceTypeCatalog.stageDelivery'),
-            value: TRIP_OCCURRENCE_STAGE.delivery,
-          },
-        ]}
-        value={stage}
-      />
-      <Checkbox
-        checked={notifies}
-        label={t('occurrenceTypeCatalog.notifies')}
-        onChange={draft.setNotifies}
-      />
-      {hasItemsModeSupport ? (
-        <OccurrenceTypeItemsModeSelect onChange={draft.setItemsMode} value={itemsMode} />
-      ) : null}
-      {isItemsOff ? null : (
-        <Checkbox
-          checked={allowsMultipleItems}
-          label={t('occurrenceTypeCatalog.allowsMultipleItems')}
-          onChange={draft.setAllowsMultipleItems}
+    <section aria-label={t('occurrenceTypeCatalog.create.title')} className={itemStyles.create}>
+      <p className={itemStyles.blockTitle}>{t('occurrenceTypeCatalog.create.title')}</p>
+      <div className={styles.occurrenceForm}>
+        <input
+          aria-label={t('occurrenceTypeCatalog.name')}
+          onChange={(event) => draft.setName(event.target.value)}
+          placeholder={t('occurrenceTypeCatalog.name')}
+          type="text"
+          value={name}
         />
-      )}
-      {isItemsOff ? null : (
         <Select
-          ariaLabel={t('occurrenceTypeCatalog.redeliveryPolicy')}
-          onChange={(value) => draft.setRedeliveryPolicy(value as OccurrenceRedeliveryPolicy)}
-          options={redeliveryPolicyOptions}
-          value={redeliveryPolicy}
+          ariaLabel={t('occurrenceTypeCatalog.stage')}
+          onChange={(value) => draft.setStage(value as TripOccurrenceStage)}
+          options={[
+            {
+              label: t('occurrenceTypeCatalog.stageSeparation'),
+              value: TRIP_OCCURRENCE_STAGE.separation,
+            },
+            {
+              label: t('occurrenceTypeCatalog.stageDelivery'),
+              value: TRIP_OCCURRENCE_STAGE.delivery,
+            },
+          ]}
+          value={stage}
         />
-      )}
-      {stage === TRIP_OCCURRENCE_STAGE.delivery ? (
-        <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.attachmentModeHint')}>
-          <Select
-            ariaLabel={t('occurrenceTypeCatalog.attachmentMode')}
-            onChange={(value) => draft.setAttachmentMode(value as OccurrenceAttachmentMode)}
-            options={attachmentModeOptions}
-            value={attachmentMode}
-          />
-        </Tooltip>
-      ) : null}
-      {/* Spec 218 (D1, RF-B5): mesmo gate do `attachmentMode` — só tipo de rua tem fluxo de registro. */}
-      {stage === TRIP_OCCURRENCE_STAGE.delivery ? (
-        <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.flowHint')}>
-          <Select
-            ariaLabel={t('occurrenceTypeCatalog.flow')}
-            onChange={(value) => draft.setFlow(value as OccurrenceTypeFlow)}
-            options={flowOptions}
-            value={flow}
-          />
-        </Tooltip>
-      ) : null}
-      {/* Spec 185 T6.1 (D2/RF6): só para tipos de separação — o CHECK do banco recusa em `delivery`. */}
-      {stage === TRIP_OCCURRENCE_STAGE.separation ? (
-        <Tooltip label={t('occurrenceTypeCatalog.leavesDocumentBehindHint')}>
+        <Checkbox
+          checked={notifies}
+          label={t('occurrenceTypeCatalog.notifies')}
+          onChange={draft.setNotifies}
+        />
+        {hasItemsModeSupport ? (
+          <OccurrenceTypeItemsModeSelect onChange={draft.setItemsMode} value={itemsMode} />
+        ) : null}
+        {isItemsOff ? null : (
           <Checkbox
-            checked={leavesDocumentBehind}
-            label={t('occurrenceTypeCatalog.leavesDocumentBehind')}
-            onChange={draft.setLeavesDocumentBehind}
+            checked={allowsMultipleItems}
+            label={t('occurrenceTypeCatalog.allowsMultipleItems')}
+            onChange={draft.setAllowsMultipleItems}
           />
-        </Tooltip>
-      ) : null}
-      <Select
-        ariaLabel={t('occurrenceTypeCatalog.emailTemplate')}
-        onChange={draft.setEmailTemplateKey}
-        options={[
-          {
-            label: t('occurrenceTypeCatalog.emailTemplateNone'),
-            value: OCCURRENCE_TEMPLATE_NONE,
-          },
-          ...templateOptions.map((option) => ({ label: option.label, value: option.key })),
-        ]}
-        value={emailTemplateKey}
-      />
-      <Button disabled={isSaving} onClick={handleAdd} size="sm" type="button">
-        <Icon name="add" />
-        {t('occurrenceTypeCatalog.add')}
-      </Button>
-      <Button onClick={handleEditTemplates} size="sm" type="button" variant="ghost">
-        <Icon name="edit" />
-        {t('occurrenceTypeCatalog.editTemplates')}
-      </Button>
-    </div>
+        )}
+        {isItemsOff ? null : (
+          <Select
+            ariaLabel={t('occurrenceTypeCatalog.redeliveryPolicy')}
+            onChange={(value) => draft.setRedeliveryPolicy(value as OccurrenceRedeliveryPolicy)}
+            options={redeliveryPolicyOptions}
+            value={redeliveryPolicy}
+          />
+        )}
+        {stage === TRIP_OCCURRENCE_STAGE.delivery ? (
+          <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.attachmentModeHint')}>
+            <Select
+              ariaLabel={t('occurrenceTypeCatalog.attachmentMode')}
+              onChange={(value) => draft.setAttachmentMode(value as OccurrenceAttachmentMode)}
+              options={attachmentModeOptions}
+              value={attachmentMode}
+            />
+          </Tooltip>
+        ) : null}
+        {/* Spec 218 (D1, RF-B5): mesmo gate do `attachmentMode` — só tipo de rua tem fluxo de registro. */}
+        {stage === TRIP_OCCURRENCE_STAGE.delivery ? (
+          <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.flowHint')}>
+            <Select
+              ariaLabel={t('occurrenceTypeCatalog.flow')}
+              onChange={(value) => draft.setFlow(value as OccurrenceTypeFlow)}
+              options={flowOptions}
+              value={flow}
+            />
+          </Tooltip>
+        ) : null}
+        {/* Spec 185 T6.1 (D2/RF6): só para tipos de separação — o CHECK do banco recusa em `delivery`. */}
+        {stage === TRIP_OCCURRENCE_STAGE.separation ? (
+          <Tooltip label={t('occurrenceTypeCatalog.leavesDocumentBehindHint')}>
+            <Checkbox
+              checked={leavesDocumentBehind}
+              label={t('occurrenceTypeCatalog.leavesDocumentBehind')}
+              onChange={draft.setLeavesDocumentBehind}
+            />
+          </Tooltip>
+        ) : null}
+        <Select
+          ariaLabel={t('occurrenceTypeCatalog.emailTemplate')}
+          onChange={draft.setEmailTemplateKey}
+          options={[
+            {
+              label: t('occurrenceTypeCatalog.emailTemplateNone'),
+              value: OCCURRENCE_TEMPLATE_NONE,
+            },
+            ...templateOptions.map((option) => ({ label: option.label, value: option.key })),
+          ]}
+          value={emailTemplateKey}
+        />
+        <div className={itemStyles.createActions}>
+          <Button disabled={isSaving} onClick={handleAdd} size="sm" type="button">
+            <Icon name="add" />
+            {t('occurrenceTypeCatalog.add')}
+          </Button>
+          <Button onClick={handleEditTemplates} size="sm" type="button" variant="ghost">
+            <Icon name="edit" />
+            {t('occurrenceTypeCatalog.editTemplates')}
+          </Button>
+        </div>
+      </div>
+    </section>
   )
 }

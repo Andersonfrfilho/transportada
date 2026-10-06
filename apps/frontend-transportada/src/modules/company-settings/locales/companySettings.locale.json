@@ -282,7 +282,7 @@
   },
   "occurrenceTypeCatalog": {
     "title": "Tipos de ocorrência",
-    "hint": "Cadastre os tipos que a operação usa. O aviso vai para quem despachou a viagem, e só nos tipos marcados — o padrão é não avisar.",
+    "hint": "Cada tipo declara em que momentos pode ser registrado e o que exige de prova. A exceção por CNPJ vence a regra geral: destinatário primeiro, depois contratante. O aviso ao contratante só sai nos tipos marcados.",
     "empty": "Nenhum tipo cadastrado ainda. Cadastre o primeiro para poder registrar ocorrências.",
     "add": "Cadastrar tipo",
     "name": "Nome do tipo",
@@ -344,7 +344,17 @@
       "remove": "Remover",
       "removeOf": "Remover exceção de {{name}}"
     },
+    "identity": {
+      "title": "Identificação",
+      "name": "Nome",
+      "redelivery": "Devolução",
+      "flow": "Registro"
+    },
+    "create": {
+      "title": "Novo tipo"
+    },
     "requirements": {
+      "scope": "regra geral",
       "title": "O que exige",
       "legend": "Obrigatório quer dizer: a ocorrência não é registrada sem aquilo. Foto é a imagem capturada no aparelho; Observação é o texto do motorista; Assinatura é a de quem deu a negativa; Produtos é ao menos um item da nota marcado.",
       "fields": {

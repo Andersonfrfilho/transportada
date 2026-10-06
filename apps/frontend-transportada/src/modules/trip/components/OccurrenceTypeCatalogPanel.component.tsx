@@ -97,7 +97,7 @@ export function OccurrenceTypeCatalogPanel({
 
   return (
     <section className={styles.panel}>
-      <h3 className={styles.hint}>{t('occurrenceTypeCatalog.title')}</h3>
+      <h2>{t('occurrenceTypeCatalog.title')}</h2>
       <p className={styles.hint}>{t('occurrenceTypeCatalog.hint')}</p>
 
       {types.length === 0 ? (
