@@ -10,6 +10,11 @@ import { eq } from 'drizzle-orm'
 
 import { createCargoPreviewHttpRoutes } from '../../src/cargo-receiving/cargo-preview.composition.js'
 import {
+  selectTripDraftDocuments,
+  selectTripDraftItems,
+  selectTripDraftRouteLoads,
+} from '../../src/cargo-receiving/infrastructure/cargo-preview-trip-draft.query.js'
+import {
   cargoPreviewDocumentLinks,
   cargoPreviewItems,
   cargoPreviewRouteLoads,
@@ -115,9 +120,13 @@ type ItemSeed = {
 
 async function seedItems(
   database: TestDatabase,
-  input: { readonly items: readonly ItemSeed[]; readonly previewId: string },
+  input: {
+    readonly companyId?: string
+    readonly items: readonly ItemSeed[]
+    readonly previewId: string
+  },
 ): Promise<void> {
-  const companyId = COMPANY_CONTEXT.companyId
+  const companyId = input.companyId ?? COMPANY_CONTEXT.companyId
   const links = new Set(
     input.items.flatMap((item) =>
       item.state === 'matched' && item.documentId ? [item.documentId] : [],
@@ -392,4 +401,59 @@ describe('os rascunhos de viagem da prévia contra o banco (spec 237 T5.1)', () 
       expect(body?.data.routableDocumentIds).toEqual([])
     })
   })
+
+  testWithPostgres(
+    'as consultas nunca cruzam a empresa nem a prévia: a chave do outro lado volta vazia',
+    async () => {
+      await withCargoDatabase(async (database, tenants) => {
+        const mine = await seedReadyPreview(database, { ...tenants, label: 'cruzamento-minha' })
+        const foreign = await seedReadyPreview(database, {
+          companyId: tenants.foreignCompanyId,
+          contractorId: tenants.foreignContractorId,
+          label: 'cruzamento-alheia',
+        })
+        const foreignDocument = await seedIssuedDocument(database, {
+          companyId: tenants.foreignCompanyId,
+          number: '888',
+        })
+        const mineDocument = await seedIssuedDocument(database, { number: '889' })
+        await seedItems(database, {
+          companyId: tenants.foreignCompanyId,
+          items: [
+            { documentId: foreignDocument, rowNumber: 1, routeName: 'FR.Z', state: 'matched' },
+          ],
+          previewId: foreign,
+        })
+        await seedItems(database, {
+          items: [{ documentId: mineDocument, rowNumber: 1, routeName: 'FR.Y', state: 'matched' }],
+          previewId: mine,
+        })
+        for (const companyId of [COMPANY_CONTEXT.companyId, tenants.foreignCompanyId]) {
+          await database.db.insert(cargoPreviewRouteLoads).values({
+            companyId,
+            loadReference: companyId === COMPANY_CONTEXT.companyId ? '111' : '222',
+            origin: 'totals',
+            previewId: companyId === COMPANY_CONTEXT.companyId ? mine : foreign,
+            routeName: 'FR.Q',
+          })
+        }
+        const here = COMPANY_CONTEXT.companyId
+
+        expect(
+          await selectTripDraftItems(database.db, { companyId: here, previewId: foreign }),
+        ).toEqual([])
+        expect(
+          await selectTripDraftDocuments(database.db, { companyId: here, previewId: foreign }),
+        ).toEqual([])
+        expect(
+          await selectTripDraftRouteLoads(database.db, { companyId: here, previewId: foreign }),
+        ).toEqual([])
+        const own = await selectTripDraftDocuments(database.db, {
+          companyId: here,
+          previewId: mine,
+        })
+        expect(own.map((row) => row.id)).toEqual([mineDocument])
+      })
+    },
+  )
 })

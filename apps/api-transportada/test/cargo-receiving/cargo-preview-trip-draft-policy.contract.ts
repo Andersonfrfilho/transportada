@@ -154,6 +154,17 @@ describe('os rascunhos de viagem da prévia (spec 237 T5.1)', () => {
     expect(drafts.summary.linkedDocumentCount).toBe(1)
   })
 
+  test('o estado manda, não a coluna: a linha sugerida com id de nota gravado também não vincula', () => {
+    const drafts = build({
+      documents: [document({ id: 'doc-a' })],
+      items: [item({ matchState: 'suggested', matchedDocumentId: 'doc-a', rowNumber: 1 })],
+    })
+
+    expect(drafts.routes[0]?.documents).toEqual([])
+    expect(drafts.routableDocumentIds).toEqual([])
+    expect(drafts.summary.linkedDocumentCount).toBe(0)
+  })
+
   test('quantas linhas da planilha fecham cada nota (n linhas ↔ 1 nota)', () => {
     const drafts = build({
       documents: [document({ id: 'doc-a' })],
@@ -347,6 +358,21 @@ describe('os rascunhos de viagem da prévia (spec 237 T5.1)', () => {
     expect(route?.linkedTotals).toEqual({ value: '350.5000', weightKg: '25.500' })
     expect(route?.documents[0]?.weightKg).toBe('25.500')
     expect(route?.documents[1]?.weightKg).toBeNull()
+  })
+
+  test('os totais de um roteiro não somam as linhas do outro', () => {
+    const drafts = build({
+      items: [
+        item({ routeName: 'A', rowNumber: 1, value: '10.00', weightKg: '1.000' }),
+        item({ routeName: 'B', rowNumber: 2, value: '200.00', weightKg: '20.000' }),
+        item({ routeName: 'B', rowNumber: 3, value: '300.00', weightKg: '30.000' }),
+      ],
+    })
+
+    expect(drafts.routes.map((route) => [route.totals.value, route.totals.weightKg])).toEqual([
+      ['10.00', '1.000'],
+      ['500.00', '50.000'],
+    ])
   })
 
   test('sem volume em nenhuma linha, o volume do roteiro é nulo (e não zero)', () => {
