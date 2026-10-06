@@ -5,6 +5,7 @@ import {
   OCCURRENCE_ATTACHMENT_MODES,
   OCCURRENCE_ITEMS_MODES,
   OCCURRENCE_MOMENTS,
+  OCCURRENCE_PHOTO_MINIMUM_COUNT,
   OCCURRENCE_TYPE_FLOWS,
   type OccurrenceType,
 } from './occurrence.constant'
@@ -1803,12 +1804,26 @@ type RawOccurrenceType = Omit<
     attachmentMode?: unknown
     emailsContractor?: unknown
     flow?: unknown
+    itemsMinimumCount?: unknown
     itemsMode?: unknown
     leavesDocumentBehind?: unknown
     moments?: unknown
+    photoMinimumCount?: unknown
     redeliveryPolicy?: unknown
     stopKind?: unknown
   }>
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1
+}
+
+function isPhotoMinimumCount(value: unknown): boolean {
+  return (
+    isPositiveInteger(value) &&
+    value >= OCCURRENCE_PHOTO_MINIMUM_COUNT.min &&
+    value <= OCCURRENCE_PHOTO_MINIMUM_COUNT.max
+  )
+}
 
 function isOccurrenceType(value: unknown): value is RawOccurrenceType {
   if (
@@ -1826,12 +1841,16 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         'emailsContractor',
         /** Spec 218 (RF-B5): mesma tolerância — ausente é API anterior ao campo, vira `document`. */
         'flow',
+        /** Spec 246 T1c.4: quantidade mínima de produtos (nulo = todos os itens), tolerada antes de a API mandá-la. */
+        'itemsMinimumCount',
         /** Spec 241 RF1: mesma tolerância — ausente é API anterior ao campo e continua ausente. */
         'itemsMode',
         /** Spec 185 T6.1 (D2): mesma tolerância — ausente é API anterior ao campo. */
         'leavesDocumentBehind',
         /** Spec 246 T1b.1b: o painel tolera os momentos antes de a API mandá-los; a Fase 5 os edita. */
         'moments',
+        /** Spec 246 T1c.4: quantidade mínima de fotos (1..5), tolerada antes de a API mandá-la. */
+        'photoMinimumCount',
         'redeliveryPolicy',
         'stopKind',
       ],
@@ -1852,12 +1871,16 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
     (value.emailTemplateKey === null || isString(value.emailTemplateKey)) &&
     (value.flow === undefined || isOneOf(value.flow, OCCURRENCE_TYPE_FLOWS)) &&
     isString(value.id) &&
+    (value.itemsMinimumCount === undefined ||
+      value.itemsMinimumCount === null ||
+      isPositiveInteger(value.itemsMinimumCount)) &&
     (value.itemsMode === undefined || isOneOf(value.itemsMode, OCCURRENCE_ITEMS_MODES)) &&
     (value.leavesDocumentBehind === undefined || isBoolean(value.leavesDocumentBehind)) &&
     (value.moments === undefined ||
       isEveryItem(value.moments, (moment) => isOneOf(moment, OCCURRENCE_MOMENTS))) &&
     isString(value.name) &&
     isBoolean(value.notifies) &&
+    (value.photoMinimumCount === undefined || isPhotoMinimumCount(value.photoMinimumCount)) &&
     (value.redeliveryPolicy === undefined ||
       value.redeliveryPolicy === 'unset' ||
       value.redeliveryPolicy === 'allowed' ||
