@@ -153,12 +153,12 @@ $ bun test ./test/trip-schema/occurrence-type-requirement-modes.contract.ts   # 
 
 Com o schema novo: `8 pass, 0 fail`; `bun test ./test/trip-schema.contract.test.ts` → `249 pass, 0
 fail`; `bun run typecheck` → 0 erros. `bun run db:generate --name occurrence_type_requirement_modes`
-→ `drizzle/20261006112823_occurrence_type_requirement_modes/migration.sql` (DDL na ordem do
+→ `drizzle/20261006184835_occurrence_type_requirement_modes/migration.sql` (DDL na ordem do
 drizzle-kit; a ordem do plan, os `UPDATE`s e o `rollback.sql` são a T1.2).
 
 ### T1.2 🧠 — Migration na ordem do plan (2026-10-06)
 
-`drizzle/20261006112823_occurrence_type_requirement_modes/`: o DDL do `db:generate` foi reordenado à
+`drizzle/20261006184835_occurrence_type_requirement_modes/`: o DDL do `db:generate` foi reordenado à
 mão e ganhou os três `UPDATE`s e o `rollback.sql` no padrão da casa. Ordem: `ADD COLUMN` do tipo
 (padrão constante) → `ADD COLUMN` das exceções (nulas) → `UPDATE company_occurrence_types SET
 note_mode = 'required' WHERE attachment_mode = 'required'` → `UPDATE <exceção> SET note_mode = CASE
@@ -177,7 +177,7 @@ gerou e sem `rollback.sql`:
 $ bun test ./test/database-migration/occurrence-type-requirement-modes.static.contract.ts
 error: Missing fragment: UPDATE "company_occurrence_types" SET "note_mode" = 'required' WHERE "attachment_mode" = 'required';
 (fail) a exigência vira dado na ordem do plan (spec 246 T1.2) > colunas do tipo → das exceções → UPDATEs → CHECKs → signature_object_id
-ENOENT: no such file or directory, open '.../drizzle/20261006112823_occurrence_type_requirement_modes/rollback.sql'
+ENOENT: no such file or directory, open '.../drizzle/20261006184835_occurrence_type_requirement_modes/rollback.sql'
 (fail) a exigência vira dado na ordem do plan (spec 246 T1.2) > o rollback desfaz só a 246, em ordem inversa, e não toca a 241
  0 pass
  2 fail
@@ -351,7 +351,7 @@ company_occurrence_types(company_id, id) ON DELETE CASCADE`, `company_occurrence
 (company_id, occurrence_type_id, moment)` e `company_occurrence_type_moments_moment_check` gerada de
 `inList(OCCURRENCE_MOMENTS)`.
 
-Migration `drizzle/20261006115725_occurrence_type_moments/` (`db:generate --name
+Migration `drizzle/20261006184901_occurrence_type_moments/` (`db:generate --name
 occurrence_type_moments`, depois o backfill à mão): `CREATE TABLE` → as duas FKs → cinco `INSERT …
 SELECT … ON CONFLICT ON CONSTRAINT "company_occurrence_type_moments_unique" DO NOTHING`, uma regra da
 tabela do plan por instrução (a de `stop` são duas: `delivery + stop` e `separation + stop`, D-c), sem
@@ -673,7 +673,7 @@ Depois: `23 pass, 0 fail`; `typecheck` saída 0.
 ### Gates ao fechar a Fase 1b (2026-10-06, primeiro plano)
 
 `git fetch`: nenhuma migration nova em `origin/staging` desde o começo da fase (a 246 segue no topo:
-`20261006112823_occurrence_type_requirement_modes` → `20261006115725_occurrence_type_moments`).
+`20261006184835_occurrence_type_requirement_modes` → `20261006184901_occurrence_type_moments`).
 
 | Gate                                                                         | Resultado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -694,7 +694,7 @@ Depois: `23 pass, 0 fail`; `typecheck` saída 0.
 
 ### T1c.1 — Colunas, CHECKs e rollback (2026-10-06)
 
-Migration `20261006123712_occurrence_type_quantity_minimums` (`db:generate --name`, depois cabeçalho e
+Migration `20261006184909_occurrence_type_quantity_minimums` (`db:generate --name`, depois cabeçalho e
 `rollback.sql` à mão). Tipo: `photo_minimum_count smallint NOT NULL DEFAULT 1` (CHECK 1..5) e
 `items_minimum_count smallint` nulo (CHECK `>= 1`; CHECK `items_minimum_count IS NULL OR items_mode =
 'required'`). Nas duas exceções: `items_mode varchar(16)`, `photo_minimum_count smallint` e
@@ -1007,7 +1007,7 @@ restauradas em seguida (`git status` só com os arquivos novos):
 ### T1d.2 🧠 — Migration própria do backfill (2026-10-06)
 
 `bun run db:generate --custom --name street_occurrence_attachment_backfill` →
-`drizzle/20261006131040_street_occurrence_attachment_backfill/` (migration vazia + `snapshot.json`).
+`drizzle/20261006184921_street_occurrence_attachment_backfill/` (migration vazia + `snapshot.json`).
 `migration.sql`, sob um cabeçalho que diz o porquê de cada cláusula e o deploy separado:
 
 ```sql
@@ -1038,7 +1038,7 @@ Contrato primeiro — `test/database-migration/street-occurrence-attachment-back
 $ bun test ./test/database-migration/street-occurrence-attachment-backfill.static.contract.ts
 error: expect(received).toContain(expected)
 (fail) ... > um INSERT ... SELECT só, com a hora da ocorrência, sem duplicar e sem tocar a coluna
-ENOENT: no such file or directory, open '.../20261006131040_street_occurrence_attachment_backfill/rollback.sql'
+ENOENT: no such file or directory, open '.../20261006184921_street_occurrence_attachment_backfill/rollback.sql'
 (fail) ... > o rollback só tira o registro do journal, conferindo que tirou um
  0 pass
  2 fail
@@ -1246,7 +1246,7 @@ evento de foto da linha do tempo da ocorrência.
 | worker / painel                                                              | não tocados nesta fase (nenhum arquivo de `apps/worker-transportada` nem `apps/frontend-*` mudou); suítes não rodadas                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 Pendente: **T1d.0** (medição em produção, pede autorização) e a **ordem de publicação** — a T1.2
-aplicada em staging e produção antes de a pasta `20261006131040_street_occurrence_attachment_backfill`
+aplicada em staging e produção antes de a pasta `20261006184921_street_occurrence_attachment_backfill`
 entrar em qualquer push (plan § T1d.2).
 
 ## Fase 2 — A API resolve e cobra os campos do tipo
@@ -2283,7 +2283,7 @@ da RF0 como a tarefa pediu.
 ## T6.1 — Revisão de design e usabilidade da aba Tipos (CA08, 2026-10-06)
 
 **Ambiente (método das revisões da 240 T5.1 e da 241 T3.1).** Banco descartável `transportada_246_review` (`pg_dump` do banco local de dev
-dentro do mesmo Postgres, migrado só nele até a `20261006131040`; o banco compartilhado não foi tocado), API desta árvore na 53091, Vite
+dentro do mesmo Postgres, migrado só nele até a `20261006184921`; o banco compartilhado não foi tocado), API desta árvore na 53091, Vite
 do binário da app (`apps/frontend-transportada/node_modules/.bin/vite`) na 53090 com `VITE_SMOKE_AUTH_BYPASS=true`, e um proxy descartável
 fora do repositório na 53092 que troca o `Authorization` pelo token real de `local-user` (PKCE contra o Keycloak local, renovado a cada
 200 s; senha e token: `[REDACTED]`). O MinIO não foi necessário (a aba não toca storage). Dados criados pela API: 6 tipos novos (galpão +

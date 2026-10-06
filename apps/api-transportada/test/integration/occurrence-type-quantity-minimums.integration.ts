@@ -16,7 +16,7 @@ import { runDatabaseMigrations } from '../../src/database/database-migration.ser
 import { withDisposableDatabase } from '../fixtures/disposable-database.fixture.js'
 
 const MIGRATION_DIRECTORY = new URL(
-  '../../drizzle/20261006123712_occurrence_type_quantity_minimums/',
+  '../../drizzle/20261006184909_occurrence_type_quantity_minimums/',
   import.meta.url,
 )
 const TYPES = 'company_occurrence_types'

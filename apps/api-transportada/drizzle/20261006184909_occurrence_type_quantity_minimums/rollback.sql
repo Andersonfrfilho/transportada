@@ -49,7 +49,7 @@ DECLARE
   deleted_migrations integer;
 BEGIN
   DELETE FROM "drizzle"."__drizzle_migrations"
-    WHERE "name" = '20261006123712_occurrence_type_quantity_minimums';
+    WHERE "name" = '20261006184909_occurrence_type_quantity_minimums';
 
   GET DIAGNOSTICS deleted_migrations = ROW_COUNT;
   IF deleted_migrations <> 1 THEN

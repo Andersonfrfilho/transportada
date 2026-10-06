@@ -346,12 +346,12 @@ describe('Drizzle migrations', () => {
       '20261004174001_cargo_preview_security_failure_codes',
       '20261004180153_contractor_receiving_arrival_reference_label',
       '20261006033752_occurrence_type_items_mode',
-      '20261006112823_occurrence_type_requirement_modes',
-      '20261006115725_occurrence_type_moments',
-      '20261006123712_occurrence_type_quantity_minimums',
-      '20261006131040_street_occurrence_attachment_backfill',
       '20261006144825_cargo_arrival_check_null_holes',
       '20261006180700_cargo_arrival_receiving_occurrence',
+      '20261006184835_occurrence_type_requirement_modes',
+      '20261006184901_occurrence_type_moments',
+      '20261006184909_occurrence_type_quantity_minimums',
+      '20261006184921_street_occurrence_attachment_backfill',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

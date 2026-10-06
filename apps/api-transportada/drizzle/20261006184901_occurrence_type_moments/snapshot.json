@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "3156eaca-3ade-4aca-93d9-840ee39edee4",
+  "id": "d4039380-5a29-443c-b0aa-c73d7c893da1",
   "prevIds": [
-    "ba78d050-5663-4cfb-8b72-381e191c16b0"
+    "6b907994-5d88-45ed-8a4f-f41121384335"
   ],
   "ddl": [
     {
@@ -28294,45 +28294,6 @@
       "table": "company_occurrence_type_contractor_overrides"
     },
     {
-      "type": "varchar(16)",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "items_mode",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_occurrence_type_contractor_overrides"
-    },
-    {
-      "type": "smallint",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "photo_minimum_count",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_occurrence_type_contractor_overrides"
-    },
-    {
-      "type": "smallint",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "items_minimum_count",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_occurrence_type_contractor_overrides"
-    },
-    {
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -28445,45 +28406,6 @@
       "generated": null,
       "identity": null,
       "name": "signature_mode",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_occurrence_type_recipient_overrides"
-    },
-    {
-      "type": "varchar(16)",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "items_mode",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_occurrence_type_recipient_overrides"
-    },
-    {
-      "type": "smallint",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "photo_minimum_count",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_occurrence_type_recipient_overrides"
-    },
-    {
-      "type": "smallint",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "items_minimum_count",
       "entityType": "columns",
       "schema": "public",
       "table": "company_occurrence_type_recipient_overrides"
@@ -28757,32 +28679,6 @@
       "generated": null,
       "identity": null,
       "name": "signature_mode",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_occurrence_types"
-    },
-    {
-      "type": "smallint",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "1",
-      "generated": null,
-      "identity": null,
-      "name": "photo_minimum_count",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_occurrence_types"
-    },
-    {
-      "type": "smallint",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "items_minimum_count",
       "entityType": "columns",
       "schema": "public",
       "table": "company_occurrence_types"
@@ -63317,34 +63213,6 @@
       "table": "company_occurrence_type_contractor_overrides"
     },
     {
-      "value": "\"items_mode\" in ('required', 'optional', 'off')",
-      "name": "occurrence_type_contractor_overrides_items_mode_check",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "company_occurrence_type_contractor_overrides"
-    },
-    {
-      "value": "\"photo_minimum_count\" between 1 and 5",
-      "name": "occurrence_type_contractor_overrides_photo_minimum_count_check",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "company_occurrence_type_contractor_overrides"
-    },
-    {
-      "value": "\"items_minimum_count\" >= 1",
-      "name": "occurrence_type_contractor_overrides_items_minimum_count_check",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "company_occurrence_type_contractor_overrides"
-    },
-    {
-      "value": "\"items_minimum_count\" is null or coalesce(\"items_mode\", '') = 'required'",
-      "name": "occurrence_type_contractor_overrides_items_minimum_shape_check",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "company_occurrence_type_contractor_overrides"
-    },
-    {
       "value": "\"attachment_mode\" in ('required', 'optional', 'off')",
       "name": "company_occurrence_type_recipient_overrides_attachment_mode_check",
       "entityType": "checks",
@@ -63361,34 +63229,6 @@
     {
       "value": "\"signature_mode\" in ('required', 'optional', 'off')",
       "name": "occurrence_type_recipient_overrides_signature_mode_check",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "company_occurrence_type_recipient_overrides"
-    },
-    {
-      "value": "\"items_mode\" in ('required', 'optional', 'off')",
-      "name": "occurrence_type_recipient_overrides_items_mode_check",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "company_occurrence_type_recipient_overrides"
-    },
-    {
-      "value": "\"photo_minimum_count\" between 1 and 5",
-      "name": "occurrence_type_recipient_overrides_photo_minimum_count_check",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "company_occurrence_type_recipient_overrides"
-    },
-    {
-      "value": "\"items_minimum_count\" >= 1",
-      "name": "occurrence_type_recipient_overrides_items_minimum_count_check",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "company_occurrence_type_recipient_overrides"
-    },
-    {
-      "value": "\"items_minimum_count\" is null or coalesce(\"items_mode\", '') = 'required'",
-      "name": "occurrence_type_recipient_overrides_items_minimum_shape_check",
       "entityType": "checks",
       "schema": "public",
       "table": "company_occurrence_type_recipient_overrides"
@@ -63459,27 +63299,6 @@
     {
       "value": "\"signature_mode\" in ('required', 'optional', 'off')",
       "name": "company_occurrence_types_signature_mode_check",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "company_occurrence_types"
-    },
-    {
-      "value": "\"photo_minimum_count\" between 1 and 5",
-      "name": "company_occurrence_types_photo_minimum_count_check",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "company_occurrence_types"
-    },
-    {
-      "value": "\"items_minimum_count\" >= 1",
-      "name": "company_occurrence_types_items_minimum_count_check",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "company_occurrence_types"
-    },
-    {
-      "value": "\"items_minimum_count\" is null or \"items_mode\" = 'required'",
-      "name": "company_occurrence_types_items_minimum_shape_check",
       "entityType": "checks",
       "schema": "public",
       "table": "company_occurrence_types"
@@ -64696,7 +64515,7 @@
       "table": "cargo_arrivals"
     },
     {
-      "value": "(\"separation_window_hours\" is null and \"separation_due_at\" is null) or extract(epoch from \"separation_due_at\" - \"arrived_at\") = \"separation_window_hours\" * 3600",
+      "value": "(\"separation_window_hours\" is null) = (\"separation_due_at\" is null) and (\"separation_due_at\" is null or extract(epoch from \"separation_due_at\" - \"arrived_at\") = \"separation_window_hours\" * 3600)",
       "name": "cargo_arrivals_separation_due_at_check",
       "entityType": "checks",
       "schema": "public",
@@ -64759,7 +64578,7 @@
       "table": "cargo_arrival_documents"
     },
     {
-      "value": "(\"separation_state\" = 'expected' and \"received_at\" is null and \"separated_at\" is null) or (\"separation_state\" = 'received' and \"received_at\" is not null and \"separated_at\" is null) or (\"separation_state\" = 'separated' and \"received_at\" is not null and \"separated_at\" >= \"received_at\")",
+      "value": "(\"separation_state\" = 'expected' and \"received_at\" is null and \"separated_at\" is null) or (\"separation_state\" = 'received' and \"received_at\" is not null and \"separated_at\" is null) or (\"separation_state\" = 'separated' and \"received_at\" is not null and \"separated_at\" is not null and \"separated_at\" >= \"received_at\")",
       "name": "cargo_arrival_documents_state_dates_check",
       "entityType": "checks",
       "schema": "public",
@@ -64780,7 +64599,7 @@
       "table": "cargo_arrival_events"
     },
     {
-      "value": "case \"kind\" when 'document_added' then \"from_state\" is null and \"to_state\" = 'expected' when 'document_received' then \"from_state\" = 'expected' and \"to_state\" = 'received' when 'document_separated' then \"from_state\" = 'received' and \"to_state\" = 'separated' else \"from_state\" is null and \"to_state\" is null end",
+      "value": "case \"kind\" when 'document_added' then \"from_state\" is null and \"to_state\" is not null and \"to_state\" = 'expected' when 'document_received' then \"from_state\" is not null and \"to_state\" is not null and \"from_state\" = 'expected' and \"to_state\" = 'received' when 'document_separated' then \"from_state\" is not null and \"to_state\" is not null and \"from_state\" = 'received' and \"to_state\" = 'separated' else \"from_state\" is null and \"to_state\" is null end",
       "name": "cargo_arrival_events_state_shape_check",
       "entityType": "checks",
       "schema": "public",

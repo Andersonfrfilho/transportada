@@ -16,7 +16,7 @@ import { runDatabaseMigrations } from '../../src/database/database-migration.ser
 import { withDisposableDatabase } from '../fixtures/disposable-database.fixture.js'
 
 const MIGRATION_DIRECTORY = new URL(
-  '../../drizzle/20261006112823_occurrence_type_requirement_modes/',
+  '../../drizzle/20261006184835_occurrence_type_requirement_modes/',
   import.meta.url,
 )
 const CONTRACTOR_TAX_ID = '30290856000160'
