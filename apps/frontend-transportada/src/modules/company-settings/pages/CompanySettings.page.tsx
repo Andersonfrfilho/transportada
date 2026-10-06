@@ -20,11 +20,6 @@ import {
   type DriverAllowancePanelProps,
 } from '../components/DriverAllowancePanel.component'
 import { useDriverAllowancePanel } from '../hooks/useDriverAllowancePanel.hook'
-import {
-  OccurrenceTypeCatalogPanel,
-  type OccurrenceTypeCatalogPanelProps,
-} from '../components/OccurrenceTypeCatalogPanel.component'
-import { useOccurrenceTypeCatalogPanel } from '../hooks/useOccurrenceTypeCatalogPanel.hook'
 import { resolveTripFeedbackKey } from '@/modules/trip/shared/tripFeedback.service'
 import {
   CompanyEntryKindCatalogPanel,
@@ -132,7 +127,6 @@ type SettingsBodyProps = Readonly<{
   initialValue: CompanySettingsUpdate | undefined
   landing: LandingSection
   logo: LogoSection
-  occurrenceTypeCatalog: OccurrenceTypeCatalogPanelProps
   onCertificateSubmit: (body: FormData) => Promise<SafeCertificate>
   onCertificateDelete: (purpose: CertificatePurpose) => Promise<void>
   onLookupProfile: (cnpj: string) => Promise<CompanyProfileLookup | null>
@@ -250,8 +244,6 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
   if (tab === 'company') return <CompanyTabPanel {...props} />
   if (tab === 'taxes') return <FederalTaxPanel {...props.federalTaxes} />
   if (tab === 'driverAllowance') return <DriverAllowancePanel {...props.driverAllowance} />
-  if (tab === 'occurrenceTypes')
-    return <OccurrenceTypeCatalogPanel {...props.occurrenceTypeCatalog} />
   if (tab === 'entryKinds') return <CompanyEntryKindCatalogPanel {...props.entryKindCatalog} />
   /** Spec 218 RF-E1/RF-E2: painel autocontido — busca os próprios dados, como o de ocorrência acima. */
   if (tab === 'settingsResolution')
@@ -377,9 +369,6 @@ export function CompanySettingsPage() {
   })
   const driverAllowanceError =
     driverAllowancePanel.saveMutation.error ?? driverAllowancePanel.clearMutation.error
-  const occurrenceTypeCatalogPanel = useOccurrenceTypeCatalogPanel({
-    enabled: canManageSettings && activeTab === 'occurrenceTypes',
-  })
   const entryKindCatalogPanel = useCompanyEntryKindCatalogPanel({
     enabled: canManageSettings && activeTab === 'entryKinds',
   })
@@ -462,13 +451,6 @@ export function CompanySettingsPage() {
           onSave: (amount) => driverAllowancePanel.saveMutation.mutate(amount),
           saved: driverAllowancePanel.saveMutation.isSuccess,
           stored: driverAllowancePanel.query.data,
-        }}
-        occurrenceTypeCatalog={{
-          canManage: canManageSettings,
-          isSaving: occurrenceTypeCatalogPanel.saveMutation.isPending,
-          onSave: (type) => occurrenceTypeCatalogPanel.saveMutation.mutate(type),
-          saveFeedbackKey: resolveTripFeedbackKey(occurrenceTypeCatalogPanel.saveMutation.error),
-          types: occurrenceTypeCatalogPanel.query.data ?? [],
         }}
         entryKindCatalog={{
           canManage: canManageSettings,
