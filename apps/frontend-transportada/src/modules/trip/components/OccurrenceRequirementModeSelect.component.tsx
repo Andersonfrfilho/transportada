@@ -37,7 +37,7 @@ export function OccurrenceRequirementModeSelect({
       <span aria-hidden="true" className={styles.fieldLabel}>
         {label}
       </span>
-      <Tooltip dismissOnActivate label={t(`occurrenceTypeCatalog.requirements.hints.${field}`)}>
+      <Tooltip dismissOnActivate fill label={t(`occurrenceTypeCatalog.requirements.hints.${field}`)}>
         <Select
           ariaLabel={label}
           disabled={disabled}

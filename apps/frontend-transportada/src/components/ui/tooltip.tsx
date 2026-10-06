@@ -23,6 +23,8 @@ type TooltipProps = Readonly<{
    * dele nasce sob a dica e ficaria coberta. Os gatilhos só-dica mantêm a dica aberta ao ativar.
    */
   dismissOnActivate?: boolean
+  /** O filho é um campo que deve ocupar a largura do item de grade (Select). Botão de ícone não pede. */
+  fill?: boolean
   /** O texto da dica. Vazio desliga o tooltip, e o gatilho segue renderizando normalmente. */
   label: string
 }>
@@ -37,7 +39,12 @@ type TooltipProps = Readonly<{
  * O teclado abre a dica no `focus`, e não só no `hover`: uma dica que só existe para quem tem mouse
  * é informação que some para quem navega por Tab.
  */
-export function Tooltip({ children, dismissOnActivate = false, label }: TooltipProps): JSX.Element {
+export function Tooltip({
+  children,
+  dismissOnActivate = false,
+  fill = false,
+  label,
+}: TooltipProps): JSX.Element {
   const [isOpen, setIsOpen] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const describedById = useId()
@@ -71,7 +78,7 @@ export function Tooltip({ children, dismissOnActivate = false, label }: TooltipP
     <>
       <div
         aria-describedby={isOpen ? describedById : undefined}
-        className={styles.trigger}
+        className={fill ? styles.triggerFill : styles.trigger}
         onBlur={close}
         /**
          * Um seletor que abre a lista por baixo da dica fica com as opções cobertas (a dica pinta

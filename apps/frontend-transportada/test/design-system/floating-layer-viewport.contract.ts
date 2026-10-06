@@ -27,10 +27,10 @@ describe('camadas flutuantes cabem na tela (T6.1, CA08)', () => {
     expect(readCssBlock(select, '.description')).toInclude('white-space: nowrap')
   })
 
-  test('o gatilho do tooltip nunca é mais largo que o contêiner', async () => {
+  test('o gatilho do tooltip com campo (fill) nunca é mais largo que o contêiner', async () => {
     const tooltip = await readStylesheet(`${UI}/tooltip.module.css`)
 
-    expect(readCssBlock(tooltip, '.trigger')).toInclude('max-width: 100%')
+    expect(readCssBlock(tooltip, '.triggerFill')).toInclude('max-width: 100%')
   })
 
   test('a lista do painel tem coluna que encolhe, para a opção não sair cortada', async () => {
