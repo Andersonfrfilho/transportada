@@ -1253,3 +1253,26 @@ previewEnabled }], nextCursor }`), uma guarda por módulo. Registro de chegada: 
   `h1` global nos dois pontos em que ele muda (`clamp(3.5rem, 15vw, 9rem)` e, de `64rem`, `clamp(5rem, 11vw, 9rem)`), e o
   contrato lê os valores do `index.css`. O projeto só aceita consulta `min-width` nos três pontos (`responsive.contract.ts`).
 - **Não corrigidos de propósito (registrados):** B-1, B-4 e B-5 da terceira revisão ficam como estão.
+
+## Spec 246 — a aba Tipos em `/ocorrencias` (T6.2)
+
+- **Endereço:** `TripOccurrencesWorkspace.page.tsx` ganhou `<Tabs>` (ocorrências | Tipos); a aba só existe com `settings.manage`
+  e vai para a URL. O `OccurrenceTypeCatalogPanel` e seus subcomponentes (`OccurrenceTypeRow`, `OccurrenceTypeSummary`,
+  `OccurrenceTypeFilters`) moram em `modules/trip`; `SETTINGS_PANEL_PLACEMENT`, `SETTINGS_PANEL_MODULES` e
+  `COMPANY_SETTINGS_TAB_IDS` perderam o painel antigo (um endereço só, provado por contrato). As traduções **continuam** no
+  namespace `companySettings` (mover ~120 chaves tocaria as duas apps e todos os contratos de locale).
+- **Dados:** a consulta em lote de exceções (`OCCURRENCE_TYPE_ATTACHMENT_OVERRIDES_BATCH_PATH`) é uma por tela; contratantes seguem o
+  cursor (até 30 páginas) e a lista de clientes tem teto de 3000 com aviso "pode estar incompleta"; os dois só carregam quando um
+  tipo abre ou há busca digitada. `buildOccurrenceTypeUpdate` monta o `PUT` e **ausente continua ausente** (API anterior recusa a chave).
+- **Escopo por momentos** (`readOccurrenceRequirementScope`): `document` cobra Foto, Observação, Assinatura, Produtos e o mínimo de fotos;
+  `stop` sem `document` só Foto; Produtos vale em `document`, `separation` e tipo sem `stop`; exceções existem em tipo com
+  `document`, `stop` ou `office`; tipo só de escritório mostra só Produtos. Tipo `{separation, document}` mostra os campos com a nota
+  "valem só nos momentos de rua".
+- **Exceção:** quatro seletores com a quarta opção **Igual ao tipo** (nulo), mais os dois mínimos; cliente escolhido em
+  `SearchableSelect` (nunca digitado); "Ao menos N itens" diz que o app do motorista ainda só marca "A nota inteira".
+- **Busca e filtros** (pílulas, molde de `TripOccurrenceFilters`): tipo, nome/CNPJ de exceção (CNPJ normalizado), momento,
+  ativo/inativo, exigência, avisa/não avisa, tem exceção.
+- **Verificação** (`SettingsResolutionPanel`): seis campos por tipo e a camada que decidiu cada um; o texto de apoio os diz.
+- **Geometria (varredura contra a staging, 33 telas × 4 larguras × 2 temas):** o painel só passou a corrigir o que estourava na
+  staging (placa da viagem, texto só-leitor da frota, `/recebimento` e `/ressarcimentos` a 320 px). **Medições pendentes:** nenhuma de
+  front; o smoke Playwright da 185 (`spec-185-prints`) segue sem execução. Evidência: `specs/246-…/evidence.md` § "T6.1" e § "Varredura".

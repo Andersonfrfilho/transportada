@@ -35,21 +35,21 @@ de correção conhece o teto de um item antes do envio. O catálogo ganha a pror
 
 ## Decisão já tomada em outra spec (não duplicar)
 
-A spec 239 (`specs/239-a-exigencia-da-ocorrencia-chega-na-rua/`, ainda só em `work/spec-239`, sem
+A spec 246 (`specs/246-a-exigencia-da-ocorrencia-chega-na-rua/`, ainda só em `work/spec-239`, sem
 código) **já decidiu o eixo**: RF1 dá ao tipo `itemsMode` (`off` / `optional` / `required`),
 reaproveitando `DELIVERY_PROOF_FIELD_MODES`, e o plano cria a coluna `items_mode varchar(16)`. Esta
 spec **não cria um segundo eixo**: ela entrega a coluna `items_mode` da 239, com o mesmo nome e o
 mesmo vocabulário, adiantada e restrita aos estados `off` e `optional`. `required` (ao menos um
 produto, quantidade mínima, "todos os itens") continua da 239.
 
-⚠️ **Divergência que a 241 corrige na 239:** o plano da 239 nasce a coluna com `DEFAULT 'off'`
+⚠️ **Divergência que a 241 corrige na 246:** o plano da 246 nasce a coluna com `DEFAULT 'off'`
 dizendo "a 166 nunca exigiu produto, então nada muda". No vocabulário de
 `DELIVERY_PROOF_FIELD_MODES`, `off` é "não aparece" — e hoje o seletor aparece, opcional, para todo
 tipo. O estado que preserva o comportamento é `optional`. Ver `plan.md` § Decisões.
 
 ## Fora do escopo
 
-- **`itemsMode = required`** e tudo o que vem com ele (RF1b, RF1c2 da 239). A 241 aceita só `off` e
+- **`itemsMode = required`** e tudo o que vem com ele (RF1b, RF1c2 da 246). A 241 aceita só `off` e
   `optional` na escrita.
 - **Reabrir regra da 164 ou da 167**: janela de correção, estados da tratativa, decisões
   (`redelivery_authorized`, `goods_paid`, `other`) e suas devolutivas. Ver Dúvidas.
@@ -131,9 +131,9 @@ como segunda linha de defesa.
   `productCode: ''`. O RF8 vale, portanto, para tipo de galpão posto em `off`.
 - **RF9** O formulário de correção usa `typeAllowsMultipleItems` para a seleção única.
 - **RF10** O cadastro de tipos mostra **Produtos** (Desligado / Opcional) com o `Select` do design
-  system e o mesmo vocabulário de três palavras da 239 (RF1a); "um ou vários" só aparece com
+  system e o mesmo vocabulário de três palavras da 246 (RF1a); "um ou vários" só aparece com
   Opcional. Fica onde o cadastro estiver quando a task rodar (Configurações → Empresa hoje; aba
-  Tipos depois da 239).
+  Tipos depois da 246).
 
 - **RF11** (D1) Tipo `off` não abre tratativa: CHECK de coluna
   `company_occurrence_types_items_off_shape_check` — `items_mode <> 'off' or redelivery_policy =
@@ -211,28 +211,27 @@ operador, com `settings.manage`, cadastra pela aba de tipos de ocorrência:
 Nenhuma migration insere esse tipo. Verificação antes do passo: consulta só de leitura (T0.3) sobre
 `company_occurrence_types` para confirmar que o nome ainda não existe, e registro em `evidence.md`.
 
-## Ordem de execução entre a 239 e a 241
+## Ordem de execução entre a 246 e a 241
 
 As duas dão ao tipo a coluna `items_mode`; só uma pode criá-la. **A 241 executa primeiro** (é menor,
 sem exigência na rua, e é ela que corrige o default):
 
 1. **Migration da 241:** cria `items_mode varchar(16) NOT NULL DEFAULT 'optional'` com CHECK em
    `off|optional|required`, a CHECK do RF11 e o backfill da segunda via.
-2. **A 239 então muda** (sem editar a spec aqui): a migration dela **não** faz `ADD COLUMN items_mode`
+2. **A 246 então muda** (sem editar a spec aqui): a migration dela **não** faz `ADD COLUMN items_mode`
    (o plano da 239, § "Produtos, quantidade mínima e anexos da rua", hoje faz, com default `off`);
    fica só com `photo_minimum_count`, `items_minimum_count` e as colunas das três tabelas de
-   exceção. A 239 acrescenta ao CHECK de `items_minimum_count` a condição `items_mode = 'required'`
+   exceção. A 246 acrescenta ao CHECK de `items_minimum_count` a condição `items_mode = 'required'`
    e passa a aceitar `required` na escrita. A frase "`items_mode` nasce `off` … nada muda" do plano
-   dela deixa de valer. Se a 239 sair antes, a 241 teria de trocar o default `off` por `optional`
+   dela deixa de valer. Se a 246 sair antes, a 241 teria de trocar o default `off` por `optional`
    com `UPDATE` em todas as linhas — apagando a escolha do operador; por isso a ordem não é
    intercambiável.
 3. Vocabulário e nomes não mudam: coluna `items_mode`, campo `itemsMode`, valores `off` / `optional`
    / `required` (`DELIVERY_PROOF_FIELD_MODES`).
 
-⚠️ Numeração: `origin/staging` já tem outra spec com o número 239
-(`specs/239-o-expurgo-se-liga-na-tela/`); a da exigência na rua só existe em `work/spec-239`
-(`specs/239-a-exigencia-da-ocorrencia-chega-na-rua/`, commit `91ceab2e3`). Quem a publicar renumera
-e atualiza as referências a "239" desta spec.
+⚠️ Numeração: a exigência na rua nasceu como 239 e foi renumerada para **246**
+(`specs/246-a-exigencia-da-ocorrencia-chega-na-rua/`); a 239 de `origin/staging` é
+`specs/239-o-expurgo-se-liga-na-tela/`. As referências a "239" desta spec passaram a "246".
 
 ## Dúvidas
 

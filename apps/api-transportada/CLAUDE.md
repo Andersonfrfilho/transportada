@@ -832,3 +832,26 @@ viagem aqui (ADR-0044 §5). Só `matched` é nota (o **estado** manda, não a co
 viva e fora de `excludedDocumentIds`, num portão só (`isCargoPreviewDocumentRoutable`) — a Fase 3 (RF8a, "devolver ao
 contratante") preenche `findExcludedTripDraftDocumentIds(database, { companyId, previewId })` com as notas marcadas. `missingCount` conta só `awaiting_xml`. Detalhe:
 docs/ai-context/api-transportada.md § "Spec 237 — Fase 5, T5.1".
+
+## A exigência da ocorrência chega na rua (spec 246)
+
+**Momento é conjunto, e a permissão é do caso de uso.** `company_occurrence_type_moments` (`OCCURRENCE_MOMENTS`) substitui
+`stage` + `flow`, que seguem gravados e derivados (`deriveStageAndFlowFromMoments`). Cada caso de uso tem o momento **fixo**
+(separador `separation`, motorista e WhatsApp `document`, parada `stop`, lote do escritório `office`) e a guarda é
+`occurrenceTypeAcceptsMoment`; a política da rota não muda e nunca se calcula permissão pelos momentos do tipo. ⚠️ O tipo
+`receiving` (237) **não tem momento de rua**: a derivação devolve `[]` e o backfill só cobre `separation`/`delivery`.
+
+**Exceção nula herda, campo a campo, e o servidor aplica por nota.** As colunas novas das duas tabelas de exceção são nulas
+sem default; `resolveOccurrenceRequirements` (sobre `resolveWithOverrides`) serve ao snapshot, às listas e à verificação, e
+`registerDriverOccurrence` o chama com contratante e destinatário lidos da nota (`findReachableDocument`), nunca do payload.
+⚠️ Exceção `optional` sobre tipo `required` **passa a afrouxar** no deploy da API, sem variável que a segure.
+
+**A assinatura é `signature_object_id`, nunca linha de anexo** (contaria como foto no mínimo, no expurgo e no demonstrativo);
+o mesmo id como anexo é 400. A foto de rua é só de nota (`document`) e escreve nas duas fontes — coluna
+`attachment_object_id` (a primeira) e `trip_document_occurrence_attachments` (1..N) —, lidas "linha, senão coluna". Erros
+estáveis novos: `TRIP_OCCURRENCE_SIGNATURE_REQUIRED`, `_ITEMS_REQUIRED`, `_ITEMS_MINIMUM_NOT_MET`, `_PHOTO_MINIMUM_NOT_MET`.
+
+**Publicação em etapas, e a 246 não vai a `main` sem T1d.0 e T3.0.** Painel/app tolerantes primeiro; depois API e as três
+migrations de `…205139` a `…205209`; o backfill de anexos (`…205232`) é deploy **separado**, só depois da `…205139`
+aplicada e da medição T1d.0. Rebase que traga migration nova refaz as quatro (cadeia linear de snapshots). Detalhe e
+ordem com SHAs: specs/246-…/evidence.md; formatos: docs/ai-context/api-transportada.md § "Spec 246".

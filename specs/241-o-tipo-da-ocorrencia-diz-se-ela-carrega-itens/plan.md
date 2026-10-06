@@ -29,14 +29,14 @@ Conferido no código (`origin/staging`, 2026-10-03):
 ### D-A — `items_mode varchar(16)` com o vocabulário da 239, não boolean novo
 
 **Escolhida:** `items_mode varchar(16) NOT NULL DEFAULT 'optional'`, CHECK em
-`DELIVERY_PROOF_FIELD_MODES` (`off`/`optional`/`required`). É a coluna que a 239 RF1 já decidiu
+`DELIVERY_PROOF_FIELD_MODES` (`off`/`optional`/`required`). É a coluna que a 246 RF1 já decidiu
 (`itemsMode`), adiantada. A 241 escreve só `off`/`optional`; `required` é aceito pelo CHECK para a
-239 não precisar de segunda migration, e recusado pelo Zod da 241.
+246 não precisar de segunda migration, e recusado pelo Zod da 241.
 
 **Descartadas:**
 
 - `carries_items boolean default true` — resolve a 241 sozinho, mas cria um segundo eixo para a mesma
-  pergunta que a 239 responde com `itemsMode`. Quando a 239 entrar, haveria duas colunas
+  pergunta que a 246 responde com `itemsMode`. Quando a 246 entrar, haveria duas colunas
   ("carrega?" e "exige?") que podem se contradizer (`false` + `required`). É a duplicação de decisão
   que a 179 produziu contra a 164 e a 161 (`specs/179-a-recusa-sai-com-foto/duplicacao.md`).
 - Tri-estado próprio `items | whole_document | none` — distingue "nota inteira" de "sem itens", mas
@@ -44,11 +44,11 @@ Conferido no código (`origin/staging`, 2026-10-03):
   tipo, e inventa vocabulário fora de `DELIVERY_PROOF_FIELD_MODES`.
 - Derivar do nome/etapa do tipo — nome é texto livre renomeável (208).
 
-### D-B — Default `optional`, não `off` como no plano da 239
+### D-B — Default `optional`, não `off` como no plano da 246
 
 `off` em `DELIVERY_PROOF_FIELD_MODES` é "o campo não aparece". O seletor aparece hoje para todo tipo
-de nota; o default que não muda nada é `optional`. O plano da 239 ("`items_mode` nasce `off` …
-nada muda") precisa ser corrigido quando ela for executada: a coluna já existirá, e a 239 só
+de nota; o default que não muda nada é `optional`. O plano da 246 ("`items_mode` nasce `off` …
+nada muda") precisa ser corrigido quando ela for executada: a coluna já existirá, e a 246 só
 acrescenta `items_minimum_count` e o estado `required`. Task T0.2 registra isso.
 
 ### D-C — Reconciliação na migration, não no seeder de boot
@@ -256,8 +256,8 @@ OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY` no cadastro (estado resultante, cam
 
 ## Riscos
 
-- **Colisão com a 239.** Ordem decidida: **241 primeiro** (`spec.md` § Ordem de execução entre a 239
-  e a 241). Se a 239 fosse primeiro, criaria `items_mode` com default `off` e quebraria o
+- **Colisão com a 246.** Ordem decidida: **241 primeiro** (`spec.md` § Ordem de execução entre a 246
+  e a 241). Se a 246 fosse primeiro, criaria `items_mode` com default `off` e quebraria o
   comportamento de hoje; a 241 então teria de reescrever o default e as linhas. A 239, quando for
   executada, remove o `ADD COLUMN items_mode` da migration dela. Há também colisão de **número**:
   `origin/staging` tem `239-o-expurgo-se-liga-na-tela` e a da exigência existe só em `work/spec-239`.

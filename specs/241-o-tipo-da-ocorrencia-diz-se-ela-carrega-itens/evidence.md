@@ -2,7 +2,7 @@
 
 ## Fase 0
 
-### T0.2 — a 239 ainda não criou `items_mode`
+### T0.2 — a 246 ainda não criou `items_mode`
 
 Conferido em `origin/staging` = `83813b1758b09e6e070e8b63679ed244374c086a` (2026-10-03):
 
@@ -11,10 +11,10 @@ $ git grep -n -i -E "items_mode|itemsMode" origin/staging -- apps packages
 (nenhuma linha; saída vazia)
 ```
 
-Nem `items_mode` nem `itemsMode` existem em `apps/` ou `packages/`. Logo a 241 vai antes da 239 e
-cria a coluna com `DEFAULT 'optional'`. A 239 (só em `work/spec-239`, sem código) **precisará** tirar
+Nem `items_mode` nem `itemsMode` existem em `apps/` ou `packages/`. Logo a 241 vai antes da 246 e
+cria a coluna com `DEFAULT 'optional'`. A 246 (só em `work/spec-239`, sem código) **precisará** tirar
 o `ADD COLUMN items_mode` da migration dela e o default `off` do plano. **Registrado, não
-executado**: a spec da 239 não foi editada aqui.
+executado**: a spec da 246 não foi editada aqui.
 
 ### T0.3 — medição em staging e produção: PENDENTE, pede autorização
 
@@ -218,8 +218,8 @@ Opcional. Nada foi gravado." (en: "A type without products does not open a case:
 unset or switch Products back to Optional. Nothing was saved.").
 
 Limites conhecidos: com a lista de tipos **vazia** o cadastro novo não oferece Produtos (não há como
-saber se a API já conhece o campo); um tipo com `itemsMode: 'required'` (da 239) não ganha o controle
-de Produtos nem some a política — a 239 decide como o painel o trata.
+saber se a API já conhece o campo); um tipo com `itemsMode: 'required'` (da 246) não ganha o controle
+de Produtos nem some a política — a 246 decide como o painel o trata.
 
 ### T1.6 — gates do painel
 

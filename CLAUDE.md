@@ -121,6 +121,14 @@ Todo veículo que carrega, exceto o cavalo, é obrigado a escolher a carroceria 
 reescrito e aparece na página `/pendencias` (`GET /pending-items`, `fleet.read`). Detalhe em
 `docs/ai-context/api-transportada.md` §093.
 
+**A exigência da ocorrência é do momento e da nota, e o servidor a cobra** (spec 246). O tipo declara um
+**conjunto de momentos** (`separation`, `document`, `stop`, `office`; `stage`/`flow` seguem gravados, derivados) e quatro
+modos (foto, observação, assinatura, produtos) mais os mínimos; a exceção de contratante/destinatário é **nula e herda campo
+a campo**. O registro do motorista lê contratante e destinatário **da nota no servidor** e cobra o efetivo — uma exceção
+menos estrita afrouxa de verdade desde o deploy da API (T3.0 mede antes de ir a `main`). A assinatura mora em
+`signature_object_id`, nunca como anexo; o cadastro mora na aba Tipos de `/ocorrencias`. Núcleo em
+`apps/api-transportada/CLAUDE.md` § "A exigência da ocorrência chega na rua".
+
 **O canhoto é lido sem ninguém abrir a viagem** (spec 220 + 222). A rotina agendada `trip.canhoto.read`
 no worker varredura comprovantes pendentes de cinco em cinco minutos, decodifica o código de barras em
 `worker_thread` e reporta o que leu à API. Quem decide é `resolveAutomaticCanhotoReview` (código que
