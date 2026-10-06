@@ -56,7 +56,7 @@ export function OccurrenceReimbursementsWorkspacePage() {
   if (!controller.canView) {
     return (
       <main className={styles.shell}>
-        <header className={styles.header}>
+        <header className={`${styles.header} ${styles.longTitle}`}>
           <h1>{t('reimbursements.title')}</h1>
         </header>
         <p className={styles.hint} role="alert">
@@ -76,7 +76,7 @@ export function OccurrenceReimbursementsWorkspacePage() {
 
   return (
     <main className={styles.shell}>
-      <header className={styles.header}>
+      <header className={`${styles.header} ${styles.longTitle}`}>
         <h1>{t('reimbursements.title')}</h1>
         <p className={styles.hint}>{t('reimbursements.subtitle')}</p>
       </header>
