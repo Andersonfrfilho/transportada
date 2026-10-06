@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
@@ -68,9 +69,25 @@ export function OccurrenceTypeCatalogPanel({
     hasRequirementModes: types.some((type) => type.noteMode !== undefined),
   }
 
-  /** Spec 246 RF11c: uma consulta de exceções por tela, e uma de contratantes e de clientes — nunca por tipo. */
+  const filtersController = useOccurrenceTypeFilters()
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(new Set())
+
+  function handleToggle(typeId: string) {
+    setExpandedIds((current) => {
+      const next = new Set(current)
+      if (!next.delete(typeId)) next.add(typeId)
+      return next
+    })
+  }
+
+  /**
+   * Spec 246 RF11c: uma consulta de exceções por tela, e uma de contratantes e de clientes — nunca por
+   * tipo. As duas listas grandes só vêm quando alguém abre um tipo ou busca por quem tem exceção.
+   */
   const overridesQuery = useOccurrenceAttachmentOverridesBatchQuery({ enabled: canManage })
-  const people = useOccurrenceExceptionPeople({ enabled: canManage })
+  const people = useOccurrenceExceptionPeople({
+    enabled: canManage && (expandedIds.size > 0 || filtersController.filters.query.trim() !== ''),
+  })
 
   function exceptionsOf(type: OccurrenceType): OccurrenceTypeExceptionsState {
     if (overridesQuery.isError) return { overrides: undefined, people, status: 'error' }
@@ -89,7 +106,6 @@ export function OccurrenceTypeCatalogPanel({
     status: toLoadStatus(emailTemplates),
   }
 
-  const filtersController = useOccurrenceTypeFilters()
   const exceptionsByTypeId = overridesQuery.isSuccess
     ? new Map(overridesQuery.data.map((entry) => [entry.occurrenceTypeId, entry]))
     : undefined
@@ -131,8 +147,10 @@ export function OccurrenceTypeCatalogPanel({
         <OccurrenceTypeList
           canManage={canManage}
           exceptionsOf={exceptionsOf}
+          expandedIds={expandedIds}
           isSaving={isSaving}
           onSave={onSave}
+          onToggle={handleToggle}
           templates={templates}
           types={visibleTypes}
         />

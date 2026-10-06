@@ -41,6 +41,7 @@ export function OccurrenceExceptionForm({
 }: OccurrenceExceptionFormProps) {
   const { t } = useTranslation('companySettings')
   const reasonId = useId()
+  const hintId = useId()
   const [kind, setKind] = useState<OccurrenceExceptionKey['kind']>('recipient')
   const [clientValue, setClientValue] = useState('')
   const [attachmentMode, setAttachmentMode] = useState<null | OccurrenceAttachmentMode>(null)
@@ -49,6 +50,9 @@ export function OccurrenceExceptionForm({
   const reasonKey = resolveReasonKey({ hasOptions: options.length > 0, kind, status })
   const isBlocked = reasonKey !== null
   const isAddDisabled = disabled || isBlocked || clientValue === ''
+  const isTruncated =
+    kind === 'contractor' ? people.contractorsTruncated : people.recipientsTruncated
+  const needsClient = !disabled && !isBlocked && clientValue === ''
 
   function handleKindChange(next: string) {
     setKind(next === 'contractor' ? 'contractor' : 'recipient')
@@ -61,6 +65,7 @@ export function OccurrenceExceptionForm({
       kind === 'contractor' ? { contractorId: clientValue, kind } : { kind, taxId: clientValue }
     onAdd({ attachmentMode: attachmentMode ?? typeAttachmentMode, key })
     setClientValue('')
+    setAttachmentMode(null)
   }
 
   return (
@@ -109,11 +114,29 @@ export function OccurrenceExceptionForm({
           onChange={(mode) => setAttachmentMode(mode)}
           value={attachmentMode ?? typeAttachmentMode}
         />
-        <Button disabled={isAddDisabled} onClick={handleAdd} size="sm" type="button">
+        <Button
+          aria-describedby={needsClient ? hintId : undefined}
+          disabled={isAddDisabled}
+          onClick={handleAdd}
+          size="sm"
+          type="button"
+        >
           <Icon name="add" />
           {t('occurrenceTypeCatalog.exceptions.add')}
         </Button>
       </div>
+      {needsClient ? (
+        <p className={styles.legend} id={hintId}>
+          {t('occurrenceTypeCatalog.exceptions.pickClientFirst')}
+        </p>
+      ) : null}
+      {isTruncated ? (
+        <p className={styles.alert} role="status">
+          {t(
+            `occurrenceTypeCatalog.exceptions.${kind === 'contractor' ? 'contractorsTruncated' : 'clientsTruncated'}`,
+          )}
+        </p>
+      ) : null}
       {reasonKey === null ? null : (
         <p className={styles.alert} id={reasonId} role="status">
           {t(`occurrenceTypeCatalog.exceptions.${reasonKey}`)}

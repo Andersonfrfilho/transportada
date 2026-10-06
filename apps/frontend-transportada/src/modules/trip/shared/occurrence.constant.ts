@@ -119,6 +119,10 @@ export type {
   OccurrenceType,
 } from './occurrenceType.types'
 
+/** Revisão do painel M7: o teto do seletor de contratantes da exceção — acima dele a tela avisa que a lista pode estar incompleta. */
+export const CONTRACTOR_DIRECTORY_MAX_PAGES = 30
+export const CONTRACTOR_DIRECTORY_LIMIT = CONTRACTOR_DIRECTORY_MAX_PAGES * 100
+
 /** Spec 240: o teto do motivo é o do servidor (`OCCURRENCE_CANCELLATION_REASON_TOO_LONG`). */
 export const OCCURRENCE_CANCELLATION_REASON_MAX_LENGTH = 500
 

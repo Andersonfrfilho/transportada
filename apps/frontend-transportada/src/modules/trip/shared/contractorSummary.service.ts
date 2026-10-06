@@ -29,6 +29,12 @@ function isContractorSummary(value: unknown): value is ContractorSummary {
  * `GET /contractors` traz o agregado inteiro (`security.md` §8: a guarda confere a forma completa
  * mesmo que a tela só use três campos) — o resto é descartado aqui, perto da leitura.
  */
+/** A próxima página da listagem: nulo ou ausente é o fim. */
+export function readContractorNextCursor(payload: unknown): null | string {
+  if (!isRecord(payload) || !isRecord(payload.page)) return null
+  return typeof payload.page.nextCursor === 'string' ? payload.page.nextCursor : null
+}
+
 export function contractorSummariesFromApi(payload: unknown): readonly ContractorSummary[] {
   if (!isRecord(payload) || !Array.isArray(payload.data)) return []
   if (!payload.data.every(isContractorSummary)) return []

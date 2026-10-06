@@ -15,9 +15,12 @@ export type RecipientSummary = Readonly<{ displayName: string; taxId: string }>
 /** Quem pode receber exceção: os contratantes e os clientes cadastrados, nunca um texto digitado (RF1f). */
 export type OccurrenceExceptionPeople = Readonly<{
   contractors: readonly ContractorSummary[]
+  /** A lista bateu no teto de páginas: pode haver contratante fora dela. */
+  contractorsTruncated: boolean
   contractorsStatus: OccurrenceExceptionLoadStatus
   recipients: readonly RecipientSummary[]
   recipientsStatus: OccurrenceExceptionLoadStatus
+  recipientsTruncated: boolean
 }>
 
 /** O que cada tipo recebe da tela: as suas exceções (da consulta em lote), o estado da leitura e quem pode ser escolhido. */
