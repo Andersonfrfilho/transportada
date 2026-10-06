@@ -1611,3 +1611,66 @@ pasta temporária, `vite preview` em porta própria (53311), API dublada, config
 
 Push e publicação (esperam o "pode publicar"); smoke da CI e `make check` completo; `bun run test:integration`/API (não
 mexi); prints refeitos das demais telas; nenhuma leitura de banco, staging ou produção.
+
+### Tabelas cortadas a 375 px — correção (2026-10-06, depois da conferência dos prints)
+
+**Defeito.** No print `recebimento-erro-rota-375-dark` a tabela de notas do detalhe do escritório perdia a coluna
+"Situação" e truncava "Destinatário". O teste "sem rolagem horizontal" passava porque o conteúdo estava **recortado**, não
+encaixado. A prova anterior era insuficiente: `scrollWidth <= clientWidth` não vê o que um ancestral esconde.
+
+**Quais telas tinham o corte** (medido com a geometria real, antes da correção, a 375 px):
+
+| Tela                                                                        | Tabela               | Antes                                                                            |
+| --------------------------------------------------------------------------- | -------------------- | -------------------------------------------------------------------------------- |
+| `/recebimento/:id/detalhe` (e os dois prints de erro)                       | grupos rota × cidade | terminava em 669 px para um limite de 346: Situação e parte do Destinatário fora |
+| `/recebimento` (lista de chegadas)                                          | chegadas             | terminava em 778 para 359: Separadas, Prazo, Situação e Ações fora               |
+| `/recebimento/nova` (registro, com e sem recusa, e com a prévia preenchida) | notas livres         | terminava em 480 para 342: Cidade e Valor fora                                   |
+| prévias (lista, envio, detalhe, vincular, propor) e celular do separador    | —                    | **sem corte** (já usavam `.stacked`; o celular usa cartões próprios)             |
+
+**Correção.** As três tabelas passaram a `.stacked` (cartões com o rótulo da coluna abaixo de 40 rem, o mesmo mecanismo das
+prévias) e cada célula ganhou `data-label` com o texto do cabeçalho da coluna. No detalhe, a largura mínima e as colunas fixas
+deixaram de valer no celular (`--stacked-min-width` e `table-layout: fixed` só a partir de 40 rem) — o `min-width: 40rem` era
+o que forçava a tabela a ser mais larga que a tela. O selo "Já em viagem" fica com a Situação. O detalhe não tem coluna de
+cidade por nota: a cidade é o título do grupo.
+
+**Contrato (vermelho antes, pelo motivo certo).**
+
+- Geometria real, `test/cargo-clipping-smoke.helper.ts` (`expectNoClipping`): nenhum elemento visível de `main` termina além
+  (`getBoundingClientRect().right`) do ancestral que o recorta ou rola, e a página não rola de lado. Roda a 375 px em TODAS as
+  telas dos três specs de prints (recebimento, prévias, erros). Antes da correção reprovou as telas da tabela acima e passou as
+  outras. `expectEveryNoteStateVisible` afirma que cada nota do detalhe tem a situação visível e com texto.
+- DOM (`test:hooks`): `readCardLabels` — cada célula com conteúdo leva o `data-label` da coluna dela (lista, grupos do
+  detalhe, só leitura sem a caixa, notas livres do registro).
+- ⚠️ Os módulos CSS valem `undefined` no `bun test`: a classe `.stacked` não é afirmável pelo DOM do happy-dom, que também não
+  calcula layout. Por isso a prova de corte é a do navegador (spec fora da CI, como os prints), e o contrato de DOM prende só o
+  que o happy-dom enxerga (rótulos).
+
+**Mutações** (arquivo restaurado depois de cada uma; o spec de geometria reprovou 1 de 1 em cada):
+
+| Mutação                                                                         | Resultado                |
+| ------------------------------------------------------------------------------- | ------------------------ |
+| grupo do detalhe sem `.stacked`                                                 | vermelho (geometria)     |
+| detalhe volta a `min-width: 40rem; table-layout: fixed` (tabela larga de volta) | vermelho (geometria)     |
+| lista sem `.stacked`                                                            | vermelho (geometria)     |
+| notas livres do registro sem `.stacked`                                         | vermelho (geometria)     |
+| célula da situação sem `data-label`                                             | vermelho (DOM, 2 testes) |
+
+**768 px.** Detalhe, registro e celular encaixam sem rolagem. A lista de chegadas e as telas de prévia **rolam dentro da região
+rotulada** (`role=region`, `tabindex=0`; larguras mínimas de 56 a 70 rem por decisão das prévias): não perdem coluna, mas exigem
+rolagem — registrado, sem mudança (a lista a 768 ainda mostra a tabela larga; levar o ponto de quebra dela a 64 rem é decisão de
+design à parte).
+
+**Revisão de design (`getComputedStyle`, detalhe a 375).** Linha `display: grid`, tabela `display: block`, colunas
+`104px 181px` (a mesma grade `.stacked` das prévias); rótulo `SFMono-Regular` 12 px, contraste **6,22:1 (escuro) e 4,83:1
+(claro)**; valor 14,48:1 e 12,66:1. A quebra de linha do destinatário acontece dentro da coluna de valor. Prints refeitos e
+olhados (detalhe/erro de rota 375 e lista 375): cartões legíveis, nenhuma coluna fora da tela.
+
+**Prints refeitos:** `recebimento-detalhe-{375,768}-{dark,light}`, `recebimento-lista-{375,768,1280}-{dark,light}` (cabeçalhos
+Notas/Separadas sem botão de ordenação, contador "N chegadas carregadas", cartões a 375),
+`recebimento-registrar-chegada-375-{dark,light}`, `recebimento-registrar-recusa-375-{dark,light}` e os oito
+`recebimento-erro-{rota,lote}-{375,1280}-{dark,light}`.
+
+**Estabilidade:** `test:hooks` 10 execuções seguidas 662 pass / 0 fail e 3 com 22 processos `yes` em paralelo (2× os núcleos),
+662 / 0. `bun run test`: 6985 pass + 662 (antes desta correção: 6985 + 658). Typecheck, lint (0 erros) e `format:check` limpos.
+Os specs de prévias e de recebimento ganharam o mock de `/contractor-receiving-profiles`: sem ele, depois do M4, as telas de
+envio ficavam sem contratante e o smoke estourava o prazo.

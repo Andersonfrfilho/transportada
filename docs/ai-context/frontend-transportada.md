@@ -1230,3 +1230,7 @@ previewEnabled }], nextCursor }`), uma guarda por módulo. Registro de chegada: 
 - Prints do erro de rota e de lote: `specs/237-.../prints/recebimento-erro-{rota,lote}-{375,1280}-{dark,light}.png`, gerados
   por `test/spec-237-recebimento-erros-prints.smoke.spec.ts` (fora da CI; `PLAYWRIGHT_TEST_MATCH`). Detalhe e mutações:
   `evidence.md` § "Correções da revisão das Fases 1–2 — painel".
+- **Tabelas cortadas a 375 px (2026-10-06).** Detalhe (grupos), lista de chegadas e notas livres do registro passaram a
+  `.stacked` com `data-label`; o `min-width: 40rem` do detalhe só vale a partir de 40 rem. A conferência de "sem rolagem" por
+  `scrollWidth` passava com o conteúdo recortado: `expectNoClipping` (`test/cargo-clipping-smoke.helper.ts`) mede
+  `getBoundingClientRect` contra o ancestral que recorta. A 768 px a lista e as prévias rolam dentro da região rotulada.

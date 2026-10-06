@@ -407,6 +407,9 @@ CARGO_ARRIVAL_CURSOR_ORDER_MISMATCH` e a lista recarrega do início com aviso ne
   lido por `details[].documentId`. A chegada aberta é relida a cada 20 s (aba visível, sem toque em voo); "Separar tudo do
   grupo" trava com toque do mesmo grupo em voo.
 - Funções com mais de um parâmetro recebem objeto — inclusive as internas.
+- **Tabela do recebimento vira cartão abaixo de 40 rem** (`.stacked` + `data-label` por célula): detalhe (grupos), lista de
+  chegadas e notas livres do registro. ⚠️ `scrollWidth <= clientWidth` NÃO prova que nada foi cortado — um ancestral com
+  `overflow` recorta e passa. A prova é a geometria real (`test/cargo-clipping-smoke.helper.ts`, nos specs de prints a 375 px).
 
 ## Prévias de carga (spec 237 T4.4)
 
