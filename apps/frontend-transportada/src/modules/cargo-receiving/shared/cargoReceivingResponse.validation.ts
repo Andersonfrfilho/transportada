@@ -56,8 +56,10 @@ export function toArrivalDetail(payload: unknown): CargoArrivalDetail {
 }
 
 /** O servidor responde 201 na primeira vez e 200 na repetição com a mesma chave (idempotência). */
-export function toRegisterResult(payload: unknown, status: number): RegisterCargoArrivalResult {
-  return { arrival: toArrivalDetail(payload), isReplay: status === 200 }
+export function toRegisterResult(
+  input: Readonly<{ payload: unknown; status: number }>,
+): RegisterCargoArrivalResult {
+  return { arrival: toArrivalDetail(input.payload), isReplay: input.status === 200 }
 }
 
 export function toBatchOutcomes(payload: unknown): readonly CargoDocumentOutcome[] {

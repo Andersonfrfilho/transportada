@@ -120,8 +120,8 @@ describe('o detalhe da chegada', () => {
   })
 
   test('o registro devolve a chegada e diz se foi repetição', () => {
-    expect(toRegisterResult({ data: buildDetail() }, 201).isReplay).toBe(false)
-    expect(toRegisterResult({ data: buildDetail() }, 200).isReplay).toBe(true)
+    expect(toRegisterResult({ payload: { data: buildDetail() }, status: 201 }).isReplay).toBe(false)
+    expect(toRegisterResult({ payload: { data: buildDetail() }, status: 200 }).isReplay).toBe(true)
   })
 })
 

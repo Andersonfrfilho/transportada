@@ -98,9 +98,12 @@ export async function runSingleTouch(
 
 /** O resultado final de uma nota que passou por dois passos: a recusa de qualquer um vence. */
 function mergeOutcome(
-  first: CargoDocumentOutcome | undefined,
-  second: CargoDocumentOutcome | undefined,
+  input: Readonly<{
+    first: CargoDocumentOutcome | undefined
+    second: CargoDocumentOutcome | undefined
+  }>,
 ): CargoDocumentOutcome | undefined {
+  const { first, second } = input
   if (first !== undefined && isRefused(first)) return first
   if (second !== undefined && isRefused(second)) return second
   if (first?.outcome === 'changed') return first
@@ -135,18 +138,19 @@ export async function runGroupSeparation(
     send: input.send,
     to: 'separated',
   })
-  const outcomeOf = (outcomes: readonly CargoDocumentOutcome[], documentId: string) =>
-    outcomes.find((outcome) => outcome.documentId === documentId)
+  const outcomeOf = (
+    input: Readonly<{ documentId: string; outcomes: readonly CargoDocumentOutcome[] }>,
+  ) => input.outcomes.find((outcome) => outcome.documentId === input.documentId)
   const touched = input.documents.filter((document) =>
     plan.separateIds.includes(document.nfeDocumentId),
   )
 
   return {
     results: touched.flatMap((document) => {
-      const merged = mergeOutcome(
-        outcomeOf(received, document.nfeDocumentId),
-        outcomeOf(separated, document.nfeDocumentId),
-      )
+      const merged = mergeOutcome({
+        first: outcomeOf({ documentId: document.nfeDocumentId, outcomes: received }),
+        second: outcomeOf({ documentId: document.nfeDocumentId, outcomes: separated }),
+      })
       return merged === undefined ? [] : [merged]
     }),
     states: Object.fromEntries(
@@ -154,8 +158,8 @@ export async function runGroupSeparation(
         document.nfeDocumentId,
         resolveFinalState({
           document,
-          received: outcomeOf(received, document.nfeDocumentId),
-          separated: outcomeOf(separated, document.nfeDocumentId),
+          received: outcomeOf({ documentId: document.nfeDocumentId, outcomes: received }),
+          separated: outcomeOf({ documentId: document.nfeDocumentId, outcomes: separated }),
         }),
       ]),
     ),

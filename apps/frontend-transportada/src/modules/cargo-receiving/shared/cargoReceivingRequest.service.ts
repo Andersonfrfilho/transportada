@@ -70,7 +70,10 @@ function readErrorCode(payload: unknown): string {
     : CARGO_RECEIVING_ERROR.REQUEST_FAILED
 }
 
-function buildHeaders(input: RequestInput, accessToken: string): Record<string, string> {
+function buildHeaders(
+  params: Readonly<{ accessToken: string; input: RequestInput }>,
+): Record<string, string> {
+  const { accessToken, input } = params
   const headers: Record<string, string> = { authorization: `Bearer ${accessToken}` }
   if (input.body !== undefined) headers['content-type'] = 'application/json'
   if (input.idempotencyKey !== undefined) headers[IDEMPOTENCY_KEY_HEADER] = input.idempotencyKey
@@ -89,7 +92,7 @@ async function send(input: RequestInput): Promise<Response> {
       new Request(`${input.dependencies.apiUrl}${input.path}`, {
         ...buildRequestBody(input),
         cache: 'no-store',
-        headers: buildHeaders(input, accessToken),
+        headers: buildHeaders({ accessToken, input }),
         method: input.method,
       }),
     )

@@ -23,7 +23,7 @@ import { useContractorMailSettings } from '../hooks/useContractorMailSettings.ho
 import { useDeliveryClients } from '../hooks/useDeliveryClients.hook'
 import styles from '../styles/deliveryClients.module.css'
 
-const CONTRACTOR_MAIL_SETTINGS_MANAGE_PERMISSION = 'settings.manage'
+const CONTRACTOR_MANAGE_PERMISSION = 'settings.manage'
 
 export type DeliveryClientTabId = 'clients' | 'contractors' | 'mail'
 
@@ -70,7 +70,7 @@ export function DeliveryClientWorkspacePage(): JSX.Element {
   const controller = useDeliveryClients({ permissions })
   const isReadOnly = !controller.canManageClients
 
-  const canManageContractorMail = permissions.includes(CONTRACTOR_MAIL_SETTINGS_MANAGE_PERMISSION)
+  const canManageContractorMail = permissions.includes(CONTRACTOR_MANAGE_PERMISSION)
   const settingsScope = resolveSettingsDataScope('delivery-clients', activeTab)
   const contractorMail = useContractorMailSettings({
     ...(companyId === undefined ? {} : { companyId }),

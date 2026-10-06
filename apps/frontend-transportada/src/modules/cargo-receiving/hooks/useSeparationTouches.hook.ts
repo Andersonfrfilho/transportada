@@ -25,10 +25,9 @@ export type SeparationTouchesController = Readonly<{
 }>
 
 function withoutKeys<TValue>(
-  source: ReadonlyMap<string, TValue>,
-  keys: readonly string[],
+  input: Readonly<{ keys: readonly string[]; source: ReadonlyMap<string, TValue> }>,
 ): Map<string, TValue> {
-  return new Map([...source].filter(([key]) => !keys.includes(key)))
+  return new Map([...input.source].filter(([key]) => !input.keys.includes(key)))
 }
 
 /**
@@ -51,10 +50,10 @@ export function useSeparationTouches(arrivalId: string): SeparationTouchesContro
       }),
     onResult: (run, request) => {
       setRefusals((current) => {
-        const next = withoutKeys(
-          current,
-          run.results.map((result) => result.documentId),
-        )
+        const next = withoutKeys({
+          keys: run.results.map((result) => result.documentId),
+          source: current,
+        })
         for (const result of run.results) {
           if (result.outcome === 'refused') next.set(result.documentId, result.reason)
         }
@@ -66,7 +65,7 @@ export function useSeparationTouches(arrivalId: string): SeparationTouchesContro
 
   async function execute(request: TouchRequest): Promise<void> {
     const ids = listTouchedDocuments(request).map((document) => document.nfeDocumentId)
-    setFailures((current) => withoutKeys(current, ids))
+    setFailures((current) => withoutKeys({ keys: ids, source: current }))
     setPendingIds((current) => new Set([...current, ...ids]))
     try {
       await mutation.mutateAsync(request)

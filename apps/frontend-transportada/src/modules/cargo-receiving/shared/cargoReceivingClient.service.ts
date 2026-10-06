@@ -190,7 +190,7 @@ function createWriteMethods(dependencies: CargoReceivingDependencies): WriteMeth
         method: 'POST',
         path: CARGO_RECEIVING_PATHS.arrivals,
       })
-      return toRegisterResult(body, status)
+      return toRegisterResult({ payload: body, status })
     },
   }
 }
