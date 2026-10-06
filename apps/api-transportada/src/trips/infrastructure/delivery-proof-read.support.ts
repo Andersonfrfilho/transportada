@@ -53,6 +53,7 @@ import type {
 import {
   OCCURRENCE_TYPE_ITEMS_MINIMUM_SHAPE_CHECK,
   OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK,
+  OCCURRENCE_TYPE_NAME_UNIQUE,
   TRIP_BOUND_OCCURRENCE_STAGES,
 } from '../../shared/trip-occurrence.constant.js'
 import { openOccurrenceCase } from './drizzle-occurrence-case.repository.js'
@@ -60,9 +61,13 @@ import type { OccurrenceTemplateValues } from '../domain/occurrence-template.pol
 import {
   OccurrenceTypeItemsMinimumRequiresRequiredError,
   OccurrenceTypeItemsOffRedeliveryPolicyError,
+  OccurrenceTypeNameTakenError,
   TripDocumentNotFoundError,
 } from '../domain/trip.error.js'
-import { violatedCheckConstraint } from '../../database/postgres-error.support.js'
+import {
+  violatedCheckConstraint,
+  violatedUniqueConstraint,
+} from '../../database/postgres-error.support.js'
 import { contractors } from '../../database/delivery-client.schema.js'
 import { resolveDeliveryContact } from '../domain/delivery-contact.policy.js'
 import type { DeliveryContact } from '../domain/delivery-contact.policy.js'
@@ -1009,15 +1014,19 @@ export async function listOccurrenceTypes(
 /**
  * Spec 241 (RF11): dois `PUT` concorrentes (um `off`, outro com política) passam a validação do caso
  * de uso, que lê fora da transação do `UPDATE`, e só a CHECK os pega — 422 do domínio, não 500.
- * Qualquer outra violação segue propagando.
+ * Spec 237: o nome de um tipo de recebimento escondido também bate no índice único — 409. Qualquer
+ * outra violação segue propagando.
  */
-function rethrowItemsOffShapeViolation(error: unknown): never {
+function rethrowOccurrenceTypeViolation(error: unknown): never {
   const violated = violatedCheckConstraint(error)
   if (violated === OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK) {
     throw new OccurrenceTypeItemsOffRedeliveryPolicyError()
   }
   if (violated === OCCURRENCE_TYPE_ITEMS_MINIMUM_SHAPE_CHECK) {
     throw new OccurrenceTypeItemsMinimumRequiresRequiredError()
+  }
+  if (violatedUniqueConstraint(error) === OCCURRENCE_TYPE_NAME_UNIQUE) {
+    throw new OccurrenceTypeNameTakenError()
   }
   throw error
 }
@@ -1181,7 +1190,7 @@ async function writeOccurrenceTypeRow(
             ),
           )
           .returning()
-  ).catch(rethrowItemsOffShapeViolation)
+  ).catch(rethrowOccurrenceTypeViolation)
 
   if (saved === undefined) throw new TripDocumentNotFoundError()
 

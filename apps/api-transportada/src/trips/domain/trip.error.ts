@@ -641,6 +641,18 @@ export class OccurrenceTypeItemsOffRedeliveryPolicyError extends ApiError {
   }
 }
 
+/** O nome é único por empresa em qualquer etapa, inclusive entre os tipos de recebimento que o painel não lista. */
+export class OccurrenceTypeNameTakenError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_NAME_TAKEN',
+      details: [{ field: 'name', message: 'An occurrence type with this name already exists' }],
+      message: 'An occurrence type with this name already exists',
+      status: 409,
+    })
+  }
+}
+
 /**
  * Spec 246 (RF1c2): a quantidade mínima de produtos só existe com Produtos obrigatório — com outro
  * modo ela seria dado morto que um `PUT` futuro religaria sem ninguém ver.

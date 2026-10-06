@@ -193,3 +193,6 @@ export const OCCURRENCE_OVERRIDE_ITEMS_MINIMUM_SHAPE_CHECKS: readonly string[] =
   'occurrence_type_contractor_overrides_items_minimum_shape_check',
   'occurrence_type_recipient_overrides_items_minimum_shape_check',
 ]
+
+/** O índice único `(company_id, lower(btrim(name)))`, em qualquer etapa — não aparece no schema TS. */
+export const OCCURRENCE_TYPE_NAME_UNIQUE = 'company_occurrence_types_company_name_unique'
