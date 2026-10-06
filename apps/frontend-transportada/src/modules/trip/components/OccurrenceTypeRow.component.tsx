@@ -1,33 +1,21 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { useTranslation } from 'react-i18next'
-
-import { Checkbox } from '@/components/ui/checkbox'
-import { Select } from '@/components/ui/select'
-import { Tooltip } from '@/components/ui/tooltip'
-
-import type {
-  OccurrenceRedeliveryPolicy,
-  OccurrenceType,
-  OccurrenceTypeFlow,
-} from '@/modules/trip/shared/occurrence.constant'
-import {
-  OCCURRENCE_ITEMS_MODE,
-  TRIP_OCCURRENCE_STAGE,
-} from '@/modules/trip/shared/occurrence.constant'
+import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
+import { TRIP_OCCURRENCE_STAGE } from '@/modules/trip/shared/occurrence.constant'
 import type { OccurrenceTypeExceptionsState } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
 import type { OccurrenceEmailTemplatesState } from '@/modules/trip/shared/occurrenceTemplate.service'
 import styles from '@/modules/trip/styles/trip.module.css'
 
-import { useOccurrenceTypeOptions } from '../hooks/useOccurrenceTypeOptions.hook'
 import {
   buildOccurrenceTypeUpdate,
+  type OccurrenceTypeEdit,
   type OccurrenceTypeSaveInput,
 } from '../shared/occurrenceTypeUpdate.service'
 import { OccurrenceTypeExceptions } from './OccurrenceTypeExceptions.component'
-import { OccurrenceTypeNotification } from './OccurrenceTypeNotification.component'
+import { OccurrenceTypeIdentity } from './OccurrenceTypeIdentity.component'
 import { OccurrenceTypeMoments } from './OccurrenceTypeMoments.component'
+import { OccurrenceTypeNotification } from './OccurrenceTypeNotification.component'
 import { OccurrenceTypeRequirementFields } from './OccurrenceTypeRequirementFields.component'
 
 type OccurrenceTypeRowProps = Readonly<{
@@ -39,6 +27,7 @@ type OccurrenceTypeRowProps = Readonly<{
   type: OccurrenceType
 }>
 
+/** A ordem é a do preview: identificação, momentos, o que exige, notificação, exceções. */
 export function OccurrenceTypeRow({
   canManage,
   exceptions,
@@ -47,90 +36,31 @@ export function OccurrenceTypeRow({
   templates,
   type,
 }: OccurrenceTypeRowProps) {
-  const { t } = useTranslation('companySettings')
-  const { flowOptions, redeliveryPolicyOptions } = useOccurrenceTypeOptions()
   const isDisabled = !canManage || isSaving
   const isDelivery = type.stage === TRIP_OCCURRENCE_STAGE.delivery
 
+  function handleEdit(edit: OccurrenceTypeEdit) {
+    onSave(buildOccurrenceTypeUpdate(type, edit))
+  }
+
   return (
     <div className={styles.occurrenceForm}>
-      <OccurrenceTypeNotification
-        disabled={isDisabled}
-        onEdit={(edit) => onSave(buildOccurrenceTypeUpdate(type, edit))}
-        templates={templates}
-        type={type}
-      />
-      <Checkbox
-        checked={type.active}
-        disabled={isDisabled}
-        label={t('occurrenceTypeCatalog.active')}
-        onChange={(value) => onSave(buildOccurrenceTypeUpdate(type, { active: value }))}
-      />
+      <OccurrenceTypeIdentity disabled={isDisabled} onEdit={handleEdit} type={type} />
       {type.moments === undefined ? null : (
         <OccurrenceTypeMoments
           disabled={isDisabled}
           key={type.moments.join(',')}
           moments={type.moments}
-          onEdit={(edit) => onSave(buildOccurrenceTypeUpdate(type, edit))}
+          onEdit={handleEdit}
         />
       )}
-      <OccurrenceTypeRequirementFields
+      <OccurrenceTypeRequirementFields disabled={isDisabled} onEdit={handleEdit} type={type} />
+      <OccurrenceTypeNotification
         disabled={isDisabled}
-        onEdit={(edit) => onSave(buildOccurrenceTypeUpdate(type, edit))}
+        onEdit={handleEdit}
+        templates={templates}
         type={type}
       />
-      {type.itemsMode === OCCURRENCE_ITEMS_MODE.off ? null : (
-        <Checkbox
-          checked={type.allowsMultipleItems}
-          disabled={isDisabled}
-          label={t('occurrenceTypeCatalog.allowsMultipleItems')}
-          onChange={(value) =>
-            onSave(buildOccurrenceTypeUpdate(type, { allowsMultipleItems: value }))
-          }
-        />
-      )}
-      {type.itemsMode === OCCURRENCE_ITEMS_MODE.off ? null : (
-        <Select
-          ariaLabel={t('occurrenceTypeCatalog.redeliveryPolicy')}
-          disabled={isDisabled}
-          onChange={(value) =>
-            onSave(
-              buildOccurrenceTypeUpdate(type, {
-                redeliveryPolicy: value as OccurrenceRedeliveryPolicy,
-              }),
-            )
-          }
-          options={redeliveryPolicyOptions}
-          value={type.redeliveryPolicy}
-        />
-      )}
-      {/* Spec 179 T401: só em tipo de rua — é o motorista quem tira a foto na hora. */}
-      {isDelivery ? (
-        <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.flowHint')}>
-          <Select
-            ariaLabel={t('occurrenceTypeCatalog.flow')}
-            disabled={isDisabled}
-            onChange={(value) =>
-              onSave(buildOccurrenceTypeUpdate(type, { flow: value as OccurrenceTypeFlow }))
-            }
-            options={flowOptions}
-            value={type.flow}
-          />
-        </Tooltip>
-      ) : null}
-      {/* Spec 185 T6.1 (D2/RF6): só para tipos de separação — o CHECK do banco recusa em `delivery`. */}
-      {type.stage === TRIP_OCCURRENCE_STAGE.separation ? (
-        <Tooltip label={t('occurrenceTypeCatalog.leavesDocumentBehindHint')}>
-          <Checkbox
-            checked={type.leavesDocumentBehind}
-            disabled={isDisabled}
-            label={t('occurrenceTypeCatalog.leavesDocumentBehind')}
-            onChange={(value) =>
-              onSave(buildOccurrenceTypeUpdate(type, { leavesDocumentBehind: value }))
-            }
-          />
-        </Tooltip>
-      ) : null}
       {/* Spec 246 RF11/RF11c: as exceções à vista, só em tipo de rua (mesmo gate do comprovante). */}
       {isDelivery ? (
         <OccurrenceTypeExceptions

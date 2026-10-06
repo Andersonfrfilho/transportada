@@ -59,6 +59,7 @@ export type OccurrenceTypeEdit = Readonly<
       | 'itemsMode'
       | 'leavesDocumentBehind'
       | 'moments'
+      | 'name'
       | 'noteMode'
       | 'notifies'
       | 'photoMinimumCount'

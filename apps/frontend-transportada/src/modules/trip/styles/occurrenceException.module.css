@@ -129,3 +129,16 @@
     min-height: var(--touch-target);
   }
 }
+
+/* Em tela larga a exceção vira uma linha — quem, os campos, remover — e três exceções se comparam de relance, como a tabela do preview. */
+@media (min-width: 64rem) {
+  .entry {
+    grid-template-columns: minmax(10rem, 15rem) minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  .who {
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+}

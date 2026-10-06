@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * O painel de tipos de ocorrência vive em três componentes (painel, linha, formulário de cadastro)
+ * O painel de tipos de ocorrência vive em quatro componentes (painel, linha, identificação, formulário de cadastro)
  * e o hook do rascunho do cadastro; os contratos de texto leem tudo como um só código-fonte.
  */
 import { readFileSync } from 'node:fs'
@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs'
 const PANEL_FILES = [
   'OccurrenceTypeCatalogPanel.component.tsx',
   'OccurrenceTypeRow.component.tsx',
+  'OccurrenceTypeIdentity.component.tsx',
   'OccurrenceTypeNotification.component.tsx',
   'OccurrenceTypeCreateForm.component.tsx',
 ] as const
