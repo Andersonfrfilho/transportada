@@ -1,5 +1,14 @@
 # Evidência — spec 246
 
+## Pré-requisitos de produção
+
+**A 246 não vai a `main` sem estas duas medições registradas aqui; as duas são pendentes do usuário** (leitura em produção pede autorização dele).
+
+- [ ] **T3.0** — staging e produção, só leitura: exceções (nas duas tabelas) com `attachment_mode <> 'required'` sobre tipo `required` (consulta exata na T3.0 do `tasks.md`). O afrouxamento das exceções (RF6) **passa a valer no deploy da API**, sem variável de ambiente que o segure: sem esta medição ninguém sabe quantos registros passam a ser aceitos sem foto.
+- [ ] **T1d.0** — produção, só leitura: `count(*)` de `trip_document_occurrences.attachment_object_id IS NOT NULL` e quantas têm as duas fontes (esperado 0). Parada antes da migration do backfill de anexos em produção.
+
+Staging pode receber a spec sem elas; a promoção a produção (PR `staging` → `main`) não.
+
 ## Correções da spec antes de implementar (2026-10-06)
 
 Um `architect` validou os desenhos de `spec.md`, `plan.md` e `tasks.md` contra o código real, e o

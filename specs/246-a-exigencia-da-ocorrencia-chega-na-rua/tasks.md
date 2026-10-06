@@ -8,6 +8,21 @@ Uma task por vez, na ordem. Cada uma fecha com typecheck, teste e commit isolado
 evidência em `evidence.md`. **Tasks com `--env-file`:** a integração da API exige
 `--env-file=../../.env.test`.
 
+## Pré-requisitos de produção
+
+> **Esta spec não vai a `main` sem duas medições registradas em `evidence.md`, e as duas são do
+> usuário** (leitura em produção pede autorização dele):
+>
+> - **T3.0** — staging e produção: quantas exceções (nas duas tabelas) têm `attachment_mode <>
+'required'` sobre tipo `required`. ⚠️ **O afrouxamento das exceções passa a valer no deploy da
+>   API**: uma exceção `optional` sobre tipo `required` deixa de ser ignorada pelo servidor assim que a
+>   API sobe. Sem a medição, ninguém sabe quantos registros passam a ser aceitos sem foto. Não há
+>   variável de ambiente que ligue ou desligue isso — por isso a medição é pré-requisito, não opção.
+> - **T1d.0** — produção: `count(*)` de ocorrências com `attachment_object_id` e quantas têm as duas
+>   fontes (esperado 0); parada obrigatória antes da migration do backfill de anexos.
+>
+> Staging pode receber a spec sem elas; a promoção a produção (PR `staging` → `main`) não.
+
 ## Fase 1 — O dado passa a carregar a exigência
 
 > 🤖 Modelo: `sonnet` (T1.2 é 🧠 — o backfill é o ponto onde se perde comportamento calado)

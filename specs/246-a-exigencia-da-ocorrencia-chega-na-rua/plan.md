@@ -1,5 +1,14 @@
 # Plano técnico
 
+## Pré-requisitos de produção
+
+**A 246 não vai a `main` sem a medição T3.0 (e a T1d.0), as duas pendentes do usuário** — leitura em
+produção pede autorização dele. O afrouxamento das exceções (RF6) **passa a valer no deploy da API**,
+sem chave de ambiente: uma exceção `optional` sobre tipo `required` deixa de ser ignorada assim que a
+API sobe, e só a medição T3.0 diz quantos registros isso passa a aceitar sem foto. A T1d.0 é a parada
+antes do backfill de anexos. Detalhe e consultas em `tasks.md` ("Pré-requisitos de produção") e
+`evidence.md`.
+
 ## Contexto e premissas
 
 A peça central já existe e está correta: `listFieldOccurrenceTypes` resolve o `attachmentMode` em
