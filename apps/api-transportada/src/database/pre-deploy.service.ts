@@ -6,7 +6,10 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { parseEnvironment } from '../config/environment.schema.js'
 import { createApiNotificationModule } from '../notification/infrastructure/notification-module.factory.js'
 import { seedNotificationTemplates } from '../notification/application/notification-template-seed.service.js'
-import { seedOccurrenceTypeCatalog } from './occurrence-type-catalog-seed.service.js'
+import {
+  seedOccurrenceTypeCatalog,
+  seedReceivingOccurrenceTypeCatalog,
+} from './occurrence-type-catalog-seed.service.js'
 import { createDrizzleOccurrenceTypeCatalogSeedPort } from './occurrence-type-catalog-seed.repository.js'
 import { runAllDatabaseMigrations } from './database-migration.service.js'
 import {
@@ -150,9 +153,10 @@ if (import.meta.main) {
         connection: { adapter: 'postgres', max: 1, url: config.databaseUrl },
       })
       try {
-        return await seedOccurrenceTypeCatalog({
-          port: createDrizzleOccurrenceTypeCatalogSeedPort(provider.db),
-        })
+        const port = createDrizzleOccurrenceTypeCatalogSeedPort(provider.db)
+        const trips = await seedOccurrenceTypeCatalog({ port })
+        // Spec 237 T3.2: o catálogo de recebimento é bootstrap à parte, por etapa (ADR-0094 §9.2).
+        return trips + (await seedReceivingOccurrenceTypeCatalog({ port }))
       } finally {
         await provider.close()
       }

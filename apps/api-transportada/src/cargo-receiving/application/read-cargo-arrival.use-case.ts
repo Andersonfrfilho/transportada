@@ -53,8 +53,8 @@ export function createListCargoArrivalsUseCase(dependencies: Dependencies): {
       })
       const now = dependencies.now()
       return {
-        items: page.items.map((record) =>
-          toCargoArrivalSummary({ counts: record.counts, now, record }),
+        items: page.items.map(({ counts, pendingSeparationCount, ...record }) =>
+          toCargoArrivalSummary({ counts, now, pendingSeparationCount, record }),
         ),
         nextCursor: page.nextCursor,
       }

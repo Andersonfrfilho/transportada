@@ -50,7 +50,10 @@ import type {
   OccurrenceTypeFlow,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
-import { OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK } from '../../shared/trip-occurrence.constant.js'
+import {
+  OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK,
+  TRIP_BOUND_OCCURRENCE_STAGES,
+} from '../../shared/trip-occurrence.constant.js'
 import { openOccurrenceCase } from './drizzle-occurrence-case.repository.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
 import {
@@ -989,7 +992,13 @@ export async function listOccurrenceTypes(
       stopKind: companyOccurrenceTypes.stopKind,
     })
     .from(companyOccurrenceTypes)
-    .where(eq(companyOccurrenceTypes.companyId, input.companyId))
+    .where(
+      and(
+        eq(companyOccurrenceTypes.companyId, input.companyId),
+        /** Spec 237 (ADR-0094 §9.5, ajuste 1): o tipo de recebimento é da chegada, não do painel. */
+        inArray(companyOccurrenceTypes.stage, [...TRIP_BOUND_OCCURRENCE_STAGES]),
+      ),
+    )
     .orderBy(asc(companyOccurrenceTypes.stage), asc(companyOccurrenceTypes.name))
 }
 
@@ -1109,6 +1118,8 @@ export async function saveOccurrenceType(
             and(
               eq(companyOccurrenceTypes.companyId, input.companyId),
               eq(companyOccurrenceTypes.id, input.occurrenceTypeId),
+              /** Spec 237: o cadastro não converte tipo de recebimento em tipo de viagem — 404. */
+              inArray(companyOccurrenceTypes.stage, [...TRIP_BOUND_OCCURRENCE_STAGES]),
             ),
           )
           .returning()

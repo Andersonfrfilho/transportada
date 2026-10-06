@@ -14,9 +14,10 @@
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, desc, eq, exists, inArray } from 'drizzle-orm'
-import type { AnyColumn } from 'drizzle-orm'
+import type { AnyColumn, SQLWrapper } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
+import { cargoArrivalDocuments } from '../../database/cargo-arrival-document.schema.js'
 import { contractorPortalBindings } from '../../database/client-portal.schema.js'
 import { contractors } from '../../database/delivery-client.schema.js'
 import { userCompanyMemberships } from '../../database/identity.schema.js'
@@ -36,10 +37,21 @@ import { resolveOccurrenceItems } from '../../trips/infrastructure/occurrence-it
 import type { OccurrenceItemView } from '../../trips/infrastructure/occurrence-items.support.js'
 import { resolveContractorScope } from '../domain/contractor-scope.policy.js'
 import type { ContractorScope } from '../domain/contractor-scope.policy.js'
+import { occurrenceNfeDocumentId } from './contractor-occurrence-document.support.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 const CONTRACTOR_ROLES = ['emitter', 'recipient'] as const
+
+/** A NF-e da ocorrência nas leituras de cima: pela nota da viagem ou pela da chegada (spec 237). */
+const OCCURRENCE_NFE_DOCUMENT_ID = occurrenceNfeDocumentId({
+  arrivalDocument: cargoArrivalDocuments,
+  tripDocument: tripDocuments,
+})
+const OCCURRENCE_DOCUMENT = {
+  companyId: tripDocumentOccurrences.companyId,
+  nfeDocumentId: OCCURRENCE_NFE_DOCUMENT_ID,
+}
 
 /** Spec 164 RF13: o item apontado — código e descrição vêm da nota, quantidade/unidade da marcação. */
 /** O mesmo item do detalhe do escritório (spec 183 T207): um formato, um leitor. */
@@ -66,11 +78,14 @@ export type ContractorOccurrenceDetail = ContractorOccurrenceListItem & {
   readonly decisionNote: string
 }
 
-/** A mesma condição de escopo que `listContractorDeliveries` usa — a nota é do contratante quando ele emitiu ou recebe. */
+/**
+ * A mesma condição de escopo que `listContractorDeliveries` usa — a nota é do contratante quando ele
+ * emitiu ou recebe. Spec 237: a NF-e chega pela nota da viagem ou pela da chegada, por isso expressão.
+ */
 function buildScopeCondition(
   database: Pick<Database, 'select'>,
   scope: ContractorScope,
-  documents: { readonly companyId: AnyColumn; readonly nfeDocumentId: AnyColumn } = tripDocuments,
+  documents: { readonly companyId: SQLWrapper; readonly nfeDocumentId: SQLWrapper },
 ) {
   return exists(
     database
@@ -89,7 +104,16 @@ function buildScopeCondition(
 
 const visibleOccurrence = alias(tripDocumentOccurrences, 'contractor_visible_occurrence')
 const visibleCase = alias(tripOccurrenceCases, 'contractor_visible_case')
-const visibleDocument = alias(tripDocuments, 'contractor_visible_document')
+const visibleTripDocument = alias(tripDocuments, 'contractor_visible_document')
+const visibleArrivalDocument = alias(cargoArrivalDocuments, 'contractor_visible_arrival_document')
+/** A nota da ocorrência visível, da viagem ou da chegada (spec 237), na empresa da ocorrência. */
+const visibleDocument = {
+  companyId: visibleOccurrence.companyId,
+  nfeDocumentId: occurrenceNfeDocumentId({
+    arrivalDocument: visibleArrivalDocument,
+    tripDocument: visibleTripDocument,
+  }),
+}
 
 /**
  * Spec 183 T651: a fronteira desta listagem — ocorrência de nota, tratativa visível (D5) e nota do
@@ -118,11 +142,18 @@ export function buildContractorVisibleOccurrenceCondition(
           inArray(visibleCase.status, [...CONTRACTOR_VISIBLE_CASE_STATUSES]),
         ),
       )
-      .innerJoin(
-        visibleDocument,
+      .leftJoin(
+        visibleTripDocument,
         and(
-          eq(visibleDocument.companyId, visibleOccurrence.companyId),
-          eq(visibleDocument.id, visibleOccurrence.tripDocumentId),
+          eq(visibleTripDocument.companyId, visibleOccurrence.companyId),
+          eq(visibleTripDocument.id, visibleOccurrence.tripDocumentId),
+        ),
+      )
+      .leftJoin(
+        visibleArrivalDocument,
+        and(
+          eq(visibleArrivalDocument.companyId, visibleOccurrence.companyId),
+          eq(visibleArrivalDocument.id, visibleOccurrence.cargoArrivalDocumentId),
         ),
       )
       .where(
@@ -149,18 +180,25 @@ export async function findContractorPortalAudience(
   const [emitter] = await database
     .select({ contractorId: contractors.id, taxId: contractors.taxId })
     .from(tripDocumentOccurrences)
-    .innerJoin(
+    .leftJoin(
       tripDocuments,
       and(
         eq(tripDocuments.companyId, tripDocumentOccurrences.companyId),
         eq(tripDocuments.id, tripDocumentOccurrences.tripDocumentId),
       ),
     )
+    .leftJoin(
+      cargoArrivalDocuments,
+      and(
+        eq(cargoArrivalDocuments.companyId, tripDocumentOccurrences.companyId),
+        eq(cargoArrivalDocuments.id, tripDocumentOccurrences.cargoArrivalDocumentId),
+      ),
+    )
     .innerJoin(
       nfeParticipants,
       and(
-        eq(nfeParticipants.companyId, tripDocuments.companyId),
-        eq(nfeParticipants.documentId, tripDocuments.nfeDocumentId),
+        eq(nfeParticipants.companyId, tripDocumentOccurrences.companyId),
+        eq(nfeParticipants.documentId, OCCURRENCE_NFE_DOCUMENT_ID),
         eq(nfeParticipants.role, 'emitter'),
       ),
     )
@@ -257,24 +295,31 @@ export async function listContractorOccurrences(
         eq(companyOccurrenceTypes.id, tripDocumentOccurrences.occurrenceTypeId),
       ),
     )
-    .innerJoin(
+    .leftJoin(
       tripDocuments,
       and(
         eq(tripDocuments.companyId, tripDocumentOccurrences.companyId),
         eq(tripDocuments.id, tripDocumentOccurrences.tripDocumentId),
       ),
     )
+    .leftJoin(
+      cargoArrivalDocuments,
+      and(
+        eq(cargoArrivalDocuments.companyId, tripDocumentOccurrences.companyId),
+        eq(cargoArrivalDocuments.id, tripDocumentOccurrences.cargoArrivalDocumentId),
+      ),
+    )
     .innerJoin(
       nfeDocuments,
       and(
-        eq(nfeDocuments.companyId, tripDocuments.companyId),
-        eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
+        eq(nfeDocuments.companyId, tripDocumentOccurrences.companyId),
+        eq(nfeDocuments.id, OCCURRENCE_NFE_DOCUMENT_ID),
       ),
     )
     .where(
       and(
         eq(tripDocumentOccurrences.companyId, input.companyId),
-        buildScopeCondition(database, input.scope),
+        buildScopeCondition(database, input.scope, OCCURRENCE_DOCUMENT),
       ),
     )
     .orderBy(desc(tripOccurrenceCases.openedAt))
@@ -349,25 +394,32 @@ export async function findContractorOccurrenceDetail(
         eq(companyOccurrenceTypes.id, tripDocumentOccurrences.occurrenceTypeId),
       ),
     )
-    .innerJoin(
+    .leftJoin(
       tripDocuments,
       and(
         eq(tripDocuments.companyId, tripDocumentOccurrences.companyId),
         eq(tripDocuments.id, tripDocumentOccurrences.tripDocumentId),
       ),
     )
+    .leftJoin(
+      cargoArrivalDocuments,
+      and(
+        eq(cargoArrivalDocuments.companyId, tripDocumentOccurrences.companyId),
+        eq(cargoArrivalDocuments.id, tripDocumentOccurrences.cargoArrivalDocumentId),
+      ),
+    )
     .innerJoin(
       nfeDocuments,
       and(
-        eq(nfeDocuments.companyId, tripDocuments.companyId),
-        eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
+        eq(nfeDocuments.companyId, tripDocumentOccurrences.companyId),
+        eq(nfeDocuments.id, OCCURRENCE_NFE_DOCUMENT_ID),
       ),
     )
     .where(
       and(
         eq(tripDocumentOccurrences.companyId, input.companyId),
         eq(tripDocumentOccurrences.id, input.occurrenceId),
-        buildScopeCondition(database, input.scope),
+        buildScopeCondition(database, input.scope, OCCURRENCE_DOCUMENT),
       ),
     )
     .limit(1)

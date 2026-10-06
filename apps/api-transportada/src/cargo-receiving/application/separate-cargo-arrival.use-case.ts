@@ -131,7 +131,7 @@ export function createCloseCargoArrivalUseCase(dependencies: Dependencies): {
       })
       if (result.kind === 'arrival_not_found') throw new CargoArrivalNotFoundError()
       if (result.kind === 'pending') {
-        throw new CargoArrivalHasPendingDocumentsError(toPendingDocumentDetails(result.documentIds))
+        throw new CargoArrivalHasPendingDocumentsError(toPendingDocumentDetails(result.pending))
       }
       return { arrivalId, outcome: result.kind === 'closed' ? 'changed' : 'unchanged' }
     },

@@ -20,6 +20,7 @@ function row(id: string, overrides: Partial<ArrivalCandidateRow> = {}): ArrivalC
     id,
     isInArrival: false,
     isInLiveTrip: false,
+    returnToContractor: null,
     status: 'authorized',
     ...overrides,
   }
@@ -38,6 +39,21 @@ describe('as notas candidatas da chegada (spec 237 T2.3)', () => {
     ['nota cancelada', row('a', { status: 'cancelled' }), 'DOCUMENT_NOT_AUTHORIZED'],
     ['nota já em outra chegada', row('a', { isInArrival: true }), 'DOCUMENT_ALREADY_IN_ARRIVAL'],
     ['nota em viagem viva', row('a', { isInLiveTrip: true }), 'DOCUMENT_IN_LIVE_TRIP'],
+    [
+      'nota marcada para devolver ao contratante (RF8a)',
+      row('a', { isInArrival: true, returnToContractor: 'marked' }),
+      'DOCUMENT_RETURN_TO_CONTRACTOR',
+    ],
+    [
+      'nota já devolvida ao contratante (RF8a)',
+      row('a', { isInArrival: true, returnToContractor: 'returned' }),
+      'DOCUMENT_RETURN_TO_CONTRACTOR',
+    ],
+    [
+      'nota de chegada sem marca segue "já em chegada"',
+      row('a', { isInArrival: true, returnToContractor: 'none' }),
+      'DOCUMENT_ALREADY_IN_ARRIVAL',
+    ],
   ] as const)('%s', (_label, candidate, reason) => {
     const refusals = findArrivalCandidateRefusals({
       contractorTaxId: TAX_ID,

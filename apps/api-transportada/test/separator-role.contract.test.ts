@@ -4,6 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { createBillingRoutes } from '../src/billing/presentation/billing.routes'
+import { createCargoArrivalOccurrenceRoutes } from '../src/cargo-receiving/presentation/cargo-arrival-occurrence.routes'
 import { createCargoArrivalSeparationRoutes } from '../src/cargo-receiving/presentation/cargo-arrival-separation.routes'
 import { createCargoArrivalRoutes } from '../src/cargo-receiving/presentation/cargo-arrival.routes'
 import { createCargoPreviewActionRoutes } from '../src/cargo-receiving/presentation/cargo-preview-action.routes'
@@ -100,6 +101,7 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     // e separa no celular. Lê com `fleet.read` e escreve com `trip.manage`, as que já tinha.
     ...createCargoArrivalRoutes(dependencies),
     ...createCargoArrivalSeparationRoutes(dependencies),
+    ...createCargoArrivalOccurrenceRoutes(dependencies),
     // Spec 237 T4.2: a prévia vira a chegada (RF5b), e quem confere a chegada é o separador — ele
     // envia a planilha e decide o vínculo com as mesmas `fleet.read`/`trip.manage`.
     ...createCargoPreviewRoutes(dependencies),
@@ -140,7 +142,10 @@ describe('separator role contract', () => {
        */
       'GET /cargo-arrivals',
       'GET /cargo-arrivals/:id',
+      /** Spec 237 T3.2 (ADR-0094 §9): a ocorrência de recebimento e os tipos dela, `fleet.read`. */
+      'GET /cargo-arrivals/:id/occurrences',
       'GET /cargo-arrivals/available-documents',
+      'GET /cargo-arrivals/occurrence-types',
       /**
        * Spec 237 T4.2: a prévia da carga é a chegada antes de chegar (RF5b). O separador lê, envia a
        * planilha e confirma/desvincula/vincula a linha à nota — nada de frota, faturamento nem
@@ -322,7 +327,15 @@ describe('separator role contract', () => {
       'PATCH /trips/:id/stops/order',
       'POST /cargo-arrivals',
       'POST /cargo-arrivals/:id/close',
+      /**
+       * Spec 237 T3.2 (ADR-0094 §9.5, ajuste 8): o separador abre a avaria, marca e conclui a
+       * devolução (`trip.manage`), mas NÃO desfaz a marcação — `return-unmark` é
+       * `occurrences.resolve`, e a ausência dele aqui é a prova.
+       */
+      'POST /cargo-arrivals/:id/documents/:documentId/occurrences',
       'POST /cargo-arrivals/:id/documents/:documentId/receive',
+      'POST /cargo-arrivals/:id/documents/:documentId/return-complete',
+      'POST /cargo-arrivals/:id/documents/:documentId/return-mark',
       'POST /cargo-arrivals/:id/documents/:documentId/separate',
       'POST /cargo-arrivals/:id/documents/batch-status',
       'POST /cargo-arrivals/:id/route-assignment',

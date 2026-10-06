@@ -6,6 +6,7 @@
  */
 import { ApiError } from '../../shared/api.error.js'
 import type { ApiErrorDetail } from '../../shared/api.types.js'
+import type { CargoArrivalClosePending } from './cargo-arrival-return.policy.js'
 
 const DOCUMENT_IDS_FIELD = 'documentIds'
 
@@ -13,18 +14,22 @@ const DOCUMENT_IDS_FIELD = 'documentIds'
 export const CARGO_ARRIVAL_DOCUMENT_NOT_FOUND = 'CARGO_ARRIVAL_DOCUMENT_NOT_FOUND'
 
 const PENDING_DOCUMENT_IDS_FIELD = 'pendingDocumentIds'
-const PENDING_DOCUMENT_MESSAGE = 'The document is not separated yet'
+/** A frase diz por que a nota segura o fechamento: falta separar, ou espera a decisão da devolução. */
+const PENDING_DOCUMENT_MESSAGE: Readonly<Record<CargoArrivalClosePending['reason'], string>> = {
+  marked_for_return: 'The document is marked to return to the contractor',
+  not_separated: 'The document is not separated yet',
+}
 
 /** O id da nota vai no próprio campo, nunca no texto: `message` é para gente ler (revisão, L7). */
 export type PendingDocumentDetail = ApiErrorDetail & { readonly documentId: string }
 
 export function toPendingDocumentDetails(
-  documentIds: readonly string[],
+  pending: readonly CargoArrivalClosePending[],
 ): readonly PendingDocumentDetail[] {
-  return documentIds.map((documentId, index) => ({
-    documentId,
+  return pending.map((item, index) => ({
+    documentId: item.documentId,
     field: `${PENDING_DOCUMENT_IDS_FIELD}.${index}`,
-    message: PENDING_DOCUMENT_MESSAGE,
+    message: PENDING_DOCUMENT_MESSAGE[item.reason],
   }))
 }
 

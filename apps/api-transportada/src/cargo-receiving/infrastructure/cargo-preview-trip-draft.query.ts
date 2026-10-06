@@ -6,8 +6,9 @@
  * milhares de ids), com cidade e destinatário do XML, o peso somado dos volumes e se a nota já está em
  * viagem viva (a mesma conta de `findUnavailableDocumentIds`).
  */
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, ne, sql } from 'drizzle-orm'
 
+import { cargoArrivalDocuments } from '../../database/cargo-arrival-document.schema.js'
 import { cargoPreviewItems } from '../../database/cargo-preview-item.schema.js'
 import {
   cargoPreviewDocumentLinks,
@@ -15,6 +16,7 @@ import {
 } from '../../database/cargo-preview-link.schema.js'
 import { cargoPreviews } from '../../database/cargo-preview.schema.js'
 import { nfeAddresses, nfeDocuments, nfeVolumes } from '../../database/nfe.schema.js'
+import { CARGO_ARRIVAL_RETURN_STATE } from '../../shared/cargo-arrival.constant.js'
 import type {
   TripDraftDocumentRow,
   TripDraftItemRow,
@@ -135,9 +137,30 @@ export async function selectTripDraftDocuments(
 }
 
 /**
- * RF8a (Fase 3): aqui entram as notas marcadas "devolver ao contratante". A marcação ainda não existe;
- * o gancho fica num lugar só, e a política já tira do roteável o que ele devolver.
+ * RF8a (Fase 3, ADR-0094 §9.3): as notas desta prévia marcadas "devolver ao contratante" — ou já
+ * devolvidas — na chegada em que estão. O gancho é um lugar só; a política tira do roteável o que
+ * ele devolver.
  */
-export function findExcludedTripDraftDocumentIds(): ReadonlySet<string> {
-  return new Set()
+export async function findExcludedTripDraftDocumentIds(
+  database: Database,
+  params: Scope,
+): Promise<ReadonlySet<string>> {
+  const rows = await database
+    .select({ documentId: cargoArrivalDocuments.nfeDocumentId })
+    .from(cargoPreviewDocumentLinks)
+    .innerJoin(
+      cargoArrivalDocuments,
+      and(
+        eq(cargoArrivalDocuments.companyId, cargoPreviewDocumentLinks.companyId),
+        eq(cargoArrivalDocuments.nfeDocumentId, cargoPreviewDocumentLinks.documentId),
+      ),
+    )
+    .where(
+      and(
+        eq(cargoPreviewDocumentLinks.companyId, params.companyId),
+        eq(cargoPreviewDocumentLinks.previewId, params.previewId),
+        ne(cargoArrivalDocuments.returnToContractor, CARGO_ARRIVAL_RETURN_STATE.none),
+      ),
+    )
+  return new Set(rows.map((row) => row.documentId))
 }

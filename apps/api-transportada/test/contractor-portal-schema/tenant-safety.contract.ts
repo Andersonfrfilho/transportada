@@ -68,5 +68,8 @@ describe('portal conversation query tenant safety (spec 183 T651)', () => {
 
     expect(boundary).toInclude('CONTRACTOR_VISIBLE_CASE_STATUSES')
     expect(boundary).toInclude('buildScopeCondition(database, input.scope, visibleDocument)')
+    /** Spec 237 (ADR-0094 §9.1): a nota vem da viagem OU da chegada, as duas pela empresa da ocorrência. */
+    expect(boundary).toInclude('eq(visibleTripDocument.companyId, visibleOccurrence.companyId)')
+    expect(boundary).toInclude('eq(visibleArrivalDocument.companyId, visibleOccurrence.companyId)')
   })
 })

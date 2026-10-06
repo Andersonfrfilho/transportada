@@ -5,13 +5,10 @@
  * ordem de id; o lote é decidido em memória e gravado com um UPDATE e um INSERT — nenhuma nota
  * recusada derruba as outras, e o no-op não gera evento.
  */
-import { and, inArray, ne } from 'drizzle-orm'
+import { and, inArray } from 'drizzle-orm'
 
 import { cargoArrivalDocuments } from '../../database/cargo-arrival-document.schema.js'
-import {
-  CARGO_ARRIVAL_DOCUMENT_STATE,
-  CARGO_ARRIVAL_STATUS,
-} from '../../shared/cargo-arrival.constant.js'
+import { CARGO_ARRIVAL_STATUS } from '../../shared/cargo-arrival.constant.js'
 import type { CargoArrivalSeparationRepositoryPort } from '../application/cargo-arrival.port.js'
 import type {
   AssignCargoArrivalRouteRecordParams,
@@ -21,6 +18,7 @@ import type {
   CloseCargoArrivalRecordResult,
   TransitionCargoArrivalRecordParams,
 } from '../application/cargo-arrival-request.types.js'
+import { findCargoArrivalClosePending } from '../domain/cargo-arrival-return.policy.js'
 import { decideCargoArrivalBatch } from '../domain/cargo-arrival-transition.policy.js'
 import {
   buildArrivalDocumentFilters,
@@ -47,6 +45,7 @@ function lockDocuments(
     .select({
       id: cargoArrivalDocuments.id,
       nfeDocumentId: cargoArrivalDocuments.nfeDocumentId,
+      returnToContractor: cargoArrivalDocuments.returnToContractor,
       routeName: cargoArrivalDocuments.routeName,
       separationState: cargoArrivalDocuments.separationState,
     })
@@ -116,19 +115,17 @@ export class DrizzleCargoArrivalSeparationRepository
       const arrival = await lockArrival(transaction, params)
       if (arrival === undefined) return { kind: 'arrival_not_found' }
       if (arrival.status === CARGO_ARRIVAL_STATUS.closed) return { kind: 'already_closed' }
-      const pending = await transaction
-        .select({ nfeDocumentId: cargoArrivalDocuments.nfeDocumentId })
+      const documents = await transaction
+        .select({
+          nfeDocumentId: cargoArrivalDocuments.nfeDocumentId,
+          returnToContractor: cargoArrivalDocuments.returnToContractor,
+          separationState: cargoArrivalDocuments.separationState,
+        })
         .from(cargoArrivalDocuments)
-        .where(
-          and(
-            ...buildArrivalDocumentFilters(params),
-            ne(cargoArrivalDocuments.separationState, CARGO_ARRIVAL_DOCUMENT_STATE.separated),
-          ),
-        )
+        .where(and(...buildArrivalDocumentFilters(params)))
         .orderBy(cargoArrivalDocuments.nfeDocumentId)
-      if (pending.length > 0) {
-        return { documentIds: pending.map((row) => row.nfeDocumentId), kind: 'pending' }
-      }
+      const pending = findCargoArrivalClosePending(documents)
+      if (pending.length > 0) return { kind: 'pending', pending }
       await markClosed(transaction, { contractorId: arrival.contractorId, params })
       return { kind: 'closed' }
     })

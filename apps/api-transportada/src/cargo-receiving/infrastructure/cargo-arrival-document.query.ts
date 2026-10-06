@@ -13,6 +13,7 @@ import { cargoArrivalDocuments } from '../../database/cargo-arrival-document.sch
 import { nfeAddresses, nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
 import { tripDocuments } from '../../database/trip.schema.js'
 import { NFE_DOCUMENT_AUTHORIZED_STATUS } from '../../nfe-documents/domain/nfe-document-status.constant.js'
+import type { CargoArrivalReturnState } from '../../shared/cargo-arrival.constant.js'
 import type { Database } from './cargo-arrival-persistence.support.js'
 
 const EMITTER_ROLE = 'emitter'
@@ -28,6 +29,13 @@ export function isInLiveTripSql(documentId: AnyPgColumn): SQL<boolean> {
 
 export function isInArrivalSql(documentId: AnyPgColumn): SQL<boolean> {
   return sql<boolean>`exists (select 1 from ${cargoArrivalDocuments} where ${cargoArrivalDocuments.companyId} = ${nfeDocuments.companyId} and ${cargoArrivalDocuments.nfeDocumentId} = ${documentId})`
+}
+
+/** A marcação "devolver ao contratante" da chegada em que a nota está; nula fora de chegada. */
+export function returnToContractorSql(
+  documentId: AnyPgColumn,
+): SQL<CargoArrivalReturnState | null> {
+  return sql<CargoArrivalReturnState | null>`(select ${cargoArrivalDocuments.returnToContractor} from ${cargoArrivalDocuments} where ${cargoArrivalDocuments.companyId} = ${nfeDocuments.companyId} and ${cargoArrivalDocuments.nfeDocumentId} = ${documentId})`
 }
 
 export function recipientAddressSql(
@@ -90,6 +98,7 @@ export function selectArrivalCandidateRows(
       id: nfeDocuments.id,
       isInArrival: isInArrivalSql(nfeDocuments.id).mapWith(Boolean),
       isInLiveTrip: isInLiveTripSql(nfeDocuments.id).mapWith(Boolean),
+      returnToContractor: returnToContractorSql(nfeDocuments.id),
       status: nfeDocuments.status,
     })
     .from(nfeDocuments)

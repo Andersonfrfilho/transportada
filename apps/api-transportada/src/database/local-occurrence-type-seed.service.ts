@@ -61,6 +61,8 @@ async function seedOccurrenceTypes(): Promise<void> {
           and(
             eq(companyOccurrenceTypes.companyId, empresa.id),
             eq(companyOccurrenceTypes.name, tipo.name),
+            /** Spec 237: "Item avariado" também existe na etapa de recebimento, com o mesmo nome. */
+            eq(companyOccurrenceTypes.stage, tipo.stage),
           ),
         )
         .limit(1)

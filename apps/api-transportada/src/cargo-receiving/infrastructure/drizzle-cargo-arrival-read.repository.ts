@@ -11,6 +11,7 @@ import { cargoArrivals } from '../../database/cargo-arrival.schema.js'
 import { contractors } from '../../database/delivery-client.schema.js'
 import { nfeAddresses, nfeDocuments } from '../../database/nfe.schema.js'
 import type { ArrivalStateCounts } from '../domain/cargo-arrival-grouping.policy.js'
+import { isPendingSeparation } from '../domain/cargo-arrival-return.policy.js'
 import type {
   AvailableArrivalDocumentsLookup,
   CargoArrivalReadRepositoryPort,
@@ -56,6 +57,15 @@ const ARRIVAL_COLUMNS = {
 
 const EMPTY_COUNTS: ArrivalStateCounts = { expected: 0, received: 0, separated: 0, total: 0 }
 
+type ArrivalCounts = {
+  readonly counts: ArrivalStateCounts
+  readonly pendingSeparationCount: number
+}
+type MutableArrivalCounts = {
+  counts: Record<keyof ArrivalStateCounts, number>
+  pendingSeparationCount: number
+}
+
 const CONTRACTOR_JOIN = and(
   eq(contractors.companyId, cargoArrivals.companyId),
   eq(contractors.id, cargoArrivals.contractorId),
@@ -86,7 +96,8 @@ export class DrizzleCargoArrivalReadRepository implements CargoArrivalReadReposi
       limit: params.paging.limit,
       map: (row): CargoArrivalListRecord => ({
         ...row,
-        counts: counts.get(row.id) ?? EMPTY_COUNTS,
+        counts: counts.get(row.id)?.counts ?? EMPTY_COUNTS,
+        pendingSeparationCount: counts.get(row.id)?.pendingSeparationCount ?? 0,
       }),
       order: params.order,
       rows,
@@ -119,6 +130,7 @@ export class DrizzleCargoArrivalReadRepository implements CargoArrivalReadReposi
         number: nfeDocuments.number,
         receivedAt: cargoArrivalDocuments.receivedAt,
         recipientName: recipientParticipant.legalName,
+        returnToContractor: cargoArrivalDocuments.returnToContractor,
         routeName: cargoArrivalDocuments.routeName,
         separatedAt: cargoArrivalDocuments.separatedAt,
         separationState: cargoArrivalDocuments.separationState,
@@ -141,15 +153,16 @@ export class DrizzleCargoArrivalReadRepository implements CargoArrivalReadReposi
       )
   }
 
-  /** Uma linha por (chegada, estado) da página; a contagem por estado sai do agrupamento. */
+  /** Uma linha por (chegada, estado, marcação) da página; contagens e pendente saem do agrupamento. */
   private async countStates(params: {
     readonly arrivalIds: readonly string[]
     readonly companyId: string
-  }): Promise<ReadonlyMap<string, ArrivalStateCounts>> {
+  }): Promise<ReadonlyMap<string, ArrivalCounts>> {
     if (params.arrivalIds.length === 0) return new Map()
     const rows = await this.database
       .select({
         arrivalId: cargoArrivalDocuments.arrivalId,
+        returnToContractor: cargoArrivalDocuments.returnToContractor,
         separationState: cargoArrivalDocuments.separationState,
         total: count(),
       })
@@ -160,12 +173,20 @@ export class DrizzleCargoArrivalReadRepository implements CargoArrivalReadReposi
           inArray(cargoArrivalDocuments.arrivalId, [...params.arrivalIds]),
         ),
       )
-      .groupBy(cargoArrivalDocuments.arrivalId, cargoArrivalDocuments.separationState)
-    const counts = new Map<string, Record<keyof ArrivalStateCounts, number>>()
+      .groupBy(
+        cargoArrivalDocuments.arrivalId,
+        cargoArrivalDocuments.separationState,
+        cargoArrivalDocuments.returnToContractor,
+      )
+    const counts = new Map<string, MutableArrivalCounts>()
     for (const row of rows) {
-      const current = counts.get(row.arrivalId) ?? { ...EMPTY_COUNTS }
-      current[row.separationState] += row.total
-      current.total += row.total
+      const current = counts.get(row.arrivalId) ?? {
+        counts: { ...EMPTY_COUNTS },
+        pendingSeparationCount: 0,
+      }
+      current.counts[row.separationState] += row.total
+      current.counts.total += row.total
+      if (isPendingSeparation(row)) current.pendingSeparationCount += row.total
       counts.set(row.arrivalId, current)
     }
     return counts

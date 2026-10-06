@@ -3,6 +3,7 @@
  */
 import './cargo-receiving-schema/cargo-arrival.contract.js'
 import './cargo-receiving-schema/cargo-arrival-receiving-occurrence.contract.js'
+import './cargo-receiving-schema/cargo-arrival-occurrence-tenant-safety.contract.js'
 import './cargo-receiving-schema/cargo-preview.contract.js'
 import './cargo-receiving-schema/contractor-receiving-profile.contract.js'
 import './cargo-receiving-schema/tenant-safety.contract.js'

@@ -10,6 +10,7 @@ import {
   CARGO_ARRIVAL_LIMITS,
   CARGO_ARRIVAL_STATUS,
   type CargoArrivalDocumentState,
+  type CargoArrivalReturnState,
   type CargoArrivalStatus,
 } from '../../shared/cargo-arrival.constant.js'
 import { CARGO_ARRIVAL_DOCUMENT_NOT_FOUND } from './cargo-arrival.error.js'
@@ -141,7 +142,26 @@ export type CargoArrivalDocumentOutcome =
 export type CargoArrivalBatchRow = {
   readonly id: string
   readonly nfeDocumentId: string
+  readonly returnToContractor: CargoArrivalReturnState
   readonly separationState: CargoArrivalDocumentState
+}
+
+/** ADR-0094 §9.3: a nota marcada ou devolvida está fora da separação — a política do eixo não muda. */
+const RETURN_SEPARATION_REFUSAL: Readonly<Record<CargoArrivalReturnState, string | null>> = {
+  marked: 'CARGO_ARRIVAL_DOCUMENT_MARKED_FOR_RETURN',
+  none: null,
+  returned: 'CARGO_ARRIVAL_DOCUMENT_RETURNED',
+}
+
+function refuseSeparationOfReturn(params: {
+  readonly arrivalStatus: CargoArrivalStatus
+  readonly row: CargoArrivalBatchRow
+  readonly to: CargoArrivalTransitionTarget
+}): string | null {
+  if (params.arrivalStatus === CARGO_ARRIVAL_STATUS.closed || params.to !== STATE.separated) {
+    return null
+  }
+  return RETURN_SEPARATION_REFUSAL[params.row.returnToContractor]
 }
 
 export type DecideCargoArrivalBatchParams<TRow extends CargoArrivalBatchRow> = {
@@ -168,6 +188,8 @@ export function decideCargoArrivalBatch<TRow extends CargoArrivalBatchRow>({
     if (row === undefined) {
       return { documentId, outcome: 'refused', reason: CARGO_ARRIVAL_DOCUMENT_NOT_FOUND }
     }
+    const returnRefusal = refuseSeparationOfReturn({ arrivalStatus, row, to })
+    if (returnRefusal !== null) return { documentId, outcome: 'refused', reason: returnRefusal }
     const decision = decideCargoArrivalTransition({ arrivalStatus, from: row.separationState, to })
     if (decision.outcome === 'refused') return { documentId, ...decision }
     if (decision.outcome === 'changed') changed.push(row)

@@ -143,9 +143,9 @@ describe('os relógios da chegada (spec 237 T2.1, ADR-0094 §2)', () => {
 
 describe('o lote da separação (spec 237 T2.3)', () => {
   const rows = [
-    { id: 'r1', nfeDocumentId: 'n1', separationState: 'received' },
-    { id: 'r2', nfeDocumentId: 'n2', separationState: 'separated' },
-    { id: 'r3', nfeDocumentId: 'n3', separationState: 'expected' },
+    { id: 'r1', nfeDocumentId: 'n1', returnToContractor: 'none', separationState: 'received' },
+    { id: 'r2', nfeDocumentId: 'n2', returnToContractor: 'none', separationState: 'separated' },
+    { id: 'r3', nfeDocumentId: 'n3', returnToContractor: 'none', separationState: 'expected' },
   ] as const
 
   test('um resultado por nota pedida; só o que muda vai para a escrita', () => {

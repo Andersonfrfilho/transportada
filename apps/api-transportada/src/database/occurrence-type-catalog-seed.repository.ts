@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 
 import { companies } from './identity.schema.js'
 import { companyOccurrenceTypes } from './trip.schema.js'
@@ -24,24 +24,37 @@ export function createDrizzleOccurrenceTypeCatalogSeedPort(
 
       return rows.map((row) => row.id)
     },
-    async hasAnyOccurrenceType({ companyId }) {
+    async hasAnyOccurrenceType({ companyId, stages }) {
       const [row] = await queryable
         .select({ id: companyOccurrenceTypes.id })
         .from(companyOccurrenceTypes)
-        .where(eq(companyOccurrenceTypes.companyId, companyId))
+        .where(
+          and(
+            eq(companyOccurrenceTypes.companyId, companyId),
+            inArray(companyOccurrenceTypes.stage, [...stages]),
+          ),
+        )
         .limit(1)
 
       return row !== undefined
     },
     async insertOccurrenceTypes({ companyId, types }) {
-      await queryable.insert(companyOccurrenceTypes).values(
-        types.map((type) => ({
-          companyId,
-          itemsMode: type.itemsMode,
-          name: type.name,
-          stage: type.stage,
-        })),
-      )
+      const inserted = await queryable
+        .insert(companyOccurrenceTypes)
+        .values(
+          types.map((type) => ({
+            companyId,
+            itemsMode: type.itemsMode,
+            name: type.name,
+            ...(type.redeliveryPolicy === undefined
+              ? {}
+              : { redeliveryPolicy: type.redeliveryPolicy }),
+            stage: type.stage,
+          })),
+        )
+        .onConflictDoNothing()
+        .returning({ id: companyOccurrenceTypes.id })
+      return inserted.length
     },
   }
 }

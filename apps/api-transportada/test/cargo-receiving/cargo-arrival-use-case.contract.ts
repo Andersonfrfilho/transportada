@@ -12,7 +12,10 @@ import type {
   CargoArrivalSeparationRepositoryPort,
 } from '../../src/cargo-receiving/application/cargo-arrival.port.js'
 import type { CargoArrivalRecord } from '../../src/cargo-receiving/application/cargo-arrival.types.js'
-import { createGetCargoArrivalUseCase } from '../../src/cargo-receiving/application/read-cargo-arrival.use-case.js'
+import {
+  createGetCargoArrivalUseCase,
+  createListCargoArrivalsUseCase,
+} from '../../src/cargo-receiving/application/read-cargo-arrival.use-case.js'
 import { createRegisterCargoArrivalUseCase } from '../../src/cargo-receiving/application/register-cargo-arrival.use-case.js'
 import {
   createChangeCargoArrivalDocumentStateUseCase,
@@ -47,8 +50,13 @@ const ARRIVAL: CargoArrivalRecord = {
   status: 'open',
 }
 
-function document(nfeDocumentId: string, separationState: 'expected' | 'received' | 'separated') {
+function document(
+  nfeDocumentId: string,
+  separationState: 'expected' | 'received' | 'separated',
+  returnToContractor: 'marked' | 'none' | 'returned' = 'none',
+) {
   return {
+    returnToContractor,
     accessKey: `3526${nfeDocumentId}`,
     cityIbgeCode: '3548906',
     cityName: 'São Carlos',
@@ -71,6 +79,37 @@ function readRepository(documents = [document('1', 'expected')]): CargoArrivalRe
     listAvailableDocuments: async () => ({ isContractorFound: false }),
   }
 }
+
+const SUMMARY_KEYS = [
+  'arrivedAt',
+  'contractorId',
+  'contractorName',
+  'counts',
+  'createdAt',
+  'deliveryDeadlineBusinessDays',
+  'id',
+  'isSeparationOverdue',
+  'palletCount',
+  'reference',
+  'separationDueAt',
+  'separationWindowHours',
+  'status',
+] as const
+
+const DOCUMENT_KEYS = [
+  'accessKey',
+  'cityIbgeCode',
+  'cityName',
+  'isInLiveTrip',
+  'nfeDocumentId',
+  'number',
+  'receivedAt',
+  'recipientName',
+  'routeName',
+  'separatedAt',
+  'separationState',
+  'series',
+]
 
 const INPUT = {
   arrivedAt: ARRIVED_AT,
@@ -193,6 +232,57 @@ describe('ler a chegada (spec 237 T2.3)', () => {
     ])
   })
 
+  /**
+   * Revisão `architect` da T3.1 (ajuste 6): o painel publicado confere chave EXATA no resumo, no grupo
+   * e na nota. A marcação muda o vencimento, mas não pode acrescentar chave à resposta da chegada.
+   */
+  test('nota marcada não conta como pendente de separação, e a resposta não ganha chave', async () => {
+    const getArrival = createGetCargoArrivalUseCase({
+      now: () => NOW,
+      readRepository: readRepository([
+        document('2', 'separated'),
+        document('1', 'received', 'marked'),
+        document('3', 'received', 'returned'),
+      ]),
+    })
+    const detail = await getArrival.execute({ arrivalId: ARRIVAL_ID, context: CONTEXT })
+
+    expect(detail.isSeparationOverdue).toBeFalse()
+    expect(Object.keys(detail).sort()).toEqual([...SUMMARY_KEYS, 'groups'].sort())
+    expect(Object.keys(detail.groups[0] ?? {}).sort()).toEqual(
+      ['cityIbgeCode', 'counts', 'documents', 'routeName'].sort(),
+    )
+    expect(Object.keys(detail.groups[0]?.documents[0] ?? {}).sort()).toEqual(DOCUMENT_KEYS)
+  })
+
+  test('a lista conta o pendente pronto e também não ganha chave', async () => {
+    const listArrivals = createListCargoArrivalsUseCase({
+      now: () => NOW,
+      readRepository: {
+        ...readRepository(),
+        list: async () => ({
+          items: [
+            {
+              ...ARRIVAL,
+              counts: { expected: 0, received: 1, separated: 0, total: 1 },
+              pendingSeparationCount: 0,
+            },
+          ],
+          nextCursor: null,
+        }),
+      },
+    })
+    const page = await listArrivals.execute({
+      context: CONTEXT,
+      filters: { contractorIds: [], statuses: [] },
+      order: { direction: 'desc', sort: 'arrivedAt' },
+      paging: { cursor: null, limit: 25 },
+    })
+
+    expect(page.items[0]?.isSeparationOverdue).toBeFalse()
+    expect(Object.keys(page.items[0] ?? {}).sort()).toEqual([...SUMMARY_KEYS].sort())
+  })
+
   test('chegada de outra empresa ou inexistente é 404', async () => {
     const getArrival = createGetCargoArrivalUseCase({
       now: () => NOW,
@@ -280,12 +370,18 @@ describe('separar uma nota (spec 237 T2.3)', () => {
 })
 
 describe('fechar a chegada (spec 237 T2.3)', () => {
-  test('nota pendente é 409 com a lista inteira', async () => {
+  test('nota pendente é 409 com a lista inteira, dizendo se falta separar ou se está marcada', async () => {
     const useCase = createCloseCargoArrivalUseCase({
       channel: 'backoffice',
       now: () => NOW,
       repository: separationRepository({
-        close: async () => ({ documentIds: ['a', 'b'], kind: 'pending' }),
+        close: async () => ({
+          kind: 'pending',
+          pending: [
+            { documentId: 'a', reason: 'not_separated' },
+            { documentId: 'b', reason: 'marked_for_return' },
+          ],
+        }),
       }),
     })
 
@@ -302,7 +398,7 @@ describe('fechar a chegada (spec 237 T2.3)', () => {
         {
           documentId: 'b',
           field: 'pendingDocumentIds.1',
-          message: 'The document is not separated yet',
+          message: 'The document is marked to return to the contractor',
         },
       ],
       status: 409,

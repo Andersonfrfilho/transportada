@@ -22,14 +22,15 @@ export class DrizzleCargoPreviewTripDraftRepository implements CargoPreviewTripD
   ): ReturnType<CargoPreviewTripDraftRepositoryPort['findInput']> {
     const preview = await selectTripDraftPreview(this.database, params)
     if (preview === null) return null
-    const [documents, items, routeLoads] = await Promise.all([
+    const [documents, items, routeLoads, excludedDocumentIds] = await Promise.all([
       selectTripDraftDocuments(this.database, params),
       selectTripDraftItems(this.database, params),
       selectTripDraftRouteLoads(this.database, params),
+      findExcludedTripDraftDocumentIds(this.database, params),
     ])
     return {
       documents,
-      excludedDocumentIds: findExcludedTripDraftDocumentIds(),
+      excludedDocumentIds,
       items,
       preview,
       routeLoads,

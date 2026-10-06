@@ -85,6 +85,17 @@ export const API_CARGO_ARRIVAL_DOCUMENT_SEPARATE_PATH =
 export const API_CARGO_ARRIVAL_BATCH_STATUS_PATH = '/cargo-arrivals/:id/documents/batch-status'
 export const API_CARGO_ARRIVAL_ROUTE_ASSIGNMENT_PATH = '/cargo-arrivals/:id/route-assignment'
 export const API_CARGO_ARRIVAL_CLOSE_PATH = '/cargo-arrivals/:id/close'
+/** Spec 237 Fase 3: a avaria sem viagem e a marcação "devolver ao contratante" (ADR-0094 §9). */
+export const API_CARGO_ARRIVAL_OCCURRENCE_TYPES_PATH = '/cargo-arrivals/occurrence-types'
+export const API_CARGO_ARRIVAL_OCCURRENCES_PATH = '/cargo-arrivals/:id/occurrences'
+export const API_CARGO_ARRIVAL_DOCUMENT_OCCURRENCES_PATH =
+  '/cargo-arrivals/:id/documents/:documentId/occurrences'
+export const API_CARGO_ARRIVAL_DOCUMENT_RETURN_MARK_PATH =
+  '/cargo-arrivals/:id/documents/:documentId/return-mark'
+export const API_CARGO_ARRIVAL_DOCUMENT_RETURN_UNMARK_PATH =
+  '/cargo-arrivals/:id/documents/:documentId/return-unmark'
+export const API_CARGO_ARRIVAL_DOCUMENT_RETURN_COMPLETE_PATH =
+  '/cargo-arrivals/:id/documents/:documentId/return-complete'
 export const API_CARGO_PREVIEWS_PATH = '/cargo-previews'
 export const API_CARGO_PREVIEW_PATH = '/cargo-previews/:id'
 export const API_CARGO_PREVIEW_TRIP_DRAFTS_PATH = '/cargo-previews/:id/trip-drafts'

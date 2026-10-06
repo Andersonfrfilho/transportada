@@ -15,6 +15,7 @@ import type {
   CargoArrivalListCursor,
   CargoArrivalListOrder,
 } from '../domain/cargo-arrival-list-order.policy.js'
+import type { CargoArrivalClosePending } from '../domain/cargo-arrival-return.policy.js'
 import type { CargoArrivalTransitionTarget } from '../domain/cargo-arrival-transition.policy.js'
 import type { CargoArrivalDocumentOutcome } from './cargo-arrival.types.js'
 
@@ -75,7 +76,7 @@ export type CloseCargoArrivalRecordParams = Authorship & {
 
 export type CloseCargoArrivalRecordResult =
   | { readonly kind: 'already_closed' | 'arrival_not_found' | 'closed' }
-  | { readonly documentIds: readonly string[]; readonly kind: 'pending' }
+  | { readonly kind: 'pending'; readonly pending: readonly CargoArrivalClosePending[] }
 
 export type ListAvailableArrivalDocumentsRecordParams = {
   readonly companyId: string

@@ -5,6 +5,7 @@
  */
 import type {
   CargoArrivalDocumentState,
+  CargoArrivalReturnState,
   CargoArrivalStatus,
 } from '../../shared/cargo-arrival.constant.js'
 import type {
@@ -31,7 +32,11 @@ export type CargoArrivalRecord = {
   readonly status: CargoArrivalStatus
 }
 
-export type CargoArrivalListRecord = CargoArrivalRecord & { readonly counts: ArrivalStateCounts }
+export type CargoArrivalListRecord = CargoArrivalRecord & {
+  readonly counts: ArrivalStateCounts
+  /** Sem marca e não separada (ADR-0094 §9.3): contado pronto, nunca derivado de `counts`. */
+  readonly pendingSeparationCount: number
+}
 
 export type CargoArrivalDocumentRecord = {
   readonly accessKey: string
@@ -43,6 +48,8 @@ export type CargoArrivalDocumentRecord = {
   readonly number: string
   readonly receivedAt: Date | null
   readonly recipientName: string | null
+  /** Só decide o vencimento: a leitura não publica a marcação (ADR-0094 §9.5, ajuste 6). */
+  readonly returnToContractor: CargoArrivalReturnState
   readonly routeName: string | null
   readonly separatedAt: Date | null
   readonly separationState: CargoArrivalDocumentState
@@ -67,7 +74,7 @@ export type CargoArrivalSummary = Omit<
 
 export type CargoArrivalDocumentView = Omit<
   CargoArrivalDocumentRecord,
-  'receivedAt' | 'separatedAt'
+  'receivedAt' | 'returnToContractor' | 'separatedAt'
 > & {
   readonly receivedAt: string | null
   readonly separatedAt: string | null
