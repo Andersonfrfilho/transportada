@@ -121,24 +121,83 @@
 
 ## Prompt de execução
 
+Prompt para terminar o que falta da 237 e, depois dela, a 238 e a 236. Pode ser colado como está em
+`/oh-my-claudecode:autopilot`. Estado de partida (2026-10-06): 237 Fases 1, 2, 4a e 5 **no ar em staging**; faltam
+Fase 3, Fase 4b e Fase 4c; 238 e 236 não iniciadas; nada em produção.
+
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/237-a-carga-chega-e-se-separa-antes-da-viagem/ (leia
-spec.md, plan.md, tasks.md e planilha-fr.md inteiros antes de começar), SOMENTE as fases 1, 2, 4a e 5, nessa
-ordem, uma task por vez. As decisões D4 e D6 foram respondidas em 2026-10-06 (ver spec.md): as Fases 3, 4b e 4c entram na execução. Worktree/branch
-próprios a partir de origin/staging (git fetch antes; confirme que o número 237 e o próximo ADR (0094)
-continuam livres em origin/staging e nos outros worktrees).
-Modelos: tasks 🧠 (T1.1, T2.1, T4.1, T4.3) com model=opus e validação do desenho por architect model=opus
-antes de implementar; as demais com executor model=sonnet; revisão final de cada fase com code-reviewer
-model=opus em passada separada (T4.5 também com security-reviewer).
-Cada task fecha com: contrato antes (vermelho pelo motivo certo), typecheck, lint com cwd na app, teste pelo
-script do package.json (nunca bun test cru; API: contrato e integração são dois comandos), format:check na
-raiz, prova por mutação, commit isolado com caminhos explícitos (--no-verify, nunca git add -A), evidência em
-evidence.md. Migration aditiva com rollback.sql: make migration-test e db:generate = no_changes; integração
-contra um Postgres que responda (pular não é passar). Publicar em staging só com tudo verde (fetch + rebase
-limpo + bun install --frozen-lockfile + typecheck) e CONFIRMAR o deploy antes da fase seguinte.
-Toda tela: contratos antes, revisão de design (web.md §15), print ENVIADO ao usuário e publicação só depois de
-aprovado. Fixtures de teste: as planilhas FR e os XMLs reais ANONIMIZADOS (sem razão social, CNPJ ou
-endereço reais). Nunca leia banco de produção.
-Pare e pergunte antes de: produção, migration destrutiva, qualquer [NEEDS CLARIFICATION] aberto, mudar o
-roteirizador ou o fluxo de viagem existente, e qualquer mudança visível de tela sem print aprovado.
+/oh-my-claudecode:autopilot Termine, nesta ordem, uma task por vez, o que falta das specs do TransportAdA:
+(A) specs/237-a-carga-chega-e-se-separa-antes-da-viagem/ — Fase 3 (avaria sem viagem + "devolver ao contratante"),
+    Fase 4b (prévia por e-mail ENCAMINHADO) e Fase 4c (retenção de 90 dias); (B) specs/238-os-dias-uteis-contam-
+    feriado-e-aniversario-da-cidade/ inteira; (C) specs/236-o-contratante-tem-prazo-de-entrega/ inteira.
+Antes de tocar em código leia, inteiros: spec.md, plan.md, tasks.md e evidence.md de cada spec; da 237 também
+planilha-fr.md e docs/adr/0094-o-recebimento-da-carga-antes-da-viagem.md (§§2,4,6,7,8); CLAUDE.md da raiz e de cada
+app tocada; docs/SECURITY.md (entradas da prévia). NÃO há [NEEDS CLARIFICATION] aberto: as decisões do usuário
+(2026-10-06) estão em 237/spec.md — devolver ao contratante com marcação (D4), e-mail ENCAMINHADO pelo usuário (D6),
+retenção de 90 dias, GPS por timeout aceito — e em 236/spec.md (3 dias úteis desde a chegada, feriado da cidade do
+destinatário, só informa, não pesa na nota).
+
+0) Arrumação (antes de qualquer feature): worktree/branch próprios a partir de origin/staging (git fetch antes).
+   Confirme que o deploy da Fase 5 (commit 7f4ed4a94) terminou verde no GitHub Actions (deploy-api com "Conferir
+   migrations aplicadas", deploy-frontend). Reconcilie as caixas T1.5, T2.5 e T4.5 do tasks.md da 237 com a evidência
+   real: o que foi publicado e revisado marca [x] com a referência; se faltar a revisão code-reviewer opus daquela
+   fase, rode-a sobre os commits da fase ANTES de marcar. Confira numeração de spec/ADR/migration em origin/staging.
+
+1) Ordem e modelos. 237 Fase 3: T3.1 🧠 model=opus (valide o desenho com architect model=opus ANTES de implementar:
+   ocorrência de recebimento = coluna com CHECK exatamente-um × tabela irmã, e a marcação "devolver ao contratante"
+   como estado novo × coluna ortogonal; efeito em fechar chegada, recomendação (preencha findExcludedTripDraftDocumentIds
+   da Fase 5, que hoje devolve vazio) e proposta de chegada) · T3.2 opus (migration) · T3.3 sonnet (telas painel e
+   celular). 237 Fase 4b: T4.6 opus (entrada hostil), T4.7 com code-reviewer E security-reviewer model=opus; ATENÇÃO: o
+   endereço de entrada exige o MX/domínio de entrada no Resend (passo do USUÁRIO, spec 143 T012) — construa e teste tudo
+   com fixtures de e-mail, mas PARE e pergunte antes de qualquer configuração externa/DNS ou envio real. 237 Fase 4c:
+   T4.8 sonnet (rotina cron → fila → worker no molde das existentes). 238: T1.1 🧠 opus (validar com architect), T1.2/T1.3
+   sonnet, T2.x sonnet (calendário nacional vem de apps/frontend-transportada/src/components/ui/brazilianHoliday.service.ts,
+   com contrato de PARIDADE painel × backend). 236: T1.1 🧠 opus, T1.2/T1.3 sonnet, T2.x sonnet (depende de 238 e da chegada
+   da 237 Fase 2, já no ar). Revisão final de CADA fase com code-reviewer model=opus em passada separada (nunca o mesmo
+   contexto que escreveu). Decisão de modelo/desenho nunca sobe para o executor sem a validação do architect.
+
+2) Disciplina por task (inegociável): contrato ANTES do código (vermelho pelo motivo certo); typecheck + lint (por app,
+   com a app como cwd) + o script `test` do package.json (NUNCA `bun test` cru no painel; na API contrato e integração são
+   dois comandos, e a integração tocada é passada ARQUIVO A ARQUIVO como argumentos explícitos — o zsh não separa lista em
+   variável e o Bun trata tudo como filtro: "0 testes" não é verde); prova por MUTAÇÃO de cada regra (vermelho e restaure,
+   git diff --quiet); commit isolado por task com `git add <caminhos explícitos>` e `--no-verify` (nunca git add -A); evidência
+   em evidence.md com comandos e contagens REAIS. Relatório de subagente NÃO é evidência: confira `git log` e rode os gates
+   você mesmo antes de reportar. Sem stub, TODO, teste pulado ou `.only`. Contratos de DOM do painel: nada de
+   `expect(nó).toBeNull()` dentro de `waitFor` (formata o nó e estoura o prazo); prove `bun run test:hooks` ≥ 10 execuções
+   verdes e ≥ 3 com carga de CPU em paralelo. Código: inglês, comentário só se o PORQUÊ não for óbvio (1 linha), sem any,
+   sem default export, >1 parâmetro ⇒ objeto, arquivo ≤ 200 linhas, função ≤ 40, copyright Ada Technology nos arquivos novos,
+   string repetida 2+ vezes vira constante, nunca CNPJ/nome de contratante no src/, logs sem PII.
+
+3) Banco e migrations: aditivas, com rollback.sql; ANTES de gerar, git fetch e confira o FIM da cadeia de snapshots em
+   apps/api-transportada/drizzle/*/snapshot.json (prevIds do novo aponta para a migration mais recente do staging; bifurcação
+   faz o db:generate mentir `no_changes` — verifique que nenhum snapshot tem dois filhos); `make migration-test` verde;
+   `bun run db:generate` = no_changes depois. Migration em tabela existente e central (ex.: nfe_documents) NÃO sem
+   decisão do usuário. Nunca leia banco de produção (o MCP mcp__postgres__query é proibido); integração só no Postgres do
+   .env.test ou num banco descartável (o `make worker-integration` usa um banco local compartilhado com diário divergente:
+   use um banco novo e diga exatamente o que rodou). Fixtures de teste: planilhas e XMLs reais ANONIMIZADOS (sem razão
+   social, CNPJ, CEP ou endereço reais; os arquivos reais ficam fora do repo) com o teste de ausência de PII.
+
+4) Toda TELA: contratos antes, revisão de design (web.md §15: vizinhos, contraste ≥ 4,5:1 nos dois temas, alvo ≥ 44 px a
+   375 px, sem scroll horizontal), prints em 375/768/1280 px nos temas escuro e claro com DADOS FICTÍCIOS, ENVIADOS ao
+   usuário (SendUserFile) — e a publicação só depois do "pode publicar" dele. Nada visível a produção sem esse aprovo.
+
+5) Publicar em staging (só com tudo verde; produção NUNCA): git fetch → git rebase origin/staging verificando o CÓDIGO DE
+   SAÍDA de cada comando (um `| tail` mascara o erro e já levou a push no meio de rebase parado) → resolver conflitos mantendo
+   os DOIS lados (listas de teste do package.json: só acrescente seu arquivo; docs ai-context: preserve o texto alheio) →
+   bun install --frozen-lockfile → typecheck das apps tocadas → todos os gates → format:check na RAIZ → push → acompanhar
+   o deploy até o fim e CONFIRMAR deploy-api (inclusive "Conferir migrations aplicadas"), deploy-frontend e
+   deploy-services quando houver worker/cron. Gate vermelho: leia o log antes de qualquer rerun (flake de porta do smoke
+   do painel é conhecido; teste instável não é flake — ache a causa). Uma fase só segue depois do deploy da anterior.
+
+6) Pare e pergunte antes de: produção; migration destrutiva; DNS/MX/Resend/envio real de e-mail; qualquer [NEEDS
+   CLARIFICATION] novo; mudar o roteirizador, o fluxo de viagem/aceite, a nota do motorista, `missingAfterHours` ou o CT-e;
+   tocar tabela central existente; reler dado de produção; qualquer decisão de produto não escrita nas specs. Se um achado
+   de revisão (segurança, código) for grave, corrija e revalide antes de publicar.
+
+7) Fim: todas as caixas [x] com evidência, docs vivos atualizados (domain-model, ai-context, CLAUDE.md das apps, ADR-0094,
+   SECURITY.md), final da checklist do autopilot cumprida e um resumo ao usuário do que está no ar, do que NÃO foi
+   verificado e dos follow-ups: `previewId` em POST /cargo-arrivals (preencher arrival_id), rota para revogar alias,
+   `counts` na lista de prévias, preencher `arrival_reference_label` nos perfis de staging, migration de contração que
+   apague `arrival_reference_pattern`, índice (company_id, created_at) em nfe_documents (medir antes), fila offline do toque
+   do separador, falha pré-existente osrm-routing-matrix da integração do worker.
 ```
