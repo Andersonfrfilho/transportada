@@ -241,6 +241,13 @@ describe('item gravado por versão anterior, sem o campo, sai com `location: nul
 describe('a fiação do hook e da tela (196 T5.2)', () => {
   const hook = readFileSync(HOOK, 'utf8')
   const page = readFileSync(PAGE, 'utf8')
+  const builder = readFileSync(
+    new URL(
+      '../../src/modules/driver-trip/shared/documentOccurrenceReport.service.ts',
+      import.meta.url,
+    ),
+    'utf8',
+  )
 
   it('"Não entreguei" e a ocorrência da parada leem a posição uma vez e completam pelas chaves', () => {
     expect(sliceFunction(hook, 'reportNotDelivered')).toInclude('completeLocations(reports)')
@@ -255,7 +262,8 @@ describe('a fiação do hook e da tela (196 T5.2)', () => {
 
   it('o despacho e a ocorrência de nota passam por quem completa a posição', () => {
     expect(page).toMatch(/kind: 'dispatch',\s*location,/u)
-    expect(page).toInclude("kind: 'documentOccurrence',\n      location: null,")
+    expect(page).toInclude('buildDocumentOccurrenceReport(')
+    expect(builder).toMatch(/kind: 'documentOccurrence',\s*location: null,/u)
   })
 
   it('a coordenada nunca vai para log, console ou telemetria', () => {

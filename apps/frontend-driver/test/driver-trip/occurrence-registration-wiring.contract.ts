@@ -22,6 +22,7 @@ const PHOTO_FIELD_PATH = 'components/OccurrencePhotoField.component.tsx'
 const HOOK_PATH = 'hooks/useOccurrenceRegistrationForm.hook.ts'
 const SERVICE_PATH = 'shared/occurrenceRegistration.service.ts'
 const ACTION_PATH = 'components/OccurrenceRegisterAction.component.tsx'
+const REPORT_PATH = 'shared/documentOccurrenceReport.service.ts'
 const PAGE_PATH = 'pages/DriverTripWorkspace.page.tsx'
 
 function exists(path: string): boolean {
@@ -143,7 +144,7 @@ describe('a página liga as três rotas', () => {
   })
 
   it('nota com foto vai pelo item documentOccurrence da fila (D3)', () => {
-    const page = source(PAGE_PATH)
-    expect(page).toInclude("kind: 'documentOccurrence'")
+    expect(source(PAGE_PATH)).toInclude('buildDocumentOccurrenceReport(')
+    expect(source(REPORT_PATH)).toInclude("kind: 'documentOccurrence'")
   })
 })

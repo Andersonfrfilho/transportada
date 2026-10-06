@@ -178,14 +178,26 @@ export async function enqueueReports(input: {
  * (`ATTACHMENT_QUEUE_LIMIT.maxTotalBytes`) — é o mesmo aparelho e a mesma cota.
  */
 export function sumReportPhotoBytes(reports: readonly DriverFieldReport[]): number {
-  return reports.reduce((total, report) => total + (reportPhoto(report)?.blob.size ?? 0), 0)
+  return reports.reduce(
+    (total, report) =>
+      total + listReportPhotos(report).reduce((bytes, photo) => bytes + photo.blob.size, 0),
+    0,
+  )
 }
 
-function reportPhoto(report: DriverFieldReport): DriverOccurrencePhoto | null {
-  if (report.kind === 'documentOccurrence' || report.kind === 'stopOccurrencePhoto') {
-    return report.photo
+/**
+ * Tudo o que o item carrega como arquivo: a foto, e — spec 246 — as demais fotos e a assinatura da
+ * ocorrência de nota, que moram no mesmo item e contam na mesma cota.
+ */
+export function listReportPhotos(report: DriverFieldReport): readonly DriverOccurrencePhoto[] {
+  if (report.kind === 'documentOccurrence') {
+    return [
+      ...(report.photo === null ? [] : [report.photo]),
+      ...(report.extraPhotos ?? []),
+      ...(report.signature === undefined ? [] : [report.signature]),
+    ]
   }
-  return null
+  return report.kind === 'stopOccurrencePhoto' ? [report.photo] : []
 }
 
 /**

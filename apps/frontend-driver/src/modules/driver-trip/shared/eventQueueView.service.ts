@@ -2,7 +2,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DriverFieldReport, DriverTripStop } from './driverTrip.types'
 import type { AttachmentGroupEntries, QueuedAttachment } from './offlineAttachments.service'
-import type { DriverTripErrorDetail, QueuedReport } from './offlineQueue.service'
+import {
+  listReportPhotos,
+  type DriverTripErrorDetail,
+  type QueuedReport,
+} from './offlineQueue.service'
 import { resolveRejectionCauseCode } from './rejectionCauseLabel.service'
 
 /** Spec 206 RF8b: só este código dispara o motivo e o atalho — qualquer outra recusa fica genérica. */
@@ -104,11 +108,9 @@ export function buildEventQueueView(input: {
     )?.rejectionCause
     const report = item.report
     /** A foto da ocorrência mora no próprio item: sobe junto dele, e conta como anexo dele. */
-    const carriesPhoto =
-      (report.kind === 'documentOccurrence' && report.photo !== null) ||
-      report.kind === 'stopOccurrencePhoto'
+    const carriedFileCount = listReportPhotos(report).length
     return {
-      attachmentCount: group.length + (carriesPhoto ? 1 : 0),
+      attachmentCount: group.length + carriedFileCount,
       ...(attachmentCause === undefined ? {} : { attachmentRejectionCause: attachmentCause }),
       ...(report.kind === 'documentOccurrence' ||
       report.kind === 'deliver' ||
