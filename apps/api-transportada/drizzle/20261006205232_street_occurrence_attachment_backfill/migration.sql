@@ -3,7 +3,7 @@
 -- Spec 246 T1d.2 (RF1d): a foto da ocorrência de rua ganha a linha em
 -- `trip_document_occurrence_attachments`, a tabela que a 161 criou para o galpão.
 --
--- Deploy SEPARADO da T1.2 (`20261006184835_occurrence_type_requirement_modes`): o migrador roda tudo
+-- Deploy SEPARADO da T1.2 (`20261006205139_occurrence_type_requirement_modes`): o migrador roda tudo
 -- numa transação, e o `ADD COLUMN signature_object_id` daquela seguraria ACCESS EXCLUSIVE em
 -- `trip_document_occurrences` durante este INSERT. Antes de aplicar em produção: a medição da T1d.0.
 --

@@ -55,7 +55,7 @@ DECLARE
   deleted_migrations integer;
 BEGIN
   DELETE FROM "drizzle"."__drizzle_migrations"
-    WHERE "name" = '20261006184835_occurrence_type_requirement_modes';
+    WHERE "name" = '20261006205139_occurrence_type_requirement_modes';
 
   GET DIAGNOSTICS deleted_migrations = ROW_COUNT;
   IF deleted_migrations <> 1 THEN

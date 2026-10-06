@@ -1,7 +1,7 @@
 {
-  "id": "a46ccef4-31e9-4e2d-b42e-46e3aff144f3",
+  "id": "4aafa5e2-6d07-4537-b98c-a70a943aaa79",
   "prevIds": [
-    "af356206-c8a5-480e-9891-38fb610597d1"
+    "f738435d-7398-4f64-8d1d-df4ef3cfdbaa"
   ],
   "version": "8",
   "dialect": "postgres",
@@ -30025,12 +30025,25 @@
     {
       "type": "uuid",
       "typeSchema": null,
-      "notNull": true,
+      "notNull": false,
       "dimensions": 0,
       "default": null,
       "generated": null,
       "identity": null,
       "name": "trip_document_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "cargo_arrival_document_id",
       "entityType": "columns",
       "schema": "public",
       "table": "trip_document_occurrences"
@@ -33450,6 +33463,32 @@
       "generated": null,
       "identity": null,
       "name": "separated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'none'",
+      "generated": null,
+      "identity": null,
+      "name": "return_to_contractor",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "return_occurrence_id",
       "entityType": "columns",
       "schema": "public",
       "table": "cargo_arrival_documents"
@@ -50273,6 +50312,25 @@
       "nameExplicit": true,
       "columns": [
         "company_id",
+        "cargo_arrival_document_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "cargo_arrival_documents",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "trip_document_occurrences_company_arrival_document_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
         "cancelled_by_user_id"
       ],
       "schemaTo": "public",
@@ -51348,6 +51406,27 @@
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "cargo_arrival_documents_company_document_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "id",
+        "return_occurrence_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "trip_document_occurrences",
+      "columnsTo": [
+        "company_id",
+        "cargo_arrival_document_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "cargo_arrival_documents_return_occurrence_fk",
       "entityType": "fks",
       "schema": "public",
       "table": "cargo_arrival_documents"
@@ -57451,6 +57530,19 @@
       "nameExplicit": true,
       "columns": [
         "company_id",
+        "cargo_arrival_document_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "trip_document_occurrences_company_arrival_document_id_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
         "id"
       ],
       "nullsNotDistinct": false,
@@ -57726,6 +57818,18 @@
       ],
       "nullsNotDistinct": false,
       "name": "cargo_arrival_documents_company_arrival_id_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "cargo_arrival_documents_company_id_id_unique",
       "entityType": "uniques",
       "schema": "public",
       "table": "cargo_arrival_documents"
@@ -63394,7 +63498,7 @@
       "table": "company_occurrence_type_recipient_overrides"
     },
     {
-      "value": "\"stage\" in ('delivery', 'separation')",
+      "value": "\"stage\" in ('delivery', 'separation', 'receiving')",
       "name": "company_occurrence_types_stage_check",
       "entityType": "checks",
       "schema": "public",
@@ -63793,8 +63897,22 @@
       "table": "trip_document_occurrence_products"
     },
     {
-      "value": "\"stage\" in ('delivery', 'separation')",
+      "value": "\"stage\" in ('delivery', 'separation', 'receiving')",
       "name": "trip_document_occurrences_stage_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "value": "num_nonnulls(\"trip_document_id\", \"cargo_arrival_document_id\") = 1",
+      "name": "trip_document_occurrences_owner_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "value": "(\"stage\" = 'receiving') = (\"cargo_arrival_document_id\" is not null)",
+      "name": "trip_document_occurrences_receiving_owner_check",
       "entityType": "checks",
       "schema": "public",
       "table": "trip_document_occurrences"
@@ -64738,6 +64856,20 @@
       "table": "cargo_arrivals"
     },
     {
+      "value": "\"return_to_contractor\" in ('marked', 'none', 'returned')",
+      "name": "cargo_arrival_documents_return_to_contractor_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
+      "value": "(\"return_to_contractor\" = 'none') = (\"return_occurrence_id\" is null)",
+      "name": "cargo_arrival_documents_return_occurrence_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "cargo_arrival_documents"
+    },
+    {
       "value": "char_length(\"route_name\") between 1 and 40",
       "name": "cargo_arrival_documents_route_name_check",
       "entityType": "checks",
@@ -64766,7 +64898,7 @@
       "table": "cargo_arrival_documents"
     },
     {
-      "value": "\"kind\" in ('arrival_closed', 'arrival_registered', 'document_added', 'document_received', 'document_separated', 'route_assigned')",
+      "value": "\"kind\" in ('arrival_closed', 'arrival_registered', 'document_added', 'document_received', 'document_separated', 'occurrence_registered', 'return_completed', 'return_marked', 'return_unmarked', 'route_assigned')",
       "name": "cargo_arrival_events_kind_check",
       "entityType": "checks",
       "schema": "public",

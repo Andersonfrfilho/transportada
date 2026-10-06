@@ -16,7 +16,7 @@ import { runDatabaseMigrations } from '../../src/database/database-migration.ser
 import { withDisposableDatabase } from '../fixtures/disposable-database.fixture.js'
 
 const MIGRATION_DIRECTORY = new URL(
-  '../../drizzle/20261006184901_occurrence_type_moments/',
+  '../../drizzle/20261006205158_occurrence_type_moments/',
   import.meta.url,
 )
 const STATEMENT_BREAKPOINT = '--> statement-breakpoint'

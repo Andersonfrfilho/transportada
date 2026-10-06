@@ -32,7 +32,7 @@ import {
 import type { Company, TestDatabase } from '../fixtures/trip-field-office-database.fixture.js'
 
 const MIGRATION_DIRECTORY = new URL(
-  '../../drizzle/20261006184921_street_occurrence_attachment_backfill/',
+  '../../drizzle/20261006205232_street_occurrence_attachment_backfill/',
   import.meta.url,
 )
 const DOWNLOADS = {

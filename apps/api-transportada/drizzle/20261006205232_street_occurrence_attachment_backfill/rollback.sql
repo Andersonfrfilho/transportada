@@ -15,7 +15,7 @@ DECLARE
   deleted_migrations integer;
 BEGIN
   DELETE FROM "drizzle"."__drizzle_migrations"
-    WHERE "name" = '20261006184921_street_occurrence_attachment_backfill';
+    WHERE "name" = '20261006205232_street_occurrence_attachment_backfill';
 
   GET DIAGNOSTICS deleted_migrations = ROW_COUNT;
   IF deleted_migrations <> 1 THEN

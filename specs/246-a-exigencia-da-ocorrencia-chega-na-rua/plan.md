@@ -331,7 +331,7 @@ ON CONFLICT ON CONSTRAINT trip_document_occurrence_attachments_unique_position D
 - `rollback.sql` **não apaga as linhas** (não há como distinguir o que o backfill criou do que a
   escrita nova criou depois); só remove o registro do journal, com essa justificativa.
 - `attachment_object_id` permanece gravada até a leitura nova estar em produção.
-- **Implementado** em `drizzle/20261006184921_street_occurrence_attachment_backfill/` (T1d.2), SQL
+- **Implementado** em `drizzle/20261006205232_street_occurrence_attachment_backfill/` (T1d.2), SQL
   igual ao acima. O **expurgo** confirmado está em
   `apps/worker-transportada/src/trip-occurrence-attachment-purge/infrastructure/drizzle-occurrence-attachment-purge-gateway.ts`
   (`findAttachmentByObjectId`, `limit(1)` sem ordem, ~24-36) — o caminho da spec estava sem o prefixo
@@ -342,7 +342,7 @@ ON CONFLICT ON CONSTRAINT trip_document_occurrence_attachments_unique_position D
   linha fica apontando para objeto `deleted`, lida como `expired` — o mesmo que a coluna já mostrava;
   não é regressão, só uma linha morta. Documentado, não resolvido aqui.
 - **Ordem de publicação obrigatória (deploy separado):** o migrador do drizzle aplica todas as
-  pendentes numa transação só. A T1.2 (`20261006184835_…requirement_modes`) tem de estar aplicada em
+  pendentes numa transação só. A T1.2 (`20261006205139_…requirement_modes`) tem de estar aplicada em
   staging e produção (`drizzle.__drizzle_migrations`) **antes** de esta pasta entrar em qualquer push;
   senão as duas rodam juntas e o `ADD COLUMN signature_object_id` segura `ACCESS EXCLUSIVE` durante o
   `INSERT`. Nenhum gate verifica isso: é processo. Antes de produção, também a medição da T1d.0.

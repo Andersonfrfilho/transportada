@@ -49,7 +49,7 @@ import type {
 } from '../fixtures/trip-field-office-database.fixture.js'
 
 const MIGRATION_DIRECTORY = new URL(
-  '../../drizzle/20261006184835_occurrence_type_requirement_modes/',
+  '../../drizzle/20261006205139_occurrence_type_requirement_modes/',
   import.meta.url,
 )
 const EMITTER_TAX_ID = '30290856000160'
