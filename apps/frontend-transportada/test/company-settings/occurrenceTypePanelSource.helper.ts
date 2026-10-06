@@ -16,16 +16,10 @@ const HOOK_FILES = ['useOccurrenceTypeCreateDraft.hook.ts'] as const
 
 export function readOccurrenceTypePanelSource(): string {
   const components = PANEL_FILES.map((fileName) =>
-    readFileSync(
-      new URL(`../../src/modules/trip/components/${fileName}`, import.meta.url),
-      'utf8',
-    ),
+    readFileSync(new URL(`../../src/modules/trip/components/${fileName}`, import.meta.url), 'utf8'),
   )
   const hooks = HOOK_FILES.map((fileName) =>
-    readFileSync(
-      new URL(`../../src/modules/trip/hooks/${fileName}`, import.meta.url),
-      'utf8',
-    ),
+    readFileSync(new URL(`../../src/modules/trip/hooks/${fileName}`, import.meta.url), 'utf8'),
   )
   return [...components, ...hooks].join('\n')
 }
