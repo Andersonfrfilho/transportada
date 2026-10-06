@@ -23,6 +23,7 @@ import type {
 import { CargoReceivingRequestError } from '@/modules/cargo-receiving/shared/cargoReceivingRequest.service'
 
 import { ORDER_MISMATCH_CODE, pageArrivals } from './cargoArrivalListDouble.helper'
+import { bindArrivalSource, installCargoOccurrenceDouble } from './cargoOccurrenceHarness.helper'
 import {
   ALFA_ID,
   ARRIVAL_ID,
@@ -249,6 +250,9 @@ export function installCargoReceivingDouble(
   }
   cargoReceivingFakes.double = double
   cargoReceivingFakes.client = buildClient(double)
+  // A avaria lê a mesma chegada; sem ela o painel não montaria uma nota sequer.
+  bindArrivalSource(() => double.server)
+  installCargoOccurrenceDouble()
   return double
 }
 
