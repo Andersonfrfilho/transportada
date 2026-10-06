@@ -2479,3 +2479,19 @@ test/trip-occurrence/overrides-port-required.contract.ts(42,7): error TS2578: Un
 ```
 
 Verde: `bun run typecheck` sem erros; `trip-occurrence`, `composition`, `driver-trip`, `field-trip-target` e `whatsapp-commands` (contratos) sem falha.
+
+### B1 — o filtro `company_id` de `readOccurrenceTypeMoments` com duas empresas
+
+Lacuna: nenhum teste prendia o `eq(companyOccurrenceTypeMoments.companyId, …)` da leitura em lote. A FK composta impede a linha de uma empresa apontar para o tipo de outra, mas não impede a leitura cruzada.
+
+`occurrence-type-moments-tenant.integration.ts` (contra Postgres real, duas empresas, 1 pass): a empresa A lê os próprios momentos (`document`, `office`); a empresa B, perguntando pelos ids do tipo de A e do seu, recebe só o seu (`document`) e `listOccurrenceTypes` de B não traz o tipo de A.
+
+Mutação (filtro `company_id` tirado de `occurrence-type-moments.query.ts`): vermelho.
+
+```text
+Expected: false
+Received: true
+(fail) os momentos do tipo respeitam a empresa (spec 246, revisão final B1) > perguntar pelo tipo de outra empresa devolve vazio; cada empresa lê só o seu
+ 0 pass
+ 1 fail
+```
