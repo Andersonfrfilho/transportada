@@ -1,5 +1,8 @@
 # Tasks
 
+> Pré-condição: a spec 241 publicada e aplicada (painel e API). A coluna `items_mode` é dela; nenhuma
+> task desta spec a cria.
+
 Uma task por vez, na ordem. Cada uma fecha com typecheck, teste e commit isolado, e registra a
 evidência em `evidence.md`.
 
@@ -39,13 +42,23 @@ evidência em `evidence.md`.
 
 > 🤖 Modelo: `sonnet` (T1c.1 é mecânica sobre o molde da Fase 1; aceite por `make migration-test`)
 
-- [ ] **T1c.1** Colunas aditivas em `companyOccurrenceTypes` e nas duas tabelas de exceção:
-      `items_mode` (`off`/`optional`/`required`, default `off`), `photo_minimum_count` (1–5, CHECK) e
-      `items_minimum_count` (nulo = todos os itens da nota; CHECK ≥ 1) — `trip.schema.ts`,
-      `db:generate`, `rollback.sql`. Foto/produtos só leem a quantidade quando o modo é `required`.
-- [ ] **T1c.2** Backfill sem mudar comportamento: `photo_minimum_count = 1` onde a foto é `required`;
-      `items_mode` fica `off` em todo cadastro existente (a 166 nunca exigiu produto).
+- [ ] **T1c.0** Confirmar a pré-condição: a 241 está em `origin/staging` (código, não só a spec) e
+      `items_mode` (`DEFAULT 'optional'`, CHECK de vocabulário, `company_occurrence_types_items_off_shape_check`)
+      existe no schema e na migration publicada. Ausente: parar e avisar — a ordem foi invertida.
+      Registrar em `evidence.md`.
+- [ ] **T1c.1** Colunas aditivas: `photo_minimum_count` (1–5, CHECK) e `items_minimum_count` (nulo =
+      todos os itens da nota; CHECK ≥ 1 **e** CHECK `items_minimum_count IS NULL OR items_mode =
+'required'`) em `companyOccurrenceTypes`; as mesmas duas mais `items_mode` (`DEFAULT 'optional'`)
+      nas duas tabelas de exceção — `trip.schema.ts`, `db:generate`, `rollback.sql` que **não** derruba
+      `items_mode` do tipo. Foto/produtos só leem a quantidade quando o modo é `required`.
+- [ ] **T1c.2** Backfill sem mudar comportamento: `photo_minimum_count = 1` onde a foto é `required`.
+      `items_mode` do tipo **não é tocado** (a 241 já o deixou `optional`, e `off` só na segunda via);
+      as linhas de exceção existentes entram `optional`. `make migration-test` roda com a 241 no
+      histórico.
 - [ ] **T1c.3** `allows_multiple_items` entra no `PUT`/`GET` do catálogo (RF1b) — a coluna já existe.
+- [ ] **T1c.4** A escrita do catálogo (`save-occurrence-type.use-case.ts`, `occurrence.schema.ts`)
+      passa a aceitar `itemsMode = 'required'` (a 241 devolve `400`), recusa `items_minimum_count`
+      sem `required`, e mantém a recusa `off` + política ≠ `unset` da 241 — contrato primeiro.
 
 ## Fase 1d — A foto da rua guarda N anexos (RF1d)
 
@@ -107,7 +120,8 @@ evidência em `evidence.md`.
 > 🤖 Modelo: `haiku` para a mudança mecânica, `sonnet` para T5.3
 
 - [ ] **T5.1** `<Tabs>` em `TripOccurrencesWorkspace.page.tsx`, no molde de `TripWorkspace`.
-- [ ] **T5.2** Mover painel, seção de exceções, hook, consultas e traduções de
+- [ ] **T5.2** Reler a árvore (a 241 pode ter renomeado ou quebrado o painel em subcomponentes) e mover,
+      sem reescrever, o painel que a 241 já alterou, a seção de exceções, o hook, as consultas e as traduções de
       `modules/company-settings` para `modules/trip`; atualizar `SETTINGS_PANEL_PLACEMENT`,
       `SETTINGS_PANEL_MODULES` e `COMPANY_SETTINGS_TAB_IDS`.
 - [ ] **T5.3** Exceções à vista (RF11, RF11c): contagem e lista sem acordeão, **uma consulta em
@@ -142,13 +156,20 @@ evidência em `evidence.md`.
 ## Prompt de execução
 
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/239-a-exigencia-da-ocorrencia-chega-na-rua/
+/oh-my-claudecode:autopilot Execute a spec specs/245-a-exigencia-da-ocorrencia-chega-na-rua/
 (leia spec.md, plan.md e tasks.md antes de começar). Uma task por vez, na ordem do tasks.md.
+Pré-condição: a spec 241 publicada e aplicada (painel e API, código em origin/staging, coluna
+items_mode existente). A T1c.0 confere isso; se faltar, pare e avise — nenhuma task cria items_mode.
 Modelos: Fases 1, 1b, 1c, 1d, 2, 3, 4 e 6 → executor model=sonnet · Fase 5 → executor model=haiku,
 exceto T5.3* → sonnet · T1.2, T1b.2, T1d.2 e T3.1 🧠 → opus, validadas com architect antes de
 implementar · revisão final → code-reviewer model=opus.
-Cada task fecha com typecheck + teste + commit isolado, evidência em evidence.md. Na API, contrato
+Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
+Ordem de publicação (ADR-0081 §9): painel tolerante antes de API/banco; a migration só depois do
+painel que lê os campos novos como opcionais.
+Gates de cada task: typecheck + teste + commit isolado, evidência em evidence.md. Na API, contrato
 e integração são dois comandos e nenhum cobre o outro; a integração exige --env-file=../../.env.test.
+Ao fechar a spec: make check, make migration-test (há migration com rollback.sql) e, depois de
+git fetch + rebase + bun install --frozen-lockfile, db:generate = no_changes.
 T1.4, T1b.5, T1d.4 e as demais tasks de mutação só fecham com a execução vermelha registrada.
-Pare e pergunte antes de: deploy, migration destrutiva, qualquer [NEEDS CLARIFICATION].
+Pare e pergunte antes de: deploy, migration destrutiva, produção, qualquer [NEEDS CLARIFICATION].
 ```

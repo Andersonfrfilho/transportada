@@ -1,4 +1,4 @@
-# Feature 239 — A exigência da ocorrência chega na rua
+# Feature 245 — A exigência da ocorrência chega na rua
 
 ## Problema e resultado
 
@@ -33,6 +33,36 @@ capturado no aparelho.
 
 Protótipo da tela em [`preview.html`](preview.html), no tema real do painel.
 
+## Pré-condição: a spec 241 já aplicada
+
+Esta spec **não executa antes** da [241](../241-o-tipo-da-ocorrencia-diz-se-ela-carrega-itens/spec.md):
+a 241 (menor, sem exigência na rua) vai primeiro e é ela quem **cria** o eixo de produtos. Só a
+consome aqui.
+
+**O que a 241 entrega** (e esta spec assume existente, em API, banco e painel):
+
+- `company_occurrence_types.items_mode varchar(16) NOT NULL DEFAULT 'optional'`, com CHECK no
+  vocabulário `off | optional | required` e a CHECK `company_occurrence_types_items_off_shape_check`
+  (`items_mode = 'off' ⇒ redelivery_policy = 'unset'`).
+- O `UPDATE` que pôs `off` nos tipos semeados da segunda via do boleto. **Todo o resto está
+  `optional`** pelo default: o registro continua mostrando o seletor de produtos para eles, como hoje.
+- `itemsMode` no cadastro (`PUT`/`GET /company-settings/occurrence-types`) e nas leituras, o `422
+OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED` em tipo `off`, e o painel com **Produtos** em duas opções
+  (Desligado / Opcional) no cadastro que mora em Configurações → Empresa. Escrever `required` volta
+  `400` até esta spec.
+
+**O que esta spec muda no que a 241 entregou** (RF1, RF1b, RF1c2):
+
+- A escrita passa a aceitar `required` (a 241 só aceita `off` e `optional`) e o painel ganha a
+  terceira opção, **Obrigatório**, no mesmo seletor de três estados.
+- Acrescenta `items_minimum_count` (nulo = todos os itens), cuja CHECK exige `items_mode =
+'required'`, e `photo_minimum_count`. **Nenhuma linha desta spec cria `items_mode` na tabela de
+  tipos**, e o rollback também não a derruba.
+- O painel de tipos que a 241 alterou **muda de endereço** (CA01): o `OccurrenceTypeCatalogPanel`
+  sai de Configurações → Empresa para a aba Tipos de `/ocorrencias`. É **mover o componente que a 241
+  já alterou** — com o campo Produtos, a regra de esconder a política de reentrega e seus testes —,
+  nunca reescrevê-lo. Ver `plan.md` § Dependência da spec 241.
+
 ## Fora do escopo
 
 - **A exigência no momento de galpão (`separation`).** Continua com a regra fixa de 1 a 5 fotos da
@@ -45,7 +75,7 @@ Protótipo da tela em [`preview.html`](preview.html), no tema real do painel.
   já é decidido como campo que nunca bloqueia (193).
 - **Retroatividade.** Ocorrência já gravada não é reavaliada contra a exigência nova.
 - **A correção e o cancelamento da ocorrência registrada.** Saíram para a
-  [spec 235](../235-a-correcao-da-ocorrencia-ganha-tela/spec.md), que vai primeiro: a API da 167
+  [spec 240](../240-a-correcao-da-ocorrencia-ganha-tela/spec.md), que vai primeiro: a API da 167
   está pronta e falta só a tela, então é trabalho independente e muito menor que este.
 - **O comprovante de entrega** (`DeliveryProofFieldSettings`) não muda. A foto e a assinatura de
   ocorrência nunca entram em `trip_delivery_proofs` — a spec 209 existe por causa desse defeito.
@@ -117,7 +147,9 @@ aparelho, sem depender de rede
   cada um no seu momento — e **nunca** amplia o que um papel podia fazer no momento do outro.
 - **RF1** O tipo de ocorrência passa a declarar quatro exigências independentes — `photoMode`,
   `noteMode`, `signatureMode` e `itemsMode` (produtos da nota) —, cada uma em `off` / `optional` /
-  `required`, reaproveitando `DELIVERY_PROOF_FIELD_MODES`. Nenhum vocabulário novo.
+  `required`, reaproveitando `DELIVERY_PROOF_FIELD_MODES`. Nenhum vocabulário novo. `itemsMode` **já existe no tipo** (spec 241);
+  aqui entram `photoMode`, `noteMode` e `signatureMode`, e o `itemsMode` ganha o estado `required` e
+  passa a existir nas duas tabelas de exceção.
 - **RF1a** Os quatro campos usam **o mesmo seletor de três estados, com as mesmas três palavras**:
   Desligado · Opcional · Obrigatório. Nada de "Sem foto", "Pelo menos um produto" e outras
   redações por campo — quatro vocabulários para um eixo só obrigam a reler cada linha, e é o que
@@ -238,7 +270,8 @@ aparelho, sem depender de rede
 - **CA06** Registro sem assinatura em tipo que a exige volta erro com código estável, e a
   assinatura gravada não aparece em `trip_delivery_proofs` nem na pontualidade — provado por
   integração.
-- **CA07** `make migration-test` verde com o `rollback.sql`.
+- **CA07** `make migration-test` verde com o `rollback.sql`, com a 241 já aplicada: o rollback não
+  derruba `items_mode` do tipo, só o que esta spec criou.
 - **CA08** Revisão de design e usabilidade da aba nova, com print nas três larguras.
 
 ## Dúvidas
