@@ -90,6 +90,8 @@ export const API_CARGO_ARRIVAL_OCCURRENCE_TYPES_PATH = '/cargo-arrivals/occurren
 export const API_CARGO_ARRIVAL_OCCURRENCES_PATH = '/cargo-arrivals/:id/occurrences'
 export const API_CARGO_ARRIVAL_DOCUMENT_OCCURRENCES_PATH =
   '/cargo-arrivals/:id/documents/:documentId/occurrences'
+export const API_CARGO_ARRIVAL_DOCUMENT_PRODUCTS_PATH =
+  '/cargo-arrivals/:id/documents/:documentId/products'
 export const API_CARGO_ARRIVAL_DOCUMENT_RETURN_MARK_PATH =
   '/cargo-arrivals/:id/documents/:documentId/return-mark'
 export const API_CARGO_ARRIVAL_DOCUMENT_RETURN_UNMARK_PATH =

@@ -7,6 +7,7 @@
  */
 import type { CargoArrivalChannel } from '../../shared/cargo-arrival.constant.js'
 import type { TripOccurrenceCaseStatus } from '../../database/trip.schema.js'
+import type { TripDocumentProduct } from '../../trips/application/read-trip-document-products.use-case.js'
 import type { OccurrenceItemQuantity } from '../../trips/domain/occurrence-item-quantity.policy.js'
 import type { CargoArrivalReturnMark } from '../domain/cargo-arrival-return.policy.js'
 import type { CargoArrivalReturnAction } from '../domain/cargo-arrival-return.policy.js'
@@ -119,4 +120,16 @@ export type CargoArrivalOccurrenceReadPort = {
     scope: ArrivalScope & { readonly nfeDocumentId: string | null },
   ): Promise<CargoArrivalOccurrencesView | null>
   listReceivingTypes(companyId: string): Promise<readonly ReceivingOccurrenceTypeView[]>
+}
+
+export type ArrivalDocumentProductsResult =
+  | { readonly outcome: 'arrival-not-found' }
+  | { readonly outcome: 'document-not-found' }
+  | { readonly outcome: 'found'; readonly products: readonly TripDocumentProduct[] }
+
+export type CargoArrivalDocumentProductsReadPort = {
+  /** Os itens da nota DESTA chegada, da empresa do escopo; fora disso nunca devolve item. */
+  listArrivalDocumentProducts(
+    scope: ArrivalScope & { readonly nfeDocumentId: string },
+  ): Promise<ArrivalDocumentProductsResult>
 }

@@ -82,13 +82,25 @@ describe('os itens da nota da chegada por HTTP (spec 237 T3.2b)', () => {
     expect(fixture.calls).toEqual([])
   })
 
-  test.each([
-    ['chegada que não é UUID', `/cargo-arrivals/nao-e-uuid/documents/${DOCUMENT_ID}/products`],
-    ['nota que não é UUID', `/cargo-arrivals/${ARRIVAL_ID}/documents/nao-e-uuid/products`],
-    ['query desconhecida', `${PATH}?companyId=outra`],
-  ])('%s é 400 com código estável, sem chamar o caso de uso', async (_label, path) => {
+  test('id que não é UUID nem chega à rota: o roteador responde 404 NOT_FOUND', async () => {
     const fixture = createFixture(READER)
-    const response = await fixture.handle(jsonRequest({ method: 'GET', path }))
+    for (const path of [
+      `/cargo-arrivals/nao-e-uuid/documents/${DOCUMENT_ID}/products`,
+      `/cargo-arrivals/${ARRIVAL_ID}/documents/nao-e-uuid/products`,
+    ]) {
+      const response = await fixture.handle(jsonRequest({ method: 'GET', path }))
+
+      expect(response.status).toBe(404)
+      expect(((await response.json()) as { error: { code: string } }).error.code).toBe('NOT_FOUND')
+    }
+    expect(fixture.calls).toEqual([])
+  })
+
+  test('query desconhecida é 400 INVALID_REQUEST, sem chamar o caso de uso', async () => {
+    const fixture = createFixture(READER)
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: `${PATH}?companyId=outra` }),
+    )
 
     expect(response.status).toBe(400)
     expect(((await response.json()) as { error: { code: string } }).error.code).toBe(

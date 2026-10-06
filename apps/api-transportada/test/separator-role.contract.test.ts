@@ -4,6 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { createBillingRoutes } from '../src/billing/presentation/billing.routes'
+import { createCargoArrivalDocumentProductsRoute } from '../src/cargo-receiving/presentation/cargo-arrival-document-products.routes'
 import { createCargoArrivalOccurrenceRoutes } from '../src/cargo-receiving/presentation/cargo-arrival-occurrence.routes'
 import { createCargoArrivalSeparationRoutes } from '../src/cargo-receiving/presentation/cargo-arrival-separation.routes'
 import { createCargoArrivalRoutes } from '../src/cargo-receiving/presentation/cargo-arrival.routes'
@@ -102,6 +103,7 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     ...createCargoArrivalRoutes(dependencies),
     ...createCargoArrivalSeparationRoutes(dependencies),
     ...createCargoArrivalOccurrenceRoutes(dependencies),
+    createCargoArrivalDocumentProductsRoute(dependencies),
     // Spec 237 T4.2: a prévia vira a chegada (RF5b), e quem confere a chegada é o separador — ele
     // envia a planilha e decide o vínculo com as mesmas `fleet.read`/`trip.manage`.
     ...createCargoPreviewRoutes(dependencies),

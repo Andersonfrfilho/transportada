@@ -14,14 +14,17 @@ import { createDeliveryProofDownloadGateway } from '../trips/infrastructure/deli
 import { createDeliveryProofStorage } from '../trips/infrastructure/delivery-proof-storage.gateway.js'
 import { DrizzleOccurrenceAttachmentRepository } from '../trips/infrastructure/drizzle-occurrence-attachment.repository.js'
 import { createChangeCargoArrivalReturnUseCase } from './application/cargo-arrival-return.use-case.js'
+import { createListCargoArrivalDocumentProductsUseCase } from './application/read-cargo-arrival-document-products.use-case.js'
 import {
   createListCargoArrivalOccurrencesUseCase,
   createListReceivingOccurrenceTypesUseCase,
 } from './application/read-cargo-arrival-occurrences.use-case.js'
 import { createRegisterCargoArrivalOccurrenceUseCase } from './application/register-cargo-arrival-occurrence.use-case.js'
+import { DrizzleCargoArrivalDocumentProductsRepository } from './infrastructure/drizzle-cargo-arrival-document-products.repository.js'
 import { DrizzleCargoArrivalOccurrenceReadRepository } from './infrastructure/drizzle-cargo-arrival-occurrence-read.repository.js'
 import { DrizzleCargoArrivalOccurrenceUnitOfWork } from './infrastructure/drizzle-cargo-arrival-occurrence.repository.js'
 import { DrizzleCargoArrivalReturnUnitOfWork } from './infrastructure/drizzle-cargo-arrival-return.repository.js'
+import { createCargoArrivalDocumentProductsRoute } from './presentation/cargo-arrival-document-products.routes.js'
 import { createCargoArrivalOccurrenceRoutes } from './presentation/cargo-arrival-occurrence.routes.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -39,7 +42,7 @@ export function createCargoArrivalOccurrenceHttpRoutes(input: {
     database: input.database,
     downloads: createDeliveryProofDownloadGateway({ storage: input.storage }),
   })
-  return createCargoArrivalOccurrenceRoutes({
+  const occurrenceRoutes = createCargoArrivalOccurrenceRoutes({
     changeReturn: createChangeCargoArrivalReturnUseCase({
       channel,
       now,
@@ -56,4 +59,12 @@ export function createCargoArrivalOccurrenceHttpRoutes(input: {
       unitOfWork: new DrizzleCargoArrivalOccurrenceUnitOfWork(input.database, input.bucket),
     }),
   })
+  return [
+    ...occurrenceRoutes,
+    createCargoArrivalDocumentProductsRoute({
+      listProducts: createListCargoArrivalDocumentProductsUseCase({
+        reads: new DrizzleCargoArrivalDocumentProductsRepository(input.database),
+      }),
+    }),
+  ]
 }
