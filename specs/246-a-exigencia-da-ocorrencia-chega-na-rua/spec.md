@@ -316,7 +316,7 @@ aparelho, sem depender de rede
 
 - **CA00** Um tipo com os momentos `separation` e `document` aparece nas duas listas — a do
   separador e a do motorista — com o mesmo id, e a tentativa de registrar no momento que o papel
-  não cobre **não grava**: motorista em tipo só-`separation` na rota de nota volta `404
+  não cobre **não grava**: motorista em tipo só-`separation` na rota de nota volta `409
 TRIP_DOCUMENT_NOT_REACHABLE`; separador com tipo só-`document` na rota de galpão volta `422
 OCCURRENCE_TYPE_NOT_SEPARATION`; escritório com tipo sem `office` volta `422
 OCCURRENCE_TYPE_NOT_FIELD`; conta com os dois papéis repete cada caso. Provado por integração.

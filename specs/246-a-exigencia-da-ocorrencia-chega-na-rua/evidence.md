@@ -44,7 +44,7 @@ conferida contra a árvore de `origin/staging` (`81cd849b6`).
    momento FIXO por caso de uso, guarda `acceptsOccurrenceMoment`, política da rota inalterada,
    proibido `resolveOccurrencePermission` no caminho novo; tabela de pontos de código no plan.
    **RF0b corrigido:** o escritório usa `trip.report-on-behalf`, não `trip.report`. **CA00
-   corrigida:** o desajuste responde `404 TRIP_DOCUMENT_NOT_REACHABLE` / `422
+   corrigida:** o desajuste responde `409 TRIP_DOCUMENT_NOT_REACHABLE` (era `404` neste texto; o código real é 409, ver a Fase 1b) / `422
 OCCURRENCE_TYPE_NOT_SEPARATION` / `422 OCCURRENCE_TYPE_NOT_FIELD`, não 403 (códigos conferidos em
    `trip.error.ts:553,576,604`). **CA00b:** verifica as linhas da tabela, não só as listas. **T1b.5:**
    duas mutações. Nota: `separation + document` nunca sai do backfill; os dois "Avaria" existentes
@@ -2499,3 +2499,7 @@ Received: true
 ### B7 — strings repetidas viram constante
 
 Sem mudança de comportamento (refactor coberto pelos contratos e integrações existentes): `'recipient'`/`'emitter'` em `driver-reachable-document.query.ts` e `drizzle-current-driver-trip.repository.ts` passam a `RECIPIENT_PARTICIPANT_ROLE` (já existia) e `EMITTER_PARTICIPANT_ROLE` (nova), e `'required'`/`'optional'` em `occurrence-override-requirement-columns.support.ts` e `occurrence-requirement-guard.policy.ts` a `REQUIRED_PROOF_FIELD_MODE` (já existia) e `OPTIONAL_PROOF_FIELD_MODE` (nova) — todas em `trips/domain/delivery-event.constant.ts`, o `.constant.ts` do escopo que já guardava as irmãs. `bun run typecheck` limpo; `trip-occurrence` + `driver-trip` (contratos) 755 pass, 0 fail.
+
+### B11 — T1b.3: 409, não 404
+
+`TripDocumentNotReachableError` responde **409** `TRIP_DOCUMENT_NOT_REACHABLE` (`trip.error.ts`), e o código e o teste da T1b.3 já usavam 409. O texto da task (`tasks.md` T1b.3), da CA00 (`spec.md`) e a linha da correção inicial neste arquivo diziam `404`; corrigidos. O `plan.md` não cita o status.
