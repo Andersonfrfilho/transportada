@@ -9,6 +9,8 @@ import { describe, expect, test } from 'bun:test'
 
 import '@/modules/shared/i18n/i18n.service'
 
+import companySettingsEn from '@/modules/company-settings/locales/companySettings.en.locale.json'
+import companySettingsPt from '@/modules/company-settings/locales/companySettings.locale.json'
 import { SettingsResolutionPanel } from '@/modules/company-settings/components/SettingsResolutionPanel.component'
 import type { SettingsResolutionView } from '@/modules/trip/shared/settingsResolution.service'
 
@@ -176,4 +178,20 @@ describe('verificação da configuração efetiva: os seis campos e a camada de 
       },
     ),
   )
+})
+
+describe('o texto de apoio diz os seis campos que a tela mostra (spec 246, terceira revisão B-2)', () => {
+  test('pt-BR cita foto, observação, assinatura, produtos e os mínimos, não só a foto', () => {
+    const hint = companySettingsPt.settingsResolution.hint.toLowerCase()
+    for (const word of ['foto', 'observação', 'assinatura', 'produtos', 'mínimo']) {
+      expect(hint).toContain(word)
+    }
+  })
+
+  test('en cita photo, note, signature, products e os minimums', () => {
+    const hint = companySettingsEn.settingsResolution.hint.toLowerCase()
+    for (const word of ['photo', 'note', 'signature', 'products', 'minimum']) {
+      expect(hint).toContain(word)
+    }
+  })
 })
