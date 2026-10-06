@@ -17,6 +17,7 @@ import {
   NfseRetryPolicyInvalidError,
   resolveNfseRetryDelaySeconds,
 } from '../src/nfse-issuance/domain/nfse-retry.policy.js'
+import { NFSE_ISSUANCE_RETRY_MAX_RETRIES } from '../src/messaging/nfse-rabbitmq-topology.js'
 import { NFSE_PROCESSING_EVENT_TYPE } from '../src/messaging/nfse-processing-envelope.schema.js'
 import type { NfseProcessingEnvelopeV1 } from '../src/messaging/nfse-processing-envelope.schema.js'
 
@@ -167,6 +168,41 @@ describe('NFS-e issuance worker handler contract', () => {
         reason: 'transport_failure',
       },
     ])
+  })
+
+  test('closes the invoice on the last delivery the provider allows, even with policy attempts left', async () => {
+    const fixture = createHandlerFixture({
+      effect: async () => {
+        throw new NfseIssuanceRecoverableError('unexpected_status')
+      },
+      policy: { backoffSeconds: [30, 120, 600, 1_800], maxAttempts: 5 },
+    })
+
+    const result = await fixture.handler.handle({
+      attempt: NFSE_ISSUANCE_RETRY_MAX_RETRIES,
+      envelope: ENVELOPE,
+    })
+
+    expect(result).toEqual({ type: 'dead-letter' })
+    expect(fixture.deadLettered).toHaveLength(1)
+    expect(fixture.retries).toHaveLength(0)
+  })
+
+  test('still retries before the last delivery', async () => {
+    const fixture = createHandlerFixture({
+      effect: async () => {
+        throw new NfseIssuanceRecoverableError('unexpected_status')
+      },
+      policy: { backoffSeconds: [30, 120, 600, 1_800], maxAttempts: 5 },
+    })
+
+    const result = await fixture.handler.handle({
+      attempt: NFSE_ISSUANCE_RETRY_MAX_RETRIES - 1,
+      envelope: ENVELOPE,
+    })
+
+    expect(result).toEqual({ type: 'retry' })
+    expect(fixture.deadLettered).toHaveLength(0)
   })
 
   test('dead-letters a fatal failure without spending a retry', async () => {

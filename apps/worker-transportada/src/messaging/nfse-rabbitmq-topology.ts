@@ -3,6 +3,9 @@
  */
 import type { RabbitMqTopology } from '@adatechnology/rabbitmq-provider'
 
+/** O provider descarta a mensagem sozinho quando `retryCount` chega aqui; o handler precisa fechar a nota antes. */
+export const NFSE_ISSUANCE_RETRY_MAX_RETRIES = 3
+
 type BuildNfseRabbitMqTopologyParams = {
   readonly queuePrefix: string
 }
@@ -19,7 +22,7 @@ export function buildNfseIssuanceRabbitMqTopology(
     retry: {
       delayMs: 5_000,
       exchange: `${routePrefix}.retry.exchange`,
-      maxRetries: 3,
+      maxRetries: NFSE_ISSUANCE_RETRY_MAX_RETRIES,
       queue: `${routePrefix}.retry.queue`,
       routingKey: `${routePrefix}.retry`,
     },
