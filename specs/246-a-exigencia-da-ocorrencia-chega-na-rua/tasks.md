@@ -167,7 +167,7 @@ evidência em `evidence.md`.
 ## Prompt de execução
 
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/245-a-exigencia-da-ocorrencia-chega-na-rua/
+/oh-my-claudecode:autopilot Execute a spec specs/246-a-exigencia-da-ocorrencia-chega-na-rua/
 (leia spec.md, plan.md e tasks.md antes de começar). Uma task por vez, na ordem do tasks.md.
 Pré-condição: a spec 241 publicada e aplicada (painel e API, código em origin/staging, coluna
 items_mode existente). A T1c.0 confere isso; se faltar, pare e avise — nenhuma task cria items_mode.
