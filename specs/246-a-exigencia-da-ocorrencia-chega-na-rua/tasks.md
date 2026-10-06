@@ -91,7 +91,7 @@ flow='stop'` **e** onde `stage='separation' AND flow='stop'` (D-c: preserva o co
 - [x] **T1b.4** Integração da CA00b sobre dado semeado antes da tabela nova: **verifica as linhas da
       tabela de momentos** (os quatro casos da tabela do plan, inclusive `separation + stop` →
       `separation` e `stop`), não só as listas — a leitura tolerante mascararia o backfill arrancado.
-- [ ] **T1b.5** Mutações: (1) `includes(ROUTE_MOMENT)` → `moments.length > 0`; (2) → "algum momento
+- [x] **T1b.5** Mutações: (1) `includes(ROUTE_MOMENT)` → `moments.length > 0`; (2) → "algum momento
       de rua". Cada uma deixa a T1b.3 vermelha; execução vermelha registrada em `evidence.md`.
 - [ ] **T1b.6** Rejeitar tipo sem nenhum momento, na API e na tela.
 

@@ -596,3 +596,46 @@ Sobre "nenhuma lista muda": o conteúdo de cada lista sobre esse dado é o da T1
 tipos com `separation`; escritório = tipos com `office` = os `delivery` de hoje; nota do motorista =
 tipos com `document` = os `delivery + document` de hoje). A única lista que muda é a do motorista
 para o caso de borda `separation + stop` — ver a divergência registrada na T1b.2.
+
+### T1b.5 — As duas mutações deixam a T1b.3 vermelha (2026-10-06)
+
+Cada mutação foi aplicada a `acceptsOccurrenceMoment` (`src/shared/trip-occurrence.constant.ts`) só
+para a execução, e o arquivo foi restaurado da cópia em seguida (`git status` limpo). Comando das
+duas: `cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000
+./test/integration/occurrence-type-moments-registration.integration.ts`.
+
+**(1) `includes(momento do registro)` → `moments.length > 0`** ("o tipo tem algum momento"). O
+motorista registra o tipo só de galpão na rota de nota:
+
+```text
+-  return params.moments.includes(params.moment)
++  return params.moments.length > 0
+error: expect(received).toEqual(expected)
+- {
+-   "code": "TRIP_DOCUMENT_NOT_REACHABLE",
+-   "status": 409,
+- }
++ "ACCEPTED"
+(fail) cada registro no próprio momento, contra o Postgres (spec 246 T1b.3, CA00) > o momento que o papel não cobre não grava, com o código real — e a conta com os dois papéis recebe o mesmo [2672.46ms]
+ 1 pass
+ 1 fail
+```
+
+**(2) → "algum momento de rua"** (`document`, `stop` ou `office`). O motorista com tipo só de galpão
+segue recusado (não há momento de rua), mas o separador registra o tipo só de nota no galpão:
+
+```text
+-  return params.moments.includes(params.moment)
++  return params.moments.some((moment) => moment !== OCCURRENCE_MOMENT.separation)
+error: expect(received).toEqual(expected)
+- {
+-   "code": "OCCURRENCE_TYPE_NOT_SEPARATION",
+-   "status": 422,
+- }
++ "ACCEPTED"
+(fail) cada registro no próprio momento, contra o Postgres (spec 246 T1b.3, CA00) > o momento que o papel não cobre não grava, com o código real — e a conta com os dois papéis recebe o mesmo [2677.69ms]
+ 1 pass
+ 1 fail
+```
+
+Restaurado: `2 pass, 0 fail`.
