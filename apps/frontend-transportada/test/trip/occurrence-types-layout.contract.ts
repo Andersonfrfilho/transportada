@@ -35,9 +35,12 @@ describe('aba Tipos: nada passa da largura da tela (T6.1, CA08)', () => {
     const exception = await readStylesheet(`${STYLES}/occurrenceException.module.css`)
 
     const requirement = await readStylesheet(`${STYLES}/occurrenceTypeRequirement.module.css`)
+    const identity = await readStylesheet(`${STYLES}/occurrenceTypeIdentity.module.css`)
+    const create = await readStylesheet(`${STYLES}/occurrenceTypeCreate.module.css`)
 
     expect(readCssBlock(requirement, '.requirements')).toInclude(COLUMN_QUE_ENCOLHE)
-    expect(readCssBlock(item, '.identity')).toInclude(COLUMN_QUE_ENCOLHE)
+    expect(readCssBlock(identity, '.identity')).toInclude(COLUMN_QUE_ENCOLHE)
+    expect(readCssBlock(create, '.create')).toInclude(COLUMN_QUE_ENCOLHE)
     expect(readCssBlock(item, '.details')).toInclude(COLUMN_QUE_ENCOLHE)
     expect(readCssBlock(item, '.notification')).toInclude(COLUMN_QUE_ENCOLHE)
     expect(readCssBlock(trip, '.occurrenceForm')).toInclude(COLUMN_QUE_ENCOLHE)

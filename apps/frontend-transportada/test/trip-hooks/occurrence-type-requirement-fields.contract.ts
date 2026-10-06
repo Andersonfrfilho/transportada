@@ -189,7 +189,7 @@ describe('linha do tipo: os mínimos (spec 246 RF1c, RF1c2)', () => {
 
       await mount(buildType({ itemsMinimumCount: null, itemsMode: 'required' }))
       expect(document.querySelector('input[aria-label="Quantidade mínima de produtos"]')).toBeNull()
-      await choose('Produtos exigidos', 'Ao menos')
+      await choose('Produtos exigidos', 'Ao menos N itens')
       expect(saved[1]?.itemsMinimumCount).toBe(1)
     }),
   )

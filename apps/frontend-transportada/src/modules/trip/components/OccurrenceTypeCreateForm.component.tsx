@@ -22,6 +22,7 @@ import {
   deriveOccurrenceStage,
   type OccurrenceTypeCreateSupport,
 } from '@/modules/trip/shared/occurrenceTypeCreate.service'
+import createStyles from '@/modules/trip/styles/occurrenceTypeCreate.module.css'
 import itemStyles from '@/modules/trip/styles/occurrenceTypeItem.module.css'
 import styles from '@/modules/trip/styles/trip.module.css'
 
@@ -80,7 +81,7 @@ export function OccurrenceTypeCreateForm({
   }
 
   return (
-    <section aria-label={t('occurrenceTypeCatalog.create.title')} className={itemStyles.create}>
+    <section aria-label={t('occurrenceTypeCatalog.create.title')} className={createStyles.create}>
       <p className={itemStyles.blockTitle}>{t('occurrenceTypeCatalog.create.title')}</p>
       <div className={styles.occurrenceForm}>
         <input
@@ -97,7 +98,7 @@ export function OccurrenceTypeCreateForm({
             problem={momentsProblem}
           />
         ) : null}
-        <div className={itemStyles.createFields}>
+        <div className={createStyles.createFields}>
           {fields.map((field) => (
             <OccurrenceRequirementModeSelect
               disabled={false}
@@ -147,7 +148,7 @@ export function OccurrenceTypeCreateForm({
           ]}
           value={draft.emailTemplateKey}
         />
-        <div className={itemStyles.createActions}>
+        <div className={createStyles.createActions}>
           <Button
             disabled={isSaving || momentsProblem !== null}
             onClick={handleAdd}

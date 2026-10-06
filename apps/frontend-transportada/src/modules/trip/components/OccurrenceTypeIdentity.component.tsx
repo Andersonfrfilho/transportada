@@ -18,6 +18,7 @@ import {
   TRIP_OCCURRENCE_STAGE,
 } from '@/modules/trip/shared/occurrence.constant'
 import type { OccurrenceTypeEdit } from '@/modules/trip/shared/occurrenceTypeUpdate.service'
+import identityStyles from '@/modules/trip/styles/occurrenceTypeIdentity.module.css'
 import styles from '@/modules/trip/styles/occurrenceTypeItem.module.css'
 
 import { useOccurrenceTypeOptions } from '../hooks/useOccurrenceTypeOptions.hook'
@@ -51,11 +52,16 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
   }
 
   return (
-    <section aria-label={t('occurrenceTypeCatalog.identity.title')} className={styles.identity}>
+    <section
+      aria-label={t('occurrenceTypeCatalog.identity.title')}
+      className={identityStyles.identity}
+    >
       <p className={styles.blockTitle}>{t('occurrenceTypeCatalog.identity.title')}</p>
-      <div className={styles.identityGrid}>
-        <label className={styles.identityField}>
-          <span className={styles.fieldLabel}>{t('occurrenceTypeCatalog.identity.name')}</span>
+      <div className={identityStyles.identityGrid}>
+        <label className={identityStyles.identityField}>
+          <span className={identityStyles.fieldLabel}>
+            {t('occurrenceTypeCatalog.identity.name')}
+          </span>
           <input
             defaultValue={type.name}
             disabled={disabled}
@@ -67,8 +73,8 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
           />
         </label>
         {hasItems ? (
-          <div className={styles.identityField}>
-            <span aria-hidden="true" className={styles.fieldLabel}>
+          <div className={identityStyles.identityField}>
+            <span aria-hidden="true" className={identityStyles.fieldLabel}>
               {t('occurrenceTypeCatalog.identity.redelivery')}
             </span>
             <Select
@@ -84,8 +90,8 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
         ) : null}
         {/* Spec 179 T401: só em tipo de rua — é o motorista quem tira a foto na hora. */}
         {isDelivery ? (
-          <div className={styles.identityField}>
-            <span aria-hidden="true" className={styles.fieldLabel}>
+          <div className={identityStyles.identityField}>
+            <span aria-hidden="true" className={identityStyles.fieldLabel}>
               {t('occurrenceTypeCatalog.identity.flow')}
             </span>
             <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.flowHint')}>
@@ -100,7 +106,7 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
           </div>
         ) : null}
       </div>
-      <div className={styles.identityChecks}>
+      <div className={identityStyles.identityChecks}>
         <Checkbox
           checked={type.active}
           disabled={disabled}

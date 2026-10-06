@@ -386,7 +386,7 @@
       "itemsMinimum": {
         "label": "Produtos exigidos",
         "all": "Todos os itens da nota",
-        "atLeast": "Ao menos",
+        "atLeast": "Ao menos N itens",
         "count": "Quantidade mínima de produtos",
         "hint": "Só vale quando Produtos é Obrigatório. Todos os itens da nota serve à recusa total. O app do motorista só marca “A nota inteira”, então “Ao menos N” ainda não muda o que ele cobra: não configure uma regra que o aparelho não cumpre."
       }
