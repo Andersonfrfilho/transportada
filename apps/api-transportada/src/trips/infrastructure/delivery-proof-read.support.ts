@@ -52,12 +52,14 @@ import type {
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
 import {
+  OCCURRENCE_TYPE_ITEMS_MINIMUM_SHAPE_CHECK,
   OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK,
   TRIP_BOUND_OCCURRENCE_STAGES,
 } from '../../shared/trip-occurrence.constant.js'
 import { openOccurrenceCase } from './drizzle-occurrence-case.repository.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
 import {
+  OccurrenceTypeItemsMinimumRequiresRequiredError,
   OccurrenceTypeItemsOffRedeliveryPolicyError,
   TripDocumentNotFoundError,
 } from '../domain/trip.error.js'
@@ -858,10 +860,14 @@ export async function findOccurrenceType(
       id: companyOccurrenceTypes.id,
       /** Spec 241 (RF1): se o tipo carrega produtos — a guarda do registro e da correção lê daqui. */
       itemsMode: companyOccurrenceTypes.itemsMode,
+      /** Spec 246 (RF1c2): nulo é "todos os itens da nota"; só vale com `itemsMode = 'required'`. */
+      itemsMinimumCount: companyOccurrenceTypes.itemsMinimumCount,
       /** Spec 185 (revisão, RF2): só a ocorrência que deixa a nota para trás tenta o despacho. */
       leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
       name: companyOccurrenceTypes.name,
       notifies: companyOccurrenceTypes.notifies,
+      /** Spec 246 (RF1c): a quantidade mínima de fotos, lida só com a foto `required`. */
+      photoMinimumCount: companyOccurrenceTypes.photoMinimumCount,
       /** Spec 164 T4 (RF3): copiada para a tratativa no registro — `openOccurrenceCase` decide por ela. */
       redeliveryPolicy: companyOccurrenceTypes.redeliveryPolicy,
       stage: companyOccurrenceTypes.stage,
@@ -995,10 +1001,12 @@ export async function listOccurrenceTypes(
       emailsContractor: companyOccurrenceTypes.emailsContractor,
       flow: companyOccurrenceTypes.flow,
       id: companyOccurrenceTypes.id,
+      itemsMinimumCount: companyOccurrenceTypes.itemsMinimumCount,
       itemsMode: companyOccurrenceTypes.itemsMode,
       leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
       name: companyOccurrenceTypes.name,
       notifies: companyOccurrenceTypes.notifies,
+      photoMinimumCount: companyOccurrenceTypes.photoMinimumCount,
       redeliveryPolicy: companyOccurrenceTypes.redeliveryPolicy,
       stage: companyOccurrenceTypes.stage,
       stopKind: companyOccurrenceTypes.stopKind,
@@ -1022,8 +1030,12 @@ export async function listOccurrenceTypes(
  * Qualquer outra violação segue propagando.
  */
 function rethrowItemsOffShapeViolation(error: unknown): never {
-  if (violatedCheckConstraint(error) === OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK) {
+  const violated = violatedCheckConstraint(error)
+  if (violated === OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK) {
     throw new OccurrenceTypeItemsOffRedeliveryPolicyError()
+  }
+  if (violated === OCCURRENCE_TYPE_ITEMS_MINIMUM_SHAPE_CHECK) {
+    throw new OccurrenceTypeItemsMinimumRequiresRequiredError()
   }
   throw error
 }
@@ -1081,6 +1093,8 @@ async function writeOccurrenceTypeRow(
      * `occurrenceTypeId: null`); ausente na edição é "não mexa", mesmo motivo de `attachmentMode`.
      */
     readonly flow?: OccurrenceTypeFlow | undefined
+    /** Spec 246 (RF1c2): ausente é "não mexa"; nulo grava "todos os itens da nota". */
+    readonly itemsMinimumCount?: null | number | undefined
     /** Spec 241 (RF4): ausente é "não mexa" — o INSERT usa o padrão da coluna (`'optional'`). */
     readonly itemsMode?: DeliveryProofFieldMode | undefined
     /**
@@ -1092,6 +1106,8 @@ async function writeOccurrenceTypeRow(
     readonly name: string
     readonly notifies: boolean
     readonly occurrenceTypeId: null | string
+    /** Spec 246 (RF1c): ausente é "não mexa" — o INSERT usa o padrão da coluna (1). */
+    readonly photoMinimumCount?: number | undefined
     /**
      * Spec 164 T1/RF1 (spec 242): ausente é "não mexa" — o INSERT usa o padrão da coluna
      * (`'unset'`) e o UPDATE omite a coluna, como `attachmentMode`.
@@ -1126,6 +1142,12 @@ async function writeOccurrenceTypeRow(
     ...(input.emailsContractor === undefined ? {} : { emailsContractor: input.emailsContractor }),
     ...(input.flow === undefined ? {} : { flow: input.flow }),
     ...(input.itemsMode === undefined ? {} : { itemsMode: input.itemsMode }),
+    ...(input.itemsMinimumCount === undefined
+      ? {}
+      : { itemsMinimumCount: input.itemsMinimumCount }),
+    ...(input.photoMinimumCount === undefined
+      ? {}
+      : { photoMinimumCount: input.photoMinimumCount }),
     ...(input.redeliveryPolicy === undefined ? {} : { redeliveryPolicy: input.redeliveryPolicy }),
   }
   /**
@@ -1185,10 +1207,12 @@ async function writeOccurrenceTypeRow(
     emailsContractor: saved.emailsContractor,
     flow: saved.flow,
     id: saved.id,
+    itemsMinimumCount: saved.itemsMinimumCount,
     itemsMode: saved.itemsMode,
     leavesDocumentBehind: saved.leavesDocumentBehind,
     name: saved.name,
     notifies: saved.notifies,
+    photoMinimumCount: saved.photoMinimumCount,
     redeliveryPolicy: saved.redeliveryPolicy,
     stage: saved.stage,
     stopKind: saved.stopKind,

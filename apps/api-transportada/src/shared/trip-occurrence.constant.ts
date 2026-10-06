@@ -167,6 +167,19 @@ export const OCCURRENCE_TYPE_REQUIREMENT_DEFAULTS = {
   signatureMode: 'off',
 } as const
 
+/**
+ * Spec 246 (RF1c2): o teto da quantidade mínima de produtos no cadastro — a coluna é `smallint`, e
+ * nota com mais itens do que isso é caso extremo que o "todos os itens" (nulo) já cobre.
+ */
+export const OCCURRENCE_ITEMS_MINIMUM_COUNT_MAX = 999
+
+/**
+ * Spec 246 (RF1c2): a CHECK `items_minimum_count` só com `required`; o cadastro a traduz em 422
+ * quando a corrida a atinge, como a `off ⇒ unset` da 241.
+ */
+export const OCCURRENCE_TYPE_ITEMS_MINIMUM_SHAPE_CHECK =
+  'company_occurrence_types_items_minimum_shape_check'
+
 /** Spec 241 (RF11): a CHECK `off ⇒ unset`; o cadastro a traduz em 422 quando a corrida a atinge. */
 export const OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK =
   'company_occurrence_types_items_off_shape_check'

@@ -7,21 +7,20 @@
  */
 import {
   OccurrenceEmailTemplateNotFoundError,
-  OccurrenceTypeItemsOffRedeliveryPolicyError,
   OccurrenceTypeLeavesDocumentBehindRequiresSeparationError,
 } from '../domain/trip.error.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
-import {
-  OCCURRENCE_ITEMS_MODE,
-  OCCURRENCE_TYPE_FLOWS,
-  REDELIVERY_POLICY,
-} from '../../shared/trip-occurrence.constant.js'
+import { OCCURRENCE_TYPE_FLOWS } from '../../shared/trip-occurrence.constant.js'
 import type {
   OccurrenceMoment,
   OccurrenceTypeFlow,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
+import {
+  assertItemsMinimumMatchesMode,
+  assertItemsOffHasNoRedeliveryPolicy,
+} from '../domain/occurrence-items-shape.policy.js'
 import { OccurrenceTypeMomentsStageConflictError } from '../domain/occurrence-moment.error.js'
 import {
   assertOccurrenceMomentsAreWritable,
@@ -62,10 +61,15 @@ export type SaveOccurrenceTypeValues = {
    */
   readonly flow?: OccurrenceTypeFlow | undefined
   /**
-   * Spec 241 (RF4): se o tipo carrega produtos (`off`/`optional`; `required` é da 239). Ausente é
-   * "não mexa", como `attachmentMode` — nunca `'optional'`, que religaria um tipo `off`.
+   * Spec 246 (RF1c2): a quantidade mínima de produtos, só com `itemsMode = 'required'`; `null` é
+   * "todos os itens da nota". Ausente é "não mexa".
    */
-  readonly itemsMode?: Exclude<DeliveryProofFieldMode, 'required'> | undefined
+  readonly itemsMinimumCount?: null | number | undefined
+  /**
+   * Spec 241 (RF4), spec 246 (RF1b): se o tipo carrega produtos. Ausente é "não mexa", como
+   * `attachmentMode` — nunca `'optional'`, que religaria um tipo `off`.
+   */
+  readonly itemsMode?: DeliveryProofFieldMode | undefined
   /**
    * Spec 185 (RF6, ADR-0074 §4): só tipo de separação pode "deixar a nota para trás" —
    * `saveOccurrenceTypeWithTemplate` recusa `true` com `stage !== 'separation'` antes de gravar.
@@ -81,6 +85,8 @@ export type SaveOccurrenceTypeValues = {
   readonly name: string
   readonly notifies: boolean
   readonly occurrenceTypeId: null | string
+  /** Spec 246 (RF1c): a quantidade mínima de fotos (1..5), lida só com a foto `required`. Ausente é "não mexa". */
+  readonly photoMinimumCount?: number | undefined
   /** Ausente é "não mexa" (spec 164 RF1) — o valor guardado fica; na criação vale `'unset'`. */
   readonly redeliveryPolicy?: RedeliveryPolicy | undefined
   readonly stage: TripOccurrenceStage
@@ -92,7 +98,7 @@ export type SaveOccurrenceTypeValues = {
  * de par para conferir.
  */
 export type CurrentOccurrenceTypeShape = Partial<
-  Pick<OccurrenceTypeRecord, 'flow' | 'moments' | 'stage'>
+  Pick<OccurrenceTypeRecord, 'flow' | 'itemsMinimumCount' | 'moments' | 'stage'>
 > &
   Pick<OccurrenceTypeRecord, 'itemsMode' | 'redeliveryPolicy'>
 
@@ -123,6 +129,7 @@ export async function saveOccurrenceTypeWithTemplate(
   }
 
   assertItemsOffHasNoRedeliveryPolicy({ stored, values })
+  assertItemsMinimumMatchesMode({ stored, values })
 
   const { emailTemplateKey } = values
   if (emailTemplateKey === null) return input.save(values)
@@ -140,10 +147,13 @@ export async function saveOccurrenceTypeWithTemplate(
 async function readStoredTypeWhenNeeded(
   input: SaveOccurrenceTypeWithTemplateInput,
 ): Promise<CurrentOccurrenceTypeShape | null> {
-  const { itemsMode, moments, occurrenceTypeId, redeliveryPolicy } = input.values
+  const { itemsMinimumCount, itemsMode, moments, occurrenceTypeId, redeliveryPolicy } = input.values
   const isStoredStateNeeded =
     occurrenceTypeId !== null &&
-    (itemsMode === undefined || redeliveryPolicy === undefined || moments === undefined)
+    (itemsMode === undefined ||
+      itemsMinimumCount === undefined ||
+      redeliveryPolicy === undefined ||
+      moments === undefined)
   return isStoredStateNeeded
     ? input.findCurrentType({ companyId: input.companyId, occurrenceTypeId })
     : null
@@ -175,22 +185,4 @@ function resolveMomentsChange(params: ResolveMomentsChangeParams): SaveOccurrenc
     throw new OccurrenceTypeMomentsStageConflictError()
   }
   return { ...values, moments: deriveOccurrenceMomentsFromStageAndFlow(nextPair) }
-}
-
-/**
- * Spec 241 (RF11, D1): valida o estado **resultante** — campo ausente lê o valor gravado, porque
- * `off` + política diferente de `unset` é tratativa que não fecha. A CHECK do banco é só a rede.
- */
-function assertItemsOffHasNoRedeliveryPolicy(params: ResolveMomentsChangeParams): void {
-  const { stored } = params
-  const { itemsMode, redeliveryPolicy } = params.values
-
-  const resultingItemsMode = itemsMode ?? stored?.itemsMode ?? OCCURRENCE_ITEMS_MODE.optional
-  const resultingPolicy = redeliveryPolicy ?? stored?.redeliveryPolicy ?? REDELIVERY_POLICY.unset
-  if (
-    resultingItemsMode === OCCURRENCE_ITEMS_MODE.off &&
-    resultingPolicy !== REDELIVERY_POLICY.unset
-  ) {
-    throw new OccurrenceTypeItemsOffRedeliveryPolicyError()
-  }
 }

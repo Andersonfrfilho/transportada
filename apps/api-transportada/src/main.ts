@@ -298,6 +298,7 @@ import {
   OCCURRENCE_CORRECTION_OPERATION,
 } from './trips/domain/occurrence-correction.policy.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
+import { toSaveOccurrenceTypeValues } from './trips/application/save-occurrence-type-values.mapper.js'
 import {
   readOccurrenceAttachmentOverrides,
   replaceOccurrenceAttachmentOverrides,
@@ -3906,23 +3907,7 @@ function createApplicationRoutes({
                 )
               },
             },
-            values: {
-              active: input.active,
-              allowsMultipleItems: input.allowsMultipleItems,
-              attachmentMode: input.attachmentMode,
-              emailBody: input.emailBody,
-              emailSubject: input.emailSubject,
-              emailsContractor: input.emailsContractor,
-              emailTemplateKey: input.emailTemplateKey,
-              flow: input.flow,
-              itemsMode: input.itemsMode,
-              leavesDocumentBehind: input.leavesDocumentBehind,
-              name: input.name,
-              notifies: input.notifies,
-              occurrenceTypeId: input.occurrenceTypeId,
-              redeliveryPolicy: input.redeliveryPolicy,
-              stage: input.stage,
-            },
+            values: toSaveOccurrenceTypeValues(input),
           }),
       },
       /**

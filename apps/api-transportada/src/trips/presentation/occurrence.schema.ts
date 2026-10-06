@@ -12,8 +12,9 @@ import type { ReportedLocation } from '../application/driver-field-report.port.j
 import { locationSchema, toReportedLocation } from './reported-location.schema.js'
 import { TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 import {
-  OCCURRENCE_ITEMS_MODE,
+  OCCURRENCE_ITEMS_MINIMUM_COUNT_MAX,
   OCCURRENCE_MOMENTS,
+  OCCURRENCE_PHOTO_MINIMUM_COUNT,
   OCCURRENCE_TYPE_FLOWS,
 } from '../../shared/trip-occurrence.constant.js'
 import { DELIVERY_PROOF_FIELD_MODES } from '../domain/delivery-proof-settings.policy.js'
@@ -285,9 +286,6 @@ export async function parseAttachOccurrencePhotoRequest(
  * escondido aqui daria permissão por omissão. O `strict()` recusa campo a mais — inclusive
  * `companyId` vindo do cliente.
  */
-/** Spec 241 (RF4): `required` só entra com a 239 (`items_minimum_count`). */
-const WRITABLE_ITEMS_MODES = [OCCURRENCE_ITEMS_MODE.off, OCCURRENCE_ITEMS_MODE.optional] as const
-
 const occurrenceTypeSchema = z
   .object({
     active: z.boolean().default(true),
@@ -310,11 +308,34 @@ const occurrenceTypeSchema = z
      */
     attachmentMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
     /**
-     * Spec 241 (RF4): se o tipo carrega produtos. Na escrita só `off`/`optional` — `required` é da
-     * 239 e volta 400. ⚠️ **Opcional sem `default`, pelo mesmo motivo de `attachmentMode`**: ausente
-     * é "não mexa"; um `default('optional')` religaria o seletor de um tipo `off` a cada edição.
+     * Spec 241 (RF4), spec 246 (RF1b): se o tipo carrega produtos — `off`, `optional` ou `required`
+     * (ao menos um produto, ou o mínimo abaixo). ⚠️ **Opcional sem `default`, pelo mesmo motivo de
+     * `attachmentMode`**: ausente é "não mexa"; um `default('optional')` religaria o seletor de um
+     * tipo `off` a cada edição.
      */
-    itemsMode: z.enum(WRITABLE_ITEMS_MODES).optional(),
+    itemsMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
+    /**
+     * Spec 246 (RF1c2): a quantidade mínima de produtos, lida só com `itemsMode = 'required'`. Nulo
+     * é "todos os itens da nota" (a recusa total); ausente é "não mexa". Com outro modo o caso de
+     * uso recusa (422).
+     */
+    itemsMinimumCount: z
+      .number()
+      .int()
+      .min(1)
+      .max(OCCURRENCE_ITEMS_MINIMUM_COUNT_MAX)
+      .nullable()
+      .optional(),
+    /**
+     * Spec 246 (RF1c): a quantidade mínima de fotos, de 1 a 5, lida só com a foto `required`. Sem
+     * `null` (o tipo nunca tem mínimo nulo); ausente é "não mexa".
+     */
+    photoMinimumCount: z
+      .number()
+      .int()
+      .min(OCCURRENCE_PHOTO_MINIMUM_COUNT.min)
+      .max(OCCURRENCE_PHOTO_MINIMUM_COUNT.max)
+      .optional(),
     /**
      * Spec 183 T802: o tipo avisa a contratante sozinho no registro. Opcional sem `default` pelo
      * mesmo motivo do `attachmentMode`: ausente é "não mexa", nunca desligar o aviso de carona.

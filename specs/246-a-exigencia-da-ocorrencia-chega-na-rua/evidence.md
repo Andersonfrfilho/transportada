@@ -837,3 +837,77 @@ Received: true
 (fail) "allowsMultipleItems" do tipo de ocorrência contra o Postgres (spec 246 T1c.3) > grava, o GET devolve, e ausente não altera
  1 pass / 1 fail
 ```
+
+### T1c.4 (API) — Produtos obrigatório e os dois mínimos no cadastro (2026-10-06)
+
+`occurrence.schema.ts`: `itemsMode` aceita os três modos (`DELIVERY_PROOF_FIELD_MODES`; a 241 devolvia
+400 para `required`), `itemsMinimumCount` (inteiro 1..999, `null` = todos os itens, ausente = não mexa)
+e `photoMinimumCount` (inteiro 1..5, sem `null`, ausente = não mexa); vocabulário fora disso segue 400.
+`saveOccurrenceTypeWithTemplate` valida o estado **resultante**: `itemsMinimumCount` sem
+`itemsMode = 'required'` é `OccurrenceTypeItemsMinimumRequiresRequiredError` (`422`,
+`OCCURRENCE_TYPE_ITEMS_MINIMUM_REQUIRES_REQUIRED`, `trip.error.ts`), lendo o gravado quando o campo
+vem ausente — então `PUT { itemsMode: 'optional' }` sobre um tipo `required` com mínimo 3 é recusado, e
+sair de `required` exige mandar `itemsMinimumCount: null`. A guarda `off` + política da 241 e o
+`OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED` do registro seguem como estavam (as duas contratos da 241 passam).
+A forma mora em `domain/occurrence-items-shape.policy.ts` (a guarda `off` da 241 foi para lá, para o
+caso de uso ficar abaixo de 200 linhas). A escrita (`writeOccurrenceTypeRow`) omite os dois mínimos
+quando ausentes — nenhum `?? 'x'` no `UPDATE` (lição da 242) — e a CHECK
+`company_occurrence_types_items_minimum_shape_check`, atingida numa corrida, vira o mesmo 422
+(`OCCURRENCE_TYPE_ITEMS_MINIMUM_SHAPE_CHECK`). `findOccurrenceType`, `listOccurrenceTypes` (o `GET`) e a
+resposta do `PUT` devolvem `itemsMinimumCount` e `photoMinimumCount`.
+
+**Defeito achado na 1b e corrigido aqui — o `PUT` perdia `moments`.** `main.ts` montava os `values` do
+caso de uso campo a campo e **não repassava `moments`**: o campo passava na fronteira (`occurrence.schema.ts`)
+e no caso de uso, e sumia na composição, sem erro. A composição agora usa
+`toSaveOccurrenceTypeValues` (`save-occurrence-type-values.mapper.ts`), com contrato que preenche todo
+campo do `PUT` e exige igualdade. (`moments` ainda não tem teste de ponta a ponta pelo HTTP real; o
+mapeador é o que o prende.)
+
+Contrato primeiro (`test/trip-occurrence/items-minimum-count-write.contract.ts`, mais o ajuste de
+`items-mode-type-write.contract.ts`: "`required` volta 400" virou "`required` é aceito"), com o `src` de
+`HEAD`:
+
+```text
+$ bun --env-file=../../.env.test test test/trip-occurrence.contract.test.ts   # src sem a T1c.4
+(fail) ... itemsMode required é aceito
+(fail) ... itemsMinimumCount 2 é aceito (nulo = todos os itens)
+(fail) ... itemsMinimumCount null é aceito (nulo = todos os itens)
+(fail) ... photoMinimumCount 1 / 3 / 5 é aceito
+(fail) ... optional com mínimo no corpo: 422 com código estável e nada gravado
+(fail) ... off com mínimo no corpo: 422 ...
+(fail) ... mínimo no corpo e modo ausente sobre tipo gravado optional: 422 ...
+(fail) ... modo optional no corpo, mínimo ausente e mínimo gravado: 422 ...
+(fail) ... mínimo no corpo sem tipo gravado: 422 ...
+ 409 pass
+ 13 fail
+```
+
+Com a implementação: `422 pass, 0 fail`; `bun run typecheck` e `bun run lint` da API saem 0.
+
+Contra o Postgres (`test/integration/occurrence-type-minimum-counts.integration.ts`, na lista
+`test:integration`): grava `required` + mínimo 2 + foto 3, o `GET` devolve, regravar só o nome preserva os
+três, `null` grava "todos os itens", criação sem os campos sai foto 1 e produtos nulo; o caso de uso
+lê o gravado (sair de `required` sem zerar o mínimo é 422 e nada muda; com `itemsMinimumCount: null`
+grava); e a corrida cai na CHECK, traduzida no mesmo 422.
+
+```text
+$ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/occurrence-type-minimum-counts.integration.ts
+ 4 pass
+ 0 fail
+```
+
+Mutações (restauradas depois de cada uma):
+
+```text
+(1) o UPDATE grava `itemsMinimumCount: input.itemsMinimumCount ?? null`
+Expected: 2 / Received: null
+(fail) ... > grava, o GET devolve, e ausente não altera nenhum dos dois   (3 pass / 1 fail)
+(2) sem a tradução da CHECK da forma em `rethrowItemsOffShapeViolation`
+Expected constructor: [class OccurrenceTypeItemsMinimumRequiresRequiredError ...]
+(fail) ... > na corrida, a CHECK da forma vira o mesmo 422 e nada é gravado   (3 pass / 1 fail)
+(3) `assertItemsMinimumMatchesMode({ stored: null, values })` — o gravado ignorado
+integração: 4 pass / 0 fail (a CHECK do banco ainda segura e traduz) — o contrato pega:
+(fail) ... > modo optional no corpo, mínimo ausente e mínimo gravado: 422 ...
+(fail) ... > mínimo no corpo com o tipo gravado required (modo ausente) grava
+ 420 pass / 2 fail
+```

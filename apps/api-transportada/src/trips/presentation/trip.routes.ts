@@ -298,8 +298,10 @@ type SaveOccurrenceTypeInput = {
    * `occurrence.schema.ts` (`FLOW_REQUIRED_ON_CREATE`) e `save-occurrence-type.use-case.ts`.
    */
   readonly flow?: OccurrenceTypeFlow | undefined
-  /** Spec 241 (RF4): ausente é "não mexa" — ver `save-occurrence-type.use-case.ts`. */
-  readonly itemsMode?: Exclude<DeliveryProofFieldMode, 'required'> | undefined
+  /** Spec 246 (RF1c2): ausente é "não mexa", nulo é "todos os itens" — ver o caso de uso. */
+  readonly itemsMinimumCount?: null | number | undefined
+  /** Spec 241 (RF4), spec 246 (RF1b): ausente é "não mexa" — ver `save-occurrence-type.use-case.ts`. */
+  readonly itemsMode?: DeliveryProofFieldMode | undefined
   /**
    * Spec 185 (RF6): "a viagem segue sem a nota". Ausente é "não mexa" — ver
    * `save-occurrence-type.use-case.ts`.
@@ -310,6 +312,8 @@ type SaveOccurrenceTypeInput = {
   readonly name: string
   readonly notifies: boolean
   readonly occurrenceTypeId: null | string
+  /** Spec 246 (RF1c): ausente é "não mexa" — ver o caso de uso. */
+  readonly photoMinimumCount?: number | undefined
   /** Spec 164 RF1/T21: ausente é "não mexa" — ver `save-occurrence-type.use-case.ts`. */
   readonly redeliveryPolicy?: RedeliveryPolicy | undefined
   readonly stage: 'delivery' | 'separation'

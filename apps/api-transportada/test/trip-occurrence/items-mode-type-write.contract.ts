@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 241 (RF4, RF11, CA07, CA09, CA10): o cadastro do tipo grava `itemsMode`, ausente é "não
- * mexa", `required` é recusado até a 239, e tipo sem produto (`off`) nunca abre tratativa — o
+ * mexa", `required` passou a valer na 246, e tipo sem produto (`off`) nunca abre tratativa — o
  * estado RESULTANTE é validado, lendo o valor gravado quando o campo vem ausente.
  */
 import { describe, expect, test } from 'bun:test'
@@ -139,23 +139,31 @@ async function expectRejection(
 }
 
 describe('o cadastro do tipo aceita "itemsMode" (spec 241 RF4, CA07)', () => {
-  test.each(['off', 'optional'] as const)('%s é aceito e chega ao resultado', async (mode) => {
-    const parsed = await parseOccurrenceTypeRequest(putRequest({ ...baseBody(), itemsMode: mode }))
-    expect(parsed.itemsMode).toBe(mode)
-  })
+  test.each(['off', 'optional', 'required'] as const)(
+    '%s é aceito e chega ao resultado',
+    async (mode) => {
+      const parsed = await parseOccurrenceTypeRequest(
+        putRequest({ ...baseBody(), itemsMode: mode }),
+      )
+      expect(parsed.itemsMode).toBe(mode)
+    },
+  )
 
   test('ausente fica ausente — nunca vira "optional" nem "off"', async () => {
     const parsed = await parseOccurrenceTypeRequest(putRequest(baseBody()))
     expect('itemsMode' in parsed).toBe(false)
   })
 
-  test('"required" volta 400 até a 239, e o vocabulário fora da escrita também', async () => {
-    for (const mode of ['required', 'always']) {
-      const error = await expectRejection(
-        parseOccurrenceTypeRequest(putRequest({ ...baseBody(), itemsMode: mode })),
-      )
-      expect(error.status).toBe(400)
-    }
+  test('"required" é aceito desde a 246, e o vocabulário fora dos três modos segue 400', async () => {
+    const parsed = await parseOccurrenceTypeRequest(
+      putRequest({ ...baseBody(), itemsMode: 'required' }),
+    )
+    expect(parsed.itemsMode).toBe('required')
+
+    const error = await expectRejection(
+      parseOccurrenceTypeRequest(putRequest({ ...baseBody(), itemsMode: 'always' })),
+    )
+    expect(error.status).toBe(400)
   })
 })
 

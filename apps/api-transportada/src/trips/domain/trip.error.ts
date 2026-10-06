@@ -642,6 +642,20 @@ export class OccurrenceTypeItemsOffRedeliveryPolicyError extends ApiError {
 }
 
 /**
+ * Spec 246 (RF1c2): a quantidade mínima de produtos só existe com Produtos obrigatório — com outro
+ * modo ela seria dado morto que um `PUT` futuro religaria sem ninguém ver.
+ */
+export class OccurrenceTypeItemsMinimumRequiresRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_ITEMS_MINIMUM_REQUIRES_REQUIRED',
+      message: 'The items minimum count only applies when items are required.',
+      status: 422,
+    })
+  }
+}
+
+/**
  * A conta autenticada tem o papel, mas nenhum cadastro de motorista aponta para ela. É configuração
  * pendente do escritório, não falha do motorista — e o código é estável para a tela dizer isso em
  * vez de "nada para hoje", que esconderia o problema até alguém reclamar.

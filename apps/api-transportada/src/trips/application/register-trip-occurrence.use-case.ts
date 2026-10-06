@@ -141,6 +141,11 @@ export type OccurrenceTypeRecord = {
    */
   readonly itemsMode?: DeliveryProofFieldMode
   /**
+   * Spec 246 (RF1c2): a quantidade mínima de produtos, lida só com `itemsMode = 'required'`; nulo é
+   * "todos os itens da nota". Opcional só para os dublês de teste; a leitura real sempre grava.
+   */
+  readonly itemsMinimumCount?: null | number
+  /**
    * Spec 185 (RF6, ADR-0074 §4): "a viagem segue sem a nota", só para tipo de separação. Ausente é
    * tratado como `false` — existe como opcional só para os dublês de teste que ainda não conhecem
    * a marca; a implementação real (`listOccurrenceTypes`) sempre grava.
@@ -154,6 +159,11 @@ export type OccurrenceTypeRecord = {
   readonly moments?: readonly OccurrenceMoment[]
   readonly name: string
   readonly notifies: boolean
+  /**
+   * Spec 246 (RF1c): a quantidade mínima de fotos (1..5), lida só com a foto `required`. Opcional só
+   * para os dublês de teste; a leitura real sempre grava.
+   */
+  readonly photoMinimumCount?: number
   /** Spec 183 T802: o registro avisa a contratante sozinho (o envio é do gancho, depois do commit). */
   readonly emailsContractor?: boolean
   /**
