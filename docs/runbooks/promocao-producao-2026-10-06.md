@@ -127,11 +127,11 @@ tentadas). Quem aprovar roda, só leitura, e anota o resultado no PR:
    `VITE_CLIENT_APP_URL` no `transportada-frontend` de produção. São `preserve()` em
    `.railway/railway.ts` (valor só no painel). Nenhuma é nova nesta promoção; conferir só que o
    valor de produção não aponta para domínio de staging.
-3. **Banco** — o serviço do banco de aplicação de produção **não se chama mais `Postgres-Hqfu`**:
-   `railway ssh … -s Postgres-Hqfu` respondeu `Service 'Postgres-Hqfu' not found`. A lista de
-   serviços do projeto tem `postgres-app` e `Postgres`. Confirmar pelo host do `DATABASE_URL` da
-   `api` de produção qual dos dois é (memória do projeto: o "Postgres" já deu número falso uma vez) e
-   corrigir `docs/runbooks/nfe-distribution.md` e `docs/spec/railway.md`.
+3. **Banco** — o serviço do banco de aplicação de produção **não se chama mais `Postgres-Hqfu`**
+   (`railway ssh … -s Postgres-Hqfu` respondeu `Service 'Postgres-Hqfu' not found`). **Confirmado pelo
+   usuário em 2026-10-06: é o `postgres-app`.** O serviço `Postgres` é outro (já deu número falso).
+   Os docs e specs históricos que citam `Postgres-Hqfu` descrevem o nome da época; corrigir
+   `docs/runbooks/nfe-distribution.md` e `docs/spec/railway.md` quando a promoção entrar.
 4. **Medições, só SELECT, no banco certo** (os SQL com `/**/` no lugar de espaço, como em
    `nfe-distribution.md` §3.2):
    - migrations aplicadas: `select name from drizzle.__drizzle_migrations order by id` — esperado:
