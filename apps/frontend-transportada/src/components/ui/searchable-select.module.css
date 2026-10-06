@@ -14,6 +14,7 @@
   display: flex;
   flex-direction: column;
   min-width: var(--floating-layer-min-width, 16rem);
+  max-width: calc(100vw - var(--space-4));
   max-height: min(20rem, var(--floating-layer-max-height, 20rem));
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
@@ -71,4 +72,10 @@
   padding: var(--space-3);
   color: var(--color-slate-muted);
   font-size: 0.85rem;
+}
+
+@media (pointer: coarse) {
+  .searchInput {
+    min-height: var(--touch-target);
+  }
 }
