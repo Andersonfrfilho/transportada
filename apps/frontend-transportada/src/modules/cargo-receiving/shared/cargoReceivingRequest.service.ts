@@ -1,7 +1,12 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { CARGO_RECEIVING_ERROR, IDEMPOTENCY_KEY_HEADER } from './cargoReceiving.constant'
 
-export type CargoApiErrorDetail = Readonly<{ field: string; message: string }>
+/** `documentId` só vem no 409 do fechamento: o id da nota pendente vai no campo, nunca no texto. */
+export type CargoApiErrorDetail = Readonly<{
+  documentId?: string
+  field: string
+  message: string
+}>
 
 /**
  * `web.md` §11: o erro do transporte carrega os `details` do servidor ao lado do código — sem eles, a
@@ -47,7 +52,13 @@ export function readErrorDetails(payload: unknown): readonly CargoApiErrorDetail
   }
   return payload.error.details.flatMap((detail: unknown) =>
     isRecord(detail) && typeof detail.field === 'string' && typeof detail.message === 'string'
-      ? [{ field: detail.field, message: detail.message }]
+      ? [
+          {
+            ...(typeof detail.documentId === 'string' ? { documentId: detail.documentId } : {}),
+            field: detail.field,
+            message: detail.message,
+          },
+        ]
       : [],
   )
 }

@@ -7,6 +7,7 @@ import type { CargoArrivalDetail } from '../shared/cargoArrival.types'
 import { resolveGroupKey } from '../shared/cargoArrivalGroups.service'
 import styles from '../styles/cargoReceiving.module.css'
 import detailStyles from '../styles/cargoDetail.module.css'
+import { CargoActionFailure } from './CargoActionFailure.component'
 import { CargoArrivalDetailHeader } from './CargoArrivalDetailHeader.component'
 import { CargoBatchOutcomePanel } from './CargoBatchOutcomePanel.component'
 import { CargoCloseSection } from './CargoCloseSection.component'
@@ -48,6 +49,11 @@ export function CargoArrivalDetailContent({
           selectedCount={selection.selected.size}
         />
       ) : null}
+      <CargoActionFailure
+        errorCode={detail.routeErrorCode ?? detail.batchErrorCode}
+        panelRef={panelRef}
+        refusal={detail.routeRefusal}
+      />
       {detail.routeApplied ? (
         <p className={detailStyles.saved}>{t('outcome.routeApplied')}</p>
       ) : null}

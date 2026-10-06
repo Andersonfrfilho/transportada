@@ -33,6 +33,7 @@ export type BatchOutcomeSummary = Readonly<{
 export type PendingDocument = Readonly<{ documentId: string; number: string }>
 
 const DOCUMENT_FIELD = /^documentIds\.(\d+)$/u
+const PENDING_DOCUMENT_FIELD = /^pendingDocumentIds\.\d+$/u
 
 /**
  * `web.md` §11.4: o rótulo impresso é o que aparece, nunca o caminho do corpo. O mapa mora aqui, num
@@ -52,8 +53,22 @@ function readDocumentIndex(field: string): number | undefined {
   return match === null ? undefined : Number(match[1])
 }
 
-function labelOf(documents: readonly DocumentReference[], documentId: string): string {
-  return documents.find((document) => document.id === documentId)?.number ?? documentId
+function labelOf(
+  input: Readonly<{ documentId: string; documents: readonly DocumentReference[] }>,
+): string {
+  return (
+    input.documents.find((document) => document.id === input.documentId)?.number ?? input.documentId
+  )
+}
+
+/** As notas do pedido como a recusa as lê: a posição `documentIds.<n>` é a da ordem em que foram enviadas. */
+export function referDocuments(
+  input: Readonly<{ documents: readonly DocumentReference[]; ids: readonly string[] }>,
+): readonly DocumentReference[] {
+  return input.ids.map((id) => ({
+    id,
+    number: labelOf({ documentId: id, documents: input.documents }),
+  }))
 }
 
 export function describeRegistrationRefusal(
@@ -94,7 +109,7 @@ export function describeBatchOutcomes(
       ? [
           {
             documentId: result.documentId,
-            number: labelOf(input.documents, result.documentId),
+            number: labelOf({ documentId: result.documentId, documents: input.documents }),
             reason: result.reason,
           },
         ]
@@ -104,7 +119,7 @@ export function describeBatchOutcomes(
     changedCount: input.results.filter((result) => result.outcome === 'changed').length,
     entries: input.results.map((result) => ({
       documentId: result.documentId,
-      number: labelOf(input.documents, result.documentId),
+      number: labelOf({ documentId: result.documentId, documents: input.documents }),
       outcome: result.outcome,
       reason: result.outcome === 'refused' ? result.reason : undefined,
     })),
@@ -113,18 +128,20 @@ export function describeBatchOutcomes(
   }
 }
 
-/** O 409 do fechamento devolve o id de cada nota pendente na mensagem do detalhe. */
+/** O 409 do fechamento devolve o id de cada nota pendente em `documentId`, um item por nota. */
 export function describePendingDocuments(
   input: Readonly<{ documents: readonly DocumentReference[]; error: unknown }>,
 ): readonly PendingDocument[] {
   if (!(input.error instanceof CargoReceivingRequestError)) return []
   const ids = new Set(
-    input.error.details
-      .filter((detail) => readDocumentIndex(detail.field) !== undefined)
-      .map((detail) => detail.message),
+    input.error.details.flatMap((detail) =>
+      PENDING_DOCUMENT_FIELD.test(detail.field) && detail.documentId !== undefined
+        ? [detail.documentId]
+        : [],
+    ),
   )
   return [...ids].map((documentId) => ({
     documentId,
-    number: labelOf(input.documents, documentId),
+    number: labelOf({ documentId, documents: input.documents }),
   }))
 }

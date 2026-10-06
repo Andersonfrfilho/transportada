@@ -46,6 +46,11 @@ async function mountDetail(options: { canManage?: boolean } & Partial<CargoRecei
   return { double, rendered }
 }
 
+const pendingDetail = (index: number, number: number) => ({
+  documentId: documentIdOf(number),
+  field: `pendingDocumentIds.${String(index)}`,
+  message: 'The document is not separated yet',
+})
 const group = (title: string) => byLabel(`Notas do grupo ${title}`)
 const documentBox = (number: number) =>
   byLabel(`Selecionar a nota ${String(number)}`) as HTMLInputElement
@@ -303,9 +308,9 @@ describe('fechar a chegada', () => {
   test('409 com pendência lista TODAS as notas que faltam, cada uma com atalho', async () => {
     const { rendered } = await mountDetail({
       closeFailure: new CargoReceivingRequestError('CARGO_ARRIVAL_HAS_PENDING_DOCUMENTS', [
-        { field: 'documentIds.0', message: documentIdOf(1001) },
-        { field: 'documentIds.1', message: documentIdOf(1002) },
-        { field: 'documentIds.2', message: documentIdOf(1004) },
+        pendingDetail(0, 1001),
+        pendingDetail(1, 1002),
+        pendingDetail(2, 1004),
       ]),
     })
 

@@ -195,6 +195,31 @@ describe('o cliente da chegada (spec 237 T2.4)', () => {
     ])
   })
 
+  test('o 409 do fechamento leva o documentId de cada pendente até a tela (L7)', async () => {
+    const { client } = harness(() =>
+      json(
+        {
+          error: {
+            code: 'CARGO_ARRIVAL_HAS_PENDING_DOCUMENTS',
+            details: [
+              { documentId: 'doc-a', field: 'pendingDocumentIds.0', message: 'Not separated' },
+              { documentId: 7, field: 'pendingDocumentIds.1', message: 'Not separated' },
+            ],
+            message: 'Every document must be separated before closing the cargo arrival',
+          },
+        },
+        409,
+      ),
+    )
+
+    const error = await client.closeArrival(ARRIVAL_ID).catch((caught: unknown) => caught)
+
+    expect((error as CargoReceivingRequestError).details).toEqual([
+      { documentId: 'doc-a', field: 'pendingDocumentIds.0', message: 'Not separated' },
+      { field: 'pendingDocumentIds.1', message: 'Not separated' },
+    ])
+  })
+
   test('queda de rede vira REQUEST_FAILED — é o código que a tela traduz por "sem conexão"', async () => {
     const client = createCargoReceivingClient({
       apiUrl: 'https://api.test',

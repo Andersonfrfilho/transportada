@@ -174,7 +174,8 @@
     "CARGO_ARRIVAL_CLOSED": "A chegada está fechada: só leitura.",
     "REQUEST_FAILED": "Sem conexão com o servidor.",
     "RESPONSE_INVALID": "Resposta inesperada do servidor.",
-    "unknown": "Não foi possível concluir ({{code}})."
+    "unknown": "Não foi possível concluir ({{code}}).",
+    "CARGO_ARRIVAL_DOCUMENTS_NOT_IN_ARRIVAL": "Algumas notas não fazem parte desta chegada."
   },
   "detail": {
     "title": "Chegada de {{name}}",

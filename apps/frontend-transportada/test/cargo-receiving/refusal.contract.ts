@@ -161,17 +161,32 @@ describe('o resultado do lote mostra uma linha por nota', () => {
 })
 
 describe('o fechamento com pendência mostra as notas que faltam', () => {
-  test('o servidor devolve o id de cada pendente na mensagem; a tela mostra o número', () => {
+  const pending = (index: number, documentId: string) => ({
+    documentId,
+    field: `pendingDocumentIds.${String(index)}`,
+    message: 'The document is not separated yet',
+  })
+
+  test('o servidor devolve o id de cada pendente em documentId; a tela mostra o número', () => {
     const error = new CargoReceivingRequestError('CARGO_ARRIVAL_HAS_PENDING_DOCUMENTS', [
-      { field: 'documentIds.0', message: 'id-1002' },
-      { field: 'documentIds.1', message: 'id-1004' },
-      { field: 'documentIds.2', message: 'id-1002' },
+      pending(0, 'id-1002'),
+      pending(1, 'id-1004'),
+      pending(2, 'id-1002'),
     ])
 
     expect(describePendingDocuments({ documents: DOCUMENTS, error })).toEqual([
       { documentId: 'id-1002', number: '1002' },
       { documentId: 'id-1004', number: '1004' },
     ])
+  })
+
+  test('o texto da mensagem nunca é lido como id, nem o campo antigo documentIds.<n>', () => {
+    const error = new CargoReceivingRequestError('CARGO_ARRIVAL_HAS_PENDING_DOCUMENTS', [
+      { field: 'pendingDocumentIds.0', message: 'id-1002' },
+      { field: 'documentIds.1', message: 'id-1004' },
+    ])
+
+    expect(describePendingDocuments({ documents: DOCUMENTS, error })).toEqual([])
   })
 
   test('outro erro não lista pendência', () => {

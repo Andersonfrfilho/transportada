@@ -72,6 +72,8 @@ export type CargoReceivingDouble = {
   readonly pending: (() => void)[]
   readonly refusals: Map<string, string>
   registerFailure: Error | undefined
+  /** A próxima aplicação de rota rejeita com ele (`409 CARGO_ARRIVAL_CLOSED`, `422`, rede). */
+  routeFailure: Error | undefined
   server: CargoArrivalDetail
   nextArrivalsCursor: string | null
 }
@@ -123,6 +125,7 @@ function buildClient(double: CargoReceivingDouble): CargoReceivingClient {
   return {
     assignRoute: (input) => {
       double.calls.assignRoute.push(structuredClone(input))
+      if (double.routeFailure !== undefined) return Promise.reject(double.routeFailure)
       return Promise.resolve([])
     },
     batchStatus: async (input) => {
@@ -178,6 +181,7 @@ export function installCargoReceivingDouble(
     pending: [],
     refusals: new Map(),
     registerFailure: undefined,
+    routeFailure: undefined,
     server: buildDetail({ id: ARRIVAL_ID }),
     ...overrides,
   }

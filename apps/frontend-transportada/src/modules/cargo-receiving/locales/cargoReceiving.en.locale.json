@@ -174,7 +174,8 @@
     "CARGO_ARRIVAL_CLOSED": "The arrival is closed: read only.",
     "REQUEST_FAILED": "No connection to the server.",
     "RESPONSE_INVALID": "Unexpected response from the server.",
-    "unknown": "Could not complete ({{code}})."
+    "unknown": "Could not complete ({{code}}).",
+    "CARGO_ARRIVAL_DOCUMENTS_NOT_IN_ARRIVAL": "Some invoices are not part of this arrival."
   },
   "detail": {
     "title": "Arrival of {{name}}",
