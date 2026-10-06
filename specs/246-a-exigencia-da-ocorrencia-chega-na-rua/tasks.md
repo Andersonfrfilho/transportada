@@ -88,7 +88,7 @@ flow='stop'` **e** onde `stage='separation' AND flow='stop'` (D-c: preserva o co
       separador registra tipo só-`document` na rota de galpão → `422 OCCURRENCE_TYPE_NOT_SEPARATION`;
       escritório registra `document` sem `office` → `422 OCCURRENCE_TYPE_NOT_FIELD`; conta com os dois
       papéis repete cada caso; `{separation, document}` aparece nas duas listas com o **mesmo id**.
-- [ ] **T1b.4** Integração da CA00b sobre dado semeado antes da tabela nova: **verifica as linhas da
+- [x] **T1b.4** Integração da CA00b sobre dado semeado antes da tabela nova: **verifica as linhas da
       tabela de momentos** (os quatro casos da tabela do plan, inclusive `separation + stop` →
       `separation` e `stop`), não só as listas — a leitura tolerante mascararia o backfill arrancado.
 - [ ] **T1b.5** Mutações: (1) `includes(ROUTE_MOMENT)` → `moments.length > 0`; (2) → "algum momento

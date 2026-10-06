@@ -550,3 +550,49 @@ $ cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 1200
 ```
 
 A execução vermelha que prova que o teste não é vazio são as duas mutações da T1b.5.
+
+### T1b.4 — CA00b: as linhas da tabela sobre dado antigo (2026-10-06)
+
+`test/integration/occurrence-type-moments-backfill.integration.ts` (na lista `test:integration`, logo
+depois da T1b.3), no molde da T1.3: banco descartável migrado → desfaz só a T1b.1 pelo próprio
+`rollback.sql` → grava tipos antigos (sem a tabela) → o migrador reaplica o `migration.sql` lido do
+disco. Verifica as **linhas** de `company_occurrence_type_moments`, não as listas — a leitura
+tolerante devolveria os mesmos conjuntos com a tabela vazia. Sementes (a tabela do plan + um tipo
+aposentado):
+
+| Semente (`stage` + `flow`)       | Linhas esperadas     |
+| -------------------------------- | -------------------- |
+| `separation` + `document`        | `separation`         |
+| `separation` + `stop` (D-c)      | `separation`, `stop` |
+| `delivery` + `document`          | `document`, `office` |
+| `delivery` + `stop`              | `stop`, `office`     |
+| `delivery` + `document`, inativo | `document`, `office` |
+
+Depois reexecuta os cinco `INSERT`s lidos do disco e confere que nenhuma linha nova nasce (`ON
+CONFLICT DO NOTHING`). `separation + document` não sai de nenhuma semente (só o operador monta).
+
+```text
+$ cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000 ./test/integration/occurrence-type-moments-backfill.integration.ts
+ 1 pass
+ 0 fail
+```
+
+Prova de que não é vazio — o `INSERT` de `separation + stop → stop` arrancado do `migration.sql` só
+para a execução (restaurado da cópia; `git status` limpo):
+
+```text
+-INSERT INTO "company_occurrence_type_moments" ("company_id", "occurrence_type_id", "moment") SELECT "company_id", "id", 'stop' FROM "company_occurrence_types" WHERE "stage" = 'separation' AND "flow" = 'stop' ...
+error: expect(received).toEqual(expected)
+@@ -4,3 +4,3 @@
+      "separation",
+-     "stop",
+    ],
+(fail) o backfill dos momentos sobre tipos antigos (spec 246 T1b.4, CA00b) > cada tipo antigo ganha as linhas da tabela do plan, inativo inclusive, e reexecutar não duplica [1650.17ms]
+ 0 pass
+ 1 fail
+```
+
+Sobre "nenhuma lista muda": o conteúdo de cada lista sobre esse dado é o da T1b.2 (separador =
+tipos com `separation`; escritório = tipos com `office` = os `delivery` de hoje; nota do motorista =
+tipos com `document` = os `delivery + document` de hoje). A única lista que muda é a do motorista
+para o caso de borda `separation + stop` — ver a divergência registrada na T1b.2.
