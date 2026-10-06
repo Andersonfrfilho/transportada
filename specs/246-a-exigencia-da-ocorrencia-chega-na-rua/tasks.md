@@ -110,7 +110,7 @@ items_mode = 'required'`); nas duas tabelas de exceção, `items_mode`, `photo_m
       `items_minimum_count` da exceção vem junto (nulo em `items_mode` herda o par do tipo).
       **Sem** CHECK `off ⇒ unset` nas exceções (a política é do tipo; plan § T1c.1). `trip.schema.ts`,
       `db:generate`, `rollback.sql` que **não** derruba `items_mode` do tipo nem as CHECKs da 241.
-- [ ] **T1c.2** Backfill sem mudar comportamento: `photo_minimum_count = 1` é o default do tipo.
+- [x] **T1c.2** Backfill sem mudar comportamento: `photo_minimum_count = 1` é o default do tipo.
       `items_mode` do tipo **não é tocado**; as colunas novas das exceções ficam nulas (herdam).
       `make migration-test` roda com a 241 no histórico.
 - [ ] **T1c.3** `allows_multiple_items` entra no `PUT`/`GET` do catálogo (RF1b) — a coluna já existe.

@@ -37,13 +37,16 @@ function positionOf(sqlText: string, fragment: string): number {
 }
 
 describe('a quantidade mínima vira dado na ordem do plan (spec 246 T1c.1)', () => {
-  test('colunas das exceções nulas → colunas do tipo → CHECKs', async () => {
+  test('colunas das exceções nulas → colunas do tipo → UPDATE → NOT NULL → CHECKs', async () => {
     const { text } = await readMigration('migration.sql')
     const order = [
       `ALTER TABLE ${CONTRACTOR} ADD COLUMN "items_mode" varchar(16);`,
       `ALTER TABLE ${RECIPIENT} ADD COLUMN "items_minimum_count" smallint;`,
-      `ALTER TABLE ${TYPES} ADD COLUMN "photo_minimum_count"`,
+      `ALTER TABLE ${TYPES} ADD COLUMN "photo_minimum_count" smallint;`,
       `ALTER TABLE ${TYPES} ADD COLUMN "items_minimum_count" smallint;`,
+      `UPDATE ${TYPES} SET "photo_minimum_count" = 1;`,
+      `ALTER TABLE ${TYPES} ALTER COLUMN "photo_minimum_count" SET DEFAULT 1;`,
+      `ALTER TABLE ${TYPES} ALTER COLUMN "photo_minimum_count" SET NOT NULL;`,
       '"company_occurrence_types_photo_minimum_count_check"',
       '"company_occurrence_types_items_minimum_shape_check"',
     ].map((fragment) => positionOf(text, fragment))
@@ -53,6 +56,8 @@ describe('a quantidade mínima vira dado na ordem do plan (spec 246 T1c.1)', () 
     // A 241 é dona de `items_mode` do tipo: esta migration não o recria nem o derruba.
     expect(instructions).not.toMatch(new RegExp(`${TYPES} ADD COLUMN "items_mode"`, 'u'))
     expect(instructions).not.toMatch(/\bDROP\b/u)
+    // T1c.2: um único UPDATE, no tipo, e só do mínimo de foto — `items_mode` e as exceções ficam como estão.
+    expect(instructions.match(/\bUPDATE\b/gu)).toHaveLength(1)
     // A exceção não repete a CHECK `off ⇒ unset`: a política de reentrega é do tipo.
     expect(instructions).not.toMatch(/overrides" ADD CONSTRAINT [^;]*redelivery_policy/u)
   })

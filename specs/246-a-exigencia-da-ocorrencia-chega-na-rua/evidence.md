@@ -724,3 +724,48 @@ primeira execução a asserção rodava depois da da 241 e viu 12 CHECKs em vez 
 em ordem inversa do histórico (a 246 antes da 241, como em produção); a asserção desta migration roda
 **antes** da da 241. A asserção da T1.2 passou a filtrar `items_mode` só do tipo, porque as exceções
 agora também têm a coluna.
+
+### T1c.2 — O backfill do mínimo de foto, sobre dado antigo (2026-10-06)
+
+`migration.sql` ganhou a ordem do backfill: `photo_minimum_count` nasce **nula** no tipo, o
+`UPDATE "company_occurrence_types" SET "photo_minimum_count" = 1` roda e só então a coluna vira
+`DEFAULT 1 NOT NULL`, antes das CHECKs. `items_mode` do tipo não é tocado e as colunas novas das
+exceções ficam nulas (herdam). `db:generate` segue `no_changes` (o estado final é o mesmo).
+
+**Divergência declarada.** A task fala em `photo_minimum_count = 1` "onde a foto é `required`". Com a
+coluna `NOT NULL DEFAULT 1` num `ADD COLUMN` só, o `UPDATE` seria um no-op e nenhuma mutação o deixaria
+vermelho; por isso a coluna nasce nula e o `UPDATE` cobre **todo** tipo (para tipo não `required` o 1 é
+inerte: a quantidade só é lida com foto `required`). O valor final é o mesmo do plan.
+
+`test/integration/occurrence-type-quantity-minimums.integration.ts` (na lista `test:integration`):
+banco descartável migrado, `rollback.sql` da migration nova, semeia três tipos (foto `required`,
+`optional`, `off` + produtos `off`) e uma exceção de contratante e uma de destinatário, e o migrador
+reaplica o `migration.sql` do disco. Verifica o **valor da coluna**: os três tipos saem com
+`photo_minimum_count = 1`, `items_minimum_count` nulo e `items_mode` como estava (`optional`, `optional`,
+`off`); as duas exceções, com as três colunas nulas.
+
+```text
+$ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/occurrence-type-quantity-minimums.integration.ts
+ 1 pass
+ 0 fail
+```
+
+Mutações no `migration.sql` (restaurado depois de cada uma; `git diff` limpo contra a versão do passo):
+
+```text
+(1) arrancar o UPDATE do tipo
+PostgresError: column "photo_minimum_count" of relation "company_occurrence_types" contains null values
+(fail) os mínimos nascem sem mudar o que já está gravado (spec 246 T1c.2) > todo tipo antigo sai com ...
+ 0 pass / 1 fail
+(2) o UPDATE passa a gravar também "items_mode" = 'optional' no tipo
+error: expect(received).toEqual(expected)   # o tipo com items_mode 'off' voltou 'optional'
+ 0 pass / 1 fail
+(3) UPDATE extra preenchendo photo_minimum_count = 1 nas exceções de contratante
+error: expect(received).toEqual(expected)   # esperado null, recebido 1
+ 0 pass / 1 fail
+```
+
+O contrato estático (`occurrence-type-quantity-minimums.static.contract.ts`) agora prende a ordem
+`ADD COLUMN` nula → `UPDATE` → `SET DEFAULT` → `SET NOT NULL` → CHECKs e exige um único `UPDATE`:
+`bun test ./test/database-migration.contract.test.ts` → `90 pass, 4 skip, 0 fail` (os 4 pulados são
+anteriores: os de banco desse arquivo, cobertos no `make migration-test`).
