@@ -33,6 +33,18 @@ describe('camadas flutuantes cabem na tela (T6.1, CA08)', () => {
     expect(readCssBlock(tooltip, '.trigger')).toInclude('max-width: 100%')
   })
 
+  test('a lista do painel tem coluna que encolhe, para a opção não sair cortada', async () => {
+    const select = await readStylesheet(`${UI}/select.module.css`)
+
+    expect(readCssBlock(select, '.list')).toInclude('grid-template-columns: minmax(0, 1fr)')
+  })
+
+  test('o foco que sobe do painel em portal não reabre a dica por cima das opções', async () => {
+    const tooltip = await readStylesheet(`${UI}/tooltip.tsx`)
+
+    expect(tooltip).toInclude('anchorRef.current?.contains(event.target)')
+  })
+
   test('o detalhe do gatilho só ocupa a sobra e o rótulo tem title com o texto inteiro', async () => {
     const select = await readStylesheet(`${UI}/select.module.css`)
     const component = await readStylesheet(`${UI}/select.tsx`)
