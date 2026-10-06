@@ -2503,3 +2503,11 @@ Sem mudança de comportamento (refactor coberto pelos contratos e integrações 
 ### B11 — T1b.3: 409, não 404
 
 `TripDocumentNotReachableError` responde **409** `TRIP_DOCUMENT_NOT_REACHABLE` (`trip.error.ts`), e o código e o teste da T1b.3 já usavam 409. O texto da task (`tasks.md` T1b.3), da CA00 (`spec.md`) e a linha da correção inicial neste arquivo diziam `404`; corrigidos. O `plan.md` não cita o status.
+
+### B4 — o expurgo da 161 e a assinatura (conferido, sem alteração de código)
+
+Lido: `apps/worker-transportada/src/trip-occurrence-attachment-purge/` (`drizzle-trip-occurrence-attachment-purge.repository.ts`, `trip-occurrence-attachment-purge-unit.service.ts`) e `drizzle-occurrence-upload.repository.ts` da API.
+
+- O expurgo escolhe candidatos por `purpose in (trip_occurrence_attachment)`, `status <> 'deleted'` **e `retention_until < agora`** — nunca por falta de linha de anexo. A assinatura confirmada tem a finalidade `trip_occurrence_attachment` e `retention_until` de **cinco anos** (`resolveOccurrenceAttachmentRetentionUntil`, a mesma da foto), gravados na confirmação do upload.
+- Sem linha em `trip_document_occurrence_attachments`, a unidade a trata como "objeto órfão" (`purgeOrphanObject`) — mas só **depois** de o prazo vencer. Portanto a assinatura **não é apagada antes da hora**: sai no mesmo dia da foto do mesmo registro, cinco anos depois.
+- A retenção de cinco anos para a assinatura é a decisão já escrita no `plan.md` ("Segurança e tenant"); não há decisão de produto pendente nem desvio a corrigir. Fica como está.
