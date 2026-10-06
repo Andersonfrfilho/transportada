@@ -1522,3 +1522,34 @@ Received length: 1
 
 Verde sem mutação: `1 pass, 0 fail`. O demonstrativo e a resposta da correção, que leem só a tabela de
 anexos, já foram provados sem a assinatura na T1d.6 (CA09).
+
+### T2.6 — WhatsApp do motorista: o canal não colhe assinatura, e o erro diz o campo que falta (2026-10-06)
+
+O WhatsApp registra pela **mesma** `registerDriverOccurrence` do app (`main.ts`, canal `whatsapp`), com as
+exceções injetadas (T2.3). Tipo com assinatura efetiva `required` volta `TripOccurrenceSignatureRequiredError`
+(`422 TRIP_OCCURRENCE_SIGNATURE_REQUIRED`) — o canal não tem como mandar `signatureObjectId`. A **lista não é
+filtrada por exigência** (RF13): o tipo continua oferecido, e o erro é o aviso.
+
+Achado: o `describeDocumentError` da conversa **relançava** qualquer erro que não conhecia, então um tipo com
+foto obrigatória (`TripOccurrenceAttachmentRequiredError`, desde a 179) já estourava a ação do fluxo em vez de
+avisar o motorista. `driver-occurrence-refusal.service.ts` traduz as seis exigências de campo na frase do
+que falta: observação (a conversa pede a observação de novo e volta ao prompt dela), assinatura, foto e
+produtos (volta ao menu e manda registrar pelo aplicativo). Qualquer outro erro segue o tratamento de sempre.
+
+Contrato primeiro (`test/whatsapp-commands/driver-flow-actions.contract.ts`, descrição "o WhatsApp não colhe
+assinatura"), com o caso de uso **real** e dublês de leitura:
+
+```text
+$ bun --env-file=../../.env.test test ./test/whatsapp-commands/driver-flow-actions.contract.ts
+      at assertDriverOccurrenceRequirements (.../occurrence-requirement-guard.policy.ts:43:11)
+      at registerDriverOccurrence (.../register-driver-occurrence.use-case.ts:175:3)
+      at async <anonymous> (.../register-driver-flow-actions.ts:509:18)
+(fail) o WhatsApp não colhe assinatura: o erro diz o campo que falta (spec 246 T2.6, RF13) > a conversa diz que falta a assinatura e volta ao menu, sem gravar
+(fail) o WhatsApp não colhe assinatura: o erro diz o campo que falta (spec 246 T2.6, RF13) > observação obrigatória e "Pular": a conversa pede a observação de novo
+ 38 pass
+ 2 fail
+```
+
+Depois: `40 pass, 0 fail` — o erro estável da assinatura sem gravar; a frase da assinatura e a volta ao menu; a
+observação obrigatória com "Pular" volta ao prompt; tipo sem exigência segue registrando; a lista com o tipo
+de assinatura obrigatória continua oferecendo o tipo.

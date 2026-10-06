@@ -57,6 +57,7 @@ import {
 import { WHATSAPP_LIST_BUTTON_TEXT } from '../domain/whatsapp-menu.constant.js'
 import { parseMenuPageNavigation, type WhatsAppMenuOption } from '../domain/whatsapp-menu.policy.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
+import { describeOccurrenceRequirementRefusal } from './driver-occurrence-refusal.service.js'
 import { sendDynamicChoice } from './whatsapp-dynamic-choice.service.js'
 import type { WhatsAppSharedLocationStore } from './whatsapp-shared-location.service.js'
 import {
@@ -519,6 +520,12 @@ export function createDriverWhatsAppFlowActions(
       })
       await channel.sendText(session.whatsappNumber, 'Ocorrência registrada. ⚠️')
     } catch (error) {
+      /** Spec 246 (RF13): exigência de campo que o canal não colhe vira a frase do campo que falta. */
+      const refusal = describeOccurrenceRequirementRefusal(error)
+      if (refusal !== undefined) {
+        await channel.sendText(session.whatsappNumber, refusal.message)
+        return { next: refusal.next }
+      }
       await channel.sendText(session.whatsappNumber, describeDocumentError(error))
     }
     return { next: DRIVER_FLOW_NODE.tripMenu }
