@@ -680,3 +680,47 @@ Depois: `23 pass, 0 fail`; `typecheck` saída 0.
 | painel: `eslint .` com a app como cwd                                        | saída 0, `0 errors, 16 warnings` — todos `react-hooks/exhaustive-deps` em arquivos que esta fase não tocou                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | app do motorista: `bun run --cwd apps/frontend-driver test`                  | `1198 pass, 0 fail` (sem mudança de código nesta fase)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | API: `bun run lint`                                                          | saída 0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+
+## Fase 1c — Produtos e quantidade mínima viram dado
+
+### T1c.1 — Colunas, CHECKs e rollback (2026-10-06)
+
+Migration `20261006123712_occurrence_type_quantity_minimums` (`db:generate --name`, depois cabeçalho e
+`rollback.sql` à mão). Tipo: `photo_minimum_count smallint NOT NULL DEFAULT 1` (CHECK 1..5) e
+`items_minimum_count smallint` nulo (CHECK `>= 1`; CHECK `items_minimum_count IS NULL OR items_mode =
+'required'`). Nas duas exceções: `items_mode varchar(16)`, `photo_minimum_count smallint` e
+`items_minimum_count smallint`, **nulas e sem padrão** (D-a), com CHECKs que aceitam nulo (vocabulário
+de `items_mode`; 1..5; `>= 1`; `items_minimum_count IS NULL OR coalesce(items_mode, '') = 'required'`).
+Nomes das exceções sem o prefixo `company_` (<= 62 caracteres). **Sem** CHECK `off ⇒ unset` nas
+exceções. Constantes `OCCURRENCE_ITEMS_MODE.required` e `OCCURRENCE_PHOTO_MINIMUM_COUNT`
+(`trip-occurrence.constant.ts`).
+
+Contrato primeiro — `test/trip-schema/occurrence-type-minimum-counts.contract.ts`, contra o schema
+sem as colunas:
+
+```text
+$ bun --env-file=../../.env.test test test/trip-schema.contract.test.ts
+(fail) ... > foto nasce com mínimo 1, nunca nulo; produtos nulo = todos os itens
+(fail) ... > as três CHECKs do mínimo existem, nomeadas
+(fail) company_occurrence_type_contractor_overrides ... > as três colunas são nulas e sem padrão
+(fail) company_occurrence_type_contractor_overrides ... > as CHECKs novas cabem em 63 caracteres ...
+(fail) company_occurrence_type_recipient_overrides ... > as três colunas são nulas e sem padrão
+(fail) company_occurrence_type_recipient_overrides ... > as CHECKs novas cabem em 63 caracteres ...
+ 251 pass
+ 6 fail
+```
+
+Com o schema: `257 pass, 0 fail`. `bun run db:generate` → `no_changes`. Contrato estático da ordem e do
+rollback (`database-migration/occurrence-type-quantity-minimums.static.contract.ts`) e asserção contra
+o Postgres (`occurrence-type-quantity-minimums.assertion.ts`, no `database-migration.integration.ts`):
+antes do rollback há 13 CHECKs (2 da 241 + 11 desta) e 9 colunas; depois restam só
+`company_occurrence_types_items_mode_check`, `company_occurrence_types_items_off_shape_check` e
+`company_occurrence_types.items_mode`; o migrador reaplica e o estado completo volta.
+`make migration-test ENV_FILE=.env.test` → `131 pass, 0 fail, 0 skip`.
+
+**Achado — ordem dos rollbacks.** A CHECK `items_minimum_shape_check` do tipo lê `items_mode`; o
+`rollback.sql` da 241 (`DROP COLUMN items_mode`) a derruba junto, e reaplicar a 241 não a recria. Na
+primeira execução a asserção rodava depois da da 241 e viu 12 CHECKs em vez de 13. Rollbacks valem
+em ordem inversa do histórico (a 246 antes da 241, como em produção); a asserção desta migration roda
+**antes** da da 241. A asserção da T1.2 passou a filtrar `items_mode` só do tipo, porque as exceções
+agora também têm a coluna.

@@ -47,6 +47,7 @@ async function readConstraintNames(database: SQL): Promise<readonly string[]> {
 
 async function readColumns(database: SQL): Promise<readonly string[]> {
   const names = [...SPEC_246_COLUMNS, ITEMS_MODE]
+  // `items_mode` das exceções é da T1c.1: só a do tipo (241) entra neste recorte.
   const rows = (await database`
     select table_name || '.' || column_name as qualified
     from information_schema.columns
@@ -54,6 +55,7 @@ async function readColumns(database: SQL): Promise<readonly string[]> {
       and table_name in ('company_occurrence_types', 'company_occurrence_type_contractor_overrides',
         'company_occurrence_type_recipient_overrides', 'trip_document_occurrences',
         'trip_stop_occurrences')
+      and (column_name <> ${ITEMS_MODE} or table_name = 'company_occurrence_types')
   `) as { qualified: string }[]
   return rows.map((row) => row.qualified).toSorted()
 }

@@ -3,6 +3,7 @@
  */
 import {
   OCCURRENCE_ITEMS_MODE,
+  OCCURRENCE_PHOTO_MINIMUM_COUNT,
   OCCURRENCE_TYPE_FLOWS,
   OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK,
   OCCURRENCE_TYPE_REQUIREMENT_DEFAULTS,
@@ -2690,6 +2691,18 @@ export const companyOccurrenceTypes = pgTable(
       .$type<DeliveryProofFieldMode>()
       .notNull()
       .default(OCCURRENCE_TYPE_REQUIREMENT_DEFAULTS.signatureMode),
+    /**
+     * Spec 246 (RF1c): a quantidade mínima de fotos, lida só quando a foto é `required` (e só na
+     * ocorrência de nota). Padrão 1: o que a foto obrigatória sempre exigiu.
+     */
+    photoMinimumCount: smallint('photo_minimum_count')
+      .notNull()
+      .default(OCCURRENCE_PHOTO_MINIMUM_COUNT.default),
+    /**
+     * Spec 246 (RF1c2): a quantidade mínima de produtos, lida só quando `items_mode = 'required'`.
+     * Nulo = todos os itens da nota (a recusa total).
+     */
+    itemsMinimumCount: smallint('items_minimum_count'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2738,6 +2751,18 @@ export const companyOccurrenceTypes = pgTable(
       'company_occurrence_types_signature_mode_check',
       sql`${table.signatureMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
     ),
+    check(
+      'company_occurrence_types_photo_minimum_count_check',
+      sql`${table.photoMinimumCount} between ${raw(String(OCCURRENCE_PHOTO_MINIMUM_COUNT.min))} and ${raw(String(OCCURRENCE_PHOTO_MINIMUM_COUNT.max))}`,
+    ),
+    check(
+      'company_occurrence_types_items_minimum_count_check',
+      sql`${table.itemsMinimumCount} >= 1`,
+    ),
+    check(
+      'company_occurrence_types_items_minimum_shape_check',
+      sql`${table.itemsMinimumCount} is null or ${table.itemsMode} = 'required'`,
+    ),
     /**
      * Spec 241 RF11 (D-E): tipo sem itens não abre tratativa. É a rede; o cadastro recusa antes,
      * com código próprio.
@@ -2769,6 +2794,14 @@ export const companyOccurrenceTypeContractorOverrides = pgTable(
     /** Spec 246 (D-a): nulo herda o `note_mode` do tipo, campo a campo — sem padrão de propósito. */
     noteMode: varchar('note_mode', { length: 16 }).$type<DeliveryProofFieldMode>(),
     signatureMode: varchar('signature_mode', { length: 16 }).$type<DeliveryProofFieldMode>(),
+    /**
+     * Spec 246 (D-a, RF1c2): o par `items_mode` + `items_minimum_count` herda junto — `items_mode`
+     * nulo herda o par do tipo; declarado, vale o par da exceção e `items_minimum_count` nulo é
+     * "todos os itens". Nulo e sem padrão, como as colunas irmãs.
+     */
+    itemsMode: varchar('items_mode', { length: 16 }).$type<DeliveryProofFieldMode>(),
+    photoMinimumCount: smallint('photo_minimum_count'),
+    itemsMinimumCount: smallint('items_minimum_count'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2812,6 +2845,22 @@ export const companyOccurrenceTypeContractorOverrides = pgTable(
       'occurrence_type_contractor_overrides_signature_mode_check',
       sql`${table.signatureMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
     ),
+    check(
+      'occurrence_type_contractor_overrides_items_mode_check',
+      sql`${table.itemsMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+    check(
+      'occurrence_type_contractor_overrides_photo_minimum_count_check',
+      sql`${table.photoMinimumCount} between ${raw(String(OCCURRENCE_PHOTO_MINIMUM_COUNT.min))} and ${raw(String(OCCURRENCE_PHOTO_MINIMUM_COUNT.max))}`,
+    ),
+    check(
+      'occurrence_type_contractor_overrides_items_minimum_count_check',
+      sql`${table.itemsMinimumCount} >= 1`,
+    ),
+    check(
+      'occurrence_type_contractor_overrides_items_minimum_shape_check',
+      sql`${table.itemsMinimumCount} is null or coalesce(${table.itemsMode}, '') = 'required'`,
+    ),
   ],
 )
 
@@ -2834,6 +2883,14 @@ export const companyOccurrenceTypeRecipientOverrides = pgTable(
     /** Spec 246 (D-a): nulo herda o `note_mode` do tipo, campo a campo — sem padrão de propósito. */
     noteMode: varchar('note_mode', { length: 16 }).$type<DeliveryProofFieldMode>(),
     signatureMode: varchar('signature_mode', { length: 16 }).$type<DeliveryProofFieldMode>(),
+    /**
+     * Spec 246 (D-a, RF1c2): o par `items_mode` + `items_minimum_count` herda junto — `items_mode`
+     * nulo herda o par do tipo; declarado, vale o par da exceção e `items_minimum_count` nulo é
+     * "todos os itens". Nulo e sem padrão, como as colunas irmãs.
+     */
+    itemsMode: varchar('items_mode', { length: 16 }).$type<DeliveryProofFieldMode>(),
+    photoMinimumCount: smallint('photo_minimum_count'),
+    itemsMinimumCount: smallint('items_minimum_count'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2876,6 +2933,22 @@ export const companyOccurrenceTypeRecipientOverrides = pgTable(
     check(
       'occurrence_type_recipient_overrides_signature_mode_check',
       sql`${table.signatureMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+    check(
+      'occurrence_type_recipient_overrides_items_mode_check',
+      sql`${table.itemsMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+    check(
+      'occurrence_type_recipient_overrides_photo_minimum_count_check',
+      sql`${table.photoMinimumCount} between ${raw(String(OCCURRENCE_PHOTO_MINIMUM_COUNT.min))} and ${raw(String(OCCURRENCE_PHOTO_MINIMUM_COUNT.max))}`,
+    ),
+    check(
+      'occurrence_type_recipient_overrides_items_minimum_count_check',
+      sql`${table.itemsMinimumCount} >= 1`,
+    ),
+    check(
+      'occurrence_type_recipient_overrides_items_minimum_shape_check',
+      sql`${table.itemsMinimumCount} is null or coalesce(${table.itemsMode}, '') = 'required'`,
     ),
   ],
 )

@@ -29,6 +29,7 @@ import { assertOccurrenceStopFlowBackfill } from './occurrence-stop-flow.asserti
 import { assertOccurrenceStopKindBackfill } from './occurrence-stop-kind.assertion.js'
 import { assertOccurrenceTypeItemsModeBackfill } from './occurrence-type-items-mode.assertion.js'
 import { assertOccurrenceTypeRequirementModesRollback } from './occurrence-type-requirement-modes.assertion.js'
+import { assertOccurrenceTypeQuantityMinimumsRollback } from './occurrence-type-quantity-minimums.assertion.js'
 import { assertOccurrenceTypeMomentsRollback } from './occurrence-type-moments.assertion.js'
 import { assertRntrcRollbackRefusesNinePositions } from './rntrc-rollback.assertion.js'
 import { assertStopDepartureRollback } from './stop-departure-rollback.assertion.js'
@@ -182,6 +183,13 @@ describe('Drizzle migration integration', () => {
           directories: migrationDirectories,
           tripId: rollbackProbeTripId,
           userId: identityFixture.userId,
+        })
+
+        // Ordem inversa do histórico: a 241 derruba `items_mode` e, com ele, a CHECK que o lê.
+        await assertOccurrenceTypeQuantityMinimumsRollback({
+          connectionString,
+          database,
+          directories: migrationDirectories,
         })
 
         await assertOccurrenceTypeItemsModeBackfill({

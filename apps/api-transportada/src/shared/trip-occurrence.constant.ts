@@ -124,12 +124,25 @@ export const OCCURRENCE_ITEM_QUANTITY_UNIT = {
 export type OccurrenceItemQuantityUnit = string
 
 /**
- * Spec 241 (RF4): os dois valores de `items_mode` que o código nomeia — `off` o tipo não carrega
- * itens, `optional` oferece. O vocabulário completo é `DELIVERY_PROOF_FIELD_MODES`.
+ * Spec 241 (RF4): os valores de `items_mode` que o código nomeia — `off` o tipo não carrega itens,
+ * `optional` oferece. Spec 246 (RF1b): `required` exige produtos. O vocabulário completo é
+ * `DELIVERY_PROOF_FIELD_MODES`.
  */
 export const OCCURRENCE_ITEMS_MODE = {
   off: 'off',
   optional: 'optional',
+  required: 'required',
+} as const
+
+/**
+ * Spec 246 (RF1c): a quantidade mínima de fotos do tipo com foto `required`, de 1 a 5 — o molde do
+ * `cargoMinimumCount` da entrega. Lida só quando a foto é obrigatória; 1 é o que preserva o
+ * comportamento de hoje.
+ */
+export const OCCURRENCE_PHOTO_MINIMUM_COUNT = {
+  default: 1,
+  max: 5,
+  min: 1,
 } as const
 
 /** Política de reentrega do tipo; `unset` é o que o cadastro grava quando ninguém decidiu. */

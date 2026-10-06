@@ -102,7 +102,7 @@ flow='stop'` **e** onde `stage='separation' AND flow='stop'` (D-c: preserva o co
 - [x] **T1c.0** Pré-condição conferida: a 241 está em `origin/staging` (`81cd849b6`), migration
       `20261006033752_occurrence_type_items_mode`, com `items_mode` (`DEFAULT 'optional'`), a CHECK de
       vocabulário e `company_occurrence_types_items_off_shape_check`. Registrado em `evidence.md`.
-- [ ] **T1c.1** Colunas aditivas: no tipo, `photo_minimum_count` (`NOT NULL DEFAULT 1`, CHECK 1–5) e
+- [x] **T1c.1** Colunas aditivas: no tipo, `photo_minimum_count` (`NOT NULL DEFAULT 1`, CHECK 1–5) e
       `items_minimum_count` (nulo = todos os itens; CHECK ≥ 1 **e** `items_minimum_count IS NULL OR
 items_mode = 'required'`); nas duas tabelas de exceção, `items_mode`, `photo_minimum_count` e
       `items_minimum_count` **nulos, sem default** (D-a), com CHECKs que aceitam nulo e
