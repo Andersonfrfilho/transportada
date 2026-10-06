@@ -8,6 +8,7 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import type { defineRoute } from '../http/router.service.js'
+import type { ApiLogger } from '../shared/api.types.js'
 import { CARGO_ARRIVAL_CHANNEL } from '../shared/cargo-arrival.constant.js'
 import type { NfeStorageGateway } from '../storage/infrastructure/nfe-storage-gateway.js'
 import { createDeliveryProofDownloadGateway } from '../trips/infrastructure/delivery-proof-download.gateway.js'
@@ -32,6 +33,7 @@ type Database = ReturnType<typeof createDrizzleProvider>['db']
 export function createCargoArrivalOccurrenceHttpRoutes(input: {
   readonly bucket: string
   readonly database: Database
+  readonly logger: ApiLogger
   readonly now?: () => Date
   readonly storage: NfeStorageGateway
 }): readonly ReturnType<typeof defineRoute>[] {
@@ -41,6 +43,7 @@ export function createCargoArrivalOccurrenceHttpRoutes(input: {
     attachments: new DrizzleOccurrenceAttachmentRepository(input.database),
     database: input.database,
     downloads: createDeliveryProofDownloadGateway({ storage: input.storage }),
+    logger: input.logger,
   })
   const occurrenceRoutes = createCargoArrivalOccurrenceRoutes({
     changeReturn: createChangeCargoArrivalReturnUseCase({

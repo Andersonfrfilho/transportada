@@ -6,9 +6,12 @@
  * saem numa consulta em lote; as fotos, uma leitura por ocorrência, como a lista da nota na viagem.
  */
 import { CARGO_ARRIVAL_RETURN_STATE } from '../../shared/cargo-arrival.constant.js'
+import { describeErrorForLog } from '../../logging/error-descriptor.service.js'
+import type { ApiLogger } from '../../shared/api.types.js'
 import {
   readOccurrenceAttachments,
   type OccurrenceAttachmentDownloadPort,
+  type OccurrenceAttachmentView,
   type ReadOccurrenceAttachmentsPort,
 } from '../../trips/application/occurrence-attachment.service.js'
 import { resolveOccurrenceItems } from '../../trips/infrastructure/occurrence-items.support.js'
@@ -31,6 +34,8 @@ import {
 import { findStoredOccurrenceReplay } from './cargo-arrival-occurrence-replay.support.js'
 import type { Database } from './cargo-arrival-persistence.support.js'
 
+const ATTACHMENTS_UNAVAILABLE_LOG = 'cargo_arrival_occurrence.attachments_unavailable'
+
 type OccurrenceRow = Awaited<ReturnType<typeof selectArrivalOccurrences>>[number]
 
 export class DrizzleCargoArrivalOccurrenceReadRepository implements CargoArrivalOccurrenceReadPort {
@@ -39,6 +44,7 @@ export class DrizzleCargoArrivalOccurrenceReadRepository implements CargoArrival
       readonly attachments: ReadOccurrenceAttachmentsPort
       readonly database: Database
       readonly downloads: OccurrenceAttachmentDownloadPort
+      readonly logger: ApiLogger
     },
   ) {}
 
@@ -103,11 +109,9 @@ export class DrizzleCargoArrivalOccurrenceReadRepository implements CargoArrival
     const { row } = input
     return {
       actorName: row.actorName ?? null,
-      attachments: await readOccurrenceAttachments({
+      attachments: await this.readAttachmentsSafely({
         companyId: input.companyId,
-        downloads: this.dependencies.downloads,
         occurrenceId: row.id,
-        repository: this.dependencies.attachments,
       }),
       cancelledAt: row.cancelledAt?.toISOString() ?? null,
       case:
@@ -122,6 +126,27 @@ export class DrizzleCargoArrivalOccurrenceReadRepository implements CargoArrival
       note: row.note,
       occurrenceTypeId: row.occurrenceTypeId,
       typeName: row.typeName,
+    }
+  }
+
+  /** A foto é dado secundário: assinar falhando não pode derrubar a lista nem a marcação (§15). */
+  private async readAttachmentsSafely(input: {
+    readonly companyId: string
+    readonly occurrenceId: string
+  }): Promise<readonly OccurrenceAttachmentView[]> {
+    try {
+      return await readOccurrenceAttachments({
+        companyId: input.companyId,
+        downloads: this.dependencies.downloads,
+        occurrenceId: input.occurrenceId,
+        repository: this.dependencies.attachments,
+      })
+    } catch (error) {
+      this.dependencies.logger.error(ATTACHMENTS_UNAVAILABLE_LOG, {
+        ...describeErrorForLog(error),
+        occurrenceId: input.occurrenceId,
+      })
+      return []
     }
   }
 }

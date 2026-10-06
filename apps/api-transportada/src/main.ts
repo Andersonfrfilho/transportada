@@ -3377,6 +3377,7 @@ function createApplicationRoutes({
     ...createCargoArrivalOccurrenceHttpRoutes({
       bucket: resolveStorageBucket(environment),
       database,
+      logger,
       storage: createNfeStorageGatewayFromEnvironment({
         environment,
         finalBucket: resolveStorageBucket(environment),
