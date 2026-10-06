@@ -18,7 +18,10 @@ import {
   type OccurrenceTypeFlow,
   type TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
-import { OccurrenceTypeMomentsDocumentAndStopError } from './occurrence-moment.error.js'
+import {
+  OccurrenceTypeMomentsDocumentAndStopError,
+  OccurrenceTypeMomentsRequiredError,
+} from './occurrence-moment.error.js'
 
 export type OccurrenceStageAndFlow = {
   readonly flow?: OccurrenceTypeFlow | undefined
@@ -81,8 +84,9 @@ export function deriveStageAndFlowFromMoments(moments: readonly OccurrenceMoment
   }
 }
 
-/** O conjunto que o cadastro aceita gravar. */
+/** O conjunto que o cadastro aceita gravar: ao menos um momento (T1b.6), e nunca nota com parada. */
 export function assertOccurrenceMomentsAreWritable(moments: readonly OccurrenceMoment[]): void {
+  if (moments.length === 0) throw new OccurrenceTypeMomentsRequiredError()
   const present = new Set(moments)
   if (present.has(OCCURRENCE_MOMENT.document) && present.has(OCCURRENCE_MOMENT.stop)) {
     throw new OccurrenceTypeMomentsDocumentAndStopError()

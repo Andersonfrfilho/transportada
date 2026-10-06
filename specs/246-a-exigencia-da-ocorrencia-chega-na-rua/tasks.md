@@ -93,7 +93,7 @@ flow='stop'` **e** onde `stage='separation' AND flow='stop'` (D-c: preserva o co
       `separation` e `stop`), não só as listas — a leitura tolerante mascararia o backfill arrancado.
 - [x] **T1b.5** Mutações: (1) `includes(ROUTE_MOMENT)` → `moments.length > 0`; (2) → "algum momento
       de rua". Cada uma deixa a T1b.3 vermelha; execução vermelha registrada em `evidence.md`.
-- [ ] **T1b.6** Rejeitar tipo sem nenhum momento, na API e na tela.
+- [x] **T1b.6** Rejeitar tipo sem nenhum momento, na API e na tela. (API nesta fase; a tela é a T5.3b.)
 
 ## Fase 1c — Produtos e quantidade mínima viram dado (RF1, RF1b, RF1c, RF1c2)
 

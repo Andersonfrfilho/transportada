@@ -66,6 +66,14 @@ describe('o cadastro grava o conjunto de momentos (spec 246 T1b.1b)', () => {
     expect(written.flow).toBe('document')
   })
 
+  /** Spec 246 T1b.6: tipo sem momento nenhum não apareceria para ninguém. */
+  test('conjunto vazio é recusado antes de gravar', async () => {
+    await expect(save({ stored: null, values: values({ moments: [] }) })).rejects.toMatchObject({
+      code: 'OCCURRENCE_TYPE_MOMENTS_REQUIRED',
+      status: 422,
+    })
+  })
+
   test('nota e parada juntas são recusadas antes de gravar', async () => {
     await expect(
       save({ stored: null, values: values({ moments: ['document', 'stop'] }) }),

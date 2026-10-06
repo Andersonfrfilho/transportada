@@ -93,6 +93,12 @@ describe('o conjunto gravável (spec 246 T1b.1b)', () => {
     )
   })
 
+  test('conjunto vazio é recusado: o tipo não apareceria para ninguém (T1b.6)', () => {
+    expect(() => assertOccurrenceMomentsAreWritable([])).toThrow(
+      expect.objectContaining({ code: 'OCCURRENCE_TYPE_MOMENTS_REQUIRED', status: 422 }),
+    )
+  })
+
   test('galpão e nota juntos são aceitos', () => {
     expect(() => assertOccurrenceMomentsAreWritable(['separation', 'document'])).not.toThrow()
   })

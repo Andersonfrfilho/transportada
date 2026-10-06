@@ -639,3 +639,24 @@ error: expect(received).toEqual(expected)
 ```
 
 Restaurado: `2 pass, 0 fail`.
+
+### T1b.6 — Tipo sem nenhum momento é recusado (API) (2026-10-06)
+
+`assertOccurrenceMomentsAreWritable` recusa o conjunto vazio com `422
+OCCURRENCE_TYPE_MOMENTS_REQUIRED` (`OccurrenceTypeMomentsRequiredError`, em
+`occurrence-moment.error.ts`), antes de gravar — `PUT` com `moments: []`. Sem `moments`, o cadastro
+nunca fica vazio: a criação grava o derivado de `stage`/`flow` e a edição mantém ou re-deriva
+(T1b.1b). **A parte da tela** (o seletor múltiplo recusando o vazio) é a T5.3b, na Fase 5, por
+escopo desta fase.
+
+Contratos primeiro, vermelhos:
+
+```text
+$ bun test ./test/trip-occurrence/occurrence-moment.contract.ts ./test/trip-occurrence/occurrence-type-moments-write.contract.ts
+(fail) o conjunto gravável (spec 246 T1b.1b) > conjunto vazio é recusado: o tipo não apareceria para ninguém (T1b.6) [0.74ms]
+(fail) o cadastro grava o conjunto de momentos (spec 246 T1b.1b) > conjunto vazio é recusado antes de gravar [1.71ms]
+ 21 pass
+ 2 fail
+```
+
+Depois: `23 pass, 0 fail`; `typecheck` saída 0.
