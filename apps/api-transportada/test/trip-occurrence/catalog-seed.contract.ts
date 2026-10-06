@@ -251,3 +251,46 @@ describe('o seed do catálogo de recebimento (spec 237 T3.2)', () => {
     expect(inserted.every((type) => type.stage !== 'receiving')).toBe(true)
   })
 })
+
+/**
+ * Spec 237 T3.4a: o nome do tipo é único por empresa em qualquer etapa, e a gravação pula o nome já
+ * usado. Se TODOS os três forem pulados, a empresa fica sem tipo de recebimento e ninguém fica sabendo.
+ */
+describe('o aviso quando a semente de recebimento não grava nada (spec 237 T3.4a)', () => {
+  function createWarnings() {
+    const warnings: (readonly [string, Record<string, unknown> | undefined])[] = []
+    return {
+      logger: {
+        warn: (message: string, metadata?: Record<string, unknown>) =>
+          void warnings.push([message, metadata]),
+      },
+      warnings,
+    }
+  }
+
+  test('nada gravado e nenhum tipo de recebimento: avisa, com a empresa como id opaco', async () => {
+    const { port } = createFakePort([COMPANY_A])
+    const { logger, warnings } = createWarnings()
+
+    expect(
+      await seedReceivingOccurrenceTypeCatalog({
+        logger,
+        port: { ...port, insertOccurrenceTypes: () => Promise.resolve(0) },
+      }),
+    ).toBe(0)
+    expect(warnings).toEqual([
+      ['occurrence_type_seed.receiving_none_created', { companyId: COMPANY_A }],
+    ])
+  })
+
+  test('gravou ao menos um, ou a empresa já tem tipo de recebimento: sem aviso', async () => {
+    const { port } = createFakePort(
+      [COMPANY_A, COMPANY_B],
+      [{ companyId: COMPANY_B, name: 'Avaria na doca', stage: 'receiving' }],
+    )
+    const { logger, warnings } = createWarnings()
+
+    expect(await seedReceivingOccurrenceTypeCatalog({ logger, port })).toBe(3)
+    expect(warnings).toEqual([])
+  })
+})
