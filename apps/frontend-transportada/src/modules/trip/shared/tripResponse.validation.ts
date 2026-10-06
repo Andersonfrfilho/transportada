@@ -1495,8 +1495,31 @@ function isFieldOccurrenceType(value: unknown): value is FieldOccurrenceType {
     }) &&
     isString(value.id) &&
     isString(value.name) &&
-    (value.attachmentMode === undefined ||
-      isOneOf(value.attachmentMode, OCCURRENCE_ATTACHMENT_MODES))
+    hasValidFieldOccurrenceTypeModes(value)
+  )
+}
+
+/**
+ * Spec 246 (ADR-0081 §9): os modos e os mínimos que a API passa a mandar em cada tipo de rua são
+ * aditivos — ausentes são API anterior; presentes, só no vocabulário e na faixa.
+ */
+function hasValidFieldOccurrenceTypeModes(value: Record<string, unknown>): boolean {
+  const modeKeys = ['attachmentMode', 'itemsMode', 'noteMode', 'photoMode', 'signatureMode']
+  const isEveryModeValid = modeKeys.every(
+    (key) => value[key] === undefined || isOneOf(value[key], OCCURRENCE_ATTACHMENT_MODES),
+  )
+  const isPhotoMinimumValid =
+    value.photoMinimumCount === undefined || isPhotoMinimumCount(value.photoMinimumCount)
+  const isItemsMinimumValid =
+    value.itemsMinimumCount === undefined ||
+    value.itemsMinimumCount === null ||
+    isPositiveInteger(value.itemsMinimumCount)
+  const isStopKindValid =
+    value.stopKind === undefined || value.stopKind === null || isString(value.stopKind)
+  const isFlowValid = value.flow === undefined || isOneOf(value.flow, OCCURRENCE_TYPE_FLOWS)
+
+  return (
+    isEveryModeValid && isPhotoMinimumValid && isItemsMinimumValid && isStopKindValid && isFlowValid
   )
 }
 
@@ -1808,8 +1831,10 @@ type RawOccurrenceType = Omit<
     itemsMode?: unknown
     leavesDocumentBehind?: unknown
     moments?: unknown
+    noteMode?: unknown
     photoMinimumCount?: unknown
     redeliveryPolicy?: unknown
+    signatureMode?: unknown
     stopKind?: unknown
   }>
 
@@ -1849,9 +1874,12 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         'leavesDocumentBehind',
         /** Spec 246 T1b.1b: o painel tolera os momentos antes de a API mandá-los; a Fase 5 os edita. */
         'moments',
+        /** Spec 246 T2.4 (ADR-0081 §9): os modos da observação e da assinatura, tolerados antes de a API mandá-los. */
+        'noteMode',
         /** Spec 246 T1c.4: quantidade mínima de fotos (1..5), tolerada antes de a API mandá-la. */
         'photoMinimumCount',
         'redeliveryPolicy',
+        'signatureMode',
         'stopKind',
       ],
       required: OCCURRENCE_TYPE_REQUIRED_KEYS,
@@ -1875,6 +1903,9 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
       value.itemsMinimumCount === null ||
       isPositiveInteger(value.itemsMinimumCount)) &&
     (value.itemsMode === undefined || isOneOf(value.itemsMode, OCCURRENCE_ITEMS_MODES)) &&
+    (value.noteMode === undefined || isOneOf(value.noteMode, OCCURRENCE_ATTACHMENT_MODES)) &&
+    (value.signatureMode === undefined ||
+      isOneOf(value.signatureMode, OCCURRENCE_ATTACHMENT_MODES)) &&
     (value.leavesDocumentBehind === undefined || isBoolean(value.leavesDocumentBehind)) &&
     (value.moments === undefined ||
       isEveryItem(value.moments, (moment) => isOneOf(moment, OCCURRENCE_MOMENTS))) &&
