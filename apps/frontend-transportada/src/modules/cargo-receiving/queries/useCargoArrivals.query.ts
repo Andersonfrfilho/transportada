@@ -6,6 +6,7 @@ import type {
   CargoArrivalSummary,
   CargoPage,
 } from '../shared/cargoArrival.types'
+import { resolveCargoArrivalRefetchInterval } from '../shared/cargoArrivalPolling.service'
 import { CARGO_RECEIVING_QUERY_KEY } from '../shared/cargoReceiving.constant'
 import { getCargoReceivingClient } from '../shared/cargoReceivingClient.service'
 
@@ -30,10 +31,23 @@ export function useCargoArrivalsQuery(filters: CargoArrivalFilters) {
   })
 }
 
+/** A chave do toque da separação: é por ela que a leitura periódica sabe que há um toque meu em voo. */
+export function cargoArrivalTouchMutationKey(arrivalId: string) {
+  return [...cargoArrivalDetailQueryKey(arrivalId), 'touch'] as const
+}
+
 export function useCargoArrivalQuery(arrivalId: string) {
+  const queryClient = useQueryClient()
   return useQuery({
     queryFn: () => getCargoReceivingClient().getArrival(arrivalId),
     queryKey: cargoArrivalDetailQueryKey(arrivalId),
+    refetchInterval: (query) =>
+      resolveCargoArrivalRefetchInterval({
+        isTouchInFlight:
+          queryClient.isMutating({ mutationKey: cargoArrivalTouchMutationKey(arrivalId) }) > 0,
+        isVisible: document.visibilityState === 'visible',
+        status: query.state.data?.status,
+      }),
   })
 }
 

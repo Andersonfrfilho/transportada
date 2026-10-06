@@ -16,7 +16,10 @@ function countStates(documents: readonly CargoArrivalDocument[]): CargoStateCoun
   return counts
 }
 
-function applyToGroup(group: CargoArrivalGroup, states: DocumentStates): CargoArrivalGroup {
+function applyToGroup(
+  input: Readonly<{ group: CargoArrivalGroup; states: DocumentStates }>,
+): CargoArrivalGroup {
+  const { group, states } = input
   const documents = group.documents.map((document) => {
     const next = states[document.nfeDocumentId]
     return next === undefined || next === document.separationState
@@ -30,11 +33,14 @@ function applyToGroup(group: CargoArrivalGroup, states: DocumentStates): CargoAr
 export function applyDocumentStates(
   input: Readonly<{ detail: CargoArrivalDetail; states: DocumentStates }>,
 ): CargoArrivalDetail {
-  const groups = input.detail.groups.map((group) => applyToGroup(group, input.states))
+  const groups = input.detail.groups.map((group) => applyToGroup({ group, states: input.states }))
+  const counts = countStates(groups.flatMap((group) => group.documents))
   return {
     ...input.detail,
-    counts: countStates(groups.flatMap((group) => group.documents)),
+    counts,
     groups,
+    // Como na API: tudo separado nunca está vencido. Sem isso a tela mostra "Vencida" até a releitura.
+    isSeparationOverdue: input.detail.isSeparationOverdue && counts.separated < counts.total,
   }
 }
 

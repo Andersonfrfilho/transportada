@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   CARGO_ARRIVALS_LIST_KEY,
   cargoArrivalDetailQueryKey,
+  cargoArrivalTouchMutationKey,
 } from '../queries/useCargoArrivals.query'
 import type { CargoArrivalDetail, CargoArrivalDocument } from '../shared/cargoArrival.types'
 import { getCargoReceivingClient } from '../shared/cargoReceivingClient.service'
@@ -68,7 +69,7 @@ export function useSeparationTouchMutation({
 }: SeparationTouchParams) {
   const queryClient = useQueryClient()
   const detailKey = cargoArrivalDetailQueryKey(arrivalId)
-  const mutationKey = [...detailKey, 'touch'] as const
+  const mutationKey = cargoArrivalTouchMutationKey(arrivalId)
 
   function patchDetail(states: DocumentStates): void {
     queryClient.setQueryData<CargoArrivalDetail>(detailKey, (current) =>

@@ -32,6 +32,8 @@ export function SeparationGroupCard(props: SeparationGroupCardProps): JSX.Elemen
   const title = useCargoGroupTitle()(props.group)
   const { group } = props
   const isComplete = group.counts.separated === group.counts.total
+  // Um toque individual em voo já mexe numa nota do grupo: o lote em cima dele mandaria a mesma nota duas vezes.
+  const hasTouchInFlight = group.documents.some((item) => props.pendingIds.has(item.nfeDocumentId))
 
   return (
     <li className={styles.groupCard}>
@@ -56,6 +58,7 @@ export function SeparationGroupCard(props: SeparationGroupCardProps): JSX.Elemen
           {props.canAct && !props.isSearching && !isComplete ? (
             <Button
               className={styles.groupAll}
+              disabled={hasTouchInFlight}
               onClick={() => props.onSeparateGroup(group)}
               type="button"
               variant="secondary"

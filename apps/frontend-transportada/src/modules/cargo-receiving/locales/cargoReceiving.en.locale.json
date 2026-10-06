@@ -163,7 +163,7 @@
       "DOCUMENT_NOT_FOUND": "was not found",
       "CARGO_ARRIVAL_CLOSED": "the arrival is closed",
       "CARGO_ARRIVAL_DOCUMENT_NOT_RECEIVED": "must be received before separating",
-      "CARGO_ARRIVAL_TRANSITION_NOT_ALLOWED": "the step cannot go back",
+      "CARGO_ARRIVAL_TRANSITION_NOT_ALLOWED": "the invoice already moved on — someone else may have separated it",
       "CARGO_ARRIVAL_DOCUMENT_NOT_FOUND": "is not in this arrival"
     }
   },

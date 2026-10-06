@@ -163,7 +163,7 @@
       "DOCUMENT_NOT_FOUND": "não foi encontrada",
       "CARGO_ARRIVAL_CLOSED": "a chegada está fechada",
       "CARGO_ARRIVAL_DOCUMENT_NOT_RECEIVED": "precisa ser recebida antes de separar",
-      "CARGO_ARRIVAL_TRANSITION_NOT_ALLOWED": "a etapa não pode voltar",
+      "CARGO_ARRIVAL_TRANSITION_NOT_ALLOWED": "a nota já avançou — outra pessoa pode ter separado",
       "CARGO_ARRIVAL_DOCUMENT_NOT_FOUND": "não está nesta chegada"
     }
   },

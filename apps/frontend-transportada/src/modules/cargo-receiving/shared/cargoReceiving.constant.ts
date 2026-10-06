@@ -5,6 +5,8 @@ export const CARGO_ARRIVAL_STATUSES = ['open', 'closed'] as const
 export const CARGO_DOCUMENT_STATES = ['expected', 'received', 'separated'] as const
 
 export const CARGO_ARRIVAL_LIMITS = {
+  /** A leitura periódica da chegada aberta: curta o bastante para ver o colega, longa para não pesar. */
+  detailRefetchIntervalMs: 20_000,
   documentsPerRequest: 300,
   /** A folga do relógio de quem digita a hora: além disso a chegada está no futuro. */
   futureToleranceMs: 2 * 60_000,
