@@ -140,6 +140,11 @@ describe('revisão do painel: a página não passa da largura da tela a 320px', 
    * estoura a tela no celular. A mudança fica abaixo de 40rem; dali em diante o corpo é o do h1
    * global, nos dois pontos em que ele muda, lido do `index.css` para o espelho não divergir.
    */
+  it('só o cabeçalho da página de ressarcimentos usa o título que quebra', () => {
+    expect(PAGE.split('styles.header} ${styles.longTitle}').length - 1).toBe(2)
+    expect(PAGE).not.toContain('<header className={styles.header}>')
+  })
+
   it('o título quebra no celular e, de 40rem em diante, é o h1 global', () => {
     const globalBase = readRule(GLOBAL_STYLES, '\nh1 {')
     const globalWide = readRule(
@@ -148,12 +153,15 @@ describe('revisão do painel: a página não passa da largura da tela a 320px', 
       ),
       '\n  h1 {',
     )
-    const base = readRule(STYLES, '.header h1 {')
+    const base = readRule(STYLES, '.longTitle h1 {')
     const narrow = readRule(
       STYLES.slice(STYLES.indexOf('@media (min-width: 40rem)')),
-      '.header h1 {',
+      '.longTitle h1 {',
     )
-    const wide = readRule(STYLES.slice(STYLES.indexOf('@media (min-width: 64rem)')), '.header h1 {')
+    const wide = readRule(
+      STYLES.slice(STYLES.indexOf('@media (min-width: 64rem)')),
+      '.longTitle h1 {',
+    )
 
     expect(base).toContain('max-width: none')
     expect(base).toContain('overflow-wrap: anywhere')
