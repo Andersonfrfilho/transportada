@@ -153,7 +153,7 @@ trip_document_occurrence_attachments_unique_position DO NOTHING`. **`created_at 
       linhas; (d) lote: um objeto em três ocorrências; (e) sem foto. Verifica as **linhas** da
       tabela, `created_at` igual ao da ocorrência, que o leitor devolve **exatamente uma foto** em
       (a) e (b), e que reexecutar dá a mesma contagem.
-- [ ] **T1d.4** Mutações: (1) arrancar o `INSERT` (casos a e d vermelhos); (2) tirar o `NOT EXISTS`
+- [x] **T1d.4** Mutações: (1) arrancar o `INSERT` (casos a e d vermelhos); (2) tirar o `NOT EXISTS`
       (b vira duas fotos); (3) tirar `o.created_at`. Execução vermelha registrada em `evidence.md`.
 - [ ] **T1d.5** A escrita da ocorrência de rua grava nas duas tabelas até a leitura nova estar em
       produção, **sem** usar `trip_occurrence_attachment` para o lote; `photo_minimum_count` é

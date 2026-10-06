@@ -1099,3 +1099,31 @@ $ cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 1200
 
 O vermelho de "antes da T1d.2" é a mutação (1) da T1d.4 — a migration sem o `INSERT` é o estado de
 antes do backfill.
+
+### T1d.4 — As três mutações deixam a T1d.3 vermelha (2026-10-06)
+
+Cada mutação foi aplicada ao `migration.sql` da T1d.2 só para a execução e restaurada da cópia em
+seguida (`cmp` igual; a execução restaurada dá `1 pass, 0 fail`). Comando:
+`cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000 ./test/integration/street-occurrence-attachment-backfill.integration.ts`.
+
+```text
+(1) arrancar o INSERT (migration.sql vira `SELECT 1;`) — somem as linhas de (a), (d) e (f)
+- Expected  - 36
++ Received  + 0
+(fail) a foto antiga da rua ganha a linha da 161 (spec 246 T1d.3) > as cinco sementes saem com as linhas certas, a hora da ocorrência, e reexecutar não duplica
+ 0 pass / 1 fail
+
+(2) tirar o NOT EXISTS — (b) ganha a posição 1 ao lado da 2: duas fotos
+- Expected  - 0
++ Received  + 6
++     "createdAt": 2026-09-02T10:00:00.000Z,      # a data de (b), na posição 1
+(fail) ... > as cinco sementes saem com as linhas certas, a hora da ocorrência, e reexecutar não duplica
+ 0 pass / 1 fail
+
+(3) tirar `o.created_at` (coluna e valor) — a linha nasce com a hora do deploy
+- Expected  - 13
++ Received  + 13
++     "createdAt": 2026-10-06T13:17:12.978Z,
+(fail) ... > as cinco sementes saem com as linhas certas, a hora da ocorrência, e reexecutar não duplica
+ 0 pass / 1 fail
+```
