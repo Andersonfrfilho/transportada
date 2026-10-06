@@ -1275,6 +1275,10 @@
       "stop": "Parada"
     },
     "tableTitle": "Ocorrências registradas",
+    "tabs": {
+      "feed": "Feed",
+      "types": "Tipos"
+    },
     "title": "Ocorrências",
     "caseStatus": {
       "none": "Sem tratativa",

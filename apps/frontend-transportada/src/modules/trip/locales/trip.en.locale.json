@@ -1275,6 +1275,10 @@
       "stop": "Stop"
     },
     "tableTitle": "Recorded occurrences",
+    "tabs": {
+      "feed": "Feed",
+      "types": "Types"
+    },
     "title": "Occurrences",
     "caseStatus": {
       "none": "No case",
