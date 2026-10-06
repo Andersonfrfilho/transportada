@@ -12,7 +12,7 @@ Módulo de domínio = até 4 camadas em `src/<modulo>/`:
 - `domain/` — regras puras, `*.error.ts`, `*.policy.ts`. Sem I/O.
 - `infrastructure/` — `drizzle-*.repository.ts`, `*.mapper.ts`, `*.gateway.ts`.
 
-Módulos: `addresses`, `address-correction`, `billing`, `companies`, `contractor-mail`,
+Módulos: `addresses`, `address-correction`, `billing`, `cargo-receiving`, `companies`, `contractor-mail`,
 `contractor-portal`, `cte-batches`, `cte-issuance`, `cte-profiles`, `fleet`, `freight`,
 `freight-calculations`, `freight-regions`, `freight-rules`, `identity`, `mdfe-manifests`,
 `nfe-documents`, `nfe-imports`, `nfse-callbacks`, `nfse-invoices`, `nfse-profiles`, `notification`,
@@ -42,6 +42,15 @@ Fluxo de request: `src/main.ts` (composition root) → `server/server.service.ts
 2 MiB) → `http/request-handler.service.ts` (correlation-id, 1 MiB → 413, CORS) →
 `http/router.service.ts`: autentica → `matchRoute` → `tenantContext.resolveCompany` → `authorize` →
 `route.execute` → `parse` (Zod) → `handle` → use-case → repositório.
+
+O CORS (`applyCorsHeaders`) expõe `access-control-expose-headers: Date` (`CORS_EXPOSE_HEADERS` em
+`src/shared/api.constant.ts`) só à origem permitida: sem ele o navegador não deixa o app do motorista ler o
+`Date` da resposta, e o desvio do relógio (spec 234) nunca é medido — sem erro nenhum. Contrato em
+`test/cors.contract.test.ts`.
+
+**Expurgo de posição por empresa** (spec 239): tabela `company_location_retention_settings`, rotas
+`GET`/`PUT /company-settings/location-retention` (`settings.manage`), carência 24 h, `retention_days 30–90`. Detalhe:
+docs/ai-context/api-transportada.md § "Spec 239" e `docs/SECURITY.md` § "2026-10-02".
 
 **Multi-tenant:** Bearer JWT (Keycloak/JWKS) → identidade externa por issuer+subject →
 `tenantContext.resolveCompany` busca membership ativo; sem membership → 403. Todo repositório recebe
@@ -165,10 +174,11 @@ empresa já ajustou, mas que não tem (ou nunca teve) linha correspondente em `t
 - **O separador é papel próprio** (`trip.manage`, não `fleet.manage` de carona): quatro permissões —
   `invoices.read`, `fleet.read`, `trip.read`, `trip.manage`. Não cadastra frota, não fatura, não emite
   fiscal, não reporta entrega (`trip.report` é do campo). ⚠️ `trip.read` **é** pedido por rotas: as
-  leituras `/me` do motorista (`me-trip.routes.ts`, recortadas pelo vínculo), o fluxo de leitura do
-  motorista no WhatsApp e `GET /delivery-charges` + `GET /delivery-clients/:id/charge-rules` — estas
-  duas **não** recortam pelo vínculo, então motorista e agregado leem as cobranças da empresa inteira
-  (achado da spec 156 T15, `docs/SECURITY.md`). A leitura de viagem da empresa segue em `fleet.read`
+  leituras `/me` do motorista (`me-trip.routes.ts`, recortadas pelo vínculo) e o fluxo de leitura do
+  motorista no WhatsApp. `GET /delivery-charges` e `GET /delivery-clients/:id/charge-rules` **não**
+  recortam pelo vínculo e por isso são do escritório: `trip.financials` desde a spec 243 D1 (antes
+  `trip.read`, achado da spec 156 T15 em `docs/SECURITY.md`; contrato
+  `test/delivery-clients/charge-read-policy.contract.ts`). A leitura de viagem da empresa segue em `fleet.read`
   (ou `anyPermission`, abaixo); migrá-la para `trip.read` migra `driver`, `aggregate` e `separator`
   juntos. `test/separator-role.contract.test.ts` lista as rotas alcançáveis por
   extenso — rota nova de frota/faturamento/CT-e reprova ali até decisão por escrito.
@@ -510,6 +520,17 @@ notas dos motoristas pedidos, e `computeDriverScore` decide os pontos. O motoris
 substituta fica com a pior pontualidade; a do escritório não classifica (spec 159 T11). ⚠️ Posição da
 foto nunca sai nessas respostas — só motivo, pontos e datas — e cai aos 90 dias pelo expurgo do worker.
 
+⚠️ **O momento do evento do motorista é `tappedAt + clockOffsetMs`, só com posição e só quando
+`resolveOccurredAt` devolve `corrected`** (spec 234). Relógio ruim (futuro, mais de 30 dias, campo
+faltando) **descarta a correção e NUNCA recusa o evento** — recusar vira `422` e o app deixa o motorista
+descartar a entrega. **Sem posição na entrega, só a entrega do app do motorista conta como longe, em
+todo cliente** (D4c: `findDeliveryContext.isDeliveryRecordedByDriver`, de `trip_stop_events.channel =
+'driver_app'`); a baixa do escritório e a entrega pelo WhatsApp (hoje sem ponto, ADR-0081 §3.1) não punem. A nota e a pontualidade leem o momento por `deliveredMomentSql`
+(`database/delivered-moment.support.ts`), nunca por `captured_at ?? recorded_at` solto, e a flag de
+pontualidade nasce de `kind === 'corrected'`, nunca de "o campo veio". Os esquemas `.strict()` exigem
+**API antes do app**: campo novo no app antes de a API aceitar dá `400` em todo relato. Limite antifraude
+em `docs/SECURITY.md`; detalhe em `docs/ai-context/api-transportada.md` § "O momento do evento do motorista".
+
 **O endereço se mede uma vez** (ADR-0061, spec 084) — geocodificação em lote, por decisão explícita,
 nunca recalculada a cada leitura. Separação grafia × lugar (`street-comparison.policy.ts`) é o que
 torna o relatório de endereços legível. **O CEP corre em paralelo** (spec 186): banco da instalação,
@@ -612,6 +633,11 @@ state)`, nunca `(company_id, city)` — a mesma cidade pode estar em duas rotas.
   `federal-tax-settings`: sem linha é `200` com `rateOrigin: 'default'` e `R$200,00`, nunca `404`;
   `PUT` faz upsert por `companyId` (nunca insert-then-update) e audita em `auditLogs`; `DELETE` é
   idempotente. Mesma permissão `settings.manage`, nunca uma nova.
+- **`GET/PUT/DELETE /company-settings/location-retention` e `GET .../impact?retentionDays=N`** (spec 239)
+  ligam o expurgo da posição por empresa: mesmo molde da diária (sem linha é `200` desligado/90 dias,
+  `origin: 'default'`), `settings.manage`, Zod `.strict()` 30–90. `PUT`/`DELETE` gravam `audit_logs`
+  **na mesma transação** (IP pelo `resolveClientIp`); a carência de 24 h vem de `resolvePurgeEffectiveAt`.
+  `impact` é uma consulta por tabela com teto de 100 mil. Detalhe em `docs/ai-context/api-transportada.md`.
 - **O custo do motorista é `diária × dias`, não mais zona/rota/tabela** (spec 143, ADR-0066): a
   diária resolve em cascata `motorista → empresa → padrão`
   (`resolveDailyAllowance`, `DEFAULT_DAILY_ALLOWANCE_AMOUNT = '200.0000'`); `days` vem de
@@ -662,7 +688,8 @@ Uma mensagem recebida executa ação de negócio — separar, despachar, entrega
 emitir CT-e/NFS-e por seleção e faturar (spec 144, ADR-0063/ADR-0064). O despachante entra no hook
 `onMessageReceived` de `@adatechnology/meta-whatsapp-module`, construído **uma vez por empresa**;
 `createWhatsAppCommandHookFactory` separa o que é da instalação do que é da empresa. A instalação
-fica na `0.1.0` dos pacotes por dívida de formato de migration do pacote, não por falta de recurso.
+está nos pacotes `meta-whatsapp-module@0.7.0`, `-contracts@0.6.0` e `-provider@0.3.1`; as migrations do módulo viajam em
+pasta (formato do `drizzle-orm` 1.0) e rodam por `runMetaWhatsAppSchemaMigrations`, com o `migrate` injetado.
 
 - **Toda `FlowAction` de negócio passa por `withAuthorizedActor`**, que re-resolve o ator a cada
   chamada contra o mesmo `AuthorizationService` do HTTP; `registerWhatsAppFlowActions` é o único
@@ -671,6 +698,14 @@ fica na `0.1.0` dos pacotes por dívida de formato de migration do pacote, não 
 - **O grafo vive em código e o despachante lê a versão publicada no banco**:
   `scripts/whatsapp-flow-publish.ts --company <id>` (sem `--confirm` só imprime diff), com histórico
   append-only em `whatsapp_flow_graph_versions`.
+- **A localização do motorista viaja entre dois turnos, só em memória** (spec 196 T3.6): a mensagem
+  `location` é turno próprio; `acknowledgeSharedLocation` (despachante) a guarda em
+  `WhatsAppSharedLocationStore` por `(empresa, número)` — 5 min, **um toque**, nunca no `context` da
+  sessão nem em log — e só para quem tem `trip.report`. As três ações do motorista a consomem
+  (`consumeSharedLocation`); o operador **não recebe o armazém** e grava tudo `null`. O armazém é **por processo** (1 réplica hoje) e o ponto é consumido **antes** de a ação dar certo; vencidos são varridos a cada `remember`/`consume`. ⚠️ Com os pacotes na
+  `0.1.0` o webhook descarta `messages[].location` antes do gancho (o schema dos contracts `0.1.0` não a
+  tem; o `0.4.0` tem): na prática o toque grava `unavailable` até a instalação subir os pacotes. Teste que
+  prende o limite e deve virar ao subir: `test/integration/whatsapp-driver-flow-actions.integration.ts`.
 - **`MembershipAuthorizationPolicy`** ("qualquer membership ativa") só existe sob `/me/` —
   `assertMembershipRoutesUnderMe` derruba o boot fora dali.
 - Rotas (`cache-control: no-store`): `GET`/`DELETE /me/whatsapp-phone`,
@@ -679,3 +714,80 @@ fica na `0.1.0` dos pacotes por dívida de formato de migration do pacote, não 
   `POST /whatsapp-command-requests/:id/settlement` (máquina, `whatsapp.settle`).
 
 Detalhe completo: docs/ai-context § "O WhatsApp vira canal de comando".
+
+## A nota se abre inteira (spec 233)
+
+`GET /trips/:id/timeline?documentId=`, `volumeCount` no detalhe da nota e `proofRadiusMeters` em
+`/trips/:id/delivery-proofs` — este é o raio **da empresa**, não por contratante (raio por contratante
+pede migration). Detalhe: docs/ai-context § "Spec 233 — a nota se abre inteira".
+
+A 228 acrescenta à mesma linha do tempo `document.canhoto_photo` (prioridade 3, `trip-timeline-proof.query.ts`)
+e `stop.address_corrected` (prioridade 2, `trip-timeline-address.query.ts`, uma consulta só para o pool de 10),
+ambos derivados, sem migration; erro de fonte propaga. Detalhe: docs/ai-context § "Spec 228".
+
+## O ajudante é um perfil (spec 235)
+
+Papel `helper` em Acesso, terceira opção no cadastro de frota. Reconciliação papel → colunas
+(`can_drive`/`can_act_as_helper`) só quando a troca toca `driver`/`aggregate`/`helper` (transação,
+`FOR UPDATE`, `version + 1`, recusa `409 FLEET_DRIVER_PROFILE_EMPTY` sem alteração). Viagem e proposta
+recusam `can_drive = false` como motorista (`409 TRIP_DRIVER_CANNOT_DRIVE`); MDF-e avulso o mesmo.
+Permissão `trip.read`. Limite: atribuição em lote e papéis de grupo não reconciliam. Detalhe: docs/ai-context
+§ "Spec 235 — O ajudante é um perfil" e ADR-0093.
+
+## O ajudante fecha as pontas (spec 243)
+
+Três mudanças: D1 — Cobrança muda de `trip.read` para `trip.financials` (`company-admin`, `finance`, `operator` leem; `driver`, `aggregate`, `separator`, `helper` recebem `403`; achado BOLA fechado em `docs/SECURITY.md`). D2 — Painel tem diária geral (separado de settings, permissão `fleet.read`/`fleet.manage` da API). D3 — `/me/trips/current` devolve `crewRole` por viagem (`'driver'` | `'helper'`, do `trip_drivers.role`); ausência lê como `driver`. Detalhe: docs/ai-context § "Spec 243" e ADR-0095.
+
+## O ajudante sem resto (spec 244)
+
+Três correções mínimas das pendências da 243: T1 — `GET /me/trips/current` devolve `pendingProofs: []` sem `trip.report` (`canReportProofs` padrão `true`). T2 — Consentimento de localização escondido quando a API responde 403 (frontend). T3 — Zero preservado na diária (novo conversor, frontend).
+
+## Todo toque do motorista carimba onde aconteceu (spec 196, ADR-0081)
+
+Cinco tabelas carregam ponto e `location_state` (`captured | unavailable | expired | null`, `VARCHAR` com CHECK):
+`trip_stop_events`, `trip_delivery_proofs`, `trip_status_events`, `trip_stop_occurrences`,
+`trip_document_occurrences` (`event-location.schema.ts`). Quem carimba é `resolveEventLocationStamp`
+(`trips/domain`), só no toque do motorista (`driver_app`, `whatsapp`); a coordenada só sai da API na linha do
+tempo, e só com `trip.event-location` (`company-admin`, `operator`, `fiscal`, `viewer`) — `finance` e `separator`
+recebem `location: null` e o estado. Quem pode ler as colunas é lista fechada
+(`event-location-readers.constant.ts`, cobrada por `test/trip-schema/event-location-readers.contract.ts`): leitor
+novo entra ali ou reprova. ⚠️ A localização pelo WhatsApp chega ao banco (os pacotes entregam
+`messages[].location`); o pedido de geolocalização é **texto nos nós do motorista** (`DRIVER_LOCATION_REQUEST_TEXT`, spec 196 T3.8):
+menu da viagem, motivo da devolução e observação da ocorrência; não bloqueia (sem toque, `unavailable`), o operador
+não recebe. ⚠️ **Passo manual do usuário: o texto só chega ao motorista depois de republicar o grafo**
+(`bun run scripts/whatsapp-flow-publish.ts --company <id> --confirm` em cada empresa; sem `--confirm` só imprime
+o diff) — o despachante lê a versão publicada no banco. Detalhe: docs/ai-context/api-transportada.md
+§ "Spec 196".
+
+## O recebimento da carga antes da viagem (spec 237, ADR-0094)
+
+`cargo-receiving/` guarda o perfil de recebimento por contratante (`contractor_receiving_profiles`):
+regras como dado, nunca CNPJ no código; sem perfil ou com `is_enabled = false`, fluxo de hoje.
+`GET`/`PUT /contractors/:id/receiving-profile` (`fleet.read`/`settings.manage`); o `PUT` exige todas as
+chaves, só audita quando muda, e o padrão do `NroCarga` é filtrado (nunca executado) na gravação. O eixo
+do recebimento é próprio e **não toca** `separation_status`. Detalhe: docs/ai-context § "Spec 237".
+
+**A chegada e a primeira separação** (Fase 2): `cargo_arrivals` / `cargo_arrival_documents` /
+`cargo_arrival_events` (append-only). Eixo `expected → received → separated`, sem volta, no-op sem evento,
+chegada `closed` recusa tudo (`cargo-arrival-transition.policy.ts`). A chegada só nasce com perfil ligado e
+**copia** janela e prazo; `separation_due_at` preso por CHECK exato. Uma nota entra em no máximo uma
+chegada. Rotas `/cargo-arrivals…` com `fleet.read` (leitura) e `trip.manage` (escrita), as duas do
+`separator` — e todas listadas em `test/separator-role.contract.test.ts`. ⚠️ Escrita nova trava a chegada
+primeiro e as notas depois (ordem de id), e o registro trava o contratante antes de procurar a chave.
+Detalhe: docs/ai-context § "Spec 237" → "Fase 2".
+
+**A planilha de prévia e o vínculo** (Fase 4a, parte A — só domínio puro, sem rota nem tabela):
+`parseCargoPreviewWorkbook` lê só workbook, rels, sharedStrings e a aba escolhida (macro e `RESULTADO`
+nunca), com tetos em `CARGO_PREVIEW_WORKBOOK_LIMITS` e erro tipado `PREVIEW_*`; coluna por NOME, erro
+por linha. `resolveCargoPreviewMatches` é determinística: roteiro ↔ carga, cliente, soma exata ao
+centavo; 1:1 por nota; só valor é `suggested`. ⚠️ Peso concorda com `|Δ| ≤ max(0,01 kg, tolerância do
+perfil × peso)`: a planilha arredonda a 2 casas e o `pesoB` tem 3. Detalhe: docs/ai-context § "Spec 237 — Fase 4a, parte A".
+
+**A prévia por upload** (Fase 4a, parte B, ADR-0094 §8): `POST /cargo-previews` (multipart, `trip.manage`)
+guarda o arquivo no bucket privado com chave opaca e grava prévia + evento + `cargo_preview_outbox` numa
+transação; **a API nunca abre a planilha** — quem lê e vincula é o worker. Tipo pelos bytes, teto de 960 KiB
+(o corpo da API para em 1 MiB), o mesmo arquivo do contratante devolve a existente com 200. Leitura com
+`fleet.read`; `confirm`/`unlink`/`link` e `propose-arrival` com `trip.manage`, sob a mesma trava advisory do
+worker (`buildCargoPreviewMatchLockKey`). ⚠️ Uma nota, uma prévia é o unique de
+`cargo_preview_document_links`, não do item; item decidido pelo operador (`matched_by = user`) a máquina
+nunca reavalia. Detalhe: docs/ai-context § "Spec 237 — Fase 4a, parte B".

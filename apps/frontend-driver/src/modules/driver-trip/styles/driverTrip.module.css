@@ -18,8 +18,20 @@
 }
 
 .vehicle {
+  align-items: center;
   color: var(--color-slate);
+  display: flex;
+  flex-wrap: wrap;
   margin: 0;
+}
+
+/*
+ * O copiar do código da viagem: o quadrado de 44 px com borda saltava acima da linha de texto e
+ * parecia colado ao lado do código. O alvo de toque fica (44 px), a borda sai e a linha se alinha
+ * pelo centro; o "copiado" continua dito pela cor e pelo ícone.
+ */
+.vehicle button {
+  border-color: transparent;
 }
 
 /* RF12: uma viagem por botão, um embaixo do outro e na largura toda — o caminho precisa caber. */
@@ -128,7 +140,20 @@
   border: 1px solid color-mix(in srgb, var(--color-slate) 28%, transparent);
   display: flex;
   gap: var(--space-2);
-  padding: 0 var(--field-padding);
+  /* Sem recuo à direita: o botão da câmera encosta na borda do campo. */
+  padding: 0 0 0 var(--field-padding);
+}
+
+/*
+ * O botão da câmera mora dentro da caixa do campo: sem borda e sem fundo próprios (era uma segunda
+ * caixa dentro da primeira, com vão à direita), separado do texto por um filete e na altura toda.
+ */
+.stopSearch .stopSearchScan {
+  align-self: stretch;
+  background: transparent;
+  border: none;
+  border-left: 1px solid color-mix(in srgb, var(--color-slate) 28%, transparent);
+  padding: 0 var(--space-4);
 }
 
 .stopSearch svg {
@@ -1037,6 +1062,26 @@
   text-align: left;
 }
 
+/* Spec 229: parado há mais de um dia — cobre, como o "na fila" do cartão, e não vermelho: ainda sobe. */
+.stalePendingNotice {
+  align-items: flex-start;
+  background: var(--color-graphite);
+  border: 1px solid var(--color-copper);
+  border-radius: 0;
+  color: var(--color-copper);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: var(--space-2);
+  grid-template-columns: auto 1fr;
+  padding: var(--space-3);
+  text-align: left;
+}
+
+.stalePendingNotice .queueBannerAction {
+  grid-column: 2;
+}
+
 .queueBannerButton {
   background: color-mix(in srgb, var(--color-copper) 18%, transparent);
 }
@@ -1083,6 +1128,11 @@
   font-size: var(--font-size-sm);
   gap: var(--space-2);
   margin: 0;
+}
+
+/* Com evento parado a linha deixa de ser neutra: o cobre é o mesmo do "na fila" do cartão. */
+.syncStatusPending {
+  color: var(--color-copper);
 }
 
 /*
@@ -1148,6 +1198,28 @@
   gap: var(--space-3);
   justify-content: space-between;
   padding: var(--space-3);
+}
+
+/* Com "Descartar" e a confirmação, o item quebra em linhas: lado a lado passava de 375 px. */
+.eventQueueItemWithDiscard {
+  flex-wrap: wrap;
+}
+
+.eventQueueItemWithDiscard .eventQueueItemBody {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.eventQueueDiscardConfirm {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.eventQueueItemActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
 }
 
 .eventQueueItemBody {
@@ -1691,4 +1763,27 @@
   font-weight: 700;
   gap: var(--space-2);
   margin: 0;
+}
+
+/* Spec 243 RF-3: o ajudante acompanha — aviso fixo no topo, no tom dos avisos de estado da viagem. */
+.helperNotice {
+  background: color-mix(in srgb, var(--color-copper) 12%, transparent);
+  border-left: var(--space-1) solid var(--color-copper);
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3);
+}
+
+.helperNoticeTitle {
+  align-items: center;
+  display: flex;
+  font-weight: 700;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.helperNoticeDetail {
+  margin: 0;
+  overflow-wrap: anywhere;
 }

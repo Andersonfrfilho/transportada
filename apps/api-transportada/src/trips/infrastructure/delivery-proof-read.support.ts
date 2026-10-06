@@ -33,6 +33,7 @@ import {
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
+import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
 import type {
   DeliveryProofLocation,
   DeliveryProofRecord,
@@ -492,6 +493,11 @@ export async function saveTripOccurrence(
     readonly attachmentObjectId?: string | null
     readonly companyId: string
     readonly documentId: string
+    /**
+     * Spec 196 T3.3: o ponto do toque do motorista. Ausente — galpão, operador, lote do escritório —
+     * grava tudo `null`.
+     */
+    readonly locationStamp?: EventLocationStampColumns
     readonly note: string
     readonly productCode: string
     readonly occurrenceTypeId: string
@@ -524,6 +530,7 @@ export async function saveTripOccurrence(
       actorUserId: input.actorUserId,
       attachmentObjectId: input.attachmentObjectId ?? null,
       companyId: input.companyId,
+      ...input.locationStamp,
       note: input.note,
       occurrenceTypeId: input.occurrenceTypeId,
       productCode: input.productCode,

@@ -25,8 +25,8 @@ import type { TollMultiplier } from '../../toll-booths/domain/toll-category.poli
 import type { RouteOptionVehicle } from '../../toll-booths/domain/route-option.policy.js'
 import type { AxleCount, TollRouteCost } from '../../toll-booths/domain/toll-route-cost.policy.js'
 
-/** Sem escolha declarada, RF3 default é o mesmo da leitura: mais barata conhecida, sem assinatura. */
-const DEFAULT_ROUTE_CHOICE_CRITERION: RouteChoiceCriterion = 'cheapest'
+/** Sem escolha declarada, RF3 default é o mesmo da leitura: a mais rápida, sem assinatura. */
+const DEFAULT_ROUTE_CHOICE_CRITERION: RouteChoiceCriterion = 'fastest'
 
 export type FreezeTripPlannedRouteVehicleContext = {
   readonly axles: AxleCount | null

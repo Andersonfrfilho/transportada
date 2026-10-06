@@ -43,7 +43,14 @@
   border-radius: var(--space-2);
   display: grid;
   gap: var(--space-3);
+  min-width: 0;
   padding: var(--space-4);
+}
+
+/* A tabela de quatro colunas não cabe em 375 px: rola dentro do painel em vez de alargá-lo. */
+.tableScroll {
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .totals {
@@ -497,4 +504,82 @@
 .costEntryForm > .costEntryDescriptionField {
   flex: 3 1 16rem;
   min-width: 0;
+}
+
+/*
+ * Spec 232 RF4: o gasto e o lucro da nota moram na grade da nota (`stopDocumentGrid` do módulo trip),
+ * que é um `grid` de colunas automáticas — `grid-column: 1 / -1` põe este bloco em linha própria, e a
+ * grade interna se reparte pelo espaço (nenhum breakpoint fixo, 375 px incluído).
+ */
+.documentCost {
+  grid-column: 1 / -1;
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.documentCostGrid {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-2) var(--space-4);
+}
+
+.documentCostGroup {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+}
+
+.documentCostLabel {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.documentCostValue {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.documentCostParts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: var(--color-slate);
+  font-size: 0.75rem;
+}
+
+.documentCostNotice {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 0.75rem;
+}
+
+/* Spec 232 D6: previsto e fechado lado a lado em tela larga, empilhados em tela estreita. */
+.sideBySide {
+  display: grid;
+  gap: var(--space-4);
+}
+
+@media (min-width: 64rem) {
+  .sideBySide {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.column {
+  align-content: start;
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.column h3 {
+  margin: 0;
 }

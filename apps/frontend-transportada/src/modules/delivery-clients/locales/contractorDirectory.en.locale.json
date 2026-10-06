@@ -1,0 +1,140 @@
+{
+  "title": "Contractors",
+  "hint": "Who hires the freight. The record is created from the first invoice; here you adjust each one's data and the cargo receiving rules.",
+  "filters": {
+    "search": "Search",
+    "searchPlaceholder": "Name or tax ID",
+    "status": "Status",
+    "statusPlaceholder": "All statuses",
+    "statusSummary_one": "{{count}} status",
+    "statusSummary_other": "{{count}} statuses",
+    "statusSearch": "Search status",
+    "statusEmpty": "No status found",
+    "statusRemove": "Remove the status filter",
+    "clear": "Clear filters",
+    "clearAll": "Clear all filters",
+    "count": "{{shown}} of {{total}} contractors"
+  },
+  "status": {
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "table": {
+    "region": "Contractor list",
+    "name": "Name",
+    "taxId": "Tax ID",
+    "status": "Status",
+    "receiving": "Receiving",
+    "actions": "Actions",
+    "open": "Open",
+    "openLabel": "Open the record of {{name}}",
+    "unnamed": "No name",
+    "loading": "Loading contractors",
+    "empty": "No contractor yet. They show up here when the first invoice is imported.",
+    "emptyFiltered": "No contractor matches these filters.",
+    "error": "Could not load the contractors: {{code}}",
+    "sortNone": "not sorted",
+    "sortAscending": "ascending order",
+    "sortDescending": "descending order"
+  },
+  "badge": {
+    "enabled": "Receiving on",
+    "disabled": "Receiving off",
+    "none": "No profile",
+    "loading": "Reading the profile",
+    "error": "Profile unavailable"
+  },
+  "ficha": {
+    "close": "Close the record",
+    "taxId": "Tax ID {{taxId}}",
+    "readOnly": "You can see the data, but only people who manage settings can change it.",
+    "loadingProfile": "Loading the receiving profile",
+    "profileError": "Could not load the receiving profile: {{code}}"
+  },
+  "details": {
+    "title": "Contractor data",
+    "displayName": "Display name",
+    "displayNameHint": "How the contractor shows up on screen. The tax ID is its identity and is not edited here.",
+    "closingPeriod": "Closing period",
+    "closingPeriodHint": "How often this contractor's freight is closed into an invoice.",
+    "closing": {
+      "fortnightly": "Fortnightly",
+      "monthly": "Monthly"
+    },
+    "reportEmail": "Report e-mail",
+    "reportEmailHint": "Where the closed batch report goes. Empty means the batch is exported by hand.",
+    "notes": "Notes",
+    "status": "Status",
+    "save": "Save data",
+    "saving": "Saving…",
+    "saved": "Data saved.",
+    "error": "Could not save the data: {{code}}"
+  },
+  "profile": {
+    "title": "Receiving profile",
+    "intro": "How this contractor's cargo arrives and is sorted before it becomes a trip. With no profile, or with the profile off, the flow stays as it is today.",
+    "groups": {
+      "receiving": "Receiving",
+      "deadlines": "Deadlines",
+      "preview": "Spreadsheet preview",
+      "advanced": "Advanced"
+    },
+    "isEnabledHint": "Off, this contractor follows today's flow: no receiving rule applies.",
+    "requiresDamageCheckHint": "Keeps the decision to check damage on arrival. The damage screen does not exist yet; for now this is only recorded.",
+    "separationWindowHoursHint": "Hours, counted from arrival, to sort the cargo and report damage. Empty means the arrival has no sorting clock.",
+    "deliveryDeadlineBusinessDaysHint": "Business days, counted from arrival, to deliver. The deadline panel will use it when available; for now it is only stored. Empty means no deadline.",
+    "matchWindowDaysHint": "How many days after the preview an XML can still be linked to it. The default is 15.",
+    "weightTolerancePercentHint": "Weight difference accepted when linking a preview line to an invoice, in percent. Zero requires the exact weight.",
+    "previewEnabledHint": "The contractor sends a preview spreadsheet before the cargo arrives. Reading the spreadsheet is still under construction; turning it on now keeps the column map for when it exists.",
+    "previewSheetNameHint": "Spreadsheet tab that holds the data, up to 31 characters. Empty means the first tab.",
+    "columnMapHint": "For each field, the exact column name in the contractor's spreadsheet. Leave blank what the spreadsheet does not carry. Route, value and weight are required to read the preview.",
+    "columnMapTitle": "Spreadsheet columns",
+    "arrivalReferencePatternHint": "Regular expression that reads the cargo number in the invoice text; it needs exactly one parenthesized group. The server checks the pattern on save. Empty means no reading.",
+    "save": "Save profile",
+    "saving": "Saving…",
+    "saved": "Profile saved.",
+    "error": "Could not save the profile: {{code}}"
+  },
+  "fields": {
+    "isEnabled": "Receiving on",
+    "requiresDamageCheck": "Check damage on arrival",
+    "separationWindowHours": "Sorting window (hours)",
+    "deliveryDeadlineBusinessDays": "Delivery deadline (business days)",
+    "matchWindowDays": "Link window (days)",
+    "weightTolerancePercent": "Weight tolerance (%)",
+    "previewEnabled": "Receive spreadsheet preview",
+    "previewSheetName": "Tab name",
+    "previewColumnMap": "Spreadsheet columns",
+    "arrivalReferencePattern": "Cargo number pattern"
+  },
+  "columns": {
+    "contractorReference": "Contractor reference",
+    "recipientCode": "Recipient code",
+    "recipientName": "Recipient name",
+    "weightKg": "Weight (kg)",
+    "volumeM3": "Volume (m³)",
+    "value": "Value",
+    "address": "Address",
+    "neighborhood": "Neighborhood",
+    "city": "City",
+    "state": "State",
+    "postalCode": "Postal code",
+    "routeName": "Route",
+    "routingDate": "Route date"
+  },
+  "issues": {
+    "required": "Required field.",
+    "notAnInteger": "Enter a whole number.",
+    "notANumber": "Enter a number, without sign.",
+    "tooManyDecimals": "Use at most two decimal places.",
+    "outOfRange": "Use a value from {{min}} to {{max}}.",
+    "tooLong": "Use at most {{max}} characters.",
+    "duplicateColumn": "This column is already in another field.",
+    "requiredForPreview": "Required to read the preview.",
+    "invalidEmail": "Enter a valid e-mail.",
+    "refusedByServer": "The server refused this value."
+  },
+  "refusal": {
+    "lead": "Check:"
+  }
+}

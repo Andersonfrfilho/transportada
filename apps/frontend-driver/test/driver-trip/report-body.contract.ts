@@ -15,11 +15,14 @@ describe('o corpo de deliver/return leva a marca do registro tardio', () => {
 
   it('deliver com `lateRegistration: true` leva a chave no corpo', () => {
     const body = reportBody({
-      documentId: 'document-1',
-      idempotencyKey: 'key-1',
-      kind: 'deliver',
-      lateRegistration: true,
-      location: null,
+      report: {
+        documentId: 'document-1',
+        idempotencyKey: 'key-1',
+        kind: 'deliver',
+        lateRegistration: true,
+        location: null,
+      },
+      stamp: undefined,
     })
 
     expect(JSON.parse(body)).toEqual({ lateRegistration: true, location: null })
@@ -27,12 +30,15 @@ describe('o corpo de deliver/return leva a marca do registro tardio', () => {
 
   it('return com `lateRegistration: true` leva a chave no corpo', () => {
     const body = reportBody({
-      documentId: 'document-1',
-      idempotencyKey: 'key-1',
-      kind: 'return',
-      lateRegistration: true,
-      location: null,
-      reason: 'recipient_absent',
+      report: {
+        documentId: 'document-1',
+        idempotencyKey: 'key-1',
+        kind: 'return',
+        lateRegistration: true,
+        location: null,
+        reason: 'recipient_absent',
+      },
+      stamp: undefined,
     })
 
     expect(JSON.parse(body)).toEqual({
@@ -44,10 +50,13 @@ describe('o corpo de deliver/return leva a marca do registro tardio', () => {
 
   it('sem a marca, o corpo continua igual', () => {
     const body = reportBody({
-      documentId: 'document-1',
-      idempotencyKey: 'key-1',
-      kind: 'deliver',
-      location: null,
+      report: {
+        documentId: 'document-1',
+        idempotencyKey: 'key-1',
+        kind: 'deliver',
+        location: null,
+      },
+      stamp: undefined,
     })
 
     expect(JSON.parse(body)).toEqual({ location: null })

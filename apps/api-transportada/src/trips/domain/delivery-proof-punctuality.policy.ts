@@ -56,6 +56,18 @@ export type ClassifyProofPunctualityParams = {
    * lugar — a mesma penalidade `latePenaltyPoints`, nenhum peso novo.
    */
   readonly lateRegistration?: boolean
+  /**
+   * Spec 234 D4: `capturedAt` já é a hora do toque corrigida pelo desvio do relógio. Vem de
+   * `resolveOccurredAt(...).kind === 'corrected'` — nunca de "o campo veio": correção descartada
+   * (futuro, velha demais) mantém o piso. Sem posição na entrega (D4b) a correção é ignorada.
+   */
+  readonly hasCorrectedClock?: boolean
+  /**
+   * Spec 234 D4c: o evento de entrega foi registrado pelo app do motorista (o canal que coleta posição).
+   * Sem posição, essa entrega conta como longe em todo cliente; a baixa do escritório e a entrega pelo
+   * WhatsApp nunca têm posição e não punem. Ausente, vale a regra anterior (só a D4b pune).
+   */
+  readonly isDeliveryRecordedByDriver?: boolean
 }
 
 /**
@@ -64,19 +76,30 @@ export type ClassifyProofPunctualityParams = {
  *
  * Spec 159 T11 (D3a): o piso também nunca fica antes de `recebimento − missingAfterHours`. Sem isso,
  * uma foto tirada dias depois, com o relógio do aparelho voltado para a hora da entrega, passava
- * como pontual pela fila offline.
+ * como pontual pela fila offline. Spec 234 D4: com o relógio corrigido e posição na entrega esse
+ * piso não se aplica.
  */
 function resolveTimeReference(params: ClassifyProofPunctualityParams): Date {
   if (params.capturedAt === undefined) return params.receivedAt
+  if (isCorrectedClockWithoutPosition(params)) return params.receivedAt
 
-  const earliest = Math.max(
-    params.deliveredAt.getTime() - DELIVERED_AT_FUTURE_TOLERANCE_MILLISECONDS,
-    params.receivedAt.getTime() - params.missingAfterHours * MILLISECONDS_PER_HOUR,
-  )
+  const deliveredFloor = params.deliveredAt.getTime() - DELIVERED_AT_FUTURE_TOLERANCE_MILLISECONDS
+  const earliest =
+    params.hasCorrectedClock === true
+      ? deliveredFloor
+      : Math.max(
+          deliveredFloor,
+          params.receivedAt.getTime() - params.missingAfterHours * MILLISECONDS_PER_HOUR,
+        )
   const latest = params.receivedAt.getTime() + DELIVERED_AT_FUTURE_TOLERANCE_MILLISECONDS
   const clamped = Math.min(Math.max(params.capturedAt.getTime(), earliest), latest)
 
   return new Date(clamped)
+}
+
+/** Spec 234 D4b: o relógio corrigido só vale com prova de lugar na entrega. */
+function isCorrectedClockWithoutPosition(params: ClassifyProofPunctualityParams): boolean {
+  return params.hasCorrectedClock === true && params.deliveryEventPosition === undefined
 }
 
 function isLate(params: ClassifyProofPunctualityParams, timeReference: Date): boolean {
@@ -86,12 +109,11 @@ function isLate(params: ClassifyProofPunctualityParams, timeReference: Date): bo
 
 /**
  * RF6: sem posição da foto, conta como longe — o motorista precisa compartilhar a localização para
- * provar que estava no local. Sem posição no evento de entrega, a distância não pesa: não há como
- * julgar.
+ * provar que estava no local. Sem posição no evento de entrega, decide `isDeliveryWithoutPositionAway`.
  */
 function isAway(params: ClassifyProofPunctualityParams): boolean {
   if (params.photoPosition === undefined) return true
-  if (params.deliveryEventPosition === undefined) return false
+  if (params.deliveryEventPosition === undefined) return isDeliveryWithoutPositionAway(params)
 
   const distance = distanceInMetres(params.photoPosition, params.deliveryEventPosition)
   if (distance === null) return false
@@ -102,6 +124,14 @@ function isAway(params: ClassifyProofPunctualityParams): boolean {
    */
   const accuracy = Math.min(params.photoPosition.accuracyMeters ?? 0, params.proofRadiusMeters)
   return distance > params.proofRadiusMeters + accuracy
+}
+
+/**
+ * Spec 234 D4c: a entrega do app do motorista sem posição é longe (GPS desligado), alegue ou não o
+ * relógio corrigido; a do escritório e a do WhatsApp não. Sem o canal, vale a D4b: só o relógio corrigido sem posição pune.
+ */
+function isDeliveryWithoutPositionAway(params: ClassifyProofPunctualityParams): boolean {
+  return params.isDeliveryRecordedByDriver ?? params.hasCorrectedClock === true
 }
 
 const LATE_PUNCTUALITIES: ReadonlySet<ProofPunctuality> = new Set([

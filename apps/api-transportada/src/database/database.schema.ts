@@ -82,6 +82,7 @@ import { vehicleVolumeReferences } from './vehicle-volume-reference.schema.js'
 import { companyFuelPrices } from './company-fuel-prices.schema.js'
 import { energyTariffReferences } from './energy-tariff.schema.js'
 import { companyDriverAllowanceSettings } from './company-driver-allowance-settings.schema.js'
+import { companyLocationRetentionSettings } from './company-location-retention-settings.schema.js'
 import { companyEnergySettings } from './company-energy-settings.schema.js'
 import {
   mdfeFiscalDocuments,
@@ -192,6 +193,7 @@ import {
 } from './trip.schema.js'
 
 export * from './company-driver-allowance-settings.schema.js'
+export * from './company-location-retention-settings.schema.js'
 export * from './company-energy-settings.schema.js'
 export * from './company-fuel-prices.schema.js'
 export * from './company-toll-booth-charge.schema.js'
@@ -238,6 +240,16 @@ export * from './client-delivery-address.schema.js'
 export * from './address-comparison.schema.js'
 export * from './address-correction.schema.js'
 export * from './delivery-client.schema.js'
+export * from './contractor-receiving-profile.schema.js'
+export * from './cargo-arrival.schema.js'
+export * from './cargo-arrival-document.schema.js'
+export * from './cargo-arrival-event.schema.js'
+export * from './cargo-preview.schema.js'
+export * from './cargo-preview-link.schema.js'
+export * from './cargo-preview-item.schema.js'
+export * from './cargo-preview-event.schema.js'
+export * from './cargo-preview-outbox.schema.js'
+export * from './contractor-recipient-alias.schema.js'
 export * from './trip-financial.schema.js'
 export * from './client-portal.schema.js'
 export * from './contractor-mail.schema.js'
@@ -264,6 +276,7 @@ export const databaseSchema = {
   companyDeliveryProofSettings,
   companyDistributionSettings,
   companyDriverAllowanceSettings,
+  companyLocationRetentionSettings,
   companyCrewSettings,
   deliveryProofSettingContractorOverrides,
   deliveryProofSettingOverrides,

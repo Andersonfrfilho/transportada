@@ -49,10 +49,11 @@ registra, com pino arrastado; (d) a descartada pode ser reaberta.
 
 ## Fase 1 — O modelo e a regra da correção
 
-> 🤖 Modelo: `opus` 🧠 (modelo de dados, transação da decisão, ambiguidade, LGPD). Revisão por
-> `architect` antes de fechar a T1.3.
+> 🤖 Modelo: `sonnet` (o modelo de dados já está decidido no `plan.md`; aqui é execução com decisão local —
+> testes de contrato de domínio, migration, transação). Revisão por `code-reviewer` (`sonnet`) antes de
+> fechar a T1.3.
 
-- [ ] 🧠 **T1.1** Testes antes:
+- [ ] **T1.1** Testes antes:
   - `test/trip-occurrence/stop-location-suggestion-policy.contract.ts`:
     - `decideSuggestion`: as nove células da tabela de transições da RF14 (inclui `dismissed→pending`
       = `reopen`, `applied→pending` = `conflict`, e as três repetições = `noop`); `locationState`
@@ -75,7 +76,7 @@ registra, com pino arrastado; (d) a descartada pode ser reaberta.
 
   Aceite: os testes falham antes da T1.2.
 
-- [ ] 🧠 **T1.2** Migration `drizzle/<timestamp>_stop_location_suggestions/` (`migration.sql`,
+- [ ] **T1.2** Migration `drizzle/<timestamp>_stop_location_suggestions/` (`migration.sql`,
       `rollback.sql`, `snapshot.json`) e schema TS, conforme o plano (§ Modelo de dados). Na mesma task:
   - `TRIP_STOP_OCCURRENCE_KINDS` ganha `wrong_address`;
   - os **seis contratos** das duas apps de front (plano, § Contratos que quebram em outras apps);
@@ -89,7 +90,7 @@ registra, com pino arrastado; (d) a descartada pode ser reaberta.
   `schema-snapshot.contract.ts` verde; testes de `apps/frontend-driver` e de `apps/frontend-transportada`
   verdes, salvo o `occurrence-preview` anotado; numeração conferida contra `origin/staging`.
 
-- [ ] 🧠 **T1.3** Policy e erros (`stop-location-suggestion.policy.ts`,
+- [ ] **T1.3** Policy e erros (`stop-location-suggestion.policy.ts`,
       `stop-location-suggestion.error.ts`, códigos no catálogo central). Extração de
       `applyGeocodedAddressCorrection(transaction, input)`: transação de fora, `origin` como parâmetro e
       `returning({ id })` da trilha. O `PATCH /geocoded-addresses` continua com `operator`.
@@ -98,7 +99,7 @@ registra, com pino arrastado; (d) a descartada pode ser reaberta.
   - T1.1 verde;
   - os contratos existentes do `PATCH /geocoded-addresses` verdes sem alteração;
   - um teste afirma que `excluded.source = 'manual'` sempre grava e devolve o id;
-  - `architect` (opus) revisou a transação, a extração e a regra de ambiguidade, com o parecer em
+  - `code-reviewer` (`sonnet`) revisou a transação, a extração e a regra de ambiguidade, com o parecer em
     `evidence.md`.
 
 ## Fase 2 — O relato chega à API
@@ -139,7 +140,7 @@ registra, com pino arrastado; (d) a descartada pode ser reaberta.
 
 ## Fase 3 — O escritório decide e registra
 
-> 🤖 Modelo: `sonnet` (T3.2 é 🧠: a transação da decisão e a reabertura; validar com `opus` antes de fechar)
+> 🤖 Modelo: `sonnet` (T3.5 → `haiku`: use case e rota seguem o padrão da T3.2, com o teste da T3.4 já escrito)
 
 - [ ] **T3.1** Testes antes:
   - contrato `test/trip-occurrence/stop-location-suggestion-decision.contract.ts`: CA5 inteiro (a
@@ -157,7 +158,7 @@ registra, com pino arrastado; (d) a descartada pode ser reaberta.
 
   Aceite: os testes falham antes da T3.2.
 
-- [ ] 🧠 **T3.2** Implementar:
+- [ ] **T3.2** Implementar:
   - `decide-stop-location-suggestion.use-case.ts` e `read-stop-location-suggestion.use-case.ts`;
   - o repositório, com as contagens em lote;
   - as rotas `GET`/`PATCH /trip-occurrences/:id/location-suggestion`, com `occurrences.resolve` e o
@@ -189,7 +190,7 @@ registra, com pino arrastado; (d) a descartada pode ser reaberta.
 
   Aceite: os testes falham antes da T3.5.
 
-- [ ] **T3.5** Implementar `register-office-location-suggestion.use-case.ts` e a rota
+- [ ] `haiku` **T3.5** Implementar `register-office-location-suggestion.use-case.ts` e a rota
       `POST /trips/:tripId/stops/:stopId/location-suggestions` (schema `.strict()`, `occurrences.resolve`,
       limitador compartilhado `stop-location-suggestion`), disparando o mesmo aviso.
 
@@ -302,7 +303,7 @@ registra, com pino arrastado; (d) a descartada pode ser reaberta.
 
 ## Fase 6 — Retenção e documentação viva
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `sonnet` (T6.3 → `haiku`: documentação descrita, aceite por `format:check`)
 
 - [ ] **T6.1** Testes antes:
   - integração (CA7, parte viva): o expurgo da 196 sobre uma ocorrência `wrong_address` com mais de 90
@@ -324,7 +325,7 @@ registra, com pino arrastado; (d) a descartada pode ser reaberta.
   Aceite: T6.1 verde; `bun run --cwd apps/worker-transportada test` e `make worker-integration` verdes;
   os dois comandos da API verdes.
 
-- [ ] **T6.3** Documentação viva e specs vizinhas:
+- [ ] `haiku` **T6.3** Documentação viva e specs vizinhas:
   - núcleo de `apps/api-transportada/CLAUDE.md` (rotas, sugestão, janela de 24 h, ambiguidade,
     retenção) e de `apps/frontend-driver/CLAUDE.md` (item `stopAddressReport`, prazo de drenagem,
     `addressReportedAt`);
@@ -356,7 +357,7 @@ registra, com pino arrastado; (d) a descartada pode ser reaberta.
 
 ## Fase 8 — Revisão final
 
-> 🤖 Modelo: `opus` (revisão) · `sonnet` (correções)
+> 🤖 Modelo: `sonnet` (revisão e correções; T8.3 → `haiku`: só roda gates)
 
 - [ ] **T8.1** Revisão de design contra os vizinhos (`web.md` §15), cobrindo o CA16:
   - botão do card × "Deu problema" e "Não entreguei" (altura, ícone, peso);
@@ -374,9 +375,9 @@ registra, com pino arrastado; (d) a descartada pode ser reaberta.
   - sanitização das rotas e ausência de stack trace no 500;
   - os três `tenant-safety` e o contrato do separador verdes, com as duas rotas novas do escritório.
 
-  Fazer com `code-reviewer` (opus) e `security-reviewer`, com os pareceres em `evidence.md`.
+  Fazer com `code-reviewer` (`sonnet`) e `security-reviewer`, com os pareceres em `evidence.md`.
 
-- [ ] **T8.3** Gate completo: `make check`, `make migration-test` e os dois comandos da API. Publicar
+- [ ] `haiku` **T8.3** Gate completo: `make check`, `make migration-test` e os dois comandos da API. Publicar
       em staging só com rebase limpo (`fetch → rebase → install → gates → push`, com `&&`). **Produção
       não** entra aqui: produção pede aprovação humana.
 
@@ -388,10 +389,10 @@ plan.md e tasks.md, mais a ADR-0080, a ADR-0057 "o-endereco-errado", a ADR-0081 
 ADR-0082 com a spec 197, antes de começar). Uma task por vez, na ordem do tasks.md.
 PRÉ-REQUISITO (T0.1): as Fases 1, 2 e 3 da spec 196 em origin/staging; se faltar alguma, PARE e
 pergunte — não crie as colunas do carimbo aqui. A 197 só é registrada (não bloqueia).
-Modelos: Fase 0 → executor model=sonnet · Fase 1 → opus 🧠 (T1.3 revisada por architect model=opus
-antes de fechar) · Fase 2 → executor model=sonnet · Fase 3 → executor model=sonnet, T3.2 🧠 → opus
-(ou validar com architect model=opus antes de fechar) · Fases 4, 5, 6 e 7 → executor model=sonnet ·
-Fase 8 → code-reviewer model=opus + security-reviewer, correções com executor model=sonnet.
+Modelos: Fases 0 a 7 → executor model=sonnet, exceto T3.5, T6.3 e T8.3 → executor model=haiku ·
+T1.3 revisada por code-reviewer model=sonnet antes de fechar · Fase 8 → code-reviewer model=sonnet +
+security-reviewer, correções com executor model=sonnet. Escalada: gate falhou 2x em haiku → sonnet →
+só então opus, registrada em evidence.md.
 Cada task fecha com typecheck + lint + testes da app (na API, os DOIS comandos: contrato e
 test:integration com --env-file=../../.env.test; nas Fases 1 e 2, também os testes das duas apps de
 front) + make migration-test quando houver migration + commit isolado com caminhos explícitos

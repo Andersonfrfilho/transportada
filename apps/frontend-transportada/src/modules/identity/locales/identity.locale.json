@@ -62,7 +62,8 @@
       "viewer": "Consulta",
       "driver": "Motorista",
       "aggregate": "Agregado",
-      "separator": "Separador"
+      "separator": "Separador",
+      "helper": "Ajudante"
     },
     "status": {
       "invited": "Convidado",
@@ -83,7 +84,7 @@
       "email": "E-mail",
       "phone": "Telefone",
       "taxId": "CPF",
-      "taxIdHint": "Opcional. Com papel de Motorista ou Agregado, é por ele que a ficha de frota é encontrada.",
+      "taxIdHint": "Opcional. Com papel de Motorista, Agregado ou Ajudante, é por ele que a ficha de frota é encontrada.",
       "channelHint": "Por onde o código de ativação chega.",
       "contactField": "É por aqui que o convite vai.",
       "pending": "Falta preencher:",
@@ -185,7 +186,8 @@
       "INTERNAL_ERROR": "A API falhou ao processar o pedido. Se repetir, é defeito nosso — não adianta tentar de novo.",
       "USER_PICTURE_TOO_LARGE": "A imagem passa de 256 KB. Reduza o tamanho e envie de novo.",
       "USER_PICTURE_UNSUPPORTED_FORMAT": "Formato não aceito. A foto precisa ser PNG, JPEG ou WebP — o servidor confere o arquivo, não a extensão do nome.",
-      "COMPANY_USER_SUSPENDED": "Este acesso está suspenso. Reative antes de reenviar o código."
+      "COMPANY_USER_SUSPENDED": "Este acesso está suspenso. Reative antes de reenviar o código.",
+      "FLEET_DRIVER_PROFILE_EMPTY": "Esta troca deixaria a ficha de frota sem função: ela não dirigiria nem ajudaria. Mantenha um papel que dirija (Motorista ou Agregado) ou ligue \"Pode atuar como ajudante\" na ficha, e tente de novo."
     },
     "fleetLink": {
       "linked": "Vinculado à ficha de frota existente.",
@@ -513,6 +515,7 @@
     },
     "fleet": {
       "driver": "Ficha do motorista",
+      "helper": "Ficha de frota",
       "vehicle": "Veículo {{plate}}"
     },
     "resendHint": "Reenviar o código de ativação",
@@ -648,6 +651,9 @@
   "noWorkspaceAccess": {
     "title": "Sua conta não tem acesso a nenhuma área do painel",
     "body": "O seu usuário está ativo, mas nenhuma permissão foi atribuída a ele — por isso não há nada para abrir aqui.",
+    "trackingTitle": "Sua conta acompanha viagens pelo app do motorista",
+    "trackingBody": "Você tem acesso para acompanhar as suas viagens, mas o painel da transportada não tem área para este perfil. Abra o app do motorista.",
+    "openDriverApp": "Abrir o app do motorista",
     "askAdmin": "Peça ao administrador da sua transportadora para revisar os papéis da sua conta.",
     "signOut": "Sair"
   }

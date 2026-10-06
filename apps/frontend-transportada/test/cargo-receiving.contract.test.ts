@@ -1,0 +1,11 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+import './cargo-receiving/separation-touch.contract'
+import './cargo-receiving/document-selection.contract'
+import './cargo-receiving/idempotency-key.contract'
+import './cargo-receiving/arrival-form.contract'
+import './cargo-receiving/refusal.contract'
+import './cargo-receiving/response-validation.contract'
+import './cargo-receiving/client.contract'
+import './cargo-receiving/arrival-table.contract'
+import './cargo-receiving/arrival-groups.contract'
+import './cargo-receiving/route-and-access.contract'

@@ -112,7 +112,7 @@ for (const theme of THEMES) {
       await expect(form.getByText('Foto da ocorrência anexada')).toBeVisible()
       await form.getByRole('button', { exact: true, name: 'Confirmar' }).click()
 
-      const queued = page.getByText('Ocorrência com foto na fila — sobe quando o sinal voltar.')
+      const queued = page.getByText('Ocorrência na fila — sobe quando o sinal voltar.')
       await expect(queued).toBeVisible()
       await (
         await centerInView(page.locator('li', { has: queued }).last())
@@ -120,7 +120,7 @@ for (const theme of THEMES) {
 
       api.setOffline(false)
       await page.evaluate(() => window.dispatchEvent(new Event('online')))
-      const sent = page.getByText('Ocorrência com foto enviada.')
+      const sent = page.getByText('Ocorrência enviada.')
       await expect(sent).toBeVisible()
       await (
         await centerInView(page.locator('li', { has: sent }).last())

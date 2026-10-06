@@ -23,6 +23,9 @@ acompanha o motorista, e a conta da viagem não tem a diária dele.
 
 - **D1 — Ajudante é papel na tripulação, marcado no cadastro do motorista.** A ficha do motorista ganha
   "pode atuar como ajudante". A mesma pessoa pode dirigir numa viagem e ajudar em outra.
+
+  ⚠️ **Revisada pela spec 235:** ajudante também é perfil/papel em Acesso; ver ADR-0093.
+
 - **D2 — Diária do ajudante: valor geral parametrizado + valor próprio por ajudante quando necessário.**
   O próprio vence o geral.
 - **D3 — O score de entregas combina taxa de entrega, ocorrências de entrega, pontualidade e

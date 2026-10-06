@@ -62,7 +62,8 @@
       "viewer": "Viewer",
       "driver": "Driver",
       "aggregate": "Aggregate",
-      "separator": "Separator"
+      "separator": "Separator",
+      "helper": "Helper"
     },
     "status": {
       "invited": "Invited",
@@ -83,7 +84,7 @@
       "email": "Email",
       "phone": "Phone",
       "taxId": "Tax id",
-      "taxIdHint": "Optional. With a Driver or Aggregate role, it is what finds the fleet record.",
+      "taxIdHint": "Optional. With a Driver, Aggregate or Helper role, it is what finds the fleet record.",
       "channelHint": "How the activation code is delivered.",
       "contactField": "This is where the invitation goes.",
       "pending": "Still missing:",
@@ -185,7 +186,8 @@
       "INTERNAL_ERROR": "The API failed to process the request. If it repeats, it is a defect on our side.",
       "USER_PICTURE_TOO_LARGE": "The image is over 256 KB. Reduce it and upload again.",
       "USER_PICTURE_UNSUPPORTED_FORMAT": "Unsupported format. The picture must be PNG, JPEG or WebP — the server checks the file itself, not the name.",
-      "COMPANY_USER_SUSPENDED": "This access is suspended. Reactivate it before resending the code."
+      "COMPANY_USER_SUSPENDED": "This access is suspended. Reactivate it before resending the code.",
+      "FLEET_DRIVER_PROFILE_EMPTY": "This change would leave the fleet record with no role: it would neither drive nor help. Keep a driving role (Driver or Aggregate) or turn on \"Can act as a helper\" on the record, then try again."
     },
     "fleetLink": {
       "linked": "Linked to the existing fleet record.",
@@ -513,6 +515,7 @@
     },
     "fleet": {
       "driver": "Driver record",
+      "helper": "Fleet record",
       "vehicle": "Vehicle {{plate}}"
     },
     "resendHint": "Resend the activation code",
@@ -648,6 +651,9 @@
   "noWorkspaceAccess": {
     "title": "Your account has no access to any panel area",
     "body": "Your user is active, but no permission was assigned to it — so there is nothing to open here.",
+    "trackingTitle": "Your account follows trips through the driver app",
+    "trackingBody": "You can follow your own trips, but the carrier panel has no area for this profile. Open the driver app.",
+    "openDriverApp": "Open the driver app",
     "askAdmin": "Ask your carrier's administrator to review the roles on your account.",
     "signOut": "Sign out"
   }

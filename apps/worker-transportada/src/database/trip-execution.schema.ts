@@ -9,6 +9,7 @@ import { numeric, pgTable, timestamp, uuid, varchar } from 'drizzle-orm/pg-core'
 
 export const tripStopEvents = pgTable('trip_stop_events', {
   id: uuid().primaryKey(),
+  companyId: uuid('company_id').notNull(),
   latitude: numeric({ precision: 10, scale: 7 }),
   longitude: numeric({ precision: 10, scale: 7 }),
   accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
@@ -25,9 +26,47 @@ export const tripStopEvents = pgTable('trip_stop_events', {
  */
 export const tripDeliveryProofs = pgTable('trip_delivery_proofs', {
   id: uuid().primaryKey(),
+  companyId: uuid('company_id').notNull(),
   latitude: numeric({ precision: 10, scale: 7 }),
   longitude: numeric({ precision: 10, scale: 7 }),
   accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
+  locationState: varchar('location_state', { length: 16 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+})
+
+/**
+ * Spec 196 D2/D8: as três tabelas de evento que ganharam as quatro colunas de ponto (mais o estado).
+ * Só o que o expurgo lê e apaga — a API é quem migra, e o contrato de paridade confere a cópia.
+ */
+export const tripStatusEvents = pgTable('trip_status_events', {
+  id: uuid().primaryKey(),
+  companyId: uuid('company_id').notNull(),
+  latitude: numeric({ precision: 10, scale: 7 }),
+  longitude: numeric({ precision: 10, scale: 7 }),
+  accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
+  capturedAt: timestamp('captured_at', { withTimezone: true }),
+  locationState: varchar('location_state', { length: 16 }),
+  recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+})
+
+export const tripStopOccurrences = pgTable('trip_stop_occurrences', {
+  id: uuid().primaryKey(),
+  companyId: uuid('company_id').notNull(),
+  latitude: numeric({ precision: 10, scale: 7 }),
+  longitude: numeric({ precision: 10, scale: 7 }),
+  accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
+  capturedAt: timestamp('captured_at', { withTimezone: true }),
+  locationState: varchar('location_state', { length: 16 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+})
+
+export const tripDocumentOccurrences = pgTable('trip_document_occurrences', {
+  id: uuid().primaryKey(),
+  companyId: uuid('company_id').notNull(),
+  latitude: numeric({ precision: 10, scale: 7 }),
+  longitude: numeric({ precision: 10, scale: 7 }),
+  accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
+  capturedAt: timestamp('captured_at', { withTimezone: true }),
   locationState: varchar('location_state', { length: 16 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
 })

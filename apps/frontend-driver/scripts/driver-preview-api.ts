@@ -324,11 +324,32 @@ async function proxy(request: Request, url: URL): Promise<Response> {
   return new Response(response.body, { headers: responseHeaders, status: response.status })
 }
 
+type RecordedLocation = { readonly location: unknown; readonly path: string }
+
+/**
+ * Spec 196 T5.4: o ponto de cada toque, guardado só em memória e **nunca impresso** — a coordenada
+ * não vai a log. Quem confere o corpo que a app mandou lê `GET /__debug/locations` (e zera com `DELETE`).
+ */
+const recordedLocations: RecordedLocation[] = []
+
+async function recordLocation(request: Request, path: string): Promise<void> {
+  const body: unknown = await request.json().catch(() => undefined)
+  if (typeof body !== 'object' || body === null || !('location' in body)) return
+  recordedLocations.push({ location: body.location, path })
+}
+
 Bun.serve({
   async fetch(request) {
     const url = new URL(request.url)
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: CORS_HEADERS, status: 204 })
+    }
+    if (url.pathname === '/__debug/locations') {
+      if (request.method === 'DELETE') recordedLocations.length = 0
+      return json({ data: recordedLocations })
+    }
+    if (request.method === 'POST' && url.pathname.startsWith('/me/trips/current/')) {
+      await recordLocation(request.clone(), url.pathname)
     }
 
     if (url.pathname === '/me/trips/current' && request.method === 'GET') return json(snapshot())

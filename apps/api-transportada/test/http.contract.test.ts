@@ -5,7 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { HealthService } from '../src/health/health.service'
 import { createRequestHandler } from '../src/http/request-handler.service'
-import { resolveLogPathname } from '../src/http/request-path.service'
+import { isNoStorePath, resolveLogPathname } from '../src/http/request-path.service'
 import type { RegisteredRouterRoute } from '../src/http/router.service'
 import type {
   AuthenticationPort,
@@ -641,3 +641,14 @@ function readyIdentity(): IdentityReadinessPort {
     },
   }
 }
+
+describe('no-store path contract', () => {
+  /** A linha do tempo carrega a coordenada do evento (spec 196): proxy e navegador não a guardam. */
+  test('marks the trip timeline as no-store and nothing around it', () => {
+    expect(isNoStorePath('/trips/6f1c2d3e-0000-4000-8000-000000000001/timeline')).toBeTrue()
+    expect(isNoStorePath('/trips/timeline')).toBeFalse()
+    expect(isNoStorePath('/trips/abc/stops/def/timeline')).toBeFalse()
+    expect(isNoStorePath('/trips/abc/timeline/extra')).toBeFalse()
+    expect(isNoStorePath('/trips/abc')).toBeFalse()
+  })
+})

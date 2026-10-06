@@ -29,6 +29,7 @@ const BASE_BOX: PackageBox = {
   id: '00000000-0000-4000-8000-0000000000b1',
   lengthMm: null,
   measuredAt: null,
+  measuredByName: null,
   measurementMarginMm: null,
   measurementSource: null,
   packagingSiblingCount: 0,

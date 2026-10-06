@@ -320,6 +320,9 @@ export const TRIP_TIMELINE_KINDS = [
   'document.occurrence',
   'document.status_changed',
   'trip.created',
+  /** Spec 228 D6: a foto do canhoto e a correção do endereço da parada. Prioridades 3 e 2 na API. */
+  'document.canhoto_photo',
+  'stop.address_corrected',
 ] as const
 export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
 
@@ -355,7 +358,24 @@ export type TripTimelineOccurrenceReference = Readonly<{
 }>
 
 /** Spec 158 D6: o formato do item da linha do tempo. Nunca id de usuário nem imagem; a coordenada entrou pela ADR-0081 §6 e §6.1. */
+/** Spec 228 D8: a origem da correção do endereço; `refinement` é o refino de precisão pedido por pessoa. */
+export const TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS = [
+  'contractor',
+  'driver',
+  'operator',
+  'refinement',
+] as const
+export type TripTimelineAddressChangeOrigin = (typeof TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS)[number]
+
+/** `displacementMeters` é `null` sem ponto anterior e no refino. */
+export type TripTimelineAddressChange = Readonly<{
+  displacementMeters: null | number
+  origin: TripTimelineAddressChangeOrigin
+}>
+
 export type TripTimelineItem = Readonly<{
+  /** Spec 228 D8: só em `stop.address_corrected`. Ausente em qualquer outro kind. */
+  addressChange?: TripTimelineAddressChange
   actorName: null | string
   /** `null` = canal não registrado (D3/D6) — nunca um valor inventado. */
   channel: null | TripFieldChannel
@@ -427,6 +447,8 @@ export type TripDocumentDetail = TripDocument &
     nfeNumber?: null | string
     nfeSeries?: null | string
     nfeTotalValue?: null | string
+    /** Spec 233 D5: quantos volumes a nota declara. Ausente é API anterior; `null`, nota sem a informação. */
+    volumeCount?: null | number
     /**
      * Spec 176: quanto esta nota rende de frete — nunca a mercadoria. `null`/ausente é "não há como
      * dizer" (`freightSource: 'missing'`/ausente), nunca `R$ 0,00`. Opcional: API anterior não manda.

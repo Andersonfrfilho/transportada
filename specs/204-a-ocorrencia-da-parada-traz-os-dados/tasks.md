@@ -48,7 +48,7 @@ Depois do push 3, a API nunca volta para antes do push 2.
 
 ## Fase 0 — Conferir antes de escrever
 
-> 🤖 Modelo: `opus` 🧠
+> 🤖 Modelo: `sonnet` (conferência e revisão, sem decisão que outras tasks herdem)
 
 - [ ] **T0.1** Conferir a spec contra o código e contra as vizinhas.
   - Reler 057 D6, 060 D4/D4b/D4c/D6, 079, 157, 164, 169, 179, 182, 195, 196, 197, 198 D14, 205, 208 e
@@ -69,10 +69,11 @@ Depois do push 3, a API nunca volta para antes do push 2.
 
 ## Fase 1 — O painel tolera, e o banco guarda
 
-> 🤖 Modelo: T1.1 `sonnet` · T1.2 e T1.3 `opus` 🧠 (modelo de dados, CHECKs, FK `SET NULL (coluna)` e troca
-> de índice; validar com `architect` antes da T1.3)
+> 🤖 Modelo: T1.1 ⚙️ `haiku` (molde do commit `694de05b5`, contrato listado) · T1.2 e T1.3 `sonnet` (o
+> modelo de dados já está decidido no `plan.md`; FK `SET NULL (coluna)` e troca de índice são execução —
+> validar com `architect` em `sonnet` antes da T1.3)
 
-- [ ] **T1.1** Painel tolerante (push 1, sozinho), no molde do commit `694de05b5`.
+- [ ] **T1.1** ⚙️ Painel tolerante (push 1, sozinho), no molde do commit `694de05b5`.
   - Contrato primeiro, em `apps/frontend-transportada/test/trip/charge-stage-tolerance.contract.ts`
     (importado por `test/trip.contract.test.ts`):
     - `isOccurrenceType` aceita a etapa `charge` com `deliveryChargeType`, e reprova categoria fora do
@@ -83,7 +84,7 @@ Depois do push 3, a API nunca volta para antes do push 2.
   - Aceite: contrato verde, a contagem subiu em N, e `bun run --cwd apps/frontend-transportada test`
     verde. Publicado em staging antes de qualquer push da Fase 3.
 
-- [ ] **T1.2** 🧠 Contrato de schema primeiro.
+- [ ] **T1.2** Contrato de schema primeiro.
   - `test/trip-schema/stop-occurrence-charge-wait.contract.ts` (importado por
     `test/trip-schema.contract.test.ts`):
     - as nove colunas e os oito CHECKs com os nomes do `plan.md`;
@@ -97,7 +98,7 @@ Depois do push 3, a API nunca volta para antes do push 2.
     - o predicado novo de `delivery_charges_suggested_unique`.
   - Aceite: os dois contratos falham pelo motivo certo.
 
-- [ ] **T1.3** 🧠 Schema TS e migration.
+- [ ] **T1.3** Schema TS e migration.
   - Arquivos:
     - `shared/trip-occurrence.constant.ts` (`COMPANY_OCCURRENCE_TYPE_STAGE`);
     - `shared/delivery-charge-type.constant.ts`;
@@ -115,7 +116,7 @@ Depois do push 3, a API nunca volta para antes do push 2.
 
 ## Fase 2 — As taxas entram no cadastro de tipos de ocorrência
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `sonnet` (T2.2 ⚙️ `haiku`: o contrato da T2.1 já descreve o comportamento)
 
 - [ ] **T2.1** Contrato primeiro, em `test/trip-occurrence/charge-stage.contract.ts` (importado por
       `test/trip-occurrence.contract.test.ts`):
@@ -130,7 +131,7 @@ Depois do push 3, a API nunca volta para antes do push 2.
     alcança; conta sem motorista → `DRIVER_NOT_REGISTERED`.
   - Aceite: contrato falha pelo motivo certo.
 
-- [ ] **T2.2** Implementação:
+- [ ] **T2.2** ⚙️ Implementação:
   - `occurrenceTypeSchema`;
   - `save-occurrence-type.use-case.ts` e `occurrence-settings.policy.ts` (forma fixa);
   - `delivery-proof-read.support.ts`;
@@ -152,7 +153,7 @@ Depois do push 3, a API nunca volta para antes do push 2.
 
 ## Fase 3 — A ocorrência grava hora, valor e espera, e a cobrança nasce
 
-> 🤖 Modelo: `sonnet` (T3.2 é 🧠: dinheiro e dedupe; validar com `architect` antes de implementar)
+> 🤖 Modelo: `sonnet` (T3.2: dinheiro e dedupe; validar com `architect` em `sonnet` antes de implementar · T3.7 ⚙️ `haiku`)
 >
 > Pré-requisito: a 209 em `origin/staging`.
 
@@ -170,7 +171,7 @@ Depois do push 3, a API nunca volta para antes do push 2.
     - `main.ts`.
   - Aceite: contratos verdes; a contagem subiu em N.
 
-- [ ] **T3.2** 🧠 A cobrança nasce do relato (RF7, RF8, RF11, D13).
+- [ ] **T3.2** A cobrança nasce do relato (RF7, RF8, RF11, D13).
   - Contrato primeiro, em `test/delivery-clients/stop-charge-suggestion.contract.ts` (importado por
     `test/delivery-clients.contract.test.ts`):
     - cria só com nota e recibo;
@@ -232,7 +233,7 @@ Depois do push 3, a API nunca volta para antes do push 2.
   - Estender `test/integration/trip-timeline.integration.ts` com uma cobrança e uma espera.
   - Aceite: os dois comandos de teste da API verdes.
 
-- [ ] **T3.7** Push 2 e sonda.
+- [ ] **T3.7** `sonnet` Push 2 e sonda.
   - Gates: `make check`, `make migration-test` e os dois comandos da API. Depois: rebase limpo sobre
     `origin/staging`, `bun install --frozen-lockfile`, gates de novo e push.
   - Sonda em staging, com a saída em `evidence.md`:
@@ -247,7 +248,7 @@ Depois do push 3, a API nunca volta para antes do push 2.
 
 ## Fase 4 — A app do motorista
 
-> 🤖 Modelo: `sonnet` (T4.1 pode ir com `haiku`: só move código)
+> 🤖 Modelo: `sonnet` (T4.1 e T4.7 ⚙️ `haiku`: mover código e textos)
 >
 > Pré-requisito: a forma do item e o `send` da 209.
 
@@ -257,7 +258,7 @@ Depois do push 3, a API nunca volta para antes do push 2.
     `charge`/`occurredAt`, com uma parada de duas notas e uma chegada às 13:05.
   - Aceite: `curl` das rotas em `evidence.md`.
 
-- [ ] **T4.1** Extrair o formulário do "Deu problema" de `DriverStopCard.component.tsx` para
+- [ ] **T4.1** ⚙️ Extrair o formulário do "Deu problema" de `DriverStopCard.component.tsx` para
       `components/DriverStopOccurrenceForm.component.tsx`, **sem mudar comportamento**. Se a 209 já o
       extraiu, registrar e pular.
   - Aceite: mesma contagem de testes antes e depois; diff só de movimento.
@@ -299,7 +300,7 @@ Depois do push 3, a API nunca volta para antes do push 2.
     - sem rede, o item fica "na fila".
   - Aceite: contrato verde; a contagem subiu em N; as suítes da fila e do upload continuam verdes.
 
-- [ ] **T4.7** Textos (RF20): `occurrenceCharge.*` e `occurrenceWait.*` nos dois locales; a prévia do
+- [ ] **T4.7** ⚙️ Textos (RF20): `occurrenceCharge.*` e `occurrenceWait.*` nos dois locales; a prévia do
       aviso com as chaves novas, na app e no módulo legado, com os contratos de paridade.
   - Aceite: `bun run --cwd apps/frontend-driver check` e `bun run --cwd apps/frontend-transportada test`
     verdes.
@@ -327,8 +328,8 @@ Depois do push 3, a API nunca volta para antes do push 2.
 
 ## Fase 6 — Preview, revisão e publicação
 
-> 🤖 Modelo: T6.1 `sonnet` · T6.2 `opus` 🧠 (revisão de design) · T6.3 `haiku` · T6.4 `sonnet`, com a
-> revisão final pelo `code-reviewer` em `opus`
+> 🤖 Modelo: T6.1 `sonnet` · T6.2 `sonnet` (revisão de design) · T6.3 ⚙️ `haiku` · T6.4 `sonnet`, com a
+> revisão final pelo `code-reviewer` em `sonnet`
 
 - [ ] **T6.1** Preview local para o usuário.
   - Ambiente: `motorista-local` (53200) com `motorista-api-demo` (53901), e o painel local.
@@ -341,7 +342,7 @@ Depois do push 3, a API nunca volta para antes do push 2.
   - Aceite: o "pode subir" do usuário, com data, em `evidence.md`. **Sem ele, nada da Fase 4 ou 5 vai a
     staging.**
 
-- [ ] **T6.2** 🧠 Revisão de design e usabilidade com print (`web.md` §15):
+- [ ] **T6.2** Revisão de design e usabilidade com print (`web.md` §15):
   - o formulário numa mão só;
   - 44 px de área de toque e contraste;
   - a leitura do valor;
@@ -349,7 +350,7 @@ Depois do push 3, a API nunca volta para antes do push 2.
   - a espera legível de relance.
   - Aceite: achados corrigidos ou registrados com motivo, e os prints finais.
 
-- [ ] **T6.3** Documentação viva:
+- [ ] **T6.3** ⚙️ Documentação viva:
   - `apps/api-transportada/CLAUDE.md`: a etapa `charge`, o valor sugerido, a dedupe nova, a espera e as
     chaves de aviso;
   - `apps/frontend-driver/CLAUDE.md`;
@@ -361,7 +362,7 @@ Depois do push 3, a API nunca volta para antes do push 2.
 
 - [ ] **T6.4** Gates finais e push 3.
   - Gates: `make check`, `make migration-test`, os dois comandos da API e o smoke da app do motorista.
-  - Revisão final pelo `code-reviewer` (`opus`), com a auditoria do `code-standart.md` §15.
+  - Revisão final pelo `code-reviewer` (`sonnet`), com a auditoria do `code-standart.md` §15.
   - Rebase limpo, `bun install --frozen-lockfile`, gates de novo e push.
   - Aceite: CI verde em staging, registrada em `evidence.md`. A partir daqui a API não volta para antes do
     push 2. Produção fica fora desta spec e pede aprovação humana.
@@ -374,12 +375,14 @@ spec.md, plan.md, tasks.md, docs/adr/0086-a-cobranca-da-parada-chega-com-valor-e
 e a spec 209 antes de começar). Uma task por vez, na ordem do tasks.md.
 PRÉ-REQUISITO: a spec 209 (a foto da ocorrência não vira canhoto) publicada em origin/staging antes das
 Fases 3 e 4 — sem ela, pare e pergunte.
-Modelos: Fase 0 🧠 → opus · T1.1 → executor model=sonnet · T1.2 e T1.3 🧠 → opus (validar com architect
-antes da T1.3: FK SET NULL (stop_occurrence_id), troca do índice suggested_unique, CHECK de forma da etapa
-charge, ciclo de import) · Fase 2 → executor model=sonnet · Fase 3 → executor model=sonnet, com T3.2 🧠
-validada por architect (opus) antes de implementar · Fase 4 → executor model=sonnet (T4.1 pode ser haiku)
-· Fase 5 → executor model=sonnet · T6.1 → sonnet · T6.2 🧠 → opus (revisão de design) · T6.3 → haiku ·
-T6.4 → sonnet, revisão final → code-reviewer model=opus.
+Modelos: Fase 0 → executor model=sonnet · T1.1 → executor model=haiku · T1.2 e T1.3 → executor
+model=sonnet (validar com architect model=sonnet antes da T1.3: FK SET NULL (stop_occurrence_id), troca
+do índice suggested_unique, CHECK de forma da etapa charge, ciclo de import) · Fase 2 → executor
+model=sonnet (T2.2 haiku) · Fase 3 → executor model=sonnet, com T3.2 validada por architect model=sonnet
+antes de implementar (T3.7 haiku) · Fase 4 → executor model=sonnet (T4.1 e T4.7 haiku) · Fase 5 →
+executor model=sonnet · T6.1 → sonnet · T6.2 → sonnet (revisão de design) · T6.3 → haiku · T6.4 → sonnet,
+revisão final → code-reviewer model=sonnet.
+Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
 Cada task fecha com typecheck + testes da app, com a suíte nova importada pelo entrypoint nomeado na
 task e "a contagem subiu em N" conferida, + commit isolado com caminhos explícitos, evidência em
 evidence.md. Contrato antes da implementação. Migration fecha com make migration-test e rollback.sql.

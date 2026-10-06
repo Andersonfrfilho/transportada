@@ -11,6 +11,8 @@ import {
 import {
   buildFreightRegionCityList,
   buildFreightRegionCsv,
+  buildFreightRegionExportColumns,
+  buildFreightRegionRows,
   FREIGHT_REGION_EXPORT_COLUMNS,
   FREIGHT_REGION_EXPORT_FILE_NAME,
 } from '@/modules/fleet/shared/freightRegionExport.service'
@@ -267,6 +269,20 @@ describe('fleet freight region table contract', () => {
     expect(buildFreightRegionCityList([MATRIZ, BARRETOS])).toBe(
       'RIBEIRÃO PRETO/SP\nPONTAL/SP\nSERTÃOZINHO/SP',
     )
+  })
+
+  test('the Excel export keeps zone and rates as numbers, and the code as text', () => {
+    const header = Object.fromEntries(
+      FREIGHT_REGION_EXPORT_COLUMNS.map((column) => [column, column]),
+    ) as Record<(typeof FREIGHT_REGION_EXPORT_COLUMNS)[number], string>
+    const columns = buildFreightRegionExportColumns(header)
+    const [row = []] = buildFreightRegionRows([MATRIZ])
+
+    expect(columns.map((column) => column.header)).toEqual([...FREIGHT_REGION_EXPORT_COLUMNS])
+    expect(row[FREIGHT_REGION_EXPORT_COLUMNS.indexOf('code')]).toBe('0.001')
+    expect(row[FREIGHT_REGION_EXPORT_COLUMNS.indexOf('zone')]).toBe(0)
+    expect(row[FREIGHT_REGION_EXPORT_COLUMNS.indexOf('truck')]).toBe(703.97)
+    expect(row[FREIGHT_REGION_EXPORT_COLUMNS.indexOf('cities')]).toBe('RIBEIRÃO PRETO/SP')
   })
 
   test('builds the table on the design system, with sorted headers and mass selection', async () => {

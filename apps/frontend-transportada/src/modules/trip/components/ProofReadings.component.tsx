@@ -12,13 +12,6 @@ import type { DeliveryProof } from '../shared/deliveryProof.service'
 import { isDeliveryProofAwayFromDeliveryEvent } from '../shared/deliveryProofCard.service'
 import styles from '../styles/trip.module.css'
 
-const PUNCTUALITY_BADGE_VARIANT = {
-  on_time: 'success',
-  late: 'warning',
-  away: 'warning',
-  late_and_away: 'warning',
-} as const
-
 const METERS_PER_KILOMETER = 1000
 const distanceFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
 
@@ -37,22 +30,31 @@ function ReadingCell({
   )
 }
 
+type ProofReadingsProps = Readonly<{
+  /** A baixa já está dita na linha-resumo: captura no mesmo minuto não ganha uma segunda leitura. */
+  deliveredAt?: null | string | undefined
+  proof: DeliveryProof
+}>
+
 /** Spec 220 RF13-RF16: comprovante antigo não traz nenhuma destas leituras, então cada uma é opcional. */
-export function ProofReadings({ proof }: Readonly<{ proof: DeliveryProof }>) {
+export function ProofReadings({ deliveredAt, proof }: ProofReadingsProps) {
   const { t } = useTranslation('trip')
   const formatMoment = useMomentFormatter()
-  const { capturedAt, distanceMeters, lateRegistration, punctuality, receivedBy } = proof
-  const hasPunctualityBadge = punctuality !== undefined && punctuality !== 'not_required'
-  const hasRequirement = hasPunctualityBadge || lateRegistration === true
+  const { capturedAt, distanceMeters, lateRegistration, receivedBy } = proof
+  const hasDistinctCapture =
+    capturedAt !== undefined &&
+    (deliveredAt === null || deliveredAt === undefined
+      ? true
+      : formatMoment(capturedAt) !== formatMoment(deliveredAt))
 
   return (
     <div className={styles.proofReadings}>
       <dl className={styles.proofMetadata}>
-        {capturedAt === undefined ? null : (
+        {hasDistinctCapture ? (
           <ReadingCell label={t('deliveryProof.readings.capturedAt')}>
             {formatMoment(capturedAt)}
           </ReadingCell>
-        )}
+        ) : null}
         {distanceMeters === undefined ? null : (
           <ReadingCell
             isAlert={isDeliveryProofAwayFromDeliveryEvent(proof)}
@@ -61,17 +63,15 @@ export function ProofReadings({ proof }: Readonly<{ proof: DeliveryProof }>) {
             {describeDistance(distanceMeters, t)}
           </ReadingCell>
         )}
-        {hasRequirement ? (
+        {receivedBy === undefined || receivedBy === null ? null : (
+          <ReadingCell label={t('deliveryProof.readings.receiverRelation')}>
+            {t(`deliveryProof.receivedByOptions.${receivedBy}`)}
+          </ReadingCell>
+        )}
+        {lateRegistration === true ? (
           <ReadingCell label={t('deliveryProof.readings.requirement')}>
             <span className={styles.proofBadges}>
-              {hasPunctualityBadge ? (
-                <Badge variant={PUNCTUALITY_BADGE_VARIANT[punctuality]}>
-                  {t(`deliveryProof.punctuality.${punctuality}`)}
-                </Badge>
-              ) : null}
-              {lateRegistration === true ? (
-                <Badge variant="secondary">{t('deliveryProof.lateRegistration')}</Badge>
-              ) : null}
+              <Badge variant="secondary">{t('deliveryProof.lateRegistration')}</Badge>
             </span>
           </ReadingCell>
         ) : null}
@@ -79,13 +79,6 @@ export function ProofReadings({ proof }: Readonly<{ proof: DeliveryProof }>) {
       {distanceMeters === undefined ? (
         <p className={styles.hint}>{t('deliveryProof.withoutLocation')}</p>
       ) : null}
-      {receivedBy === undefined || receivedBy === null ? null : (
-        <p className={styles.hint}>
-          {t('deliveryProof.receivedBy', {
-            relation: t(`deliveryProof.receivedByOptions.${receivedBy}`),
-          })}
-        </p>
-      )}
     </div>
   )
 }

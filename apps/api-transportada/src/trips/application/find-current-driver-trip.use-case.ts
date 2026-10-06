@@ -20,6 +20,7 @@
  * emitente imprimiu e mandou na caixa; isto é a cópia digital, para conferência e consulta.
  */
 import type { DriverScorePort } from '../../fleet/application/driver-score.port.js'
+import type { TripCrewRole } from '../../shared/trip-crew-role.constant.js'
 import type { CanhotoRejection } from '../domain/canhoto-recapture.policy.js'
 import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
 import type { FieldOccurrenceType } from './list-field-occurrence-types.use-case.js'
@@ -115,6 +116,11 @@ export type DriverTripManifest = {
 export type DriverTrip = {
   /** Quando a viagem foi aberta — duas viagens do mesmo veículo só se distinguem por isto. */
   readonly createdAt: string
+  /**
+   * Spec 243 D3: o papel da pessoa **nesta** viagem (`trip_drivers.role`). A mesma pessoa pode
+   * dirigir uma e acompanhar outra; o app esconde do ajudante as ações que a API recusaria.
+   */
+  readonly crewRole: TripCrewRole
   readonly id: string
   readonly manifest: DriverTripManifest | null
   readonly status: string
@@ -168,6 +174,8 @@ export type CurrentDriverTripPort = {
 }
 
 export type FindCurrentDriverTripInput = {
+  /** Spec 244 D2: `false` não lista as fotos pendentes (a conta não pode enviá-las). Ausente = `true`. */
+  readonly canReportProofs?: boolean
   readonly companyId: string
   readonly membershipId: string
   /** O relógio da nota (RF9: penalidade vigente 90 dias) — injetado, nunca lido aqui. */
@@ -208,9 +216,12 @@ export async function findCurrentDriverTrip(
     return { isRegisteredDriver: false, pendingProofs: [], score: null, trips: [] }
   }
 
+  const shouldListPendingProofs = input.canReportProofs ?? true
   const [trips, pendingProofs, scores] = await Promise.all([
     input.repository.listActiveTrips({ companyId: input.companyId, driverId }),
-    input.repository.listPendingProofs({ companyId: input.companyId, driverId, now: input.now }),
+    shouldListPendingProofs
+      ? input.repository.listPendingProofs({ companyId: input.companyId, driverId, now: input.now })
+      : Promise.resolve([]),
     input.scores.readScores({ companyId: input.companyId, driverIds: [driverId], now: input.now }),
   ])
 

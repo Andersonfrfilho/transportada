@@ -55,7 +55,9 @@ import {
 } from '../domain/whatsapp-driver-flow.constant.js'
 import { WHATSAPP_LIST_BUTTON_TEXT } from '../domain/whatsapp-menu.constant.js'
 import { parseMenuPageNavigation, type WhatsAppMenuOption } from '../domain/whatsapp-menu.policy.js'
+import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
 import { sendDynamicChoice } from './whatsapp-dynamic-choice.service.js'
+import type { WhatsAppSharedLocationStore } from './whatsapp-shared-location.service.js'
 import {
   rejectListAnswer,
   WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET,
@@ -73,6 +75,8 @@ type ReportOutcome = {
 }
 
 export type DriverFlowActionDependencies = {
+  /** Spec 196 T3.6: o ponto que o motorista mandou antes do toque; `null` é `unavailable`. */
+  readonly consumeSharedLocation: WhatsAppSharedLocationStore['consume']
   readonly findCurrentTrip: (input: {
     readonly companyId: string
     readonly membershipId: string
@@ -86,6 +90,7 @@ export type DriverFlowActionDependencies = {
     readonly documentId: string
     readonly driverId: string
     readonly idempotencyKey: string
+    readonly location: ReportedLocation | null
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
@@ -96,7 +101,7 @@ export type DriverFlowActionDependencies = {
     readonly documentId: string
     readonly driverId: string
     readonly idempotencyKey: string
-    readonly location: null
+    readonly location: ReportedLocation | null
   }) => Promise<ReportOutcome>
   readonly reportReturn: (input: {
     readonly actorUserId: string
@@ -104,7 +109,7 @@ export type DriverFlowActionDependencies = {
     readonly documentId: string
     readonly driverId: string
     readonly idempotencyKey: string
-    readonly location: null
+    readonly location: ReportedLocation | null
     readonly reason: DriverReturnReason
   }) => Promise<ReportOutcome>
   readonly resolveDriverId: (input: {
@@ -162,6 +167,17 @@ export function createDriverWhatsAppFlowActions(
         (trip) => !(TRIP_TERMINAL_STATUSES as readonly string[]).includes(trip.status),
       ),
     }
+  }
+
+  /** Só as três ações do motorista chamam isto; a do operador não recebe o armazém. */
+  function consumeLocation(input: {
+    readonly actor: Parameters<WhatsAppAuthorizedActionHandler>[0]['actor']
+    readonly session: Parameters<WhatsAppAuthorizedActionHandler>[0]['session']
+  }): ReportedLocation | null {
+    return deps.consumeSharedLocation({
+      companyId: input.actor.scope.companyId,
+      whatsappNumber: input.session.whatsappNumber,
+    })
   }
 
   const currentTrip: WhatsAppAuthorizedActionHandler = async ({ actor, channel, session }) => {
@@ -313,7 +329,7 @@ export function createDriverWhatsAppFlowActions(
         documentId,
         driverId,
         idempotencyKey: randomUUID(),
-        location: null,
+        location: consumeLocation({ actor, session }),
       })
       await channel.sendText(
         session.whatsappNumber,
@@ -359,7 +375,7 @@ export function createDriverWhatsAppFlowActions(
         documentId,
         driverId,
         idempotencyKey: randomUUID(),
-        location: null,
+        location: consumeLocation({ actor, session }),
         reason,
       })
       await channel.sendText(
@@ -499,6 +515,7 @@ export function createDriverWhatsAppFlowActions(
         documentId,
         driverId,
         idempotencyKey: randomUUID(),
+        location: consumeLocation({ actor, session }),
         note,
         occurrenceTypeId,
         productCode: '',

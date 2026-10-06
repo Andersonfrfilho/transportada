@@ -8,6 +8,7 @@ import {
 } from './occurrence.constant'
 import {
   TRIP_FIELD_CHANNELS,
+  TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS,
   TRIP_TIMELINE_KINDS,
   TRIP_TIMELINE_LOCATION_STATES,
 } from './trip.types'
@@ -27,6 +28,7 @@ import type {
   TripCargoWeight,
   TripOccupancy,
   TripPendingMeasurement,
+  TripTimelineAddressChange,
   TripTimelineDocumentReference,
   TripTimelineItem,
   TripTimelineLocation,
@@ -100,6 +102,7 @@ import {
   FIELD_OCCURRENCE_TYPE_KEYS,
   FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS,
   REPORT_FIELD_DELIVERY_RESULT_KEYS,
+  TRIP_TIMELINE_ADDRESS_CHANGE_KEYS,
   TRIP_TIMELINE_ITEM_KEYS,
   TRIP_TIMELINE_ITEM_OPTIONAL_KEYS,
   TRIP_TIMELINE_LOCATION_KEYS,
@@ -163,6 +166,7 @@ import {
   isString,
   isUnsignedInteger,
 } from './tripGuards.validation'
+import { readTolerantList, readTolerantRecord } from './tripTolerance.service'
 
 /**
  * Coluna que a listagem de notas pode não ter mandado: ausente é ausência, não resposta inválida —
@@ -250,6 +254,10 @@ function isFiniteNumber(value: unknown): value is number {
 
 function isNonNegativeFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
+function isPositiveFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
 }
 
 function isStringArray(value: unknown): value is readonly string[] {
@@ -385,6 +393,11 @@ function isDocumentDetail(value: unknown): value is TripDocumentDetail {
     /** Spec 185 T6.1: mesma tolerância — ausente é API anterior ao campo (spec 078 D2). */
     (value.leavesBehindOnDispatch === undefined || isBoolean(value.leavesBehindOnDispatch)) &&
     /** Spec 176: ausente é API anterior à feature; presente segue a mesma regra de dinheiro/rótulo. */
+    (value.volumeCount === undefined ||
+      value.volumeCount === null ||
+      (typeof value.volumeCount === 'number' &&
+        Number.isFinite(value.volumeCount) &&
+        value.volumeCount >= 0)) &&
     isAbsentOrNullableString(value.freightAmount) &&
     isAbsentOrNullableString(value.freightRuleName) &&
     (value.freightSource === undefined ||
@@ -467,6 +480,57 @@ function isDetail(value: unknown): value is TripDetail {
       isString(value.capacityUnknownVehicleId)) &&
     (value.trailer === undefined || value.trailer === null || isTrailer(value.trailer)) &&
     isEveryItem(value.stops, isStopDetail)
+  )
+}
+
+function readTolerantDocumentDetail(value: unknown): TripDocumentDetail | undefined {
+  return readTolerantRecord(value, {
+    allowed: [...TRIP_DOCUMENT_DETAIL_KEYS, ...TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS],
+    guard: isDocumentDetail,
+    required: TRIP_DOCUMENT_DETAIL_KEYS,
+  })
+}
+
+function readTolerantStopDetail(value: unknown): TripStopDetail | undefined {
+  if (!isRecord(value)) return undefined
+  const documents = readTolerantList(value.documents, readTolerantDocumentDetail)
+  if (documents === undefined) return undefined
+  return readTolerantRecord(
+    { ...value, documents },
+    {
+      allowed: [...TRIP_STOP_KEYS, ...TRIP_STOP_OPTIONAL_KEYS],
+      guard: isStopDetail,
+      required: TRIP_STOP_KEYS,
+    },
+  )
+}
+
+function readTolerantDriverLine(value: unknown): TripDriverLine | undefined {
+  return readTolerantRecord(value, {
+    allowed: [...TRIP_DRIVER_KEYS, ...TRIP_DRIVER_OPTIONAL_KEYS],
+    guard: isDriverLine,
+    required: TRIP_DRIVER_KEYS,
+  })
+}
+
+/**
+ * O detalhe da viagem não cai por causa de um refinamento: chave nova da API e campo opcional com
+ * forma errada (planta, ocupação, carreta, rótulos de nota) são descartados, e a viagem abre sem eles.
+ * Os campos da própria viagem e as listas de notas, motoristas e paradas seguem obrigatórios.
+ */
+function readTolerantDetail(value: unknown): TripDetail | undefined {
+  if (!isRecord(value)) return undefined
+  const documents = readTolerantList(value.documents, readTolerantDocumentDetail)
+  const drivers = readTolerantList(value.drivers, readTolerantDriverLine)
+  const stops = readTolerantList(value.stops, readTolerantStopDetail)
+  if (documents === undefined || drivers === undefined || stops === undefined) return undefined
+  return readTolerantRecord(
+    { ...value, documents, drivers, stops },
+    {
+      allowed: [...TRIP_DETAIL_KEYS, ...TRIP_DETAIL_OPTIONAL_KEYS],
+      guard: isDetail,
+      required: TRIP_DETAIL_KEYS,
+    },
   )
 }
 
@@ -695,8 +759,9 @@ export function createTripResponseAdapters() {
       return { batchId: input.batchId, documentCount: input.documentCount }
     },
     tripDetailFromApi(input: unknown): TripDetail {
-      if (!isDetail(input)) throw invalid()
-      return input
+      const detail = readTolerantDetail(input)
+      if (detail === undefined) throw invalid()
+      return detail
     },
     tripDocumentFromApi(input: unknown): TripDocument {
       if (!isDocument(input)) throw invalid()
@@ -1303,6 +1368,7 @@ function isDeliveryProof(value: unknown): value is DeliveryProof {
     (value.canhotoReviewReason === undefined ||
       isOneOf(value.canhotoReviewReason, DELIVERY_PROOF_CANHOTO_REVIEW_REASON_OPTIONS)) &&
     (value.distanceMeters === undefined || isNonNegativeFiniteNumber(value.distanceMeters)) &&
+    (value.proofRadiusMeters === undefined || isPositiveFiniteNumber(value.proofRadiusMeters)) &&
     (value.punctuality === undefined ||
       isOneOf(value.punctuality, DELIVERY_PROOF_PUNCTUALITY_OPTIONS)) &&
     (value.receiverDocument === undefined || isString(value.receiverDocument)) &&
@@ -1485,6 +1551,20 @@ function isTimelineLocation(value: unknown): value is TripTimelineLocation {
   )
 }
 
+function isTimelineAddressChange(value: unknown): value is TripTimelineAddressChange {
+  return (
+    hasExactKeys(value, TRIP_TIMELINE_ADDRESS_CHANGE_KEYS) &&
+    isOneOf(value.origin, TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS) &&
+    (value.displacementMeters === null || isNonNegativeFiniteNumber(value.displacementMeters))
+  )
+}
+
+/** Spec 228 D8: o `addressChange` é do item do endereço e de mais nenhum; nele, é obrigatório. */
+function hasAddressChangeForKind(value: Readonly<Record<string, unknown>>): boolean {
+  if (value.kind !== 'stop.address_corrected') return value.addressChange === undefined
+  return isTimelineAddressChange(value.addressChange)
+}
+
 /** Spec 240: `cancellation` ausente (API anterior) lê como `null`; o item sem ocorrência passa como veio. */
 function withOccurrenceCancellation(item: TripTimelineItem): TripTimelineItem {
   if (item.occurrence === null || item.occurrence.cancellation !== undefined) return item
@@ -1507,6 +1587,7 @@ function isTimelineItem(value: unknown): value is TripTimelineItem {
   }
   return (
     (value.lateRegistration === undefined || isBoolean(value.lateRegistration)) &&
+    hasAddressChangeForKind(value) &&
     (value.location === null || isTimelineLocation(value.location)) &&
     (value.locationState === null || isOneOf(value.locationState, TRIP_TIMELINE_LOCATION_STATES)) &&
     isNullableString(value.actorName) &&

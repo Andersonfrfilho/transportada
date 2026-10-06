@@ -13,11 +13,13 @@ A regra de roteamento é a de `docs/spec/model-economy.md`, sobre a tabela de
 para implementação, **Opus como gate para fiscal, concorrência, auth, criptografia, arquitetura e
 produção**.
 
-| Marca | Classe   | Quando                                                                |
-| ----- | -------- | --------------------------------------------------------------------- |
-| 🧠    | `opus`   | desenho que vira contrato, criptografia, migração destrutiva, revisão |
-| —     | `sonnet` | implementação e teste comuns                                          |
-| ⚙️    | `haiku`  | mecânico: molde copiado, contagem, changeset, documentação            |
+| Marca | Classe   | Quando                                                            |
+| ----- | -------- | ----------------------------------------------------------------- |
+| 🧠    | `opus`   | só decisão que outras tasks herdam (contrato, schema-alvo, token) |
+| —     | `sonnet` | implementação e teste comuns                                      |
+| ⚙️    | `haiku`  | mecânico: molde copiado, contagem, changeset, documentação        |
+
+⚠️ **Reclassificação (regra nova de `~/.claude/rules/rules/model-economy.md`):** as tasks abertas que eram 🧠 por serem "execução difícil" ou revisão (T506, T602, T703, T801) caem para `sonnet`; as mecânicas com teste já escrito (T505, T604) caem para `haiku`. As fechadas ficam como rodaram. Escalada: gate falhou 2x em `haiku` → `sonnet` → `opus`, registrada na `evidence.md`.
 
 ⚠️ **A marca pede a classe, não uma versão.** Qualquer geração de Opus atende a 🧠 — a spec 005
 rodou uma task de gate de Opus no **Opus 4.8** e registrou "(adequado)", e a 164 tem trabalho feito
@@ -129,8 +131,8 @@ classe e não versão — está em `docs/spec/model-economy.md`.
 - [ ] **T503** `sonnet` — Os adaptadores das portas do núcleo. (RF11, RF12)
 - [ ] **T504** `sonnet` — Teste do **ramo do motorista** na atribuição: mensagem que não responde
       a nada segue para os fluxos de comando da 144, e **não** entra na conversa. (RF13, D7)
-- [ ] **T505** `sonnet` — O ramo do motorista, sobre a atribuição genérica do núcleo. (RF13)
-- [ ] **T506** 🧠 `opus` — O transporte de e-mail da 143 passa a implementar
+- [ ] **T505** ⚙️ `haiku` — O ramo do motorista, sobre a atribuição genérica do núcleo. (RF13)
+- [ ] **T506** `opus` 🧠 — O transporte de e-mail da 143 passa a implementar
       `ConversationEmailTransportPort`, **sem mudar comportamento**. É a troca de dono do token e do
       DKIM em código que está em produção: gate de Opus. (RF14, CA07)
 - [ ] **T507** `sonnet` — Os módulos da 183 passam a chamar o núcleo. (RF11)
@@ -144,12 +146,12 @@ classe e não versão — está em `docs/spec/model-economy.md`.
       para a `evidence.md`. **Se contrariar a premissa de base vazia, a fase para** e o plano volta
       ao caminho duplo. Contagem é mecânica; a decisão que ela dispara é do dono do projeto.
       (D8, CA08)
-- [ ] **T602** 🧠 `opus` — Migration: cria o schema do núcleo, copia o que houver (idempotente
+- [ ] **T602** `sonnet` — Migration: cria o schema do núcleo, copia o que houver (idempotente
       por id), e **só então** derruba as tabelas da 183. `drop` sobre dados de produção: gate de
       Opus, e a 183 já tratava toda migration como 🧠. (RF15, D8)
 - [ ] **T603** ⚙️ `haiku` — `make migration-test` — migration e rollback em Postgres descartável.
       (RF15)
-- [ ] **T604** `sonnet` — Os testes da 183 verdes depois da troca. **É o arnês desta spec**, e
+- [ ] **T604** ⚙️ `haiku` — Os testes da 183 verdes depois da troca. **É o arnês desta spec**, e
       nenhuma task da fase 5 ou 6 fecha com ele vermelho. (CA09)
 
 ## Fase 7 — `conversations-ui`
@@ -158,7 +160,7 @@ classe e não versão — está em `docs/spec/model-economy.md`.
       capacidades **do contrato**, não a dela. Contrato falha se a UI declarar a própria. (RF10)
 - [ ] **T702** `sonnet` — A tela obedece à capacidade: recurso que o canal não tem fica
       **desabilitado com dica dizendo por quê**; recurso de outro canal **some**. (RF10, D3, CA04)
-- [ ] **T703** 🧠 `opus` — Revisão de design com print, no canal `email` e no `whatsapp`, em
+- [ ] **T703** `sonnet` — Revisão de design com print, no canal `email` e no `whatsapp`, em
       375px e no desktop (web.md §15). O selo de lida **não aparece** no e-mail. (D4, CA04)
 - [ ] **T704** ⚙️ `haiku` — `changeset` da fase 7.
 - [ ] **T705** ⛔ **sem modelo — é do dono do projeto.** Segunda publicação, e o bump no
@@ -166,7 +168,7 @@ classe e não versão — está em `docs/spec/model-economy.md`.
 
 ## Fase 8 — fechamento
 
-- [ ] **T801** 🧠 `opus` — Revisão de código e de segurança nos dois repositórios, com
+- [ ] **T801** `sonnet` — Revisão de código e de segurança nos dois repositórios, com
       `code-reviewer` e `security-reviewer`. Confere em especial: nenhuma PII em tipo persistido do
       pacote (RNF4), nenhum `process.env` lido pelo pacote (RNF2), nenhum `any` (RNF5).
 - [ ] **T802** `sonnet` — Confirmar que **nenhuma decisão de negócio mudou de lugar**: a tratativa
@@ -179,17 +181,15 @@ classe e não versão — está em `docs/spec/model-economy.md`.
 
 ## Contagem por modelo
 
-| Classe             | Tasks                                                                                            | Quantas |
-| ------------------ | ------------------------------------------------------------------------------------------------ | ------- |
-| 🧠 `opus`          | T101, T201, T301, T302, T307, T308, T506, T602, T703, T801                                       | 10      |
-| `sonnet`           | T103–T108, T202, T204–T210, T212, T303–T306, T309, T310, T502–T505, T507, T604, T701, T702, T802 | 30      |
-| ⚙️ `haiku`         | T102, T109, T203, T211, T311, T501, T601, T603, T704, T803, T804                                 | 11      |
-| ⛔ dono do projeto | T401, T705                                                                                       | 2       |
-| **Total**          |                                                                                                  | **53**  |
+| Classe             | Tasks                                                                                                       | Quantas |
+| ------------------ | ----------------------------------------------------------------------------------------------------------- | ------- |
+| 🧠 `opus`          | T101, T201, T301, T302, T307, T308 (todas fechadas)                                                         | 6       |
+| `sonnet`           | T103–T108, T202, T204–T210, T212, T303–T306, T309, T310, T502–T504, T506, T507, T602, T701–T703, T801, T802 | 32      |
+| ⚙️ `haiku`         | T102, T109, T203, T211, T311, T501, T505, T601, T603, T604, T704, T803, T804                                | 13      |
+| ⛔ dono do projeto | T401, T705                                                                                                  | 2       |
+| **Total**          |                                                                                                             | **53**  |
 
-A Fase 3 concentra metade do Opus (T301, T302, T307, T308) porque é a única fase de criptografia:
-token derivado e assinatura DKIM. O resto do Opus são os três desenhos que viram contrato (T101,
-T201) ou mexem em produção (T506, T602), mais as duas revisões (T703, T801).
+Todo o `opus` restante já foi executado (Fases 1–3). Nas fases abertas não há task 🧠: o desenho que vira contrato já está fechado.
 
 ## Prompt de execução
 
@@ -198,8 +198,8 @@ T201) ou mexem em produção (T506, T602), mais as duas revisões (T703, T801).
 spec.md, plan.md, tasks.md e a ADR-0085 antes de começar). Uma task por vez, na ordem do tasks.md,
 um commit por task, teste antes da implementação.
 
-O modelo está escrito em cada task. Troque de modelo de propósito ao entrar numa 🧠 (`opus`), e
-registre na evidence.md o modelo que de fato rodou — divergência da tabela é achado.
+O modelo está escrito em cada task (`haiku`, `sonnet`; não há 🧠 aberta). Escalada: gate falhou 2x
+em `haiku` → `sonnet` → `opus`. Registre na evidence.md o modelo que de fato rodou — divergência da tabela é achado.
 
 ⛔ PARE nas tasks T401 e T705: são publicação de pacote, e quem publica é o dono do projeto. Não
 siga sozinho.

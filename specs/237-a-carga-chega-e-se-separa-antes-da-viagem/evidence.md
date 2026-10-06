@@ -1,0 +1,772 @@
+# Evidência — 237
+
+## T4.0 (parcial) — comparação planilha × XML reais (2026-10-03)
+
+Corpos: 346 XMLs (07/07–28/08) e 277 XMLs (23/09 e 25/09, `ID1026570_procNFe_parte1`) do mesmo emitente;
+planilhas `FR-24-09` (187 linhas), `FR-28-09` (107), `FR-01-10` (191) e `FR-05-10` (194). Os últimos XMLs
+(30/09 e 02/10) não foram fornecidos. **Não é a T4.0 completa**: falta o conjunto inteiro de XMLs.
+
+| Medida                                                 | Resultado                                   |
+| ------------------------------------------------------ | ------------------------------------------- |
+| `Text001` ou `Company` em algum XML                    | **0** (texto bruto, atributos incluídos)    |
+| valor + CEP → 1 nota                                   | FR-24-09 **139/187**; FR-28-09 **96/107**   |
+| valor + peso → 1 nota                                  | FR-24-09 **146/187**; FR-28-09 **91/107**   |
+| ambíguas (valor + CEP)                                 | 0 e 2                                       |
+| desvio do peso (`PESO TOTAL` × `pesoB`)                | até **5 g** (arredondamento; ver T4.3)      |
+| cidade igual nos vínculos                              | 139/139                                     |
+| nome do destinatário igual                             | 115/139                                     |
+| `NroCarga` ↔ `RouteName`                              | **1:1** (10×10 e 8×8)                       |
+| `Company` ↔ CNPJ do destinatário                      | **1:1**, 212 códigos, 0 conflitos           |
+| e-mail (25/09 16:33) × emissão das 91 notas vinculadas | **todas depois**: 2,7–4,2 h (mediana 2,9 h) |
+| lacres / cargas / notas                                | 3 / 18 / 277                                |
+
+Reprodução: ler `infNFe` de cada XML (`ide/nNF`, `ide/dhEmi`, `total/ICMSTot/vNF`, `dest/enderDest/CEP`,
+`transp/vol/pesoB`, `infAdic/infCpl`) e cruzar com a aba `IMPORTAÇÃO` (colunas `C`, `D`, `F`, `H`, `M`). O
+resultado completo no banco sai de `consulta-recebimento-vs-xml.sql`.
+
+| soma de valor/peso por `RouteName` × por `NroCarga` | igual ao centavo em **8/10** (24/09) e **7/8** (28/09) |
+| NF que junta vários pedidos do mesmo cliente | confirmado: soma por cliente fecha em 13/14, 22/24, 23/25, 10/10 |
+| `NroCarga` ou lacre em célula das planilhas | **0** (as duas abas, as quatro planilhas) |
+
+## T1.1 — ADR-0094 e o modelo do perfil (2026-10-03)
+
+- **Número:** `git fetch` + `docs/adr/` de `origin/staging` (última: `0093-o-ajudante-e-um-perfil.md`), dos
+  worktrees em `.claude/worktrees/*` e `../transportada-wt/*` e de todas as branches de `origin`: nenhum
+  `0094+`. ADR: `docs/adr/0094-o-recebimento-da-carga-antes-da-viagem.md`.
+- **Revisão `architect` (opus), passada separada, sem editar arquivo:** veredito **APROVADO COM AJUSTES**.
+  Acolhidos:
+  - **A1** as regras valem para a chegada que ainda vai nascer (a chegada copia `separation_due_at` e o
+    prazo; editar o perfil não refaz chegada aberta); `separation_window_hours` nulo = sem relógio.
+  - **A2** `PUT` exige **todas** as chaves (`null` explícito): campo omitido é `400`, para um painel em
+    cache não apagar uma coluna futura sem erro; reenviar o corpo do `GET` não audita.
+  - **A3** (parcial) o padrão continua expressão (o formato do `infCpl` de outro emitente é desconhecido),
+    com a regra mínima da revisão: flag `u`, exatamente um grupo de captura, sem quantificador aninhado,
+    sem grupo quantificado com alternação, sem referência para trás, sem lookaround. A troca por rótulo
+    ficou registrada como alternativa.
+  - **A4** `notes` removido (`contractors.notes` já existe); `preview_sheet_name` 1..31; com prévia ligada
+    o mapa exige `routeName`, `value`, `weightKg`; coluna repetida comparada normalizada.
+  - **A5** texto: `match_window_days`/`weight_tolerance_percent` são parâmetros do algoritmo (`NOT NULL`),
+    não regra do contratante.
+  - Módulo novo `src/cargo-receiving/`; `GET` com `fleet.read` (como a leitura do contratante), `PUT`
+    com `settings.manage`; caminho `/contractors/:id/receiving-profile` (mesma forma de
+    `/contractors/:id/contacts`).
+- **Divergências do RF1 da spec (registradas no ADR):** `preview_sender_allowlist` adiado para a Fase 4b
+  (depende da D6); `grouping` não vira coluna (rota × cidade é decisão fixa do usuário).
+- **Agregado `Contractor` não muda:** o perfil é recurso separado; as guardas de chave exata do painel
+  não precisam de alteração.
+
+## T1.2 — Migration `contractor_receiving_profiles` (2026-10-03)
+
+- **Contrato antes:** `test/cargo-receiving-schema/contractor-receiving-profile.contract.ts` (registrado no
+  `test` do `package.json`) vermelho pelo motivo certo —
+  `Export named 'contractorReceivingProfiles' not found` — e verde (5 pass) com o schema.
+- **Schema:** `src/database/contractor-receiving-profile.schema.ts`, exportado em `database.schema.ts`.
+  FK `(company_id, contractor_id)` → `contractors(company_id, id)` e `company_id` → `companies`, ambas
+  `restrict/cascade`; unique `(company_id, contractor_id)`; 8 CHECKs (faixas, `jsonb_typeof = 'object'`,
+  prévia ligada exige mapa, tamanho da aba e do padrão).
+- **Migration:** `bun run db:generate --name contractor_receiving_profiles` →
+  `drizzle/20261003170340_contractor_receiving_profiles/` (só `CREATE TABLE` + 2 FKs na própria tabela).
+  `snapshot.json` encadeado: `prevIds = ["eb960c28-…"]`, que é o `id` do snapshot de
+  `20261003010806_event_location_whatsapp_coordinate` (nenhum outro snapshot aponta para ele). Depois:
+  `bun run db:generate` → `{"status":"no_changes"}`.
+- **`rollback.sql` à mão:** `DROP TABLE IF EXISTS` + remoção da entrada do diário, sem `CASCADE`.
+- **`make migration-test`:** 1ª rodada vermelha (a lista fixa de pastas do
+  `static-migration.contract.ts` não tinha a nova) → pasta acrescentada + teste estático da migration
+  (só tabela nova, rollback sem `CASCADE`) → **120 pass, 0 fail** (8 arquivos, Postgres descartável; o
+  `database-migration.integration.ts` aplica todos os `rollback.sql` em ordem inversa).
+- **Gates:** `bun run typecheck` ✓ · `bun run lint` ✓ · contrato
+  `bun --env-file=../../.env.test test --timeout 120000`: **9167 → 9173 pass**, 24 skip, 0 fail (194 → 195
+  arquivos) · `bun run format:check` na raiz ✓.
+- **Mutação:** CHECK de `separation_window_hours` alargado para `1..9999` → o contrato de faixas reprova
+  (4 pass, 1 fail); restaurado → 5 pass.
+- `docs/spec/domain-model.md`: agregado `ContractorReceivingProfile` e a constraint unique. O worker
+  (`apps/worker-transportada/src/database/delivery-client.schema.ts`) não mudou.
+
+## T1.3 — Rotas do perfil e contrato (2026-10-03)
+
+- **Módulo novo** `apps/api-transportada/src/cargo-receiving/` (domain/application/presentation/
+  infrastructure), montado em `src/main.ts` ao lado das rotas do contratante; caminho
+  `API_CONTRACTOR_RECEIVING_PROFILE_PATH = '/contractors/:id/receiving-profile'` em
+  `src/shared/api.constant.ts`.
+  - `GET` (`fleet.read`): `{ data: null }` sem perfil; contratante inexistente ou de outra empresa →
+    `404 CONTRACTOR_NOT_FOUND` (reaproveita `ContractorNotFoundError`, o código estável que o
+    `/contractors/:id` já devolve).
+  - `PUT` (`settings.manage`): Zod `.strict()` com **todas as chaves obrigatórias**; todos os campos
+    inválidos voltam juntos em `error.details`; `companyId` e ator só do contexto; upsert idempotente
+    em transação, contratante travado com `for no key update`, auditoria em `audit_logs` só quando muda.
+- **Contrato antes:** os três entrypoints novos (`cargo-receiving`, `cargo-receiving-http`, mais
+  `tenant-safety` no `cargo-receiving-schema`) vermelhos por `Cannot find module …/cargo-receiving/…`
+  antes do código.
+- **Contrato depois** (`bun --env-file=../../.env.test test --timeout 120000`): **9173 → 9222 pass**, 24
+  skip, 0 fail, 195 → 197 arquivos (+26 padrão, +3 caso de uso, +18 HTTP, +2 isolamento). O script
+  `test` do `package.json` dá o mesmo total (9246 testes, 197 arquivos): os três entrypoints novos estão
+  na lista explícita.
+- **Integração** (`bun --env-file=../../.env.test test --timeout 120000
+./test/integration/contractor-receiving-profile.integration.ts`, Postgres do `.env.test` em 65432,
+  banco descartável migrado): **3 pass, 0 fail, 0 skip** — ausência = `null`; `PUT` cria, repetido
+  devolve o mesmo `updatedAt` e não audita, mudado audita (1 → 2 linhas); contratante de outra empresa
+  → 404 na leitura e na gravação, sem linha nem auditoria; 8 escritas por fora da API recusadas pelo
+  banco com `23514`. Registrado em `test:integration`; `integration-shard.contract.test.ts` 4 pass.
+- **Mutações** (aplicadas uma a uma por script, restauradas automaticamente; `git diff` limpo depois):
+
+  | Mutação                                                       | Vermelho                                                              |
+  | ------------------------------------------------------------- | --------------------------------------------------------------------- |
+  | tirar `contractors.company_id` do filtro do contratante       | isolamento (contrato) 1 fail; integração "outra empresa é 404" 1 fail |
+  | tirar o CHECK de `separation_window_hours` da `migration.sql` | integração "faixas valem no banco" 1 fail                             |
+  | alargar o CHECK no schema (T1.2)                              | contrato do schema 1 fail                                             |
+  | aceitar quantificador aninhado (`(a+)+`)                      | 6 fails no contrato do padrão; HTTP "padrão `(a+)+` é 400" 1 fail     |
+  | `PUT` com `fleet.read` no lugar de `settings.manage`          | HTTP "quem só lê a frota … não grava" 1 fail                          |
+  | tirar o `.strict()`                                           | HTTP "chave desconhecida e `companyId` no corpo são recusados" 1 fail |
+  | `PUT` repetido regrava (sem a comparação canônica)            | integração "repetido não audita" 1 fail                               |
+  | aceitar coluna repetida no mapa                               | HTTP "coluna repetida é 400" 1 fail                                   |
+
+- **Gates:** `bun run typecheck` ✓ · `bun run lint` ✓ · `bun run format:check` na raiz ✓.
+- **Não houve "toda rota aparece no documento":** esta API não gera OpenAPI (busca por `openapi`/`scalar`
+  no repositório; `docs/ai-context/api-transportada.md` já registrava isso). Nenhum teste a fazer passar.
+- **Guardas de chave exata do agregado `Contractor` (painel, 3 cópias):** **não mudam** — o agregado e o
+  `PATCH /contractors` não foram tocados; o perfil é recurso separado.
+- **"No máximo 20 entradas" no mapa:** coberto por construção — as chaves são fechadas em 13 campos, então
+  o limite nunca é alcançável e não ganhou checagem morta.
+- **Erro:** esta API não tem `shared/errors/codes.ts` nem `DomainError`; o padrão do repositório é
+  `ApiError` por domínio em `*/domain/*.error.ts`. Nenhum código novo foi preciso: 404 reaproveita
+  `CONTRACTOR_NOT_FOUND`, e validação é o `400` padrão de `parseBody` com os campos nomeados.
+- **Não rodou:** a suíte de integração inteira (`bun run test:integration`, ~17 min) — só o arquivo novo e
+  o `make migration-test` (T1.2).
+- Documentação viva: `docs/ai-context/api-transportada.md` § "Spec 237" e `apps/api-transportada/CLAUDE.md`.
+
+## T1.4 — aba "Contratantes" em `/clientes` (painel)
+
+- **Contrato antes** (`ac1cdfe91`): vermelho de asserção (51 fail em
+  `delivery-clients.contract.test.ts` sobre esqueleto que lança `NOT_IMPLEMENTED`/devolve valor neutro) e,
+  em `test:hooks`, 26 fail porque o painel ainda renderizava `null`. Implementação (`d27cd62df`) deixa
+  tudo verde. Os arquivos novos entram pelos entrypoints que o script `test` do `package.json` já lista
+  (`delivery-clients.contract.test.ts` e `trip-hooks.contract.test.ts`); nenhuma linha nova foi preciso.
+- **Contagem final:** `bun run test` **6624 pass / 0 fail** (antes 6569) + `test:hooks` **385 pass / 0 fail**
+  (antes 359). `tsc --noEmit` limpo; `eslint` 0 erros (16 avisos preexistentes, nenhum nos arquivos novos).
+- **O que a tela faz:** lista (nome, CNPJ formatado, situação, selo lido do perfil), busca por nome/CNPJ,
+  ordenação por cabeçalho (asc → desc → neutro), situação com seleção múltipla, "Limpar filtros" só com
+  critério, contador `{n} de {total}` com filtro, estado em `?tab=contractors&q&sort&dir&status`. Ficha
+  abaixo da lista (mesmo padrão do cliente, com `useRevealedPanel`): dados (`PATCH /contractors/:id`,
+  CNPJ só leitura) + perfil de recebimento (`PUT` com as 10 chaves, `null` onde não há regra), grupos
+  Recebimento / Prazos / Prévia da planilha / Avançado. Recusa do servidor: "Confira:" com TODOS os campos
+  pelo rótulo impresso, cada um é atalho que rola e foca (`data-field`), campo desconhecido sai com o nome
+  cru, falha sem campo só mostra o código; `aria-invalid` + `aria-describedby` por campo; editar limpa só o
+  erro dele.
+- **Mutações** (script em lote, restauração automática; `git status` limpo depois):
+
+  | Mutação                                                     | Vermelho |
+  | ----------------------------------------------------------- | -------- |
+  | PUT omite uma chave do perfil                               | 3 fail   |
+  | campo vazio vira zero em vez de `null`                      | 1 fail   |
+  | faixa da janela de separação 168 → 200                      | 1 fail   |
+  | ordenação asc → desc → asc (sem neutro)                     | 1 fail   |
+  | "Limpar filtros" sempre visível                             | 1 fail   |
+  | aviso repete campo (sem dedup)                              | 2 fail   |
+  | campo desconhecido some do aviso                            | 2 fail   |
+  | atalho do aviso não leva o foco                             | 2 fail   |
+  | editar um campo limpa o erro de todos                       | 1 fail   |
+  | cliente joga fora os `details` do 400                       | 3 fail   |
+  | guarda aceita chave a mais na resposta do perfil            | 1 fail   |
+  | URL não leva a situação                                     | 2 fail   |
+  | quem só lê ganha os campos editáveis (`isDisabled={false}`) | 1 fail   |
+  | coluna repetida deixa de ser recusada                       | 1 fail   |
+  | prévia ligada não exige roteiro/valor/peso                  | 1 fail   |
+  | busca ignora o CNPJ                                         | 2 fail   |
+  | e-mail do relatório sem forma passa                         | 1 fail   |
+  | PUT leva `companyId` no corpo                               | 1 fail   |
+  | aviso "Confira" sem lista vazia (sem o `return null`)       | 6 fail   |
+  | erro do campo sem `aria-invalid`                            | 4 fail   |
+
+  A primeira rodada achou **uma mutação que sobreviveu** (atalho sem foco): o teste clicava no atalho do
+  campo que já tinha o foco por ter sido o último digitado. Corrigido para provar o atalho de outro campo,
+  e a comparação passou a ser booleana (`activeElement === campo`) — `toBe` sobre nó do DOM não reprovou
+  no happy-dom.
+
+- **Defeito achado pelo próprio contrato:** `ContractorDetailsForm` e `ReceivingProfileForm` irmãos com a
+  mesma `key` (React avisava "two children with the same key"); chaves removidas, a ficha já é remontada por
+  contratante pelo painel.
+- **Divergências do pedido:** (1) o painel **não tem zod** (CLAUDE.md da app): a validação é `*.validation.ts`
+  manual com as mesmas faixas do servidor, copiadas por valor; (2) o selo "Recebimento ativo / Sem perfil"
+  custa **uma leitura de perfil por contratante** (`useQueries`, mesma chave da ficha) porque não existe rota
+  em lote — pedir uma é follow-up; (3) o mapa de colunas fica visível com a prévia ligada **ou** com alguma
+  coluna já preenchida, para um dado gravado nunca ficar escondido; (4) o "Recebimento" do selo distingue
+  "desligado" (perfil existe, `isEnabled=false`) de "sem perfil"; (5) a lista carrega todas as páginas
+  (cursor, limite 100) e filtra/ordena no cliente: a API só filtra por nome, não por CNPJ.
+- **Revisão de design (web.md §15)** — `spec-237-prints.smoke.spec.ts`, 1280 px escuro, estilo calculado:
+
+  | Medida                  | Vizinho `DeliveryClientForm` | Ficha nova                                             |
+  | ----------------------- | ---------------------------- | ------------------------------------------------------ |
+  | campo: fundo/borda/raio | asfalto 62% / slate 32% / 0  | idêntico                                               |
+  | campo: padding / fonte  | 12px / 14,4px                | 12px / 14,4px                                          |
+  | campo: altura           | 57px (esticado pelo grid)    | 48px = `--field-height`                                |
+  | ajuda (`.hint`)         | slate, 16px                  | idêntico                                               |
+  | botão salvar            | cobre, raio 0, 12×20px       | idêntico (48px; o vizinho estica a 65px)               |
+  | cantos do formulário    | 8px (`.form`)                | 8px (mesma classe, por `composes`)                     |
+  | legenda do grupo        | —                            | mono 12px, cobre-tinta, caixa alta (igual ao `kicker`) |
+  | selo                    | `statusBadge` da frota       | mono 11,5px, borda 1px, tinta do selo                  |
+
+  Dois defeitos achados nos prints e consertados: (a) a coluna "Dados" esticava até a altura do perfil e
+  espalhava a sobra entre os campos — `align-items/content: start`; (b) campos lado a lado com alturas
+  diferentes (54/58px) pelo mesmo motivo; e (c) o selo "ativo" no tema claro dava 4,38:1 — texto passou a
+  usar `--color-*-ink`. Contraste final (WCAG, texto sobre fundo opaco efetivo), escuro / claro: ajuda
+  6,22 / 4,83 · rótulo 14,48 / 12,66 · legenda 6,16 / 5,37 · aviso de recusa e erro 5,46 / 4,69 · selo ativo
+  6,59 / 5,50 · selo desligado 5,50 / 5,87 · selo sem perfil 6,30 / 5,36 · indicador de ordenação 5,87 / 4,57.
+  A 375 px: 10 controles da ficha medidos, o menor tem 44px (≥ 44); nenhuma das três larguras tem scroll
+  horizontal (afirmado pelo próprio teste de print).
+
+- **Prints** (24 PNG, `specs/237-a-carga-chega-e-se-separa-antes-da-viagem/prints/`, 375/768/1280 × escuro/claro):
+  `contratantes-lista-*`, `contratante-ficha-*` (Beta: dados + perfil preenchido), `contratante-ficha-previa-*`
+  (Alfa: prévia ligada com o mapa de colunas) e `contratante-ficha-recusa-*` (400 do servidor com 3 campos).
+  Gerados por `test/spec-237-prints.smoke.spec.ts` (fora do smoke da CI; build com
+  `VITE_SMOKE_AUTH_BYPASS=true` em pasta temporária e preview em porta própria, config do Playwright
+  descartável — a config da CI não foi tocada). API 100% dublada, dados inventados.
+- **Não rodou:** `make smoke`/smoke da CI, `make check` completo (build de produção do painel só foi
+  feito para os prints, sem os `assets:*` do `prebuild`), integração da API (nada da API mudou).
+
+## T2.1 — o eixo da nota na chegada e a política pura (2026-10-03)
+
+- **Estado inicial `expected`** (spec "esperada → recebida → separada", ADR-0094 §1): a nota entra na
+  chegada sem conferência. `separated` só a partir de `received`; repetir a etapa atual é `unchanged`
+  (sem evento); **sem volta** — nem a spec nem o ADR preveem desfazer, então nada foi inventado; chegada
+  `closed` recusa tudo. Registrado no ADR-0094 §6.
+- **Contrato antes** (`test/cargo-receiving/cargo-arrival-transition.contract.ts` e
+  `cargo-arrival-grouping.contract.ts`, no entrypoint `cargo-receiving.contract.test.ts` que o `test` do
+  `package.json` já lista): vermelho por `Cannot find module …/cargo-arrival-transition.policy.js`. A
+  primeira rodada com o código achou **um erro do próprio teste** (a entrada não tinha o grupo esperado
+  `FR.S.CAR × 3548906`), corrigido no teste; o código ficou como estava. Depois: **60 pass, 0 fail**
+  (tabela de 12 transições × estado da chegada, relógios, cópia do perfil, folga de 2 min, vencimento,
+  agrupamento estável).
+- **Código:** `src/cargo-receiving/domain/cargo-arrival-transition.policy.ts` (tabela, decisão,
+  `resolveSeparationDueAt`, `copyArrivalRulesFromProfile`, `isArrivedAtTooFarInFuture`,
+  `isSeparationOverdue`), `cargo-arrival-grouping.policy.ts` (`groupArrivalDocuments`: rota, cidade, nulos
+  por último, número em ordem numérica, empate pelo id) e `src/shared/cargo-arrival.constant.ts` (listas
+  lidas pelo domínio e pelos CHECKs, sem puxar `cargo-receiving/` para o pre-deploy).
+- **Mutações** (script, restauração automática, `src` limpo depois):
+
+  | Mutação                                        | Vermelho |
+  | ---------------------------------------------- | -------- |
+  | `expected → separated` permitido (pular etapa) | 2 fail   |
+  | sem o no-op (`from === to`)                    | 2 fail   |
+  | janela em minutos em vez de horas              | 3 fail   |
+  | perfil desligado copia regras                  | 1 fail   |
+  | vencida mesmo com tudo separado                | 1 fail   |
+  | número da nota comparado como texto            | 1 fail   |
+  | rota/cidade nulas no começo                    | 1 fail   |
+
+- **Revisão `architect` (opus), passada separada, sem editar arquivo:** **APROVADO COM AJUSTES**. Acolhidos
+  na T2.2/T2.3: (1) toda escrita trava primeiro a chegada (`for no key update`, confere `open`) e depois as
+  notas em ordem de id, `no key update`; (2) idempotência com `request_fingerprint` (sha256 do contratante,
+  notas ordenadas, `arrivedAt`, paletes, referência), procurada **depois** da trava do contratante e
+  **antes** de validar as notas, e `23505` da chave traduzido para 409; (3) CHECK exato
+  `extract(epoch from separation_due_at - arrived_at) = separation_window_hours * 3600`; (4) `from_state`/
+  `to_state` em coluna nos eventos, `separated_at >= received_at` na nota; (5) evento com FK
+  `(company_id, arrival_id, arrival_document_id)` → `unique (company_id, arrival_id, id)` das notas;
+  (6) índices: `nfe_participants (company_id, role, tax_id)`, chegada por contratante/data, eventos por
+  chegada e por nota; endereço do destinatário por `lateral … limit 1` (sem unique por participante);
+  (7) `:documentId` sempre resolvido dentro da chegada; (8) canal em constante própria; (9) rotas novas no
+  `separator-role.contract.test.ts`. Limitação do unique simples (sem conserto para nota posta por engano,
+  reentrega não entra em outra chegada) escrita no ADR-0094 §6.
+- **Gates:** `bun run typecheck` ✓ · `bun run lint` ✓. Contrato da suíte inteira no fecho da T2.3.
+
+## T2.2 — migration `cargo_arrivals`, `cargo_arrival_documents`, `cargo_arrival_events` (2026-10-03)
+
+- **Cadeia conferida antes:** `git fetch` → `origin/staging` sem commit novo à frente desta branch; o
+  último snapshot era o de `20261003170340_contractor_receiving_profiles` (`id 43e75ad7-…`). Gerada
+  `drizzle/20261003204733_cargo_arrivals/` com `prevIds = ["43e75ad7-…"]`, e é o único filho dele. Depois:
+  `bun run db:generate` → `{"status":"no_changes"}`.
+- **Contrato antes:** `test/cargo-receiving-schema/cargo-arrival.contract.ts` (no entrypoint
+  `cargo-receiving-schema.contract.test.ts`, já listado no `test`) vermelho por
+  `Export named 'cargoArrivalEvents' not found` → **18 pass** com o schema.
+- **Schema** (`src/database/cargo-arrival.schema.ts`, `cargo-arrival-event.schema.ts`; listas em
+  `src/shared/cargo-arrival.constant.ts`):
+  - `cargo_arrivals`: FK composta para `contractors` e para o vínculo de quem registrou
+    (`user_company_memberships`), janela/prazo copiados com as faixas do perfil, CHECK **exato**
+    `extract(epoch from separation_due_at - arrived_at) = separation_window_hours * 3600` (ou os dois
+    nulos), `reference` 1..120, `channel in ('backoffice')`, `idempotency_key` 16..256 com unique por
+    empresa, `request_fingerprint` sha256, `status in ('open','closed')`; índices por data e por
+    contratante + data.
+  - `cargo_arrival_documents`: FK composta para a chegada e para `nfe_documents`; `unique (company_id,
+nfe_document_id)` (uma nota, uma chegada — ADR-0094 §6) e `unique (company_id, arrival_id, id)` (alvo
+    da FK do evento e índice das notas por chegada); CHECK que amarra estado e datas
+    (`separated_at >= received_at`); `route_name` 1..40; `city_ibge_code ~ '^[0-9]{7}$'`.
+  - `cargo_arrival_events`: append-only por trigger (`reject_cargo_arrival_events_mutation`, 55000);
+    FK `(company_id, arrival_id, arrival_document_id)` → nota **desta** chegada; CHECK de escopo (evento
+    da chegada ⇔ sem nota) e de forma (`case kind …` repete a tabela de transições: `document_added`
+    `null → expected`, `document_received` `expected → received`, `document_separated`
+    `received → separated`, demais sem estado).
+  - Índice novo `nfe_participants (company_id, role, tax_id)` para achar as notas do emitente, entre
+    `SET LOCAL lock_timeout = '3s'` e `DEFAULT` (precedente da spec 196: a importação não fica na fila
+    atrás de uma transação longa).
+- **Divergências do pedido:** sem `unique (company_id, arrival_id, nfe_document_id)` (redundante com o
+  par `(company_id, nfe_document_id)`); sem índice `(rota, cidade)` — o agrupamento é feito em memória
+  sobre as ≤ 300 notas de uma chegada, lidas pelo unique `(company_id, arrival_id, id)`; colunas a mais
+  `request_fingerprint` (idempotência, revisão do architect) e `from_state`/`to_state` nos eventos; kind
+  a mais `arrival_closed`; canal só `backoffice` (ADR-0068 §3: tela que não age em nome de motorista —
+  `office` exige `on_behalf_of_driver_id`).
+- **`rollback.sql` à mão:** trigger e função, as três tabelas na ordem inversa das FKs, o índice (com
+  `lock_timeout`), a entrada do diário; sem `CASCADE`.
+- **`make migration-test`:** **121 pass, 0 fail** (8 arquivos; antes 120 — a pasta nova entrou na lista
+  fixa de `static-migration.contract.ts`, com teste próprio: só tabelas novas + um índice com espera
+  limitada, trigger presente, rollback em ordem e sem `CASCADE`).
+- **Mutações** (script, restauração automática):
+
+  | Mutação                                              | Vermelho                  |
+  | ---------------------------------------------------- | ------------------------- |
+  | sem `unique (company_id, nfe_document_id)`           | contrato do schema 1 fail |
+  | prazo solto (`> 0` no lugar da igualdade com janela) | contrato do schema 1 fail |
+  | FK do evento sem `arrival_id`                        | contrato do schema 1 fail |
+  | `document_received` sem `from_state = 'expected'`    | contrato do schema 1 fail |
+  | trilha sem o trigger append-only                     | estático 1 fail           |
+  | índice de `nfe_participants` sem `lock_timeout`      | estático 1 fail           |
+
+- **Gates:** `bun run typecheck` ✓ · `bun run lint` ✓ · contrato
+  `bun --env-file=../../.env.test test --timeout 120000`: **9243 → 9286 pass**, 24 skip, 0 fail (198
+  arquivos; a linha de base desta sessão era 9243, não 9259) · `bun run format:check` na raiz ✓.
+- `docs/spec/domain-model.md`: agregados `CargoArrival`, `CargoArrivalDocument`, `CargoArrivalEvent` e as
+  constraints únicas.
+
+## T2.3 — casos de uso e rotas da chegada e da primeira separação (2026-10-03)
+
+- **Contrato antes:** `test/cargo-receiving/cargo-arrival-candidate.contract.ts`,
+  `cargo-arrival-use-case.contract.ts` e `test/cargo-receiving-http/cargo-arrival-routes.contract.ts`
+  (entrypoints já listados no `test`) vermelhos por `Cannot find module …/cargo-arrival-candidate.policy.js`
+  e `…/cargo-arrival.routes.js`. Depois: módulo **87 pass** (contrato de domínio/caso de uso), **31 pass**
+  (HTTP), **22 pass** (schema + isolamento).
+- **Permissões (conferidas em `authorization.policy.ts`):** leitura `fleet.read`, escrita `trip.manage` —
+  o papel `separator` tem as duas. `trip.read` foi descartada: é a leitura recortada do motorista, e daria a
+  `driver`/`helper`/`aggregate` as chegadas da empresa inteira (BOLA). As 9 rotas entraram na lista
+  exaustiva de `test/separator-role.contract.test.ts` (vermelho de 9 linhas antes, verde depois).
+- **Rotas:** `GET /cargo-arrivals/available-documents`, `POST /cargo-arrivals`, `GET /cargo-arrivals`,
+  `GET /cargo-arrivals/:id`, `POST …/documents/:documentId/receive|separate`, `POST
+…/documents/batch-status`, `POST …/route-assignment`, `POST …/close` (caminhos em
+  `src/shared/api.constant.ts`, composição em `src/main.ts`, canal `backoffice` decidido na composição).
+- **Integração** (`bun --env-file=../../.env.test test --timeout 120000
+./test/integration/cargo-arrival.integration.ts`, Postgres do `.env.test` em 65432, banco descartável
+  migrado por teste): **6 pass, 0 fail, 0 skip** (49 expects) — chegada completa na mesma transação (1
+  chegada, 3 notas, 4 eventos, 1 auditoria) e as candidatas somem; repetição → 200 com a mesma chegada e as
+  mesmas contagens; mesma chave com outro pedido → 409; nota de outro emitente, em viagem viva, em outra
+  chegada e de outra empresa recusadas **de uma vez** (4 `details`), sem escrita; sem perfil e com perfil
+  desligado → 422; contratante de outra empresa → 404; chegada lida/escrita/listada pela outra empresa →
+  404/404/vazia, estado intacto; transições e no-op sem evento (contagem exata), `separate` sem `receive`
+  → 409, volta → 409; lote com recusa parcial; UPDATE e DELETE na trilha → `55000`; rota repetida sem
+  evento, nota fora da chegada → 422; fechar com pendência → 409 com a lista, depois fecha, fechar de novo
+  `unchanged`, chegada fechada recusa rota; perfil editado para 48 h depois do registro → a chegada segue
+  com 24 h e o mesmo `separation_due_at`; `separation_due_at` fora da janela por fora da API → `23514`;
+  "já em viagem" na leitura; quem só tem `fleet.read` → 403 na escrita, sem linha. Registrada em
+  `test:integration` (o `package.json` só ganhou essa entrada — conferido por diff dos scripts);
+  `integration-shard.contract.test.ts` + integração da Fase 1: 7 pass.
+- **Mutações** (script, restauração automática; contrato do módulo + integração da chegada):
+
+  | Mutação                                       | Vermelho                             |
+  | --------------------------------------------- | ------------------------------------ |
+  | tirar `company_id` do filtro da chegada       | isolamento 1 fail; integração 1 fail |
+  | tirar `company_id` do filtro da lista         | isolamento 1 fail; integração 1 fail |
+  | tirar o emitente da política de candidatas    | contrato 3 fail; integração 1 fail   |
+  | tirar o emitente do filtro das disponíveis    | isolamento 1 fail; integração 1 fail |
+  | permitir `separated` sem `received`           | contrato 3 fail; integração 1 fail   |
+  | no-op grava (e gera evento)                   | contrato 1 fail; integração 1 fail   |
+  | janela lida do perfil atual na leitura        | integração 1 fail                    |
+  | uma recusa derruba o lote (lança na primeira) | contrato 2 fail; integração 1 fail   |
+  | repetição sem procurar a chave                | integração 1 fail                    |
+  | escrita com `fleet.read`                      | HTTP 1 fail; integração 1 fail       |
+  | corpo sem `.strict()`                         | HTTP 1 fail                          |
+  | perfil desligado registra                     | contrato 1 fail; integração 1 fail   |
+
+  A primeira rodada da "janela lida do perfil atual" quebrou por import ausente (erro, não comportamento);
+  refeita com o import: integração 5 pass / 1 fail. "Uma recusa derruba o lote" é a prova do `Promise.all`
+  pedido: não há `Promise.all` na escrita — o lote é decidido em memória e gravado com um UPDATE e um
+  INSERT, e a mutação simula o efeito (lançar na primeira recusa).
+
+- **Gates:** `bun run typecheck` ✓ · `bun run lint` ✓ · contrato
+  `bun --env-file=../../.env.test test --timeout 120000`: **9286 → 9330 pass**, 24 skip, 0 fail (198
+  arquivos; o script `test` dá os mesmos 9354 testes) · `bun run db:generate` → `no_changes` · `bun run
+format:check` na raiz ✓.
+- **Divergências do pedido:**
+  1. `perPage` virou `limit` (≤ 100): é o parâmetro de `readPaging`, que toda listagem desta API usa.
+  2. Erros: `CARGO_ARRIVAL_KEY_REUSED` (precedente `TRIP_FIELD_REPORT_KEY_REUSED`),
+     `CARGO_ARRIVAL_ARRIVED_AT_IN_FUTURE` (422, campo `arrivedAt`), `CARGO_ARRIVAL_DOCUMENTS_REFUSED` (422),
+     `CARGO_ARRIVAL_DOCUMENTS_NOT_IN_ARRIVAL` (422, rota), `CARGO_ARRIVAL_DOCUMENT_NOT_FOUND` (404),
+     `CARGO_ARRIVAL_NOT_FOUND` (404), e o 409 da nota avulsa leva o motivo da política como código
+     (`CARGO_ARRIVAL_CLOSED`, `…_DOCUMENT_NOT_RECEIVED`, `…_TRANSITION_NOT_ALLOWED`). Esta API não tem
+     `codes.ts`: o padrão é `ApiError` por domínio em `domain/*.error.ts`.
+  3. `:documentId` nas rotas é o id da NF-e (chave natural: a nota está numa chegada só).
+  4. Lote: nota repetida no pedido é 400 (Zod), não "unchanged".
+  5. `route-assignment` é tudo ou nada (nota fora da chegada → 422 com todas), ao contrário do lote de
+     estado; chegada fechada recusa rota (409 `CARGO_ARRIVAL_CLOSED`).
+  6. Na T2.3 o schema da nota foi para `src/database/cargo-arrival-document.schema.ts` (o arquivo passava
+     de 200 linhas); DDL igual, `db:generate` = `no_changes`.
+  7. `isSeparationOverdue`: prazo passado **e** nota ainda não separada (tudo separado nunca vence).
+- **Não rodou:** a suíte de integração inteira (`bun run test:integration`, ~17 min) — só os arquivos
+  tocados; corrida real entre duas requisições concorrentes (a serialização por trava foi desenhada e
+  revisada, não exercitada por teste de concorrência).
+
+## T2.4 — recebimento no painel e a primeira separação pelo celular (2026-10-03)
+
+- **Contrato antes** (`25e51e927`): 10 arquivos de contrato puro + 4 de DOM + fixture e servidor dublado, todos
+  vermelhos por `Cannot find module …/cargo-receiving/…` (o módulo não existia). Implementação em `c92e4adf0`
+  e refinamento em `7922063ab` + o commit dos prints. Os entrypoints novos entram na lista explícita:
+  `test/cargo-receiving.contract.test.ts` (no script `test` do `package.json`, única edição de lista) e os quatro
+  `test/trip-hooks/cargo-*.contract.ts` em `trip-hooks.contract.test.ts`.
+- **Contagem:** `bun run test` **6624 → 6759 pass / 0 fail** (+134 do módulo e +1 do mapa de acesso) e `test:hooks`
+  **385 → 454 pass / 0 fail** (+69). `tsc --noEmit` limpo; `eslint` 0 erros (16 avisos preexistentes, nenhum nos
+  arquivos novos); `format:check` na raiz ✓.
+- **O que existe** (`apps/frontend-transportada/src/modules/cargo-receiving/`, namespace `cargoReceiving`, pt-BR e
+  en): rota **`/recebimento`** no grupo Operações, visível só com `fleet.read` (mapa de permissão da spec 221,
+  contrato de menu/acesso/parede atualizado); **lista** de chegadas (ordenação por cabeçalho, contratante e situação
+  com seleção múltipla, "limpar filtros" só com critério, estado na URL, "carregar mais" por cursor); **registro**
+  (`/recebimento/nova`: só contratante com perfil ligado, data/hora no fuso do navegador, paletes e referência
+  opcionais, notas por checkbox com contador e limite 300, `Idempotency-Key` por tentativa); **detalhe do escritório**
+  (`/recebimento/:id/detalhe`: grupos rota × cidade com contagem por estado, selo "já em viagem", atribuir rota,
+  receber/separar em lote com o resultado de CADA nota, fechar com a lista das pendentes); e a **tela do celular**
+  (`/recebimento/:id`: grupos recolhíveis, o primeiro com pendência aberto, botão grande por nota com o próximo
+  passo em texto, "separar tudo deste grupo", busca por número e leitura da chave pela câmera, "sem conexão",
+  "tentar de novo").
+- **Nenhuma mudança de API foi necessária:** a API devolve nome da cidade (`cityName`), os três estados, as
+  contagens, `isSeparationOverdue`, `isInLiveTrip` e os `details` por nota/campo. Único dado que falta é o **peso**
+  da nota nas disponíveis (ver divergências).
+- **Mutações** (script, restauração automática, `git diff` limpo depois; "puro" = `bun test` dos contratos puros +
+  `shared`; "DOM" = a suíte completa de `test:hooks`):
+
+  | Mutação                                                        | Puro | DOM |
+  | -------------------------------------------------------------- | ---- | --- |
+  | próximo estado errado (esperada → separada, pula etapa)        | 2    | 4   |
+  | lote do grupo pula `received`                                  | 4    | 3   |
+  | recusa no recebimento não tira a nota do passo de separar      | 1    | 1   |
+  | recusa derruba o lote (nada é aplicado)                        | 1    | 1   |
+  | chave de idempotência nova a cada envio (serviço)              | 1    | 2   |
+  | idem, no hook (`previous: undefined`)                          | 0    | 2   |
+  | a ordem das notas entra na impressão do pedido                 | 1    | 0   |
+  | limite 300 → 301                                               | 3    | 2   |
+  | atualização otimista sem reversão em queda de rede (`onError`) | 0    | 1   |
+  | atualização otimista sem reversão em recusa                    | 0    | 1   |
+  | sem atualização otimista (`onMutate` não grava)                | 0    | 2   |
+  | menu e parede abrem também com `trip.report`                   | 5    | 0   |
+  | erros sem dedup (nota recusada repetida)                       | 1    | 0   |
+  | campo desconhecido some do aviso                               | 2    | 1   |
+  | "limpar filtros" sempre visível                                | 1    | 2   |
+  | ordenação sem neutro (asc → desc → asc)                        | 1    | 1   |
+  | URL não leva o estado da lista                                 | 0    | 3   |
+  | quem só lê ganha "Separar"                                     | 0    | 1   |
+  | guarda aceita chave a mais na chegada                          | 1    | 0   |
+  | rota de 400 caracteres passa                                   | 0    | 2   |
+  | chegada no futuro aceita                                       | 1    | 0   |
+  | motivo da recusa some da linha                                 | 0    | 1   |
+  | "tentar de novo" não refaz o toque                             | 0    | 1   |
+  | nota com toque em voo não trava o botão                        | 0    | 1   |
+  | grupo abre sempre o primeiro, mesmo concluído                  | 2    | 1   |
+  | atalho da nota não leva o foco                                 | 0    | 4   |
+  | `Idempotency-Key` some do cabeçalho                            | 1    | 0   |
+  | `companyId` vai no corpo do registro                           | 1    | 0   |
+  | resultado por nota só das recusadas                            | 0    | 1   |
+  | contagem por estado do grupo zerada                            | 0    | 1   |
+
+  A primeira rodada achou **quatro mutações que sobreviveram**: as duas "sem reversão" (a releitura que o
+  `onSettled` dispara devolvia o estado certo e escondia a falta da volta), "toque em voo não trava o botão" (sem
+  contrato) e "erros sem dedup" (mutação mal escrita, que só declarava uma variável). Corrigido com três
+  contratos novos — a releitura da chegada fica **pendurada** no dublê (`holdReads`), então a volta tem de
+  vir do cache, e o botão da nota em voo tem de estar travado — e a mutação do dedup foi refeita. Todas
+  derrubam teste agora.
+
+- **Defeitos que o próprio trabalho achou e consertou:** (1) o contrato do `MultiSelect`/`SearchableSelect` só
+  passa dentro da suíte completa do `test:hooks` — isolado, a lista de opções vem vazia (já era assim na T1.4;
+  anotado no CLAUDE.md da app); (2) o dublê do servidor reaproveitava `counts` antigo ao reconstruir a chegada
+  (bug do fixture, não do código); (3) `Separar` aparecia em chegada **fechada** — contrato novo e botão some.
+- **Divergências do pedido:**
+  1. **Peso da nota não aparece** na lista de notas disponíveis: `GET /cargo-arrivals/available-documents` devolve
+     valor, não peso. Não exigiu mudar a API para a tela funcionar; fica como follow-up de API.
+  2. **"Selecionar todos da página" é "selecionar todas as listadas"** (as que a busca deixou): a API pagina por
+     cursor de 100 e "página" não é um conceito estável na tela; a seleção acumula entre buscas e é cortada em 300.
+  3. **A paginação por cursor não vai na URL** (o cursor é opaco e acumula): na URL vão contratante, situação e
+     ordenação; "carregar mais" soma à lista. A ordenação é sobre o que já foi carregado (a API não ordena).
+  4. **Filtro múltiplo:** a API filtra por UM contratante e UMA situação; com um valor o filtro vai ao servidor, com
+     vários o cliente filtra o que veio.
+  5. **Rotas:** o pedido deu `/recebimento/:id` ao celular; o detalhe do escritório ficou em
+     `/recebimento/:id/detalhe`, e "Abrir a separação no celular"/"Abrir a visão do escritório" ligam os dois.
+  6. **"Toast de erro com o motivo"** virou aviso na linha da nota (`role="alert"`) e no painel do lote: o painel
+     não tem componente de toast, e a mensagem fica junto do que falhou, onde "tentar de novo" também mora.
+  7. **Contratante com perfil ligado** custa uma leitura de perfil por contratante (não há rota em lote — mesma
+     limitação da T1.4). Guardas de resposta e erro são **próprios** do módulo (nada importado de `delivery-clients`);
+     contratante e perfil são lidos por projeção mínima.
+  8. **Câmera reaproveitada:** o primitivo `@/components/ui/barcode-scanner` + `extractNfeAccessKey` (o mesmo da
+     viagem) — não acopla módulos. A nota achada vira a busca e abre o grupo dela.
+- **Revisão de design (web.md §15)** — `spec-237-recebimento-prints.smoke.spec.ts`, 1280 px escuro, estilo
+  calculado, contra a aba Contratantes (a mesma sessão, a mesma API dublada):
+
+  | Medida                    | Vizinho (Contratantes)                    | Novo                                      |
+  | ------------------------- | ----------------------------------------- | ----------------------------------------- |
+  | campo: altura/fonte/borda | 48px · Avenir 14,4px · 1px lousa · raio 0 | hora e referência: idêntico               |
+  | campo: padding            | 12px                                      | 12px                                      |
+  | botão: altura/padding     | 48px · 12×20px · raio 0                   | "Abrir" e "Registrar chegada": idêntico   |
+  | selo: mono/altura         | 11,52px · 24px · 1px                      | idêntico (cor própria: vencida em alerta) |
+  | cabeçalho de tabela       | 61px                                      | 61px                                      |
+  | célula de tabela          | 65px                                      | 67px (a barra de progresso é mais alta)   |
+
+  Contraste (WCAG, texto sobre o fundo opaco efetivo), escuro / claro: rótulo 14,48 / 12,66 · ajuda 6,22 / 4,83 ·
+  selo aberta 6,59 / 5,50 · selo vencida 5,46 / 4,69 · selo já em viagem 6,16 / 5,37 · aviso e erro de recusa 5,46 /
+  4,69 · indicador de ordenação 5,87 / 4,57 · contagem do grupo (celular) 6,35 / 5,65 · destinatário (celular) 6,95 /
+  5,27 · botão do passo 5,87 / 4,94 · nota separada 6,75–7,22 / 5,49–5,84. Nenhum abaixo de 4,5:1.
+  **Alvo de toque a 375 px, TODOS os 19 controles do celular** (botões, campo de busca, atalhos do resultado do lote,
+  "dispensar"): o menor tem **44 px** de altura e 59,6 px de largura. Nenhuma das 36 telas tem rolagem horizontal
+  (afirmado pelo próprio teste de print).
+
+  Defeitos achados nos prints e consertados: (a) o `h1` global limita a 12ch e quebrava "Chegada de Alfa Indústria
+  Fictícia" em três linhas — `max-width: none` no cabeçalho do módulo; (b) a barra de seleção do escritório
+  espalhava contador, rota e botões em três colunas — virou coluna, com a linha "rota + aplicar"; (c) as tabelas
+  dos grupos desalinhavam as colunas entre si — colunas fixas; (d) a lista a 375 px rolava de lado porque o texto
+  só-leitor da ordenação (`position: absolute`) escapava do quadro da tabela — o quadro passou a ser `position:
+relative`; (e) o atalho da nota recusada tinha 22 px no celular — virou alvo de toque (mobile-first, o desktop o
+  aperta); (f) "separar tudo deste grupo" competia com o botão da nota — virou secundário.
+
+- **Prints** (60 PNG no total, 36 novos, `specs/237-a-carga-chega-e-se-separa-antes-da-viagem/prints/`,
+  375/768/1280 × escuro/claro): `recebimento-lista-*`, `recebimento-registrar-chegada-*` (5 notas marcadas e o
+  contador), `recebimento-registrar-recusa-*` (3 notas e 1 campo recusados, com atalhos), `recebimento-detalhe-*`,
+  `recebimento-celular-separacao-*` (um grupo aberto, notas nos três estados, "separar tudo" e progresso) e
+  `recebimento-celular-lote-*` (resultado de um lote com uma nota recusada). Gerados por
+  `test/spec-237-recebimento-prints.smoke.spec.ts` (fora do smoke da CI; build com `VITE_SMOKE_AUTH_BYPASS=true`
+  em pasta temporária e preview na porta 53277; config do Playwright descartável, apagada no fim — a config da CI e
+  a porta reservada dela não foram tocadas). API 100% dublada, dados inventados. A recusa do lote é **simulada** no
+  dublê: a API real não recusa `expected → received`.
+- **Não rodou:** `make smoke`/smoke da CI, `make check` completo (o build de produção só foi feito para os prints,
+  sem os `assets:*` do `prebuild`), integração da API (nada da API mudou), teste em aparelho/câmera reais, teste de
+  concorrência de dois separadores na mesma chegada.
+- **Follow-ups:** fila offline do toque (hoje o toque que falha fica na tela com "tentar de novo", mas não
+  sobrevive a fechar o app); rota em lote de perfis para o selo; peso da nota em `available-documents`; o
+  `pointer: coarse`/desktop do atalho do resultado do lote; avaria na entrada (Fase 3, D4).
+
+### Estabilidade dos contratos de DOM (T2.4)
+
+O `test:hooks` reprovava de forma intermitente (CI: `a URL reabre a lista filtrada e ordenada`, 10518 ms; local:
+1 em 3 execuções). O "484 pass" reportado antes vinha de **uma** rodada — insuficiente.
+
+- **Reprodução.** Sem carga: 10/10 verdes (15–17 s). Com carga (12 processos `yes` ocupando os núcleos): **8/8
+  execuções reprovaram** (9 a 13 falhas, todas em `cargo-arrival-list.contract.ts`; os arquivos de registro,
+  detalhe, separação e Contratantes não reprovaram nenhuma vez). Cada teste da lista caía em ~10–15 s com
+  `expect(received).toBeNull()` em `mountList` (`cargo-arrival-list.contract.ts:61`), e o log chegava a 650 MB.
+- **Causa raiz — dois defeitos do arnês, nenhum do produto.**
+  1. `waitFor(() => expect(document.querySelector('[aria-busy="true"]')).toBeNull())`: logo após o `render` a lista
+     ainda mostra o esqueleto (a busca resolve no macrotask seguinte) — a primeira tentativa **reprova por
+     desenho**, é para isso que `waitFor` existe. Mas `expect(nó).toBeNull()` reprovado **formata o nó inteiro do
+     happy-dom** na mensagem. Sonda temporária no `waitFor`: 13 vezes por suíte, a primeira tentativa reprovava e
+     custava **~550 ms sem carga e 830–1080 ms com carga**.
+  2. O prazo do `waitFor` era de relógio (1000 ms desde o início): com a reprovação custando >1 s, a primeira
+     tentativa era também a **última** (`attempt=1` seguido do `throw`, sem nenhum `settle`). O teste falhava sem
+     nunca ter esperado; o `bun` ainda gastava ~10 s imprimindo o DOM. As reprovações em cascata vinham da raiz
+     React que ficava montada (o `unmount()` do fim do teste não roda quando a asserção cai antes), e os avisos de
+     `act` das execuções ruins eram dela.
+     As hipóteses (a) `QueryClient` global, (c) `window.location`, (d) retry do TanStack e (e) vazamento do fetch do
+     dublê foram descartadas por evidência: `QUERY_CLIENT_DEFAULT_OPTIONS` já tem `retry: false`, o cliente é novo por
+     montagem, e o `attempt` nunca passou de 1 antes do estouro.
+- **Correção** (só `test/`): `renderHook.helper.ts` — (i) `waitFor` conta o tempo **esperado** (soma dos `settle`),
+  não o que uma asserção reprovada custou; (ii) toda raiz montada é registrada e um `afterEach` do próprio arnês a
+  desmonta (`unmount` idempotente), mesmo quando a asserção falhou antes do `unmount()` do teste;
+  `cargo-arrival-list.contract.ts:61` e `location-retention-panel.contract.ts:194` passaram a afirmar a **contagem**
+  (`querySelectorAll(...).length`), que não formata nó. Contrato do arnês: `test/trip-hooks/wait-for-budget.contract.ts`
+  (+4 testes: 488 no total).
+- **Mutação.** Voltar o prazo para o relógio reprova `a primeira reprovação cara não esgota o prazo`; tirar o
+  `afterEach` reprova `…o afterEach do arnês a desmonta antes do teste seguinte`. (O `beforeEach` de outros
+  arquivos já esvazia o `body`, por isso a prova da desmontagem é o efeito de limpeza do React, não o nó solto.)
+- **Prova de estabilidade.** Antes: com carga 8/8 reprovadas; sem carga, 1 reprovação em 3 (relato da sessão) e 10/10
+  verdes nesta. Depois: **20/20 verdes sem carga** (488 pass, 0 fail; 9–11 s, antes 15–17 s) e **12/12 verdes com
+  carga** (12 processos `yes` + duas suítes concorrentes). `bun run test` 6817 pass; `bun run typecheck`, `bun run
+lint` (0 erros, 16 avisos antigos) e `format:check` na raiz limpos.
+
+## T4.1 — a biblioteca e os limites da leitura da planilha (2026-10-04)
+
+- **Decisão (ADR-0094 §7):** leitor mínimo próprio sobre `fflate` 0.8.3 e `fast-xml-parser` 5.10.1,
+  as duas **já dependências diretas da API** (`apps/api-transportada/package.json`). Nenhuma dependência
+  nova; `bun install --frozen-lockfile` sem mudança no `bun.lock`.
+- **Pacotes conferidos no registro** (`npm view <pacote> name version time.modified repository.url
+maintainers dependencies`): `fflate` 0.8.3 (101arrowz, github.com/101arrowz/fflate, sem dependências);
+  `fast-xml-parser` 5.11.2 no registro, 5.10.1 instalada (NaturalIntelligence); `exceljs` 4.4.0 (último
+  publish 2024-12-20, depende de `jszip`, `unzipper`, `archiver`, `saxes`, `tmp`); `read-excel-file`
+  9.3.10 (2026-08-10, `fflate`, `saxen`, `unzipper-esm`, `worker-f`); `xlsx` 0.18.5 (a do npm; os avisos
+  GHSA-4r6h-8v6p-xvw6 `< 0.19.3` e GHSA-5pgg-2g8v-p4x9 `< 0.20.2` só têm correção fora do npm).
+- **Avisos das escolhidas** (`gh api /advisories?ecosystem=npm&affects=…`): `fflate` GHSA-px8p-9vwx-vf98
+  corrigido **em 0.8.3**; `fast-xml-parser` GHSA-8r6m-32jq-jx6q corrigido **em 5.10.1**. `bun audit` não
+  aponta nenhuma das duas na versão direta da API (o aviso `< 5.7.0` é de cópia transitiva do pacote
+  fiscal e do `mailauth`, e é do `XMLBuilder`, que o leitor não usa).
+- **Medido nas quatro planilhas FR** (zip lido por Python, sem macro nem fórmula): arquivo 0,80–0,82 MB;
+  25 entradas; `xl/worksheets/sheet1.xml` **3 359 396–3 387 795 bytes** descomprimidos (a maior);
+  `sharedStrings.xml` 16–27 KB, 492–802 strings, a maior com 49 caracteres; `workbook.xml` 1,2 KB;
+  13 792 linhas na aba, a última com dado entre 127 e 220; `vbaProject.bin` 19 968 bytes; nenhuma célula
+  com `<f>` ou `t="e"` na `IMPORTAÇÃO`; 378 `#NAME?` na `RESULTADO`.
+- **Por que varrer a aba por linha:** `fast-xml-parser` na aba inteira (`FR-05-10`) mediu **237 ms e
+  80 MB de heap**; com 30 MiB seriam ~9×. Inflar 200 MiB de zeros em fatias de 4 KiB parou em 33,5 MB
+  em 195 ms (o teto funciona sem decodificar o resto).
+- Tetos finais e erros tipados: tabela do ADR-0094 §7.
+
+## T4.3 (parte A, núcleo puro) — leitor da planilha e política de vínculo (2026-10-04)
+
+Só domínio puro em `apps/api-transportada/src/cargo-receiving/domain/` (sem I/O; relógio e tetos por
+parâmetro). **Não fecha a T4.3**: faltam a migration, a rota de upload, a reavaliação dos `awaiting_xml`
+a cada XML importado e o vínculo manual (parte B).
+
+- **Contrato antes, vermelho pelo motivo certo:** leitor — `Cannot find module
+'../../src/cargo-receiving/domain/cargo-preview-workbook.error.js'` (0 pass, 2 fail); política —
+  `Cannot find module '…/cargo-preview-matching.policy.js'` e `…/cargo-preview-matching.constant.js` (0 pass,
+  3 fail). Suítes no entrypoint `test/cargo-receiving.contract.test.ts`, que o `test` do `package.json` já
+  lista (o `package.json` não mudou).
+- **Leitor contra as quatro planilhas reais** (fora do repositório): FR-24-09 **187** linhas, FR-28-09
+  **107**, FR-01-10 **191**, FR-05-10 **194**, **0** `rowErrors`, 10/8/12/11 roteiros, datas
+  2026-09-23/25/30 e 2026-10-02; **45–70 ms** por planilha (5 rodadas). Valor, peso, volume, cidade, UF,
+  rota e data **iguais linha a linha** (294/294) ao leitor independente em Python com `Decimal`.
+- **Corpus anonimizado** (`test/fixtures/cargo-preview-corpus/`, gerado fora do repositório): razão social
+  → `Destinatário NNN`, CEP → `00NNNNNN` (faixa sem uso), CNPJ/CPF → `990000NNNNNNNN`, `Company` → `10NNN`,
+  `Text001` → `50NNNN`, `nNF` → `1NNNNN`; endereço e bairro fora; igualdade preservada. Ficam roteiro,
+  valor, peso, volume, cidade, `NroCarga` e datas.
+- **Taxas no corpus** (notas do mesmo dia do roteiro; tolerância de peso 0,05% — a mesma tabela vale
+  com a tolerância **0** depois do piso de 0,01 kg, salvo "roteiros cujos totais fecham", ver abaixo):
+
+  | Medida                                                             | FR-24-09 (187)         | FR-28-09 (107)         |
+  | ------------------------------------------------------------------ | ---------------------- | ---------------------- |
+  | por linha isolada: valor + peso → 1 nota                           | 146 (78%)              | 91 (85%)               |
+  | por linha isolada: valor + CEP → 1 nota                            | 139 (74%)              | 96 (90%)               |
+  | **política: `matched`**                                            | **180 (96%)**          | **97 (91%)**           |
+  | `suggested` / `ambiguous` / `awaiting_xml`                         | 5 / 0 / 2              | 6 / 2 / 2              |
+  | clientes (rota × código) com todas as linhas fechadas              | 158/165 (96%)          | 94/104 (90%)           |
+  | idem, nos roteiros cujos totais fecham                             | **60/60** (5 roteiros) | **57/58** (5 roteiros) |
+  | clientes com 2–3 linhas numa nota                                  | 19/19                  | 3/3                    |
+  | pares roteiro ↔ carga                                             | 10 (5 totais, 5 votos) | 8 (5 totais, 3 votos)  |
+  | aliases aprendidos (0 conflito; 21 códigos voltam no dia seguinte) | 158                    | 94                     |
+  | tempo da política                                                  | 2–9 ms                 | 1–3 ms                 |
+
+  FR.BARRI: **20 linhas → 16 notas**, mesmo valor total, todas vinculadas. Os `suggested` são peso
+  realmente diferente (ex.: 47,610 × 27,212 kg) com valor, CEP e razão social iguais; os 2 `ambiguous` são
+  dois clientes com 2.948,40 / 238,000 e duas notas idênticas na mesma carga (sem alias, empate de
+  verdade); os `awaiting_xml` não têm nota com o mesmo valor.
+
+- ⚠️ **O peso não é exato ao grama**: diferença de até **5 g** por arredondamento da planilha (pior caso
+  0,0321%). Antes do piso, com a tolerância **0** (padrão do perfil): FR-24-09 **89** `matched` e 96
+  `suggested`; clientes 78/165. Decisão do coordenador: piso absoluto (ver a seção do piso abaixo).
+- **Escala:** 300 linhas × 300 notas em **17 ms** com carga e **15 ms** sem (teto do contrato: 1 s).
+- **Prova de ausência de PII:** a forma anonimizada é conferida sempre (CI). Contra os arquivos reais
+  (`CARGO_PREVIEW_PII_WORKBOOK_DIR=~/Downloads CARGO_PREVIEW_PII_NFE_DIR=~/Downloads/ID1026570_procNFe_parte1`):
+  **0** razão social/endereço, **0** CNPJ/CEP, **0** código/pedido/número reais nos arquivos novos (2 pass).
+  Sem as variáveis: 1 pass, 1 skip. Injetar um CNPJ, uma razão social ou um CEP real no corpus derruba o
+  teste (1 fail cada; restaurado).
+- **Mutações** (script fora do repositório, restauração automática; `src` limpo depois):
+
+  | Leitor                                    | Vermelho | Política                                   | Vermelho  |
+  | ----------------------------------------- | -------- | ------------------------------------------ | --------- |
+  | ignorar o teto contado da descompressão   | 1 fail   | tirar o 1:1 (nota disputada)               | 3 fail    |
+  | ignorar o teto declarado por entrada      | 3 fail   | nota em dois grupos (passada reusa a nota) | 3 fail    |
+  | ignorar o teto total                      | 1 fail   | soma aproximada (±1 centavo)               | 2 fail    |
+  | ler a macro (`vbaProject.bin`)            | 2 fail   | pular o alias                              | 1 fail    |
+  | sem conferir bytes mágicos (poliglota)    | 1 fail   | ordem instável dos ids candidatos          | 1 fail    |
+  | sem teto de entradas                      | 1 fail   | empate de roteiro pareia mesmo assim       | 1 fail    |
+  | aceitar caminho com `..` (zip-slip)       | 5 fail   | ignorar os pares já conhecidos             | 1 fail    |
+  | aceitar `DOCTYPE`                         | 1 fail   | peso não exigido para `matched`            | 6 fail    |
+  | sem teto de linhas                        | 1 fail   | só valor vira `matched`                    | 6 fail    |
+  | sem orçamento de tempo                    | 1 fail   | aprender alias de sugestão                 | 1 fail    |
+  | sem teto de strings compartilhadas        | 1 fail   | repetir alias já conhecido                 | 1 fail    |
+  | aceitar valor negativo                    | 4 fail   | sem teto da partição (> 6 linhas)          | 1 fail    |
+  | `#NAME?` como valor                       | 1 fail   | sem teto de nós da busca                   | 1 fail    |
+  | avaliar a fórmula (`<f>` em vez de `<v>`) | 1 fail   | padrão de `NroCarga` sem o filtro          | 4 fail    |
+  | coluna por posição                        | 48 fail  | `infCpl` sem o corte de 2 000              | 1 fail    |
+  | cabeçalho de rota vira item               | 1 fail   | PII: CNPJ / razão social / CEP real        | 1 / 1 / 1 |
+  | sem o 29/02/1900 do Excel                 | 2 fail   |                                            |           |
+
+  Dois mutantes sobreviveram na primeira rodada e mudaram o teste ou o código: `aceitar DOCTYPE` (o teste
+  trocava o `sharedStrings` inteiro e caía por índice fora da faixa — passou a inserir só o `DOCTYPE`) e
+  `sem teto de strings` (havia uma segunda conferência depois do parse; ficou uma só, antes, que também
+  conta `<x:si>`). `sem ordenar as notas de entrada` sobreviveu por ser equivalente (toda saída já é
+  ordenada) — a ordenação foi removida. O teto de nós ganhou parâmetro (`maxNodes`) para ser provado.
+
+- **Gates:** `bun run typecheck` ✓ · `bun run lint` ✓ (0 erro, 0 aviso) · contrato
+  `bun --env-file=../../.env.test test --timeout 120000`: antes **9447 pass / 24 skip / 0 fail**, depois
+  **9567 pass / 25 skip / 0 fail** (198 arquivos; o skip novo é a checagem de PII real) · `bun run
+format:check` na raiz ✓ · `bun install --frozen-lockfile` sem mudança. Integração não foi rodada:
+  nada aqui toca banco.
+
+### T4.3 — o piso de arredondamento do peso (2026-10-04, decisão do coordenador)
+
+- **Regra:** o peso concorda quando `|Δ| ≤ max(0,01 kg, weight_tolerance_percent × peso da nota)`
+  (`PREVIEW_WEIGHT_ROUNDING_FLOOR_KG = 0.01` em `cargo-preview-matching.constant.ts`, aplicado em
+  `createWeightCloses`). A diferença de até 5 g é arredondamento da planilha (2 casas × 3 do `pesoB`), não
+  regra do contratante; o padrão do perfil fica `0`, sem migration.
+- **Contrato antes:** `Export named 'PREVIEW_WEIGHT_ROUNDING_FLOOR_KG' not found` e o corpus com tolerância 0
+  vermelho (6 fail). Casos: Δ 0,005 kg e 0,010 kg com tolerância 0 → `matched`; Δ 0,011 kg → `suggested`; Δ
+  0,05 kg em 100 kg com 0,05% → `matched`; Δ 0,005 kg em 2 kg com 0,05% → `matched` (piso também com
+  percentual); Δ 0,06 kg em 100 kg com 0,05% → `suggested`.
+- **Corpus com tolerância 0, depois do piso:** FR-24-09 **180** `matched` / 5 `suggested` / 2
+  `awaiting_xml`; FR-28-09 **97** / 6 / 2 `ambiguous` / 2 — iguais aos de 0,05%. Clientes 158/165 e 94/104.
+  Muda só a origem de um par por planilha (FR.ORLAN, FR.IGARA): a soma do roteiro inteiro acumula mais de
+  10 g, então o par sai por **votos** em vez de totais; nos roteiros cujos totais fecham, 47/47 e 40/40.
+- **Mutações:** tirar o piso **8 fail** · `max` → `min` (exigir piso e percentual) **10 fail** · piso só com
+  tolerância 0 **1 fail** (o primeiro rodou com 0 fail; o caso de 2 kg com 0,05% foi acrescentado).
+
+## T4.2 + T4.3 (parte B) — envio, leitura, vínculo e reavaliação (2026-10-04)
+
+Commits `ca809b880` (migration), `c7a042556` (rotas da API), `50228c83e` (worker: leitura e vínculo),
+`5e2cab03e` (worker: reavaliação pela importação). Desenho e decisões: ADR-0094 §8.
+
+- **Migration aditiva** `20261004140624_cargo_previews` (7 tabelas novas, nenhuma existente alterada;
+  `cargo_preview_events` append-only por trigger; `rollback.sql` na ordem inversa das FKs, sem CASCADE).
+  O snapshot encadeia no de `20261003204733_cargo_arrivals` (conferido em `origin/staging` depois de
+  `git fetch`: nenhuma migration nova lá). `make migration-test`: **124 pass / 0 fail**. `bun run
+db:generate`: **`no_changes`**. O CHECK do alias foi ajustado para CNPJ alfanumérico (o contrato
+  `tax-id-pattern` reprovou o `[0-9]{14}` da primeira versão) antes de qualquer publicação.
+- **1:1 da nota no banco:** `cargo_preview_document_links unique (company_id, document_id)`; o item
+  vinculado aponta para o vínculo da prévia dele por FK composta `(company_id, preview_id,
+matched_document_id)`. Provado por inserção direta (unique violada) e por dois operadores
+  concorrentes ligando a mesma nota a prévias diferentes (um 200, um 422, um vínculo só).
+- **Contrato antes, vermelho pelo motivo certo:** schema — `Export named 'cargoPreviewRouteLoads' not
+found` (0 pass, 1 fail); rotas e políticas — `Cannot find module …/cargo-preview-action.routes.js` e
+  `…/cargo-preview-item-action.policy.js` (0 pass, 2 fail). No worker o contrato de runtime reprovou
+  pelo motivo certo ao entrar o trilho novo (`Runtime contract should inject consumers directly`, 2
+  fail) e foi atualizado com o consumidor e o fechamento do publisher novo; os contratos do domínio do
+  worker foram escritos junto com o código, e o vermelho deles foi provado por mutação (tabela abaixo).
+- **Gates — API:** `bun run typecheck` ✓ · `bun run lint` (eslint `src test`) ✓ · contrato
+  `bun --env-file=../../.env.test test --timeout 120000`: antes **9574 pass / 25 skip / 0 fail**, depois
+  **9633 pass / 25 skip / 0 fail** (198 arquivos) · integração tocada (`cargo-preview`, `cargo-arrival`,
+  `contractor-receiving-profile`, Postgres do `.env.test`): antes 9, depois **15 pass / 0 fail**.
+- **Gates — worker:** `bun run typecheck` ✓ · `bun run lint` ✓ · `bun run test`: antes **1569** (1611 −
+  os 42 novos), depois **1611 pass / 0 fail**. Integração: `make worker-integration` **não rodou** — o
+  alvo reusa `transportada_worker_integration`, e o banco local estava com o diário divergente
+  (`column "latitude" of relation "trip_status_events" already exists` no `db:migrate`, de outra
+  branch). Os mesmos passos (banco novo `transportada_worker_integration_spec237`, `db:migrate` da API,
+  `bun run test:integration` com `RABBITMQ_TEST_URL`) deram **181 pass / 1 fail**; o que reprova é
+  `osrm-routing-matrix` (o OSRM local tem outro mapa: `Expected 4511.2, Received 1143650`), que não toca
+  nada desta mudança. Os 11 novos (`cargo-preview`, `cargo-preview-corpus`, `cargo-preview-reevaluation`)
+  passam.
+- **Corpus de ponta a ponta (FR-28-09, anonimizado):** planilha montada das 107 linhas, as notas de
+  25/09 gravadas com `NroCarga` no `infCpl`, leitura e vínculo pelo banco = política pura: **97 matched
+  / 6 suggested / 2 ambiguous / 2 awaiting_xml** (os números da parte A com tolerância 0), 8 pares
+  roteiro ↔ carga (4 por totais, 4 por votos), 94 aliases.
+- **Lote:** 300 XMLs importados em 300 transações (uma por nota, como a importação) → **1** pedido de
+  reavaliação pendente; o lote inteiro em ~1,6 s.
+- `bun run format:check` (raiz) ✓ · `bun install --frozen-lockfile` sem mudança depois de acrescentar
+  `fast-xml-parser` ao worker (o `bun.lock` ganhou a linha da dependência do workspace, mesma versão).
+
+**Mutações** (script fora do repositório, arquivo restaurado e conferido por sha256 a cada uma):
+
+| Regra (API)                                    | Vermelho | Regra (worker)                                       | Vermelho |
+| ---------------------------------------------- | -------- | ---------------------------------------------------- | -------- |
+| tirar o filtro de empresa da prévia            | 1 fail   | tirar o filtro de emitente das candidatas            | 1 fail   |
+| aceitar tipo pela extensão (sem bytes mágicos) | 1 fail   | tirar o filtro de empresa das candidatas             | 3 fail   |
+| sem teto de tamanho na rota                    | 1 fail   | tirar a janela do perfil                             | 1 fail   |
+| formulário aceita `companyId`                  | 2 fail   | sobrescrever alias em conflito                       | 1 fail   |
+| perfil sem prévia ligada aceita envio          | 1 fail¹  | reavaliar item decidido pelo operador                | 1 fail   |
+| nota de outra prévia vira vínculo (sem 1:1)    | 2 fail   | sem a trava do contratante (nota em dois grupos)     | 1 fail   |
+| vínculo manual sem conferir o emitente         | 1 fail   | sem conferir o sha256 do objeto                      | 1 fail   |
+| desvincular só a linha (sem o grupo)           | 1 fail   | ler de novo prévia já lida                           | 1 fail   |
+| objeto fica no bucket quando a transação falha | 1 fail   | falha do leitor vira item parcial                    | 1 fail   |
+| propor a chegada sem a política de candidatas  | 1 fail   | vincular a prévia mais nova primeiro                 | 1 fail   |
+| —                                              | —        | reavaliação que derruba a importação (sem savepoint) | 1 fail   |
+| —                                              | —        | sem coalescência (um pedido por XML)                 | 1 fail   |
+| —                                              | —        | pedido sem o filtro do emitente                      | 2 fail   |
+| —                                              | —        | pedido sem adiamento                                 | 1 fail   |
+
+¹ Sobreviveu na primeira rodada (o perfil de teste não tinha mapa, e o filtro do mapa recusava
+sozinho); o teste passou a gravar o mapa com a prévia desligada. `sobrescrever alias em conflito`
+também sobreviveu na primeira rodada (a política nunca propõe código já conhecido, então o
+`onConflictDoNothing` não era exercitado): entrou o teste que chama o escritor de alias direto.
+
+- **Não rodou:** `make worker-integration` como está (banco compartilhado divergente — ver acima); a
+  integração completa da API (só as tocadas); smoke e `make check`; leitura em `worker_thread`; teste
+  em produção ou staging (nada foi publicado).
+- **Follow-ups:** `previewId` opcional no `POST /cargo-arrivals` para preencher `cargo_previews.arrival_id`
+  (fica com a T4.4, que é quem cria a chegada a partir da prévia); retenção dos itens e do arquivo
+  (decisão do usuário, `docs/SECURITY.md`); aprender alias também do que o operador confirma; a leitura
+  em `worker_thread` se a planilha hostil virar problema; rotina de varredura que reavalie prévias em
+  aberto caso um pedido se perca (hoje o pedido é atômico com a importação, então não se perde).

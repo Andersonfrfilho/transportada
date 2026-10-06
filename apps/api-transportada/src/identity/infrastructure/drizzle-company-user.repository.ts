@@ -12,6 +12,11 @@ import {
 import { auditLogs } from '../../database/fiscal-operation.schema.js'
 import { loginIdentifiers } from '../../database/login-identifier.schema.js'
 import { projectLoginIdentifiers } from '../domain/login-identifier-projection.policy.js'
+import { FLEET_LINKED_ROLES } from '../domain/fleet-linked-roles.constant.js'
+import {
+  reconcileFleetCrewCapabilities,
+  resolveInvitedFleetCrewCapabilities,
+} from '../domain/fleet-role-reconciliation.policy.js'
 import { jobExecutions, jobSchedules } from '../../database/job-schedule.schema.js'
 import type { JobOutcome, ScheduledJob } from '../../shared/job-catalog.constant.js'
 import type { CompanyUserIdentifier } from '../application/company-user.port.js'
@@ -104,9 +109,6 @@ const MEMBERSHIP_REMOVED_PERMISSION = 'users.manage'
 const DEFAULT_CONTACT_CHANNEL = 'email' as const
 
 const TAX_ID_CONSTRAINT = 'identity_user_profiles_tax_id_unique'
-
-/** Papéis cuja pessoa tem ficha em `fleet_drivers` — é por eles que o vínculo é procurado. */
-const FLEET_LINKED_ROLES: readonly CompanyRole[] = ['driver', 'aggregate']
 
 const USERNAME_CONSTRAINT = 'identity_user_profiles_username_key'
 
@@ -687,6 +689,12 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
         .limit(1)
       if (membership === undefined) return
 
+      await reconcileFleetDriverWithRoles(transaction, {
+        companyId: input.companyId,
+        membershipId: membership.id,
+        nextRoles: input.roles,
+      })
+
       await transaction
         .delete(membershipRoles)
         .where(eq(membershipRoles.membershipId, membership.id))
@@ -1081,17 +1089,88 @@ async function linkFleetDriver(
   if (input.taxId === '') return null
   if (!input.roles.some((role) => FLEET_LINKED_ROLES.includes(role))) return null
 
+  const orphanFilter = and(
+    eq(fleetDrivers.companyId, input.companyId),
+    eq(fleetDrivers.taxId, input.taxId),
+    isNull(fleetDrivers.membershipId),
+  )
+  const [orphan] = await transaction
+    .select({
+      canActAsHelper: fleetDrivers.canActAsHelper,
+      canDrive: fleetDrivers.canDrive,
+      id: fleetDrivers.id,
+    })
+    .from(fleetDrivers)
+    .where(orphanFilter)
+    .for('update')
+  if (orphan === undefined) return null
+
+  const reconciliation = resolveInvitedFleetCrewCapabilities({
+    current: orphan,
+    roles: input.roles,
+  })
   const [linked] = await transaction
     .update(fleetDrivers)
-    .set({ membershipId: input.membershipId, updatedAt: new Date() })
-    .where(
-      and(
-        eq(fleetDrivers.companyId, input.companyId),
-        eq(fleetDrivers.taxId, input.taxId),
-        isNull(fleetDrivers.membershipId),
-      ),
-    )
+    .set({
+      membershipId: input.membershipId,
+      updatedAt: new Date(),
+      ...(reconciliation.kind === 'changed'
+        ? { ...reconciliation.capabilities, version: sql`${fleetDrivers.version} + 1` }
+        : {}),
+    })
+    .where(and(orphanFilter, eq(fleetDrivers.id, orphan.id)))
     .returning({ id: fleetDrivers.id })
 
   return linked?.id ?? null
+}
+
+/**
+ * Spec 235 D4. A ficha é travada **antes** de ler os papéis antigos: duas trocas simultâneas da mesma
+ * pessoa ficam em fila na trava, e a segunda lê os papéis que a primeira gravou. A recusa
+ * (`FleetDriverProfileEmptyError`) sai daqui de dentro, e a transação desfaz a troca inteira.
+ */
+async function reconcileFleetDriverWithRoles(
+  transaction: Parameters<Parameters<Database['transaction']>[0]>[0],
+  input: {
+    readonly companyId: string
+    readonly membershipId: string
+    readonly nextRoles: readonly CompanyRole[]
+  },
+): Promise<void> {
+  const [driver] = await transaction
+    .select({
+      canActAsHelper: fleetDrivers.canActAsHelper,
+      canDrive: fleetDrivers.canDrive,
+      id: fleetDrivers.id,
+    })
+    .from(fleetDrivers)
+    .where(
+      and(
+        eq(fleetDrivers.companyId, input.companyId),
+        eq(fleetDrivers.membershipId, input.membershipId),
+      ),
+    )
+    .for('update')
+  if (driver === undefined) return
+
+  const previousRoles = await transaction
+    .select({ role: membershipRoles.role })
+    .from(membershipRoles)
+    .where(eq(membershipRoles.membershipId, input.membershipId))
+
+  const reconciliation = reconcileFleetCrewCapabilities({
+    current: driver,
+    nextRoles: input.nextRoles,
+    previousRoles: previousRoles.map((row) => row.role),
+  })
+  if (reconciliation.kind === 'unchanged') return
+
+  await transaction
+    .update(fleetDrivers)
+    .set({
+      ...reconciliation.capabilities,
+      updatedAt: new Date(),
+      version: sql`${fleetDrivers.version} + 1`,
+    })
+    .where(and(eq(fleetDrivers.companyId, input.companyId), eq(fleetDrivers.id, driver.id)))
 }

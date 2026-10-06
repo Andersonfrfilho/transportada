@@ -20,6 +20,10 @@ import { useSlowLoadNotice } from '../hooks/useSlowLoadNotice.hook'
 import { useFieldDeliveryDocumentsQuery } from '../queries/useFieldDeliveryDocuments.query'
 import { useFieldDeliverySettingsQuery } from '../queries/useFieldDeliverySettings.query'
 import { useVehicleSelectOptions } from '@/modules/fleet/hooks/useVehicleSelectOptions.hook'
+import {
+  useTripProofBadgesQuery,
+  useTripProofRadiusQuery,
+} from '../queries/useTripProofBadges.query'
 import { useCanhotoBatchReview } from '../hooks/useCanhotoBatchReview.hook'
 import { useTripDocumentSelection } from '../hooks/useTripDocumentSelection.hook'
 import type { TripDocumentLinkFormController } from '../hooks/useTripDocumentLinkForm.hook'
@@ -58,7 +62,7 @@ import {
   navigateToMdfeManifests,
   navigateToNfeWorkspace,
 } from '../shared/tripNavigation.service'
-import { tripDocumentLabel } from '../shared/tripDocument.service'
+import { hasTripDocumentProof, tripDocumentLabel } from '../shared/tripDocument.service'
 import { canSeparateOrLoadDocuments, isTripEditable } from '../shared/tripStatus.service'
 import { resolveSeparationOccurrenceButtonVisibility } from '../shared/separationOccurrenceButton.service'
 import { shouldShowRouteInvalidatedNotice } from '../shared/routeInvalidatedNotice.service'
@@ -75,7 +79,8 @@ import { TripMdfePendingDialog } from './TripMdfePendingDialog.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
 import { TripReviewQueue } from './TripReviewQueue.component'
 import { TripDeliveryProof } from './TripDeliveryProof.component'
-import { TripOccurrences } from './TripOccurrences.component'
+import { TripDocumentEvents } from './TripDocumentEvents.component'
+import { TripDocumentOccurrences } from './TripDocumentOccurrences.component'
 import { SeparationOccurrenceDialog } from './SeparationOccurrenceDialog.component'
 import { TripRouteMap } from './TripRouteMap.component'
 import { resolveDeliveryProofView } from '../shared/deliveryProof.service'
@@ -99,6 +104,7 @@ import { FieldOccurrenceDialog } from './FieldOccurrenceDialog.component'
 import { TripHeaderActions } from './TripHeaderActions.component'
 import { TripSelectAllDocuments } from './TripSelectAllDocuments.component'
 import { TripStateActions } from './TripStateActions.component'
+import type { TripDocumentProofBadges } from '../shared/tripDocumentProofBadges.service'
 import { TripStopDocumentGroup, TripStopList } from './TripStopList.component'
 import type { TripStopOccurrenceSubmission } from './TripStopOccurrenceDialog.component'
 import { RouteSuggestionSection } from '@/modules/routing/components/RouteSuggestionSection.component'
@@ -198,6 +204,7 @@ const TRACTOR_UNIT_VEHICLE_TYPE = 'tractor_unit'
 const TRAILER_ROLE = 'trailer'
 const ACTIVE_STATUS = 'active'
 const EMPTY_TRAILER_SELECTION = ''
+const NO_PROOF_BADGES: ReadonlyMap<string, TripDocumentProofBadges> = new Map()
 
 function statusClassName(status: TripStatus): string {
   return status === 'completed' || status === 'cancelled'
@@ -325,6 +332,16 @@ export function TripDetail({
     tripId: workspace.trip?.id ?? '',
     tripStatus: workspace.trip?.status ?? 'draft',
   })
+  /** Spec 233 D4: os selos do comprovante no cabeçalho de cada nota; `fleet.read`, como a rota. */
+  const proofQueryInput = {
+    canRead: workspace.controller.canReadTripFleetDetails,
+    companyId: workspace.companyId ?? '',
+    hasAnyProof: (workspace.trip?.documents ?? []).some(hasTripDocumentProof),
+    tripId: workspace.trip?.id ?? '',
+  }
+  const proofBadgesQuery = useTripProofBadgesQuery(proofQueryInput)
+  /** Revisão da 233 (A2): o raio vem da mesma consulta por viagem dos selos, não da rota por nota. */
+  const proofRadiusQuery = useTripProofRadiusQuery(proofQueryInput)
   /**
    * Spec 156 T9: uma nota (ação da linha) ou o maço da seleção (ação em massa) — `null` fecha o
    * diálogo. As duas entradas passam pelo mesmo estado porque é o mesmo formulário.
@@ -521,11 +538,9 @@ export function TripDetail({
     onOpenFieldOccurrence: (documentId: string) => setFieldOccurrenceDocumentIds([documentId]),
     onOpenSeparationOccurrence: (documentId: string) =>
       workspace.setOpenSeparationOccurrenceDocumentId(documentId),
-    onToggleProof: (documentId: string) =>
-      workspace.setOpenProofDocumentId(
-        workspace.openProofDocumentId === documentId ? null : documentId,
-      ),
-    openProofDocumentId: workspace.openProofDocumentId,
+    onToggleDocument: workspace.toggleDocument,
+    openDocumentId: workspace.openDocumentId,
+    proofBadgesByDocumentId: proofBadgesQuery.data ?? NO_PROOF_BADGES,
     renderProof: (documentId: string) => (
       <TripDeliveryProofLoader
         canhotoReadContext={{
@@ -535,6 +550,21 @@ export function TripDetail({
         documentId={documentId}
         documents={trip.documents}
         workspace={workspace}
+      />
+    ),
+    renderOccurrences: (documentId: string) => {
+      const occurrencesDocument = trip.documents.find((candidate) => candidate.id === documentId)
+      return occurrencesDocument === undefined ? null : (
+        <TripDocumentOccurrences document={occurrencesDocument} workspace={workspace} />
+      )
+    },
+    renderEvents: (documentId: string) => (
+      <TripDocumentEvents
+        documentId={documentId}
+        permissions={workspace.permissions}
+        proofRadiusMeters={proofRadiusQuery.data}
+        stops={trip.stops}
+        tripId={trip.id}
       />
     ),
     isEditable,
@@ -1624,30 +1654,6 @@ export function TripDeliveryProofLoader({
       )}
       <TripDeliveryProof
         documentId={documentId}
-        occurrences={
-          <TripOccurrences
-            canRegister={workspace.controller.canManageTrips}
-            email={workspace.lastOccurrenceEmail}
-            isRegistering={workspace.isSendingOccurrencePhotos}
-            occurrences={workspace.occurrencesQuery.data ?? []}
-            onRegister={(occurrence) =>
-              workspace.sendSeparationOccurrencePhotos({
-                documentId,
-                note: occurrence.note,
-                occurrenceTypeId: occurrence.occurrenceTypeId,
-                photos: occurrence.photos,
-                productCodes: occurrence.productCodes,
-                productQuantities: occurrence.productQuantities,
-                productQuantityUnits: occurrence.productQuantityUnits,
-                tripId: document.tripId,
-              })
-            }
-            onReset={workspace.resetSeparationOccurrencePhotoSend}
-            photoSendState={workspace.occurrencePhotoSendState}
-            products={workspace.documentProductsQuery.data ?? []}
-            types={workspace.occurrenceTypesQuery.data ?? []}
-          />
-        }
         products={workspace.documentProductsQuery.data ?? []}
         reviewActions={{
           canReview: workspace.controller.canManageTrips,

@@ -27,7 +27,12 @@ describe('contato do cliente e contratante na entrega (spec 079 P2)', () => {
    * em outra tela; imprimir vazio faria ele tentar ligar para o nada.
    */
   it('diz quando a nota não trouxe telefone', () => {
-    expect(source).toInclude("t('contact.withoutPhone')")
+    const dataSource = readFileSync(
+      new URL('../../src/modules/trip/components/TripDocumentData.component.tsx', import.meta.url),
+      'utf8',
+    )
+
+    expect(dataSource).toInclude("t('contact.withoutPhone')")
     expect(trip.contact.withoutPhone.toLowerCase()).toInclude('sem telefone')
   })
 

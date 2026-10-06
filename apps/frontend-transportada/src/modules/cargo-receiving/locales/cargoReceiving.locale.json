@@ -1,0 +1,256 @@
+{
+  "eyebrow": "Recebimento da carga",
+  "forbidden": "Seu acesso não inclui o recebimento da carga.",
+  "status": {
+    "open": "Aberta",
+    "closed": "Fechada"
+  },
+  "state": {
+    "expected": "Esperada",
+    "received": "Recebida",
+    "separated": "Separada"
+  },
+  "badge": {
+    "overdue": "Vencida",
+    "inLiveTrip": "Já em viagem",
+    "noDue": "Sem prazo"
+  },
+  "group": {
+    "noRoute": "Sem rota",
+    "noCity": "Sem cidade",
+    "title": "{{route}} · {{city}}",
+    "counts": "{{done}} de {{total}} separadas",
+    "stateCounts": "Esperadas {{expected}} · Recebidas {{received}} · Separadas {{separated}}"
+  },
+  "document": {
+    "number": "NF {{number}}",
+    "unknownRecipient": "Destinatário não informado"
+  },
+  "progress": {
+    "label": "Progresso da separação",
+    "value": "{{separated}} de {{total}} separadas"
+  },
+  "facts": {
+    "arrivedAt": "Chegada: {{date}}",
+    "dueAt": "Prazo de separação: {{date}}",
+    "noDueAt": "Sem prazo de separação",
+    "reference": "Referência: {{reference}}",
+    "pallets": "Paletes: {{count}}"
+  },
+  "list": {
+    "title": "Chegadas",
+    "hint": "Cada chegada é a carga de um contratante que chegou à doca. Registre a chegada, confira as notas e separe por rota e cidade antes de montar a viagem.",
+    "register": "Registrar chegada",
+    "loading": "Carregando as chegadas",
+    "error": "Não foi possível carregar as chegadas ({{code}}).",
+    "empty": "Nenhuma chegada registrada ainda.",
+    "emptyFiltered": "Nenhuma chegada com esses filtros.",
+    "loadMore": "Carregar mais chegadas",
+    "count": "{{shown}} de {{total}} chegadas carregadas"
+  },
+  "filters": {
+    "contractor": "Contratante",
+    "contractorPlaceholder": "Todos os contratantes",
+    "contractorSummary_one": "{{count}} contratante",
+    "contractorSummary_other": "{{count}} contratantes",
+    "contractorSearch": "Buscar contratante",
+    "contractorEmpty": "Nenhum contratante encontrado",
+    "contractorRemove": "Remover o filtro de contratante",
+    "status": "Situação",
+    "statusPlaceholder": "Todas as situações",
+    "statusSummary_one": "{{count}} situação",
+    "statusSummary_other": "{{count}} situações",
+    "statusSearch": "Buscar situação",
+    "statusEmpty": "Nenhuma situação encontrada",
+    "statusRemove": "Remover o filtro de situação",
+    "clear": "Limpar filtros",
+    "clearAll": "Limpar todos os filtros"
+  },
+  "table": {
+    "region": "Lista de chegadas",
+    "contractor": "Contratante",
+    "arrivedAt": "Chegada",
+    "documents": "Notas",
+    "progress": "Separadas",
+    "dueAt": "Prazo de separação",
+    "status": "Situação",
+    "actions": "Ações",
+    "open": "Abrir",
+    "openLabel": "Abrir a chegada de {{name}}",
+    "separate": "Separar",
+    "separateLabel": "Separar a chegada de {{name}}",
+    "sortAscending": "ordem crescente",
+    "sortDescending": "ordem decrescente",
+    "sortNone": "sem ordenação"
+  },
+  "register": {
+    "title": "Registrar chegada",
+    "hint": "Escolha o contratante, informe quando o caminhão chegou e marque as notas que vieram. A janela de separação começa na hora da chegada.",
+    "back": "Voltar às chegadas",
+    "details": "Dados da chegada",
+    "contractor": "Contratante",
+    "contractorHint": "Só aparecem contratantes com o recebimento ligado no perfil.",
+    "contractorPlaceholder": "Escolha o contratante",
+    "contractorSearch": "Buscar contratante",
+    "contractorEmpty": "Nenhum contratante com recebimento ligado",
+    "contractorsLoading": "Carregando os contratantes",
+    "date": "Data da chegada",
+    "time": "Hora da chegada",
+    "timePlaceholder": "HH:MM",
+    "timeHint": "Padrão: agora, no fuso do seu navegador.",
+    "palletCount": "Paletes (opcional)",
+    "reference": "Referência (opcional)",
+    "referenceHint": "Lacre ou número da carga, até {{max}} caracteres.",
+    "submit": "Registrar chegada",
+    "submitting": "Registrando…",
+    "dateField": {
+      "chooseYear": "Escolher o ano",
+      "clear": "Limpar data",
+      "nextMonth": "Próximo mês",
+      "openCalendar": "Abrir calendário",
+      "placeholder": "dd/mm/aaaa",
+      "previousMonth": "Mês anterior"
+    }
+  },
+  "available": {
+    "title": "Notas da carga",
+    "pickContractor": "Escolha o contratante para listar as notas livres dele.",
+    "loading": "Carregando as notas",
+    "error": "Não foi possível carregar as notas ({{code}}).",
+    "empty": "Este contratante não tem notas livres para uma chegada.",
+    "emptyFiltered": "Nenhuma nota com essa busca.",
+    "search": "Buscar nota",
+    "searchPlaceholder": "Número, destinatário ou cidade",
+    "selectAll": "Selecionar todas as listadas",
+    "selectOne": "Selecionar a nota {{number}}",
+    "counter": "{{count}} de {{max}} notas selecionadas",
+    "limitReached": "O limite de {{max}} notas por chegada foi atingido.",
+    "loadMore": "Carregar mais notas",
+    "number": "Nota",
+    "recipient": "Destinatário",
+    "city": "Cidade",
+    "value": "Valor",
+    "region": "Notas disponíveis para a chegada"
+  },
+  "fields": {
+    "arrivedAt": "Data e hora da chegada",
+    "contractorId": "Contratante",
+    "palletCount": "Paletes",
+    "reference": "Referência",
+    "documentIds": "Notas"
+  },
+  "issues": {
+    "required": "Campo obrigatório.",
+    "invalidTime": "Use a hora no formato HH:MM.",
+    "future": "A chegada não pode estar no futuro.",
+    "integer": "Use um número inteiro de {{min}} a {{max}}.",
+    "tooLong": "Use no máximo {{max}} caracteres.",
+    "noDocuments": "Marque ao menos uma nota.",
+    "tooMany": "No máximo {{max}} notas por chegada.",
+    "refusedByServer": "O servidor recusou este valor."
+  },
+  "refusal": {
+    "lead": "Confira:",
+    "documentsLead": "Notas recusadas:",
+    "documentShortcut": "NF {{number}}",
+    "reasons": {
+      "DOCUMENT_ALREADY_IN_ARRIVAL": "já está em outra chegada",
+      "DOCUMENT_FROM_ANOTHER_ISSUER": "é de outro emitente",
+      "DOCUMENT_IN_LIVE_TRIP": "já está em uma viagem",
+      "DOCUMENT_NOT_AUTHORIZED": "não está autorizada",
+      "DOCUMENT_NOT_FOUND": "não foi encontrada",
+      "CARGO_ARRIVAL_CLOSED": "a chegada está fechada",
+      "CARGO_ARRIVAL_DOCUMENT_NOT_RECEIVED": "precisa ser recebida antes de separar",
+      "CARGO_ARRIVAL_TRANSITION_NOT_ALLOWED": "a etapa não pode voltar",
+      "CARGO_ARRIVAL_DOCUMENT_NOT_FOUND": "não está nesta chegada"
+    }
+  },
+  "errors": {
+    "CARGO_RECEIVING_NOT_ENABLED": "O recebimento da carga não está ligado para este contratante. Ligue no perfil dele, em Clientes, aba Contratantes.",
+    "CARGO_ARRIVAL_ARRIVED_AT_IN_FUTURE": "A chegada não pode estar no futuro. Confira a data e a hora.",
+    "CARGO_ARRIVAL_KEY_REUSED": "Esta tentativa já foi usada com outros dados. Confira e registre de novo.",
+    "CARGO_ARRIVAL_NOT_FOUND": "Esta chegada não existe mais.",
+    "CONTRACTOR_NOT_FOUND": "O contratante não foi encontrado.",
+    "CARGO_ARRIVAL_CLOSED": "A chegada está fechada: só leitura.",
+    "REQUEST_FAILED": "Sem conexão com o servidor.",
+    "RESPONSE_INVALID": "Resposta inesperada do servidor.",
+    "unknown": "Não foi possível concluir ({{code}})."
+  },
+  "detail": {
+    "title": "Chegada de {{name}}",
+    "back": "Voltar às chegadas",
+    "openSeparation": "Abrir a separação no celular",
+    "loading": "Carregando a chegada",
+    "error": "Não foi possível carregar a chegada ({{code}}).",
+    "closedNotice": "Chegada fechada: só leitura.",
+    "groupRegion": "Notas do grupo {{title}}",
+    "selectGroup": "Selecionar o grupo {{title}}",
+    "selectDocument": "Selecionar a nota {{number}}",
+    "recipient": "Destinatário",
+    "state": "Situação",
+    "value": "Nota",
+    "selected_one": "{{count}} nota selecionada",
+    "selected_other": "{{count}} notas selecionadas",
+    "clearSelection": "Limpar seleção"
+  },
+  "actions": {
+    "routeLabel": "Rota (até {{max}} caracteres)",
+    "routeHint": "Deixe vazio para limpar a rota das notas selecionadas.",
+    "applyRoute": "Aplicar rota",
+    "markReceived": "Marcar como recebidas",
+    "markSeparated": "Marcar como separadas",
+    "close": "Fechar chegada",
+    "closing": "Fechando…",
+    "pendingLead": "Faltam separar:",
+    "pendingShortcut": "NF {{number}}"
+  },
+  "outcome": {
+    "title": "Resultado do lote",
+    "summary": "{{changed}} alteradas, {{unchanged}} sem mudança, {{refused}} recusadas.",
+    "refusedLead": "Recusadas:",
+    "refusedShortcut": "NF {{number}}",
+    "routeApplied": "Rota aplicada às notas selecionadas.",
+    "dismiss": "Dispensar o resultado",
+    "details": "Ver o resultado de cada nota",
+    "line": "NF {{number}} — {{result}}",
+    "result": {
+      "changed": "alterada",
+      "unchanged": "sem mudança",
+      "refused": "recusada: {{reason}}"
+    }
+  },
+  "separation": {
+    "title": "Separação",
+    "back": "Chegadas",
+    "openOffice": "Abrir a visão do escritório",
+    "loading": "Carregando a separação",
+    "error": "Não foi possível carregar a separação ({{code}}).",
+    "search": "Buscar nota",
+    "searchPlaceholder": "Número da nota",
+    "scan": "Ler a chave de acesso",
+    "scanTitle": "Ler a chave de acesso",
+    "scanClose": "Fechar a leitura",
+    "scanDenied": "A câmera foi negada. Libere o acesso nas configurações do navegador.",
+    "scanReading": "Aponte a câmera para o código de barras da nota.",
+    "scanStarting": "Iniciando a câmera…",
+    "scanUnavailable": "Este aparelho não consegue ler pela câmera.",
+    "scanFound": "Nota encontrada: NF {{number}}.",
+    "scanNotFound": "Esta chave não é de nenhuma nota desta chegada.",
+    "noMatches": "Nenhuma nota com esse número.",
+    "offline": "Sem conexão. O toque que falhar fica na tela para tentar de novo.",
+    "groupToggle": "Mostrar ou esconder o grupo {{title}}",
+    "groupAll": "Separar tudo deste grupo",
+    "groupAllDone": "Grupo todo separado",
+    "step": {
+      "expected": "Marcar como recebida",
+      "received": "Marcar como separada",
+      "separated": "Separada"
+    },
+    "stepLabel": "{{step}} — NF {{number}}",
+    "failure": "Não foi possível enviar: {{reason}}",
+    "retry": "Tentar de novo",
+    "retryLabel": "Tentar de novo — NF {{number}}",
+    "refused": "Recusada: {{reason}}",
+    "closedNotice": "Chegada fechada: só leitura."
+  }
+}

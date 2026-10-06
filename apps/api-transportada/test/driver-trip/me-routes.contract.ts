@@ -245,3 +245,58 @@ describe('os tipos de ocorrência do motorista (spec 157)', () => {
     expect(asked).toEqual([])
   })
 })
+
+describe('GET /me/trips/current e a permissão de reportar (spec 244 D2)', () => {
+  const CURRENT_PATH = '/me/trips/current'
+
+  async function askWith(roles: CompanyContext['roles']) {
+    const received: Array<{ readonly canReportProofs?: boolean }> = []
+    const routes = createMeTripRoutes({
+      attachProof: NOT_CALLED,
+      cancelStopDeparture: NOT_CALLED,
+      confirmOccurrenceUpload: NOT_CALLED,
+      createOccurrenceUpload: NOT_CALLED,
+      dispatchCurrentTrip: NOT_CALLED,
+      findCurrentTrip: async (input) => {
+        received.push(input)
+        return { isRegisteredDriver: true, pendingProofs: [], score: null, trips: [] }
+      },
+      listFieldOccurrenceTypes: NOT_CALLED,
+      readDeliveryProofs: NOT_CALLED,
+      readManifestXml: NOT_CALLED,
+      registerDriverOccurrence: NOT_CALLED,
+      renderManifestDamdfe: NOT_CALLED,
+      reportArrival: NOT_CALLED,
+      reportDelivery: NOT_CALLED,
+      reportDeparture: NOT_CALLED,
+      reportOccurrence: NOT_CALLED,
+      reportReturn: NOT_CALLED,
+      resolveDriverId: NOT_CALLED,
+      startFieldTrip: NOT_CALLED,
+    })
+    const route = routes.find(
+      (candidate) => candidate.method === 'GET' && candidate.pathname === CURRENT_PATH,
+    )
+    await route?.execute({
+      context: companyContext(roles),
+      correlationId: 'c-1',
+      pathParameters: {},
+      request: new Request(`http://localhost${CURRENT_PATH}`),
+    })
+    return received
+  }
+
+  it('o ajudante (só trip.read) pergunta sem poder reportar', async () => {
+    const received = await askWith(['helper'])
+
+    expect(received).toHaveLength(1)
+    expect(received[0]?.canReportProofs).toBe(false)
+  })
+
+  it('o motorista (trip.read e trip.report) pergunta podendo reportar', async () => {
+    const received = await askWith(['driver'])
+
+    expect(received).toHaveLength(1)
+    expect(received[0]?.canReportProofs).toBe(true)
+  })
+})

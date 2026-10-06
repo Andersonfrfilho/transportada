@@ -4,6 +4,7 @@
 import { DiagnosableError } from '../../shared/diagnosable.error.js'
 
 export const COMPANY_SETTINGS_PERSISTENCE_FAILURE = {
+  locationRetentionNotPersisted: 'Company location retention settings could not be persisted',
   profileNotPersisted: 'Company fiscal settings could not be persisted',
   sequenceNotPersisted: 'Company fiscal sequence could not be persisted',
 } as const

@@ -1,4 +1,5 @@
 import { SQL } from 'bun'
+import { expect } from 'bun:test'
 
 import type { IdentityFixture } from './identity-constraints.assertion.js'
 import { expectQueryToFail } from './support.js'
@@ -199,6 +200,26 @@ export async function assertFleetConstraints(
     insert into fleet_drivers (id, company_id, name, tax_id)
     values (${secondDriverId}, ${companyId}, 'Motorista Sem Login', '98765432100')
   `
+
+  // Spec 235 D2: a ficha nasce dirigindo; o ajudante-puro não dirige, e ficha que não faz nada não existe
+  const [driverDefaults] = await database<
+    Array<{ readonly can_drive: boolean; readonly can_act_as_helper: boolean }>
+  >`select can_drive, can_act_as_helper from fleet_drivers where id = ${driverId}`
+  expect(driverDefaults).toEqual({ can_drive: true, can_act_as_helper: false })
+  const helperOnlyId = crypto.randomUUID()
+  await database`
+    insert into fleet_drivers (id, company_id, name, tax_id, can_drive, can_act_as_helper)
+    values (${helperOnlyId}, ${companyId}, 'Ajudante Sem CNH', '44455566677', false, true)
+  `
+  await database`delete from fleet_drivers where id = ${helperOnlyId}`
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, can_drive, can_act_as_helper)
+      values (${companyId}, 'Ficha Vazia', '44455566677', false, false)
+    `,
+    '23514',
+    'fleet_drivers_crew_capability_check',
+  )
 
   await expectQueryToFail(
     database`

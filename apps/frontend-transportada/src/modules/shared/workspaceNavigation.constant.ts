@@ -11,6 +11,7 @@ const NAVIGATION_ENTRIES = [
   { href: '/nfse-invoices', key: 'nfse-invoice', label: 'NFS-e' },
   { href: '/operations', key: 'operations', label: 'Operações' },
   { href: '/ocorrencias', key: 'trip-occurrences', label: 'Ocorrências' },
+  { href: '/recebimento', key: 'cargo-receiving', label: 'Recebimento' },
   { href: '/company-settings', key: 'company-settings', label: 'Empresa' },
   { href: '/usuarios', key: 'users', label: 'Acessos' },
   { href: '/papeis', key: 'access-profiles', label: 'Papéis e grupos' },
@@ -67,7 +68,7 @@ export const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
     key: 'operations',
     label: 'Operações',
     items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
-      ['operations', 'trip-occurrences', 'driver-trip'].includes(key),
+      ['operations', 'trip-occurrences', 'cargo-receiving', 'driver-trip'].includes(key),
     ),
   },
   {

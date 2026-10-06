@@ -11,7 +11,7 @@
  */
 import { and, eq } from 'drizzle-orm'
 
-import { trips } from '../../database/trip.schema.js'
+import { tripDocuments, trips } from '../../database/trip.schema.js'
 import { encodeTripTimelineCursor } from '../application/trip-timeline-cursor.service.js'
 import { mergeTripTimeline } from '../application/trip-timeline-merge.service.js'
 import { TRIP_TIMELINE_KIND_PRIORITY } from '../application/trip-timeline.types.js'
@@ -29,6 +29,8 @@ import {
   listDispatchedRows,
   listStatusChangedRows,
 } from './trip-timeline-status.query.js'
+import { listAddressCorrectedRows } from './trip-timeline-address.query.js'
+import { listCanhotoPhotoRows } from './trip-timeline-proof.query.js'
 import { listStopEventRows, listStopOccurrenceRows } from './trip-timeline-stop.query.js'
 
 export {
@@ -66,9 +68,43 @@ export async function findTripCompanyScope(
 }
 
 /**
- * A linha do tempo de uma viagem: sete consultas (D5 — `trip_stop_events` cobre três `kind`s; spec
- * 171 acrescenta `trip.created`), escopadas por `companyId` e `tripId`, unidas em memória por
- * `mergeTripTimeline`. RNF: uma consulta por fonte, `Promise.all`, sem N+1.
+ * Spec 233 D7: a nota pedida tem de ser **desta viagem e desta empresa**. Sem as duas chaves, o filtro
+ * viraria sonda de existência de nota alheia (lista vazia para "não existe" e para "existe em outra
+ * empresa" seria o mesmo sinal, e 404 para uma e 200 para outra vazaria qual é qual).
+ */
+export async function findTripDocumentScope(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly tripId: string
+  },
+): Promise<{ readonly id: string; readonly stopId: string | null } | null> {
+  const [document] = await queryable
+    .select({ id: tripDocuments.id, stopId: tripDocuments.stopId })
+    .from(tripDocuments)
+    .where(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        eq(tripDocuments.tripId, input.tripId),
+        eq(tripDocuments.id, input.documentId),
+      ),
+    )
+    .limit(1)
+  return document ?? null
+}
+
+/**
+ * A linha do tempo de uma viagem: nove consultas (D5 — `trip_stop_events` cobre três `kind`s; spec
+ * 171 acrescenta `trip.created`; spec 228 a foto do canhoto e o endereço corrigido), escopadas por
+ * `companyId` e `tripId`, unidas em memória por `mergeTripTimeline`. RNF: uma consulta por fonte,
+ * `Promise.all`, sem N+1.
+ *
+ * ⚠️ **O risco do pool não é uma requisição, é a soma delas.** Nove (ou dez) consultas cabem em
+ * `DATABASE_POOL_MAX = 10`. O que esgota é a concorrência *entre* requisições: a linha do tempo da
+ * viagem e "Eventos desta entrega" (`?documentId=`) abrem juntas 18 consultas, e o prazo de
+ * `DATABASE_QUERY_TIMEOUT_MS = 8000` conta desde a fila — a que não pega conexão a tempo vira 503.
+ * Por isso o endereço segue sendo uma consulta só (`union all`), e não duas.
  */
 export async function listTripTimeline(
   queryable: TripQueryable,
@@ -82,6 +118,8 @@ export async function listTripTimeline(
     stopOccurrences,
     documentOccurrences,
     documentStatusChanged,
+    canhotoPhotos,
+    addressCorrections,
   ] = await Promise.all([
     listCreatedRows(queryable, params),
     listDispatchedRows(queryable, params),
@@ -90,6 +128,8 @@ export async function listTripTimeline(
     listStopOccurrenceRows(queryable, params),
     listDocumentOccurrenceRows(queryable, params),
     listDocumentStatusChangedRows(queryable, params),
+    listCanhotoPhotoRows(queryable, params),
+    listAddressCorrectedRows(queryable, params),
   ])
 
   const merged = mergeTripTimeline({
@@ -102,6 +142,8 @@ export async function listTripTimeline(
       stopOccurrences,
       documentOccurrences,
       documentStatusChanged,
+      canhotoPhotos,
+      addressCorrections,
     ],
   })
   const last = merged.items[merged.items.length - 1]

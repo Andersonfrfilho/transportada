@@ -65,3 +65,10 @@ export type TripDocumentLabelSource = Readonly<{
   nfeNumber?: null | string
   nfeSeries?: null | string
 }>
+
+/** Só a nota entregue ou devolvida tem comprovante; o resto abre sem buscar nada. */
+export function hasTripDocumentProof(
+  document: Pick<TripDocumentDetail, 'deliveredAt' | 'returnedAt'>,
+): boolean {
+  return document.deliveredAt !== null || document.returnedAt !== null
+}

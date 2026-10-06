@@ -8,7 +8,7 @@ navegação manual em `src/main.tsx` (`pushState` + `popstate` + `sessionStorage
 sem zod** — `tailwind-merge`/`clsx`/`cva` estão no `package.json` mas não são usados; `cn()` é
 reimplementado em `src/lib/utils.ts`; validação é type guard manual em `*.validation.ts`.
 
-Módulos em `src/modules/`: `billing`, `company-settings`, `cte-batch`, `cte-issuance`,
+Módulos em `src/modules/`: `billing`, `cargo-receiving`, `company-settings`, `cte-batch`, `cte-issuance`,
 `cte-profiles`, `fleet`, `foundation`, `freight`, `identity`, `mdfe-manifest`, `nfe-workspace`,
 `nfse-invoice`, `notification`, `operations`, `trip`, `shared`. `shared/` concentra client HTTP +
 validação + view-model. Um client HTTP **por módulo** (`shared/<modulo>Client.service.ts`), com
@@ -82,7 +82,10 @@ perto do efeito". Painel **"Medida pela câmera (experimental)"** (spec 152) mor
 do `nfe-workspace`, registrado como `cameraMeasurement` em `SETTINGS_PANEL_PLACEMENT` com
 `{ module: 'nfe-workspace', source: 'cameraMeasurementSettings', tab: 'boxes' }` — exige `settings.manage`
 e controla o interruptor `cameraMeasurementEnabled` por empresa (padrão desligado). Contrato em
-`test/company-settings/tabs.contract.ts`.
+`test/company-settings/tabs.contract.ts`. Aba **Localização** (spec 239) em `/trips` (`trip` module),
+`TripLocationRetentionPanel`, `locationRetention` em `SETTINGS_PANEL_PLACEMENT` com
+`{ module: 'trip', source: 'locationRetentionSettings', tab: 'location' }` — permite quem tem `settings.manage`
+ligar/desligar e ajustar prazo (30–90 dias) do expurgo de coordenadas.
 
 ## Domínio de viagem, roteirização e proposta de carga — ver a referência
 
@@ -164,8 +167,8 @@ disparar o boot.
 - **Três telas ganharam a parede que não tinham** (Empresa, NFS-e e Repasses) e decidem **pelo mesmo
   mapa**, nunca por condição própria. Repasses fechou exposição real: não tinha checagem alguma e a
   consulta não tinha `enabled`. A entrada dela no mapa é a única que é **intenção de produto**
-  (`billing.create` ou `trip.financials`), não transcrição — a API lê com `trip.read`, achado
-  registrado em `docs/SECURITY.md:383`.
+  (`billing.create` ou `trip.financials`), não transcrição — a API lê com `trip.financials` desde a
+  spec 243 D1 (antes `trip.read`, achado BOLA registrado em `docs/SECURITY.md`).
 
 ⚠️ **Contrato de parede não se escreve procurando texto na fonte.** A primeira versão dos três
 contratos afirmava que o arquivo continha `isForbidden` e `t('forbidden')`, e passava verde com as
@@ -298,6 +301,11 @@ storage) vai para `test/trip-hooks/*.contract.ts`, importado por `test/trip-hook
 e rodado por `bun run test:hooks` — que o `test` chama no fim, **em processo próprio**, com o
 `@happy-dom/global-registrator` do `test/trip-hooks/dom.preload.ts`.
 
+⚠️ **Contrato de DOM é determinístico sob carga** (spec 237): o prazo do `waitFor` conta tempo esperado, não o custo de uma
+asserção reprovada; `expect(nó).toBeNull()` formata o nó do happy-dom (0,5–1 s) — dentro de `waitFor` afirme
+`querySelectorAll(...).length`; o `afterEach` do `renderHook.helper.ts` desmonta toda raiz montada. Valide estabilidade
+com ≥10 execuções, também com CPU ocupada: uma rodada verde não prova nada. Contrato: `wait-for-budget.contract.ts`.
+
 ⚠️ Não registre o DOM no processo dos contratos nem mova a suíte para a lista principal: o
 `window` global muda o que eles medem (`resolveTripAssemblyDraftStorage` decide por `typeof
 window`), e o `mock.module` que troca os clientes (`getTripClient`, `getRouteSuggestionClient`,
@@ -305,3 +313,88 @@ window`), e o `mock.module` que troca os clientes (`getTripClient`, `getRouteSug
 `test/trip-hooks/tripClientMocks.helper.ts`, e cada suíte reconfigura `tripHookFakes`. `renderHook`/`waitFor` são os de
 `test/trip-hooks/renderHook.helper.ts`, sobre `react-dom/client` + `act` — sem
 `@testing-library/*`. Storage em memória e cliente falso: `test/fixtures/tripAssemblyHooks.fixture.ts`.
+
+## A nota se abre inteira (spec 233)
+
+A linha da nota na viagem é um acordeão de abertura exclusiva (`useOpenTripDocument`) com Dados da nota,
+Ocorrências, Comprovante (dois selos) e Eventos desta entrega. ⚠️ `isDeliveryProof` recusa chave desconhecida
+e descarta o comprovante inteiro: o painel aceita o campo novo **antes** de a API mandá-lo.
+
+Detalhe completo: docs/ai-context/frontend-transportada.md § "A nota se abre inteira".
+
+A 228 põe nesses eventos a "Foto do canhoto" (`camera`, pino `delivered`) e o "Endereço da parada corrigido"
+(`edit`, pino `status`), com origem e deslocamento; "Ver no mapa" só com `location`. Detalhe:
+docs/ai-context/frontend-transportada.md § "Foto do canhoto e endereço corrigido na linha do tempo".
+
+## O ajudante é um perfil (spec 235)
+
+Seletor de perfil com opção `helper`, CNH oculta, "Pode atuar como ajudante" travado para ajudante-puro,
+"Diária própria" para quem pode ajudar. Papel na tabela de Acesso; convite com `helper` casa ficha pelo CPF.
+Seletor de motoristas da viagem exclui quem não dirige; lista de ajudantes segue inalterada (ambos filtram
+pela ficha). Permissão `trip.read` — sem `trip.report` — abre `NoWorkspaceAccess` no painel (decisão de
+produto fora da spec: qual app o ajudante usa). Detalhe: docs/ai-context/frontend-transportada.md
+§ "Spec 235 — O ajudante é um perfil" e ADR-0093.
+
+## A linha do tempo mostra onde o evento aconteceu (spec 196, ADR-0081)
+
+`TripTimelineLocation` (ícone `map-pin`, tooltip com precisão, distância até a parada, coordenada e hora da
+leitura) e `TripTimelineLocationMap` (lazy, dois pinos, mapa quieto sem radar). A regra das cinco situações
+(`captured`, `restricted`, `unavailable`, `expired`, `null`) é `resolveTimelineLocationView`; só `unavailable`
+leva rótulo na tela. `location` e `locationState` chegam sempre (o validador as exige) e `location: null` com
+`captured` é o leitor sem `trip.event-location` — a tela não oferece mapa. Coordenada nunca em URL nem em
+log. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 196".
+
+## Contratantes e perfil de recebimento (spec 237 T1.4)
+
+Aba "Contratantes" de `/clientes` (`delivery-clients`): ficha com dados do contratante e perfil de
+recebimento. `PUT` do perfil sempre com as 10 chaves; recusa do servidor lista todos os campos com atalho
+(`data-field`). Em teste de DOM, compare foco com `activeElement === campo`, nunca `toBe` sobre nó. Detalhe:
+docs/ai-context/frontend-transportada.md § "Spec 237 T1.4".
+
+## O ajudante fecha as pontas (spec 243)
+
+Painel "Diária do ajudante" na aba de motoristas (`DriverCrewSettingsPanel`, fora de `SETTINGS_PANEL_PLACEMENT`,
+permissão `fleet.read`/`fleet.manage` da API). Variante de `NoWorkspaceAccess` para conta com `trip.read`
+e sem workspace: texto "Sua conta acompanha viagens pelo app do motorista" + botão para abrir o app (quando
+`VITE_DRIVER_APP_URL` existe). Contrato: `test/fleet/driver-crew-settings-panel.contract.tsx`,
+`test/identity/no-workspace-access-variant.contract.tsx`. Detalhe: docs/ai-context/frontend-transportada.md
+§ "Spec 243 — O ajudante fecha as pontas" e ADR-0095.
+
+## Recebimento da carga e separação pelo celular (spec 237 T2.4)
+
+Módulo `cargo-receiving`, rota **`/recebimento`**, item "Recebimento" no grupo Operações — visível só com
+`fleet.read` (o mapa de `workspaceAccess.service.ts`); escrever é `trip.manage` e decide dentro da tela
+(`canManage`). Quatro telas, um módulo: `/recebimento` (lista), `/recebimento/nova` (registro),
+`/recebimento/:id/detalhe` (escritório) e **`/recebimento/:id` (o celular do separador)**. Namespace i18n
+`cargoReceiving`; guardas de resposta e erro **próprios** (nada importado de `delivery-clients`: contratante e
+perfil são lidos por projeção mínima — só `id/displayName/taxId` e `isEnabled`).
+
+- **A máquina do toque é pura** (`cargoSeparationTouch.service.ts`): esperada → recebida → separada, uma etapa
+  por vez. "Separar tudo do grupo" são **dois lotes em ordem** (`received` só para as esperadas, depois
+  `separated` para todas), porque a API só aceita `separated` a partir de `received`; a nota recusada no
+  primeiro não entra no segundo e **nunca derruba o lote**. O resultado traz o estado que cada nota tem DE FATO
+  (`TouchRun.states`) — é ele que a atualização otimista grava e que a volta restaura
+  (`useSeparationTouch.mutation.ts`: reverte só as notas do toque, e só relê a chegada quando nenhum toque está
+  em voo). O toque que cai por rede fica na linha com "Tentar de novo"; o botão de uma nota em voo fica travado.
+- **`Idempotency-Key` por tentativa** (`cargoIdempotencyKey.service.ts`): a mesma impressão do pedido (ordem das
+  notas não conta) reaproveita a chave; pedido diferente gera uma nova. Chave nova a cada render duplicaria a
+  chegada no duplo clique — é mutação provada.
+- **A recusa nomeia tudo** (`cargoReceivingRefusal.service.ts`, web.md §11): `documentIds.<n>` do 422 é a posição
+  da nota NO PEDIDO enviado (a ordem de marcação); o 409 do fechamento devolve o id de cada pendente na
+  mensagem. Cada nome é atalho (`focusCargoTarget.service.ts`, alvo por `data-field`/`data-document-id`).
+- **Seleção** limitada a 300 (`cargoDocumentSelection.service.ts`); "selecionar todas" é "as listadas" (o que a
+  busca deixou), porque a API pagina por cursor de 100.
+- **Contratos de DOM** em `test/trip-hooks/cargo-*.contract.ts` com o servidor dublado do
+  `cargoReceivingHarness.helper.ts` (aplica as MESMAS transições da API). ⚠️ O `MultiSelect`/`SearchableSelect`
+  só abrem opções dentro da suíte completa do `test:hooks` — isolados, a lista vem vazia (já era assim na T1.4).
+- O leitor de câmera é o primitivo `@/components/ui/barcode-scanner` + `extractNfeAccessKey` (o mesmo da
+  viagem): sem acoplar módulos. Fila offline do toque **não existe** (follow-up): falhou, fica na tela.
+
+Detalhe e decisões: docs/ai-context/frontend-transportada.md § "Spec 237 T2.4".
+
+## O ajudante sem resto (spec 244)
+
+**T3:** Conversor `toTypedAmountKeepingZero` (`modules/shared/decimalAmount.service.ts`) devolve `0,00` para
+`0.0000` nos campos `helperDailyRate`, `dailyAllowanceAmount` (ficha) e diária geral. Testes:
+`test/fleet/driver-daily-allowance.contract.ts`, `test/fleet/driver-crew-settings-panel.contract.tsx`,
+`test/shared/decimal-amount.contract.ts`.

@@ -47,6 +47,8 @@ export type PackageBoxView = {
   readonly id: string
   readonly lengthMm: number | null
   readonly measuredAt: string | null
+  /** Quem fez o último registro; `null` sem medida, ator de sistema (catálogo) ou conferente removido. */
+  readonly measuredByName: string | null
   /** Spec 152 (D8, experimental): `null` em toda caixa medida antes desta spec. */
   readonly measurementMarginMm: number | null
   readonly measurementSource: PackageBoxMeasurementSource | null

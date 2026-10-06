@@ -134,6 +134,15 @@ import { createTesseractOcrClient } from '@adatechnology/document-intake'
 import { createDocumentExtractionGateway } from './aggregate-attachment/infrastructure/document-extraction.gateway.js'
 import { createThreadedAttachmentExtractionGateway } from './aggregate-attachment/infrastructure/threaded-extraction.gateway.js'
 import { startAggregateAttachmentConsumer } from './runtime/aggregate-attachment-consumer.service.js'
+import { startCargoPreviewConsumer } from './runtime/cargo-preview-consumer.service.js'
+import { buildCargoPreviewRabbitMqTopology } from './messaging/cargo-preview-rabbitmq-topology.js'
+import {
+  CargoPreviewOutboxRelayService,
+  createCargoPreviewOutboxPublisher,
+} from './cargo-preview/application/cargo-preview-outbox-relay.service.js'
+import { DrizzleCargoPreviewOutboxRepository } from './cargo-preview/infrastructure/drizzle-cargo-preview-outbox.repository.js'
+import { DrizzleCargoPreviewWorkerRepository } from './cargo-preview/infrastructure/drizzle-cargo-preview-worker.repository.js'
+import { createStorageCargoPreviewReader } from './cargo-preview/infrastructure/storage-cargo-preview-reader.gateway.js'
 import type { ExtractAttachmentFieldsDependencies } from './aggregate-attachment/application/extract-attachment-fields.use-case.js'
 import { buildContractorMailOutboundRabbitMqTopology } from './messaging/contractor-mail-outbound-rabbitmq-topology.js'
 import { buildContractorMailInboundRabbitMqTopology } from './messaging/contractor-mail-inbound-rabbitmq-topology.js'
@@ -227,8 +236,12 @@ import { DrizzleSettlementCandidateRepository } from './whatsapp-command-settlem
 import { createWhatsAppCommandSettlementApiGateway } from './whatsapp-command-settlement/infrastructure/whatsapp-command-settlement-api.gateway.js'
 import { TRIP_LOCATION_PURGE_JOB } from './trip-location-purge/domain/trip-location-purge.constant.js'
 import {
+  createDrizzleCountEligibleCompanies,
   createDrizzlePurgeStalePings,
   createDrizzleRedactDeliveryProofLocations,
+  createDrizzleRedactDocumentOccurrenceLocations,
+  createDrizzleRedactStatusEventLocations,
+  createDrizzleRedactStopOccurrenceLocations,
   createDrizzleRedactTripLocations,
 } from './trip-location-purge/infrastructure/drizzle-trip-location.repository.js'
 import { createTripCargoLayoutPurgeRoutine } from './trip-cargo-layout-purge/application/trip-cargo-layout-purge.routine.js'
@@ -309,7 +322,9 @@ type RuntimeLoggerFactory = (input: {
   readonly version: string
 }) => RuntimeLogger
 
-type RuntimeDatabaseFactory = (input: { readonly connection: string }) => RuntimeDatabasePort
+type RuntimeDatabaseFactory = (input: {
+  readonly connection: Parameters<typeof createDrizzleProvider>[0]['connection']
+}) => RuntimeDatabasePort
 
 type RuntimeRabbitMqProviderFactory = (input: {
   readonly connection: string
@@ -423,6 +438,9 @@ type WorkerRuntimeDependencies = {
     readonly logger: WorkerLogger
     readonly provider: RabbitMqProvider
   }) => Promise<RuntimeConsumer | undefined>
+  readonly startCargoPreviewConsumer?: (
+    input: Parameters<typeof startCargoPreviewConsumer>[0],
+  ) => Promise<RuntimeConsumer | undefined>
   readonly startContractorMailOutboundConsumer?: (input: {
     readonly config: ReturnType<typeof parseWorkerEnvironment>
     readonly dependencies: SendContractorMailOutboundMessageDependencies
@@ -503,6 +521,7 @@ export async function startWorkerRuntime(
     dependencies.startAggregateAttachmentConsumer ?? startAggregateAttachmentConsumer
   const contractorMailOutboundStarter =
     dependencies.startContractorMailOutboundConsumer ?? startContractorMailOutboundConsumer
+  const cargoPreviewStarter = dependencies.startCargoPreviewConsumer ?? startCargoPreviewConsumer
   const contractorMailInboundStarter =
     dependencies.startContractorMailInboundConsumer ?? startContractorMailInboundConsumer
   const cargoLayoutStarter = dependencies.startCargoLayoutConsumer ?? startCargoLayoutConsumer
@@ -550,7 +569,10 @@ export async function startWorkerRuntime(
   const digitalCertificateSecretService = createDigitalCertificateSecretService({
     envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
   })
-  const database = databaseFactory({ connection: config.databaseUrl })
+  // O corte do expurgo faz `timestamptz - make_interval(days => N)`, que depende do fuso da sessão.
+  const database = databaseFactory({
+    connection: { connection: { TimeZone: 'UTC' }, url: config.databaseUrl },
+  })
   const storageGateway = storageGatewayFactory({ environment })
   const storageBucket =
     environment.OBJECT_STORAGE_BUCKET ?? environment.STORAGE_BUCKET ?? 'transportada-private'
@@ -571,6 +593,9 @@ export async function startWorkerRuntime(
     queuePrefix: config.queuePrefix,
   })
   const aggregateAttachmentTopology = buildAggregateAttachmentRabbitMqTopology({
+    queuePrefix: config.queuePrefix,
+  })
+  const cargoPreviewTopology = buildCargoPreviewRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
   const contractorMailOutboundTopology = buildContractorMailOutboundRabbitMqTopology({
@@ -614,6 +639,9 @@ export async function startWorkerRuntime(
   let aggregateAttachmentConsumer: RuntimeConsumer | undefined
   let aggregateAttachmentPublisher: RabbitMqProvider | undefined
   let aggregateAttachmentRelayLoop: OutboxRelayLoop | undefined
+  let cargoPreviewConsumer: RuntimeConsumer | undefined
+  let cargoPreviewPublisher: RabbitMqProvider | undefined
+  let cargoPreviewRelayLoop: OutboxRelayLoop | undefined
   let contractorMailOutboundConsumer: RuntimeConsumer | undefined
   let contractorMailOutboundPublisher: RabbitMqProvider | undefined
   let contractorMailOutboundRelayLoop: OutboxRelayLoop | undefined
@@ -669,6 +697,10 @@ export async function startWorkerRuntime(
     contractorMailOutboundPublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
       topology: contractorMailOutboundTopology,
+    })
+    cargoPreviewPublisher = await rabbitProviderFactory({
+      connection: config.rabbitMqUrl,
+      topology: cargoPreviewTopology,
     })
     contractorMailInboundPublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
@@ -1001,6 +1033,18 @@ export async function startWorkerRuntime(
       logger,
       provider: aggregateAttachmentPublisher,
     })
+    cargoPreviewConsumer = await cargoPreviewStarter({
+      dependencies: {
+        clock: () => performance.now(),
+        now: () => new Date(),
+        reader: createStorageCargoPreviewReader({ storage: storageGateway }),
+        repository: new DrizzleCargoPreviewWorkerRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+      },
+      logger,
+      provider: cargoPreviewPublisher,
+    })
     contractorMailOutboundConsumer = await contractorMailOutboundStarter({
       config,
       dependencies: {
@@ -1211,6 +1255,9 @@ export async function startWorkerRuntime(
                 }),
               }),
           [TRIP_LOCATION_PURGE_JOB]: createTripLocationPurgeRoutine({
+            countEligibleCompanies: createDrizzleCountEligibleCompanies(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
             purgeStalePings: createDrizzlePurgeStalePings(
               database.db as ReturnType<typeof createDrizzleProvider>['db'],
             ),
@@ -1219,7 +1266,16 @@ export async function startWorkerRuntime(
             redact: createDrizzleRedactTripLocations(
               database.db as ReturnType<typeof createDrizzleProvider>['db'],
             ),
+            redactDocumentOccurrenceLocations: createDrizzleRedactDocumentOccurrenceLocations(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
             redactProofLocations: createDrizzleRedactDeliveryProofLocations(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
+            redactStatusEventLocations: createDrizzleRedactStatusEventLocations(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
+            redactStopOccurrenceLocations: createDrizzleRedactStopOccurrenceLocations(
               database.db as ReturnType<typeof createDrizzleProvider>['db'],
             ),
           }),
@@ -1584,6 +1640,22 @@ export async function startWorkerRuntime(
       }),
     })
     aggregateAttachmentRelayLoop.start()
+    cargoPreviewRelayLoop = new OutboxRelayLoop({
+      claimOwner: `${config.queuePrefix}.cargo-preview.relay.${crypto.randomUUID()}`,
+      failureMessage: 'cargo_preview_outbox_relay_failed',
+      intervalMs: 1_000,
+      leaseMs: 30_000,
+      limit: 25,
+      logger,
+      relay: new CargoPreviewOutboxRelayService({
+        now: () => new Date(),
+        publisher: createCargoPreviewOutboxPublisher(cargoPreviewPublisher),
+        repository: new DrizzleCargoPreviewOutboxRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+      }),
+    })
+    cargoPreviewRelayLoop.start()
     contractorMailOutboundRelayLoop = new OutboxRelayLoop({
       claimOwner: `${config.queuePrefix}.contractor-mail-outbound.relay.${crypto.randomUUID()}`,
       failureMessage: 'contractor_mail_outbound_outbox_relay_failed',
@@ -1713,6 +1785,7 @@ export async function startWorkerRuntime(
         mdfeRelayLoop,
         nfseRelayLoop,
         aggregateAttachmentRelayLoop,
+        cargoPreviewRelayLoop,
         contractorMailOutboundRelayLoop,
         contractorMailInboundRelayLoop,
         cargoLayoutRelayLoop,
@@ -1739,6 +1812,7 @@ export async function startWorkerRuntime(
         invitationDeliveryConsumer,
         passwordResetDeliveryConsumer,
         aggregateAttachmentConsumer,
+        cargoPreviewConsumer,
         contractorMailOutboundConsumer,
         contractorMailInboundConsumer,
         cargoLayoutConsumer,
@@ -1767,6 +1841,7 @@ export async function startWorkerRuntime(
          * nada visível até alguém pedir para o processo sair.
          */
         aggregateAttachmentPublisher,
+        cargoPreviewPublisher,
         contractorMailOutboundPublisher,
         contractorMailInboundPublisher,
         cargoLayoutPublisher,
@@ -1808,6 +1883,8 @@ export async function startWorkerRuntime(
     await mdfeRelayLoop?.close().catch(() => undefined)
     await nfseRelayLoop?.close().catch(() => undefined)
     await aggregateAttachmentRelayLoop?.close().catch(() => undefined)
+    await cargoPreviewConsumer?.cancel().catch(() => undefined)
+    await cargoPreviewRelayLoop?.close().catch(() => undefined)
     await cargoLayoutRelayLoop?.close().catch(() => undefined)
     await healthServer?.stop().catch(() => undefined)
     await storageGateway.close().catch(() => undefined)
@@ -1819,6 +1896,7 @@ export async function startWorkerRuntime(
     await invitationDeliveryPublisher?.close().catch(() => undefined)
     await passwordResetDeliveryPublisher?.close().catch(() => undefined)
     await aggregateAttachmentPublisher?.close().catch(() => undefined)
+    await cargoPreviewPublisher?.close().catch(() => undefined)
     await contractorMailOutboundPublisher?.close().catch(() => undefined)
     await contractorMailInboundPublisher?.close().catch(() => undefined)
     await cargoLayoutPublisher?.close().catch(() => undefined)

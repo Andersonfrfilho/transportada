@@ -119,7 +119,8 @@ describe('exportar o que falta medir em CSV/Excel', () => {
 
     expect(source).toInclude("t('pendingMeasurement.export.csv')")
     expect(source).toInclude("t('pendingMeasurement.export.xlsx')")
-    expect(source).toInclude("import('write-excel-file/browser')")
+    expect(source).toInclude('useSpreadsheetExport')
+    expect(source).not.toInclude('write-excel-file')
   })
 
   it('os rótulos dos botões existem em pt e em en', () => {

@@ -60,6 +60,17 @@ export const DRIVER_TRIP_ERROR = {
   UPLOAD_FAILED: 'OCCURRENCE_UPLOAD_FAILED',
 } as const
 
+/**
+ * Quem falhou foi o caminho, não o item: gateway fora (502/503/504), limite de taxa (429) e tempo
+ * esgotado (408). ⚠️ O 500 fica de fora — `failed-network` para a drenagem inteira, e um item que
+ * derruba o servidor travaria todos os de trás.
+ */
+const RETRYABLE_STATUSES: ReadonlySet<number> = new Set([408, 429, 502, 503, 504])
+
+export function isRetryableStatus(status: number | undefined): boolean {
+  return status !== undefined && RETRYABLE_STATUSES.has(status)
+}
+
 export class DriverTripRequestError extends Error {
   public readonly code: string
   /** `true` só quando a rede falhou — recusa do servidor é resposta, e resposta não se repete. */
@@ -590,9 +601,11 @@ async function request(
   try {
     payload = rawBody.length === 0 ? {} : (JSON.parse(rawBody) as unknown)
   } catch {
+    /** O status só vai quando a resposta já era recusa: o HTML de um 502 precisa dele para esperar. */
     throw new DriverTripRequestError({
       code: DRIVER_TRIP_ERROR.RESPONSE_INVALID,
       isOffline: false,
+      ...(response.ok ? {} : { status: response.status }),
     })
   }
 

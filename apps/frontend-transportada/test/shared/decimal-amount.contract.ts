@@ -7,6 +7,8 @@ import {
   divideScaledAmounts,
   formatAmount,
   sumScaledAmounts,
+  toTypedAmount,
+  toTypedAmountKeepingZero,
 } from '@/modules/shared/decimalAmount.service'
 
 const SERVICE_PATH = new URL('../../src/modules/shared/decimalAmount.service.ts', import.meta.url)
@@ -110,5 +112,19 @@ describe('decimal amount service source', () => {
 
     for (const pattern of FLOAT_PATTERNS) expect(source).not.toMatch(pattern)
     expect(source).toContain('BigInt')
+  })
+})
+
+describe('o zero que o operador deliberou (spec 244 D3)', () => {
+  test('toTypedAmountKeepingZero devolve o zero como `0,00`, e o resto como toTypedAmount', () => {
+    expect(toTypedAmountKeepingZero({ scale: 2, value: '0.0000' })).toBe('0,00')
+    expect(toTypedAmountKeepingZero({ scale: 2, value: '0' })).toBe('0,00')
+    expect(toTypedAmountKeepingZero({ scale: 2, value: '120.0000' })).toBe('120,00')
+    expect(toTypedAmountKeepingZero({ scale: 2, value: '1250.5000' })).toBe('1250,50')
+  })
+
+  test('toTypedAmount segue devolvendo vazio para zero: as outras telas não mudam', () => {
+    expect(toTypedAmount({ scale: 2, value: '0.0000' })).toBe('')
+    expect(toTypedAmount({ scale: 2, value: '120.0000' })).toBe('120,00')
   })
 })

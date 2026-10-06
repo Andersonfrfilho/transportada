@@ -9,12 +9,15 @@ import { assertCteProfileOutputConstraints } from './cte-profile-output-constrai
 import { assertDeliveryProofCargoSumsAndGuardsRollback } from './delivery-proof-cargo.assertion.js'
 import { assertDeliveryProofContractorOverridesBackfill } from './delivery-proof-contractor-overrides.assertion.js'
 import { assertDeliveryProofReceivedBy } from './delivery-proof-received-by.assertion.js'
+import { assertEventLocationWhatsappRollbackRefusesRecordedPoints } from './event-location-whatsapp-rollback.assertion.js'
 import { assertDriverAllowanceRollbackRefusesRecordedMoney } from './driver-allowance-rollback.assertion.js'
 import { assertFiscalConstraints } from './fiscal-constraints.assertion.js'
 import { assertFleetConstraints } from './fleet-constraints.assertion.js'
 import { assertFreightRegionConstraints } from './freight-region-constraints.assertion.js'
+import { assertHelperRoleRollbackRefusesHelpers } from './helper-role-rollback.assertion.js'
 import { assertIdentityConstraints } from './identity-constraints.assertion.js'
 import { assertInvitationConstraints } from './invitation-constraints.assertion.js'
+import { assertLocationRetentionRollbackRefusesRecordedSettings } from './location-retention-rollback.assertion.js'
 import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
 import { assertNfeDocumentListingOrderIndex } from './nfe-document-listing-order-index.assertion.js'
 import { assertNfeDocumentProtocolPresence } from './nfe-document-protocol-presence.assertion.js'
@@ -123,6 +126,15 @@ describe('Drizzle migration integration', () => {
           userId: identityFixture.userId,
         })
 
+        await assertEventLocationWhatsappRollbackRefusesRecordedPoints({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          tripId: rollbackProbeTripId,
+          userId: identityFixture.userId,
+        })
+
         await assertDeliveryProofCargoSumsAndGuardsRollback({
           companyId: identityFixture.companyId,
           database,
@@ -220,6 +232,21 @@ describe('Drizzle migration integration', () => {
         await assertTollBoothExtractConstraints({
           database,
           directories: migrationDirectories,
+        })
+        await assertHelperRoleRollbackRefusesHelpers({
+          companyId: identityFixture.companyId,
+          database,
+          directories: migrationDirectories,
+          driverId: fleetFixture.driverId,
+          membershipId: identityFixture.membershipId,
+          userId: identityFixture.userId,
+        })
+        await assertLocationRetentionRollbackRefusesRecordedSettings({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          userId: identityFixture.userId,
         })
 
         const postIdentityRollbacks = await Promise.all(

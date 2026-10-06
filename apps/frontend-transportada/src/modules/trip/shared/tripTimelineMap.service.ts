@@ -9,6 +9,9 @@ import {
   TIMELINE_MAP_CELL_DECIMALS,
   TIMELINE_MAP_ICON_BY_CATEGORY,
   TIMELINE_MAP_LEG_LABEL_MIN_MINUTES,
+  TIMELINE_MAP_PHOTO_ICON,
+  TIMELINE_MAP_PHOTO_KIND,
+  TIMELINE_MAP_PHOTO_LABEL_KEY,
   type TimelineMapCategory,
 } from './tripTimelineMap.constant'
 import { resolveTimelineLocationView } from './tripTimelineDetail.service'
@@ -59,6 +62,8 @@ export type TimelineMapView = Readonly<{
 type Cluster = {
   category: TimelineMapCategory
   count: number
+  /** Só fotos de canhoto neste lugar: o pino leva o glifo da câmera em vez do da entrega. */
+  hasOnlyPhotos: boolean
   lastOccurredAt: string
   latitude: number
   longitude: number
@@ -69,6 +74,7 @@ const MILLISECONDS_PER_MINUTE = 60_000
 
 type LocatedEntry = Readonly<{
   category: TimelineMapCategory
+  isPhoto: boolean
   item: TripTimelineItem
   latitude: number
   longitude: number
@@ -114,6 +120,7 @@ function clusterPoints(located: readonly LocatedEntry[]): readonly Cluster[] {
     const existing = clusterByCellAndCategory.get(clusterKey)
     if (existing !== undefined) {
       existing.count += 1
+      existing.hasOnlyPhotos = existing.hasOnlyPhotos && entry.isPhoto
       /** A entrada vem em ordem cronológica, então o último visto é o último do grupo. */
       existing.lastOccurredAt = entry.item.occurredAt
       continue
@@ -121,6 +128,7 @@ function clusterPoints(located: readonly LocatedEntry[]): readonly Cluster[] {
     const cluster: Cluster = {
       category: entry.category,
       count: 1,
+      hasOnlyPhotos: entry.isPhoto,
       lastOccurredAt: entry.item.occurredAt,
       latitude: anchor.latitude,
       longitude: anchor.longitude,
@@ -189,6 +197,8 @@ export function resolveTimelineMapView(
   const missing = { expired: 0, restricted: 0, unavailable: 0 }
 
   for (const item of sortChronologically(items)) {
+    const category = TIMELINE_MAP_CATEGORY_BY_KIND[item.kind]
+    if (category === null) continue
     const view = resolveTimelineLocationView(item, translate)
     if (view === null) continue
     if (view.coordinates === null) {
@@ -196,7 +206,8 @@ export function resolveTimelineMapView(
       continue
     }
     located.push({
-      category: TIMELINE_MAP_CATEGORY_BY_KIND[item.kind],
+      category,
+      isPhoto: item.kind === TIMELINE_MAP_PHOTO_KIND,
       item,
       latitude: view.coordinates.latitude,
       longitude: view.coordinates.longitude,
@@ -209,13 +220,17 @@ export function resolveTimelineMapView(
     return {
       category: cluster.category,
       count: cluster.count,
-      icon: TIMELINE_MAP_ICON_BY_CATEGORY[cluster.category],
+      icon: cluster.hasOnlyPhotos
+        ? TIMELINE_MAP_PHOTO_ICON
+        : TIMELINE_MAP_ICON_BY_CATEGORY[cluster.category],
       intervalLabel:
         minutesFromPrevious === null
           ? null
           : formatTripTimelineDuration(minutesFromPrevious, translate),
       key: `timeline-map-${index + 1}`,
-      label: translate(`eventTimeline.map.category.${cluster.category}`),
+      label: cluster.hasOnlyPhotos
+        ? translate(TIMELINE_MAP_PHOTO_LABEL_KEY)
+        : translate(`eventTimeline.map.category.${cluster.category}`),
       lastOccurredAt: cluster.lastOccurredAt,
       latitude: cluster.latitude,
       longitude: cluster.longitude,
@@ -227,6 +242,7 @@ export function resolveTimelineMapView(
 
   const countByCategory = new Map<TimelineMapCategory, number>()
   for (const entry of located) {
+    if (entry.isPhoto) continue
     countByCategory.set(entry.category, (countByCategory.get(entry.category) ?? 0) + 1)
   }
 

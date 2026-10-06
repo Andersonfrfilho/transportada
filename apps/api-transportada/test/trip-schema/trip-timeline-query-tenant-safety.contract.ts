@@ -63,6 +63,33 @@ describe('tenant safety da linha do tempo da viagem (spec 158 T5)', () => {
     expect(QUERY_SOURCE).toContain('tripStopEvents.locationState')
   })
 
+  test('spec 196 T4.2: as colunas de posição das três tabelas novas são lidas, cada uma pela própria tabela', () => {
+    for (const table of ['tripStatusEvents', 'tripStopOccurrences', 'tripDocumentOccurrences']) {
+      for (const column of [
+        'accuracyMeters',
+        'capturedAt',
+        'latitude',
+        'locationState',
+        'longitude',
+      ]) {
+        expect(QUERY_SOURCE).toContain(`${column}: ${table}.${column}`)
+      }
+    }
+  })
+
+  test('spec 196 T4.2: a distância da ocorrência de parada usa o ponto vivo casado pela address_key da própria parada', () => {
+    const geocodedJoins =
+      QUERY_SOURCE.match(
+        /\.leftJoin\(geocodedAddresses, eq\(geocodedAddresses\.addressKey, tripStops\.addressKey\)\)/gu,
+      ) ?? []
+    expect(geocodedJoins).toHaveLength(2)
+  })
+
+  test('spec 196 T4.2: só despacho e troca de status de nota seguem sem ponto', () => {
+    const withoutLocation = QUERY_SOURCE.match(/\.\.\.NO_EVENT_LOCATION,/gu) ?? []
+    expect(withoutLocation).toHaveLength(2)
+  })
+
   test('D3/ADR-0068 §4: trip_document_events com driver_app sai como channel null, sem reescrita', () => {
     expect(QUERY_SOURCE).toContain(
       'row.channel === TRIP_FIELD_CHANNELS.driverApp ? null : row.channel',

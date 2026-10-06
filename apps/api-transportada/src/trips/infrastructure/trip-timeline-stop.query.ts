@@ -5,7 +5,7 @@
  * `kind`s `arrived`/`delivered`/`returned`) e `trip_stop_occurrences`. Escopadas por `company_id` em
  * cada junção.
  */
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
 import { distanceInMetres } from '../../addresses/domain/coordinate-distance.js'
@@ -18,10 +18,7 @@ import {
   tripStops,
 } from '../../database/trip.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
-import {
-  NO_EVENT_LOCATION,
-  TRIP_TIMELINE_KIND_PRIORITY,
-} from '../application/trip-timeline.types.js'
+import { TRIP_TIMELINE_KIND_PRIORITY } from '../application/trip-timeline.types.js'
 import { resolveRecordedAt } from '../application/trip-timeline-merge.service.js'
 import type { TripTimelineRow } from '../application/trip-timeline-merge.service.js'
 import type {
@@ -61,7 +58,7 @@ type StopEventLocationColumns = {
 }
 
 /** `captured_at` é anulável no histórico preenchido pela migration; `recorded_at` é a data do próprio carimbo. */
-function toTimelineLocation(row: StopEventLocationColumns): TripTimelineLocation | null {
+export function toTimelineLocation(row: StopEventLocationColumns): TripTimelineLocation | null {
   if (row.latitude === null || row.longitude === null) return null
   const distance =
     row.referenceLatitude === null || row.referenceLongitude === null
@@ -77,6 +74,12 @@ function toTimelineLocation(row: StopEventLocationColumns): TripTimelineLocation
     latitude: Number(row.latitude),
     longitude: Number(row.longitude),
   }
+}
+
+/** Spec 233 (revisão A1): evento e ocorrência de parada, com o filtro por nota, são só os da parada dela. */
+export function documentStopScope(params: ReadTripTimelineParams): SQL {
+  if (params.documentStopId === undefined || params.documentStopId === null) return sql`false`
+  return eq(tripStops.id, params.documentStopId)
 }
 
 export async function listStopEventRows(
@@ -101,6 +104,12 @@ export async function listStopEventRows(
       'departure_cancelled',
     ]),
   ]
+  if (params.documentId !== undefined) {
+    conditions.push(
+      documentStopScope(params),
+      sql`(${isNull(tripStopEvents.tripDocumentId)} or ${eq(tripStopEvents.tripDocumentId, params.documentId)})`,
+    )
+  }
   if (params.cursor !== null) {
     conditions.push(
       timelineKeysetCondition(
@@ -219,6 +228,7 @@ export async function listStopOccurrenceRows(
     eq(tripStopOccurrences.companyId, params.companyId),
     eq(tripStops.tripId, params.tripId),
   ]
+  if (params.documentId !== undefined) conditions.push(documentStopScope(params))
   if (params.cursor !== null) {
     conditions.push(
       timelineKeysetCondition(
@@ -233,16 +243,23 @@ export async function listStopOccurrenceRows(
 
   const rows = await queryable
     .select({
+      accuracyMeters: tripStopOccurrences.accuracyMeters,
       actorName: timelineActorProfile.name,
       /** Fora do escopo da spec 161 (D2/D12): a parada só tem a coluna antiga, no máximo um anexo. */
       attachmentObjectId: tripStopOccurrences.attachmentObjectId,
+      capturedAt: tripStopOccurrences.capturedAt,
       channel: tripStopOccurrences.channel,
       description: tripStopOccurrences.description,
       id: tripStopOccurrences.id,
       kind: tripStopOccurrences.kind,
+      latitude: tripStopOccurrences.latitude,
+      locationState: tripStopOccurrences.locationState,
+      longitude: tripStopOccurrences.longitude,
       occurredAt: tripStopOccurrences.createdAt,
       occurredAtKey: formatTimelineTimestampKey(tripStopOccurrences.createdAt),
       onBehalfOfDriverName: timelineOnBehalfDriver.name,
+      referenceLatitude: geocodedAddresses.latitude,
+      referenceLongitude: geocodedAddresses.longitude,
       stopId: tripStops.id,
       stopSequence: tripStops.sequence,
     })
@@ -254,6 +271,7 @@ export async function listStopOccurrenceRows(
         eq(tripStops.id, tripStopOccurrences.stopId),
       ),
     )
+    .leftJoin(geocodedAddresses, eq(geocodedAddresses.addressKey, tripStops.addressKey))
     .leftJoin(
       timelineActorMembership,
       and(
@@ -289,7 +307,8 @@ export async function listStopOccurrenceRows(
     id: row.id,
     kind: 'stop.occurrence' as const,
     lateRegistration: false,
-    ...NO_EVENT_LOCATION,
+    location: toTimelineLocation({ ...row, recordedAt: row.occurredAt }),
+    locationState: row.locationState ?? null,
     occurrence: {
       attachmentCount: row.attachmentObjectId === null ? 0 : 1,
       cancellation: null,

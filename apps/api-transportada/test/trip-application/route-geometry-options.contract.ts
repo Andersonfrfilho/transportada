@@ -195,6 +195,7 @@ describe('opções de rota (spec 096 T1)', () => {
     }
 
     const view = await readRouteGeometry({
+      choice: { criterion: 'cheapest', signature: null },
       axles: { count: 2, source: 'declared' },
       /** Rodagem dupla: multiplicador = eixos. */
       multiplier: { denominator: 1, numerator: 2 },
@@ -319,6 +320,7 @@ describe('opções de rota (spec 096 T1)', () => {
     }
 
     const view = await readRouteGeometry({
+      choice: { criterion: 'cheapest', signature: null },
       axles: { count: 2, source: 'declared' },
       multiplier: { denominator: 1, numerator: 2 },
       fuelBaseline: TOCO,
@@ -432,6 +434,7 @@ describe('opções de rota (spec 096 T1)', () => {
     }
 
     const view = await readRouteGeometry({
+      choice: { criterion: 'cheapest', signature: null },
       axles: { count: 1, source: 'declared' },
       multiplier: { denominator: 1, numerator: 1 },
       fuelBaseline: TOCO,

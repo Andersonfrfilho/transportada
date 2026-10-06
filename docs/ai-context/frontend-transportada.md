@@ -1004,3 +1004,70 @@ frase: tela nova de cancelada entra pelo componente.
 - O kind `occurrence.cancelled` precisa estar no guard da linha do tempo da ocorrência
   (`tripOccurrenceTimeline.validation.ts`), que é estrito: kind desconhecido reprova a resposta.
 - Contrato: `test/trip/occurrence-cancellation.contract.tsx` (renderiza cada lugar e afirma o texto).
+
+## Spec 237 T1.4 — aba "Contratantes" em `/clientes`
+
+`delivery-clients` ganhou a primeira tela de contratante: lista (busca por nome/CNPJ, ordenação por
+cabeçalho, situação múltipla, estado na URL, selo lido do perfil) e ficha com os dados do `PATCH
+/contractors/:id` e o perfil de recebimento (`GET/PUT /contractors/:id/receiving-profile`, ADR-0094). Namespace
+i18n próprio `contractorDirectory`. O `PUT` leva sempre as 10 chaves (`null` = sem regra); as faixas são
+cópia por valor das do servidor (`receivingProfile.types.ts`), validadas em `receivingProfile.validation.ts`
+(o painel não tem zod). A recusa do servidor vira "Confira:" com atalhos (`receivingRefusal.service.ts` +
+`focusRefusedField.service.ts`, alvo por `data-field`). O selo da lista custa uma leitura de perfil por
+contratante (não há rota em lote). Evidência e prints: `specs/237-.../evidence.md`.
+
+## Spec 243 — O ajudante fecha as pontas
+
+**Arquivos-chave:** diária geral em `modules/fleet/components/DriverCrewSettingsPanel.component.tsx` e
+`hooks/useCrewSettings.hook.ts`, validação em `modules/fleet/shared/crewSettings.validation.ts`, sem acesso em
+`modules/identity/shared/noWorkspaceAccessVariant.service.ts` e `NoWorkspaceAccess.component.tsx`.
+Testes: `test/fleet/driver-crew-settings-panel.contract.tsx`, `test/identity/no-workspace-access-variant.contract.tsx`.
+
+Duas decisões do painel (ver ADR-0095): D2 — Diária geral do ajudante na aba de motoristas, sem entrada em
+`SETTINGS_PANEL_PLACEMENT` (permissão `fleet.read`/`fleet.manage` da API, não de settings, padrão do
+`EnergySettingsPanel`). D5 — Quem tem `trip.read` isolada vê no painel um texto de acompanhamento e botão
+para o app do motorista (quando `VITE_DRIVER_APP_URL` existe).
+
+**Pegadinhas:** Diária vazia + ajudante sem diária própria segue com lacuna HELPER_DAILY_RATE_MISSING,
+agora solucionável. Variante de acompanhamento só aparece sem workspace visível (D5 lê `!userHasAccessToWorkspace`
+da sessão, não da resposta da API). Nenhuma rota nova de painel; tudo pelo cliente de `crewSettingsClient.service.ts`
+já existente.
+
+## Spec 237 T2.4 — recebimento da carga e a primeira separação pelo celular
+
+Módulo novo `src/modules/cargo-receiving/` (rota `/recebimento`, namespace `cargoReceiving`, ícone
+`workspace-cargo-receiving`). Consome as rotas da T2.3 (`apps/api-transportada/src/cargo-receiving/presentation`):
+`GET/POST /cargo-arrivals`, `GET /cargo-arrivals/:id`, `GET /cargo-arrivals/available-documents`,
+`POST …/documents/batch-status`, `POST …/route-assignment`, `POST …/close`. Leitura `fleet.read`, escrita
+`trip.manage` (as mesmas da API).
+
+**Telas.** `CargoArrivalListPanel` (tabela com ordenação por cabeçalho, filtros múltiplos de contratante e
+situação, "limpar filtros" só com critério, estado na URL, "carregar mais" por cursor);
+`CargoArrivalRegistration` (contratante só com perfil LIGADO — uma leitura de perfil por contratante, sem rota
+em lote —, data com `DatePicker` + hora mascarada, paletes e referência opcionais, notas por checkbox com
+contador/limite 300, `Idempotency-Key` por tentativa); `CargoArrivalDetailScreen` (grupos rota × cidade, atribuir
+rota, receber/separar em lote, fechar); `CargoSeparationScreen` (celular, `/recebimento/:id`: grupos
+recolhíveis, o primeiro com pendência aberto, botão grande por nota com o próximo passo em texto, "separar tudo
+deste grupo", busca por número e leitura da chave de acesso pela câmera, banner de "sem conexão").
+
+**Decisões que valem lembrar.**
+
+- Estado do servidor é TanStack Query; a lista de chegadas é `useInfiniteQuery` e o filtro de UM contratante/UMA
+  situação vai ao servidor (a API só filtra por um valor), com vários o cliente filtra o que veio.
+- A atualização otimista do toque cancela a leitura em voo ANTES de gravar (cancelar depois reverteria a gravação
+  ao estado do começo do fetch) e só relê a chegada quando `isMutating === 1`.
+- O nome da cidade é o que a API devolve (`cityName`, endereço do destinatário); sem nome, o código IBGE; sem
+  nada, "Sem cidade". O painel não tem tabela de municípios.
+- A API não devolve o peso da nota nas disponíveis: a tela mostra valor, não peso (follow-up de API).
+- Fora desta task: fila offline do toque, rota em lote por selo, avaria na entrada (Fase 3).
+
+## Spec 244 — O ajudante sem resto
+
+**Arquivos-chave:** conversor em `modules/shared/decimalAmount.service.ts` (`toTypedAmountKeepingZero`), usado em
+`modules/fleet/shared/fleetForm.service.ts` (ficha, campos `helperDailyRate`/`dailyAllowanceAmount`) e
+`crewSettingsForm.service.ts` (diária geral).
+
+**T3:** Conversor novo `toTypedAmountKeepingZero` preserva zero em três campos: `helperDailyRate` e `dailyAllowanceAmount`
+da ficha, e `dailyAllowanceAmount` da diária geral. Exibição: `0.0000` → `0,00`; vazio segue `null`. Pegadinha: `toTypedAmount`
+(**não** tocado) continua devolvendo `''` para zero, então zero em custos de veículo, tabela de frete e outras telas não
+muda — conversor dual permite a diária manter seu significado (zero = "não recebe") sem impactar outras escalas.

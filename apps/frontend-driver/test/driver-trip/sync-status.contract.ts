@@ -5,8 +5,11 @@ import { describe, expect, it } from 'bun:test'
 
 import {
   resolveSyncAge,
+  resolveSyncPhase,
   SYNC_AGE_NOW_THRESHOLD_MS,
 } from '@/modules/driver-trip/shared/syncStatus.service'
+import driverTrip from '@/modules/driver-trip/locales/driverTrip.locale.json'
+import driverTripEn from '@/modules/driver-trip/locales/driverTrip.en.locale.json'
 
 const NOW_MS = Date.parse('2026-10-01T18:00:00.000Z')
 const MINUTE = 60_000
@@ -77,5 +80,45 @@ describe('idade da última sincronização na tela de pendências (pedido do usu
 
     expect(guarded).toInclude('driver-sync-spin')
     expect(stylesheet).toInclude('@keyframes driver-sync-spin')
+  })
+})
+
+/**
+ * Spec 226 (T3.3): o preview mostrou "Sincronizado agora mesmo" com dois eventos parados na fila. A
+ * hora é a da última *leitura* da viagem, não a de a fila estar vazia — e lida sozinha, soa como
+ * "está tudo enviado". Com pendência a linha diz que há pendência.
+ */
+describe('a linha de sincronização não diz que está tudo enviado com evento parado (spec 226)', () => {
+  it('com pendência e sem envio em curso a fase é "pendente", e a idade continua à mostra', () => {
+    expect(resolveSyncPhase({ isSyncing: false, pendingCount: 2 })).toBe('pending')
+  })
+
+  it('sem pendência a fase é "sincronizado"', () => {
+    expect(resolveSyncPhase({ isSyncing: false, pendingCount: 0 })).toBe('synced')
+  })
+
+  it('enviando, a fase é "enviando", com ou sem pendência contada', () => {
+    expect(resolveSyncPhase({ isSyncing: true, pendingCount: 2 })).toBe('syncing')
+    expect(resolveSyncPhase({ isSyncing: true, pendingCount: 0 })).toBe('syncing')
+  })
+
+  it('o texto da pendência existe nos dois idiomas, no singular e no plural', () => {
+    for (const locale of [driverTrip, driverTripEn]) {
+      expect(locale.sync.pending_one).toInclude('{{count}}')
+      expect(locale.sync.pending_other).toInclude('{{count}}')
+    }
+  })
+
+  it('a tela usa a fase para escolher o texto', () => {
+    const component = readFileSync(
+      new URL(
+        '../../src/modules/driver-trip/components/DriverSyncStatus.component.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+
+    expect(component).toInclude('resolveSyncPhase(')
+    expect(component).toInclude("t('sync.pending'")
   })
 })

@@ -12,6 +12,8 @@ import type {
   TripStopEventKind,
   TripStopOccurrenceKind,
 } from '../../database/trip.schema.js'
+import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
+import type { CorrectedClock } from '../domain/occurred-at.policy.js'
 import type { ReceivedByFields } from '../domain/received-by.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { FieldAuthorship, FieldTripTarget } from './field-trip-target.types.js'
@@ -258,8 +260,18 @@ export type DriverFieldReportTransactionPort = {
      */
     readonly reportedByDriverId?: string
     readonly stopId: string
-    /** Spec 206 D3: a hora do aparelho no toque, só em `departed`/`departure_cancelled`. */
+    /**
+     * Spec 206 D3: a hora crua do aparelho no toque — em `departed`/`departure_cancelled` e, desde a
+     * spec 234 D2, em `arrived`/`delivered`/`returned` quando o app a manda (mesmo com a correção
+     * descartada). Nunca é a hora do evento: essa é `correctedClock`.
+     */
     readonly tappedAt?: Date | null
+    /**
+     * Spec 234 D3: a hora do toque corrigida pelo desvio do relógio, **só** quando `resolveOccurredAt`
+     * a aceitou — grava `occurred_at` e `clock_offset_ms`. Não é `occurredAt` (acima), que sobrescreve
+     * `created_at` e é do escritório.
+     */
+    readonly correctedClock?: CorrectedClock
   }): Promise<{ readonly id: string }>
   /**
    * Spec 156 T6: o comprovante da entrega **na mesma transação** da entrega — ao contrário do
@@ -375,6 +387,8 @@ export type DriverFieldReportTransactionPort = {
     readonly distanceMeters: number | null
     readonly documentId: string | null
     readonly kind: TripStopOccurrenceKind
+    /** Spec 196 T3.3: o ponto do toque e o estado dele, já decididos pela política. */
+    readonly locationStamp: EventLocationStampColumns
     /** Spec 218 D2: o tipo do catálogo; `null` no corpo antigo, que só manda `kind`. */
     readonly occurrenceTypeId: string | null
     readonly stopId: string
@@ -408,6 +422,8 @@ export type DriverFieldReportTransactionPort = {
     readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly documentId: string
+    /** Spec 196 T3.3: o ponto do toque e o estado dele, já decididos pela política. */
+    readonly locationStamp: EventLocationStampColumns
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string

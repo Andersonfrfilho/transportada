@@ -162,6 +162,8 @@ export const TRIP_TABLES = [
   /** Spec 218 RF-B1: a exceção do `attachmentMode` de um tipo de ocorrência, por contratante e por destinatário. */
   'company_occurrence_type_contractor_overrides',
   'company_occurrence_type_recipient_overrides',
+  /** Spec 239 D1: se a empresa apaga a posição dos eventos da viagem, e depois de quantos dias. */
+  'company_location_retention_settings',
 ] as const
 
 export const INVITATION_TABLES = ['user_invitations', 'user_invitation_roles'] as const

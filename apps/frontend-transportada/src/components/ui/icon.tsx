@@ -77,6 +77,7 @@ export type IconName =
   | 'vehicle-other'
   | 'upload'
   | 'workspace-billing'
+  | 'workspace-cargo-receiving'
   | 'workspace-company-settings'
   | 'workspace-cte-batch'
   | 'workspace-cte-profiles'
@@ -315,6 +316,13 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
     'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z',
     'M12 7v10',
     'M15 9.5c-.7-1-1.7-1.5-3-1.5-1.7 0-3 1-.8 3 1.7 0 3 .8 3 2.5s-1.3 3-3 3c-1.3 0-2.3-.5-3-1.5',
+  ],
+  /** Spec 237: a carga que chega à doca — a seta desce sobre o volume que ainda vai ser separado. */
+  'workspace-cargo-receiving': [
+    'M12 3v7',
+    'M8.5 7 12 10.5 15.5 7',
+    'M4 13h16v8H4z',
+    'M9 13v3h6v-3',
   ],
   'workspace-company-settings': [
     'M12 3 5 6v5c0 4.5 2.8 8.4 7 10 4.2-1.6 7-5.5 7-10V6l-7-3z',

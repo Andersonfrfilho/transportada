@@ -164,6 +164,8 @@ export type FleetDriverCreateBodyContract = Omit<FleetDriverBodyContract, 'membe
 
 export type FleetDriverDetailContract = FleetDriverBodyContract &
   Readonly<{
+    /** Spec 235 D2: falso é o ajudante puro — só a leitura o traz, nenhum corpo de escrita. */
+    canDrive: boolean
     createdAt: string
     /**
      * ⚠️ Spec 097 D6. Este contrato é a **redeclaração** do corpo que a API serve — ele existe para
@@ -439,6 +441,7 @@ export const FLEX_VEHICLE_DETAIL = {
 
 export const DRIVER_DETAIL = {
   ...DRIVER_BODY,
+  canDrive: true,
   createdAt: '2026-07-28T12:00:00.000Z',
   /** Spec 097 D6: ficha já procurada e achada — é o caso em que a tela desenha o mapa. */
   home: { missing: [], status: 'resolved' },

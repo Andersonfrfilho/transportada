@@ -1546,18 +1546,21 @@ e o preenche depois, porque o despachante precisa do `channel`/`flows.interprete
 `conversations.repository` **da própria instância** — sem `buildMessageHook` o módulo se comporta
 como na spec 062.
 
-**A instalação fica na `0.1.0` dos três pacotes, por dívida do pacote, não por falta de recurso.**
-A `0.2.x`/`0.3.0` do `meta-whatsapp-module` passou a publicar as próprias migrations no formato
-antigo "por journal" (`meta/_journal.json`), e o `drizzle-orm` `1.0.0-rc.4` já instalado **recusa** o
-formato de propósito (`"You must upgrade drizzle-kit and run drizzle-kit up"`) — comando de projeto,
-que não roda sobre `node_modules` de uma dependência. Medido com `make migration-test` real: 4 dos
-91 testes de migration falham em toda versão da linha 0.2.x/0.3.x testada (`npm pack` de
-0.2.0-rc.22, 0.2.0 e 0.3.0), voltando a 91/0 com a `0.1.0`. ⚠️ A dívida não bloqueia nada desta
-spec: a `0.1.0` já expõe `FlowInterpreter`, `registerFlowAction`, `MetaWhatsAppHooks.onMessageReceived`
-e `sendInteractiveList`/`sendInteractiveButtons` (provider), que é tudo que o módulo usa. Corrigir o
-formato de migration é changeset em `adatechnology-packages`, fora deste repositório.
+**A instalação está em `meta-whatsapp-module@0.7.0`, `-contracts@0.6.0` e `-provider@0.3.1`** (subida
+de 2026-10-03, spec 196 T3.6; antes ficava na `0.1.0` porque a linha 0.2.x/0.3.x publicava as migrations no
+formato antigo "por journal", que o `drizzle-orm` `1.0.0-rc.4` recusa de propósito). A `0.7.0` publica as migrations em
+**pasta** (`dist/migrations/<nome>/migration.sql`): as quatro originais mantêm o nome e as sete aditivas
+(`0004`–`0010`) entram por cima. ⚠️ O migrator decide pelo **nome**, então nos bancos existentes só as aditivas rodam
+(provado em `test/whatsapp/module-migration.contract.ts`). `runMetaWhatsAppMigrations({ db, migrate })` recebe o
+`migrate` injetado (`drizzle-orm/bun-sql/migrator`), como o `notification-module`; o runner do pacote **descarta o
+retorno** do `migrate`, que no rc.4 pode devolver `MigratorInitFailResponse` em vez de lançar — por isso o
+`meta-whatsapp-migration.service.ts` injeta um invólucro que transforma esse retorno em erro. O
+`assertMigrationsAreComplete` do pre-deploy lê só o journal do `public`: **não cobre** `meta_whatsapp`. O
+`NonceStoreInterface` ganhou `confirm?` (implementado no `drizzle-webhook-nonce.store.ts`: o claim curto vira a
+janela cheia). O pacote **persiste** `messages[].location` crua em `meta_whatsapp.messages.payload` (e o rótulo
+`name`/`address` em `content`); ele não loga.
 
-**O interpretador da `0.1.0` não valida a resposta nem envia mensagem — o driver faz as duas
+**O interpretador não valida a resposta nem envia mensagem — o driver faz as duas
 coisas.** `FlowInterpreter.run` trata qualquer texto de nó de escolha como o id de uma opção e cai no
 `byAnswer.default`, então texto livre avançaria sem essa guarda — `isOfferedOption`
 (`domain/whatsapp-answer.policy.ts`) é quem recusa resposta fora do menu antes de chamar o
@@ -2085,6 +2088,44 @@ só envia os marcados.
 Detalhe completo (rota, permissão, diálogo, testes/integração): spec 222 (seções de requisitos,
 decisões, strategy de teste, evidence.md).
 
+## O momento do evento do motorista (spec 234)
+
+**`resolveOccurredAt` corrige a hora do evento e nunca o recusa.** `src/trips/domain/occurred-at.policy.ts`
+devolve `corrected` (`tappedAt + clockOffsetMs`) ou `ignored` (`missing` quando falta um dos dois campos
+ou algum não é finito; `future` acima de +2 min do recebimento; `too_old` com mais de 30 dias): relógio
+ruim **descarta a correção** e o evento segue com `captured_at ?? recorded_at`. `resolveRecordedEventClock`
+(mesmo arquivo) é quem decide o que gravar, e só grava a hora corrigida **com posição no relato** (D4b).
+Os esquemas `.strict()` de `arrive`/`deliver`/`return`/ocorrência de parada (`me-trip.schema.ts`) e o
+multipart do comprovante (`delivery-proof.schema.ts`) aceitam `tappedAt` e `clockOffsetMs` **opcionais** —
+cliente antigo segue valendo, e `clockOffsetMs` é inteiro sem teto (o absurdo vira `ignored`, não `400`).
+Migration `20261002213734_delivered_moment_clock`: `trip_stop_events.occurred_at` e
+`trip_stop_events.clock_offset_ms` (`bigint`), `trip_delivery_proofs.clock_offset_ms` e o índice
+`trip_stop_events_company_delivered_moment_idx`; todas nulas, sem backfill, gravadas **só** quando a
+correção vale (`recordEvent` recebe `correctedClock`, campo à parte do `occurredAt` do escritório;
+`saveProof` grava o desvio só quando a correção foi usada: flag efetiva e posição na entrega). **O momento da entrega tem uma expressão só,
+`deliveredMomentSql` (`src/database/delivered-moment.support.ts`, `coalesce(occurred_at, captured_at,
+recorded_at)`), usada SÓ na nota (`fleet/infrastructure/drizzle-driver-score.repository.ts`), em
+`findDeliveryContext` (`drizzle-delivery-proof.repository.ts`) e em `listPendingProofs`
+(`drizzle-current-driver-trip.repository.ts`) — e pelo índice, que precisa da mesma expressão. As outras
+seis consultas continuam em `captured_at ?? recorded_at` (fora de escopo).** A política de pontualidade
+(`trips/domain/delivery-proof-punctuality.policy.ts`) recebe `hasCorrectedClock`, que nasce de
+`resolveOccurredAt(...).kind === 'corrected'` em `attach-delivery-proof.use-case.ts` (nunca de "o campo
+veio"; R1: com posição na entrega só vale se `findDeliveryContext.isEventClockCorrected`, senão `deliveredAt` é hora crua): com a flag e posição na entrega, a foto é julgada pela hora corrigida sem o piso de
+`recebimento − missingAfterHours` (D4); sem posição na entrega a flag é ignorada, vale o recebimento e a
+entrega conta como longe (D4b). **GPS desligado pune em todo cliente (D4c, T1.8):** sem posição na
+entrega, a entrega **do app do motorista** conta como longe com ou sem o desvio — `findDeliveryContext` lê
+`trip_stop_events.channel` e devolve `isDeliveryRecordedByDriver` (`DRIVER_FIELD_CHANNELS` = só
+`driver_app`, em `trips/domain/trip-field-channel.constant.ts`); a baixa do escritório (`office`, spec 223)
+e a entrega pelo WhatsApp (com ponto quando o motorista compartilha a localização; decisão pendente do
+usuário — o ponto do WhatsApp pode ser pino de mapa, ver ADR-0081 §3.1) nunca têm posição e **não** são punidas por isso (a referência de tempo sem posição
+segue o recebimento quando o relógio é alegado). Sem o canal no contexto, vale a regra anterior (só a D4b
+pune). A pontualidade é gravada no anexo e a nota só lê `trip_delivery_proofs.punctuality` — nada já
+gravado é reclassificado; só a foto anexada depois da publicação (inclusive a substituta de entrega
+antiga, pela fusão pior-de-duas) sente a regra. O prazo de "foto ausente" (`fleet/domain/driver-score.policy.ts`) conta
+de `max(momento da entrega, deliveryReceivedAt)`, e `deliveryReceivedAt` é `trip_stop_events.recorded_at`
+(D5). Limite antifraude e achado do `location.capturedAt` sem teto: `docs/SECURITY.md`, entrada de
+2026-10-03. Spec: `specs/234-a-nota-mede-o-momento-do-evento-nao-a-chegada/`.
+
 ## Planejamento de viagem com rota escolhida e redação monetária por permissão (spec 153)
 
 ### Rota gravada no planejamento, não descartada após criação (spec 153 Fase 1–2)
@@ -2305,8 +2346,13 @@ não reconciliam. Ver ADR-0093.
   `EVENT_LOCATION_FORBIDDEN_RESPONSES` nomeia as respostas que nunca podem (portal, tratativa, demonstrativo,
   acerto, reentrega, lote do escritório, anexo, prontidão do despacho).
 - **WhatsApp.** A mensagem de localização vira ponto (`shared-location`), mas os pacotes `meta-whatsapp-*`
-  `0.1.0` descartam `messages[].location` antes do gancho: ponta a ponta só depois de subir os pacotes
-  (decisão pendente do usuário). O teste que documenta o limite deve ficar vermelho quando subirem.
+  `0.6.0`/`0.7.0` entregam `messages[].location` ao gancho: ponta a ponta provado em
+  `whatsapp-driver-flow-actions.integration.ts`. **T3.8 (feita):** o bot **pede** a geolocalização no fluxo do motorista
+  (decisão do usuário, 2026-10-03) por **texto** — o `.d.ts` dos pacotes `0.7.0` não expõe `location_request_message`;
+  só `sendLocation` (envio). `DRIVER_LOCATION_REQUEST_TEXT` (`whatsapp-driver-flow.constant.ts`) entra na `question`
+  dos nós `driver_trip_menu`, `driver_return_reason_menu` e `driver_note_entry`; nenhum nó do operador. Sem coordenada
+  nem dado pessoal no texto. ⚠️ Vale só após `whatsapp-flow-publish --company <id> --confirm` (ação do usuário). A relação do ponto declarado com a distância/pontualidade
+  segue sem decisão.
 - **N+1:** `test/integration/trip-timeline.integration.ts` conta as consultas de `listTripTimeline` com 1 nota e
   com 50 notas (todas com ponto): o número é o mesmo (9 em 2026-10-02).
 
@@ -2330,6 +2376,24 @@ do contexto. `readOccurrenceView` (a resposta das escritas) passou a usar o mesm
   `test/integration/trip-occurrence-correction-read.integration.ts` e
   `test/trip-http/occurrence-detail.contract.ts`.
 
+## Spec 243 — O ajudante fecha as pontas: cobrança, diária geral e papel na resposta
+
+**Arquivos-chave:** cobrança em `delivery-clients/presentation/delivery-charge.routes.ts`, resposta do motorista
+em `trips/presentation/me-trip.routes.ts` e `find-current-driver-trip.use-case.ts`, serializador
+em `trips/domain/trip-serializer.service.ts`, repositório em `drizzle-current-driver-trip.repository.ts`.
+Testes: `test/delivery-clients/charge-read-policy.contract.ts` (cobrança, 9 papéis × 2 rotas),
+`test/driver-trip/crew-role.contract.ts` (validação e papel), `test/integration/me-trip.integration.ts` (leitura).
+
+Três decisões (ver ADR-0095): D1 — Cobrança muda de `trip.read` para `trip.financials` (`company-admin`,
+`finance`, `operator` leem; `driver`, `aggregate`, `separator`, `helper` recebem `403`). Sem consumidor de
+campo; fechado `docs/SECURITY.md` 2026-09-18. D2 — Painel tem diária geral do ajudante (painel separado da
+configuração, permissão `fleet.read`/`fleet.manage` da API, não de settings). D3 — `/me/trips/current`
+devolve `crewRole` por viagem (`'driver'` | `'helper'`, do `trip_drivers.role`); falta de campo lê como `driver`.
+
+**Pegadinhas:** Cobrança pede `trip.financials` — papel novo exige atribuição manual; sem ele, acesso anterior
+era por equívoco (`trip.read` no driver que ela nunca deveria ter). Diária geral vazia + ajudante sem diária
+própria segue com a lacuna `HELPER_DAILY_RATE_MISSING`, agora com onde resolver (RF-2 da 149).
+
 **As duas linhas do tempo (T3.2a).** `GET /trips/:id/timeline`: o item `document.occurrence` ganhou
 `occurrence.cancellation` (`null` ou o mesmo `{ cancelledAt, cancelledByName, reason }`), lido por
 `listOccurrenceCancellationsByIds` em **uma consulta por página** (`trip-timeline-document.query.ts`);
@@ -2350,3 +2414,189 @@ Ausente no `PUT` não altera o valor guardado (o INSERT usa o padrão da coluna)
 grava o campo quando vem, no molde de `attachmentMode`. Antes, o schema estrito recusava o campo que o
 painel sempre manda (400) e o `GET` não o devolvia. Contrato `test/trip-occurrence/redelivery-policy-schema.contract.ts`
 e integração `occurrence-type-redelivery-policy.integration.ts`.
+
+## Spec 237 — o perfil de recebimento do contratante (ADR-0094, Fase 1)
+
+`contractor_receiving_profiles` (módulo `src/cargo-receiving/`) guarda, por contratante, as regras do
+recebimento **antes da viagem** como dado — janela de separação, prazo em dias úteis (lido pela 236),
+prévia por planilha (aba e mapa **nome de coluna → campo**, nunca posição), o padrão que lê o `NroCarga`
+do `infCpl` e os parâmetros do vínculo por conteúdo (`match_window_days`, `weight_tolerance_percent`).
+FK composta `(company_id, contractor_id)` → `contractors`, unique por contratante. **Ausência é ausência**:
+sem linha, ou com `is_enabled = false`, o contratante segue o fluxo de hoje.
+
+- `GET /contractors/:id/receiving-profile` (`fleet.read`): `{ data: null }` sem perfil; 404
+  `CONTRACTOR_NOT_FOUND` para contratante de outra empresa (consulta pela empresa do contexto).
+- `PUT` (`settings.manage`): substitui o perfil **inteiro** e exige todas as chaves (`null` explícito) —
+  chave omitida é 400, para um painel em cache não apagar coluna futura sem erro. Idempotente: trava o
+  contratante (`for no key update`), compara a forma canônica (o `jsonb` não guarda ordem de chave) e só
+  grava e audita (`audit_logs`, `contractor-receiving-profile.saved`) quando algo mudou.
+- `arrivalReferencePattern` **nunca é executado** na gravação: compila com `u`, exatamente um grupo de
+  captura, sem quantificador aninhado, grupo repetido com alternação, referência para trás ou lookaround
+  (`arrival-reference-pattern.policy.ts`). A fase que o executar limita entrada e tempo.
+- `previewColumnMap`: chaves fechadas (`PREVIEW_ITEM_FIELDS`), coluna repetida comparada por
+  `normalizePreviewColumnName` (o leitor da planilha usa a mesma); prévia ligada exige `routeName`,
+  `value`, `weightKg` (Zod) e mapa não nulo (CHECK). O agregado `Contractor` não mudou.
+- Contratos: `test/cargo-receiving*.contract.test.ts`; integração
+
+## Spec 244 — O ajudante sem resto: consentimento, foto pendente e diária zero
+
+**Arquivos-chave:** pendências em `find-current-driver-trip.use-case.ts` e `drizzle-current-driver-trip.repository.ts`,
+rotas em `me-trip.routes.ts` (aplicação de `canReportProofs`), consentimento em `me-location.routes.ts` (permanece
+`trip.report`), conversor em `src/modules/shared/decimalAmount.service.ts` (frontend-transportada).
+
+Três correções mínimas (T1–T3) das pendências deixadas pela spec 243:
+
+- **T1:** `GET /me/trips/current` devolve `pendingProofs: []` quando o contexto sem `trip.report`;
+  `findCurrentDriverTrip` recebe `canReportProofs` (padrão `true` para os chamadores existentes).
+- **T2:** `useLocationConsent` (frontend-driver) trata `403` na leitura como inaplicável à conta;
+  o cartão não renderiza (sem alerta). Qualquer outro erro segue como antes.
+- **T3:** Conversor `toTypedAmountKeepingZero` preserva zero (`0.0000` → `0,00`) nos campos
+  `helperDailyRate`, `dailyAllowanceAmount` (ficha) e diária geral; `toTypedAmount` inalterada.
+  `test/integration/contractor-receiving-profile.integration.ts`.
+
+## Spec 239 — a configuração do expurgo da posição (T1.3/T1.4)
+
+Quatro rotas sob `settings.manage` (nenhuma permissão nova), em `companies/{application,domain,infrastructure,presentation}`:
+
+- `GET /company-settings/location-retention` -> `{ data: { purgeEnabled, retentionDays, purgeEffectiveAt,
+origin, updatedAt } }`; sem linha é `200` com desligado, 90 dias, `origin: 'default'` (nunca `404`).
+- `PUT` (corpo `{ purgeEnabled, retentionDays }`, Zod `.strict()`, inteiro 30–90) e `DELETE` (`204`,
+  idempotente; sem linha não audita). A carência de 24 h é `resolvePurgeEffectiveAt` com o relógio
+  injetado no use case (`now: () => new Date()` em `main.ts`).
+- `GET .../impact?retentionDays=N` -> `{ data: { byTable: [{ kind, count, capped }] } }`, `kind` estável
+  (`stop_event`, `delivery_proof`, `status_event`, `stop_occurrence`, `document_occurrence`). Uma consulta
+  por tabela (`drizzle-location-retention-impact.query.ts`), só a empresa do contexto, `LIMIT 100001`
+  pelo índice parcial `(company_id, tempo) where latitude is not null`.
+
+Auditoria (D4): `drizzle-location-retention-settings.repository.ts` lê a linha com `FOR UPDATE`, calcula a
+carência, grava e insere em `audit_logs` na **mesma transação** (ator, empresa-alvo, antes/depois, IP e
+`affectedEstimate` em `metadata`; nenhuma coordenada). `affectedEstimate` é recontado no servidor ao
+ligar/alongar (não vem do cliente). Sem rate limit por rota: nenhuma rota de `company-settings` o tem.
+Provas: `test/companies/location-retention-settings.contract.ts` e
+`test/integration/location-retention-settings.integration.ts`.
+
+### Fase 2 — a chegada e a primeira separação (T2.1–T2.3)
+
+`cargo_arrivals`, `cargo_arrival_documents` e `cargo_arrival_events` (append-only por trigger). A nota
+da chegada tem **eixo próprio** `expected → received → separated` (`cargo-arrival-transition.policy.ts`):
+entra `expected`, uma etapa por vez, sem volta; repetir é no-op sem evento; chegada `closed` recusa tudo.
+`trip_documents.separation_status`, o despacho e o roteirizador **não são tocados** — a nota entra na
+viagem pelo fluxo de sempre, e a leitura da chegada só a marca `isInLiveTrip`.
+
+- **Relógio copiado:** a chegada só nasce com o perfil ligado (`422 CARGO_RECEIVING_NOT_ENABLED`) e copia
+  `separation_window_hours`/`delivery_deadline_business_days` naquele instante; `separation_due_at =
+arrived_at + janela` em horas corridas, preso por CHECK exato
+  (`extract(epoch from separation_due_at - arrived_at) = separation_window_hours * 3600`). Editar o
+  perfil depois não muda chegada nenhuma. `isSeparationOverdue` é leitura (prazo passado e nota pendente).
+- **Uma nota, uma chegada, para sempre** (`unique (company_id, nfe_document_id)`, ADR-0094 §6): nota
+  posta por engano não tem conserto nesta fase. Candidata = emitente com o CNPJ do contratante
+  (`nfe_participants` papel `emitter`, índice novo `(company_id, role, tax_id)`), `authorized`, sem
+  `trip_documents` com `released_at is null`, sem chegada.
+- **Rotas** (`fleet.read` lê, `trip.manage` escreve — o `separator` tem as duas; `trip.read` ficou de fora
+  porque daria a motorista/ajudante/agregado as chegadas da empresa inteira):
+  `GET /cargo-arrivals/available-documents?contractorId=` (cursor `issued_at desc, id desc`, `limit` ≤
+  100), `POST /cargo-arrivals` (`Idempotency-Key` obrigatório; repetição com o mesmo pedido → **200** com
+  a mesma chegada; mesma chave com outro pedido → `409 CARGO_ARRIVAL_KEY_REUSED`, pela
+  `request_fingerprint`; `arrivedAt` > agora + 2 min → `422 CARGO_ARRIVAL_ARRIVED_AT_IN_FUTURE`; toda
+  nota recusada volta junta em `422 CARGO_ARRIVAL_DOCUMENTS_REFUSED`, `details[{ field:
+'documentIds.<i>', message: <motivo> }]`), `GET /cargo-arrivals` (filtros `contractorId`, `status`,
+  cursor), `GET /cargo-arrivals/:id` (grupos rota × cidade, contagens, vencimento),
+  `POST …/documents/:documentId/receive|separate` (`documentId` = id da NF-e), `POST
+…/documents/batch-status` (≤ 300, resultado por nota `changed|unchanged|refused`), `POST
+…/route-assignment` (`routeName` ≤ 40 ou `null`, tudo ou nada) e `POST …/close` (`409
+CARGO_ARRIVAL_HAS_PENDING_DOCUMENTS` com a lista; fechar de novo é `unchanged`).
+- **Concorrência:** o registro trava o contratante (`for no key update`) — só notas do emitente dele
+  entram, então a trava serializa a disputa pela mesma nota e pela mesma chave; a chave é procurada
+  **antes** das notas (na repetição elas já estão na chegada). Toda escrita de separação trava a chegada
+  primeiro e as notas depois, em ordem de id. O lote é decidido em memória (`decideCargoArrivalBatch`) e
+  gravado com um UPDATE e um INSERT — uma recusa nunca derruba as outras notas.
+- **Trilha:** canal `backoffice` (ADR-0068 §3), ator, `occurred_at` (a chegada usa `arrived_at`) e
+  `recorded_at`; `from_state`/`to_state` em coluna, com o CHECK de forma repetindo a tabela de
+  transições; `route_assigned` guarda a rota anterior e a nova em `details`. `audit_logs` no registro e
+  no fechamento.
+- Contratos: `test/cargo-receiving/cargo-arrival-*.contract.ts`,
+  `test/cargo-receiving-http/cargo-arrival-routes.contract.ts`,
+  `test/cargo-receiving-schema/{cargo-arrival,tenant-safety}.contract.ts` e
+  `test/separator-role.contract.test.ts`; integração `test/integration/cargo-arrival.integration.ts`.
+- **Follow-ups:** a cidade do grupo vem do destinatário (`<enderDest>`), não do seam
+  `resolvePhysicalDestination` (`<entrega>`); corrida aceita — a nota pode entrar numa viagem entre a
+  checagem e o commit da chegada (a leitura mostra "já em viagem").
+
+## Spec 237 — Fase 4a, parte A: o leitor da planilha e a política de vínculo (T4.1, núcleo de T4.3)
+
+Tudo em `src/cargo-receiving/domain/`, **sem I/O**: bytes, relógio (`clock`) e tetos entram por
+parâmetro. Ainda **não há** migration, rota, fila nem worker (parte B).
+
+- **Leitor** `parseCargoPreviewWorkbook({ bytes, clock, columnMap, sheetName, limits? })` →
+  `{ rows, rowErrors }` (ADR-0094 §7). Sobre `fflate` + `fast-xml-parser`, já dependências da API. O
+  diretório central do zip é lido pelo leitor (`cargo-preview-zip.parser.ts`), não pelo `unzipSync`; só
+  `workbook.xml`, `_rels/workbook.xml.rels`, `sharedStrings.xml` e a aba escolhida são descomprimidos, em
+  fatias de 4 KiB contadas — **`vbaProject.bin` e a aba `RESULTADO` nunca**. `DOCTYPE`/`ENTITY` recusados
+  antes do parse; fórmula nunca avaliada (vale o `<v>`); célula `t="e"` (`#NAME?`) é ausência. A aba é
+  varrida por linha: só linha com `<v>`/`<is>` passa pelo parser (a aba inteira custaria 237 ms e 80 MB;
+  o leitor mede 45–70 ms nas quatro FR reais). Tetos em `CARGO_PREVIEW_WORKBOOK_LIMITS` e códigos
+  `PREVIEW_*` em `cargo-preview-workbook.constant.ts`; `CargoPreviewWorkbookError` (413 para arquivo
+  grande, 422 para o resto).
+- **Coluna por NOME** (`cargo-preview-header.policy.ts`, mesma normalização do perfil): cabeçalho = a
+  primeira linha entre as 20 primeiras com mais colunas mapeadas; toda coluna mapeada ausente sai junta
+  em `PREVIEW_COLUMN_NOT_FOUND`; repetida é `PREVIEW_COLUMN_DUPLICATED`. Linha vazia e cabeçalho de rota
+  (só rota e data) ignorados; erro de linha vira `rowErrors[{ rowNumber, field, column, message }]`.
+- **Normalização** (`cargo-preview-value.policy.ts`): decimal em `bigint` (`138.69999999999999` →
+  `138.700`; `value` 2 casas, `weightKg` 3, `volumeM3` 4), vírgula ou ponto em texto (os dois juntos é
+  erro), expoente só em célula numérica, negativo é erro; serial do Excel com o 29/02/1900 (60 é
+  inválido); CEP com 7–8 dígitos (o zero da frente volta); cidade/UF sem acento e caixa alta.
+- **Política** `resolveCargoPreviewMatches` (RF5a): nível 1 `pairRoutesWithLoads` (pares conhecidos,
+  depois totais + votos + contagem, guloso 1:1, empate não pareia); níveis 2–3 `matchScope` em passadas
+  alias → CEP/razão social → qualquer nota → só valor (`suggested`); partição de até 6 linhas por
+  cliente (`MAX_PARTITION_LINES`), busca com teto de nós e de soluções (estourou: `ambiguous`). Nota
+  disputada por dois clientes na mesma passada fica `ambiguous` para os dois. Linha de roteiro pareado
+  só pega, fora do grupo, nota **sem** carga. Alias aprendido só de `matched`, sem conflito, nunca o já
+  conhecido. `extractLoadReference` refiltra o padrão, corta o `infCpl` em 2 000 e nunca lança.
+- ⚠️ **O peso não é exato ao grama**: há diferença de até 5 g por arredondamento da planilha (2 casas
+  × 3 do `pesoB`). Concordância de peso: `|Δ| ≤ max(0,01 kg, weight_tolerance_percent × peso da nota)`
+  (`PREVIEW_WEIGHT_ROUNDING_FLOOR_KG`, em `createWeightCloses`); o padrão do perfil continua 0 e já fecha
+  180/187 e 97/107. Somas de roteiro inteiro acumulam mais que 10 g, então parte dos pares sai por votos.
+- Contratos: `test/cargo-receiving/cargo-preview-{workbook-safety,workbook-rows,matching-levels,
+matching-rules,matching-scale,corpus,corpus-pii}.contract.ts` no entrypoint
+  `cargo-receiving.contract.test.ts`; construtor sintético em
+  `test/fixtures/cargo-preview-{workbook,xml,zip}.fixture.ts`; corpus anonimizado em
+  `test/fixtures/cargo-preview-corpus/`. A checagem de PII contra os arquivos reais roda com
+  `CARGO_PREVIEW_PII_WORKBOOK_DIR` e `CARGO_PREVIEW_PII_NFE_DIR` (no CI, pulada de propósito).
+
+## Spec 237 — Fase 4a, parte B: envio, leitura, vínculo e reavaliação (T4.2, T4.3)
+
+Migration aditiva `20261004140624_cargo_previews` (ADR-0094 §8): `cargo_previews`, `cargo_preview_items`,
+`cargo_preview_document_links`, `cargo_preview_route_loads`, `contractor_recipient_aliases`,
+`cargo_preview_events` (append-only por trigger) e `cargo_preview_outbox` (trilho próprio — o
+`processing_outbox` é preso a `nfe_import`). Valores das listas em `shared/cargo-preview.constant.ts`
+(cópia idêntica no worker, com contrato de paridade).
+
+- **Envio** `POST /cargo-previews` (multipart `contractorId` + `file`, `Idempotency-Key`, `trip.manage`):
+  `parseUploadCargoPreviewRequest` recusa campo desconhecido (inclusive `companyId`) e devolve todos os
+  problemas juntos; arquivo acima de `CARGO_PREVIEW_UPLOAD_MAX_BYTES` (960 KiB — o menor entre o leitor e o
+  corpo de 1 MiB) é 413 `PREVIEW_FILE_TOO_LARGE`; tipo pelos bytes (`assertPreviewWorkbookBytes`). Portão
+  na ordem contratante (404) → chave (mesma impressão = 200, outra = 409 `CARGO_PREVIEW_KEY_REUSED`) →
+  arquivo do contratante já enviado (200 com a existente) → perfil ligado com prévia e mapa (422
+  `CARGO_PREVIEW_NOT_ENABLED`). O objeto sobe antes da transação e sai do bucket se ela não criar a
+  prévia (corrida, falha). `received_at` = hora do servidor.
+- **Leitura** `GET /cargo-previews` (contratante, situação, cursor `<iso>::<uuid>`) e
+  `GET /cargo-previews/:id?state=&routeName=&afterRow=&limit=` (`fleet.read`): contagens por estado, grupos
+  por roteiro com a carga ligada, itens pela linha (o cursor é o número da última linha) com a nota
+  vinculada (número, série, destinatário, valor, importada em).
+- **Ações** (`trip.manage`, sob `lockContractorMatching` — a trava advisory do worker):
+  `…/items/:itemId/confirm|unlink|link` decididas por `decideCargoPreviewItemAction` (repetir é no-op sem
+  evento). Confirmar e desvincular agem no grupo (as linhas da mesma nota ou da mesma sugestão);
+  desvincular solta a nota quando nenhuma linha da prévia aponta mais para ela. Vincular à mão exige nota
+  da empresa, autorizada, do CNPJ do contratante (422 `CARGO_PREVIEW_DOCUMENT_NOT_CANDIDATE`); nota de
+  outra prévia é 422 `CARGO_PREVIEW_DOCUMENT_ALREADY_LINKED` (o unique do vínculo decide). Toda ação
+  deixa o item `matched_by = user`.
+- **Propor a chegada** `POST /cargo-previews/:id/propose-arrival`: contratante, `plannedDate` e as notas
+  `matched` distintas julgadas por `findArrivalCandidateRefusals` (a mesma política do registro da Fase
+  2); as recusadas voltam com o motivo. Não cria nada; grava `arrival_proposed`. O `previewId` no
+  `POST /cargo-arrivals` (preencher `cargo_previews.arrival_id`) ficou para a T4.4.
+- Testes: `test/cargo-receiving-http/cargo-preview-routes.contract.ts`,
+  `test/cargo-receiving/cargo-preview-{upload,item-action}.contract.ts`,
+  `test/cargo-receiving-schema/cargo-preview.contract.ts` (+ isolamento em `tenant-safety`), e
+  `test/integration/cargo-preview.integration.ts` (transação com falha injetada no outbox, isolamento,
+  ações, 1:1 com dois operadores concorrentes, proposta). As rotas estão em
+  `test/separator-role.contract.test.ts`.

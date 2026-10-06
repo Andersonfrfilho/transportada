@@ -16,6 +16,14 @@ export function buildTripTimelineDocumentAnchorId(documentId: string): string {
   return `trip-timeline-document-${documentId}`
 }
 
+/** Inverso de `resolveTripTimelineDocumentHref`: o id da nota que o endereço aponta, ou `null`. */
+export function parseTripTimelineDocumentHref(href: string): null | string {
+  const prefix = `#${buildTripTimelineDocumentAnchorId('')}`
+  if (!href.startsWith(prefix)) return null
+  const documentId = href.slice(prefix.length)
+  return documentId === '' ? null : documentId
+}
+
 export function buildTripTimelineStopAnchorId(stopId: string): string {
   return `trip-timeline-stop-${stopId}`
 }

@@ -41,7 +41,9 @@ function session(companyId: string) {
     companyId,
     context: {},
     createdAt: '2026-09-24T12:00:00.000Z',
+    currentNodeId: null,
     currentState: 'start',
+    flowKey: null,
     humanRequestedAt: null,
     id: 'session-1',
     lastActivity: '2026-09-24T12:00:00.000Z',
@@ -134,6 +136,7 @@ describe('a conversa pelo WhatsApp contra Postgres (spec 183 T502)', () => {
           from: PHONE_WITHOUT_NINTH_DIGIT,
           id: 'wamid.in-1',
           text: { body: 'Autorizado' },
+          timestamp: '1790000000',
           type: 'text',
         }
 
@@ -181,7 +184,13 @@ describe('a conversa pelo WhatsApp contra Postgres (spec 183 T502)', () => {
         const hook = createHook(database, forwarded)
 
         await hook(
-          { from: PHONE, id: 'wamid.in-2', text: { body: 'Qual?' }, type: 'text' },
+          {
+            from: PHONE,
+            id: 'wamid.in-2',
+            text: { body: 'Qual?' },
+            timestamp: '1790000000',
+            type: 'text',
+          },
           session(companyId),
         )
         const unassigned = await database.db
@@ -199,7 +208,13 @@ describe('a conversa pelo WhatsApp contra Postgres (spec 183 T502)', () => {
           .update(contractorContacts)
           .set({ whatsappOptInAt: null, whatsappOptInByUserId: null })
           .where(eq(contractorContacts.id, seeded.contactIds[0] ?? ''))
-        const refused = { from: PHONE, id: 'wamid.in-3', text: { body: 'Oi' }, type: 'text' }
+        const refused = {
+          from: PHONE,
+          id: 'wamid.in-3',
+          text: { body: 'Oi' },
+          timestamp: '1790000000',
+          type: 'text',
+        }
         await hook(refused, session(companyId))
         expect(forwarded).toEqual([refused])
       })
@@ -290,7 +305,10 @@ describe('a conversa pelo WhatsApp contra Postgres (spec 183 T502)', () => {
         const contractorId = conversation?.contractorId ?? null
         const hook = createHook(database, [])
         const whatsappIn = async (id: string) => {
-          await hook({ from: PHONE, id, text: { body: id }, type: 'text' }, session(companyId))
+          await hook(
+            { from: PHONE, id, text: { body: id }, timestamp: '1790000000', type: 'text' },
+            session(companyId),
+          )
           const [row] = await database.db
             .select({ conversationId: occurrenceConversationMessages.conversationId })
             .from(occurrenceConversationMessages)

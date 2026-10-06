@@ -92,3 +92,22 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
     179, com `skip locked`.
   - A política de anexo e a de status são cópias por valor da API, com contrato de paridade.
   - Detalhe: docs/ai-context § "A ocorrência tem duas conversas".
+
+- **A prévia da carga é lida e vinculada aqui** (spec 237, ADR-0094 §8) — trilho `cargo-preview.v1`,
+  prefetch 1. O leitor e a política de vínculo da API estão em `src/cargo-receiving/domain/` por
+  **cópia por valor idêntica** (contrato de paridade byte a byte): mudou lá, copie aqui. O vínculo toma a
+  trava advisory do contratante (a mesma da API) e grava só o que mudou; item decidido pelo operador
+  nunca é relido. **Toda nota nova pede a reavaliação** em `writeDocumentChildren`, num `SAVEPOINT` que
+  nunca derruba nem espera a importação, coalescida e adiada 30 s. Detalhe: docs/ai-context § "A prévia
+  da carga é lida e vinculada aqui".
+
+## O expurgo de posição (spec 196, ADR-0081)
+
+`trip.location.purge` (`trip-location-purge/`) varre **as cinco tabelas** de evento com ponto, uma por vez e
+com teto de lotes por tabela, apaga `latitude`, `longitude`, `accuracy_meters` e `captured_at` pelo prazo da empresa e
+marca `location_state = 'expired'`, preservando o evento; os pings ao vivo têm corte próprio (36 h) e **rodam sempre**. ⚠️ Quem liga o expurgo das
+cinco tabelas é a **empresa, na tela** (spec 239): o worker lê `company_location_retention_settings` a cada ciclo, num
+`UPDATE` único com `CROSS JOIN LATERAL` por tabela, e cada empresa vale pelo próprio prazo (30–90 dias) depois da
+carência de 24 h. Sem linha ou desligada, nada é apagado; não existe variável de ambiente (`TRIP_LOCATION_PURGE_ENABLED`
+saiu e, se sobrar no Railway, é ignorada). O log conta linhas por tabela e `companies`, nunca coordenada, evento ou pessoa. Detalhe:
+docs/ai-context/worker-transportada.md § "O expurgo de posição".

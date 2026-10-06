@@ -69,11 +69,11 @@ Cada task: contrato vermelho → implementação → typecheck + lint + testes d
 
 ## Fase 6 — Documentação e revisão
 
-> 🤖 Modelo: `haiku` (docs) · `opus` (revisão)
+> 🤖 Modelo: `haiku` (docs) · `sonnet` (revisão)
 
 - [x] T601 `apps/api-transportada/CLAUDE.md`, `apps/frontend-transportada/CLAUDE.md` e
       `docs/ai-context/*`: rota gravada, redação monetária, mapa único.
-- [ ] T602 Revisão final com `code-reviewer` `model=opus`; `make check`.
+- [ ] T602 Revisão final com `code-reviewer` `model=sonnet`; `make check`.
 
 ## Prompt de execução
 
@@ -81,7 +81,8 @@ Cada task: contrato vermelho → implementação → typecheck + lint + testes d
 /oh-my-claudecode:autopilot Execute a spec specs/153-rota-escolhida-e-mapa-unico/ (leia spec.md,
 plan.md e tasks.md antes de começar). Uma task por vez, na ordem do tasks.md.
 Modelos: Fase 0–5 → executor model=sonnet · T102 🧠 → opus · Fase 6 docs → writer model=haiku ·
-revisão final → code-reviewer model=opus.
+revisão final → code-reviewer model=sonnet.
+Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
 Cada task fecha com typecheck + lint + testes da app (API com --env-file=../../.env.test) + commit
 isolado, evidência em evidence.md.
 Pare e pergunte antes de: deploy em produção, migration destrutiva, T001 negativo (OSRM sem

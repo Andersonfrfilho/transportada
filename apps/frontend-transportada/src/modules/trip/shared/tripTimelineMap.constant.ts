@@ -15,13 +15,27 @@ export const TIMELINE_MAP_CATEGORIES = [
 ] as const
 export type TimelineMapCategory = (typeof TIMELINE_MAP_CATEGORIES)[number]
 
+/**
+ * `null` é decisão, não ausência: o kind existe na tabela e **não entra** no mapa da viagem. O tipo
+ * `Record` segue exigindo que todo kind novo escolha um dos dois lados.
+ */
 export const TIMELINE_MAP_CATEGORY_BY_KIND: Readonly<
-  Record<TripTimelineKind, TimelineMapCategory>
+  Record<TripTimelineKind, null | TimelineMapCategory>
 > = {
+  /**
+   * Spec 228 T4.1: a foto é parte da entrega — mesma cor, e pinos do mesmo lugar viram um. Sozinha
+   * ela leva o glifo e o rótulo próprios (`TIMELINE_MAP_PHOTO_*`) e não conta na legenda de entregas.
+   */
+  'document.canhoto_photo': 'delivered',
   'document.delivered': 'delivered',
   'document.occurrence': 'occurrence',
   'document.returned': 'returned',
   'document.status_changed': 'status',
+  /**
+   * Spec 228 M2: o ponto novo do endereço não é lugar por onde a viagem passou. No traço ele viraria
+   * "Mudança de situação" e sugeriria um desvio que não houve; fica só no "Ver no mapa" do próprio item.
+   */
+  'stop.address_corrected': null,
   'stop.arrived': 'arrived',
   'stop.departed': 'departed',
   'stop.departure_cancelled': 'cancelled',
@@ -42,6 +56,10 @@ export const TIMELINE_MAP_ICON_BY_CATEGORY: Readonly<Record<TimelineMapCategory,
   returned: 'refresh',
   status: 'clock',
 }
+
+export const TIMELINE_MAP_PHOTO_KIND = 'document.canhoto_photo' satisfies TripTimelineKind
+export const TIMELINE_MAP_PHOTO_ICON = 'camera' satisfies IconName
+export const TIMELINE_MAP_PHOTO_LABEL_KEY = 'eventTimeline.itemTitle.canhotoPhotoUnknownDocument'
 
 /** ~11 m: pinos do mesmo lugar viram um só (mesma categoria) ou abrem em leque (categorias distintas). */
 export const TIMELINE_MAP_CELL_DECIMALS = 4

@@ -12,6 +12,7 @@ import type {
   FlowActionResult,
 } from '@adatechnology/meta-whatsapp-contracts'
 
+import { createInMemoryWhatsAppSharedLocationStore } from '../../src/whatsapp-commands/application/whatsapp-shared-location.service.js'
 import { AuthorizationService } from '../../src/identity/application/authorization.service.js'
 import type { CompanyPermission } from '../../src/identity/domain/authorization.policy.js'
 import type { OccurrenceTypeRecord } from '../../src/trips/application/register-trip-occurrence.use-case.js'
@@ -135,7 +136,9 @@ function buildSession(context: Record<string, unknown> = {}): ConversationSessio
     companyId: COMPANY_ID,
     context,
     createdAt: NOW.toISOString(),
+    currentNodeId: null,
     currentState: 'start',
+    flowKey: null,
     humanRequestedAt: null,
     id: 'session-operator-1',
     lastActivity: NOW.toISOString(),
@@ -1260,4 +1263,115 @@ describe('FlowAction do passo de foto do operador (spec 161 T15)', () => {
 
     expect(sent.filter((message) => message.kind === 'text').length).toBeGreaterThan(0)
   })
+})
+
+/**
+ * Spec 196 T3.6 (D3 revista, CA03): o operador compartilha o canal `whatsapp` com o motorista, e o
+ * CHECK do banco já aceita coordenada nele — quem garante que o operador não grava ponto é o código.
+ * Duas travas: a fonte das ações do operador não conhece ponto algum, e cada ação que grava entrega
+ * ao domínio uma entrada sem coordenada, mesmo com uma localização do mesmo número esperando no
+ * armazém do motorista.
+ */
+describe('o operador nunca grava coordenada (spec 196 T3.6, CA03)', () => {
+  const POINT = {
+    accuracyMeters: null,
+    capturedAt: NOW.toISOString(),
+    latitude: '-23.5505200',
+    longitude: '-46.6333080',
+  }
+  const COORDINATE_PATTERN = /location|latitude|longitude|accuracy|capturedAt|-23\.55|-46\.63/iu
+
+  test('a fonte das ações do operador não lê nem recebe ponto', async () => {
+    const source = await Bun.file(
+      new URL(
+        '../../src/whatsapp-commands/application/register-operator-trip-flow-actions.ts',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(source).not.toMatch(/location|latitude|longitude|SharedLocation/iu)
+  })
+
+  const WRITE_CASES = [
+    {
+      context: {
+        [OPERATOR_FLOW_CONTEXT_KEY.dispatchConfirmAnswer]: OPERATOR_DISPATCH_CONFIRM_ANSWER.confirm,
+        [OPERATOR_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
+      },
+      kind: OPERATOR_FLOW_ACTION_KIND.dispatchConfirmRouter,
+      name: 'despachar',
+      overrideKey: 'dispatchTrip',
+    },
+    {
+      context: {
+        [OPERATOR_FLOW_CONTEXT_KEY.actionChoice]: 'separate',
+        [OPERATOR_FLOW_CONTEXT_KEY.documentAnswer]: DOCUMENT_ID,
+        [OPERATOR_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
+      },
+      kind: OPERATOR_FLOW_ACTION_KIND.documentRouter,
+      name: 'separar',
+      overrideKey: 'separateDocument',
+    },
+    {
+      context: {
+        [OPERATOR_FLOW_CONTEXT_KEY.actionChoice]: 'load',
+        [OPERATOR_FLOW_CONTEXT_KEY.documentAnswer]: DOCUMENT_ID,
+        [OPERATOR_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
+      },
+      kind: OPERATOR_FLOW_ACTION_KIND.documentRouter,
+      name: 'carregar',
+      overrideKey: 'loadDocument',
+    },
+    {
+      context: {
+        [OPERATOR_FLOW_CONTEXT_KEY.documentId]: DOCUMENT_ID,
+        [OPERATOR_FLOW_CONTEXT_KEY.noteAnswer]: '',
+        [OPERATOR_FLOW_CONTEXT_KEY.occurrenceTypeId]: OCCURRENCE_TYPE_ID,
+        [OPERATOR_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
+        [WHATSAPP_INCOMING_IMAGE_CONTEXT_KEY]: { mediaId: 'wamid.1', mimeType: 'image/jpeg' },
+      },
+      kind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
+      name: 'ocorrência de separação',
+      overrideKey: 'registerOccurrence',
+    },
+  ] as const
+
+  test.each([...WRITE_CASES])(
+    '$name entrega ao domínio uma entrada sem coordenada, com uma localização à espera',
+    async (writeCase) => {
+      const store = createInMemoryWhatsAppSharedLocationStore({ clock: () => NOW })
+      store.remember({ companyId: COMPANY_ID, location: POINT, whatsappNumber: PHONE })
+      const calls: unknown[] = []
+      const base = buildChannel()
+      const channel: ChannelAdapterInterface = {
+        ...base.channel,
+        fetchMediaAsBase64: async () => ({
+          data: Buffer.from(new Uint8Array(1024)).toString('base64'),
+          mimeType: 'image/jpeg',
+        }),
+      }
+      const defaults = buildDeps()
+      const original = defaults[writeCase.overrideKey] as (input: unknown) => Promise<unknown>
+
+      await callAction({
+        channel,
+        context: writeCase.context,
+        deps: buildDeps({
+          [writeCase.overrideKey]: async (input: unknown) => {
+            calls.push(input)
+            return original(input)
+          },
+        }),
+        kind: writeCase.kind,
+      })
+
+      expect(calls).toHaveLength(1)
+      expect(
+        JSON.stringify(calls[0], (_key, value) =>
+          value instanceof Uint8Array ? '[bytes]' : value,
+        ),
+      ).not.toMatch(COORDINATE_PATTERN)
+      expect(store.consume({ companyId: COMPANY_ID, whatsappNumber: PHONE })).toEqual(POINT)
+    },
+  )
 })

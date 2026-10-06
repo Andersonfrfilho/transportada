@@ -146,3 +146,45 @@ compilador aponta onde falta.
 Contagens finais por task (comandos, pass/fail, tamanho do precache) vivem em
 `specs/189-o-motorista-tem-app-propria/evidence.md`, não aqui — este arquivo explica decisões, não
 substitui a evidência de execução.
+
+## Spec 196 — todo toque manda onde aconteceu (ADR-0081)
+
+- **Quatro toques levam `location`:** despacho, "Iniciar rota", ocorrência da parada e ocorrência da nota. A fila
+  (`offlineQueue.service.ts`) guarda o ponto no item, e o corpo do `POST` o leva.
+- **Dois relógios.** Toque que vai para a fila grava a posição na hora (`readCurrentLocation`, 8 s). Toque
+  direto (despacho e "Iniciar rota") usa `readDirectTapLocation`, com o relógio de **3 s** da própria app
+  (`DIRECT_TAP_POSITION_BUDGET_MS`, posição de até 5 min): se a posição não vier, o toque segue com
+  `location: null` — GPS negado ou mudo nunca trava. Medido no smoke: o `POST` sai ~3,03 s depois do clique.
+- **Limite conhecido.** O reenvio da foto da ocorrência da parada (`stopOccurrencePhoto`) repete o corpo
+  **sem** `location`; a fila manda a ocorrência antes e a foto atrás, então só afeta ocorrência recusada
+  cuja foto foi aceita.
+- **Preview.** `apps/frontend-driver/scripts/driver-preview-api.ts` (`motorista-api-demo` no `launch.json`)
+  guarda o ponto em memória, sem log de coordenada.
+
+## Spec 243 — O ajudante acompanha a viagem
+
+**Arquivos-chave:** validação em `modules/driver-trip/shared/driverTripResponse.validation.ts` e
+`tripCrewRole.service.ts`, tipo em `modules/driver-trip/shared/driverTrip.types.ts`, aviso em
+`components/DriverHelperNotice.component.tsx`, cartão em `components/DriverStopCard.component.tsx`,
+tela em `pages/DriverTripWorkspace.page.tsx`.
+Testes: `test/driver-trip/helper-crew-role.contract.ts`.
+
+Uma decisão (ver ADR-0095): D3/D4 — `/me/trips/current` devolve `crewRole` por viagem (`'driver'` | `'helper'`);
+app recebe o papel, mostra aviso "Você acompanha esta viagem como ajudante" e esconde ações que exigem `trip.report`
+(Cheguei, Iniciar rota, Cancelar rota, Registrar entrega depois, nota, comprovante, ocorrência, despacho). Ficam
+leitura (paradas, navegação, manifesto, romaneio). Ausência de `crewRole` (snapshot antigo no IndexedDB) lê como `driver`.
+
+**Pegadinhas:** Fila offline — 403 em `trip.report` vira `rejected` (não retenteado), descartado do `drainQueue`;
+nenhum defeto, mas com ajudante nenhum botão chama `report(...)`. Atalho "Fotos pendentes (N)" lê sem filtro
+de papel; pode aparecer para ajudante se a API retornar pendência de viagem onde ele é ajudante.
+
+## Spec 244 — O ajudante sem resto
+
+**Arquivos-chave:** hook em `modules/driver-trip/hooks/useLocationConsent.hook.ts`, cartão em
+`components/DriverLocationConsentCard.component.tsx`, contrato em
+`test/driver-trip/location-consent-applicability.contract.tsx`.
+
+**T2:** `useLocationConsent` expõe `isApplicable: false` quando a leitura do `GET /me/location-consent` responde
+403 (sem retry). Cartão devolve `null`. Qualquer outro erro (5xx, rede) segue como antes, renderizando alerta.
+Decisão: API recusa consentimento para conta sem `trip.report`, app o respeita sem oferecer o cartão —
+a regra fica num lugar só.

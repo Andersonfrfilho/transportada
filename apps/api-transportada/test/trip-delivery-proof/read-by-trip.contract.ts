@@ -66,6 +66,11 @@ function repository(records: readonly TripDeliveryProofRecord[]) {
   }
 }
 
+const DEFAULT_RADIUS_METERS = 300
+const settings = {
+  resolveProofPunctualitySettings: async () => ({ proofRadiusMeters: DEFAULT_RADIUS_METERS }),
+}
+
 const signedRequests: string[] = []
 const downloads = {
   async createDownloadUrl(input: { readonly objectKey: string }) {
@@ -98,6 +103,7 @@ describe('readDeliveryProofsByTrip (spec 222 T1.4)', () => {
       documentIds: [FIRST_DOCUMENT_ID],
       downloads,
       repository: port,
+      settings,
       tripId: TRIP_ID,
     })
 
@@ -113,6 +119,7 @@ describe('readDeliveryProofsByTrip (spec 222 T1.4)', () => {
       companyId: COMPANY_ID,
       downloads,
       repository: port,
+      settings,
       tripId: TRIP_ID,
     })
 
@@ -126,6 +133,7 @@ describe('readDeliveryProofsByTrip (spec 222 T1.4)', () => {
       companyId: COMPANY_ID,
       downloads,
       repository: port,
+      settings,
       tripId: TRIP_ID,
     })
 
@@ -135,7 +143,7 @@ describe('readDeliveryProofsByTrip (spec 222 T1.4)', () => {
     ])
   })
 
-  test('a serialização é a da leitura de uma nota, mais o documentId', async () => {
+  test('a serialização é a da leitura de uma nota, mais o documentId e o raio (spec 233 D6)', async () => {
     const { port } = repository([FIRST, SECOND])
     const singleFirst = await readSingle(FIRST, FIRST_DOCUMENT_ID)
     const singleSecond = await readSingle(SECOND, SECOND_DOCUMENT_ID)
@@ -144,12 +152,13 @@ describe('readDeliveryProofsByTrip (spec 222 T1.4)', () => {
       companyId: COMPANY_ID,
       downloads,
       repository: port,
+      settings,
       tripId: TRIP_ID,
     })
 
     expect(views).toEqual([
-      { ...singleFirst, documentId: FIRST_DOCUMENT_ID },
-      { ...singleSecond, documentId: SECOND_DOCUMENT_ID },
+      { ...singleFirst, documentId: FIRST_DOCUMENT_ID, proofRadiusMeters: DEFAULT_RADIUS_METERS },
+      { ...singleSecond, documentId: SECOND_DOCUMENT_ID, proofRadiusMeters: DEFAULT_RADIUS_METERS },
     ])
   })
 
@@ -161,6 +170,7 @@ describe('readDeliveryProofsByTrip (spec 222 T1.4)', () => {
       companyId: COMPANY_ID,
       downloads,
       repository: port,
+      settings,
       tripId: TRIP_ID,
     })
 
@@ -182,6 +192,7 @@ describe('readDeliveryProofsByTrip (spec 222 T1.4)', () => {
       companyId: COMPANY_ID,
       downloads,
       repository: port,
+      settings,
       tripId: TRIP_ID,
     })
 
@@ -198,6 +209,7 @@ describe('readDeliveryProofsByTrip (spec 222 T1.4)', () => {
       companyId: COMPANY_ID,
       downloads,
       repository: port,
+      settings,
       tripId: TRIP_ID,
     })
 

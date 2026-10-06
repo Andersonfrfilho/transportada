@@ -9,7 +9,6 @@
 import { alias } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import type { SQL, SQLWrapper } from 'drizzle-orm'
-import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 
 import { fleetDrivers } from '../../database/fleet.schema.js'
 import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
@@ -25,8 +24,8 @@ export const timelineActorProfile = alias(identityUserProfiles, 'trip_timeline_a
 export const timelineOnBehalfDriver = alias(fleetDrivers, 'trip_timeline_on_behalf_driver')
 
 /** Texto em vez de `Date`: preserva os microssegundos que `occurred_at` guarda (T9). */
-export function formatTimelineTimestampKey(column: AnyPgColumn): SQL<string> {
-  return sql<string>`to_char(${column} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`
+export function formatTimelineTimestampKey(expression: SQLWrapper): SQL<string> {
+  return sql<string>`to_char((${expression}) at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`
 }
 
 /**

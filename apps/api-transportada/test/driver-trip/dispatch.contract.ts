@@ -11,6 +11,8 @@ import {
   dispatchTrip,
   type DispatchTripPort,
 } from '../../src/trips/application/dispatch-trip.use-case.js'
+import { NO_EVENT_LOCATION_STAMP } from '../../src/trips/domain/event-location-stamp.policy.js'
+import type { EventLocationStampColumns } from '../../src/trips/domain/event-location-stamp.types.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { ApiError } from '../../src/shared/api.error.js'
 
@@ -20,10 +22,18 @@ const DRIVER_ID = '00000000-0000-4000-8000-000000000003'
 const TRIP_ID = '00000000-0000-4000-8000-000000000004'
 
 function buildWorld(input: { readonly role: 'driver' | 'helper' | null }) {
-  const dispatched: Array<{ readonly actorUserId: string; readonly tripId: string }> = []
+  const dispatched: Array<{
+    readonly actorUserId: string
+    readonly locationStamp: EventLocationStampColumns
+    readonly tripId: string
+  }> = []
 
   return {
-    dispatch: (request: { readonly actorUserId: string; readonly tripId: string }) => {
+    dispatch: (request: {
+      readonly actorUserId: string
+      readonly locationStamp: EventLocationStampColumns
+      readonly tripId: string
+    }) => {
       dispatched.push(request)
       return Promise.resolve({ tripStatus: 'dispatched' as const })
     },
@@ -45,6 +55,7 @@ describe('o dispatch pelo motorista (ADR-0058)', () => {
         dispatch: world.dispatch,
         driverId: DRIVER_ID,
         linkage: world.linkage,
+        location: null,
         tripId: TRIP_ID,
       })
       throw new Error('EXPECTED_API_ERROR')
@@ -66,6 +77,7 @@ describe('o dispatch pelo motorista (ADR-0058)', () => {
       dispatch: world.dispatch,
       driverId: DRIVER_ID,
       linkage: world.linkage,
+      location: null,
       tripId: TRIP_ID,
     }).catch((caught: unknown) => caught)
 
@@ -84,11 +96,18 @@ describe('o dispatch pelo motorista (ADR-0058)', () => {
       dispatch: world.dispatch,
       driverId: DRIVER_ID,
       linkage: world.linkage,
+      location: null,
       tripId: TRIP_ID,
     })
 
     expect(result).toEqual({ tripStatus: 'dispatched' })
-    expect(world.dispatched).toEqual([{ actorUserId: ACTOR_USER_ID, tripId: TRIP_ID }])
+    expect(world.dispatched).toEqual([
+      {
+        actorUserId: ACTOR_USER_ID,
+        locationStamp: { ...NO_EVENT_LOCATION_STAMP, locationState: 'unavailable' },
+        tripId: TRIP_ID,
+      },
+    ])
   })
 
   /**
@@ -120,7 +139,11 @@ describe('o dispatch pelo motorista (ADR-0058)', () => {
       actorUserId: ACTOR_USER_ID,
       companyId: COMPANY_ID,
       driverId: DRIVER_ID,
-      dispatch: (request: { readonly actorUserId: string; readonly tripId: string }) =>
+      dispatch: (request: {
+        readonly actorUserId: string
+        readonly locationStamp: EventLocationStampColumns
+        readonly tripId: string
+      }) =>
         dispatchTrip({
           ...request,
           channel: TRIP_FIELD_CHANNELS.driverApp,
@@ -128,6 +151,7 @@ describe('o dispatch pelo motorista (ADR-0058)', () => {
           repository,
         }),
       linkage: { findCrewRole: () => Promise.resolve('driver' as const) },
+      location: null,
       tripId: TRIP_ID,
     }
 

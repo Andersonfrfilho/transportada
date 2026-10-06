@@ -2,7 +2,6 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { MetaWhatsAppModule } from '@adatechnology/meta-whatsapp-module'
-import { WhatsAppMessageProvider } from '@adatechnology/meta-whatsapp-provider'
 
 import type { RateLimiter } from '../../http/rate-limiter.service.js'
 import type { AuthorizationService } from '../../identity/application/authorization.service.js'
@@ -17,6 +16,7 @@ import {
   type WhatsAppMessageHandler,
 } from '../application/whatsapp-command-driver.service.js'
 import type { WhatsAppFlowGraphProviderPort } from '../application/whatsapp-command-driver.port.js'
+import type { WhatsAppSharedLocationStore } from '../application/whatsapp-shared-location.service.js'
 import {
   createWithAuthorizedActor,
   registerWhatsAppFlowActions,
@@ -35,15 +35,14 @@ export type WhatsAppCommandHookFactory = (
 ) => WhatsAppMessageHandler
 
 export type CreateWhatsAppCommandHookFactoryParams = {
-  readonly apiVersion: string
   readonly authorization: Pick<AuthorizationService, 'authorize'>
-  readonly baseUrl: string | undefined
   readonly clock: () => Date
   readonly flowActions: readonly WhatsAppFlowActionDefinition[]
   readonly graphs: WhatsAppFlowGraphProviderPort
   readonly logger: ApiLogger
   readonly rateLimiter: RateLimiter
   readonly resolveActor: (params: ResolveWhatsAppActorParams) => Promise<ResolveWhatsAppActorResult>
+  readonly sharedLocations?: WhatsAppSharedLocationStore
   readonly verifyPhone?: VerifyWhatsAppPhone
 }
 
@@ -56,29 +55,27 @@ export function createWhatsAppCommandHookFactory(
 ): WhatsAppCommandHookFactory {
   const withAuthorizedActor = createWithAuthorizedActor(params)
 
-  return ({ accessToken, module, phoneNumberId }) => {
+  return ({ module }) => {
+    const { flows } = module
+    if (flows === undefined)
+      throw new Error('The WhatsApp module was built without the flow engine')
+
     registerWhatsAppFlowActions({
       definitions: params.flowActions,
-      registerFlowAction: module.flows.registerFlowAction,
+      registerFlowAction: flows.registerFlowAction,
       withAuthorizedActor,
     })
-    const buttons = new WhatsAppMessageProvider({
-      accessToken,
-      apiVersion: params.apiVersion,
-      phoneNumberId,
-      ...(params.baseUrl === undefined ? {} : { baseUrl: params.baseUrl }),
-    })
-
     return createWhatsAppCommandDriver({
       channel: module.channel,
       clock: params.clock,
       graphs: params.graphs,
-      interpreter: module.flows.interpreter,
+      interpreter: flows.interpreter,
       logger: params.logger,
       rateLimiter: params.rateLimiter,
       resolveActor: params.resolveActor,
-      sender: createMetaWhatsAppMessageSender({ buttons, channel: module.channel }),
+      sender: createMetaWhatsAppMessageSender({ channel: module.channel }),
       sessions: module.conversations.repository,
+      ...(params.sharedLocations === undefined ? {} : { sharedLocations: params.sharedLocations }),
       ...(params.verifyPhone === undefined ? {} : { verifyPhone: params.verifyPhone }),
     })
   }

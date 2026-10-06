@@ -32,6 +32,8 @@ import {
   WHATSAPP_INVALID_ATTEMPTS_BEFORE_HANDOFF,
   WHATSAPP_INVALID_ATTEMPTS_CONTEXT_KEY,
   WHATSAPP_MAX_CROSS_FLOW_HOPS,
+  WHATSAPP_SHARED_LOCATION_PERMISSION,
+  WHATSAPP_SHARED_LOCATION_REPLY,
 } from '../domain/whatsapp-command.constant.js'
 import { parseMenuPageNavigation } from '../domain/whatsapp-menu.policy.js'
 import { filterWhatsAppRootFlowGraph } from '../domain/whatsapp-root-menu.policy.js'
@@ -49,6 +51,10 @@ import type {
   ResolveWhatsAppActorResult,
 } from './resolve-whatsapp-actor.use-case.js'
 import type { VerifyWhatsAppPhone } from './verify-whatsapp-phone.use-case.js'
+import {
+  extractWhatsAppIncomingLocation,
+  type WhatsAppSharedLocationStore,
+} from './whatsapp-shared-location.service.js'
 import type { WhatsAppChoiceRenderer } from './whatsapp-choice-renderer.service.js'
 import type {
   WhatsAppCommandSessionPort,
@@ -79,6 +85,8 @@ export type WhatsAppCommandDriverDependencies = {
   readonly resolveActor: (params: ResolveWhatsAppActorParams) => Promise<ResolveWhatsAppActorResult>
   readonly sender: WhatsAppMessageSenderPort
   readonly sessions: WhatsAppCommandSessionPort
+  /** Ausente, a mensagem de localização é tratada como qualquer outra — resposta fora do menu. */
+  readonly sharedLocations?: WhatsAppSharedLocationStore
   /** Ausente, o número não vinculado só recebe a recusa neutra — como antes da T004. */
   readonly verifyPhone?: VerifyWhatsAppPhone
 }
@@ -147,8 +155,38 @@ async function dispatch(turn: WhatsAppCommandTurn): Promise<MessageHookOutcome> 
     return HANDLED
   }
 
+  if (await acknowledgeSharedLocation({ permissions: actor.context.scope.permissions, turn })) {
+    return HANDLED
+  }
+
   await guardConversation(turn, () => advanceConversation(turn, actor.context.scope.permissions))
   return HANDLED
+}
+
+/**
+ * Spec 196 T3.6: a localização é mensagem própria, não resposta do menu — consumida aqui, ela não
+ * conta como tentativa inválida nem mexe na posição do fluxo. Só quem reporta como motorista
+ * (`trip.report`) tem ponto lembrado: o operador que mande uma localização cai no fluxo de sempre.
+ */
+async function acknowledgeSharedLocation(input: {
+  readonly permissions: ReadonlySet<string>
+  readonly turn: WhatsAppCommandTurn
+}): Promise<boolean> {
+  const { permissions, turn } = input
+  const { sharedLocations } = turn.deps
+  if (sharedLocations === undefined) return false
+  if (!permissions.has(WHATSAPP_SHARED_LOCATION_PERMISSION)) return false
+
+  const location = extractWhatsAppIncomingLocation(turn.message, turn.deps.clock())
+  if (location === undefined) return false
+
+  sharedLocations.remember({
+    companyId: turn.session.companyId,
+    location,
+    whatsappNumber: turn.session.whatsappNumber,
+  })
+  await turn.deps.sender.sendText({ body: WHATSAPP_SHARED_LOCATION_REPLY, to: turn.phone })
+  return true
 }
 
 /**

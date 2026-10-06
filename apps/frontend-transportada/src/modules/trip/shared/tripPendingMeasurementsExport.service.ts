@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { SpreadsheetColumn } from '@/modules/shared/spreadsheet/spreadsheetLayout.service'
 import {
   CSV_BYTE_ORDER_MARK,
   CSV_FIELD_SEPARATOR,
@@ -18,6 +19,26 @@ export const TRIP_PENDING_MEASUREMENT_EXPORT_COLUMNS = [
 ] as const
 export type TripPendingMeasurementExportColumn =
   (typeof TRIP_PENDING_MEASUREMENT_EXPORT_COLUMNS)[number]
+
+const TRIP_EXPORT_COLUMN_LAYOUT: Readonly<
+  Record<TripPendingMeasurementExportColumn, Omit<SpreadsheetColumn, 'header'>>
+> = {
+  boxCount: { align: 'right', format: '#,##0', width: 14 },
+  document: { format: '@', width: 16 },
+  estimateSource: { width: 26 },
+  product: { width: 46 },
+  stop: { width: 36 },
+}
+
+/** Cabeçalho, largura, alinhamento e formato de cada coluna do arquivo. */
+export function buildTripPendingMeasurementsColumns(
+  labels: TripPendingMeasurementsExportLabels,
+): readonly SpreadsheetColumn[] {
+  return TRIP_PENDING_MEASUREMENT_EXPORT_COLUMNS.map((column) => ({
+    ...TRIP_EXPORT_COLUMN_LAYOUT[column],
+    header: labels.header[column],
+  }))
+}
 
 export const TRIP_PENDING_MEASUREMENTS_CSV_MEDIA_TYPE = 'text/csv;charset=utf-8'
 

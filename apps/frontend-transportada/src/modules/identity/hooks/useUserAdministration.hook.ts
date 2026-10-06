@@ -18,6 +18,15 @@ export function readErrorCode(error: unknown): string | undefined {
   return error instanceof Error ? error.message : undefined
 }
 
+/** A falha fica em `mutation.error`, onde a tela a lê; rejeitar aqui só vira `unhandledrejection`. */
+async function settleWithoutRejecting(action: () => Promise<void>): Promise<void> {
+  try {
+    await action()
+  } catch {
+    // Falha mantém o estado do diálogo; o que vem depois do `await` só vale no sucesso.
+  }
+}
+
 export function useUserAdministration(input: Readonly<{ client?: CompanyUsersClient }> = {}) {
   const authQuery = useAuthMeQuery()
   const companyId = authQuery.data?.data.company.id
@@ -96,10 +105,12 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
       inviteForm.markSubmitAttempt()
       return
     }
-    const invited = await users.inviteUserMutation.mutateAsync(inviteForm.toInput())
-    setFleetLinkNotice(invited.fleetLink === 'not-applicable' ? null : invited.fleetLink)
-    inviteForm.reset()
-    setInviteOpen(false)
+    await settleWithoutRejecting(async () => {
+      const invited = await users.inviteUserMutation.mutateAsync(inviteForm.toInput())
+      setFleetLinkNotice(invited.fleetLink === 'not-applicable' ? null : invited.fleetLink)
+      inviteForm.reset()
+      setInviteOpen(false)
+    })
   }
 
   /** A senha nunca sobrevive ao diálogo: fechar apaga o que foi digitado e o que foi respondido. */
@@ -117,14 +128,16 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
   async function submitEdit(): Promise<void> {
     if (editTarget === null) return
     const patch = editForm.toProfilePatch()
-    if (patch !== undefined) await users.updateProfileMutation.mutateAsync(patch)
-    if (editForm.hasRoleChange) {
-      await users.replaceRolesMutation.mutateAsync({
-        roles: editForm.roles,
-        userId: editTarget.id,
-      })
-    }
-    setEditTarget(null)
+    await settleWithoutRejecting(async () => {
+      if (patch !== undefined) await users.updateProfileMutation.mutateAsync(patch)
+      if (editForm.hasRoleChange) {
+        await users.replaceRolesMutation.mutateAsync({
+          roles: editForm.roles,
+          userId: editTarget.id,
+        })
+      }
+      setEditTarget(null)
+    })
   }
 
   function closeRemove(): void {
@@ -134,21 +147,27 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
 
   async function confirmRemove(): Promise<void> {
     if (removeTarget === null) return
-    await users.removeUserMutation.mutateAsync({ userId: removeTarget.id })
-    setRemoveTarget(null)
+    await settleWithoutRejecting(async () => {
+      await users.removeUserMutation.mutateAsync({ userId: removeTarget.id })
+      setRemoveTarget(null)
+    })
   }
 
   /** O aviso some ao próximo clique: um "ativado" parado na tela não diz de quem era. */
   async function activateUser(user: CompanyUser): Promise<void> {
     setActivatedUserId(null)
-    await users.activateUserMutation.mutateAsync({ userId: user.id })
-    setActivatedUserId(user.id)
+    await settleWithoutRejecting(async () => {
+      await users.activateUserMutation.mutateAsync({ userId: user.id })
+      setActivatedUserId(user.id)
+    })
   }
 
   async function resendInvitation(user: CompanyUser): Promise<void> {
     setResentUserId(null)
-    await users.resendInvitationMutation.mutateAsync({ userId: user.id })
-    setResentUserId(user.id)
+    await settleWithoutRejecting(async () => {
+      await users.resendInvitationMutation.mutateAsync({ userId: user.id })
+      setResentUserId(user.id)
+    })
   }
 
   return {
@@ -179,16 +198,23 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
     toggleGroups: () => setGroupsOpen((open) => !open),
     toggleMatrix: () => setMatrixOpen((open) => !open),
     userPermissions,
+    bulkAssignErrorCode: readErrorCode(
+      users.assignRolesMutation.error ?? groups.assignMutation.error,
+    ),
     async assignGroups(groupIds: readonly string[]) {
-      await groups.assignMutation.mutateAsync({ groupIds, userIds: selection.selectedIds })
-      selection.clear()
-      await users.invalidate()
+      await settleWithoutRejecting(async () => {
+        await groups.assignMutation.mutateAsync({ groupIds, userIds: selection.selectedIds })
+        selection.clear()
+        await users.invalidate()
+      })
     },
     reveal,
     selection,
     async assignRoles(roles: readonly string[]) {
-      await users.assignRolesMutation.mutateAsync({ roles, userIds: selection.selectedIds })
-      selection.clear()
+      await settleWithoutRejecting(async () => {
+        await users.assignRolesMutation.mutateAsync({ roles, userIds: selection.selectedIds })
+        selection.clear()
+      })
     },
     refreshReconciliation: () => {
       void reconciliation.refetch()

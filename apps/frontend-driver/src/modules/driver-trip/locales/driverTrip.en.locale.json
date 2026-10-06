@@ -21,7 +21,12 @@
   },
   "deliver": "Delivered",
   "deliveredState": "Delivered",
+  "helperNotice": {
+    "detail": "Here you can see the stops, the invoices and the manifest. Arrival, delivery, return and occurrences are the driver's.",
+    "title": "You are following this trip as a helper"
+  },
   "dispatch": {
+    "queued": "Trip start waiting to send — it goes up when the signal is back. You can already log the stops.",
     "failed": "The route could not be started. Tap again.",
     "start": "Dispatch trip",
     "waiting": "Waiting for dispatch — field actions unlock after the trip is dispatched."
@@ -39,16 +44,23 @@
       "stopNotReachable": "this stop is no longer part of your trip",
       "tooLarge": "the photo is larger than the server accepts"
     },
+    "discard": {
+      "confirm": "Discard anyway",
+      "keep": "Keep",
+      "open": "Discard",
+      "warning": "The delivery was not recorded; talk to the office. Discarding removes this item from the device."
+    },
     "empty": "Nothing waiting to be sent.",
     "itemTitle": {
       "depart": "Start route — stop {{sequence}}"
     },
     "kind": {
+      "dispatch": "Start trip",
       "arrive": "Arrival",
       "cancelDeparture": "Route cancellation",
       "depart": "Start route",
       "deliver": "Delivery",
-      "documentOccurrence": "Occurrence with photo",
+      "documentOccurrence": "Invoice occurrence",
       "occurrence": "Occurrence",
       "proof": "Proof",
       "proofReceiver": "Who received",
@@ -136,7 +148,7 @@
     "score": "{{score}} of 100",
     "scoreNone": "No score yet — no delivery with a required photo in the last 90 days.",
     "scoreTitle": "Your score",
-    "scoreHint": "Starts at 100. Drops when a required photo arrives late, away from the delivery location, or never arrives. Each loss expires after 90 days.",
+    "scoreHint": "Starts at 100. Drops when a required photo arrives late, away from the delivery location or without its location, or never arrives. Each loss expires after 90 days.",
     "signOutPending": {
       "cancel": "Stay",
       "discard": "Discard and sign out",
@@ -279,6 +291,10 @@
     "pending": "Pending"
   },
   "stopTitle": "Stop {{sequence}}",
+  "stalePending": {
+    "notice_one": "{{count}} of your records has been stuck since {{date}} and has not reached the office yet. Open the app with a signal to send it.",
+    "notice_other": "{{count}} of your records have been stuck since {{date}} and have not reached the office yet. Open the app with a signal to send them."
+  },
   "sync": {
     "hours_one": "Synced {{count}} hour ago",
     "hours_other": "Synced {{count}} hours ago",
@@ -286,8 +302,15 @@
     "minutes_other": "Synced {{count}} minutes ago",
     "never": "Not synced yet",
     "now": "Synced just now",
+    "pending_one": "{{count}} waiting to send",
+    "pending_other": "{{count}} waiting to send",
     "syncing_one": "Sending {{count}} pending item…",
     "syncing_other": "Sending {{count}} pending items…"
+  },
+  "theme": {
+    "title": "Appearance",
+    "useDark": "Use dark theme",
+    "useLight": "Use light theme"
   },
   "title": "My trip",
   "tripCodeCopied": "Code copied",
@@ -311,9 +334,9 @@
     "empty": "No pending photos. You are all caught up.",
     "open": "Pending photos",
     "outcome": {
-      "away": "Recorded far from the location — may have cost points on your score.",
+      "away": "Recorded far from the location or without the delivery location — may have cost points on your score.",
       "late": "Recorded past the deadline — may have cost points on your score.",
-      "late_and_away": "Recorded past the deadline and far from the location — may have cost points on your score.",
+      "late_and_away": "Recorded past the deadline and far from the location (or without the delivery location) — may have cost points on your score.",
       "not_required": "Recorded.",
       "on_time": "Recorded on time and on site."
     },
@@ -326,6 +349,7 @@
   "proofPendingWarningTitle": "Proof photo required",
   "proofPendingWarningLead": "Take it here, at delivery time. A photo sent later or away from here costs points on your score.",
   "proofPendingWarningDetails": "How the photo counts toward your score",
+  "locationOffWarning": "Location is off: delivering this way counts as away from the location and may cost points on your score. Turn on the device location so the delivery counts on site.",
   "offline": {
     "empty": "No saved trip; connect to load your trip.",
     "emptyTitle": "Offline",
@@ -418,9 +442,9 @@
     },
     "withoutOccurrence": "Without the occurrence types, the return goes with the reason only — there is nowhere to record the photo right now.",
     "status": {
-      "queued": "Occurrence with photo queued — it goes up when the signal is back.",
-      "sent": "Occurrence with photo sent.",
-      "rejected": "The server refused the occurrence with photo. See pending events."
+      "queued": "Occurrence queued — it goes up when the signal is back.",
+      "sent": "Occurrence sent.",
+      "rejected": "The server refused the occurrence. See pending events."
     }
   },
   "startRoute": {
@@ -450,7 +474,6 @@
     "delivered": "Delivered at {{time}}",
     "deliveredQueued": "Delivered at {{time}} · queued",
     "deliveredRejected": "The office refused the delivery recorded at {{time}}. See pending events.",
-    "documentOccurrenceRecorded": "Occurrence recorded at {{time}}",
     "occurrenceMarker": "Has an occurrence",
     "occurrenceQueued": "Occurrence recorded at {{time}} · queued",
     "occurrenceRejected": "The office refused the occurrence recorded at {{time}}. See pending events.",

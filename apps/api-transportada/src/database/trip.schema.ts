@@ -39,7 +39,15 @@ import { freightCalculations } from './freight.schema.js'
 import { nfeDocuments } from './nfe.schema.js'
 import { storedObjects } from './storage.schema.js'
 import { inList } from './schema-check.constant.js'
-import { EVENT_LOCATION_STATES, type EventLocationState } from './event-location.schema.js'
+import {
+  buildEventLocationChecks,
+  buildEventLocationColumns,
+  buildEventLocationCompanyIndex,
+  buildEventLocationIndex,
+  EVENT_LOCATION_STATES,
+  type EventLocationState,
+} from './event-location.schema.js'
+import { deliveredMomentSql } from './delivered-moment.support.js'
 
 /**
  * ADR-0067 §2: quem registrou o evento de campo — motorista pelo PWA, escritório em nome dele, ou
@@ -61,6 +69,21 @@ export const TRIP_FIELD_CHANNELS = {
   backoffice: 'backoffice',
 } as const
 export type TripFieldChannel = (typeof TRIP_FIELD_CHANNELS)[keyof typeof TRIP_FIELD_CHANNELS]
+
+/**
+ * Spec 196 D3 (revista): os canais que podem gravar coordenada — o app do motorista e a mensagem de
+ * localização que o motorista manda pelo WhatsApp. Escritório e backoffice nunca têm ponto.
+ */
+const EVENT_LOCATION_COORDINATE_CHANNELS = [
+  TRIP_FIELD_CHANNELS.driverApp,
+  TRIP_FIELD_CHANNELS.whatsapp,
+] as const
+
+/** Os canais em que o estado do ponto quer dizer alguma coisa; nos demais é `null` (não se aplica). */
+const EVENT_LOCATION_STATEFUL_CHANNELS = [
+  TRIP_FIELD_CHANNELS.driverApp,
+  TRIP_FIELD_CHANNELS.whatsapp,
+] as const
 
 /**
  * ADR-0043 §1: a viagem não fala com a SEFAZ, mas tem fases de barracão que `open|closed` não
@@ -487,6 +510,8 @@ export const tripStatusEvents = pgTable(
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
     /** ADR-0067 §3 / ADR-0068 "Consequências": igual a `trip_stop_events.recorded_at`. */
     recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Spec 196 D2 / `plan.md` §Dados: as cinco colunas de posição do evento. */
+    ...buildEventLocationColumns(),
   },
   (table) => [
     foreignKey({
@@ -555,6 +580,23 @@ export const tripStatusEvents = pgTable(
       'trip_status_events_to_status_check',
       sql`${table.toStatus} in (${raw(inList(TRIP_STATUSES))})`,
     ),
+    ...buildEventLocationChecks({
+      columns: table,
+      coordinateChannels: EVENT_LOCATION_COORDINATE_CHANNELS,
+      statefulChannels: EVENT_LOCATION_STATEFUL_CHANNELS,
+      tableName: 'trip_status_events',
+    }),
+    buildEventLocationIndex({
+      latitude: table.latitude,
+      tableName: 'trip_status_events',
+      timeColumn: table.recordedAt,
+    }),
+    buildEventLocationCompanyIndex({
+      companyId: table.companyId,
+      latitude: table.latitude,
+      tableName: 'trip_status_events',
+      timeColumn: table.recordedAt,
+    }),
   ],
 )
 
@@ -1121,8 +1163,24 @@ export const tripStopEvents = pgTable(
      * do GPS, que pode nem existir) nem a do servidor. É ela que ordena a fila: o item recusado não é
      * descartado, o reenvio manual chega fora de ordem, e sem o `tapped_at` um toque velho marcaria a
      * parada errada. Anulável: todo evento anterior a esta spec não tem.
+     *
+     * Spec 234 D2: `arrived`/`delivered`/`returned` também a gravam quando o app manda — crua, mesmo
+     * quando a correção é descartada. Quem vale como hora do evento é `occurred_at`, nunca esta.
      */
     tappedAt: timestamp('tapped_at', { withTimezone: true }),
+    /**
+     * Spec 234 D3: `tapped_at + clock_offset_ms`, gravada **só** quando `resolveOccurredAt` aceitou a
+     * correção — a decisão fica no banco, e uma correção descartada (futuro, mais de 30 dias) nunca
+     * volta a valer numa leitura em SQL. Não é o `created_at` que o escritório sobrescreve (ADR-0067
+     * §3). O momento da entrega da nota e da pontualidade é `deliveredMomentSql`. Sem backfill.
+     */
+    occurredAt: timestamp('occurred_at', { withTimezone: true }),
+    /**
+     * Spec 234 D3: o desvio aplicado em `occurred_at` (servidor − aparelho), para auditoria. `bigint`:
+     * o desvio não tem teto no esquema (qualquer inteiro seguro é aceito; `resolveOccurredAt` descarta o
+     * absurdo), e `integer` estoura em ±24,8 dias (`22003` derrubaria o toque).
+     */
+    clockOffsetMs: bigint('clock_offset_ms', { mode: 'number' }),
     actorUserId: uuid('actor_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     /** ADR-0067 §2: quem gravou. Sem backfill: o default descreve o histórico. */
@@ -1216,10 +1274,26 @@ export const tripStopEvents = pgTable(
     index('trip_stop_events_company_delivered_at_idx')
       .on(table.companyId, sql`coalesce(${table.capturedAt}, ${table.recordedAt})`)
       .where(sql`${table.kind} = 'delivered'`),
+    /**
+     * Spec 234 D3 (risco 3 da T1.5): o mesmo índice para o momento da entrega com a hora corrigida,
+     * montado pela própria `deliveredMomentSql` — expressão diferente da consulta deixa o índice de
+     * fora. O anterior fica só para o rollback (a API velha precisa dele) e deve ser dropado numa
+     * migration futura, depois de a API estabilizar; a leitura de `arrived` do relatório de campo não
+     * é atendida por ele (o predicado só cobre `delivered`).
+     */
+    index('trip_stop_events_company_delivered_moment_idx')
+      .on(table.companyId, deliveredMomentSql(table))
+      .where(sql`${table.kind} = 'delivered'`),
     /** O expurgo dos 90 dias varre por data e apaga só a coordenada; sem este índice ele varre tudo. */
     index('trip_stop_events_located_created_at_idx')
       .on(table.createdAt)
       .where(sql`${table.latitude} is not null`),
+    buildEventLocationCompanyIndex({
+      companyId: table.companyId,
+      latitude: table.latitude,
+      tableName: 'trip_stop_events',
+      timeColumn: table.createdAt,
+    }),
     check(
       'trip_stop_events_kind_check',
       sql`${table.kind} in (${raw(inList(TRIP_STOP_EVENT_KINDS))})`,
@@ -1345,6 +1419,8 @@ export const tripStopOccurrences = pgTable(
       .default(TRIP_FIELD_CHANNELS.driverApp),
     /** ADR-0067 §2: só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
     onBehalfOfDriverId: uuid('on_behalf_of_driver_id'),
+    /** Spec 196 D2 / `plan.md` §Dados: as cinco colunas de posição do evento. */
+    ...buildEventLocationColumns(),
   },
   (table) => [
     foreignKey({
@@ -1427,6 +1503,23 @@ export const tripStopOccurrences = pgTable(
       'trip_stop_occurrences_office_driver_check',
       sql`${table.channel} <> 'office' or ${table.onBehalfOfDriverId} is not null`,
     ),
+    ...buildEventLocationChecks({
+      columns: table,
+      coordinateChannels: EVENT_LOCATION_COORDINATE_CHANNELS,
+      statefulChannels: EVENT_LOCATION_STATEFUL_CHANNELS,
+      tableName: 'trip_stop_occurrences',
+    }),
+    buildEventLocationIndex({
+      latitude: table.latitude,
+      tableName: 'trip_stop_occurrences',
+      timeColumn: table.createdAt,
+    }),
+    buildEventLocationCompanyIndex({
+      companyId: table.companyId,
+      latitude: table.latitude,
+      tableName: 'trip_stop_occurrences',
+      timeColumn: table.createdAt,
+    }),
   ],
 )
 
@@ -1685,6 +1778,14 @@ export const tripDeliveryProofs = pgTable(
     longitude: numeric({ precision: 10, scale: 7 }),
     accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
     capturedAt: timestamp('captured_at', { withTimezone: true }),
+    /**
+     * Spec 234 D4 (risco 5 da T1.5; R2): o desvio do relógio que julgou esta foto, antes da fusão
+     * com a anterior — só quando a correção foi aceita por `resolveOccurredAt` e usada (entrega com
+     * posição e evento corrigido); em D4b e na foto sem correção usada fica nulo. `captured_at` segue
+     * a hora crua do aparelho. Sem backfill. `bigint` pelo mesmo motivo de
+     * `trip_stop_events.clock_offset_ms`.
+     */
+    clockOffsetMs: bigint('clock_offset_ms', { mode: 'number' }),
     /** ADR-0081 §2 / spec 196 D2: por que a coordenada da foto não veio. `null` é não se aplica. */
     locationState: varchar('location_state', { length: 16 }).$type<EventLocationState>(),
     /**
@@ -1809,6 +1910,12 @@ export const tripDeliveryProofs = pgTable(
     index('trip_delivery_proofs_located_created_at_idx')
       .on(table.createdAt)
       .where(sql`${table.latitude} is not null`),
+    buildEventLocationCompanyIndex({
+      companyId: table.companyId,
+      latitude: table.latitude,
+      tableName: 'trip_delivery_proofs',
+      timeColumn: table.createdAt,
+    }),
     /**
      * Um comprovante de cada tipo por entrega: o segundo é correção, e correção substitui. A foto
      * da carga é a exceção (spec 184) — a segunda **soma** —, então o índice é parcial. Quem faz
@@ -2036,6 +2143,8 @@ export const tripDocumentOccurrences = pgTable(
     cancelledByUserId: uuid('cancelled_by_user_id'),
     /** Teto de 500 (RF6) é validado na política — o banco só garante presença, não tamanho. */
     cancellationReason: text('cancellation_reason'),
+    /** Spec 196 D2 / `plan.md` §Dados: as cinco colunas de posição do evento. */
+    ...buildEventLocationColumns(),
   },
   (table) => [
     /**
@@ -2107,6 +2216,23 @@ export const tripDocumentOccurrences = pgTable(
       sql`(${table.cancelledAt} is null) = (${table.cancelledByUserId} is null)
         and (${table.cancelledAt} is null) = (${table.cancellationReason} is null)`,
     ),
+    ...buildEventLocationChecks({
+      columns: table,
+      coordinateChannels: EVENT_LOCATION_COORDINATE_CHANNELS,
+      statefulChannels: EVENT_LOCATION_STATEFUL_CHANNELS,
+      tableName: 'trip_document_occurrences',
+    }),
+    buildEventLocationIndex({
+      latitude: table.latitude,
+      tableName: 'trip_document_occurrences',
+      timeColumn: table.createdAt,
+    }),
+    buildEventLocationCompanyIndex({
+      companyId: table.companyId,
+      latitude: table.latitude,
+      tableName: 'trip_document_occurrences',
+      timeColumn: table.createdAt,
+    }),
   ],
 )
 

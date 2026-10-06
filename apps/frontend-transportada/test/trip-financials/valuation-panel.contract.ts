@@ -75,10 +75,16 @@ describe('a avaliação prevista da viagem', () => {
   })
 
   test('o painel consome a avaliação, e a tela a busca', async () => {
-    const [painel, cliente] = await Promise.all([
+    const [painel, colunas, cliente] = await Promise.all([
       Bun.file(
         new URL(
           'src/modules/trip-financials/components/TripFinancialPanel.component.tsx',
+          APPLICATION_ROOT,
+        ),
+      ).text(),
+      Bun.file(
+        new URL(
+          'src/modules/trip-financials/components/TripFinancialColumns.component.tsx',
           APPLICATION_ROOT,
         ),
       ).text(),
@@ -93,8 +99,9 @@ describe('a avaliação prevista da viagem', () => {
     // A chamada, não o import: o nome no `import` sozinho passa com o painel sem consumir nada.
     expect(painel).toContain('summarizeTripValuation(valuation)')
     // A conta prevista é o razão da criação: cores e parcelas (combustível, pedágio) vêm dele.
-    expect(painel).toContain('<ValuationLedger')
     expect(painel).toContain('valuation={valuation}')
+    expect(colunas).toContain('<ValuationLedger')
+    expect(colunas).toContain('valuation={valuation}')
     expect(cliente).toContain('/valuation')
   })
 })

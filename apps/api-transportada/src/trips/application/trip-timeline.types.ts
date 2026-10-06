@@ -36,6 +36,13 @@ export const TRIP_TIMELINE_KINDS = [
   'document.occurrence',
   'document.status_changed',
   'trip.created',
+  /**
+   * Spec 228 D6: a foto do canhoto (lida de trip_delivery_proofs) e a correção do endereço da parada
+   * (lida das trilhas de correção humana). Entram no fim da lista e, como os demais, antes de a fonte
+   * emitir, porque o painel é cópia por valor e publica primeiro (ADR-0081 §9).
+   */
+  'document.canhoto_photo',
+  'stop.address_corrected',
 ] as const
 export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
 
@@ -67,6 +74,10 @@ export const TRIP_TIMELINE_KIND_PRIORITY: Readonly<Record<TripTimelineKind, numb
   'document.status_changed': 5,
   'trip.dispatched': 6,
   'trip.status_changed': 7,
+  /** Spec 228 D6: logo abaixo de `document.delivered` (4) — foto e baixa saem da mesma transação e empatam. */
+  'document.canhoto_photo': 3,
+  /** Spec 228 D6: acima de `stop.occurrence` (1) — a correção é efeito do relato de endereço errado. */
+  'stop.address_corrected': 2,
 }
 
 export type TripTimelineStopReference = {
@@ -112,7 +123,24 @@ export type TripTimelineLocation = {
 /** As fontes que não carimbam posição (status, ocorrências, documentos) — "não se aplica". */
 export const NO_EVENT_LOCATION = { location: null, locationState: null } as const
 
+/** Spec 228 D8: quem mudou a coordenada do endereço; `refinement` é o refino de precisão pedido por pessoa. */
+export const TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS = [
+  'contractor',
+  'driver',
+  'operator',
+  'refinement',
+] as const
+export type TripTimelineAddressChangeOrigin = (typeof TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS)[number]
+
+/** `displacementMeters` é `null` sem ponto anterior e no refino (que não guarda o anterior); metros não revelam onde. */
+export type TripTimelineAddressChange = {
+  readonly displacementMeters: number | null
+  readonly origin: TripTimelineAddressChangeOrigin
+}
+
 export type TripTimelineItem = {
+  /** Spec 228 D8: a chave só existe em `stop.address_corrected` — em outro kind nem `null` aparece. */
+  readonly addressChange?: TripTimelineAddressChange
   readonly actorName: string | null
   /** `null` = canal não registrado (D3/D6) — nunca um valor inventado. */
   readonly channel: TripFieldChannel | null
@@ -168,6 +196,13 @@ export type TripTimelineCursor = {
 export type ReadTripTimelineParams = {
   readonly companyId: string
   readonly cursor: TripTimelineCursor | null
+  /**
+   * Spec 233 D7: só a nota pedida. O que não pertence a nota nenhuma (viagem, parada) passa; o de
+   * outra nota não. Ausente = a viagem inteira.
+   */
+  readonly documentId?: string
+  /** Parada da nota pedida; `null` = nota sem parada, logo nenhum evento de parada. Com `documentId`. */
+  readonly documentStopId?: string | null
   readonly limit: number
   readonly tripId: string
 }

@@ -36,10 +36,12 @@ import {
 } from '../shared/fleet.types'
 import type { FreightRegion } from '../shared/freightRegion.types'
 import { isFleetFeedbackError } from '../shared/fleetFeedback.service'
+import { isHelperOnlyDriver } from '../shared/fleetForm.service'
 import { toOwnedVehicleIds } from '../shared/driverVehicles.service'
 import styles from '../styles/fleet.module.css'
 import { DriverAddressFields } from './DriverAddressFields.component'
 import { DriverCoverageFields } from './DriverCoverageFields.component'
+import { DriverHelperFields } from './DriverHelperFields.component'
 import { DriverLinkedAddressFields } from './DriverLinkedAddressFields.component'
 import { DriverPersonalFields } from './DriverPersonalFields.component'
 import { DriverScoreSection } from './DriverScoreSection.component'
@@ -99,6 +101,7 @@ export function DriverForm({
   const companyLookup = useCompanyLookup({ patch: form.patch })
   const linkedAddress = useDriverLinkedAddress({ patch: form.patch, state: form.state })
   const ownedVehicleIds = toOwnedVehicleIds(vehicles.links)
+  const hasLicense = !isHelperOnlyDriver(form.state)
   const pixKeyMaxLength = pixKeyMaskLength(form.state.pixKeyType)
 
   /** O controlador guarda a chave; quem a traduz é a tela, que é onde o idioma está. */
@@ -120,10 +123,10 @@ export function DriverForm({
     <form className={styles.panel} onSubmit={handleSubmit} ref={panelRef}>
       <h2>{driver === undefined ? t('newDriver') : t('editDriver')}</h2>
 
-      {driver === undefined ? null : <DriverScoreSection driverId={driver.id} />}
+      {driver === undefined || !hasLicense ? null : <DriverScoreSection driverId={driver.id} />}
 
       <fieldset className={styles.fieldGroup}>
-        <legend>{t('driverIdentityLegend')}</legend>
+        <legend>{t(hasLicense ? 'driverIdentityLegend' : 'driverIdentityLegendHelper')}</legend>
         <div className={styles.fieldGrid}>
           <FleetField
             label={t('driverName')}
@@ -171,28 +174,32 @@ export function DriverForm({
               form.patch({ email })
             }}
           />
-          <FleetField
-            error={fieldErrorText(uniqueness.errorOf('licenseNumber'))}
-            inputMode="numeric"
-            inputRef={uniqueness.bindField('licenseNumber')}
-            label={t('driverLicense')}
-            maxLength={11}
-            value={form.state.licenseNumber}
-            onBlur={() => uniqueness.confirm('licenseNumber', form.state.licenseNumber)}
-            onChange={(licenseNumber) => {
-              uniqueness.clear('licenseNumber')
-              form.patch({ licenseNumber })
-            }}
-          />
-          <FleetSelectField<string>
-            clearable
-            label={t('driverLicenseCategory')}
-            optionLabelKey="licenseCategoryOption"
-            options={LICENSE_CATEGORIES}
-            placeholder={t('driverLicenseCategoryUnset')}
-            value={form.state.licenseCategory}
-            onChange={(licenseCategory) => form.patch({ licenseCategory })}
-          />
+          {hasLicense ? (
+            <>
+              <FleetField
+                error={fieldErrorText(uniqueness.errorOf('licenseNumber'))}
+                inputMode="numeric"
+                inputRef={uniqueness.bindField('licenseNumber')}
+                label={t('driverLicense')}
+                maxLength={11}
+                value={form.state.licenseNumber}
+                onBlur={() => uniqueness.confirm('licenseNumber', form.state.licenseNumber)}
+                onChange={(licenseNumber) => {
+                  uniqueness.clear('licenseNumber')
+                  form.patch({ licenseNumber })
+                }}
+              />
+              <FleetSelectField<string>
+                clearable
+                label={t('driverLicenseCategory')}
+                optionLabelKey="licenseCategoryOption"
+                options={LICENSE_CATEGORIES}
+                placeholder={t('driverLicenseCategoryUnset')}
+                value={form.state.licenseCategory}
+                onChange={(licenseCategory) => form.patch({ licenseCategory })}
+              />
+            </>
+          ) : null}
           <FleetField
             inputMode="numeric"
             label={t('driverPhone')}
@@ -254,7 +261,10 @@ export function DriverForm({
               optionLabelKey="driverProfileOption"
               options={FLEET_DRIVER_PROFILES}
               value={form.state.profile}
-              onChange={(profile) => form.patch({ profile })}
+              onChange={(profile) => {
+                form.patch({ profile })
+                if (profile === 'helper') uniqueness.clear('licenseNumber')
+              }}
             />
           ) : null}
           <FleetDateField
@@ -263,27 +273,35 @@ export function DriverForm({
             value={form.state.birthDate}
             onChange={(birthDate) => form.patch({ birthDate })}
           />
-          <FleetDateField
-            hint={t('driverFirstLicenseAtHint')}
-            label={t('driverFirstLicenseAt')}
-            optional
-            value={form.state.firstLicenseAt}
-            onChange={(firstLicenseAt) => form.patch({ firstLicenseAt })}
-          />
-          <FleetDateField
-            hint={t('driverLicenseExpiresAtHint')}
-            label={t('driverLicenseExpiresAt')}
-            optional
-            value={form.state.licenseExpiresAt}
-            onChange={(licenseExpiresAt) => form.patch({ licenseExpiresAt })}
-          />
-          <FleetMoneyField
-            optional
-            label={t('driverDailyAllowanceAmount')}
-            scale={AMOUNT_DISPLAY_SCALE}
-            value={form.state.dailyAllowanceAmount}
-            onChange={(dailyAllowanceAmount) => form.patch({ dailyAllowanceAmount })}
-          />
+          {hasLicense ? (
+            <>
+              <FleetDateField
+                hint={t('driverFirstLicenseAtHint')}
+                label={t('driverFirstLicenseAt')}
+                optional
+                value={form.state.firstLicenseAt}
+                onChange={(firstLicenseAt) => form.patch({ firstLicenseAt })}
+              />
+              <FleetDateField
+                hint={t('driverLicenseExpiresAtHint')}
+                label={t('driverLicenseExpiresAt')}
+                optional
+                value={form.state.licenseExpiresAt}
+                onChange={(licenseExpiresAt) => form.patch({ licenseExpiresAt })}
+              />
+            </>
+          ) : null}
+          {hasLicense ? (
+            <FleetMoneyField
+              optional
+              keepsZero
+              label={t('driverDailyAllowanceAmount')}
+              scale={AMOUNT_DISPLAY_SCALE}
+              value={form.state.dailyAllowanceAmount}
+              onChange={(dailyAllowanceAmount) => form.patch({ dailyAllowanceAmount })}
+            />
+          ) : null}
+          <DriverHelperFields state={form.state} onChange={form.patch} />
         </div>
         <p className={styles.hint}>{t('driverLinkedTaxIdHint')}</p>
         {companyLookup.statusKey === null ? null : (
@@ -291,10 +309,16 @@ export function DriverForm({
         )}
         <p className={styles.hint}>{t('driverEmailHint')}</p>
         <p className={styles.hint}>{t('driverAnttHint')}</p>
-        <p className={styles.hint}>{t('driverDailyAllowanceAmountHint')}</p>
+        {hasLicense ? <p className={styles.hint}>{t('driverDailyAllowanceAmountHint')}</p> : null}
         {driver === undefined ? <p className={styles.hint}>{t('driverProfileHint')}</p> : null}
       </fieldset>
-      <DriverLinkedAddressFields lookup={linkedAddress} state={form.state} onChange={form.patch} />
+      {hasLicense ? (
+        <DriverLinkedAddressFields
+          lookup={linkedAddress}
+          state={form.state}
+          onChange={form.patch}
+        />
+      ) : null}
       <DriverPersonalFields state={form.state} onChange={form.patch} />
       <DriverAddressFields
         {...(driver === undefined
@@ -316,7 +340,9 @@ export function DriverForm({
         ownedVehicleIds={ownedVehicleIds}
         selectedVehicleIds={form.selectedVehicleIds}
       />
-      <DriverCoverageFields coverage={form.coverage} regions={regions.regions} />
+      {hasLicense ? (
+        <DriverCoverageFields coverage={form.coverage} regions={regions.regions} />
+      ) : null}
       {form.feedbackKey === null ? null : (
         <FleetFeedback
           isError={isFleetFeedbackError(form.feedbackKey)}

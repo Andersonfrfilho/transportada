@@ -3,7 +3,11 @@ import { useTranslation } from 'react-i18next'
 
 import { DatePicker } from '@/components/ui/date-picker'
 import { Select } from '@/components/ui/select'
-import { maskTypedAmount, maskTypedMeasure } from '@/modules/shared/decimalAmount.service'
+import {
+  maskTypedAmount,
+  maskTypedAmountKeepingZero,
+  maskTypedMeasure,
+} from '@/modules/shared/decimalAmount.service'
 
 import styles from '../styles/fleet.module.css'
 
@@ -30,6 +34,8 @@ type FleetDateFieldProps = Readonly<{
 }>
 
 type FleetMoneyFieldProps = Readonly<{
+  hint?: string
+  keepsZero?: boolean
   label: string
   onChange: (value: string) => void
   scale: number
@@ -166,6 +172,8 @@ export function FleetDateField({
  * máscara `120000` e `12000` são a mesma linha de pixels, e o zero a mais só aparece no relatório.
  */
 export function FleetMoneyField({
+  hint,
+  keepsZero = false,
   label,
   onChange,
   optional = false,
@@ -173,6 +181,7 @@ export function FleetMoneyField({
   value,
 }: FleetMoneyFieldProps) {
   const { t } = useTranslation('fleet')
+  const displayMask = keepsZero ? maskTypedAmountKeepingZero : maskTypedAmount
   return (
     <label>
       <span>
@@ -186,10 +195,11 @@ export function FleetMoneyField({
         <input
           inputMode="numeric"
           type="text"
-          value={maskTypedAmount({ scale, value })}
+          value={displayMask({ scale, value })}
           onChange={(event) => onChange(maskTypedAmount({ scale, value: event.target.value }))}
         />
       </span>
+      {hint === undefined ? null : <small className={styles.fieldHint}>{hint}</small>}
     </label>
   )
 }

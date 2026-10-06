@@ -1,5 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/offlineQueue.service.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { toEventClockStamp, type StampedReport } from './clockOffset.service'
 import type {
   DriverFieldReport,
   DriverOccurrencePhoto,
@@ -30,6 +31,12 @@ export type DriverTripErrorDetail = Readonly<{ field: string; message: string }>
 export type QueuedReport = Readonly<{
   /** Quantas vezes a drenagem já tentou e a rede recusou. Falha do servidor não conta aqui. */
   attempts: number
+  /**
+   * Spec 234 D2: o desvio do relógio medido quando o toque nasceu — nunca o da hora do envio. Junto
+   * do `createdAt` (a hora do aparelho no toque) é o que o servidor usa para chegar ao momento do
+   * evento. Ausente: item criado antes de qualquer resposta da API, ou antes da spec.
+   */
+  clockOffsetMs?: number
   createdAt: string
   /**
    * Spec 189 T9.2 ("Confirmar em lote"): gravado no boot sem rede, sem token — a drenagem não envia
@@ -88,6 +95,8 @@ export type DrainResult = Readonly<{
 }>
 
 export async function enqueueReport(input: {
+  /** Spec 234 D2: o desvio do relógio de agora, carimbado no item; `undefined` é "ainda não medido". */
+  readonly clockOffsetMs?: number | undefined
   /** Boot sem rede (`canSync: false`): o item espera a confirmação do dono para subir. */
   readonly isUnverified?: boolean
   readonly limits?: EventQueueLimits
@@ -112,6 +121,7 @@ export async function enqueueReport(input: {
       ...queued,
       {
         attempts: 0,
+        ...(input.clockOffsetMs === undefined ? {} : { clockOffsetMs: input.clockOffsetMs }),
         createdAt: input.now.toISOString(),
         ...(input.isUnverified === true ? { isUnverified: true as const } : {}),
         report: input.report,
@@ -129,6 +139,7 @@ export async function enqueueReport(input: {
  * nota devolvida sem a prova, ou a prova sem a devolução.
  */
 export async function enqueueReports(input: {
+  readonly clockOffsetMs?: number | undefined
   readonly isUnverified?: boolean
   readonly limits?: EventQueueLimits
   readonly now: Date
@@ -150,6 +161,7 @@ export async function enqueueReports(input: {
       ...queued,
       ...fresh.map((report) => ({
         attempts: 0,
+        ...(input.clockOffsetMs === undefined ? {} : { clockOffsetMs: input.clockOffsetMs }),
         createdAt: input.now.toISOString(),
         ...(input.isUnverified === true ? { isUnverified: true as const } : {}),
         report,
@@ -185,7 +197,7 @@ function reportPhoto(report: DriverFieldReport): DriverOccurrencePhoto | null {
  * ele já disse que não aceita repetiria a recusa para sempre.
  */
 export async function drainQueue(input: {
-  readonly send: (report: DriverFieldReport) => Promise<DrainOutcome>
+  readonly send: (stamped: StampedReport) => Promise<DrainOutcome>
   readonly store: OfflineQueueStore
 }): Promise<DrainResult> {
   const queued = await input.store.read()
@@ -195,7 +207,7 @@ export async function drainQueue(input: {
   let sent = 0
 
   for (const item of queued) {
-    const outcome = await input.send(item.report)
+    const outcome = await input.send({ report: item.report, stamp: toEventClockStamp(item) })
     if (outcome === 'failed-network') {
       // Só o item que a rede recusou conta uma tentativa: os de trás nem chegaram a ser enviados.
       failedKey = item.report.idempotencyKey
@@ -221,8 +233,8 @@ export async function drainQueue(input: {
 
 /**
  * Spec 189 T9.2 (M1): o toque grava com `location: null` e a posição chega depois, no mesmo item
- * pela chave — o molde de `applyAttachmentLocation`. Ocorrência não leva posição, e o item que já
- * tem uma não é sobrescrito.
+ * pela chave — o molde de `applyAttachmentLocation`. Spec 196: vale para todo item que leva o
+ * campo, ocorrência incluída; o item que já tem uma posição não é sobrescrito.
  */
 export function applyReportLocation(input: {
   readonly idempotencyKey: string
@@ -235,6 +247,37 @@ export function applyReportLocation(input: {
     if (!('location' in report) || report.location !== null) return item
     return { ...item, report: { ...report, location: input.location } }
   })
+}
+
+/** Spec 196 D5: um toque pode gravar mais de um item ("Não entreguei"), e a mesma leitura vale para todos. */
+export function completeReportLocations(input: {
+  readonly items: readonly QueuedReport[]
+  readonly keys: readonly string[]
+  readonly location: DriverReportedLocation
+}): readonly QueuedReport[] {
+  return input.keys.reduce(
+    (items, idempotencyKey) =>
+      applyReportLocation({ idempotencyKey, items, location: input.location }),
+    input.items,
+  )
+}
+
+/** As chaves, entre os itens do toque, dos que levam ponto — a foto da ocorrência não é evento. */
+export function listLocatedReportKeys(reports: readonly DriverFieldReport[]): readonly string[] {
+  return reports.filter((report) => 'location' in report).map((report) => report.idempotencyKey)
+}
+
+/** Spec 196 RF7: item gravado antes do campo existir sai com `location: null`, nunca sem a chave. */
+export function withLegacyLocation(report: DriverFieldReport): DriverFieldReport {
+  if (
+    report.kind !== 'dispatch' &&
+    report.kind !== 'documentOccurrence' &&
+    report.kind !== 'occurrence'
+  ) {
+    return report
+  }
+  const fields: Readonly<Record<string, unknown>> = report
+  return 'location' in fields ? report : { ...report, location: null }
 }
 
 /** Chave do toque: opaca, gerada uma vez, e é o que o servidor casa no reenvio. */

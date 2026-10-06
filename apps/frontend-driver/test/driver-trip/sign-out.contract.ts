@@ -3,10 +3,7 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'bun:test'
 
-import {
-  discardStaleAttachments,
-  type QueuedAttachment,
-} from '@/modules/driver-trip/shared/offlineAttachments.service'
+import { type QueuedAttachment } from '@/modules/driver-trip/shared/offlineAttachments.service'
 import type { QueuedReport } from '@/modules/driver-trip/shared/offlineQueue.service'
 import { discardOwnPending } from '@/modules/driver-trip/shared/queueOwner.service'
 import { signOutDriver } from '@/modules/driver-trip/shared/signOut.service'
@@ -123,25 +120,5 @@ describe('signOutDriver (M9)', () => {
     })
 
     expect(calls).toEqual(['reload'])
-  })
-})
-
-/** Spec 189 T9.2 (segurança M2): o evento parado ganha o mesmo prazo de 7 dias do anexo. */
-describe('eventos parados vencem aos 7 dias, como os anexos', () => {
-  it('evento de 8 dias sai com os anexos do grupo; o de 1 dia fica', async () => {
-    const store = createMemoryQueue([
-      queued({ daysAgo: 8, key: 'old' }),
-      queued({ daysAgo: 1, key: 'recent' }),
-    ])
-    const attachmentStore = createMemoryAttachments([
-      ['old', [photo({ daysAgo: 1, key: 'photo-of-old-event' })]],
-      ['recent', [photo({ daysAgo: 1, key: 'photo-of-recent-event' })]],
-    ])
-
-    const discarded = await discardStaleAttachments({ attachmentStore, now: NOW, store })
-
-    expect(discarded).toBe(2)
-    expect(store.items().map((item) => item.report.idempotencyKey)).toEqual(['recent'])
-    expect([...attachmentStore.entries().keys()]).toEqual(['recent'])
   })
 })

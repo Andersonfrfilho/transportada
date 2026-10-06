@@ -208,6 +208,14 @@ export function parsePackageBoxList(url: URL): PackageBoxListInput {
   }
 }
 
+/** A planilha segue o filtro da tela; sem `status` ela é a fila de sempre, o que falta medir. */
+export function parsePackageBoxExportStatus(url: URL): PackageBoxStatusFilter {
+  const status = url.searchParams.get('status')
+  if (status === null) return 'pending'
+  if (!isStatusFilter(status)) throw invalidRequest()
+  return status
+}
+
 function isStatusFilter(value: string): value is PackageBoxStatusFilter {
   return PACKAGE_BOX_STATUS_FILTERS.some((filter) => filter === value)
 }

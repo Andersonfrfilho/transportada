@@ -1,0 +1,97 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/* Detalhe do escritório. */
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: var(--color-slate-muted);
+}
+
+.groupSection {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.groupHeader {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.groupHeader h3 {
+  margin: 0;
+}
+
+.groupSummary {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+}
+
+.selectionBar {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-copper);
+}
+
+/* O campo da rota cresce e o botão fica na base dele: um gesto só, na mesma linha. */
+.routeRow {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.routeRow > :first-child {
+  flex: 1 1 18rem;
+}
+
+/* Colunas fixas: as notas de grupos diferentes alinham entre si, e a tabela rola no próprio quadro. */
+.groupTable {
+  min-width: 40rem;
+  table-layout: fixed;
+}
+
+.colSelect {
+  width: var(--touch-target);
+}
+
+.colNumber {
+  width: 9rem;
+}
+
+.colState {
+  width: 16rem;
+}
+
+.outcome {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+}
+
+.outcomeHead {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.outcome h3 {
+  margin: 0;
+}
+
+.saved {
+  color: var(--color-ready);
+  margin: 0;
+}

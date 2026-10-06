@@ -95,6 +95,7 @@ import {
 import { listDeliveryContacts } from './delivery-proof-read.support.js'
 import { loadTripDocumentIdsWithOpenOccurrenceCase } from './occurrence-case-marker.query.js'
 import { loadProofPendingDocumentIds } from './proof-pending.query.js'
+import { loadTripDocumentVolumeCounts } from './trip-document-volume.query.js'
 import { readDispatchReadinessDocuments } from './dispatch-readiness.query.js'
 import { resolveDispatchReadiness } from '../domain/dispatch-readiness.policy.js'
 import { timelineActorMembership, timelineActorProfile } from './trip-timeline-condition.helper.js'
@@ -832,6 +833,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     return this.database
       .select({
         canActAsHelper: fleetDrivers.canActAsHelper,
+        canDrive: fleetDrivers.canDrive,
         id: fleetDrivers.id,
         name: fleetDrivers.name,
         status: fleetDrivers.status,
@@ -1400,6 +1402,13 @@ async function readTripDetail(
       (document) => document.tripDocumentId,
     ),
   )
+  /** Spec 233 T2.3: uma consulta agregada para as N notas (`GROUP BY document_id`) — nunca por nota. */
+  const volumeCountByNfeDocumentId = await loadTripDocumentVolumeCounts(queryable, {
+    companyId: input.companyId,
+    nfeDocumentIds: documentRecords.flatMap((row) =>
+      row.document.nfeDocumentId === null ? [] : [row.document.nfeDocumentId],
+    ),
+  })
   const documents = documentRecords.map((row) =>
     mapTripDocumentDetail({
       ...row,
@@ -1425,6 +1434,10 @@ async function readTripDetail(
       leavesBehindOnDispatch: leavesBehindOnDispatchIds.has(row.document.id),
       openOccurrenceCase: openOccurrenceCaseDocumentIds.has(row.document.id),
       proofPending: proofPendingDocumentIds.has(row.document.id),
+      volumeCount:
+        row.document.nfeDocumentId === null
+          ? null
+          : (volumeCountByNfeDocumentId.get(row.document.nfeDocumentId) ?? null),
     }),
   )
 

@@ -9,6 +9,7 @@ import type {
   TripValuationRevenueLine,
   ValuationSource,
 } from './tripValuation.service'
+import { readRevenueLineCostFigures } from './revenueLineCostFigures.validation'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -121,9 +122,18 @@ function toCostParcel(parcel: Record<string, unknown>): null | TripValuationCost
   }
 }
 
+/**
+ * Spec 232: a prévia e a sugestão multi-veículo saem com os oito campos de gasto, como `unavailable`
+ * (não têm trechos nem paradas). Linha **sem** nenhum deles continua válida — é a resposta de uma API
+ * anterior à spec durante a publicação. Linha com campo de tipo errado **derruba a avaliação inteira**,
+ * como `amount` malformado já faz: o gasto errado de uma nota é pior do que a conta ausente, porque a
+ * conta ausente a tela sabe dizer.
+ */
 function toRevenueLine(line: Record<string, unknown>): null | TripValuationRevenueLine {
   const amount = readMoney(line.amount)
   if (amount === null) return null
+  const costFigures = readRevenueLineCostFigures(line)
+  if (costFigures.kind === 'malformed') return null
 
   return {
     amount,
@@ -135,6 +145,8 @@ function toRevenueLine(line: Record<string, unknown>): null | TripValuationReven
     nfeDocumentId: typeof line.nfeDocumentId === 'string' ? line.nfeDocumentId : null,
     source: isSource(line.source) ? line.source : 'estimated',
     tripDocumentId: readText(line.tripDocumentId),
+    ...(typeof line.hasStop === 'boolean' ? { hasStop: line.hasStop } : {}),
+    ...(costFigures.kind === 'present' ? costFigures.figures : {}),
   }
 }
 

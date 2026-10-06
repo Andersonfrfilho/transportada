@@ -229,6 +229,33 @@ describe('cliente HTTP da linha do tempo (spec 158 T7)', () => {
     expect(request.headers.get('authorization')).toBe('Bearer synthetic-access-token')
   })
 
+  /** Spec 233 T5.3: a nota aberta pede só os eventos dela — o filtro é do servidor (T5.1). */
+  it('com documentId, a query string leva o filtro da nota', async () => {
+    const requests: Request[] = []
+    const client = createTripClient({
+      apiUrl: 'https://api.example.test',
+      fetch: (input, init) => {
+        const request = new Request(input, init)
+        requests.push(request)
+        return Promise.resolve(Response.json({ data: { items: [], nextCursor: null } }))
+      },
+      getAccessToken: () => Promise.resolve('synthetic-access-token'),
+    })
+
+    await client.readTripTimeline({
+      cursor: null,
+      documentId: 'doc 1',
+      limit: 50,
+      tripId: 'trip-1',
+    })
+
+    const [request] = requests
+    if (request === undefined) throw new Error('TRIP_TIMELINE_REQUEST_MISSING')
+    expect(request.url).toBe(
+      'https://api.example.test/trips/trip-1/timeline?limit=50&documentId=doc+1',
+    )
+  })
+
   it('sem cursor, a query string não leva a chave', async () => {
     const requests: Request[] = []
     const client = createTripClient({
@@ -275,5 +302,129 @@ describe('paridade das listas fechadas da linha do tempo com a API (spec 158)', 
       (match) => match[1] ?? '',
     )
     expect<readonly string[]>([...TRIP_FIELD_CHANNELS].sort()).toEqual([...apiChannels].sort())
+  })
+})
+
+/**
+ * Spec 228 T1.1 (D6, D8): os dois `kind`s novos entram no **fim** do vocabulário, e `addressChange` é
+ * uma chave que só existe no item do endereço. Em qualquer outro `kind` a chave reprova a página, como
+ * qualquer chave a mais (158 D6) — o painel não aceita dado que a API não deveria mandar.
+ */
+describe('vocabulário da spec 228 na linha do tempo', () => {
+  const PHOTO_ITEM = {
+    ...BASE_ITEM,
+    channel: 'driver_app' as const,
+    id: 'photo-1',
+    kind: 'document.canhoto_photo' as const,
+    toStatus: null,
+  }
+  const ADDRESS_ITEM = {
+    ...BASE_ITEM,
+    addressChange: { displacementMeters: 45, origin: 'operator' },
+    document: null,
+    id: 'address-1',
+    kind: 'stop.address_corrected' as const,
+    toStatus: null,
+  }
+
+  it('os dois kinds entram depois de trip.created, na ordem da D6', () => {
+    expect([...TRIP_TIMELINE_KINDS].slice(-3)).toEqual([
+      'trip.created',
+      'document.canhoto_photo',
+      'stop.address_corrected',
+    ])
+  })
+
+  it('aceita a foto do canhoto sem addressChange', () => {
+    const page = adapters.tripTimelineFromApi({ items: [PHOTO_ITEM], nextCursor: null })
+    expect(page.items.map((item) => item.kind)).toEqual(['document.canhoto_photo'])
+  })
+
+  it('aceita o endereço corrigido com addressChange, deslocamento numérico ou nulo', () => {
+    const page = adapters.tripTimelineFromApi({
+      items: [
+        ADDRESS_ITEM,
+        {
+          ...ADDRESS_ITEM,
+          addressChange: { displacementMeters: null, origin: 'refinement' },
+          id: 'address-2',
+        },
+      ],
+      nextCursor: null,
+    })
+    expect(page.items.map((item) => item.id)).toEqual(['address-1', 'address-2'])
+    expect(page.items[0]?.addressChange).toEqual({ displacementMeters: 45, origin: 'operator' })
+  })
+
+  it('aceita as quatro origens do vocabulário fechado', () => {
+    for (const origin of ['contractor', 'driver', 'operator', 'refinement']) {
+      const page = adapters.tripTimelineFromApi({
+        items: [{ ...ADDRESS_ITEM, addressChange: { displacementMeters: null, origin } }],
+        nextCursor: null,
+      })
+      expect(page.items).toHaveLength(1)
+    }
+  })
+
+  it('recusa addressChange em qualquer kind que não seja o do endereço', () => {
+    const addressChange = { displacementMeters: 45, origin: 'operator' }
+    for (const kind of TRIP_TIMELINE_KINDS.filter(
+      (candidate) => candidate !== 'stop.address_corrected',
+    )) {
+      expect(() =>
+        adapters.tripTimelineFromApi({
+          items: [{ ...BASE_ITEM, addressChange, kind }],
+          nextCursor: null,
+        }),
+      ).toThrow()
+      // Controle negativo: o mesmo kind sem addressChange é aceito, então o toThrow acima é pela chave.
+      expect(() =>
+        adapters.tripTimelineFromApi({ items: [{ ...BASE_ITEM, kind }], nextCursor: null }),
+      ).not.toThrow()
+    }
+  })
+
+  it('recusa o endereço corrigido sem addressChange', () => {
+    const withoutAddressChange: Record<string, unknown> = { ...ADDRESS_ITEM }
+    delete withoutAddressChange.addressChange
+    expect(() =>
+      adapters.tripTimelineFromApi({ items: [withoutAddressChange], nextCursor: null }),
+    ).toThrow()
+  })
+
+  it('recusa origem fora do vocabulário, deslocamento que não é número e chave a mais', () => {
+    const invalidChanges = [
+      { displacementMeters: 45, origin: 'invented' },
+      { displacementMeters: '45', origin: 'operator' },
+      { displacementMeters: -1, origin: 'operator' },
+      { displacementMeters: Number.NaN, origin: 'operator' },
+      { displacementMeters: 45, origin: 'operator', addressKey: 'rua-x' },
+      { origin: 'operator' },
+    ]
+    for (const addressChange of invalidChanges) {
+      expect(() =>
+        adapters.tripTimelineFromApi({
+          items: [{ ...ADDRESS_ITEM, addressChange }],
+          nextCursor: null,
+        }),
+      ).toThrow()
+    }
+  })
+
+  /**
+   * CA07: o painel que ainda não conhece os kinds (o de hoje, antes da T1.2) recebe a API nova. O
+   * item do kind desconhecido leva a chave nova e **é descartado** — a página não é recusada. O
+   * `kind` abaixo é um que nenhum bundle conhece, para o teste valer também depois da T1.2.
+   */
+  it('CA07: kind desconhecido com addressChange é descartado, não recusa a página', () => {
+    const page = adapters.tripTimelineFromApi({
+      items: [
+        { ...BASE_ITEM, id: 'item-1' },
+        { ...ADDRESS_ITEM, id: 'item-2', kind: 'stop.invented_by_a_newer_api' },
+      ],
+      nextCursor: 'cursor-1',
+    })
+    expect(page.items.map((item) => item.id)).toEqual(['item-1'])
+    expect(page.nextCursor).toBe('cursor-1')
   })
 })

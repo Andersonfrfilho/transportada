@@ -406,7 +406,7 @@
     "driversSummary_other": "{{count}} motoristas escolhidos",
     "helpers": "Ajudantes",
     "helpersClearAll": "Retirar todos",
-    "helpersEmpty": "Nenhum motorista ativo está marcado como ajudante na ficha.",
+    "helpersEmpty": "Nenhum ajudante ativo. Cadastre um em Frota › Motoristas ou dê o papel Ajudante em Acesso.",
     "helpersNoMatch": "Nenhum ajudante encontrado",
     "helpersPlaceholder": "Escolher ajudantes",
     "helpersRemove": "Retirar este ajudante",
@@ -434,13 +434,14 @@
     "driversSummary_other": "{{count}} motoristas escolhidos",
     "error": {
       "generic": "Não foi possível trocar a tripulação agora. Tente de novo.",
+      "driverCannotDrive": "Alguém escolhido como motorista não dirige: a ficha é de ajudante. Escolha outro motorista ou passe esta pessoa para ajudante.",
       "helperNotEligible": "Algum ajudante escolhido não está marcado como ajudante na ficha do motorista.",
       "helperWithoutDriver": "Escolha ao menos um motorista antes de acrescentar ajudantes.",
       "separationStarted": "A separação da carga já começou: esta viagem não aceita mais troca de motorista ou veículo."
     },
     "helpers": "Ajudantes",
     "helpersClearAll": "Retirar todos",
-    "helpersEmpty": "Nenhum motorista ativo está marcado como ajudante na ficha.",
+    "helpersEmpty": "Nenhum ajudante ativo. Cadastre um em Frota › Motoristas ou dê o papel Ajudante em Acesso.",
     "helpersNoMatch": "Nenhum ajudante encontrado",
     "helpersPlaceholder": "Escolher ajudantes",
     "helpersRemove": "Retirar este ajudante",
@@ -548,8 +549,6 @@
     "imageLoading": "Carregando a imagem do comprovante",
     "lateRegistration": "Registrado depois",
     "notDelivered": "Esta nota ainda não foi entregue.",
-    "occurrencesCollapse": "Recolher ocorrências",
-    "occurrencesToggle": "Ver ocorrências",
     "open": "Abrir em tamanho real",
     "photoAlt": "Foto do comprovante de entrega",
     "productLine": "{{quantity}} {{unit}} · {{description}}",
@@ -559,10 +558,9 @@
     "punctuality": {
       "on_time": "No horário",
       "late": "Atrasada",
-      "away": "Longe do ponto",
-      "late_and_away": "Atrasada e longe do ponto"
+      "away": "Longe do ponto ou sem localização",
+      "late_and_away": "Atrasada e longe do ponto ou sem localização"
     },
-    "receivedBy": "Recebido por: {{relation}}",
     "receivedByOptions": {
       "recipient": "O próprio cliente",
       "spouse": "Cônjuge",
@@ -593,6 +591,7 @@
     "readings": {
       "capturedAt": "Captura",
       "distance": "Distância",
+      "receiverRelation": "Quem recebeu",
       "requirement": "Exigência"
     },
     "reviewStatus": {
@@ -667,6 +666,31 @@
     "delivery": "Entrega",
     "deliveryHint": "O endereço veio do campo de entrega da nota, não do cadastro do destinatário"
   },
+  "documentData": {
+    "cargoValue": "Valor da carga",
+    "issuedAt": "Emissão",
+    "freight": "Frete",
+    "client": "Cliente",
+    "copied": "Copiado",
+    "copy": {
+      "cargoValue": "Copiar valor da carga",
+      "issuedAt": "Copiar data de emissão",
+      "freight": "Copiar frete",
+      "client": "Copiar cliente",
+      "nfeNumber": "Copiar número da NF-e",
+      "series": "Copiar série",
+      "taxId": "Copiar CNPJ",
+      "cpf": "Copiar CPF",
+      "volumes": "Copiar volumes"
+    },
+    "costTitle": "Custo e lucro desta nota",
+    "nfeNumber": "NF-e",
+    "series": "Série",
+    "taxId": "CNPJ",
+    "cpf": "CPF",
+    "title": "Dados da nota",
+    "volumes": "Volumes"
+  },
   "detail": {
     "closedManually": "Encerrada manualmente em {{moment}}",
     "closedManuallyBy": "Encerrada manualmente por {{name}} em {{moment}}",
@@ -716,6 +740,19 @@
   "empty": "Nenhuma viagem encontrada",
   "error": "Não foi possível carregar as viagens",
   "eventTimeline": {
+    "addressChange": {
+      "summary": "{{origin}} · {{displacement}}",
+      "displacement": {
+        "meters": "deslocado {{distance}} m",
+        "kilometers": "deslocado {{distance}} km"
+      },
+      "origin": {
+        "contractor": "Corrigido pelo contratante",
+        "driver": "Corrigido pelo motorista",
+        "operator": "Corrigido pelo escritório",
+        "refinement": "Refino de precisão"
+      }
+    },
     "attachmentCount_one": "{{count}} foto anexada",
     "attachmentCount_other": "{{count}} fotos anexadas",
     "closeReason": "Motivo do encerramento: {{reason}}",
@@ -727,11 +764,21 @@
       "today": "Hoje",
       "yesterday": "Ontem"
     },
+    "document": {
+      "empty": "Nenhum evento registrado para esta nota ainda",
+      "error": "Não foi possível carregar os eventos desta entrega",
+      "loading": "Carregando os eventos desta entrega",
+      "radius": "Raio tolerado da parada: {{meters}} m",
+      "title": "Eventos desta entrega"
+    },
     "empty": "Nada registrado ainda nesta viagem",
     "error": "Não foi possível carregar a linha do tempo",
     "expand": "Ver mais",
     "filterByDocument": "Filtrar por nota",
     "itemTitle": {
+      "addressCorrected": "Endereço da parada corrigido",
+      "canhotoPhoto": "Foto do canhoto — NF-e {{invoice}}",
+      "canhotoPhotoUnknownDocument": "Foto do canhoto",
       "dispatched": "Viagem despachada",
       "documentDelivered": "{{document}} entregue",
       "documentLabel": "Nota {{invoice}}",
@@ -749,6 +796,7 @@
       "stopArrived": "Chegada na parada {{sequence}}",
       "stopArrivedUnknown": "Chegada em parada",
       "stopDeparted": "A caminho da parada {{sequence}}",
+      "stopDepartedForThisStop": "Saída para esta parada",
       "stopDepartedUnknown": "A caminho de parada",
       "stopDepartureCancelled": "Cancelou a rota da parada {{sequence}}",
       "stopDepartureCancelledUnknown": "Cancelou a rota de parada",
@@ -805,8 +853,8 @@
       "partial": "O mapa mostra só os eventos já carregados. Carregue mais para incluir os anteriores.",
       "missingUnavailable_one": "{{count}} evento sem posição: o aparelho não a entregou.",
       "missingUnavailable_other": "{{count}} eventos sem posição: o aparelho não a entregou.",
-      "missingExpired_one": "{{count}} evento com posição apagada após 90 dias.",
-      "missingExpired_other": "{{count}} eventos com posição apagada após 90 dias.",
+      "missingExpired_one": "{{count}} evento com posição apagada pelo prazo de retenção.",
+      "missingExpired_other": "{{count}} eventos com posição apagada pelo prazo de retenção.",
       "missingRestricted_one": "{{count}} evento com posição registrada, mas oculta para o seu acesso.",
       "missingRestricted_other": "{{count}} eventos com posição registrada, mas oculta para o seu acesso.",
       "legendLabel": "Tipos de evento no mapa",
@@ -848,14 +896,18 @@
       "capturedAt": "Lida em {{moment}}",
       "restricted": "O ponto foi registrado, mas este acesso não mostra a coordenada.",
       "unavailable": "O aparelho não entregou a posição neste toque.",
-      "expired": "A coordenada é apagada após 90 dias; o evento permanece.",
+      "expired": "A coordenada é apagada pelo prazo de retenção; o evento permanece.",
       "viewMap": "Ver no mapa",
       "hideMap": "Ocultar mapa",
       "mapLoading": "Carregando o mapa",
       "mapMissing": "O mapa não está disponível agora.",
       "eventPin": "Onde o motorista tocou",
       "legend": "Pino liso: onde o motorista tocou. Pino numerado: parada {{sequence}}.",
-      "legendEventOnly": "Pino liso: onde o motorista tocou. A parada não tem coordenada cadastrada."
+      "legendEventOnly": "Pino liso: onde o motorista tocou. A parada não tem coordenada cadastrada.",
+      "addressPin": "Novo ponto do endereço",
+      "addressCorrectedAt": "Corrigido em {{moment}}",
+      "legendAddress": "Pino liso: novo ponto do endereço da parada. Pino numerado: parada {{sequence}}.",
+      "legendAddressEventOnly": "Pino liso: novo ponto do endereço da parada."
     }
   },
   "feedback": {
@@ -866,6 +918,7 @@
     "documentNotFound": "Nota não encontrada nesta viagem.",
     "documentReferenceInvalid": "Informe uma nota fiscal ou um cálculo de frete válido.",
     "documentReturnReasonRequired": "Informe o motivo da devolução.",
+    "driverCannotDrive": "Alguém escolhido como motorista não dirige: a ficha é de ajudante.",
     "driverDuplicated": "Este motorista já está na viagem.",
     "driverNotAvailable": "Motorista indisponível para a viagem.",
     "driverNotFound": "Motorista não encontrado.",
@@ -971,6 +1024,62 @@
   "intro": "Organize viagens sem CT-e: vincule veículo, motoristas e as notas fiscais transportadas.",
   "kicker": "Operação não fiscal",
   "loading": "Carregando viagens",
+  "locationRetention": {
+    "clear": "Voltar ao padrão",
+    "confirm": {
+      "action": {
+        "enable": {
+          "pending": "Ligar e apagar…",
+          "ready_one": "Ligar e apagar {{amount}} ponto",
+          "ready_other": "Ligar e apagar {{amount}} pontos"
+        },
+        "shorten": {
+          "pending": "Encurtar e apagar…",
+          "ready_one": "Encurtar e apagar {{amount}} ponto",
+          "ready_other": "Encurtar e apagar {{amount}} pontos"
+        }
+      },
+      "atLeastCount": "ao menos {{formatted}}",
+      "cancel": "Cancelar",
+      "cappedCount": "mais de 100 mil",
+      "close": "Fechar",
+      "grace": "O apagamento só começa 24 horas depois da confirmação. Para desfazer nesse intervalo, desligue: nada terá sido apagado.",
+      "groups": {
+        "arrival": "Chegadas e entregas",
+        "canhotoPhoto": "Fotos do canhoto",
+        "occurrence": "Ocorrências",
+        "statusChange": "Mudanças de status"
+      },
+      "intro": "Com o prazo de {{days}} dias, estes eventos já perdem o ponto no primeiro ciclo, e os que vencerem até lá somam a esta contagem:",
+      "loadError": "Não foi possível contar o que seria apagado. Feche e tente de novo.",
+      "loading": "Contando os eventos",
+      "title": {
+        "enable": "Ligar o apagamento da posição?",
+        "shorten": "Encurtar o prazo de retenção?"
+      }
+    },
+    "daysLabel": "Prazo de retenção (dias)",
+    "daysRangeError": "Informe um número inteiro de {{min}} a {{max}}.",
+    "disable": "Desligar o apagamento",
+    "effectiveAt": "Começa a valer em {{moment}}",
+    "enable": "Ligar o apagamento",
+    "forbidden": "Somente quem administra as configurações da empresa vê e altera este prazo.",
+    "hint": "Por quanto tempo a posição registrada nos eventos da viagem fica guardada. Depois do prazo o evento continua na linha do tempo, sem o ponto.",
+    "lgpd": "A posição registrada nos eventos da viagem é dado pessoal do motorista (LGPD, art. 5º, I). Guardar por um prazo definido e apagar depois atende aos princípios de necessidade e de limitação do tratamento (art. 6º, III). Apagar é definitivo: o evento continua na linha do tempo, mas sem o ponto. A pontualidade e a distância já avaliadas não mudam.",
+    "liveTrail": "O rastro ao vivo da viagem é apagado em 36 horas, sempre; este prazo não o altera.",
+    "loadError": "Não foi possível ler o prazo de retenção da posição.",
+    "loading": "Carregando o prazo de retenção",
+    "saveDays": "Salvar prazo",
+    "saveError": "Não foi possível gravar. Nada foi alterado.",
+    "saving": "Gravando",
+    "status": {
+      "active": "Ligado: a posição é apagada depois de {{days}} dias.",
+      "off": "Desligado: nenhuma posição é apagada.",
+      "waiting": "Ligado, aguardando a carência de 24 horas: nada é apagado ainda."
+    },
+    "title": "Apagar a posição pelo prazo de retenção",
+    "whatsapp": "As mensagens do WhatsApp seguem regra própria."
+  },
   "mdfeGate": {
     "close": "Fechar",
     "documentColumn": "Nota",
@@ -1199,7 +1308,9 @@
     "unknownProduct": "Produto sem identificação",
     "export": {
       "csv": "Baixar CSV",
-      "xlsx": "Baixar Excel"
+      "xlsx": "Baixar Excel",
+      "sheetName": "O que falta medir",
+      "title": "O que falta medir na viagem"
     },
     "inline": {
       "length": "Comprimento (cm)",
@@ -1729,6 +1840,7 @@
     "withoutDriver": "Sem motorista"
   },
   "tabs": {
+    "location": "Localização",
     "proof": "Comprovante",
     "trips": "Viagens"
   },

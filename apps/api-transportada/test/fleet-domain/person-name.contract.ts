@@ -29,6 +29,7 @@ const RECORD: DriverRecord = {
   companyId: '00000000-0000-4000-8000-000000000901',
   complement: '',
   securesCargo: false,
+  canDrive: true,
   canActAsHelper: false,
   helperDailyRate: null,
   locationSharingConsentAt: null,

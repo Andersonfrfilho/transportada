@@ -12,6 +12,7 @@ import { createClientOccurrenceConversationRoutes } from '../src/occurrence-conv
 import { createMeOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/me-occurrence-conversation.routes'
 import { createOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation.routes'
 import { createContractorOccurrenceRoutes } from '../src/contractor-portal/presentation/contractor-occurrence.routes'
+import { createLocationRetentionSettingsRoutes } from '../src/companies/presentation/location-retention-settings.routes'
 import { createLoginHintRoutes } from '../src/identity/presentation/login-hint.routes'
 import { createPasswordResetRoutes } from '../src/identity/presentation/password-reset.routes'
 import { createUserActivationRoutes } from '../src/identity/presentation/user-activation.routes'
@@ -464,6 +465,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
 
     expect(declaring.sort()).toEqual([
       'address-correction/presentation/address-correction.routes.ts',
+      'companies/presentation/location-retention-settings.routes.ts',
       'contractor-mail/presentation/contractor-mail-settings.routes.ts',
       'contractor-portal/presentation/contractor-occurrence.routes.ts',
       'identity/presentation/login-hint.routes.ts',
@@ -615,5 +617,29 @@ describe('rotas anônimas de identidade com teto no Postgres (spec 191 T1.3)', (
       .catch(() => undefined)
 
     expect(targets).toEqual([expected])
+  })
+
+  /** Spec 239: a contagem de impacto varre cinco tabelas, então só ela da retenção da posição é limitada. */
+  test('a contagem de impacto da retenção da posição conta no Postgres, por empresa e usuário', () => {
+    const routes = createLocationRetentionSettingsRoutes(unusedDependencies() as never)
+
+    const limited = routes
+      .filter((route) => route.rateLimit !== undefined)
+      .map((route) => ({
+        rateLimit: route.rateLimit,
+        signature: `${route.method} ${route.pathname}`,
+      }))
+
+    expect(limited).toEqual([
+      {
+        rateLimit: {
+          maxRequests: 30,
+          scope: 'location-retention-impact',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'GET /company-settings/location-retention/impact',
+      },
+    ])
   })
 })

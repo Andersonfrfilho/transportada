@@ -120,7 +120,7 @@ describe('o OpenCV da medida pela câmera (ADR-0065)', () => {
     expect(viteConfig).toContain('cacheName: OPENCV_CACHE_NAME')
   })
 
-  test('a CSP não ganha diretiva: nem eval, nem blob no worker', () => {
+  test('a CSP não ganha eval, e o blob só vale para worker (planilha .xlsx)', () => {
     const policy = buildContentSecurityPolicy({
       allowsInlineScript: false,
       apiBaseUrl: 'https://api.exemplo.com.br',
@@ -129,7 +129,8 @@ describe('o OpenCV da medida pela câmera (ADR-0065)', () => {
     })
 
     expect(directiveOf(policy, 'script-src')).toBe("script-src 'self' 'wasm-unsafe-eval'")
-    expect(directiveOf(policy, 'worker-src')).toBe("worker-src 'self'")
+    expect(directiveOf(policy, 'worker-src')).toBe("worker-src 'self' blob:")
+    expect(directiveOf(policy, 'script-src')).not.toContain('blob:')
     expect(policy).not.toContain("'unsafe-eval'")
   })
 })

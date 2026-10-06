@@ -47,8 +47,20 @@ const VEHICLE: MdfeManifestVehicle = {
 }
 
 const DRIVERS: readonly MdfeManifestDriver[] = [
-  { id: FIRST_DRIVER_ID, name: 'Ana Souza', status: 'active', taxId: '12345678909' },
-  { id: SECOND_DRIVER_ID, name: 'Bruno Lima', status: 'active', taxId: '98765432100' },
+  {
+    canDrive: true,
+    id: FIRST_DRIVER_ID,
+    name: 'Ana Souza',
+    status: 'active',
+    taxId: '12345678909',
+  },
+  {
+    canDrive: true,
+    id: SECOND_DRIVER_ID,
+    name: 'Bruno Lima',
+    status: 'active',
+    taxId: '98765432100',
+  },
 ]
 
 const candidate = (overrides: Partial<MdfeCandidateDocument> = {}): MdfeCandidateDocument => ({

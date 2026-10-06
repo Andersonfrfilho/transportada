@@ -35,6 +35,8 @@ export const COMPANY_ROLES = [
   'driver',
   'aggregate',
   'separator',
+  /** Spec 235: o ajudante-puro — não dirige, só acompanha a viagem em que está (`trip.read`). */
+  'helper',
   /**
    * ADR-0050: o **contratante** — quem paga o frete — com conta própria. Ele não é gente da
    * transportadora: o que ele alcança são os documentos amarrados em `contractor_portal_bindings`,
@@ -158,7 +160,7 @@ export const membershipRoles = pgTable(
     check(
       'membership_roles_role_check',
       // `automation` é o papel do service account (ADR-0047) — cabe aqui e **não** no CHECK do convite
-      sql`${table.role} in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator', 'contractor', 'automation')`,
+      sql`${table.role} in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator', 'helper', 'contractor', 'automation')`,
     ),
     primaryKey({
       columns: [table.membershipId, table.role],

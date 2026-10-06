@@ -50,6 +50,7 @@ const VEHICLE: TripVehicleCandidate = {
 const DRIVERS: readonly TripDriverCandidate[] = [
   {
     canActAsHelper: false,
+    canDrive: true,
     id: FIRST_DRIVER_ID,
     name: 'Ana Souza',
     status: 'active',
@@ -57,6 +58,7 @@ const DRIVERS: readonly TripDriverCandidate[] = [
   },
   {
     canActAsHelper: false,
+    canDrive: true,
     id: SECOND_DRIVER_ID,
     name: 'Bruno Lima',
     status: 'active',
@@ -131,6 +133,7 @@ const documentDetail = (overrides: Partial<TripDocument> = {}): TripDocumentDeta
   nfeTotalValue: null,
   openOccurrenceCase: false,
   proofPending: false,
+  volumeCount: null,
 })
 
 type FixtureParams = {
@@ -445,6 +448,7 @@ describe('trip use case contract', () => {
         ...DRIVERS,
         {
           canActAsHelper: true,
+          canDrive: true,
           id: helperOne,
           name: 'Carlos Ajudante',
           status: 'active',
@@ -452,6 +456,7 @@ describe('trip use case contract', () => {
         },
         {
           canActAsHelper: true,
+          canDrive: true,
           id: helperTwo,
           name: 'Diana Ajudante',
           status: 'active',
@@ -483,6 +488,7 @@ describe('trip use case contract', () => {
       drivers: [
         {
           canActAsHelper: true,
+          canDrive: true,
           id: FIRST_DRIVER_ID,
           name: 'Ana Souza',
           status: 'active',
@@ -512,6 +518,7 @@ describe('trip use case contract', () => {
       drivers: [
         {
           canActAsHelper: false,
+          canDrive: true,
           id: FIRST_DRIVER_ID,
           name: 'Ana Souza',
           status: 'active',
@@ -519,6 +526,7 @@ describe('trip use case contract', () => {
         },
         {
           canActAsHelper: false,
+          canDrive: true,
           id: SECOND_DRIVER_ID,
           name: 'Bruno Lima',
           status: 'active',
@@ -548,6 +556,7 @@ describe('trip use case contract', () => {
       drivers: [
         {
           canActAsHelper: true,
+          canDrive: true,
           id: FIRST_DRIVER_ID,
           name: 'Ana Souza',
           status: 'active',
@@ -973,6 +982,7 @@ describe('trip use case contract', () => {
         ...DRIVERS,
         {
           canActAsHelper: true,
+          canDrive: true,
           id: helperId,
           name: 'Carlos Ajudante',
           status: 'active',
@@ -1025,6 +1035,7 @@ describe('trip use case contract', () => {
       drivers: [
         {
           canActAsHelper: true,
+          canDrive: true,
           id: helperId,
           name: 'Carlos Ajudante',
           status: 'active',

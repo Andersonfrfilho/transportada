@@ -44,6 +44,8 @@ describe('fleet driver schema', () => {
       'payment_closing_day',
       /** Spec 143 D3: a diária combinada só deste motorista — vazia, vale o valor geral da empresa. */
       'daily_allowance_amount',
+      /** Spec 235 D2: se a ficha dirige — o ajudante-puro não; a linha antiga nasce `true`. */
+      'can_drive',
       /** Spec 149 / ADR-0065: quem pode ir de ajudante, e a diária própria dele (nula = a da empresa). */
       'can_act_as_helper',
       'helper_daily_rate',
@@ -292,6 +294,23 @@ describe('fleet driver schema', () => {
       can_act_as_helper: 'boolean',
       helper_daily_rate: 'numeric(19, 4)',
     })
+  })
+
+  test('keeps every existing driver at the wheel until someone says otherwise', () => {
+    const canDrive = getTableConfig(fleetDrivers).columns.find(
+      (column) => column.name === 'can_drive',
+    )
+
+    expect(canDrive?.notNull).toBeTrue()
+    expect(canDrive?.default).toBe(true)
+    expect(columnSqlTypes(fleetDrivers)).toMatchObject({ can_drive: 'boolean' })
+  })
+
+  // Spec 235 D2: ficha que não dirige nem ajuda não existe.
+  test('refuses a record that neither drives nor helps', () => {
+    expect(checkSqlByName(fleetDrivers).fleet_drivers_crew_capability_check).toBe(
+      '"fleet_drivers"."can_drive" or "fleet_drivers"."can_act_as_helper"',
+    )
   })
 
   test('refuses a negative helper daily rate and lets it stay empty', () => {

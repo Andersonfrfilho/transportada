@@ -85,6 +85,36 @@ tela teria de adivinhar pela idade e pelo tipo.
 - CHECKs nas três tabelas novas: `latitude is null or channel = 'driver_app'` e
   `location_state is null or channel in ('driver_app', 'whatsapp')`.
 
+#### 3.1 Emenda de 2026-10-02/03 — o WhatsApp passa a poder gravar o ponto
+
+A spec 196 T1.4 reabriu o segundo item: a mensagem de **localização** do WhatsApp do motorista (spec 196
+T3.6) vira o ponto do mesmo evento. A migration corretiva `20261003010806_event_location_whatsapp_coordinate`
+afrouxa o CHECK de coordenada das três tabelas para `latitude is null or channel in ('driver_app',
+'whatsapp')` (a `20261002153258` já estava publicada e não foi editada). Roda em transação com
+`lock_timeout = '3s'`; o DROP/ADD toma ACCESS EXCLUSIVE até o COMMIT e o VALIDATE varre a tabela sob esse
+lock, então a aplicação (e a da `20261002153258`, que tem a mesma forma) deve ser **fora do horário de campo**.
+O rollback recusa, sem apagar, enquanto houver ponto de WhatsApp gravado.
+
+**Pacotes:** com `@adatechnology/meta-whatsapp-*` subidos (`module@0.7.0`, `contracts@0.6.0`, `provider@0.3.1`) o webhook
+entrega `messages[].location` ao gancho e o toque seguinte grava `captured` (provado ponta a ponta em
+`whatsapp-driver-flow-actions.integration.ts`). O pacote persiste a mensagem crua em `meta_whatsapp.messages.payload`.
+
+**Pedido (T3.8, 2026-10-03):** o fluxo do motorista pede "compartilhe sua localização" por texto (a Cloud API dos pacotes `0.7.0` não expõe pedido interativo), sem bloquear; vale após republicar o grafo.
+
+**Pendência de decisão do usuário (não implementada):** o ponto vindo da mensagem de localização do WhatsApp
+pode ser um **pino escolhido no mapa**, não o GPS do aparelho — o motorista declara um lugar. A spec 234
+(D4c) tratou o WhatsApp como canal que "não coleta" posição e o deixou fora da punição de "GPS desligado" e da
+distância/pontualidade da nota. Decidir: o ponto declarado entra na distância e na
+pontualidade, ou fica de fora delas como prova de lugar? Nenhum filtro foi implementado.
+
+**Decisão do usuário (2026-10-04):** o ponto vindo do WhatsApp entra **na distância e na pontualidade** do canhoto, como o do app (nenhum filtro por canal). A pendência abaixo fica resolvida nesse sentido; o risco de o pino ser escolhido no mapa e não ser GPS é aceito pelo usuário.
+
+**Resposta do usuário (2026-10-03):** o bot do WhatsApp **pede a geolocalização** ao motorista (mensagem
+pedindo que ele compartilhe a localização), e o ponto recebido grava `captured`. A resposta não separou o
+ponto declarado da distância/pontualidade: essa parte segue **sem filtro e sem decisão explícita**. O pedido
+em si (texto do fluxo do motorista, publicado por `whatsapp-flow-publish`) **não foi implementado**: é a próxima
+task (spec 196), agora que os pacotes entregam `location`.
+
 ### 4. Só o toque carimba
 
 Levam ponto os eventos que **são** o toque. A troca de status que a entrega deriva não leva: o ponto
@@ -153,6 +183,17 @@ esteja na lista nem nas exclusões com motivo (endereço e cadastro — `trip_st
 `geocoded_address_corrections` e afins — e o rastro ao vivo, que tem prazo próprio). Outro contrato
 reprova rota `POST` nova de `/me/trips/current/**` que não aceite `location` nem esteja na lista de
 exceções.
+
+#### 7.1 Emenda de 2026-10-03 — o interruptor vira configuração por empresa (spec 239)
+
+O interruptor provisório de ambiente do expurgo (D11 da spec 196, variável `TRIP_LOCATION_PURGE_ENABLED`) é
+**substituído** por configuração por empresa: tabela `company_location_retention_settings` (sem linha =
+desligado), prazo de 30 a 90 dias (padrão 90), carência de 24 h ao ligar ou encurtar, tela "Localização" em
+`/trips` e auditoria na mesma transação da gravação. A variável foi **removida** do schema de ambiente e do
+worker. Os pings do rastro ao vivo continuam com prazo próprio e fora da configuração.
+
+**Pendência:** a coordenada do transcript do WhatsApp (`meta_whatsapp.messages.payload.location` e o rótulo em
+`content`) segue fora do expurgo e fica para spec própria.
 
 ### 8. A reordenação da spec 192
 

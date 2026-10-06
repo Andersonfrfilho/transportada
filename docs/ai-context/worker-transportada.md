@@ -241,3 +241,69 @@ nunca recalculado no worker. 401/403 descartam o token em cache. 400/404/409 con
 ⚠️ O gateway não tem timeout de `fetch` — API pendurada poderia segurar um ciclo. Registrado,
 não corrigido aqui. `canhoto_review_by_user_id` fica nulo no caminho automático (CHECK o exige),
 e é no `audit_logs` que a identidade do serviço aparece como ator (ADR-0047 §6).
+
+## O expurgo de posição (spec 196, D8)
+
+`trip.location.purge` é um job só com **lista de tabelas**: `trip_stop_events`, `trip_delivery_proofs`,
+`trip_status_events`, `trip_stop_occurrences`, `trip_document_occurrences`. Para cada uma, em lotes de 500
+(`select id ... where latitude is not null and <tempo> < corte limit N`, depois `update ... where id in`), apaga as
+quatro colunas e marca `location_state = 'expired'`. Uma tabela por vez (não segura a escrita do motorista), teto de
+lotes e `exhausted` **por tabela**, falha isolada por tabela (`failedTables`). Os pings do rastro ao vivo têm corte
+próprio (horas, ADR-0056). A coluna de tempo é a de cada tabela (`created_at`, e `recorded_at` em
+`trip_status_events`), a mesma do índice parcial: `EXPLAIN` mostra `Index Scan` nos cinco índices
+(`evidence.md` T7.3).
+
+- ⚠️ **Desligado por padrão, e a empresa liga na tela** (spec 239): apagar coordenada é irreversível. A variável
+  `TRIP_LOCATION_PURGE_ENABLED` **saiu** (se sobrar no Railway é ignorada). O worker lê
+  `company_location_retention_settings` a cada ciclo: `CountEligibleCompanies` (no mesmo `now` dos redatores) e,
+  com ao menos uma empresa ligada e com a carência vencida, um `UPDATE` único por tabela com
+  `CROSS JOIN LATERAL`, cada linha comparada só com o prazo (`retention_days`, 30–90) **da própria empresa**.
+  Sem empresa elegível o ciclo fecha `succeeded` e o log `trip_location_purge_disabled` diz que foi de
+  propósito. O de 36 h dos pings do rastro ao vivo (`purgeStalePings`) roda sempre, antes da contagem.
+  Tabela de configuração ausente (deploy fora de ordem): a contagem lança e o ciclo falha inteiro, nada apagado.
+- O log do ciclo conta linhas por tabela. Nunca coordenada, evento ou pessoa.
+- Um contrato da API reprova tabela com coluna `*latitude*` que não esteja na lista do worker nem na lista de
+  exclusões com motivo.
+
+## A prévia da carga é lida e vinculada aqui (spec 237 Fase 4a, ADR-0094 §7/§8)
+
+Trilho `cargo-preview.v1` (main/retry/dead, retry 10 s × 5) com relay próprio sobre
+`cargo_preview_outbox` e consumidor `startCargoPreviewConsumer` com **prefetch 1** (a leitura é CPU no
+event loop: 45–70 ms medidos, teto de 5 s do orçamento do leitor). Duas mensagens:
+
+- **`cargo-preview.process`** (gravada pela API no envio): `processCargoPreview` baixa o objeto (ausente
+  = `PREVIEW_FILE_MISSING`), confere o sha256 (`PREVIEW_FILE_CORRUPTED`), lê com o perfil (mapa e aba;
+  sem perfil ligado = `PREVIEW_NOT_ENABLED`) e grava os itens — linha boa `awaiting_xml`, linha recusada
+  `invalid` com coluna e motivo — e o dia planejado (`RoutingDate` mais frequente). Erro do leitor é
+  prévia `failed` com o código e **ack**; banco ou bucket fora do ar é **retry**. A prévia é travada
+  `FOR UPDATE` e só a primeira entrega grava (reentrega é no-op).
+- **`cargo-preview.reevaluate`** (por contratante): `matchContractorPreviews` vincula de novo os itens em
+  aberto **decididos pela máquina** (`awaiting_xml`/`suggested`/`ambiguous`, `matched_by` nulo ou
+  `system`) das prévias prontas ainda na janela, da mais antiga para a mais nova.
+
+**O vínculo** (`cargo-preview/infrastructure/cargo-preview-matching.writer.ts`) toma a trava advisory do
+contratante (a mesma das ações do operador na API), lê as notas candidatas (`cargo-preview-candidate.query.ts`:
+empresa, `authorized`, emitente = CNPJ do contratante em `nfe_participants`, `created_at` em
+`[received_at − janela, min(agora, received_at + janela)]`, sem vínculo), extrai o `NroCarga` do
+`additional_information` pelo padrão do perfil, roda `resolveCargoPreviewMatches` e grava **só o que
+mudou** (`diffPreviewMatches`): vínculo novo é `insert` puro (o unique da nota desfaz tudo se algo
+furou), evento por item mudado, pares roteiro ↔ carga, aliases aprendidos (`onConflictDoNothing`; o
+conflito é contado e vai ao log `cargo_preview_alias_conflict`, nunca sobrescreve).
+
+**A reavaliação nasce na importação.** `writeDocumentChildren` (upload e distribuição) chama
+`requestCargoPreviewReevaluation` num `SAVEPOINT` (molde de `delivery-registry.writer.ts`): grava um
+pedido só se o emitente é contratante com perfil e prévia ligados e há prévia na fila ou pronta com item
+em aberto, só se não há pedido pendente dele, e adiado 30 s — um lote de 300 XMLs vira um pedido
+(medido na integração). Sem unique, de propósito: o conflito esperaria a transação de outra importação.
+Falha do pedido volta só o savepoint e vira o aviso `cargo_preview_reevaluation_request_failed`; a nota
+entra. Importação e distribuição passaram a mandar o logger que já tinham a `writeDocumentChildren`.
+
+**Cópia por valor:** o leitor e a política da API (21 arquivos de `cargo-receiving/domain/`) estão em
+`src/cargo-receiving/domain/` **idênticos**, com `src/shared/api.error.ts` e `api.types.ts` mínimos para
+os imports deles; `test/cargo-preview/domain-parity.contract.ts` compara byte a byte (e a lista, e a chave
+da trava, e `shared/cargo-preview.constant.ts`). Mudou na API, copie aqui. `fast-xml-parser` entrou como
+dependência do worker na mesma versão da API.
+
+⚠️ **`make worker-integration` reusa o banco `<db>_worker_integration`** e não o recria: em 2026-10-04 o
+local estava com o diário de migrations divergente (`column "latitude" ... already exists`). Os passos do
+alvo rodaram num banco novo de nome próprio (ver `specs/237-.../evidence.md`).

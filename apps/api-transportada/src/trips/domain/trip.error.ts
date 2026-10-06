@@ -138,6 +138,22 @@ export class TripCrewHelperNotEligibleError extends ApiError {
 }
 
 /**
+ * Spec 235 D5: a ficha não dirige (`can_drive = false`) e foi escalada como condutor — os ids vão em
+ * `details`. Não confundir com `TRIP_CREW_HELPER_CANNOT_DRIVE` (403): aquele é o ajudante já na
+ * viagem tentando despachar; este é a montagem da tripulação.
+ */
+export class TripDriverCannotDriveError extends ApiError {
+  public constructor(driverIds: readonly string[]) {
+    super({
+      code: 'TRIP_DRIVER_CANNOT_DRIVE',
+      details: driverIds.map((driverId) => ({ field: 'driverIds', message: driverId })),
+      message: 'One or more drivers of the crew are not able to drive in their driver record.',
+      status: 409,
+    })
+  }
+}
+
+/**
  * Spec 149 (ADR-0065) / ADR-0058 §4: despachar e os dois toques que começam a viagem no PWA são
  * gestos do motorista. O ajudante vinculado à mesma viagem tem o vínculo, mas não o papel.
  */

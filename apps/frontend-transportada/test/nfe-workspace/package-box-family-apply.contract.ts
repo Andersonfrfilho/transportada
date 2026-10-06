@@ -22,6 +22,7 @@ function buildCurrentBox(overrides: Partial<PackageBox> = {}): PackageBox {
     id: 'current',
     lengthMm: null,
     measuredAt: null,
+    measuredByName: null,
     measurementMarginMm: null,
     measurementSource: null,
     packagingSiblingCount: 0,

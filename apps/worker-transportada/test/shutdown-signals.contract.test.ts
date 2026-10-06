@@ -102,6 +102,7 @@ const noopRuntimeDependencies = {
   startAggregateAttachmentConsumer: async () => ({
     cancel: async (): Promise<void> => undefined,
   }),
+  startCargoPreviewConsumer: async () => ({ cancel: async (): Promise<void> => undefined }),
   startContractorMailOutboundConsumer: async () => ({
     cancel: async (): Promise<void> => undefined,
   }),
@@ -143,6 +144,27 @@ describe('contrato dos sinais de desligamento do worker', () => {
     })
 
     expect(listenersWhenConsumingStarted).toBeGreaterThan(listenersBeforeBoot)
+  })
+
+  /** Spec 239: o corte do expurgo soma dias a `timestamptz`; o fuso da sessão do banco tem de ser fixo. */
+  test('a conexão do banco do worker sobe com a sessão em UTC', async () => {
+    restoreSignalListeners = captureSignalListeners()
+    let received: unknown
+
+    await startWorkerRuntime({
+      dependencies: {
+        ...noopRuntimeDependencies,
+        createDatabase(options: unknown) {
+          received = options
+          return noopRuntimeDependencies.createDatabase()
+        },
+      },
+      environment: ENVIRONMENT,
+    })
+
+    expect(received).toEqual({
+      connection: { connection: { TimeZone: 'UTC' }, url: ENVIRONMENT.DATABASE_URL },
+    })
   })
 
   /**

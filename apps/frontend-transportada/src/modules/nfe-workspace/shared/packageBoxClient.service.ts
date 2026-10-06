@@ -70,6 +70,8 @@ export type PackageBox = Readonly<{
   id: string
   lengthMm: null | number
   measuredAt: null | string
+  /** Quem fez o último registro; ausente em API anterior a esta mudança, `null` sem medida, ator de sistema (catálogo) ou conferente removido. */
+  measuredByName?: null | string
   /** Spec 152 (D8, experimental): `null` em toda caixa medida antes desta spec. */
   measurementMarginMm: null | number
   measurementSource: null | PackageBoxMeasurementSource
@@ -184,7 +186,9 @@ export type PackageBoxClient = Readonly<{
     }>,
   ) => Promise<PackageBoxQueue>
   /** O arquivo da aba Caixas: nunca a busca/etiqueta da fila, e sem a janela de 50 da tela. */
-  listPendingExport: () => Promise<PackageBoxPendingExport>
+  listPendingExport: (
+    filters?: Readonly<{ status?: PackageBoxStatusFilter }>,
+  ) => Promise<PackageBoxPendingExport>
   /** Spec 152 D14: leitura própria de `cargo.measure`, sem exigir `settings.manage`. */
   getMeasurementSettings: () => Promise<Readonly<{ cameraMeasurementEnabled: boolean }>>
   /** Spec 155 (G003, D9): sob demanda — nunca acompanha a fila de 50 linhas. */
@@ -255,9 +259,10 @@ export function createPackageBoxClient(dependencies: ClientDependencies): Packag
       if (!response.ok) await rejectionOf(response, 'PACKAGE_BOX_LIST_FAILED')
       return packageBoxQueueFromApi(await response.json())
     },
-    async listPendingExport(): Promise<PackageBoxPendingExport> {
+    async listPendingExport(filters): Promise<PackageBoxPendingExport> {
+      const query = filters?.status === undefined ? '' : `?status=${filters.status}`
       const response = await dependencies.fetch(
-        `${dependencies.apiUrl}${PACKAGE_BOXES_PATH}/pending-export`,
+        `${dependencies.apiUrl}${PACKAGE_BOXES_PATH}/pending-export${query}`,
         { headers: { authorization: await authorization() } },
       )
       if (!response.ok) await rejectionOf(response, 'PACKAGE_BOX_PENDING_EXPORT_FAILED')
@@ -397,6 +402,7 @@ function isPackageBox(value: unknown): value is PackageBox {
     typeof value.emitterTaxId === 'string' &&
     isNullableString(value.cartonGtin) &&
     isNullableString(value.measuredAt) &&
+    (value.measuredByName === undefined || isNullableString(value.measuredByName)) &&
     isNullableNumber(value.lengthMm) &&
     isNullableNumber(value.widthMm) &&
     isNullableNumber(value.heightMm) &&

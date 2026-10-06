@@ -2,8 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq, ilike, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { and, desc, eq, ilike, inArray, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 
+import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
+import { userCompanyMemberships } from '../../database/identity.schema.js'
 import {
   nfeDocuments,
   nfePackageBoxes,
@@ -34,6 +37,7 @@ import {
   PackageBoxReplicationTargetAlreadyMeasuredError,
   PackageBoxReplicationTargetOutsideFamilyError,
 } from '../domain/package-box-measurement.error.js'
+import { ACTIVE_MEMBERSHIP_STATUS } from '../domain/active-membership-status.constant.js'
 import { countBoxFamilies, countPackagingSiblings } from '../domain/package-box-queue.policy.js'
 import {
   buildPendingMeasurementBoxKey,
@@ -42,6 +46,9 @@ import {
 import { toPackageBoxUnitFields } from './package-box-unit.mapper.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
+
+const measurerMembership = alias(userCompanyMemberships, 'package_box_measurer_membership')
+const measurerProfile = alias(identityUserProfiles, 'package_box_measurer_profile')
 
 export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
   readonly #database: Database
@@ -231,6 +238,16 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
       .groupBy(nfeParticipants.taxId, nfeProducts.code, nfeProducts.commercialUnit)
       .as('transported')
 
+    const latestMeasurement = this.#database
+      .selectDistinctOn([nfePackageBoxMeasurements.packageBoxId], {
+        measuredByUserId: nfePackageBoxMeasurements.measuredByUserId,
+        packageBoxId: nfePackageBoxMeasurements.packageBoxId,
+      })
+      .from(nfePackageBoxMeasurements)
+      .where(eq(nfePackageBoxMeasurements.companyId, input.companyId))
+      .orderBy(nfePackageBoxMeasurements.packageBoxId, desc(nfePackageBoxMeasurements.createdAt))
+      .as('latest_measurement')
+
     const rows = await this.#database
       .select({
         cartonGtin: nfePackageBoxes.cartonGtin,
@@ -243,6 +260,7 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
         id: nfePackageBoxes.id,
         lengthMm: nfePackageBoxes.lengthMm,
         measuredAt: nfePackageBoxes.measuredAt,
+        measuredByName: measurerProfile.name,
         measurementMarginMm: nfePackageBoxes.measurementMarginMm,
         measurementSource: nfePackageBoxes.measurementSource,
         productCode: nfePackageBoxes.productCode,
@@ -259,6 +277,16 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
           eq(transported.commercialUnit, nfePackageBoxes.commercialUnit),
         ),
       )
+      .leftJoin(latestMeasurement, eq(latestMeasurement.packageBoxId, nfePackageBoxes.id))
+      .leftJoin(
+        measurerMembership,
+        and(
+          eq(measurerMembership.userId, latestMeasurement.measuredByUserId),
+          eq(measurerMembership.companyId, input.companyId),
+          eq(measurerMembership.status, ACTIVE_MEMBERSHIP_STATUS),
+        ),
+      )
+      .leftJoin(measurerProfile, eq(measurerProfile.userId, measurerMembership.userId))
       .where(
         and(
           buildBoxScopeFilter({ companyId: input.companyId, filters: input.filters }),
@@ -275,7 +303,7 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
        * O desempate pelo id é o mesmo de `buildMeasurementQueue`: sem ele, caixas empatadas na borda
        * do `LIMIT` entravam ou saíam ao acaso, e a exportação cortada não era o começo da fila.
        */
-      .orderBy(sql`coalesce(${transported.volumes}, 0) desc`, nfePackageBoxes.id)
+      .orderBy(...buildListOrder(input.filters.status, transported.volumes))
       .limit(input.limit)
 
     /**
@@ -613,6 +641,15 @@ function buildBoxScopeFilter(input: {
           ilike(nfePackageBoxes.productCode, `%${search}%`),
         ),
   )
+}
+
+/**
+ * ⚠️ Quem já mediu quer o último registro primeiro; a fila do que falta medir segue o volume
+ * transportado. O `desc` do Postgres põe nulo antes, por isso o `coalesce` nas duas.
+ */
+function buildListOrder(status: PackageBoxFilters['status'], volumes: SQL.Aliased<string>) {
+  if (status === 'measured') return [desc(nfePackageBoxes.measuredAt), nfePackageBoxes.id]
+  return [sql`coalesce(${volumes}, 0) desc`, nfePackageBoxes.id]
 }
 
 function buildStatusFilter(status: PackageBoxFilters['status']) {

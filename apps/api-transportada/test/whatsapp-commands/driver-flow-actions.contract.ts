@@ -12,6 +12,8 @@ import type {
   FlowActionResult,
 } from '@adatechnology/meta-whatsapp-contracts'
 
+import { createInMemoryWhatsAppSharedLocationStore } from '../../src/whatsapp-commands/application/whatsapp-shared-location.service.js'
+import type { ReportedLocation } from '../../src/trips/application/driver-field-report.port.js'
 import { AuthorizationService } from '../../src/identity/application/authorization.service.js'
 import type { CompanyPermission } from '../../src/identity/domain/authorization.policy.js'
 import type { OccurrenceTypeRecord } from '../../src/trips/application/register-trip-occurrence.use-case.js'
@@ -83,6 +85,7 @@ function buildDeps(
   overrides: Partial<DriverFlowActionDependencies> = {},
 ): DriverFlowActionDependencies {
   return {
+    consumeSharedLocation: () => null,
     // T020 (B5): o roteador de nota relê a viagem; o padrão é a viagem do teste, com a nota dentro.
     findCurrentTrip: async () => buildDriverTrip({}),
     listOccurrenceTypes: async () => [],
@@ -108,7 +111,9 @@ function buildSession(context: Record<string, unknown> = {}): ConversationSessio
     companyId: COMPANY_ID,
     context,
     createdAt: NOW.toISOString(),
+    currentNodeId: null,
     currentState: 'start',
+    flowKey: null,
     humanRequestedAt: null,
     id: 'session-driver-1',
     lastActivity: NOW.toISOString(),
@@ -740,6 +745,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
         documentId: DOCUMENT_ID,
         driverId: DRIVER_ID,
         idempotencyKey: expect.any(String),
+        location: null,
         note: '',
         occurrenceTypeId: OCCURRENCE_TYPE_ID,
         productCode: '',
@@ -800,5 +806,133 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
 
     expect((calls[0] as { note: string }).note).toBe('Cliente recusou por avaria')
     expect(sent).toEqual([{ body: 'Ocorrência registrada. ⚠️', kind: 'text' }])
+  })
+})
+
+/**
+ * Spec 196 T3.6 (D3 revista, CA03): as três ações do motorista levam o ponto que ele mandou antes do
+ * toque; sem ponto, `null` (a política de carimbo transforma em `unavailable`). O armazém é consumido
+ * por um toque só.
+ */
+describe('o ponto da mensagem de localização desce nas três ações do motorista (spec 196 T3.6)', () => {
+  const SHARED_LOCATION: ReportedLocation = {
+    accuracyMeters: null,
+    capturedAt: '2026-09-11T11:59:30.000Z',
+    latitude: '-23.5505200',
+    longitude: '-46.6333080',
+  }
+
+  type ActionCase = {
+    readonly context: Record<string, unknown>
+    readonly kind: string
+    readonly name: string
+    readonly overrideKey: 'registerOccurrence' | 'reportDelivery' | 'reportReturn'
+  }
+
+  const ACTION_CASES: ActionCase[] = [
+    {
+      context: {
+        [DRIVER_FLOW_CONTEXT_KEY.documentAnswer]: DOCUMENT_ID,
+        [DRIVER_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
+        [DRIVER_FLOW_CONTEXT_KEY.tripMenuChoice]: 'deliver',
+      },
+      kind: DRIVER_FLOW_ACTION_KIND.documentRouter,
+      name: 'entregar',
+      overrideKey: 'reportDelivery',
+    },
+    {
+      context: {
+        [DRIVER_FLOW_CONTEXT_KEY.documentId]: DOCUMENT_ID,
+        [DRIVER_FLOW_CONTEXT_KEY.returnReason]: 'recipient_absent',
+      },
+      kind: DRIVER_FLOW_ACTION_KIND.completeReturn,
+      name: 'devolver',
+      overrideKey: 'reportReturn',
+    },
+    {
+      context: {
+        [DRIVER_FLOW_CONTEXT_KEY.documentId]: DOCUMENT_ID,
+        [DRIVER_FLOW_CONTEXT_KEY.noteAnswer]: 'skip',
+        [DRIVER_FLOW_CONTEXT_KEY.occurrenceTypeId]: OCCURRENCE_TYPE_ID,
+      },
+      kind: DRIVER_FLOW_ACTION_KIND.completeOccurrence,
+      name: 'registrar ocorrência',
+      overrideKey: 'registerOccurrence',
+    },
+  ]
+
+  async function runAction(
+    actionCase: ActionCase,
+    consumeSharedLocation: DriverFlowActionDependencies['consumeSharedLocation'],
+  ): Promise<{ readonly location: unknown; readonly callCount: number }> {
+    const locations: unknown[] = []
+    const record = (input: { readonly location: unknown }) => {
+      locations.push(input.location)
+      return {
+        alreadySettled: false,
+        createdAt: '',
+        id: 'x',
+        note: '',
+        occurrenceTypeId: '',
+        productCode: '',
+        stage: 'delivery',
+        typeName: '',
+      }
+    }
+    await callAction({
+      context: actionCase.context,
+      deps: buildDeps({
+        consumeSharedLocation,
+        [actionCase.overrideKey]: async (input: { readonly location: unknown }) => record(input),
+      }),
+      kind: actionCase.kind,
+    })
+
+    return { callCount: locations.length, location: locations[0] }
+  }
+
+  test.each(ACTION_CASES)('$name leva o ponto que o motorista mandou', async (actionCase) => {
+    const keys: unknown[] = []
+    const outcome = await runAction(actionCase, (key) => {
+      keys.push(key)
+      return SHARED_LOCATION
+    })
+
+    expect(outcome).toEqual({ callCount: 1, location: SHARED_LOCATION })
+    expect(keys).toEqual([{ companyId: COMPANY_ID, whatsappNumber: PHONE }])
+  })
+
+  test.each(ACTION_CASES)(
+    '$name sem ponto manda null, que vira unavailable',
+    async (actionCase) => {
+      expect(await runAction(actionCase, () => null)).toEqual({ callCount: 1, location: null })
+    },
+  )
+
+  test('o ponto vale para um toque só: o segundo toque sem nova localização manda null', async () => {
+    const store = createInMemoryWhatsAppSharedLocationStore({ clock: () => NOW })
+    store.remember({ companyId: COMPANY_ID, location: SHARED_LOCATION, whatsappNumber: PHONE })
+    const [deliver] = ACTION_CASES
+    if (deliver === undefined) throw new Error('caso de entrega ausente')
+
+    const first = await runAction(deliver, (key) => store.consume(key))
+    const second = await runAction(deliver, (key) => store.consume(key))
+
+    expect(first.location).toEqual(SHARED_LOCATION)
+    expect(second.location).toBeNull()
+  })
+
+  test('o ponto de outra empresa ou de outro número não é do motorista', async () => {
+    const store = createInMemoryWhatsAppSharedLocationStore({ clock: () => NOW })
+    store.remember({
+      companyId: COMPANY_ID,
+      location: SHARED_LOCATION,
+      whatsappNumber: '5516000000001',
+    })
+    store.remember({ companyId: 'outra-empresa', location: SHARED_LOCATION, whatsappNumber: PHONE })
+    const [deliver] = ACTION_CASES
+    if (deliver === undefined) throw new Error('caso de entrega ausente')
+
+    expect((await runAction(deliver, (key) => store.consume(key))).location).toBeNull()
   })
 })

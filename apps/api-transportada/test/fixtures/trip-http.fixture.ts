@@ -113,6 +113,8 @@ type CreateFixtureParams = {
   readonly readTripRouteGeometryExecute?: (input: ExecuteCall) => Promise<unknown>
   /** Spec 222 T1.2: o que `GET /trips/:id/delivery-proofs` devolve; ausente é lista vazia. */
   readonly readTripDeliveryProofsResult?: unknown
+  /** Spec 232 T2.1: a avaliação real atrás da rota, para provar o que a resposta carrega e o que não. */
+  readonly readValuationExecute?: (input: ExecuteCall) => Promise<unknown>
   /** Espelha `readTripRouteGeometryExecute` para a rota solta (`POST /route-geometry`, T301). */
   readonly readRouteGeometryExecute?: (input: ExecuteCall) => Promise<unknown>
   readonly overrideDeliveryAddressError?: Error
@@ -397,6 +399,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
     readValuation: {
       async execute(input) {
         readValuationCalls.push(structuredClone(input))
+        if (params.readValuationExecute) return params.readValuationExecute(input)
         return {
           costParcels: [],
           hasGaps: true,

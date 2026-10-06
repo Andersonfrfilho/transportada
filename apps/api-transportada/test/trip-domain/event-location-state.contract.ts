@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * ADR-0081 §3 / spec 196 D3: só o motorista tem ponto, e só o motorista tem estado. A decisão mora
+ * ADR-0081 §3 / spec 196 D3 (revista): só o motorista tem ponto e estado, no app ou no WhatsApp. A decisão mora
  * numa função só — repetir o `if` em cada escritor é como as cinco tabelas passariam a divergir.
  */
 import { describe, expect, test } from 'bun:test'
@@ -26,25 +26,24 @@ describe('o estado do ponto sai do canal e da presença da coordenada (ADR-0081 
     ).toBe(EVENT_LOCATION_STATES.unavailable)
   })
 
-  test.each([
-    TRIP_FIELD_CHANNELS.office,
-    TRIP_FIELD_CHANNELS.backoffice,
-    TRIP_FIELD_CHANNELS.whatsapp,
-  ])('sem coordenada, %s fica null — não se aplica, e vermelho ali seria mentira', (channel) => {
-    expect(resolveEventLocationState({ channel, hasCoordinate: false })).toBeNull()
-  })
+  test.each([TRIP_FIELD_CHANNELS.office, TRIP_FIELD_CHANNELS.backoffice])(
+    'sem coordenada, %s fica null — não se aplica, e vermelho ali seria mentira',
+    (channel) => {
+      expect(resolveEventLocationState({ channel, hasCoordinate: false })).toBeNull()
+    },
+  )
 
   /**
-   * O caso que trouxe o WhatsApp para o grupo de cima: nenhum caminho dele carrega coordenada, então
-   * `unavailable` ali não seria "o GPS falhou", seria "nunca houve GPS" escrito em vermelho.
+   * D3 revista (2026-10-02): a mensagem de localização do WhatsApp carrega o ponto, então o canal
+   * passa a pedir posição como o app. O contrato anterior proibia isto; a inversão é intencional.
    */
-  test('o WhatsApp nunca grava unavailable, porque ele nunca pede posição', () => {
+  test('o WhatsApp do motorista sem ponto grava unavailable — ele pode mandar localização', () => {
     expect(
       resolveEventLocationState({
         channel: TRIP_FIELD_CHANNELS.whatsapp,
         hasCoordinate: false,
       }),
-    ).not.toBe(EVENT_LOCATION_STATES.unavailable)
+    ).toBe(EVENT_LOCATION_STATES.unavailable)
   })
 
   test('o estado nunca é expired na escrita — expired é veredito do expurgo', () => {

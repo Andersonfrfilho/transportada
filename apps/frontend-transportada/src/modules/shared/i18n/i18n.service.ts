@@ -4,6 +4,8 @@ import { initReactI18next } from 'react-i18next'
 
 import billingWorkspaceLocale from '@/modules/billing/locales/billingWorkspace.locale.json'
 import billingWorkspaceEnglishLocale from '@/modules/billing/locales/billingWorkspace.en.locale.json'
+import cargoReceivingLocale from '@/modules/cargo-receiving/locales/cargoReceiving.locale.json'
+import cargoReceivingEnglishLocale from '@/modules/cargo-receiving/locales/cargoReceiving.en.locale.json'
 import companySettingsLocale from '@/modules/company-settings/locales/companySettings.locale.json'
 import companySettingsEnglishLocale from '@/modules/company-settings/locales/companySettings.en.locale.json'
 import cteBatchLocale from '@/modules/cte-batch/locales/cteBatch.locale.json'
@@ -12,6 +14,8 @@ import cteIssuanceLocale from '@/modules/cte-issuance/locales/cteIssuance.locale
 import cteIssuanceEnglishLocale from '@/modules/cte-issuance/locales/cteIssuance.en.locale.json'
 import cteProfilesLocale from '@/modules/cte-profiles/locales/cteProfiles.locale.json'
 import cteProfilesEnglishLocale from '@/modules/cte-profiles/locales/cteProfiles.en.locale.json'
+import contractorDirectoryLocale from '@/modules/delivery-clients/locales/contractorDirectory.locale.json'
+import contractorDirectoryEnglishLocale from '@/modules/delivery-clients/locales/contractorDirectory.en.locale.json'
 import deliveryClientsLocale from '@/modules/delivery-clients/locales/deliveryClients.locale.json'
 import deliveryClientsEnglishLocale from '@/modules/delivery-clients/locales/deliveryClients.en.locale.json'
 import documentIntakeLocale from '@/modules/document-intake/locales/documentIntake.locale.json'
@@ -20,6 +24,8 @@ import driverTripLocale from '@/modules/driver-trip/locales/driverTrip.locale.js
 import driverTripEnglishLocale from '@/modules/driver-trip/locales/driverTrip.en.locale.json'
 import extraChargesLocale from '@/modules/extra-charges/locales/extraCharges.locale.json'
 import extraChargesEnglishLocale from '@/modules/extra-charges/locales/extraCharges.en.locale.json'
+import spreadsheetLocale from '@/modules/shared/spreadsheet/locales/spreadsheet.locale.json'
+import spreadsheetEnglishLocale from '@/modules/shared/spreadsheet/locales/spreadsheet.en.locale.json'
 import fleetLocale from '@/modules/fleet/locales/fleet.locale.json'
 import fleetEnglishLocale from '@/modules/fleet/locales/fleet.en.locale.json'
 import foundationLocale from '@/modules/foundation/locales/foundation.locale.json'
@@ -54,10 +60,12 @@ void i18n.use(initReactI18next).init({
   resources: {
     en: {
       billingWorkspace: billingWorkspaceEnglishLocale,
+      cargoReceiving: cargoReceivingEnglishLocale,
       companySettings: companySettingsEnglishLocale,
       cteBatch: cteBatchEnglishLocale,
       cteIssuance: cteIssuanceEnglishLocale,
       cteProfiles: cteProfilesEnglishLocale,
+      contractorDirectory: contractorDirectoryEnglishLocale,
       deliveryClients: deliveryClientsEnglishLocale,
       documentIntake: documentIntakeEnglishLocale,
       driverTrip: driverTripEnglishLocale,
@@ -72,16 +80,19 @@ void i18n.use(initReactI18next).init({
       operationsWorkspace: operationsWorkspaceEnglishLocale,
       pendingItems: pendingItemsEnglishLocale,
       routing: routingEnglishLocale,
+      spreadsheet: spreadsheetEnglishLocale,
       translation: foundationEnglishLocale,
       trip: tripEnglishLocale,
       tripFinancials: tripFinancialsEnglishLocale,
     },
     'pt-BR': {
       billingWorkspace: billingWorkspaceLocale,
+      cargoReceiving: cargoReceivingLocale,
       companySettings: companySettingsLocale,
       cteBatch: cteBatchLocale,
       cteIssuance: cteIssuanceLocale,
       cteProfiles: cteProfilesLocale,
+      contractorDirectory: contractorDirectoryLocale,
       deliveryClients: deliveryClientsLocale,
       documentIntake: documentIntakeLocale,
       driverTrip: driverTripLocale,
@@ -96,6 +107,7 @@ void i18n.use(initReactI18next).init({
       operationsWorkspace: operationsWorkspaceLocale,
       pendingItems: pendingItemsLocale,
       routing: routingLocale,
+      spreadsheet: spreadsheetLocale,
       translation: foundationLocale,
       trip: tripLocale,
       tripFinancials: tripFinancialsLocale,

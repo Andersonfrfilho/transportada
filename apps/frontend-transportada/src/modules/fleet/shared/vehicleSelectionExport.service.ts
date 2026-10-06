@@ -1,5 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
+  toSpreadsheetNumber,
+  type SpreadsheetCellValue,
+  type SpreadsheetColumn,
+} from '@/modules/shared/spreadsheet/spreadsheetLayout.service'
+import {
   CSV_BYTE_ORDER_MARK,
   CSV_FIELD_SEPARATOR,
   CSV_LINE_SEPARATOR,
@@ -31,6 +36,7 @@ export const VEHICLE_EXPORT_COLUMNS = [
 export type VehicleExportColumn = (typeof VEHICLE_EXPORT_COLUMNS)[number]
 
 export const VEHICLE_EXPORT_FILE_NAME = 'veiculos.csv'
+export const VEHICLE_EXPORT_EXCEL_FILE_NAME = 'veiculos.xlsx'
 export const VEHICLE_EXPORT_MEDIA_TYPE = 'text/csv;charset=utf-8'
 
 const PLATE_SEPARATOR = '\n'
@@ -68,6 +74,58 @@ function readColumn(
   if (column === 'model') return vehicle.model
 
   return labels.translateValue({ column, value: vehicle[column] })
+}
+
+const VEHICLE_NUMERIC_COLUMNS: ReadonlySet<VehicleExportColumn> = new Set([
+  'axleCount',
+  'capacityKilograms',
+  'costPerKilometer',
+  'modelYear',
+  'monthlyFixedCost',
+  'tareWeightKilograms',
+])
+
+const VEHICLE_COLUMN_LAYOUT: Readonly<
+  Record<VehicleExportColumn, Omit<SpreadsheetColumn, 'header'>>
+> = {
+  axleCount: { align: 'right', format: '0', width: 10 },
+  brand: { width: 16 },
+  capacityKilograms: { align: 'right', format: '#,##0.00', width: 16 },
+  color: { width: 12 },
+  costPerKilometer: { align: 'right', format: '#,##0.00', width: 14 },
+  fuelArrangement: { width: 24 },
+  fuelType: { width: 14 },
+  model: { width: 22 },
+  modelYear: { align: 'right', format: '0', width: 10 },
+  monthlyFixedCost: { align: 'right', format: '#,##0.00', width: 16 },
+  ownership: { width: 14 },
+  plate: { format: '@', width: 12 },
+  role: { width: 14 },
+  secondaryFuelType: { width: 16 },
+  status: { width: 12 },
+  tareWeightKilograms: { align: 'right', format: '#,##0.00', width: 16 },
+}
+
+/** Cabeçalho, largura e formato de cada coluna do arquivo de veículos. */
+export function buildVehicleExportColumns(
+  header: Readonly<Record<VehicleExportColumn, string>>,
+): readonly SpreadsheetColumn[] {
+  return VEHICLE_EXPORT_COLUMNS.map((column) => ({
+    ...VEHICLE_COLUMN_LAYOUT[column],
+    header: header[column],
+  }))
+}
+
+/** As mesmas células do CSV, com os números como número para somar e ordenar na planilha. */
+export function buildVehicleSelectionRows(
+  input: Readonly<{ labels: ExportLabels; vehicles: readonly FleetVehicleDetail[] }>,
+): readonly (readonly SpreadsheetCellValue[])[] {
+  return input.vehicles.map((vehicle) =>
+    VEHICLE_EXPORT_COLUMNS.map((column) => {
+      const text = readColumn({ column, labels: input.labels, vehicle })
+      return VEHICLE_NUMERIC_COLUMNS.has(column) ? toSpreadsheetNumber(text) : text
+    }),
+  )
 }
 
 export function buildVehicleSelectionCsv(

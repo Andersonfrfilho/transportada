@@ -1,0 +1,417 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * Spec 233 T4.1 (D4): o comprovante tem dois eixos — conferência e pontualidade — e cada um é um selo.
+ * Prova pelo **markup renderizado**: nenhum estado esconde o outro (recusado e longe do ponto diz as
+ * duas coisas), nota sem comprovante não ganha selo, e sem `fleet.read` a consulta nem é feita.
+ */
+import { readFileSync } from 'node:fs'
+
+import { act, createElement } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, describe, expect, it } from 'bun:test'
+
+import { i18n } from '../../src/modules/shared/i18n/i18n.service'
+import { TripDeliveryProof } from '../../src/modules/trip/components/TripDeliveryProof.component'
+import {
+  TripStopDocumentGroup,
+  type TripStopDocumentActions,
+} from '../../src/modules/trip/components/TripStopList.component'
+import {
+  resolveDeliveryProofView,
+  type DeliveryProof,
+  type DeliveryProofCanhotoReview,
+  type DeliveryProofPunctuality,
+} from '../../src/modules/trip/shared/deliveryProof.service'
+import type { TripDocumentDetail } from '../../src/modules/trip/shared/trip.types'
+import {
+  buildTripDocumentProofBadgesByDocumentId,
+  resolveTripDocumentProofBadges,
+} from '../../src/modules/trip/shared/tripDocumentProofBadges.service'
+
+import { resetTripHookFakes, tripHookFakes as fakes } from './tripClientMocks.helper'
+import { renderHook, waitFor } from './renderHook.helper'
+
+const { useTripProofBadgesQuery, useTripProofRadiusQuery } = await import(
+  '@/modules/trip/queries/useTripProofBadges.query'
+)
+
+const REVIEW_LABEL = {
+  approved: 'Aprovado',
+  pending: 'Aguardando conferência',
+  rejected: 'Recusado',
+} as const satisfies Record<DeliveryProofCanhotoReview, string>
+const PUNCTUALITY_LABEL = {
+  away: 'Longe do ponto ou sem localização',
+  late: 'Atrasada',
+  late_and_away: 'Atrasada e longe do ponto ou sem localização',
+  on_time: 'No horário',
+} as const
+const PROOF_PENDING_LABEL = 'Canhoto pendente'
+const REVIEWS = ['pending', 'approved', 'rejected'] as const
+const PUNCTUALITIES = ['on_time', 'late', 'away', 'late_and_away', undefined] as const
+
+let root: Root | undefined
+let container: HTMLDivElement | undefined
+
+afterEach(async () => {
+  await i18n.changeLanguage('pt-BR')
+  if (root !== undefined) act(() => root?.unmount())
+  container?.remove()
+  root = undefined
+  container = undefined
+})
+
+function makeProof(
+  review: DeliveryProofCanhotoReview | undefined,
+  punctuality: DeliveryProofPunctuality | undefined,
+): DeliveryProof {
+  return {
+    ...(review === undefined ? {} : { canhotoReview: review }),
+    ...(punctuality === undefined ? {} : { punctuality }),
+    createdAt: '2026-09-30T10:00:00Z',
+    downloadUrl: 'https://storage.test/original/receipt',
+    expiresAt: '2026-09-30T10:05:00Z',
+    id: 'proof-1',
+    kind: 'photo',
+    receiverName: '',
+  }
+}
+
+function makeDocument(overrides: Partial<TripDocumentDetail> = {}): TripDocumentDetail {
+  return {
+    cteAuthorized: false,
+    deliveredAt: '2026-09-30',
+    fiscalStatus: 'authorized',
+    id: 'doc-1',
+    nfeNumber: '1',
+    nfeSeries: '1',
+    returnedAt: null,
+    separationStatus: 'delivered',
+    ...overrides,
+  } as unknown as TripDocumentDetail
+}
+
+function renderHeader(
+  proofs: readonly DeliveryProof[],
+  document: TripDocumentDetail = makeDocument(),
+): HTMLElement {
+  const actions = {
+    canFieldDelivery: () => false,
+    canFieldOccurrence: () => false,
+    canManage: false,
+    canSeparationOccurrence: false,
+    capabilities: { canDocument: () => false, canStop: () => false, canTrip: () => false },
+    fiscalReadinessByDocumentId: new Map(),
+    openDocumentId: null,
+    proofBadgesByDocumentId: buildTripDocumentProofBadgesByDocumentId(
+      proofs.map((proof) => ({ ...proof, documentId: 'doc-1' })),
+    ),
+    renderOccurrences: () => null,
+    renderProof: () => null,
+  } as unknown as TripStopDocumentActions
+  const selection = {
+    clear: () => undefined,
+    replace: () => undefined,
+    selectedIds: new Set<string>(),
+    toggle: () => undefined,
+    toggleMany: () => undefined,
+  }
+  container = window.document.createElement('div')
+  window.document.body.append(container)
+  root = createRoot(container)
+  act(() =>
+    root?.render(
+      createElement(TripStopDocumentGroup, { actions, documents: [document], selection }),
+    ),
+  )
+  return container
+}
+
+function badgesOf(dom: HTMLElement): HTMLElement | null {
+  return dom.querySelector<HTMLElement>('[data-part="proof-badges"]')
+}
+
+describe('os selos do comprovante no cabeçalho da nota (spec 233 D4)', () => {
+  for (const review of REVIEWS) {
+    for (const punctuality of PUNCTUALITIES) {
+      it(`conferência ${review} × pontualidade ${punctuality ?? 'ausente'}: um selo por eixo`, () => {
+        const dom = renderHeader([makeProof(review, punctuality)])
+        const text = badgesOf(dom)?.textContent ?? ''
+
+        expect(text).toContain(REVIEW_LABEL[review])
+        if (punctuality === undefined) {
+          for (const label of Object.values(PUNCTUALITY_LABEL)) {
+            expect(text.replace(PUNCTUALITY_LABEL.on_time, '')).not.toContain(label)
+          }
+        } else {
+          expect(text).toContain(PUNCTUALITY_LABEL[punctuality])
+        }
+      })
+    }
+  }
+
+  it('recusado e longe do ponto diz as duas coisas', () => {
+    const text = badgesOf(renderHeader([makeProof('rejected', 'away')]))?.textContent ?? ''
+
+    expect(text).toContain('Recusado')
+    expect(text).toContain('Longe do ponto')
+  })
+
+  it('o selo de canhoto pendente da spec 223 convive com os dois, sem substituí-los', () => {
+    const dom = renderHeader(
+      [makeProof('rejected', 'late_and_away')],
+      makeDocument({ proofPending: true }),
+    )
+
+    expect(dom.textContent).toContain(PROOF_PENDING_LABEL)
+    expect(badgesOf(dom)?.textContent).toContain('Recusado')
+    expect(badgesOf(dom)?.textContent).toContain('Atrasada e longe do ponto')
+  })
+
+  it('nota sem comprovante não ganha selo, nem rótulo vazio', () => {
+    const dom = renderHeader([], makeDocument({ deliveredAt: null, separationStatus: 'pending' }))
+
+    expect(badgesOf(dom)).toBeNull()
+    expect(dom.textContent).not.toContain(REVIEW_LABEL.pending)
+  })
+
+  it('sem comprovante o serviço não devolve selo algum', () => {
+    expect(resolveTripDocumentProofBadges(undefined)).toBeUndefined()
+    expect(buildTripDocumentProofBadgesByDocumentId([]).size).toBe(0)
+  })
+
+  it('pontualidade dispensada (not_required) não vira selo', () => {
+    const dom = renderHeader([makeProof(undefined, 'not_required')])
+
+    expect(badgesOf(dom)).toBeNull()
+  })
+
+  it('os selos ficam fora do botão de abrir', () => {
+    const dom = renderHeader([makeProof('approved', 'on_time')])
+    const toggle = dom.querySelector('button[aria-expanded]')
+
+    expect(toggle?.contains(badgesOf(dom))).toBe(false)
+    expect(toggle?.textContent).not.toContain('Aprovado')
+  })
+
+  it('os rótulos saem em inglês, das mesmas chaves', async () => {
+    await i18n.changeLanguage('en')
+    const text = badgesOf(renderHeader([makeProof('rejected', 'away')]))?.textContent ?? ''
+
+    expect(text).toContain('Rejected')
+    expect(text).toContain('Away from the stop')
+  })
+})
+
+describe('os selos não se repetem na seção do comprovante (spec 233 D4, revisão de design)', () => {
+  function renderSection(proof: DeliveryProof, isExpanded = false): HTMLElement {
+    const view = resolveDeliveryProofView({
+      document: {
+        deliveredAt: '2026-09-30T10:00:00Z',
+        returnedAt: null,
+        returnReason: null,
+        separationStatus: 'delivered',
+      },
+      proofs: [proof],
+    })
+    container = window.document.createElement('div')
+    window.document.body.append(container)
+    root = createRoot(container)
+    act(() =>
+      root?.render(
+        createElement(TripDeliveryProof, {
+          documentId: 'doc-1',
+          products: [],
+          reviewActions: {
+            canReview: false,
+            onApprove: () => undefined,
+            onReject: () => undefined,
+          },
+          view,
+        }),
+      ),
+    )
+    if (isExpanded)
+      act(() => container?.querySelector<HTMLButtonElement>('button[aria-expanded]')?.click())
+    return container
+  }
+
+  it('recusado e longe do ponto: a seção não diz nenhum dos dois eixos; o cabeçalho da nota (teste acima) é o único lugar', () => {
+    const proof = { ...makeProof('rejected', 'away'), distanceMeters: 1500 }
+    const text = renderSection(proof, true).textContent ?? ''
+
+    expect(text).not.toContain('Recusado')
+    expect(text).not.toContain('Longe do ponto')
+  })
+
+  it('a distância e o alerta de longe do ponto continuam na leitura, dentro da seção aberta', () => {
+    const dom = renderSection({ ...makeProof('approved', 'away'), distanceMeters: 1500 }, true)
+    const alert = dom.querySelector('[data-alert="true"]')
+
+    expect(alert?.textContent).toContain('1,5')
+  })
+})
+
+describe('a consulta dos selos (spec 233 D4)', () => {
+  const PROOFS = [
+    { ...makeProof('rejected', 'away'), documentId: 'doc-1' },
+    { ...makeProof('approved', undefined), documentId: 'doc-2', id: 'proof-2' },
+  ]
+
+  function installClient(): { calls: () => number } {
+    let calls = 0
+    fakes.tripClient = {
+      ...fakes.tripClient,
+      readTripDeliveryProofs: () => {
+        calls += 1
+        return Promise.resolve(PROOFS)
+      },
+    }
+    return { calls: () => calls }
+  }
+
+  it('sem a permissão que a rota exige, não faz chamada', async () => {
+    resetTripHookFakes([])
+    const client = installClient()
+
+    const rendered = await renderHook(() =>
+      useTripProofBadgesQuery({
+        canRead: false,
+        companyId: 'company-1',
+        hasAnyProof: true,
+        tripId: 'trip-1',
+      }),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(client.calls()).toBe(0)
+    rendered.unmount()
+  })
+
+  /**
+   * Viagem que ainda não entregou nada não tem comprovante algum: a rota devolveria uma lista vazia com as
+   * URLs assinadas de ninguém, e o cabeçalho de cada nota não teria selo para mostrar. A chamada seria à toa.
+   */
+  it('viagem sem nota entregue ou devolvida não faz chamada, mesmo com a permissão', async () => {
+    resetTripHookFakes([])
+    const client = installClient()
+
+    const rendered = await renderHook(() =>
+      useTripProofBadgesQuery({
+        canRead: true,
+        companyId: 'company-1',
+        hasAnyProof: false,
+        tripId: 'trip-1',
+      }),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(client.calls()).toBe(0)
+    rendered.unmount()
+  })
+
+  it('com a permissão, uma chamada só para a viagem inteira, indexada por nota', async () => {
+    resetTripHookFakes([])
+    const client = installClient()
+
+    const rendered = await renderHook(() =>
+      useTripProofBadgesQuery({
+        canRead: true,
+        companyId: 'company-1',
+        hasAnyProof: true,
+        tripId: 'trip-1',
+      }),
+    )
+    await waitFor(() => expect(rendered.result().data?.size).toBe(2))
+
+    expect(client.calls()).toBe(1)
+    expect(rendered.result().data?.get('doc-1')).toEqual({
+      punctuality: 'away',
+      review: 'rejected',
+    })
+    expect(rendered.result().data?.get('doc-2')).toEqual({ review: 'approved' })
+    rendered.unmount()
+  })
+
+  /**
+   * Revisão A2: a API real só enriquece `GET /trips/:id/delivery-proofs` com o raio; a rota por nota
+   * (`.../documents/:id/proof`) não o traz. O raio dos eventos vem, portanto, da consulta por viagem —
+   * a mesma dos selos, sem uma segunda chamada.
+   */
+  it('o raio vem da consulta por viagem, com a mesma chamada dos selos', async () => {
+    resetTripHookFakes([])
+    let tripCalls = 0
+    fakes.tripClient = {
+      ...fakes.tripClient,
+      readTripDeliveryProofs: () => {
+        tripCalls += 1
+        return Promise.resolve([
+          { ...makeProof('approved', undefined), documentId: 'doc-1', proofRadiusMeters: 300 },
+        ])
+      },
+    }
+    const input = { canRead: true, companyId: 'company-1', hasAnyProof: true, tripId: 'trip-1' }
+
+    const rendered = await renderHook(() => ({
+      badges: useTripProofBadgesQuery(input),
+      radius: useTripProofRadiusQuery(input),
+    }))
+    await waitFor(() => expect(rendered.result().radius.data).toBe(300))
+
+    expect(rendered.result().badges.data?.size).toBe(1)
+    expect(tripCalls).toBe(1)
+    rendered.unmount()
+  })
+
+  it('consulta por viagem sem raio: nenhum raio, nunca um suposto', async () => {
+    resetTripHookFakes([])
+    fakes.tripClient = {
+      ...fakes.tripClient,
+      readTripDeliveryProofs: () =>
+        Promise.resolve([{ ...makeProof('approved', undefined), documentId: 'doc-1' }]),
+    }
+
+    const rendered = await renderHook(() =>
+      useTripProofRadiusQuery({
+        canRead: true,
+        companyId: 'company-1',
+        hasAnyProof: true,
+        tripId: 'trip-1',
+      }),
+    )
+    await waitFor(() => expect(rendered.result().isSuccess).toBe(true))
+
+    expect(rendered.result().data).toBeUndefined()
+    rendered.unmount()
+  })
+
+  it('sem fleet.read, o raio não faz chamada', async () => {
+    resetTripHookFakes([])
+    const client = installClient()
+
+    const rendered = await renderHook(() =>
+      useTripProofRadiusQuery({
+        canRead: false,
+        companyId: 'company-1',
+        hasAnyProof: true,
+        tripId: 'trip-1',
+      }),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(client.calls()).toBe(0)
+    rendered.unmount()
+  })
+
+  it('o detalhe da viagem lê o raio da consulta por viagem, não da rota por nota', () => {
+    const source = readFileSync(
+      new URL('../../src/modules/trip/components/TripDetail.component.tsx', import.meta.url),
+      'utf8',
+    )
+
+    expect(source).toContain('useTripProofRadiusQuery(')
+    expect(source).toContain('proofRadiusMeters={proofRadiusQuery.data}')
+    expect(source).not.toContain('resolveProofRadiusMeters(')
+  })
+})

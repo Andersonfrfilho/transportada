@@ -5,7 +5,7 @@ import {
   AMOUNT_DISPLAY_SCALE,
   AMOUNT_MAX_SCALE,
   parseTypedAmount,
-  toTypedAmount,
+  toTypedAmountKeepingZero,
 } from '@/modules/shared/decimalAmount.service'
 import { normalizeTaxId } from '@/modules/shared/taxId.service'
 
@@ -108,6 +108,8 @@ const EMPTY_DRIVER_FORM: FleetDriverFormState = {
   anttCategory: '',
   /** Spec 149 D1: ninguém ajuda por padrão. */
   canActAsHelper: false,
+  /** Spec 235 D2: o cadastro novo dirige até escolher o perfil Ajudante. */
+  canDrive: true,
   helperDailyRate: '',
   /** Spec 100: ninguém amarra por padrão — a planta limita a pilha por esbeltez. */
   securesCargo: false,
@@ -236,7 +238,11 @@ export function toDriverFormState(driver: FleetDriverDetail): FleetDriverFormSta
     addressStreet: driver.address.street,
     anttCategory: driver.anttCategory,
     canActAsHelper: driver.canActAsHelper,
-    helperDailyRate: driver.helperDailyRate ?? '',
+    canDrive: driver.canDrive,
+    helperDailyRate:
+      driver.helperDailyRate === null
+        ? ''
+        : toTypedAmountKeepingZero({ scale: AMOUNT_DISPLAY_SCALE, value: driver.helperDailyRate }),
     securesCargo: driver.securesCargo,
     birthCity: driver.birthCity,
     birthDate: driver.birthDate ?? '',
@@ -244,7 +250,10 @@ export function toDriverFormState(driver: FleetDriverDetail): FleetDriverFormSta
     dailyAllowanceAmount:
       driver.dailyAllowanceAmount === null
         ? ''
-        : toTypedAmount({ scale: AMOUNT_DISPLAY_SCALE, value: driver.dailyAllowanceAmount }),
+        : toTypedAmountKeepingZero({
+            scale: AMOUNT_DISPLAY_SCALE,
+            value: driver.dailyAllowanceAmount,
+          }),
     email: driver.email,
     fatherName: driver.fatherName,
     firstLicenseAt: driver.firstLicenseAt ?? '',
@@ -407,8 +416,28 @@ function toIdentityDocumentIssuer(value: string): '' | IdentityDocumentIssuer {
   return IDENTITY_DOCUMENT_ISSUERS.find((issuer) => issuer === value) ?? ''
 }
 
+/**
+ * Quem não dirige não tem CNH nem escolhe se ajuda: ajudante é o perfil novo (criação) ou a ficha
+ * carregada com `canDrive` falso (edição, onde a API não devolve o papel).
+ */
+export function isHelperOnlyDriver(state: FleetDriverFormState): boolean {
+  return state.profile === 'helper' || !state.canDrive
+}
+
 /** O vínculo fica de fora: quem o reenvia na edição é a ficha carregada, não o formulário. */
 export function toDriverBody(state: FleetDriverFormState): Omit<FleetDriverBody, 'membershipId'> {
+  return buildDriverBody({ dropsLicense: false, state })
+}
+
+/** Só a criação de ajudante dispensa a CNH; na edição os campos ocultos levam o que a ficha guarda. */
+function buildDriverBody({
+  dropsLicense,
+  state,
+}: {
+  readonly dropsLicense: boolean
+  readonly state: FleetDriverFormState
+}): Omit<FleetDriverBody, 'membershipId'> {
+  const hasLicense = !dropsLicense
   return {
     /**
      * ⚠️ **Só vai no corpo o que o operador moveu nesta sessão.** Reenviar a coordenada gravada a
@@ -428,28 +457,31 @@ export function toDriverBody(state: FleetDriverFormState): Omit<FleetDriverBody,
       street: state.addressStreet,
     },
     anttCategory: toAnttCategory(state.anttCategory),
-    canActAsHelper: state.canActAsHelper,
-    helperDailyRate: state.helperDailyRate.trim() === '' ? null : state.helperDailyRate.trim(),
+    canActAsHelper: isHelperOnlyDriver(state) || state.canActAsHelper,
+    helperDailyRate:
+      state.helperDailyRate.trim() === ''
+        ? null
+        : parseTypedAmount({ scale: AMOUNT_MAX_SCALE, value: state.helperDailyRate }),
     securesCargo: state.securesCargo,
     birthCity: state.birthCity,
     birthDate: state.birthDate === '' ? null : state.birthDate,
     birthState: state.birthState.toUpperCase(),
     dailyAllowanceAmount:
-      state.dailyAllowanceAmount.trim() === ''
+      state.profile === 'helper' || state.dailyAllowanceAmount.trim() === ''
         ? null
         : parseTypedAmount({ scale: AMOUNT_MAX_SCALE, value: state.dailyAllowanceAmount }),
     email: state.email.trim(),
     fatherName: state.fatherName,
-    firstLicenseAt: state.firstLicenseAt === '' ? null : state.firstLicenseAt,
+    firstLicenseAt: hasLicense && state.firstLicenseAt !== '' ? state.firstLicenseAt : null,
     // O RG entra como o estado o imprime, com ponto e traço: não há formato nacional para normalizar
     identityDocument: state.identityDocument.trim(),
     identityDocumentIssuer: toIdentityDocumentIssuer(state.identityDocumentIssuer),
     identityDocumentState: state.identityDocumentState.toUpperCase(),
-    licenseCategory: toLicenseCategory(state.licenseCategory),
-    licenseExpiresAt: state.licenseExpiresAt === '' ? null : state.licenseExpiresAt,
-    licenseIssuedCity: state.licenseIssuedCity,
-    licenseIssuedState: state.licenseIssuedState.toUpperCase(),
-    licenseNumber: normalizeDigits(state.licenseNumber),
+    licenseCategory: hasLicense ? toLicenseCategory(state.licenseCategory) : '',
+    licenseExpiresAt: hasLicense && state.licenseExpiresAt !== '' ? state.licenseExpiresAt : null,
+    licenseIssuedCity: hasLicense ? state.licenseIssuedCity : '',
+    licenseIssuedState: hasLicense ? state.licenseIssuedState.toUpperCase() : '',
+    licenseNumber: hasLicense ? normalizeDigits(state.licenseNumber) : '',
     // O endereço da empresa acompanha o CNPJ: sem o vínculo ele não é endereço de ninguém
     linkedAddress: {
       city: state.linkedAddressCity,
@@ -476,5 +508,8 @@ export function toDriverBody(state: FleetDriverFormState): Omit<FleetDriverBody,
 
 /** A criação abre o usuário do sistema, e o perfil é o papel que ela concede. */
 export function toDriverCreateBody(state: FleetDriverFormState): FleetDriverCreateBody {
-  return { ...toDriverBody(state), profile: state.profile }
+  return {
+    ...buildDriverBody({ dropsLicense: state.profile === 'helper', state }),
+    profile: state.profile,
+  }
 }

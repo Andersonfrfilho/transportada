@@ -162,7 +162,7 @@ type DriverStopCardProps = Readonly<{
   blockingStopSequence?: number
   /** Spec 206 D6/D9: pode ficar em branco (bloqueado, com o atalho) ou liberado, sem escolher UI. */
   canStartRoute: StartRouteBlock
-  /** Pedido do usuário (25/09): "entrega guardada" — a foto/nota que veio de `onDocumentOccurrence`. */
+  /** Pedido do usuário (25/09): "entrega guardada" — o retorno de fila da entrega. */
   deliverActivityByDocumentId: ReadonlyMap<string, DocumentActivityView>
   /** Spec 206 D6: "Cheguei" só aparece aqui — parada a caminho, ou qualquer uma na API antiga (D17). */
   canReportArrival: boolean
@@ -175,6 +175,13 @@ type DriverStopCardProps = Readonly<{
    * acumular eventos condenados.
    */
   isFieldWorkBlocked: boolean
+  /**
+   * Spec 243 RF-3: o ajudante acompanha a viagem, não reporta — a API recusa (`trip.report`) todo
+   * toque de campo dele, então o cartão fica só de leitura e nada chega à fila.
+   */
+  isReadOnly?: boolean
+  /** Spec 234 D4d: a permissão de localização do aparelho está negada — só avisa antes do "Entreguei". */
+  isLocationDenied: boolean
   /** Pedido do usuário (25/09): a atual abre sozinha e destacada; as outras ficam fechadas. */
   isOpen: boolean
   /** Spec 082 D2: a última posição conhecida — sem ela, a distância simplesmente não aparece. */
@@ -192,14 +199,7 @@ type DriverStopCardProps = Readonly<{
   onFocusStop: (stopId: string) => void
   /** Spec 206: o cabeçalho se registra aqui — é o alvo do `scrollTo`/`focus()` de `onFocusStop`. */
   onHeaderRef: (stopId: string, element: HTMLButtonElement | null) => void
-  /** `Promise<boolean>`: sucesso acende a linha e o aviso transitório no cartão, nunca à cega. */
-  onDocumentOccurrence: (input: {
-    documentId: string
-    note: string
-    occurrenceTypeId: string
-    productCode: string
-  }) => Promise<boolean>
-  /** Spec 218 D3: ocorrência de nota com foto — o item `documentOccurrence` da fila. */
+  /** Spec 218 D3 + 226: ocorrência de nota, com ou sem foto — o item `documentOccurrence` da fila. */
   onQueuedDocumentOccurrence: OccurrenceRegistrationHandlers['enqueueDocumentOccurrence']
   occurrenceTypes: DriverOccurrenceTypesState
   onProof: (input: DriverProofAttachment) => Promise<boolean>
@@ -246,7 +246,9 @@ export function DriverStopCard({
   isCurrent,
   isEnRoute,
   isFieldWorkBlocked,
+  isLocationDenied,
   isOpen,
+  isReadOnly = false,
   lastKnownLocation,
   notDeliveredStatusByDocumentId,
   onArrive,
@@ -257,7 +259,6 @@ export function DriverStopCard({
   onFocusStop,
   onHeaderRef,
   occurrenceTypes,
-  onDocumentOccurrence,
   onNotDelivered,
   onProof,
   onQueuedDocumentOccurrence,
@@ -277,9 +278,6 @@ export function DriverStopCard({
   const [isConfirmingCancelDeparture, setIsConfirmingCancelDeparture] = useState(false)
   /** Pedido do usuário (25/09): quem registra vê — um aviso que some sozinho, perto do que ele tocou. */
   const { announce, notice } = useTransientNotice()
-  /** Painel "Registrar ocorrência" da nota (`onDocumentOccurrence`): chamada direta, sem fila offline. */
-  const [documentOccurrenceRecordedAtByDocumentId, setDocumentOccurrenceRecordedAtByDocumentId] =
-    useState<ReadonlyMap<string, string>>(new Map())
   /**
    * Pedido do usuário (25/09): "Registrar entrega depois" — escape hatch de quem não tocou
    * "Cheguei" na hora. Vale só para ESTA parada, e só no estado da página (nunca `localStorage`):
@@ -288,6 +286,7 @@ export function DriverStopCard({
   const [isLateRegistration, setIsLateRegistration] = useState(false)
   const [isConfirmingLateRegistration, setIsConfirmingLateRegistration] = useState(false)
   const isCompleted = stop.completedAt !== null
+  const areFieldActionsHidden = isFieldWorkBlocked || isReadOnly
   /** Spec 206 D9: `enRouteTappedAt` (hora do toque) é a âncora; `enRouteSince` é a reserva. */
   const enRouteAnchor = stop.enRouteTappedAt ?? stop.enRouteSince ?? undefined
   const distanceLabel = formatStopDistance({ location: lastKnownLocation, stop })
@@ -299,11 +298,7 @@ export function DriverStopCard({
   const stopChipView = isCompleted ? 'completed' : isCurrent ? 'current' : 'pending'
   const documentIdsWithOccurrence = new Set(
     stop.documents
-      .filter(
-        (document) =>
-          documentOccurrenceRecordedAtByDocumentId.has(document.id) ||
-          notDeliveredStatusByDocumentId.get(document.id) !== undefined,
-      )
+      .filter((document) => notDeliveredStatusByDocumentId.get(document.id) !== undefined)
       .map((document) => document.id),
   )
   const hasOccurrenceMarker = stopHasOccurrenceMarker({
@@ -335,16 +330,6 @@ export function DriverStopCard({
     enqueueDocumentOccurrence: (input) => {
       onQueuedDocumentOccurrence(input)
       announce(input.documentId, t('activity.toast.documentOccurrence'))
-    },
-    registerDocumentOccurrence: (input) => {
-      /* ⚠️ Vazio é a nota inteira: a nota do motorista ainda não carrega os produtos. */
-      void onDocumentOccurrence({ ...input, productCode: '' }).then((success) => {
-        if (!success) return
-        setDocumentOccurrenceRecordedAtByDocumentId((current) =>
-          new Map(current).set(input.documentId, new Date().toISOString()),
-        )
-        announce(input.documentId, t('activity.toast.documentOccurrence'))
-      })
     },
     reportStopOccurrence: (input) => {
       onStopOccurrence(input)
@@ -502,7 +487,7 @@ export function DriverStopCard({
            * tocava de novo. `isArrivalRecorded` é a mesma chegada que já libera as ações da parada:
            * conta o "Cheguei" ainda na fila.
            */}
-          {isFieldWorkBlocked || isArrivalRecorded ? null : canReportArrival ? (
+          {areFieldActionsHidden || isArrivalRecorded ? null : canReportArrival ? (
             <Button onClick={() => onArrive(stop.id)} type="button">
               <Icon name="check" />
               {t('arrive')}
@@ -525,7 +510,7 @@ export function DriverStopCard({
          * com o motivo em texto (não só `title`) e o atalho que rola até o cartão da parada aberta.
          * O atalho não inicia nada: ele só leva até lá (D6, D18).
          */}
-        {!isFieldWorkBlocked && !canStartRoute.enabled ? (
+        {!areFieldActionsHidden && !canStartRoute.enabled ? (
           <p className={styles.departBlocked} role="status">
             <Icon aria-hidden="true" name="alert" size="sm" />
             <span>
@@ -544,7 +529,7 @@ export function DriverStopCard({
         ) : null}
 
         {/* Spec 206 D18: só existe na parada a caminho, e some assim que o "Cheguei" chega. */}
-        {!isFieldWorkBlocked && isEnRoute && stop.arrivedAt === null ? (
+        {!areFieldActionsHidden && isEnRoute && stop.arrivedAt === null ? (
           isConfirmingCancelDeparture ? (
             <div className={styles.cancelDepartureConfirm} role="alertdialog">
               <p>{t('cancelDeparture.confirmTitle', { sequence: stop.sequence })}</p>
@@ -605,10 +590,9 @@ export function DriverStopCard({
               canActOnDocuments={canActOnDocuments}
               deliverActivity={deliverActivityByDocumentId.get(document.id)}
               document={document}
-              documentOccurrenceRecordedAt={documentOccurrenceRecordedAtByDocumentId.get(
-                document.id,
-              )}
               isFieldWorkBlocked={isFieldWorkBlocked}
+              isReadOnly={isReadOnly}
+              isLocationDenied={isLocationDenied}
               isLateRegistration={isLateRegistration}
               key={document.id}
               notDeliveredStatus={notDeliveredStatusByDocumentId.get(document.id)}
@@ -634,7 +618,7 @@ export function DriverStopCard({
          * só na parada que ainda está travada e tem nota para agir. O aviso reduz a nota do
          * motorista de propósito: é o preço de pular a chegada, não um erro a esconder.
          */}
-        {isFieldWorkBlocked || !offersLateRegistration ? null : isConfirmingLateRegistration ? (
+        {areFieldActionsHidden || !offersLateRegistration ? null : isConfirmingLateRegistration ? (
           <div role="alertdialog">
             <p role="alert">{t('lateRegistration.warning')}</p>
             <div className={styles.actions}>
@@ -677,9 +661,10 @@ type DocumentRowProps = Readonly<{
   /** Pedido do usuário (25/09): "entregue às HH:MM" — mesmo retorno de fila da devolução/ocorrência. */
   deliverActivity: DocumentActivityView | undefined
   document: DriverTripDocument
-  /** Painel "Registrar ocorrência" (chamada direta): hora da última confirmação, se houve. */
-  documentOccurrenceRecordedAt: string | undefined
   isFieldWorkBlocked: boolean
+  isLocationDenied: boolean
+  /** Spec 243: ajudante — mantém o estado e a hora da nota e esconde só as ações. */
+  isReadOnly: boolean
   /** Pedido do usuário (25/09): carimba `lateRegistration` no deliver/return/proof desta parada. */
   isLateRegistration: boolean
   notDeliveredStatus: NotDeliveredStatus | undefined
@@ -709,13 +694,28 @@ type DocumentRowProps = Readonly<{
   stop: DriverTripStop
 }>
 
+function DocumentSettledState({ document }: Readonly<{ document: DriverTripDocument }>) {
+  const { t } = useTranslation('driverTrip')
+
+  return (
+    <span>
+      {document.separationStatus === 'delivered'
+        ? document.deliveredAt === null
+          ? t('deliveredState')
+          : t('activity.delivered', { time: formatActivityTime(document.deliveredAt) })
+        : t(`returnReason.${document.returnReason ?? 'recipient_absent'}`)}
+    </span>
+  )
+}
+
 function DocumentRow({
   canActOnDocuments,
   deliverActivity,
   document,
-  documentOccurrenceRecordedAt,
   isFieldWorkBlocked,
   isLateRegistration,
+  isLocationDenied,
+  isReadOnly,
   notDeliveredStatus,
   occurrenceHandlers,
   occurrenceTypes,
@@ -745,6 +745,20 @@ function DocumentRow({
     onDeliver({ documentId: document.id, lateRegistration: isLateRegistration })
   }
 
+  if (isReadOnly) {
+    return isDocumentSettled(document) ? (
+      <li className={`${styles.document} ${styles.documentSettled}`}>
+        <DocumentDetails document={document} />
+        <DocumentSettledState document={document} />
+        <DriverNotDeliveredStatus status={notDeliveredStatus} />
+      </li>
+    ) : (
+      <li className={styles.document}>
+        <DocumentDetails document={document} />
+      </li>
+    )
+  }
+
   if (isFieldWorkBlocked) {
     return (
       <li className={styles.document}>
@@ -769,22 +783,8 @@ function DocumentRow({
     return (
       <li className={`${styles.document} ${styles.documentSettled}`}>
         <DocumentDetails document={document} />
-        <span>
-          {document.separationStatus === 'delivered'
-            ? document.deliveredAt === null
-              ? t('deliveredState')
-              : t('activity.delivered', { time: formatActivityTime(document.deliveredAt) })
-            : t(`returnReason.${document.returnReason ?? 'recipient_absent'}`)}
-        </span>
+        <DocumentSettledState document={document} />
         <DriverNotDeliveredStatus status={notDeliveredStatus} />
-        {documentOccurrenceRecordedAt === undefined ? null : (
-          <ActivityStatusLine
-            status="sent"
-            text={t('activity.documentOccurrenceRecorded', {
-              time: formatActivityTime(documentOccurrenceRecordedAt),
-            })}
-          />
-        )}
         <div className={styles.actions}>
           <DocumentOccurrenceButton
             isOpen={openOccurrence}
@@ -818,14 +818,6 @@ function DocumentRow({
     <li className={styles.document}>
       <DocumentDetails document={document} />
       <DriverNotDeliveredStatus status={notDeliveredStatus} />
-      {documentOccurrenceRecordedAt === undefined ? null : (
-        <ActivityStatusLine
-          status="sent"
-          text={t('activity.documentOccurrenceRecorded', {
-            time: formatActivityTime(documentOccurrenceRecordedAt),
-          })}
-        />
-      )}
       {/*
        * Pedido do usuário (25/09): "registrei e nada aconteceu?" — a nota ainda não bate como
        * entregue/devolvida no snapshot (a API não confirmou), mas o toque já está na fila, e a
@@ -881,6 +873,12 @@ function DocumentRow({
        * desabilitado e cinza: o aviso ocupa o lugar delas. Spec 218 (D4): "Ocorrência" fica fora
        * disso — doca fechada se relata antes de chegar.
        */}
+      {/* Spec 234 D4d: só avisa — sem localização a entrega conta como longe, e o botão abaixo segue tocável. */}
+      {canActOnDocuments && isLocationDenied ? (
+        <div className={styles.proofPendingWarning} role="status">
+          <p className={styles.proofPendingWarningLead}>{t('locationOffWarning')}</p>
+        </div>
+      ) : null}
       <div className={styles.actions}>
         {canActOnDocuments ? (
           <>

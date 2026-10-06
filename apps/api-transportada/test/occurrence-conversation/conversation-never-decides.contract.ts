@@ -116,9 +116,16 @@ describe('a conversa nunca decide (spec 183 T504, D4)', () => {
         from: '5511987654321',
         id: 'wamid.button',
         interactive: { button_reply: { id: 'approve', title: 'Aprovado' }, type: 'button_reply' },
+        timestamp: '1790000000',
         type: 'interactive',
       },
-      { from: '5511987654321', id: 'wamid.text', text: { body: 'APROVADO' }, type: 'text' },
+      {
+        from: '5511987654321',
+        id: 'wamid.text',
+        text: { body: 'APROVADO' },
+        timestamp: '1790000000',
+        type: 'text',
+      },
     ]
 
     for (const message of messages) await hook(message, session)

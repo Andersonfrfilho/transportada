@@ -15,6 +15,7 @@ import {
   type ProofPosition,
   type ProofPunctuality,
 } from '../domain/delivery-proof-punctuality.policy.js'
+import { resolveOccurredAt } from '../domain/occurred-at.policy.js'
 import {
   buildDeliveryProofObjectKey,
   DELIVERY_PROOF_MAX_BYTES,
@@ -62,6 +63,8 @@ export type DeliveryProofUpload = {
   readonly bytes: Uint8Array
   /** ADR-0070 §3, spec 159 RF3/RF5: o que o aparelho diz ter tirado a foto — não confiável sozinho. */
   readonly capturedAt: Date | undefined
+  /** Spec 234 D2: servidor − aparelho, medido pelo app; corrige `capturedAt` em `resolveOccurredAt`. */
+  readonly clockOffsetMs?: number
   readonly kind: TripDeliveryProofKind
   /**
    * Spec 205 RF3: o envio veio pelo "Registrar entrega depois" da app do motorista. Ausente é
@@ -125,6 +128,18 @@ export type DeliveryProofPort = {
     readonly deliveryEventPosition: Coordinate | undefined
     /** Spec 205 D2: a entrega foi registrada depois (`trip_stop_events.late_registration`). */
     readonly lateRegistration?: boolean
+    /**
+     * Spec 234 R1: o evento de entrega gravou a hora corrigida (`occurred_at`). Ausente = não. Sem
+     * isso `deliveredAt` pode ser a hora crua do aparelho, e compará-la com a foto corrigida inventa
+     * atraso.
+     */
+    readonly isEventClockCorrected?: boolean
+    /**
+     * Spec 234 D4c: o evento de entrega veio do app do motorista (`trip_stop_events.channel`), o único
+     * canal que coleta posição — sem posição, só essa entrega conta como longe. Obrigatório: o dublê
+     * que esquecer o canal não compila.
+     */
+    readonly isDeliveryRecordedByDriver: boolean
   }>
   /** `null` quando nenhum comprovante daquele evento+tipo foi gravado com esta chave. */
   findProofIdByAttachmentKey(input: {
@@ -159,6 +174,11 @@ export type DeliveryProofPort = {
     /** Foto da mercadoria: a contagem contra este teto roda na transação que grava, sob trava do evento. */
     readonly cargoLimit?: number
     readonly capturedAt: Date | null
+    /**
+     * Spec 234 D4 (risco 5 da T1.5): o desvio com que a foto foi julgada — `null` quando a correção
+     * não foi aceita ou a foto não classifica. `capturedAt` segue a hora crua do aparelho.
+     */
+    readonly clockOffsetMs: number | null
     readonly companyId: string
     readonly eventId: string
     readonly id: string
@@ -274,7 +294,8 @@ export async function attachDeliveryProof(
     if (cargoCount >= TRIP_DELIVERY_PROOF_CARGO_LIMIT) throw new TripDeliveryProofCargoLimitError()
   }
 
-  const nextPunctuality = await classifyUploadPunctuality({ authorship, eventId, input, settings })
+  const classified = await classifyUploadPunctuality({ authorship, eventId, input, settings })
+  const nextPunctuality = classified.punctuality
   // Só o que substitui funde com o veredito anterior; `cargo` soma, cada foto guarda o seu.
   const punctuality = isCargo
     ? nextPunctuality
@@ -330,6 +351,7 @@ export async function attachDeliveryProof(
     authorship,
     ...(isCargo ? { cargoLimit: TRIP_DELIVERY_PROOF_CARGO_LIMIT } : {}),
     capturedAt: input.upload.capturedAt ?? null,
+    clockOffsetMs: classified.clockOffsetMs,
     companyId: input.companyId,
     eventId,
     id: proofId,
@@ -407,12 +429,19 @@ async function classifyUploadPunctuality(params: {
   readonly eventId: string
   readonly input: AttachDeliveryProofInput
   readonly settings: DeliveryProofFieldSettings
-}): Promise<ProofPunctuality> {
+}): Promise<ClassifiedUpload> {
   const { kind } = params.input.upload
-  if (kind !== PHOTO_PROOF_KIND && kind !== CARGO_PROOF_KIND) return PROOF_PUNCTUALITY.notRequired
-  if (params.authorship.channel === TRIP_FIELD_CHANNELS.office) return PROOF_PUNCTUALITY.notRequired
+  const unclassified = { clockOffsetMs: null, punctuality: PROOF_PUNCTUALITY.notRequired }
+  if (kind !== PHOTO_PROOF_KIND && kind !== CARGO_PROOF_KIND) return unclassified
+  if (params.authorship.channel === TRIP_FIELD_CHANNELS.office) return unclassified
 
   return classifyPhotoPunctuality(params)
+}
+
+/** O veredito e o desvio que o produziu (spec 234 D4) — os dois vão juntos para a linha da foto. */
+type ClassifiedUpload = {
+  readonly clockOffsetMs: number | null
+  readonly punctuality: ProofPunctuality
 }
 
 /**
@@ -422,22 +451,43 @@ async function classifyUploadPunctuality(params: {
  *
  * Spec 205 D2: registro tardio no envio **ou** na entrega — a app pode esquecer o campo no segundo
  * toque, e a entrega já disse.
+ *
+ * Spec 234 D4: a foto é julgada pela hora do toque corrigida pelo desvio do relógio; correção
+ * descartada por `resolveOccurredAt` mantém a hora crua e o piso de `missingAfterHours`. R1: com
+ * posição na entrega, a correção da foto só vale se o evento de entrega também foi corrigido — senão
+ * `deliveredAt` é hora crua e a comparação seria entre relógios diferentes. Sem posição (D4b) a flag
+ * segue só o desvio. R2: o desvio só vai para a linha da foto quando de fato julgou o veredito.
  */
 async function classifyPhotoPunctuality(params: {
   readonly eventId: string
   readonly input: AttachDeliveryProofInput
   readonly settings: DeliveryProofFieldSettings
-}): Promise<ProofPunctuality> {
+}): Promise<ClassifiedUpload> {
   const { eventId, input, settings } = params
   const [punctualitySettings, context] = await Promise.all([
     input.repository.resolveProofPunctualitySettings({ companyId: input.companyId }),
     input.repository.findDeliveryContext({ companyId: input.companyId, eventId }),
   ])
 
-  return classifyProofPunctuality({
-    capturedAt: input.upload.capturedAt,
+  const occurred = resolveOccurredAt({
+    clockOffsetMs: input.upload.clockOffsetMs,
+    receivedAt: input.now,
+    tappedAt: input.upload.capturedAt,
+  })
+
+  const hasDeliveryPosition = context.deliveryEventPosition !== undefined
+  const hasCorrectedClock =
+    occurred.kind === 'corrected' &&
+    (!hasDeliveryPosition || context.isEventClockCorrected === true)
+  const punctuality = classifyProofPunctuality({
+    capturedAt:
+      occurred.kind === 'corrected' && hasCorrectedClock
+        ? occurred.occurredAt
+        : input.upload.capturedAt,
     deliveredAt: context.deliveredAt,
     deliveryEventPosition: context.deliveryEventPosition,
+    hasCorrectedClock,
+    isDeliveryRecordedByDriver: context.isDeliveryRecordedByDriver,
     lateRegistration: input.upload.lateRegistration === true || context.lateRegistration === true,
     missingAfterHours: punctualitySettings.missingAfterHours,
     photoMode: input.upload.kind === CARGO_PROOF_KIND ? settings.cargo : settings.photo,
@@ -446,4 +496,10 @@ async function classifyPhotoPunctuality(params: {
     proofWindowMinutes: punctualitySettings.proofWindowMinutes,
     receivedAt: input.now,
   })
+
+  return {
+    clockOffsetMs:
+      hasCorrectedClock && hasDeliveryPosition ? (input.upload.clockOffsetMs ?? null) : null,
+    punctuality,
+  }
 }

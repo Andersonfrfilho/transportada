@@ -118,13 +118,13 @@ describe('comprovante da entrega na tela (spec 079 T006/T025)', () => {
     // o componente para `<TripDeliveryProofDESLIGADO` mantém a substring e a afirmação passa. Foi o
     // que aconteceu na primeira escrita, e a mutação revelou.
     expect(readFileSync(DETAIL, 'utf8')).toMatch(/<TripDeliveryProof[\s/>]/u)
-    expect(readFileSync(ROW, 'utf8')).toInclude('actions.onToggleProof(document.id)')
+    expect(readFileSync(ROW, 'utf8')).toInclude('actions.onToggleDocument(document.id)')
   })
 
   /** Ler o canhoto não é administrar a viagem: quem acompanha a operação o abre sem `trip.manage`. */
   it('não esconde o comprovante atrás de permissão de escrita', () => {
     const source = readFileSync(ROW, 'utf8')
-    const inicio = source.indexOf('actions.onToggleProof')
+    const inicio = source.indexOf('actions.onToggleDocument')
     const trecho = source.slice(source.lastIndexOf('{', inicio - 200), inicio)
 
     expect(trecho).not.toInclude('canManage')
@@ -275,7 +275,20 @@ describe('hora e distância da captura no comprovante (spec 220 T4.2)', () => {
  * de `lateRegistration`) — dois campos, dois selos, por imagem.
  */
 describe('selos do comprovante (spec 220 T4.3)', () => {
-  const source = readFileSync(READINGS, 'utf8')
+  /** Spec 233 D4: o selo de pontualidade saiu da leitura para o componente de selos; o de registro tardio ficou. */
+  const readingsSource = readFileSync(READINGS, 'utf8')
+  const badgesSource = readFileSync(
+    new URL(
+      '../../src/modules/trip/components/TripDocumentProofBadges.component.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+  const serviceSource = readFileSync(
+    new URL('../../src/modules/trip/shared/tripDocumentProofBadges.service.ts', import.meta.url),
+    'utf8',
+  )
+  const source = badgesSource + serviceSource
 
   it('tem rótulo acentuado, distinto, para cada veredito que merece selo', () => {
     const labels = PROOF_LABELS.punctuality
@@ -301,8 +314,8 @@ describe('selos do comprovante (spec 220 T4.3)', () => {
   it('tem selo próprio de registro tardio, a partir de lateRegistration', () => {
     expect(PROOF_LABELS.lateRegistration).toBeString()
     expect(PROOF_LABELS.lateRegistration?.length).toBeGreaterThan(0)
-    expect(source).toInclude('lateRegistration')
-    expect(source).toInclude('deliveryProof.lateRegistration')
+    expect(readingsSource).toInclude('lateRegistration')
+    expect(readingsSource).toInclude('deliveryProof.lateRegistration')
     expect(PROOF_LABELS.lateRegistration).not.toBe(PROOF_LABELS.punctuality?.late)
   })
 
@@ -321,7 +334,9 @@ describe('selos do comprovante (spec 220 T4.3)', () => {
   })
 
   it('pinta o registro tardio como secondary, distinto do veredito de pontualidade', () => {
-    expect(source).toMatch(/<Badge variant="secondary">\{t\('deliveryProof\.lateRegistration'\)/u)
+    expect(readingsSource).toMatch(
+      /<Badge variant="secondary">\{t\('deliveryProof\.lateRegistration'\)/u,
+    )
   })
 
   it('separa os selos da mesma linha: contêiner flex com gap e wrap', () => {

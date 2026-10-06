@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   TripCrewHelperNotEligibleError,
+  TripDriverCannotDriveError,
   TripCrewHelperWithoutDriverError,
   TripDriverDuplicatedError,
   TripDriverNotAvailableError,
@@ -21,6 +22,7 @@ import {
 
 const activeDriver = (overrides: Partial<TripDriverCandidate> = {}): TripDriverCandidate => ({
   canActAsHelper: false,
+  canDrive: true,
   id: 'driver-1',
   name: 'Motorista Titular',
   status: 'active',
@@ -207,6 +209,90 @@ describe('trip crew policy', () => {
 
     expect(error).toBeInstanceOf(TripCrewHelperNotEligibleError)
     expect(error?.details).toEqual([{ field: 'helperIds', message: 'helper-1' }])
+  })
+
+  // Spec 235 D5: o ajudante-puro (`can_drive = false`) nunca entra como condutor.
+  test('rejects a helper-only record in the driver list, naming every one in details', () => {
+    const drivers = [
+      activeDriver({ id: 'driver-1' }),
+      activeDriver({ canActAsHelper: true, canDrive: false, id: 'helper-1' }),
+      activeDriver({ canActAsHelper: true, canDrive: false, id: 'helper-2' }),
+    ]
+
+    const error = (() => {
+      try {
+        resolveTripCrew({ driverIds: ['helper-1', 'driver-1', 'helper-2'], drivers })
+        return null
+      } catch (caught) {
+        return caught as TripDriverCannotDriveError
+      }
+    })()
+
+    expect(error).toBeInstanceOf(TripDriverCannotDriveError)
+    expect(error?.code).toBe('TRIP_DRIVER_CANNOT_DRIVE')
+    expect(error?.status).toBe(409)
+    expect(error?.details).toEqual([
+      { field: 'driverIds', message: 'helper-1' },
+      { field: 'driverIds', message: 'helper-2' },
+    ])
+  })
+
+  test('accepts a helper-only record in the helper list', () => {
+    const drivers = [
+      activeDriver({ id: 'driver-1' }),
+      activeDriver({ canActAsHelper: true, canDrive: false, id: 'helper-1' }),
+    ]
+
+    expect(
+      resolveTripCrew({ driverIds: ['driver-1'], drivers, helperIds: ['helper-1'] }).map((line) => [
+        line.driverId,
+        line.role,
+      ]),
+    ).toEqual([
+      ['driver-1', 'driver'],
+      ['helper-1', 'helper'],
+    ])
+  })
+
+  test('keeps a driver who also helps valid in both roles', () => {
+    const drivers = [
+      activeDriver({ canActAsHelper: true, id: 'driver-1' }),
+      activeDriver({ canActAsHelper: true, id: 'driver-2' }),
+    ]
+
+    expect(resolveTripCrew({ driverIds: ['driver-1'], drivers }).map((line) => line.role)).toEqual([
+      'driver',
+    ])
+    expect(
+      resolveTripCrew({ driverIds: ['driver-2'], drivers, helperIds: ['driver-1'] }).map((line) => [
+        line.driverId,
+        line.role,
+      ]),
+    ).toEqual([
+      ['driver-2', 'driver'],
+      ['driver-1', 'helper'],
+    ])
+  })
+
+  // A ordem das recusas: duplicado → ajudante sem motorista → não encontrado/inativo → não dirige.
+  test('checks duplicates, a helper without driver and missing or inactive records before driving', () => {
+    const helperOnly = activeDriver({ canActAsHelper: true, canDrive: false, id: 'helper-1' })
+
+    expect(() =>
+      resolveTripCrew({ driverIds: ['helper-1', 'helper-1'], drivers: [helperOnly] }),
+    ).toThrow(TripDriverDuplicatedError)
+    expect(() =>
+      resolveTripCrew({ driverIds: [], drivers: [helperOnly], helperIds: ['helper-1'] }),
+    ).toThrow(TripCrewHelperWithoutDriverError)
+    expect(() =>
+      resolveTripCrew({ driverIds: ['helper-1', 'ghost'], drivers: [helperOnly] }),
+    ).toThrow(TripDriverNotFoundError)
+    expect(() =>
+      resolveTripCrew({
+        driverIds: ['helper-1', 'inactive'],
+        drivers: [helperOnly, activeDriver({ id: 'inactive', status: 'inactive' })],
+      }),
+    ).toThrow(TripDriverNotAvailableError)
   })
 
   test('driversOnly filters helpers out, keeping the driver order', () => {

@@ -5,17 +5,8 @@
 export const TRIP_LOCATION_PURGE_JOB = 'trip.location.purge'
 
 /**
- * ADR-0045 §3.3: noventa dias. Dado de localização de pessoa identificada é dado pessoal na LGPD, e
- * reter para sempre "por garantia" transforma comprovante em passivo.
- *
- * O prazo mora aqui e em `docs/SECURITY.md`, e é o mesmo número: retenção que a documentação promete
- * e o código não cumpre é retenção que não existe.
- */
-export const TRIP_LOCATION_RETENTION_DAYS = 90
-
-/**
  * A varredura anda em lotes porque a tabela é escrita o dia inteiro pela execução de campo: um
- * `UPDATE` único sobre noventa dias de eventos seguraria a escrita do motorista que está na rua.
+ * `UPDATE` único sobre toda a retenção vencida seguraria a escrita do motorista que está na rua.
  */
 export const TRIP_LOCATION_PURGE_BATCH_SIZE = 500
 
@@ -34,21 +25,57 @@ export const TRIP_LOCATION_PURGE_MAX_BATCHES = 200
  */
 export const EXPIRED_LOCATION_STATE = 'expired'
 
-const HOURS_PER_DAY = 24
-const MILLISECONDS_PER_HOUR = 3_600_000
+/** Spec 196 D8: nomes de tabela citados em mais de um ponto do expurgo (listas, log e redatores). */
+export const TRIP_STOP_EVENTS_TABLE = 'trip_stop_events'
+export const TRIP_DELIVERY_PROOFS_TABLE = 'trip_delivery_proofs'
+export const TRIP_STATUS_EVENTS_TABLE = 'trip_status_events'
+export const TRIP_STOP_OCCURRENCES_TABLE = 'trip_stop_occurrences'
+export const TRIP_DOCUMENT_OCCURRENCES_TABLE = 'trip_document_occurrences'
 
-export function resolveRetentionCutoff(now: Date): Date {
-  return new Date(
-    now.getTime() - TRIP_LOCATION_RETENTION_DAYS * HOURS_PER_DAY * MILLISECONDS_PER_HOUR,
-  )
-}
+/**
+ * Spec 196 D8: as cinco tabelas de evento que carregam o ponto do toque, cada uma com a coluna de
+ * tempo que o corte por empresa compara. ⚠️ Cópia por valor do que o worker enxerga — o
+ * contrato de paridade lê o schema da API e reprova tabela com `latitude` fora desta lista e da
+ * `TRIP_LOCATION_UNSTAMPED_TABLES`.
+ */
+export const TRIP_LOCATION_STAMPED_TABLES = [
+  { table: TRIP_STOP_EVENTS_TABLE, timeColumn: 'created_at' },
+  { table: TRIP_DELIVERY_PROOFS_TABLE, timeColumn: 'created_at' },
+  { table: TRIP_STATUS_EVENTS_TABLE, timeColumn: 'recorded_at' },
+  { table: TRIP_STOP_OCCURRENCES_TABLE, timeColumn: 'created_at' },
+  { table: TRIP_DOCUMENT_OCCURRENCES_TABLE, timeColumn: 'created_at' },
+] as const
+
+const ADDRESS_NOT_PERSON_POSITION_REASON =
+  'endereço ou cadastro de lugar, não a posição de uma pessoa em um instante'
+
+/** Spec 196 D8: tabelas com coordenada que o expurgo da posição **não** varre, e por quê. */
+export const TRIP_LOCATION_UNSTAMPED_TABLES = [
+  { table: 'trip_stops', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
+  { table: 'client_delivery_addresses', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
+  { table: 'geocoded_addresses', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
+  { table: 'geocoded_address_corrections', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
+  { table: 'municipality_centroids', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
+  { table: 'toll_booths', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
+  {
+    table: 'trip_location_pings',
+    reason: 'rastro ao vivo, com expurgo próprio de horas (ADR-0056 §2) que apaga a linha inteira',
+  },
+  {
+    table: 'fleet_drivers',
+    reason:
+      'coordenada da casa do motorista: cadastro que vale enquanto ele está na frota, e não o lugar onde ele esteve num instante — vive e morre com a ficha, não com prazo',
+  },
+] as const
+
+const MILLISECONDS_PER_HOUR = 3_600_000
 
 /**
  * ADR-0056 §2. ⚠️ **Cópia por valor** de `TRIP_TRACKING_MAX_AGE_HOURS`
  * (`api-transportada/src/trips/domain/tracking-window.policy.ts`): o worker não importa código da
  * API. Mudou lá? mude aqui — e o contrato de paridade compara os dois números.
  *
- * O rastro ao vivo tem prazo muito mais curto que os noventa dias da coordenada de entrega, e é
+ * O rastro ao vivo tem prazo muito mais curto que o prazo por empresa da coordenada de entrega (90 dias por padrão), e é
  * de propósito: a coordenada carimba um fato que se audita depois, e o ping é o trajeto — que a
  * ADR-0050 §5 decidiu **não** guardar.
  */

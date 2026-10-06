@@ -191,7 +191,9 @@ function buildSession(mode: 'bot' | 'human' = 'bot'): ConversationSession {
     companyId: COMPANY_ID,
     context: {},
     createdAt: '2026-09-11T12:00:00.000Z',
+    currentNodeId: null,
     currentState: 'start',
+    flowKey: null,
     humanRequestedAt: null,
     id: 'session-1',
     lastActivity: '2026-09-11T12:00:00.000Z',
@@ -204,7 +206,13 @@ function buildSession(mode: 'bot' | 'human' = 'bot'): ConversationSession {
 }
 
 function text(body: string): WhatsAppMessage {
-  return { from: PHONE, id: crypto.randomUUID(), text: { body }, type: 'text' }
+  return {
+    from: PHONE,
+    id: crypto.randomUUID(),
+    text: { body },
+    timestamp: '1790000000',
+    type: 'text',
+  }
 }
 
 function button(id: string): WhatsAppMessage {
@@ -212,6 +220,7 @@ function button(id: string): WhatsAppMessage {
     from: PHONE,
     id: crypto.randomUUID(),
     interactive: { button_reply: { id, title: id }, type: 'button_reply' },
+    timestamp: '1790000000',
     type: 'interactive',
   }
 }

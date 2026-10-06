@@ -146,7 +146,9 @@ function buildSession(): ConversationSession {
     companyId: COMPANY_ID,
     context: {},
     createdAt: '2026-09-21T12:00:00.000Z',
+    currentNodeId: null,
     currentState: 'start',
+    flowKey: null,
     humanRequestedAt: null,
     id: 'session-1',
     lastActivity: '2026-09-21T12:00:00.000Z',
@@ -163,6 +165,7 @@ function image(input: { readonly id?: string; readonly mimeType?: string } = {})
     from: PHONE,
     id: crypto.randomUUID(),
     image: { id: input.id ?? MEDIA_ID, mime_type: input.mimeType ?? 'image/jpeg' },
+    timestamp: '1790000000',
     type: 'image',
   }
 }
@@ -172,6 +175,7 @@ function button(id: string): WhatsAppMessage {
     from: PHONE,
     id: crypto.randomUUID(),
     interactive: { button_reply: { id, title: id }, type: 'button_reply' },
+    timestamp: '1790000000',
     type: 'interactive',
   }
 }

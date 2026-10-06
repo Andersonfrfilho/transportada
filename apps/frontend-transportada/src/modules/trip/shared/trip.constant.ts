@@ -117,6 +117,8 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   TRIP_DOCUMENT_NOT_REACHABLE: 'documentNotReachable',
   TRIP_DOCUMENT_REFERENCE_INVALID: 'documentReferenceInvalid',
   TRIP_DOCUMENT_RETURN_REASON_REQUIRED: 'documentReturnReasonRequired',
+  /** Spec 235 D5: a ficha escolhida como motorista só ajuda (`can_drive` falso) — 409, ids em `details`. */
+  TRIP_DRIVER_CANNOT_DRIVE: 'driverCannotDrive',
   TRIP_DRIVER_DUPLICATED: 'driverDuplicated',
   TRIP_DRIVER_NOT_AVAILABLE: 'driverNotAvailable',
   TRIP_DRIVER_NOT_FOUND: 'driverNotFound',
@@ -271,6 +273,8 @@ export const TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS = [
   'nfeNumber',
   'nfeSeries',
   'nfeTotalValue',
+  /** Spec 233 D5: ausente é API anterior ao campo; presente é inteiro ou `null`. */
+  'volumeCount',
   /** Spec 176: mesmo motivo — API vai à frente do bundle, e ausente é API anterior à feature. */
   'freightAmount',
   'freightRuleName',
@@ -516,7 +520,10 @@ export const TRIP_TIMELINE_ITEM_KEYS = [
  * Spec 205 RF8: o registro tardio do motorista, só como dado. Opcional porque a API anterior ao campo
  * não o manda — a chave exata recusaria a página inteira na janela entre as duas subidas.
  */
-export const TRIP_TIMELINE_ITEM_OPTIONAL_KEYS = ['lateRegistration'] as const
+export const TRIP_TIMELINE_ITEM_OPTIONAL_KEYS = ['addressChange', 'lateRegistration'] as const
+
+/** Spec 228 D8: as duas chaves exatas do `addressChange`; metros, nunca endereço. */
+export const TRIP_TIMELINE_ADDRESS_CHANGE_KEYS = ['displacementMeters', 'origin'] as const
 
 /** Spec 196 RF9: o ponto onde o toque aconteceu; a precisão é nula quando o aparelho não a informou. */
 export const TRIP_TIMELINE_LOCATION_KEYS = [
@@ -618,6 +625,7 @@ export const DELIVERY_PROOF_OPTIONAL_KEYS = [
   'capturedAt',
   'distanceMeters',
   'lateRegistration',
+  'proofRadiusMeters',
   'punctuality',
   'receiverDocument',
   'thumbnailUrl',

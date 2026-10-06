@@ -107,7 +107,16 @@ export type DriverTripManifest = Readonly<{
   protocol: string
 }>
 
+/** Spec 243 D4: o papel de quem lê na viagem — `helper` acompanha, só `driver` reporta. */
+export const TRIP_CREW_ROLES = ['driver', 'helper'] as const
+export type TripCrewRole = (typeof TRIP_CREW_ROLES)[number]
+
 export type DriverTrip = Readonly<{
+  /**
+   * Spec 243 D4: opcional porque o snapshot guardado no aparelho antes do campo existir não o traz —
+   * ausente equivale a `driver` (`resolveTripCrewRole`).
+   */
+  crewRole?: TripCrewRole
   id: string
   /**
    * Spec 206 D17: `true` quando o snapshot não trouxe `enRouteSince`/`enRouteTappedAt` em NENHUMA
@@ -255,6 +264,17 @@ export type DriverFieldReport =
       stopId: string
       tappedAt: string
     }>
+  /**
+   * Spec 230: "Despachar viagem" vai pela fila como qualquer toque de campo — sem sinal fica como
+   * pendência de envio e sobe sozinho (ou pelo envio manual). O servidor trata o despacho repetido
+   * como `unchanged`, então reenviar é seguro. O ponto (spec 196) entra depois, pela chave.
+   */
+  | Readonly<{
+      idempotencyKey: string
+      kind: 'dispatch'
+      location: DriverReportedLocation | null
+      tripId: string
+    }>
   /** Spec 206 D18: desfaz o "Iniciar rota" desta parada, a qualquer momento antes do "Cheguei". */
   | Readonly<{
       idempotencyKey: string
@@ -285,6 +305,7 @@ export type DriverFieldReport =
       documentId: string | null
       idempotencyKey: string
       kind: 'occurrence'
+      location: DriverReportedLocation | null
       stopId: string
     }> &
       StopOccurrenceReportReference)
@@ -297,6 +318,7 @@ export type DriverFieldReport =
       documentId: string
       idempotencyKey: string
       kind: 'documentOccurrence'
+      location: DriverReportedLocation | null
       note: string
       occurrenceTypeId: string
       /** Só para a tela de pendentes: quem decide pelo id é o servidor. */

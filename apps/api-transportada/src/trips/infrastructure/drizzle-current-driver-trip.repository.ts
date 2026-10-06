@@ -4,6 +4,7 @@
 import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
+import { deliveredMomentSql } from '../../database/delivered-moment.support.js'
 import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
 import {
   companyDeliveryProofSettings,
@@ -75,6 +76,7 @@ import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import type { TripDatabase } from './trip-queryable.type.js'
 import { TRIP_DISPATCHED_STATUSES, TRIP_ON_ROAD_STATUSES } from '../domain/trip-state.policy.js'
 import type { TripStatus } from '../../database/trip.schema.js'
+import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { TripFieldOfficeAuditInput } from '../application/trip-field-office-audit.port.js'
 import { insertTripFieldOfficeAudit } from './trip-field-office-audit.persistence.js'
@@ -216,6 +218,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     readonly channel: TripFieldChannel
     readonly companyId: string
     readonly expectedStatus: TripStatus
+    readonly locationStamp?: EventLocationStampColumns | undefined
     readonly onBehalfOfDriverId: string | null
     readonly tripId: string
     readonly tripStatus: TripStatus
@@ -240,6 +243,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         channel: input.channel,
         companyId: input.companyId,
         fromStatus: input.expectedStatus,
+        locationStamp: input.locationStamp,
         onBehalfOfDriverId: input.onBehalfOfDriverId,
         toStatus: input.tripStatus,
         tripId: input.tripId,
@@ -257,6 +261,8 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     const tripRows = await this.database
       .select({
         createdAt: trips.createdAt,
+        // Spec 243 D3: o papel sai da mesma linha que recorta a viagem — sem consulta por viagem.
+        crewRole: tripDrivers.role,
         id: trips.id,
         plate: fleetVehicles.plate,
         status: trips.status,
@@ -343,6 +349,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
 
     return tripRows.map((trip) => ({
       createdAt: trip.createdAt.toISOString(),
+      crewRole: trip.crewRole,
       id: trip.id,
       manifest: manifestsByTrip.get(trip.id) ?? null,
       status: trip.status,
@@ -376,7 +383,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     ])
 
     return rows.flatMap((row) => {
-      const deliveredAt = row.capturedAt ?? row.recordedAt
+      const { deliveredAt } = row
       // Spec 159 T11 (D1): o mesmo corte da nota — a pendência de antes da regra não pesa nem aparece.
       if (effectiveSince !== undefined && deliveredAt < effectiveSince) return []
       const isOwnDelivery =
@@ -473,19 +480,19 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     return this.database
       .selectDistinctOn([tripStopEvents.tripDocumentId], {
         actorUserId: tripStopEvents.actorUserId,
-        capturedAt: tripStopEvents.capturedAt,
         channel: tripStopEvents.channel,
         contractorId: contractors.id,
         canhotoReview: tripDeliveryProofs.canhotoReview,
         canhotoReviewNote: tripDeliveryProofs.canhotoReviewNote,
         canhotoReviewReason: tripDeliveryProofs.canhotoReviewReason,
+        /** Spec 234 D3: o mesmo instante da nota — os dois não discordam na fronteira. */
+        deliveredAt: deliveredMomentSql(tripStopEvents),
         documentNumber: nfeDocuments.number,
         documentSeries: nfeDocuments.series,
         hasPhoto: sql<boolean>`${tripDeliveryProofs.id} is not null`,
         recipientName: nfeParticipants.legalName,
         recipientTaxId: nfeParticipants.taxId,
         recipientTradeName: nfeParticipants.tradeName,
-        recordedAt: tripStopEvents.recordedAt,
         reportedByDriverId: tripStopEvents.reportedByDriverId,
         separationStatus: tripDocuments.separationStatus,
         tripDocumentId: tripDocuments.id,
@@ -546,10 +553,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         and(
           eq(tripStopEvents.companyId, input.companyId),
           eq(tripStopEvents.kind, DELIVERED_EVENT_KIND),
-          gte(
-            sql`coalesce(${tripStopEvents.capturedAt}, ${tripStopEvents.recordedAt})`,
-            timestamptzParameter(input.windowStart),
-          ),
+          gte(deliveredMomentSql(tripStopEvents), timestamptzParameter(input.windowStart)),
           inArray(trips.status, [...TRIP_DISPATCHED_STATUSES]),
           fieldTripTargetCondition({
             driverId: input.driverId,

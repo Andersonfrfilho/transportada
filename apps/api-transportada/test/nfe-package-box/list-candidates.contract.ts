@@ -26,6 +26,7 @@ function buildBox(overrides: Partial<PackageBoxView>): PackageBoxView {
     isEstimated: false,
     lengthMm: null,
     measuredAt: null,
+    measuredByName: null,
     measurementMarginMm: null,
     measurementSource: null,
     packagingSiblingCount: 0,
@@ -193,5 +194,59 @@ describe('a fila devolve quantas caixas já foram medidas e quantas faltam', () 
     })
 
     expect(capturedCount).toEqual({ companyId: 'company-1', filters: {} })
+  })
+})
+
+describe('a lista das já medidas abre pelo último registro', () => {
+  function buildRepository(boxes: readonly PackageBoxView[]): PackageBoxRepositoryPort {
+    return {
+      countMeasurement: () => Promise.resolve({ measuredCount: boxes.length, pendingCount: 0 }),
+      getSiblings: () => Promise.reject(new Error('not stubbed')),
+      list: () => Promise.resolve(boxes),
+      measure: () => Promise.resolve(true),
+      replicate: () => Promise.reject(new Error('not stubbed')),
+    }
+  }
+
+  const recentButSmall = buildBox({
+    id: 'recent',
+    measuredAt: '2026-10-01T12:00:00.000Z',
+    measuredByName: 'Maria',
+    transportedVolumes: 1,
+  })
+  const oldButBig = buildBox({
+    id: 'old',
+    measuredAt: '2026-09-16T12:00:00.000Z',
+    measuredByName: 'João',
+    transportedVolumes: 500,
+  })
+
+  test('com status "measured" mantém a ordem do repositório, e não a do volume', async () => {
+    const listPackageBoxes = createListPackageBoxes({
+      repository: buildRepository([recentButSmall, oldButBig]),
+    })
+
+    const result = await listPackageBoxes.execute({
+      context: { companyId: 'company-1' },
+      filters: { status: 'measured' },
+      limit: 50,
+    })
+
+    expect(result.items.map((item) => item.id)).toEqual(['recent', 'old'])
+    expect(result.items[0]?.measuredByName).toBe('Maria')
+  })
+
+  test('com status "pending" a fila continua na ordem do volume transportado', async () => {
+    const listPackageBoxes = createListPackageBoxes({
+      repository: buildRepository([recentButSmall, oldButBig]),
+    })
+
+    const result = await listPackageBoxes.execute({
+      context: { companyId: 'company-1' },
+      filters: { status: 'pending' },
+      limit: 50,
+    })
+
+    expect(result.items.map((item) => item.id)).toEqual(['old', 'recent'])
   })
 })

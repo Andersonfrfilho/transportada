@@ -22,6 +22,13 @@ export async function acquireCompanySettingsLock(
   await acquireAdvisoryLock(transaction, ['company-settings', companyId])
 }
 
+export async function acquireLocationRetentionLock(
+  transaction: CompanySettingsTransaction,
+  companyId: string,
+): Promise<void> {
+  await acquireAdvisoryLock(transaction, ['location-retention', companyId])
+}
+
 export async function acquireIdempotencyLock(
   transaction: CompanySettingsTransaction,
   fields: readonly string[],

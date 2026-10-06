@@ -33,6 +33,7 @@ export async function recordTripStatusChange(
     onBehalfOfDriverId: params.onBehalfOfDriverId,
     toStatus: params.toStatus,
     tripId: params.tripId,
+    ...params.locationStamp,
     ...(params.occurredAt === undefined ? {} : { occurredAt: params.occurredAt }),
   })
 }

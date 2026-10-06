@@ -105,6 +105,29 @@ depois anexos (`offlineAttachments.service.ts`) exigiria a ordem inversa, e a 17
 `test/driver-trip/offline-queue.contract.ts`, `test/driver-trip/offline-attachments.contract.ts`,
 `test/driver-trip/occurrence-upload.contract.ts`.
 
+**O momento do evento é o do toque, corrigido pelo relógio** (spec 234, Fase 2). `request()` do cliente
+lê o `Date` de toda resposta `ok` e guarda (`clockOffset.service.ts:driverClockOffset`) o desvio
+`servidor − aparelho`, contra o ponto médio do pedido; o `Date` tem resolução de 1 s e o erro de ±1 s é
+aceito, e pedido com ida e volta acima de 5 s (`MAX_CLOCK_SAMPLE_ROUND_TRIP_MS`) não mede — upload lento é
+assimétrico. O item da fila (`QueuedReport`) e o anexo (`QueuedAttachment`) guardam o desvio **da criação**
+(`clockOffsetMs`); no envio a drenagem entrega `{ tappedAt: createdAt, clockOffsetMs }` ao `send` (`send({ report, stamp })`,
+`StampedReport`, com `stamp` obrigatório no objeto). Só
+`CLOCK_FIELD_REPORT_KINDS` (`arrive`, `deliver`, `return`, ocorrência de parada e a foto dela) levam os dois
+campos — os esquemas da API são `.strict()` e `depart`/`cancelDeparture` (já com `tappedAt` próprio),
+`dispatch`, ocorrência de nota e `proof/receiver` dariam `400`. O multipart do comprovante leva só
+`clockOffsetMs` (o `capturedAt` já é a hora do toque). Sem desvio medido, nenhum campo vai. ⚠️ O `Date` de outra
+origem só chega ao JavaScript com `Access-Control-Expose-Headers: Date`, que a API emite em
+`applyCorsHeaders` (`CORS_EXPOSE_HEADERS`, `test/cors.contract.test.ts`); sem ele o app não mede nada e não há erro.
+
+**O desvio sobrevive ao aparelho sem sinal** (spec 234 D7/T2.6): a última medição vai ao `localStorage`
+(`transportada.driver.clock-offset.v1`, `{ offsetMs, measuredAt }`) e vale `CLOCK_OFFSET_MAX_AGE_MS` (24 h,
+limite inclusivo); a leitura devolve `undefined` com registro malformado, vencido ou com `measuredAt` no futuro
+do relógio atual. É `localStorage` e não IndexedDB porque a leitura é **síncrona**: o hook lê o desvio ao
+enfileirar, e uma leitura assíncrona deixaria a primeira entrega do boot offline sem ele (mesmo precedente do
+`occurrenceTypesCache`). O desvio é do aparelho, não da conta — sem `subHash`, e o "Sair" não o apaga.
+`test/driver-trip/clock-offset.contract.ts`, `test/driver-trip/clock-offset-persistence.contract.ts`, `test/driver-trip/event-clock-fields.contract.ts`, smoke em
+`driver-app.smoke.spec.ts`.
+
 **"Não entreguei" é ocorrência com foto e devolução** (spec 179, pedido do usuário de 25/09,
 `notDelivered.service.ts`). A devolução (`/return`, `DRIVER_RETURN_REASONS`) é o que fecha nota,
 parada e viagem; a ocorrência (tipo do cadastro, com a foto) é a prova e abre a tratativa da spec
@@ -303,3 +326,25 @@ cópia daqui é vigiada pelo `catalog-parity`, contra a API.
 `frontend-transportada` (o mapa fixo `path → origem`, ~60 arquivos). Os vindos de `frontend-client`
 (auth, CSP, ambiente, `server.ts`) têm o comentário, mas não estão nesse mapa automatizado — a
 garantia ali é só a prosa do cabeçalho, não um teste dedicado.
+
+## Todo toque manda onde aconteceu (spec 196, ADR-0081)
+
+Despacho, "Iniciar rota", ocorrência da parada e da nota levam `location` na fila. Toque que vai para a fila
+grava a posição na hora (leitura de 8 s); toque direto (despacho e "Iniciar rota") espera a posição só
+**3 s** (`readDirectTapLocation`, relógio da própria app) e segue com `location: null` se ela não vier — GPS
+negado ou mudo nunca trava a entrega. O reenvio da foto da ocorrência da parada repete o corpo **sem**
+`location`. Detalhe: docs/ai-context/frontend-driver.md § "Spec 196".
+
+## O ajudante acompanha a viagem (spec 243)
+
+`crewRole` na resposta de `/me/trips/current` (`'driver'` | `'helper'`, campo opcional no tipo porque
+snapshot antigo no IndexedDB não traz — lê como `driver` por padrão). Com `helper`: aviso fixo
+"Você acompanha esta viagem como ajudante", sem botões de ação que exigem `trip.report`. Fila offline
+trata o 403 como recusado; com ajudante nenhum botão chama `report(...)`. Contrato:
+`test/driver-trip/helper-crew-role.contract.ts`. Detalhe: docs/ai-context/frontend-driver.md
+§ "Spec 243 — O ajudante acompanha a viagem" e ADR-0095.
+
+## O ajudante sem resto (spec 244)
+
+**T2:** `useLocationConsent` trata 403 em leitura como inaplicável; cartão some. Testes:
+`test/driver-trip/location-consent-applicability.contract.tsx`.

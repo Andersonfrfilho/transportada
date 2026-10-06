@@ -1,11 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq, sql } from 'drizzle-orm'
 
+import { withDisposableDatabase as withDisposableDatabaseLifecycle } from '../fixtures/disposable-database.fixture.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
   companies,
@@ -585,7 +585,9 @@ describe('trip repository integration', () => {
           taxId: '22222222222',
         },
         {
+          // Spec 235 D2: o ajudante-puro — não dirige, só ajuda
           canActAsHelper: true,
+          canDrive: false,
           companyId,
           id: helperTwoId,
           name: 'Ajudante Dois',
@@ -594,6 +596,24 @@ describe('trip repository integration', () => {
       ])
 
       const repository = new DrizzleTripRepository(database.db)
+      // Spec 235 D5: a política da viagem lê `can_drive` da ficha, não o papel
+      const candidates = await repository.listDrivers({
+        companyId,
+        driverIds: [driverId, helperOneId, helperTwoId],
+      })
+      expect(
+        Object.fromEntries(
+          candidates.map((candidate) => [
+            candidate.id,
+            { canActAsHelper: candidate.canActAsHelper, canDrive: candidate.canDrive },
+          ]),
+        ),
+      ).toEqual({
+        [driverId]: { canActAsHelper: false, canDrive: true },
+        [helperOneId]: { canActAsHelper: true, canDrive: true },
+        [helperTwoId]: { canActAsHelper: true, canDrive: false },
+      })
+
       const created = await repository.create({
         actorUserId: userId,
         channel: TRIP_FIELD_CHANNELS.backoffice,
@@ -1167,27 +1187,11 @@ async function withDisposableDatabase(
   operation: (database: TestDatabase) => Promise<void>,
 ): Promise<void> {
   if (databaseUrl === undefined) throw new Error('A PostgreSQL test URL is required')
-  const admin = new SQL(databaseUrl, { max: 1 })
-  const databaseName = `transportada_t007_${crypto.randomUUID().replaceAll('-', '')}`
-  const disposableUrl = new URL(databaseUrl)
-  disposableUrl.pathname = `/${databaseName}`
-  disposableUrl.search = ''
-  let database: TestDatabase | undefined
-  try {
-    // Disposable database identifiers cannot be parameterized.
-    await admin.unsafe(`create database "${databaseName}"`)
-    await runDatabaseMigrations({ connectionString: disposableUrl.toString() })
-    database = createDrizzleProvider({ connection: disposableUrl.toString() })
-    await operation(database)
-  } finally {
-    try {
-      await database?.close()
-    } finally {
-      try {
-        await admin.unsafe(`drop database if exists "${databaseName}" with (force)`)
-      } finally {
-        await admin.close({ timeout: 0 })
-      }
-    }
-  }
+  await withDisposableDatabaseLifecycle({
+    adminUrl: databaseUrl,
+    namePrefix: 'transportada_t007',
+    migrate: (connectionString) => runDatabaseMigrations({ connectionString }),
+    open: (connectionString) => createDrizzleProvider({ connection: connectionString }),
+    operation,
+  })
 }

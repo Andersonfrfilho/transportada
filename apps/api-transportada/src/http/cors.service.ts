@@ -4,6 +4,7 @@
 import { ApiError } from '../shared/api.error'
 import {
   CORS_ALLOW_HEADERS,
+  CORS_EXPOSE_HEADERS,
   CORS_MAX_AGE_SECONDS,
   HTTP_ERROR,
   HTTP_GET_METHOD,
@@ -126,6 +127,7 @@ export function applyCorsHeaders({
     // Exigido pro navegador aceitar `credentials: 'include'` — sem ele, o cookie de refresh do
     // agregado (`HttpOnly`, `SameSite=Lax`) nunca chega de volta pro `fetch()` da landing.
     response.headers.set('access-control-allow-credentials', 'true')
+    response.headers.set('access-control-expose-headers', CORS_EXPOSE_HEADERS)
   }
 }
 

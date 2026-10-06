@@ -56,6 +56,42 @@ emitente da nota.
   entrega, não o relacionamento comercial: isto **não é CRM**.
 - Contractor: **o embarcador que contratou o frete** — o emitente da nota, pelo mesmo caminho
   automático. Guarda o período de fechamento e para quem o relatório de repasse vai.
+- ContractorReceivingProfile: **as regras de recebimento de um contratante, como dado** (spec 237,
+  ADR-0094). Uma linha por contratante, FK composta `(company_id, contractor_id)`; sem linha, ou com
+  `is_enabled = false`, o contratante segue o fluxo de hoje. Guarda a janela de separação, o prazo de
+  entrega em dias úteis (lido pela 236), a prévia por planilha (aba e mapa **nome de coluna → campo**),
+  o padrão que lê o `NroCarga` e os parâmetros do vínculo por conteúdo. Editar o perfil nunca age sobre
+  chegada já registrada: a chegada copia as regras no momento do registro.
+- CargoArrival: **a carga de um contratante na doca, antes de existir viagem** (spec 237 Fase 2,
+  ADR-0094 §6). Só nasce com o perfil de recebimento ligado; **copia** a janela de separação e o prazo
+  em dias úteis do perfil no registro e guarda `separation_due_at = arrived_at + janela` (o banco prende
+  a igualdade por CHECK). `open → closed`, e fechar exige toda nota separada. Idempotente pela chave
+  `(company_id, idempotency_key)` com a impressão do pedido (`request_fingerprint`).
+- CargoArrivalDocument: a nota na chegada, com **eixo próprio** `expected → received → separated`
+  (nunca `trip_documents.separation_status`), agrupada por rota do contratante × cidade IBGE do
+  destinatário. Uma nota entra em no máximo uma chegada (`unique (company_id, nfe_document_id)`).
+- CargoArrivalEvent: a trilha append-only da chegada (trigger), com ator, canal, `occurred_at` e
+  `recorded_at`; o CHECK de forma repete a tabela de transições.
+- CargoPreview: **a planilha de prévia que o contratante manda antes da carga** (spec 237 Fase 4a,
+  ADR-0094 §3/§7/§8). Entra por upload (`source = upload`; o e-mail é a Fase 4b), com `received_at` =
+  instante em que chegou ao servidor — o relógio que se compara com o do XML. `queued → processing →
+ready | failed` (`failed` exige `error_code` `PREVIEW_*`). O arquivo fica no bucket privado sob chave
+  opaca (`file_object_id`); quem lê é o worker. Idempotente pelo arquivo do contratante
+  (`company_id, contractor_id, file_sha256`) e pela chave. `arrival_id` (opcional, 1 prévia = 1 chegada).
+- CargoPreviewItem: uma linha da prévia — `contractor_reference` é o `Text001` do contratante, nunca
+  número de NF. Estado `matched | ambiguous | suggested | awaiting_xml | invalid`; quem decidiu por
+  último é `matched_by` (`system | user`) — o que o operador decidiu a máquina nunca reavalia. A linha
+  `invalid` guarda só coluna e motivo (`row_error`), nunca o valor da célula.
+- CargoPreviewDocumentLink: a nota ligada a uma prévia. **Uma nota, uma prévia** é o unique dela; as N
+  linhas que fecham a mesma nota apontam para o vínculo da prévia delas por FK composta.
+- CargoPreviewRouteLoad: o par roteiro (`RouteName`) ↔ carga (`NroCarga`) dentro de uma prévia, 1:1,
+  com a origem (`totals | votes | user`).
+- ContractorRecipientAlias: o código do destinatário no contratante (`Company`) ↔ o CNPJ/CPF dele,
+  aprendido só de linha `matched`; nunca sobrescrito.
+- CargoPreviewEvent: a trilha append-only da prévia (trigger) — envio, leitura, falha, cada vínculo
+  da máquina (canal `worker`, sem ator) e cada ação do operador (canal `backoffice`, com ator).
+- CargoPreviewOutbox: o pedido ao worker (`cargo-preview.process` com a prévia, `cargo-preview.reevaluate`
+  por contratante, coalescido e adiado), gravado na transação de quem o causa (ADR-0007).
 - DeliveryClientWindow e DeliveryClientException: a hora em que o cliente recebe. A janela é lista
   (o almoço fechado é um buraco entre dois intervalos), e a exceção é a data que foge da semana.
 - MunicipalHoliday: `(company_id, city_ibge_code, holiday_on)`. O feriado é **da cidade**, não do
@@ -119,6 +155,16 @@ erDiagram
 - FK compostas ou validação equivalente impedem relação entre tenants.
 - `numeric(19,4)` para valores; percentual `numeric(9,6)`.
 - `trip_stop(trip_id, sequence)` unique.
+- `contractor_receiving_profiles(company_id, contractor_id)` unique, com FK composta para `contractors`.
+- `cargo_arrivals(company_id, idempotency_key)` unique; `cargo_arrival_documents(company_id,
+nfe_document_id)` unique (uma nota, uma chegada); o evento aponta para a nota pela chegada
+  (`(company_id, arrival_id, arrival_document_id)`), nunca para nota de outra chegada.
+- `cargo_previews(company_id, contractor_id, file_sha256)` e `(company_id, idempotency_key)` unique;
+  `cargo_preview_document_links(company_id, document_id)` unique (uma nota em uma prévia só);
+  `cargo_preview_items(company_id, preview_id, row_number)` unique; o item vinculado aponta para o
+  vínculo **desta** prévia (`(company_id, preview_id, matched_document_id)`);
+  `cargo_preview_route_loads` 1:1 por prévia; `contractor_recipient_aliases(company_id, contractor_id,
+recipient_code)` unique.
 - índice unique parcial garante que uma NF-e viva esteja em no máximo uma viagem.
 - ordem das paradas imutável a partir de `dispatched` (ADR-0043 §2).
 
