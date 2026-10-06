@@ -1647,3 +1647,76 @@ integração) e a **T3.0 segue PENDENTE** — pede autorização do usuário, n�
 produção depois dela.
 
 Pendente: **T1d.0** e **T3.0** (medições, pedem autorização), e a **ordem de publicação** da T1d.2.
+
+## Fase 3 — O servidor cobra a exceção (2026-10-06)
+
+### T3.1 e T3.2 — fechadas com a evidência da Fase 2
+
+O conteúdo das duas foi implementado e provado na T2.3 (por pedido), e a regra é uma só: o registro resolve
+a exigência da nota por **tipo + exceção de contratante + exceção de destinatário**, campo a campo, com o
+**mesmo** resolvedor do snapshot (`resolveFieldOccurrenceTypeResolutions`, sobre `resolveWithOverrides`),
+lendo contratante e destinatário **da nota no servidor** (`findReachableDocument`), nunca do corpo. Nenhuma
+segunda implementação. Itens e mínimos efetivos (`assertOccurrenceItemsRequirement`) leem o mesmo resolvido.
+
+- **T3.1 (contrato primeiro).** Vermelho registrado na T2.3 (`SyntaxError: Export named
+'TripOccurrenceSignatureRequiredError' not found`). Verde hoje:
+
+```text
+$ bun --env-file=../../.env.test test ./test/trip-occurrence/requirement-modes-registration.contract.ts ./test/trip-occurrence/requirement-modes-resolution.contract.ts
+ 21 pass
+ 0 fail
+```
+
+- **T3.2 (implementação), pelo caminho real no banco** (`occurrence-requirement-modes-registration.integration.ts`):
+
+```text
+ 3 pass
+ 0 fail
+```
+
+### T3.3 — Paridade snapshot × registro, no mesmo banco (CA02, CA03)
+
+`test/integration/occurrence-effective-requirements-parity.integration.ts` (na lista `test:integration`).
+Dois contratantes-destinatários, duas notas do mesmo emitente. O teste lê o tipo **dentro do snapshot**
+(`findCurrentDriverTrip`) e, para cada nota e cada campo que o snapshot diz `required`, prova pelo registro
+real (`registerDriverOccurrence` + Drizzle): sem o campo, o erro estável do campo; com os exigidos, grava.
+
+- CA02: tipo `optional` no geral e `required` (foto e assinatura) por destinatário → nota 1 `required`,
+  nota 2 `optional`/`off`, no snapshot **e** no registro.
+- CA03: contratante afrouxa foto e observação; destinatário da nota 2 endurece só a foto; destinatário vence
+  contratante vence tipo, campo a campo (a observação, nula no destinatário, herda a do contratante).
+
+```text
+$ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/occurrence-effective-requirements-parity.integration.ts
+ 2 pass
+ 0 fail
+ 11 expect() calls
+```
+
+Mutação 1 — o registro deixa de ler a exceção (`occurrenceTypeIds: []` em `registerStreetOccurrence`):
+
+```text
+error: expect(received).toBeInstanceOf(expected)
+Expected constructor: [class TripOccurrenceAttachmentRequiredError extends ApiError]
+Received value: undefined
+(fail) ... > mesmo tipo, required numa nota e optional noutra: snapshot e registro dizem o mesmo (CA02)
+(fail) ... > destinatário vence contratante vence tipo, campo a campo, nos dois lados (CA03)
+ 0 pass
+ 2 fail
+```
+
+Mutação 2 — o snapshot deixa de ler a exceção (`occurrenceTypeIds: []` em
+`DrizzleCurrentDriverTripRepository`):
+
+```text
+error: expect(received).toEqual(expected)
+- Expected  - 2
++ Received  + 2
+(fail) ... > mesmo tipo, required numa nota e optional noutra: snapshot e registro dizem o mesmo (CA02)
+(fail) ... > destinatário vence contratante vence tipo, campo a campo, nos dois lados (CA03)
+ 0 pass
+ 2 fail
+```
+
+As duas restauradas (`git status`: só o arquivo novo e o `package.json`). `bun run typecheck` da API: saída 0.
+**T3.0 segue PENDENTE** (pede autorização do usuário; a RF6 só ativa em produção depois dela).

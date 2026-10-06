@@ -210,16 +210,16 @@ trip_document_occurrence_attachments_unique_position DO NOTHING`. **`created_at 
 o.company_id AND t.id = o.occurrence_type_id WHERE t.attachment_mode = 'required' AND
 o.attachment_mode <> 'required'`. Registrar os números em `evidence.md`. **A Fase 3 só ativa em
       produção depois desta medição registrada** — é a parada obrigatória (ver Prompt de execução).
-- [ ] **T3.1** Contrato primeiro: o registro resolve a exigência da nota por **tipo + exceção de
+- [x] **T3.1** Contrato primeiro: o registro resolve a exigência da nota por **tipo + exceção de
       contratante + exceção de destinatário**, campo a campo, com `resolveWithOverrides`;
       destinatário vence contratante vence tipo; exceção menos estrita afrouxa; mais estrita
       endurece; tipo sem exceção cobra exatamente o que cobrava (CA04). Contratante e destinatário
       lidos **da nota no servidor**, nunca do payload.
-- [ ] **T3.2** Implementar em `register-driver-occurrence.use-case.ts` (e o repositório que lê as
+- [x] **T3.2** Implementar em `register-driver-occurrence.use-case.ts` (e o repositório que lê as
       exceções do tipo), reutilizando o resolvedor do snapshot — **nenhuma segunda implementação** —
       no lugar do `attachmentMode` do tipo só. Inclui `itemsMode` e os mínimos efetivos
       (`assertOccurrenceTypeAcceptsProducts` passa a ler o modo efetivo).
-- [ ] **T3.3** Integração provando CA02 e CA03: mesmo tipo, `required` numa nota e `optional` noutra,
+- [x] **T3.3** Integração provando CA02 e CA03: mesmo tipo, `required` numa nota e `optional` noutra,
       **no snapshot e no registro**; o que o app mostra é o que o servidor cobra (paridade).
 
 ## Fase 4 — O motorista captura o que foi pedido
