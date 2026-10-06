@@ -2524,3 +2524,31 @@ Lido: `apps/worker-transportada/src/trip-occurrence-attachment-purge/` (`drizzle
 ### B5 — cabeçalho de copyright nas migrations
 
 As migrations `…112823`, `…115725` e `…123712` ganharam o mesmo cabeçalho (`-- Copyright (c) 2026 Ada Technology. MIT License.` + `--`) que a `…131040` já tinha e que a regra 17 do `code-standart` pede de todo arquivo-fonte. Só o `migration.sql` mudou (comentário): `bun run db:generate` → `{"status":"no_changes","dialect":"postgresql"}` e o snapshot ficou intocado; `database-migration.contract` 92 pass.
+
+### M4 — rebase sobre `origin/staging` e as quatro migrations refeitas
+
+`git fetch` + `git rebase origin/staging` (22 commits da staging, entre eles a migration `20261006144825_cargo_arrival_check_null_holes`, filha do mesmo pai `20261006033752` da 241). Conflitos só em `apps/api-transportada/package.json` (listas de teste de uma linha, resolvidas por mescla de três vias token a token: `test` 199 e `test:integration` 194 arquivos, JSON válido, sem duplicados, todos existem) e em `test/database-migration/static-migration.contract.ts` (a lista ordenada das migrations). Nenhum conflito de código.
+
+O rebase bifurcou a cadeia de snapshots (`…144825` e `…112823` com o mesmo `prevIds`). As quatro migrations da 246 foram **apagadas e regeradas em ordem**, por cima da última da staging, com o schema de cada passo (o `src/database` do commit original de cada uma) e `db:generate`; o SQL e os `rollback.sql` foram reaplicados idênticos (só o nome muda: comentários e o `DELETE` do journal):
+
+| antes                                                               | depois                                                 |
+| ------------------------------------------------------------------- | ------------------------------------------------------ |
+| `20261006112823_occurrence_type_requirement_modes`                  | `20261006184835_occurrence_type_requirement_modes`     |
+| `20261006115725_occurrence_type_moments`                            | `20261006184901_occurrence_type_moments`               |
+| `20261006123712_occurrence_type_quantity_minimums`                  | `20261006184909_occurrence_type_quantity_minimums`     |
+| `20261006131040_street_occurrence_attachment_backfill` (`--custom`) | `20261006184921_street_occurrence_attachment_backfill` |
+
+Comparação com as de antes: `migration.sql` e `rollback.sql` idênticos linha a linha (0 diferenças depois de mapear os nomes). Os quatro `snapshot.json` diferem do anterior só em `id`, `prevIds` e nas três CHECKs que a `…144825` da staging corrige (`cargo_arrivals`, `cargo_arrival_documents`, `cargo_arrival_events`) — herança legítima, não alteração nossa. Nenhum arquivo da 241 nem de outras specs foi alterado (`git diff origin/staging HEAD` só toca arquivos da 246).
+
+Nomes atualizados em `static-migration.contract.ts`, nos cinco testes de integração que leem o `migration.sql` pelo caminho, no `plan.md` e neste arquivo (as menções antigas acima, nos relatos das fases, passam a citar o nome novo).
+
+Prova: `bun run db:generate` → `{"status":"no_changes","dialect":"postgresql"}`; `bun run db:check` → `Everything's fine`.
+
+## Gates finais da correção da revisão (API) (2026-10-06, depois do rebase)
+
+- `bun install --frozen-lockfile`: sem mudanças. `bun run typecheck` (sete apps): limpo.
+- `./node_modules/.bin/prettier --check .` e `bun run format:check`: limpos.
+- Contrato da API (`bun --env-file=../../.env.test test --timeout 120000`): 9948 pass, 25 skip, 0 fail, 199 arquivos. Os skips são os testes de banco descartável, que o `db:test` exercita abaixo.
+- Migration (`DRIZZLE_TEST_DATABASE_URL=… bun run db:test`, o que o `make migration-test` roda): 134 pass, 0 skip, 0 fail.
+- Integração, um arquivo por vez, `--env-file=../../.env.test`, todos 0 fail e sem skip: os 16 da 246 (`occurrence-type-requirement-modes` 1, `occurrence-type-moments-registration` 2, `occurrence-type-moments-backfill` 1, `occurrence-type-quantity-minimums` 1, `occurrence-type-minimum-counts` 4, `occurrence-type-allows-multiple-items` 2, `street-occurrence-attachment-read` 3, `street-occurrence-attachment-backfill` 1, `street-occurrence-attachment-write` 2, `street-occurrence-photo-statement` 1, `occurrence-requirement-modes-registration` 3, `occurrence-requirement-modes-write` 5, `occurrence-effective-requirements-parity` 2, `occurrence-signature-isolation` 2, `driver-occurrence-attachment-list` 2, `occurrence-attachment-overrides-batch` 2); os três novos desta rodada (`occurrence-override-minimum-shape` 2, `occurrence-type-moments-tenant` 1, mais a `occurrence-signature-isolation` ampliada); os da 241 (`occurrence-type-items-mode` 5, `occurrence-type-leaves-document-behind` 4, `occurrence-type-redelivery-policy` 2, `occurrence-type-catalog-seed` 2, `trip-occurrence-type-items-read` 4, `trip-occurrence-attachment` 6); e os que receberam o stub da porta (M5): `event-location-stamp` 23, `trip-field-authorship` 5, `whatsapp-driver-flow-actions` 4, `me-trip` 21, `field-trip-target` 7.
+- `bun run build`: exit 0. `bun run --cwd apps/frontend-transportada test`: 702 pass, 0 fail. `bun run --cwd apps/frontend-driver test`: 1242 pass, 0 fail.
