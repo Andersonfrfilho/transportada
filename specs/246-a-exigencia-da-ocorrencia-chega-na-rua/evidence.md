@@ -2130,3 +2130,143 @@ Received length: 1
 `bun run typecheck` (raiz) saída 0 · `prettier --check .` e `bun run format:check` verdes ·
 `bun run --cwd apps/frontend-transportada test`: `7005 pass, 0 fail` (contratos) e `634 pass, 0 fail` (lote DOM) ·
 lint com a app como cwd: 0 erros (16 avisos anteriores) · `bun run --cwd apps/frontend-transportada build` ok.
+
+## T5.3d, T5.3e e T5.4 — aviso ao contratante, busca e filtros, endereço antigo (2026-10-06)
+
+O `preview.html` foi aberto no navegador embutido; por ser arquivo local o painel só o mostra como imagem estática
+(`read_page`/`javascript_tool` recusam), então o desenho foi lido do próprio HTML/CSS: pílulas `aria-pressed` com marca
+`+`/`✓`, cobre na ligada, rótulo mono por grupo (Momento · Exige · E ainda), busca no topo com "Limpar", e o bloco
+"Notificação" com o texto do modelo escolhido numa caixa. Não houve print da tela real nesta rodada (vai para a T6.1).
+
+### T5.3d — o aviso ao contratante no tipo aberto (RF1e)
+
+`OccurrenceTypeNotification` (novo) reúne o interruptor `notifies`, a seleção do modelo (`Select` do design system dentro de
+`Tooltip dismissOnActivate`) e a política de reentrega fica onde estava na linha, com a regra da 241/164 intacta. O modelo
+mostra o conteúdo de duas formas: cada opção da lista já traz o começo do texto (`description`, 90 caracteres) e o modelo
+escolhido aparece abaixo com **Assunto:** e o corpo inteiro. `buildOccurrenceEmailTemplateOptions` passou a devolver
+`subject` e `body` (aditivo; `key`/`label` não mudaram) e `OccurrenceEmailTemplatesState` diz se a lista carregou, falhou
+ou ainda carrega. Toda gravação sai por `buildOccurrenceTypeUpdate(type, { emailTemplateKey })` (o campo entrou no
+`OccurrenceTypeEdit`), então `redeliveryPolicy` continua indo sempre (RF4).
+
+Estados com o motivo em texto: tipo que não avisa desliga o modelo e a frase fica ligada por `aria-describedby`; modelo
+legado (`emailSubject` sem chave) vem marcado "modelo próprio (legado)" com o texto antigo; chave que não está mais na lista
+continua nomeada no seletor e a tela diz que ela não está ativa; lista que falhou ou carrega tem frase própria.
+`OccurrenceTypeCatalogPanel` (que passou de 136 para 149 linhas) deixou de montar os grupos: `OccurrenceTypeList` os monta, e
+`templateLabel` saiu de `Item`/`Row` (era só a linha de texto que o bloco novo substituiu).
+
+Contrato primeiro, vermelho (`test/trip-hooks/occurrence-type-notification.contract.ts`, antes de o componente existir):
+
+```text
+error: TEMPLATE_SELECT_NOT_FOUND
+(fail) aviso ao contratante no tipo (RF1e) > a lista de modelos já mostra o texto de cada um antes de escolher [7.68ms]
+(fail) aviso ao contratante no tipo (RF1e) > escolher outro modelo grava só a chave dele, e Sem e-mail grava nulo [4.93ms]
+(fail) aviso ao contratante no tipo (RF1e) > tipo que não avisa: o modelo fica desligado com o motivo ligado por aria-describedby, e sem texto [3.98ms]
+ 2 pass
+ 7 fail
+```
+
+Verde depois: `17 pass, 0 fail` junto com `occurrence-type-row-edits` (9 casos novos: texto à vista, texto na lista aberta, só a chave
+vai no corpo, `Sem e-mail` grava `null`, não avisa, legado, modelo sumido, lista que falhou, Produtos desligado esconde a política e
+ligado grava só ela).
+
+Mutação pedida (`itemsMode === 'off'` sem mandar `redeliveryPolicy: 'unset'`, em `buildOccurrenceTypeUpdate`), vermelha e revertida:
+
+```text
+(fail) buildOccurrenceTypeUpdate > Produtos Desligado manda itemsMode off e zera a política [0.07ms]
+(fail) buildOccurrenceTypeUpdate > sair de Produtos obrigatório manda itemsMinimumCount nulo explícito [0.06ms]
+(fail) linha do tipo de ocorrência: cada controle grava a sua edição > Produtos: Desligado leva a política para unset [12.47ms]
+```
+
+O contrato de texto `occurrence-type-catalog-template-select` passou a ler também o novo componente
+(`occurrenceTypePanelSource.helper.ts`): sem isso `legacyTemplate` sumia do código-fonte lido e o contrato ficava vermelho —
+nenhuma asserção foi afrouxada.
+
+**Textos pt-BR novos** (`companySettings.occurrenceTypeCatalog.notification`, en espelhado): "Notificação"; "Modelo da
+notificação" (dica: "O e-mail que o contratante recebe quando este tipo é registrado. O texto se edita em Notificações; aqui só
+se escolhe qual modelo vale."); "Assunto:"; "O modelo só vale quando o tipo avisa o contratante. Ligue "Avisar quando
+acontecer" para escolher."; "Carregando os modelos de e-mail…"; "Não foi possível carregar os modelos de e-mail. O modelo
+atual segue valendo; recarregue a página para tentar de novo."; "O modelo "{{key}}" não está mais ativo, então nenhum e-mail
+sai por ele. Escolha outro modelo.".
+
+### T5.3e — busca e filtros-pílula combináveis (RF11b)
+
+Função pura em `shared/occurrenceTypeFilter.service.ts` (`filterOccurrenceTypes`) e estado das pílulas em
+`shared/occurrenceTypeFilterChips.service.ts` (`toggleOccurrenceTypeFilterChip`, `isOccurrenceTypeFilterChipPressed`,
+`countActiveOccurrenceTypeFilters`). Regras: grupos combinam por E; em Momento vale qualquer um dos escolhidos; em Exige valem
+todos e "exige" é `required`; Ativos/Inativos e Avisa/Não avisa são excludentes; Tem exceção olha a consulta em lote. Tipo
+sem `moments` (API anterior) lê o grupo e o fluxo. A busca casa o nome do tipo, e o nome ou o CNPJ de quem tem exceção, sem
+caixa nem acento; **o CNPJ casa com e sem máscara** (a consulta que só tem dígito e máscara é normalizada; texto com número
+como "ponto 12" não vira CNPJ). Sem exceções carregadas a busca por nome do tipo segue e Tem exceção nunca casa.
+
+Tela: `OccurrenceTypeFilters` (busca "Buscar tipos", "Limpar", 3 grupos de pílulas `aria-pressed` com marca `+`/`✓`, contador
+`aria-live` "N de M tipos"), `OccurrenceTypeFilterEmpty` ("Nenhum tipo corresponde" + o motivo + "Limpar filtros"),
+`useOccurrenceTypeFilters` (estado de tela). A pílula Tem exceção fica desligada com a frase de motivo ligada por
+`aria-describedby` enquanto as exceções não carregam. CSS mobile-first (`occurrenceTypeFilters.module.css`): a fileira rola de lado
+sem quebrar linha e sem estourar a página, alvos de `--touch-target`; de `40rem` em diante quebra linha e usa a altura compacta
+(o contrato `responsive` recusou a primeira versão em `max-width`, e foi corrigido na fonte).
+
+Contratos primeiro, vermelhos (`test/trip/occurrence-type-filters.contract.ts`, antes da implementação):
+
+```text
+error: Cannot find module '@/modules/trip/shared/occurrenceTypeFilter.service' from '.../test/trip/occurrence-type-filters.contract.ts'
+ 0 pass
+ 1 fail
+ 1 error
+```
+
+Verdes depois: `2518 pass, 0 fail` no contrato da viagem (14 casos novos: combinações, momento derivado, CNPJ com e sem máscara,
+exceções não carregadas, pílulas excludentes, contagem) e `test/trip-hooks/occurrence-type-filters-panel.contract.ts`
+(DOM, 6 casos: "3 de 3 tipos", combinação e contagem, busca por CNPJ `12345678000190` e `12.345.678/0001-90` e por nome, estado vazio
+com motivo e "Limpar filtros", Tem exceção desligada com motivo e busca por nome viva, CSS de rolagem lateral e toque).
+
+Mutações pedidas, vermelhas e revertidas:
+
+```text
+# o filtro "tem exceção" invertido (`exceptionCount !== 0`)
+(fail) filtros da aba Tipos (RF11b) > tem exceção: só o tipo com ao menos uma, e sem exceções carregadas nenhum casa [0.19ms]
+ 2517 pass
+ 1 fail
+
+# busca de CNPJ sem normalizar a máscara (`? trimmed : ''`)
+(fail) filtros da aba Tipos (RF11b) > busca pelo CNPJ da exceção, com e sem máscara [0.16ms]
+ 2517 pass
+ 1 fail
+```
+
+Um contrato antigo (`occurrence-exceptions-panel`) lê o primeiro `[role="status"]` da página para a mensagem de clientes; o
+contador novo usa só `aria-live`, para não tomar esse lugar.
+
+**Textos pt-BR novos** (`companySettings.occurrenceTypeCatalog.filters`, en espelhado): "Filtros dos tipos"; "Buscar tipos";
+"Buscar por nome do tipo, ou por nome / CNPJ de quem tem exceção"; "Limpar"; "Limpar filtros"; "{{shown}} de {{total}} tipos";
+grupos "Momento", "Exige", "E ainda"; pílulas "Separação no galpão", "Entrega da nota", "Chegada à parada", "Escritório",
+"Foto", "Observação", "Assinatura", "Produtos", "Ativos", "Inativos", "Avisa contratante", "Não avisa", "Tem exceção";
+"O filtro Tem exceção fica indisponível enquanto as exceções não carregam."; "Nenhum tipo corresponde"; motivos "Nenhum tipo tem
+esse nome, e ninguém com exceção tem esse nome ou CNPJ: "{{query}}"." e "Há 1 filtro ligado que nenhum tipo cumpre." /
+"Há {{count}} filtros ligados que nenhum tipo cumpre juntos.".
+
+### T5.4 — o endereço antigo
+
+Os quatro contratos já afirmavam o endereço novo (commit `ea5c3bfde`) e estavam verdes antes e depois (`company-settings.contract.test.ts`:
+`255 pass, 0 fail`): `tabs.contract.ts` (`settingsTabsOf('trip')` é `['proof','location','types']`),
+`occurrence-type-attachment-mode`, `occurrence-type-catalog-template-select` e `occurrence-type-catalog-panel`. Este último ainda
+tinha um caso que exigia o rótulo da aba velha em Configurações (`tabs.occurrenceTypes`) e um título "Viagens → Tipos": o caso
+passou a afirmar o contrário (rótulo antigo ausente nos dois idiomas, rótulo novo `occurrenceFeed.tabs.types` presente e sem
+"aviso") e o título diz "Ocorrências → Tipos".
+
+Busca por links e textos (`rtk proxy grep -rn "company-settings.*occurrenceTypes\|tab=occurrenceTypes\|/company-settings#occurrence" apps docs`):
+um único achado, `test/spec-185-prints.smoke.spec.ts:276` navegando a `/company-settings?tab=occurrenceTypes` (cairia na aba
+Empresa); passou a abrir `/ocorrencias`, clicar a aba Tipos e abrir o tipo "Item avariado" antes de afirmar a caixa. ⚠️ Esse
+smoke (Playwright) não foi executado nesta rodada. Também saíram a chave morta `tabs.occurrenceTypes` das duas traduções de
+Configurações e o comentário "movido para Configurações → Tipos de ocorrência" do painel. Varredura de textos: nenhuma tradução do
+painel nem do app do motorista manda o usuário para "Configurações > Tipos de ocorrência"; `docs/ai-context/frontend-transportada.md:1149`
+cita "a aba Tipos de ocorrência" como história de um defeito da 218 e foi deixado como está.
+
+### Gates (primeiro plano, árvore final, 2026-10-06)
+
+`bun install --frozen-lockfile` sem mudanças · `bun run typecheck` (raiz) 0 erros · `prettier --check .` e `bun run format:check` verdes ·
+`bun run --cwd apps/frontend-transportada test`: `7019 pass, 0 fail` (contratos) e `649 pass, 0 fail` (lote DOM) · lint com a app como
+cwd: 0 erros (16 avisos anteriores) · `bun run --cwd apps/frontend-transportada build` ok.
+
+**Não coube:** print da tela real nas três larguras e comparação lado a lado com o `preview.html` (T6.1); o smoke Playwright da 185 não
+rodou; o preview mostra Foto/Assinatura/Produtos como pílulas de Exige com "Galpão/Rua" em Momento, e a tela segue os quatro momentos
+da RF0 como a tarefa pediu.

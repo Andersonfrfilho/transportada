@@ -260,12 +260,12 @@ o.attachment_mode <> 'required'`. Registrar os números em `evidence.md`. **A Fa
       de rua (RF1h).
 - [x] **T5.3c** Destinatário da exceção escolhido em `SearchableSelect` por nome ou CNPJ entre os
       clientes cadastrados, nunca digitado (RF1f).
-- [ ] **T5.3d** Aviso ao contratante na aba: `notifies`, seleção do modelo de e-mail com o conteúdo
-      visível, `redeliveryPolicy` (RF1e).
-- [ ] **T5.3e** Busca (tipo, nome ou CNPJ de exceção) e filtros-pílula combináveis: momento,
+- [x] **T5.3d** Aviso ao contratante na aba: `notifies`, seleção do modelo de e-mail com o conteúdo
+      visível, `redeliveryPolicy` (RF1e). _Evidência: `evidence.md` § "T5.3d, T5.3e e T5.4"._
+- [x] **T5.3e** Busca (tipo, nome ou CNPJ de exceção) e filtros-pílula combináveis: momento,
       ativo/inativo, exigência, avisa/não avisa, tem exceção — no molde de
-      `TripOccurrenceFilters` (RF11b). Desenho em `preview.html`.
-- [ ] **T5.4** Atualizar os quatro contratos que afirmam o endereço antigo:
+      `TripOccurrenceFilters` (RF11b). Desenho em `preview.html`. _Evidência: `evidence.md` § "T5.3d, T5.3e e T5.4"._
+- [x] **T5.4** Atualizar os quatro contratos que afirmam o endereço antigo:
       `test/company-settings/tabs.contract.ts`, `occurrence-type-catalog-panel.contract.ts`,
       `occurrence-type-attachment-mode.contract.ts`,
       `occurrence-type-catalog-template-select.contract.ts`, e os dois guards de chave exata em

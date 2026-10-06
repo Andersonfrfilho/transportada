@@ -273,7 +273,8 @@ for (const theme of THEMES) {
       await page.emulateMedia({ colorScheme: theme })
       await mockCompanySettingsOccurrenceTypesWorkspace(page)
       await loginAsLocalUser(page)
-      await navigateTo(page, '/company-settings?tab=occurrenceTypes')
+      await navigateTo(page, '/ocorrencias')
+      await page.getByRole('tab', { name: 'Tipos' }).click()
 
       /**
        * `.last()`: a seção externa do workspace inteiro também "tem" o título como descendente
@@ -286,6 +287,7 @@ for (const theme of THEMES) {
         .last()
       await expect(panel.getByText('Item avariado')).toBeVisible()
       await expect(panel.getByText('Cliente ausente')).toBeVisible()
+      await panel.getByRole('button', { name: /Item avariado/ }).click()
       /**
        * Duas caixas: a do tipo "Item avariado" (separação) e a do formulário "cadastrar tipo
        * novo", que também nasce em separação por padrão — nenhuma delas pertence ao tipo de
