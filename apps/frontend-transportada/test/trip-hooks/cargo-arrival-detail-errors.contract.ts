@@ -187,6 +187,25 @@ describe('marcar em lote com a rede ou o servidor falhando', () => {
   })
 })
 
+describe('o lote que o servidor recusa por nota', () => {
+  test('422 nomeia as notas pela posição na seleção enviada, também no lote', async () => {
+    const { rendered } = await mountDetail({
+      failures: [
+        refusal(NOT_IN_ARRIVAL, [
+          { field: 'documentIds.1', message: NOT_FOUND_REASON },
+          { field: 'documentIds.0', message: NOT_FOUND_REASON },
+        ]),
+      ],
+    })
+
+    await markReceived([1005, 1004])
+
+    expect(alertText()).toEqual(['Algumas notas não fazem parte desta chegada.'])
+    expect(refusalDocuments()).toEqual(['NF 1004', 'NF 1005'])
+    rendered.unmount()
+  })
+})
+
 describe('o aviso acompanha a seleção', () => {
   test.each([
     ['marcar outra nota', async () => click(documentBox(1005))],

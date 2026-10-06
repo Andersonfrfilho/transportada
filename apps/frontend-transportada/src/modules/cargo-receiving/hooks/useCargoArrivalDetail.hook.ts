@@ -48,14 +48,29 @@ export type CargoArrivalDetailController = Readonly<{
   pending: readonly PendingDocument[]
   routeApplied: boolean
   routeErrorCode: string | undefined
-  /** As notas e os campos que o servidor recusou na rota, lidos pela seleção que foi enviada. */
-  routeRefusal: RegistrationRefusal | undefined
+  /** As notas e os campos que o servidor recusou, lidos pela seleção que foi enviada. */
+  actionRefusal: RegistrationRefusal | undefined
   selection: CargoArrivalSelectionController
   setStatus: (to: CargoTransitionTarget) => void
 }>
 
 function readErrorCode(error: unknown): string | undefined {
   return error instanceof Error ? error.message : undefined
+}
+
+type FailedAction = Readonly<{
+  documents: readonly DocumentReference[]
+  error: unknown
+  ids: readonly string[] | undefined
+}>
+
+/** `documentIds.<n>` do servidor é a posição da nota NA SELEÇÃO ENVIADA, não na tela: lê-se por ela. */
+function describeFailedAction(input: FailedAction): RegistrationRefusal | undefined {
+  if (input.error === null) return undefined
+  return describeRegistrationRefusal({
+    error: input.error,
+    requestedDocuments: referDocuments({ documents: input.documents, ids: input.ids ?? [] }),
+  })
 }
 
 /** O detalhe do escritório: seleção entre grupos, ações em lote e o resultado por nota de cada uma. */
@@ -85,6 +100,12 @@ export function useCargoArrivalDetail(arrivalId: string): CargoArrivalDetailCont
     setOutcomes(undefined)
     setRouteApplied(false)
   }
+
+  // Rota e lote nunca falham juntos: cada um limpa o aviso do outro ao começar.
+  const failedAction =
+    route.error === null
+      ? { error: batch.error, ids: batch.variables?.documentIds }
+      : { error: route.error, ids: route.variables?.documentIds }
 
   function clearActionErrors(): void {
     route.reset()
@@ -138,16 +159,7 @@ export function useCargoArrivalDetail(arrivalId: string): CargoArrivalDetailCont
     pending: describePendingDocuments({ documents, error: close.error }),
     routeApplied,
     routeErrorCode: readErrorCode(route.error),
-    routeRefusal:
-      route.error === null
-        ? undefined
-        : describeRegistrationRefusal({
-            error: route.error,
-            requestedDocuments: referDocuments({
-              documents,
-              ids: route.variables?.documentIds ?? [],
-            }),
-          }),
+    actionRefusal: describeFailedAction({ documents, ...failedAction }),
     selection,
     setStatus: (to) => {
       dismissOutcome()

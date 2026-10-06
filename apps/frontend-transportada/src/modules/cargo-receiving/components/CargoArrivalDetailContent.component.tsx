@@ -52,7 +52,7 @@ export function CargoArrivalDetailContent({
       <CargoActionFailure
         errorCode={detail.routeErrorCode ?? detail.batchErrorCode}
         panelRef={panelRef}
-        refusal={detail.routeRefusal}
+        refusal={detail.actionRefusal}
       />
       {detail.routeApplied ? (
         <p className={detailStyles.saved}>{t('outcome.routeApplied')}</p>
