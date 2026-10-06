@@ -147,6 +147,11 @@ describe('separator role contract', () => {
       'GET /cargo-previews',
       'GET /cargo-previews/:id',
       /**
+       * Spec 237 T5.1 (RF7): os rascunhos de viagem da prévia são só leitura (`fleet.read`); nada vira
+       * viagem sem o aceite do fluxo de roteirização, que o separador já alcança.
+       */
+      'GET /cargo-previews/:id/trip-drafts',
+      /**
        * Spec 149: a diária geral do ajudante entra na conta que o separador já monta ao escolher a
        * tripulação da viagem — mesma razão do vínculo motorista↔veículo logo abaixo. Ele lê o
        * parâmetro, nunca o edita (`PUT` continua `fleet.manage`, fora desta lista).
