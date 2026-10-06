@@ -5,12 +5,15 @@
 -- (select count(*) from cargo_arrival_events) e guarde o que precisar.
 BEGIN;
 
+-- O prazo vem antes do primeiro lock: os DROP TABLE soltam as FKs para `nfe_documents`, `contractors`,
+-- `companies` e `user_company_memberships`, e cada uma pede lock na tabela de lá.
+SET LOCAL lock_timeout = '3s';
+
 DROP TRIGGER IF EXISTS "cargo_arrival_events_append_only_trigger" ON "cargo_arrival_events";
 DROP FUNCTION IF EXISTS "reject_cargo_arrival_events_mutation"();
 DROP TABLE IF EXISTS "cargo_arrival_events";
 DROP TABLE IF EXISTS "cargo_arrival_documents";
 DROP TABLE IF EXISTS "cargo_arrivals";
-SET LOCAL lock_timeout = '3s';
 DROP INDEX IF EXISTS "nfe_participants_company_role_tax_id_idx";
 
 DO $$

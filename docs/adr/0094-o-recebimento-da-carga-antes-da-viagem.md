@@ -213,6 +213,17 @@ de `delivery-clients`.
   nulo e um vínculo com a linha da prévia — também aditivo.
 - **Canal:** só `backoffice` (a tela do painel e do separador, que não age em nome de motorista,
   ADR-0068 §3); canal novo entra no CHECK de forma aditiva.
+- **Emenda de 2026-10-06 (revisão das Fases 1–2):**
+  - **CHECK com NULL (M1).** Três CHECKs de `20261003204733_cargo_arrivals` viravam NULL com coluna nula e
+    deixavam passar: janela sem prazo, nota `separated` sem `separated_at`, evento de nota sem estado.
+    `20261006144825_cargo_arrival_check_null_holes` os troca por versões que exigem a presença antes de
+    comparar. Regra para CHECK novo deste módulo: coluna anulável comparada leva `is not null` explícito.
+  - **Pendência operacional antes de produção (M5).** A migration da chegada constrói o índice
+    `nfe_participants_company_role_tax_id_idx` (trava a importação de NF-e enquanto dura) e cria FKs para
+    `nfe_documents`/`contractors`/`companies`/`user_company_memberships` sem `lock_timeout`. Ela já está em
+    staging e não se edita. **Antes de promover a produção**, quem tem acesso ao banco mede
+    `select count(*), pg_size_pretty(pg_total_relation_size('nfe_participants')) from nfe_participants;` e
+    escolhe janela de baixa importação; o passo e a alternativa estão em `docs/SECURITY.md` (2026-10-06).
 
 ### 7. A leitura da planilha de prévia (Fase 4a, T4.1)
 

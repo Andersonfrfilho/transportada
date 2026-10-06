@@ -287,6 +287,37 @@ desbloqueado). Se o produto passar a guardar mais do que a viagem corrente, revi
 
 **Origem:** spec 189 T3.3a (boot sem rede, snapshot e fila com dono). Registrado em 2026-09-25.
 
+### 2026-10-06 — spec 237 Fase 2 — a migration da chegada trava a importação de NF-e sem medida de produção (pendência operacional do usuário)
+
+**Onde:** `apps/api-transportada/drizzle/20261003204733_cargo_arrivals/migration.sql`, já aplicada em staging.
+O `SET LOCAL lock_timeout = '3s'` cobre só o `CREATE INDEX "nfe_participants_company_role_tax_id_idx"`
+(`SHARE` em `nfe_participants`: a importação de NF-e espera enquanto o índice é construído, e o tempo cresce
+com a tabela). Os `ADD CONSTRAINT … FOREIGN KEY` para `nfe_documents`, `contractors`, `companies` e
+`user_company_memberships` pedem `SHARE ROW EXCLUSIVE` nessas tabelas **sem prazo**, na mesma transação.
+
+**Por que não se corrige no arquivo:** o drizzle confere o hash de `migration.sql` aplicada; editá-la
+quebra o deploy de staging. O hash está preso em `PRESERVED_MIGRATION_HASHES`
+(`test/database-migration/static-migration.contract.ts`). O `rollback.sql` (não conferido por hash) passou a
+pôr o `lock_timeout` **antes** dos `DROP TABLE` (revisão das Fases 1–2, M5).
+
+**Checagem OBRIGATÓRIA antes de promover a 237 a produção** — feita por quem tem acesso ao banco de
+produção, **nunca por agente** (leitura de produção é proibida a ele):
+
+```sql
+select count(*) as participants,
+       pg_size_pretty(pg_total_relation_size('nfe_participants')) as size
+from nfe_participants;
+```
+
+e a janela de importação de NF-e (cron e uploads) do horário escolhido para o deploy. Se a tabela for grande
+(o índice leva mais que poucos segundos), o deploy vai para uma janela de baixa importação. Se nem a janela
+servir, o caminho é tirar o índice desta migration e criá-lo numa migration própria com
+`CREATE INDEX CONCURRENTLY` fora de transação (o drizzle roda a pasta numa transação) — mas isso **muda o
+hash de uma migration já aplicada em staging** e é decisão do usuário, nunca do agente. Sem a medida, não
+promover.
+
+**Origem:** revisão de código das Fases 1–2 da spec 237 (M5), 2026-10-06. Emenda no ADR-0094 §6.
+
 ### 2026-10-04 — spec 237 Fase 4a — a planilha de prévia entra por upload e é lida pelo worker
 
 **Onde:** `api-transportada`, `POST /cargo-previews` (`cargo-receiving/presentation/cargo-preview.schema.ts`,

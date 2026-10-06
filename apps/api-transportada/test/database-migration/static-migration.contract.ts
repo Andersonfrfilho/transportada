@@ -33,6 +33,9 @@ const PRESERVED_MIGRATION_HASHES = {
     '428b9a2cd60c62f6ec31d11feb0d19da3aad0d6f9f40f310580689d28b858fbc',
   '20260719025322_tenant_identity/snapshot.json':
     'a355fadb6096062f8839f4456e44a6c05be1a13518927aaa76dce8dcc3133c91',
+  // Já aplicada em staging: o drizzle confere o hash, e a correção de lock vai no rollback (spec 237 M5).
+  '20261003204733_cargo_arrivals/migration.sql':
+    '5f1056c5b69452dec2af34da82b41dd460516b829dbb33aae979b542abbb756c',
 } as const
 
 const FISCAL_ROLLBACK_ORDER = [
@@ -2313,6 +2316,10 @@ describe('o estado do ponto entra aditivo e o histórico sem coordenada fica NUL
     expect(rollbackSql).toContain(
       'DROP INDEX IF EXISTS "nfe_participants_company_role_tax_id_idx";',
     )
+    const rollbackTimeout = rollbackSql.indexOf("SET LOCAL lock_timeout = '3s'")
+    expect(rollbackTimeout).toBeGreaterThan(rollbackSql.indexOf('BEGIN;'))
+    expect(rollbackTimeout).toBeLessThan(rollbackSql.indexOf('DROP TRIGGER'))
+    expect(rollbackTimeout).toBeLessThan(Math.min(...dropOrder))
     expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
     expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/u)
     expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
