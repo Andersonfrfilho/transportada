@@ -439,6 +439,7 @@ button.occurrenceCaseBadge {
 
 .driverChecklist {
   display: flex;
+  min-width: 0;
   flex-wrap: wrap;
   gap: var(--space-3);
   font-size: 0.85rem;
@@ -447,6 +448,7 @@ button.occurrenceCaseBadge {
 /* Cada motorista é um bloco: nome em cima, contato abaixo, para a fileira não virar uma frase só. */
 .driverLine {
   display: inline-flex;
+  min-width: 0;
   flex-direction: column;
   gap: var(--space-1);
 }
@@ -455,6 +457,7 @@ button.occurrenceCaseBadge {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
+  overflow-wrap: anywhere;
   color: var(--color-slate);
 }
 
