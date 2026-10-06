@@ -18,7 +18,12 @@
       chave exata do agregado de contratante do painel (3 cópias).
 - [x] **T1.4** Aba "Contratantes" em `/clientes` com a ficha (dados que o `PATCH /contractors` já aceita +
       perfil); locale pt-BR/en; contratos antes.
-- [ ] **T1.5** Revisão `opus`, **print aprovado pelo usuário**, publicar em staging e **confirmar o deploy**.
+- [x] **T1.5** Revisão `opus`, **print aprovado pelo usuário**, publicar em staging e **confirmar o deploy**.
+      _(Staging: deploy verde em `7cf745ec8`, 2026-10-03 19:35 UTC. Revisão de código das Fases 1–2 em
+      2026-10-06 e as correções da API em `evidence.md` § "Correções da revisão das Fases 1–2"; a parte do
+      painel é de outro executor. ⚠️ O aprovo do print pelo usuário não está registrado no `evidence.md`.
+      **Produção: não** — só com o usuário, depois da medida de `nfe_participants` (`docs/SECURITY.md`,
+      2026-10-06).)_
 
 ## Fase 2 — Chegada e primeira separação
 
@@ -32,7 +37,14 @@
 - [x] **T2.4** Tela de Recebimento no painel (chegada, grupos rota × cidade) e a **tela do celular do
       separador** (PWA, por nota, agrupada por rota e cidade, alvo ≥ 44 px), contratos antes; prova por
       mutação.
-- [ ] **T2.5** Revisão `opus`, **print aprovado pelo usuário**, publicar em staging e confirmar o deploy.
+- [x] **T2.5** Revisão `opus`, **print aprovado pelo usuário**, publicar em staging e confirmar o deploy.
+      _(Staging: primeiro deploy verde com a Fase 2 em `cbfd4f356`, 2026-10-04 00:41 UTC. Mesma revisão e
+      correções da T1.5 — a migration nova `20261006144825_cargo_arrival_check_null_holes` e as rotas novas
+      ainda **não** foram publicadas (sem push nesta rodada). ⚠️ O aprovo do print pelo usuário não está
+      registrado no `evidence.md`. **Produção: não** — só com o usuário.)_
+- [ ] **T2.6** ⛔ **Bloqueada por decisão do usuário (M6 da revisão):** a cidade do grupo vem do `<enderDest>`
+      (cadastro), não do destino físico `<entrega>` (spec 073); nota cadastrada em SP com entrega em Guarulhos
+      cai na pilha de SP. Decidir se o grupo segue `resolvePhysicalDestination` — ADR-0094 §6.
 
 ## Fase 4a — Prévia por upload: ler, vincular e propor a chegada
 

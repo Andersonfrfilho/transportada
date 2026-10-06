@@ -1328,3 +1328,147 @@ rótulo dos totais 6,22 / 4,83 · contagem da cidade 6,22 / 4,83 · dica das col
 sugerida/ambígua 6,16 / 5,37 · selo inválida 5,46 / 4,69 · cidade, escopo, aviso de fora e valores 14,48 / 12,66. **Nenhum abaixo de 4,5:1** (o menor: 4,69).
 **Alvo de toque a 375 px: 12 controles da recomendação medidos; o menor tem 48 px de altura e 157,3 px de largura.** Defeito achado pelo olhar nos prints e
 consertado: roteiros sem totais no dado de teste mostravam "0 kg / R$ 0,00" (o fixture, não a tela) — o fixture ganhou totais e cidades.
+
+## Correções da revisão das Fases 1–2 (2026-10-06) — API, banco e documentação
+
+Branch `work/spec-232-momento-do-evento`, worktree `angry-hamilton-090c30`, sem push. Commits: `71c2cb06d` (M1),
+`16d0d6c81` (M5), `9c359adbd` (M7), `61cdbacb8` (contrato do schema que ficou para trás no M1), `16be4ac23` (M3),
+`2907f2919` (M4), `add1a6848` (L5–L9) e o commit de documentação desta seção. A parte do painel é de outro executor.
+
+### O que mudou, e o contrato que prende
+
+- **M1 — CHECK com NULL.** Reprodução do revisor (`null-check.ts`, Postgres de teste): as três expressões davam
+  `null`. Migration aditiva `20261006144825_cargo_arrival_check_null_holes` (snapshot com `prevIds` →
+  `20261006033752_occurrence_type_items_mode`, o fim da cadeia em `origin/staging`; nenhum snapshot novo com dois
+  filhos — os três nós com mais de um filho são de agosto/setembro, anteriores): troca `separation_due_at_check`
+  (`(janela is null) = (prazo is null) and (prazo is null or extract(...) = janela*3600)`), `state_dates_check`
+  (`separated` exige `separated_at is not null`) e `state_shape_check` (`is not null` antes de cada comparação), com
+  `SET LOCAL lock_timeout = '3s'` no início e `DEFAULT` no fim; o `rollback.sql` devolve as formas antigas.
+  Contrato: `test/integration/cargo-arrival-null-checks.integration.ts` — grava janela sem prazo, prazo sem janela,
+  `separated` sem `separated_at`, `received` sem `received_at` e os cinco eventos com estado nulo, esperando
+  `23514:<nome do CHECK>` (não "deu erro"); vermelho antes (`Received: "accepted"`, 3 de 3). Estático em
+  `static-migration.contract.ts` (pasta nova na lista fixa + teste da forma e do rollback) e o texto exato em
+  `cargo-receiving-schema/cargo-arrival.contract.ts`.
+- **M3 — filtro e ordem na lista inteira.** `GET /cargo-arrivals`: `contractorId` (≤ 50 UUIDs) e `status` (≤ 4)
+  repetidos, `.strict()`, repetição do mesmo valor = 400; `sort` ∈ {`arrivedAt`, `contractorName`,
+  `separationDueAt`, `status`} e `direction` ∈ {`asc`, `desc`}, padrão `arrivedAt desc` (o de hoje). Desempate por
+  `id` no mesmo sentido; prazo nulo por último nos dois sentidos (como o painel); `status` ordena `open` antes de
+  `closed` (o `STATUS_ORDER` do painel). Cursor: na ordem padrão é o `<iso>::<uuid>` de antes (o painel atual
+  pagina igual); nas outras, base64url de `[sort, direction, valor, id]`. Cursor de outra ordem (inclusive o antigo
+  numa ordem nova) → `400 CARGO_ARRIVAL_CURSOR_ORDER_MISMATCH`; malformado → `400 INVALID_REQUEST`. Contratos:
+  `cargo-receiving-http/cargo-arrival-list-routes.contract.ts` (vermelho antes: 4 de 5) e
+  `test/integration/cargo-arrival-list.integration.ts` (3 contratantes, 7 chegadas com empate de `arrivedAt`,
+  página de 2: filtro de 2 contratantes além da primeira página, as 8 ordenações comparadas com a ordem calculada
+  à parte, e cursor com sentido trocado → 400; vermelho antes por 400 no `sort`). Isolamento: o caso multi-filtro
+  em `tenant-safety.contract.ts`.
+- **M4 — sem N+1 vindo do navegador.** Rota nova `GET /contractor-receiving-profiles?enabled=&limit=&cursor=`
+  (`fleet.read`, empresa do contexto): `{ data: [{ contractorId, isEnabled, previewEnabled }], nextCursor }`,
+  ordem `contractor_id asc`, cursor = id do último, `limit` ≤ 100 (padrão 25). O agregado `Contractor` e o
+  `PATCH /contractors` não mudaram. Contratos: `contractor-receiving-profile-list-routes.contract.ts` (vermelho
+  antes: módulo inexistente), caso de uso, `tenant-safety.contract.ts` e
+  `test/integration/contractor-receiving-profile-list.integration.ts` (empresa alheia com perfil ligado,
+  desligado, ausente; paginação de 1 em 1).
+- **M5 — lock da migration da chegada.** `migration.sql` intocada e com o hash preso em
+  `PRESERVED_MIGRATION_HASHES`. `rollback.sql` com o `lock_timeout` antes do primeiro `DROP` (contrato estático,
+  vermelho antes: `Expected: < 394, Received: 685`). Checagem obrigatória antes de produção em `docs/SECURITY.md`
+  (2026-10-06) e ADR-0094 §6 — **pendência operacional do usuário**, nada medido em produção.
+- **M7 — concorrência.** `test/integration/cargo-arrival-concurrency.integration.ts` com
+  `fixtures/cargo-arrival-race.fixture.ts`: uma transação segura `nfe_documents`/`cargo_arrivals` `FOR UPDATE` até
+  `pg_stat_activity` mostrar as duas escritas paradas num lock, e só então solta — a corrida acontece em toda
+  execução. (i) mesma chave e pedido → `{200, 201}` e uma chegada; (ii) mesma chave, outro contratante →
+  `{201, 409 CARGO_ARRIVAL_KEY_REUSED}`; (iii) dois `batch-status` em ordem inversa → `{200, 200}`, sem deadlock,
+  um `document_received` por nota. As rotas montadas para a integração viraram `fixtures/cargo-arrival-http.fixture.ts`.
+- **L5:** `received_at = now()` e `separated_at = greatest(received_at, now())` do banco
+  (`cargo-arrival-separation-write.support.ts`). Contrato `cargo-arrival-clock.integration.ts`: confere com o
+  relógio certo e separa com o processo 1 h atrasado — antes `500` (23514), agora `200` e `separated_at ≥ received_at`.
+- **L6:** `CARGO_ARRIVAL_LIMITS.arrivedAtMaxAgeMs` (30 dias) → `422 CARGO_ARRIVAL_ARRIVED_AT_TOO_OLD`
+  (`details[{ field: 'arrivedAt' }]`), antes de tocar o banco. A proposta da prévia não grava chegada: o painel
+  registra pela mesma `POST /cargo-arrivals`, então o piso vale para ela (único escritor de `cargo_arrivals`).
+- **L7 — formato novo, o painel precisa ajustar:** o `409 CARGO_ARRIVAL_HAS_PENDING_DOCUMENTS` passa de
+  `details[{ field: 'documentIds.<n>', message: <uuid da NF-e> }]` para
+  `details[{ field: 'pendingDocumentIds.<n>', message: 'The document is not separated yet', documentId: <uuid da NF-e> }]`.
+- **L8:** `NFE_DOCUMENT_AUTHORIZED_STATUS` (`nfe-documents/domain/nfe-document-status.constant.ts`, no molde do
+  worker) no lugar das quatro cópias de `AUTHORIZED_STATUS` em `cargo-receiving/`; `buildArrivalDocumentFilters`
+  mudou para `cargo-arrival-persistence.support.ts` e as escritas da separação o usam (o `documentScope` saiu).
+- **L9:** `classifyArrivalCandidate`, `isSameRules` e `indexesOf` recebem objeto.
+- **L12:** `docs/ai-context/api-transportada.md` — a 244 e a 239 voltaram a seções próprias depois da 237 Fase 2;
+  a linha órfã do contrato da Fase 1 voltou ao lugar; nenhum texto alheio perdido (conferido por contagem de
+  caracteres sem espaço antes/depois do movimento).
+- **L13:** `tasks.md` T1.5/T2.5 marcadas com a referência (deploy verde em staging `7cf745ec8` e `cbfd4f356`);
+  T2.6 bloqueada por decisão (M6).
+
+### Mutações (cada arquivo restaurado; `git diff --quiet` / `cmp` limpos)
+
+| Regra        | Mutação                                                                   | Resultado                                        |
+| ------------ | ------------------------------------------------------------------------- | ------------------------------------------------ |
+| M1 prazo     | tira `(janela is null) = (prazo is null) and` da migration                | vermelho (1 de 3)                                |
+| M1 datas     | tira `"separated_at" is not null and`                                     | vermelho (1 de 3)                                |
+| M1 eventos   | tira os `is not null` do ramo `document_separated`                        | vermelho (1 de 3)                                |
+| M5           | rollback com o `lock_timeout` depois dos `DROP TABLE` (o estado anterior) | vermelho                                         |
+| M7 (i)       | tira `for('no key update')` do contratante no registro                    | vermelho (`{201, 409}`)                          |
+| M7 (ii)      | tira o mapeamento `23505 → key_reused`                                    | vermelho (500)                                   |
+| M7 (iii)     | tira só a trava da chegada                                                | **verde** — a trava das notas serializa sozinha  |
+| M7 (iii)     | tira só a trava das notas                                                 | **verde** — a trava da chegada serializa sozinha |
+| M7 (iii)     | tira as duas                                                              | vermelho (dois eventos por nota)                 |
+| M3 filtro    | ignora `contractorIds`                                                    | vermelho                                         |
+| M3 keyset    | tira o desempate por id do cursor                                         | vermelho                                         |
+| M3 nulos     | `nulls first`                                                             | vermelho                                         |
+| M3 cursor    | aceita cursor de outra ordem                                              | vermelho (HTTP e integração)                     |
+| M4 empresa   | tira o filtro de empresa                                                  | vermelho (integração e isolamento)               |
+| M4 `enabled` | ignora o filtro                                                           | vermelho                                         |
+| M4 cursor    | `gt` → `gte`                                                              | vermelho                                         |
+| L5           | `separated_at` volta a `params.now`                                       | vermelho (500)                                   |
+| L6           | desliga o piso                                                            | vermelho                                         |
+| L7           | volta ao formato antigo                                                   | vermelho                                         |
+
+L8/L9/L12 são refatorações sem regra nova: cobertas pelos contratos existentes (todos verdes).
+
+### Gates (rodados nesta sessão, em primeiro plano)
+
+- `bun run typecheck` e `bun run lint` (API): limpos.
+- Contrato (`bun --env-file=../../.env.test test --timeout 120000`): **antes 9763 pass / 25 skip / 0 fail**
+  (199 arquivos); **depois 9779 pass / 25 skip / 0 fail** (199 arquivos).
+- Integração, arquivos passados um a um: antes `cargo-arrival` + `contractor-receiving-profile` = 9 pass / 0 fail;
+  depois os 12 tocados (`cargo-arrival`, `-null-checks`, `-concurrency`, `-list`, `-clock`,
+  `contractor-receiving-profile`, `-list`, `cargo-preview`, `-trip-draft`, `-unlink`, `-resend`, `-upload-limit`)
+  = **35 pass / 0 fail**, contra o Postgres do `.env.test` (`localhost:65432`, bancos descartáveis por teste).
+- `make migration-test`: 126 pass / 0 fail (aplica tudo, roda todos os rollbacks em ordem inversa, reaplica).
+- `bun run db:generate` = `no_changes`; `bun run format:check` na raiz: limpo.
+
+### Decisões que divergiram do texto da revisão
+
+- **M1, NOT VALID:** usado (`ADD … NOT VALID` + `VALIDATE`), no molde de `20261003010806`. Ressalva honesta: a pasta
+  roda numa transação, então o NOT VALID não encurta o lock (o ACCESS EXCLUSIVE do ADD dura até o COMMIT); o ganho
+  é o deploy reprovar no `VALIDATE` do CHECK certo se houver linha antiga fora da forma. Não li staging para saber
+  se há linhas — o código sempre gravou as três colunas, então não se espera nenhuma.
+- **M1, datas:** o texto pedia `separated` com `received_at is not null and separated_at is not null and
+separated_at >= received_at` e `received` com `received_at is not null` — o `received` já recusava NULL; só o
+  `separated` ganhou o `is not null`.
+- **M3, status:** com só dois valores (`open`, `closed`), o teto de 4 vale como pedido, mas valor repetido é 400.
+- **M3, cursor padrão:** a ordem padrão mantém `<iso>::<uuid>` (compatível com o painel atual); um cursor no
+  formato novo com a ordem padrão é recusado como `mismatch`, porque o servidor nunca o emite.
+- **M4:** rota nova (a preferida), resumo sem o nome do contratante — o painel já carrega a lista de contratantes.
+  `enabled` é opcional (`true`, `false` ou ausente = todos os perfis).
+- **M7 (iii):** o texto pedia prova por mutação da trava `for no key update`; a trava da chegada e a das notas são
+  redundantes para este caso, e só tirar as duas fica vermelho (registrado na tabela).
+- **L7:** o id vai em `documentId`, campo a mais no item de `details` (o tipo `ApiErrorDetail` não mudou; o item é
+  subtipo dele).
+
+### Follow-ups registrados
+
+- **M6 (decisão do usuário):** cidade do grupo pelo `<enderDest>` × destino físico `<entrega>` — `tasks.md` T2.6,
+  ADR-0094 §6. Nada mudou no código.
+- **L10:** identificadores com mais de 63 bytes na migration do perfil (`20261003170340_contractor_receiving_profiles`;
+  o Postgres trunca o nome) — corrigir numa migration de contração futura, nunca editando a aplicada.
+- **L11:** a migration do perfil não tem cabeçalho de copyright — idem, só numa migration futura (editar muda o hash).
+- `test/separator-role.contract.test.ts` não importa as rotas do perfil (`GET /contractors/:id/receiving-profile` e
+  a nova `GET /contractor-receiving-profiles`, ambas `fleet.read`, alcançáveis pelo separador) — lacuna anterior a
+  esta rodada; acrescentá-las pede a decisão por escrito que o contrato exige.
+- Cursor da lista por `Date` em ms: `arrived_at`/`separation_due_at` nascem com precisão de ms (vêm do corpo e de
+  conta em JS); se algum escritor futuro gravar µs, o cursor precisa do texto com µs (como `/trips/:id/timeline`).
+
+### Não rodou
+
+Push e deploy (proibidos nesta rodada); smoke e `make check` completo; integração inteira da API (só os 12
+arquivos tocados); o painel (fora do escopo — o formato novo do 409 e as rotas novas ainda não são consumidos);
+nenhuma leitura de staging nem de produção (a checagem do M5 é do usuário).

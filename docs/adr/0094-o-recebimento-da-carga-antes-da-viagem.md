@@ -224,6 +224,12 @@ de `delivery-clients`.
     staging e não se edita. **Antes de promover a produção**, quem tem acesso ao banco mede
     `select count(*), pg_size_pretty(pg_total_relation_size('nfe_participants')) from nfe_participants;` e
     escolhe janela de baixa importação; o passo e a alternativa estão em `docs/SECURITY.md` (2026-10-06).
+  - **Pendência de produto, NÃO decidida (M6).** A cidade do grupo `(rota, cidade)` sai do endereço
+    cadastral do destinatário (`<enderDest>`), não do destino físico da nota (`<entrega>`, spec 073 — o
+    seam `resolvePhysicalDestination` que parada, roteirizador e MDF-e já seguem). Efeito físico: nota com
+    `<enderDest>` em São Paulo e `<entrega>` em Guarulhos é separada na pilha de São Paulo, e o caminhão de
+    Guarulhos sai sem ela. Trocar para o destino físico muda o que o separador vê e o que a recomendação de
+    viagens agrupa — é decisão do usuário (`tasks.md`, T2.6, bloqueada), e nada foi mudado no código.
 
 ### 7. A leitura da planilha de prévia (Fase 4a, T4.1)
 

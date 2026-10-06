@@ -786,6 +786,15 @@ chegada. Rotas `/cargo-arrivals…` com `fleet.read` (leitura) e `trip.manage` (
 primeiro e as notas depois (ordem de id), e o registro trava o contratante antes de procurar a chave.
 Detalhe: docs/ai-context § "Spec 237" → "Fase 2".
 
+**Revisão das Fases 1–2** (2026-10-06): `GET /cargo-arrivals` filtra por `contractorId`/`status` **repetidos**
+e ordena no servidor (`sort`/`direction`, lista fechada); o cursor carrega a ordem e, noutra, é `400
+CARGO_ARRIVAL_CURSOR_ORDER_MISMATCH` (sem parâmetro novo, tudo como antes). `GET /contractor-receiving-profiles`
+(`fleet.read`) lista quem tem o recebimento ligado numa consulta. O 409 de fechamento põe o id em
+`details[].documentId` (`field: pendingDocumentIds.<n>`). Horas da conferência/separação são do relógio do
+banco; `arrivedAt` com mais de 30 dias é 422. ⚠️ A migration `20261003204733_cargo_arrivals` está em staging e
+**não se edita** (hash preso); antes de produção, medir `nfe_participants` (`docs/SECURITY.md`, 2026-10-06).
+Detalhe: docs/ai-context § "Correções da revisão das Fases 1–2".
+
 **A planilha de prévia e o vínculo** (Fase 4a, parte A — só domínio puro, sem rota nem tabela):
 `parseCargoPreviewWorkbook` lê só workbook, rels, sharedStrings e a aba escolhida (macro e `RESULTADO`
 nunca), com tetos em `CARGO_PREVIEW_WORKBOOK_LIMITS` e erro tipado `PREVIEW_*`; coluna por NOME, erro

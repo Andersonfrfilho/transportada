@@ -2439,43 +2439,7 @@ sem linha, ou com `is_enabled = false`, o contratante segue o fluxo de hoje.
   `normalizePreviewColumnName` (o leitor da planilha usa a mesma); prévia ligada exige `routeName`,
   `value`, `weightKg` (Zod) e mapa não nulo (CHECK). O agregado `Contractor` não mudou.
 - Contratos: `test/cargo-receiving*.contract.test.ts`; integração
-
-## Spec 244 — O ajudante sem resto: consentimento, foto pendente e diária zero
-
-**Arquivos-chave:** pendências em `find-current-driver-trip.use-case.ts` e `drizzle-current-driver-trip.repository.ts`,
-rotas em `me-trip.routes.ts` (aplicação de `canReportProofs`), consentimento em `me-location.routes.ts` (permanece
-`trip.report`), conversor em `src/modules/shared/decimalAmount.service.ts` (frontend-transportada).
-
-Três correções mínimas (T1–T3) das pendências deixadas pela spec 243:
-
-- **T1:** `GET /me/trips/current` devolve `pendingProofs: []` quando o contexto sem `trip.report`;
-  `findCurrentDriverTrip` recebe `canReportProofs` (padrão `true` para os chamadores existentes).
-- **T2:** `useLocationConsent` (frontend-driver) trata `403` na leitura como inaplicável à conta;
-  o cartão não renderiza (sem alerta). Qualquer outro erro segue como antes.
-- **T3:** Conversor `toTypedAmountKeepingZero` preserva zero (`0.0000` → `0,00`) nos campos
-  `helperDailyRate`, `dailyAllowanceAmount` (ficha) e diária geral; `toTypedAmount` inalterada.
   `test/integration/contractor-receiving-profile.integration.ts`.
-
-## Spec 239 — a configuração do expurgo da posição (T1.3/T1.4)
-
-Quatro rotas sob `settings.manage` (nenhuma permissão nova), em `companies/{application,domain,infrastructure,presentation}`:
-
-- `GET /company-settings/location-retention` -> `{ data: { purgeEnabled, retentionDays, purgeEffectiveAt,
-origin, updatedAt } }`; sem linha é `200` com desligado, 90 dias, `origin: 'default'` (nunca `404`).
-- `PUT` (corpo `{ purgeEnabled, retentionDays }`, Zod `.strict()`, inteiro 30–90) e `DELETE` (`204`,
-  idempotente; sem linha não audita). A carência de 24 h é `resolvePurgeEffectiveAt` com o relógio
-  injetado no use case (`now: () => new Date()` em `main.ts`).
-- `GET .../impact?retentionDays=N` -> `{ data: { byTable: [{ kind, count, capped }] } }`, `kind` estável
-  (`stop_event`, `delivery_proof`, `status_event`, `stop_occurrence`, `document_occurrence`). Uma consulta
-  por tabela (`drizzle-location-retention-impact.query.ts`), só a empresa do contexto, `LIMIT 100001`
-  pelo índice parcial `(company_id, tempo) where latitude is not null`.
-
-Auditoria (D4): `drizzle-location-retention-settings.repository.ts` lê a linha com `FOR UPDATE`, calcula a
-carência, grava e insere em `audit_logs` na **mesma transação** (ator, empresa-alvo, antes/depois, IP e
-`affectedEstimate` em `metadata`; nenhuma coordenada). `affectedEstimate` é recontado no servidor ao
-ligar/alongar (não vem do cliente). Sem rate limit por rota: nenhuma rota de `company-settings` o tem.
-Provas: `test/companies/location-retention-settings.contract.ts` e
-`test/integration/location-retention-settings.integration.ts`.
 
 ### Fase 2 — a chegada e a primeira separação (T2.1–T2.3)
 
@@ -2505,8 +2469,8 @@ arrived_at + janela` em horas corridas, preso por CHECK exato
   a mesma chegada; mesma chave com outro pedido → `409 CARGO_ARRIVAL_KEY_REUSED`, pela
   `request_fingerprint`; `arrivedAt` > agora + 2 min → `422 CARGO_ARRIVAL_ARRIVED_AT_IN_FUTURE`; toda
   nota recusada volta junta em `422 CARGO_ARRIVAL_DOCUMENTS_REFUSED`, `details[{ field:
-'documentIds.<i>', message: <motivo> }]`), `GET /cargo-arrivals` (filtros `contractorId`, `status`,
-  cursor), `GET /cargo-arrivals/:id` (grupos rota × cidade, contagens, vencimento),
+'documentIds.<i>', message: <motivo> }]`), `GET /cargo-arrivals` (filtros `contractorId`/`status` repetíveis,
+  `sort`/`direction`, cursor — ver correções abaixo), `GET /cargo-arrivals/:id` (grupos rota × cidade, contagens, vencimento),
   `POST …/documents/:documentId/receive|separate` (`documentId` = id da NF-e), `POST
 …/documents/batch-status` (≤ 300, resultado por nota `changed|unchanged|refused`), `POST
 …/route-assignment` (`routeName` ≤ 40 ou `null`, tudo ou nada) e `POST …/close` (`409
@@ -2527,6 +2491,76 @@ CARGO_ARRIVAL_HAS_PENDING_DOCUMENTS` com a lista; fechar de novo é `unchanged`)
 - **Follow-ups:** a cidade do grupo vem do destinatário (`<enderDest>`), não do seam
   `resolvePhysicalDestination` (`<entrega>`); corrida aceita — a nota pode entrar numa viagem entre a
   checagem e o commit da chegada (a leitura mostra "já em viagem").
+
+### Correções da revisão das Fases 1–2 (2026-10-06)
+
+- **M1 — CHECK com NULL:** `20261006144825_cargo_arrival_check_null_holes` (aditiva, `NOT VALID` +
+  `VALIDATE`, `lock_timeout` 3 s) troca três CHECKs que viravam NULL. Prova:
+  `test/integration/cargo-arrival-null-checks.integration.ts` (SQLSTATE `23514` + nome do CHECK).
+- **M3 — lista inteira, não a página:** `GET /cargo-arrivals` aceita `contractorId` (≤ 50 UUIDs) e `status`
+  (≤ 4) **repetidos** (`?status=open&status=closed`, `inArray`; um valor funciona como antes) e
+  `sort=arrivedAt|contractorName|separationDueAt|status` + `direction=asc|desc` (padrão `arrivedAt desc`).
+  Desempate por `id` no mesmo sentido; prazo nulo por último nos dois sentidos; `status` ordena `open` antes
+  de `closed`. Cursor: na ordem padrão continua `<iso>::<uuid>`; nas outras é base64url de
+  `[sort, direction, valor, id]` — cursor de outra ordem é `400 CARGO_ARRIVAL_CURSOR_ORDER_MISMATCH`,
+  malformado é `400 INVALID_REQUEST`. Código em `cargo-arrival-list-order.policy.ts`,
+  `cargo-arrival-list.query.ts`, `cargo-arrival-list-query.schema.ts`; integração
+  `cargo-arrival-list.integration.ts`.
+- **M4 — sem N+1 do navegador:** `GET /contractor-receiving-profiles?enabled=true|false&limit=&cursor=`
+  (`fleet.read`, empresa do contexto) → `{ data: [{ contractorId, isEnabled, previewEnabled }], nextCursor }`,
+  ordem `contractor_id asc`, cursor = id do último, `limit` ≤ 100 (padrão 25). Contratante sem perfil não
+  aparece. Rota própria: o agregado `Contractor` e o `PATCH /contractors` não mudaram.
+- **M5 — lock da migration da chegada:** já em staging, não se edita (hash preso no contrato estático). O
+  `rollback.sql` põe o `lock_timeout` antes do primeiro `DROP`. **Antes de produção**, medir
+  `nfe_participants` (consulta em `docs/SECURITY.md`, 2026-10-06) — pendência do usuário.
+- **M7 — concorrência de verdade:** `cargo-arrival-concurrency.integration.ts` segura as linhas numa
+  transação bloqueadora até as duas escritas pararem num lock (`pg_stat_activity`): {201, 200} com a mesma
+  chave, {201, 409} com outro contratante, e dois lotes em ordem inversa sem deadlock. Cada uma das travas
+  da separação (chegada, notas) basta sozinha; só tirar as duas fica vermelho.
+- **L5:** `received_at = now()` e `separated_at = greatest(received_at, now())` do **banco** no UPDATE.
+- **L6:** `arrivedAt` com mais de 30 dias → `422 CARGO_ARRIVAL_ARRIVED_AT_TOO_OLD`
+  (`CARGO_ARRIVAL_LIMITS.arrivedAtMaxAgeMs`); a proposta da prévia registra pela mesma rota.
+- **L7:** o `409 CARGO_ARRIVAL_HAS_PENDING_DOCUMENTS` traz `details[{ field: 'pendingDocumentIds.<n>',
+message: 'The document is not separated yet', documentId }]` — o id saiu do `message`.
+- **Pendente de decisão do usuário (M6):** a cidade do grupo é a do `<enderDest>`, não a do destino
+  físico `<entrega>` (spec 073, `resolvePhysicalDestination`): nota cadastrada em SP com entrega em
+  Guarulhos cai na pilha de SP. ADR-0094 §6.
+
+## Spec 244 — O ajudante sem resto: consentimento, foto pendente e diária zero
+
+**Arquivos-chave:** pendências em `find-current-driver-trip.use-case.ts` e `drizzle-current-driver-trip.repository.ts`,
+rotas em `me-trip.routes.ts` (aplicação de `canReportProofs`), consentimento em `me-location.routes.ts` (permanece
+`trip.report`), conversor em `src/modules/shared/decimalAmount.service.ts` (frontend-transportada).
+
+Três correções mínimas (T1–T3) das pendências deixadas pela spec 243:
+
+- **T1:** `GET /me/trips/current` devolve `pendingProofs: []` quando o contexto sem `trip.report`;
+  `findCurrentDriverTrip` recebe `canReportProofs` (padrão `true` para os chamadores existentes).
+- **T2:** `useLocationConsent` (frontend-driver) trata `403` na leitura como inaplicável à conta;
+  o cartão não renderiza (sem alerta). Qualquer outro erro segue como antes.
+- **T3:** Conversor `toTypedAmountKeepingZero` preserva zero (`0.0000` → `0,00`) nos campos
+  `helperDailyRate`, `dailyAllowanceAmount` (ficha) e diária geral; `toTypedAmount` inalterada.
+
+## Spec 239 — a configuração do expurgo da posição (T1.3/T1.4)
+
+Quatro rotas sob `settings.manage` (nenhuma permissão nova), em `companies/{application,domain,infrastructure,presentation}`:
+
+- `GET /company-settings/location-retention` -> `{ data: { purgeEnabled, retentionDays, purgeEffectiveAt,
+origin, updatedAt } }`; sem linha é `200` com desligado, 90 dias, `origin: 'default'` (nunca `404`).
+- `PUT` (corpo `{ purgeEnabled, retentionDays }`, Zod `.strict()`, inteiro 30–90) e `DELETE` (`204`,
+  idempotente; sem linha não audita). A carência de 24 h é `resolvePurgeEffectiveAt` com o relógio
+  injetado no use case (`now: () => new Date()` em `main.ts`).
+- `GET .../impact?retentionDays=N` -> `{ data: { byTable: [{ kind, count, capped }] } }`, `kind` estável
+  (`stop_event`, `delivery_proof`, `status_event`, `stop_occurrence`, `document_occurrence`). Uma consulta
+  por tabela (`drizzle-location-retention-impact.query.ts`), só a empresa do contexto, `LIMIT 100001`
+  pelo índice parcial `(company_id, tempo) where latitude is not null`.
+
+Auditoria (D4): `drizzle-location-retention-settings.repository.ts` lê a linha com `FOR UPDATE`, calcula a
+carência, grava e insere em `audit_logs` na **mesma transação** (ator, empresa-alvo, antes/depois, IP e
+`affectedEstimate` em `metadata`; nenhuma coordenada). `affectedEstimate` é recontado no servidor ao
+ligar/alongar (não vem do cliente). Sem rate limit por rota: nenhuma rota de `company-settings` o tem.
+Provas: `test/companies/location-retention-settings.contract.ts` e
+`test/integration/location-retention-settings.integration.ts`.
 
 ## Spec 237 — Fase 4a, parte A: o leitor da planilha e a política de vínculo (T4.1, núcleo de T4.3)
 
