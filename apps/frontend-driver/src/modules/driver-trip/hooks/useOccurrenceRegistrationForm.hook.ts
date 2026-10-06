@@ -2,6 +2,10 @@
 import { useState } from 'react'
 
 import { useCaptureRegistration } from './useCaptureRegistration.hook'
+import {
+  useOccurrenceSignature,
+  type OccurrenceSignatureState,
+} from './useOccurrenceSignature.hook'
 import { usePhotoPreviewUrl } from './usePhotoPreviewUrl.hook'
 import type {
   DriverOccurrencePhoto,
@@ -16,16 +20,22 @@ import {
   type OccurrenceNoticePreview,
 } from '../shared/occurrenceNoticePreview.service'
 import {
-  canRegisterOccurrence,
   dispatchOccurrenceRegistration,
+  type OccurrenceRegistrationHandlers,
+} from '../shared/occurrenceDispatch.service'
+import {
+  canRegisterOccurrence,
   listMissingOccurrenceFields,
-  resolveOccurrenceAttachmentMode,
   resolveOccurrenceFlow,
   resolveOccurrenceTypesForDocument,
-  type OccurrenceRegistrationHandlers,
 } from '../shared/occurrenceRegistration.service'
 import { reduceOccurrencePhotoToJpeg } from '../shared/occurrencePhotoImage.service'
-import type { ProofFieldKey } from '../shared/proofFormPlan.service'
+import {
+  addOccurrencePhoto,
+  resolveOccurrenceFieldVisibility,
+  type OccurrenceFieldVisibility,
+  type OccurrenceMissingField,
+} from '../shared/occurrenceRequirements.service'
 
 /** O que acontece com a foto escolhida antes de ela entrar na fila. */
 export type OccurrencePhotoState = 'failed' | 'idle' | 'reading' | 'too-large'
@@ -41,12 +51,20 @@ export type OccurrenceRegistrationForm = Readonly<{
   canRegister: boolean
   description: string
   handleDescriptionChange: (description: string) => void
+  handlePhotoRemove: () => void
   handlePhotoSelect: (file: File) => void
-  /** Registra pela rota do `flow` — só chamado com `canRegister`, o botão segura o resto. */
-  handleRegister: () => void
+  /**
+   * Registra pela rota do `flow` e diz se registrou: `false` é rascunho a que falta um campo
+   * obrigatório — nada entrou na fila, e quem chamou não deve fechar o formulário.
+   */
+  handleRegister: () => boolean
+  handleProductsToggle: () => void
   handleTypeSelect: (occurrenceTypeId: string) => void
-  missingFields: readonly ProofFieldKey[]
-  photo: DriverOccurrencePhoto | undefined
+  /** Spec 246: a nota inteira apontada — o snapshot não traz a lista de itens para apontar um. */
+  hasProducts: boolean
+  missingFields: readonly OccurrenceMissingField[]
+  /** As fotos capturadas, na ordem; a primeira é a que a coluna antiga da API leva. */
+  photos: readonly DriverOccurrencePhoto[]
   photoPreviewUrl: string | undefined
   photoState: OccurrencePhotoState
   /**
@@ -54,10 +72,11 @@ export type OccurrenceRegistrationForm = Readonly<{
    * `null` dentro dela é "este motivo não gera aviso", e a tela diz isso.
    */
   preview: Readonly<{ notice: OccurrenceNoticePreview | null }> | undefined
-  /** `off` não oferece foto: o bloco de captura nem aparece. */
-  rendersPhoto: boolean
   selectedType: DriverOccurrenceType | undefined
+  signature: OccurrenceSignatureState
   types: readonly DriverOccurrenceType[]
+  /** O que o tipo escolhido mostra: `off` não aparece, e só o que é pedido ocupa a tela. */
+  visibility: OccurrenceFieldVisibility | undefined
 }>
 
 function buildPreview(input: {
@@ -80,18 +99,21 @@ function buildPreview(input: {
 }
 
 /**
- * Spec 218 (RF-A5): o estado do formulário único — o tipo, a descrição e **uma** foto da
- * ocorrência (spec 209 D1), reduzida no aparelho como a da 179 (JPEG, sem EXIF, até 512 KiB). O
- * gate lê só o que está no aparelho: capturou, habilita — o upload é da fila, depois.
+ * Spec 218 (RF-A5): o estado do formulário único — o tipo, a descrição e a(s) foto(s) da ocorrência
+ * (spec 209 D1), reduzidas no aparelho como a da 179 (JPEG, sem EXIF, até 512 KiB). Spec 246: mais
+ * a assinatura e a nota inteira apontada, cada um só quando o tipo da nota o pede. O gate lê só o
+ * que está no aparelho: capturou, habilita — o upload é da fila, depois.
  */
 export function useOccurrenceRegistrationForm(
   params: OccurrenceRegistrationFormParams,
 ): OccurrenceRegistrationForm {
   const [occurrenceTypeId, setOccurrenceTypeId] = useState<string | undefined>(undefined)
   const [description, setDescription] = useState('')
-  const [photo, setPhoto] = useState<DriverOccurrencePhoto | undefined>(undefined)
+  const [photos, setPhotos] = useState<readonly DriverOccurrencePhoto[]>([])
   const [photoState, setPhotoState] = useState<OccurrencePhotoState>('idle')
+  const [isProductsMarked, setIsProductsMarked] = useState(false)
   const photoPreview = usePhotoPreviewUrl()
+  const signature = useOccurrenceSignature()
 
   /** Plan D2 da 189: aberto é captura — navegar no meio do relato perdia o que já foi digitado. */
   useCaptureRegistration('occurrence-dialog', true)
@@ -104,11 +126,20 @@ export function useOccurrenceRegistrationForm(
         })
       : []
   const selectedType = types.find((type) => type.id === occurrenceTypeId)
-  const rendersPhoto =
-    selectedType !== undefined && resolveOccurrenceAttachmentMode(selectedType) !== 'off'
-  /** Tipo `off` nunca leva foto — a escolhida para outro tipo fica para trás. */
-  const effectivePhoto = rendersPhoto ? photo : undefined
-  const hasPhoto = effectivePhoto !== undefined
+  const visibility =
+    selectedType === undefined ? undefined : resolveOccurrenceFieldVisibility(selectedType)
+  /** Tipo `off` nunca leva foto — a escolhida para outro tipo fica para trás; o limite também corta. */
+  const effectivePhotos =
+    visibility?.rendersPhoto === true ? photos.slice(0, visibility.photoLimit) : []
+  const effectiveSignature = visibility?.rendersSignature === true ? signature.signature : undefined
+  const hasProducts = visibility?.rendersProducts === true && isProductsMarked
+  const gateFacts = {
+    hasNote: description.trim() !== '',
+    hasPhoto: effectivePhotos.length > 0,
+    hasProducts,
+    hasSignature: effectiveSignature !== undefined,
+    photoCount: effectivePhotos.length,
+  }
 
   async function readPhoto(file: File): Promise<void> {
     setPhotoState('reading')
@@ -119,45 +150,65 @@ export function useOccurrenceRegistrationForm(
         return
       }
       photoPreview.showPhoto(reduced.blob)
-      setPhoto(reduced)
+      setPhotos((current) =>
+        addOccurrencePhoto({ current, limit: visibility?.photoLimit ?? 1, photo: reduced }),
+      )
       setPhotoState('idle')
     } catch {
       setPhotoState('failed')
     }
   }
 
-  function handleRegister(): void {
-    if (selectedType === undefined) return
-    dispatchOccurrenceRegistration({
+  function handlePhotoRemove(): void {
+    const remaining = effectivePhotos.slice(0, -1)
+    const last = remaining.at(-1)
+    if (last !== undefined) photoPreview.showPhoto(last.blob)
+    setPhotos(remaining)
+  }
+
+  function handleRegister(): boolean {
+    if (selectedType === undefined) return false
+    const route = dispatchOccurrenceRegistration({
       documentId: params.document.id,
-      draft: { description, photo: effectivePhoto },
+      draft: {
+        description,
+        extraPhotos: effectivePhotos.slice(1),
+        hasProducts,
+        photo: effectivePhotos[0],
+        signature: effectiveSignature,
+      },
       handlers: params.handlers,
       stopId: params.stop.id,
       type: selectedType,
     })
+    return route !== 'blocked'
   }
 
   return {
     canRegister: canRegisterOccurrence({
-      hasPhoto,
+      ...gateFacts,
       isPhotoReading: photoState === 'reading',
       type: selectedType,
     }),
     description,
     handleDescriptionChange: setDescription,
+    handleProductsToggle: () => setIsProductsMarked((marked) => !marked),
+    handlePhotoRemove,
     handlePhotoSelect: (file) => void readPhoto(file),
     handleRegister,
     handleTypeSelect: setOccurrenceTypeId,
+    hasProducts,
     missingFields:
       selectedType === undefined
         ? []
-        : listMissingOccurrenceFields({ hasPhoto, type: selectedType }),
-    photo: effectivePhoto,
+        : listMissingOccurrenceFields({ ...gateFacts, type: selectedType }),
     photoPreviewUrl: photoPreview.previewUrl,
+    photos: effectivePhotos,
     photoState,
     preview: buildPreview({ document: params.document, stop: params.stop, type: selectedType }),
-    rendersPhoto,
     selectedType,
+    signature,
     types,
+    visibility,
   }
 }

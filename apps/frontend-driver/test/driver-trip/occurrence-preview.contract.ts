@@ -193,7 +193,17 @@ describe('a tela de ocorrência da parada', () => {
    */
   it('a foto é da ocorrência, nunca do comprovante da nota', () => {
     expect(readFileSync(CARD_PATH, 'utf8')).not.toInclude('onOccurrencePhoto')
-    expect(source).toInclude("t('occurrencePhoto')")
+    expect(
+      readFileSync(
+        fileURLToPath(
+          new URL(
+            '../../src/modules/driver-trip/components/OccurrencePhotoField.component.tsx',
+            import.meta.url,
+          ),
+        ),
+        'utf8',
+      ),
+    ).toInclude("t('occurrencePhoto')")
     expect(driverTrip.occurrencePhoto.toLowerCase()).toInclude('foto da ocorrência')
   })
 })

@@ -61,7 +61,7 @@ import {
 } from '../shared/eventQueueView.service'
 import { canOfferLateRegistration } from '../shared/lateRegistration.service'
 import type { NotDeliveredDraft, NotDeliveredStatus } from '../shared/notDelivered.service'
-import type { OccurrenceRegistrationHandlers } from '../shared/occurrenceRegistration.service'
+import type { OccurrenceRegistrationHandlers } from '../shared/occurrenceDispatch.service'
 import {
   applyRecipientShortcut,
   buildReceiverFields,

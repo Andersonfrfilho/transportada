@@ -63,7 +63,7 @@ import {
   type NotDeliveredDraft,
   type NotDeliveredStatus,
 } from '../shared/notDelivered.service'
-import type { OccurrenceRegistrationHandlers } from '../shared/occurrenceRegistration.service'
+import type { OccurrenceRegistrationHandlers } from '../shared/occurrenceDispatch.service'
 import {
   readCachedOccurrenceTypes,
   resolveOccurrenceTypesStorage,

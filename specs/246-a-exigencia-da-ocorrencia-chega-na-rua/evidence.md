@@ -1720,3 +1720,88 @@ error: expect(received).toEqual(expected)
 
 As duas restauradas (`git status`: só o arquivo novo e o `package.json`). `bun run typecheck` da API: saída 0.
 **T3.0 segue PENDENTE** (pede autorização do usuário; a RF6 só ativa em produção depois dela).
+
+## Fase 4 — O motorista captura o que foi pedido (2026-10-06)
+
+### T4.1 e T4.1b — O formulário cobra os quatro modos e o mínimo de fotos
+
+Um corte só, porque o gate, a visibilidade e o formulário são o mesmo código (`occurrenceRequirements.service.ts`
+resolve os modos; o hook e o formulário só leem).
+
+- **Regra.** O app lê os modos **do tipo que já vem resolvido para a nota** (`document.occurrenceTypes` do
+  snapshot) — nunca manda `contractorId`/`recipientTaxId` (`security.md` §3). Para cada campo: `off` não
+  aparece, `optional` aparece sem exigir, `required` desabilita "Registrar". Observação: a caixa some em `off`
+  (e o texto digitado antes de trocar de tipo não sai). Foto: `photoMode` (ou `attachmentMode` quando a API
+  não mandou), e `photoMinimumCount` ≥ 2 com a foto obrigatória passa o formulário a aceitar até 5 fotos, com
+  contador e "Remover a última foto". Assinatura: o `SignaturePad` só monta quando o motorista abre, e só existe
+  o botão com o modo ≠ `off`. Produtos: ver a limitação abaixo.
+- **Sem rede.** O gate lê só o snapshot e o que está no aparelho; nenhum caminho dele chama `fetch`
+  (`occurrence-offline-gate.contract.ts`, T4.3).
+- **Tolerância (app novo × API anterior).** `noteMode`, `signatureMode`, `itemsMode`, `photoMode` e
+  `photoMinimumCount` ausentes leem como hoje: observação opcional, assinatura desligada, produtos opcional,
+  foto pelo `attachmentMode` e mínimo 1. Valor fora do vocabulário reprova o guard, como `attachmentMode` já fazia.
+  A ocorrência de **parada** segue só com a foto (D-a/D-d): nota, assinatura e produtos obrigatórios não valem lá.
+- **Segunda trava.** `dispatchOccurrenceRegistration` devolve `blocked` (e não chama o handler) quando falta campo
+  obrigatório, e o formulário só fecha quando registrou — rascunho incompleto nunca entra na fila nem some.
+
+⚠️ **Limitação declarada (produtos).** O snapshot do motorista **não traz a lista de itens da nota**, e a rota de
+registro aceita só `productCode` único ou vazio (= nota inteira). Por isso o app **não consegue apontar itens**:
+com `itemsMode = required` ele oferece uma única marca, **"A nota inteira"**, que precisa ser marcada para
+liberar o botão. A nota inteira satisfaz "todos os itens" (`itemsMinimumCount` nulo) e "ao menos N" do mesmo jeito
+(o servidor soma todos os itens dela e limita o mínimo ao total), então o mínimo **não muda o gate no aparelho**.
+Com `optional` o app não mostra nada (nada a escolher sem a lista) e continua mandando a nota inteira; com `off`
+também não. Apontar item a item pede o snapshot trazer os itens e a rota aceitar uma lista: **não coube aqui**.
+
+Textos novos (pt-BR, `driverTrip.locale.json` › `occurrenceRegistration`; o inglês tem as mesmas chaves, vigiado
+por contrato): "O que aconteceu (obrigatório)" · "Tirar outra foto" · "Fotos: {{count}} de {{limit}}" · "Remover a
+última foto" · "Produtos da nota (obrigatório)" · "Assinatura (opcional)" / "Assinatura (obrigatória)" · "Colher a
+assinatura de novo" · motivos do botão desabilitado (`missing.*`): "a observação", "a foto", "mais fotos (mínimo de
+{{count}})", "a marcação dos produtos", "a assinatura", compostos em "Para registrar, falta: …". O botão desabilitado
+mostra o motivo em texto (`role="status"`) ligado por `aria-describedby`; os alvos de toque são os botões do design
+system (≥ 44 px, `touch-target.contract.ts` verde); sem estilo inline; nada de CSS novo (as classes são as do canhoto
+e dos chips).
+
+Estrutura: `OccurrenceRegisterAction`, `OccurrenceSignatureField`, `OccurrenceProductsField` e
+`OccurrencePhotoField` saíram do formulário (194 linhas), e `occurrenceDispatch.service.ts` do serviço do gate
+(103 linhas). Contratos existentes que liam o código do formulário passaram a ler o componente novo
+(`capture-registry`, `occurrence-preview`, `stop-occurrence-photo`, `occurrence-registration-wiring`).
+
+Contrato primeiro (`occurrence-requirements.contract.ts` 19 testes, `occurrence-requirement-fields.contract.tsx` 9).
+**Vermelho** com a árvore de `src/` do HEAD (sem a implementação):
+
+```text
+$ bun test ./test/driver-trip/occurrence-requirements.contract.ts
+error: Cannot find module '../../src/modules/driver-trip/shared/occurrenceDispatch.service' ...
+ 0 pass
+ 1 fail
+ 1 error
+$ bun test ./test/driver-trip/occurrence-requirement-fields.contract.tsx
+error: Cannot find module '@/modules/driver-trip/components/OccurrenceProductsField.component' ...
+ 0 pass
+ 1 fail
+ 1 error
+```
+
+Mutações sobre o verde (cada uma restaurada em seguida; `bun run test` do app):
+
+```text
+M1 — o gate deixa de cobrar a assinatura (`false && requirements.signatureMode === 'required'`)
+(fail) cada captura tira um motivo da lista, e o último libera o botão
+(fail) falta a assinatura: o despacho recusa, nada vai ao handler e a fila segue vazia
+(fail) cada campo obrigatório, tirado sozinho, bloqueia
+(fail) assinatura obrigatória: falta até ser desenhada; opcional e desligada nunca seguram
+ 1238 pass / 4 fail
+
+M3 — o despacho deixa de bloquear (sem `isDraftComplete`)
+(fail) observação obrigatória: falta até haver texto; espaços não contam
+(fail) produtos só saem com a nota inteira apontada, e o tipo que não os pede não os leva
+(fail) duas fotos num tipo que pede três: nada entra na fila
+ 1237 pass / 5 fail
+
+M4 — campo ausente deixa de ler como hoje (`noteMode ?? 'required'`)
+(fail) sem nenhum modo novo: observação opcional, assinatura desligada, produtos opcional, mínimo 1
+(fail) o tipo antigo só pede o que pedia: a foto obrigatória, e nada mais
+(fail) o app novo contra a API anterior ... (saída cortada nas 8 primeiras falhas)
+```
+
+Verde restaurado: `bun run --cwd apps/frontend-driver test` → `1242 pass, 0 fail` (eram 1199: +43 testes novos).
