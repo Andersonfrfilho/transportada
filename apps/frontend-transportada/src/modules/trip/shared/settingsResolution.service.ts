@@ -46,7 +46,19 @@ export type SettingsResolutionOccurrenceType = Readonly<{
   photoMinimumCount?: number
   photoMode?: OccurrenceAttachmentMode
   signatureMode?: OccurrenceAttachmentMode
-  sources?: Readonly<Record<string, string>>
+  sources?: Readonly<
+    Partial<
+      Record<
+        | 'itemsMinimumCount'
+        | 'itemsMode'
+        | 'noteMode'
+        | 'photoMinimumCount'
+        | 'photoMode'
+        | 'signatureMode',
+        string
+      >
+    >
+  >
   /** RF-E1 só devolve tipos de rua — mesmo recorte de `listFieldOccurrenceTypes`. */
   stage: 'delivery'
 }>

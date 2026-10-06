@@ -30,6 +30,7 @@ import { TRIP_OCCURRENCE_STAGE } from '@/modules/trip/shared/occurrence.constant
 import type { SettingsResolutionOccurrenceType } from '@/modules/trip/shared/settingsResolution.service'
 import styles from '@/modules/trip/styles/trip.module.css'
 
+import { SettingsResolutionTypeRow } from './SettingsResolutionTypeRow.component'
 import { useOccurrenceTypeCatalogPanel } from '@/modules/trip/hooks/useOccurrenceTypeCatalogPanel.hook'
 
 export type SettingsResolutionPanelProps = Readonly<{ canManage: boolean }>
@@ -63,7 +64,17 @@ export function SettingsResolutionPanel({ canManage }: SettingsResolutionPanelPr
           attachmentMode: type.attachmentMode,
           flow: type.flow,
           id: type.id,
+          ...(type.itemsMinimumCount === undefined
+            ? {}
+            : { itemsMinimumCount: type.itemsMinimumCount }),
+          ...(type.itemsMode === undefined ? {} : { itemsMode: type.itemsMode }),
           name: type.name,
+          ...(type.noteMode === undefined ? {} : { noteMode: type.noteMode }),
+          ...(type.photoMinimumCount === undefined
+            ? {}
+            : { photoMinimumCount: type.photoMinimumCount }),
+          photoMode: type.attachmentMode,
+          ...(type.signatureMode === undefined ? {} : { signatureMode: type.signatureMode }),
           stage: TRIP_OCCURRENCE_STAGE.delivery,
         }))
 
@@ -144,12 +155,11 @@ export function SettingsResolutionPanel({ canManage }: SettingsResolutionPanelPr
             <p className={styles.hint}>{t('settingsResolution.occurrenceTypesEmpty')}</p>
           ) : null}
           {(occurrenceTypes ?? []).map((type) => (
-            <div className={styles.fieldGrid} key={type.id}>
-              <span>{type.name}</span>
-              <span className={styles.hint}>
-                {t(`settingsResolution.modes.${type.attachmentMode}`)}
-              </span>
-            </div>
+            <SettingsResolutionTypeRow
+              {...(hasSelection ? {} : { generalLayer: 'type' })}
+              key={type.id}
+              type={type}
+            />
           ))}
 
           {hasSelection && contractorId !== '' ? (

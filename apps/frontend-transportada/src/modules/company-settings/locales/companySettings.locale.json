@@ -489,6 +489,25 @@
     }
   },
   "settingsResolution": {
+    "typeFields": {
+      "photoMode": "Foto",
+      "noteMode": "Observação",
+      "signatureMode": "Assinatura",
+      "itemsMode": "Produtos",
+      "photoMinimumCount": "Mínimo de fotos",
+      "itemsMinimumCount": "Mínimo de produtos"
+    },
+    "layers": {
+      "type": "Tipo",
+      "contractor": "Contratante",
+      "recipient": "Destinatário",
+      "default": "Padrão"
+    },
+    "itemsAll": "Todos os itens da nota",
+    "itemsAtLeast": "Ao menos {{count}}",
+    "photoCount_one": "{{count}} foto",
+    "photoCount_other": "{{count}} fotos",
+    "notApplicable": "Não se aplica",
     "title": "Verificar configuração efetiva",
     "hint": "Escolha um contratante e/ou um destinatário para ver o comprovante e a exigência de foto de ocorrência que valem para essa combinação — a mesma conta que o app do motorista faria.",
     "contractor": "Contratante",
