@@ -1080,7 +1080,7 @@
       "waiting": "Ligado, aguardando a carência de 24 horas: nada é apagado ainda."
     },
     "title": "Apagar a posição pelo prazo de retenção",
-    "whatsapp": "As mensagens do WhatsApp seguem regra própria."
+    "whatsapp": "A localização enviada pelo WhatsApp não fica na conversa: o ponto vai para o evento da viagem e segue este prazo."
   },
   "mdfeGate": {
     "close": "Fechar",

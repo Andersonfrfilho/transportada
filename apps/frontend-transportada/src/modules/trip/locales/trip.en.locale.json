@@ -1080,7 +1080,7 @@
       "waiting": "On, waiting for the 24-hour grace period: nothing is erased yet."
     },
     "title": "Erase the position after the retention period",
-    "whatsapp": "WhatsApp messages follow their own rule."
+    "whatsapp": "A location sent through WhatsApp is not kept in the conversation: the point goes to the trip event and follows this deadline."
   },
   "mdfeGate": {
     "close": "Close",

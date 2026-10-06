@@ -146,7 +146,10 @@ describe('painel da retenção da posição (spec 239 T3.1)', () => {
     expect(hasButton('Voltar ao padrão')).toBe(false)
     expect(button('Salvar prazo').disabled).toBe(true)
     expect(text()).toContain('O rastro ao vivo da viagem é apagado em 36 horas')
-    expect(text()).toContain('As mensagens do WhatsApp seguem regra própria.')
+    expect(text()).toContain(
+      'A localização enviada pelo WhatsApp não fica na conversa: o ponto vai para o evento da viagem e segue este prazo.',
+    )
+    expect(text()).not.toContain('regra própria')
     expect(text()).toContain('LGPD, art. 5º, I')
   })
 
