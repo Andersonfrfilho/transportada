@@ -83,7 +83,7 @@ flow='stop'` **e** onde `stage='separation' AND flow='stop'` (D-c: preserva o co
       `OccurrenceTypeRow.component.tsx:51,135`, guards de chave exata em
       `tripResponse.validation.ts:1461,1859`. App: `occurrenceRegistration.service.ts:48-51`.
       Validar o desenho com `architect` antes de implementar.
-- [ ] **T1b.3** Integração da CA00 com os **códigos reais** (conferir cada um no código antes):
+- [x] **T1b.3** Integração da CA00 com os **códigos reais** (conferir cada um no código antes):
       motorista registra tipo só-`separation` na rota de nota → `404 TRIP_DOCUMENT_NOT_REACHABLE`;
       separador registra tipo só-`document` na rota de galpão → `422 OCCURRENCE_TYPE_NOT_SEPARATION`;
       escritório registra `document` sem `office` → `422 OCCURRENCE_TYPE_NOT_FIELD`; conta com os dois

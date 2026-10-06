@@ -512,3 +512,41 @@ fail`; contrato completo da API → `9762 pass, 25 skip, 0 fail` (199 arquivos; 
 anteriores); `typecheck` saída 0. Integração do WhatsApp, um por vez com `--env-file`:
 `whatsapp-driver-flow-actions` 4/0 · `whatsapp-operator-flow-actions` 7/0. A prova contra o banco,
 com os códigos reais, é a T1b.3.
+
+### T1b.3 — CA00 contra o Postgres, com os códigos reais (2026-10-06)
+
+Códigos conferidos em `src/trips/domain/trip.error.ts` antes do teste: `TripDocumentNotReachableError`
+é `TRIP_DOCUMENT_NOT_REACHABLE` com **status 409** (a CA00 e a tarefa diziam `404` — o código real é
+`409`, e é ele que o teste prende); `OccurrenceTypeNotSeparationError` `422
+OCCURRENCE_TYPE_NOT_SEPARATION`; `OccurrenceTypeNotFieldError` `422 OCCURRENCE_TYPE_NOT_FIELD`.
+
+`test/integration/occurrence-type-moments-registration.integration.ts` (na lista `test:integration`
+do `package.json`, logo depois de `occurrence-type-requirement-modes`). Os tipos nascem pelo
+`saveOccurrenceType` com `moments` — o mesmo caminho da rota de cadastro, provando a escrita do
+conjunto na transação do tipo e a leitura de volta. Os casos de uso são os reais, com os
+repositórios Drizzle: `registerDriverOccurrence`, `registerTripOccurrence` (com
+`persistSeparationOccurrenceWithAttachment`) e a rota do lote do escritório
+(`wireOccurrenceRoute`).
+
+1. **Recusas:** motorista com tipo só `separation` na rota de nota → `{ code:
+'TRIP_DOCUMENT_NOT_REACHABLE', status: 409 }`; separador com tipo só `document` na rota do galpão
+   → `422 OCCURRENCE_TYPE_NOT_SEPARATION`; escritório com o mesmo tipo (sem `office`) → `422
+OCCURRENCE_TYPE_NOT_FIELD`. Os três se repetem com uma **segunda conta** da mesma empresa — a que,
+   no token, teria separador e motorista juntos — e a recusa é a mesma; nenhuma ocorrência gravada
+   (`count = 0`). Limite dito: o papel vem do token (Keycloak), não do banco; o que este teste prova
+   é que a guarda é do caso de uso, independente de quem chama. A política de cada rota, inalterada,
+   segue provada pelos contratos de rota (`occurrences-route.contract.ts` "aceite 1",
+   `me-routes.contract.ts`, `separator-role.contract.test.ts`).
+2. **O mesmo id nas duas listas:** `separation + document` sai do catálogo com `moments:
+['separation', 'document']`, `stage: 'separation'`, `flow: 'document'`; aparece na lista do
+   separador (catálogo pelo momento `separation`, o filtro do WhatsApp do operador) e na do motorista
+   (`listFieldOccurrenceTypes`) com o mesmo id; e os dois papéis o registram — duas ocorrências do
+   mesmo `occurrence_type_id`, com `stage` `separation` e `delivery` (o momento de cada registro).
+
+```text
+$ cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000 ./test/integration/occurrence-type-moments-registration.integration.ts
+ 2 pass
+ 0 fail
+```
+
+A execução vermelha que prova que o teste não é vazio são as duas mutações da T1b.5.
