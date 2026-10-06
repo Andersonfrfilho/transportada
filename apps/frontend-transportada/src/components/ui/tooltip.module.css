@@ -11,12 +11,20 @@
  */
 .trigger {
   display: inline-flex;
+}
+
+/**
+ * Só para campo de formulário (Select) num item de grade esticado: o campo de dentro ocupa a largura
+ * toda, em vez de encolher ao próprio texto. Botão de ícone não pede: esticado, o pino de posição do
+ * detalhe da viagem ia de 14px a 344px e a linha inteira virava alvo de clique.
+ */
+.triggerFill {
+  display: inline-flex;
   /* Sem o teto, um gatilho de uma linha só (Select com descrição) pedia a largura do texto e passava da tela. */
   max-width: 100%;
 }
 
-/* Num item de grade esticado o campo de dentro ocupa a largura toda, em vez de encolher ao próprio texto. */
-.trigger > * {
+.triggerFill > * {
   flex-grow: 1;
   min-width: 0;
 }
