@@ -276,7 +276,7 @@ o.attachment_mode <> 'required'`. Registrar os números em `evidence.md`. **A Fa
 
 > 🤖 Modelo: `sonnet`; revisão final com `code-reviewer` em `opus`
 
-- [ ] **T6.1** Revisão de design e usabilidade da aba nova, com print nas três larguras (CA08).
+- [x] **T6.1** Revisão de design e usabilidade da aba nova, com print nas três larguras (CA08).
       **Comparar o `preview.html` com a tela real, lado a lado**, em 375, 768 e 1280: abrir o
       protótipo e a tela implementada com os mesmos dados, e registrar em `evidence.md` uma tabela
       "elemento → preview → tela real → veredito" (rótulos, ordem dos campos, estados vazio, erro e
