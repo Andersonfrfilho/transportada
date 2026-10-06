@@ -35,7 +35,7 @@ const FINAL_OBJECT_STATUS = 'final'
 /** A mesma chave noutra chegada não serializa na trava desta: o unique decide, e é reuso (409). */
 async function saveIdempotencyRecord(
   transaction: Transaction,
-  input: ArrivalScope & SaveCargoArrivalOccurrenceInput & { readonly occurrenceId: string },
+  input: ArrivalScope & SaveCargoArrivalOccurrenceInput,
 ): Promise<void> {
   try {
     await transaction.insert(idempotencyRecords).values({
@@ -56,7 +56,7 @@ async function saveIdempotencyRecord(
 
 async function recordOccurrenceTrail(
   transaction: Transaction,
-  input: ArrivalScope & SaveCargoArrivalOccurrenceInput & { readonly occurrenceId: string },
+  input: ArrivalScope & SaveCargoArrivalOccurrenceInput,
 ): Promise<void> {
   await transaction.insert(cargoArrivalEvents).values({
     actorUserId: input.actorUserId,
@@ -90,6 +90,7 @@ export async function saveCargoArrivalOccurrence(
       cargoArrivalDocumentId: input.arrivalDocumentId,
       channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: input.companyId,
+      id: input.occurrenceId,
       note: input.note,
       occurrenceTypeId: input.occurrenceType.id,
       productCode: input.productCode,
@@ -109,8 +110,8 @@ export async function saveCargoArrivalOccurrence(
     occurrenceId,
     redeliveryPolicy: input.occurrenceType.redeliveryPolicy,
   })
-  await recordOccurrenceTrail(transaction, { ...input, occurrenceId })
-  await saveIdempotencyRecord(transaction, { ...input, occurrenceId })
+  await recordOccurrenceTrail(transaction, input)
+  await saveIdempotencyRecord(transaction, input)
   return { id: occurrenceId }
 }
 

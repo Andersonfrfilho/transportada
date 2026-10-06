@@ -28,6 +28,7 @@ import {
   selectReceivingOccurrenceTypes,
   type ArrivalOccurrenceFilter,
 } from './cargo-arrival-occurrence-read.query.js'
+import { findStoredOccurrenceReplay } from './cargo-arrival-occurrence-replay.support.js'
 import type { Database } from './cargo-arrival-persistence.support.js'
 
 type OccurrenceRow = Awaited<ReturnType<typeof selectArrivalOccurrences>>[number]
@@ -46,6 +47,13 @@ export class DrizzleCargoArrivalOccurrenceReadRepository implements CargoArrival
   ): Promise<CargoArrivalOccurrenceView | null> {
     const [occurrence] = await this.readOccurrences({ ...scope, nfeDocumentId: null })
     return occurrence ?? null
+  }
+
+  public findReplay(input: {
+    readonly companyId: string
+    readonly idempotencyKey: string
+  }): Promise<{ readonly fingerprint: string; readonly occurrenceId: string } | null> {
+    return findStoredOccurrenceReplay(this.dependencies.database, input)
   }
 
   public async listOccurrences(

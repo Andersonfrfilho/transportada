@@ -83,6 +83,7 @@ export function createOccurrenceHandler(params: {
     registerOccurrence: createRegisterCargoArrivalOccurrenceUseCase({
       channel: 'backoffice',
       newObjectId: () => crypto.randomUUID(),
+      newOccurrenceId: () => crypto.randomUUID(),
       now,
       reads,
       storage: {

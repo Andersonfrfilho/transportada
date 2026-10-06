@@ -53,6 +53,7 @@ export function createCargoArrivalOccurrenceHttpRoutes(input: {
     registerOccurrence: createRegisterCargoArrivalOccurrenceUseCase({
       channel,
       newObjectId: () => crypto.randomUUID(),
+      newOccurrenceId: () => crypto.randomUUID(),
       now,
       reads,
       storage: createDeliveryProofStorage({ bucket: input.bucket, storage: input.storage }),

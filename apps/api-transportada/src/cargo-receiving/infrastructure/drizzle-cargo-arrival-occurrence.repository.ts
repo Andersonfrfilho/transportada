@@ -7,7 +7,6 @@
  */
 import { and, asc, eq } from 'drizzle-orm'
 
-import { idempotencyRecords } from '../../database/fiscal-operation.schema.js'
 import { nfeProducts } from '../../database/nfe.schema.js'
 import { companyOccurrenceTypes } from '../../database/trip.schema.js'
 import { insertOccurrenceAttachmentRow } from '../../trips/infrastructure/drizzle-occurrence-attachment.repository.js'
@@ -18,54 +17,18 @@ import type {
   DocumentProduct,
 } from '../application/cargo-arrival-occurrence.port.js'
 import type { ReceivingOccurrenceType } from '../application/cargo-arrival-occurrence.types.js'
-import { CargoArrivalOccurrenceReplayUnreadableError } from '../domain/cargo-arrival-occurrence.error.js'
 import {
   lockOccurrenceArrival,
   lockOccurrenceDocument,
 } from './cargo-arrival-occurrence-lock.support.js'
+import { findStoredOccurrenceReplay } from './cargo-arrival-occurrence-replay.support.js'
 import {
-  CARGO_ARRIVAL_OCCURRENCE_OPERATION,
   insertCargoArrivalOccurrenceObject,
   saveCargoArrivalOccurrence,
 } from './cargo-arrival-occurrence-write.support.js'
 import type { Database, Transaction } from './cargo-arrival-persistence.support.js'
 
 type Scoped = { readonly scope: ArrivalScope; readonly transaction: Transaction }
-
-/** A resposta guardada é entrada do banco: só um `occurrenceId` texto vale como reenvio. */
-function readStoredOccurrenceId(response: unknown): string | null {
-  if (typeof response !== 'object' || response === null || !('occurrenceId' in response)) {
-    return null
-  }
-  return typeof response.occurrenceId === 'string' ? response.occurrenceId : null
-}
-
-async function findReplay({
-  idempotencyKey,
-  scope,
-  transaction,
-}: Scoped & { readonly idempotencyKey: string }): Promise<{
-  readonly fingerprint: string
-  readonly occurrenceId: string
-} | null> {
-  const [row] = await transaction
-    .select({
-      fingerprint: idempotencyRecords.requestFingerprint,
-      response: idempotencyRecords.response,
-    })
-    .from(idempotencyRecords)
-    .where(
-      and(
-        eq(idempotencyRecords.companyId, scope.companyId),
-        eq(idempotencyRecords.operation, CARGO_ARRIVAL_OCCURRENCE_OPERATION),
-        eq(idempotencyRecords.idempotencyKey, idempotencyKey),
-      ),
-    )
-  if (row === undefined) return null
-  const occurrenceId = readStoredOccurrenceId(row.response)
-  if (occurrenceId === null) throw new CargoArrivalOccurrenceReplayUnreadableError()
-  return { fingerprint: row.fingerprint, occurrenceId }
-}
 
 async function findOccurrenceType({
   occurrenceTypeId,
@@ -116,7 +79,8 @@ function createTransactionPort(
   const { bucket, scope, transaction } = scoped
   return {
     findOccurrenceType: (occurrenceTypeId) => findOccurrenceType({ ...scoped, occurrenceTypeId }),
-    findReplay: (idempotencyKey) => findReplay({ ...scoped, idempotencyKey }),
+    findReplay: (idempotencyKey) =>
+      findStoredOccurrenceReplay(transaction, { companyId: scope.companyId, idempotencyKey }),
     async insertAttachment(input) {
       await insertOccurrenceAttachmentRow(transaction, { ...input, companyId: scope.companyId })
     },

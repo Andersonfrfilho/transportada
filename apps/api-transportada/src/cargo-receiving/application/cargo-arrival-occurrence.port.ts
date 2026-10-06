@@ -39,6 +39,8 @@ export type SaveCargoArrivalOccurrenceInput = {
   readonly items: readonly OccurrenceItemQuantity[]
   readonly note: string
   readonly now: Date
+  /** Gerado antes da transação: a foto sobe ao bucket com ele na chave, antes da trava. */
+  readonly occurrenceId: string
   readonly occurrenceType: ReceivingOccurrenceType
   readonly productCode: string
 }
@@ -115,6 +117,11 @@ export type CargoArrivalOccurrenceReadPort = {
   findOccurrence(
     scope: ArrivalScope & { readonly occurrenceId: string },
   ): Promise<CargoArrivalOccurrenceView | null>
+  /** A consulta barata, fora da trava: o reenvio já gravado volta sem subir a foto de novo. */
+  findReplay(input: {
+    readonly companyId: string
+    readonly idempotencyKey: string
+  }): Promise<{ readonly fingerprint: string; readonly occurrenceId: string } | null>
   /** `null` quando a chegada não é desta empresa. */
   listOccurrences(
     scope: ArrivalScope & { readonly nfeDocumentId: string | null },
