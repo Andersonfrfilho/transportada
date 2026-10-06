@@ -54,6 +54,15 @@ function readRuleBody(stylesheet: string, selector: string): string {
   return stylesheet.slice(start, end)
 }
 
+/** O lado horizontal da margem: `margin-inline`, ou o 1º valor com um só, ou o 2º do atalho `margin`. */
+function hasAutoHorizontalMargin(declarations: string): boolean {
+  if (/margin-inline:\s*auto\b/.test(declarations)) return true
+  const shorthand = declarations.match(/(?:^|[\s;{])margin:\s*([^;}]+)/)?.[1]
+  if (shorthand === undefined) return false
+  const values = shorthand.trim().split(/\s+(?![^(]*\))/)
+  return (values.length === 1 ? values[0] : values[1]) === 'auto'
+}
+
 describe('layout width contract', () => {
   test('declares one shared container width in the root theme', async () => {
     const stylesheet = await readApplicationFile(ROOT_STYLESHEET_PATH)
@@ -101,6 +110,24 @@ describe('layout width contract', () => {
 
     expect(offenders).toEqual([])
     expect(stylesheets.length).toBeGreaterThan(8)
+  })
+
+  test('centers every rule that takes the shared container width', async () => {
+    const stylesheets = await listStylesheets()
+    const offenders: string[] = []
+
+    for (const filePath of stylesheets) {
+      const stylesheet = await readApplicationFile(filePath)
+      for (const rule of stylesheet.matchAll(
+        /([^{}]+)\{([^{}]*width:\s*var\(--layout-width\)[^{}]*)\}/g,
+      )) {
+        const centered = hasAutoHorizontalMargin(rule[2] ?? '')
+        if (!centered)
+          offenders.push(`${filePath}: ${(rule[1] ?? '').trim().split('\n').pop()?.trim()}`)
+      }
+    }
+
+    expect(offenders).toEqual([])
   })
 
   test('keeps the operations shell on the spacing tokens like every other shell', async () => {
