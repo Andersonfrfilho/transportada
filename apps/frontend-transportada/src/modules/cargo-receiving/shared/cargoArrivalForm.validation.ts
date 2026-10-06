@@ -49,7 +49,9 @@ function validateArrivedAt(
   const moment = resolveArrivalMoment({ date, time })
   if (moment === undefined) return { code: 'required' }
   const isFuture = moment.getTime() - input.now.getTime() > CARGO_ARRIVAL_LIMITS.futureToleranceMs
-  return isFuture ? { code: 'future' } : undefined
+  if (isFuture) return { code: 'future' }
+  const isTooOld = input.now.getTime() - moment.getTime() > CARGO_ARRIVAL_LIMITS.arrivedAtMaxAgeMs
+  return isTooOld ? { code: 'tooOld', max: CARGO_ARRIVAL_LIMITS.arrivedAtMaxAgeDays } : undefined
 }
 
 function validatePalletCount(value: string): CargoFormIssue | undefined {

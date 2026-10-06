@@ -4,7 +4,12 @@
 export const CARGO_ARRIVAL_STATUSES = ['open', 'closed'] as const
 export const CARGO_DOCUMENT_STATES = ['expected', 'received', 'separated'] as const
 
+/** ⚠️ Cópia por valor do piso da API (`CARGO_ARRIVAL_LIMITS.arrivedAtMaxAgeMs`): 30 dias para trás. */
+const ARRIVED_AT_MAX_AGE_DAYS = 30
+
 export const CARGO_ARRIVAL_LIMITS = {
+  arrivedAtMaxAgeDays: ARRIVED_AT_MAX_AGE_DAYS,
+  arrivedAtMaxAgeMs: ARRIVED_AT_MAX_AGE_DAYS * 24 * 60 * 60_000,
   /** A leitura periódica da chegada aberta: curta o bastante para ver o colega, longa para não pesar. */
   detailRefetchIntervalMs: 20_000,
   documentsPerRequest: 300,

@@ -336,6 +336,38 @@ describe('a recusa do servidor nomeia tudo e cada nome é um atalho', () => {
     rendered.unmount()
   })
 
+  test('chegada de mais de 30 dias: o servidor recusa e o campo da data diz o motivo, com atalho (L6)', async () => {
+    const { rendered } = await mountRegistration({
+      registerFailure: new CargoReceivingRequestError('CARGO_ARRIVAL_ARRIVED_AT_TOO_OLD', [
+        { field: 'arrivedAt', message: 'The arrival cannot be more than 30 days ago' },
+      ]),
+    })
+    await chooseContractor('Alfa Indústria Fictícia')
+    await click(checkbox(1))
+
+    await click(buttonByText('Registrar chegada'))
+    await settle()
+
+    const summary = document.querySelector('[data-refusal-summary]') as HTMLElement
+    expect(summary.textContent).toContain('Data e hora da chegada')
+    expect(document.body.textContent).toContain('Use uma data de até 30 dias atrás.')
+    rendered.unmount()
+  })
+
+  test('data de mais de 30 dias atrás é recusada no próprio campo, antes de ir ao servidor', async () => {
+    const { double, rendered } = await mountRegistration()
+    await chooseContractor('Alfa Indústria Fictícia')
+    await click(checkbox(1))
+    const year = String(new Date().getFullYear() - 1)
+    await typeInto(byLabel('Data da chegada') as HTMLInputElement, `01/01/${year}`)
+
+    await click(buttonByText('Registrar chegada'))
+
+    expect(double.calls.register).toHaveLength(0)
+    expect(document.body.textContent).toContain('Use uma data de até 30 dias atrás.')
+    rendered.unmount()
+  })
+
   test('sem conexão diz isso e a seleção feita não se perde', async () => {
     const { rendered } = await mountRegistration({ registerFailure: networkFailure() })
     await chooseContractor('Alfa Indústria Fictícia')

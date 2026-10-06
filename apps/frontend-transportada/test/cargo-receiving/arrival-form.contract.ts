@@ -64,6 +64,18 @@ describe('a validação com as faixas do servidor', () => {
     expect(issues({ date: '2026-10-04', time: '00:00' }).arrivedAt).toEqual({ code: 'future' })
   })
 
+  test('até 30 dias para trás passa, a partir daí não: o mesmo piso do servidor (L6)', () => {
+    expect(issues({ date: '2026-09-03', time: '15:30' }).arrivedAt).toBeUndefined()
+    expect(issues({ date: '2026-09-03', time: '15:29' }).arrivedAt).toEqual({
+      code: 'tooOld',
+      max: 30,
+    })
+    expect(issues({ date: '2026-01-01', time: '08:00' }).arrivedAt).toEqual({
+      code: 'tooOld',
+      max: 30,
+    })
+  })
+
   test('paletes é opcional, inteiro e de 0 a 2147483647', () => {
     expect(issues({ palletCount: '' }).palletCount).toBeUndefined()
     expect(issues({ palletCount: '0' }).palletCount).toBeUndefined()

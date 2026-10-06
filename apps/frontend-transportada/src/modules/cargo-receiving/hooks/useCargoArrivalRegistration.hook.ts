@@ -23,6 +23,7 @@ import type { CargoArrivalPrefill } from '../shared/cargoPreview.types'
 import { readCargoArrivalPrefill } from '../shared/cargoPreviewProposal.service'
 import {
   describeRegistrationRefusal,
+  describeServerFieldIssues,
   type RegistrationRefusal,
 } from '../shared/cargoReceivingRefusal.service'
 import { navigateToCargoArrivalDetail } from '../shared/cargoReceivingRoute.service'
@@ -115,6 +116,7 @@ export function useCargoArrivalRegistration(): CargoArrivalRegistrationControlle
           })
           setRefusal(described)
           feedback.markRefused(described.fields.map((item) => item.field))
+          feedback.setIssues(describeServerFieldIssues(error))
         },
         onSuccess: ({ arrival }) =>
           navigateToCargoArrivalDetail({ arrivalId: arrival.id, navigator }),

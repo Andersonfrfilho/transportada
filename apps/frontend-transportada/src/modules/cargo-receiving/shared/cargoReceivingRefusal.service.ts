@@ -1,5 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { CargoDocumentOutcome } from './cargoArrival.types'
+import type { ArrivalFormIssues } from './cargoArrivalForm.validation'
+import { CARGO_ARRIVAL_LIMITS } from './cargoReceiving.constant'
 import { CargoReceivingRequestError } from './cargoReceivingRequest.service'
 
 export type DocumentReference = Readonly<{ id: string; number: string }>
@@ -32,6 +34,7 @@ export type BatchOutcomeSummary = Readonly<{
 
 export type PendingDocument = Readonly<{ documentId: string; number: string }>
 
+const ARRIVED_AT_TOO_OLD_CODE = 'CARGO_ARRIVAL_ARRIVED_AT_TOO_OLD'
 const DOCUMENT_FIELD = /^documentIds\.(\d+)$/u
 const PENDING_DOCUMENT_FIELD = /^pendingDocumentIds\.\d+$/u
 
@@ -96,6 +99,13 @@ export function describeRegistrationRefusal(
     documents: [...documents.values()],
     fields: [...fields.values()],
   }
+}
+
+/** A recusa do servidor que tem texto próprio no campo: "mais de 30 dias" diz mais que "o servidor recusou". */
+export function describeServerFieldIssues(error: unknown): ArrivalFormIssues {
+  if (!(error instanceof CargoReceivingRequestError)) return {}
+  if (error.message !== ARRIVED_AT_TOO_OLD_CODE) return {}
+  return { arrivedAt: { code: 'tooOld', max: CARGO_ARRIVAL_LIMITS.arrivedAtMaxAgeDays } }
 }
 
 export function describeBatchOutcomes(

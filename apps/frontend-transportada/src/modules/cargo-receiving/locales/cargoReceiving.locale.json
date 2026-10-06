@@ -149,7 +149,8 @@
     "tooLong": "Use no máximo {{max}} caracteres.",
     "noDocuments": "Marque ao menos uma nota.",
     "tooMany": "No máximo {{max}} notas por chegada.",
-    "refusedByServer": "O servidor recusou este valor."
+    "refusedByServer": "O servidor recusou este valor.",
+    "tooOld": "Use uma data de até {{max}} dias atrás."
   },
   "refusal": {
     "lead": "Confira:",
@@ -177,7 +178,8 @@
     "REQUEST_FAILED": "Sem conexão com o servidor.",
     "RESPONSE_INVALID": "Resposta inesperada do servidor.",
     "unknown": "Não foi possível concluir ({{code}}).",
-    "CARGO_ARRIVAL_DOCUMENTS_NOT_IN_ARRIVAL": "Algumas notas não fazem parte desta chegada."
+    "CARGO_ARRIVAL_DOCUMENTS_NOT_IN_ARRIVAL": "Algumas notas não fazem parte desta chegada.",
+    "CARGO_ARRIVAL_ARRIVED_AT_TOO_OLD": "A chegada não pode ter mais de 30 dias. Confira a data e a hora."
   },
   "detail": {
     "title": "Chegada de {{name}}",

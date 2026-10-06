@@ -149,7 +149,8 @@
     "tooLong": "Use at most {{max}} characters.",
     "noDocuments": "Tick at least one invoice.",
     "tooMany": "At most {{max}} invoices per arrival.",
-    "refusedByServer": "The server refused this value."
+    "refusedByServer": "The server refused this value.",
+    "tooOld": "Use a date up to {{max}} days ago."
   },
   "refusal": {
     "lead": "Check:",
@@ -177,7 +178,8 @@
     "REQUEST_FAILED": "No connection to the server.",
     "RESPONSE_INVALID": "Unexpected response from the server.",
     "unknown": "Could not complete ({{code}}).",
-    "CARGO_ARRIVAL_DOCUMENTS_NOT_IN_ARRIVAL": "Some invoices are not part of this arrival."
+    "CARGO_ARRIVAL_DOCUMENTS_NOT_IN_ARRIVAL": "Some invoices are not part of this arrival.",
+    "CARGO_ARRIVAL_ARRIVED_AT_TOO_OLD": "The arrival cannot be more than 30 days ago. Check the date and time."
   },
   "detail": {
     "title": "Arrival of {{name}}",
