@@ -498,7 +498,18 @@ export const FIELD_OCCURRENCE_TYPE_KEYS = ['id', 'name'] as const
  * Spec 179 T304: `attachmentMode` é aditivo — ausente é API anterior ao campo, e esta tela ainda
  * não usa o valor (quem decide se a observação é obrigatória hoje é a app do motorista).
  */
-export const FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS = ['attachmentMode'] as const
+export const FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS = [
+  'attachmentMode',
+  /** Spec 246 (ADR-0081 §9, painel antes da API): os modos resolvidos da nota e os mínimos. */
+  'flow',
+  'itemsMinimumCount',
+  'itemsMode',
+  'noteMode',
+  'photoMinimumCount',
+  'photoMode',
+  'signatureMode',
+  'stopKind',
+] as const
 
 export const TRIP_FIELD_OCCURRENCE_TYPES_PATH = `${TRIPS_PATH}/occurrence-types/field`
 

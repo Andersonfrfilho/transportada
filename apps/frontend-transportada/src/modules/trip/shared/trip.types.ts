@@ -213,7 +213,14 @@ export type TripOccurrence = Readonly<{
 export type FieldOccurrenceType = Readonly<{
   attachmentMode?: OccurrenceAttachmentMode
   id: string
+  /** Spec 246: a quantidade mínima de produtos (nulo = todos os itens); ausente é API anterior. */
+  itemsMinimumCount?: null | number
+  itemsMode?: OccurrenceAttachmentMode
   name: string
+  noteMode?: OccurrenceAttachmentMode
+  photoMinimumCount?: number
+  photoMode?: OccurrenceAttachmentMode
+  signatureMode?: OccurrenceAttachmentMode
 }>
 
 /**

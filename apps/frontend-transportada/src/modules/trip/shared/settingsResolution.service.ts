@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { hasExactKeys } from '@/modules/shared/objectKeys.service'
+import { hasKeys } from '@/modules/shared/objectKeys.service'
 
 import {
   isDeliveryProofFieldSettings,
@@ -21,11 +21,32 @@ const SETTINGS_RESOLUTION_OCCURRENCE_TYPE_KEYS = [
   'stage',
 ] as const
 
+/**
+ * Spec 246 (RF12, ADR-0081 §9): os campos resolvidos que a API passa a mandar por tipo, e a camada
+ * que decidiu cada um. Aditivos — ausentes são API anterior.
+ */
+const SETTINGS_RESOLUTION_OPTIONAL_KEYS = [
+  'itemsMinimumCount',
+  'itemsMode',
+  'noteMode',
+  'photoMinimumCount',
+  'photoMode',
+  'signatureMode',
+  'sources',
+] as const
+
 export type SettingsResolutionOccurrenceType = Readonly<{
   attachmentMode: OccurrenceAttachmentMode
   flow: OccurrenceTypeFlow
   id: string
+  itemsMinimumCount?: null | number
+  itemsMode?: OccurrenceAttachmentMode
   name: string
+  noteMode?: OccurrenceAttachmentMode
+  photoMinimumCount?: number
+  photoMode?: OccurrenceAttachmentMode
+  signatureMode?: OccurrenceAttachmentMode
+  sources?: Readonly<Record<string, string>>
   /** RF-E1 só devolve tipos de rua — mesmo recorte de `listFieldOccurrenceTypes`. */
   stage: 'delivery'
 }>
@@ -43,7 +64,14 @@ export type SettingsResolutionViewWire = Readonly<{
 function isSettingsResolutionOccurrenceType(
   value: unknown,
 ): value is SettingsResolutionOccurrenceType {
-  if (!hasExactKeys(value, SETTINGS_RESOLUTION_OCCURRENCE_TYPE_KEYS)) return false
+  if (
+    !hasKeys(value, {
+      allowed: [...SETTINGS_RESOLUTION_OCCURRENCE_TYPE_KEYS, ...SETTINGS_RESOLUTION_OPTIONAL_KEYS],
+      required: SETTINGS_RESOLUTION_OCCURRENCE_TYPE_KEYS,
+    })
+  ) {
+    return false
+  }
   return (
     OCCURRENCE_ATTACHMENT_MODES.includes(value.attachmentMode as OccurrenceAttachmentMode) &&
     OCCURRENCE_TYPE_FLOWS.includes(value.flow as OccurrenceTypeFlow) &&
