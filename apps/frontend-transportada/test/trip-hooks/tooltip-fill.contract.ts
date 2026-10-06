@@ -11,7 +11,7 @@ import { describe, expect, mock, test } from 'bun:test'
 import { renderWithQueryClient } from './renderHook.helper'
 
 /** O bun não gera nomes de classe para CSS module: com o espelho de identidade o `className` aparece. */
-mock.module('@/components/ui/tooltip.module.css', () => ({
+await mock.module('@/components/ui/tooltip.module.css', () => ({
   default: new Proxy({}, { get: (_target, key) => String(key) }),
 }))
 
