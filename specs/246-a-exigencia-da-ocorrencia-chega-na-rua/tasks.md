@@ -158,7 +158,7 @@ trip_document_occurrence_attachments_unique_position DO NOTHING`. **`created_at 
 - [x] **T1d.5** A escrita da ocorrência de rua grava nas duas tabelas até a leitura nova estar em
       produção, **sem** usar `trip_occurrence_attachment` para o lote; `photo_minimum_count` é
       conferido contra a quantidade de anexos (RF8). A assinatura **não** vira linha de anexo (RF9).
-- [ ] **T1d.6** O demonstrativo de ocorrências ao cliente
+- [x] **T1d.6** O demonstrativo de ocorrências ao cliente
       (`drizzle-occurrence-statement.repository.ts` ~255-310) mostra a foto de rua e a resposta da
       correção, e **não** mostra a assinatura como foto — contrato primeiro (CA09, RF14).
 

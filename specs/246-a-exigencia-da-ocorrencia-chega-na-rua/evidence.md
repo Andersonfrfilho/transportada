@@ -1183,3 +1183,40 @@ fail`; `street-occurrence-attachment-write` → `2 pass, 0 fail`; `bun run typec
 `trip-occurrence-feed-document` 6/0 · `trip-occurrence-feed-case` 2/0 · `trip-occurrence-correction`
 8/0 · `trip-occurrence-correction-read` 8/0 · `extra-charge-batch-statement` 2/0 · `trip-timeline` 45/0 ·
 `occurrence-type-moments-registration` 2/0 (pass/fail, nenhum pulado).
+
+### T1d.6 — O demonstrativo e a correção mostram a foto de rua, nunca a assinatura (2026-10-06)
+
+Os dois leitores só conhecem a tabela da 161 e **não mudaram de código**: o demonstrativo ao cliente
+(`DrizzleOccurrenceStatementRepository.loadPhotos`, `drizzle-occurrence-statement.repository.ts:251-325`)
+e a resposta da correção (`readOccurrenceView`, `drizzle-occurrence-correction.repository.ts:312-324`).
+Passam a mostrar a foto de rua porque a escrita dupla (T1d.5) grava a linha, e o backfill (T1d.2)
+grava a das ocorrências antigas — **depois** que a T1d.2 for aplicada. Antes dela, ocorrência antiga
+só com a coluna continua sem foto nesses dois leitores, como hoje (não é regressão). A assinatura fica
+em `signature_object_id`, que nenhum dos dois lê.
+
+`test/integration/street-occurrence-photo-statement.integration.ts` (na lista `test:integration`): o
+motorista registra uma ocorrência de rua com foto pelo caminho real; uma assinatura é gravada na coluna
+`signature_object_id` da mesma ocorrência; uma cobrança dessa ocorrência é fechada num lote pelo
+`createExtraChargeBatchesUseCase`. O demonstrativo (`listChargeRows`) traz `photoCount = 1` e a chave
+do objeto **da foto**; a correção (`readOccurrenceView`) traz um anexo, posição 1, com o **id da
+linha** (não o da ocorrência — a mudança de id registrada na T1d.1).
+
+Contrato primeiro, rodado antes da T1d.5:
+
+```text
+$ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/street-occurrence-photo-statement.integration.ts
+error: expect(received).toBe(expected)
+Expected: 1
+Received: 0
+(fail) o demonstrativo e a correção mostram a foto de rua, nunca a assinatura (spec 246 T1d.6) > uma foto no demonstrativo e na correção, com a assinatura gravada ao lado
+ 0 pass
+ 1 fail
+```
+
+Depois da T1d.5: `1 pass, 0 fail`.
+
+**Leitores que passam a mostrar a foto de rua** (com a linha gravada): o demonstrativo de ocorrências
+ao cliente (PDF do lote) e a resposta da correção/cancelamento da ocorrência. Os que **já** a mostravam
+pela coluna e agora a mostram pela linha (mesma foto, id e hora da linha): o feed de ocorrências
+(`GET` dos anexos), o painel (`readOccurrenceAttachments`), a contagem da linha do tempo da viagem e o
+evento de foto da linha do tempo da ocorrência.
