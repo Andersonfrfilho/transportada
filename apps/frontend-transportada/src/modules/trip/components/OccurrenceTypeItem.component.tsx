@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { useId, useState } from 'react'
+import { useId } from 'react'
 
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
 import type { OccurrenceTypeExceptionsState } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
@@ -15,22 +15,25 @@ import { OccurrenceTypeSummary } from './OccurrenceTypeSummary.component'
 type OccurrenceTypeItemProps = Readonly<{
   canManage: boolean
   exceptions: OccurrenceTypeExceptionsState
+  isExpanded: boolean
   isSaving: boolean
   onSave: (input: OccurrenceTypeSaveInput) => void
+  onToggle: (typeId: string) => void
   templates: OccurrenceEmailTemplatesState
   type: OccurrenceType
 }>
 
-/** Spec 246 RF11: o tipo nasce recolhido; o operador abre só os que quer ver. */
+/** Spec 246 RF11: o tipo nasce recolhido; quem guarda a abertura é a lista, por id — gravar não o recolhe. */
 export function OccurrenceTypeItem({
   canManage,
   exceptions,
+  isExpanded,
   isSaving,
   onSave,
+  onToggle,
   templates,
   type,
 }: OccurrenceTypeItemProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
   const detailsId = useId()
 
   return (
@@ -39,7 +42,7 @@ export function OccurrenceTypeItem({
         controlsId={detailsId}
         exceptions={exceptions}
         isExpanded={isExpanded}
-        onToggle={() => setIsExpanded((current) => !current)}
+        onToggle={() => onToggle(type.id)}
         type={type}
       />
       {isExpanded ? (

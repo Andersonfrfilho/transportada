@@ -2,8 +2,8 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
-import { TRIP_OCCURRENCE_STAGE } from '@/modules/trip/shared/occurrence.constant'
 import type { OccurrenceTypeExceptionsState } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
+import { readOccurrenceRequirementScope } from '@/modules/trip/shared/occurrenceRequirementScope.service'
 import type { OccurrenceEmailTemplatesState } from '@/modules/trip/shared/occurrenceTemplate.service'
 import styles from '@/modules/trip/styles/trip.module.css'
 
@@ -37,7 +37,7 @@ export function OccurrenceTypeRow({
   type,
 }: OccurrenceTypeRowProps) {
   const isDisabled = !canManage || isSaving
-  const isDelivery = type.stage === TRIP_OCCURRENCE_STAGE.delivery
+  const scope = readOccurrenceRequirementScope(type)
 
   function handleEdit(edit: OccurrenceTypeEdit) {
     onSave(buildOccurrenceTypeUpdate(type, edit))
@@ -47,12 +47,7 @@ export function OccurrenceTypeRow({
     <div className={styles.occurrenceForm}>
       <OccurrenceTypeIdentity disabled={isDisabled} onEdit={handleEdit} type={type} />
       {type.moments === undefined ? null : (
-        <OccurrenceTypeMoments
-          disabled={isDisabled}
-          key={type.moments.join(',')}
-          moments={type.moments}
-          onEdit={handleEdit}
-        />
+        <OccurrenceTypeMoments disabled={isDisabled} moments={type.moments} onEdit={handleEdit} />
       )}
       <OccurrenceTypeRequirementFields disabled={isDisabled} onEdit={handleEdit} type={type} />
       <OccurrenceTypeNotification
@@ -61,11 +56,12 @@ export function OccurrenceTypeRow({
         templates={templates}
         type={type}
       />
-      {/* Spec 246 RF11/RF11c: as exceções à vista, só em tipo de rua (mesmo gate do comprovante). */}
-      {isDelivery ? (
+      {/* Spec 246 RF11/RF11c: as exceções à vista em todo tipo que tem momento de rua — galpão e rua inclusive. */}
+      {scope.hasExceptions ? (
         <OccurrenceTypeExceptions
           canManage={canManage}
           exceptions={exceptions}
+          scope={scope}
           isDisabled={isSaving}
           occurrenceTypeId={type.id}
           typeAttachmentMode={type.attachmentMode}

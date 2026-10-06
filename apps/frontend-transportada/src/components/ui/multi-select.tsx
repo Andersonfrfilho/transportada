@@ -28,7 +28,7 @@ type MultiSelectProps = Readonly<{
   onChange: (values: readonly string[]) => void
   options: readonly MultiSelectOption[]
   placeholder: string
-  removeLabel: string
+  removeLabel: ((optionLabel: string) => string) | string
   searchPlaceholder: string
   /** O gatilho não cabe N rótulos: quem sabe pluralizar é o idioma de quem chama. */
   summaryLabel: (count: number) => string
@@ -135,7 +135,7 @@ export function MultiSelect({
     ...(option.icon === undefined ? {} : { icon: option.icon }),
     label: option.label,
     onRemove: () => toggle(option.value),
-    removeLabel,
+    removeLabel: typeof removeLabel === 'function' ? removeLabel(option.label) : removeLabel,
     value: option.description ?? '',
   }))
 

@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TRIP_OCCURRENCE_STAGE } from '@/modules/trip/shared/occurrence.constant'
@@ -31,6 +32,15 @@ export function OccurrenceTypeList({
   types,
 }: OccurrenceTypeListProps) {
   const { t } = useTranslation('companySettings')
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(new Set())
+
+  function handleToggle(typeId: string) {
+    setExpandedIds((current) => {
+      const next = new Set(current)
+      if (!next.delete(typeId)) next.add(typeId)
+      return next
+    })
+  }
 
   return (
     <>
@@ -49,9 +59,11 @@ export function OccurrenceTypeList({
               <OccurrenceTypeItem
                 canManage={canManage}
                 exceptions={exceptionsOf(type)}
+                isExpanded={expandedIds.has(type.id)}
                 isSaving={isSaving}
                 key={type.id}
                 onSave={onSave}
+                onToggle={handleToggle}
                 templates={templates}
                 type={type}
               />
