@@ -815,10 +815,20 @@ linhas e **células** (revisão de segurança S1, ADR-0094 §7); `resolveCargoPr
 `cargo_preview_document_links`, não do item; item decidido pelo operador (`matched_by = user`) a máquina
 nunca reavalia. Detalhe: docs/ai-context § "Spec 237 — Fase 4a, parte B".
 
+**A avaria sem viagem e "devolver ao contratante"** (Fase 3, ADR-0094 §9): a ocorrência de recebimento é linha
+de `trip_document_occurrences` dona por `cargo_arrival_document_id` — ⚠️ `trip_document_id` deixou de ser `NOT NULL`
+(CHECK de exatamente um dono), então leitor por id trata o nulo como "não é ocorrência de viagem". Etapa `receiving`
+em `TRIP_OCCURRENCE_STAGE`; o painel de tipos só vê `TRIP_BOUND_OCCURRENCE_STAGES`. ⚠️ O nome do tipo é único por
+empresa **em qualquer etapa** (índice só na migration de 03/09). A marcação é
+`cargo_arrival_documents.return_to_contractor` (ortogonal ao eixo): nota marcada não separa, segura o fechamento e sai
+dos rascunhos de viagem e da proposta de chegada. Desfazer é `occurrences.resolve`; concluir exige a tratativa
+decidida. ⚠️ A leitura da chegada **não** ganhou chave (guardas exatas do painel) — a marcação sai em
+`GET /cargo-arrivals/:id/occurrences`. Detalhe: docs/ai-context § "Spec 237 — Fase 3".
+
 ## Rascunhos de viagem da prévia (spec 237 T5.1)
 
 `GET /cargo-previews/:id/trip-drafts` (`fleet.read`, sem query): um rascunho por `RouteName`, só leitura — nada vira
 viagem aqui (ADR-0044 §5). Só `matched` é nota (o **estado** manda, não a coluna); roteável = autorizada, fora de viagem
 viva e fora de `excludedDocumentIds`, num portão só (`isCargoPreviewDocumentRoutable`) — a Fase 3 (RF8a, "devolver ao
-contratante") preenche `findExcludedTripDraftDocumentIds()`. `missingCount` conta só `awaiting_xml`. Detalhe:
+contratante") preenche `findExcludedTripDraftDocumentIds(database, { companyId, previewId })` com as notas marcadas. `missingCount` conta só `awaiting_xml`. Detalhe:
 docs/ai-context/api-transportada.md § "Spec 237 — Fase 5, T5.1".

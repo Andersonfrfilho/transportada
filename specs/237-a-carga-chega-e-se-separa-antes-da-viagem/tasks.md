@@ -102,9 +102,12 @@
       chegada, recomendação e proposta), validado com `architect` em `opus` contra as specs
       157/164/166/172/183/185. _(2026-10-06: ADR-0094 §9; `architect` opus APROVADO COM AJUSTES, os oito acolhidos
       — `evidence.md` § T3.1.)_
-- [ ] **T3.2** Migration aditiva + etapa `receiving` nos tipos; rota que recusa fora da janela (código
+- [x] **T3.2** Migration aditiva + etapa `receiving` nos tipos; rota que recusa fora da janela (código
       estável); marcar/desmarcar/concluir a devolução (eventos append-only, ator, motivo); tratativa e portal
       enxergam a ocorrência nova.
+      _(2026-10-06: migration `20261006180700_cargo_arrival_receiving_occurrence` e rotas `/cargo-arrivals/…/occurrences`,
+      `…/return-{mark,unmark,complete}`; a marcação sai na rota de ocorrências, não na leitura da chegada — `evidence.md`
+      § T3.2.)_
 - [ ] **T3.3** Tela (painel e celular): abrir avaria na nota da chegada (item, quantidade, foto) e a
       marcação "devolver ao contratante"; nota marcada sai da recomendação e da proposta de chegada; mutação;
       evidência.

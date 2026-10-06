@@ -1712,3 +1712,108 @@ pronto; (6) **a leitura `GET /cargo-arrivals/:id` não ganha chave** — as guar
 `returnToContractor`/ocorrências/contagens (ajuste 6: quebraria o painel publicado; vão na rota de ocorrências); desfazer **não**
 é do separador (ajuste 8); o feed `GET /trip-occurrences` não mostra a ocorrência de recebimento (contrato dele exige viagem e
 placa; a tratativa é conduzida pela rota nova + ações existentes).
+
+## T3.2 — migration e API da avaria sem viagem e da marcação "devolver ao contratante" (2026-10-06)
+
+Commits: `9ce8f792c` (schema, migration, ajustes de tipo nos leitores), `652158e01` (domínio, casos de uso, rotas,
+portal, catálogo e tipos), `411e5f652` (contrato de isolamento endurecido por mutação), `22a596012` (prettier) e o de
+documentação desta seção. Sem push.
+
+- **Cadeia da migration:** `git fetch` antes de gerar; fim da cadeia em `origin/staging` era
+  `20261006144825_cargo_arrival_check_null_holes` (`d59e8b1f-…`). Gerada `20261006180700_cargo_arrival_receiving_occurrence`
+  com `prevIds = ["d59e8b1f-…"]` (único filho), editada à mão: `SET LOCAL lock_timeout = '3s'` antes do primeiro
+  `ALTER`, todo CHECK/FK novo `NOT VALID` + `VALIDATE`, `DEFAULT` no fim. `rollback.sql` **destrutivo** e com guarda
+  (aborta com ocorrência de recebimento ou nota marcada; apaga os tipos `receiving`; `SET NOT NULL` por último).
+  `bun run db:generate` → `{"status":"no_changes"}`. `make migration-test`: **126 → 130 pass / 0 fail** (aplica tudo,
+  roda os rollbacks em ordem inversa, reaplica; +4 do contrato estático novo).
+- **Contrato antes do código, vermelho pelo motivo certo:** schema (`6 fail`: colunas e CHECKs ausentes); política
+  (`Cannot find module …/cargo-arrival-occurrence.policy.js`); caso de uso (`Cannot find module
+…/cargo-arrival-return.use-case.js`); HTTP (`Cannot find module …/cargo-arrival-occurrence.routes.js`); leitura sem
+  chave nova (`isSeparationOverdue` `true` com a nota marcada, 2 fail); proposta (`DOCUMENT_ALREADY_IN_ARRIVAL` no
+  lugar de `DOCUMENT_RETURN_TO_CONTRACTOR`, 2 fail); catálogo de recebimento (`seedReceivingOccurrenceTypeCatalog`
+  inexistente, 1 fail).
+- **Achado durante a integração (corrigido antes do commit):** o nome do tipo é único por empresa **em qualquer
+  etapa** (`company_occurrence_types_company_name_unique`, índice só na migration de 03/09). Semear "Item avariado" de
+  recebimento derrubaria o pre-deploy com `23505` em toda empresa com o catálogo de viagem. Os três se chamam "… na
+  chegada", o bootstrap pula nome usado e devolve quantos nasceram; integração prova o caso real (catálogo de viagem
+  semeado antes, 14 + 6, depois 0 e 0).
+
+### Gates (rodados nesta sessão, em primeiro plano)
+
+- `bun run typecheck` e `bun run lint` (API): limpos. `bun run format:check` na raiz: limpo.
+- Contrato (`bun --env-file=../../.env.test test --timeout 120000`): **antes 9779 pass / 25 skip / 0 fail** (199
+  arquivos); **depois 9863 pass / 25 skip / 0 fail** (199 arquivos).
+- Integração contra o Postgres do `.env.test` (65432, bancos descartáveis por teste), **arquivos passados um a um**:
+  os 3 novos (`cargo-arrival-occurrence` 6, `cargo-arrival-return` 5, `cargo-arrival-occurrence-reach` 3) **mais**
+  todas as suítes de chegada/prévia/perfil, ocorrência, tratativa, cobrança, correção, conversa, portal, lote do
+  escritório e despacho automático (`cargo-*`, `contractor-portal*`, `contractor-receiving*`, `occurrence-*`,
+  `trip-occurrence-*`, `stop-occurrence-photo`, `trip-detail-occurrence-marker`, `trip-redelivery-application`,
+  `extra-charge-batch-statement`, `trip-field-office*`, `trip-auto-dispatch`): **antes 53 arquivos, 225 pass / 1 skip /
+  0 fail; depois 56 arquivos, 238 pass / 1 skip / 0 fail** (o skip é o mesmo, anterior a esta task).
+
+### Mutações (script fora do repositório; cada arquivo restaurado; `git diff --quiet` limpo depois)
+
+| Regra                            | Mutação                                          | Vermelho                                                                                                                                                                         |
+| -------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| janela                           | sem o teste de `separation_due_at`               | contrato 2 fail; integração 1 fail                                                                                                                                               |
+| empresa na trava da chegada      | `where id = …` sem empresa                       | integração 1 fail (só depois de endurecer o teste: a 1ª rodada **sobreviveu** — a trava da nota recusava com outro código; o contrato passou a exigir `CARGO_ARRIVAL_NOT_FOUND`) |
+| empresa na leitura               | `arrivalExists` sem empresa                      | integração 1 fail                                                                                                                                                                |
+| exatamente um dono               | CHECK `= 1` → `>= 0` na migration                | estático 1 fail; integração 1 fail                                                                                                                                               |
+| etapa ⇔ dono                     | CHECK trocado por `true`                         | integração 1 fail                                                                                                                                                                |
+| sai da recomendação              | `findExcludedTripDraftDocumentIds` devolve vazio | integração 1 fail                                                                                                                                                                |
+| `returned` terminal              | desfazer não recusa a devolvida                  | contrato 1 fail; integração 1 fail                                                                                                                                               |
+| fechar: marcada segura           | sem o ramo `marked`                              | contrato 1 fail; integração 1 fail                                                                                                                                               |
+| fechar: devolvida libera         | pendente sem olhar a marcação                    | contrato 3 fail; integração 1 fail                                                                                                                                               |
+| desfazer é `occurrences.resolve` | política trocada por `trip.manage`               | contrato 2 fail; integração 1 fail                                                                                                                                               |
+| reenvio antes da janela          | sem procurar a chave                             | contrato 2 fail; integração 1 fail                                                                                                                                               |
+| item obrigatório                 | sem a recusa                                     | contrato 1 fail                                                                                                                                                                  |
+| painel não lista o tipo          | sem o filtro de etapa                            | integração 1 fail                                                                                                                                                                |
+| cadastro não converte            | `UPDATE` sem o filtro de etapa                   | integração 1 fail                                                                                                                                                                |
+| portal pela nota da chegada      | `coalesce` só pela viagem                        | integração 1 fail                                                                                                                                                                |
+| separar nota marcada             | sem a guarda do lote                             | contrato 1 fail; integração 1 fail                                                                                                                                               |
+| motivo na proposta               | recusa vira aceite                               | contrato 2 fail; integração 1 fail                                                                                                                                               |
+| leitura sem chave nova           | `returnToContractor` na nota                     | contrato 1 fail                                                                                                                                                                  |
+| vencida ignora a marcada         | pendente = não separada                          | contrato 1 fail                                                                                                                                                                  |
+| viagem viva não marca            | sem a recusa                                     | contrato 1 fail                                                                                                                                                                  |
+| concluir espera a decisão        | sem a recusa                                     | contrato 3 fail; integração 1 fail                                                                                                                                               |
+| nome próprio do catálogo         | "Item avariado" de volta                         | integração 1 fail                                                                                                                                                                |
+| concorrência                     | sem as duas travas `for no key update`           | integração 1 fail                                                                                                                                                                |
+
+### Decisões que divergiram do texto do pedido
+
+1. **A leitura da chegada não ganhou `returnToContractor`/ocorrências/contagens** (ajuste 6 do architect): as guardas de
+   chave exata do painel publicado derrubariam `/recebimento`. Tudo isso sai em `GET /cargo-arrivals/:id/occurrences`
+   (`documents[].returnToContractor`, `occurrences[]`, `returnCounts`). Incorporar à leitura da chegada é um passo
+   depois de o painel aceitar as chaves (T3.3).
+2. **Desfazer a marcação é `occurrences.resolve`**, não `trip.manage` (ajuste 8); concluir é `trip.manage` mas exige a
+   tratativa da origem `decided|closed`.
+3. **Nomes do catálogo:** "Item avariado na chegada", "Divergência de quantidade na chegada", "Item faltante na chegada"
+   (unique de nome entre etapas).
+4. **Ocorrência só em nota `received|separated`** (R1) e **pelo menos um item** (ajuste 3); foto obrigatória com o teto
+   do galpão (512 KiB), não 960 KiB.
+5. **O feed `GET /trip-occurrences` e o detalhe do escritório não mostram a ocorrência de recebimento** (contrato deles
+   exige viagem e placa); a tratativa é conduzida pelas seis ações existentes a partir do `caseId` da rota nova.
+6. **Conversa (183) e e-mail da ocorrência de recebimento não foram estendidos**: o portal mostra a ocorrência sem
+   conversa (sem 500 — provado na integração do portal).
+7. **Concorrência da chave entre chegadas:** o `23505` de `idempotency_records` vira 409 no código, mas nenhum teste
+   provoca a corrida entre duas chegadas (a de mesma chegada serializa na trava e é a provada).
+8. **Arquivos de teste acima de 200 linhas** (três integrações e o contrato de caso de uso, 209–316): seguem o tamanho
+   das suítes vizinhas do módulo; o código de `src/` novo ficou abaixo de 200 linhas por arquivo e 40 por função.
+
+### Follow-ups (ADR-0094 §9.6)
+
+Decisão do portal desfazer/concluir a marcação; conversa e e-mail da ocorrência de recebimento; correção/cancelamento e
+foto adicional dela; cadastro de tipo `receiving` no painel; feed do escritório com ocorrência sem viagem; cobrança do
+acerto sem viagem; travar o vínculo de nota marcada a uma viagem; rótulo "Recebimento" no `frontend-client`; medir
+`trip_document_occurrences` antes de produção (`docs/SECURITY.md`).
+
+### ⚠️ Para a T3.3 (tela)
+
+Os tipos vêm de `GET /cargo-arrivals/occurrence-types`; a abertura é o multipart da 161 com `Idempotency-Key` de 16–256
+caracteres `[A-Za-z0-9._:-]` (o mesmo da chegada); a marcação e as ocorrências vêm de `GET /cargo-arrivals/:id/occurrences`;
+o painel só pode passar a ler chaves novas da leitura da chegada **depois** de aceitá-las como opcionais.
+
+### Não rodou
+
+Push e deploy (proibidos nesta rodada); a suíte de integração inteira da API (só os 56 arquivos acima); smoke e
+`make check` completo; o painel e o `frontend-client` (fora do escopo); nenhuma leitura de staging nem de produção.

@@ -2808,3 +2808,61 @@ documentCount, pendingLineCount` (casada por nome sem acento + UF: a nota traz o
 - Contratos: `test/cargo-receiving/cargo-preview-trip-draft-{policy,use-case}.contract.ts`,
   `test/cargo-receiving-http/cargo-preview-trip-draft-routes.contract.ts`, `separator-role.contract.test.ts` (rota
   alcançada pelo separador), integração `test/integration/cargo-preview-trip-draft.integration.ts` (Postgres).
+
+## Spec 237 — Fase 3, T3.2: a avaria sem viagem e a marcação "devolver ao contratante" (ADR-0094 §9)
+
+**A ocorrência de recebimento é linha de `trip_document_occurrences`.** Migration
+`20261006180700_cargo_arrival_receiving_occurrence`: coluna `cargo_arrival_document_id`, `trip_document_id`
+**sem `NOT NULL`** e no lugar o CHECK `num_nonnulls(trip_document_id, cargo_arrival_document_id) = 1`; CHECK
+`(stage = 'receiving') = (cargo_arrival_document_id is not null)`; FK `restrict` para a nota da chegada e unique
+`(company_id, cargo_arrival_document_id, id)` (leitura e alvo da FK do motivo). Tratativa (164), fotos (161),
+itens (166/172) e cobrança continuam apontando para a mesma tabela — nada delas mudou.
+
+- ⚠️ **`trip_document_id` é anulável no TS.** Leitor que junta `trip_documents` por `inner join` não vê a
+  ocorrência de recebimento (é o certo: não há viagem). Leitor por id trata o nulo como "não é desta rota":
+  correção/cancelamento → não encontrada; cobrança do acerto → `OccurrenceChargePartiesUnresolvedError` (422);
+  lote do escritório e marcador da viagem filtram o nulo; e-mail/conversa da ocorrência devolvem "sem alvo".
+- **Etapa `receiving`** em `TRIP_OCCURRENCE_STAGE` (gera os CHECKs das duas tabelas). `TRIP_BOUND_OCCURRENCE_STAGES`
+  é a lista da viagem: `listOccurrenceTypes` (o `GET /company-settings/occurrence-types` do painel, que recusa a
+  lista inteira com etapa desconhecida) filtra por ela, e o `UPDATE` de `saveOccurrenceType` não alcança tipo
+  `receiving` (404). ⚠️ **O nome do tipo é único por empresa em qualquer etapa** (índice
+  `company_occurrence_types_company_name_unique` só na migration de 03/09, fora do schema TS): os três tipos de
+  recebimento se chamam "… na chegada" e o bootstrap pula nome usado (`seedReceivingOccurrenceTypeCatalog`, pre-deploy,
+  `blocked` + `items_mode optional`).
+- **A marcação** é `cargo_arrival_documents.return_to_contractor none|marked|returned` + `return_occurrence_id`
+  (FK `(company_id, id, return_occurrence_id)` → a ocorrência DESTA nota). Ortogonal ao eixo
+  `expected → received → separated`: separar nota marcada/devolvida é recusado no lote
+  (`CARGO_ARRIVAL_DOCUMENT_MARKED_FOR_RETURN`/`…_RETURNED`); fechar exige `returned` ou (`none` e `separated`), e o 409
+  diz por nota se ela está marcada ou só não separada; "vencida" conta só a `none` não separada
+  (`pendingSeparationCount`, contado pronto na lista). `findExcludedTripDraftDocumentIds(database, {companyId,
+previewId})` devolve as notas da prévia `marked|returned`; a proposta de chegada as recusa com
+  `DOCUMENT_RETURN_TO_CONTRACTOR`.
+- **Rotas** (`presentation/cargo-arrival-occurrence.routes.ts`, composição em `cargo-arrival-occurrence.composition.ts`):
+  `GET /cargo-arrivals/occurrence-types` e `GET /cargo-arrivals/:id/occurrences[?documentId=]` (`fleet.read`; a segunda
+  traz `occurrences` com itens, fotos assinadas e `case {id,status}`, `documents` com a marcação de cada nota e
+  `returnCounts`); `POST …/documents/:documentId/occurrences` (`trip.manage`, multipart da 161, `Idempotency-Key`
+  obrigatória em `idempotency_records` operação `cargo-arrival-occurrence`, `rateLimit` 60/300 s, pelo menos um item,
+  foto obrigatória, nota `received|separated`, dentro de `separation_due_at`; sem janela = enquanto aberta);
+  `POST …/return-mark` (`trip.manage`, `{occurrenceId, note?}`), `…/return-unmark` (**`occurrences.resolve`** — o
+  separador recebe 403) e `…/return-complete` (`trip.manage`, só com a tratativa da origem `decided|closed`).
+  Códigos: `CARGO_ARRIVAL_OCCURRENCE_WINDOW_CLOSED` (422), `…_TYPE_NOT_FOUND` (404), `OCCURRENCE_TYPE_NOT_RECEIVING`
+  (422), `…_ITEMS_REQUIRED` (422), `…_KEY_REUSED` (409), `CARGO_ARRIVAL_RETURN_OCCURRENCE_INVALID` (422) e, em 409, o
+  motivo da política (`CARGO_ARRIVAL_CLOSED`, `…_DOCUMENT_NOT_RECEIVED`, `…_DOCUMENT_RETURNED`,
+  `…_RETURN_ALREADY_MARKED`, `…_DOCUMENT_IN_LIVE_TRIP`, `…_RETURN_NOT_MARKED`, `…_RETURN_DECISION_PENDING`).
+- **Ordem da abertura** (`application/cargo-arrival-occurrence-guard.service.ts`): trava da chegada → chave (o
+  reenvio devolve a gravada, 200, mesmo com janela vencida ou chegada fechada) → nota (`for no key update`) →
+  estado e janela → tipo e itens → linhas (ocorrência, itens, tratativa, evento `occurrence_registered`, auditoria,
+  chave) → foto (`runWithStoredObjectCleanup`). Marcar/desfazer/concluir: trava chegada → nota → política pura
+  (`domain/cargo-arrival-return.policy.ts`) → `UPDATE` + evento `return_*` + auditoria `cargo-arrival.return-*`.
+- ⚠️ **A leitura `GET /cargo-arrivals[/:id]` NÃO ganhou chave** (o painel confere chave exata no resumo, grupo e
+  nota): a marcação sai só na rota de ocorrências. Incorporá-la à leitura da chegada é passo seguinte, depois de o
+  painel aceitar as chaves como opcionais.
+- **Portal (164):** as quatro leituras de `contractor-occurrence.query.ts` resolvem a NF-e por
+  `coalesce(trip_documents.nfe_document_id, cargo_arrival_documents.nfe_document_id)` (duas junções à esquerda com
+  a empresa da ocorrência); a projeção não mudou. A conversa (183) não cria conversa para a ocorrência de
+  recebimento (junção obrigatória com a viagem) — o portal mostra a ocorrência sem conversa.
+- Contratos: `test/cargo-receiving/cargo-arrival-{return,occurrence-use-case,return-use-case}.contract.ts`,
+  `test/cargo-receiving-http/cargo-arrival-occurrence-routes.contract.ts`,
+  `test/cargo-receiving-schema/cargo-arrival-{receiving-occurrence,occurrence-tenant-safety}.contract.ts`,
+  `test/database-migration/cargo-arrival-receiving-occurrence-migration.contract.ts`; integração
+  `test/integration/cargo-arrival-{occurrence,return,occurrence-reach}.integration.ts`.

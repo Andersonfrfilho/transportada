@@ -432,7 +432,8 @@ trocado por um CHECK mais forte e sete ajustes de tipo.
   tipo de recebimento não é criado nem editado pelo painel nesta fase (follow-up da T3.3).
 - **Catálogo de recebimento** (`seedReceivingOccurrenceTypeCatalog`, no pre-deploy depois do catálogo
   geral): por empresa, **se não existe nenhum tipo `receiving` (ativo ou aposentado)**, grava "Item
-  avariado", "Divergência de quantidade" e "Item faltante", uma vez — a mesma regra de bootstrap, nunca
+  avariado na chegada", "Divergência de quantidade na chegada" e "Item faltante na chegada" (os nomes do
+  pedido colidiriam — ver "Achado na implementação" em §9.5), uma vez — a mesma regra de bootstrap, nunca
   sincronização, da 21/09. Os três nascem com `redelivery_policy = 'blocked'`: é o único valor que abre a
   tratativa (com `unset` a ocorrência nunca apareceria na 164 nem no portal) sem oferecer a reentrega —
   a nota da chegada nunca foi entregue, e a proposta de reentrega da 164 T14 lê a viagem.
@@ -541,6 +542,16 @@ explícitos — linha `channel = 'backoffice'`, `on_behalf_of_driver_id` e posi�
 `findExcludedTripDraftDocumentIds` assíncrona, por prévia, e o motivo da proposta é rótulo (o unique da
 nota já impede outra chegada; o efeito real é nos rascunhos de viagem) (R6). A exceção de foto por
 contratante da 218 não vale para o recebimento: a foto é sempre exigida.
+
+**Achado na implementação (T3.2):** o nome do tipo é único por empresa **em qualquer etapa**
+(`company_occurrence_types_company_name_unique`, índice `(company_id, lower(btrim(name)))` da migration
+`20260903140000`, que não aparece no schema TS). Toda empresa com o catálogo de viagem já tem "Item
+avariado" de separação: semear o de recebimento com o mesmo nome derrubaria o pre-deploy com `23505`. Os
+três nascem com o sufixo "na chegada", e a gravação do bootstrap pula nome já usado (`on conflict do
+nothing`), devolvendo quantos nasceram de fato — o pre-deploy nunca cai por causa de um nome. O
+bootstrap geral passou a olhar só `delivery|separation` (R2), e a semente local da bancada procura o
+tipo pelo nome **e** pela etapa. A foto segue o teto do galpão (512 KiB, `OCCURRENCE_PHOTO_MAX_BYTES`),
+abaixo dos 960 KiB do R5.
 
 #### 9.6 Fora desta fase (follow-ups registrados)
 

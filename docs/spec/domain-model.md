@@ -70,6 +70,13 @@ emitente da nota.
 - CargoArrivalDocument: a nota na chegada, com **eixo próprio** `expected → received → separated`
   (nunca `trip_documents.separation_status`), agrupada por rota do contratante × cidade IBGE do
   destinatário. Uma nota entra em no máximo uma chegada (`unique (company_id, nfe_document_id)`).
+  Ortogonal ao eixo, o destino `return_to_contractor` `none → marked → returned` (spec 237 Fase 3,
+  ADR-0094 §9.3): marcada, sai da recomendação de viagens e da proposta de chegada, não é separada e
+  segura o fechamento; desfazer volta a `none`; `returned` é terminal e libera o fechamento. O motivo é
+  uma ocorrência de recebimento **desta** nota (`return_occurrence_id`).
+- TripDocumentOccurrence (ocorrência de nota): pertence a **exatamente uma** nota — a da viagem
+  (`trip_document_id`) ou a da chegada (`cargo_arrival_document_id`, etapa `receiving`, a avaria sem
+  viagem). A tratativa, os itens, as fotos e as correções seguem a ocorrência, qualquer que seja o dono.
 - CargoArrivalEvent: a trilha append-only da chegada (trigger), com ator, canal, `occurred_at` e
   `recorded_at`; o CHECK de forma repete a tabela de transições.
 - CargoPreview: **a planilha de prévia que o contratante manda antes da carga** (spec 237 Fase 4a,
@@ -159,6 +166,11 @@ erDiagram
 - `cargo_arrivals(company_id, idempotency_key)` unique; `cargo_arrival_documents(company_id,
 nfe_document_id)` unique (uma nota, uma chegada); o evento aponta para a nota pela chegada
   (`(company_id, arrival_id, arrival_document_id)`), nunca para nota de outra chegada.
+- `trip_document_occurrences`: `num_nonnulls(trip_document_id, cargo_arrival_document_id) = 1` e
+  `(stage = 'receiving') = (cargo_arrival_document_id is not null)`; `cargo_arrival_documents.(company_id,
+id, return_occurrence_id)` → `trip_document_occurrences(company_id, cargo_arrival_document_id, id)` (o
+  motivo da devolução é ocorrência desta nota). `company_occurrence_types` tem nome único por empresa em
+  qualquer etapa.
 - `cargo_previews(company_id, contractor_id, file_sha256)` e `(company_id, idempotency_key)` unique;
   `cargo_preview_document_links(company_id, document_id)` unique (uma nota em uma prévia só);
   `cargo_preview_items(company_id, preview_id, row_number)` unique; o item vinculado aponta para o

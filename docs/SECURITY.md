@@ -287,6 +287,30 @@ desbloqueado). Se o produto passar a guardar mais do que a viagem corrente, revi
 
 **Origem:** spec 189 T3.3a (boot sem rede, snapshot e fila com dono). Registrado em 2026-09-25.
 
+### 2026-10-06 — spec 237 Fase 3 — avaria sem viagem: quem desfaz a devolução, a migration numa tabela central e o rollback destrutivo
+
+**Autorização (decidido, ADR-0094 §9.5 ajuste 8):** abrir a ocorrência de recebimento, marcar "devolver ao
+contratante" e concluir a devolução são `trip.manage` (separador e escritório); **desfazer a marcação é
+`occurrences.resolve`** — o separador que registrou a avaria não devolve a caixa avariada à rota sozinho
+(autoaprovação que a ADR-0067 e a 164 fecharam). Concluir exige a tratativa da ocorrência de origem `decided|closed`.
+Tudo filtrado pela empresa do contexto em toda junção (contrato `cargo-arrival-occurrence-tenant-safety`), chegada
+alheia é 404 na própria trava da chegada (integração com mutação). A foto entra pelo mesmo caminho da 161 (bytes
+conferidos, teto 512 KiB, bucket privado, URL assinada, cinco anos de retenção), com `rateLimit` 60/300 s no
+Postgres. Logs e auditoria só com ids.
+
+**Pendência operacional antes de produção (sem medida de agente):** a migration
+`20261006180700_cargo_arrival_receiving_occurrence` constrói o unique
+`(company_id, cargo_arrival_document_id, id)` sobre **toda** `trip_document_occurrences` (trava inserções de
+ocorrência enquanto dura; `lock_timeout` 3 s aborta em vez de enfileirar). Quem tem acesso ao banco mede
+`select count(*), pg_size_pretty(pg_total_relation_size('trip_document_occurrences')) from trip_document_occurrences;`
+e escolhe janela de pouco registro de ocorrência.
+
+**Rollback destrutivo:** o `rollback.sql` recusa (exceção) se houver ocorrência de recebimento ou nota marcada, e
+apaga os tipos `receiving` semeados. Rodar só com aprovação humana.
+
+**Risco aceito e registrado:** nota marcada ainda pode ser vinculada a uma viagem pelo fluxo de viagem (ela só sai
+da recomendação); a decisão do contratante no portal não mexe na marcação. Follow-ups em ADR-0094 §9.6.
+
 ### 2026-10-06 — spec 237 Fase 2 — a migration da chegada trava a importação de NF-e sem medida de produção (pendência operacional do usuário)
 
 **Onde:** `apps/api-transportada/drizzle/20261003204733_cargo_arrivals/migration.sql`, já aplicada em staging.
