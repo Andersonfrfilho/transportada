@@ -338,7 +338,7 @@
       "photo": "Photo",
       "photoMinimum": "Minimum photos",
       "itemsMinimum": "Products required",
-      "itemsMinimumBlocked": "The minimum number of products only applies when Products is Required on this exception.",
+      "itemsMinimumBlocked": "The minimum number of products only applies when Products is Required on this exception. The driver app only ticks “The whole invoice”, so “At least N” does not yet change what it requires.",
       "readOnly": "No permission to change the exceptions.",
       "add": "Add exception",
       "remove": "Remove",
@@ -356,7 +356,9 @@
     "requirements": {
       "scope": "general rule",
       "title": "What it requires",
-      "legend": "Required means the occurrence is not registered without it. Photo is the image captured on the device; Note is the driver's text; Signature is the one from whoever refused; Products is at least one invoice item marked.",
+      "legend": "Required means the occurrence is not registered without it. Photo is the image captured on the device; Note is the driver's text; Signature is the one from whoever refused; Products are the invoice items the occurrence points to.",
+      "mixedScope": "The requirements below apply only to the street moments (invoice delivery and arrival at the stop). At the warehouse the rule is fixed.",
+      "stopOnlyScope": "On arrival at the stop only the photo is required: note, signature and products apply on invoice delivery.",
       "fields": {
         "photo": "Photo",
         "note": "Note",
@@ -383,7 +385,7 @@
         "all": "All invoice items",
         "atLeast": "At least",
         "count": "Minimum number of products",
-        "hint": "Only applies when Products is required. All invoice items suits a total refusal."
+        "hint": "Only applies when Products is Required. All invoice items suits a total refusal. The driver app only ticks “The whole invoice”, so “At least N” does not yet change what it requires: do not configure a rule the device does not meet."
       }
     },
     "summary": {
@@ -397,7 +399,7 @@
       "needs": {
         "photo": "Photo",
         "note": "Note",
-        "signature": "Sign",
+        "signature": "Signature",
         "items": "Products",
         "photoCount": "Photo ×{{count}}"
       },
@@ -413,7 +415,9 @@
       "searchPlaceholder": "Search moment",
       "empty": "No moment found.",
       "clearAll": "Clear moments",
-      "remove": "Remove moment",
+      "remove": "Remove moment {{label}}",
+      "apply": "Apply moments",
+      "undo": "Undo",
       "summary": "{{count}} moments",
       "labels": {
         "separation": "Warehouse separation",

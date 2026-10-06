@@ -3,13 +3,15 @@
  */
 import { useTranslation } from 'react-i18next'
 
-import {
-  OCCURRENCE_ITEMS_MODE,
-  TRIP_OCCURRENCE_STAGE,
-  type OccurrenceAttachmentMode,
-  type OccurrenceType,
+import type {
+  OccurrenceAttachmentMode,
+  OccurrenceType,
 } from '@/modules/trip/shared/occurrence.constant'
 import type { OccurrenceRequirementField } from '@/modules/trip/shared/occurrenceRequirement.constant'
+import {
+  readOccurrenceRequirementMode,
+  readOccurrenceRequirementScope,
+} from '@/modules/trip/shared/occurrenceRequirementScope.service'
 import type { OccurrenceTypeEdit } from '@/modules/trip/shared/occurrenceTypeUpdate.service'
 import styles from '@/modules/trip/styles/occurrenceTypeRequirement.module.css'
 
@@ -22,13 +24,6 @@ type OccurrenceTypeRequirementFieldsProps = Readonly<{
   type: OccurrenceType
 }>
 
-function readCurrentMode(type: OccurrenceType, field: OccurrenceRequirementField) {
-  if (field === 'photo') return type.attachmentMode
-  if (field === 'note') return type.noteMode
-  if (field === 'signature') return type.signatureMode
-  return type.itemsMode ?? OCCURRENCE_ITEMS_MODE.optional
-}
-
 function buildEdit(field: OccurrenceRequirementField, mode: OccurrenceAttachmentMode) {
   if (field === 'photo') return { attachmentMode: mode }
   if (field === 'note') return { noteMode: mode }
@@ -38,9 +33,8 @@ function buildEdit(field: OccurrenceRequirementField, mode: OccurrenceAttachment
 
 /**
  * Spec 246 RF1a/RF1c/RF1c2: Foto, Observação, Assinatura e Produtos do tipo, no mesmo seletor de
- * três estados. Foto, Observação e Assinatura são do motorista na rua — o tipo de galpão tem a
- * regra fixa da 161 e não os mostra. Produtos vale para os dois, e só aparece quando a listagem
- * trouxe `itemsMode` (API anterior ao campo não oferece o controle).
+ * três estados. Quais campos valem sai do conjunto de momentos (`readOccurrenceRequirementScope`), e
+ * só aparece o que a listagem trouxe: API anterior aos campos não oferece o que recusaria.
  */
 export function OccurrenceTypeRequirementFields({
   disabled,
@@ -48,11 +42,8 @@ export function OccurrenceTypeRequirementFields({
   type,
 }: OccurrenceTypeRequirementFieldsProps) {
   const { t } = useTranslation('companySettings')
-  const isDelivery = type.stage === TRIP_OCCURRENCE_STAGE.delivery
-  const fields: readonly OccurrenceRequirementField[] = [
-    ...(isDelivery ? (['photo', 'note', 'signature'] as const) : []),
-    ...(type.itemsMode === undefined ? [] : (['items'] as const)),
-  ]
+  const scope = readOccurrenceRequirementScope(type)
+  const fields = scope.typeFields
   if (fields.length === 0) return null
 
   return (
@@ -64,6 +55,12 @@ export function OccurrenceTypeRequirementFields({
         {t('occurrenceTypeCatalog.requirements.title')}{' '}
         <span className={styles.scope}>· {t('occurrenceTypeCatalog.requirements.scope')}</span>
       </p>
+      {scope.isMixed ? (
+        <p className={styles.legend}>{t('occurrenceTypeCatalog.requirements.mixedScope')}</p>
+      ) : null}
+      {scope.isStopOnly ? (
+        <p className={styles.legend}>{t('occurrenceTypeCatalog.requirements.stopOnlyScope')}</p>
+      ) : null}
       <div className={styles.grid}>
         {fields.map((field) => (
           <OccurrenceRequirementModeSelect
@@ -71,12 +68,17 @@ export function OccurrenceTypeRequirementFields({
             field={field}
             key={field}
             onChange={(mode) => onEdit(buildEdit(field, mode))}
-            value={readCurrentMode(type, field)}
+            value={readOccurrenceRequirementMode(type, field)}
           />
         ))}
       </div>
       <p className={styles.legend}>{t('occurrenceTypeCatalog.requirements.legend')}</p>
-      <OccurrenceTypeMinimums disabled={disabled} onEdit={onEdit} type={type} />
+      <OccurrenceTypeMinimums
+        disabled={disabled}
+        hasPhotoMinimum={scope.hasPhotoMinimum}
+        onEdit={onEdit}
+        type={type}
+      />
     </section>
   )
 }

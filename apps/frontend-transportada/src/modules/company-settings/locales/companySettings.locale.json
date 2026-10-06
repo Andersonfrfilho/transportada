@@ -338,7 +338,7 @@
       "photo": "Foto",
       "photoMinimum": "Mínimo de fotos",
       "itemsMinimum": "Produtos exigidos",
-      "itemsMinimumBlocked": "O mínimo de produtos só vale quando Produtos é Obrigatório nesta exceção.",
+      "itemsMinimumBlocked": "O mínimo de produtos só vale quando Produtos é Obrigatório nesta exceção. O app do motorista só marca “A nota inteira”, então “Ao menos N” ainda não muda o que ele cobra.",
       "readOnly": "Sem permissão para alterar as exceções.",
       "add": "Adicionar exceção",
       "remove": "Remover",
@@ -356,7 +356,9 @@
     "requirements": {
       "scope": "regra geral",
       "title": "O que exige",
-      "legend": "Obrigatório quer dizer: a ocorrência não é registrada sem aquilo. Foto é a imagem capturada no aparelho; Observação é o texto do motorista; Assinatura é a de quem deu a negativa; Produtos é ao menos um item da nota marcado.",
+      "legend": "Obrigatório quer dizer: a ocorrência não é registrada sem aquilo. Foto é a imagem capturada no aparelho; Observação é o texto do motorista; Assinatura é a de quem deu a negativa; Produtos são os itens da nota que a ocorrência aponta.",
+      "mixedScope": "As exigências abaixo valem só nos momentos de rua (entrega da nota e chegada à parada). No galpão a regra é fixa.",
+      "stopOnlyScope": "Na chegada à parada só a foto é cobrada: observação, assinatura e produtos valem na entrega da nota.",
       "fields": {
         "photo": "Foto",
         "note": "Observação",
@@ -383,7 +385,7 @@
         "all": "Todos os itens da nota",
         "atLeast": "Ao menos",
         "count": "Quantidade mínima de produtos",
-        "hint": "Só vale quando Produtos é obrigatório. Todos os itens da nota serve à recusa total."
+        "hint": "Só vale quando Produtos é Obrigatório. Todos os itens da nota serve à recusa total. O app do motorista só marca “A nota inteira”, então “Ao menos N” ainda não muda o que ele cobra: não configure uma regra que o aparelho não cumpre."
       }
     },
     "summary": {
@@ -396,8 +398,8 @@
       "notifies": "Avisa o contratante",
       "needs": {
         "photo": "Foto",
-        "note": "Obs",
-        "signature": "Assin",
+        "note": "Observação",
+        "signature": "Assinatura",
         "items": "Produtos",
         "photoCount": "Foto ×{{count}}"
       },
@@ -413,7 +415,9 @@
       "searchPlaceholder": "Buscar momento",
       "empty": "Nenhum momento encontrado.",
       "clearAll": "Limpar momentos",
-      "remove": "Tirar momento",
+      "remove": "Tirar momento {{label}}",
+      "apply": "Aplicar momentos",
+      "undo": "Desfazer",
       "summary": "{{count}} momentos",
       "labels": {
         "separation": "Separação no galpão",

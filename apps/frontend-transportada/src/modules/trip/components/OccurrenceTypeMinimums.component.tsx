@@ -24,6 +24,7 @@ const PHOTO_COUNT_OPTIONS = Array.from(
 
 type OccurrenceTypeMinimumsProps = Readonly<{
   disabled: boolean
+  hasPhotoMinimum: boolean
   onEdit: (edit: OccurrenceTypeEdit) => void
   type: OccurrenceType
 }>
@@ -32,10 +33,17 @@ type OccurrenceTypeMinimumsProps = Readonly<{
  * Spec 246 RF1c/RF1c2: as quantidades só aparecem quando o campo é obrigatório — a foto de 1 a 5, e
  * os produtos "todos os itens da nota" (nulo) ou ao menos N.
  */
-export function OccurrenceTypeMinimums({ disabled, onEdit, type }: OccurrenceTypeMinimumsProps) {
+export function OccurrenceTypeMinimums({
+  disabled,
+  hasPhotoMinimum,
+  onEdit,
+  type,
+}: OccurrenceTypeMinimumsProps) {
   const { t } = useTranslation('companySettings')
-  const isPhotoRequired = type.attachmentMode === OCCURRENCE_ATTACHMENT_MODE.required
-  const isItemsRequired = type.itemsMode === OCCURRENCE_ITEMS_MODE.required
+  const isPhotoRequired =
+    hasPhotoMinimum && type.attachmentMode === OCCURRENCE_ATTACHMENT_MODE.required
+  const isItemsRequired =
+    type.itemsMinimumCount !== undefined && type.itemsMode === OCCURRENCE_ITEMS_MODE.required
   const itemsChoice = type.itemsMinimumCount === null ? ALL_ITEMS : AT_LEAST_ITEMS
 
   function handleItemsChoiceChange(choice: string) {
@@ -68,7 +76,7 @@ export function OccurrenceTypeMinimums({ disabled, onEdit, type }: OccurrenceTyp
               disabled={disabled}
               onChange={(value) => onEdit({ photoMinimumCount: Number(value) })}
               options={PHOTO_COUNT_OPTIONS.map((value) => ({ label: value, value }))}
-              value={String(type.photoMinimumCount)}
+              value={String(type.photoMinimumCount ?? OCCURRENCE_PHOTO_MINIMUM_COUNT.min)}
             />
           </div>
           <span className={styles.legend}>

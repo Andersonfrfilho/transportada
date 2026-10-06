@@ -23,6 +23,8 @@ const PHOTO_COUNTS = Array.from(
 )
 
 type OccurrenceExceptionMinimumsProps = Readonly<{
+  canExceptItems: boolean
+  canExceptPhoto: boolean
   disabled: boolean
   entry: OccurrenceExceptionEntry
   onEdit: (edit: OccurrenceExceptionEdit) => void
@@ -33,6 +35,8 @@ type OccurrenceExceptionMinimumsProps = Readonly<{
  * na própria exceção (a API recusa o resto com 400) — fora disso o controle fica desligado, com o motivo à vista.
  */
 export function OccurrenceExceptionMinimums({
+  canExceptItems,
+  canExceptPhoto,
   disabled,
   entry,
   onEdit,
@@ -62,76 +66,80 @@ export function OccurrenceExceptionMinimums({
 
   return (
     <>
-      <div className={styles.field}>
-        <span aria-hidden="true" className={styles.fieldLabel}>
-          {t('occurrenceTypeCatalog.exceptions.photoMinimum')}
-        </span>
-        <Select
-          ariaLabel={t('occurrenceTypeCatalog.exceptions.photoMinimum')}
-          compact
-          disabled={disabled}
-          onChange={(value) =>
-            onEdit({ photoMinimumCount: value === INHERIT ? null : Number(value) })
-          }
-          options={[
-            { label: t('occurrenceTypeCatalog.exceptions.inheritMode'), value: INHERIT },
-            ...PHOTO_COUNTS.map((value) => ({ label: value, value })),
-          ]}
-          value={
-            entry.photoMinimumCount === null || entry.photoMinimumCount === undefined
-              ? INHERIT
-              : String(entry.photoMinimumCount)
-          }
-        />
-      </div>
-      <div
-        aria-describedby={isItemsEditable ? undefined : reasonId}
-        className={styles.field}
-        role="group"
-        aria-label={t('occurrenceTypeCatalog.exceptions.itemsMinimum')}
-      >
-        <span aria-hidden="true" className={styles.fieldLabel}>
-          {t('occurrenceTypeCatalog.exceptions.itemsMinimum')}
-        </span>
-        <Select
-          ariaLabel={t('occurrenceTypeCatalog.exceptions.itemsMinimum')}
-          compact
-          disabled={disabled || !isItemsEditable}
-          onChange={handleItemsChoiceChange}
-          options={[
-            { label: t('occurrenceTypeCatalog.requirements.itemsMinimum.all'), value: ALL_ITEMS },
-            {
-              label: t('occurrenceTypeCatalog.requirements.itemsMinimum.atLeast'),
-              value: AT_LEAST_ITEMS,
-            },
-          ]}
-          placeholder={t('occurrenceTypeCatalog.exceptions.inheritMode')}
-          value={isItemsEditable ? itemsChoice : ''}
-        />
-        {isItemsEditable &&
-        entry.itemsMinimumCount !== null &&
-        entry.itemsMinimumCount !== undefined ? (
-          <input
-            aria-label={t('occurrenceTypeCatalog.requirements.itemsMinimum.count')}
-            className={styles.minimumInput}
-            defaultValue={entry.itemsMinimumCount}
-            disabled={disabled}
-            key={entry.itemsMinimumCount}
-            max={OCCURRENCE_ITEMS_MINIMUM_COUNT_MAX}
-            min={1}
-            onBlur={(event) => handleItemsCountCommit(event.currentTarget)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') event.currentTarget.blur()
-            }}
-            type="number"
-          />
-        ) : null}
-        {isItemsEditable ? null : (
-          <span className={styles.legend} id={reasonId}>
-            {t('occurrenceTypeCatalog.exceptions.itemsMinimumBlocked')}
+      {canExceptPhoto ? (
+        <div className={styles.field}>
+          <span aria-hidden="true" className={styles.fieldLabel}>
+            {t('occurrenceTypeCatalog.exceptions.photoMinimum')}
           </span>
-        )}
-      </div>
+          <Select
+            ariaLabel={t('occurrenceTypeCatalog.exceptions.photoMinimum')}
+            compact
+            disabled={disabled}
+            onChange={(value) =>
+              onEdit({ photoMinimumCount: value === INHERIT ? null : Number(value) })
+            }
+            options={[
+              { label: t('occurrenceTypeCatalog.exceptions.inheritMode'), value: INHERIT },
+              ...PHOTO_COUNTS.map((value) => ({ label: value, value })),
+            ]}
+            value={
+              entry.photoMinimumCount === null || entry.photoMinimumCount === undefined
+                ? INHERIT
+                : String(entry.photoMinimumCount)
+            }
+          />
+        </div>
+      ) : null}
+      {canExceptItems ? (
+        <div
+          aria-describedby={isItemsEditable ? undefined : reasonId}
+          className={styles.field}
+          role="group"
+          aria-label={t('occurrenceTypeCatalog.exceptions.itemsMinimum')}
+        >
+          <span aria-hidden="true" className={styles.fieldLabel}>
+            {t('occurrenceTypeCatalog.exceptions.itemsMinimum')}
+          </span>
+          <Select
+            ariaLabel={t('occurrenceTypeCatalog.exceptions.itemsMinimum')}
+            compact
+            disabled={disabled || !isItemsEditable}
+            onChange={handleItemsChoiceChange}
+            options={[
+              { label: t('occurrenceTypeCatalog.requirements.itemsMinimum.all'), value: ALL_ITEMS },
+              {
+                label: t('occurrenceTypeCatalog.requirements.itemsMinimum.atLeast'),
+                value: AT_LEAST_ITEMS,
+              },
+            ]}
+            placeholder={t('occurrenceTypeCatalog.exceptions.inheritMode')}
+            value={isItemsEditable ? itemsChoice : ''}
+          />
+          {isItemsEditable &&
+          entry.itemsMinimumCount !== null &&
+          entry.itemsMinimumCount !== undefined ? (
+            <input
+              aria-label={t('occurrenceTypeCatalog.requirements.itemsMinimum.count')}
+              className={styles.minimumInput}
+              defaultValue={entry.itemsMinimumCount}
+              disabled={disabled}
+              key={entry.itemsMinimumCount}
+              max={OCCURRENCE_ITEMS_MINIMUM_COUNT_MAX}
+              min={1}
+              onBlur={(event) => handleItemsCountCommit(event.currentTarget)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') event.currentTarget.blur()
+              }}
+              type="number"
+            />
+          ) : null}
+          {isItemsEditable ? null : (
+            <span className={styles.legend} id={reasonId}>
+              {t('occurrenceTypeCatalog.exceptions.itemsMinimumBlocked')}
+            </span>
+          )}
+        </div>
+      ) : null}
     </>
   )
 }

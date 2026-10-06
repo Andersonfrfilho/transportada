@@ -42,13 +42,18 @@ function createClient(input: { readonly requests: Request[]; readonly response: 
 }
 
 describe('catálogo: o tipo lido com os campos novos (spec 246 RF1)', () => {
-  test('API anterior (sem os campos): o painel lê o valor de hoje', () => {
+  /** M5: ausente continua ausente — a API antiga recusa a chave, então a tela não oferece o controle. */
+  test('API anterior (sem os campos): continuam ausentes, e não viram o valor de hoje', () => {
     const [type] = adapters.occurrenceTypesFromApi([buildRawType()])
-    expect(type?.noteMode).toBe('optional')
-    expect(type?.signatureMode).toBe('off')
-    expect(type?.photoMinimumCount).toBe(1)
-    expect(type?.itemsMinimumCount).toBeNull()
-    expect(type).not.toHaveProperty('moments')
+    for (const key of [
+      'itemsMinimumCount',
+      'moments',
+      'noteMode',
+      'photoMinimumCount',
+      'signatureMode',
+    ]) {
+      expect(type).not.toHaveProperty(key)
+    }
   })
 
   test('API nova: carrega o que veio, inclusive os momentos', () => {

@@ -7,9 +7,15 @@ import companySettingsEn from '../../src/modules/company-settings/locales/compan
 import companySettingsPt from '../../src/modules/company-settings/locales/companySettings.locale.json'
 import { OCCURRENCE_ATTACHMENT_MODES } from '../../src/modules/trip/shared/occurrence.constant'
 import { createTripResponseAdapters } from '../../src/modules/trip/shared/tripResponse.validation'
-import { readOccurrenceTypePanelSource } from './occurrenceTypePanelSource.helper'
+import {
+  readOccurrenceTypeCreateSource,
+  readOccurrenceTypePanelSource,
+  readOccurrenceTypeUpdateSource,
+} from './occurrenceTypePanelSource.helper'
 
 const PANEL = readOccurrenceTypePanelSource()
+const CREATE_BUILDER = readOccurrenceTypeCreateSource()
+const UPDATE_BUILDER = readOccurrenceTypeUpdateSource()
 const CLIENT = readFileSync(
   new URL('../../src/modules/trip/shared/tripClient.service.ts', import.meta.url),
   'utf8',
@@ -64,21 +70,19 @@ describe('a exigência de comprovante no editor de tipos (spec 179 T401)', () =>
     expect(area).toContain('attachmentMode: input.attachmentMode')
   })
 
-  it('o painel oferece a marca só em tipo de rua, pelo Select do design system', () => {
-    expect(PANEL).toContain("t('occurrenceTypeCatalog.attachmentMode')")
-    expect(PANEL).toContain('TRIP_OCCURRENCE_STAGE.delivery ? (')
+  it('o painel oferece a foto só onde o momento a cobra, pelo seletor de três estados', () => {
+    expect(PANEL).toContain('readRequirementFieldsOfMoments')
+    expect(PANEL).toContain('OccurrenceRequirementModeSelect')
     expect(PANEL).not.toContain('<select')
   })
 
   /** Toda gravação leva a marca que o tipo já tinha — mexer no aviso não pode desligar a foto. */
   it('toda gravação do painel leva attachmentMode', () => {
-    const saves = PANEL.split('onSave({').length - 1
-    const withMode =
-      PANEL.split(
-        /onSave\(\{\n\s+active: [^\n]+\n\s+allowsMultipleItems[^\n]*\n\s+attachmentMode:/u,
-      ).length - 1
-    expect(saves).toBeGreaterThan(0)
-    expect(withMode).toBe(saves)
+    /** Nenhum `onSave({...})` escrito à mão no painel: toda gravação sai de um dos dois montadores. */
+    expect(PANEL.split('onSave({').length - 1).toBe(0)
+    for (const builder of [UPDATE_BUILDER, CREATE_BUILDER]) {
+      expect(builder).toContain('attachmentMode')
+    }
   })
 
   it('os textos existem em pt-BR e en', () => {
