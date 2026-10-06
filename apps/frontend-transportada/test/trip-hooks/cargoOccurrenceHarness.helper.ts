@@ -65,6 +65,8 @@ export type CargoOccurrenceDouble = {
   readonly pending: (() => void)[]
   /** O tamanho da foto que o preparo devolve: acima de 512 KiB, o formulário a recusa. */
   photoBytes: number
+  /** Substitui o preparo da foto (a corrida entre duas escolhas); sem ele, devolve `photoBytes` na hora. */
+  prepare?: ((file: File) => Promise<{ original: Blob; thumbnail: Blob | undefined }>) | undefined
   products: readonly CargoDocumentProduct[]
   readonly replays: Map<string, { fingerprint: string; occurrenceId: string }>
   readonly returns: Map<string, { occurrenceId: string | null; state: CargoReturnState }>
@@ -380,6 +382,7 @@ void mock.module('@/modules/cargo-receiving/shared/cargoOccurrenceClient.service
 
 void mock.module('@/modules/cargo-receiving/shared/cargoOccurrencePhoto.service', () => ({
   prepareOccurrencePhoto: (file: File) =>
+    cargoOccurrenceFakes.double.prepare?.(file) ??
     Promise.resolve({
       original: new Blob([new Uint8Array(cargoOccurrenceFakes.double.photoBytes)], {
         type: file.type === '' ? 'image/jpeg' : file.type,

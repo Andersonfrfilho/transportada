@@ -217,13 +217,12 @@ describe('concluir a devolução espera a decisão do contratante', () => {
     }
   })
 
-  test('tipo que não abre tratativa (`case: null`) conclui sem esperar', () => {
+  test('sem tratativa (`case: null`) NÃO conclui: a API recusa com `CARGO_ARRIVAL_RETURN_DECISION_PENDING` (T3.4a)', () => {
     const actions = resolveCargoNoteActions(
       marked({ occurrences: [{ ...OCCURRENCE, case: null }] }),
     )
 
-    expect(actions.canComplete).toBe(true)
-    expect(actions.isAwaitingDecision).toBe(false)
+    expect(actions.canComplete).toBe(false)
   })
 
   test('concluir é de `trip.manage`, não de quem só lê, e a chegada fechada recusa', () => {
@@ -276,5 +275,49 @@ describe('o que segura o fechamento', () => {
 
   test('sem nota marcada não há motivo para mostrar', () => {
     expect(listCloseBlockers({ documents, returns: new Map() })).toEqual([])
+  })
+})
+
+describe('a origem com a tratativa cancelada (T3.4a, `CARGO_ARRIVAL_RETURN_CASE_CANCELLED`)', () => {
+  const cancelledCase = { id: 'case-1', status: 'cancelled' as const }
+  const origin = { ...OCCURRENCE, case: cancelledCase }
+
+  test('a nota marcada cuja tratativa foi cancelada não conclui e não "espera decisão": avisa que a devolução não tem mais motivo', () => {
+    const actions = resolveCargoNoteActions(marked({ occurrences: [origin] }))
+
+    expect(actions.canComplete).toBe(false)
+    expect(actions.isAwaitingDecision).toBe(false)
+    expect(actions.isReturnCaseCancelled).toBe(true)
+  })
+
+  test('o desfazer segue de quem decide a tratativa: é a saída da nota presa', () => {
+    expect(
+      resolveCargoNoteActions(marked({ canResolve: true, occurrences: [origin] })).canUnmark,
+    ).toBe(true)
+  })
+
+  test('a lista de origens para devolver esconde a avaria de tratativa cancelada', () => {
+    const live = buildOccurrence({
+      case: { id: 'case-2', status: 'under_review' },
+      id: 'occ-2',
+      nfeDocumentId: DOCUMENT,
+    })
+
+    const actions = resolveCargoNoteActions(context({ occurrences: [origin, live] }))
+
+    expect(actions.markableOccurrences.map((item) => item.id)).toEqual(['occ-2'])
+  })
+
+  test('só avarias de tratativa cancelada: nada a devolver, e o selo não fala de avaria aberta', () => {
+    const actions = resolveCargoNoteActions(context({ occurrences: [origin] }))
+
+    expect(actions.canMark).toBe(false)
+    expect(actions.badge).toBe('none')
+  })
+
+  test('a tratativa viva não acende o aviso', () => {
+    const actions = resolveCargoNoteActions(marked())
+
+    expect(actions.isReturnCaseCancelled).toBe(false)
   })
 })
