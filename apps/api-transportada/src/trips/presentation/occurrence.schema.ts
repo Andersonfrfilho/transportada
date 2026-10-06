@@ -13,6 +13,7 @@ import { locationSchema, toReportedLocation } from './reported-location.schema.j
 import { TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 import {
   OCCURRENCE_ITEMS_MODE,
+  OCCURRENCE_MOMENTS,
   OCCURRENCE_TYPE_FLOWS,
 } from '../../shared/trip-occurrence.constant.js'
 import { DELIVERY_PROOF_FIELD_MODES } from '../domain/delivery-proof-settings.policy.js'
@@ -353,6 +354,11 @@ const occurrenceTypeSchema = z
      * sobrescreve o registro inteiro, e o editor do painel ainda não manda este campo.
      */
     flow: z.enum(OCCURRENCE_TYPE_FLOWS).optional(),
+    /**
+     * Spec 246 (RF0, T1b.1b): o conjunto de momentos do tipo. Presente, `stage`/`flow` gravados são
+     * os derivados dele (o caso de uso os calcula); ausente é "não mexa" — o painel de hoje não manda.
+     */
+    moments: z.array(z.enum(OCCURRENCE_MOMENTS)).max(OCCURRENCE_MOMENTS.length).optional(),
     name: z.string().trim().min(1).max(60),
     notifies: z.boolean().default(false),
     occurrenceTypeId: z.string().uuid().nullable().default(null),

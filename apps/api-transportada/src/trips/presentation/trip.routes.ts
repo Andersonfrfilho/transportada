@@ -4,7 +4,7 @@
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { ClientIpResolver } from '../../http/client-ip.service.js'
 import { defineRoute } from '../../http/router.service.js'
-import type { OccurrenceTypeFlow } from '../../shared/trip-occurrence.constant.js'
+import type { OccurrenceMoment, OccurrenceTypeFlow } from '../../shared/trip-occurrence.constant.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type {
   DeliveryProofView,
@@ -305,6 +305,8 @@ type SaveOccurrenceTypeInput = {
    * `save-occurrence-type.use-case.ts`.
    */
   readonly leavesDocumentBehind?: boolean | undefined
+  /** Spec 246 (T1b.1b): o conjunto de momentos; ausente é "não mexa" — ver o caso de uso. */
+  readonly moments?: readonly OccurrenceMoment[] | undefined
   readonly name: string
   readonly notifies: boolean
   readonly occurrenceTypeId: null | string

@@ -12,11 +12,24 @@ import {
 } from '../domain/trip.error.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
-import { OCCURRENCE_ITEMS_MODE, REDELIVERY_POLICY } from '../../shared/trip-occurrence.constant.js'
+import {
+  OCCURRENCE_ITEMS_MODE,
+  OCCURRENCE_TYPE_FLOWS,
+  REDELIVERY_POLICY,
+} from '../../shared/trip-occurrence.constant.js'
 import type {
+  OccurrenceMoment,
   OccurrenceTypeFlow,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
+import { OccurrenceTypeMomentsStageConflictError } from '../domain/occurrence-moment.error.js'
+import {
+  assertOccurrenceMomentsAreWritable,
+  deriveOccurrenceMomentsFromStageAndFlow,
+  deriveStageAndFlowFromMoments,
+  isExpressedByStageAndFlow,
+  normalizeOccurrenceMoments,
+} from '../domain/occurrence-moment.policy.js'
 import type { OccurrenceTypeRecord } from './register-trip-occurrence.use-case.js'
 
 /** O catálogo de templates da empresa, visto pelo único predicado que este cadastro precisa. */
@@ -59,6 +72,12 @@ export type SaveOccurrenceTypeValues = {
    * Ausente é "não mexa", nunca `false` — mesmo motivo de `attachmentMode` acima.
    */
   readonly leavesDocumentBehind?: boolean | undefined
+  /**
+   * Spec 246 (RF0, T1b.1b): o conjunto de momentos. Presente, `stage`/`flow` gravados são os
+   * derivados dele; ausente é "não mexa" — na edição o caso de uso só re-deriva quando o par muda
+   * num tipo que o par diz inteiro, e na criação vale o derivado de `stage`/`flow`.
+   */
+  readonly moments?: readonly OccurrenceMoment[] | undefined
   readonly name: string
   readonly notifies: boolean
   readonly occurrenceTypeId: null | string
@@ -67,11 +86,15 @@ export type SaveOccurrenceTypeValues = {
   readonly stage: TripOccurrenceStage
 }
 
-/** O que o cadastro lê do tipo já gravado para validar o estado resultante (spec 241 RF11). */
-export type CurrentOccurrenceTypeShape = Pick<
-  OccurrenceTypeRecord,
-  'itemsMode' | 'redeliveryPolicy'
->
+/**
+ * O que o cadastro lê do tipo já gravado para validar o estado resultante (spec 241 RF11) e decidir
+ * o conjunto de momentos (spec 246 T1b.1b). `stage` ausente é dublê de teste: sem ele não há troca
+ * de par para conferir.
+ */
+export type CurrentOccurrenceTypeShape = Partial<
+  Pick<OccurrenceTypeRecord, 'flow' | 'moments' | 'stage'>
+> &
+  Pick<OccurrenceTypeRecord, 'itemsMode' | 'redeliveryPolicy'>
 
 export type SaveOccurrenceTypeWithTemplateInput = {
   readonly companyId: string
@@ -93,14 +116,16 @@ export type SaveOccurrenceTypeWithTemplateInput = {
 export async function saveOccurrenceTypeWithTemplate(
   input: SaveOccurrenceTypeWithTemplateInput,
 ): Promise<OccurrenceTypeRecord> {
-  if (input.values.leavesDocumentBehind === true && input.values.stage !== 'separation') {
+  const stored = await readStoredTypeWhenNeeded(input)
+  const values = resolveMomentsChange({ stored, values: input.values })
+  if (values.leavesDocumentBehind === true && values.stage !== 'separation') {
     throw new OccurrenceTypeLeavesDocumentBehindRequiresSeparationError()
   }
 
-  await assertItemsOffHasNoRedeliveryPolicy(input)
+  assertItemsOffHasNoRedeliveryPolicy({ stored, values })
 
-  const { emailTemplateKey } = input.values
-  if (emailTemplateKey === null) return input.save(input.values)
+  const { emailTemplateKey } = values
+  if (emailTemplateKey === null) return input.save(values)
 
   const exists = await input.templates.hasActiveEmailTemplate({
     companyId: input.companyId,
@@ -108,22 +133,57 @@ export async function saveOccurrenceTypeWithTemplate(
   })
   if (!exists) throw new OccurrenceEmailTemplateNotFoundError()
 
-  return input.save({ ...input.values, emailBody: '', emailSubject: '' })
+  return input.save({ ...values, emailBody: '', emailSubject: '' })
+}
+
+/** Uma leitura só do gravado, e só na edição que deixa algum campo ausente. */
+async function readStoredTypeWhenNeeded(
+  input: SaveOccurrenceTypeWithTemplateInput,
+): Promise<CurrentOccurrenceTypeShape | null> {
+  const { itemsMode, moments, occurrenceTypeId, redeliveryPolicy } = input.values
+  const isStoredStateNeeded =
+    occurrenceTypeId !== null &&
+    (itemsMode === undefined || redeliveryPolicy === undefined || moments === undefined)
+  return isStoredStateNeeded
+    ? input.findCurrentType({ companyId: input.companyId, occurrenceTypeId })
+    : null
+}
+
+type ResolveMomentsChangeParams = {
+  readonly stored: CurrentOccurrenceTypeShape | null
+  readonly values: SaveOccurrenceTypeValues
+}
+
+/**
+ * Spec 246 (T1b.1b): com `moments`, o par gravado é o derivado do conjunto. Sem `moments`, o gravado
+ * fica — salvo quando o `PUT` muda `stage`/`flow`: tipo que o par diz inteiro re-deriva o conjunto
+ * (o painel de hoje troca `flow` assim); tipo com vários momentos é 409, nunca perda calada.
+ */
+function resolveMomentsChange(params: ResolveMomentsChangeParams): SaveOccurrenceTypeValues {
+  const { stored, values } = params
+  if (values.moments !== undefined) {
+    const moments = normalizeOccurrenceMoments(values.moments)
+    assertOccurrenceMomentsAreWritable(moments)
+    return { ...values, ...deriveStageAndFlowFromMoments(moments), moments }
+  }
+  if (values.occurrenceTypeId === null || stored?.stage === undefined) return values
+
+  const storedPair = { flow: stored.flow ?? OCCURRENCE_TYPE_FLOWS.document, stage: stored.stage }
+  const nextPair = { flow: values.flow ?? storedPair.flow, stage: values.stage }
+  if (nextPair.stage === storedPair.stage && nextPair.flow === storedPair.flow) return values
+  if (!isExpressedByStageAndFlow({ ...storedPair, moments: stored.moments })) {
+    throw new OccurrenceTypeMomentsStageConflictError()
+  }
+  return { ...values, moments: deriveOccurrenceMomentsFromStageAndFlow(nextPair) }
 }
 
 /**
  * Spec 241 (RF11, D1): valida o estado **resultante** — campo ausente lê o valor gravado, porque
  * `off` + política diferente de `unset` é tratativa que não fecha. A CHECK do banco é só a rede.
  */
-async function assertItemsOffHasNoRedeliveryPolicy(
-  input: SaveOccurrenceTypeWithTemplateInput,
-): Promise<void> {
-  const { itemsMode, occurrenceTypeId, redeliveryPolicy } = input.values
-  const isStoredStateNeeded =
-    occurrenceTypeId !== null && (itemsMode === undefined || redeliveryPolicy === undefined)
-  const stored = isStoredStateNeeded
-    ? await input.findCurrentType({ companyId: input.companyId, occurrenceTypeId })
-    : null
+function assertItemsOffHasNoRedeliveryPolicy(params: ResolveMomentsChangeParams): void {
+  const { stored } = params
+  const { itemsMode, redeliveryPolicy } = params.values
 
   const resultingItemsMode = itemsMode ?? stored?.itemsMode ?? OCCURRENCE_ITEMS_MODE.optional
   const resultingPolicy = redeliveryPolicy ?? stored?.redeliveryPolicy ?? REDELIVERY_POLICY.unset

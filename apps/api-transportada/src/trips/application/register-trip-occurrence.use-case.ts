@@ -5,6 +5,7 @@
  */
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import type {
+  OccurrenceMoment,
   OccurrenceTypeFlow,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
@@ -144,6 +145,12 @@ export type OccurrenceTypeRecord = {
    * a marca; a implementação real (`listOccurrenceTypes`) sempre grava.
    */
   readonly leavesDocumentBehind?: boolean
+  /**
+   * Spec 246 (RF0): os momentos em que o tipo pode ser registrado, já resolvidos pela leitura
+   * tolerante (`resolveOccurrenceTypeMoments`). Opcional só para os dublês de teste — ausente cai nos
+   * derivados de `stage`/`flow`, e é por isso que toda guarda passa pelo resolvedor.
+   */
+  readonly moments?: readonly OccurrenceMoment[]
   readonly name: string
   readonly notifies: boolean
   /** Spec 183 T802: o registro avisa a contratante sozinho (o envio é do gancho, depois do commit). */

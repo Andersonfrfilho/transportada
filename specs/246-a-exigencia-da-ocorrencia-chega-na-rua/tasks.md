@@ -57,7 +57,7 @@ flow='stop'` **e** onde `stage='separation' AND flow='stop'` (D-c: preserva o co
       preço (tipo com vários momentos perde a informação). `stage` e `flow` permanecem gravadas.
       Registrar que `separation + document` nunca sai do backfill (só do operador) e que os dois
       tipos "Avaria" existentes não são fundidos.
-- [ ] **T1b.1b** Regra de derivação de `stage`/`flow` para tipo com vários momentos, na escrita:
+- [x] **T1b.1b** Regra de derivação de `stage`/`flow` para tipo com vários momentos, na escrita:
       `stage='separation'` se e só se `separation ∈ momentos` (mantém a CHECK de
       `leaves_document_behind`); `flow='stop'` se e só se `stop ∈ momentos` e `document ∉`;
       `stop_kind` exigido sempre que houver `stop`. **Leitura tolerante na janela de deploy:** tipo

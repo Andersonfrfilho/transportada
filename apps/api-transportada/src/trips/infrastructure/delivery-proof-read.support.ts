@@ -47,6 +47,7 @@ import type {
   TripOccurrenceAuthorship,
 } from '../application/register-trip-occurrence.use-case.js'
 import type {
+  OccurrenceMoment,
   OccurrenceTypeFlow,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
@@ -84,6 +85,11 @@ import {
   listOccurrenceTypeItemsShapesOrEmpty,
 } from './occurrence-type-items-read.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
+import {
+  replaceOccurrenceTypeMoments,
+  withOccurrenceTypeMoments,
+} from './occurrence-type-moments.query.js'
+import { deriveOccurrenceMomentsFromStageAndFlow } from '../domain/occurrence-moment.policy.js'
 
 /**
  * Spec 156 T9 (D3): resolve o nome de quem gravou pela mesma janela do padrão já em produção
@@ -869,7 +875,13 @@ export async function findOccurrenceType(
     )
     .limit(1)
 
-  return row ?? null
+  if (row === undefined) return null
+  /** Spec 246 (RF0): a guarda de cada caso de uso decide pelo conjunto, resolvido na leitura. */
+  const [withMoments] = await withOccurrenceTypeMoments(queryable, {
+    companyId: input.companyId,
+    records: [row],
+  })
+  return withMoments ?? null
 }
 
 /**
@@ -972,7 +984,7 @@ export async function listOccurrenceTypes(
   queryable: TripQueryable,
   input: { readonly companyId: string },
 ): Promise<readonly OccurrenceTypeRecord[]> {
-  return queryable
+  const records = await queryable
     .select({
       active: companyOccurrenceTypes.active,
       allowsMultipleItems: companyOccurrenceTypes.allowsMultipleItems,
@@ -1000,6 +1012,8 @@ export async function listOccurrenceTypes(
       ),
     )
     .orderBy(asc(companyOccurrenceTypes.stage), asc(companyOccurrenceTypes.name))
+  /** Spec 246 (RF0): o conjunto de cada tipo, numa consulta só para a lista inteira. */
+  return withOccurrenceTypeMoments(queryable, { companyId: input.companyId, records })
 }
 
 /**
@@ -1014,7 +1028,38 @@ function rethrowItemsOffShapeViolation(error: unknown): never {
   throw error
 }
 
+/**
+ * Spec 246 (T1b.1b): o tipo e o conjunto de momentos numa transação só. `moments` ausente na edição é
+ * "não mexa" (o caso de uso já re-derivou quando o par mudou); na criação vale o derivado de
+ * `stage`/`flow`, para todo tipo novo nascer com linha. A resposta traz o conjunto resolvido.
+ */
 export async function saveOccurrenceType(
+  queryable: TripQueryable,
+  input: Parameters<typeof writeOccurrenceTypeRow>[1] & {
+    readonly moments?: readonly OccurrenceMoment[] | undefined
+  },
+): Promise<OccurrenceTypeRecord> {
+  return queryable.transaction(async (transaction) => {
+    const saved = await writeOccurrenceTypeRow(transaction, input)
+    const moments =
+      input.moments ??
+      (input.occurrenceTypeId === null ? deriveOccurrenceMomentsFromStageAndFlow(saved) : undefined)
+    if (moments !== undefined) {
+      await replaceOccurrenceTypeMoments(transaction, {
+        companyId: input.companyId,
+        moments,
+        occurrenceTypeId: saved.id,
+      })
+    }
+    const [withMoments] = await withOccurrenceTypeMoments(transaction, {
+      companyId: input.companyId,
+      records: [saved],
+    })
+    return withMoments ?? saved
+  })
+}
+
+async function writeOccurrenceTypeRow(
   queryable: TripQueryable,
   input: {
     readonly active: boolean

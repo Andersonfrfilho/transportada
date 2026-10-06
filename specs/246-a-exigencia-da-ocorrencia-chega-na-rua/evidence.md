@@ -379,3 +379,60 @@ pasta —, `schema-snapshot`, `migration-readiness`, `pre-deploy`, `migration-ch
 derruba a tabela pelo `rollback.sql`, confere que `stage` e `flow` do tipo seguem de pé e que o
 migrador a reaplica — `make migration-test ENV_FILE=.env.test` → `129 pass, 0 fail, 0 skip` em 8
 arquivos. As **linhas** do backfill sobre dado semeado são a T1b.4.
+
+### T1b.1b (API) — Derivação de `stage`/`flow`, leitura tolerante e o `PUT` com `moments` (2026-10-06)
+
+Regra pura em `src/trips/domain/occurrence-moment.policy.ts`: `deriveOccurrenceMomentsFromStageAndFlow`
+(gêmea do backfill: `separation` → `[separation]`, `separation + stop` → `[separation, stop]`,
+`delivery + document` → `[document, office]`, `delivery + stop` → `[stop, office]`);
+`resolveOccurrenceTypeMoments` (leitura tolerante: o gravado vence, tipo sem linha usa os derivados);
+`deriveStageAndFlowFromMoments` (`stage = 'separation'` se e só se `separation ∈ momentos`; `flow =
+'stop'` se e só se `stop ∈` e `document ∉`); `assertOccurrenceMomentsAreWritable` (`document + stop`
+→ `422 OCCURRENCE_TYPE_MOMENTS_DOCUMENT_AND_STOP`); `isExpressedByStageAndFlow`. Erros em
+`occurrence-moment.error.ts` (arquivo próprio, molde de `canhoto-review.error.ts`).
+
+Leitura: `findOccurrenceType` e `listOccurrenceTypes` (`delivery-proof-read.support.ts`) devolvem
+`moments` resolvidos, por `withOccurrenceTypeMoments`
+(`src/trips/infrastructure/occurrence-type-moments.query.ts`) — **uma** consulta para a lista
+inteira. O `GET /company-settings/occurrence-types` e a resposta do `PUT` passam a trazer `moments`
+(o painel já tolera: commit `2cf84cb2f`). `OccurrenceTypeRecord.moments` é opcional só para os
+dublês; toda guarda passa pelo resolvedor.
+
+Escrita: `occurrenceTypeSchema` aceita `moments` (vocabulário fechado, opcional). Em
+`saveOccurrenceTypeWithTemplate`: com `moments`, `stage`/`flow` gravados são os derivados do
+conjunto (o corpo continua mandando `stage`, que o conjunto vence); sem `moments`, o gravado fica.
+**Interpretação registrada** de "`PUT` que muda `stage`/`flow` de tipo com vários momentos → 409":
+"vários momentos" é o conjunto que o par `stage`/`flow` **não** diz inteiro (ex.: `separation +
+document`). Um tipo `delivery + document` tem dois momentos (`document`, `office`) e o par o diz
+inteiro — trocar o `flow` dele pelo painel de hoje **re-deriva** o conjunto (`[stop, office]`), senão
+a troca não teria efeito no registro, que passa a ler o conjunto. A gravação do tipo e do conjunto é
+uma transação só (`saveOccurrenceType`); criação sem `moments` grava o derivado. `stop_kind` segue a
+regra antiga sobre o `flow` gravado, que agora é o derivado — tipo com `stop` sempre ganha `other`
+quando vazio. O `seedOccurrenceTypeCatalog` do pre-deploy grava sem linha de momento (não passa por
+`saveOccurrenceType`); a leitura tolerante cobre.
+
+Contratos primeiro (`test/trip-occurrence/occurrence-moment.contract.ts` e
+`occurrence-type-moments-write.contract.ts`, registrados em `test/trip-occurrence.contract.test.ts`),
+vermelhos antes da implementação:
+
+```text
+$ bun test ./test/trip-occurrence/occurrence-moment.contract.ts ./test/trip-occurrence/occurrence-type-moments-write.contract.ts
+error: Cannot find module '../../src/trips/domain/occurrence-moment.policy.js' from '.../test/trip-occurrence/occurrence-moment.contract.ts'
+(fail) o cadastro grava o conjunto de momentos (spec 246 T1b.1b) > com moments, stage e flow gravados são os derivados do conjunto [0.46ms]
+(fail) o cadastro grava o conjunto de momentos (spec 246 T1b.1b) > nota e parada juntas são recusadas antes de gravar [0.10ms]
+(fail) o cadastro grava o conjunto de momentos (spec 246 T1b.1b) > sem moments, mudar o flow de tipo que o par diz inteiro re-deriva o conjunto [0.07ms]
+(fail) o cadastro grava o conjunto de momentos (spec 246 T1b.1b) > tipo antigo sem linha de momento segue a mesma regra, pelos derivados [0.06ms]
+(fail) o cadastro grava o conjunto de momentos (spec 246 T1b.1b) > sem moments, mudar stage/flow de tipo com vários momentos é 409 [0.06ms]
+(fail) o cadastro grava o conjunto de momentos (spec 246 T1b.1b) > "deixa a nota para trás" vale pelo stage derivado do conjunto [0.11ms]
+(fail) o corpo do PUT do catálogo aceita moments (spec 246 T1b.1b) > moments no vocabulário passa; ausente continua ausente (mantém o gravado) [2.68ms]
+ 2 pass
+ 8 fail
+```
+
+Depois: `21 pass, 0 fail`; `bun test ./test/trip-occurrence.contract.test.ts` → `374 pass, 0 fail`;
+`bun run --cwd apps/api-transportada typecheck` → saída 0. Integração dos que gravam tipo pelo
+`saveOccurrenceType` (agora em transação com o conjunto), um por vez com `--env-file`:
+`occurrence-type-items-mode` 5/0 · `occurrence-type-leaves-document-behind` 4/0 ·
+`occurrence-type-redelivery-policy` 2/0 · `occurrence-type-catalog-seed` 2/0 ·
+`occurrence-type-requirement-modes` 1/0 (pass/fail, nenhum pulado). A escrita e a leitura do
+conjunto contra o banco são provadas na T1b.3.
