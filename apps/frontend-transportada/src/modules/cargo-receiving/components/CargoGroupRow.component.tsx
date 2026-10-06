@@ -8,6 +8,7 @@ import type { CargoArrivalDocument } from '../shared/cargoArrival.types'
 import detailStyles from '../styles/cargoDetail.module.css'
 import tableStyles from '../styles/cargoTable.module.css'
 import { CargoLiveTripBadge } from './CargoArrivalBadges.component'
+import { CargoNoteOccurrenceActions } from './CargoNoteOccurrenceActions.component'
 
 type CargoGroupRowProps = Readonly<{
   canSelect: boolean
@@ -47,6 +48,9 @@ export function CargoGroupRow({
           {t(`state.${document.separationState}`)}
           {document.isInLiveTrip ? <CargoLiveTripBadge /> : null}
         </span>
+      </td>
+      <td className={detailStyles.cellReturn} data-label={t('occurrence.column')}>
+        <CargoNoteOccurrenceActions document={document} showOpen={false} />
       </td>
     </tr>
   )

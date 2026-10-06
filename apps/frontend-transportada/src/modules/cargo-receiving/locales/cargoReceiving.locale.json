@@ -165,7 +165,10 @@
       "CARGO_ARRIVAL_CLOSED": "a chegada está fechada",
       "CARGO_ARRIVAL_DOCUMENT_NOT_RECEIVED": "precisa ser recebida antes de separar",
       "CARGO_ARRIVAL_TRANSITION_NOT_ALLOWED": "a nota já avançou — outra pessoa pode ter separado",
-      "CARGO_ARRIVAL_DOCUMENT_NOT_FOUND": "não está nesta chegada"
+      "CARGO_ARRIVAL_DOCUMENT_NOT_FOUND": "não está nesta chegada",
+      "CARGO_ARRIVAL_DOCUMENT_MARKED_FOR_RETURN": "está marcada para devolver ao contratante",
+      "CARGO_ARRIVAL_DOCUMENT_RETURNED": "já foi devolvida ao contratante",
+      "DOCUMENT_RETURN_TO_CONTRACTOR": "está marcada para devolução ao contratante"
     }
   },
   "errors": {

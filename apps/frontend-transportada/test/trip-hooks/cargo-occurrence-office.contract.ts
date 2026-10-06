@@ -85,7 +85,9 @@ describe('as ocorrências de recebimento da chegada', () => {
     expect(faltante.textContent).toContain('P-200 — Farinha de trigo (3 KG)')
     expect(faltante.textContent).toContain('P-300 — Sabonete em barra')
     expect(faltante.textContent).toContain('Decidida')
-    expect(faltante.querySelector('img')?.getAttribute('src')).toBe('https://files.test/b-thumb.jpg')
+    expect(faltante.querySelector('img')?.getAttribute('src')).toBe(
+      'https://files.test/b-thumb.jpg',
+    )
     const amassada = list.querySelector('[data-occurrence-id="occ-a"]') as HTMLElement
     expect(amassada.textContent).toContain('Aguardando o contratante')
     expect(amassada.textContent).toContain('Caixa amassada')
@@ -144,7 +146,9 @@ describe('o cabeçalho e os selos', () => {
 describe('as ações do escritório, conforme a permissão', () => {
   test('quem tem `trip.manage` conclui a devolução quando a tratativa está decidida', async () => {
     const { occurrence, rendered } = await mountOffice(
-      seeded({ occurrence: { returns: new Map([[DOC_1001, { occurrenceId: 'occ-a', state: 'marked' }]]) } }),
+      seeded({
+        occurrence: { returns: new Map([[DOC_1001, { occurrenceId: 'occ-a', state: 'marked' }]]) },
+      }),
     )
     expect(completeButton(1001)).toBeNull()
     setCaseStatus(occurrence, { occurrenceId: 'occ-a', status: 'decided' })
@@ -154,7 +158,10 @@ describe('as ações do escritório, conforme a permissão', () => {
     await click(completeButton(1001) as HTMLButtonElement)
     await settle()
 
-    expect(occurrence.calls.changeReturn.at(-1)).toMatchObject({ action: 'complete', documentId: DOC_1001 })
+    expect(occurrence.calls.changeReturn.at(-1)).toMatchObject({
+      action: 'complete',
+      documentId: DOC_1001,
+    })
     await waitFor(() => expect(rowOf(1001).textContent).toContain('Devolvida'))
     rendered.unmount()
   })
@@ -195,12 +202,15 @@ describe('as ações do escritório, conforme a permissão', () => {
 
   test('desfazer pelo escritório devolve a nota ao fluxo e some o motivo do bloqueio', async () => {
     const { occurrence, rendered } = await mountOffice(seeded({ canResolve: true }))
-    expect((closeButton() as HTMLButtonElement).disabled).toBe(true)
+    expect(closeButton().disabled).toBe(true)
 
     await click(unmarkButton(1001) as HTMLButtonElement)
     await settle()
 
-    expect(occurrence.calls.changeReturn.at(-1)).toMatchObject({ action: 'unmark', documentId: DOC_1001 })
+    expect(occurrence.calls.changeReturn.at(-1)).toMatchObject({
+      action: 'unmark',
+      documentId: DOC_1001,
+    })
     await waitFor(() => expect(document.querySelectorAll('[data-close-blockers]').length).toBe(0))
     rendered.unmount()
   })
@@ -211,11 +221,11 @@ describe('"Fechar chegada" com nota marcada', () => {
     const { rendered } = await mountOffice(seeded())
 
     const blockers = document.querySelector('[data-close-blockers]') as HTMLElement
-    expect((closeButton() as HTMLButtonElement).disabled).toBe(true)
+    expect(closeButton().disabled).toBe(true)
     expect(blockers.textContent).toContain('A chegada só fecha quando as notas a devolver')
-    expect([...blockers.querySelectorAll('button')].map((button) => button.textContent?.trim())).toEqual([
-      'NF 1001',
-    ])
+    expect(
+      [...blockers.querySelectorAll('button')].map((button) => button.textContent?.trim()),
+    ).toEqual(['NF 1001'])
     expect(blockers.getAttribute('role')).not.toBe('alert')
     rendered.unmount()
   })
@@ -229,7 +239,7 @@ describe('"Fechar chegada" com nota marcada', () => {
     })
 
     expect(document.querySelectorAll('[data-close-blockers]').length).toBe(0)
-    expect((closeButton() as HTMLButtonElement).disabled).toBe(false)
+    expect(closeButton().disabled).toBe(false)
     rendered.unmount()
   })
 })

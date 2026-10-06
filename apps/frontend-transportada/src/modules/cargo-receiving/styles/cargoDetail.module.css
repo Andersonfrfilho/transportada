@@ -76,7 +76,15 @@
 }
 
 .colState {
-  width: 16rem;
+  width: 12rem;
+}
+
+.colReturn {
+  width: 18rem;
+}
+
+.cellReturn {
+  min-width: 0;
 }
 
 .outcome {

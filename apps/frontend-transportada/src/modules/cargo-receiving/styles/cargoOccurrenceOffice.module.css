@@ -1,0 +1,85 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/* O detalhe do escritório: as avarias da chegada e o motivo do fechamento travado (spec 237 T3.3). */
+/* O detalhe do escritório: as avarias da chegada e o motivo do fechamento travado. */
+.occurrenceSection {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.occurrenceSection h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.occurrenceList {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.occurrenceItem {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+  min-width: 0;
+}
+
+.occurrenceHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.occurrenceType {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.occurrenceMeta,
+.occurrenceItems {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  color: var(--color-slate);
+  font-size: 0.85rem;
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+
+.occurrencePhotos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.occurrenceThumb {
+  display: block;
+  max-width: 6rem;
+  max-height: 6rem;
+  object-fit: cover;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+}
+
+.blockers {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  color: var(--color-fog);
+}
+
+.cellActions {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}

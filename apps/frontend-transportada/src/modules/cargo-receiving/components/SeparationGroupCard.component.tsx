@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
 import { useCargoGroupTitle } from '../hooks/useCargoGroupTitle.hook'
+import { useCargoOccurrence } from '../hooks/useCargoOccurrence.hook'
 import type { TouchFailure } from '../mutations/useSeparationTouch.mutation'
 import type { CargoArrivalDocument, CargoArrivalGroup } from '../shared/cargoArrival.types'
 import styles from '../styles/cargoSeparation.module.css'
@@ -31,7 +32,11 @@ export function SeparationGroupCard(props: SeparationGroupCardProps): JSX.Elemen
   const { t } = useTranslation('cargoReceiving')
   const title = useCargoGroupTitle()(props.group)
   const { group } = props
-  const isComplete = group.counts.separated === group.counts.total
+  const { noteOf } = useCargoOccurrence()
+  // A nota a devolver ou devolvida não se separa: o lote leva só as que o servidor aceitaria.
+  const separable = group.documents.filter((item) => noteOf(item).returnState === 'none')
+  const isComplete =
+    separable.length > 0 && separable.every((item) => item.separationState === 'separated')
   // Um toque individual em voo já mexe numa nota do grupo: o lote em cima dele mandaria a mesma nota duas vezes.
   const hasTouchInFlight = group.documents.some((item) => props.pendingIds.has(item.nfeDocumentId))
 
@@ -55,11 +60,11 @@ export function SeparationGroupCard(props: SeparationGroupCardProps): JSX.Elemen
       </button>
       {props.isOpen ? (
         <div className={styles.groupBody}>
-          {props.canAct && !props.isSearching && !isComplete ? (
+          {props.canAct && !props.isSearching && separable.length > 0 && !isComplete ? (
             <Button
               className={styles.groupAll}
               disabled={hasTouchInFlight}
-              onClick={() => props.onSeparateGroup(group)}
+              onClick={() => props.onSeparateGroup({ ...group, documents: separable })}
               type="button"
               variant="secondary"
             >

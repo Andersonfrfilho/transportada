@@ -71,7 +71,10 @@ export type CargoOccurrenceDouble = {
   types: readonly ReceivingOccurrenceType[]
 }
 
-export const cargoOccurrenceFakes: { client: CargoOccurrenceClient; double: CargoOccurrenceDouble } = {
+export const cargoOccurrenceFakes: {
+  client: CargoOccurrenceClient
+  double: CargoOccurrenceDouble
+} = {
   client: undefined as unknown as CargoOccurrenceClient,
   double: undefined as unknown as CargoOccurrenceDouble,
 }
@@ -94,6 +97,12 @@ function readArrival() {
   return { documents, server }
 }
 
+/** O campo de texto do multipart: a lista fechada da API só manda `string` ou `File`. */
+const readText = (form: FormData, field: string): string => {
+  const value = form.get(field)
+  return typeof value === 'string' ? value : ''
+}
+
 function readRegistration(input: {
   arrivalId: string
   documentId: string
@@ -108,9 +117,9 @@ function readRegistration(input: {
     documentId: input.documentId,
     fileSize: file instanceof Blob ? file.size : 0,
     idempotencyKey: input.idempotencyKey,
-    note: String(form.get('note') ?? ''),
+    note: readText(form, 'note'),
     quantities: form.getAll('productQuantities').map(String),
-    typeId: String(form.get('occurrenceTypeId') ?? ''),
+    typeId: readText(form, 'occurrenceTypeId'),
     units: form.getAll('productQuantityUnits').map(String),
   }
 }
@@ -147,16 +156,11 @@ function decideRegistration(
 }
 
 function fingerprintOf(recorded: RecordedRegistration): string {
-  const { idempotencyKey: _key, ...content } = recorded
-  return JSON.stringify(content)
+  const { arrivalId, codes, documentId, fileSize, note, quantities, typeId, units } = recorded
+  return JSON.stringify([arrivalId, codes, documentId, fileSize, note, quantities, typeId, units])
 }
 
-function registerOccurrence(
-  double: CargoOccurrenceDouble,
-  input: { arrivalId: string; documentId: string; form: FormData; idempotencyKey: string },
-) {
-  const recorded = readRegistration(input)
-  double.calls.register.push(recorded)
+function registerOccurrence(double: CargoOccurrenceDouble, recorded: RecordedRegistration) {
   const replay = double.replays.get(recorded.idempotencyKey)
   if (replay !== undefined) {
     if (replay.fingerprint !== fingerprintOf(recorded)) {
@@ -192,25 +196,41 @@ function registerOccurrence(
 
 const DECIDED: readonly CargoOccurrenceCaseStatus[] = ['decided', 'closed']
 
-function decideReturn(double: CargoOccurrenceDouble, input: RecordedReturn): Promise<never> | undefined {
+function decideReturn(
+  double: CargoOccurrenceDouble,
+  input: RecordedReturn,
+): Promise<never> | undefined {
   const { documents, server } = readArrival()
-  const current = double.returns.get(input.documentId) ?? { occurrenceId: null, state: 'none' as const }
+  const current = double.returns.get(input.documentId) ?? {
+    occurrenceId: null,
+    state: 'none' as const,
+  }
   const origin = double.occurrences.find(
     (item) => item.id === (input.occurrenceId ?? current.occurrenceId),
   )
   if (server.status === 'closed') return refuse('CARGO_ARRIVAL_CLOSED')
   if (input.action === 'mark') {
     if (current.state === 'returned') return refuse('CARGO_ARRIVAL_DOCUMENT_RETURNED')
-    if (origin === undefined || origin.nfeDocumentId !== input.documentId || origin.cancelledAt !== null) {
+    if (
+      origin === undefined ||
+      origin.nfeDocumentId !== input.documentId ||
+      origin.cancelledAt !== null
+    ) {
       return refuse('CARGO_ARRIVAL_RETURN_OCCURRENCE_INVALID')
     }
     const isLive = documents.find((item) => item.nfeDocumentId === input.documentId)?.isInLiveTrip
-    if (current.state === 'none' && isLive === true) return refuse('CARGO_ARRIVAL_DOCUMENT_IN_LIVE_TRIP')
+    if (current.state === 'none' && isLive === true)
+      return refuse('CARGO_ARRIVAL_DOCUMENT_IN_LIVE_TRIP')
   }
-  if (input.action === 'unmark' && current.state === 'returned') return refuse('CARGO_ARRIVAL_DOCUMENT_RETURNED')
+  if (input.action === 'unmark' && current.state === 'returned')
+    return refuse('CARGO_ARRIVAL_DOCUMENT_RETURNED')
   if (input.action === 'complete') {
     if (current.state === 'none') return refuse('CARGO_ARRIVAL_RETURN_NOT_MARKED')
-    if (current.state === 'marked' && origin?.case !== null && !DECIDED.includes(origin?.case?.status ?? 'closed')) {
+    if (
+      current.state === 'marked' &&
+      origin?.case !== null &&
+      !DECIDED.includes(origin?.case?.status ?? 'closed')
+    ) {
       return refuse('CARGO_ARRIVAL_RETURN_DECISION_PENDING')
     }
   }
@@ -218,10 +238,12 @@ function decideReturn(double: CargoOccurrenceDouble, input: RecordedReturn): Pro
 }
 
 function changeReturn(double: CargoOccurrenceDouble, input: RecordedReturn) {
-  double.calls.changeReturn.push(input)
   const refusal = decideReturn(double, input)
   if (refusal !== undefined) return refusal
-  const current = double.returns.get(input.documentId) ?? { occurrenceId: null, state: 'none' as const }
+  const current = double.returns.get(input.documentId) ?? {
+    occurrenceId: null,
+    state: 'none' as const,
+  }
   const next =
     input.action === 'mark'
       ? { occurrenceId: input.occurrenceId ?? null, state: 'marked' as const }
@@ -247,15 +269,17 @@ async function afterGate<TValue>(double: CargoOccurrenceDouble, run: () => Promi
 
 function buildClient(double: CargoOccurrenceDouble): CargoOccurrenceClient {
   return {
-    changeReturn: (input) =>
-      afterGate(double, () =>
-        changeReturn(double, {
-          action: input.action,
-          documentId: input.documentId,
-          note: input.note,
-          occurrenceId: input.occurrenceId,
-        }),
-      ),
+    changeReturn: (input) => {
+      const recorded: RecordedReturn = {
+        action: input.action,
+        documentId: input.documentId,
+        note: input.note,
+        occurrenceId: input.occurrenceId,
+      }
+      // A chamada fica registrada ANTES da espera e da falha: o dublê prova o que a tela mandou, não o que deu certo.
+      double.calls.changeReturn.push(recorded)
+      return afterGate(double, () => changeReturn(double, recorded))
+    },
     listDocumentProducts: ({ documentId }) => {
       double.calls.listProducts.push(documentId)
       return Promise.resolve(double.products)
@@ -277,7 +301,11 @@ function buildClient(double: CargoOccurrenceDouble): CargoOccurrenceClient {
       double.calls.listTypes += 1
       return Promise.resolve(double.types)
     },
-    registerOccurrence: (input) => afterGate(double, () => registerOccurrence(double, input)),
+    registerOccurrence: (input) => {
+      const recorded = readRegistration(input)
+      double.calls.register.push(recorded)
+      return afterGate(double, () => registerOccurrence(double, recorded))
+    },
   }
 }
 

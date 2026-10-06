@@ -40,7 +40,11 @@ type Access = Readonly<{ canManage?: boolean; canResolve?: boolean }>
 
 /** Duas notas na doca: 1001 recebida (aceita avaria) e 1002 esperada; 1003 separada; 1004 em viagem viva. */
 export const OCCURRENCE_DOCUMENTS = [
-  buildDocument({ number: '1001', receivedAt: '2026-10-03T13:00:00.000Z', separationState: 'received' }),
+  buildDocument({
+    number: '1001',
+    receivedAt: '2026-10-03T13:00:00.000Z',
+    separationState: 'received',
+  }),
   buildDocument({ number: '1002' }),
   buildDocument({
     number: '1003',
@@ -94,15 +98,21 @@ export const mountOffice = (options: MountOptions = {}) =>
 
 export const text = (): string => document.body.textContent ?? ''
 export const occurrenceButton = (number: number) =>
-  document.querySelector<HTMLButtonElement>(`[aria-label="Registrar avaria — NF ${String(number)}"]`)
+  document.querySelector<HTMLButtonElement>(
+    `[aria-label="Registrar avaria — NF ${String(number)}"]`,
+  )
 export const markButton = (number: number) =>
   document.querySelector<HTMLButtonElement>(
     `[aria-label="Devolver ao contratante — NF ${String(number)}"]`,
   )
 export const completeButton = (number: number) =>
-  document.querySelector<HTMLButtonElement>(`[aria-label="Concluir devolução — NF ${String(number)}"]`)
+  document.querySelector<HTMLButtonElement>(
+    `[aria-label="Concluir devolução — NF ${String(number)}"]`,
+  )
 export const unmarkButton = (number: number) =>
-  document.querySelector<HTMLButtonElement>(`[aria-label="Desfazer devolução — NF ${String(number)}"]`)
+  document.querySelector<HTMLButtonElement>(
+    `[aria-label="Desfazer devolução — NF ${String(number)}"]`,
+  )
 export const rowOf = (number: number): HTMLElement =>
   document.querySelector(`[data-document-id="${documentIdOf(number)}"]`) as HTMLElement
 export const dialog = (): HTMLElement | null => document.querySelector('[role="dialog"]')
@@ -112,19 +122,24 @@ export async function openOccurrenceForm(number: number): Promise<void> {
   const button = occurrenceButton(number)
   if (button === null) throw new Error(`OCCURRENCE_BUTTON_NOT_FOUND:${String(number)}`)
   await click(button)
-  await waitFor(() => expect(document.querySelectorAll('[data-product-code]').length).toBeGreaterThan(0))
+  await waitFor(() =>
+    expect(document.querySelectorAll('[data-product-code]').length).toBeGreaterThan(0),
+  )
 }
 
 export async function pickOption(input: { label: string; option: string }): Promise<void> {
   await click(byLabel(input.label))
-  const option = [...document.querySelectorAll('[role="option"]')].find(
-    (item) => item.textContent?.trim().startsWith(input.option),
+  const option = [...document.querySelectorAll('[role="option"]')].find((item) =>
+    item.textContent?.trim().startsWith(input.option),
   )
   if (option === undefined) throw new Error(`OPTION_NOT_FOUND:${input.option}`)
   await click(option as HTMLElement)
 }
 
-export async function typeInArea(area: HTMLTextAreaElement | HTMLInputElement, value: string): Promise<void> {
+export async function typeInArea(
+  area: HTMLTextAreaElement | HTMLInputElement,
+  value: string,
+): Promise<void> {
   const prototype = area instanceof HTMLTextAreaElement ? HTMLTextAreaElement : HTMLInputElement
   const descriptor = Object.getOwnPropertyDescriptor(prototype.prototype, 'value')
   await act(async () => {
@@ -162,4 +177,34 @@ export async function fillValidOccurrence(): Promise<void> {
   await pickOption({ label: 'Tipo da ocorrência', option: 'Item avariado na chegada' })
   await markItem('P-100')
   await attachPhoto()
+}
+
+/**
+ * O DOM de teste devolve retângulos zerados, e o `Select` fecha na hora uma camada cujo gatilho "está fora da
+ * janela" (`useFloatingLayer`): sem este remendo a lista de tipos só abre quando outra suíte já o instalou, e o
+ * contrato passaria a depender da ordem. Devolve a função que o desfaz.
+ */
+export function stubVisibleLayout(): () => void {
+  const original = Object.getOwnPropertyDescriptor(Element.prototype, 'getBoundingClientRect')
+  const visibleRect: DOMRect = {
+    bottom: 130,
+    height: 30,
+    left: 100,
+    right: 300,
+    toJSON: () => ({}),
+    top: 100,
+    width: 200,
+    x: 100,
+    y: 100,
+  }
+  Object.defineProperty(Element.prototype, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => visibleRect,
+    writable: true,
+  })
+  return () => {
+    if (original !== undefined) {
+      Object.defineProperty(Element.prototype, 'getBoundingClientRect', original)
+    }
+  }
 }

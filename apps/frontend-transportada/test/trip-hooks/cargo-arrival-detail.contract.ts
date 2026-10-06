@@ -142,7 +142,7 @@ describe('os grupos viram cartões no celular (web.md §10)', () => {
 
     expect(tables).toHaveLength(4)
     for (const result of checked) {
-      expect(result.headers).toEqual(['', 'Nota', 'Destinatário', 'Situação'])
+      expect(result.headers).toEqual(['', 'Nota', 'Destinatário', 'Situação', 'Avaria e devolução'])
       expect(result.unlabeled).toEqual([])
       expect(result.wrong).toEqual([])
     }
@@ -152,12 +152,12 @@ describe('os grupos viram cartões no celular (web.md §10)', () => {
     rendered.unmount()
   })
 
-  test('quem só lê vê as mesmas três colunas rotuladas, sem a caixa de seleção', async () => {
+  test('quem só lê vê as mesmas colunas rotuladas, sem a caixa de seleção', async () => {
     const { rendered } = await mountDetail({ canManage: false })
 
     const result = readCardLabels(document.querySelector('table') as HTMLTableElement)
 
-    expect(result.headers).toEqual(['Nota', 'Destinatário', 'Situação'])
+    expect(result.headers).toEqual(['Nota', 'Destinatário', 'Situação', 'Avaria e devolução'])
     expect(result.unlabeled).toEqual([])
     rendered.unmount()
   })

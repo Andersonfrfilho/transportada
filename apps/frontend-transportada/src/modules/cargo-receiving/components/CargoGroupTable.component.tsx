@@ -76,6 +76,9 @@ export function CargoGroupTable({
               <th className={detailStyles.colState} scope="col">
                 {t('detail.state')}
               </th>
+              <th className={detailStyles.colReturn} scope="col">
+                {t('occurrence.column')}
+              </th>
             </tr>
           </thead>
           <tbody>

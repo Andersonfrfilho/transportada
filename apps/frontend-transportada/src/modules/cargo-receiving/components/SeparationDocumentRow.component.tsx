@@ -5,11 +5,13 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
+import { useCargoOccurrence } from '../hooks/useCargoOccurrence.hook'
 import type { TouchFailure } from '../mutations/useSeparationTouch.mutation'
 import type { CargoArrivalDocument } from '../shared/cargoArrival.types'
 import { resolveNextTouchTarget } from '../shared/cargoSeparationTouch.service'
 import styles from '../styles/cargoSeparation.module.css'
 import rowStyles from '../styles/cargoSeparationRow.module.css'
+import { CargoNoteOccurrenceActions } from './CargoNoteOccurrenceActions.component'
 
 type SeparationDocumentRowProps = Readonly<{
   canAct: boolean
@@ -68,6 +70,9 @@ export function SeparationDocumentRow({
   refusalReason,
 }: SeparationDocumentRowProps): JSX.Element {
   const { t } = useTranslation('cargoReceiving')
+  const { noteOf } = useCargoOccurrence()
+  // A nota a devolver ou devolvida não avança: o servidor recusaria o passo, então ele nem é oferecido.
+  const isOutOfSeparation = noteOf(document).returnState !== 'none'
   const failureCode = failure?.code
   const failureReason =
     failureCode === undefined
@@ -89,7 +94,10 @@ export function SeparationDocumentRow({
           {document.recipientName ?? t('document.unknownRecipient')}
         </span>
       </div>
-      {canAct ? <StepButton document={document} isPending={isPending} onTouch={onTouch} /> : null}
+      {canAct && !isOutOfSeparation ? (
+        <StepButton document={document} isPending={isPending} onTouch={onTouch} />
+      ) : null}
+      <CargoNoteOccurrenceActions document={document} showOpen />
       {failure === undefined ? null : (
         <div className={rowStyles.failure} role="alert">
           <span>{t('separation.failure', { reason: failureReason })}</span>

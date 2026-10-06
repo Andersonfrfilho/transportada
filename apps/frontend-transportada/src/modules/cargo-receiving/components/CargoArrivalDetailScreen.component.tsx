@@ -12,12 +12,15 @@ type CargoArrivalDetailScreenProps = Readonly<{
   arrivalId: string
   /** `trip.manage`: quem só lê vê os grupos e o progresso, mas não seleciona nem age. */
   canManage: boolean
+  /** `occurrences.resolve`: só quem decide a tratativa desfaz a devolução ao contratante. */
+  canResolve?: boolean
 }>
 
 /** O detalhe do escritório: carrega a chegada e entrega ao conteúdo. Chegada fechada é só leitura. */
 export function CargoArrivalDetailScreen({
   arrivalId,
   canManage,
+  canResolve = false,
 }: CargoArrivalDetailScreenProps): JSX.Element {
   const { t } = useTranslation('cargoReceiving')
   const detail = useCargoArrivalDetail(arrivalId)
@@ -38,6 +41,11 @@ export function CargoArrivalDetailScreen({
     )
   }
   return (
-    <CargoArrivalDetailContent arrival={detail.arrival} canManage={canManage} detail={detail} />
+    <CargoArrivalDetailContent
+      arrival={detail.arrival}
+      canManage={canManage}
+      canResolve={canResolve}
+      detail={detail}
+    />
   )
 }

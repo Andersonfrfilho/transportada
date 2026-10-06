@@ -7,6 +7,8 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useSeparationScreen } from '../hooks/useSeparationScreen.hook'
 import styles from '../styles/cargoSeparation.module.css'
 import { CargoBatchOutcomePanel } from './CargoBatchOutcomePanel.component'
+import { CargoOccurrenceNotices } from './CargoOccurrenceNotices.component'
+import { CargoOccurrenceProvider } from './CargoOccurrenceProvider.component'
 import { SeparationGroupList } from './SeparationGroupList.component'
 import { SeparationHeader } from './SeparationHeader.component'
 import { SeparationSearch } from './SeparationSearch.component'
@@ -15,6 +17,8 @@ type CargoSeparationScreenProps = Readonly<{
   arrivalId: string
   /** `trip.manage`: quem só lê vê o estado de cada nota, mas não ganha botão de toque. */
   canManage: boolean
+  /** `occurrences.resolve`: só quem decide a tratativa desfaz a devolução ao contratante. */
+  canResolve?: boolean
 }>
 
 /**
@@ -24,6 +28,7 @@ type CargoSeparationScreenProps = Readonly<{
 export function CargoSeparationScreen({
   arrivalId,
   canManage,
+  canResolve = false,
 }: CargoSeparationScreenProps): JSX.Element {
   const { t } = useTranslation('cargoReceiving')
   const screen = useSeparationScreen(arrivalId)
@@ -49,36 +54,39 @@ export function CargoSeparationScreen({
   const isClosed = arrival.status === 'closed'
 
   return (
-    <main className={styles.screen} ref={panelRef}>
-      <SeparationHeader
-        arrival={arrival}
-        onOpenList={screen.openList}
-        onOpenOffice={screen.openOffice}
-      />
-      {screen.isOnline ? null : (
-        <p className={styles.offline} role="status">
-          {t('separation.offline')}
-        </p>
-      )}
-      {isClosed ? <p className={styles.hint}>{t('separation.closedNotice')}</p> : null}
-      <SeparationSearch
-        isScannerOpen={scanner.isOpen}
-        onCloseScanner={scanner.close}
-        onOpenScanner={scanner.open}
-        onQueryChange={groups.setQuery}
-        onScan={scanner.submit}
-        query={groups.query}
-        scanResult={scanner.result}
-      />
-      {touches.outcomes === undefined ? null : (
-        <CargoBatchOutcomePanel
-          documents={screen.documents}
-          onDismiss={touches.dismissOutcomes}
-          outcomes={touches.outcomes}
-          panelRef={panelRef}
+    <CargoOccurrenceProvider arrival={arrival} canManage={canManage} canResolve={canResolve}>
+      <main className={styles.screen} ref={panelRef}>
+        <SeparationHeader
+          arrival={arrival}
+          onOpenList={screen.openList}
+          onOpenOffice={screen.openOffice}
         />
-      )}
-      <SeparationGroupList canAct={canManage && !isClosed} groups={groups} touches={touches} />
-    </main>
+        {screen.isOnline ? null : (
+          <p className={styles.offline} role="status">
+            {t('separation.offline')}
+          </p>
+        )}
+        {isClosed ? <p className={styles.hint}>{t('separation.closedNotice')}</p> : null}
+        <CargoOccurrenceNotices />
+        <SeparationSearch
+          isScannerOpen={scanner.isOpen}
+          onCloseScanner={scanner.close}
+          onOpenScanner={scanner.open}
+          onQueryChange={groups.setQuery}
+          onScan={scanner.submit}
+          query={groups.query}
+          scanResult={scanner.result}
+        />
+        {touches.outcomes === undefined ? null : (
+          <CargoBatchOutcomePanel
+            documents={screen.documents}
+            onDismiss={touches.dismissOutcomes}
+            outcomes={touches.outcomes}
+            panelRef={panelRef}
+          />
+        )}
+        <SeparationGroupList canAct={canManage && !isClosed} groups={groups} touches={touches} />
+      </main>
+    </CargoOccurrenceProvider>
   )
 }

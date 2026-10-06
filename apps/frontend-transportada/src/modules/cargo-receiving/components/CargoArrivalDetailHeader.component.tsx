@@ -11,6 +11,7 @@ import styles from '../styles/cargoReceiving.module.css'
 import detailStyles from '../styles/cargoDetail.module.css'
 import { CargoOverdueBadge, CargoStatusBadge } from './CargoArrivalBadges.component'
 import { CargoArrivalProgress } from './CargoArrivalProgress.component'
+import { CargoReturnCountFacts } from './CargoReturnCountFacts.component'
 
 type CargoArrivalDetailHeaderProps = Readonly<{
   arrival: CargoArrivalSummary
@@ -58,6 +59,7 @@ export function CargoArrivalDetailHeader({
         {arrival.palletCount === null ? null : (
           <li>{t('facts.pallets', { count: arrival.palletCount })}</li>
         )}
+        <CargoReturnCountFacts />
       </ul>
       <CargoArrivalProgress counts={arrival.counts} />
     </header>

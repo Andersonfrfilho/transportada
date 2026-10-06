@@ -62,8 +62,12 @@ describe('os itens da nota', () => {
 
   test('nota sem itens é lista vazia, e NCM/CFOP na resposta recusam', () => {
     expect(toDocumentProducts({ data: [] })).toEqual([])
-    expectInvalid(() => toDocumentProducts({ data: [{ ...buildProduct({ code: 'P-1' }), ncm: '1' }] }))
-    expectInvalid(() => toDocumentProducts({ data: [{ ...buildProduct({ code: 'P-1' }), ordinal: '1' }] }))
+    expectInvalid(() =>
+      toDocumentProducts({ data: [{ ...buildProduct({ code: 'P-1' }), ncm: '1' }] }),
+    )
+    expectInvalid(() =>
+      toDocumentProducts({ data: [{ ...buildProduct({ code: 'P-1' }), ordinal: '1' }] }),
+    )
   })
 })
 
@@ -93,7 +97,9 @@ describe('as ocorrências da chegada', () => {
     expect(toOccurrencesView({ data: view }).occurrences[0]?.attachments[0]).toEqual(attachment)
 
     const stranger = { ...OCCURRENCE, attachments: [{ ...attachment, objectKey: 'x' }] }
-    expectInvalid(() => toOccurrencesView({ data: buildOccurrencesView({ occurrences: [stranger] }) }))
+    expectInvalid(() =>
+      toOccurrencesView({ data: buildOccurrencesView({ occurrences: [stranger] }) }),
+    )
   })
 
   test('estado de devolução desconhecido, tratativa fora da lista e chave nova recusam', () => {
@@ -120,8 +126,9 @@ describe('as ocorrências da chegada', () => {
       items: [{ code: 'P-1', description: 'Produto', quantity: null, unit: null }],
     }
 
-    const [read] = toOccurrencesView({ data: buildOccurrencesView({ occurrences: [open] }) })
-      .occurrences
+    const [read] = toOccurrencesView({
+      data: buildOccurrencesView({ occurrences: [open] }),
+    }).occurrences
 
     expect(read?.case).toBeNull()
     expect(read?.items[0]?.quantity).toBeNull()
@@ -130,8 +137,12 @@ describe('as ocorrências da chegada', () => {
 
 describe('o resultado da abertura e da marcação', () => {
   test('201 é a primeira vez e 200 é o reenvio idempotente', () => {
-    expect(toRegisterOccurrenceResult({ payload: { data: OCCURRENCE }, status: 201 }).isReplay).toBe(false)
-    expect(toRegisterOccurrenceResult({ payload: { data: OCCURRENCE }, status: 200 }).isReplay).toBe(true)
+    expect(
+      toRegisterOccurrenceResult({ payload: { data: OCCURRENCE }, status: 201 }).isReplay,
+    ).toBe(false)
+    expect(
+      toRegisterOccurrenceResult({ payload: { data: OCCURRENCE }, status: 200 }).isReplay,
+    ).toBe(true)
     expectInvalid(() => toRegisterOccurrenceResult({ payload: { data: { id: 'x' } }, status: 201 }))
   })
 
@@ -141,7 +152,7 @@ describe('o resultado da abertura e da marcação', () => {
       outcome: 'changed',
       returnOccurrenceId: 'occ-1',
       returnToContractor: 'marked',
-    }
+    } as const
 
     expect(toReturnResult({ data: result })).toEqual(result)
     expectInvalid(() => toReturnResult({ data: { ...result, outcome: 'refused' } }))

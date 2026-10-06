@@ -25,6 +25,9 @@ export const CARGO_ARRIVAL_LIMITS = {
 /** Ler é `fleet.read` e escrever é `trip.manage`, como na API (`cargo-arrival-http.support.ts`). */
 export const CARGO_RECEIVING_WRITE_PERMISSION = 'trip.manage'
 
+/** Desfazer a devolução ao contratante é de quem decide a tratativa (`occurrences.resolve`), nunca do separador. */
+export const CARGO_RECEIVING_RESOLVE_PERMISSION = 'occurrences.resolve'
+
 export const CARGO_RECEIVING_WORKSPACE = 'cargo-receiving'
 
 export const CARGO_RECEIVING_PATHS = {

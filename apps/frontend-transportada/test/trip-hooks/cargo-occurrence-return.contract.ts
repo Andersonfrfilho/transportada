@@ -6,7 +6,7 @@
  * `occurrences.resolve`); concluir só com a tratativa decidida; a devolvida terminal. O servidor dublado aplica
  * as MESMAS recusas da API. Nada de `expect(nó).toBeNull()` dentro de `waitFor`.
  */
-import { beforeEach, describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 
 import { CargoReceivingRequestError } from '@/modules/cargo-receiving/shared/cargoReceivingRequest.service'
 
@@ -20,6 +20,7 @@ import {
   occurrenceButton,
   pickOption,
   rowOf,
+  stubVisibleLayout,
   text,
   typeInArea,
   unmarkButton,
@@ -43,9 +44,14 @@ function seeded(state: 'marked' | 'none' | 'returned', options: MountOptions = {
   }
 }
 
+let restoreLayout: () => void = () => undefined
+
 beforeEach(() => {
   document.body.innerHTML = ''
+  restoreLayout = stubVisibleLayout()
 })
+
+afterEach(() => restoreLayout())
 
 const noteText = (number: number): string => rowOf(number).textContent ?? ''
 
@@ -102,7 +108,12 @@ describe('devolver ao contratante', () => {
     await settle()
 
     expect(occurrence.calls.changeReturn).toEqual([
-      { action: 'mark', documentId: DOCUMENT, note: 'Contratante vai buscar', occurrenceId: 'occ-1' },
+      {
+        action: 'mark',
+        documentId: DOCUMENT,
+        note: 'Contratante vai buscar',
+        occurrenceId: 'occ-1',
+      },
     ])
     await waitFor(() => expect(noteText(1001)).toContain('A devolver'))
     expect(noteText(1001)).not.toContain('Avaria aberta')
@@ -164,7 +175,10 @@ describe('desfazer a devolução é de quem decide a tratativa', () => {
     await click(unmarkButton(1001) as HTMLButtonElement)
     await settle()
 
-    expect(occurrence.calls.changeReturn.at(-1)).toMatchObject({ action: 'unmark', documentId: DOCUMENT })
+    expect(occurrence.calls.changeReturn.at(-1)).toMatchObject({
+      action: 'unmark',
+      documentId: DOCUMENT,
+    })
     await waitFor(() => expect(noteText(1001)).toContain('Avaria aberta'))
     expect(markButton(1001)).not.toBeNull()
     expect(document.querySelector('[aria-label="Marcar como separada — NF 1001"]')).not.toBeNull()
@@ -191,7 +205,10 @@ describe('concluir a devolução', () => {
     await click(completeButton(1001) as HTMLButtonElement)
     await settle()
 
-    expect(occurrence.calls.changeReturn.at(-1)).toMatchObject({ action: 'complete', documentId: DOCUMENT })
+    expect(occurrence.calls.changeReturn.at(-1)).toMatchObject({
+      action: 'complete',
+      documentId: DOCUMENT,
+    })
     await waitFor(() => expect(noteText(1001)).toContain('Devolvida'))
     rendered.unmount()
   })
@@ -216,7 +233,9 @@ describe('o que o servidor recusa fica na nota, com o motivo', () => {
     await rendered.queryClient.invalidateQueries()
     await waitFor(() => expect(completeButton(1001)).not.toBeNull())
     setCaseStatus(occurrence, { occurrenceId: 'occ-1', status: 'under_review' })
-    occurrence.failures.push(new CargoReceivingRequestError('CARGO_ARRIVAL_RETURN_DECISION_PENDING'))
+    occurrence.failures.push(
+      new CargoReceivingRequestError('CARGO_ARRIVAL_RETURN_DECISION_PENDING'),
+    )
 
     await click(completeButton(1001) as HTMLButtonElement)
     await settle()
@@ -246,7 +265,9 @@ describe('o que o servidor recusa fica na nota, com o motivo', () => {
     await click(unmarkButton(1001) as HTMLButtonElement)
     await settle()
 
-    expect(rowOf(1001).querySelector('[role="alert"]')?.textContent).toContain('Sem conexão com o servidor.')
+    expect(rowOf(1001).querySelector('[role="alert"]')?.textContent).toContain(
+      'Sem conexão com o servidor.',
+    )
     expect(noteText(1001)).toContain('A devolver')
     expect(unmarkButton(1001)).not.toBeNull()
     rendered.unmount()

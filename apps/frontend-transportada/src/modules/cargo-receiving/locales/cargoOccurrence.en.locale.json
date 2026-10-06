@@ -1,0 +1,141 @@
+{
+  "occurrence": {
+    "column": "Damage and return",
+    "badge": {
+      "occurrenceOpen": "Damage open",
+      "toReturn": "To return",
+      "returned": "Returned"
+    },
+    "actions": {
+      "open": "Damage",
+      "openLabel": "Report damage — invoice {{number}}",
+      "mark": "Return to contractor",
+      "markLabel": "Return to contractor — invoice {{number}}",
+      "complete": "Complete return",
+      "completeLabel": "Complete return — invoice {{number}}",
+      "unmark": "Undo return",
+      "unmarkLabel": "Undo return — invoice {{number}}",
+      "retry": "Try again",
+      "retryLabel": "Try again — invoice {{number}}"
+    },
+    "hints": {
+      "windowClosed": "The separation window for this arrival is over: damage can no longer be reported.",
+      "windowClosedShort": "Damage window closed.",
+      "awaitingDecision": "Waiting for the contractor's decision to complete the return."
+    },
+    "failure": "Could not complete: {{reason}}",
+    "loadFailed": "Could not load the damage reports of this arrival.",
+    "mark": {
+      "originLabel": "Source damage",
+      "originOption": "{{type}} · {{moment}}",
+      "noteLabel": "Note (optional)",
+      "confirm": "Confirm return",
+      "cancel": "Cancel"
+    },
+    "dialog": {
+      "title": "Report damage — invoice {{number}}",
+      "close": "Close the form",
+      "loading": "Loading the damage form",
+      "loadFailed": "Could not load the types or the items of the invoice. Close and open again.",
+      "typeLabel": "Occurrence type",
+      "typePlaceholder": "Choose the type",
+      "itemsLabel": "Affected items",
+      "itemsHint": "Tick the invoice items that arrived with a problem. The quantity is optional.",
+      "itemsHintSingle": "This type accepts a single item. The quantity is optional.",
+      "itemsEmpty": "This invoice has no items.",
+      "noteLabel": "Note (optional)",
+      "cancel": "Cancel",
+      "submit": "Report damage",
+      "submitting": "Reporting…"
+    },
+    "items": {
+      "itemLabel": "Item {{code}} — {{description}}",
+      "quantityField": "Quantity (optional)",
+      "quantityLabel": "Quantity of {{code}}",
+      "unitLabel": "Unit of {{code}}",
+      "unit": {
+        "box": "Box",
+        "unit": "Unit"
+      }
+    },
+    "photo": {
+      "label": "Damage photo",
+      "captureLabel": "Take the damage photo",
+      "captureAction": "Take photo",
+      "empty": "No photo",
+      "chosen": "Photo ready",
+      "galleryLabel": "Choose the photo from the gallery",
+      "galleryAction": "Choose from gallery",
+      "galleryEmpty": "Or use an existing photo",
+      "previewAlt": "Chosen damage photo",
+      "preparing": "Preparing the photo…"
+    },
+    "fields": {
+      "occurrenceTypeId": "Occurrence type",
+      "productCodes": "Affected items",
+      "productQuantities": "Quantities",
+      "note": "Note",
+      "file": "Photo"
+    },
+    "issues": {
+      "required": "Choose the occurrence type.",
+      "itemsRequired": "Tick at least one item of the invoice.",
+      "singleItem": "This type accepts a single item.",
+      "quantityInvalid": "Use a quantity above zero, with up to 3 decimal places.",
+      "photoRequired": "Take or choose a photo of the damage.",
+      "photoTooLarge": "The photo is over {{max}} KB. Take it again, closer.",
+      "photoNotImage": "Choose an image (photo).",
+      "photoUnreadable": "Could not read that photo. Try another.",
+      "tooLong": "Use at most {{max}} characters.",
+      "refusedByServer": "The server refused this value."
+    },
+    "errors": {
+      "CARGO_ARRIVAL_OCCURRENCE_WINDOW_CLOSED": "The separation window for this arrival is over: damage can no longer be reported.",
+      "CARGO_ARRIVAL_OCCURRENCE_KEY_REUSED": "This attempt was already used with other data. Check it and report again.",
+      "CARGO_ARRIVAL_OCCURRENCE_ITEMS_REQUIRED": "Tick at least one item of the invoice.",
+      "CARGO_ARRIVAL_OCCURRENCE_TYPE_NOT_FOUND": "This occurrence type no longer exists. Choose another.",
+      "OCCURRENCE_TYPE_NOT_RECEIVING": "This type is not a receiving type. Choose another.",
+      "OCCURRENCE_PHOTO_REQUIRED": "Take or choose a photo of the damage.",
+      "OCCURRENCE_PRODUCT_NOT_IN_DOCUMENT": "One of the items is not part of this invoice. Reload the invoice and tick again.",
+      "OCCURRENCE_PRODUCT_DUPLICATE": "The same item was ticked twice.",
+      "OCCURRENCE_TYPE_SINGLE_ITEM": "This type accepts a single item.",
+      "OCCURRENCE_ITEM_QUANTITY_NOT_POSITIVE": "Use a quantity above zero.",
+      "OCCURRENCE_ITEM_QUANTITY_UNIT_UNKNOWN": "The chosen unit does not apply to this item.",
+      "CARGO_ARRIVAL_DOCUMENT_NOT_RECEIVED": "The invoice must be marked as received before reporting damage.",
+      "CARGO_ARRIVAL_DOCUMENT_RETURNED": "The invoice was already returned to the contractor.",
+      "CARGO_ARRIVAL_DOCUMENT_NOT_FOUND": "This invoice is not part of this arrival.",
+      "CARGO_ARRIVAL_RETURN_ALREADY_MARKED": "This invoice is already marked with another damage report.",
+      "CARGO_ARRIVAL_RETURN_OCCURRENCE_INVALID": "Choose a damage report of this invoice that is not cancelled.",
+      "CARGO_ARRIVAL_DOCUMENT_IN_LIVE_TRIP": "The invoice is already on a trip: returning it is a street occurrence.",
+      "CARGO_ARRIVAL_RETURN_DECISION_PENDING": "The return only completes after the contractor's decision.",
+      "CARGO_ARRIVAL_RETURN_NOT_MARKED": "The invoice is not marked for return.",
+      "FORBIDDEN": "Your access does not allow this action."
+    },
+    "case": {
+      "none": "No handling",
+      "recorded": "Recorded",
+      "under_review": "Under review",
+      "returned_to_warehouse": "Back at the warehouse",
+      "awaiting_contractor": "Waiting for the contractor",
+      "decided": "Decided",
+      "closed": "Closed",
+      "cancelled": "Cancelled"
+    },
+    "counts": {
+      "marked": "Invoices to return: {{count}}",
+      "returned": "Invoices returned: {{count}}"
+    },
+    "blockers": {
+      "lead": "The arrival only closes once the invoices to return are returned or undone:",
+      "shortcut": "Invoice {{number}}"
+    },
+    "list": {
+      "title": "Damage reports of the arrival",
+      "unknownNote": "Invoice not in the list",
+      "item": "{{code}} — {{description}}",
+      "itemWithQuantity": "{{code}} — {{description}} ({{quantity}})",
+      "photoAlt": "Damage photo",
+      "photoGone": "The photo is no longer available."
+    }
+  }
+}

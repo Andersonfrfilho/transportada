@@ -6,7 +6,7 @@
  * (e o `422` do servidor tratado), o `Idempotency-Key` estável por tentativa, e a recusa que nomeia TODOS os
  * campos com atalho (`web.md` §11). Nada de `expect(nó).toBeNull()` dentro de `waitFor`.
  */
-import { beforeEach, describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 
 import { CargoReceivingRequestError } from '@/modules/cargo-receiving/shared/cargoReceivingRequest.service'
 
@@ -21,6 +21,7 @@ import {
   occurrenceButton,
   openOccurrenceForm,
   pickOption,
+  stubVisibleLayout,
   submitOccurrence,
   text,
   typeInArea,
@@ -30,9 +31,14 @@ import { settle, waitFor } from './renderHook.helper'
 
 const OCCURRENCE_DOCUMENT_ID_1001 = '00000000-0000-4000-8000-000000001001'
 
+let restoreLayout: () => void = () => undefined
+
 beforeEach(() => {
   document.body.innerHTML = ''
+  restoreLayout = stubVisibleLayout()
 })
+
+afterEach(() => restoreLayout())
 
 describe('o botão "Avaria" na nota', () => {
   test('aparece na nota recebida e na separada, não na esperada, e leva o número da nota', async () => {
@@ -53,23 +59,36 @@ describe('o botão "Avaria" na nota', () => {
   })
 
   test('janela vencida: sem botão, e a tela explica com texto neutro', async () => {
-    const { rendered } = await mountSeparation({ arrival: { separationDueAt: windowClosedDueAt() } })
+    const { rendered } = await mountSeparation({
+      arrival: { separationDueAt: windowClosedDueAt() },
+    })
 
     expect(document.querySelectorAll('[aria-label^="Registrar avaria"]').length).toBe(0)
-    expect(text()).toContain('O prazo de separação desta chegada terminou: não dá mais para registrar avaria.')
+    expect(text()).toContain(
+      'O prazo de separação desta chegada terminou: não dá mais para registrar avaria.',
+    )
     rendered.unmount()
   })
 
-  test('o alvo de toque do botão vem do token do painel, nunca de um px solto', async () => {
+  test('o alvo de toque do botão vem do token do painel, e nenhum CSS da avaria usa px solto', async () => {
     const { readFileSync } = await import('node:fs')
-    const css = readFileSync(
-      new URL('../../src/modules/cargo-receiving/styles/cargoOccurrence.module.css', import.meta.url),
-      'utf8',
-    )
+    const read = (name: string) =>
+      readFileSync(
+        new URL(`../../src/modules/cargo-receiving/styles/${name}.module.css`, import.meta.url),
+        'utf8',
+      )
 
-    expect(css).toMatch(/\.noteAction\s*\{[^}]*min-height:\s*var\(--touch-target\)/u)
-    expect(css.replaceAll('1px', '')).not.toMatch(/\d+px/u)
-    expect(css).not.toMatch(/@media[^{]*max-width/u)
+    expect(read('cargoOccurrence')).toMatch(
+      /\.noteAction\s*\{[^}]*min-height:\s*var\(--touch-target\)/u,
+    )
+    expect(read('cargoOccurrenceDialog')).toMatch(
+      /\.iconAction\s*\{[^}]*min-height:\s*var\(--touch-target\)/u,
+    )
+    for (const name of ['cargoOccurrence', 'cargoOccurrenceDialog', 'cargoOccurrenceOffice']) {
+      // A borda fina de 1px é a do painel inteiro; qualquer outra medida em px é medida solta.
+      expect(read(name).replaceAll('1px', '')).not.toMatch(/\d+px/u)
+      expect(read(name)).not.toMatch(/@media[^{]*max-width/u)
+    }
   })
 })
 
@@ -136,7 +155,9 @@ describe('o formulário da avaria', () => {
   })
 
   test('foto de mais de 512 KiB é recusada no campo, com o teto, e nada é enviado', async () => {
-    const { occurrence, rendered } = await mountSeparation({ occurrence: { photoBytes: 600 * 1024 } })
+    const { occurrence, rendered } = await mountSeparation({
+      occurrence: { photoBytes: 600 * 1024 },
+    })
     await openOccurrenceForm(1001)
     await fillValidOccurrence()
 
@@ -155,7 +176,9 @@ describe('o formulário da avaria', () => {
     await markItem('P-100')
     await markItem('P-200')
 
-    const checked = [...document.querySelectorAll<HTMLInputElement>('[data-product-code] input[type="checkbox"]')]
+    const checked = [
+      ...document.querySelectorAll<HTMLInputElement>('[data-product-code] input[type="checkbox"]'),
+    ]
       .filter((input) => input.checked)
       .map((input) => input.closest('[data-product-code]')?.getAttribute('data-product-code'))
     expect(checked).toEqual(['P-200'])
@@ -208,7 +231,9 @@ describe('registrar a avaria', () => {
     const { occurrence, rendered } = await mountSeparation()
     await openOccurrenceForm(1001)
     await fillValidOccurrence()
-    occurrence.failures.push(new CargoReceivingRequestError('CARGO_ARRIVAL_OCCURRENCE_WINDOW_CLOSED'))
+    occurrence.failures.push(
+      new CargoReceivingRequestError('CARGO_ARRIVAL_OCCURRENCE_WINDOW_CLOSED'),
+    )
 
     await submitOccurrence()
 
@@ -227,8 +252,11 @@ describe('registrar a avaria', () => {
     await submitOccurrence()
     expect(dialog()?.textContent).toContain('Sem conexão com o servidor.')
     expect(
-      (document.querySelector('[data-product-code="P-100"] input[type="checkbox"]') as HTMLInputElement)
-        .checked,
+      (
+        document.querySelector(
+          '[data-product-code="P-100"] input[type="checkbox"]',
+        ) as HTMLInputElement
+      ).checked,
     ).toBe(true)
 
     await submitOccurrence()
@@ -305,7 +333,9 @@ describe('a recusa do servidor nomeia todos os campos (web.md §11)', () => {
 
     const summary = dialog()?.querySelector('[data-refusal-summary]')
     expect(summary?.textContent).toContain('Confira:')
-    const shortcuts = [...(summary?.querySelectorAll('button') ?? [])].map((button) => button.textContent)
+    const shortcuts = [...(summary?.querySelectorAll('button') ?? [])].map(
+      (button) => button.textContent,
+    )
     expect(shortcuts).toEqual(['Tipo da ocorrência', 'Itens afetados'])
 
     await click(summary?.querySelectorAll('button')[1] as HTMLButtonElement)
@@ -331,7 +361,9 @@ describe('a recusa do servidor nomeia todos os campos (web.md §11)', () => {
     await openOccurrenceForm(1001)
     await fillValidOccurrence()
     occurrence.failures.push(
-      new CargoReceivingRequestError('INVALID_REQUEST', [{ field: 'weirdField', message: 'Invalid' }]),
+      new CargoReceivingRequestError('INVALID_REQUEST', [
+        { field: 'weirdField', message: 'Invalid' },
+      ]),
     )
 
     await submitOccurrence()

@@ -82,9 +82,21 @@ export function CargoReceivingPage({ path }: CargoReceivingPageProps): JSX.Eleme
     case 'register':
       return access.canManage ? <RegisterPage /> : <Forbidden />
     case 'detail':
-      return <CargoArrivalDetailScreen arrivalId={route.arrivalId} canManage={access.canManage} />
+      return (
+        <CargoArrivalDetailScreen
+          arrivalId={route.arrivalId}
+          canManage={access.canManage}
+          canResolve={access.canResolve}
+        />
+      )
     case 'separation':
-      return <CargoSeparationScreen arrivalId={route.arrivalId} canManage={access.canManage} />
+      return (
+        <CargoSeparationScreen
+          arrivalId={route.arrivalId}
+          canManage={access.canManage}
+          canResolve={access.canResolve}
+        />
+      )
     case 'previews':
       return (
         <CargoReceivingShell
