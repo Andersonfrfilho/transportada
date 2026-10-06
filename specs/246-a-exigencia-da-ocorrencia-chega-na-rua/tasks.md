@@ -35,7 +35,7 @@ THEN 'required' ELSE 'optional' END` em **toda** linha existente; `signature_mod
       `optional`; exceção `required` → `required`; exceção `optional` sobre tipo `required` →
       `optional`; `signature_mode` `off` — `test/integration/*.integration.ts`, rodado com
       `--env-file=../../.env.test`, **e** entrada na lista do `test:integration` do `package.json`.
-- [ ] **T1.4** Mutações, cada uma deixa a T1.3 vermelha: (1) tirar o `UPDATE` do tipo; (2) default
+- [x] **T1.4** Mutações, cada uma deixa a T1.3 vermelha: (1) tirar o `UPDATE` do tipo; (2) default
       `'off'` em `note_mode`; (3) trocar o `CASE` das exceções por `WHERE attachment_mode =
 'required'`. Evidência da execução vermelha de cada uma em `evidence.md`, não só a afirmação.
       A prova de **comportamento** da CA04 está na T2.3b, **depois** da T2.3.

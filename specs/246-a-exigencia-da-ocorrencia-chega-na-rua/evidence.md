@@ -236,3 +236,50 @@ error: expect(received).toEqual(expected)
  125 pass
  2 fail
 ```
+
+### T1.4 — Mutações (2026-10-06)
+
+Cada mutação foi aplicada ao `migration.sql` da T1.2 só para a execução, e o arquivo foi restaurado
+da cópia em seguida (`git status` limpo). Comando das três:
+`cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000 ./test/integration/occurrence-type-requirement-modes.integration.ts`.
+
+**(1) Tirar o `UPDATE` do tipo.**
+
+```text
+-UPDATE "company_occurrence_types" SET "note_mode" = 'required' WHERE "attachment_mode" = 'required';--> statement-breakpoint
+error: expect(received).toEqual(expected)
+-   "note_mode": "required",
++   "note_mode": "optional",
+(fail) a exigência vira dado sem mudar o que já está gravado (spec 246 T1.3) > tipo e exceções antigos saem com observação e assinatura conforme a regra da 179
+ 0 pass
+ 1 fail
+```
+
+**(2) Padrão `'off'` em `note_mode` do tipo.**
+
+```text
+-ALTER TABLE "company_occurrence_types" ADD COLUMN "note_mode" varchar(16) DEFAULT 'optional' NOT NULL;--> statement-breakpoint
++ALTER TABLE "company_occurrence_types" ADD COLUMN "note_mode" varchar(16) DEFAULT 'off' NOT NULL;--> statement-breakpoint
+error: expect(received).toEqual(expected)
+-   "note_mode": "optional",
++   "note_mode": "off",
+(fail) a exigência vira dado sem mudar o que já está gravado (spec 246 T1.3) > tipo e exceções antigos saem com observação e assinatura conforme a regra da 179
+ 0 pass
+ 1 fail
+```
+
+**(3) O `CASE` das exceções vira `WHERE attachment_mode = 'required'`.**
+
+```text
++UPDATE "company_occurrence_type_contractor_overrides" SET "note_mode" = 'required' WHERE "attachment_mode" = 'required';--> statement-breakpoint
++UPDATE "company_occurrence_type_recipient_overrides" SET "note_mode" = 'required' WHERE "attachment_mode" = 'required';--> statement-breakpoint
+error: expect(received).toEqual(expected)
+-   "note_mode": "optional",
++   "note_mode": null,
+(fail) a exigência vira dado sem mudar o que já está gravado (spec 246 T1.3) > tipo e exceções antigos saem com observação e assinatura conforme a regra da 179
+ 0 pass
+ 1 fail
+```
+
+Restaurado: `1 pass, 0 fail`. A prova de **comportamento** da CA04 (`TRIP_OCCURRENCE_NOTE_REQUIRED`)
+é a T2.3b, depois da T2.3.
