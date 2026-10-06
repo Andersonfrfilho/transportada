@@ -39,6 +39,10 @@ const ROUTE_ISSUE = '/emitir'
 const ROUTE_STATUS = '/notas/'
 const STATUS_QUERY_PARAM = 'id_nota'
 const UNKNOWN_REJECTION_CODE = 'NOTA_RP_UNKNOWN'
+const HTTP_REJECTION_CODE_PREFIX = 'NOTA_RP_HTTP_'
+const HTTP_REJECTION_MESSAGE_LIMIT = 500
+/** Recusa por 4xx que o próprio pedido não resolve com tempo: esses três são pressão do servidor, não do pedido. */
+const RETRYABLE_CLIENT_ERROR_STATUSES: ReadonlySet<number> = new Set([408, 425, 429])
 
 /**
  * Vocabulário do campo `Status` da consulta, comparado sem acento e em caixa baixa. Status fora da
@@ -160,8 +164,9 @@ export function createNotaRpV2Client(dependencies: {
     readonly accept: string
     readonly body?: Readonly<Record<string, unknown>>
     readonly method: string
+    readonly rejectClientErrors?: boolean
     readonly url: string
-  }): Promise<NotaRpCause | Response> {
+  }): Promise<NotaRpCause | Response | HttpRejection> {
     try {
       const response = await fetch(input.url, {
         headers: buildHeaders({ accept: input.accept, hasBody: input.body !== undefined }),
@@ -169,7 +174,11 @@ export function createNotaRpV2Client(dependencies: {
         signal: AbortSignal.timeout(config.timeoutMilliseconds),
         ...(input.body === undefined ? {} : { body: JSON.stringify(input.body) }),
       })
-      return response.ok ? response : 'unexpected_status'
+      if (response.ok) return response
+      if (input.rejectClientErrors === true && isRejectableClientError(response.status)) {
+        return readHttpRejection({ redact, response })
+      }
+      return 'unexpected_status'
     } catch (error: unknown) {
       return classifyTransportError(error)
     }
@@ -178,10 +187,12 @@ export function createNotaRpV2Client(dependencies: {
   async function requestEnvelope(input: {
     readonly body?: Readonly<Record<string, unknown>>
     readonly method: string
+    readonly rejectClientErrors?: boolean
     readonly url: string
   }): Promise<EnvelopeOutcome> {
     const sent = await send({ accept: JSON_MEDIA_TYPE, ...input })
     if (typeof sent === 'string') return { cause: sent, kind: 'error' }
+    if (isHttpRejection(sent)) return { kind: 'rejected', rejection: sent.rejection }
     return readEnvelope({ redact, response: sent })
   }
 
@@ -223,6 +234,7 @@ export function createNotaRpV2Client(dependencies: {
         url: `${baseUrl}/${kind}/${providerDocumentId}`,
       })
       if (typeof sent === 'string') return { cause: sent, status: 'error' }
+      if (isHttpRejection(sent)) return { cause: 'unexpected_status', status: 'error' }
       return readDocument({
         fallbackContentType: DOCUMENT_MEDIA_TYPE[kind],
         kind,
@@ -249,9 +261,15 @@ export function createNotaRpV2Client(dependencies: {
     },
 
     issue: async ({ rps }) => {
+      /**
+       * Só a emissão transforma 4xx em recusa visível: numa consulta, um 401 vira "nota rejeitada" para
+       * uma nota que a prefeitura já autorizou. Na emissão a nota ainda não existe, e a mensagem do
+       * provedor é o que diz ao operador qual campo corrigir — antes ela era descartada em retry.
+       */
       const envelope = await requestEnvelope({
         body: rps,
         method: 'POST',
+        rejectClientErrors: true,
         url: `${baseUrl}${ROUTE_ISSUE}`,
       })
       if (envelope.kind === 'error') return { cause: envelope.cause, status: 'error' }
@@ -262,6 +280,34 @@ export function createNotaRpV2Client(dependencies: {
       if (providerDocumentId === undefined) return { cause: 'malformed_response', status: 'error' }
       return { providerDocumentId, status: 'accepted' }
     },
+  }
+}
+
+type HttpRejection = { readonly rejection: NotaRpRejection }
+
+function isHttpRejection(value: Response | HttpRejection): value is HttpRejection {
+  return 'rejection' in value
+}
+
+function isRejectableClientError(status: number): boolean {
+  return status >= 400 && status < 500 && !RETRYABLE_CLIENT_ERROR_STATUSES.has(status)
+}
+
+/** O corpo da recusa traz o campo errado: redigir segredo e limitar tamanho, nunca descartar. */
+async function readHttpRejection(input: {
+  readonly redact: Redact
+  readonly response: Response
+}): Promise<HttpRejection> {
+  const code = `${HTTP_REJECTION_CODE_PREFIX}${input.response.status}`
+  const fallback = `HTTP ${input.response.status}`
+  try {
+    const body: unknown = JSON.parse(await input.response.text())
+    const detail = asRecord(body)?.['message']
+    const text = typeof detail === 'string' ? detail.trim() : JSON.stringify(detail ?? body)
+    const message = input.redact(text.length === 0 ? fallback : text)
+    return { rejection: { code, message: message.slice(0, HTTP_REJECTION_MESSAGE_LIMIT) } }
+  } catch {
+    return { rejection: { code, message: fallback } }
   }
 }
 
