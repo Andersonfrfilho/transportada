@@ -2552,3 +2552,156 @@ Prova: `bun run db:generate` → `{"status":"no_changes","dialect":"postgresql"}
 - Migration (`DRIZZLE_TEST_DATABASE_URL=… bun run db:test`, o que o `make migration-test` roda): 134 pass, 0 skip, 0 fail.
 - Integração, um arquivo por vez, `--env-file=../../.env.test`, todos 0 fail e sem skip: os 16 da 246 (`occurrence-type-requirement-modes` 1, `occurrence-type-moments-registration` 2, `occurrence-type-moments-backfill` 1, `occurrence-type-quantity-minimums` 1, `occurrence-type-minimum-counts` 4, `occurrence-type-allows-multiple-items` 2, `street-occurrence-attachment-read` 3, `street-occurrence-attachment-backfill` 1, `street-occurrence-attachment-write` 2, `street-occurrence-photo-statement` 1, `occurrence-requirement-modes-registration` 3, `occurrence-requirement-modes-write` 5, `occurrence-effective-requirements-parity` 2, `occurrence-signature-isolation` 2, `driver-occurrence-attachment-list` 2, `occurrence-attachment-overrides-batch` 2); os três novos desta rodada (`occurrence-override-minimum-shape` 2, `occurrence-type-moments-tenant` 1, mais a `occurrence-signature-isolation` ampliada); os da 241 (`occurrence-type-items-mode` 5, `occurrence-type-leaves-document-behind` 4, `occurrence-type-redelivery-policy` 2, `occurrence-type-catalog-seed` 2, `trip-occurrence-type-items-read` 4, `trip-occurrence-attachment` 6); e os que receberam o stub da porta (M5): `event-location-stamp` 23, `trip-field-authorship` 5, `whatsapp-driver-flow-actions` 4, `me-trip` 21, `field-trip-target` 7.
 - `bun run build`: exit 0. `bun run --cwd apps/frontend-transportada test`: 702 pass, 0 fail. `bun run --cwd apps/frontend-driver test`: 1242 pass, 0 fail.
+
+## Correções da revisão final (painel) (2026-10-06)
+
+Revisão independente (`code-reviewer`, opus) da parte painel/app/design. Cada achado: contrato primeiro e vermelho, depois o código, um
+commit por achado (os SHAs estão na tabela do fim). O relato do usuário de "elementos fora dos limites" virou a varredura de geometria da
+seção seguinte.
+
+| achado | contrato (vermelho antes do código)                                                                                                                                                                                                 | mutação                                                       |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| A4     | `design-system/tooltip.contract` "o gatilho só estica o filho com o modificador fill": `Expected: true / Received: false` (2 fail)                                                                                                  | —                                                             |
+| A1     | `trip/occurrence-exception-service.contract` "adicionar nasce herdando tudo menos a foto": `Expected - 5 / Received + 0` (as cinco chaves `null` faltavam); DOM: `toHaveProperty("itemsMode")` `Unable to find property`            | tirar `noteMode: null`: os dois ficam vermelhos               |
+| A2, M2 | `occurrence-type-moment-scope.contract`: `{separation, document}` sem a lista de exceções e sem a nota "As exigências abaixo valem só nos momentos de rua"; `{stop}` ainda mostrava Observação, Assinatura e Produtos               | `occurrence-requirement-scope.contract` (6 casos)             |
+| M3     | mesmo arquivo: a legenda ainda dizia "ao menos um item da nota marcado" e não havia o aviso do app                                                                                                                                  | —                                                             |
+| M5     | `occurrence-requirement-catalog-client.contract` passou a exigir "ausente continua ausente" (vermelho contra o `toOccurrenceType` que preenchia padrões); DOM: sem `noteMode`/`signatureMode`/`photoMinimumCount` o PUT não os leva | —                                                             |
+| M1     | `occurrence-exceptions-panel.contract`: cada toque gravava (`saved` com 1 item antes do Aplicar), o seletor fechava, e o tipo recolhia quando a gravação o mudava de grupo                                                          | —                                                             |
+| M4     | `occurrence-type-create-form.contract` (5 casos): o cadastro tinha "Foto do comprovante", "Fluxo de registro" e "Onde acontece" e não tinha Observação/Assinatura/momentos                                                          | —                                                             |
+| M7     | `occurrence-exceptions-panel.contract` "diretórios" (2): `clientListCalls` já era > 0 ao abrir a aba, e o corte em 3000 não avisava; `occurrence-requirement-catalog-client.contract`: `GET /contractors` parava na página 1        | —                                                             |
+| M8     | `occurrences-workspace-tabs.contract` (DOM, com e sem permissão; substitui a leitura de texto de fonte)                                                                                                                             | `listTripOccurrencesTabs` devolvendo sempre as duas: vermelho |
+| A3     | `settings-resolution-panel.contract`: 2 fail (a tela renderizava só nome e `attachmentMode`)                                                                                                                                        | tirar `sources` do montador: vermelho                         |
+| B1     | `design-system/select.contract`: o valor e o placeholder do `Select` cortavam com reticências                                                                                                                                       | —                                                             |
+
+Trecho vermelho do A2/M2/M5 (rodada contra o código anterior, antes de a lista de exceções, o escopo e os controles ausentes existirem):
+
+```
+(fail) tipo de galpão e rua: as exigências da rua continuam à vista (A2) > {separation, document} mostra Foto, Observação, Assinatura e Produtos, a nota dos momentos de rua e a lista de exceções
+(fail) tipo de galpão e rua: as exigências da rua continuam à vista (A2) > tipo só de galpão continua só com Produtos e sem lista de exceções
+(fail) tipo só de parada: só a Foto vale (M2) > {stop} mostra só a Foto, sem mínimo de fotos, e a nota diz por quê; a exceção também declara só a foto
+(fail) API anterior aos campos: o painel não oferece o que ela recusaria (M5) > sem noteMode, signatureMode e photoMinimumCount, esses controles não aparecem e o PUT não os leva
+```
+
+Decisões e limites, declarados:
+
+- **Escopo pelo conjunto de momentos** (`readOccurrenceRequirementScope`): `document` cobra os quatro campos e o mínimo de fotos; `stop` (sem
+  `document`) cobra só a Foto; Produtos vale em `document`, em `separation` e em tipo sem `stop`; as exceções existem em todo tipo com
+  `document`, `stop` ou `office`. O `stage` deixou de decidir qualquer coisa na tela. O tipo só de escritório mostra Produtos e nada mais
+  (o escritório manda só o `kind`, 218).
+- **M3, o que o app faz:** a tela diz, à vista, que o app do motorista só marca "A nota inteira" e que "Ao menos N" ainda não muda o que ele
+  cobra (limitação do §T4 acima, intocada).
+- **M5:** `noteMode`, `signatureMode`, `photoMinimumCount` e `itemsMinimumCount` voltaram a ser opcionais no tipo. A listagem de uma API
+  anterior (que recusa a chave com `.strict()`) não ganha mais controle para eles, e o cadastro novo e o `PUT` não os mandam.
+- **M1:** a abertura do tipo mora na lista, por id; os momentos são rascunho (Aplicar/Desfazer). O tipo muda de grupo uma vez, no Aplicar.
+- **M4:** o cadastro grava `stage` e `flow` derivados dos momentos (`deriveOccurrenceStage`/`deriveOccurrenceFlow`); com API sem `moments` o
+  seletor de momentos não aparece e o corpo não leva a chave.
+- **M7:** os dois diretórios só carregam quando algum tipo é aberto ou há busca digitada; contratantes seguem o cursor (até 30 páginas); a
+  tela avisa "pode estar incompleta" quando uma lista bate no teto de 3000.
+- **B6:** as traduções da aba **continuam** no namespace `companySettings` (mover as ~120 chaves tocaria as duas apps e todos os contratos de
+  locale; risco sem ganho). Os comentários que prometiam a "Fase 5" foram corrigidos.
+- **B8/B10** não estavam na lista desta rodada; **B2** (nome acessível da linha-resumo: o estado de cada campo vai em texto só-leitor, sem
+  abreviações), **B3** (`Tirar momento <rótulo>`), **B4** (foto limpa após adicionar; o motivo do botão desligado à vista), **B5** ("Ao
+  menos N itens"), **B7** (`OccurrenceTypeCreateForm` 168 linhas, `occurrenceTypeItem.module.css` 177 + dois arquivos novos,
+  `useOccurrenceRegistrationForm.hook.ts` 169) e **B9/B11** (preview e `tasks.md`) estão feitos.
+- **B3, seletores da exceção com o cliente no nome acessível: não coube** (renomear `aria-label` quebraria os ~30 contratos que localizam
+  `button[aria-label="Observação"]`; o nome do cliente já encabeça a linha e o botão "Remover exceção de <cliente>" o repete). Fica registrado.
+
+## Varredura de regressão visual contra a staging (2026-10-06)
+
+**Ambiente.** Banco descartável `transportada_246_pano` (`pg_dump` do banco local de dev dentro do Postgres local 55432, migrado só nele com
+as migrations desta árvore; o banco compartilhado não foi tocado), API desta árvore na 53091, proxy descartável fora do repositório (53093)
+que troca o `Authorization` pelo token real de `local-user` (PKCE contra o Keycloak local; senha e token `[REDACTED]`), Vite do binário da
+app (`apps/frontend-transportada/node_modules/.bin/vite`, nunca `bunx vite`) com `VITE_SMOKE_AUTH_BYPASS=true`: a branch em 53095 (e uma
+cópia congelada do HEAD anterior em 53090), a **`origin/staging`** num worktree descartável (`git worktree add --detach … origin/staging`) em
+53092, e o commit anterior à correção do Tooltip em 53094. Os dois lados falam com o mesmo proxy e a mesma API. Dados extras criados pela API:
+cinco tipos novos (nome de 60 caracteres, nome de 60 sem espaço, inativo, galpão+rua, só parada) e exceções com sete clientes e um contratante.
+
+**Método.** Playwright (Chromium) em 320, 375, 768 e 1280 (e 768 também com `pointer: coarse`), tema escuro e claro (troca de
+`data-theme` no mesmo carregamento), 33 telas — `/`, `/freight`, `/cte-batches`, `/trips` e quatro `/trips/:id` (viagem em rota, concluída,
+planejada, rascunho; com linha do tempo, pino de posição, paradas e documentos), `/mdfe-manifests`, `/billing`, `/nfse-invoices`,
+`/operations`, `/ocorrencias`, `/recebimento`, `/company-settings`, `/usuarios`, `/papeis`, `/cte-profiles`, `/fleet`, `/pendencias`,
+`/clientes`, `/repasses`, `/ressarcimentos`, `/resultados`, `/notificacoes` — **com todas as abas clicadas** e até 3 `Select`/`MultiSelect`/
+`SearchableSelect` abertos por tela. Para cada estado um JS no navegador mede: `scrollWidth` do documento contra a largura; elementos com
+`right > innerWidth + 1` ou `left < -1` fora de contêiner fixo ou rolável; texto cortado (`scrollWidth > clientWidth` com overflow
+escondido); caixa com rolagem lateral; sobreposição de irmãos em flex/grid; largura e altura de todo controle (botão, link, campo, aba,
+gatilho de tooltip), pareado entre os lados por nome acessível e ancestrais; painel aberto fora da viewport. (O instrumento acusa o defeito
+que a correção do Tooltip tira: `pino de posição 303x14` no commit anterior.) ⚠️ Medi só depois de a tela assentar (sem skeleton, sem
+`aria-busy`): a primeira rodada, sem isso, media telas ainda carregando e deu falsas diferenças.
+
+### Tooltip (A4)
+
+| tela                          | largura     | elemento (pino de posição, `TripTimelineLocation`) | staging | antes da correção | depois |
+| ----------------------------- | ----------- | -------------------------------------------------- | ------- | ----------------- | ------ |
+| `/trips/:id` (viagem em rota) | 375 (toque) | `button` do pino                                   | 14×14   | **303×14**        | 14×14  |
+| `/trips/:id`                  | 1280        | `button` do pino                                   | 14×19   | 14×19             | 14×19  |
+
+(O relato fala em 344px; medido a 375, o botão ia a 303px, com o ícone no meio da linha e a linha inteira clicável.) O
+`Tooltip` só estica o filho com `fill`, e só os três seletores da aba Tipos pedem.
+
+### Diferenças de geometria, staging × branch (a tabela antes/depois)
+
+| tela                      | largura             | elemento                                                                                                                                                 | staging                                               | branch                                       | motivo / correção                                                                                                                                      |
+| ------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/trips/:id` (3 viagens)  | 320, 375            | página                                                                                                                                                   | **rola até 422**                                      | 320 / 375                                    | a placa Mercosul (faixa de identidade do veículo) começava em x=262 numa grade `auto minmax(0,1fr)`; agora uma coluna só                               |
+| `/trips/:id`              | 320                 | `fieldset` dos motoristas, e-mail longo                                                                                                                  | 318 (escondido sob os 422)                            | cabe (o `fieldset` encolhe, o e-mail quebra) | `min-width: 0` no `fieldset`, `overflow-wrap: anywhere` no contato                                                                                     |
+| `/trips/:id`              | 320, 375            | cabeçalho do documento da parada (toggle)                                                                                                                | 334 / 554                                             | 239 / 459                                    | consequência: a página deixou de ser alargada a 422, o cartão volta à largura da tela                                                                  |
+| `/fleet`                  | 320, 375, 768, 1280 | página                                                                                                                                                   | **rola até 886 (Regiões 1438)**                       | 320 … 1280                                   | o texto só-leitor "Sem ordenação" de cabeçalho dentro da tabela rolável nascia na posição estática; `left: 0`                                          |
+| `/recebimento`            | 320                 | página; cartão do cabeçalho                                                                                                                              | 323; título 290 em caixa de 272                       | 320                                          | `grid-template-columns: minmax(0, 1fr)` no cartão do cabeçalho da aplicação                                                                            |
+| `/ressarcimentos`         | 320                 | página; formulário em lote; 3 `Select`; painéis                                                                                                          | **369**; 326 em tela de 320; painéis fora da viewport | 320; painéis dentro                          | coluna que encolhe na casca, no painel, no formulário e no campo; `h1` global de 56px em caixa alta → 1,75rem; nome da tela no cabeçalho com `clamp()` |
+| `/company-settings`       | 320, 375, 768       | `Select` "Código do banco"                                                                                                                               | 254×38                                                | 254×**54** (320) · ×44 (375/768, toque)      | o placeholder "Buscar banco por nome ou código" quebra linha em vez de cortar (B1) e o alvo sobe a 44px no toque                                       |
+| `/mdfe-manifests`         | 320                 | `Select` "Tipo de emitente"                                                                                                                              | 246×48                                                | 246×**64**                                   | "Prestador de serviço de transporte" quebra linha (B1)                                                                                                 |
+| todas com `Select`, toque | 320, 375, 768t      | gatilho compacto (`Prazo de vencimento`, `Período`, `Registros por página`, `CT-es por página`, `Notas por página`, `Situação`, 6 filtros de `/freight`) | 38–39 px de altura                                    | 44                                           | desejado (T6.1): alvo de toque de 44px em `pointer: coarse`                                                                                            |
+| `/ocorrencias`            | 320, 375, 768t      | `LIMPAR FILTROS`                                                                                                                                         | 116×28                                                | 116×44                                       | desejado (T6.1): alvo de toque de 44px                                                                                                                 |
+
+Sem nenhuma outra diferença de largura ou altura de controle nas 33 telas; **0 controle esticado ou encolhido sem motivo**, **0 painel de
+`Select` aberto fora da viewport** (a staging tem 4, em `/recebimento` e `/ressarcimentos` a 320), **0 sobreposição de irmãos**.
+
+### Estado final (branch), 4 larguras × 2 temas × todas as abas
+
+- **0** página que rola na horizontal, **0** elemento fora da viewport, **0** texto cortado com reticências (fora o `srOnly` e o campo de
+  texto, que cortam por desenho), **0** painel aberto fora da tela, em todas as telas acima. Na staging: `/fleet` (5 larguras), `/recebimento`,
+  `/ressarcimentos` e três `/trips/:id` a 320/375.
+- **Aba Tipos**, com os dados de estresse (7 exceções, nomes de 60 caracteres com e sem espaço, inativo, galpão+rua, só parada), tipos
+  recolhidos e **todos abertos**, a 320/375/768/1280, claro e escuro, mais 14 painéis de seletor abertos: página = largura da tela, 0 elemento
+  fora, 0 sobreposição, 0 painel fora da viewport.
+- Achados **além do Tooltip**: (1) a faixa de identidade do veículo no detalhe da viagem (422px a 375); (2) o texto só-leitor das tabelas da
+  frota (886/1438px); (3) o cartão do cabeçalho da aplicação em `/recebimento`; (4) a casca, o `h1` e o nome da tela em `/ressarcimentos`;
+  (5) o `fieldset` dos motoristas da viagem; (6) texto de `Select` cortado só com `title` (B1: "Admite reentrega: Indefinido (não abre
+  tr…", "Buscar por nome ou CNPJ…", "Todos os itens da nota"); (7) a tela de verificação, que com um nome de tipo sem espaço passava de 517px
+  — reescrita pela A3, que já quebra o nome.
+- Limitação: o ambiente de teste (`bun test`) não tem layout; a geometria foi provada por este navegador, e os contratos de CSS (`.triggerFill`,
+  `.identityBand`, `.srOnly`, `.shell`/`.panel`/`.batchForm`/`.field`, `.application-wordmark`, `.driverChecklist`) travam a causa.
+
+## Gates da correção da revisão (painel) (2026-10-06, primeiro plano)
+
+- `bun install --frozen-lockfile`: sem mudanças. `bun run typecheck` (sete apps): limpo.
+- `./node_modules/.bin/prettier --check .` e `bun run format:check`: limpos.
+- `bun run --cwd apps/frontend-transportada test`: 7063 pass, 0 fail (contratos) e 724 pass, 0 fail (`test:hooks`, DOM). Lint da app: 0 erros.
+  `bun run --cwd apps/frontend-transportada build`: exit 0.
+- `bun run --cwd apps/frontend-driver test`: 1242 pass, 0 fail; lint 0 erros; `build`: exit 0.
+- Tudo que subiu foi derrubado ao fim (ver "Encerramento da varredura").
+
+### SHAs por achado
+
+| achado                                              | commit                   |
+| --------------------------------------------------- | ------------------------ |
+| A4 (Tooltip só estica com `fill`)                   | `4b6d625da`              |
+| A1 (exceção nova herda por nulo explícito)          | `aa70294ea`              |
+| A2, M2, M3, M5, B2 (escopo por momentos, `Summary`) | `0e6ba5036`              |
+| M1, B3 (momentos em rascunho, abertura por id)      | `be029fdb2`              |
+| M4 (cadastro do tipo novo)                          | `53849bf7b`              |
+| frota/viagem (placa, texto só-leitor)               | `7afda6cd9`              |
+| B1 (texto do `Select` quebra linha)                 | `c197f1367`              |
+| M7, B4 (diretórios, foto limpa, motivo do botão)    | `198b9bc20`              |
+| M8 (aba Tipos por permissão e na URL)               | `172b3020d`              |
+| A3 (verificação com os seis campos e a camada)      | `d7daae984`              |
+| B5, B6, B7 (rótulo, comentários, css em três)       | `63fe4992e`              |
+| B7 (motorista), B9, B11                             | `99b0db355`, `54962cf4a` |
+| `/recebimento` e `/ressarcimentos` a 320px          | `e0068d46e`              |
+| motoristas da viagem a 320px, lint                  | `6af7f475a`              |
+| prettier                                            | `12a40c39b`              |
+
+### Encerramento da varredura
+
+Vite (53090, 53092, 53094, 53095), proxy (53093) e API (53091) derrubados (`lsof` vazio nas seis portas); banco `transportada_246_pano`
+apagado; os worktrees descartáveis (`origin/staging`, HEAD anterior, commit anterior ao Tooltip) removidos.
