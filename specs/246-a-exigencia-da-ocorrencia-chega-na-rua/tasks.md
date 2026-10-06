@@ -29,7 +29,7 @@ THEN 'required' ELSE 'optional' END` em **toda** linha existente; `signature_mod
       journal (`DELETE` com `ROW_COUNT = 1`); **não toca `items_mode` nem as CHECKs da 241**;
       registrar o que se perde (`note_mode` gravado). `make migration-test` verde. Validar com
       `architect` antes de implementar.
-- [ ] **T1.3** Integração que verifica o **valor da coluna** no padrão de
+- [x] **T1.3** Integração que verifica o **valor da coluna** no padrão de
       `contractor-contact-channels.integration.ts` (semear **antes**, reexecutar o `UPDATE` lido do
       `migration.sql`), com os casos: tipo `required` → `required`; tipo `optional` e `off` →
       `optional`; exceção `required` → `required`; exceção `optional` sobre tipo `required` →

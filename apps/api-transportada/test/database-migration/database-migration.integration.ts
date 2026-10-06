@@ -28,6 +28,7 @@ import { assertNfeEventHistory } from './nfe-event-history.assertion.js'
 import { assertOccurrenceStopFlowBackfill } from './occurrence-stop-flow.assertion.js'
 import { assertOccurrenceStopKindBackfill } from './occurrence-stop-kind.assertion.js'
 import { assertOccurrenceTypeItemsModeBackfill } from './occurrence-type-items-mode.assertion.js'
+import { assertOccurrenceTypeRequirementModesRollback } from './occurrence-type-requirement-modes.assertion.js'
 import { assertRntrcRollbackRefusesNinePositions } from './rntrc-rollback.assertion.js'
 import { assertStopDepartureRollback } from './stop-departure-rollback.assertion.js'
 import { assertTollBoothExtractConstraints } from './toll-booth-extract-constraints.assertion.js'
@@ -184,6 +185,12 @@ describe('Drizzle migration integration', () => {
 
         await assertOccurrenceTypeItemsModeBackfill({
           companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+
+        await assertOccurrenceTypeRequirementModesRollback({
           connectionString,
           database,
           directories: migrationDirectories,

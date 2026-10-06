@@ -185,3 +185,54 @@ nula (nenhuma linha verificável), sem precisar de `NOT VALID`; `ADD COLUMN` com
 reescreve a tabela; rollback em ordem inversa, sem tocar a 241. Diferenças de forma apontadas, sem
 efeito: um `ALTER` por coluna (formato do drizzle-kit) em vez de um por tabela; `migration.sql` sem
 cabeçalho de copyright, como o molde da 241.
+
+### T1.3 — Valor da coluna sobre dado antigo (2026-10-06)
+
+`test/integration/occurrence-type-requirement-modes.integration.ts` (entrou na lista
+`test:integration` do `package.json` da API, logo depois de `occurrence-type-items-mode`). O banco
+descartável nasce migrado, **desfaz só a 246 pelo próprio `rollback.sql`**, recebe tipos e exceções
+gravados sem as colunas novas, e o migrador reaplica o `migration.sql` lido do disco — os `UPDATE`s
+que rodam são os do arquivo, junto com o padrão do `ADD COLUMN` (é o que deixa a mutação (2) da T1.4
+visível; reexecutar só o `UPDATE` sobre colunas já criadas não a pegaria). **Decisão:** é a variação
+do molde de `contractor-contact-channels.integration.ts` (semear antes, rodar o SQL do arquivo) que
+cobre as três mutações. Casos, todos sobre o mesmo tipo `required` nas exceções:
+
+| Semente                                 | `note_mode` esperado | `signature_mode` |
+| --------------------------------------- | -------------------- | ---------------- |
+| tipo `attachment_mode = required`       | `required`           | `off`            |
+| tipo `optional`                         | `optional`           | `off`            |
+| tipo `off`                              | `optional`           | `off`            |
+| contratante `required`                  | `required`           | nulo             |
+| contratante `optional` sobre `required` | `optional`           | nulo             |
+| destinatário `required`                 | `required`           | nulo             |
+| destinatário `off` sobre `required`     | `optional`           | nulo             |
+
+```text
+$ cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000 ./test/integration/occurrence-type-requirement-modes.integration.ts
+ 1 pass
+ 0 fail
+```
+
+**Rollback não toca a 241 (CA07)** — `test/database-migration/occurrence-type-requirement-modes.assertion.ts`,
+chamado de `database-migration.integration.ts` logo depois da asserção da 241 (roda no `make
+migration-test`): lê `pg_constraint` e `information_schema.columns`; antes do rollback há as 2 CHECKs
+da 241 + as 6 CHECKs e 2 FKs da 246, e 9 colunas; depois do rollback restam exatamente
+`company_occurrence_types_items_mode_check`, `company_occurrence_types_items_off_shape_check` e
+`company_occurrence_types.items_mode`; o migrador reaplica e o estado completo volta. A CHECK
+estática de ordem é a da T1.2 (`occurrence-type-requirement-modes.static.contract.ts`).
+`make migration-test ENV_FILE=.env.test` → `127 pass, 0 fail, 0 skip`.
+
+Prova de que a asserção não é vazia — o `rollback.sql` ganhou à mão um `DROP CONSTRAINT IF EXISTS
+"company_occurrence_types_items_off_shape_check"` só para esta execução, restaurado em seguida
+(`git status` limpo):
+
+```text
+$ make migration-test ENV_FILE=.env.test
+error: expect(received).not.toMatch(expected)
+(fail) a exigência vira dado na ordem do plan (spec 246 T1.2) > o rollback desfaz só a 246, em ordem inversa, e não toca a 241
+error: expect(received).toEqual(expected)
+-   "company_occurrence_types_items_off_shape_check",
+(fail) Drizzle migration integration > applies, constrains, rolls back, and reapplies the fiscal migration
+ 125 pass
+ 2 fail
+```
