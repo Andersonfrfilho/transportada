@@ -150,13 +150,20 @@ describe('responsive contract', () => {
 })
 
 describe('cabeçalho da aplicação no celular (revisão do painel)', () => {
-  /** Medido a 320px em /ressarcimentos: a fonte fixa de 2rem fazia o nome da tela (241px) passar da caixa de 170px. */
-  test('o nome da tela encolhe com a largura e quebra em vez de alargar a página', async () => {
+  /**
+   * Medido a 320px em /ressarcimentos: o nome da tela (241px) passava da caixa de 170px. O tamanho de
+   * 2rem é o da staging em todas as telas; o nome longo quebra em vez de encolher o cabeçalho de todos.
+   */
+  test('o nome da tela mantém 2rem e quebra em vez de alargar a página', async () => {
     const styles = await Bun.file(new URL('../../src/styles/index.css', import.meta.url)).text()
     const start = styles.indexOf('.application-wordmark {')
     const rule = styles.slice(start, styles.indexOf('}', start))
+    const copyStart = styles.indexOf('.ui-card-header.application-header-copy {')
+    const copyRule = styles.slice(copyStart, styles.indexOf('}', copyStart))
 
-    expect(rule).toContain('font-size: clamp(')
+    expect(rule).toContain('font-size: 2rem')
+    expect(rule).not.toContain('clamp(')
     expect(rule).toContain('overflow-wrap: anywhere')
+    expect(copyRule).toContain('min-width: 0')
   })
 })

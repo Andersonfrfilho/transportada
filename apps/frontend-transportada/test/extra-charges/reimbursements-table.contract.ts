@@ -47,6 +47,16 @@ const STYLES = readFileSync(
   new URL('../../src/modules/extra-charges/styles/extraCharges.module.css', import.meta.url),
   'utf8',
 )
+const GLOBAL_STYLES = readFileSync(new URL('../../src/styles/index.css', import.meta.url), 'utf8')
+
+function readRule(source: string, selector: string): string {
+  const start = source.indexOf(selector)
+  return source.slice(start, source.indexOf('}', start))
+}
+
+function readDeclaration(rule: string, property: string): string {
+  return new RegExp(`${property}:\\s*([^;]+);`, 'u').exec(rule)?.[1] ?? ''
+}
 
 describe('B2: a tabela rola dentro do próprio contêiner', () => {
   it('a tabela nasce dentro do contêiner de rolagem', () => {
@@ -125,12 +135,37 @@ describe('revisão do painel: a página não passa da largura da tela a 320px', 
     }
   })
 
-  /** O `h1` global é de 3,5rem a 9rem em caixa alta: "RESSARCIMENTOS" tinha 360px e puxava a página a 369px. */
-  it('o título da página tem o corpo do cabeçalho dos outros módulos, não o do h1 global', () => {
-    const start = STYLES.indexOf('.header h1 {')
-    expect(start).toBeGreaterThan(-1)
-    const rule = STYLES.slice(start, STYLES.indexOf('}', start))
-    expect(rule).toContain('font-size: 1.75rem')
-    expect(rule).toContain('max-width: none')
+  /**
+   * O `h1` global é de 3,5rem a 9rem em caixa alta, como na staging; "RESSARCIMENTOS" tem ~370px e só
+   * estoura a tela no celular. A mudança fica abaixo de 40rem; dali em diante o corpo é o do h1
+   * global, nos dois pontos em que ele muda, lido do `index.css` para o espelho não divergir.
+   */
+  it('o título quebra no celular e, de 40rem em diante, é o h1 global', () => {
+    const globalBase = readRule(GLOBAL_STYLES, '\nh1 {')
+    const globalWide = readRule(
+      GLOBAL_STYLES.slice(
+        GLOBAL_STYLES.indexOf('@media (min-width: 64rem)', GLOBAL_STYLES.indexOf('\nh1 {')),
+      ),
+      '\n  h1 {',
+    )
+    const base = readRule(STYLES, '.header h1 {')
+    const narrow = readRule(
+      STYLES.slice(STYLES.indexOf('@media (min-width: 40rem)')),
+      '.header h1 {',
+    )
+    const wide = readRule(STYLES.slice(STYLES.indexOf('@media (min-width: 64rem)')), '.header h1 {')
+
+    expect(base).toContain('max-width: none')
+    expect(base).toContain('overflow-wrap: anywhere')
+    expect(base).toContain('font-size: clamp(2rem, 13vw')
+    for (const property of ['max-width', 'font-size']) {
+      expect(readDeclaration(globalBase, property)).not.toBe('')
+      expect(readDeclaration(narrow, property)).toBe(readDeclaration(globalBase, property))
+    }
+    expect(readDeclaration(globalWide, 'font-size')).not.toBe('')
+    expect(readDeclaration(wide, 'font-size')).toBe(readDeclaration(globalWide, 'font-size'))
+    for (const overridden of ['font-weight', 'text-transform', 'line-height', 'margin']) {
+      expect(base + narrow + wide).not.toContain(overridden)
+    }
   })
 })
