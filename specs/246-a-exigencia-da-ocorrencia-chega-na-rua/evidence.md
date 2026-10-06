@@ -1069,3 +1069,33 @@ T1.2 tem de estar aplicada (journal de staging e produção) **antes** de esta p
 push. Nada no código garante isso. Recomendações acatadas: semente (f) na T1d.3; a janela entre o
 backfill e a escrita dupla documentada no `plan.md` (reaplicar o mesmo SQL antes de remover a leitura
 da coluna).
+
+### T1d.3 — O backfill sobre dado antigo, verificado nas linhas (2026-10-06)
+
+`test/integration/street-occurrence-attachment-backfill.integration.ts` (na lista `test:integration`;
+sementes em `test/fixtures/street-occurrence-backfill-scenario.fixture.ts`). O banco descartável nasce
+migrado, o `rollback.sql` da T1d.2 tira o journal, as sementes são gravadas, e o migrador reaplica o
+`migration.sql` lido do disco. Cada semente tem data própria e antiga (1 a 11/09), para que `now()` no
+lugar de `o.created_at` nunca passe.
+
+| Semente                                                       | Linhas esperadas depois do backfill                                         |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| (a) rua, coluna, sem linha                                    | 1 linha, posição 1, o objeto da coluna, data da ocorr.                      |
+| (b) rua, coluna + linha só na posição 2                       | só a linha 2 que já existia (nenhuma na posição 1)                          |
+| (c) galpão, duas linhas, sem coluna                           | as duas, intocadas                                                          |
+| (d) lote: um objeto `delivery_proof` em três ocorrências      | 3 linhas, o mesmo `stored_object_id`, cada uma com a data da sua ocorrência |
+| (e) rua sem foto                                              | nenhuma                                                                     |
+| (f) mesmo upload do motorista em duas ocorrências (architect) | 2 linhas, o mesmo `stored_object_id`                                        |
+
+Afirma a lista **exata** das linhas da empresa (`toEqual` + `toHaveLength(9)`), que o feed
+(`listTripOccurrenceAttachmentLocations`) e o painel (`readOccurrenceAttachments`) devolvem
+**exatamente uma** foto em (a) e (b), e que tirar o journal e reaplicar dá a mesma contagem.
+
+```text
+$ cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000 ./test/integration/street-occurrence-attachment-backfill.integration.ts
+ 1 pass
+ 0 fail
+```
+
+O vermelho de "antes da T1d.2" é a mutação (1) da T1d.4 — a migration sem o `INSERT` é o estado de
+antes do backfill.

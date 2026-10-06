@@ -148,7 +148,7 @@ trip_document_occurrence_attachments_unique_position DO NOTHING`. **`created_at 
       linha por objeto (`drizzle-occurrence-attachment-purge-gateway.ts` ~24-34; confirmar o
       caminho); o id do anexo antigo muda (id da ocorrência → id da linha) na linha do tempo e no
       feed. `attachment_object_id` **permanece** gravada. Validar com `architect` antes.
-- [ ] **T1d.3** Integração sobre dado semeado **antes** do backfill, com as sementes: (a) ocorrência
+- [x] **T1d.3** Integração sobre dado semeado **antes** do backfill, com as sementes: (a) ocorrência
       de rua com coluna e sem linha; (b) com coluna e uma linha só na posição 2; (c) galpão com duas
       linhas; (d) lote: um objeto em três ocorrências; (e) sem foto. Verifica as **linhas** da
       tabela, `created_at` igual ao da ocorrência, que o leitor devolve **exatamente uma foto** em
