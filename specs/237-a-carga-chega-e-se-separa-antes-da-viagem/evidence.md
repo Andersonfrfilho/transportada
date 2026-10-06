@@ -1820,3 +1820,59 @@ o painel só pode passar a ler chaves novas da leitura da chegada **depois** de 
 
 Push e deploy (proibidos nesta rodada); a suíte de integração inteira da API (só os 56 arquivos acima); smoke e
 `make check` completo; o painel e o `frontend-client` (fora do escopo); nenhuma leitura de staging nem de produção.
+
+## T3.2b — itens da nota da chegada para a avaria (2026-10-06)
+
+Commits: `0c7339576` (contrato vermelho) e `83ddb4ce7` (implementação); o de documentação desta seção. Sem push.
+
+- **Lacuna:** o formulário de avaria (T3.3) precisa listar os itens da nota para o separador escolher os "itens
+  afetados", e `POST …/occurrences` valida `productCodes[]` contra `nfe_products`. Nenhuma rota devolvia os itens de uma
+  nota que só está em chegada (a da viagem junta `trip_documents`).
+- **Rota:** `GET /cargo-arrivals/:id/documents/:documentId/products`, `fleet.read`, sem query. Arquivos:
+  `presentation/cargo-arrival-document-products.routes.ts`, `application/read-cargo-arrival-document-products.use-case.ts`,
+  `infrastructure/drizzle-cargo-arrival-document-products.repository.ts` (porta em `cargo-arrival-occurrence.port.ts`),
+  montada em `cargo-arrival-occurrence.composition.ts` (que o `main.ts` já espalha — nada a mudar nele).
+  Reusa o tipo `TripDocumentProduct` da rota da viagem; `listDocumentProducts` da transação da ocorrência ficou como
+  está (devolve três campos, dentro da transação). Uma consulta só: `cargo_arrival_documents` (empresa + chegada + nota)
+  com `left join nfe_products` por empresa e nota — sem linha é nota fora da chegada; `arrivalExists` distingue chegada
+  alheia/inexistente.
+- **Resposta:** `{ data: [{ code: string, commercialUnit: string, description: string, ordinal: number, quantity:
+string, totalValue: string, unitValue: string }] }`, por `ordinal`; decimais em texto (`"10.0000"`), sem NCM nem CFOP.
+  Nota sem item: `{ data: [] }`.
+- **Erros:** 404 `CARGO_ARRIVAL_DOCUMENT_NOT_FOUND` (nota que não é da chegada, inclusive de outra chegada da mesma
+  empresa); 404 `CARGO_ARRIVAL_NOT_FOUND` (chegada inexistente ou de outra empresa); 403 sem `fleet.read` (`trip.read`
+  e `trip.manage` não bastam); 400 `INVALID_REQUEST` para query desconhecida. ⚠️ O pedido previa 400 para id malformado:
+  o roteador (`canonicalUuid`) nem casa a rota e responde 404 `NOT_FOUND` — comportamento de todas as rotas, provado no
+  contrato; o `parseUuidPathIdentifier` da rota é só defesa em profundidade.
+- **Contrato antes do código, vermelho pelo motivo certo:** `Cannot find module …/read-cargo-arrival-document-products.use-case.js`
+  e `…/cargo-arrival-document-products.routes.js` (`0 pass / 1 fail / 1 error`); `separator-role` 1 fail (a rota
+  nova faltava na lista exaustiva). Nenhuma rota de OpenAPI/Scalar existe neste repositório hoje (busca por `openapi` em
+  `src` e `test` vazia): o equivalente de "aparece no documento" é a lista exaustiva de `separator-role.contract.test.ts`,
+  onde a rota entrou.
+
+### Gates (rodados nesta sessão, em primeiro plano)
+
+- `bun run typecheck` e `bun run lint` (API): limpos. `bun run format:check` na raiz: limpo.
+- Contrato (`bun --env-file=../../.env.test test --timeout 120000`): **antes 9863 pass / 25 skip / 0 fail** (199
+  arquivos; número da T3.2); **depois 9871 pass / 25 skip / 0 fail** (199 arquivos; +4 do caso de uso, +4 do HTTP).
+- Integração contra o Postgres do `.env.test` (65432, bancos descartáveis por teste), um arquivo por vez:
+  `cargo-arrival-document-products` **5 pass / 0 fail** (nova); `cargo-arrival-occurrence` 6, `cargo-arrival-occurrence-reach`
+  3, `cargo-arrival-return` 5, todas 0 fail. Nenhum arquivo pulado.
+
+### Mutações (cada arquivo restaurado por `git checkout --`; `git diff --quiet` limpo depois)
+
+| Regra                      | Mutação                                                  | Vermelho                                             |
+| -------------------------- | -------------------------------------------------------- | ---------------------------------------------------- |
+| empresa na consulta        | `buildArrivalDocumentFilters` trocado por só `arrivalId` | integração 1 fail (chegada de outra empresa 200)     |
+| a nota pertence à chegada  | filtro trocado por só `companyId`                        | integração 2 fail (nota cruzada e chegada solta)     |
+| só campos de conferência   | `ncm` e `cfop` no `select`                               | integração 1 fail (conjunto exato de chaves)         |
+| ordem do XML               | `orderBy(desc(ordinal))`                                 | integração 1 fail                                    |
+| `fleet.read`               | política trocada por `trip.manage`                       | contrato HTTP 3 fail                                 |
+| sem query                  | `readListQuery` removido                                 | contrato HTTP 1 fail                                 |
+| chegada alheia ≠ nota fora | sempre `document-not-found`                              | integração 1 fail (código `CARGO_ARRIVAL_NOT_FOUND`) |
+
+### Não rodou
+
+Push e deploy (proibidos nesta rodada); a suíte de integração inteira da API (só a nova e as três de ocorrência/devolução
+da chegada); `make check` completo, `make migration-test` (sem schema nem migration) e `db:generate` (idem); smoke; o
+painel (T3.3 é do executor do painel); nenhuma leitura de staging nem de produção.

@@ -2866,3 +2866,14 @@ previewId})` devolve as notas da prévia `marked|returned`; a proposta de chegad
   `test/cargo-receiving-schema/cargo-arrival-{receiving-occurrence,occurrence-tenant-safety}.contract.ts`,
   `test/database-migration/cargo-arrival-receiving-occurrence-migration.contract.ts`; integração
   `test/integration/cargo-arrival-{occurrence,return,occurrence-reach}.integration.ts`.
+- **Itens da nota da chegada** (T3.2b): `GET /cargo-arrivals/:id/documents/:documentId/products` (`fleet.read`, sem
+  query; `presentation/cargo-arrival-document-products.routes.ts`, caso de uso
+  `read-cargo-arrival-document-products.use-case.ts`, repositório
+  `drizzle-cargo-arrival-document-products.repository.ts`). Resposta `{ data: [{ code, commercialUnit, description,
+ordinal (number), quantity, totalValue, unitValue (texto decimal) }] }` ordenada por `ordinal`, **sem NCM nem CFOP**
+  (mesmo tipo `TripDocumentProduct` da rota da viagem). Uma consulta só: `cargo_arrival_documents` pela empresa e pela
+  chegada, `left join nfe_products` — nenhuma linha = nota fora da chegada (404 `CARGO_ARRIVAL_DOCUMENT_NOT_FOUND`) ou
+  chegada de outra empresa/inexistente (404 `CARGO_ARRIVAL_NOT_FOUND`, decidido por `arrivalExists`); nota sem item é
+  `data: []`. ⚠️ Id que não é UUID nem chega à rota: o roteador responde 404 `NOT_FOUND` (formato `canonicalUuid`), o 400
+  do `parseUuidPathIdentifier` só vale para query. Integração:
+  `test/integration/cargo-arrival-document-products.integration.ts`.

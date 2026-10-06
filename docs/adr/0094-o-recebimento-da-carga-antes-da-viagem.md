@@ -491,6 +491,12 @@ cargo_arrival_document_id, id)`: **o banco** garante que o motivo é ocorrência
   Chegada **sem** janela (`separation_window_hours` nulo, ausência é ausência) aceita enquanto aberta.
   A janela vale **só** para abrir a ocorrência: marcar, desfazer e concluir dependem da decisão do
   contratante, que costuma passar das 24 h.
+- **Os itens da nota da chegada** saem em `GET /cargo-arrivals/:id/documents/:documentId/products`
+  (`fleet.read`, só leitura, sem NCM nem CFOP): o formulário de avaria precisa listar o que o separador
+  pode marcar como "item afetado", e nenhuma outra rota devolvia os itens de uma nota que só está em
+  chegada (a da viagem junta `trip_documents`). A nota precisa pertencer à chegada e à empresa do
+  contexto; senão 404 (`CARGO_ARRIVAL_NOT_FOUND` ou `CARGO_ARRIVAL_DOCUMENT_NOT_FOUND`) — o mesmo
+  conjunto de itens que a abertura valida em `productCodes`.
 
 #### 9.5 Revisão `architect` (opus, 2026-10-06): APROVADO COM AJUSTES — o que mudou acima
 

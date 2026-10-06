@@ -108,6 +108,9 @@
       _(2026-10-06: migration `20261006180700_cargo_arrival_receiving_occurrence` e rotas `/cargo-arrivals/…/occurrences`,
       `…/return-{mark,unmark,complete}`; a marcação sai na rota de ocorrências, não na leitura da chegada — `evidence.md`
       § T3.2.)_
+- [x] **T3.2b** Complemento da API: `GET /cargo-arrivals/:id/documents/:documentId/products` (`fleet.read`) — os itens
+      da nota da chegada (sem NCM e CFOP) para o formulário de avaria da T3.3 escolher os "itens afetados".
+      _(2026-10-06: `evidence.md` § T3.2b.)_
 - [ ] **T3.3** Tela (painel e celular): abrir avaria na nota da chegada (item, quantidade, foto) e a
       marcação "devolver ao contratante"; nota marcada sai da recomendação e da proposta de chegada; mutação;
       evidência.
