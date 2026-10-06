@@ -11,6 +11,7 @@ import { mock } from 'bun:test'
 import { act } from 'react'
 
 import type { CargoPreviewClient } from '@/modules/cargo-receiving/shared/cargoPreviewClient.service'
+import type { CargoPreviewTripDrafts } from '@/modules/cargo-receiving/shared/cargoPreviewTripDraft.types'
 import type {
   CargoPreviewArrivalProposal,
   CargoPreviewDetail,
@@ -27,12 +28,14 @@ import {
   linkedDocument,
   PREVIEW_ID,
 } from '../fixtures/cargoPreview.fixture'
+import { DEFAULT_TRIP_DRAFTS } from '../fixtures/cargoPreviewTripDraft.fixture'
 import { ALFA_ID, BETA_ID, documentIdOf } from '../fixtures/cargoReceiving.fixture'
 
 const GAMA_ID = '00000000-0000-4000-8000-000000237a03'
 
 export type PreviewDoubleCalls = {
   readonly getPreview: { afterRow: string | null; routeName?: string; state?: string }[]
+  readonly getTripDrafts: string[]
   readonly itemAction: { action: string; documentId?: string; itemId: string }[]
   readonly listPreviews: { cursor: string | null; filters: Record<string, string> }[]
   readonly propose: string[]
@@ -56,6 +59,9 @@ export type CargoPreviewDouble = {
   proposal: CargoPreviewArrivalProposal
   proposeFailure: Error | undefined
   summary: CargoPreviewSummary
+  /** Os rascunhos de viagem (spec 237 T5.2): o que `GET /cargo-previews/:id/trip-drafts` devolve. */
+  tripDrafts: CargoPreviewTripDrafts
+  tripDraftsFailure: Error | undefined
   uploadFailure: Error | undefined
   uploadIsReplay: boolean
 }
@@ -152,6 +158,11 @@ function buildClient(double: CargoPreviewDouble): CargoPreviewClient {
         },
       })
     },
+    getTripDrafts: (previewId) => {
+      double.calls.getTripDrafts.push(previewId)
+      if (double.tripDraftsFailure !== undefined) return Promise.reject(double.tripDraftsFailure)
+      return Promise.resolve(double.tripDrafts)
+    },
     itemAction: (input) => {
       double.calls.itemAction.push({ ...input })
       const failure = double.actionFailures.shift()
@@ -205,7 +216,14 @@ export function installCargoPreviewDouble(
   const items = [...DEFAULT_PREVIEW_ITEMS]
   const double: CargoPreviewDouble = {
     actionFailures: [],
-    calls: { getPreview: [], itemAction: [], listPreviews: [], propose: [], upload: [] },
+    calls: {
+      getPreview: [],
+      getTripDrafts: [],
+      itemAction: [],
+      listPreviews: [],
+      propose: [],
+      upload: [],
+    },
     items,
     itemsPageSize: 100,
     previews: [buildPreviewSummary()],
@@ -223,6 +241,8 @@ export function installCargoPreviewDouble(
     },
     proposeFailure: undefined,
     summary: buildPreviewSummary(),
+    tripDrafts: DEFAULT_TRIP_DRAFTS,
+    tripDraftsFailure: undefined,
     uploadFailure: undefined,
     uploadIsReplay: false,
     ...overrides,
