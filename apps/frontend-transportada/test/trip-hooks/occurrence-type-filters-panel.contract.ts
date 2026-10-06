@@ -199,15 +199,16 @@ describe('busca e filtros da aba Tipos (RF11b)', () => {
     }),
   )
 
-  test('no celular as pílulas rolam de lado sem estourar a página, com alvo de toque de 44px', () => {
+  test('as pílulas quebram em linhas e cada grupo ocupa a sua no celular, com alvo de toque de 44px', () => {
     const css = readFileSync(STYLES, 'utf8')
     const desktopStart = css.indexOf('@media (min-width: 40rem)')
     const base = css.slice(0, desktopStart)
     const desktop = css.slice(desktopStart)
     expect(desktopStart).toBeGreaterThan(0)
-    expect(base.includes('flex-wrap: nowrap')).toBe(true)
-    expect(base.includes('overflow-x: auto')).toBe(true)
+    expect(base.includes('flex-wrap: wrap')).toBe(true)
+    expect(base.includes('overflow-x')).toBe(false)
+    expect(base.includes('flex: 1 1 100%')).toBe(true)
     expect(base.includes('min-height: var(--touch-target)')).toBe(true)
-    expect(desktop.includes('flex-wrap: wrap')).toBe(true)
+    expect(desktop.includes('display: contents')).toBe(true)
   })
 })

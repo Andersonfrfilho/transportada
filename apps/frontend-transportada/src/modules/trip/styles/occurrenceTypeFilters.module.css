@@ -45,25 +45,24 @@
 }
 
 .clear:disabled {
-  opacity: 0.5;
+  border-style: dashed;
+  color: var(--color-slate-muted);
   cursor: not-allowed;
 }
 
 .chips {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: var(--space-2);
   align-items: center;
   padding-bottom: var(--space-2);
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: thin;
   border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 14%, transparent);
 }
 
 .group {
   display: flex;
-  flex: 0 0 auto;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
   gap: var(--space-2);
   align-items: center;
 }
@@ -79,6 +78,7 @@
 .chip {
   display: inline-flex;
   flex: 0 0 auto;
+  max-width: 100%;
   gap: var(--space-2);
   align-items: center;
   min-height: var(--touch-target);
@@ -101,7 +101,7 @@
 
 .chip:disabled {
   border-style: dashed;
-  opacity: 0.55;
+  color: var(--color-slate-muted);
   cursor: not-allowed;
 }
 
@@ -119,11 +119,13 @@
 
 .reason {
   margin: 0;
+  overflow-wrap: anywhere;
   color: var(--color-slate-muted);
   font-size: 0.78rem;
 }
 
 .empty {
+  min-width: 0;
   display: grid;
   gap: var(--space-2);
   justify-items: start;
@@ -133,16 +135,12 @@
 
 .emptyTitle {
   margin: 0;
+  overflow-wrap: anywhere;
   font-weight: 700;
 }
 
-/* No celular as pílulas rolam de lado numa fileira só; de 40rem em diante quebram em linhas e os alvos encolhem. */
+/* No celular cada grupo ocupa a sua linha e as pílulas quebram, como no preview; de 40rem em diante os grupos se emendam e os alvos encolhem. */
 @media (min-width: 40rem) {
-  .chips {
-    flex-wrap: wrap;
-    overflow-x: visible;
-  }
-
   .group {
     display: contents;
   }

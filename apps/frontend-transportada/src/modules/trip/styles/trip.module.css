@@ -2007,6 +2007,7 @@ button.occurrenceCaseBadge {
      conteúdo mais largo (nome de tipo de ocorrência sem quebra, por exemplo) como largura mínima. */
   min-width: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   margin-block: var(--space-2);
 }

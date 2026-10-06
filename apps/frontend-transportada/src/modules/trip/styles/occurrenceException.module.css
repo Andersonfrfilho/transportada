@@ -2,6 +2,7 @@
 .block {
   min-width: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   padding-top: var(--space-3);
   border-top: 1px solid color-mix(in srgb, var(--color-slate) 10%, transparent);
@@ -32,6 +33,7 @@
 
 .list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   margin: 0;
   padding: 0;
@@ -41,16 +43,19 @@
 .entry {
   min-width: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   padding: var(--space-3);
   border: 1px solid color-mix(in srgb, var(--color-slate) 14%, transparent);
 }
 
 .who {
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: var(--space-2);
+  overflow-wrap: anywhere;
 }
 
 .kind {
@@ -64,7 +69,7 @@
 .fields {
   display: grid;
   gap: var(--space-3);
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
 }
 
 .field {
@@ -106,9 +111,17 @@
 .addForm {
   display: grid;
   gap: var(--space-3);
-  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
   align-items: end;
   padding-top: var(--space-2);
+}
+
+/* Desligado se lê pela borda tracejada, não por apagar o texto: o motivo ao lado precisa continuar legível (4,5:1). */
+.addForm button:disabled {
+  border-style: dashed;
+  color: var(--color-slate-muted);
+  opacity: 1;
+  background: transparent;
 }
 
 @media (pointer: coarse) {
