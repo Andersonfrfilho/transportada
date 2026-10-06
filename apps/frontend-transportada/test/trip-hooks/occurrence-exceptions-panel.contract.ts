@@ -299,6 +299,37 @@ describe('destinatário da exceção: escolhido, nunca digitado (RF1f, T5.3c)', 
   )
 
   test(
+    'a exceção nova nasce "Igual ao tipo" em todos os campos que herdam, e o PUT manda nulo explícito (A1)',
+    scenario(async () => {
+      installExceptionsDouble({ byType: BATCH, clients: CLIENTS, contractors: [CONTRACTOR] })
+      await mount([buildType()])
+      await expandAllTypes()
+      await waitFor(() => expect(control('Cliente')?.hasAttribute('disabled')).toBe(false))
+      const picker = control('Cliente')
+      if (picker === null) throw new Error('PICKER_NOT_FOUND')
+      await chooseFrom(picker, 'Farmácia Vida Nova · 98.765.432/0001-10')
+      const add = [...document.querySelectorAll<HTMLElement>('button')].find(
+        (button) => button.textContent?.trim() === 'Adicionar exceção',
+      )
+      if (add === undefined) throw new Error('ADD_NOT_FOUND')
+      await click(add)
+
+      const created = exceptionDouble.replaceCalls[0]?.recipientOverrides[1]
+      for (const field of ['itemsMode', 'noteMode', 'photoMinimumCount', 'signatureMode']) {
+        expect(created).toHaveProperty(field)
+        expect((created as Record<string, unknown> | undefined)?.[field]).toBeNull()
+      }
+      expect(created).toHaveProperty('itemsMinimumCount')
+
+      await waitFor(() => expect(exceptionControls('Observação')).toHaveLength(3))
+      for (const label of ['Observação', 'Assinatura', 'Produtos']) {
+        const last = exceptionControls(label)[2]
+        expect(last?.textContent?.includes('Igual ao tipo')).toBe(true)
+      }
+    }),
+  )
+
+  test(
     'se a consulta de clientes falha, a tela diz o motivo e não oferece campo livre',
     scenario(async () => {
       installExceptionsDouble({ byType: BATCH, clients: 'failure', contractors: [CONTRACTOR] })

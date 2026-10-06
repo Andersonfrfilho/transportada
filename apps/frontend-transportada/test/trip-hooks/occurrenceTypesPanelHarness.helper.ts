@@ -54,16 +54,22 @@ export function installExceptionsDouble(
   exceptionDouble.clientListCalls = 0
   exceptionDouble.clients = input.clients ?? []
   exceptionDouble.replaceCalls = []
+  /** Como o servidor: o que o `PUT` gravou é o que a próxima leitura devolve. */
+  let stored: OccurrenceAttachmentOverridesByType = input.byType ?? []
   tripHookFakes.tripClient = {
     ...createUnexpectedTripClient(),
     listContractors: () => Promise.resolve(input.contractors ?? []),
     listOccurrenceAttachmentOverridesBatch: () => {
       exceptionDouble.batchCalls += 1
       if (input.failBatch === true) return Promise.reject(new Error('REQUEST_FAILED'))
-      return Promise.resolve(input.byType ?? [])
+      return Promise.resolve(stored)
     },
     replaceOccurrenceAttachmentOverrides: (call) => {
       exceptionDouble.replaceCalls.push(structuredClone(call))
+      stored = [
+        ...stored.filter((entry) => entry.occurrenceTypeId !== call.occurrenceTypeId),
+        structuredClone(call),
+      ]
       return Promise.resolve({
         contractorOverrides: call.contractorOverrides,
         recipientOverrides: call.recipientOverrides,
