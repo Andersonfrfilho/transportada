@@ -29,8 +29,11 @@ export type OccurrenceType = Readonly<{
   /** Spec 218 (D1, RF-B5): qual botão do motorista este tipo alimenta. Ausente na API é `document`. */
   flow: OccurrenceTypeFlow
   id: string
-  /** Spec 246 RF1c2: nulo é "todos os itens da nota"; só vale com `itemsMode = 'required'`. */
-  itemsMinimumCount: null | number
+  /**
+   * Spec 246 RF1c2: nulo é "todos os itens da nota"; só vale com `itemsMode = 'required'`. Ausente é API
+   * anterior ao campo: o painel não oferece o controle e nunca o manda de volta.
+   */
+  itemsMinimumCount?: null | number
   /**
    * Spec 241 RF10: ausente é API anterior ao campo — o cadastro não oferece o controle e o registro
    * lê `optional`. Por isso não ganha padrão em `toOccurrenceType`.
@@ -45,15 +48,18 @@ export type OccurrenceType = Readonly<{
   /** Spec 246 RF0: ausente é API anterior ao campo — o painel segue por `stage`/`flow`. */
   moments?: readonly OccurrenceMoment[]
   name: string
-  /** Spec 246 RF1: a exigência da observação. Ausente na API é `optional`, o de hoje. */
-  noteMode: OccurrenceAttachmentMode
+  /**
+   * Spec 246 RF1: a exigência da observação. Ausente é API anterior ao campo (que recusa a chave com
+   * `.strict()`): o painel não oferece o controle e o `PUT` não o manda.
+   */
+  noteMode?: OccurrenceAttachmentMode
   notifies: boolean
-  /** Spec 246 RF1c: de 1 a 5, lida só com a foto `required`. Ausente na API é 1. */
-  photoMinimumCount: number
+  /** Spec 246 RF1c: de 1 a 5, lida só com a foto `required`. Ausente é API anterior ao campo (mesma regra). */
+  photoMinimumCount?: number
   /** Spec 164 D1/RF1: se aquele fato admite reentrega. Nasce `unset`, CHECK no banco. */
   redeliveryPolicy: OccurrenceRedeliveryPolicy
-  /** Spec 246 RF1: a exigência da assinatura. Ausente na API é `off`. */
-  signatureMode: OccurrenceAttachmentMode
+  /** Spec 246 RF1: a exigência da assinatura. Ausente é API anterior ao campo (mesma regra). */
+  signatureMode?: OccurrenceAttachmentMode
   stage: TripOccurrenceStage
 }>
 

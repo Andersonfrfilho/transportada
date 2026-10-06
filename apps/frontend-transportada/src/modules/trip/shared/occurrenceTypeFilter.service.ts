@@ -8,10 +8,10 @@ import { normalizeSearchText } from '@/components/ui/searchableSelect.service'
 import { normalizeTaxId } from '@/modules/shared/taxId.service'
 
 import {
+  DEFAULT_OCCURRENCE_NOTE_MODE,
+  DEFAULT_OCCURRENCE_SIGNATURE_MODE,
   OCCURRENCE_ATTACHMENT_MODE,
-  TRIP_OCCURRENCE_STAGE,
   type OccurrenceAttachmentOverrides,
-  type OccurrenceMoment,
   type OccurrenceType,
 } from './occurrence.constant'
 import {
@@ -19,6 +19,7 @@ import {
   type OccurrenceExceptionPeople,
 } from './occurrenceExceptionPeople.service'
 import { countExceptions, toExceptionKey } from './occurrenceException.service'
+import { resolveOccurrenceMoments } from './occurrenceMoments.service'
 import type { OccurrenceTypeFilters } from './occurrenceTypeFilterChips.service'
 import type { OccurrenceRequirementField } from './occurrenceRequirement.constant'
 
@@ -30,20 +31,13 @@ export type OccurrenceTypeFilterContext = Readonly<{
 
 const TAX_ID_QUERY_PATTERN = /^[\d.\-/\s]+$/u
 
-/** API anterior ao campo `moments`: o grupo e o fluxo dizem em que momento o tipo vale. */
-function readMoments(type: OccurrenceType): readonly OccurrenceMoment[] {
-  if (type.moments !== undefined) return type.moments
-  if (type.stage === TRIP_OCCURRENCE_STAGE.separation) return ['separation']
-  return [type.flow === 'stop' ? 'stop' : 'document']
-}
-
 const REQUIREMENT_MODE_OF: Readonly<
   Record<OccurrenceRequirementField, (type: OccurrenceType) => string | undefined>
 > = {
   items: (type) => type.itemsMode,
-  note: (type) => type.noteMode,
+  note: (type) => type.noteMode ?? DEFAULT_OCCURRENCE_NOTE_MODE,
   photo: (type) => type.attachmentMode,
-  signature: (type) => type.signatureMode,
+  signature: (type) => type.signatureMode ?? DEFAULT_OCCURRENCE_SIGNATURE_MODE,
 }
 
 function matchesException(
@@ -88,7 +82,7 @@ function matchesPills(
   }
   if (filters.hasException && exceptionCount === 0) return false
   if (filters.moments.length > 0) {
-    const moments = readMoments(type)
+    const moments = resolveOccurrenceMoments(type)
     if (!filters.moments.some((moment) => moments.includes(moment))) return false
   }
   return filters.requirements.every(

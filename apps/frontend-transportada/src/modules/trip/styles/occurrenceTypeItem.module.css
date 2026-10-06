@@ -106,6 +106,16 @@
   border-style: dashed;
 }
 
+/* O estado de cada exigência lido por leitor de tela e no toque: a cor sozinha não diz Desligado, Opcional ou Obrigatório. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .notifies {
   color: var(--color-ready-ink);
   font-size: 0.8rem;
@@ -215,4 +225,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+/* Spec 246 M4: as exigências do tipo novo na mesma grade do tipo aberto. */
+.createFields {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
 }

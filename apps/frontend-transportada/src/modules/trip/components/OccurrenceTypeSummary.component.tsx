@@ -9,9 +9,14 @@ import {
   type OccurrenceAttachmentMode,
   type OccurrenceType,
 } from '@/modules/trip/shared/occurrence.constant'
+import { resolveOccurrenceMoments } from '@/modules/trip/shared/occurrenceMoments.service'
 import { countExceptions } from '@/modules/trip/shared/occurrenceException.service'
 import type { OccurrenceTypeExceptionsState } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
 import type { OccurrenceRequirementField } from '@/modules/trip/shared/occurrenceRequirement.constant'
+import {
+  readOccurrenceRequirementMode,
+  readOccurrenceRequirementScope,
+} from '@/modules/trip/shared/occurrenceRequirementScope.service'
 import styles from '@/modules/trip/styles/occurrenceTypeItem.module.css'
 
 type OccurrenceTypeSummaryProps = Readonly<{
@@ -31,17 +36,10 @@ const NEED_CLASS_NAME: Readonly<Record<OccurrenceAttachmentMode, string | undefi
 function readNeeds(
   type: OccurrenceType,
 ): readonly (readonly [OccurrenceRequirementField, OccurrenceAttachmentMode])[] {
-  const isDelivery = type.stage === TRIP_OCCURRENCE_STAGE.delivery
-  return [
-    ...(isDelivery
-      ? ([
-          ['photo', type.attachmentMode],
-          ['note', type.noteMode],
-          ['signature', type.signatureMode],
-        ] as const)
-      : []),
-    ...(type.itemsMode === undefined ? [] : ([['items', type.itemsMode]] as const)),
-  ]
+  return readOccurrenceRequirementScope(type).typeFields.map((field) => [
+    field,
+    readOccurrenceRequirementMode(type, field),
+  ])
 }
 
 /** A linha fechada já diz o que importa sem abrir (RF11): momentos, as quatro exigências, aviso e exceções. */
@@ -53,16 +51,11 @@ export function OccurrenceTypeSummary({
   type,
 }: OccurrenceTypeSummaryProps) {
   const { t } = useTranslation('companySettings')
-  const momentLabels = type.moments?.map((moment) =>
+  const momentLabels = resolveOccurrenceMoments(type).map((moment) =>
     t(`occurrenceTypeCatalog.moments.labels.${moment}`),
-  ) ?? [
-    t(
-      type.stage === TRIP_OCCURRENCE_STAGE.delivery
-        ? 'occurrenceTypeCatalog.stageDelivery'
-        : 'occurrenceTypeCatalog.stageSeparation',
-    ),
-  ]
+  )
   const count = countExceptions(exceptions.overrides)
+  const photoCount = type.photoMinimumCount ?? 1
   const countLabel = (() => {
     if (exceptions.status === 'loading') return t('occurrenceTypeCatalog.summary.exceptionsLoading')
     if (exceptions.status === 'error')
@@ -96,20 +89,16 @@ export function OccurrenceTypeSummary({
       </span>
       <span className={styles.needs}>
         {readNeeds(type).map(([field, mode]) => (
-          <span
-            className={`${styles.need ?? ''} ${NEED_CLASS_NAME[mode] ?? ''}`}
-            key={field}
-            title={t(`occurrenceTypeCatalog.summary.needState.${mode}`, {
-              field: t(`occurrenceTypeCatalog.requirements.fields.${field}`),
-            })}
-          >
+          <span className={`${styles.need ?? ''} ${NEED_CLASS_NAME[mode] ?? ''}`} key={field}>
             {field === 'photo' &&
             mode === OCCURRENCE_ATTACHMENT_MODE.required &&
-            type.photoMinimumCount > 1
-              ? t('occurrenceTypeCatalog.summary.needs.photoCount', {
-                  count: type.photoMinimumCount,
-                })
+            photoCount > 1
+              ? t('occurrenceTypeCatalog.summary.needs.photoCount', { count: photoCount })
               : t(`occurrenceTypeCatalog.summary.needs.${field}`)}
+            <span className={styles.srOnly}>
+              {': '}
+              {t(`occurrenceTypeCatalog.requirements.modes.${mode}`)}
+            </span>
           </span>
         ))}
       </span>

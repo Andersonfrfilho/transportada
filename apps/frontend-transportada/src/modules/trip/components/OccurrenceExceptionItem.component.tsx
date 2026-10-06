@@ -15,6 +15,7 @@ import {
   formatExceptionSubject,
   type OccurrenceExceptionSubject,
 } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
+import type { OccurrenceRequirementScope } from '@/modules/trip/shared/occurrenceRequirementScope.service'
 import styles from '@/modules/trip/styles/occurrenceException.module.css'
 
 import { OccurrenceExceptionMinimums } from './OccurrenceExceptionMinimums.component'
@@ -25,6 +26,8 @@ type OccurrenceExceptionItemProps = Readonly<{
   entry: OccurrenceExceptionEntry
   onEdit: (key: OccurrenceExceptionKey, edit: OccurrenceExceptionEdit) => void
   onRemove: (key: OccurrenceExceptionKey) => void
+  /** O que o momento do tipo cobra: tipo só de parada declara só a foto. */
+  scope: OccurrenceRequirementScope
   subject: OccurrenceExceptionSubject
 }>
 
@@ -34,11 +37,13 @@ export function OccurrenceExceptionItem({
   entry,
   onEdit,
   onRemove,
+  scope,
   subject,
 }: OccurrenceExceptionItemProps) {
   const { t } = useTranslation('companySettings')
   const key = toExceptionKey(entry)
   const label = formatExceptionSubject(subject)
+  const fields = scope.exceptionFields
 
   function handleEdit(edit: OccurrenceExceptionEdit) {
     onEdit(key, edit)
@@ -55,32 +60,46 @@ export function OccurrenceExceptionItem({
         <span>{label}</span>
       </div>
       <div className={styles.fields}>
-        <OccurrenceExceptionModeSelect
-          canInherit={false}
+        {fields.includes('photo') ? (
+          <OccurrenceExceptionModeSelect
+            canInherit={false}
+            disabled={disabled}
+            field="photo"
+            onChange={(mode) => (mode === null ? undefined : handleEdit({ attachmentMode: mode }))}
+            value={entry.attachmentMode}
+          />
+        ) : null}
+        {fields.includes('note') ? (
+          <OccurrenceExceptionModeSelect
+            disabled={disabled}
+            field="note"
+            onChange={(mode) => handleEdit({ noteMode: mode })}
+            value={entry.noteMode ?? null}
+          />
+        ) : null}
+        {fields.includes('signature') ? (
+          <OccurrenceExceptionModeSelect
+            disabled={disabled}
+            field="signature"
+            onChange={(mode) => handleEdit({ signatureMode: mode })}
+            value={entry.signatureMode ?? null}
+          />
+        ) : null}
+        {fields.includes('items') ? (
+          <OccurrenceExceptionModeSelect
+            disabled={disabled}
+            field="items"
+            onChange={(mode) => handleEdit({ itemsMode: mode })}
+            value={entry.itemsMode ?? null}
+          />
+        ) : null}
+        <OccurrenceExceptionMinimums
+          canExceptItems={fields.includes('items')}
+          canExceptPhoto={scope.canExceptPhotoMinimum}
           disabled={disabled}
-          field="photo"
-          onChange={(mode) => (mode === null ? undefined : handleEdit({ attachmentMode: mode }))}
-          value={entry.attachmentMode}
+          entry={entry}
+          onEdit={handleEdit}
         />
-        <OccurrenceExceptionModeSelect
-          disabled={disabled}
-          field="note"
-          onChange={(mode) => handleEdit({ noteMode: mode })}
-          value={entry.noteMode ?? null}
-        />
-        <OccurrenceExceptionModeSelect
-          disabled={disabled}
-          field="signature"
-          onChange={(mode) => handleEdit({ signatureMode: mode })}
-          value={entry.signatureMode ?? null}
-        />
-        <OccurrenceExceptionModeSelect
-          disabled={disabled}
-          field="items"
-          onChange={(mode) => handleEdit({ itemsMode: mode })}
-          value={entry.itemsMode ?? null}
-        />
-        <OccurrenceExceptionMinimums disabled={disabled} entry={entry} onEdit={handleEdit} />
       </div>
       <div>
         <Button

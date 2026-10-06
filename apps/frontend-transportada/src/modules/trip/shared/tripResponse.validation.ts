@@ -2,8 +2,6 @@
 import type { TripDeliveryProof } from './canhotoBatchSelection.service'
 import type { DeliveryProof } from './deliveryProof.service'
 import {
-  DEFAULT_OCCURRENCE_NOTE_MODE,
-  DEFAULT_OCCURRENCE_SIGNATURE_MODE,
   OCCURRENCE_ATTACHMENT_MODES,
   OCCURRENCE_ITEMS_MODES,
   OCCURRENCE_MOMENTS,
@@ -1950,16 +1948,14 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     ...rest,
     ...(isOneOf(itemsMode, OCCURRENCE_ITEMS_MODES) ? { itemsMode } : {}),
     ...(Array.isArray(moments) ? { moments: moments as readonly OccurrenceMoment[] } : {}),
-    itemsMinimumCount: typeof itemsMinimumCount === 'number' ? itemsMinimumCount : null,
-    noteMode: isOneOf(noteMode, OCCURRENCE_ATTACHMENT_MODES)
-      ? noteMode
-      : DEFAULT_OCCURRENCE_NOTE_MODE,
-    photoMinimumCount: isPhotoMinimumCount(photoMinimumCount)
-      ? (photoMinimumCount as number)
-      : OCCURRENCE_PHOTO_MINIMUM_COUNT.min,
-    signatureMode: isOneOf(signatureMode, OCCURRENCE_ATTACHMENT_MODES)
-      ? signatureMode
-      : DEFAULT_OCCURRENCE_SIGNATURE_MODE,
+    ...(itemsMinimumCount === null || typeof itemsMinimumCount === 'number'
+      ? { itemsMinimumCount }
+      : {}),
+    ...(isOneOf(noteMode, OCCURRENCE_ATTACHMENT_MODES) ? { noteMode } : {}),
+    ...(isPhotoMinimumCount(photoMinimumCount)
+      ? { photoMinimumCount: photoMinimumCount as number }
+      : {}),
+    ...(isOneOf(signatureMode, OCCURRENCE_ATTACHMENT_MODES) ? { signatureMode } : {}),
     allowsMultipleItems: isBoolean(allowsMultipleItems) ? allowsMultipleItems : true,
     attachmentMode: isOneOf(attachmentMode, OCCURRENCE_ATTACHMENT_MODES) ? attachmentMode : 'off',
     flow: isOneOf(flow, OCCURRENCE_TYPE_FLOWS) ? flow : 'document',

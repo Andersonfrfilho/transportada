@@ -13,7 +13,11 @@ import {
   resolveSettingsDataScope,
   SETTINGS_PANEL_PLACEMENT,
 } from '../../src/modules/company-settings/shared/companySettingsTabs.service'
-import { readOccurrenceTypePanelSource } from './occurrenceTypePanelSource.helper'
+import {
+  readOccurrenceTypeCreateSource,
+  readOccurrenceTypePanelSource,
+  readOccurrenceTypeUpdateSource,
+} from './occurrenceTypePanelSource.helper'
 
 const MODULES = new URL('../../src/modules/', import.meta.url)
 const PAGE = new URL(
@@ -128,7 +132,7 @@ describe('spec 166: interruptor "aceita vários itens" no cadastro', () => {
     const panel = readOccurrenceTypePanelSource()
     expect(panel).toContain('allowsMultipleItems')
     expect(panel).toContain("t('occurrenceTypeCatalog.allowsMultipleItems')")
-    expect(panel).toMatch(/<Checkbox[^>]*checked=\{allowsMultipleItems\}/u)
+    expect(panel).toMatch(/<Checkbox[^>]*checked=\{draft\.allowsMultipleItems\}/u)
     expect(panel).toMatch(/<Checkbox[^>]*checked=\{type\.allowsMultipleItems\}/u)
   })
 
@@ -168,11 +172,9 @@ describe('spec 164: redeliveryPolicy no cadastro do tipo de ocorrência', () => 
 
   it('toda chamada a onSave no painel carrega redeliveryPolicy — nenhuma escapa sem o campo', () => {
     const panel = readOccurrenceTypePanelSource()
-    const calls = panel.split('onSave({').slice(1)
-    expect(calls.length).toBeGreaterThan(0)
-    for (const call of calls) {
-      const body = call.slice(0, call.indexOf('})'))
-      expect(body).toContain('redeliveryPolicy')
+    expect(panel.split('onSave({').length - 1).toBe(0)
+    for (const builder of [readOccurrenceTypeUpdateSource(), readOccurrenceTypeCreateSource()]) {
+      expect(builder).toContain('redeliveryPolicy')
     }
   })
 

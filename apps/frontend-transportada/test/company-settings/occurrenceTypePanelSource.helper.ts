@@ -25,3 +25,17 @@ export function readOccurrenceTypePanelSource(): string {
   )
   return [...components, ...hooks].join('\n')
 }
+
+function readSharedSource(fileName: string): string {
+  return readFileSync(new URL(`../../src/modules/trip/shared/${fileName}`, import.meta.url), 'utf8')
+}
+
+/** O montador do corpo do `PUT` de toda edição do tipo aberto. */
+export function readOccurrenceTypeUpdateSource(): string {
+  return readSharedSource('occurrenceTypeUpdate.service.ts')
+}
+
+/** O montador do corpo do cadastro de tipo novo (os momentos derivam o grupo e o fluxo). */
+export function readOccurrenceTypeCreateSource(): string {
+  return readSharedSource('occurrenceTypeCreate.service.ts')
+}

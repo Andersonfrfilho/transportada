@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
+import type { OccurrenceRequirementScope } from '@/modules/trip/shared/occurrenceRequirementScope.service'
 import type {
   OccurrenceAttachmentMode,
   OccurrenceAttachmentOverrides,
@@ -33,6 +34,7 @@ type OccurrenceTypeExceptionsProps = Readonly<{
   exceptions: OccurrenceTypeExceptionsState
   isDisabled: boolean
   occurrenceTypeId: string
+  scope: OccurrenceRequirementScope
   typeAttachmentMode: OccurrenceAttachmentMode
 }>
 
@@ -45,6 +47,7 @@ export function OccurrenceTypeExceptions({
   exceptions,
   isDisabled,
   occurrenceTypeId,
+  scope,
   typeAttachmentMode,
 }: OccurrenceTypeExceptionsProps) {
   const { t } = useTranslation('companySettings')
@@ -116,6 +119,7 @@ export function OccurrenceTypeExceptions({
               key={'contractorId' in entry ? `c:${entry.contractorId}` : `r:${entry.taxId}`}
               onEdit={handleEdit}
               onRemove={handleRemove}
+              scope={scope}
               subject={describeExceptionKey(key, exceptions.people)}
             />
           )
