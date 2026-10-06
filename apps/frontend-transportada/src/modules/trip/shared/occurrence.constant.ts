@@ -91,14 +91,14 @@ export type OccurrenceTypeFlow = (typeof OCCURRENCE_TYPE_FLOWS)[number]
 
 /**
  * Spec 246 (RF0): os momentos em que o tipo pode ser registrado. Cópia por valor de
- * `OCCURRENCE_MOMENTS` (`shared/trip-occurrence.constant.ts` da API) — mudou lá, muda aqui. O painel
- * só tolera o campo até a aba Tipos (Fase 5) passar a editá-lo.
+ * `OCCURRENCE_MOMENTS` (`shared/trip-occurrence.constant.ts` da API) — mudou lá, muda aqui. A aba
+ * Tipos os edita (`OccurrenceTypeMoments`).
  */
 export const OCCURRENCE_MOMENTS = ['separation', 'document', 'stop', 'office'] as const
 
 export type OccurrenceMoment = (typeof OCCURRENCE_MOMENTS)[number]
 
-/** Spec 246 RF1/RF3: a API anterior aos campos novos não os manda — o painel lê o valor de hoje. */
+/** Spec 246 RF1/RF3: o valor de hoje, que a tela só lê quando a API não manda o campo — nunca o grava de volta. */
 export const DEFAULT_OCCURRENCE_NOTE_MODE: OccurrenceAttachmentMode =
   OCCURRENCE_ATTACHMENT_MODE.optional
 export const DEFAULT_OCCURRENCE_SIGNATURE_MODE: OccurrenceAttachmentMode =
@@ -106,8 +106,8 @@ export const DEFAULT_OCCURRENCE_SIGNATURE_MODE: OccurrenceAttachmentMode =
 
 /**
  * Spec 246 (RF1c): a faixa da quantidade mínima de fotos. Cópia por valor de
- * `OCCURRENCE_PHOTO_MINIMUM_COUNT` da API — mudou lá, muda aqui. O painel só tolera o campo até a
- * aba Tipos (Fase 5) passar a editá-lo.
+ * `OCCURRENCE_PHOTO_MINIMUM_COUNT` da API — mudou lá, muda aqui. A aba Tipos o edita
+ * (`OccurrenceTypeMinimums`).
  */
 export const OCCURRENCE_PHOTO_MINIMUM_COUNT = { max: 5, min: 1 } as const
 

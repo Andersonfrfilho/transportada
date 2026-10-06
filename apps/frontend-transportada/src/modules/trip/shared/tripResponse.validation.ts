@@ -1878,7 +1878,7 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         'itemsMode',
         /** Spec 185 T6.1 (D2): mesma tolerância — ausente é API anterior ao campo. */
         'leavesDocumentBehind',
-        /** Spec 246 T1b.1b: o painel tolera os momentos antes de a API mandá-los; a Fase 5 os edita. */
+        /** Spec 246 T1b.1b: o painel tolera os momentos antes de a API mandá-los; sem eles não oferece o seletor. */
         'moments',
         /** Spec 246 T2.4 (ADR-0081 §9): os modos da observação e da assinatura, tolerados antes de a API mandá-los. */
         'noteMode',

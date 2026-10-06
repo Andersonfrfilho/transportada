@@ -386,7 +386,7 @@
       "itemsMinimum": {
         "label": "Products required",
         "all": "All invoice items",
-        "atLeast": "At least",
+        "atLeast": "At least N items",
         "count": "Minimum number of products",
         "hint": "Only applies when Products is Required. All invoice items suits a total refusal. The driver app only ticks “The whole invoice”, so “At least N” does not yet change what it requires: do not configure a rule the device does not meet."
       }
