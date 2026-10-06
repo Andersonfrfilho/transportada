@@ -42,20 +42,20 @@
 
 > 🤖 Modelo: `sonnet` (T2.1 e T2.5 são mecânicas, aceite por comando → `haiku`)
 
-- [ ] **T2.1** (`haiku`) Bump de `@adatechnology/meta-whatsapp-module` **e de
+- [x] **T2.1** (`haiku`) Bump de `@adatechnology/meta-whatsapp-module` **e de
       `@adatechnology/meta-whatsapp-provider` para `0.4.0`** na API (a `0.8.0` do módulo pina o provider
       `0.4.0`; a API pinava `0.3.1`); `bun install --frozen-lockfile` verde; `dist/migrations/` com as mesmas 11 pastas;
       `test/whatsapp/module-migration.contract.ts` verde.
-- [ ] **T2.2** Asserção nova em `test/integration/whatsapp-driver-flow-actions.integration.ts` (CA3)
+- [x] **T2.2** Asserção nova em `test/integration/whatsapp-driver-flow-actions.integration.ts` (CA3)
       escrita e vista **vermelha** antes da T2.3 (com a versão nova e sem a opção).
-- [ ] **T2.3** `features: { redactInboundLocation: true }` no resolver
+- [x] **T2.3** `features: { redactInboundLocation: true }` no resolver
       (`src/whatsapp/application/meta-whatsapp-module.resolver.ts:92`). Integração do arquivo tocada
       verde; mutação (tirar a opção) reprova; restaurar.
 - [ ] **T2.4** `scripts/whatsapp-location-redact.ts` + contrato
       `test/whatsapp/location-redact-script.contract.ts` (CA4) **antes** do script; contrato na lista do
       `package.json`. Dry-run padrão; `--confirm` em lotes de 500; saída sem coordenada, rótulo,
       telefone ou id de mensagem.
-- [ ] **T2.5** (`haiku`) Texto do D5 em `trip.locale.json:1081` e `trip.en.locale.json:1081`; testes do
+- [x] **T2.5** (`haiku`) Texto do D5 em `trip.locale.json:1081` e `trip.en.locale.json:1081`; testes do
       painel verdes (CA5).
 
 ## Fase 3 — Docs, revisão e publicação
@@ -71,9 +71,9 @@
 - [ ] **T3.3** Redação do legado, por ambiente e por empresa: dry-run com contagem → **PARAR E
       PERGUNTAR ao usuário** com o número → `--confirm` → segunda execução = 0. `EXPLAIN` da consulta com
       o volume real em `evidence.md`. Produção: mesma sequência, aprovação separada.
-- [ ] **T3.4** (`haiku`) `docs/SECURITY.md` (pendência resolvida com data, versão e contagens; entrada
-      aberta "retenção do transcript inteiro"), ADR-0081 emenda 7.2, `apps/api-transportada/CLAUDE.md`
-      § WhatsApp, `docs/ai-context/api-transportada.md`. Prettier nos `.md`.
+- [~] **T3.4** (feito junto da Fase 2, a pedido: CLAUDE.md, ai-context, SECURITY, ADR-0081 7.2 — falta só atualizar com as contagens do legado após a T3.3) (`haiku`) `docs/SECURITY.md` (pendência resolvida com data, versão e contagens; entrada
+  aberta "retenção do transcript inteiro"), ADR-0081 emenda 7.2, `apps/api-transportada/CLAUDE.md`
+  § WhatsApp, `docs/ai-context/api-transportada.md`. Prettier nos `.md`.
 
 ## Prompt de execução
 

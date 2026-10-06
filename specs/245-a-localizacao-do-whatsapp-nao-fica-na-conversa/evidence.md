@@ -73,3 +73,65 @@ https://github.com/Andersonfrfilho/adatechnology-packages/pull/126 (não mesclad
 Divergências do parecer: (1) o SQL usa o construtor do drizzle (`$with`/`update().from()`), não SQL cru,
 porque o módulo é agnóstico de driver; (2) a constante vive em `src/inboundLocation.constant.ts`;
 (3) o teste de ligação ficou na integração (precisa do banco), não no unitário.
+
+## Fase 2 — API e painel (worktree `jolly-golick-d05902`, sem push)
+
+Banco: Postgres 65432 (`pg_isready` aceitando conexões). Outras sessões rodavam suítes na mesma máquina
+(`angry-hamilton-090c30`); cada suíte usa banco descartável próprio.
+
+### T2.1 — bump (`988f1de4a`)
+
+`@adatechnology/meta-whatsapp-module` `0.7.0` → `0.8.0` e `@adatechnology/meta-whatsapp-provider` `0.3.1` → `0.4.0`
+na API **e no worker** (o worker também pinava o provider `0.3.1`; sem subir ficariam duas cópias). Contratos
+seguem `0.6.0`. `npm view @adatechnology/meta-whatsapp-module@0.8.0 dependencies`: meta-graph-core `0.3.0`,
+provider `0.4.0`, contracts `0.6.0`. `bun install --frozen-lockfile`: `Checked 788 installs ... (no changes)`.
+`dist/migrations/` do módulo instalado: 11 pastas (as mesmas). `bun run db:test` (com
+`DRIZZLE_TEST_DATABASE_URL`, que ativa o contrato `meta-whatsapp-migration.contract.test.ts`): `125 pass / 0 fail`.
+`bun run db:generate --name x`: `{"status":"no_changes","dialect":"postgresql"}`. Sem migration.
+
+### T2.3 — integração vermelha antes (`612a39182`) e T2.2 — opção ligada (`27935b555`)
+
+Fixture do webhook com `location` completa (`name`, `address`, `url`); a consulta filtra por `company_id`,
+`direction = 'inbound'`, `type = 'location'` e afirma `content = INBOUND_LOCATION_CONTENT`,
+`payload IS NULL OR NOT (payload ? 'location')` e `jsonb_typeof(payload) IS DISTINCT FROM 'string'`; o `captured`
+com a coordenada do toque seguinte segue afirmado no mesmo teste.
+
+Vermelho (módulo `0.8.0`, resolver sem a opção): `content` recebido `"📍 Localização: Casa do Cliente"` e
+`has_no_location` `false` — `3 pass / 1 fail`. Contrato `test/whatsapp/meta-whatsapp-module-features.contract.ts`
+(texto-fonte, escopo da chamada `createMetaWhatsAppModule({...})`) também vermelho antes do código.
+Verde com a opção: contrato `50 pass / 0 fail`, integração `4 pass / 0 fail`.
+
+| Mutação no resolver                      | Contrato (`whatsapp.contract.test.ts`) | Integração do motorista |
+| ---------------------------------------- | -------------------------------------- | ----------------------- |
+| `redactInboundLocation: true` → `false`  | 2 fail                                 | 1 fail                  |
+| linha `features: {...}` removida         | 2 fail                                 | 1 fail                  |
+| restaurado (regravado a partir da cópia) | 50 pass / 0 fail                       | 4 pass / 0 fail         |
+
+### T2.4 — painel (`78011f527`)
+
+Chave `whatsapp` do painel de retenção está em `trip.locale.json:1083` / `trip.en.locale.json:1083` (a spec dizia
+`:1081`). Texto novo em pt-BR e en; `test/trip-hooks/location-retention-panel.contract.ts` troca a asserção do
+texto antigo (vermelho antes: `Expected to contain: "A localização enviada pelo WhatsApp não fica..."`) e passa a
+afirmar a ausência de "regra própria". `bun run test:hooks`: `582 pass / 0 fail`. Nenhum smoke ou PNG da 239
+contém o texto (grep em `test/`, `scripts/`, `src/`); nada regerado. As menções em `specs/239-*` são histórico.
+
+### T2.5 — documentação (`4903ed25f`)
+
+`apps/api-transportada/CLAUDE.md` § WhatsApp, `docs/ai-context/api-transportada.md` (seção "Spec 245"),
+`docs/SECURITY.md` (achado do transcript: redigido na origem para o que chegar **depois do deploy**; legado
+**não** redigido) e ADR-0081 emenda 7.2 (2026-10-06). Prettier sem alteração.
+
+### Gates
+
+- `bun install --frozen-lockfile`: `Checked 788 installs across 921 packages (no changes)`.
+- `bun run format:check`: `All matched files use Prettier code style!`; `bun run lint`: exit 0;
+  `bun run typecheck`: exit 0 (sete apps); `bun run build`: exit 0.
+- `bun run test` (raiz): API `9710 pass / 34 skip / 0 fail` (os skips são os contratos que exigem banco, cobertos
+  abaixo); demais apps `0 fail`.
+- API, contrato: `bun --env-file=../../.env.test test --timeout 120000`: `9719 pass / 25 skip / 0 fail`.
+- API, integração dos arquivos tocados: `bun --env-file=../../.env.test test --timeout 120000
+./test/integration/whatsapp-*.integration.ts`: `53 pass / 0 fail` (11 arquivos).
+- API, integração completa (`bun --env-file=../../.env.test run test:integration`, saída em arquivo):
+  `986 pass / 8 skip / 0 fail`, `Ran 994 tests across 169 files [1707.45s]` (os 8 skips não foram
+  classificados um a um: são `testWithPostgres`/guards de ambiente de outras specs; os 11 arquivos `whatsapp-*`
+  rodaram sem pular, `53 pass`).
