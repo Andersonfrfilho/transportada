@@ -143,6 +143,7 @@
   "./test/integration/whatsapp-flow-graph-publish.integration.ts": 5,
   "./test/integration/whatsapp-issuance-confirm.integration.ts": 3,
   "./test/integration/whatsapp-issuance-preview.integration.ts": 2,
+  "./test/integration/whatsapp-location-redact.integration.ts": 3,
   "./test/integration/whatsapp-operator-flow-actions.integration.ts": 3,
   "./test/integration/whatsapp-phone-repository.integration.ts": 12,
   "./test/integration/whatsapp-phone-verification.integration.ts": 3

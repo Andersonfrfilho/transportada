@@ -688,7 +688,7 @@ Uma mensagem recebida executa ação de negócio — separar, despachar, entrega
 emitir CT-e/NFS-e por seleção e faturar (spec 144, ADR-0063/ADR-0064). O despachante entra no hook
 `onMessageReceived` de `@adatechnology/meta-whatsapp-module`, construído **uma vez por empresa**;
 `createWhatsAppCommandHookFactory` separa o que é da instalação do que é da empresa. A instalação
-está nos pacotes `meta-whatsapp-module@0.7.0`, `-contracts@0.6.0` e `-provider@0.3.1`; as migrations do módulo viajam em
+está nos pacotes `meta-whatsapp-module@0.8.0`, `-contracts@0.6.0` e `-provider@0.3.1`; as migrations do módulo viajam em
 pasta (formato do `drizzle-orm` 1.0) e rodam por `runMetaWhatsAppSchemaMigrations`, com o `migrate` injetado.
 
 - **Toda `FlowAction` de negócio passa por `withAuthorizedActor`**, que re-resolve o ator a cada
@@ -702,15 +702,18 @@ pasta (formato do `drizzle-orm` 1.0) e rodam por `runMetaWhatsAppSchemaMigration
   `location` é turno próprio; `acknowledgeSharedLocation` (despachante) a guarda em
   `WhatsAppSharedLocationStore` por `(empresa, número)` — 5 min, **um toque**, nunca no `context` da
   sessão nem em log — e só para quem tem `trip.report`. As três ações do motorista a consomem
-  (`consumeSharedLocation`); o operador **não recebe o armazém** e grava tudo `null`. O armazém é **por processo** (1 réplica hoje) e o ponto é consumido **antes** de a ação dar certo; vencidos são varridos a cada `remember`/`consume`. ⚠️ Com os pacotes na
-  `0.1.0` o webhook descarta `messages[].location` antes do gancho (o schema dos contracts `0.1.0` não a
-  tem; o `0.4.0` tem): na prática o toque grava `unavailable` até a instalação subir os pacotes. Teste que
-  prende o limite e deve virar ao subir: `test/integration/whatsapp-driver-flow-actions.integration.ts`.
+  (`consumeSharedLocation`); o operador **não recebe o armazém** e grava tudo `null`. O armazém é **por processo** (1 réplica hoje) e o ponto é consumido **antes** de a ação dar certo; vencidos são varridos a cada `remember`/`consume`. Com o módulo `0.8.0` o webhook entrega `messages[].location` ao gancho: a
+  localização do WhatsApp **chega e é guardada só no evento da viagem** (`captured`); sem toque, `unavailable`.
+  Prova: `test/integration/whatsapp-driver-flow-actions.integration.ts`.
 - **O transcript não guarda o ponto** (spec 245): o resolver cria o módulo com
   `features: { redactInboundLocation: true }` (`meta-whatsapp-module@0.8.0`). A linha de entrada `location`
   em `meta_whatsapp.messages` sai sem `payload.location` e com `content = INBOUND_LOCATION_CONTENT`; o gancho
   recebe a mensagem **crua**, então o `captured` da 196 não muda. Vale só para o que chega depois do deploy:
-  o legado **não** foi redigido (Fase 3 da 245, escrita irreversível, aprovação por ambiente).
+  o legado só sai pelo script (escrita irreversível, aprovação por ambiente, nunca rodado sem pedido):
+  `bun run scripts/whatsapp-location-redact.ts --company <uuid> [--received-before <ISO>]` só conta
+  (`counted`, `unreachable`); com `--confirm` redige em lotes de 500 até zerar. Idempotente; `unreachable`
+  (payload escalar string do driver antigo) é contado e não é tocado. Lógica em
+  `whatsapp/application/whatsapp-location-redact.service.ts`.
 - **`MembershipAuthorizationPolicy`** ("qualquer membership ativa") só existe sob `/me/` —
   `assertMembershipRoutesUnderMe` derruba o boot fora dali.
 - Rotas (`cache-control: no-store`): `GET`/`DELETE /me/whatsapp-phone`,

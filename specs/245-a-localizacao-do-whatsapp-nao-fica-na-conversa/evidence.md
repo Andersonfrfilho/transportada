@@ -121,6 +121,25 @@ contém o texto (grep em `test/`, `scripts/`, `src/`); nada regerado. As mençõ
 `docs/SECURITY.md` (achado do transcript: redigido na origem para o que chegar **depois do deploy**; legado
 **não** redigido) e ADR-0081 emenda 7.2 (2026-10-06). Prettier sem alteração.
 
+### T2.4 — script do legado (não executado contra nenhum banco real)
+
+`apps/api-transportada/scripts/whatsapp-location-redact.ts` (molde `whatsapp-flow-publish.ts`); a lógica está em
+`src/whatsapp/application/whatsapp-location-redact.service.ts` (argumentos validados por Zod, laço de lotes de 500,
+log só com `companyId` e contagens). Config por `parseEnvironment` + `createDatabaseProvider` (mesmo caminho do
+`main.ts`), `MessageRepository` e os dois casos de uso do pacote `0.8.0`; `finally` fecha o pool com teto de 5 s.
+Comando (para a T3.3, **por ambiente e por empresa, só com aprovação**):
+
+```bash
+bun run scripts/whatsapp-location-redact.ts --company <uuid> [--received-before <ISO>]            # só conta
+bun run scripts/whatsapp-location-redact.ts --company <uuid> [--received-before <ISO>] --confirm # redige
+```
+
+Contrato `test/whatsapp/location-redact-script.contract.ts` e integração
+`test/integration/whatsapp-location-redact.integration.ts` (Postgres descartável com as migrations do pacote).
+Mutações (cada uma reprovou e foi restaurada): dry-run escrevendo (3 falhas), `companyId` trocado no `redact`
+(2), corte `receivedBefore` ignorado (2), log com o resultado da contagem espalhado (1). `unreachable` é
+contado e não é tocado. Nota: o filtro de empresa vive no SQL do pacote; a mutação cobre o que o script passa.
+
 ### Gates
 
 - `bun install --frozen-lockfile`: `Checked 788 installs across 921 packages (no changes)`.

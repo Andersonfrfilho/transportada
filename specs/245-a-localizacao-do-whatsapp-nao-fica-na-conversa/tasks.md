@@ -51,7 +51,7 @@
 - [x] **T2.3** `features: { redactInboundLocation: true }` no resolver
       (`src/whatsapp/application/meta-whatsapp-module.resolver.ts:92`). Integração do arquivo tocada
       verde; mutação (tirar a opção) reprova; restaurar.
-- [ ] **T2.4** `scripts/whatsapp-location-redact.ts` + contrato
+- [x] **T2.4** `scripts/whatsapp-location-redact.ts` + contrato
       `test/whatsapp/location-redact-script.contract.ts` (CA4) **antes** do script; contrato na lista do
       `package.json`. Dry-run padrão; `--confirm` em lotes de 500; saída sem coordenada, rótulo,
       telefone ou id de mensagem.
