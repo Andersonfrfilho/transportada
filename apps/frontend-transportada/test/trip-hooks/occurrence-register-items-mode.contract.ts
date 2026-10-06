@@ -15,11 +15,13 @@ import type { TripDocumentProduct } from '@/modules/trip/shared/trip.types'
 
 import { buttonByText, click, stubVisibleLayout } from './occurrenceCorrectionHarness.helper'
 import { renderWithQueryClient, waitFor } from './renderHook.helper'
+import { OCCURRENCE_REQUIREMENT_DEFAULTS } from '../fixtures/occurrenceRequirementDefaults.fixture'
 
 function buildType(overrides: Partial<OccurrenceType> & Pick<OccurrenceType, 'id' | 'name'>) {
   return {
     active: true,
     allowsMultipleItems: true,
+    ...OCCURRENCE_REQUIREMENT_DEFAULTS,
     attachmentMode: 'off',
     emailBody: '',
     emailSubject: '',

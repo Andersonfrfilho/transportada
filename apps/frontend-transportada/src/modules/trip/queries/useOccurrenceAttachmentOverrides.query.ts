@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { getTripClient } from '../hooks/useTripWorkspace.hook'
 import type { OccurrenceAttachmentOverrides } from '../shared/occurrence.constant'
+import { OCCURRENCE_ATTACHMENT_OVERRIDES_BATCH_QUERY_KEY } from './useOccurrenceAttachmentOverridesBatch.query'
 
 const OCCURRENCE_ATTACHMENT_OVERRIDES_QUERY_KEY = (occurrenceTypeId: string) =>
   ['trip', 'occurrence-attachment-overrides', occurrenceTypeId] as const
@@ -30,6 +31,9 @@ export function useReplaceOccurrenceAttachmentOverridesMutation() {
     onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({
         queryKey: OCCURRENCE_ATTACHMENT_OVERRIDES_QUERY_KEY(variables.occurrenceTypeId),
+      })
+      void queryClient.invalidateQueries({
+        queryKey: OCCURRENCE_ATTACHMENT_OVERRIDES_BATCH_QUERY_KEY,
       })
     },
   })

@@ -151,7 +151,11 @@ describe('spec 164: redeliveryPolicy no cadastro do tipo de ocorrência', () => 
       'utf8',
     )
     expect(constant).toContain('OCCURRENCE_REDELIVERY_POLICY')
-    expect(constant).toContain('redeliveryPolicy: OccurrenceRedeliveryPolicy')
+    const domainType = readFileSync(
+      new URL('../../src/modules/trip/shared/occurrenceType.types.ts', import.meta.url),
+      'utf8',
+    )
+    expect(domainType).toContain('redeliveryPolicy: OccurrenceRedeliveryPolicy')
 
     const validation = readFileSync(
       new URL('../../src/modules/trip/shared/tripResponse.validation.ts', import.meta.url),
