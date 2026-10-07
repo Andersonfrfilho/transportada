@@ -425,6 +425,9 @@ import {
   resolveCargoLayoutLeaseMs,
 } from './trips/domain/cargo-layout-lease.policy.js'
 import { createFinancialSummaryRoutes } from './trips/presentation/financial-summary.routes.js'
+import { createListTripReportUseCase } from './trips/application/list-trip-report.use-case.js'
+import { DrizzleTripReportRepository } from './trips/infrastructure/drizzle-trip-report.repository.js'
+import { createTripDocumentReportRoutes } from './trips/presentation/trip-document-report.routes.js'
 import { createCanhotoReviewRoutes } from './trips/presentation/canhoto-review.routes.js'
 import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
 import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case.routes.js'
@@ -3175,6 +3178,12 @@ function createApplicationRoutes({
         review: (input) => reviewCanhotoProof({ ...input, unitOfWork: canhotoReviewUnitOfWork }),
       },
       resolveClientIp,
+    }),
+    /** Spec 253 RF1: o relatório de viagens, uma linha por nota (`trip.read`/`trip.report-on-behalf`). */
+    ...createTripDocumentReportRoutes({
+      listTripReport: createListTripReportUseCase({
+        repository: new DrizzleTripReportRepository(database),
+      }),
     }),
     /** Spec 183 RF1: o detalhe que a linha de `/ocorrencias` abre (`fleet.read`, como a listagem). */
     ...createTripOccurrenceDetailRoutes({

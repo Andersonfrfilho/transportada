@@ -35,6 +35,7 @@ import {
   OFFICE_REPORT_POLICY,
 } from '../src/trips/presentation/trip-field-office.routes'
 import { createTripFieldOfficeOccurrenceRoutes } from '../src/trips/presentation/trip-field-office-occurrence.routes'
+import { createTripDocumentReportRoutes } from '../src/trips/presentation/trip-document-report.routes'
 import { createTripRoutes } from '../src/trips/presentation/trip.routes'
 
 const USER_ID = '00000000-0000-4000-8000-000000000001'
@@ -90,6 +91,7 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     ...createPackageBoxMeasurementExportRoutes(dependencies),
     ...createPendingItemsRoutes(dependencies),
     ...createTripDocumentReviewRoutes(dependencies),
+    ...createTripDocumentReportRoutes(dependencies),
     // Spec 156 T8b (revisão do code-reviewer): as rotas do escritório com autoria precisam entrar
     // aqui para a lista exaustiva **provar** a ausência delas — sem elas no array, o separador
     // "não alcançar" field-delivery/field-return era verdade por elas nunca terem sido testadas,
@@ -243,6 +245,8 @@ describe('separator role contract', () => {
        * separador a alcança porque é ele quem monta o caminhão e decide para onde a nota vai; ela
        * mostra número da nota, motivo e o Δ% de peso e espaço — nada de dinheiro nem ficha de pessoa.
        */
+      /** Spec 253 RF1: o relatório de viagens, sob `TRIP_FIELD_READ_POLICY` como as outras leituras de campo; o valor só sai com `trip.financials`, que ele não tem. */
+      'GET /trip-document-report',
       'GET /trip-document-reviews',
       'GET /trip-document-reviews/:id/swap-suggestions',
       'GET /trip-documents/returned-with-active-cte',

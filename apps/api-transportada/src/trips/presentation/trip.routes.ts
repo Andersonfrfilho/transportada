@@ -458,7 +458,7 @@ const TRIP_READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
  */
 /** ADR-0081 §6: quem pode ver *onde* o motorista tocou. */
 const TRIP_EVENT_LOCATION_PERMISSION = 'trip.event-location'
-const TRIP_FIELD_READ_POLICY = {
+export const TRIP_FIELD_READ_POLICY = {
   anyPermission: [TRIP_READ_POLICY.permission, TRIP_REPORT_ON_BEHALF_PERMISSION],
   scope: 'company',
 } as const satisfies CompanyAnyPermissionPolicy
@@ -472,7 +472,7 @@ export const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'c
  */
 const MDFE_AUTO_ISSUE_POLICY = { permission: 'mdfe.auto-issue', scope: 'company' } as const
 /** Spec 061 D4: margem, custo de motorista e receita não são `trip.manage`. */
-const TRIP_FINANCIALS_POLICY = { permission: 'trip.financials', scope: 'company' } as const
+export const TRIP_FINANCIALS_POLICY = { permission: 'trip.financials', scope: 'company' } as const
 /** Disparar o lote é submeter emissão fiscal — a mesma permissão de quem submete o lote normal. */
 const CTE_SUBMIT_POLICY = { permission: 'cte.submit', scope: 'company' } as const
 

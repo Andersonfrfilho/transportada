@@ -15,6 +15,7 @@ import { DrizzleTripReportRepository } from '../../src/trips/infrastructure/driz
 import {
   seedCompany,
   seedExtraDocument,
+  seedNfeDocument,
   seedTrip,
   testWithPostgres,
   withDisposableDatabase,
@@ -205,6 +206,31 @@ describe('o relatorio de viagens contra o Postgres (spec 253 T2.2)', () => {
           documentIds: [world.otherCompany.userId, world.first],
         })
         expect(withCancelled).toBe(0)
+      })
+    },
+    120_000,
+  )
+
+  testWithPostgres(
+    'documentIdIn com notas sem viagem: sao contadas em excludedWithoutTrip (RF9), sem vazar de outra empresa',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database)
+        const strayId = await seedNfeDocument(database, world.company)
+        const otherCompanyStrayId = await seedNfeDocument(database, world.otherCompany)
+        const [cancelledLink] = await database.db
+          .select({ nfeDocumentId: tripDocuments.nfeDocumentId })
+          .from(tripDocuments)
+          .where(eq(tripDocuments.id, world.cancelledTrip.documentId))
+        const cancelledNfeId = cancelledLink?.nfeDocumentId ?? ''
+
+        const result = await listAll(database, world.company.companyId, {
+          documentIdIn: [world.first, strayId, cancelledNfeId, otherCompanyStrayId],
+        })
+
+        expect(result.data.map((row) => row.documentNumber)).toEqual(['12345'])
+        expect(result.page.total).toBe(1)
+        expect(result.excludedWithoutTrip).toBe(2)
       })
     },
     120_000,
