@@ -89,9 +89,9 @@ describe('tenant safety da linha do tempo da viagem (spec 158 T5)', () => {
     expect(geocodedJoins).toHaveLength(2)
   })
 
-  test('spec 196 T4.2: só despacho e troca de status de nota seguem sem ponto', () => {
+  test('spec 196 T4.2: só despacho, troca de status de nota e transferência de tripulação (249) seguem sem ponto', () => {
     const withoutLocation = QUERY_SOURCE.match(/\.\.\.NO_EVENT_LOCATION,/gu) ?? []
-    expect(withoutLocation).toHaveLength(2)
+    expect(withoutLocation).toHaveLength(3)
   })
 
   test('D3/ADR-0068 §4: trip_document_events com driver_app sai como channel null, sem reescrita', () => {

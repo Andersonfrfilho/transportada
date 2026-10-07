@@ -30,6 +30,7 @@ import {
   listStatusChangedRows,
 } from './trip-timeline-status.query.js'
 import { listAddressCorrectedRows } from './trip-timeline-address.query.js'
+import { listCrewTransferRows } from './trip-timeline-crew.query.js'
 import { listCanhotoPhotoRows } from './trip-timeline-proof.query.js'
 import { listStopEventRows, listStopOccurrenceRows } from './trip-timeline-stop.query.js'
 
@@ -95,14 +96,15 @@ export async function findTripDocumentScope(
 }
 
 /**
- * A linha do tempo de uma viagem: nove consultas (D5 — `trip_stop_events` cobre três `kind`s; spec
- * 171 acrescenta `trip.created`; spec 228 a foto do canhoto e o endereço corrigido), escopadas por
+ * A linha do tempo de uma viagem: dez consultas (D5 — `trip_stop_events` cobre três `kind`s; spec
+ * 171 acrescenta `trip.created`; spec 228 a foto do canhoto e o endereço corrigido; spec 249 a
+ * transferência de tripulação), escopadas por
  * `companyId` e `tripId`, unidas em memória por `mergeTripTimeline`. RNF: uma consulta por fonte,
  * `Promise.all`, sem N+1.
  *
- * ⚠️ **O risco do pool não é uma requisição, é a soma delas.** Nove (ou dez) consultas cabem em
+ * ⚠️ **O risco do pool não é uma requisição, é a soma delas.** Dez consultas cabem em
  * `DATABASE_POOL_MAX = 10`. O que esgota é a concorrência *entre* requisições: a linha do tempo da
- * viagem e "Eventos desta entrega" (`?documentId=`) abrem juntas 18 consultas, e o prazo de
+ * viagem e "Eventos desta entrega" (`?documentId=`) abrem juntas 20 consultas, e o prazo de
  * `DATABASE_QUERY_TIMEOUT_MS = 8000` conta desde a fila — a que não pega conexão a tempo vira 503.
  * Por isso o endereço segue sendo uma consulta só (`union all`), e não duas.
  */
@@ -120,6 +122,7 @@ export async function listTripTimeline(
     documentStatusChanged,
     canhotoPhotos,
     addressCorrections,
+    crewTransfers,
   ] = await Promise.all([
     listCreatedRows(queryable, params),
     listDispatchedRows(queryable, params),
@@ -130,6 +133,7 @@ export async function listTripTimeline(
     listDocumentStatusChangedRows(queryable, params),
     listCanhotoPhotoRows(queryable, params),
     listAddressCorrectedRows(queryable, params),
+    listCrewTransferRows(queryable, params),
   ])
 
   const merged = mergeTripTimeline({
@@ -144,6 +148,7 @@ export async function listTripTimeline(
       documentStatusChanged,
       canhotoPhotos,
       addressCorrections,
+      crewTransfers,
     ],
   })
   const last = merged.items[merged.items.length - 1]

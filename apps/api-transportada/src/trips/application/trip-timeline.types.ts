@@ -8,6 +8,7 @@
  * mesmo `now` do caso de uso).
  */
 import type { EventLocationState } from '../../database/event-location.schema.js'
+import type { TripCrewEventMember } from '../../database/trip.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { OccurrenceCancellationView } from './occurrence-correction.port.js'
 
@@ -43,6 +44,12 @@ export const TRIP_TIMELINE_KINDS = [
    */
   'document.canhoto_photo',
   'stop.address_corrected',
+  /**
+   * Spec 249 D6: a tripulação trocada com a viagem na rua. Entra no fim da lista e **antes** de o painel
+   * o conhecer (ADR-0081 §9: o painel publica primeiro; até lá ele descarta o item de `kind` que não
+   * conhece em vez de reprovar a página — spec 206 D12).
+   */
+  'crew_transfer',
 ] as const
 export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
 
@@ -78,6 +85,8 @@ export const TRIP_TIMELINE_KIND_PRIORITY: Readonly<Record<TripTimelineKind, numb
   'document.canhoto_photo': 3,
   /** Spec 228 D6: acima de `stop.occurrence` (1) — a correção é efeito do relato de endereço errado. */
   'stop.address_corrected': 2,
+  /** Spec 249: não é causa nem efeito de outro evento; no empate de instante fica acima de todos. */
+  crew_transfer: 8,
 }
 
 export type TripTimelineStopReference = {
@@ -138,6 +147,18 @@ export type TripTimelineAddressChange = {
   readonly origin: TripTimelineAddressChangeOrigin
 }
 
+/**
+ * Spec 249 RF4: o que a transferência mostra. `costDifference` é dinheiro (`trip.financials`) e a rota
+ * o tira sem a permissão — a chave sai, nunca vira `null` (spec 153 D10).
+ */
+export type TripTimelineCrewTransfer = {
+  readonly costDifference: string
+  readonly mdfeDriverDivergence: boolean
+  readonly nextCrew: readonly TripCrewEventMember[]
+  readonly previousCrew: readonly TripCrewEventMember[]
+  readonly reason: string
+}
+
 export type TripTimelineItem = {
   /** Spec 228 D8: a chave só existe em `stop.address_corrected` — em outro kind nem `null` aparece. */
   readonly addressChange?: TripTimelineAddressChange
@@ -150,6 +171,8 @@ export type TripTimelineItem = {
    * motivo: `close_reason` só é escrito por `POST /trips/:id/close`.
    */
   readonly closeReason: string | null
+  /** Spec 249: a chave só existe em `crew_transfer` — em outro kind nem `null` aparece. */
+  readonly crewTransfer?: TripTimelineCrewTransfer
   readonly document: TripTimelineDocumentReference | null
   /** Só em `*.status_changed`; os dois vocabulários (viagem, nota) cabem na mesma string. */
   readonly fromStatus: string | null

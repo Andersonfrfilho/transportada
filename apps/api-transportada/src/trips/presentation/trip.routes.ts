@@ -91,6 +91,7 @@ import {
 } from './trip-financial.schema.js'
 import { parseTripDeliveryProofsQuery } from './trip-delivery-proofs.schema.js'
 import { parseTripTimelineQuery } from './trip-timeline.schema.js'
+import { redactTimelineCosts } from './trip-timeline-redaction.support.js'
 import {
   parseTransferTripCrewRequest,
   serializeTripCrewTransfer,
@@ -1069,7 +1070,15 @@ export function createTripRoutes(
         })
 
         return jsonResponse({
-          body: { data: { items: timeline.items, nextCursor: timeline.nextCursor } },
+          body: {
+            data: {
+              items: redactTimelineCosts({
+                canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
+                items: timeline.items,
+              }),
+              nextCursor: timeline.nextCursor,
+            },
+          },
           status: 200,
         })
       },
