@@ -7,6 +7,7 @@ import './database-migration/occurrence-type-requirement-modes.static.contract.j
 import './database-migration/occurrence-type-quantity-minimums.static.contract.js'
 import './database-migration/occurrence-type-moments.static.contract.js'
 import './database-migration/occurrence-declared-amount.static.contract.js'
+import './database-migration/cargo-preview-retention.static.contract.js'
 import './database-migration/street-occurrence-attachment-backfill.static.contract.js'
 import './database-migration/schema-snapshot.contract.js'
 import './database-migration/migration-readiness.contract.js'
