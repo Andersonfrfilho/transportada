@@ -30,13 +30,17 @@ está no prazo**, sem bloquear a entrega e sem mexer na nota do motorista.
 - **D4 — Os "três dias" são o prazo de ENTREGA**, não o do comprovante. O prazo do comprovante por contratante
   (`missingAfterHours`) **fica fora**: toca a nota e hoje três chamadores resolvem a configuração em duas
   camadas, não em três (escrita do comprovante, `proof-pending.query.ts`, nota do motorista).
-- **D5 — Notas antigas:** é tudo novo e está em teste; o prazo é **derivado** e vale a configuração atual
-  do contratante. Sem backfill nem prazo congelado por nota.
+- **D5 — Notas antigas:** é tudo novo e está em teste; o número de dias úteis é o **copiado do perfil na
+  chegada** (`cargo_arrivals.delivery_deadline_business_days`, spec 237 e ADR-0094: a cópia congela o prazo da
+  chegada), não o perfil atual do contratante. A data de vencimento é **derivada** dessa cópia e do calendário e
+  só muda com o calendário. Sem backfill. _Correção de texto de 2026-10-07: o rascunho dizia "perfil atual"; a
+  cópia é o que o usuário aprovou na 237._
 
 ## Fora do escopo
 
 - A coluna do prazo e a **tela do contratante**: moram na spec 237 (perfil de recebimento,
-  `delivery_deadline_business_days`, aba "Contratantes"). Esta spec **lê** o perfil.
+  `delivery_deadline_business_days`, aba "Contratantes"). Esta spec **lê a cópia** do prazo na chegada
+  (`cargo_arrivals`), não o perfil.
 - O calendário (238) e o registro de chegada (237).
 - Prazo do comprovante por contratante (D4); nota do motorista (D3); CT-e `dPrev`/`delivery_days`.
 - App do motorista e portal do contratante exibirem o prazo (o portal tem payload mínimo guardado por
@@ -65,19 +69,27 @@ aparece e nada quebra.
 ## Requisitos funcionais
 
 - **RF1 — Política pura** `delivery-deadline.policy.ts`
-  (`resolveDeliveryDeadline({ arrivedAt, separationWindowHours, deadlineBusinessDays, deliveredMomentAt,
-now, recipientCityIbge, calendar })` → `{ dueAt, state, businessDaysLate? }`): soma a janela de separação
-  em horas e **depois** os dias úteis pelo calendário da 238. Relógio, fuso e calendário por parâmetro.
-- **RF2 — Estados:** `open`, `due_today`, `overdue`, `delivered_on_time`, `delivered_late`,
-  `not_applicable` (sem chegada, sem perfil/prazo, devolvida, cancelada, sem cidade do destino físico).
+  (`resolveDeliveryDeadline({ arrivedOn, calendar, deadlineBusinessDays, outcome, today })` →
+  `{ state, dueOn, ... }`): `dueOn = addBusinessDays(chegada, N)` pelo calendário da 238. **A janela de 24 h de
+  separação não existe na assinatura**: ela corre dentro dos dias úteis e não se soma. Datas civis em texto
+  (`YYYY-MM-DD`), sem relógio, sem fuso e sem I/O; o calendário já vem montado para a cidade do destino físico
+  (quem chama resolve o código IBGE). A borda `delivery-deadline-input.service.ts` converte os instantes em data
+  civil no fuso **fixo** `America/Sao_Paulo` (ADR-0096 Q3), e a hora do dia não importa.
+- **RF2 — Estados:** `on_time` (o pendente antes do vencimento, com `businessDaysRemaining`: "vence em 2 dias
+  úteis"), `due_today`, `overdue` (com `businessDaysLate`), `delivered_on_time`, `delivered_late`,
+  `not_applicable` (motivos: cancelada, devolvida, a devolver ao contratante, liberada, sem chegada, sem prazo,
+  sem cidade do destino físico).
 - **RF3 — Entrega medida pelo momento da 234** (`deliveredMomentSql`), nunca pela chegada ao servidor; sem
   entrega, o relógio do servidor.
 - **RF4 — Cidade do calendário:** onde a carga **será entregue** — o destino físico (`resolvePhysicalDestination`:
   desvio manual → `<entrega>` → `<enderDest>`, spec 073), **não** o endereço cadastrado do destinatário. Decidido
   pelo usuário em 2026-10-06 (revoga a decisão de 2026-10-03 "cidade do destinatário").
 - **RF5 — Leitura por nota:** o detalhe da viagem recebe por documento `deliveryDeadline:
-{ dueAt, state, businessDaysLate? } | null`, no join que já traz o `contractorId`, **sem** novo resolvedor
-  paralelo e sem N+1 (o calendário das cidades da viagem em uma consulta).
+{ state, dueOn, ... } | null` (só no `TripDocumentDetail`, nunca no `TripDocument`). O detalhe **não** faz join
+  com `contractors`, e o contratante nem é necessário: o prazo copiado está em `cargo_arrivals`, e a chegada entra
+  pelo `nfe_document_id`. **Sem** novo resolvedor paralelo e sem N+1. O calendário **não é uma consulta**: o
+  `loadRules` da 238 faz quatro, e dentro da transação do `readTripDetail` elas têm de rodar em **série**
+  (`dueOn` é uma DATA civil, não um instante: `new Date('2026-10-15')` vira 14/10 em São Paulo).
 - **RF6 — Selo e filtro** no painel, no padrão de `tripDocumentProofBadges.service.ts` (estrutura e tokens,
   nunca texto cru), locale pt-BR/en, contraste nos dois temas.
 - **RF7 — Última tarefa:** revisão de design e usabilidade com print (web.md §15).
@@ -91,11 +103,11 @@ now, recipientCityIbge, calendar })` → `{ dueAt, state, businessDaysLate? }`):
 ## Casos extremos e falhas
 
 - Chegada em dia não útil (sábado, feriado): o primeiro dia útil conta como o dia 0 e o prazo corre dali.
-- Chegada depois do expediente: vale o dia civil da chegada no fuso da empresa [premissa; ajustar se o
-  contrato do contratante disser outra coisa].
+- Chegada depois do expediente: vale o dia civil da chegada no fuso **fixo de São Paulo** (ADR-0096 Q3) [premissa;
+  ajustar se o contrato do contratante disser outra coisa].
 - Entrega **no dia** do vencimento é no prazo.
 - Nota devolvida ou cancelada: `not_applicable`.
-- Perfil alterado depois da chegada: vale o perfil atual (D5).
+- Perfil alterado depois da chegada: vale o prazo **copiado na chegada** (D5); o perfil novo só vale para as próximas chegadas.
 - Cidade sem feriado cadastrado: só nacionais e estaduais; calendário nunca "assume" município.
 
 ## Critérios de aceite

@@ -87,9 +87,10 @@ feriado termina em `OUT_OF_COVERAGE`, não em laço.
   `drizzle-route-optimization.repository.ts` ≈1050–1060 não muda). O desenho exato dos dados e da rotina é da
   T1.2/T1.3, e a migration em `municipal_holidays` (tabela existente) **exige aprovação humana específica** quando
   chegar a hora; esta decisão aprova o desenho, não a migration.
-- **Q2 — DECIDIDA: a cidade do feriado é sempre onde a carga será entregue**, isto é, o destino físico decidido
-  por `resolvePhysicalDestination` (desvio manual → `<entrega>` → `<enderDest>`, spec 073), e **não** o endereço
-  cadastrado do destinatário. A política recebe só um `cityIbgeCode`; quem a chamar resolve esse código pelo
+- **Q2 — DECIDIDA: a cidade do feriado é sempre onde a carga será entregue**, isto é, o destino físico: o desvio
+  manual (`delivery_address_overrides`, um por `trip_document`, vale o mais recente) por cima do que
+  `resolvePhysicalDestination` decide (`<entrega>` → `<enderDest>`, spec 073; a função só conhece `delivery` e
+  `recipient`, o desvio manual **não** é dela), e **não** o endereço cadastrado do destinatário. A política recebe só um `cityIbgeCode`; quem a chamar resolve esse código pelo
   destino físico. Isso substitui o que as specs 236 e 238 diziam sobre `nfe_addresses.city_code` e é a mesma
   cidade usada para o grupo rota×cidade da separação (spec 237).
 - **Q3 — Fuso fixo de São Paulo** (padrão do repositório, `FISCAL_TIME_ZONE`), sem coluna por empresa; registrado
