@@ -15,6 +15,7 @@ import { join, relative } from 'node:path'
 
 import { describe, expect, test } from 'bun:test'
 
+import type { OccurrenceTypeNameViolation } from '../fixtures/occurrence-type-name-branch.fixture.js'
 import {
   findOccurrenceTypeNameViolations,
   OCCURRENCE_TYPE_NAME_VIOLATION,
@@ -22,12 +23,12 @@ import {
 } from '../fixtures/occurrence-type-name-branch.fixture.js'
 
 const MONOREPO_ROOT = new URL('../../../../', import.meta.url).pathname
-const SCANNED_SOURCE_ROOTS = [
+const SCANNED_SOURCE_ROOTS: string[] = [
   'apps/api-transportada/src',
   'apps/frontend-transportada/src',
   'apps/frontend-driver/src',
   'apps/frontend-client/src',
-] as const
+]
 const SOURCE_FILE = /\.(?:ts|tsx)$/u
 const TEST_FILE = /\.(?:test|spec)\.tsx?$/u
 
@@ -79,8 +80,8 @@ describe('nenhum código ramifica pelo nome do tipo nem por contratante específ
 })
 
 describe('o detector acha a violação e cala diante do código limpo (a parede tem dentes)', () => {
-  const VIOLATIONS: readonly {
-    readonly expected: string
+  const VIOLATIONS: {
+    readonly expected: OccurrenceTypeNameViolation
     readonly label: string
     readonly source: string
   }[] = [

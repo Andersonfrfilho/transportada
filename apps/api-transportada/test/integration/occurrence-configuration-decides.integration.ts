@@ -221,11 +221,11 @@ function summarize(stored: StoredOccurrence, isStrict: boolean) {
     code: line.productCode,
     declaredAmount: line.declaredAmount,
     description: DESCRIPTIONS[line.productCode] ?? '',
-    nfeQuantity: line.quantity,
+    nfeQuantity: line.quantity ?? '0',
     quantity: line.quantity,
     totalValue: '0',
-    unit: line.quantityUnit,
-    unitValue: line.unitValue,
+    unit: line.quantityUnit ?? '',
+    unitValue: line.unitValue ?? '0',
   }))
   const amounts = resolveOccurrenceAmounts({
     declaredAmount: stored.occurrence.declaredAmount,

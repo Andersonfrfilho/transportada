@@ -83,16 +83,32 @@ const LOOSE_CONFIGURATION: TypeConfiguration = {
   referenceNumberMode: 'off',
 }
 
-const FOUR_TYPES = [
-  { configuration: STRICT_CONFIGURATION, id: 'type-a1', name: NAME_PARTIAL_RETURN },
-  { configuration: LOOSE_CONFIGURATION, id: 'type-b1', name: NAME_PARTIAL_RETURN },
-  { configuration: STRICT_CONFIGURATION, id: 'type-a2', name: NAME_EXTENSION },
-  { configuration: LOOSE_CONFIGURATION, id: 'type-b2', name: NAME_TOTAL_RETURN },
-] as const
+type TypeFixture = {
+  readonly configuration: TypeConfiguration
+  readonly id: string
+  readonly name: string
+}
 
-const [STRICT_SAME_NAME, LOOSE_SAME_NAME, STRICT_OTHER_NAME, LOOSE_OTHER_NAME] = FOUR_TYPES
-
-type TypeFixture = (typeof FOUR_TYPES)[number]
+const STRICT_SAME_NAME: TypeFixture = {
+  configuration: STRICT_CONFIGURATION,
+  id: 'type-a1',
+  name: NAME_PARTIAL_RETURN,
+}
+const LOOSE_SAME_NAME: TypeFixture = {
+  configuration: LOOSE_CONFIGURATION,
+  id: 'type-b1',
+  name: NAME_PARTIAL_RETURN,
+}
+const STRICT_OTHER_NAME: TypeFixture = {
+  configuration: STRICT_CONFIGURATION,
+  id: 'type-a2',
+  name: NAME_EXTENSION,
+}
+const LOOSE_OTHER_NAME: TypeFixture = {
+  configuration: LOOSE_CONFIGURATION,
+  id: 'type-b2',
+  name: NAME_TOTAL_RETURN,
+}
 
 const PRODUCTS = [
   {
@@ -246,11 +262,11 @@ describe('as quatro configurações: o nome do tipo não entra na exigência (CA
 
   test('o escopo é do tipo: o mesmo valor ausente aponta a ocorrência ou a linha', async () => {
     const itemScope = { ...STRICT_SAME_NAME, id: 'scope-item' }
-    const occurrenceScope = {
+    const occurrenceScope: TypeFixture = {
       ...STRICT_SAME_NAME,
       configuration: { ...STRICT_CONFIGURATION, declaredAmountScope: 'occurrence' },
       id: 'scope-occurrence',
-    } as const
+    }
     const input = { items: ONE_ITEM, referenceNumber: REFERENCE_NUMBER }
 
     expect((await outcomeOf({ ...input, type: itemScope })).field).toBe(ITEM_DECLARED_AMOUNT_FIELD)
@@ -375,8 +391,8 @@ describe('o que sobe ao registro e o e-mail seguem a configuração, não o nome
         nfeQuantity: product?.quantity ?? '0',
         quantity: item.quantity,
         totalValue: '0',
-        unit: item.quantityUnit,
-        unitValue: item.unitValue,
+        unit: item.quantityUnit ?? '',
+        unitValue: item.unitValue ?? '0',
       }
     })
     const values: OccurrenceTemplateValues = {

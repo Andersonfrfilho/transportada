@@ -825,3 +825,84 @@ lote 4 (50 arquivos): 193 pass · 1 skip · 0 fail   [183.32s]
 ```
 
 Os `skip` não são testes desta task (nenhum arquivo novo pula).
+
+## T4.5 — CA03: só a configuração decide (2026-10-07)
+
+Quatro tipos: dois com o **mesmo nome** e configuração diferente (a exigente, `required` em tudo, e a
+desligada, escopo `occurrence`), e dois com **nomes diferentes** e a mesma configuração (`Prorrogação`
+e `Devolução total`). Três arquivos novos, todos na lista explícita do `package.json`:
+
+- contrato `test/trip-occurrence/configuration-decides.contract.ts` — `registerDriverOccurrence` com o
+  dublê: exigência efetiva (número, valor pago, escopo, produtos), exceção do contratante da nota e do
+  destinatário (o destinatário vence), exceção de outro contratante nunca vale, e o gravado, a soma
+  (82,20 pago de 97,19) e o e-mail montado das linhas gravadas;
+- integração `test/integration/occurrence-configuration-decides.integration.ts` — o mesmo, pelo caminho
+  real (repositórios Drizzle, exceção lida do banco pela nota), o nome igual em duas empresas (o nome é
+  único por empresa);
+- parede `test/trip-occurrence/type-name-wall.contract.ts` + detector
+  `test/fixtures/occurrence-type-name-branch.fixture.ts` — varre `src` das quatro apps (comentário
+  fora) atrás de comparação de `.name`/`typeName` com literal, `switch` sobre o nome, `spani`, a palavra
+  devolução/prorrogação como condição e nome de tipo do catálogo em literal. **A parede tem dentes:** o
+  detector é provado contra 10 fontes que violam (acha) e 7 limpas (cala), e a lista dos 3 arquivos de
+  dados semeados (catálogo de bootstrap e bancada local, que viram linha em `company_occurrence_types`)
+  é conferida para não envelhecer. Nenhum `if` por nome nem constante por tipo foi encontrado no código
+  existente; só esses 3 arquivos de seed carregam nome em literal.
+
+Como a CA03 já valia no código (a exigência efetiva passa pelo resolvedor único), os testes nasceram
+verdes: não houve correção de produção. O vermelho está nas mutações.
+
+### Mutações (cada uma sozinha, rodada e revertida com `git checkout --`)
+
+M1 — `if` pelo nome do tipo em `driver-occurrence-assessment.service.ts`
+(`occurrenceType.name === 'Devolução parcial'` força `referenceNumberMode: 'required'`):
+
+```text
+contrato (trip-occurrence.contract.test.ts):  641 pass · 6 fail
+(fail) nenhum código ramifica pelo nome do tipo nem por contratante específico (CA03) > apps/api-transportada/src: nada fora dos dados semeados
+(fail) as quatro configurações: o nome do tipo não entra na exigência (CA03) > mesmo nome, configuração diferente: o desligado aceita onde o exigente recusa
+(fail) as quatro configurações: o nome do tipo não entra na exigência (CA03) > produtos exigidos no tipo: sem item recusa; o tipo desligado aceita a nota inteira
+(fail) a exceção da nota vale, e vale a efetiva — nunca o modo do tipo (CA03) > o contratante da nota afrouxa o tipo exigente; o de outra nota não
+(fail) a exceção da nota vale, e vale a efetiva — nunca o modo do tipo (CA03) > a exceção endurece o tipo desligado, e o destinatário vence o contratante
+(fail) a exceção da nota vale, e vale a efetiva — nunca o modo do tipo (CA03) > o contratante da nota vem do servidor: exceção de outro contratante nunca vale
+integração (occurrence-configuration-decides): 0 pass · 3 fail
+parede sozinha: 21 pass · 1 fail (src: nada fora dos dados semeados)
+```
+
+M2 — ler o modo do tipo em vez do efetivo (`resolve-document-occurrence-requirements.service.ts`
+devolve `declaredAmountMode`/`referenceNumberMode` de `occurrenceType`, descartando a exceção):
+
+```text
+contrato:  644 pass · 3 fail
+(fail) a exceção da nota vale, e vale a efetiva — nunca o modo do tipo (CA03) > o contratante da nota afrouxa o tipo exigente; o de outra nota não
+(fail) a exceção da nota vale, e vale a efetiva — nunca o modo do tipo (CA03) > a mesma exceção em tipo de outro nome e mesma configuração dá o mesmo resultado
+(fail) a exceção da nota vale, e vale a efetiva — nunca o modo do tipo (CA03) > a exceção endurece o tipo desligado, e o destinatário vence o contratante
+integração:  2 pass · 1 fail
+(fail) só a configuração decide, contra o banco (spec 247 T4.5, CA03) > a exceção do contratante da nota (lida do banco) vale; o modo do tipo não
+```
+
+Depois de cada uma: `git status --short` vazio, contrato 647 pass · 0 fail e integração 3 pass · 0 fail.
+
+### Gates
+
+```text
+$ bun run typecheck                      (raiz)  → tsc --noEmit ×3, sem erro
+$ bun run lint                           (apps/api-transportada) → eslint --max-warnings=0, sem saída
+$ bun --env-file=../../.env.test test --timeout 120000   (contrato, apps/api-transportada)
+ 10207 pass
+ 25 skip
+ 0 fail
+ 34129 expect() calls
+Ran 10232 tests across 199 files. [42.90s]
+```
+
+Integração completa (207 arquivos da lista `test:integration`), quatro lotes em primeiro plano, Postgres 18
+nativo descartável (`127.0.0.1:56248`, diretório no scratchpad), `DATABASE_URL` por variável de ambiente:
+
+```text
+lote 1 (52 arquivos): 364 pass · 0 fail            [306.49s]
+lote 2 (52 arquivos): 307 pass · 7 skip · 0 fail   [164.08s]
+lote 3 (52 arquivos): 245 pass · 0 fail            [181.65s]
+lote 4 (51 arquivos): 196 pass · 1 skip · 0 fail   [178.46s]
+```
+
+Os `skip` não são testes desta task (nenhum arquivo novo pula).
