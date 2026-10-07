@@ -79,6 +79,15 @@ describe('a entrada da prévia por e-mail contra Postgres (spec 237 T4.6b)', () 
         expect(noLists.status).toBe(422)
         expect((await responseApiError(noLists)).code).toBe('RECEIVING_PROFILE_ALLOWLISTS_REQUIRED')
 
+        await putLists(handle, paths, { ...LISTS, senderAllowlist: [] })
+        const oneList = await handle(jsonRequest({ method: 'POST', path: paths.token }))
+        expect(oneList.status).toBe(422)
+        const refusal = (await oneList.json()) as {
+          error: { details: readonly { field: string }[] }
+        }
+        expect(refusal.error.details.map((detail) => detail.field)).toEqual(['senderAllowlist'])
+        expect(await storedHash(database, seed.contractorId)).toBeNull()
+
         expect((await putLists(handle, paths, LISTS)).status).toBe(200)
         const noDomain = await handle(jsonRequest({ method: 'POST', path: paths.token }))
         expect(noDomain.status).toBe(409)
@@ -380,6 +389,23 @@ describe('o acesso à entrada da prévia por e-mail é da empresa do contexto (s
   )
 
   testWithPostgres(
+    'o domínio de entrada é o da empresa do contexto: o de outra empresa não vale',
+    async () => {
+      await withDisposableDatabase(async (database, seed) => {
+        const handle = createHandler(database)
+        const paths = pathsOf(seed.contractorId)
+        await putLists(handle, paths, LISTS)
+        await seedReplyDomain(database, seed.foreignCompanyId)
+
+        const refused = await handle(jsonRequest({ method: 'POST', path: paths.token }))
+
+        expect(refused.status).toBe(409)
+        expect(await storedHash(database, seed.contractorId)).toBeNull()
+      })
+    },
+  )
+
+  testWithPostgres(
     'só as recusas do contratante e da empresa, as mais novas primeiro',
     async () => {
       await withDisposableDatabase(async (database, seed) => {
@@ -490,9 +516,12 @@ async function countAudits(database: TestDatabase, action: string): Promise<numb
   return rows.length
 }
 
-async function seedReplyDomain(database: TestDatabase): Promise<void> {
+async function seedReplyDomain(
+  database: TestDatabase,
+  companyId: string = COMPANY_CONTEXT.companyId,
+): Promise<void> {
   await database.db.insert(contractorMailSettings).values({
-    companyId: COMPANY_CONTEXT.companyId,
+    companyId,
     replyDomain: REPLY_DOMAIN,
     secretEnvelope: {},
     senderAddress: `envio@${REPLY_DOMAIN}`,
