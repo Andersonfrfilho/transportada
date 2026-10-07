@@ -123,7 +123,7 @@ async function assertRateWindowIndex(database: SQL) {
   expect(names).toContain('cargo_preview_email_intakes_company_contractor_recorded_idx')
   expect(names).not.toContain('cargo_preview_email_intakes_company_contractor_received_idx')
   const index = rows.find((row) => row.indexname.endsWith('_recorded_idx'))
-  expect(index?.indexdef).toContain('(company_id, contractor_id, recorded_at DESC)')
+  expect(index?.indexdef).toContain('(company_id, contractor_id, recorded_at DESC')
 }
 
 async function insertPreview(

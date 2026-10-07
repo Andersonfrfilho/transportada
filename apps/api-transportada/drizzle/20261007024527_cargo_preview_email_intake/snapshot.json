@@ -43397,7 +43397,7 @@
           "opclass": null
         },
         {
-          "value": "received_at",
+          "value": "recorded_at",
           "isExpression": false,
           "asc": false,
           "nullsFirst": false,
@@ -43409,7 +43409,7 @@
       "with": "",
       "method": "btree",
       "concurrently": false,
-      "name": "cargo_preview_email_intakes_company_contractor_received_idx",
+      "name": "cargo_preview_email_intakes_company_contractor_recorded_idx",
       "entityType": "indexes",
       "schema": "public",
       "table": "cargo_preview_email_intakes"
@@ -65166,14 +65166,14 @@
       "table": "contractor_receiving_profiles"
     },
     {
-      "value": "cardinality(\"preview_forwarder_allowlist\") between 1 and 20 and char_length(array_to_string(\"preview_forwarder_allowlist\", '|')) <= 5100 and array_to_string(\"preview_forwarder_allowlist\", '|') !~ '[[:cntrl:][:space:],<>]'",
+      "value": "cardinality(\"preview_forwarder_allowlist\") between 1 and 20 and array_position(\"preview_forwarder_allowlist\", null) is null and array_to_string(\"preview_forwarder_allowlist\", '|') ~ '^[^|]{3,254}([|][^|]{3,254})*$' and array_to_string(\"preview_forwarder_allowlist\", '') !~ '[[:cntrl:][:space:],<>|]'",
       "name": "contractor_receiving_profiles_preview_forwarder_allowlist_check",
       "entityType": "checks",
       "schema": "public",
       "table": "contractor_receiving_profiles"
     },
     {
-      "value": "cardinality(\"preview_sender_allowlist\") between 1 and 20 and char_length(array_to_string(\"preview_sender_allowlist\", '|')) <= 5100 and array_to_string(\"preview_sender_allowlist\", '|') !~ '[[:cntrl:][:space:],<>]'",
+      "value": "cardinality(\"preview_sender_allowlist\") between 1 and 20 and array_position(\"preview_sender_allowlist\", null) is null and array_to_string(\"preview_sender_allowlist\", '|') ~ '^[^|]{3,254}([|][^|]{3,254})*$' and array_to_string(\"preview_sender_allowlist\", '') !~ '[[:cntrl:][:space:],<>|]'",
       "name": "contractor_receiving_profiles_preview_sender_allowlist_check",
       "entityType": "checks",
       "schema": "public",
@@ -65635,7 +65635,7 @@
       "table": "cargo_preview_email_intakes"
     },
     {
-      "value": "\"reason_code\" in ('ATTACHMENT_AMBIGUOUS', 'ATTACHMENT_MISSING', 'ATTACHMENT_NOT_A_WORKBOOK', 'ATTACHMENT_TOO_LARGE', 'FORWARDER_DKIM_NOT_ALIGNED', 'FORWARDER_NOT_ALLOWED', 'MIME_UNREADABLE', 'ORIGINAL_SENDER_AMBIGUOUS', 'ORIGINAL_SENDER_MISSING', 'ORIGINAL_SENDER_NOT_ALLOWED', 'PREVIEW_NOT_ENABLED', 'RAW_EMAIL_TOO_LARGE', 'TOO_MANY_OPEN_PREVIEWS')",
+      "value": "\"reason_code\" in ('ATTACHMENT_AMBIGUOUS', 'ATTACHMENT_MISSING', 'ATTACHMENT_NOT_A_WORKBOOK', 'ATTACHMENT_TOO_LARGE', 'FORWARDER_DKIM_NOT_ALIGNED', 'FORWARDER_DKIM_UNVERIFIABLE', 'FORWARDER_NOT_ALLOWED', 'MIME_UNREADABLE', 'ORIGINAL_SENDER_AMBIGUOUS', 'ORIGINAL_SENDER_MISSING', 'ORIGINAL_SENDER_NOT_ALLOWED', 'PREVIEW_NOT_ENABLED', 'RATE_LIMITED', 'RAW_EMAIL_TOO_LARGE', 'TOO_MANY_OPEN_PREVIEWS')",
       "name": "cargo_preview_email_intakes_reason_code_check",
       "entityType": "checks",
       "schema": "public",

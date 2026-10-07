@@ -120,11 +120,11 @@ export const contractorReceivingProfiles = pgTable(
     ),
     check(
       'contractor_receiving_profiles_preview_forwarder_allowlist_check',
-      sql`cardinality(${table.previewForwarderAllowlist}) between 1 and 20 and char_length(array_to_string(${table.previewForwarderAllowlist}, '|')) <= 5100 and array_to_string(${table.previewForwarderAllowlist}, '|') !~ '[[:cntrl:][:space:],<>]'`,
+      sql`cardinality(${table.previewForwarderAllowlist}) between 1 and 20 and array_position(${table.previewForwarderAllowlist}, null) is null and array_to_string(${table.previewForwarderAllowlist}, '|') ~ '^[^|]{3,254}([|][^|]{3,254})*$' and array_to_string(${table.previewForwarderAllowlist}, '') !~ '[[:cntrl:][:space:],<>|]'`,
     ),
     check(
       'contractor_receiving_profiles_preview_sender_allowlist_check',
-      sql`cardinality(${table.previewSenderAllowlist}) between 1 and 20 and char_length(array_to_string(${table.previewSenderAllowlist}, '|')) <= 5100 and array_to_string(${table.previewSenderAllowlist}, '|') !~ '[[:cntrl:][:space:],<>]'`,
+      sql`cardinality(${table.previewSenderAllowlist}) between 1 and 20 and array_position(${table.previewSenderAllowlist}, null) is null and array_to_string(${table.previewSenderAllowlist}, '|') ~ '^[^|]{3,254}([|][^|]{3,254})*$' and array_to_string(${table.previewSenderAllowlist}, '') !~ '[[:cntrl:][:space:],<>|]'`,
     ),
     /** Token sem as duas listas abriria a entrada a qualquer remetente: o banco recusa. */
     check(

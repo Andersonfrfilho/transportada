@@ -93,10 +93,11 @@ export const cargoPreviewEmailIntakes = pgTable(
       table.companyId,
       table.providerEmailId,
     ),
-    index('cargo_preview_email_intakes_company_contractor_received_idx').on(
+    /** A janela de e-mails por contratante lê o relógio do banco (`recorded_at`), nunca o do remetente. */
+    index('cargo_preview_email_intakes_company_contractor_recorded_idx').on(
       table.companyId,
       table.contractorId,
-      table.receivedAt.desc(),
+      table.recordedAt.desc(),
     ),
     check(
       'cargo_preview_email_intakes_provider_email_id_check',
