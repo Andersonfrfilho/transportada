@@ -2332,3 +2332,91 @@ Contrato novo `test/driver-trip/occurrence-frame-padding.contract.ts` trava a re
 `padding: var(--space-3)`; `.occurrenceForm` sem margem negativa); provado por mutação (`padding: 0` no cartão derruba o teste).
 
 **Não verificado:** login real (Keycloak) e API real (autenticação do arnês é um stub de token; dados da demo); aparelho físico.
+
+## T7.6 — defeitos da aba Tipos achados no cadastro em staging (D1–D6) (2026-10-07)
+
+Worktree `spec-247-fix2` (branch `work/spec-247-fix2`, de `origin/staging`). Um commit por correção, contrato antes do código.
+
+| Item | Correção                                                                                                                                                                                                                                                                                                                              | Contrato                                                                                                                                                                                                                              |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1   | `loadStatus` (`loading`/`error`/`ready`) no painel; carregando mostra "Carregando tipos…" (`role="status"`), erro mostra alerta + "Tentar de novo"; o vazio só com `ready`; o formulário Novo tipo só com `ready` (o suporte do formulário sai da lista)                                                                              | `occurrence-type-load-states.contract.ts`                                                                                                                                                                                             |
+| D2   | dica no lugar do campo ausente. **A causa real é de duas regras:** reentrega e "Aceita vários itens" dependem de Produtos ≠ Desligado; "A viagem segue sem a nota" só existe em tipo do **galpão** (o CHECK do banco recusa na rua), e NÃO depende de Produtos. A dica diz cada motivo; a regra não mudou                             | `occurrence-type-hidden-fields-hint.contract.ts`                                                                                                                                                                                      |
+| D3   | aviso persistente (`role="status"`, `aria-live="polite"`, borda cobre 3px, texto `--color-fog`) quando há mudança pendente; **escolha mais simples:** o rascunho dos momentos sobrevive ao recolher (mesmo padrão do rascunho do e-mail, T7.2 B1) em vez de bloquear o recolher                                                       | `occurrence-type-moments-pending.contract.ts`                                                                                                                                                                                         |
+| D4   | depois de "Cadastrar tipo": a linha do tipo novo abre, o resumo dela recebe foco/scroll e aparece "Tipo criado. Configure o que ele exige e o e-mail abaixo." (`role="status"`); recolher a linha tira o aviso. O tipo novo é achado pelo nome + id desconhecido, porque o cadastro é fire-and-forget e a lista volta por invalidação | `occurrence-type-created-focus.contract.ts`                                                                                                                                                                                           |
+| D5   | `docs/operacao/tipos-de-ocorrencia-do-sac.md`: formulário mínimo, nota de anotar a configuração antes de mudar tipo existente, "Envio automático ou manual", Prorrogação do boleto, Item avariado e Item faltante (textos marcados como SUGESTÃO); modelo da Prorrogação atualizado em `specs/248-.../spec.md` (hífens comuns)        | marcadores conferidos por grep em `occurrence-template.constant.ts`: `contratante`, `numeroNotaSemSerie`, `motorista`, `razaoSocial`, `valorNota`, `observacao`, `codigoItem`, `item`, `quantidadeItem`, `linhasItens`, `unidadeItem` |
+| D6   | título dos grupos como `h3` dentro da `legend`, ícone `organization` (galpão) / `truck` (rua) da biblioteca própria do painel (`components/ui/icon`, sem dependência nova), `aria-hidden`, contagem com plural pt/en (`groupCount_one/_other`), filete cobre entre grupos; grupo vazio não renderiza                                  | `occurrence-type-group-titles.contract.ts`                                                                                                                                                                                            |
+
+Refactor sem mudar comportamento (commit próprio): as consultas de exceções e modelos de e-mail saíram do painel (que passaria de 200 linhas) para `useOccurrenceTypeCatalogData.hook.ts`; testes verdes antes e depois.
+
+### Mutações registradas (vermelho colado, revertidas)
+
+**D1 — voltar a mostrar o vazio enquanto pendente** (`types.length === 0` sem checar `loadStatus`):
+
+```text
+Expected to not contain: "Nenhum tipo cadastrado ainda"
+(fail) aba Tipos: carregando, erro, vazio e com tipos (D1) > carregando: mostra o estado de carregamento acessível e NÃO afirma que não há tipos [13.57ms]
+Expected to not contain: "Nenhum tipo cadastrado ainda"
+(fail) aba Tipos: carregando, erro, vazio e com tipos (D1) > erro: estado próprio com "Tentar de novo" que chama a nova leitura, sem texto de vazio [2.40ms]
+Invalid value for prop `className` on <input> tag. Either remove it from the element, or pass a string or number value to keep it in the DOM. For details, see https://react.dev/link/attribute-behavior
+ 3 pass
+ 2 fail
+```
+
+**D6 — remover o ícone do título do grupo:**
+
+```text
+Invalid value for prop `className` on <input> tag. Either remove it from the element, or pass a string or number value to keep it in the DOM. For details, see https://react.dev/link/attribute-behavior
+Expected: "true"
+Received: undefined
+(fail) títulos dos grupos da lista de tipos (D6) > cada grupo tem heading h3 com ícone aria-hidden e a contagem com plural certo [28.40ms]
+ 1 pass
+ 1 fail
+```
+
+**D6 — quebrar o plural** (contagem fixa em 2):
+
+```text
+Invalid value for prop `className` on <input> tag. Either remove it from the element, or pass a string or number value to keep it in the DOM. For details, see https://react.dev/link/attribute-behavior
+Expected to contain: "1 tipo"
+Received: "No galpão2 tipos"
+(fail) títulos dos grupos da lista de tipos (D6) > cada grupo tem heading h3 com ícone aria-hidden e a contagem com plural certo [27.88ms]
+ 1 pass
+ 1 fail
+```
+
+### Verificação no navegador (por texto e geometria, headless)
+
+Vite de **dentro deste worktree** (binário da app, porta 53010, PID 75109 com `cwd` no worktree), `VITE_SMOKE_AUTH_BYPASS=true`, `VITE_API_URL` apontando para porta sem servidor, API dublada por `page.route` do Playwright do repositório (roteiro descartável, apagado). Tema claro (o padrão do navegador headless).
+
+```text
+375 carregando: status visível=true; contém "Nenhum tipo cadastrado"=false; form Novo tipo=0
+375 erro: alerta visível; vazio=false; botão 143.421875x44; overflow=0
+375 grupos: No galpão1 tipo | svg aria-hidden=true | 171x18 | font=15.2px color=rgb(29, 43, 51) icon=rgb(163, 89, 31) || Na rua2 tipos | svg aria-hidden=true | 149x18 | font=15.2px color=rgb(29, 43, 51) icon=rgb(163, 89, 31); overflow=0
+375 D2 dica itens=true; dica galpão=true; overflow=0
+375 D3 aviso visível; rgb(29, 43, 51) on color(srgb 0.639216 0.34902 0.121569 / 0.14) border-left=3px rgb(163, 89, 31); aria-live=polite
+375 D3 aplicar 158.28125x44
+375 D3 após recolher/reabrir: aviso visível=true
+375 D4 aberto=true; foco no resumo=true; aviso="Tipo criado. Configure o que ele exige e o e-mail abaixo."; overflow=0
+768 carregando: status visível=true; contém "Nenhum tipo cadastrado"=false; form Novo tipo=0
+768 erro: alerta visível; vazio=false; botão 143.421875x44; overflow=0
+768 grupos: No galpão1 tipo | svg aria-hidden=true | 171x18 | font=15.2px color=rgb(29, 43, 51) icon=rgb(163, 89, 31) || Na rua2 tipos | svg aria-hidden=true | 149x18 | font=15.2px color=rgb(29, 43, 51) icon=rgb(163, 89, 31); overflow=0
+768 D2 dica itens=true; dica galpão=true; overflow=0
+768 D3 aviso visível; rgb(29, 43, 51) on color(srgb 0.639216 0.34902 0.121569 / 0.14) border-left=3px rgb(163, 89, 31); aria-live=polite
+768 D3 aplicar 158.28125x38.390625
+768 D3 após recolher/reabrir: aviso visível=true
+768 D4 aberto=true; foco no resumo=true; aviso="Tipo criado. Configure o que ele exige e o e-mail abaixo."; overflow=0
+1280 carregando: status visível=true; contém "Nenhum tipo cadastrado"=false; form Novo tipo=0
+1280 erro: alerta visível; vazio=false; botão 143.421875x44; overflow=0
+1280 grupos: No galpão1 tipo | svg aria-hidden=true | 171x18 | font=15.2px color=rgb(29, 43, 51) icon=rgb(163, 89, 31) || Na rua2 tipos | svg aria-hidden=true | 149x18 | font=15.2px color=rgb(29, 43, 51) icon=rgb(163, 89, 31); overflow=0
+1280 D2 dica itens=true; dica galpão=true; overflow=0
+1280 D3 aviso visível; rgb(29, 43, 51) on color(srgb 0.639216 0.34902 0.121569 / 0.14) border-left=3px rgb(163, 89, 31); aria-live=polite
+1280 D3 aplicar 158.28125x38.390625
+1280 D3 após recolher/reabrir: aviso visível=true
+1280 D4 aberto=true; foco no resumo=true; aviso="Tipo criado. Configure o que ele exige e o e-mail abaixo."; overflow=0
+```
+
+Observações: alvo ≥ 44 px sob toque a 375 px (botões "Tentar de novo" e "Aplicar momentos" com 44 px de altura); a 768/1280 o "Aplicar momentos" mede 38 px (ponteiro fino, regra de toque só no celular). Um print (1280 px) foi visto como prova e descartado. O aviso "exceções dos tipos" que aparece no teste é artefato do dublê do lote de exceções, não da tela.
+
+Servidor encerrado por PID (cwd conferido), roteiro e config temporários apagados, porta 53010 livre, `git status` limpo.
+
+**O que não foi verificado:** o estado "sucesso com lista vazia" no navegador (provado só por contrato); tema escuro no navegador (os tokens `--color-fog`, `--color-copper` e `--color-slate-muted` são os do tema; o contraste foi lido pelos valores computados do tema claro); o vermelho do D2, D3 e D4 foi registrado só como vermelho de ausência (o arquivo de teste falhava antes do código), sem mutação posterior; a integração com o cadastro real em staging.

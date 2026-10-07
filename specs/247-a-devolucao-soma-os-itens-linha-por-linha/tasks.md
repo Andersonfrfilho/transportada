@@ -158,6 +158,7 @@ OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`; `PUT` sem os campos mantém os gra
       Fechada em 2026-10-07 (evidence.md § "T7.4"); `make migration-test` não rodou literalmente (Docker): o
       `db:test` rodou no Postgres 18 nativo descartável. T0.2 segue aberta: não medida em staging (sem credencial).
 - [x] **T7.5** `evidence.md` consolidado.
+- [x] **T7.6** Defeitos da aba Tipos achados no cadastro em staging (D1 carregando × vazio, D2 dica de campos ausentes, D3 momentos pendentes, D4 tipo novo abre e confirma, D5 roteiro do SAC, D6 grupos com ícone). Evidência em `evidence.md` § T7.6.
 
 ## Prompt de execução
 
