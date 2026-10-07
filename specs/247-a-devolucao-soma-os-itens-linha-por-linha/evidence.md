@@ -1632,20 +1632,20 @@ Sem migration: `make migration-test` não se aplica. Sem push nem deploy.
 
 **Marcadores verificados por grep** (constante `occurrence-template.constant.ts`):
 
-| Marcador                 | Contexto       | Usado no roteiro | Status |
-| ------------------------ | -------------- | ---------------- | ------ |
-| `{{contratante}}`        | assunto/corpo  | ✅ assunto       | ✅     |
-| `{{numeroNotaSemSerie}}` | assunto/corpo  | ✅ assunto/corpo | ✅     |
-| `{{numeroReferencia}}`   | corpo          | ✅ corpo         | ✅     |
-| `{{valorDeclarado}}`     | corpo          | ✅ corpo         | ✅     |
-| `{{razaoSocial}}`        | corpo          | ✅ corpo         | ✅     |
-| `{{valorNota}}`          | corpo          | ✅ corpo         | ✅     |
-| `{{linhasItens}}`        | corpo (não no assunto) | ✅ corpo | ✅ |
-| `{{codigoItem}}`         | linha          | ✅ linha         | ✅     |
-| `{{item}}`               | linha          | ✅ linha         | ✅     |
-| `{{quantidadeItem}}`     | linha          | ✅ linha         | ✅     |
-| `{{unidadeItem}}`        | linha          | ✅ linha         | ✅     |
-| `{{observacao}}`         | linha          | ✅ linha         | ✅     |
+| Marcador                 | Contexto               | Usado no roteiro | Status |
+| ------------------------ | ---------------------- | ---------------- | ------ |
+| `{{contratante}}`        | assunto/corpo          | ✅ assunto       | ✅     |
+| `{{numeroNotaSemSerie}}` | assunto/corpo          | ✅ assunto/corpo | ✅     |
+| `{{numeroReferencia}}`   | corpo                  | ✅ corpo         | ✅     |
+| `{{valorDeclarado}}`     | corpo                  | ✅ corpo         | ✅     |
+| `{{razaoSocial}}`        | corpo                  | ✅ corpo         | ✅     |
+| `{{valorNota}}`          | corpo                  | ✅ corpo         | ✅     |
+| `{{linhasItens}}`        | corpo (não no assunto) | ✅ corpo         | ✅     |
+| `{{codigoItem}}`         | linha                  | ✅ linha         | ✅     |
+| `{{item}}`               | linha                  | ✅ linha         | ✅     |
+| `{{quantidadeItem}}`     | linha                  | ✅ linha         | ✅     |
+| `{{unidadeItem}}`        | linha                  | ✅ linha         | ✅     |
+| `{{observacao}}`         | linha                  | ✅ linha         | ✅     |
 
 **Conferência por grep** (arquivo `occurrence-template.constant.ts`):
 
@@ -1682,4 +1682,7 @@ $ bun run format:check (raiz) → All matched files use Prettier code style!
 ```
 
 Commit: passo seguinte.
+
+```
+
 ```
