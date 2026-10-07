@@ -9,10 +9,8 @@
 import { RAW_EMAIL_MIME_TYPE } from '../../contractor-mail/domain/contractor-mail.constant.js'
 import { buildRawEmailObjectKey } from '../../contractor-mail/domain/raw-email-object-key.policy.js'
 import { buildCargoPreviewObjectKey } from '../../cargo-preview/domain/cargo-preview-object.policy.js'
-import {
-  PREVIEW_EMAIL_IDEMPOTENCY_PREFIX,
-  PREVIEW_EMAIL_REJECTION,
-} from '../domain/cargo-preview-email.constant.js'
+import { CARGO_PREVIEW_EMAIL_IDEMPOTENCY_PREFIX } from '../../shared/cargo-preview.constant.js'
+import { PREVIEW_EMAIL_REJECTION } from '../domain/cargo-preview-email.constant.js'
 import { buildPreviewRequestFingerprint, sha256Hex } from '../domain/preview-upload-file.policy.js'
 import type {
   AcceptedRecord,
@@ -128,7 +126,7 @@ function buildRecord(context: Context): AcceptedRecord {
       bucket: dependencies.storageBucket,
       fileName: verified.file.fileName,
       fileObjectId,
-      idempotencyKey: `${PREVIEW_EMAIL_IDEMPOTENCY_PREFIX}${sha256Hex(input.providerEmailId)}`,
+      idempotencyKey: `${CARGO_PREVIEW_EMAIL_IDEMPOTENCY_PREFIX}${sha256Hex(input.providerEmailId)}`,
       objectKey: buildCargoPreviewObjectKey({ companyId: input.companyId, fileObjectId }),
       requestFingerprint: buildPreviewRequestFingerprint({
         contractorId: profile.contractorId,

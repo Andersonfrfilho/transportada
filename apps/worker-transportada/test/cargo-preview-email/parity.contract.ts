@@ -270,11 +270,13 @@ describe('a prévia por e-mail é criada como a do upload (spec 237 T4.7a, achad
   test('o prefixo `email:` da chave de idempotência é o mesmo, e a API o reserva no upload', async () => {
     const [apiConstant, workerConstant, apiSchema] = await Promise.all([
       read('../api-transportada/src/shared/cargo-preview.constant.ts'),
-      read('src/cargo-preview-email/domain/cargo-preview-email.constant.ts'),
+      read('src/shared/cargo-preview.constant.ts'),
       read('../api-transportada/src/cargo-receiving/presentation/cargo-preview.schema.ts'),
     ])
     expect(apiConstant).toContain("export const CARGO_PREVIEW_EMAIL_IDEMPOTENCY_PREFIX = 'email:'")
-    expect(workerConstant).toContain("export const PREVIEW_EMAIL_IDEMPOTENCY_PREFIX = 'email:'")
+    expect(workerConstant).toContain(
+      "export const CARGO_PREVIEW_EMAIL_IDEMPOTENCY_PREFIX = 'email:'",
+    )
     expect(apiSchema).toContain('.startsWith(CARGO_PREVIEW_EMAIL_IDEMPOTENCY_PREFIX)')
   })
 

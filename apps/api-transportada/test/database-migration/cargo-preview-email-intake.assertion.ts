@@ -90,17 +90,29 @@ async function assertProfileRules(probe: CargoPreviewEmailIntakeProbe, contracto
   const allowlistRule = 'contractor_receiving_profiles_preview_forwarder_allowlist_check'
   await expectQueryToFail(setProfile(first, null, ['']), CHECK_VIOLATION, allowlistRule)
   await expectQueryToFail(setProfile(first, null, ['ab']), CHECK_VIOLATION, allowlistRule)
-  await expectQueryToFail(setProfile(first, null, ['a@x.com', null]), CHECK_VIOLATION, allowlistRule)
+  await expectQueryToFail(
+    setProfile(first, null, ['a@x.com', null]),
+    CHECK_VIOLATION,
+    allowlistRule,
+  )
   await expectQueryToFail(setProfile(first, null, [null]), CHECK_VIOLATION, allowlistRule)
   await expectQueryToFail(setProfile(first, null, ['a@x.com', '']), CHECK_VIOLATION, allowlistRule)
-  await expectQueryToFail(setProfile(first, null, ['abc|def@x.com']), CHECK_VIOLATION, allowlistRule)
+  await expectQueryToFail(
+    setProfile(first, null, ['abc|def@x.com']),
+    CHECK_VIOLATION,
+    allowlistRule,
+  )
   await expectQueryToFail(
     setProfile(first, null, [`${'a'.repeat(250)}@x.com`]),
     CHECK_VIOLATION,
     allowlistRule,
   )
   await expectQueryToFail(
-    setProfile(first, null, Array.from({ length: 21 }, (_, index) => `a${index}@x.com`)),
+    setProfile(
+      first,
+      null,
+      Array.from({ length: 21 }, (_, index) => `a${index}@x.com`),
+    ),
     CHECK_VIOLATION,
     allowlistRule,
   )

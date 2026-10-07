@@ -36,8 +36,6 @@ export const PREVIEW_EMAIL_MIME_LIMITS = {
 /** O bloco encaminhado de um cliente de e-mail: o marcador está perto do topo e o cabeçalho é curto. */
 export const FORWARDED_BLOCK_LIMITS = { maxHeaderLines: 12, maxScanLines: 200 } as const
 
-/** A chave de idempotência da prévia por e-mail começa assim; a API reserva o prefixo e o recusa no upload. */
-export const PREVIEW_EMAIL_IDEMPOTENCY_PREFIX = 'email:'
 export const PREVIEW_EMAIL_FALLBACK_FILE_NAME = 'previa.xlsx'
 
 /** Os códigos de recusa que mais de um ponto do ramo grava; o resto mora ao lado de quem o decide. */

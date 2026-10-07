@@ -7,6 +7,13 @@
  */
 
 export const CARGO_PREVIEW_SOURCE = { email: 'email', upload: 'upload' } as const
+
+/**
+ * Spec 237 T4.7a: a prévia por e-mail guarda `email:<sha256 do id da mensagem>` em `idempotency_key`. O
+ * upload nunca usa o prefixo — uma chave de cliente igual colidiria com a de uma mensagem. O arquivo do worker
+ * é cópia por valor deste, cobrada por contrato de paridade.
+ */
+export const CARGO_PREVIEW_EMAIL_IDEMPOTENCY_PREFIX = 'email:'
 export type CargoPreviewSource = (typeof CARGO_PREVIEW_SOURCE)[keyof typeof CARGO_PREVIEW_SOURCE]
 export const CARGO_PREVIEW_SOURCES = Object.values(CARGO_PREVIEW_SOURCE)
 
