@@ -20,7 +20,10 @@ import {
   CARGO_PREVIEW_EMAIL_OUTCOME,
   CARGO_PREVIEW_ORIGINAL_SENDER_VERIFICATION,
 } from '../../shared/cargo-preview.constant.js'
-import { PREVIEW_EMAIL_REJECTION } from '../domain/cargo-preview-email.constant.js'
+import {
+  PREVIEW_EMAIL_REJECTION,
+  PREVIEW_EMAIL_UNPROVEN_REJECTIONS,
+} from '../domain/cargo-preview-email.constant.js'
 import { createPreviewFromEmail } from './cargo-preview-email-create.writer.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -45,14 +48,19 @@ export function createDrizzleCargoPreviewEmailRepository(
   return {
     async countRecentIntakes({ companyId, contractorId, windowSeconds }) {
       const result = cargoPreviewEmailIntakes.forwarderDkimResult
-      const isAuthenticated = sql`${result} = ${DKIM_ALIGNMENT_RESULT.ALIGNED}`
+      const reason = cargoPreviewEmailIntakes.reasonCode
+      const unproven = sql.join(
+        PREVIEW_EMAIL_UNPROVEN_REJECTIONS.map((code) => sql`${code}`),
+        sql`, `,
+      )
+      const isAuthenticated = sql`${result} = ${DKIM_ALIGNMENT_RESULT.ALIGNED} and (${reason} is null or ${reason} not in (${unproven}))`
+      const isUnauthenticated = sql`(${result} is distinct from ${DKIM_ALIGNMENT_RESULT.ALIGNED} or ${reason} in (${unproven})) and ${reason} is distinct from ${PREVIEW_EMAIL_REJECTION.rateLimited}`
       const [row] = await database
         .select({
           authenticated: sql<number>`count(*) filter (where ${isAuthenticated})`.mapWith(Number),
-          unauthenticated:
-            sql<number>`count(*) filter (where ${result} is distinct from ${DKIM_ALIGNMENT_RESULT.ALIGNED} and ${cargoPreviewEmailIntakes.reasonCode} is distinct from ${PREVIEW_EMAIL_REJECTION.rateLimited})`.mapWith(
-              Number,
-            ),
+          unauthenticated: sql<number>`count(*) filter (where ${isUnauthenticated})`.mapWith(
+            Number,
+          ),
         })
         .from(cargoPreviewEmailIntakes)
         .where(

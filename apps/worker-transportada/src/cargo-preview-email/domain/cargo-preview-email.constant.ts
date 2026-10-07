@@ -21,6 +21,7 @@ export const PREVIEW_EMAIL_MAX_RAW_BYTES = 2 * 1024 * 1024
  * dele custam só uma linha de recusa: passado o teto, 100 em 5 minutos, a recusa continua sendo AVALIADA e
  * devolvida, mas deixa de ser GRAVADA (a tabela não vira alvo de inundação, e o encaminhador legítimo não fica
  * trancado do lado de fora por lixo endereçado ao token). O excesso deixa uma única linha `RATE_LIMITED` por janela.
+ * T4.7d: "passou do DKIM" não basta para ser autenticado — ver `PREVIEW_EMAIL_UNPROVEN_REJECTIONS`.
  */
 export const PREVIEW_EMAIL_INTAKE_RATE_LIMIT = {
   maxAuthenticated: 20,
@@ -53,3 +54,19 @@ export const PREVIEW_EMAIL_REJECTION = {
   rawEmailTooLarge: 'RAW_EMAIL_TOO_LARGE',
   tooManyOpenPreviews: 'TOO_MANY_OPEN_PREVIEWS',
 } as const satisfies Record<string, CargoPreviewEmailRejectionCode>
+
+/**
+ * Spec 237 T4.7d: recusas gravadas com o DKIM do encaminhador `aligned` que o encaminhador NÃO prova — o alinhamento
+ * pode ser do domínio do atacante (`From` divergente, encaminhador fora da lista, MIME ilegível) ou de uma mensagem
+ * assinada pelo encaminhador que o atacante só reenviou (resposta de `logistica@` sem remetente original). Só a
+ * recusa DEPOIS de o remetente original passar na lista (anexo inválido, teto de abertas) exige o arquivo certo, e
+ * é a única que consome a janela de autenticados; estas contam na de recusas, que só impede a inundação de linhas.
+ */
+export const PREVIEW_EMAIL_UNPROVEN_REJECTIONS = [
+  PREVIEW_EMAIL_REJECTION.forwarderFromMismatch,
+  PREVIEW_EMAIL_REJECTION.forwarderNotAllowed,
+  PREVIEW_EMAIL_REJECTION.mimeUnreadable,
+  PREVIEW_EMAIL_REJECTION.originalSenderAmbiguous,
+  PREVIEW_EMAIL_REJECTION.originalSenderMissing,
+  PREVIEW_EMAIL_REJECTION.originalSenderNotAllowed,
+] as const

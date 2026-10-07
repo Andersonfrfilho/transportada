@@ -1,16 +1,14 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 237 T4.6/T4.7c: registra a recusa (só código e resultado do DKIM) e devolve o resultado do ramo. Com a
- * janela de não autenticados cheia, a recusa anterior ao DKIM é devolvida SEM linha nova — só o rastro único
+ * Spec 237 T4.6/T4.7c/T4.7d: registra a recusa (só código e resultado do DKIM) e devolve o resultado do ramo. Com a
+ * janela de recusas cheia, a que o encaminhador não prova (anterior ao DKIM ou não autenticada) é devolvida SEM linha nova — só o rastro único
  * `RATE_LIMITED` da janela —, e a avaliação da mensagem segue como sempre.
  */
-import {
-  DKIM_ALIGNMENT_RESULT,
-  type DkimAlignmentResult,
-} from '../../contractor-mail/domain/dkim-alignment.policy.js'
+import type { DkimAlignmentResult } from '../../contractor-mail/domain/dkim-alignment.policy.js'
 import type { CargoPreviewEmailRejectionCode } from '../../shared/cargo-preview.constant.js'
 import { PREVIEW_EMAIL_INTAKE_RATE_LIMIT } from '../domain/cargo-preview-email.constant.js'
+import { countsAsAuthenticatedIntake } from '../domain/preview-intake-window.policy.js'
 import type {
   CargoPreviewEmailIntakeInput,
   CargoPreviewEmailIntakeResult,
@@ -31,7 +29,7 @@ export type PreviewEmailRejecter = (
 
 type RejecterContext = {
   readonly input: CargoPreviewEmailIntakeInput
-  /** A janela de recusas anteriores ao DKIM já está cheia: a recusa não grava linha nova. */
+  /** A janela de recusas não autenticadas já está cheia: a recusa não grava linha nova. */
   readonly isUnauthenticatedWindowFull: boolean
   readonly profile: PreviewProfileRecord
   readonly repository: CargoPreviewEmailRepositoryPort
@@ -40,8 +38,8 @@ type RejecterContext = {
 export function createPreviewEmailRejecter(context: RejecterContext): PreviewEmailRejecter {
   const { input, profile, repository } = context
   return async (reason, detail = {}) => {
-    const isBeforeDkim = detail.dkimResult !== DKIM_ALIGNMENT_RESULT.ALIGNED
-    if (context.isUnauthenticatedWindowFull && isBeforeDkim) {
+    const isAuthenticated = countsAsAuthenticatedIntake({ dkimResult: detail.dkimResult, reason })
+    if (context.isUnauthenticatedWindowFull && !isAuthenticated) {
       await recordRateLimitedTrace(context)
     } else {
       await repository.recordRejection({
