@@ -15,6 +15,7 @@ import { createCargoArrivalRoutes } from '../src/cargo-receiving/presentation/ca
 import { createCargoPreviewActionRoutes } from '../src/cargo-receiving/presentation/cargo-preview-action.routes'
 import { createCargoPreviewTripDraftRoutes } from '../src/cargo-receiving/presentation/cargo-preview-trip-draft.routes'
 import { createCargoPreviewRoutes } from '../src/cargo-receiving/presentation/cargo-preview.routes'
+import { createContractorPreviewEmailRoutes } from '../src/cargo-receiving/presentation/contractor-preview-email.routes'
 import { createCteIssuanceRoutes } from '../src/cte-issuance/presentation/cte-issuance.routes'
 import { createCompanyCrewSettingsRoutes } from '../src/fleet/presentation/crew-settings.routes'
 import { createFleetRoutes } from '../src/fleet/presentation/fleet.routes'
@@ -119,6 +120,9 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     ...createCargoPreviewRoutes(dependencies),
     ...createCargoPreviewActionRoutes(dependencies),
     ...createCargoPreviewTripDraftRoutes(dependencies),
+    // Spec 237 T4.6b: a entrada da prévia por e-mail é configuração (`settings.manage`, ler e escrever): o
+    // separador lê a frota (`fleet.read`) e **não** alcança nenhuma das quatro rotas.
+    ...createContractorPreviewEmailRoutes(dependencies),
   ]
 
   return routes

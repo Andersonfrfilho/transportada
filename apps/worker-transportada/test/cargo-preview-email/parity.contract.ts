@@ -293,3 +293,55 @@ describe('a prévia por e-mail é criada como a do upload (spec 237 T4.7a, achad
     expect(codes(workerConstant)).toBe(codes(apiConstant))
   })
 })
+
+const API_TOKEN_POLICY =
+  '../api-transportada/src/cargo-receiving/domain/preview-inbound-token.policy.ts'
+const WORKER_TOKEN_POLICY = 'src/cargo-preview-email/domain/preview-inbound-token.policy.ts'
+const WORKER_EMAIL_CONSTANTS = 'src/cargo-preview-email/domain/cargo-preview-email.constant.ts'
+const API_ALLOWLIST_CONSTANTS =
+  '../api-transportada/src/cargo-receiving/domain/contractor-preview-email.constant.ts'
+
+describe('o token da entrada por e-mail é gerado na API e lido no worker com a mesma regra (spec 237 T4.6b)', () => {
+  const tokenSnippets = [
+    'export const PREVIEW_INBOUND_TOKEN_PATTERN = /^[a-z2-7]{26}$/u',
+    "export const PREVIEW_INBOUND_TOKEN_PURPOSE = 'transportada:cargo-preview-inbound:v1'",
+    "createHash('sha256').update(`${PREVIEW_INBOUND_TOKEN_PURPOSE}:${token}`).digest('hex')",
+  ] as const
+
+  test.each([...tokenSnippets])('o trecho %# existe na API e no worker', async (snippet) => {
+    const [api, workerFiles] = await Promise.all([
+      read(API_TOKEN_POLICY),
+      Promise.all([read(WORKER_TOKEN_POLICY), read(WORKER_EMAIL_CONSTANTS)]),
+    ])
+    expect(api).toContain(snippet)
+    expect(workerFiles.join('\n')).toContain(snippet)
+  })
+
+  test('o que a API gera cabe no padrão que o worker aceita: 26 símbolos de 5 bits', async () => {
+    const [api, workerConstants] = await Promise.all([
+      read(API_TOKEN_POLICY),
+      read(WORKER_EMAIL_CONSTANTS),
+    ])
+    const alphabet = /const TOKEN_ALPHABET = '([^']+)'/u.exec(api)?.[1] ?? ''
+    const length = Number(/const TOKEN_LENGTH = (\d+)/u.exec(api)?.[1])
+    const pattern = /PREVIEW_INBOUND_TOKEN_PATTERN = \/(.+)\/u/u.exec(workerConstants)?.[1] ?? ''
+
+    expect(alphabet).toHaveLength(32)
+    expect(new Set(alphabet).size).toBe(32)
+    expect(length * Math.log2(alphabet.length)).toBeGreaterThanOrEqual(130)
+    const workerPattern = new RegExp(pattern, 'u')
+    for (const symbol of alphabet) expect(workerPattern.test(symbol.repeat(length))).toBe(true)
+  })
+
+  test('as faixas das listas da API são as do CHECK que o worker já lê', async () => {
+    const [apiConstants, apiSchema] = await Promise.all([
+      read(API_ALLOWLIST_CONSTANTS),
+      read('../api-transportada/src/database/contractor-receiving-profile.schema.ts'),
+    ])
+    expect(apiConstants).toContain('entryMaxLength: 254')
+    expect(apiConstants).toContain('entryMinLength: 3')
+    expect(apiConstants).toContain('maxEntries: 20')
+    expect(apiSchema).toContain('between 1 and 20')
+    expect(apiSchema).toContain('{3,254}')
+  })
+})
