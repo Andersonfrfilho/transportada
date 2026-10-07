@@ -4,6 +4,7 @@
 import { sql } from 'drizzle-orm'
 import {
   boolean,
+  char,
   check,
   foreignKey,
   jsonb,
@@ -13,6 +14,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
 
@@ -48,6 +50,15 @@ export const contractorReceivingProfiles = pgTable(
     /** O texto literal que antecede o número da carga no `infCpl` (ex.: `NroCarga:`). */
     arrivalReferenceLabel: text('arrival_reference_label'),
     requiresDamageCheck: boolean('requires_damage_check').notNull().default(false),
+    /**
+     * Spec 237 T4.6 (ADR-0094 §10): o hash do token do endereço de entrada da prévia por e-mail
+     * encaminhado. O token em si nunca é guardado; sem hash, o contratante não recebe prévia por e-mail.
+     */
+    previewInboundTokenHash: char('preview_inbound_token_hash', { length: 64 }),
+    /** Quem encaminha (a equipe): endereço exato, minúsculo. */
+    previewForwarderAllowlist: text('preview_forwarder_allowlist').array(),
+    /** O remetente original do contratante, lido do cabeçalho: endereço exato ou domínio. */
+    previewSenderAllowlist: text('preview_sender_allowlist').array(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -103,6 +114,26 @@ export const contractorReceivingProfiles = pgTable(
       'contractor_receiving_profiles_arrival_reference_pattern_check',
       sql`char_length(${table.arrivalReferencePattern}) between 1 and 200`,
     ),
+    check(
+      'contractor_receiving_profiles_preview_inbound_token_hash_check',
+      sql`${table.previewInboundTokenHash} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      'contractor_receiving_profiles_preview_forwarder_allowlist_check',
+      sql`cardinality(${table.previewForwarderAllowlist}) between 1 and 20 and char_length(array_to_string(${table.previewForwarderAllowlist}, '|')) <= 5100 and array_to_string(${table.previewForwarderAllowlist}, '|') !~ '[[:cntrl:][:space:],<>]'`,
+    ),
+    check(
+      'contractor_receiving_profiles_preview_sender_allowlist_check',
+      sql`cardinality(${table.previewSenderAllowlist}) between 1 and 20 and char_length(array_to_string(${table.previewSenderAllowlist}, '|')) <= 5100 and array_to_string(${table.previewSenderAllowlist}, '|') !~ '[[:cntrl:][:space:],<>]'`,
+    ),
+    /** Token sem as duas listas abriria a entrada a qualquer remetente: o banco recusa. */
+    check(
+      'contractor_receiving_profiles_preview_inbound_allowlists_check',
+      sql`${table.previewInboundTokenHash} is null or (${table.previewForwarderAllowlist} is not null and ${table.previewSenderAllowlist} is not null)`,
+    ),
+    uniqueIndex('contractor_receiving_profiles_company_inbound_token_unique')
+      .on(table.companyId, table.previewInboundTokenHash)
+      .where(sql`${table.previewInboundTokenHash} is not null`),
     check(
       'contractor_receiving_profiles_arrival_reference_label_check',
       sql`char_length(${table.arrivalReferenceLabel}) between 1 and 60 and ${table.arrivalReferenceLabel} !~ '[[:cntrl:]]'`,

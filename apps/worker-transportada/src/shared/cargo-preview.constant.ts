@@ -6,7 +6,7 @@
  * contrato de paridade.
  */
 
-export const CARGO_PREVIEW_SOURCE = { upload: 'upload' } as const
+export const CARGO_PREVIEW_SOURCE = { email: 'email', upload: 'upload' } as const
 export type CargoPreviewSource = (typeof CARGO_PREVIEW_SOURCE)[keyof typeof CARGO_PREVIEW_SOURCE]
 export const CARGO_PREVIEW_SOURCES = Object.values(CARGO_PREVIEW_SOURCE)
 
@@ -121,3 +121,44 @@ export const CARGO_PREVIEW_OUTBOX_EVENTS = Object.values(CARGO_PREVIEW_OUTBOX_EV
 export const CARGO_PREVIEW_MATCH_LOCK_PREFIX = 'cargo-preview-match'
 
 export const CARGO_PREVIEW_LIMITS = { fileNameMaxLength: 180 } as const
+
+/**
+ * Spec 237 T4.6 (ADR-0094 §10): o que o ramo de e-mail encaminhado fez com cada mensagem. A recusa
+ * guarda só um código estável — nunca endereço, nome, assunto, corpo ou cabeçalho.
+ */
+export const CARGO_PREVIEW_EMAIL_OUTCOME = { accepted: 'accepted', rejected: 'rejected' } as const
+export type CargoPreviewEmailOutcome =
+  (typeof CARGO_PREVIEW_EMAIL_OUTCOME)[keyof typeof CARGO_PREVIEW_EMAIL_OUTCOME]
+export const CARGO_PREVIEW_EMAIL_OUTCOMES = Object.values(CARGO_PREVIEW_EMAIL_OUTCOME)
+
+export const CARGO_PREVIEW_EMAIL_REJECTION_CODES = [
+  'ATTACHMENT_AMBIGUOUS',
+  'ATTACHMENT_MISSING',
+  'ATTACHMENT_NOT_A_WORKBOOK',
+  'ATTACHMENT_TOO_LARGE',
+  'FORWARDER_DKIM_NOT_ALIGNED',
+  'FORWARDER_NOT_ALLOWED',
+  'MIME_UNREADABLE',
+  'ORIGINAL_SENDER_AMBIGUOUS',
+  'ORIGINAL_SENDER_MISSING',
+  'ORIGINAL_SENDER_NOT_ALLOWED',
+  'PREVIEW_NOT_ENABLED',
+  'RAW_EMAIL_TOO_LARGE',
+  'TOO_MANY_OPEN_PREVIEWS',
+] as const
+export type CargoPreviewEmailRejectionCode = (typeof CARGO_PREVIEW_EMAIL_REJECTION_CODES)[number]
+
+/** O DKIM do encaminhador, como o trilho da 143 o grava; o do contratante se perde no encaminhamento. */
+export const CARGO_PREVIEW_EMAIL_DKIM_RESULTS = [
+  'aligned',
+  'not_aligned',
+  'unverifiable',
+  'absent',
+] as const
+export type CargoPreviewEmailDkimResult = (typeof CARGO_PREVIEW_EMAIL_DKIM_RESULTS)[number]
+
+/** O remetente original é lido do cabeçalho de quem encaminha: informação, nunca autenticação. */
+export const CARGO_PREVIEW_ORIGINAL_SENDER_VERIFICATION = { unverified: 'unverified' } as const
+export const CARGO_PREVIEW_ORIGINAL_SENDER_VERIFICATIONS = Object.values(
+  CARGO_PREVIEW_ORIGINAL_SENDER_VERIFICATION,
+)

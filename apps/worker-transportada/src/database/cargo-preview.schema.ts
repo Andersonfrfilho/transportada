@@ -44,6 +44,10 @@ export const cargoPreviews = pgTable('cargo_previews', {
   plannedDate: date('planned_date', { mode: 'string' }),
   rowCount: integer('row_count'),
   errorCode: varchar('error_code', { length: 40 }).$type<CargoPreviewFailureCode>(),
+  /** Nulo na prévia que veio por e-mail encaminhado (ADR-0094 §10). */
+  uploadedByUserId: uuid('uploaded_by_user_id'),
+  idempotencyKey: text('idempotency_key').notNull(),
+  requestFingerprint: char('request_fingerprint', { length: 64 }).notNull(),
   updatedAt: timestamp('updated_at', withTimezone).notNull().defaultNow(),
 })
 

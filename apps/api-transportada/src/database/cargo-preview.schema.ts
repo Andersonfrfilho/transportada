@@ -64,7 +64,8 @@ export const cargoPreviews = pgTable(
     plannedDate: date('planned_date', { mode: 'string' }),
     rowCount: integer('row_count'),
     errorCode: varchar('error_code', { length: 40 }).$type<CargoPreviewFailureCode>(),
-    uploadedByUserId: uuid('uploaded_by_user_id').notNull(),
+    /** Nulo só na prévia que veio por e-mail encaminhado (ADR-0094 §10): ninguém clicou. */
+    uploadedByUserId: uuid('uploaded_by_user_id'),
     idempotencyKey: text('idempotency_key').notNull(),
     /** sha256 de contratante + arquivo: a mesma chave com outro pedido é reuso, não repetição. */
     requestFingerprint: char('request_fingerprint', { length: 64 }).notNull(),
@@ -128,6 +129,10 @@ export const cargoPreviews = pgTable(
     check(
       'cargo_previews_source_check',
       sql`${table.source} in (${raw(inList(CARGO_PREVIEW_SOURCES))})`,
+    ),
+    check(
+      'cargo_previews_uploader_check',
+      sql`(${table.source} = 'upload') = (${table.uploadedByUserId} is not null)`,
     ),
     check(
       'cargo_previews_status_check',

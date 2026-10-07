@@ -8,6 +8,7 @@
 import {
   bigint,
   boolean,
+  char,
   jsonb,
   numeric,
   pgTable,
@@ -78,4 +79,7 @@ export const contractorReceivingProfiles = pgTable('contractor_receiving_profile
   previewSheetName: text('preview_sheet_name'),
   previewColumnMap: jsonb('preview_column_map'),
   arrivalReferenceLabel: text('arrival_reference_label'),
+  previewInboundTokenHash: char('preview_inbound_token_hash', { length: 64 }),
+  previewForwarderAllowlist: text('preview_forwarder_allowlist').array(),
+  previewSenderAllowlist: text('preview_sender_allowlist').array(),
 })

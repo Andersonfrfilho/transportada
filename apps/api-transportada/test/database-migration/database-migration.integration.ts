@@ -19,6 +19,7 @@ import { assertIdentityConstraints } from './identity-constraints.assertion.js'
 import { assertInvitationConstraints } from './invitation-constraints.assertion.js'
 import { assertCargoPreviewFailureCodes } from './cargo-preview-failure-codes.assertion.js'
 import { assertCargoPreviewSecurityFailureCodes } from './cargo-preview-security-failure-codes.assertion.js'
+import { assertCargoPreviewEmailIntake } from './cargo-preview-email-intake.assertion.js'
 import { assertArrivalReferenceLabel } from './contractor-receiving-arrival-reference-label.assertion.js'
 import { assertLocationRetentionRollbackRefusesRecordedSettings } from './location-retention-rollback.assertion.js'
 import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
@@ -309,6 +310,13 @@ describe('Drizzle migration integration', () => {
           connectionString,
           database,
           directories: migrationDirectories,
+        })
+        await assertCargoPreviewEmailIntake({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          userId: identityFixture.userId,
         })
 
         const postIdentityRollbacks = await Promise.all(
