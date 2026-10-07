@@ -16,6 +16,7 @@ import type {
   TripVehicleCandidate,
 } from '../domain/trip.policy.js'
 import type { TripDocumentFreightSource } from '../domain/trip-document-freight.policy.js'
+import type { TransferTripCrewParams, TransferTripCrewResult } from './trip-crew-transfer.types.js'
 
 /**
  * A tripulação **na leitura**: o retrato fiscal (`TripDriverLine`, congelado quando a viagem foi
@@ -452,6 +453,13 @@ export type TripRepositoryPort = {
     readonly tripId: string
     readonly vehicleId: string | null
   }): Promise<TripDetail | null>
+  /**
+   * Spec 249: troca a tripulação de uma viagem que já saiu — `null` quando a viagem não existe.
+   * Reconfere a janela e a tripulação atual sob `FOR NO KEY UPDATE`, grava o histórico na mesma
+   * transação e lança `TripCrewUnchangedError` quando o pedido não muda nada. Não toca em veículo,
+   * rota, status nem ETA.
+   */
+  transferCrew(input: TransferTripCrewParams): Promise<TransferTripCrewResult | null>
   /** Devolve `null` quando o documento já não está mais elegível para desvínculo (entregue/liberado). */
   releaseDocument(input: {
     readonly companyId: string

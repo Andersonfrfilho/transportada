@@ -8,6 +8,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import type { CompanyRole } from '../../src/database/database.schema.js'
 import { resolveCompanyPermissions } from '../../src/identity/domain/authorization.policy.js'
 import {
   TripCrewUnchangedError,
@@ -28,6 +29,11 @@ import {
   tripDetailPath,
 } from '../fixtures/trip-http-payload.fixture'
 import { COMPANY_CONTEXT, createTripHttpFixture } from '../fixtures/trip-http.fixture'
+
+/** Cópia plana: o `Set` que `resolveCompanyPermissions` devolve não sobrevive ao `structuredClone` da fixture. */
+function permissionsOf(role: CompanyRole) {
+  return new Set(resolveCompanyPermissions([role]))
+}
 
 const REASON = 'Motorista passou mal na estrada'
 
@@ -122,7 +128,7 @@ describe('trip crew transfer http contract', () => {
       'o papel %s alcança a rota',
       async (role) => {
         const fixture = await createTripHttpFixture({
-          permissions: resolveCompanyPermissions([role]),
+          permissions: permissionsOf(role),
         })
 
         const response = await fixture.handle(transferRequest())
@@ -135,7 +141,7 @@ describe('trip crew transfer http contract', () => {
       'o papel %s recebe 403 e nada é executado',
       async (role) => {
         const fixture = await createTripHttpFixture({
-          permissions: resolveCompanyPermissions([role]),
+          permissions: permissionsOf(role),
         })
 
         const response = await fixture.handle(transferRequest())

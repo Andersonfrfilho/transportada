@@ -235,6 +235,9 @@ function createFixture(params: FixtureParams = {}) {
             vehicleId: input.vehicleId,
           }
     },
+    async transferCrew() {
+      throw new Error('TRANSFER_CREW_NOT_EXERCISED_HERE')
+    },
     async setTrailer(input) {
       setTrailerCalls.push(input)
       if (params.setTrailerResult !== undefined) return params.setTrailerResult

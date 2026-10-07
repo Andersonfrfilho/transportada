@@ -27,6 +27,7 @@ import {
   type TripRouteFreezeLogger,
 } from './freeze-trip-route-gracefully.js'
 import type { PlanTripRouteTollFreezer } from './plan-trip-route.use-case.js'
+import type { TransferTripCrewInput, TransferTripCrewResult } from './trip-crew-transfer.types.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
 import { resolveTripCrewForCreation, resolveTripVehicleForCreation } from './trip-crew.service.js'
 import type {
@@ -111,6 +112,7 @@ export type TripUseCase = {
   releaseDocument(input: ReleaseTripDocumentInput): Promise<TripDocument>
   updateCrew(input: UpdateTripCrewInput): Promise<TripDetail>
   setTrailer(input: SetTripTrailerInput): Promise<TripDetail>
+  transferCrew(input: TransferTripCrewInput): Promise<TransferTripCrewResult>
 }
 
 export function createTripUseCase(dependencies: {
@@ -325,6 +327,47 @@ export function createTripUseCase(dependencies: {
       })
       if (updated === null) throw new TripNotFoundError()
       return updated
+    },
+
+    /**
+     * Spec 249: passa a viagem que já saiu para outra tripulação, sem tocar em veículo, rota, valor
+     * de frete nem status. A janela aqui é a checagem prévia (UX); `repository.transferCrew` a
+     * reconfere sob lock e decide se o pedido muda alguma coisa.
+     */
+    async transferCrew({
+      context,
+      correlationId,
+      driverIds,
+      helperIds,
+      ipAddress,
+      reason,
+      tripId,
+    }) {
+      const companyId = context.companyId
+      const trip = await findTripOrThrow({ companyId, repository, tripId })
+
+      const transition = checkTripTransition({
+        action: TRIP_ACTION.transferCrew,
+        hasRoute: false,
+        tripStatus: trip.status,
+      })
+      if (transition.outcome === 'blocked') {
+        throw new TripStateTransitionNotAllowedError(transition.reason)
+      }
+
+      const crew = await resolveTripCrewForCreation({ companyId, driverIds, helperIds, repository })
+      const transferred = await repository.transferCrew({
+        actorUserId: context.userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId,
+        correlationId,
+        crew,
+        ipAddress,
+        reason,
+        tripId,
+      })
+      if (transferred === null) throw new TripNotFoundError()
+      return transferred
     },
 
     async setTrailer({ context, tripId, trailerVehicleId }) {

@@ -13,7 +13,23 @@ import { ROUTE_CHOICE_CRITERIA, SIGNATURE_HEX_LENGTH } from '../domain/route-cho
  * tripulação (`awaiting_crew`); quem decide o status é `resolveCrewStatus` a partir do par
  * motorista+veículo, nunca este schema.
  */
-const MAX_TRIP_DRIVERS = 10
+export const MAX_TRIP_DRIVERS = 10
+
+/**
+ * O teto de `MAX_TRIP_DRIVERS` vale para a tripulação **inteira** — motoristas e ajudantes somados —,
+ * e o erro aponta para `helperIds`, o campo que estourou o total.
+ */
+export function refineCrewSize(
+  body: { readonly driverIds: readonly string[]; readonly helperIds: readonly string[] },
+  context: z.RefinementCtx,
+): void {
+  if (body.driverIds.length + body.helperIds.length <= MAX_TRIP_DRIVERS) return
+  context.addIssue({
+    code: 'custom',
+    message: `The crew cannot have more than ${MAX_TRIP_DRIVERS} people.`,
+    path: ['helperIds'],
+  })
+}
 
 /**
  * L3 (revisão final da 153): a assinatura sempre é o hash truncado que `buildRouteSignature`
@@ -54,15 +70,7 @@ export const createTripSchema = z
     vehicleId: z.uuid().optional(),
   })
   .strict()
-  .superRefine((body, context) => {
-    if (body.driverIds.length + body.helperIds.length > MAX_TRIP_DRIVERS) {
-      context.addIssue({
-        code: 'custom',
-        message: `The crew cannot have more than ${MAX_TRIP_DRIVERS} people.`,
-        path: ['helperIds'],
-      })
-    }
-  })
+  .superRefine(refineCrewSize)
 
 export type CreateTripBody = z.infer<typeof createTripSchema>
 
@@ -79,15 +87,7 @@ export const updateTripCrewSchema = z
     vehicleId: z.uuid().optional(),
   })
   .strict()
-  .superRefine((body, context) => {
-    if (body.driverIds.length + body.helperIds.length > MAX_TRIP_DRIVERS) {
-      context.addIssue({
-        code: 'custom',
-        message: `The crew cannot have more than ${MAX_TRIP_DRIVERS} people.`,
-        path: ['helperIds'],
-      })
-    }
-  })
+  .superRefine(refineCrewSize)
 
 export type UpdateTripCrewBody = z.infer<typeof updateTripCrewSchema>
 

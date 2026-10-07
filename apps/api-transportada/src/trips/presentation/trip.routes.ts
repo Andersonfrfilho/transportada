@@ -91,6 +91,14 @@ import {
 } from './trip-financial.schema.js'
 import { parseTripDeliveryProofsQuery } from './trip-delivery-proofs.schema.js'
 import { parseTripTimelineQuery } from './trip-timeline.schema.js'
+import {
+  parseTransferTripCrewRequest,
+  serializeTripCrewTransfer,
+} from './trip-crew-transfer.schema.js'
+import type {
+  TransferTripCrewInput,
+  TransferTripCrewResult,
+} from '../application/trip-crew-transfer.types.js'
 import type {
   ReadTripTimelineResult,
   TripTimelineCursor,
@@ -167,6 +175,7 @@ import type { RouteChoice } from '../domain/route-choice.policy.js'
 
 const TRIP_CLOSE_PATH = `${API_TRIPS_PATH}/:id/close`
 const TRIP_CREW_PATH = `${API_TRIPS_PATH}/:id/crew`
+const TRIP_CREW_TRANSFERS_PATH = `${API_TRIPS_PATH}/:id/crew-transfers`
 const TRIP_DETAIL_PATH = `${API_TRIPS_PATH}/:id`
 const TRIP_ALLOWED_ACTIONS_PATH = `${TRIP_DETAIL_PATH}/allowed-actions`
 const TRIP_DOCUMENTS_PATH = `${API_TRIPS_PATH}/:id/documents`
@@ -525,6 +534,9 @@ type Dependencies = {
   readonly createTrip: { execute(input: TenantInput<CreateTripInput>): Promise<TripDetail> }
   readonly updateTripCrew: {
     execute(input: TenantInput<UpdateTripCrewInput>): Promise<TripDetail>
+  }
+  readonly transferTripCrew: {
+    execute(input: TenantInput<TransferTripCrewInput>): Promise<TransferTripCrewResult>
   }
   readonly createTripCteBatch: {
     execute(input: {
@@ -1393,6 +1405,47 @@ export function createTripRoutes(
       },
       pathname: TRIP_CREW_PATH,
       policy: TRIP_MANAGE_POLICY,
+    }),
+    /**
+     * Spec 249 D3: passa a viagem que **já saiu** para outra tripulação, sem tocar em veículo, rota,
+     * valor de frete nem status. É a mesma permissão da baixa em nome do motorista (ADR-0067) — o
+     * separador monta a viagem, mas não a transfere. `PATCH /trips/:id/crew` e a janela da 217 seguem
+     * como eram.
+     */
+    defineRoute<Omit<TransferTripCrewInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const { transfer, trip } = await dependencies.transferTripCrew.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({
+          body: {
+            data: {
+              transfer: serializeTripCrewTransfer(transfer),
+              trip: serializeTripDetail({
+                canReadDriverContact: context.scope.permissions.has(TRIP_READ_POLICY.permission),
+                canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
+                trip,
+              }),
+            },
+          },
+          status: 201,
+        })
+      },
+      method: 'POST',
+      async parse({ correlationId, pathParameters, request }) {
+        const body = await parseTransferTripCrewRequest(request)
+        return {
+          correlationId,
+          driverIds: body.driverIds,
+          helperIds: body.helperIds,
+          ipAddress: dependencies.resolveClientIp(request),
+          reason: body.reason,
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: TRIP_CREW_TRANSFERS_PATH,
+      policy: OFFICE_REPORT_POLICY,
     }),
     defineRoute<Omit<LinkTripDocumentInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {

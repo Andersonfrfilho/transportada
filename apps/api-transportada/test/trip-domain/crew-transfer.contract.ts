@@ -13,6 +13,7 @@ import {
   isCrewRequestUnchanged,
   parseCrewSnapshot,
 } from '../../src/trips/domain/trip-crew-transfer.policy.js'
+import type { TripCrewEventMember } from '../../src/database/trip.schema.js'
 import { TripCrewUnchangedError } from '../../src/trips/domain/trip.error.js'
 
 const ANA = '00000000-0000-4000-8000-0000000000a1'
@@ -153,17 +154,26 @@ describe('o retrato da tripulação no evento (spec 249 D6)', () => {
   })
 
   test('lê o jsonb que chegou como array', () => {
-    const stored = [{ driverId: ANA, name: 'Ana Souza', position: 1, role: 'driver' }]
+    const stored: readonly TripCrewEventMember[] = [
+      { driverId: ANA, name: 'Ana Souza', position: 1, role: 'driver' },
+    ]
     expect(parseCrewSnapshot(stored)).toEqual(stored)
   })
 
   test('lê o jsonb que o driver devolveu como texto', () => {
-    const stored = [{ driverId: ANA, name: 'Ana Souza', position: 1, role: 'driver' }]
+    const stored: readonly TripCrewEventMember[] = [
+      { driverId: ANA, name: 'Ana Souza', position: 1, role: 'driver' },
+    ]
     expect(parseCrewSnapshot(JSON.stringify(stored))).toEqual(stored)
   })
 
   test('descarta o integrante malformado em vez de derrubar a linha do tempo inteira', () => {
-    const valid = { driverId: ANA, name: 'Ana Souza', position: 1, role: 'driver' }
+    const valid: TripCrewEventMember = {
+      driverId: ANA,
+      name: 'Ana Souza',
+      position: 1,
+      role: 'driver',
+    }
     expect(
       parseCrewSnapshot([
         valid,

@@ -120,6 +120,11 @@ import type { PendingMeasurement } from '@adatechnology/cargo-placement'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { recordTripCreation, recordTripStatusChange } from './trip-status-event.persistence.js'
+import { applyTripCrewTransfer } from './trip-crew-transfer.persistence.js'
+import type {
+  TransferTripCrewParams,
+  TransferTripCrewResult,
+} from '../application/trip-crew-transfer.types.js'
 import { clearPlannedRoute } from './trip-planned-route-clear.support.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
@@ -415,6 +420,26 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         companyId: input.companyId,
         tripId: input.tripId,
       })
+    })
+  }
+
+  /**
+   * Spec 249: a transferência de tripulação de uma viagem na rua. A escrita inteira (lock, janela,
+   * custo antes/depois, troca, histórico, auditoria) mora em `applyTripCrewTransfer`; aqui só se abre
+   * a transação e se lê o detalhe na mesma conexão.
+   */
+  public async transferCrew(input: TransferTripCrewParams): Promise<TransferTripCrewResult | null> {
+    return this.database.transaction(async (transaction) => {
+      const transfer = await applyTripCrewTransfer(transaction, input)
+      if (transfer === null) return null
+
+      const trip = await readTripDetail(transaction, {
+        cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
+        companyId: input.companyId,
+        packageBoxLookup: this.packageBoxLookup,
+        tripId: input.tripId,
+      })
+      return trip === null ? null : { transfer, trip }
     })
   }
 
