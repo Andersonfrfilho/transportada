@@ -1450,3 +1450,42 @@ Contratos: `test/trip/delivery-deadline-{view,filter,wiring}.contract.ts`, `test
 (fixture `test/fixtures/tripDeliveryDeadline.fixture.ts`). ⚠️ `beforeEach`/`afterEach` no topo de um contrato importado pelo `test:hooks` valem para a suíte
 **inteira**: os dois contratos novos guardam os ganchos dentro de um `describe` (um `resetLocation` no topo vazou `/trips/trip-1` para outro contrato).
 Smoke/prints (fora da CI): `test/spec-236-prazo-prints.smoke.spec.ts` com o modo `delivery-deadline` de `trip-smoke.helper.ts`.
+
+## Spec 238 Fase 2 — o calendário de dias úteis em Configurações (2026-10-07)
+
+Aba **Calendário** de `/company-settings` (`?tab=businessCalendar`), `BusinessCalendarPanel` (autocontido, como `SettingsResolutionPanel`): sábado, feriados
+municipais (com o aniversário da cidade) e feriados estaduais, sobre as rotas da T1.3 (ADR-0096 §6). Só com `settings.manage`
+(`resolveVisibleCompanySettingsTabs`: sem a permissão não há aba, e o painel, se montado sem ela, não faz chamada alguma). Arquivos novos em
+`modules/company-settings/` — `queries/useBusinessCalendar.query.ts`, `mutations/*.mutation.ts`, `hooks/useMunicipalHolidaySection|useStateHolidaySection|
+useSaturdaySetting|useHoliday{Draft,Table,Delete,Feedback}|useMaterialization…`, `components/` (um por responsabilidade), `shared/businessCalendar*.service|validation.ts`,
+`locales/businessCalendar{,.en}.locale.json` (namespace próprio `businessCalendar`, registrado em `i18n.service.ts`) e `styles/businessCalendar.module.css`.
+
+**Decisões.**
+
+- **Guardas de chaves exatas** com o formato real das respostas (`test/fixtures/businessCalendar.fixture.ts` copia o `*.schema.ts` da API): regra `POST` com 9 chaves,
+  `GET`/`PATCH` com `typedHolidaysKept`; data fixa com 6, `POST` com `adoptedFromRuleId`; estadual em duas formas (`once` com `holidayOn`, `yearly` com `month`/`day`);
+  configuração do sábado com `origin`/`updatedAt`. O envelope `{ data }` também é exato (lista sem `pagination`).
+- **A linha é a regra, não as datas geradas.** `buildMunicipalRows` descarta `generatedByRuleId !== null`: a regra aparece como "Todo ano, 14/07 — gerado até 2036" e as 11
+  datas dela nunca são linhas — não há como editar/apagar uma gerada pela tela (o 409 `MUNICIPAL_HOLIDAY_GENERATED_BY_RULE` existe no rótulo para a corrida entre duas abas).
+- **Município pelo IBGE.** UF (`Select` com busca) → município (`SearchableSelect`, lista do `municipality.service` por sigla, via `getMunicipalityDirectory`). Lista fora do ar
+  não para o cadastro: campo de código IBGE (7 dígitos). A tabela lê o nome da cidade da mesma lista (uma consulta por UF presente); sem ela mostra o código.
+- **Edição no mesmo formulário.** Regra: UF/município/recorrência travados, mês+dia vão juntos quando um muda. Data fixa: cidade e data viram texto, só nome e tipo. Estadual: UF e
+  recorrência travadas, `PATCH` com `recurrence`. "Salvar alterações" espera mudança (`hasMunicipalChanges`/`hasStateChanges`).
+- **Avisos que a API não diz sozinha:** `adoptedFromRuleId` → "Esta data agora é sua…"; `typedHolidaysKept` do `PATCH` (só quando mês/dia mudaram) e a contagem da regra na
+  confirmação de excluir (o `DELETE` é 204 sem corpo, a contagem vem do `GET`). `POST` idêntico (200) → "já estava cadastrada".
+- **Horizonte (risco 6 do plano):** `hasShortMaterializationHorizon` (`materializedThroughYear < ano corrente + 2`, ano de São Paulo) liga o aviso e a ação "Gerar próximos anos". O
+  aviso fixo do roteiro usa o MENOR "gerado até"; sem regra, o que uma regra nova geraria (ano corrente + 10).
+- **Tabela (`web.md` §7).** Cabeçalho asc→desc→neutro (`aria-sort`), filtros múltiplos (tipo — só município —, recorrência, UF), "Limpar filtros" só com critério, contagem
+  "N de M" com filtro, página de 10, tudo na URL com prefixo `municipal…`/`state…` (o `tab` fica), zebra por CSS, cartão abaixo de 40 rem (`data-label`). Sem seleção em lote: não há ação em lote
+  definida (excluir exige a confirmação que diz o efeito).
+- **Recusa nomeando todos os campos** (`web.md` §11): `describeBusinessCalendarRefusal` deduplica por campo, `fields.<nome>` é o rótulo impresso e campo desconhecido sai cru; o atalho
+  rola/foca o `[data-field]` do bloco. Erro de campo é do campo (`aria-invalid` + `aria-describedby`) e some ao editar. Texto de TODO código (T1.3, política 422, transporte, 403/429)
+  em `errors.*`, travado por `locale.contract.ts`.
+- **Diálogo de exclusão** segue o molde tela-cheia no celular (`modal-dialog-fullscreen.contract.ts`, que ganhou a linha dele).
+
+**Limites.** `GET /municipal-holidays` exige `fleet.read` (a T1.3 manteve): quem tem só `settings.manage` vê a falha da lista municipal dita na tela, não a tabela. Não há OpenAPI (ADR-0096 §6).
+O painel não importa nada de `fleet` além de `municipality.service` (a lista de municípios do IBGE).
+
+**Contratos.** `test/business-calendar/*.contract.ts` (guardas, cliente, formulário, corpo, recusa, tabela, horizonte, locale — `bun test ./test/business-calendar.contract.test.ts`) e
+`test/trip-hooks/business-calendar-*.contract.ts` (DOM: sábado, permissão, cadastro, validação, recusa, edição, exclusão, horizonte+adoção, estadual, tabela), todos sobre
+`businessCalendarClientMocks.helper.ts` — a API dublada com as MESMAS transições da T1.3 (gera 11 datas, a digitada vence, adoção, 409 na gerada). Em teste de DOM o `Select` só abre com `stubVisibleLayout()`.

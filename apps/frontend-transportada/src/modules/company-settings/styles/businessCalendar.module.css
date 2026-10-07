@@ -2,9 +2,22 @@
 
 /* Spec 238 Fase 2: o calendário de dias úteis. Mobile-first: cada bloco é uma coluna e cresce com `min-width`. */
 .panel {
+  /* O vermelho de alerta como texto sobre o fundo tingido do aviso: misturado ao tom de texto do tema, passa de 4,5:1 nos dois. */
+  --calendar-alert-ink: color-mix(in srgb, var(--color-alert) 72%, var(--color-fog));
+
   display: grid;
   gap: var(--space-4);
   min-width: 0;
+}
+
+/*
+ * `.ui-button` não define a fonte: sem isto o botão cai no padrão do navegador (Arial 13 px), desencontrado do
+ * `.primaryAction` vizinho (Avenir 16 px, 700). `:where` zera a especificidade, então o que tem classe própria vence.
+ */
+:where(.panel) button {
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .panelHeading {
@@ -71,7 +84,7 @@
 }
 
 .alert {
-  color: var(--color-alert);
+  color: var(--calendar-alert-ink);
 }
 
 .refusal {
@@ -90,7 +103,7 @@
   min-height: var(--touch-target);
   padding: 0 var(--space-1);
   border: 0;
-  color: var(--color-alert);
+  color: var(--calendar-alert-ink);
   font: inherit;
   font-weight: 700;
   text-decoration: underline;
@@ -163,6 +176,21 @@
   border-color: var(--color-alert);
 }
 
+/*
+ * O gatilho do campo de busca (`SearchableSelect`) nasce compacto (38 px): ao lado do `Select` de 48 px do mesmo
+ * formulário ele fica desencontrado e abaixo do alvo de toque. Os gatilhos do formulário têm a mesma medida.
+ */
+.field button[aria-haspopup='listbox'] {
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  font-size: var(--field-font-size);
+}
+
+/* A caixa de marcação mede 24 px; o rótulo inteiro é o alvo de toque (`web.md` §10). */
+.touchTarget.touchTarget label {
+  min-height: var(--touch-target);
+}
+
 .fixedValue {
   display: flex;
   align-items: center;
@@ -176,7 +204,7 @@
 
 .fieldError {
   margin: 0;
-  color: var(--color-alert);
+  color: var(--calendar-alert-ink);
   font-size: 0.85rem;
 }
 

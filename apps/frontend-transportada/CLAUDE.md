@@ -465,6 +465,28 @@ alguma nota com prazo): as paradas ficam todas, "marcar todas" só alcança as n
 alerta é `--color-alert-ink` (a `--color-alert` crua media 4,11:1 no claro). ⚠️ Gancho `beforeEach`/`afterEach` no topo de contrato de `test:hooks` vale para
 a suíte inteira: guarde dentro de um `describe`. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 236 Fase 2".
 
+## O calendário de dias úteis (spec 238 Fase 2)
+
+Aba **Calendário** de Configurações (`BusinessCalendarPanel`, `COMPANY_SETTINGS_TAB_IDS`, `businessCalendar` em `SETTINGS_PANEL_PLACEMENT`): só com
+`settings.manage` (`resolveVisibleCompanySettingsTabs`; sem a permissão o painel nem faz chamada). Três blocos: **Sábado é dia útil**
+(`GET/PUT /company-settings/business-calendar`), **feriados municipais** (UF → município pelo IBGE, `municipality.service`; "todo ano" é uma
+**regra** e a tabela mostra UMA linha "Todo ano, 14/07 — gerado até 2036" — as datas que a API gerou NÃO são linhas; "só esta data" é data fixa)
+e **feriados estaduais**. Namespace i18n `businessCalendar` (arquivo próprio, pt-BR e en).
+
+- **Guardas de chaves exatas** (`businessCalendarGuards.validation.ts`, `hasExactKeys`/`hasKeys` de `objectKeys.service`): o formato é o das
+  rotas da API; `typedHolidaysKept` só nas regras lidas/editadas, `adoptedFromRuleId` só no `POST` da data fixa. Chave a mais é recusada.
+- **A recusa nomeia todos os campos** (`describeBusinessCalendarRefusal`, `data-field` = nome da API, atalho = `focusBusinessCalendarField`); código
+  novo da API entra em `BUSINESS_CALENDAR_REFUSAL_CODES` e precisa de `errors.<CÓDIGO>` nos dois locales (contrato `locale.contract.ts`).
+- **Editar** reabre a linha no mesmo formulário com cidade/UF e recorrência travadas; a data fixa só muda nome e tipo; o `PATCH` estadual leva sempre
+  `recurrence`, e mês+dia vão juntos. Excluir pede confirmação (`HolidayDeleteDialog`), que avisa "N datas digitadas neste dia continuam valendo"
+  (o `DELETE` é 204 sem corpo: a contagem vem da leitura das regras). Adoção (`adoptedFromRuleId`) e `typedHolidaysKept` do `PATCH` são ditos.
+- **Horizonte:** sem rotina agendada, a tela avisa quando uma regra tem `materializedThroughYear < ano corrente + 2` (ano de São Paulo) e oferece
+  "Gerar próximos anos" (`POST …/materializations`, sem corpo). O aviso fixo do roteiro usa o MENOR "gerado até".
+- **Tabela:** `HolidayTable` (cartão abaixo de 40 rem com `data-label`), ordenação asc/desc/neutro, filtros múltiplos (tipo, recorrência, UF), página
+  de 10 — tudo na URL com prefixo (`municipal…`, `state…`), sem apagar `?tab=`. Contratos: `test/business-calendar/*.contract.ts` (sem DOM) e
+  `test/trip-hooks/business-calendar-*.contract.ts` (DOM; API dublada com as transições da T1.3 em `businessCalendarClientMocks.helper.ts`).
+  ⚠️ `GET /municipal-holidays` é `fleet.read`: quem tem só `settings.manage` vê a falha dita na lista municipal. Detalhe: docs/ai-context § "Spec 238 Fase 2".
+
 ## O cadastro de tipos de ocorrência mora em `/ocorrencias` (spec 246)
 
 A aba **Tipos** de `/ocorrencias` (só com `settings.manage`; aba ativa na URL) substitui "Tipos de ocorrência" de

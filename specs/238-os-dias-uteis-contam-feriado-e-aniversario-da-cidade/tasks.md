@@ -33,9 +33,9 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T2.1** Contrato **antes** da tela (formulário, validação, tabela com filtro/ordenação).
-- [ ] **T2.2** Tela de feriados em Configurações (municipal, estadual, aniversário), locale pt-BR/en.
-- [ ] **T2.3** Prova por mutação e evidência em `evidence.md`.
+- [x] **T2.1** Contrato **antes** da tela (formulário, validação, tabela com filtro/ordenação).
+- [x] **T2.2** Tela de feriados em Configurações (municipal, estadual, aniversário), locale pt-BR/en.
+- [x] **T2.3** Prova por mutação e evidência em `evidence.md`.
 - [ ] **T2.4** **Revisão de design e usabilidade** (web.md §15) com print enviado ao usuário e aprovado antes
       de publicar; publicar em staging.
 

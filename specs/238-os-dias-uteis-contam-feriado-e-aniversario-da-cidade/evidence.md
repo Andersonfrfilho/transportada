@@ -543,3 +543,105 @@ migration nova; `bun run db:generate` → `no_changes`; o snapshot continua enca
 - `withoutUndefined(...) as MunicipalHolidayRuleChanges` (e o do estadual) continuam como `as`: o item 9 pedia o type guard no mapper.
 - `PATCH` da regra sem mudança de valor ainda apaga e regenera as geradas do ano corrente em diante (novos ids) e audita; não pedido.
 - Push, deploy, qualquer banco de produção, migration em staging.
+
+## Fase 2 — T2.1 a T2.3: a aba Calendário em Configurações (2026-10-07)
+
+Executada com `sonnet` no worktree `agent-a1862ddacde50ffea`, branch `work/238-fase2`, a partir de `origin/staging` (`git fetch` e `git switch -c` com saída 0;
+`bun install --frozen-lockfile` sem mudança). **Só o painel e os docs/prints da spec**: nenhuma linha da API nem do worker. Nada foi publicado (push é de quem
+orquestra, depois dos prints aprovados — T2.4 segue `[ ]`).
+
+### O que foi construído
+
+Aba **Calendário** de `/company-settings` (`?tab=businessCalendar`), só com `settings.manage`, sobre as rotas da T1.3: **Sábado é dia útil**; **feriados
+municipais** (UF → município pelo IBGE, "todo ano" = regra, "só esta data" = data fixa, adoção e datas mantidas ditas, aviso de horizonte com "Gerar próximos
+anos"); **feriados estaduais**. Aviso fixo do roteiro (pt-BR e en) com o MENOR "gerado até". Detalhe e decisões: `docs/ai-context/frontend-transportada.md`
+§ "Spec 238 Fase 2" e `apps/frontend-transportada/CLAUDE.md`.
+
+### Contrato antes (vermelho, comitado) e depois
+
+- **Vermelho** (`5d2982d38`): 8 arquivos sem DOM (`test/business-calendar/*.contract.ts`, 96 testes) e 10 de DOM (`test/trip-hooks/business-calendar-*.contract.ts`, 73 testes),
+  mais a linha nova de `tabs.contract.ts`. Falha pelo motivo certo: `Cannot find module '@/modules/company-settings/shared/businessCalendarGuards.validation'` e
+  `SETTINGS_PANEL_PLACEMENT.businessCalendar` indefinido — os módulos não existiam.
+- **Verde** (`c6c17e064`): implementação; mais um achado do contrato de design (`modal-dialog-fullscreen.contract.ts`: overlay fixo fora da lista) — o diálogo de exclusão
+  segue o molde tela-cheia no celular e ganhou a linha dele na lista.
+- **Guardas de chave exata** provadas com o formato REAL (`test/fixtures/businessCalendar.fixture.ts` espelha `presentation/*.schema.ts`); o dublê da API dos contratos de DOM
+  (`businessCalendarClientMocks.helper.ts`) aplica as MESMAS transições da T1.3 (gera 11 datas, a digitada vence, adoção, 409 na gerada).
+
+### Contagens (`bun run test` dentro de `apps/frontend-transportada`)
+
+| Suíte                                | Antes (origin/staging) | Depois                                                                                                               |
+| ------------------------------------ | ---------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| contratos sem DOM (36 → 37 arquivos) | 7393 pass / 0 fail     | **7492 pass / 0 fail** (+99: 96 do calendário, 2 do `tabs`, 1 da linha nova do diálogo em `modal-dialog-fullscreen`) |
+| `test:hooks` (DOM, processo à parte) | 956 pass / 0 fail      | **1029 pass / 0 fail** (+73)                                                                                         |
+
+Gates: `bun run typecheck` → 0; `bun run lint` (cwd na app) → **0 erros** (16 avisos antigos, nenhum em arquivo do calendário); `bun run format:check` na raiz → limpo;
+`bun test ./test/shared.contract.test.ts` → 409 pass (o helper de prints obedece ao contrato de mock da foto).
+
+### Estabilidade do DOM (`test:hooks`)
+
+Nenhum `expect(nó).toBeNull()` dentro de `waitFor` (só `querySelectorAll(...).length`, ou fora do `waitFor`); todo arquivo de DOM instala `stubVisibleLayout()` por
+`startScenario()` (`businessCalendarHarness.helper.ts`). **10 execuções ociosas: 1029 pass / 0 fail em todas**; **3 execuções com um `yes > /dev/null` por núcleo**
+(processos iniciados e mortos por PID por mim): **1029 pass / 0 fail em todas**. Observação: quando um lote de mutação coincidiu com outra sessão carregando a máquina (load 10+),
+caíram testes de OUTRAS specs (`occurrence-*`) por estouro do prazo de 1 s do `waitFor`; os do calendário não oscilaram.
+
+### Prova por mutação (cada uma derrubou teste; restaurada; `git diff --quiet` → 0 no fim)
+
+| Mutação                                                                             | Vermelho (primeiro teste)                                                                                     |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| M1a `resolveVisibleCompanySettingsTabs` devolve as abas sem `settings.manage`       | 1 fail — "sem `settings.manage` nenhuma aba de configurações existe, nem a do calendário"                     |
+| M1b painel renderiza os blocos sem `settings.manage` (`canManage ? …` → `true ? …`) | 67 fail (cascata) — "sem `settings.manage`: só o aviso de permissão, nenhum bloco e nenhuma chamada"          |
+| M2 dia inválido aceito (`LAST_DAY_OF_MONTH` todo 31)                                | 59 fail — "31/04 e 30/02 não existem; 29/02 vale" e a validação nos dois blocos                               |
+| M3 data GERADA pela regra vira linha editável                                       | 7 fail — "a regra é uma linha; as onze datas geradas por ela não são linhas"                                  |
+| M4 erro mudo (`feedback.refuse` descarta o erro)                                    | 50 fail — "nomeia todos os campos recusados… e cada nome leva ao campo"                                       |
+| M5 guarda aceita chave a mais (`isBusinessCalendarSettings`)                        | 2 fail — "recusa chave a mais…" (guarda) e "resposta com chave a mais é recusada" (cliente)                   |
+| M6 filtro único no lugar do múltiplo (`setKinds` guarda só o último)                | 8 fail — "filtro de tipo aceita mais de um valor; a URL guarda os dois", "filtro de UF…"                      |
+| M7 aviso de horizonte ausente                                                       | 29 fail — "uma regra que só vai até o ano corrente + 1 dispara o aviso", "avisa até que ano e oferece a ação" |
+| M8 ordenação sem o estado neutro (desc volta a asc)                                 | 2 fail — "asc → desc → neutro…" e "cabeçalho de nome: crescente, decrescente e neutro"                        |
+| M9 adoção sem aviso (`adoptedFromRuleId` ignorado)                                  | 22 fail — "digitar a data que a regra gerou avisa que ela agora é do operador"                                |
+| M10 sem o aviso `typedHolidaysKept`                                                 | 38 fail — "datas digitadas no dia antigo continuam valendo: a edição avisa quantas"                           |
+| M11 submit ignora o resultado da validação (manda 31/04)                            | 56 fail — "31 de abril não existe: o campo do dia aponta o erro e nada vai ao servidor"                       |
+| M12 mudar mês OU dia manda só um dos dois                                           | 43 fail — "mudar o mês OU o dia manda os dois, para o servidor conferir o par"                                |
+
+⚠️ As contagens grandes (M1b, M2, M4, M10…) são **cascata**: teste de DOM que falha dentro de `act` deixa estado pendente e derruba os seguintes. O que prova a mutação é o PRIMEIRO
+fail, por nome; o número não mede cobertura.
+
+### Revisão de design (`web.md` §15) — prints e estilo calculado
+
+Prints em `specs/238-.../prints/` (48 PNGs, fictícios): `calendario-aba`, `calendario-regra-form` (31/04 com `aria-invalid` e mensagem), `calendario-regra-atalho` (recusa do servidor
+"Confira: Dia, Nome." com o foco no campo), `calendario-regra-lista` (regras com "gerado até" e o aviso de horizonte), `calendario-estadual`, `calendario-adocao`,
+`calendario-datas-mantidas` e `calendario-excluir`, em **375, 768 e 1280 px, escuro e claro**. Método de `spec-237-prints-smoke.helper.ts`: build em pasta temporária com
+`VITE_SMOKE_AUTH_BYPASS=true`, `vite preview` em porta própria (53447, encerrada pelo PID), config Playwright descartável (apagada), API inteira dublada
+(`spec-238-prints-smoke.helper.ts`); a CI e a porta reservada não foram tocadas. Em todo print: sem rolagem lateral (`readOverflow ≤ 0`), nada cortado (`expectNoClipping`),
+sem células sobrepostas (`readCellOverlaps`); **49/49 testes de print verdes**.
+
+Achados do olhar real, consertados na mesma tarefa:
+
+1. O gatilho do campo de busca de município (`SearchableSelect`) nasce compacto — **38,4 px** a 375, abaixo do alvo de toque e desencontrado dos 48 px do `Select` ao lado → mesma medida
+   do formulário (`.field button[aria-haspopup='listbox']`, 48 px).
+2. A caixa "Sábado é dia útil" tinha 24 px de rótulo → `min-height: var(--touch-target)` (44 px).
+3. Contraste claro do atalho da recusa: **4,19:1** (`--color-alert` sobre o fundo tingido) → `--calendar-alert-ink` (alerta misturado ao texto do tema): 5,85:1 claro / 6,38:1 escuro.
+4. `.ui-button` não define a fonte: o botão caía em Arial 13 px, desencontrado do `.primaryAction` vizinho (Avenir 16 px, 700) → `:where(.panel) button` com a fonte do vizinho.
+
+Estilo calculado (375, escuro; campo e botão do calendário × os da aba Empresa): altura do campo **48 px = 48 px** (campo de texto = `Select` = campo do vizinho), fonte 14,4 px, borda 1 px;
+botão primário **48 px, Avenir 16 px, 700 = vizinho**. ⚠️ A aba vizinha **Diária do motorista** tem o `<input>` cru com **21 px, Arial 13,3 px e borda de 2 px** (medido): defeito dela, fora desta
+spec — pendência registrada, não consertada aqui.
+
+Contraste mínimo medido por elemento nos 48 prints (limite 4,5:1), escuro / claro: aviso fixo do roteiro 12,98 / 11,44; dica do bloco 5,86 / 5,67; rótulo do campo 5,86 / 5,67; erro do campo
+6,46 / 6,93; recusa do servidor 13,29 / 11,31; atalho da recusa 6,38 / 5,85; aviso do horizonte 12,98 / 11,44; avisos de adoção e de datas mantidas 6,13 / 5,82; cabeçalho da tabela 13,47 / 13,40;
+célula 13,47 / 13,40; texto do diálogo 12,92 / 13,81. Alvo de toque a 375 px (`main button`, rótulo da caixa, botões do diálogo): **0 problemas** nos 16 cenários.
+
+### Decisões que divergiram do enunciado (todas com motivo)
+
+1. **Mais prints que os cinco pedidos** (`calendario-regra-atalho`, `calendario-datas-mantidas`, `calendario-excluir`): o erro de CAMPO e a recusa do SERVIDOR com atalho não coexistem numa tela.
+2. **`GET /municipal-holidays` é `fleet.read`** (a T1.3 manteve): quem tem só `settings.manage` vê a falha da lista municipal dita na tela. Não mudei a API.
+3. **Sem seleção em lote** na tabela (`web.md` §7): não há ação em lote definida — excluir exige a confirmação que diz o efeito.
+4. **Filtro por UF e página de 10 no cliente** (as listas da API não paginam nem filtram por UF).
+5. **`Select` com `aria-invalid`**: o design system não aceita as props; o erro vai no invólucro `role="group"` (`aria-invalid` + `aria-describedby`) e no `<input>` quando é campo de texto.
+6. **Fallback do município**: com a lista do IBGE fora do ar o campo vira "Código IBGE do município" (7 dígitos), para o cadastro não parar por provedor externo.
+7. O aviso fixo usa o **menor** "gerado até" entre as regras; sem regra, ano corrente + 10 (o que uma regra nova geraria).
+
+### O que NÃO rodou
+
+- `make check` completo, `make smoke` e a CI (só os gates da app + `format:check` na raiz); nada mudou na API nem no worker.
+- Prints com a API real (todos dublados); o preview do orquestrador (`preview-local-antes-de-subir`) é passo seguinte.
+- T2.4: **aprovação do usuário sobre os prints e a publicação em staging** — pendentes.

@@ -43,12 +43,14 @@ export function SaturdayBlock({ companyId, enabled }: SaturdayBlockProps) {
       ) : null}
       {query.data === undefined ? null : (
         <>
-          <Checkbox
-            checked={setting.isChecked}
-            disabled={setting.isSaving}
-            label={t('saturday.label')}
-            onChange={(checked) => void setting.handleToggle(checked)}
-          />
+          <div className={styles.touchTarget}>
+            <Checkbox
+              checked={setting.isChecked}
+              disabled={setting.isSaving}
+              label={t('saturday.label')}
+              onChange={(checked) => void setting.handleToggle(checked)}
+            />
+          </div>
           <p className={styles.hint}>{t(`saturday.origin.${query.data.origin}`)}</p>
           {setting.isSaving ? <p className={styles.hint}>{t('saturday.saving')}</p> : null}
           {setting.isSaved && !setting.isSaving ? (
