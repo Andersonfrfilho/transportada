@@ -15,8 +15,10 @@ import {
 } from '../../src/modules/driver-trip/shared/occurrenceDecimalInput.service'
 import {
   evaluateOccurrenceValues,
+  resolveDefaultQuantityText,
   type OccurrenceItemDrafts,
 } from '../../src/modules/driver-trip/shared/occurrenceDraftValues.service'
+import { formatBrazilianUnitValue } from '../../src/modules/driver-trip/shared/occurrenceMoneyFormat.service'
 import { listMissingOccurrenceFields } from '../../src/modules/driver-trip/shared/occurrenceRegistration.service'
 import { resolveOccurrenceRequirements } from '../../src/modules/driver-trip/shared/occurrenceRequirements.service'
 
@@ -142,6 +144,25 @@ describe('o que o motorista digita vira o texto que o servidor aceita (nunca num
   })
 })
 
+describe('o valor unitário aparece como a nota o traz', () => {
+  it('duas casas no mínimo, até quatro quando existem — nunca arredondado a centavos', () => {
+    expect(formatBrazilianUnitValue('19.9950')).toBe('19,995')
+    expect(formatBrazilianUnitValue('57.2000')).toBe('57,20')
+    expect(formatBrazilianUnitValue('10')).toBe('10,00')
+    expect(formatBrazilianUnitValue('0.3333')).toBe('0,3333')
+    expect(formatBrazilianUnitValue('1234.5')).toBe('1.234,50')
+    expect(formatBrazilianUnitValue('abc')).toBe('abc')
+  })
+})
+
+describe('marcar o produto sugere a quantidade', () => {
+  it('uma unidade; ou o que a nota tem, quando é menos de uma', () => {
+    expect(resolveDefaultQuantityText(BISCUIT)).toBe('1')
+    expect(resolveDefaultQuantityText({ ...BISCUIT, quantity: '0.5000' })).toBe('0,5')
+    expect(resolveDefaultQuantityText({ ...BISCUIT, quantity: '1.0000' })).toBe('1')
+  })
+})
+
 describe('a lista, a soma da linha e a soma geral (RF11, os números do protótipo)', () => {
   it('1 × 57,20 + 3 × 19,995 = 57,20 + 59,99 = 117,19, cada linha arredondada antes de somar', () => {
     const values = evaluate({ drafts: pick({ P1: '3', P2: '1' }) })
@@ -191,7 +212,9 @@ describe('a lista, a soma da linha e a soma geral (RF11, os números do protóti
     })
 
     expect(values.totals?.declaredAmountCents).toBe(0n)
-    expect(values.payload.items).toEqual([{ declaredAmount: '0', productCode: 'P2', quantity: '1' }])
+    expect(values.payload.items).toEqual([
+      { declaredAmount: '0', productCode: 'P2', quantity: '1' },
+    ])
     expect(values.facts.lineAmountMissingCount).toBe(0)
   })
 })
@@ -220,7 +243,9 @@ describe('o corpo que sai pela fila: strings, só o que o servidor aceita (CA06,
     })
 
     expect(values.payload.declaredAmount).toBeUndefined()
-    expect(values.payload.items).toEqual([{ declaredAmount: '50.00', productCode: 'P2', quantity: '1' }])
+    expect(values.payload.items).toEqual([
+      { declaredAmount: '50.00', productCode: 'P2', quantity: '1' },
+    ])
   })
 
   it('o valor pago vai só no nível do escopo efetivo: escopo da ocorrência, sem valor nas linhas', () => {
@@ -400,9 +425,9 @@ describe('o botão só libera com o exigido, sem rede (CA07)', () => {
     const drafts = pick({ P2: '1' })
 
     expect(missing({ drafts, type })).toEqual(['declaredAmount'])
-    expect(
-      missing({ drafts, texts: { declaredAmount: '0', referenceNumber: '' }, type }),
-    ).toEqual([])
+    expect(missing({ drafts, texts: { declaredAmount: '0', referenceNumber: '' }, type })).toEqual(
+      [],
+    )
   })
 
   it('valor pago opcional não segura; preço que varia na nota o exige na linha', () => {

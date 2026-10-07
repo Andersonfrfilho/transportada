@@ -8,12 +8,21 @@ import { Icon } from '@/components/ui/icon'
 import type { OccurrenceMissingField } from '../shared/occurrenceRequirements.service'
 import styles from '../styles/driverTrip.module.css'
 
+/** Spec 247: o que o motivo do botão precisa saber além da lista — rótulos do tipo e o mínimo de produtos. */
+export type OccurrenceMissingContext = Readonly<{
+  declaredAmountLabel: string
+  itemsMinimumCount: number
+  referenceNumberLabel: string
+}>
+
 type OccurrenceRegisterActionProps = Readonly<{
   canRegister: boolean
   /** O que falta, na ordem em que o formulário pergunta — vira o motivo do botão desabilitado. */
   missingFields: readonly OccurrenceMissingField[]
   onCancel: () => void
   onRegister: () => void
+  /** Ausente é o formulário sem produtos, número e valor pago (a parada). */
+  missingContext?: OccurrenceMissingContext
   photoMinimumCount: number
   /** O formulário sem tipo escolhido ainda não tem o que registrar: só o "Cancelar". */
   rendersRegister: boolean
@@ -25,6 +34,7 @@ type OccurrenceRegisterActionProps = Readonly<{
  */
 export function OccurrenceRegisterAction({
   canRegister,
+  missingContext,
   missingFields,
   onCancel,
   onRegister,
@@ -35,6 +45,18 @@ export function OccurrenceRegisterAction({
   const missingId = useId()
   const hasMissing = missingFields.length > 0
 
+  /** `count` é o mínimo de fotos, ou o de produtos; `label` é o rótulo que o tipo deu ao campo. */
+  function describeMissingField(field: OccurrenceMissingField): { count: number; label: string } {
+    return {
+      count:
+        field === 'productsMinimum' ? (missingContext?.itemsMinimumCount ?? 1) : photoMinimumCount,
+      label:
+        field === 'referenceNumber'
+          ? (missingContext?.referenceNumberLabel ?? '')
+          : (missingContext?.declaredAmountLabel ?? ''),
+    }
+  }
+
   return (
     <>
       {hasMissing ? (
@@ -42,7 +64,7 @@ export function OccurrenceRegisterAction({
           {t('occurrenceRegistration.missingLead', {
             fields: missingFields
               .map((field) =>
-                t(`occurrenceRegistration.missing.${field}`, { count: photoMinimumCount }),
+                t(`occurrenceRegistration.missing.${field}`, describeMissingField(field)),
               )
               .join(', '),
           })}
