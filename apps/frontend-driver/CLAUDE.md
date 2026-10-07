@@ -358,6 +358,17 @@ O botão "Registrar" da ocorrência de **nota** só habilita com o que o tipo **
 
 A assinatura e as fotos extras entram no **mesmo item de fila** `documentOccurrence` (`extraPhotos`, `signature`), sobem pelo par
 `occurrence-uploads` + `confirm` e vão no mesmo `POST` (`signatureObjectId`; uma foto = `attachmentObjectId`, mais de uma =
-`attachmentObjectIds`, nunca os dois) — nada vai a `/proof`. ⚠️ O snapshot não traz os itens: com Produtos obrigatório só existe
-"A nota inteira", e "Ao menos N" não muda o que o app cobra (o servidor cobra). Fila offline do app antigo recebe 422 permanente
+`attachmentObjectIds`, nunca os dois) — nada vai a `/proof`. ⚠️ Os itens da nota entram na spec 247 (abaixo). Fila offline do app antigo recebe 422 permanente
 quando o tipo endurece. Detalhe: docs/ai-context/frontend-driver.md § "Spec 246".
+
+## A devolução soma os itens (spec 247)
+
+O snapshot traz os produtos de cada nota (código, descrição, unidade, quantidade, valor unitário), e o registro marca itens,
+quantidade e valor pago **sem rede**. `occurrenceAmount.service.ts` é o **espelho** do cálculo da API (nenhuma app importa outra):
+`bigint`, meio para cima por linha, valor pago vence a soma, `0` é valor; o contrato `occurrence-amount.contract.ts` roda os mesmos
+casos da API e do painel. O app **nunca** manda preço nem unidade; o servidor lê da nota e recalcula. O número e o valor pago só
+aparecem e só bloqueiam o "Registrar" conforme `requirements` do tipo **já resolvido para a nota** (não reimplementar a
+precedência); modo `off` na hora do envio é descartado pelo servidor, não recusado. ⚠️ Máscara de centavos com teto de 12 dígitos
+(o campo antigo descartava dígito em silêncio); total sem o que somar mostra "—". Medido só sintético: o snapshot passa de
+256 KiB com dezenas de notas grandes, e login/fila offline reais nunca foram exercitados. Detalhe: docs/ai-context/frontend-driver.md
+§ "Spec 247".

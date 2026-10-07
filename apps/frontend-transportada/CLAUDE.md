@@ -480,3 +480,14 @@ a ação não se desfaz, decisão só `other`/`goods_paid` (nunca reentrega), e 
 Origem de tratativa cancelada não motiva devolução; URLs assinadas das miniaturas ficam estáveis entre leituras; progresso do celular
 só conta notas que ainda se separam. ⚠️ Em contrato de DOM, `beforeEach` de arquivo vale para a suíte inteira: leia o dublê por
 `currentCaseDouble()`. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 237 T3.4b".
+
+## A devolução soma os itens no painel (spec 247)
+
+A aba Tipos configura número do documento do cliente, valor pago (modo, escopo, rótulo) e o e-mail à contratante; a **prévia vem do
+servidor** (`POST /company-settings/occurrence-types/email-preview`), nunca de uma segunda implementação no painel. A correção
+(`TripOccurrenceCorrectionForm`) obedece `requirements` do **detalhe** da ocorrência (modo efetivo: `off` esconde, `required` sem
+"Limpar"), para não depender de `settings.manage`; `useOccurrenceTypeRecordConfig` é só fallback quando `requirements` falta.
+`occurrenceAmount.service.ts` espelha o cálculo da API (`bigint`; contrato `occurrence-amount-mirror.contract.ts`) e a soma da linha
+usa o `unitValue` **copiado** em `itemValues`, não o preço atual da nota. O rascunho do e-mail só some quando o salvar pousa (PUT que falha preserva o texto). ⚠️ `fixtures/*.golden.json` são cópia idêntica da API.
+O acerto da 164 sugere o valor pago, senão a soma, mas só onde há tratativa (o registro do motorista não a abre: decisão pendente).
+Detalhe: docs/ai-context/frontend-transportada.md § "Spec 247".

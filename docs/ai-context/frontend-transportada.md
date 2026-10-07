@@ -1365,3 +1365,19 @@ detalhe da prévia por e-mail quebrava igual.
   ⚠️ Na tabela empilhada o conteúdo da célula precisa de **um** filho (`<div>`): dois filhos viram dois itens do `grid` da célula e o
   selo cai sob o rótulo da coluna (medido no print; `readBadgeMisalignment` no spec de prints).
 - Prints: `test/spec-237-previa-origem-prints.smoke.spec.ts` (fora da CI), `prints/previa-origem-email-{lista,detalhe}-*`.
+
+## Spec 247 — Tipos, correção e acerto com número e valor pago (ainda não publicada)
+
+**Aba Tipos.** `OccurrenceTypeRecordFields`/`OccurrenceTypeRequirementFields` (número do documento e valor pago: modo, rótulo, escopo; exceções com "Igual ao tipo"),
+`OccurrenceTypeContractorMail` + `MailFields`/`MailMarkers`/`MailPreview` (interruptor, assunto, corpo, linha de item, marcadores clicáveis, prévia do servidor com
+`debounce`), `OccurrenceTypeNotification` agora "Aviso interno". Rótulos de momento "Quem registra, e onde" (locale; o contrato procura o rótulo no controle).
+O rascunho do e-mail só some quando o salvar pousa; marcador que estoura o teto é dito em `role="status"`.
+
+**Correção e acerto.** `TripOccurrenceCorrectionForm` + `OccurrenceCorrectionAmounts*`: lê `requirements` do detalhe (N1/N2); `off` esconde, `required` sem "Limpar" e Salvar
+bloqueia se esvaziar; `useOccurrenceTypeRecordConfig` (exige `settings.manage`) só quando `requirements` falta. Soma da linha usa o `unitValue` copiado em `itemValues`
+(N9); máscara de 12 dígitos com `AmountLimitNotice`. `OccurrenceSettlementPanel` sugere o valor pago, senão a soma (`manual`/`nfe`), só onde existe tratativa.
+
+**Parsers e golden.** `isFieldOccurrenceType`/`isSettingsResolutionView` ganharam as chaves como opcionais (etapa tolerante, T1.1/1b); o guard do detalhe
+(`tripOccurrenceRequirements.validation.ts`) recusa forma errada e tolera `null`. `test/fixtures/occurrence-detail-values.golden.json` é cópia idêntica da API.
+
+**Verificado:** por texto no navegador (Vite 53010, API dublada) em 375/768/1280, sem estouro. **Não verificado:** a dica N14 só por contrato; nenhum `make smoke`.

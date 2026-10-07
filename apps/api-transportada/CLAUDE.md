@@ -870,3 +870,34 @@ estáveis novos: `TRIP_OCCURRENCE_SIGNATURE_REQUIRED`, `_ITEMS_REQUIRED`, `_ITEM
 migrations de `…205139` a `…205209`; o backfill de anexos (`…205232`) é deploy **separado**, só depois da `…205139`
 aplicada e da medição T1d.0. Rebase que traga migration nova refaz as quatro (cadeia linear de snapshots). Detalhe e
 ordem com SHAs: specs/246-…/evidence.md; formatos: docs/ai-context/api-transportada.md § "Spec 246".
+
+## A devolução soma os itens (spec 247)
+
+**Uma resolução só para o que o tipo exige.** `resolveOccurrenceRequirements` (sobre `resolveWithOverrides`, exceção por
+contratante/destinatário **lidos da nota**) decide número do documento do cliente e valor pago para o snapshot, o registro, a
+correção e o detalhe (`requirements`, opcional; `null` em parada e em tipo que sumiu). O escopo do valor pago é o **efetivo**:
+`resolveDeclaredAmountTarget` (com `itemsMode` efetivo e a contagem de produtos da nota) — ler `declared_amount_scope` cru do tipo
+manda valor para linha que não existe. Painel e app só leem; o servidor recobra (`TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRED`,
+`_DECLARED_AMOUNT_REQUIRED`).
+
+**Modo efetivo `off` descarta, não recusa** (registro do motorista e correção): a fila offline não pode travar porque a
+configuração mudou. `required` só recusa a **limpeza explícita** (`null`) na correção; ausente mantém, e a ocorrência anterior à
+247 continua corrigível. O `PUT` do tipo é "ausente = não mexa", inclusive `emailSubject`/`emailBody` (o painel em staging não os
+manda e apagava o e-mail à contratante); `''` explícito apaga. `email_template_key` (aviso interno) e assunto/corpo (contratante) são
+independentes.
+
+**Dinheiro é `bigint` (centavos), nunca `number`.** `occurrence-amount.policy.ts`: soma da linha = quantidade × `vUnCom` arredondada
+meio para cima por linha; soma geral = soma das linhas arredondadas; valor pago vence a soma; `0` vale. Preço, unidade e
+`unit_value` **nunca** vêm do payload (`.strict()`, 400): o valor é lido de `nfe_products` (linha de menor `ordinal` do `cProd`) e
+**copiado** para a ocorrência — a 166 aponta produto por código, não por linha. Quantidade acima da nota → 400
+`OCCURRENCE_ITEM_QUANTITY_ABOVE_DOCUMENT` (a 166 nunca comparou com a nota; a recusa nasce aqui).
+
+**Armadilhas medidas.** (1) Parser do painel publicado com lista fechada de chaves (`hasKeys`/`hasExactKeys`) recusa a chave nova:
+conferir cada guard antes de a API publicar; o detalhe é seguro porque `readDetail` espalha chaves desconhecidas, a viagem não.
+(2) `test/fixtures/*.golden.json` é **o mesmo arquivo** em API, painel e app: o teste de cópias iguais vigia, e quem muda um muda os três.
+`{{quantidadeItem}}` passou à quantidade da ocorrência e `{{valorNota}}` sai `7.840,64` (sem símbolo).
+
+**Decisões pendentes (do usuário, não fatos).** O registro do motorista **não abre a tratativa da 164** (`saveDocumentOccurrence`
+não recebe `redeliveryPolicy`), então a sugestão de acerto só existe no galpão e no lote do escritório. `previous_items` guarda só
+as linhas: número e valor pago da **ocorrência** são sobrescritos sem rastro na correção (guardar exige 2 colunas aditivas).
+Detalhe: docs/ai-context/api-transportada.md § "Spec 247" e specs/247-\*/evidence.md.

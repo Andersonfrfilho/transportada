@@ -143,7 +143,7 @@ OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`; `PUT` sem os campos mantém os gra
       N11, N13, N14) estão em `evidence.md` § "T7.2b — frontends: requisitos efetivos, avisos e acabamento".
       Falta repetir a revisão.
 
-- [ ] **T7.3** Atualizar `CLAUDE.md` da raiz, `apps/*/CLAUDE.md` tocados e `docs/ai-context/`.
+- [x] **T7.3** Atualizar `CLAUDE.md` da raiz, `apps/*/CLAUDE.md` tocados e `docs/ai-context/`.
 - [ ] **T7.4** Gates: `bun run typecheck`, `make check`, `make migration-test`, integração da API em
       primeiro plano com `--env-file`; depois de `git fetch` + rebase + `bun install
 --frozen-lockfile`, `db:generate` = `no_changes`.

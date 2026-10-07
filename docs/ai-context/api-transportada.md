@@ -3064,3 +3064,37 @@ enquanto existir prévia por e-mail):
   `TRIP_NOT_DISPATCHED`), `409 TRIP_CREW_UNCHANGED`, e os erros de ficha inelegível da criação.
 - **Risco conhecido (D10):** `financial-summary.query.ts` une o resultado congelado ao `trip_drivers`
   **atual**; depois de uma transferência o total por motorista da viagem migra para o novo.
+
+## Spec 247 — A devolução soma os itens e registra o valor pago (ainda não publicada)
+
+**Dado.** Migration `20261007033420_occurrence_declared_amount` (aditiva, com `rollback.sql`): seis colunas no tipo
+(`reference_number_mode`/`_label`, `declared_amount_mode`/`_scope`/`_label`, `email_item_line_template`), os dois modos **nulos** nas duas
+exceções, `reference_number` e `declared_amount` na ocorrência, `unit_value` e `declared_amount` nos produtos. CHECKs geradas das
+constantes; `declared_amount_scope = 'item'` com modo ligado exige `items_mode <> 'off'` (422
+`OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`). A soma nunca é gravada: é derivada. `unit_value` é a **cópia** do `vUnCom` no registro
+(a 166 aponta produto por código; mesma linha de menor `ordinal`).
+
+**Cálculo.** `trips/domain/occurrence-amount.policy.ts`, `bigint`, sem `Number`/`parseFloat`: linha = `round(quantidade × vUnCom)` meio para cima
+(`3 × 19,995 = 59,99`; sem quantidade = `vProd`); `somaItens` = soma das linhas arredondadas; `valorItem` = valor pago da linha, senão a soma;
+`valorDeclarado` = valor pago da ocorrência, senão Σ `valorItem`. Espelhado em `frontend-driver` e `frontend-transportada` por contratos que
+rodam os **mesmos casos**; mutações (truncar, somar antes de arredondar, `Number`) ficam vermelhas.
+
+**E-mail.** `occurrence-template.policy.ts`: duas listas fechadas de marcadores (corpo/assunto e linha de item); `{{linhasItens}}` renderiza a
+linha por item, teto de 200 ("e mais N itens"); valor de item nunca é re-renderizado (`{{` na descrição sai literal); `{{valorNota}}` em
+`7.840,64`; `{{quantidadeItem}}` é a quantidade da ocorrência (D5); `{{numeroNotaSemSerie}}` novo, `{{numeroNota}}` intacto. Prévia pelo
+servidor: `POST /company-settings/occurrence-types/email-preview` (`settings.manage`, rate limit), mesma função do envio. RF2: chave do aviso interno
+e assunto/corpo da contratante são independentes.
+
+**Registro do motorista (T4.4).** Itens `(productCode, quantity, declaredAmount?)`, `referenceNumber?`, `declaredAmount?`; `.strict()` recusa
+preço/unidade (400). Exigência efetiva por `resolveOccurrenceRequirements` com contratante e destinatário lidos da nota; modo efetivo `off`
+descarta (M2, não recusa). CA03 (só a configuração decide) provada com tipos de mesmo nome e config diferente, e vice-versa, com mutação por nome.
+
+**Snapshot, detalhe e correção.** O snapshot traz produtos por nota (uma consulta por viagem; leitura isolada com `logger.warn`
+`driver_snapshot_products_read_failed`; só sintético: 76 KB para 300 itens, viagem inteira extrapolada acima de 256 KiB). O detalhe da
+ocorrência ganhou `referenceNumber`, `declaredAmount` (`"0.00"` nunca `null`), `itemValues` (`unitValue` com 4 casas, senão o centavo da soma se perde) e
+`requirements`. A correção (T7.2b N1) usa o modo efetivo (`off` descarta; `required` recusa só `null` explícito). Golden compartilhado:
+`test/fixtures/occurrence-detail-values.golden.json` idêntico no painel.
+
+**Decisões pendentes e riscos abertos.** (a) O registro do motorista não abre a tratativa da 164. (b) `previous_items` não guarda número/valor da
+ocorrência. (c) T0.2 (tipos com `email_template_key` e `emails_contractor`) não medida em staging. (d) `requirements: null` por tipo inexistente sem
+integração. (e) M4: `{{quantidadeItem}}` com vírgula em modelo antigo. Gates e vermelhos: specs/247-\*/evidence.md.
