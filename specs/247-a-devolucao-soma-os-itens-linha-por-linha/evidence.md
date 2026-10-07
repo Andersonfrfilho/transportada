@@ -355,3 +355,17 @@ error: Cannot find module '../../src/trips/domain/occurrence-amount.policy.js' f
  1 fail
  1 error
 ```
+
+### T3.2 — `occurrence-amount.policy.ts`
+
+`apps/api-transportada/src/trips/domain/occurrence-amount.policy.ts` (≈135 linhas): texto do `numeric` →
+`bigint` (4 casas), produto em escala 8 → centavos meio para cima, soma das linhas já arredondadas,
+valor pago vencendo, formatação brasileira. Sem `Number`/`parseFloat`/`Math`. O contrato da T3.1 passou
+a verde (a regra de dinheiro do domínio fica 100% em `bigint`). Verde:
+
+```text
+$ bun run typecheck (raiz)   → exit 0
+$ bun --env-file=../../.env.test test --timeout 120000 (API, só contrato)
+ 10085 pass · 25 skip · 0 fail · Ran 10110 tests across 199 files
+$ bun run lint (API)         → exit 0
+```
