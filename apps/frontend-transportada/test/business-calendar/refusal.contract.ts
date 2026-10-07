@@ -10,6 +10,8 @@ import { BUSINESS_CALENDAR_REFUSAL_CODES } from '@/modules/company-settings/shar
 import { describeBusinessCalendarRefusal } from '@/modules/company-settings/shared/businessCalendarRefusal.service'
 import { BusinessCalendarRequestError } from '@/modules/company-settings/shared/businessCalendarRequest.service'
 
+const KNOWN_CODES: readonly string[] = BUSINESS_CALENDAR_REFUSAL_CODES
+
 function refusalWith(
   details: readonly { field: string; message: string }[],
   code = 'INVALID_REQUEST',
@@ -118,7 +120,7 @@ describe('código de cada recusa', () => {
       'BUSINESS_CALENDAR_REQUEST_FAILED',
       'BUSINESS_CALENDAR_RESPONSE_INVALID',
     ]) {
-      expect(BUSINESS_CALENDAR_REFUSAL_CODES).toContain(code)
+      expect(KNOWN_CODES).toContain(code)
     }
   })
 })

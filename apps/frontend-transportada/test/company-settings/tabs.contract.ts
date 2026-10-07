@@ -9,6 +9,7 @@ import {
   SETTINGS_PANEL_PLACEMENT,
   resolveCompanySettingsDataScope,
   resolveCompanySettingsTab,
+  resolveVisibleCompanySettingsTabs,
   resolveSettingsDataScope,
   settingsPanelsOf,
   settingsTabsOf,
@@ -126,6 +127,15 @@ describe('settings panel placement contract', () => {
     expect(resolveCompanySettingsDataScope('taxes').businessCalendar).toBe(false)
   })
 
+  /** A aba do calendário só existe para quem tem `settings.manage`: as rotas dela exigem a mesma permissão. */
+  test('sem `settings.manage` nenhuma aba de configurações existe, nem a do calendário', () => {
+    expect(resolveVisibleCompanySettingsTabs({ canManage: false })).toEqual([])
+    expect(resolveVisibleCompanySettingsTabs({ canManage: true })).toContain('businessCalendar')
+    expect(resolveVisibleCompanySettingsTabs({ canManage: true })).toEqual([
+      ...COMPANY_SETTINGS_TAB_IDS,
+    ])
+  })
+
   test('aba desconhecida cai na primeira', () => {
     expect(resolveCompanySettingsTab(undefined)).toBe('company')
     expect(resolveCompanySettingsTab('perfil-antigo')).toBe('company')
@@ -157,7 +167,7 @@ describe('settings panel placement contract', () => {
 
     // O escopo de dados não é mais derivado aqui: sobrou uma fonte só neste módulo, e ela é lida em
     // toda aba. Quem resolve escopo por aba agora são as telas que hospedam os painéis movidos.
-    expect(page).toContain('COMPANY_SETTINGS_TAB_IDS')
+    expect(page).toContain('resolveVisibleCompanySettingsTabs')
     expect(page).toContain('resolveCompanySettingsTab')
   })
 })

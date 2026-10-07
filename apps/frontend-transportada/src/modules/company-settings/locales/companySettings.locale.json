@@ -10,7 +10,8 @@
     "driverAllowance": "Diária do motorista",
     "entryKinds": "Espécies de lançamento",
     "quickReplies": "Respostas rápidas",
-    "settingsResolution": "Verificar configuração"
+    "settingsResolution": "Verificar configuração",
+    "businessCalendar": "Calendário"
   },
   "entryKinds": {
     "title": "Espécies de lançamento",

@@ -1,0 +1,429 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/* Spec 238 Fase 2: o calendário de dias úteis. Mobile-first: cada bloco é uma coluna e cresce com `min-width`. */
+.panel {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.panelHeading {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.panelHeading h2,
+.block h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.kicker {
+  margin: 0;
+  color: var(--color-copper-ink);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-slate-ink);
+  font-size: 0.9rem;
+}
+
+/* O aviso fixo do roteiro: o operador não pode ler "feriado" sem saber o que ele fecha. */
+.routingNotice {
+  margin: 0;
+  padding: var(--space-3);
+  border-left: 3px solid var(--color-copper);
+  color: var(--color-fog);
+  font-size: 0.9rem;
+  background: color-mix(in srgb, var(--color-copper) 8%, var(--color-asphalt) 92%);
+}
+
+.block {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-graphite) 86%, transparent),
+      color-mix(in srgb, var(--color-asphalt) 72%, transparent)
+    ),
+    color-mix(in srgb, var(--color-graphite) 65%, transparent);
+}
+
+.status,
+.alert {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.status {
+  color: var(--color-ready-ink);
+}
+
+.alert {
+  color: var(--color-alert);
+}
+
+.refusal {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-left: 3px solid var(--color-alert);
+  background: color-mix(in srgb, var(--color-alert) 8%, var(--color-asphalt) 92%);
+}
+
+.refusal p {
+  margin: 0;
+}
+
+.refusalShortcut {
+  min-height: var(--touch-target);
+  padding: 0 var(--space-1);
+  border: 0;
+  color: var(--color-alert);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  background: none;
+  cursor: pointer;
+}
+
+.horizonNotice {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-left: 3px solid var(--color-copper);
+  background: color-mix(in srgb, var(--color-copper) 8%, var(--color-asphalt) 92%);
+}
+
+.horizonNotice p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.fieldGrid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.field {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.fieldLabel {
+  color: var(--color-slate-ink);
+  font-size: 0.85rem;
+}
+
+.fieldWide {
+  grid-column: 1 / -1;
+}
+
+.input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.input:disabled {
+  color: var(--color-slate-ink);
+  cursor: not-allowed;
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--color-alert);
+}
+
+.fixedValue {
+  display: flex;
+  align-items: center;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px dashed color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size);
+}
+
+.fieldError {
+  margin: 0;
+  color: var(--color-alert);
+  font-size: 0.85rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.filters {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.resultCount {
+  margin: 0;
+  color: var(--color-slate-ink);
+  font-size: 0.85rem;
+}
+
+/* A tabela rola no próprio quadro: a página não rola de lado (`docs/frontend/responsive.md`). */
+.tableScroll {
+  position: relative;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.table th,
+.table td {
+  border-bottom: 1px solid var(--color-graphite);
+  padding: var(--space-2);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table tbody tr:nth-child(even) {
+  background: var(--color-graphite);
+}
+
+.sortButton {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  min-height: var(--touch-target);
+  padding: 0;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  background: none;
+  cursor: pointer;
+}
+
+.sortIndicator {
+  color: var(--color-copper-ink);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.pagination p {
+  margin: 0;
+  color: var(--color-slate-ink);
+  font-size: 0.85rem;
+}
+
+/*
+ * Abaixo de 40rem cada linha vira um cartão com o rótulo da coluna (`data-label`) ao lado do valor: a tabela larga
+ * escondia as ações atrás da rolagem. A partir de 40rem volta a ser tabela (mesmo molde de `cargo-receiving`).
+ */
+.table.stacked thead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.table.stacked,
+.table.stacked tbody,
+.table.stacked tr,
+.table.stacked td {
+  display: block;
+}
+
+.table.stacked tr {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-graphite);
+}
+
+.table.stacked td {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: start;
+  padding: 0;
+  border: 0;
+  overflow-wrap: anywhere;
+}
+
+.table.stacked td::before {
+  content: attr(data-label);
+  color: var(--color-slate-ink);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.overlay {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
+}
+
+.dialog {
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+  padding: var(--space-5);
+  overflow-y: auto;
+  color: var(--color-fog);
+  background: var(--color-graphite);
+  box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+}
+
+.dialog h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.dialog p {
+  margin: 0;
+}
+
+.dialogHeader {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.iconAction {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  color: var(--color-fog);
+  background: transparent;
+  cursor: pointer;
+}
+
+.dialogFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+@media (min-width: 40rem) {
+  .fieldGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .table.stacked {
+    display: table;
+  }
+
+  .table.stacked thead {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+
+  .table.stacked tbody {
+    display: table-row-group;
+  }
+
+  .table.stacked tr {
+    display: table-row;
+    padding: 0;
+  }
+
+  .table.stacked td {
+    display: table-cell;
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--color-graphite);
+  }
+
+  .table.stacked td::before {
+    content: none;
+  }
+
+  .dialog {
+    width: min(100% - var(--layout-gutter), 32rem);
+    height: auto;
+    max-height: 90vh;
+  }
+}
+
+@media (min-width: 64rem) {
+  .fieldGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

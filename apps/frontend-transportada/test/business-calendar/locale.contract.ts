@@ -26,8 +26,8 @@ function placeholdersOf(text: string): readonly string[] {
   return [...text.matchAll(/\{\{\s*(\w+)\s*\}\}/gu)].map((match) => match[1] ?? '').sort()
 }
 
-const PT = flatten(portuguese as Tree)
-const EN = flatten(english as Tree)
+const PT = flatten(portuguese)
+const EN = flatten(english)
 
 describe('paridade pt-BR × en do calendário', () => {
   test('as mesmas chaves nos dois idiomas', () => {

@@ -54,6 +54,13 @@ function names(): readonly string[] {
   return rowsOf(sectionOf(MUNICIPAL_HEADING)).map((row) => row.children[3]?.textContent ?? '')
 }
 
+/** O botão do cabeçalho carrega o rótulo, o indicador e o texto só-leitor: o nome não é o texto inteiro dele. */
+function sortButton(header: Element | undefined): HTMLButtonElement {
+  const button = header?.querySelector('button')
+  if (button === null || button === undefined) throw new Error('SORT_BUTTON_NOT_FOUND')
+  return button
+}
+
 function parameters(): URLSearchParams {
   return new URLSearchParams(window.location.search)
 }
@@ -104,7 +111,7 @@ describe('tabela dos feriados municipais (spec 238 T2.1, web.md §7)', () => {
       )
     expect(header()?.getAttribute('aria-sort')).toBe('none')
 
-    await click(buttonIn(header() ?? document.body, 'Nome'))
+    await click(sortButton(header()))
     expect(header()?.getAttribute('aria-sort')).toBe('ascending')
     expect(names()).toEqual([
       'Aniversário de Campinas',
@@ -115,12 +122,12 @@ describe('tabela dos feriados municipais (spec 238 T2.1, web.md §7)', () => {
     expect(parameters().get('municipalSort')).toBe('name')
     expect(parameters().get('municipalDir')).toBe('asc')
 
-    await click(buttonIn(header() ?? document.body, 'Nome'))
+    await click(sortButton(header()))
     expect(header()?.getAttribute('aria-sort')).toBe('descending')
     expect(names()[0]).toBe('Nossa Senhora da Luz')
     expect(parameters().get('municipalDir')).toBe('desc')
 
-    await click(buttonIn(header() ?? document.body, 'Nome'))
+    await click(sortButton(header()))
     expect(header()?.getAttribute('aria-sort')).toBe('none')
     expect(parameters().has('municipalSort')).toBe(false)
   })
@@ -176,7 +183,7 @@ describe('tabela dos feriados municipais (spec 238 T2.1, web.md §7)', () => {
     const nameHeader = [...sectionOf(MUNICIPAL_HEADING).querySelectorAll('thead th')].find((th) =>
       (th.textContent ?? '').startsWith('Nome'),
     )
-    await click(buttonIn(nameHeader ?? document.body, 'Nome'))
+    await click(sortButton(nameHeader))
 
     expect(hasButtonIn(sectionOf(MUNICIPAL_HEADING), 'Limpar filtros')).toBe(true)
   })

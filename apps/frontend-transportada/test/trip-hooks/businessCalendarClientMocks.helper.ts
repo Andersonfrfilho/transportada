@@ -68,11 +68,22 @@ function refuse(code: string, status: number): never {
   throw new BusinessCalendarRequestError({ code, status })
 }
 
+/** As chaves em ordem alfabética: o registro compara texto, e a ordem do objeto não é o que se está provando. */
+function stableStringify(value: unknown): string {
+  return JSON.stringify(value, (_key, entry: unknown) =>
+    typeof entry === 'object' && entry !== null && !Array.isArray(entry)
+      ? Object.fromEntries(
+          Object.entries(entry).sort(([left], [right]) => left.localeCompare(right)),
+        )
+      : entry,
+  )
+}
+
 async function record<TResult>(
   request: Readonly<{ body?: unknown; key: string; run: () => TResult }>,
 ): Promise<TResult> {
   const call =
-    request.body === undefined ? request.key : `${request.key} ${JSON.stringify(request.body)}`
+    request.body === undefined ? request.key : `${request.key} ${stableStringify(request.body)}`
   businessCalendarDouble.calls.push(call)
   const failure = businessCalendarDouble.failNext.get(request.key)
   if (failure === 'hold') return new Promise<TResult>(() => undefined)

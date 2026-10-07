@@ -10,7 +10,8 @@
     "driverAllowance": "Driver allowance",
     "entryKinds": "Entry kinds",
     "quickReplies": "Quick replies",
-    "settingsResolution": "Check configuration"
+    "settingsResolution": "Check configuration",
+    "businessCalendar": "Calendar"
   },
   "entryKinds": {
     "title": "Entry kinds",
