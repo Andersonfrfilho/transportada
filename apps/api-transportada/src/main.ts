@@ -654,6 +654,7 @@ import { createCargoArrivalSeparationRoutes } from './cargo-receiving/presentati
 import { createCargoArrivalRoutes } from './cargo-receiving/presentation/cargo-arrival.routes.js'
 import { createCargoArrivalOccurrenceHttpRoutes } from './cargo-receiving/cargo-arrival-occurrence.composition.js'
 import { createCargoPreviewHttpRoutes } from './cargo-receiving/cargo-preview.composition.js'
+import { createContractorPreviewEmailHttpRoutes } from './cargo-receiving/contractor-preview-email.composition.js'
 import { CARGO_ARRIVAL_CHANNEL } from './shared/cargo-arrival.constant.js'
 import { createContractorContactsUseCase } from './contractor-mail/application/contractor-contacts.use-case.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
@@ -3371,6 +3372,7 @@ function createApplicationRoutes({
         repository: receivingProfileRepository,
       }),
     }),
+    ...createContractorPreviewEmailHttpRoutes({ database, resolveClientIp }),
     ...createContractorReceivingProfileListRoutes({
       listProfiles: createListContractorReceivingProfilesUseCase({
         repository: receivingProfileRepository,

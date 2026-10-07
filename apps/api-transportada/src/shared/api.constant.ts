@@ -74,6 +74,10 @@ export const API_CONTRACTOR_CONTACT_PATH = '/contractors/:id/contacts/:contactId
 /** Spec 237 (ADR-0094): as regras de recebimento do contratante, como dado. */
 export const API_CONTRACTOR_RECEIVING_PROFILE_PATH = '/contractors/:id/receiving-profile'
 export const API_CONTRACTOR_RECEIVING_PROFILES_PATH = '/contractor-receiving-profiles'
+/** Spec 237 T4.6b (ADR-0094 §10): a entrada da prévia por e-mail encaminhado, no perfil do contratante. */
+export const API_CONTRACTOR_PREVIEW_EMAIL_PATH = '/contractors/:id/receiving-profile/preview-email'
+export const API_CONTRACTOR_INBOUND_TOKEN_PATH = '/contractors/:id/receiving-profile/inbound-token'
+export const API_CONTRACTOR_EMAIL_INTAKES_PATH = '/contractors/:id/receiving-profile/email-intakes'
 /** Spec 237 Fase 2: a chegada da carga e a primeira separação, antes da viagem (ADR-0094 §6). */
 export const API_CARGO_ARRIVALS_PATH = '/cargo-arrivals'
 export const API_CARGO_ARRIVAL_AVAILABLE_DOCUMENTS_PATH = '/cargo-arrivals/available-documents'
