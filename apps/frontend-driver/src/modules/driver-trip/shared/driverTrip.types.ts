@@ -410,6 +410,13 @@ export type DriverOccurrenceType = Readonly<{
   name: string
   /** Spec 218 D2: qual dos valores fixos o tipo de parada representa — escolhe a prévia do aviso. */
   stopKind?: DriverOccurrenceKind | null
+  /** Spec 247 T1.2: os campos opcionais da devolução com somas, tolerados antes de a API mandá-los. */
+  referenceNumberMode?: ProofFieldRequirement
+  referenceNumberLabel?: string
+  declaredAmountMode?: ProofFieldRequirement
+  declaredAmountScope?: string
+  declaredAmountLabel?: string
+  emailItemLineTemplate?: string
 }>
 
 /** ⚠️ Cópia por valor de `OCCURRENCE_TYPE_FLOWS` (spec 218 D1). */
@@ -434,6 +441,12 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     readonly photoMode?: unknown
     readonly signatureMode?: unknown
     readonly stopKind?: unknown
+    readonly referenceNumberMode?: unknown
+    readonly referenceNumberLabel?: unknown
+    readonly declaredAmountMode?: unknown
+    readonly declaredAmountScope?: unknown
+    readonly declaredAmountLabel?: unknown
+    readonly emailItemLineTemplate?: unknown
   }
   /** Ausente é a API anterior; presente, só no vocabulário — valor desconhecido não vira "sem exigência". */
   const hasKnownMode = [
@@ -442,6 +455,8 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     candidate.noteMode,
     candidate.photoMode,
     candidate.signatureMode,
+    candidate.referenceNumberMode,
+    candidate.declaredAmountMode,
   ].every(
     (mode) => mode === undefined || (PROOF_FIELD_REQUIREMENTS as readonly unknown[]).includes(mode),
   )
@@ -453,12 +468,23 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     candidate.stopKind === undefined ||
     candidate.stopKind === null ||
     (DRIVER_OCCURRENCE_KINDS as readonly unknown[]).includes(candidate.stopKind)
+  /** Spec 247: os novos campos das devoluções são opcionais (tolerância) e podem ser strings. */
+  const hasKnownDeclaredAmountScope =
+    candidate.declaredAmountScope === undefined ||
+    (typeof candidate.declaredAmountScope === 'string' &&
+      ['item', 'occurrence'].includes(candidate.declaredAmountScope))
+  const hasKnownNewFields =
+    (candidate.referenceNumberLabel === undefined || typeof candidate.referenceNumberLabel === 'string') &&
+    (candidate.declaredAmountLabel === undefined || typeof candidate.declaredAmountLabel === 'string') &&
+    (candidate.emailItemLineTemplate === undefined || typeof candidate.emailItemLineTemplate === 'string')
   return (
     typeof candidate.id === 'string' &&
     typeof candidate.name === 'string' &&
     hasKnownMode &&
     hasKnownFlow &&
-    hasKnownStopKind
+    hasKnownStopKind &&
+    hasKnownDeclaredAmountScope &&
+    hasKnownNewFields
   )
 }
 
