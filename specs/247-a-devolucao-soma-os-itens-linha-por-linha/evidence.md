@@ -215,3 +215,82 @@ not found` (`0 pass 1 fail 1 error`); com a classe e sem a tradução, o teste 5
 - Contrato da API: `10061 pass · 25 skip · 0 fail · Ran 10086 tests across 199 files`.
 - `db:test` (Postgres nativo): `141 pass · 0 fail · Ran 141 tests across 8 files`.
 - Integração do arquivo novo (Postgres nativo): `5 pass · 0 fail · Ran 5 tests across 1 file`.
+
+### T2.4 — Mutações da T2.3
+
+**Status**: ✅ Completo — as três vermelhas, revertidas por `git checkout -- <migration.sql>` e verde depois.
+
+Cada mutação foi aplicada no `migration.sql` (é ele que o banco executa), e o mesmo comando rodou
+contra o Postgres nativo descartável:
+`bun --env-file=../../.env.test test --timeout 120000 ./test/integration/occurrence-declared-amount.integration.ts ./test/database-migration.contract.test.ts`
+(com `DRIZZLE_TEST_DATABASE_URL`/`API_TEST_DATABASE_URL`/`DATABASE_URL` no cluster nativo).
+
+**(1) padrão `'optional'` em `declared_amount_mode`**
+
+```text
+-ALTER TABLE "company_occurrence_types" ADD COLUMN "declared_amount_mode" varchar(16) DEFAULT 'off' NOT NULL;
++ALTER TABLE "company_occurrence_types" ADD COLUMN "declared_amount_mode" varchar(16) DEFAULT 'optional' NOT NULL;
+
+error: expect(received).toEqual(expected)
+-   "declaredAmountMode": "off",
++   "declaredAmountMode": "optional",
+(fail) … (spec 247 T2.3) > tipo novo nasce com os padrões e a exceção nasce nula — herda do tipo
+ApiError: A declared amount per item requires the occurrence type to carry items.  (status: 422)
+(fail) … (spec 247 T2.3) > valor pago por item exige produtos; pela ocorrência, ou desligado, não
+error: Missing fragment: ALTER TABLE "company_occurrence_types" ADD COLUMN "declared_amount_mode" varchar(16) DEFAULT 'off' NOT NULL;
+(fail) … (spec 247 T2.2) > colunas com padrão constante no tipo, nulas nas exceções; CHECKs depois; sem UPDATE
+PostgresError: a restrição de verificação "company_occurrence_types_declared_amount_items_check" da relação "company_occurrence_types" é violada por alguma linha
+(fail) Drizzle migration integration > applies, constrains, rolls back, and reapplies the fiscal migration
+ 105 pass
+ 4 fail
+Ran 109 tests across 2 files. [11.22s]
+```
+
+A última falha é a prova do ajuste 3: com o padrão ligado, a reaplicação sobre o tipo semeado com
+`items_mode = 'off'` quebra o `ADD CONSTRAINT`.
+
+**(2) sem a CHECK `declared_amount_items`**
+
+```text
+-ALTER TABLE "company_occurrence_types" ADD CONSTRAINT "company_occurrence_types_declared_amount_items_check" CHECK (…);
+
+error: expect(received).toBe(expected)
+Expected: "company_occurrence_types_declared_amount_items_check"
+Received: "accepted"
+(fail) … (spec 247 T2.3) > valor pago por item exige produtos; pela ocorrência, ou desligado, não
+error: Expected promise that rejects
+(fail) … (spec 247 T2.3) > na corrida do PUT, a CHECK de forma vira 422 do domínio e nada é gravado
+error: Missing fragment: "company_occurrence_types_declared_amount_items_check"
+(fail) … (spec 247 T2.2) > colunas com padrão constante no tipo, nulas nas exceções; CHECKs depois; sem UPDATE
+error: expect(received).toHaveLength(expected)
+Expected length: 15
+(fail) Drizzle migration integration > applies, constrains, rolls back, and reapplies the fiscal migration
+ 105 pass
+ 4 fail
+Ran 109 tests across 2 files. [12.14s]
+```
+
+**(3) padrão não nulo na exceção**
+
+```text
+-ALTER TABLE "company_occurrence_type_contractor_overrides" ADD COLUMN "reference_number_mode" varchar(16);
++ALTER TABLE "company_occurrence_type_contractor_overrides" ADD COLUMN "reference_number_mode" varchar(16) DEFAULT 'off';
+
+error: expect(received).toEqual(expected)
+-     "referenceNumberMode": null,
++     "referenceNumberMode": "off",
+(fail) … (spec 247 T2.3) > tipo novo nasce com os padrões e a exceção nasce nula — herda do tipo
+error: Missing fragment: ALTER TABLE "company_occurrence_type_contractor_overrides" ADD COLUMN "reference_number_mode" varchar(16);
+(fail) … (spec 247 T2.2) > colunas com padrão constante no tipo, nulas nas exceções; CHECKs depois; sem UPDATE
+ 107 pass
+ 2 fail
+Ran 109 tests across 2 files. [13.61s]
+```
+
+**Revertidas** (`git status --short` limpo) — mesmo comando:
+
+```text
+ 109 pass
+ 0 fail
+Ran 109 tests across 2 files. [13.45s]
+```

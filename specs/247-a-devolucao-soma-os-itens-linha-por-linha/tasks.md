@@ -44,7 +44,7 @@ explícita do `package.json` da app.
 - [x] **T2.3** Integração da migration (`test/integration/occurrence-declared-amount.integration.ts`,
       na lista do `package.json`): tipo semeado antes recebe os defaults; exceção recebe nulo; CHECKs
       recusam `declared_amount_scope='item'` com `items_mode='off'`, valor negativo, número inválido.
-- [ ] **T2.4** Mutações da T2.3, cada uma vermelha registrada: (1) default `'optional'` em
+- [x] **T2.4** Mutações da T2.3, cada uma vermelha registrada: (1) default `'optional'` em
       `declared_amount_mode`; (2) tirar a CHECK `declared_amount_items`; (3) default não nulo na
       exceção.
 
