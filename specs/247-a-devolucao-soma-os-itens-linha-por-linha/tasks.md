@@ -85,7 +85,7 @@ OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`; `PUT` sem os campos mantém os gra
 - [x] **T4.5** **CA03 — só a configuração decide.** Contrato + integração com os quatro tipos do
       `plan.md` § Testes; mutações registradas: `if` pelo nome do tipo; ler o modo do tipo em vez do
       efetivo.
-- [ ] **T4.6** Snapshot do motorista com produtos por nota (uma consulta por viagem); medir o
+- [x] **T4.6** Snapshot do motorista com produtos por nota (uma consulta por viagem); medir o
       tamanho com a maior nota de staging e registrar.
 - [ ] **T4.7** `readOccurrenceTemplateValues`, prévia e aviso automático com os valores novos;
       integração do registro ao aviso automático com o modelo do SAC (CA01).

@@ -906,3 +906,113 @@ lote 4 (51 arquivos): 196 pass · 1 skip · 0 fail   [178.46s]
 ```
 
 Os `skip` não são testes desta task (nenhum arquivo novo pula).
+
+## T4.6 — snapshot do motorista com produtos por nota (2026-10-07)
+
+**O que mudou** (`apps/api-transportada/src`):
+
+- `trips/domain/driver-document-products.policy.ts` (novo, puro): `buildDriverDocumentProducts` — um item **por código**
+  (`code`, `description`, `unit` = `uCom`, `quantity` = soma das linhas, `unitValue` da linha de menor ordinal,
+  `hasVaryingUnitValue`), pela mesma `resolveDocumentProductPricing` do registro; `refineDeclaredAmountScopeForDocument`
+  — o escopo `item` numa nota sem produto vira `occurrence` (`resolveDeclaredAmountTarget`).
+- `trips/infrastructure/drizzle-current-driver-trip.repository.ts`: **uma** consulta a `nfe_products` para todas as notas
+  de todas as viagens ativas do motorista (`listDocumentProducts`, `inArray` + `orderBy documentId, ordinal`), isolada do
+  `Promise.all` com `.catch(() => null)` (refinamento; se falhar, a nota sai **sem** `products` e o app oferece a nota
+  inteira). `products: []` é nota sem produto; ausente é leitura que falhou.
+- `FieldOccurrenceType` (`list-field-occurrence-types.use-case.ts`) publica os cinco campos novos (`referenceNumberMode`,
+  `referenceNumberLabel`, `declaredAmountMode`, `declaredAmountScope`, `declaredAmountLabel`); o escopo sai **efetivo**
+  (`resolveDeclaredAmountTarget` com o `itemsMode` efetivo; o tipo não conhece a nota, então `lineCount: 1`, e a nota sem
+  produto refina no snapshot). Os modos já vêm resolvidos por contratante/destinatário.
+- `read-settings-resolution.use-case.ts`: a verificação passa a devolver os onze campos e a camada de cada um (o painel já
+  os tolera desde a etapa 1b); antes publicava só os seis da 246.
+
+**Parsers (fixtures reais, não escritas à mão).** A integração `driver-snapshot-products.integration.ts` serializa o
+documento do snapshot contra Postgres e o compara com `test/fixtures/driver-snapshot-document.golden.json`; o contrato
+`driver-snapshot-products.contract.ts` faz o mesmo com a verificação (`settings-resolution.golden.json`, saída real de
+`readSettingsResolution`). Os JSONs são copiados para `frontend-driver/test/fixtures/` e `frontend-transportada/test/fixtures/`
+(nenhuma app importa código de outra) e o contrato da API prova que as três cópias são **idênticas byte a byte**. Passam:
+`toDriverTripSnapshot` do app do motorista (tipo efetivo preservado com os campos novos; `isDriverOccurrenceType` aceita),
+`toDriverTripSnapshot`, `fieldOccurrenceTypesFromApi` e `isSettingsResolutionView` do painel.
+
+⚠️ **Lacuna para a Fase 5, não corrigida aqui:** o parser do app do motorista (`driverTripResponse.validation.ts`,
+`toDocument`) **ignora** `products` — a chave é tolerada (não quebra), mas não chega à tela. A T5.x do app precisa lê-la.
+
+### Tamanho do snapshot (medido com fixture sintética; **a medição em staging NÃO foi feita** — sem acesso por credencial)
+
+```text
+300 itens, 1 nota (descrição de 120 caracteres, código longo): 76 201 bytes   (254 B por item)
+50 itens típicos (descrição de ~35 caracteres):                   7 641 bytes   (153 B por item)
+extrapolado, 40 notas × 50 itens típicos (1 viagem):            305 640 bytes
+extrapolado, 3 notas de 300 itens:                               228 603 bytes
+```
+
+O contrato afirma `< 100 000` bytes para a nota de 300 itens. **A maior nota plausível cabe (76 KB), mas a viagem inteira
+pode passar de 200 KB** quando tem dezenas de notas de dezenas de itens (extrapolação, não medida em dado real). O plano
+manda paginar acima de 256 KiB por viagem; isso fica registrado como risco aberto para decisão, não resolvido nesta task.
+
+### Vermelho antes do código
+
+```text
+$ bun --env-file=../../.env.test test --timeout 120000 ./test/trip-occurrence.contract.test.ts
+error: Cannot find module '../../src/trips/domain/driver-document-products.policy.js' from '.../driver-snapshot-products.contract.ts'
+ 0 pass
+ 1 fail
+ 1 error
+```
+
+O contrato foi escrito e visto vermelho antes da política. A integração foi escrita junto do código: o vermelho dela é o
+das mutações abaixo.
+
+### Testes existentes alterados (e por quê)
+
+- `test/fixtures/field-occurrence-type.fixture.ts` (`buildFieldOccurrenceType`): ganhou os cinco campos novos com os padrões do
+  tipo (`off`, `item`, rótulos padrão). Os três testes de `field-catalog.contract.ts` comparam o tipo inteiro com `toEqual`; o tipo
+  passou a publicar os campos, então a fixture espelha o que a API devolve.
+- `test/integration/me-trip.integration.ts` ("o override de contratante muda o attachmentMode…"): as duas notas do cenário
+  não têm `nfe_products`, e o escopo efetivo do valor pago da nota sem produto é `occurrence` — o teste esperava `item`.
+
+### Mutações (cada uma sozinha, rodada e revertida; contrato + integração dos arquivos novos)
+
+```text
+M1 — uma consulta por nota (N+1) no lugar da consulta única:
+(fail) ... > uma consulta aos produtos para a viagem inteira, com uma nota ou com várias
+ 661 pass · 1 fail
+M2 — não refinar o escopo pela nota (a nota sem produto fica com `item`):
+(fail) ... > o tipo efetivo leva os campos novos; nota sem produto e exceção sem Produtos levam o valor pago à ocorrência
+ 661 pass · 1 fail
+M3 — publicar o escopo cru do tipo, sem o `itemsMode` efetivo:
+(fail) o tipo efetivo do snapshot com os campos novos (spec 247 T4.6) > o escopo publicado é o efetivo: Produtos desligado pela exceção leva o valor pago à ocorrência
+ 661 pass · 1 fail
+M4 — `products` fora do documento:
+(fail) ... > a nota com produtos traz um item por código; a nota sem produto traz lista vazia
+(fail) ... > o documento serializado é o JSON de referência que o painel e o app do motorista leem
+ 660 pass · 2 fail
+base restaurada: 662 pass · 0 fail
+```
+
+### Gates
+
+```text
+$ bun run typecheck                      (raiz)  → tsc --noEmit ×4, sem erro
+$ bun run lint                           (apps/api-transportada) → eslint --max-warnings=0, sem saída
+$ bun run format:check                   (raiz)  → All matched files use Prettier code style!
+$ bun --env-file=../../.env.test test --timeout 120000   (contrato, apps/api-transportada)
+ 10342 pass
+ 25 skip
+ 0 fail
+Ran 10367 tests across 200 files. [43.71s]
+$ bun run test (apps/frontend-driver)  → 1252 pass · 0 fail
+$ bun run test (apps/frontend-transportada) → 7222 pass nas suítes · driver-trip 838 pass · 0 fail
+```
+
+Integração completa (208 arquivos da lista `test:integration`), quatro lotes em primeiro plano, Postgres 18 nativo
+descartável (`127.0.0.1:56249`, diretório no scratchpad), `DATABASE_URL` por variável de ambiente:
+
+```text
+lote 1 (52 arquivos): 363 pass · 1 fail (me-trip, esperava `item`; corrigido e o arquivo passou sozinho: 21 pass)  [292.06s]
+lote 2 (52 arquivos): 308 pass · 7 skip · 0 fail   [163.05s]
+lote 3 (52 arquivos): 245 pass · 0 fail            [185.66s]
+lote 4 (52 arquivos): 200 pass · 1 skip · 0 fail   [185.71s]
+```
+
+Os `skip` não são testes desta task (nenhum arquivo novo pula).
