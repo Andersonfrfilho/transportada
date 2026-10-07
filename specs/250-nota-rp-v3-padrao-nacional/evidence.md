@@ -140,3 +140,27 @@ Numeração conferida contra `origin/staging` (última: `20261007140303_business
 - `bun run typecheck`: 11 erros, **todos em `test/` e todos de símbolos da T2.4**
   (`nfse-provider-request-key.policy`, `findLatestIssueAttempt`, `providerRequestKey`, `correction.nationalTaxationCode`);
   `src/` sem erro.
+
+## E12 — T2.4: reemissão com o código nacional e a chave do provedor (07/10/2026)
+
+- `correction` aceita `nationalTaxationCode` (`^\d{6}$`) e `simplesNationalRate` (mesma regex do perfil,
+  `NFSE_SIMPLES_NATIONAL_RATE_PATTERN` em `nfse.schema.ts`) no schema da rota e na política; os campos entram no
+  `payload` novo e na digital do pedido (corrigir e repetir a chave é pedido novo). Com `v3`, reemitir um
+  payload que ainda não tem os dois (e a correção não os traz) dá `409 NFSE_NATIONAL_TAXATION_CODE_MISSING`
+  antes de qualquer escrita.
+- Regra da chave em função pura: `src/nfse-invoices/domain/nfse-provider-request-key.policy.ts`
+  (`resolveInheritedProviderRequestKey`). Copia a chave só se a tentativa anterior está `failed`, **sem**
+  `providerDocumentId` na nota e com `last_error_cause` ∈ {`timeout`, `transport_failure`} e chave gravada;
+  qualquer outro caso (primeira tentativa, rejeitada, ambígua sem chave, outra causa, outro status) devolve
+  `undefined` e a chave da tentativa nova é o próprio `attemptId`.
+- Repositório: `createAttempt` gera o `id` da tentativa no código (`randomUUID`) para gravar
+  `provider_request_key = id` já no INSERT (tentativas de emissão; cancelamento fica sem chave) ou a chave
+  herdada; `request_fingerprint` único por tentativa **inalterado** (continua o `sha256(fingerprint:número)`).
+  `findLatestIssueAttempt` (porta, repositório, `buildLatestIssueAttemptFilters` com contrato de isolamento por
+  empresa em `invoice-query-tenant-safety.contract.ts`) lê causa/chave da última emissão e o
+  `providerDocumentId` da nota.
+- Mutação: ampliar o conjunto de causas (`unexpected_status`) derruba "causa que não é de transporte";
+  remover a guarda do `providerDocumentId` derruba "o provedor já devolveu o id". Restaurados.
+- `bun test` de nfse-schema, nfse-domain, nfse-invoices-application, nfse-profiles, nfse-invoices-http,
+  nfse-callbacks, env-example, composition e test-registry -> **396 pass / 0 fail**.
+- `bun run typecheck` -> 0 erros. `bunx eslint` e `bunx prettier --check` limpos. `db:generate` -> `no_changes`.

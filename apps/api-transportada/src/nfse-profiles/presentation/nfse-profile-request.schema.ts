@@ -11,6 +11,7 @@ import {
   NFSE_FISCAL_ENVIRONMENTS,
   NFSE_ISS_EXIGIBILITIES,
   NFSE_NATIONAL_TAXATION_CODE_PATTERN,
+  NFSE_SIMPLES_NATIONAL_RATE_PATTERN,
   NFSE_TAKERS,
 } from '../../database/nfse.schema.js'
 import { buildTaxIdSchema } from '../../shared/tax-id.schema.js'
@@ -21,13 +22,11 @@ const IBGE_CITY = /^[0-9]{7}$/
 const POSITIVE_BIGINT = /^[1-9][0-9]{0,18}$/
 const RATE_DECIMAL = /^(?:0\.[0-9]{6}|1\.000000)$/
 const NFSE_NATIONAL_TAXATION_CODE = new RegExp(NFSE_NATIONAL_TAXATION_CODE_PATTERN)
-// Percentual de 0 a 100 com até seis casas: `2`, `2.00` e `4.500000` valem; `-1`, `2,00` e `1e2` não.
-const NFSE_SIMPLES_NATIONAL_RATE = /^(?:(?:[0-9]|[1-9][0-9])(?:\.[0-9]{1,6})?|100(?:\.0{1,6})?)$/
 
 const DEFAULT_DESCRIPTION_MAX_LENGTH = '2000'
 
 const nationalTaxationCodeSchema = z.string().regex(NFSE_NATIONAL_TAXATION_CODE)
-const simplesNationalRateSchema = z.string().regex(NFSE_SIMPLES_NATIONAL_RATE)
+const simplesNationalRateSchema = z.string().regex(NFSE_SIMPLES_NATIONAL_RATE_PATTERN)
 
 const descriptionMaxLengthSchema = z
   .string()

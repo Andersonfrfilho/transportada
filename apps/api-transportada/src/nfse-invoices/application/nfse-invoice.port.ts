@@ -15,6 +15,7 @@ import type {
   NfseServiceInvoiceStatus,
   NfseTaker,
 } from '../../database/nfse.schema.js'
+import type { NfseIssuanceAttemptHistory } from '../domain/nfse-provider-request-key.policy.js'
 import type { NfseSelectionDocument } from '../domain/nfse-selection.policy.js'
 
 export type NfseInvoiceCompanyContext = {
@@ -125,6 +126,8 @@ export type CreateNfseIssuanceAttemptInput = {
   readonly fiscalEnvironment: NfseFiscalEnvironment
   readonly idempotencyKey: string
   readonly invoiceId: string
+  /** Ausente, a chave do provedor é o próprio `attemptId`; presente, é a herdada de uma tentativa ambígua. */
+  readonly providerRequestKey?: string
   readonly requestFingerprint: string
 }
 
@@ -394,6 +397,9 @@ export type NfseInvoiceTransactionPort = NfseInvoiceReaderPort & {
   findInvoiceForUpdate(input: {
     readonly invoiceId: string
   }): Promise<NfseInvoiceCancellationTarget | null>
+  findLatestIssueAttempt(input: {
+    readonly invoiceId: string
+  }): Promise<NfseIssuanceAttemptHistory | null>
   linkDocuments(input: LinkNfseInvoiceDocumentsInput): Promise<void>
   markCancellationRequested(input: MarkNfseInvoiceCancellationInput): Promise<void>
   markDiscarded(input: MarkNfseInvoiceDiscardedInput): Promise<void>

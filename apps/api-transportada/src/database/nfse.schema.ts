@@ -126,6 +126,9 @@ export type NfseIssuanceOutboxStatus = (typeof NFSE_ISSUANCE_OUTBOX_STATUSES)[nu
 
 const IBGE_CITY_PATTERN = '^[0-9]{7}$'
 export const NFSE_NATIONAL_TAXATION_CODE_PATTERN = '^[0-9]{6}$'
+/** Percentual de 0 a 100 com até seis casas: `2`, `2.00` e `4.500000` valem; `-1`, `2,00` e `1e2` não. */
+export const NFSE_SIMPLES_NATIONAL_RATE_PATTERN =
+  /^(?:(?:[0-9]|[1-9][0-9])(?:\.[0-9]{1,6})?|100(?:\.0{1,6})?)$/
 const CNAE_PATTERN = '^[0-9]{7}$'
 const CNPJ_PATTERN = '^[A-Z0-9]{12}[0-9]{2}$'
 const TAX_ID_OR_CNPJ_PATTERN = '^[0-9]{11}$|^[A-Z0-9]{12}[0-9]{2}$'

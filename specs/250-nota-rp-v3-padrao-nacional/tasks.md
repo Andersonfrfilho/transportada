@@ -43,7 +43,7 @@ Teste novo entra na lista explícita do `package.json` da app.
 - [x] **T2.3** Perfil (mapper, schema Zod, rotas), `freezeNfseIssuancePayload` e `FrozenPayloadShape`
       com os dois campos; `NFSE_PROVIDER_API_VERSION` no schema de env da API e em `providerConfig`;
       erro de bloqueio nomeado (spec 044).
-- [ ] **T2.4** Reemissão: `correction.nationalTaxationCode` e `correction.simplesNationalRate` na API e
+- [x] **T2.4** Reemissão: `correction.nationalTaxationCode` e `correction.simplesNationalRate` na API e
       na política de correção; **reuso de `provider_request_key`** quando a tentativa anterior terminou
       ambígua (sem `providerDocumentId` e com causa de transporte).
 - [ ] **T2.5** Conferir `bun --env-file=../../.env.test run test:integration` nos arquivos tocados.

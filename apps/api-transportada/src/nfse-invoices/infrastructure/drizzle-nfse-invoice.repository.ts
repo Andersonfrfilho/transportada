@@ -1,6 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { randomUUID } from 'node:crypto'
+
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, asc, desc, sql } from 'drizzle-orm'
 
@@ -44,6 +46,7 @@ import {
   buildInvoiceListFilters,
   buildInvoiceScopeFilters,
   buildLatestAttemptFilters,
+  buildLatestIssueAttemptFilters,
   buildPendingOutboxFilters,
   buildStoredObjectFilters,
 } from './nfse-invoice-query.query.js'
@@ -81,6 +84,7 @@ import type {
   ReleaseNfseInvoiceLinksInput,
   SaveNfseIssuancePayloadInput,
 } from '../application/nfse-invoice.port.js'
+import type { NfseIssuanceAttemptHistory } from '../domain/nfse-provider-request-key.policy.js'
 import type { NfseSelectionDocument } from '../domain/nfse-selection.policy.js'
 import { findNfseSelectionDocuments } from './nfse-invoice-selection.query.js'
 
@@ -241,6 +245,9 @@ function createScopedTransaction(
     },
     async findInvoiceForUpdate(input) {
       return findInvoiceForUpdate(transaction, companyId, input.invoiceId)
+    },
+    async findLatestIssueAttempt(input) {
+      return findLatestIssueAttempt(transaction, companyId, input.invoiceId)
     },
     async findLatestPayload(input) {
       return findLatestPayload(transaction, input.companyId, input.invoiceId)
@@ -551,6 +558,37 @@ async function findInvoiceForUpdate(
   if (record === undefined) return null
 
   return { invoiceId: record.id, status: record.status, version: record.version.toString() }
+}
+
+/**
+ * O que a emissão anterior deixou: o `providerDocumentId` mora na nota (é ela que o provedor numera),
+ * a causa e a chave na tentativa. A reemissão só decide se herda a chave com os dois à vista.
+ */
+async function findLatestIssueAttempt(
+  transaction: NfseTransaction,
+  companyId: string,
+  invoiceId: string,
+): Promise<NfseIssuanceAttemptHistory | null> {
+  const scope = { companyId, invoiceId }
+  const [attempt] = await transaction
+    .select({
+      lastErrorCause: nfseIssuanceAttempts.lastErrorCause,
+      providerRequestKey: nfseIssuanceAttempts.providerRequestKey,
+      status: nfseIssuanceAttempts.status,
+    })
+    .from(nfseIssuanceAttempts)
+    .where(and(...buildLatestIssueAttemptFilters(scope)))
+    .orderBy(desc(nfseIssuanceAttempts.attemptNumber))
+    .limit(1)
+  if (attempt === undefined) return null
+
+  const [invoice] = await transaction
+    .select({ providerDocumentId: nfseServiceInvoices.providerDocumentId })
+    .from(nfseServiceInvoices)
+    .where(and(...buildInvoiceScopeFilters(scope)))
+    .limit(1)
+
+  return { ...attempt, providerDocumentId: invoice?.providerDocumentId ?? null }
 }
 
 /** Devolve as NF-e para a seleção na mesma transação do pedido de cancelamento. */
@@ -906,6 +944,20 @@ async function findAttemptByIdempotencyKey(
   return record === undefined ? null : mapAttempt(record)
 }
 
+/**
+ * A chave do provedor da emissão é o `attemptId` — gerado aqui para valer já no INSERT — salvo quando a
+ * reemissão herda a da tentativa ambígua. Cancelamento não fala `hash_pedido`: fica sem chave.
+ */
+function buildProviderRequestKeyColumn(params: {
+  readonly attemptId: string
+  readonly input: CreateNfseIssuanceAttemptInput
+}): { readonly providerRequestKey?: string } {
+  if (params.input.providerRequestKey !== undefined) {
+    return { providerRequestKey: params.input.providerRequestKey }
+  }
+  return params.input.attemptKind === 'issue' ? { providerRequestKey: params.attemptId } : {}
+}
+
 async function createAttempt(
   transaction: NfseTransaction,
   companyId: string,
@@ -914,15 +966,18 @@ async function createAttempt(
   const attemptNumber = sql`coalesce((select max(${nfseIssuanceAttempts.attemptNumber}) from ${nfseIssuanceAttempts} where ${nfseIssuanceAttempts.companyId} = ${companyId} and ${nfseIssuanceAttempts.invoiceId} = ${input.invoiceId}), 0) + 1`
   // A coluna única tem de distinguir tentativas: reemitir duas vezes o mesmo pedido é legítimo.
   const uniqueRequestFingerprint = sql<string>`encode(sha256(convert_to(${input.requestFingerprint} || ':' || (${attemptNumber})::text, 'UTF8')), 'hex')`
+  const attemptId = randomUUID()
   const [record] = await transaction
     .insert(nfseIssuanceAttempts)
     .values({
+      ...buildProviderRequestKeyColumn({ attemptId, input }),
       attemptKind: input.attemptKind,
       attemptNumber,
       companyId,
       correlationId: input.correlationId,
       fiscalEnvironment: input.fiscalEnvironment,
       idempotencyFingerprint: input.requestFingerprint,
+      id: attemptId,
       idempotencyKey: input.idempotencyKey,
       invoiceId: input.invoiceId,
       requestFingerprint: uniqueRequestFingerprint,

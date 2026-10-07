@@ -137,6 +137,15 @@ export function buildLatestAttemptFilters(scope: NfseInvoiceScope): readonly SQL
   ]
 }
 
+/** A emissão anterior é a última tentativa de emitir da nota: cancelamento não entra na herança da chave. */
+export function buildLatestIssueAttemptFilters(scope: NfseInvoiceScope): readonly SQL[] {
+  return [
+    eq(nfseIssuanceAttempts.companyId, scope.companyId),
+    eq(nfseIssuanceAttempts.invoiceId, scope.invoiceId),
+    eq(nfseIssuanceAttempts.attemptKind, 'issue'),
+  ]
+}
+
 /**
  * Só a linha ainda não publicada carrega quando a próxima entrega acontece — publicada, a data é
  * a da entrega que já saiu, e mostrá-la seria prometer uma tentativa que não vem.
