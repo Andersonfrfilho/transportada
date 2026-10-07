@@ -366,7 +366,7 @@
   },
   "reassignedTrip": {
     "dismiss": "Got it",
-    "notice": "This trip was transferred to another driver or helper. What you delivered and recorded remains with the trip."
+    "notice": "This trip is no longer yours — it was passed to another driver or helper, or sent back to the office's planning. What you delivered and recorded remains with the trip. Contact the office if you need more detail."
   },
   "serviceWorkerUpdate": {
     "apply": "Update",

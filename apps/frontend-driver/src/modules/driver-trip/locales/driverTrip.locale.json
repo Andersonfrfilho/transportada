@@ -373,7 +373,7 @@
   },
   "reassignedTrip": {
     "dismiss": "Entendi",
-    "notice": "Esta viagem foi passada para outro motorista ou ajudante. O que você entregou e registrou fica com a viagem."
+    "notice": "Esta viagem não está mais com você — foi passada para outro motorista ou ajudante, ou voltou para o planejamento do escritório. O que você entregou e registrou fica com a viagem. Fale com o escritório se precisar de mais detalhes."
   },
   "serviceWorkerUpdate": {
     "apply": "Atualizar",
